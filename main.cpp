@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <vector>
 #include <memory>
+#include <fstream>
+#include <iostream>
 
 extern "C" {
 #include <dlfcn.h>
@@ -211,17 +213,13 @@ int main(int argc, const char *argv[]) {
     return EXIT_FAILURE;
 
   // Open output file
-  FilePointer OutputFile;
-  if (Parameters.OutputPath != nullptr)
-    OutputFile.reset(fopen(Parameters.OutputPath, "w"));
-  else
-    OutputFile.reset(stdout);
-
-  // Check if the file was opened
-  if (OutputFile.get() == nullptr) {
-    fprintf(stderr, "Couldn't open output file %s.\n", Parameters.OutputPath);
-    return EXIT_FAILURE;
-  }
+  std::ostream *Output = nullptr;
+  std::fstream OutputFile;
+  if (Parameters.OutputPath != nullptr) {
+    OutputFile.open(Parameters.OutputPath, std::fstream::out);
+    Output = &OutputFile;
+  } else
+    Output = &std::cout;
 
   // Read the input from the appropriate file
   std::vector<uint8_t> Code;
@@ -229,7 +227,7 @@ int main(int argc, const char *argv[]) {
     return EXIT_FAILURE;
 
   // Translate everything
-  Translate(OutputFile.get(),
+  Translate(*Output,
             llvm::ArrayRef<uint8_t>(Code.data() + Parameters.Offset,
                                     Code.size() - Parameters.Offset));
 

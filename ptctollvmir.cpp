@@ -2,6 +2,7 @@
 /// \brief  This file handles the translation from QEMU's PTC to LLVM IR.
 
 #include <cstdint>
+#include <sstream>
 
 // LLVM API
 #include "llvm/IR/Constants.h"
@@ -10,7 +11,9 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Metadata.h"
 
+#include "ptctollvmir.h"
 #include "revamb.h"
 #include "ptcinterface.h"
 #include "ptcdump.h"
@@ -42,7 +45,7 @@ public:
   ///
   /// @param Delimiter the new point where to insert allocations for local
   /// variables.
-  /// @param Instructions the new PTCInstructionList to use from now on. 
+  /// @param Instructions the new PTCInstructionList to use from now on.
  void newFunction(llvm::Instruction *Delimiter=nullptr,
                    PTCInstructionList *Instructions=nullptr) {
     LocalTemporaries.clear();
@@ -379,7 +382,7 @@ static unsigned getRegisterSize(unsigned Opcode) {
   }
 }
 
-int Translate(FILE *OutputFile, llvm::ArrayRef<uint8_t> Code) {
+int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
   const uint8_t *CodePointer = Code.data();
   const uint8_t *CodeEnd = CodePointer + Code.size();
 
@@ -402,6 +405,9 @@ int Translate(FILE *OutputFile, llvm::ArrayRef<uint8_t> Code) {
   Builder.SetInsertPoint(Entry);
   llvm::Instruction *Delimiter = Builder.CreateUnreachable();
 
+  unsigned OriginalInstrMDKind = Context.getMDKindID("oi");
+  unsigned PTCInstrMDKind = Context.getMDKindID("pi");
+
   VariableManager Variables(*Module);
 
   // TODO: move me somewhere where it makes sense
@@ -420,13 +426,26 @@ int Translate(FILE *OutputFile, llvm::ArrayRef<uint8_t> Code) {
                                  InstructionList.get());
 
     Variables.newFunction(Delimiter, InstructionList.get());
+    unsigned j = 0;
 
-    for (unsigned j = 0; j < InstructionList->instruction_count; j++) {
+    while (j < InstructionList->instruction_count &&
+           InstructionList->instructions[j].opc !=
+           PTC_INSTRUCTION_op_debug_insn_start) {
+      j++;
+    }
+
+    assert(j < InstructionList->instruction_count);
+
+    llvm::MDNode* MDOriginalInstr = nullptr;
+
+    for (; j < InstructionList->instruction_count; j++) {
       PTCInstruction Instruction = InstructionList->instructions[j];
       PTCOpcode Opcode = Instruction.opc;
 
       if (Opcode == PTC_INSTRUCTION_op_call)
         continue;
+
+      std::vector<llvm::BasicBlock *> Blocks { Builder.GetInsertBlock() };
 
       std::vector<llvm::Value *> OutArguments;
       std::vector<llvm::Value *> InArguments;
@@ -884,9 +903,27 @@ int Translate(FILE *OutputFile, llvm::ArrayRef<uint8_t> Code) {
           std::string Label = "L" + std::to_string(LabelId);
           llvm::BasicBlock *NewBasicBlock = nullptr;
           NewBasicBlock = llvm::BasicBlock::Create(Context, Label, MainFunction);
+          Blocks.push_back(NewBasicBlock);
           Builder.CreateBr(NewBasicBlock);
           Builder.SetInsertPoint(NewBasicBlock);
           Variables.newBasicBlock();
+          break;
+        }
+      case PTC_INSTRUCTION_op_debug_insn_start:
+        {
+          uint64_t PC = ConstArguments[0];
+
+          // TODO: replace using a field in Architecture
+          if (ConstArguments.size() > 1)
+            PC |= ConstArguments[1] << 32;
+
+          std::stringstream OriginalStringStream;
+          disassembleOriginal(OriginalStringStream, PC);
+          std::string OriginalString = OriginalStringStream.str();
+          llvm::MDString *MDOriginalString = nullptr;
+          MDOriginalString = llvm::MDString::get(Context, OriginalString);
+          MDOriginalInstr = llvm::MDNode::get(Context, MDOriginalString);
+
           break;
         }
       case PTC_INSTRUCTION_op_call:
@@ -895,7 +932,6 @@ int Translate(FILE *OutputFile, llvm::ArrayRef<uint8_t> Code) {
       case PTC_INSTRUCTION_op_brcond2_i32:
       case PTC_INSTRUCTION_op_brcond_i64:
 
-      case PTC_INSTRUCTION_op_debug_insn_start:
       case PTC_INSTRUCTION_op_exit_tb:
       case PTC_INSTRUCTION_op_goto_tb:
 
@@ -929,12 +965,28 @@ int Translate(FILE *OutputFile, llvm::ArrayRef<uint8_t> Code) {
         Builder.CreateStore(OutArguments[i], Variables.getOrCreate(TemporaryId));
       }
 
+      // Set metadata for all the new instructions
+      std::stringstream PTCStringStream;
+      dumpInstruction(PTCStringStream, InstructionList.get(), j);
+      std::string PTCString = PTCStringStream.str();
+      llvm::MDString *MDPTCString = llvm::MDString::get(Context, PTCString);
+      llvm::MDNode* MDPTCInstr = llvm::MDNode::get(Context, MDPTCString);
+      for (llvm::BasicBlock *Block : Blocks) {
+        llvm::BasicBlock::iterator I = Block->end();
+        while (I != Block->begin() && !(--I)->hasMetadata()) {
+          I->setMetadata(OriginalInstrMDKind, MDOriginalInstr);
+          I->setMetadata(PTCInstrMDKind, MDPTCInstr);
+        }
+      }
+
     }
 
-    if (dumpTranslation(OutputFile, InstructionList.get()) == EXIT_FAILURE)
+    if (dumpTranslation(Output, InstructionList.get()) != EXIT_SUCCESS)
       return EXIT_FAILURE;
 
-    CodePointer += ConsumedSize;
+    // CodePointer += ConsumedSize;
+    (void) ConsumedSize;
+    CodePointer = CodeEnd;
   }
 
   Delimiter->eraseFromParent();

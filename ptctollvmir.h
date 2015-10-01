@@ -1,1 +1,1 @@
-int Translate(FILE *OutputFile, llvm::ArrayRef<uint8_t> Code);
+int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code);
