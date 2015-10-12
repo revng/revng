@@ -30,8 +30,15 @@ using PTCInstructionListPtr = std::unique_ptr<PTCInstructionList,
 /// created on the fly.
 class VariableManager {
 public:
-  VariableManager(llvm::Module& Module) : Module(Module),
-                                          Builder(Module.getContext()) { }
+  VariableManager(llvm::Module& Module,
+                  llvm::ArrayRef<llvm::GlobalVariable *> PredefinedGlobals) :
+    Module(Module),
+    Builder(Module.getContext()) {
+
+    // Store all the predefined globals
+    for (llvm::GlobalVariable *Global : PredefinedGlobals)
+      Globals[Global->getName()] = Global;
+  }
   /// Given a PTC temporary identifier, checks if it already exists in the
   /// generatd LLVM IR, and, if not, it creates it.
   ///
@@ -78,6 +85,18 @@ public:
       Builder.SetInsertPoint(Delimiter);
   }
 
+  static llvm::GlobalVariable*
+  createGlobal(llvm::Module& Module,
+               llvm::Type *Type,
+               llvm::GlobalValue::LinkageTypes Linkage,
+               uint64_t Initializer = 0,
+               const llvm::Twine& Name = "") {
+
+    return new llvm::GlobalVariable(Module, Type, false, Linkage,
+                                    llvm::ConstantInt::get(Type, Initializer),
+                                    Name);
+  }
+
 private:
   llvm::Module& Module;
   llvm::IRBuilder<> Builder;
@@ -105,18 +124,12 @@ llvm::Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
     if (it != Globals.end()) {
       return it->second;
     } else {
-      for (llvm::GlobalVariable& Variable : Module.globals())
-        if (Variable.getName() == TemporaryName)
-          return &Variable;
-
-      llvm::Constant *Initializer = llvm::ConstantInt::get(VariableType, 0);
       llvm::GlobalVariable *NewVariable = nullptr;
-      NewVariable = new llvm::GlobalVariable(Module,
-                                             VariableType,
-                                             false,
-                                             llvm::GlobalValue::CommonLinkage,
-                                             Initializer,
-                                             TemporaryName);
+      NewVariable = createGlobal(Module,
+                                 VariableType,
+                                 llvm::GlobalValue::ExternalLinkage,
+                                 0,
+                                 TemporaryName);
       assert(NewVariable != nullptr);
       Globals[TemporaryName] = NewVariable;
 
@@ -405,9 +418,15 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
   const uint8_t *CodePointer = Code.data();
   const uint8_t *CodeEnd = CodePointer + Code.size();
 
+  // TODO: move me somewhere where it makes sense
+  Architecture SourceArchitecture;
+  Architecture TargetArchitecture;
+
   llvm::LLVMContext& Context = llvm::getGlobalContext();
-  std::unique_ptr<llvm::Module> Module(new llvm::Module("top", Context));
+  unsigned OriginalInstrMDKind = Context.getMDKindID("oi");
+  unsigned PTCInstrMDKind = Context.getMDKindID("pi");
   llvm::IRBuilder<> Builder(Context);
+  std::unique_ptr<llvm::Module> Module(new llvm::Module("top", Context));
 
   // Create main function
   llvm::FunctionType *MainType = nullptr;
@@ -426,14 +445,16 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
   Builder.SetInsertPoint(Entry);
   llvm::Instruction *Delimiter = Builder.CreateUnreachable();
 
-  unsigned OriginalInstrMDKind = Context.getMDKindID("oi");
-  unsigned PTCInstrMDKind = Context.getMDKindID("pi");
+  // Create register needed for managing the control flow
+  llvm::GlobalVariable *PCReg = nullptr;
+  PCReg = VariableManager::createGlobal(*Module,
+                                        Builder.getInt32Ty(),
+                                        llvm::GlobalValue::ExternalLinkage,
+                                        0,
+                                        "pc");
 
-  VariableManager Variables(*Module);
-
-  // TODO: move me somewhere where it makes sense
-  Architecture SourceArchitecture;
-  Architecture TargetArchitecture;
+  // Instantiate helpers
+  VariableManager Variables(*Module, { PCReg });
 
   while (CodePointer < CodeEnd) {
     printf("\nPTC for 0x%llx\n", (long long) (CodePointer - Code.data()));

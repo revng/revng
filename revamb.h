@@ -2,7 +2,7 @@
 
 class Architecture {
 public:
-  Architecture() : DefaultAlignment(1), Endianess(LittleEndian) {}
+  Architecture() : PCReg("pc"), DefaultAlignment(1), Endianess(LittleEndian) {}
 
   enum EndianessType {
     LittleEndian,
