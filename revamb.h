@@ -2,19 +2,20 @@
 
 class Architecture {
 public:
-  Architecture() : default_alignment(1), endianess(LittleEndian) {}
+  Architecture() : DefaultAlignment(1), Endianess(LittleEndian) {}
 
   enum EndianessType {
     LittleEndian,
     BigEndian
   };
 
-  unsigned DefaultAlignment() { return default_alignment; }
-  EndianessType Endianess() { return endianess; }
+  unsigned defaultAlignment() { return DefaultAlignment; }
+  EndianessType endianess() { return Endianess; }
+  const std::string PCReg;
 
 private:
-  unsigned default_alignment;
-  EndianessType endianess;
+  unsigned DefaultAlignment;
+  EndianessType Endianess;
 };
 
 // TODO: this requires C++14

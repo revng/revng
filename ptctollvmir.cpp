@@ -418,6 +418,8 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
                                         "root",
                                         Module.get());
 
+  // Create the first basic block and create a placeholder for variable
+  // allocations
   llvm::BasicBlock *Entry = llvm::BasicBlock::Create(Context,
                                                      "entrypoint",
                                                      MainFunction);
@@ -550,7 +552,7 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
           if (MemoryAccess.access_type == PTC_MEMORY_ACCESS_UNALIGNED)
             AccessAlignment = 1;
           else
-            AccessAlignment = SourceArchitecture.DefaultAlignment();
+            AccessAlignment = SourceArchitecture.defaultAlignment();
 
           // Load size
           llvm::IntegerType *MemoryType = nullptr;
@@ -568,15 +570,15 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
             MemoryType = Builder.getInt64Ty();
             break;
           default:
-            llvm_unreachable("Unknown load size");
+            llvm_unreachable("Unexpected load size");
           }
 
           bool SignExtend = ptc_is_sign_extended_load(MemoryAccess.type);
 
           // TODO: handle 64 on 32
           // TODO: handle endianess mismatch
-          assert(SourceArchitecture.Endianess() ==
-                 TargetArchitecture.Endianess() &&
+          assert(SourceArchitecture.endianess() ==
+                 TargetArchitecture.endianess() &&
                  "Different endianess between the source and the target is not "
                  "supported yet");
 
@@ -678,7 +680,7 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
             DivisionOp = llvm::Instruction::SDiv;
             RemainderOp = llvm::Instruction::SRem;
           } else if (Opcode == PTC_INSTRUCTION_op_div2_i32 ||
-              Opcode == PTC_INSTRUCTION_op_div2_i64) {
+                     Opcode == PTC_INSTRUCTION_op_div2_i64) {
             DivisionOp = llvm::Instruction::UDiv;
             RemainderOp = llvm::Instruction::URem;
           } else
@@ -726,7 +728,6 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
           llvm::Value *Result = Builder.CreateOr(FirstShift, SecondShift);
 
           OutArguments.push_back(Result);
-
           break;
         }
       case PTC_INSTRUCTION_op_deposit_i32:
@@ -740,6 +741,7 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
 
           unsigned Length = ConstArguments[1];
           uint64_t Bits = 0;
+
           // Thou shall not << 32
           if (Length == RegisterSize)
             Bits = getMaxValue(RegisterSize);
@@ -754,7 +756,6 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
           llvm::Value *Result = Builder.CreateOr(MaskedBase, ShiftedDeposit);
 
           OutArguments.push_back(Result);
-
           break;
         }
       case PTC_INSTRUCTION_op_ext8s_i32:
@@ -932,6 +933,8 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
         }
       case PTC_INSTRUCTION_op_debug_insn_start:
         {
+          // A new original instruction, let's create a new metadata node
+          // referencing it for all the next instructions to come
           uint64_t PC = ConstArguments[0];
 
           // TODO: replace using a field in Architecture
@@ -948,14 +951,13 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
           break;
         }
       case PTC_INSTRUCTION_op_call:
-      case PTC_INSTRUCTION_op_br:
-      case PTC_INSTRUCTION_op_brcond_i32:
-      case PTC_INSTRUCTION_op_brcond2_i32:
-      case PTC_INSTRUCTION_op_brcond_i64:
-
+        // TODO: implement call to helpers
+        llvm_unreachable("Call to helpers not implemented");
       case PTC_INSTRUCTION_op_exit_tb:
       case PTC_INSTRUCTION_op_goto_tb:
-
+        // Nothing to do here
+        continue;
+        break;
       case PTC_INSTRUCTION_op_add2_i32:
       case PTC_INSTRUCTION_op_sub2_i32:
       case PTC_INSTRUCTION_op_mulu2_i32:
@@ -972,12 +974,12 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
       case PTC_INSTRUCTION_op_setcond2_i32:
 
       case PTC_INSTRUCTION_op_trunc_shr_i32:
-
-        continue;
+        llvm_unreachable("Instruction not implemented");
       default:
         llvm_unreachable("Unknown opcode");
       }
 
+      // Save the results in the output arguments
       unsigned OutArgumentsCount = ptc_instruction_out_arg_count(&ptc,
                                                                  &Instruction);
       assert(OutArgumentsCount == OutArguments.size());
@@ -986,12 +988,15 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
         Builder.CreateStore(OutArguments[i], Variables.getOrCreate(TemporaryId));
       }
 
-      // Set metadata for all the new instructions
+      // Create a new metadata referencing the PTC instruction we have just
+      // translated
       std::stringstream PTCStringStream;
       dumpInstruction(PTCStringStream, InstructionList.get(), j);
       std::string PTCString = PTCStringStream.str();
       llvm::MDString *MDPTCString = llvm::MDString::get(Context, PTCString);
       llvm::MDNode* MDPTCInstr = llvm::MDNode::get(Context, MDPTCString);
+
+      // Set metadata for all the new instructions
       for (llvm::BasicBlock *Block : Blocks) {
         llvm::BasicBlock::iterator I = Block->end();
         while (I != Block->begin() && !(--I)->hasMetadata()) {
@@ -1000,15 +1005,13 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
         }
       }
 
-    }
+    } // End loop over instructions
 
-    if (dumpTranslation(Output, InstructionList.get()) != EXIT_SUCCESS)
-      return EXIT_FAILURE;
 
     // CodePointer += ConsumedSize;
     (void) ConsumedSize;
     CodePointer = CodeEnd;
-  }
+  } // End translations loop
 
   Delimiter->eraseFromParent();
 
