@@ -581,26 +581,28 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
                  "supported yet");
 
           llvm::Value *Pointer = nullptr;
-          Pointer = Builder.CreateIntToPtr(InArguments[0],
-                                           MemoryType->getPointerTo());
-
           if (Opcode == PTC_INSTRUCTION_op_qemu_ld_i32 ||
               Opcode == PTC_INSTRUCTION_op_qemu_ld_i64) {
 
+            Pointer = Builder.CreateIntToPtr(InArguments[0],
+                                             MemoryType->getPointerTo());
             llvm::Value *Load = Builder.CreateAlignedLoad(Pointer,
                                                           AccessAlignment);
+
             llvm::Value *Result = nullptr;
-            if (SignExtend) {
+            if (SignExtend)
               Result = Builder.CreateSExt(Load, RegisterType);
-            } else {
+            else
               Result = Builder.CreateZExt(Load, RegisterType);
-            }
+
             OutArguments.push_back(Result);
 
           } else if (Opcode == PTC_INSTRUCTION_op_qemu_st_i32 ||
                      Opcode == PTC_INSTRUCTION_op_qemu_st_i64) {
 
-            llvm::Value *Value = Builder.CreateTrunc(InArguments[1], MemoryType);
+            Pointer = Builder.CreateIntToPtr(InArguments[1],
+                                             MemoryType->getPointerTo());
+            llvm::Value *Value = Builder.CreateTrunc(InArguments[0], MemoryType);
             Builder.CreateAlignedStore(Value, Pointer, AccessAlignment);
 
           } else
