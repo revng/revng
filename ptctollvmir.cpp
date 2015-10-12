@@ -382,6 +382,25 @@ static unsigned getRegisterSize(unsigned Opcode) {
   }
 }
 
+/// Create a compare instruction given a comparison operator and the operands
+///
+/// @param Builder the builder to use to create the instruction.
+/// @param RawCondition the PTC condition.
+/// @param FirstOperand the first operand of the comparison.
+/// @param SecondOperand the second operand of the comparison.
+///
+/// @return a compare instruction.
+template<typename T>
+static llvm::Value *CreateICmp(T& Builder,
+                               uint64_t RawCondition,
+                               llvm::Value *FirstOperand,
+                               llvm::Value *SecondOperand) {
+  PTCCondition Condition = static_cast<PTCCondition>(RawCondition);
+  return Builder.CreateICmp(conditionToPredicate(Condition),
+                            FirstOperand,
+                            SecondOperand);
+}
+
 int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
   const uint8_t *CodePointer = Code.data();
   const uint8_t *CodeEnd = CodePointer + Code.size();
@@ -494,22 +513,22 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
       case PTC_INSTRUCTION_op_setcond_i32:
       case PTC_INSTRUCTION_op_setcond_i64:
         {
-          PTCCondition Condition = static_cast<PTCCondition>(ConstArguments[0]);
-          llvm::Value *Compare = nullptr;
-          Compare = Builder.CreateICmp(conditionToPredicate(Condition),
-                                       InArguments[0],
-                                       InArguments[1]);
-          OutArguments.push_back(Compare);
+          llvm::Value *Compare = CreateICmp(Builder,
+                                            ConstArguments[0],
+                                            InArguments[0],
+                                            InArguments[1]);
+          // TODO: convert single-bit registers to i1
+          llvm::Value *Result = Builder.CreateZExt(Compare, RegisterType);
+          OutArguments.push_back(Result);
           break;
         }
       case PTC_INSTRUCTION_op_movcond_i32: // Resist the fallthrough temptation
       case PTC_INSTRUCTION_op_movcond_i64:
         {
-          PTCCondition Condition = static_cast<PTCCondition>(ConstArguments[0]);
-          llvm::Value *Compare = nullptr;
-          Compare = Builder.CreateICmp(conditionToPredicate(Condition),
-                                       InArguments[0],
-                                       InArguments[1]);
+          llvm::Value *Compare = CreateICmp(Builder,
+                                            ConstArguments[0],
+                                            InArguments[0],
+                                            InArguments[1]);
           llvm::Value *Select = Builder.CreateSelect(Compare,
                                                      InArguments[2],
                                                      InArguments[3]);
