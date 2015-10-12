@@ -438,6 +438,8 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
   while (CodePointer < CodeEnd) {
     printf("\nPTC for 0x%llx\n", (long long) (CodePointer - Code.data()));
 
+    std::map<std::string, llvm::BasicBlock *> LabeledBasicBlocks;
+
     // TODO: rename this type
     PTCInstructionListPtr InstructionList(new PTCInstructionList);
     size_t ConsumedSize = 0;
@@ -923,11 +925,73 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
         {
           unsigned LabelId = ptc.get_arg_label_id(ConstArguments[0]);
           std::string Label = "L" + std::to_string(LabelId);
-          llvm::BasicBlock *NewBasicBlock = nullptr;
-          NewBasicBlock = llvm::BasicBlock::Create(Context, Label, MainFunction);
-          Blocks.push_back(NewBasicBlock);
-          Builder.CreateBr(NewBasicBlock);
-          Builder.SetInsertPoint(NewBasicBlock);
+
+          llvm::BasicBlock *Fallthrough = nullptr;
+          auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
+
+          if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
+            Fallthrough = llvm::BasicBlock::Create(Context, Label, MainFunction);
+            LabeledBasicBlocks[Label] = Fallthrough;
+          } else {
+            // A basic block with that label already exist
+            Fallthrough = LabeledBasicBlocks[Label];
+
+            // Ensure it's empty
+            assert(Fallthrough->begin() == Fallthrough->end());
+
+            // Move it to the bottom
+            Fallthrough->removeFromParent();
+            MainFunction->getBasicBlockList().push_back(Fallthrough);
+          }
+
+          Blocks.push_back(Fallthrough);
+          Builder.CreateBr(Fallthrough);
+          Builder.SetInsertPoint(Fallthrough);
+          Variables.newBasicBlock();
+          break;
+        }
+      case PTC_INSTRUCTION_op_br:
+      case PTC_INSTRUCTION_op_brcond_i32:
+      case PTC_INSTRUCTION_op_brcond2_i32:
+      case PTC_INSTRUCTION_op_brcond_i64:
+        {
+          // We take the last constant arguments, which is the LabelId both in
+          // conditional and unconditional jumps
+          unsigned LabelId = ptc.get_arg_label_id(ConstArguments.back());
+          std::string Label = "L" + std::to_string(LabelId);
+
+          llvm::BasicBlock *Fallthrough = nullptr;
+          Fallthrough = llvm::BasicBlock::Create(Context, "", MainFunction);
+
+          // Look for a matching label
+          llvm::BasicBlock *Target = nullptr;
+          auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
+
+          // No matching label, create a temporary block
+          if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
+            Target = llvm::BasicBlock::Create(Context,
+                                              Label,
+                                              MainFunction);
+            LabeledBasicBlocks[Label] = Target;
+          } else
+            Target = LabeledBasicBlocks[Label];
+
+          if (Opcode == PTC_INSTRUCTION_op_br) {
+            // Unconditional jump
+            Builder.CreateBr(Target);
+          } else if (Opcode == PTC_INSTRUCTION_op_brcond_i32 ||
+                     Opcode == PTC_INSTRUCTION_op_brcond_i64) {
+            // Conditional jump
+            llvm::Value *Compare = CreateICmp(Builder,
+                                              ConstArguments[0],
+                                              InArguments[0],
+                                              InArguments[1]);
+            Builder.CreateCondBr(Compare, Target, Fallthrough);
+          } else
+            llvm_unreachable("Unhandled opcode");
+
+          Blocks.push_back(Fallthrough);
+          Builder.SetInsertPoint(Fallthrough);
           Variables.newBasicBlock();
           break;
         }
