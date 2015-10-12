@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <sstream>
+#include <vector>
 
 // LLVM API
 #include "llvm/IR/Constants.h"
@@ -12,6 +13,8 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/IR/CFG.h"
 
 #include "ptctollvmir.h"
 #include "revamb.h"
@@ -414,6 +417,223 @@ static llvm::Value *CreateICmp(T& Builder,
                             SecondOperand);
 }
 
+class JumpTargetManager {
+public:
+  using BlockWithAddress = std::pair<uint64_t, llvm::BasicBlock *>;
+  static const BlockWithAddress NoMoreTargets;
+
+public:
+  JumpTargetManager(llvm::LLVMContext& Context,
+                    llvm::Value *PCReg,
+                    llvm::Function *Function) :
+    Context(Context),
+    Function(Function),
+    OriginalInstructionAddresses(),
+    JumpTargets(),
+    PCReg(PCReg) { }
+
+  /// Handle a new program counter. We might already have a basic block for that
+  /// program counter, or we could even have a translation for it. Return one
+  /// of these, if appropriate.
+  ///
+  /// @param PC the new program counter.
+  /// @param ShouldContinue an out parameter indicating whether the returned
+  ///        basic block was just a placeholder or actually contains a
+  ///        translation.
+  ///
+  /// @return the basic block to use from now on, or null if the program counter
+  ///         is not associated to a basic block.
+  llvm::BasicBlock *newPC(uint64_t PC, bool& ShouldContinue) {
+    // Did we already meet this PC?
+    auto It = JumpTargets.find(PC);
+    if (It != JumpTargets.end()) {
+      // If it was planned to explore it in the future, just to do it now
+      for (auto It = Unexplored.begin(); It != Unexplored.end(); It++) {
+        if (It->first == PC) {
+          Unexplored.erase(It, It + 1);
+          ShouldContinue = true;
+          assert(It->second->empty());
+          return It->second;
+        }
+      }
+
+      // It wasn't planned to visit it, so we've already been there, just jump
+      // there
+      assert(!It->second->empty());
+      ShouldContinue = false;
+      return It->second;
+    }
+
+    // We don't know anything about this PC
+    return nullptr;
+  }
+
+  /// Save the PC-Instruction association for future use (jump target)
+  void registerInstruction(uint64_t PC, llvm::Instruction *Instruction) {
+    // Never save twice a PC
+    assert(OriginalInstructionAddresses.find(PC) ==
+           OriginalInstructionAddresses.end());
+    OriginalInstructionAddresses[PC] = Instruction;
+  }
+
+  /// Save the PC-BasicBlock association for futur use (jump target)
+  void registerBlock(uint64_t PC, llvm::BasicBlock *Block) {
+    // If we already met it, it must point to the same block
+    auto It = JumpTargets.find(PC);
+    assert(It == JumpTargets.end() || It->second == Block);
+    if (It->second != Block)
+      JumpTargets[PC] = Block;
+  }
+
+  /// Look for all the stores targeting the program counter and add a branch
+  /// there as appropriate.
+  void translateMovePC(uint64_t BasePC) {
+    for (llvm::Use& PCUse : PCReg->uses()) {
+      // TODO: what to do in case of read of the PC?
+      // Is the PC the store destination?
+      if (PCUse.getOperandNo() == 1) {
+        if (auto Jump = llvm::dyn_cast<llvm::StoreInst>(PCUse.getUser())) {
+          llvm::Value *Destination = Jump->getValueOperand();
+
+          // Is desintation a constant?
+          if (auto Address = llvm::dyn_cast<llvm::ConstantInt>(Destination)) {
+            // Compute the actual PC
+            uint64_t TargetPC = BasePC + Address->getSExtValue();
+
+            // Get or create the block for this PC and branch there
+            llvm::BasicBlock *TargetBlock = getBlockAt(TargetPC);
+            llvm::Instruction *Branch = llvm::BranchInst::Create(TargetBlock);
+
+            // Cleanup of what's afterwards (only a unconditional jump is
+            // allowed)
+            llvm::BasicBlock::iterator I = Jump;
+            llvm::BasicBlock::iterator BlockEnd = Jump->getParent()->end();
+            if (++I != BlockEnd)
+              purgeBranch(I);
+
+            Branch->insertAfter(Jump);
+            Jump->eraseFromParent();
+          } else {
+            // TODO: very strong assumption here
+            // Destination is not a constant, assume it's a return
+            llvm::ReturnInst::Create(Context, nullptr, Jump);
+
+            // Cleanup everything it's aftewards
+            llvm::BasicBlock *Parent = Jump->getParent();
+            llvm::Instruction *ToDelete = &*(--Parent->end());
+            while (ToDelete != Jump) {
+              if (auto DeadBranch = llvm::dyn_cast<llvm::BranchInst>(ToDelete))
+                purgeBranch(DeadBranch);
+              else
+                ToDelete->eraseFromParent();
+
+              ToDelete = &*(--Parent->end());
+            }
+
+            // Remove the store to PC
+            Jump->eraseFromParent();
+          }
+        } else
+          llvm_unreachable("Unknown instruction using the PC");
+      } else
+        llvm_unreachable("Unhandled usage of the PC");
+    }
+  }
+
+  /// Pop from the list of program counters to explore
+  ///
+  /// @return a pair containing the PC and the initial block to use, or
+  ///         JumpTarget::NoMoreTargets if we're done.
+  BlockWithAddress peekJumpTarget() {
+    if (Unexplored.empty())
+      return NoMoreTargets;
+    else {
+      BlockWithAddress Result = Unexplored.back();
+      Unexplored.pop_back();
+      return Result;
+    }
+  }
+
+private:
+  /// Get or create a block for the given PC
+  llvm::BasicBlock *getBlockAt(uint64_t PC) {
+    // Do we already have a BasicBlock for this PC?
+    BlockMap::iterator TargetIt = JumpTargets.find(PC);
+    if (TargetIt != JumpTargets.end()) {
+      // Case 1: there's already a BasicBlock for that address, return it
+      return TargetIt->second;
+    }
+
+    // Did we already meet this PC (i.e. to we know what's the associated
+    // instruction)?
+    llvm::BasicBlock *NewBlock = nullptr;
+    InstructionMap::iterator InstrIt = OriginalInstructionAddresses.find(PC);
+    if (InstrIt != OriginalInstructionAddresses.end()) {
+      // Case 2: the address has already been met, but needs to be promoted to
+      //         BasicBlock level.
+      llvm::BasicBlock *ContainingBlock = InstrIt->second->getParent();
+      if (InstrIt->second == &*ContainingBlock->begin())
+        NewBlock = ContainingBlock;
+      else {
+        assert(InstrIt->second != nullptr &&
+               InstrIt->second != ContainingBlock->end());
+        // Split the block in the appropriate position. Note that
+        // OriginalInstructionAddresses stores a reference to the last generated
+        // instruction for the previous instruction.
+        llvm::Instruction *Next = InstrIt->second->getNextNode();
+        NewBlock = ContainingBlock->splitBasicBlock(Next);
+      }
+    } else {
+      // Case 3: the address has never been met, create a temporary one,
+      // register it for future exploration and return it
+      NewBlock = llvm::BasicBlock::Create(Context, "", Function);
+      Unexplored.push_back(BlockWithAddress(PC, NewBlock));
+    }
+
+    // Associate the PC with the chosen basic block
+    JumpTargets[PC] = NewBlock;
+    return NewBlock;
+  }
+
+  /// Helper function to destroy an unconditional branch and, in case, the
+  /// target basic block, if it doesn't have any predecessors left.
+  void purgeBranch(llvm::BasicBlock::iterator I) {
+    auto *DeadBranch = llvm::dyn_cast<llvm::BranchInst>(I);
+    // We allow only an unconditional branch and nothing else
+    assert(DeadBranch != nullptr &&
+           DeadBranch->isUnconditional() &&
+           ++I == DeadBranch->getParent()->end());
+
+    // Obtain the target of the dead branch
+    llvm::BasicBlock *DeadBranchTarget = DeadBranch->getSuccessor(0);
+
+    // Destroy the dead branch
+    DeadBranch->eraseFromParent();
+
+    // Check if someone else was jumping there and then destroy
+    if (llvm::pred_empty(DeadBranchTarget))
+      DeadBranchTarget->eraseFromParent();
+  }
+
+private:
+  using BlockMap = std::map<uint64_t, llvm::BasicBlock *>;
+  using InstructionMap = std::map<uint64_t, llvm::Instruction *>;
+
+  llvm::LLVMContext& Context;
+  llvm::Function* Function;
+  /// Holds the association between a PC and the last generated instruction for
+  /// the previous instruction.
+  InstructionMap OriginalInstructionAddresses;
+  /// Holds the association between a PC and a BasicBlock.
+  BlockMap JumpTargets;
+  /// Queue of program counters we still have to translate.
+  std::vector<BlockWithAddress> Unexplored;
+  llvm::Value *PCReg;
+};
+
+const JumpTargetManager::BlockWithAddress JumpTargetManager::NoMoreTargets =
+  JumpTargetManager::BlockWithAddress(0, nullptr);
+
 int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
   const uint8_t *CodePointer = Code.data();
   const uint8_t *CodeEnd = CodePointer + Code.size();
@@ -455,8 +675,10 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
 
   // Instantiate helpers
   VariableManager Variables(*Module, { PCReg });
+  JumpTargetManager JumpTargets(Context, PCReg, MainFunction);
 
-  while (CodePointer < CodeEnd) {
+  while (Entry != nullptr) {
+    Builder.SetInsertPoint(Entry);
     printf("\nPTC for 0x%llx\n", (long long) (CodePointer - Code.data()));
 
     std::map<std::string, llvm::BasicBlock *> LabeledBasicBlocks;
@@ -482,7 +704,9 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
 
     llvm::MDNode* MDOriginalInstr = nullptr;
 
-    for (; j < InstructionList->instruction_count; j++) {
+
+    bool StopTranslation = false;
+    for (; j < InstructionList->instruction_count && !StopTranslation; j++) {
       PTCInstruction Instruction = InstructionList->instructions[j];
       PTCOpcode Opcode = Instruction.opc;
 
@@ -1033,6 +1257,36 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
           MDOriginalString = llvm::MDString::get(Context, OriginalString);
           MDOriginalInstr = llvm::MDNode::get(Context, MDOriginalString);
 
+          if (PC != 0) {
+            // Check if this PC already has a block and use it
+            // TODO: rename me
+            uint64_t RealPC = CodePointer - Code.data() + PC;
+            bool ShouldContinue;
+            llvm::BasicBlock *DivergeTo = JumpTargets.newPC(RealPC,
+                                                            ShouldContinue);
+            if (DivergeTo != nullptr) {
+              Builder.CreateBr(DivergeTo);
+
+              if (ShouldContinue) {
+                // The block is empty, let's fill it
+                Blocks.push_back(DivergeTo);
+                Builder.SetInsertPoint(DivergeTo);
+                Variables.newBasicBlock(DivergeTo);
+              } else {
+                // The block already contains translated code, early exit
+                StopTranslation = true;
+                break;
+              }
+            }
+
+            // Inform the JumpTargetManager about the new PC we met
+            llvm::BasicBlock::iterator CurrentIt = Builder.GetInsertPoint();
+            if (CurrentIt == Builder.GetInsertBlock()->begin())
+              JumpTargets.registerBlock(RealPC, Builder.GetInsertBlock());
+            else
+              JumpTargets.registerInstruction(RealPC, &*--CurrentIt);
+          }
+
           break;
         }
       case PTC_INSTRUCTION_op_call:
@@ -1092,10 +1346,15 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
 
     } // End loop over instructions
 
+    // Replace stores to PC with branches
+    // TODO: constant propagation here
+    JumpTargets.translateMovePC(CodePointer - Code.data());
 
-    // CodePointer += ConsumedSize;
+    // Obtain a new program counter to translate
+    uint64_t NewPC = 0;
     (void) ConsumedSize;
-    CodePointer = CodeEnd;
+    std::tie(NewPC, Entry) = JumpTargets.peekJumpTarget();
+    CodePointer = Code.data() + NewPC;
   } // End translations loop
 
   Delimiter->eraseFromParent();
