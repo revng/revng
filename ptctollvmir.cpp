@@ -390,13 +390,13 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
   std::unique_ptr<llvm::Module> Module(new llvm::Module("top", Context));
   llvm::IRBuilder<> Builder(Context);
 
+  // Create main function
   llvm::FunctionType *MainType = nullptr;
-  MainType = llvm::FunctionType::get(Builder.getInt32Ty(), false);
-
+  MainType = llvm::FunctionType::get(Builder.getVoidTy(), false);
   llvm::Function *MainFunction = nullptr;
   MainFunction = llvm::Function::Create(MainType,
                                         llvm::Function::ExternalLinkage,
-                                        "main",
+                                        "root",
                                         Module.get());
 
   llvm::BasicBlock *Entry = llvm::BasicBlock::Create(Context,
