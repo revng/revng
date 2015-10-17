@@ -211,9 +211,13 @@ static llvm::Instruction::BinaryOps opcodeToBinaryOp(PTCOpcode Opcode) {
   switch (Opcode) {
   case PTC_INSTRUCTION_op_add_i32:
   case PTC_INSTRUCTION_op_add_i64:
+  case PTC_INSTRUCTION_op_add2_i32:
+  case PTC_INSTRUCTION_op_add2_i64:
     return llvm::Instruction::Add;
   case PTC_INSTRUCTION_op_sub_i32:
   case PTC_INSTRUCTION_op_sub_i64:
+  case PTC_INSTRUCTION_op_sub2_i32:
+  case PTC_INSTRUCTION_op_sub2_i64:
     return llvm::Instruction::Sub;
   case PTC_INSTRUCTION_op_mul_i32:
   case PTC_INSTRUCTION_op_mul_i64:
@@ -1299,14 +1303,53 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
         break;
       case PTC_INSTRUCTION_op_add2_i32:
       case PTC_INSTRUCTION_op_sub2_i32:
-      case PTC_INSTRUCTION_op_mulu2_i32:
-      case PTC_INSTRUCTION_op_muls2_i32:
-      case PTC_INSTRUCTION_op_muluh_i32:
-      case PTC_INSTRUCTION_op_mulsh_i32:
       case PTC_INSTRUCTION_op_add2_i64:
       case PTC_INSTRUCTION_op_sub2_i64:
+        {
+          llvm::Value *FirstOperandLow = nullptr;
+          llvm::Value *FirstOperandHigh = nullptr;
+          llvm::Value *SecondOperandLow = nullptr;
+          llvm::Value *SecondOperandHigh = nullptr;
+
+          llvm::IntegerType *DestinationType = nullptr;
+          DestinationType = Builder.getIntNTy(RegisterSize * 2);
+
+          FirstOperandLow = Builder.CreateZExt(InArguments[0], DestinationType);
+          FirstOperandHigh = Builder.CreateZExt(InArguments[1], DestinationType);
+          SecondOperandLow = Builder.CreateZExt(InArguments[2], DestinationType);
+          SecondOperandHigh = Builder.CreateZExt(InArguments[3],
+                                                 DestinationType);
+
+          FirstOperandHigh = Builder.CreateShl(FirstOperandHigh, RegisterSize);
+          SecondOperandHigh = Builder.CreateShl(SecondOperandHigh, RegisterSize);
+
+          llvm::Value *FirstOperand = Builder.CreateOr(FirstOperandHigh,
+                                                       FirstOperandLow);
+          llvm::Value *SecondOperand = Builder.CreateOr(SecondOperandHigh,
+                                                        SecondOperandLow);
+
+          llvm::Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
+
+          llvm::Value *Result = Builder.CreateBinOp(BinaryOp,
+                                                    FirstOperand,
+                                                    SecondOperand);
+
+          llvm::Value *ResultLow = Builder.CreateTrunc(Result, RegisterType);
+          llvm::Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
+          llvm::Value *ResultHigh = Builder.CreateTrunc(ShiftedResult,
+                                                        RegisterType);
+
+          OutArguments.push_back(ResultLow);
+          OutArguments.push_back(ResultHigh);
+
+          break;
+        }
+      case PTC_INSTRUCTION_op_mulu2_i32:
+      case PTC_INSTRUCTION_op_muls2_i32:
       case PTC_INSTRUCTION_op_mulu2_i64:
       case PTC_INSTRUCTION_op_muls2_i64:
+      case PTC_INSTRUCTION_op_muluh_i32:
+      case PTC_INSTRUCTION_op_mulsh_i32:
       case PTC_INSTRUCTION_op_muluh_i64:
       case PTC_INSTRUCTION_op_mulsh_i64:
 
