@@ -4,12 +4,15 @@
 #include <cstdint>
 #include <sstream>
 #include <vector>
+#include <fstream>
+#include <iostream>
 
 // LLVM API
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Metadata.h"
@@ -649,8 +652,25 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
   llvm::LLVMContext& Context = llvm::getGlobalContext();
   unsigned OriginalInstrMDKind = Context.getMDKindID("oi");
   unsigned PTCInstrMDKind = Context.getMDKindID("pi");
+  unsigned DbgMDKind = Context.getMDKindID("dbg");
   llvm::IRBuilder<> Builder(Context);
   std::unique_ptr<llvm::Module> Module(new llvm::Module("top", Context));
+
+  // Debugging information
+  llvm::DIBuilder Dbg(*Module);
+  llvm::DICompileUnit *DbgCompileUnit = nullptr;
+  DbgCompileUnit = Dbg.createCompileUnit(llvm::dwarf::DW_LANG_C,
+                                         "source.S",
+                                         "",
+                                         "revamb",
+                                         false,
+                                         "",
+                                         0 /* Runtime version */);
+
+  // Add the current debug info version into the module.
+  Module->addModuleFlag(llvm::Module::Warning, "Debug Info Version",
+                        llvm::DEBUG_METADATA_VERSION);
+  Module->addModuleFlag(llvm::Module::Warning, "Dwarf Version", 2);
 
   // Create main function
   llvm::FunctionType *MainType = nullptr;
@@ -660,6 +680,24 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
                                         llvm::Function::ExternalLinkage,
                                         "root",
                                         Module.get());
+
+  llvm::DISubprogram *DbgMain = nullptr;
+  llvm::DISubroutineType *EmptyType = nullptr;
+  EmptyType = Dbg.createSubroutineType(DbgCompileUnit->getFile(),
+                                       Dbg.getOrCreateTypeArray({}));
+
+  DbgMain = Dbg.createFunction(DbgCompileUnit, /* Scope */
+                               "root", /* Name */
+                               llvm::StringRef(), /* Linkage name */
+                               DbgCompileUnit->getFile(), /* DIFile */
+                               1, /* Line */
+                               EmptyType, /* Subroutine type */
+                               false, /* isLocalToUnit */
+                               true, /* isDefinition */
+                               1, /* ScopeLine */
+                               llvm::DINode::FlagPrototyped, /* Flags */
+                               false, /* isOptimized */
+                               MainFunction /* Function */);
 
   // Create the first basic block and create a placeholder for variable
   // allocations
@@ -1399,6 +1437,34 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
     std::tie(NewPC, Entry) = JumpTargets.peekJumpTarget();
     CodePointer = Code.data() + NewPC;
   } // End translations loop
+
+  {
+    std::map<llvm::MDNode *, llvm::MDNode *> DbgMapping;
+    unsigned LineIndex = 0;
+    std::fstream Source("source.S", std::fstream::out);
+    for (llvm::BasicBlock& Block : *MainFunction) {
+      for (llvm::Instruction& Instruction : Block) {
+        llvm::MDNode *MD = Instruction.getMetadata(OriginalInstrMDKind);
+        if (MD != nullptr) {
+          auto MappingIt = DbgMapping.find(MD);
+          if (MappingIt != DbgMapping.end()) {
+            Instruction.setMetadata(DbgMDKind, MappingIt->second);
+          } else {
+            auto Body = llvm::dyn_cast<llvm::MDString>(MD->getOperand(0).get());
+            Source << Body->getString().data();
+
+            auto *DbgLocation = llvm::DILocation::get(Context, LineIndex, 0,
+                                                      DbgMain);
+            DbgMapping[MD] = DbgLocation;
+            Instruction.setMetadata(DbgMDKind, DbgLocation);
+            LineIndex++;
+          }
+        }
+      }
+    }
+  }
+
+  Dbg.finalize();
 
   Delimiter->eraseFromParent();
 
