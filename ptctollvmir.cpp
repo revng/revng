@@ -6,6 +6,7 @@
 #include <vector>
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 
 // LLVM API
 #include "llvm/IR/Constants.h"
@@ -19,8 +20,8 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/IR/CFG.h"
 
-#include "ptctollvmir.h"
 #include "revamb.h"
+#include "ptctollvmir.h"
 #include "ptcinterface.h"
 #include "ptcdump.h"
 
@@ -641,7 +642,9 @@ private:
 const JumpTargetManager::BlockWithAddress JumpTargetManager::NoMoreTargets =
   JumpTargetManager::BlockWithAddress(0, nullptr);
 
-int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
+int Translate(std::ostream& Output,
+              llvm::ArrayRef<uint8_t> Code,
+              DebugInfoType DebugInfo) {
   const uint8_t *CodePointer = Code.data();
   const uint8_t *CodeEnd = CodePointer + Code.size();
 
@@ -659,18 +662,21 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
   // Debugging information
   llvm::DIBuilder Dbg(*Module);
   llvm::DICompileUnit *DbgCompileUnit = nullptr;
-  DbgCompileUnit = Dbg.createCompileUnit(llvm::dwarf::DW_LANG_C,
-                                         "source.S",
-                                         "",
-                                         "revamb",
-                                         false,
-                                         "",
-                                         0 /* Runtime version */);
 
-  // Add the current debug info version into the module.
-  Module->addModuleFlag(llvm::Module::Warning, "Debug Info Version",
-                        llvm::DEBUG_METADATA_VERSION);
-  Module->addModuleFlag(llvm::Module::Warning, "Dwarf Version", 2);
+  if (DebugInfo != DebugInfoType::None) {
+    DbgCompileUnit = Dbg.createCompileUnit(llvm::dwarf::DW_LANG_C,
+                                           "source.S",
+                                           "",
+                                           "revamb",
+                                           false,
+                                           "",
+                                           0 /* Runtime version */);
+
+    // Add the current debug info version into the module.
+    Module->addModuleFlag(llvm::Module::Warning, "Debug Info Version",
+                          llvm::DEBUG_METADATA_VERSION);
+    Module->addModuleFlag(llvm::Module::Warning, "Dwarf Version", 2);
+  }
 
   // Create main function
   llvm::FunctionType *MainType = nullptr;
@@ -682,22 +688,24 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
                                         Module.get());
 
   llvm::DISubprogram *DbgMain = nullptr;
-  llvm::DISubroutineType *EmptyType = nullptr;
-  EmptyType = Dbg.createSubroutineType(DbgCompileUnit->getFile(),
-                                       Dbg.getOrCreateTypeArray({}));
+  if (DebugInfo != DebugInfoType::None) {
+    llvm::DISubroutineType *EmptyType = nullptr;
+    EmptyType = Dbg.createSubroutineType(DbgCompileUnit->getFile(),
+                                         Dbg.getOrCreateTypeArray({}));
 
-  DbgMain = Dbg.createFunction(DbgCompileUnit, /* Scope */
-                               "root", /* Name */
-                               llvm::StringRef(), /* Linkage name */
-                               DbgCompileUnit->getFile(), /* DIFile */
-                               1, /* Line */
-                               EmptyType, /* Subroutine type */
-                               false, /* isLocalToUnit */
-                               true, /* isDefinition */
-                               1, /* ScopeLine */
-                               llvm::DINode::FlagPrototyped, /* Flags */
-                               false, /* isOptimized */
-                               MainFunction /* Function */);
+    DbgMain = Dbg.createFunction(DbgCompileUnit, /* Scope */
+                                 "root", /* Name */
+                                 llvm::StringRef(), /* Linkage name */
+                                 DbgCompileUnit->getFile(), /* DIFile */
+                                 1, /* Line */
+                                 EmptyType, /* Subroutine type */
+                                 false, /* isLocalToUnit */
+                                 true, /* isDefinition */
+                                 1, /* ScopeLine */
+                                 llvm::DINode::FlagPrototyped, /* Flags */
+                                 false, /* isOptimized */
+                                 MainFunction /* Function */);
+  }
 
   // Create the first basic block and create a placeholder for variable
   // allocations
@@ -1297,7 +1305,7 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
           std::string OriginalString = OriginalStringStream.str();
           llvm::MDString *MDOriginalString = nullptr;
           MDOriginalString = llvm::MDString::get(Context, OriginalString);
-          MDOriginalInstr = llvm::MDNode::get(Context, MDOriginalString);
+          MDOriginalInstr = llvm::MDNode::getDistinct(Context, MDOriginalString);
 
           if (PC != 0) {
             // Check if this PC already has a block and use it
@@ -1412,9 +1420,9 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
       // translated
       std::stringstream PTCStringStream;
       dumpInstruction(PTCStringStream, InstructionList.get(), j);
-      std::string PTCString = PTCStringStream.str();
+      std::string PTCString = PTCStringStream.str() + "\n";
       llvm::MDString *MDPTCString = llvm::MDString::get(Context, PTCString);
-      llvm::MDNode* MDPTCInstr = llvm::MDNode::get(Context, MDPTCString);
+      llvm::MDNode* MDPTCInstr = llvm::MDNode::getDistinct(Context, MDPTCString);
 
       // Set metadata for all the new instructions
       for (llvm::BasicBlock *Block : Blocks) {
@@ -1438,26 +1446,31 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
     CodePointer = Code.data() + NewPC;
   } // End translations loop
 
-  {
+  Delimiter->eraseFromParent();
+
+  if (DebugInfo != DebugInfoType::None) {
     std::map<llvm::MDNode *, llvm::MDNode *> DbgMapping;
-    unsigned LineIndex = 0;
+    unsigned LineIndex = 1;
+    unsigned MetadataKind = DebugInfo == DebugInfoType::PTC ?
+      PTCInstrMDKind : OriginalInstrMDKind;
     std::fstream Source("source.S", std::fstream::out);
     for (llvm::BasicBlock& Block : *MainFunction) {
       for (llvm::Instruction& Instruction : Block) {
-        llvm::MDNode *MD = Instruction.getMetadata(OriginalInstrMDKind);
+        llvm::MDNode *MD = Instruction.getMetadata(MetadataKind);
         if (MD != nullptr) {
           auto MappingIt = DbgMapping.find(MD);
-          if (MappingIt != DbgMapping.end()) {
+          if (false || MappingIt != DbgMapping.end()) {
             Instruction.setMetadata(DbgMDKind, MappingIt->second);
           } else {
             auto Body = llvm::dyn_cast<llvm::MDString>(MD->getOperand(0).get());
-            Source << Body->getString().data();
+            std::string BodyString = Body->getString().str();
+            Source << BodyString;
 
             auto *DbgLocation = llvm::DILocation::get(Context, LineIndex, 0,
                                                       DbgMain);
             DbgMapping[MD] = DbgLocation;
             Instruction.setMetadata(DbgMDKind, DbgLocation);
-            LineIndex++;
+            LineIndex += std::count(BodyString.begin(), BodyString.end(), '\n');
           }
         }
       }
@@ -1465,8 +1478,6 @@ int Translate(std::ostream& Output, llvm::ArrayRef<uint8_t> Code) {
   }
 
   Dbg.finalize();
-
-  Delimiter->eraseFromParent();
 
   Module->dump();
 

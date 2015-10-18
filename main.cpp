@@ -30,6 +30,7 @@ struct ProgramParameters {
   const char *InputPath;
   const char *OutputPath;
   size_t Offset;
+  DebugInfoType DebugInfo;
 };
 
 using LibraryDestructor = GenericFunctor<decltype(&dlclose), &dlclose>;
@@ -150,6 +151,7 @@ static int loadPTCLibrary(const char *Architecture, LibraryPointer& PTCLibrary) 
 static int parseArgs(int Argc, const char *Argv[],
                      ProgramParameters *Parameters) {
   const char *OffsetString = nullptr;
+  const char *DebugString = nullptr;
   long long Offset = 0;
 
   // Initialize argument parser
@@ -163,6 +165,12 @@ static int parseArgs(int Argc, const char *Argv[],
     OPT_STRING('o', "offset",
                &OffsetString,
                "offset in the input where to start."),
+    OPT_STRING('g', "debug",
+               &DebugString,
+               "emit debug information. Possible values are 'none' for no debug"
+               " information, 'asm' for debug information referring to the"
+               " assembly of the input file, 'ptc' for debug information"
+               " referred to the Portable Tiny Code."),
     OPT_END(),
   };
 
@@ -184,6 +192,19 @@ static int parseArgs(int Argc, const char *Argv[],
     }
 
     Parameters->Offset = (size_t) Offset;
+  }
+
+  if (DebugString != nullptr) {
+    if (strcmp("none", DebugString) == 0) {
+      Parameters->DebugInfo = DebugInfoType::None;
+    } else if (strcmp("asm", DebugString) == 0) {
+      Parameters->DebugInfo = DebugInfoType::OriginalAssembly;
+    } else if (strcmp("ptc", DebugString) == 0) {
+      Parameters->DebugInfo = DebugInfoType::PTC;
+    } else {
+      fprintf(stderr, "Unexpected value for the -g parameter.\n");
+      return EXIT_FAILURE;
+    }
   }
 
   // Handle positional arguments
@@ -229,7 +250,8 @@ int main(int argc, const char *argv[]) {
   // Translate everything
   Translate(*Output,
             llvm::ArrayRef<uint8_t>(Code.data() + Parameters.Offset,
-                                    Code.size() - Parameters.Offset));
+                                    Code.size() - Parameters.Offset),
+            Parameters.DebugInfo);
 
   return EXIT_SUCCESS;
 }

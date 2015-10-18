@@ -1,5 +1,11 @@
 /* TODO: improve error handling */
 
+enum class DebugInfoType {
+  None,
+  OriginalAssembly,
+  PTC
+};
+
 class Architecture {
 public:
   Architecture() : PCReg("pc"), DefaultAlignment(1), Endianess(LittleEndian) {}
