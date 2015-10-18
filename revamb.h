@@ -3,7 +3,8 @@
 enum class DebugInfoType {
   None,
   OriginalAssembly,
-  PTC
+  PTC,
+  LLVMIR
 };
 
 class Architecture {

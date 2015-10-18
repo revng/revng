@@ -170,7 +170,8 @@ static int parseArgs(int Argc, const char *Argv[],
                "emit debug information. Possible values are 'none' for no debug"
                " information, 'asm' for debug information referring to the"
                " assembly of the input file, 'ptc' for debug information"
-               " referred to the Portable Tiny Code."),
+               " referred to the Portable Tiny Code, or 'll' for debug"
+               " information referred to the LLVM IR."),
     OPT_END(),
   };
 
@@ -201,6 +202,8 @@ static int parseArgs(int Argc, const char *Argv[],
       Parameters->DebugInfo = DebugInfoType::OriginalAssembly;
     } else if (strcmp("ptc", DebugString) == 0) {
       Parameters->DebugInfo = DebugInfoType::PTC;
+    } else if (strcmp("ll", DebugString) == 0) {
+      Parameters->DebugInfo = DebugInfoType::LLVMIR;
     } else {
       fprintf(stderr, "Unexpected value for the -g parameter.\n");
       return EXIT_FAILURE;

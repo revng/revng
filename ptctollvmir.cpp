@@ -19,11 +19,41 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/IR/AssemblyAnnotationWriter.h"
+#include "llvm/Support/FormattedStream.h"
+#include "llvm/Support/raw_os_ostream.h"
 
 #include "revamb.h"
 #include "ptctollvmir.h"
 #include "ptcinterface.h"
 #include "ptcdump.h"
+
+class SelfDescribingWriter : public llvm::AssemblyAnnotationWriter {
+public:
+  SelfDescribingWriter(llvm::LLVMContext& Context,
+                       llvm::Metadata *Scope) : Context(Context), Scope(Scope) {
+    DbgMetadataKind = Context.getMDKindID("dbg");
+  }
+
+  virtual void emitInstructionAnnot(const llvm::Instruction *Instruction,
+                                    llvm::formatted_raw_ostream &Output) {
+    Output.flush();
+
+    auto *Location = llvm::DILocation::get(Context,
+                                           Output.getLine(),
+                                           Output.getColumn(),
+                                           Scope);
+
+    // Sorry Bjarne
+    auto *NonConstInstruction = const_cast<llvm::Instruction *>(Instruction);
+    NonConstInstruction->setMetadata(DbgMetadataKind, Location);
+  }
+
+private:
+  llvm::LLVMContext &Context;
+  llvm::Metadata *Scope;
+  unsigned DbgMetadataKind;
+};
 
 using PTCInstructionListDestructor =
   GenericFunctor<decltype(&ptc_instruction_list_free),
@@ -1448,7 +1478,8 @@ int Translate(std::ostream& Output,
 
   Delimiter->eraseFromParent();
 
-  if (DebugInfo != DebugInfoType::None) {
+  if (DebugInfo == DebugInfoType::PTC
+      || DebugInfo == DebugInfoType::OriginalAssembly) {
     std::map<llvm::MDNode *, llvm::MDNode *> DbgMapping;
     unsigned LineIndex = 1;
     unsigned MetadataKind = DebugInfo == DebugInfoType::PTC ?
@@ -1475,6 +1506,14 @@ int Translate(std::ostream& Output,
         }
       }
     }
+
+  } else if (DebugInfo == DebugInfoType::LLVMIR) {
+    // TODO: this dump is half broken, it'd be better to use the output of
+    //       the next ->dump directly.
+    std::fstream Source("source.S", std::fstream::out);
+    llvm::raw_os_ostream Stream(Source);
+    SelfDescribingWriter Annotator(Context, DbgMain);
+    Module->print(Stream, &Annotator);
   }
 
   Dbg.finalize();
