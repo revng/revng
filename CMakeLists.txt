@@ -33,3 +33,5 @@ include_directories(argparse/)
 
 add_executable(revamb ptcdump.cpp main.cpp ptctollvmir.cpp argparse/argparse.c)
 target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
+
+include(tests/Tests.cmake)
