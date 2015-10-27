@@ -31,28 +31,87 @@
 class SelfDescribingWriter : public llvm::AssemblyAnnotationWriter {
 public:
   SelfDescribingWriter(llvm::LLVMContext& Context,
-                       llvm::Metadata *Scope) : Context(Context), Scope(Scope) {
-    DbgMetadataKind = Context.getMDKindID("dbg");
+                       llvm::Metadata *Scope,
+                       bool DebugInfo) : Context(Context),
+                                         Scope(Scope),
+                                         DebugInfo(DebugInfo) {
+    OriginalInstrMDKind = Context.getMDKindID("oi");
+    PTCInstrMDKind = Context.getMDKindID("pi");
+    DbgMDKind = Context.getMDKindID("dbg");
   }
 
   virtual void emitInstructionAnnot(const llvm::Instruction *Instruction,
                                     llvm::formatted_raw_ostream &Output) {
-    Output.flush();
 
-    auto *Location = llvm::DILocation::get(Context,
-                                           Output.getLine(),
-                                           Output.getColumn(),
-                                           Scope);
+    writeMetadataIfNew(Instruction, OriginalInstrMDKind, Output, "\n\n  ; ");
+    writeMetadataIfNew(Instruction, PTCInstrMDKind, Output, "\n  ; ");
 
-    // Sorry Bjarne
-    auto *NonConstInstruction = const_cast<llvm::Instruction *>(Instruction);
-    NonConstInstruction->setMetadata(DbgMetadataKind, Location);
+    if (DebugInfo) {
+      Output.flush();
+      auto *Location = llvm::DILocation::get(Context,
+                                             Output.getLine(),
+                                             Output.getColumn(),
+                                             Scope);
+
+      // Sorry Bjarne
+      auto *NonConstInstruction = const_cast<llvm::Instruction *>(Instruction);
+      NonConstInstruction->setMetadata(DbgMDKind, Location);
+    }
+  }
+
+private:
+  static void writeMetadataIfNew(const llvm::Instruction *Instruction,
+                                 unsigned MDKind,
+                                 llvm::formatted_raw_ostream &Output,
+                                 llvm::StringRef Prefix) {
+    llvm::MDString *MD = getMD(Instruction,
+                                                MDKind);
+    if (MD != nullptr) {
+      const llvm::Instruction *PrevInstruction = nullptr;
+
+      if (Instruction != Instruction->getParent()->begin())
+        PrevInstruction = Instruction->getPrevNode();
+
+      if (PrevInstruction == nullptr ||
+          getMD(PrevInstruction, MDKind) != MD) {
+        Output << Prefix << MD->getString();
+      }
+    }
+  }
+
+  static llvm::MDString *getMD(const llvm::Instruction *Instruction,
+                               unsigned Kind) {
+    assert(Instruction != nullptr);
+
+    llvm::Metadata *MD = Instruction->getMetadata(Kind);
+
+    if (MD == nullptr)
+      return nullptr;
+
+    auto Node = llvm::dyn_cast<llvm::MDNode>(MD);
+
+    assert(Node != nullptr);
+
+    const llvm::MDOperand& Operand = Node->getOperand(0);
+
+    llvm::Metadata *MDOperand = Operand.get();
+
+    if (MDOperand == nullptr)
+      return nullptr;
+
+    auto *String = llvm::dyn_cast<llvm::MDString>(MDOperand);
+    assert(String != nullptr);
+
+    return String;
   }
 
 private:
   llvm::LLVMContext &Context;
   llvm::Metadata *Scope;
-  unsigned DbgMetadataKind;
+  unsigned OriginalInstrMDKind;
+  unsigned PTCInstrMDKind;
+  unsigned DbgMDKind;
+  bool DebugInfo;
 };
 
 using PTCInstructionListDestructor =
@@ -672,9 +731,10 @@ private:
 const JumpTargetManager::BlockWithAddress JumpTargetManager::NoMoreTargets =
   JumpTargetManager::BlockWithAddress(0, nullptr);
 
-int Translate(std::ostream& Output,
+int Translate(std::string OutputPath,
               llvm::ArrayRef<uint8_t> Code,
-              DebugInfoType DebugInfo) {
+              DebugInfoType DebugInfo,
+              std::string DebugPath) {
   const uint8_t *CodePointer = Code.data();
   const uint8_t *CodeEnd = CodePointer + Code.size();
 
@@ -690,12 +750,22 @@ int Translate(std::ostream& Output,
   std::unique_ptr<llvm::Module> Module(new llvm::Module("top", Context));
 
   // Debugging information
+  if (DebugPath.empty()) {
+   if (DebugInfo == DebugInfoType::PTC)
+     DebugPath = OutputPath + ".ptc";
+   else if (DebugInfo == DebugInfoType::OriginalAssembly)
+     DebugPath = OutputPath + ".S";
+   else if (DebugInfo == DebugInfoType::LLVMIR)
+     DebugPath = OutputPath;
+  }
+
+
   llvm::DIBuilder Dbg(*Module);
   llvm::DICompileUnit *DbgCompileUnit = nullptr;
 
   if (DebugInfo != DebugInfoType::None) {
     DbgCompileUnit = Dbg.createCompileUnit(llvm::dwarf::DW_LANG_C,
-                                           "source.S",
+                                           DebugPath,
                                            "",
                                            "revamb",
                                            false,
@@ -759,7 +829,6 @@ int Translate(std::ostream& Output,
 
   while (Entry != nullptr) {
     Builder.SetInsertPoint(Entry);
-    printf("\nPTC for 0x%llx\n", (long long) (CodePointer - Code.data()));
 
     std::map<std::string, llvm::BasicBlock *> LabeledBasicBlocks;
 
@@ -1484,7 +1553,8 @@ int Translate(std::ostream& Output,
     unsigned LineIndex = 1;
     unsigned MetadataKind = DebugInfo == DebugInfoType::PTC ?
       PTCInstrMDKind : OriginalInstrMDKind;
-    std::fstream Source("source.S", std::fstream::out);
+
+    std::fstream Source(DebugPath, std::fstream::out);
     for (llvm::BasicBlock& Block : *MainFunction) {
       for (llvm::Instruction& Instruction : Block) {
         llvm::MDNode *MD = Instruction.getMetadata(MetadataKind);
@@ -1508,17 +1578,26 @@ int Translate(std::ostream& Output,
     }
 
   } else if (DebugInfo == DebugInfoType::LLVMIR) {
-    // TODO: this dump is half broken, it'd be better to use the output of
-    //       the next ->dump directly.
-    std::fstream Source("source.S", std::fstream::out);
-    llvm::raw_os_ostream Stream(Source);
-    SelfDescribingWriter Annotator(Context, DbgMain);
+    llvm::raw_null_ostream Stream;
+    SelfDescribingWriter Annotator(Context, DbgMain, true /* DebugInfo */);
     Module->print(Stream, &Annotator);
   }
 
   Dbg.finalize();
 
-  Module->dump();
+  {
+    std::ofstream Output(OutputPath);
+    llvm::raw_os_ostream Stream(Output);
+    SelfDescribingWriter Annotator(Context, DbgMain, false /* DebugInfo */);
+    Module->print(Stream, &Annotator);
+  }
+
+  if (DebugInfo == DebugInfoType::LLVMIR && DebugPath != OutputPath) {
+    std::ifstream Source(OutputPath, std::ios::binary);
+    std::ofstream Destination(DebugPath, std::ios::binary);
+
+    Destination << Source.rdbuf();
+  }
 
   return EXIT_SUCCESS;
 }

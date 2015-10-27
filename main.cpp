@@ -31,6 +31,7 @@ struct ProgramParameters {
   const char *OutputPath;
   size_t Offset;
   DebugInfoType DebugInfo;
+  const char *DebugPath;
 };
 
 using LibraryDestructor = GenericFunctor<decltype(&dlclose), &dlclose>;
@@ -162,9 +163,15 @@ static int parseArgs(int Argc, const char *Argv[],
     OPT_STRING('a', "architecture",
                &Parameters->Architecture,
                "the input architecture."),
-    OPT_STRING('o', "offset",
+    OPT_STRING('f', "offset",
                &OffsetString,
                "offset in the input where to start."),
+    OPT_STRING('o', "output",
+               &Parameters->OutputPath,
+               "destination path for the generated LLVM IR file."),
+    OPT_STRING('d', "debug-path",
+               &Parameters->DebugPath,
+               "destination path for the generated debug source."),
     OPT_STRING('g', "debug",
                &DebugString,
                "emit debug information. Possible values are 'none' for no debug"
@@ -188,11 +195,16 @@ static int parseArgs(int Argc, const char *Argv[],
 
   if (OffsetString != nullptr) {
     if (sscanf(OffsetString, "%lld", &Offset) != 1) {
-      fprintf(stderr, "-o parameter is not a number.\n");
+      fprintf(stderr, "Offset parameter (-f, --offset) is not a number.\n");
       return EXIT_FAILURE;
     }
 
     Parameters->Offset = (size_t) Offset;
+  }
+
+  if (Parameters->OutputPath == nullptr) {
+    fprintf(stderr, "Output path parameter (-o, --output) is mandatory.\n");
+    return EXIT_FAILURE;
   }
 
   if (DebugString != nullptr) {
@@ -205,22 +217,23 @@ static int parseArgs(int Argc, const char *Argv[],
     } else if (strcmp("ll", DebugString) == 0) {
       Parameters->DebugInfo = DebugInfoType::LLVMIR;
     } else {
-      fprintf(stderr, "Unexpected value for the -g parameter.\n");
+      fprintf(stderr, "Unexpected value for the debug type parameter"
+              " (-g, --debug).\n");
       return EXIT_FAILURE;
     }
   }
 
+  if (Parameters->DebugPath == nullptr)
+    Parameters->DebugPath = "";
+
   // Handle positional arguments
-  if (Argc > 2) {
+  if (Argc > 1) {
     fprintf(stderr, "Too many arguments.\n");
     return EXIT_FAILURE;
   }
 
-  if (Argc >= 1)
+  if (Argc == 1)
     Parameters->InputPath = Argv[0];
-
-  if (Argc == 2)
-    Parameters->OutputPath = Argv[1];
 
   return EXIT_SUCCESS;
 }
@@ -236,25 +249,17 @@ int main(int argc, const char *argv[]) {
   if (loadPTCLibrary(Parameters.Architecture, PTCLibrary) != EXIT_SUCCESS)
     return EXIT_FAILURE;
 
-  // Open output file
-  std::ostream *Output = nullptr;
-  std::fstream OutputFile;
-  if (Parameters.OutputPath != nullptr) {
-    OutputFile.open(Parameters.OutputPath, std::fstream::out);
-    Output = &OutputFile;
-  } else
-    Output = &std::cout;
-
   // Read the input from the appropriate file
   std::vector<uint8_t> Code;
   if (ReadWholeInput(Parameters.InputPath, Code) != EXIT_SUCCESS)
     return EXIT_FAILURE;
 
   // Translate everything
-  Translate(*Output,
+  Translate(Parameters.OutputPath,
             llvm::ArrayRef<uint8_t>(Code.data() + Parameters.Offset,
                                     Code.size() - Parameters.Offset),
-            Parameters.DebugInfo);
+            Parameters.DebugInfo,
+            Parameters.DebugPath);
 
   return EXIT_SUCCESS;
 }
