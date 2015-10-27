@@ -26,29 +26,31 @@
 #include "ptcinterface.h"
 #include "ptcdump.h"
 
+using namespace llvm;
+
 /// Boring code to get the text of the metadata with the specified kind
 /// associated to the given instruction
-static llvm::MDString *getMD(const llvm::Instruction *Instruction,
-                             unsigned Kind) {
+static MDString *getMD(const Instruction *Instruction,
+                       unsigned Kind) {
   assert(Instruction != nullptr);
 
-  llvm::Metadata *MD = Instruction->getMetadata(Kind);
+  Metadata *MD = Instruction->getMetadata(Kind);
 
   if (MD == nullptr)
     return nullptr;
 
-  auto Node = llvm::dyn_cast<llvm::MDNode>(MD);
+  auto Node = dyn_cast<MDNode>(MD);
 
   assert(Node != nullptr);
 
-  const llvm::MDOperand& Operand = Node->getOperand(0);
+  const MDOperand& Operand = Node->getOperand(0);
 
-  llvm::Metadata *MDOperand = Operand.get();
+  Metadata *MDOperand = Operand.get();
 
   if (MDOperand == nullptr)
     return nullptr;
 
-  auto *String = llvm::dyn_cast<llvm::MDString>(MDOperand);
+  auto *String = dyn_cast<MDString>(MDOperand);
   assert(String != nullptr);
 
   return String;
@@ -58,10 +60,10 @@ static llvm::MDString *getMD(const llvm::Instruction *Instruction,
 /// comments containing the original assembly and the PTC. It can also decorate
 /// the IR with debug information (i.e. DILocations) refered to the generated
 /// LLVM IR itself.
-class DebugAnnotationWriter : public llvm::AssemblyAnnotationWriter {
+class DebugAnnotationWriter : public AssemblyAnnotationWriter {
 public:
-  DebugAnnotationWriter(llvm::LLVMContext& Context,
-                        llvm::Metadata *Scope,
+  DebugAnnotationWriter(LLVMContext& Context,
+                        Metadata *Scope,
                         bool DebugInfo) : Context(Context),
                                           Scope(Scope),
                                           DebugInfo(DebugInfo) {
@@ -70,11 +72,11 @@ public:
     DbgMDKind = Context.getMDKindID("dbg");
   }
 
-  virtual void emitInstructionAnnot(const llvm::Instruction *Instruction,
-                                    llvm::formatted_raw_ostream &Output) {
+  virtual void emitInstructionAnnot(const Instruction *TheInstruction,
+                                    formatted_raw_ostream &Output) {
 
-    writeMetadataIfNew(Instruction, OriginalInstrMDKind, Output, "\n\n  ; ");
-    writeMetadataIfNew(Instruction, PTCInstrMDKind, Output, "\n  ; ");
+    writeMetadataIfNew(TheInstruction, OriginalInstrMDKind, Output, "\n\n  ; ");
+    writeMetadataIfNew(TheInstruction, PTCInstrMDKind, Output, "\n  ; ");
 
     if (DebugInfo) {
       // If DebugInfo is activated the generated LLVM IR textual representation
@@ -85,13 +87,13 @@ public:
 
       // Flushing is required to have correct line and column numbers
       Output.flush();
-      auto *Location = llvm::DILocation::get(Context,
-                                             Output.getLine(),
-                                             Output.getColumn(),
-                                             Scope);
+      auto *Location = DILocation::get(Context,
+                                       Output.getLine(),
+                                       Output.getColumn(),
+                                       Scope);
 
       // Sorry Bjarne
-      auto *NonConstInstruction = const_cast<llvm::Instruction *>(Instruction);
+      auto *NonConstInstruction = const_cast<Instruction *>(TheInstruction);
       NonConstInstruction->setMetadata(DbgMDKind, Location);
     }
   }
@@ -100,16 +102,16 @@ private:
   /// Writes the text contained in the metadata with the specified kind ID to
   /// the output stream, unless that metadata is exactly the same as in the
   /// previous instruction.
-  static void writeMetadataIfNew(const llvm::Instruction *Instruction,
+  static void writeMetadataIfNew(const Instruction *TheInstruction,
                                  unsigned MDKind,
-                                 llvm::formatted_raw_ostream &Output,
-                                 llvm::StringRef Prefix) {
-    llvm::MDString *MD = getMD(Instruction, MDKind);
+                                 formatted_raw_ostream &Output,
+                                 StringRef Prefix) {
+    MDString *MD = getMD(TheInstruction, MDKind);
     if (MD != nullptr) {
-      const llvm::Instruction *PrevInstruction = nullptr;
+      const Instruction *PrevInstruction = nullptr;
 
-      if (Instruction != Instruction->getParent()->begin())
-        PrevInstruction = Instruction->getPrevNode();
+      if (TheInstruction != TheInstruction->getParent()->begin())
+        PrevInstruction = TheInstruction->getPrevNode();
 
       if (PrevInstruction == nullptr || getMD(PrevInstruction, MDKind) != MD)
         Output << Prefix << MD->getString();
@@ -118,8 +120,8 @@ private:
   }
 
 private:
-  llvm::LLVMContext &Context;
-  llvm::Metadata *Scope;
+  LLVMContext &Context;
+  Metadata *Scope;
   unsigned OriginalInstrMDKind;
   unsigned PTCInstrMDKind;
   unsigned DbgMDKind;
@@ -132,13 +134,13 @@ private:
 /// created on the fly.
 class VariableManager {
 public:
-  VariableManager(llvm::Module& Module,
-                  llvm::ArrayRef<llvm::GlobalVariable *> PredefinedGlobals) :
-    Module(Module),
-    Builder(Module.getContext()) {
+  VariableManager(Module& TheModule,
+                  ArrayRef<GlobalVariable *> PredefinedGlobals) :
+    TheModule(TheModule),
+    Builder(TheModule.getContext()) {
 
     // Store all the predefined globals
-    for (llvm::GlobalVariable *Global : PredefinedGlobals)
+    for (GlobalVariable *Global : PredefinedGlobals)
       Globals[Global->getName()] = Global;
   }
   /// Given a PTC temporary identifier, checks if it already exists in the
@@ -146,8 +148,8 @@ public:
   ///
   /// \param TemporaryId the PTC temporary identifier.
   ///
-  /// \return an llvm::Value wrapping the request global or local variable.
-  llvm::Value* getOrCreate(unsigned int TemporaryId);
+  /// \return an Value wrapping the request global or local variable.
+  Value* getOrCreate(unsigned int TemporaryId);
 
   /// Informs the VariableManager that a new function has begun, so it can
   /// discard function- and basic block-level variables.
@@ -155,7 +157,7 @@ public:
   /// \param Delimiter the new point where to insert allocations for local
   /// variables.
   /// \param Instructions the new PTCInstructionList to use from now on.
- void newFunction(llvm::Instruction *Delimiter=nullptr,
+  void newFunction(Instruction *Delimiter=nullptr,
                    PTCInstructionList *Instructions=nullptr) {
     LocalTemporaries.clear();
     newBasicBlock(Delimiter, Instructions);
@@ -167,7 +169,7 @@ public:
   /// \param Delimiter the new point where to insert allocations for local
   /// variables.
   /// \param Instructions the new PTCInstructionList to use from now on.
-  void newBasicBlock(llvm::Instruction *Delimiter=nullptr,
+  void newBasicBlock(Instruction *Delimiter=nullptr,
                      PTCInstructionList *Instructions=nullptr) {
     Temporaries.clear();
     if (Instructions != nullptr)
@@ -177,7 +179,7 @@ public:
       Builder.SetInsertPoint(Delimiter);
   }
 
-  void newBasicBlock(llvm::BasicBlock *Delimiter,
+  void newBasicBlock(BasicBlock *Delimiter,
                      PTCInstructionList *Instructions=nullptr) {
     Temporaries.clear();
     if (Instructions != nullptr)
@@ -187,51 +189,50 @@ public:
       Builder.SetInsertPoint(Delimiter);
   }
 
-  static llvm::GlobalVariable*
-  createGlobal(llvm::Module& Module,
-               llvm::Type *Type,
-               llvm::GlobalValue::LinkageTypes Linkage,
+  static GlobalVariable*
+  createGlobal(Module& TheModule,
+               Type *Type,
+               GlobalValue::LinkageTypes Linkage,
                uint64_t Initializer = 0,
-               const llvm::Twine& Name = "") {
+               const Twine& Name = "") {
 
-    return new llvm::GlobalVariable(Module, Type, false, Linkage,
-                                    llvm::ConstantInt::get(Type, Initializer),
-                                    Name);
+    return new GlobalVariable(TheModule, Type, false, Linkage,
+                              ConstantInt::get(Type, Initializer),
+                              Name);
   }
 
 private:
-  llvm::Module& Module;
-  llvm::IRBuilder<> Builder;
-  using TemporariesMap = std::map<unsigned int, llvm::AllocaInst *>;
-  using GlobalsMap = std::map<std::string, llvm::GlobalVariable *>;
+  Module& TheModule;
+  IRBuilder<> Builder;
+  using TemporariesMap = std::map<unsigned int, AllocaInst *>;
+  using GlobalsMap = std::map<std::string, GlobalVariable *>;
   GlobalsMap Globals;
   TemporariesMap Temporaries;
   TemporariesMap LocalTemporaries;
   PTCInstructionList *Instructions;
-  llvm::Instruction *Last;
+  Instruction *Last;
 };
 
-llvm::Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
+Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
   assert(Instructions != nullptr);
 
   PTCTemp *Temporary = ptc_temp_get(Instructions, TemporaryId);
-  llvm::Instruction *Result = nullptr;
+  Instruction *Result = nullptr;
   // TODO: handle non-32 bit variables
-  llvm::Type *VariableType = Builder.getInt32Ty();
+  Type *VariableType = Builder.getInt32Ty();
 
   if (ptc_temp_is_global(Instructions, TemporaryId)) {
-    auto TemporaryName = llvm::StringRef(Temporary->name).lower();
+    auto TemporaryName = StringRef(Temporary->name).lower();
 
     GlobalsMap::iterator it = Globals.find(TemporaryName);
     if (it != Globals.end()) {
       return it->second;
     } else {
-      llvm::GlobalVariable *NewVariable = nullptr;
-      NewVariable = createGlobal(Module,
-                                 VariableType,
-                                 llvm::GlobalValue::ExternalLinkage,
-                                 0,
-                                 TemporaryName);
+      GlobalVariable *NewVariable = createGlobal(TheModule,
+                                                 VariableType,
+                                                 GlobalValue::ExternalLinkage,
+                                                 0,
+                                                 TemporaryName);
       assert(NewVariable != nullptr);
       Globals[TemporaryName] = NewVariable;
 
@@ -243,7 +244,7 @@ llvm::Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
     if (it != LocalTemporaries.end()) {
       return it->second;
     } else {
-      llvm::AllocaInst *NewTemporary = Builder.CreateAlloca(VariableType);
+      AllocaInst *NewTemporary = Builder.CreateAlloca(VariableType);
       LocalTemporaries[TemporaryId] = NewTemporary;
       Result = NewTemporary;
     }
@@ -252,7 +253,7 @@ llvm::Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
     if (it != Temporaries.end()) {
       return it->second;
     } else {
-      llvm::AllocaInst *NewTemporary = Builder.CreateAlloca(VariableType);
+      AllocaInst *NewTemporary = Builder.CreateAlloca(VariableType);
       Temporaries[TemporaryId] = NewTemporary;
       Result = NewTemporary;
     }
@@ -268,34 +269,34 @@ llvm::Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
 /// \param Condition the input PTC condition.
 ///
 /// \return the corresponding LLVM predicate.
-static llvm::CmpInst::Predicate conditionToPredicate(PTCCondition Condition) {
+static CmpInst::Predicate conditionToPredicate(PTCCondition Condition) {
   switch (Condition) {
   case PTC_COND_NEVER:
     // TODO: this is probably wrong
-    return llvm::CmpInst::FCMP_FALSE;
+    return CmpInst::FCMP_FALSE;
   case PTC_COND_ALWAYS:
     // TODO: this is probably wrong
-    return llvm::CmpInst::FCMP_TRUE;
+    return CmpInst::FCMP_TRUE;
   case PTC_COND_EQ:
-    return llvm::CmpInst::ICMP_EQ;
+    return CmpInst::ICMP_EQ;
   case PTC_COND_NE:
-    return llvm::CmpInst::ICMP_NE;
+    return CmpInst::ICMP_NE;
   case PTC_COND_LT:
-    return llvm::CmpInst::ICMP_SLT;
+    return CmpInst::ICMP_SLT;
   case PTC_COND_GE:
-    return llvm::CmpInst::ICMP_SGE;
+    return CmpInst::ICMP_SGE;
   case PTC_COND_LE:
-    return llvm::CmpInst::ICMP_SLE;
+    return CmpInst::ICMP_SLE;
   case PTC_COND_GT:
-    return llvm::CmpInst::ICMP_SGT;
+    return CmpInst::ICMP_SGT;
   case PTC_COND_LTU:
-    return llvm::CmpInst::ICMP_ULT;
+    return CmpInst::ICMP_ULT;
   case PTC_COND_GEU:
-    return llvm::CmpInst::ICMP_UGE;
+    return CmpInst::ICMP_UGE;
   case PTC_COND_LEU:
-    return llvm::CmpInst::ICMP_ULE;
+    return CmpInst::ICMP_ULE;
   case PTC_COND_GTU:
-    return llvm::CmpInst::ICMP_UGT;
+    return CmpInst::ICMP_UGT;
   default:
     llvm_unreachable("Unknown comparison operator");
   }
@@ -306,51 +307,51 @@ static llvm::CmpInst::Predicate conditionToPredicate(PTCCondition Condition) {
 /// \param Opcode the PTC opcode.
 ///
 /// \return the LLVM binary operation matching opcode.
-static llvm::Instruction::BinaryOps opcodeToBinaryOp(PTCOpcode Opcode) {
+static Instruction::BinaryOps opcodeToBinaryOp(PTCOpcode Opcode) {
   switch (Opcode) {
   case PTC_INSTRUCTION_op_add_i32:
   case PTC_INSTRUCTION_op_add_i64:
   case PTC_INSTRUCTION_op_add2_i32:
   case PTC_INSTRUCTION_op_add2_i64:
-    return llvm::Instruction::Add;
+    return Instruction::Add;
   case PTC_INSTRUCTION_op_sub_i32:
   case PTC_INSTRUCTION_op_sub_i64:
   case PTC_INSTRUCTION_op_sub2_i32:
   case PTC_INSTRUCTION_op_sub2_i64:
-    return llvm::Instruction::Sub;
+    return Instruction::Sub;
   case PTC_INSTRUCTION_op_mul_i32:
   case PTC_INSTRUCTION_op_mul_i64:
-    return llvm::Instruction::Mul;
+    return Instruction::Mul;
   case PTC_INSTRUCTION_op_div_i32:
   case PTC_INSTRUCTION_op_div_i64:
-    return llvm::Instruction::SDiv;
+    return Instruction::SDiv;
   case PTC_INSTRUCTION_op_divu_i32:
   case PTC_INSTRUCTION_op_divu_i64:
-    return llvm::Instruction::UDiv;
+    return Instruction::UDiv;
   case PTC_INSTRUCTION_op_rem_i32:
   case PTC_INSTRUCTION_op_rem_i64:
-    return llvm::Instruction::SRem;
+    return Instruction::SRem;
   case PTC_INSTRUCTION_op_remu_i32:
   case PTC_INSTRUCTION_op_remu_i64:
-    return llvm::Instruction::URem;
+    return Instruction::URem;
   case PTC_INSTRUCTION_op_and_i32:
   case PTC_INSTRUCTION_op_and_i64:
-    return llvm::Instruction::And;
+    return Instruction::And;
   case PTC_INSTRUCTION_op_or_i32:
   case PTC_INSTRUCTION_op_or_i64:
-    return llvm::Instruction::Or;
+    return Instruction::Or;
   case PTC_INSTRUCTION_op_xor_i32:
   case PTC_INSTRUCTION_op_xor_i64:
-    return llvm::Instruction::Xor;
+    return Instruction::Xor;
   case PTC_INSTRUCTION_op_shl_i32:
   case PTC_INSTRUCTION_op_shl_i64:
-    return llvm::Instruction::Shl;
+    return Instruction::Shl;
   case PTC_INSTRUCTION_op_shr_i32:
   case PTC_INSTRUCTION_op_shr_i64:
-    return llvm::Instruction::LShr;
+    return Instruction::LShr;
   case PTC_INSTRUCTION_op_sar_i32:
   case PTC_INSTRUCTION_op_sar_i64:
-    return llvm::Instruction::AShr;
+    return Instruction::AShr;
   default:
     llvm_unreachable("PTC opcode is not a binary operator");
   }
@@ -510,10 +511,10 @@ static unsigned getRegisterSize(unsigned Opcode) {
 ///
 /// \return a compare instruction.
 template<typename T>
-static llvm::Value *CreateICmp(T& Builder,
-                               uint64_t RawCondition,
-                               llvm::Value *FirstOperand,
-                               llvm::Value *SecondOperand) {
+static Value *CreateICmp(T& Builder,
+                         uint64_t RawCondition,
+                         Value *FirstOperand,
+                         Value *SecondOperand) {
   PTCCondition Condition = static_cast<PTCCondition>(RawCondition);
   return Builder.CreateICmp(conditionToPredicate(Condition),
                             FirstOperand,
@@ -522,15 +523,15 @@ static llvm::Value *CreateICmp(T& Builder,
 
 class JumpTargetManager {
 public:
-  using BlockWithAddress = std::pair<uint64_t, llvm::BasicBlock *>;
+  using BlockWithAddress = std::pair<uint64_t, BasicBlock *>;
   static const BlockWithAddress NoMoreTargets;
 
 public:
-  JumpTargetManager(llvm::LLVMContext& Context,
-                    llvm::Value *PCReg,
-                    llvm::Function *Function) :
+  JumpTargetManager(LLVMContext& Context,
+                    Value *PCReg,
+                    Function *TheFunction) :
     Context(Context),
-    Function(Function),
+    TheFunction(TheFunction),
     OriginalInstructionAddresses(),
     JumpTargets(),
     PCReg(PCReg) { }
@@ -546,7 +547,7 @@ public:
   ///
   /// \return the basic block to use from now on, or null if the program counter
   ///         is not associated to a basic block.
-  llvm::BasicBlock *newPC(uint64_t PC, bool& ShouldContinue) {
+  BasicBlock *newPC(uint64_t PC, bool& ShouldContinue) {
     // Did we already meet this PC?
     auto It = JumpTargets.find(PC);
     if (It != JumpTargets.end()) {
@@ -572,7 +573,7 @@ public:
   }
 
   /// Save the PC-Instruction association for future use (jump target)
-  void registerInstruction(uint64_t PC, llvm::Instruction *Instruction) {
+  void registerInstruction(uint64_t PC, Instruction *Instruction) {
     // Never save twice a PC
     assert(OriginalInstructionAddresses.find(PC) ==
            OriginalInstructionAddresses.end());
@@ -580,7 +581,7 @@ public:
   }
 
   /// Save the PC-BasicBlock association for futur use (jump target)
-  void registerBlock(uint64_t PC, llvm::BasicBlock *Block) {
+  void registerBlock(uint64_t PC, BasicBlock *Block) {
     // If we already met it, it must point to the same block
     auto It = JumpTargets.find(PC);
     assert(It == JumpTargets.end() || It->second == Block);
@@ -591,26 +592,26 @@ public:
   /// Look for all the stores targeting the program counter and add a branch
   /// there as appropriate.
   void translateMovePC(uint64_t BasePC) {
-    for (llvm::Use& PCUse : PCReg->uses()) {
+    for (Use& PCUse : PCReg->uses()) {
       // TODO: what to do in case of read of the PC?
       // Is the PC the store destination?
       if (PCUse.getOperandNo() == 1) {
-        if (auto Jump = llvm::dyn_cast<llvm::StoreInst>(PCUse.getUser())) {
-          llvm::Value *Destination = Jump->getValueOperand();
+        if (auto Jump = dyn_cast<StoreInst>(PCUse.getUser())) {
+          Value *Destination = Jump->getValueOperand();
 
           // Is desintation a constant?
-          if (auto Address = llvm::dyn_cast<llvm::ConstantInt>(Destination)) {
+          if (auto Address = dyn_cast<ConstantInt>(Destination)) {
             // Compute the actual PC
             uint64_t TargetPC = BasePC + Address->getSExtValue();
 
             // Get or create the block for this PC and branch there
-            llvm::BasicBlock *TargetBlock = getBlockAt(TargetPC);
-            llvm::Instruction *Branch = llvm::BranchInst::Create(TargetBlock);
+            BasicBlock *TargetBlock = getBlockAt(TargetPC);
+            Instruction *Branch = BranchInst::Create(TargetBlock);
 
             // Cleanup of what's afterwards (only a unconditional jump is
             // allowed)
-            llvm::BasicBlock::iterator I = Jump;
-            llvm::BasicBlock::iterator BlockEnd = Jump->getParent()->end();
+            BasicBlock::iterator I = Jump;
+            BasicBlock::iterator BlockEnd = Jump->getParent()->end();
             if (++I != BlockEnd)
               purgeBranch(I);
 
@@ -619,13 +620,13 @@ public:
           } else {
             // TODO: very strong assumption here
             // Destination is not a constant, assume it's a return
-            llvm::ReturnInst::Create(Context, nullptr, Jump);
+            ReturnInst::Create(Context, nullptr, Jump);
 
             // Cleanup everything it's aftewards
-            llvm::BasicBlock *Parent = Jump->getParent();
-            llvm::Instruction *ToDelete = &*(--Parent->end());
+            BasicBlock *Parent = Jump->getParent();
+            Instruction *ToDelete = &*(--Parent->end());
             while (ToDelete != Jump) {
-              if (auto DeadBranch = llvm::dyn_cast<llvm::BranchInst>(ToDelete))
+              if (auto DeadBranch = dyn_cast<BranchInst>(ToDelete))
                 purgeBranch(DeadBranch);
               else
                 ToDelete->eraseFromParent();
@@ -659,7 +660,7 @@ public:
 
 private:
   /// Get or create a block for the given PC
-  llvm::BasicBlock *getBlockAt(uint64_t PC) {
+  BasicBlock *getBlockAt(uint64_t PC) {
     // Do we already have a BasicBlock for this PC?
     BlockMap::iterator TargetIt = JumpTargets.find(PC);
     if (TargetIt != JumpTargets.end()) {
@@ -669,12 +670,12 @@ private:
 
     // Did we already meet this PC (i.e. to we know what's the associated
     // instruction)?
-    llvm::BasicBlock *NewBlock = nullptr;
+    BasicBlock *NewBlock = nullptr;
     InstructionMap::iterator InstrIt = OriginalInstructionAddresses.find(PC);
     if (InstrIt != OriginalInstructionAddresses.end()) {
       // Case 2: the address has already been met, but needs to be promoted to
       //         BasicBlock level.
-      llvm::BasicBlock *ContainingBlock = InstrIt->second->getParent();
+      BasicBlock *ContainingBlock = InstrIt->second->getParent();
       if (InstrIt->second == &*ContainingBlock->begin())
         NewBlock = ContainingBlock;
       else {
@@ -683,13 +684,13 @@ private:
         // Split the block in the appropriate position. Note that
         // OriginalInstructionAddresses stores a reference to the last generated
         // instruction for the previous instruction.
-        llvm::Instruction *Next = InstrIt->second->getNextNode();
+        Instruction *Next = InstrIt->second->getNextNode();
         NewBlock = ContainingBlock->splitBasicBlock(Next);
       }
     } else {
       // Case 3: the address has never been met, create a temporary one,
       // register it for future exploration and return it
-      NewBlock = llvm::BasicBlock::Create(Context, "", Function);
+      NewBlock = BasicBlock::Create(Context, "", TheFunction);
       Unexplored.push_back(BlockWithAddress(PC, NewBlock));
     }
 
@@ -700,30 +701,30 @@ private:
 
   /// Helper function to destroy an unconditional branch and, in case, the
   /// target basic block, if it doesn't have any predecessors left.
-  void purgeBranch(llvm::BasicBlock::iterator I) {
-    auto *DeadBranch = llvm::dyn_cast<llvm::BranchInst>(I);
+  void purgeBranch(BasicBlock::iterator I) {
+    auto *DeadBranch = dyn_cast<BranchInst>(I);
     // We allow only an unconditional branch and nothing else
     assert(DeadBranch != nullptr &&
            DeadBranch->isUnconditional() &&
            ++I == DeadBranch->getParent()->end());
 
     // Obtain the target of the dead branch
-    llvm::BasicBlock *DeadBranchTarget = DeadBranch->getSuccessor(0);
+    BasicBlock *DeadBranchTarget = DeadBranch->getSuccessor(0);
 
     // Destroy the dead branch
     DeadBranch->eraseFromParent();
 
     // Check if someone else was jumping there and then destroy
-    if (llvm::pred_empty(DeadBranchTarget))
+    if (pred_empty(DeadBranchTarget))
       DeadBranchTarget->eraseFromParent();
   }
 
 private:
-  using BlockMap = std::map<uint64_t, llvm::BasicBlock *>;
-  using InstructionMap = std::map<uint64_t, llvm::Instruction *>;
+  using BlockMap = std::map<uint64_t, BasicBlock *>;
+  using InstructionMap = std::map<uint64_t, Instruction *>;
 
-  llvm::LLVMContext& Context;
-  llvm::Function* Function;
+  LLVMContext& Context;
+  Function* TheFunction;
   /// Holds the association between a PC and the last generated instruction for
   /// the previous instruction.
   InstructionMap OriginalInstructionAddresses;
@@ -731,7 +732,7 @@ private:
   BlockMap JumpTargets;
   /// Queue of program counters we still have to translate.
   std::vector<BlockWithAddress> Unexplored;
-  llvm::Value *PCReg;
+  Value *PCReg;
 };
 
 const JumpTargetManager::BlockWithAddress JumpTargetManager::NoMoreTargets =
@@ -742,16 +743,16 @@ class DebugHelper {
 public:
   DebugHelper(std::string OutputPath,
               std::string DebugPath,
-              llvm::Module *Module,
+              Module *TheModule,
               DebugInfoType Type) : OutputPath(OutputPath),
                                     DebugPath(DebugPath),
-                                    Builder(*Module),
+                                    Builder(*TheModule),
                                     Type(Type),
-                                    Module(Module)
+                                    TheModule(TheModule)
   {
-    OriginalInstrMDKind = Module->getContext().getMDKindID("oi");
-    PTCInstrMDKind = Module->getContext().getMDKindID("pi");
-    DbgMDKind = Module->getContext().getMDKindID("dbg");
+    OriginalInstrMDKind = TheModule->getContext().getMDKindID("oi");
+    PTCInstrMDKind = TheModule->getContext().getMDKindID("pi");
+    DbgMDKind = TheModule->getContext().getMDKindID("dbg");
 
     // Generate automatically the name of the source file for debugging
     if (DebugPath.empty()) {
@@ -764,7 +765,7 @@ public:
     }
 
     if (Type != DebugInfoType::None) {
-      CompileUnit = Builder.createCompileUnit(llvm::dwarf::DW_LANG_C,
+      CompileUnit = Builder.createCompileUnit(dwarf::DW_LANG_C,
                                               DebugPath,
                                               "",
                                               "revamb",
@@ -773,9 +774,9 @@ public:
                                               0 /* Runtime version */);
 
       // Add the current debug info version into the module.
-      Module->addModuleFlag(llvm::Module::Warning, "Debug Info Version",
-                            llvm::DEBUG_METADATA_VERSION);
-      Module->addModuleFlag(llvm::Module::Warning, "Dwarf Version", 2);
+      TheModule->addModuleFlag(Module::Warning, "Debug Info Version",
+                               DEBUG_METADATA_VERSION);
+      TheModule->addModuleFlag(Module::Warning, "Dwarf Version", 2);
     }
   }
 
@@ -783,23 +784,23 @@ public:
   ///
   /// Generates the debug information for the given function and caches it for
   /// future use.
-  void newFunction(llvm::Function *Function) {
+  void newFunction(Function *Function) {
     if (Type != DebugInfoType::None) {
-      llvm::DISubroutineType *EmptyType = nullptr;
+      DISubroutineType *EmptyType = nullptr;
       EmptyType = Builder.createSubroutineType(CompileUnit->getFile(),
                                                Builder.getOrCreateTypeArray({}));
 
       CurrentFunction = Function;
       CurrentSubprogram = Builder.createFunction(CompileUnit, /* Scope */
-                                                 "root", /* Name */
-                                                 llvm::StringRef(), /* Linkage name */
-                                                 CompileUnit->getFile(), /* DIFile */
+                                                 Function->getName(),
+                                                 StringRef(), /* Linkage name */
+                                                 CompileUnit->getFile(),
                                                  1, /* Line */
                                                  EmptyType, /* Subroutine type */
                                                  false, /* isLocalToUnit */
                                                  true, /* isDefinition */
                                                  1, /* ScopeLine */
-                                                 llvm::DINode::FlagPrototyped, /* Flags */
+                                                 DINode::FlagPrototyped,
                                                  false, /* isOptimized */
                                                  CurrentFunction /* Function */);
     }
@@ -820,17 +821,17 @@ public:
           PTCInstrMDKind : OriginalInstrMDKind;
 
         std::ofstream Source(DebugPath);
-        for (llvm::BasicBlock& Block : *CurrentFunction) {
-          for (llvm::Instruction& Instruction : Block) {
-            llvm::MDString *Body = getMD(&Instruction, MetadataKind);
+        for (BasicBlock& Block : *CurrentFunction) {
+          for (Instruction& Instruction : Block) {
+            MDString *Body = getMD(&Instruction, MetadataKind);
             std::string BodyString = Body->getString().str();
 
             Source << BodyString;
 
-            auto *Location = llvm::DILocation::get(Module->getContext(),
-                                                   LineIndex,
-                                                   0,
-                                                   CurrentSubprogram);
+            auto *Location = DILocation::get(TheModule->getContext(),
+                                             LineIndex,
+                                             0,
+                                             CurrentSubprogram);
             Instruction.setMetadata(DbgMDKind, Location);
             LineIndex += std::count(BodyString.begin(),
                                     BodyString.end(),
@@ -844,12 +845,12 @@ public:
         // Use the annotator to obtain line and column of the textual LLVM IR
         // for each instruction. Discard the output since it will contain
         // errors, regenerating it later will give a correct result.
-        llvm::raw_null_ostream NullStream;
-        Module->print(NullStream, annotator(true /* DebugInfo */));
+        raw_null_ostream NullStream;
+        TheModule->print(NullStream, annotator(true /* DebugInfo */));
 
         std::ofstream Output(DebugPath);
-        llvm::raw_os_ostream Stream(Output);
-        Module->print(Stream, annotator(false));
+        raw_os_ostream Stream(Output);
+        TheModule->print(Stream, annotator(false));
 
         break;
       }
@@ -864,7 +865,7 @@ public:
   ///
   /// \param DebugInfo whether to decorate the IR with debug information or not
   DebugAnnotationWriter *annotator(bool DebugInfo) {
-    Annotator.reset(new DebugAnnotationWriter(Module->getContext(),
+    Annotator.reset(new DebugAnnotationWriter(TheModule->getContext(),
                                               CurrentSubprogram,
                                               DebugInfo));
     return Annotator.get();
@@ -888,12 +889,12 @@ public:
 private:
   std::string& OutputPath;
   std::string DebugPath;
-  llvm::DIBuilder Builder;
+  DIBuilder Builder;
   DebugInfoType Type;
-  llvm::Module *Module;
-  llvm::DICompileUnit *CompileUnit;
-  llvm::DISubprogram *CurrentSubprogram;
-  llvm::Function *CurrentFunction;
+  Module *TheModule;
+  DICompileUnit *CompileUnit;
+  DISubprogram *CurrentSubprogram;
+  Function *CurrentFunction;
   std::unique_ptr<DebugAnnotationWriter> Annotator;
 
   unsigned OriginalInstrMDKind;
@@ -911,9 +912,9 @@ CodeGenerator::CodeGenerator(Architecture& Source,
                              std::string DebugPath) :
   SourceArchitecture(Source),
   TargetArchitecture(Target),
-  Context(llvm::getGlobalContext()),
-  Module((new llvm::Module("top", Context))),
-  Debug(new DebugHelper(OutputPath, DebugPath, Module.get(), DebugInfo)),
+  Context(getGlobalContext()),
+  TheModule((new Module("top", Context))),
+  Debug(new DebugHelper(OutputPath, DebugPath, TheModule.get(), DebugInfo)),
   OutputPath(OutputPath)
 {
   OriginalInstrMDKind = Context.getMDKindID("oi");
@@ -921,48 +922,48 @@ CodeGenerator::CodeGenerator(Architecture& Source,
   DbgMDKind = Context.getMDKindID("dbg");
 }
 
-int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
+int CodeGenerator::translate(ArrayRef<uint8_t> Code,
                              std::string Name) {
   const uint8_t *CodePointer = Code.data();
   const uint8_t *CodeEnd = CodePointer + Code.size();
 
-  llvm::IRBuilder<> Builder(Context);
+  IRBuilder<> Builder(Context);
 
   // Create main function
-  llvm::FunctionType *MainType = nullptr;
-  MainType = llvm::FunctionType::get(Builder.getVoidTy(), false);
-  llvm::Function *MainFunction = nullptr;
-  MainFunction = llvm::Function::Create(MainType,
-                                        llvm::Function::ExternalLinkage,
-                                        Name,
-                                        Module.get());
+  FunctionType *MainType = nullptr;
+  MainType = FunctionType::get(Builder.getVoidTy(), false);
+  Function *MainFunction = nullptr;
+  MainFunction = Function::Create(MainType,
+                                  Function::ExternalLinkage,
+                                  Name,
+                                  TheModule.get());
 
   Debug->newFunction(MainFunction);
 
   // Create the first basic block and create a placeholder for variable
   // allocations
-  llvm::BasicBlock *Entry = llvm::BasicBlock::Create(Context,
-                                                     "entrypoint",
-                                                     MainFunction);
+  BasicBlock *Entry = BasicBlock::Create(Context,
+                                         "entrypoint",
+                                         MainFunction);
   Builder.SetInsertPoint(Entry);
-  llvm::Instruction *Delimiter = Builder.CreateUnreachable();
+  Instruction *Delimiter = Builder.CreateUnreachable();
 
   // Create register needed for managing the control flow
-  llvm::GlobalVariable *PCReg = nullptr;
-  PCReg = VariableManager::createGlobal(*Module,
+  GlobalVariable *PCReg = nullptr;
+  PCReg = VariableManager::createGlobal(*TheModule,
                                         Builder.getInt32Ty(),
-                                        llvm::GlobalValue::ExternalLinkage,
-                                        0,
+                                        GlobalValue::ExternalLinkage,
+                                        0, /* Initial value */
                                         "pc");
 
   // Instantiate helpers
-  VariableManager Variables(*Module, { PCReg });
+  VariableManager Variables(*TheModule, { PCReg });
   JumpTargetManager JumpTargets(Context, PCReg, MainFunction);
 
   while (Entry != nullptr) {
     Builder.SetInsertPoint(Entry);
 
-    std::map<std::string, llvm::BasicBlock *> LabeledBasicBlocks;
+    std::map<std::string, BasicBlock *> LabeledBasicBlocks;
 
     // TODO: rename this type
     PTCInstructionListPtr InstructionList(new PTCInstructionList);
@@ -983,8 +984,7 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
 
     assert(j < InstructionList->instruction_count);
 
-    llvm::MDNode* MDOriginalInstr = nullptr;
-
+    MDNode* MDOriginalInstr = nullptr;
 
     bool StopTranslation = false;
     for (; j < InstructionList->instruction_count && !StopTranslation; j++) {
@@ -996,14 +996,14 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
         return EXIT_FAILURE;
       }
 
-      std::vector<llvm::BasicBlock *> Blocks { Builder.GetInsertBlock() };
+      std::vector<BasicBlock *> Blocks { Builder.GetInsertBlock() };
 
-      std::vector<llvm::Value *> OutArguments;
-      std::vector<llvm::Value *> InArguments;
+      std::vector<Value *> OutArguments;
+      std::vector<Value *> InArguments;
       std::vector<uint64_t> ConstArguments;
 
       // Create or get variables
-      llvm::Value *LoadInstruction = nullptr;
+      Value *LoadInstruction = nullptr;
       unsigned InArgumentsCount = 0;
       InArgumentsCount = ptc_instruction_in_arg_count(&ptc, &Instruction);
       for (unsigned i = 0; i < InArgumentsCount; i++) {
@@ -1021,7 +1021,7 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
       }
 
       unsigned RegisterSize = getRegisterSize(Opcode);
-      llvm::Type *RegisterType = nullptr;
+      Type *RegisterType = nullptr;
       if (RegisterSize == 32)
         RegisterType = Builder.getInt32Ty();
       else if (RegisterSize == 64)
@@ -1032,8 +1032,8 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
       switch (Opcode) {
       case PTC_INSTRUCTION_op_movi_i32:
       case PTC_INSTRUCTION_op_movi_i64:
-        OutArguments.push_back(llvm::ConstantInt::get(RegisterType,
-                                                      ConstArguments[0]));
+        OutArguments.push_back(ConstantInt::get(RegisterType,
+                                                ConstArguments[0]));
         break;
       case PTC_INSTRUCTION_op_discard:
         // Nothing to do here
@@ -1045,25 +1045,25 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
       case PTC_INSTRUCTION_op_setcond_i32:
       case PTC_INSTRUCTION_op_setcond_i64:
         {
-          llvm::Value *Compare = CreateICmp(Builder,
-                                            ConstArguments[0],
-                                            InArguments[0],
-                                            InArguments[1]);
+          Value *Compare = CreateICmp(Builder,
+                                      ConstArguments[0],
+                                      InArguments[0],
+                                      InArguments[1]);
           // TODO: convert single-bit registers to i1
-          llvm::Value *Result = Builder.CreateZExt(Compare, RegisterType);
+          Value *Result = Builder.CreateZExt(Compare, RegisterType);
           OutArguments.push_back(Result);
           break;
         }
       case PTC_INSTRUCTION_op_movcond_i32: // Resist the fallthrough temptation
       case PTC_INSTRUCTION_op_movcond_i64:
         {
-          llvm::Value *Compare = CreateICmp(Builder,
-                                            ConstArguments[0],
-                                            InArguments[0],
-                                            InArguments[1]);
-          llvm::Value *Select = Builder.CreateSelect(Compare,
-                                                     InArguments[2],
-                                                     InArguments[3]);
+          Value *Compare = CreateICmp(Builder,
+                                      ConstArguments[0],
+                                      InArguments[0],
+                                      InArguments[1]);
+          Value *Select = Builder.CreateSelect(Compare,
+                                               InArguments[2],
+                                               InArguments[3]);
           OutArguments.push_back(Select);
         }
         break;
@@ -1085,7 +1085,7 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
             AccessAlignment = SourceArchitecture.defaultAlignment();
 
           // Load size
-          llvm::IntegerType *MemoryType = nullptr;
+          IntegerType *MemoryType = nullptr;
           switch (ptc_get_memory_access_size(MemoryAccess.type)) {
           case PTC_MO_8:
             MemoryType = Builder.getInt8Ty();
@@ -1112,16 +1112,16 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
                  "Different endianess between the source and the target is not "
                  "supported yet");
 
-          llvm::Value *Pointer = nullptr;
+          Value *Pointer = nullptr;
           if (Opcode == PTC_INSTRUCTION_op_qemu_ld_i32 ||
               Opcode == PTC_INSTRUCTION_op_qemu_ld_i64) {
 
             Pointer = Builder.CreateIntToPtr(InArguments[0],
                                              MemoryType->getPointerTo());
-            llvm::Value *Load = Builder.CreateAlignedLoad(Pointer,
-                                                          AccessAlignment);
+            Value *Load = Builder.CreateAlignedLoad(Pointer,
+                                                    AccessAlignment);
 
-            llvm::Value *Result = nullptr;
+            Value *Result = nullptr;
             if (SignExtend)
               Result = Builder.CreateSExt(Load, RegisterType);
             else
@@ -1134,7 +1134,7 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
 
             Pointer = Builder.CreateIntToPtr(InArguments[1],
                                              MemoryType->getPointerTo());
-            llvm::Value *Value = Builder.CreateTrunc(InArguments[0], MemoryType);
+            Value *Value = Builder.CreateTrunc(InArguments[0], MemoryType);
             Builder.CreateAlignedStore(Value, Pointer, AccessAlignment);
 
           } else
@@ -1191,10 +1191,10 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
       case PTC_INSTRUCTION_op_sar_i64:
         {
           // TODO: assert on sizes?
-          llvm::Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
-          llvm::Value *Operation = Builder.CreateBinOp(BinaryOp,
-                                                       InArguments[0],
-                                                       InArguments[1]);
+          Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
+          Value *Operation = Builder.CreateBinOp(BinaryOp,
+                                                 InArguments[0],
+                                                 InArguments[1]);
           OutArguments.push_back(Operation);
           break;
         }
@@ -1203,27 +1203,27 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
       case PTC_INSTRUCTION_op_div2_i64:
       case PTC_INSTRUCTION_op_divu2_i64:
         {
-          llvm::Instruction::BinaryOps DivisionOp, RemainderOp;
+          Instruction::BinaryOps DivisionOp, RemainderOp;
 
           if (Opcode == PTC_INSTRUCTION_op_div2_i32 ||
               Opcode == PTC_INSTRUCTION_op_div2_i64) {
-            DivisionOp = llvm::Instruction::SDiv;
-            RemainderOp = llvm::Instruction::SRem;
+            DivisionOp = Instruction::SDiv;
+            RemainderOp = Instruction::SRem;
           } else if (Opcode == PTC_INSTRUCTION_op_div2_i32 ||
                      Opcode == PTC_INSTRUCTION_op_div2_i64) {
-            DivisionOp = llvm::Instruction::UDiv;
-            RemainderOp = llvm::Instruction::URem;
+            DivisionOp = Instruction::UDiv;
+            RemainderOp = Instruction::URem;
           } else
             llvm_unreachable("Unknown operation type");
 
           // TODO: we're ignoring InArguments[1], which is the MSB
           // TODO: assert on sizes?
-          llvm::Value *Division = Builder.CreateBinOp(DivisionOp,
-                                                      InArguments[0],
-                                                      InArguments[2]);
-          llvm::Value *Remainder = Builder.CreateBinOp(RemainderOp,
-                                                       InArguments[0],
-                                                       InArguments[2]);
+          Value *Division = Builder.CreateBinOp(DivisionOp,
+                                                InArguments[0],
+                                                InArguments[2]);
+          Value *Remainder = Builder.CreateBinOp(RemainderOp,
+                                                 InArguments[0],
+                                                 InArguments[2]);
           OutArguments.push_back(Division);
           OutArguments.push_back(Remainder);
           break;
@@ -1233,29 +1233,29 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
       case PTC_INSTRUCTION_op_rotl_i32:
       case PTC_INSTRUCTION_op_rotl_i64:
         {
-          llvm::Value *Bits = llvm::ConstantInt::get(RegisterType, RegisterSize);
+          Value *Bits = ConstantInt::get(RegisterType, RegisterSize);
 
-          llvm::Instruction::BinaryOps FirstShiftOp, SecondShiftOp;
+          Instruction::BinaryOps FirstShiftOp, SecondShiftOp;
           if (Opcode == PTC_INSTRUCTION_op_rotl_i32 ||
               Opcode == PTC_INSTRUCTION_op_rotl_i64) {
-            FirstShiftOp = llvm::Instruction::LShr;
-            SecondShiftOp = llvm::Instruction::Shl;
+            FirstShiftOp = Instruction::LShr;
+            SecondShiftOp = Instruction::Shl;
           } else if (Opcode == PTC_INSTRUCTION_op_rotr_i32 ||
                      Opcode == PTC_INSTRUCTION_op_rotr_i64) {
-            FirstShiftOp = llvm::Instruction::Shl;
-            SecondShiftOp = llvm::Instruction::LShr;
+            FirstShiftOp = Instruction::Shl;
+            SecondShiftOp = Instruction::LShr;
           } else
             llvm_unreachable("Unexpected opcode");
 
-          llvm::Value *FirstShift = Builder.CreateBinOp(FirstShiftOp,
-                                                        InArguments[0],
-                                                        InArguments[1]);
-          llvm::Value *SecondShiftAmount = Builder.CreateSub(Bits,
-                                                             InArguments[1]);
-          llvm::Value *SecondShift = Builder.CreateBinOp(SecondShiftOp,
-                                                         InArguments[0],
-                                                         SecondShiftAmount);
-          llvm::Value *Result = Builder.CreateOr(FirstShift, SecondShift);
+          Value *FirstShift = Builder.CreateBinOp(FirstShiftOp,
+                                                  InArguments[0],
+                                                  InArguments[1]);
+          Value *SecondShiftAmount = Builder.CreateSub(Bits,
+                                                       InArguments[1]);
+          Value *SecondShift = Builder.CreateBinOp(SecondShiftOp,
+                                                   InArguments[0],
+                                                   SecondShiftAmount);
+          Value *Result = Builder.CreateOr(FirstShift, SecondShift);
 
           OutArguments.push_back(Result);
           break;
@@ -1280,10 +1280,10 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
 
           // result = (t1 & ~(bits << position)) | ((t2 & bits) << position)
           uint64_t BaseMask = ~(Bits << Position);
-          llvm::Value *MaskedBase = Builder.CreateAnd(InArguments[0], BaseMask);
-          llvm::Value *Deposit = Builder.CreateAnd(InArguments[1], Bits);
-          llvm::Value *ShiftedDeposit = Builder.CreateShl(Deposit, Position);
-          llvm::Value *Result = Builder.CreateOr(MaskedBase, ShiftedDeposit);
+          Value *MaskedBase = Builder.CreateAnd(InArguments[0], BaseMask);
+          Value *Deposit = Builder.CreateAnd(InArguments[1], Bits);
+          Value *ShiftedDeposit = Builder.CreateShl(Deposit, Position);
+          Value *Result = Builder.CreateOr(MaskedBase, ShiftedDeposit);
 
           OutArguments.push_back(Result);
           break;
@@ -1299,7 +1299,7 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
       case PTC_INSTRUCTION_op_ext16u_i64:
       case PTC_INSTRUCTION_op_ext32u_i64:
         {
-          llvm::Type *SourceType = nullptr;
+          Type *SourceType = nullptr;
           switch (Opcode) {
           case PTC_INSTRUCTION_op_ext8s_i32:
           case PTC_INSTRUCTION_op_ext8u_i32:
@@ -1321,10 +1321,10 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
             llvm_unreachable("Unexpected opcode");
           }
 
-          llvm::Value *Truncated = Builder.CreateTrunc(InArguments[0],
-                                                       SourceType);
+          Value *Truncated = Builder.CreateTrunc(InArguments[0],
+                                                 SourceType);
 
-          llvm::Value *Result = nullptr;
+          Value *Result = nullptr;
           switch (Opcode) {
           case PTC_INSTRUCTION_op_ext8s_i32:
           case PTC_INSTRUCTION_op_ext8s_i64:
@@ -1350,16 +1350,16 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
       case PTC_INSTRUCTION_op_not_i32:
       case PTC_INSTRUCTION_op_not_i64:
         {
-          llvm::Value *Result = Builder.CreateXor(InArguments[0],
-                                                  getMaxValue(RegisterSize));
+          Value *Result = Builder.CreateXor(InArguments[0],
+                                            getMaxValue(RegisterSize));
           OutArguments.push_back(Result);
           break;
         }
       case PTC_INSTRUCTION_op_neg_i32:
       case PTC_INSTRUCTION_op_neg_i64:
         {
-          llvm::Value *Zero = llvm::ConstantInt::get(RegisterType, 0);
-          llvm::Value *Result = Builder.CreateSub(Zero, InArguments[0]);
+          Value *Zero = ConstantInt::get(RegisterType, 0);
+          Value *Result = Builder.CreateSub(Zero, InArguments[0]);
           OutArguments.push_back(Result);
           break;
         }
@@ -1370,49 +1370,49 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
       case PTC_INSTRUCTION_op_eqv_i32:
       case PTC_INSTRUCTION_op_eqv_i64:
         {
-          llvm::Instruction::BinaryOps ExternalOp;
+          Instruction::BinaryOps ExternalOp;
           switch (Opcode) {
           case PTC_INSTRUCTION_op_andc_i32:
           case PTC_INSTRUCTION_op_andc_i64:
-            ExternalOp = llvm::Instruction::And;
+            ExternalOp = Instruction::And;
             break;
           case PTC_INSTRUCTION_op_orc_i32:
           case PTC_INSTRUCTION_op_orc_i64:
-            ExternalOp = llvm::Instruction::Or;
+            ExternalOp = Instruction::Or;
             break;
           case PTC_INSTRUCTION_op_eqv_i32:
           case PTC_INSTRUCTION_op_eqv_i64:
-            ExternalOp = llvm::Instruction::Xor;
+            ExternalOp = Instruction::Xor;
             break;
           default:
             llvm_unreachable("Unexpected opcode");
           }
 
-          llvm::Value *Negate = Builder.CreateXor(InArguments[1],
-                                                  getMaxValue(RegisterSize));
-          llvm::Value *Result = Builder.CreateBinOp(ExternalOp,
-                                                    InArguments[0],
-                                                    Negate);
+          Value *Negate = Builder.CreateXor(InArguments[1],
+                                            getMaxValue(RegisterSize));
+          Value *Result = Builder.CreateBinOp(ExternalOp,
+                                              InArguments[0],
+                                              Negate);
           OutArguments.push_back(Result);
           break;
         }
       case PTC_INSTRUCTION_op_nand_i32:
       case PTC_INSTRUCTION_op_nand_i64:
         {
-          llvm::Value *AndValue = Builder.CreateAnd(InArguments[0],
-                                                    InArguments[1]);
-          llvm::Value *Result = Builder.CreateXor(AndValue,
-                                                  getMaxValue(RegisterSize));
+          Value *AndValue = Builder.CreateAnd(InArguments[0],
+                                              InArguments[1]);
+          Value *Result = Builder.CreateXor(AndValue,
+                                            getMaxValue(RegisterSize));
           OutArguments.push_back(Result);
           break;
         }
       case PTC_INSTRUCTION_op_nor_i32:
       case PTC_INSTRUCTION_op_nor_i64:
         {
-          llvm::Value *OrValue = Builder.CreateOr(InArguments[0],
-                                                  InArguments[1]);
-          llvm::Value *Result = Builder.CreateXor(OrValue,
-                                                  getMaxValue(RegisterSize));
+          Value *OrValue = Builder.CreateOr(InArguments[0],
+                                            InArguments[1]);
+          Value *Result = Builder.CreateXor(OrValue,
+                                            getMaxValue(RegisterSize));
           OutArguments.push_back(Result);
           break;
         }
@@ -1422,7 +1422,7 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
       case PTC_INSTRUCTION_op_bswap32_i64:
       case PTC_INSTRUCTION_op_bswap64_i64:
         {
-          llvm::Type *SwapType = nullptr;
+          Type *SwapType = nullptr;
           switch (Opcode) {
           case PTC_INSTRUCTION_op_bswap16_i32:
           case PTC_INSTRUCTION_op_bswap16_i64:
@@ -1436,16 +1436,15 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
             llvm_unreachable("Unexpected opcode");
           }
 
-          llvm::Value *Truncated = Builder.CreateTrunc(InArguments[0], SwapType);
+          Value *Truncated = Builder.CreateTrunc(InArguments[0], SwapType);
 
-          std::vector<llvm::Type *> BSwapParameters { RegisterType };
-          llvm::Function *BSwapFunction = nullptr;
-          BSwapFunction = llvm::Intrinsic::getDeclaration(Module.get(),
-                                                          llvm::Intrinsic::bswap,
-                                                          BSwapParameters);
-          llvm::Value *Swapped = Builder.CreateCall(BSwapFunction, Truncated);
+          std::vector<Type *> BSwapParameters { RegisterType };
+          Function *BSwapFunction = Intrinsic::getDeclaration(TheModule.get(),
+                                                              Intrinsic::bswap,
+                                                              BSwapParameters);
+          Value *Swapped = Builder.CreateCall(BSwapFunction, Truncated);
 
-          llvm::Value *Result = Builder.CreateZExt(Swapped, RegisterType);
+          Value *Result = Builder.CreateZExt(Swapped, RegisterType);
           OutArguments.push_back(Result);
           break;
         }
@@ -1454,11 +1453,11 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
           unsigned LabelId = ptc.get_arg_label_id(ConstArguments[0]);
           std::string Label = "L" + std::to_string(LabelId);
 
-          llvm::BasicBlock *Fallthrough = nullptr;
+          BasicBlock *Fallthrough = nullptr;
           auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
 
           if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
-            Fallthrough = llvm::BasicBlock::Create(Context, Label, MainFunction);
+            Fallthrough = BasicBlock::Create(Context, Label, MainFunction);
             LabeledBasicBlocks[Label] = Fallthrough;
           } else {
             // A basic block with that label already exist
@@ -1488,18 +1487,19 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
           unsigned LabelId = ptc.get_arg_label_id(ConstArguments.back());
           std::string Label = "L" + std::to_string(LabelId);
 
-          llvm::BasicBlock *Fallthrough = nullptr;
-          Fallthrough = llvm::BasicBlock::Create(Context, "", MainFunction);
+          BasicBlock *Fallthrough = BasicBlock::Create(Context,
+                                                       "",
+                                                       MainFunction);
 
           // Look for a matching label
-          llvm::BasicBlock *Target = nullptr;
+          BasicBlock *Target = nullptr;
           auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
 
           // No matching label, create a temporary block
           if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
-            Target = llvm::BasicBlock::Create(Context,
-                                              Label,
-                                              MainFunction);
+            Target = BasicBlock::Create(Context,
+                                        Label,
+                                        MainFunction);
             LabeledBasicBlocks[Label] = Target;
           } else
             Target = LabeledBasicBlocks[Label];
@@ -1510,10 +1510,10 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
           } else if (Opcode == PTC_INSTRUCTION_op_brcond_i32 ||
                      Opcode == PTC_INSTRUCTION_op_brcond_i64) {
             // Conditional jump
-            llvm::Value *Compare = CreateICmp(Builder,
-                                              ConstArguments[0],
-                                              InArguments[0],
-                                              InArguments[1]);
+            Value *Compare = CreateICmp(Builder,
+                                        ConstArguments[0],
+                                        InArguments[0],
+                                        InArguments[1]);
             Builder.CreateCondBr(Compare, Target, Fallthrough);
           } else
             llvm_unreachable("Unhandled opcode");
@@ -1536,17 +1536,16 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
           std::stringstream OriginalStringStream;
           disassembleOriginal(OriginalStringStream, PC);
           std::string OriginalString = OriginalStringStream.str();
-          llvm::MDString *MDOriginalString = nullptr;
-          MDOriginalString = llvm::MDString::get(Context, OriginalString);
-          MDOriginalInstr = llvm::MDNode::getDistinct(Context, MDOriginalString);
+          MDString *MDOriginalString = MDString::get(Context, OriginalString);
+          MDOriginalInstr = MDNode::getDistinct(Context, MDOriginalString);
 
           if (PC != 0) {
             // Check if this PC already has a block and use it
             // TODO: rename me
             uint64_t RealPC = CodePointer - Code.data() + PC;
             bool ShouldContinue;
-            llvm::BasicBlock *DivergeTo = JumpTargets.newPC(RealPC,
-                                                            ShouldContinue);
+            BasicBlock *DivergeTo = JumpTargets.newPC(RealPC,
+                                                      ShouldContinue);
             if (DivergeTo != nullptr) {
               Builder.CreateBr(DivergeTo);
 
@@ -1563,7 +1562,7 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
             }
 
             // Inform the JumpTargetManager about the new PC we met
-            llvm::BasicBlock::iterator CurrentIt = Builder.GetInsertPoint();
+            BasicBlock::iterator CurrentIt = Builder.GetInsertPoint();
             if (CurrentIt == Builder.GetInsertBlock()->begin())
               JumpTargets.registerBlock(RealPC, Builder.GetInsertBlock());
             else
@@ -1585,13 +1584,12 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
       case PTC_INSTRUCTION_op_add2_i64:
       case PTC_INSTRUCTION_op_sub2_i64:
         {
-          llvm::Value *FirstOperandLow = nullptr;
-          llvm::Value *FirstOperandHigh = nullptr;
-          llvm::Value *SecondOperandLow = nullptr;
-          llvm::Value *SecondOperandHigh = nullptr;
+          Value *FirstOperandLow = nullptr;
+          Value *FirstOperandHigh = nullptr;
+          Value *SecondOperandLow = nullptr;
+          Value *SecondOperandHigh = nullptr;
 
-          llvm::IntegerType *DestinationType = nullptr;
-          DestinationType = Builder.getIntNTy(RegisterSize * 2);
+          IntegerType *DestinationType = Builder.getIntNTy(RegisterSize * 2);
 
           FirstOperandLow = Builder.CreateZExt(InArguments[0], DestinationType);
           FirstOperandHigh = Builder.CreateZExt(InArguments[1], DestinationType);
@@ -1602,21 +1600,21 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
           FirstOperandHigh = Builder.CreateShl(FirstOperandHigh, RegisterSize);
           SecondOperandHigh = Builder.CreateShl(SecondOperandHigh, RegisterSize);
 
-          llvm::Value *FirstOperand = Builder.CreateOr(FirstOperandHigh,
-                                                       FirstOperandLow);
-          llvm::Value *SecondOperand = Builder.CreateOr(SecondOperandHigh,
-                                                        SecondOperandLow);
+          Value *FirstOperand = Builder.CreateOr(FirstOperandHigh,
+                                                 FirstOperandLow);
+          Value *SecondOperand = Builder.CreateOr(SecondOperandHigh,
+                                                  SecondOperandLow);
 
-          llvm::Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
+          Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
 
-          llvm::Value *Result = Builder.CreateBinOp(BinaryOp,
-                                                    FirstOperand,
-                                                    SecondOperand);
+          Value *Result = Builder.CreateBinOp(BinaryOp,
+                                              FirstOperand,
+                                              SecondOperand);
 
-          llvm::Value *ResultLow = Builder.CreateTrunc(Result, RegisterType);
-          llvm::Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
-          llvm::Value *ResultHigh = Builder.CreateTrunc(ShiftedResult,
-                                                        RegisterType);
+          Value *ResultLow = Builder.CreateTrunc(Result, RegisterType);
+          Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
+          Value *ResultHigh = Builder.CreateTrunc(ShiftedResult,
+                                                  RegisterType);
 
           OutArguments.push_back(ResultLow);
           OutArguments.push_back(ResultHigh);
@@ -1654,12 +1652,12 @@ int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
       std::stringstream PTCStringStream;
       dumpInstruction(PTCStringStream, InstructionList.get(), j);
       std::string PTCString = PTCStringStream.str() + "\n";
-      llvm::MDString *MDPTCString = llvm::MDString::get(Context, PTCString);
-      llvm::MDNode* MDPTCInstr = llvm::MDNode::getDistinct(Context, MDPTCString);
+      MDString *MDPTCString = MDString::get(Context, PTCString);
+      MDNode* MDPTCInstr = MDNode::getDistinct(Context, MDPTCString);
 
       // Set metadata for all the new instructions
-      for (llvm::BasicBlock *Block : Blocks) {
-        llvm::BasicBlock::iterator I = Block->end();
+      for (BasicBlock *Block : Blocks) {
+        BasicBlock::iterator I = Block->end();
         while (I != Block->begin() && !(--I)->hasMetadata()) {
           I->setMetadata(OriginalInstrMDKind, MDOriginalInstr);
           I->setMetadata(PTCInstrMDKind, MDPTCInstr);
@@ -1691,7 +1689,7 @@ void CodeGenerator::serialize() {
   // it
   if (!Debug->copySource()) {
     std::ofstream Output(OutputPath);
-    llvm::raw_os_ostream Stream(Output);
-    Module->print(Stream, Debug->annotator(false));
+    raw_os_ostream Stream(Output);
+    TheModule->print(Stream, Debug->annotator(false));
   }
 }

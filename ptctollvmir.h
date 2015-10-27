@@ -50,7 +50,7 @@ private:
   Architecture& SourceArchitecture;
   Architecture& TargetArchitecture;
   llvm::LLVMContext& Context;
-  std::unique_ptr<llvm::Module> Module;
+  std::unique_ptr<llvm::Module> TheModule;
   std::unique_ptr<DebugHelper> Debug;
   std::string OutputPath;
 
