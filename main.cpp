@@ -46,10 +46,10 @@ static const char *const Usage[] = {
 
 /// Reads the whole specified file into a vector.
 ///
-/// @param InputPath the path to the file to read, or nullptr for stdin.
-/// @param Buffer the vector where the file content should be stored.
+/// \param InputPath the path to the file to read, or nullptr for stdin.
+/// \param Buffer the vector where the file content should be stored.
 ///
-/// @return EXIT_SUCCESS if the file has been correctly read into the buffer.
+/// \return EXIT_SUCCESS if the file has been correctly read into the buffer.
 static int ReadWholeInput(const char *InputPath, std::vector<uint8_t>& Buffer) {
   FilePointer InputFile;
   size_t TotalReadBytes = 0;
@@ -101,10 +101,10 @@ static int ReadWholeInput(const char *InputPath, std::vector<uint8_t>& Buffer) {
 /// Given an architecture name, loads the appropriate version of the PTC library,
 /// and initializes the PTC interface.
 ///
-/// @param Architecture the name of the architecture, e.g. "arm".
-/// @param PTCLibrary a reference to the library handler.
+/// \param Architecture the name of the architecture, e.g. "arm".
+/// \param PTCLibrary a reference to the library handler.
 ///
-/// @return EXIT_SUCCESS if the library has been successfully loaded.
+/// \return EXIT_SUCCESS if the library has been successfully loaded.
 static int loadPTCLibrary(const char *Architecture, LibraryPointer& PTCLibrary) {
   ptc_load_ptr_t ptc_load = nullptr;
   void *LibraryHandle = nullptr;
@@ -144,11 +144,11 @@ static int loadPTCLibrary(const char *Architecture, LibraryPointer& PTCLibrary) 
 
 /// Parses the input arguments to the program.
 ///
-/// @param Argc number of arguments.
-/// @param Argv array of strings containing the arguments.
-/// @param Parameters where to store the parsed parameters.
+/// \param Argc number of arguments.
+/// \param Argv array of strings containing the arguments.
+/// \param Parameters where to store the parsed parameters.
 ///
-/// @return EXIT_SUCCESS if the parameters have been successfully parsed.
+/// \return EXIT_SUCCESS if the parameters have been successfully parsed.
 static int parseArgs(int Argc, const char *Argv[],
                      ProgramParameters *Parameters) {
   const char *OffsetString = nullptr;
@@ -255,13 +255,20 @@ int main(int argc, const char *argv[]) {
     return EXIT_FAILURE;
 
   // Translate everything
-  if (Translate(Parameters.OutputPath,
-                llvm::ArrayRef<uint8_t>(Code.data() + Parameters.Offset,
-                                    Code.size() - Parameters.Offset),
-                Parameters.DebugInfo,
-                Parameters.DebugPath) != EXIT_SUCCESS) {
+  Architecture SourceArchitecture;
+  Architecture TargetArchitecture;
+  CodeGenerator Generator(SourceArchitecture,
+                          TargetArchitecture,
+                          Parameters.OutputPath,
+                          Parameters.DebugInfo,
+                          Parameters.DebugPath);
+
+  llvm::ArrayRef<uint8_t> RawData(Code.data() + Parameters.Offset,
+                                  Code.size() - Parameters.Offset);
+  if (Generator.translate(RawData, "root") != EXIT_SUCCESS)
     return EXIT_FAILURE;
-  }
+
+  Generator.serialize();
 
   return EXIT_SUCCESS;
 }

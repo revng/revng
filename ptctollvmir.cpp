@@ -5,7 +5,6 @@
 #include <sstream>
 #include <vector>
 #include <fstream>
-#include <iostream>
 #include <algorithm>
 
 // LLVM API
@@ -23,18 +22,49 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/raw_os_ostream.h"
 
-#include "revamb.h"
 #include "ptctollvmir.h"
 #include "ptcinterface.h"
 #include "ptcdump.h"
 
-class SelfDescribingWriter : public llvm::AssemblyAnnotationWriter {
+/// Boring code to get the text of the metadata with the specified kind
+/// associated to the given instruction
+static llvm::MDString *getMD(const llvm::Instruction *Instruction,
+                             unsigned Kind) {
+  assert(Instruction != nullptr);
+
+  llvm::Metadata *MD = Instruction->getMetadata(Kind);
+
+  if (MD == nullptr)
+    return nullptr;
+
+  auto Node = llvm::dyn_cast<llvm::MDNode>(MD);
+
+  assert(Node != nullptr);
+
+  const llvm::MDOperand& Operand = Node->getOperand(0);
+
+  llvm::Metadata *MDOperand = Operand.get();
+
+  if (MDOperand == nullptr)
+    return nullptr;
+
+  auto *String = llvm::dyn_cast<llvm::MDString>(MDOperand);
+  assert(String != nullptr);
+
+  return String;
+}
+
+/// AssemblyAnnotationWriter implementation inserting in the generated LLVM IR
+/// comments containing the original assembly and the PTC. It can also decorate
+/// the IR with debug information (i.e. DILocations) refered to the generated
+/// LLVM IR itself.
+class DebugAnnotationWriter : public llvm::AssemblyAnnotationWriter {
 public:
-  SelfDescribingWriter(llvm::LLVMContext& Context,
-                       llvm::Metadata *Scope,
-                       bool DebugInfo) : Context(Context),
-                                         Scope(Scope),
-                                         DebugInfo(DebugInfo) {
+  DebugAnnotationWriter(llvm::LLVMContext& Context,
+                        llvm::Metadata *Scope,
+                        bool DebugInfo) : Context(Context),
+                                          Scope(Scope),
+                                          DebugInfo(DebugInfo) {
     OriginalInstrMDKind = Context.getMDKindID("oi");
     PTCInstrMDKind = Context.getMDKindID("pi");
     DbgMDKind = Context.getMDKindID("dbg");
@@ -47,6 +77,13 @@ public:
     writeMetadataIfNew(Instruction, PTCInstrMDKind, Output, "\n  ; ");
 
     if (DebugInfo) {
+      // If DebugInfo is activated the generated LLVM IR textual representation
+      // will contain some reference to dangling pointers. So ignore the output
+      // stream if you're using the annotator to generate debug info about the
+      // IR itself.
+      assert(Scope != nullptr);
+
+      // Flushing is required to have correct line and column numbers
       Output.flush();
       auto *Location = llvm::DILocation::get(Context,
                                              Output.getLine(),
@@ -60,49 +97,24 @@ public:
   }
 
 private:
+  /// Writes the text contained in the metadata with the specified kind ID to
+  /// the output stream, unless that metadata is exactly the same as in the
+  /// previous instruction.
   static void writeMetadataIfNew(const llvm::Instruction *Instruction,
                                  unsigned MDKind,
                                  llvm::formatted_raw_ostream &Output,
                                  llvm::StringRef Prefix) {
-    llvm::MDString *MD = getMD(Instruction,
-                                                MDKind);
+    llvm::MDString *MD = getMD(Instruction, MDKind);
     if (MD != nullptr) {
       const llvm::Instruction *PrevInstruction = nullptr;
 
       if (Instruction != Instruction->getParent()->begin())
         PrevInstruction = Instruction->getPrevNode();
 
-      if (PrevInstruction == nullptr ||
-          getMD(PrevInstruction, MDKind) != MD) {
+      if (PrevInstruction == nullptr || getMD(PrevInstruction, MDKind) != MD)
         Output << Prefix << MD->getString();
-      }
+
     }
-  }
-
-  static llvm::MDString *getMD(const llvm::Instruction *Instruction,
-                               unsigned Kind) {
-    assert(Instruction != nullptr);
-
-    llvm::Metadata *MD = Instruction->getMetadata(Kind);
-
-    if (MD == nullptr)
-      return nullptr;
-
-    auto Node = llvm::dyn_cast<llvm::MDNode>(MD);
-
-    assert(Node != nullptr);
-
-    const llvm::MDOperand& Operand = Node->getOperand(0);
-
-    llvm::Metadata *MDOperand = Operand.get();
-
-    if (MDOperand == nullptr)
-      return nullptr;
-
-    auto *String = llvm::dyn_cast<llvm::MDString>(MDOperand);
-    assert(String != nullptr);
-
-    return String;
   }
 
 private:
@@ -113,12 +125,6 @@ private:
   unsigned DbgMDKind;
   bool DebugInfo;
 };
-
-using PTCInstructionListDestructor =
-  GenericFunctor<decltype(&ptc_instruction_list_free),
-                 &ptc_instruction_list_free>;
-using PTCInstructionListPtr = std::unique_ptr<PTCInstructionList,
-                                              PTCInstructionListDestructor>;
 
 /// \brief Maintains the list of variables required by PTC.
 ///
@@ -138,17 +144,17 @@ public:
   /// Given a PTC temporary identifier, checks if it already exists in the
   /// generatd LLVM IR, and, if not, it creates it.
   ///
-  /// @param TemporaryId the PTC temporary identifier.
+  /// \param TemporaryId the PTC temporary identifier.
   ///
-  /// @return an llvm::Value wrapping the request global or local variable.
+  /// \return an llvm::Value wrapping the request global or local variable.
   llvm::Value* getOrCreate(unsigned int TemporaryId);
 
   /// Informs the VariableManager that a new function has begun, so it can
   /// discard function- and basic block-level variables.
   ///
-  /// @param Delimiter the new point where to insert allocations for local
+  /// \param Delimiter the new point where to insert allocations for local
   /// variables.
-  /// @param Instructions the new PTCInstructionList to use from now on.
+  /// \param Instructions the new PTCInstructionList to use from now on.
  void newFunction(llvm::Instruction *Delimiter=nullptr,
                    PTCInstructionList *Instructions=nullptr) {
     LocalTemporaries.clear();
@@ -158,9 +164,9 @@ public:
   /// Informs the VariableManager that a new basic block has begun, so it can
   /// discard basic block-level variables.
   ///
-  /// @param Delimiter the new point where to insert allocations for local
+  /// \param Delimiter the new point where to insert allocations for local
   /// variables.
-  /// @param Instructions the new PTCInstructionList to use from now on.
+  /// \param Instructions the new PTCInstructionList to use from now on.
   void newBasicBlock(llvm::Instruction *Delimiter=nullptr,
                      PTCInstructionList *Instructions=nullptr) {
     Temporaries.clear();
@@ -259,9 +265,9 @@ llvm::Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
 
 /// Converts a PTC condition into an LLVM predicate
 ///
-/// @param Condition the input PTC condition.
+/// \param Condition the input PTC condition.
 ///
-/// @return the corresponding LLVM predicate.
+/// \return the corresponding LLVM predicate.
 static llvm::CmpInst::Predicate conditionToPredicate(PTCCondition Condition) {
   switch (Condition) {
   case PTC_COND_NEVER:
@@ -297,9 +303,9 @@ static llvm::CmpInst::Predicate conditionToPredicate(PTCCondition Condition) {
 
 /// Obtains the LLVM binary operation corresponding to the specified PTC opcode.
 ///
-/// @param Opcode the PTC opcode.
+/// \param Opcode the PTC opcode.
 ///
-/// @return the LLVM binary operation matching opcode.
+/// \return the LLVM binary operation matching opcode.
 static llvm::Instruction::BinaryOps opcodeToBinaryOp(PTCOpcode Opcode) {
   switch (Opcode) {
   case PTC_INSTRUCTION_op_add_i32:
@@ -363,7 +369,7 @@ static uint64_t getMaxValue(unsigned Bits) {
 
 /// Maps an opcode the corresponding input and output register size.
 ///
-/// @return the size, in bits, of the registers used by the opcode.
+/// \return the size, in bits, of the registers used by the opcode.
 static unsigned getRegisterSize(unsigned Opcode) {
   switch (Opcode) {
   case PTC_INSTRUCTION_op_add2_i32:
@@ -497,12 +503,12 @@ static unsigned getRegisterSize(unsigned Opcode) {
 
 /// Create a compare instruction given a comparison operator and the operands
 ///
-/// @param Builder the builder to use to create the instruction.
-/// @param RawCondition the PTC condition.
-/// @param FirstOperand the first operand of the comparison.
-/// @param SecondOperand the second operand of the comparison.
+/// \param Builder the builder to use to create the instruction.
+/// \param RawCondition the PTC condition.
+/// \param FirstOperand the first operand of the comparison.
+/// \param SecondOperand the second operand of the comparison.
 ///
-/// @return a compare instruction.
+/// \return a compare instruction.
 template<typename T>
 static llvm::Value *CreateICmp(T& Builder,
                                uint64_t RawCondition,
@@ -533,12 +539,12 @@ public:
   /// program counter, or we could even have a translation for it. Return one
   /// of these, if appropriate.
   ///
-  /// @param PC the new program counter.
-  /// @param ShouldContinue an out parameter indicating whether the returned
+  /// \param PC the new program counter.
+  /// \param ShouldContinue an out parameter indicating whether the returned
   ///        basic block was just a placeholder or actually contains a
   ///        translation.
   ///
-  /// @return the basic block to use from now on, or null if the program counter
+  /// \return the basic block to use from now on, or null if the program counter
   ///         is not associated to a basic block.
   llvm::BasicBlock *newPC(uint64_t PC, bool& ShouldContinue) {
     // Did we already meet this PC?
@@ -639,7 +645,7 @@ public:
 
   /// Pop from the list of program counters to explore
   ///
-  /// @return a pair containing the PC and the initial block to use, or
+  /// \return a pair containing the PC and the initial block to use, or
   ///         JumpTarget::NoMoreTargets if we're done.
   BlockWithAddress peekJumpTarget() {
     if (Unexplored.empty())
@@ -731,52 +737,196 @@ private:
 const JumpTargetManager::BlockWithAddress JumpTargetManager::NoMoreTargets =
   JumpTargetManager::BlockWithAddress(0, nullptr);
 
-int Translate(std::string OutputPath,
-              llvm::ArrayRef<uint8_t> Code,
-              DebugInfoType DebugInfo,
-              std::string DebugPath) {
+/// Handle all the debug-related operations of code generation
+class DebugHelper {
+public:
+  DebugHelper(std::string OutputPath,
+              std::string DebugPath,
+              llvm::Module *Module,
+              DebugInfoType Type) : OutputPath(OutputPath),
+                                    DebugPath(DebugPath),
+                                    Builder(*Module),
+                                    Type(Type),
+                                    Module(Module)
+  {
+    OriginalInstrMDKind = Module->getContext().getMDKindID("oi");
+    PTCInstrMDKind = Module->getContext().getMDKindID("pi");
+    DbgMDKind = Module->getContext().getMDKindID("dbg");
+
+    // Generate automatically the name of the source file for debugging
+    if (DebugPath.empty()) {
+      if (Type == DebugInfoType::PTC)
+        DebugPath = OutputPath + ".ptc";
+      else if (Type == DebugInfoType::OriginalAssembly)
+        DebugPath = OutputPath + ".S";
+      else if (Type == DebugInfoType::LLVMIR)
+        DebugPath = OutputPath;
+    }
+
+    if (Type != DebugInfoType::None) {
+      CompileUnit = Builder.createCompileUnit(llvm::dwarf::DW_LANG_C,
+                                              DebugPath,
+                                              "",
+                                              "revamb",
+                                              false,
+                                              "",
+                                              0 /* Runtime version */);
+
+      // Add the current debug info version into the module.
+      Module->addModuleFlag(llvm::Module::Warning, "Debug Info Version",
+                            llvm::DEBUG_METADATA_VERSION);
+      Module->addModuleFlag(llvm::Module::Warning, "Dwarf Version", 2);
+    }
+  }
+
+  /// \brief Handle a new function
+  ///
+  /// Generates the debug information for the given function and caches it for
+  /// future use.
+  void newFunction(llvm::Function *Function) {
+    if (Type != DebugInfoType::None) {
+      llvm::DISubroutineType *EmptyType = nullptr;
+      EmptyType = Builder.createSubroutineType(CompileUnit->getFile(),
+                                               Builder.getOrCreateTypeArray({}));
+
+      CurrentFunction = Function;
+      CurrentSubprogram = Builder.createFunction(CompileUnit, /* Scope */
+                                                 "root", /* Name */
+                                                 llvm::StringRef(), /* Linkage name */
+                                                 CompileUnit->getFile(), /* DIFile */
+                                                 1, /* Line */
+                                                 EmptyType, /* Subroutine type */
+                                                 false, /* isLocalToUnit */
+                                                 true, /* isDefinition */
+                                                 1, /* ScopeLine */
+                                                 llvm::DINode::FlagPrototyped, /* Flags */
+                                                 false, /* isOptimized */
+                                                 CurrentFunction /* Function */);
+    }
+  }
+
+  /// Decorates the current function with the request debug info
+  void generateDebugInfo() {
+    switch (Type) {
+    case DebugInfoType::PTC:
+    case DebugInfoType::OriginalAssembly:
+      {
+        assert(CurrentSubprogram != nullptr && CurrentFunction != nullptr);
+
+        // Generate the source file and the debugging information in tandem
+
+        unsigned LineIndex = 1;
+        unsigned MetadataKind = Type == DebugInfoType::PTC ?
+          PTCInstrMDKind : OriginalInstrMDKind;
+
+        std::ofstream Source(DebugPath);
+        for (llvm::BasicBlock& Block : *CurrentFunction) {
+          for (llvm::Instruction& Instruction : Block) {
+            llvm::MDString *Body = getMD(&Instruction, MetadataKind);
+            std::string BodyString = Body->getString().str();
+
+            Source << BodyString;
+
+            auto *Location = llvm::DILocation::get(Module->getContext(),
+                                                   LineIndex,
+                                                   0,
+                                                   CurrentSubprogram);
+            Instruction.setMetadata(DbgMDKind, Location);
+            LineIndex += std::count(BodyString.begin(),
+                                    BodyString.end(),
+                                    '\n');
+          }
+        }
+        break;
+      }
+    case DebugInfoType::LLVMIR:
+      {
+        // Use the annotator to obtain line and column of the textual LLVM IR
+        // for each instruction. Discard the output since it will contain
+        // errors, regenerating it later will give a correct result.
+        llvm::raw_null_ostream NullStream;
+        Module->print(NullStream, annotator(true /* DebugInfo */));
+
+        std::ofstream Output(DebugPath);
+        llvm::raw_os_ostream Stream(Output);
+        Module->print(Stream, annotator(false));
+
+        break;
+      }
+    default:
+      break;
+    }
+
+    Builder.finalize();
+  }
+
+  /// Create a new AssemblyAnnotationWriter
+  ///
+  /// \param DebugInfo whether to decorate the IR with debug information or not
+  DebugAnnotationWriter *annotator(bool DebugInfo) {
+    Annotator.reset(new DebugAnnotationWriter(Module->getContext(),
+                                              CurrentSubprogram,
+                                              DebugInfo));
+    return Annotator.get();
+  }
+
+  /// Copy the debug file to the output path, if they are the same
+  bool copySource() {
+    // If debug info refer to LLVM IR, just copy the output file
+    if (Type == DebugInfoType::LLVMIR && DebugPath != OutputPath) {
+      std::ifstream Source(DebugPath, std::ios::binary);
+      std::ofstream Destination(OutputPath, std::ios::binary);
+
+      Destination << Source.rdbuf();
+
+      return true;
+    }
+
+    return false;
+  }
+
+private:
+  std::string& OutputPath;
+  std::string DebugPath;
+  llvm::DIBuilder Builder;
+  DebugInfoType Type;
+  llvm::Module *Module;
+  llvm::DICompileUnit *CompileUnit;
+  llvm::DISubprogram *CurrentSubprogram;
+  llvm::Function *CurrentFunction;
+  std::unique_ptr<DebugAnnotationWriter> Annotator;
+
+  unsigned OriginalInstrMDKind;
+  unsigned PTCInstrMDKind;
+  unsigned DbgMDKind;
+};
+
+// Outline the destructor for the sake of privacy in the header
+CodeGenerator::~CodeGenerator() = default;
+
+CodeGenerator::CodeGenerator(Architecture& Source,
+                             Architecture& Target,
+                             std::string OutputPath,
+                             DebugInfoType DebugInfo,
+                             std::string DebugPath) :
+  SourceArchitecture(Source),
+  TargetArchitecture(Target),
+  Context(llvm::getGlobalContext()),
+  Module((new llvm::Module("top", Context))),
+  Debug(new DebugHelper(OutputPath, DebugPath, Module.get(), DebugInfo)),
+  OutputPath(OutputPath)
+{
+  OriginalInstrMDKind = Context.getMDKindID("oi");
+  PTCInstrMDKind = Context.getMDKindID("pi");
+  DbgMDKind = Context.getMDKindID("dbg");
+}
+
+int CodeGenerator::translate(llvm::ArrayRef<uint8_t> Code,
+                             std::string Name) {
   const uint8_t *CodePointer = Code.data();
   const uint8_t *CodeEnd = CodePointer + Code.size();
 
-  // TODO: move me somewhere where it makes sense
-  Architecture SourceArchitecture;
-  Architecture TargetArchitecture;
-
-  llvm::LLVMContext& Context = llvm::getGlobalContext();
-  unsigned OriginalInstrMDKind = Context.getMDKindID("oi");
-  unsigned PTCInstrMDKind = Context.getMDKindID("pi");
-  unsigned DbgMDKind = Context.getMDKindID("dbg");
   llvm::IRBuilder<> Builder(Context);
-  std::unique_ptr<llvm::Module> Module(new llvm::Module("top", Context));
-
-  // Debugging information
-  if (DebugPath.empty()) {
-   if (DebugInfo == DebugInfoType::PTC)
-     DebugPath = OutputPath + ".ptc";
-   else if (DebugInfo == DebugInfoType::OriginalAssembly)
-     DebugPath = OutputPath + ".S";
-   else if (DebugInfo == DebugInfoType::LLVMIR)
-     DebugPath = OutputPath;
-  }
-
-
-  llvm::DIBuilder Dbg(*Module);
-  llvm::DICompileUnit *DbgCompileUnit = nullptr;
-
-  if (DebugInfo != DebugInfoType::None) {
-    DbgCompileUnit = Dbg.createCompileUnit(llvm::dwarf::DW_LANG_C,
-                                           DebugPath,
-                                           "",
-                                           "revamb",
-                                           false,
-                                           "",
-                                           0 /* Runtime version */);
-
-    // Add the current debug info version into the module.
-    Module->addModuleFlag(llvm::Module::Warning, "Debug Info Version",
-                          llvm::DEBUG_METADATA_VERSION);
-    Module->addModuleFlag(llvm::Module::Warning, "Dwarf Version", 2);
-  }
 
   // Create main function
   llvm::FunctionType *MainType = nullptr;
@@ -784,28 +934,10 @@ int Translate(std::string OutputPath,
   llvm::Function *MainFunction = nullptr;
   MainFunction = llvm::Function::Create(MainType,
                                         llvm::Function::ExternalLinkage,
-                                        "root",
+                                        Name,
                                         Module.get());
 
-  llvm::DISubprogram *DbgMain = nullptr;
-  if (DebugInfo != DebugInfoType::None) {
-    llvm::DISubroutineType *EmptyType = nullptr;
-    EmptyType = Dbg.createSubroutineType(DbgCompileUnit->getFile(),
-                                         Dbg.getOrCreateTypeArray({}));
-
-    DbgMain = Dbg.createFunction(DbgCompileUnit, /* Scope */
-                                 "root", /* Name */
-                                 llvm::StringRef(), /* Linkage name */
-                                 DbgCompileUnit->getFile(), /* DIFile */
-                                 1, /* Line */
-                                 EmptyType, /* Subroutine type */
-                                 false, /* isLocalToUnit */
-                                 true, /* isDefinition */
-                                 1, /* ScopeLine */
-                                 llvm::DINode::FlagPrototyped, /* Flags */
-                                 false, /* isOptimized */
-                                 MainFunction /* Function */);
-  }
+  Debug->newFunction(MainFunction);
 
   // Create the first basic block and create a placeholder for variable
   // allocations
@@ -1549,57 +1681,17 @@ int Translate(std::string OutputPath,
 
   Delimiter->eraseFromParent();
 
-  if (DebugInfo == DebugInfoType::PTC
-      || DebugInfo == DebugInfoType::OriginalAssembly) {
-    std::map<llvm::MDNode *, llvm::MDNode *> DbgMapping;
-    unsigned LineIndex = 1;
-    unsigned MetadataKind = DebugInfo == DebugInfoType::PTC ?
-      PTCInstrMDKind : OriginalInstrMDKind;
-
-    std::fstream Source(DebugPath, std::fstream::out);
-    for (llvm::BasicBlock& Block : *MainFunction) {
-      for (llvm::Instruction& Instruction : Block) {
-        llvm::MDNode *MD = Instruction.getMetadata(MetadataKind);
-        if (MD != nullptr) {
-          auto MappingIt = DbgMapping.find(MD);
-          if (false || MappingIt != DbgMapping.end()) {
-            Instruction.setMetadata(DbgMDKind, MappingIt->second);
-          } else {
-            auto Body = llvm::dyn_cast<llvm::MDString>(MD->getOperand(0).get());
-            std::string BodyString = Body->getString().str();
-            Source << BodyString;
-
-            auto *DbgLocation = llvm::DILocation::get(Context, LineIndex, 0,
-                                                      DbgMain);
-            DbgMapping[MD] = DbgLocation;
-            Instruction.setMetadata(DbgMDKind, DbgLocation);
-            LineIndex += std::count(BodyString.begin(), BodyString.end(), '\n');
-          }
-        }
-      }
-    }
-
-  } else if (DebugInfo == DebugInfoType::LLVMIR) {
-    llvm::raw_null_ostream Stream;
-    SelfDescribingWriter Annotator(Context, DbgMain, true /* DebugInfo */);
-    Module->print(Stream, &Annotator);
-  }
-
-  Dbg.finalize();
-
-  {
-    std::ofstream Output(OutputPath);
-    llvm::raw_os_ostream Stream(Output);
-    SelfDescribingWriter Annotator(Context, DbgMain, false /* DebugInfo */);
-    Module->print(Stream, &Annotator);
-  }
-
-  if (DebugInfo == DebugInfoType::LLVMIR && DebugPath != OutputPath) {
-    std::ifstream Source(OutputPath, std::ios::binary);
-    std::ofstream Destination(DebugPath, std::ios::binary);
-
-    Destination << Source.rdbuf();
-  }
+  Debug->generateDebugInfo();
 
   return EXIT_SUCCESS;
+}
+
+void CodeGenerator::serialize() {
+  // Ask the debug handler if it already has a good copy of the IR, if not dump
+  // it
+  if (!Debug->copySource()) {
+    std::ofstream Output(OutputPath);
+    llvm::raw_os_ostream Stream(Output);
+    Module->print(Stream, Debug->annotator(false));
+  }
 }

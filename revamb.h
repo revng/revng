@@ -1,3 +1,8 @@
+#ifndef _REVAMB_H
+#define _REVAMB_H
+
+#include <string>
+
 // Path to the QEMU libraries should be given by the build system
 #ifndef QEMU_LIB_PATH
 # define QEMU_LIB_PATH "/usr/lib"
@@ -36,3 +41,5 @@ struct GenericFunctor {
     return Ptr(args...);
   }
 };
+
+#endif // _REVAMB_H
