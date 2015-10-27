@@ -155,7 +155,7 @@ llvm::Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
   llvm::Type *VariableType = Builder.getInt32Ty();
 
   if (ptc_temp_is_global(Instructions, TemporaryId)) {
-    llvm::StringRef TemporaryName(Temporary->name);
+    auto TemporaryName = llvm::StringRef(Temporary->name).lower();
 
     GlobalsMap::iterator it = Globals.find(TemporaryName);
     if (it != Globals.end()) {
