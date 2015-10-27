@@ -22,16 +22,14 @@ llvm_map_components_to_libnames(LLVM_LIBRARIES core support)
 # One day we won't need the source, but the required header files will be
 # installed in the system.
 set(QEMU_SOURCE_PATH "" CACHE PATH "Path to the QEMU source code.")
+include_directories("${QEMU_SOURCE_PATH}/tcg"
+  "${QEMU_SOURCE_PATH}/linux-user")
 
 set(CMAKE_CXX_FLAGS "-std=c++14 -Wall -Werror -Wno-error=unused-variable")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=return-type")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-function")
 add_definitions("-D_FILE_OFFSET_BITS=64")
+include_directories(argparse/)
 
-include_directories(argparse/
-  "${QEMU_SOURCE_PATH}/tcg"
-  "${QEMU_SOURCE_PATH}/linux-user")
-
-add_executable(revamb ptcdump.cpp main.cpp ptctollvmir.cpp
-  argparse/argparse.c)
+add_executable(revamb ptcdump.cpp main.cpp ptctollvmir.cpp argparse/argparse.c)
 target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
