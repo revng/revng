@@ -255,11 +255,13 @@ int main(int argc, const char *argv[]) {
     return EXIT_FAILURE;
 
   // Translate everything
-  Translate(Parameters.OutputPath,
-            llvm::ArrayRef<uint8_t>(Code.data() + Parameters.Offset,
+  if (Translate(Parameters.OutputPath,
+                llvm::ArrayRef<uint8_t>(Code.data() + Parameters.Offset,
                                     Code.size() - Parameters.Offset),
-            Parameters.DebugInfo,
-            Parameters.DebugPath);
+                Parameters.DebugInfo,
+                Parameters.DebugPath) != EXIT_SUCCESS) {
+    return EXIT_FAILURE;
+  }
 
   return EXIT_SUCCESS;
 }

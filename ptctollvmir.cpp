@@ -859,8 +859,10 @@ int Translate(std::string OutputPath,
       PTCInstruction Instruction = InstructionList->instructions[j];
       PTCOpcode Opcode = Instruction.opc;
 
-      if (Opcode == PTC_INSTRUCTION_op_call)
-        continue;
+      if (Opcode == PTC_INSTRUCTION_op_call) {
+        dumpTranslation(std::cerr, InstructionList.get());
+        return EXIT_FAILURE;
+      }
 
       std::vector<llvm::BasicBlock *> Blocks { Builder.GetInsertBlock() };
 
