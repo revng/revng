@@ -6,6 +6,7 @@
 #include <memory>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 
 extern "C" {
 #include <dlfcn.h>
@@ -18,7 +19,6 @@ extern "C" {
 #include "ptcinterface.h"
 #include "ptctollvmir.h"
 
-static const unsigned MAX_LIBRARY_NAME = 80;
 static const unsigned BUF_SIZE = 4096;
 static const unsigned MAX_INPUT_BUFFER = 10 * 1024 * 1024;
 
@@ -106,15 +106,15 @@ static int ReadWholeInput(const char *InputPath, std::vector<uint8_t>& Buffer) {
 ///
 /// @return EXIT_SUCCESS if the library has been successfully loaded.
 static int loadPTCLibrary(const char *Architecture, LibraryPointer& PTCLibrary) {
-  char LibraryName[MAX_LIBRARY_NAME];
   ptc_load_ptr_t ptc_load = nullptr;
   void *LibraryHandle = nullptr;
 
   // Build library name
-  snprintf(LibraryName, MAX_LIBRARY_NAME, "libtinycode-%s.so", Architecture);
+  std::stringstream LibraryName;
+  LibraryName << QEMU_LIB_PATH << "/libtinycode-" << Architecture << ".so";
 
   // Look for the library in the system's paths
-  LibraryHandle = dlopen(LibraryName, RTLD_LAZY);
+  LibraryHandle = dlopen(LibraryName.str().c_str(), RTLD_LAZY);
 
   if (LibraryHandle == nullptr) {
     fprintf(stderr, "Couldn't load the PTC library: %s\n", dlerror());

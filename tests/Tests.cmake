@@ -34,7 +34,9 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
     STRING
     "Triple to use when looking for the ${ARCH} compiler.")
 
-  find_library(LIBTINYCODE_${ARCH} libtinycode-${ARCH}.so)
+  find_library(LIBTINYCODE_${ARCH} libtinycode-${ARCH}.so
+    PATHS ${QEMU_LIB_PATH}
+    NO_DEFAULT_PATH)
   find_program(C_COMPILER_${ARCH} ${TRIPLE_${ARCH}}-gcc)
   find_program(QEMU_${ARCH} qemu-${ARCH})
 
