@@ -46,29 +46,30 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
     Result << " ---- 0x" << std::hex << PC << std::endl;
   } else if (Opcode == PTC_INSTRUCTION_op_call) {
     // TODO: replace PRIx64 with PTC_PRIxARG
-    PTCInstructionArg Arg0 = ptc_call_instruction_const_arg(&ptc,
-                                                            &Instruction, 0);
-    PTCInstructionArg Arg1 = ptc_call_instruction_const_arg(&ptc,
-                                                            &Instruction, 1);
-    size_t OutArgs = ptc_call_instruction_out_arg_count(&ptc, &Instruction);
-    PTCHelperDef *Helper = ptc_find_helper(&ptc, Arg0);
+    PTCInstructionArg FunctionPointer = 0;
+    FunctionPointer = ptc_call_instruction_const_arg(&ptc, &Instruction, 0);
+    PTCInstructionArg Flags = ptc_call_instruction_const_arg(&ptc,
+                                                             &Instruction, 1);
+    size_t OutArgsCount = ptc_call_instruction_out_arg_count(&ptc,
+                                                             &Instruction);
+    PTCHelperDef *Helper = ptc_find_helper(&ptc, FunctionPointer);
     const char *HelperName = "unknown_helper";
 
     if (Helper != nullptr && Helper->name != nullptr)
       HelperName = Helper->name;
 
+    // The output format is:
+    // call name, flags, out_args_count, out_args [...], in_args [...]
     Result << Definition->name
-           << " " << HelperName << ","
-           << "$0x" << std::hex << Arg1
-           << "," << std::dec << OutArgs;
+           << " " << HelperName
+           << "," << "$0x" << std::hex << Flags
+           << "," << std::dec << OutArgsCount;
 
     // Print out arguments
-    size_t OutArgsCount = ptc_call_instruction_out_arg_count(&ptc,
-                                                             &Instruction);
     for (i = 0; i < OutArgsCount; i++) {
       getTemporaryName(TemporaryName, MAX_TEMP_NAME_LENGTH, Instructions,
                        ptc_call_instruction_out_arg(&ptc, &Instruction, i));
-      Result << TemporaryName;
+      Result << "," << TemporaryName;
     }
 
     // Print in arguments
@@ -80,7 +81,7 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
       if (InArg != PTC_CALL_DUMMY_ARG) {
         getTemporaryName(TemporaryName, MAX_TEMP_NAME_LENGTH, Instructions,
                          InArg);
-        Result << TemporaryName;
+        Result << "," << TemporaryName;
       } else
         Result << ",<dummy>";
     }
@@ -258,6 +259,8 @@ int dumpTranslation(std::ostream& Result, PTCInstructionList *Instructions) {
 
       disassembleOriginal(Result, PC);
     }
+
+    Result << std::dec << Index << ": ";
 
     if (dumpInstruction(Result, Instructions, Index) == EXIT_FAILURE)
       return EXIT_FAILURE;
