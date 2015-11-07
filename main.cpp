@@ -259,9 +259,9 @@ int main(int argc, const char *argv[]) {
   Architecture TargetArchitecture;
   CodeGenerator Generator(SourceArchitecture,
                           TargetArchitecture,
-                          Parameters.OutputPath,
+                          std::string(Parameters.OutputPath),
                           Parameters.DebugInfo,
-                          Parameters.DebugPath);
+                          std::string(Parameters.DebugPath));
 
   llvm::ArrayRef<uint8_t> RawData(Code.data() + Parameters.Offset,
                                   Code.size() - Parameters.Offset);

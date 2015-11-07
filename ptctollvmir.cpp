@@ -743,14 +743,15 @@ const JumpTargetManager::BlockWithAddress JumpTargetManager::NoMoreTargets =
 /// Handle all the debug-related operations of code generation
 class DebugHelper {
 public:
-  DebugHelper(std::string OutputPath,
-              std::string DebugPath,
+  DebugHelper(std::string Output,
+              std::string Debug,
               Module *TheModule,
-              DebugInfoType Type) : OutputPath(OutputPath),
-                                    DebugPath(DebugPath),
-                                    Builder(*TheModule),
-                                    Type(Type),
-                                    TheModule(TheModule)
+              DebugInfoType Type) :
+    OutputPath(Output),
+    DebugPath(Debug),
+    Builder(*TheModule),
+    Type(Type),
+    TheModule(TheModule)
   {
     OriginalInstrMDKind = TheModule->getContext().getMDKindID("oi");
     PTCInstrMDKind = TheModule->getContext().getMDKindID("pi");
@@ -909,15 +910,15 @@ CodeGenerator::~CodeGenerator() = default;
 
 CodeGenerator::CodeGenerator(Architecture& Source,
                              Architecture& Target,
-                             std::string OutputPath,
+                             std::string Output,
                              DebugInfoType DebugInfo,
-                             std::string DebugPath) :
+                             std::string Debug) :
   SourceArchitecture(Source),
   TargetArchitecture(Target),
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
-  Debug(new DebugHelper(OutputPath, DebugPath, TheModule.get(), DebugInfo)),
-  OutputPath(OutputPath)
+  OutputPath(Output),
+  Debug(new DebugHelper(Output, Debug, TheModule.get(), DebugInfo)),
 {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
