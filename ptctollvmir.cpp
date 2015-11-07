@@ -25,6 +25,9 @@
 #include "ptctollvmir.h"
 #include "ptcinterface.h"
 #include "ptcdump.h"
+#include "rai.h"
+#include "range.h"
+#include "transformadapter.h"
 
 using namespace llvm;
 
