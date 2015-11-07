@@ -14,6 +14,6 @@ using PTCInstructionListDestructor =
 using PTCInstructionListPtr = std::unique_ptr<PTCInstructionList,
                                               PTCInstructionListDestructor>;
 
-extern PTC ptc;
+extern PTCInterface ptc;
 
 #endif // _PTCINTERFACE_H

@@ -31,6 +31,174 @@
 
 using namespace llvm;
 
+namespace PTC {
+
+template<bool C>
+class InstructionImpl;
+
+enum ArgumentType {
+  In,
+  Out,
+  Const
+};
+
+template<ArgumentType Type, bool IsCall>
+class InstructionArgumentsIterator :
+  public RandomAccessIterator<uint64_t,
+                              InstructionArgumentsIterator<Type, IsCall>,
+                              false> {
+public:
+  using base = RandomAccessIterator<uint64_t,
+                                    InstructionArgumentsIterator,
+                                    false>;
+
+  InstructionArgumentsIterator&
+  operator=(const InstructionArgumentsIterator& r) {
+    base::operator=(r);
+    TheInstruction = r.TheInstruction;
+    return *this;
+  }
+
+
+  InstructionArgumentsIterator(const InstructionArgumentsIterator& r) :
+    base(r),
+    TheInstruction(r.TheInstruction)
+  { }
+
+  InstructionArgumentsIterator(const InstructionArgumentsIterator& r,
+                               unsigned Index) :
+    base(Index),
+    TheInstruction(r.TheInstruction)
+  { }
+
+  InstructionArgumentsIterator(PTCInstruction *TheInstruction, unsigned Index) :
+    base(Index),
+    TheInstruction(TheInstruction)
+  { }
+
+  bool isCompatible(const InstructionArgumentsIterator& r) const {
+    return TheInstruction == r.TheInstruction;
+  }
+
+public:
+  uint64_t get(unsigned Index) const;
+
+private:
+  PTCInstruction *TheInstruction;
+};
+
+template<>
+inline uint64_t
+InstructionArgumentsIterator<In, true>::get(unsigned Index) const {
+  return ptc_call_instruction_in_arg(&ptc, TheInstruction, Index);
+}
+
+template<>
+inline uint64_t
+InstructionArgumentsIterator<Const, true>::get(unsigned Index) const {
+  return ptc_call_instruction_const_arg(&ptc, TheInstruction, Index);
+}
+
+template<>
+inline uint64_t
+InstructionArgumentsIterator<Out, true>::get(unsigned Index) const {
+  return ptc_call_instruction_out_arg(&ptc, TheInstruction, Index);
+}
+
+template<>
+inline uint64_t
+InstructionArgumentsIterator<In, false>::get(unsigned Index) const {
+  return ptc_instruction_in_arg(&ptc, TheInstruction, Index);
+}
+
+template<>
+inline uint64_t
+InstructionArgumentsIterator<Const, false>::get(unsigned Index) const {
+  return ptc_instruction_const_arg(&ptc, TheInstruction, Index);
+}
+
+template<>
+inline uint64_t
+InstructionArgumentsIterator<Out, false>::get(unsigned Index) const {
+  return ptc_instruction_out_arg(&ptc, TheInstruction, Index);
+}
+
+template<bool IsCall>
+class InstructionImpl {
+private:
+  template<ArgumentType Type>
+  using arguments = InstructionArgumentsIterator<Type, IsCall>;
+public:
+  InstructionImpl(PTCInstruction *TheInstruction) :
+    TheInstruction(TheInstruction),
+    InArguments(arguments<In>(TheInstruction, 0),
+                arguments<In>(TheInstruction, inArgCount())),
+    ConstArguments(arguments<Const>(TheInstruction, 0),
+                   arguments<Const>(TheInstruction, constArgCount())),
+    OutArguments(arguments<Out>(TheInstruction, 0),
+                 arguments<Out>(TheInstruction, outArgCount()))
+  { }
+
+  PTCOpcode opcode() const {
+    return TheInstruction->opc;
+  }
+
+  std::string helperName() const {
+    assert(IsCall);
+    PTCHelperDef *Helper = ptc_find_helper(&ptc, ConstArguments[0]);
+    assert(Helper != nullptr && Helper->name != nullptr);
+    return std::string(Helper->name);
+  }
+
+private:
+  PTCInstruction* TheInstruction;
+
+public:
+  const Range<InstructionArgumentsIterator<In, IsCall>> InArguments;
+  const Range<InstructionArgumentsIterator<Const, IsCall>> ConstArguments;
+  const Range<InstructionArgumentsIterator<Out, IsCall>> OutArguments;
+
+private:
+  unsigned inArgCount() const;
+  unsigned constArgCount() const;
+  unsigned outArgCount() const;
+};
+
+using Instruction = InstructionImpl<false>;
+using CallInstruction = InstructionImpl<true>;
+
+template<>
+inline unsigned CallInstruction::inArgCount() const {
+  return ptc_call_instruction_in_arg_count(&ptc, TheInstruction);
+}
+
+template<>
+inline unsigned Instruction::inArgCount() const {
+  return ptc_instruction_in_arg_count(&ptc, TheInstruction);
+}
+
+template<>
+inline unsigned CallInstruction::constArgCount() const {
+  return ptc_call_instruction_const_arg_count(&ptc, TheInstruction);
+}
+
+template<>
+inline unsigned Instruction::constArgCount() const {
+  return ptc_instruction_const_arg_count(&ptc, TheInstruction);
+}
+
+template<>
+inline unsigned CallInstruction::outArgCount() const {
+  return ptc_call_instruction_out_arg_count(&ptc, TheInstruction);
+}
+
+template<>
+inline unsigned Instruction::outArgCount() const {
+  return ptc_instruction_out_arg_count(&ptc, TheInstruction);
+}
+
+}
+
 /// Boring code to get the text of the metadata with the specified kind
 /// associated to the given instruction
 static MDString *getMD(const Instruction *Instruction,

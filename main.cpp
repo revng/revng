@@ -22,8 +22,7 @@ extern "C" {
 static const unsigned BUF_SIZE = 4096;
 static const unsigned MAX_INPUT_BUFFER = 10 * 1024 * 1024;
 
-// TODO: rename
-PTC ptc = {};                   ///< The interface with the PTC library.
+PTCInterface ptc = {}; ///< The interface with the PTC library.
 
 struct ProgramParameters {
   const char *Architecture;
