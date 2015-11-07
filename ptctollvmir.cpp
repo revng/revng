@@ -217,9 +217,8 @@ Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
   assert(Instructions != nullptr);
 
   PTCTemp *Temporary = ptc_temp_get(Instructions, TemporaryId);
-  Instruction *Result = nullptr;
-  // TODO: handle non-32 bit variables
-  Type *VariableType = Builder.getInt32Ty();
+  Type *VariableType = Temporary->type == PTC_TYPE_I32 ?
+    Builder.getInt32Ty() : Builder.getInt64Ty();
 
   if (ptc_temp_is_global(Instructions, TemporaryId)) {
     auto TemporaryName = StringRef(Temporary->name).lower();
