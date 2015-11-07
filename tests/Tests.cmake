@@ -16,7 +16,8 @@ set(TEST_ARGS_calc_multiplication "'(* 5 6)'")
 
 # Get the path to some system tools we'll need
 
-find_program(LLC llc)
+
+set(LLC "${LLVM_TOOLS_BINARY_DIR}/llc")
 find_program(DIFF diff)
 
 # Check which architectures are supported, we need:
