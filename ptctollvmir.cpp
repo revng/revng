@@ -24,6 +24,8 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/IR/LegacyPassManager.h"
 
 #include "ptctollvmir.h"
 #include "ptcinterface.h"
@@ -2038,8 +2040,12 @@ void CodeGenerator::translate(ArrayRef<uint8_t> Code,
 
     } // End loop over instructions
 
+    // Before looking for writes to the PC, give a shot of SROA
+    legacy::PassManager PM;
+    PM.add(createSROAPass());
+    PM.run(*TheModule);
+
     // Replace stores to PC with branches
-    // TODO: constant propagation here
     JumpTargets.translateMovePC(CodePointer - Code.data());
 
     // Obtain a new program counter to translate
