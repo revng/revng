@@ -101,6 +101,9 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
     list(APPEND TEST_SOURCES_ARGS -DTEST_SOURCES_${TEST_NAME}=${SOURCES})
   endforeach()
 
+  string(REPLACE "-" "_" NORMALIZED_ARCH "${ARCH}")
+  set(TEST_CFLAGS_${ARCH} "${TEST_CFLAGS} -DTARGET_${NORMALIZED_ARCH}")
+
   # Create external project using the cross-compiler
   ExternalProject_Add(TEST_PROJECT_${ARCH}
     SOURCE_DIR ${TEST_SRC}
@@ -108,7 +111,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
     CMAKE_ARGS
     -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/tests/install-${ARCH}
     -DCMAKE_C_COMPILER=${C_COMPILER_${ARCH}}
-    -DCMAKE_C_FLAGS=${TEST_CFLAGS}
+    -DCMAKE_C_FLAGS=${TEST_CFLAGS_${ARCH}}
     ${TEST_SOURCES_ARGS})
 
   # Force reconfigure each time we call make
@@ -121,10 +124,10 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   foreach(TEST_NAME ${TESTS})
     # Test to translate the compiled binary
     add_test(NAME translate-${TEST_NAME}-${ARCH}
-      COMMAND sh -c "$<TARGET_FILE:revamb> --offset $(${CMAKE_CURRENT_SOURCE_DIR}/tests/get-function-offset ${BIN}/${TEST_NAME} root) --architecture ${ARCH} ${BIN}/${TEST_NAME} --output ${BIN}/${TEST_NAME}.ll")
+      COMMAND sh -c "$<TARGET_FILE:revamb> -g ll --offset $(${CMAKE_CURRENT_SOURCE_DIR}/tests/get-function-offset ${BIN}/${TEST_NAME} root) --architecture ${ARCH} ${BIN}/${TEST_NAME} --output ${BIN}/${TEST_NAME}.ll")
 
     # Command-line to link support.c and the translated binaries
-    compile_executable("${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} ${TEST_SRC}/support.c"
+    compile_executable("${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} ${TEST_SRC}/support.c -DTARGET_${NORMALIZED_ARCH}"
       "${BIN}/${TEST_NAME}.translated"
       COMPILE_TRANSLATED)
 
