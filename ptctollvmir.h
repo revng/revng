@@ -12,6 +12,9 @@ namespace llvm {
 class LLVMContext;
 class Function;
 class Module;
+class Value;
+class StructType;
+class DataLayout;
 };
 
 class DebugHelper;
@@ -26,13 +29,15 @@ public:
   /// \param Source source architecture.
   /// \param Target target architecture.
   /// \param OutputPath path where the generate LLVM IR must be saved.
+  /// \param HelpersPath path of the LLVM IR file containing the QEMU helpers.
   /// \param DebugInfo type of debug information to generate.
   /// \param DebugPath path where the debugging source file must be written.
   CodeGenerator(Architecture& Source,
                 Architecture& Target,
-                std::string OutputPath,
+                std::string Output,
+                std::string Helpers,
                 DebugInfoType DebugInfo,
-                std::string DebugPath);
+                std::string Debug);
 
   ~CodeGenerator();
 
@@ -42,17 +47,21 @@ public:
   ///
   /// \param Name the name to give to the newly created function.
   /// \param Code reference to memory area containing the code to translate.
-  int translate(llvm::ArrayRef<uint8_t> Code, std::string Name);
+  void translate(llvm::ArrayRef<uint8_t> Code, std::string Name);
 
   /// Serialize the generated LLVM IR to the specified output path.
   void serialize();
+
 private:
   Architecture& SourceArchitecture;
   Architecture& TargetArchitecture;
   llvm::LLVMContext& Context;
   std::unique_ptr<llvm::Module> TheModule;
-  std::unique_ptr<DebugHelper> Debug;
+  std::unique_ptr<llvm::Module> HelpersModule;
   std::string OutputPath;
+  std::unique_ptr<DebugHelper> Debug;
+  llvm::StructType *CPUStateType;
+  const llvm::DataLayout *HelpersModuleLayout;
 
   unsigned OriginalInstrMDKind;
   unsigned PTCInstrMDKind;

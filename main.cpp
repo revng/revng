@@ -253,19 +253,26 @@ int main(int argc, const char *argv[]) {
   if (readWholeInput(Parameters.InputPath, Code) != EXIT_SUCCESS)
     return EXIT_FAILURE;
 
+  std::stringstream HelpersPath;
+  HelpersPath << QEMU_LIB_PATH
+              << "/libtinycode-helpers-"
+              << Parameters.Architecture
+              << ".ll";
+
   // Translate everything
   Architecture SourceArchitecture;
   Architecture TargetArchitecture;
   CodeGenerator Generator(SourceArchitecture,
                           TargetArchitecture,
                           std::string(Parameters.OutputPath),
+                          HelpersPath.str(),
                           Parameters.DebugInfo,
                           std::string(Parameters.DebugPath));
 
   llvm::ArrayRef<uint8_t> RawData(Code.data() + Parameters.Offset,
                                   Code.size() - Parameters.Offset);
-  if (Generator.translate(RawData, "root") != EXIT_SUCCESS)
-    return EXIT_FAILURE;
+
+  Generator.translate(RawData, "root");
 
   Generator.serialize();
 

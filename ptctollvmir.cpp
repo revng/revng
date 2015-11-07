@@ -21,6 +21,9 @@
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/IRReader/IRReader.h"
+#include "llvm/Support/SourceMgr.h"
+#include "llvm/IR/DataLayout.h"
 
 #include "ptctollvmir.h"
 #include "ptcinterface.h"
@@ -306,13 +309,12 @@ private:
 class VariableManager {
 public:
   VariableManager(Module& TheModule,
-                  ArrayRef<GlobalVariable *> PredefinedGlobals) :
+                  StructType *CPUStateType,
+                  const DataLayout *HelpersModuleLayout) :
     TheModule(TheModule),
-    Builder(TheModule.getContext()) {
-
-    // Store all the predefined globals
-    for (GlobalVariable *Global : PredefinedGlobals)
-      Globals[Global->getName()] = Global;
+    Builder(TheModule.getContext()),
+    CPUStateType(CPUStateType),
+    HelpersModuleLayout(HelpersModuleLayout) {
   }
   /// Given a PTC temporary identifier, checks if it already exists in the
   /// generatd LLVM IR, and, if not, it creates it.
@@ -320,7 +322,10 @@ public:
   /// \param TemporaryId the PTC temporary identifier.
   ///
   /// \return an Value wrapping the request global or local variable.
-  Value* getOrCreate(unsigned int TemporaryId);
+  // TODO: rename to getByTemporaryId
+  Value *getOrCreate(unsigned int TemporaryId);
+
+  GlobalVariable *getByCPUStateOffset(intptr_t Offset, std::string Name);
 
   /// Informs the VariableManager that a new function has begun, so it can
   /// discard function- and basic block-level variables.
@@ -360,29 +365,73 @@ public:
       Builder.SetInsertPoint(Delimiter);
   }
 
-  static GlobalVariable*
-  createGlobal(Module& TheModule,
-               Type *Type,
-               GlobalValue::LinkageTypes Linkage,
-               uint64_t Initializer = 0,
-               const Twine& Name = "") {
-
-    return new GlobalVariable(TheModule, Type, false, Linkage,
-                              ConstantInt::get(Type, Initializer),
-                              Name);
-  }
-
 private:
   Module& TheModule;
   IRBuilder<> Builder;
   using TemporariesMap = std::map<unsigned int, AllocaInst *>;
-  using GlobalsMap = std::map<std::string, GlobalVariable *>;
-  GlobalsMap Globals;
+  using GlobalsMap = std::map<intptr_t, GlobalVariable *>;
+  GlobalsMap CPUStateGlobals;
+  GlobalsMap OtherGlobals;
   TemporariesMap Temporaries;
   TemporariesMap LocalTemporaries;
   PTCInstructionList *Instructions;
-  Instruction *Last;
+
+  StructType *CPUStateType;
+  const DataLayout *HelpersModuleLayout;
 };
+
+static Type *getTypeAtOffset(const DataLayout *TheLayout,
+                             StructType *TheStruct,
+                             intptr_t Offset) {
+  const StructLayout *Layout = TheLayout->getStructLayout(TheStruct);
+  unsigned FieldIndex = Layout->getElementContainingOffset(Offset);
+  uint64_t FieldOffset = Layout->getElementOffset(FieldIndex);
+
+  Type *VariableType = TheStruct->getTypeAtIndex(FieldIndex);
+
+  if (VariableType->isIntegerTy())
+    return VariableType;
+  else if (VariableType->isArrayTy())
+    return VariableType->getArrayElementType();
+  else if (VariableType->isStructTy())
+    return getTypeAtOffset(TheLayout,
+                           dyn_cast<StructType>(VariableType),
+                           Offset - FieldOffset);
+  else
+    llvm_unreachable("Unexpected data type");
+}
+
+GlobalVariable* VariableManager::getByCPUStateOffset(intptr_t Offset,
+                                                     std::string Name="") {
+
+  GlobalsMap::iterator it = CPUStateGlobals.find(Offset);
+  if (it != CPUStateGlobals.end()) {
+    // TODO: handle renaming
+    return it->second;
+  } else {
+    Type *VariableType = getTypeAtOffset(HelpersModuleLayout,
+                                         CPUStateType,
+                                         Offset);
+
+    if (Name.size() == 0) {
+      std::stringstream NameStream;
+      NameStream << "state_0x" << std::hex << Offset;
+      Name = NameStream.str();
+    }
+
+    auto *NewVariable = new GlobalVariable(TheModule,
+                                           VariableType,
+                                           false,
+                                           GlobalValue::ExternalLinkage,
+                                           ConstantInt::get(VariableType, 0),
+                                           Name);
+    assert(NewVariable != nullptr);
+    CPUStateGlobals[Offset] = NewVariable;
+
+    return NewVariable;
+  }
+
+}
 
 Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
   assert(Instructions != nullptr);
@@ -392,23 +441,25 @@ Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
     Builder.getInt32Ty() : Builder.getInt64Ty();
 
   if (ptc_temp_is_global(Instructions, TemporaryId)) {
-    auto TemporaryName = StringRef(Temporary->name).lower();
-
-    GlobalsMap::iterator it = Globals.find(TemporaryName);
-    if (it != Globals.end()) {
-      return it->second;
+    // Basically we use fixed_reg to detect "env"
+    if (Temporary->fixed_reg == 0) {
+      return getByCPUStateOffset(Temporary->mem_offset,
+                                 StringRef(Temporary->name));
     } else {
-      GlobalVariable *NewVariable = createGlobal(TheModule,
-                                                 VariableType,
-                                                 GlobalValue::ExternalLinkage,
-                                                 0,
-                                                 TemporaryName);
-      assert(NewVariable != nullptr);
-      Globals[TemporaryName] = NewVariable;
-
-      return NewVariable;
+      GlobalsMap::iterator it = OtherGlobals.find(TemporaryId);
+      if (it != OtherGlobals.end()) {
+        return it->second;
+      } else {
+        GlobalVariable *Result = new GlobalVariable(TheModule,
+                                          VariableType,
+                                          false,
+                                          GlobalValue::ExternalLinkage,
+                                          ConstantInt::get(VariableType, 0),
+                                          StringRef(Temporary->name));
+        OtherGlobals[TemporaryId] = Result;
+        return Result;
+      }
     }
-
   } else if (Temporary->temp_local) {
     TemporariesMap::iterator it = LocalTemporaries.find(TemporaryId);
     if (it != LocalTemporaries.end()) {
@@ -416,7 +467,7 @@ Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
     } else {
       AllocaInst *NewTemporary = Builder.CreateAlloca(VariableType);
       LocalTemporaries[TemporaryId] = NewTemporary;
-      Result = NewTemporary;
+      return NewTemporary;
     }
   } else {
     TemporariesMap::iterator it = Temporaries.find(TemporaryId);
@@ -425,13 +476,9 @@ Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
     } else {
       AllocaInst *NewTemporary = Builder.CreateAlloca(VariableType);
       Temporaries[TemporaryId] = NewTemporary;
-      Result = NewTemporary;
+      return NewTemporary;
     }
   }
-
-  Last = Result;
-
-  return Result;
 }
 
 /// Converts a PTC condition into an LLVM predicate
@@ -958,8 +1005,7 @@ public:
   void newFunction(Function *Function) {
     if (Type != DebugInfoType::None) {
       DISubroutineType *EmptyType = nullptr;
-      EmptyType = Builder.createSubroutineType(CompileUnit->getFile(),
-                                               Builder.getOrCreateTypeArray({}));
+      EmptyType = Builder.createSubroutineType(Builder.getOrCreateTypeArray({}));
 
       CurrentFunction = Function;
       CurrentSubprogram = Builder.createFunction(CompileUnit, /* Scope */
@@ -1084,9 +1130,14 @@ private:
 // Outline the destructor for the sake of privacy in the header
 CodeGenerator::~CodeGenerator() = default;
 
+static bool startsWith(std::string String, std::string Prefix) {
+  return String.substr(0, Prefix.size()) == Prefix;
+}
+
 CodeGenerator::CodeGenerator(Architecture& Source,
                              Architecture& Target,
                              std::string Output,
+                             std::string Helpers,
                              DebugInfoType DebugInfo,
                              std::string Debug) :
   SourceArchitecture(Source),
@@ -1095,27 +1146,788 @@ CodeGenerator::CodeGenerator(Architecture& Source,
   TheModule((new Module("top", Context))),
   OutputPath(Output),
   Debug(new DebugHelper(Output, Debug, TheModule.get(), DebugInfo)),
+  CPUStateType(nullptr),
+  HelpersModuleLayout(nullptr)
 {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
   DbgMDKind = Context.getMDKindID("dbg");
+
+  SMDiagnostic Errors;
+  HelpersModule = parseIRFile(Helpers, Errors, Context);
+
+  using ElectionMap = std::map<StructType *, unsigned>;
+  using ElectionMapElement = std::pair<StructType * const, unsigned>;
+  ElectionMap EnvElection;
+  const std::string HelperPrefix = "helper_";
+  for (Function& HelperFunction : *HelpersModule) {
+    if (startsWith(HelperFunction.getName(), HelperPrefix)
+        && HelperFunction.getFunctionType()->getNumParams() > 1) {
+
+      for (Type *Candidate : HelperFunction.getFunctionType()->params()) {
+        if (Candidate->isPointerTy()) {
+          auto *PointeeType = Candidate->getPointerElementType();
+          auto *EnvType = dyn_cast<StructType>(PointeeType);
+          // Ensure it is a struct and not a union
+          if (EnvType != nullptr && EnvType->getNumElements() > 1) {
+
+            auto It = EnvElection.find(EnvType);
+            if (It != EnvElection.end())
+              EnvElection[EnvType]++;
+            else
+              EnvElection[EnvType] = 1;
+          }
+        }
+      }
+    }
+  }
+
+  assert(EnvElection.size() > 0);
+
+  CPUStateType = std::max_element(EnvElection.begin(),
+                                  EnvElection.end(),
+                                  [] (ElectionMapElement& It1,
+                                      ElectionMapElement& It2) {
+                                    return It1.second < It2.second;
+                                  })->first;
+
+  HelpersModuleLayout = &HelpersModule->getDataLayout();
 }
 
-int CodeGenerator::translate(ArrayRef<uint8_t> Code,
-                             std::string Name) {
+class InstructionTranslator {
+public:
+  InstructionTranslator(IRBuilder<>& Builder,
+                        VariableManager& Variables,
+                        JumpTargetManager& JumpTargets,
+                        std::map<std::string, BasicBlock *>& LabeledBasicBlocks,
+                        std::vector<BasicBlock *> Blocks,
+                        Module& TheModule,
+                        Function *TheFunction,
+                        Architecture& SourceArchitecture,
+                        Architecture& TargetArchitecture) :
+    Builder(Builder),
+    Variables(Variables),
+    JumpTargets(JumpTargets),
+    LabeledBasicBlocks(LabeledBasicBlocks),
+    Blocks(Blocks),
+    TheModule(TheModule),
+    TheFunction(TheFunction),
+    SourceArchitecture(SourceArchitecture),
+    TargetArchitecture(TargetArchitecture) { }
+
+  std::pair<bool, MDNode *> newInstruction(const PTC::Instruction TheInstruction,
+                                           uint64_t BasePC);
+  void translate(const PTC::Instruction TheInstruction);
+  void translateCall(const PTC::CallInstruction TheInstruction);
+private:
+  std::vector<Value *> translateOpcode(PTCOpcode Opcode,
+                                       std::vector<uint64_t> ConstArguments,
+                                       std::vector<Value *> InArguments);
+private:
+  IRBuilder<>& Builder;
+  VariableManager& Variables;
+  JumpTargetManager& JumpTargets;
+  std::map<std::string, BasicBlock *>& LabeledBasicBlocks;
+  std::vector<BasicBlock *> Blocks;
+  Module& TheModule;
+
+  Function *TheFunction;
+
+  Architecture& SourceArchitecture;
+  Architecture& TargetArchitecture;
+};
+
+std::pair<bool, MDNode *>
+InstructionTranslator::newInstruction(const PTC::Instruction TheInstruction,
+                                      uint64_t BasePC) {
+  // A new original instruction, let's create a new metadata node
+  // referencing it for all the next instructions to come
+  uint64_t PC = TheInstruction.ConstArguments[0];
+
+  // TODO: replace using a field in Architecture
+  if (TheInstruction.ConstArguments.size() > 1)
+    PC |= TheInstruction.ConstArguments[1] << 32;
+
+  std::stringstream OriginalStringStream;
+  disassembleOriginal(OriginalStringStream, PC);
+  std::string OriginalString = OriginalStringStream.str();
+  LLVMContext& Context = TheModule.getContext();
+  MDString *MDOriginalString = MDString::get(Context, OriginalString);
+  MDNode *MDOriginalInstr = MDNode::getDistinct(Context, MDOriginalString);
+
+  if (PC != 0) {
+    // Check if this PC already has a block and use it
+    // TODO: rename me
+    uint64_t RealPC = BasePC + PC;
+    bool ShouldContinue;
+    BasicBlock *DivergeTo = JumpTargets.newPC(RealPC,
+                                              ShouldContinue);
+    if (DivergeTo != nullptr) {
+      Builder.CreateBr(DivergeTo);
+
+      if (ShouldContinue) {
+        // The block is empty, let's fill it
+        Blocks.push_back(DivergeTo);
+        Builder.SetInsertPoint(DivergeTo);
+        Variables.newBasicBlock();
+      } else {
+        // The block contains already translated code, early exit
+        return { true, MDOriginalInstr };
+      }
+    }
+
+    // Inform the JumpTargetManager about the new PC we met
+    BasicBlock::iterator CurrentIt = Builder.GetInsertPoint();
+    if (CurrentIt == Builder.GetInsertBlock()->begin())
+      JumpTargets.registerBlock(RealPC, Builder.GetInsertBlock());
+    else
+      JumpTargets.registerInstruction(RealPC, &*--CurrentIt);
+  }
+
+  return { false, MDOriginalInstr };
+}
+
+void InstructionTranslator::translateCall(const PTC::CallInstruction TheCall) {
+  auto LoadArgs = [this] (uint64_t TemporaryId) -> Value * {
+    return Builder.CreateLoad(Variables.getOrCreate(TemporaryId));
+  };
+
+  auto GetValueType = [] (Value *Argument) { return Argument->getType(); };
+
+  std::vector<Value *> InArgs = (TheCall.InArguments | LoadArgs).toVector();
+  std::vector<Type *> InArgsType = (InArgs | GetValueType).toVector();
+
+  // TODO: handle multiple return arguments
+  assert(TheCall.OutArguments.size() <= 1);
+
+  Value *ResultDestination = nullptr;
+  Type *ResultType = nullptr;
+
+  if (TheCall.OutArguments.size() != 0) {
+    ResultDestination = Variables.getOrCreate(TheCall.OutArguments[0]);
+    ResultType = ResultDestination->getType()->getPointerElementType();
+  } else {
+    ResultType = Builder.getVoidTy();
+  }
+
+  auto *CalleeType = FunctionType::get(ResultType,
+                                       ArrayRef<Type *>(InArgsType),
+                                       false);
+
+  std::string HelperName = "helper_" + TheCall.helperName();
+  Constant *FunctionDeclaration = TheModule.getOrInsertFunction(HelperName,
+                                                                CalleeType);
+  Value *Result = Builder.CreateCall(FunctionDeclaration, InArgs);
+
+  if (TheCall.OutArguments.size() != 0)
+    Builder.CreateStore(Result, ResultDestination);
+}
+
+void InstructionTranslator::translate(const PTC::Instruction TheInstruction) {
+  auto LoadArgs = [this] (uint64_t TemporaryId) -> Value * {
+    return Builder.CreateLoad(Variables.getOrCreate(TemporaryId));
+  };
+
+  auto ConstArgs = TheInstruction.ConstArguments;
+  auto InArgs = TheInstruction.InArguments | LoadArgs;
+
+  std::vector<Value *> Result = translateOpcode(TheInstruction.opcode(),
+                                                ConstArgs.toVector(),
+                                                InArgs.toVector());
+
+  assert(Result.size() == (size_t) TheInstruction.OutArguments.size());
+  // TODO: use ZipIterator here
+  for (unsigned I = 0; I < Result.size(); I++)
+    Builder.CreateStore(Result[I],
+                        Variables.getOrCreate(TheInstruction.OutArguments[I]));
+}
+
+std::vector<Value *>
+InstructionTranslator::translateOpcode(PTCOpcode Opcode,
+                                       std::vector<uint64_t> ConstArguments,
+                                       std::vector<Value *> InArguments) {
+  LLVMContext& Context = TheModule.getContext();
+  unsigned RegisterSize = getRegisterSize(Opcode);
+  Type *RegisterType = nullptr;
+  if (RegisterSize == 32)
+    RegisterType = Builder.getInt32Ty();
+  else if (RegisterSize == 64)
+    RegisterType = Builder.getInt64Ty();
+  else if (RegisterSize != 0)
+    llvm_unreachable("Unexpected register size");
+
+  switch (Opcode) {
+  case PTC_INSTRUCTION_op_movi_i32:
+  case PTC_INSTRUCTION_op_movi_i64:
+    return { ConstantInt::get(RegisterType, ConstArguments[0]) };
+  case PTC_INSTRUCTION_op_discard:
+    // Let's overwrite the discarded temporary with a 0
+    return { ConstantInt::get(RegisterType, 0) };
+  case PTC_INSTRUCTION_op_mov_i32:
+  case PTC_INSTRUCTION_op_mov_i64:
+    return { Builder.CreateTrunc(InArguments[0], RegisterType) };
+  case PTC_INSTRUCTION_op_setcond_i32:
+  case PTC_INSTRUCTION_op_setcond_i64:
+    {
+      Value *Compare = CreateICmp(Builder,
+                                  ConstArguments[0],
+                                  InArguments[0],
+                                  InArguments[1]);
+      // TODO: convert single-bit registers to i1
+      return { Builder.CreateZExt(Compare, RegisterType) };
+    }
+  case PTC_INSTRUCTION_op_movcond_i32: // Resist the fallthrough temptation
+  case PTC_INSTRUCTION_op_movcond_i64:
+    {
+      Value *Compare = CreateICmp(Builder,
+                                  ConstArguments[0],
+                                  InArguments[0],
+                                  InArguments[1]);
+      Value *Select = Builder.CreateSelect(Compare,
+                                           InArguments[2],
+                                           InArguments[3]);
+      return { Select };
+    }
+  case PTC_INSTRUCTION_op_qemu_ld_i32:
+  case PTC_INSTRUCTION_op_qemu_ld_i64:
+  case PTC_INSTRUCTION_op_qemu_st_i32:
+  case PTC_INSTRUCTION_op_qemu_st_i64:
+    {
+      PTCLoadStoreArg MemoryAccess;
+      MemoryAccess = ptc.parse_load_store_arg(ConstArguments[0]);
+
+      // What are we supposed to do in this case?
+      assert(MemoryAccess.access_type != PTC_MEMORY_ACCESS_UNKNOWN);
+
+      unsigned AccessAlignment = 0;
+      if (MemoryAccess.access_type == PTC_MEMORY_ACCESS_UNALIGNED)
+        AccessAlignment = 1;
+      else
+        AccessAlignment = SourceArchitecture.defaultAlignment();
+
+      // Load size
+      IntegerType *MemoryType = nullptr;
+      switch (ptc_get_memory_access_size(MemoryAccess.type)) {
+      case PTC_MO_8:
+        MemoryType = Builder.getInt8Ty();
+        break;
+      case PTC_MO_16:
+        MemoryType = Builder.getInt16Ty();
+        break;
+      case PTC_MO_32:
+        MemoryType = Builder.getInt32Ty();
+        break;
+      case PTC_MO_64:
+        MemoryType = Builder.getInt64Ty();
+        break;
+      default:
+        llvm_unreachable("Unexpected load size");
+      }
+
+      bool SignExtend = ptc_is_sign_extended_load(MemoryAccess.type);
+
+      // // TODO: handle 64 on 32
+      // // TODO: handle endianess mismatch
+      // assert(SourceArchitecture.endianess() ==
+      //        TargetArchitecture.endianess() &&
+      //        "Different endianess between the source and the target is not "
+      //        "supported yet");
+
+      Value *Pointer = nullptr;
+      if (Opcode == PTC_INSTRUCTION_op_qemu_ld_i32 ||
+          Opcode == PTC_INSTRUCTION_op_qemu_ld_i64) {
+
+        Pointer = Builder.CreateIntToPtr(InArguments[0],
+                                         MemoryType->getPointerTo());
+        Value *Load = Builder.CreateAlignedLoad(Pointer,
+                                                AccessAlignment);
+
+        if (SignExtend)
+          return { Builder.CreateSExt(Load, RegisterType) };
+        else
+          return { Builder.CreateZExt(Load, RegisterType) };
+
+      } else if (Opcode == PTC_INSTRUCTION_op_qemu_st_i32 ||
+                 Opcode == PTC_INSTRUCTION_op_qemu_st_i64) {
+
+        Pointer = Builder.CreateIntToPtr(InArguments[1],
+                                         MemoryType->getPointerTo());
+        Value *Value = Builder.CreateTrunc(InArguments[0], MemoryType);
+        Builder.CreateAlignedStore(Value, Pointer, AccessAlignment);
+
+        return { };
+      } else
+        llvm_unreachable("Unknown load type");
+    }
+  case PTC_INSTRUCTION_op_ld8u_i32:
+  case PTC_INSTRUCTION_op_ld8s_i32:
+  case PTC_INSTRUCTION_op_ld16u_i32:
+  case PTC_INSTRUCTION_op_ld16s_i32:
+  case PTC_INSTRUCTION_op_ld_i32:
+  case PTC_INSTRUCTION_op_ld8u_i64:
+  case PTC_INSTRUCTION_op_ld8s_i64:
+  case PTC_INSTRUCTION_op_ld16u_i64:
+  case PTC_INSTRUCTION_op_ld16s_i64:
+  case PTC_INSTRUCTION_op_ld32u_i64:
+  case PTC_INSTRUCTION_op_ld32s_i64:
+  case PTC_INSTRUCTION_op_ld_i64:
+    // TODO: handle this
+    return { ConstantInt::get(RegisterType, 0) };
+  case PTC_INSTRUCTION_op_st8_i32:
+  case PTC_INSTRUCTION_op_st16_i32:
+  case PTC_INSTRUCTION_op_st_i32:
+  case PTC_INSTRUCTION_op_st8_i64:
+  case PTC_INSTRUCTION_op_st16_i64:
+  case PTC_INSTRUCTION_op_st32_i64:
+  case PTC_INSTRUCTION_op_st_i64:
+    {
+      Value *Base = dyn_cast<LoadInst>(InArguments[1])->getPointerOperand();
+      assert(Base->getName() == "env");
+      Value *Target = Variables.getByCPUStateOffset(ConstArguments[0]);
+      Builder.CreateStore(InArguments[0], Target);
+      return { };
+    }
+  case PTC_INSTRUCTION_op_add_i32:
+  case PTC_INSTRUCTION_op_sub_i32:
+  case PTC_INSTRUCTION_op_mul_i32:
+  case PTC_INSTRUCTION_op_div_i32:
+  case PTC_INSTRUCTION_op_divu_i32:
+  case PTC_INSTRUCTION_op_rem_i32:
+  case PTC_INSTRUCTION_op_remu_i32:
+  case PTC_INSTRUCTION_op_and_i32:
+  case PTC_INSTRUCTION_op_or_i32:
+  case PTC_INSTRUCTION_op_xor_i32:
+  case PTC_INSTRUCTION_op_shl_i32:
+  case PTC_INSTRUCTION_op_shr_i32:
+  case PTC_INSTRUCTION_op_sar_i32:
+  case PTC_INSTRUCTION_op_add_i64:
+  case PTC_INSTRUCTION_op_sub_i64:
+  case PTC_INSTRUCTION_op_mul_i64:
+  case PTC_INSTRUCTION_op_div_i64:
+  case PTC_INSTRUCTION_op_divu_i64:
+  case PTC_INSTRUCTION_op_rem_i64:
+  case PTC_INSTRUCTION_op_remu_i64:
+  case PTC_INSTRUCTION_op_and_i64:
+  case PTC_INSTRUCTION_op_or_i64:
+  case PTC_INSTRUCTION_op_xor_i64:
+  case PTC_INSTRUCTION_op_shl_i64:
+  case PTC_INSTRUCTION_op_shr_i64:
+  case PTC_INSTRUCTION_op_sar_i64:
+    {
+      // TODO: assert on sizes?
+      Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
+      Value *Operation = Builder.CreateBinOp(BinaryOp,
+                                             InArguments[0],
+                                             InArguments[1]);
+      return { Operation };
+    }
+  case PTC_INSTRUCTION_op_div2_i32:
+  case PTC_INSTRUCTION_op_divu2_i32:
+  case PTC_INSTRUCTION_op_div2_i64:
+  case PTC_INSTRUCTION_op_divu2_i64:
+    {
+      Instruction::BinaryOps DivisionOp, RemainderOp;
+
+      if (Opcode == PTC_INSTRUCTION_op_div2_i32 ||
+          Opcode == PTC_INSTRUCTION_op_div2_i64) {
+        DivisionOp = Instruction::SDiv;
+        RemainderOp = Instruction::SRem;
+      } else if (Opcode == PTC_INSTRUCTION_op_div2_i32 ||
+                 Opcode == PTC_INSTRUCTION_op_div2_i64) {
+        DivisionOp = Instruction::UDiv;
+        RemainderOp = Instruction::URem;
+      } else
+        llvm_unreachable("Unknown operation type");
+
+      // TODO: we're ignoring InArguments[1], which is the MSB
+      // TODO: assert on sizes?
+      Value *Division = Builder.CreateBinOp(DivisionOp,
+                                            InArguments[0],
+                                            InArguments[2]);
+      Value *Remainder = Builder.CreateBinOp(RemainderOp,
+                                             InArguments[0],
+                                             InArguments[2]);
+      return { Division, Remainder };
+    }
+  case PTC_INSTRUCTION_op_rotr_i32:
+  case PTC_INSTRUCTION_op_rotr_i64:
+  case PTC_INSTRUCTION_op_rotl_i32:
+  case PTC_INSTRUCTION_op_rotl_i64:
+    {
+      Value *Bits = ConstantInt::get(RegisterType, RegisterSize);
+
+      Instruction::BinaryOps FirstShiftOp, SecondShiftOp;
+      if (Opcode == PTC_INSTRUCTION_op_rotl_i32 ||
+          Opcode == PTC_INSTRUCTION_op_rotl_i64) {
+        FirstShiftOp = Instruction::LShr;
+        SecondShiftOp = Instruction::Shl;
+      } else if (Opcode == PTC_INSTRUCTION_op_rotr_i32 ||
+                 Opcode == PTC_INSTRUCTION_op_rotr_i64) {
+        FirstShiftOp = Instruction::Shl;
+        SecondShiftOp = Instruction::LShr;
+      } else
+        llvm_unreachable("Unexpected opcode");
+
+      Value *FirstShift = Builder.CreateBinOp(FirstShiftOp,
+                                              InArguments[0],
+                                              InArguments[1]);
+      Value *SecondShiftAmount = Builder.CreateSub(Bits,
+                                                   InArguments[1]);
+      Value *SecondShift = Builder.CreateBinOp(SecondShiftOp,
+                                               InArguments[0],
+                                               SecondShiftAmount);
+
+      return { Builder.CreateOr(FirstShift, SecondShift) };
+    }
+  case PTC_INSTRUCTION_op_deposit_i32:
+  case PTC_INSTRUCTION_op_deposit_i64:
+    {
+      unsigned Position = ConstArguments[0];
+      if (Position == RegisterSize)
+        return { InArguments[0] };
+
+      unsigned Length = ConstArguments[1];
+      uint64_t Bits = 0;
+
+      // Thou shall not << 32
+      if (Length == RegisterSize)
+        Bits = getMaxValue(RegisterSize);
+      else
+        Bits = (1 << Length) - 1;
+
+      // result = (t1 & ~(bits << position)) | ((t2 & bits) << position)
+      uint64_t BaseMask = ~(Bits << Position);
+      Value *MaskedBase = Builder.CreateAnd(InArguments[0], BaseMask);
+      Value *Deposit = Builder.CreateAnd(InArguments[1], Bits);
+      Value *ShiftedDeposit = Builder.CreateShl(Deposit, Position);
+      Value *Result = Builder.CreateOr(MaskedBase, ShiftedDeposit);
+
+      return { Result };
+    }
+  case PTC_INSTRUCTION_op_ext8s_i32:
+  case PTC_INSTRUCTION_op_ext16s_i32:
+  case PTC_INSTRUCTION_op_ext8u_i32:
+  case PTC_INSTRUCTION_op_ext16u_i32:
+  case PTC_INSTRUCTION_op_ext8s_i64:
+  case PTC_INSTRUCTION_op_ext16s_i64:
+  case PTC_INSTRUCTION_op_ext32s_i64:
+  case PTC_INSTRUCTION_op_ext8u_i64:
+  case PTC_INSTRUCTION_op_ext16u_i64:
+  case PTC_INSTRUCTION_op_ext32u_i64:
+    {
+      Type *SourceType = nullptr;
+      switch (Opcode) {
+      case PTC_INSTRUCTION_op_ext8s_i32:
+      case PTC_INSTRUCTION_op_ext8u_i32:
+      case PTC_INSTRUCTION_op_ext8s_i64:
+      case PTC_INSTRUCTION_op_ext8u_i64:
+        SourceType = Builder.getInt8Ty();
+        break;
+      case PTC_INSTRUCTION_op_ext16s_i32:
+      case PTC_INSTRUCTION_op_ext16u_i32:
+      case PTC_INSTRUCTION_op_ext16s_i64:
+      case PTC_INSTRUCTION_op_ext16u_i64:
+        SourceType = Builder.getInt16Ty();
+        break;
+      case PTC_INSTRUCTION_op_ext32s_i64:
+      case PTC_INSTRUCTION_op_ext32u_i64:
+        SourceType = Builder.getInt32Ty();
+        break;
+      default:
+        llvm_unreachable("Unexpected opcode");
+      }
+
+      Value *Truncated = Builder.CreateTrunc(InArguments[0],
+                                             SourceType);
+
+      switch (Opcode) {
+      case PTC_INSTRUCTION_op_ext8s_i32:
+      case PTC_INSTRUCTION_op_ext8s_i64:
+      case PTC_INSTRUCTION_op_ext16s_i32:
+      case PTC_INSTRUCTION_op_ext16s_i64:
+      case PTC_INSTRUCTION_op_ext32s_i64:
+        return { Builder.CreateSExt(Truncated, RegisterType) };
+      case PTC_INSTRUCTION_op_ext8u_i32:
+      case PTC_INSTRUCTION_op_ext8u_i64:
+      case PTC_INSTRUCTION_op_ext16u_i32:
+      case PTC_INSTRUCTION_op_ext16u_i64:
+      case PTC_INSTRUCTION_op_ext32u_i64:
+        return { Builder.CreateZExt(Truncated, RegisterType) };
+      default:
+        llvm_unreachable("Unexpected opcode");
+      }
+    }
+  case PTC_INSTRUCTION_op_not_i32:
+  case PTC_INSTRUCTION_op_not_i64:
+    return { Builder.CreateXor(InArguments[0], getMaxValue(RegisterSize)) };
+  case PTC_INSTRUCTION_op_neg_i32:
+  case PTC_INSTRUCTION_op_neg_i64:
+    return {
+      Builder.CreateSub(ConstantInt::get(RegisterType, 0),
+                        InArguments[0])
+        };
+  case PTC_INSTRUCTION_op_andc_i32:
+  case PTC_INSTRUCTION_op_andc_i64:
+  case PTC_INSTRUCTION_op_orc_i32:
+  case PTC_INSTRUCTION_op_orc_i64:
+  case PTC_INSTRUCTION_op_eqv_i32:
+  case PTC_INSTRUCTION_op_eqv_i64:
+    {
+      Instruction::BinaryOps ExternalOp;
+      switch (Opcode) {
+      case PTC_INSTRUCTION_op_andc_i32:
+      case PTC_INSTRUCTION_op_andc_i64:
+        ExternalOp = Instruction::And;
+        break;
+      case PTC_INSTRUCTION_op_orc_i32:
+      case PTC_INSTRUCTION_op_orc_i64:
+        ExternalOp = Instruction::Or;
+        break;
+      case PTC_INSTRUCTION_op_eqv_i32:
+      case PTC_INSTRUCTION_op_eqv_i64:
+        ExternalOp = Instruction::Xor;
+        break;
+      default:
+        llvm_unreachable("Unexpected opcode");
+      }
+
+      Value *Negate = Builder.CreateXor(InArguments[1],
+                                        getMaxValue(RegisterSize));
+      Value *Result = Builder.CreateBinOp(ExternalOp,
+                                          InArguments[0],
+                                          Negate);
+      return { Result };
+    }
+  case PTC_INSTRUCTION_op_nand_i32:
+  case PTC_INSTRUCTION_op_nand_i64:
+    {
+      Value *AndValue = Builder.CreateAnd(InArguments[0],
+                                          InArguments[1]);
+      Value *Result = Builder.CreateXor(AndValue,
+                                        getMaxValue(RegisterSize));
+      return { Result };
+    }
+  case PTC_INSTRUCTION_op_nor_i32:
+  case PTC_INSTRUCTION_op_nor_i64:
+    {
+      Value *OrValue = Builder.CreateOr(InArguments[0],
+                                        InArguments[1]);
+      Value *Result = Builder.CreateXor(OrValue,
+                                        getMaxValue(RegisterSize));
+      return { Result };
+    }
+  case PTC_INSTRUCTION_op_bswap16_i32:
+  case PTC_INSTRUCTION_op_bswap32_i32:
+  case PTC_INSTRUCTION_op_bswap16_i64:
+  case PTC_INSTRUCTION_op_bswap32_i64:
+  case PTC_INSTRUCTION_op_bswap64_i64:
+    {
+      Type *SwapType = nullptr;
+      switch (Opcode) {
+      case PTC_INSTRUCTION_op_bswap16_i32:
+      case PTC_INSTRUCTION_op_bswap16_i64:
+        SwapType = Builder.getInt16Ty();
+      case PTC_INSTRUCTION_op_bswap32_i32:
+      case PTC_INSTRUCTION_op_bswap32_i64:
+        SwapType = Builder.getInt32Ty();
+      case PTC_INSTRUCTION_op_bswap64_i64:
+        SwapType = Builder.getInt64Ty();
+      default:
+        llvm_unreachable("Unexpected opcode");
+      }
+
+      Value *Truncated = Builder.CreateTrunc(InArguments[0], SwapType);
+
+      std::vector<Type *> BSwapParameters { RegisterType };
+      Function *BSwapFunction = Intrinsic::getDeclaration(&TheModule,
+                                                          Intrinsic::bswap,
+                                                          BSwapParameters);
+      Value *Swapped = Builder.CreateCall(BSwapFunction, Truncated);
+
+      return { Builder.CreateZExt(Swapped, RegisterType) };
+    }
+  case PTC_INSTRUCTION_op_set_label:
+    {
+      unsigned LabelId = ptc.get_arg_label_id(ConstArguments[0]);
+      std::string Label = "L" + std::to_string(LabelId);
+
+      BasicBlock *Fallthrough = nullptr;
+      auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
+
+      if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
+        Fallthrough = BasicBlock::Create(Context, Label, TheFunction);
+        LabeledBasicBlocks[Label] = Fallthrough;
+      } else {
+        // A basic block with that label already exist
+        Fallthrough = LabeledBasicBlocks[Label];
+
+        // Ensure it's empty
+        assert(Fallthrough->begin() == Fallthrough->end());
+
+        // Move it to the bottom
+        Fallthrough->removeFromParent();
+        TheFunction->getBasicBlockList().push_back(Fallthrough);
+      }
+
+      Builder.CreateBr(Fallthrough);
+
+      Blocks.push_back(Fallthrough);
+      Builder.SetInsertPoint(Fallthrough);
+      Variables.newBasicBlock();
+
+      return { };
+    }
+  case PTC_INSTRUCTION_op_br:
+  case PTC_INSTRUCTION_op_brcond_i32:
+  case PTC_INSTRUCTION_op_brcond2_i32:
+  case PTC_INSTRUCTION_op_brcond_i64:
+    {
+      // We take the last constant arguments, which is the LabelId both in
+      // conditional and unconditional jumps
+      unsigned LabelId = ptc.get_arg_label_id(ConstArguments.back());
+      std::string Label = "L" + std::to_string(LabelId);
+
+      BasicBlock *Fallthrough = BasicBlock::Create(Context,
+                                                   "",
+                                                   TheFunction);
+
+      // Look for a matching label
+      BasicBlock *Target = nullptr;
+      auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
+
+      // No matching label, create a temporary block
+      if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
+        Target = BasicBlock::Create(Context,
+                                    Label,
+                                    TheFunction);
+        LabeledBasicBlocks[Label] = Target;
+      } else
+        Target = LabeledBasicBlocks[Label];
+
+      if (Opcode == PTC_INSTRUCTION_op_br) {
+        // Unconditional jump
+        Builder.CreateBr(Target);
+      } else if (Opcode == PTC_INSTRUCTION_op_brcond_i32 ||
+                 Opcode == PTC_INSTRUCTION_op_brcond_i64) {
+        // Conditional jump
+        Value *Compare = CreateICmp(Builder,
+                                    ConstArguments[0],
+                                    InArguments[0],
+                                    InArguments[1]);
+        Builder.CreateCondBr(Compare, Target, Fallthrough);
+      } else
+        llvm_unreachable("Unhandled opcode");
+
+      Blocks.push_back(Fallthrough);
+      Builder.SetInsertPoint(Fallthrough);
+      Variables.newBasicBlock();
+
+      return { };
+    }
+  case PTC_INSTRUCTION_op_call:
+    // TODO: implement call to helpers
+    llvm_unreachable("Call to helpers not implemented");
+  case PTC_INSTRUCTION_op_exit_tb:
+  case PTC_INSTRUCTION_op_goto_tb:
+    // Nothing to do here
+    return { };
+  case PTC_INSTRUCTION_op_add2_i32:
+  case PTC_INSTRUCTION_op_sub2_i32:
+  case PTC_INSTRUCTION_op_add2_i64:
+  case PTC_INSTRUCTION_op_sub2_i64:
+    {
+      Value *FirstOperandLow = nullptr;
+      Value *FirstOperandHigh = nullptr;
+      Value *SecondOperandLow = nullptr;
+      Value *SecondOperandHigh = nullptr;
+
+      IntegerType *DestinationType = Builder.getIntNTy(RegisterSize * 2);
+
+      FirstOperandLow = Builder.CreateSExt(InArguments[0], DestinationType);
+      FirstOperandHigh = Builder.CreateSExt(InArguments[1], DestinationType);
+      SecondOperandLow = Builder.CreateSExt(InArguments[2], DestinationType);
+      SecondOperandHigh = Builder.CreateSExt(InArguments[3],
+                                             DestinationType);
+
+      FirstOperandHigh = Builder.CreateShl(FirstOperandHigh, RegisterSize);
+      SecondOperandHigh = Builder.CreateShl(SecondOperandHigh, RegisterSize);
+
+      Value *FirstOperand = Builder.CreateOr(FirstOperandHigh,
+                                             FirstOperandLow);
+      Value *SecondOperand = Builder.CreateOr(SecondOperandHigh,
+                                              SecondOperandLow);
+
+      Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
+
+      Value *Result = Builder.CreateBinOp(BinaryOp,
+                                          FirstOperand,
+                                          SecondOperand);
+
+      Value *ResultLow = Builder.CreateTrunc(Result, RegisterType);
+      Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
+      Value *ResultHigh = Builder.CreateTrunc(ShiftedResult,
+                                              RegisterType);
+
+      return { ResultLow, ResultHigh };
+    }
+  case PTC_INSTRUCTION_op_mulu2_i32:
+  case PTC_INSTRUCTION_op_mulu2_i64:
+  case PTC_INSTRUCTION_op_muls2_i32:
+  case PTC_INSTRUCTION_op_muls2_i64:
+    {
+      IntegerType *DestinationType = Builder.getIntNTy(RegisterSize * 2);
+
+      Value *FirstOperand = nullptr;
+      Value *SecondOperand = nullptr;
+
+      if (Opcode == PTC_INSTRUCTION_op_muls2_i32
+          || Opcode == PTC_INSTRUCTION_op_muls2_i64) {
+        FirstOperand = Builder.CreateZExt(InArguments[0], DestinationType);
+        SecondOperand = Builder.CreateZExt(InArguments[1], DestinationType);
+      } else if (Opcode == PTC_INSTRUCTION_op_muls2_i32
+                 || Opcode == PTC_INSTRUCTION_op_muls2_i64) {
+        FirstOperand = Builder.CreateSExt(InArguments[0], DestinationType);
+        SecondOperand = Builder.CreateSExt(InArguments[1], DestinationType);
+      } else
+        llvm_unreachable("Unexpected opcode");
+
+      Value *Result = Builder.CreateMul(FirstOperand, SecondOperand);
+
+      Value *ResultLow = Builder.CreateTrunc(Result, RegisterType);
+      Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
+      Value *ResultHigh = Builder.CreateTrunc(ShiftedResult,
+                                              RegisterType);
+
+      return { ResultLow, ResultHigh };
+    }
+  case PTC_INSTRUCTION_op_muluh_i32:
+  case PTC_INSTRUCTION_op_mulsh_i32:
+  case PTC_INSTRUCTION_op_muluh_i64:
+  case PTC_INSTRUCTION_op_mulsh_i64:
+
+  case PTC_INSTRUCTION_op_setcond2_i32:
+
+  case PTC_INSTRUCTION_op_trunc_shr_i32:
+    llvm_unreachable("Instruction not implemented");
+  default:
+    llvm_unreachable("Unknown opcode");
+  }
+}
+
+
+void CodeGenerator::translate(ArrayRef<uint8_t> Code,
+                              std::string Name) {
   const uint8_t *CodePointer = Code.data();
   const uint8_t *CodeEnd = CodePointer + Code.size();
 
   IRBuilder<> Builder(Context);
 
   // Create main function
-  FunctionType *MainType = nullptr;
-  MainType = FunctionType::get(Builder.getVoidTy(), false);
-  Function *MainFunction = nullptr;
-  MainFunction = Function::Create(MainType,
-                                  Function::ExternalLinkage,
-                                  Name,
-                                  TheModule.get());
+  auto *MainType  = FunctionType::get(Builder.getVoidTy(), false);
+  auto *MainFunction = Function::Create(MainType,
+                                        Function::ExternalLinkage,
+                                        Name,
+                                        TheModule.get());
 
   Debug->newFunction(MainFunction);
 
@@ -1127,30 +1939,44 @@ int CodeGenerator::translate(ArrayRef<uint8_t> Code,
   Builder.SetInsertPoint(Entry);
   Instruction *Delimiter = Builder.CreateUnreachable();
 
-  // Create register needed for managing the control flow
-  GlobalVariable *PCReg = nullptr;
-  PCReg = VariableManager::createGlobal(*TheModule,
-                                        Builder.getInt32Ty(),
-                                        GlobalValue::ExternalLinkage,
-                                        0, /* Initial value */
-                                        "pc");
-
   // Instantiate helpers
-  VariableManager Variables(*TheModule, { PCReg });
+  VariableManager Variables(*TheModule,
+                            CPUStateType,
+                            HelpersModuleLayout);
+
+  GlobalVariable *PCReg = Variables.getByCPUStateOffset(ptc.get_pc(), "pc");
+
   JumpTargetManager JumpTargets(Context, PCReg, MainFunction);
+  std::map<std::string, BasicBlock *> LabeledBasicBlocks;
+  std::vector<BasicBlock *> Blocks;
+
+  InstructionTranslator Translator(Builder,
+                                   Variables,
+                                   JumpTargets,
+                                   LabeledBasicBlocks,
+                                   Blocks,
+                                   *TheModule,
+                                   MainFunction,
+                                   SourceArchitecture,
+                                   TargetArchitecture);
 
   while (Entry != nullptr) {
     Builder.SetInsertPoint(Entry);
 
-    std::map<std::string, BasicBlock *> LabeledBasicBlocks;
+    LabeledBasicBlocks.clear();
 
     // TODO: rename this type
     PTCInstructionListPtr InstructionList(new PTCInstructionList);
     size_t ConsumedSize = 0;
 
+    // TODO: support virtual addresses
+    assert(CodeEnd > CodePointer);
+
     ConsumedSize = ptc.translate(CodePointer,
                                  CodeEnd - CodePointer,
                                  InstructionList.get());
+
+    dumpTranslation(std::cerr, InstructionList.get());
 
     Variables.newFunction(Delimiter, InstructionList.get());
     unsigned j = 0;
@@ -1170,660 +1996,27 @@ int CodeGenerator::translate(ArrayRef<uint8_t> Code,
       PTCInstruction Instruction = InstructionList->instructions[j];
       PTCOpcode Opcode = Instruction.opc;
 
-      if (Opcode == PTC_INSTRUCTION_op_call) {
-        dumpTranslation(std::cerr, InstructionList.get());
-        return EXIT_FAILURE;
-      }
+      Blocks.clear();
+      Blocks.push_back(Builder.GetInsertBlock());
 
-      std::vector<BasicBlock *> Blocks { Builder.GetInsertBlock() };
-
-      std::vector<Value *> OutArguments;
-      std::vector<Value *> InArguments;
-      std::vector<uint64_t> ConstArguments;
-
-      // Create or get variables
-      Value *LoadInstruction = nullptr;
-      unsigned InArgumentsCount = 0;
-      InArgumentsCount = ptc_instruction_in_arg_count(&ptc, &Instruction);
-      for (unsigned i = 0; i < InArgumentsCount; i++) {
-        unsigned TemporaryId = ptc_instruction_in_arg(&ptc, &Instruction, i);
-        LoadInstruction = Builder.CreateLoad(Variables.getOrCreate(TemporaryId));
-        InArguments.push_back(LoadInstruction);
-      }
-
-      // Collect constant parameters
-      unsigned ConstArgumentsCount = 0;
-      ConstArgumentsCount = ptc_instruction_const_arg_count(&ptc, &Instruction);
-      for (unsigned i = 0; i < ConstArgumentsCount; i++) {
-        uint64_t Argument = ptc_instruction_const_arg(&ptc, &Instruction, i);
-        ConstArguments.push_back(Argument);
-      }
-
-      unsigned RegisterSize = getRegisterSize(Opcode);
-      Type *RegisterType = nullptr;
-      if (RegisterSize == 32)
-        RegisterType = Builder.getInt32Ty();
-      else if (RegisterSize == 64)
-        RegisterType = Builder.getInt64Ty();
-      else if (RegisterSize != 0)
-        llvm_unreachable("Unexpected register size");
-
-      switch (Opcode) {
-      case PTC_INSTRUCTION_op_movi_i32:
-      case PTC_INSTRUCTION_op_movi_i64:
-        OutArguments.push_back(ConstantInt::get(RegisterType,
-                                                ConstArguments[0]));
-        break;
+      switch(Opcode) {
       case PTC_INSTRUCTION_op_discard:
-        // Nothing to do here
+        // Instructions we don't even consider
         break;
-      case PTC_INSTRUCTION_op_mov_i32:
-      case PTC_INSTRUCTION_op_mov_i64:
-        OutArguments.push_back(InArguments[0]);
-        break;
-      case PTC_INSTRUCTION_op_setcond_i32:
-      case PTC_INSTRUCTION_op_setcond_i64:
-        {
-          Value *Compare = CreateICmp(Builder,
-                                      ConstArguments[0],
-                                      InArguments[0],
-                                      InArguments[1]);
-          // TODO: convert single-bit registers to i1
-          Value *Result = Builder.CreateZExt(Compare, RegisterType);
-          OutArguments.push_back(Result);
-          break;
-        }
-      case PTC_INSTRUCTION_op_movcond_i32: // Resist the fallthrough temptation
-      case PTC_INSTRUCTION_op_movcond_i64:
-        {
-          Value *Compare = CreateICmp(Builder,
-                                      ConstArguments[0],
-                                      InArguments[0],
-                                      InArguments[1]);
-          Value *Select = Builder.CreateSelect(Compare,
-                                               InArguments[2],
-                                               InArguments[3]);
-          OutArguments.push_back(Select);
-        }
-        break;
-      case PTC_INSTRUCTION_op_qemu_ld_i32:
-      case PTC_INSTRUCTION_op_qemu_ld_i64:
-      case PTC_INSTRUCTION_op_qemu_st_i32:
-      case PTC_INSTRUCTION_op_qemu_st_i64:
-        {
-          PTCLoadStoreArg MemoryAccess;
-          MemoryAccess = ptc.parse_load_store_arg(ConstArguments[0]);
-
-          // What are we supposed to do in this case?
-          assert(MemoryAccess.access_type != PTC_MEMORY_ACCESS_UNKNOWN);
-
-          unsigned AccessAlignment = 0;
-          if (MemoryAccess.access_type == PTC_MEMORY_ACCESS_UNALIGNED)
-            AccessAlignment = 1;
-          else
-            AccessAlignment = SourceArchitecture.defaultAlignment();
-
-          // Load size
-          IntegerType *MemoryType = nullptr;
-          switch (ptc_get_memory_access_size(MemoryAccess.type)) {
-          case PTC_MO_8:
-            MemoryType = Builder.getInt8Ty();
-            break;
-          case PTC_MO_16:
-            MemoryType = Builder.getInt16Ty();
-            break;
-          case PTC_MO_32:
-            MemoryType = Builder.getInt32Ty();
-            break;
-          case PTC_MO_64:
-            MemoryType = Builder.getInt64Ty();
-            break;
-          default:
-            llvm_unreachable("Unexpected load size");
-          }
-
-          bool SignExtend = ptc_is_sign_extended_load(MemoryAccess.type);
-
-          // TODO: handle 64 on 32
-          // TODO: handle endianess mismatch
-          assert(SourceArchitecture.endianess() ==
-                 TargetArchitecture.endianess() &&
-                 "Different endianess between the source and the target is not "
-                 "supported yet");
-
-          Value *Pointer = nullptr;
-          if (Opcode == PTC_INSTRUCTION_op_qemu_ld_i32 ||
-              Opcode == PTC_INSTRUCTION_op_qemu_ld_i64) {
-
-            Pointer = Builder.CreateIntToPtr(InArguments[0],
-                                             MemoryType->getPointerTo());
-            Value *Load = Builder.CreateAlignedLoad(Pointer,
-                                                    AccessAlignment);
-
-            Value *Result = nullptr;
-            if (SignExtend)
-              Result = Builder.CreateSExt(Load, RegisterType);
-            else
-              Result = Builder.CreateZExt(Load, RegisterType);
-
-            OutArguments.push_back(Result);
-
-          } else if (Opcode == PTC_INSTRUCTION_op_qemu_st_i32 ||
-                     Opcode == PTC_INSTRUCTION_op_qemu_st_i64) {
-
-            Pointer = Builder.CreateIntToPtr(InArguments[1],
-                                             MemoryType->getPointerTo());
-            Value *Value = Builder.CreateTrunc(InArguments[0], MemoryType);
-            Builder.CreateAlignedStore(Value, Pointer, AccessAlignment);
-
-          } else
-            llvm_unreachable("Unknown load type");
-
-          break;
-        }
-      case PTC_INSTRUCTION_op_ld8u_i32:
-      case PTC_INSTRUCTION_op_ld8s_i32:
-      case PTC_INSTRUCTION_op_ld16u_i32:
-      case PTC_INSTRUCTION_op_ld16s_i32:
-      case PTC_INSTRUCTION_op_ld_i32:
-      case PTC_INSTRUCTION_op_ld8u_i64:
-      case PTC_INSTRUCTION_op_ld8s_i64:
-      case PTC_INSTRUCTION_op_ld16u_i64:
-      case PTC_INSTRUCTION_op_ld16s_i64:
-      case PTC_INSTRUCTION_op_ld32u_i64:
-      case PTC_INSTRUCTION_op_ld32s_i64:
-      case PTC_INSTRUCTION_op_ld_i64:
-      case PTC_INSTRUCTION_op_st8_i32:
-      case PTC_INSTRUCTION_op_st16_i32:
-      case PTC_INSTRUCTION_op_st_i32:
-      case PTC_INSTRUCTION_op_st8_i64:
-      case PTC_INSTRUCTION_op_st16_i64:
-      case PTC_INSTRUCTION_op_st32_i64:
-      case PTC_INSTRUCTION_op_st_i64:
-        // We shouldn't have these instructions
-        continue;
-      case PTC_INSTRUCTION_op_add_i32:
-      case PTC_INSTRUCTION_op_sub_i32:
-      case PTC_INSTRUCTION_op_mul_i32:
-      case PTC_INSTRUCTION_op_div_i32:
-      case PTC_INSTRUCTION_op_divu_i32:
-      case PTC_INSTRUCTION_op_rem_i32:
-      case PTC_INSTRUCTION_op_remu_i32:
-      case PTC_INSTRUCTION_op_and_i32:
-      case PTC_INSTRUCTION_op_or_i32:
-      case PTC_INSTRUCTION_op_xor_i32:
-      case PTC_INSTRUCTION_op_shl_i32:
-      case PTC_INSTRUCTION_op_shr_i32:
-      case PTC_INSTRUCTION_op_sar_i32:
-      case PTC_INSTRUCTION_op_add_i64:
-      case PTC_INSTRUCTION_op_sub_i64:
-      case PTC_INSTRUCTION_op_mul_i64:
-      case PTC_INSTRUCTION_op_div_i64:
-      case PTC_INSTRUCTION_op_divu_i64:
-      case PTC_INSTRUCTION_op_rem_i64:
-      case PTC_INSTRUCTION_op_remu_i64:
-      case PTC_INSTRUCTION_op_and_i64:
-      case PTC_INSTRUCTION_op_or_i64:
-      case PTC_INSTRUCTION_op_xor_i64:
-      case PTC_INSTRUCTION_op_shl_i64:
-      case PTC_INSTRUCTION_op_shr_i64:
-      case PTC_INSTRUCTION_op_sar_i64:
-        {
-          // TODO: assert on sizes?
-          Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
-          Value *Operation = Builder.CreateBinOp(BinaryOp,
-                                                 InArguments[0],
-                                                 InArguments[1]);
-          OutArguments.push_back(Operation);
-          break;
-        }
-      case PTC_INSTRUCTION_op_div2_i32:
-      case PTC_INSTRUCTION_op_divu2_i32:
-      case PTC_INSTRUCTION_op_div2_i64:
-      case PTC_INSTRUCTION_op_divu2_i64:
-        {
-          Instruction::BinaryOps DivisionOp, RemainderOp;
-
-          if (Opcode == PTC_INSTRUCTION_op_div2_i32 ||
-              Opcode == PTC_INSTRUCTION_op_div2_i64) {
-            DivisionOp = Instruction::SDiv;
-            RemainderOp = Instruction::SRem;
-          } else if (Opcode == PTC_INSTRUCTION_op_div2_i32 ||
-                     Opcode == PTC_INSTRUCTION_op_div2_i64) {
-            DivisionOp = Instruction::UDiv;
-            RemainderOp = Instruction::URem;
-          } else
-            llvm_unreachable("Unknown operation type");
-
-          // TODO: we're ignoring InArguments[1], which is the MSB
-          // TODO: assert on sizes?
-          Value *Division = Builder.CreateBinOp(DivisionOp,
-                                                InArguments[0],
-                                                InArguments[2]);
-          Value *Remainder = Builder.CreateBinOp(RemainderOp,
-                                                 InArguments[0],
-                                                 InArguments[2]);
-          OutArguments.push_back(Division);
-          OutArguments.push_back(Remainder);
-          break;
-        }
-      case PTC_INSTRUCTION_op_rotr_i32:
-      case PTC_INSTRUCTION_op_rotr_i64:
-      case PTC_INSTRUCTION_op_rotl_i32:
-      case PTC_INSTRUCTION_op_rotl_i64:
-        {
-          Value *Bits = ConstantInt::get(RegisterType, RegisterSize);
-
-          Instruction::BinaryOps FirstShiftOp, SecondShiftOp;
-          if (Opcode == PTC_INSTRUCTION_op_rotl_i32 ||
-              Opcode == PTC_INSTRUCTION_op_rotl_i64) {
-            FirstShiftOp = Instruction::LShr;
-            SecondShiftOp = Instruction::Shl;
-          } else if (Opcode == PTC_INSTRUCTION_op_rotr_i32 ||
-                     Opcode == PTC_INSTRUCTION_op_rotr_i64) {
-            FirstShiftOp = Instruction::Shl;
-            SecondShiftOp = Instruction::LShr;
-          } else
-            llvm_unreachable("Unexpected opcode");
-
-          Value *FirstShift = Builder.CreateBinOp(FirstShiftOp,
-                                                  InArguments[0],
-                                                  InArguments[1]);
-          Value *SecondShiftAmount = Builder.CreateSub(Bits,
-                                                       InArguments[1]);
-          Value *SecondShift = Builder.CreateBinOp(SecondShiftOp,
-                                                   InArguments[0],
-                                                   SecondShiftAmount);
-          Value *Result = Builder.CreateOr(FirstShift, SecondShift);
-
-          OutArguments.push_back(Result);
-          break;
-        }
-      case PTC_INSTRUCTION_op_deposit_i32:
-      case PTC_INSTRUCTION_op_deposit_i64:
-        {
-          unsigned Position = ConstArguments[0];
-          if (Position == RegisterSize) {
-            OutArguments.push_back(InArguments[0]);
-            break;
-          }
-
-          unsigned Length = ConstArguments[1];
-          uint64_t Bits = 0;
-
-          // Thou shall not << 32
-          if (Length == RegisterSize)
-            Bits = getMaxValue(RegisterSize);
-          else
-            Bits = (1 << Length) - 1;
-
-          // result = (t1 & ~(bits << position)) | ((t2 & bits) << position)
-          uint64_t BaseMask = ~(Bits << Position);
-          Value *MaskedBase = Builder.CreateAnd(InArguments[0], BaseMask);
-          Value *Deposit = Builder.CreateAnd(InArguments[1], Bits);
-          Value *ShiftedDeposit = Builder.CreateShl(Deposit, Position);
-          Value *Result = Builder.CreateOr(MaskedBase, ShiftedDeposit);
-
-          OutArguments.push_back(Result);
-          break;
-        }
-      case PTC_INSTRUCTION_op_ext8s_i32:
-      case PTC_INSTRUCTION_op_ext16s_i32:
-      case PTC_INSTRUCTION_op_ext8u_i32:
-      case PTC_INSTRUCTION_op_ext16u_i32:
-      case PTC_INSTRUCTION_op_ext8s_i64:
-      case PTC_INSTRUCTION_op_ext16s_i64:
-      case PTC_INSTRUCTION_op_ext32s_i64:
-      case PTC_INSTRUCTION_op_ext8u_i64:
-      case PTC_INSTRUCTION_op_ext16u_i64:
-      case PTC_INSTRUCTION_op_ext32u_i64:
-        {
-          Type *SourceType = nullptr;
-          switch (Opcode) {
-          case PTC_INSTRUCTION_op_ext8s_i32:
-          case PTC_INSTRUCTION_op_ext8u_i32:
-          case PTC_INSTRUCTION_op_ext8s_i64:
-          case PTC_INSTRUCTION_op_ext8u_i64:
-            SourceType = Builder.getInt8Ty();
-            break;
-          case PTC_INSTRUCTION_op_ext16s_i32:
-          case PTC_INSTRUCTION_op_ext16u_i32:
-          case PTC_INSTRUCTION_op_ext16s_i64:
-          case PTC_INSTRUCTION_op_ext16u_i64:
-            SourceType = Builder.getInt16Ty();
-            break;
-          case PTC_INSTRUCTION_op_ext32s_i64:
-          case PTC_INSTRUCTION_op_ext32u_i64:
-            SourceType = Builder.getInt32Ty();
-            break;
-          default:
-            llvm_unreachable("Unexpected opcode");
-          }
-
-          Value *Truncated = Builder.CreateTrunc(InArguments[0],
-                                                 SourceType);
-
-          Value *Result = nullptr;
-          switch (Opcode) {
-          case PTC_INSTRUCTION_op_ext8s_i32:
-          case PTC_INSTRUCTION_op_ext8s_i64:
-          case PTC_INSTRUCTION_op_ext16s_i32:
-          case PTC_INSTRUCTION_op_ext16s_i64:
-          case PTC_INSTRUCTION_op_ext32s_i64:
-            Result = Builder.CreateSExt(Truncated, RegisterType);
-            break;
-          case PTC_INSTRUCTION_op_ext8u_i32:
-          case PTC_INSTRUCTION_op_ext8u_i64:
-          case PTC_INSTRUCTION_op_ext16u_i32:
-          case PTC_INSTRUCTION_op_ext16u_i64:
-          case PTC_INSTRUCTION_op_ext32u_i64:
-            Result = Builder.CreateZExt(Truncated, RegisterType);
-            break;
-          default:
-            llvm_unreachable("Unexpected opcode");
-          }
-
-          OutArguments.push_back(Result);
-          break;
-        }
-      case PTC_INSTRUCTION_op_not_i32:
-      case PTC_INSTRUCTION_op_not_i64:
-        {
-          Value *Result = Builder.CreateXor(InArguments[0],
-                                            getMaxValue(RegisterSize));
-          OutArguments.push_back(Result);
-          break;
-        }
-      case PTC_INSTRUCTION_op_neg_i32:
-      case PTC_INSTRUCTION_op_neg_i64:
-        {
-          Value *Zero = ConstantInt::get(RegisterType, 0);
-          Value *Result = Builder.CreateSub(Zero, InArguments[0]);
-          OutArguments.push_back(Result);
-          break;
-        }
-      case PTC_INSTRUCTION_op_andc_i32:
-      case PTC_INSTRUCTION_op_andc_i64:
-      case PTC_INSTRUCTION_op_orc_i32:
-      case PTC_INSTRUCTION_op_orc_i64:
-      case PTC_INSTRUCTION_op_eqv_i32:
-      case PTC_INSTRUCTION_op_eqv_i64:
-        {
-          Instruction::BinaryOps ExternalOp;
-          switch (Opcode) {
-          case PTC_INSTRUCTION_op_andc_i32:
-          case PTC_INSTRUCTION_op_andc_i64:
-            ExternalOp = Instruction::And;
-            break;
-          case PTC_INSTRUCTION_op_orc_i32:
-          case PTC_INSTRUCTION_op_orc_i64:
-            ExternalOp = Instruction::Or;
-            break;
-          case PTC_INSTRUCTION_op_eqv_i32:
-          case PTC_INSTRUCTION_op_eqv_i64:
-            ExternalOp = Instruction::Xor;
-            break;
-          default:
-            llvm_unreachable("Unexpected opcode");
-          }
-
-          Value *Negate = Builder.CreateXor(InArguments[1],
-                                            getMaxValue(RegisterSize));
-          Value *Result = Builder.CreateBinOp(ExternalOp,
-                                              InArguments[0],
-                                              Negate);
-          OutArguments.push_back(Result);
-          break;
-        }
-      case PTC_INSTRUCTION_op_nand_i32:
-      case PTC_INSTRUCTION_op_nand_i64:
-        {
-          Value *AndValue = Builder.CreateAnd(InArguments[0],
-                                              InArguments[1]);
-          Value *Result = Builder.CreateXor(AndValue,
-                                            getMaxValue(RegisterSize));
-          OutArguments.push_back(Result);
-          break;
-        }
-      case PTC_INSTRUCTION_op_nor_i32:
-      case PTC_INSTRUCTION_op_nor_i64:
-        {
-          Value *OrValue = Builder.CreateOr(InArguments[0],
-                                            InArguments[1]);
-          Value *Result = Builder.CreateXor(OrValue,
-                                            getMaxValue(RegisterSize));
-          OutArguments.push_back(Result);
-          break;
-        }
-      case PTC_INSTRUCTION_op_bswap16_i32:
-      case PTC_INSTRUCTION_op_bswap32_i32:
-      case PTC_INSTRUCTION_op_bswap16_i64:
-      case PTC_INSTRUCTION_op_bswap32_i64:
-      case PTC_INSTRUCTION_op_bswap64_i64:
-        {
-          Type *SwapType = nullptr;
-          switch (Opcode) {
-          case PTC_INSTRUCTION_op_bswap16_i32:
-          case PTC_INSTRUCTION_op_bswap16_i64:
-            SwapType = Builder.getInt16Ty();
-          case PTC_INSTRUCTION_op_bswap32_i32:
-          case PTC_INSTRUCTION_op_bswap32_i64:
-            SwapType = Builder.getInt32Ty();
-          case PTC_INSTRUCTION_op_bswap64_i64:
-            SwapType = Builder.getInt64Ty();
-          default:
-            llvm_unreachable("Unexpected opcode");
-          }
-
-          Value *Truncated = Builder.CreateTrunc(InArguments[0], SwapType);
-
-          std::vector<Type *> BSwapParameters { RegisterType };
-          Function *BSwapFunction = Intrinsic::getDeclaration(TheModule.get(),
-                                                              Intrinsic::bswap,
-                                                              BSwapParameters);
-          Value *Swapped = Builder.CreateCall(BSwapFunction, Truncated);
-
-          Value *Result = Builder.CreateZExt(Swapped, RegisterType);
-          OutArguments.push_back(Result);
-          break;
-        }
-      case PTC_INSTRUCTION_op_set_label:
-        {
-          unsigned LabelId = ptc.get_arg_label_id(ConstArguments[0]);
-          std::string Label = "L" + std::to_string(LabelId);
-
-          BasicBlock *Fallthrough = nullptr;
-          auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
-
-          if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
-            Fallthrough = BasicBlock::Create(Context, Label, MainFunction);
-            LabeledBasicBlocks[Label] = Fallthrough;
-          } else {
-            // A basic block with that label already exist
-            Fallthrough = LabeledBasicBlocks[Label];
-
-            // Ensure it's empty
-            assert(Fallthrough->begin() == Fallthrough->end());
-
-            // Move it to the bottom
-            Fallthrough->removeFromParent();
-            MainFunction->getBasicBlockList().push_back(Fallthrough);
-          }
-
-          Blocks.push_back(Fallthrough);
-          Builder.CreateBr(Fallthrough);
-          Builder.SetInsertPoint(Fallthrough);
-          Variables.newBasicBlock();
-          break;
-        }
-      case PTC_INSTRUCTION_op_br:
-      case PTC_INSTRUCTION_op_brcond_i32:
-      case PTC_INSTRUCTION_op_brcond2_i32:
-      case PTC_INSTRUCTION_op_brcond_i64:
-        {
-          // We take the last constant arguments, which is the LabelId both in
-          // conditional and unconditional jumps
-          unsigned LabelId = ptc.get_arg_label_id(ConstArguments.back());
-          std::string Label = "L" + std::to_string(LabelId);
-
-          BasicBlock *Fallthrough = BasicBlock::Create(Context,
-                                                       "",
-                                                       MainFunction);
-
-          // Look for a matching label
-          BasicBlock *Target = nullptr;
-          auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
-
-          // No matching label, create a temporary block
-          if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
-            Target = BasicBlock::Create(Context,
-                                        Label,
-                                        MainFunction);
-            LabeledBasicBlocks[Label] = Target;
-          } else
-            Target = LabeledBasicBlocks[Label];
-
-          if (Opcode == PTC_INSTRUCTION_op_br) {
-            // Unconditional jump
-            Builder.CreateBr(Target);
-          } else if (Opcode == PTC_INSTRUCTION_op_brcond_i32 ||
-                     Opcode == PTC_INSTRUCTION_op_brcond_i64) {
-            // Conditional jump
-            Value *Compare = CreateICmp(Builder,
-                                        ConstArguments[0],
-                                        InArguments[0],
-                                        InArguments[1]);
-            Builder.CreateCondBr(Compare, Target, Fallthrough);
-          } else
-            llvm_unreachable("Unhandled opcode");
-
-          Blocks.push_back(Fallthrough);
-          Builder.SetInsertPoint(Fallthrough);
-          Variables.newBasicBlock();
-          break;
-        }
       case PTC_INSTRUCTION_op_debug_insn_start:
         {
-          // A new original instruction, let's create a new metadata node
-          // referencing it for all the next instructions to come
-          uint64_t PC = ConstArguments[0];
-
-          // TODO: replace using a field in Architecture
-          if (ConstArguments.size() > 1)
-            PC |= ConstArguments[1] << 32;
-
-          std::stringstream OriginalStringStream;
-          disassembleOriginal(OriginalStringStream, PC);
-          std::string OriginalString = OriginalStringStream.str();
-          MDString *MDOriginalString = MDString::get(Context, OriginalString);
-          MDOriginalInstr = MDNode::getDistinct(Context, MDOriginalString);
-
-          if (PC != 0) {
-            // Check if this PC already has a block and use it
-            // TODO: rename me
-            uint64_t RealPC = CodePointer - Code.data() + PC;
-            bool ShouldContinue;
-            BasicBlock *DivergeTo = JumpTargets.newPC(RealPC,
-                                                      ShouldContinue);
-            if (DivergeTo != nullptr) {
-              Builder.CreateBr(DivergeTo);
-
-              if (ShouldContinue) {
-                // The block is empty, let's fill it
-                Blocks.push_back(DivergeTo);
-                Builder.SetInsertPoint(DivergeTo);
-                Variables.newBasicBlock(DivergeTo);
-              } else {
-                // The block already contains translated code, early exit
-                StopTranslation = true;
-                break;
-              }
-            }
-
-            // Inform the JumpTargetManager about the new PC we met
-            BasicBlock::iterator CurrentIt = Builder.GetInsertPoint();
-            if (CurrentIt == Builder.GetInsertBlock()->begin())
-              JumpTargets.registerBlock(RealPC, Builder.GetInsertBlock());
-            else
-              JumpTargets.registerInstruction(RealPC, &*--CurrentIt);
-          }
-
+          int PC = CodePointer - Code.data();
+          PTC::Instruction TheInstruction(&Instruction);
+          std::tie(StopTranslation,
+                   MDOriginalInstr) = Translator.newInstruction(TheInstruction,
+                                                                PC);
           break;
         }
       case PTC_INSTRUCTION_op_call:
-        // TODO: implement call to helpers
-        llvm_unreachable("Call to helpers not implemented");
-      case PTC_INSTRUCTION_op_exit_tb:
-      case PTC_INSTRUCTION_op_goto_tb:
-        // Nothing to do here
-        continue;
+        Translator.translateCall(PTC::CallInstruction(&Instruction));
         break;
-      case PTC_INSTRUCTION_op_add2_i32:
-      case PTC_INSTRUCTION_op_sub2_i32:
-      case PTC_INSTRUCTION_op_add2_i64:
-      case PTC_INSTRUCTION_op_sub2_i64:
-        {
-          Value *FirstOperandLow = nullptr;
-          Value *FirstOperandHigh = nullptr;
-          Value *SecondOperandLow = nullptr;
-          Value *SecondOperandHigh = nullptr;
-
-          IntegerType *DestinationType = Builder.getIntNTy(RegisterSize * 2);
-
-          FirstOperandLow = Builder.CreateZExt(InArguments[0], DestinationType);
-          FirstOperandHigh = Builder.CreateZExt(InArguments[1], DestinationType);
-          SecondOperandLow = Builder.CreateZExt(InArguments[2], DestinationType);
-          SecondOperandHigh = Builder.CreateZExt(InArguments[3],
-                                                 DestinationType);
-
-          FirstOperandHigh = Builder.CreateShl(FirstOperandHigh, RegisterSize);
-          SecondOperandHigh = Builder.CreateShl(SecondOperandHigh, RegisterSize);
-
-          Value *FirstOperand = Builder.CreateOr(FirstOperandHigh,
-                                                 FirstOperandLow);
-          Value *SecondOperand = Builder.CreateOr(SecondOperandHigh,
-                                                  SecondOperandLow);
-
-          Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
-
-          Value *Result = Builder.CreateBinOp(BinaryOp,
-                                              FirstOperand,
-                                              SecondOperand);
-
-          Value *ResultLow = Builder.CreateTrunc(Result, RegisterType);
-          Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
-          Value *ResultHigh = Builder.CreateTrunc(ShiftedResult,
-                                                  RegisterType);
-
-          OutArguments.push_back(ResultLow);
-          OutArguments.push_back(ResultHigh);
-
-          break;
-        }
-      case PTC_INSTRUCTION_op_mulu2_i32:
-      case PTC_INSTRUCTION_op_muls2_i32:
-      case PTC_INSTRUCTION_op_mulu2_i64:
-      case PTC_INSTRUCTION_op_muls2_i64:
-      case PTC_INSTRUCTION_op_muluh_i32:
-      case PTC_INSTRUCTION_op_mulsh_i32:
-      case PTC_INSTRUCTION_op_muluh_i64:
-      case PTC_INSTRUCTION_op_mulsh_i64:
-
-      case PTC_INSTRUCTION_op_setcond2_i32:
-
-      case PTC_INSTRUCTION_op_trunc_shr_i32:
-        llvm_unreachable("Instruction not implemented");
       default:
-        llvm_unreachable("Unknown opcode");
-      }
-
-      // Save the results in the output arguments
-      unsigned OutArgumentsCount = ptc_instruction_out_arg_count(&ptc,
-                                                                 &Instruction);
-      assert(OutArgumentsCount == OutArguments.size());
-      for (unsigned i = 0; i < OutArgumentsCount; i++) {
-        unsigned TemporaryId = ptc_instruction_out_arg(&ptc, &Instruction, i);
-        Builder.CreateStore(OutArguments[i], Variables.getOrCreate(TemporaryId));
+        Translator.translate(PTC::Instruction(&Instruction));
       }
 
       // Create a new metadata referencing the PTC instruction we have just
@@ -1860,7 +2053,6 @@ int CodeGenerator::translate(ArrayRef<uint8_t> Code,
 
   Debug->generateDebugInfo();
 
-  return EXIT_SUCCESS;
 }
 
 void CodeGenerator::serialize() {
