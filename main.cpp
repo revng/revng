@@ -49,7 +49,7 @@ static const char *const Usage[] = {
 /// \param Buffer the vector where the file content should be stored.
 ///
 /// \return EXIT_SUCCESS if the file has been correctly read into the buffer.
-static int ReadWholeInput(const char *InputPath, std::vector<uint8_t>& Buffer) {
+static int readWholeInput(const char *InputPath, std::vector<uint8_t>& Buffer) {
   FilePointer InputFile;
   size_t TotalReadBytes = 0;
 
@@ -250,7 +250,7 @@ int main(int argc, const char *argv[]) {
 
   // Read the input from the appropriate file
   std::vector<uint8_t> Code;
-  if (ReadWholeInput(Parameters.InputPath, Code) != EXIT_SUCCESS)
+  if (readWholeInput(Parameters.InputPath, Code) != EXIT_SUCCESS)
     return EXIT_FAILURE;
 
   // Translate everything
