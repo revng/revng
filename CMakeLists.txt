@@ -27,6 +27,7 @@ include_directories("${QEMU_INSTALL_PATH}/include/")
 set(CMAKE_CXX_FLAGS "-std=c++14 -Wall -Werror -Wno-error=unused-variable")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=return-type")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-function")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 add_definitions("-D_FILE_OFFSET_BITS=64")
 include_directories(argparse/)
 
