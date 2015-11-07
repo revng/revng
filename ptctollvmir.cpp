@@ -91,7 +91,7 @@ public:
       // Flushing is required to have correct line and column numbers
       Output.flush();
       auto *Location = DILocation::get(Context,
-                                       Output.getLine(),
+                                       Output.getLine() + 1,
                                        Output.getColumn(),
                                        Scope);
 
@@ -823,24 +823,31 @@ public:
         unsigned MetadataKind = Type == DebugInfoType::PTC ?
           PTCInstrMDKind : OriginalInstrMDKind;
 
+        MDString *Last = nullptr;
         std::ofstream Source(DebugPath);
         for (BasicBlock& Block : *CurrentFunction) {
           for (Instruction& Instruction : Block) {
             MDString *Body = getMD(&Instruction, MetadataKind);
-            std::string BodyString = Body->getString().str();
 
-            Source << BodyString;
+            if (Body != nullptr && Last != Body) {
+              Last = Body;
+              std::string BodyString = Body->getString().str();
 
-            auto *Location = DILocation::get(TheModule->getContext(),
-                                             LineIndex,
-                                             0,
-                                             CurrentSubprogram);
-            Instruction.setMetadata(DbgMDKind, Location);
-            LineIndex += std::count(BodyString.begin(),
-                                    BodyString.end(),
-                                    '\n');
+              Source << BodyString;
+
+              auto *Location = DILocation::get(TheModule->getContext(),
+                                               LineIndex,
+                                               0,
+                                               CurrentSubprogram);
+              Instruction.setMetadata(DbgMDKind, Location);
+              LineIndex += std::count(BodyString.begin(),
+                                      BodyString.end(),
+                                      '\n');
+            }
           }
         }
+
+        Builder.finalize();
         break;
       }
     case DebugInfoType::LLVMIR:
@@ -848,6 +855,8 @@ public:
         // Use the annotator to obtain line and column of the textual LLVM IR
         // for each instruction. Discard the output since it will contain
         // errors, regenerating it later will give a correct result.
+        Builder.finalize();
+
         raw_null_ostream NullStream;
         TheModule->print(NullStream, annotator(true /* DebugInfo */));
 
@@ -861,7 +870,6 @@ public:
       break;
     }
 
-    Builder.finalize();
   }
 
   /// Create a new AssemblyAnnotationWriter
