@@ -810,7 +810,7 @@ public:
 
   /// Look for all the stores targeting the program counter and add a branch
   /// there as appropriate.
-  void translateMovePC(uint64_t BasePC) {
+  void translateMovePC() {
     for (Use& PCUse : PCReg->uses()) {
       // TODO: what to do in case of read of the PC?
       // Is the PC the store destination?
@@ -821,7 +821,7 @@ public:
           // Is desintation a constant?
           if (auto Address = dyn_cast<ConstantInt>(Destination)) {
             // Compute the actual PC
-            uint64_t TargetPC = BasePC + Address->getSExtValue();
+            uint64_t TargetPC = Address->getSExtValue();
 
             // Get or create the block for this PC and branch there
             BasicBlock *TargetBlock = getBlockAt(TargetPC);
@@ -1218,7 +1218,7 @@ public:
     TargetArchitecture(TargetArchitecture) { }
 
   std::pair<bool, MDNode *> newInstruction(const PTC::Instruction TheInstruction,
-                                           uint64_t BasePC);
+                                           bool IsFirst);
   void translate(const PTC::Instruction TheInstruction);
   void translateCall(const PTC::CallInstruction TheInstruction);
 private:
@@ -1241,7 +1241,7 @@ private:
 
 std::pair<bool, MDNode *>
 InstructionTranslator::newInstruction(const PTC::Instruction TheInstruction,
-                                      uint64_t BasePC) {
+                                      bool IsFirst) {
   // A new original instruction, let's create a new metadata node
   // referencing it for all the next instructions to come
   uint64_t PC = TheInstruction.ConstArguments[0];
@@ -1257,10 +1257,10 @@ InstructionTranslator::newInstruction(const PTC::Instruction TheInstruction,
   MDString *MDOriginalString = MDString::get(Context, OriginalString);
   MDNode *MDOriginalInstr = MDNode::getDistinct(Context, MDOriginalString);
 
-  if (PC != 0) {
+  if (!IsFirst) {
     // Check if this PC already has a block and use it
     // TODO: rename me
-    uint64_t RealPC = BasePC + PC;
+    uint64_t RealPC = PC;
     bool ShouldContinue;
     BasicBlock *DivergeTo = JumpTargets.newPC(RealPC,
                                               ShouldContinue);
@@ -1917,7 +1917,9 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
 }
 
 
-void CodeGenerator::translate(ArrayRef<uint8_t> Code,
+void CodeGenerator::translate(size_t LoadAddress,
+                              ArrayRef<uint8_t> Code,
+                              size_t VirtualAddress,
                               std::string Name) {
   const uint8_t *CodePointer = Code.data();
   const uint8_t *CodeEnd = CodePointer + Code.size();
@@ -1962,6 +1964,8 @@ void CodeGenerator::translate(ArrayRef<uint8_t> Code,
                                    SourceArchitecture,
                                    TargetArchitecture);
 
+  ptc.mmap(LoadAddress, Code.data(), Code.size());
+
   while (Entry != nullptr) {
     Builder.SetInsertPoint(Entry);
 
@@ -1971,11 +1975,9 @@ void CodeGenerator::translate(ArrayRef<uint8_t> Code,
     PTCInstructionListPtr InstructionList(new PTCInstructionList);
     size_t ConsumedSize = 0;
 
-    // TODO: support virtual addresses
     assert(CodeEnd > CodePointer);
 
-    ConsumedSize = ptc.translate(CodePointer,
-                                 CodeEnd - CodePointer,
+    ConsumedSize = ptc.translate(VirtualAddress,
                                  InstructionList.get());
 
     dumpTranslation(std::cerr, InstructionList.get());
@@ -1983,6 +1985,7 @@ void CodeGenerator::translate(ArrayRef<uint8_t> Code,
     Variables.newFunction(Delimiter, InstructionList.get());
     unsigned j = 0;
 
+    // Skip everything is before the first PTC_INSTRUCTION_op_debug_insn_start
     while (j < InstructionList->instruction_count &&
            InstructionList->instructions[j].opc !=
            PTC_INSTRUCTION_op_debug_insn_start) {
@@ -1992,8 +1995,17 @@ void CodeGenerator::translate(ArrayRef<uint8_t> Code,
     assert(j < InstructionList->instruction_count);
 
     MDNode* MDOriginalInstr = nullptr;
-
     bool StopTranslation = false;
+
+    // Handle the first PTC_INSTRUCTION_op_debug_insn_start
+    {
+      PTCInstruction *Instruction = &InstructionList->instructions[j];
+      auto Result = Translator.newInstruction(PTC::Instruction(Instruction),
+                                              true);
+      std::tie(StopTranslation, MDOriginalInstr) = Result;
+      j++;
+    }
+
     for (; j < InstructionList->instruction_count && !StopTranslation; j++) {
       PTCInstruction Instruction = InstructionList->instructions[j];
       PTCOpcode Opcode = Instruction.opc;
@@ -2007,11 +2019,10 @@ void CodeGenerator::translate(ArrayRef<uint8_t> Code,
         break;
       case PTC_INSTRUCTION_op_debug_insn_start:
         {
-          int PC = CodePointer - Code.data();
           PTC::Instruction TheInstruction(&Instruction);
           std::tie(StopTranslation,
                    MDOriginalInstr) = Translator.newInstruction(TheInstruction,
-                                                                PC);
+                                                                false);
           break;
         }
       case PTC_INSTRUCTION_op_call:
@@ -2046,13 +2057,14 @@ void CodeGenerator::translate(ArrayRef<uint8_t> Code,
     PM.run(*TheModule);
 
     // Replace stores to PC with branches
-    JumpTargets.translateMovePC(CodePointer - Code.data());
+    JumpTargets.translateMovePC();
 
     // Obtain a new program counter to translate
     uint64_t NewPC = 0;
     (void) ConsumedSize;
     std::tie(NewPC, Entry) = JumpTargets.peekJumpTarget();
-    CodePointer = Code.data() + NewPC;
+    VirtualAddress = NewPC;
+    CodePointer = Code.data() + (NewPC - LoadAddress);
   } // End translations loop
 
   Delimiter->eraseFromParent();

@@ -29,6 +29,8 @@ struct ProgramParameters {
   const char *InputPath;
   const char *OutputPath;
   size_t Offset;
+  size_t LoadAddress;
+  size_t EntryPointAddress;
   DebugInfoType DebugInfo;
   const char *DebugPath;
 };
@@ -152,7 +154,11 @@ static int parseArgs(int Argc, const char *Argv[],
                      ProgramParameters *Parameters) {
   const char *OffsetString = nullptr;
   const char *DebugString = nullptr;
+  const char *LoadAddressString = nullptr;
+  const char *EntryPointAddressString = nullptr;
   long long Offset = 0;
+  long long LoadAddress = 0;
+  long long EntryPointAddress = 0;
 
   // Initialize argument parser
   struct argparse Arguments;
@@ -164,7 +170,13 @@ static int parseArgs(int Argc, const char *Argv[],
                "the input architecture."),
     OPT_STRING('f', "offset",
                &OffsetString,
-               "offset in the input where to start."),
+               "offset in the input where to start loading."),
+    OPT_STRING('l', "load-at",
+               &LoadAddressString,
+               "virtual address associated to the input."),
+    OPT_STRING('e', "entry",
+               &EntryPointAddressString,
+               "virtual address of the entry point where to start."),
     OPT_STRING('o', "output",
                &Parameters->OutputPath,
                "destination path for the generated LLVM IR file."),
@@ -199,6 +211,26 @@ static int parseArgs(int Argc, const char *Argv[],
     }
 
     Parameters->Offset = (size_t) Offset;
+  }
+
+  if (LoadAddressString != nullptr) {
+    if (sscanf(LoadAddressString, "%lld", &LoadAddress) != 1) {
+      fprintf(stderr, "Load address parameter (-l, --load-at) is not a"
+              " number.\n");
+      return EXIT_FAILURE;
+    }
+
+    Parameters->LoadAddress = (size_t) LoadAddress;
+  }
+
+  if (EntryPointAddressString != nullptr) {
+    if (sscanf(EntryPointAddressString, "%lld", &EntryPointAddress) != 1) {
+      fprintf(stderr, "Entry point parameter (-e, --entry) is not a"
+              " number.\n");
+      return EXIT_FAILURE;
+    }
+
+    Parameters->EntryPointAddress = (size_t) EntryPointAddress;
   }
 
   if (Parameters->OutputPath == nullptr) {
@@ -272,7 +304,10 @@ int main(int argc, const char *argv[]) {
   llvm::ArrayRef<uint8_t> RawData(Code.data() + Parameters.Offset,
                                   Code.size() - Parameters.Offset);
 
-  Generator.translate(RawData, "root");
+  Generator.translate(Parameters.LoadAddress,
+                      RawData,
+                      Parameters.EntryPointAddress,
+                      "root");
 
   Generator.serialize();
 

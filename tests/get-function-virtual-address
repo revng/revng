@@ -1,0 +1,8 @@
+#!/bin/bash
+
+PROGRAM=$1
+FUNCTION=$2
+
+VA=`readelf --wide -s $PROGRAM | grep $FUNCTION | grep GLOBAL | grep FUNC | head -n1 | awk -F' ' '{ print strtonum("0x" $2) }'`
+
+echo $VA

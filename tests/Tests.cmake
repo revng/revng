@@ -124,7 +124,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   foreach(TEST_NAME ${TESTS})
     # Test to translate the compiled binary
     add_test(NAME translate-${TEST_NAME}-${ARCH}
-      COMMAND sh -c "$<TARGET_FILE:revamb> -g ll --offset $(${CMAKE_CURRENT_SOURCE_DIR}/tests/get-function-offset ${BIN}/${TEST_NAME} root) --architecture ${ARCH} ${BIN}/${TEST_NAME} --output ${BIN}/${TEST_NAME}.ll")
+      COMMAND sh -c "$<TARGET_FILE:revamb> -g ll --offset $(${CMAKE_CURRENT_SOURCE_DIR}/tests/get-text-offset ${BIN}/${TEST_NAME}) --load-at $(${CMAKE_CURRENT_SOURCE_DIR}/tests/get-text-virtual-address ${BIN}/${TEST_NAME}) --entry $(${CMAKE_CURRENT_SOURCE_DIR}/tests/get-function-virtual-address ${BIN}/${TEST_NAME} root) --architecture ${ARCH} ${BIN}/${TEST_NAME} --output ${BIN}/${TEST_NAME}.ll")
 
     # Command-line to link support.c and the translated binaries
     compile_executable("${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} ${TEST_SRC}/support.c -DTARGET_${NORMALIZED_ARCH}"

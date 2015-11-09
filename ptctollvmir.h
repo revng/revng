@@ -47,7 +47,10 @@ public:
   ///
   /// \param Name the name to give to the newly created function.
   /// \param Code reference to memory area containing the code to translate.
-  void translate(llvm::ArrayRef<uint8_t> Code, std::string Name);
+  void translate(size_t LoadAddress,
+                 llvm::ArrayRef<uint8_t> Code,
+                 size_t VirtualAddress,
+                 std::string Name);
 
   /// Serialize the generated LLVM IR to the specified output path.
   void serialize();
