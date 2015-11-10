@@ -29,6 +29,21 @@ target_reg *stack = &rsp;
 target_reg *return_value = &rax;
 target_reg *first_argument = &rdi;
 target_reg *second_argument = &rsi;
+
+#elif defined(TARGET_mips)
+
+typedef uint32_t target_reg;
+
+extern target_reg a0;
+extern target_reg a1;
+extern target_reg v0;
+extern target_reg sp;
+
+target_reg *stack = &sp;
+target_reg *return_value = &v0;
+target_reg *first_argument = &a0;
+target_reg *second_argument = &a1;
+
 #endif
 
 
