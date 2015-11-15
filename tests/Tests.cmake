@@ -4,7 +4,7 @@ include(ExternalProject)
 # Test definitions
 
 set(TEST_CFLAGS "-std=c99 -static")
-set(TESTS "calc")
+set(TESTS "calc" "function_call")
 
 ## calc
 set(TEST_SOURCES_calc "${CMAKE_SOURCE_DIR}/tests/calc.c")
@@ -14,8 +14,13 @@ set(TEST_ARGS_calc_literal "12")
 set(TEST_ARGS_calc_sum "'(+ 4 5)'")
 set(TEST_ARGS_calc_multiplication "'(* 5 6)'")
 
-# Get the path to some system tools we'll need
+## function_call
+set(TEST_SOURCES_function_call "${CMAKE_SOURCE_DIR}/tests/function-call.c")
 
+set(TEST_RUNS_function_call "default")
+set(TEST_ARGS_function_call_default "nope")
+
+# Get the path to some system tools we'll need
 
 set(LLC "${LLVM_TOOLS_BINARY_DIR}/llc")
 find_program(DIFF diff)

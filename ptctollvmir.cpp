@@ -26,6 +26,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Dominators.h"
 
 #include "ptctollvmir.h"
 #include "ptcinterface.h"
@@ -35,6 +36,30 @@
 #include "transformadapter.h"
 
 using namespace llvm;
+
+static uint64_t getConst(Value *Constant) {
+  return cast<ConstantInt>(Constant)->getLimitedValue();
+}
+
+/// Helper function to destroy an unconditional branch and, in case, the
+/// target basic block, if it doesn't have any predecessors left.
+static void purgeBranch(BasicBlock::iterator I) {
+  auto *DeadBranch = dyn_cast<BranchInst>(I);
+  // We allow only an unconditional branch and nothing else
+  assert(DeadBranch != nullptr &&
+         DeadBranch->isUnconditional() &&
+         ++I == DeadBranch->getParent()->end());
+
+  // Obtain the target of the dead branch
+  BasicBlock *DeadBranchTarget = DeadBranch->getSuccessor(0);
+
+  // Destroy the dead branch
+  DeadBranch->eraseFromParent();
+
+  // Check if someone else was jumping there and then destroy
+  if (pred_empty(DeadBranchTarget))
+    DeadBranchTarget->eraseFromParent();
+}
 
 namespace PTC {
 
@@ -746,10 +771,11 @@ public:
   static const BlockWithAddress NoMoreTargets;
 
 public:
-  JumpTargetManager(LLVMContext& Context,
+  JumpTargetManager(Module& TheModule,
                     Value *PCReg,
                     Function *TheFunction) :
-    Context(Context),
+    TheModule(TheModule),
+    Context(TheModule.getContext()),
     TheFunction(TheFunction),
     OriginalInstructionAddresses(),
     JumpTargets(),
@@ -808,59 +834,33 @@ public:
       JumpTargets[PC] = Block;
   }
 
-  /// Look for all the stores targeting the program counter and add a branch
-  /// there as appropriate.
-  void translateMovePC() {
+  void translateIndirectJumps() {
+    BasicBlock *Dispatcher = createDispatcher(TheFunction, PCReg, true);
+
     for (Use& PCUse : PCReg->uses()) {
-      // TODO: what to do in case of read of the PC?
-      // Is the PC the store destination?
       if (PCUse.getOperandNo() == 1) {
         if (auto Jump = dyn_cast<StoreInst>(PCUse.getUser())) {
-          Value *Destination = Jump->getValueOperand();
+          BasicBlock::iterator It(Jump);
+          auto *Branch = BranchInst::Create(Dispatcher, ++It);
 
-          // Is desintation a constant?
-          if (auto Address = dyn_cast<ConstantInt>(Destination)) {
-            // Compute the actual PC
-            uint64_t TargetPC = Address->getSExtValue();
+          // Cleanup everything it's aftewards
+          BasicBlock *Parent = Jump->getParent();
+          Instruction *ToDelete = &*(--Parent->end());
+          while (ToDelete != Branch) {
+            if (auto DeadBranch = dyn_cast<BranchInst>(ToDelete))
+              purgeBranch(DeadBranch);
+            else
+              ToDelete->eraseFromParent();
 
-            // Get or create the block for this PC and branch there
-            BasicBlock *TargetBlock = getBlockAt(TargetPC);
-            Instruction *Branch = BranchInst::Create(TargetBlock);
-
-            // Cleanup of what's afterwards (only a unconditional jump is
-            // allowed)
-            BasicBlock::iterator I = Jump;
-            BasicBlock::iterator BlockEnd = Jump->getParent()->end();
-            if (++I != BlockEnd)
-              purgeBranch(I);
-
-            Branch->insertAfter(Jump);
-            Jump->eraseFromParent();
-          } else {
-            // TODO: very strong assumption here
-            // Destination is not a constant, assume it's a return
-            ReturnInst::Create(Context, nullptr, Jump);
-
-            // Cleanup everything it's aftewards
-            BasicBlock *Parent = Jump->getParent();
-            Instruction *ToDelete = &*(--Parent->end());
-            while (ToDelete != Jump) {
-              if (auto DeadBranch = dyn_cast<BranchInst>(ToDelete))
-                purgeBranch(DeadBranch);
-              else
-                ToDelete->eraseFromParent();
-
-              ToDelete = &*(--Parent->end());
-            }
-
-            // Remove the store to PC
-            Jump->eraseFromParent();
+            ToDelete = &*(--Parent->end());
           }
-        } else
-          llvm_unreachable("Unknown instruction using the PC");
-      } else
-        llvm_unreachable("Unhandled usage of the PC");
+        }
+      }
     }
+  }
+
+  Value *PC() {
+    return PCReg;
   }
 
   /// Pop from the list of program counters to explore
@@ -877,7 +877,6 @@ public:
     }
   }
 
-private:
   /// Get or create a block for the given PC
   BasicBlock *getBlockAt(uint64_t PC) {
     // Do we already have a BasicBlock for this PC?
@@ -887,7 +886,7 @@ private:
       return TargetIt->second;
     }
 
-    // Did we already meet this PC (i.e. to we know what's the associated
+    // Did we already meet this PC (i.e. do we know what's the associated
     // instruction)?
     BasicBlock *NewBlock = nullptr;
     InstructionMap::iterator InstrIt = OriginalInstructionAddresses.find(PC);
@@ -918,30 +917,63 @@ private:
     return NewBlock;
   }
 
-  /// Helper function to destroy an unconditional branch and, in case, the
-  /// target basic block, if it doesn't have any predecessors left.
-  void purgeBranch(BasicBlock::iterator I) {
-    auto *DeadBranch = dyn_cast<BranchInst>(I);
-    // We allow only an unconditional branch and nothing else
-    assert(DeadBranch != nullptr &&
-           DeadBranch->isUnconditional() &&
-           ++I == DeadBranch->getParent()->end());
+private:
+  // TODO: instead of a gigantic switch case we could map the original memory
+  //       area and write the address of the translated basic block at the jump
+  //       target
+  BasicBlock *createDispatcher(Function *OutputFunction,
+                               Value *SwitchOnPtr,
+                               bool JumpDirectly) {
+    IRBuilder<> Builder(Context);
 
-    // Obtain the target of the dead branch
-    BasicBlock *DeadBranchTarget = DeadBranch->getSuccessor(0);
+    // Create the first block of the function
+    BasicBlock *Entry = BasicBlock::Create(Context, "", OutputFunction);
 
-    // Destroy the dead branch
-    DeadBranch->eraseFromParent();
+    // The default case of the switch statement it's an unhandled cases
+    auto *Default = BasicBlock::Create(Context, "", OutputFunction);
+    Builder.SetInsertPoint(Default);
+    Builder.CreateUnreachable();
 
-    // Check if someone else was jumping there and then destroy
-    if (pred_empty(DeadBranchTarget))
-      DeadBranchTarget->eraseFromParent();
+    // Switch on the first argument of the function
+    Builder.SetInsertPoint(Entry);
+    Value *SwitchOn = Builder.CreateLoad(SwitchOnPtr);
+    SwitchInst *Switch = Builder.CreateSwitch(SwitchOn, Default);
+    auto *SwitchOnType = cast<IntegerType>(SwitchOn->getType());
+
+    {
+      // We consider a jump to NULL as a program end
+      auto *NullBlock = BasicBlock::Create(Context, "", OutputFunction);
+      Switch->addCase(ConstantInt::get(SwitchOnType, 0), NullBlock);
+      Builder.SetInsertPoint(NullBlock);
+      Builder.CreateRetVoid();
+    }
+
+    // Create a case for each jump target we saw so far
+    for (auto& Pair : JumpTargets) {
+      // Create a case for the address associated to the current block
+      auto *Block = BasicBlock::Create(Context, "", OutputFunction);
+      Switch->addCase(ConstantInt::get(SwitchOnType, Pair.first), Block);
+
+      Builder.SetInsertPoint(Block);
+      if (JumpDirectly) {
+        // Assume we're injecting the switch case directly into the function
+        // the blocks are in, so we can jump to the target block directly
+        assert(Pair.second->getParent() == OutputFunction);
+        Builder.CreateBr(Pair.second);
+      } else {
+        // Return the address of the current block
+        Builder.CreateRet(BlockAddress::get(OutputFunction, Pair.second));
+      }
+    }
+
+    return Entry;
   }
 
 private:
   using BlockMap = std::map<uint64_t, BasicBlock *>;
   using InstructionMap = std::map<uint64_t, Instruction *>;
 
+  Module &TheModule;
   LLVMContext& Context;
   Function* TheFunction;
   /// Holds the association between a PC and the last generated instruction for
@@ -956,6 +988,113 @@ private:
 
 const JumpTargetManager::BlockWithAddress JumpTargetManager::NoMoreTargets =
   JumpTargetManager::BlockWithAddress(0, nullptr);
+
+class TranslateDirectBranchesPass : public FunctionPass {
+public:
+  static char ID;
+
+  TranslateDirectBranchesPass() : FunctionPass(ID),
+                                  JTM(nullptr),
+                                  NewPCMarker(nullptr) { }
+
+  TranslateDirectBranchesPass(JumpTargetManager *JTM,
+                              Function *NewPCMarker) :
+    FunctionPass(ID),
+    JTM(JTM),
+    NewPCMarker(NewPCMarker) { }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const {
+    AU.addRequired<DominatorTreeWrapperPass>();
+  }
+
+  bool runOnFunction(Function &F) override {
+    LLVMContext &Context = F.getParent()->getContext();
+
+    for (Use& PCUse : JTM->PC()->uses()) {
+      // TODO: what to do in case of read of the PC?
+      // Is the PC the store destination?
+      if (PCUse.getOperandNo() == 1) {
+        if (auto Jump = dyn_cast<StoreInst>(PCUse.getUser())) {
+          Value *Destination = Jump->getValueOperand();
+
+          // Is destination a constant?
+          if (auto Address = dyn_cast<ConstantInt>(Destination)) {
+            // If necessary notify the about the existence of the basic block
+            // coming after this jump
+            // TODO: handle delay slots
+            BasicBlock *FakeFallthrough = JTM->getBlockAt(getNextPC(Jump));
+
+            // Compute the actual PC and get the associated BasicBlock
+            uint64_t TargetPC = Address->getSExtValue();
+            BasicBlock *TargetBlock = JTM->getBlockAt(TargetPC);
+
+            // Use a conditional branch here, even if the condition is always
+            // true. This way the "fallthrough" basic block is always reachable
+            // and the dominator tree computation works properly even if the
+            // dispatcher switch has not been emitted yet
+            Instruction *Branch = BranchInst::Create(TargetBlock,
+                                                     FakeFallthrough,
+                                                     ConstantInt::getTrue(Context));
+
+            // Cleanup of what's afterwards (only a unconditional jump is
+            // allowed)
+            BasicBlock::iterator I = Jump;
+            BasicBlock::iterator BlockEnd = Jump->getParent()->end();
+            if (++I != BlockEnd)
+              purgeBranch(I);
+
+            Branch->insertAfter(Jump);
+            Jump->eraseFromParent();
+          }
+        } else
+          llvm_unreachable("Unknown instruction using the PC");
+      } else
+        llvm_unreachable("Unhandled usage of the PC");
+    }
+
+    return true;
+  }
+
+private:
+  uint64_t getNextPC(Instruction *TheInstruction) {
+    DominatorTree& DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+
+    BasicBlock *Block = TheInstruction->getParent();
+    BasicBlock::iterator It(TheInstruction);
+
+    while (true) {
+      BasicBlock::iterator Begin(Block->begin());
+
+      // Go back towards the beginning of the basic block looking for a call to
+      // NewPCMarker
+      CallInst *Marker = nullptr;
+      for (; It != Begin; It--)
+        if ((Marker = dyn_cast<CallInst>(&*It)))
+          if (Marker->getCalledFunction() == NewPCMarker) {
+            uint64_t PC = getConst(Marker->getArgOperand(0));
+            uint64_t Size = getConst(Marker->getArgOperand(1));
+            assert(Size != 0);
+            return PC + Size;
+          }
+
+      auto *Node = DT.getNode(Block);
+      assert(Node != nullptr);
+
+      Block = Node->getIDom()->getBlock();
+      It = Block->end();
+    }
+
+    llvm_unreachable("Can't find the PC marker");
+  }
+
+private:
+  Value *PCReg;
+  JumpTargetManager *JTM;
+  Function *NewPCMarker;
+};
+
+char TranslateDirectBranchesPass::ID = 0;
+static RegisterPass<TranslateDirectBranchesPass> X("hello", "Hello World Pass", false, false);
 
 /// Handle all the debug-related operations of code generation
 class DebugHelper {
@@ -1215,12 +1354,54 @@ public:
     TheModule(TheModule),
     TheFunction(TheFunction),
     SourceArchitecture(SourceArchitecture),
-    TargetArchitecture(TargetArchitecture) { }
+    TargetArchitecture(TargetArchitecture),
+    NewPCMarker(nullptr),
+    LastMarker(nullptr) {
+
+    auto &Context = TheModule.getContext();
+    NewPCMarker = Function::Create(FunctionType::get(Type::getVoidTy(Context),
+                                                     {
+                                                       Type::getInt64Ty(Context),
+                                                       Type::getInt64Ty(Context)
+                                                     },
+                                                     false),
+                                   GlobalValue::ExternalLinkage,
+                                   "newpc",
+                                   &TheModule);
+  }
+
+  TranslateDirectBranchesPass *createTranslateDirectBranchesPass() {
+    return new TranslateDirectBranchesPass(&JumpTargets, NewPCMarker);
+  }
 
   std::pair<bool, MDNode *> newInstruction(const PTC::Instruction TheInstruction,
                                            bool IsFirst);
   void translate(const PTC::Instruction TheInstruction);
   void translateCall(const PTC::CallInstruction TheInstruction);
+
+  void removeNewPCMarkers() {
+
+    for (User *Call : NewPCMarker->users())
+      if (cast<Instruction>(Call)->getParent() != nullptr)
+        cast<Instruction>(Call)->eraseFromParent();
+
+    TheModule.dump();
+
+    NewPCMarker->eraseFromParent();
+  }
+
+  void closeLastInstruction(uint64_t PC) {
+    assert(LastMarker != nullptr);
+
+    auto *Operand = cast<ConstantInt>(LastMarker->getArgOperand(0));
+    uint64_t StartPC = Operand->getLimitedValue();
+
+    assert(PC > StartPC);
+    LastMarker->setArgOperand(1, Builder.getInt64(PC - StartPC));
+
+    LastMarker = nullptr;
+  }
+
 private:
   std::vector<Value *> translateOpcode(PTCOpcode Opcode,
                                        std::vector<uint64_t> ConstArguments,
@@ -1237,6 +1418,9 @@ private:
 
   Architecture& SourceArchitecture;
   Architecture& TargetArchitecture;
+
+  Function *NewPCMarker;
+  CallInst *LastMarker;
 };
 
 std::pair<bool, MDNode *>
@@ -1259,11 +1443,8 @@ InstructionTranslator::newInstruction(const PTC::Instruction TheInstruction,
 
   if (!IsFirst) {
     // Check if this PC already has a block and use it
-    // TODO: rename me
-    uint64_t RealPC = PC;
     bool ShouldContinue;
-    BasicBlock *DivergeTo = JumpTargets.newPC(RealPC,
-                                              ShouldContinue);
+    BasicBlock *DivergeTo = JumpTargets.newPC(PC, ShouldContinue);
     if (DivergeTo != nullptr) {
       Builder.CreateBr(DivergeTo);
 
@@ -1277,13 +1458,20 @@ InstructionTranslator::newInstruction(const PTC::Instruction TheInstruction,
         return { true, MDOriginalInstr };
       }
     }
+  }
 
+  if (LastMarker != nullptr)
+    closeLastInstruction(PC);
+  LastMarker = Builder.CreateCall(NewPCMarker,
+                                  { Builder.getInt64(PC), Builder.getInt64(0) });
+
+  if (!IsFirst) {
     // Inform the JumpTargetManager about the new PC we met
     BasicBlock::iterator CurrentIt = Builder.GetInsertPoint();
     if (CurrentIt == Builder.GetInsertBlock()->begin())
-      JumpTargets.registerBlock(RealPC, Builder.GetInsertBlock());
+      JumpTargets.registerBlock(PC, Builder.GetInsertBlock());
     else
-      JumpTargets.registerInstruction(RealPC, &*--CurrentIt);
+      JumpTargets.registerInstruction(PC, LastMarker);
   }
 
   return { false, MDOriginalInstr };
@@ -1916,7 +2104,6 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
   }
 }
 
-
 void CodeGenerator::translate(size_t LoadAddress,
                               ArrayRef<uint8_t> Code,
                               size_t VirtualAddress,
@@ -1950,7 +2137,7 @@ void CodeGenerator::translate(size_t LoadAddress,
 
   GlobalVariable *PCReg = Variables.getByCPUStateOffset(ptc.get_pc(), "pc");
 
-  JumpTargetManager JumpTargets(Context, PCReg, MainFunction);
+  JumpTargetManager JumpTargets(*TheModule, PCReg, MainFunction);
   std::map<std::string, BasicBlock *> LabeledBasicBlocks;
   std::vector<BasicBlock *> Blocks;
 
@@ -2051,23 +2238,26 @@ void CodeGenerator::translate(size_t LoadAddress,
 
     } // End loop over instructions
 
+    Translator.closeLastInstruction(VirtualAddress + ConsumedSize);
+
     // Before looking for writes to the PC, give a shot of SROA
     legacy::PassManager PM;
     PM.add(createSROAPass());
+    PM.add(Translator.createTranslateDirectBranchesPass());
     PM.run(*TheModule);
-
-    // Replace stores to PC with branches
-    JumpTargets.translateMovePC();
 
     // Obtain a new program counter to translate
     uint64_t NewPC = 0;
-    (void) ConsumedSize;
     std::tie(NewPC, Entry) = JumpTargets.peekJumpTarget();
     VirtualAddress = NewPC;
     CodePointer = Code.data() + (NewPC - LoadAddress);
   } // End translations loop
 
   Delimiter->eraseFromParent();
+
+  JumpTargets.translateIndirectJumps();
+
+  Translator.removeNewPCMarkers();
 
   Debug->generateDebugInfo();
 

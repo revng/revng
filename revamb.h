@@ -17,7 +17,10 @@ enum class DebugInfoType {
 
 class Architecture {
 public:
-  Architecture() : PCReg("pc"), DefaultAlignment(1), Endianess(LittleEndian) {}
+ Architecture() : PCReg("pc"),
+    DefaultAlignment(1),
+    Endianess(LittleEndian),
+    PointerSize(64) { }
 
   enum EndianessType {
     LittleEndian,
@@ -26,11 +29,13 @@ public:
 
   unsigned defaultAlignment() { return DefaultAlignment; }
   EndianessType endianess() { return Endianess; }
+  unsigned pointerSize() { return PointerSize; }
   const std::string PCReg;
 
 private:
   unsigned DefaultAlignment;
   EndianessType Endianess;
+  unsigned PointerSize;
 };
 
 // TODO: this requires C++14
