@@ -1253,7 +1253,7 @@ public:
   }
 
 private:
-  std::string& OutputPath;
+  std::string OutputPath;
   std::string DebugPath;
   DIBuilder Builder;
   DebugInfoType Type;
