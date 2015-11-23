@@ -1227,14 +1227,9 @@ public:
 
   }
 
-  /// Create a new AssemblyAnnotationWriter
-  ///
-  /// \param DebugInfo whether to decorate the IR with debug information or not
-  DebugAnnotationWriter *annotator(bool DebugInfo) {
-    Annotator.reset(new DebugAnnotationWriter(TheModule->getContext(),
-                                              CurrentSubprogram,
-                                              DebugInfo));
-    return Annotator.get();
+  void print(std::ostream& Output, bool DebugInfo) {
+    raw_os_ostream OutputStream(Output);
+    TheModule->print(OutputStream, annotator(DebugInfo));
   }
 
   /// Copy the debug file to the output path, if they are the same
@@ -1250,6 +1245,17 @@ public:
     }
 
     return false;
+  }
+
+private:
+  /// Create a new AssemblyAnnotationWriter
+  ///
+  /// \param DebugInfo whether to decorate the IR with debug information or not
+  DebugAnnotationWriter *annotator(bool DebugInfo) {
+    Annotator.reset(new DebugAnnotationWriter(TheModule->getContext(),
+                                              CurrentSubprogram,
+                                              DebugInfo));
+    return Annotator.get();
   }
 
 private:
@@ -1374,10 +1380,10 @@ public:
     return new TranslateDirectBranchesPass(&JumpTargets, NewPCMarker);
   }
 
-  std::pair<bool, MDNode *> newInstruction(const PTC::Instruction TheInstruction,
+  std::pair<bool, MDNode *> newInstruction(PTCInstruction *Instr,
                                            bool IsFirst);
-  void translate(const PTC::Instruction TheInstruction);
-  void translateCall(const PTC::CallInstruction TheInstruction);
+  void translate(PTCInstruction *Instr);
+  void translateCall(PTCInstruction *Instr);
 
   void removeNewPCMarkers() {
 
@@ -1424,8 +1430,9 @@ private:
 };
 
 std::pair<bool, MDNode *>
-InstructionTranslator::newInstruction(const PTC::Instruction TheInstruction,
+InstructionTranslator::newInstruction(PTCInstruction *Instr,
                                       bool IsFirst) {
+  const PTC::Instruction TheInstruction(Instr);
   // A new original instruction, let's create a new metadata node
   // referencing it for all the next instructions to come
   uint64_t PC = TheInstruction.ConstArguments[0];
@@ -1477,7 +1484,9 @@ InstructionTranslator::newInstruction(const PTC::Instruction TheInstruction,
   return { false, MDOriginalInstr };
 }
 
-void InstructionTranslator::translateCall(const PTC::CallInstruction TheCall) {
+void InstructionTranslator::translateCall(PTCInstruction *Instr) {
+  const PTC::CallInstruction TheCall(Instr);
+
   auto LoadArgs = [this] (uint64_t TemporaryId) -> Value * {
     return Builder.CreateLoad(Variables.getOrCreate(TemporaryId));
   };
@@ -1513,7 +1522,9 @@ void InstructionTranslator::translateCall(const PTC::CallInstruction TheCall) {
     Builder.CreateStore(Result, ResultDestination);
 }
 
-void InstructionTranslator::translate(const PTC::Instruction TheInstruction) {
+void InstructionTranslator::translate(PTCInstruction *Instr) {
+  const PTC::Instruction TheInstruction(Instr);
+
   auto LoadArgs = [this] (uint64_t TemporaryId) -> Value * {
     return Builder.CreateLoad(Variables.getOrCreate(TemporaryId));
   };
@@ -2187,8 +2198,7 @@ void CodeGenerator::translate(size_t LoadAddress,
     // Handle the first PTC_INSTRUCTION_op_debug_insn_start
     {
       PTCInstruction *Instruction = &InstructionList->instructions[j];
-      auto Result = Translator.newInstruction(PTC::Instruction(Instruction),
-                                              true);
+      auto Result = Translator.newInstruction(Instruction, true);
       std::tie(StopTranslation, MDOriginalInstr) = Result;
       j++;
     }
@@ -2206,17 +2216,16 @@ void CodeGenerator::translate(size_t LoadAddress,
         break;
       case PTC_INSTRUCTION_op_debug_insn_start:
         {
-          PTC::Instruction TheInstruction(&Instruction);
           std::tie(StopTranslation,
-                   MDOriginalInstr) = Translator.newInstruction(TheInstruction,
+                   MDOriginalInstr) = Translator.newInstruction(&Instruction,
                                                                 false);
           break;
         }
       case PTC_INSTRUCTION_op_call:
-        Translator.translateCall(PTC::CallInstruction(&Instruction));
+        Translator.translateCall(&Instruction);
         break;
       default:
-        Translator.translate(PTC::Instruction(&Instruction));
+        Translator.translate(&Instruction);
       }
 
       // Create a new metadata referencing the PTC instruction we have just
@@ -2268,7 +2277,6 @@ void CodeGenerator::serialize() {
   // it
   if (!Debug->copySource()) {
     std::ofstream Output(OutputPath);
-    raw_os_ostream Stream(Output);
-    TheModule->print(Stream, Debug->annotator(false));
+    Debug->print(Output, false);
   }
 }
