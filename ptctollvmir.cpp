@@ -341,8 +341,9 @@ public:
     TheModule(TheModule),
     Builder(TheModule.getContext()),
     CPUStateType(CPUStateType),
-    HelpersModuleLayout(HelpersModuleLayout) {
-  }
+    HelpersModuleLayout(HelpersModuleLayout),
+    Env(nullptr) { }
+
   /// Given a PTC temporary identifier, checks if it already exists in the
   /// generatd LLVM IR, and, if not, it creates it.
   ///
@@ -392,6 +393,14 @@ public:
       Builder.SetInsertPoint(Delimiter);
   }
 
+  bool isEnv(Value *TheValue) {
+    auto *Load = dyn_cast<LoadInst>(TheValue);
+    if (Load != nullptr)
+      return Load->getPointerOperand() == Env;
+
+    return TheValue == Env;
+  }
+
 private:
   Module& TheModule;
   IRBuilder<> Builder;
@@ -405,6 +414,8 @@ private:
 
   StructType *CPUStateType;
   const DataLayout *HelpersModuleLayout;
+
+  Value *Env;
 };
 
 static Type *getTypeAtOffset(const DataLayout *TheLayout,
@@ -477,12 +488,17 @@ Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
       if (it != OtherGlobals.end()) {
         return it->second;
       } else {
+        auto InitialValue = ConstantInt::get(VariableType, 0);
         GlobalVariable *Result = new GlobalVariable(TheModule,
-                                          VariableType,
-                                          false,
-                                          GlobalValue::ExternalLinkage,
-                                          ConstantInt::get(VariableType, 0),
-                                          StringRef(Temporary->name));
+                                                    VariableType,
+                                                    false,
+                                                    GlobalValue::ExternalLinkage,
+                                                    InitialValue,
+                                                    StringRef(Temporary->name));
+
+        if (Result->getName() == "env")
+          Env = Result;
+
         OtherGlobals[TemporaryId] = Result;
         return Result;
       }
@@ -1686,7 +1702,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
   case PTC_INSTRUCTION_op_st_i64:
     {
       Value *Base = dyn_cast<LoadInst>(InArguments[1])->getPointerOperand();
-      assert(Base->getName() == "env");
+      assert(Base != nullptr && Variables.isEnv(Base));
       Value *Target = Variables.getByCPUStateOffset(ConstArguments[0]);
       Value *ToStore = Builder.CreateZExt(InArguments[0], Target->getType()->getPointerElementType());
       Builder.CreateStore(ToStore, Target);
