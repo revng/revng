@@ -1691,8 +1691,16 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
   case PTC_INSTRUCTION_op_ld32u_i64:
   case PTC_INSTRUCTION_op_ld32s_i64:
   case PTC_INSTRUCTION_op_ld_i64:
-    // TODO: handle this
-    return { ConstantInt::get(RegisterType, 0) };
+    {
+      Value *Base = dyn_cast<LoadInst>(InArguments[0])->getPointerOperand();
+      assert(Base != nullptr && Variables.isEnv(Base));
+      Value *Target = Variables.getByCPUStateOffset(ConstArguments[0]);
+
+      Value *EnvField = Builder.CreateLoad(Target);
+      Value *Fitted = Builder.CreateZExtOrTrunc(EnvField, RegisterType);
+
+      return { Fitted };
+    }
   case PTC_INSTRUCTION_op_st8_i32:
   case PTC_INSTRUCTION_op_st16_i32:
   case PTC_INSTRUCTION_op_st_i32:
