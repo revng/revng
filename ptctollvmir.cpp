@@ -1387,11 +1387,14 @@ public:
 
   void removeNewPCMarkers() {
 
+    std::vector<Instruction *> ToDelete;
+
     for (User *Call : NewPCMarker->users())
       if (cast<Instruction>(Call)->getParent() != nullptr)
-        cast<Instruction>(Call)->eraseFromParent();
+        ToDelete.push_back(cast<Instruction>(Call));
 
-    TheModule.dump();
+    for (Instruction *TheInstruction : ToDelete)
+      TheInstruction->eraseFromParent();
 
     NewPCMarker->eraseFromParent();
   }
