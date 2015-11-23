@@ -1688,7 +1688,8 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       Value *Base = dyn_cast<LoadInst>(InArguments[1])->getPointerOperand();
       assert(Base->getName() == "env");
       Value *Target = Variables.getByCPUStateOffset(ConstArguments[0]);
-      Builder.CreateStore(InArguments[0], Target);
+      Value *ToStore = Builder.CreateZExt(InArguments[0], Target->getType()->getPointerElementType());
+      Builder.CreateStore(ToStore, Target);
       return { };
     }
   case PTC_INSTRUCTION_op_add_i32:
