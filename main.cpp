@@ -1,3 +1,4 @@
+/// \file
 /// \brief This file takes care of handling command-line parameters and loading
 /// the appropriate flavour of libtinycode-*.so
 
@@ -17,7 +18,7 @@ extern "C" {
 #include "revamb.h"
 #include "argparse.h"
 #include "ptcinterface.h"
-#include "ptctollvmir.h"
+#include "codegenerator.h"
 
 static const unsigned BUF_SIZE = 4096;
 static const unsigned MAX_INPUT_BUFFER = 10 * 1024 * 1024;

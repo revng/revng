@@ -1,6 +1,7 @@
 #ifndef _REVAMB_H
 #define _REVAMB_H
 
+// Standard includes
 #include <string>
 
 // Path to the QEMU libraries should be given by the build system

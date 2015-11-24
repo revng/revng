@@ -1,8 +1,10 @@
 #ifndef _TRANSFORMADAPTER_H
 #define _TRANSFORMADAPTER_H
 
+// Standard includes
 #include <functional>
 
+// Local includes
 #include "range.h"
 #include "iteratorwrapper.h"
 
@@ -89,6 +91,5 @@ auto operator|(C Input, R Transformer) {
 //   adaptors::Transform<typename C::iterator> Transformer(Function);
 //   return Transformer.transform(make_range(Input));
 // }
-
 
 #endif // _TRANSFORMADAPTER_H

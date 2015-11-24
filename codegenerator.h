@@ -1,13 +1,18 @@
-#ifndef _PTCTOLLVMIR_H
-#define _PTCTOLLVMIR_H
+#ifndef _CODEGENERATOR_H
+#define _CODEGENERATOR_H
 
+// Standard includes
 #include <cstdint>
 #include <string>
 #include <memory>
 
+// LLVM includes
 #include "llvm/ADT/ArrayRef.h"
+
+// Local includes
 #include "revamb.h"
 
+// Forward declarations
 namespace llvm {
 class LLVMContext;
 class Function;
@@ -71,4 +76,4 @@ private:
   unsigned DbgMDKind;
 };
 
-#endif // _PTCTOLLVMIR_H
+#endif // _CODEGENERATOR_H

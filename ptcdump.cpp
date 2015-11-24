@@ -1,11 +1,14 @@
 /// \file
 /// \brief This file handles dumping PTC to text
 
-#include <cstdlib>
-#include <cstdio>
-#include <cstring>
+// Standard includes
 #include <cinttypes>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
+
+// Local includes
 #include "ptcinterface.h"
 
 static const int MAX_TEMP_NAME_LENGTH = 128;
@@ -198,7 +201,8 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
     case PTC_INSTRUCTION_op_brcond2_i32:
       {
         PTCInstructionArg Arg = ptc_instruction_const_arg(&ptc,
-                                                          &Instruction, i);
+                                                          &Instruction,
+                                                          i);
         Result << "," << "$L" << ptc.get_arg_label_id(Arg);
 
         /* Consume one more argument */

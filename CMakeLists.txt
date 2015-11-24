@@ -31,7 +31,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 add_definitions("-D_FILE_OFFSET_BITS=64")
 include_directories(argparse/)
 
-add_executable(revamb ptcdump.cpp main.cpp ptctollvmir.cpp argparse/argparse.c)
+add_executable(revamb ptcdump.cpp main.cpp debughelper.cpp variablemanager.cpp
+  jumptargetmanager.cpp instructiontranslator.cpp codegenerator.cpp
+  argparse/argparse.c)
 target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
 
 include(tests/Tests.cmake)

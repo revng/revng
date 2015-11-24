@@ -1,8 +1,11 @@
 #ifndef _PTCDUMP_H
 #define _PTCDUMP_H
 
+// Standard includes
 #include <cstdint>
 #include <iostream>
+
+// Local includes
 #include "ptc.h"
 
 /// Writes to a stream the string representation of the PTC instruction with the
