@@ -167,13 +167,16 @@ BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
     if (InstrIt->second == &*ContainingBlock->begin())
       NewBlock = ContainingBlock;
     else {
-      assert(InstrIt->second != nullptr &&
-             InstrIt->second != ContainingBlock->end());
+      assert(InstrIt->second != nullptr
+             && InstrIt->second != ContainingBlock->end());
       // Split the block in the appropriate position. Note that
       // OriginalInstructionAddresses stores a reference to the last generated
       // instruction for the previous instruction.
+      // We add an llvm_unreachable just to be able to split the basic block
       Instruction *Next = InstrIt->second->getNextNode();
+      Instruction *Terminator = new UnreachableInst(Context, ContainingBlock);
       NewBlock = ContainingBlock->splitBasicBlock(Next);
+      Terminator->eraseFromParent();
     }
   } else {
     // Case 3: the address has never been met, create a temporary one, register
