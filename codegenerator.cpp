@@ -165,16 +165,6 @@ void CodeGenerator::translate(size_t LoadAddress,
 
     Variables.newFunction(Delimiter, InstructionList.get());
     unsigned j = 0;
-
-    // Skip everything is before the first PTC_INSTRUCTION_op_debug_insn_start
-    while (j < InstructionList->instruction_count &&
-           InstructionList->instructions[j].opc !=
-           PTC_INSTRUCTION_op_debug_insn_start) {
-      j++;
-    }
-
-    assert(j < InstructionList->instruction_count);
-
     MDNode* MDOriginalInstr = nullptr;
     bool StopTranslation = false;
 
