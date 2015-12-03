@@ -95,7 +95,10 @@ StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
   // Look for the last write to the PC
   BasicBlock::iterator I(TheInstruction);
   BasicBlock::iterator Begin(TheInstruction->getParent()->begin());
-  StoreInst *Store = nullptr;
+  auto *Store = dyn_cast<StoreInst>(&*I);
+  if (Store != nullptr && Store->getPointerOperand() == PCReg)
+    return Store;
+
   do {
     --I;
     Store = dyn_cast<StoreInst>(&*I);

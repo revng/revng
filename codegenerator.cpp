@@ -11,14 +11,16 @@
 // LLVM includes
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
+#include "llvm/Linker/Linker.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Transforms/Scalar.h"
-#include "llvm/IR/LegacyPassManager.h"
 
 // Local includes
 #include "codegenerator.h"
@@ -31,9 +33,10 @@
 
 using namespace llvm;
 
-static bool startsWith(std::string String, std::string Prefix) {
-  return String.substr(0, Prefix.size()) == Prefix;
-}
+template<typename T, typename... Args>
+inline std::array<T, sizeof...(Args)>
+make_array(Args&&... args)
+{ return { std::forward<Args>(args)... };  }
 
 // Outline the destructor for the sake of privacy in the header
 CodeGenerator::~CodeGenerator() = default;
@@ -49,9 +52,7 @@ CodeGenerator::CodeGenerator(Architecture& Source,
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
   OutputPath(Output),
-  Debug(new DebugHelper(Output, Debug, TheModule.get(), DebugInfo)),
-  CPUStateType(nullptr),
-  HelpersModuleLayout(nullptr)
+  Debug(new DebugHelper(Output, Debug, TheModule.get(), DebugInfo))
 {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
@@ -59,43 +60,6 @@ CodeGenerator::CodeGenerator(Architecture& Source,
 
   SMDiagnostic Errors;
   HelpersModule = parseIRFile(Helpers, Errors, Context);
-
-  using ElectionMap = std::map<StructType *, unsigned>;
-  using ElectionMapElement = std::pair<StructType * const, unsigned>;
-  ElectionMap EnvElection;
-  const std::string HelperPrefix = "helper_";
-  for (Function& HelperFunction : *HelpersModule) {
-    if (startsWith(HelperFunction.getName(), HelperPrefix)
-        && HelperFunction.getFunctionType()->getNumParams() > 1) {
-
-      for (Type *Candidate : HelperFunction.getFunctionType()->params()) {
-        if (Candidate->isPointerTy()) {
-          auto *PointeeType = Candidate->getPointerElementType();
-          auto *EnvType = dyn_cast<StructType>(PointeeType);
-          // Ensure it is a struct and not a union
-          if (EnvType != nullptr && EnvType->getNumElements() > 1) {
-
-            auto It = EnvElection.find(EnvType);
-            if (It != EnvElection.end())
-              EnvElection[EnvType]++;
-            else
-              EnvElection[EnvType] = 1;
-          }
-        }
-      }
-    }
-  }
-
-  assert(EnvElection.size() > 0);
-
-  CPUStateType = std::max_element(EnvElection.begin(),
-                                  EnvElection.end(),
-                                  [] (ElectionMapElement& It1,
-                                      ElectionMapElement& It2) {
-                                    return It1.second < It2.second;
-                                  })->first;
-
-  HelpersModuleLayout = &HelpersModule->getDataLayout();
 }
 
 void CodeGenerator::translate(size_t LoadAddress,
@@ -126,10 +90,9 @@ void CodeGenerator::translate(size_t LoadAddress,
 
   // Instantiate helpers
   VariableManager Variables(*TheModule,
-                            CPUStateType,
-                            HelpersModuleLayout);
+                            *HelpersModule);
 
-  GlobalVariable *PCReg = Variables.getByCPUStateOffset(ptc.get_pc(), "pc");
+  GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.get_pc(), "pc");
 
   JumpTargetManager JumpTargets(*TheModule, PCReg, MainFunction);
   std::map<std::string, BasicBlock *> LabeledBasicBlocks;
@@ -235,6 +198,43 @@ void CodeGenerator::translate(size_t LoadAddress,
     CodePointer = Code.data() + (NewPC - LoadAddress);
   } // End translations loop
 
+  Linker TheLinker(TheModule.get());
+  bool Result = TheLinker.linkInModule(HelpersModule.get(),
+                                       Linker::LinkOnlyNeeded);
+  assert(!Result && "Linking failed");
+
+  // Handle some specific QEMU functions as no-ops or abort
+  auto NoOpFunctionNames = make_array<const char *>("qemu_log_mask");
+  auto AbortFunctionNames = make_array<const char *>("cpu_restore_state",
+                                                     "cpu_loop_exit");
+
+  for (auto Name : NoOpFunctionNames) {
+    Function *TheFunction = TheModule->getFunction(Name);
+    if (TheFunction != nullptr && TheFunction->empty()) {
+      assert(TheFunction->getReturnType()->isVoidTy());
+      ReturnInst::Create(Context,
+                         nullptr,
+                         BasicBlock::Create(Context, "", TheFunction));
+    }
+  }
+
+  for (auto Name : AbortFunctionNames) {
+    Function *TheFunction = TheModule->getFunction(Name);
+    if (TheFunction != nullptr && TheFunction->empty()) {
+      assert(TheModule->getFunction("abort") != nullptr);
+      auto *Body = BasicBlock::Create(Context, "", TheFunction);
+      CallInst::Create(TheModule->getFunction("abort"), { }, Body);
+      new UnreachableInst(Context, Body);
+    }
+  }
+
+  legacy::PassManager PM;
+  PM.add(createSROAPass());
+  PM.add(Variables.createCorrectCPUStateUsagePass());
+  PM.add(createDeadCodeEliminationPass());
+  PM.run(*TheModule);
+
+  // TODO: we have around all the usages of the PC, shall we drop them?
   Delimiter->eraseFromParent();
 
   JumpTargets.translateIndirectJumps();

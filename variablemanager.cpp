@@ -4,7 +4,9 @@
 
 // Standard includes
 #include <cstdint>
+#include <stack>
 #include <sstream>
+#include <set>
 #include <string>
 
 // LLVM includes
@@ -17,9 +19,175 @@
 // Local includes
 #include "ir-helpers.h"
 #include "variablemanager.h"
+#include "revamb.h"
 #include "ptcdump.h"
 
 using namespace llvm;
+
+template<typename T>
+static void pushIfNew(std::set<T>& Seen, std::stack<T>& Queue, T Element) {
+  if (Seen.find(Element) == Seen.end()) {
+    Seen.insert(Element);
+    Queue.push(Element);
+  }
+}
+
+bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
+  using OffsetValuePair = std::pair<int64_t, Value *>;
+  std::set<OffsetValuePair> SeenArgs;
+  std::stack<OffsetValuePair> WorkList;
+
+  Value *CPUStatePtr = TheModule.getGlobalVariable("env");
+
+  // Do we even have "env"?
+  if (CPUStatePtr == nullptr)
+    return false;
+
+  assert(CPUStatePtr->getType()->isPointerTy());
+
+  // Initialize the worklist with all the instructions loading env
+  for (Use& CPUStateUse : CPUStatePtr->uses()) {
+    auto *Load = cast<LoadInst>(CPUStateUse.getUser());
+    assert(Load->getPointerOperand() == CPUStatePtr);
+
+    WorkList.push(std::make_pair(Variables->EnvOffset, Load));
+  }
+
+  const DataLayout& DL = TheModule.getDataLayout();
+
+  while (!WorkList.empty()) {
+    int64_t CurrentOffset;
+    Value *CurrentValue;
+    std::tie(CurrentOffset, CurrentValue) = WorkList.top();
+    WorkList.pop();
+
+    std::vector<std::tuple<User *, Value *, Value *>> Replacements;
+
+    for (Use& TheUse : CurrentValue->uses()) {
+      Instruction *TheUser = cast<Instruction>(TheUse.getUser());
+      switch(TheUser->getOpcode()) {
+      case Instruction::Load:
+      case Instruction::Store:
+        {
+          if (TheUser->getOpcode() == Instruction::Store) {
+            // It's a store, just change the destination pointer
+            assert(cast<StoreInst>(TheUser)->getPointerOperand() == CurrentValue
+                   && "Pointer cannot be used as source of a store instruction");
+          } else if (TheUser->getOpcode() == Instruction::Load) {
+            // It's a load, just change the source pointer
+            assert(cast<LoadInst>(TheUser)->getPointerOperand() == CurrentValue
+                   && "Pointer cannot be used as destination of a load"
+                   " instruction");
+          }
+
+          GlobalVariable *Var = Variables->getByCPUStateOffset(CurrentOffset);
+          Constant *Ptr = Var;
+
+          // Sadly, we have to allow this, mainly due to unions
+          if (CurrentValue->getType() != Var->getType())
+            Ptr = ConstantExpr::getPointerCast(Ptr, CurrentValue->getType());
+
+          Replacements.push_back(std::make_tuple(TheUser, CurrentValue, Ptr));
+          break;
+        }
+      case Instruction::BitCast:
+        {
+          // A bitcast, just propagate it
+          WorkList.push(std::make_pair(CurrentOffset, TheUser));
+          break;
+        }
+      case Instruction::GetElementPtr:
+        {
+          // A GEP requires to update the offset
+          auto *GEP = cast<GetElementPtrInst>(TheUser);
+          unsigned AS = GEP->getPointerAddressSpace();
+          APInt APOffset(DL.getPointerSizeInBits(AS), 0, true);
+          bool Result = GEP->accumulateConstantOffset(DL, APOffset);
+          assert(Result && "Only constant offsets into the CPU state"
+                 " structure are supported");
+
+          int64_t NewOffset = APOffset.getSExtValue();
+          WorkList.push(std::make_pair(CurrentOffset + NewOffset, TheUser));
+          break;
+        }
+      case Instruction::Add:
+        {
+          unsigned OtherOperandIndex = 1 - TheUse.getOperandNo();
+          Value *OtherOperand = TheUser->getOperand(OtherOperandIndex);
+          assert(isa<ConstantInt>(OtherOperand));
+          int64_t Addend = cast<ConstantInt>(OtherOperand)->getSExtValue();
+          WorkList.push(std::make_pair(CurrentOffset + Addend, TheUser));
+          break;
+        }
+      case Instruction::Call:
+        {
+          auto *Call = cast<CallInst>(TheUser);
+          Function *Callee = Call->getCalledFunction();
+
+          // Some casting with constant expressions?
+          if (Callee == nullptr) {
+            auto *Cast = cast<ConstantExpr>(Call->getCalledValue());
+            assert(Cast->getOpcode() == Instruction::BitCast);
+            Callee = cast<Function>(Cast->getOperand(0));
+          }
+
+          assert(!Callee->isVarArg() && !Callee->empty() &&
+                 "vararg functions or external functions are not supported");
+
+          // Find the corresponding argument
+          auto ArgsI = Callee->arg_begin();
+          unsigned I = 0;
+
+          for (I = 0;
+               I < Call->getNumArgOperands() && ArgsI != Callee->arg_end();
+               I++, ArgsI++) {
+            Use& ArgUse = Call->getArgOperandUse(I);
+            if (ArgUse.getOperandNo() == TheUse.getOperandNo())
+              break;
+          }
+          assert(I < Call->getNumArgOperands()
+                 && ArgsI != Callee->arg_end());
+
+          // If not already considered, enqueue the argument to the worklist
+          pushIfNew(SeenArgs,
+                    WorkList,
+                    std::make_pair(CurrentOffset,
+                                   static_cast<Value *>(&*ArgsI)));
+          break;
+        }
+      case Instruction::Ret:
+        {
+          // This function returns a pointer to the state
+          Function *CurrentFunction = TheUser->getParent()->getParent();
+          for (User *FunctionUse : CurrentFunction->users()) {
+            auto Call = cast<CallInst>(FunctionUse);
+            assert(Call->getCalledFunction() == CurrentFunction);
+            pushIfNew(SeenArgs,
+                      WorkList,
+                      std::make_pair(CurrentOffset,
+                                     static_cast<Value *>(Call)));
+          }
+          break;
+        }
+      default:
+        llvm_unreachable("Unexpected instruction using the pointer");
+      }
+    }
+
+    for (auto Replacement : Replacements)
+      std::get<0>(Replacement)->replaceUsesOfWith(std::get<1>(Replacement),
+                                                  std::get<2>(Replacement));
+  }
+
+  return true;
+}
+
+char CorrectCPUStateUsagePass::ID = 0;
+
+static RegisterPass<CorrectCPUStateUsagePass> X("correct-cpustate-usage",
+                                                "Correct CPUState Usage Pass",
+                                                false,
+                                                false);
 
 static Type *getTypeAtOffset(const DataLayout *TheLayout,
                              StructType *TheStruct,
@@ -51,13 +219,91 @@ static Type *getTypeAtOffset(const DataLayout *TheLayout,
 }
 
 VariableManager::VariableManager(Module& TheModule,
-                                 StructType *CPUStateType,
-                                 const DataLayout *HelpersModuleLayout) :
+                                 Module& HelpersModule) :
   TheModule(TheModule),
   Builder(TheModule.getContext()),
-  CPUStateType(CPUStateType),
-  HelpersModuleLayout(HelpersModuleLayout),
-  Env(nullptr) { }
+  CPUStateType(nullptr),
+  HelpersModuleLayout(&HelpersModule.getDataLayout()),
+  EnvOffset(0),
+  Env(nullptr) {
+
+  using ElectionMap = std::map<StructType *, unsigned>;
+  using ElectionMapElement = std::pair<StructType * const, unsigned>;
+  ElectionMap EnvElection;
+  const std::string HelperPrefix = "helper_";
+  std::set<StructType *> Structs;
+  for (Function& HelperFunction : HelpersModule) {
+    FunctionType *HelperType = HelperFunction.getFunctionType();
+    Type *ReturnType = HelperType->getReturnType();
+    if (ReturnType->isPointerTy())
+      Structs.insert(dyn_cast<StructType>(ReturnType->getPointerElementType()));
+
+    for (Type *Candidate : HelperType->params())
+      if (Candidate->isPointerTy())
+        Structs.insert(dyn_cast<StructType>(Candidate->getPointerElementType()));
+
+    if (startsWith(HelperFunction.getName(), HelperPrefix)
+        && HelperFunction.getFunctionType()->getNumParams() > 1) {
+
+
+      for (Type *Candidate : HelperType->params()) {
+        Structs.insert(dyn_cast<StructType>(Candidate));
+        if (Candidate->isPointerTy()) {
+          auto *PointeeType = Candidate->getPointerElementType();
+          auto *EnvType = dyn_cast<StructType>(PointeeType);
+          // Ensure it is a struct and not a union
+          if (EnvType != nullptr && EnvType->getNumElements() > 1) {
+
+            auto It = EnvElection.find(EnvType);
+            if (It != EnvElection.end())
+              EnvElection[EnvType]++;
+            else
+              EnvElection[EnvType] = 1;
+          }
+        }
+      }
+    }
+  }
+
+  Structs.erase(nullptr);
+
+  assert(EnvElection.size() > 0);
+
+  CPUStateType = std::max_element(EnvElection.begin(),
+                                  EnvElection.end(),
+                                  [] (ElectionMapElement& It1,
+                                      ElectionMapElement& It2) {
+                                    return It1.second < It2.second;
+                                  })->first;
+
+  // Look for structures containing CPUStateType as a member and promove them
+  // to CPUStateType. Basically this is a flexible way to keep track of the *CPU
+  // struct too (e.g. MIPSCPU).
+  std::set<StructType *> Visited;
+  bool Changed = true;
+  Visited.insert(CPUStateType);
+  while (Changed) {
+    Changed = false;
+    for (StructType *TheStruct : Structs) {
+      if (Visited.find(TheStruct) != Visited.end())
+        continue;
+
+      auto Begin = TheStruct->element_begin();
+      auto End = TheStruct->element_end();
+      auto Found = std::find(Begin, End, CPUStateType);
+      if (Found != End) {
+        unsigned Index = Found - Begin;
+        const StructLayout *Layout = nullptr;
+        Layout = HelpersModuleLayout->getStructLayout(TheStruct);
+        EnvOffset += Layout->getElementOffset(Index);
+        CPUStateType = TheStruct;
+        Visited.insert(CPUStateType);
+        Changed = true;
+        break;
+      }
+    }
+  }
+}
 
 void VariableManager::newFunction(Instruction *Delimiter,
                                   PTCInstructionList *Instructions) {
@@ -141,7 +387,7 @@ Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
   if (ptc_temp_is_global(Instructions, TemporaryId)) {
     // Basically we use fixed_reg to detect "env"
     if (Temporary->fixed_reg == 0) {
-      return getByCPUStateOffset(Temporary->mem_offset,
+      return getByCPUStateOffset(EnvOffset + Temporary->mem_offset,
                                  StringRef(Temporary->name));
     } else {
       GlobalsMap::iterator it = OtherGlobals.find(TemporaryId);
@@ -152,7 +398,7 @@ Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
         GlobalVariable *Result = new GlobalVariable(TheModule,
                                                     VariableType,
                                                     false,
-                                                    GlobalValue::ExternalLinkage,
+                                                    GlobalValue::CommonLinkage,
                                                     InitialValue,
                                                     StringRef(Temporary->name));
 

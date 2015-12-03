@@ -8,6 +8,7 @@
 
 // LLVM includes
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/Pass.h"
 
 // Local includes
 #include "ptcdump.h"
@@ -22,6 +23,24 @@ class StructType;
 class Value;
 }
 
+class VariableManager;
+
+class CorrectCPUStateUsagePass : public llvm::ModulePass {
+public:
+  static char ID;
+
+  CorrectCPUStateUsagePass() : llvm::ModulePass(ID), Variables(nullptr) { }
+  CorrectCPUStateUsagePass(VariableManager *Variables) :
+    llvm::ModulePass(ID),
+    Variables(Variables) { }
+
+public:
+  bool runOnModule(llvm::Module& TheModule) override;
+
+private:
+  VariableManager *Variables;
+};
+
 /// \brief Maintains the list of variables required by PTC.
 ///
 /// It can be queried for a variable, which, if not already existing, will be
@@ -29,8 +48,9 @@ class Value;
 class VariableManager {
 public:
   VariableManager(llvm::Module& TheModule,
-                  llvm::StructType *CPUStateType,
-                  const llvm::DataLayout *HelpersModuleLayout);
+                  llvm::Module& HelpersModule);
+
+  friend class CorrectCPUStateUsagePass;
 
   /// Given a PTC temporary identifier, checks if it already exists in the
   /// generatd LLVM IR, and, if not, it creates it.
@@ -41,8 +61,10 @@ public:
   // TODO: rename to getByTemporaryId
   llvm::Value *getOrCreate(unsigned int TemporaryId);
 
-  llvm::GlobalVariable *getByCPUStateOffset(intptr_t Offset,
-                                            std::string Name="");
+  llvm::GlobalVariable *getByEnvOffset(intptr_t Offset,
+                                       std::string Name="") {
+    return getByCPUStateOffset(EnvOffset + Offset, Name);
+  }
 
   /// Informs the VariableManager that a new function has begun, so it can
   /// discard function- and basic block-level variables.
@@ -65,8 +87,16 @@ public:
   void newBasicBlock(llvm::BasicBlock *Delimiter,
                      PTCInstructionList *Instructions=nullptr);
 
+  /// Returns true if the given variable is the env variable
   bool isEnv(llvm::Value *TheValue);
 
+  CorrectCPUStateUsagePass *createCorrectCPUStateUsagePass() {
+    return new CorrectCPUStateUsagePass(this);
+  }
+
+private:
+  llvm::GlobalVariable *getByCPUStateOffset(intptr_t Offset,
+                                            std::string Name="");
 private:
   llvm::Module& TheModule;
   llvm::IRBuilder<> Builder;
@@ -80,6 +110,7 @@ private:
 
   llvm::StructType *CPUStateType;
   const llvm::DataLayout *HelpersModuleLayout;
+  unsigned EnvOffset;
 
   llvm::Value *Env;
 };

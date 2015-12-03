@@ -861,7 +861,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
     {
       Value *Base = dyn_cast<LoadInst>(InArguments[0])->getPointerOperand();
       assert(Base != nullptr && Variables.isEnv(Base));
-      Value *Target = Variables.getByCPUStateOffset(ConstArguments[0]);
+      Value *Target = Variables.getByEnvOffset(ConstArguments[0]);
 
       Value *EnvField = Builder.CreateLoad(Target);
       Value *Fitted = Builder.CreateZExtOrTrunc(EnvField, RegisterType);
@@ -878,7 +878,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
     {
       Value *Base = dyn_cast<LoadInst>(InArguments[1])->getPointerOperand();
       assert(Base != nullptr && Variables.isEnv(Base));
-      Value *Target = Variables.getByCPUStateOffset(ConstArguments[0]);
+      Value *Target = Variables.getByEnvOffset(ConstArguments[0]);
       Type *TargetPointer = Target->getType()->getPointerElementType();
       Value *ToStore = Builder.CreateZExt(InArguments[0], TargetPointer);
       Builder.CreateStore(ToStore, Target);

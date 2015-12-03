@@ -68,8 +68,6 @@ private:
   std::unique_ptr<llvm::Module> HelpersModule;
   std::string OutputPath;
   std::unique_ptr<DebugHelper> Debug;
-  llvm::StructType *CPUStateType;
-  const llvm::DataLayout *HelpersModuleLayout;
 
   unsigned OriginalInstrMDKind;
   unsigned PTCInstrMDKind;

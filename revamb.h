@@ -48,4 +48,9 @@ struct GenericFunctor {
   }
 };
 
+// TODO: move me somewhere more appropriate
+static inline bool startsWith(std::string String, std::string Prefix) {
+  return String.substr(0, Prefix.size()) == Prefix;
+}
+
 #endif // _REVAMB_H
