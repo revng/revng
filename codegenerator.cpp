@@ -23,8 +23,9 @@
 // Local includes
 #include "codegenerator.h"
 #include "debughelper.h"
-#include "jumptargetmanager.h"
 #include "instructiontranslator.h"
+#include "ir-helpers.h"
+#include "jumptargetmanager.h"
 #include "ptcinterface.h"
 #include "variablemanager.h"
 

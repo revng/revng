@@ -15,6 +15,7 @@
 
 // Local includes
 #include "instructiontranslator.h"
+#include "ir-helpers.h"
 #include "jumptargetmanager.h"
 #include "ptcinterface.h"
 #include "rai.h"
@@ -23,26 +24,6 @@
 #include "variablemanager.h"
 
 using namespace llvm;
-
-/// Helper function to destroy an unconditional branch and, in case, the target
-/// basic block, if it doesn't have any predecessors left.
-static void purgeBranch(BasicBlock::iterator I) {
-  auto *DeadBranch = dyn_cast<BranchInst>(I);
-  // We allow only an unconditional branch and nothing else
-  assert(DeadBranch != nullptr &&
-         DeadBranch->isUnconditional() &&
-         ++I == DeadBranch->getParent()->end());
-
-  // Obtain the target of the dead branch
-  BasicBlock *DeadBranchTarget = DeadBranch->getSuccessor(0);
-
-  // Destroy the dead branch
-  DeadBranch->eraseFromParent();
-
-  // Check if someone else was jumping there and then destroy
-  if (pred_empty(DeadBranchTarget))
-    DeadBranchTarget->eraseFromParent();
-}
 
 static uint64_t getConst(Value *Constant) {
   return cast<ConstantInt>(Constant)->getLimitedValue();

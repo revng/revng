@@ -16,29 +16,10 @@
 #include "llvm/IR/Value.h"
 
 // Local includes
+#include "ir-helpers.h"
 #include "jumptargetmanager.h"
 
 using namespace llvm;
-
-/// Helper function to destroy an unconditional branch and, in case, the
-/// target basic block, if it doesn't have any predecessors left.
-static void purgeBranch(BasicBlock::iterator I) {
-  auto *DeadBranch = dyn_cast<BranchInst>(I);
-  // We allow only an unconditional branch and nothing else
-  assert(DeadBranch != nullptr &&
-         DeadBranch->isUnconditional() &&
-         ++I == DeadBranch->getParent()->end());
-
-  // Obtain the target of the dead branch
-  BasicBlock *DeadBranchTarget = DeadBranch->getSuccessor(0);
-
-  // Destroy the dead branch
-  DeadBranch->eraseFromParent();
-
-  // Check if someone else was jumping there and then destroy
-  if (pred_empty(DeadBranchTarget))
-    DeadBranchTarget->eraseFromParent();
-}
 
 JumpTargetManager::JumpTargetManager(Module& TheModule,
                                      Value *PCReg,

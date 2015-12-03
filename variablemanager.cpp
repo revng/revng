@@ -15,6 +15,7 @@
 #include "llvm/Support/Casting.h"
 
 // Local includes
+#include "ir-helpers.h"
 #include "variablemanager.h"
 #include "ptcdump.h"
 
