@@ -219,7 +219,8 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
         Result << ",";
       }
 
-      Result << "$0x" << ptc_instruction_const_arg(&ptc, &Instruction, i);
+      Result << "$0x" << std::hex
+             << ptc_instruction_const_arg(&ptc, &Instruction, i);
     }
 
   }
