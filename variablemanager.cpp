@@ -32,11 +32,19 @@ static Type *getTypeAtOffset(const DataLayout *TheLayout,
 
   if (VariableType->isIntegerTy())
     return VariableType;
-  else if (VariableType->isArrayTy())
-    return VariableType->getArrayElementType();
-  else if (VariableType->isStructTy())
+  else if (VariableType->isArrayTy()) {
+    Type *ElementType = VariableType->getArrayElementType();
+    if (ElementType->isIntegerTy())
+      return ElementType;
+
+    uint64_t ElementSize = TheLayout->getTypeSizeInBits(ElementType) / 8;
     return getTypeAtOffset(TheLayout,
-                           dyn_cast<StructType>(VariableType),
+                           cast<StructType>(ElementType),
+                           (Offset - FieldOffset) % ElementSize);
+
+  } else if (VariableType->isStructTy())
+    return getTypeAtOffset(TheLayout,
+                           cast<StructType>(VariableType),
                            Offset - FieldOffset);
   else
     llvm_unreachable("Unexpected data type");
