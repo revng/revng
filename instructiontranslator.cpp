@@ -451,6 +451,16 @@ static Value *CreateICmp(T& Builder,
                             FirstOperand,
                             SecondOperand);
 }
+
+// TODO: this pass really belongs to jumptargetmanager
+char TranslateDirectBranchesPass::ID = 0;
+
+static RegisterPass<TranslateDirectBranchesPass> X("translate-db",
+                                                   "Translate Direct Branches"
+                                                   " Pass",
+                                                   false,
+                                                   false);
+
 void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<DominatorTreeWrapperPass>();
 }
@@ -458,15 +468,22 @@ void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
 bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
   LLVMContext &Context = F.getParent()->getContext();
 
-  for (Use& PCUse : JTM->PC()->uses()) {
-    // TODO: what to do in case of read of the PC?
-    // Is the PC the store destination?
-    if (PCUse.getOperandNo() == 1) {
-      if (auto Jump = dyn_cast<StoreInst>(PCUse.getUser())) {
+  Function *ExitTB = JTM->exitTB();
+  auto I = ExitTB->use_begin();
+  while (I != ExitTB->use_end()) {
+    Use& ExitTBUse = *I++;
+    if (auto Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
+      if (Call->getCalledFunction() == ExitTB) {
+        // Look for the last write to the PC
+        StoreInst *Jump = JTM->getPrevPCWrite(Call);
+
         Value *Destination = Jump->getValueOperand();
 
         // Is destination a constant?
         if (auto Address = dyn_cast<ConstantInt>(Destination)) {
+          // We can handle this jump, remove the call to exit_tb
+          Call->eraseFromParent();
+
           // If necessary notify the about the existence of the basic block
           // coming after this jump
           // TODO: handle delay slots
@@ -533,13 +550,6 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
 
   llvm_unreachable("Can't find the PC marker");
 }
-
-char TranslateDirectBranchesPass::ID = 0;
-static RegisterPass<TranslateDirectBranchesPass> X("translate-db",
-                                                   "Translate Direct Branches"
-                                                   " Pass",
-                                                   false,
-                                                   false);
 
 using LBM = InstructionTranslator::LabeledBlocksMap;
 InstructionTranslator::InstructionTranslator(IRBuilder<>& Builder,
@@ -1183,8 +1193,8 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       if (Opcode == PTC_INSTRUCTION_op_br) {
         // Unconditional jump
         Builder.CreateBr(Target);
-      } else if (Opcode == PTC_INSTRUCTION_op_brcond_i32 ||
-                 Opcode == PTC_INSTRUCTION_op_brcond_i64) {
+      } else if (Opcode == PTC_INSTRUCTION_op_brcond_i32
+                 || Opcode == PTC_INSTRUCTION_op_brcond_i64) {
         // Conditional jump
         Value *Compare = CreateICmp(Builder,
                                     ConstArguments[0],
@@ -1200,10 +1210,9 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
 
       return { };
     }
-  case PTC_INSTRUCTION_op_call:
-    // TODO: implement call to helpers
-    llvm_unreachable("Call to helpers not implemented");
   case PTC_INSTRUCTION_op_exit_tb:
+    Builder.CreateCall(JumpTargets.exitTB(), { });
+    return { };
   case PTC_INSTRUCTION_op_goto_tb:
     // Nothing to do here
     return { };

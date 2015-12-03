@@ -29,7 +29,13 @@ JumpTargetManager::JumpTargetManager(Module& TheModule,
   TheFunction(TheFunction),
   OriginalInstructionAddresses(),
   JumpTargets(),
-  PCReg(PCReg) { }
+  PCReg(PCReg),
+  ExitTB(nullptr) {
+  FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
+                                             { },
+                                             false);
+  ExitTB = cast<Function>(TheModule.getOrInsertFunction("exitTB", ExitTBTy));
+}
 
 /// Handle a new program counter. We might already have a basic block for that
 /// program counter, or we could even have a translation for it. Return one
@@ -85,12 +91,41 @@ void JumpTargetManager::registerBlock(uint64_t PC, BasicBlock *Block) {
     JumpTargets[PC] = Block;
 }
 
+StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
+  // Look for the last write to the PC
+  BasicBlock::iterator I(TheInstruction);
+  BasicBlock::iterator Begin(TheInstruction->getParent()->begin());
+  StoreInst *Store = nullptr;
+  do {
+    --I;
+    Store = dyn_cast<StoreInst>(&*I);
+    if (Store != nullptr && Store->getPointerOperand() == PCReg)
+      break;
+  } while (I != Begin);
+  assert(Store != nullptr && Store->getPointerOperand() == PCReg
+         && "Couldn't find a write to the PC in the basic block of an exit_tb");
+
+  return Store;
+}
+
 void JumpTargetManager::translateIndirectJumps() {
+  if (ExitTB->use_empty())
+    return;
+
   BasicBlock *Dispatcher = createDispatcher(TheFunction, PCReg, true);
 
-  for (Use& PCUse : PCReg->uses()) {
-    if (PCUse.getOperandNo() == 1) {
-      if (auto Jump = dyn_cast<StoreInst>(PCUse.getUser())) {
+  auto I = ExitTB->use_begin();
+  while (I != ExitTB->use_end()) {
+    Use& ExitTBUse = *I++;
+    if (auto Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
+      if (Call->getCalledFunction() == ExitTB) {
+        // Look for the last write to the PC
+        StoreInst *Jump = getPrevPCWrite(Call);
+        assert(!isa<ConstantInt>(Jump->getValueOperand())
+               && "Direct jumps should not be handled here");
+
+        Call->eraseFromParent();
+
         BasicBlock::iterator It(Jump);
         auto *Branch = BranchInst::Create(Dispatcher, ++It);
 
@@ -108,10 +143,6 @@ void JumpTargetManager::translateIndirectJumps() {
       }
     }
   }
-}
-
-Value *JumpTargetManager::PC() {
-  return PCReg;
 }
 
 /// Pop from the list of program counters to explore

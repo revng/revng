@@ -46,7 +46,9 @@ public:
 
   void translateIndirectJumps();
 
-  llvm::Value *PC();
+  llvm::StoreInst *getPrevPCWrite(llvm::Instruction *TheInstruction);
+
+  llvm::Function *exitTB() { return ExitTB; }
 
   /// Pop from the list of program counters to explore
   ///
@@ -80,6 +82,7 @@ private:
   /// Queue of program counters we still have to translate.
   std::vector<BlockWithAddress> Unexplored;
   llvm::Value *PCReg;
+  llvm::Function *ExitTB;
 };
 
 #endif // _JUMPTARGETMANAGER_H
