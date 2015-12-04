@@ -4,7 +4,7 @@ include(ExternalProject)
 # Test definitions
 
 set(TEST_CFLAGS "-std=c99 -static")
-set(TESTS "calc" "function_call")
+set(TESTS "calc" "function_call" "floating_point")
 
 ## calc
 set(TEST_SOURCES_calc "${CMAKE_SOURCE_DIR}/tests/calc.c")
@@ -19,6 +19,12 @@ set(TEST_SOURCES_function_call "${CMAKE_SOURCE_DIR}/tests/function-call.c")
 
 set(TEST_RUNS_function_call "default")
 set(TEST_ARGS_function_call_default "nope")
+
+## floating_point
+set(TEST_SOURCES_floating_point "${CMAKE_SOURCE_DIR}/tests/floating-point.c")
+
+set(TEST_RUNS_floating_point "default")
+set(TEST_ARGS_floating_point_default "nope")
 
 # Get the path to some system tools we'll need
 
