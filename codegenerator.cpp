@@ -9,6 +9,7 @@
 #include <fstream>
 
 // LLVM includes
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/DiagnosticPrinter.h"
@@ -89,6 +90,110 @@ static void replaceFunctionWithRet(Function *ToReplace, uint64_t Result) {
   }
 
   ReturnInst::Create(ToReplace->getParent()->getContext(), ResultValue, Body);
+}
+
+class CpuLoopFunctionPass : public llvm::FunctionPass {
+public:
+  static char ID;
+
+  CpuLoopFunctionPass() : llvm::FunctionPass(ID) { }
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
+
+  bool runOnFunction(llvm::Function &F) override;
+};
+
+char CpuLoopFunctionPass::ID = 0;
+
+static RegisterPass<CpuLoopFunctionPass> X("cpu-loop",
+                                           "cpu_loop FunctionPass",
+                                           false,
+                                           false);
+
+void CpuLoopFunctionPass::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.addRequired<LoopInfoWrapperPass>();
+}
+
+template<class Range, class UnaryPredicate>
+auto find_unique(Range&& TheRange, UnaryPredicate Predicate)
+  -> decltype(*TheRange.begin()) {
+
+  const auto Begin = TheRange.begin();
+  const auto End = TheRange.end();
+
+  auto It = std::find_if(Begin, End, Predicate);
+  auto Result = It;
+  assert(Result != End);
+  assert(std::find_if(++It, End, Predicate) == End);
+
+  return *Result;
+}
+
+template<class Range>
+auto find_unique(Range&& TheRange)
+  -> decltype(*TheRange.begin()) {
+
+  const auto Begin = TheRange.begin();
+  const auto End = TheRange.end();
+
+  auto Result = Begin;
+  assert(Begin != End && ++Result == End);
+
+  return *Begin;
+}
+
+bool CpuLoopFunctionPass::runOnFunction(Function &F) {
+  // cpu_loop must return void
+  assert(F.getReturnType()->isVoidTy());
+
+  Module *TheModule = F.getParent();
+
+  // Part 1: remove the backedge of the main infinite loop
+  const LoopInfo &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+  const Loop *OutermostLoop = find_unique(LI);
+
+  BasicBlock *Header = OutermostLoop->getHeader();
+
+  // Check that the header has only one predecessor inside the loop
+  auto IsInLoop = [&OutermostLoop] (BasicBlock *Predecessor) {
+    return OutermostLoop->contains(Predecessor);
+  };
+  BasicBlock *Footer = find_unique(predecessors(Header), IsInLoop);
+
+  // Assert on the type of the last instruction (branch or brcond)
+  assert(Footer->end() != Footer->begin());
+  Instruction *LastInstruction = &*--Footer->end();
+  assert(isa<BranchInst>(LastInstruction));
+
+  // Remove the last instruction and replace it with a ret
+  LastInstruction->eraseFromParent();
+  ReturnInst::Create(F.getParent()->getContext(), Footer);
+
+  // Part 2: replace the call to cpu_*_exec with exception_index
+  auto IsCpuExec = [] (Function& TheFunction) {
+    StringRef Name = TheFunction.getName();
+    return Name.startswith("cpu_") && Name.endswith("_exec");
+  };
+  Function& CpuExec = find_unique(F.getParent()->functions(), IsCpuExec);
+
+  User *CallUser = find_unique(CpuExec.users(), [&F] (User *TheUser) {
+      auto *TheInstruction = dyn_cast<Instruction>(TheUser);
+
+      if (TheInstruction == nullptr)
+        return false;
+
+      return TheInstruction->getParent()->getParent() == &F;
+    });
+
+  auto *Call = cast<CallInst>(CallUser);
+  assert(Call->getCalledFunction() == &CpuExec);
+  Value *ExceptionIndex = TheModule->getOrInsertGlobal("exception_index",
+                                                       CpuExec.getReturnType());
+  Value *LoadExceptionIndex = new LoadInst(ExceptionIndex, "", Call);
+  Call->replaceAllUsesWith(LoadExceptionIndex);
+  Call->eraseFromParent();
+
+  return true;
 }
 
 void CodeGenerator::translate(size_t LoadAddress,
@@ -235,6 +340,18 @@ void CodeGenerator::translate(size_t LoadAddress,
     CodePointer = Code.data() + (NewPC - LoadAddress);
   } // End translations loop
 
+  Function *CpuLoop = HelpersModule->getFunction("cpu_loop");
+  assert(CpuLoop != nullptr);
+  legacy::FunctionPassManager CpuLoopPM(TheModule.get());
+  CpuLoopPM.add(new LoopInfoWrapperPass());
+  CpuLoopPM.add(new CpuLoopFunctionPass());
+  CpuLoopPM.run(*CpuLoop);
+
+  // Force linking of cpu_loop
+  TheModule->getOrInsertFunction("cpu_loop", CpuLoop->getFunctionType());
+
+  // CpuLoopFunctionPass expects a variable name exception_index to exist
+  Variables.getByEnvOffset(ptc.exception_index, "exception_index");
 
   // Handle some specific QEMU functions as no-ops or abort
   auto NoOpFunctionNames = make_array<const char *>("qemu_log_mask",
