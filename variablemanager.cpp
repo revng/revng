@@ -90,6 +90,7 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
           Replacements.push_back(std::make_tuple(TheUser, CurrentValue, Ptr));
           break;
         }
+      case Instruction::IntToPtr:
       case Instruction::BitCast:
         {
           // A bitcast, just propagate it
