@@ -62,6 +62,35 @@ CodeGenerator::CodeGenerator(Architecture& Source,
   HelpersModule = parseIRFile(Helpers, Errors, Context);
 }
 
+static BasicBlock *replaceFunction(Function *ToReplace) {
+  ToReplace->setLinkage(GlobalValue::InternalLinkage);
+  ToReplace->dropAllReferences();
+
+  return BasicBlock::Create(ToReplace->getParent()->getContext(),
+                            "",
+                            ToReplace);
+}
+
+static void replaceFunctionWithRet(Function *ToReplace, uint64_t Result) {
+  if (ToReplace == nullptr)
+    return;
+
+  BasicBlock *Body = replaceFunction(ToReplace);
+  Value *ResultValue;
+
+  if (ToReplace->getReturnType()->isVoidTy()) {
+    assert(Result == 0);
+    ResultValue = nullptr;
+  } else if (ToReplace->getReturnType()->isIntegerTy()) {
+    auto *ReturnType = cast<IntegerType>(ToReplace->getReturnType());
+    ResultValue = ConstantInt::get(ReturnType, Result, false);
+  } else {
+    assert("No-op functions can only return void or an integer type");
+  }
+
+  ReturnInst::Create(ToReplace->getParent()->getContext(), ResultValue, Body);
+}
+
 void CodeGenerator::translate(size_t LoadAddress,
                               ArrayRef<uint8_t> Code,
                               size_t VirtualAddress,
@@ -206,35 +235,66 @@ void CodeGenerator::translate(size_t LoadAddress,
     CodePointer = Code.data() + (NewPC - LoadAddress);
   } // End translations loop
 
+
+  // Handle some specific QEMU functions as no-ops or abort
+  auto NoOpFunctionNames = make_array<const char *>("qemu_log_mask",
+                                                    "fprintf",
+                                                    "cpu_dump_state",
+                                                    "mmap_lock",
+                                                    "mmap_unlock",
+                                                    "pthread_cond_broadcast",
+                                                    "pthread_mutex_unlock",
+                                                    "pthread_mutex_lock",
+                                                    "pthread_cond_wait",
+                                                    "pthread_cond_signal",
+                                                    "cpu_exit",
+                                                    "start_exclusive",
+                                                    "process_pending_signals",
+                                                    "end_exclusive");
+  auto AbortFunctionNames = make_array<const char *>("cpu_restore_state",
+                                                     "gdb_handlesig",
+                                                     "queue_signal",
+                                                     "cpu_mips_exec",
+                                                     // syscall.c
+                                                     "print_syscall",
+                                                     "print_syscall_ret",
+                                                     // ARM cpu_loop
+                                                     "EmulateAll",
+                                                     "cpu_abort",
+                                                     "do_arm_semihosting");
+
+  // EmulateAll: requires access to the opcode
+  // do_arm_semihosting: we don't care about semihosting
+
+  // From syscall.c
+  new GlobalVariable(*TheModule,
+                     Type::getInt32Ty(Context),
+                     false,
+                     GlobalValue::CommonLinkage,
+                     ConstantInt::get(Type::getInt32Ty(Context), 0),
+                     StringRef("do_strace"));
+
+  for (auto Name : NoOpFunctionNames)
+    replaceFunctionWithRet(HelpersModule->getFunction(Name), 0);
+
+  for (auto Name : AbortFunctionNames) {
+    Function *TheFunction = HelpersModule->getFunction(Name);
+    if (TheFunction != nullptr) {
+      assert(HelpersModule->getFunction("abort") != nullptr);
+      BasicBlock *NewBody = replaceFunction(TheFunction);
+      CallInst::Create(HelpersModule->getFunction("abort"), { }, NewBody);
+      new UnreachableInst(Context, NewBody);
+    }
+  }
+
+  replaceFunctionWithRet(HelpersModule->getFunction("page_check_range"), 1);
+  replaceFunctionWithRet(HelpersModule->getFunction("page_get_flags"),
+                         0xffffffff);
+
   Linker TheLinker(TheModule.get());
   bool Result = TheLinker.linkInModule(HelpersModule.get(),
                                        Linker::LinkOnlyNeeded);
   assert(!Result && "Linking failed");
-
-  // Handle some specific QEMU functions as no-ops or abort
-  auto NoOpFunctionNames = make_array<const char *>("qemu_log_mask");
-  auto AbortFunctionNames = make_array<const char *>("cpu_restore_state",
-                                                     "cpu_loop_exit");
-
-  for (auto Name : NoOpFunctionNames) {
-    Function *TheFunction = TheModule->getFunction(Name);
-    if (TheFunction != nullptr && TheFunction->empty()) {
-      assert(TheFunction->getReturnType()->isVoidTy());
-      ReturnInst::Create(Context,
-                         nullptr,
-                         BasicBlock::Create(Context, "", TheFunction));
-    }
-  }
-
-  for (auto Name : AbortFunctionNames) {
-    Function *TheFunction = TheModule->getFunction(Name);
-    if (TheFunction != nullptr && TheFunction->empty()) {
-      assert(TheModule->getFunction("abort") != nullptr);
-      auto *Body = BasicBlock::Create(Context, "", TheFunction);
-      CallInst::Create(TheModule->getFunction("abort"), { }, Body);
-      new UnreachableInst(Context, Body);
-    }
-  }
 
   legacy::PassManager PM;
   PM.add(createSROAPass());
