@@ -123,6 +123,7 @@ void CodeGenerator::translate(size_t LoadAddress,
 
     ConsumedSize = ptc.translate(VirtualAddress,
                                  InstructionList.get());
+    uint64_t NextPC = VirtualAddress + ConsumedSize;
 
     dumpTranslation(std::cerr, InstructionList.get());
 
@@ -159,6 +160,13 @@ void CodeGenerator::translate(size_t LoadAddress,
         }
       case PTC_INSTRUCTION_op_call:
         Translator.translateCall(&Instruction);
+
+        // Sometimes libtinycode terminates a basic block with a call, in this
+        // case force a fallthrough
+        // TODO: investigate why this happens
+        if (j == InstructionList->instruction_count - 1)
+          Builder.CreateBr(JumpTargets.getBlockAt(NextPC));
+
         break;
       default:
         Translator.translate(&Instruction);
@@ -183,7 +191,7 @@ void CodeGenerator::translate(size_t LoadAddress,
 
     } // End loop over instructions
 
-    Translator.closeLastInstruction(VirtualAddress + ConsumedSize);
+    Translator.closeLastInstruction(NextPC);
 
     // Before looking for writes to the PC, give a shot of SROA
     legacy::PassManager PM;
