@@ -81,13 +81,20 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
           }
 
           GlobalVariable *Var = Variables->getByCPUStateOffset(CurrentOffset);
-          Constant *Ptr = Var;
 
-          // Sadly, we have to allow this, mainly due to unions
-          if (CurrentValue->getType() != Var->getType())
-            Ptr = ConstantExpr::getPointerCast(Ptr, CurrentValue->getType());
+          // Couldn't translate this environment usage, make it fail at run-time
+          if (Var == nullptr) {
+            auto *InvalidInst = cast<Instruction>(TheUser);
+            CallInst::Create(TheModule.getFunction("abort"), { }, InvalidInst);
+          } else {
+            Constant *Ptr = Var;
 
-          Replacements.push_back(std::make_tuple(TheUser, CurrentValue, Ptr));
+            // Sadly, we have to allow this, mainly due to unions
+            if (CurrentValue->getType() != Var->getType())
+              Ptr = ConstantExpr::getPointerCast(Ptr, CurrentValue->getType());
+
+            Replacements.push_back(std::make_tuple(TheUser, CurrentValue, Ptr));
+          }
           break;
         }
       case Instruction::IntToPtr:
@@ -104,8 +111,13 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
           unsigned AS = GEP->getPointerAddressSpace();
           APInt APOffset(DL.getPointerSizeInBits(AS), 0, true);
           bool Result = GEP->accumulateConstantOffset(DL, APOffset);
-          assert(Result && "Only constant offsets into the CPU state"
-                 " structure are supported");
+
+          // TODO: do some kind of warning reporting here
+          // TODO: split the basic block and add an unreachable here
+          if (!Result) {
+            CallInst::Create(TheModule.getFunction("abort"), { }, GEP);
+            continue;
+          }
 
           int64_t NewOffset = APOffset.getSExtValue();
           WorkList.push(std::make_pair(CurrentOffset + NewOffset, TheUser));
@@ -219,8 +231,10 @@ static Type *getTypeAtOffset(const DataLayout *TheLayout,
     return getTypeAtOffset(TheLayout,
                            cast<StructType>(VariableType),
                            Offset - FieldOffset);
-  else
-    llvm_unreachable("Unexpected data type");
+  else {
+    // TODO: do some kind of warning reporting here
+    return nullptr;
+  }
 }
 
 VariableManager::VariableManager(Module& TheModule,
@@ -402,8 +416,10 @@ Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
   if (ptc_temp_is_global(Instructions, TemporaryId)) {
     // Basically we use fixed_reg to detect "env"
     if (Temporary->fixed_reg == 0) {
-      return getByCPUStateOffset(EnvOffset + Temporary->mem_offset,
-                                 StringRef(Temporary->name));
+      Value *Result = getByCPUStateOffset(EnvOffset + Temporary->mem_offset,
+                                          StringRef(Temporary->name));
+      assert(Result != nullptr);
+      return Result;
     } else {
       GlobalsMap::iterator it = OtherGlobals.find(TemporaryId);
       if (it != OtherGlobals.end()) {
