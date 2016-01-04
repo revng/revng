@@ -46,6 +46,13 @@ public:
 
   void translateIndirectJumps();
 
+  /// \brief Return the most recent instruction writing the program counter
+  /// Note that the search is performed only in the current basic block.
+  /// The function will assert if the write instruction is not found.
+  ///
+  /// \return a pointer to the last StoreInst writing the program counter, or
+  ///         nullptr if a call to an helper has been found before the write to
+  ///         the PC.
   llvm::StoreInst *getPrevPCWrite(llvm::Instruction *TheInstruction);
 
   llvm::Function *exitTB() { return ExitTB; }

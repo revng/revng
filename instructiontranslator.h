@@ -26,6 +26,12 @@ class Module;
 class JumpTargetManager;
 class VariableManager;
 
+/// \brief Transform constant writes to the PC in jumps
+/// This pass looks for all the calls to the ExitTB function calls, looks for
+/// the last write to the PC before them, checks if the written value is
+/// statically known, and, if so, replaces it with a jump to the corresponding
+/// translated code. If the write to the PC is not constant, no action is
+/// performed, and the call to ExitTB remains there for delayed handling.
 class TranslateDirectBranchesPass : public llvm::FunctionPass {
 public:
   static char ID;
@@ -45,6 +51,8 @@ public:
   bool runOnFunction(llvm::Function &F) override;
 
 private:
+  /// Obtains the absolute address of the PC correspoding to the original
+  /// assembly instruction coming after the specified LLVM instruction
   uint64_t getNextPC(llvm::Instruction *TheInstruction);
 
 private:
@@ -53,6 +61,7 @@ private:
   llvm::Function *NewPCMarker;
 };
 
+/// \brief Translates PTC instruction in LLVM IR
 class InstructionTranslator {
 public:
   using LabeledBlocksMap = std::map<std::string, llvm::BasicBlock *>;
@@ -77,7 +86,7 @@ public:
 
   void closeLastInstruction(uint64_t PC);
 
- private:
+private:
   std::vector<llvm::Value *>
     translateOpcode(PTCOpcode Opcode,
                     std::vector<uint64_t> ConstArguments,
