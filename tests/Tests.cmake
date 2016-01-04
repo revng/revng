@@ -4,7 +4,7 @@ include(ExternalProject)
 # Test definitions
 
 set(TEST_CFLAGS "-std=c99 -static")
-set(TESTS "calc" "function_call" "floating_point")
+set(TESTS "calc" "function_call" "floating_point" "syscall")
 
 ## calc
 set(TEST_SOURCES_calc "${CMAKE_SOURCE_DIR}/tests/calc.c")
@@ -26,6 +26,12 @@ set(TEST_SOURCES_floating_point "${CMAKE_SOURCE_DIR}/tests/floating-point.c")
 set(TEST_RUNS_floating_point "default")
 set(TEST_ARGS_floating_point_default "nope")
 
+## syscall
+set(TEST_SOURCES_syscall "${CMAKE_SOURCE_DIR}/tests/syscall.c")
+
+set(TEST_RUNS_syscall "default")
+set(TEST_ARGS_syscall_default "nope")
+
 # Get the path to some system tools we'll need
 
 set(LLC "${LLVM_TOOLS_BINARY_DIR}/llc")
@@ -38,7 +44,7 @@ find_program(DIFF diff)
 
 set(SUPPORTED_ARCHITECTURES "aarch64;alpha;arm;armeb;cris;i386;img;io;m68k;microblaze;microblazeel;mips;mips64;mips64el;mipsel;mipsn32;mipsn32el;nbd;or32;ppc;ppc64;ppc64abi32;s390x;sh4;sh4eb;sparc;sparc32plus;sparc64;unicore32;x86_64")
 
-# We can test an architecture if we a compiler and a libtinycode-*.so
+# We can test an architecture if we have a compiler and a libtinycode-*.so
 foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   # TODO: don't harcode gcc, switch from triple to get the compiler directly
   set(TRIPLE_${ARCH} ""
@@ -113,7 +119,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   endforeach()
 
   string(REPLACE "-" "_" NORMALIZED_ARCH "${ARCH}")
-  set(TEST_CFLAGS_${ARCH} "${TEST_CFLAGS} -DTARGET_${NORMALIZED_ARCH}")
+  set(TEST_CFLAGS_${ARCH} "${TEST_CFLAGS} -D_GNU_SOURCE -DTARGET_${NORMALIZED_ARCH}")
 
   # Create external project using the cross-compiler
   ExternalProject_Add(TEST_PROJECT_${ARCH}
