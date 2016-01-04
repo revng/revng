@@ -475,19 +475,16 @@ bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
     if (auto Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
       if (Call->getCalledFunction() == ExitTB) {
         // Look for the last write to the PC
-        StoreInst *Jump = JTM->getPrevPCWrite(Call);
-
-        Value *Destination = Jump->getValueOperand();
+        StoreInst *PCWrite = JTM->getPrevPCWrite(Call);
 
         // Is destination a constant?
-        if (auto Address = dyn_cast<ConstantInt>(Destination)) {
-          // We can handle this jump, remove the call to exit_tb
-          Call->eraseFromParent();
-
+        ConstantInt *Address = nullptr;
+        if (PCWrite != nullptr &&
+            (Address = dyn_cast<ConstantInt>(PCWrite->getValueOperand()))) {
           // If necessary notify the about the existence of the basic block
           // coming after this jump
           // TODO: handle delay slots
-          BasicBlock *FakeFallthrough = JTM->getBlockAt(getNextPC(Jump));
+          BasicBlock *FakeFallthrough = JTM->getBlockAt(getNextPC(Call));
 
           // Compute the actual PC and get the associated BasicBlock
           uint64_t TargetPC = Address->getSExtValue();
@@ -503,13 +500,15 @@ bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
                                                    True);
 
           // Cleanup of what's afterwards (only a unconditional jump is allowed)
-          BasicBlock::iterator I = Jump;
-          BasicBlock::iterator BlockEnd = Jump->getParent()->end();
+          BasicBlock::iterator I = Call;
+          BasicBlock::iterator BlockEnd = Call->getParent()->end();
           if (++I != BlockEnd)
             purgeBranch(I);
 
-          Branch->insertAfter(Jump);
-          Jump->eraseFromParent();
+          Branch->insertAfter(Call);
+          Call->eraseFromParent();
+          // TODO: are we sure we want to remove the PC writes?
+          PCWrite->eraseFromParent();
         }
       } else
         llvm_unreachable("Unknown instruction using the PC");

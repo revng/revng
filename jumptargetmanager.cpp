@@ -95,20 +95,24 @@ StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
   // Look for the last write to the PC
   BasicBlock::iterator I(TheInstruction);
   BasicBlock::iterator Begin(TheInstruction->getParent()->begin());
-  auto *Store = dyn_cast<StoreInst>(&*I);
-  if (Store != nullptr && Store->getPointerOperand() == PCReg)
-    return Store;
 
-  do {
-    --I;
-    Store = dyn_cast<StoreInst>(&*I);
+  while (I != Begin) {
+    I--;
+    Instruction *Current = &*I;
+
+    auto *Store = dyn_cast<StoreInst>(Current);
     if (Store != nullptr && Store->getPointerOperand() == PCReg)
-      break;
-  } while (I != Begin);
-  assert(Store != nullptr && Store->getPointerOperand() == PCReg
-         && "Couldn't find a write to the PC in the basic block of an exit_tb");
+      return Store;
 
-  return Store;
+    // If we meet a call to an helper, return nullptr
+    // TODO: for now we just make calls to helpers, is this is OK even if we
+    //       split the translated function in multiple functions?
+    if (isa<CallInst>(Current))
+      return nullptr;
+  }
+
+  assert(false &&
+         "Couldn't find a write to the PC in the basic block of an exit_tb");
 }
 
 void JumpTargetManager::translateIndirectJumps() {
@@ -124,24 +128,23 @@ void JumpTargetManager::translateIndirectJumps() {
       if (Call->getCalledFunction() == ExitTB) {
         // Look for the last write to the PC
         StoreInst *Jump = getPrevPCWrite(Call);
-        assert(!isa<ConstantInt>(Jump->getValueOperand())
+        assert((Jump == nullptr ||
+                !isa<ConstantInt>(Jump->getValueOperand()))
                && "Direct jumps should not be handled here");
 
+        BasicBlock *BB = Call->getParent();
+        auto *Branch = BranchInst::Create(Dispatcher, Call);
         Call->eraseFromParent();
 
-        BasicBlock::iterator It(Jump);
-        auto *Branch = BranchInst::Create(Dispatcher, ++It);
-
         // Cleanup everything it's aftewards
-        BasicBlock *Parent = Jump->getParent();
-        Instruction *ToDelete = &*(--Parent->end());
+        Instruction *ToDelete = &*(--BB->end());
         while (ToDelete != Branch) {
           if (auto DeadBranch = dyn_cast<BranchInst>(ToDelete))
             purgeBranch(DeadBranch);
           else
             ToDelete->eraseFromParent();
 
-          ToDelete = &*(--Parent->end());
+          ToDelete = &*(--BB->end());
         }
       }
     }
