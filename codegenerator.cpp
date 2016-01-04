@@ -92,7 +92,7 @@ void CodeGenerator::translate(size_t LoadAddress,
   VariableManager Variables(*TheModule,
                             *HelpersModule);
 
-  GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.get_pc(), "pc");
+  GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc");
 
   JumpTargetManager JumpTargets(*TheModule, PCReg, MainFunction);
   std::map<std::string, BasicBlock *> LabeledBasicBlocks;
