@@ -131,8 +131,7 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
             Callee = cast<Function>(Cast->getOperand(0));
           }
 
-          assert(!Callee->isVarArg() && !Callee->empty() &&
-                 "vararg functions or external functions are not supported");
+          assert(!Callee->empty() && "external functions are not supported");
 
           // Find the corresponding argument
           auto ArgsI = Callee->arg_begin();
@@ -148,11 +147,16 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
           assert(I < Call->getNumArgOperands()
                  && ArgsI != Callee->arg_end());
 
-          // If not already considered, enqueue the argument to the worklist
-          pushIfNew(SeenArgs,
-                    WorkList,
-                    std::make_pair(CurrentOffset,
-                                   static_cast<Value *>(&*ArgsI)));
+          Value *TargetArg = static_cast<Value *>(&*ArgsI);
+
+          if (TargetArg->use_begin() != TargetArg->use_end()) {
+            assert(!Callee->isVarArg());
+
+            // If not already considered, enqueue the argument to the worklist
+            pushIfNew(SeenArgs,
+                      WorkList,
+                      std::make_pair(CurrentOffset, TargetArg));
+          }
           break;
         }
       case Instruction::Ret:
