@@ -349,17 +349,20 @@ bool VariableManager::isEnv(Value *TheValue) {
   return TheValue == Env;
 }
 
+// TODO: document that it can return nullptr
 GlobalVariable* VariableManager::getByCPUStateOffset(intptr_t Offset,
                                                      std::string Name) {
 
   GlobalsMap::iterator it = CPUStateGlobals.find(Offset);
-  if (it != CPUStateGlobals.end()) {
-    // TODO: handle renaming
-    return it->second;
-  } else {
+  if (it == CPUStateGlobals.end() ||
+      (Name.size() != 0 && !it->second->getName().equals_lower(Name))) {
     Type *VariableType = getTypeAtOffset(HelpersModuleLayout,
                                          CPUStateType,
                                          Offset);
+
+    // Unsupported type, let the caller handle the situation
+    if (VariableType == nullptr)
+      return nullptr;
 
     if (Name.size() == 0) {
       std::stringstream NameStream;
@@ -374,11 +377,18 @@ GlobalVariable* VariableManager::getByCPUStateOffset(intptr_t Offset,
                                            ConstantInt::get(VariableType, 0),
                                            Name);
     assert(NewVariable != nullptr);
+
+    if (it != CPUStateGlobals.end()) {
+      it->second->replaceAllUsesWith(NewVariable);
+      it->second->eraseFromParent();
+    }
+
     CPUStateGlobals[Offset] = NewVariable;
 
     return NewVariable;
+  } else {
+    return it->second;
   }
-
 }
 
 Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
