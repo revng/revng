@@ -7,6 +7,8 @@
 #include <sstream>
 #include <vector>
 #include <fstream>
+#include <set>
+#include <queue>
 
 // LLVM includes
 #include "llvm/Analysis/LoopInfo.h"
@@ -195,6 +197,170 @@ bool CpuLoopFunctionPass::runOnFunction(Function &F) {
 
   return true;
 }
+
+class CpuLoopExitPass : public llvm::ModulePass {
+public:
+  static char ID;
+
+  CpuLoopExitPass() : llvm::ModulePass(ID), VM(0) { }
+  CpuLoopExitPass(VariableManager *VM) :
+    llvm::ModulePass(ID),
+    VM(VM) { }
+
+  bool runOnModule(llvm::Module& M) override;
+private:
+  VariableManager *VM;
+};
+
+char CpuLoopExitPass::ID = 0;
+
+static RegisterPass<CpuLoopExitPass> Y("cpu-loop-exit",
+                                       "cpu_loop_exit Pass",
+                                       false,
+                                       false);
+
+static ReturnInst *createRet(Instruction *Position) {
+  Function *F = Position->getParent()->getParent();
+  Type *ReturnType = F->getFunctionType()->getReturnType();
+  if (ReturnType->isVoidTy()) {
+    return ReturnInst::Create(F->getParent()->getContext(), nullptr, Position);
+  } else if (ReturnType->isIntegerTy()) {
+    auto *Zero = ConstantInt::get(static_cast<IntegerType*>(ReturnType), 0);
+    return ReturnInst::Create(F->getParent()->getContext(), Zero, Position);
+  } else {
+    assert("Return type not supported");
+  }
+
+  return nullptr;
+}
+
+/// Find all calls to cpu_loop_exit and replace them with:
+///
+/// * call cpu_loop
+/// * set cpu_loop_exiting = true
+/// * return
+///
+/// Then look for all the callers of the function calling cpu_loop_exit and make
+/// them check whether they should return immediately (cpu_loop_exiting == true)
+/// or not.
+/// Then when we reach the root function, set cpu_loop_exiting to false after
+/// the call.
+bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
+  Function *CpuLoopExit = M.getFunction("cpu_loop_exit");
+
+  // Nothing to do here
+  if (CpuLoopExit == nullptr)
+    return false;
+
+  Function *CpuLoop = M.getFunction("cpu_loop");
+  LLVMContext &Context = M.getContext();
+  IntegerType *BoolType = Type::getInt1Ty(Context);
+  std::set<Function *> FixedCallers;
+  Constant *CpuLoopExitingVariable = nullptr;
+  CpuLoopExitingVariable = new GlobalVariable(M,
+                                              BoolType,
+                                              false,
+                                              GlobalValue::CommonLinkage,
+                                              ConstantInt::getFalse(BoolType),
+                                              StringRef("cpu_loop_exiting"));
+
+  assert(CpuLoop != nullptr);
+
+  for (User *TheUser : CpuLoopExit->users()) {
+    auto *Call = cast<CallInst>(TheUser);
+    assert(Call->getCalledFunction() == CpuLoopExit);
+
+    // Call cpu_loop
+    auto *EnvType = CpuLoop->getFunctionType()->getParamType(0);
+    auto *AddressComputation = VM->computeEnvAddress(EnvType, Call);
+    CallInst::Create(CpuLoop, { AddressComputation }, "", Call);
+
+    // Set cpu_loop_exiting to true
+    new StoreInst(ConstantInt::getTrue(BoolType), CpuLoopExitingVariable, Call);
+
+    // Return immediately
+    createRet(Call);
+    auto *Unreach = cast<UnreachableInst>(&*++Call->getIterator());
+    Unreach->eraseFromParent();
+
+    // Remove the call to cpu_loop_exit
+    Function *Caller = Call->getParent()->getParent();
+    Call->eraseFromParent();
+
+    if (FixedCallers.find(Caller) == FixedCallers.end()) {
+      FixedCallers.insert(Caller);
+
+      std::queue<Value *> WorkList;
+      WorkList.push(Caller);
+
+      while (!WorkList.empty()) {
+        Value *F = WorkList.front();
+        WorkList.pop();
+
+        for (User *RecUser : F->users()) {
+          auto *RecCall = dyn_cast<CallInst>(RecUser);
+          if (RecCall == nullptr) {
+            auto *Cast = dyn_cast<ConstantExpr>(RecUser);
+            assert(Cast != nullptr && "Unexpected user");
+            assert(Cast->getOperand(0) == F && Cast->isCast());
+            WorkList.push(Cast);
+            continue;
+          }
+
+          Function *RecCaller = RecCall->getParent()->getParent();
+
+          // TODO: make this more reliable than using function name
+          if (RecCaller->getName() == "root") {
+            // If we got to the translated function, just reset cpu_loop_exiting
+            // to false
+            new StoreInst(ConstantInt::getFalse(BoolType),
+                          CpuLoopExitingVariable,
+                          &*++RecCall->getIterator());
+          } else {
+            // If the caller is a QEMU helper function make it check
+            // cpu_loop_exiting and if it's true, make it return
+
+            // Split BB
+            BasicBlock *OldBB = RecCall->getParent();
+            BasicBlock::iterator SplitPoint = ++RecCall->getIterator();
+            assert(SplitPoint != OldBB->end());
+            BasicBlock *NewBB = OldBB->splitBasicBlock(SplitPoint);
+
+            // Add a BB with a ret
+            BasicBlock *QuitBB = BasicBlock::Create(Context,
+                                                    "",
+                                                    RecCaller,
+                                                    NewBB);
+            UnreachableInst *Temp = new UnreachableInst(Context, QuitBB);
+            createRet(Temp);
+            Temp->eraseFromParent();
+
+            // Check value of cpu_loop_exiting
+            auto *Branch = cast<BranchInst>(&*++(RecCall->getIterator()));
+            auto *Compare = new ICmpInst(Branch,
+                                         CmpInst::ICMP_EQ,
+                                         new LoadInst(CpuLoopExitingVariable,
+                                                      "",
+                                                      Branch),
+                                         ConstantInt::getTrue(BoolType));
+
+            BranchInst::Create(QuitBB, NewBB, Compare,  Branch);
+            Branch->eraseFromParent();
+
+            // Add to the work list only if it hasn't been fixed already
+            if (FixedCallers.find(RecCaller) == FixedCallers.end()) {
+              FixedCallers.insert(RecCaller);
+              WorkList.push(RecCaller);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
 
 void CodeGenerator::translate(size_t LoadAddress,
                               ArrayRef<uint8_t> Code,
@@ -415,6 +581,7 @@ void CodeGenerator::translate(size_t LoadAddress,
 
   legacy::PassManager PM;
   PM.add(createSROAPass());
+  PM.add(new CpuLoopExitPass(&Variables));
   PM.add(Variables.createCorrectCPUStateUsagePass());
   PM.add(createDeadCodeEliminationPass());
   PM.run(*TheModule);

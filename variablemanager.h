@@ -94,6 +94,10 @@ public:
     return new CorrectCPUStateUsagePass(this);
   }
 
+  llvm::Value *computeEnvAddress(llvm::Type *TargetType,
+                                 llvm::Instruction *InsertBefore,
+                                 unsigned Offset = 0);
+
 private:
   llvm::GlobalVariable *getByCPUStateOffset(intptr_t Offset,
                                             std::string Name="");

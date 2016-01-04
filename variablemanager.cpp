@@ -460,3 +460,18 @@ Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
     }
   }
 }
+
+Value *VariableManager::computeEnvAddress(Type *TargetType,
+                                          Instruction *InsertBefore,
+                                          unsigned Offset) {
+  auto *LoadEnv = new LoadInst(Env, "", InsertBefore);
+  Type *EnvType = Env->getType()->getPointerElementType();
+  Value *Integer = LoadEnv;
+  if (Offset != 0)
+    Integer =  BinaryOperator::Create(Instruction::Add,
+                                      LoadEnv,
+                                      ConstantInt::get(EnvType, Offset),
+                                      "",
+                                      InsertBefore);
+  return new IntToPtrInst(Integer, TargetType, "", InsertBefore);
+}
