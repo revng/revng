@@ -42,7 +42,7 @@ using FileDestructor = GenericFunctor<decltype(&fclose), &fclose>;
 using FilePointer = std::unique_ptr<FILE, FileDestructor>;
 
 static const char *const Usage[] = {
-  "revamb [options] [--] [INFILE [OUTFILE]]",
+  "revamb [options] [--] INFILE OUTFILE",
   nullptr,
 };
 
@@ -178,9 +178,6 @@ static int parseArgs(int Argc, const char *Argv[],
     OPT_STRING('e', "entry",
                &EntryPointAddressString,
                "virtual address of the entry point where to start."),
-    OPT_STRING('o', "output",
-               &Parameters->OutputPath,
-               "destination path for the generated LLVM IR file."),
     OPT_STRING('d', "debug-path",
                &Parameters->DebugPath,
                "destination path for the generated debug source."),
@@ -234,11 +231,6 @@ static int parseArgs(int Argc, const char *Argv[],
     Parameters->EntryPointAddress = (size_t) EntryPointAddress;
   }
 
-  if (Parameters->OutputPath == nullptr) {
-    fprintf(stderr, "Output path parameter (-o, --output) is mandatory.\n");
-    return EXIT_FAILURE;
-  }
-
   if (DebugString != nullptr) {
     if (strcmp("none", DebugString) == 0) {
       Parameters->DebugInfo = DebugInfoType::None;
@@ -259,13 +251,13 @@ static int parseArgs(int Argc, const char *Argv[],
     Parameters->DebugPath = "";
 
   // Handle positional arguments
-  if (Argc > 1) {
+  if (Argc != 2) {
     fprintf(stderr, "Too many arguments.\n");
     return EXIT_FAILURE;
   }
 
-  if (Argc == 1)
-    Parameters->InputPath = Argv[0];
+  Parameters->InputPath = Argv[0];
+  Parameters->OutputPath = Argv[1];
 
   return EXIT_SUCCESS;
 }
