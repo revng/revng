@@ -14,6 +14,8 @@ extern "C" {
 }
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/Object/Binary.h"
+#include "llvm/Object/ELF.h"
 
 #include "revamb.h"
 #include "argparse.h"
@@ -34,6 +36,7 @@ struct ProgramParameters {
   size_t EntryPointAddress;
   DebugInfoType DebugInfo;
   const char *DebugPath;
+  const char *LinkingInfoPath;
 };
 
 using LibraryDestructor = GenericFunctor<decltype(&dlclose), &dlclose>;
@@ -181,6 +184,9 @@ static int parseArgs(int Argc, const char *Argv[],
     OPT_STRING('d', "debug-path",
                &Parameters->DebugPath,
                "destination path for the generated debug source."),
+    OPT_STRING('i', "linking-info",
+               &Parameters->LinkingInfoPath,
+               "destination path for the CSV containing linking info."),
     OPT_STRING('g', "debug",
                &DebugString,
                "emit debug information. Possible values are 'none' for no debug"
@@ -195,6 +201,15 @@ static int parseArgs(int Argc, const char *Argv[],
   argparse_describe(&Arguments, "\nPTC translator.",
                     "\nTranslates a binary into QEMU Portable Tiny Code.\n");
   Argc = argparse_parse(&Arguments, Argc, Argv);
+
+  // Handle positional arguments
+  if (Argc != 2) {
+    fprintf(stderr, "Too many arguments.\n");
+    return EXIT_FAILURE;
+  }
+
+  Parameters->InputPath = Argv[0];
+  Parameters->OutputPath = Argv[1];
 
   // Check parameters
   if (Parameters->Architecture == nullptr) {
@@ -250,14 +265,8 @@ static int parseArgs(int Argc, const char *Argv[],
   if (Parameters->DebugPath == nullptr)
     Parameters->DebugPath = "";
 
-  // Handle positional arguments
-  if (Argc != 2) {
-    fprintf(stderr, "Too many arguments.\n");
-    return EXIT_FAILURE;
-  }
-
-  Parameters->InputPath = Argv[0];
-  Parameters->OutputPath = Argv[1];
+  if (Parameters->LinkingInfoPath == nullptr)
+    Parameters->LinkingInfoPath = "";
 
   return EXIT_SUCCESS;
 }
@@ -285,14 +294,14 @@ int main(int argc, const char *argv[]) {
               << ".ll";
 
   // Translate everything
-  Architecture SourceArchitecture;
   Architecture TargetArchitecture;
-  CodeGenerator Generator(SourceArchitecture,
+  CodeGenerator Generator(std::string(Parameters.InputPath),
                           TargetArchitecture,
                           std::string(Parameters.OutputPath),
                           HelpersPath.str(),
                           Parameters.DebugInfo,
-                          std::string(Parameters.DebugPath));
+                          std::string(Parameters.DebugPath),
+                          std::string(Parameters.LinkingInfoPath));
 
   llvm::ArrayRef<uint8_t> RawData(Code.data() + Parameters.Offset,
                                   Code.size() - Parameters.Offset);

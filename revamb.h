@@ -18,20 +18,36 @@ enum class DebugInfoType {
 
 class Architecture {
 public:
- Architecture() : PCReg("pc"),
-    DefaultAlignment(1),
-    Endianess(LittleEndian),
-    PointerSize(64) { }
 
   enum EndianessType {
     LittleEndian,
     BigEndian
   };
 
+public:
+ Architecture() :
+    DefaultAlignment(1),
+    Endianess(LittleEndian),
+    PointerSize(64) { }
+
+ Architecture(unsigned DefaultAlignment,
+              EndianessType Endianess,
+              unsigned PointerSize) :
+    DefaultAlignment(DefaultAlignment),
+    Endianess(Endianess),
+    PointerSize(PointerSize) { }
+
+ Architecture(unsigned DefaultAlignment,
+              bool IsLittleEndian,
+              unsigned PointerSize) :
+    DefaultAlignment(DefaultAlignment),
+    Endianess(IsLittleEndian ? LittleEndian : BigEndian),
+    PointerSize(PointerSize) { }
+
   unsigned defaultAlignment() { return DefaultAlignment; }
   EndianessType endianess() { return Endianess; }
   unsigned pointerSize() { return PointerSize; }
-  const std::string PCReg;
+  bool isLittleEndian() { return Endianess == LittleEndian; }
 
 private:
   unsigned DefaultAlignment;

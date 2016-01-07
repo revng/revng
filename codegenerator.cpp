@@ -4,6 +4,8 @@
 
 // Standard includes
 #include <cstdint>
+#include <cstring>
+#include <memory>
 #include <sstream>
 #include <vector>
 #include <fstream>
@@ -12,6 +14,7 @@
 
 // LLVM includes
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/ExecutionEngine/RuntimeDyld.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/DiagnosticPrinter.h"
@@ -21,6 +24,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/ELF.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Transforms/Scalar.h"
@@ -44,13 +48,13 @@ make_array(Args&&... args)
 // Outline the destructor for the sake of privacy in the header
 CodeGenerator::~CodeGenerator() = default;
 
-CodeGenerator::CodeGenerator(Architecture& Source,
+CodeGenerator::CodeGenerator(std::string Input,
                              Architecture& Target,
                              std::string Output,
                              std::string Helpers,
                              DebugInfoType DebugInfo,
-                             std::string Debug) :
-  SourceArchitecture(Source),
+                             std::string Debug,
+                             std::string LinkingInfoPath) :
   TargetArchitecture(Target),
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
@@ -63,6 +67,122 @@ CodeGenerator::CodeGenerator(Architecture& Source,
 
   SMDiagnostic Errors;
   HelpersModule = parseIRFile(Helpers, Errors, Context);
+
+  auto BinaryOrErr = object::createBinary(Input);
+  assert(BinaryOrErr && "Couldn't open the input file");
+
+  BinaryHandle = std::move(BinaryOrErr.get());
+
+  // We only support ELF for now
+  auto *TheBinary = cast<object::ObjectFile>(BinaryHandle.getBinary());
+
+  SourceArchitecture = Architecture(1,
+                                    TheBinary->isLittleEndian(),
+                                    TheBinary->getBytesInAddress() * 8);
+
+  if (SourceArchitecture.pointerSize() == 32) {
+    if (SourceArchitecture.isLittleEndian()) {
+      importGlobalData<object::ELF32LE>(TheBinary, LinkingInfoPath);
+    } else {
+      importGlobalData<object::ELF32BE>(TheBinary, LinkingInfoPath);
+    }
+  } else if (SourceArchitecture.pointerSize() == 64) {
+    if (SourceArchitecture.isLittleEndian()) {
+      importGlobalData<object::ELF64LE>(TheBinary, LinkingInfoPath);
+    } else {
+      importGlobalData<object::ELF64BE>(TheBinary, LinkingInfoPath);
+    }
+  } else {
+    assert("Unexpect address size");
+  }
+}
+
+template<typename T>
+void CodeGenerator::importGlobalData(object::ObjectFile *TheBinary,
+                                     std::string LinkingInfoPath) {
+  // Parse the ELF file
+  std::error_code EC;
+  object::ELFFile<T> TheELF(TheBinary->getData(), EC);
+  assert(!EC && "Error while loading the ELF file");
+
+  // Prepare the linking info CSV
+  if (LinkingInfoPath.size() == 0)
+    LinkingInfoPath = OutputPath + ".li.csv";
+  std::ofstream LinkingInfoStream(LinkingInfoPath);
+  LinkingInfoStream << "name,start,end" << std::endl;
+
+  auto *Uint8Ty = Type::getInt8Ty(Context);
+  auto *ElfHeaderHelper = new GlobalVariable(*TheModule,
+                                             Uint8Ty,
+                                             true,
+                                             GlobalValue::InternalLinkage,
+                                             ConstantInt::get(Uint8Ty, 0),
+                                             "");
+  ElfHeaderHelper->setAlignment(1);
+  ElfHeaderHelper->setSection(".elfheaderhelper");
+
+
+  // Loop over the program headers looking for PT_LOAD segments, read them out
+  // and create a global variable for each one of them (writable or read-only),
+  // assign them a section and output information about them in the linking info
+  // CSV
+  for (auto &ProgramHeader : TheELF.program_headers())
+    if (ProgramHeader.p_type == ELF::PT_LOAD) {
+
+      // Check if it's writable
+      bool IsConstant = !(ProgramHeader.p_flags & ELF::PF_W);
+
+      // Create name from start and size
+      std::stringstream NameStream;
+      NameStream << ".o_"
+                 << (ProgramHeader.p_flags & ELF::PF_R ? "r" : "")
+                 << (ProgramHeader.p_flags & ELF::PF_W ? "w" : "")
+                 << (ProgramHeader.p_flags & ELF::PF_X ? "x" : "")
+                 << "_0x" << std::hex << ProgramHeader.p_vaddr;
+      std::string Name = NameStream.str();
+
+      // Get data and size
+      auto *DataType = ArrayType::get(Uint8Ty,
+                                      ProgramHeader.p_memsz);
+
+      Constant *TheData = nullptr;
+      if (ProgramHeader.p_memsz == ProgramHeader.p_filesz) {
+        // Create the array directly from the mmap'd ELF
+        auto FileData = ArrayRef<uint8_t>(TheELF.base() + ProgramHeader.p_offset,
+                                          ProgramHeader.p_filesz);
+        TheData = ConstantDataArray::get(Context, FileData);
+      } else {
+        // If we have extra data at the end we need to create a copy of the
+        // segment and append the NULL bytes
+        auto FullData = std::make_unique<uint8_t[]>(ProgramHeader.p_memsz);
+        ::memcpy(FullData.get(),
+                 TheELF.base() + ProgramHeader.p_offset,
+                 ProgramHeader.p_filesz);
+        ::bzero(FullData.get() + ProgramHeader.p_filesz,
+                ProgramHeader.p_memsz - ProgramHeader.p_filesz);
+        auto DataRef = ArrayRef<uint8_t>(FullData.get(), ProgramHeader.p_memsz);
+        TheData = ConstantDataArray::get(Context, DataRef);
+      }
+
+      // Create a new global variable
+      auto *GlobalDataVar = new GlobalVariable(*TheModule,
+                                               DataType,
+                                               IsConstant,
+                                               GlobalValue::InternalLinkage,
+                                               TheData,
+                                               "");
+
+      // Force alignment to 1 and assign the variable to a specific section
+      GlobalDataVar->setAlignment(1);
+      GlobalDataVar->setSection(Name);
+
+      // Write the linking info CSV
+      auto EndAddress = ProgramHeader.p_vaddr + ProgramHeader.p_memsz;
+      LinkingInfoStream << Name
+                        << ",0x" << std::hex << ProgramHeader.p_vaddr
+                        << ",0x" << std::hex << EndAddress
+                        << std::endl;
+    }
 }
 
 static BasicBlock *replaceFunction(Function *ToReplace) {

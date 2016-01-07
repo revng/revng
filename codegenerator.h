@@ -20,6 +20,11 @@ class Module;
 class Value;
 class StructType;
 class DataLayout;
+
+namespace object {
+class ObjectFile;
+};
+
 };
 
 class DebugHelper;
@@ -37,12 +42,13 @@ public:
   /// \param HelpersPath path of the LLVM IR file containing the QEMU helpers.
   /// \param DebugInfo type of debug information to generate.
   /// \param DebugPath path where the debugging source file must be written.
-  CodeGenerator(Architecture& Source,
+  CodeGenerator(std::string Input,
                 Architecture& Target,
                 std::string Output,
                 std::string Helpers,
                 DebugInfoType DebugInfo,
-                std::string Debug);
+                std::string Debug,
+                std::string LinkingInfoPath);
 
   ~CodeGenerator();
 
@@ -61,13 +67,19 @@ public:
   void serialize();
 
 private:
-  Architecture& SourceArchitecture;
-  Architecture& TargetArchitecture;
+  template<typename T>
+  void importGlobalData(llvm::object::ObjectFile *TheBinary,
+                        std::string LinkingInfoPath);
+
+private:
+  Architecture SourceArchitecture;
+  Architecture TargetArchitecture;
   llvm::LLVMContext& Context;
   std::unique_ptr<llvm::Module> TheModule;
   std::unique_ptr<llvm::Module> HelpersModule;
   std::string OutputPath;
   std::unique_ptr<DebugHelper> Debug;
+  llvm::object::OwningBinary<llvm::object::Binary> BinaryHandle;
 
   unsigned OriginalInstrMDKind;
   unsigned PTCInstrMDKind;
