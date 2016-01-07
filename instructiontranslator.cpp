@@ -10,6 +10,7 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
 
@@ -811,14 +812,17 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
         llvm_unreachable("Unexpected load size");
       }
 
-      bool SignExtend = ptc_is_sign_extended_load(MemoryAccess.type);
+      // If necessary, handle endianess mismatch
+      // TODO: it might be a bit overkill, but it be nice to make this function
+      //       template-parametric w.r.t. endianess mismatch
+      Function *BSwapFunction = nullptr;
+      if (MemoryType != Builder.getInt8Ty() &&
+          SourceArchitecture.endianess() != TargetArchitecture.endianess())
+        BSwapFunction = Intrinsic::getDeclaration(&TheModule,
+                                                  Intrinsic::bswap,
+                                                  { MemoryType });
 
-      // // TODO: handle 64 on 32
-      // // TODO: handle endianess mismatch
-      // assert(SourceArchitecture.endianess() ==
-      //        TargetArchitecture.endianess() &&
-      //        "Different endianess between the source and the target is not "
-      //        "supported yet");
+      bool SignExtend = ptc_is_sign_extended_load(MemoryAccess.type);
 
       Value *Pointer = nullptr;
       if (Opcode == PTC_INSTRUCTION_op_qemu_ld_i32 ||
@@ -827,6 +831,9 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
         Pointer = Builder.CreateIntToPtr(InArguments[0],
                                          MemoryType->getPointerTo());
         Value *Load = Builder.CreateAlignedLoad(Pointer, AccessAlignment);
+
+        if (BSwapFunction != nullptr)
+          Load = Builder.CreateCall(BSwapFunction, Load);
 
         if (SignExtend)
           return { Builder.CreateSExt(Load, RegisterType) };
@@ -839,6 +846,10 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
         Pointer = Builder.CreateIntToPtr(InArguments[1],
                                          MemoryType->getPointerTo());
         Value *Value = Builder.CreateTrunc(InArguments[0], MemoryType);
+
+        if (BSwapFunction != nullptr)
+          Value = Builder.CreateCall(BSwapFunction, Value);
+
         Builder.CreateAlignedStore(Value, Pointer, AccessAlignment);
 
         return { };
@@ -1127,10 +1138,9 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
 
       Value *Truncated = Builder.CreateTrunc(InArguments[0], SwapType);
 
-      std::vector<Type *> BSwapParameters { RegisterType };
       Function *BSwapFunction = Intrinsic::getDeclaration(&TheModule,
                                                           Intrinsic::bswap,
-                                                          BSwapParameters);
+                                                          { RegisterType });
       Value *Swapped = Builder.CreateCall(BSwapFunction, Truncated);
 
       return { Builder.CreateZExt(Swapped, RegisterType) };
