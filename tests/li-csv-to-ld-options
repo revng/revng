@@ -1,0 +1,28 @@
+#!/bin/bash
+
+LICSV=$1
+
+cat "$LICSV" | awk -F',' '
+BEGIN {
+  pagesize = 4096;
+  min = 0;
+  max = 0;
+  result = " -Wl,-z,max-page-size=" pagesize;
+};
+NR >=2 {
+  result = result " -Wl,--section-start=" $1 "=" $2;
+  if (strtonum($3) > max)
+    max = strtonum($3);
+  if (min == 0 || strtonum($2) < min)
+    min = strtonum($2);
+}
+END {
+  printf "-fuse-ld=gold "
+  #printf "-fuse-ld=bfd "
+
+  # If using gold omit these two lines
+  #printf "-Wl,--section-start=.elfheaderhelper=0x%x ", min - 1
+  #printf "-Wl,-Ttext-segment=0x%x", pagesize * int((max + pagesize - 1) / pagesize);
+
+  print result
+}'

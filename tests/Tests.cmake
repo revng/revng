@@ -4,7 +4,7 @@ include(ExternalProject)
 # Test definitions
 
 set(TEST_CFLAGS "-std=c99 -static")
-set(TESTS "calc" "function_call" "floating_point" "syscall")
+set(TESTS "calc" "function_call" "floating_point" "syscall" "global")
 
 ## calc
 set(TEST_SOURCES_calc "${CMAKE_SOURCE_DIR}/tests/calc.c")
@@ -31,6 +31,12 @@ set(TEST_SOURCES_syscall "${CMAKE_SOURCE_DIR}/tests/syscall.c")
 
 set(TEST_RUNS_syscall "default")
 set(TEST_ARGS_syscall_default "nope")
+
+## global
+set(TEST_SOURCES_global "${CMAKE_SOURCE_DIR}/tests/global.c")
+
+set(TEST_RUNS_global "default")
+set(TEST_ARGS_global_default "nope")
 
 # Get the path to some system tools we'll need
 
@@ -141,10 +147,10 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   foreach(TEST_NAME ${TESTS})
     # Test to translate the compiled binary
     add_test(NAME translate-${TEST_NAME}-${ARCH}
-      COMMAND sh -c "$<TARGET_FILE:revamb> -g ll --offset $(${CMAKE_CURRENT_SOURCE_DIR}/tests/get-text-offset ${BIN}/${TEST_NAME}) --load-at $(${CMAKE_CURRENT_SOURCE_DIR}/tests/get-text-virtual-address ${BIN}/${TEST_NAME}) --entry $(${CMAKE_CURRENT_SOURCE_DIR}/tests/get-function-virtual-address ${BIN}/${TEST_NAME} root) --architecture ${ARCH} ${BIN}/${TEST_NAME} --output ${BIN}/${TEST_NAME}.ll")
+      COMMAND sh -c "$<TARGET_FILE:revamb> -g ll --offset $(${CMAKE_CURRENT_SOURCE_DIR}/tests/get-text-offset ${BIN}/${TEST_NAME}) --load-at $(${CMAKE_CURRENT_SOURCE_DIR}/tests/get-text-virtual-address ${BIN}/${TEST_NAME}) --entry $(${CMAKE_CURRENT_SOURCE_DIR}/tests/get-function-virtual-address ${BIN}/${TEST_NAME} root) --architecture ${ARCH} ${BIN}/${TEST_NAME} ${BIN}/${TEST_NAME}.ll")
 
     # Command-line to link support.c and the translated binaries
-    compile_executable("${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} ${TEST_SRC}/support.c -DTARGET_${NORMALIZED_ARCH}"
+    compile_executable("$(${CMAKE_CURRENT_SOURCE_DIR}/tests/li-csv-to-ld-options ${BIN}/${TEST_NAME}.ll.li.csv) ${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} ${TEST_SRC}/support.c -DTARGET_${NORMALIZED_ARCH}"
       "${BIN}/${TEST_NAME}.translated"
       COMPILE_TRANSLATED)
 
