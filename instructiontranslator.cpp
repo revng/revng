@@ -467,8 +467,6 @@ void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
-  LLVMContext &Context = F.getParent()->getContext();
-
   Function *ExitTB = JTM->exitTB();
   auto I = ExitTB->use_begin();
   while (I != ExitTB->use_end()) {
@@ -482,23 +480,11 @@ bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
         ConstantInt *Address = nullptr;
         if (PCWrite != nullptr &&
             (Address = dyn_cast<ConstantInt>(PCWrite->getValueOperand()))) {
-          // If necessary notify the about the existence of the basic block
-          // coming after this jump
-          // TODO: handle delay slots
-          BasicBlock *FakeFallthrough = JTM->getBlockAt(getNextPC(Call));
-
           // Compute the actual PC and get the associated BasicBlock
           uint64_t TargetPC = Address->getSExtValue();
           BasicBlock *TargetBlock = JTM->getBlockAt(TargetPC);
 
-          // Use a conditional branch here, even if the condition is always
-          // true. This way the "fallthrough" basic block is always reachable
-          // and the dominator tree computation works properly even if the
-          // dispatcher switch has not been emitted yet
-          auto *True = ConstantInt::getTrue(Context);
-          Instruction *Branch = BranchInst::Create(TargetBlock,
-                                                   FakeFallthrough,
-                                                   True);
+          Instruction *Branch = BranchInst::Create(TargetBlock);
 
           // Cleanup of what's afterwards (only a unconditional jump is allowed)
           BasicBlock::iterator I = Call;

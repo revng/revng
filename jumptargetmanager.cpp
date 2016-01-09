@@ -6,6 +6,7 @@
 // Standard includes
 #include <cstdint>
 #include <sstream>
+#include <stack>
 
 // LLVM includes
 #include "llvm/IR/BasicBlock.h"
@@ -21,6 +22,44 @@
 #include "jumptargetmanager.h"
 
 using namespace llvm;
+
+char JumpTargetsFromConstantsPass::ID = 0;
+
+bool JumpTargetsFromConstantsPass::runOnFunction(Function &F) {
+  for (BasicBlock& BB : make_range(F.begin(), F.end()))
+    if (Visited.find(&BB) == Visited.end()) {
+      Visited.insert(&BB);
+
+      std::stack<User *> WorkList;
+
+      // Use a lambda so we don't have to initialize the queue with all the
+      // instructions
+      auto Process = [this, &WorkList] (User *U) {
+        for (Use& Operand : U->operands()) {
+          auto *OperandUser = dyn_cast<User>(Operand.get());
+          if (OperandUser != nullptr
+              && OperandUser->op_begin() != OperandUser->op_end()) {
+            WorkList.push(OperandUser);
+          }
+
+          auto *Constant = dyn_cast<ConstantInt>(Operand.get());
+          if (Constant != nullptr) {
+            JTM->getBlockAt(Constant->getLimitedValue(), true);
+          }
+        }
+      };
+
+      for (Instruction& Instr : BB)
+        Process(&Instr);
+
+      while (!WorkList.empty()) {
+        auto *Current = WorkList.top();
+        WorkList.pop();
+        Process(Current);
+      }
+    }
+  return false;
+}
 
 JumpTargetManager::JumpTargetManager(Module& TheModule,
                                      Value *PCReg,

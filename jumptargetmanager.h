@@ -4,6 +4,7 @@
 // Standard includes
 #include <cstdint>
 #include <map>
+#include <set>
 
 // Forward declarations
 namespace llvm {
@@ -15,6 +16,25 @@ class Module;
 class SwitchInst;
 class Value;
 }
+
+class JumpTargetManager;
+
+class JumpTargetsFromConstantsPass : public llvm::FunctionPass {
+public:
+  static char ID;
+
+  JumpTargetsFromConstantsPass() : llvm::FunctionPass(ID), JTM(nullptr) { }
+
+  JumpTargetsFromConstantsPass(JumpTargetManager *JTM) :
+    llvm::FunctionPass(ID),
+    JTM(JTM) { }
+
+  bool runOnFunction(llvm::Function &F) override;
+
+private:
+  JumpTargetManager *JTM;
+  std::set<llvm::BasicBlock *> Visited;
+};
 
 class JumpTargetManager {
 public:
@@ -71,6 +91,10 @@ public:
 
   /// Get or create a block for the given PC
   llvm::BasicBlock *getBlockAt(uint64_t PC, bool Try=false);
+
+  JumpTargetsFromConstantsPass *createJumpTargetsFromConstantsPass() {
+    return new JumpTargetsFromConstantsPass(this);
+  }
 
   llvm::BasicBlock *dispatcher() { return Dispatcher; }
 
