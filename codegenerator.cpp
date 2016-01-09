@@ -621,7 +621,9 @@ void CodeGenerator::translate(size_t LoadAddress,
 
     // Obtain a new program counter to translate
     uint64_t NewPC = 0;
-    std::tie(NewPC, Entry) = JumpTargets.peekJumpTarget();
+    std::tie(NewPC, Entry) = JumpTargets.peek();
+    assert(Entry == nullptr || Entry->empty());
+
     VirtualAddress = NewPC;
     CodePointer = Code.data() + (NewPC - LoadAddress);
   } // End translations loop

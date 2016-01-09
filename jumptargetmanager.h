@@ -61,7 +61,7 @@ public:
   ///
   /// \return a pair containing the PC and the initial block to use, or
   ///         JumpTarget::NoMoreTargets if we're done.
-  BlockWithAddress peekJumpTarget();
+  BlockWithAddress peek();
 
   /// Get or create a block for the given PC
   llvm::BasicBlock *getBlockAt(uint64_t PC);

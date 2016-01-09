@@ -152,11 +152,7 @@ void JumpTargetManager::translateIndirectJumps() {
   }
 }
 
-/// Pop from the list of program counters to explore
-///
-/// \return a pair containing the PC and the initial block to use, or
-///         JumpTarget::NoMoreTargets if we're done.
-JumpTargetManager::BlockWithAddress JumpTargetManager::peekJumpTarget() {
+JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
   if (Unexplored.empty())
     return NoMoreTargets;
   else {
