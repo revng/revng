@@ -55,10 +55,11 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool& ShouldContinue) {
     // If it was planned to explore it in the future, just to do it now
     for (auto It = Unexplored.begin(); It != Unexplored.end(); It++) {
       if (It->first == PC) {
-        Unexplored.erase(It, It + 1);
+        auto Result = It->second;
+        Unexplored.erase(It);
         ShouldContinue = true;
-        assert(It->second->empty());
-        return It->second;
+        assert(Result->empty());
+        return Result;
       }
     }
 
