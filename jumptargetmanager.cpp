@@ -31,11 +31,14 @@ JumpTargetManager::JumpTargetManager(Module& TheModule,
   OriginalInstructionAddresses(),
   JumpTargets(),
   PCReg(PCReg),
-  ExitTB(nullptr) {
+  ExitTB(nullptr),
+  Dispatcher(nullptr),
+  DispatcherSwitch(nullptr) {
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { },
                                              false);
   ExitTB = cast<Function>(TheModule.getOrInsertFunction("exitTB", ExitTBTy));
+  createDispatcher(TheFunction, PCReg, true);
 }
 
 /// Handle a new program counter. We might already have a basic block for that
@@ -121,8 +124,6 @@ void JumpTargetManager::translateIndirectJumps() {
   if (ExitTB->use_empty())
     return;
 
-  BasicBlock *Dispatcher = createDispatcher(TheFunction, PCReg, true);
-
   auto I = ExitTB->use_begin();
   while (I != ExitTB->use_end()) {
     Use& ExitTBUse = *I++;
@@ -203,6 +204,11 @@ BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
 
     NewBlock = BasicBlock::Create(Context, Name.str(), TheFunction);
     Unexplored.push_back(BlockWithAddress(PC, NewBlock));
+
+    // Create a case for the address associated to the new block
+    auto *PCRegType = PCReg->getType();
+    auto *SwitchType = cast<IntegerType>(PCRegType->getPointerElementType());
+    DispatcherSwitch->addCase(ConstantInt::get(SwitchType, PC), NewBlock);
   }
 
   // Associate the PC with the chosen basic block
@@ -212,9 +218,11 @@ BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
 
 // TODO: instead of a gigantic switch case we could map the original memory area
 //       and write the address of the translated basic block at the jump target
-BasicBlock *JumpTargetManager::createDispatcher(Function *OutputFunction,
-                                                Value *SwitchOnPtr,
-                                                bool JumpDirectly) {
+// If this function looks weird it's because it has been designed to be able
+// to create the dispatcher in the "root" function or in a standalone function
+void JumpTargetManager::createDispatcher(Function *OutputFunction,
+                                         Value *SwitchOnPtr,
+                                         bool JumpDirectly) {
   IRBuilder<> Builder(Context);
 
   // Create the first block of the dispatcher
@@ -245,25 +253,8 @@ BasicBlock *JumpTargetManager::createDispatcher(Function *OutputFunction,
     Builder.CreateRetVoid();
   }
 
-  // Create a case for each jump target we saw so far
-  for (auto& Pair : JumpTargets) {
-    // Create a case for the address associated to the current block
-    auto *Block = BasicBlock::Create(Context, "", OutputFunction);
-    Switch->addCase(ConstantInt::get(SwitchOnType, Pair.first), Block);
-
-    Builder.SetInsertPoint(Block);
-    if (JumpDirectly) {
-      // Assume we're injecting the switch case directly into the function
-      // the blocks are in, so we can jump to the target block directly
-      assert(Pair.second->getParent() == OutputFunction);
-      Builder.CreateBr(Pair.second);
-    } else {
-      // Return the address of the current block
-      Builder.CreateRet(BlockAddress::get(OutputFunction, Pair.second));
-    }
-  }
-
-  return Entry;
+  Dispatcher = Entry;
+  DispatcherSwitch = Switch;
 }
 
 const JumpTargetManager::BlockWithAddress JumpTargetManager::NoMoreTargets =

@@ -515,6 +515,16 @@ void CodeGenerator::translate(size_t LoadAddress,
   GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc");
 
   JumpTargetManager JumpTargets(*TheModule, PCReg, MainFunction);
+
+  // Create a new block where the translation will start and emit a tautological
+  // branch to it, with false part being the dispatcher, which is always
+  // reachable
+  Entry = BasicBlock::Create(Context,
+                             "translation-start",
+                             MainFunction);
+  Builder.CreateCondBr(Builder.getTrue(), Entry, JumpTargets.dispatcher());
+
+
   std::map<std::string, BasicBlock *> LabeledBasicBlocks;
   std::vector<BasicBlock *> Blocks;
 

@@ -12,6 +12,7 @@ class Function;
 class Instruction;
 class LLVMContext;
 class Module;
+class SwitchInst;
 class Value;
 }
 
@@ -69,13 +70,15 @@ public:
   /// Get or create a block for the given PC
   llvm::BasicBlock *getBlockAt(uint64_t PC);
 
+  llvm::BasicBlock *dispatcher() { return Dispatcher; }
+
 private:
   // TODO: instead of a gigantic switch case we could map the original memory
   //       area and write the address of the translated basic block at the jump
   //       target
-  llvm::BasicBlock *createDispatcher(llvm::Function *OutputFunction,
-                                     llvm::Value *SwitchOnPtr,
-                                     bool JumpDirectly);
+  void createDispatcher(llvm::Function *OutputFunction,
+                        llvm::Value *SwitchOnPtr,
+                        bool JumpDirectly);
 
 private:
   using BlockMap = std::map<uint64_t, llvm::BasicBlock *>;
@@ -93,6 +96,8 @@ private:
   std::vector<BlockWithAddress> Unexplored;
   llvm::Value *PCReg;
   llvm::Function *ExitTB;
+  llvm::BasicBlock *Dispatcher;
+  llvm::SwitchInst *DispatcherSwitch;
 };
 
 #endif // _JUMPTARGETMANAGER_H
