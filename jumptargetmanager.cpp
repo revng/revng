@@ -5,6 +5,7 @@
 
 // Standard includes
 #include <cstdint>
+#include <sstream>
 
 // LLVM includes
 #include "llvm/IR/BasicBlock.h"
@@ -196,7 +197,11 @@ BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
   } else {
     // Case 3: the address has never been met, create a temporary one, register
     // it for future exploration and return it
-    NewBlock = BasicBlock::Create(Context, "", TheFunction);
+
+    std::stringstream Name;
+    Name << "bb.0x" << std::hex << PC;
+
+    NewBlock = BasicBlock::Create(Context, Name.str(), TheFunction);
     Unexplored.push_back(BlockWithAddress(PC, NewBlock));
   }
 
@@ -212,11 +217,15 @@ BasicBlock *JumpTargetManager::createDispatcher(Function *OutputFunction,
                                                 bool JumpDirectly) {
   IRBuilder<> Builder(Context);
 
-  // Create the first block of the function
-  BasicBlock *Entry = BasicBlock::Create(Context, "", OutputFunction);
+  // Create the first block of the dispatcher
+  BasicBlock *Entry = BasicBlock::Create(Context,
+                                         "dispatcher.entry",
+                                         OutputFunction);
 
   // The default case of the switch statement it's an unhandled cases
-  auto *Default = BasicBlock::Create(Context, "", OutputFunction);
+  auto *Default = BasicBlock::Create(Context,
+                                     "dispatcher.default",
+                                     OutputFunction);
   Builder.SetInsertPoint(Default);
   Builder.CreateUnreachable();
 
@@ -228,7 +237,9 @@ BasicBlock *JumpTargetManager::createDispatcher(Function *OutputFunction,
 
   {
     // We consider a jump to NULL as a program end
-    auto *NullBlock = BasicBlock::Create(Context, "", OutputFunction);
+    auto *NullBlock = BasicBlock::Create(Context,
+                                         "dispatcher.case.null",
+                                         OutputFunction);
     Switch->addCase(ConstantInt::get(SwitchOnType, 0), NullBlock);
     Builder.SetInsertPoint(NullBlock);
     Builder.CreateRetVoid();

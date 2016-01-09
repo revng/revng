@@ -448,7 +448,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
 
             // Add a BB with a ret
             BasicBlock *QuitBB = BasicBlock::Create(Context,
-                                                    "",
+                                                    "cpu_loop_exit_return",
                                                     RecCaller,
                                                     NewBB);
             UnreachableInst *Temp = new UnreachableInst(Context, QuitBB);
