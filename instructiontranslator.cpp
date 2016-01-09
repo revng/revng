@@ -524,28 +524,31 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
   DominatorTree& DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
 
   BasicBlock *Block = TheInstruction->getParent();
-  BasicBlock::iterator It(TheInstruction);
+  BasicBlock::reverse_iterator It(TheInstruction);
 
   while (true) {
-    BasicBlock::iterator Begin(Block->begin());
+    BasicBlock::reverse_iterator Begin(Block->rend());
 
     // Go back towards the beginning of the basic block looking for a call to
     // NewPCMarker
     CallInst *Marker = nullptr;
-    for (; It != Begin; It--)
-      if ((Marker = dyn_cast<CallInst>(&*It)))
+    for (; It != Begin; It++) {
+      if ((Marker = dyn_cast<CallInst>(&*It))) {
         if (Marker->getCalledFunction() == NewPCMarker) {
           uint64_t PC = getConst(Marker->getArgOperand(0));
           uint64_t Size = getConst(Marker->getArgOperand(1));
           assert(Size != 0);
           return PC + Size;
         }
+      }
+    }
 
     auto *Node = DT.getNode(Block);
-    assert(Node != nullptr);
+    assert(Node != nullptr &&
+           "BasicBlock not in the dominator tree, is it reachable?" );
 
     Block = Node->getIDom()->getBlock();
-    It = Block->end();
+    It = Block->rbegin();
   }
 
   llvm_unreachable("Can't find the PC marker");
