@@ -1,7 +1,0 @@
-#!/bin/bash
-
-PROGRAM=$1
-
-BASE=`readelf --wide -l $PROGRAM | grep -E 'LOAD.*R E' | awk -F' ' '{ print strtonum($2) }'`
-
-echo $(($BASE))

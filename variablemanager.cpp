@@ -334,7 +334,7 @@ void VariableManager::newFunction(Instruction *Delimiter,
 /// discard basic block-level variables.
 ///
 /// \param Delimiter the new point where to insert allocations for local
-/// variables.
+///                  variables.
 /// \param Instructions the new PTCInstructionList to use from now on.
 void VariableManager::newBasicBlock(Instruction *Delimiter,
                                     PTCInstructionList *Instructions) {

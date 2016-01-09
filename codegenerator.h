@@ -58,9 +58,7 @@ public:
   ///
   /// \param Name the name to give to the newly created function.
   /// \param Code reference to memory area containing the code to translate.
-  void translate(size_t LoadAddress,
-                 llvm::ArrayRef<uint8_t> Code,
-                 size_t VirtualAddress,
+  void translate(uint64_t VirtualAddress,
                  std::string Name);
 
   /// Serialize the generated LLVM IR to the specified output path.
@@ -68,8 +66,8 @@ public:
 
 private:
   template<typename T>
-  void importGlobalData(llvm::object::ObjectFile *TheBinary,
-                        std::string LinkingInfoPath);
+  void parseELF(llvm::object::ObjectFile *TheBinary,
+                std::string LinkingInfoPath);
 
 private:
   Architecture SourceArchitecture;
@@ -81,6 +79,7 @@ private:
   std::unique_ptr<DebugHelper> Debug;
   llvm::object::OwningBinary<llvm::object::Binary> BinaryHandle;
   std::vector<std::pair<uint64_t, uint64_t>> ExecutableRanges;
+  uint64_t EntryPoint;
 
   unsigned OriginalInstrMDKind;
   unsigned PTCInstrMDKind;

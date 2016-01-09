@@ -31,8 +31,6 @@ struct ProgramParameters {
   const char *Architecture;
   const char *InputPath;
   const char *OutputPath;
-  size_t Offset;
-  size_t LoadAddress;
   size_t EntryPointAddress;
   DebugInfoType DebugInfo;
   const char *DebugPath;
@@ -41,67 +39,11 @@ struct ProgramParameters {
 
 using LibraryDestructor = GenericFunctor<decltype(&dlclose), &dlclose>;
 using LibraryPointer = std::unique_ptr<void, LibraryDestructor>;
-using FileDestructor = GenericFunctor<decltype(&fclose), &fclose>;
-using FilePointer = std::unique_ptr<FILE, FileDestructor>;
 
 static const char *const Usage[] = {
   "revamb [options] [--] INFILE OUTFILE",
   nullptr,
 };
-
-/// Reads the whole specified file into a vector.
-///
-/// \param InputPath the path to the file to read, or nullptr for stdin.
-/// \param Buffer the vector where the file content should be stored.
-///
-/// \return EXIT_SUCCESS if the file has been correctly read into the buffer.
-static int readWholeInput(const char *InputPath, std::vector<uint8_t>& Buffer) {
-  FilePointer InputFile;
-  size_t TotalReadBytes = 0;
-
-  // Prepare the buffer for the first read
-  Buffer.resize(BUF_SIZE);
-
-  // Try to open the input file
-  if (InputPath != nullptr)
-    InputFile.reset(fopen(InputPath, "r"));
-  else
-    InputFile.reset(stdin);
-
-  if (!InputFile) {
-    fprintf(stderr, "Couldn't open %s.\n", InputPath);
-    return EXIT_FAILURE;
-  }
-
-  // Do the first read
-  size_t ReadBytes = fread(Buffer.data(), sizeof(uint8_t), BUF_SIZE,
-                           InputFile.get());
-  TotalReadBytes += ReadBytes;
-
-  // Read input until the end or we exceed the limit
-  while (ReadBytes > 0 && TotalReadBytes < MAX_INPUT_BUFFER) {
-    Buffer.resize(TotalReadBytes + BUF_SIZE);
-
-    // Blank the newly allocated memory area before usage
-    bzero(Buffer.data() + TotalReadBytes, BUF_SIZE);
-
-    // Read BUF_SIZE bytes
-    ReadBytes = fread(Buffer.data() + TotalReadBytes, sizeof(uint8_t), BUF_SIZE,
-                      InputFile.get());
-
-    TotalReadBytes += ReadBytes;
-  }
-
-  // Shrink the buffer
-  Buffer.resize(TotalReadBytes);
-
-  if (TotalReadBytes >= MAX_INPUT_BUFFER) {
-    fprintf(stderr, "Input too large.\n");
-    return EXIT_FAILURE;
-  }
-
-  return EXIT_SUCCESS;
-}
 
 /// Given an architecture name, loads the appropriate version of the PTC library,
 /// and initializes the PTC interface.
@@ -156,12 +98,8 @@ static int loadPTCLibrary(const char *Architecture, LibraryPointer& PTCLibrary) 
 /// \return EXIT_SUCCESS if the parameters have been successfully parsed.
 static int parseArgs(int Argc, const char *Argv[],
                      ProgramParameters *Parameters) {
-  const char *OffsetString = nullptr;
   const char *DebugString = nullptr;
-  const char *LoadAddressString = nullptr;
   const char *EntryPointAddressString = nullptr;
-  long long Offset = 0;
-  long long LoadAddress = 0;
   long long EntryPointAddress = 0;
 
   // Initialize argument parser
@@ -172,12 +110,6 @@ static int parseArgs(int Argc, const char *Argv[],
     OPT_STRING('a', "architecture",
                &Parameters->Architecture,
                "the input architecture."),
-    OPT_STRING('f', "offset",
-               &OffsetString,
-               "offset in the input where to start loading."),
-    OPT_STRING('l', "load-at",
-               &LoadAddressString,
-               "virtual address associated to the input."),
     OPT_STRING('e', "entry",
                &EntryPointAddressString,
                "virtual address of the entry point where to start."),
@@ -215,25 +147,6 @@ static int parseArgs(int Argc, const char *Argv[],
   if (Parameters->Architecture == nullptr) {
     fprintf(stderr, "Please specify the input architecture.\n");
     return EXIT_FAILURE;
-  }
-
-  if (OffsetString != nullptr) {
-    if (sscanf(OffsetString, "%lld", &Offset) != 1) {
-      fprintf(stderr, "Offset parameter (-f, --offset) is not a number.\n");
-      return EXIT_FAILURE;
-    }
-
-    Parameters->Offset = (size_t) Offset;
-  }
-
-  if (LoadAddressString != nullptr) {
-    if (sscanf(LoadAddressString, "%lld", &LoadAddress) != 1) {
-      fprintf(stderr, "Load address parameter (-l, --load-at) is not a"
-              " number.\n");
-      return EXIT_FAILURE;
-    }
-
-    Parameters->LoadAddress = (size_t) LoadAddress;
   }
 
   if (EntryPointAddressString != nullptr) {
@@ -282,11 +195,6 @@ int main(int argc, const char *argv[]) {
   if (loadPTCLibrary(Parameters.Architecture, PTCLibrary) != EXIT_SUCCESS)
     return EXIT_FAILURE;
 
-  // Read the input from the appropriate file
-  std::vector<uint8_t> Code;
-  if (readWholeInput(Parameters.InputPath, Code) != EXIT_SUCCESS)
-    return EXIT_FAILURE;
-
   std::stringstream HelpersPath;
   HelpersPath << QEMU_LIB_PATH
               << "/libtinycode-helpers-"
@@ -303,12 +211,7 @@ int main(int argc, const char *argv[]) {
                           std::string(Parameters.DebugPath),
                           std::string(Parameters.LinkingInfoPath));
 
-  llvm::ArrayRef<uint8_t> RawData(Code.data() + Parameters.Offset,
-                                  Code.size() - Parameters.Offset);
-
-  Generator.translate(Parameters.LoadAddress,
-                      RawData,
-                      Parameters.EntryPointAddress,
+  Generator.translate(Parameters.EntryPointAddress,
                       "root");
 
   Generator.serialize();

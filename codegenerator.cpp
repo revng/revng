@@ -82,15 +82,15 @@ CodeGenerator::CodeGenerator(std::string Input,
 
   if (SourceArchitecture.pointerSize() == 32) {
     if (SourceArchitecture.isLittleEndian()) {
-      importGlobalData<object::ELF32LE>(TheBinary, LinkingInfoPath);
+      parseELF<object::ELF32LE>(TheBinary, LinkingInfoPath);
     } else {
-      importGlobalData<object::ELF32BE>(TheBinary, LinkingInfoPath);
+      parseELF<object::ELF32BE>(TheBinary, LinkingInfoPath);
     }
   } else if (SourceArchitecture.pointerSize() == 64) {
     if (SourceArchitecture.isLittleEndian()) {
-      importGlobalData<object::ELF64LE>(TheBinary, LinkingInfoPath);
+      parseELF<object::ELF64LE>(TheBinary, LinkingInfoPath);
     } else {
-      importGlobalData<object::ELF64BE>(TheBinary, LinkingInfoPath);
+      parseELF<object::ELF64BE>(TheBinary, LinkingInfoPath);
     }
   } else {
     assert("Unexpect address size");
@@ -98,12 +98,14 @@ CodeGenerator::CodeGenerator(std::string Input,
 }
 
 template<typename T>
-void CodeGenerator::importGlobalData(object::ObjectFile *TheBinary,
-                                     std::string LinkingInfoPath) {
+void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
+                             std::string LinkingInfoPath) {
   // Parse the ELF file
   std::error_code EC;
   object::ELFFile<T> TheELF(TheBinary->getData(), EC);
   assert(!EC && "Error while loading the ELF file");
+
+  EntryPoint = static_cast<uint64_t>(TheELF.getHeader()->e_entry);
 
   // Prepare the linking info CSV
   if (LinkingInfoPath.size() == 0)
@@ -129,11 +131,19 @@ void CodeGenerator::importGlobalData(object::ObjectFile *TheBinary,
   for (auto &ProgramHeader : TheELF.program_headers())
     if (ProgramHeader.p_type == ELF::PT_LOAD) {
       auto EndAddress = ProgramHeader.p_vaddr + ProgramHeader.p_memsz;
+      auto ActualStartAddress = TheELF.base() + ProgramHeader.p_offset;
 
       // If it's executable register it as a valid code area
-      if (ProgramHeader.p_flags & ELF::PF_X)
+      if (ProgramHeader.p_flags & ELF::PF_X) {
         ExecutableRanges.push_back(std::make_pair(ProgramHeader.p_vaddr,
                                                   EndAddress));
+
+        // We ignore possible p_filesz-p_memsz mismatches, zeros wouldn't be
+        // useful code anyway
+        ptc.mmap(static_cast<uint64_t>(ProgramHeader.p_vaddr),
+                 static_cast<const void *>(ActualStartAddress),
+                 static_cast<size_t>(ProgramHeader.p_filesz));
+      }
 
       // Create name from start and size
       std::stringstream NameStream;
@@ -151,7 +161,7 @@ void CodeGenerator::importGlobalData(object::ObjectFile *TheBinary,
       Constant *TheData = nullptr;
       if (ProgramHeader.p_memsz == ProgramHeader.p_filesz) {
         // Create the array directly from the mmap'd ELF
-        auto FileData = ArrayRef<uint8_t>(TheELF.base() + ProgramHeader.p_offset,
+        auto FileData = ArrayRef<uint8_t>(ActualStartAddress,
                                           ProgramHeader.p_filesz);
         TheData = ConstantDataArray::get(Context, FileData);
       } else {
@@ -159,7 +169,7 @@ void CodeGenerator::importGlobalData(object::ObjectFile *TheBinary,
         // segment and append the NULL bytes
         auto FullData = std::make_unique<uint8_t[]>(ProgramHeader.p_memsz);
         ::memcpy(FullData.get(),
-                 TheELF.base() + ProgramHeader.p_offset,
+                 ActualStartAddress,
                  ProgramHeader.p_filesz);
         ::bzero(FullData.get() + ProgramHeader.p_filesz,
                 ProgramHeader.p_memsz - ProgramHeader.p_filesz);
@@ -487,14 +497,12 @@ bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
 }
 
 
-void CodeGenerator::translate(size_t LoadAddress,
-                              ArrayRef<uint8_t> Code,
-                              size_t VirtualAddress,
+void CodeGenerator::translate(uint64_t VirtualAddress,
                               std::string Name) {
-  const uint8_t *CodePointer = Code.data();
-  const uint8_t *CodeEnd = CodePointer + Code.size();
-
   IRBuilder<> Builder(Context);
+
+  if (VirtualAddress == 0)
+    VirtualAddress = EntryPoint;
 
   // Create main function
   auto *MainType  = FunctionType::get(Builder.getVoidTy(), false);
@@ -546,8 +554,6 @@ void CodeGenerator::translate(size_t LoadAddress,
                                    SourceArchitecture,
                                    TargetArchitecture);
 
-  ptc.mmap(LoadAddress, Code.data(), Code.size());
-
   while (Entry != nullptr) {
     Builder.SetInsertPoint(Entry);
 
@@ -556,8 +562,6 @@ void CodeGenerator::translate(size_t LoadAddress,
     // TODO: rename this type
     PTCInstructionListPtr InstructionList(new PTCInstructionList);
     size_t ConsumedSize = 0;
-
-    assert(CodeEnd > CodePointer);
 
     ConsumedSize = ptc.translate(VirtualAddress,
                                  InstructionList.get());
@@ -648,7 +652,6 @@ void CodeGenerator::translate(size_t LoadAddress,
     assert(Entry == nullptr || Entry->empty());
 
     VirtualAddress = NewPC;
-    CodePointer = Code.data() + (NewPC - LoadAddress);
   } // End translations loop
 
   Function *CpuLoop = HelpersModule->getFunction("cpu_loop");

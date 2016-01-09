@@ -1,9 +1,0 @@
-#!/bin/bash
-
-PROGRAM=$1
-FUNCTION=$2
-
-VA=`readelf --wide -s $PROGRAM | grep $FUNCTION | grep GLOBAL | grep FUNC | head -n1 | awk -F' ' '{ print strtonum("0x" $2) }'`
-BASE=`readelf --wide -l $PROGRAM | grep -E 'LOAD.*R E' | awk -F' ' '{ print strtonum($3) - strtonum($2) }'`
-
-echo $(($VA - $BASE))
