@@ -63,6 +63,9 @@ public:
   ///         JumpTarget::NoMoreTargets if we're done.
   BlockWithAddress peek();
 
+  /// Return true if there are unexplored jump targets
+  bool empty() { return Unexplored.empty(); }
+
   /// Get or create a block for the given PC
   llvm::BasicBlock *getBlockAt(uint64_t PC);
 

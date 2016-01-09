@@ -613,11 +613,14 @@ void CodeGenerator::translate(size_t LoadAddress,
 
     Translator.closeLastInstruction(NextPC);
 
-    // Before looking for writes to the PC, give a shot of SROA
-    legacy::PassManager PM;
-    PM.add(createSROAPass());
-    PM.add(Translator.createTranslateDirectBranchesPass());
-    PM.run(*TheModule);
+    // If we're out of jump targets, try to harvest some more
+    if (JumpTargets.empty()) {
+      legacy::PassManager PM;
+      // Before looking for writes to the PC, give a shot of SROA
+      PM.add(createSROAPass());
+      PM.add(Translator.createTranslateDirectBranchesPass());
+      PM.run(*TheModule);
+    }
 
     // Obtain a new program counter to translate
     uint64_t NewPC = 0;
