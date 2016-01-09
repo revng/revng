@@ -24,7 +24,8 @@ using namespace llvm;
 
 JumpTargetManager::JumpTargetManager(Module& TheModule,
                                      Value *PCReg,
-                                     Function *TheFunction) :
+                                     Function *TheFunction,
+                                     RangesVector& ExecutableRanges) :
   TheModule(TheModule),
   Context(TheModule.getContext()),
   TheFunction(TheFunction),
@@ -32,6 +33,7 @@ JumpTargetManager::JumpTargetManager(Module& TheModule,
   JumpTargets(),
   PCReg(PCReg),
   ExitTB(nullptr),
+  ExecutableRanges(ExecutableRanges),
   Dispatcher(nullptr),
   DispatcherSwitch(nullptr) {
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
@@ -165,7 +167,7 @@ JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
 }
 
 /// Get or create a block for the given PC
-BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
+BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC, bool Try) {
   // Do we already have a BasicBlock for this PC?
   BlockMap::iterator TargetIt = JumpTargets.find(PC);
   if (TargetIt != JumpTargets.end()) {
@@ -198,6 +200,13 @@ BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
   } else {
     // Case 3: the address has never been met, create a temporary one, register
     // it for future exploration and return it
+
+    if (!isExecutableAddress(PC)) {
+      if (Try)
+        return nullptr;
+      else
+        assert("Jump to a non-executable address");
+    }
 
     std::stringstream Name;
     Name << "bb.0x" << std::hex << PC;

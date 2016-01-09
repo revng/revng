@@ -22,9 +22,11 @@ public:
   static const BlockWithAddress NoMoreTargets;
 
 public:
+  using RangesVector = std::vector<std::pair<uint64_t, uint64_t>>;
   JumpTargetManager(llvm::Module& TheModule,
                     llvm::Value *PCReg,
-                    llvm::Function *TheFunction);
+                    llvm::Function *TheFunction,
+                    RangesVector& ExecutableRanges);
 
   /// Handle a new program counter. We might already have a basic block for that
   /// program counter, or we could even have a translation for it. Return one
@@ -68,7 +70,7 @@ public:
   bool empty() { return Unexplored.empty(); }
 
   /// Get or create a block for the given PC
-  llvm::BasicBlock *getBlockAt(uint64_t PC);
+  llvm::BasicBlock *getBlockAt(uint64_t PC, bool Try=false);
 
   llvm::BasicBlock *dispatcher() { return Dispatcher; }
 
@@ -79,6 +81,13 @@ private:
   void createDispatcher(llvm::Function *OutputFunction,
                         llvm::Value *SwitchOnPtr,
                         bool JumpDirectly);
+
+  bool isExecutableAddress(uint64_t Address) {
+    for (std::pair<uint64_t, uint64_t> Range : ExecutableRanges)
+      if (Range.first <= Address && Address < Range.second)
+        return true;
+    return false;
+  }
 
 private:
   using BlockMap = std::map<uint64_t, llvm::BasicBlock *>;
@@ -96,6 +105,7 @@ private:
   std::vector<BlockWithAddress> Unexplored;
   llvm::Value *PCReg;
   llvm::Function *ExitTB;
+  RangesVector& ExecutableRanges;
   llvm::BasicBlock *Dispatcher;
   llvm::SwitchInst *DispatcherSwitch;
 };

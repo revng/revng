@@ -128,9 +128,12 @@ void CodeGenerator::importGlobalData(object::ObjectFile *TheBinary,
   // CSV
   for (auto &ProgramHeader : TheELF.program_headers())
     if (ProgramHeader.p_type == ELF::PT_LOAD) {
+      auto EndAddress = ProgramHeader.p_vaddr + ProgramHeader.p_memsz;
 
-      // Check if it's writable
-      bool IsConstant = !(ProgramHeader.p_flags & ELF::PF_W);
+      // If it's executable register it as a valid code area
+      if (ProgramHeader.p_flags & ELF::PF_X)
+        ExecutableRanges.push_back(std::make_pair(ProgramHeader.p_vaddr,
+                                                  EndAddress));
 
       // Create name from start and size
       std::stringstream NameStream;
@@ -164,6 +167,9 @@ void CodeGenerator::importGlobalData(object::ObjectFile *TheBinary,
         TheData = ConstantDataArray::get(Context, DataRef);
       }
 
+      // Check if it's writable
+      bool IsConstant = !(ProgramHeader.p_flags & ELF::PF_W);
+
       // Create a new global variable
       auto *GlobalDataVar = new GlobalVariable(*TheModule,
                                                DataType,
@@ -177,7 +183,6 @@ void CodeGenerator::importGlobalData(object::ObjectFile *TheBinary,
       GlobalDataVar->setSection(Name);
 
       // Write the linking info CSV
-      auto EndAddress = ProgramHeader.p_vaddr + ProgramHeader.p_memsz;
       LinkingInfoStream << Name
                         << ",0x" << std::hex << ProgramHeader.p_vaddr
                         << ",0x" << std::hex << EndAddress
@@ -514,7 +519,10 @@ void CodeGenerator::translate(size_t LoadAddress,
 
   GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc");
 
-  JumpTargetManager JumpTargets(*TheModule, PCReg, MainFunction);
+  JumpTargetManager JumpTargets(*TheModule,
+                                PCReg,
+                                MainFunction,
+                                ExecutableRanges);
 
   // Create a new block where the translation will start and emit a tautological
   // branch to it, with false part being the dispatcher, which is always

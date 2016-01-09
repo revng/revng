@@ -80,6 +80,7 @@ private:
   std::string OutputPath;
   std::unique_ptr<DebugHelper> Debug;
   llvm::object::OwningBinary<llvm::object::Binary> BinaryHandle;
+  std::vector<std::pair<uint64_t, uint64_t>> ExecutableRanges;
 
   unsigned OriginalInstrMDKind;
   unsigned PTCInstrMDKind;
