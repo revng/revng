@@ -727,6 +727,17 @@ bool InstructionTranslator::translate(PTCInstruction *Instr, uint64_t PC) {
     auto *Destination = Variables.getOrCreate(TheInstruction.OutArguments[I]);
     auto *Value = Result.get()[I];
     Builder.CreateStore(Value, Destination);
+
+    // If we're writing the PC with an immediate, register it for exploration
+    // immediately
+    if (JumpTargets.isPCReg(Destination)) {
+      auto *Constant = dyn_cast<ConstantInt>(Value);
+      if (Constant != nullptr) {
+        uint64_t Address = Constant->getLimitedValue();
+        if (PC != Address)
+          JumpTargets.getBlockAt(Address);
+      }
+    }
   }
 
   return false;

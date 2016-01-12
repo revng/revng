@@ -98,6 +98,8 @@ public:
 
   llvm::BasicBlock *dispatcher() { return Dispatcher; }
 
+  bool isPCReg(llvm::Value *TheValue) { return TheValue == PCReg; }
+
 private:
   // TODO: instead of a gigantic switch case we could map the original memory
   //       area and write the address of the translated basic block at the jump
