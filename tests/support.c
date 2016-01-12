@@ -46,10 +46,27 @@ target_reg *second_argument = &a1;
 
 #endif
 
-
 void root(void);
 
+void itoa(unsigned i, char *b){
+  const char digit[] = "0123456789";
+  char* p = b;
+
+  int shifter = i;
+  do {
+    ++p;
+    shifter = shifter / 10;
+  } while(shifter);
+  *p = '\0';
+
+  do {
+    *--p = digit[i % 10];
+    i = i / 10;
+  } while(i);
+}
+
 int main(int argc, char *argv[]) {
+  char buffer[100];
   int size = strlen(argv[1]);
   *first_argument = (target_reg) mmap((void *) 0x9000,
                                     0x3000,
@@ -61,15 +78,16 @@ int main(int argc, char *argv[]) {
   *second_argument = size;
 
   *stack = (target_reg) mmap((void *) 0x3000,
-                           0x3000,
-                           PROT_READ | PROT_WRITE, MAP_FIXED
-                           | MAP_ANONYMOUS | MAP_32BIT | MAP_PRIVATE,
-                           -1,
-                           0) + 0x1000;
+                             0x3000,
+                             PROT_READ | PROT_WRITE, MAP_FIXED
+                             | MAP_ANONYMOUS | MAP_32BIT | MAP_PRIVATE,
+                             -1,
+                             0) + 0x1000;
 
   root();
 
-  printf("%u\n", (unsigned) *return_value);
+  itoa(*return_value, buffer);
+  puts(buffer);
 
   return 0;
 }
