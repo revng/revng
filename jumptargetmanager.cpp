@@ -35,6 +35,14 @@ bool JumpTargetsFromConstantsPass::runOnFunction(Function &F) {
       // Use a lambda so we don't have to initialize the queue with all the
       // instructions
       auto Process = [this, &WorkList] (User *U) {
+        auto *Call = dyn_cast<CallInst>(U);
+        if (Call != nullptr && Call->getCalledFunction()->getName() == "newpc")
+          return;
+
+        auto *Store = dyn_cast<StoreInst>(U);
+        if (Store != nullptr && JTM->isPCReg(Store->getPointerOperand()))
+          return;
+
         for (Use& Operand : U->operands()) {
           auto *OperandUser = dyn_cast<User>(Operand.get());
           if (OperandUser != nullptr
