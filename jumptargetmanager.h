@@ -108,6 +108,9 @@ private:
                         llvm::Value *SwitchOnPtr,
                         bool JumpDirectly);
 
+  template<typename value_type, unsigned endian>
+  void findCodePointers(const unsigned char *Start, const unsigned char *End);
+
   bool isExecutableAddress(uint64_t Address) {
     for (std::pair<uint64_t, uint64_t> Range : ExecutableRanges)
       if (Range.first <= Address && Address < Range.second)

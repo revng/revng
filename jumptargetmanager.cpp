@@ -97,6 +97,37 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
       ExecutableRanges.push_back(std::make_pair(Segment.StartVirtualAddress,
                                                 Segment.EndVirtualAddress));
     }
+
+    auto *Data = cast<ConstantDataArray>(Segment.Variable->getInitializer());
+    const unsigned char *DataStart = Data->getRawDataValues().bytes_begin();
+    const unsigned char *DataEnd = Data->getRawDataValues().bytes_end();
+
+    if (SourceArchitecture.pointerSize() == 64) {
+      if (SourceArchitecture.isLittleEndian())
+        findCodePointers<uint64_t, support::endianness::little>(DataStart,
+                                                                DataEnd);
+      else
+        findCodePointers<uint64_t, support::endianness::big>(DataStart,
+                                                             DataEnd);
+    } else if (SourceArchitecture.pointerSize() == 32) {
+      if (SourceArchitecture.isLittleEndian())
+        findCodePointers<uint32_t, support::endianness::little>(DataStart,
+                                                                DataEnd);
+      else
+        findCodePointers<uint32_t, support::endianness::big>(DataStart,
+                                                             DataEnd);
+    }
+  }
+}
+
+template<typename value_type, unsigned endian>
+void JumpTargetManager::findCodePointers(const unsigned char *Start,
+                                         const unsigned char *End) {
+  using support::endian::read;
+  using support::endianness;
+  for (; Start < End - sizeof(value_type); Start++) {
+    uint64_t Value = read<value_type, static_cast<endianness>(endian), 1>(Start);
+    getBlockAt(Value);
   }
 }
 
