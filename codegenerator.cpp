@@ -425,7 +425,6 @@ bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
 
     // Remove the call to cpu_loop_exit
     Function *Caller = Call->getParent()->getParent();
-    Call->eraseFromParent();
 
     if (FixedCallers.find(Caller) == FixedCallers.end()) {
       FixedCallers.insert(Caller);
@@ -497,6 +496,9 @@ bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
       }
     }
   }
+
+  for (User *TheUser : CpuLoopExit->users())
+    cast<Instruction>(TheUser)->eraseFromParent();
 
   return true;
 }
