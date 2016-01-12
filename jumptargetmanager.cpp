@@ -16,8 +16,11 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Support/Endian.h"
+#include "llvm/Support/raw_ostream.h"
 
 // Local includes
+#include "revamb.h"
 #include "ir-helpers.h"
 #include "jumptargetmanager.h"
 
@@ -70,18 +73,17 @@ bool JumpTargetsFromConstantsPass::runOnFunction(Function &F) {
   return false;
 }
 
-JumpTargetManager::JumpTargetManager(Module& TheModule,
+JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                      Value *PCReg,
-                                     Function *TheFunction,
-                                     RangesVector& ExecutableRanges) :
-  TheModule(TheModule),
+                                     Architecture& SourceArchitecture,
+                                     std::vector<SegmentInfo>& Segments) :
+  TheModule(*TheFunction->getParent()),
   Context(TheModule.getContext()),
   TheFunction(TheFunction),
   OriginalInstructionAddresses(),
   JumpTargets(),
   PCReg(PCReg),
   ExitTB(nullptr),
-  ExecutableRanges(ExecutableRanges),
   Dispatcher(nullptr),
   DispatcherSwitch(nullptr) {
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
@@ -89,6 +91,13 @@ JumpTargetManager::JumpTargetManager(Module& TheModule,
                                              false);
   ExitTB = cast<Function>(TheModule.getOrInsertFunction("exitTB", ExitTBTy));
   createDispatcher(TheFunction, PCReg, true);
+
+  for (auto& Segment : Segments) {
+    if (Segment.IsExecutable) {
+      ExecutableRanges.push_back(std::make_pair(Segment.StartVirtualAddress,
+                                                Segment.EndVirtualAddress));
+    }
+  }
 }
 
 /// Handle a new program counter. We might already have a basic block for that

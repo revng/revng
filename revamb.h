@@ -9,11 +9,26 @@
 # define QEMU_LIB_PATH "/usr/lib"
 #endif
 
+namespace llvm {
+class GlobalVariable;
+};
+
 enum class DebugInfoType {
   None,
   OriginalAssembly,
   PTC,
   LLVMIR
+};
+
+struct SegmentInfo {
+  std::string generateName();
+
+  llvm::GlobalVariable *Variable;
+  uint64_t StartVirtualAddress;
+  uint64_t EndVirtualAddress;
+  bool IsWriteable;
+  bool IsExecutable;
+  bool IsReadable;
 };
 
 class Architecture {

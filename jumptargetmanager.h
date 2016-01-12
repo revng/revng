@@ -43,10 +43,10 @@ public:
 
 public:
   using RangesVector = std::vector<std::pair<uint64_t, uint64_t>>;
-  JumpTargetManager(llvm::Module& TheModule,
+  JumpTargetManager(llvm::Function *TheFunction,
                     llvm::Value *PCReg,
-                    llvm::Function *TheFunction,
-                    RangesVector& ExecutableRanges);
+                    Architecture& SourceArchitecture,
+                    std::vector<SegmentInfo>& Segments);
 
   /// Handle a new program counter. We might already have a basic block for that
   /// program counter, or we could even have a translation for it. Return one
@@ -131,7 +131,7 @@ private:
   std::vector<BlockWithAddress> Unexplored;
   llvm::Value *PCReg;
   llvm::Function *ExitTB;
-  RangesVector& ExecutableRanges;
+  RangesVector ExecutableRanges;
   llvm::BasicBlock *Dispatcher;
   llvm::SwitchInst *DispatcherSwitch;
 };

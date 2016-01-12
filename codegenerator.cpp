@@ -36,6 +36,7 @@
 #include "ir-helpers.h"
 #include "jumptargetmanager.h"
 #include "ptcinterface.h"
+#include "revamb.h"
 #include "variablemanager.h"
 
 using namespace llvm;
@@ -102,6 +103,18 @@ CodeGenerator::CodeGenerator(std::string Input,
   }
 }
 
+std::string SegmentInfo::generateName() {
+  // Create name from start and size
+  std::stringstream NameStream;
+  NameStream << ".o_"
+             << (IsReadable ? "r" : "")
+             << (IsWriteable ? "w" : "")
+             << (IsExecutable ? "x" : "")
+             << "_0x" << std::hex << StartVirtualAddress;
+
+  return NameStream.str();
+}
+
 template<typename T>
 void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
                              std::string LinkingInfoPath) {
@@ -135,14 +148,17 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
   // CSV
   for (auto &ProgramHeader : TheELF.program_headers())
     if (ProgramHeader.p_type == ELF::PT_LOAD) {
-      auto EndAddress = ProgramHeader.p_vaddr + ProgramHeader.p_memsz;
+      SegmentInfo Segment;
+      Segment.StartVirtualAddress = ProgramHeader.p_vaddr;
+      Segment.EndVirtualAddress = ProgramHeader.p_vaddr + ProgramHeader.p_memsz;
+      Segment.IsReadable = ProgramHeader.p_flags & ELF::PF_R;
+      Segment.IsWriteable = ProgramHeader.p_flags & ELF::PF_W;
+      Segment.IsExecutable = ProgramHeader.p_flags & ELF::PF_X;
+
       auto ActualStartAddress = TheELF.base() + ProgramHeader.p_offset;
 
       // If it's executable register it as a valid code area
-      if (ProgramHeader.p_flags & ELF::PF_X) {
-        ExecutableRanges.push_back(std::make_pair(ProgramHeader.p_vaddr,
-                                                  EndAddress));
-
+      if (Segment.IsExecutable) {
         // We ignore possible p_filesz-p_memsz mismatches, zeros wouldn't be
         // useful code anyway
         ptc.mmap(static_cast<uint64_t>(ProgramHeader.p_vaddr),
@@ -150,14 +166,7 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
                  static_cast<size_t>(ProgramHeader.p_filesz));
       }
 
-      // Create name from start and size
-      std::stringstream NameStream;
-      NameStream << ".o_"
-                 << (ProgramHeader.p_flags & ELF::PF_R ? "r" : "")
-                 << (ProgramHeader.p_flags & ELF::PF_W ? "w" : "")
-                 << (ProgramHeader.p_flags & ELF::PF_X ? "x" : "")
-                 << "_0x" << std::hex << ProgramHeader.p_vaddr;
-      std::string Name = NameStream.str();
+      std::string Name = Segment.generateName();
 
       // Get data and size
       auto *DataType = ArrayType::get(Uint8Ty,
@@ -182,26 +191,25 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
         TheData = ConstantDataArray::get(Context, DataRef);
       }
 
-      // Check if it's writable
-      bool IsConstant = !(ProgramHeader.p_flags & ELF::PF_W);
-
       // Create a new global variable
-      auto *GlobalDataVar = new GlobalVariable(*TheModule,
-                                               DataType,
-                                               IsConstant,
-                                               GlobalValue::InternalLinkage,
-                                               TheData,
-                                               "");
+      Segment.Variable = new GlobalVariable(*TheModule,
+                                            DataType,
+                                            !Segment.IsWriteable,
+                                            GlobalValue::InternalLinkage,
+                                            TheData,
+                                            "");
 
       // Force alignment to 1 and assign the variable to a specific section
-      GlobalDataVar->setAlignment(1);
-      GlobalDataVar->setSection(Name);
+      Segment.Variable->setAlignment(1);
+      Segment.Variable->setSection(Name);
 
       // Write the linking info CSV
       LinkingInfoStream << Name
-                        << ",0x" << std::hex << ProgramHeader.p_vaddr
-                        << ",0x" << std::hex << EndAddress
+                        << ",0x" << std::hex << Segment.StartVirtualAddress
+                        << ",0x" << std::hex << Segment.EndVirtualAddress
                         << std::endl;
+
+      Segments.push_back(Segment);
     }
 }
 
@@ -533,10 +541,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
 
   GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc");
 
-  JumpTargetManager JumpTargets(*TheModule,
+  JumpTargetManager JumpTargets(MainFunction,
                                 PCReg,
-                                MainFunction,
-                                ExecutableRanges);
+                                SourceArchitecture,
+                                Segments);
 
   JumpTargets.getBlockAt(VirtualAddress);
   std::tie(VirtualAddress, Entry) = JumpTargets.peek();
