@@ -467,9 +467,13 @@ void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
+  auto& Context = F.getParent()->getContext();
+
   Function *ExitTB = JTM->exitTB();
   auto I = ExitTB->use_begin();
   while (I != ExitTB->use_end()) {
+    // Take not of the use and increment the iterator immediately: this allows us
+    // to erase the call to exit_tb without unexpecte behaviors.
     Use& ExitTBUse = *I++;
     if (auto Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
       if (Call->getCalledFunction() == ExitTB) {
@@ -484,21 +488,33 @@ bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
           uint64_t TargetPC = Address->getSExtValue();
           BasicBlock *TargetBlock = JTM->getBlockAt(TargetPC);
 
-          Instruction *Branch = BranchInst::Create(TargetBlock);
-
-          // Cleanup of what's afterwards (only a unconditional jump is allowed)
+          // Remove unreachable right after the exit_tb
           BasicBlock::iterator I = Call;
           BasicBlock::iterator BlockEnd = Call->getParent()->end();
+          assert(++I != BlockEnd && isa<UnreachableInst>(&*I));
+          I->eraseFromParent();
+
+          // Cleanup of what's afterwards (only a unconditional jump is
+          // allowed)
+          I = Call;
+          BlockEnd = Call->getParent()->end();
           if (++I != BlockEnd)
             purgeBranch(I);
 
-          Branch->insertAfter(Call);
+          if (TargetBlock != nullptr) {
+            // A target was found, jump there
+            BranchInst::Create(TargetBlock, Call);
+          } else {
+            // We're jumping to an invalid location, abort everything
+            // TODO: emit a warning
+            CallInst::Create(F.getParent()->getFunction("abort"), { }, Call);
+            new UnreachableInst(Context, Call);
+          }
           Call->eraseFromParent();
-          // TODO: are we sure we want to remove the PC writes?
           PCWrite->eraseFromParent();
         }
       } else
-        llvm_unreachable("Unknown instruction using the PC");
+        llvm_unreachable("Unexpected instruction using the PC");
     } else
       llvm_unreachable("Unhandled usage of the PC");
   }
@@ -1244,6 +1260,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
   case PTC_INSTRUCTION_op_exit_tb:
     {
       Builder.CreateCall(JumpTargets.exitTB(), { });
+      Builder.CreateUnreachable();
 
       auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
       Blocks.push_back(NextBB);

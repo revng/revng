@@ -217,6 +217,10 @@ void JumpTargetManager::translateIndirectJumps() {
 
         BasicBlock *BB = Call->getParent();
         auto *Branch = BranchInst::Create(Dispatcher, Call);
+        BasicBlock::iterator I = Call;
+        BasicBlock::iterator BlockEnd = Call->getParent()->end();
+        assert(++I != BlockEnd && isa<UnreachableInst>(&*I));
+        I->eraseFromParent();
         Call->eraseFromParent();
 
         // Cleanup everything it's aftewards
