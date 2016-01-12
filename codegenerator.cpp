@@ -665,7 +665,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
       // Before looking for writes to the PC, give a shot of SROA
       PM.add(createSROAPass());
       PM.add(createEarlyCSEPass());
-      PM.add(Translator.createTranslateDirectBranchesPass());
+      PM.add(JumpTargets.createTranslateDirectBranchesPass());
       PM.add(JumpTargets.createJumpTargetsFromConstantsPass());
       PM.run(*TheModule);
     }

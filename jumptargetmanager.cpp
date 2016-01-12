@@ -11,6 +11,7 @@
 // LLVM includes
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/IRBuilder.h"
@@ -20,11 +21,119 @@
 #include "llvm/Support/raw_ostream.h"
 
 // Local includes
+#include "debug.h"
 #include "revamb.h"
 #include "ir-helpers.h"
 #include "jumptargetmanager.h"
 
 using namespace llvm;
+
+static uint64_t getConst(Value *Constant) {
+  return cast<ConstantInt>(Constant)->getLimitedValue();
+}
+
+char TranslateDirectBranchesPass::ID = 0;
+
+static RegisterPass<TranslateDirectBranchesPass> X("translate-db",
+                                                   "Translate Direct Branches"
+                                                   " Pass",
+                                                   false,
+                                                   false);
+
+void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.addRequired<DominatorTreeWrapperPass>();
+}
+
+bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
+  auto& Context = F.getParent()->getContext();
+
+  Function *ExitTB = JTM->exitTB();
+  auto I = ExitTB->use_begin();
+  while (I != ExitTB->use_end()) {
+    // Take not of the use and increment the iterator immediately: this allows us
+    // to erase the call to exit_tb without unexpecte behaviors.
+    Use& ExitTBUse = *I++;
+    if (auto Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
+      if (Call->getCalledFunction() == ExitTB) {
+        // Look for the last write to the PC
+        StoreInst *PCWrite = JTM->getPrevPCWrite(Call);
+
+        // Is destination a constant?
+        ConstantInt *Address = nullptr;
+        if (PCWrite != nullptr &&
+            (Address = dyn_cast<ConstantInt>(PCWrite->getValueOperand()))) {
+          // Compute the actual PC and get the associated BasicBlock
+          uint64_t TargetPC = Address->getSExtValue();
+          BasicBlock *TargetBlock = JTM->getBlockAt(TargetPC);
+
+          // Remove unreachable right after the exit_tb
+          BasicBlock::iterator I = Call;
+          BasicBlock::iterator BlockEnd = Call->getParent()->end();
+          assert(++I != BlockEnd && isa<UnreachableInst>(&*I));
+          I->eraseFromParent();
+
+          // Cleanup of what's afterwards (only a unconditional jump is
+          // allowed)
+          I = Call;
+          BlockEnd = Call->getParent()->end();
+          if (++I != BlockEnd)
+            purgeBranch(I);
+
+          if (TargetBlock != nullptr) {
+            // A target was found, jump there
+            BranchInst::Create(TargetBlock, Call);
+          } else {
+            // We're jumping to an invalid location, abort everything
+            // TODO: emit a warning
+            CallInst::Create(F.getParent()->getFunction("abort"), { }, Call);
+            new UnreachableInst(Context, Call);
+          }
+          Call->eraseFromParent();
+          PCWrite->eraseFromParent();
+        }
+      } else
+        llvm_unreachable("Unexpected instruction using the PC");
+    } else
+      llvm_unreachable("Unhandled usage of the PC");
+  }
+
+  return true;
+}
+
+uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
+  DominatorTree& DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+
+  BasicBlock *Block = TheInstruction->getParent();
+  BasicBlock::reverse_iterator It(TheInstruction);
+
+  while (true) {
+    BasicBlock::reverse_iterator Begin(Block->rend());
+
+    // Go back towards the beginning of the basic block looking for a call to
+    // newpc
+    CallInst *Marker = nullptr;
+    for (; It != Begin; It++) {
+      if ((Marker = dyn_cast<CallInst>(&*It))) {
+        // TODO: comparing strings is not very elegant
+        if (Marker->getCalledFunction()->getName() == "newpc") {
+          uint64_t PC = getConst(Marker->getArgOperand(0));
+          uint64_t Size = getConst(Marker->getArgOperand(1));
+          assert(Size != 0);
+          return PC + Size;
+        }
+      }
+    }
+
+    auto *Node = DT.getNode(Block);
+    assert(Node != nullptr &&
+           "BasicBlock not in the dominator tree, is it reachable?" );
+
+    Block = Node->getIDom()->getBlock();
+    It = Block->rbegin();
+  }
+
+  llvm_unreachable("Can't find the PC marker");
+}
 
 char JumpTargetsFromConstantsPass::ID = 0;
 
@@ -39,6 +148,7 @@ bool JumpTargetsFromConstantsPass::runOnFunction(Function &F) {
       // instructions
       auto Process = [this, &WorkList] (User *U) {
         auto *Call = dyn_cast<CallInst>(U);
+        // TODO: comparing strings is not very elegant
         if (Call != nullptr && Call->getCalledFunction()->getName() == "newpc")
           return;
 
@@ -129,6 +239,11 @@ void JumpTargetManager::findCodePointers(const unsigned char *Start,
     uint64_t Value = read<value_type, static_cast<endianness>(endian), 1>(Start);
     getBlockAt(Value);
   }
+}
+
+TranslateDirectBranchesPass
+*JumpTargetManager::createTranslateDirectBranchesPass() {
+  return new TranslateDirectBranchesPass(this);
 }
 
 /// Handle a new program counter. We might already have a basic block for that
