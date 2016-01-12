@@ -2,21 +2,26 @@
 /// \brief This file takes care of handling command-line parameters and loading
 /// the appropriate flavour of libtinycode-*.so
 
+// Standard includes
 #include <cstdio>
 #include <vector>
 #include <memory>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <string>
 
 extern "C" {
 #include <dlfcn.h>
 }
 
+// LLVM includes
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ELF.h"
 
+// Local includes
+#include "debug.h"
 #include "revamb.h"
 #include "argparse.h"
 #include "ptcinterface.h"
@@ -99,6 +104,7 @@ static int loadPTCLibrary(const char *Architecture, LibraryPointer& PTCLibrary) 
 static int parseArgs(int Argc, const char *Argv[],
                      ProgramParameters *Parameters) {
   const char *DebugString = nullptr;
+  const char *DebugLoggingString = nullptr;
   const char *EntryPointAddressString = nullptr;
   long long EntryPointAddress = 0;
 
@@ -113,19 +119,22 @@ static int parseArgs(int Argc, const char *Argv[],
     OPT_STRING('e', "entry",
                &EntryPointAddressString,
                "virtual address of the entry point where to start."),
-    OPT_STRING('d', "debug-path",
+    OPT_STRING('s', "debug-path",
                &Parameters->DebugPath,
                "destination path for the generated debug source."),
     OPT_STRING('i', "linking-info",
                &Parameters->LinkingInfoPath,
                "destination path for the CSV containing linking info."),
-    OPT_STRING('g', "debug",
+    OPT_STRING('g', "debug-info",
                &DebugString,
                "emit debug information. Possible values are 'none' for no debug"
                " information, 'asm' for debug information referring to the"
                " assembly of the input file, 'ptc' for debug information"
                " referred to the Portable Tiny Code, or 'll' for debug"
                " information referred to the LLVM IR."),
+    OPT_STRING('d', "debug",
+               &DebugLoggingString,
+               "enable verbose logging."),
     OPT_END(),
   };
 
@@ -173,6 +182,15 @@ static int parseArgs(int Argc, const char *Argv[],
               " (-g, --debug).\n");
       return EXIT_FAILURE;
     }
+  }
+
+  if (DebugLoggingString != nullptr) {
+    DebuggingEnabled = true;
+    std::string Input(DebugLoggingString);
+    std::stringstream Stream(Input);
+    std::string Type;
+    while (std::getline(Stream, Type, ','))
+      enableDebugFeature(Type.c_str());
   }
 
   if (Parameters->DebugPath == nullptr)

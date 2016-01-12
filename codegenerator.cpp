@@ -31,6 +31,7 @@
 
 // Local includes
 #include "codegenerator.h"
+#include "debug.h"
 #include "debughelper.h"
 #include "instructiontranslator.h"
 #include "ir-helpers.h"
@@ -582,7 +583,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
                                  InstructionList.get());
     uint64_t NextPC = VirtualAddress + ConsumedSize;
 
-    dumpTranslation(std::cerr, InstructionList.get());
+    DBG("ptc", dumpTranslation(dbg, InstructionList.get()));
 
     Variables.newFunction(Delimiter, InstructionList.get());
     unsigned j = 0;
