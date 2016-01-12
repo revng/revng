@@ -14,6 +14,7 @@
 // Local includes
 #include "revamb.h"
 #include "ptcdump.h"
+#include "jumptargetmanager.h"
 
 // Forward declarations
 namespace llvm {

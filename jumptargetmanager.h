@@ -92,8 +92,6 @@ public:
   ///         is not associated to a basic block.
   llvm::BasicBlock *newPC(uint64_t PC, bool& ShouldContinue);
 
-  TranslateDirectBranchesPass *createTranslateDirectBranchesPass();
-
   /// Save the PC-Instruction association for future use (jump target)
   void registerInstruction(uint64_t PC, llvm::Instruction *Instruction);
 
@@ -125,10 +123,6 @@ public:
   /// Get or create a block for the given PC
   llvm::BasicBlock *getBlockAt(uint64_t PC);
 
-  JumpTargetsFromConstantsPass *createJumpTargetsFromConstantsPass() {
-    return new JumpTargetsFromConstantsPass(this);
-  }
-
   llvm::BasicBlock *dispatcher() { return Dispatcher; }
 
   bool isPCReg(llvm::Value *TheValue) { return TheValue == PCReg; }
@@ -151,6 +145,7 @@ private:
     return false;
   }
 
+  void harvest();
 private:
   using BlockMap = std::map<uint64_t, llvm::BasicBlock *>;
   using InstructionMap = std::map<uint64_t, llvm::Instruction *>;

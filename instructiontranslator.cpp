@@ -16,7 +16,6 @@
 // Local includes
 #include "instructiontranslator.h"
 #include "ir-helpers.h"
-#include "jumptargetmanager.h"
 #include "ptcinterface.h"
 #include "rai.h"
 #include "range.h"

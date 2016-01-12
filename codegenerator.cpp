@@ -659,17 +659,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     if (LastBlock->empty())
       LastBlock->eraseFromParent();
 
-    // If we're out of jump targets, try to harvest some more
-    if (JumpTargets.empty()) {
-      legacy::PassManager PM;
-      // Before looking for writes to the PC, give a shot of SROA
-      PM.add(createSROAPass());
-      PM.add(createEarlyCSEPass());
-      PM.add(JumpTargets.createTranslateDirectBranchesPass());
-      PM.add(JumpTargets.createJumpTargetsFromConstantsPass());
-      PM.run(*TheModule);
-    }
-
     // Obtain a new program counter to translate
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
   } // End translations loop

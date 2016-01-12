@@ -15,10 +15,13 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Scalar.h"
 
 // Local includes
 #include "debug.h"
@@ -228,6 +231,9 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                                              DataEnd);
     }
   }
+
+  DBG("jtcount", dbg
+      << "JumpTargets found in global data: " << Unexplored.size() << "\n");
 }
 
 template<typename value_type, unsigned endian>
@@ -239,11 +245,6 @@ void JumpTargetManager::findCodePointers(const unsigned char *Start,
     uint64_t Value = read<value_type, static_cast<endianness>(endian), 1>(Start);
     getBlockAt(Value);
   }
-}
-
-TranslateDirectBranchesPass
-*JumpTargetManager::createTranslateDirectBranchesPass() {
-  return new TranslateDirectBranchesPass(this);
 }
 
 /// Handle a new program counter. We might already have a basic block for that
@@ -385,6 +386,8 @@ void JumpTargetManager::translateIndirectJumps() {
 }
 
 JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
+  harvest();
+
   if (Unexplored.empty())
     return NoMoreTargets;
   else {
@@ -483,6 +486,40 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
 
   Dispatcher = Entry;
   DispatcherSwitch = Switch;
+}
+
+void JumpTargetManager::harvest() {
+  if (empty()) {
+    DBG("verify",
+        if (verifyModule(TheModule, &dbgs())) {
+          dumpModule(&TheModule);
+          abort();
+        }
+        );
+
+    DBG("jtcount", dbg
+        << "We're out of targets. Trying with SROA and"
+        << " TranslateDirectBranchesPass\n");
+
+    legacy::PassManager PM;
+    // Before looking for writes to the PC, give a shot of SROA
+    PM.add(createSROAPass());
+    PM.add(new TranslateDirectBranchesPass(this));
+    PM.run(TheModule);
+    DBG("jtcount", dbg
+        << "JumpTargets found: " << Unexplored.size() << "\n");
+  }
+  if (empty()) {
+    DBG("jtcount", dbg
+        << "We're out of targets. Trying with "
+        << "JumpTargetsFromConstantsPass\n");
+    legacy::PassManager PM;
+    PM.add(createEarlyCSEPass());
+    PM.add(new JumpTargetsFromConstantsPass(this));
+    PM.run(TheModule);
+    DBG("jtcount", dbg
+        << "JumpTargets found: " << Unexplored.size() << "\n");
+  }
 }
 
 const JumpTargetManager::BlockWithAddress JumpTargetManager::NoMoreTargets =
