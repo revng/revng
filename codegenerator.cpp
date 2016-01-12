@@ -580,12 +580,14 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     unsigned j = 0;
     MDNode* MDOriginalInstr = nullptr;
     bool StopTranslation = false;
+    uint64_t PC = VirtualAddress;
 
     // Handle the first PTC_INSTRUCTION_op_debug_insn_start
     {
       PTCInstruction *Instruction = &InstructionList->instructions[j];
-      auto Result = Translator.newInstruction(Instruction, true);
-      std::tie(StopTranslation, MDOriginalInstr) = Result;
+      std::tie(StopTranslation,
+               MDOriginalInstr,
+               PC) = Translator.newInstruction(Instruction, true);
       j++;
     }
 
@@ -603,8 +605,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
       case PTC_INSTRUCTION_op_debug_insn_start:
         {
           std::tie(StopTranslation,
-                   MDOriginalInstr) = Translator.newInstruction(&Instruction,
-                                                                false);
+                   MDOriginalInstr,
+                   PC) = Translator.newInstruction(&Instruction, false);
           break;
         }
       case PTC_INSTRUCTION_op_call:
@@ -618,7 +620,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
 
         break;
       default:
-        Translator.translate(&Instruction);
+        StopTranslation = Translator.translate(&Instruction, PC);
       }
 
       // Create a new metadata referencing the PTC instruction we have just
@@ -654,11 +656,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     }
 
     // Obtain a new program counter to translate
-    uint64_t NewPC = 0;
-    std::tie(NewPC, Entry) = JumpTargets.peek();
-    assert(Entry == nullptr || Entry->empty());
-
-    VirtualAddress = NewPC;
+    std::tie(VirtualAddress, Entry) = JumpTargets.peek();
   } // End translations loop
 
   Function *CpuLoop = HelpersModule->getFunction("cpu_loop");

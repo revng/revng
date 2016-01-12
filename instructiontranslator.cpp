@@ -605,9 +605,11 @@ void InstructionTranslator::closeLastInstruction(uint64_t PC) {
   LastMarker = nullptr;
 }
 
-std::pair<bool, MDNode *>
+std::tuple<bool, MDNode *, uint64_t>
 InstructionTranslator::newInstruction(PTCInstruction *Instr,
                                       bool IsFirst) {
+  using r = std::tuple<bool, MDNode *, uint64_t>;
+
   const PTC::Instruction TheInstruction(Instr);
   // A new original instruction, let's create a new metadata node
   // referencing it for all the next instructions to come
@@ -638,7 +640,7 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
         Variables.newBasicBlock();
       } else {
         // The block contains already translated code, early exit
-        return { true, MDOriginalInstr };
+        return r { true, MDOriginalInstr, PC };
       }
     }
   }
@@ -657,7 +659,7 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
       JumpTargets.registerInstruction(PC, LastMarker);
   }
 
-  return { false, MDOriginalInstr };
+  return r { false, MDOriginalInstr, PC };
 }
 
 void InstructionTranslator::translateCall(PTCInstruction *Instr) {
@@ -698,7 +700,7 @@ void InstructionTranslator::translateCall(PTCInstruction *Instr) {
     Builder.CreateStore(Result, ResultDestination);
 }
 
-void InstructionTranslator::translate(PTCInstruction *Instr) {
+bool InstructionTranslator::translate(PTCInstruction *Instr, uint64_t PC) {
   const PTC::Instruction TheInstruction(Instr);
 
   auto LoadArgs = [this] (uint64_t TemporaryId) -> Value * {
@@ -708,18 +710,29 @@ void InstructionTranslator::translate(PTCInstruction *Instr) {
   auto ConstArgs = TheInstruction.ConstArguments;
   auto InArgs = TheInstruction.InArguments | LoadArgs;
 
-  std::vector<Value *> Result = translateOpcode(TheInstruction.opcode(),
-                                                ConstArgs.toVector(),
-                                                InArgs.toVector());
+  auto Result = translateOpcode(TheInstruction.opcode(),
+                                ConstArgs.toVector(),
+                                InArgs.toVector());
 
-  assert(Result.size() == (size_t) TheInstruction.OutArguments.size());
+  // Check if there was an error while translating the instruction
+  if (!Result) {
+    Builder.CreateCall(TheModule.getFunction("abort"));
+    Builder.CreateUnreachable();
+    return true;
+  }
+
+  assert(Result->size() == (size_t) TheInstruction.OutArguments.size());
   // TODO: use ZipIterator here
-  for (unsigned I = 0; I < Result.size(); I++)
-    Builder.CreateStore(Result[I],
-                        Variables.getOrCreate(TheInstruction.OutArguments[I]));
+  for (unsigned I = 0; I < Result->size(); I++) {
+    auto *Destination = Variables.getOrCreate(TheInstruction.OutArguments[I]);
+    auto *Value = Result.get()[I];
+    Builder.CreateStore(Value, Destination);
+  }
+
+  return false;
 }
 
-std::vector<Value *>
+ErrorOr<std::vector<Value *>>
 InstructionTranslator::translateOpcode(PTCOpcode Opcode,
                                        std::vector<uint64_t> ConstArguments,
                                        std::vector<Value *> InArguments) {
@@ -733,16 +746,17 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
   else if (RegisterSize != 0)
     llvm_unreachable("Unexpected register size");
 
+  using v = std::vector<Value *>;
   switch (Opcode) {
   case PTC_INSTRUCTION_op_movi_i32:
   case PTC_INSTRUCTION_op_movi_i64:
-    return { ConstantInt::get(RegisterType, ConstArguments[0]) };
+    return v { ConstantInt::get(RegisterType, ConstArguments[0]) };
   case PTC_INSTRUCTION_op_discard:
     // Let's overwrite the discarded temporary with a 0
-    return { ConstantInt::get(RegisterType, 0) };
+    return v { ConstantInt::get(RegisterType, 0) };
   case PTC_INSTRUCTION_op_mov_i32:
   case PTC_INSTRUCTION_op_mov_i64:
-    return { Builder.CreateTrunc(InArguments[0], RegisterType) };
+    return v { Builder.CreateTrunc(InArguments[0], RegisterType) };
   case PTC_INSTRUCTION_op_setcond_i32:
   case PTC_INSTRUCTION_op_setcond_i64:
     {
@@ -751,7 +765,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
                                   InArguments[0],
                                   InArguments[1]);
       // TODO: convert single-bit registers to i1
-      return { Builder.CreateZExt(Compare, RegisterType) };
+      return v { Builder.CreateZExt(Compare, RegisterType) };
     }
   case PTC_INSTRUCTION_op_movcond_i32: // Resist the fallthrough temptation
   case PTC_INSTRUCTION_op_movcond_i64:
@@ -763,7 +777,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       Value *Select = Builder.CreateSelect(Compare,
                                            InArguments[2],
                                            InArguments[3]);
-      return { Select };
+      return v { Select };
     }
   case PTC_INSTRUCTION_op_qemu_ld_i32:
   case PTC_INSTRUCTION_op_qemu_ld_i64:
@@ -825,9 +839,9 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
           Load = Builder.CreateCall(BSwapFunction, Load);
 
         if (SignExtend)
-          return { Builder.CreateSExt(Load, RegisterType) };
+          return v { Builder.CreateSExt(Load, RegisterType) };
         else
-          return { Builder.CreateZExt(Load, RegisterType) };
+          return v { Builder.CreateZExt(Load, RegisterType) };
 
       } else if (Opcode == PTC_INSTRUCTION_op_qemu_st_i32 ||
                  Opcode == PTC_INSTRUCTION_op_qemu_st_i64) {
@@ -841,7 +855,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
 
         Builder.CreateAlignedStore(Value, Pointer, AccessAlignment);
 
-        return { };
+        return v { };
       } else
         llvm_unreachable("Unknown load type");
     }
@@ -859,13 +873,17 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
   case PTC_INSTRUCTION_op_ld_i64:
     {
       Value *Base = dyn_cast<LoadInst>(InArguments[0])->getPointerOperand();
-      assert(Base != nullptr && Variables.isEnv(Base));
+      if (Base == nullptr || !Variables.isEnv(Base)) {
+        // TODO: emit warning
+        return std::errc::invalid_argument;
+      }
+
       Value *Target = Variables.getByEnvOffset(ConstArguments[0]);
 
       Value *EnvField = Builder.CreateLoad(Target);
       Value *Fitted = Builder.CreateZExtOrTrunc(EnvField, RegisterType);
 
-      return { Fitted };
+      return v { Fitted };
     }
   case PTC_INSTRUCTION_op_st8_i32:
   case PTC_INSTRUCTION_op_st16_i32:
@@ -876,12 +894,16 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
   case PTC_INSTRUCTION_op_st_i64:
     {
       Value *Base = dyn_cast<LoadInst>(InArguments[1])->getPointerOperand();
-      assert(Base != nullptr && Variables.isEnv(Base));
+      if (Base == nullptr || !Variables.isEnv(Base)) {
+        // TODO: emit warning
+        return std::errc::invalid_argument;
+      }
+
       Value *Target = Variables.getByEnvOffset(ConstArguments[0]);
       Type *TargetPointer = Target->getType()->getPointerElementType();
       Value *ToStore = Builder.CreateZExt(InArguments[0], TargetPointer);
       Builder.CreateStore(ToStore, Target);
-      return { };
+      return v { };
     }
   case PTC_INSTRUCTION_op_add_i32:
   case PTC_INSTRUCTION_op_sub_i32:
@@ -915,7 +937,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       Value *Operation = Builder.CreateBinOp(BinaryOp,
                                              InArguments[0],
                                              InArguments[1]);
-      return { Operation };
+      return v { Operation };
     }
   case PTC_INSTRUCTION_op_div2_i32:
   case PTC_INSTRUCTION_op_divu2_i32:
@@ -943,7 +965,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       Value *Remainder = Builder.CreateBinOp(RemainderOp,
                                              InArguments[0],
                                              InArguments[2]);
-      return { Division, Remainder };
+      return v { Division, Remainder };
     }
   case PTC_INSTRUCTION_op_rotr_i32:
   case PTC_INSTRUCTION_op_rotr_i64:
@@ -973,14 +995,14 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
                                                InArguments[0],
                                                SecondShiftAmount);
 
-      return { Builder.CreateOr(FirstShift, SecondShift) };
+      return v { Builder.CreateOr(FirstShift, SecondShift) };
     }
   case PTC_INSTRUCTION_op_deposit_i32:
   case PTC_INSTRUCTION_op_deposit_i64:
     {
       unsigned Position = ConstArguments[0];
       if (Position == RegisterSize)
-        return { InArguments[0] };
+        return v { InArguments[0] };
 
       unsigned Length = ConstArguments[1];
       uint64_t Bits = 0;
@@ -998,7 +1020,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       Value *ShiftedDeposit = Builder.CreateShl(Deposit, Position);
       Value *Result = Builder.CreateOr(MaskedBase, ShiftedDeposit);
 
-      return { Result };
+      return v { Result };
     }
   case PTC_INSTRUCTION_op_ext8s_i32:
   case PTC_INSTRUCTION_op_ext16s_i32:
@@ -1041,25 +1063,25 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       case PTC_INSTRUCTION_op_ext16s_i32:
       case PTC_INSTRUCTION_op_ext16s_i64:
       case PTC_INSTRUCTION_op_ext32s_i64:
-        return { Builder.CreateSExt(Truncated, RegisterType) };
+        return v { Builder.CreateSExt(Truncated, RegisterType) };
       case PTC_INSTRUCTION_op_ext8u_i32:
       case PTC_INSTRUCTION_op_ext8u_i64:
       case PTC_INSTRUCTION_op_ext16u_i32:
       case PTC_INSTRUCTION_op_ext16u_i64:
       case PTC_INSTRUCTION_op_ext32u_i64:
-        return { Builder.CreateZExt(Truncated, RegisterType) };
+        return v { Builder.CreateZExt(Truncated, RegisterType) };
       default:
         llvm_unreachable("Unexpected opcode");
       }
     }
   case PTC_INSTRUCTION_op_not_i32:
   case PTC_INSTRUCTION_op_not_i64:
-    return { Builder.CreateXor(InArguments[0], getMaxValue(RegisterSize)) };
+    return v { Builder.CreateXor(InArguments[0], getMaxValue(RegisterSize)) };
   case PTC_INSTRUCTION_op_neg_i32:
   case PTC_INSTRUCTION_op_neg_i64:
     {
       auto *InitialValue = ConstantInt::get(RegisterType, 0);
-      return { Builder.CreateSub(InitialValue, InArguments[0]) };
+      return v { Builder.CreateSub(InitialValue, InArguments[0]) };
     }
   case PTC_INSTRUCTION_op_andc_i32:
   case PTC_INSTRUCTION_op_andc_i64:
@@ -1089,21 +1111,21 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       Value *Negate = Builder.CreateXor(InArguments[1],
                                         getMaxValue(RegisterSize));
       Value *Result = Builder.CreateBinOp(ExternalOp, InArguments[0], Negate);
-      return { Result };
+      return v { Result };
     }
   case PTC_INSTRUCTION_op_nand_i32:
   case PTC_INSTRUCTION_op_nand_i64:
     {
       Value *AndValue = Builder.CreateAnd(InArguments[0], InArguments[1]);
       Value *Result = Builder.CreateXor(AndValue, getMaxValue(RegisterSize));
-      return { Result };
+      return v { Result };
     }
   case PTC_INSTRUCTION_op_nor_i32:
   case PTC_INSTRUCTION_op_nor_i64:
     {
       Value *OrValue = Builder.CreateOr(InArguments[0], InArguments[1]);
       Value *Result = Builder.CreateXor(OrValue, getMaxValue(RegisterSize));
-      return { Result };
+      return v { Result };
     }
   case PTC_INSTRUCTION_op_bswap16_i32:
   case PTC_INSTRUCTION_op_bswap32_i32:
@@ -1132,7 +1154,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
                                                           { RegisterType });
       Value *Swapped = Builder.CreateCall(BSwapFunction, Truncated);
 
-      return { Builder.CreateZExt(Swapped, RegisterType) };
+      return v { Builder.CreateZExt(Swapped, RegisterType) };
     }
   case PTC_INSTRUCTION_op_set_label:
     {
@@ -1163,7 +1185,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       Builder.SetInsertPoint(Fallthrough);
       Variables.newBasicBlock();
 
-      return { };
+      return v { };
     }
   case PTC_INSTRUCTION_op_br:
   case PTC_INSTRUCTION_op_brcond_i32:
@@ -1206,14 +1228,14 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       Builder.SetInsertPoint(Fallthrough);
       Variables.newBasicBlock();
 
-      return { };
+      return v { };
     }
   case PTC_INSTRUCTION_op_exit_tb:
     Builder.CreateCall(JumpTargets.exitTB(), { });
-    return { };
+    return v { };
   case PTC_INSTRUCTION_op_goto_tb:
     // Nothing to do here
-    return { };
+    return v { };
   case PTC_INSTRUCTION_op_add2_i32:
   case PTC_INSTRUCTION_op_sub2_i32:
   case PTC_INSTRUCTION_op_add2_i64:
@@ -1246,7 +1268,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
       Value *ResultHigh = Builder.CreateTrunc(ShiftedResult, RegisterType);
 
-      return { ResultLow, ResultHigh };
+      return v { ResultLow, ResultHigh };
     }
   case PTC_INSTRUCTION_op_mulu2_i32:
   case PTC_INSTRUCTION_op_mulu2_i64:
@@ -1275,7 +1297,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
       Value *ResultHigh = Builder.CreateTrunc(ShiftedResult, RegisterType);
 
-      return { ResultLow, ResultHigh };
+      return v { ResultLow, ResultHigh };
     }
   case PTC_INSTRUCTION_op_muluh_i32:
   case PTC_INSTRUCTION_op_mulsh_i32:

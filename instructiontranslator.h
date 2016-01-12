@@ -9,6 +9,7 @@
 // LLVM includes
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/ErrorOr.h"
 
 // Local includes
 #include "revamb.h"
@@ -77,9 +78,12 @@ public:
 
   TranslateDirectBranchesPass *createTranslateDirectBranchesPass();
 
-  std::pair<bool, llvm::MDNode *> newInstruction(PTCInstruction *Instr,
-                                                 bool IsFirst);
-  void translate(PTCInstruction *Instr);
+  // TODO: rename to newPC
+  // TODO: the signature of this funciton is ugly
+  std::tuple<bool,
+    llvm::MDNode *,
+    uint64_t> newInstruction(PTCInstruction *Instr, bool IsFirst);
+  bool translate(PTCInstruction *Instr, uint64_t PC);
   void translateCall(PTCInstruction *Instr);
 
   void removeNewPCMarkers();
@@ -87,10 +91,10 @@ public:
   void closeLastInstruction(uint64_t PC);
 
 private:
-  std::vector<llvm::Value *>
-    translateOpcode(PTCOpcode Opcode,
-                    std::vector<uint64_t> ConstArguments,
-                    std::vector<llvm::Value *> InArguments);
+  llvm::ErrorOr<std::vector<llvm::Value *>>
+  translateOpcode(PTCOpcode Opcode,
+                  std::vector<uint64_t> ConstArguments,
+                  std::vector<llvm::Value *> InArguments);
 private:
   llvm::IRBuilder<>& Builder;
   VariableManager& Variables;
