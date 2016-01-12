@@ -32,6 +32,8 @@ static void pushIfNew(std::set<T>& Seen, std::stack<T>& Queue, T Element) {
   }
 }
 
+static const int64_t ErrorOffset = std::numeric_limits<int64_t>::max();
+
 bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
   using OffsetValuePair = std::pair<int64_t, Value *>;
   std::set<OffsetValuePair> SeenArgs;
@@ -65,15 +67,25 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
 
     for (Use& TheUse : CurrentValue->uses()) {
       Instruction *TheUser = cast<Instruction>(TheUse.getUser());
-      switch(TheUser->getOpcode()) {
+      auto Opcode = TheUser->getOpcode();
+
+      if (CurrentOffset == ErrorOffset
+          && Opcode != Instruction::Load
+          && Opcode != Instruction::Store) {
+        // Not loading or storing, propagate the error value
+        WorkList.push(std::make_pair(ErrorOffset, TheUser));
+        continue;
+      }
+
+      switch(Opcode) {
       case Instruction::Load:
       case Instruction::Store:
         {
-          if (TheUser->getOpcode() == Instruction::Store) {
+          if (Opcode == Instruction::Store) {
             // It's a store, just change the destination pointer
             assert(cast<StoreInst>(TheUser)->getPointerOperand() == CurrentValue
                    && "Pointer cannot be used as source of a store instruction");
-          } else if (TheUser->getOpcode() == Instruction::Load) {
+          } else if (Opcode == Instruction::Load) {
             // It's a load, just change the source pointer
             assert(cast<LoadInst>(TheUser)->getPointerOperand() == CurrentValue
                    && "Pointer cannot be used as destination of a load"
@@ -85,7 +97,10 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
           // Couldn't translate this environment usage, make it fail at run-time
           if (Var == nullptr) {
             auto *InvalidInst = cast<Instruction>(TheUser);
+            // TODO: emit a warning
             CallInst::Create(TheModule.getFunction("abort"), { }, InvalidInst);
+            // TODO: shall we put an unreachable and delete everything comes
+            //       afterwards?
           } else {
             Constant *Ptr = Var;
 
@@ -144,6 +159,13 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
             Callee = cast<Function>(Cast->getOperand(0));
           }
 
+          // TODO: we could handle this instead of aborting
+          if (Callee->getIntrinsicID() == Intrinsic::memcpy) {
+            auto *InvalidInst = cast<Instruction>(TheUser);
+            CallInst::Create(TheModule.getFunction("abort"), { }, InvalidInst);
+            continue;
+          }
+
           assert(!Callee->empty() && "external functions are not supported");
 
           // Find the corresponding argument
@@ -187,7 +209,8 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
           break;
         }
       default:
-        llvm_unreachable("Unexpected instruction using the pointer");
+        // Unhandled situation, propagate an error value until the next load
+        WorkList.push(std::make_pair(ErrorOffset, TheUser));
       }
     }
 
@@ -324,6 +347,8 @@ VariableManager::VariableManager(Module& TheModule,
   }
 }
 
+// TODO: `newFunction` reflects the tcg terminology but in this context is
+//       highly misleading
 void VariableManager::newFunction(Instruction *Delimiter,
                                   PTCInstructionList *Instructions) {
   LocalTemporaries.clear();
@@ -367,6 +392,8 @@ bool VariableManager::isEnv(Value *TheValue) {
 // TODO: document that it can return nullptr
 GlobalVariable* VariableManager::getByCPUStateOffset(intptr_t Offset,
                                                      std::string Name) {
+  if (Offset == ErrorOffset)
+    return nullptr;
 
   GlobalsMap::iterator it = CPUStateGlobals.find(Offset);
   if (it == CPUStateGlobals.end() ||
