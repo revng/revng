@@ -283,6 +283,7 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
                                      "dispatcher.default",
                                      OutputFunction);
   Builder.SetInsertPoint(Default);
+  Builder.CreateCall(TheFunction->getParent()->getFunction("abort"));
   Builder.CreateUnreachable();
 
   // Switch on the first argument of the function
