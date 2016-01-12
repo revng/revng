@@ -928,8 +928,8 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
           Opcode == PTC_INSTRUCTION_op_div2_i64) {
         DivisionOp = Instruction::SDiv;
         RemainderOp = Instruction::SRem;
-      } else if (Opcode == PTC_INSTRUCTION_op_div2_i32 ||
-                 Opcode == PTC_INSTRUCTION_op_div2_i64) {
+      } else if (Opcode == PTC_INSTRUCTION_op_divu2_i32 ||
+                 Opcode == PTC_INSTRUCTION_op_divu2_i64) {
         DivisionOp = Instruction::UDiv;
         RemainderOp = Instruction::URem;
       } else
@@ -1258,8 +1258,8 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       Value *FirstOperand = nullptr;
       Value *SecondOperand = nullptr;
 
-      if (Opcode == PTC_INSTRUCTION_op_muls2_i32
-          || Opcode == PTC_INSTRUCTION_op_muls2_i64) {
+      if (Opcode == PTC_INSTRUCTION_op_mulu2_i32
+          || Opcode == PTC_INSTRUCTION_op_mulu2_i64) {
         FirstOperand = Builder.CreateZExt(InArguments[0], DestinationType);
         SecondOperand = Builder.CreateZExt(InArguments[1], DestinationType);
       } else if (Opcode == PTC_INSTRUCTION_op_muls2_i32
