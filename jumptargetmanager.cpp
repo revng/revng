@@ -94,26 +94,39 @@ JumpTargetManager::JumpTargetManager(Module& TheModule,
 ///
 /// \return the basic block to use from now on, or null if the program counter
 ///         is not associated to a basic block.
+// TODO: make this return a pair
 BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool& ShouldContinue) {
   // Did we already meet this PC?
-  auto It = JumpTargets.find(PC);
-  if (It != JumpTargets.end()) {
+  auto JTIt = JumpTargets.find(PC);
+  if (JTIt != JumpTargets.end()) {
     // If it was planned to explore it in the future, just to do it now
-    for (auto It = Unexplored.begin(); It != Unexplored.end(); It++) {
-      if (It->first == PC) {
-        auto Result = It->second;
-        Unexplored.erase(It);
+    for (auto UnexploredIt = Unexplored.begin();
+         UnexploredIt != Unexplored.end();
+         UnexploredIt++) {
+
+      if (UnexploredIt->first == PC) {
+        auto Result = UnexploredIt->second;
+        Unexplored.erase(UnexploredIt);
         ShouldContinue = true;
         assert(Result->empty());
         return Result;
       }
+
     }
 
     // It wasn't planned to visit it, so we've already been there, just jump
     // there
-    assert(!It->second->empty());
+    assert(!JTIt->second->empty());
     ShouldContinue = false;
-    return It->second;
+    return JTIt->second;
+  }
+
+  // Check if already translated this PC even if it's not associated to a basic
+  // block. This typically happens with variable-length instruction encodings.
+  auto OIAIt = OriginalInstructionAddresses.find(PC);
+  if (OIAIt != OriginalInstructionAddresses.end()) {
+    ShouldContinue = false;
+    return getBlockAt(PC);
   }
 
   // We don't know anything about this PC
