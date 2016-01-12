@@ -1242,8 +1242,16 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       return v { };
     }
   case PTC_INSTRUCTION_op_exit_tb:
-    Builder.CreateCall(JumpTargets.exitTB(), { });
-    return v { };
+    {
+      Builder.CreateCall(JumpTargets.exitTB(), { });
+
+      auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
+      Blocks.push_back(NextBB);
+      Builder.SetInsertPoint(NextBB);
+      Variables.newBasicBlock();
+
+      return v { };
+    }
   case PTC_INSTRUCTION_op_goto_tb:
     // Nothing to do here
     return v { };

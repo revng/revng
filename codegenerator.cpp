@@ -644,6 +644,12 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
 
     Translator.closeLastInstruction(NextPC);
 
+    // We might have a leftover block, probably due to the block created after
+    // the last call to exit_tb
+    auto *LastBlock = Builder.GetInsertBlock();
+    if (LastBlock->empty())
+      LastBlock->eraseFromParent();
+
     // If we're out of jump targets, try to harvest some more
     if (JumpTargets.empty()) {
       legacy::PassManager PM;
