@@ -73,6 +73,11 @@ CodeGenerator::CodeGenerator(std::string Input,
 
   BinaryHandle = std::move(BinaryOrErr.get());
 
+  // Provide an abort declaration
+  TheModule->getOrInsertFunction("abort",
+                                 FunctionType::get(Type::getVoidTy(Context),
+                                                   false));
+
   // We only support ELF for now
   auto *TheBinary = cast<object::ObjectFile>(BinaryHandle.getBinary());
 
