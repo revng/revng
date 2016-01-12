@@ -43,10 +43,11 @@ bool JumpTargetsFromConstantsPass::runOnFunction(Function &F) {
           }
 
           auto *Constant = dyn_cast<ConstantInt>(Operand.get());
-          if (Constant != nullptr) {
-            JTM->getBlockAt(Constant->getLimitedValue(), true);
-          }
+          if (Constant != nullptr)
+            JTM->getBlockAt(Constant->getLimitedValue());
+
         }
+
       };
 
       for (Instruction& Instr : BB)
@@ -206,7 +207,12 @@ JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
 }
 
 /// Get or create a block for the given PC
-BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC, bool Try) {
+BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
+  if (!isExecutableAddress(PC)) {
+    assert("Jump to a non-executable address");
+    return nullptr;
+  }
+
   // Do we already have a BasicBlock for this PC?
   BlockMap::iterator TargetIt = JumpTargets.find(PC);
   if (TargetIt != JumpTargets.end()) {
@@ -232,14 +238,6 @@ BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC, bool Try) {
   } else {
     // Case 3: the address has never been met, create a temporary one, register
     // it for future exploration and return it
-
-    if (!isExecutableAddress(PC)) {
-      if (Try)
-        return nullptr;
-      else
-        assert("Jump to a non-executable address");
-    }
-
     std::stringstream Name;
     Name << "bb.0x" << std::hex << PC;
 

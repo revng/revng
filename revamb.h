@@ -69,4 +69,10 @@ static inline bool startsWith(std::string String, std::string Prefix) {
   return String.substr(0, Prefix.size()) == Prefix;
 }
 
+template<typename T>
+static inline T *notNull(T *Pointer) {
+  assert(Pointer != nullptr);
+  return Pointer;
+}
+
 #endif // _REVAMB_H

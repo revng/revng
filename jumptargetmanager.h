@@ -90,7 +90,7 @@ public:
   bool empty() { return Unexplored.empty(); }
 
   /// Get or create a block for the given PC
-  llvm::BasicBlock *getBlockAt(uint64_t PC, bool Try=false);
+  llvm::BasicBlock *getBlockAt(uint64_t PC);
 
   JumpTargetsFromConstantsPass *createJumpTargetsFromConstantsPass() {
     return new JumpTargetsFromConstantsPass(this);

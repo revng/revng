@@ -612,7 +612,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
         // case force a fallthrough
         // TODO: investigate why this happens
         if (j == InstructionList->instruction_count - 1)
-          Builder.CreateBr(JumpTargets.getBlockAt(NextPC));
+          Builder.CreateBr(notNull(JumpTargets.getBlockAt(NextPC)));
 
         break;
       default:
