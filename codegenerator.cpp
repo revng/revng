@@ -526,7 +526,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
                                          "entrypoint",
                                          MainFunction);
   Builder.SetInsertPoint(Entry);
-  Instruction *Delimiter = Builder.CreateUnreachable();
 
   // Instantiate helpers
   VariableManager Variables(*TheModule,
@@ -539,13 +538,14 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
                                 MainFunction,
                                 ExecutableRanges);
 
-  // Create a new block where the translation will start and emit a tautological
-  // branch to it, with false part being the dispatcher, which is always
-  // reachable
-  Entry = BasicBlock::Create(Context,
-                             "translation-start",
-                             MainFunction);
-  Builder.CreateCondBr(Builder.getTrue(), Entry, JumpTargets.dispatcher());
+  JumpTargets.getBlockAt(VirtualAddress);
+  std::tie(VirtualAddress, Entry) = JumpTargets.peek();
+
+  // Fake jump to the dispatcher. This way all the blocks are always reachable.
+  // Also, use this branch as the delimiter to create local variables.
+  auto *Delimiter = Builder.CreateCondBr(Builder.getTrue(),
+                                         Entry,
+                                         JumpTargets.dispatcher());
 
 
   std::map<std::string, BasicBlock *> LabeledBasicBlocks;
@@ -740,9 +740,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   PM.add(Variables.createCorrectCPUStateUsagePass());
   PM.add(createDeadCodeEliminationPass());
   PM.run(*TheModule);
-
-  // TODO: we have around all the usages of the PC, shall we drop them?
-  Delimiter->eraseFromParent();
 
   JumpTargets.translateIndirectJumps();
 
