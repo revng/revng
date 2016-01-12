@@ -171,8 +171,16 @@ StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
       return nullptr;
   }
 
-  assert(false &&
-         "Couldn't find a write to the PC in the basic block of an exit_tb");
+  // TODO: handle the following case:
+  //          pc = x
+  //          brcond ?, a, b
+  //       a:
+  //          pc = y
+  //          br b
+  //       b:
+  //          exitTB
+  // TODO: emit warning
+  return nullptr;
 }
 
 void JumpTargetManager::translateIndirectJumps() {
