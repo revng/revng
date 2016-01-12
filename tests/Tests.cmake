@@ -164,6 +164,8 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       # Test to run the translated program
       add_test(NAME run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
         COMMAND sh -c "${BIN}/${TEST_NAME}.translated ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${BIN}/run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}.log")
+      set_tests_properties(run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
+        PROPERTIES DEPENDS compile-translated-${TEST_NAME}-${ARCH})
 
       # Test to run the compiled program under qemu-user
       add_test(NAME run-qemu-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
@@ -173,10 +175,21 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       # one
       add_test(NAME check-with-qemu-${TEST_NAME}-${RUN_NAME}-${ARCH}
         COMMAND "${DIFF}" "${BIN}/run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}.log" "${BIN}/run-qemu-test-${TEST_NAME}-${RUN_NAME}.log")
+      set(DEPS "")
+      list(APPEND DEPS "run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}")
+      list(APPEND DEPS "run-qemu-test-${TEST_NAME}-${RUN_NAME}-${ARCH}")
+      set_tests_properties(check-with-qemu-${TEST_NAME}-${RUN_NAME}-${ARCH}
+        PROPERTIES DEPENDS "${DEPS}")
 
       # Check the output of the translated binary corresponds to the native's one
       add_test(NAME check-with-native-${TEST_NAME}-${RUN_NAME}-${ARCH}
         COMMAND "${DIFF}" "${BIN}/run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}.log" "${CMAKE_CURRENT_BINARY_DIR}/tests/run-test-native-${TEST_NAME}-${RUN_NAME}.log")
+      set(DEPS "")
+      list(APPEND DEPS "run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}")
+      list(APPEND DEPS "run-test-native-${TEST_NAME}-${RUN_NAME}")
+      set_tests_properties(check-with-native-${TEST_NAME}-${RUN_NAME}-${ARCH}
+        PROPERTIES DEPENDS "${DEPS}")
+
     endforeach()
   endforeach()
 
