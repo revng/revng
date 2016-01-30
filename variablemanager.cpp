@@ -142,7 +142,13 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
         {
           unsigned OtherOperandIndex = 1 - TheUse.getOperandNo();
           Value *OtherOperand = TheUser->getOperand(OtherOperandIndex);
-          assert(isa<ConstantInt>(OtherOperand));
+
+          if (!isa<ConstantInt>(OtherOperand)) {
+            auto *InvalidInst = cast<Instruction>(TheUser);
+            CallInst::Create(TheModule.getFunction("abort"), { }, InvalidInst);
+            continue;
+          }
+
           int64_t Addend = cast<ConstantInt>(OtherOperand)->getSExtValue();
           WorkList.push(std::make_pair(CurrentOffset + Addend, TheUser));
           break;
