@@ -731,8 +731,34 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   replaceFunctionWithRet(HelpersModule->getFunction("page_get_flags"),
                          0xffffffff);
 
-  Linker TheLinker(TheModule.get());
-  bool Result = TheLinker.linkInModule(HelpersModule.get(),
+  // HACK: the LLVM linker does not import non-static funcitons anymore if
+  //       LinkOnlyNeeded is specified. We don't want this so mark all the
+  //       non-static symbols not directly imported as static.
+  {
+    std::set<StringRef> Declarations;
+    for (auto& GV : TheModule->functions())
+      if (GV.isDeclaration())
+        Declarations.insert(GV.getName());
+
+    for (auto& GV : TheModule->globals())
+      if (GV.isDeclaration())
+        Declarations.insert(GV.getName());
+
+    for (auto& GV : HelpersModule->functions())
+      if (!GV.isDeclaration()
+          && Declarations.find(GV.getName()) == Declarations.end()
+          && GV.hasExternalLinkage())
+        GV.setLinkage(GlobalValue::InternalLinkage);
+
+    for (auto& GV : HelpersModule->globals())
+      if (!GV.isDeclaration()
+          && Declarations.find(GV.getName()) == Declarations.end()
+          && GV.hasExternalLinkage())
+        GV.setLinkage(GlobalValue::InternalLinkage);
+  }
+
+  Linker TheLinker(*TheModule);
+  bool Result = TheLinker.linkInModule(std::move(HelpersModule),
                                        Linker::LinkOnlyNeeded);
   assert(!Result && "Linking failed");
 
