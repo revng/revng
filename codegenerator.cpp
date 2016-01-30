@@ -70,6 +70,11 @@ CodeGenerator::CodeGenerator(std::string Input,
   SMDiagnostic Errors;
   HelpersModule = parseIRFile(Helpers, Errors, Context);
 
+  if (HelpersModule.get() == nullptr) {
+    Errors.print("revamb", dbgs());
+    abort();
+  }
+
   auto BinaryOrErr = object::createBinary(Input);
   assert(BinaryOrErr && "Couldn't open the input file");
 
