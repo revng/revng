@@ -80,11 +80,6 @@ CodeGenerator::CodeGenerator(std::string Input,
 
   BinaryHandle = std::move(BinaryOrErr.get());
 
-  // Provide an abort declaration
-  TheModule->getOrInsertFunction("abort",
-                                 FunctionType::get(Type::getVoidTy(Context),
-                                                   false));
-
   // We only support ELF for now
   auto *TheBinary = cast<object::ObjectFile>(BinaryHandle.getBinary());
 
@@ -148,6 +143,23 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
   ElfHeaderHelper->setAlignment(1);
   ElfHeaderHelper->setSection(".elfheaderhelper");
 
+  auto *RegisterType = Type::getIntNTy(Context, T::Is64Bits ? 64 : 32);
+  auto createConstGlobal = [this, &RegisterType] (const Twine &Name,
+                                                  uint64_t Value) {
+    return new GlobalVariable(*TheModule,
+                              RegisterType,
+                              true,
+                              GlobalValue::ExternalLinkage,
+                              ConstantInt::get(RegisterType, Value),
+                              Name);
+  };
+
+  // These values will be used to populate the auxiliary vectors
+  auto PhdrAddress = reinterpret_cast<uint64_t>(TheELF.base()
+                                                + ElfHeader->e_phoff);
+  createConstGlobal("phdr_address", PhdrAddress);
+  createConstGlobal("e_phentsize", ElfHeader->e_phentsize);
+  createConstGlobal("e_phnum", ElfHeader->e_phnum);
 
   // Loop over the program headers looking for PT_LOAD segments, read them out
   // and create a global variable for each one of them (writable or read-only),
@@ -521,6 +533,21 @@ bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
 
 void CodeGenerator::translate(uint64_t VirtualAddress,
                               std::string Name) {
+  // Declare useful functions
+  TheModule->getOrInsertFunction("abort",
+                                 FunctionType::get(Type::getVoidTy(Context),
+                                                   false));
+  auto *TargetSetBrkFunction = HelpersModule->getFunction("target_set_brk");
+  TheModule->getOrInsertFunction("target_set_brk",
+                                 TargetSetBrkFunction->getFunctionType());
+  Function *CpuLoop = HelpersModule->getFunction("cpu_loop");
+  assert(CpuLoop != nullptr);
+  TheModule->getOrInsertFunction("cpu_loop", CpuLoop->getFunctionType());
+  TheModule->getOrInsertFunction("syscall_init",
+                                 FunctionType::get(Type::getVoidTy(Context),
+                                                   { },
+                                                   false));
+
   IRBuilder<> Builder(Context);
 
   if (VirtualAddress == 0)
@@ -676,15 +703,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
   } // End translations loop
 
-  Function *CpuLoop = HelpersModule->getFunction("cpu_loop");
-  assert(CpuLoop != nullptr);
   legacy::FunctionPassManager CpuLoopPM(TheModule.get());
   CpuLoopPM.add(new LoopInfoWrapperPass());
   CpuLoopPM.add(new CpuLoopFunctionPass());
   CpuLoopPM.run(*CpuLoop);
-
-  // Force linking of cpu_loop
-  TheModule->getOrInsertFunction("cpu_loop", CpuLoop->getFunctionType());
 
   // CpuLoopFunctionPass expects a variable name exception_index to exist
   Variables.getByEnvOffset(ptc.exception_index, "exception_index");
@@ -711,6 +733,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
                                                      // syscall.c
                                                      "print_syscall",
                                                      "print_syscall_ret",
+                                                     "do_ioctl_dm",
                                                      // ARM cpu_loop
                                                      "EmulateAll",
                                                      "cpu_abort",

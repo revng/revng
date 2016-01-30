@@ -150,7 +150,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       COMMAND sh -c "$<TARGET_FILE:revamb> -g ll --entry $(${CMAKE_CURRENT_SOURCE_DIR}/tests/get-function-virtual-address ${BIN}/${TEST_NAME} root) --architecture ${ARCH} ${BIN}/${TEST_NAME} ${BIN}/${TEST_NAME}.ll")
 
     # Command-line to link support.c and the translated binaries
-    compile_executable("$(${CMAKE_CURRENT_SOURCE_DIR}/tests/li-csv-to-ld-options ${BIN}/${TEST_NAME}.ll.li.csv) ${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} ${TEST_SRC}/support.c -DTARGET_${NORMALIZED_ARCH}"
+    compile_executable("$(${CMAKE_CURRENT_SOURCE_DIR}/tests/li-csv-to-ld-options ${BIN}/${TEST_NAME}.ll.li.csv) ${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} ${TEST_SRC}/support.c -DTARGET_${NORMALIZED_ARCH} -lz -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -g"
       "${BIN}/${TEST_NAME}.translated"
       COMPILE_TRANSLATED)
 
