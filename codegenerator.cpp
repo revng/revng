@@ -623,15 +623,24 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
           break;
         }
       case PTC_INSTRUCTION_op_call:
-        Translator.translateCall(&Instruction);
+        {
+          Translator.translateCall(&Instruction);
 
-        // Sometimes libtinycode terminates a basic block with a call, in this
-        // case force a fallthrough
-        // TODO: investigate why this happens
-        if (j == InstructionList->instruction_count - 1)
-          Builder.CreateBr(notNull(JumpTargets.getBlockAt(NextPC)));
-
-        break;
+          // Sometimes libtinycode terminates a basic block with a call, in this
+          // case force a fallthrough
+          // TODO: investigate why this happens
+          auto &IL = InstructionList;
+          if (j == IL->instruction_count - 1) {
+            Builder.CreateBr(notNull(JumpTargets.getBlockAt(NextPC)));
+          } else if (j + 1 == IL->instruction_count - 1) {
+            if (IL->instructions[j + 1].opc == PTC_INSTRUCTION_op_exit_tb) {
+              // This is the last call before an exit_tb, force exploration of
+              // the next PC address
+              JumpTargets.getBlockAt(NextPC);
+            }
+          }
+          break;
+        }
       default:
         StopTranslation = Translator.translate(&Instruction, PC);
       }
