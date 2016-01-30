@@ -156,7 +156,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
 
     # Compile the translated LLVM IR
     add_test(NAME compile-translated-${TEST_NAME}-${ARCH}
-      COMMAND sh -c "${LLC} -filetype=obj ${BIN}/${TEST_NAME}.ll -o ${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} && ${COMPILE_TRANSLATED}")
+      COMMAND sh -c "${LLC} -O0 -filetype=obj ${BIN}/${TEST_NAME}.ll -o ${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} && ${COMPILE_TRANSLATED}")
     set_tests_properties(compile-translated-${TEST_NAME}-${ARCH} PROPERTIES DEPENDS translate-${TEST_NAME}-${ARCH})
 
     # For each set of arguments
