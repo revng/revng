@@ -762,6 +762,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
                                        Linker::LinkOnlyNeeded);
   assert(!Result && "Linking failed");
 
+  Variables.setDataLayout(&TheModule->getDataLayout());
+
   legacy::PassManager PM;
   PM.add(createSROAPass());
   PM.add(new CpuLoopExitPass(&Variables));

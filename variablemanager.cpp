@@ -272,7 +272,7 @@ VariableManager::VariableManager(Module& TheModule,
   TheModule(TheModule),
   Builder(TheModule.getContext()),
   CPUStateType(nullptr),
-  HelpersModuleLayout(&HelpersModule.getDataLayout()),
+  ModuleLayout(&HelpersModule.getDataLayout()),
   EnvOffset(0),
   Env(nullptr) {
 
@@ -345,7 +345,7 @@ VariableManager::VariableManager(Module& TheModule,
       if (Found != End) {
         unsigned Index = Found - Begin;
         const StructLayout *Layout = nullptr;
-        Layout = HelpersModuleLayout->getStructLayout(TheStruct);
+        Layout = ModuleLayout->getStructLayout(TheStruct);
         EnvOffset += Layout->getElementOffset(Index);
         CPUStateType = TheStruct;
         Visited.insert(CPUStateType);
@@ -422,7 +422,7 @@ GlobalVariable* VariableManager::getByCPUStateOffset(intptr_t Offset,
   GlobalsMap::iterator it = CPUStateGlobals.find(Offset);
   if (it == CPUStateGlobals.end() ||
       (Name.size() != 0 && !it->second->getName().equals_lower(Name))) {
-    Type *VariableType = getTypeAtOffset(HelpersModuleLayout,
+    Type *VariableType = getTypeAtOffset(ModuleLayout,
                                          CPUStateType,
                                          Offset);
 

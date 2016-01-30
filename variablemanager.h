@@ -98,6 +98,10 @@ public:
                                  llvm::Instruction *InsertBefore,
                                  unsigned Offset = 0);
 
+  void setDataLayout(const llvm::DataLayout *NewLayout) {
+    ModuleLayout = NewLayout;
+  }
+
 private:
   llvm::GlobalVariable *getByCPUStateOffset(intptr_t Offset,
                                             std::string Name="");
@@ -113,7 +117,7 @@ private:
   PTCInstructionList *Instructions;
 
   llvm::StructType *CPUStateType;
-  const llvm::DataLayout *HelpersModuleLayout;
+  const llvm::DataLayout *ModuleLayout;
   unsigned EnvOffset;
 
   llvm::Value *Env;
