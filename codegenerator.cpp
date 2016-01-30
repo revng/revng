@@ -129,7 +129,8 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
   object::ELFFile<T> TheELF(TheBinary->getData(), EC);
   assert(!EC && "Error while loading the ELF file");
 
-  EntryPoint = static_cast<uint64_t>(TheELF.getHeader()->e_entry);
+  const auto *ElfHeader = TheELF.getHeader();
+  EntryPoint = static_cast<uint64_t>(ElfHeader->e_entry);
 
   // Prepare the linking info CSV
   if (LinkingInfoPath.size() == 0)
@@ -545,22 +546,20 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   VariableManager Variables(*TheModule,
                             *HelpersModule);
 
-  GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc");
-
   JumpTargetManager JumpTargets(MainFunction,
-                                PCReg,
+                                Variables.getByEnvOffset(ptc.pc, "pc"),
                                 SourceArchitecture,
                                 Segments);
 
-  JumpTargets.getBlockAt(VirtualAddress);
-  std::tie(VirtualAddress, Entry) = JumpTargets.peek();
+  BasicBlock *Head = JumpTargets.getBlockAt(VirtualAddress);
 
   // Fake jump to the dispatcher. This way all the blocks are always reachable.
   // Also, use this branch as the delimiter to create local variables.
   auto *Delimiter = Builder.CreateCondBr(Builder.getTrue(),
-                                         Entry,
+                                         Head,
                                          JumpTargets.dispatcher());
 
+  std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
   std::map<std::string, BasicBlock *> LabeledBasicBlocks;
   std::vector<BasicBlock *> Blocks;
