@@ -127,6 +127,8 @@ public:
 
   bool isPCReg(llvm::Value *TheValue) { return TheValue == PCReg; }
 
+  uint64_t getNextPC(llvm::Instruction *TheInstruction);
+
 private:
   // TODO: instead of a gigantic switch case we could map the original memory
   //       area and write the address of the translated basic block at the jump
@@ -146,6 +148,9 @@ private:
   }
 
   void harvest();
+
+  void handleSumJump(llvm::Instruction *SumJump);
+
 private:
   using BlockMap = std::map<uint64_t, llvm::BasicBlock *>;
   using InstructionMap = std::map<uint64_t, llvm::Instruction *>;

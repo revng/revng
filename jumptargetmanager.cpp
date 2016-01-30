@@ -5,6 +5,7 @@
 
 // Standard includes
 #include <cstdint>
+#include <queue>
 #include <sstream>
 #include <stack>
 
@@ -31,6 +32,8 @@
 
 using namespace llvm;
 
+static bool isSumJump(StoreInst *PCWrite);
+
 static uint64_t getConst(Value *Constant) {
   return cast<ConstantInt>(Constant)->getLimitedValue();
 }
@@ -51,48 +54,51 @@ bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
   auto& Context = F.getParent()->getContext();
 
   Function *ExitTB = JTM->exitTB();
-  auto I = ExitTB->use_begin();
-  while (I != ExitTB->use_end()) {
-    // Take not of the use and increment the iterator immediately: this allows us
-    // to erase the call to exit_tb without unexpecte behaviors.
-    Use& ExitTBUse = *I++;
+  auto ExitTBIt = ExitTB->use_begin();
+  while (ExitTBIt != ExitTB->use_end()) {
+    // Take note of the use and increment the iterator immediately: this allows
+    // us to erase the call to exit_tb without unexpected behaviors
+    Use& ExitTBUse = *ExitTBIt++;
     if (auto Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
       if (Call->getCalledFunction() == ExitTB) {
         // Look for the last write to the PC
         StoreInst *PCWrite = JTM->getPrevPCWrite(Call);
 
         // Is destination a constant?
-        ConstantInt *Address = nullptr;
-        if (PCWrite != nullptr &&
-            (Address = dyn_cast<ConstantInt>(PCWrite->getValueOperand()))) {
-          // Compute the actual PC and get the associated BasicBlock
-          uint64_t TargetPC = Address->getSExtValue();
-          BasicBlock *TargetBlock = JTM->getBlockAt(TargetPC);
+        if (PCWrite != nullptr) {
+          if (isSumJump(PCWrite))
+            JTM->getBlockAt(getNextPC(PCWrite));
 
-          // Remove unreachable right after the exit_tb
-          BasicBlock::iterator I = Call;
-          BasicBlock::iterator BlockEnd = Call->getParent()->end();
-          assert(++I != BlockEnd && isa<UnreachableInst>(&*I));
-          I->eraseFromParent();
+          if (auto *Address = dyn_cast<ConstantInt>(PCWrite->getValueOperand())) {
+            // Compute the actual PC and get the associated BasicBlock
+            uint64_t TargetPC = Address->getSExtValue();
+            BasicBlock *TargetBlock = JTM->getBlockAt(TargetPC);
 
-          // Cleanup of what's afterwards (only a unconditional jump is
-          // allowed)
-          I = Call;
-          BlockEnd = Call->getParent()->end();
-          if (++I != BlockEnd)
-            purgeBranch(I);
+            // Remove unreachable right after the exit_tb
+            BasicBlock::iterator CallIt(Call);
+            BasicBlock::iterator BlockEnd = Call->getParent()->end();
+            assert(++CallIt != BlockEnd && isa<UnreachableInst>(&*CallIt));
+            CallIt->eraseFromParent();
 
-          if (TargetBlock != nullptr) {
-            // A target was found, jump there
-            BranchInst::Create(TargetBlock, Call);
-          } else {
-            // We're jumping to an invalid location, abort everything
-            // TODO: emit a warning
-            CallInst::Create(F.getParent()->getFunction("abort"), { }, Call);
-            new UnreachableInst(Context, Call);
+            // Cleanup of what's afterwards (only a unconditional jump is
+            // allowed)
+            CallIt = BasicBlock::iterator(Call);
+            BlockEnd = Call->getParent()->end();
+            if (++CallIt != BlockEnd)
+              purgeBranch(CallIt);
+
+            if (TargetBlock != nullptr) {
+              // A target was found, jump there
+              BranchInst::Create(TargetBlock, Call);
+            } else {
+              // We're jumping to an invalid location, abort everything
+              // TODO: emit a warning
+              CallInst::Create(F.getParent()->getFunction("abort"), { }, Call);
+              new UnreachableInst(Context, Call);
+            }
+            Call->eraseFromParent();
+            PCWrite->eraseFromParent();
           }
-          Call->eraseFromParent();
-          PCWrite->eraseFromParent();
         }
       } else
         llvm_unreachable("Unexpected instruction using the PC");
@@ -107,7 +113,7 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
   DominatorTree& DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
 
   BasicBlock *Block = TheInstruction->getParent();
-  BasicBlock::reverse_iterator It(TheInstruction);
+  BasicBlock::reverse_iterator It(make_reverse_iterator(TheInstruction));
 
   while (true) {
     BasicBlock::reverse_iterator Begin(Block->rend());
@@ -142,8 +148,8 @@ char JumpTargetsFromConstantsPass::ID = 0;
 
 bool JumpTargetsFromConstantsPass::runOnFunction(Function &F) {
   for (BasicBlock& BB : make_range(F.begin(), F.end()))
-    if (Visited.find(&BB) == Visited.end()) {
-      Visited.insert(&BB);
+    if (Visited->find(&BB) == Visited->end()) {
+      Visited->insert(&BB);
 
       std::stack<User *> WorkList;
 
@@ -347,6 +353,195 @@ StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
   return nullptr;
 }
 
+
+/// \brief Tries to detect pc += register In general, we assume what we're
+/// translating is code emitted by a compiler. This means that usually all the
+/// possible jump targets are explicit jump to a constant or are stored
+/// somewhere in memory (e.g.  jump tables and vtables). However, in certain
+/// cases, mainly due to handcrafted assembly we can have a situation like the
+/// following:
+///
+///     addne pc, pc, \curbit, lsl #2
+///
+/// (taken from libgcc ARM's lib1funcs.S, specifically line 592 of
+/// `libgcc/config/arm/lib1funcs.S` at commit
+/// `f1717362de1e56fe1ffab540289d7d0c6ed48b20`)
+///
+/// This code basically jumps forward a number of instructions depending on a
+/// run-time value. Therefore, without further analysis, potentially, all the
+/// coming instructions are jump targets.
+///
+/// To workaround this issue we use a simple heuristics, which basically
+/// consists in making all the coming instructions possible jump targets until
+/// the next write to the PC. In the future, we could extend this until the end
+/// of the function.
+static bool isSumJump(StoreInst *PCWrite) {
+  // * Follow the written value recursively
+  //   * Is it a `load` or a `constant`? Fine. Don't proceed.
+  //   * Is it an `and`? Enqueue the operands in the worklist.
+  //   * Is it an `add`? Make all the coming instructions jump targets.
+  //
+  // This approach has a series of problems:
+  //
+  // * It doesn't work with delay slots. Delay slots are handled by libtinycode
+  //   as follows:
+  //
+  //       jump lr
+  //         store btarget, lr
+  //       store 3, r0
+  //         store 3, r0
+  //         store btarget, pc
+  //
+  //   Clearly, if we don't follow the loads we miss the situation we're trying
+  //   to handle.
+  // * It is unclear how this would perform without EarlyCSE and SROA.
+  std::queue<Value *> WorkList;
+  WorkList.push(PCWrite->getValueOperand());
+
+  while (!WorkList.empty()) {
+    Value *V = WorkList.front();
+    WorkList.pop();
+
+    if (isa<Constant>(V) || isa<LoadInst>(V)) {
+      // Fine
+    } else if (auto *BinOp = dyn_cast<BinaryOperator>(V)) {
+      switch (BinOp->getOpcode()) {
+      case Instruction::Add:
+      case Instruction::Or:
+        return true;
+      case Instruction::Shl:
+      case Instruction::LShr:
+      case Instruction::AShr:
+      case Instruction::And:
+        for (auto& Operand : BinOp->operands())
+          if (!isa<Constant>(Operand.get()))
+            WorkList.push(Operand.get());
+        break;
+      default:
+        // TODO: emit warning
+        return false;
+      }
+    } else {
+      // TODO: emit warning
+      return false;
+    }
+  }
+
+  return false;
+}
+
+uint64_t JumpTargetManager::getNextPC(Instruction *TheInstruction) {
+  CallInst *NewPCCall = nullptr;
+  std::set<BasicBlock *> Visited;
+  std::queue<BasicBlock::reverse_iterator> WorkList;
+  WorkList.push(make_reverse_iterator(TheInstruction));
+
+  while (!WorkList.empty()) {
+    auto I = WorkList.front();
+    WorkList.pop();
+    auto *BB = I->getParent();
+    auto End = BB->rend();
+    Visited.insert(BB);
+
+    // Go through the instructions looking for calls to newpc
+    for (; I != End; I++) {
+      if (auto Marker = dyn_cast<CallInst>(&*I)) {
+        // TODO: comparing strings is not very elegant
+        if (Marker->getCalledFunction()->getName() == "newpc") {
+          assert(NewPCCall == nullptr && "Two candidates calls to newpc found");
+          NewPCCall = Marker;
+          break;
+        }
+      }
+    }
+
+    // If we haven't find a newpc call yet, continue exploration backward
+    if (NewPCCall == nullptr) {
+      // If one of the predecessors is the dispatcher, don't explore any further
+      auto Predecessors = make_range(pred_begin(BB), pred_end(BB));
+      for (BasicBlock *Predecessor : Predecessors) {
+        // Assert we didn't reach the almighty dispatcher
+        assert(!(NewPCCall == nullptr && Predecessor == Dispatcher));
+        if (Predecessor == Dispatcher)
+          continue;
+      }
+
+      Predecessors = make_range(pred_begin(BB), pred_end(BB));
+      for (BasicBlock *Predecessor : Predecessors) {
+        // Ignore already visited or empty BBs
+        if (!Predecessor->empty()
+            && Visited.find(Predecessor) == Visited.end()) {
+          WorkList.push(Predecessor->rbegin());
+        }
+      }
+    }
+
+  }
+
+  assert(NewPCCall != nullptr && "Couldn't find the current PC");
+
+  uint64_t PC = getConst(NewPCCall->getArgOperand(0));
+  uint64_t Size = getConst(NewPCCall->getArgOperand(1));
+  assert(Size != 0);
+  return PC + Size;
+}
+
+void JumpTargetManager::handleSumJump(Instruction *SumJump) {
+  // Take the next PC
+  uint64_t NextPC = getNextPC(SumJump);
+  BasicBlock *BB = getBlockAt(NextPC);
+  assert(BB && !BB->empty());
+
+  std::set<BasicBlock *> Visited;
+  Visited.insert(Dispatcher);
+  std::queue<BasicBlock *> WorkList;
+  WorkList.push(BB);
+  while (!WorkList.empty()) {
+    BB = WorkList.front();
+    Visited.insert(BB);
+    WorkList.pop();
+
+    BasicBlock::iterator I(BB->begin());
+    BasicBlock::iterator End(BB->end());
+    while (I != End) {
+      // Is it a new PC marker?
+      if (auto *Call = dyn_cast<CallInst>(&*I)) {
+        Function *Callee = Call->getCalledFunction();
+        // TODO: comparing strings is not very elegant
+        if (Callee != nullptr && Callee->getName() == "newpc") {
+          uint64_t PC = getConst(Call->getArgOperand(0));
+          if (PC == NextPC) {
+            // Split and update iterators to proceed
+            BB = getBlockAt(PC);
+            I = BB->begin();
+            End = BB->end();
+
+            // Updated the expectation for the next PC
+            NextPC = PC + getConst(Call->getArgOperand(1));
+          } else {
+            // We've found a (direct or indirect) jump, stop
+            return;
+          }
+        } else if (Call->getCalledFunction() == ExitTB) {
+          // We've found an unparsed indirect jump
+          return;
+        }
+
+      }
+
+      // Proceed to next instruction
+      I++;
+    }
+
+    // Inspect and enqueue successors
+    auto Successors = make_range(succ_begin(BB), succ_end(BB));
+    for (BasicBlock *Successor : Successors)
+      if (Visited.find(Successor) == Visited.end())
+        WorkList.push(Successor);
+
+  }
+}
+
 void JumpTargetManager::translateIndirectJumps() {
   if (ExitTB->use_empty())
     return;
@@ -357,15 +552,18 @@ void JumpTargetManager::translateIndirectJumps() {
     if (auto Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
       if (Call->getCalledFunction() == ExitTB) {
         // Look for the last write to the PC
-        StoreInst *Jump = getPrevPCWrite(Call);
-        assert((Jump == nullptr ||
-                !isa<ConstantInt>(Jump->getValueOperand()))
+        StoreInst *PCWrite = getPrevPCWrite(Call);
+        assert((PCWrite == nullptr
+                || !isa<ConstantInt>(PCWrite->getValueOperand()))
                && "Direct jumps should not be handled here");
+
+        if (PCWrite != nullptr && isSumJump(PCWrite))
+          handleSumJump(PCWrite);
 
         BasicBlock *BB = Call->getParent();
         auto *Branch = BranchInst::Create(Dispatcher, Call);
-        BasicBlock::iterator I = Call;
-        BasicBlock::iterator BlockEnd = Call->getParent()->end();
+        BasicBlock::iterator I(Call);
+        BasicBlock::iterator BlockEnd(Call->getParent()->end());
         assert(++I != BlockEnd && isa<UnreachableInst>(&*I));
         I->eraseFromParent();
         Call->eraseFromParent();
@@ -374,7 +572,7 @@ void JumpTargetManager::translateIndirectJumps() {
         Instruction *ToDelete = &*(--BB->end());
         while (ToDelete != Branch) {
           if (auto DeadBranch = dyn_cast<BranchInst>(ToDelete))
-            purgeBranch(DeadBranch);
+            purgeBranch(BasicBlock::iterator(DeadBranch));
           else
             ToDelete->eraseFromParent();
 
@@ -434,12 +632,12 @@ BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
 
     NewBlock = BasicBlock::Create(Context, Name.str(), TheFunction);
     Unexplored.push_back(BlockWithAddress(PC, NewBlock));
-
-    // Create a case for the address associated to the new block
-    auto *PCRegType = PCReg->getType();
-    auto *SwitchType = cast<IntegerType>(PCRegType->getPointerElementType());
-    DispatcherSwitch->addCase(ConstantInt::get(SwitchType, PC), NewBlock);
   }
+
+  // Create a case for the address associated to the new block
+  auto *PCRegType = PCReg->getType();
+  auto *SwitchType = cast<IntegerType>(PCRegType->getPointerElementType());
+  DispatcherSwitch->addCase(ConstantInt::get(SwitchType, PC), NewBlock);
 
   // Associate the PC with the chosen basic block
   JumpTargets[PC] = NewBlock;
