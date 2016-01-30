@@ -21,6 +21,7 @@
 #include "variablemanager.h"
 #include "revamb.h"
 #include "ptcdump.h"
+#include "ptcinterface.h"
 
 using namespace llvm;
 
@@ -275,6 +276,8 @@ VariableManager::VariableManager(Module& TheModule,
   EnvOffset(0),
   Env(nullptr) {
 
+  assert(ptc.initialized_env != nullptr);
+
   using ElectionMap = std::map<StructType *, unsigned>;
   using ElectionMapElement = std::pair<StructType * const, unsigned>;
   ElectionMap EnvElection;
@@ -395,6 +398,21 @@ bool VariableManager::isEnv(Value *TheValue) {
   return TheValue == Env;
 }
 
+static ConstantInt *fromBytes(IntegerType *Type, void *Data) {
+  switch (Type->getBitWidth()) {
+  case 8:
+    return ConstantInt::get(Type, *(static_cast<uint8_t *>(Data)));
+  case 16:
+    return ConstantInt::get(Type, *(static_cast<uint16_t *>(Data)));
+  case 32:
+    return ConstantInt::get(Type, *(static_cast<uint32_t *>(Data)));
+  case 64:
+    return ConstantInt::get(Type, *(static_cast<uint64_t *>(Data)));
+  }
+
+  assert(false && "Unexpected type");
+}
+
 // TODO: document that it can return nullptr
 GlobalVariable* VariableManager::getByCPUStateOffset(intptr_t Offset,
                                                      std::string Name) {
@@ -418,11 +436,15 @@ GlobalVariable* VariableManager::getByCPUStateOffset(intptr_t Offset,
       Name = NameStream.str();
     }
 
+    // TODO: offset could be negative, we could segfault here
+    ConstantInt *InitialValue = fromBytes(cast<IntegerType>(VariableType),
+                                          ptc.initialized_env - EnvOffset + Offset);
+
     auto *NewVariable = new GlobalVariable(TheModule,
                                            VariableType,
                                            false,
                                            GlobalValue::ExternalLinkage,
-                                           ConstantInt::get(VariableType, 0),
+                                           InitialValue,
                                            Name);
     assert(NewVariable != nullptr);
 
@@ -458,6 +480,7 @@ Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
       if (it != OtherGlobals.end()) {
         return it->second;
       } else {
+        // TODO: what do we have here, apart from env?
         auto InitialValue = ConstantInt::get(VariableType, 0);
         GlobalVariable *Result = new GlobalVariable(TheModule,
                                                     VariableType,
