@@ -81,6 +81,10 @@ DebugAnnotationWriter::DebugAnnotationWriter(LLVMContext& Context,
 
 void DebugAnnotationWriter::emitInstructionAnnot(const Instruction *Instr,
                                                  formatted_raw_ostream &Output) {
+  // Ignore whatever is outside the root function
+  // TODO: comparing strings here is not very elegant
+  if (Instr->getParent()->getParent()->getName() != "root")
+    return;
 
   writeMetadataIfNew(Instr, OriginalInstrMDKind, Output, "\n\n  ; ");
   writeMetadataIfNew(Instr, PTCInstrMDKind, Output, "\n  ; ");
@@ -141,7 +145,7 @@ DebugHelper::DebugHelper(std::string Output,
     // Add the current debug info version into the module.
     TheModule->addModuleFlag(Module::Warning, "Debug Info Version",
                              DEBUG_METADATA_VERSION);
-    TheModule->addModuleFlag(Module::Warning, "Dwarf Version", 2);
+    TheModule->addModuleFlag(Module::Warning, "Dwarf Version", 4);
   }
 }
 
@@ -151,7 +155,8 @@ void DebugHelper::newFunction(Function *Function) {
     EmptyType = Builder.createSubroutineType(Builder.getOrCreateTypeArray({}));
 
     CurrentFunction = Function;
-    CurrentSubprogram = Builder.createFunction(CompileUnit, /* Scope */
+    assert(CompileUnit != nullptr);
+    CurrentSubprogram = Builder.createFunction(CompileUnit->getFile(), /* Scope */
                                                Function->getName(),
                                                StringRef(), /* Linkage name */
                                                CompileUnit->getFile(),
@@ -161,8 +166,8 @@ void DebugHelper::newFunction(Function *Function) {
                                                true, /* isDefinition */
                                                1, /* ScopeLine */
                                                DINode::FlagPrototyped,
-                                               false, /* isOptimized */
-                                               CurrentFunction /* Function */);
+                                               false /* isOptimized */);
+    CurrentFunction->setSubprogram(CurrentSubprogram);
   }
 }
 
@@ -196,9 +201,7 @@ void DebugHelper::generateDebugInfo() {
                                              0,
                                              CurrentSubprogram);
             Instruction.setMetadata(DbgMDKind, Location);
-            LineIndex += std::count(BodyString.begin(),
-                                    BodyString.end(),
-                                    '\n');
+            LineIndex += std::count(BodyString.begin(), BodyString.end(), '\n');
           }
         }
       }
