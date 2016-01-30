@@ -4,6 +4,7 @@
 
 // Standard includes
 #include <cstdint>
+#include <fstream>
 #include <sstream>
 
 // LLVM includes
