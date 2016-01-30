@@ -10,6 +10,7 @@
 #include <stack>
 
 // LLVM includes
+#include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Dominators.h"
@@ -23,6 +24,7 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 
 // Local includes
 #include "debug.h"
@@ -240,6 +242,11 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
 
   DBG("jtcount", dbg
       << "JumpTargets found in global data: " << Unexplored.size() << "\n");
+
+  // Configure GlobalValueNumbering
+  StringMap<cl::Option *>& Options(cl::getRegisteredOptions());
+  auto *GVNLoadPre = static_cast<cl::opt<bool> *>(Options["enable-load-pre"]);
+  GVNLoadPre->setInitialValue(false);
 }
 
 template<typename value_type, unsigned endian>
@@ -687,34 +694,100 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
 }
 
 void JumpTargetManager::harvest() {
+  // First attempt: run SROA and look for new direct branch targets
   if (empty()) {
-    DBG("verify",
-        if (verifyModule(TheModule, &dbgs())) {
-          dumpModule(&TheModule);
-          abort();
-        }
-        );
+    DBG("verify", if (verifyModule(TheModule, &dbgs())) { abort(); });
 
     DBG("jtcount", dbg
         << "We're out of targets. Trying with SROA and"
         << " TranslateDirectBranchesPass\n");
 
     legacy::PassManager PM;
-    // Before looking for writes to the PC, give a shot of SROA
     PM.add(createSROAPass());
     PM.add(new TranslateDirectBranchesPass(this));
     PM.run(TheModule);
     DBG("jtcount", dbg
         << "JumpTargets found: " << Unexplored.size() << "\n");
   }
+
+  // Second attempt: run EarlyCSE and collect candidate code pointers from
+  // constants in the code and look for new direct jumps
   if (empty()) {
+    DBG("verify", if (verifyModule(TheModule, &dbgs())) { abort(); });
+
     DBG("jtcount", dbg
-        << "We're out of targets. Trying with "
-        << "JumpTargetsFromConstantsPass\n");
+        << "Trying with EarlyCSE and JumpTargetsFromConstantsPass\n");
+
     legacy::PassManager PM;
     PM.add(createEarlyCSEPass());
-    PM.add(new JumpTargetsFromConstantsPass(this));
+    Visited.clear();
+    PM.add(new JumpTargetsFromConstantsPass(this, &Visited));
+    PM.add(new TranslateDirectBranchesPass(this));
     PM.run(TheModule);
+    DBG("jtcount", dbg
+        << "JumpTargets found: " << Unexplored.size() << "\n");
+  }
+
+  // Third attempt:
+  //
+  // * clone the whole translated function
+  // * remove calls to newpc to allow optimizations to be more aggressive
+  // * run EarlyCSE
+  // * collect aliasing information
+  // * run GVN using aliasing information
+  // * collect candidate code pointers from the new function
+  // * discarded the cloned function
+  //
+  // TODO: there's *huge* space for improvement here, for instance we could
+  //       avoid to clone the function by implementing a proper data-flow
+  //       analysis propagating constant data without actually changing the
+  //       code. Also, running GVN on the whole code doesn't make much sense.
+  if (empty()) {
+    DBG("jtcount", dbg
+        << "Trying to remove calls to newpc, EarlyCSE and GVN\n");
+
+    // Prepare cloned function
+    Function *ClonedFunction = Function::Create(TheFunction->getFunctionType(),
+                                                TheFunction->getLinkage(),
+                                                "",
+                                                &TheModule);
+
+    // Clone function body
+    ValueToValueMapTy Ignore1;
+    SmallVector<ReturnInst *, 10> Ignore2;
+    CloneFunctionInto(ClonedFunction, TheFunction, Ignore1, false, Ignore2);
+
+    // Remove all the PC markers
+    auto *NewPC = TheModule.getFunction("newpc");
+    auto It = NewPC->user_begin();
+    auto End = NewPC->user_end();
+    while (It != End) {
+      auto *CallInstruction = cast<Instruction>(*It++);
+      if (CallInstruction->getParent()->getParent() == ClonedFunction)
+        CallInstruction->eraseFromParent();
+    }
+
+    // Force the cloned function to start from the dispatcher, so we can be sure
+    // that all the code will be considered and optimized
+    auto FirstBB = ClonedFunction->begin();
+    assert(FirstBB != ClonedFunction->end());
+    auto LastInstructionIt = FirstBB->rbegin();
+    assert(LastInstructionIt != FirstBB->rend());
+    auto *LastInstruction = cast<BranchInst>(&*LastInstructionIt);
+    LastInstruction->swapSuccessors();
+
+    // Run the various optimization steps
+    legacy::PassManager PM;
+    PM.add(createEarlyCSEPass());
+    PM.add(createScopedNoAliasAAWrapperPass());
+    PM.add(createGVNPass(false));
+    Visited.clear();
+    PM.add(new JumpTargetsFromConstantsPass(this, &Visited));
+    PM.run(TheModule);
+
+    // Remove the cloned function
+    ClonedFunction->eraseFromParent();
+
     DBG("jtcount", dbg
         << "JumpTargets found: " << Unexplored.size() << "\n");
   }

@@ -274,7 +274,23 @@ VariableManager::VariableManager(Module& TheModule,
   CPUStateType(nullptr),
   ModuleLayout(&HelpersModule.getDataLayout()),
   EnvOffset(0),
-  Env(nullptr) {
+  Env(nullptr),
+  AliasScopeMDKindID(TheModule.getMDKindID("alias.scope")),
+  NoAliasMDKindID(TheModule.getMDKindID("noalias")) {
+
+  auto *CPUStateAliasDomain = MDNode::getDistinct(TheModule.getContext(),
+                                                  ArrayRef<Metadata *>());
+
+  auto *Temporary = MDNode::get(TheModule.getContext(), ArrayRef<Metadata *>());
+  auto *CPUStateScope = MDNode::getDistinct(TheModule.getContext(),
+                                            ArrayRef<Metadata *>({
+                                                Temporary,
+                                                CPUStateAliasDomain
+                                            }));
+  CPUStateScope->replaceOperandWith(0, CPUStateScope);
+
+  CPUStateScopeSet = MDNode::get(TheModule.getContext(),
+                                 ArrayRef<Metadata *>({ CPUStateScope }));
 
   assert(ptc.initialized_env != nullptr);
 
@@ -515,6 +531,28 @@ Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
       return NewTemporary;
     }
   }
+}
+
+template LoadInst *VariableManager::setAliasScope(LoadInst *);
+template StoreInst *VariableManager::setAliasScope(StoreInst *);
+
+template<typename T>
+T *VariableManager::setAliasScope(T *Instruction) {
+  auto *Pointer = Instruction->getPointerOperand();
+  if (isa<AllocaInst>(Pointer))
+    return Instruction;
+
+  Instruction->setMetadata(AliasScopeMDKindID, CPUStateScopeSet);
+  return Instruction;
+}
+
+template LoadInst *VariableManager::setNoAlias(LoadInst *);
+template StoreInst *VariableManager::setNoAlias(StoreInst *);
+
+template<typename T>
+T *VariableManager::setNoAlias(T *Instruction) {
+  Instruction->setMetadata(NoAliasMDKindID, CPUStateScopeSet);
+  return Instruction;
 }
 
 Value *VariableManager::computeEnvAddress(Type *TargetType,

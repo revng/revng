@@ -568,7 +568,9 @@ void InstructionTranslator::translateCall(PTCInstruction *Instr) {
   const PTC::CallInstruction TheCall(Instr);
 
   auto LoadArgs = [this] (uint64_t TemporaryId) -> Value * {
-    return Builder.CreateLoad(Variables.getOrCreate(TemporaryId));
+    auto *Load = Builder.CreateLoad(Variables.getOrCreate(TemporaryId));
+    Variables.setAliasScope(Load);
+    return Load;
   };
 
   auto GetValueType = [] (Value *Argument) { return Argument->getType(); };
@@ -598,15 +600,19 @@ void InstructionTranslator::translateCall(PTCInstruction *Instr) {
                                                                 CalleeType);
   Value *Result = Builder.CreateCall(FunctionDeclaration, InArgs);
 
-  if (TheCall.OutArguments.size() != 0)
-    Builder.CreateStore(Result, ResultDestination);
+  if (TheCall.OutArguments.size() != 0) {
+    auto *Store = Builder.CreateStore(Result, ResultDestination);
+    Variables.setAliasScope(Store);
+  }
 }
 
 bool InstructionTranslator::translate(PTCInstruction *Instr, uint64_t PC) {
   const PTC::Instruction TheInstruction(Instr);
 
   auto LoadArgs = [this] (uint64_t TemporaryId) -> Value * {
-    return Builder.CreateLoad(Variables.getOrCreate(TemporaryId));
+    auto *Load = Builder.CreateLoad(Variables.getOrCreate(TemporaryId));
+    Variables.setAliasScope(Load);
+    return Load;
   };
 
   auto ConstArgs = TheInstruction.ConstArguments;
@@ -628,7 +634,8 @@ bool InstructionTranslator::translate(PTCInstruction *Instr, uint64_t PC) {
   for (unsigned I = 0; I < Result->size(); I++) {
     auto *Destination = Variables.getOrCreate(TheInstruction.OutArguments[I]);
     auto *Value = Result.get()[I];
-    Builder.CreateStore(Value, Destination);
+    auto *Store = Builder.CreateStore(Value, Destination);
+    Variables.setAliasScope(Store);
 
     // If we're writing the PC with an immediate, register it for exploration
     // immediately
@@ -703,11 +710,11 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       // What are we supposed to do in this case?
       assert(MemoryAccess.access_type != PTC_MEMORY_ACCESS_UNKNOWN);
 
-      unsigned AccessAlignment = 0;
+      unsigned Alignment = 0;
       if (MemoryAccess.access_type == PTC_MEMORY_ACCESS_UNALIGNED)
-        AccessAlignment = 1;
+        Alignment = 1;
       else
-        AccessAlignment = SourceArchitecture.defaultAlignment();
+        Alignment = SourceArchitecture.defaultAlignment();
 
       // Load size
       IntegerType *MemoryType = nullptr;
@@ -746,15 +753,17 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
 
         Pointer = Builder.CreateIntToPtr(InArguments[0],
                                          MemoryType->getPointerTo());
-        Value *Load = Builder.CreateAlignedLoad(Pointer, AccessAlignment);
+        auto *Load = Builder.CreateAlignedLoad(Pointer, Alignment);
+        Variables.setNoAlias(Load);
+        Value *Loaded = Load;
 
         if (BSwapFunction != nullptr)
-          Load = Builder.CreateCall(BSwapFunction, Load);
+          Loaded = Builder.CreateCall(BSwapFunction, Load);
 
         if (SignExtend)
-          return v { Builder.CreateSExt(Load, RegisterType) };
+          return v { Builder.CreateSExt(Loaded, RegisterType) };
         else
-          return v { Builder.CreateZExt(Load, RegisterType) };
+          return v { Builder.CreateZExt(Loaded, RegisterType) };
 
       } else if (Opcode == PTC_INSTRUCTION_op_qemu_st_i32 ||
                  Opcode == PTC_INSTRUCTION_op_qemu_st_i64) {
@@ -766,7 +775,8 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
         if (BSwapFunction != nullptr)
           Value = Builder.CreateCall(BSwapFunction, Value);
 
-        Builder.CreateAlignedStore(Value, Pointer, AccessAlignment);
+        auto *Store = Builder.CreateAlignedStore(Value, Pointer, Alignment);
+        Variables.setNoAlias(Store);
 
         return v { };
       } else
@@ -793,8 +803,9 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
 
       Value *Target = Variables.getByEnvOffset(ConstArguments[0]);
 
-      Value *EnvField = Builder.CreateLoad(Target);
-      Value *Fitted = Builder.CreateZExtOrTrunc(EnvField, RegisterType);
+      auto *LoadEnvField = Builder.CreateLoad(Target);
+      Variables.setAliasScope(LoadEnvField);
+      Value *Fitted = Builder.CreateZExtOrTrunc(LoadEnvField, RegisterType);
 
       return v { Fitted };
     }
@@ -815,7 +826,8 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       Value *Target = Variables.getByEnvOffset(ConstArguments[0]);
       Type *TargetPointer = Target->getType()->getPointerElementType();
       Value *ToStore = Builder.CreateZExt(InArguments[0], TargetPointer);
-      Builder.CreateStore(ToStore, Target);
+      auto *Store = Builder.CreateStore(ToStore, Target);
+      Variables.setAliasScope(Store);
       return v { };
     }
   case PTC_INSTRUCTION_op_add_i32:

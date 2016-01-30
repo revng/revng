@@ -102,6 +102,12 @@ public:
     ModuleLayout = NewLayout;
   }
 
+  template<typename T>
+  T *setAliasScope(T *Instruction);
+
+  template<typename T>
+  T *setNoAlias(T *Instruction);
+
 private:
   llvm::GlobalVariable *getByCPUStateOffset(intptr_t Offset,
                                             std::string Name="");
@@ -121,6 +127,9 @@ private:
   unsigned EnvOffset;
 
   llvm::Value *Env;
+  unsigned AliasScopeMDKindID;
+  unsigned NoAliasMDKindID;
+  llvm::MDNode *CPUStateScopeSet;
 };
 
 #endif // _VARIABLEMANAGER_H

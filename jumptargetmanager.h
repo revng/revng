@@ -54,17 +54,21 @@ class JumpTargetsFromConstantsPass : public llvm::FunctionPass {
 public:
   static char ID;
 
-  JumpTargetsFromConstantsPass() : llvm::FunctionPass(ID), JTM(nullptr) { }
+  JumpTargetsFromConstantsPass() : llvm::FunctionPass(ID),
+    JTM(nullptr),
+    Visited(nullptr) { }
 
-  JumpTargetsFromConstantsPass(JumpTargetManager *JTM) :
+  JumpTargetsFromConstantsPass(JumpTargetManager *JTM,
+                               std::set<llvm::BasicBlock *> *Visited) :
     llvm::FunctionPass(ID),
-    JTM(JTM) { }
+    JTM(JTM),
+    Visited(Visited) { }
 
   bool runOnFunction(llvm::Function &F) override;
 
 private:
   JumpTargetManager *JTM;
-  std::set<llvm::BasicBlock *> Visited;
+  std::set<llvm::BasicBlock *> *Visited;
 };
 
 class JumpTargetManager {
@@ -170,6 +174,7 @@ private:
   RangesVector ExecutableRanges;
   llvm::BasicBlock *Dispatcher;
   llvm::SwitchInst *DispatcherSwitch;
+  std::set<llvm::BasicBlock *> Visited;
 };
 
 #endif // _JUMPTARGETMANAGER_H
