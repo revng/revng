@@ -1072,11 +1072,14 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       case PTC_INSTRUCTION_op_bswap16_i32:
       case PTC_INSTRUCTION_op_bswap16_i64:
         SwapType = Builder.getInt16Ty();
+        break;
       case PTC_INSTRUCTION_op_bswap32_i32:
       case PTC_INSTRUCTION_op_bswap32_i64:
         SwapType = Builder.getInt32Ty();
+        break;
       case PTC_INSTRUCTION_op_bswap64_i64:
         SwapType = Builder.getInt64Ty();
+        break;
       default:
         llvm_unreachable("Unexpected opcode");
       }
