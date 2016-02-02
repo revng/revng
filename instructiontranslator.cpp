@@ -473,9 +473,10 @@ InstructionTranslator::InstructionTranslator(IRBuilder<>& Builder,
   NewPCMarker = Function::Create(FunctionType::get(Type::getVoidTy(Context),
                                                    {
                                                      Type::getInt64Ty(Context),
-                                                     Type::getInt64Ty(Context)
+                                                     Type::getInt64Ty(Context),
+                                                     Type::getInt8Ty(Context)->getPointerTo()
                                                    },
-                                                   false),
+                                                   true),
                                  GlobalValue::ExternalLinkage,
                                  "newpc",
                                  &TheModule);
@@ -549,8 +550,16 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
 
   if (LastMarker != nullptr)
     closeLastInstruction(PC);
-  LastMarker = Builder.CreateCall(NewPCMarker,
-                                  { Builder.getInt64(PC), Builder.getInt64(0) });
+
+  // Insert a call to NewPCMarker capturing all the local tempoararies
+  // This prevents SROA from transforming them in SSA values, which is bad
+  // in case we have to split a basic block
+  std::vector<Value *> Args = { Builder.getInt64(PC), Builder.getInt64(0) };
+  Type *VoidPointerTy = Type::getInt8Ty(Context)->getPointerTo();
+  for (Value *Local : Variables.locals())
+    Args.push_back(Builder.CreatePointerCast(Local, VoidPointerTy));
+
+  LastMarker = Builder.CreateCall(NewPCMarker, Args);
 
   if (!IsFirst) {
     // Inform the JumpTargetManager about the new PC we met

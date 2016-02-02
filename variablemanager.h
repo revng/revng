@@ -108,6 +108,13 @@ public:
   template<typename T>
   T *setNoAlias(T *Instruction);
 
+  std::vector<llvm::Value *> locals() {
+    std::vector<llvm::Value *> Locals;
+    for (auto Pair : LocalTemporaries)
+      Locals.push_back(Pair.second);
+    return Locals;
+  }
+
 private:
   llvm::GlobalVariable *getByCPUStateOffset(intptr_t Offset,
                                             std::string Name="");
