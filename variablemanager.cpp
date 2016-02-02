@@ -161,13 +161,15 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
 
           // Some casting with constant expressions?
           if (Callee == nullptr) {
-            auto *Cast = cast<ConstantExpr>(Call->getCalledValue());
-            assert(Cast->getOpcode() == Instruction::BitCast);
-            Callee = cast<Function>(Cast->getOperand(0));
+            if (auto *Cast = dyn_cast<ConstantExpr>(Call->getCalledValue())) {
+              assert(Cast->getOpcode() == Instruction::BitCast);
+              Callee = cast<Function>(Cast->getOperand(0));
+            }
           }
 
           // TODO: we could handle this instead of aborting
-          if (Callee->getIntrinsicID() == Intrinsic::memcpy) {
+          if (Callee == nullptr
+              || Callee->getIntrinsicID() == Intrinsic::memcpy) {
             auto *InvalidInst = cast<Instruction>(TheUser);
             CallInst::Create(TheModule.getFunction("abort"), { }, InvalidInst);
             continue;
