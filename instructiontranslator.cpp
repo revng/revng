@@ -1194,10 +1194,10 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
 
       IntegerType *DestinationType = Builder.getIntNTy(RegisterSize * 2);
 
-      FirstOperandLow = Builder.CreateSExt(InArguments[0], DestinationType);
-      FirstOperandHigh = Builder.CreateSExt(InArguments[1], DestinationType);
-      SecondOperandLow = Builder.CreateSExt(InArguments[2], DestinationType);
-      SecondOperandHigh = Builder.CreateSExt(InArguments[3], DestinationType);
+      FirstOperandLow = Builder.CreateZExt(InArguments[0], DestinationType);
+      FirstOperandHigh = Builder.CreateZExt(InArguments[1], DestinationType);
+      SecondOperandLow = Builder.CreateZExt(InArguments[2], DestinationType);
+      SecondOperandHigh = Builder.CreateZExt(InArguments[3], DestinationType);
 
       FirstOperandHigh = Builder.CreateShl(FirstOperandHigh, RegisterSize);
       SecondOperandHigh = Builder.CreateShl(SecondOperandHigh, RegisterSize);
