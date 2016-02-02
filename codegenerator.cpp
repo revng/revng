@@ -137,9 +137,9 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
   auto *ElfHeaderHelper = new GlobalVariable(*TheModule,
                                              Uint8Ty,
                                              true,
-                                             GlobalValue::InternalLinkage,
+                                             GlobalValue::ExternalLinkage,
                                              ConstantInt::get(Uint8Ty, 0),
-                                             "");
+                                             ".elfheaderhelper");
   ElfHeaderHelper->setAlignment(1);
   ElfHeaderHelper->setSection(".elfheaderhelper");
 
@@ -214,9 +214,9 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
       Segment.Variable = new GlobalVariable(*TheModule,
                                             DataType,
                                             !Segment.IsWriteable,
-                                            GlobalValue::InternalLinkage,
+                                            GlobalValue::ExternalLinkage,
                                             TheData,
-                                            "");
+                                            Name);
 
       // Force alignment to 1 and assign the variable to a specific section
       Segment.Variable->setAlignment(1);
