@@ -399,8 +399,27 @@ static RegisterPass<CpuLoopExitPass> Y("cpu-loop-exit",
                                        false,
                                        false);
 
+static void purgeNoReturn(Function *F) {
+  auto &Context = F->getParent()->getContext();
+
+  if (F->hasFnAttribute(Attribute::NoReturn))
+    F->removeFnAttr(Attribute::NoReturn);
+
+  for (User *U : F->users())
+    if (auto *Call = dyn_cast<CallInst>(U))
+      if (Call->hasFnAttr(Attribute::NoReturn)) {
+        auto OldAttr = Call->getAttributes();
+        auto NewAttr = OldAttr.removeAttribute(Context,
+                                               AttributeSet::FunctionIndex,
+                                               Attribute::NoReturn);
+        Call->setAttributes(NewAttr);
+      }
+}
+
 static ReturnInst *createRet(Instruction *Position) {
   Function *F = Position->getParent()->getParent();
+  purgeNoReturn(F);
+
   Type *ReturnType = F->getFunctionType()->getReturnType();
   if (ReturnType->isVoidTy()) {
     return ReturnInst::Create(F->getParent()->getContext(), nullptr, Position);
@@ -427,6 +446,8 @@ static ReturnInst *createRet(Instruction *Position) {
 /// the call.
 bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
   Function *CpuLoopExit = M.getFunction("cpu_loop_exit");
+
+  purgeNoReturn(CpuLoopExit);
 
   // Nothing to do here
   if (CpuLoopExit == nullptr)
