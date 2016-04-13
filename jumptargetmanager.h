@@ -83,6 +83,8 @@ public:
                     Architecture& SourceArchitecture,
                     std::vector<SegmentInfo>& Segments);
 
+  void harvestGlobalData();
+
   /// Handle a new program counter. We might already have a basic block for that
   /// program counter, or we could even have a translation for it. Return one
   /// of these, if appropriate.
@@ -179,6 +181,9 @@ private:
   llvm::BasicBlock *Dispatcher;
   llvm::SwitchInst *DispatcherSwitch;
   std::set<llvm::BasicBlock *> Visited;
+
+  std::vector<SegmentInfo>& Segments;
+  Architecture& SourceArchitecture;
 };
 
 #endif // _JUMPTARGETMANAGER_H

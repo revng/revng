@@ -194,6 +194,12 @@ bool JumpTargetsFromConstantsPass::runOnFunction(Function &F) {
   return false;
 }
 
+template<typename T>
+static cl::opt<T> *getOption(StringMap<cl::Option *>& Options,
+                             const char *Name) {
+  return static_cast<cl::opt<T> *>(Options[Name]);
+}
+
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                      Value *PCReg,
                                      Architecture& SourceArchitecture,
@@ -206,47 +212,51 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   PCReg(PCReg),
   ExitTB(nullptr),
   Dispatcher(nullptr),
-  DispatcherSwitch(nullptr) {
+  DispatcherSwitch(nullptr),
+  Segments(Segments),
+  SourceArchitecture(SourceArchitecture) {
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { },
                                              false);
   ExitTB = cast<Function>(TheModule.getOrInsertFunction("exitTB", ExitTBTy));
   createDispatcher(TheFunction, PCReg, true);
 
-  for (auto& Segment : Segments) {
-    if (Segment.IsExecutable) {
+  for (auto& Segment : Segments)
+    if (Segment.IsExecutable)
       ExecutableRanges.push_back(std::make_pair(Segment.StartVirtualAddress,
                                                 Segment.EndVirtualAddress));
-    }
 
+  // Configure GlobalValueNumbering
+  StringMap<cl::Option *>& Options(cl::getRegisteredOptions());
+  getOption<bool>(Options, "enable-load-pre")->setInitialValue(false);
+  getOption<unsigned>(Options, "memdep-block-scan-limit")->setInitialValue(100);
+  // getOption<bool>(Options, "enable-pre")->setInitialValue(false);
+  // getOption<uint32_t>(Options, "max-recurse-depth")->setInitialValue(10);
+}
+
+void JumpTargetManager::harvestGlobalData() {
+  for (auto& Segment : Segments) {
     auto *Data = cast<ConstantDataArray>(Segment.Variable->getInitializer());
     const unsigned char *DataStart = Data->getRawDataValues().bytes_begin();
     const unsigned char *DataEnd = Data->getRawDataValues().bytes_end();
 
+    using endianness = support::endianness;
     if (SourceArchitecture.pointerSize() == 64) {
       if (SourceArchitecture.isLittleEndian())
-        findCodePointers<uint64_t, support::endianness::little>(DataStart,
-                                                                DataEnd);
+        findCodePointers<uint64_t, endianness::little>(DataStart, DataEnd);
       else
-        findCodePointers<uint64_t, support::endianness::big>(DataStart,
-                                                             DataEnd);
+        findCodePointers<uint64_t, endianness::big>(DataStart, DataEnd);
     } else if (SourceArchitecture.pointerSize() == 32) {
       if (SourceArchitecture.isLittleEndian())
-        findCodePointers<uint32_t, support::endianness::little>(DataStart,
-                                                                DataEnd);
+        findCodePointers<uint32_t, endianness::little>(DataStart, DataEnd);
       else
-        findCodePointers<uint32_t, support::endianness::big>(DataStart,
-                                                             DataEnd);
+        findCodePointers<uint32_t, endianness::big>(DataStart, DataEnd);
     }
   }
 
   DBG("jtcount", dbg
-      << "JumpTargets found in global data: " << Unexplored.size() << "\n");
-
-  // Configure GlobalValueNumbering
-  StringMap<cl::Option *>& Options(cl::getRegisteredOptions());
-  auto *GVNLoadPre = static_cast<cl::opt<bool> *>(Options["enable-load-pre"]);
-  GVNLoadPre->setInitialValue(false);
+      << "JumpTargets found in global data: " << std::dec
+      << Unexplored.size() << "\n");
 }
 
 template<typename value_type, unsigned endian>
@@ -261,8 +271,8 @@ void JumpTargetManager::findCodePointers(const unsigned char *Start,
 }
 
 /// Handle a new program counter. We might already have a basic block for that
-/// program counter, or we could even have a translation for it. Return one
-/// of these, if appropriate.
+/// program counter, or we could even have a translation for it. Return one of
+/// these, if appropriate.
 ///
 /// \param PC the new program counter.
 /// \param ShouldContinue an out parameter indicating whether the returned

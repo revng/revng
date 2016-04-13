@@ -584,9 +584,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
 
   IRBuilder<> Builder(Context);
 
-  if (VirtualAddress == 0)
-    VirtualAddress = EntryPoint;
-
   // Create main function
   auto *MainType  = FunctionType::get(Builder.getVoidTy(), false);
   auto *MainFunction = Function::Create(MainType,
@@ -607,12 +604,20 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   VariableManager Variables(*TheModule,
                             *HelpersModule);
 
+  auto *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
   JumpTargetManager JumpTargets(MainFunction,
-                                Variables.getByEnvOffset(ptc.pc, "pc"),
+                                PCReg,
                                 SourceArchitecture,
                                 Segments);
 
-  BasicBlock *Head = JumpTargets.getBlockAt(VirtualAddress);
+  if (VirtualAddress == 0) {
+    JumpTargets.harvestGlobalData();
+    VirtualAddress = EntryPoint;
+  }
+
+  dbg << "Entry address: 0x" << std::hex << VirtualAddress << std::endl;
+
+  BasicBlock *Head = JumpTargets.getBlockAt(VirtualAddress, true);
 
   // Fake jump to the dispatcher. This way all the blocks are always reachable.
   // Also, use this branch as the delimiter to create local variables.
