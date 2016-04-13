@@ -142,6 +142,14 @@ namespace PTC {
       return std::string(Helper->name);
     }
 
+    uint64_t pc() const {
+      assert(opcode() == PTC_INSTRUCTION_op_debug_insn_start);
+      uint64_t PC = ConstArguments[0];
+      if (ConstArguments.size() > 1)
+        PC |= ConstArguments[1] << 32;
+      return PC;
+    }
+
   private:
     PTCInstruction* TheInstruction;
 
@@ -467,8 +475,7 @@ InstructionTranslator::InstructionTranslator(IRBuilder<>& Builder,
   TheFunction(TheFunction),
   SourceArchitecture(SourceArchitecture),
   TargetArchitecture(TargetArchitecture),
-  NewPCMarker(nullptr),
-  LastMarker(nullptr) {
+  NewPCMarker(nullptr) {
 
   auto &Context = TheModule.getContext();
   using FT = FunctionType;
@@ -514,38 +521,27 @@ void InstructionTranslator::removeNewPCMarkers(std::string &CoveragePath) {
   NewPCMarker->eraseFromParent();
 }
 
-void InstructionTranslator::closeLastInstruction(uint64_t PC) {
-  assert(LastMarker != nullptr);
-
-  auto *Operand = cast<ConstantInt>(LastMarker->getArgOperand(0));
-  uint64_t StartPC = Operand->getLimitedValue();
-
-  assert(PC > StartPC);
-  LastMarker->setArgOperand(1, Builder.getInt64(PC - StartPC));
-
-  LastMarker = nullptr;
-}
-
-std::tuple<bool, MDNode *, uint64_t>
+std::tuple<bool, MDNode *, uint64_t, uint64_t>
 InstructionTranslator::newInstruction(PTCInstruction *Instr,
+                                      PTCInstruction *Next,
+                                      uint64_t EndPC,
                                       bool IsFirst) {
-  using r = std::tuple<bool, MDNode *, uint64_t>;
+  using R = std::tuple<bool, MDNode *, uint64_t, uint64_t>;
 
   const PTC::Instruction TheInstruction(Instr);
   // A new original instruction, let's create a new metadata node
   // referencing it for all the next instructions to come
-  uint64_t PC = TheInstruction.ConstArguments[0];
-
-  // TODO: replace using a field in Architecture
-  if (TheInstruction.ConstArguments.size() > 1)
-    PC |= TheInstruction.ConstArguments[1] << 32;
+  uint64_t PC = TheInstruction.pc();
+  uint64_t NextPC = Next != nullptr ?  PTC::Instruction(Next).pc() : EndPC;
 
   std::stringstream OriginalStringStream;
   disassembleOriginal(OriginalStringStream, PC);
   std::string OriginalString = OriginalStringStream.str();
   LLVMContext& Context = TheModule.getContext();
   MDString *MDOriginalString = MDString::get(Context, OriginalString);
-  MDNode *MDOriginalInstr = MDNode::getDistinct(Context, MDOriginalString);
+  auto *MDPC = ConstantAsMetadata::get(Builder.getInt64(PC));
+  MDNode *MDOriginalInstr = MDNode::getDistinct(Context,
+                                                { MDOriginalString, MDPC });
 
   if (!IsFirst) {
     // Check if this PC already has a block and use it
@@ -561,23 +557,24 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
         Variables.newBasicBlock();
       } else {
         // The block contains already translated code, early exit
-        return r { true, MDOriginalInstr, PC };
+        return R { true, MDOriginalInstr, PC, NextPC };
       }
     }
   }
 
-  if (LastMarker != nullptr)
-    closeLastInstruction(PC);
-
   // Insert a call to NewPCMarker capturing all the local tempoararies
   // This prevents SROA from transforming them in SSA values, which is bad
   // in case we have to split a basic block
-  std::vector<Value *> Args = { Builder.getInt64(PC), Builder.getInt64(0) };
-  Type *VoidPointerTy = Type::getInt8Ty(Context)->getPointerTo();
+  std::vector<Value *> Args = {
+    Builder.getInt64(PC),
+    Builder.getInt64(NextPC - PC)
+  };
+  PointerType *VoidPointerTy = Type::getInt8Ty(Context)->getPointerTo();
   for (Value *Local : Variables.locals())
     Args.push_back(Builder.CreatePointerCast(Local, VoidPointerTy));
+  Args.push_back(ConstantPointerNull::get(VoidPointerTy));
 
-  LastMarker = Builder.CreateCall(NewPCMarker, Args);
+  auto *Call = Builder.CreateCall(NewPCMarker, Args);
 
   if (!IsFirst) {
     // Inform the JumpTargetManager about the new PC we met
@@ -585,10 +582,10 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
     if (CurrentIt == Builder.GetInsertBlock()->begin())
       JumpTargets.registerBlock(PC, Builder.GetInsertBlock());
     else
-      JumpTargets.registerInstruction(PC, LastMarker);
+      JumpTargets.registerInstruction(PC, Call);
   }
 
-  return r { false, MDOriginalInstr, PC };
+  return R { false, MDOriginalInstr, PC, NextPC };
 }
 
 void InstructionTranslator::translateCall(PTCInstruction *Instr) {
@@ -633,7 +630,9 @@ void InstructionTranslator::translateCall(PTCInstruction *Instr) {
   }
 }
 
-bool InstructionTranslator::translate(PTCInstruction *Instr, uint64_t PC) {
+bool InstructionTranslator::translate(PTCInstruction *Instr,
+                                      uint64_t PC,
+                                      uint64_t NextPC) {
   const PTC::Instruction TheInstruction(Instr);
 
   auto LoadArgs = [this] (uint64_t TemporaryId) -> Value * {

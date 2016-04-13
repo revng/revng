@@ -46,8 +46,12 @@ public:
   // TODO: the signature of this funciton is ugly
   std::tuple<bool,
     llvm::MDNode *,
-    uint64_t> newInstruction(PTCInstruction *Instr, bool IsFirst);
-  bool translate(PTCInstruction *Instr, uint64_t PC);
+    uint64_t,
+    uint64_t> newInstruction(PTCInstruction *Instr,
+                             PTCInstruction *Next,
+                             uint64_t EndPC,
+                             bool IsFirst);
+  bool translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC);
   void translateCall(PTCInstruction *Instr);
 
   void removeNewPCMarkers(std::string &CoveragePath);
@@ -73,7 +77,6 @@ private:
   Architecture& TargetArchitecture;
 
   llvm::Function *NewPCMarker;
-  llvm::CallInst *LastMarker;
 };
 
 #endif // _INSTRUCTIONTRANSLATOR_H

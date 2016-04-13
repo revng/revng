@@ -651,7 +651,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
 
     ConsumedSize = ptc.translate(VirtualAddress,
                                  InstructionList.get());
-    uint64_t NextPC = VirtualAddress + ConsumedSize;
 
     DBG("ptc", dumpTranslation(dbg, InstructionList.get()));
 
@@ -660,17 +659,34 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     MDNode* MDOriginalInstr = nullptr;
     bool StopTranslation = false;
     uint64_t PC = VirtualAddress;
+    uint64_t NextPC = 0;
+    uint64_t EndPC = VirtualAddress + ConsumedSize;
+    const auto InstructionCount = InstructionList->instruction_count;
 
     // Handle the first PTC_INSTRUCTION_op_debug_insn_start
     {
+      PTCInstruction *NextInstruction = nullptr;
+      for (unsigned k = 1; k < InstructionCount; k++) {
+        PTCInstruction *I = &InstructionList->instructions[k];
+        if (I->opc == PTC_INSTRUCTION_op_debug_insn_start) {
+          NextInstruction = I;
+          break;
+        }
+      }
       PTCInstruction *Instruction = &InstructionList->instructions[j];
       std::tie(StopTranslation,
                MDOriginalInstr,
-               PC) = Translator.newInstruction(Instruction, true);
+               PC,
+               NextPC) = Translator.newInstruction(Instruction,
+                                                   NextInstruction,
+                                                   EndPC,
+                                                   true);
       j++;
     }
 
-    for (; j < InstructionList->instruction_count && !StopTranslation; j++) {
+
+    // TODO: shall we move this whole loop in InstructionTranslator?
+    for (; j < InstructionCount && !StopTranslation; j++) {
       PTCInstruction Instruction = InstructionList->instructions[j];
       PTCOpcode Opcode = Instruction.opc;
 
@@ -683,9 +699,23 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
         break;
       case PTC_INSTRUCTION_op_debug_insn_start:
         {
+          // Find next instruction, if there is one
+          PTCInstruction *NextInstruction = nullptr;
+          for (unsigned k = j + 1; k < InstructionCount; k++) {
+            PTCInstruction *I = &InstructionList->instructions[k];
+            if (I->opc == PTC_INSTRUCTION_op_debug_insn_start) {
+              NextInstruction = I;
+              break;
+            }
+          }
+
           std::tie(StopTranslation,
                    MDOriginalInstr,
-                   PC) = Translator.newInstruction(&Instruction, false);
+                   PC,
+                   NextPC) = Translator.newInstruction(&Instruction,
+                                                       NextInstruction,
+                                                       EndPC,
+                                                       false);
           break;
         }
       case PTC_INSTRUCTION_op_call:
@@ -696,19 +726,13 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
           // case force a fallthrough
           // TODO: investigate why this happens
           auto &IL = InstructionList;
-          if (j == IL->instruction_count - 1) {
-            Builder.CreateBr(notNull(JumpTargets.getBlockAt(NextPC)));
-          } else if (j + 1 == IL->instruction_count - 1) {
-            if (IL->instructions[j + 1].opc == PTC_INSTRUCTION_op_exit_tb) {
-              // This is the last call before an exit_tb, force exploration of
-              // the next PC address
-              JumpTargets.getBlockAt(NextPC);
-            }
-          }
+          if (j == IL->instruction_count - 1)
+            Builder.CreateBr(notNull(JumpTargets.getBlockAt(EndPC, false)));
+
           break;
         }
       default:
-        StopTranslation = Translator.translate(&Instruction, PC);
+        StopTranslation = Translator.translate(&Instruction, PC, NextPC);
       }
 
       // Create a new metadata referencing the PTC instruction we have just
@@ -730,7 +754,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
 
     } // End loop over instructions
 
-    Translator.closeLastInstruction(NextPC);
 
     // We might have a leftover block, probably due to the block created after
     // the last call to exit_tb
