@@ -89,7 +89,23 @@ CodeGenerator::CodeGenerator(std::string Input,
   // We only support ELF for now
   auto *TheBinary = cast<object::ObjectFile>(BinaryHandle.getBinary());
 
-  SourceArchitecture = Architecture(1,
+  unsigned InstructionAlignment = 0;
+  switch (TheBinary->getArch()) {
+  case Triple::x86_64:
+    InstructionAlignment = 1;
+    break;
+  case Triple::arm:
+    InstructionAlignment = 4;
+    break;
+  case Triple::mips:
+    InstructionAlignment = 4;
+    break;
+  default:
+    assert(false);
+  }
+
+  SourceArchitecture = Architecture(InstructionAlignment,
+                                    1,
                                     TheBinary->isLittleEndian(),
                                     TheBinary->getBytesInAddress() * 8);
 

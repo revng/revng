@@ -41,30 +41,37 @@ public:
 
 public:
  Architecture() :
+    InstructionAlignment(1),
     DefaultAlignment(1),
     Endianess(LittleEndian),
     PointerSize(64) { }
 
- Architecture(unsigned DefaultAlignment,
+ Architecture(unsigned InstructionAlignment,
+              unsigned DefaultAlignment,
               EndianessType Endianess,
               unsigned PointerSize) :
+    InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
     Endianess(Endianess),
     PointerSize(PointerSize) { }
 
- Architecture(unsigned DefaultAlignment,
+ Architecture(unsigned InstructionAlignment,
+              unsigned DefaultAlignment,
               bool IsLittleEndian,
               unsigned PointerSize) :
+    InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
     Endianess(IsLittleEndian ? LittleEndian : BigEndian),
     PointerSize(PointerSize) { }
 
+  unsigned instructionAlignment() { return InstructionAlignment; }
   unsigned defaultAlignment() { return DefaultAlignment; }
   EndianessType endianess() { return Endianess; }
   unsigned pointerSize() { return PointerSize; }
   bool isLittleEndian() { return Endianess == LittleEndian; }
 
 private:
+  unsigned InstructionAlignment;
   unsigned DefaultAlignment;
   EndianessType Endianess;
   unsigned PointerSize;
