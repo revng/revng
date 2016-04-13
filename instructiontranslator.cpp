@@ -990,12 +990,12 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       Instruction::BinaryOps FirstShiftOp, SecondShiftOp;
       if (Opcode == PTC_INSTRUCTION_op_rotl_i32 ||
           Opcode == PTC_INSTRUCTION_op_rotl_i64) {
-        FirstShiftOp = Instruction::LShr;
-        SecondShiftOp = Instruction::Shl;
-      } else if (Opcode == PTC_INSTRUCTION_op_rotr_i32 ||
-                 Opcode == PTC_INSTRUCTION_op_rotr_i64) {
         FirstShiftOp = Instruction::Shl;
         SecondShiftOp = Instruction::LShr;
+      } else if (Opcode == PTC_INSTRUCTION_op_rotr_i32 ||
+                 Opcode == PTC_INSTRUCTION_op_rotr_i64) {
+        FirstShiftOp = Instruction::LShr;
+        SecondShiftOp = Instruction::Shl;
       } else
         llvm_unreachable("Unexpected opcode");
 
