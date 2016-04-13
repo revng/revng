@@ -28,6 +28,7 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 // Local includes
 #include "codegenerator.h"
@@ -564,6 +565,24 @@ bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
   return true;
 }
 
+/// Removes all the basic blocks without predecessors from F
+// TODO: this is not efficient, but it shouldn't be critical
+static void purgeDeadBlocks(Function *F) {
+  std::vector<BasicBlock *> Kill;
+  do {
+    for (BasicBlock *Dead : Kill)
+      DeleteDeadBlock(Dead);
+    Kill.clear();
+
+    // Skip the first basic block
+    for (BasicBlock &BB : make_range(++F->begin(), F->end()))
+      if (pred_begin(&BB) == pred_end(&BB))
+        Kill.push_back(&BB);
+
+  } while (!Kill.empty());
+
+}
+
 
 void CodeGenerator::translate(uint64_t VirtualAddress,
                               std::string Name) {
@@ -872,6 +891,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   // TODO: transform the following in passes?
   JumpTargets.translateIndirectJumps();
 
+  purgeDeadBlocks(MainFunction);
   Translator.removeNewPCMarkers(CoveragePath);
   Debug->generateDebugInfo();
 
