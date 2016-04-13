@@ -801,6 +801,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     auto *LastBlock = Builder.GetInsertBlock();
     if (LastBlock->empty())
       LastBlock->eraseFromParent();
+    else if (!LastBlock->rbegin()->isTerminator()) {
+      // Something went wrong, probably a mistranslation
+      Builder.CreateUnreachable();
+    }
 
     // Obtain a new program counter to translate
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
