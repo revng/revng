@@ -160,9 +160,6 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
   };
 
   // These values will be used to populate the auxiliary vectors
-  auto PhdrAddress = reinterpret_cast<uint64_t>(TheELF.base()
-                                                + ElfHeader->e_phoff);
-  createConstGlobal("phdr_address", PhdrAddress);
   createConstGlobal("e_phentsize", ElfHeader->e_phentsize);
   createConstGlobal("e_phnum", ElfHeader->e_phnum);
 
@@ -226,6 +223,17 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
       // Force alignment to 1 and assign the variable to a specific section
       Segment.Variable->setAlignment(1);
       Segment.Variable->setSection(Name);
+
+      // Check if it's the segment containing the program headers
+      auto ProgramHeaderStart = ProgramHeader.p_offset;
+      auto ProgramHeaderEnd = ProgramHeader.p_offset + ProgramHeader.p_filesz;
+      if (ProgramHeaderStart <= ElfHeader->e_phoff
+          && ElfHeader->e_phoff < ProgramHeaderEnd) {
+        auto PhdrAddress = static_cast<uint64_t>(ProgramHeader.p_vaddr
+                                                 + ElfHeader->e_phoff
+                                                 - ProgramHeader.p_offset);
+        createConstGlobal("phdr_address", PhdrAddress);
+      }
 
       // Write the linking info CSV
       LinkingInfoStream << Name
