@@ -1182,6 +1182,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
 
       if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
         Fallthrough = BasicBlock::Create(Context, Label, TheFunction);
+        Fallthrough->moveAfter(Builder.GetInsertBlock());
         LabeledBasicBlocks[Label] = Fallthrough;
       } else {
         // A basic block with that label already exist
