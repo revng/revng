@@ -471,25 +471,42 @@ InstructionTranslator::InstructionTranslator(IRBuilder<>& Builder,
   LastMarker(nullptr) {
 
   auto &Context = TheModule.getContext();
-  NewPCMarker = Function::Create(FunctionType::get(Type::getVoidTy(Context),
-                                                   {
-                                                     Type::getInt64Ty(Context),
-                                                     Type::getInt64Ty(Context),
-                                                     Type::getInt8Ty(Context)->getPointerTo()
-                                                   },
-                                                   true),
+  using FT = FunctionType;
+  auto *NewPCMarkerTy = FT::get(Type::getVoidTy(Context),
+                                {
+                                  Type::getInt64Ty(Context),
+                                  Type::getInt64Ty(Context),
+                                  Type::getInt8Ty(Context)->getPointerTo()
+                                },
+                                true);
+  NewPCMarker = Function::Create(NewPCMarkerTy,
                                  GlobalValue::ExternalLinkage,
                                  "newpc",
                                  &TheModule);
-  }
+}
 
-void InstructionTranslator::removeNewPCMarkers() {
-
+void InstructionTranslator::removeNewPCMarkers(std::string &CoveragePath) {
   std::vector<Instruction *> ToDelete;
+  std::ofstream Output(CoveragePath);
 
-  for (User *Call : NewPCMarker->users())
-    if (cast<Instruction>(Call)->getParent() != nullptr)
-      ToDelete.push_back(cast<Instruction>(Call));
+  Output << std::hex;
+  for (User *U : NewPCMarker->users()) {
+    auto *Call = cast<CallInst>(U);
+    if (Call->getParent() != nullptr) {
+      // Register the call to be delete
+      ToDelete.push_back(Call);
+
+      // Report the instruction on the coverage CSV
+      using CI = ConstantInt;
+      uint64_t PC = (cast<CI>(Call->getArgOperand(0)))->getLimitedValue();
+      uint64_t Size = (cast<CI>(Call->getArgOperand(1)))->getLimitedValue();
+      Output << "0x" << PC
+             << ",0x" << Size
+             << "," << (JumpTargets.isJumpTarget(PC) ? "1" : "0")
+             << std::endl;
+    }
+  }
+  Output << std::dec;
 
   for (Instruction *TheInstruction : ToDelete)
     TheInstruction->eraseFromParent();

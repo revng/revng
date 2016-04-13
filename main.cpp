@@ -40,6 +40,7 @@ struct ProgramParameters {
   DebugInfoType DebugInfo;
   const char *DebugPath;
   const char *LinkingInfoPath;
+  const char *CoveragePath;
 };
 
 using LibraryDestructor = GenericFunctor<decltype(&dlclose), &dlclose>;
@@ -57,7 +58,8 @@ static const char *const Usage[] = {
 /// \param PTCLibrary a reference to the library handler.
 ///
 /// \return EXIT_SUCCESS if the library has been successfully loaded.
-static int loadPTCLibrary(const char *Architecture, LibraryPointer& PTCLibrary) {
+static int loadPTCLibrary(const char *Architecture,
+                          LibraryPointer& PTCLibrary) {
   ptc_load_ptr_t ptc_load = nullptr;
   void *LibraryHandle = nullptr;
 
@@ -122,6 +124,9 @@ static int parseArgs(int Argc, const char *Argv[],
     OPT_STRING('s', "debug-path",
                &Parameters->DebugPath,
                "destination path for the generated debug source."),
+    OPT_STRING('c', "coverage-path",
+               &Parameters->CoveragePath,
+               "destination path for the CSV containing translated ranges."),
     OPT_STRING('i', "linking-info",
                &Parameters->LinkingInfoPath,
                "destination path for the CSV containing linking info."),
@@ -199,6 +204,9 @@ static int parseArgs(int Argc, const char *Argv[],
   if (Parameters->LinkingInfoPath == nullptr)
     Parameters->LinkingInfoPath = "";
 
+  if (Parameters->CoveragePath == nullptr)
+    Parameters->CoveragePath = "";
+
   return EXIT_SUCCESS;
 }
 
@@ -227,10 +235,10 @@ int main(int argc, const char *argv[]) {
                           HelpersPath.str(),
                           Parameters.DebugInfo,
                           std::string(Parameters.DebugPath),
-                          std::string(Parameters.LinkingInfoPath));
+                          std::string(Parameters.LinkingInfoPath),
+                          std::string(Parameters.CoveragePath));
 
-  Generator.translate(Parameters.EntryPointAddress,
-                      "root");
+  Generator.translate(Parameters.EntryPointAddress, "root");
 
   Generator.serialize();
 

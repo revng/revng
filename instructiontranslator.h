@@ -50,7 +50,7 @@ public:
   bool translate(PTCInstruction *Instr, uint64_t PC);
   void translateCall(PTCInstruction *Instr);
 
-  void removeNewPCMarkers();
+  void removeNewPCMarkers(std::string &CoveragePath);
 
   void closeLastInstruction(uint64_t PC);
 

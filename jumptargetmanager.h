@@ -124,6 +124,10 @@ public:
   /// Return true if there are unexplored jump targets
   bool empty() { return Unexplored.empty(); }
 
+  bool isJumpTarget(uint64_t PC) {
+    return JumpTargets.count(PC);
+  }
+
   /// Get or create a block for the given PC
   llvm::BasicBlock *getBlockAt(uint64_t PC);
 

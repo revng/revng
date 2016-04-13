@@ -49,7 +49,8 @@ public:
                 std::string Helpers,
                 DebugInfoType DebugInfo,
                 std::string Debug,
-                std::string LinkingInfoPath);
+                std::string LinkingInfoPath,
+                std::string CoveragePath);
 
   ~CodeGenerator();
 
@@ -85,6 +86,8 @@ private:
   unsigned OriginalInstrMDKind;
   unsigned PTCInstrMDKind;
   unsigned DbgMDKind;
+
+  std::string CoveragePath;
 };
 
 #endif // _CODEGENERATOR_H

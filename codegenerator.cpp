@@ -56,7 +56,8 @@ CodeGenerator::CodeGenerator(std::string Input,
                              std::string Helpers,
                              DebugInfoType DebugInfo,
                              std::string Debug,
-                             std::string LinkingInfoPath) :
+                             std::string LinkingInfoPath,
+                             std::string CoveragePath) :
   TargetArchitecture(Target),
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
@@ -74,6 +75,10 @@ CodeGenerator::CodeGenerator(std::string Input,
     Errors.print("revamb", dbgs());
     abort();
   }
+
+  if (CoveragePath.size() == 0)
+    CoveragePath = OutputPath + ".coverage.csv";
+  this->CoveragePath = CoveragePath;
 
   auto BinaryOrErr = object::createBinary(Input);
   assert(BinaryOrErr && "Couldn't open the input file");
@@ -807,10 +812,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   PM.add(createDeadCodeEliminationPass());
   PM.run(*TheModule);
 
+  // TODO: transform the following in passes?
   JumpTargets.translateIndirectJumps();
 
-  Translator.removeNewPCMarkers();
-
+  Translator.removeNewPCMarkers(CoveragePath);
   Debug->generateDebugInfo();
 
 }
