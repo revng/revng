@@ -50,7 +50,8 @@ public:
                 DebugInfoType DebugInfo,
                 std::string Debug,
                 std::string LinkingInfoPath,
-                std::string CoveragePath);
+                std::string CoveragePath,
+                bool EnableOSRA);
 
   ~CodeGenerator();
 
@@ -88,6 +89,7 @@ private:
   unsigned DbgMDKind;
 
   std::string CoveragePath;
+  bool EnableOSRA;
 };
 
 #endif // _CODEGENERATOR_H

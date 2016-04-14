@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <map>
 #include <set>
+#include <vector>
 
 // Forward declarations
 namespace llvm {
@@ -12,8 +13,10 @@ class BasicBlock;
 class Function;
 class Instruction;
 class LLVMContext;
+class LoadInst;
 class Module;
 class SwitchInst;
+class StoreInst;
 class Value;
 }
 
@@ -56,19 +59,32 @@ public:
 
   JumpTargetsFromConstantsPass() : llvm::FunctionPass(ID),
     JTM(nullptr),
-    Visited(nullptr) { }
+    Visited(nullptr),
+    UseOSRA(false) { }
 
   JumpTargetsFromConstantsPass(JumpTargetManager *JTM,
+                               bool UseOSRA,
                                std::set<llvm::BasicBlock *> *Visited) :
     llvm::FunctionPass(ID),
     JTM(JTM),
-    Visited(Visited) { }
+    Visited(Visited),
+    UseOSRA(UseOSRA) { }
 
   bool runOnFunction(llvm::Function &F) override;
 
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
+
 private:
+  void enqueueStores(llvm::LoadInst *Start,
+                     unsigned StackHeight,
+                     std::vector<std::pair<llvm::Value *, unsigned>>& WL);
+
+
+private:
+  const unsigned MaxDepth = 3;
   JumpTargetManager *JTM;
   std::set<llvm::BasicBlock *> *Visited;
+  bool UseOSRA;
 };
 
 class JumpTargetManager {
@@ -81,7 +97,8 @@ public:
   JumpTargetManager(llvm::Function *TheFunction,
                     llvm::Value *PCReg,
                     Architecture& SourceArchitecture,
-                    std::vector<SegmentInfo>& Segments);
+                    std::vector<SegmentInfo>& Segments,
+                    bool EnableOSRA);
 
   void harvestGlobalData();
 
@@ -117,6 +134,8 @@ public:
 
   llvm::Function *exitTB() { return ExitTB; }
 
+  bool isOSRAEnabled() { return EnableOSRA; }
+
   /// Pop from the list of program counters to explore
   ///
   /// \return a pair containing the PC and the initial block to use, or
@@ -126,18 +145,77 @@ public:
   /// Return true if there are unexplored jump targets
   bool empty() { return Unexplored.empty(); }
 
+  bool isExecutableRange(uint64_t Start, uint64_t End) const {
+    for (std::pair<uint64_t, uint64_t> Range : ExecutableRanges)
+      if (Range.first <= Start && Start < Range.second
+          && Range.first <= End && End < Range.second)
+        return true;
+    return false;
+  }
+
+  bool isInstructionAligned(uint64_t PC) const {
+    return PC % SourceArchitecture.instructionAlignment() == 0;
+  }
+
+  bool isInterestingPC(uint64_t PC) const {
+    return isExecutableAddress(PC)
+      && isInstructionAligned(PC)
+      && JumpTargets.find(PC) == JumpTargets.end();
+  }
+
+  bool isExecutableAddress(uint64_t Address) const {
+    for (std::pair<uint64_t, uint64_t> Range : ExecutableRanges)
+      if (Range.first <= Address && Address < Range.second)
+        return true;
+    return false;
+  }
+
   bool isJumpTarget(uint64_t PC) {
     return JumpTargets.count(PC);
   }
 
+  bool isReliablePC(uint64_t PC) {
+    // Get the PC of the basic block "not less than" the PC
+    auto It = JumpTargets.lower_bound(PC);
+
+    uint64_t BBPC = 0;
+    if (It == JumpTargets.end()) {
+      BBPC = JumpTargets.rbegin()->first;
+      assert(BBPC < PC);
+    } else {
+
+      BBPC = It->first;
+
+      // If it's not the PC itself, it's the PC of the next basic
+      // block, so go back one position
+      if (BBPC != PC) {
+        assert(It != JumpTargets.begin());
+        BBPC = (--It)->first;
+      }
+    }
+
+    return ReliablePCs.count(BBPC);
+  }
+
   /// Get or create a block for the given PC
-  llvm::BasicBlock *getBlockAt(uint64_t PC);
+  llvm::BasicBlock *getBlockAt(uint64_t PC, bool Reliable);
 
-  llvm::BasicBlock *dispatcher() { return Dispatcher; }
+  void unvisit(llvm::BasicBlock *BB);
 
-  bool isPCReg(llvm::Value *TheValue) { return TheValue == PCReg; }
+  llvm::BasicBlock *dispatcher() const { return Dispatcher; }
 
-  uint64_t getNextPC(llvm::Instruction *TheInstruction);
+  bool isPCReg(llvm::Value *TheValue) const { return TheValue == PCReg; }
+  llvm::Value *pcReg() const { return PCReg; }
+
+  std::pair<uint64_t, uint64_t> getPC(llvm::Instruction *TheInstruction) const;
+  uint64_t getNextPC(llvm::Instruction *TheInstruction) const {
+    auto Pair = getPC(TheInstruction);
+    return Pair.first + Pair.second;
+  }
+
+
+  llvm::ConstantInt *readConstantInt(llvm::Constant *Address, unsigned Size);
+  llvm::Constant *readConstantPointer(llvm::Constant *Address, llvm::Type *PointerTy);
 
 private:
   // TODO: instead of a gigantic switch case we could map the original memory
@@ -149,13 +227,6 @@ private:
 
   template<typename value_type, unsigned endian>
   void findCodePointers(const unsigned char *Start, const unsigned char *End);
-
-  bool isExecutableAddress(uint64_t Address) {
-    for (std::pair<uint64_t, uint64_t> Range : ExecutableRanges)
-      if (Range.first <= Address && Address < Range.second)
-        return true;
-    return false;
-  }
 
   void harvest();
 
@@ -184,6 +255,9 @@ private:
 
   std::vector<SegmentInfo>& Segments;
   Architecture& SourceArchitecture;
+
+  std::set<uint64_t> ReliablePCs;
+  bool EnableOSRA;
 };
 
 #endif // _JUMPTARGETMANAGER_H

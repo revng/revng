@@ -512,6 +512,7 @@ void InstructionTranslator::removeNewPCMarkers(std::string &CoveragePath) {
       Output << "0x" << PC
              << ",0x" << Size
              << "," << (JumpTargets.isJumpTarget(PC) ? "1" : "0")
+             << "," << (JumpTargets.isReliablePC(PC) ? "1" : "0")
              << std::endl;
     }
   }
@@ -732,7 +733,7 @@ bool InstructionTranslator::translate(PTCInstruction *Instr,
       if (Constant != nullptr) {
         uint64_t Address = Constant->getLimitedValue();
         if (PC != Address)
-          JumpTargets.getBlockAt(Address);
+          JumpTargets.getBlockAt(Address, PC != NextPC);
       }
     }
   }

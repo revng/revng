@@ -41,6 +41,7 @@ struct ProgramParameters {
   const char *DebugPath;
   const char *LinkingInfoPath;
   const char *CoveragePath;
+  bool NoOSRA;
 };
 
 using LibraryDestructor = GenericFunctor<decltype(&dlclose), &dlclose>;
@@ -140,6 +141,8 @@ static int parseArgs(int Argc, const char *Argv[],
     OPT_STRING('d', "debug",
                &DebugLoggingString,
                "enable verbose logging."),
+    OPT_BOOLEAN('O', "no-osra", &Parameters->NoOSRA,
+                "disable OSRA"),
     OPT_END(),
   };
 
@@ -236,7 +239,8 @@ int main(int argc, const char *argv[]) {
                           Parameters.DebugInfo,
                           std::string(Parameters.DebugPath),
                           std::string(Parameters.LinkingInfoPath),
-                          std::string(Parameters.CoveragePath));
+                          std::string(Parameters.CoveragePath),
+                          !Parameters.NoOSRA);
 
   Generator.translate(Parameters.EntryPointAddress, "root");
 

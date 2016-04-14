@@ -30,6 +30,7 @@
 #include "debug.h"
 #include "revamb.h"
 #include "ir-helpers.h"
+#include "osra.h"
 #include "jumptargetmanager.h"
 
 using namespace llvm;
@@ -68,13 +69,16 @@ bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
 
         // Is destination a constant?
         if (PCWrite != nullptr) {
-          if (isSumJump(PCWrite))
-            JTM->getBlockAt(getNextPC(PCWrite));
+          uint64_t NextPC = JTM->getNextPC(PCWrite);
+          if (NextPC != 0 && JTM->isOSRAEnabled() && isSumJump(PCWrite))
+            JTM->getBlockAt(NextPC, false);
 
-          if (auto *Address = dyn_cast<ConstantInt>(PCWrite->getValueOperand())) {
+          auto *Address = dyn_cast<ConstantInt>(PCWrite->getValueOperand());
+          if (Address != nullptr) {
             // Compute the actual PC and get the associated BasicBlock
             uint64_t TargetPC = Address->getSExtValue();
-            BasicBlock *TargetBlock = JTM->getBlockAt(TargetPC);
+            bool IsReliable = NextPC != 0 && TargetPC != NextPC;
+            BasicBlock *TargetBlock = JTM->getBlockAt(TargetPC, IsReliable);
 
             // Remove unreachable right after the exit_tb
             BasicBlock::iterator CallIt(Call);
@@ -148,49 +152,474 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
 
 char JumpTargetsFromConstantsPass::ID = 0;
 
-bool JumpTargetsFromConstantsPass::runOnFunction(Function &F) {
-  for (BasicBlock& BB : make_range(F.begin(), F.end()))
-    if (Visited->find(&BB) == Visited->end()) {
-      Visited->insert(&BB);
+void JumpTargetsFromConstantsPass::getAnalysisUsage(AnalysisUsage &AU) const {
+  if (UseOSRA)
+    AU.addRequired<OSRAPass>();
+}
 
-      std::stack<User *> WorkList;
+void JumpTargetsFromConstantsPass::enqueueStores(LoadInst *Start,
+                                                 unsigned StackHeight,
+                                                 std::vector<std::pair<Value *, unsigned>>& WL) {
+  auto *Destination = Start->getPointerOperand();
+  std::stack<std::pair<Instruction *, unsigned>> ToExplore;
+  std::set<BasicBlock *> Visited;
+  ToExplore.push(std::make_pair(Start, 0));
 
-      // Use a lambda so we don't have to initialize the queue with all the
-      // instructions
-      auto Process = [this, &WorkList] (User *U) {
-        auto *Call = dyn_cast<CallInst>(U);
-        // TODO: comparing strings is not very elegant
-        if (Call != nullptr && Call->getCalledFunction()->getName() == "newpc")
-          return;
+  Instruction *I = Start;
 
-        auto *Store = dyn_cast<StoreInst>(U);
-        if (Store != nullptr && JTM->isPCReg(Store->getPointerOperand()))
-          return;
+  while (!ToExplore.empty()) {
+    unsigned Depth;
+    std::tie(I, Depth) = ToExplore.top();
+    ToExplore.pop();
 
-        for (Use& Operand : U->operands()) {
-          auto *OperandUser = dyn_cast<User>(Operand.get());
-          if (OperandUser != nullptr
-              && OperandUser->op_begin() != OperandUser->op_end()) {
-            WorkList.push(OperandUser);
-          }
+    auto *BB = I->getParent();
+    if (Visited.find(BB) != Visited.end())
+      continue;
 
-          auto *Constant = dyn_cast<ConstantInt>(Operand.get());
-          if (Constant != nullptr)
-            JTM->getBlockAt(Constant->getLimitedValue());
+    Visited.insert(BB);
+    BasicBlock::reverse_iterator It(make_reverse_iterator(I));
+    BasicBlock::reverse_iterator Begin(BB->rend());
 
+    bool Found = false;
+    for (; It != Begin; It++) {
+      if (auto *Store = dyn_cast<StoreInst>(&*It)) {
+        if (Store->getPointerOperand() == Destination) {
+          auto NewPair = std::make_pair(Store->getValueOperand(), StackHeight);
+          if (std::find(WL.begin(), WL.end(), NewPair) == WL.end())
+            WL.push_back(NewPair);
+          Found = true;
+          break;
         }
-
-      };
-
-      for (Instruction& Instr : BB)
-        Process(&Instr);
-
-      while (!WorkList.empty()) {
-        auto *Current = WorkList.top();
-        WorkList.pop();
-        Process(Current);
       }
     }
+
+    // If we haven't find a store, proceed recursively in the predecessors
+    if (!Found && Depth < MaxDepth) {
+      auto Predecessors = make_range(pred_begin(BB), pred_end(BB));
+      for (BasicBlock *Predecessor : Predecessors) {
+        if (Predecessor != JTM->dispatcher()
+            && !Predecessor->empty()) {
+          ToExplore.push(std::make_pair(&*Predecessor->rbegin(),
+                                        Depth + 1));
+        }
+      }
+    }
+
+  }
+
+}
+
+Constant *JumpTargetManager::readConstantPointer(Constant *Address,
+                                                 Type *PointerTy) {
+  auto *Value = readConstantInt(Address, SourceArchitecture.pointerSize());
+  if (Value != nullptr) {
+    return ConstantExpr::getIntToPtr(Value, PointerTy);
+  } else {
+    return nullptr;
+  }
+}
+
+ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
+                                                unsigned Size) {
+  const DataLayout &DL = TheModule.getDataLayout();
+
+  if (ConstantAddress->getType()->isPointerTy()) {
+    using CE = ConstantExpr;
+    auto IntPtrTy = Type::getIntNTy(Context, SourceArchitecture.pointerSize());
+    ConstantAddress = CE::getPtrToInt(ConstantAddress, IntPtrTy);
+  }
+
+  uint64_t Address = getZExtValue(ConstantAddress, DL);
+
+  for (auto &Segment : Segments) {
+    // Note: we also consider writeable memory areas because, despite being
+    // modifiable, can contain useful information
+    if (Segment.StartVirtualAddress <= Address
+        && Address < Segment.EndVirtualAddress
+        && Segment.IsReadable) {
+      auto *Array = cast<ConstantDataArray>(Segment.Variable->getInitializer());
+      StringRef RawData = Array->getRawDataValues();
+      const unsigned char *RawDataPtr = RawData.bytes_begin();
+      uint64_t Offset = Address - Segment.StartVirtualAddress;
+      const unsigned char *Start = RawDataPtr + Offset;
+
+      using support::endian::read;
+      using support::endianness;
+      uint64_t Value;
+      switch (Size) {
+      case 1:
+        Value = read<uint8_t, endianness::little, 1>(Start);
+        break;
+      case 2:
+        if (DL.isLittleEndian())
+          Value = read<uint16_t, endianness::little, 1>(Start);
+        else
+          Value = read<uint16_t, endianness::big, 1>(Start);
+        break;
+      case 4:
+        if (DL.isLittleEndian())
+          Value = read<uint32_t, endianness::little, 1>(Start);
+        else
+          Value = read<uint32_t, endianness::big, 1>(Start);
+        break;
+      case 8:
+        if (DL.isLittleEndian())
+          Value = read<uint64_t, endianness::little, 1>(Start);
+        else
+          Value = read<uint64_t, endianness::big, 1>(Start);
+        break;
+      default:
+        assert(false);
+      }
+
+      return ConstantInt::get(IntegerType::get(Context, Size * 8), Value);
+    }
+  }
+
+  return nullptr;
+}
+
+class OperationsStack {
+public:
+  OperationsStack(JumpTargetManager *JTM,
+                  const DataLayout &DL) : JTM(JTM), DL(DL) { }
+
+  void explore(Constant *NewOperand);
+  uint64_t materialize(Constant *NewOperand);
+
+  void reset(bool Reliable) {
+    Operations.clear();
+    OperationsSet.clear();
+    IsReliable = Reliable;
+  }
+
+  void registerPCs() const {
+    for (auto Pair : PCs)
+      JTM->getBlockAt(Pair.first, Pair.second);
+  }
+
+  void cut(unsigned Height) {
+    assert(Height <= Operations.size());
+    while (Height != Operations.size()) {
+      Instruction *Op = Operations.back();
+      auto It = OperationsSet.find(Op);
+      if (It != OperationsSet.end())
+        OperationsSet.erase(It);
+      else if (isa<BinaryOperator>(Op)) {
+        // It's not in OperationsSet, it might a binary instruction where we
+        // forced one operand to be constant, or an instruction generated from a
+        // constant unary expression
+        unsigned FreeOpIndex = isa<Constant>(Op->getOperand(0)) ? 1 : 0;
+        auto *FreeOp = cast<Instruction>(Op->getOperand(FreeOpIndex));
+        auto It = OperationsSet.find(FreeOp);
+        assert(It != OperationsSet.end());
+        OperationsSet.erase(It);
+      }
+      Operations.pop_back();
+    }
+  }
+
+  bool insertIfNew(Instruction *I) {
+    if (OperationsSet.find(I) == OperationsSet.end()) {
+      Operations.push_back(I);
+      OperationsSet.insert(I);
+      return true;
+    }
+    return false;
+  }
+
+  bool insertIfNew(Instruction *I, Instruction *Ref) {
+    if (OperationsSet.find(Ref) == OperationsSet.end()) {
+      Operations.push_back(I);
+      OperationsSet.insert(Ref);
+      return true;
+    }
+    return false;
+  }
+
+  void insert(Instruction *I) {
+    Operations.push_back(I);
+  }
+
+  unsigned height() const { return Operations.size(); }
+
+private:
+  JumpTargetManager *JTM;
+  const DataLayout &DL;
+
+  std::vector<Instruction *> Operations;
+  std::set<Instruction *> OperationsSet;
+  std::set<std::pair<uint64_t, bool>> PCs;
+
+  bool IsReliable;
+};
+
+uint64_t OperationsStack::materialize(Constant *NewOperand) {
+  for (Instruction *I : make_range(Operations.rbegin(), Operations.rend())) {
+    if (auto *Load = dyn_cast<LoadInst>(I)) {
+      // OK, we've got a load, let's see if the load address is
+      // constant
+      assert(NewOperand != nullptr && !isa<UndefValue>(NewOperand));
+
+      if (Load->getType()->isIntegerTy()) {
+        unsigned Size = Load->getType()->getPrimitiveSizeInBits() / 8;
+        assert(Size != 0);
+        NewOperand = JTM->readConstantInt(NewOperand, Size);
+      } else if (Load->getType()->isPointerTy()) {
+        NewOperand = JTM->readConstantPointer(NewOperand,
+                                              Load->getType());
+      } else {
+        assert(false);
+      }
+
+      if (NewOperand == nullptr)
+        break;
+    } else if (auto *Call = dyn_cast<CallInst>(I)) {
+      Function *Callee = Call->getCalledFunction();
+      assert(Callee != nullptr
+             && Callee->getIntrinsicID() == Intrinsic::bswap);
+      uint64_t Value = NewOperand->getUniqueInteger().getLimitedValue();
+
+      Type *T = NewOperand->getType();
+      if (T->isIntegerTy(16))
+        Value = ByteSwap_16(Value);
+      else if (T->isIntegerTy(32))
+        Value = ByteSwap_32(Value);
+      else if (T->isIntegerTy(64))
+        Value = ByteSwap_64(Value);
+
+      NewOperand = ConstantInt::get(T, Value);
+    } else {
+      // Replace non-const operand with NewOperand
+      std::vector<Constant *> Operands;
+      bool NonConstFound = false;
+      for (Value *Op : I->operand_values()) {
+        if (auto *Const = dyn_cast<Constant>(Op)) {
+          Operands.push_back(Const);
+        } else {
+          assert(!NonConstFound);
+          NonConstFound = true;
+          Operands.push_back(NewOperand);
+        }
+      }
+
+      NewOperand = ConstantFoldInstOperands(I->getOpcode(),
+                                            I->getType(),
+                                            Operands,
+                                            DL);
+      assert(NewOperand != nullptr);
+    }
+  }
+
+  // We made it, mark the value to be explored
+  if (NewOperand != nullptr) {
+    assert(!isa<UndefValue>(NewOperand));
+    return getZExtValue(NewOperand, DL);
+  }
+
+  return 0;
+}
+
+void OperationsStack::explore(Constant *NewOperand) {
+  uint64_t PC = materialize(NewOperand);
+
+  if (PC != 0 && JTM->isInterestingPC(PC))
+    PCs.insert({ PC, IsReliable });
+}
+
+bool JumpTargetsFromConstantsPass::runOnFunction(Function &F) {
+  OSRAPass *OSRA = getAnalysisIfAvailable<OSRAPass>();
+  const DataLayout &DL = F.getParent()->getDataLayout();
+  OperationsStack OS(JTM, DL);
+
+  for (BasicBlock& BB : make_range(F.begin(), F.end())) {
+
+    if (Visited->find(&BB) != Visited->end())
+      continue;
+    Visited->insert(&BB);
+
+    for (Instruction& Instr : BB) {
+      assert(Instr.getParent() == &BB);
+
+      auto *Store = dyn_cast<StoreInst>(&Instr);
+      auto *Load = dyn_cast<LoadInst>(&Instr);
+      bool IsStore = Store != nullptr;
+      bool IsPCStore = IsStore && JTM->isPCReg(Store->getPointerOperand());
+
+      // Keep this for future use
+      bool IsLoad = false && Load != nullptr;
+      if ((!IsStore && !IsLoad)
+          || (IsPCStore
+              && isa<ConstantInt>(Store->getValueOperand()))
+          || (IsLoad
+              && (isa<GlobalVariable>(Load->getPointerOperand())
+                  || isa<AllocaInst>(Load->getPointerOperand()))))
+        continue;
+
+      // Operations is a stack of ConstantInt uses in a BinaryOperator
+      // TODO: hardcoded
+      OS.reset(/* IsPCStore */ false);
+      std::vector<std::pair<Value *, unsigned>> WorkList;
+      if (IsStore)
+        WorkList.push_back(std::make_pair(Store->getValueOperand(), 0));
+      else
+        WorkList.push_back(std::make_pair(Load->getPointerOperand(), 0));
+
+      std::set<Value *> Visited;
+
+      while (!WorkList.empty()) {
+        unsigned Height;
+        Value *V;
+        std::tie(V, Height) = WorkList.back();
+        WorkList.pop_back();
+        Value *Next = V;
+
+        if (Visited.find(V) != Visited.end())
+          continue;
+        Visited.insert(V);
+
+        // Discard operations we no longer need
+        OS.cut(Height);
+
+        while (Next != nullptr) {
+          V = Next;
+          Next = nullptr;
+
+          if (auto *C = dyn_cast<ConstantInt>(V)) {
+            // We reached the end of the path, materialize the value
+            OS.explore(C);
+          } else if (auto *BinOp = dyn_cast<BinaryOperator>(V)) {
+
+            // Append a reference to the operation to the Operations stack
+            Use& FirstOp = BinOp->getOperandUse(0);
+            Use& SecondOp = BinOp->getOperandUse(1);
+
+            if (isa<ConstantInt>(FirstOp.get())
+                || isa<ConstantInt>(SecondOp.get())) {
+              assert(!(isa<ConstantInt>(FirstOp.get())
+                       && isa<ConstantInt>(SecondOp.get())));
+              bool FirstConstant = isa<ConstantInt>(FirstOp.get());
+
+              // Add to the operations stack the constant one and proceed with
+              // the other
+              if (OS.insertIfNew(BinOp))
+                Next = FirstConstant ? SecondOp.get() : FirstOp.get();
+            } else if (OSRA != nullptr) {
+              Constant *ConstantOp = nullptr;
+              Value *FreeOp = nullptr;
+              Type *Int64 = Type::getInt64Ty(F.getParent()->getContext());
+              std::tie(ConstantOp, FreeOp) = OSRA->identifyOperands(BinOp,
+                                                                    Int64,
+                                                                    DL);
+
+              if (FreeOp == nullptr && ConstantOp != nullptr) {
+                // The operation has been folded
+                OS.explore(ConstantOp);
+              } else if (FreeOp != nullptr && ConstantOp != nullptr) {
+                // We were able to identify a constant operand
+                unsigned FreeOpIndex = BinOp->getOperand(0) == FreeOp ? 0 : 1;
+
+                Instruction *Clone = BinOp->clone();
+                Clone->setOperand(1 - FreeOpIndex, ConstantOp);
+                // This is a dirty trick to keep track of the original
+                // instruction
+                Clone->setOperand(FreeOpIndex, BinOp);
+                // TODO: this might leave to infinte loops
+                if (OS.insertIfNew(Clone, BinOp))
+                  Next = BinOp->getOperandUse(FreeOpIndex).get();
+              }
+            }
+          } else if (auto *Load = dyn_cast<LoadInst>(V)) {
+            auto *Pointer = Load->getPointerOperand();
+
+            // If we're loading a global or local variable, look for the last
+            // write to that variable, otherwise see if it's a load from a
+            // constant address which points to a constant memory area
+            if (isa<GlobalVariable>(Pointer) || isa<AllocaInst>(Pointer)) {
+              enqueueStores(Load, OS.height(), WorkList);
+            } else {
+              if (OS.insertIfNew(Load))
+                Next = Pointer;
+            }
+          } else if (auto *Unary = dyn_cast<UnaryInstruction>(V)) {
+            if (OS.insertIfNew(Unary))
+              Next = Unary->getOperand(0);
+          } else if (auto *Expression = dyn_cast<ConstantExpr>(V)) {
+            if (Expression->getNumOperands() == 1) {
+              auto *ExprAsInstr = Expression->getAsInstruction();
+              OS.insert(ExprAsInstr);
+              Next = Expression->getOperand(0);
+            }
+          } else if (auto *Call = dyn_cast<CallInst>(V)) {
+            Function *Callee = Call->getCalledFunction();
+            if (Callee != nullptr
+                && Callee->getIntrinsicID() == Intrinsic::bswap) {
+              OS.insert(Call);
+              Next = Call->getArgOperand(0);
+            }
+          } // End of the switch over instruction type
+
+            // We don't know how to proceed, but we can still check if the
+            // current instruction is associated with a suitable OSR.
+          if (OSRA != nullptr && Next == nullptr && OS.height() > 0) {
+            const OSRAPass::OSR *O = OSRA->getOSR(V);
+            if (O == nullptr)
+              continue;
+
+            using CI = ConstantInt;
+            Type *Int64 = IntegerType::get(F.getParent()->getContext(), 64);
+            if (O->isConstant()) {
+              // If it's just a single constant, use it
+              OS.explore(CI::get(Int64, O->base()));
+            } else if (!O->boundedValue()->isTop()
+                       && !O->boundedValue()->isBottom()
+                       && O->boundedValue()->isSingleRange()) {
+              // We have a limited range, let's use it all
+
+              // Perform a preliminary check that whole range fits into the
+              // executable area
+              Constant *MinConst, *MaxConst;
+              std::tie(MinConst, MaxConst) = O->boundaries(Int64, DL);
+              uint64_t Min = getZExtValue(MinConst, DL);
+              uint64_t Max = getZExtValue(MaxConst, DL);
+              // uint64_t Step = O->absFactor(Int64, DL);
+              uint64_t Step = O->factor();
+
+              // TODO: the O->size() threshold is pretty arbitrary, the best
+              //       solution here is probably restore it to int64_t::max(),
+              //       assert if it's larger than 10000 and only apply it to
+              //       store to memory, pc and maybe other registers (lr?)
+              auto MaterializedMin = OS.materialize(MinConst);
+              auto MaterializedMax = OS.materialize(MaxConst);
+              auto MaterializedStep = OS.materialize(CI::get(Int64, Step));
+              if (!JTM->isExecutableRange(MaterializedMin, MaterializedMax)
+                  || !JTM->isInstructionAligned(MaterializedStep)
+                  || O->size() >= 10000)
+                continue;
+
+              if (O->size() > 1000)
+                dbg << "Warning: " << O->size() << " jump targets added\n";
+
+              DBG("osrjts", dbg << "Adding " << std::dec << O->size()
+                  << " jump targets from 0x"
+                  << std::hex << JTM->getPC(&Instr).first << "\n");
+
+              // Note: addition and comparison for equality are all sign-safe
+              // operations, no need to use Constants in this case.
+              // TODO: switch to a super-elegant iterator
+              for (uint64_t Position = Min; Position != Max; Position += Step)
+                OS.explore(CI::get(Int64, Position));
+              OS.explore(CI::get(Int64, Max));
+            }
+          }
+
+        }
+      }
+    }
+  }
+
+  OS.registerPCs();
+
   return false;
 }
 
@@ -203,7 +632,8 @@ static cl::opt<T> *getOption(StringMap<cl::Option *>& Options,
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                      Value *PCReg,
                                      Architecture& SourceArchitecture,
-                                     std::vector<SegmentInfo>& Segments) :
+                                     std::vector<SegmentInfo>& Segments,
+                                     bool EnableOSRA) :
   TheModule(*TheFunction->getParent()),
   Context(TheModule.getContext()),
   TheFunction(TheFunction),
@@ -214,7 +644,8 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   Dispatcher(nullptr),
   DispatcherSwitch(nullptr),
   Segments(Segments),
-  SourceArchitecture(SourceArchitecture) {
+  SourceArchitecture(SourceArchitecture),
+  EnableOSRA(EnableOSRA) {
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { },
                                              false);
@@ -265,8 +696,10 @@ void JumpTargetManager::findCodePointers(const unsigned char *Start,
   using support::endian::read;
   using support::endianness;
   for (; Start < End - sizeof(value_type); Start++) {
-    uint64_t Value = read<value_type, static_cast<endianness>(endian), 1>(Start);
-    getBlockAt(Value);
+    uint64_t Value = read<value_type,
+                          static_cast<endianness>(endian),
+                          1>(Start);
+    getBlockAt(Value, false);
   }
 }
 
@@ -313,7 +746,7 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool& ShouldContinue) {
   auto OIAIt = OriginalInstructionAddresses.find(PC);
   if (OIAIt != OriginalInstructionAddresses.end()) {
     ShouldContinue = false;
-    return getBlockAt(PC);
+    return getBlockAt(PC, false);
   }
 
   // We don't know anything about this PC
@@ -447,11 +880,15 @@ static bool isSumJump(StoreInst *PCWrite) {
   return false;
 }
 
-uint64_t JumpTargetManager::getNextPC(Instruction *TheInstruction) {
+std::pair<uint64_t, uint64_t>
+JumpTargetManager::getPC(Instruction *TheInstruction) const {
   CallInst *NewPCCall = nullptr;
   std::set<BasicBlock *> Visited;
   std::queue<BasicBlock::reverse_iterator> WorkList;
-  WorkList.push(make_reverse_iterator(TheInstruction));
+  if (TheInstruction->getIterator() == TheInstruction->getParent()->begin())
+    WorkList.push(--TheInstruction->getParent()->rend());
+  else
+    WorkList.push(make_reverse_iterator(TheInstruction));
 
   while (!WorkList.empty()) {
     auto I = WorkList.front();
@@ -465,7 +902,11 @@ uint64_t JumpTargetManager::getNextPC(Instruction *TheInstruction) {
       if (auto Marker = dyn_cast<CallInst>(&*I)) {
         // TODO: comparing strings is not very elegant
         if (Marker->getCalledFunction()->getName() == "newpc") {
-          assert(NewPCCall == nullptr && "Two candidates calls to newpc found");
+
+          // We found two distinct newpc leading to the requested instruction
+          if (NewPCCall != nullptr)
+            return { 0, 0 };
+
           NewPCCall = Marker;
           break;
         }
@@ -495,18 +936,21 @@ uint64_t JumpTargetManager::getNextPC(Instruction *TheInstruction) {
 
   }
 
-  assert(NewPCCall != nullptr && "Couldn't find the current PC");
+  // Couldn't find the current PC
+  if (NewPCCall == nullptr)
+    return { 0, 0 };
 
   uint64_t PC = getConst(NewPCCall->getArgOperand(0));
   uint64_t Size = getConst(NewPCCall->getArgOperand(1));
   assert(Size != 0);
-  return PC + Size;
+  return { PC, Size };
 }
 
 void JumpTargetManager::handleSumJump(Instruction *SumJump) {
   // Take the next PC
   uint64_t NextPC = getNextPC(SumJump);
-  BasicBlock *BB = getBlockAt(NextPC);
+  assert(NextPC != 0);
+  BasicBlock *BB = getBlockAt(NextPC, false);
   assert(BB && !BB->empty());
 
   std::set<BasicBlock *> Visited;
@@ -527,18 +971,23 @@ void JumpTargetManager::handleSumJump(Instruction *SumJump) {
         // TODO: comparing strings is not very elegant
         if (Callee != nullptr && Callee->getName() == "newpc") {
           uint64_t PC = getConst(Call->getArgOperand(0));
-          if (PC == NextPC) {
-            // Split and update iterators to proceed
-            BB = getBlockAt(PC);
-            I = BB->begin();
-            End = BB->end();
 
-            // Updated the expectation for the next PC
-            NextPC = PC + getConst(Call->getArgOperand(1));
-          } else {
-            // We've found a (direct or indirect) jump, stop
+          // If we've found a (direct or indirect) jump, stop
+          if (PC != NextPC)
             return;
-          }
+
+          // Split and update iterators to proceed
+          BB = getBlockAt(PC, false);
+
+          // Do we have a block?
+          if (BB == nullptr)
+            return;
+
+          I = BB->begin();
+          End = BB->end();
+
+          // Updated the expectation for the next PC
+          NextPC = PC + getConst(Call->getArgOperand(1));
         } else if (Call->getCalledFunction() == ExitTB) {
           // We've found an unparsed indirect jump
           return;
@@ -574,7 +1023,7 @@ void JumpTargetManager::translateIndirectJumps() {
                 || !isa<ConstantInt>(PCWrite->getValueOperand()))
                && "Direct jumps should not be handled here");
 
-        if (PCWrite != nullptr && isSumJump(PCWrite))
+        if (PCWrite != nullptr && EnableOSRA && isSumJump(PCWrite))
           handleSumJump(PCWrite);
 
         BasicBlock *BB = Call->getParent();
@@ -639,11 +1088,13 @@ void JumpTargetManager::unvisit(BasicBlock *BB) {
 }
 
 /// Get or create a block for the given PC
-BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
-  if (!isExecutableAddress(PC)) {
-    assert("Jump to a non-executable address");
+BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC, bool Reliable) {
+  if (!isExecutableAddress(PC)
+      || !isInstructionAligned(PC))
     return nullptr;
-  }
+
+  if (Reliable)
+    ReliablePCs.insert(PC);
 
   // Do we already have a BasicBlock for this PC?
   BlockMap::iterator TargetIt = JumpTargets.find(PC);
@@ -726,24 +1177,6 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
 }
 
 void JumpTargetManager::harvest() {
-  // First attempt: run SROA and look for new direct branch targets
-  if (empty()) {
-    DBG("verify", if (verifyModule(TheModule, &dbgs())) { abort(); });
-
-    DBG("jtcount", dbg
-        << "We're out of targets. Trying with SROA and"
-        << " TranslateDirectBranchesPass\n");
-
-    legacy::PassManager PM;
-    PM.add(createSROAPass());
-    PM.add(new TranslateDirectBranchesPass(this));
-    PM.run(TheModule);
-    DBG("jtcount", dbg
-        << "JumpTargets found: " << Unexplored.size() << "\n");
-  }
-
-  // Second attempt: run EarlyCSE and collect candidate code pointers from
-  // constants in the code and look for new direct jumps
   if (empty()) {
     DBG("verify", if (verifyModule(TheModule, &dbgs())) { abort(); });
 
@@ -751,75 +1184,31 @@ void JumpTargetManager::harvest() {
         << "Trying with EarlyCSE and JumpTargetsFromConstantsPass\n");
 
     legacy::PassManager PM;
+    PM.add(createSROAPass()); // temp
+    PM.add(createConstantPropagationPass()); // temp
     PM.add(createEarlyCSEPass());
-    Visited.clear();
-    PM.add(new JumpTargetsFromConstantsPass(this, &Visited));
+    PM.add(new JumpTargetsFromConstantsPass(this, false, &Visited));
     PM.add(new TranslateDirectBranchesPass(this));
     PM.run(TheModule);
     DBG("jtcount", dbg
         << "JumpTargets found: " << Unexplored.size() << "\n");
   }
 
-  // Third attempt:
-  //
-  // * clone the whole translated function
-  // * remove calls to newpc to allow optimizations to be more aggressive
-  // * run EarlyCSE
-  // * collect aliasing information
-  // * run GVN using aliasing information
-  // * collect candidate code pointers from the new function
-  // * discarded the cloned function
-  //
-  // TODO: there's *huge* space for improvement here, for instance we could
-  //       avoid to clone the function by implementing a proper data-flow
-  //       analysis propagating constant data without actually changing the
-  //       code. Also, running GVN on the whole code doesn't make much sense.
-  if (empty()) {
+  if (EnableOSRA && empty()) {
+    DBG("verify", if (verifyModule(TheModule, &dbgs())) { abort(); });
+
     DBG("jtcount", dbg
-        << "Trying to remove calls to newpc, EarlyCSE and GVN\n");
+        << "Trying with EarlyCSE and JumpTargetsFromConstantsPass\n");
 
-    // Prepare cloned function
-    Function *ClonedFunction = Function::Create(TheFunction->getFunctionType(),
-                                                TheFunction->getLinkage(),
-                                                "",
-                                                &TheModule);
-
-    // Clone function body
-    ValueToValueMapTy Ignore1;
-    SmallVector<ReturnInst *, 10> Ignore2;
-    CloneFunctionInto(ClonedFunction, TheFunction, Ignore1, false, Ignore2);
-
-    // Remove all the PC markers
-    auto *NewPC = TheModule.getFunction("newpc");
-    auto It = NewPC->user_begin();
-    auto End = NewPC->user_end();
-    while (It != End) {
-      auto *CallInstruction = cast<Instruction>(*It++);
-      if (CallInstruction->getParent()->getParent() == ClonedFunction)
-        CallInstruction->eraseFromParent();
-    }
-
-    // Force the cloned function to start from the dispatcher, so we can be sure
-    // that all the code will be considered and optimized
-    auto FirstBB = ClonedFunction->begin();
-    assert(FirstBB != ClonedFunction->end());
-    auto LastInstructionIt = FirstBB->rbegin();
-    assert(LastInstructionIt != FirstBB->rend());
-    auto *LastInstruction = cast<BranchInst>(&*LastInstructionIt);
-    LastInstruction->swapSuccessors();
-
-    // Run the various optimization steps
-    legacy::PassManager PM;
-    PM.add(createEarlyCSEPass());
-    PM.add(createScopedNoAliasAAWrapperPass());
-    PM.add(createGVNPass(false));
     Visited.clear();
-    PM.add(new JumpTargetsFromConstantsPass(this, &Visited));
+
+    legacy::PassManager PM;
+    PM.add(createSROAPass()); // temp
+    PM.add(createConstantPropagationPass()); // temp
+    PM.add(createEarlyCSEPass());
+    PM.add(new JumpTargetsFromConstantsPass(this, true, &Visited));
+    PM.add(new TranslateDirectBranchesPass(this));
     PM.run(TheModule);
-
-    // Remove the cloned function
-    ClonedFunction->eraseFromParent();
-
     DBG("jtcount", dbg
         << "JumpTargets found: " << Unexplored.size() << "\n");
   }

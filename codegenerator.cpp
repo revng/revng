@@ -58,12 +58,14 @@ CodeGenerator::CodeGenerator(std::string Input,
                              DebugInfoType DebugInfo,
                              std::string Debug,
                              std::string LinkingInfoPath,
-                             std::string CoveragePath) :
+                             std::string CoveragePath,
+                             bool EnableOSRA) :
   TargetArchitecture(Target),
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
   OutputPath(Output),
-  Debug(new DebugHelper(Output, Debug, TheModule.get(), DebugInfo))
+  Debug(new DebugHelper(Output, Debug, TheModule.get(), DebugInfo)),
+  EnableOSRA(EnableOSRA)
 {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
@@ -644,7 +646,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   JumpTargetManager JumpTargets(MainFunction,
                                 PCReg,
                                 SourceArchitecture,
-                                Segments);
+                                Segments,
+                                EnableOSRA);
 
   if (VirtualAddress == 0) {
     JumpTargets.harvestGlobalData();
@@ -795,7 +798,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     } // End loop over instructions
 
     if (ForceNewBlock)
-      JumpTargets.getBlockAt(EndPC);
+      JumpTargets.getBlockAt(EndPC, false);
 
     // We might have a leftover block, probably due to the block created after
     // the last call to exit_tb
