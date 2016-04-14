@@ -16,6 +16,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
 
 // Local includes
 #include "debug.h"
@@ -60,6 +62,13 @@ public:
     return Result;
   }
 
+  // TODO: this is on O(n)
+  void cloneSisters(Value *Old, Value *New) {
+    for (auto &OVP : Stack)
+      if (OVP.second == Old)
+        push(OVP.first, New);
+  }
+
 private:
   std::set<OffsetValuePair> Seen;
   std::vector<OffsetValuePair> Stack;
@@ -78,7 +87,14 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
 
   assert(CPUStatePtr->getType()->isPointerTy());
 
+  struct Specialization {
+    Function *F;
+    Function *Original;
+    std::vector<std::pair<unsigned, int64_t>> SpecializedArgs;
+  };
 
+  std::vector<Specialization> Specializations;
+  std::map<Function *, int64_t> OffsetFunctions;
 
   const DataLayout& DL = TheModule.getDataLayout();
 
@@ -208,44 +224,199 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
             }
           }
 
-          // TODO: we could handle this instead of aborting
+          if (Callee != nullptr
+              && Callee->getIntrinsicID() == Intrinsic::dbg_declare)
+            continue;
+
+          // We only support memcpys where the last parameter is constant
           if (Callee == nullptr
-              || Callee->getIntrinsicID() == Intrinsic::memcpy) {
+              || (Callee->getIntrinsicID() == Intrinsic::memcpy
+                  && !isa<ConstantInt>(Call->getArgOperand(2)))) {
             auto *InvalidInst = cast<Instruction>(TheUser);
             CallInst::Create(TheModule.getFunction("abort"), { }, InvalidInst);
             continue;
           }
 
+          // We're memcpy'ing to the env
+          if (Callee->getIntrinsicID() == Intrinsic::memcpy) {
+            IRBuilder<> Builder(TheModule.getContext());
+            Builder.SetInsertPoint(Call);
+
+            unsigned EnvOpIndex = Call->getArgOperand(0) == CurrentValue ? 0 : 1;
+            Value *BaseOp = Call->getArgOperand(1 - EnvOpIndex);
+            auto *ValueOp = cast<Constant>(Call->getArgOperand(2));
+            Value *BasePtr = Builder.CreatePtrToInt(BaseOp,
+                                                    Builder.getInt64Ty());
+
+            uint64_t TotalSize = getZExtValue(ValueOp, DL);
+            uint64_t Offset = 0;
+
+            while (Offset < TotalSize) {
+              GlobalVariable *Var = nullptr;
+              Var = Variables->getByCPUStateOffset(CurrentOffset + Offset);
+
+              // Consider the case when there's simply nothing there (alignment
+              // space)
+              if (Var == nullptr) {
+                Offset++;
+                continue;
+              }
+
+              Type *PointeeTy = Var->getType()->getPointerElementType();
+              uint64_t Size = DL.getTypeSizeInBits(PointeeTy) / 8;
+
+              Value *Address = Builder.CreateAdd(Builder.getInt64(Offset),
+                                                 BasePtr);
+              Value *Ptr = Builder.CreateIntToPtr(Address, Var->getType());
+
+              if (EnvOpIndex == 0)
+                Builder.CreateStore(Builder.CreateLoad(Ptr), Var);
+              else
+                Builder.CreateStore(Builder.CreateLoad(Var), Ptr);
+
+              Offset += Size;
+            }
+
+            if (Offset != TotalSize) {
+              auto *InvalidInst = cast<Instruction>(TheUser);
+              CallInst::Create(TheModule.getFunction("abort"), { }, InvalidInst);
+              continue;
+            }
+
+            // Set memcpy size to 0
+            auto *Zero = ConstantInt::get(Call->getArgOperand(2)->getType(), 0);
+            Call->setArgOperand(2, Zero);
+            continue;
+          }
+
           assert(!Callee->empty() && "external functions are not supported");
 
-          // Find the corresponding argument
-          auto ArgsI = Callee->arg_begin();
-          unsigned I = 0;
+          // TODO: move all the specialization-handling code outside
+          // Is the callee already a specialization?
+          auto Comparison = [&Callee] (Specialization &S) {
+            return S.F == Callee;
+          };
+          auto CurrentSpecialization = std::find_if(Specializations.begin(),
+                                                    Specializations.end(),
+                                                    Comparison);
 
-          for (I = 0;
-               I < Call->getNumArgOperands() && ArgsI != Callee->arg_end();
-               I++, ArgsI++) {
-            Use& ArgUse = Call->getArgOperandUse(I);
-            if (ArgUse.getOperandNo() == TheUse.getOperandNo())
-              break;
+          Function *Original = Callee;
+          std::vector<std::pair<unsigned, int64_t>> SpecializedArgs;
+
+          // If the callee was already a specialization, preserve its
+          // specialized arguments
+          if (CurrentSpecialization != Specializations.end()) {
+            Original = CurrentSpecialization->Original;
+            SpecializedArgs = CurrentSpecialization->SpecializedArgs;
           }
-          assert(I < Call->getNumArgOperands()
-                 && ArgsI != Callee->arg_end());
 
-          Value *TargetArg = static_cast<Value *>(&*ArgsI);
+          // Add the new argument to specialize
+          SpecializedArgs.push_back({ TheUse.getOperandNo(), CurrentOffset });
 
-          if (TargetArg->use_begin() != TargetArg->use_end()) {
-            assert(!Callee->isVarArg());
+          // Does the specialization we want already exists?
+          Specialization *Matching = nullptr;
+          for (Specialization &S : Specializations) {
+            if (S.Original == Original
+                && S.SpecializedArgs.size() == SpecializedArgs.size()) {
 
-            // If not already considered, enqueue the argument to the worklist
-            WorkList.pushIfNew(CurrentOffset, TargetArg);
+              Matching = &S;
+              for (std::pair<unsigned, int64_t> A : SpecializedArgs) {
+
+                bool Found = false;
+                for (std::pair<unsigned, int64_t> B : S.SpecializedArgs) {
+                  if (A.first == B.first && A.second == B.second) {
+                    Found = true;
+                    break;
+                  }
+                }
+                if (!Found) {
+                  Matching = nullptr;
+                  break;
+                }
+              }
+
+              if (Matching != nullptr)
+                break;
+
+            }
           }
+
+          if (Matching == nullptr) {
+            // We need a new specialization
+            ValueToValueMapTy VTV;
+            SmallVector<ReturnInst *, 5> Returns;
+
+            // Clone existing function
+            std::stringstream NewName;
+            NewName << Callee->getName().str() << "_" << Specializations.size();
+            Callee->setLinkage(GlobalValue::InternalLinkage);
+            Function *NewFunc = Function::Create(Callee->getFunctionType(),
+                                                 GlobalValue::InternalLinkage,
+                                                 NewName.str(),
+                                                 Callee->getParent());
+
+            unsigned I = 0;
+            auto CalleeArg = Callee->arg_begin();
+            auto NewArg = NewFunc->arg_begin();
+            for (CalleeArg = Callee->arg_begin();
+                 CalleeArg != Callee->arg_end();
+                 CalleeArg++) {
+              NewArg->setName(CalleeArg->getName());
+
+              WorkList.cloneSisters(&*CalleeArg, &*NewArg);
+
+              VTV[&*CalleeArg] = &*NewArg++;
+            }
+
+            CloneFunctionInto(NewFunc, Callee, VTV, true, Returns);
+
+            Specialization New;
+            New.F = NewFunc;
+            New.Original = Original;
+            New.SpecializedArgs = SpecializedArgs;
+            Specializations.push_back(New);
+            Matching = &Specializations.back();
+
+            // The function is new, we have to explore its argument usage
+
+            // Find the corresponding argument
+            auto ArgsI = NewFunc->arg_begin();
+
+            for (I = 0;
+                 I < Call->getNumArgOperands() && ArgsI != NewFunc->arg_end();
+                 I++, ArgsI++) {
+              Use& ArgUse = Call->getArgOperandUse(I);
+              if (ArgUse.getOperandNo() == TheUse.getOperandNo())
+                break;
+            }
+            assert(I < Call->getNumArgOperands()
+                   && ArgsI != NewFunc->arg_end());
+
+            Value *TargetArg = static_cast<Value *>(&*ArgsI);
+
+            if (TargetArg->use_begin() != TargetArg->use_end()) {
+              assert(!NewFunc->isVarArg());
+
+              // If not already considered, enqueue the argument to the worklist
+              WorkList.pushIfNew(CurrentOffset, TargetArg);
+            }
+          }
+
+          auto It = OffsetFunctions.find(Matching->F);
+          if (It != OffsetFunctions.end())
+            WorkList.push(It->second, static_cast<Value *>(Call));
+
+          auto *OriginalCalleeTy = Call->getCalledValue()->getType();
+          Call->setCalledFunction(ConstantExpr::getBitCast(Matching->F,
+                                                           OriginalCalleeTy));
+
           break;
         }
       case Instruction::Ret:
         {
           // This function returns a pointer to the state
           Function *CurrentFunction = TheUser->getParent()->getParent();
+          OffsetFunctions[CurrentFunction] = CurrentOffset;
           for (User *FunctionUse : CurrentFunction->users()) {
             auto Call = cast<CallInst>(FunctionUse);
             assert(Call->getCalledFunction() == CurrentFunction);
