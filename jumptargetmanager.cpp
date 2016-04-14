@@ -680,7 +680,12 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
                                      "dispatcher.default",
                                      OutputFunction);
   Builder.SetInsertPoint(Default);
-  Builder.CreateCall(TheFunction->getParent()->getFunction("abort"));
+
+  Module *TheModule = TheFunction->getParent();
+  auto *UnknownPCTy = FunctionType::get(Type::getVoidTy(Context), { }, false);
+  Constant *UnknownPC = TheModule->getOrInsertFunction("unknownPC",
+                                                       UnknownPCTy);
+  Builder.CreateCall(cast<Function>(UnknownPC));
   Builder.CreateUnreachable();
 
   // Switch on the first argument of the function

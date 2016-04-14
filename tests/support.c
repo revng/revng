@@ -8,50 +8,34 @@
 #include <string.h>
 #include <unistd.h>
 
+// Save the program arguments for meaningful error reporting
+int saved_argc;
+char **saved_argv;
+
+// Handle target specific information:
+//
+// * Register size
+// * Register used as stack pointer
+// * Macro to swap endianess from the host one
 #if defined(TARGET_arm)
 
 typedef uint32_t target_reg;
-
-extern target_reg r0;
-extern target_reg r1;
 extern target_reg r13;
-
 target_reg *stack = &r13;
-target_reg *return_value = &r0;
-target_reg *first_argument = &r0;
-target_reg *second_argument = &r1;
-
 #define SWAP(x) (htole32(x))
 
 #elif defined(TARGET_x86_64)
+
 typedef uint64_t target_reg;
-
-extern target_reg rax;
-extern target_reg rdi;
-extern target_reg rsi;
 extern target_reg rsp;
-
 target_reg *stack = &rsp;
-target_reg *return_value = &rax;
-target_reg *first_argument = &rdi;
-target_reg *second_argument = &rsi;
-
 #define SWAP(x) (htole64(x))
 
 #elif defined(TARGET_mips)
 
 typedef uint32_t target_reg;
-
-extern target_reg a0;
-extern target_reg a1;
-extern target_reg v0;
 extern target_reg sp;
-
 target_reg *stack = &sp;
-target_reg *return_value = &v0;
-target_reg *first_argument = &a0;
-target_reg *second_argument = &a1;
-
 #define SWAP(x) (htobe32(x))
 
 #endif
@@ -116,8 +100,8 @@ target_reg prepare_stack(target_reg stack, int argc, char **argv) {
   } while (0);
 
 #define PUSH_AUX(ptr, key, value) do {          \
-    PUSH_REG(ptr, key);                         \
     PUSH_REG(ptr, (target_reg) (value));        \
+    PUSH_REG(ptr, key);                         \
   } while(0)
 
   // Reserve space for arguments and environment variables
@@ -159,8 +143,8 @@ target_reg prepare_stack(target_reg stack, int argc, char **argv) {
   PUSH_AUX(stack, AT_EUID, geteuid());
   PUSH_AUX(stack, AT_GID, getgid());
   PUSH_AUX(stack, AT_EGID, getegid());
-  // PUSH_AUX(stack, AT_HWCAP, (abi_ulong) ELF_HWCAP);
-  // PUSH_AUX(stack, AT_HWCAP2, (abi_ulong) ELF_HWCAP2);
+  PUSH_AUX(stack, AT_HWCAP, 0);
+  PUSH_AUX(stack, AT_HWCAP2, 0);
   PUSH_AUX(stack, AT_CLKTCK, sysconf(_SC_CLK_TCK));
   PUSH_AUX(stack, AT_RANDOM, random_address);
   PUSH_AUX(stack, AT_PLATFORM, platform_address);
@@ -203,7 +187,36 @@ void *g_malloc0_n(size_t n, size_t size) {
   return calloc(n, size);
 }
 
+void *g_malloc(size_t n_bytes) {
+  if(n_bytes == 0)
+    return NULL;
+  else
+    return malloc(n_bytes);
+}
+
+void g_free(void *memory) {
+  if(memory == NULL)
+    return;
+  else
+    return free(memory);
+}
+
+void unknownPC() {
+  int arg;
+  const char *error = "Unknown PC\n";
+  write(2, error, strlen(error));
+  for (arg = 0; arg < saved_argc; arg++) {
+    write(2, saved_argv[arg], strlen(saved_argv[arg]));
+    write(2, " ", 1);
+  }
+  write(2, "\n", 1);
+  abort();
+}
+
 int main(int argc, char *argv[]) {
+  saved_argc = argc;
+  saved_argv = argv;
+
   *stack = (target_reg) mmap((void *) NULL,
                              0x100000,
                              PROT_READ | PROT_WRITE,
