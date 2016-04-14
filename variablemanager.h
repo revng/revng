@@ -26,6 +26,13 @@ class Value;
 
 class VariableManager;
 
+/// \brief LLVM pass to change all the access to the CPU state to the
+///        corresponding global variables.
+///
+/// If it's not possible to determine statically which part of the CPU is being
+/// accessed an abort is emitted.
+/// This pass also performs heavy specialization in case an helper is invoked
+/// with different constant parameters.
 class CorrectCPUStateUsagePass : public llvm::ModulePass {
 public:
   static char ID;
@@ -48,7 +55,7 @@ private:
   unsigned EnvOffset;
 };
 
-/// \brief Maintains the list of variables required by PTC.
+/// \brief Maintain the list of variables required by PTC
 ///
 /// It can be queried for a variable, which, if not already existing, will be
 /// created on the fly.
@@ -60,26 +67,44 @@ public:
 
   friend class CorrectCPUStateUsagePass;
 
+  /// \brief Get or create the LLVM value associated to a PTC temporary
+  ///
   /// Given a PTC temporary identifier, checks if it already exists in the
-  /// generatd LLVM IR, and, if not, it creates it.
+  /// generated LLVM IR, and, if not, it creates it.
   ///
   /// \param TemporaryId the PTC temporary identifier.
   ///
-  /// \return an Value wrapping the request global or local variable.
+  /// \return a `Value` wrapping the requested global or local variable.
   // TODO: rename to getByTemporaryId
-  llvm::Value *getOrCreate(unsigned int TemporaryId);
+  llvm::Value *getOrCreate(unsigned TemporaryId);
 
+  /// \brief Return the global variable corresponding to \p Offset in the CPU
+  ///        state.
+  ///
+  /// \param Offset the offset in the CPU state (the `env` PTC variable).
+  /// \param Name an optional name to force for the associate global variable.
+  ///
+  /// \return a pair composed by the request global variable and the offset in
+  ///         it corresponding to \p Offset. For instance, if you're accessing
+  ///         the third byte of a 32-bit integer it will 2.
   std::pair<llvm::GlobalVariable*,
             unsigned> getByEnvOffset(intptr_t Offset,
                                      std::string Name="") {
     return getByCPUStateOffsetInternal(EnvOffset + Offset, Name);
   }
 
+  /// \brief Notify VariableManager to reset all the "function"-specific
+  ///        information
+  ///
   /// Informs the VariableManager that a new function has begun, so it can
   /// discard function- and basic block-level variables.
   ///
+  /// Note: by "function" here we mean a function in PTC terms, i.e. a run of
+  ///       code translated in a single shot by the TCG. Do not confuse this
+  ///       function concept with other meanings.
+  ///
   /// \param Delimiter the new point where to insert allocations for local
-  /// variables.
+  ///        variables.
   /// \param Instructions the new PTCInstructionList to use from now on.
   void newFunction(llvm::Instruction *Delimiter=nullptr,
                    PTCInstructionList *Instructions=nullptr);

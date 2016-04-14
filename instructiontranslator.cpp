@@ -462,19 +462,15 @@ using LBM = InstructionTranslator::LabeledBlocksMap;
 InstructionTranslator::InstructionTranslator(IRBuilder<>& Builder,
                                              VariableManager& Variables,
                                              JumpTargetManager& JumpTargets,
-                                             LBM& LabeledBasicBlocks,
                                              std::vector<BasicBlock *> Blocks,
-                                             Module& TheModule,
-                                             Function *TheFunction,
                                              Architecture& SourceArchitecture,
                                              Architecture& TargetArchitecture) :
   Builder(Builder),
   Variables(Variables),
   JumpTargets(JumpTargets),
-  LabeledBasicBlocks(LabeledBasicBlocks),
   Blocks(Blocks),
-  TheModule(TheModule),
-  TheFunction(TheFunction),
+  TheModule(*Builder.GetInsertBlock()->getParent()->getParent()),
+  TheFunction(Builder.GetInsertBlock()->getParent()),
   SourceArchitecture(SourceArchitecture),
   TargetArchitecture(TargetArchitecture),
   NewPCMarker(nullptr) {
@@ -531,7 +527,7 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
                                       bool IsFirst,
                                       bool ForceNew) {
   using R = std::tuple<bool, MDNode *, uint64_t, uint64_t>;
-
+  assert(Instr != nullptr);
   const PTC::Instruction TheInstruction(Instr);
   // A new original instruction, let's create a new metadata node
   // referencing it for all the next instructions to come

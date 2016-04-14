@@ -21,8 +21,8 @@ static inline void replaceInstruction(llvm::Instruction *Old,
   Old->eraseFromParent();
 }
 
-/// Helper function to destroy an unconditional branch and, in case, the
-/// target basic block, if it doesn't have any predecessors left.
+/// Helper function to destroy an unconditional branch and, in case, the target
+/// basic block, if it doesn't have any predecessors left.
 static inline void purgeBranch(llvm::BasicBlock::iterator I) {
   auto *DeadBranch = llvm::dyn_cast<llvm::BranchInst>(I);
   // We allow only an unconditional branch and nothing else

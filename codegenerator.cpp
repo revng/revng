@@ -56,8 +56,8 @@ CodeGenerator::CodeGenerator(std::string Input,
                              std::string Helpers,
                              DebugInfoType DebugInfo,
                              std::string Debug,
-                             std::string LinkingInfoPath,
-                             std::string CoveragePath,
+                             std::string LinkingInfo,
+                             std::string Coverage,
                              bool EnableOSRA) :
   TargetArchitecture(Target),
   Context(getGlobalContext()),
@@ -78,9 +78,9 @@ CodeGenerator::CodeGenerator(std::string Input,
     abort();
   }
 
-  if (CoveragePath.size() == 0)
-    CoveragePath = OutputPath + ".coverage.csv";
-  this->CoveragePath = CoveragePath;
+  if (Coverage.size() == 0)
+    Coverage = Output + ".coverage.csv";
+  this->CoveragePath = Coverage;
 
   auto BinaryOrErr = object::createBinary(Input);
   assert(BinaryOrErr && "Couldn't open the input file");
@@ -112,15 +112,15 @@ CodeGenerator::CodeGenerator(std::string Input,
 
   if (SourceArchitecture.pointerSize() == 32) {
     if (SourceArchitecture.isLittleEndian()) {
-      parseELF<object::ELF32LE>(TheBinary, LinkingInfoPath);
+      parseELF<object::ELF32LE>(TheBinary, LinkingInfo);
     } else {
-      parseELF<object::ELF32BE>(TheBinary, LinkingInfoPath);
+      parseELF<object::ELF32BE>(TheBinary, LinkingInfo);
     }
   } else if (SourceArchitecture.pointerSize() == 64) {
     if (SourceArchitecture.isLittleEndian()) {
-      parseELF<object::ELF64LE>(TheBinary, LinkingInfoPath);
+      parseELF<object::ELF64LE>(TheBinary, LinkingInfo);
     } else {
-      parseELF<object::ELF64BE>(TheBinary, LinkingInfoPath);
+      parseELF<object::ELF64BE>(TheBinary, LinkingInfo);
     }
   } else {
     assert("Unexpect address size");
@@ -141,7 +141,7 @@ std::string SegmentInfo::generateName() {
 
 template<typename T>
 void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
-                             std::string LinkingInfoPath) {
+                             std::string LinkingInfo) {
   // Parse the ELF file
   std::error_code EC;
   object::ELFFile<T> TheELF(TheBinary->getData(), EC);
@@ -151,9 +151,9 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
   EntryPoint = static_cast<uint64_t>(ElfHeader->e_entry);
 
   // Prepare the linking info CSV
-  if (LinkingInfoPath.size() == 0)
-    LinkingInfoPath = OutputPath + ".li.csv";
-  std::ofstream LinkingInfoStream(LinkingInfoPath);
+  if (LinkingInfo.size() == 0)
+    LinkingInfo = OutputPath + ".li.csv";
+  std::ofstream LinkingInfoStream(LinkingInfo);
   LinkingInfoStream << "name,start,end" << std::endl;
 
   auto *Uint8Ty = Type::getInt8Ty(Context);
@@ -600,7 +600,6 @@ static void purgeDeadBlocks(Function *F) {
 
 }
 
-
 void CodeGenerator::translate(uint64_t VirtualAddress,
                               std::string Name) {
   // Declare useful functions
@@ -665,23 +664,19 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
 
   std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
-  std::map<std::string, BasicBlock *> LabeledBasicBlocks;
   std::vector<BasicBlock *> Blocks;
 
   InstructionTranslator Translator(Builder,
                                    Variables,
                                    JumpTargets,
-                                   LabeledBasicBlocks,
                                    Blocks,
-                                   *TheModule,
-                                   MainFunction,
                                    SourceArchitecture,
                                    TargetArchitecture);
 
   while (Entry != nullptr) {
     Builder.SetInsertPoint(Entry);
 
-    LabeledBasicBlocks.clear();
+    Translator.reset();
 
     // TODO: rename this type
     PTCInstructionListPtr InstructionList(new PTCInstructionList);

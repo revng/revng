@@ -20,12 +20,27 @@ class DISubprogram;
 class Function;
 }
 
+/// \brief AssemblyAnnotationWriter decorating the output withe debug
+///        information
+///
 /// AssemblyAnnotationWriter implementation inserting in the generated LLVM IR
 /// comments containing the original assembly and the PTC. It can also decorate
 /// the IR with debug information (i.e. DILocations) refered to the generated
 /// LLVM IR itself.
 class DebugAnnotationWriter : public llvm::AssemblyAnnotationWriter {
 public:
+  /// \brief Create a new DebugAnnotationWriter
+  ///
+  /// \warning If \p DebugInfo is `true`, the produced output should be
+  ///          discarded since it will contain errors. \p DebugInfo should be
+  ///          set to `true` in a first run to produce the metadata, and then a
+  ///          new DebugAnnotationWriter with `DebugInfo = false` should be
+  ///          created and run to produce an output without errors.
+  ///
+  /// \param Context the LLVM context.
+  /// \param Scope the scope, typically a `DISubprogram`.
+  /// \param DebugInfo whether to decorate the IR being serialized with debug
+  ///        metadata refering to the produce IR itself or not.
   DebugAnnotationWriter(llvm::LLVMContext& Context,
                         llvm::Metadata *Scope,
                         bool DebugInfo);
@@ -42,9 +57,19 @@ private:
   bool DebugInfo;
 };
 
-/// Handle all the debug-related operations of code generation
+/// \brief Handle printing the IR in textual form, possibly with debug
+///        information
 class DebugHelper {
 public:
+  /// \brief Create a new DebugHelper
+  ///
+  /// \param Output path where the LLVM IR should be stored.
+  /// \param Debug path where the debug output should be stored. If empty, \p
+  ///        Output will be used along with a suffix, e.g. `.pts` if \p Type is
+  ///        DebugInfoType::PTC, `.S` if it's DebugInfoType::OriginalAssembly or
+  ///        will match \p Output if \p Type is DebugInfoType::LLVMIR.
+  /// \param TheModule the LLVM module to print out.
+  /// \param Type type of debug information requested.
   DebugHelper(std::string Output,
               std::string Debug,
               llvm::Module *TheModule,
@@ -56,7 +81,7 @@ public:
   /// future use.
   void newFunction(llvm::Function *Function);
 
-  /// Decorates the current function with the request debug info
+  /// Decorates the current function with the requested debug info
   void generateDebugInfo();
 
   /// Serializes to the given stream the module, with or without debug info
@@ -68,7 +93,8 @@ public:
 private:
   /// Create a new AssemblyAnnotationWriter
   ///
-  /// \param DebugInfo whether to decorate the IR with debug information or not
+  /// \param DebugInfo whether to create an annotator producing with debug
+  ///        information referred to itself or not.
   DebugAnnotationWriter *annotator(bool DebugInfo);
 
 private:

@@ -76,7 +76,6 @@ DebugAnnotationWriter::DebugAnnotationWriter(LLVMContext& Context,
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
   DbgMDKind = Context.getMDKindID("dbg");
-
 }
 
 void DebugAnnotationWriter::emitInstructionAnnot(const Instruction *Instr,

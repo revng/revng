@@ -242,7 +242,8 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
             IRBuilder<> Builder(TheModule.getContext());
             Builder.SetInsertPoint(Call);
 
-            unsigned EnvOpIndex = Call->getArgOperand(0) == CurrentValue ? 0 : 1;
+            unsigned EnvOpIndex = (Call->getArgOperand(0) == CurrentValue ?
+                                   0 : 1);
             Value *BaseOp = Call->getArgOperand(1 - EnvOpIndex);
             auto *ValueOp = cast<Constant>(Call->getArgOperand(2));
             Value *BasePtr = Builder.CreatePtrToInt(BaseOp,
@@ -278,8 +279,10 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
             }
 
             if (Offset != TotalSize) {
-              auto *InvalidInst = cast<Instruction>(TheUser);
-              CallInst::Create(TheModule.getFunction("abort"), { }, InvalidInst);
+              auto *InvalidInstruction = cast<Instruction>(TheUser);
+              CallInst::Create(TheModule.getFunction("abort"),
+                               { },
+                               InvalidInstruction);
               continue;
             }
 
@@ -456,7 +459,8 @@ static std::pair<Type *, unsigned> getTypeAtOffset(const DataLayout *TheLayout,
   unsigned FieldIndex = Layout->getElementContainingOffset(Offset);
   uint64_t FieldOffset = Layout->getElementOffset(FieldIndex);
   Type *VariableType = TheStruct->getTypeAtIndex(FieldIndex);
-  intptr_t FieldEnd = FieldOffset + TheLayout->getTypeSizeInBits(VariableType) / 8;
+  intptr_t FieldEnd = (FieldOffset
+                       + TheLayout->getTypeSizeInBits(VariableType) / 8);
 
   DBG("type-at-offset", dbg
       << std::string(Depth * 2, ' ')

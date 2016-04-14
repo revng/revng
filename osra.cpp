@@ -47,10 +47,7 @@ static auto skip(unsigned ToSkip, C &Container)
 
 char OSRAPass::ID = 0;
 
-static RegisterPass<OSRAPass> X("jt-from-code",
-                                      "JT From Code Pass",
-                                      false,
-                                      false);
+static RegisterPass<OSRAPass> X("osra", "OSRA Pass", false, false);
 
 Constant *OSR::evaluate(Constant *Value, Type *Int64) const {
   Constant *BaseC = CI::get(Int64, Base, BV->isSigned());
@@ -65,15 +62,9 @@ static bool isPositive(Constant *C, const DataLayout &DL) {
   return getConstValue(Compare, DL)->getLimitedValue();
 }
 
-uint64_t OSR::absFactor(Type *Int64, const DataLayout &DL) const {
-  auto *FactorConst = CI::get(Int64, Factor, BV->isSigned());
-  if (BV->isSigned() && !isPositive(FactorConst, DL))
-    FactorConst = CE::getNeg(FactorConst);
-  return getZExtValue(FactorConst, DL);
-}
-
 pair<Constant *, Constant *> OSR::boundaries(Type *Int64,
                                              const DataLayout &DL) const {
+  assert(!isConstant());
   Constant *Min = nullptr;
   Constant *Max = nullptr;
   std::tie(Min, Max) = BV->actualBoundaries(Int64);
@@ -95,10 +86,7 @@ static uint64_t combineImpl(unsigned Opcode,
   return getExtValue(R, Signed, DL);
 }
 
-bool OSR::combine(unsigned Opcode,
-                  Constant *Operand,
-                  const DataLayout &DL) {
-
+bool OSR::combine(unsigned Opcode, Constant *Operand, const DataLayout &DL) {
   auto *TheType = cast<IntegerType>(Operand->getType());
   bool Multiplicative = !(Opcode == Instruction::Add
                           || Opcode == Instruction::Sub);

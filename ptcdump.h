@@ -8,8 +8,8 @@
 // Local includes
 #include "ptc.h"
 
-/// Writes to a stream the string representation of the PTC instruction with the
-/// specified index withing the instruction list.
+/// Write to a stream the string representation of the PTC instruction with the
+/// specified index within the instruction list.
 ///
 /// \param Result the output stream.
 /// \param Instructions the instruction list.

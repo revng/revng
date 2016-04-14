@@ -13,17 +13,22 @@ namespace llvm {
 class GlobalVariable;
 };
 
+/// \brief Type of debug information to produce
 enum class DebugInfoType {
-  None,
-  OriginalAssembly,
-  PTC,
-  LLVMIR
+  None, ///< no debug information.
+  OriginalAssembly, ///< produce a file containing the assembly code of the
+                    ///  input binary.
+  PTC, ///< produce the PTC as translated by libtinycode.
+  LLVMIR ///< produce an LLVM IR with debug metadata referring to itself.
 };
 
+/// \brief Simple data structure to describe an ELF segment
 struct SegmentInfo {
+  /// Produce a name for this segment suitable for human understanding
   std::string generateName();
 
-  llvm::GlobalVariable *Variable;
+  llvm::GlobalVariable *Variable; ///< \brief LLVM variable containing this
+                                  ///  segment's data
   uint64_t StartVirtualAddress;
   uint64_t EndVirtualAddress;
   bool IsWriteable;
@@ -31,6 +36,7 @@ struct SegmentInfo {
   bool IsReadable;
 };
 
+/// \brief Basic information about an input/output architecture
 class Architecture {
 public:
 
@@ -91,6 +97,7 @@ static inline bool startsWith(std::string String, std::string Prefix) {
   return String.substr(0, Prefix.size()) == Prefix;
 }
 
+/// \brief Simple helper function asserting a pointer is not a `nullptr`
 template<typename T>
 static inline T *notNull(T *Pointer) {
   assert(Pointer != nullptr);

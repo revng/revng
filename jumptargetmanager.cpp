@@ -168,7 +168,7 @@ ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
     // Note: we also consider writeable memory areas because, despite being
     // modifiable, can contain useful information
     if (Segment.StartVirtualAddress <= Address
-        && Address < Segment.EndVirtualAddress
+        && Address + Size < Segment.EndVirtualAddress
         && Segment.IsReadable) {
       auto *Array = cast<ConstantDataArray>(Segment.Variable->getInitializer());
       StringRef RawData = Array->getRawDataValues();
@@ -346,8 +346,7 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool& ShouldContinue) {
 void JumpTargetManager::registerInstruction(uint64_t PC,
                                             Instruction *Instruction) {
   // Never save twice a PC
-  assert(OriginalInstructionAddresses.find(PC) ==
-         OriginalInstructionAddresses.end());
+  assert(!OriginalInstructionAddresses.count(PC));
   OriginalInstructionAddresses[PC] = Instruction;
 }
 

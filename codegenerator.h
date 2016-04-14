@@ -14,6 +14,7 @@
 
 // Forward declarations
 namespace llvm {
+
 class LLVMContext;
 class Function;
 class GlobalVariable;
@@ -30,47 +31,65 @@ class ObjectFile;
 
 class DebugHelper;
 
-/// Translates code from an architecture to LLVM IR.
+/// Translator from binary code to LLVM IR.
 class CodeGenerator {
 public:
   /// Create a new code generator translating code from an architecture to
-  /// another, writing the corresponding LLVM IR and debug source file of the
-  /// requested type to file.
+  /// another, writing the corresponding LLVM IR and other useful information to
+  /// the specified paths.
   ///
-  /// \param Source source architecture.
+  /// \param Input path to the program executable (e.g. the ELF file).
   /// \param Target target architecture.
-  /// \param OutputPath path where the generate LLVM IR must be saved.
-  /// \param HelpersPath path of the LLVM IR file containing the QEMU helpers.
+  /// \param Output path where the generate LLVM IR must be saved.
+  /// \param Helpers path of the LLVM IR file containing the QEMU helpers.
   /// \param DebugInfo type of debug information to generate.
-  /// \param DebugPath path where the debugging source file must be written.
+  /// \param Debug path where the debugging source file must be written. If an
+  ///        empty string, the output file name plus ".S", if \p DebugInfo is
+  ///        DebugInfoType::OriginalAssembly, or ".ptc", if \p DebugInfo is
+  ///        DebugInfoType::PTC.
+  /// \param LinkingInfo path where the information about how the linking should
+  ///        be stored. If an empty string, the output file name with a
+  ///        ".li.csv" suffix will be used.
+  /// \param Coverage path where the information about instruction coverage
+  ///        should be stored. If an empty string, the output file name with a
+  ///        ".coverage.csv" suffix will be used.
+  /// \param EnableOSRA specify whether OSRA should be used to discover
+  ///        additional jump targets or not.
   CodeGenerator(std::string Input,
                 Architecture& Target,
                 std::string Output,
                 std::string Helpers,
                 DebugInfoType DebugInfo,
                 std::string Debug,
-                std::string LinkingInfoPath,
-                std::string CoveragePath,
+                std::string LinkingInfo,
+                std::string Coverage,
                 bool EnableOSRA);
 
   ~CodeGenerator();
 
   /// \brief Creates an LLVM function for the code in the specified memory area.
-  /// If debug information have been requested, the debug source files will be
+  /// If debug information has been requested, the debug source files will be
   /// create in this phase.
   ///
+  /// \param VirtualAddress the address from where the translation should start.
   /// \param Name the name to give to the newly created function.
-  /// \param Code reference to memory area containing the code to translate.
-  void translate(uint64_t VirtualAddress,
-                 std::string Name);
+  void translate(uint64_t VirtualAddress, std::string Name);
 
   /// Serialize the generated LLVM IR to the specified output path.
   void serialize();
 
 private:
+  /// \brief Parse the ELF headers.
+  /// Collect useful information such as the segments' boundaries, their
+  /// permissions, the address of program headers and the like.
+  /// From this information it produces the .li.csv file containing information
+  /// useful for linking.
+  /// This function parametric w.r.t. endianess and pointer size.
+  ///
+  /// \param TheBinary the LLVM ObjectFile representing the ELF file.
+  /// \param LinkingInfo path where the .li.csv file should be created.
   template<typename T>
-  void parseELF(llvm::object::ObjectFile *TheBinary,
-                std::string LinkingInfoPath);
+  void parseELF(llvm::object::ObjectFile *TheBinary, std::string LinkingInfo);
 
 private:
   Architecture SourceArchitecture;

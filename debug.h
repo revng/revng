@@ -15,6 +15,7 @@ bool isDebugFeatureEnabled(std::string Name);
 void enableDebugFeature(std::string Name);
 void disableDebugFeature(std::string Name);
 
+/// Executes \p code only if \p feature is enabled
 #define DBG(feature, code) do {                                     \
     if (DebuggingEnabled && isDebugFeatureEnabled(feature)) {       \
       code;                                                         \
