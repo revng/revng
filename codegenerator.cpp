@@ -715,10 +715,12 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
                NextPC) = Translator.newInstruction(Instruction,
                                                    NextInstruction,
                                                    EndPC,
-                                                   true);
+                                                   true,
+                                                   false);
       j++;
     }
 
+    bool ForceNewBlock = false;
 
     // TODO: shall we move this whole loop in InstructionTranslator?
     for (; j < InstructionCount && !StopTranslation; j++) {
@@ -750,16 +752,18 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
                    NextPC) = Translator.newInstruction(&Instruction,
                                                        NextInstruction,
                                                        EndPC,
-                                                       false);
+                                                       false,
+                                                       ForceNewBlock);
+
+          ForceNewBlock = false;
           break;
         }
       case PTC_INSTRUCTION_op_call:
         {
-          Translator.translateCall(&Instruction);
+          ForceNewBlock |= Translator.translateCall(&Instruction);
 
           // Sometimes libtinycode terminates a basic block with a call, in this
           // case force a fallthrough
-          // TODO: investigate why this happens
           auto &IL = InstructionList;
           if (j == IL->instruction_count - 1)
             Builder.CreateBr(notNull(JumpTargets.getBlockAt(EndPC, false)));
@@ -789,6 +793,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
 
     } // End loop over instructions
 
+    if (ForceNewBlock)
+      JumpTargets.getBlockAt(EndPC);
 
     // We might have a leftover block, probably due to the block created after
     // the last call to exit_tb

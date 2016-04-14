@@ -50,9 +50,10 @@ public:
     uint64_t> newInstruction(PTCInstruction *Instr,
                              PTCInstruction *Next,
                              uint64_t EndPC,
-                             bool IsFirst);
+                             bool IsFirst,
+                             bool ForceNew);
   bool translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC);
-  void translateCall(PTCInstruction *Instr);
+  bool translateCall(PTCInstruction *Instr);
 
   void removeNewPCMarkers(std::string &CoveragePath);
 

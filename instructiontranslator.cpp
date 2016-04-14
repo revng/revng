@@ -5,6 +5,8 @@
 // Standard includes
 #include <cstdint>
 #include <fstream>
+#include <queue>
+#include <set>
 #include <sstream>
 
 // LLVM includes
@@ -525,7 +527,8 @@ std::tuple<bool, MDNode *, uint64_t, uint64_t>
 InstructionTranslator::newInstruction(PTCInstruction *Instr,
                                       PTCInstruction *Next,
                                       uint64_t EndPC,
-                                      bool IsFirst) {
+                                      bool IsFirst,
+                                      bool ForceNew) {
   using R = std::tuple<bool, MDNode *, uint64_t, uint64_t>;
 
   const PTC::Instruction TheInstruction(Instr);
@@ -542,6 +545,9 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
   auto *MDPC = ConstantAsMetadata::get(Builder.getInt64(PC));
   MDNode *MDOriginalInstr = MDNode::getDistinct(Context,
                                                 { MDOriginalString, MDPC });
+
+  if (ForceNew)
+    JumpTargets.getBlockAt(PC, false);
 
   if (!IsFirst) {
     // Check if this PC already has a block and use it
@@ -588,7 +594,45 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
   return R { false, MDOriginalInstr, PC, NextPC };
 }
 
-void InstructionTranslator::translateCall(PTCInstruction *Instr) {
+static StoreInst *getLastUniqueWrite(BasicBlock *BB, Value *Register) {
+  StoreInst *Result = nullptr;
+  std::set<BasicBlock *> Visited;
+  std::queue<BasicBlock *> WorkList;
+  Visited.insert(BB);
+  WorkList.push(BB);
+  while (!WorkList.empty()) {
+    BasicBlock *BB = WorkList.front();
+    WorkList.pop();
+
+    bool Stop = false;
+    for (auto I = BB->rbegin(); I != BB->rend(); I++) {
+      if (auto *Store = dyn_cast<StoreInst>(&*I)) {
+        if (Store->getPointerOperand() == Register
+            && isa<ConstantInt>(Store->getValueOperand())) {
+          assert(Result == nullptr);
+          Result = Store;
+          Stop = true;
+          break;
+        }
+      } else if (isa<CallInst>(&*I)) {
+        Stop = true;
+        break;
+      }
+    }
+
+    if (!Stop) {
+      for (BasicBlock *Prev : predecessors(BB)) {
+        if (Visited.find(Prev) == Visited.end()) {
+          WorkList.push(Prev);
+          Visited.insert(BB);
+        }
+      }
+    }
+  }
+  return Result;
+}
+
+bool InstructionTranslator::translateCall(PTCInstruction *Instr) {
   const PTC::CallInstruction TheCall(Instr);
 
   auto LoadArgs = [this] (uint64_t TemporaryId) -> Value * {
@@ -622,12 +666,30 @@ void InstructionTranslator::translateCall(PTCInstruction *Instr) {
   std::string HelperName = "helper_" + TheCall.helperName();
   Constant *FunctionDeclaration = TheModule.getOrInsertFunction(HelperName,
                                                                 CalleeType);
+
+  StoreInst *PCSaver = getLastUniqueWrite(Builder.GetInsertBlock(),
+                                          JumpTargets.pcReg());
   Value *Result = Builder.CreateCall(FunctionDeclaration, InArgs);
 
   if (TheCall.OutArguments.size() != 0) {
     auto *Store = Builder.CreateStore(Result, ResultDestination);
     Variables.setAliasScope(Store);
   }
+
+  if (PCSaver != nullptr) {
+    // If PC has changed, go to the dispatcher
+    Value *NewPC = Builder.CreateLoad(PCSaver->getPointerOperand());
+    BasicBlock *Fallthrough = BasicBlock::Create(TheModule.getContext(),
+                                                 "",
+                                                 TheFunction);
+    Value *NoChange = Builder.CreateICmpEQ(NewPC, PCSaver->getValueOperand());
+    Builder.CreateCondBr(NoChange, Fallthrough, JumpTargets.dispatcher());
+    Blocks.push_back(Fallthrough);
+    Builder.SetInsertPoint(Fallthrough);
+    return true;
+  }
+
+  return false;
 }
 
 bool InstructionTranslator::translate(PTCInstruction *Instr,
