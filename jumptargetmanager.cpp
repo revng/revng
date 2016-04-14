@@ -720,17 +720,6 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   Builder.SetInsertPoint(Entry);
   Value *SwitchOn = Builder.CreateLoad(SwitchOnPtr);
   SwitchInst *Switch = Builder.CreateSwitch(SwitchOn, Default);
-  auto *SwitchOnType = cast<IntegerType>(SwitchOn->getType());
-
-  {
-    // We consider a jump to NULL as a program end
-    auto *NullBlock = BasicBlock::Create(Context,
-                                         "dispatcher.case.null",
-                                         OutputFunction);
-    Switch->addCase(ConstantInt::get(SwitchOnType, 0), NullBlock);
-    Builder.SetInsertPoint(NullBlock);
-    Builder.CreateRetVoid();
-  }
 
   Dispatcher = Entry;
   DispatcherSwitch = Switch;
