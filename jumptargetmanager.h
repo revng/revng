@@ -13,7 +13,6 @@ class BasicBlock;
 class Function;
 class Instruction;
 class LLVMContext;
-class LoadInst;
 class Module;
 class SwitchInst;
 class StoreInst;
@@ -51,40 +50,6 @@ private:
 private:
   llvm::Value *PCReg;
   JumpTargetManager *JTM;
-};
-
-class JumpTargetsFromConstantsPass : public llvm::FunctionPass {
-public:
-  static char ID;
-
-  JumpTargetsFromConstantsPass() : llvm::FunctionPass(ID),
-    JTM(nullptr),
-    Visited(nullptr),
-    UseOSRA(false) { }
-
-  JumpTargetsFromConstantsPass(JumpTargetManager *JTM,
-                               bool UseOSRA,
-                               std::set<llvm::BasicBlock *> *Visited) :
-    llvm::FunctionPass(ID),
-    JTM(JTM),
-    Visited(Visited),
-    UseOSRA(UseOSRA) { }
-
-  bool runOnFunction(llvm::Function &F) override;
-
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
-
-private:
-  void enqueueStores(llvm::LoadInst *Start,
-                     unsigned StackHeight,
-                     std::vector<std::pair<llvm::Value *, unsigned>>& WL);
-
-
-private:
-  const unsigned MaxDepth = 3;
-  JumpTargetManager *JTM;
-  std::set<llvm::BasicBlock *> *Visited;
-  bool UseOSRA;
 };
 
 class JumpTargetManager {

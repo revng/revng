@@ -35,7 +35,6 @@
 #include "debug.h"
 #include "debughelper.h"
 #include "instructiontranslator.h"
-#include "ir-helpers.h"
 #include "jumptargetmanager.h"
 #include "ptcinterface.h"
 #include "revamb.h"

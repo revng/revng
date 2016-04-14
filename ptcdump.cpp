@@ -2,7 +2,8 @@
 /// \brief This file handles dumping PTC to text
 
 // Standard includes
-#include <cinttypes>
+#include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
