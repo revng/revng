@@ -12,6 +12,7 @@
 
 // Local includes
 #include "ptcdump.h"
+#include "revamb.h"
 
 namespace llvm {
 class AllocaInst;
@@ -29,16 +30,22 @@ class CorrectCPUStateUsagePass : public llvm::ModulePass {
 public:
   static char ID;
 
-  CorrectCPUStateUsagePass() : llvm::ModulePass(ID), Variables(nullptr) { }
-  CorrectCPUStateUsagePass(VariableManager *Variables) :
+  CorrectCPUStateUsagePass() :
     llvm::ModulePass(ID),
-    Variables(Variables) { }
+    Variables(nullptr),
+    EnvOffset(0) { }
+
+  CorrectCPUStateUsagePass(VariableManager *Variables, unsigned EnvOffset) :
+    llvm::ModulePass(ID),
+    Variables(Variables),
+    EnvOffset(EnvOffset) { }
 
 public:
   bool runOnModule(llvm::Module& TheModule) override;
 
 private:
   VariableManager *Variables;
+  unsigned EnvOffset;
 };
 
 /// \brief Maintains the list of variables required by PTC.
@@ -48,7 +55,8 @@ private:
 class VariableManager {
 public:
   VariableManager(llvm::Module& TheModule,
-                  llvm::Module& HelpersModule);
+                  llvm::Module& HelpersModule,
+                  Architecture &TargetArchitecture);
 
   friend class CorrectCPUStateUsagePass;
 
@@ -61,9 +69,10 @@ public:
   // TODO: rename to getByTemporaryId
   llvm::Value *getOrCreate(unsigned int TemporaryId);
 
-  llvm::GlobalVariable *getByEnvOffset(intptr_t Offset,
-                                       std::string Name="") {
-    return getByCPUStateOffset(EnvOffset + Offset, Name);
+  std::pair<llvm::GlobalVariable*,
+            unsigned> getByEnvOffset(intptr_t Offset,
+                                     std::string Name="") {
+    return getByCPUStateOffsetInternal(EnvOffset + Offset, Name);
   }
 
   /// Informs the VariableManager that a new function has begun, so it can
@@ -91,7 +100,7 @@ public:
   bool isEnv(llvm::Value *TheValue);
 
   CorrectCPUStateUsagePass *createCorrectCPUStateUsagePass() {
-    return new CorrectCPUStateUsagePass(this);
+    return new CorrectCPUStateUsagePass(this, EnvOffset);
   }
 
   llvm::Value *computeEnvAddress(llvm::Type *TargetType,
@@ -115,9 +124,36 @@ public:
     return Locals;
   }
 
+  llvm::Value *loadFromEnvOffset(llvm::IRBuilder<> &Builder,
+                                 unsigned LoadSize,
+                                 unsigned Offset) {
+    return loadFromCPUStateOffset(Builder, LoadSize, EnvOffset + Offset);
+  }
+
+  bool storeToEnvOffset(llvm::IRBuilder<> &Builder,
+                        unsigned StoreSize,
+                        unsigned Offset,
+                        llvm::Value *ToStore) {
+    unsigned ActualOffset = EnvOffset + Offset;
+    return storeToCPUStateOffset(Builder, StoreSize, ActualOffset, ToStore);
+  }
+
 private:
+  llvm::Value *loadFromCPUStateOffset(llvm::IRBuilder<> &Builder,
+                                      unsigned LoadSize,
+                                      unsigned Offset);
+
+  bool storeToCPUStateOffset(llvm::IRBuilder<> &Builder,
+                             unsigned StoreSize,
+                             unsigned Offset,
+                             llvm::Value *ToStore);
+
   llvm::GlobalVariable *getByCPUStateOffset(intptr_t Offset,
                                             std::string Name="");
+  std::pair<llvm::GlobalVariable*, unsigned>
+    getByCPUStateOffsetInternal(intptr_t Offset,
+                                std::string Name="");
+
 private:
   llvm::Module& TheModule;
   llvm::IRBuilder<> Builder;
@@ -137,6 +173,8 @@ private:
   unsigned AliasScopeMDKindID;
   unsigned NoAliasMDKindID;
   llvm::MDNode *CPUStateScopeSet;
+
+  Architecture &TargetArchitecture;
 };
 
 #endif // _VARIABLEMANAGER_H

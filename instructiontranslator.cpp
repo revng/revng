@@ -889,13 +889,66 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
         return std::errc::invalid_argument;
       }
 
-      Value *Target = Variables.getByEnvOffset(ConstArguments[0]);
+      bool Signed;
+      switch (Opcode) {
+      case PTC_INSTRUCTION_op_ld_i32:
+      case PTC_INSTRUCTION_op_ld_i64:
 
-      auto *LoadEnvField = Builder.CreateLoad(Target);
-      Variables.setAliasScope(LoadEnvField);
-      Value *Fitted = Builder.CreateZExtOrTrunc(LoadEnvField, RegisterType);
+      case PTC_INSTRUCTION_op_ld8u_i32:
+      case PTC_INSTRUCTION_op_ld16u_i32:
+      case PTC_INSTRUCTION_op_ld8u_i64:
+      case PTC_INSTRUCTION_op_ld16u_i64:
+      case PTC_INSTRUCTION_op_ld32u_i64:
+        Signed = false;
+        break;
+      case PTC_INSTRUCTION_op_ld8s_i32:
+      case PTC_INSTRUCTION_op_ld16s_i32:
+      case PTC_INSTRUCTION_op_ld8s_i64:
+      case PTC_INSTRUCTION_op_ld16s_i64:
+      case PTC_INSTRUCTION_op_ld32s_i64:
+        Signed = true;
+        break;
+      default:
+        assert(false);
+      }
 
-      return v { Fitted };
+      unsigned LoadSize;
+      switch (Opcode) {
+      case PTC_INSTRUCTION_op_ld8u_i32:
+      case PTC_INSTRUCTION_op_ld8s_i32:
+      case PTC_INSTRUCTION_op_ld8u_i64:
+      case PTC_INSTRUCTION_op_ld8s_i64:
+        LoadSize = 1;
+        break;
+      case PTC_INSTRUCTION_op_ld16u_i32:
+      case PTC_INSTRUCTION_op_ld16s_i32:
+      case PTC_INSTRUCTION_op_ld16u_i64:
+      case PTC_INSTRUCTION_op_ld16s_i64:
+        LoadSize = 2;
+        break;
+      case PTC_INSTRUCTION_op_ld_i32:
+      case PTC_INSTRUCTION_op_ld32u_i64:
+      case PTC_INSTRUCTION_op_ld32s_i64:
+        LoadSize = 4;
+        break;
+      case PTC_INSTRUCTION_op_ld_i64:
+        LoadSize = 8;
+        break;
+      default:
+        assert(false);
+      }
+
+      Value *Result = Variables.loadFromEnvOffset(Builder,
+                                                  LoadSize,
+                                                  ConstArguments[0]);
+      assert(Result != nullptr);
+
+      // Zero/sign extend in the target dimension
+      if (Signed)
+        return v { Builder.CreateSExt(Result, RegisterType) };
+      else
+        return v { Builder.CreateZExt(Result, RegisterType) };
+
     }
   case PTC_INSTRUCTION_op_st8_i32:
   case PTC_INSTRUCTION_op_st16_i32:
@@ -905,17 +958,39 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
   case PTC_INSTRUCTION_op_st32_i64:
   case PTC_INSTRUCTION_op_st_i64:
     {
+      unsigned StoreSize;
+      switch (Opcode) {
+      case PTC_INSTRUCTION_op_st8_i32:
+      case PTC_INSTRUCTION_op_st8_i64:
+        StoreSize = 1;
+        break;
+      case PTC_INSTRUCTION_op_st16_i32:
+      case PTC_INSTRUCTION_op_st16_i64:
+        StoreSize = 2;
+        break;
+      case PTC_INSTRUCTION_op_st_i32:
+      case PTC_INSTRUCTION_op_st32_i64:
+        StoreSize = 4;
+        break;
+      case PTC_INSTRUCTION_op_st_i64:
+        StoreSize = 8;
+        break;
+      default:
+        assert(false);
+      }
+
       Value *Base = dyn_cast<LoadInst>(InArguments[1])->getPointerOperand();
       if (Base == nullptr || !Variables.isEnv(Base)) {
         // TODO: emit warning
         return std::errc::invalid_argument;
       }
 
-      Value *Target = Variables.getByEnvOffset(ConstArguments[0]);
-      Type *TargetPointer = Target->getType()->getPointerElementType();
-      Value *ToStore = Builder.CreateZExt(InArguments[0], TargetPointer);
-      auto *Store = Builder.CreateStore(ToStore, Target);
-      Variables.setAliasScope(Store);
+      bool Result = Variables.storeToEnvOffset(Builder,
+                                               StoreSize,
+                                               ConstArguments[0],
+                                               InArguments[0]);
+      assert(Result);
+
       return v { };
     }
   case PTC_INSTRUCTION_op_add_i32:
@@ -1267,28 +1342,28 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
   case PTC_INSTRUCTION_op_add2_i64:
   case PTC_INSTRUCTION_op_sub2_i64:
     {
-      Value *FirstOperandLow = nullptr;
-      Value *FirstOperandHigh = nullptr;
-      Value *SecondOperandLow = nullptr;
-      Value *SecondOperandHigh = nullptr;
+      Value *FirstOpLow = nullptr;
+      Value *FirstOpHigh = nullptr;
+      Value *SecondOpLow = nullptr;
+      Value *SecondOpHigh = nullptr;
 
       IntegerType *DestinationType = Builder.getIntNTy(RegisterSize * 2);
 
-      FirstOperandLow = Builder.CreateZExt(InArguments[0], DestinationType);
-      FirstOperandHigh = Builder.CreateZExt(InArguments[1], DestinationType);
-      SecondOperandLow = Builder.CreateZExt(InArguments[2], DestinationType);
-      SecondOperandHigh = Builder.CreateZExt(InArguments[3], DestinationType);
+      FirstOpLow = Builder.CreateZExt(InArguments[0], DestinationType);
+      FirstOpHigh = Builder.CreateZExt(InArguments[1], DestinationType);
+      SecondOpLow = Builder.CreateZExt(InArguments[2], DestinationType);
+      SecondOpHigh = Builder.CreateZExt(InArguments[3], DestinationType);
 
-      FirstOperandHigh = Builder.CreateShl(FirstOperandHigh, RegisterSize);
-      SecondOperandHigh = Builder.CreateShl(SecondOperandHigh, RegisterSize);
+      FirstOpHigh = Builder.CreateShl(FirstOpHigh, RegisterSize);
+      SecondOpHigh = Builder.CreateShl(SecondOpHigh, RegisterSize);
 
-      Value *FirstOperand = Builder.CreateOr(FirstOperandHigh, FirstOperandLow);
-      Value *SecondOperand = Builder.CreateOr(SecondOperandHigh,
-                                              SecondOperandLow);
+      Value *FirstOp = Builder.CreateOr(FirstOpHigh, FirstOpLow);
+      Value *SecondOp = Builder.CreateOr(SecondOpHigh,
+                                              SecondOpLow);
 
       Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
 
-      Value *Result = Builder.CreateBinOp(BinaryOp, FirstOperand, SecondOperand);
+      Value *Result = Builder.CreateBinOp(BinaryOp, FirstOp, SecondOp);
 
       Value *ResultLow = Builder.CreateTrunc(Result, RegisterType);
       Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
@@ -1303,21 +1378,21 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
     {
       IntegerType *DestinationType = Builder.getIntNTy(RegisterSize * 2);
 
-      Value *FirstOperand = nullptr;
-      Value *SecondOperand = nullptr;
+      Value *FirstOp = nullptr;
+      Value *SecondOp = nullptr;
 
       if (Opcode == PTC_INSTRUCTION_op_mulu2_i32
           || Opcode == PTC_INSTRUCTION_op_mulu2_i64) {
-        FirstOperand = Builder.CreateZExt(InArguments[0], DestinationType);
-        SecondOperand = Builder.CreateZExt(InArguments[1], DestinationType);
+        FirstOp = Builder.CreateZExt(InArguments[0], DestinationType);
+        SecondOp = Builder.CreateZExt(InArguments[1], DestinationType);
       } else if (Opcode == PTC_INSTRUCTION_op_muls2_i32
                  || Opcode == PTC_INSTRUCTION_op_muls2_i64) {
-        FirstOperand = Builder.CreateSExt(InArguments[0], DestinationType);
-        SecondOperand = Builder.CreateSExt(InArguments[1], DestinationType);
+        FirstOp = Builder.CreateSExt(InArguments[0], DestinationType);
+        SecondOp = Builder.CreateSExt(InArguments[1], DestinationType);
       } else
         llvm_unreachable("Unexpected opcode");
 
-      Value *Result = Builder.CreateMul(FirstOperand, SecondOperand);
+      Value *Result = Builder.CreateMul(FirstOp, SecondOp);
 
       Value *ResultLow = Builder.CreateTrunc(Result, RegisterType);
       Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);

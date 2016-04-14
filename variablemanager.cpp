@@ -11,12 +11,14 @@
 
 // LLVM includes
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Casting.h"
 
 // Local includes
+#include "debug.h"
 #include "ir-helpers.h"
 #include "variablemanager.h"
 #include "revamb.h"
@@ -25,20 +27,48 @@
 
 using namespace llvm;
 
-template<typename T>
-static void pushIfNew(std::set<T>& Seen, std::stack<T>& Queue, T Element) {
-  if (Seen.find(Element) == Seen.end()) {
-    Seen.insert(Element);
-    Queue.push(Element);
-  }
+#ifndef NDEBUG
+namespace llvm {
+void Value::assertModuleIsMaterialized() const { }
 }
+#endif
+
+class OffsetValueStack {
+
+private:
+  using OffsetValuePair = std::pair<int64_t, Value *>;
+
+public:
+  void pushIfNew(int64_t Offset, Value *V) {
+    OffsetValuePair Element = { Offset, V };
+    if (!Seen.count(Element)) {
+      Seen.insert(Element);
+      Stack.push_back(Element);
+    }
+  }
+
+  void push(int64_t Offset, Value *V) {
+    OffsetValuePair Element = { Offset, V };
+    Stack.push_back(Element);
+  }
+
+  bool empty() { return Stack.empty(); }
+
+  std::pair<int64_t, Value *> pop() {
+    auto Result = Stack.back();
+    Stack.pop_back();
+    return Result;
+  }
+
+private:
+  std::set<OffsetValuePair> Seen;
+  std::vector<OffsetValuePair> Stack;
+};
 
 static const int64_t ErrorOffset = std::numeric_limits<int64_t>::max();
 
 bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
-  using OffsetValuePair = std::pair<int64_t, Value *>;
-  std::set<OffsetValuePair> SeenArgs;
-  std::stack<OffsetValuePair> WorkList;
+  OffsetValueStack WorkList;
 
   Value *CPUStatePtr = TheModule.getGlobalVariable("env");
 
@@ -48,21 +78,27 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
 
   assert(CPUStatePtr->getType()->isPointerTy());
 
-  // Initialize the worklist with all the instructions loading env
-  for (Use& CPUStateUse : CPUStatePtr->uses()) {
-    auto *Load = cast<LoadInst>(CPUStateUse.getUser());
-    assert(Load->getPointerOperand() == CPUStatePtr);
 
-    WorkList.push(std::make_pair(Variables->EnvOffset, Load));
-  }
 
   const DataLayout& DL = TheModule.getDataLayout();
 
-  while (!WorkList.empty()) {
+  while (true) {
+    if (WorkList.empty()) {
+      for (Use& CPUStateUse : CPUStatePtr->uses()) {
+        auto *Load = cast<LoadInst>(CPUStateUse.getUser());
+        assert(Load->getPointerOperand() == CPUStatePtr);
+
+        WorkList.pushIfNew(Variables->EnvOffset, Load);
+      }
+    }
+
+    if (WorkList.empty())
+      break;
+
+
     int64_t CurrentOffset;
     Value *CurrentValue;
-    std::tie(CurrentOffset, CurrentValue) = WorkList.top();
-    WorkList.pop();
+    std::tie(CurrentOffset, CurrentValue) = WorkList.pop();
 
     std::vector<std::tuple<User *, Value *, Value *>> Replacements;
 
@@ -74,7 +110,7 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
           && Opcode != Instruction::Load
           && Opcode != Instruction::Store) {
         // Not loading or storing, propagate the error value
-        WorkList.push(std::make_pair(ErrorOffset, TheUser));
+        WorkList.push(ErrorOffset, TheUser);
         continue;
       }
 
@@ -82,42 +118,47 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
       case Instruction::Load:
       case Instruction::Store:
         {
-          if (Opcode == Instruction::Store) {
-            // It's a store, just change the destination pointer
-            assert(cast<StoreInst>(TheUser)->getPointerOperand() == CurrentValue
-                   && "Pointer cannot be used as source of a store instruction");
-          } else if (Opcode == Instruction::Load) {
-            // It's a load, just change the source pointer
-            assert(cast<LoadInst>(TheUser)->getPointerOperand() == CurrentValue
-                   && "Pointer cannot be used as destination of a load"
-                   " instruction");
-          }
+          auto *Load = dyn_cast<LoadInst>(TheUser);
+          auto *Store = dyn_cast<StoreInst>(TheUser);
 
-          GlobalVariable *Var = Variables->getByCPUStateOffset(CurrentOffset);
+          IRBuilder<> Builder(cast<Instruction>(TheUser));
 
-          // Couldn't translate this environment usage, make it fail at run-time
-          if (Var == nullptr) {
-            auto *InvalidInst = cast<Instruction>(TheUser);
-            // TODO: emit a warning
-            CallInst::Create(TheModule.getFunction("abort"), { }, InvalidInst);
-            // TODO: shall we put an unreachable and delete everything comes
-            //       afterwards?
+          bool Success = false;
+          if (Load != nullptr) {
+            unsigned Size = DL.getTypeSizeInBits(TheUser->getType()) / 8;
+            assert(Size != 0);
+
+            unsigned CurrentEnvOffset = CurrentOffset - EnvOffset;
+            auto *Loaded = Variables->loadFromEnvOffset(Builder,
+                                                        Size,
+                                                        CurrentEnvOffset);
+            Success = Loaded != nullptr;
+            if (Success)
+              TheUser->replaceAllUsesWith(Loaded);
           } else {
-            Constant *Ptr = Var;
+            Value *ToStore = Store->getValueOperand();
+            unsigned Size = DL.getTypeSizeInBits(ToStore->getType()) / 8;
+            assert(Size != 0);
 
-            // Sadly, we have to allow this, mainly due to unions
-            if (CurrentValue->getType() != Var->getType())
-              Ptr = ConstantExpr::getPointerCast(Ptr, CurrentValue->getType());
-
-            Replacements.push_back(std::make_tuple(TheUser, CurrentValue, Ptr));
+            unsigned CurrentEnvOffset = CurrentOffset - EnvOffset;
+            Success = Variables->storeToEnvOffset(Builder,
+                                                  Size,
+                                                  CurrentEnvOffset,
+                                                  ToStore);
           }
+
+          if (Success)
+            Replacements.push_back(std::make_tuple(TheUser, nullptr, nullptr));
+          else
+            Builder.CreateCall(TheModule.getFunction("abort"));
+
           break;
         }
       case Instruction::IntToPtr:
       case Instruction::BitCast:
         {
           // A bitcast, just propagate it
-          WorkList.push(std::make_pair(CurrentOffset, TheUser));
+          WorkList.push(CurrentOffset, TheUser);
           break;
         }
       case Instruction::GetElementPtr:
@@ -136,7 +177,7 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
           }
 
           int64_t NewOffset = APOffset.getSExtValue();
-          WorkList.push(std::make_pair(CurrentOffset + NewOffset, TheUser));
+          WorkList.push(CurrentOffset + NewOffset, TheUser);
           break;
         }
       case Instruction::Add:
@@ -151,7 +192,7 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
           }
 
           int64_t Addend = cast<ConstantInt>(OtherOperand)->getSExtValue();
-          WorkList.push(std::make_pair(CurrentOffset + Addend, TheUser));
+          WorkList.push(CurrentOffset + Addend, TheUser);
           break;
         }
       case Instruction::Call:
@@ -197,9 +238,7 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
             assert(!Callee->isVarArg());
 
             // If not already considered, enqueue the argument to the worklist
-            pushIfNew(SeenArgs,
-                      WorkList,
-                      std::make_pair(CurrentOffset, TargetArg));
+            WorkList.pushIfNew(CurrentOffset, TargetArg);
           }
           break;
         }
@@ -210,22 +249,22 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
           for (User *FunctionUse : CurrentFunction->users()) {
             auto Call = cast<CallInst>(FunctionUse);
             assert(Call->getCalledFunction() == CurrentFunction);
-            pushIfNew(SeenArgs,
-                      WorkList,
-                      std::make_pair(CurrentOffset,
-                                     static_cast<Value *>(Call)));
+            WorkList.pushIfNew(CurrentOffset, static_cast<Value *>(Call));
           }
           break;
         }
       default:
         // Unhandled situation, propagate an error value until the next load
-        WorkList.push(std::make_pair(ErrorOffset, TheUser));
+        WorkList.push(ErrorOffset, TheUser);
       }
     }
 
     for (auto Replacement : Replacements)
-      std::get<0>(Replacement)->replaceUsesOfWith(std::get<1>(Replacement),
-                                                  std::get<2>(Replacement));
+      if (std::get<1>(Replacement) == nullptr)
+        cast<Instruction>(std::get<0>(Replacement))->eraseFromParent();
+      else
+        std::get<0>(Replacement)->replaceUsesOfWith(std::get<1>(Replacement),
+                                                    std::get<2>(Replacement));
   }
 
   return true;
@@ -238,39 +277,54 @@ static RegisterPass<CorrectCPUStateUsagePass> X("correct-cpustate-usage",
                                                 false,
                                                 false);
 
-static Type *getTypeAtOffset(const DataLayout *TheLayout,
-                             StructType *TheStruct,
-                             intptr_t Offset) {
+static std::pair<Type *, unsigned> getTypeAtOffset(const DataLayout *TheLayout,
+                                                   StructType *TheStruct,
+                                                   intptr_t Offset,
+                                                   unsigned Depth=0) {
   const StructLayout *Layout = TheLayout->getStructLayout(TheStruct);
   unsigned FieldIndex = Layout->getElementContainingOffset(Offset);
   uint64_t FieldOffset = Layout->getElementOffset(FieldIndex);
-
   Type *VariableType = TheStruct->getTypeAtIndex(FieldIndex);
+  intptr_t FieldEnd = FieldOffset + TheLayout->getTypeSizeInBits(VariableType) / 8;
+
+  DBG("type-at-offset", dbg
+      << std::string(Depth * 2, ' ')
+      << "Offset: " << Offset << " "
+      << "Name: " << TheStruct->getName().str() << " "
+      << "Index: " << FieldIndex << " "
+      << "Field offset: " << FieldOffset << " "
+      << "\n");
+
+  if (Offset >= FieldEnd)
+    return { nullptr, 0 };
 
   if (VariableType->isIntegerTy())
-    return VariableType;
+    return { VariableType, Offset - FieldOffset };
   else if (VariableType->isArrayTy()) {
     Type *ElementType = VariableType->getArrayElementType();
-    if (ElementType->isIntegerTy())
-      return ElementType;
-
     uint64_t ElementSize = TheLayout->getTypeSizeInBits(ElementType) / 8;
+    if (ElementType->isIntegerTy())
+      return { ElementType, (Offset - FieldOffset) % ElementSize };
+
     return getTypeAtOffset(TheLayout,
                            cast<StructType>(ElementType),
-                           (Offset - FieldOffset) % ElementSize);
+                           (Offset - FieldOffset) % ElementSize,
+                           Depth + 1);
 
   } else if (VariableType->isStructTy())
     return getTypeAtOffset(TheLayout,
                            cast<StructType>(VariableType),
-                           Offset - FieldOffset);
+                           Offset - FieldOffset,
+                           Depth + 1);
   else {
     // TODO: do some kind of warning reporting here
-    return nullptr;
+    return { nullptr, 0 };
   }
 }
 
 VariableManager::VariableManager(Module& TheModule,
-                                 Module& HelpersModule) :
+                                 Module& HelpersModule,
+                                 Architecture& TargetArchitecture) :
   TheModule(TheModule),
   Builder(TheModule.getContext()),
   CPUStateType(nullptr),
@@ -278,7 +332,8 @@ VariableManager::VariableManager(Module& TheModule,
   EnvOffset(0),
   Env(nullptr),
   AliasScopeMDKindID(TheModule.getMDKindID("alias.scope")),
-  NoAliasMDKindID(TheModule.getMDKindID("noalias")) {
+  NoAliasMDKindID(TheModule.getMDKindID("noalias")),
+  TargetArchitecture(TargetArchitecture) {
 
   auto *CPUStateAliasDomain = MDNode::getDistinct(TheModule.getContext(),
                                                   ArrayRef<Metadata *>());
@@ -307,9 +362,9 @@ VariableManager::VariableManager(Module& TheModule,
     if (ReturnType->isPointerTy())
       Structs.insert(dyn_cast<StructType>(ReturnType->getPointerElementType()));
 
-    for (Type *Candidate : HelperType->params())
-      if (Candidate->isPointerTy())
-        Structs.insert(dyn_cast<StructType>(Candidate->getPointerElementType()));
+    for (Type *Param : HelperType->params())
+      if (Param->isPointerTy())
+        Structs.insert(dyn_cast<StructType>(Param->getPointerElementType()));
 
     if (startsWith(HelperFunction.getName(), HelperPrefix)
         && HelperFunction.getFunctionType()->getNumParams() > 1) {
@@ -374,6 +429,126 @@ VariableManager::VariableManager(Module& TheModule,
   }
 }
 
+bool VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
+                                            unsigned StoreSize,
+                                            unsigned Offset,
+                                            Value *ToStore) {
+  Value *Target;
+  unsigned Remaining;
+  std::tie(Target, Remaining) = getByCPUStateOffsetInternal(Offset);
+
+  assert(Target != nullptr);
+
+  if (Target == nullptr)
+    return false;
+
+  unsigned ShiftAmount = 0;
+  if (TargetArchitecture.isLittleEndian())
+    ShiftAmount = Remaining;
+  else {
+    // >> (Size1 - Size2) - Remaining;
+    Type *PointeeTy = Target->getType()->getPointerElementType();
+    unsigned GlobalSize = cast<IntegerType>(PointeeTy)->getBitWidth() / 8;
+    assert(GlobalSize != 0);
+    ShiftAmount = (GlobalSize - StoreSize) - Remaining;
+  }
+  ShiftAmount *= 8;
+
+  // Build blanking mask
+  uint64_t BitMask = (StoreSize == 8 ?
+                      (uint64_t) -1
+                      : ((uint64_t) 1 << StoreSize * 8) - 1);
+  assert(ShiftAmount != 64);
+  BitMask <<= ShiftAmount;
+  BitMask = ~BitMask;
+
+  auto *InputStoreTy = cast<IntegerType>(Builder.getIntNTy(StoreSize * 8));
+  auto *FieldTy = cast<IntegerType>(Target->getType()->getPointerElementType());
+  unsigned FieldSize = FieldTy->getBitWidth() / 8;
+
+  // Truncate value to store
+  auto *Truncated = Builder.CreateTrunc(ToStore, InputStoreTy);
+
+  // Are we trying to store more than it fits?
+  if (StoreSize > FieldSize) {
+    // It's OK as long as after what we're storing there's a hole
+    assert(getByCPUStateOffsetInternal(Offset + FieldSize).first == nullptr);
+    Truncated = Builder.CreateTrunc(Truncated, FieldTy);
+  }
+
+  // Re-extend
+  ToStore = Builder.CreateZExt(Truncated, FieldTy);
+
+  if (BitMask != 0) {
+    // Load the value
+    auto *LoadEnvField = Builder.CreateLoad(Target);
+    setAliasScope(LoadEnvField);
+
+    auto *Blanked = Builder.CreateAnd(LoadEnvField, BitMask);
+
+    // Shift value to store
+    ToStore = Builder.CreateShl(ToStore, ShiftAmount);
+
+    // Combine them
+    ToStore = Builder.CreateOr(ToStore, Blanked);
+  }
+
+  // Type *TargetPointer = Target->getType()->getPointerElementType();
+  // Value *ToStore = Builder.CreateZExt(InArguments[0], TargetPointer);
+  auto *Store = Builder.CreateStore(ToStore, Target);
+  setAliasScope(Store);
+
+  return true;
+}
+
+Value *VariableManager::loadFromCPUStateOffset(IRBuilder<> &Builder,
+                                               unsigned LoadSize,
+                                               unsigned Offset) {
+  Value *Target;
+  unsigned Remaining;
+  std::tie(Target, Remaining) = getByCPUStateOffsetInternal(Offset);
+
+  if (Target == nullptr)
+    return nullptr;
+
+  // Load the whole field
+  auto *LoadEnvField = Builder.CreateLoad(Target);
+  setAliasScope(LoadEnvField);
+
+  // Extract the desired part
+  // Shift right of the desired amount
+  unsigned ShiftAmount = 0;
+  if (TargetArchitecture.isLittleEndian())
+    ShiftAmount = Remaining;
+  else {
+    // >> (Size1 - Size2) - Remaining;
+    auto *LoadedTy = cast<IntegerType>(LoadEnvField->getType());
+    unsigned GlobalSize = LoadedTy->getBitWidth() / 8;
+    assert(GlobalSize != 0);
+    ShiftAmount = (GlobalSize - LoadSize) - Remaining;
+  }
+  ShiftAmount *= 8;
+  Value *Result = LoadEnvField;
+
+  if (ShiftAmount != 0)
+    Result = Builder.CreateLShr(Result, ShiftAmount);
+
+  Type *LoadTy = Builder.getIntNTy(LoadSize * 8);
+
+  // Are we trying to load more than its available in the field?
+  if (auto FieldTy = dyn_cast<IntegerType>(Result->getType())) {
+    unsigned FieldSize = FieldTy->getBitWidth() / 8;
+    if (FieldSize < LoadSize) {
+      // It's OK as long as after what we can't load there's a hole
+      assert(getByCPUStateOffsetInternal(Offset + FieldSize).first == nullptr);
+      Result = Builder.CreateZExt(Result, LoadTy);
+    }
+  }
+
+  // Truncate of the desired amount
+  return Builder.CreateTrunc(Result, LoadTy);
+}
+
 // TODO: `newFunction` reflects the tcg terminology but in this context is
 //       highly misleading
 void VariableManager::newFunction(Instruction *Delimiter,
@@ -434,19 +609,38 @@ static ConstantInt *fromBytes(IntegerType *Type, void *Data) {
 // TODO: document that it can return nullptr
 GlobalVariable* VariableManager::getByCPUStateOffset(intptr_t Offset,
                                                      std::string Name) {
+  GlobalVariable *Result = nullptr;
+  unsigned Remaining;
+  std::tie(Result, Remaining) = getByCPUStateOffsetInternal(Offset, Name);
+  assert(Remaining == 0);
+  return Result;
+}
+
+std::pair<GlobalVariable*, unsigned>
+VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
+                                             std::string Name) {
   if (Offset == ErrorOffset)
-    return nullptr;
+    return { nullptr, 0 };
 
   GlobalsMap::iterator it = CPUStateGlobals.find(Offset);
   if (it == CPUStateGlobals.end() ||
       (Name.size() != 0 && !it->second->getName().equals_lower(Name))) {
-    Type *VariableType = getTypeAtOffset(ModuleLayout,
-                                         CPUStateType,
-                                         Offset);
+    Type *VariableType;
+    unsigned Remaining;
+    std::tie(VariableType, Remaining) = getTypeAtOffset(ModuleLayout,
+                                                        CPUStateType,
+                                                        Offset);
+
+    // Check we're not trying to go inside an existing variable
+    if (Remaining != 0) {
+      GlobalsMap::iterator it = CPUStateGlobals.find(Offset - Remaining);
+      if (it != CPUStateGlobals.end())
+        return { it->second, Remaining };
+    }
 
     // Unsupported type, let the caller handle the situation
     if (VariableType == nullptr)
-      return nullptr;
+      return { nullptr, 0 };
 
     if (Name.size() == 0) {
       std::stringstream NameStream;
@@ -455,8 +649,8 @@ GlobalVariable* VariableManager::getByCPUStateOffset(intptr_t Offset,
     }
 
     // TODO: offset could be negative, we could segfault here
-    ConstantInt *InitialValue = fromBytes(cast<IntegerType>(VariableType),
-                                          ptc.initialized_env - EnvOffset + Offset);
+    auto *InitialValue = fromBytes(cast<IntegerType>(VariableType),
+                                   ptc.initialized_env - EnvOffset + Offset);
 
     auto *NewVariable = new GlobalVariable(TheModule,
                                            VariableType,
@@ -473,9 +667,9 @@ GlobalVariable* VariableManager::getByCPUStateOffset(intptr_t Offset,
 
     CPUStateGlobals[Offset] = NewVariable;
 
-    return NewVariable;
+    return { NewVariable, Remaining };
   } else {
-    return it->second;
+    return { it->second, 0 };
   }
 }
 

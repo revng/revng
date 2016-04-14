@@ -637,7 +637,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
 
   // Instantiate helpers
   VariableManager Variables(*TheModule,
-                            *HelpersModule);
+                            *HelpersModule,
+                            TargetArchitecture);
 
   auto *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
   JumpTargetManager JumpTargets(MainFunction,
