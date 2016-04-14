@@ -612,6 +612,32 @@ JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
   }
 }
 
+void JumpTargetManager::unvisit(BasicBlock *BB) {
+  if (Visited.find(BB) != Visited.end()) {
+    std::vector<BasicBlock *> WorkList;
+    WorkList.push_back(BB);
+
+    while (!WorkList.empty()) {
+      BasicBlock *Current = WorkList.back();
+      WorkList.pop_back();
+
+      Visited.erase(Current);
+
+      auto Successors = make_range(succ_begin(Current), succ_end(Current));
+      for (BasicBlock *Successor : Successors) {
+        if (Visited.find(Successor) != Visited.end()
+            && !Successor->empty()) {
+          auto *Call = dyn_cast<CallInst>(&*Successor->begin());
+          if (Call == nullptr
+              || Call->getCalledFunction()->getName() != "newpc") {
+            WorkList.push_back(Successor);
+          }
+        }
+      }
+    }
+  }
+}
+
 /// Get or create a block for the given PC
 BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
   if (!isExecutableAddress(PC)) {
@@ -623,6 +649,7 @@ BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
   BlockMap::iterator TargetIt = JumpTargets.find(PC);
   if (TargetIt != JumpTargets.end()) {
     // Case 1: there's already a BasicBlock for that address, return it
+    unvisit(TargetIt->second);
     return TargetIt->second;
   }
 
@@ -641,6 +668,7 @@ BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
              && InstrIt->second != ContainingBlock->end());
       NewBlock = ContainingBlock->splitBasicBlock(InstrIt->second);
     }
+    unvisit(NewBlock);
   } else {
     // Case 3: the address has never been met, create a temporary one, register
     // it for future exploration and return it
