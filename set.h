@@ -38,7 +38,7 @@ public:
 
   bool runOnFunction(llvm::Function &F) override;
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
 private:
   void enqueueStores(llvm::LoadInst *Start,

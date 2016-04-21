@@ -514,11 +514,13 @@ private:
   /// \return the newly created OSR, possibly expressed in terms of \p V itself.
   OSR createOSR(llvm::Value *V, llvm::BasicBlock *BB);
 
+public:
+  using BVVector = llvm::SmallVector<BoundedValue, 2>;
+
 private:
   // TODO: why value and not instruction?
   std::map<const llvm::Value *, const OSR> OSRs;
   BVMap BVs;
-  using BVVector = llvm::SmallVector<BoundedValue, 2>;
   std::map<const llvm::Instruction *, BVVector> Constraints;
 };
 

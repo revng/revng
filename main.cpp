@@ -27,9 +27,6 @@ extern "C" {
 #include "ptcinterface.h"
 #include "codegenerator.h"
 
-static const unsigned BUF_SIZE = 4096;
-static const unsigned MAX_INPUT_BUFFER = 10 * 1024 * 1024;
-
 PTCInterface ptc = {}; ///< The interface with the PTC library.
 
 struct ProgramParameters {

@@ -5,7 +5,7 @@
 
 #define FAILURE 666
 #define MAX_OPERATIONS 10
-#define MAX_ARGUMENTS 2
+#define MAX_ARGUMENTS 3
 
 typedef int value_t;
 

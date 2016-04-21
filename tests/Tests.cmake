@@ -78,6 +78,7 @@ endforeach()
 foreach(TEST_NAME ${TESTS})
   add_executable(test-native-${TEST_NAME} ${TEST_SOURCES_${TEST_NAME}})
   set_target_properties(test-native-${TEST_NAME} PROPERTIES COMPILE_FLAGS "${TEST_CFLAGS}")
+  set_target_properties(test-native-${TEST_NAME} PROPERTIES LINK_FLAGS "${TEST_CFLAGS}")
 
   foreach(RUN_NAME ${TEST_RUNS_${TEST_NAME}})
     add_test(NAME run-test-native-${TEST_NAME}-${RUN_NAME}
@@ -125,7 +126,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   endforeach()
 
   string(REPLACE "-" "_" NORMALIZED_ARCH "${ARCH}")
-  set(TEST_CFLAGS_${ARCH} "${TEST_CFLAGS} -D_GNU_SOURCE -DTARGET_${NORMALIZED_ARCH}")
+  set(TEST_CFLAGS_${ARCH} "${TEST_CFLAGS_${ARCH}} ${TEST_CFLAGS} -D_GNU_SOURCE -DTARGET_${NORMALIZED_ARCH}")
 
   # Create external project using the cross-compiler
   ExternalProject_Add(TEST_PROJECT_${ARCH}
@@ -135,6 +136,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
     -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/tests/install-${ARCH}
     -DCMAKE_C_COMPILER=${C_COMPILER_${ARCH}}
     -DCMAKE_C_FLAGS=${TEST_CFLAGS_${ARCH}}
+    -DLINK_LIBRARIES=${TEST_LINK_LIBRARIES_${ARCH}}
     ${TEST_SOURCES_ARGS})
 
   # Force reconfigure each time we call make

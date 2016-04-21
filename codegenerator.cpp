@@ -3,6 +3,7 @@
 ///        assembly to LLVM IR.
 
 // Standard includes
+#include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -44,8 +45,9 @@ using namespace llvm;
 
 template<typename T, typename... Args>
 inline std::array<T, sizeof...(Args)>
-make_array(Args&&... args)
-{ return { std::forward<Args>(args)... };  }
+make_array(Args&&... args) {
+  return { { std::forward<Args>(args)... } };
+}
 
 // Outline the destructor for the sake of privacy in the header
 CodeGenerator::~CodeGenerator() = default;
@@ -286,7 +288,7 @@ static void replaceFunctionWithRet(Function *ToReplace, uint64_t Result) {
     auto *ReturnType = cast<IntegerType>(ToReplace->getReturnType());
     ResultValue = ConstantInt::get(ReturnType, Result, false);
   } else {
-    assert("No-op functions can only return void or an integer type");
+    assert(false && "No-op functions can only return void or an integer type");
   }
 
   ReturnInst::Create(ToReplace->getParent()->getContext(), ResultValue, Body);
@@ -298,7 +300,7 @@ public:
 
   CpuLoopFunctionPass() : llvm::FunctionPass(ID) { }
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
   bool runOnFunction(llvm::Function &F) override;
 };

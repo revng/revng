@@ -39,7 +39,7 @@ public:
     FunctionPass(ID),
     JTM(JTM) { }
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
   bool runOnFunction(llvm::Function &F) override;
 
@@ -49,7 +49,6 @@ private:
   uint64_t getNextPC(llvm::Instruction *TheInstruction);
 
 private:
-  llvm::Value *PCReg;
   JumpTargetManager *JTM;
 };
 
