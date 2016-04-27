@@ -20,8 +20,7 @@ using namespace llvm;
 
 /// Boring code to get the text of the metadata with the specified kind
 /// associated to the given instruction
-static MDString *getMD(const Instruction *Instruction,
-                       unsigned Kind) {
+static MDString *getMD(const Instruction *Instruction, unsigned Kind) {
   assert(Instruction != nullptr);
 
   Metadata *MD = Instruction->getMetadata(Kind);
@@ -55,12 +54,18 @@ static void writeMetadataIfNew(const Instruction *TheInstruction,
                                StringRef Prefix) {
   MDString *MD = getMD(TheInstruction, MDKind);
   if (MD != nullptr) {
-    const Instruction *PrevInstruction = nullptr;
+    MDString *PrevMD = nullptr;
 
-    if (TheInstruction != TheInstruction->getParent()->begin())
-      PrevInstruction = TheInstruction->getPrevNode();
+    do {
+      if (TheInstruction == TheInstruction->getParent()->begin())
+        TheInstruction = nullptr;
+      else {
+        TheInstruction = TheInstruction->getPrevNode();
+        PrevMD = getMD(TheInstruction, MDKind);
+      }
+    } while (TheInstruction != nullptr && PrevMD == nullptr);
 
-    if (PrevInstruction == nullptr || getMD(PrevInstruction, MDKind) != MD)
+    if (TheInstruction == nullptr || PrevMD != MD)
       Output << Prefix << MD->getString();
 
   }
@@ -85,7 +90,7 @@ void DebugAnnotationWriter::emitInstructionAnnot(const Instruction *Instr,
   if (Instr->getParent()->getParent()->getName() != "root")
     return;
 
-  writeMetadataIfNew(Instr, OriginalInstrMDKind, Output, "\n\n  ; ");
+  writeMetadataIfNew(Instr, OriginalInstrMDKind, Output, "\n  ; ");
   writeMetadataIfNew(Instr, PTCInstrMDKind, Output, "\n  ; ");
 
   if (DebugInfo) {
