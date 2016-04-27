@@ -1271,7 +1271,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
 
       Function *BSwapFunction = Intrinsic::getDeclaration(&TheModule,
                                                           Intrinsic::bswap,
-                                                          { RegisterType });
+                                                          { SwapType });
       Value *Swapped = Builder.CreateCall(BSwapFunction, Truncated);
 
       return v { Builder.CreateZExt(Swapped, RegisterType) };
