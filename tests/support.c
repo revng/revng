@@ -213,6 +213,37 @@ void unknownPC() {
   abort();
 }
 
+void newpc(uint64_t pc,
+           uint64_t instruction_size,
+           uint32_t is_first,
+           uint8_t *vars, ...) {
+  const size_t buffer_size = sizeof(uint64_t) * 2 + 3;
+  char buffer[sizeof(uint64_t) * 2 + 3] = { 0 };
+  char *last_pos = buffer + buffer_size - 1;
+
+  if (!is_first)
+    return;
+
+  *last_pos = '\n';
+  last_pos--;
+
+  const char *hex_map = "0123456789abcdef";
+
+  if (pc == 0)
+    write(2, "0x0\n", 4);
+  else {
+    while (pc != 0) {
+      *last_pos-- = hex_map[pc & 0xf];
+      pc >>= 4;
+    }
+
+    *last_pos-- = 'x';
+    *last_pos = '0';
+
+    write(2, last_pos, buffer_size - (last_pos - buffer));
+  }
+}
+
 int main(int argc, char *argv[]) {
   saved_argc = argc;
   saved_argv = argv;

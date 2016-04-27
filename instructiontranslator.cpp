@@ -481,6 +481,7 @@ InstructionTranslator::InstructionTranslator(IRBuilder<>& Builder,
                                 {
                                   Type::getInt64Ty(Context),
                                   Type::getInt64Ty(Context),
+                                  Type::getInt32Ty(Context),
                                   Type::getInt8Ty(Context)->getPointerTo()
                                 },
                                 true);
@@ -490,7 +491,8 @@ InstructionTranslator::InstructionTranslator(IRBuilder<>& Builder,
                                  &TheModule);
 }
 
-void InstructionTranslator::removeNewPCMarkers(std::string &CoveragePath) {
+void InstructionTranslator::finalizeNewPCMarkers(std::string &CoveragePath,
+                                                 bool EnableTracing) {
   std::vector<Instruction *> ToDelete;
   std::ofstream Output(CoveragePath);
 
@@ -498,26 +500,36 @@ void InstructionTranslator::removeNewPCMarkers(std::string &CoveragePath) {
   for (User *U : NewPCMarker->users()) {
     auto *Call = cast<CallInst>(U);
     if (Call->getParent() != nullptr) {
-      // Register the call to be delete
-      ToDelete.push_back(Call);
-
       // Report the instruction on the coverage CSV
       using CI = ConstantInt;
       uint64_t PC = (cast<CI>(Call->getArgOperand(0)))->getLimitedValue();
       uint64_t Size = (cast<CI>(Call->getArgOperand(1)))->getLimitedValue();
+      bool IsJT = JumpTargets.isJumpTarget(PC);
       Output << "0x" << PC
              << ",0x" << Size
-             << "," << (JumpTargets.isJumpTarget(PC) ? "1" : "0")
+             << "," << (IsJT ? "1" : "0")
              << "," << (JumpTargets.isReliablePC(PC) ? "1" : "0")
              << std::endl;
+
+      if (EnableTracing) {
+        unsigned ArgCount = Call->getNumArgOperands();
+        Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
+        for (unsigned I = 3; I < ArgCount - 1; I++)
+          Call->setArgOperand(I, Call->getArgOperand(ArgCount - 1));
+      } else {
+        // Register the call to be delete
+        ToDelete.push_back(Call);
+      }
     }
   }
   Output << std::dec;
 
-  for (Instruction *TheInstruction : ToDelete)
-    TheInstruction->eraseFromParent();
+  if (!EnableTracing) {
+    for (Instruction *TheInstruction : ToDelete)
+      TheInstruction->eraseFromParent();
 
-  NewPCMarker->eraseFromParent();
+    NewPCMarker->eraseFromParent();
+  }
 }
 
 std::tuple<bool, MDNode *, uint64_t, uint64_t>
@@ -570,7 +582,8 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
   // in case we have to split a basic block
   std::vector<Value *> Args = {
     Builder.getInt64(PC),
-    Builder.getInt64(NextPC - PC)
+    Builder.getInt64(NextPC - PC),
+    Builder.getInt32(-1)
   };
   PointerType *VoidPointerTy = Type::getInt8Ty(Context)->getPointerTo();
   for (Value *Local : Variables.locals())

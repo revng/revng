@@ -55,6 +55,9 @@ public:
   ///        ".coverage.csv" suffix will be used.
   /// \param EnableOSRA specify whether OSRA should be used to discover
   ///        additional jump targets or not.
+  /// \param EnableTracing specify whether tracing in the ouptut binary should
+  ///        be enabled, that is, whether calls to an external `newPC` function
+  ///        should be removed at the end of the translation or not.
   CodeGenerator(std::string Input,
                 Architecture& Target,
                 std::string Output,
@@ -63,7 +66,8 @@ public:
                 std::string Debug,
                 std::string LinkingInfo,
                 std::string Coverage,
-                bool EnableOSRA);
+                bool EnableOSRA,
+                bool EnableTracing);
 
   ~CodeGenerator();
 
@@ -109,6 +113,7 @@ private:
 
   std::string CoveragePath;
   bool EnableOSRA;
+  bool EnableTracing;
 };
 
 #endif // _CODEGENERATOR_H

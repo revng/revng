@@ -99,10 +99,15 @@ public:
   ///         helper can change the program counter.
   bool translateCall(PTCInstruction *Instr);
 
-  /// \brief Cleanup of PC calls and emission of coverage information
+  /// \brief Handle calls to `newPC` marker and emit coverage information
+  ///
+  /// This function can either remove calls to `newPC` markers or finalized them
+  /// with updated information for run-time tracing purposes.
   ///
   /// \param CoveragePath path where the coverage information should be stored.
-  void removeNewPCMarkers(std::string &CoveragePath);
+  /// \param EnableTracing whether calls to an external `newPC` function should
+  ///        be removed or not.
+  void finalizeNewPCMarkers(std::string &CoveragePath, bool EnableTracing);
 
   /// \brief Notifies InstructionTranslator about a new PTC translation
   void reset() { LabeledBasicBlocks.clear(); }

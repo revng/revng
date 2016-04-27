@@ -39,6 +39,7 @@ struct ProgramParameters {
   const char *LinkingInfoPath;
   const char *CoveragePath;
   bool NoOSRA;
+  bool EnableTracing;
 };
 
 using LibraryDestructor = GenericFunctor<decltype(&dlclose), &dlclose>;
@@ -140,6 +141,8 @@ static int parseArgs(int Argc, const char *Argv[],
                "enable verbose logging."),
     OPT_BOOLEAN('O', "no-osra", &Parameters->NoOSRA,
                 "disable OSRA"),
+    OPT_BOOLEAN('t', "tracing", &Parameters->EnableTracing,
+                "enable PC tracing in the output binary (through newPC)"),
     OPT_END(),
   };
 
@@ -237,7 +240,8 @@ int main(int argc, const char *argv[]) {
                           std::string(Parameters.DebugPath),
                           std::string(Parameters.LinkingInfoPath),
                           std::string(Parameters.CoveragePath),
-                          !Parameters.NoOSRA);
+                          !Parameters.NoOSRA,
+                          Parameters.EnableTracing);
 
   Generator.translate(Parameters.EntryPointAddress, "root");
 

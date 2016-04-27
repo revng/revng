@@ -60,13 +60,15 @@ CodeGenerator::CodeGenerator(std::string Input,
                              std::string Debug,
                              std::string LinkingInfo,
                              std::string Coverage,
-                             bool EnableOSRA) :
+                             bool EnableOSRA,
+                             bool EnableTracing) :
   TargetArchitecture(Target),
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
   OutputPath(Output),
   Debug(new DebugHelper(Output, Debug, TheModule.get(), DebugInfo)),
-  EnableOSRA(EnableOSRA)
+  EnableOSRA(EnableOSRA),
+  EnableTracing(EnableTracing)
 {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
@@ -918,7 +920,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   JumpTargets.translateIndirectJumps();
 
   purgeDeadBlocks(MainFunction);
-  Translator.removeNewPCMarkers(CoveragePath);
+  Translator.finalizeNewPCMarkers(CoveragePath, EnableTracing);
   Debug->generateDebugInfo();
 
 }
