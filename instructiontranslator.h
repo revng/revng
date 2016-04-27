@@ -49,6 +49,14 @@ public:
                         Architecture& SourceArchitecture,
                         Architecture& TargetArchitecture);
 
+  /// \brief Result status of the translation of a PTC opcode
+  enum TranslationResult {
+    Abort, ///< An error occurred during translation, call abort and stop
+    Stop, ///< Do not proceed with translation
+    Success, ///< The translation was successful
+    ForceNewPC ///< Successful, but force a new basic block for the next PC
+  };
+
   /// \brief Handle a new instruction from the input code
   ///
   /// \param Instr the newly met PTCInstruction;
@@ -64,13 +72,13 @@ public:
   ///                 block should be created from the PC associate to
   ///                 \p Instr.
   ///
-  /// \return a tuple with 4 entries: a `bool` specifying whether the
-  ///         translation should stop or not, an `MDNode` containing the
-  ///         disassembled instruction and the value of the PC and two
+  /// \return a tuple with 4 entries: the
+  ///         InstructionTranslator::TranslationResult, an `MDNode` containing
+  ///         the disassembled instruction and the value of the PC and two
   ///         `uint64_t` representing the current and next PC.
   // TODO: rename to newPC
   // TODO: the signature of this function is ugly
-  std::tuple<bool,
+  std::tuple<TranslationResult,
     llvm::MDNode *,
     uint64_t,
     uint64_t> newInstruction(PTCInstruction *Instr,
@@ -85,19 +93,17 @@ public:
   /// \param PC the PC associated to \p Instr.
   /// \param NextPC the PC associated to instruction after \p Instr.
   ///
-  /// \return true if the translation must be stopped (i.e., an error has been
-  ///         met during translation).
-  bool translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC);
+  /// \return see InstructionTranslator::TranslationResult.
+  TranslationResult translate(PTCInstruction *Instr,
+                              uint64_t PC,
+                              uint64_t NextPC);
 
   /// \brief Translate a call to an helper
   ///
   /// \param Instr the PTCInstruction of the call to the helper.
   ///
-  /// \return true if this call to the helper requires the creation of
-  ///         a jump to the dispatcher and a new jump target for the
-  ///         PC coming after the call, or, in other terms, if the
-  ///         helper can change the program counter.
-  bool translateCall(PTCInstruction *Instr);
+  /// \return see InstructionTranslator::TranslationResult.
+  TranslationResult translateCall(PTCInstruction *Instr);
 
   /// \brief Handle calls to `newPC` marker and emit coverage information
   ///

@@ -532,13 +532,16 @@ void InstructionTranslator::finalizeNewPCMarkers(std::string &CoveragePath,
   }
 }
 
-std::tuple<bool, MDNode *, uint64_t, uint64_t>
+std::tuple<InstructionTranslator::TranslationResult,
+           MDNode *,
+           uint64_t,
+           uint64_t>
 InstructionTranslator::newInstruction(PTCInstruction *Instr,
                                       PTCInstruction *Next,
                                       uint64_t EndPC,
                                       bool IsFirst,
                                       bool ForceNew) {
-  using R = std::tuple<bool, MDNode *, uint64_t, uint64_t>;
+  using R = std::tuple<TranslationResult, MDNode *, uint64_t, uint64_t>;
   assert(Instr != nullptr);
   const PTC::Instruction TheInstruction(Instr);
   // A new original instruction, let's create a new metadata node
@@ -572,7 +575,7 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
         Variables.newBasicBlock();
       } else {
         // The block contains already translated code, early exit
-        return R { true, MDOriginalInstr, PC, NextPC };
+        return R { Stop, MDOriginalInstr, PC, NextPC };
       }
     }
   }
@@ -601,7 +604,7 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
       JumpTargets.registerInstruction(PC, Call);
   }
 
-  return R { false, MDOriginalInstr, PC, NextPC };
+  return R { Success, MDOriginalInstr, PC, NextPC };
 }
 
 static StoreInst *getLastUniqueWrite(BasicBlock *BB, Value *Register) {
@@ -642,18 +645,22 @@ static StoreInst *getLastUniqueWrite(BasicBlock *BB, Value *Register) {
   return Result;
 }
 
-bool InstructionTranslator::translateCall(PTCInstruction *Instr) {
+InstructionTranslator::TranslationResult
+InstructionTranslator::translateCall(PTCInstruction *Instr) {
   const PTC::CallInstruction TheCall(Instr);
 
-  auto LoadArgs = [this] (uint64_t TemporaryId) -> Value * {
-    auto *Load = Builder.CreateLoad(Variables.getOrCreate(TemporaryId));
+  std::vector<Value *> InArgs;
+
+  for (uint64_t TemporaryId : TheCall.InArguments) {
+    auto *Temporary = Variables.getOrCreate(TemporaryId, true);
+    if (Temporary == nullptr)
+      return Abort;
+    auto *Load = Builder.CreateLoad(Temporary);
     Variables.setAliasScope(Load);
-    return Load;
-  };
+    InArgs.push_back(Load);
+  }
 
   auto GetValueType = [] (Value *Argument) { return Argument->getType(); };
-
-  std::vector<Value *> InArgs = (TheCall.InArguments | LoadArgs).toVector();
   std::vector<Type *> InArgsType = (InArgs | GetValueType).toVector();
 
   // TODO: handle multiple return arguments
@@ -663,7 +670,9 @@ bool InstructionTranslator::translateCall(PTCInstruction *Instr) {
   Type *ResultType = nullptr;
 
   if (TheCall.OutArguments.size() != 0) {
-    ResultDestination = Variables.getOrCreate(TheCall.OutArguments[0]);
+    ResultDestination = Variables.getOrCreate(TheCall.OutArguments[0], false);
+    if (ResultDestination == nullptr)
+      return Abort;
     ResultType = ResultDestination->getType()->getPointerElementType();
   } else {
     ResultType = Builder.getVoidTy();
@@ -696,41 +705,47 @@ bool InstructionTranslator::translateCall(PTCInstruction *Instr) {
     Builder.CreateCondBr(NoChange, Fallthrough, JumpTargets.dispatcher());
     Blocks.push_back(Fallthrough);
     Builder.SetInsertPoint(Fallthrough);
-    return true;
+    return ForceNewPC;
   }
 
-  return false;
+  return Success;
 }
 
-bool InstructionTranslator::translate(PTCInstruction *Instr,
-                                      uint64_t PC,
-                                      uint64_t NextPC) {
+InstructionTranslator::TranslationResult
+InstructionTranslator::translate(PTCInstruction *Instr,
+                                 uint64_t PC,
+                                 uint64_t NextPC) {
   const PTC::Instruction TheInstruction(Instr);
 
-  auto LoadArgs = [this] (uint64_t TemporaryId) -> Value * {
-    auto *Load = Builder.CreateLoad(Variables.getOrCreate(TemporaryId));
+  std::vector<Value *> InArgs;
+  for (uint64_t TemporaryId : TheInstruction.InArguments) {
+    auto *Temporary = Variables.getOrCreate(TemporaryId, true);
+    if (Temporary == nullptr)
+      return Abort;
+
+    auto *Load = Builder.CreateLoad(Temporary);
     Variables.setAliasScope(Load);
-    return Load;
-  };
+    InArgs.push_back(Load);
+  }
 
   auto ConstArgs = TheInstruction.ConstArguments;
-  auto InArgs = TheInstruction.InArguments | LoadArgs;
 
   auto Result = translateOpcode(TheInstruction.opcode(),
                                 ConstArgs.toVector(),
-                                InArgs.toVector());
+                                InArgs);
 
   // Check if there was an error while translating the instruction
-  if (!Result) {
-    Builder.CreateCall(TheModule.getFunction("abort"));
-    Builder.CreateUnreachable();
-    return true;
-  }
+  if (!Result)
+    return Abort;
 
   assert(Result->size() == (size_t) TheInstruction.OutArguments.size());
   // TODO: use ZipIterator here
   for (unsigned I = 0; I < Result->size(); I++) {
-    auto *Destination = Variables.getOrCreate(TheInstruction.OutArguments[I]);
+    auto *Destination = Variables.getOrCreate(TheInstruction.OutArguments[I],
+                                              false);
+    if (Destination == nullptr)
+      return Abort;
+
     auto *Value = Result.get()[I];
     auto *Store = Builder.CreateStore(Value, Destination);
     Variables.setAliasScope(Store);
@@ -747,7 +762,7 @@ bool InstructionTranslator::translate(PTCInstruction *Instr,
     }
   }
 
-  return false;
+  return Success;
 }
 
 ErrorOr<std::vector<Value *>>

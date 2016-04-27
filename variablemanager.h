@@ -76,7 +76,7 @@ public:
   ///
   /// \return a `Value` wrapping the requested global or local variable.
   // TODO: rename to getByTemporaryId
-  llvm::Value *getOrCreate(unsigned TemporaryId);
+  llvm::Value *getOrCreate(unsigned TemporaryId, bool Reading);
 
   /// \brief Return the global variable corresponding to \p Offset in the CPU
   ///        state.

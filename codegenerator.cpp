@@ -607,9 +607,8 @@ static void purgeDeadBlocks(Function *F) {
 void CodeGenerator::translate(uint64_t VirtualAddress,
                               std::string Name) {
   // Declare useful functions
-  TheModule->getOrInsertFunction("abort",
-                                 FunctionType::get(Type::getVoidTy(Context),
-                                                   false));
+  auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
+  auto *AbortFunction = TheModule->getOrInsertFunction("abort", AbortTy);
   auto *TargetSetBrkFunction = HelpersModule->getFunction("target_set_brk");
   TheModule->getOrInsertFunction("target_set_brk",
                                  TargetSetBrkFunction->getFunctionType());
@@ -699,6 +698,9 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     uint64_t NextPC = 0;
     uint64_t EndPC = VirtualAddress + ConsumedSize;
     const auto InstructionCount = InstructionList->instruction_count;
+    using IT = InstructionTranslator;
+    IT::TranslationResult Result;
+    bool ForceNewBlock = false;
 
     // Handle the first PTC_INSTRUCTION_op_debug_insn_start
     {
@@ -711,7 +713,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
         }
       }
       PTCInstruction *Instruction = &InstructionList->instructions[j];
-      std::tie(StopTranslation,
+      std::tie(Result,
                MDOriginalInstr,
                PC,
                NextPC) = Translator.newInstruction(Instruction,
@@ -721,8 +723,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
                                                    false);
       j++;
     }
-
-    bool ForceNewBlock = false;
 
     // TODO: shall we move this whole loop in InstructionTranslator?
     for (; j < InstructionCount && !StopTranslation; j++) {
@@ -748,7 +748,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
             }
           }
 
-          std::tie(StopTranslation,
+          std::tie(Result,
                    MDOriginalInstr,
                    PC,
                    NextPC) = Translator.newInstruction(&Instruction,
@@ -762,7 +762,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
         }
       case PTC_INSTRUCTION_op_call:
         {
-          ForceNewBlock |= Translator.translateCall(&Instruction);
+          Result = Translator.translateCall(&Instruction);
 
           // Sometimes libtinycode terminates a basic block with a call, in this
           // case force a fallthrough
@@ -773,7 +773,24 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
           break;
         }
       default:
-        StopTranslation = Translator.translate(&Instruction, PC, NextPC);
+        Result = Translator.translate(&Instruction, PC, NextPC);
+      }
+
+      switch (Result) {
+      case IT::Success:
+        // No-op
+        break;
+      case IT::Abort:
+        Builder.CreateCall(AbortFunction);
+        Builder.CreateUnreachable();
+        StopTranslation = true;
+        break;
+      case IT::Stop:
+        StopTranslation = true;
+        break;
+      case IT::ForceNewPC:
+        ForceNewBlock = true;
+        break;
       }
 
       // Create a new metadata referencing the PTC instruction we have just

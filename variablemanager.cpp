@@ -848,7 +848,7 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
   }
 }
 
-Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
+Value *VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
   assert(Instructions != nullptr);
 
   PTCTemp *Temporary = ptc_temp_get(Instructions, TemporaryId);
@@ -884,7 +884,7 @@ Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
       }
     }
   } else if (Temporary->temp_local) {
-    TemporariesMap::iterator it = LocalTemporaries.find(TemporaryId);
+    auto it = LocalTemporaries.find(TemporaryId);
     if (it != LocalTemporaries.end()) {
       return it->second;
     } else {
@@ -893,10 +893,15 @@ Value* VariableManager::getOrCreate(unsigned int TemporaryId) {
       return NewTemporary;
     }
   } else {
-    TemporariesMap::iterator it = Temporaries.find(TemporaryId);
+    auto it = Temporaries.find(TemporaryId);
     if (it != Temporaries.end()) {
       return it->second;
     } else {
+      // Can't read a temporary if it has never been written, we're probably
+      // translating rubbish
+      if (Reading)
+        return nullptr;
+
       AllocaInst *NewTemporary = Builder.CreateAlloca(VariableType);
       Temporaries[TemporaryId] = NewTemporary;
       return NewTemporary;
