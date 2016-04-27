@@ -572,13 +572,14 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
         // The block is empty, let's fill it
         Blocks.push_back(DivergeTo);
         Builder.SetInsertPoint(DivergeTo);
-        Variables.newBasicBlock();
       } else {
         // The block contains already translated code, early exit
         return R { Stop, MDOriginalInstr, PC, NextPC };
       }
     }
   }
+
+  Variables.newBasicBlock();
 
   // Insert a call to NewPCMarker capturing all the local tempoararies
   // This prevents SROA from transforming them in SSA values, which is bad
