@@ -142,8 +142,8 @@ public:
   template<typename T>
   T *setNoAlias(T *Instruction);
 
-  std::vector<llvm::Value *> locals() {
-    std::vector<llvm::Value *> Locals;
+  std::vector<llvm::AllocaInst *> locals() {
+    std::vector<llvm::AllocaInst *> Locals;
     for (auto Pair : LocalTemporaries)
       Locals.push_back(Pair.second);
     return Locals;

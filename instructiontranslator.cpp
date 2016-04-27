@@ -590,8 +590,11 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
     Builder.getInt32(-1)
   };
   PointerType *VoidPointerTy = Type::getInt8Ty(Context)->getPointerTo();
-  for (Value *Local : Variables.locals())
-    Args.push_back(Builder.CreatePointerCast(Local, VoidPointerTy));
+  for (AllocaInst *Local : Variables.locals())
+    Args.push_back(CastInst::CreatePointerCast(Local,
+                                               VoidPointerTy,
+                                               "",
+                                               Local->getNextNode()));
   Args.push_back(ConstantPointerNull::get(VoidPointerTy));
 
   auto *Call = Builder.CreateCall(NewPCMarker, Args);
