@@ -17,12 +17,12 @@ NR >=2 {
     min = strtonum($2);
 }
 END {
-  printf "-fuse-ld=gold "
-  #printf "-fuse-ld=bfd "
+  #printf "-fuse-ld=gold "
+  printf "-fuse-ld=bfd "
 
   # If using gold omit these two lines
-  #printf "-Wl,--section-start=.elfheaderhelper=0x%x ", min - 1
-  #printf "-Wl,-Ttext-segment=0x%x", pagesize * int((max + pagesize - 1) / pagesize);
+  printf "-Wl,--section-start=.elfheaderhelper=0x%x ", min - 1
+  printf "-Wl,-Ttext-segment=0x%x", pagesize * int((max + pagesize - 1) / pagesize);
 
   print result
 }'
