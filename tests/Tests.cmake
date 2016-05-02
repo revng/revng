@@ -1,6 +1,9 @@
 # Sadly, to use a cross-compiler we need an external CMake project
 include(ExternalProject)
 
+configure_file(tests/li-csv-to-ld-options li-csv-to-ld-options COPYONLY)
+configure_file(tests/support.c support.c COPYONLY)
+
 # Test definitions
 
 set(TEST_CFLAGS "-std=c99 -static")
