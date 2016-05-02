@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 2.8)
 
 project(revamb)
 
@@ -40,5 +40,8 @@ add_executable(revamb ptcdump.cpp main.cpp debughelper.cpp variablemanager.cpp
   jumptargetmanager.cpp instructiontranslator.cpp codegenerator.cpp
   debug.cpp osra.cpp set.cpp argparse/argparse.c)
 target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
+
+# Remove -rdynamic
+set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 
 include(tests/Tests.cmake)
