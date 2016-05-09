@@ -4,6 +4,7 @@
 ///        BasicBlock.
 
 // Standard includes
+#include <cassert>
 #include <cstdint>
 #include <queue>
 #include <sstream>
@@ -75,7 +76,8 @@ bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
             // Remove unreachable right after the exit_tb
             BasicBlock::iterator CallIt(Call);
             BasicBlock::iterator BlockEnd = Call->getParent()->end();
-            assert(++CallIt != BlockEnd && isa<UnreachableInst>(&*CallIt));
+            CallIt++;
+            assert(CallIt != BlockEnd && isa<UnreachableInst>(&*CallIt));
             CallIt->eraseFromParent();
 
             // Cleanup of what's afterwards (only a unconditional jump is
@@ -202,7 +204,7 @@ ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
           Value = read<uint64_t, endianness::big, 1>(Start);
         break;
       default:
-        assert(false);
+        llvm_unreachable("Unexpected read size");
       }
 
       return ConstantInt::get(IntegerType::get(Context, Size * 8), Value);
@@ -618,7 +620,8 @@ void JumpTargetManager::translateIndirectJumps() {
         auto *Branch = BranchInst::Create(Dispatcher, Call);
         BasicBlock::iterator I(Call);
         BasicBlock::iterator BlockEnd(Call->getParent()->end());
-        assert(++I != BlockEnd && isa<UnreachableInst>(&*I));
+        I++;
+        assert(I != BlockEnd && isa<UnreachableInst>(&*I));
         I->eraseFromParent();
         Call->eraseFromParent();
 

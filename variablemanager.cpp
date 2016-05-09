@@ -778,7 +778,7 @@ static ConstantInt *fromBytes(IntegerType *Type, void *Data) {
     return ConstantInt::get(Type, *(static_cast<uint64_t *>(Data)));
   }
 
-  assert(false && "Unexpected type");
+  llvm_unreachable("Unexpected type");
 }
 
 // TODO: document that it can return nullptr

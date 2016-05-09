@@ -127,7 +127,7 @@ public:
         return std::make_pair(CI::get(Int64, lowerExtreme(), isSigned()),
                               CI::get(Int64, LowerBound - 1, isSigned()));
 
-      assert(false && "The BV is unlimited");
+      llvm_unreachable("The BV is unlimited");
     }
 
     bool operator ==(const BoundedValue &Other) const {
@@ -183,7 +183,7 @@ public:
       else if (UpperBound == upperExtreme())
         return (LowerBound - 1) - lowerExtreme();
 
-      assert(false && "The BV is unlimited");
+      llvm_unreachable("The BV is unlimited");
     }
 
     static BoundedValue createGE(const llvm::Value *V,
@@ -257,7 +257,7 @@ public:
       case InconsistentSignedness:
         return std::numeric_limits<uint64_t>::min();
       default:
-        assert(false);
+        llvm_unreachable("Unexpected signedness");
       }
     }
 
@@ -270,7 +270,7 @@ public:
       case InconsistentSignedness:
         return std::numeric_limits<int64_t>::max();
       default:
-        assert(false);
+        llvm_unreachable("Unexpected signedness");
       }
     }
 

@@ -290,7 +290,7 @@ static void replaceFunctionWithRet(Function *ToReplace, uint64_t Result) {
     auto *ReturnType = cast<IntegerType>(ToReplace->getReturnType());
     ResultValue = ConstantInt::get(ReturnType, Result, false);
   } else {
-    assert(false && "No-op functions can only return void or an integer type");
+    llvm_unreachable("No-op functions can only return void or an integer type");
   }
 
   ReturnInst::Create(ToReplace->getParent()->getContext(), ResultValue, Body);
@@ -342,6 +342,8 @@ auto find_unique(Range&& TheRange)
 
   auto Result = Begin;
   assert(Begin != End && ++Result == End);
+  (void) Result;
+  (void) End;
 
   return *Begin;
 }
@@ -923,6 +925,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   bool Result = TheLinker.linkInModule(std::move(HelpersModule),
                                        Linker::LinkOnlyNeeded);
   assert(!Result && "Linking failed");
+  (void) Result;
 
   Variables.setDataLayout(&TheModule->getDataLayout());
 

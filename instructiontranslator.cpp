@@ -3,6 +3,7 @@
 ///        LLVM IR.
 
 // Standard includes
+#include <cassert>
 #include <cstdint>
 #include <fstream>
 #include <queue>
@@ -938,7 +939,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
         Signed = true;
         break;
       default:
-        assert(false);
+        llvm_unreachable("Unexpected opcode");
       }
 
       unsigned LoadSize;
@@ -964,7 +965,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
         LoadSize = 8;
         break;
       default:
-        assert(false);
+        llvm_unreachable("Unexpected opcode");
       }
 
       Value *Result = Variables.loadFromEnvOffset(Builder,
@@ -1005,7 +1006,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
         StoreSize = 8;
         break;
       default:
-        assert(false);
+        llvm_unreachable("Unexpected opcode");
       }
 
       Value *Base = dyn_cast<LoadInst>(InArguments[1])->getPointerOperand();
@@ -1019,6 +1020,7 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
                                                ConstArguments[0],
                                                InArguments[0]);
       assert(Result);
+      (void) Result;
 
       return v { };
     }

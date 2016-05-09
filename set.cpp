@@ -175,6 +175,8 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
       Function *Callee = Call->getCalledFunction();
       assert(Callee != nullptr
              && Callee->getIntrinsicID() == Intrinsic::bswap);
+      (void) Callee;
+
       uint64_t Value = NewOperand->getUniqueInteger().getLimitedValue();
 
       Type *T = NewOperand->getType();
@@ -184,12 +186,16 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
         Value = ByteSwap_32(Value);
       else if (T->isIntegerTy(64))
         Value = ByteSwap_64(Value);
+      else
+        llvm_unreachable("Unexpected type");
 
       NewOperand = ConstantInt::get(T, Value);
     } else {
       // Replace non-const operand with NewOperand
       std::vector<Constant *> Operands;
       bool NonConstFound = false;
+      (void) NonConstFound;
+
       for (Value *Op : I->operand_values()) {
         if (auto *Const = dyn_cast<Constant>(Op)) {
           Operands.push_back(Const);
