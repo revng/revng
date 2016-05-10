@@ -517,10 +517,9 @@ bool OSRAPass::runOnFunction(Function &F) {
         // Get or create an OSR for the non-constant operator, this
         // will be our starting point
         OSR NewOSR = createOSR(OtherOp, I->getParent());
-        const Value *OldValue = OldOSRIt->second.boundedValue()->value();
         if (!IsFree
             && !OldOSRIt->second.isConstant()
-            && NewOSR.isRelativeTo(OldValue)) {
+            && NewOSR.isRelativeTo(OldOSRIt->second.boundedValue()->value())) {
           break;
         }
 
