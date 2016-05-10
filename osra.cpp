@@ -386,9 +386,17 @@ static bool isSupportedOperation(unsigned Opcode,
                                  Constant *ConstantOp,
                                  const DataLayout &DL) {
   // Division by zero
-  if (((Opcode == Instruction::SDiv
-        || Opcode == Instruction::UDiv)
-       && getZExtValue(ConstantOp, DL) == 0))
+  if ((Opcode == Instruction::SDiv
+       || Opcode == Instruction::UDiv)
+      && getZExtValue(ConstantOp, DL) == 0)
+    return false;
+
+  // Shift too much
+  auto *OperandTy = dyn_cast<IntegerType>(ConstantOp->getType());
+  if ((Opcode == Instruction::Shl
+       || Opcode == Instruction::LShr
+       || Opcode == Instruction::AShr)
+      && getZExtValue(ConstantOp, DL) >= OperandTy->getBitWidth())
     return false;
 
   // 128-bit operand
