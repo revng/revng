@@ -34,6 +34,15 @@ struct SegmentInfo {
   bool IsWriteable;
   bool IsExecutable;
   bool IsReadable;
+
+  bool contains(uint64_t Address) {
+    return StartVirtualAddress <= Address && Address < EndVirtualAddress;
+  }
+
+  bool contains(uint64_t Start, uint64_t Size) {
+    return contains(Start) && contains(Start + Size - 1);
+  }
+
 };
 
 /// \brief Basic information about an input/output architecture

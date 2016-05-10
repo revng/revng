@@ -169,9 +169,7 @@ ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
   for (auto &Segment : Segments) {
     // Note: we also consider writeable memory areas because, despite being
     // modifiable, can contain useful information
-    if (Segment.StartVirtualAddress <= Address
-        && Address + Size < Segment.EndVirtualAddress
-        && Segment.IsReadable) {
+    if (Segment.contains(Address, Size) && Segment.IsReadable) {
       auto *Array = cast<ConstantDataArray>(Segment.Variable->getInitializer());
       StringRef RawData = Array->getRawDataValues();
       const unsigned char *RawDataPtr = RawData.bytes_begin();
