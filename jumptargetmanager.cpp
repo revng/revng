@@ -6,6 +6,7 @@
 // Standard includes
 #include <cassert>
 #include <cstdint>
+#include <fstream>
 #include <queue>
 #include <sstream>
 
@@ -596,6 +597,184 @@ void JumpTargetManager::handleSumJump(Instruction *SumJump) {
   }
 }
 
+/// \brief Class to iterate over all the BBs associated to a translated PC
+class BasicBlockVisitor {
+public:
+  BasicBlockVisitor(const SwitchInst *Dispatcher) :
+    Dispatcher(Dispatcher),
+    JumpTargetIndex(0),
+    JumpTargetsCount(Dispatcher->getNumSuccessors()),
+    DL(Dispatcher->getParent()->getParent()->getParent()->getDataLayout()) { }
+
+  void enqueue(BasicBlock *BB) {
+    if (Visited.count(BB))
+      return;
+    Visited.insert(BB);
+
+    uint64_t PC = getPC(BB);
+    if (PC == 0)
+      SamePC.push(BB);
+    else
+      NewPC.push({ BB, PC });
+  }
+
+  // TODO: this function assumes 0 is not a valid PC
+  std::pair<BasicBlock *, uint64_t> pop() {
+    if (!SamePC.empty()) {
+      auto Result = SamePC.front();
+      SamePC.pop();
+      return { Result, 0 };
+    } else if (!NewPC.empty()) {
+      auto Result = NewPC.front();
+      NewPC.pop();
+      return Result;
+    } else if (JumpTargetIndex < JumpTargetsCount) {
+      BasicBlock *BB = Dispatcher->getSuccessor(JumpTargetIndex);
+      JumpTargetIndex++;
+      return { BB, getPC(BB) };
+    } else {
+      return { nullptr, 0 };
+    }
+  }
+
+private:
+  // TODO: this function assumes 0 is not a valid PC
+  uint64_t getPC(BasicBlock *BB) {
+    if (!BB->empty()) {
+      if (auto *Call = dyn_cast<CallInst>(&*BB->begin())) {
+        Function *Callee = Call->getCalledFunction();
+        // TODO: comparing with "newpc" string is sad
+        if (Callee != nullptr && Callee->getName() == "newpc") {
+          Constant *PCOperand = cast<Constant>(Call->getArgOperand(0));
+          return getZExtValue(PCOperand, DL);
+        }
+      }
+    }
+
+    return 0;
+  }
+
+private:
+  const SwitchInst *Dispatcher;
+  unsigned JumpTargetIndex;
+  unsigned JumpTargetsCount;
+  const DataLayout &DL;
+  std::set<BasicBlock *> Visited;
+  std::queue<BasicBlock *> SamePC;
+  std::queue<std::pair<BasicBlock *, uint64_t>> NewPC;
+};
+
+void JumpTargetManager::collectBBSummary(std::string OutputPath) {
+  BasicBlockVisitor BBV(DispatcherSwitch);
+  uint64_t NewPC = 0;
+  uint64_t PC = 0;
+  BasicBlock *BB = nullptr;
+  while (NewPC == 0)
+    std::tie(BB, NewPC) = BBV.pop();
+  BBSummary *Summary = nullptr;
+
+  std::set<GlobalVariable *> CPUStateSet;
+  std::set<Function *> FunctionsSet;
+  std::set<unsigned> OpcodesSet;
+
+  while (BB != nullptr) {
+    if (NewPC != 0) {
+      PC = NewPC;
+      auto It = containingOriginalBB(PC);
+      assert(It != OriginalBBStats.end());
+      Summary = &It->second;
+    }
+
+    // Update stats
+    for (Instruction &I : *BB) {
+      // TODO: Data dependencies
+      unsigned Opcode = I.getOpcode();
+      Summary->Opcode[Opcode]++;
+      OpcodesSet.insert(Opcode);
+
+      switch (Opcode) {
+      case Instruction::Load:
+        {
+          auto *L = static_cast<LoadInst *>(&I);
+          if (auto *State = dyn_cast<GlobalVariable>(L->getPointerOperand())) {
+            CPUStateSet.insert(State);
+            Summary->ReadState[State]++;
+          }
+
+          break;
+        }
+      case Instruction::Store:
+        {
+          auto *S = static_cast<StoreInst *>(&I);
+          if (auto *State = dyn_cast<GlobalVariable>(S->getPointerOperand())) {
+            CPUStateSet.insert(State);
+            Summary->ReadState[State]++;
+          }
+
+          break;
+        }
+      case Instruction::Call:
+        {
+          auto *Call = static_cast<CallInst *>(&I);
+          if (auto *F  = Call->getCalledFunction()) {
+            FunctionsSet.insert(F);
+            Summary->CalledFunctions[F]++;
+          }
+
+          break;
+        }
+      default:
+        break;
+      }
+    }
+
+    std::tie(BB, NewPC) = BBV.pop();
+  }
+
+  std::vector<GlobalVariable *> CPUState;
+  std::copy(CPUStateSet.begin(),
+            CPUStateSet.end(),
+            std::back_inserter(CPUState));
+  std::vector<Function *> Functions;
+  std::copy(FunctionsSet.begin(),
+            FunctionsSet.end(),
+            std::back_inserter(Functions));
+  std::vector<unsigned> Opcodes;
+  std::copy(OpcodesSet.begin(),
+            OpcodesSet.end(),
+            std::back_inserter(Opcodes));
+
+  std::ofstream Output(OutputPath);
+
+  Output << "address,size";
+  for (GlobalVariable *V : CPUState)
+    Output << ",read_" << V->getName().str();
+  for (GlobalVariable *V : CPUState)
+    Output << ",write_" << V->getName().str();
+  for (Function *F : Functions)
+    Output << ",call_" << F->getName().str();
+  for (unsigned O : Opcodes)
+    Output << ",opcode_" << std::dec << O;
+  Output << "\n";
+
+  for (auto P : OriginalBBStats) {
+    Output << std::dec << P.first << ","
+        << std::dec << P.second.Size;
+
+    for (GlobalVariable *V : CPUState)
+      Output << "," << std::dec << P.second.ReadState[V];
+    for (GlobalVariable *V : CPUState)
+      Output << "," << std::dec << P.second.WrittenState[V];
+    for (Function *F : Functions)
+      Output << "," << std::dec << P.second.CalledFunctions[F];
+    for (unsigned O : Opcodes)
+      Output << "," << std::dec << P.second.Opcode[O];
+
+    Output << "\n";
+  }
+
+}
+
 void JumpTargetManager::translateIndirectJumps() {
   if (ExitTB->use_empty())
     return;
@@ -678,8 +857,7 @@ void JumpTargetManager::unvisit(BasicBlock *BB) {
 
 /// Get or create a block for the given PC
 BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC, bool Reliable) {
-  if (!isExecutableAddress(PC)
-      || !isInstructionAligned(PC))
+  if (!isExecutableAddress(PC) || !isInstructionAligned(PC))
     return nullptr;
 
   if (Reliable)
@@ -700,6 +878,8 @@ BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC, bool Reliable) {
   if (InstrIt != OriginalInstructionAddresses.end()) {
     // Case 2: the address has already been met, but needs to be promoted to
     //         BasicBlock level.
+    registerOriginalBB(PC, 0);
+
     BasicBlock *ContainingBlock = InstrIt->second->getParent();
     if (InstrIt->second == &*ContainingBlock->begin())
       NewBlock = ContainingBlock;

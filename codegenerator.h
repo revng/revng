@@ -66,6 +66,7 @@ public:
                 std::string Debug,
                 std::string LinkingInfo,
                 std::string Coverage,
+                std::string BBSummary,
                 bool EnableOSRA,
                 bool EnableTracing);
 
@@ -114,6 +115,7 @@ private:
   std::string CoveragePath;
   bool EnableOSRA;
   bool EnableTracing;
+  std::string BBSummaryPath;
 };
 
 #endif // _CODEGENERATOR_H

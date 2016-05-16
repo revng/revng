@@ -21,6 +21,25 @@ class Value;
 
 class JumpTargetManager;
 
+template<typename Map> typename Map::const_iterator
+  containing(Map const& m, typename Map::key_type const& k) {
+  typename Map::const_iterator it = m.upper_bound(k);
+  if(it != m.begin()) {
+    return --it;
+  }
+  return m.end();
+}
+
+template<typename Map> typename Map::iterator
+  containing(Map & m, typename Map::key_type const& k) {
+  typename Map::iterator it = m.upper_bound(k);
+  if(it != m.begin()) {
+    return --it;
+  }
+  return m.end();
+}
+
+
 /// \brief Transform constant writes to the PC in jumps
 ///
 /// This pass looks for all the calls to the `ExitTB` function calls, looks for
@@ -53,6 +72,30 @@ private:
 };
 
 class JumpTargetManager {
+private:
+  /// \brief Data structure to collect statistics about an input basic block
+  struct BBSummary {
+    BBSummary(uint32_t Size) : Size(Size) { }
+
+    /// Size in bytes of the basic block
+    unsigned Size;
+    /// Associative map keeping track of how many times a certain register has
+    /// been read
+    std::map<llvm::GlobalVariable *, unsigned> ReadState;
+    /// Associative map keeping track of how many times a certain register has
+    /// been written
+    std::map<llvm::GlobalVariable *, unsigned> WrittenState;
+    /// Associative map keeping track of how many times a certain function has
+    /// been called in the associated basic block. This is particularly useful
+    /// to count calls to QEMU helper functions and to count the amount of
+    /// instructions (in the form of calls to `newpc`)
+    std::map<llvm::Function *, unsigned> CalledFunctions;
+    /// Associative map keeping track of how many times a certain LLVM
+    /// instruction is used in the code generated translating the input basic
+    /// block
+    std::map<unsigned, unsigned> Opcode;
+  };
+
 public:
   using BlockWithAddress = std::pair<uint64_t, llvm::BasicBlock *>;
   static const BlockWithAddress NoMoreTargets;
@@ -96,6 +139,14 @@ public:
 
   /// \brief Translate the non-constant jumps into jumps to the dispatcher
   void translateIndirectJumps();
+
+  /// \brief Collect staticists about all the translated basic blocks
+  ///
+  /// Create a CSV containing all the information in BBSummary for all the
+  /// translated basic blocks.
+  ///
+  /// \param OutputPath path where the output CSV file should be stored.
+  void collectBBSummary(std::string OutputPath);
 
   /// \brief Return the most recent instruction writing the program counter
   ///
@@ -242,7 +293,75 @@ public:
   llvm::Constant *readConstantPointer(llvm::Constant *Address,
 				      llvm::Type *PointerTy);
 
+  /// \brief Register a new basic block in terms of the input architecture
+  ///
+  /// \param Address virtual address where the basic block starts.
+  /// \param Size size, in bytes, of the given basic block.
+  void registerOriginalBB(uint64_t Address, uint32_t Size) {
+    auto ItStart = containingOriginalBB(Address);
+    bool StartMatches = ItStart != OriginalBBStats.end();
+
+    if (Size == 0) {
+      assert(StartMatches);
+      uint32_t NewSize = ItStart->second.Size - (Address - ItStart->first);
+      OriginalBBStats.insert({ Address, BBSummary(NewSize) });
+      ItStart->second.Size = ItStart->first - Address;
+      return;
+    }
+
+    auto ItEnd = containingOriginalBB(Address + Size);
+    bool EndMatches = ItEnd != OriginalBBStats.end();
+
+    if (!StartMatches && !EndMatches) {
+      OriginalBBStats.insert({ Address, BBSummary(Size) });
+    } else if (StartMatches && !EndMatches) {
+      ItStart->second.Size = ItStart->first - Address;
+      OriginalBBStats.insert({ Address, BBSummary(Size) });
+    } else if (!StartMatches && EndMatches) {
+      OriginalBBStats.insert({ Address, BBSummary(ItEnd->first - Address) });
+    } else if (StartMatches && EndMatches) {
+      // 100% match
+      if (Address == ItStart->first && Size == ItStart->second.Size)
+        return;
+
+      // Reduce the previous basic block
+      ItStart->second.Size = ItStart->first - Address;
+      assert(ItStart->second.Size != 0);
+
+      // Set the size of the new basic block
+      if (ItEnd == ItStart) {
+        if (!(Address + Size == ItEnd->first + ItEnd->second.Size)) {
+          // We're in a mistranslation situation, just ignore the error
+          // TODO: emit a warning
+          return;
+        }
+      } else {
+        Size = ItEnd->first - Address;
+      }
+
+      // Create the new basic block
+      OriginalBBStats.insert({ Address, BBSummary(Size) });
+
+    } else {
+      llvm_unreachable("Unexpected situation");
+    }
+  }
+
 private:
+  /// \brief Return an iterator to the entry containing the given address range
+  typename std::map<uint64_t, BBSummary>::iterator
+  containingOriginalBB(uint64_t Address) {
+    // Get the less or equal entry
+    auto It = containing(OriginalBBStats, Address);
+
+    // Check if it's within the upper bound
+    if (It == OriginalBBStats.end()
+        || !(Address < It->first + It->second.Size))
+      return OriginalBBStats.end();
+
+    return It;
+  }
+
   // TODO: instead of a gigantic switch case we could map the original memory
   //       area and write the address of the translated basic block at the jump
   //       target
@@ -283,6 +402,8 @@ private:
 
   std::set<uint64_t> ReliablePCs;
   bool EnableOSRA;
+
+  std::map<uint64_t, BBSummary> OriginalBBStats;
 };
 
 #endif // _JUMPTARGETMANAGER_H

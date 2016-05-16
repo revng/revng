@@ -60,6 +60,7 @@ CodeGenerator::CodeGenerator(std::string Input,
                              std::string Debug,
                              std::string LinkingInfo,
                              std::string Coverage,
+                             std::string BBSummary,
                              bool EnableOSRA,
                              bool EnableTracing) :
   TargetArchitecture(Target),
@@ -85,6 +86,10 @@ CodeGenerator::CodeGenerator(std::string Input,
   if (Coverage.size() == 0)
     Coverage = Output + ".coverage.csv";
   this->CoveragePath = Coverage;
+
+  if (BBSummary.size() == 0)
+    BBSummary = Output + ".bbsummary.csv";
+  this->BBSummaryPath = BBSummary;
 
   auto BinaryOrErr = object::createBinary(Input);
   assert(BinaryOrErr && "Couldn't open the input file");
@@ -687,8 +692,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     PTCInstructionListPtr InstructionList(new PTCInstructionList);
     size_t ConsumedSize = 0;
 
-    ConsumedSize = ptc.translate(VirtualAddress,
-                                 InstructionList.get());
+    ConsumedSize = ptc.translate(VirtualAddress, InstructionList.get());
+    JumpTargets.registerOriginalBB(VirtualAddress, ConsumedSize);
 
     DBG("ptc", dumpTranslation(dbg, InstructionList.get()));
 
@@ -937,6 +942,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   PM.run(*TheModule);
 
   // TODO: transform the following in passes?
+  JumpTargets.collectBBSummary(BBSummaryPath);
+
   JumpTargets.translateIndirectJumps();
 
   purgeDeadBlocks(MainFunction);

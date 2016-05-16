@@ -425,6 +425,7 @@ bool OSRAPass::runOnFunction(Function &F) {
     if (!BB.empty()) {
       if (auto *Call = dyn_cast<CallInst>(&*BB.begin())) {
         Function *Callee = Call->getCalledFunction();
+        // TODO: comparing with "newpc" string is sad
         if (Callee != nullptr && Callee->getName() == "newpc")
           break;
       }

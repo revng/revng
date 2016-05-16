@@ -38,6 +38,7 @@ struct ProgramParameters {
   const char *DebugPath;
   const char *LinkingInfoPath;
   const char *CoveragePath;
+  const char *BBSummaryPath;
   bool NoOSRA;
   bool EnableTracing;
 };
@@ -143,6 +144,10 @@ static int parseArgs(int Argc, const char *Argv[],
                 "disable OSRA"),
     OPT_BOOLEAN('t', "tracing", &Parameters->EnableTracing,
                 "enable PC tracing in the output binary (through newPC)"),
+    OPT_STRING('b', "bb-summary",
+               &Parameters->BBSummaryPath,
+               "destination path for the CSV containing the statistics about "
+               "the translated basic blocks."),
     OPT_END(),
   };
 
@@ -210,6 +215,9 @@ static int parseArgs(int Argc, const char *Argv[],
   if (Parameters->CoveragePath == nullptr)
     Parameters->CoveragePath = "";
 
+  if (Parameters->BBSummaryPath == nullptr)
+    Parameters->BBSummaryPath = "";
+
   return EXIT_SUCCESS;
 }
 
@@ -240,6 +248,7 @@ int main(int argc, const char *argv[]) {
                           std::string(Parameters.DebugPath),
                           std::string(Parameters.LinkingInfoPath),
                           std::string(Parameters.CoveragePath),
+                          std::string(Parameters.BBSummaryPath),
                           !Parameters.NoOSRA,
                           Parameters.EnableTracing);
 
