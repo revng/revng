@@ -675,7 +675,7 @@ void JumpTargetManager::collectBBSummary(std::string OutputPath) {
 
   std::set<GlobalVariable *> CPUStateSet;
   std::set<Function *> FunctionsSet;
-  std::set<unsigned> OpcodesSet;
+  std::set<const char *> OpcodesSet;
 
   while (BB != nullptr) {
     if (NewPC != 0) {
@@ -689,8 +689,9 @@ void JumpTargetManager::collectBBSummary(std::string OutputPath) {
     for (Instruction &I : *BB) {
       // TODO: Data dependencies
       unsigned Opcode = I.getOpcode();
-      Summary->Opcode[Opcode]++;
-      OpcodesSet.insert(Opcode);
+      const char *OpcodeName = I.getOpcodeName();
+      Summary->Opcode[OpcodeName]++;
+      OpcodesSet.insert(OpcodeName);
 
       switch (Opcode) {
       case Instruction::Load:
@@ -739,7 +740,7 @@ void JumpTargetManager::collectBBSummary(std::string OutputPath) {
   std::copy(FunctionsSet.begin(),
             FunctionsSet.end(),
             std::back_inserter(Functions));
-  std::vector<unsigned> Opcodes;
+  std::vector<const char *> Opcodes;
   std::copy(OpcodesSet.begin(),
             OpcodesSet.end(),
             std::back_inserter(Opcodes));
@@ -753,8 +754,8 @@ void JumpTargetManager::collectBBSummary(std::string OutputPath) {
     Output << ",write_" << V->getName().str();
   for (Function *F : Functions)
     Output << ",call_" << F->getName().str();
-  for (unsigned O : Opcodes)
-    Output << ",opcode_" << std::dec << O;
+  for (const char *OpcodeName : Opcodes)
+    Output << ",opcode_" <<  OpcodeName;
   Output << "\n";
 
   for (auto P : OriginalBBStats) {
@@ -767,8 +768,8 @@ void JumpTargetManager::collectBBSummary(std::string OutputPath) {
       Output << "," << std::dec << P.second.WrittenState[V];
     for (Function *F : Functions)
       Output << "," << std::dec << P.second.CalledFunctions[F];
-    for (unsigned O : Opcodes)
-      Output << "," << std::dec << P.second.Opcode[O];
+    for (const char *OpcodeName : Opcodes)
+      Output << "," << P.second.Opcode[OpcodeName];
 
     Output << "\n";
   }

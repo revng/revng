@@ -93,7 +93,7 @@ private:
     /// Associative map keeping track of how many times a certain LLVM
     /// instruction is used in the code generated translating the input basic
     /// block
-    std::map<unsigned, unsigned> Opcode;
+    std::map<const char *, unsigned> Opcode;
   };
 
 public:
