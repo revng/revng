@@ -298,6 +298,23 @@ public:
   /// \param Address virtual address where the basic block starts.
   /// \param Size size, in bytes, of the given basic block.
   void registerOriginalBB(uint64_t Address, uint32_t Size) {
+    // TODO: this part is useful in case of erroneus situations where a basic
+    //       block includes another one, a more clean approach is probably to
+    //       drop all those included and then split again where they were.
+    auto StartIt = OriginalBBStats.lower_bound(Address);
+    if (StartIt->first == Address && StartIt->second.Size == Size)
+      return;
+
+    auto NextIt = StartIt;
+    while (NextIt != OriginalBBStats.end()
+           && NextIt->first < Address + Size
+           && NextIt->first + NextIt->second.Size < Address + Size) {
+      NextIt++;
+    }
+
+    if (StartIt != NextIt)
+      OriginalBBStats.erase(StartIt, NextIt);
+
     auto ItStart = containingOriginalBB(Address);
     bool StartMatches = ItStart != OriginalBBStats.end();
 
