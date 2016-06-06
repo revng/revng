@@ -81,10 +81,19 @@ public:
   OperationsStack(JumpTargetManager *JTM,
                   const DataLayout &DL) : JTM(JTM), DL(DL) { }
 
+  ~OperationsStack() {
+    reset(false);
+  }
+
   void explore(Constant *NewOperand);
   uint64_t materialize(Constant *NewOperand);
 
   void reset(bool Reliable) {
+    // Delete all the temporary instructions we created
+    for (Instruction *I : Operations)
+      if (I->getParent() == nullptr)
+        delete I;
+
     Operations.clear();
     OperationsSet.clear();
     IsReliable = Reliable;
@@ -112,17 +121,17 @@ public:
         assert(It != OperationsSet.end());
         OperationsSet.erase(It);
       }
+
+      // We have the ownership of instruction without parent
+      if (Op->getParent() == nullptr)
+        delete Op;
+
       Operations.pop_back();
     }
   }
 
   bool insertIfNew(Instruction *I) {
-    if (OperationsSet.find(I) == OperationsSet.end()) {
-      Operations.push_back(I);
-      OperationsSet.insert(I);
-      return true;
-    }
-    return false;
+    return insertIfNew(I, I);
   }
 
   bool insertIfNew(Instruction *I, Instruction *Ref) {
@@ -131,6 +140,10 @@ public:
       OperationsSet.insert(Ref);
       return true;
     }
+
+    // If the given instruction doesn't have a parent we take ownership of it
+    if (I->getParent() == nullptr)
+      delete I;
     return false;
   }
 
@@ -322,6 +335,8 @@ bool SETPass::runOnFunction(Function &F) {
                 // We were able to identify a constant operand
                 unsigned FreeOpIndex = BinOp->getOperand(0) == FreeOp ? 0 : 1;
 
+                // Note: the lifetime of the cloned instruction is managed by
+                //       the OperationsStack
                 Instruction *Clone = BinOp->clone();
                 Clone->setOperand(1 - FreeOpIndex, ConstantOp);
                 // This is a dirty trick to keep track of the original
