@@ -508,6 +508,7 @@ bool OSRAPass::runOnFunction(Function &F) {
         // Check if it's a free value
         auto OldOSRIt = OSRs.find(I);
         bool IsFree = OldOSRIt == OSRs.end();
+        bool Changed = false;
 
         Constant *ConstantOp = nullptr;
         Value *OtherOp = nullptr;
@@ -530,10 +531,12 @@ bool OSRAPass::runOnFunction(Function &F) {
         // Get or create an OSR for the non-constant operator, this
         // will be our starting point
         OSR NewOSR = createOSR(OtherOp, I->getParent());
-        if (!IsFree
-            && !OldOSRIt->second.isConstant()
-            && NewOSR.isRelativeTo(OldOSRIt->second.boundedValue()->value())) {
-          break;
+        if (!IsFree && !OldOSRIt->second.isConstant()) {
+          if (NewOSR.isRelativeTo(OldOSRIt->second.boundedValue()->value())) {
+            break;
+          } else {
+            Changed = true;
+          }
         }
 
         // Check we're not depending on ourselves, if we are leave us as a free
@@ -562,14 +565,16 @@ bool OSRAPass::runOnFunction(Function &F) {
                             || Opcode == Instruction::AShr);
         }
 
-        bool Changed = true;
         // Check for undefined behaviors
         if (!isSupportedOperation(Opcode, ConstantOp, DL)) {
           NewOSR = OSR(&BVs.get(I->getParent(), I));
+          Changed = true;
         } else {
           // Combine the base OSR with the new operation
-          Changed = NewOSR.combine(Opcode, ConstantOp, DL);
+          Changed |= NewOSR.combine(Opcode, ConstantOp, DL);
         }
+
+
 
         // Check if the OSR has changed
         if (IsFree || Changed) {
@@ -986,12 +991,11 @@ bool OSRAPass::runOnFunction(Function &F) {
         bool HasConstraints = false;
 
         if (TheLoad != nullptr) {
-          // It'a a load
+          // It's a load
 
           // If the load doesn't have an OSR associated (or it's associated to
           // itself), propagate it forward
-          auto OSRIt = OSRs.find(I);
-          if (OSRIt != OSRs.end())
+          if (OSRs.count(I) != 0)
             break;
 
           Pointer = TheLoad->getPointerOperand();
@@ -1014,7 +1018,7 @@ bool OSRAPass::runOnFunction(Function &F) {
             else
               SelfOSR = OSR(&BVs.get(I->getParent(), I));
 
-            // Check if the value we're storing has an constraints
+            // Check if the value we're storing has a constraints
             auto ConstraintIt = Constraints.find(ToStore);
             if (ConstraintIt != Constraints.end()) {
               HasConstraints = true;
