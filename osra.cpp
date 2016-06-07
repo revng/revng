@@ -416,6 +416,10 @@ static bool isSupportedOperation(unsigned Opcode,
 // * bounded variable (or BV): a free value and the range within which it lies.
 bool OSRAPass::runOnFunction(Function &F) {
   const DataLayout DL = F.getParent()->getDataLayout();
+  // The Overtaken map keeps track of which load/store instructions have been
+  // overtaken by another load/store, meaning that they are not "free" but can
+  // be expressed in terms of another stored/loaded value
+  std::map<const Value *, const Value *> Overtaken;
 
   auto *Int64 = Type::getInt64Ty(F.getParent()->getContext());
   using UpdateFunc = std::function<BVVector(BVVector &)>;
@@ -1021,7 +1025,7 @@ bool OSRAPass::runOnFunction(Function &F) {
 
         }
 
-        // TODO: very important, factor the two followin block of codes, we
+        // TODO: very important, factor the two following blocks of code, we
         //       can't handle the two propagation in parallel since OSR don't
         //       have a merge policy (and most stop on conflicts) while
         //       constraints have to be propagated and merged to all the load a
@@ -1041,11 +1045,6 @@ bool OSRAPass::runOnFunction(Function &F) {
           //       get visisted again to consider the part before the load
           //       instruction.
 
-          // Overtaken contains the list of all the loads that this Load
-          // overtakes. Keeping track of this allows us to overtake other loads
-          // which reads them.
-          std::set<const Value *> Overtaken;
-          Overtaken.insert(I);
           // Conflicts contains the list of loads we're not able to overtake,
           // which we'll have to move to top (i.e. make them indepent)
           std::set<LoadInst *> Conflicts;
@@ -1084,11 +1083,17 @@ bool OSRAPass::runOnFunction(Function &F) {
                     // it over
                     Stop = true;
                   } else {
-                    // It's already expressed in terms of someone else, check if
-                    // we have already took over that variable
+                    // Obtain the value relative to which the old OSR was
+                    // expressed and check if it has been overtaken by either
+                    // the instruction we are propagating or the value
+                    // associated to the OSR we're propagating
                     auto *BV = LoadOSRIt->second.boundedValue();
-                    const Value *RelativeTo = BV->value();
-                    if (Overtaken.count(RelativeTo)) {
+                    auto OvertakerIt = Overtaken.find(BV->value());
+                    auto NewRelativeTo = NewOSR.isConstant() ?
+                      nullptr : NewOSR.boundedValue()->value();
+                    if (OvertakerIt != Overtaken.end()
+                        && (OvertakerIt->second == NewRelativeTo
+                            || OvertakerIt->second == I)) {
                       // We already overtook the load it is referring to,
                       // override safely
                       OSRs.erase(LoadOSRIt);
@@ -1106,7 +1111,8 @@ bool OSRAPass::runOnFunction(Function &F) {
 
                 // Insert the NewOSR in OSRs and mark the load as overtaken
                 OSRs.insert({ &Inst, NewOSR });
-                Overtaken.insert(Load);
+
+                Overtaken[Load] = I;
 
                 // The OSR has changed, mark the load and its uses to be
                 // visited again
@@ -1114,7 +1120,8 @@ bool OSRAPass::runOnFunction(Function &F) {
                 EnqueueUsers(Load);
 
               } else if (auto *Store = dyn_cast<StoreInst>(&Inst)) {
-                // Check if this store might alias the memory area we're tracking
+                // Check if this store might alias the memory area we're
+                // tracking
                 auto *PointerOp = Store->getPointerOperand();
                 if (PointerOp == Pointer
                     || (!isa<GlobalVariable>(PointerOp)
@@ -1145,8 +1152,9 @@ bool OSRAPass::runOnFunction(Function &F) {
                 auto ConflictOSRIt = OSRs.find(Conflicting);
                 assert(ConflictOSRIt != OSRs.end());
                 auto *BV = ConflictOSRIt->second.boundedValue();
-                const Value *RelativeTo = BV->value();
-                if (Overtaken.count(RelativeTo)) {
+                auto OvertakerIt = Overtaken.find(BV->value());
+                if (OvertakerIt != Overtaken.end()
+                    && OvertakerIt->second == I) {
                   auto *ConflictingBB = Conflicting->getParent();
                   ExploreWL.push_back(make_range(Conflicting->getIterator(),
                                                  ConflictingBB->end()));
