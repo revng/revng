@@ -270,7 +270,7 @@ void SET::enqueueStores(LoadInst *Start) {
 
     // If we haven't find a store, proceed recursively in the predecessors
     if (!Found && Depth < MaxDepth)
-      for (BasicBlock *Predecessor : make_range(pred_begin(BB), pred_end(BB)))
+      for (BasicBlock *Predecessor : predecessors(BB))
         if (Predecessor != JTM->dispatcher() && !Predecessor->empty())
           ToExplore.push(make_pair(&*Predecessor->rbegin(), Depth + 1));
   }

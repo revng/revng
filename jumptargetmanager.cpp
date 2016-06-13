@@ -505,16 +505,14 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
     // If we haven't find a newpc call yet, continue exploration backward
     if (NewPCCall == nullptr) {
       // If one of the predecessors is the dispatcher, don't explore any further
-      auto Predecessors = make_range(pred_begin(BB), pred_end(BB));
-      for (BasicBlock *Predecessor : Predecessors) {
+      for (BasicBlock *Predecessor : predecessors(BB)) {
         // Assert we didn't reach the almighty dispatcher
         assert(!(NewPCCall == nullptr && Predecessor == Dispatcher));
         if (Predecessor == Dispatcher)
           continue;
       }
 
-      Predecessors = make_range(pred_begin(BB), pred_end(BB));
-      for (BasicBlock *Predecessor : Predecessors) {
+      for (BasicBlock *Predecessor : predecessors(BB)) {
         // Ignore already visited or empty BBs
         if (!Predecessor->empty()
             && Visited.find(Predecessor) == Visited.end()) {
@@ -589,8 +587,7 @@ void JumpTargetManager::handleSumJump(Instruction *SumJump) {
     }
 
     // Inspect and enqueue successors
-    auto Successors = make_range(succ_begin(BB), succ_end(BB));
-    for (BasicBlock *Successor : Successors)
+    for (BasicBlock *Successor : successors(BB))
       if (Visited.find(Successor) == Visited.end())
         WorkList.push(Successor);
 
@@ -841,8 +838,7 @@ void JumpTargetManager::unvisit(BasicBlock *BB) {
 
       Visited.erase(Current);
 
-      auto Successors = make_range(succ_begin(Current), succ_end(Current));
-      for (BasicBlock *Successor : Successors) {
+      for (BasicBlock *Successor : successors(BB)) {
         if (Visited.find(Successor) != Visited.end()
             && !Successor->empty()) {
           auto *Call = dyn_cast<CallInst>(&*Successor->begin());

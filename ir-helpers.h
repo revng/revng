@@ -3,6 +3,7 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/ConstantFolding.h"
+#include "llvm/Analysis/Interval.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instruction.h"
@@ -78,6 +79,16 @@ static inline uint64_t getExtValue(llvm::Constant *C,
     return getSExtValue(C, DL);
   else
     return getZExtValue(C, DL);
+}
+
+static inline llvm::iterator_range<llvm::Interval::pred_iterator>
+predecessors(llvm::Interval *BB) {
+  return make_range(pred_begin(BB), pred_end(BB));
+}
+
+static inline llvm::iterator_range<llvm::Interval::succ_iterator>
+successors(llvm::Interval *BB) {
+  return make_range(succ_begin(BB), succ_end(BB));
 }
 
 #endif // _IRHELPERS_H

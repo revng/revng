@@ -604,7 +604,7 @@ static void purgeDeadBlocks(Function *F) {
 
     // Skip the first basic block
     for (BasicBlock &BB : make_range(++F->begin(), F->end()))
-      if (pred_begin(&BB) == pred_end(&BB))
+      if (pred_empty(&BB))
         Kill.push_back(&BB);
 
   } while (!Kill.empty());

@@ -965,10 +965,8 @@ bool OSRAPass::runOnFunction(Function &F) {
 
           // Propagate the new constraints to the successors (except for the
           // dispatcher)
-          auto Successors = make_range(succ_begin(Entry.Target),
-                                       succ_end(Entry.Target));
           if (Entry.Constraints.size() != 0)
-            for (BasicBlock *Successor : Successors)
+            for (BasicBlock *Successor : successors(Entry.Target))
               if (BlockBlackList.find(Successor) == BlockBlackList.end())
                 ConstraintsWL.push_back(WLEntry(Successor,
                                                 Entry.Target,
@@ -1140,7 +1138,7 @@ bool OSRAPass::runOnFunction(Function &F) {
             // If we didn't stop, enqueue all the non-blacklisted successors for
             // exploration
             if (!Stop)
-              for (auto *Successor : make_range(succ_begin(BB), succ_end(BB)))
+              for (auto *Successor : successors(BB))
                 if (!BlockBlackList.count(Successor)
                     && !Successor->empty()
                     && !Visited.count(Successor))
@@ -1258,7 +1256,7 @@ bool OSRAPass::runOnFunction(Function &F) {
             // If we didn't stop, enqueue all the non-blacklisted successors for
             // exploration
             if (!Stop)
-              for (auto *Successor : make_range(succ_begin(BB), succ_end(BB)))
+              for (auto *Successor : successors(BB))
                 if (BlockBlackList.find(Successor) == BlockBlackList.end()
                     && !Successor->empty()
                     && Visited.find(Successor) == Visited.end())
@@ -1362,9 +1360,9 @@ BoundedValue &OSRAPass::BVMap::summarize(BasicBlock *Target,
   BVOVector->Summary = BVOVector->Components[0].second;
 
   unsigned PredecessorsCount = 0;
-  for (auto *Predecessor : make_range(pred_begin(Target), pred_end(Target)))
+  for (auto *Predecessor : predecessors(Target))
     if (BlockBlackList->find(Predecessor) == BlockBlackList->end()
-        && pred_begin(Predecessor) != pred_end(Predecessor))
+        && !pred_empty(Predecessor))
       PredecessorsCount++;
 
   // Do we have a constraint for each predecessor?
