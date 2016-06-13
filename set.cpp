@@ -1,5 +1,7 @@
-/// \file
-/// \brief
+/// \file set.cpp
+/// \brief Simple Expression Tracker pass implementation
+/// This file is composed by three main parts: the OperationsStack
+/// implementation, the SET algorithm and the SET pass
 
 // LLVM includes
 #include "llvm/IR/Instruction.h"
@@ -16,66 +18,17 @@
 #include "set.h"
 
 using namespace llvm;
+using std::make_pair;
 
-char SETPass::ID = 0;
-
-void SETPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  if (UseOSRA)
-    AU.addRequired<OSRAPass>();
-}
-
-void SETPass::enqueueStores(LoadInst *Start,
-                            unsigned StackHeight,
-                            std::vector<std::pair<Value *, unsigned>>& WL) {
-  auto *Destination = Start->getPointerOperand();
-  std::stack<std::pair<Instruction *, unsigned>> ToExplore;
-  std::set<BasicBlock *> Visited;
-  ToExplore.push(std::make_pair(Start, 0));
-
-  Instruction *I = Start;
-
-  while (!ToExplore.empty()) {
-    unsigned Depth;
-    std::tie(I, Depth) = ToExplore.top();
-    ToExplore.pop();
-
-    auto *BB = I->getParent();
-    if (Visited.find(BB) != Visited.end())
-      continue;
-
-    Visited.insert(BB);
-    BasicBlock::reverse_iterator It(make_reverse_iterator(I));
-    BasicBlock::reverse_iterator Begin(BB->rend());
-
-    bool Found = false;
-    for (; It != Begin; It++) {
-      if (auto *Store = dyn_cast<StoreInst>(&*It)) {
-        if (Store->getPointerOperand() == Destination) {
-          auto NewPair = std::make_pair(Store->getValueOperand(), StackHeight);
-          if (std::find(WL.begin(), WL.end(), NewPair) == WL.end())
-            WL.push_back(NewPair);
-          Found = true;
-          break;
-        }
-      }
-    }
-
-    // If we haven't find a store, proceed recursively in the predecessors
-    if (!Found && Depth < MaxDepth) {
-      auto Predecessors = make_range(pred_begin(BB), pred_end(BB));
-      for (BasicBlock *Predecessor : Predecessors) {
-        if (Predecessor != JTM->dispatcher()
-            && !Predecessor->empty()) {
-          ToExplore.push(std::make_pair(&*Predecessor->rbegin(),
-                                        Depth + 1));
-        }
-      }
-    }
-
-  }
-
-}
-
+/// \brief Stack to keep track of the operations generating a specific value
+///
+/// The OperationsStacks offers the following features:
+///
+/// * it doesn't insert more than once an item (to avoid loops)
+/// * it can traverse the stack from top to bottom to produce a value and, if
+///   required register it with the JumpTargetManager
+/// * cut the stack to a certain height
+/// * manage the lifetime of orphan instruction it contains
 class OperationsStack {
 public:
   OperationsStack(JumpTargetManager *JTM,
@@ -144,6 +97,7 @@ public:
     // If the given instruction doesn't have a parent we take ownership of it
     if (I->getParent() == nullptr)
       delete I;
+
     return false;
   }
 
@@ -152,6 +106,7 @@ public:
   }
 
   unsigned height() const { return Operations.size(); }
+  bool empty() const { return height() == 0; }
 
 private:
   JumpTargetManager *JTM;
@@ -176,8 +131,7 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
         assert(Size != 0);
         NewOperand = JTM->readConstantInt(NewOperand, Size);
       } else if (Load->getType()->isPointerTy()) {
-        NewOperand = JTM->readConstantPointer(NewOperand,
-                                              Load->getType());
+        NewOperand = JTM->readConstantPointer(NewOperand, Load->getType());
       } else {
         assert(false);
       }
@@ -186,8 +140,7 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
         break;
     } else if (auto *Call = dyn_cast<CallInst>(I)) {
       Function *Callee = Call->getCalledFunction();
-      assert(Callee != nullptr
-             && Callee->getIntrinsicID() == Intrinsic::bswap);
+      assert(Callee != nullptr && Callee->getIntrinsicID() == Intrinsic::bswap);
       (void) Callee;
 
       uint64_t Value = NewOperand->getUniqueInteger().getLimitedValue();
@@ -243,11 +196,88 @@ void OperationsStack::explore(Constant *NewOperand) {
     PCs.insert({ PC, IsReliable });
 }
 
-bool SETPass::runOnFunction(Function &F) {
-  OSRAPass *OSRA = getAnalysisIfAvailable<OSRAPass>();
-  const DataLayout &DL = F.getParent()->getDataLayout();
-  OperationsStack OS(JTM, DL);
+/// \brief Simple Expression Tracker implementation
+class SET {
 
+public:
+  SET(Function &F,
+      JumpTargetManager *JTM,
+      OSRAPass *OSRA,
+      std::set<BasicBlock *> *Visited) :
+    DL(F.getParent()->getDataLayout()),
+    JTM(JTM),
+    OS(JTM, DL),
+    F(F),
+    OSRA(OSRA),
+    Visited(Visited) { }
+
+  /// \brief Run the Simple Expression Tracker on F
+  bool run();
+
+private:
+  /// \brief Enqueue all the store seen by the Start load instruction
+  void enqueueStores(LoadInst *Start);
+  /// \brief Process V
+  /// \return a boolean indicating whether V has been handled properly and a new
+  ///         Value from which SET should proceed
+  std::pair<bool, Value *> handleInstruction(Instruction *Target, Value *V);
+
+private:
+  const unsigned MaxDepth = 3;
+  const DataLayout &DL;
+  JumpTargetManager *JTM;
+  OperationsStack OS;
+  Function& F;
+  OSRAPass *OSRA;
+  std::set<BasicBlock *> *Visited;
+  std::vector<std::pair<Value *, unsigned>> WorkList;
+};
+
+void SET::enqueueStores(LoadInst *Start) {
+  unsigned InitialHeight = OS.height();
+  auto *Destination = Start->getPointerOperand();
+  std::stack<std::pair<Instruction *, unsigned>> ToExplore;
+  std::set<BasicBlock *> Visited;
+  ToExplore.push(make_pair(Start, 0));
+
+  Instruction *I = Start;
+
+  while (!ToExplore.empty()) {
+    unsigned Depth;
+    std::tie(I, Depth) = ToExplore.top();
+    ToExplore.pop();
+
+    auto *BB = I->getParent();
+    if (Visited.find(BB) != Visited.end())
+      continue;
+
+    Visited.insert(BB);
+    BasicBlock::reverse_iterator It(make_reverse_iterator(I));
+    BasicBlock::reverse_iterator Begin(BB->rend());
+
+    bool Found = false;
+    for (; It != Begin; It++) {
+      if (auto *Store = dyn_cast<StoreInst>(&*It)) {
+        if (Store->getPointerOperand() == Destination) {
+          auto NewPair = make_pair(Store->getValueOperand(), InitialHeight);
+          if (contains(WorkList, NewPair))
+            WorkList.push_back(NewPair);
+          Found = true;
+          break;
+        }
+      }
+    }
+
+    // If we haven't find a store, proceed recursively in the predecessors
+    if (!Found && Depth < MaxDepth)
+      for (BasicBlock *Predecessor : make_range(pred_begin(BB), pred_end(BB)))
+        if (Predecessor != JTM->dispatcher() && !Predecessor->empty())
+          ToExplore.push(make_pair(&*Predecessor->rbegin(), Depth + 1));
+  }
+
+}
+
+bool SET::run() {
   for (BasicBlock& BB : make_range(F.begin(), F.end())) {
 
     if (Visited->find(&BB) != Visited->end())
@@ -275,11 +305,11 @@ bool SETPass::runOnFunction(Function &F) {
       // Operations is a stack of ConstantInt uses in a BinaryOperator
       // TODO: hardcoded
       OS.reset(/* IsPCStore */ false);
-      std::vector<std::pair<Value *, unsigned>> WorkList;
+      assert(WorkList.empty());
       if (IsStore)
-        WorkList.push_back(std::make_pair(Store->getValueOperand(), 0));
+        WorkList.push_back(make_pair(Store->getValueOperand(), 0));
       else
-        WorkList.push_back(std::make_pair(Load->getPointerOperand(), 0));
+        WorkList.push_back(make_pair(Load->getPointerOperand(), 0));
 
       std::set<Value *> Visited;
 
@@ -288,7 +318,6 @@ bool SETPass::runOnFunction(Function &F) {
         Value *V;
         std::tie(V, Height) = WorkList.back();
         WorkList.pop_back();
-        Value *Next = V;
 
         if (Visited.find(V) != Visited.end())
           continue;
@@ -297,140 +326,10 @@ bool SETPass::runOnFunction(Function &F) {
         // Discard operations we no longer need
         OS.cut(Height);
 
-        while (Next != nullptr) {
-          V = Next;
-          Next = nullptr;
-
-          if (auto *C = dyn_cast<ConstantInt>(V)) {
-            // We reached the end of the path, materialize the value
-            OS.explore(C);
-          } else if (auto *BinOp = dyn_cast<BinaryOperator>(V)) {
-
-            // Append a reference to the operation to the Operations stack
-            Use& FirstOp = BinOp->getOperandUse(0);
-            Use& SecondOp = BinOp->getOperandUse(1);
-
-            if (isa<ConstantInt>(FirstOp.get())
-                || isa<ConstantInt>(SecondOp.get())) {
-              assert(!(isa<ConstantInt>(FirstOp.get())
-                       && isa<ConstantInt>(SecondOp.get())));
-              bool FirstConstant = isa<ConstantInt>(FirstOp.get());
-
-              // Add to the operations stack the constant one and proceed with
-              // the other
-              if (OS.insertIfNew(BinOp))
-                Next = FirstConstant ? SecondOp.get() : FirstOp.get();
-            } else if (OSRA != nullptr) {
-              Constant *ConstantOp = nullptr;
-              Value *FreeOp = nullptr;
-              Type *Int64 = Type::getInt64Ty(F.getParent()->getContext());
-              std::tie(ConstantOp, FreeOp) = OSRA->identifyOperands(BinOp,
-                                                                    Int64,
-                                                                    DL);
-
-              if (FreeOp == nullptr && ConstantOp != nullptr) {
-                // The operation has been folded
-                OS.explore(ConstantOp);
-              } else if (FreeOp != nullptr && ConstantOp != nullptr) {
-                // We were able to identify a constant operand
-                unsigned FreeOpIndex = BinOp->getOperand(0) == FreeOp ? 0 : 1;
-
-                // Note: the lifetime of the cloned instruction is managed by
-                //       the OperationsStack
-                Instruction *Clone = BinOp->clone();
-                Clone->setOperand(1 - FreeOpIndex, ConstantOp);
-                // This is a dirty trick to keep track of the original
-                // instruction
-                Clone->setOperand(FreeOpIndex, BinOp);
-                // TODO: this might leave to infinte loops
-                if (OS.insertIfNew(Clone, BinOp))
-                  Next = BinOp->getOperandUse(FreeOpIndex).get();
-              }
-            }
-          } else if (auto *Load = dyn_cast<LoadInst>(V)) {
-            auto *Pointer = Load->getPointerOperand();
-
-            // If we're loading a global or local variable, look for the last
-            // write to that variable, otherwise see if it's a load from a
-            // constant address which points to a constant memory area
-            if (isa<GlobalVariable>(Pointer) || isa<AllocaInst>(Pointer)) {
-              enqueueStores(Load, OS.height(), WorkList);
-            } else {
-              if (OS.insertIfNew(Load))
-                Next = Pointer;
-            }
-          } else if (auto *Unary = dyn_cast<UnaryInstruction>(V)) {
-            if (OS.insertIfNew(Unary))
-              Next = Unary->getOperand(0);
-          } else if (auto *Expression = dyn_cast<ConstantExpr>(V)) {
-            if (Expression->getNumOperands() == 1) {
-              auto *ExprAsInstr = Expression->getAsInstruction();
-              OS.insert(ExprAsInstr);
-              Next = Expression->getOperand(0);
-            }
-          } else if (auto *Call = dyn_cast<CallInst>(V)) {
-            Function *Callee = Call->getCalledFunction();
-            if (Callee != nullptr
-                && Callee->getIntrinsicID() == Intrinsic::bswap) {
-              OS.insert(Call);
-              Next = Call->getArgOperand(0);
-            }
-          } // End of the switch over instruction type
-
-            // We don't know how to proceed, but we can still check if the
-            // current instruction is associated with a suitable OSR.
-          if (OSRA != nullptr && Next == nullptr && OS.height() > 0) {
-            const OSRAPass::OSR *O = OSRA->getOSR(V);
-            if (O == nullptr)
-              continue;
-
-            using CI = ConstantInt;
-            Type *Int64 = IntegerType::get(F.getParent()->getContext(), 64);
-            if (O->isConstant()) {
-              // If it's just a single constant, use it
-              OS.explore(CI::get(Int64, O->base()));
-            } else if (!O->boundedValue()->isTop()
-                       && !O->boundedValue()->isBottom()
-                       && O->boundedValue()->isSingleRange()) {
-              // We have a limited range, let's use it all
-
-              // Perform a preliminary check that whole range fits into the
-              // executable area
-              Constant *MinConst, *MaxConst;
-              std::tie(MinConst, MaxConst) = O->boundaries(Int64, DL);
-              uint64_t Min = getZExtValue(MinConst, DL);
-              uint64_t Max = getZExtValue(MaxConst, DL);
-              // uint64_t Step = O->absFactor(Int64, DL);
-              uint64_t Step = O->factor();
-
-              // TODO: the O->size() threshold is pretty arbitrary, the best
-              //       solution here is probably restore it to int64_t::max(),
-              //       assert if it's larger than 10000 and only apply it to
-              //       store to memory, pc and maybe other registers (lr?)
-              auto MaterializedMin = OS.materialize(MinConst);
-              auto MaterializedMax = OS.materialize(MaxConst);
-              auto MaterializedStep = OS.materialize(CI::get(Int64, Step));
-              if (!JTM->isExecutableRange(MaterializedMin, MaterializedMax)
-                  || !JTM->isInstructionAligned(MaterializedStep)
-                  || O->size() >= 10000)
-                continue;
-
-              if (O->size() > 1000)
-                dbg << "Warning: " << O->size() << " jump targets added\n";
-
-              DBG("osrjts", dbg << "Adding " << std::dec << O->size()
-                  << " jump targets from 0x"
-                  << std::hex << JTM->getPC(&Instr).first << "\n");
-
-              // Note: addition and comparison for equality are all sign-safe
-              // operations, no need to use Constants in this case.
-              // TODO: switch to a super-elegant iterator
-              for (uint64_t Position = Min; Position != Max; Position += Step)
-                OS.explore(CI::get(Int64, Position));
-              OS.explore(CI::get(Int64, Max));
-            }
-          }
-
+        while (V != nullptr) {
+          // TODO: use this
+          bool Handled;
+          std::tie(Handled, V) = handleInstruction(&Instr, V);
         }
       }
     }
@@ -439,4 +338,156 @@ bool SETPass::runOnFunction(Function &F) {
   OS.registerPCs();
 
   return false;
+}
+
+char SETPass::ID = 0;
+
+void SETPass::getAnalysisUsage(AnalysisUsage &AU) const {
+  if (UseOSRA)
+    AU.addRequired<OSRAPass>();
+}
+
+bool SETPass::runOnFunction(Function &F) {
+  OSRAPass *OSRA = getAnalysisIfAvailable<OSRAPass>();
+
+  SET SimpleExpressionTracker(F, JTM, OSRA, Visited);
+  return SimpleExpressionTracker.run();
+}
+
+std::pair<bool, Value *> SET::handleInstruction(Instruction *Target, Value *V) {
+  // Setting handled to true makes return sucessfully but doesn't prevent
+  // checking OSRA results
+  bool Handled = false;
+
+  if (auto *C = dyn_cast<ConstantInt>(V)) {
+    // We reached the end of the path, materialize the value
+    OS.explore(C);
+    return { true, nullptr };
+  } else if (auto *BinOp = dyn_cast<BinaryOperator>(V)) {
+
+    // Append a reference to the operation to the Operations stack
+    Use& FirstOp = BinOp->getOperandUse(0);
+    Use& SecondOp = BinOp->getOperandUse(1);
+
+    if (isa<ConstantInt>(FirstOp.get()) || isa<ConstantInt>(SecondOp.get())) {
+      assert(!(isa<ConstantInt>(FirstOp.get())
+               && isa<ConstantInt>(SecondOp.get())));
+      bool FirstConstant = isa<ConstantInt>(FirstOp.get());
+
+      // Add to the operations stack the constant one and proceed with the other
+      if (OS.insertIfNew(BinOp))
+        return { true, FirstConstant ? SecondOp.get() : FirstOp.get() };
+    } else if (OSRA != nullptr) {
+      Constant *ConstantOp = nullptr;
+      Value *FreeOp = nullptr;
+      Type *Int64 = Type::getInt64Ty(F.getParent()->getContext());
+      std::tie(ConstantOp, FreeOp) = OSRA->identifyOperands(BinOp, Int64, DL);
+
+      if (FreeOp == nullptr && ConstantOp != nullptr) {
+        // The operation has been folded
+        OS.explore(ConstantOp);
+        Handled = true;
+      } else if (FreeOp != nullptr && ConstantOp != nullptr) {
+        // We were able to identify a constant operand
+        unsigned FreeOpIndex = BinOp->getOperand(0) == FreeOp ? 0 : 1;
+
+        // Note: the lifetime of the cloned instruction is managed by the
+        //       OperationsStack
+        Instruction *Clone = BinOp->clone();
+        Clone->setOperand(1 - FreeOpIndex, ConstantOp);
+        // This is a dirty trick to keep track of the original
+        // instruction
+        Clone->setOperand(FreeOpIndex, BinOp);
+
+        // TODO: this might leave to infinte loops
+        if (OS.insertIfNew(Clone, BinOp))
+          return { true, BinOp->getOperandUse(FreeOpIndex).get() };
+      }
+    }
+  } else if (auto *Load = dyn_cast<LoadInst>(V)) {
+    auto *Pointer = Load->getPointerOperand();
+
+    // If we're loading a global or local variable, look for the last write to
+    // that variable, otherwise see if it's a load from a constant address which
+    // points to a constant memory area
+    if (isa<GlobalVariable>(Pointer) || isa<AllocaInst>(Pointer)) {
+      enqueueStores(Load);
+      Handled = true;
+    } else {
+      if (OS.insertIfNew(Load))
+        return { true, Pointer };
+    }
+  } else if (auto *Unary = dyn_cast<UnaryInstruction>(V)) {
+    if (OS.insertIfNew(Unary))
+      return { true, Unary->getOperand(0) };
+  } else if (auto *Expression = dyn_cast<ConstantExpr>(V)) {
+    if (Expression->getNumOperands() == 1) {
+      auto *ExprAsInstr = Expression->getAsInstruction();
+      OS.insert(ExprAsInstr);
+      return { true, Expression->getOperand(0) };
+    }
+  } else if (auto *Call = dyn_cast<CallInst>(V)) {
+    Function *Callee = Call->getCalledFunction();
+    if (Callee != nullptr && Callee->getIntrinsicID() == Intrinsic::bswap) {
+      OS.insert(Call);
+      return { true, Call->getArgOperand(0) };
+    }
+  } // End of the switch over instruction type
+
+  // We don't know how to proceed, but we can still check if the current
+  // instruction is associated with a suitable OSR
+  if (OSRA != nullptr && !Handled && !OS.empty()) {
+    const OSRAPass::OSR *O = OSRA->getOSR(V);
+    if (O == nullptr)
+      return { false, nullptr };
+
+    using CI = ConstantInt;
+    Type *Int64 = IntegerType::get(F.getParent()->getContext(), 64);
+    if (O->isConstant()) {
+      // If it's just a single constant, use it
+      OS.explore(CI::get(Int64, O->base()));
+      return { true, nullptr };
+    } else if (!O->boundedValue()->isTop()
+               && !O->boundedValue()->isBottom()
+               && O->boundedValue()->isSingleRange()) {
+      // We have a limited range, let's use it all
+
+      // Perform a preliminary check that whole range fits into the executable
+      // area
+      Constant *MinConst, *MaxConst;
+      std::tie(MinConst, MaxConst) = O->boundaries(Int64, DL);
+      uint64_t Min = getZExtValue(MinConst, DL);
+      uint64_t Max = getZExtValue(MaxConst, DL);
+      uint64_t Step = O->factor();
+
+      // TODO: the O->size() threshold is pretty arbitrary, the best solution
+      //       here is probably restore it to int64_t::max(), assert if it's
+      //       larger than 10000 and only apply it to store to memory, pc and
+      //       maybe other registers (lr?)
+      auto MaterializedMin = OS.materialize(MinConst);
+      auto MaterializedMax = OS.materialize(MaxConst);
+      auto MaterializedStep = OS.materialize(CI::get(Int64, Step));
+      if (!JTM->isExecutableRange(MaterializedMin, MaterializedMax)
+          || !JTM->isInstructionAligned(MaterializedStep)
+          || O->size() >= 10000)
+        return { false, nullptr };
+
+      if (O->size() > 1000)
+        dbg << "Warning: " << O->size() << " jump targets added\n";
+
+      DBG("osrjts", dbg << "Adding " << std::dec << O->size()
+          << " jump targets from 0x"
+          << std::hex << JTM->getPC(Target).first << "\n");
+
+      // Note: addition and comparison for equality are all sign-safe
+      // operations, no need to use Constants in this case.
+      // TODO: switch to a super-elegant iterator
+      for (uint64_t Position = Min; Position != Max; Position += Step)
+        OS.explore(CI::get(Int64, Position));
+      OS.explore(CI::get(Int64, Max));
+      return { true, nullptr };
+    }
+  }
+
+  return { Handled, nullptr };
 }

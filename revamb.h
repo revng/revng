@@ -113,4 +113,9 @@ static inline T *notNull(T *Pointer) {
   return Pointer;
 }
 
+template<typename T>
+static inline bool contains(T Range, typename T::value_type V) {
+  return std::find(std::begin(Range), std::end(Range), V) != std::end(Range);
+}
+
 #endif // _REVAMB_H
