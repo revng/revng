@@ -91,6 +91,7 @@ bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
             if (TargetBlock != nullptr) {
               // A target was found, jump there
               BranchInst::Create(TargetBlock, Call);
+              JTM->newBranch();
             } else {
               // We're jumping to an invalid location, abort everything
               // TODO: emit a warning
@@ -942,12 +943,18 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   DispatcherSwitch = Switch;
 }
 
+// Harvesting proceeds trying to avoid to run expensive analyses if not strictly
+// necessary, OSRA in particular. To do this we keep in mind two aspects: do we
+// have new basic blocks to visit? If so, we avoid any further anyalysis and
+// give back control to the translator. If not, we proceed with other analyses
+// until we either find a new basic block to translate. If we can't find a new
+// block to translate we proceed as long as we are able to create new edges on
+// the CFG (not considering the dispatcher).
 void JumpTargetManager::harvest() {
   if (empty()) {
     DBG("verify", if (verifyModule(TheModule, &dbgs())) { abort(); });
 
-    DBG("jtcount", dbg
-        << "Trying with EarlyCSE and SETPass\n");
+    DBG("jtcount", dbg << "Harvesting: SROA, ConstProp, EarlyCSE and SET\n");
 
     legacy::PassManager PM;
     PM.add(createSROAPass()); // temp
@@ -955,29 +962,48 @@ void JumpTargetManager::harvest() {
     PM.add(createEarlyCSEPass());
     PM.add(new SETPass(this, false, &Visited));
     PM.add(new TranslateDirectBranchesPass(this));
+    NewBranches = 0;
     PM.run(TheModule);
-    DBG("jtcount", dbg
-        << "JumpTargets found: " << Unexplored.size() << "\n");
+
+    DBG("jtcount", dbg << std::dec
+                       << Unexplored.size() << " new jump targets and "
+                       << NewBranches << " new branches were found\n");
   }
 
   if (EnableOSRA && empty()) {
     DBG("verify", if (verifyModule(TheModule, &dbgs())) { abort(); });
 
-    DBG("jtcount", dbg
-        << "Trying with EarlyCSE and SETPass\n");
+    do {
 
-    Visited.clear();
+      DBG("jtcount",
+          dbg << "Harvesting: reset Visited, "
+              << (NewBranches > 0 ? "SROA, ConstProp, EarlyCSE, " : "")
+              << "SET + OSRA\n");
 
-    legacy::PassManager PM;
-    PM.add(createSROAPass()); // temp
-    PM.add(createConstantPropagationPass()); // temp
-    PM.add(createEarlyCSEPass());
-    PM.add(new SETPass(this, true, &Visited));
-    PM.add(new TranslateDirectBranchesPass(this));
-    PM.run(TheModule);
-    DBG("jtcount", dbg
-        << "JumpTargets found: " << Unexplored.size() << "\n");
+      // TODO: decide what to do with Visited
+      Visited.clear();
+      legacy::PassManager PM;
+      if (NewBranches > 0) {
+        PM.add(createSROAPass()); // temp
+        PM.add(createConstantPropagationPass()); // temp
+        PM.add(createEarlyCSEPass());
+      }
+      PM.add(new SETPass(this, true, &Visited));
+      PM.add(new TranslateDirectBranchesPass(this));
+      NewBranches = 0;
+      PM.run(TheModule);
+
+      DBG("jtcount", dbg << std::dec
+                         << Unexplored.size() << " new jump targets and "
+                         << NewBranches << " new branches were found\n");
+
+    } while (empty() && NewBranches > 0);
   }
+
+  if (empty()) {
+    DBG("jtcount", dbg<< "We're done looking for jump targets\n");
+  }
+
 }
 
 const JumpTargetManager::BlockWithAddress JumpTargetManager::NoMoreTargets =

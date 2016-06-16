@@ -364,6 +364,9 @@ public:
     }
   }
 
+  /// \brief Increment the counter of emitted branches since the last reset
+  void newBranch() { NewBranches++; }
+
 private:
   /// \brief Return an iterator to the entry containing the given address range
   typename std::map<uint64_t, BBSummary>::iterator
@@ -421,6 +424,7 @@ private:
   bool EnableOSRA;
 
   std::map<uint64_t, BBSummary> OriginalBBStats;
+  unsigned NewBranches = 0;
 };
 
 #endif // _JUMPTARGETMANAGER_H
