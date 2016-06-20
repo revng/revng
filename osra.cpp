@@ -142,8 +142,6 @@ void BoundedValue::describe(formatted_raw_ostream &O) const {
 
   O << "(";
   O << Value;
-  if (Weak)
-    O << "*";
   O << ", ";
 
   switch (Sign) {

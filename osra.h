@@ -47,8 +47,7 @@ public:
       UpperBound(0),
       Sign(UnknownSignedness),
       Bottom(false),
-      Negated(false),
-      Weak(false) { }
+      Negated(false) { }
 
     BoundedValue() :
       Value(nullptr),
@@ -56,8 +55,7 @@ public:
       UpperBound(0),
       Sign(UnknownSignedness),
       Bottom(false),
-      Negated(false),
-      Weak(false) { }
+      Negated(false) { }
 
 
     /// \brief Notify about a usage of the SSA value with a certain signedness
@@ -139,8 +137,7 @@ public:
               && UpperBound == Other.UpperBound
               && Sign == Other.Sign
               && Bottom == Other.Bottom
-              && Negated == Other.Negated
-              && Weak == Other.Weak);
+              && Negated == Other.Negated);
     }
 
     bool operator !=(const BoundedValue &Other) {
@@ -290,7 +287,6 @@ public:
     Signedness Sign;
     uint8_t Bottom;
     uint8_t Negated;
-    uint8_t Weak;
   };
 
   /// \brief An OSR represents an expression a + b * x, x being a BoundedValue
