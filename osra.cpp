@@ -519,7 +519,10 @@ bool OSRAPass::runOnFunction(Function &F) {
             // to fold the operation in a constant
             if (!IsFree)
               OSRs.erase(I);
-            OSRs.emplace(make_pair(I, OSR(getZExtValue(ConstantOp, DL))));
+            auto *ConstantBV = &BVs.get(I->getParent(), nullptr);
+            OSR ConstantOSR = OSR::createConstant(ConstantBV,
+                                                  getZExtValue(ConstantOp, DL));
+            OSRs.emplace(make_pair(I, ConstantOSR));
             EnqueueUsers(I);
           }
 
@@ -1005,7 +1008,9 @@ bool OSRAPass::runOnFunction(Function &F) {
 
           if (auto *ConstantOp = dyn_cast<Constant>(ValueOp)) {
             // We're storing a constant, create a constant OSR
-            SelfOSR = OSR(getZExtValue(ConstantOp, DL));
+            auto *ConstantBV = &BVs.get(I->getParent(), nullptr);
+            SelfOSR = OSR::createConstant(ConstantBV,
+                                          getZExtValue(ConstantOp, DL));
           } else if (auto *ToStore = dyn_cast<Instruction>(ValueOp)) {
             // Compute the OSR to propagate: either the one of the value to
             // store, or a self-referencing one

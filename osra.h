@@ -296,15 +296,20 @@ public:
     /// \brief Constructor for a basic OSR
     OSR(const BoundedValue *Value) : Base(0), Factor(1), BV(Value) { }
 
-    /// \brief Constructor for a constant OSR
-    OSR(uint64_t Base) : Base(Base), Factor(0), BV(nullptr) { }
-
     OSR() : Base(0), Factor(1), BV(nullptr) { }
 
     OSR(const OSR &Other) :
       Base(Other.Base),
       Factor(Other.Factor),
       BV(Other.BV) { }
+
+    /// \brief Create a constant OSR from a null-BoundedValue and a number
+    static OSR createConstant(const BoundedValue *Value, uint64_t Base) {
+      OSR Result(Value);
+      Result.Base = Base;
+      Result.Factor = 0;
+      return Result;
+    }
 
     /// \brief Combine this OSR with \p Operand through \p Opcode
     ///
