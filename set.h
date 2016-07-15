@@ -21,6 +21,21 @@ class JumpTargetManager;
 
 class SETPass : public llvm::FunctionPass {
 public:
+  /// \brief Information about the possible destination of a jump instruction
+  struct JumpInfo {
+    JumpInfo(llvm::StoreInst *Instruction,
+         bool Approximate,
+         std::vector<uint64_t> Destinations) : Instruction(Instruction),
+                                               Approximate(Approximate),
+                                               Destinations(Destinations) { }
+
+    llvm::StoreInst *Instruction; ///< The jump instruction
+    bool Approximate; ///< Is the destination list approximate or exhaustive?
+    std::vector<uint64_t> Destinations; ///< Possible target PCs
+  };
+
+
+public:
   static char ID;
 
   SETPass() : llvm::FunctionPass(ID),
@@ -40,17 +55,15 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
-private:
-  void enqueueStores(llvm::LoadInst *Start,
-                     unsigned StackHeight,
-                     std::vector<std::pair<llvm::Value *, unsigned>>& WL);
-
+  const std::vector<JumpInfo> &jumps() const {
+    return Jumps;
+  }
 
 private:
-  const unsigned MaxDepth = 3;
   JumpTargetManager *JTM;
   std::set<llvm::BasicBlock *> *Visited;
   bool UseOSRA;
+  std::vector<JumpInfo> Jumps;
 };
 
 #endif // _SET_H
