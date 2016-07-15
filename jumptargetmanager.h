@@ -286,12 +286,13 @@ public:
   /// \return a `ConstantInt` with the read value or `nullptr` in case it wasn't
   ///         possible to read the value (e.g., \p Address is not inside any of
   ///         the segments).
-  llvm::ConstantInt *readConstantInt(llvm::Constant *Address, unsigned Size);
+  llvm::ConstantInt *readConstantInt(llvm::Constant *Address,
+                                     unsigned Size) const;
 
   /// \brief Reads a pointer-sized value from a segment
   /// \see readConstantInt
   llvm::Constant *readConstantPointer(llvm::Constant *Address,
-				      llvm::Type *PointerTy);
+				      llvm::Type *PointerTy) const;
 
   /// \brief Register a new basic block in terms of the input architecture
   ///

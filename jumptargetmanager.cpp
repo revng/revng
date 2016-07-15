@@ -147,7 +147,7 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
 }
 
 Constant *JumpTargetManager::readConstantPointer(Constant *Address,
-                                                 Type *PointerTy) {
+                                                 Type *PointerTy) const {
   auto *Value = readConstantInt(Address, SourceArchitecture.pointerSize());
   if (Value != nullptr) {
     return ConstantExpr::getIntToPtr(Value, PointerTy);
@@ -157,7 +157,7 @@ Constant *JumpTargetManager::readConstantPointer(Constant *Address,
 }
 
 ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
-                                                unsigned Size) {
+                                                unsigned Size) const {
   const DataLayout &DL = TheModule.getDataLayout();
 
   if (ConstantAddress->getType()->isPointerTy()) {

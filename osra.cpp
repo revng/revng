@@ -1,4 +1,4 @@
-/// \file
+/// \file osra.cpp
 /// \brief
 
 // Standard includes
@@ -298,6 +298,7 @@ class VectorSet {
 public:
   void insert(T Element) {
     if (Set.find(Element) == Set.end()) {
+      assert(Element->getParent() != nullptr);
       Set.insert(Element);
       Queue.push(Element);
     }
@@ -1042,7 +1043,7 @@ bool OSRAPass::runOnFunction(Function &F) {
           // TODO: can we remove Visited?
           std::set<BasicBlock *> Visited;
           // Note: we don't insert in Visited the initial basic block, so it can
-          //       get visisted again to consider the part before the load
+          //       get visited again to consider the part before the load
           //       instruction.
 
           // Conflicts contains the list of loads we're not able to overtake,
@@ -1135,13 +1136,16 @@ bool OSRAPass::runOnFunction(Function &F) {
 
             // If we didn't stop, enqueue all the non-blacklisted successors for
             // exploration
-            if (!Stop)
-              for (auto *Successor : successors(BB))
+            if (!Stop) {
+              for (auto *Successor : successors(BB)) {
                 if (!BlockBlackList.count(Successor)
                     && !Successor->empty()
-                    && !Visited.count(Successor))
+                    && !Visited.count(Successor)) {
                   ExploreWL.push_back(make_range(Successor->begin(),
                                                  Successor->end()));
+                }
+              }
+            }
 
             // When we have nothing more to explore, before giving up, check all
             // the candidate conflicts to see if some of them are no longer
@@ -1190,7 +1194,7 @@ bool OSRAPass::runOnFunction(Function &F) {
 
           // TODO: can we remove Visited?
           std::set<BasicBlock *> Visited;
-          // Note: we don't insert in Visisted the initial basic block, so it
+          // Note: we don't insert in Visited the initial basic block, so it
           //       can get visisted again to consider the part before the load
           //       instruction.
 
