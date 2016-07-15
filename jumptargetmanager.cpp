@@ -45,9 +45,98 @@ static RegisterPass<TranslateDirectBranchesPass> X("translate-db",
 
 void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<DominatorTreeWrapperPass>();
+  AU.addUsedIfAvailable<SETPass>();
 }
 
-bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
+/// \brief Purges everything is after a call to exitTB (except the call itself)
+static void exitTBCleanup(Instruction *ExitTBCall) {
+  BasicBlock *BB = ExitTBCall->getParent();
+  BasicBlock::iterator I(ExitTBCall);
+  BasicBlock::iterator BlockEnd(BB->end());
+
+  // After a call to exitTB we always have an unreachable instruction
+  I++;
+  assert(I != BlockEnd);
+  I->eraseFromParent();
+
+  // Cleanup everything it's aftewards starting from the end
+  Instruction *ToDelete = &*(--BB->end());
+  while (ToDelete != ExitTBCall) {
+    if (auto DeadBranch = dyn_cast<BranchInst>(ToDelete))
+      purgeBranch(BasicBlock::iterator(DeadBranch));
+    else
+      ToDelete->eraseFromParent();
+
+    ToDelete = &*(--BB->end());
+  }
+}
+
+bool TranslateDirectBranchesPass::pinJTs(Function &F) {
+  const auto *SET = getAnalysisIfAvailable<SETPass>();
+  if (SET == nullptr || SET->jumps().size() == 0)
+    return false;
+
+  auto& Context = F.getParent()->getContext();
+  auto *PCReg = JTM->pcReg();
+  auto *RegType = cast<IntegerType>(PCReg->getType()->getPointerElementType());
+  auto C = [RegType] (uint64_t A) { return ConstantInt::get(RegType, A); };
+  BasicBlock *Dispatcher = JTM->dispatcher();
+  BasicBlock *DispatcherFail = JTM->dispatcherFail();
+
+  for (const auto &Jump : SET->jumps()) {
+    StoreInst *PCWrite = Jump.Instruction;
+    bool Approximate = Jump.Approximate;
+    const std::vector<uint64_t> &Destinations = Jump.Destinations;
+
+    // We don't care if we already handled this call too exitTB in the past,
+    // information should become progressively more precise, so let's just
+    // remove everything after this call and put a new handler
+    CallInst *CallExitTB = JTM->findNextExitTB(PCWrite);
+
+    assert(CallExitTB != nullptr);
+    assert(PCWrite->getParent()->getParent() == &F);
+    assert(JTM->isPCReg(PCWrite->getPointerOperand()));
+    assert(Destinations.size() != 0);
+
+    auto *ExitTBArg = ConstantInt::get(Type::getInt32Ty(Context),
+                                       Destinations.size());
+    uint64_t OldTargetsCount = getLimitedValue(CallExitTB->getArgOperand(0));
+
+    // TODO: we should also check the destinations are actually the same
+    assert(Destinations.size() >= OldTargetsCount);
+
+    BasicBlock *FailBB = Approximate ? Dispatcher : Dispatcher /* Fail */;
+    BasicBlock *BB = CallExitTB->getParent();
+
+    // Kill everything is after the call to exitTB
+    exitTBCleanup(CallExitTB);
+
+    // Mark this call to exitTB as handled
+    CallExitTB->setArgOperand(0, ExitTBArg);
+
+    IRBuilder<> Builder(BB);
+    auto PCLoad = Builder.CreateLoad(PCReg);
+    if (Destinations.size() == 1) {
+      auto *Comparison = Builder.CreateICmpEQ(C(Destinations[0]), PCLoad);
+      Builder.CreateCondBr(Comparison,
+                           JTM->getBlockAt(Destinations[0], false),
+                           FailBB);
+    } else {
+      auto *Switch = Builder.CreateSwitch(PCLoad, FailBB, Destinations.size());
+      for (uint64_t Destination : Destinations)
+        Switch->addCase(C(Destination), JTM->getBlockAt(Destination, false));
+    }
+
+    // Notify new branches only if the amount of possible targets actually
+    // increased
+    if (Destinations.size() > OldTargetsCount)
+      JTM->newBranch();
+  }
+
+  return true;
+}
+
+bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
   auto& Context = F.getParent()->getContext();
 
   Function *ExitTB = JTM->exitTB();
@@ -109,6 +198,10 @@ bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
   }
 
   return true;
+}
+
+bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
+  return pinConstantStore(F) || pinJTs(F);
 }
 
 uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
@@ -238,7 +331,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   SourceArchitecture(SourceArchitecture),
   EnableOSRA(EnableOSRA) {
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
-                                             { },
+                                             { Type::getInt32Ty(Context) },
                                              false);
   ExitTB = cast<Function>(TheModule.getOrInsertFunction("exitTB", ExitTBTy));
   createDispatcher(TheFunction, PCReg, true);
@@ -359,6 +452,58 @@ void JumpTargetManager::registerBlock(uint64_t PC, BasicBlock *Block) {
   assert(It == JumpTargets.end() || It->second == Block);
   if (It->second != Block)
     JumpTargets[PC] = Block;
+}
+
+using BasicBlockRange = iterator_range<BasicBlock::iterator>;
+
+static void visitSuccessors(Instruction *I,
+                            std::function<bool(BasicBlockRange)> Visitor) {
+  std::set<BasicBlock *> Visited;
+  Visited.insert(I->getParent());
+
+  BasicBlock::iterator It(I);
+  It++;
+
+  std::queue<iterator_range<BasicBlock::iterator>> Queue;
+  Queue.push(make_range(It, I->getParent()->end()));
+
+  while (!Queue.empty()) {
+    auto Range = Queue.back();
+    Queue.pop();
+
+    if (Visitor(Range))
+      return;
+
+    for (auto *Successor : successors(Range.begin()->getParent())) {
+      if (Visited.count(Successor) == 0) {
+        Visited.insert(Successor);
+        Queue.push(make_range(Successor->begin(), Successor->end()));
+      }
+    }
+
+  }
+
+}
+
+CallInst *JumpTargetManager::findNextExitTB(Instruction *Start) {
+  CallInst *Result = nullptr;
+
+  visitSuccessors(Start, [this,&Result] (BasicBlockRange Range) {
+      for (Instruction &I : Range) {
+        if (auto *Call = dyn_cast<CallInst>(&I)) {
+          assert(!(Call->getCalledFunction()->getName() == "newpc"));
+          if (Call->getCalledFunction() == ExitTB) {
+            assert(Result == nullptr);
+            Result = Call;
+            return true;
+          }
+        }
+      }
+
+      return false;
+    });
+
+  return Result;
 }
 
 StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
@@ -783,34 +928,22 @@ void JumpTargetManager::translateIndirectJumps() {
     Use& ExitTBUse = *I++;
     if (auto Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
       if (Call->getCalledFunction() == ExitTB) {
-        // Look for the last write to the PC
-        StoreInst *PCWrite = getPrevPCWrite(Call);
-        assert((PCWrite == nullptr
-                || !isa<ConstantInt>(PCWrite->getValueOperand()))
-               && "Direct jumps should not be handled here");
 
-        if (PCWrite != nullptr && EnableOSRA && isSumJump(PCWrite))
-          handleSumJump(PCWrite);
+        if (getLimitedValue(Call->getArgOperand(0)) == 0) {
+          // Look for the last write to the PC
+          StoreInst *PCWrite = getPrevPCWrite(Call);
+          assert((PCWrite == nullptr
+                  || !isa<ConstantInt>(PCWrite->getValueOperand()))
+                 && "Direct jumps should not be handled here");
 
-        BasicBlock *BB = Call->getParent();
-        auto *Branch = BranchInst::Create(Dispatcher, Call);
-        BasicBlock::iterator I(Call);
-        BasicBlock::iterator BlockEnd(Call->getParent()->end());
-        I++;
-        assert(I != BlockEnd && isa<UnreachableInst>(&*I));
-        I->eraseFromParent();
-        Call->eraseFromParent();
+          if (PCWrite != nullptr && EnableOSRA && isSumJump(PCWrite))
+            handleSumJump(PCWrite);
 
-        // Cleanup everything it's aftewards
-        Instruction *ToDelete = &*(--BB->end());
-        while (ToDelete != Branch) {
-          if (auto DeadBranch = dyn_cast<BranchInst>(ToDelete))
-            purgeBranch(BasicBlock::iterator(DeadBranch));
-          else
-            ToDelete->eraseFromParent();
-
-          ToDelete = &*(--BB->end());
+          exitTBCleanup(Call);
+          BranchInst::Create(Dispatcher, Call);
         }
+
+        Call->eraseFromParent();
       }
     }
   }
@@ -922,10 +1055,10 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
                                          OutputFunction);
 
   // The default case of the switch statement it's an unhandled cases
-  auto *Default = BasicBlock::Create(Context,
-                                     "dispatcher.default",
-                                     OutputFunction);
-  Builder.SetInsertPoint(Default);
+  DispatcherFail = BasicBlock::Create(Context,
+                                      "dispatcher.default",
+                                      OutputFunction);
+  Builder.SetInsertPoint(DispatcherFail);
 
   Module *TheModule = TheFunction->getParent();
   auto *UnknownPCTy = FunctionType::get(Type::getVoidTy(Context), { }, false);
@@ -937,7 +1070,7 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   // Switch on the first argument of the function
   Builder.SetInsertPoint(Entry);
   Value *SwitchOn = Builder.CreateLoad(SwitchOnPtr);
-  SwitchInst *Switch = Builder.CreateSwitch(SwitchOn, Default);
+  SwitchInst *Switch = Builder.CreateSwitch(SwitchOn, DispatcherFail);
 
   Dispatcher = Entry;
   DispatcherSwitch = Switch;

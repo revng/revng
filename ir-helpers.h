@@ -1,6 +1,10 @@
 #ifndef _IRHELPERS_H
 #define _IRHELPERS_H
 
+// Standard includes
+#include <set>
+
+// LLVM includes
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/Interval.h"
@@ -26,20 +30,21 @@ static inline void replaceInstruction(llvm::Instruction *Old,
 /// basic block, if it doesn't have any predecessors left.
 static inline void purgeBranch(llvm::BasicBlock::iterator I) {
   auto *DeadBranch = llvm::dyn_cast<llvm::BranchInst>(I);
-  // We allow only an unconditional branch and nothing else
+  // We allow only a branch and nothing else
   assert(DeadBranch != nullptr &&
-         DeadBranch->isUnconditional() &&
          ++I == DeadBranch->getParent()->end());
 
-  // Obtain the target of the dead branch
-  llvm::BasicBlock *DeadBranchTarget = DeadBranch->getSuccessor(0);
+  std::set<llvm::BasicBlock *> Successors;
+  for (unsigned C = 0; C < DeadBranch->getNumSuccessors(); C++)
+    Successors.insert(DeadBranch->getSuccessor(C));
 
   // Destroy the dead branch
   DeadBranch->eraseFromParent();
 
   // Check if someone else was jumping there and then destroy
-  if (llvm::pred_empty(DeadBranchTarget))
-    DeadBranchTarget->eraseFromParent();
+  for (llvm::BasicBlock *BB : Successors)
+    if (llvm::pred_empty(BB))
+      BB->eraseFromParent();
 }
 
 static inline llvm::ConstantInt *getConstValue(llvm::Constant *C,
@@ -79,6 +84,10 @@ static inline uint64_t getExtValue(llvm::Constant *C,
     return getSExtValue(C, DL);
   else
     return getZExtValue(C, DL);
+}
+
+static inline uint64_t getLimitedValue(llvm::Value *V) {
+  return llvm::cast<llvm::ConstantInt>(V)->getLimitedValue();
 }
 
 static inline llvm::iterator_range<llvm::Interval::pred_iterator>

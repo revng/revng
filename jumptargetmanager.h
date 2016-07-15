@@ -62,6 +62,13 @@ public:
 
   bool runOnFunction(llvm::Function &F) override;
 
+  /// \brief Remove all the constant writes to the PC
+  bool pinConstantStore(llvm::Function &F);
+
+  /// \brief Remove all the PC-writes for which a set of (approximate) targets
+  ///        is known
+  bool pinJTs(llvm::Function &F);
+
 private:
   /// Obtains the absolute address of the PC corresponding to the original
   /// assembly instruction coming after the specified LLVM instruction
@@ -177,8 +184,8 @@ public:
   /// \brief Return true if no unexplored jump targets are available
   bool empty() { return Unexplored.empty(); }
 
-  /// \brief Rfeturns true if the whole [\p Start,\p End) range is in an executable
-  ///        segment
+  /// \brief Return true if the whole [\p Start,\p End) range is in an
+  ///        executable segment
   bool isExecutableRange(uint64_t Start, uint64_t End) const {
     for (std::pair<uint64_t, uint64_t> Range : ExecutableRanges)
       if (Range.first <= Start && Start < Range.second
@@ -187,20 +194,31 @@ public:
     return false;
   }
 
-  /// \brief Returns true if the given PC respects the input architecture's
+  /// \brief Return true if the given PC respects the input architecture's
   ///        instruction alignment constraints
   bool isInstructionAligned(uint64_t PC) const {
     return PC % SourceArchitecture.instructionAlignment() == 0;
   }
 
-  /// \brief Returns if the given PC is a good candidate for exploration
+  /// \brief Return true if the given PC can be executed by the current
+  ///        architecture
+  bool isPC(uint64_t PC) const {
+    return isExecutableAddress(PC) && isInstructionAligned(PC);
+  }
+
+  /// \brief Return true if the given PC is a jump target
+  bool isJumpTarget(uint64_t PC) const {
+    return JumpTargets.count(PC);
+  }
+
+  /// \brief Return true if the given PC is a good candidate for exploration
   ///
   /// \return true if the PC is properly aligned, in an executable segment and
   ///         not explored yet.
   bool isInterestingPC(uint64_t PC) const {
     return isExecutableAddress(PC)
       && isInstructionAligned(PC)
-      && !JumpTargets.count(PC);
+      && !isJumpTarget(PC);
   }
 
   /// \brief Return true if \p PC is in an executable segment
@@ -209,10 +227,6 @@ public:
       if (Range.first <= PC && PC < Range.second)
         return true;
     return false;
-  }
-
-  bool isJumpTarget(uint64_t PC) {
-    return JumpTargets.count(PC);
   }
 
   /// \brief Return true if the given PC is "reliable"
@@ -262,6 +276,9 @@ public:
 
   /// \brief Return a pointer to the dispatcher basic block.
   llvm::BasicBlock *dispatcher() const { return Dispatcher; }
+
+  /// \brief Return a pointer to the dispatcher basic block.
+  llvm::BasicBlock *dispatcherFail() const { return DispatcherFail; }
 
   bool isPCReg(llvm::Value *TheValue) const { return TheValue == PCReg; }
 
@@ -368,6 +385,10 @@ public:
   /// \brief Increment the counter of emitted branches since the last reset
   void newBranch() { NewBranches++; }
 
+  /// \brief Return the next call to exitTB after I, or nullptr if it can't find
+  ///        one
+  llvm::CallInst *findNextExitTB(llvm::Instruction *I);
+
 private:
   /// \brief Return an iterator to the entry containing the given address range
   typename std::map<uint64_t, BBSummary>::iterator
@@ -416,6 +437,7 @@ private:
   RangesVector ExecutableRanges;
   llvm::BasicBlock *Dispatcher;
   llvm::SwitchInst *DispatcherSwitch;
+  llvm::BasicBlock *DispatcherFail;
   std::set<llvm::BasicBlock *> Visited;
 
   std::vector<SegmentInfo>& Segments;

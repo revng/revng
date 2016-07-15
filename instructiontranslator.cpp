@@ -1355,7 +1355,8 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
     }
   case PTC_INSTRUCTION_op_exit_tb:
     {
-      Builder.CreateCall(JumpTargets.exitTB(), { });
+      auto *Zero = ConstantInt::get(Type::getInt32Ty(Context), 0);
+      Builder.CreateCall(JumpTargets.exitTB(), { Zero });
       Builder.CreateUnreachable();
 
       auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
