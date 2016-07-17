@@ -406,6 +406,152 @@ static bool isSupportedOperation(unsigned Opcode,
   return true;
 }
 
+static bool intersect(std::pair<uint64_t, uint64_t> A,
+                      std::pair<uint64_t, uint64_t> B) {
+  return A.first < (B.first + B.second) && B.first < (A.first + A.second);
+}
+
+static bool isVariable(Value *V) {
+  return isa<GlobalVariable>(V) || isa<AllocaInst>(V);
+}
+
+/// \brief Represents an access to the CPU state or the memory
+class MemoryAccess {
+public:
+  MemoryAccess() : Type(Invalid), Base(nullptr), Offset(0), Size(0)  { }
+
+  MemoryAccess(LoadInst *Load, const DataLayout &DL) {
+    Size = DL.getTypeSizeInBits(Load->getType()) * 8;
+    initialize(Load->getPointerOperand());
+  }
+
+  MemoryAccess(StoreInst *Store, const DataLayout &DL) {
+    Size = DL.getTypeSizeInBits(Store->getValueOperand()->getType()) * 8;
+    initialize(Store->getPointerOperand());
+  }
+
+  bool operator==(const MemoryAccess &Other) const {
+    if (Type != Other.Type || Size != Other.Size)
+      return false;
+
+    switch (Type) {
+    case Invalid:
+      return true;
+      break;
+    case CPUState:
+      return Base == Other.Base;
+      break;
+    case RegisterAndOffset:
+      return Base == Other.Base && Offset == Other.Offset;
+      break;
+    }
+
+    assert(false);
+  }
+
+  bool operator!=(const MemoryAccess &Other) const { return !(*this == Other); }
+
+  bool mayAlias(const MemoryAccess &Other) const {
+    if (Type == Invalid || Other.Type == Invalid)
+      return true;
+
+    // If they're both CPU state, they alias only if the are the same part of
+    // the CPU state. If one of them is CPU state and the other is a register +
+    // offset, they alias only if the register written by the first memory
+    // access is the one read by the second one.
+    if ((Type == CPUState && Other.Type == CPUState)
+        || (Type == CPUState && Other.Type == RegisterAndOffset)
+        || (Type == RegisterAndOffset && Other.Type == CPUState))
+      return Base == Other.Base;
+
+    // If they're RegisterAndOffset and they're not relative to the same
+    // register we known nothing about the content of the base register,
+    // therefore they may alias.
+    // If they're relative to the same register, we check if the two memory
+    // accesses overlap, if they don't there's no alias.
+    // Note that we can assume the content of the register is the same, since if
+    // this wasn't the case we'd have already had an alias situation when
+    // writing the register.
+    if (Type == RegisterAndOffset && Other.Type == RegisterAndOffset) {
+      if (Base != Other.Base)
+        return true;
+
+      return intersect({ Offset, Size }, { Other.Offset, Other.Size });
+    }
+
+    assert(false);
+  }
+
+  bool isValid() const { return Type != Invalid; }
+
+private:
+
+  void initialize(Value *Pointer) {
+    // Default situation: we can't handle this load
+    Type = Invalid;
+    Base = nullptr;
+    Offset = 0;
+
+    if (isVariable(Pointer)) {
+      // Load from CPU state
+      Type = CPUState;
+      Base = Pointer;
+    } else if (auto *V = dyn_cast<Instruction>(Pointer)) {
+      // Try to handle load from an address stored in a register plus an offset
+      // This mainly aims to handle very simple variables stored on the stack
+      uint64_t Addend = 0;
+      while (true) {
+        switch (V->getOpcode()) {
+        case Instruction::IntToPtr:
+        case Instruction::PtrToInt:
+          if (auto *Operand = dyn_cast<Instruction>(V->getOperand(0))) {
+            V = Operand;
+          } else {
+            return;
+          }
+          break;
+        case Instruction::Add:
+          {
+            auto Operands = operandsByType<Instruction *, ConstantInt *>(V);
+            Instruction *FirstOp;
+            ConstantInt *SecondOp;
+            std::tie(FirstOp, SecondOp) = Operands;
+            if (Addend != 0 || SecondOp == nullptr || FirstOp == nullptr)
+              return;
+
+            Addend = SecondOp->getLimitedValue();
+            V = FirstOp;
+            break;
+          }
+        case Instruction::Load:
+          {
+            Value *LoadOperand = V->getOperand(0);
+            if (isVariable(LoadOperand)) {
+              Type = RegisterAndOffset;
+              Base = LoadOperand;
+              Offset = Addend;
+            }
+            return;
+          }
+        default:
+          return;
+        }
+      }
+    }
+
+  }
+
+private:
+  enum {
+    Invalid,
+    CPUState,
+    RegisterAndOffset
+  } Type;
+  const Value *Base;
+  uint64_t Offset;
+  uint64_t Size;
+};
+
 // Terminology:
 // * OSR: Offseted Shifted Range, our main data flow value which represents the
 //        result of an instruction as another value, which lies withing a
@@ -981,7 +1127,7 @@ bool OSRAPass::runOnFunction(Function &F) {
     case Instruction::Load:
       {
         // Create the OSR to propagate
-        Value *Pointer = nullptr;
+        MemoryAccess MA;
         auto TheLoad = dyn_cast<LoadInst>(I);
         auto TheStore = dyn_cast<StoreInst>(I);
 
@@ -998,12 +1144,12 @@ bool OSRAPass::runOnFunction(Function &F) {
           if (OSRs.count(I) != 0)
             break;
 
-          Pointer = TheLoad->getPointerOperand();
+          MA = MemoryAccess(TheLoad, DL);
           SelfOSR = OSR(&BVs.get(I->getParent(), I));
         } else {
           // It's a store
           assert(TheStore != nullptr);
-          Pointer = TheStore->getPointerOperand();
+          MA = MemoryAccess(TheStore, DL);
           Value *ValueOp = TheStore->getValueOperand();
 
           if (auto *ConstantOp = dyn_cast<Constant>(ValueOp)) {
@@ -1070,7 +1216,7 @@ bool OSRAPass::runOnFunction(Function &F) {
               if (auto *Load = dyn_cast<LoadInst>(&Inst)) {
                 // TODO: handle casts and the like
                 // Is it loading from the same address of our load?
-                if (Load->getPointerOperand() != Pointer)
+                if (MA != MemoryAccess(Load, DL))
                   continue;
 
                 // Take the reference OSR (SelfOSR) and "contextualize" it in
@@ -1128,10 +1274,7 @@ bool OSRAPass::runOnFunction(Function &F) {
               } else if (auto *Store = dyn_cast<StoreInst>(&Inst)) {
                 // Check if this store might alias the memory area we're
                 // tracking
-                auto *PointerOp = Store->getPointerOperand();
-                if (PointerOp == Pointer
-                    || (!isa<GlobalVariable>(PointerOp)
-                        && !isa<AllocaInst>(PointerOp))) {
+                if (MemoryAccess(Store, DL).mayAlias(MA)) {
                   Stop = true;
                   break;
                 }
@@ -1218,7 +1361,7 @@ bool OSRAPass::runOnFunction(Function &F) {
               if (auto *Load = dyn_cast<LoadInst>(&Inst)) {
                 // TODO: handle casts and the like
                 // Is it loading from the same address of our load?
-                if (Load->getPointerOperand() != Pointer)
+                if (MA != MemoryAccess(Load, DL))
                   continue;
 
                 bool Changed = true;
@@ -1249,10 +1392,7 @@ bool OSRAPass::runOnFunction(Function &F) {
               } else if (auto *Store = dyn_cast<StoreInst>(&Inst)) {
                 // Check if this store might alias the memory area we're
                 // tracking
-                auto *PointerOp = Store->getPointerOperand();
-                if (PointerOp == Pointer
-                    || (!isa<GlobalVariable>(PointerOp)
-                        && !isa<AllocaInst>(PointerOp))) {
+                if (MemoryAccess(Store, DL).mayAlias(MA)) {
                   Stop = true;
                   break;
                 }

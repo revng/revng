@@ -100,4 +100,31 @@ successors(llvm::Interval *BB) {
   return make_range(succ_begin(BB), succ_end(BB));
 }
 
+template<typename T, unsigned I>
+static inline void findOperand(llvm::Value *Op, T &Result) {
+  abort();
+}
+
+template<typename T, unsigned I, typename Head, typename... Tail>
+static inline void findOperand(llvm::Value *Op, T &Result) {
+  using VT = typename std::remove_pointer<Head>::type;
+  if (auto *Casted = llvm::dyn_cast<VT>(Op))
+    std::get<I>(Result) = Casted;
+  else
+    return findOperand<T, I + 1, Tail...>(Op, Result);
+}
+
+/// \brief Returns a tuple of \p V's operands of the requested types
+template<typename... T>
+static inline std::tuple<T...> operandsByType(llvm::User *V) {
+  std::tuple<T...> Result;
+  unsigned OpCount = V->getNumOperands();
+  assert(OpCount == sizeof...(T));
+
+  for (llvm::Value *Op : V->operands())
+    findOperand<std::tuple<T...>, 0, T...>(Op, Result);
+
+  return Result;
+}
+
 #endif // _IRHELPERS_H
