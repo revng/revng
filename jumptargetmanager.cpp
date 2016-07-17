@@ -102,8 +102,8 @@ bool TranslateDirectBranchesPass::pinJTs(Function &F) {
                                        Destinations.size());
     uint64_t OldTargetsCount = getLimitedValue(CallExitTB->getArgOperand(0));
 
+    // TODO: we should check Destinations.size() >= OldTargetsCount
     // TODO: we should also check the destinations are actually the same
-    assert(Destinations.size() >= OldTargetsCount);
 
     BasicBlock *FailBB = Approximate ? Dispatcher : Dispatcher /* Fail */;
     BasicBlock *BB = CallExitTB->getParent();
