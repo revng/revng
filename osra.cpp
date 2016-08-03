@@ -17,6 +17,7 @@
 #include "llvm/Pass.h"
 
 // Local includes
+#include "datastructures.h"
 #include "debug.h"
 #include "revamb.h"
 #include "ir-helpers.h"
@@ -293,34 +294,6 @@ static bool mergeBVVectors(OSRAPass::BVVector &Base,
   return Result;
 }
 
-template<typename T>
-class VectorSet {
-public:
-  void insert(T Element) {
-    if (Set.find(Element) == Set.end()) {
-      assert(Element->getParent() != nullptr);
-      Set.insert(Element);
-      Queue.push(Element);
-    }
-  }
-
-  bool empty() const {
-    return Queue.empty();
-  }
-
-  T pop() {
-    T Result = Queue.front();
-    Queue.pop();
-    Set.erase(Result);
-    return Result;
-  }
-
-  size_t size() const { return Queue.size(); }
-private:
-  std::set<T> Set;
-  std::queue<T> Queue;
-};
-
 /// Given an instruction, identifies, if possible, the constant operand.  If
 /// both operands are constant, it returns a Constant with the folded operation
 /// and nullptr. If only one is constant, it return the constant and a reference
@@ -588,7 +561,7 @@ bool OSRAPass::runOnFunction(Function &F) {
   Constraints.clear();
 
   // Initialize the WorkList with all the instructions in the function
-  VectorSet<Instruction *> WorkList;
+  UniquedQueue<Instruction *> WorkList;
   auto &BBList = F.getBasicBlockList();
   for (auto &BB : make_range(BBList.begin(), BBList.end()))
     if (BlockBlackList.find(&BB) == BlockBlackList.end())
