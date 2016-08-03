@@ -127,4 +127,11 @@ static inline std::tuple<T...> operandsByType(llvm::User *V) {
   return Result;
 }
 
+/// \brief Return an range iterating backward from the given instruction
+static inline llvm::iterator_range<llvm::BasicBlock::reverse_iterator>
+backward_range(llvm::Instruction *I) {
+  return llvm::make_range(llvm::make_reverse_iterator(I->getIterator()),
+                          I->getParent()->rend());
+}
+
 #endif // _IRHELPERS_H
