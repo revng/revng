@@ -630,13 +630,13 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
     WorkList.pop();
     auto *BB = I->getParent();
     auto End = BB->rend();
-    Visited.insert(BB);
 
     // Go through the instructions looking for calls to newpc
     for (; I != End; I++) {
       if (auto Marker = dyn_cast<CallInst>(&*I)) {
         // TODO: comparing strings is not very elegant
-        if (Marker->getCalledFunction()->getName() == "newpc") {
+        auto *Callee = Marker->getCalledFunction();
+        if (Callee != nullptr && Callee->getName() == "newpc") {
 
           // We found two distinct newpc leading to the requested instruction
           if (NewPCCall != nullptr)
@@ -663,6 +663,7 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
         if (!Predecessor->empty()
             && Visited.find(Predecessor) == Visited.end()) {
           WorkList.push(Predecessor->rbegin());
+          Visited.insert(Predecessor);
         }
       }
     }
