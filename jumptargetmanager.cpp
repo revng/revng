@@ -927,19 +927,19 @@ void JumpTargetManager::translateIndirectJumps() {
   auto I = ExitTB->use_begin();
   while (I != ExitTB->use_end()) {
     Use& ExitTBUse = *I++;
-    if (auto Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
+    if (auto *Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
       if (Call->getCalledFunction() == ExitTB) {
 
+        // Look for the last write to the PC
+        StoreInst *PCWrite = getPrevPCWrite(Call);
+        assert((PCWrite == nullptr
+                || !isa<ConstantInt>(PCWrite->getValueOperand()))
+               && "Direct jumps should not be handled here");
+
+        if (PCWrite != nullptr && EnableOSRA && isSumJump(PCWrite))
+          handleSumJump(PCWrite);
+
         if (getLimitedValue(Call->getArgOperand(0)) == 0) {
-          // Look for the last write to the PC
-          StoreInst *PCWrite = getPrevPCWrite(Call);
-          assert((PCWrite == nullptr
-                  || !isa<ConstantInt>(PCWrite->getValueOperand()))
-                 && "Direct jumps should not be handled here");
-
-          if (PCWrite != nullptr && EnableOSRA && isSumJump(PCWrite))
-            handleSumJump(PCWrite);
-
           exitTBCleanup(Call);
           BranchInst::Create(Dispatcher, Call);
         }
