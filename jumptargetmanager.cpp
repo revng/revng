@@ -457,53 +457,22 @@ void JumpTargetManager::registerBlock(uint64_t PC, BasicBlock *Block) {
     JumpTargets[PC] = Block;
 }
 
-using BasicBlockRange = iterator_range<BasicBlock::iterator>;
-
-static void visitSuccessors(Instruction *I,
-                            std::function<bool(BasicBlockRange)> Visitor) {
-  std::set<BasicBlock *> Visited;
-  Visited.insert(I->getParent());
-
-  BasicBlock::iterator It(I);
-  It++;
-
-  std::queue<iterator_range<BasicBlock::iterator>> Queue;
-  Queue.push(make_range(It, I->getParent()->end()));
-
-  while (!Queue.empty()) {
-    auto Range = Queue.back();
-    Queue.pop();
-
-    if (Visitor(Range))
-      return;
-
-    for (auto *Successor : successors(Range.begin()->getParent())) {
-      if (Visited.count(Successor) == 0) {
-        Visited.insert(Successor);
-        Queue.push(make_range(Successor->begin(), Successor->end()));
-      }
-    }
-
-  }
-
-}
-
 CallInst *JumpTargetManager::findNextExitTB(Instruction *Start) {
   CallInst *Result = nullptr;
 
-  visitSuccessors(Start, [this,&Result] (BasicBlockRange Range) {
+  visitSuccessors(Start, nullptr, [this,&Result] (BasicBlockRange Range) {
       for (Instruction &I : Range) {
         if (auto *Call = dyn_cast<CallInst>(&I)) {
           assert(!(Call->getCalledFunction()->getName() == "newpc"));
           if (Call->getCalledFunction() == ExitTB) {
             assert(Result == nullptr);
             Result = Call;
-            return true;
+            return ExhaustQueueAndStop;
           }
         }
       }
 
-      return false;
+      return Continue;
     });
 
   return Result;

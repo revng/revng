@@ -3,6 +3,7 @@
 
 // Standard includes
 #include <set>
+#include <queue>
 
 // LLVM includes
 #include "llvm/ADT/SmallVector.h"
@@ -157,6 +158,75 @@ static inline llvm::iterator_range<llvm::BasicBlock::reverse_iterator>
 backward_range(llvm::Instruction *I) {
   return llvm::make_range(llvm::make_reverse_iterator(I->getIterator()),
                           I->getParent()->rend());
+}
+
+/// \brief Possible way to continue (or stop) exploration in a breadth-first
+///        visit
+enum VisitAction {
+  Continue, ///< Visit also the successor basic blocks
+  NoSuccessors, ///< Do not visit the successors of this basic block
+  ExhaustQueueAndStop, ///< Prevent adding visiting other basic blocks except
+                       ///  those already pending
+  StopNow ///< Interrupt immediately the visit
+};
+
+using BasicBlockRange = llvm::iterator_range<llvm::BasicBlock::iterator>;
+using VisitorFunction = std::function<VisitAction(BasicBlockRange)>;
+
+/// Performs a breadth-first visit of the instruction after \p I and in the
+/// successor basic blocks
+///
+/// \param I the instruction from where to the visit should start
+/// \param Ignore a set of basic block to ignore during the visit
+/// \param Visitor the visitor function, see VisitAction to understand what this
+///        function should return
+static inline void visitSuccessors(llvm::Instruction *I,
+                                   const std::set<llvm::BasicBlock *> &Ignore,
+                                   VisitorFunction Visitor) {
+  std::set<llvm::BasicBlock *> Visited = Ignore;
+
+  llvm::BasicBlock::iterator It(I);
+  It++;
+
+  std::queue<llvm::iterator_range<llvm::BasicBlock::iterator>> Queue;
+  Queue.push(make_range(It, I->getParent()->end()));
+
+  bool ExhaustOnly = false;
+
+  while (!Queue.empty()) {
+    auto Range = Queue.front();
+    Queue.pop();
+
+    switch (Visitor(Range)) {
+    case Continue:
+      if (!ExhaustOnly) {
+        for (auto *Successor : successors(Range.begin()->getParent())) {
+          if (Visited.count(Successor) == 0) {
+            Visited.insert(Successor);
+            Queue.push(make_range(Successor->begin(), Successor->end()));
+          }
+        }
+      }
+      break;
+    case NoSuccessors:
+      break;
+    case ExhaustQueueAndStop:
+      ExhaustOnly = true;
+      break;
+    case StopNow:
+      return;
+    default:
+      assert(false);
+    }
+  }
+}
+
+static inline void visitSuccessors(llvm::Instruction *I,
+                                   llvm::BasicBlock *Ignore,
+                                   VisitorFunction Visitor) {
+  std::set<llvm::BasicBlock *> IgnoreSet;
+  IgnoreSet.insert(Ignore);
+  visitSuccessors(I, IgnoreSet, Visitor);
 }
 
 #endif // _IRHELPERS_H
