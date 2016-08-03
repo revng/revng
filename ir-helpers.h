@@ -101,20 +101,24 @@ successors(llvm::Interval *BB) {
 }
 
 template<typename T, unsigned I>
-static inline void findOperand(llvm::Value *Op, T &Result) {
-  abort();
+static inline bool findOperand(llvm::Value *Op, T &Result) {
+  return false;
 }
 
 template<typename T, unsigned I, typename Head, typename... Tail>
-static inline void findOperand(llvm::Value *Op, T &Result) {
+static inline bool findOperand(llvm::Value *Op, T &Result) {
   using VT = typename std::remove_pointer<Head>::type;
-  if (auto *Casted = llvm::dyn_cast<VT>(Op))
+  if (auto *Casted = llvm::dyn_cast<VT>(Op)) {
     std::get<I>(Result) = Casted;
-  else
+    return true;
+  } else {
     return findOperand<T, I + 1, Tail...>(Op, Result);
+  }
 }
 
-/// \brief Returns a tuple of \p V's operands of the requested types
+/// \brief Return a tuple of \p V's operands of the requested types
+/// \return a tuple with the operands of the specified type in the specified
+///         order, or, if not possible, a nullptr tuple.
 template<typename... T>
 static inline std::tuple<T...> operandsByType(llvm::User *V) {
   std::tuple<T...> Result;
@@ -122,7 +126,8 @@ static inline std::tuple<T...> operandsByType(llvm::User *V) {
   assert(OpCount == sizeof...(T));
 
   for (llvm::Value *Op : V->operands())
-    findOperand<std::tuple<T...>, 0, T...>(Op, Result);
+    if (!findOperand<std::tuple<T...>, 0, T...>(Op, Result))
+      return std::tuple<T...> { };
 
   return Result;
 }
