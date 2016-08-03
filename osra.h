@@ -515,6 +515,9 @@ private:
   /// \return the newly created OSR, possibly expressed in terms of \p V itself.
   OSR createOSR(llvm::Value *V, llvm::BasicBlock *BB);
 
+  bool updateLoadReacher(llvm::LoadInst *Load, llvm::Instruction *I, OSR NewOSR);
+  void mergeLoadReacher(llvm::LoadInst *Load);
+
 public:
   using BVVector = llvm::SmallVector<BoundedValue, 2>;
 
@@ -523,6 +526,8 @@ private:
   std::map<const llvm::Value *, const OSR> OSRs;
   BVMap BVs;
   std::map<const llvm::Instruction *, BVVector> Constraints;
+  using InstructionOSRVector = std::vector<std::pair<llvm::Instruction *, OSR>>;
+  std::map<const llvm::LoadInst *, InstructionOSRVector> LoadReachers;
 };
 
 #endif // _OSRA_H

@@ -209,6 +209,19 @@ void OSRAPass::describe(formatted_raw_ostream &O,
     }
     O << "\n";
   }
+
+  if (auto *Load = dyn_cast<LoadInst>(I)) {
+    auto LoadReachersIt = LoadReachers.find(Load);
+    if (LoadReachersIt != LoadReachers.end()) {
+      O << "  ; ";
+      for (auto P : LoadReachersIt->second) {
+        O << "{0x" << P.first << ", ";
+        P.second.describe(O);
+        O << "} ";
+      }
+      O << "\n";
+    }
+  }
 }
 
 Constant *OSR::solveEquation(Constant *KnownTerm,
@@ -525,6 +538,56 @@ private:
   uint64_t Size;
 };
 
+bool OSRAPass::updateLoadReacher(LoadInst *Load, Instruction *I, OSR NewOSR) {
+  // Check if the instruction propagating the OSR is already a
+  // component of this load or not
+  auto ReachersIt = LoadReachers.find(Load);
+  if (ReachersIt != LoadReachers.end()) {
+    auto &Reachers = ReachersIt->second;
+    auto Pred = [I] (const std::pair<Instruction *, OSR> &P) {
+      return P.first == I;
+    };
+    auto ReacherIt = std::find_if(Reachers.begin(),
+                                  Reachers.end(),
+                                  Pred);
+    if (ReacherIt != Reachers.end()) {
+      // We've already propagated I to Load in the past, check if we have new
+      // information
+      if (ReacherIt->second == NewOSR) {
+        return false;
+      } else {
+        *ReacherIt = make_pair(I, NewOSR);
+        return true;
+      }
+    }
+  }
+
+  LoadReachers[Load].push_back({ I, NewOSR});
+
+  return true;
+}
+
+void OSRAPass::mergeLoadReacher(LoadInst *Load) {
+  auto &Reachers = LoadReachers[Load];
+  assert(Reachers.size() > 0);
+
+  OSRs.erase(Load);
+
+  // TODO: implement a real merge strategy, considering input boundaries
+  OSR Result = Reachers[0].second;
+  for (auto P : skip(1, Reachers)) {
+    OSR ReachingOSR = P.second;
+    if (ReachingOSR != Result) {
+      OSR FreeOSR = createOSR(Load, Load->getParent());
+      OSRs.insert({ Load, FreeOSR });
+      return;
+    }
+  }
+
+  OSRs.insert({ Load, Result });
+  return;
+}
+
 // Terminology:
 // * OSR: Offseted Shifted Range, our main data flow value which represents the
 //        result of an instruction as another value, which lies withing a
@@ -694,8 +757,6 @@ bool OSRAPass::runOnFunction(Function &F) {
           // Combine the base OSR with the new operation
           Changed |= NewOSR.combine(Opcode, ConstantOp, DL);
         }
-
-
 
         // Check if the OSR has changed
         if (IsFree || Changed) {
@@ -1112,13 +1173,12 @@ bool OSRAPass::runOnFunction(Function &F) {
         if (TheLoad != nullptr) {
           // It's a load
 
-          // If the load doesn't have an OSR associated (or it's associated to
-          // itself), propagate it forward
-          if (OSRs.count(I) != 0)
-            break;
-
           MA = MemoryAccess(TheLoad, DL);
-          SelfOSR = OSR(&BVs.get(I->getParent(), I));
+          auto OSRIt = OSRs.find(I);
+          if (OSRIt == OSRs.end())
+            SelfOSR = OSR(&BVs.get(I->getParent(), I));
+          else
+            SelfOSR = OSRIt->second;
         } else {
           // It's a store
           assert(TheStore != nullptr);
@@ -1170,10 +1230,6 @@ bool OSRAPass::runOnFunction(Function &F) {
           //       get visited again to consider the part before the load
           //       instruction.
 
-          // Conflicts contains the list of loads we're not able to overtake,
-          // which we'll have to move to top (i.e. make them indepent)
-          std::set<LoadInst *> Conflicts;
-
           while (!ExploreWL.empty()) {
             auto R = ExploreWL.back();
             ExploreWL.pop_back();
@@ -1196,54 +1252,18 @@ bool OSRAPass::runOnFunction(Function &F) {
                 // the current BasicBlock
                 OSR NewOSR = switchBlock(SelfOSR, BB);
 
-                auto LoadOSRIt = OSRs.find(Load);
-                // Check if the instruction already has an OSR
-                if (LoadOSRIt != OSRs.end()) {
-                  if (LoadOSRIt->second.isRelativeTo(Load)
-                      || LoadOSRIt->second == NewOSR) {
-                    // We already passed by here
-                    Stop = true;
-                  } else if (LoadOSRIt->second.isConstant()) {
-                    // It's constant and different, we'll never be able to take
-                    // it over
-                    Stop = true;
-                  } else {
-                    // Obtain the value relative to which the old OSR was
-                    // expressed and check if it has been overtaken by either
-                    // the instruction we are propagating or the value
-                    // associated to the OSR we're propagating
-                    auto *BV = LoadOSRIt->second.boundedValue();
-                    auto OvertakerIt = Overtaken.find(BV->value());
-                    auto NewRelativeTo = NewOSR.isConstant() ?
-                      nullptr : NewOSR.boundedValue()->value();
-                    if (OvertakerIt != Overtaken.end()
-                        && (OvertakerIt->second == NewRelativeTo
-                            || OvertakerIt->second == I)) {
-                      // We already overtook the load it is referring to,
-                      // override safely
-                      OSRs.erase(LoadOSRIt);
-                    } else {
-                      // We didn't overtake the load it is referring to (yet?),
-                      // it's a potential conflict, register it, then stop.
-                      Conflicts.insert(Load);
-                      Stop = true;
-                    }
-                  }
+                bool Changed = updateLoadReacher(Load, I, NewOSR);
+                if (Changed) {
+                  mergeLoadReacher(Load);
+                  WorkList.insert(Load);
+                  EnqueueUsers(Load);
                 }
 
-                if (Stop)
-                  break;
-
-                // Insert the NewOSR in OSRs and mark the load as overtaken
-                OSRs.insert({ &Inst, NewOSR });
-
-                Overtaken[Load] = I;
-
-                // The OSR has changed, mark the load and its uses to be
-                // visited again
-                WorkList.insert(Load);
-                EnqueueUsers(Load);
-
+                // We stop at the load: if necessary, the load itself will be
+                // re-enqueued and will take care of propagate further the
+                // information
+                Stop = true;
+                break;
               } else if (auto *Store = dyn_cast<StoreInst>(&Inst)) {
                 // Check if this store might alias the memory area we're
                 // tracking
@@ -1267,44 +1287,7 @@ bool OSRAPass::runOnFunction(Function &F) {
                 }
               }
             }
-
-            // When we have nothing more to explore, before giving up, check all
-            // the candidate conflicts to see if some of them are no longer
-            // conflicts, and, if so, re-enqueue them
-            if (ExploreWL.empty()) {
-              for (auto It = Conflicts.begin(); It != Conflicts.end();) {
-                LoadInst *Conflicting = *It;
-                auto ConflictOSRIt = OSRs.find(Conflicting);
-                assert(ConflictOSRIt != OSRs.end());
-                auto *BV = ConflictOSRIt->second.boundedValue();
-                auto OvertakerIt = Overtaken.find(BV->value());
-                if (OvertakerIt != Overtaken.end()
-                    && OvertakerIt->second == I) {
-                  auto *ConflictingBB = Conflicting->getParent();
-                  ExploreWL.push_back(make_range(Conflicting->getIterator(),
-                                                 ConflictingBB->end()));
-                  It = Conflicts.erase(It);
-                } else
-                  It++;
-              }
-            }
-
           } // End of the worklist loop
-
-          // At this point we propagated everything we could, the remaining
-          // elements in Conflicts are real conflicts, make them autonomous
-          for (LoadInst *Conflict : Conflicts) {
-            OSR FreeOSR = createOSR(Conflict, Conflict->getParent());
-            auto ConflictOSRIt = OSRs.find(Conflict);
-            assert(ConflictOSRIt != OSRs.end());
-            if (ConflictOSRIt->second != FreeOSR) {
-              OSRs.erase(ConflictOSRIt);
-              OSRs.insert({ Conflict, FreeOSR });
-
-              WorkList.insert(Conflict);
-              EnqueueUsers(Conflict);
-            }
-          }
         }
 
         if (HasConstraints) {
