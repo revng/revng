@@ -152,7 +152,9 @@ bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
         StoreInst *PCWrite = JTM->getPrevPCWrite(Call);
 
         // Is destination a constant?
-        if (PCWrite != nullptr) {
+        if (PCWrite == nullptr) {
+          forceFallthroughAfterHelper(Call);
+        } else {
           uint64_t NextPC = JTM->getNextPC(PCWrite);
           if (NextPC != 0 && JTM->isOSRAEnabled() && isSumJump(PCWrite))
             JTM->getBlockAt(NextPC, false);
@@ -189,7 +191,6 @@ bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
               new UnreachableInst(Context, Call);
             }
             Call->eraseFromParent();
-            PCWrite->eraseFromParent();
           }
         }
       } else
@@ -197,6 +198,69 @@ bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
     } else
       llvm_unreachable("Unhandled usage of the PC");
   }
+
+  return true;
+}
+
+bool TranslateDirectBranchesPass::forceFallthroughAfterHelper(CallInst *Call) {
+  // If someone else already took care of the situation, quit
+  if (getLimitedValue(Call->getArgOperand(0)) > 0)
+    return false;
+
+  auto *PCReg = JTM->pcReg();
+  auto PCRegTy = PCReg->getType()->getPointerElementType();
+  bool ForceFallthrough = false;
+
+  BasicBlock::reverse_iterator It(make_reverse_iterator(Call));
+  auto *BB = Call->getParent();
+  auto EndIt = BB->rend();
+  while (!ForceFallthrough) {
+    while (It != EndIt) {
+      Instruction *I = &*It;
+      if (auto *Store = dyn_cast<StoreInst>(I)) {
+        if (Store->getPointerOperand() == PCReg) {
+          // We found a PC-store, give up
+          return false;
+        }
+      } else if (auto *Call = dyn_cast<CallInst>(I)) {
+        if (Function *Callee = Call->getCalledFunction()) {
+          if (Callee->getName().startswith("helper_")) {
+            // We found a call to an helper
+            ForceFallthrough = true;
+            break;
+          }
+        }
+      }
+      It++;
+    }
+
+    if (!ForceFallthrough) {
+      // Proceed only to unique predecessor, if present
+      if (auto *Pred = BB->getUniquePredecessor()) {
+        BB = Pred;
+        It = BB->rbegin();
+        EndIt = BB->rend();
+      } else {
+        // We have multiple predecessors, give up
+        return false;
+      }
+    }
+
+  }
+
+  exitTBCleanup(Call);
+  JTM->newBranch();
+
+  IRBuilder<> Builder(Call->getParent());
+  Call->setArgOperand(0, Builder.getInt32(1));
+
+  // Create the fallthrough jump
+  uint64_t NextPC = JTM->getNextPC(Call);
+  Value *NextPCConst = Builder.getIntN(PCRegTy->getIntegerBitWidth(), NextPC);
+  Builder.CreateCondBr(Builder.CreateICmpEQ(Builder.CreateLoad(PCReg),
+                                            NextPCConst),
+                       JTM->getBlockAt(NextPC, false),
+                       JTM->dispatcher());
 
   return true;
 }

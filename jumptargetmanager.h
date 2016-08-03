@@ -69,6 +69,13 @@ public:
   ///        is known
   bool pinJTs(llvm::Function &F);
 
+  /// Introduces a fallthrough branch if there's no store to PC before the last
+  /// call to an helper
+  ///
+  /// \return true if the \p Call has been handled (i.e. a fallthrough jump has
+  ///         been inserted.
+  bool forceFallthroughAfterHelper(llvm::CallInst *Call);
+
 private:
   /// Obtains the absolute address of the PC corresponding to the original
   /// assembly instruction coming after the specified LLVM instruction

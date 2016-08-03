@@ -700,18 +700,8 @@ InstructionTranslator::translateCall(PTCInstruction *Instr) {
     Variables.setAliasScope(Store);
   }
 
-  if (PCSaver != nullptr) {
-    // If PC has changed, go to the dispatcher
-    Value *NewPC = Builder.CreateLoad(PCSaver->getPointerOperand());
-    BasicBlock *Fallthrough = BasicBlock::Create(TheModule.getContext(),
-                                                 "",
-                                                 TheFunction);
-    Value *NoChange = Builder.CreateICmpEQ(NewPC, PCSaver->getValueOperand());
-    Builder.CreateCondBr(NoChange, Fallthrough, JumpTargets.dispatcher());
-    Blocks.push_back(Fallthrough);
-    Builder.SetInsertPoint(Fallthrough);
+  if (PCSaver != nullptr)
     return ForceNewPC;
-  }
 
   return Success;
 }
