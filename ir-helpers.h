@@ -132,6 +132,26 @@ static inline std::tuple<T...> operandsByType(llvm::User *V) {
   return Result;
 }
 
+/// \brief Checks the instruction type and its operands
+/// \return the instruction casted to I, or nullptr if not possible.
+template<typename I, typename F, typename S>
+static inline I *isa_with_op(llvm::Instruction *Inst) {
+  if (auto *Casted = llvm::dyn_cast<I>(Inst)) {
+    assert(Casted->getNumOperands() == 2);
+    if (llvm::isa<F>(Casted->getOperand(0))
+        && llvm::isa<S>(Casted->getOperand(1))) {
+      return Casted;
+    } else if (llvm::isa<F>(Casted->getOperand(0))
+               && llvm::isa<S>(Casted->getOperand(1))) {
+      assert(Casted->isCommutative());
+      Casted->swapOperands();
+      return Casted;
+    }
+  }
+
+  return nullptr;
+}
+
 /// \brief Return an range iterating backward from the given instruction
 static inline llvm::iterator_range<llvm::BasicBlock::reverse_iterator>
 backward_range(llvm::Instruction *I) {
