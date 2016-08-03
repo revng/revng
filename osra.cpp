@@ -567,6 +567,63 @@ bool OSRAPass::updateLoadReacher(LoadInst *Load, Instruction *I, OSR NewOSR) {
   return true;
 }
 
+bool OSRAPass::isDead(Instruction *I) const {
+  while (I != nullptr) {
+    if (!I->hasOneUse())
+      return false;
+
+    auto *U = dyn_cast<Instruction>(*I->user_begin());
+    if (U == nullptr)
+      return false;
+
+    switch (U->getOpcode()) {
+    case Instruction::ZExt:
+    case Instruction::SExt:
+    case Instruction::IntToPtr:
+    case Instruction::PtrToInt:
+      I = dyn_cast<Instruction>(U);
+      break;
+    case Instruction::Store:
+      {
+        auto *Store = cast<StoreInst>(U);
+        if (Store->getValueOperand() != I)
+          return false;
+
+        bool Used = false;
+        auto *State = dyn_cast<GlobalVariable>(Store->getPointerOperand());
+        if (State == nullptr)
+          return false;
+
+        auto Visitor = [State, &Used] (BasicBlockRange R) {
+          for (Instruction &I : R) {
+
+            if (auto *Load = dyn_cast<LoadInst>(&I)) {
+              if (Load->getPointerOperand() == State) {
+                Used = true;
+                return StopNow;
+              }
+            } else if (auto *Store = dyn_cast<StoreInst>(&I)) {
+              if (Store->getPointerOperand() == State) {
+                return NoSuccessors;
+              }
+            }
+
+          }
+
+          return Continue;
+        };
+        visitSuccessors(Store, BlockBlackList, Visitor);
+
+        return !Used;
+      }
+    default:
+      return false;
+    }
+  }
+
+  return false;
+}
+
 void OSRAPass::mergeLoadReacher(LoadInst *Load) {
   auto &Reachers = LoadReachers[Load];
   assert(Reachers.size() > 0);
@@ -605,7 +662,6 @@ bool OSRAPass::runOnFunction(Function &F) {
   auto *Int64 = Type::getInt64Ty(F.getParent()->getContext());
   using UpdateFunc = std::function<BVVector(BVVector &)>;
 
-  std::set<BasicBlock *> BlockBlackList;
   for (auto &BB : F) {
     if (!BB.empty()) {
       if (auto *Call = dyn_cast<CallInst>(&*BB.begin())) {
@@ -632,11 +688,11 @@ bool OSRAPass::runOnFunction(Function &F) {
         WorkList.insert(&I);
 
   // TODO: make these member functions
-  auto InBlackList = [&BlockBlackList] (BasicBlock *BB) {
+  auto InBlackList = [this] (BasicBlock *BB) {
     return BlockBlackList.find(BB) != BlockBlackList.end();
   };
 
-  auto EnqueueUsers = [&BlockBlackList, &WorkList] (Instruction *I) {
+  auto EnqueueUsers = [this, &WorkList] (Instruction *I) {
     for (User *U : I->users())
       if (auto *UI = dyn_cast<Instruction>(U))
         if (BlockBlackList.find(UI->getParent()) == BlockBlackList.end()) {
@@ -737,6 +793,7 @@ bool OSRAPass::runOnFunction(Function &F) {
           break;
         }
 
+        // TODO: skip this if isDead(I)
         // Update signedness information if the given operation is
         // sign-aware
         if (Opcode == Instruction::SDiv
@@ -784,6 +841,9 @@ bool OSRAPass::runOnFunction(Function &F) {
           if (FreeOp == nullptr)
             break;
         }
+
+        if (isDead(I))
+          break;
 
         // Comparison for equality and inequality are handled to propagate
         // constraints in case of test of the result of a comparison (e.g., (x <

@@ -496,6 +496,9 @@ public:
                      llvm::Type *Int64,
                      const llvm::DataLayout &DL);
 
+  /// \brief Return true if \p I is stored in the CPU state but never read again
+  bool isDead(llvm::Instruction *I) const;
+
 private:
   OSR switchBlock(OSR Base, llvm::BasicBlock *BB) {
     if (!Base.isConstant())
@@ -528,6 +531,7 @@ private:
   std::map<const llvm::Instruction *, BVVector> Constraints;
   using InstructionOSRVector = std::vector<std::pair<llvm::Instruction *, OSR>>;
   std::map<const llvm::LoadInst *, InstructionOSRVector> LoadReachers;
+  std::set<llvm::BasicBlock *> BlockBlackList;
 };
 
 #endif // _OSRA_H
