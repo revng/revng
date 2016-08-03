@@ -201,7 +201,9 @@ bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
 }
 
 bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
-  return pinConstantStore(F) || pinJTs(F);
+  pinConstantStore(F);
+  pinJTs(F);
+  return true;
 }
 
 uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
