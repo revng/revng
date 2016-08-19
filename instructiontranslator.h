@@ -137,6 +137,8 @@ private:
   Architecture& TargetArchitecture;
 
   llvm::Function *NewPCMarker;
+
+  uint64_t LastPC;
 };
 
 #endif // _INSTRUCTIONTRANSLATOR_H

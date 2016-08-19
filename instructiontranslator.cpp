@@ -724,7 +724,7 @@ InstructionTranslator::translate(PTCInstruction *Instr,
   }
 
   auto ConstArgs = TheInstruction.ConstArguments;
-
+  LastPC = PC;
   auto Result = translateOpcode(TheInstruction.opcode(),
                                 ConstArgs.toVector(),
                                 InArgs);
@@ -1271,7 +1271,10 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
   case PTC_INSTRUCTION_op_set_label:
     {
       unsigned LabelId = ptc.get_arg_label_id(ConstArguments[0]);
-      std::string Label = "L" + std::to_string(LabelId);
+
+      std::stringstream LabelSS;
+      LabelSS << "bb.0x" << std::hex << LastPC << "_L" << std::dec << LabelId;
+      std::string Label = LabelSS.str();
 
       BasicBlock *Fallthrough = nullptr;
       auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
@@ -1308,9 +1311,14 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       // We take the last constant arguments, which is the LabelId both in
       // conditional and unconditional jumps
       unsigned LabelId = ptc.get_arg_label_id(ConstArguments.back());
-      std::string Label = "L" + std::to_string(LabelId);
 
-      BasicBlock *Fallthrough = BasicBlock::Create(Context, "", TheFunction);
+      std::stringstream LabelSS;
+      LabelSS << "bb.0x" << std::hex << LastPC << "_L" << std::dec << LabelId;
+      std::string Label = LabelSS.str();
+
+      BasicBlock *Fallthrough = BasicBlock::Create(Context,
+                                                   Label + "_ft",
+                                                   TheFunction);
 
       // Look for a matching label
       BasicBlock *Target = nullptr;

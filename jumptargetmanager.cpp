@@ -1060,11 +1060,14 @@ BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC, bool Reliable) {
   } else {
     // Case 3: the address has never been met, create a temporary one, register
     // it for future exploration and return it
+    NewBlock = BasicBlock::Create(Context, "", TheFunction);
+    Unexplored.push_back(BlockWithAddress(PC, NewBlock));
+  }
+
+  if (NewBlock->getName().empty()) {
     std::stringstream Name;
     Name << "bb.0x" << std::hex << PC;
-
-    NewBlock = BasicBlock::Create(Context, Name.str(), TheFunction);
-    Unexplored.push_back(BlockWithAddress(PC, NewBlock));
+    NewBlock->setName(Name.str());
   }
 
   // Create a case for the address associated to the new block
