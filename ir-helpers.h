@@ -4,6 +4,7 @@
 // Standard includes
 #include <set>
 #include <queue>
+#include <sstream>
 
 // LLVM includes
 #include "llvm/ADT/SmallVector.h"
@@ -227,6 +228,46 @@ static inline void visitSuccessors(llvm::Instruction *I,
   std::set<llvm::BasicBlock *> IgnoreSet;
   IgnoreSet.insert(Ignore);
   visitSuccessors(I, IgnoreSet, Visitor);
+}
+
+/// \brief Return a sensible name for the given basic block
+/// \return the name of the basic block, if available, its pointer value
+///         otherwise.
+static inline std::string getName(const llvm::BasicBlock *BB) {
+  llvm::StringRef Result = BB->getName();
+  if (!Result.empty()) {
+    return Result.str();
+  } else {
+    std::stringstream SS;
+    SS << "0x" << std::hex << intptr_t(BB);
+    return SS.str();
+  }
+}
+
+/// \brief Return a sensible name for the given instruction
+/// \return the name of the instruction, if available, a
+///         [basic blockname]:[instruction index] string otherwise.
+static inline std::string getName(const llvm::Instruction *I) {
+  llvm::StringRef Result = I->getName();
+  if (!Result.empty()) {
+    return Result.str();
+  } else {
+    const llvm::BasicBlock *Parent = I->getParent();
+    return getName(Parent) + ":"
+      + std::to_string(1 + std::distance(Parent->begin(), I->getIterator()));
+  }
+}
+
+/// \brief Return a sensible name for the given Value
+/// \return if \p V is an Instruction, call the appropriate getName function,
+///         otherwise return a pointer to \p V.
+static inline std::string getName(const llvm::Value *V) {
+  if (V != nullptr)
+    if (auto *I = llvm::dyn_cast<llvm::Instruction>(V))
+      return getName(I);
+  std::stringstream SS;
+  SS << "0x" << std::hex << intptr_t(V);
+  return SS.str();
 }
 
 #endif // _IRHELPERS_H

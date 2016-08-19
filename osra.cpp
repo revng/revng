@@ -142,7 +142,7 @@ void BoundedValue::describe(formatted_raw_ostream &O) const {
     O << "NOT ";
 
   O << "(";
-  O << Value;
+  O << getName(Value);
   O << ", ";
 
   switch (Sign) {
@@ -202,10 +202,10 @@ void OSRAPass::describe(formatted_raw_ostream &O,
   }
 
   if (ConstraintsIt != Constraints.end()) {
-    O << "  ; ";
+    O << "  ;";
     for (auto Constraint : ConstraintsIt->second) {
-      Constraint.describe(O);
       O << " ";
+      Constraint.describe(O);
     }
     O << "\n";
   }
@@ -215,7 +215,7 @@ void OSRAPass::describe(formatted_raw_ostream &O,
     if (LoadReachersIt != LoadReachers.end()) {
       O << "  ; ";
       for (auto P : LoadReachersIt->second) {
-        O << "{0x" << P.first << ", ";
+        O << "{" << getName(P.first) << ", ";
         P.second.describe(O);
         O << "} ";
       }
@@ -1447,7 +1447,7 @@ bool OSRAPass::runOnFunction(Function &F) {
 }
 
 void OSRAPass::BVMap::describe(formatted_raw_ostream &O,
-                                     const BasicBlock *BB) const {
+                               const BasicBlock *BB) const {
   if (BBMap.find(BB) != BBMap.end())
     for (MapValue &MV : BBMap[BB]) {
       O << "  ; ";
@@ -1464,7 +1464,7 @@ void OSRAPass::BVMap::describe(formatted_raw_ostream &O,
 
       for (auto &BVO : MV.Components) {
         O << "<";
-        O << (BVO.first != nullptr ? BVO.first->getName() : StringRef(""));
+        O << getName(BVO.first);
         O << ", ";
         BVO.second.describe(O);
         O << "> || ";
