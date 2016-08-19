@@ -1615,6 +1615,12 @@ bool BoundedValue::merge(const BoundedValue &Other,
   if (Bottom)
     return true;
 
+  // We don't handle this case for now
+  if (Sign == InconsistentSignedness) {
+    setBottom();
+    return true;
+  }
+
   // TODO: reimplement all of this using a simple and sane range merging
   //       approach
 
@@ -1715,9 +1721,19 @@ bool BoundedValue::merge(const BoundedValue &Other,
       case BothNegated:
         if (LeftmostOp->LowerBound == LeftmostOp->lowerExtreme()
             && RightmostOp->UpperBound == RightmostOp->upperExtreme()) {
-          std::tie(LowerBound, UpperBound) = make_pair(LeftmostOp->UpperBound,
-                                                       RightmostOp->LowerBound);
+          std::tie(LowerBound,
+                   UpperBound) = make_pair(LeftmostOp->UpperBound,
+                                           RightmostOp->LowerBound);
+          LowerBound++;
+          UpperBound--;
           Negated = false;
+
+          if (!Compare(LowerBound, LE, UpperBound)) {
+            LowerBound = 0;
+            UpperBound = 0;
+            setBottom();
+          }
+
           break;
         }
 
@@ -1813,7 +1829,6 @@ bool BoundedValue::merge(const BoundedValue &Other,
         setBound<Lower, Or>(CI::get(Int64, Other.LowerBound), DL);
         if (!Bottom)
           setBound<Upper, Or>(CI::get(Int64, Other.UpperBound), DL);
-        Negated = true;
         break;
       case OneNegated:
         // TODO: comment this
