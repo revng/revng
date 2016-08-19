@@ -83,6 +83,15 @@ public:
 
     bool isUninitialized() const { return Sign == UnknownSignedness; }
 
+    bool isConstant() const {
+      return !isUninitialized() && !Bottom && LowerBound == UpperBound;
+    }
+
+    uint64_t constant() const {
+      assert(isConstant());
+      return LowerBound;
+    }
+
     /// \brief Merge \p Other using the \p MT policy
     template<MergeType MT=And>
     bool merge(const BoundedValue &Other,
@@ -97,7 +106,9 @@ public:
     const llvm::Value *value() const { return Value; }
 
     bool isSigned() const {
-      assert(Sign != UnknownSignedness && !Bottom);
+      assert(Sign != UnknownSignedness
+             && Sign != AnySignedness
+             && !Bottom);
       return Sign != Unsigned;
     }
 
@@ -112,8 +123,10 @@ public:
     /// \brief If the BV is limited, return its bounds considering negation
     ///
     /// Do not invoke this method on unlimited BVs.
+    // TODO: should this method perform a cast to the type of Value?
     std::pair<llvm::Constant *, llvm::Constant *>
     actualBoundaries(llvm::Type *Int64) const {
+      assert(!(Negated && isConstant()));
 
       using CI = llvm::ConstantInt;
       if (!Negated)
@@ -125,7 +138,7 @@ public:
         return std::make_pair(CI::get(Int64, lowerExtreme(), isSigned()),
                               CI::get(Int64, LowerBound - 1, isSigned()));
 
-      llvm_unreachable("The BV is unlimited");
+      assert(false && "The BV is unlimited");
     }
 
     bool operator ==(const BoundedValue &Other) const {
@@ -163,16 +176,18 @@ public:
     /// A BV is top if it's uninitialized or it's not negated and both its
     /// boundaries are at their respective extremes.
     bool isTop() const {
-      return (isUninitialized()
-              || (!Negated
-                  && LowerBound == lowerExtreme()
-                  && UpperBound == upperExtreme()));
+      return (!isConstant()
+              && (isUninitialized()
+                  || (!Negated
+                      && LowerBound == lowerExtreme()
+                      && UpperBound == upperExtreme())));
     }
 
     /// \brief Return the size of the range constraining this BV
     ///
     /// Do not invoke this method on unlimited BVs.
     uint64_t size() const {
+      assert(!(Negated && isConstant()));
       if (!Negated)
         return UpperBound - LowerBound;
       else if (LowerBound == lowerExtreme())
@@ -204,8 +219,8 @@ public:
     }
 
     static BoundedValue createEQ(const llvm::Value *V,
-				 uint64_t Value,
-				 bool Sign) {
+                                 uint64_t Value,
+                                 bool Sign) {
       BoundedValue Result(V);
       Result.setSignedness(Sign);
       Result.LowerBound = Value;
@@ -224,6 +239,15 @@ public:
       return Result;
     }
 
+    static BoundedValue createConstant(const llvm::Value *V,
+                                       uint64_t Value) {
+      BoundedValue Result(V);
+      Result.LowerBound = Value;
+      Result.UpperBound = Value;
+      Result.Sign = AnySignedness;
+      return Result;
+    }
+
     /// \brief Set the BV to top
     ///
     /// Set the boundaries of the BV to their extreme values.
@@ -231,15 +255,27 @@ public:
       if (isUninitialized())
         return;
 
+      if (Sign == AnySignedness) {
+        LowerBound = 0;
+        UpperBound = 0;
+        Sign = UnknownSignedness;
+        Negated = false;
+        Bottom = false;
+        return;
+      }
+
       LowerBound = lowerExtreme();
       UpperBound = upperExtreme();
       Negated = false;
+      Bottom = false;
     }
 
     /// \brief Return true if the BV is not unlimited
     bool isSingleRange() const {
       if (!Negated)
         return true;
+      else if (Negated && isConstant())
+        return false;
       else
         return LowerBound == lowerExtreme() || UpperBound == upperExtreme();
     }
@@ -279,6 +315,7 @@ public:
     /// \brief Possible states for signedness
     enum Signedness : uint8_t {
       UnknownSignedness, ///< Nothing is known about the signedness
+      AnySignedness, ///< Nothing is known about the signedness
       Unsigned,
       Signed,
       InconsistentSignedness ///< The BV is used both as signed and unsigned
@@ -303,12 +340,8 @@ public:
       Factor(Other.Factor),
       BV(Other.BV) { }
 
-    /// \brief Create a constant OSR from a null-BoundedValue and a number
-    static OSR createConstant(const BoundedValue *Value, uint64_t Base) {
-      OSR Result(Value);
-      Result.Base = Base;
-      Result.Factor = 0;
-      return Result;
+    uint64_t constant() const {
+      return BV->constant();
     }
 
     /// \brief Combine this OSR with \p Operand through \p Opcode
@@ -337,7 +370,7 @@ public:
 
     /// \brief Checks if this OSR is relative to \p V
     bool isRelativeTo(const llvm::Value *V) const {
-      return !isConstant() && BV->value() == V;
+      return BV->value() == V;
     }
 
     /// \brief Change the BoundedValue associated to this OSR
@@ -364,7 +397,9 @@ public:
     /// \brief Return true if the OSR doesn't have a BoundedValue or is
     ///        ininfluent
     bool isConstant() const {
-      return !(BV != nullptr && BV->isBottom()) && Factor == 0;
+      assert(BV != nullptr);
+      return BV->isConstant();
+      return (BV == nullptr || !BV->isBottom()) && Factor == 0;
     }
 
     /// \brief Helper function to performe the comparison \p P with \p C
@@ -389,9 +424,6 @@ public:
 
     /// \brief Return the size of the associated BoundedValue
     uint64_t size() const { return BV->size(); }
-
-    /// \brief Accessor to the base value of this OSR (`a`)
-    uint64_t base() const { return Base; }
 
     /// \brief Accessor to the factor value of this OSR (`b`)
     uint64_t factor() const { return Factor; }
@@ -451,9 +483,14 @@ private:
       summarize(BB, &MapIt->second);
     }
 
-    std::pair<bool, BoundedValue&> update(llvm::BasicBlock *Target,
-                                          llvm::BasicBlock *Origin,
-                                          BoundedValue NewBV);
+    /// Associate to basic block \p Target a new constraint \p NewBV coming from
+    /// \p Origin
+    ///
+    /// \return a pair containing a boolean to indicate whether there was any
+    ///         change and a reference to the updated BV
+    std::pair<bool, BoundedValue &> update(llvm::BasicBlock *Target,
+                                           llvm::BasicBlock *Origin,
+                                           BoundedValue NewBV);
 
     void prepareDescribe() const {
       BBMap.clear();
@@ -466,9 +503,42 @@ private:
       }
     }
 
+    BoundedValue &forceBV(llvm::Instruction *V, BoundedValue BV) {
+      MapIndex I { V->getParent(), V };
+      MapValue NewValue;
+      NewValue.Summary = BV;
+      TheMap[I] = NewValue;
+      return TheMap[I].Summary;
+    }
+
+    BoundedValue &forceBV(llvm::BasicBlock *BB,
+                          llvm::Value *V,
+                          BoundedValue BV) {
+      MapIndex I { BB, V };
+      MapValue NewValue;
+      NewValue.Summary = BV;
+      TheMap[I] = NewValue;
+      return TheMap[I].Summary;
+    }
+
   private:
     BoundedValue &summarize(llvm::BasicBlock *Target,
                             MapValue *BVOVectorLoopInfoWrapperPass);
+
+    bool isForced(std::map<MapIndex, MapValue>::iterator &It) const {
+      const MapIndex &Index = It->first;
+
+      if (auto *I = llvm::dyn_cast<llvm::Instruction>(Index.second)) {
+        bool Result = I->getParent() == Index.first;
+        if (Result) {
+          assert(It->second.Components.size() == 0);
+        }
+        return Result;
+      } else {
+        return false;
+      }
+    }
+
   private:
     std::set<llvm::BasicBlock *> *BlockBlackList;
     const llvm::DataLayout *DL;
@@ -501,8 +571,7 @@ public:
 
 private:
   OSR switchBlock(OSR Base, llvm::BasicBlock *BB) {
-    if (!Base.isConstant())
-      Base.setBoundedValue(&BVs.get(BB, Base.boundedValue()->value()));
+    Base.setBoundedValue(&BVs.get(BB, Base.boundedValue()->value()));
     return Base;
   }
 

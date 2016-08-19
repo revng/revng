@@ -456,7 +456,7 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
     return false;
   } else if (O->isConstant()) {
     // If it's just a single constant, use it
-    OS.explore(CI::get(Int64, O->base()));
+    OS.explore(CI::get(Int64, O->constant()));
   } else if (!O->boundedValue()->isTop()
              && !O->boundedValue()->isBottom()
              && O->boundedValue()->isSingleRange()) {

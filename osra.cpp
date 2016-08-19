@@ -65,7 +65,6 @@ static bool isPositive(Constant *C, const DataLayout &DL) {
 
 pair<Constant *, Constant *> OSR::boundaries(Type *Int64,
                                              const DataLayout &DL) const {
-  assert(!isConstant());
   Constant *Min = nullptr;
   Constant *Max = nullptr;
   std::tie(Min, Max) = BV->actualBoundaries(Int64);
@@ -146,6 +145,9 @@ void BoundedValue::describe(formatted_raw_ostream &O) const {
   O << ", ";
 
   switch (Sign) {
+  case AnySignedness:
+    O << "*";
+    break;
   case UnknownSignedness:
     O << "?";
     break;
@@ -156,15 +158,15 @@ void BoundedValue::describe(formatted_raw_ostream &O) const {
     O << "u";
     break;
   case InconsistentSignedness:
-    O << "*";
+    O << "x";
     break;
   }
 
   if (Bottom) {
     O << ", bottom";
-  } else if (Sign != UnknownSignedness) {
+  } else if (!isUninitialized()) {
     O << ", ";
-    if (LowerBound == lowerExtreme()) {
+    if (!isConstant() && LowerBound == lowerExtreme()) {
       O << "min";
     } else {
       O << LowerBound;
@@ -172,7 +174,7 @@ void BoundedValue::describe(formatted_raw_ostream &O) const {
 
     O << ", ";
 
-    if (UpperBound == upperExtreme()) {
+    if (!isConstant() && UpperBound == upperExtreme()) {
       O << "max";
     } else {
       O << UpperBound;
@@ -329,14 +331,14 @@ std::pair<Constant *,
   if (auto *Operand = dyn_cast<Instruction>(FirstOp)) {
     auto OSRIt = OSRs.find(Operand);
     if (OSRIt != OSRs.end() && OSRIt->second.isConstant())
-      Constants[0] = CI::get(Int64, OSRIt->second.base());
+      Constants[0] = CI::get(Operand->getType(), OSRIt->second.constant());
   }
 
   // Is the second operand constant?
   if (auto *Operand = dyn_cast<Instruction>(SecondOp)) {
     auto OSRIt = OSRs.find(Operand);
     if (OSRIt != OSRs.end() && OSRIt->second.isConstant())
-      Constants[1] = CI::get(Int64, OSRIt->second.base());
+      Constants[1] = CI::get(Operand->getType(), OSRIt->second.constant());
   }
 
   // No operands are constant, or only the first one and the instruction is not
@@ -757,9 +759,11 @@ bool OSRAPass::runOnFunction(Function &F) {
             // to fold the operation in a constant
             if (!IsFree)
               OSRs.erase(I);
-            auto *ConstantBV = &BVs.get(I->getParent(), nullptr);
-            OSR ConstantOSR = OSR::createConstant(ConstantBV,
-                                                  getZExtValue(ConstantOp, DL));
+
+            uint64_t Constant = getZExtValue(ConstantOp, DL);
+            BoundedValue ConstantBV = BoundedValue::createConstant(I, Constant);
+            auto &BV = BVs.forceBV(I, ConstantBV);
+            OSR ConstantOSR(&BV);
             OSRs.emplace(make_pair(I, ConstantOSR));
             EnqueueUsers(I);
           }
@@ -771,7 +775,7 @@ bool OSRAPass::runOnFunction(Function &F) {
         // Get or create an OSR for the non-constant operator, this
         // will be our starting point
         OSR NewOSR = createOSR(OtherOp, I->getParent());
-        if (!IsFree && !OldOSRIt->second.isConstant()) {
+        if (!IsFree) {
           if (NewOSR.isRelativeTo(OldOSRIt->second.boundedValue()->value())) {
             break;
           } else {
@@ -922,8 +926,7 @@ bool OSRAPass::runOnFunction(Function &F) {
                 auto FirstOSRIt = OSRs.find(FirstOp);
                 if (FirstOSRIt != OSRs.end()) {
                   auto FirstOSR = FirstOSRIt->second;
-                  if (!FirstOSR.isConstant())
-                    NewConstraints.push_back(*FirstOSR.boundedValue());
+                  NewConstraints.push_back(*FirstOSR.boundedValue());
                 }
               }
 
@@ -931,8 +934,7 @@ bool OSRAPass::runOnFunction(Function &F) {
                 auto SecondOSRIt = OSRs.find(SecondOp);
                 if (SecondOSRIt != OSRs.end()) {
                   auto SecondOSR = SecondOSRIt->second;
-                  if (!SecondOSRIt->second.isConstant())
-                    NewConstraints.push_back(*SecondOSR.boundedValue());
+                  NewConstraints.push_back(*SecondOSR.boundedValue());
                 }
               }
 
@@ -1246,11 +1248,16 @@ bool OSRAPass::runOnFunction(Function &F) {
           Value *ValueOp = TheStore->getValueOperand();
 
           if (auto *ConstantOp = dyn_cast<Constant>(ValueOp)) {
+
             // We're storing a constant, create a constant OSR
-            auto *ConstantBV = &BVs.get(I->getParent(), nullptr);
-            SelfOSR = OSR::createConstant(ConstantBV,
-                                          getZExtValue(ConstantOp, DL));
+            uint64_t Constant = getZExtValue(ConstantOp, DL);
+            BoundedValue ConstantBV = BoundedValue::createConstant(ConstantOp,
+                                                                   Constant);
+            auto &BV = BVs.forceBV(I->getParent(), ConstantOp, ConstantBV);
+            SelfOSR = OSR(&BV);
+
           } else if (auto *ToStore = dyn_cast<Instruction>(ValueOp)) {
+
             // Compute the OSR to propagate: either the one of the value to
             // store, or a self-referencing one
             auto OSRIt = OSRs.find(ToStore);
@@ -1475,14 +1482,11 @@ void OSRAPass::BVMap::describe(formatted_raw_ostream &O,
   O << "\n";
 }
 
-std::pair<bool,
-          BoundedValue&> OSRAPass::BVMap::update(BasicBlock *Target,
-                                                 BasicBlock *Origin,
-                                                 BoundedValue NewBV) {
+std::pair<bool, BoundedValue&> OSRAPass::BVMap::update(BasicBlock *Target,
+                                                       BasicBlock *Origin,
+                                                       BoundedValue NewBV) {
   auto Index = make_pair(Target, NewBV.value());
   auto MapIt = TheMap.find(Index);
-  bool Changed = true;
-
   MapValue *BVOVector = nullptr;
 
   // Have we ever seen this value for this basic block?
@@ -1491,7 +1495,11 @@ std::pair<bool,
     MapValue NewBVOVector;
     NewBVOVector.Components.push_back({ make_pair(Origin, NewBV) });
     BVOVector = &TheMap.insert({ Index, NewBVOVector }).first->second;
+    return { true, summarize(Target, BVOVector) };
+  } else if (isForced(MapIt)) {
+    return { false, MapIt->second.Summary };
   } else {
+    bool Changed = true;
     BVOVector = &MapIt->second;
 
     // Look for an entry with the given origin
@@ -1505,12 +1513,14 @@ std::pair<bool,
       BVOVector->Components.push_back({ Origin, NewBV });
     else
       Changed = Base->merge<AndMerge>(NewBV, *DL, Int64);
+
+    // Re-merge all the entries
+    auto &Result = summarize(Target, BVOVector);
+    return { Changed, Result };
   }
 
-  // Re-merge all the entries
-  auto &Result = summarize(Target, BVOVector);
+  // TODO: should Changed be false if isForced?
 
-  return { Changed, Result };
 }
 
 BoundedValue &OSRAPass::BVMap::summarize(BasicBlock *Target,
@@ -1571,7 +1581,8 @@ void BoundedValue::setSignedness(bool IsSigned) {
       LowerBound = numeric_limits<uint64_t>::min();
       UpperBound = numeric_limits<uint64_t>::max();
     }
-
+  } else if (Sign == AnySignedness) {
+    Sign = NewSign;
   } else if (Sign != NewSign) {
     Sign = InconsistentSignedness;
     // TODO: handle top case
@@ -1611,7 +1622,13 @@ bool BoundedValue::merge(const BoundedValue &Other,
     return true;
   }
 
-  setSignedness(Other.isSigned());
+  if (Sign == AnySignedness || Other.Sign == AnySignedness) {
+    if (Sign == AnySignedness)
+      Sign = Other.Sign;
+  } else {
+    setSignedness(Other.isSigned());
+  }
+
   if (Bottom)
     return true;
 
@@ -1890,7 +1907,7 @@ bool BoundedValue::merge(const BoundedValue &Other,
 template<BoundedValue::Bound B,
          BoundedValue::MergeType Type>
 bool BoundedValue::setBound(Constant *NewValue, const DataLayout &DL) {
-  assert(Sign != UnknownSignedness && !Bottom);
+  assert(Sign != UnknownSignedness && Sign != AnySignedness && !Bottom);
 
   uint64_t &Bound = B == Lower ? LowerBound : UpperBound;
 
