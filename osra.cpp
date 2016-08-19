@@ -555,6 +555,7 @@ void OSRAPass::mergeLoadReacher(LoadInst *Load) {
 // * bounded variable (or BV): a free value and the range within which it lies.
 bool OSRAPass::runOnFunction(Function &F) {
   const DataLayout DL = F.getParent()->getDataLayout();
+  auto &RDP = getAnalysis<ConditionalReachedLoadsPass>();
   auto &SCP = getAnalysis<SimplifyComparisonsPass>();
 
   // The Overtaken map keeps track of which load/store instructions have been
@@ -1133,26 +1134,22 @@ bool OSRAPass::runOnFunction(Function &F) {
       {
         // Create the OSR to propagate
         MemoryAccess MA;
-        auto TheLoad = dyn_cast<LoadInst>(I);
-        auto TheStore = dyn_cast<StoreInst>(I);
-
         // TODO: rename SelfOSR (it's not always self)
         OSR SelfOSR;
         BVVector TheConstraints;
         bool HasConstraints = false;
 
-        if (TheLoad != nullptr) {
+        if (auto *TheLoad = dyn_cast<LoadInst>(I)) {
           // It's a load
-
           MA = MemoryAccess(TheLoad, DL);
           auto OSRIt = OSRs.find(I);
-          if (OSRIt == OSRs.end())
-            SelfOSR = OSR(&BVs.get(I->getParent(), I));
-          else
+          if (OSRIt != OSRs.end())
             SelfOSR = OSRIt->second;
-        } else {
+          else
+            SelfOSR = OSR(&BVs.get(I->getParent(), I));
+
+        } else if (auto *TheStore = dyn_cast<StoreInst>(I)) {
           // It's a store
-          assert(TheStore != nullptr);
           MA = MemoryAccess(TheStore, DL);
           Value *ValueOp = TheStore->getValueOperand();
 
@@ -1175,174 +1172,55 @@ bool OSRAPass::runOnFunction(Function &F) {
             else
               SelfOSR = OSR(&BVs.get(I->getParent(), I));
 
-            // Check if the value we're storing has a constraints
+            // Check if the value we're storing has constraints
             auto ConstraintIt = Constraints.find(ToStore);
-            if (ConstraintIt != Constraints.end()) {
-              HasConstraints = true;
+            HasConstraints = ConstraintIt != Constraints.end();
+            if (HasConstraints)
               TheConstraints = ConstraintIt->second;
-            }
 
           }
 
         }
 
-        // TODO: very important, factor the two following blocks of code, we
-        //       can't handle the two propagation in parallel since OSR don't
-        //       have a merge policy (and most stop on conflicts) while
-        //       constraints have to be propagated and merged to all the load a
-        //       certain loat or store can see.
+        auto ReachedLoads = RDP.getReachedLoads(I);
+        for (LoadInst *ReachedLoad : ReachedLoads) {
 
-        // Note: for simplicity, from now on comments will talk about "load
-        //       instructions", however this code handles stores too.
-        {
-          // Initialize the work list with the instruction after the store
-          std::vector<iterator_range<BasicBlock::iterator>> ExploreWL;
-          ExploreWL.push_back(make_range(++I->getIterator(),
-                                         I->getParent()->end()));
+          // OSR propagation first
 
-          // TODO: can we remove Visited?
-          std::set<BasicBlock *> Visited;
-          // Note: we don't insert in Visited the initial basic block, so it can
-          //       get visited again to consider the part before the load
-          //       instruction.
+          // Take the reference OSR (SelfOSR) and "contextualize" it in
+          // the reached load's basic block
+          OSR NewOSR = switchBlock(SelfOSR, ReachedLoad->getParent());
 
-          while (!ExploreWL.empty()) {
-            auto R = ExploreWL.back();
-            ExploreWL.pop_back();
+          bool Changed = updateLoadReacher(ReachedLoad, I, NewOSR);
+          if (Changed)
+            mergeLoadReacher(ReachedLoad);
 
-            auto *BB = R.begin()->getParent();
-            assert(!BlockBlackList.count(BB));
-            Visited.insert(BB);
-
-            // Loop over the instructions from here to the end of the basic
-            // block
-            bool Stop = false;
-            for (Instruction &Inst : R) {
-              if (auto *Load = dyn_cast<LoadInst>(&Inst)) {
-                // TODO: handle casts and the like
-                // Is it loading from the same address of our load?
-                if (MA != MemoryAccess(Load, DL))
-                  continue;
-
-                // Take the reference OSR (SelfOSR) and "contextualize" it in
-                // the current BasicBlock
-                OSR NewOSR = switchBlock(SelfOSR, BB);
-
-                bool Changed = updateLoadReacher(Load, I, NewOSR);
-                if (Changed) {
-                  mergeLoadReacher(Load);
-                  WorkList.insert(Load);
-                  EnqueueUsers(Load);
-                }
-
-                // We stop at the load: if necessary, the load itself will be
-                // re-enqueued and will take care of propagate further the
-                // information
-                Stop = true;
-                break;
-              } else if (auto *Store = dyn_cast<StoreInst>(&Inst)) {
-                // Check if this store might alias the memory area we're
-                // tracking
-                if (MemoryAccess(Store, DL).mayAlias(MA)) {
-                  Stop = true;
-                  break;
-                }
-              }
-
+          // Constraints propagation
+          if (HasConstraints) {
+            // Does the reached load carries any constraints already?
+            auto ReachedLoadConstraintIt = Constraints.find(ReachedLoad);
+            if (ReachedLoadConstraintIt != Constraints.end()) {
+              // Merge the constraints (using the `or` logic) directly in-place
+              // in the reached load's BVVector
+              using BV = BoundedValue;
+              Changed |= mergeBVVectors<BV::Or>(ReachedLoadConstraintIt->second,
+                                                TheConstraints,
+                                                DL,
+                                                Int64);
+            } else {
+              // The reached load has no constraints, simply propagate the input
+              // ones
+              Constraints.insert({ ReachedLoad, TheConstraints });
+              Changed = true;
             }
+          }
 
-            // If we didn't stop, enqueue all the non-blacklisted successors for
-            // exploration
-            if (!Stop) {
-              for (auto *Successor : successors(BB)) {
-                if (!BlockBlackList.count(Successor)
-                    && !Successor->empty()
-                    && !Visited.count(Successor)) {
-                  ExploreWL.push_back(make_range(Successor->begin(),
-                                                 Successor->end()));
-                }
-              }
-            }
-          } // End of the worklist loop
-        }
-
-        if (HasConstraints) {
-          // Initialize the work list with the instruction after the store
-          std::vector<iterator_range<BasicBlock::iterator>> ExploreWL;
-          ExploreWL.push_back(make_range(++I->getIterator(),
-                                         I->getParent()->end()));
-
-          // TODO: can we remove Visited?
-          std::set<BasicBlock *> Visited;
-          // Note: we don't insert in Visited the initial basic block, so it
-          //       can get visisted again to consider the part before the load
-          //       instruction.
-
-          while (!ExploreWL.empty()) {
-            auto R = ExploreWL.back();
-            ExploreWL.pop_back();
-
-            auto *BB = R.begin()->getParent();
-            assert(BlockBlackList.find(BB) == BlockBlackList.end());
-            Visited.insert(BB);
-
-            // Loop over the instructions from here to the end of the basic
-            // block
-            bool Stop = false;
-            for (Instruction &Inst : R) {
-              if (auto *Load = dyn_cast<LoadInst>(&Inst)) {
-                // TODO: handle casts and the like
-                // Is it loading from the same address of our load?
-                if (MA != MemoryAccess(Load, DL))
-                  continue;
-
-                bool Changed = true;
-
-                // Propagate the constraints
-                auto LoadConstraintIt = Constraints.find(Load);
-                if (LoadConstraintIt == Constraints.end()) {
-                  // The load has no constraints, simply propagate the input
-                  // ones
-                  Constraints.insert({ &Inst, TheConstraints });
-                } else {
-                  // Merge the constraints (using the `or` logic) directly
-                  // in-place in the load's BVVector
-                  using BV = BoundedValue;
-                  Changed = mergeBVVectors<BV::Or>(LoadConstraintIt->second,
-                                                   TheConstraints,
-                                                   DL,
-                                                   Int64);
-                }
-
-                // If OSR or constraints have changed, mark the load and its
-                // uses to be visited again
-                if (Changed) {
-                  WorkList.insert(Load);
-                  EnqueueUsers(Load);
-                }
-
-              } else if (auto *Store = dyn_cast<StoreInst>(&Inst)) {
-                // Check if this store might alias the memory area we're
-                // tracking
-                if (MemoryAccess(Store, DL).mayAlias(MA)) {
-                  Stop = true;
-                  break;
-                }
-              }
-
-            }
-
-            // If we didn't stop, enqueue all the non-blacklisted successors for
-            // exploration
-            if (!Stop)
-              for (auto *Successor : successors(BB))
-                if (BlockBlackList.find(Successor) == BlockBlackList.end()
-                    && !Successor->empty()
-                    && Visited.find(Successor) == Visited.end())
-                  ExploreWL.push_back(make_range(Successor->begin(),
-                                                 Successor->end()));
-
-          } // End of the worklist loop
+          // If OSR or constraints have changed, mark the reached load and its
+          // uses to be visited again
+          if (Changed) {
+            WorkList.insert(ReachedLoad);
+            EnqueueUsers(ReachedLoad);
+          }
 
         }
 

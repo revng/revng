@@ -13,6 +13,7 @@
 #include "llvm/Pass.h"
 
 // Local includes
+#include "reachingdefinitions.h"
 #include "simplifycomparisons.h"
 
 // Forward declarations
@@ -44,6 +45,7 @@ public:
                 const llvm::BasicBlock *BB) const;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.addRequired<ConditionalReachedLoadsPass>();
     AU.addRequired<SimplifyComparisonsPass>();
   }
 
