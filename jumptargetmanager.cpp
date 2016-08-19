@@ -26,7 +26,7 @@
 #include "ir-helpers.h"
 #include "jumptargetmanager.h"
 #include "set.h"
-#include "simplifycomparison.h"
+#include "simplifycomparisons.h"
 
 using namespace llvm;
 
@@ -1161,7 +1161,6 @@ void JumpTargetManager::harvest() {
         PM.add(createConstantPropagationPass()); // temp
         PM.add(createEarlyCSEPass());
       }
-      PM.add(new SimplifyComparisonPass());
       PM.add(new SETPass(this, true, &Visited));
       PM.add(new TranslateDirectBranchesPass(this));
       NewBranches = 0;

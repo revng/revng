@@ -9,6 +9,12 @@
 #include <set>
 #include <vector>
 
+// LLVM includes
+#include "llvm/Pass.h"
+
+// Local includes
+#include "simplifycomparisons.h"
+
 // Forward declarations
 namespace llvm {
 class BasicBlock;
@@ -36,6 +42,10 @@ public:
                 const llvm::Instruction *I) const;
   void describe(llvm::formatted_raw_ostream &O,
                 const llvm::BasicBlock *BB) const;
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.addRequired<SimplifyComparisonsPass>();
+  }
 
 public:
   /// \brief Represent an SSA value within a (negated) range and its signedness

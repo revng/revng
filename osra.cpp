@@ -555,6 +555,8 @@ void OSRAPass::mergeLoadReacher(LoadInst *Load) {
 // * bounded variable (or BV): a free value and the range within which it lies.
 bool OSRAPass::runOnFunction(Function &F) {
   const DataLayout DL = F.getParent()->getDataLayout();
+  auto &SCP = getAnalysis<SimplifyComparisonsPass>();
+
   // The Overtaken map keeps track of which load/store instructions have been
   // overtaken by another load/store, meaning that they are not "free" but can
   // be expressed in terms of another stored/loaded value
@@ -733,13 +735,21 @@ bool OSRAPass::runOnFunction(Function &F) {
     case Instruction::ICmp:
       {
         // TODO: this part is quite ugly, try to improve it
-        auto *Comparison = cast<CmpInst>(I);
+        auto SimplifiedComparison = SCP.getComparison(cast<CmpInst>(I));
+        ICmpInst *Comparison = new ICmpInst(SimplifiedComparison.Predicate,
+                                            SimplifiedComparison.LHS,
+                                            SimplifiedComparison.RHS);
+        std::unique_ptr<ICmpInst> SimplifiedCmpInst(Comparison);
+
         Predicate P = Comparison->getPredicate();
+
+        Value *LHS = Comparison->getOperand(0);
+        Value *RHS = Comparison->getOperand(1);
 
         Constant *ConstOp = nullptr;
         Value *FreeOpValue = nullptr;
         Instruction *FreeOp = nullptr;
-        std::tie(ConstOp, FreeOpValue) = identifyOperands(I, DL);
+        std::tie(ConstOp, FreeOpValue) = identifyOperands(Comparison, DL);
         if (FreeOpValue != nullptr) {
           FreeOp = dyn_cast<Instruction>(FreeOpValue);
           if (FreeOp == nullptr)
@@ -821,7 +831,7 @@ bool OSRAPass::runOnFunction(Function &F) {
               // The comparison does not hold, move to bottom all the involved
               // BVs
 
-              auto *FirstOp = dyn_cast<Instruction>(I->getOperand(0));
+              auto *FirstOp = dyn_cast<Instruction>(LHS);
               if (FirstOp != nullptr) {
                 auto FirstOSRIt = OSRs.find(FirstOp);
                 if (FirstOSRIt != OSRs.end()) {
@@ -830,7 +840,7 @@ bool OSRAPass::runOnFunction(Function &F) {
                 }
               }
 
-              if (auto *SecondOp = dyn_cast<Instruction>(I->getOperand(1))) {
+              if (auto *SecondOp = dyn_cast<Instruction>(RHS)) {
                 auto SecondOSRIt = OSRs.find(SecondOp);
                 if (SecondOSRIt != OSRs.end()) {
                   auto SecondOSR = SecondOSRIt->second;

@@ -38,7 +38,7 @@ include_directories(argparse/)
 
 add_executable(revamb ptcdump.cpp main.cpp debughelper.cpp variablemanager.cpp
   jumptargetmanager.cpp instructiontranslator.cpp codegenerator.cpp
-  debug.cpp osra.cpp set.cpp simplifycomparison.cpp reachingdefinitions.cpp
+  debug.cpp osra.cpp set.cpp simplifycomparisons.cpp reachingdefinitions.cpp
   argparse/argparse.c)
 target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
 

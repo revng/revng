@@ -1,5 +1,5 @@
 /// \file simplifycomparison.cpp
-/// \brief Implementation of the SimplifyComparisonPass
+/// \brief Implementation of the SimplifyComparisonsPass
 
 // Standard includes
 #include <queue>
@@ -17,11 +17,15 @@
 // Local include
 #include "debug.h"
 #include "ir-helpers.h"
-#include "simplifycomparison.h"
+#include "simplifycomparisons.h"
 
 using namespace llvm;
 
-char SimplifyComparisonPass::ID = 0;
+char SimplifyComparisonsPass::ID = 0;
+static RegisterPass<SimplifyComparisonsPass> X("scp",
+                                               "Simplify Comparisons Pass",
+                                               false,
+                                               false);
 
 using std::array;
 using std::pair;
@@ -140,18 +144,28 @@ bool BinaryTerm::evaluate(unsigned Assignments) const {
 
 /// \brief If \p V is a LoadInst, looks for the last time it was written
 // TODO: use MemoryAccess?
-static Value *findOldest(Value *V) {
-  if (auto *Load = dyn_cast<LoadInst>(V))
-    for (auto &I : backward_range(Load))
-      if (auto *Store = dyn_cast<StoreInst>(&I))
-        if (Store->getPointerOperand() == Load->getPointerOperand())
-          return Store->getValueOperand();
+Value *SimplifyComparisonsPass::findOldest(Value *V) {
+  llvm::SmallSet<Value *, 2> Seen;
+  while (auto *Load = dyn_cast<LoadInst>(V)) {
+    if (Seen.count(V) != 0)
+      break;
+    Seen.insert(V);
+
+    auto &ReachingDefinitions = RDP->getReachingDefinitions(Load);
+    if (ReachingDefinitions.size() != 1)
+      break;
+
+    V = ReachingDefinitions[0];
+
+    if (auto *Store = dyn_cast<StoreInst>(V))
+      V = Store->getValueOperand();
+  }
 
   return V;
 }
 
 /// \brief Find the subtraction of the comparison
-static BinaryOperator *findSubtraction(User *Cmp) {
+BinaryOperator *findSubtraction(SimplifyComparisonsPass *SCP, User *Cmp) {
   queue<pair<unsigned, Value *>> WorkList;
   WorkList.push({ 0, Cmp->getOperand(0) });
   while (!WorkList.empty()) {
@@ -174,7 +188,7 @@ static BinaryOperator *findSubtraction(User *Cmp) {
     } else if (auto *Load = dyn_cast<LoadInst>(V)) {
       // TODO: extend to unique predecessors
       if (isa<GlobalVariable>(Load->getPointerOperand())) {
-        auto *Oldest = findOldest(Load);
+        auto *Oldest = SCP->findOldest(Load);
         if (Oldest != Load)
           WorkList.push({ Depth, Oldest });
       }
@@ -189,11 +203,12 @@ static const auto NoEquivalentPredicate = CmpInst::FCMP_FALSE;
 
 /// Obtain the predicate equivalent to the boolean expression associated to Cmp
 /// and whose operands come from \p Subtraction
-static Predicate getEquivalentPredicate(CmpInst *Cmp,
+static Predicate getEquivalentPredicate(SimplifyComparisonsPass *SCP,
+                                        CmpInst *Cmp,
                                         BinaryOperator *Subtraction) {
   array<Value *, 3> Variables = {
-    findOldest(Subtraction->getOperand(0)),
-    findOldest(Subtraction->getOperand(1)),
+    SCP->findOldest(Subtraction->getOperand(0)),
+    SCP->findOldest(Subtraction->getOperand(1)),
     Subtraction
   };
   const unsigned OpsCount = std::tuple_size<decltype(Variables)>::value;
@@ -213,7 +228,7 @@ static Predicate getEquivalentPredicate(CmpInst *Cmp,
     tie(PlaceholderUse, Operand) = WorkList.front();
     WorkList.pop();
 
-    Operand = findOldest(Operand);
+    Operand = SCP->findOldest(Operand);
 
     unsigned OpIndex = 0;
     for (; OpIndex < OpsCount; OpIndex++)
@@ -259,20 +274,26 @@ static Predicate getEquivalentPredicate(CmpInst *Cmp,
   return NoEquivalentPredicate;
 }
 
-bool SimplifyComparisonPass::runOnFunction(Function &F) {
-  bool Result = false;
+bool SimplifyComparisonsPass::runOnFunction(Function &F) {
+  RDP = &getAnalysis<ReachingDefinitionsPass>();
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
       if (auto *Cmp = isa_with_op<CmpInst, Value, ConstantInt>(&I)) {
         uint64_t N = getLimitedValue(Cmp->getOperand(1));
-        if (Cmp->getPredicate() == CmpInst::ICMP_SGE && N == 0) {
-          if (BinaryOperator *Subtraction = findSubtraction(Cmp)) {
-            auto Predicate = getEquivalentPredicate(Cmp, Subtraction);
+        CmpInst::Predicate OriginalPredicate = Cmp->getPredicate();
+        if (N == 0
+            && (OriginalPredicate == CmpInst::ICMP_SGE
+                || OriginalPredicate == CmpInst::ICMP_SLT)) {
+          if (BinaryOperator *Subtraction = findSubtraction(this, Cmp)) {
+            auto Predicate = getEquivalentPredicate(this, Cmp, Subtraction);
             if (Predicate != NoEquivalentPredicate) {
-              Result = true;
-              Cmp->setOperand(0, Subtraction->getOperand(0));
-              Cmp->setOperand(1, Subtraction->getOperand(1));
-              Cmp->setPredicate(Predicate);
+              Comparison Simplified;
+              Simplified.LHS = Subtraction->getOperand(0);
+              Simplified.RHS = Subtraction->getOperand(1);
+              if (OriginalPredicate == CmpInst::ICMP_SLT)
+                Predicate = CmpInst::getInversePredicate(Predicate);
+              Simplified.Predicate = Predicate;
+              SimplifiedComparisons[Cmp] = Simplified;
             }
           }
         }
@@ -280,5 +301,5 @@ bool SimplifyComparisonPass::runOnFunction(Function &F) {
     }
   }
 
-  return Result;
+  return false;
 }
