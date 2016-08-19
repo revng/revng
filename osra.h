@@ -565,7 +565,6 @@ public:
 
   std::pair<llvm::Constant *, llvm::Value *>
     identifyOperands(const llvm::Instruction *I,
-                     llvm::Type *Int64,
                      const llvm::DataLayout &DL);
 
   /// \brief Return true if \p I is stored in the CPU state but never read again

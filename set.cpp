@@ -376,14 +376,12 @@ bool SET::run() {
       bool IsStore = Store != nullptr;
       bool IsPCStore = IsStore && JTM->isPCReg(Store->getPointerOperand());
 
-      // Keep this for future use
+      // TODO: either drop this or implement blacklisting of loaded locations
       bool IsLoad = false && Load != nullptr;
       if ((!IsStore && !IsLoad)
-          || (IsPCStore
-              && isa<ConstantInt>(Store->getValueOperand()))
-          || (IsLoad
-              && (isa<GlobalVariable>(Load->getPointerOperand())
-                  || isa<AllocaInst>(Load->getPointerOperand()))))
+          || (IsPCStore && isa<ConstantInt>(Store->getValueOperand()))
+          || (IsLoad && (isa<GlobalVariable>(Load->getPointerOperand())
+                         || isa<AllocaInst>(Load->getPointerOperand()))))
         continue;
 
       // Clean the OperationsStack and, if we're dealing with a store to the PC,
@@ -533,8 +531,7 @@ Value *SET::handleInstruction(Instruction *Target, Value *V) {
     } else if (OSRA != nullptr) {
       Constant *ConstantOp = nullptr;
       Value *FreeOp = nullptr;
-      Type *Int64 = Type::getInt64Ty(F.getParent()->getContext());
-      std::tie(ConstantOp, FreeOp) = OSRA->identifyOperands(BinOp, Int64, DL);
+      std::tie(ConstantOp, FreeOp) = OSRA->identifyOperands(BinOp, DL);
 
       if (FreeOp == nullptr && ConstantOp != nullptr) {
         // The operation has been folded

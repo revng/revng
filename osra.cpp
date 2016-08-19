@@ -3,7 +3,6 @@
 
 // Standard includes
 #include <cstdint>
-#include <queue>
 #include <vector>
 
 // LLVM includes
@@ -363,7 +362,6 @@ static bool mergeBVVectors(OSRAPass::BVVector &Base,
 /// only the first operand is constant.
 std::pair<Constant *,
           Value *> OSRAPass::identifyOperands(const Instruction *I,
-                                              Type *Int64,
                                               const DataLayout &DL) {
   assert(I->getNumOperands() == 2);
   Value *FirstOp = I->getOperand(0);
@@ -597,9 +595,7 @@ bool OSRAPass::updateLoadReacher(LoadInst *Load, Instruction *I, OSR NewOSR) {
     auto Pred = [I] (const std::pair<Instruction *, OSR> &P) {
       return P.first == I;
     };
-    auto ReacherIt = std::find_if(Reachers.begin(),
-                                  Reachers.end(),
-                                  Pred);
+    auto ReacherIt = std::find_if(Reachers.begin(), Reachers.end(), Pred);
     if (ReacherIt != Reachers.end()) {
       // We've already propagated I to Load in the past, check if we have new
       // information
@@ -612,7 +608,7 @@ bool OSRAPass::updateLoadReacher(LoadInst *Load, Instruction *I, OSR NewOSR) {
     }
   }
 
-  LoadReachers[Load].push_back({ I, NewOSR});
+  LoadReachers[Load].push_back({ I, NewOSR });
 
   return true;
 }
@@ -799,7 +795,7 @@ bool OSRAPass::runOnFunction(Function &F) {
 
         Constant *ConstantOp = nullptr;
         Value *OtherOp = nullptr;
-        std::tie(ConstantOp, OtherOp) = identifyOperands(I, Int64, DL);
+        std::tie(ConstantOp, OtherOp) = identifyOperands(I, DL);
 
         if (OtherOp == nullptr) {
           if (ConstantOp != nullptr) {
@@ -888,7 +884,7 @@ bool OSRAPass::runOnFunction(Function &F) {
         Constant *ConstOp = nullptr;
         Value *FreeOpValue = nullptr;
         Instruction *FreeOp = nullptr;
-        std::tie(ConstOp, FreeOpValue) = identifyOperands(I, Int64, DL);
+        std::tie(ConstOp, FreeOpValue) = identifyOperands(I, DL);
         if (FreeOpValue != nullptr) {
           FreeOp = dyn_cast<Instruction>(FreeOpValue);
           if (FreeOp == nullptr)
@@ -1196,17 +1192,16 @@ bool OSRAPass::runOnFunction(Function &F) {
                                           FlippedBranchConstraints));
         }
 
+        // TODO: can we do this in a DFA way?
         // Process the worklist
         while (!ConstraintsWL.empty()) {
           auto Entry = ConstraintsWL.back();
           ConstraintsWL.pop_back();
-
           assert(BlockBlackList.find(Entry.Target) == BlockBlackList.end());
 
           // Merge each changed bound with the existing one
           for (auto ConstraintIt = Entry.Constraints.begin();
                ConstraintIt != Entry.Constraints.end();) {
-
             auto Result = BVs.update(Entry.Target, Entry.Origin, *ConstraintIt);
             bool Changed = Result.first;
             BoundedValue &NewBV = Result.second;
