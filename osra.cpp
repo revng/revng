@@ -292,6 +292,9 @@ Constant *OSR::solveEquation(Constant *KnownTerm,
     Division = CE::getUDiv(Numerator, Denominator);
   }
 
+  if (isa<UndefValue>(Division))
+    return Division;
+
   bool HasRemainder = getConstValue(Remainder, DL)->getLimitedValue() != 0;
   if (CeilingRounding && HasRemainder)
     Division = CE::getAdd(Division, CI::get(Division->getType(), 1));
@@ -900,6 +903,8 @@ bool OSRAPass::runOnFunction(Function &F) {
                             || P == CmpInst::ICMP_SLT);
 
             Constant *NewBoundC = BaseOp.solveEquation(ConstOp, RoundUp, DL);
+            if (isa<UndefValue>(NewBoundC))
+              return;
 
             uint64_t NewBound = getExtValue(NewBoundC, IsSigned, DL);
 
