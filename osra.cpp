@@ -111,6 +111,52 @@ static uint64_t combineImpl(unsigned Opcode,
   return combineImpl(Opcode, Signed, Op1, CI::get(T, Op2, Signed), T, DL);
 }
 
+uint64_t BoundedValue::performOp(uint64_t Op1,
+                                 unsigned Opcode,
+                                 uint64_t Op2,
+                                 const DataLayout &DL) const {
+  assert(Value != nullptr);
+
+  // Obtain the type
+  IntegerType *Ty = dyn_cast<IntegerType>(Value->getType());
+
+  // If it's not an integer type it must be a Store instruction
+  if (Ty == nullptr) {
+    auto *Store = cast<StoreInst>(Value);
+    Ty = cast<IntegerType>(Store->getValueOperand()->getType());
+  }
+
+  // Build operands
+  bool IsSigned = isSigned();
+  auto *COp1 = CI::get(Ty, Op1, IsSigned);
+  auto *COp2 = CI::get(Ty, Op2, IsSigned);
+
+  // Compute the result
+  auto *Result = ConstantFoldInstOperands(Opcode, Ty, { COp1, COp2 }, DL);
+  return getExtValue(Result, IsSigned, DL);
+}
+
+BoundedValue BoundedValue::moveTo(llvm::Value *V,
+                                  const DataLayout &DL,
+                                  uint64_t Offset,
+                                  uint64_t Multiplier) const {
+  BoundedValue Result = *this;
+  Result.Value = V;
+
+  using I = Instruction;
+  if (Result.LowerBound != Result.lowerExtreme()) {
+    Result.LowerBound = performOp(Result.LowerBound, I::Mul, Multiplier, DL);
+    Result.LowerBound = performOp(Result.LowerBound, I::Add, Offset, DL);
+  }
+
+  if (Result.UpperBound != Result.upperExtreme()) {
+    Result.UpperBound = performOp(Result.UpperBound, I::Mul, Multiplier, DL);
+    Result.UpperBound = performOp(Result.UpperBound, I::Add, Offset, DL);
+  }
+
+  return Result;
+}
+
 bool OSR::combine(unsigned Opcode,
                   Constant *Operand,
                   unsigned FreeOpIndex,
@@ -540,6 +586,7 @@ void OSRAPass::mergeLoadReacher(LoadInst *Load) {
     OSR ReachingOSR = P.second;
     if (ReachingOSR != Result) {
       OSR FreeOSR = createOSR(Load, Load->getParent());
+      BVs.forceBV(Load, pathSensitiveMerge(Load));
       OSRs.insert({ Load, FreeOSR });
       return;
     }
@@ -547,6 +594,313 @@ void OSRAPass::mergeLoadReacher(LoadInst *Load) {
 
   OSRs.insert({ Load, Result });
   return;
+}
+
+/// \brief State of a definition reaching a load while being processed by
+///        OSRAPass::pathSensitiveMerge
+class Reacher {
+public:
+  Reacher(LoadInst *Reached,
+          Instruction *Reacher,
+          OSR &ReachingOSR) :
+    Summary(BoundedValue(ReachingOSR.boundedValue()->value())),
+    LastMergeHeight(0),
+    ReachingOSR(ReachingOSR),
+    LTR(std::set<BasicBlock *> { Reacher->getParent() }),
+    LastActiveHeight(Active) { }
+
+  /// \brief Notify that the stack has grown
+  void newHeight(unsigned NewHeight) {
+    LastActiveHeight = std::min(LastActiveHeight, NewHeight);
+    LastMergeHeight = std::min(LastMergeHeight, NewHeight);
+  }
+
+  /// \brief Check if the reacher is active at the current stack height
+  bool isActive(unsigned CurrentHeight) const {
+    return CurrentHeight <= LastActiveHeight;
+  }
+
+  /// \brief Check if \p BB leads to the definition represented by this object
+  bool isLTR(BasicBlock *BB) const {
+    return LTR.count(BB) != 0;
+  }
+
+  /// \brief Register \p BB as a basic block leading to this definition
+  bool registerLTR(BasicBlock *BB) {
+    return LTR.insert(BB).second;
+  }
+
+  /// \brief Mark this Reacher as active at the current height
+  void setActive() {
+    LastActiveHeight = Active;
+  }
+
+  /// \brief Mark this Reacher as inactive at height \p Height
+  void setInactive(unsigned Height) {
+    LastActiveHeight = Height;
+  }
+
+  /// \brief Set the last height of the stack when a merge was performed
+  void setLastMerge(unsigned Height) {
+    LastMergeHeight = Height;
+  }
+
+  /// \brief Retrieve the last height of the stack when a merge was performed
+  unsigned lastMerge() const { return LastMergeHeight; }
+
+  /// Compute a BV relative to \p V by applying the OSR associated to this
+  /// definition and the constraints accumulated in Summary
+  BoundedValue computeBV(Value *V, const DataLayout &DL, Type *Int64) const {
+    auto Result = ReachingOSR.apply(Summary, V, DL);
+    if (!Result.isUninitialized() && !Result.isBottom()) {
+      using Cmp = CmpInst;
+      auto Predicate = Result.isSigned() ? Cmp::ICMP_SLE : Cmp::ICMP_ULE;
+      Constant *Compare = CE::getCompare(Predicate,
+                                         Result.lower(Int64),
+                                         Result.upper(Int64));
+      if (getZExtValue(Compare, DL) == 0)
+        Result.setBottom();
+    }
+
+    return Result;
+  }
+
+  /// \brief Rreturn the OSR associated to this definition
+  const OSR &osr() const { return ReachingOSR; }
+
+public:
+  BoundedValue Summary;   ///< BV representing the known constraints on the
+                          ///  reaching definition's value
+
+private:
+  unsigned LastMergeHeight;
+  OSR &ReachingOSR;
+  const unsigned Active = std::numeric_limits<unsigned>::max();
+  std::set<BasicBlock *> LTR;
+  unsigned LastActiveHeight;
+};
+
+BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
+  // Initialization steps
+  const unsigned MaxDepth = 5;
+  Module *M = Reached->getParent()->getParent()->getParent();
+  const DataLayout &DL = M->getDataLayout();
+  Type *Int64 = IntegerType::get(M->getContext(), 64);
+  MemoryAccess ReachedMA(Reached, DL);
+
+  // Debug support
+  raw_os_ostream OsOstream(dbg);
+  formatted_raw_ostream FormattedStream(OsOstream);
+  FormattedStream.SetUnbuffered();
+
+  DBG("psm", dbg << "Performing PSM for " << getName(Reached) << "\n";);
+
+  std::vector<Reacher> Reachers;
+  Reachers.reserve(LoadReachers[Reached].size());
+  unsigned ReacherIndex = 0;
+  for (auto &P : LoadReachers[Reached]) {
+    ReacherIndex++;
+    // TODO: isConstant?
+    if (P.second.factor() == 0)
+      return BoundedValue(Reached);
+    Reachers.emplace_back(Reached, P.first, P.second);
+    DBG("psm", dbg << "  Reacher " << std::dec << ReacherIndex
+        << " is " << getName(P.first) << "\n";);
+  }
+  assert(Reachers.size() > 0);
+
+  struct State {
+    BasicBlock *BB;
+    pred_iterator PredecessorIt;
+  };
+  std::set<BasicBlock *> InStack;
+  std::vector<State> Stack;
+  State Initial = {
+    Reached->getParent(),
+    getValidPred(Reached->getParent()),
+  };
+  if (Initial.PredecessorIt == pred_end(Initial.BB))
+    return BoundedValue(Reached);
+
+  Stack.push_back(Initial);
+  InStack.insert(Reached->getParent());
+
+  while (!Stack.empty()) {
+    State &S = Stack.back();
+    unsigned Height = Stack.size();
+    BasicBlock *Pred = *S.PredecessorIt;
+
+    DBG("psm", dbg << "Exploring " << getName(Pred) << "\n";);
+
+    // Check if any store in Pred can alias ReachedMA
+    bool MayAlias = MemoryAccess::mayAlias(Pred, ReachedMA, DL);
+
+    // Hold whether we should proceed to the predecessors or not
+    // Initialize to false, the code handling the various reacher will enable
+    // this flag if at least one of the reachers is active
+    bool Proceed = false;
+
+    // Reacher-specific handling
+    ReacherIndex = 0;
+    for (Reacher &R : Reachers) {
+      ReacherIndex++;
+
+      // Check if this reacher has been deactivated
+      if (!R.isActive(Height))
+        continue;
+
+      // Is this a BB leading to the reacher?
+      if (R.isLTR(Pred)) {
+        DBG("psm", dbg << "  Merging reacher " << ReacherIndex << "\n";);
+
+        // Insert everything is on the stack, but stop if we meet one that's
+        // already there
+        for (State &NewLTRState : Stack)
+          if (!R.registerLTR(NewLTRState.BB))
+            break;
+
+        // Perform merge from the top to last merge height
+        BoundedValue Result = R.Summary;
+        auto Range = make_range(Stack.begin() + R.lastMerge(), Stack.end());
+        for (State &ToMerge : Range) {
+          // Obtain the constraint from the appropriate edge
+          BoundedValue *EdgeBV = BVs.getEdge(ToMerge.BB,
+                                             *ToMerge.PredecessorIt,
+                                             Result.value());
+
+          // if (EdgeBV == nullptr)
+          //   return BoundedValue(Reached);
+
+          if (EdgeBV != nullptr) {
+            // And-merge
+            Result.merge<BoundedValue::And>(*EdgeBV, DL, Int64);
+
+            DBG("psm", {
+                dbg << "    Got ";
+                EdgeBV->describe(FormattedStream);
+                dbg << " from the " << getName(*ToMerge.PredecessorIt)
+                    << " -> " << getName(ToMerge.BB)
+                    << " edge: ";
+                Result.describe(FormattedStream);
+                dbg << "\n";
+              });
+
+            if (Result.isBottom())
+              break;
+
+          } else {
+            DBG("psm", {
+                dbg << "    Got no info";
+                dbg << " from the " << getName(*ToMerge.PredecessorIt)
+                    << " -> " << getName(ToMerge.BB)
+                    << " edge\n";
+              });
+          }
+        }
+
+        // If result is bottom, we went through a contradictory branch, ignore
+        // it and deactivate
+        if (!Result.isBottom()) {
+          R.Summary = Result;
+
+          // Register the current height as the last merge
+          R.setLastMerge(Height);
+        } else {
+          DBG("psm", dbg << "We got an incoherent situation, ignore it\n";);
+        }
+
+        // Deactivate
+        R.setInactive(Height);
+      } else if (MayAlias) {
+        DBG("psm", dbg << "  Deactivating reacher " << ReacherIndex << "\n";);
+
+        // We don't know if it's an LTR, check if it may alias, and if so,
+        // deactivate this reacher
+        R.setInactive(Height);
+      } else {
+        // Activate
+        R.setActive();
+
+        // At least one of the reacher is active, we have to proceed to the
+        // predecessor
+        Proceed = true;
+      }
+    }
+
+    // Check it's not already in stack
+    Proceed &= InStack.count(Pred) == 0;
+
+    // Check we're not exceeding the maximum allowed depth
+    Proceed &= Height < MaxDepth;
+
+    // Check we have at least a non-dispatcher predecessor
+    pred_iterator NewPredIt = getValidPred(Pred);
+    Proceed &= NewPredIt != pred_end(Pred);
+
+    if (Proceed) {
+      // We have to go deeper
+      State NewState = {
+        Pred,
+        NewPredIt
+      };
+      Stack.push_back(NewState);
+      InStack.insert(Pred);
+    } else {
+      // Pop until the stack is empty or we still have unexplored predecessors
+      unsigned OldHeight = Stack.size();
+      while (Stack.size() != 0) {
+        State &Top = Stack.back();
+        auto End = pred_end(Top.BB);
+        if (nextValidPred(++Top.PredecessorIt, End) != End)
+          break;
+
+        InStack.erase(Top.BB);
+        Stack.pop_back();
+      }
+
+      // If we popped something make sure we update all the heights
+      unsigned NewHeight = Stack.size();
+      if (NewHeight < OldHeight)
+        for (Reacher &R : Reachers)
+          R.newHeight(NewHeight);
+    }
+
+  }
+
+  // Or-merge all the collected BVs
+  // TODO: adding the OSR offset is safe, but the multiplier?
+  BoundedValue FinalBV = Reachers[0].computeBV(Reached, DL, Int64);
+
+  for (Reacher &R : skip(1, Reachers)) {
+    BoundedValue ReacherBV = R.computeBV(Reached, DL, Int64);
+
+    DBG("psm", {
+        dbg << "";
+        FinalBV.describe(FormattedStream);
+        dbg << " += ";
+        ReacherBV.describe(FormattedStream);
+        dbg << " (from ";
+        R.osr().describe(FormattedStream);
+        dbg << ")\n";
+      });
+
+    if (FinalBV.isBottom())
+      return BoundedValue(Reached);
+
+    FinalBV.merge<BoundedValue::Or>(ReacherBV, DL, Int64);
+  }
+
+  if (FinalBV.isUninitialized() || FinalBV.isTop() || FinalBV.isBottom())
+    return BoundedValue(Reached);
+
+  DBG("psm", {
+      dbg << "FinalBV: ";
+      FinalBV.describe(FormattedStream);
+      dbg << "\n";
+    });
+
+  assert(!FinalBV.isUninitialized());
+  return FinalBV;
 }
 
 // Terminology:

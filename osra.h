@@ -292,6 +292,13 @@ public:
         return LowerBound == lowerExtreme() || UpperBound == upperExtreme();
     }
 
+    /// Produce a new BV relative to \p V with boundaries multiplied by \p
+    /// Multiplier and then adding \p Offset
+    BoundedValue moveTo(llvm::Value *V,
+                        const llvm::DataLayout &DL,
+                        uint64_t Offset=0,
+                        uint64_t Multiplier=0) const;
+
   private:
     uint64_t lowerExtreme() const {
       switch (Sign) {
@@ -319,6 +326,11 @@ public:
       }
     }
 
+    /// \brief Performs a binary operation using signedness and type of the BV
+    uint64_t performOp(uint64_t Op1,
+                       unsigned Opcode,
+                       uint64_t Op2,
+                       const llvm::DataLayout &DL) const;
   public:
     const llvm::Value *Value;
     uint64_t LowerBound;
@@ -442,6 +454,15 @@ public:
     /// \brief Accessor to the factor value of this OSR (`b`)
     uint64_t factor() const { return Factor; }
 
+    // TODO: bad name
+    BoundedValue apply(const BoundedValue &Target,
+        llvm::Value *V,
+        const llvm::DataLayout &DL) const {
+      if (Target.isBottom() || Target.isTop())
+        return Target;
+
+      return Target.moveTo(V, DL, Base, Factor);
+    }
   private:
     uint64_t Base;
     uint64_t Factor;
@@ -480,6 +501,18 @@ private:
 
       MapValue &BVOs = MapIt->second;
       return BVOs.Summary;
+    }
+
+    BoundedValue *getEdge(llvm::BasicBlock *BB,
+                          llvm::BasicBlock *Predecessor,
+                          const llvm::Value *V) {
+      auto MapIt = TheMap.find({ BB, V });
+      if (MapIt != TheMap.end())
+        for (auto &Component : MapIt->second.Components)
+          if (Component.first == Predecessor)
+            return &Component.second;
+
+      return nullptr;
     }
 
     void setSignedness(llvm::BasicBlock *BB,
@@ -599,6 +632,24 @@ private:
   ///
   /// \return the newly created OSR, possibly expressed in terms of \p V itself.
   OSR createOSR(llvm::Value *V, llvm::BasicBlock *BB);
+
+  /// Compute a BV for \p Reached by collecting constraints on the reaching
+  /// definitions over all the paths from \p Reached to them
+  BoundedValue pathSensitiveMerge(llvm::LoadInst *Reached);
+
+  llvm::pred_iterator getValidPred(llvm::BasicBlock *BB) {
+    llvm::pred_iterator Result = llvm::pred_begin(BB);
+    nextValidPred(Result, llvm::pred_end(BB));
+    return Result;
+  }
+
+  llvm::pred_iterator &nextValidPred(llvm::pred_iterator &It,
+                                     llvm::pred_iterator End) {
+    while (It != End && BlockBlackList.count(*It) != 0)
+      It++;
+
+    return It;
+  }
 
   bool updateLoadReacher(llvm::LoadInst *Load, llvm::Instruction *I, OSR NewOSR);
   void mergeLoadReacher(llvm::LoadInst *Load);
