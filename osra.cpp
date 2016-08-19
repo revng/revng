@@ -859,73 +859,127 @@ bool OSRAPass::runOnFunction(Function &F) {
           // We have a constant operand and a free one
 
           BasicBlock *BB = I->getParent();
-          OSR BaseOp = createOSR(FreeOp, BB);
 
-          if (BaseOp.boundedValue()->isBottom() || BaseOp.isRelativeTo(I))
-            break;
+          auto Handle = [&] (OSR &BaseOp) {
+            if (BaseOp.boundedValue()->isBottom()
+                || BaseOp.isRelativeTo(I)
+                || BaseOp.factor() == 0)
+              return;
 
-          // Notify the BV about the sign we're going to use
-          bool IsSigned = Comparison->isSigned();
-          BVs.setSignedness(BB,
-                            BaseOp.boundedValue()->value(),
-                            IsSigned);
 
-          // Setting the sign might lead to bottom
-          if (BaseOp.boundedValue()->isBottom())
-            break;
+            // Notify the BV about the sign we're going to use, unless it's a
+            // comparison of (in)equality
+            bool IsSigned;
+            if (P != CmpInst::ICMP_EQ && P != CmpInst::ICMP_NE) {
+              IsSigned = Comparison->isSigned();
+              BVs.setSignedness(BB, BaseOp.boundedValue()->value(), IsSigned);
+            } else {
+              // TODO: we don't know what sign to use here, so we ignore it,
+              //       should we switch to AnySignedness?
+              if (BaseOp.boundedValue()->isUninitialized())
+                return;
 
-          // Create a copy of the current value of the BV
-          BoundedValue NewBV = *(BaseOp.boundedValue());
+              IsSigned = BaseOp.boundedValue()->isSigned();
+            }
 
-          // Solve the equation to obtain the new boundary value
-          // x <  1.5 == x <  2 (Ceiling)
-          // x <= 1.5 == x <= 1 (Floor)
-          // x >  1.5 == x >  1 (Floor)
-          // x >= 1.5 == x >= 2 (Ceiling)
-          bool RoundUp = (P == CmpInst::ICMP_UGE
-                          || P == CmpInst::ICMP_SGE
-                          || P == CmpInst::ICMP_ULT
-                          || P == CmpInst::ICMP_SLT);
+            // Setting the sign might lead to bottom
+            if (BaseOp.boundedValue()->isBottom())
+              return;
 
-          Constant *NewBoundC = BaseOp.solveEquation(ConstOp, RoundUp, DL);
-          uint64_t NewBound = getExtValue(NewBoundC, IsSigned, DL);
+            // Create a copy of the current value of the BV
+            BoundedValue NewBV = *(BaseOp.boundedValue());
 
-          using BV = BoundedValue;
-          switch (P) {
-          case CmpInst::ICMP_UGT:
-          case CmpInst::ICMP_UGE:
-          case CmpInst::ICMP_SGT:
-          case CmpInst::ICMP_SGE:
-            if (Comparison->isFalseWhenEqual())
-              NewBound++;
+            // Solve the equation to obtain the new boundary value
+            // x <  1.5 == x <  2 (Ceiling)
+            // x <= 1.5 == x <= 1 (Floor)
+            // x >  1.5 == x >  1 (Floor)
+            // x >= 1.5 == x >= 2 (Ceiling)
+            bool RoundUp = (P == CmpInst::ICMP_UGE
+                            || P == CmpInst::ICMP_SGE
+                            || P == CmpInst::ICMP_ULT
+                            || P == CmpInst::ICMP_SLT);
 
-            NewBV.merge(BV::createGE(NewBV.value(), NewBound, IsSigned),
-                        DL, Int64);
-            break;
-          case CmpInst::ICMP_ULT:
-          case CmpInst::ICMP_ULE:
-          case CmpInst::ICMP_SLT:
-          case CmpInst::ICMP_SLE:
-            if (Comparison->isFalseWhenEqual())
-              NewBound--;
+            Constant *NewBoundC = BaseOp.solveEquation(ConstOp, RoundUp, DL);
 
-            NewBV.merge(BV::createLE(NewBV.value(), NewBound, IsSigned),
-                        DL, Int64);
-            break;
-          case CmpInst::ICMP_EQ:
-            NewBV.merge(BV::createEQ(NewBV.value(), NewBound, IsSigned),
-                        DL, Int64);
-            break;
-          case CmpInst::ICMP_NE:
-            NewBV.merge(BV::createNE(NewBV.value(), NewBound, IsSigned),
-                        DL, Int64);
-            break;
-          default:
-            assert(false);
-            break;
+            uint64_t NewBound = getExtValue(NewBoundC, IsSigned, DL);
+
+            using BV = BoundedValue;
+            switch (P) {
+            case CmpInst::ICMP_UGT:
+            case CmpInst::ICMP_UGE:
+            case CmpInst::ICMP_SGT:
+            case CmpInst::ICMP_SGE:
+              if (Comparison->isFalseWhenEqual())
+                NewBound++;
+
+              NewBV.merge(BV::createGE(NewBV.value(), NewBound, IsSigned),
+                          DL, Int64);
+              break;
+            case CmpInst::ICMP_ULT:
+            case CmpInst::ICMP_ULE:
+            case CmpInst::ICMP_SLT:
+            case CmpInst::ICMP_SLE:
+              if (Comparison->isFalseWhenEqual())
+                NewBound--;
+
+              NewBV.merge(BV::createLE(NewBV.value(), NewBound, IsSigned),
+                          DL, Int64);
+              break;
+            case CmpInst::ICMP_EQ:
+              NewBV.merge(BV::createEQ(NewBV.value(),
+                                       NewBound,
+                                       NewBV.isSigned()),
+                          DL,
+                          Int64);
+              break;
+            case CmpInst::ICMP_NE:
+              NewBV.merge(BV::createNE(NewBV.value(),
+                                       NewBound,
+                                       NewBV.isSigned()),
+                          DL,
+                          Int64);
+              break;
+            default:
+              assert(false);
+              break;
+            }
+
+            NewConstraints.push_back(NewBV);
+          };
+
+          OSR TheOSR = createOSR(FreeOp, BB);
+          NewConstraints.clear();
+
+          // Handle the base case
+          Handle(TheOSR);
+
+          // Handle all the reaching definitions, if it's referred to a load
+          const Value *BaseValue = nullptr;
+          if (TheOSR.boundedValue() != nullptr)
+            BaseValue = TheOSR.boundedValue()->value();
+
+          if (BaseValue != nullptr) {
+            if (auto *Load = dyn_cast<LoadInst>(BaseValue)) {
+              const OSR *LoadOSR = getOSR(Load);
+              auto &Reachers = LoadReachers[Load];
+              if (Reachers.size() > 1
+                  && LoadOSR != nullptr
+                  && LoadOSR->boundedValue()->value() == Load) {
+
+                for (auto &P : Reachers) {
+                  if (!P.second.isConstant()
+                      && P.second.boundedValue()
+                      && P.second.boundedValue()->value()) {
+                    OSR TheOSR = switchBlock(P.second, BB);
+                    Handle(TheOSR);
+                  }
+                }
+
+              }
+            }
           }
 
-          NewConstraints = { NewBV };
+
         }
 
         bool Changed = true;
@@ -1081,38 +1135,67 @@ bool OSRAPass::runOnFunction(Function &F) {
             }
           }
 
+          // Compute the set of affected values
+          llvm::SmallSet<const Value *, 5> Affected;
+          for (BoundedValue &Constraint : Entry.Constraints)
+            Affected.insert(Constraint.value());
+
           // Look for instructions using constraints that have changed
-          for (auto &ConstraintUser : *Entry.Target) {
+          for (Instruction &ConstraintUser : *Entry.Target) {
             // Avoid looking up instructions that simply cannot be there
-            auto Opcode = ConstraintUser.getOpcode();
-            if (Opcode != Instruction::ICmp
-                && Opcode != Instruction::And
-                && Opcode != Instruction::Or)
-              continue;
+            switch (ConstraintUser.getOpcode()) {
+            case Instruction::ICmp:
+            case Instruction::And:
+            case Instruction::Or:
+              {
+                // Ignore instructions without an associated constraint
+                auto ConstraintIt = Constraints.find(&ConstraintUser);
+                if (ConstraintIt == Constraints.end())
+                  continue;
 
-            // Ignore instructions without an associated constraint
-            auto ConstraintIt = Constraints.find(&ConstraintUser);
-            if (ConstraintIt == Constraints.end())
-              continue;
+                // If it's using one of the changed variables, insert it in the
+                // worklist
+                BVVector &InstructionConstraints = ConstraintIt->second;
 
-            // If it's using one of the changed variables, insert it in the
-            // worklist
-            BVVector &InstructionConstraints = ConstraintIt->second;
-
-            bool NeedsUpdate = false;
-            for (auto &Constraint : Entry.Constraints) {
-              for (auto &InstructionConstraint : InstructionConstraints) {
-                if (InstructionConstraint.value() == Constraint.value()) {
-                  NeedsUpdate = true;
-                  break;
+                for (BoundedValue &Constraint : InstructionConstraints) {
+                  if (Affected.count(Constraint.value()) != 0) {
+                    WorkList.insert(&ConstraintUser);
+                    break;
+                  }
                 }
-              }
 
-              if (NeedsUpdate) {
-                WorkList.insert(&ConstraintUser);
                 break;
               }
+            case Instruction::Load:
+              {
+                // Check if any of the reaching definitions of this load is
+                // affected by the constraints being propagated
+                LoadInst *Load = cast<LoadInst>(&ConstraintUser);
+                auto ReachersIt = LoadReachers.find(Load);
+                if (ReachersIt == LoadReachers.end())
+                  break;
 
+                auto &Reachers = ReachersIt->second;
+
+                for (auto &P : Reachers) {
+                  const Value *ReacherValue = nullptr;
+                  if (P.second.boundedValue() != nullptr)
+                    ReacherValue = P.second.boundedValue()->value();
+
+                  if (Affected.count(ReacherValue) != 0) {
+                    // We're affected, update
+                    mergeLoadReacher(Load);
+                    WorkList.insert(Load);
+                    EnqueueUsers(Load);
+                    Affected.insert(Load);
+                    break;
+                  }
+                }
+
+               break;
+              }
+            default:
+              break;
             }
 
           }
