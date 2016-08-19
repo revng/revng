@@ -352,9 +352,11 @@ public:
     ///
     /// \param Opcode LLVM opcode describing the operation.
     /// \param Operand the constant Operand with which combine the OSR.
+    /// \param FreeOpIndex the index of the non-constant operator.
     ///
     /// \return true if the OSR has been modified.
     bool combine(unsigned Opcode, llvm::Constant *Operand,
+                 unsigned FreeOpIndex,
                  const llvm::DataLayout &DL);
 
     /// \brief Compute the solution of integer equation `a + b * x = k`

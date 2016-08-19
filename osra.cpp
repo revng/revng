@@ -74,35 +74,81 @@ pair<Constant *, Constant *> OSR::boundaries(Type *Int64,
   return { Min, Max };
 }
 
+/// \brief Combine two constants using \p Opcode operation
+///
+/// \param Opcode the opcode of the binary operator.
+/// \param Signed whether the operands are signed or not.
+/// \param Op1 the first operand.
+/// \param Op2 the second operand.
+/// \param T the type of the operands the result.
+/// \param DL the DataLayout to compute the result.
+/// \return the result of the operation.
 static uint64_t combineImpl(unsigned Opcode,
                             bool Signed,
-                            uint64_t N,
+                            Constant *Op1,
+                            Constant *Op2,
                             IntegerType *T,
-                            Constant *Op,
                             const DataLayout &DL) {
-  auto *R = ConstantFoldInstOperands(Opcode, T,
-                                     { CI::get(T, N, Signed), Op },
-                                     DL);
+  auto *R = ConstantFoldInstOperands(Opcode, T, { Op1, Op2 }, DL);
   return getExtValue(R, Signed, DL);
 }
 
-bool OSR::combine(unsigned Opcode, Constant *Operand, const DataLayout &DL) {
+static uint64_t combineImpl(unsigned Opcode,
+                            bool Signed,
+                            uint64_t Op1,
+                            Constant *Op2,
+                            IntegerType *T,
+                            const DataLayout &DL) {
+  return combineImpl(Opcode, Signed, CI::get(T, Op1, Signed), Op2, T, DL);
+}
+
+static uint64_t combineImpl(unsigned Opcode,
+                            bool Signed,
+                            Constant *Op1,
+                            uint64_t Op2,
+                            IntegerType *T,
+                            const DataLayout &DL) {
+  return combineImpl(Opcode, Signed, Op1, CI::get(T, Op2, Signed), T, DL);
+}
+
+bool OSR::combine(unsigned Opcode,
+                  Constant *Operand,
+                  unsigned FreeOpIndex,
+                  const DataLayout &DL) {
+  using I = Instruction;
   auto *TheType = cast<IntegerType>(Operand->getType());
-  bool Multiplicative = !(Opcode == Instruction::Add
-                          || Opcode == Instruction::Sub);
-  bool Signed = (Opcode == Instruction::SDiv
-                 || Opcode == Instruction::AShr);
+  bool Multiplicative = !(Opcode == I::Add || Opcode == I::Sub);
+  bool Signed = (Opcode == I::SDiv || Opcode == I::AShr);
 
   Operand = getConstValue(Operand, DL);
 
   uint64_t OldValue = Base;
-  Base = combineImpl(Opcode, Signed, Base, TheType, Operand, DL);
-  bool Changed = Base != OldValue;
+  uint64_t OldFactor = Factor;
 
-  if (Multiplicative) {
-    OldValue = Factor;
-    Factor = combineImpl(Opcode, Signed, Factor, TheType, Operand, DL);
-    Changed |= OldValue != Factor;
+  bool Changed = false;
+
+  // Handle the only case of non-commutative operation with first operand
+  // constant that we handle: subtraction
+  if (!I::isCommutative(Opcode) && FreeOpIndex != 0) {
+    assert(Opcode == I::Sub);
+    // c - x
+    // x = a + b * y
+    // (c - a) + (-b) * y
+    Base = combineImpl(Opcode, Signed, Operand, Base, TheType, DL);
+    Changed |= Base != OldValue;
+    auto *MinusOne = Constant::getAllOnesValue(TheType);
+    Factor = combineImpl(I::Mul, Signed, MinusOne, Factor, TheType, DL);
+    Changed |= OldFactor != Factor;
+  } else {
+    // Commutative/second operand constant case
+    Base = combineImpl(Opcode, Signed, Base, Operand, TheType, DL);
+    Changed |= Base != OldValue;
+
+    if (Multiplicative) {
+      Factor = combineImpl(Opcode, Signed, Factor, Operand, TheType, DL);
+      Changed |= OldFactor != Factor;
+
+    }
   }
 
   return Changed;
@@ -341,12 +387,8 @@ std::pair<Constant *,
       Constants[1] = CI::get(Operand->getType(), OSRIt->second.constant());
   }
 
-  // No operands are constant, or only the first one and the instruction is not
-  // commutative
-  if ((Constants[0] == nullptr && Constants[1] == nullptr)
-      || (Constants[0] != nullptr
-          && Constants[1] == nullptr
-          && !I->isCommutative()))
+  // No constant operands
+  if (Constants[0] == nullptr && Constants[1] == nullptr)
     return { nullptr, nullptr };
 
   // Both operands are constant, constant fold them
@@ -371,6 +413,7 @@ std::pair<Constant *,
 // TODO: check also undefined behaviors due to shifts
 static bool isSupportedOperation(unsigned Opcode,
                                  Constant *ConstantOp,
+                                 unsigned FreeOpIndex,
                                  const DataLayout &DL) {
   // Division by zero
   if ((Opcode == Instruction::SDiv
@@ -389,6 +432,11 @@ static bool isSupportedOperation(unsigned Opcode,
   // 128-bit operand
   auto *ConstantOpTy = dyn_cast<IntegerType>(ConstantOp->getType());
   if (ConstantOpTy != nullptr && ConstantOpTy->getBitWidth() > 64)
+    return false;
+
+  if (!Instruction::isCommutative(Opcode)
+      && FreeOpIndex != 0
+      && Opcode != Instruction::Sub)
     return false;
 
   return true;
@@ -811,12 +859,13 @@ bool OSRAPass::runOnFunction(Function &F) {
         }
 
         // Check for undefined behaviors
-        if (!isSupportedOperation(Opcode, ConstantOp, DL)) {
+        unsigned FreeOpIndex = OtherOp == I->getOperand(0) ? 0 : 1;
+        if (!isSupportedOperation(Opcode, ConstantOp, FreeOpIndex, DL)) {
           NewOSR = OSR(&BVs.get(I->getParent(), I));
           Changed = true;
         } else {
           // Combine the base OSR with the new operation
-          Changed |= NewOSR.combine(Opcode, ConstantOp, DL);
+          Changed |= NewOSR.combine(Opcode, ConstantOp, FreeOpIndex, DL);
         }
 
         // Check if the OSR has changed
