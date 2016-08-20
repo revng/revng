@@ -52,13 +52,7 @@ void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
 /// \brief Purges everything is after a call to exitTB (except the call itself)
 static void exitTBCleanup(Instruction *ExitTBCall) {
   BasicBlock *BB = ExitTBCall->getParent();
-  BasicBlock::iterator I(ExitTBCall);
   BasicBlock::iterator BlockEnd(BB->end());
-
-  // After a call to exitTB we always have an unreachable instruction
-  I++;
-  assert(I != BlockEnd);
-  I->eraseFromParent();
 
   // Cleanup everything it's aftewards starting from the end
   Instruction *ToDelete = &*(--BB->end());
