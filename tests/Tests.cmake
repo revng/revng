@@ -86,6 +86,8 @@ foreach(TEST_NAME ${TESTS})
   foreach(RUN_NAME ${TEST_RUNS_${TEST_NAME}})
     add_test(NAME run-test-native-${TEST_NAME}-${RUN_NAME}
       COMMAND sh -c "$<TARGET_FILE:test-native-${TEST_NAME}> ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${CMAKE_CURRENT_BINARY_DIR}/tests/run-test-native-${TEST_NAME}-${RUN_NAME}.log")
+    set_tests_properties(run-test-native-${TEST_NAME}-${RUN_NAME}
+        PROPERTIES LABELS "run-test-native;${TEST_NAME};${RUN_NAME}")
   endforeach()
 endforeach()
 
@@ -153,6 +155,8 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
     # Test to translate the compiled binary
     add_test(NAME translate-${TEST_NAME}-${ARCH}
       COMMAND sh -c "$<TARGET_FILE:revamb> -g ll --architecture ${ARCH} ${BIN}/${TEST_NAME} ${BIN}/${TEST_NAME}.ll")
+    set_tests_properties(translate-${TEST_NAME}-${ARCH}
+      PROPERTIES LABELS "translate;${TEST_NAME};${ARCH}")
 
     # Command-line to link support.c and the translated binaries
     compile_executable("$(${CMAKE_CURRENT_SOURCE_DIR}/tests/li-csv-to-ld-options ${BIN}/${TEST_NAME}.ll.li.csv) ${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} ${TEST_SRC}/support.c -DTARGET_${NORMALIZED_ARCH} -lz -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -g"
@@ -162,7 +166,9 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
     # Compile the translated LLVM IR
     add_test(NAME compile-translated-${TEST_NAME}-${ARCH}
       COMMAND sh -c "${LLC} -O0 -filetype=obj ${BIN}/${TEST_NAME}.ll -o ${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} && ${COMPILE_TRANSLATED}")
-    set_tests_properties(compile-translated-${TEST_NAME}-${ARCH} PROPERTIES DEPENDS translate-${TEST_NAME}-${ARCH})
+    set_tests_properties(compile-translated-${TEST_NAME}-${ARCH}
+      PROPERTIES DEPENDS translate-${TEST_NAME}-${ARCH}
+                 LABELS "compile-translated;${TEST_NAME};${ARCH}")
 
     # For each set of arguments
     foreach(RUN_NAME ${TEST_RUNS_${TEST_NAME}})
@@ -170,11 +176,14 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       add_test(NAME run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
         COMMAND sh -c "${BIN}/${TEST_NAME}.translated ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${BIN}/run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}.log")
       set_tests_properties(run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
-        PROPERTIES DEPENDS compile-translated-${TEST_NAME}-${ARCH})
+        PROPERTIES DEPENDS compile-translated-${TEST_NAME}-${ARCH}
+                   LABELS "run-translated-test;${TEST_NAME};${RUN_NAME};${ARCH}")
 
       # Test to run the compiled program under qemu-user
       add_test(NAME run-qemu-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
         COMMAND sh -c "${QEMU_${ARCH}} ${BIN}/${TEST_NAME} ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${BIN}/run-qemu-test-${TEST_NAME}-${RUN_NAME}.log")
+      set_tests_properties(run-qemu-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
+        PROPERTIES LABELS "run-qemu-test;${TEST_NAME};${RUN_NAME};${ARCH}")
 
       # Check the output of the translated binary corresponds to the qemu-user's
       # one
@@ -184,7 +193,8 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       list(APPEND DEPS "run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}")
       list(APPEND DEPS "run-qemu-test-${TEST_NAME}-${RUN_NAME}-${ARCH}")
       set_tests_properties(check-with-qemu-${TEST_NAME}-${RUN_NAME}-${ARCH}
-        PROPERTIES DEPENDS "${DEPS}")
+        PROPERTIES DEPENDS "${DEPS}"
+                   LABELS "check-with-qemu;${TEST_NAME};${RUN_NAME};${ARCH}")
 
       # Check the output of the translated binary corresponds to the native's one
       add_test(NAME check-with-native-${TEST_NAME}-${RUN_NAME}-${ARCH}
@@ -193,7 +203,8 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       list(APPEND DEPS "run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}")
       list(APPEND DEPS "run-test-native-${TEST_NAME}-${RUN_NAME}")
       set_tests_properties(check-with-native-${TEST_NAME}-${RUN_NAME}-${ARCH}
-        PROPERTIES DEPENDS "${DEPS}")
+        PROPERTIES DEPENDS "${DEPS}"
+                   LABELS "check-with-native;${TEST_NAME};${RUN_NAME};${ARCH}")
 
     endforeach()
   endforeach()
