@@ -2,7 +2,9 @@
 #define _REVAMB_H
 
 // Standard includes
+#include <iterator>
 #include <string>
+#include <vector>
 
 // Path to the QEMU libraries should be given by the build system
 #ifndef QEMU_LIB_PATH
@@ -23,6 +25,7 @@ enum class DebugInfoType {
 };
 
 /// \brief Simple data structure to describe an ELF segment
+// TODO: information hiding
 struct SegmentInfo {
   /// Produce a name for this segment suitable for human understanding
   std::string generateName();
@@ -41,6 +44,22 @@ struct SegmentInfo {
 
   bool contains(uint64_t Start, uint64_t Size) {
     return contains(Start) && contains(Start + Size - 1);
+  }
+
+  std::vector<std::pair<uint64_t, uint64_t>> ExecutableSections;
+
+  template<class Container>
+  void insertExecutableRanges(std::back_insert_iterator<Container> Inserter) {
+    if (!IsExecutable)
+      return;
+
+    if (ExecutableSections.size() > 0) {
+      std::copy(ExecutableSections.begin(),
+                ExecutableSections.end(),
+                Inserter);
+    } else {
+      Inserter = std::make_pair(StartVirtualAddress, EndVirtualAddress);
+    }
   }
 
 };

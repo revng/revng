@@ -43,6 +43,8 @@
 
 using namespace llvm;
 
+using std::make_pair;
+
 template<typename T, typename... Args>
 inline std::array<T, sizeof...(Args)>
 make_array(Args&&... args) {
@@ -62,7 +64,8 @@ CodeGenerator::CodeGenerator(std::string Input,
                              std::string Coverage,
                              std::string BBSummary,
                              bool EnableOSRA,
-                             bool EnableTracing) :
+                             bool EnableTracing,
+                             bool UseSections) :
   TargetArchitecture(Target),
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
@@ -121,15 +124,15 @@ CodeGenerator::CodeGenerator(std::string Input,
 
   if (SourceArchitecture.pointerSize() == 32) {
     if (SourceArchitecture.isLittleEndian()) {
-      parseELF<object::ELF32LE>(TheBinary, LinkingInfo);
+      parseELF<object::ELF32LE>(TheBinary, LinkingInfo, UseSections);
     } else {
-      parseELF<object::ELF32BE>(TheBinary, LinkingInfo);
+      parseELF<object::ELF32BE>(TheBinary, LinkingInfo, UseSections);
     }
   } else if (SourceArchitecture.pointerSize() == 64) {
     if (SourceArchitecture.isLittleEndian()) {
-      parseELF<object::ELF64LE>(TheBinary, LinkingInfo);
+      parseELF<object::ELF64LE>(TheBinary, LinkingInfo, UseSections);
     } else {
-      parseELF<object::ELF64BE>(TheBinary, LinkingInfo);
+      parseELF<object::ELF64BE>(TheBinary, LinkingInfo, UseSections);
     }
   } else {
     assert("Unexpect address size");
@@ -150,7 +153,8 @@ std::string SegmentInfo::generateName() {
 
 template<typename T>
 void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
-                             std::string LinkingInfo) {
+                             std::string LinkingInfo,
+                             bool UseSections) {
   // Parse the ELF file
   std::error_code EC;
   object::ELFFile<T> TheELF(TheBinary->getData(), EC);
@@ -194,7 +198,8 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
   // and create a global variable for each one of them (writable or read-only),
   // assign them a section and output information about them in the linking info
   // CSV
-  for (auto &ProgramHeader : TheELF.program_headers())
+  using Elf_Phdr = const typename object::ELFFile<T>::Elf_Phdr;
+  for (Elf_Phdr &ProgramHeader : TheELF.program_headers())
     if (ProgramHeader.p_type == ELF::PT_LOAD) {
       SegmentInfo Segment;
       Segment.StartVirtualAddress = ProgramHeader.p_vaddr;
@@ -202,6 +207,17 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
       Segment.IsReadable = ProgramHeader.p_flags & ELF::PF_R;
       Segment.IsWriteable = ProgramHeader.p_flags & ELF::PF_W;
       Segment.IsExecutable = ProgramHeader.p_flags & ELF::PF_X;
+
+      // If it's an executable segment, and we've been asked so, register which
+      // sections actually contain code
+      if (UseSections && Segment.IsExecutable) {
+        using Elf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
+        auto Inserter = std::back_inserter(Segment.ExecutableSections);
+        for (Elf_Shdr &SectionHeader : TheELF.sections())
+          if (SectionHeader.sh_flags & ELF::SHF_EXECINSTR)
+            Inserter = make_pair(SectionHeader.sh_addr,
+                                 SectionHeader.sh_addr + SectionHeader.sh_size);
+      }
 
       auto ActualStartAddress = TheELF.base() + ProgramHeader.p_offset;
 
@@ -217,8 +233,7 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
       std::string Name = Segment.generateName();
 
       // Get data and size
-      auto *DataType = ArrayType::get(Uint8Ty,
-                                      ProgramHeader.p_memsz);
+      auto *DataType = ArrayType::get(Uint8Ty, ProgramHeader.p_memsz);
 
       Constant *TheData = nullptr;
       if (ProgramHeader.p_memsz == ProgramHeader.p_filesz) {

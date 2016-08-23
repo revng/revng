@@ -68,7 +68,8 @@ public:
                 std::string Coverage,
                 std::string BBSummary,
                 bool EnableOSRA,
-                bool EnableTracing);
+                bool EnableTracing,
+                bool UseSections);
 
   ~CodeGenerator();
 
@@ -94,7 +95,9 @@ private:
   /// \param TheBinary the LLVM ObjectFile representing the ELF file.
   /// \param LinkingInfo path where the .li.csv file should be created.
   template<typename T>
-  void parseELF(llvm::object::ObjectFile *TheBinary, std::string LinkingInfo);
+  void parseELF(llvm::object::ObjectFile *TheBinary,
+                std::string LinkingInfo,
+                bool UseSections);
 
 private:
   Architecture SourceArchitecture;

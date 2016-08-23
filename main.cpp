@@ -41,6 +41,7 @@ struct ProgramParameters {
   const char *BBSummaryPath;
   bool NoOSRA;
   bool EnableTracing;
+  bool UseSections;
 };
 
 using LibraryDestructor = GenericFunctor<decltype(&dlclose), &dlclose>;
@@ -144,6 +145,8 @@ static int parseArgs(int Argc, const char *Argv[],
                 "disable OSRA"),
     OPT_BOOLEAN('t', "tracing", &Parameters->EnableTracing,
                 "enable PC tracing in the output binary (through newPC)"),
+    OPT_BOOLEAN('S', "use-sections", &Parameters->UseSections,
+                "use section informations, if available."),
     OPT_STRING('b', "bb-summary",
                &Parameters->BBSummaryPath,
                "destination path for the CSV containing the statistics about "
@@ -250,7 +253,8 @@ int main(int argc, const char *argv[]) {
                           std::string(Parameters.CoveragePath),
                           std::string(Parameters.BBSummaryPath),
                           !Parameters.NoOSRA,
-                          Parameters.EnableTracing);
+                          Parameters.EnableTracing,
+                          Parameters.UseSections);
 
   Generator.translate(Parameters.EntryPointAddress, "root");
 

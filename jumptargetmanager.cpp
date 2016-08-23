@@ -398,9 +398,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   createDispatcher(TheFunction, PCReg, true);
 
   for (auto& Segment : Segments)
-    if (Segment.IsExecutable)
-      ExecutableRanges.push_back(std::make_pair(Segment.StartVirtualAddress,
-                                                Segment.EndVirtualAddress));
+    Segment.insertExecutableRanges(std::back_inserter(ExecutableRanges));
 
   // Configure GlobalValueNumbering
   StringMap<cl::Option *>& Options(cl::getRegisteredOptions());
