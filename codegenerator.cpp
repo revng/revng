@@ -964,6 +964,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
 
   JumpTargets.translateIndirectJumps();
 
+  JumpTargets.finalizeJumpTargets();
+
   purgeDeadBlocks(MainFunction);
   Translator.finalizeNewPCMarkers(CoveragePath, EnableTracing);
   Debug->generateDebugInfo();

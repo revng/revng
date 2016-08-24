@@ -7,6 +7,12 @@
 #include <set>
 #include <vector>
 
+// LLVM includes
+#include "llvm/ADT/Optional.h"
+
+// Local includes
+#include "ir-helpers.h"
+
 // Forward declarations
 namespace llvm {
 class BasicBlock;
@@ -249,7 +255,9 @@ public:
                              ///  immediately preceeding bytes
     SETToPC = 16, ///< Obtained from SET on a store to the PC
     SETNotToPC = 32, ///< Obtained from SET (but not from a PC-store)
-    SumJump = 64, ///< Obtained from the "sumjump" heuristic
+    UnusedGlobalData = 64, ///< Obtained digging in global data, buf never used
+                           ///  by SET. Likely a function pointer.
+    SumJump = 128, ///< Obtained from the "sumjump" heuristic
   };
 
   /// \brief Return, and, if necessary, register the basic block associated to
@@ -297,13 +305,14 @@ public:
   /// \return a `ConstantInt` with the read value or `nullptr` in case it wasn't
   ///         possible to read the value (e.g., \p Address is not inside any of
   ///         the segments).
-  llvm::ConstantInt *readConstantInt(llvm::Constant *Address,
-                                     unsigned Size) const;
+  llvm::ConstantInt *readConstantInt(llvm::Constant *Address, unsigned Size);
 
   /// \brief Reads a pointer-sized value from a segment
   /// \see readConstantInt
   llvm::Constant *readConstantPointer(llvm::Constant *Address,
-				      llvm::Type *PointerTy) const;
+                                      llvm::Type *PointerTy);
+
+  llvm::Optional<uint64_t> readRawValue(uint64_t Address, unsigned Size) const;
 
   /// \brief Register a new basic block in terms of the input architecture
   ///
@@ -379,14 +388,28 @@ public:
   /// \brief Increment the counter of emitted branches since the last reset
   void newBranch() { NewBranches++; }
 
+  /// \brief Finalizes information about the jump targets
+  ///
+  /// Call this function once no more jump targets can be discovered.  It will
+  /// fix all the pending information. In particular, those pointers to code
+  /// that have never been touched by SET will be considered and their pointee
+  /// will be marked with UnusedGlobalData.
+  void finalizeJumpTargets() {
+    unsigned ReadSize = SourceArchitecture.pointerSize() / 8;
+    for (uint64_t MemoryAddress : UnusedCodePointers) {
+      uint64_t PC = readRawValue(MemoryAddress, ReadSize).getValue();
+      registerJT(PC, UnusedGlobalData);
+    }
+
+    // We no longer need this information
+    UnusedCodePointers.clear();
+  }
+
   /// \brief Return the next call to exitTB after I, or nullptr if it can't find
   ///        one
   llvm::CallInst *findNextExitTB(llvm::Instruction *I);
 
 private:
-  llvm::ConstantInt *readConstantInternal(llvm::Constant *Address,
-                                          unsigned Size) const;
-
   /// \brief Return an iterator to the entry containing the given address range
   typename std::map<uint64_t, BBSummary>::iterator
   containingOriginalBB(uint64_t Address) {
@@ -409,14 +432,32 @@ private:
                         bool JumpDirectly);
 
   template<typename value_type, unsigned endian>
-  void findCodePointers(const unsigned char *Start, const unsigned char *End);
+  void findCodePointers(uint64_t StartVirtualAddress,
+                        const unsigned char *Start,
+                        const unsigned char *End);
 
   void harvest();
 
   void handleSumJump(llvm::Instruction *SumJump);
 
 private:
-  using BlockMap = std::map<uint64_t, llvm::BasicBlock *>;
+  class JumpTarget {
+  public:
+    JumpTarget() : BB(nullptr), Reasons(0) { }
+    JumpTarget(llvm::BasicBlock *BB) : BB(BB), Reasons(0) { }
+    JumpTarget(llvm::BasicBlock *BB,
+               JTReason Reason) : BB(BB), Reasons(Reason) { }
+
+    llvm::BasicBlock *head() const { return BB; }
+    bool hasReason(JTReason Reason) const { return (Reasons & Reason) != 0; }
+    void setReason(JTReason Reason) { Reasons |= Reason; }
+
+  private:
+    llvm::BasicBlock *BB;
+    uint32_t Reasons;
+  };
+
+  using BlockMap = std::map<uint64_t, JumpTarget>;
   using InstructionMap = std::map<uint64_t, llvm::Instruction *>;
 
   llvm::Module &TheModule;
@@ -438,12 +479,14 @@ private:
   std::set<llvm::BasicBlock *> Visited;
 
   std::vector<SegmentInfo>& Segments;
-  Architecture& SourceArchitecture;
+  Architecture &SourceArchitecture;
 
   bool EnableOSRA;
 
   std::map<uint64_t, BBSummary> OriginalBBStats;
   unsigned NewBranches = 0;
+
+  std::set<uint64_t> UnusedCodePointers;
 };
 
 #endif // _JUMPTARGETMANAGER_H

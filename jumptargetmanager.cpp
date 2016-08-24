@@ -11,6 +11,7 @@
 #include <sstream>
 
 // LLVM includes
+#include "llvm/ADT/Optional.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -301,33 +302,12 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
   llvm_unreachable("Can't find the PC marker");
 }
 
-Constant *JumpTargetManager::readConstantPointer(Constant *Address,
-                                                 Type *PointerTy) const {
-  auto *Value = readConstantInt(Address, SourceArchitecture.pointerSize());
-  if (Value != nullptr) {
-    return ConstantExpr::getIntToPtr(Value, PointerTy);
-  } else {
-    return nullptr;
-  }
-}
+Optional<uint64_t> JumpTargetManager::readRawValue(uint64_t Address,
+                                                   unsigned Size) const {
+  assert(Size <= 8 * sizeof(uint64_t));
 
-ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
-                                                unsigned Size) const {
-  // TODO: register that the value has been used externally
-  return readConstantInternal(ConstantAddress, Size);
-}
-
-ConstantInt *JumpTargetManager::readConstantInternal(Constant *ConstantAddress,
-                                                     unsigned Size) const {
+  // TODO: create a IsLittleEndian field in JumpTargetManager?
   const DataLayout &DL = TheModule.getDataLayout();
-
-  if (ConstantAddress->getType()->isPointerTy()) {
-    using CE = ConstantExpr;
-    auto IntPtrTy = Type::getIntNTy(Context, SourceArchitecture.pointerSize());
-    ConstantAddress = CE::getPtrToInt(ConstantAddress, IntPtrTy);
-  }
-
-  uint64_t Address = getZExtValue(ConstantAddress, DL);
 
   for (auto &Segment : Segments) {
     // Note: we also consider writeable memory areas because, despite being
@@ -341,38 +321,63 @@ ConstantInt *JumpTargetManager::readConstantInternal(Constant *ConstantAddress,
 
       using support::endian::read;
       using support::endianness;
-      uint64_t Value;
       switch (Size) {
       case 1:
-        Value = read<uint8_t, endianness::little, 1>(Start);
-        break;
+        return read<uint8_t, endianness::little, 1>(Start);
       case 2:
         if (DL.isLittleEndian())
-          Value = read<uint16_t, endianness::little, 1>(Start);
+          return read<uint16_t, endianness::little, 1>(Start);
         else
-          Value = read<uint16_t, endianness::big, 1>(Start);
-        break;
+          return read<uint16_t, endianness::big, 1>(Start);
       case 4:
         if (DL.isLittleEndian())
-          Value = read<uint32_t, endianness::little, 1>(Start);
+          return read<uint32_t, endianness::little, 1>(Start);
         else
-          Value = read<uint32_t, endianness::big, 1>(Start);
-        break;
+          return read<uint32_t, endianness::big, 1>(Start);
       case 8:
         if (DL.isLittleEndian())
-          Value = read<uint64_t, endianness::little, 1>(Start);
+          return read<uint64_t, endianness::little, 1>(Start);
         else
-          Value = read<uint64_t, endianness::big, 1>(Start);
-        break;
+          return read<uint64_t, endianness::big, 1>(Start);
       default:
-        llvm_unreachable("Unexpected read size");
+        assert(false && "Unexpected read size");
       }
-
-      return ConstantInt::get(IntegerType::get(Context, Size * 8), Value);
     }
   }
 
-  return nullptr;
+  return Optional<uint64_t>();
+}
+
+Constant *JumpTargetManager::readConstantPointer(Constant *Address,
+                                                 Type *PointerTy) {
+  auto *Value = readConstantInt(Address,
+                                SourceArchitecture.pointerSize() / 8);
+  if (Value != nullptr) {
+    return ConstantExpr::getIntToPtr(Value, PointerTy);
+  } else {
+    return nullptr;
+  }
+}
+
+ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
+                                                unsigned Size) {
+  const DataLayout &DL = TheModule.getDataLayout();
+
+  if (ConstantAddress->getType()->isPointerTy()) {
+    using CE = ConstantExpr;
+    auto IntPtrTy = Type::getIntNTy(Context, SourceArchitecture.pointerSize());
+    ConstantAddress = CE::getPtrToInt(ConstantAddress, IntPtrTy);
+  }
+
+  uint64_t Address = getZExtValue(ConstantAddress, DL);
+  UnusedCodePointers.erase(Address);
+
+  auto Result = readRawValue(Address, Size);
+  if (Result.hasValue())
+    return ConstantInt::get(IntegerType::get(Context, Size * 8),
+                            Result.getValue());
+  else
+    return nullptr;
 }
 
 template<typename T>
@@ -418,20 +423,29 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
 void JumpTargetManager::harvestGlobalData() {
   for (auto& Segment : Segments) {
     auto *Data = cast<ConstantDataArray>(Segment.Variable->getInitializer());
+    uint64_t StartVirtualAddress = Segment.StartVirtualAddress;
     const unsigned char *DataStart = Data->getRawDataValues().bytes_begin();
     const unsigned char *DataEnd = Data->getRawDataValues().bytes_end();
 
     using endianness = support::endianness;
     if (SourceArchitecture.pointerSize() == 64) {
       if (SourceArchitecture.isLittleEndian())
-        findCodePointers<uint64_t, endianness::little>(DataStart, DataEnd);
+        findCodePointers<uint64_t, endianness::little>(StartVirtualAddress,
+                                                       DataStart,
+                                                       DataEnd);
       else
-        findCodePointers<uint64_t, endianness::big>(DataStart, DataEnd);
+        findCodePointers<uint64_t, endianness::big>(StartVirtualAddress,
+                                                    DataStart,
+                                                    DataEnd);
     } else if (SourceArchitecture.pointerSize() == 32) {
       if (SourceArchitecture.isLittleEndian())
-        findCodePointers<uint32_t, endianness::little>(DataStart, DataEnd);
+        findCodePointers<uint32_t, endianness::little>(StartVirtualAddress,
+                                                       DataStart,
+                                                       DataEnd);
       else
-        findCodePointers<uint32_t, endianness::big>(DataStart, DataEnd);
+        findCodePointers<uint32_t, endianness::big>(StartVirtualAddress,
+                                                    DataStart,
+                                                    DataEnd);
     }
   }
 
@@ -441,15 +455,19 @@ void JumpTargetManager::harvestGlobalData() {
 }
 
 template<typename value_type, unsigned endian>
-void JumpTargetManager::findCodePointers(const unsigned char *Start,
+void JumpTargetManager::findCodePointers(uint64_t StartVirtualAddress,
+                                         const unsigned char *Start,
                                          const unsigned char *End) {
   using support::endian::read;
   using support::endianness;
-  for (; Start < End - sizeof(value_type); Start++) {
+  for (auto Pos = Start; Pos < End - sizeof(value_type); Pos++) {
     uint64_t Value = read<value_type,
                           static_cast<endianness>(endian),
-                          1>(Start);
-    registerJT(Value, GlobalData);
+                          1>(Pos);
+    BasicBlock *Result = registerJT(Value, GlobalData);
+
+    if (Result != nullptr)
+      UnusedCodePointers.insert(StartVirtualAddress + (Pos - Start));
   }
 }
 
@@ -486,9 +504,10 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool& ShouldContinue) {
 
     // It wasn't planned to visit it, so we've already been there, just jump
     // there
-    assert(!JTIt->second->empty());
+    BasicBlock *BB = JTIt->second.head();
+    assert(!BB->empty());
     ShouldContinue = false;
-    return JTIt->second;
+    return BB;
   }
 
   // Check if we already translated this PC even if it's not associated to a
@@ -1016,7 +1035,7 @@ void JumpTargetManager::unvisit(BasicBlock *BB) {
 BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
   auto TargetIt = JumpTargets.find(PC);
   assert(TargetIt != JumpTargets.end());
-  return TargetIt->second;
+  return TargetIt->second.head();
 }
 
 // TODO: register Reason
@@ -1028,8 +1047,10 @@ BasicBlock *JumpTargetManager::registerJT(uint64_t PC, JTReason Reason) {
   BlockMap::iterator TargetIt = JumpTargets.find(PC);
   if (TargetIt != JumpTargets.end()) {
     // Case 1: there's already a BasicBlock for that address, return it
-    unvisit(TargetIt->second);
-    return TargetIt->second;
+    BasicBlock *BB = TargetIt->second.head();
+    TargetIt->second.setReason(Reason);
+    unvisit(BB);
+    return BB;
   }
 
   // Did we already meet this PC (i.e. do we know what's the associated
@@ -1069,7 +1090,7 @@ BasicBlock *JumpTargetManager::registerJT(uint64_t PC, JTReason Reason) {
   DispatcherSwitch->addCase(ConstantInt::get(SwitchType, PC), NewBlock);
 
   // Associate the PC with the chosen basic block
-  JumpTargets[PC] = NewBlock;
+  JumpTargets[PC] = JumpTarget(NewBlock, Reason);
   return NewBlock;
 }
 
