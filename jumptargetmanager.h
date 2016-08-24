@@ -236,47 +236,17 @@ public:
     return false;
   }
 
-  /// \brief Return true if the given PC is "reliable"
-  ///
-  /// A PC is "reliable" if it's a reliable jump target or is contained in a
-  /// basic block start by a reliable jump target.
-  /// A jump target is reliable if it was obtained from an explicit write to the
-  /// PC and it wasn't a fallthroug jump.
-  bool isReliablePC(uint64_t PC) {
-    // Get the PC of the basic block "not less than" the PC
-    auto It = JumpTargets.lower_bound(PC);
-
-    uint64_t BBPC = 0;
-    if (It == JumpTargets.end()) {
-      BBPC = JumpTargets.rbegin()->first;
-      assert(BBPC < PC);
-    } else {
-
-      BBPC = It->first;
-
-      // If it's not the PC itself, it's the PC of the next basic
-      // block, so go back one position
-      if (BBPC != PC) {
-        assert(It != JumpTargets.begin());
-        BBPC = (--It)->first;
-      }
-    }
-
-    return ReliablePCs.count(BBPC);
-  }
-
   /// \brief Get or create a block for the given PC
   ///
   /// This function can return `nullptr`.
   ///
   /// \param PC the PC for which a `BasicBlock` is requested.
-  /// \param Reliable whether \p PC was obtained in a "reliable" way or not.
   ///
   /// \return a `BasicBlock`, it might be newly created and empty, empty and
   ///         created in the past or even a `BasicBlock` already containing the
   ///         translated code.  It might also return `nullptr` if the PC is not
   ///         valid or another error occurred.
-  llvm::BasicBlock *getBlockAt(uint64_t PC, bool Reliable);
+  llvm::BasicBlock *getBlockAt(uint64_t PC);
 
   /// \brief Removes a `BasicBlock` from the SET's visited list
   void unvisit(llvm::BasicBlock *BB);
@@ -450,7 +420,6 @@ private:
   std::vector<SegmentInfo>& Segments;
   Architecture& SourceArchitecture;
 
-  std::set<uint64_t> ReliablePCs;
   bool EnableOSRA;
 
   std::map<uint64_t, BBSummary> OriginalBBStats;

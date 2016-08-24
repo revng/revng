@@ -114,12 +114,12 @@ bool TranslateDirectBranchesPass::pinJTs(Function &F) {
     if (Destinations.size() == 1) {
       auto *Comparison = Builder.CreateICmpEQ(C(Destinations[0]), PCLoad);
       Builder.CreateCondBr(Comparison,
-                           JTM->getBlockAt(Destinations[0], false),
+                           JTM->getBlockAt(Destinations[0]),
                            FailBB);
     } else {
       auto *Switch = Builder.CreateSwitch(PCLoad, FailBB, Destinations.size());
       for (uint64_t Destination : Destinations)
-        Switch->addCase(C(Destination), JTM->getBlockAt(Destination, false));
+        Switch->addCase(C(Destination), JTM->getBlockAt(Destination));
     }
 
     // Notify new branches only if the amount of possible targets actually
@@ -151,14 +151,13 @@ bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
         } else {
           uint64_t NextPC = JTM->getNextPC(PCWrite);
           if (NextPC != 0 && JTM->isOSRAEnabled() && isSumJump(PCWrite))
-            JTM->getBlockAt(NextPC, false);
+            JTM->getBlockAt(NextPC);
 
           auto *Address = dyn_cast<ConstantInt>(PCWrite->getValueOperand());
           if (Address != nullptr) {
             // Compute the actual PC and get the associated BasicBlock
             uint64_t TargetPC = Address->getSExtValue();
-            bool IsReliable = NextPC != 0 && TargetPC != NextPC;
-            BasicBlock *TargetBlock = JTM->getBlockAt(TargetPC, IsReliable);
+            BasicBlock *TargetBlock = JTM->getBlockAt(TargetPC);
 
             // Remove unreachable right after the exit_tb
             BasicBlock::iterator CallIt(Call);
@@ -253,7 +252,7 @@ bool TranslateDirectBranchesPass::forceFallthroughAfterHelper(CallInst *Call) {
   Value *NextPCConst = Builder.getIntN(PCRegTy->getIntegerBitWidth(), NextPC);
   Builder.CreateCondBr(Builder.CreateICmpEQ(Builder.CreateLoad(PCReg),
                                             NextPCConst),
-                       JTM->getBlockAt(NextPC, false),
+                       JTM->getBlockAt(NextPC),
                        JTM->dispatcher());
 
   return true;
@@ -442,7 +441,7 @@ void JumpTargetManager::findCodePointers(const unsigned char *Start,
     uint64_t Value = read<value_type,
                           static_cast<endianness>(endian),
                           1>(Start);
-    getBlockAt(Value, false);
+    getBlockAt(Value);
   }
 }
 
@@ -484,12 +483,12 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool& ShouldContinue) {
     return JTIt->second;
   }
 
-  // Check if already translated this PC even if it's not associated to a basic
-  // block. This typically happens with variable-length instruction encodings.
-  auto OIAIt = OriginalInstructionAddresses.find(PC);
-  if (OIAIt != OriginalInstructionAddresses.end()) {
+  // Check if we already translated this PC even if it's not associated to a
+  // basic block (i.e., we have to split its basic block). This typically
+  // happens with variable-length instruction encodings.
+  if (OriginalInstructionAddresses.count(PC) != 0) {
     ShouldContinue = false;
-    return getBlockAt(PC, false);
+    return getBlockAt(PC);
   }
 
   // We don't know anything about this PC
@@ -712,7 +711,7 @@ void JumpTargetManager::handleSumJump(Instruction *SumJump) {
   // Take the next PC
   uint64_t NextPC = getNextPC(SumJump);
   assert(NextPC != 0);
-  BasicBlock *BB = getBlockAt(NextPC, false);
+  BasicBlock *BB = getBlockAt(NextPC);
   assert(BB && !BB->empty());
 
   std::set<BasicBlock *> Visited;
@@ -739,7 +738,7 @@ void JumpTargetManager::handleSumJump(Instruction *SumJump) {
             return;
 
           // Split and update iterators to proceed
-          BB = getBlockAt(PC, false);
+          BB = getBlockAt(PC);
 
           // Do we have a block?
           if (BB == nullptr)
@@ -1016,12 +1015,9 @@ void JumpTargetManager::unvisit(BasicBlock *BB) {
 }
 
 /// Get or create a block for the given PC
-BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC, bool Reliable) {
+BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
   if (!isExecutableAddress(PC) || !isInstructionAligned(PC))
     return nullptr;
-
-  if (Reliable)
-    ReliablePCs.insert(PC);
 
   // Do we already have a BasicBlock for this PC?
   BlockMap::iterator TargetIt = JumpTargets.find(PC);

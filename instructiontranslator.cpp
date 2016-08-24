@@ -509,7 +509,6 @@ void InstructionTranslator::finalizeNewPCMarkers(std::string &CoveragePath,
       Output << "0x" << PC
              << ",0x" << Size
              << "," << (IsJT ? "1" : "0")
-             << "," << (JumpTargets.isReliablePC(PC) ? "1" : "0")
              << std::endl;
 
       if (EnableTracing) {
@@ -560,7 +559,7 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
                                                 { MDOriginalString, MDPC });
 
   if (ForceNew)
-    JumpTargets.getBlockAt(PC, false);
+    JumpTargets.getBlockAt(PC);
 
   if (!IsFirst) {
     // Check if this PC already has a block and use it
@@ -752,7 +751,7 @@ InstructionTranslator::translate(PTCInstruction *Instr,
       if (Constant != nullptr) {
         uint64_t Address = Constant->getLimitedValue();
         if (PC != Address)
-          JumpTargets.getBlockAt(Address, PC != NextPC);
+          JumpTargets.getBlockAt(Address);
       }
     }
   }

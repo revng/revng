@@ -23,7 +23,6 @@
 using namespace llvm;
 using std::make_pair;
 
-// TODO: drop reliable jump target concept
 /// \brief Stack to keep track of the operations generating a specific value
 ///
 /// The OperationsStacks offers the following features:
@@ -41,7 +40,7 @@ public:
                   const DataLayout &DL) : JTM(JTM), DL(DL) { }
 
   ~OperationsStack() {
-    reset(false, None);
+    reset(None);
   }
 
   void explore(Constant *NewOperand);
@@ -56,13 +55,11 @@ public:
 
   /// \brief Clean the operations stack
   ///
-  /// \param Reliable whether the PC we're going to collect have to be
-  ///        considered reliable or not.
   /// \param Tracking what to track, see TrackingType. This parameter only
   ///        affects what is being explicitly tracked by the OperationsStack,
   ///        which can be obtained through the trackedValues method. It does not
   ///        affect the collection of jump targets, which is always enabled.
-  void reset(bool Reliable, TrackingType Tracking) {
+  void reset(TrackingType Tracking) {
     // Delete all the temporary instructions we created
     for (Instruction *I : Operations)
       if (I->getParent() == nullptr)
@@ -70,15 +67,14 @@ public:
 
     Operations.clear();
     OperationsSet.clear();
-    IsReliable = Reliable;
     TrackedValues.clear();
     Approximate = false;
     this->Tracking = Tracking;
   }
 
   void registerPCs() const {
-    for (auto Pair : NewPCs)
-      JTM->getBlockAt(Pair.first, Pair.second);
+    for (uint64_t PC : NewPCs)
+      JTM->getBlockAt(PC);
   }
 
   void cut(unsigned Height) {
@@ -153,10 +149,9 @@ private:
 
   std::vector<Instruction *> Operations;
   std::set<Instruction *> OperationsSet;
-  std::set<std::pair<uint64_t, bool>> NewPCs;
+  std::set<uint64_t> NewPCs;
   std::set<uint64_t> TrackedValues;
 
-  bool IsReliable;
   bool Approximate;
   TrackingType Tracking;
 };
@@ -236,7 +231,7 @@ void OperationsStack::explore(Constant *NewOperand) {
   uint64_t PC = materialize(NewOperand);
 
   if (PC != 0 && JTM->isInterestingPC(PC))
-    NewPCs.insert({ PC, IsReliable });
+    NewPCs.insert(PC);
 
   if (PC != 0 && (Tracking == All
                   || (Tracking == PCsOnly && JTM->isPC(PC))))
@@ -386,10 +381,7 @@ bool SET::run() {
 
       // Clean the OperationsStack and, if we're dealing with a store to the PC,
       // ask it to track all the possible values that the PC will assume.
-      // TODO: hardcoded
-      OS.reset(/* IsPCStore */ false,
-               IsPCStore ? OperationsStack::PCsOnly :
-                           OperationsStack::None);
+      OS.reset(IsPCStore ? OperationsStack::PCsOnly : OperationsStack::None);
       assert(WorkList.empty());
       if (IsStore)
         WorkList.push_back(make_pair(Store->getValueOperand(), 0));

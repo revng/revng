@@ -679,7 +679,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
 
   dbg << "Entry address: 0x" << std::hex << VirtualAddress << std::endl;
 
-  BasicBlock *Head = JumpTargets.getBlockAt(VirtualAddress, true);
+  BasicBlock *Head = JumpTargets.getBlockAt(VirtualAddress);
 
   // Fake jump to the dispatcher. This way all the blocks are always reachable.
   // Also, use this branch as the delimiter to create local variables.
@@ -790,7 +790,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
           // case force a fallthrough
           auto &IL = InstructionList;
           if (j == IL->instruction_count - 1)
-            Builder.CreateBr(notNull(JumpTargets.getBlockAt(EndPC, false)));
+            Builder.CreateBr(notNull(JumpTargets.getBlockAt(EndPC)));
 
           break;
         }
@@ -835,7 +835,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     } // End loop over instructions
 
     if (ForceNewBlock)
-      JumpTargets.getBlockAt(EndPC, false);
+      JumpTargets.getBlockAt(EndPC);
 
     // We might have a leftover block, probably due to the block created after
     // the last call to exit_tb
