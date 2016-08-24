@@ -603,7 +603,7 @@ InstructionTranslator::newInstruction(PTCInstruction *Instr,
     // Inform the JumpTargetManager about the new PC we met
     BasicBlock::iterator CurrentIt = Builder.GetInsertPoint();
     if (CurrentIt == Builder.GetInsertBlock()->begin())
-      JumpTargets.registerBlock(PC, Builder.GetInsertBlock());
+      assert(JumpTargets.getBlockAt(PC) == Builder.GetInsertBlock());
     else
       JumpTargets.registerInstruction(PC, Call);
   }

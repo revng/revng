@@ -511,15 +511,6 @@ void JumpTargetManager::registerInstruction(uint64_t PC,
   OriginalInstructionAddresses[PC] = Instruction;
 }
 
-/// Save the PC-BasicBlock association for futur use (jump target)
-void JumpTargetManager::registerBlock(uint64_t PC, BasicBlock *Block) {
-  // If we already met it, it must point to the same block
-  auto It = JumpTargets.find(PC);
-  assert(It == JumpTargets.end() || It->second == Block);
-  if (It->second != Block)
-    JumpTargets[PC] = Block;
-}
-
 CallInst *JumpTargetManager::findNextExitTB(Instruction *Start) {
   CallInst *Result = nullptr;
 

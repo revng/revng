@@ -148,9 +148,6 @@ public:
   /// \brief Save the PC-Instruction association for future use
   void registerInstruction(uint64_t PC, llvm::Instruction *Instruction);
 
-  /// \brief Save the PC-BasicBlock association for future use
-  void registerBlock(uint64_t PC, llvm::BasicBlock *Block);
-
   /// \brief Translate the non-constant jumps into jumps to the dispatcher
   void translateIndirectJumps();
 
