@@ -236,7 +236,27 @@ public:
     return false;
   }
 
-  /// \brief Get or create a block for the given PC
+  /// \brief Get the basic block associated to the original address \p PC
+  ///
+  /// If the given address has never been met, assert.
+  ///
+  /// \param PC the PC for which a `BasicBlock` is requested.
+  llvm::BasicBlock *getBlockAt(uint64_t PC);
+
+  /// \brief Reason for registering a jump target
+  enum JTReason {
+    PostHelper = 1, ///< PC after an helper (e.g., a syscall)
+    DirectJump = 2, ///< Obtained from a direct store to the PC
+    GlobalData = 4, ///< Obtained digging in global data
+    AmbigousInstruction = 8, ///< Fallthrough of multiple instructions in the
+                             ///  immediately preceeding bytes
+    SETToPC = 16, ///< Obtained from SET on a store to the PC
+    SETNotToPC = 32, ///< Obtained from SET (but not from a PC-store)
+    SumJump = 64, ///< Obtained from the "sumjump" heuristic
+  };
+
+  /// \brief Return, and, if necessary, register the basic block associated to
+  ///        \p PC
   ///
   /// This function can return `nullptr`.
   ///
@@ -246,7 +266,7 @@ public:
   ///         created in the past or even a `BasicBlock` already containing the
   ///         translated code.  It might also return `nullptr` if the PC is not
   ///         valid or another error occurred.
-  llvm::BasicBlock *getBlockAt(uint64_t PC);
+  llvm::BasicBlock *registerJT(uint64_t PC, JTReason Reason);
 
   /// \brief Removes a `BasicBlock` from the SET's visited list
   void unvisit(llvm::BasicBlock *BB);
@@ -367,6 +387,9 @@ public:
   llvm::CallInst *findNextExitTB(llvm::Instruction *I);
 
 private:
+  llvm::ConstantInt *readConstantInternal(llvm::Constant *Address,
+                                          unsigned Size) const;
+
   /// \brief Return an iterator to the entry containing the given address range
   typename std::map<uint64_t, BBSummary>::iterator
   containingOriginalBB(uint64_t Address) {

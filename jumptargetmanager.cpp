@@ -151,13 +151,15 @@ bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
         } else {
           uint64_t NextPC = JTM->getNextPC(PCWrite);
           if (NextPC != 0 && JTM->isOSRAEnabled() && isSumJump(PCWrite))
-            JTM->getBlockAt(NextPC);
+            JTM->registerJT(NextPC, JumpTargetManager::SumJump);
 
           auto *Address = dyn_cast<ConstantInt>(PCWrite->getValueOperand());
           if (Address != nullptr) {
             // Compute the actual PC and get the associated BasicBlock
             uint64_t TargetPC = Address->getSExtValue();
-            BasicBlock *TargetBlock = JTM->getBlockAt(TargetPC);
+            // TODO: can we switch to getBlockAt()?
+            auto *TargetBlock = JTM->registerJT(TargetPC,
+                                                JumpTargetManager::DirectJump);
 
             // Remove unreachable right after the exit_tb
             BasicBlock::iterator CallIt(Call);
@@ -252,7 +254,7 @@ bool TranslateDirectBranchesPass::forceFallthroughAfterHelper(CallInst *Call) {
   Value *NextPCConst = Builder.getIntN(PCRegTy->getIntegerBitWidth(), NextPC);
   Builder.CreateCondBr(Builder.CreateICmpEQ(Builder.CreateLoad(PCReg),
                                             NextPCConst),
-                       JTM->getBlockAt(NextPC),
+                       JTM->registerJT(NextPC, JumpTargetManager::PostHelper),
                        JTM->dispatcher());
 
   return true;
@@ -311,6 +313,12 @@ Constant *JumpTargetManager::readConstantPointer(Constant *Address,
 
 ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
                                                 unsigned Size) const {
+  // TODO: register that the value has been used externally
+  return readConstantInternal(ConstantAddress, Size);
+}
+
+ConstantInt *JumpTargetManager::readConstantInternal(Constant *ConstantAddress,
+                                                     unsigned Size) const {
   const DataLayout &DL = TheModule.getDataLayout();
 
   if (ConstantAddress->getType()->isPointerTy()) {
@@ -441,7 +449,7 @@ void JumpTargetManager::findCodePointers(const unsigned char *Start,
     uint64_t Value = read<value_type,
                           static_cast<endianness>(endian),
                           1>(Start);
-    getBlockAt(Value);
+    registerJT(Value, GlobalData);
   }
 }
 
@@ -488,7 +496,7 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool& ShouldContinue) {
   // happens with variable-length instruction encodings.
   if (OriginalInstructionAddresses.count(PC) != 0) {
     ShouldContinue = false;
-    return getBlockAt(PC);
+    return registerJT(PC, AmbigousInstruction);
   }
 
   // We don't know anything about this PC
@@ -711,7 +719,7 @@ void JumpTargetManager::handleSumJump(Instruction *SumJump) {
   // Take the next PC
   uint64_t NextPC = getNextPC(SumJump);
   assert(NextPC != 0);
-  BasicBlock *BB = getBlockAt(NextPC);
+  BasicBlock *BB = registerJT(NextPC, JumpTargetManager::SumJump);
   assert(BB && !BB->empty());
 
   std::set<BasicBlock *> Visited;
@@ -738,7 +746,7 @@ void JumpTargetManager::handleSumJump(Instruction *SumJump) {
             return;
 
           // Split and update iterators to proceed
-          BB = getBlockAt(PC);
+          BB = registerJT(PC, JumpTargetManager::SumJump);
 
           // Do we have a block?
           if (BB == nullptr)
@@ -1014,8 +1022,14 @@ void JumpTargetManager::unvisit(BasicBlock *BB) {
   }
 }
 
-/// Get or create a block for the given PC
 BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
+  auto TargetIt = JumpTargets.find(PC);
+  assert(TargetIt != JumpTargets.end());
+  return TargetIt->second;
+}
+
+// TODO: register Reason
+BasicBlock *JumpTargetManager::registerJT(uint64_t PC, JTReason Reason) {
   if (!isExecutableAddress(PC) || !isInstructionAligned(PC))
     return nullptr;
 

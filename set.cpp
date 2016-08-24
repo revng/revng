@@ -40,7 +40,7 @@ public:
                   const DataLayout &DL) : JTM(JTM), DL(DL) { }
 
   ~OperationsStack() {
-    reset(None);
+    reset(false, None);
   }
 
   void explore(Constant *NewOperand);
@@ -59,7 +59,7 @@ public:
   ///        affects what is being explicitly tracked by the OperationsStack,
   ///        which can be obtained through the trackedValues method. It does not
   ///        affect the collection of jump targets, which is always enabled.
-  void reset(TrackingType Tracking) {
+  void reset(bool IsPCStore, TrackingType Tracking) {
     // Delete all the temporary instructions we created
     for (Instruction *I : Operations)
       if (I->getParent() == nullptr)
@@ -70,11 +70,14 @@ public:
     TrackedValues.clear();
     Approximate = false;
     this->Tracking = Tracking;
+    this->IsPCStore = IsPCStore;
   }
 
   void registerPCs() const {
-    for (uint64_t PC : NewPCs)
-      JTM->getBlockAt(PC);
+    const auto SETToPC = JumpTargetManager::SETToPC;
+    const auto SETNotToPC = JumpTargetManager::SETNotToPC;
+    for (auto &P : NewPCs)
+      JTM->registerJT(P.first, P.second ? SETToPC : SETNotToPC);
   }
 
   void cut(unsigned Height) {
@@ -149,11 +152,12 @@ private:
 
   std::vector<Instruction *> Operations;
   std::set<Instruction *> OperationsSet;
-  std::set<uint64_t> NewPCs;
+  std::set<std::pair<uint64_t, bool>> NewPCs;
   std::set<uint64_t> TrackedValues;
 
   bool Approximate;
   TrackingType Tracking;
+  bool IsPCStore;
 };
 
 uint64_t OperationsStack::materialize(Constant *NewOperand) {
@@ -231,7 +235,7 @@ void OperationsStack::explore(Constant *NewOperand) {
   uint64_t PC = materialize(NewOperand);
 
   if (PC != 0 && JTM->isInterestingPC(PC))
-    NewPCs.insert(PC);
+    NewPCs.insert({ PC, IsPCStore });
 
   if (PC != 0 && (Tracking == All
                   || (Tracking == PCsOnly && JTM->isPC(PC))))
@@ -381,7 +385,8 @@ bool SET::run() {
 
       // Clean the OperationsStack and, if we're dealing with a store to the PC,
       // ask it to track all the possible values that the PC will assume.
-      OS.reset(IsPCStore ? OperationsStack::PCsOnly : OperationsStack::None);
+      OS.reset(IsPCStore,
+               IsPCStore ? OperationsStack::PCsOnly : OperationsStack::None);
       assert(WorkList.empty());
       if (IsStore)
         WorkList.push_back(make_pair(Store->getValueOperand(), 0));

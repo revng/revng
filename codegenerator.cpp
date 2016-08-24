@@ -789,8 +789,11 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
           // Sometimes libtinycode terminates a basic block with a call, in this
           // case force a fallthrough
           auto &IL = InstructionList;
-          if (j == IL->instruction_count - 1)
-            Builder.CreateBr(notNull(JumpTargets.getBlockAt(EndPC)));
+          if (j == IL->instruction_count - 1) {
+            using JTM = JumpTargetManager;
+            Builder.CreateBr(notNull(JumpTargets.registerJT(EndPC,
+                                                            JTM::PostHelper)));
+          }
 
           break;
         }
@@ -835,7 +838,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     } // End loop over instructions
 
     if (ForceNewBlock)
-      JumpTargets.getBlockAt(EndPC);
+      JumpTargets.registerJT(EndPC, JumpTargetManager::PostHelper);
 
     // We might have a leftover block, probably due to the block created after
     // the last call to exit_tb
