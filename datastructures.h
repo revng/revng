@@ -8,8 +8,8 @@
 
 /// \brief Queue where an element cannot be re-inserted if it's already in the
 ///        queue
-template<typename T>
-class UniquedQueue {
+template<typename T, bool Once>
+class QueueImpl {
 public:
   void insert(T Element) {
     if (Set.count(Element) == 0) {
@@ -26,16 +26,28 @@ public:
   T pop() {
     T Result = Queue.front();
     Queue.pop();
-    Set.erase(Result);
+    if (!Once)
+      Set.erase(Result);
     return Result;
   }
 
   size_t size() const { return Queue.size(); }
 
+  std::set<T> visited() {
+    assert(Once);
+    return std::move(Set);
+  }
+
 private:
   std::set<T> Set;
   std::queue<T> Queue;
 };
+
+template<typename T>
+using UniquedQueue = QueueImpl<T, false>;
+
+template<typename T>
+using OnceQueue = QueueImpl<T, true>;
 
 /// \brief Stack where an element cannot be re-inserted in it's already in the
 ///        stack
