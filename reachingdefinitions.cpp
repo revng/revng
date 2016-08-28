@@ -34,6 +34,113 @@ using std::tie;
 using std::unordered_map;
 using std::vector;
 
+template<class BBI, ReachingDefinitionsResult R>
+const vector<LoadInst *> &
+ReachingDefinitionsImplPass<BBI, R>::getReachedLoads(Instruction *Definition) {
+  assert(R == ReachingDefinitionsResult::ReachedLoads);
+  return ReachedLoads[Definition];
+}
+
+template<class BBI, ReachingDefinitionsResult R>
+const vector<Instruction *> &
+ReachingDefinitionsImplPass<BBI, R>::getReachingDefinitions(LoadInst *Load) {
+  assert(R == ReachingDefinitionsResult::ReachingDefinitions);
+  return ReachingDefinitions[Load];
+}
+
+using RDP = ReachingDefinitionsResult;
+template class ReachingDefinitionsImplPass<BasicBlockInfo,
+                                           RDP::ReachingDefinitions>;
+template class ReachingDefinitionsImplPass<BasicBlockInfo,
+                                           RDP::ReachedLoads>;
+
+template<class BBI, ReachingDefinitionsResult R>
+char ReachingDefinitionsImplPass<BBI, R>::ID = 0;
+
+static RegisterPass<ReachingDefinitionsPass> X1("rdp",
+                                                "Reaching Definitions Pass",
+                                                false,
+                                                false);
+
+static RegisterPass<ReachedLoadsPass> X2("rlp",
+                                         "Reaching Definitions Pass",
+                                         false,
+                                         false);
+
+template<>
+int32_t ReachingDefinitionsPass::getConditionIndex(TerminatorInst *V) {
+  return 0;
+}
+
+template<>
+void ReachingDefinitionsPass::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.setPreservesAll();
+}
+
+template<>
+int32_t ReachedLoadsPass::getConditionIndex(TerminatorInst *V) {
+  return 0;
+}
+
+template<>
+void ReachedLoadsPass::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.setPreservesAll();
+}
+
+template class ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
+                                           RDP::ReachingDefinitions>;
+template class ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
+                                           RDP::ReachedLoads>;
+
+static RegisterPass<ConditionalReachingDefinitionsPass> Y1("crdp",
+                                                           "Conditional"
+                                                           " Reaching"
+                                                           " Definitions Pass",
+                                                           false,
+                                                           false);
+
+static RegisterPass<ConditionalReachedLoadsPass> Y2("crlp",
+                                                    "Conditional"
+                                                    " Reaching"
+                                                    " Definitions Pass",
+                                                    false,
+                                                    false);
+
+// TODO: this duplication sucks
+template<>
+int32_t
+ConditionalReachingDefinitionsPass::getConditionIndex(TerminatorInst *T) {
+  auto *Branch = dyn_cast<BranchInst>(T);
+  if (Branch == nullptr || !Branch->isConditional())
+    return 0;
+
+  return getAnalysis<ConditionNumberingPass>().getConditionIndex(T);
+}
+
+template<>
+void
+ConditionalReachingDefinitionsPass::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.setPreservesAll();
+  AU.addRequired<ConditionNumberingPass>();
+}
+
+template<>
+int32_t
+ConditionalReachedLoadsPass::getConditionIndex(TerminatorInst *T) {
+  auto *Branch = dyn_cast<BranchInst>(T);
+  if (Branch == nullptr || !Branch->isConditional())
+    return 0;
+
+  return getAnalysis<ConditionNumberingPass>().getConditionIndex(T);
+}
+
+template<>
+void
+ConditionalReachedLoadsPass::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.setPreservesAll();
+  AU.addRequired<ConditionNumberingPass>();
+}
+
 static size_t combine(size_t A, size_t B) {
   return (A << 1 | A >> 31) ^ B;
 }
@@ -685,119 +792,4 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
   }
 
   return false;
-}
-
-template<class BBI, ReachingDefinitionsResult R>
-const vector<LoadInst *> &
-ReachingDefinitionsImplPass<BBI, R>::getReachedLoads(Instruction *Definition) {
-  assert(R == ReachingDefinitionsResult::ReachedLoads);
-  return ReachedLoads[Definition];
-}
-
-template<class BBI, ReachingDefinitionsResult R>
-const vector<Instruction *> &
-ReachingDefinitionsImplPass<BBI, R>::getReachingDefinitions(LoadInst *Load) {
-  assert(R == ReachingDefinitionsResult::ReachingDefinitions);
-  return ReachingDefinitions[Load];
-}
-
-using RDP = ReachingDefinitionsResult;
-template class ReachingDefinitionsImplPass<BasicBlockInfo,
-                                           RDP::ReachingDefinitions>;
-template class ReachingDefinitionsImplPass<BasicBlockInfo,
-                                           RDP::ReachedLoads>;
-
-template<>
-char ReachingDefinitionsPass::ID = 0;
-
-static RegisterPass<ReachingDefinitionsPass> X1("rdp",
-                                                "Reaching Definitions Pass",
-                                                false,
-                                                false);
-template<>
-char ReachedLoadsPass::ID = 0;
-
-static RegisterPass<ReachedLoadsPass> X2("rlp",
-                                         "Reaching Definitions Pass",
-                                         false,
-                                         false);
-
-template<>
-int32_t ReachingDefinitionsPass::getConditionIndex(TerminatorInst *V) {
-  return 0;
-}
-
-template<>
-void ReachingDefinitionsPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.setPreservesAll();
-}
-
-template<>
-int32_t ReachedLoadsPass::getConditionIndex(TerminatorInst *V) {
-  return 0;
-}
-
-template<>
-void ReachedLoadsPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.setPreservesAll();
-}
-
-template class ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
-                                           RDP::ReachingDefinitions>;
-template class ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
-                                           RDP::ReachedLoads>;
-
-template<>
-char ConditionalReachingDefinitionsPass::ID = 0;
-
-static RegisterPass<ConditionalReachingDefinitionsPass> Y1("crdp",
-                                                           "Conditional"
-                                                           " Reaching"
-                                                           " Definitions Pass",
-                                                           false,
-                                                           false);
-
-template<>
-char ConditionalReachedLoadsPass::ID = 0;
-
-static RegisterPass<ConditionalReachedLoadsPass> Y2("crlp",
-                                                    "Conditional"
-                                                    " Reaching"
-                                                    " Definitions Pass",
-                                                    false,
-                                                    false);
-
-// TODO: this duplication sucks
-template<>
-int32_t
-ConditionalReachingDefinitionsPass::getConditionIndex(TerminatorInst *T) {
-  auto *Branch = dyn_cast<BranchInst>(T);
-  if (Branch == nullptr || !Branch->isConditional())
-    return 0;
-
-  return getAnalysis<ConditionNumberingPass>().getConditionIndex(T);
-}
-
-template<>
-void
-ConditionalReachingDefinitionsPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.setPreservesAll();
-  AU.addRequired<ConditionNumberingPass>();
-}
-
-template<>
-int32_t
-ConditionalReachedLoadsPass::getConditionIndex(TerminatorInst *T) {
-  auto *Branch = dyn_cast<BranchInst>(T);
-  if (Branch == nullptr || !Branch->isConditional())
-    return 0;
-
-  return getAnalysis<ConditionNumberingPass>().getConditionIndex(T);
-}
-
-template<>
-void
-ConditionalReachedLoadsPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.setPreservesAll();
-  AU.addRequired<ConditionNumberingPass>();
 }
