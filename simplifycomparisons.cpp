@@ -80,11 +80,11 @@ private:
 /// \brief Term representing a binary operation
 class BinaryTerm : public Term {
 public:
-  BinaryTerm() : Opcode(0), Operands({ nullptr, nullptr }) {
+  BinaryTerm() : Opcode(0), Operands({{ nullptr, nullptr }}) {
   }
 
   BinaryTerm(unsigned Opcode) : Opcode(Opcode),
-                                Operands({ nullptr, nullptr }) {
+                                Operands({{ nullptr, nullptr }}) {
   }
 
   void setOperand(unsigned Index, Term *T) {
@@ -207,9 +207,11 @@ static Predicate getEquivalentPredicate(SimplifyComparisonsPass *SCP,
                                         CmpInst *Cmp,
                                         BinaryOperator *Subtraction) {
   array<Value *, 3> Variables = {
-    SCP->findOldest(Subtraction->getOperand(0)),
-    SCP->findOldest(Subtraction->getOperand(1)),
-    Subtraction
+    {
+      SCP->findOldest(Subtraction->getOperand(0)),
+      SCP->findOldest(Subtraction->getOperand(1)),
+      Subtraction
+    }
   };
   const unsigned OpsCount = std::tuple_size<decltype(Variables)>::value;
   array<VariableTerm, OpsCount> VariableTerms;
