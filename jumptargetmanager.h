@@ -279,16 +279,6 @@ public:
     return JumpTargets.count(PC);
   }
 
-  /// \brief Return true if the given PC is a good candidate for exploration
-  ///
-  /// \return true if the PC is properly aligned, in an executable segment and
-  ///         not explored yet.
-  bool isInterestingPC(uint64_t PC) const {
-    return isExecutableAddress(PC)
-      && isInstructionAligned(PC)
-      && !isJumpTarget(PC);
-  }
-
   /// \brief Return true if \p PC is in an executable segment
   bool isExecutableAddress(uint64_t PC) const {
     for (std::pair<uint64_t, uint64_t> Range : ExecutableRanges)

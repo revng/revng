@@ -234,7 +234,7 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
 void OperationsStack::explore(Constant *NewOperand) {
   uint64_t PC = materialize(NewOperand);
 
-  if (PC != 0 && JTM->isInterestingPC(PC))
+  if (PC != 0 && JTM->isPC(PC))
     NewPCs.insert({ PC, IsPCStore });
 
   if (PC != 0 && (Tracking == All
