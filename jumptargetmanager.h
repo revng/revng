@@ -120,6 +120,64 @@ public:
   using BlockWithAddress = std::pair<uint64_t, llvm::BasicBlock *>;
   static const BlockWithAddress NoMoreTargets;
 
+  /// \brief Reason for registering a jump target
+  enum JTReason {
+    PostHelper = 1, ///< PC after an helper (e.g., a syscall)
+    DirectJump = 2, ///< Obtained from a direct store to the PC
+    GlobalData = 4, ///< Obtained digging in global data
+    AmbigousInstruction = 8, ///< Fallthrough of multiple instructions in the
+                             ///  immediately preceeding bytes
+    SETToPC = 16, ///< Obtained from SET on a store to the PC
+    SETNotToPC = 32, ///< Obtained from SET (but not from a PC-store)
+    UnusedGlobalData = 64, ///< Obtained digging in global data, buf never used
+                           ///  by SET. Likely a function pointer.
+    Callee = 128, ///< This JT is the target of a call instruction.
+    SumJump = 256, ///< Obtained from the "sumjump" heuristic
+  };
+
+  class JumpTarget {
+  public:
+    JumpTarget() : BB(nullptr), Reasons(0) { }
+    JumpTarget(llvm::BasicBlock *BB) : BB(BB), Reasons(0) { }
+    JumpTarget(llvm::BasicBlock *BB,
+               JTReason Reason) : BB(BB), Reasons(Reason) { }
+
+    llvm::BasicBlock *head() const { return BB; }
+    bool hasReason(JTReason Reason) const { return (Reasons & Reason) != 0; }
+    void setReason(JTReason Reason) { Reasons |= Reason; }
+    uint32_t getReasons() const { return Reasons; }
+
+    std::string describe() const {
+      std::stringstream SS;
+      SS << getName(BB) << ":";
+
+      if (hasReason(PostHelper))
+        SS << " PostHelper";
+      if (hasReason(DirectJump))
+        SS << " DirectJump";
+      if (hasReason(GlobalData))
+        SS << " GlobalData";
+      if (hasReason(AmbigousInstruction))
+        SS << " AmbigousInstruction";
+      if (hasReason(SETToPC))
+        SS << " SETToPC";
+      if (hasReason(SETNotToPC))
+        SS << " SETNotToPC";
+      if (hasReason(UnusedGlobalData))
+        SS << " UnusedGlobalData";
+      if (hasReason(Callee))
+        SS << " Callee";
+      if (hasReason(SumJump))
+        SS << " SumJump";
+
+      return SS.str();
+    }
+
+  private:
+    llvm::BasicBlock *BB;
+    uint32_t Reasons;
+  };
+
 public:
   using RangesVector = std::vector<std::pair<uint64_t, uint64_t>>;
 
@@ -246,20 +304,6 @@ public:
   /// \param PC the PC for which a `BasicBlock` is requested.
   llvm::BasicBlock *getBlockAt(uint64_t PC);
 
-  /// \brief Reason for registering a jump target
-  enum JTReason {
-    PostHelper = 1, ///< PC after an helper (e.g., a syscall)
-    DirectJump = 2, ///< Obtained from a direct store to the PC
-    GlobalData = 4, ///< Obtained digging in global data
-    AmbigousInstruction = 8, ///< Fallthrough of multiple instructions in the
-                             ///  immediately preceeding bytes
-    SETToPC = 16, ///< Obtained from SET on a store to the PC
-    SETNotToPC = 32, ///< Obtained from SET (but not from a PC-store)
-    UnusedGlobalData = 64, ///< Obtained digging in global data, buf never used
-                           ///  by SET. Likely a function pointer.
-    SumJump = 128, ///< Obtained from the "sumjump" heuristic
-  };
-
   /// \brief Return, and, if necessary, register the basic block associated to
   ///        \p PC
   ///
@@ -272,6 +316,14 @@ public:
   ///         translated code.  It might also return `nullptr` if the PC is not
   ///         valid or another error occurred.
   llvm::BasicBlock *registerJT(uint64_t PC, JTReason Reason);
+
+  std::map<uint64_t, JumpTarget>::const_iterator begin() const {
+    return JumpTargets.begin();
+  }
+
+  std::map<uint64_t, JumpTarget>::const_iterator end() const {
+    return JumpTargets.end();
+  }
 
   /// \brief Removes a `BasicBlock` from the SET's visited list
   void unvisit(llvm::BasicBlock *BB);
@@ -441,22 +493,6 @@ private:
   void handleSumJump(llvm::Instruction *SumJump);
 
 private:
-  class JumpTarget {
-  public:
-    JumpTarget() : BB(nullptr), Reasons(0) { }
-    JumpTarget(llvm::BasicBlock *BB) : BB(BB), Reasons(0) { }
-    JumpTarget(llvm::BasicBlock *BB,
-               JTReason Reason) : BB(BB), Reasons(Reason) { }
-
-    llvm::BasicBlock *head() const { return BB; }
-    bool hasReason(JTReason Reason) const { return (Reasons & Reason) != 0; }
-    void setReason(JTReason Reason) { Reasons |= Reason; }
-
-  private:
-    llvm::BasicBlock *BB;
-    uint32_t Reasons;
-  };
-
   using BlockMap = std::map<uint64_t, JumpTarget>;
   using InstructionMap = std::map<uint64_t, llvm::Instruction *>;
 
