@@ -405,9 +405,10 @@ BasicBlockInfo::getReachingDefinitions(set<LoadInst *> &WhiteList,
 void ConditionalBasicBlockInfo::dump(std::ostream& Output) {
   set<Instruction *> Printed;
   for (auto &P : Reaching) {
-    if (Printed.count(P.second.I) == 0) {
-      Printed.insert(P.second.I);
-      Output << " " << getName(P.second.I);
+    Instruction *I = P.first.I;
+    if (Printed.count(I) == 0) {
+      Printed.insert(I);
+      Output << " " << getName(I);
     }
   }
 }
@@ -463,20 +464,19 @@ vector<pair<Instruction *, MemoryAccess>>
 ConditionalBasicBlockInfo::getReachingDefinitions(set<LoadInst *> &WhiteList,
                                                   TypeSizeProvider &TSP) {
   vector<pair<Instruction *, MemoryAccess>> Result;
-  for (CondDefPair &P : Reaching) {
-    Instruction *I = P.second.I;
+  for (auto &P : Reaching) {
+    Instruction *I = P.first.I;
     if (auto *Load = dyn_cast<LoadInst>(I)) {
       // If it's a load check it's whitelisted
       if (WhiteList.count(Load) != 0)
-        Result.push_back({ Load, P.second.MA });
+        Result.push_back({ Load, P.first.MA });
     } else {
       // It's a store
-      Result.push_back({ I, P.second.MA });
+      Result.push_back({ I, P.first.MA });
     }
   }
 
   Reaching.clear();
-  assert(Reaching.size() == 0);
 
   return Result;
 }
@@ -548,9 +548,36 @@ bool ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
   return Changed;
 }
 
+ConditionalBasicBlockInfo::ConditionsComparison
+ConditionalBasicBlockInfo::mergeConditionBits(BitVector &Target,
+                                              BitVector &NewConditions) const {
+  // Find the different bits
+  BitVector DifferentBits = Target;
+  DifferentBits ^= NewConditions;
+
+  // If they are identical, quit
+  int FirstBit = DifferentBits.find_first();
+  if (FirstBit == -1)
+    return Identical;
+
+  // Ensure we only have two non-zero bits
+  int SecondBit = DifferentBits.find_next(FirstBit);
+  if (SecondBit == -1 || DifferentBits.find_next(SecondBit) != -1)
+    return Different;
+
+  // Check if the only two different bits are complementary conditions
+  if (SeenConditions[FirstBit] == -SeenConditions[SecondBit]) {
+    NewConditions.reset(FirstBit);
+    NewConditions.reset(SecondBit);
+    return Complementary;
+  } else {
+    return Different;
+  }
+}
+
 bool ConditionalBasicBlockInfo::mergeDefinition(CondDefPair NewDefinition,
                                                 vector<CondDefPair> &Targets,
-                                                TypeSizeProvider &TSP) {
+                                                TypeSizeProvider &TSP) const {
   BitVector &NewConditionsBV = NewDefinition.first;
   assert(NewConditionsBV.size() == SeenConditions.size());
 
@@ -564,27 +591,15 @@ bool ConditionalBasicBlockInfo::mergeDefinition(CondDefPair NewDefinition,
       CondDefPair &Target = *TargetIt;
       // Note that we copy the BitVector, since we're going to modify it
       if (Target.second.I == NewDefinition.second.I) {
-        // Find the different bits
-        BitVector DifferentBits = Target.first;
-        DifferentBits ^= NewConditionsBV;
-
-        // If they are identical, quit
-        int FirstBit = DifferentBits.find_first();
-        if (FirstBit == -1)
+        switch (mergeConditionBits(Target.first, NewConditionsBV)) {
+        case Identical:
           return Result;
-
-        // Ensure we only have two non-zero bits
-        int SecondBit = DifferentBits.find_next(FirstBit);
-        if (SecondBit == -1 || DifferentBits.find_next(SecondBit) != -1)
-          continue;
-
-        // Check if the only two different bits are complementary conditions
-        if (SeenConditions[FirstBit] == -SeenConditions[SecondBit]) {
-          NewConditionsBV.reset(FirstBit);
-          NewConditionsBV.reset(SecondBit);
+        case Complementary:
           Targets.erase(TargetIt);
           Again = true;
           Result = true;
+          break;
+        case Different:
           break;
         }
       }
@@ -592,6 +607,38 @@ bool ConditionalBasicBlockInfo::mergeDefinition(CondDefPair NewDefinition,
   } while (Again);
 
   Targets.push_back(NewDefinition);
+
+  return true;
+}
+
+bool ConditionalBasicBlockInfo::mergeDefinition(CondDefPair NewDefinition,
+                                                ReachingType &Targets,
+                                                TypeSizeProvider &TSP) const {
+  BitVector &NewConditionsBV = NewDefinition.first;
+  assert(NewConditionsBV.size() == SeenConditions.size());
+
+  bool Again = false;
+  bool Result = false;
+  llvm::SmallVector<BitVector, 2> &BVs = Targets[NewDefinition.second];
+
+  do {
+    Again = false;
+    for (auto TargetIt = BVs.begin(); TargetIt != BVs.end(); TargetIt++) {
+      switch (mergeConditionBits(*TargetIt, NewConditionsBV)) {
+      case Identical:
+        return Result;
+      case Complementary:
+        BVs.erase(TargetIt);
+        Again = true;
+        Result = true;
+        break;
+      case Different:
+        break;
+      }
+    }
+  } while (Again);
+
+  BVs.push_back(NewDefinition.first);
 
   return true;
 }

@@ -7,11 +7,13 @@
 
 // LLVM includes
 #include "llvm/Pass.h"
-#include "llvm/ADT/BitVector.h"
+#include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallSet.h"
 
 // Local includes
 #include "memoryaccess.h"
+
+#define BitVector SmallBitVector
 
 namespace llvm {
 class Instruction;
@@ -122,7 +124,9 @@ public:
   }
 
   void resetDefinitions(TypeSizeProvider &TSP) {
-    Definitions = Reaching;
+    for (auto &P : Reaching)
+      for (auto &BV : P.second)
+        Definitions.push_back({ BV, P.first });
   }
 
   void clearDefinitions() {
@@ -143,7 +147,19 @@ public:
 
 private:
   using CondDefPair = std::pair<llvm::BitVector, MemoryInstruction>;
+  using ReachingType = std::unordered_map<MemoryInstruction,
+                                          llvm::SmallVector<llvm::BitVector,
+                                                            2>>;
 
+  enum ConditionsComparison {
+    Identical,
+    Different,
+    Complementary
+  };
+  ConditionsComparison mergeConditionBits(llvm::BitVector &Target,
+                                          llvm::BitVector &NewConditions) const;
+
+private:
   template<class UnaryPredicate>
   void removeDefinitions(UnaryPredicate P) {
     erase_if(Definitions, P);
@@ -161,8 +177,9 @@ private:
       auto NewSize = SeenConditions.size();
 
       Conditions.resize(NewSize);
-      for (CondDefPair &Definition : Reaching)
-        Definition.first.resize(NewSize);
+      for (auto &P : Reaching)
+        for (auto &BV : P.second)
+          BV.resize(NewSize);
       for (CondDefPair &Definition : Definitions)
         Definition.first.resize(NewSize);
 
@@ -172,13 +189,17 @@ private:
 
   bool mergeDefinition(CondDefPair NewDefinition,
                        std::vector<CondDefPair> &Targets,
-                       TypeSizeProvider &TSP);
+                       TypeSizeProvider &TSP) const;
+
+  bool mergeDefinition(CondDefPair NewDefinition,
+                       ReachingType &Targets,
+                       TypeSizeProvider &TSP) const;
 
 private:
   // Seen conditions
   std::vector<uint32_t> SeenConditions;
   // TODO: switch to list?
-  std::vector<CondDefPair> Reaching;
+  ReachingType Reaching;
   std::vector<CondDefPair> Definitions;
   llvm::BitVector Conditions;
 };
