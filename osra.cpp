@@ -1987,10 +1987,16 @@ bool BoundedValue::merge(const BoundedValue &Other,
           }
 
           break;
+        } else if (LeftmostOp->UpperBound + 1 == RightmostOp->LowerBound) {
+          setBound<Lower, Or>(CI::get(Int64, Other.LowerBound), DL);
+          if (!Bottom)
+            setBound<Upper, Or>(CI::get(Int64, Other.UpperBound), DL);
+          Negated = true;
+        } else {
+          setBottom();
+          Changed = true;
         }
 
-        setBottom();
-        Changed = true;
         break;
       case OneNegated:
         // Assign to NotNegated
@@ -2058,8 +2064,14 @@ bool BoundedValue::merge(const BoundedValue &Other,
     case Disjoint:
       switch (Operands) {
       case NoNegated:
-        setBottom();
-        Changed = true;
+        if (LeftmostOp->UpperBound + 1 == RightmostOp->LowerBound) {
+          setBound<Lower, Or>(CI::get(Int64, Other.LowerBound), DL);
+          if (!Bottom)
+            setBound<Upper, Or>(CI::get(Int64, Other.UpperBound), DL);
+        } else {
+          setBottom();
+          Changed = true;
+        }
         break;
       case OneNegated:
         // Assign to Negated
