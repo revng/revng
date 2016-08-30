@@ -586,7 +586,8 @@ void OSRAPass::mergeLoadReacher(LoadInst *Load) {
     OSR ReachingOSR = P.second;
     if (ReachingOSR != Result) {
       OSR FreeOSR = createOSR(Load, Load->getParent());
-      BVs.forceBV(Load, pathSensitiveMerge(Load));
+      if (Reachers.size() == RDP->getReachingDefinitionsCount(Load))
+        BVs.forceBV(Load, pathSensitiveMerge(Load));
       OSRs.insert({ Load, FreeOSR });
       return;
     }
@@ -912,7 +913,7 @@ BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
 // * bounded variable (or BV): a free value and the range within which it lies.
 bool OSRAPass::runOnFunction(Function &F) {
   const DataLayout DL = F.getParent()->getDataLayout();
-  auto &RDP = getAnalysis<ConditionalReachedLoadsPass>();
+  RDP = &getAnalysis<ConditionalReachedLoadsPass>();
   auto &SCP = getAnalysis<SimplifyComparisonsPass>();
 
   // The Overtaken map keeps track of which load/store instructions have been
@@ -1628,7 +1629,7 @@ bool OSRAPass::runOnFunction(Function &F) {
 
         }
 
-        auto ReachedLoads = RDP.getReachedLoads(I);
+        auto ReachedLoads = RDP->getReachedLoads(I);
         for (LoadInst *ReachedLoad : ReachedLoads) {
 
           // OSR propagation first

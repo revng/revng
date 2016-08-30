@@ -234,6 +234,8 @@ public:
   const std::vector<llvm::Instruction *> &
   getReachingDefinitions(llvm::LoadInst *Load);
 
+  unsigned getReachingDefinitionsCount(llvm::LoadInst *Load);
+
 private:
   int32_t getConditionIndex(llvm::TerminatorInst *T);
 
@@ -247,6 +249,7 @@ private:
   std::set<LoadInst *> SelfReachingLoads;
   std::map<Instruction *, std::vector<LoadInst *>> ReachedLoads;
   std::map<LoadInst *, std::vector<Instruction *>> ReachingDefinitions;
+  std::map<LoadInst *, unsigned>  ReachingDefinitionsCount;
 };
 
 class ConditionNumberingPass : public llvm::FunctionPass {

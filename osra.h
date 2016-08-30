@@ -670,6 +670,7 @@ private:
   /// of a certain Load are updated
   using SubscribersType = llvm::SmallSet<llvm::Instruction *, 3>;
   std::map<const llvm::LoadInst *, SubscribersType> Subscriptions;
+  ConditionalReachedLoadsPass *RDP;
 };
 
 #endif // _OSRA_H

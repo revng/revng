@@ -48,6 +48,13 @@ ReachingDefinitionsImplPass<BBI, R>::getReachingDefinitions(LoadInst *Load) {
   return ReachingDefinitions[Load];
 }
 
+template<class B, ReachingDefinitionsResult R>
+unsigned
+ReachingDefinitionsImplPass<B, R>::getReachingDefinitionsCount(LoadInst *Load) {
+  assert(R == ReachingDefinitionsResult::ReachedLoads);
+  return ReachingDefinitionsCount[Load];
+}
+
 using RDP = ReachingDefinitionsResult;
 template class ReachingDefinitionsImplPass<BasicBlockInfo,
                                            RDP::ReachingDefinitions>;
@@ -786,9 +793,12 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
         } else {
 
           if (R == ReachingDefinitionsResult::ReachedLoads) {
-            for (auto &Definition : Definitions)
-              if (TargetMA == Definition.second)
+            for (auto &Definition : Definitions) {
+              if (TargetMA == Definition.second) {
                 ReachedLoads[Definition.first].push_back(Load);
+                ReachingDefinitionsCount[Load]++;
+              }
+            }
           }
 
           if (R == ReachingDefinitionsResult::ReachingDefinitions) {
