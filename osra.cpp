@@ -1321,14 +1321,18 @@ bool OSRAPass::runOnFunction(Function &F) {
             if (auto *Load = dyn_cast<LoadInst>(BaseValue)) {
               const OSR *LoadOSR = getOSR(Load);
               auto &Reachers = LoadReachers[Load];
+
+              // Register this instruction to be visited again when Load changes
+              Subscriptions[Load].insert(I);
               if (Reachers.size() > 1
                   && LoadOSR != nullptr
                   && LoadOSR->boundedValue()->value() == Load) {
 
                 for (auto &P : Reachers) {
                   if (!P.second.isConstant()
-                      && P.second.boundedValue()
-                      && P.second.boundedValue()->value()) {
+                      && P.second.boundedValue() != nullptr
+                      && P.second.boundedValue()->value() != nullptr
+                      && P.second.boundedValue()->value() != Load) {
                     OSR TheOSR = switchBlock(P.second, BB);
                     Handle(TheOSR);
                   }
@@ -1662,6 +1666,8 @@ bool OSRAPass::runOnFunction(Function &F) {
           if (Changed) {
             WorkList.insert(ReachedLoad);
             EnqueueUsers(ReachedLoad);
+            for (Instruction *Subscriber : Subscriptions[ReachedLoad])
+              WorkList.insert(Subscriber);
           }
 
         }

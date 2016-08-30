@@ -665,6 +665,11 @@ private:
   using InstructionOSRVector = std::vector<std::pair<llvm::Instruction *, OSR>>;
   std::map<const llvm::LoadInst *, InstructionOSRVector> LoadReachers;
   std::set<llvm::BasicBlock *> BlockBlackList;
+
+  /// Keeps track of those instruction that need to be updated when the reachers
+  /// of a certain Load are updated
+  using SubscribersType = llvm::SmallSet<llvm::Instruction *, 3>;
+  std::map<const llvm::LoadInst *, SubscribersType> Subscriptions;
 };
 
 #endif // _OSRA_H
