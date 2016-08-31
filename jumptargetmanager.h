@@ -444,7 +444,7 @@ public:
     }
 
     // We no longer need this information
-    UnusedCodePointers.clear();
+    freeContainer(UnusedCodePointers);
   }
 
   /// \brief Return the next call to exitTB after I, or nullptr if it can't find

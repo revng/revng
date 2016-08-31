@@ -912,6 +912,8 @@ BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
 // * free value: a value we can't represent as an OSR of another value
 // * bounded variable (or BV): a free value and the range within which it lies.
 bool OSRAPass::runOnFunction(Function &F) {
+  DBG("passes", { dbg << "Starting OSRAPass\n"; });
+
   const DataLayout DL = F.getParent()->getDataLayout();
   RDP = &getAnalysis<ConditionalReachedLoadsPass>();
   auto &SCP = getAnalysis<SimplifyComparisonsPass>();
@@ -937,9 +939,9 @@ bool OSRAPass::runOnFunction(Function &F) {
   }
 
   // Cleanup all the data
-  OSRs.clear();
+  freeContainer(OSRs);
   BVs = BVMap(&BlockBlackList, &DL, Int64);
-  Constraints.clear();
+  freeContainer(Constraints);
 
   // Initialize the WorkList with all the instructions in the function
   UniquedQueue<Instruction *> WorkList;
@@ -1680,11 +1682,19 @@ bool OSRAPass::runOnFunction(Function &F) {
     }
   }
 
+  // Free up memory not part of the analysis result
+  freeContainer(Constraints);
+  freeContainer(LoadReachers);
+  freeContainer(BlockBlackList);
+  freeContainer(Subscriptions);
+
   DBG("osr", {
       BVs.prepareDescribe();
       raw_os_ostream OutputStream(dbg);
       F.getParent()->print(OutputStream, new OSRAnnotationWriter(*this));
     });
+
+  DBG("passes", { dbg << "Ending OSRAPass\n"; });
 
   return false;
 }

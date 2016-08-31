@@ -18,6 +18,7 @@
 #include "llvm/Support/Casting.h"
 
 // Local includes
+#include "datastructures.h"
 #include "instructiontranslator.h"
 #include "ir-helpers.h"
 #include "ptcinterface.h"

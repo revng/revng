@@ -292,6 +292,8 @@ static RegisterPass<ConditionNumberingPass> Z("cnp",
                                               false);
 
 bool ConditionNumberingPass::runOnFunction(Function &F) {
+  DBG("passes", { dbg << "Starting ConditionNumberingPass\n"; });
+
   auto &RDP = getAnalysis<ReachingDefinitionsPass>();
   unordered_map<BranchInst *,
                 SmallVector<BranchInst *, 1>,
@@ -326,6 +328,7 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
     }
   }
 
+  DBG("passes", { dbg << "Ending ConditionNumberingPass\n"; });
   return false;
 }
 
@@ -403,7 +406,7 @@ BasicBlockInfo::getReachingDefinitions(set<LoadInst *> &WhiteList,
     }
   }
 
-  Reaching.clear();
+  freeContainer(Reaching);
   assert(Reaching.size() == 0);
 
   return Result;
@@ -483,7 +486,7 @@ ConditionalBasicBlockInfo::getReachingDefinitions(set<LoadInst *> &WhiteList,
     }
   }
 
-  Reaching.clear();
+  freeContainer(Reaching);
 
   return Result;
 }
@@ -660,6 +663,14 @@ static bool isSupportedPointer(Value *V) {
 
 template<class BBI, ReachingDefinitionsResult R>
 bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
+
+  DBG("passes", {
+      if (std::is_same<BBI, ConditionalBasicBlockInfo>::value)
+        dbg << "Starting ConditionalReachingDefinitionsPass\n";
+      else
+        dbg << "Starting ReachingDefinitionsPass\n";
+    });
+
   for (auto &BB : F) {
     if (!BB.empty()) {
       if (auto *Call = dyn_cast<CallInst>(&*BB.begin())) {
@@ -688,6 +699,7 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
   while (!ToVisit.empty()) {
     BasicBlockVisits++;
     BasicBlock *BB = ToVisit.pop();
+
     auto &Info = DefinitionsMap[BB];
     Info.resetDefinitions(TSP);
 
@@ -834,10 +846,6 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
             << float(BasicBlockVisits) / BasicBlockCount << "\n";
       });
 
-  // Free everything is no longer needed
-  DefinitionsMap.clear();
-  FreeLoads.clear();
-
   if (R == ReachingDefinitionsResult::ReachedLoads) {
     DBG("rdp",
         for (auto P : ReachedLoads) {
@@ -847,6 +855,20 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
           dbg << "\n";
         });
   }
+
+  // Clear all the temporary data that is not part of the analysis result
+  freeContainer(DefinitionsMap);
+  freeContainer(FreeLoads);
+  freeContainer(BasicBlockBlackList);
+  freeContainer(NRDLoads);
+  freeContainer(SelfReachingLoads);
+
+  DBG("passes", {
+      if (std::is_same<BBI, ConditionalBasicBlockInfo>::value)
+        dbg << "Ending ConditionalReachingDefinitionsPass\n";
+      else
+        dbg << "Ending ReachingDefinitionsPass\n";
+    });
 
   return false;
 }

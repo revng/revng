@@ -15,6 +15,7 @@
 #include "llvm/Support/Casting.h"
 
 // Local include
+#include "datastructures.h"
 #include "debug.h"
 #include "ir-helpers.h"
 #include "simplifycomparisons.h"

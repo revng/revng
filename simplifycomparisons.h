@@ -59,6 +59,11 @@ public:
       return Comparison(Cmp);
   }
 
+  virtual void releaseMemory() override {
+    DBG("release", { dbg << "SimplifyComparisonsPass is releasing memory\n"; });
+    freeContainer(SimplifiedComparisons);
+  }
+
 private:
   ReachingDefinitionsPass *RDP;
   std::unordered_map<llvm::CmpInst *, Comparison> SimplifiedComparisons;

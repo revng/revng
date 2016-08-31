@@ -13,6 +13,7 @@
 #include "llvm/IR/Module.h"
 
 // Local includes
+#include "datastructures.h"
 #include "debug.h"
 #include "revamb.h"
 #include "ir-helpers.h"
@@ -432,9 +433,15 @@ void SETPass::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool SETPass::runOnFunction(Function &F) {
+  DBG("passes", { dbg << "Starting SETPass\n"; });
+
+  freeContainer(Jumps);
+
   OSRAPass *OSRA = getAnalysisIfAvailable<OSRAPass>();
 
   SET SimpleExpressionTracker(F, JTM, OSRA, Visited, Jumps);
+
+  DBG("passes", { dbg << "Ending SETPass\n"; });
   return SimpleExpressionTracker.run();
 }
 

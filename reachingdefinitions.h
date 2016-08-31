@@ -236,6 +236,15 @@ public:
 
   unsigned getReachingDefinitionsCount(llvm::LoadInst *Load);
 
+  virtual void releaseMemory() override {
+    DBG("release", {
+        dbg << "ReachingDefinitionsImplPass is releasing memory\n";
+      });
+    freeContainer(ReachedLoads);
+    freeContainer(ReachingDefinitions);
+    freeContainer(ReachingDefinitionsCount);
+  }
+
 private:
   int32_t getConditionIndex(llvm::TerminatorInst *T);
 
@@ -267,6 +276,11 @@ public:
 
   int32_t getConditionIndex(llvm::TerminatorInst *T) {
     return BranchConditionNumberMap[T];
+  }
+
+  virtual void releaseMemory() override {
+    DBG("release", { dbg << "ConditionNumberingPass is releasing memory\n"; });
+    freeContainer(BranchConditionNumberMap);
   }
 
 private:

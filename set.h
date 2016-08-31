@@ -59,6 +59,11 @@ public:
     return Jumps;
   }
 
+  virtual void releaseMemory() override {
+    DBG("release", { dbg << "SETPass is releasing memory\n"; });
+    freeContainer(Jumps);
+  }
+
 private:
   JumpTargetManager *JTM;
   std::set<llvm::BasicBlock *> *Visited;

@@ -22,6 +22,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 
 // Local includes
+#include "datastructures.h"
 #include "debug.h"
 #include "revamb.h"
 #include "ir-helpers.h"

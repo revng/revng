@@ -568,6 +568,11 @@ private:
       return TheMap[I].Summary;
     }
 
+    void clear() {
+      freeContainer(TheMap);
+      freeContainer(BBMap);
+    }
+
   private:
     BoundedValue &summarize(llvm::BasicBlock *Target,
                             MapValue *BVOVectorLoopInfoWrapperPass);
@@ -615,7 +620,14 @@ public:
   /// \brief Return true if \p I is stored in the CPU state but never read again
   bool isDead(llvm::Instruction *I) const;
 
+  virtual void releaseMemory() override {
+    DBG("release", { dbg << "OSRAPass is releasing memory\n"; });
+    freeContainer(OSRs);
+    BVs.clear();
+  }
+
 private:
+
   OSR switchBlock(OSR Base, llvm::BasicBlock *BB) {
     Base.setBoundedValue(&BVs.get(BB, Base.boundedValue()->value()));
     return Base;

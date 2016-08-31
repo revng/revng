@@ -85,4 +85,10 @@ private:
   std::vector<T> Queue;
 };
 
+template<class T>
+static inline void freeContainer(T &Container) {
+  T Empty;
+  Empty.swap(Container);
+}
+
 #endif // _DATASTRUCTURES_H
