@@ -25,8 +25,8 @@ using namespace llvm;
 char SimplifyComparisonsPass::ID = 0;
 static RegisterPass<SimplifyComparisonsPass> X("scp",
                                                "Simplify Comparisons Pass",
-                                               false,
-                                               false);
+                                               true,
+                                               true);
 
 using std::array;
 using std::pair;

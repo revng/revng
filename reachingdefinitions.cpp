@@ -66,13 +66,13 @@ char ReachingDefinitionsImplPass<BBI, R>::ID = 0;
 
 static RegisterPass<ReachingDefinitionsPass> X1("rdp",
                                                 "Reaching Definitions Pass",
-                                                false,
-                                                false);
+                                                true,
+                                                true);
 
 static RegisterPass<ReachedLoadsPass> X2("rlp",
                                          "Reaching Definitions Pass",
-                                         false,
-                                         false);
+                                         true,
+                                         true);
 
 template<>
 int32_t ReachingDefinitionsPass::getConditionIndex(TerminatorInst *V) {
@@ -103,15 +103,15 @@ static RegisterPass<ConditionalReachingDefinitionsPass> Y1("crdp",
                                                            "Conditional"
                                                            " Reaching"
                                                            " Definitions Pass",
-                                                           false,
-                                                           false);
+                                                           true,
+                                                           true);
 
 static RegisterPass<ConditionalReachedLoadsPass> Y2("crlp",
                                                     "Conditional"
                                                     " Reaching"
                                                     " Definitions Pass",
-                                                    false,
-                                                    false);
+                                                    true,
+                                                    true);
 
 // TODO: this duplication sucks
 template<>
@@ -288,8 +288,8 @@ bool ConditionEqualTo::operator()(BranchInst * const& BA,
 char ConditionNumberingPass::ID = 0;
 static RegisterPass<ConditionNumberingPass> Z("cnp",
                                               "Condition Numbering Pass",
-                                              false,
-                                              false);
+                                              true,
+                                              true);
 
 bool ConditionNumberingPass::runOnFunction(Function &F) {
   DBG("passes", { dbg << "Starting ConditionNumberingPass\n"; });

@@ -48,7 +48,7 @@ static auto skip(unsigned ToSkip, C &Container)
 
 char OSRAPass::ID = 0;
 
-static RegisterPass<OSRAPass> X("osra", "OSRA Pass", false, false);
+static RegisterPass<OSRAPass> X("osra", "OSRA Pass", true, true);
 
 Constant *OSR::evaluate(Constant *Value, Type *Int64) const {
   Constant *BaseC = CI::get(Int64, Base, BV->isSigned());
