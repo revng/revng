@@ -6,6 +6,8 @@
 #include <map>
 #include <set>
 #include <vector>
+#include <boost/icl/interval_set.hpp>
+#include <boost/type_traits/is_same.hpp>
 
 // LLVM includes
 #include "llvm/ADT/Optional.h"
@@ -94,6 +96,8 @@ private:
 
 class JumpTargetManager {
 private:
+  using interval_set = boost::icl::interval_set<uint64_t>;
+
   /// \brief Data structure to collect statistics about an input basic block
   struct BBSummary {
     BBSummary(uint32_t Size) : Size(Size) { }
@@ -452,6 +456,10 @@ public:
   ///        one
   llvm::CallInst *findNextExitTB(llvm::Instruction *I);
 
+  void registerReadRange(uint64_t Address, uint64_t Size);
+
+  const interval_set &readRange() const { return ReadIntervalSet; }
+
 private:
   /// \brief Return an iterator to the entry containing the given address range
   typename std::map<uint64_t, BBSummary>::iterator
@@ -514,6 +522,7 @@ private:
   unsigned NewBranches = 0;
 
   std::set<uint64_t> UnusedCodePointers;
+  interval_set ReadIntervalSet;
 };
 
 #endif // _JUMPTARGETMANAGER_H

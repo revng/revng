@@ -9,6 +9,9 @@
 #include <fstream>
 #include <queue>
 #include <sstream>
+#include <boost/icl/interval_set.hpp>
+#include <boost/type_traits/is_same.hpp>
+#include <boost/icl/right_open_interval.hpp>
 
 // LLVM includes
 #include "llvm/ADT/Optional.h"
@@ -372,6 +375,7 @@ ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
 
   uint64_t Address = getZExtValue(ConstantAddress, DL);
   UnusedCodePointers.erase(Address);
+  registerReadRange(Address, Size);
 
   auto Result = readRawValue(Address, Size);
   if (Result.hasValue())
@@ -1093,6 +1097,11 @@ BasicBlock *JumpTargetManager::registerJT(uint64_t PC, JTReason Reason) {
   // Associate the PC with the chosen basic block
   JumpTargets[PC] = JumpTarget(NewBlock, Reason);
   return NewBlock;
+}
+
+void JumpTargetManager::registerReadRange(uint64_t Address, uint64_t Size) {
+  using interval = boost::icl::interval<uint64_t>;
+  ReadIntervalSet += interval::right_open(Address, Address + Size);
 }
 
 // TODO: instead of a gigantic switch case we could map the original memory area
