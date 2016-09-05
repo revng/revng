@@ -459,14 +459,15 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
   using CI = ConstantInt;
   Type *Int64 = IntegerType::get(F.getParent()->getContext(), 64);
 
-  if (O == nullptr) {
+  if (O == nullptr
+      || O->boundedValue()->isTop()
+      || O->boundedValue()->isBottom()
+      || !O->boundedValue()->isSingleRange()) {
     return false;
   } else if (O->isConstant()) {
     // If it's just a single constant, use it
     OS.explore(CI::get(Int64, O->constant()));
-  } else if (!O->boundedValue()->isTop()
-             && !O->boundedValue()->isBottom()
-             && O->boundedValue()->isSingleRange()) {
+  } else {
     // We have a limited range, let's use it all
 
     // Perform a preliminary check that whole range fits into the executable
