@@ -503,9 +503,14 @@ bool OSRAPass::updateLoadReacher(LoadInst *Load, Instruction *I, OSR NewOSR) {
     if (ReacherIt != Reachers.end()) {
       // We've already propagated I to Load in the past, check if we have new
       // information
-      if (ReacherIt->second == NewOSR) {
+      if (ReacherIt->second == NewOSR
+          || ReacherIt->second.boundedValue()->value() == Load) {
         return false;
       } else {
+        const Value *ReacherValue = ReacherIt->second.boundedValue()->value();
+        assert(!(Reachers.size() > 1
+                 && ReacherValue == Load
+                 && ReacherValue != NewOSR.boundedValue()->value()));
         *ReacherIt = make_pair(I, NewOSR);
         return true;
       }
@@ -653,6 +658,9 @@ public:
   /// definition and the constraints accumulated in Summary
   BoundedValue computeBV(Value *V, const DataLayout &DL, Type *Int64) const {
     auto Result = ReachingOSR.apply(Summary, V, DL);
+    if (!Result.hasSignedness())
+      Result.setBottom();
+
     if (!Result.isUninitialized() && !Result.isBottom()) {
       using Cmp = CmpInst;
       auto Predicate = Result.isSigned() ? Cmp::ICMP_SLE : Cmp::ICMP_ULE;
@@ -1236,7 +1244,7 @@ bool OSRAPass::runOnFunction(Function &F) {
             } else {
               // TODO: we don't know what sign to use here, so we ignore it,
               //       should we switch to AnySignedness?
-              if (BaseOp.boundedValue()->isUninitialized())
+              if (!BaseOp.boundedValue()->hasSignedness())
                 return;
 
               IsSigned = BaseOp.boundedValue()->isSigned();
@@ -1633,6 +1641,7 @@ bool OSRAPass::runOnFunction(Function &F) {
 
         auto ReachedLoads = RDP->getReachedLoads(I);
         for (LoadInst *ReachedLoad : ReachedLoads) {
+          assert(ReachedLoad != I);
 
           // OSR propagation first
 
@@ -1865,6 +1874,11 @@ bool BoundedValue::merge(const BoundedValue &Other,
     return false;
   } else if (MT == Or && Other.isTop()) {
     setTop();
+    return true;
+  }
+
+  if (Sign == AnySignedness && Other.Sign == AnySignedness) {
+    setBottom();
     return true;
   }
 

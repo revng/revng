@@ -13,6 +13,7 @@
 #include "llvm/Pass.h"
 
 // Local includes
+#include "ir-helpers.h"
 #include "reachingdefinitions.h"
 #include "simplifycomparisons.h"
 
@@ -59,7 +60,12 @@ public:
       UpperBound(0),
       Sign(UnknownSignedness),
       Bottom(false),
-      Negated(false) { }
+      Negated(false) {
+        if (auto *Constant = llvm::dyn_cast<llvm::ConstantInt>(V)) {
+          LowerBound = UpperBound = getLimitedValue(Constant);
+          Sign = AnySignedness;
+        }
+      }
 
     BoundedValue() :
       Value(nullptr),
@@ -94,6 +100,9 @@ public:
     enum Bound { Lower, Upper };
 
     bool isUninitialized() const { return Sign == UnknownSignedness; }
+    bool hasSignedness() const {
+      return Sign != UnknownSignedness && Sign != AnySignedness;
+    }
 
     bool isConstant() const {
       return !isUninitialized() && !Bottom && LowerBound == UpperBound;
@@ -189,6 +198,7 @@ public:
     /// boundaries are at their respective extremes.
     bool isTop() const {
       return (!isConstant()
+              && Sign != AnySignedness
               && (isUninitialized()
                   || (!Negated
                       && LowerBound == lowerExtreme()
@@ -458,7 +468,7 @@ public:
     BoundedValue apply(const BoundedValue &Target,
         llvm::Value *V,
         const llvm::DataLayout &DL) const {
-      if (Target.isBottom() || Target.isTop())
+      if (Target.isBottom() || Target.isTop() || !Target.hasSignedness())
         return Target;
 
       return Target.moveTo(V, DL, Base, Factor);

@@ -88,7 +88,7 @@ static inline uint64_t getExtValue(llvm::Constant *C,
     return getZExtValue(C, DL);
 }
 
-static inline uint64_t getLimitedValue(llvm::Value *V) {
+static inline uint64_t getLimitedValue(const llvm::Value *V) {
   return llvm::cast<llvm::ConstantInt>(V)->getLimitedValue();
 }
 

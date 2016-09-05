@@ -11,6 +11,7 @@
 #include "llvm/ADT/Optional.h"
 
 // Local includes
+#include "datastructures.h"
 #include "ir-helpers.h"
 
 // Forward declarations
