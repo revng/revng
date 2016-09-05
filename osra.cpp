@@ -1257,62 +1257,93 @@ bool OSRAPass::runOnFunction(Function &F) {
             // Create a copy of the current value of the BV
             BoundedValue NewBV = *(BaseOp.boundedValue());
 
-            // Solve the equation to obtain the new boundary value
-            // x <  1.5 == x <  2 (Ceiling)
-            // x <= 1.5 == x <= 1 (Floor)
-            // x >  1.5 == x >  1 (Floor)
-            // x >= 1.5 == x >= 2 (Ceiling)
-            bool RoundUp = (P == CmpInst::ICMP_UGE
-                            || P == CmpInst::ICMP_SGE
-                            || P == CmpInst::ICMP_ULT
-                            || P == CmpInst::ICMP_SLT);
+            auto Merge = [&] (Predicate P, Constant *ConstOp) {
+              // Solve the equation to obtain the new boundary value
+              // x <  1.5 == x <  2 (Ceiling)
+              // x <= 1.5 == x <= 1 (Floor)
+              // x >  1.5 == x >  1 (Floor)
+              // x >= 1.5 == x >= 2 (Ceiling)
+              bool RoundUp = (P == CmpInst::ICMP_UGE
+                              || P == CmpInst::ICMP_SGE
+                              || P == CmpInst::ICMP_ULT
+                              || P == CmpInst::ICMP_SLT);
 
-            Constant *NewBoundC = BaseOp.solveEquation(ConstOp, RoundUp, DL);
-            if (isa<UndefValue>(NewBoundC))
+              Constant *NewBoundC = BaseOp.solveEquation(ConstOp, RoundUp, DL);
+              if (isa<UndefValue>(NewBoundC))
+                return false;
+
+              uint64_t NewBound = getExtValue(NewBoundC, IsSigned, DL);
+
+              // TODO: this is an hack
+              if (NewBound == 0
+                  && (P == CmpInst::ICMP_ULT || P == CmpInst::ICMP_UGE))
+                return true;
+
+              using BV = BoundedValue;
+              switch (P) {
+              case CmpInst::ICMP_UGT:
+              case CmpInst::ICMP_UGE:
+              case CmpInst::ICMP_SGT:
+              case CmpInst::ICMP_SGE:
+                if (CmpInst::isFalseWhenEqual(P))
+                  NewBound++;
+
+                NewBV.merge(BV::createGE(NewBV.value(), NewBound, IsSigned),
+                            DL, Int64);
+                break;
+              case CmpInst::ICMP_ULT:
+              case CmpInst::ICMP_ULE:
+              case CmpInst::ICMP_SLT:
+              case CmpInst::ICMP_SLE:
+                if (CmpInst::isFalseWhenEqual(P))
+                  NewBound--;
+
+                NewBV.merge(BV::createLE(NewBV.value(), NewBound, IsSigned),
+                            DL, Int64);
+                break;
+              case CmpInst::ICMP_EQ:
+                NewBV.merge(BV::createEQ(NewBV.value(),
+                                         NewBound,
+                                         NewBV.isSigned()),
+                            DL,
+                            Int64);
+                break;
+              case CmpInst::ICMP_NE:
+                NewBV.merge(BV::createNE(NewBV.value(),
+                                         NewBound,
+                                         NewBV.isSigned()),
+                            DL,
+                            Int64);
+                break;
+              default:
+                assert(false);
+                break;
+              }
+
+              return true;
+            };
+
+            bool Result = Merge(P, ConstOp);
+            if (!Result)
               return;
 
-            uint64_t NewBound = getExtValue(NewBoundC, IsSigned, DL);
-
-            using BV = BoundedValue;
+            // The unsigned lower then (or equal) operator also carries a
+            // previous greater than 0 semantic
+            auto *Zero = ConstantInt::get(ConstOp->getType(), 0);
             switch (P) {
-            case CmpInst::ICMP_UGT:
-            case CmpInst::ICMP_UGE:
-            case CmpInst::ICMP_SGT:
-            case CmpInst::ICMP_SGE:
-              if (Comparison->isFalseWhenEqual())
-                NewBound++;
-
-              NewBV.merge(BV::createGE(NewBV.value(), NewBound, IsSigned),
-                          DL, Int64);
-              break;
             case CmpInst::ICMP_ULT:
             case CmpInst::ICMP_ULE:
-            case CmpInst::ICMP_SLT:
-            case CmpInst::ICMP_SLE:
-              if (Comparison->isFalseWhenEqual())
-                NewBound--;
-
-              NewBV.merge(BV::createLE(NewBV.value(), NewBound, IsSigned),
-                          DL, Int64);
+              Result = Merge(CmpInst::ICMP_UGE, Zero);
               break;
-            case CmpInst::ICMP_EQ:
-              NewBV.merge(BV::createEQ(NewBV.value(),
-                                       NewBound,
-                                       NewBV.isSigned()),
-                          DL,
-                          Int64);
-              break;
-            case CmpInst::ICMP_NE:
-              NewBV.merge(BV::createNE(NewBV.value(),
-                                       NewBound,
-                                       NewBV.isSigned()),
-                          DL,
-                          Int64);
+            case CmpInst::ICMP_UGT:
+            case CmpInst::ICMP_UGE:
+              Result = Merge(CmpInst::ICMP_ULT, Zero);
               break;
             default:
-              assert(false);
               break;
             }
+            if (!Result)
+              return;
 
             NewConstraints.push_back(NewBV);
           };
