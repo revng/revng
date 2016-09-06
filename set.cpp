@@ -220,6 +220,11 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
                                             Operands,
                                             DL);
       assert(NewOperand != nullptr);
+      // TODO: this is an hack hiding a bigger problem
+      if (isa<UndefValue>(NewOperand)) {
+        NewOperand = nullptr;
+        break;
+      }
     }
   }
 
