@@ -658,6 +658,9 @@ static bool isSupportedPointer(Value *V) {
     if (Global->getName() != "env")
       return true;
 
+  if (isa<AllocaInst>(V))
+    return true;
+
   return false;
 }
 
