@@ -674,7 +674,9 @@ private:
     return It;
   }
 
-  bool updateLoadReacher(llvm::LoadInst *Load, llvm::Instruction *I, OSR NewOSR);
+  bool updateLoadReacher(llvm::LoadInst *Load,
+                         llvm::Instruction *I,
+                         OSR NewOSR);
   void mergeLoadReacher(llvm::LoadInst *Load);
 
 public:

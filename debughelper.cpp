@@ -160,15 +160,15 @@ void DebugHelper::newFunction(Function *Function) {
 
     CurrentFunction = Function;
     assert(CompileUnit != nullptr);
-    CurrentSubprogram = Builder.createFunction(CompileUnit->getFile(), /* Scope */
+    CurrentSubprogram = Builder.createFunction(CompileUnit->getFile(), // Scope
                                                Function->getName(),
-                                               StringRef(), /* Linkage name */
+                                               StringRef(), // Linkage name
                                                CompileUnit->getFile(),
-                                               1, /* Line */
-                                               EmptyType, /* Subroutine type */
-                                               false, /* isLocalToUnit */
-                                               true, /* isDefinition */
-                                               1, /* ScopeLine */
+                                               1, // Line
+                                               EmptyType, // Subroutine type
+                                               false, // isLocalToUnit
+                                               true, // isDefinition
+                                               1, // ScopeLine
                                                DINode::FlagPrototyped,
                                                false /* isOptimized */);
     CurrentFunction->setSubprogram(CurrentSubprogram);

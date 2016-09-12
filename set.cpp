@@ -221,7 +221,8 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
         } else {
           assert(!NonConstFound);
           NonConstFound = true;
-          NewOperand = ConstantExpr::getTruncOrBitCast(NewOperand, Op->getType());
+          NewOperand = ConstantExpr::getTruncOrBitCast(NewOperand,
+                                                       Op->getType());
           Operands.push_back(NewOperand);
         }
       }
