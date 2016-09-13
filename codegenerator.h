@@ -119,6 +119,7 @@ private:
   bool EnableOSRA;
   bool EnableTracing;
   std::string BBSummaryPath;
+  std::string FunctionListPath;
 };
 
 #endif // _CODEGENERATOR_H

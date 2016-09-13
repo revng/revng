@@ -3,8 +3,6 @@
 ///        assembly to LLVM IR.
 
 // Standard includes
-#include <cassert>
-#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <sstream>
@@ -35,6 +33,7 @@
 #include "codegenerator.h"
 #include "debug.h"
 #include "debughelper.h"
+#include "functionboundariesdetection.h"
 #include "instructiontranslator.h"
 #include "jumptargetmanager.h"
 #include "ptcinterface.h"
@@ -918,7 +917,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   replaceFunctionWithRet(HelpersModule->getFunction("page_get_flags"),
                          0xffffffff);
 
-  // HACK: the LLVM linker does not import non-static funcitons anymore if
+  // HACK: the LLVM linker does not import non-static functions anymore if
   //       LinkOnlyNeeded is specified. We don't want this so mark all the
   //       non-static symbols not directly imported as static.
   {
@@ -967,6 +966,11 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   JumpTargets.finalizeJumpTargets();
 
   purgeDeadBlocks(MainFunction);
+
+  legacy::FunctionPassManager FPM(&*TheModule);
+  FPM.add(new FunctionBoundariesDetectionPass(&JumpTargets, ""));
+  FPM.run(*MainFunction);
+
   Translator.finalizeNewPCMarkers(CoveragePath, EnableTracing);
   Debug->generateDebugInfo();
 

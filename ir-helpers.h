@@ -230,6 +230,47 @@ static inline void visitSuccessors(llvm::Instruction *I,
   visitSuccessors(I, IgnoreSet, Visitor);
 }
 
+using RBasicBlockRange =
+  llvm::iterator_range<llvm::BasicBlock::reverse_iterator>;
+using RVisitorFunction = std::function<bool(RBasicBlockRange)>;
+
+// TODO: factor with visitSuccessors
+static inline void visitPredecessors(llvm::Instruction *I,
+                                     RVisitorFunction Visitor,
+                                     llvm::BasicBlock *Ignore) {
+  llvm::BasicBlock *Parent = I->getParent();
+  std::set<llvm::BasicBlock *> Visited;
+  Visited.insert(Parent);
+
+  llvm::BasicBlock::reverse_iterator It(make_reverse_iterator(I));
+  if (It == Parent->rend())
+    return;
+  // It++;
+
+  std::queue<llvm::iterator_range<llvm::BasicBlock::reverse_iterator>> Queue;
+  Queue.push(llvm::make_range(It, Parent->rend()));
+  bool Stop = false;
+
+  while (!Queue.empty()) {
+    auto Range = Queue.front();
+    Queue.pop();
+    auto *lol = Range.begin()->getParent();
+
+    if (Visitor(Range))
+      Stop = true;
+
+    for (auto *Predecessor : predecessors(lol)) {
+      if (Visited.count(Predecessor) == 0 && Predecessor != Ignore) {
+        Visited.insert(Predecessor);
+        if (!Stop && !Predecessor->empty())
+          Queue.push(make_range(Predecessor->rbegin(), Predecessor->rend()));
+      }
+    }
+
+  }
+
+}
+
 /// \brief Return a sensible name for the given basic block
 /// \return the name of the basic block, if available, its pointer value
 ///         otherwise.
@@ -268,6 +309,19 @@ static inline std::string getName(const llvm::Value *V) {
   std::stringstream SS;
   SS << "0x" << std::hex << intptr_t(V);
   return SS.str();
+}
+
+// TODO: this function assumes 0 is not a valid PC
+static inline uint64_t getBasicBlockPC(llvm::BasicBlock *BB) {
+  auto It = BB->begin();
+  assert(It != BB->end());
+  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(&*It)) {
+    auto *Callee = Call->getCalledFunction();
+    if (Callee && Callee->getName() == "newpc")
+      return getLimitedValue(Call->getOperand(0));
+  }
+
+  return 0;
 }
 
 #endif // _IRHELPERS_H

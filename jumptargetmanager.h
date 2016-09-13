@@ -15,6 +15,7 @@
 // Local includes
 #include "datastructures.h"
 #include "ir-helpers.h"
+#include "revamb.h"
 
 // Forward declarations
 namespace llvm {
@@ -320,6 +321,15 @@ public:
     return JumpTargets.end();
   }
 
+  void registerJT(llvm::BasicBlock *BB, JTReason Reason) {
+    assert(!BB->empty());
+    auto *CallNewPC = llvm::dyn_cast<llvm::CallInst>(&*BB->begin());
+    assert(CallNewPC != nullptr);
+    llvm::Function *Callee = CallNewPC->getCalledFunction();
+    assert(Callee != nullptr && Callee->getName() == "newpc");
+    registerJT(getLimitedValue(CallNewPC->getArgOperand(0)), Reason);
+  }
+
   /// \brief Removes a `BasicBlock` from the SET's visited list
   void unvisit(llvm::BasicBlock *BB);
 
@@ -455,6 +465,17 @@ public:
   /// \brief Return the next call to exitTB after I, or nullptr if it can't find
   ///        one
   llvm::CallInst *findNextExitTB(llvm::Instruction *I);
+
+  bool isJump(llvm::TerminatorInst *T) const {
+    for (llvm::BasicBlock *Successor : T->successors()) {
+      if (!(Successor == Dispatcher
+            || Successor == DispatcherFail
+            || isJumpTarget(getBasicBlockPC(Successor))))
+        return false;
+    }
+
+    return true;
+  }
 
   void registerReadRange(uint64_t Address, uint64_t Size);
 
