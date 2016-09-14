@@ -90,6 +90,8 @@ public:
               std::back_inserter(Definitions));
   }
 
+  unsigned size() const { return Reaching.size(); }
+
   void clearDefinitions() {
     Definitions.clear();
   }
@@ -130,6 +132,8 @@ public:
       for (auto &BV : P.second)
         Definitions.push_back({ BV, P.first });
   }
+
+  unsigned size() const { return Reaching.size(); }
 
   void clearDefinitions() {
     Definitions.clear();

@@ -736,33 +736,73 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
       }
     }
 
-    // Get the identifier of the conditional instruction
-    int32_t ConditionIndex = getConditionIndex(BB->getTerminator());
-
-    // Propagate definitions to successors, checking if actually we changed
-    // something, and if so re-enqueue them
-    for (BasicBlock *Successor : successors(BB)) {
-      if (BasicBlockBlackList.count(Successor) != 0)
-        continue;
-
-      auto &SuccessorInfo = DefinitionsMap[Successor];
-
-      if (ConditionIndex != 0) {
-        SuccessorInfo.addCondition(ConditionIndex);
-
-        // If ConditionIndex is positive we're in the true branch, prepare
-        // ConditionIndex for the false branch
-        if (ConditionIndex > 0)
-          ConditionIndex = -ConditionIndex;
+    bool IsCall = false;
+    bool StorePCFound = false;
+    SmallVector<uint64_t, 3> ConstantStores;
+    auto It = BB->getTerminator()->getIterator();
+    while (It != BB->begin()) {
+      It--;
+      Instruction *I = &*It;
+      if (auto *Store = dyn_cast<StoreInst>(I)) {
+        Value *V = Store->getValueOperand();
+        if (Store->getPointerOperand()->getName() == "pc") {
+          StorePCFound = true;
+        } else if (auto *Constant = dyn_cast<ConstantInt>(V)) {
+          ConstantStores.push_back(Constant->getLimitedValue());
+        }
+      } else if (auto *Call = dyn_cast<CallInst>(I)) {
+        auto *Callee = Call->getCalledFunction();
+        if (Callee != nullptr && Callee->getName() == "newpc") {
+          uint64_t PC = getLimitedValue(Call->getArgOperand(0));
+          uint64_t Size = getLimitedValue(Call->getArgOperand(1));
+          auto RAIt = std::find(ConstantStores.begin(),
+                                ConstantStores.end(),
+                                PC + Size);
+          IsCall = StorePCFound && RAIt != ConstantStores.end();
+          break;
+        }
       }
-
-      // Enqueue the successor only if the propagation actually did something
-      if (Info.propagateTo(SuccessorInfo, TSP))
-        ToVisit.insert(Successor);
     }
 
-    // We no longer need to keep track of the definitions
-    Info.clearDefinitions();
+    // TODO: this is an hack and should be replaced once we integrate calling
+    //       convention and call graph in the basic block harvesting process
+    unsigned SuccessorsCount = succ_end(BB) - succ_begin(BB);
+    unsigned Size = Info.size();
+    if (!IsCall && Size * SuccessorsCount <= 5000) {
+      // Get the identifier of the conditional instruction
+      int32_t ConditionIndex = getConditionIndex(BB->getTerminator());
+
+      // Propagate definitions to successors, checking if actually we changed
+      // something, and if so re-enqueue them
+      for (BasicBlock *Successor : successors(BB)) {
+        if (BasicBlockBlackList.count(Successor) != 0)
+          continue;
+
+        auto &SuccessorInfo = DefinitionsMap[Successor];
+
+        if (ConditionIndex != 0) {
+          SuccessorInfo.addCondition(ConditionIndex);
+
+          // If ConditionIndex is positive we're in the true branch, prepare
+          // ConditionIndex for the false branch
+          if (ConditionIndex > 0)
+            ConditionIndex = -ConditionIndex;
+        }
+
+        // Enqueue the successor only if the propagation actually did something
+        unsigned Old = SuccessorInfo.size();
+        if (Info.propagateTo(SuccessorInfo, TSP))
+          ToVisit.insert(Successor);
+
+        DBG("rdp-propagation",
+            dbg << getName(Successor)
+            << " got " << (SuccessorInfo.size() - Old) << " new reachers "
+            << "from " << getName(BB) << " (had " << Old << ")\n");
+      }
+
+      // We no longer need to keep track of the definitions
+      Info.clearDefinitions();
+    }
   }
 
   // Collect final information
