@@ -25,7 +25,7 @@ set(QEMU_LIB_PATH "${QEMU_INSTALL_PATH}/lib")
 add_definitions("-DQEMU_LIB_PATH=\"${QEMU_LIB_PATH}\"")
 include_directories("${QEMU_INSTALL_PATH}/include/")
 
-set(CMAKE_CXX_FLAGS "-std=c++14 -Wall -Werror -Wno-error=unused-variable")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -Werror -Wno-error=unused-variable")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=return-type")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-function")
 if(CMAKE_CXX_COMPILER_ID EQUAL "GNU")
