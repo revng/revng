@@ -57,7 +57,6 @@ void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
 /// \brief Purges everything is after a call to exitTB (except the call itself)
 static void exitTBCleanup(Instruction *ExitTBCall) {
   BasicBlock *BB = ExitTBCall->getParent();
-  BasicBlock::iterator BlockEnd(BB->end());
 
   // Cleanup everything it's aftewards starting from the end
   Instruction *ToDelete = &*(--BB->end());
@@ -81,7 +80,7 @@ bool TranslateDirectBranchesPass::pinJTs(Function &F) {
   auto *RegType = cast<IntegerType>(PCReg->getType()->getPointerElementType());
   auto C = [RegType] (uint64_t A) { return ConstantInt::get(RegType, A); };
   BasicBlock *Dispatcher = JTM->dispatcher();
-  BasicBlock *DispatcherFail = JTM->dispatcherFail();
+  // TODO: enforce CFG
 
   for (const auto &Jump : SET->jumps()) {
     StoreInst *PCWrite = Jump.Instruction;
