@@ -11,6 +11,8 @@
 #include "llvm/ADT/SmallSet.h"
 
 // Local includes
+#include "datastructures.h"
+#include "debug.h"
 #include "memoryaccess.h"
 
 #define BitVector SmallBitVector

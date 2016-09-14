@@ -435,10 +435,15 @@ void FBD::cfepProcessPhase1() {
       auto FCIt = FunctionCalls.find(RelatedBB->getTerminator());
       if (FCIt != FunctionCalls.end()) {
         // This basic block ends with a function call, proceed with the return
-        // address
-        BasicBlock *ReturnBB = FCIt->second;
-        setRelation(CFEP, ReturnBB, Return);
-        WorkList.insert(ReturnBB);
+        // address, unless it's a call to a noreturn function.
+        if (JTM->noReturn().isNoreturnBasicBlock(RelatedBB)) {
+          DBG("nra", dbg << "Stopping at " << getName(RelatedBB) << " since it's a noreturn call\n");
+        } else {
+          BasicBlock *ReturnBB = FCIt->second;
+          setRelation(CFEP, ReturnBB, Return);
+          WorkList.insert(ReturnBB);
+        }
+
       } else if (Returns.count(RelatedBB->getTerminator()) == 0) {
         // It's not a return, it's not a function call, it must be a branch part
         // of the ordinary control flow of the function.
@@ -602,6 +607,8 @@ map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
   collectFunctionCalls();
 
   collectReturnInstructions();
+
+  JTM->noReturn().computeKillerSet(CallPredecessors, Returns);
 
   initNormalizedAddressSpace();
 

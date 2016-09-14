@@ -15,6 +15,7 @@
 // Local includes
 #include "datastructures.h"
 #include "ir-helpers.h"
+#include "noreturnanalysis.h"
 #include "revamb.h"
 
 // Forward declarations
@@ -481,6 +482,8 @@ public:
 
   const interval_set &readRange() const { return ReadIntervalSet; }
 
+  NoReturnAnalysis &noReturn() { return NoReturn; }
+
 private:
   /// \brief Return an iterator to the entry containing the given address range
   typename std::map<uint64_t, BBSummary>::iterator
@@ -544,6 +547,7 @@ private:
 
   std::set<uint64_t> UnusedCodePointers;
   interval_set ReadIntervalSet;
+  NoReturnAnalysis NoReturn;
 };
 
 #endif // _JUMPTARGETMANAGER_H

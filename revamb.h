@@ -2,9 +2,14 @@
 #define _REVAMB_H
 
 // Standard includes
+#include <cstdint>
 #include <iterator>
 #include <string>
 #include <vector>
+
+// LLVM includes
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
 
 // Path to the QEMU libraries should be given by the build system
 #ifndef QEMU_LIB_PATH
@@ -82,33 +87,38 @@ public:
 
  Architecture(unsigned InstructionAlignment,
               unsigned DefaultAlignment,
-              EndianessType Endianess,
-              unsigned PointerSize) :
-    InstructionAlignment(InstructionAlignment),
-    DefaultAlignment(DefaultAlignment),
-    Endianess(Endianess),
-    PointerSize(PointerSize) { }
-
- Architecture(unsigned InstructionAlignment,
-              unsigned DefaultAlignment,
               bool IsLittleEndian,
-              unsigned PointerSize) :
+              unsigned PointerSize,
+              llvm::StringRef SyscallHelper,
+              llvm::StringRef SyscallNumberRegister,
+              llvm::ArrayRef<uint64_t> NoReturnSyscalls) :
     InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
     Endianess(IsLittleEndian ? LittleEndian : BigEndian),
-    PointerSize(PointerSize) { }
+    PointerSize(PointerSize),
+    SyscallHelper(SyscallHelper),
+    SyscallNumberRegister(SyscallNumberRegister),
+    NoReturnSyscalls(NoReturnSyscalls) { }
 
   unsigned instructionAlignment() { return InstructionAlignment; }
   unsigned defaultAlignment() { return DefaultAlignment; }
   EndianessType endianess() { return Endianess; }
   unsigned pointerSize() { return PointerSize; }
   bool isLittleEndian() { return Endianess == LittleEndian; }
+  llvm::StringRef syscallHelper() { return SyscallHelper; }
+  llvm::StringRef syscallNumberRegister() { return SyscallNumberRegister; }
+  llvm::ArrayRef<uint64_t> noReturnSyscalls() { return NoReturnSyscalls; }
+
 
 private:
   unsigned InstructionAlignment;
   unsigned DefaultAlignment;
   EndianessType Endianess;
   unsigned PointerSize;
+
+  llvm::StringRef SyscallHelper;
+  llvm::StringRef SyscallNumberRegister;
+  llvm::ArrayRef<uint64_t> NoReturnSyscalls;
 };
 
 // TODO: this requires C++14

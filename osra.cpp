@@ -1736,20 +1736,19 @@ bool OSRAPass::runOnFunction(Function &F) {
     }
   }
 
-  // Free up memory not part of the analysis result
-  freeContainer(Constraints);
-  freeContainer(LoadReachers);
-  freeContainer(BlockBlackList);
-  freeContainer(Subscriptions);
-
   DBG("osr", {
       BVs.prepareDescribe();
       raw_os_ostream OutputStream(dbg);
       F.getParent()->print(OutputStream, new OSRAnnotationWriter(*this));
     });
 
-  DBG("passes", { dbg << "Ending OSRAPass\n"; });
+  // Free up memory not part of the analysis result
+  freeContainer(Constraints);
+  freeContainer(LoadReachers);
+  freeContainer(BlockBlackList);
+  freeContainer(Subscriptions);
 
+  DBG("passes", { dbg << "Ending OSRAPass\n"; });
   return false;
 }
 

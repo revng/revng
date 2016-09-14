@@ -48,6 +48,7 @@ public:
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<ConditionalReachedLoadsPass>();
     AU.addRequired<SimplifyComparisonsPass>();
+    AU.setPreservesAll();
   }
 
 public:

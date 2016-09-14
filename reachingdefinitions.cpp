@@ -44,7 +44,6 @@ ReachingDefinitionsImplPass<BBI, R>::getReachedLoads(Instruction *Definition) {
 template<class BBI, ReachingDefinitionsResult R>
 const vector<Instruction *> &
 ReachingDefinitionsImplPass<BBI, R>::getReachingDefinitions(LoadInst *Load) {
-  assert(R == ReachingDefinitionsResult::ReachingDefinitions);
   return ReachingDefinitions[Load];
 }
 
@@ -816,23 +815,21 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
             }
           }
 
-          if (R == ReachingDefinitionsResult::ReachingDefinitions) {
-            std::vector<Instruction *> LoadDefinitions;
-            for (auto &Definition : Definitions)
-              if (TargetMA == Definition.second)
-                LoadDefinitions.push_back(Definition.first);
+          std::vector<Instruction *> LoadDefinitions;
+          for (auto &Definition : Definitions)
+            if (TargetMA == Definition.second)
+              LoadDefinitions.push_back(Definition.first);
 
-            // Save them in ReachingDefinitions
-            std::sort(LoadDefinitions.begin(), LoadDefinitions.end());
-            DBG("rdp",
-                {
-                  dbg << getName(Load) << " is reached by:";
-                  for (auto *Definition : LoadDefinitions)
-                    dbg << " " << getName(Definition);
-                  dbg << "\n";
-                });
-            ReachingDefinitions[Load] = std::move(LoadDefinitions);
-          }
+          // Save them in ReachingDefinitions
+          std::sort(LoadDefinitions.begin(), LoadDefinitions.end());
+          DBG("rdp",
+              {
+                dbg << getName(Load) << " is reached by:";
+                for (auto *Definition : LoadDefinitions)
+                  dbg << " " << getName(Definition);
+                dbg << "\n";
+              });
+          ReachingDefinitions[Load] = std::move(LoadDefinitions);
 
         }
 

@@ -693,7 +693,7 @@ InstructionTranslator::translateCall(PTCInstruction *Instr) {
 
   StoreInst *PCSaver = getLastUniqueWrite(Builder.GetInsertBlock(),
                                           JumpTargets.pcReg());
-  Value *Result = Builder.CreateCall(FunctionDeclaration, InArgs);
+  CallInst *Result = Builder.CreateCall(FunctionDeclaration, InArgs);
 
   if (TheCall.OutArguments.size() != 0) {
     auto *Store = Builder.CreateStore(Result, ResultDestination);

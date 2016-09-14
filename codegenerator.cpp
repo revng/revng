@@ -101,16 +101,41 @@ CodeGenerator::CodeGenerator(std::string Input,
   // We only support ELF for now
   auto *TheBinary = cast<object::ObjectFile>(BinaryHandle.getBinary());
 
+  // TODO: QEMU should provide this information
   unsigned InstructionAlignment = 0;
+  StringRef SyscallHelper = "";
+  StringRef SyscallNumberRegister = "";
+  ArrayRef<uint64_t> NoReturnSyscalls = { };
   switch (TheBinary->getArch()) {
   case Triple::x86_64:
     InstructionAlignment = 1;
+    SyscallHelper = "helper_syscall";
+    SyscallNumberRegister = "rax";
+    NoReturnSyscalls = {
+      0xe7, // exit_group
+      0x3c, // exit
+      0x3b // execve
+    };
     break;
   case Triple::arm:
     InstructionAlignment = 4;
+    SyscallHelper = "helper_exception_with_syndrome";
+    SyscallNumberRegister = "r7";
+    NoReturnSyscalls = {
+      0xf8, // exit_group
+      0x1, // exit
+      0xb // execve
+    };
     break;
   case Triple::mips:
     InstructionAlignment = 4;
+    SyscallHelper = "helper_raise_exception";
+    SyscallNumberRegister = "v0";
+    NoReturnSyscalls = {
+      0x1096, // exit_group
+      0xfa1, // exit
+      0xfab // execve
+    };
     break;
   default:
     assert(false);
@@ -119,7 +144,10 @@ CodeGenerator::CodeGenerator(std::string Input,
   SourceArchitecture = Architecture(InstructionAlignment,
                                     1,
                                     TheBinary->isLittleEndian(),
-                                    TheBinary->getBytesInAddress() * 8);
+                                    TheBinary->getBytesInAddress() * 8,
+                                    SyscallHelper,
+                                    SyscallNumberRegister,
+                                    NoReturnSyscalls);
 
   if (SourceArchitecture.pointerSize() == 32) {
     if (SourceArchitecture.isLittleEndian()) {

@@ -39,7 +39,7 @@ include_directories(argparse/)
 add_executable(revamb ptcdump.cpp main.cpp debughelper.cpp variablemanager.cpp
   jumptargetmanager.cpp instructiontranslator.cpp codegenerator.cpp
   debug.cpp osra.cpp set.cpp simplifycomparisons.cpp reachingdefinitions.cpp
-  functionboundariesdetection.cpp argparse/argparse.c)
+  functionboundariesdetection.cpp noreturnanalysis.cpp argparse/argparse.c)
 target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
 
 # Remove -rdynamic

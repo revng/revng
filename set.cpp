@@ -38,10 +38,12 @@ using std::make_pair;
 class OperationsStack {
 public:
   OperationsStack(JumpTargetManager *JTM,
-                  const DataLayout &DL) : JTM(JTM), DL(DL) { }
+                  const DataLayout &DL) : JTM(JTM), DL(DL) {
+    reset();
+  }
 
   ~OperationsStack() {
-    reset(false, None);
+    reset();
   }
 
   void explore(Constant *NewOperand);
@@ -55,12 +57,7 @@ public:
   };
 
   /// \brief Clean the operations stack
-  ///
-  /// \param Tracking what to track, see TrackingType. This parameter only
-  ///        affects what is being explicitly tracked by the OperationsStack,
-  ///        which can be obtained through the trackedValues method. It does not
-  ///        affect the collection of jump targets, which is always enabled.
-  void reset(bool IsPCStore, TrackingType Tracking) {
+  void reset() {
     // Delete all the temporary instructions we created
     for (Instruction *I : Operations)
       if (I->getParent() == nullptr)
@@ -70,8 +67,19 @@ public:
     OperationsSet.clear();
     TrackedValues.clear();
     Approximate = false;
-    this->Tracking = Tracking;
-    this->IsPCStore = IsPCStore;
+    Tracking = None;
+    IsPCStore = false;
+    SetsSyscallNumber = false;
+    Target = nullptr;
+  }
+
+  void reset(StoreInst *Store) {
+    reset();
+    IsPCStore = JTM->isPCReg(Store->getPointerOperand());
+    if (IsPCStore)
+      Tracking = OperationsStack::PCsOnly;
+    SetsSyscallNumber = JTM->noReturn().setsSyscallNumber(Store);
+    Target = Store;
   }
 
   void registerPCs() const {
@@ -159,6 +167,9 @@ private:
   bool Approximate;
   TrackingType Tracking;
   bool IsPCStore;
+  bool SetsSyscallNumber;
+
+  Instruction *Target;
 };
 
 uint64_t OperationsStack::materialize(Constant *NewOperand) {
@@ -246,6 +257,14 @@ void OperationsStack::explore(Constant *NewOperand) {
   if (PC != 0 && (Tracking == All
                   || (Tracking == PCsOnly && JTM->isPC(PC))))
     TrackedValues.insert(PC);
+
+  if (SetsSyscallNumber) {
+    Instruction *Top = Operations.size() == 0 ? Target : Operations.back();
+
+    // TODO: don't ignore temporary instructions
+    if (Top->getParent() != nullptr)
+      JTM->noReturn().registerKiller(PC, Top, Target);
+  }
 }
 
 /// \brief Simple Expression Tracker implementation
@@ -389,15 +408,16 @@ bool SET::run() {
                          || isa<AllocaInst>(Load->getPointerOperand()))))
         continue;
 
-      // Clean the OperationsStack and, if we're dealing with a store to the PC,
-      // ask it to track all the possible values that the PC will assume.
-      OS.reset(IsPCStore,
-               IsPCStore ? OperationsStack::PCsOnly : OperationsStack::None);
       assert(WorkList.empty());
-      if (IsStore)
+      if (IsStore) {
+        // Clean the OperationsStack and, if we're dealing with a store to the
+        // PC, ask it to track all the possible values that the PC will assume.
+        OS.reset(Store);
         WorkList.push_back(make_pair(Store->getValueOperand(), 0));
-      else
+      } else {
+        OS.reset();
         WorkList.push_back(make_pair(Load->getPointerOperand(), 0));
+      }
 
       std::set<Value *> Visited;
 
@@ -433,8 +453,10 @@ bool SET::run() {
 char SETPass::ID = 0;
 
 void SETPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  if (UseOSRA)
+  if (UseOSRA) {
     AU.addRequired<OSRAPass>();
+    AU.addRequired<ConditionalReachedLoadsPass>();
+  }
 }
 
 bool SETPass::runOnFunction(Function &F) {
@@ -443,6 +465,10 @@ bool SETPass::runOnFunction(Function &F) {
   freeContainer(Jumps);
 
   OSRAPass *OSRA = getAnalysisIfAvailable<OSRAPass>();
+  if (OSRA != nullptr) {
+    auto &CRDP = getAnalysis<ConditionalReachedLoadsPass>();
+    JTM->noReturn().collectDefinitions(CRDP);
+  }
 
   SET SimpleExpressionTracker(F, JTM, OSRA, Visited, Jumps);
 
@@ -478,6 +504,8 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
     uint64_t Max = getZExtValue(MaxConst, DL);
     uint64_t Step = O->factor();
 
+    // TODO: note that since we check if isExecutableRange, this part will never
+    //       affect the noreturn syscalls detection
     // TODO: the O->size() threshold is pretty arbitrary, the best solution
     //       here is probably restore it to int64_t::max(), assert if it's
     //       larger than 10000 and only apply it to store to memory, pc and

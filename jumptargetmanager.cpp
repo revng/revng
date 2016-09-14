@@ -407,7 +407,8 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   DispatcherSwitch(nullptr),
   Segments(Segments),
   SourceArchitecture(SourceArchitecture),
-  EnableOSRA(EnableOSRA) {
+  EnableOSRA(EnableOSRA),
+  NoReturn(SourceArchitecture) {
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { Type::getInt32Ty(Context) },
                                              false);
@@ -1138,6 +1139,7 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
 
   Dispatcher = Entry;
   DispatcherSwitch = Switch;
+  NoReturn.setDispatcher(Dispatcher);
 }
 
 // Harvesting proceeds trying to avoid to run expensive analyses if not strictly
@@ -1169,6 +1171,8 @@ void JumpTargetManager::harvest() {
 
   if (EnableOSRA && empty()) {
     DBG("verify", if (verifyModule(TheModule, &dbgs())) { abort(); });
+
+    NoReturn.registerSyscalls(TheFunction);
 
     do {
 
