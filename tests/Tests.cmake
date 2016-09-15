@@ -64,8 +64,34 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   find_library(LIBTINYCODE_${ARCH} libtinycode-${ARCH}.so
     PATHS ${QEMU_LIB_PATH}
     NO_DEFAULT_PATH)
-  find_program(C_COMPILER_${ARCH} ${TRIPLE_${ARCH}}-gcc)
   find_program(QEMU_${ARCH} qemu-${ARCH})
+
+  # Try to to autodetect the triple looking for arch*-(musl|uclibc)*-gcc in PATH
+  string(REPLACE ":" ";" PATH "$ENV{PATH}")
+  foreach(SEARCH_PATH IN LISTS PATH)
+    if (NOT TRIPLE_${ARCH})
+      set(MUSL_TOOLCHAIN "")
+      set(UCLIBC_TOOLCHAIN "")
+      set(TOOLCHAIN "")
+
+      file(GLOB MUSL_TOOLCHAIN "${SEARCH_PATH}/${ARCH}*-musl*-gcc")
+      file(GLOB UCLIBC_TOOLCHAIN "${SEARCH_PATH}/${ARCH}*-uclibc*-gcc")
+      if(MUSL_TOOLCHAIN)
+        set(TOOLCHAIN "${MUSL_TOOLCHAIN}")
+      endif()
+      if(UCLIBC_TOOLCHAIN)
+        set(TOOLCHAIN "${UCLIBC_TOOLCHAIN}")
+      endif()
+
+      if(TOOLCHAIN)
+        get_filename_component(TRIPLE_${ARCH} "${TOOLCHAIN}" NAME)
+        string(REPLACE "-gcc" "" TRIPLE_${ARCH} "${TRIPLE_${ARCH}}")
+        message("Autodetected triple: ${TRIPLE_${ARCH}}")
+      endif()
+
+    endif()
+  endforeach()
+  find_program(C_COMPILER_${ARCH} ${TRIPLE_${ARCH}}-gcc)
 
   # If we miss one of the required components, drop the architecture
   if(${LIBTINYCODE_${ARCH}} STREQUAL LIBTINYCODE_${ARCH}-NOTFOUND
