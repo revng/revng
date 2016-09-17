@@ -20,7 +20,7 @@ add_definitions(${LLVM_DEFINITIONS})
 llvm_map_components_to_libnames(LLVM_LIBRARIES core support irreader ScalarOpts
   linker Analysis object transformutils)
 
-set(QEMU_INSTALL_PATH "/usr" CACHE PATH "Path to the QEMU installation path.")
+set(QEMU_INSTALL_PATH "/usr" CACHE PATH "Path to the QEMU installation.")
 set(QEMU_LIB_PATH "${QEMU_INSTALL_PATH}/lib")
 add_definitions("-DQEMU_LIB_PATH=\"${QEMU_LIB_PATH}\"")
 include_directories("${QEMU_INSTALL_PATH}/include/")

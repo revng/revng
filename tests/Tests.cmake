@@ -6,7 +6,7 @@ configure_file(tests/support.c support.c COPYONLY)
 
 # Test definitions
 
-set(TEST_CFLAGS "-std=c99 -static")
+set(TEST_CFLAGS "-std=c99 -static -fno-pic -fno-pie -g")
 set(TESTS "calc" "function_call" "floating_point" "syscall" "global")
 
 ## calc
@@ -51,25 +51,24 @@ find_program(DIFF diff)
 # * A cross compiler (provided by the user)
 # * libtinycode-${ARCH}.so, which must be in the search path
 
-set(SUPPORTED_ARCHITECTURES "aarch64;alpha;arm;armeb;cris;i386;img;io;m68k;microblaze;microblazeel;mips;mips64;mips64el;mipsel;mipsn32;mipsn32el;nbd;or32;ppc;ppc64;ppc64abi32;s390x;sh4;sh4eb;sparc;sparc32plus;sparc64;unicore32;x86_64")
-
+set(SUPPORTED_ARCHITECTURES "aarch64;alpha;arm;armeb;cris;i386;m68k;microblaze;microblazeel;mips;mips64;mips64el;mipsel;mipsn32;mipsn32el;nbd;or32;ppc;ppc64;ppc64abi32;s390x;sh4;sh4eb;sparc;sparc32plus;sparc64;unicore32;x86_64")
 # We can test an architecture if we have a compiler and a libtinycode-*.so
 foreach(ARCH ${SUPPORTED_ARCHITECTURES})
-  # TODO: don't harcode gcc, switch from triple to get the compiler directly
-  set(TRIPLE_${ARCH} ""
+  set(C_COMPILER_${ARCH} ""
     CACHE
     STRING
-    "Triple to use when looking for the ${ARCH} compiler.")
+    "Path to the C compiler to use to build tests for ${ARCH}.")
 
   find_library(LIBTINYCODE_${ARCH} libtinycode-${ARCH}.so
     PATHS ${QEMU_LIB_PATH}
     NO_DEFAULT_PATH)
   find_program(QEMU_${ARCH} qemu-${ARCH})
 
-  # Try to to autodetect the triple looking for arch*-(musl|uclibc)*-gcc in PATH
+  # Try to to autodetect the compiler looking for arch*-(musl|uclibc)*-gcc in
+  # PATH
   string(REPLACE ":" ";" PATH "$ENV{PATH}")
   foreach(SEARCH_PATH IN LISTS PATH)
-    if (NOT TRIPLE_${ARCH})
+    if (NOT C_COMPILER_${ARCH})
       set(MUSL_TOOLCHAIN "")
       set(UCLIBC_TOOLCHAIN "")
       set(TOOLCHAIN "")
@@ -84,19 +83,17 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       endif()
 
       if(TOOLCHAIN)
-        get_filename_component(TRIPLE_${ARCH} "${TOOLCHAIN}" NAME)
-        string(REPLACE "-gcc" "" TRIPLE_${ARCH} "${TRIPLE_${ARCH}}")
-        message("Autodetected triple: ${TRIPLE_${ARCH}}")
+        set(C_COMPILER_${ARCH} "${TOOLCHAIN}")
+        message("${ARCH} compiler autodetected: ${C_COMPILER_${ARCH}}")
       endif()
 
     endif()
   endforeach()
-  find_program(C_COMPILER_${ARCH} ${TRIPLE_${ARCH}}-gcc)
 
   # If we miss one of the required components, drop the architecture
-  if(${LIBTINYCODE_${ARCH}} STREQUAL LIBTINYCODE_${ARCH}-NOTFOUND
-      OR ${C_COMPILER_${ARCH}} STREQUAL C_COMPILER_${ARCH}-NOTFOUND
-      OR ${QEMU_${ARCH}} STREQUAL QEMU_${ARCH}-NOTFOUND)
+  if(LIBTINYCODE_${ARCH} STREQUAL "LIBTINYCODE_${ARCH}-NOTFOUND"
+      OR C_COMPILER_${ARCH} STREQUAL "C_COMPILER_${ARCH}-NOTFOUND"
+      OR QEMU_${ARCH} STREQUAL "QEMU_${ARCH}-NOTFOUND")
     list(REMOVE_ITEM SUPPORTED_ARCHITECTURES ${ARCH})
   else()
     message("Testing enabled for ${ARCH}")
@@ -185,7 +182,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       PROPERTIES LABELS "translate;${TEST_NAME};${ARCH}")
 
     # Command-line to link support.c and the translated binaries
-    compile_executable("$(${CMAKE_CURRENT_SOURCE_DIR}/tests/li-csv-to-ld-options ${BIN}/${TEST_NAME}.ll.li.csv) ${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} ${TEST_SRC}/support.c -DTARGET_${NORMALIZED_ARCH} -lz -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -g"
+    compile_executable("$(${CMAKE_CURRENT_SOURCE_DIR}/tests/li-csv-to-ld-options ${BIN}/${TEST_NAME}.ll.li.csv) ${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} ${TEST_SRC}/support.c -DTARGET_${NORMALIZED_ARCH} -lz -lm -lrt -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -g -fno-pie"
       "${BIN}/${TEST_NAME}.translated"
       COMPILE_TRANSLATED)
 
