@@ -183,6 +183,10 @@ target_reg prepare_stack(target_reg stack, int argc, char **argv) {
 void target_set_brk(target_reg new_brk);
 void syscall_init(void);
 
+const char *path(const char *name) {
+  return name;
+}
+
 void *g_malloc0_n(size_t n, size_t size) {
   return calloc(n, size);
 }
