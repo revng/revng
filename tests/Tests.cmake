@@ -62,7 +62,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   find_library(LIBTINYCODE_${ARCH} libtinycode-${ARCH}.so
     PATHS ${QEMU_LIB_PATH}
     NO_DEFAULT_PATH)
-  find_program(QEMU_${ARCH} qemu-${ARCH})
+  find_program(QEMU_${ARCH} qemu-${ARCH} HINTS "${QEMU_BIN_PATH}")
 
   # Try to to autodetect the compiler looking for arch*-(musl|uclibc)*-gcc in
   # PATH

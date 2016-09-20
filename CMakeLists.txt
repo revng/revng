@@ -22,6 +22,7 @@ llvm_map_components_to_libnames(LLVM_LIBRARIES core support irreader ScalarOpts
 
 set(QEMU_INSTALL_PATH "/usr" CACHE PATH "Path to the QEMU installation.")
 set(QEMU_LIB_PATH "${QEMU_INSTALL_PATH}/lib")
+set(QEMU_BIN_PATH "${QEMU_INSTALL_PATH}/bin")
 add_definitions("-DQEMU_LIB_PATH=\"${QEMU_LIB_PATH}\"")
 include_directories("${QEMU_INSTALL_PATH}/include/")
 
