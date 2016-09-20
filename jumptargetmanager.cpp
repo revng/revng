@@ -1,7 +1,11 @@
-/// \file
+/// \file jumptargetmanager.cpp
 /// \brief This file handles the possible jump targets encountered during
 ///        translation and the creation and management of the respective
 ///        BasicBlock.
+
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
 
 // Standard includes
 #include <cassert>

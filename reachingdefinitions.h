@@ -1,6 +1,10 @@
 #ifndef _REACHINGDEFINITIONS_H
 #define _REACHINGDEFINITIONS_H
 
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
 // Standard includes
 #include <unordered_set>
 #include <vector>

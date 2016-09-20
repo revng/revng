@@ -1,5 +1,9 @@
-/// \file
+/// \file reachingdefinitions.cpp
 /// \brief Implementation of the ReachingDefinitionsPass
+
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
 
 // Standard includes
 #include <array>

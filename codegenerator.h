@@ -1,6 +1,10 @@
 #ifndef _CODEGENERATOR_H
 #define _CODEGENERATOR_H
 
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
 // Standard includes
 #include <cstdint>
 #include <string>

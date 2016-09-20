@@ -1,6 +1,10 @@
 /// \file simplifycomparison.cpp
 /// \brief Implementation of the SimplifyComparisonsPass
 
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
 // Standard includes
 #include <queue>
 #include <tuple>

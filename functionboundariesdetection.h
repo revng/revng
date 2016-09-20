@@ -1,6 +1,10 @@
 #ifndef _FUNCTIONBOUNDARIESDETECTION_H
 #define _FUNCTIONBOUNDARIESDETECTION_H
 
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
 // Standard includes
 #include <map>
 #include <string>

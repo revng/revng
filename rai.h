@@ -1,6 +1,10 @@
 #ifndef _RAI_H
 #define _RAI_H
 
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
 #include <cassert>
 #include <iterator>
 

@@ -1,6 +1,10 @@
-/// \file
+/// \file main.cpp
 /// \brief This file takes care of handling command-line parameters and loading
 /// the appropriate flavour of libtinycode-*.so
+
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
 
 // Standard includes
 #include <cstdio>

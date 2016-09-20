@@ -1,3 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
 # Sadly, to use a cross-compiler we need an external CMake project
 include(ExternalProject)
 

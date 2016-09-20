@@ -1,6 +1,10 @@
-/// \file
+/// \file instructiontranslator.cpp
 /// \brief This file implements the logic to translate a PTC instruction in to
 ///        LLVM IR.
+
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
 
 // Standard includes
 #include <cassert>

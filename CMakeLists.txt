@@ -1,3 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
 cmake_minimum_required(VERSION 2.8)
 
 project(revamb)

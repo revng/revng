@@ -1,6 +1,11 @@
 #ifndef _RANGE_H
 #define _RANGE_H
 
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+// Standard includes
 #include <type_traits>
 #include <vector>
 
