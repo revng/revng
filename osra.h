@@ -596,11 +596,8 @@ private:
       const MapIndex &Index = It->first;
 
       if (auto *I = llvm::dyn_cast<llvm::Instruction>(Index.second)) {
-        bool Result = I->getParent() == Index.first;
-        if (Result) {
-          assert(It->second.Components.size() == 0);
-        }
-        return Result;
+        return I->getParent() == Index.first
+          && It->second.Components.size() == 0;
       } else {
         return false;
       }
