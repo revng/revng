@@ -275,7 +275,7 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
       } else {
         // If we have extra data at the end we need to create a copy of the
         // segment and append the NULL bytes
-        auto FullData = std::make_unique<uint8_t[]>(ProgramHeader.p_memsz);
+        auto FullData = make_unique<uint8_t[]>(ProgramHeader.p_memsz);
         ::memcpy(FullData.get(),
                  ActualStartAddress,
                  ProgramHeader.p_filesz);

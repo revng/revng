@@ -129,7 +129,7 @@ private:
 template<typename FnTy, FnTy Ptr>
 struct GenericFunctor {
   template<typename... Args>
-  auto operator()(Args... args) {
+  auto operator()(Args... args) -> decltype(Ptr(args...)) {
     return Ptr(args...);
   }
 };
