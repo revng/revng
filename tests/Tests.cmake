@@ -56,6 +56,9 @@ find_program(DIFF diff)
 # * libtinycode-${ARCH}.so, which must be in the search path
 
 set(SUPPORTED_ARCHITECTURES "aarch64;alpha;arm;armeb;cris;i386;m68k;microblaze;microblazeel;mips;mips64;mips64el;mipsel;mipsn32;mipsn32el;nbd;or32;ppc;ppc64;ppc64abi32;s390x;sh4;sh4eb;sparc;sparc32plus;sparc64;unicore32;x86_64")
+set(QEMU_BIN_PATH "${QEMU_INSTALL_PATH}/bin")
+set(QEMU_LIB_PATH "${QEMU_INSTALL_PATH}/lib")
+
 # We can test an architecture if we have a compiler and a libtinycode-*.so
 foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   set(C_COMPILER_${ARCH} ""
@@ -63,9 +66,8 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
     STRING
     "Path to the C compiler to use to build tests for ${ARCH}.")
 
-  find_library(LIBTINYCODE_${ARCH} libtinycode-${ARCH}.so
-    PATHS ${QEMU_LIB_PATH}
-    NO_DEFAULT_PATH)
+  find_library(LIBTINYCODE_${ARCH} "libtinycode-${ARCH}.so"
+    HINTS "${QEMU_LIB_PATH}" "${CMAKE_INSTALL_PREFIX}/lib")
   find_program(QEMU_${ARCH} qemu-${ARCH} HINTS "${QEMU_BIN_PATH}")
 
   # Try to to autodetect the compiler looking for arch*-(musl|uclibc)*-gcc in

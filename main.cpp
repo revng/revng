@@ -8,15 +8,18 @@
 
 // Standard includes
 #include <cstdio>
-#include <vector>
+#include <cstdlib>
 #include <memory>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 extern "C" {
 #include <dlfcn.h>
+#include <libgen.h>
+#include <unistd.h>
 }
 
 // LLVM includes
@@ -32,6 +35,8 @@ extern "C" {
 #include "codegenerator.h"
 
 PTCInterface ptc = {}; ///< The interface with the PTC library.
+static std::string LibTinycodePath;
+static std::string LibHelpersPath;
 
 struct ProgramParameters {
   const char *Architecture;
@@ -56,6 +61,39 @@ static const char *const Usage[] = {
   nullptr,
 };
 
+static void findQemu(const char *Architecture) {
+  char *FullPath = realpath("/proc/self/exe", nullptr);
+  assert(FullPath != nullptr);
+  std::string Directory(dirname(FullPath));
+  free(FullPath);
+
+  // TODO: add other search paths?
+  std::vector<std::string> SearchPaths;
+#ifdef QEMU_INSTALL_PATH
+  SearchPaths.push_back(std::string(QEMU_INSTALL_PATH) + "/lib");
+#endif
+#ifdef INSTALL_PATH
+  SearchPaths.push_back(std::string(INSTALL_PATH) + "/lib");
+#endif
+  SearchPaths.push_back(Directory + "/../lib");
+
+  for (auto &Path : SearchPaths) {
+    std::stringstream LibraryPath;
+    LibraryPath << Path << "/libtinycode-" << Architecture << ".so";
+    std::stringstream HelpersPath;
+    HelpersPath << Path << "/libtinycode-helpers-" << Architecture << ".ll";
+    if (access(LibraryPath.str().c_str(), F_OK) != -1
+        && access(HelpersPath.str().c_str(), F_OK) != -1) {
+      LibTinycodePath = LibraryPath.str();
+      LibHelpersPath = HelpersPath.str();
+      return;
+    }
+
+  }
+
+  assert(false && "Couldn't find libtinycode and the helpers");
+}
+
 /// Given an architecture name, loads the appropriate version of the PTC library,
 /// and initializes the PTC interface.
 ///
@@ -63,17 +101,12 @@ static const char *const Usage[] = {
 /// \param PTCLibrary a reference to the library handler.
 ///
 /// \return EXIT_SUCCESS if the library has been successfully loaded.
-static int loadPTCLibrary(const char *Architecture,
-                          LibraryPointer& PTCLibrary) {
+static int loadPTCLibrary(LibraryPointer& PTCLibrary) {
   ptc_load_ptr_t ptc_load = nullptr;
   void *LibraryHandle = nullptr;
 
-  // Build library name
-  std::stringstream LibraryName;
-  LibraryName << QEMU_LIB_PATH << "/libtinycode-" << Architecture << ".so";
-
   // Look for the library in the system's paths
-  LibraryHandle = dlopen(LibraryName.str().c_str(), RTLD_LAZY);
+  LibraryHandle = dlopen(LibTinycodePath.c_str(), RTLD_LAZY);
 
   if (LibraryHandle == nullptr) {
     fprintf(stderr, "Couldn't load the PTC library: %s\n", dlerror());
@@ -234,23 +267,19 @@ int main(int argc, const char *argv[]) {
   if (parseArgs(argc, argv, &Parameters) != EXIT_SUCCESS)
     return EXIT_FAILURE;
 
+  findQemu(Parameters.Architecture);
+
   // Load the appropriate libtyncode version
   LibraryPointer PTCLibrary;
-  if (loadPTCLibrary(Parameters.Architecture, PTCLibrary) != EXIT_SUCCESS)
+  if (loadPTCLibrary(PTCLibrary) != EXIT_SUCCESS)
     return EXIT_FAILURE;
-
-  std::stringstream HelpersPath;
-  HelpersPath << QEMU_LIB_PATH
-              << "/libtinycode-helpers-"
-              << Parameters.Architecture
-              << ".ll";
 
   // Translate everything
   Architecture TargetArchitecture;
   CodeGenerator Generator(std::string(Parameters.InputPath),
                           TargetArchitecture,
                           std::string(Parameters.OutputPath),
-                          HelpersPath.str(),
+                          LibHelpersPath,
                           Parameters.DebugInfo,
                           std::string(Parameters.DebugPath),
                           std::string(Parameters.LinkingInfoPath),

@@ -15,11 +15,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 
-// Path to the QEMU libraries should be given by the build system
-#ifndef QEMU_LIB_PATH
-# define QEMU_LIB_PATH "/usr/lib"
-#endif
-
 namespace llvm {
 class GlobalVariable;
 };
