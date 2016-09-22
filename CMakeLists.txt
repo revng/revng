@@ -40,12 +40,22 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 add_definitions("-D_FILE_OFFSET_BITS=64")
 include_directories(argparse/)
 
+set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
+
 add_executable(revamb ptcdump.cpp main.cpp debughelper.cpp variablemanager.cpp
   jumptargetmanager.cpp instructiontranslator.cpp codegenerator.cpp
   debug.cpp osra.cpp set.cpp simplifycomparisons.cpp reachingdefinitions.cpp
   functionboundariesdetection.cpp noreturnanalysis.cpp argparse/argparse.c)
 target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
 install(TARGETS revamb RUNTIME DESTINATION bin)
+
+configure_file(li-csv-to-ld-options "${CMAKE_BINARY_DIR}/li-csv-to-ld-options"
+  COPYONLY)
+configure_file(support.c "${CMAKE_BINARY_DIR}/support.c" COPYONLY)
+configure_file(translate "${CMAKE_BINARY_DIR}/translate" COPYONLY)
+install(PROGRAMS translate li-csv-to-ld-options DESTINATION bin)
+install(FILES support.c DESTINATION share/revamb)
+
 # Remove -rdynamic
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 

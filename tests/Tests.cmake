@@ -5,9 +5,6 @@
 # Sadly, to use a cross-compiler we need an external CMake project
 include(ExternalProject)
 
-configure_file(tests/li-csv-to-ld-options li-csv-to-ld-options COPYONLY)
-configure_file(tests/support.c support.c COPYONLY)
-
 # Test definitions
 
 set(TEST_CFLAGS "-std=c99 -static -fno-pic -fno-pie -g")
@@ -188,7 +185,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       PROPERTIES LABELS "translate;${TEST_NAME};${ARCH}")
 
     # Command-line to link support.c and the translated binaries
-    compile_executable("$(${CMAKE_CURRENT_SOURCE_DIR}/tests/li-csv-to-ld-options ${BIN}/${TEST_NAME}.ll.li.csv) ${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} ${TEST_SRC}/support.c -DTARGET_${NORMALIZED_ARCH} -lz -lm -lrt -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -g -fno-pie"
+    compile_executable("$(${CMAKE_BINARY_DIR}/li-csv-to-ld-options ${BIN}/${TEST_NAME}.ll.li.csv) ${BIN}/${TEST_NAME}${CMAKE_C_OUTPUT_EXTENSION} ${CMAKE_BINARY_DIR}/support.c -DTARGET_${NORMALIZED_ARCH} -lz -lm -lrt -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -g -fno-pie"
       "${BIN}/${TEST_NAME}.translated"
       COMPILE_TRANSLATED)
 
