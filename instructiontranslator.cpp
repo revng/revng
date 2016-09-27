@@ -1277,7 +1277,8 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       unsigned LabelId = ptc.get_arg_label_id(ConstArguments[0]);
 
       std::stringstream LabelSS;
-      LabelSS << "bb.0x" << std::hex << LastPC << "_L" << std::dec << LabelId;
+      LabelSS << "bb." << JumpTargets.nameForAddress(LastPC);
+      LabelSS << "_L" << std::dec << LabelId;
       std::string Label = LabelSS.str();
 
       BasicBlock *Fallthrough = nullptr;
@@ -1317,7 +1318,8 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       unsigned LabelId = ptc.get_arg_label_id(ConstArguments.back());
 
       std::stringstream LabelSS;
-      LabelSS << "bb.0x" << std::hex << LastPC << "_L" << std::dec << LabelId;
+      LabelSS << "bb." << JumpTargets.nameForAddress(LastPC);
+      LabelSS << "_L" << std::dec << LabelId;
       std::string Label = LabelSS.str();
 
       BasicBlock *Fallthrough = BasicBlock::Create(Context,

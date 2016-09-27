@@ -42,18 +42,18 @@ struct SegmentInfo {
   bool IsExecutable;
   bool IsReadable;
 
-  bool contains(uint64_t Address) {
+  bool contains(uint64_t Address) const {
     return StartVirtualAddress <= Address && Address < EndVirtualAddress;
   }
 
-  bool contains(uint64_t Start, uint64_t Size) {
+  bool contains(uint64_t Start, uint64_t Size) const {
     return contains(Start) && contains(Start + Size - 1);
   }
 
   std::vector<std::pair<uint64_t, uint64_t>> ExecutableSections;
 
-  template<class Container>
-  void insertExecutableRanges(std::back_insert_iterator<Container> Inserter) {
+  template<class C>
+  void insertExecutableRanges(std::back_insert_iterator<C> Inserter) const {
     if (!IsExecutable)
       return;
 
@@ -66,6 +66,25 @@ struct SegmentInfo {
     }
   }
 
+};
+
+struct SymbolInfo {
+  llvm::StringRef Name;
+  uint64_t Address;
+  uint64_t Size;
+
+  bool operator<(const SymbolInfo &Other) const {
+    return Address < Other.Address;
+  }
+
+  bool operator==(const SymbolInfo &Other) const {
+    return Name == Other.Name && Address == Other.Address && Size == Other.Size;
+  }
+};
+
+struct BinaryInfo {
+  std::vector<SegmentInfo> Segments;
+  std::vector<SymbolInfo> Symbols;
 };
 
 /// \brief Basic information about an input/output architecture

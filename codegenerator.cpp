@@ -12,8 +12,9 @@
 #include <sstream>
 #include <vector>
 #include <fstream>
-#include <set>
 #include <queue>
+#include <set>
+#include <utility>
 
 // LLVM includes
 #include "llvm/Analysis/LoopInfo.h"
@@ -32,6 +33,11 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+
+// Boost includes
+#include <boost/icl/interval_map.hpp>
+#include <boost/type_traits/is_same.hpp>
+#include <boost/icl/right_open_interval.hpp>
 
 // Local includes
 #include "codegenerator.h"
@@ -191,6 +197,37 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
   object::ELFFile<T> TheELF(TheBinary->getData(), EC);
   assert(!EC && "Error while loading the ELF file");
 
+  // Look for static or dynamic symbols
+  using Elf_ShdrPtr = decltype(&(*TheELF.sections().begin()));
+  Elf_ShdrPtr Symtab = nullptr;
+  for (auto &Section : TheELF.sections()){
+    auto Name = TheELF.getSectionName(&Section);
+    if (Name && Name.get() == ".symtab") {
+      Symtab = &Section;
+      break;
+    } else if (Name && Name.get() == ".dynsym") {
+      Symtab = &Section;
+    }
+  }
+
+  // If we found a symbol table
+  if (Symtab != nullptr && Symtab->sh_link != 0) {
+    // Obtain a reference to the string table
+    auto *Strtab = TheELF.getSection(Symtab->sh_link).get();
+    auto StrtabArray = TheELF.getSectionContents(Strtab).get();
+    StringRef StrtabContent(reinterpret_cast<const char *>(StrtabArray.data()),
+                            StrtabArray.size());
+
+    // Collect symbol names
+    for (auto &Symbol : TheELF.symbols(Symtab)) {
+      Binary.Symbols.push_back({
+        Symbol.getName(StrtabContent).get(),
+        Symbol.st_value,
+        Symbol.st_size
+      });
+    }
+  }
+
   const auto *ElfHeader = TheELF.getHeader();
   EntryPoint = static_cast<uint64_t>(ElfHeader->e_entry);
 
@@ -314,7 +351,7 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
                         << ",0x" << std::hex << Segment.EndVirtualAddress
                         << std::endl;
 
-      Segments.push_back(Segment);
+      Binary.Segments.push_back(Segment);
     }
 }
 
@@ -700,7 +737,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   JumpTargetManager JumpTargets(MainFunction,
                                 PCReg,
                                 SourceArchitecture,
-                                Segments,
+                                Binary,
                                 EnableOSRA);
 
   if (VirtualAddress == 0) {

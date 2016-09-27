@@ -112,7 +112,7 @@ private:
   std::string OutputPath;
   std::unique_ptr<DebugHelper> Debug;
   llvm::object::OwningBinary<llvm::object::Binary> BinaryHandle;
-  std::vector<SegmentInfo> Segments;
+  BinaryInfo Binary;
   uint64_t EntryPoint;
 
   unsigned OriginalInstrMDKind;

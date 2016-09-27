@@ -13,6 +13,8 @@
 #include <fstream>
 #include <queue>
 #include <sstream>
+
+// Boost includes
 #include <boost/icl/interval_set.hpp>
 #include <boost/type_traits/is_same.hpp>
 #include <boost/icl/right_open_interval.hpp>
@@ -316,7 +318,7 @@ Optional<uint64_t> JumpTargetManager::readRawValue(uint64_t Address,
   // TODO: create a IsLittleEndian field in JumpTargetManager?
   const DataLayout &DL = TheModule.getDataLayout();
 
-  for (auto &Segment : Segments) {
+  for (auto &Segment : Binary.Segments) {
     // Note: we also consider writeable memory areas because, despite being
     // modifiable, can contain useful information
     if (Segment.contains(Address, Size) && Segment.IsReadable) {
@@ -397,7 +399,7 @@ static cl::opt<T> *getOption(StringMap<cl::Option *>& Options,
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                      Value *PCReg,
                                      Architecture& SourceArchitecture,
-                                     std::vector<SegmentInfo>& Segments,
+                                     const BinaryInfo &Binary,
                                      bool EnableOSRA) :
   TheModule(*TheFunction->getParent()),
   Context(TheModule.getContext()),
@@ -408,7 +410,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   ExitTB(nullptr),
   Dispatcher(nullptr),
   DispatcherSwitch(nullptr),
-  Segments(Segments),
+  Binary(Binary),
   SourceArchitecture(SourceArchitecture),
   EnableOSRA(EnableOSRA),
   NoReturn(SourceArchitecture) {
@@ -418,8 +420,10 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   ExitTB = cast<Function>(TheModule.getOrInsertFunction("exitTB", ExitTBTy));
   createDispatcher(TheFunction, PCReg, true);
 
-  for (auto& Segment : Segments)
+  for (auto &Segment : Binary.Segments)
     Segment.insertExecutableRanges(std::back_inserter(ExecutableRanges));
+
+  initializeSymbolMap();
 
   // Configure GlobalValueNumbering
   StringMap<cl::Option *>& Options(cl::getRegisteredOptions());
@@ -429,8 +433,58 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   // getOption<uint32_t>(Options, "max-recurse-depth")->setInitialValue(10);
 }
 
+void JumpTargetManager::initializeSymbolMap() {
+  // Collect how many times each name is used
+  std::map<std::string, unsigned> SeenCount;
+  for (const SymbolInfo &Symbol : Binary.Symbols)
+    SeenCount[std::string(Symbol.Name)]++;
+
+  for (const SymbolInfo &Symbol : Binary.Symbols) {
+    // Discard symbols pointing to 0, with zero-sized names or present multiple
+    // times. Note that we keep zero-size symbols.
+    if (Symbol.Address == 0
+        || Symbol.Name.size() == 0
+        || SeenCount[std::string(Symbol.Name)] > 1)
+      continue;
+
+    // Associate to this interval the symbol
+    unsigned Size = std::max(1UL, Symbol.Size);
+    auto NewInterval = interval::right_open(Symbol.Address,
+                                            Symbol.Address + Size);
+    SymbolMap += make_pair(NewInterval, SymbolInfoSet { &Symbol });
+  }
+}
+
+std::string JumpTargetManager::nameForAddress(uint64_t Address) const {
+  std::stringstream Result;
+
+  // Take the interval greater than [Address, Address + 1[
+  auto It = SymbolMap.upper_bound(interval::right_open(Address, Address + 1));
+  if (It != SymbolMap.begin()) {
+    // Go back one position
+    It--;
+
+    // In case we have multiple matching symbols, take the closest one
+    const SymbolInfoSet &Matching = It->second;
+    auto MaxIt = std::max_element(Matching.begin(), Matching.end());
+    const SymbolInfo *const BestMatch = *MaxIt;
+
+    // Use the symbol name
+    Result << BestMatch->Name.str();
+
+    // And, if necessary, an offset
+    if (Address != BestMatch->Address)
+      Result << ".0x" << std::hex << (Address - BestMatch->Address);
+  } else {
+    // We don't have a symbol to use, just return the address
+    Result << "0x" << std::hex << Address;
+  }
+
+  return Result.str();
+}
+
 void JumpTargetManager::harvestGlobalData() {
-  for (auto& Segment : Segments) {
+  for (auto& Segment : Binary.Segments) {
     auto *Data = cast<ConstantDataArray>(Segment.Variable->getInitializer());
     uint64_t StartVirtualAddress = Segment.StartVirtualAddress;
     const unsigned char *DataStart = Data->getRawDataValues().bytes_begin();
@@ -1089,7 +1143,7 @@ BasicBlock *JumpTargetManager::registerJT(uint64_t PC, JTReason Reason) {
 
   if (NewBlock->getName().empty()) {
     std::stringstream Name;
-    Name << "bb.0x" << std::hex << PC;
+    Name << "bb." << nameForAddress(PC);
     NewBlock->setName(Name.str());
   }
 

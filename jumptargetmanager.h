@@ -11,6 +11,7 @@
 #include <set>
 #include <vector>
 #include <boost/icl/interval_set.hpp>
+#include <boost/icl/interval_map.hpp>
 #include <boost/type_traits/is_same.hpp>
 
 // LLVM includes
@@ -103,6 +104,7 @@ private:
 class JumpTargetManager {
 private:
   using interval_set = boost::icl::interval_set<uint64_t>;
+  using interval = boost::icl::interval<uint64_t>;
 
   /// \brief Data structure to collect statistics about an input basic block
   struct BBSummary {
@@ -195,12 +197,13 @@ public:
   /// \param TheFunction the translated function.
   /// \param PCReg the global variable representing the program counter.
   /// \param SourceArchitecture the input architecture.
-  /// \param Segments a vector of SegmentInfo representing the program.
+  /// \param Binary reference to the information about a given binary, such as
+  ///        segments and symbols.
   /// \param EnableOSRA whether OSRA is enabled or not.
   JumpTargetManager(llvm::Function *TheFunction,
                     llvm::Value *PCReg,
                     Architecture& SourceArchitecture,
-                    std::vector<SegmentInfo>& Segments,
+                    const BinaryInfo &Binary,
                     bool EnableOSRA);
 
   /// \brief Collect jump targets from the program's segments
@@ -488,7 +491,19 @@ public:
 
   NoReturnAnalysis &noReturn() { return NoReturn; }
 
+  /// \brief Return a proper name for the given address, possibly using symbols
+  ///
+  /// \param Address the address for which a name should be produced.
+  ///
+  /// \return a string containing the symbol name and, if necessary an offset,
+  ///         or if no symbol can be found, just the address.
+  std::string nameForAddress(uint64_t Address) const;
+
 private:
+
+  /// \brief Populate the interval -> Symbol map from Binary.Symbols
+  void initializeSymbolMap();
+
   /// \brief Return an iterator to the entry containing the given address range
   typename std::map<uint64_t, BBSummary>::iterator
   containingOriginalBB(uint64_t Address) {
@@ -541,7 +556,7 @@ private:
   llvm::BasicBlock *DispatcherFail;
   std::set<llvm::BasicBlock *> Visited;
 
-  std::vector<SegmentInfo>& Segments;
+  const BinaryInfo &Binary;
   Architecture &SourceArchitecture;
 
   bool EnableOSRA;
@@ -552,6 +567,8 @@ private:
   std::set<uint64_t> UnusedCodePointers;
   interval_set ReadIntervalSet;
   NoReturnAnalysis NoReturn;
+  using SymbolInfoSet = std::set<const SymbolInfo *>;
+  boost::icl::interval_map<uint64_t, SymbolInfoSet> SymbolMap;
 };
 
 #endif // _JUMPTARGETMANAGER_H
