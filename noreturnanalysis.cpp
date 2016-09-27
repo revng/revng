@@ -19,10 +19,16 @@
 using namespace llvm;
 
 void NoReturnAnalysis::registerSyscalls(llvm::Function *F) {
+  // Look for calls to the syscall helper
   Module *M = F->getParent();
+  Function *SyscallHandler = M->getFunction(SourceArchitecture.syscallHelper());
+  if (SyscallHandler == nullptr)
+    return;
+
   StringRef RegisterName = SourceArchitecture.syscallNumberRegister();
   Value *SyscallNumberRegister = M->getGlobalVariable(RegisterName);
-  assert(SyscallNumberRegister != nullptr);
+  if (SyscallNumberRegister == nullptr)
+    return;
 
   // Lazily create the "nodce" function
   if (NoDCE == nullptr) {
@@ -34,9 +40,6 @@ void NoReturnAnalysis::registerSyscalls(llvm::Function *F) {
                                                   nullptr));
   }
 
-  // Look for calls to the syscall helper
-  Function *SyscallHandler = M->getFunction(SourceArchitecture.syscallHelper());
-  assert(SyscallHandler != nullptr);
   for (User *U : SyscallHandler->users()) {
     if (auto *Call = dyn_cast<CallInst>(U)) {
       // Consider calls only in the requested function
@@ -89,6 +92,9 @@ bool NoReturnAnalysis::endsUpIn(Instruction *I, BasicBlock *Target) {
 }
 
 void NoReturnAnalysis::collectDefinitions(ConditionalReachedLoadsPass &CRL) {
+  if (!hasSyscalls())
+    return;
+
   // Cleanup all the calls to "nodce"
   for (User *NoDCEUser : NoDCE->users())
     cast<CallInst>(NoDCEUser)->eraseFromParent();

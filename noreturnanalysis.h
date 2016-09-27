@@ -89,6 +89,8 @@ private:
     return true;
   }
 
+  bool hasSyscalls() const { return NoDCE != nullptr; }
+
 private:
   Architecture SourceArchitecture;
   std::set<llvm::CallInst *> RegisteredSyscalls;
