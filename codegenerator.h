@@ -14,6 +14,7 @@
 #include "llvm/ADT/ArrayRef.h"
 
 // Local includes
+#include "binaryfile.h"
 #include "revamb.h"
 
 // Forward declarations
@@ -42,7 +43,7 @@ public:
   /// another, writing the corresponding LLVM IR and other useful information to
   /// the specified paths.
   ///
-  /// \param Input path to the program executable (e.g. the ELF file).
+  /// \param Binary reference to a BinaryFile object describing the input.
   /// \param Target target architecture.
   /// \param Output path where the generate LLVM IR must be saved.
   /// \param Helpers path of the LLVM IR file containing the QEMU helpers.
@@ -62,8 +63,8 @@ public:
   /// \param EnableTracing specify whether tracing in the ouptut binary should
   ///        be enabled, that is, whether calls to an external `newPC` function
   ///        should be removed at the end of the translation or not.
-  CodeGenerator(std::string Input,
-                Architecture& Target,
+  CodeGenerator(BinaryFile &Binary,
+                Architecture &Target,
                 std::string Output,
                 std::string Helpers,
                 DebugInfoType DebugInfo,
@@ -72,8 +73,7 @@ public:
                 std::string Coverage,
                 std::string BBSummary,
                 bool EnableOSRA,
-                bool EnableTracing,
-                bool UseSections);
+                bool EnableTracing);
 
   ~CodeGenerator();
 
@@ -104,16 +104,13 @@ private:
                 bool UseSections);
 
 private:
-  Architecture SourceArchitecture;
   Architecture TargetArchitecture;
   llvm::LLVMContext& Context;
   std::unique_ptr<llvm::Module> TheModule;
   std::unique_ptr<llvm::Module> HelpersModule;
   std::string OutputPath;
   std::unique_ptr<DebugHelper> Debug;
-  llvm::object::OwningBinary<llvm::object::Binary> BinaryHandle;
-  BinaryInfo Binary;
-  uint64_t EntryPoint;
+  BinaryFile &Binary;
 
   unsigned OriginalInstrMDKind;
   unsigned PTCInstrMDKind;

@@ -18,6 +18,7 @@
 #include "llvm/ADT/Optional.h"
 
 // Local includes
+#include "binaryfile.h"
 #include "datastructures.h"
 #include "ir-helpers.h"
 #include "noreturnanalysis.h"
@@ -196,14 +197,12 @@ public:
 
   /// \param TheFunction the translated function.
   /// \param PCReg the global variable representing the program counter.
-  /// \param SourceArchitecture the input architecture.
   /// \param Binary reference to the information about a given binary, such as
   ///        segments and symbols.
   /// \param EnableOSRA whether OSRA is enabled or not.
   JumpTargetManager(llvm::Function *TheFunction,
                     llvm::Value *PCReg,
-                    Architecture& SourceArchitecture,
-                    const BinaryInfo &Binary,
+                    const BinaryFile &Binary,
                     bool EnableOSRA);
 
   /// \brief Collect jump targets from the program's segments
@@ -279,7 +278,7 @@ public:
   /// \brief Return true if the given PC respects the input architecture's
   ///        instruction alignment constraints
   bool isInstructionAligned(uint64_t PC) const {
-    return PC % SourceArchitecture.instructionAlignment() == 0;
+    return PC % Binary.architecture().instructionAlignment() == 0;
   }
 
   /// \brief Return true if the given PC can be executed by the current
@@ -460,7 +459,7 @@ public:
   /// that have never been touched by SET will be considered and their pointee
   /// will be marked with UnusedGlobalData.
   void finalizeJumpTargets() {
-    unsigned ReadSize = SourceArchitecture.pointerSize() / 8;
+    unsigned ReadSize = Binary.architecture().pointerSize() / 8;
     for (uint64_t MemoryAddress : UnusedCodePointers) {
       uint64_t PC = readRawValue(MemoryAddress, ReadSize).getValue();
       registerJT(PC, UnusedGlobalData);
@@ -556,8 +555,7 @@ private:
   llvm::BasicBlock *DispatcherFail;
   std::set<llvm::BasicBlock *> Visited;
 
-  const BinaryInfo &Binary;
-  Architecture &SourceArchitecture;
+  const BinaryFile &Binary;
 
   bool EnableOSRA;
 

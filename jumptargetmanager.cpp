@@ -318,7 +318,7 @@ Optional<uint64_t> JumpTargetManager::readRawValue(uint64_t Address,
   // TODO: create a IsLittleEndian field in JumpTargetManager?
   const DataLayout &DL = TheModule.getDataLayout();
 
-  for (auto &Segment : Binary.Segments) {
+  for (auto &Segment : Binary.segments()) {
     // Note: we also consider writeable memory areas because, despite being
     // modifiable, can contain useful information
     if (Segment.contains(Address, Size) && Segment.IsReadable) {
@@ -360,7 +360,7 @@ Optional<uint64_t> JumpTargetManager::readRawValue(uint64_t Address,
 Constant *JumpTargetManager::readConstantPointer(Constant *Address,
                                                  Type *PointerTy) {
   auto *Value = readConstantInt(Address,
-                                SourceArchitecture.pointerSize() / 8);
+                                Binary.architecture().pointerSize() / 8);
   if (Value != nullptr) {
     return ConstantExpr::getIntToPtr(Value, PointerTy);
   } else {
@@ -374,7 +374,8 @@ ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
 
   if (ConstantAddress->getType()->isPointerTy()) {
     using CE = ConstantExpr;
-    auto IntPtrTy = Type::getIntNTy(Context, SourceArchitecture.pointerSize());
+    auto IntPtrTy = Type::getIntNTy(Context,
+                                    Binary.architecture().pointerSize());
     ConstantAddress = CE::getPtrToInt(ConstantAddress, IntPtrTy);
   }
 
@@ -398,8 +399,7 @@ static cl::opt<T> *getOption(StringMap<cl::Option *>& Options,
 
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                      Value *PCReg,
-                                     Architecture& SourceArchitecture,
-                                     const BinaryInfo &Binary,
+                                     const BinaryFile &Binary,
                                      bool EnableOSRA) :
   TheModule(*TheFunction->getParent()),
   Context(TheModule.getContext()),
@@ -411,16 +411,15 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   Dispatcher(nullptr),
   DispatcherSwitch(nullptr),
   Binary(Binary),
-  SourceArchitecture(SourceArchitecture),
   EnableOSRA(EnableOSRA),
-  NoReturn(SourceArchitecture) {
+  NoReturn(Binary.architecture()) {
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { Type::getInt32Ty(Context) },
                                              false);
   ExitTB = cast<Function>(TheModule.getOrInsertFunction("exitTB", ExitTBTy));
   createDispatcher(TheFunction, PCReg, true);
 
-  for (auto &Segment : Binary.Segments)
+  for (auto &Segment : Binary.segments())
     Segment.insertExecutableRanges(std::back_inserter(ExecutableRanges));
 
   initializeSymbolMap();
@@ -436,10 +435,10 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
 void JumpTargetManager::initializeSymbolMap() {
   // Collect how many times each name is used
   std::map<std::string, unsigned> SeenCount;
-  for (const SymbolInfo &Symbol : Binary.Symbols)
+  for (const SymbolInfo &Symbol : Binary.symbols())
     SeenCount[std::string(Symbol.Name)]++;
 
-  for (const SymbolInfo &Symbol : Binary.Symbols) {
+  for (const SymbolInfo &Symbol : Binary.symbols()) {
     // Discard symbols pointing to 0, with zero-sized names or present multiple
     // times. Note that we keep zero-size symbols.
     if (Symbol.Address == 0
@@ -455,6 +454,7 @@ void JumpTargetManager::initializeSymbolMap() {
   }
 }
 
+// TODO: move this in BinaryFile?
 std::string JumpTargetManager::nameForAddress(uint64_t Address) const {
   std::stringstream Result;
 
@@ -484,15 +484,15 @@ std::string JumpTargetManager::nameForAddress(uint64_t Address) const {
 }
 
 void JumpTargetManager::harvestGlobalData() {
-  for (auto& Segment : Binary.Segments) {
+  for (auto& Segment : Binary.segments()) {
     auto *Data = cast<ConstantDataArray>(Segment.Variable->getInitializer());
     uint64_t StartVirtualAddress = Segment.StartVirtualAddress;
     const unsigned char *DataStart = Data->getRawDataValues().bytes_begin();
     const unsigned char *DataEnd = Data->getRawDataValues().bytes_end();
 
     using endianness = support::endianness;
-    if (SourceArchitecture.pointerSize() == 64) {
-      if (SourceArchitecture.isLittleEndian())
+    if (Binary.architecture().pointerSize() == 64) {
+      if (Binary.architecture().isLittleEndian())
         findCodePointers<uint64_t, endianness::little>(StartVirtualAddress,
                                                        DataStart,
                                                        DataEnd);
@@ -500,8 +500,8 @@ void JumpTargetManager::harvestGlobalData() {
         findCodePointers<uint64_t, endianness::big>(StartVirtualAddress,
                                                     DataStart,
                                                     DataEnd);
-    } else if (SourceArchitecture.pointerSize() == 32) {
-      if (SourceArchitecture.isLittleEndian())
+    } else if (Binary.architecture().pointerSize() == 32) {
+      if (Binary.architecture().isLittleEndian())
         findCodePointers<uint32_t, endianness::little>(StartVirtualAddress,
                                                        DataStart,
                                                        DataEnd);

@@ -28,7 +28,6 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/ELF.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Transforms/Scalar.h"
@@ -63,7 +62,7 @@ make_array(Args&&... args) {
 // Outline the destructor for the sake of privacy in the header
 CodeGenerator::~CodeGenerator() = default;
 
-CodeGenerator::CodeGenerator(std::string Input,
+CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              Architecture& Target,
                              std::string Output,
                              std::string Helpers,
@@ -73,13 +72,13 @@ CodeGenerator::CodeGenerator(std::string Input,
                              std::string Coverage,
                              std::string BBSummary,
                              bool EnableOSRA,
-                             bool EnableTracing,
-                             bool UseSections) :
+                             bool EnableTracing) :
   TargetArchitecture(Target),
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
   OutputPath(Output),
   Debug(new DebugHelper(Output, Debug, TheModule.get(), DebugInfo)),
+  Binary(Binary),
   EnableOSRA(EnableOSRA),
   EnableTracing(EnableTracing)
 {
@@ -103,134 +102,6 @@ CodeGenerator::CodeGenerator(std::string Input,
     BBSummary = Output + ".bbsummary.csv";
   this->BBSummaryPath = BBSummary;
 
-  auto BinaryOrErr = object::createBinary(Input);
-  assert(BinaryOrErr && "Couldn't open the input file");
-
-  BinaryHandle = std::move(BinaryOrErr.get());
-
-  // We only support ELF for now
-  auto *TheBinary = cast<object::ObjectFile>(BinaryHandle.getBinary());
-
-  // TODO: QEMU should provide this information
-  unsigned InstructionAlignment = 0;
-  StringRef SyscallHelper = "";
-  StringRef SyscallNumberRegister = "";
-  ArrayRef<uint64_t> NoReturnSyscalls = { };
-  switch (TheBinary->getArch()) {
-  case Triple::x86_64:
-    InstructionAlignment = 1;
-    SyscallHelper = "helper_syscall";
-    SyscallNumberRegister = "rax";
-    NoReturnSyscalls = {
-      0xe7, // exit_group
-      0x3c, // exit
-      0x3b // execve
-    };
-    break;
-  case Triple::arm:
-    InstructionAlignment = 4;
-    SyscallHelper = "helper_exception_with_syndrome";
-    SyscallNumberRegister = "r7";
-    NoReturnSyscalls = {
-      0xf8, // exit_group
-      0x1, // exit
-      0xb // execve
-    };
-    break;
-  case Triple::mips:
-    InstructionAlignment = 4;
-    SyscallHelper = "helper_raise_exception";
-    SyscallNumberRegister = "v0";
-    NoReturnSyscalls = {
-      0x1096, // exit_group
-      0xfa1, // exit
-      0xfab // execve
-    };
-    break;
-  default:
-    assert(false);
-  }
-
-  SourceArchitecture = Architecture(InstructionAlignment,
-                                    1,
-                                    TheBinary->isLittleEndian(),
-                                    TheBinary->getBytesInAddress() * 8,
-                                    SyscallHelper,
-                                    SyscallNumberRegister,
-                                    NoReturnSyscalls);
-
-  if (SourceArchitecture.pointerSize() == 32) {
-    if (SourceArchitecture.isLittleEndian()) {
-      parseELF<object::ELF32LE>(TheBinary, LinkingInfo, UseSections);
-    } else {
-      parseELF<object::ELF32BE>(TheBinary, LinkingInfo, UseSections);
-    }
-  } else if (SourceArchitecture.pointerSize() == 64) {
-    if (SourceArchitecture.isLittleEndian()) {
-      parseELF<object::ELF64LE>(TheBinary, LinkingInfo, UseSections);
-    } else {
-      parseELF<object::ELF64BE>(TheBinary, LinkingInfo, UseSections);
-    }
-  } else {
-    assert("Unexpect address size");
-  }
-}
-
-std::string SegmentInfo::generateName() {
-  // Create name from start and size
-  std::stringstream NameStream;
-  NameStream << ".o_"
-             << (IsReadable ? "r" : "")
-             << (IsWriteable ? "w" : "")
-             << (IsExecutable ? "x" : "")
-             << "_0x" << std::hex << StartVirtualAddress;
-
-  return NameStream.str();
-}
-
-template<typename T>
-void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
-                             std::string LinkingInfo,
-                             bool UseSections) {
-  // Parse the ELF file
-  std::error_code EC;
-  object::ELFFile<T> TheELF(TheBinary->getData(), EC);
-  assert(!EC && "Error while loading the ELF file");
-
-  // Look for static or dynamic symbols
-  using Elf_ShdrPtr = decltype(&(*TheELF.sections().begin()));
-  Elf_ShdrPtr Symtab = nullptr;
-  for (auto &Section : TheELF.sections()){
-    auto Name = TheELF.getSectionName(&Section);
-    if (Name && Name.get() == ".symtab") {
-      Symtab = &Section;
-      break;
-    } else if (Name && Name.get() == ".dynsym") {
-      Symtab = &Section;
-    }
-  }
-
-  // If we found a symbol table
-  if (Symtab != nullptr && Symtab->sh_link != 0) {
-    // Obtain a reference to the string table
-    auto *Strtab = TheELF.getSection(Symtab->sh_link).get();
-    auto StrtabArray = TheELF.getSectionContents(Strtab).get();
-    StringRef StrtabContent(reinterpret_cast<const char *>(StrtabArray.data()),
-                            StrtabArray.size());
-
-    // Collect symbol names
-    for (auto &Symbol : TheELF.symbols(Symtab)) {
-      Binary.Symbols.push_back({
-        Symbol.getName(StrtabContent).get(),
-        Symbol.st_value,
-        Symbol.st_size
-      });
-    }
-  }
-
-  const auto *ElfHeader = TheELF.getHeader();
-  EntryPoint = static_cast<uint64_t>(ElfHeader->e_entry);
-
   // Prepare the linking info CSV
   if (LinkingInfo.size() == 0)
     LinkingInfo = OutputPath + ".li.csv";
@@ -247,7 +118,8 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
   ElfHeaderHelper->setAlignment(1);
   ElfHeaderHelper->setSection(".elfheaderhelper");
 
-  auto *RegisterType = Type::getIntNTy(Context, T::Is64Bits ? 64 : 32);
+  auto *RegisterType = Type::getIntNTy(Context,
+                                       Binary.architecture().pointerSize());
   auto createConstGlobal = [this, &RegisterType] (const Twine &Name,
                                                   uint64_t Value) {
     return new GlobalVariable(*TheModule,
@@ -259,100 +131,74 @@ void CodeGenerator::parseELF(object::ObjectFile *TheBinary,
   };
 
   // These values will be used to populate the auxiliary vectors
-  createConstGlobal("e_phentsize", ElfHeader->e_phentsize);
-  createConstGlobal("e_phnum", ElfHeader->e_phnum);
+  createConstGlobal("e_phentsize", Binary.programHeaderSize());
+  createConstGlobal("e_phnum", Binary.programHeadersCount());
+  createConstGlobal("phdr_address", Binary.programHeadersAddress());
 
-  // Loop over the program headers looking for PT_LOAD segments, read them out
-  // and create a global variable for each one of them (writable or read-only),
-  // assign them a section and output information about them in the linking info
-  // CSV
-  using Elf_Phdr = const typename object::ELFFile<T>::Elf_Phdr;
-  for (Elf_Phdr &ProgramHeader : TheELF.program_headers())
-    if (ProgramHeader.p_type == ELF::PT_LOAD) {
-      SegmentInfo Segment;
-      Segment.StartVirtualAddress = ProgramHeader.p_vaddr;
-      Segment.EndVirtualAddress = ProgramHeader.p_vaddr + ProgramHeader.p_memsz;
-      Segment.IsReadable = ProgramHeader.p_flags & ELF::PF_R;
-      Segment.IsWriteable = ProgramHeader.p_flags & ELF::PF_W;
-      Segment.IsExecutable = ProgramHeader.p_flags & ELF::PF_X;
-
-      // If it's an executable segment, and we've been asked so, register which
-      // sections actually contain code
-      if (UseSections && Segment.IsExecutable) {
-        using Elf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
-        auto Inserter = std::back_inserter(Segment.ExecutableSections);
-        for (Elf_Shdr &SectionHeader : TheELF.sections())
-          if (SectionHeader.sh_flags & ELF::SHF_EXECINSTR)
-            Inserter = make_pair(SectionHeader.sh_addr,
-                                 SectionHeader.sh_addr + SectionHeader.sh_size);
-      }
-
-      auto ActualStartAddress = TheELF.base() + ProgramHeader.p_offset;
-
-      // If it's executable register it as a valid code area
-      if (Segment.IsExecutable) {
-        // We ignore possible p_filesz-p_memsz mismatches, zeros wouldn't be
-        // useful code anyway
-        ptc.mmap(static_cast<uint64_t>(ProgramHeader.p_vaddr),
-                 static_cast<const void *>(ActualStartAddress),
-                 static_cast<size_t>(ProgramHeader.p_filesz));
-      }
-
-      std::string Name = Segment.generateName();
-
-      // Get data and size
-      auto *DataType = ArrayType::get(Uint8Ty, ProgramHeader.p_memsz);
-
-      Constant *TheData = nullptr;
-      if (ProgramHeader.p_memsz == ProgramHeader.p_filesz) {
-        // Create the array directly from the mmap'd ELF
-        auto FileData = ArrayRef<uint8_t>(ActualStartAddress,
-                                          ProgramHeader.p_filesz);
-        TheData = ConstantDataArray::get(Context, FileData);
-      } else {
-        // If we have extra data at the end we need to create a copy of the
-        // segment and append the NULL bytes
-        auto FullData = make_unique<uint8_t[]>(ProgramHeader.p_memsz);
-        ::memcpy(FullData.get(),
-                 ActualStartAddress,
-                 ProgramHeader.p_filesz);
-        ::bzero(FullData.get() + ProgramHeader.p_filesz,
-                ProgramHeader.p_memsz - ProgramHeader.p_filesz);
-        auto DataRef = ArrayRef<uint8_t>(FullData.get(), ProgramHeader.p_memsz);
-        TheData = ConstantDataArray::get(Context, DataRef);
-      }
-
-      // Create a new global variable
-      Segment.Variable = new GlobalVariable(*TheModule,
-                                            DataType,
-                                            !Segment.IsWriteable,
-                                            GlobalValue::ExternalLinkage,
-                                            TheData,
-                                            Name);
-
-      // Force alignment to 1 and assign the variable to a specific section
-      Segment.Variable->setAlignment(1);
-      Segment.Variable->setSection(Name);
-
-      // Check if it's the segment containing the program headers
-      auto ProgramHeaderStart = ProgramHeader.p_offset;
-      auto ProgramHeaderEnd = ProgramHeader.p_offset + ProgramHeader.p_filesz;
-      if (ProgramHeaderStart <= ElfHeader->e_phoff
-          && ElfHeader->e_phoff < ProgramHeaderEnd) {
-        auto PhdrAddress = static_cast<uint64_t>(ProgramHeader.p_vaddr
-                                                 + ElfHeader->e_phoff
-                                                 - ProgramHeader.p_offset);
-        createConstGlobal("phdr_address", PhdrAddress);
-      }
-
-      // Write the linking info CSV
-      LinkingInfoStream << Name
-                        << ",0x" << std::hex << Segment.StartVirtualAddress
-                        << ",0x" << std::hex << Segment.EndVirtualAddress
-                        << std::endl;
-
-      Binary.Segments.push_back(Segment);
+  for (SegmentInfo &Segment : Binary.segments()) {
+    // If it's executable register it as a valid code area
+    if (Segment.IsExecutable) {
+      // We ignore possible p_filesz-p_memsz mismatches, zeros wouldn't be
+      // useful code anyway
+      ptc.mmap(Segment.StartVirtualAddress,
+               static_cast<const void *>(Segment.Data.data()),
+               static_cast<size_t>(Segment.Data.size()));
     }
+
+    std::string Name = Segment.generateName();
+
+    // Get data and size
+    auto *DataType = ArrayType::get(Uint8Ty, Segment.size());
+
+    Constant *TheData = nullptr;
+    if (Segment.size() == Segment.Data.size()) {
+      // Create the array directly from the mmap'd ELF
+      TheData = ConstantDataArray::get(Context, Segment.Data);
+    } else {
+      // If we have extra data at the end we need to create a copy of the
+      // segment and append the NULL bytes
+      auto FullData = make_unique<uint8_t[]>(Segment.size());
+      ::memcpy(FullData.get(),
+               Segment.Data.data(),
+               Segment.Data.size());
+      ::bzero(FullData.get() + Segment.Data.size(),
+              Segment.size() - Segment.Data.size());
+      auto DataRef = ArrayRef<uint8_t>(FullData.get(), Segment.size());
+      TheData = ConstantDataArray::get(Context, DataRef);
+    }
+
+    // Create a new global variable
+    Segment.Variable = new GlobalVariable(*TheModule,
+                                          DataType,
+                                          !Segment.IsWriteable,
+                                          GlobalValue::ExternalLinkage,
+                                          TheData,
+                                          Name);
+
+    // Force alignment to 1 and assign the variable to a specific section
+    Segment.Variable->setAlignment(1);
+    Segment.Variable->setSection(Name);
+
+    // Write the linking info CSV
+    LinkingInfoStream << Name
+                      << ",0x" << std::hex << Segment.StartVirtualAddress
+                      << ",0x" << std::hex << Segment.EndVirtualAddress
+                      << std::endl;
+
+  }
+
+}
+
+std::string SegmentInfo::generateName() {
+  // Create name from start and size
+  std::stringstream NameStream;
+  NameStream << ".o_"
+             << (IsReadable ? "r" : "")
+             << (IsWriteable ? "w" : "")
+             << (IsExecutable ? "x" : "")
+             << "_0x" << std::hex << StartVirtualAddress;
+
+  return NameStream.str();
 }
 
 static BasicBlock *replaceFunction(Function *ToReplace) {
@@ -736,13 +582,12 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   auto *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
   JumpTargetManager JumpTargets(MainFunction,
                                 PCReg,
-                                SourceArchitecture,
                                 Binary,
                                 EnableOSRA);
 
   if (VirtualAddress == 0) {
     JumpTargets.harvestGlobalData();
-    VirtualAddress = EntryPoint;
+    VirtualAddress = Binary.entryPoint();
   }
 
   dbg << "Entry address: 0x" << std::hex << VirtualAddress << std::endl;
@@ -763,7 +608,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
                                    Variables,
                                    JumpTargets,
                                    Blocks,
-                                   SourceArchitecture,
+                                   Binary.architecture(),
                                    TargetArchitecture);
 
   while (Entry != nullptr) {

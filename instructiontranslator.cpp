@@ -33,6 +33,8 @@
 
 using namespace llvm;
 
+using IT = InstructionTranslator;
+
 namespace PTC {
 
   template<bool C>
@@ -464,13 +466,13 @@ static Value *CreateICmp(T& Builder,
                             SecondOperand);
 }
 
-using LBM = InstructionTranslator::LabeledBlocksMap;
-InstructionTranslator::InstructionTranslator(IRBuilder<>& Builder,
-                                             VariableManager& Variables,
-                                             JumpTargetManager& JumpTargets,
-                                             std::vector<BasicBlock *> Blocks,
-                                             Architecture& SourceArchitecture,
-                                             Architecture& TargetArchitecture) :
+using LBM = IT::LabeledBlocksMap;
+IT::InstructionTranslator(IRBuilder<>& Builder,
+                          VariableManager& Variables,
+                          JumpTargetManager& JumpTargets,
+                          std::vector<BasicBlock *> Blocks,
+                          const Architecture &SourceArchitecture,
+                          const Architecture &TargetArchitecture) :
   Builder(Builder),
   Variables(Variables),
   JumpTargets(JumpTargets),
@@ -497,8 +499,7 @@ InstructionTranslator::InstructionTranslator(IRBuilder<>& Builder,
                                  &TheModule);
 }
 
-void InstructionTranslator::finalizeNewPCMarkers(std::string &CoveragePath,
-                                                 bool EnableTracing) {
+void IT::finalizeNewPCMarkers(std::string &CoveragePath, bool EnableTracing) {
   std::vector<Instruction *> ToDelete;
   std::ofstream Output(CoveragePath);
 
@@ -537,15 +538,12 @@ void InstructionTranslator::finalizeNewPCMarkers(std::string &CoveragePath,
   }
 }
 
-std::tuple<InstructionTranslator::TranslationResult,
-           MDNode *,
-           uint64_t,
-           uint64_t>
-InstructionTranslator::newInstruction(PTCInstruction *Instr,
-                                      PTCInstruction *Next,
-                                      uint64_t EndPC,
-                                      bool IsFirst,
-                                      bool ForceNew) {
+std::tuple<IT::TranslationResult, MDNode *, uint64_t, uint64_t>
+IT::newInstruction(PTCInstruction *Instr,
+                   PTCInstruction *Next,
+                   uint64_t EndPC,
+                   bool IsFirst,
+                   bool ForceNew) {
   using R = std::tuple<TranslationResult, MDNode *, uint64_t, uint64_t>;
   assert(Instr != nullptr);
   const PTC::Instruction TheInstruction(Instr);
@@ -654,8 +652,7 @@ static StoreInst *getLastUniqueWrite(BasicBlock *BB, Value *Register) {
   return Result;
 }
 
-InstructionTranslator::TranslationResult
-InstructionTranslator::translateCall(PTCInstruction *Instr) {
+IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
   const PTC::CallInstruction TheCall(Instr);
 
   std::vector<Value *> InArgs;
@@ -710,10 +707,9 @@ InstructionTranslator::translateCall(PTCInstruction *Instr) {
   return Success;
 }
 
-InstructionTranslator::TranslationResult
-InstructionTranslator::translate(PTCInstruction *Instr,
-                                 uint64_t PC,
-                                 uint64_t NextPC) {
+IT::TranslationResult IT::translate(PTCInstruction *Instr,
+                                    uint64_t PC,
+                                    uint64_t NextPC) {
   const PTC::Instruction TheInstruction(Instr);
 
   std::vector<Value *> InArgs;
@@ -765,9 +761,9 @@ InstructionTranslator::translate(PTCInstruction *Instr,
 }
 
 ErrorOr<std::vector<Value *>>
-InstructionTranslator::translateOpcode(PTCOpcode Opcode,
-                                       std::vector<uint64_t> ConstArguments,
-                                       std::vector<Value *> InArguments) {
+IT::translateOpcode(PTCOpcode Opcode,
+                    std::vector<uint64_t> ConstArguments,
+                    std::vector<Value *> InArguments) {
   LLVMContext& Context = TheModule.getContext();
   unsigned RegisterSize = getRegisterSize(Opcode);
   Type *RegisterType = nullptr;
