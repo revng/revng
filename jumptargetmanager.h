@@ -462,7 +462,10 @@ public:
     unsigned ReadSize = Binary.architecture().pointerSize() / 8;
     for (uint64_t MemoryAddress : UnusedCodePointers) {
       uint64_t PC = readRawValue(MemoryAddress, ReadSize).getValue();
-      registerJT(PC, UnusedGlobalData);
+
+      // Set as reason UnusedGlobalData and ensure it's not empty
+      llvm::BasicBlock *BB = registerJT(PC, UnusedGlobalData);
+      assert(!BB->empty());
     }
 
     // We no longer need this information

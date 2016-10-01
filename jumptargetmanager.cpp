@@ -313,10 +313,7 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
 
 Optional<uint64_t> JumpTargetManager::readRawValue(uint64_t Address,
                                                    unsigned Size) const {
-  assert(Size <= 8 * sizeof(uint64_t));
-
-  // TODO: create a IsLittleEndian field in JumpTargetManager?
-  const DataLayout &DL = TheModule.getDataLayout();
+  bool IsLittleEndian = Binary.architecture().isLittleEndian();
 
   for (auto &Segment : Binary.segments()) {
     // Note: we also consider writeable memory areas because, despite being
@@ -334,17 +331,17 @@ Optional<uint64_t> JumpTargetManager::readRawValue(uint64_t Address,
       case 1:
         return read<uint8_t, endianness::little, 1>(Start);
       case 2:
-        if (DL.isLittleEndian())
+        if (IsLittleEndian)
           return read<uint16_t, endianness::little, 1>(Start);
         else
           return read<uint16_t, endianness::big, 1>(Start);
       case 4:
-        if (DL.isLittleEndian())
+        if (IsLittleEndian)
           return read<uint32_t, endianness::little, 1>(Start);
         else
           return read<uint32_t, endianness::big, 1>(Start);
       case 8:
-        if (DL.isLittleEndian())
+        if (IsLittleEndian)
           return read<uint64_t, endianness::little, 1>(Start);
         else
           return read<uint64_t, endianness::big, 1>(Start);
