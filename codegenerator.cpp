@@ -72,7 +72,8 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              std::string Coverage,
                              std::string BBSummary,
                              bool EnableOSRA,
-                             bool EnableTracing) :
+                             bool EnableTracing,
+                             bool DetectFunctionBoundaries) :
   TargetArchitecture(Target),
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
@@ -80,7 +81,8 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   Debug(new DebugHelper(Output, Debug, TheModule.get(), DebugInfo)),
   Binary(Binary),
   EnableOSRA(EnableOSRA),
-  EnableTracing(EnableTracing)
+  EnableTracing(EnableTracing),
+  DetectFunctionBoundaries(DetectFunctionBoundaries)
 {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
@@ -881,9 +883,11 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
 
   purgeDeadBlocks(MainFunction);
 
-  legacy::FunctionPassManager FPM(&*TheModule);
-  FPM.add(new FunctionBoundariesDetectionPass(&JumpTargets, ""));
-  FPM.run(*MainFunction);
+  if (DetectFunctionBoundaries) {
+    legacy::FunctionPassManager FPM(&*TheModule);
+    FPM.add(new FunctionBoundariesDetectionPass(&JumpTargets, ""));
+    FPM.run(*MainFunction);
+  }
 
   Translator.finalizeNewPCMarkers(CoveragePath, EnableTracing);
   Debug->generateDebugInfo();

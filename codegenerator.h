@@ -73,7 +73,8 @@ public:
                 std::string Coverage,
                 std::string BBSummary,
                 bool EnableOSRA,
-                bool EnableTracing);
+                bool EnableTracing,
+                bool DetectFunctionBoundaries);
 
   ~CodeGenerator();
 
@@ -121,6 +122,7 @@ private:
   bool EnableTracing;
   std::string BBSummaryPath;
   std::string FunctionListPath;
+  bool DetectFunctionBoundaries;
 };
 
 #endif // _CODEGENERATOR_H
