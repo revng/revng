@@ -118,6 +118,11 @@ private:
   void collectInitialCFEPSet();
   void cfepProcessPhase1();
   void cfepProcessPhase2();
+
+  /// Associate to each basic block a metadata with the list of functions it
+  /// belongs to
+  void createMetadata();
+
   void serialize();
 
   void setRelation(BasicBlock *CFEP, BasicBlock *Affected, RelationType T) {
@@ -603,6 +608,38 @@ void FBD::cfepProcessPhase2() {
   }
 }
 
+void FBD::createMetadata() {
+  LLVMContext &Context = getContext(&F);
+
+  // We first compute the list of all the functions each basic block belongs to,
+  // so we don't have to create a huge number of metadata which are never
+  // deleted (?)
+  std::map<BasicBlock *, std::vector<Metadata *>> ReversedFunctions;
+
+  for (auto &P : Functions) {
+    BasicBlock *Header = P.first;
+    auto *Name = MDString::get(Context, getName(Header));
+    MDTuple *FunctionMD = MDNode::getDistinct(Context, { Name });
+
+    for (BasicBlock *Member : P.second)
+      ReversedFunctions[Member].push_back(FunctionMD);
+
+  }
+
+  // Associate the terminator of each basic block with the previously created
+  // metadata node
+  for (auto &P : ReversedFunctions) {
+    BasicBlock *BB = P.first;
+    if (!BB->empty() ) {
+      Instruction *Terminator = BB->getTerminator();
+      assert(Terminator != nullptr);
+      auto *FuncMDs =  MDTuple::get(Context, ArrayRef<Metadata *>(P.second));
+      Terminator->setMetadata("func", FuncMDs);
+    }
+  }
+
+}
+
 map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
   assert(JTM != nullptr);
 
@@ -623,6 +660,8 @@ map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
   filterCFEPs();
 
   cfepProcessPhase2();
+
+  createMetadata();
 
   return std::move(Functions);
 }

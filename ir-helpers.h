@@ -16,9 +16,11 @@
 #include "llvm/Analysis/Interval.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/Module.h"
 
 static inline void replaceInstruction(llvm::Instruction *Old,
                                       llvm::Instruction *New) {
@@ -326,6 +328,22 @@ static inline uint64_t getBasicBlockPC(llvm::BasicBlock *BB) {
   }
 
   return 0;
+}
+
+static inline llvm::LLVMContext &getContext(llvm::Module *M) {
+  return M->getContext();
+}
+
+static inline llvm::LLVMContext &getContext(llvm::Function *F) {
+  return getContext(F->getParent());
+}
+
+static inline llvm::LLVMContext &getContext(llvm::BasicBlock *BB) {
+  return getContext(BB->getParent());
+}
+
+static inline llvm::LLVMContext &getContext(llvm::Instruction *I) {
+  return getContext(I->getParent());
 }
 
 #endif // _IRHELPERS_H
