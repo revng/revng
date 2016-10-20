@@ -194,8 +194,9 @@ static int parseArgs(int Argc, const char *Argv[],
   };
 
   argparse_init(&Arguments, Options, Usage, 0);
-  argparse_describe(&Arguments, "\nPTC translator.",
-                    "\nTranslates a binary into QEMU Portable Tiny Code.\n");
+  argparse_describe(&Arguments, "\nrevamb.",
+                    "\nTranslates a binary into a program for a different "
+                    "architecture.\n");
   Argc = argparse_parse(&Arguments, Argc, Argv);
 
   // Handle positional arguments
