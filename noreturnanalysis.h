@@ -25,6 +25,7 @@ class CallInst;
 class Instruction;
 class LoadInst;
 class StoreInst;
+class TerminatorInst;
 }
 
 class NoReturnAnalysis {
@@ -76,6 +77,19 @@ private:
   bool isKiller(llvm::BasicBlock *BB) const {
     return KillerBBs.count(BB) != 0;
   };
+
+  /// \brief Register BB as killer and associate a noreturn metadata to it
+  void registerKiller(llvm::BasicBlock *BB) {
+    KillerBBs.insert(BB);
+
+    if (!BB->empty()) {
+      llvm::TerminatorInst *Terminator = BB->getTerminator();
+      assert(Terminator != nullptr);
+      if (Terminator->getMetadata("noreturn") == nullptr)
+        Terminator->setMetadata("noreturn",
+                                llvm::MDTuple::get(getContext(BB), { }));
+    }
+  }
 
   bool endsUpIn(llvm::Instruction *I, llvm::BasicBlock *Target);
 

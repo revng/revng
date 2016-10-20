@@ -130,7 +130,7 @@ void NoReturnAnalysis::registerKiller(uint64_t StoredValue,
     return;
 
   // Register the Setter's basic block
-  KillerBBs.insert(Setter->getParent());
+  registerKiller(Setter->getParent());
 }
 
 void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors,
@@ -148,7 +148,7 @@ void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors,
     if (CallPredecessorIt != CallPredecessors.end()) {
 
       for (BasicBlock *Pred : CallPredecessorIt->second) {
-        KillerBBs.insert(Pred);
+        registerKiller(Pred);
         WorkList.insert(Pred);
       }
 
@@ -157,7 +157,7 @@ void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors,
     // Check all the predecessors unless they're return basic blocks
     for (BasicBlock *Pred : predecessors(BB)) {
       if (Returns.count(BB->getTerminator()) == 0 && checkKiller(Pred)) {
-        KillerBBs.insert(Pred);
+        registerKiller(Pred);
         WorkList.insert(Pred);
       }
     }
