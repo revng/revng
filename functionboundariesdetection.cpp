@@ -259,7 +259,7 @@ void FBD::collectFunctionCalls() {
     };
 
     // TODO: adapt visitPredecessors from visitSuccessors
-    visitPredecessors(Terminator, Visitor, JTM->dispatcher());
+    visitPredecessors(Terminator, Visitor, make_blacklist(*JTM));
 
     if (SaveRAFound && StorePCFound) {
       BasicBlock *ReturnBB = JTM->getBlockAt(ReturnPC);
@@ -273,7 +273,7 @@ void FBD::collectFunctionCalls() {
   // Mark all the callee basic blocks as such
   for (auto P : FunctionCalls)
     for (BasicBlock *S : P.first->successors())
-      if (S != JTM->dispatcher())
+      if (JTM->isTranslatedBB(S))
         JTM->registerJT(S, JumpTargetManager::Callee);
 }
 
@@ -294,12 +294,11 @@ void FBD::collectReturnInstructions() {
 
     for (BasicBlock *Successor : Terminator->successors()) {
 
-      if (Successor == JTM->dispatcher())
+      // A return instruction must jump to JTM->anyPC, while all the other
+      // successors (if any) must be registered returns addresses
+      if (Successor == JTM->anyPC()) {
         JumpsToDispatcher = true;
-
-      if (!(Successor == JTM->dispatcher()
-            || Successor == JTM->dispatcherFail()
-            || ReturnPCs.count(JTM->getPC(&*Successor->begin()).first) != 0)) {
+      } else if (ReturnPCs.count(JTM->getPC(&*Successor->begin()).first) == 0) {
         IsReturn = false;
         break;
       }
@@ -378,8 +377,7 @@ interval_set FBD::findCoverage(BasicBlock *BB) {
       return It->second;
 
     for (BasicBlock *Predecessor : predecessors(BB))
-      if (Predecessor != JTM->dispatcher()
-          && Predecessor != JTM->dispatcherFail())
+      if (JTM->isTranslatedBB(Predecessor))
         WorkList.insert(Predecessor);
   }
 
@@ -457,8 +455,7 @@ void FBD::cfepProcessPhase1() {
         // It's not a return, it's not a function call, it must be a branch part
         // of the ordinary control flow of the function.
         for (BasicBlock *S : successors(RelatedBB)) {
-          if (S == JTM->dispatcher()
-              || S == JTM->dispatcherFail())
+          if (!JTM->isTranslatedBB(S))
             continue;
 
           // TODO: track fallthrough
@@ -480,9 +477,7 @@ void FBD::cfepProcessPhase1() {
       uint64_t StartAddress = findCoverage(BB).begin()->lower();
 
       for (BasicBlock *S : successors(BB)) {
-        if (S == JTM->dispatcher()
-            || S == JTM->dispatcherFail()
-            || Coverage.count(S) == 0)
+        if (!JTM->isTranslatedBB(S) || Coverage.count(S) == 0)
           continue;
 
         interval_set &BBInterval = Coverage[S];
@@ -582,7 +577,7 @@ void FBD::cfepProcessPhase2() {
 
     while (!WorkList.empty()) {
       BasicBlock *RelatedBB = WorkList.pop();
-      assert(RelatedBB != JTM->dispatcher());
+      assert(JTM->isTranslatedBB(RelatedBB));
 
       auto FCIt = FunctionCalls.find(RelatedBB->getTerminator());
       if (FCIt != FunctionCalls.end()) {
@@ -591,8 +586,7 @@ void FBD::cfepProcessPhase2() {
           WorkList.insert(ReturnBB);
       } else if (Returns.count(RelatedBB->getTerminator()) == 0) {
         for (BasicBlock *S : successors(RelatedBB)) {
-          if (S == JTM->dispatcher()
-              || S == JTM->dispatcherFail())
+          if (!JTM->isTranslatedBB(S))
             continue;
 
           // TODO: doesn't handle the div in div case

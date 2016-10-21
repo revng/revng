@@ -571,7 +571,7 @@ bool OSRAPass::isDead(Instruction *I) const {
 
           return Continue;
         };
-        visitSuccessors(Store, BlockBlackList, Visitor);
+        visitSuccessors(Store, make_blacklist(BlockBlackList), Visitor);
 
         return !Used;
       }

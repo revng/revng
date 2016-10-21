@@ -56,7 +56,6 @@ template<typename Map> typename Map::iterator
   return m.end();
 }
 
-
 /// \brief Transform constant writes to the PC in jumps
 ///
 /// This pass looks for all the calls to the `ExitTB` function calls, looks for
@@ -340,11 +339,28 @@ public:
   /// \brief Removes a `BasicBlock` from the SET's visited list
   void unvisit(llvm::BasicBlock *BB);
 
-  /// \brief Return a pointer to the dispatcher basic block.
+  /// \brief Checks if \p BB is a basic block generated during translation
+  bool isTranslatedBB(llvm::BasicBlock *BB) const {
+    return BB != anyPC()
+      && BB != unexpectedPC()
+      && BB != dispatcher()
+      && BB != dispatcherFail();
+  }
+
+  /// \brief Return the dispatcher basic block.
+  ///
+  /// \note Do not use this for comparison with successors of translated code,
+  ///       use isTranslatedBB instead.
   llvm::BasicBlock *dispatcher() const { return Dispatcher; }
 
-  /// \brief Return a pointer to the dispatcher basic block.
+  /// \brief Return the basic block handling an unknown PC in the dispatcher
   llvm::BasicBlock *dispatcherFail() const { return DispatcherFail; }
+
+  /// \brief Return the basic block handling a jump to any PC
+  llvm::BasicBlock *anyPC() const { return AnyPC; }
+
+  /// \brief Return the basic block handling a jump to an unexpected PC
+  llvm::BasicBlock *unexpectedPC() const { return UnexpectedPC; }
 
   bool isPCReg(llvm::Value *TheValue) const { return TheValue == PCReg; }
 
@@ -458,6 +474,9 @@ public:
   /// fix all the pending information. In particular, those pointers to code
   /// that have never been touched by SET will be considered and their pointee
   /// will be marked with UnusedGlobalData.
+  ///
+  /// This function also fixes the "anypc" and "unexpectedpc" basic blocks to
+  /// their proper behavior.
   void finalizeJumpTargets() {
     unsigned ReadSize = Binary.architecture().pointerSize() / 8;
     for (uint64_t MemoryAddress : UnusedCodePointers) {
@@ -467,6 +486,17 @@ public:
       llvm::BasicBlock *BB = registerJT(PC, UnusedGlobalData);
       assert(!BB->empty());
     }
+
+    // To keep the CFG simple the basic block handling jumps to any PC initially
+    // contains an unreachable instruction, but at this point we can make it
+    // point to the dispatcher
+    AnyPC->begin()->eraseFromParent();
+    llvm::BranchInst::Create(dispatcher(), AnyPC);
+
+    // TODO: Here we should have an hard fail, since it's the situation in which
+    //       we expected to know where execution could go but we made a mistake.
+    UnexpectedPC->begin()->eraseFromParent();
+    llvm::BranchInst::Create(dispatcher(), UnexpectedPC);
 
     // We no longer need this information
     freeContainer(UnusedCodePointers);
@@ -556,6 +586,8 @@ private:
   llvm::BasicBlock *Dispatcher;
   llvm::SwitchInst *DispatcherSwitch;
   llvm::BasicBlock *DispatcherFail;
+  llvm::BasicBlock *AnyPC;
+  llvm::BasicBlock *UnexpectedPC;
   std::set<llvm::BasicBlock *> Visited;
 
   const BinaryFile &Binary;
@@ -571,5 +603,19 @@ private:
   using SymbolInfoSet = std::set<const SymbolInfo *>;
   boost::icl::interval_map<uint64_t, SymbolInfoSet> SymbolMap;
 };
+
+template<>
+struct BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *> :
+  BlackListTraitBase<const JumpTargetManager &> {
+  using BlackListTraitBase<const JumpTargetManager &>::BlackListTraitBase;
+  bool isBlacklisted(llvm::BasicBlock *Value) {
+    return !this->Obj.isTranslatedBB(Value);
+  }
+};
+
+BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *>
+static inline make_blacklist(const JumpTargetManager &JTM) {
+  return BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *>(JTM);
+}
 
 #endif // _JUMPTARGETMANAGER_H

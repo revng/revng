@@ -81,11 +81,12 @@ bool TranslateDirectBranchesPass::pinJTs(Function &F) {
   if (SET == nullptr || SET->jumps().size() == 0)
     return false;
 
-  auto& Context = F.getParent()->getContext();
-  auto *PCReg = JTM->pcReg();
+  LLVMContext &Context = getContext(&F);
+  Value *PCReg = JTM->pcReg();
   auto *RegType = cast<IntegerType>(PCReg->getType()->getPointerElementType());
   auto C = [RegType] (uint64_t A) { return ConstantInt::get(RegType, A); };
-  BasicBlock *Dispatcher = JTM->dispatcher();
+  BasicBlock *AnyPC = JTM->anyPC();
+  BasicBlock *UnexpectedPC = JTM->unexpectedPC();
   // TODO: enforce CFG
 
   for (const auto &Jump : SET->jumps()) {
@@ -110,7 +111,7 @@ bool TranslateDirectBranchesPass::pinJTs(Function &F) {
     // TODO: we should check Destinations.size() >= OldTargetsCount
     // TODO: we should also check the destinations are actually the same
 
-    BasicBlock *FailBB = Approximate ? Dispatcher : Dispatcher /* Fail */;
+    BasicBlock *FailBB = Approximate ? AnyPC : UnexpectedPC;
     BasicBlock *BB = CallExitTB->getParent();
 
     // Kill everything is after the call to exitTB
@@ -265,7 +266,7 @@ bool TranslateDirectBranchesPass::forceFallthroughAfterHelper(CallInst *Call) {
   Builder.CreateCondBr(Builder.CreateICmpEQ(Builder.CreateLoad(PCReg),
                                             NextPCConst),
                        JTM->registerJT(NextPC, JumpTargetManager::PostHelper),
-                       JTM->dispatcher());
+                       JTM->anyPC());
 
   return true;
 }
@@ -593,7 +594,9 @@ void JumpTargetManager::registerInstruction(uint64_t PC,
 CallInst *JumpTargetManager::findNextExitTB(Instruction *Start) {
   CallInst *Result = nullptr;
 
-  visitSuccessors(Start, nullptr, [this,&Result] (BasicBlockRange Range) {
+  visitSuccessors(Start,
+                  make_blacklist(*this),
+                  [this,&Result] (BasicBlockRange Range) {
       for (Instruction &I : Range) {
         if (auto *Call = dyn_cast<CallInst>(&I)) {
           assert(!(Call->getCalledFunction()->getName() == "newpc"));
@@ -1194,6 +1197,16 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   Dispatcher = Entry;
   DispatcherSwitch = Switch;
   NoReturn.setDispatcher(Dispatcher);
+
+  // Create basic blocks to handle jumps to any PC and to a PC we didn't expect.
+  // Initially they both contain an unreachable instruction to keep the CFG
+  // simple, but during finalization the anypc basic block will jump to the
+  // dispatcher.
+  AnyPC = BasicBlock::Create(Context, "anypc", OutputFunction);
+  new UnreachableInst(Context, AnyPC);
+
+  UnexpectedPC = BasicBlock::Create(Context, "unexpectedpc", OutputFunction);
+  new UnreachableInst(Context, UnexpectedPC);
 }
 
 // Harvesting proceeds trying to avoid to run expensive analyses if not strictly

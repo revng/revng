@@ -374,8 +374,8 @@ bool SET::enqueueStores(LoadInst *Start) {
         Handled = false;
       } else {
         for (BasicBlock *Predecessor : predecessors(BB)) {
-          // We don't handle predecessors going through the dispatcher
-          if (Predecessor == JTM->dispatcher()) {
+          // Skip if the predecessor is the dispatcher
+          if (!JTM->isTranslatedBB(Predecessor)) {
             Handled = false;
           } else {
             if (!Predecessor->empty())
