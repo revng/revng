@@ -47,9 +47,13 @@ add_executable(revamb ptcdump.cpp main.cpp debughelper.cpp variablemanager.cpp
   osra.cpp set.cpp simplifycomparisons.cpp reachingdefinitions.cpp
   functionboundariesdetection.cpp noreturnanalysis.cpp binaryfile.cpp
   argparse/argparse.c)
-
 target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
 install(TARGETS revamb RUNTIME DESTINATION bin)
+
+add_executable(revamb-dump dump.cpp collectcfg.cpp collectnoreturn.cpp
+  collectfunctionboundaries.cpp argparse/argparse.c)
+target_link_libraries(revamb-dump ${LLVM_LIBRARIES})
+install(TARGETS revamb-dump RUNTIME DESTINATION bin)
 
 configure_file(li-csv-to-ld-options "${CMAKE_BINARY_DIR}/li-csv-to-ld-options"
   COPYONLY)
