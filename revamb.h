@@ -43,7 +43,8 @@ public:
     InstructionAlignment(1),
     DefaultAlignment(1),
     Endianess(LittleEndian),
-    PointerSize(64) { }
+    PointerSize(64),
+    DelaySlotSize(0) { }
 
   Architecture(unsigned Type,
                unsigned InstructionAlignment,
@@ -52,7 +53,8 @@ public:
                unsigned PointerSize,
                llvm::StringRef SyscallHelper,
                llvm::StringRef SyscallNumberRegister,
-               llvm::ArrayRef<uint64_t> NoReturnSyscalls) :
+               llvm::ArrayRef<uint64_t> NoReturnSyscalls,
+               unsigned DelaySlotSize) :
     Type(static_cast<llvm::Triple::ArchType>(Type)),
     InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
@@ -72,6 +74,7 @@ public:
     return SyscallNumberRegister;
   }
   llvm::ArrayRef<uint64_t> noReturnSyscalls() const { return NoReturnSyscalls; }
+  unsigned delaySlotSize() const { return DelaySlotSize; }
   const char *name() const { return llvm::Triple::getArchTypeName(Type); }
 
 private:
@@ -85,6 +88,7 @@ private:
   llvm::StringRef SyscallHelper;
   llvm::StringRef SyscallNumberRegister;
   llvm::ArrayRef<uint64_t> NoReturnSyscalls;
+  unsigned DelaySlotSize;
 };
 
 // TODO: this requires C++14

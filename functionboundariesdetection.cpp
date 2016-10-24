@@ -223,13 +223,14 @@ void FBD::collectFunctionCalls() {
     //
     // TODO: the function call detection criteria in reachingdefinitions.cpp is
     //       probably more elegant, import it.
-    bool NewPCFound = false;
     bool SaveRAFound = false;
     bool StorePCFound = false;
     uint64_t ReturnPC = JTM->getNextPC(Terminator);
+    // We can meet up calls to newpc up to (1 + "size of the delay slot") times
+    unsigned NewPCLeft = 1 + JTM->delaySlotSize();
 
     auto Visitor = [this,
-                    &NewPCFound,
+                    &NewPCLeft,
                     &SaveRAFound,
                     ReturnPC,
                     &StorePCFound] (RBasicBlockRange R) {
@@ -248,9 +249,10 @@ void FBD::collectFunctionCalls() {
         } else if (auto *Call = dyn_cast<CallInst>(&I)) {
           auto *Callee = Call->getCalledFunction();
           if (Callee != nullptr && Callee->getName() == "newpc") {
-            assert(!NewPCFound);
-            NewPCFound = true;
-            return true;
+            assert(NewPCLeft > 0);
+            NewPCLeft--;
+            if (NewPCLeft == 0)
+              return true;
           }
         }
       }

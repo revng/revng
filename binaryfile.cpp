@@ -38,6 +38,7 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
   StringRef SyscallHelper = "";
   StringRef SyscallNumberRegister = "";
   ArrayRef<uint64_t> NoReturnSyscalls = { };
+  unsigned DelaySlotSize = 0;
   switch (TheBinary->getArch()) {
   case Triple::x86_64:
     InstructionAlignment = 1;
@@ -68,6 +69,7 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
       0xfa1, // exit
       0xfab // execve
     };
+    DelaySlotSize = 1;
     break;
   default:
     assert(false);
@@ -80,7 +82,8 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
                                  TheBinary->getBytesInAddress() * 8,
                                  SyscallHelper,
                                  SyscallNumberRegister,
-                                 NoReturnSyscalls);
+                                 NoReturnSyscalls,
+                                 DelaySlotSize);
 
   assert(TheBinary->getFileFormatName().startswith("ELF")
          && "Only the ELF file format is currently supported");
