@@ -671,7 +671,10 @@ map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
 
   collectReturnInstructions();
 
+  // TODO: move this code in JTM
+  JTM->setCFGForm(JumpTargetManager::NoFunctionCallsCFG);
   JTM->noReturn().computeKillerSet(CallPredecessors, Returns);
+  JTM->setCFGForm(JumpTargetManager::SemanticPreservingCFG);
 
   initNormalizedAddressSpace();
 
