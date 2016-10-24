@@ -500,8 +500,8 @@ IT::InstructionTranslator(IRBuilder<>& Builder,
 }
 
 void IT::finalizeNewPCMarkers(std::string &CoveragePath, bool EnableTracing) {
-  std::vector<Instruction *> ToDelete;
   std::ofstream Output(CoveragePath);
+  LLVMContext &Context = TheModule.getContext();
 
   Output << std::hex;
   for (User *U : NewPCMarker->users()) {
@@ -517,24 +517,18 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath, bool EnableTracing) {
              << "," << (IsJT ? "1" : "0")
              << std::endl;
 
-      if (EnableTracing) {
-        unsigned ArgCount = Call->getNumArgOperands();
-        Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
-        for (unsigned I = 3; I < ArgCount - 1; I++)
-          Call->setArgOperand(I, Call->getArgOperand(ArgCount - 1));
-      } else {
-        // Register the call to be delete
-        ToDelete.push_back(Call);
-      }
+      unsigned ArgCount = Call->getNumArgOperands();
+      Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
+      for (unsigned I = 3; I < ArgCount - 1; I++)
+        Call->setArgOperand(I, Call->getArgOperand(ArgCount - 1));
     }
   }
   Output << std::dec;
 
   if (!EnableTracing) {
-    for (Instruction *TheInstruction : ToDelete)
-      TheInstruction->eraseFromParent();
-
-    NewPCMarker->eraseFromParent();
+    NewPCMarker->setLinkage(GlobalValue::InternalLinkage);
+    auto *Entry = BasicBlock::Create(Context, "", NewPCMarker);
+    ReturnInst::Create(Context, Entry);
   }
 }
 

@@ -133,7 +133,7 @@ private:
   JumpTargetManager& JumpTargets;
   std::map<std::string, llvm::BasicBlock *> LabeledBasicBlocks;
   std::vector<llvm::BasicBlock *> Blocks;
-  llvm::Module& TheModule;
+  llvm::Module &TheModule;
 
   llvm::Function *TheFunction;
 
