@@ -1232,6 +1232,7 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
     break;
 
   case RecoveredOnlyCFG:
+  case NoFunctionCallsCFG:
     purge(AnyPC);
     new UnreachableInst(Context, AnyPC);
     purge(UnexpectedPC);
@@ -1241,6 +1242,24 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
   default:
     assert(false && "Not implemented yet");
     break;
+  }
+
+  // If we're entering or leaving the NoFunctionCallsCFG form, update all the
+  // branch instruction forming a function call
+  if (NewForm == NoFunctionCallsCFG || OldForm == NoFunctionCallsCFG) {
+    if (auto *FunctionCall = TheModule.getFunction("function_call")) {
+      for (User *U : FunctionCall->users()) {
+        auto *Call = cast<CallInst>(U);
+        auto *Terminator = cast<TerminatorInst>(Call->getNextNode());
+        assert(Terminator->getNumSuccessors() == 1);
+
+        // Get the correct argument, the first is the callee, the second the
+        // return basic block
+        Value *Op = Call->getArgOperand(NewForm == NoFunctionCallsCFG ? 1 : 0);
+        BasicBlock *NewSuccessor = cast<BlockAddress>(Op)->getBasicBlock();
+        Terminator->setSuccessor(0, NewSuccessor);
+      }
+    }
   }
 
   rebuildDispatcher();

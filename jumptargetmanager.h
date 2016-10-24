@@ -200,9 +200,12 @@ public:
     UnknownFormCFG, ///< The CFG is an unknown state.
     SemanticPreservingCFG, ///< The dispatcher jumps to all the jump targets,
                            ///  and all the indirect jumps go to the dispatcher.
-    RecoveredOnlyCFG ///< The dispatcher only jumps to jump targets without
-                     ///  other predecessors and indirect jumps do not go to
-                     ///  the dispatcher, but to an unreachable instruction.
+    RecoveredOnlyCFG, ///< The dispatcher only jumps to jump targets without
+                      ///  other predecessors and indirect jumps do not go to
+                      ///  the dispatcher, but to an unreachable instruction.
+    NoFunctionCallsCFG ///< Similar to RecoveredOnlyCFG, but all jumps forming a
+                       ///  function call are converted to jumps to the return
+                       ///  address.
   };
 
 public:

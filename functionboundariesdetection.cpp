@@ -209,9 +209,24 @@ void FBD::initPostDispatcherIt() {
 }
 
 void FBD::collectFunctionCalls() {
+  // Create function call marker
+  // TODO: we could factor this out
+  Module *M = F.getParent();
+  LLVMContext &C = M->getContext();
+  Type *Int8PtrTy = Type::getInt8PtrTy(C);
+  FunctionType *FunctionCallFT = FunctionType::get(Type::getVoidTy(C),
+                                                   { Int8PtrTy, Int8PtrTy },
+                                                   false);
+  auto *FunctionCall = cast<Function>(M->getOrInsertFunction("function_call",
+                                                             FunctionCallFT));
+  FunctionCall->setLinkage(GlobalValue::InternalLinkage);
+  auto *EntryBB = BasicBlock::Create(C, "", FunctionCall);
+  ReturnInst::Create(C, EntryBB);
+  assert(FunctionCall->user_begin() == FunctionCall->user_end());
+
   // Collect function calls
   for (BasicBlock &BB : make_range(PostDispatcherIt, F.end())) {
-    auto *Terminator = BB.getTerminator();
+    TerminatorInst *Terminator = BB.getTerminator();
     if (!JTM->isJump(Terminator) || isa<UnreachableInst>(Terminator))
       continue;
 
@@ -264,11 +279,22 @@ void FBD::collectFunctionCalls() {
     visitPredecessors(Terminator, Visitor, make_blacklist(*JTM));
 
     if (SaveRAFound && StorePCFound) {
+      // It's a function call, register it
       BasicBlock *ReturnBB = JTM->getBlockAt(ReturnPC);
       assert(ReturnBB != nullptr);
       FunctionCalls[Terminator] = ReturnBB;
       CallPredecessors[ReturnBB].push_back(&BB);
       ReturnPCs.insert(ReturnPC);
+
+      // Emit a call to "function_call" with two parameters: the first is the
+      // callee basic block, the second the return basic block
+      assert(Terminator->getNumSuccessors() == 1
+             && "Multiple successors are not supported");
+      Value *Args[2] = {
+        BlockAddress::get(Terminator->getSuccessor(0)),
+        BlockAddress::get(ReturnBB)
+      };
+      CallInst::Create(FunctionCall, Args, "", Terminator);
     }
   }
 
