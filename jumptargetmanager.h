@@ -191,6 +191,20 @@ public:
     uint32_t Reasons;
   };
 
+  /// \brief Possible forms the CFG we're building can assume.
+  ///
+  /// Generally the CFG should stay in the SemanticPreservingCFG state, but it
+  /// can be temporarily changed to make certain analysis (e.g., computation of
+  /// the dominator tree) more effective for certain purposes.
+  enum CFGForm {
+    UnknownFormCFG, ///< The CFG is an unknown state.
+    SemanticPreservingCFG, ///< The dispatcher jumps to all the jump targets,
+                           ///  and all the indirect jumps go to the dispatcher.
+    RecoveredOnlyCFG ///< The dispatcher only jumps to jump targets without
+                     ///  other predecessors and indirect jumps do not go to
+                     ///  the dispatcher, but to an unreachable instruction.
+  };
+
 public:
   using RangesVector = std::vector<std::pair<uint64_t, uint64_t>>;
 
@@ -203,6 +217,11 @@ public:
                     llvm::Value *PCReg,
                     const BinaryFile &Binary,
                     bool EnableOSRA);
+
+  /// \brief Transform the IR to represent the request form of CFG
+  void setCFGForm(CFGForm NewForm);
+
+  CFGForm cfgForm() const { return CurrentCFGForm; }
 
   /// \brief Collect jump targets from the program's segments
   void harvestGlobalData();
@@ -487,19 +506,12 @@ public:
       assert(!BB->empty());
     }
 
-    // To keep the CFG simple the basic block handling jumps to any PC initially
-    // contains an unreachable instruction, but at this point we can make it
-    // point to the dispatcher
-    AnyPC->begin()->eraseFromParent();
-    llvm::BranchInst::Create(dispatcher(), AnyPC);
-
-    // TODO: Here we should have an hard fail, since it's the situation in which
-    //       we expected to know where execution could go but we made a mistake.
-    UnexpectedPC->begin()->eraseFromParent();
-    llvm::BranchInst::Create(dispatcher(), UnexpectedPC);
-
     // We no longer need this information
     freeContainer(UnusedCodePointers);
+  }
+
+  unsigned delaySlotSize() const {
+    return Binary.architecture().delaySlotSize();
   }
 
   /// \brief Return the next call to exitTB after I, or nullptr if it can't find
@@ -532,6 +544,15 @@ public:
   std::string nameForAddress(uint64_t Address) const;
 
 private:
+
+  /// \brief Check if \p BB has at least a predecessor, excluding the dispatcher
+  bool hasPredecessors(llvm::BasicBlock *BB) const;
+
+  /// \brief Rebuild the dispatcher switch
+  ///
+  /// Depending on the CFG form we're currently adopting the dispatcher might go
+  /// to all the jump targets or only to those who have no other predecessor.
+  void rebuildDispatcher();
 
   /// \brief Populate the interval -> Symbol map from Binary.Symbols
   void initializeSymbolMap();
@@ -602,6 +623,8 @@ private:
   NoReturnAnalysis NoReturn;
   using SymbolInfoSet = std::set<const SymbolInfo *>;
   boost::icl::interval_map<uint64_t, SymbolInfoSet> SymbolMap;
+
+  CFGForm CurrentCFGForm;
 };
 
 template<>

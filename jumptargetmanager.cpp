@@ -410,7 +410,8 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   DispatcherSwitch(nullptr),
   Binary(Binary),
   EnableOSRA(EnableOSRA),
-  NoReturn(Binary.architecture()) {
+  NoReturn(Binary.architecture()),
+  CurrentCFGForm(UnknownFormCFG) {
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { Type::getInt32Ty(Context) },
                                              false);
@@ -1198,15 +1199,78 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   DispatcherSwitch = Switch;
   NoReturn.setDispatcher(Dispatcher);
 
-  // Create basic blocks to handle jumps to any PC and to a PC we didn't expect.
-  // Initially they both contain an unreachable instruction to keep the CFG
-  // simple, but during finalization the anypc basic block will jump to the
-  // dispatcher.
+  // Create basic blocks to handle jumps to any PC and to a PC we didn't expect
   AnyPC = BasicBlock::Create(Context, "anypc", OutputFunction);
-  new UnreachableInst(Context, AnyPC);
-
   UnexpectedPC = BasicBlock::Create(Context, "unexpectedpc", OutputFunction);
-  new UnreachableInst(Context, UnexpectedPC);
+
+  setCFGForm(SemanticPreservingCFG);
+}
+
+static void purge(BasicBlock *BB) {
+  // Allow up to a single instruction in the basic block
+  if (!BB->empty())
+    BB->begin()->eraseFromParent();
+  assert(BB->empty());
+}
+
+void JumpTargetManager::setCFGForm(CFGForm NewForm) {
+  assert(CurrentCFGForm != NewForm);
+  assert(NewForm != UnknownFormCFG);
+
+  CFGForm OldForm = CurrentCFGForm;
+  CurrentCFGForm = NewForm;
+
+  switch (NewForm) {
+  case SemanticPreservingCFG:
+    purge(AnyPC);
+    BranchInst::Create(dispatcher(), AnyPC);
+    // TODO: Here we should have an hard fail, since it's the situation in
+    //       which we expected to know where execution could go but we made a
+    //       mistake.
+    purge(UnexpectedPC);
+    BranchInst::Create(dispatcher(), UnexpectedPC);
+    break;
+
+  case RecoveredOnlyCFG:
+    purge(AnyPC);
+    new UnreachableInst(Context, AnyPC);
+    purge(UnexpectedPC);
+    new UnreachableInst(Context, UnexpectedPC);
+    break;
+
+  default:
+    assert(false && "Not implemented yet");
+    break;
+  }
+
+  rebuildDispatcher();
+}
+
+void JumpTargetManager::rebuildDispatcher() {
+  // Remove all cases
+  unsigned NumCases = DispatcherSwitch->getNumCases();
+  while (NumCases --> 0)
+    DispatcherSwitch->removeCase(DispatcherSwitch->case_begin());
+
+  auto *PCRegType = PCReg->getType()->getPointerElementType();
+  auto *SwitchType = cast<IntegerType>(PCRegType);
+
+  // Add all the jump targets if we're using the SemanticPreservingCFG, or
+  // only those with no predecessors otherwise
+  for (auto &P : JumpTargets) {
+    uint64_t PC = P.first;
+    BasicBlock *BB = P.second.head();
+    if (CurrentCFGForm == SemanticPreservingCFG || !hasPredecessors(BB))
+      DispatcherSwitch->addCase(ConstantInt::get(SwitchType, PC), BB);
+
+  }
+}
+
+bool JumpTargetManager::hasPredecessors(BasicBlock *BB) const {
+  for (BasicBlock *Pred : predecessors(BB))
+    if (isTranslatedBB(Pred))
+      return true;
+  return false;
 }
 
 // Harvesting proceeds trying to avoid to run expensive analyses if not strictly
@@ -1222,14 +1286,24 @@ void JumpTargetManager::harvest() {
 
     DBG("jtcount", dbg << "Harvesting: SROA, ConstProp, EarlyCSE and SET\n");
 
-    legacy::PassManager PM;
-    PM.add(createSROAPass()); // temp
-    PM.add(createConstantPropagationPass()); // temp
-    PM.add(createEarlyCSEPass());
-    PM.add(new SETPass(this, false, &Visited));
-    PM.add(new TranslateDirectBranchesPass(this));
+    legacy::PassManager OptimizingPM;
+    OptimizingPM.add(createSROAPass());
+    OptimizingPM.add(createConstantPropagationPass());
+    OptimizingPM.add(createEarlyCSEPass());
+    OptimizingPM.run(TheModule);
+
+    // To improve the quality of our analysis, keep in the CFG only the edges we
+    // where able to recover (e.g., no jumps to the dispatcher)
+    setCFGForm(RecoveredOnlyCFG);
+
     NewBranches = 0;
-    PM.run(TheModule);
+    legacy::PassManager AnalysisPM;
+    AnalysisPM.add(new SETPass(this, false, &Visited));
+    AnalysisPM.add(new TranslateDirectBranchesPass(this));
+    AnalysisPM.run(TheModule);
+
+    // Restore the CFG
+    setCFGForm(SemanticPreservingCFG);
 
     DBG("jtcount", dbg << std::dec
                        << Unexplored.size() << " new jump targets and "
@@ -1252,14 +1326,23 @@ void JumpTargetManager::harvest() {
       Visited.clear();
       legacy::PassManager PM;
       if (NewBranches > 0) {
-        PM.add(createSROAPass()); // temp
-        PM.add(createConstantPropagationPass()); // temp
-        PM.add(createEarlyCSEPass());
+        legacy::PassManager OptimizingPM;
+        OptimizingPM.add(createSROAPass());
+        OptimizingPM.add(createConstantPropagationPass());
+        OptimizingPM.add(createEarlyCSEPass());
+        OptimizingPM.run(TheModule);
       }
-      PM.add(new SETPass(this, true, &Visited));
-      PM.add(new TranslateDirectBranchesPass(this));
+
+      setCFGForm(RecoveredOnlyCFG);
+
       NewBranches = 0;
-      PM.run(TheModule);
+      legacy::PassManager AnalysisPM;
+      AnalysisPM.add(new SETPass(this, true, &Visited));
+      AnalysisPM.add(new TranslateDirectBranchesPass(this));
+      AnalysisPM.run(TheModule);
+
+      // Restore the CFG
+      setCFGForm(SemanticPreservingCFG);
 
       DBG("jtcount", dbg << std::dec
                          << Unexplored.size() << " new jump targets and "
