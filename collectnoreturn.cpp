@@ -16,6 +16,13 @@
 
 using namespace llvm;
 
+template<typename T>
+struct CompareByName {
+  bool operator()(const T *LHS, const T *RHS) const {
+    return LHS->getName() < RHS->getName();
+  }
+};
+
 char CollectNoreturn::ID = 0;
 static RegisterPass<CollectNoreturn> X("cnoreturn",
                                        "Collect noreturn Pass",
@@ -38,6 +45,10 @@ bool CollectNoreturn::runOnFunction(Function &F) {
         NoreturnBBs.push_back(&BB);
     }
   }
+
+  std::sort(NoreturnBBs.begin(),
+            NoreturnBBs.end(),
+            CompareByName<BasicBlock>());
 
   return false;
 }
