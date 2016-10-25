@@ -51,7 +51,7 @@ static inline void purgeBranch(llvm::BasicBlock::iterator I) {
 
   // Check if someone else was jumping there and then destroy
   for (llvm::BasicBlock *BB : Successors)
-    if (llvm::pred_empty(BB))
+    if (BB->empty() && llvm::pred_empty(BB))
       BB->eraseFromParent();
 }
 
