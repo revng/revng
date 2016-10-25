@@ -6,6 +6,7 @@
 //
 
 // LLVM includes
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
@@ -130,8 +131,27 @@ void NoReturnAnalysis::registerKiller(uint64_t StoredValue,
   registerKiller(Setter->getParent());
 }
 
+void NoReturnAnalysis::findInfinteLoops() {
+  Function *F = Dispatcher->getParent();
+  DominatorTreeBase<BasicBlock> DT(false);
+  DT.recalculate(*F);
+
+  LoopInfo LI(DT);
+  for (Loop *L : LI) {
+    SmallVector<BasicBlock *, 3> ExitingBlocks;
+    L->getExitingBlocks(ExitingBlocks);
+    if (ExitingBlocks.size() == 0) {
+      for (BasicBlock *Member : L->blocks())
+        KillerBBs.insert(Member);
+    }
+  }
+}
+
 void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors,
                                         std::set<TerminatorInst *> &Returns) {
+  // Enrich the KillerBBs set with blocks participating in infinite loops
+  findInfinteLoops();
+
   if (KillerBBs.size() == 0)
     return;
 
@@ -142,7 +162,7 @@ void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors,
   // Note: computing the post-dominated basic blocks from the sink is different
   // from computing the union of all the basic blocks post-dominated by a killer
   // basic block.
-  Function *F = (*KillerBBs.begin())->getParent();
+  Function *F = Dispatcher->getParent();
   LLVMContext &C = F->getParent()->getContext();
   auto *Sink = BasicBlock::Create(C, "sink", F);
   new UnreachableInst(C, Sink);

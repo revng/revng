@@ -105,6 +105,9 @@ private:
 
   bool hasSyscalls() const { return NoDCE != nullptr; }
 
+  /// \brief Register as killer basic blocks those parts of infinite loops
+  void findInfinteLoops();
+
 private:
   Architecture SourceArchitecture;
   std::set<llvm::CallInst *> RegisteredSyscalls;
