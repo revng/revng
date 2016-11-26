@@ -83,7 +83,7 @@ template <> struct hash<MemoryInstruction>
 
 class BasicBlockInfo {
 public:
-  void addCondition(int32_t ConditionIndex) { }
+  unsigned addCondition(int32_t ConditionIndex) { assert(false); }
 
   void resetDefinitions(TypeSizeProvider &TSP) {
     Definitions.clear();
@@ -104,7 +104,9 @@ public:
   LoadDefinitionType newDefinition(llvm::LoadInst *Load,
                                    TypeSizeProvider &TSP);
   bool propagateTo(BasicBlockInfo &Target,
-                   TypeSizeProvider &TSP);
+                   TypeSizeProvider &TSP,
+                   const llvm::SmallVector<int32_t, 2> &DefinedIndexes,
+                   int32_t NewConditionIndex);
 
   std::vector<std::pair<llvm::Instruction *, MemoryAccess>>
   getReachingDefinitions(std::set<llvm::LoadInst *> &WhiteList,
@@ -127,8 +129,15 @@ private:
 
 class ConditionalBasicBlockInfo {
 public:
-  void addCondition(int32_t ConditionIndex) {
-    Conditions.set(getConditionIndex(ConditionIndex));
+  unsigned addCondition(int32_t ConditionIndex) {
+    unsigned Result = getConditionIndex(ConditionIndex);
+    Conditions.set(Result);
+    return Result;
+  }
+
+  bool hasCondition(int32_t ConditionIndex) {
+    unsigned Result = getConditionIndex(ConditionIndex);
+    return Conditions[Result];
   }
 
   void resetDefinitions(TypeSizeProvider &TSP) {
@@ -147,7 +156,9 @@ public:
   LoadDefinitionType newDefinition(llvm::LoadInst *Load,
                                    TypeSizeProvider &TSP);
   bool propagateTo(ConditionalBasicBlockInfo &Target,
-                   TypeSizeProvider &TSP);
+                   TypeSizeProvider &TSP,
+                   const llvm::SmallVector<int32_t, 2> &DefinedIndexes,
+                   int32_t NewConditionIndex);
 
   std::vector<std::pair<llvm::Instruction *, MemoryAccess>>
   getReachingDefinitions(std::set<llvm::LoadInst *> &WhiteList,
@@ -166,10 +177,15 @@ private:
     Different,
     Complementary
   };
+
+private:
   ConditionsComparison mergeConditionBits(llvm::BitVector &Target,
                                           llvm::BitVector &NewConditions) const;
 
-private:
+  /// \brief Set the bit corresponding to \p Index in \p Target, if present in
+  /// SeenCondtions.
+  bool setIndexIfSeen(llvm::BitVector &Target, int32_t Index) const;
+
   template<class UnaryPredicate>
   void removeDefinitions(UnaryPredicate P) {
     erase_if(Definitions, P);
@@ -207,7 +223,7 @@ private:
 
 private:
   // Seen conditions
-  std::vector<uint32_t> SeenConditions;
+  std::vector<int32_t> SeenConditions;
   // TODO: switch to list?
   ReachingType Reaching;
   std::vector<CondDefPair> Definitions;

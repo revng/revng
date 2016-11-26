@@ -79,6 +79,14 @@ static RegisterPass<ReachedLoadsPass> X2("rlp",
                                          true,
                                          true);
 
+// ReachingDefinitionsPass methods implementation
+
+template<>
+const IndexesVector &
+ReachingDefinitionsPass::getDefinedConditions(BasicBlock *BB) {
+  return ConditionNumberingPass::NoDefinedConditions;
+}
+
 template<>
 int32_t ReachingDefinitionsPass::getConditionIndex(TerminatorInst *V) {
   return 0;
@@ -87,6 +95,14 @@ int32_t ReachingDefinitionsPass::getConditionIndex(TerminatorInst *V) {
 template<>
 void ReachingDefinitionsPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
+}
+
+// ReachedLoadsPass methods implementations
+
+template<>
+const IndexesVector &
+ReachedLoadsPass::getDefinedConditions(BasicBlock *BB) {
+  return ConditionNumberingPass::NoDefinedConditions;
 }
 
 template<>
@@ -118,6 +134,14 @@ static RegisterPass<ConditionalReachedLoadsPass> Y2("crlp",
                                                     true,
                                                     true);
 
+// ConditionalReachingDefinitionsPass methods implementations
+
+template<>
+const IndexesVector &
+ConditionalReachingDefinitionsPass::getDefinedConditions(BasicBlock *BB) {
+  return getAnalysis<ConditionNumberingPass>().getDefinedConditions(BB);
+}
+
 // TODO: this duplication sucks
 template<>
 int32_t
@@ -144,6 +168,14 @@ ConditionalReachedLoadsPass::getConditionIndex(TerminatorInst *T) {
     return 0;
 
   return getAnalysis<ConditionNumberingPass>().getConditionIndex(T);
+}
+
+// ConditionalReachedLoadsPass methods implementation
+
+template<>
+const IndexesVector &
+ConditionalReachedLoadsPass::getDefinedConditions(BasicBlock *BB) {
+  return getAnalysis<ConditionNumberingPass>().getDefinedConditions(BB);
 }
 
 template<>
@@ -446,7 +478,9 @@ LoadDefinitionType BasicBlockInfo::newDefinition(LoadInst *Load,
 }
 
 bool BasicBlockInfo::propagateTo(BasicBlockInfo &Target,
-                                 TypeSizeProvider &TSP) {
+                                 TypeSizeProvider &TSP,
+                                 const IndexesVector &,
+                                 int32_t NewConditionIndex) {
   bool Changed = false;
   for (MemoryInstruction &Definition : Definitions)
     Changed |= Target.Reaching.insert(Definition).second;
@@ -497,6 +531,8 @@ void ConditionalBasicBlockInfo::newDefinition(StoreInst *Store,
     });
 
   // Perform the merge
+  // Note that the new definition absorbes all the conditions holding in the
+  // current basic block
   mergeDefinition({ Conditions, MemoryInstruction(Store, TSP) },
                   Definitions,
                   TSP);
@@ -555,13 +591,72 @@ ConditionalBasicBlockInfo::getReachingDefinitions(set<LoadInst *> &WhiteList,
   return Result;
 }
 
-bool ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
-                                            TypeSizeProvider &TSP) {
+bool ConditionalBasicBlockInfo::setIndexIfSeen(BitVector &Target,
+                                               int32_t Index) const {
+  auto ConditionIt = std::find(SeenConditions.begin(),
+                               SeenConditions.end(),
+                               Index);
+
+  // If present set the corresponding bit in Defined
+  if (ConditionIt != SeenConditions.end()) {
+    Target.set(ConditionIt - SeenConditions.begin());
+    return true;
+  }
+
+  return false;
+}
+
+bool
+ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
+                                       TypeSizeProvider &TSP,
+                                       const IndexesVector &DefinedIndexes,
+                                       int32_t NewConditionIndex) {
   bool Changed = false;
+
+  // Get (and insert, if necessary) the bit associated to the new
+  // condition. This bit will be set in all the defintions being propagated.
+  DBG("rdp-propagation", dbg << "  Adding conditions:");
+  unsigned NewConditionBitIndex = Target.getConditionIndex(NewConditionIndex);
+  if (NewConditionIndex != 0 && !Target.Conditions[NewConditionBitIndex]) {
+    Target.Conditions.set(NewConditionBitIndex);
+    DBG("rdp-propagation", dbg << " " << NewConditionIndex);
+    Changed = true;
+  }
+
+  // Condition propgation
+  for (int SetBitIndex = Conditions.find_first();
+       SetBitIndex != -1;
+       SetBitIndex = Conditions.find_next(SetBitIndex)) {
+    int32_t ToPropagate = SeenConditions[SetBitIndex];
+
+    // Do not propagate the condition if:
+    //
+    // * it's defined in the target basic block
+    // * it's the condition associated to the current branch
+    // * the target basic block already has it
+    auto It = std::find_if(DefinedIndexes.begin(),
+                           DefinedIndexes.end(),
+                           [ToPropagate] (int32_t Defined) {
+                             return Defined == ToPropagate
+                             || Defined == -ToPropagate;
+                           });
+
+    if (ToPropagate != NewConditionIndex
+        && ToPropagate != -NewConditionIndex
+        && It == DefinedIndexes.end()
+        && !Target.hasCondition(ToPropagate)) {
+      Target.addCondition(ToPropagate);
+      DBG("rdp-propagation", dbg << "  " << ToPropagate);
+      Changed = true;
+    }
+
+  }
+  DBG("rdp-propagation", dbg << "\n");
 
   // Compute a bit vector with all the conditions that are incompatible with the
   // target
-  llvm::BitVector Banned(SeenConditions.size());
+  BitVector Banned(SeenConditions.size());
+  DBG("rdp-propagation", dbg << "  Banned conditions:");
 
   // For each set bit in the target's conditions
   for (int SetBitIndex = Target.Conditions.find_first();
@@ -570,6 +665,7 @@ bool ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
 
     // Consider the opposite condition as banned
     int32_t BannedIndex = -Target.SeenConditions[SetBitIndex];
+    DBG("rdp-propagation", dbg << " " << BannedIndex);
 
     // Check BannedIndex is not explicitly allowed
     auto BannedIt = std::find(Target.SeenConditions.begin(),
@@ -577,42 +673,81 @@ bool ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
                               BannedIndex);
     bool IsAllowed = BannedIt != Target.SeenConditions.end()
       && Target.Conditions[BannedIt - Target.SeenConditions.begin()];
-    if (!IsAllowed) {
-      // Look for the BannedIndex in the current block's seen conditions
-      auto ConditionIt = std::find(SeenConditions.begin(),
-                                   SeenConditions.end(),
-                                   BannedIndex);
-
-      // If present set the corresponding bit in Banned
-      if (ConditionIt != SeenConditions.end())
-        Banned.set(ConditionIt - SeenConditions.begin());
-    }
+    if (!IsAllowed)
+      setIndexIfSeen(Banned, BannedIndex);
 
   }
 
+  DBG("rdp-propagation", dbg << "\n");
+
+  // Create a BitVector for conditions defined in the target basic block, so
+  // that we can later exclude them
+  BitVector Defined(SeenConditions.size());
+  for (int32_t DefinedIndex : DefinedIndexes) {
+    setIndexIfSeen(Defined, DefinedIndex);
+    setIndexIfSeen(Defined, -DefinedIndex);
+  }
+  BitVector NotDefined = Defined;
+  NotDefined.flip();
+
   for (auto &Definition : Definitions) {
+    BitVector DefinitionConditions = Definition.first;
+    DBG("rdp-propagation", {
+        dbg << "  Propagate " << getName(Definition.second.I);
+
+        if (auto *Load = dyn_cast<LoadInst>(Definition.second.I))
+          dbg << " about " << Load->getPointerOperand()->getName().str();
+        else if (auto *Store = dyn_cast<StoreInst>(Definition.second.I))
+          dbg << " about " << Store->getPointerOperand()->getName().str();
+
+        if (DefinitionConditions.any()) {
+          dbg << " (conditions:";
+          for (int I = DefinitionConditions.find_first();
+               I != -1;
+               I = DefinitionConditions.find_next(I)) {
+            dbg << " " << SeenConditions[I];
+          }
+          dbg << ")";
+        }
+
+        dbg << "? ";
+      });
+
+    // Reset all the conditions that are defined in the target basic block
+    DefinitionConditions &= NotDefined;
+
     // Check if this definition is compatible with the target basic block
-    llvm::BitVector DefinitionConditions = Definition.first;
-    DefinitionConditions &= Banned;
-    if (DefinitionConditions.any())
+    auto BannedConditions = DefinitionConditions;
+    BannedConditions &= Banned;
+    if (BannedConditions.any()) {
+      DBG("rdp-propagation", dbg << "no\n");
       continue;
+    }
+
+    DBG("rdp-propagation", dbg << "yes\n");
 
     // Translate the conditions bitvector to the context of the target BBI
     BitVector Translated(Target.SeenConditions.size());
 
-    for (int I = Definition.first.find_first();
+    for (int I = DefinitionConditions.find_first();
          I != -1;
-         I = Definition.first.find_next(I)) {
+         I = DefinitionConditions.find_next(I)) {
       // Make sure the target BBI knows about all the necessary conditinos
       assert(I < static_cast<int>(SeenConditions.size()));
       unsigned Index = Target.getConditionIndex(SeenConditions[I]);
+      unsigned OppositeIndex = Target.getConditionIndex(-SeenConditions[I]);
 
       // Keep the size of the new bitvector in sync
       if (Target.SeenConditions.size() != Translated.size())
         Translated.resize(Target.SeenConditions.size());
 
       Translated.set(Index);
-    }
+      Translated.reset(OppositeIndex);
+  }
+
+    // Add the condition of this branch
+    if (NewConditionIndex != 0)
+      Translated.set(NewConditionBitIndex);
 
     Changed |= Target.mergeDefinition({ Translated, Definition.second },
                                       Target.Reaching,
@@ -693,11 +828,13 @@ bool ConditionalBasicBlockInfo::mergeDefinition(CondDefPair NewDefinition,
 
   bool Again = false;
   bool Result = false;
-  llvm::SmallVector<BitVector, 2> &BVs = Targets[NewDefinition.second];
+  SmallVector<BitVector, 2> &BVs = Targets[NewDefinition.second];
 
   do {
     Again = false;
     for (auto TargetIt = BVs.begin(); TargetIt != BVs.end(); TargetIt++) {
+      assert(TargetIt != BVs.end());
+      assert(BVs.size() != 0);
       switch (mergeConditionBits(*TargetIt, NewConditionsBV)) {
       case Identical:
         return Result;
@@ -709,6 +846,9 @@ bool ConditionalBasicBlockInfo::mergeDefinition(CondDefPair NewDefinition,
       case Different:
         break;
       }
+
+      if (Again)
+        break;
     }
   } while (Again);
 
@@ -767,7 +907,7 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
     BasicBlockVisits++;
     BasicBlock *BB = ToVisit.pop();
 
-    auto &Info = DefinitionsMap[BB];
+    BBI &Info = DefinitionsMap[BB];
     Info.resetDefinitions(TSP);
 
     // Find all the definitions
@@ -836,6 +976,7 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
     if (!IsCall && Size * SuccessorsCount <= 5000) {
       // Get the identifier of the conditional instruction
       int32_t ConditionIndex = getConditionIndex(BB->getTerminator());
+      assert(ConditionIndex == 0 || ConditionIndex > 0);
 
       // Propagate definitions to successors, checking if actually we changed
       // something, and if so re-enqueue them
@@ -843,26 +984,49 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
         if (BasicBlockBlackList.count(Successor) != 0)
           continue;
 
-        auto &SuccessorInfo = DefinitionsMap[Successor];
+        const IndexesVector &DefinedConditions =
+          getDefinedConditions(Successor);
 
+        BBI &SuccessorInfo = DefinitionsMap[Successor];
+
+        DBG("rdp-propagation", {
+            dbg << "Propagating from " << getName(BB)
+                << " to " << getName(Successor);
+
+            if (DefinedConditions.size() > 0) {
+              dbg << " (defining conditions: ";
+              for (int32_t ConditionIndex : DefinedConditions)
+                dbg << " " << ConditionIndex;
+              dbg << ")";
+            }
+
+            if (ConditionIndex != 0)
+              dbg << ", using a " << ConditionIndex << " branch";
+
+            dbg << "\n";
+          });
+
+        // Enqueue the successor only if the propagation actually did something
+        unsigned Old = SuccessorInfo.size();
+        if (Info.propagateTo(SuccessorInfo,
+                             TSP,
+                             DefinedConditions,
+                             ConditionIndex))
+          ToVisit.insert(Successor);
+
+        DBG("rdp-propagation",
+            dbg << getName(Successor) << std::dec
+            << " got " << (SuccessorInfo.size() - Old) << " new reachers "
+            << "from " << getName(BB) << " (had " << Old << ")\n");
+
+        // Add the condition relative to the current branch instruction (if any)
         if (ConditionIndex != 0) {
-          SuccessorInfo.addCondition(ConditionIndex);
-
           // If ConditionIndex is positive we're in the true branch, prepare
           // ConditionIndex for the false branch
           if (ConditionIndex > 0)
             ConditionIndex = -ConditionIndex;
         }
 
-        // Enqueue the successor only if the propagation actually did something
-        unsigned Old = SuccessorInfo.size();
-        if (Info.propagateTo(SuccessorInfo, TSP))
-          ToVisit.insert(Successor);
-
-        DBG("rdp-propagation",
-            dbg << getName(Successor)
-            << " got " << (SuccessorInfo.size() - Old) << " new reachers "
-            << "from " << getName(BB) << " (had " << Old << ")\n");
       }
 
       // We no longer need to keep track of the definitions
