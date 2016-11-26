@@ -407,11 +407,11 @@ static ReturnInst *createRet(Instruction *Position) {
 bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
   Function *CpuLoopExit = M.getFunction("cpu_loop_exit");
 
-  purgeNoReturn(CpuLoopExit);
-
   // Nothing to do here
   if (CpuLoopExit == nullptr)
     return false;
+
+  purgeNoReturn(CpuLoopExit);
 
   Function *CpuLoop = M.getFunction("cpu_loop");
   LLVMContext &Context = M.getContext();
