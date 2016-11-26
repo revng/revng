@@ -1361,21 +1361,15 @@ bool OSRAPass::runOnFunction(Function &F) {
             if (!Result)
               return;
 
-            // The unsigned lower then (or equal) operator also carries a
-            // previous greater than 0 semantic
-            auto *Zero = ConstantInt::get(ConstOp->getType(), 0);
-            switch (P) {
-            case CmpInst::ICMP_ULT:
-            case CmpInst::ICMP_ULE:
+            // Unsigned inequations implictly say that both operands are greater
+            // than or equal to zero. This means that if we have `x - 5 < 10`,
+            // we don't just know that `x < 15` but also that `x - 5 >= 0`,
+            // i.e., `x >= 5`.
+            if (P == CmpInst::ICMP_ULT || P == CmpInst::ICMP_ULE) {
+              auto *Zero = ConstantInt::get(ConstOp->getType(), 0);
               Result = Merge(CmpInst::ICMP_UGE, Zero);
-              break;
-            case CmpInst::ICMP_UGT:
-            case CmpInst::ICMP_UGE:
-              Result = Merge(CmpInst::ICMP_ULT, Zero);
-              break;
-            default:
-              break;
             }
+
             if (!Result)
               return;
 
