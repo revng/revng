@@ -81,22 +81,22 @@ public:
                                             Parameters(Parameters) { }
 
   bool runOnFunction(Function &F) override {
+    std::ofstream Output;
+
     if (Parameters.CFGPath != nullptr) {
       auto &Analysis = getAnalysis<CollectCFG>();
-      std::ofstream Output(Parameters.CFGPath);
-      Analysis.serialize(Output);
+      Analysis.serialize(pathToStream(Parameters.CFGPath, Output));
     }
 
     if (Parameters.NoreturnPath != nullptr) {
       auto &Analysis = getAnalysis<CollectNoreturn>();
-      std::ofstream Output(Parameters.NoreturnPath);
-      Analysis.serialize(Output);
+      Analysis.serialize(pathToStream(Parameters.NoreturnPath, Output));
     }
 
     if (Parameters.FunctionBoundariesPath != nullptr) {
       auto &Analysis = getAnalysis<CollectFunctionBoundaries>();
-      std::ofstream Output(Parameters.FunctionBoundariesPath);
-      Analysis.serialize(Output);
+      Analysis.serialize(pathToStream(Parameters.FunctionBoundariesPath,
+                                      Output));
     }
 
     return false;
@@ -114,6 +114,18 @@ public:
     if (Parameters.FunctionBoundariesPath != nullptr)
       AU.addRequired<CollectFunctionBoundaries>();
 
+  }
+
+private:
+  std::ostream &pathToStream(const char *Path, std::ofstream &File) {
+    if (Path[0] == '-' && Path[1] == '\0') {
+      return std::cout;
+    } else {
+      if (File.is_open())
+        File.close();
+      File.open(Path);
+      return File;
+    }
   }
 
 private:
