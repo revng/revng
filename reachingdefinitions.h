@@ -257,6 +257,7 @@ public:
 
 private:
   int32_t getConditionIndex(llvm::TerminatorInst *T);
+  const llvm::SmallVector<int32_t, 2> &getDefinedConditions(llvm::BasicBlock *BB);
 
 private:
   using BasicBlock = llvm::BasicBlock;
@@ -275,6 +276,8 @@ class ConditionNumberingPass : public llvm::FunctionPass {
 public:
   static char ID;
 
+  static const llvm::SmallVector<int32_t, 2> NoDefinedConditions;
+
   ConditionNumberingPass() : llvm::FunctionPass(ID) { };
 
   bool runOnFunction(llvm::Function &F) override;
@@ -288,12 +291,22 @@ public:
     return BranchConditionNumberMap[T];
   }
 
+  const llvm::SmallVector<int32_t, 2> &getDefinedConditions(llvm::BasicBlock *BB) const {
+    auto It = DefinedConditions.find(BB);
+    if (It == DefinedConditions.end())
+      return NoDefinedConditions;
+    else
+      return It->second;
+  }
+
   virtual void releaseMemory() override {
     DBG("release", { dbg << "ConditionNumberingPass is releasing memory\n"; });
+    freeContainer(DefinedConditions);
     freeContainer(BranchConditionNumberMap);
   }
 
 private:
+  std::map<llvm::BasicBlock *, llvm::SmallVector<int32_t, 2>> DefinedConditions;
   std::map<llvm::TerminatorInst *, int32_t> BranchConditionNumberMap;
 };
 

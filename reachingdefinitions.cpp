@@ -38,6 +38,8 @@ using std::tie;
 using std::unordered_map;
 using std::vector;
 
+using IndexesVector = SmallVector<int32_t, 2>;
+
 template<class BBI, ReachingDefinitionsResult R>
 const vector<LoadInst *> &
 ReachingDefinitionsImplPass<BBI, R>::getReachedLoads(Instruction *Definition) {
@@ -288,11 +290,57 @@ bool ConditionEqualTo::operator()(BranchInst * const& BA,
   return true;
 }
 
+static SmallSet<BasicBlock *, 2>
+definingBasicBlocks(ReachingDefinitionsPass &RDP, BranchInst * const& Branch) {
+  SmallSet<BasicBlock *, 2> Result;
+  Value *A = Branch->getCondition();
+  queue<Value *> WorkList;
+  WorkList.push(A);
+  while (!WorkList.empty()) {
+    Value *AV;
+    AV = WorkList.front();
+    WorkList.pop();
+
+    bool AIsStore = isa<StoreInst>(AV);
+    bool AIsLoad = isa<LoadInst>(AV);
+    if (AIsStore || AIsLoad) {
+      // Load/store vs load/store
+      vector<Instruction *> AStores;
+      if (AIsStore)
+        Result.insert(cast<StoreInst>(AV)->getParent());
+      else
+        for (Instruction *I : RDP.getReachingDefinitions(cast<LoadInst>(AV)))
+          Result.insert(I->getParent());
+
+    } else if (auto *AI = dyn_cast<Instruction>(AV)) {
+      // Instruction
+      if (!isSupportedOperator(AI->getOpcode()))
+        return { };
+
+      for (unsigned I = 0; I < AI->getNumOperands(); I++)
+        WorkList.push(AI->getOperand(I));
+    } else if (!isa<Constant>(AV)) {
+      return { };
+    }
+
+  }
+  return Result;
+}
+
 char ConditionNumberingPass::ID = 0;
+const IndexesVector ConditionNumberingPass::NoDefinedConditions;
 static RegisterPass<ConditionNumberingPass> Z("cnp",
                                               "Condition Numbering Pass",
                                               true,
                                               true);
+template<typename C, typename T>
+static bool pushIfAbsent(C &Container, T Element) {
+  auto It = std::find(Container.begin(), Container.end(), Element);
+  bool Result = It != Container.end();
+  if (!Result)
+    Container.push_back(Element);
+  return Result;
+}
 
 bool ConditionNumberingPass::runOnFunction(Function &F) {
   DBG("passes", { dbg << "Starting ConditionNumberingPass\n"; });
@@ -317,14 +365,27 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
     if (P.second.size() > 1) {
       // 0 is a reserved value
       ConditionIndex++;
-      for (BranchInst *B : P.second)
+      for (BranchInst *B : P.second) {
         BranchConditionNumberMap[B] = ConditionIndex;
+        for (BasicBlock *Definer : definingBasicBlocks(RDP, B)) {
+          pushIfAbsent(DefinedConditions[Definer], ConditionIndex);
+        }
+      }
 
       DBG("cnp",
           {
             dbg << std::dec << ConditionIndex << ":";
             for (BranchInst *B : P.second)
               dbg << " " << getName(B);
+
+            auto It = P.second.begin();
+            if (It != P.second.end()) {
+              dbg << " (defined by:";
+              for (BasicBlock *Definer : definingBasicBlocks(RDP, *It)) {
+                dbg << " " << getName(Definer);
+              }
+              dbg << ")";
+            }
             dbg << "\n";
           });
 
