@@ -2,6 +2,11 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+# Note: this is just a support file to create a CMake project on the fly that
+# can use different compiler (a cross-compiler). Its only purpose is to compile
+# and install a series of simple programs that will be used for testing.
+# What you're looking for is probably Tests.cmake.
+
 cmake_minimum_required(VERSION 2.8)
 
 project(Test C)
