@@ -695,7 +695,7 @@ private:
 
 BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
   // Initialization steps
-  const unsigned MaxDepth = 5;
+  const unsigned MaxDepth = 10;
   Module *M = Reached->getParent()->getParent()->getParent();
   const DataLayout &DL = M->getDataLayout();
   Type *Int64 = IntegerType::get(M->getContext(), 64);
