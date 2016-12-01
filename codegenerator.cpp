@@ -592,8 +592,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     VirtualAddress = Binary.entryPoint();
   }
 
-  dbg << "Entry address: 0x" << std::hex << VirtualAddress << std::endl;
-
   BasicBlock *Head = JumpTargets.getBlockAt(VirtualAddress);
 
   // Fake jumps to the dispatcher-related basic blocks. This way all the blocks

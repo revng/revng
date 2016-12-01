@@ -311,6 +311,9 @@ static inline void visitPredecessors(llvm::Instruction *I,
 /// \return the name of the basic block, if available, its pointer value
 ///         otherwise.
 static inline std::string getName(const llvm::BasicBlock *BB) {
+  if (BB == nullptr)
+    return "(nullptr)";
+
   llvm::StringRef Result = BB->getName();
   if (!Result.empty()) {
     return Result.str();
