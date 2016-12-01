@@ -51,7 +51,7 @@ struct ProgramParameters {
   bool NoOSRA;
   bool EnableTracing;
   bool UseSections;
-  bool DetectFunctionBoundaries;
+  bool DetectFunctionsBoundaries;
 };
 
 using LibraryDestructor = GenericFunctor<decltype(&dlclose), &dlclose>;
@@ -187,9 +187,9 @@ static int parseArgs(int Argc, const char *Argv[],
                &Parameters->BBSummaryPath,
                "destination path for the CSV containing the statistics about "
                "the translated basic blocks."),
-    OPT_BOOLEAN('f', "function-boundaries",
-                &Parameters->DetectFunctionBoundaries,
-                "enable function boundaries detection."),
+    OPT_BOOLEAN('f', "functions-boundaries",
+                &Parameters->DetectFunctionsBoundaries,
+                "enable functions boundaries detection."),
     OPT_END(),
   };
 
@@ -287,7 +287,7 @@ int main(int argc, const char *argv[]) {
                           std::string(Parameters.BBSummaryPath),
                           !Parameters.NoOSRA,
                           Parameters.EnableTracing,
-                          Parameters.DetectFunctionBoundaries);
+                          Parameters.DetectFunctionsBoundaries);
 
   Generator.translate(Parameters.EntryPointAddress, "root");
 
