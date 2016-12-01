@@ -142,8 +142,7 @@ public:
 
   void resetDefinitions(TypeSizeProvider &TSP) {
     for (auto &P : Reaching)
-      for (auto &BV : P.second)
-        Definitions.push_back({ BV, P.first });
+      Definitions.push_back({ P.second, P.first });
   }
 
   unsigned size() const { return Reaching.size(); }
@@ -168,9 +167,7 @@ public:
 
 private:
   using CondDefPair = std::pair<llvm::BitVector, MemoryInstruction>;
-  using ReachingType = std::unordered_map<MemoryInstruction,
-                                          llvm::SmallVector<llvm::BitVector,
-                                                            2>>;
+  using ReachingType = std::unordered_map<MemoryInstruction, llvm::BitVector>;
 
   enum ConditionsComparison {
     Identical,
@@ -179,9 +176,6 @@ private:
   };
 
 private:
-  ConditionsComparison mergeConditionBits(llvm::BitVector &Target,
-                                          llvm::BitVector &NewConditions) const;
-
   /// \brief Set the bit corresponding to \p Index in \p Target, if present in
   /// SeenCondtions.
   bool setIndexIfSeen(llvm::BitVector &Target, int32_t Index) const;
@@ -204,8 +198,7 @@ private:
 
       Conditions.resize(NewSize);
       for (auto &P : Reaching)
-        for (auto &BV : P.second)
-          BV.resize(NewSize);
+        P.second.resize(NewSize);
       for (CondDefPair &Definition : Definitions)
         Definition.first.resize(NewSize);
 
@@ -288,6 +281,76 @@ private:
   std::map<LoadInst *, unsigned>  ReachingDefinitionsCount;
 };
 
+/// The ConditionNumberingPass loops over all the conditional branch
+/// instructions in the program and tries to identify those that are based on
+/// exactly the same condition, i.e., the pair for which can be sure that, if
+/// the first branch is taken, then also the second branch will be taken. This
+/// is particularly useful to handle consecutive predeicate instructions.
+///
+/// Two conditions are considered the same, if they actually are the same or if
+/// they compute exactly the same operations on the same operands. To
+/// efficiently identify which branch instructions use the same conditions we
+/// populate an hashmap with a custom hash function. At the end, we will discard
+/// all the entries of the hashmap with a single entry, since we're not
+/// interested in considering a condition if it doesn't have at least a
+/// companion branch instruction. Each condition with at least two branches
+/// using it is assigned a unique identifier, the condition index.
+///
+/// The ConditionNumberingPass also provides, for each condition index, a list
+/// of "reset" basic blocks, i.e., a list of basic blocks which define at least
+/// one of the values involved in the computation of the condition. Such a list
+/// can be used to understand when it doesn't make sense for an analysis to
+/// consider that a certain condition is still holding.
+///
+/// "reset" basic blocks also include the last basic block that might be
+/// affected by the associated condition index. This is useful to prevent an
+/// analysis from keeping track of a condition index which we can be sure will
+/// never be used again. The last basic block that might be affected by a
+/// condition index is the immediate post-dominator of the set of basic blocks
+/// containing the branches associated to that condition index.
+///
+/// The following figures examplifies the situation: BB1 and BB2 share the same
+/// condition, BB3 is their immediate post-dominator. To easily identify it as
+/// such we introduce a temporary basic block BB0 and make it a predecessor of
+/// both BB1 and BB2. Then, we compute the post-dominator tree and ask for the
+/// immediate post-domiantor of BB0, obtaining BB3.
+///
+///                             +-----------+
+///                             |           |
+///                 +- - - - - -+    BB0    +- - - - -+
+///                 |           |           |         |
+///                             +-----------+
+///                 |                                 |
+///
+///           +-----v-----+                     +-----v-----+
+///           |           |                     |           |
+///       +---+    BB1    +---+             +---+    BB2    +---+
+///       |   |           |   |             |   |           |   |
+///       |   +-----------+   |             |   +-----------+   |
+///       |                   |             |                   |
+///       |                   |             |                   |
+/// +-----v-----+       +-----v-----+ +-----v-----+       +-----v-----+
+/// |           |       |           | |           |       |           |
+/// |           |       |           | |           |       |           |
+/// |           |       |           | |           |       |           |
+/// +-----+-----+       +-----+-----+ +-----+-----+       +-----+-----+
+///       |                   |             |                   |
+///       |                   |             |                   |
+///       |             +-----v-----+       |             +-----v-----+
+///       |             |           |       |             |           |
+///       +------------->           <-------+             |           |
+///                     |           |                     |           |
+///                     +-----+-----+                     +-----+-----+
+///                           |                                 |
+///                           |                                 |
+///                           |          +-----------+          |
+///                           |          |           |          |
+///                           +---------->    BB3    <----------+
+///                                      |           |
+///                                      +-----+-----+
+///                                            |
+///                                            |
+///                                            v
 class ConditionNumberingPass : public llvm::FunctionPass {
 public:
   static char ID;
