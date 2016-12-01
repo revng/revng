@@ -28,9 +28,10 @@ endforeach()
 # SOURCES: the set of input files
 # OUTPUT: name of the variable where the path to the compile binary will be
 #         stored
-macro(register_for_compilation ARCH PROGRAM_NAME SOURCES OUTPUT)
+macro(register_for_compilation ARCH PROGRAM_NAME SOURCES FLAGS OUTPUT)
   list(APPEND TO_COMPILE_NAMES_${ARCH} "${PROGRAM_NAME}")
   set(TO_COMPILE_SOURCES_${PROGRAM_NAME} "${SOURCES}")
+  set(TO_COMPILE_FLAGS_${PROGRAM_NAME} "${FLAGS}")
   set("${OUTPUT}" "${INSTALL_DIR_${ARCH}}/bin/${PROGRAM_NAME}")
 endmacro()
 
@@ -49,6 +50,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
     # Serialize file names
     string(REPLACE ";" ":" SOURCES "${TO_COMPILE_SOURCES_${PROGRAM_NAME}}")
     list(APPEND TEST_SOURCES_ARGS -DTEST_SOURCES_${PROGRAM_NAME}=${SOURCES})
+    list(APPEND TEST_SOURCES_ARGS "-DTEST_FLAGS_${PROGRAM_NAME}=${TO_COMPILE_FLAGS_${PROGRAM_NAME}}")
   endforeach()
 
   string(REPLACE "-" "_" NORMALIZED_ARCH "${ARCH}")

@@ -50,7 +50,7 @@ foreach(TEST_NAME ${TESTS})
     add_test(NAME run-test-native-${TEST_NAME}-${RUN_NAME}
       COMMAND sh -c "$<TARGET_FILE:test-native-${TEST_NAME}> ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${CMAKE_CURRENT_BINARY_DIR}/tests/run-test-native-${TEST_NAME}-${RUN_NAME}.log")
     set_tests_properties(run-test-native-${TEST_NAME}-${RUN_NAME}
-        PROPERTIES LABELS "run-test-native;${TEST_NAME};${RUN_NAME}")
+        PROPERTIES LABELS "runtime;run-test-native;${TEST_NAME};${RUN_NAME}")
   endforeach()
 endforeach()
 
@@ -79,13 +79,13 @@ endfunction()
 foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   foreach(TEST_NAME ${TESTS})
     # Register the programs for compilation
-    register_for_compilation("${ARCH}" "${TEST_NAME}" "${TEST_SOURCES_${TEST_NAME}}" BINARY)
+    register_for_compilation("${ARCH}" "${TEST_NAME}" "${TEST_SOURCES_${TEST_NAME}}" "" BINARY)
 
     # Translate the compiled binary
     add_test(NAME translate-${TEST_NAME}-${ARCH}
-      COMMAND sh -c "$<TARGET_FILE:revamb> --function-boundaries --use-sections -g ll ${BINARY} ${BINARY}.ll")
+      COMMAND sh -c "$<TARGET_FILE:revamb> --functions-boundaries --use-sections -g ll ${BINARY} ${BINARY}.ll")
     set_tests_properties(translate-${TEST_NAME}-${ARCH}
-      PROPERTIES LABELS "translate;${TEST_NAME};${ARCH}")
+      PROPERTIES LABELS "runtime;translate;${TEST_NAME};${ARCH}")
 
     # Compose the command line to link support.c and the translated binaries
     string(REPLACE "-" "_" NORMALIZED_ARCH "${ARCH}")
@@ -98,7 +98,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       COMMAND sh -c "${LLC} -O0 -filetype=obj ${BINARY}.ll -o ${BINARY}${CMAKE_C_OUTPUT_EXTENSION} && ${COMPILE_TRANSLATED}")
     set_tests_properties(compile-translated-${TEST_NAME}-${ARCH}
       PROPERTIES DEPENDS translate-${TEST_NAME}-${ARCH}
-                 LABELS "compile-translated;${TEST_NAME};${ARCH}")
+                 LABELS "runtime;compile-translated;${TEST_NAME};${ARCH}")
 
     # For each set of arguments
     foreach(RUN_NAME ${TEST_RUNS_${TEST_NAME}})
@@ -107,7 +107,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
         COMMAND sh -c "${BINARY}.translated ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${BINARY}-run-translated-test-${RUN_NAME}-${ARCH}.log")
       set_tests_properties(run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
         PROPERTIES DEPENDS compile-translated-${TEST_NAME}-${ARCH}
-                   LABELS "run-translated-test;${TEST_NAME};${RUN_NAME};${ARCH}")
+                   LABELS "runtime;run-translated-test;${TEST_NAME};${RUN_NAME};${ARCH}")
 
       # Check the output of the translated binary corresponds to the native's one
       add_test(NAME check-with-native-${TEST_NAME}-${RUN_NAME}-${ARCH}
@@ -117,13 +117,13 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       list(APPEND DEPS "run-test-native-${TEST_NAME}-${RUN_NAME}")
       set_tests_properties(check-with-native-${TEST_NAME}-${RUN_NAME}-${ARCH}
         PROPERTIES DEPENDS "${DEPS}"
-                   LABELS "check-with-native;${TEST_NAME};${RUN_NAME};${ARCH}")
+                   LABELS "runtime;check-with-native;${TEST_NAME};${RUN_NAME};${ARCH}")
 
       # Test to run the compiled program under qemu-user
       add_test(NAME run-qemu-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
         COMMAND sh -c "${QEMU_${ARCH}} ${BINARY} ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${BINARY}-run-qemu-test-${RUN_NAME}.log")
       set_tests_properties(run-qemu-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
-        PROPERTIES LABELS "run-qemu-test;${TEST_NAME};${RUN_NAME};${ARCH}")
+        PROPERTIES LABELS "runtime;run-qemu-test;${TEST_NAME};${RUN_NAME};${ARCH}")
 
       # Check the output of the translated binary corresponds to the qemu-user's
       # one
@@ -134,7 +134,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       list(APPEND DEPS "run-qemu-test-${TEST_NAME}-${RUN_NAME}-${ARCH}")
       set_tests_properties(check-with-qemu-${TEST_NAME}-${RUN_NAME}-${ARCH}
         PROPERTIES DEPENDS "${DEPS}"
-                   LABELS "check-with-qemu;${TEST_NAME};${RUN_NAME};${ARCH}")
+                   LABELS "runtime;check-with-qemu;${TEST_NAME};${RUN_NAME};${ARCH}")
     endforeach()
   endforeach()
 
