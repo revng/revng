@@ -30,13 +30,14 @@ endforeach()
 #         stored
 macro(register_for_compilation ARCH PROGRAM_NAME SOURCES FLAGS OUTPUT)
   list(APPEND TO_COMPILE_NAMES_${ARCH} "${PROGRAM_NAME}")
-  set(TO_COMPILE_SOURCES_${PROGRAM_NAME} "${SOURCES}")
-  set(TO_COMPILE_FLAGS_${PROGRAM_NAME} "${FLAGS}")
+  set(TO_COMPILE_SOURCES_${ARCH}_${PROGRAM_NAME} "${SOURCES}")
+  set(TO_COMPILE_FLAGS_${ARCH}_${PROGRAM_NAME} "${FLAGS}")
   set("${OUTPUT}" "${INSTALL_DIR_${ARCH}}/bin/${PROGRAM_NAME}")
 endmacro()
 
 # Give control to the various subdirectories
 include(${CMAKE_SOURCE_DIR}/tests/Runtime/RuntimeTests.cmake)
+include(${CMAKE_SOURCE_DIR}/tests/Analysis/AnalysisTests.cmake)
 
 # Compile the requested programs
 foreach(ARCH ${SUPPORTED_ARCHITECTURES})
@@ -48,9 +49,9 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   # Sadly, we can't put a list into TEST_SOURCES_ARGS, since it is a list too
   foreach(PROGRAM_NAME IN LISTS TO_COMPILE_NAMES_${ARCH})
     # Serialize file names
-    string(REPLACE ";" ":" SOURCES "${TO_COMPILE_SOURCES_${PROGRAM_NAME}}")
+    string(REPLACE ";" ":" SOURCES "${TO_COMPILE_SOURCES_${ARCH}_${PROGRAM_NAME}}")
     list(APPEND TEST_SOURCES_ARGS -DTEST_SOURCES_${PROGRAM_NAME}=${SOURCES})
-    list(APPEND TEST_SOURCES_ARGS "-DTEST_FLAGS_${PROGRAM_NAME}=${TO_COMPILE_FLAGS_${PROGRAM_NAME}}")
+    list(APPEND TEST_SOURCES_ARGS "-DTEST_FLAGS_${PROGRAM_NAME}=${TO_COMPILE_FLAGS_${ARCH}_${PROGRAM_NAME}}")
   endforeach()
 
   string(REPLACE "-" "_" NORMALIZED_ARCH "${ARCH}")

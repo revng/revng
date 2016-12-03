@@ -1,0 +1,13 @@
+function,basicblock
+bb._start,bb._start
+bb._start,bb._start.0x10
+bb._start,bb._start.0x14
+bb._start,bb._start.0x18
+bb._start,bb._start.0x1c
+bb._start,bb._start.0x4_L0
+bb._start,bb._start.0x4_L0_ft
+bb._start,bb._start.0x4_L1
+bb._start,bb._start.0x4_L1_ft
+bb._start,bb._start.0x8
+bb._start,bb._start.0xc
+bb._start,bb.end

@@ -1,0 +1,12 @@
+source,destination
+bb.__start,bb.__start.0xc
+bb.__start,bb.end
+bb.__start.0x1c,bb.__start.0x2c
+bb.__start.0x1c,bb.nullptr
+bb.__start.0x2c,bb.one
+bb.__start.0x2c,bb.three
+bb.__start.0x2c,bb.two
+bb.__start.0xc,bb.__start.0x1c
+bb._ftext,bb._ftext.0x4
+bb._ftext.0x4,bb._ftext.0x8
+bb._ftext.0x8,bb.__start

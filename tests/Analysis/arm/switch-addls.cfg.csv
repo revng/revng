@@ -1,0 +1,13 @@
+source,destination
+bb._start,bb._start.0x10
+bb._start,bb._start.0x14
+bb._start,bb._start.0x18
+bb._start,bb._start.0x1c
+bb._start,bb._start.0x8
+bb._start,bb._start.0xc
+bb._start.0x10,bb.end
+bb._start.0x14,bb.end
+bb._start.0x18,bb.end
+bb._start.0x1c,bb.end
+bb._start.0x8,bb.end
+bb._start.0xc,bb.end
