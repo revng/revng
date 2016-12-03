@@ -1695,12 +1695,12 @@ bool OSRAPass::runOnFunction(Function &F) {
           } else if (auto *ToStore = dyn_cast<Instruction>(ValueOp)) {
 
             // Compute the OSR to propagate: either the one of the value to
-            // store, or a self-referencing one
+            // store, or an OSR relative to the value being stored
             auto OSRIt = OSRs.find(ToStore);
             if (OSRIt != OSRs.end())
               SelfOSR = OSRIt->second;
             else
-              SelfOSR = OSR(&BVs.get(I->getParent(), I));
+              SelfOSR = OSR(&BVs.get(I->getParent(), ToStore));
 
             // Check if the value we're storing has constraints
             auto ConstraintIt = Constraints.find(ToStore);
