@@ -399,6 +399,12 @@ public:
     return Pair.first + Pair.second;
   }
 
+  enum Endianess {
+    OriginalEndianess,
+    DestinationEndianess
+  };
+
+
   /// \brief Read an integer number from a segment
   ///
   /// \param Address the address from which to read.
@@ -407,14 +413,19 @@ public:
   /// \return a `ConstantInt` with the read value or `nullptr` in case it wasn't
   ///         possible to read the value (e.g., \p Address is not inside any of
   ///         the segments).
-  llvm::ConstantInt *readConstantInt(llvm::Constant *Address, unsigned Size);
+  llvm::ConstantInt *readConstantInt(llvm::Constant *Address,
+                                     unsigned Size,
+                                     Endianess ReadEndianess);
 
   /// \brief Reads a pointer-sized value from a segment
   /// \see readConstantInt
   llvm::Constant *readConstantPointer(llvm::Constant *Address,
-                                      llvm::Type *PointerTy);
+                                      llvm::Type *PointerTy,
+                                      Endianess ReadEndianess);
 
-  llvm::Optional<uint64_t> readRawValue(uint64_t Address, unsigned Size) const;
+  llvm::Optional<uint64_t> readRawValue(uint64_t Address,
+                                        unsigned Size,
+                                        Endianess ReadEndianess) const;
 
   /// \brief Register a new basic block in terms of the input architecture
   ///
@@ -502,7 +513,10 @@ public:
   void finalizeJumpTargets() {
     unsigned ReadSize = Binary.architecture().pointerSize() / 8;
     for (uint64_t MemoryAddress : UnusedCodePointers) {
-      uint64_t PC = readRawValue(MemoryAddress, ReadSize).getValue();
+      // Read using the original endianess, we want the correct address
+      uint64_t PC = readRawValue(MemoryAddress,
+                                 ReadSize,
+                                 OriginalEndianess).getValue();
 
       // Set as reason UnusedGlobalData and ensure it's not empty
       llvm::BasicBlock *BB = registerJT(PC, UnusedGlobalData);

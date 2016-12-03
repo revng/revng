@@ -183,12 +183,16 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
       // constant
       assert(NewOperand != nullptr && !isa<UndefValue>(NewOperand));
 
+      // Read the value using the endianess of the destination architecture,
+      // since, if there's a mismatch, in the stack we will also have a byteswap
+      // instruction
+      JumpTargetManager::Endianess E = JumpTargetManager::DestinationEndianess;
       if (Load->getType()->isIntegerTy()) {
         unsigned Size = Load->getType()->getPrimitiveSizeInBits() / 8;
         assert(Size != 0);
-        NewOperand = JTM->readConstantInt(NewOperand, Size);
+        NewOperand = JTM->readConstantInt(NewOperand, Size, E);
       } else if (Load->getType()->isPointerTy()) {
-        NewOperand = JTM->readConstantPointer(NewOperand, Load->getType());
+        NewOperand = JTM->readConstantPointer(NewOperand, Load->getType(), E);
       } else {
         assert(false);
       }

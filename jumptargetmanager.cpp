@@ -312,9 +312,18 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
   llvm_unreachable("Can't find the PC marker");
 }
 
-Optional<uint64_t> JumpTargetManager::readRawValue(uint64_t Address,
-                                                   unsigned Size) const {
-  bool IsLittleEndian = Binary.architecture().isLittleEndian();
+Optional<uint64_t>
+JumpTargetManager::readRawValue(uint64_t Address,
+                                unsigned Size,
+                                Endianess ReadEndianess) const {
+  bool IsLittleEndian;
+  if (ReadEndianess == OriginalEndianess) {
+    IsLittleEndian = Binary.architecture().isLittleEndian();
+  } else if (ReadEndianess == DestinationEndianess) {
+    IsLittleEndian = TheModule.getDataLayout().isLittleEndian();
+  } else {
+    abort();
+  }
 
   for (auto &Segment : Binary.segments()) {
     // Note: we also consider writeable memory areas because, despite being
@@ -356,9 +365,11 @@ Optional<uint64_t> JumpTargetManager::readRawValue(uint64_t Address,
 }
 
 Constant *JumpTargetManager::readConstantPointer(Constant *Address,
-                                                 Type *PointerTy) {
+                                                 Type *PointerTy,
+                                                 Endianess ReadEndianess) {
   auto *Value = readConstantInt(Address,
-                                Binary.architecture().pointerSize() / 8);
+                                Binary.architecture().pointerSize() / 8,
+                                ReadEndianess);
   if (Value != nullptr) {
     return ConstantExpr::getIntToPtr(Value, PointerTy);
   } else {
@@ -367,7 +378,8 @@ Constant *JumpTargetManager::readConstantPointer(Constant *Address,
 }
 
 ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
-                                                unsigned Size) {
+                                                unsigned Size,
+                                                Endianess ReadEndianess) {
   const DataLayout &DL = TheModule.getDataLayout();
 
   if (ConstantAddress->getType()->isPointerTy()) {
@@ -381,7 +393,8 @@ ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
   UnusedCodePointers.erase(Address);
   registerReadRange(Address, Size);
 
-  auto Result = readRawValue(Address, Size);
+  auto Result = readRawValue(Address, Size, ReadEndianess);
+
   if (Result.hasValue())
     return ConstantInt::get(IntegerType::get(Context, Size * 8),
                             Result.getValue());
