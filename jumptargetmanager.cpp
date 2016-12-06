@@ -43,10 +43,6 @@ using namespace llvm;
 
 static bool isSumJump(StoreInst *PCWrite);
 
-static uint64_t getConst(Value *Constant) {
-  return cast<ConstantInt>(Constant)->getLimitedValue();
-}
-
 char TranslateDirectBranchesPass::ID = 0;
 
 static RegisterPass<TranslateDirectBranchesPass> X("translate-db",
@@ -293,8 +289,8 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
       if ((Marker = dyn_cast<CallInst>(&*It))) {
         // TODO: comparing strings is not very elegant
         if (Marker->getCalledFunction()->getName() == "newpc") {
-          uint64_t PC = getConst(Marker->getArgOperand(0));
-          uint64_t Size = getConst(Marker->getArgOperand(1));
+          uint64_t PC = getLimitedValue(Marker->getArgOperand(0));
+          uint64_t Size = getLimitedValue(Marker->getArgOperand(1));
           assert(Size != 0);
           return PC + Size;
         }
@@ -796,8 +792,8 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
   if (NewPCCall == nullptr)
     return { 0, 0 };
 
-  uint64_t PC = getConst(NewPCCall->getArgOperand(0));
-  uint64_t Size = getConst(NewPCCall->getArgOperand(1));
+  uint64_t PC = getLimitedValue(NewPCCall->getArgOperand(0));
+  uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(1));
   assert(Size != 0);
   return { PC, Size };
 }
@@ -826,7 +822,7 @@ void JumpTargetManager::handleSumJump(Instruction *SumJump) {
         Function *Callee = Call->getCalledFunction();
         // TODO: comparing strings is not very elegant
         if (Callee != nullptr && Callee->getName() == "newpc") {
-          uint64_t PC = getConst(Call->getArgOperand(0));
+          uint64_t PC = getLimitedValue(Call->getArgOperand(0));
 
           // If we've found a (direct or indirect) jump, stop
           if (PC != NextPC)
@@ -843,7 +839,7 @@ void JumpTargetManager::handleSumJump(Instruction *SumJump) {
           End = BB->end();
 
           // Updated the expectation for the next PC
-          NextPC = PC + getConst(Call->getArgOperand(1));
+          NextPC = PC + getLimitedValue(Call->getArgOperand(1));
         } else if (Call->getCalledFunction() == ExitTB) {
           // We've found an unparsed indirect jump
           return;
