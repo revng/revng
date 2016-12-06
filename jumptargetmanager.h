@@ -388,12 +388,16 @@ public:
 
   llvm::Value *pcReg() const { return PCReg; }
 
+  // TODO: can this be replaced by the corresponding method in
+  // GeneratedCodeBasicInfo?
   /// \brief Get the PC associated to \p TheInstruction and the next one
   ///
   /// \return a pair containing the PC associated to \p TheInstruction and the
   ///         next one.
   std::pair<uint64_t, uint64_t> getPC(llvm::Instruction *TheInstruction) const;
 
+  // TODO: can this be replaced by the corresponding method in
+  // GeneratedCodeBasicInfo?
   uint64_t getNextPC(llvm::Instruction *TheInstruction) const {
     auto Pair = getPC(TheInstruction);
     return Pair.first + Pair.second;
@@ -535,6 +539,7 @@ public:
   ///        one
   llvm::CallInst *findNextExitTB(llvm::Instruction *I);
 
+  // TODO: can we drop this in favor of GeneratedCodeBasicInfo::isJump?
   bool isJump(llvm::TerminatorInst *T) const {
     for (llvm::BasicBlock *Successor : T->successors()) {
       if (!(Successor == Dispatcher

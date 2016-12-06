@@ -29,6 +29,19 @@ enum class DebugInfoType {
   LLVMIR ///< produce an LLVM IR with debug metadata referring to itself.
 };
 
+// TODO: move me to another header file
+/// \brief Classification of the various basic blocks we are creating
+enum BlockType {
+  UntypedBlock, ///< A basic block generated during translation that it's not a
+                ///  jump target.
+  DispatcherBlock, ///< Basic block representing the dispatcher.
+  AnyPCBlock, ///< Basic block used to handle an expectedly unknown jump target.
+  UnexpectedPCBlock, ///< Basic block used to handle an unexpectedly unknown
+                     ///  jump target.
+  JumpTargetBlock ///< A basic block generated during translation representing a
+                  ///  jump target.
+};
+
 /// \brief Basic information about an input/output architecture
 class Architecture {
 public:

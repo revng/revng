@@ -379,4 +379,79 @@ static inline llvm::LLVMContext &getContext(llvm::Instruction *I) {
   return getContext(I->getParent());
 }
 
+/// \brief Helper class to easily create and use LLVM metadata
+class QuickMetadata {
+public:
+  QuickMetadata(llvm::LLVMContext &Context) : C(Context),
+    Int32Ty(llvm::IntegerType::get(C, 32)) { }
+
+  llvm::MDString *get(const char *String) {
+    return llvm::MDString::get(C, String);
+  }
+
+  llvm::ConstantAsMetadata *get(uint32_t Integer) {
+    auto *Constant = llvm::ConstantInt::get(Int32Ty, Integer);
+    return llvm::ConstantAsMetadata::get(Constant);
+  }
+
+  llvm::MDTuple *tuple(const char *String) {
+    return tuple(get(String));
+  }
+
+  llvm::MDTuple *tuple(uint32_t Integer) {
+    return tuple(get(Integer));
+  }
+
+  llvm::MDTuple *tuple(llvm::ArrayRef<llvm::Metadata *> MDs) {
+    return llvm::MDTuple::get(C, MDs);
+  }
+
+  template<typename T>
+  T extract(const llvm::MDTuple *Tuple, unsigned Index) {
+    return extract<T>(Tuple->getOperand(Index).get());
+  }
+
+  template<typename T>
+  T extract(const llvm::Metadata *MD) {
+    assert(false);
+  }
+
+private:
+  llvm::LLVMContext &C;
+  llvm::IntegerType *Int32Ty;
+};
+
+template<>
+inline uint32_t QuickMetadata::extract<uint32_t>(const llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getLimitedValue(C->getValue());
+}
+
+template<>
+inline llvm::StringRef
+QuickMetadata::extract<llvm::StringRef>(const llvm::Metadata *MD) {
+  return llvm::cast<llvm::MDString>(MD)->getString();
+}
+
+/// \brief Return the instruction coming before \p I, or nullptr if it's the
+///        first.
+static inline llvm::Instruction *getPrevious(llvm::Instruction *I) {
+  llvm::BasicBlock::reverse_iterator It(make_reverse_iterator(I));
+  if (It == I->getParent()->rend())
+    return nullptr;
+
+  return &*It;
+}
+
+/// \brief Return the instruction coming after \p I, or nullptr if it's the
+///        last.
+static inline llvm::Instruction *getNext(llvm::Instruction *I) {
+  llvm::BasicBlock::iterator It(I);
+  if (It == I->getParent()->end())
+    return nullptr;
+
+  It++;
+  return &*It;
+}
+
 #endif // _IRHELPERS_H

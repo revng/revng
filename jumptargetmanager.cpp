@@ -33,9 +33,10 @@
 // Local includes
 #include "datastructures.h"
 #include "debug.h"
-#include "revamb.h"
+#include "generatedcodebasicinfo.h"
 #include "ir-helpers.h"
 #include "jumptargetmanager.h"
+#include "revamb.h"
 #include "set.h"
 #include "simplifycomparisons.h"
 
@@ -1203,6 +1204,9 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   Builder.SetInsertPoint(Entry);
   Value *SwitchOn = Builder.CreateLoad(SwitchOnPtr);
   SwitchInst *Switch = Builder.CreateSwitch(SwitchOn, DispatcherFail);
+  // The switch is the terminator of the dispatcher basic block
+  QuickMetadata QMD(Context);
+  Switch->setMetadata("revamb.block.type", QMD.tuple(DispatcherBlock));
 
   Dispatcher = Entry;
   DispatcherSwitch = Switch;
@@ -1252,6 +1256,12 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
     assert(false && "Not implemented yet");
     break;
   }
+
+  QuickMetadata QMD(Context);
+  AnyPC->getTerminator()->setMetadata("revamb.block.type",
+                                      QMD.tuple(AnyPCBlock));
+  UnexpectedPC->getTerminator()->setMetadata("revamb.block.type",
+                                             QMD.tuple(UnexpectedPCBlock));
 
   // If we're entering or leaving the NoFunctionCallsCFG form, update all the
   // branch instruction forming a function call
@@ -1309,6 +1319,18 @@ bool JumpTargetManager::hasPredecessors(BasicBlock *BB) const {
 // block to translate we proceed as long as we are able to create new edges on
 // the CFG (not considering the dispatcher).
 void JumpTargetManager::harvest() {
+  // TODO: move me to a commit function
+  // Commit some information available only in JumpTargetManager to the IR
+  QuickMetadata QMD(Context);
+  for (auto &P : JumpTargets) {
+    TerminatorInst *Terminator = P.second.head()->getTerminator();
+    if (Terminator != nullptr
+        && Terminator->getMetadata(BlockTypeMDName) == nullptr) {
+      Terminator->setMetadata(BlockTypeMDName,
+                              QMD.tuple(QMD.get(JumpTargetBlock)));
+    }
+  }
+
   if (empty()) {
     DBG("verify", if (verifyModule(TheModule, &dbgs())) { abort(); });
 
