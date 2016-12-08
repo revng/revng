@@ -485,6 +485,12 @@ IT::InstructionTranslator(IRBuilder<>& Builder,
 
   auto &Context = TheModule.getContext();
   using FT = FunctionType;
+  // The newpc function call takes the following parameters:
+  //
+  // * address of the instruction
+  // * instruction size
+  // * isJT (-1: unknown, 0: no, 1: yes)
+  // * all the local variables used by this instruction
   auto *NewPCMarkerTy = FT::get(Type::getVoidTy(Context),
                                 {
                                   Type::getInt64Ty(Context),
@@ -519,6 +525,8 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath, bool EnableTracing) {
 
       unsigned ArgCount = Call->getNumArgOperands();
       Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
+
+      // TODO: Do we really need this?
       for (unsigned I = 3; I < ArgCount - 1; I++)
         Call->setArgOperand(I, Call->getArgOperand(ArgCount - 1));
     }
@@ -578,7 +586,7 @@ IT::newInstruction(PTCInstruction *Instr,
 
   Variables.newBasicBlock();
 
-  // Insert a call to NewPCMarker capturing all the local tempoararies
+  // Insert a call to NewPCMarker capturing all the local temporaries
   // This prevents SROA from transforming them in SSA values, which is bad
   // in case we have to split a basic block
   std::vector<Value *> Args = {

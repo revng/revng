@@ -208,93 +208,22 @@ void FBD::initPostDispatcherIt() {
   PostDispatcherIt = It;
 }
 
+static inline BasicBlock *getBlock(Value *V) {
+  return cast<BlockAddress>(V)->getBasicBlock();
+}
+
 void FBD::collectFunctionCalls() {
-  // Create function call marker
-  // TODO: we could factor this out
   Module *M = F.getParent();
-  LLVMContext &C = M->getContext();
-  Type *Int8PtrTy = Type::getInt8PtrTy(C);
-  FunctionType *FunctionCallFT = FunctionType::get(Type::getVoidTy(C),
-                                                   { Int8PtrTy, Int8PtrTy },
-                                                   false);
-  auto *FunctionCall = cast<Function>(M->getOrInsertFunction("function_call",
-                                                             FunctionCallFT));
-  FunctionCall->setLinkage(GlobalValue::InternalLinkage);
-  auto *EntryBB = BasicBlock::Create(C, "", FunctionCall);
-  ReturnInst::Create(C, EntryBB);
-  assert(FunctionCall->user_begin() == FunctionCall->user_end());
-
-  // Collect function calls
-  for (BasicBlock &BB : make_range(PostDispatcherIt, F.end())) {
-    TerminatorInst *Terminator = BB.getTerminator();
-    if (!JTM->isJump(Terminator) || isa<UnreachableInst>(Terminator))
-      continue;
-
-    // To be a function call we need to find:
-    //
-    // * a call to "newpc"
-    // * a store of the next PC
-    // * a store to the PC
-    //
-    // TODO: the function call detection criteria in reachingdefinitions.cpp is
-    //       probably more elegant, import it.
-    bool SaveRAFound = false;
-    bool StorePCFound = false;
-    uint64_t ReturnPC = JTM->getNextPC(Terminator);
-    // We can meet up calls to newpc up to (1 + "size of the delay slot") times
-    unsigned NewPCLeft = 1 + JTM->delaySlotSize();
-
-    auto Visitor = [this,
-                    &NewPCLeft,
-                    &SaveRAFound,
-                    ReturnPC,
-                    &StorePCFound] (RBasicBlockRange R) {
-      for (Instruction &I : R) {
-        if (auto *Store = dyn_cast<StoreInst>(&I)) {
-          Value *V = Store->getValueOperand();
-          if (Store->getPointerOperand() == JTM->pcReg()) {
-            StorePCFound = true;
-          } else if (auto *Constant = dyn_cast<ConstantInt>(V)) {
-            // Note that we willingly ignore stores to the PC here
-            if (Constant->getLimitedValue() == ReturnPC) {
-              assert(!SaveRAFound);
-              SaveRAFound = true;
-            }
-          }
-        } else if (auto *Call = dyn_cast<CallInst>(&I)) {
-          auto *Callee = Call->getCalledFunction();
-          if (Callee != nullptr && Callee->getName() == "newpc") {
-            assert(NewPCLeft > 0);
-            NewPCLeft--;
-            if (NewPCLeft == 0)
-              return true;
-          }
-        }
-      }
-
-      return false;
-    };
-
-    // TODO: adapt visitPredecessors from visitSuccessors
-    visitPredecessors(Terminator, Visitor, make_blacklist(*JTM));
-
-    if (SaveRAFound && StorePCFound) {
-      // It's a function call, register it
-      BasicBlock *ReturnBB = JTM->getBlockAt(ReturnPC);
-      assert(ReturnBB != nullptr);
+  Function *FC = M->getFunction("function_call");
+  for (User *U : FC->users()) {
+    if (auto *Call = dyn_cast<CallInst>(U)) {
+      BasicBlock *ReturnBB = getBlock(Call->getOperand(1));
+      uint32_t ReturnPC = getLimitedValue(Call->getOperand(2));
+      auto *Terminator = cast<TerminatorInst>(getNext(Call));
+      assert(Terminator != nullptr);
       FunctionCalls[Terminator] = ReturnBB;
-      CallPredecessors[ReturnBB].push_back(&BB);
+      CallPredecessors[ReturnBB].push_back(Call->getParent());
       ReturnPCs.insert(ReturnPC);
-
-      // Emit a call to "function_call" with two parameters: the first is the
-      // callee basic block, the second the return basic block
-      assert(Terminator->getNumSuccessors() == 1
-             && "Multiple successors are not supported");
-      Value *Args[2] = {
-        BlockAddress::get(Terminator->getSuccessor(0)),
-        BlockAddress::get(ReturnBB)
-      };
-      CallInst::Create(FunctionCall, Args, "", Terminator);
     }
   }
 

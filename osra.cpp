@@ -6,6 +6,7 @@
 //
 
 // Standard includes
+#include <algorithm>
 #include <cstdint>
 #include <vector>
 
@@ -13,6 +14,7 @@
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/FormattedStream.h"
@@ -67,8 +69,8 @@ static bool isPositive(Constant *C, const DataLayout &DL) {
   return getConstValue(Compare, DL)->getLimitedValue();
 }
 
-pair<Constant *, Constant *> OSR::boundaries(Type *Int64,
-                                             const DataLayout &DL) const {
+pair<Constant *, Constant *>
+OSR::boundaries(Type *Int64, const DataLayout &DL) const {
   Constant *Min = nullptr;
   Constant *Max = nullptr;
   std::tie(Min, Max) = BV->actualBoundaries(Int64);
@@ -956,9 +958,13 @@ BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
 bool OSRAPass::runOnFunction(Function &F) {
   DBG("passes", { dbg << "Starting OSRAPass\n"; });
 
+  auto &FCI = getAnalysis<FunctionCallIdentification>();
+
   const DataLayout DL = F.getParent()->getDataLayout();
   RDP = &getAnalysis<ConditionalReachedLoadsPass>();
   auto &SCP = getAnalysis<SimplifyComparisonsPass>();
+  DominatorTreeBase<BasicBlock> PDT(true);
+  PDT.recalculate(F);
 
   // The Overtaken map keeps track of which load/store instructions have been
   // overtaken by another load/store, meaning that they are not "free" but can
@@ -1452,15 +1458,12 @@ bool OSRAPass::runOnFunction(Function &F) {
         // Associate OSR only if the operand has an OSR and always enqueue the
         // users
         auto *Operand = I->getOperand(0);
-        auto OpOSRIt = OSRs.find(Operand);
-        if (OpOSRIt != OSRs.end()) {
-          OSR NewOSR = createOSR(Operand, I->getParent());
-          if (NewOSR.isRelativeTo(I))
-            break;
+        OSR NewOSR = createOSR(Operand, I->getParent());
+        if (NewOSR.isRelativeTo(I))
+          break;
 
-          OSRs.emplace(make_pair(I, NewOSR));
-          EnqueueUsers(I);
-        }
+        OSRs.emplace(make_pair(I, NewOSR));
+        EnqueueUsers(I);
 
         PropagateConstraints(I, Operand, [] (BVVector &BV) {
             return BV;
@@ -1532,6 +1535,86 @@ bool OSRAPass::runOnFunction(Function &F) {
         // TODO: This is wrong! !(a & b) == !a || !b, not !a && !b
         for (auto &BranchConstraint : FlippedBranchConstraints)
           BranchConstraint.flip();
+
+        // Compute the set of interested basic blocks
+        std::set<const BasicBlock *> AffectedSet;
+
+        // Build worklist with all the values affected by a constraint
+        OnceQueue<const Instruction *> AffectedWorkList;
+        for (auto &BranchConstraint : BranchConstraints)
+          if (auto *I = dyn_cast<Instruction>(BranchConstraint.value()))
+            AffectedWorkList.insert(I);
+
+        while (!AffectedWorkList.empty()) {
+          const Instruction *AffectedInst = AffectedWorkList.pop();
+
+          for (const User *U : AffectedInst->users()) {
+            if (auto *I = dyn_cast<const Instruction>(U)) {
+              switch (I->getOpcode()) {
+              case Instruction::Add:
+              case Instruction::Sub:
+              case Instruction::Mul:
+              case Instruction::Shl:
+              case Instruction::SDiv:
+              case Instruction::UDiv:
+              case Instruction::LShr:
+              case Instruction::AShr:
+              case Instruction::ICmp:
+              case Instruction::SExt:
+              case Instruction::ZExt:
+              case Instruction::Trunc:
+              case Instruction::And:
+              case Instruction::Or:
+              case Instruction::Xor:
+              case Instruction::Call:
+              case Instruction::IntToPtr:
+              case Instruction::Select:
+              case Instruction::URem:
+              case Instruction::SRem:
+                AffectedSet.insert(I->getParent());
+                AffectedWorkList.insert(I);
+                break;
+              case Instruction::Store:
+                AffectedSet.insert(I->getParent());
+                for (const LoadInst *L : RDP->getReachedLoads(I)) {
+                  AffectedSet.insert(L->getParent());
+                  AffectedWorkList.insert(L);
+                }
+                break;
+              case Instruction::Load:
+                AffectedSet.insert(I->getParent());
+                // In case of load we don't need to propagate
+                break;
+              default:
+                assert(isa<TerminatorInst>(I) && "Unexpected instruction");
+                AffectedSet.insert(I->getParent());
+                for (const BasicBlock *Successor : successors(I->getParent()))
+                  AffectedSet.insert(Successor);
+                break;
+              }
+            }
+          }
+
+        }
+
+        // Remove all the basic blocks post-domainated by another basic block in
+        // the list
+        SmallVector<const BasicBlock *, 3> RecursivelyAffected;
+        for (const BasicBlock *ToCheck : AffectedSet) {
+          bool Dominated = false;
+          for (const BasicBlock *Other : AffectedSet) {
+            if (ToCheck != Other && PDT.dominates(Other, ToCheck)) {
+              Dominated = true;
+              break;
+            }
+          }
+
+          if (!Dominated)
+            RecursivelyAffected.push_back(ToCheck);
+        }
+
+        freeContainer(AffectedSet);
+
 
         // Create and initialize the worklist with the positive constraints for
         // the true branch, and the negated constraints for the false branch
@@ -1646,6 +1729,19 @@ bool OSRAPass::runOnFunction(Function &F) {
             }
 
           }
+
+          // TODO: transform set into vector
+          auto AreDominated = [&Entry, &PDT] (const BasicBlock *BB) {
+            return PDT.dominates(Entry.Target, BB);
+          };
+
+          if (std::all_of(RecursivelyAffected.begin(),
+                          RecursivelyAffected.end(),
+                          AreDominated))
+            continue;
+
+          if (FCI.isCall(Entry.Origin))
+            continue;
 
           // Propagate the new constraints to the successors (except for the
           // dispatcher)

@@ -581,7 +581,23 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
                             *HelpersModule,
                             TargetArchitecture);
 
-  auto *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
+  GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
+
+  // Create revamb.inputarch named metadata.
+  QuickMetadata QMD(Context);
+  NamedMDNode *InputArchMD;
+  const char *MDName = "revamb.input.architecture";
+  InputArchMD = TheModule->getOrInsertNamedMetadata(MDName);
+  // Currently revamb.inputarch is composed as follows:
+  //
+  // revamb.inputarch = { { DelaySlotSize, PCRegisterName } }
+  auto *Tuple = MDTuple::get(Context, {
+      QMD.get(static_cast<uint32_t>(Binary.architecture().delaySlotSize())),
+      QMD.get("pc")
+  });
+  InputArchMD->addOperand(Tuple);
+
+  // Create an instance of JumpTargetManager
   JumpTargetManager JumpTargets(MainFunction,
                                 PCReg,
                                 Binary,

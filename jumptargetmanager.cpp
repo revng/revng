@@ -33,19 +33,16 @@
 // Local includes
 #include "datastructures.h"
 #include "debug.h"
-#include "revamb.h"
+#include "generatedcodebasicinfo.h"
 #include "ir-helpers.h"
 #include "jumptargetmanager.h"
+#include "revamb.h"
 #include "set.h"
 #include "simplifycomparisons.h"
 
 using namespace llvm;
 
 static bool isSumJump(StoreInst *PCWrite);
-
-static uint64_t getConst(Value *Constant) {
-  return cast<ConstantInt>(Constant)->getLimitedValue();
-}
 
 char TranslateDirectBranchesPass::ID = 0;
 
@@ -58,6 +55,7 @@ static RegisterPass<TranslateDirectBranchesPass> X("translate-db",
 void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<DominatorTreeWrapperPass>();
   AU.addUsedIfAvailable<SETPass>();
+  AU.setPreservesAll();
 }
 
 /// \brief Purges everything is after a call to exitTB (except the call itself)
@@ -143,14 +141,14 @@ bool TranslateDirectBranchesPass::pinJTs(Function &F) {
 }
 
 bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
-  auto& Context = F.getParent()->getContext();
+  auto &Context = F.getParent()->getContext();
 
   Function *ExitTB = JTM->exitTB();
   auto ExitTBIt = ExitTB->use_begin();
   while (ExitTBIt != ExitTB->use_end()) {
     // Take note of the use and increment the iterator immediately: this allows
     // us to erase the call to exit_tb without unexpected behaviors
-    Use& ExitTBUse = *ExitTBIt++;
+    Use &ExitTBUse = *ExitTBIt++;
     if (auto Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
       if (Call->getCalledFunction() == ExitTB) {
         // Look for the last write to the PC
@@ -293,8 +291,8 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
       if ((Marker = dyn_cast<CallInst>(&*It))) {
         // TODO: comparing strings is not very elegant
         if (Marker->getCalledFunction()->getName() == "newpc") {
-          uint64_t PC = getConst(Marker->getArgOperand(0));
-          uint64_t Size = getConst(Marker->getArgOperand(1));
+          uint64_t PC = getLimitedValue(Marker->getArgOperand(0));
+          uint64_t Size = getLimitedValue(Marker->getArgOperand(1));
           assert(Size != 0);
           return PC + Size;
         }
@@ -661,6 +659,7 @@ StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
 }
 
 
+// TODO: this is outdated and we should drop it, we now have OSRA and friends
 /// \brief Tries to detect pc += register In general, we assume what we're
 /// translating is code emitted by a compiler. This means that usually all the
 /// possible jump targets are explicit jump to a constant or are stored
@@ -796,8 +795,8 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
   if (NewPCCall == nullptr)
     return { 0, 0 };
 
-  uint64_t PC = getConst(NewPCCall->getArgOperand(0));
-  uint64_t Size = getConst(NewPCCall->getArgOperand(1));
+  uint64_t PC = getLimitedValue(NewPCCall->getArgOperand(0));
+  uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(1));
   assert(Size != 0);
   return { PC, Size };
 }
@@ -826,7 +825,7 @@ void JumpTargetManager::handleSumJump(Instruction *SumJump) {
         Function *Callee = Call->getCalledFunction();
         // TODO: comparing strings is not very elegant
         if (Callee != nullptr && Callee->getName() == "newpc") {
-          uint64_t PC = getConst(Call->getArgOperand(0));
+          uint64_t PC = getLimitedValue(Call->getArgOperand(0));
 
           // If we've found a (direct or indirect) jump, stop
           if (PC != NextPC)
@@ -843,7 +842,7 @@ void JumpTargetManager::handleSumJump(Instruction *SumJump) {
           End = BB->end();
 
           // Updated the expectation for the next PC
-          NextPC = PC + getConst(Call->getArgOperand(1));
+          NextPC = PC + getLimitedValue(Call->getArgOperand(1));
         } else if (Call->getCalledFunction() == ExitTB) {
           // We've found an unparsed indirect jump
           return;
@@ -1207,6 +1206,9 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   Builder.SetInsertPoint(Entry);
   Value *SwitchOn = Builder.CreateLoad(SwitchOnPtr);
   SwitchInst *Switch = Builder.CreateSwitch(SwitchOn, DispatcherFail);
+  // The switch is the terminator of the dispatcher basic block
+  QuickMetadata QMD(Context);
+  Switch->setMetadata("revamb.block.type", QMD.tuple(DispatcherBlock));
 
   Dispatcher = Entry;
   DispatcherSwitch = Switch;
@@ -1256,6 +1258,12 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
     assert(false && "Not implemented yet");
     break;
   }
+
+  QuickMetadata QMD(Context);
+  AnyPC->getTerminator()->setMetadata("revamb.block.type",
+                                      QMD.tuple(AnyPCBlock));
+  UnexpectedPC->getTerminator()->setMetadata("revamb.block.type",
+                                             QMD.tuple(UnexpectedPCBlock));
 
   // If we're entering or leaving the NoFunctionCallsCFG form, update all the
   // branch instruction forming a function call
@@ -1314,6 +1322,25 @@ bool JumpTargetManager::hasPredecessors(BasicBlock *BB) const {
 // the CFG (not considering the dispatcher).
 void JumpTargetManager::harvest() {
   if (empty()) {
+    // TODO: move me to a commit function
+    // Update the third argument of newpc calls (isJT, i.e., is this instruction
+    // a jump target?)
+    IRBuilder<> Builder(Context);
+    Function *NewPCFunction = TheModule.getFunction("newpc");
+    if (NewPCFunction != nullptr) {
+      for (User *U : NewPCFunction->users()) {
+        auto *Call = cast<CallInst>(U);
+        if (Call->getParent() != nullptr) {
+          // Report the instruction on the coverage CSV
+          using CI = ConstantInt;
+          uint64_t PC = (cast<CI>(Call->getArgOperand(0)))->getLimitedValue();
+
+          bool IsJT = isJumpTarget(PC);
+          Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
+        }
+      }
+    }
+
     DBG("verify", if (verifyModule(TheModule, &dbgs())) { abort(); });
 
     DBG("jtcount", dbg << "Harvesting: SROA, ConstProp, EarlyCSE and SET\n");

@@ -25,6 +25,7 @@
 // Local includes
 #include "datastructures.h"
 #include "debug.h"
+#include "functioncallidentification.h"
 #include "ir-helpers.h"
 #include "reachingdefinitions.h"
 
@@ -43,20 +44,20 @@ using IndexesVector = SmallVector<int32_t, 2>;
 
 template<class BBI, ReachingDefinitionsResult R>
 const vector<LoadInst *> &
-ReachingDefinitionsImplPass<BBI, R>::getReachedLoads(Instruction *Definition) {
+ReachingDefinitionsImplPass<BBI, R>::getReachedLoads(const Instruction *Definition) {
   assert(R == ReachingDefinitionsResult::ReachedLoads);
   return ReachedLoads[Definition];
 }
 
 template<class BBI, ReachingDefinitionsResult R>
 const vector<Instruction *> &
-ReachingDefinitionsImplPass<BBI, R>::getReachingDefinitions(LoadInst *Load) {
+ReachingDefinitionsImplPass<BBI, R>::getReachingDefinitions(const LoadInst *Load) {
   return ReachingDefinitions[Load];
 }
 
 template<class B, ReachingDefinitionsResult R>
 unsigned
-ReachingDefinitionsImplPass<B, R>::getReachingDefinitionsCount(LoadInst *Load) {
+ReachingDefinitionsImplPass<B, R>::getReachingDefinitionsCount(const LoadInst *Load) {
   assert(R == ReachingDefinitionsResult::ReachedLoads);
   return ReachingDefinitionsCount[Load];
 }
@@ -96,6 +97,7 @@ int32_t ReachingDefinitionsPass::getConditionIndex(TerminatorInst *V) {
 template<>
 void ReachingDefinitionsPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
+  AU.addRequired<FunctionCallIdentification>();
 }
 
 // ReachedLoadsPass methods implementations
@@ -114,6 +116,7 @@ int32_t ReachedLoadsPass::getConditionIndex(TerminatorInst *V) {
 template<>
 void ReachedLoadsPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
+  AU.addRequired<FunctionCallIdentification>();
 }
 
 template class ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
@@ -159,6 +162,7 @@ void
 ConditionalReachingDefinitionsPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<ConditionNumberingPass>();
+  AU.addRequired<FunctionCallIdentification>();
 }
 
 template<>
@@ -184,6 +188,7 @@ void
 ConditionalReachedLoadsPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<ConditionNumberingPass>();
+  AU.addRequired<FunctionCallIdentification>();
 }
 
 static size_t combine(size_t A, size_t B) {
@@ -976,6 +981,7 @@ static bool isSupportedPointer(Value *V) {
 
 template<class BBI, ReachingDefinitionsResult R>
 bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
+  auto &FCI = getAnalysis<FunctionCallIdentification>();
 
   DBG("passes", {
       if (std::is_same<BBI, ConditionalBasicBlockInfo>::value)
@@ -1047,39 +1053,11 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
       }
     }
 
-    bool IsCall = false;
-    bool StorePCFound = false;
-    SmallVector<uint64_t, 3> ConstantStores;
-    auto It = BB->getTerminator()->getIterator();
-    while (It != BB->begin()) {
-      It--;
-      Instruction *I = &*It;
-      if (auto *Store = dyn_cast<StoreInst>(I)) {
-        Value *V = Store->getValueOperand();
-        if (Store->getPointerOperand()->getName() == "pc") {
-          StorePCFound = true;
-        } else if (auto *Constant = dyn_cast<ConstantInt>(V)) {
-          ConstantStores.push_back(Constant->getLimitedValue());
-        }
-      } else if (auto *Call = dyn_cast<CallInst>(I)) {
-        auto *Callee = Call->getCalledFunction();
-        if (Callee != nullptr && Callee->getName() == "newpc") {
-          uint64_t PC = getLimitedValue(Call->getArgOperand(0));
-          uint64_t Size = getLimitedValue(Call->getArgOperand(1));
-          auto RAIt = std::find(ConstantStores.begin(),
-                                ConstantStores.end(),
-                                PC + Size);
-          IsCall = StorePCFound && RAIt != ConstantStores.end();
-          break;
-        }
-      }
-    }
-
     // TODO: this is an hack and should be replaced once we integrate calling
     //       convention and call graph in the basic block harvesting process
     unsigned SuccessorsCount = succ_end(BB) - succ_begin(BB);
     unsigned Size = Info.size();
-    if (!IsCall && Size * SuccessorsCount <= 5000) {
+    if (!FCI.isCall(BB) && Size * SuccessorsCount <= 5000) {
       // Get the identifier of the conditional instruction
       int32_t ConditionIndex = getConditionIndex(BB->getTerminator());
       assert(ConditionIndex == 0 || ConditionIndex > 0);

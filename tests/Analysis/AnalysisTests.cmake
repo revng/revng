@@ -46,7 +46,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
           COMMAND "${DIFF}" "${REFERENCE_OUTPUT}" "${OUTPUT}")
         set_tests_properties(check-${TEST_NAME}-${ARCH}-${OUTPUT_NAME}
           PROPERTIES DEPENDS extract-info-${TEST_NAME}-${ARCH}
-                     LABELS "analysis;check-with-reference;${TEST_NAME};${ARCH};${OUTPUT_NAME}")
+                     LABELS "analysis;check-with-reference;${TEST_NAME};${ARCH};${OUTPUT_NAME};${TEST_NAME}-${ARCH}")
       else()
         message(AUTHOR_WARNING "Can't find reference output ${REFERENCE_OUTPUT}")
       endif()
