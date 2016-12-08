@@ -248,12 +248,12 @@ public:
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
   const std::vector<llvm::LoadInst *> &
-  getReachedLoads(llvm::Instruction *I);
+  getReachedLoads(const llvm::Instruction *I);
 
   const std::vector<llvm::Instruction *> &
-  getReachingDefinitions(llvm::LoadInst *Load);
+  getReachingDefinitions(const llvm::LoadInst *Load);
 
-  unsigned getReachingDefinitionsCount(llvm::LoadInst *Load);
+  unsigned getReachingDefinitionsCount(const llvm::LoadInst *Load);
 
   virtual void releaseMemory() override {
     DBG("release", {
@@ -276,9 +276,9 @@ private:
   std::set<BasicBlock *> BasicBlockBlackList;
   std::set<LoadInst *> NRDLoads;
   std::set<LoadInst *> SelfReachingLoads;
-  std::map<Instruction *, std::vector<LoadInst *>> ReachedLoads;
-  std::map<LoadInst *, std::vector<Instruction *>> ReachingDefinitions;
-  std::map<LoadInst *, unsigned>  ReachingDefinitionsCount;
+  std::map<const Instruction *, std::vector<LoadInst *>> ReachedLoads;
+  std::map<const LoadInst *, std::vector<Instruction *>> ReachingDefinitions;
+  std::map<const LoadInst *, unsigned>  ReachingDefinitionsCount;
 };
 
 /// The ConditionNumberingPass loops over all the conditional branch

@@ -44,20 +44,20 @@ using IndexesVector = SmallVector<int32_t, 2>;
 
 template<class BBI, ReachingDefinitionsResult R>
 const vector<LoadInst *> &
-ReachingDefinitionsImplPass<BBI, R>::getReachedLoads(Instruction *Definition) {
+ReachingDefinitionsImplPass<BBI, R>::getReachedLoads(const Instruction *Definition) {
   assert(R == ReachingDefinitionsResult::ReachedLoads);
   return ReachedLoads[Definition];
 }
 
 template<class BBI, ReachingDefinitionsResult R>
 const vector<Instruction *> &
-ReachingDefinitionsImplPass<BBI, R>::getReachingDefinitions(LoadInst *Load) {
+ReachingDefinitionsImplPass<BBI, R>::getReachingDefinitions(const LoadInst *Load) {
   return ReachingDefinitions[Load];
 }
 
 template<class B, ReachingDefinitionsResult R>
 unsigned
-ReachingDefinitionsImplPass<B, R>::getReachingDefinitionsCount(LoadInst *Load) {
+ReachingDefinitionsImplPass<B, R>::getReachingDefinitionsCount(const LoadInst *Load) {
   assert(R == ReachingDefinitionsResult::ReachedLoads);
   return ReachingDefinitionsCount[Load];
 }

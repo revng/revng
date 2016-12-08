@@ -18,6 +18,7 @@
 
 // Local includes
 #include "ir-helpers.h"
+#include "functioncallidentification.h"
 #include "reachingdefinitions.h"
 #include "simplifycomparisons.h"
 
@@ -52,6 +53,7 @@ public:
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<ConditionalReachedLoadsPass>();
     AU.addRequired<SimplifyComparisonsPass>();
+    AU.addRequired<FunctionCallIdentification>();
     AU.setPreservesAll();
   }
 
@@ -79,7 +81,6 @@ public:
       Sign(UnknownSignedness),
       Bottom(false),
       Negated(false) { }
-
 
     /// \brief Notify about a usage of the SSA value with a certain signedness
     ///
