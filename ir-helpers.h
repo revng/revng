@@ -216,7 +216,7 @@ enum VisitAction {
 using BasicBlockRange = llvm::iterator_range<llvm::BasicBlock::iterator>;
 using VisitorFunction = std::function<VisitAction(BasicBlockRange)>;
 
-/// Performs a breadth-first visit of the instruction after \p I and in the
+/// Performs a breadth-first visit of the instructions after \p I and in the
 /// successor basic blocks
 ///
 /// \param I the instruction from where to the visit should start
@@ -245,7 +245,8 @@ static inline void visitSuccessors(llvm::Instruction *I,
     case Continue:
       if (!ExhaustOnly) {
         for (auto *Successor : successors(Range.begin()->getParent())) {
-          if (Visited.count(Successor) == 0 && !BL.isBlacklisted(Successor)) {
+          if (Visited.count(Successor) == 0
+              && !BL.isBlacklisted(Successor)) {
             Visited.insert(Successor);
             Queue.push(make_range(Successor->begin(), Successor->end()));
           }
@@ -267,44 +268,58 @@ static inline void visitSuccessors(llvm::Instruction *I,
 
 using RBasicBlockRange =
   llvm::iterator_range<llvm::BasicBlock::reverse_iterator>;
-using RVisitorFunction = std::function<bool(RBasicBlockRange)>;
+using RVisitorFunction = std::function<VisitAction(RBasicBlockRange)>;
 
-// TODO: factor with visitSuccessors
+/// Performs a breadth-first visit of the instructions before \p I and in the
+/// predecessor basic blocks
+///
+/// \param I the instruction from where to the visit should start
+/// \param BL a blacklist for basic blocks to ignore.
+/// \param Visitor the visitor function, see VisitAction to understand what this
+///        function should return
 template<typename C>
 static inline void visitPredecessors(llvm::Instruction *I,
                                      RVisitorFunction Visitor,
                                      BlackListTrait<C, llvm::BasicBlock *> BL) {
-  llvm::BasicBlock *Parent = I->getParent();
   std::set<llvm::BasicBlock *> Visited;
-  Visited.insert(Parent);
 
   llvm::BasicBlock::reverse_iterator It(make_reverse_iterator(I));
-  if (It == Parent->rend())
-    return;
-  // It++;
 
-  std::queue<llvm::iterator_range<llvm::BasicBlock::reverse_iterator>> Queue;
-  Queue.push(llvm::make_range(It, Parent->rend()));
-  bool Stop = false;
+  if (It == I->getParent()->rend())
+    return;
+
+  std::queue<RBasicBlockRange> Queue;
+  Queue.push(llvm::make_range(It, I->getParent()->rend()));
+
+  bool ExhaustOnly = false;
 
   while (!Queue.empty()) {
-    auto Range = Queue.front();
+    RBasicBlockRange &Range = Queue.front();
     Queue.pop();
-    auto *lol = Range.begin()->getParent();
 
-    if (Visitor(Range))
-      Stop = true;
-
-    for (auto *Predecessor : predecessors(lol)) {
-      if (Visited.count(Predecessor) == 0 && !BL.isBlacklisted(Predecessor)) {
-        Visited.insert(Predecessor);
-        if (!Stop && !Predecessor->empty())
-          Queue.push(make_range(Predecessor->rbegin(), Predecessor->rend()));
+    switch (Visitor(Range)) {
+    case Continue:
+      if (!ExhaustOnly && Range.begin() != Range.end()) {
+        for (auto *Predecessor : predecessors(Range.begin()->getParent())) {
+          if (Visited.count(Predecessor) == 0
+              && !BL.isBlacklisted(Predecessor)) {
+            Visited.insert(Predecessor);
+            Queue.push(make_range(Predecessor->rbegin(), Predecessor->rend()));
+          }
+        }
       }
+      break;
+    case NoSuccessors:
+      break;
+    case ExhaustQueueAndStop:
+      ExhaustOnly = true;
+      break;
+    case StopNow:
+      return;
+    default:
+      assert(false);
     }
-
   }
-
 }
 
 /// \brief Return a sensible name for the given basic block

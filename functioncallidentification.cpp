@@ -67,6 +67,8 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
     bool SaveRAFound = false;
     bool StorePCFound = false;
     uint64_t ReturnPC = GCBI.getNextPC(Terminator);
+    uint64_t LastPC = ReturnPC;
+
     // We can meet up calls to newpc up to (1 + "size of the delay slot")
     // times
     unsigned NewPCLeft = 1 + GCBI.delaySlotSize();
@@ -75,6 +77,7 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
                     &NewPCLeft,
                     &SaveRAFound,
                     ReturnPC,
+                    &LastPC,
                     &StorePCFound] (RBasicBlockRange R) {
       for (Instruction &I : R) {
         if (auto *Store = dyn_cast<StoreInst>(&I)) {
@@ -93,27 +96,43 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
           auto *Callee = Call->getCalledFunction();
           if (Callee != nullptr && Callee->getName() == "newpc") {
             assert(NewPCLeft > 0);
+
+            uint64_t ProgramCounter = getLimitedValue(Call->getOperand(0));
+            uint64_t InstructionSize = getLimitedValue(Call->getOperand(1));
+
+            // Check that, w.r.t. to the last newpc, we're looking at the
+            // immediately preceeding instruction, if not fail.
+            if (ProgramCounter + InstructionSize != LastPC)
+              return StopNow;
+
+            // Update the last seen PC
+            LastPC = ProgramCounter;
+
             NewPCLeft--;
             if (NewPCLeft == 0)
-              return true;
+              return StopNow;
           }
         }
       }
 
-      return false;
+      return Continue;
     };
 
     // TODO: adapt visitPredecessors from visitSuccessors
     GCBI.visitPredecessors(Terminator, Visitor);
 
     BasicBlock *ReturnBB = GCBI.getBlockAt(ReturnPC);
-    if (SaveRAFound && StorePCFound && ReturnBB != nullptr) {
+    if (SaveRAFound && StorePCFound && NewPCLeft == 0 && ReturnBB != nullptr) {
       // It's a function call, register it
 
       // Emit a call to "function_call" with two parameters: the first is the
       // callee basic block, the second the return basic block
-      assert(Terminator->getNumSuccessors() == 1
-             && "Multiple successors are not supported");
+      unsigned SuccessorCount = 0;
+      for (BasicBlock *Successor : successors(Terminator->getParent()))
+        if (GCBI.isJumpTarget(Successor))
+          SuccessorCount++;
+
+      assert(SuccessorCount <= 1 && "Multiple successors are not supported");
       Value *Args[3] = {
         BlockAddress::get(Terminator->getSuccessor(0)),
         BlockAddress::get(ReturnBB),
