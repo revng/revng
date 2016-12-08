@@ -75,7 +75,8 @@ public:
     PointerSize(PointerSize),
     SyscallHelper(SyscallHelper),
     SyscallNumberRegister(SyscallNumberRegister),
-    NoReturnSyscalls(NoReturnSyscalls) { }
+    NoReturnSyscalls(NoReturnSyscalls),
+    DelaySlotSize(DelaySlotSize) { }
 
   unsigned instructionAlignment() const { return InstructionAlignment; }
   unsigned defaultAlignment() const { return DefaultAlignment; }
