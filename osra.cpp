@@ -1452,15 +1452,12 @@ bool OSRAPass::runOnFunction(Function &F) {
         // Associate OSR only if the operand has an OSR and always enqueue the
         // users
         auto *Operand = I->getOperand(0);
-        auto OpOSRIt = OSRs.find(Operand);
-        if (OpOSRIt != OSRs.end()) {
-          OSR NewOSR = createOSR(Operand, I->getParent());
-          if (NewOSR.isRelativeTo(I))
-            break;
+        OSR NewOSR = createOSR(Operand, I->getParent());
+        if (NewOSR.isRelativeTo(I))
+          break;
 
-          OSRs.emplace(make_pair(I, NewOSR));
-          EnqueueUsers(I);
-        }
+        OSRs.emplace(make_pair(I, NewOSR));
+        EnqueueUsers(I);
 
         PropagateConstraints(I, Operand, [] (BVVector &BV) {
             return BV;
