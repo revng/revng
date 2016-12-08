@@ -63,8 +63,19 @@ public:
     assert(T != nullptr);
     llvm::MDNode *MD = T->getMetadata(BlockTypeMDName);
 
-    if (MD == nullptr)
+    if (MD == nullptr) {
+      llvm::Instruction *First = &*T->getParent()->begin();
+      if (auto *Call = llvm::dyn_cast<llvm::CallInst>(First)) {
+        llvm::Function *Callee = Call->getCalledFunction();
+        if (Callee != nullptr
+            && Callee->getName() == "newpc"
+            && getLimitedValue(Call->getArgOperand(2)) == 1) {
+          return JumpTargetBlock;
+        }
+      }
+
       return UntypedBlock;
+    }
 
     auto *BlockTypeMD = llvm::cast<llvm::MDTuple>(MD);
 

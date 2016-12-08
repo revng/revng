@@ -55,6 +55,7 @@ static RegisterPass<TranslateDirectBranchesPass> X("translate-db",
 void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<DominatorTreeWrapperPass>();
   AU.addUsedIfAvailable<SETPass>();
+  AU.setPreservesAll();
 }
 
 /// \brief Purges everything is after a call to exitTB (except the call itself)
@@ -140,14 +141,14 @@ bool TranslateDirectBranchesPass::pinJTs(Function &F) {
 }
 
 bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
-  auto& Context = F.getParent()->getContext();
+  auto &Context = F.getParent()->getContext();
 
   Function *ExitTB = JTM->exitTB();
   auto ExitTBIt = ExitTB->use_begin();
   while (ExitTBIt != ExitTB->use_end()) {
     // Take note of the use and increment the iterator immediately: this allows
     // us to erase the call to exit_tb without unexpected behaviors
-    Use& ExitTBUse = *ExitTBIt++;
+    Use &ExitTBUse = *ExitTBIt++;
     if (auto Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
       if (Call->getCalledFunction() == ExitTB) {
         // Look for the last write to the PC
@@ -658,6 +659,7 @@ StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
 }
 
 
+// TODO: this is outdated and we should drop it, we now have OSRA and friends
 /// \brief Tries to detect pc += register In general, we assume what we're
 /// translating is code emitted by a compiler. This means that usually all the
 /// possible jump targets are explicit jump to a constant or are stored
@@ -1319,19 +1321,26 @@ bool JumpTargetManager::hasPredecessors(BasicBlock *BB) const {
 // block to translate we proceed as long as we are able to create new edges on
 // the CFG (not considering the dispatcher).
 void JumpTargetManager::harvest() {
-  // TODO: move me to a commit function
-  // Commit some information available only in JumpTargetManager to the IR
-  QuickMetadata QMD(Context);
-  for (auto &P : JumpTargets) {
-    TerminatorInst *Terminator = P.second.head()->getTerminator();
-    if (Terminator != nullptr
-        && Terminator->getMetadata(BlockTypeMDName) == nullptr) {
-      Terminator->setMetadata(BlockTypeMDName,
-                              QMD.tuple(QMD.get(JumpTargetBlock)));
-    }
-  }
-
   if (empty()) {
+    // TODO: move me to a commit function
+    // Update the third argument of newpc calls (isJT, i.e., is this instruction
+    // a jump target?)
+    IRBuilder<> Builder(Context);
+    Function *NewPCFunction = TheModule.getFunction("newpc");
+    if (NewPCFunction != nullptr) {
+      for (User *U : NewPCFunction->users()) {
+        auto *Call = cast<CallInst>(U);
+        if (Call->getParent() != nullptr) {
+          // Report the instruction on the coverage CSV
+          using CI = ConstantInt;
+          uint64_t PC = (cast<CI>(Call->getArgOperand(0)))->getLimitedValue();
+
+          bool IsJT = isJumpTarget(PC);
+          Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
+        }
+      }
+    }
+
     DBG("verify", if (verifyModule(TheModule, &dbgs())) { abort(); });
 
     DBG("jtcount", dbg << "Harvesting: SROA, ConstProp, EarlyCSE and SET\n");
