@@ -33,6 +33,8 @@
 
 using namespace llvm;
 
+using IT = InstructionTranslator;
+
 namespace PTC {
 
   template<bool C>
@@ -464,13 +466,13 @@ static Value *CreateICmp(T& Builder,
                             SecondOperand);
 }
 
-using LBM = InstructionTranslator::LabeledBlocksMap;
-InstructionTranslator::InstructionTranslator(IRBuilder<>& Builder,
-                                             VariableManager& Variables,
-                                             JumpTargetManager& JumpTargets,
-                                             std::vector<BasicBlock *> Blocks,
-                                             Architecture& SourceArchitecture,
-                                             Architecture& TargetArchitecture) :
+using LBM = IT::LabeledBlocksMap;
+IT::InstructionTranslator(IRBuilder<>& Builder,
+                          VariableManager& Variables,
+                          JumpTargetManager& JumpTargets,
+                          std::vector<BasicBlock *> Blocks,
+                          const Architecture &SourceArchitecture,
+                          const Architecture &TargetArchitecture) :
   Builder(Builder),
   Variables(Variables),
   JumpTargets(JumpTargets),
@@ -497,10 +499,9 @@ InstructionTranslator::InstructionTranslator(IRBuilder<>& Builder,
                                  &TheModule);
 }
 
-void InstructionTranslator::finalizeNewPCMarkers(std::string &CoveragePath,
-                                                 bool EnableTracing) {
-  std::vector<Instruction *> ToDelete;
+void IT::finalizeNewPCMarkers(std::string &CoveragePath, bool EnableTracing) {
   std::ofstream Output(CoveragePath);
+  LLVMContext &Context = TheModule.getContext();
 
   Output << std::hex;
   for (User *U : NewPCMarker->users()) {
@@ -516,36 +517,27 @@ void InstructionTranslator::finalizeNewPCMarkers(std::string &CoveragePath,
              << "," << (IsJT ? "1" : "0")
              << std::endl;
 
-      if (EnableTracing) {
-        unsigned ArgCount = Call->getNumArgOperands();
-        Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
-        for (unsigned I = 3; I < ArgCount - 1; I++)
-          Call->setArgOperand(I, Call->getArgOperand(ArgCount - 1));
-      } else {
-        // Register the call to be delete
-        ToDelete.push_back(Call);
-      }
+      unsigned ArgCount = Call->getNumArgOperands();
+      Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
+      for (unsigned I = 3; I < ArgCount - 1; I++)
+        Call->setArgOperand(I, Call->getArgOperand(ArgCount - 1));
     }
   }
   Output << std::dec;
 
   if (!EnableTracing) {
-    for (Instruction *TheInstruction : ToDelete)
-      TheInstruction->eraseFromParent();
-
-    NewPCMarker->eraseFromParent();
+    NewPCMarker->setLinkage(GlobalValue::InternalLinkage);
+    auto *Entry = BasicBlock::Create(Context, "", NewPCMarker);
+    ReturnInst::Create(Context, Entry);
   }
 }
 
-std::tuple<InstructionTranslator::TranslationResult,
-           MDNode *,
-           uint64_t,
-           uint64_t>
-InstructionTranslator::newInstruction(PTCInstruction *Instr,
-                                      PTCInstruction *Next,
-                                      uint64_t EndPC,
-                                      bool IsFirst,
-                                      bool ForceNew) {
+std::tuple<IT::TranslationResult, MDNode *, uint64_t, uint64_t>
+IT::newInstruction(PTCInstruction *Instr,
+                   PTCInstruction *Next,
+                   uint64_t EndPC,
+                   bool IsFirst,
+                   bool ForceNew) {
   using R = std::tuple<TranslationResult, MDNode *, uint64_t, uint64_t>;
   assert(Instr != nullptr);
   const PTC::Instruction TheInstruction(Instr);
@@ -654,8 +646,7 @@ static StoreInst *getLastUniqueWrite(BasicBlock *BB, Value *Register) {
   return Result;
 }
 
-InstructionTranslator::TranslationResult
-InstructionTranslator::translateCall(PTCInstruction *Instr) {
+IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
   const PTC::CallInstruction TheCall(Instr);
 
   std::vector<Value *> InArgs;
@@ -710,10 +701,9 @@ InstructionTranslator::translateCall(PTCInstruction *Instr) {
   return Success;
 }
 
-InstructionTranslator::TranslationResult
-InstructionTranslator::translate(PTCInstruction *Instr,
-                                 uint64_t PC,
-                                 uint64_t NextPC) {
+IT::TranslationResult IT::translate(PTCInstruction *Instr,
+                                    uint64_t PC,
+                                    uint64_t NextPC) {
   const PTC::Instruction TheInstruction(Instr);
 
   std::vector<Value *> InArgs;
@@ -765,9 +755,9 @@ InstructionTranslator::translate(PTCInstruction *Instr,
 }
 
 ErrorOr<std::vector<Value *>>
-InstructionTranslator::translateOpcode(PTCOpcode Opcode,
-                                       std::vector<uint64_t> ConstArguments,
-                                       std::vector<Value *> InArguments) {
+IT::translateOpcode(PTCOpcode Opcode,
+                    std::vector<uint64_t> ConstArguments,
+                    std::vector<Value *> InArguments) {
   LLVMContext& Context = TheModule.getContext();
   unsigned RegisterSize = getRegisterSize(Opcode);
   Type *RegisterType = nullptr;
@@ -1277,7 +1267,8 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       unsigned LabelId = ptc.get_arg_label_id(ConstArguments[0]);
 
       std::stringstream LabelSS;
-      LabelSS << "bb.0x" << std::hex << LastPC << "_L" << std::dec << LabelId;
+      LabelSS << "bb." << JumpTargets.nameForAddress(LastPC);
+      LabelSS << "_L" << std::dec << LabelId;
       std::string Label = LabelSS.str();
 
       BasicBlock *Fallthrough = nullptr;
@@ -1317,7 +1308,8 @@ InstructionTranslator::translateOpcode(PTCOpcode Opcode,
       unsigned LabelId = ptc.get_arg_label_id(ConstArguments.back());
 
       std::stringstream LabelSS;
-      LabelSS << "bb.0x" << std::hex << LastPC << "_L" << std::dec << LabelId;
+      LabelSS << "bb." << JumpTargets.nameForAddress(LastPC);
+      LabelSS << "_L" << std::dec << LabelId;
       std::string Label = LabelSS.str();
 
       BasicBlock *Fallthrough = BasicBlock::Create(Context,

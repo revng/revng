@@ -28,18 +28,18 @@ extern "C" {
 #include "llvm/Object/ELF.h"
 
 // Local includes
-#include "debug.h"
-#include "revamb.h"
 #include "argparse.h"
-#include "ptcinterface.h"
+#include "binaryfile.h"
 #include "codegenerator.h"
+#include "debug.h"
+#include "ptcinterface.h"
+#include "revamb.h"
 
 PTCInterface ptc = {}; ///< The interface with the PTC library.
 static std::string LibTinycodePath;
 static std::string LibHelpersPath;
 
 struct ProgramParameters {
-  const char *Architecture;
   const char *InputPath;
   const char *OutputPath;
   size_t EntryPointAddress;
@@ -51,6 +51,7 @@ struct ProgramParameters {
   bool NoOSRA;
   bool EnableTracing;
   bool UseSections;
+  bool DetectFunctionsBoundaries;
 };
 
 using LibraryDestructor = GenericFunctor<decltype(&dlclose), &dlclose>;
@@ -62,6 +63,7 @@ static const char *const Usage[] = {
 };
 
 static void findQemu(const char *Architecture) {
+  // TODO: make this optional
   char *FullPath = realpath("/proc/self/exe", nullptr);
   assert(FullPath != nullptr);
   std::string Directory(dirname(FullPath));
@@ -153,9 +155,6 @@ static int parseArgs(int Argc, const char *Argv[],
   struct argparse_option Options[] = {
     OPT_HELP(),
     OPT_GROUP("Input description"),
-    OPT_STRING('a', "architecture",
-               &Parameters->Architecture,
-               "the input architecture."),
     OPT_STRING('e', "entry",
                &EntryPointAddressString,
                "virtual address of the entry point where to start."),
@@ -188,12 +187,16 @@ static int parseArgs(int Argc, const char *Argv[],
                &Parameters->BBSummaryPath,
                "destination path for the CSV containing the statistics about "
                "the translated basic blocks."),
+    OPT_BOOLEAN('f', "functions-boundaries",
+                &Parameters->DetectFunctionsBoundaries,
+                "enable functions boundaries detection."),
     OPT_END(),
   };
 
   argparse_init(&Arguments, Options, Usage, 0);
-  argparse_describe(&Arguments, "\nPTC translator.",
-                    "\nTranslates a binary into QEMU Portable Tiny Code.\n");
+  argparse_describe(&Arguments, "\nrevamb.",
+                    "\nTranslates a binary into a program for a different "
+                    "architecture.\n");
   Argc = argparse_parse(&Arguments, Argc, Argv);
 
   // Handle positional arguments
@@ -206,11 +209,6 @@ static int parseArgs(int Argc, const char *Argv[],
   Parameters->OutputPath = Argv[1];
 
   // Check parameters
-  if (Parameters->Architecture == nullptr) {
-    fprintf(stderr, "Please specify the input architecture.\n");
-    return EXIT_FAILURE;
-  }
-
   if (EntryPointAddressString != nullptr) {
     if (sscanf(EntryPointAddressString, "%lld", &EntryPointAddress) != 1) {
       fprintf(stderr, "Entry point parameter (-e, --entry) is not a"
@@ -267,7 +265,9 @@ int main(int argc, const char *argv[]) {
   if (parseArgs(argc, argv, &Parameters) != EXIT_SUCCESS)
     return EXIT_FAILURE;
 
-  findQemu(Parameters.Architecture);
+  BinaryFile TheBinary(Parameters.InputPath, Parameters.UseSections);
+
+  findQemu(TheBinary.architecture().name());
 
   // Load the appropriate libtyncode version
   LibraryPointer PTCLibrary;
@@ -276,7 +276,7 @@ int main(int argc, const char *argv[]) {
 
   // Translate everything
   Architecture TargetArchitecture;
-  CodeGenerator Generator(std::string(Parameters.InputPath),
+  CodeGenerator Generator(TheBinary,
                           TargetArchitecture,
                           std::string(Parameters.OutputPath),
                           LibHelpersPath,
@@ -287,7 +287,7 @@ int main(int argc, const char *argv[]) {
                           std::string(Parameters.BBSummaryPath),
                           !Parameters.NoOSRA,
                           Parameters.EnableTracing,
-                          Parameters.UseSections);
+                          Parameters.DetectFunctionsBoundaries);
 
   Generator.translate(Parameters.EntryPointAddress, "root");
 

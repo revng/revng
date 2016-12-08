@@ -6,6 +6,8 @@
 //
 
 // LLVM includes
+#include "llvm/Analysis/LoopInfo.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -19,10 +21,16 @@
 using namespace llvm;
 
 void NoReturnAnalysis::registerSyscalls(llvm::Function *F) {
+  // Look for calls to the syscall helper
   Module *M = F->getParent();
+  Function *SyscallHandler = M->getFunction(SourceArchitecture.syscallHelper());
+  if (SyscallHandler == nullptr)
+    return;
+
   StringRef RegisterName = SourceArchitecture.syscallNumberRegister();
   Value *SyscallNumberRegister = M->getGlobalVariable(RegisterName);
-  assert(SyscallNumberRegister != nullptr);
+  if (SyscallNumberRegister == nullptr)
+    return;
 
   // Lazily create the "nodce" function
   if (NoDCE == nullptr) {
@@ -34,9 +42,6 @@ void NoReturnAnalysis::registerSyscalls(llvm::Function *F) {
                                                   nullptr));
   }
 
-  // Look for calls to the syscall helper
-  Function *SyscallHandler = M->getFunction(SourceArchitecture.syscallHelper());
-  assert(SyscallHandler != nullptr);
   for (User *U : SyscallHandler->users()) {
     if (auto *Call = dyn_cast<CallInst>(U)) {
       // Consider calls only in the requested function
@@ -89,9 +94,8 @@ bool NoReturnAnalysis::endsUpIn(Instruction *I, BasicBlock *Target) {
 }
 
 void NoReturnAnalysis::collectDefinitions(ConditionalReachedLoadsPass &CRL) {
-  // Cleanup all the calls to "nodce"
-  for (User *NoDCEUser : NoDCE->users())
-    cast<CallInst>(NoDCEUser)->eraseFromParent();
+  if (!hasSyscalls())
+    return;
 
   SyscallRegisterDefinitions.clear();
   KillerBBs.clear();
@@ -124,39 +128,128 @@ void NoReturnAnalysis::registerKiller(uint64_t StoredValue,
     return;
 
   // Register the Setter's basic block
-  KillerBBs.insert(Setter->getParent());
+  registerKiller(Setter->getParent());
+}
+
+void NoReturnAnalysis::findInfinteLoops() {
+  Function *F = Dispatcher->getParent();
+  DominatorTreeBase<BasicBlock> DT(false);
+  DT.recalculate(*F);
+
+  LoopInfo LI(DT);
+  for (Loop *L : LI) {
+    SmallVector<BasicBlock *, 3> ExitingBlocks;
+    L->getExitingBlocks(ExitingBlocks);
+    if (ExitingBlocks.size() == 0) {
+      for (BasicBlock *Member : L->blocks())
+        KillerBBs.insert(Member);
+    }
+  }
 }
 
 void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors,
                                         std::set<TerminatorInst *> &Returns) {
-  // Visit every predecessor once
+  // Enrich the KillerBBs set with blocks participating in infinite loops
+  findInfinteLoops();
+
+  if (KillerBBs.size() == 0)
+    return;
+
+  // Make all the killer basic blocks jump to a "sink" basic block, so that
+  // we can easily identify all the other killer basic blocks using the post
+  // dominator tree.
+  //
+  // Note: computing the post-dominated basic blocks from the sink is different
+  // from computing the union of all the basic blocks post-dominated by a killer
+  // basic block.
+  Function *F = Dispatcher->getParent();
+  LLVMContext &C = F->getParent()->getContext();
+  auto *Sink = BasicBlock::Create(C, "sink", F);
+  new UnreachableInst(C, Sink);
+
+  std::vector<std::pair<BasicBlock *, TerminatorInst *>> Backup;
+  for (BasicBlock *KillerBB : KillerBBs) {
+    // Save a reference to the original terminator and detach it from the basic
+    // block
+    TerminatorInst *Terminator = KillerBB->getTerminator();
+    Backup.push_back({ KillerBB, Terminator });
+    Terminator->removeFromParent();
+
+    // Replace the old terminator with an unconditional branch to the sink
+    // TODO: this is dangerous, we might break some relevant edge
+    BranchInst::Create(Sink, KillerBB);
+  }
+
+  // Compute the post-dominator tree on the CFG (in NoFunctionCallsCFG state)
+  DominatorTreeBase<BasicBlock> PDT(true);
+  PDT.recalculate(*F);
+
+  // The worklist initially contains only the sink but will be populated with
+  // the basic blocks calling a killer basic block (i.e., function)
   OnceQueue<BasicBlock *> WorkList;
-  for (BasicBlock *KillerBB : KillerBBs)
-    WorkList.insert(KillerBB);
+  WorkList.insert(Sink);
 
   while (!WorkList.empty()) {
     BasicBlock *BB = WorkList.pop();
 
-    // Skip function calls
-    auto CallPredecessorIt = CallPredecessors.find(BB);
-    if (CallPredecessorIt != CallPredecessors.end()) {
+    // Collect all the post-dominated basic blocks
+    SmallVector<BasicBlock *, 5> Descendants;
+    PDT.getDescendants(BB, Descendants);
 
-      for (BasicBlock *Pred : CallPredecessorIt->second) {
-        KillerBBs.insert(Pred);
-        WorkList.insert(Pred);
-      }
+    // These are all killer basic blocks
+    for (BasicBlock *NewKiller : Descendants)
+      registerKiller(NewKiller);
 
-    }
+    // Find all the callers, mark them as killers and enqueue them for
+    // processing since all the basic block domianted by the callee basic block
+    // are killer basic blocks too
+    for (BasicBlock *NewKiller : Descendants) {
+      for (User *U : NewKiller->users()) {
+        auto *Address = dyn_cast<BlockAddress>(U);
+        if (Address == nullptr)
+          continue;
 
-    // Check all the predecessors unless they're return basic blocks
-    for (BasicBlock *Pred : predecessors(BB)) {
-      if (Returns.count(BB->getTerminator()) == 0 && checkKiller(Pred)) {
-        KillerBBs.insert(Pred);
-        WorkList.insert(Pred);
+        for (User *U : Address->users()) {
+          auto *Call = dyn_cast<CallInst>(U);
+          if (Call == nullptr)
+            continue;
+
+          Function *Callee = Call->getCalledFunction();
+          if (Callee == nullptr || Callee->getName() != "function_call")
+            continue;
+
+          BasicBlock *CallerBB = Call->getParent();
+          if (!isKiller(CallerBB)) {
+            // TODO: support multiple successors, i.e. check they're all killers
+            registerKiller(CallerBB);
+            WorkList.insert(CallerBB);
+          }
+
+        }
       }
     }
 
   }
+
+  // Restore the backup
+  for (auto &P : Backup) {
+    BasicBlock *KillerBB = P.first;
+    TerminatorInst *Terminator = P.second;
+    KillerBB->getTerminator()->eraseFromParent();
+    if (KillerBB->empty()) {
+      auto &List = KillerBB->getInstList();
+      List.insert(List.begin(), Terminator);
+    } else {
+      Terminator->insertAfter(&KillerBB->back());
+    }
+  }
+
+  // We no longer need the sink
+  Sink->eraseFromParent();
+
+  // Cleanup all the calls to "nodce"
+  for (User *NoDCEUser : NoDCE->users())
+    cast<CallInst>(NoDCEUser)->eraseFromParent();
 
   DBG("nra", {
       for (BasicBlock *KillerBB : KillerBBs)

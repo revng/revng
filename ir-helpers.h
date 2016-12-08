@@ -16,9 +16,11 @@
 #include "llvm/Analysis/Interval.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/Module.h"
 
 static inline void replaceInstruction(llvm::Instruction *Old,
                                       llvm::Instruction *New) {
@@ -49,7 +51,7 @@ static inline void purgeBranch(llvm::BasicBlock::iterator I) {
 
   // Check if someone else was jumping there and then destroy
   for (llvm::BasicBlock *BB : Successors)
-    if (llvm::pred_empty(BB))
+    if (BB->empty() && llvm::pred_empty(BB))
       BB->eraseFromParent();
 }
 
@@ -165,6 +167,42 @@ backward_range(llvm::Instruction *I) {
                           I->getParent()->rend());
 }
 
+template<typename C>
+struct BlackListTraitBase {
+  BlackListTraitBase(C Obj) : Obj(Obj) { }
+protected:
+  C Obj;
+};
+
+/// \brief Trait to wrap an object of type C that can act as a blacklist for B
+template<typename C, typename B>
+struct BlackListTrait : BlackListTraitBase<C> {
+};
+
+template<typename C>
+struct BlackListTrait<C, C> : BlackListTraitBase<C> {
+  using BlackListTraitBase<C>::BlackListTraitBase;
+  bool isBlacklisted(C Value) { return Value == this->Obj; }
+};
+
+template<typename B>
+struct BlackListTrait<const std::set<B> &, B>
+  : BlackListTraitBase<const std::set<B> &> {
+  using BlackListTraitBase<const std::set<B> &>::BlackListTraitBase;
+  bool isBlacklisted(B Value) { return this->Obj.count(Value) != 0; }
+};
+
+template<typename B, typename C>
+static inline BlackListTrait<C, B> make_blacklist(C Obj) {
+  return BlackListTrait<C, B>(Obj);
+}
+
+template<typename B>
+static inline BlackListTrait<const std::set<B> &, B>
+make_blacklist(const std::set<B> &Obj) {
+  return BlackListTrait<const std::set<B> &, B>(Obj);
+}
+
 /// \brief Possible way to continue (or stop) exploration in a breadth-first
 ///        visit
 enum VisitAction {
@@ -182,13 +220,14 @@ using VisitorFunction = std::function<VisitAction(BasicBlockRange)>;
 /// successor basic blocks
 ///
 /// \param I the instruction from where to the visit should start
-/// \param Ignore a set of basic block to ignore during the visit
+/// \param BL a blacklist for basic blocks to ignore.
 /// \param Visitor the visitor function, see VisitAction to understand what this
 ///        function should return
+template<typename C>
 static inline void visitSuccessors(llvm::Instruction *I,
-                                   const std::set<llvm::BasicBlock *> &Ignore,
+                                   BlackListTrait<C, llvm::BasicBlock *> BL,
                                    VisitorFunction Visitor) {
-  std::set<llvm::BasicBlock *> Visited = Ignore;
+  std::set<llvm::BasicBlock *> Visited;
 
   llvm::BasicBlock::iterator It(I);
   It++;
@@ -206,7 +245,7 @@ static inline void visitSuccessors(llvm::Instruction *I,
     case Continue:
       if (!ExhaustOnly) {
         for (auto *Successor : successors(Range.begin()->getParent())) {
-          if (Visited.count(Successor) == 0) {
+          if (Visited.count(Successor) == 0 && !BL.isBlacklisted(Successor)) {
             Visited.insert(Successor);
             Queue.push(make_range(Successor->begin(), Successor->end()));
           }
@@ -226,22 +265,15 @@ static inline void visitSuccessors(llvm::Instruction *I,
   }
 }
 
-static inline void visitSuccessors(llvm::Instruction *I,
-                                   llvm::BasicBlock *Ignore,
-                                   VisitorFunction Visitor) {
-  std::set<llvm::BasicBlock *> IgnoreSet;
-  IgnoreSet.insert(Ignore);
-  visitSuccessors(I, IgnoreSet, Visitor);
-}
-
 using RBasicBlockRange =
   llvm::iterator_range<llvm::BasicBlock::reverse_iterator>;
 using RVisitorFunction = std::function<bool(RBasicBlockRange)>;
 
 // TODO: factor with visitSuccessors
+template<typename C>
 static inline void visitPredecessors(llvm::Instruction *I,
                                      RVisitorFunction Visitor,
-                                     llvm::BasicBlock *Ignore) {
+                                     BlackListTrait<C, llvm::BasicBlock *> BL) {
   llvm::BasicBlock *Parent = I->getParent();
   std::set<llvm::BasicBlock *> Visited;
   Visited.insert(Parent);
@@ -264,7 +296,7 @@ static inline void visitPredecessors(llvm::Instruction *I,
       Stop = true;
 
     for (auto *Predecessor : predecessors(lol)) {
-      if (Visited.count(Predecessor) == 0 && Predecessor != Ignore) {
+      if (Visited.count(Predecessor) == 0 && !BL.isBlacklisted(Predecessor)) {
         Visited.insert(Predecessor);
         if (!Stop && !Predecessor->empty())
           Queue.push(make_range(Predecessor->rbegin(), Predecessor->rend()));
@@ -279,6 +311,9 @@ static inline void visitPredecessors(llvm::Instruction *I,
 /// \return the name of the basic block, if available, its pointer value
 ///         otherwise.
 static inline std::string getName(const llvm::BasicBlock *BB) {
+  if (BB == nullptr)
+    return "(nullptr)";
+
   llvm::StringRef Result = BB->getName();
   if (!Result.empty()) {
     return Result.str();
@@ -326,6 +361,22 @@ static inline uint64_t getBasicBlockPC(llvm::BasicBlock *BB) {
   }
 
   return 0;
+}
+
+static inline llvm::LLVMContext &getContext(llvm::Module *M) {
+  return M->getContext();
+}
+
+static inline llvm::LLVMContext &getContext(llvm::Function *F) {
+  return getContext(F->getParent());
+}
+
+static inline llvm::LLVMContext &getContext(llvm::BasicBlock *BB) {
+  return getContext(BB->getParent());
+}
+
+static inline llvm::LLVMContext &getContext(llvm::Instruction *I) {
+  return getContext(I->getParent());
 }
 
 #endif // _IRHELPERS_H

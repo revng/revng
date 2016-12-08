@@ -13,6 +13,8 @@
 #include <fstream>
 #include <queue>
 #include <sstream>
+
+// Boost includes
 #include <boost/icl/interval_set.hpp>
 #include <boost/type_traits/is_same.hpp>
 #include <boost/icl/right_open_interval.hpp>
@@ -79,11 +81,12 @@ bool TranslateDirectBranchesPass::pinJTs(Function &F) {
   if (SET == nullptr || SET->jumps().size() == 0)
     return false;
 
-  auto& Context = F.getParent()->getContext();
-  auto *PCReg = JTM->pcReg();
+  LLVMContext &Context = getContext(&F);
+  Value *PCReg = JTM->pcReg();
   auto *RegType = cast<IntegerType>(PCReg->getType()->getPointerElementType());
   auto C = [RegType] (uint64_t A) { return ConstantInt::get(RegType, A); };
-  BasicBlock *Dispatcher = JTM->dispatcher();
+  BasicBlock *AnyPC = JTM->anyPC();
+  BasicBlock *UnexpectedPC = JTM->unexpectedPC();
   // TODO: enforce CFG
 
   for (const auto &Jump : SET->jumps()) {
@@ -108,7 +111,7 @@ bool TranslateDirectBranchesPass::pinJTs(Function &F) {
     // TODO: we should check Destinations.size() >= OldTargetsCount
     // TODO: we should also check the destinations are actually the same
 
-    BasicBlock *FailBB = Approximate ? Dispatcher : Dispatcher /* Fail */;
+    BasicBlock *FailBB = Approximate ? AnyPC : UnexpectedPC;
     BasicBlock *BB = CallExitTB->getParent();
 
     // Kill everything is after the call to exitTB
@@ -263,7 +266,7 @@ bool TranslateDirectBranchesPass::forceFallthroughAfterHelper(CallInst *Call) {
   Builder.CreateCondBr(Builder.CreateICmpEQ(Builder.CreateLoad(PCReg),
                                             NextPCConst),
                        JTM->registerJT(NextPC, JumpTargetManager::PostHelper),
-                       JTM->dispatcher());
+                       JTM->anyPC());
 
   return true;
 }
@@ -309,14 +312,20 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
   llvm_unreachable("Can't find the PC marker");
 }
 
-Optional<uint64_t> JumpTargetManager::readRawValue(uint64_t Address,
-                                                   unsigned Size) const {
-  assert(Size <= 8 * sizeof(uint64_t));
+Optional<uint64_t>
+JumpTargetManager::readRawValue(uint64_t Address,
+                                unsigned Size,
+                                Endianess ReadEndianess) const {
+  bool IsLittleEndian;
+  if (ReadEndianess == OriginalEndianess) {
+    IsLittleEndian = Binary.architecture().isLittleEndian();
+  } else if (ReadEndianess == DestinationEndianess) {
+    IsLittleEndian = TheModule.getDataLayout().isLittleEndian();
+  } else {
+    abort();
+  }
 
-  // TODO: create a IsLittleEndian field in JumpTargetManager?
-  const DataLayout &DL = TheModule.getDataLayout();
-
-  for (auto &Segment : Segments) {
+  for (auto &Segment : Binary.segments()) {
     // Note: we also consider writeable memory areas because, despite being
     // modifiable, can contain useful information
     if (Segment.contains(Address, Size) && Segment.IsReadable) {
@@ -332,17 +341,17 @@ Optional<uint64_t> JumpTargetManager::readRawValue(uint64_t Address,
       case 1:
         return read<uint8_t, endianness::little, 1>(Start);
       case 2:
-        if (DL.isLittleEndian())
+        if (IsLittleEndian)
           return read<uint16_t, endianness::little, 1>(Start);
         else
           return read<uint16_t, endianness::big, 1>(Start);
       case 4:
-        if (DL.isLittleEndian())
+        if (IsLittleEndian)
           return read<uint32_t, endianness::little, 1>(Start);
         else
           return read<uint32_t, endianness::big, 1>(Start);
       case 8:
-        if (DL.isLittleEndian())
+        if (IsLittleEndian)
           return read<uint64_t, endianness::little, 1>(Start);
         else
           return read<uint64_t, endianness::big, 1>(Start);
@@ -356,9 +365,11 @@ Optional<uint64_t> JumpTargetManager::readRawValue(uint64_t Address,
 }
 
 Constant *JumpTargetManager::readConstantPointer(Constant *Address,
-                                                 Type *PointerTy) {
+                                                 Type *PointerTy,
+                                                 Endianess ReadEndianess) {
   auto *Value = readConstantInt(Address,
-                                SourceArchitecture.pointerSize() / 8);
+                                Binary.architecture().pointerSize() / 8,
+                                ReadEndianess);
   if (Value != nullptr) {
     return ConstantExpr::getIntToPtr(Value, PointerTy);
   } else {
@@ -367,12 +378,14 @@ Constant *JumpTargetManager::readConstantPointer(Constant *Address,
 }
 
 ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
-                                                unsigned Size) {
+                                                unsigned Size,
+                                                Endianess ReadEndianess) {
   const DataLayout &DL = TheModule.getDataLayout();
 
   if (ConstantAddress->getType()->isPointerTy()) {
     using CE = ConstantExpr;
-    auto IntPtrTy = Type::getIntNTy(Context, SourceArchitecture.pointerSize());
+    auto IntPtrTy = Type::getIntNTy(Context,
+                                    Binary.architecture().pointerSize());
     ConstantAddress = CE::getPtrToInt(ConstantAddress, IntPtrTy);
   }
 
@@ -380,7 +393,8 @@ ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
   UnusedCodePointers.erase(Address);
   registerReadRange(Address, Size);
 
-  auto Result = readRawValue(Address, Size);
+  auto Result = readRawValue(Address, Size, ReadEndianess);
+
   if (Result.hasValue())
     return ConstantInt::get(IntegerType::get(Context, Size * 8),
                             Result.getValue());
@@ -396,8 +410,7 @@ static cl::opt<T> *getOption(StringMap<cl::Option *>& Options,
 
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                      Value *PCReg,
-                                     Architecture& SourceArchitecture,
-                                     std::vector<SegmentInfo>& Segments,
+                                     const BinaryFile &Binary,
                                      bool EnableOSRA) :
   TheModule(*TheFunction->getParent()),
   Context(TheModule.getContext()),
@@ -408,18 +421,20 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   ExitTB(nullptr),
   Dispatcher(nullptr),
   DispatcherSwitch(nullptr),
-  Segments(Segments),
-  SourceArchitecture(SourceArchitecture),
+  Binary(Binary),
   EnableOSRA(EnableOSRA),
-  NoReturn(SourceArchitecture) {
+  NoReturn(Binary.architecture()),
+  CurrentCFGForm(UnknownFormCFG) {
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { Type::getInt32Ty(Context) },
                                              false);
   ExitTB = cast<Function>(TheModule.getOrInsertFunction("exitTB", ExitTBTy));
   createDispatcher(TheFunction, PCReg, true);
 
-  for (auto& Segment : Segments)
+  for (auto &Segment : Binary.segments())
     Segment.insertExecutableRanges(std::back_inserter(ExecutableRanges));
+
+  initializeSymbolMap();
 
   // Configure GlobalValueNumbering
   StringMap<cl::Option *>& Options(cl::getRegisteredOptions());
@@ -429,16 +444,67 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   // getOption<uint32_t>(Options, "max-recurse-depth")->setInitialValue(10);
 }
 
+void JumpTargetManager::initializeSymbolMap() {
+  // Collect how many times each name is used
+  std::map<std::string, unsigned> SeenCount;
+  for (const SymbolInfo &Symbol : Binary.symbols())
+    SeenCount[std::string(Symbol.Name)]++;
+
+  for (const SymbolInfo &Symbol : Binary.symbols()) {
+    // Discard symbols pointing to 0, with zero-sized names or present multiple
+    // times. Note that we keep zero-size symbols.
+    if (Symbol.Address == 0
+        || Symbol.Name.size() == 0
+        || SeenCount[std::string(Symbol.Name)] > 1)
+      continue;
+
+    // Associate to this interval the symbol
+    unsigned Size = std::max(1UL, Symbol.Size);
+    auto NewInterval = interval::right_open(Symbol.Address,
+                                            Symbol.Address + Size);
+    SymbolMap += make_pair(NewInterval, SymbolInfoSet { &Symbol });
+  }
+}
+
+// TODO: move this in BinaryFile?
+std::string JumpTargetManager::nameForAddress(uint64_t Address) const {
+  std::stringstream Result;
+
+  // Take the interval greater than [Address, Address + 1[
+  auto It = SymbolMap.upper_bound(interval::right_open(Address, Address + 1));
+  if (It != SymbolMap.begin()) {
+    // Go back one position
+    It--;
+
+    // In case we have multiple matching symbols, take the closest one
+    const SymbolInfoSet &Matching = It->second;
+    auto MaxIt = std::max_element(Matching.begin(), Matching.end());
+    const SymbolInfo *const BestMatch = *MaxIt;
+
+    // Use the symbol name
+    Result << BestMatch->Name.str();
+
+    // And, if necessary, an offset
+    if (Address != BestMatch->Address)
+      Result << ".0x" << std::hex << (Address - BestMatch->Address);
+  } else {
+    // We don't have a symbol to use, just return the address
+    Result << "0x" << std::hex << Address;
+  }
+
+  return Result.str();
+}
+
 void JumpTargetManager::harvestGlobalData() {
-  for (auto& Segment : Segments) {
+  for (auto& Segment : Binary.segments()) {
     auto *Data = cast<ConstantDataArray>(Segment.Variable->getInitializer());
     uint64_t StartVirtualAddress = Segment.StartVirtualAddress;
     const unsigned char *DataStart = Data->getRawDataValues().bytes_begin();
     const unsigned char *DataEnd = Data->getRawDataValues().bytes_end();
 
     using endianness = support::endianness;
-    if (SourceArchitecture.pointerSize() == 64) {
-      if (SourceArchitecture.isLittleEndian())
+    if (Binary.architecture().pointerSize() == 64) {
+      if (Binary.architecture().isLittleEndian())
         findCodePointers<uint64_t, endianness::little>(StartVirtualAddress,
                                                        DataStart,
                                                        DataEnd);
@@ -446,8 +512,8 @@ void JumpTargetManager::harvestGlobalData() {
         findCodePointers<uint64_t, endianness::big>(StartVirtualAddress,
                                                     DataStart,
                                                     DataEnd);
-    } else if (SourceArchitecture.pointerSize() == 32) {
-      if (SourceArchitecture.isLittleEndian())
+    } else if (Binary.architecture().pointerSize() == 32) {
+      if (Binary.architecture().isLittleEndian())
         findCodePointers<uint32_t, endianness::little>(StartVirtualAddress,
                                                        DataStart,
                                                        DataEnd);
@@ -542,7 +608,9 @@ void JumpTargetManager::registerInstruction(uint64_t PC,
 CallInst *JumpTargetManager::findNextExitTB(Instruction *Start) {
   CallInst *Result = nullptr;
 
-  visitSuccessors(Start, nullptr, [this,&Result] (BasicBlockRange Range) {
+  visitSuccessors(Start,
+                  make_blacklist(*this),
+                  [this,&Result] (BasicBlockRange Range) {
       for (Instruction &I : Range) {
         if (auto *Call = dyn_cast<CallInst>(&I)) {
           assert(!(Call->getCalledFunction()->getName() == "newpc"));
@@ -1089,7 +1157,7 @@ BasicBlock *JumpTargetManager::registerJT(uint64_t PC, JTReason Reason) {
 
   if (NewBlock->getName().empty()) {
     std::stringstream Name;
-    Name << "bb.0x" << std::hex << PC;
+    Name << "bb." << nameForAddress(PC);
     NewBlock->setName(Name.str());
   }
 
@@ -1143,6 +1211,98 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   Dispatcher = Entry;
   DispatcherSwitch = Switch;
   NoReturn.setDispatcher(Dispatcher);
+
+  // Create basic blocks to handle jumps to any PC and to a PC we didn't expect
+  AnyPC = BasicBlock::Create(Context, "anypc", OutputFunction);
+  UnexpectedPC = BasicBlock::Create(Context, "unexpectedpc", OutputFunction);
+
+  setCFGForm(SemanticPreservingCFG);
+}
+
+static void purge(BasicBlock *BB) {
+  // Allow up to a single instruction in the basic block
+  if (!BB->empty())
+    BB->begin()->eraseFromParent();
+  assert(BB->empty());
+}
+
+void JumpTargetManager::setCFGForm(CFGForm NewForm) {
+  assert(CurrentCFGForm != NewForm);
+  assert(NewForm != UnknownFormCFG);
+
+  CFGForm OldForm = CurrentCFGForm;
+  CurrentCFGForm = NewForm;
+
+  switch (NewForm) {
+  case SemanticPreservingCFG:
+    purge(AnyPC);
+    BranchInst::Create(dispatcher(), AnyPC);
+    // TODO: Here we should have an hard fail, since it's the situation in
+    //       which we expected to know where execution could go but we made a
+    //       mistake.
+    purge(UnexpectedPC);
+    BranchInst::Create(dispatcher(), UnexpectedPC);
+    break;
+
+  case RecoveredOnlyCFG:
+  case NoFunctionCallsCFG:
+    purge(AnyPC);
+    new UnreachableInst(Context, AnyPC);
+    purge(UnexpectedPC);
+    new UnreachableInst(Context, UnexpectedPC);
+    break;
+
+  default:
+    assert(false && "Not implemented yet");
+    break;
+  }
+
+  // If we're entering or leaving the NoFunctionCallsCFG form, update all the
+  // branch instruction forming a function call
+  if (NewForm == NoFunctionCallsCFG || OldForm == NoFunctionCallsCFG) {
+    if (auto *FunctionCall = TheModule.getFunction("function_call")) {
+      for (User *U : FunctionCall->users()) {
+        auto *Call = cast<CallInst>(U);
+        auto *Terminator = cast<TerminatorInst>(Call->getNextNode());
+        assert(Terminator->getNumSuccessors() == 1);
+
+        // Get the correct argument, the first is the callee, the second the
+        // return basic block
+        Value *Op = Call->getArgOperand(NewForm == NoFunctionCallsCFG ? 1 : 0);
+        BasicBlock *NewSuccessor = cast<BlockAddress>(Op)->getBasicBlock();
+        Terminator->setSuccessor(0, NewSuccessor);
+      }
+    }
+  }
+
+  rebuildDispatcher();
+}
+
+void JumpTargetManager::rebuildDispatcher() {
+  // Remove all cases
+  unsigned NumCases = DispatcherSwitch->getNumCases();
+  while (NumCases --> 0)
+    DispatcherSwitch->removeCase(DispatcherSwitch->case_begin());
+
+  auto *PCRegType = PCReg->getType()->getPointerElementType();
+  auto *SwitchType = cast<IntegerType>(PCRegType);
+
+  // Add all the jump targets if we're using the SemanticPreservingCFG, or
+  // only those with no predecessors otherwise
+  for (auto &P : JumpTargets) {
+    uint64_t PC = P.first;
+    BasicBlock *BB = P.second.head();
+    if (CurrentCFGForm == SemanticPreservingCFG || !hasPredecessors(BB))
+      DispatcherSwitch->addCase(ConstantInt::get(SwitchType, PC), BB);
+
+  }
+}
+
+bool JumpTargetManager::hasPredecessors(BasicBlock *BB) const {
+  for (BasicBlock *Pred : predecessors(BB))
+    if (isTranslatedBB(Pred))
+      return true;
+  return false;
 }
 
 // Harvesting proceeds trying to avoid to run expensive analyses if not strictly
@@ -1158,14 +1318,24 @@ void JumpTargetManager::harvest() {
 
     DBG("jtcount", dbg << "Harvesting: SROA, ConstProp, EarlyCSE and SET\n");
 
-    legacy::PassManager PM;
-    PM.add(createSROAPass()); // temp
-    PM.add(createConstantPropagationPass()); // temp
-    PM.add(createEarlyCSEPass());
-    PM.add(new SETPass(this, false, &Visited));
-    PM.add(new TranslateDirectBranchesPass(this));
+    legacy::PassManager OptimizingPM;
+    OptimizingPM.add(createSROAPass());
+    OptimizingPM.add(createConstantPropagationPass());
+    OptimizingPM.add(createEarlyCSEPass());
+    OptimizingPM.run(TheModule);
+
+    // To improve the quality of our analysis, keep in the CFG only the edges we
+    // where able to recover (e.g., no jumps to the dispatcher)
+    setCFGForm(RecoveredOnlyCFG);
+
     NewBranches = 0;
-    PM.run(TheModule);
+    legacy::PassManager AnalysisPM;
+    AnalysisPM.add(new SETPass(this, false, &Visited));
+    AnalysisPM.add(new TranslateDirectBranchesPass(this));
+    AnalysisPM.run(TheModule);
+
+    // Restore the CFG
+    setCFGForm(SemanticPreservingCFG);
 
     DBG("jtcount", dbg << std::dec
                        << Unexplored.size() << " new jump targets and "
@@ -1188,14 +1358,23 @@ void JumpTargetManager::harvest() {
       Visited.clear();
       legacy::PassManager PM;
       if (NewBranches > 0) {
-        PM.add(createSROAPass()); // temp
-        PM.add(createConstantPropagationPass()); // temp
-        PM.add(createEarlyCSEPass());
+        legacy::PassManager OptimizingPM;
+        OptimizingPM.add(createSROAPass());
+        OptimizingPM.add(createConstantPropagationPass());
+        OptimizingPM.add(createEarlyCSEPass());
+        OptimizingPM.run(TheModule);
       }
-      PM.add(new SETPass(this, true, &Visited));
-      PM.add(new TranslateDirectBranchesPass(this));
+
+      setCFGForm(RecoveredOnlyCFG);
+
       NewBranches = 0;
-      PM.run(TheModule);
+      legacy::PassManager AnalysisPM;
+      AnalysisPM.add(new SETPass(this, true, &Visited));
+      AnalysisPM.add(new TranslateDirectBranchesPass(this));
+      AnalysisPM.run(TheModule);
+
+      // Restore the CFG
+      setCFGForm(SemanticPreservingCFG);
 
       DBG("jtcount", dbg << std::dec
                          << Unexplored.size() << " new jump targets and "

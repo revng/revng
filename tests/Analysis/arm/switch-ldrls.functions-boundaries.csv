@@ -1,0 +1,11 @@
+function,basicblock
+bb._start,bb._start
+bb._start,bb._start.0x4_L0
+bb._start,bb._start.0x4_L0_ft
+bb._start,bb._start.0x4_L1
+bb._start,bb._start.0x4_L1_ft
+bb._start,bb._start.0x8
+bb._start,bb.end
+bb._start,bb.one
+bb._start,bb.three
+bb._start,bb.two

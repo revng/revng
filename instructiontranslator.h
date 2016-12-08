@@ -50,8 +50,8 @@ public:
                         VariableManager& Variables,
                         JumpTargetManager& JumpTargets,
                         std::vector<llvm::BasicBlock *> Blocks,
-                        Architecture& SourceArchitecture,
-                        Architecture& TargetArchitecture);
+                        const Architecture &SourceArchitecture,
+                        const Architecture &TargetArchitecture);
 
   /// \brief Result status of the translation of a PTC opcode
   enum TranslationResult {
@@ -133,12 +133,12 @@ private:
   JumpTargetManager& JumpTargets;
   std::map<std::string, llvm::BasicBlock *> LabeledBasicBlocks;
   std::vector<llvm::BasicBlock *> Blocks;
-  llvm::Module& TheModule;
+  llvm::Module &TheModule;
 
   llvm::Function *TheFunction;
 
-  Architecture& SourceArchitecture;
-  Architecture& TargetArchitecture;
+  const Architecture &SourceArchitecture;
+  const Architecture &TargetArchitecture;
 
   llvm::Function *NewPCMarker;
 

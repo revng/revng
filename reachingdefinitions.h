@@ -83,7 +83,7 @@ template <> struct hash<MemoryInstruction>
 
 class BasicBlockInfo {
 public:
-  void addCondition(int32_t ConditionIndex) { }
+  unsigned addCondition(int32_t ConditionIndex) { assert(false); }
 
   void resetDefinitions(TypeSizeProvider &TSP) {
     Definitions.clear();
@@ -104,7 +104,9 @@ public:
   LoadDefinitionType newDefinition(llvm::LoadInst *Load,
                                    TypeSizeProvider &TSP);
   bool propagateTo(BasicBlockInfo &Target,
-                   TypeSizeProvider &TSP);
+                   TypeSizeProvider &TSP,
+                   const llvm::SmallVector<int32_t, 2> &DefinedIndexes,
+                   int32_t NewConditionIndex);
 
   std::vector<std::pair<llvm::Instruction *, MemoryAccess>>
   getReachingDefinitions(std::set<llvm::LoadInst *> &WhiteList,
@@ -127,14 +129,20 @@ private:
 
 class ConditionalBasicBlockInfo {
 public:
-  void addCondition(int32_t ConditionIndex) {
-    Conditions.set(getConditionIndex(ConditionIndex));
+  unsigned addCondition(int32_t ConditionIndex) {
+    unsigned Result = getConditionIndex(ConditionIndex);
+    Conditions.set(Result);
+    return Result;
+  }
+
+  bool hasCondition(int32_t ConditionIndex) {
+    unsigned Result = getConditionIndex(ConditionIndex);
+    return Conditions[Result];
   }
 
   void resetDefinitions(TypeSizeProvider &TSP) {
     for (auto &P : Reaching)
-      for (auto &BV : P.second)
-        Definitions.push_back({ BV, P.first });
+      Definitions.push_back({ P.second, P.first });
   }
 
   unsigned size() const { return Reaching.size(); }
@@ -147,7 +155,9 @@ public:
   LoadDefinitionType newDefinition(llvm::LoadInst *Load,
                                    TypeSizeProvider &TSP);
   bool propagateTo(ConditionalBasicBlockInfo &Target,
-                   TypeSizeProvider &TSP);
+                   TypeSizeProvider &TSP,
+                   const llvm::SmallVector<int32_t, 2> &DefinedIndexes,
+                   int32_t NewConditionIndex);
 
   std::vector<std::pair<llvm::Instruction *, MemoryAccess>>
   getReachingDefinitions(std::set<llvm::LoadInst *> &WhiteList,
@@ -157,19 +167,19 @@ public:
 
 private:
   using CondDefPair = std::pair<llvm::BitVector, MemoryInstruction>;
-  using ReachingType = std::unordered_map<MemoryInstruction,
-                                          llvm::SmallVector<llvm::BitVector,
-                                                            2>>;
+  using ReachingType = std::unordered_map<MemoryInstruction, llvm::BitVector>;
 
   enum ConditionsComparison {
     Identical,
     Different,
     Complementary
   };
-  ConditionsComparison mergeConditionBits(llvm::BitVector &Target,
-                                          llvm::BitVector &NewConditions) const;
 
 private:
+  /// \brief Set the bit corresponding to \p Index in \p Target, if present in
+  /// SeenCondtions.
+  bool setIndexIfSeen(llvm::BitVector &Target, int32_t Index) const;
+
   template<class UnaryPredicate>
   void removeDefinitions(UnaryPredicate P) {
     erase_if(Definitions, P);
@@ -188,8 +198,7 @@ private:
 
       Conditions.resize(NewSize);
       for (auto &P : Reaching)
-        for (auto &BV : P.second)
-          BV.resize(NewSize);
+        P.second.resize(NewSize);
       for (CondDefPair &Definition : Definitions)
         Definition.first.resize(NewSize);
 
@@ -207,7 +216,7 @@ private:
 
 private:
   // Seen conditions
-  std::vector<uint32_t> SeenConditions;
+  std::vector<int32_t> SeenConditions;
   // TODO: switch to list?
   ReachingType Reaching;
   std::vector<CondDefPair> Definitions;
@@ -257,6 +266,7 @@ public:
 
 private:
   int32_t getConditionIndex(llvm::TerminatorInst *T);
+  const llvm::SmallVector<int32_t, 2> &getDefinedConditions(llvm::BasicBlock *BB);
 
 private:
   using BasicBlock = llvm::BasicBlock;
@@ -271,9 +281,81 @@ private:
   std::map<LoadInst *, unsigned>  ReachingDefinitionsCount;
 };
 
+/// The ConditionNumberingPass loops over all the conditional branch
+/// instructions in the program and tries to identify those that are based on
+/// exactly the same condition, i.e., the pair for which can be sure that, if
+/// the first branch is taken, then also the second branch will be taken. This
+/// is particularly useful to handle consecutive predeicate instructions.
+///
+/// Two conditions are considered the same, if they actually are the same or if
+/// they compute exactly the same operations on the same operands. To
+/// efficiently identify which branch instructions use the same conditions we
+/// populate an hashmap with a custom hash function. At the end, we will discard
+/// all the entries of the hashmap with a single entry, since we're not
+/// interested in considering a condition if it doesn't have at least a
+/// companion branch instruction. Each condition with at least two branches
+/// using it is assigned a unique identifier, the condition index.
+///
+/// The ConditionNumberingPass also provides, for each condition index, a list
+/// of "reset" basic blocks, i.e., a list of basic blocks which define at least
+/// one of the values involved in the computation of the condition. Such a list
+/// can be used to understand when it doesn't make sense for an analysis to
+/// consider that a certain condition is still holding.
+///
+/// "reset" basic blocks also include the last basic block that might be
+/// affected by the associated condition index. This is useful to prevent an
+/// analysis from keeping track of a condition index which we can be sure will
+/// never be used again. The last basic block that might be affected by a
+/// condition index is the immediate post-dominator of the set of basic blocks
+/// containing the branches associated to that condition index.
+///
+/// The following figures examplifies the situation: BB1 and BB2 share the same
+/// condition, BB3 is their immediate post-dominator. To easily identify it as
+/// such we introduce a temporary basic block BB0 and make it a predecessor of
+/// both BB1 and BB2. Then, we compute the post-dominator tree and ask for the
+/// immediate post-domiantor of BB0, obtaining BB3.
+///
+///                             +-----------+
+///                             |           |
+///                 +- - - - - -+    BB0    +- - - - -+
+///                 |           |           |         |
+///                             +-----------+
+///                 |                                 |
+///
+///           +-----v-----+                     +-----v-----+
+///           |           |                     |           |
+///       +---+    BB1    +---+             +---+    BB2    +---+
+///       |   |           |   |             |   |           |   |
+///       |   +-----------+   |             |   +-----------+   |
+///       |                   |             |                   |
+///       |                   |             |                   |
+/// +-----v-----+       +-----v-----+ +-----v-----+       +-----v-----+
+/// |           |       |           | |           |       |           |
+/// |           |       |           | |           |       |           |
+/// |           |       |           | |           |       |           |
+/// +-----+-----+       +-----+-----+ +-----+-----+       +-----+-----+
+///       |                   |             |                   |
+///       |                   |             |                   |
+///       |             +-----v-----+       |             +-----v-----+
+///       |             |           |       |             |           |
+///       +------------->           <-------+             |           |
+///                     |           |                     |           |
+///                     +-----+-----+                     +-----+-----+
+///                           |                                 |
+///                           |                                 |
+///                           |          +-----------+          |
+///                           |          |           |          |
+///                           +---------->    BB3    <----------+
+///                                      |           |
+///                                      +-----+-----+
+///                                            |
+///                                            |
+///                                            v
 class ConditionNumberingPass : public llvm::FunctionPass {
 public:
   static char ID;
+
+  static const llvm::SmallVector<int32_t, 2> NoDefinedConditions;
 
   ConditionNumberingPass() : llvm::FunctionPass(ID) { };
 
@@ -288,12 +370,22 @@ public:
     return BranchConditionNumberMap[T];
   }
 
+  const llvm::SmallVector<int32_t, 2> &getDefinedConditions(llvm::BasicBlock *BB) const {
+    auto It = DefinedConditions.find(BB);
+    if (It == DefinedConditions.end())
+      return NoDefinedConditions;
+    else
+      return It->second;
+  }
+
   virtual void releaseMemory() override {
     DBG("release", { dbg << "ConditionNumberingPass is releasing memory\n"; });
+    freeContainer(DefinedConditions);
     freeContainer(BranchConditionNumberMap);
   }
 
 private:
+  std::map<llvm::BasicBlock *, llvm::SmallVector<int32_t, 2>> DefinedConditions;
   std::map<llvm::TerminatorInst *, int32_t> BranchConditionNumberMap;
 };
 

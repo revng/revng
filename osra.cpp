@@ -571,7 +571,7 @@ bool OSRAPass::isDead(Instruction *I) const {
 
           return Continue;
         };
-        visitSuccessors(Store, BlockBlackList, Visitor);
+        visitSuccessors(Store, make_blacklist(BlockBlackList), Visitor);
 
         return !Used;
       }
@@ -695,7 +695,7 @@ private:
 
 BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
   // Initialization steps
-  const unsigned MaxDepth = 5;
+  const unsigned MaxDepth = 10;
   Module *M = Reached->getParent()->getParent()->getParent();
   const DataLayout &DL = M->getDataLayout();
   Type *Int64 = IntegerType::get(M->getContext(), 64);
@@ -718,7 +718,9 @@ BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
       return BoundedValue(Reached);
     Reachers.emplace_back(Reached, P.first, P.second);
     DBG("psm", dbg << "  Reacher " << std::dec << ReacherIndex
-        << " is " << getName(P.first) << "\n";);
+        << " is " << getName(P.first)
+        << " (relative to "
+        << getName(P.second.boundedValue()->value()) << ")\n";);
   }
   assert(Reachers.size() > 0);
 
@@ -742,8 +744,9 @@ BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
     State &S = Stack.back();
     unsigned Height = Stack.size();
     BasicBlock *Pred = *S.PredecessorIt;
+    std::string Indent(Height * 2, ' ');
 
-    DBG("psm", dbg << "Exploring " << getName(Pred) << "\n";);
+    DBG("psm", dbg << Indent << "Exploring " << getName(Pred) << "\n";);
 
     // Check if any store in Pred can alias ReachedMA
     bool MayAlias = MemoryAccess::mayAlias(Pred, ReachedMA, DL);
@@ -764,7 +767,8 @@ BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
 
       // Is this a BB leading to the reacher?
       if (R.isLTR(Pred)) {
-        DBG("psm", dbg << "  Merging reacher " << ReacherIndex << "\n";);
+        DBG("psm", dbg << Indent << "  Merging reacher " << ReacherIndex
+            << " (relative to " << getName(R.Summary.value()) << ")\n";);
 
         // Insert everything is on the stack, but stop if we meet one that's
         // already there
@@ -789,7 +793,7 @@ BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
             Result.merge<BoundedValue::And>(*EdgeBV, DL, Int64);
 
             DBG("psm", {
-                dbg << "    Got ";
+                dbg << Indent << "    Got ";
                 EdgeBV->describe(FormattedStream);
                 dbg << " from the " << getName(*ToMerge.PredecessorIt)
                     << " -> " << getName(ToMerge.BB)
@@ -803,8 +807,8 @@ BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
 
           } else {
             DBG("psm", {
-                dbg << "    Got no info";
-                dbg << " from the " << getName(*ToMerge.PredecessorIt)
+                dbg << Indent << "    Got no info"
+                    << " from the " << getName(*ToMerge.PredecessorIt)
                     << " -> " << getName(ToMerge.BB)
                     << " edge\n";
               });
@@ -819,13 +823,15 @@ BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
           // Register the current height as the last merge
           R.setLastMerge(Height);
         } else {
-          DBG("psm", dbg << "We got an incoherent situation, ignore it\n";);
+          DBG("psm", dbg << Indent
+              << "    We got an incoherent situation, ignore it\n";);
         }
 
         // Deactivate
         R.setInactive(Height);
       } else if (MayAlias) {
-        DBG("psm", dbg << "  Deactivating reacher " << ReacherIndex << "\n";);
+        DBG("psm", dbg << Indent
+            << "  Deactivating reacher " << ReacherIndex << "\n";);
 
         // We don't know if it's an LTR, check if it may alias, and if so,
         // deactivate this reacher
@@ -842,13 +848,25 @@ BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
 
     // Check it's not already in stack
     Proceed &= InStack.count(Pred) == 0;
+    DBG("psm", if (!(InStack.count(Pred) == 0)) {
+        dbg << Indent
+            << "    It's already on the stack\n";
+      });
 
     // Check we're not exceeding the maximum allowed depth
     Proceed &= Height < MaxDepth;
+    DBG("psm", if (!(Height < MaxDepth)) {
+        dbg << Indent
+            << "    We exceeded the maximum depth\n";
+      });
 
     // Check we have at least a non-dispatcher predecessor
     pred_iterator NewPredIt = getValidPred(Pred);
     Proceed &= NewPredIt != pred_end(Pred);
+    DBG("psm", if (!(NewPredIt != pred_end(Pred))) {
+        dbg << Indent
+            << "    No predecessors\n";
+      });
 
     if (Proceed) {
       // We have to go deeper
@@ -883,6 +901,18 @@ BoundedValue OSRAPass::pathSensitiveMerge(LoadInst *Reached) {
   // Or-merge all the collected BVs
   // TODO: adding the OSR offset is safe, but the multiplier?
   BoundedValue FinalBV = Reachers[0].computeBV(Reached, DL, Int64);
+
+  DBG("psm", {
+      unsigned I = 0;
+      for (const Reacher &R : Reachers) {
+        BoundedValue ReacherBV = R.computeBV(Reached, DL, Int64);
+        dbg << "Reacher " << ++I << ": ";
+        ReacherBV.describe(FormattedStream);
+        dbg << " (from ";
+        R.osr().describe(FormattedStream);
+        dbg << ")\n";
+      }
+    });
 
   for (Reacher &R : skip(1, Reachers)) {
     BoundedValue ReacherBV = R.computeBV(Reached, DL, Int64);
@@ -1331,21 +1361,15 @@ bool OSRAPass::runOnFunction(Function &F) {
             if (!Result)
               return;
 
-            // The unsigned lower then (or equal) operator also carries a
-            // previous greater than 0 semantic
-            auto *Zero = ConstantInt::get(ConstOp->getType(), 0);
-            switch (P) {
-            case CmpInst::ICMP_ULT:
-            case CmpInst::ICMP_ULE:
+            // Unsigned inequations implictly say that both operands are greater
+            // than or equal to zero. This means that if we have `x - 5 < 10`,
+            // we don't just know that `x < 15` but also that `x - 5 >= 0`,
+            // i.e., `x >= 5`.
+            if (P == CmpInst::ICMP_ULT || P == CmpInst::ICMP_ULE) {
+              auto *Zero = ConstantInt::get(ConstOp->getType(), 0);
               Result = Merge(CmpInst::ICMP_UGE, Zero);
-              break;
-            case CmpInst::ICMP_UGT:
-            case CmpInst::ICMP_UGE:
-              Result = Merge(CmpInst::ICMP_ULT, Zero);
-              break;
-            default:
-              break;
             }
+
             if (!Result)
               return;
 
@@ -1671,12 +1695,12 @@ bool OSRAPass::runOnFunction(Function &F) {
           } else if (auto *ToStore = dyn_cast<Instruction>(ValueOp)) {
 
             // Compute the OSR to propagate: either the one of the value to
-            // store, or a self-referencing one
+            // store, or an OSR relative to the value being stored
             auto OSRIt = OSRs.find(ToStore);
             if (OSRIt != OSRs.end())
               SelfOSR = OSRIt->second;
             else
-              SelfOSR = OSR(&BVs.get(I->getParent(), I));
+              SelfOSR = OSR(&BVs.get(I->getParent(), ToStore));
 
             // Check if the value we're storing has constraints
             auto ConstraintIt = Constraints.find(ToStore);

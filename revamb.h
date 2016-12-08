@@ -14,6 +14,7 @@
 // LLVM includes
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Triple.h"
 
 namespace llvm {
 class GlobalVariable;
@@ -28,46 +29,6 @@ enum class DebugInfoType {
   LLVMIR ///< produce an LLVM IR with debug metadata referring to itself.
 };
 
-/// \brief Simple data structure to describe an ELF segment
-// TODO: information hiding
-struct SegmentInfo {
-  /// Produce a name for this segment suitable for human understanding
-  std::string generateName();
-
-  llvm::GlobalVariable *Variable; ///< \brief LLVM variable containing this
-                                  ///  segment's data
-  uint64_t StartVirtualAddress;
-  uint64_t EndVirtualAddress;
-  bool IsWriteable;
-  bool IsExecutable;
-  bool IsReadable;
-
-  bool contains(uint64_t Address) {
-    return StartVirtualAddress <= Address && Address < EndVirtualAddress;
-  }
-
-  bool contains(uint64_t Start, uint64_t Size) {
-    return contains(Start) && contains(Start + Size - 1);
-  }
-
-  std::vector<std::pair<uint64_t, uint64_t>> ExecutableSections;
-
-  template<class Container>
-  void insertExecutableRanges(std::back_insert_iterator<Container> Inserter) {
-    if (!IsExecutable)
-      return;
-
-    if (ExecutableSections.size() > 0) {
-      std::copy(ExecutableSections.begin(),
-                ExecutableSections.end(),
-                Inserter);
-    } else {
-      Inserter = std::make_pair(StartVirtualAddress, EndVirtualAddress);
-    }
-  }
-
-};
-
 /// \brief Basic information about an input/output architecture
 class Architecture {
 public:
@@ -78,19 +39,23 @@ public:
   };
 
 public:
- Architecture() :
+  Architecture() :
     InstructionAlignment(1),
     DefaultAlignment(1),
     Endianess(LittleEndian),
-    PointerSize(64) { }
+    PointerSize(64),
+    DelaySlotSize(0) { }
 
- Architecture(unsigned InstructionAlignment,
-              unsigned DefaultAlignment,
-              bool IsLittleEndian,
-              unsigned PointerSize,
-              llvm::StringRef SyscallHelper,
-              llvm::StringRef SyscallNumberRegister,
-              llvm::ArrayRef<uint64_t> NoReturnSyscalls) :
+  Architecture(unsigned Type,
+               unsigned InstructionAlignment,
+               unsigned DefaultAlignment,
+               bool IsLittleEndian,
+               unsigned PointerSize,
+               llvm::StringRef SyscallHelper,
+               llvm::StringRef SyscallNumberRegister,
+               llvm::ArrayRef<uint64_t> NoReturnSyscalls,
+               unsigned DelaySlotSize) :
+    Type(static_cast<llvm::Triple::ArchType>(Type)),
     InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
     Endianess(IsLittleEndian ? LittleEndian : BigEndian),
@@ -99,17 +64,22 @@ public:
     SyscallNumberRegister(SyscallNumberRegister),
     NoReturnSyscalls(NoReturnSyscalls) { }
 
-  unsigned instructionAlignment() { return InstructionAlignment; }
-  unsigned defaultAlignment() { return DefaultAlignment; }
-  EndianessType endianess() { return Endianess; }
-  unsigned pointerSize() { return PointerSize; }
-  bool isLittleEndian() { return Endianess == LittleEndian; }
-  llvm::StringRef syscallHelper() { return SyscallHelper; }
-  llvm::StringRef syscallNumberRegister() { return SyscallNumberRegister; }
-  llvm::ArrayRef<uint64_t> noReturnSyscalls() { return NoReturnSyscalls; }
-
+  unsigned instructionAlignment() const { return InstructionAlignment; }
+  unsigned defaultAlignment() const { return DefaultAlignment; }
+  EndianessType endianess() const { return Endianess; }
+  unsigned pointerSize() const { return PointerSize; }
+  bool isLittleEndian() const { return Endianess == LittleEndian; }
+  llvm::StringRef syscallHelper() const { return SyscallHelper; }
+  llvm::StringRef syscallNumberRegister() const {
+    return SyscallNumberRegister;
+  }
+  llvm::ArrayRef<uint64_t> noReturnSyscalls() const { return NoReturnSyscalls; }
+  unsigned delaySlotSize() const { return DelaySlotSize; }
+  const char *name() const { return llvm::Triple::getArchTypeName(Type); }
 
 private:
+  llvm::Triple::ArchType Type;
+
   unsigned InstructionAlignment;
   unsigned DefaultAlignment;
   EndianessType Endianess;
@@ -118,6 +88,7 @@ private:
   llvm::StringRef SyscallHelper;
   llvm::StringRef SyscallNumberRegister;
   llvm::ArrayRef<uint64_t> NoReturnSyscalls;
+  unsigned DelaySlotSize;
 };
 
 // TODO: this requires C++14

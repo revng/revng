@@ -25,6 +25,7 @@ class CallInst;
 class Instruction;
 class LoadInst;
 class StoreInst;
+class TerminatorInst;
 }
 
 class NoReturnAnalysis {
@@ -77,6 +78,19 @@ private:
     return KillerBBs.count(BB) != 0;
   };
 
+  /// \brief Register BB as killer and associate a noreturn metadata to it
+  void registerKiller(llvm::BasicBlock *BB) {
+    KillerBBs.insert(BB);
+
+    if (!BB->empty()) {
+      llvm::TerminatorInst *Terminator = BB->getTerminator();
+      assert(Terminator != nullptr);
+      if (Terminator->getMetadata("noreturn") == nullptr)
+        Terminator->setMetadata("noreturn",
+                                llvm::MDTuple::get(getContext(BB), { }));
+    }
+  }
+
   bool endsUpIn(llvm::Instruction *I, llvm::BasicBlock *Target);
 
   bool checkKiller(llvm::BasicBlock *BB) const {
@@ -88,6 +102,11 @@ private:
         return false;
     return true;
   }
+
+  bool hasSyscalls() const { return NoDCE != nullptr; }
+
+  /// \brief Register as killer basic blocks those parts of infinite loops
+  void findInfinteLoops();
 
 private:
   Architecture SourceArchitecture;

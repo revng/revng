@@ -313,6 +313,20 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
           // If the callee was already a specialization, preserve its
           // specialized arguments
           if (CurrentSpecialization != Specializations.end()) {
+
+            // Check if we're good with this specialization
+            bool SpecializationMatches = false;
+            for (auto &P : CurrentSpecialization->SpecializedArgs) {
+              if (P.first == TheUse.getOperandNo()) {
+                assert(P.second == CurrentOffset);
+                SpecializationMatches = true;
+                break;
+              }
+            }
+
+            if (SpecializationMatches)
+              continue;
+
             Original = CurrentSpecialization->Original;
             SpecializedArgs = CurrentSpecialization->SpecializedArgs;
           }

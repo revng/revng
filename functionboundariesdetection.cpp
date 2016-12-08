@@ -118,6 +118,11 @@ private:
   void collectInitialCFEPSet();
   void cfepProcessPhase1();
   void cfepProcessPhase2();
+
+  /// Associate to each basic block a metadata with the list of functions it
+  /// belongs to
+  void createMetadata();
+
   void serialize();
 
   void setRelation(BasicBlock *CFEP, BasicBlock *Affected, RelationType T) {
@@ -204,9 +209,24 @@ void FBD::initPostDispatcherIt() {
 }
 
 void FBD::collectFunctionCalls() {
+  // Create function call marker
+  // TODO: we could factor this out
+  Module *M = F.getParent();
+  LLVMContext &C = M->getContext();
+  Type *Int8PtrTy = Type::getInt8PtrTy(C);
+  FunctionType *FunctionCallFT = FunctionType::get(Type::getVoidTy(C),
+                                                   { Int8PtrTy, Int8PtrTy },
+                                                   false);
+  auto *FunctionCall = cast<Function>(M->getOrInsertFunction("function_call",
+                                                             FunctionCallFT));
+  FunctionCall->setLinkage(GlobalValue::InternalLinkage);
+  auto *EntryBB = BasicBlock::Create(C, "", FunctionCall);
+  ReturnInst::Create(C, EntryBB);
+  assert(FunctionCall->user_begin() == FunctionCall->user_end());
+
   // Collect function calls
   for (BasicBlock &BB : make_range(PostDispatcherIt, F.end())) {
-    auto *Terminator = BB.getTerminator();
+    TerminatorInst *Terminator = BB.getTerminator();
     if (!JTM->isJump(Terminator) || isa<UnreachableInst>(Terminator))
       continue;
 
@@ -218,13 +238,14 @@ void FBD::collectFunctionCalls() {
     //
     // TODO: the function call detection criteria in reachingdefinitions.cpp is
     //       probably more elegant, import it.
-    bool NewPCFound = false;
     bool SaveRAFound = false;
     bool StorePCFound = false;
     uint64_t ReturnPC = JTM->getNextPC(Terminator);
+    // We can meet up calls to newpc up to (1 + "size of the delay slot") times
+    unsigned NewPCLeft = 1 + JTM->delaySlotSize();
 
     auto Visitor = [this,
-                    &NewPCFound,
+                    &NewPCLeft,
                     &SaveRAFound,
                     ReturnPC,
                     &StorePCFound] (RBasicBlockRange R) {
@@ -243,9 +264,10 @@ void FBD::collectFunctionCalls() {
         } else if (auto *Call = dyn_cast<CallInst>(&I)) {
           auto *Callee = Call->getCalledFunction();
           if (Callee != nullptr && Callee->getName() == "newpc") {
-            assert(!NewPCFound);
-            NewPCFound = true;
-            return true;
+            assert(NewPCLeft > 0);
+            NewPCLeft--;
+            if (NewPCLeft == 0)
+              return true;
           }
         }
       }
@@ -254,21 +276,32 @@ void FBD::collectFunctionCalls() {
     };
 
     // TODO: adapt visitPredecessors from visitSuccessors
-    visitPredecessors(Terminator, Visitor, JTM->dispatcher());
+    visitPredecessors(Terminator, Visitor, make_blacklist(*JTM));
 
     if (SaveRAFound && StorePCFound) {
+      // It's a function call, register it
       BasicBlock *ReturnBB = JTM->getBlockAt(ReturnPC);
       assert(ReturnBB != nullptr);
       FunctionCalls[Terminator] = ReturnBB;
       CallPredecessors[ReturnBB].push_back(&BB);
       ReturnPCs.insert(ReturnPC);
+
+      // Emit a call to "function_call" with two parameters: the first is the
+      // callee basic block, the second the return basic block
+      assert(Terminator->getNumSuccessors() == 1
+             && "Multiple successors are not supported");
+      Value *Args[2] = {
+        BlockAddress::get(Terminator->getSuccessor(0)),
+        BlockAddress::get(ReturnBB)
+      };
+      CallInst::Create(FunctionCall, Args, "", Terminator);
     }
   }
 
   // Mark all the callee basic blocks as such
   for (auto P : FunctionCalls)
     for (BasicBlock *S : P.first->successors())
-      if (S != JTM->dispatcher())
+      if (JTM->isTranslatedBB(S))
         JTM->registerJT(S, JumpTargetManager::Callee);
 }
 
@@ -289,12 +322,11 @@ void FBD::collectReturnInstructions() {
 
     for (BasicBlock *Successor : Terminator->successors()) {
 
-      if (Successor == JTM->dispatcher())
+      // A return instruction must jump to JTM->anyPC, while all the other
+      // successors (if any) must be registered returns addresses
+      if (Successor == JTM->anyPC()) {
         JumpsToDispatcher = true;
-
-      if (!(Successor == JTM->dispatcher()
-            || Successor == JTM->dispatcherFail()
-            || ReturnPCs.count(JTM->getPC(&*Successor->begin()).first) != 0)) {
+      } else if (ReturnPCs.count(JTM->getPC(&*Successor->begin()).first) == 0) {
         IsReturn = false;
         break;
       }
@@ -373,8 +405,7 @@ interval_set FBD::findCoverage(BasicBlock *BB) {
       return It->second;
 
     for (BasicBlock *Predecessor : predecessors(BB))
-      if (Predecessor != JTM->dispatcher()
-          && Predecessor != JTM->dispatcherFail())
+      if (JTM->isTranslatedBB(Predecessor))
         WorkList.insert(Predecessor);
   }
 
@@ -452,8 +483,7 @@ void FBD::cfepProcessPhase1() {
         // It's not a return, it's not a function call, it must be a branch part
         // of the ordinary control flow of the function.
         for (BasicBlock *S : successors(RelatedBB)) {
-          if (S == JTM->dispatcher()
-              || S == JTM->dispatcherFail())
+          if (!JTM->isTranslatedBB(S))
             continue;
 
           // TODO: track fallthrough
@@ -475,9 +505,7 @@ void FBD::cfepProcessPhase1() {
       uint64_t StartAddress = findCoverage(BB).begin()->lower();
 
       for (BasicBlock *S : successors(BB)) {
-        if (S == JTM->dispatcher()
-            || S == JTM->dispatcherFail()
-            || Coverage.count(S) == 0)
+        if (!JTM->isTranslatedBB(S) || Coverage.count(S) == 0)
           continue;
 
         interval_set &BBInterval = Coverage[S];
@@ -577,7 +605,7 @@ void FBD::cfepProcessPhase2() {
 
     while (!WorkList.empty()) {
       BasicBlock *RelatedBB = WorkList.pop();
-      assert(RelatedBB != JTM->dispatcher());
+      assert(JTM->isTranslatedBB(RelatedBB));
 
       auto FCIt = FunctionCalls.find(RelatedBB->getTerminator());
       if (FCIt != FunctionCalls.end()) {
@@ -586,8 +614,7 @@ void FBD::cfepProcessPhase2() {
           WorkList.insert(ReturnBB);
       } else if (Returns.count(RelatedBB->getTerminator()) == 0) {
         for (BasicBlock *S : successors(RelatedBB)) {
-          if (S == JTM->dispatcher()
-              || S == JTM->dispatcherFail())
+          if (!JTM->isTranslatedBB(S))
             continue;
 
           // TODO: doesn't handle the div in div case
@@ -603,6 +630,38 @@ void FBD::cfepProcessPhase2() {
   }
 }
 
+void FBD::createMetadata() {
+  LLVMContext &Context = getContext(&F);
+
+  // We first compute the list of all the functions each basic block belongs to,
+  // so we don't have to create a huge number of metadata which are never
+  // deleted (?)
+  std::map<BasicBlock *, std::vector<Metadata *>> ReversedFunctions;
+
+  for (auto &P : Functions) {
+    BasicBlock *Header = P.first;
+    auto *Name = MDString::get(Context, getName(Header));
+    MDTuple *FunctionMD = MDNode::getDistinct(Context, { Name });
+
+    for (BasicBlock *Member : P.second)
+      ReversedFunctions[Member].push_back(FunctionMD);
+
+  }
+
+  // Associate the terminator of each basic block with the previously created
+  // metadata node
+  for (auto &P : ReversedFunctions) {
+    BasicBlock *BB = P.first;
+    if (!BB->empty() ) {
+      Instruction *Terminator = BB->getTerminator();
+      assert(Terminator != nullptr);
+      auto *FuncMDs =  MDTuple::get(Context, ArrayRef<Metadata *>(P.second));
+      Terminator->setMetadata("func", FuncMDs);
+    }
+  }
+
+}
+
 map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
   assert(JTM != nullptr);
 
@@ -612,7 +671,10 @@ map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
 
   collectReturnInstructions();
 
+  // TODO: move this code in JTM
+  JTM->setCFGForm(JumpTargetManager::NoFunctionCallsCFG);
   JTM->noReturn().computeKillerSet(CallPredecessors, Returns);
+  JTM->setCFGForm(JumpTargetManager::SemanticPreservingCFG);
 
   initNormalizedAddressSpace();
 
@@ -623,6 +685,8 @@ map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
   filterCFEPs();
 
   cfepProcessPhase2();
+
+  createMetadata();
 
   return std::move(Functions);
 }

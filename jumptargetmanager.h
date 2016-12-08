@@ -11,12 +11,14 @@
 #include <set>
 #include <vector>
 #include <boost/icl/interval_set.hpp>
+#include <boost/icl/interval_map.hpp>
 #include <boost/type_traits/is_same.hpp>
 
 // LLVM includes
 #include "llvm/ADT/Optional.h"
 
 // Local includes
+#include "binaryfile.h"
 #include "datastructures.h"
 #include "ir-helpers.h"
 #include "noreturnanalysis.h"
@@ -53,7 +55,6 @@ template<typename Map> typename Map::iterator
   }
   return m.end();
 }
-
 
 /// \brief Transform constant writes to the PC in jumps
 ///
@@ -103,6 +104,7 @@ private:
 class JumpTargetManager {
 private:
   using interval_set = boost::icl::interval_set<uint64_t>;
+  using interval = boost::icl::interval<uint64_t>;
 
   /// \brief Data structure to collect statistics about an input basic block
   struct BBSummary {
@@ -189,19 +191,40 @@ public:
     uint32_t Reasons;
   };
 
+  /// \brief Possible forms the CFG we're building can assume.
+  ///
+  /// Generally the CFG should stay in the SemanticPreservingCFG state, but it
+  /// can be temporarily changed to make certain analysis (e.g., computation of
+  /// the dominator tree) more effective for certain purposes.
+  enum CFGForm {
+    UnknownFormCFG, ///< The CFG is an unknown state.
+    SemanticPreservingCFG, ///< The dispatcher jumps to all the jump targets,
+                           ///  and all the indirect jumps go to the dispatcher.
+    RecoveredOnlyCFG, ///< The dispatcher only jumps to jump targets without
+                      ///  other predecessors and indirect jumps do not go to
+                      ///  the dispatcher, but to an unreachable instruction.
+    NoFunctionCallsCFG ///< Similar to RecoveredOnlyCFG, but all jumps forming a
+                       ///  function call are converted to jumps to the return
+                       ///  address.
+  };
+
 public:
   using RangesVector = std::vector<std::pair<uint64_t, uint64_t>>;
 
   /// \param TheFunction the translated function.
   /// \param PCReg the global variable representing the program counter.
-  /// \param SourceArchitecture the input architecture.
-  /// \param Segments a vector of SegmentInfo representing the program.
+  /// \param Binary reference to the information about a given binary, such as
+  ///        segments and symbols.
   /// \param EnableOSRA whether OSRA is enabled or not.
   JumpTargetManager(llvm::Function *TheFunction,
                     llvm::Value *PCReg,
-                    Architecture& SourceArchitecture,
-                    std::vector<SegmentInfo>& Segments,
+                    const BinaryFile &Binary,
                     bool EnableOSRA);
+
+  /// \brief Transform the IR to represent the request form of CFG
+  void setCFGForm(CFGForm NewForm);
+
+  CFGForm cfgForm() const { return CurrentCFGForm; }
 
   /// \brief Collect jump targets from the program's segments
   void harvestGlobalData();
@@ -276,7 +299,7 @@ public:
   /// \brief Return true if the given PC respects the input architecture's
   ///        instruction alignment constraints
   bool isInstructionAligned(uint64_t PC) const {
-    return PC % SourceArchitecture.instructionAlignment() == 0;
+    return PC % Binary.architecture().instructionAlignment() == 0;
   }
 
   /// \brief Return true if the given PC can be executed by the current
@@ -338,11 +361,28 @@ public:
   /// \brief Removes a `BasicBlock` from the SET's visited list
   void unvisit(llvm::BasicBlock *BB);
 
-  /// \brief Return a pointer to the dispatcher basic block.
+  /// \brief Checks if \p BB is a basic block generated during translation
+  bool isTranslatedBB(llvm::BasicBlock *BB) const {
+    return BB != anyPC()
+      && BB != unexpectedPC()
+      && BB != dispatcher()
+      && BB != dispatcherFail();
+  }
+
+  /// \brief Return the dispatcher basic block.
+  ///
+  /// \note Do not use this for comparison with successors of translated code,
+  ///       use isTranslatedBB instead.
   llvm::BasicBlock *dispatcher() const { return Dispatcher; }
 
-  /// \brief Return a pointer to the dispatcher basic block.
+  /// \brief Return the basic block handling an unknown PC in the dispatcher
   llvm::BasicBlock *dispatcherFail() const { return DispatcherFail; }
+
+  /// \brief Return the basic block handling a jump to any PC
+  llvm::BasicBlock *anyPC() const { return AnyPC; }
+
+  /// \brief Return the basic block handling a jump to an unexpected PC
+  llvm::BasicBlock *unexpectedPC() const { return UnexpectedPC; }
 
   bool isPCReg(llvm::Value *TheValue) const { return TheValue == PCReg; }
 
@@ -359,6 +399,12 @@ public:
     return Pair.first + Pair.second;
   }
 
+  enum Endianess {
+    OriginalEndianess,
+    DestinationEndianess
+  };
+
+
   /// \brief Read an integer number from a segment
   ///
   /// \param Address the address from which to read.
@@ -367,14 +413,19 @@ public:
   /// \return a `ConstantInt` with the read value or `nullptr` in case it wasn't
   ///         possible to read the value (e.g., \p Address is not inside any of
   ///         the segments).
-  llvm::ConstantInt *readConstantInt(llvm::Constant *Address, unsigned Size);
+  llvm::ConstantInt *readConstantInt(llvm::Constant *Address,
+                                     unsigned Size,
+                                     Endianess ReadEndianess);
 
   /// \brief Reads a pointer-sized value from a segment
   /// \see readConstantInt
   llvm::Constant *readConstantPointer(llvm::Constant *Address,
-                                      llvm::Type *PointerTy);
+                                      llvm::Type *PointerTy,
+                                      Endianess ReadEndianess);
 
-  llvm::Optional<uint64_t> readRawValue(uint64_t Address, unsigned Size) const;
+  llvm::Optional<uint64_t> readRawValue(uint64_t Address,
+                                        unsigned Size,
+                                        Endianess ReadEndianess) const;
 
   /// \brief Register a new basic block in terms of the input architecture
   ///
@@ -456,15 +507,28 @@ public:
   /// fix all the pending information. In particular, those pointers to code
   /// that have never been touched by SET will be considered and their pointee
   /// will be marked with UnusedGlobalData.
+  ///
+  /// This function also fixes the "anypc" and "unexpectedpc" basic blocks to
+  /// their proper behavior.
   void finalizeJumpTargets() {
-    unsigned ReadSize = SourceArchitecture.pointerSize() / 8;
+    unsigned ReadSize = Binary.architecture().pointerSize() / 8;
     for (uint64_t MemoryAddress : UnusedCodePointers) {
-      uint64_t PC = readRawValue(MemoryAddress, ReadSize).getValue();
-      registerJT(PC, UnusedGlobalData);
+      // Read using the original endianess, we want the correct address
+      uint64_t PC = readRawValue(MemoryAddress,
+                                 ReadSize,
+                                 OriginalEndianess).getValue();
+
+      // Set as reason UnusedGlobalData and ensure it's not empty
+      llvm::BasicBlock *BB = registerJT(PC, UnusedGlobalData);
+      assert(!BB->empty());
     }
 
     // We no longer need this information
     freeContainer(UnusedCodePointers);
+  }
+
+  unsigned delaySlotSize() const {
+    return Binary.architecture().delaySlotSize();
   }
 
   /// \brief Return the next call to exitTB after I, or nullptr if it can't find
@@ -488,7 +552,28 @@ public:
 
   NoReturnAnalysis &noReturn() { return NoReturn; }
 
+  /// \brief Return a proper name for the given address, possibly using symbols
+  ///
+  /// \param Address the address for which a name should be produced.
+  ///
+  /// \return a string containing the symbol name and, if necessary an offset,
+  ///         or if no symbol can be found, just the address.
+  std::string nameForAddress(uint64_t Address) const;
+
 private:
+
+  /// \brief Check if \p BB has at least a predecessor, excluding the dispatcher
+  bool hasPredecessors(llvm::BasicBlock *BB) const;
+
+  /// \brief Rebuild the dispatcher switch
+  ///
+  /// Depending on the CFG form we're currently adopting the dispatcher might go
+  /// to all the jump targets or only to those who have no other predecessor.
+  void rebuildDispatcher();
+
+  /// \brief Populate the interval -> Symbol map from Binary.Symbols
+  void initializeSymbolMap();
+
   /// \brief Return an iterator to the entry containing the given address range
   typename std::map<uint64_t, BBSummary>::iterator
   containingOriginalBB(uint64_t Address) {
@@ -539,10 +624,11 @@ private:
   llvm::BasicBlock *Dispatcher;
   llvm::SwitchInst *DispatcherSwitch;
   llvm::BasicBlock *DispatcherFail;
+  llvm::BasicBlock *AnyPC;
+  llvm::BasicBlock *UnexpectedPC;
   std::set<llvm::BasicBlock *> Visited;
 
-  std::vector<SegmentInfo>& Segments;
-  Architecture &SourceArchitecture;
+  const BinaryFile &Binary;
 
   bool EnableOSRA;
 
@@ -552,6 +638,24 @@ private:
   std::set<uint64_t> UnusedCodePointers;
   interval_set ReadIntervalSet;
   NoReturnAnalysis NoReturn;
+  using SymbolInfoSet = std::set<const SymbolInfo *>;
+  boost::icl::interval_map<uint64_t, SymbolInfoSet> SymbolMap;
+
+  CFGForm CurrentCFGForm;
 };
+
+template<>
+struct BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *> :
+  BlackListTraitBase<const JumpTargetManager &> {
+  using BlackListTraitBase<const JumpTargetManager &>::BlackListTraitBase;
+  bool isBlacklisted(llvm::BasicBlock *Value) {
+    return !this->Obj.isTranslatedBB(Value);
+  }
+};
+
+BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *>
+static inline make_blacklist(const JumpTargetManager &JTM) {
+  return BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *>(JTM);
+}
 
 #endif // _JUMPTARGETMANAGER_H
