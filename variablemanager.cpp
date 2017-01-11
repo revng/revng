@@ -296,7 +296,12 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
             continue;
           }
 
-          assert(!Callee->empty() && "external functions are not supported");
+          assert((Callee->getName().startswith("helper")
+                  || !Callee->empty())
+                 && "external functions are not supported");
+
+          if (Callee->empty())
+            break;
 
           // TODO: move all the specialization-handling code outside
           // Is the callee already a specialization?

@@ -63,6 +63,8 @@ public:
   /// \param EnableTracing specify whether tracing in the ouptut binary should
   ///        be enabled, that is, whether calls to an external `newPC` function
   ///        should be removed at the end of the translation or not.
+  /// \param EnableLinking specifying whether linking to QEMU helpers should be
+  ///        performed or not.
   CodeGenerator(BinaryFile &Binary,
                 Architecture &Target,
                 std::string Output,
@@ -74,7 +76,8 @@ public:
                 std::string BBSummary,
                 bool EnableOSRA,
                 bool EnableTracing,
-                bool DetectFunctionBoundaries);
+                bool DetectFunctionBoundaries,
+                bool EnableLinking);
 
   ~CodeGenerator();
 
@@ -123,6 +126,7 @@ private:
   std::string BBSummaryPath;
   std::string FunctionListPath;
   bool DetectFunctionBoundaries;
+  bool EnableLinking;
 };
 
 #endif // _CODEGENERATOR_H

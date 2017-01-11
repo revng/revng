@@ -73,7 +73,8 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              std::string BBSummary,
                              bool EnableOSRA,
                              bool EnableTracing,
-                             bool DetectFunctionBoundaries) :
+                             bool DetectFunctionBoundaries,
+                             bool EnableLinking) :
   TargetArchitecture(Target),
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
@@ -82,7 +83,8 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   Binary(Binary),
   EnableOSRA(EnableOSRA),
   EnableTracing(EnableTracing),
-  DetectFunctionBoundaries(DetectFunctionBoundaries)
+  DetectFunctionBoundaries(DetectFunctionBoundaries),
+  EnableLinking(EnableLinking)
 {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
@@ -875,11 +877,12 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
         GV.setLinkage(GlobalValue::InternalLinkage);
   }
 
-  Linker TheLinker(*TheModule);
-  bool Result = TheLinker.linkInModule(std::move(HelpersModule),
-                                       Linker::LinkOnlyNeeded);
-  assert(!Result && "Linking failed");
-  (void) Result;
+  if (EnableLinking) {
+    Linker TheLinker(*TheModule);
+    bool Result = TheLinker.linkInModule(std::move(HelpersModule),
+                                         Linker::LinkOnlyNeeded);
+    assert(!Result && "Linking failed");
+  }
 
   Variables.setDataLayout(&TheModule->getDataLayout());
 

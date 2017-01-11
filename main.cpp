@@ -52,6 +52,7 @@ struct ProgramParameters {
   bool EnableTracing;
   bool UseSections;
   bool DetectFunctionsBoundaries;
+  bool NoLink;
 };
 
 using LibraryDestructor = GenericFunctor<decltype(&dlclose), &dlclose>;
@@ -178,7 +179,9 @@ static int parseArgs(int Argc, const char *Argv[],
                &DebugLoggingString,
                "enable verbose logging."),
     OPT_BOOLEAN('O', "no-osra", &Parameters->NoOSRA,
-                "disable OSRA"),
+                "disable OSRA."),
+    OPT_BOOLEAN('L', "no-link", &Parameters->NoLink,
+                "do not link the output to QEMU helpers."),
     OPT_BOOLEAN('t', "tracing", &Parameters->EnableTracing,
                 "enable PC tracing in the output binary (through newPC)"),
     OPT_BOOLEAN('S', "use-sections", &Parameters->UseSections,
@@ -287,7 +290,8 @@ int main(int argc, const char *argv[]) {
                           std::string(Parameters.BBSummaryPath),
                           !Parameters.NoOSRA,
                           Parameters.EnableTracing,
-                          Parameters.DetectFunctionsBoundaries);
+                          Parameters.DetectFunctionsBoundaries,
+                          !Parameters.NoLink);
 
   Generator.translate(Parameters.EntryPointAddress, "root");
 
