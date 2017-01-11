@@ -527,6 +527,8 @@ public:
       assert(!BB->empty());
     }
 
+    ExitTB->eraseFromParent();
+
     // We no longer need this information
     freeContainer(UnusedCodePointers);
   }

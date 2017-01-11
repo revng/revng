@@ -908,6 +908,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     FPM.run(*MainFunction);
   }
 
+  JumpTargets.noReturn().cleanup();
+
   Translator.finalizeNewPCMarkers(CoveragePath, EnableTracing);
   Debug->generateDebugInfo();
 

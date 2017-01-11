@@ -247,10 +247,6 @@ void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors,
   // We no longer need the sink
   Sink->eraseFromParent();
 
-  // Cleanup all the calls to "nodce"
-  for (User *NoDCEUser : NoDCE->users())
-    cast<CallInst>(NoDCEUser)->eraseFromParent();
-
   DBG("nra", {
       for (BasicBlock *KillerBB : KillerBBs)
         dbg << getName(KillerBB) << " is killer BB\n";

@@ -73,6 +73,16 @@ public:
     return true;
   }
 
+  void cleanup() {
+    // Cleanup all the calls to "nodce"
+    if (NoDCE != nullptr) {
+      for (llvm::User *NoDCEUser : NoDCE->users())
+        llvm::cast<llvm::CallInst>(NoDCEUser)->eraseFromParent();
+
+      NoDCE->eraseFromParent();
+    }
+  }
+
 private:
   bool isKiller(llvm::BasicBlock *BB) const {
     return KillerBBs.count(BB) != 0;
