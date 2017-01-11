@@ -549,6 +549,11 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
 Value *SET::handleInstruction(Instruction *Target, Value *V) {
   bool Handled = false;
 
+  // Blacklist i128
+  // TODO: should we black list all the non-integer types?
+  if (V->getType()->isIntegerTy(128))
+    return nullptr;
+
   if (auto *C = dyn_cast<ConstantInt>(V)) {
     // We reached the end of the path, materialize the value
     OS.explore(C);
@@ -563,8 +568,8 @@ Value *SET::handleInstruction(Instruction *Target, Value *V) {
   if (auto *BinOp = dyn_cast<BinaryOperator>(V)) {
 
     // Append a reference to the operation to the Operations stack
-    Use& FirstOp = BinOp->getOperandUse(0);
-    Use& SecondOp = BinOp->getOperandUse(1);
+    Use &FirstOp = BinOp->getOperandUse(0);
+    Use &SecondOp = BinOp->getOperandUse(1);
 
     bool IsFirstConstant = isa<ConstantInt>(FirstOp.get());
     bool IsSecondConstant = isa<ConstantInt>(SecondOp.get());
