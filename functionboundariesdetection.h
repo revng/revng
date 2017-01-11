@@ -25,7 +25,7 @@ public:
 public:
   FunctionBoundariesDetectionPass() : llvm::FunctionPass(ID), JTM(nullptr) { }
   FunctionBoundariesDetectionPass(JumpTargetManager *JTM,
-                                std::string SerializePath) :
+                                  std::string SerializePath) :
     llvm::FunctionPass(ID), JTM(JTM), SerializePath(SerializePath) { }
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {

@@ -54,7 +54,7 @@ static RegisterPass<FBDP> X("fbdp",
 class FunctionBoundariesDetectionImpl {
 public:
   FunctionBoundariesDetectionImpl(Function &F,
-                                JumpTargetManager *JTM) : F(F), JTM(JTM) { }
+                                  JumpTargetManager *JTM) : F(F), JTM(JTM) { }
 
   map<BasicBlock *, vector<BasicBlock *>> run();
 
@@ -570,7 +570,11 @@ void FBD::createMetadata() {
   for (auto &P : Functions) {
     BasicBlock *Header = P.first;
     auto *Name = MDString::get(Context, getName(Header));
-    MDTuple *FunctionMD = MDNode::getDistinct(Context, { Name });
+    MDTuple *FunctionMD = MDNode::get(Context, { Name });
+
+    Instruction *Terminator = Header->getTerminator();
+    assert(Terminator != nullptr);
+    Terminator->setMetadata("func.entry", FunctionMD);
 
     for (BasicBlock *Member : P.second)
       ReversedFunctions[Member].push_back(FunctionMD);
@@ -585,7 +589,7 @@ void FBD::createMetadata() {
       Instruction *Terminator = BB->getTerminator();
       assert(Terminator != nullptr);
       auto *FuncMDs =  MDTuple::get(Context, ArrayRef<Metadata *>(P.second));
-      Terminator->setMetadata("func", FuncMDs);
+      Terminator->setMetadata("func.member.of", FuncMDs);
     }
   }
 
