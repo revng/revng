@@ -610,7 +610,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     VirtualAddress = Binary.entryPoint();
   }
 
-  BasicBlock *Head = JumpTargets.getBlockAt(VirtualAddress);
+  BasicBlock *Head = JumpTargets.registerJT(VirtualAddress,
+                                            JumpTargetManager::GlobalData);
 
   // Fake jumps to the dispatcher-related basic blocks. This way all the blocks
   // are always reachable.  Also, use this switch as the delimiter to create
