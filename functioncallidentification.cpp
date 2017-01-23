@@ -125,16 +125,37 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
     if (SaveRAFound && StorePCFound && NewPCLeft == 0 && ReturnBB != nullptr) {
       // It's a function call, register it
 
-      // Emit a call to "function_call" with two parameters: the first is the
-      // callee basic block, the second the return basic block
-      unsigned SuccessorCount = 0;
-      for (BasicBlock *Successor : successors(Terminator->getParent()))
-        if (GCBI.isJumpTarget(Successor))
-          SuccessorCount++;
+      // Emit a call to "function_call" with three parameters: the first is the
+      // callee basic block, the second the return basic block and the third is
+      // the return address
 
-      assert(SuccessorCount <= 1 && "Multiple successors are not supported");
+      // If there is a single successor it can be anypc or an actual callee
+      // basic block, both cases are fine. If there's more than one successor,
+      // we want to register only the default successor of the switch statment
+      // (typically anypc).
+      // TODO: register in the call to function_call multiple call targets
+      unsigned SuccessorsCount = Terminator->getNumSuccessors();
+      assert(SuccessorsCount >= 1);
+      BasicBlock *Callee = nullptr;
+
+      if (SuccessorsCount == 1) {
+        Callee = Terminator->getSuccessor(0);
+      } else {
+        // If there are multiple successors, register the one that is not a
+        // jumpt target
+        for (BasicBlock *Successor : successors(Terminator->getParent())) {
+          if (!GCBI.isJumpTarget(Successor)) {
+            // There should be only one non-jump target successor (i.e., anypc
+            // or unepxectedpc).
+            assert(Callee == nullptr);
+            Callee = Successor;
+          }
+        }
+        assert(Callee != nullptr);
+      }
+
       Value *Args[3] = {
-        BlockAddress::get(Terminator->getSuccessor(0)),
+        BlockAddress::get(Callee),
         BlockAddress::get(ReturnBB),
         ConstantInt::get(Int32Ty, ReturnPC)
       };
