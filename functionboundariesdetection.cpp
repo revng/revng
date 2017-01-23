@@ -111,7 +111,7 @@ private:
   void initPostDispatcherIt();
   void collectFunctionCalls();
   void collectReturnInstructions();
-  void initNormalizedAddressSpace();
+  void registerBasicBlockAddressRanges();
   interval_set findCoverage(BasicBlock *BB);
 
   // CFEP related methods
@@ -188,7 +188,6 @@ private:
   std::map<BasicBlock *, SmallVector<CFEPRelation, 2>> Relations;
   OnceQueue<BasicBlock *> CFEPWorkList;
   interval_set Callees;
-  interval_set NormalizedReadInterval;
   std::map<BasicBlock *, std::vector<BasicBlock *>> Functions;
 };
 
@@ -274,54 +273,28 @@ void FBD::collectReturnInstructions() {
   }
 }
 
-/// \brief Address space normalization
-/// Assign the lowest address to 0 and skip any holes in the translated
-/// address space.
-void FBD::initNormalizedAddressSpace() {
-  // Sort all the basic blocks by their starting address
-  std::map<uint64_t, std::pair<BasicBlock *, uint64_t>> SortedPCs;
+/// \brief Register for each basic block the range of addresses it covers
+void FBD::registerBasicBlockAddressRanges() {
+  // Register the range of addresses covered by each basic block
   for (User *U : F.getParent()->getFunction("newpc")->users()) {
     auto *Call = dyn_cast<CallInst>(U);
     if (Call == nullptr)
       continue;
 
+    BasicBlock *BB = Call->getParent();
     uint64_t Address = getLimitedValue(Call->getOperand(0));
     uint64_t Size = getLimitedValue(Call->getOperand(1));
+    assert(Address > 0 && Size > 0);
 
-    SortedPCs[Address] = { Call->getParent(), Size };
-  }
-
-  // Assign addresses in the normalized address space
-  uint64_t CurrentAddress = 0;
-  for (auto &P : SortedPCs) {
-    BasicBlock *BB = P.second.first;
-    uint64_t Size = P.second.second;
-    uint64_t StartAddress = P.first;
-    uint64_t EndAddress = StartAddress + Size;
-
-    interval_set VirtualInterval;
-    VirtualInterval += interval::right_open(StartAddress, EndAddress);
-
-    // Move the read range into the normalized address space and merge the
-    // result into NormalizedReadInterval
-    interval_set ReadInterval = JTM->readRange() & VirtualInterval;
-    for (auto Interval : ReadInterval) {
-      uint64_t Lower = (Interval.lower() - StartAddress) + CurrentAddress;
-      uint64_t Upper = Lower + Interval.upper() - Interval.lower();
-      NormalizedReadInterval += interval::right_open(Lower, Upper);
-    }
-
-    // Associate each basic block with its interval in the normalized address
-    // space
-    Coverage[BB] += interval::right_open(CurrentAddress, CurrentAddress + Size);
-    CurrentAddress += Size;
+    Coverage[BB] += interval::right_open(Address, Address + Size);
   }
 }
 
 interval_set FBD::findCoverage(BasicBlock *BB) {
   auto It = Coverage.find(BB);
-  if (It != Coverage.end())
+  if (It != Coverage.end()) {
     return It->second;
+  }
 
   OnceQueue<BasicBlock *> WorkList;
   WorkList.insert(BB);
@@ -330,8 +303,9 @@ interval_set FBD::findCoverage(BasicBlock *BB) {
     BB = WorkList.pop();
 
     It = Coverage.find(BB);
-    if (It != Coverage.end())
+    if (It != Coverage.end()) {
       return It->second;
+    }
 
     for (BasicBlock *Predecessor : predecessors(BB))
       if (JTM->isTranslatedBB(Predecessor))
@@ -359,7 +333,10 @@ void FBD::collectInitialCFEPSet() {
 
     if (JT.hasReason(JumpTargetManager::Callee)) {
       registerCFEP(CFEPHead, Callee);
+
+      assert(Coverage.find(CFEPHead) != Coverage.end());
       Callees += Coverage[CFEPHead];
+
       Insert = true;
     }
 
@@ -385,16 +362,12 @@ void FBD::cfepProcessPhase1() {
   while (!CFEPWorkList.empty()) {
     BasicBlock *CFEP = CFEPWorkList.pop();
 
-    interval_set Covered;
-
     // Find all the basic block it can reach
     OnceQueue<BasicBlock *> WorkList;
     WorkList.insert(CFEP);
 
     while (!WorkList.empty()) {
       BasicBlock *RelatedBB = WorkList.pop();
-
-      Covered += Coverage[RelatedBB];
 
       auto FCIt = FunctionCalls.find(RelatedBB->getTerminator());
       if (FCIt != FunctionCalls.end()) {
@@ -431,18 +404,22 @@ void FBD::cfepProcessPhase1() {
       if (FunctionCalls.count(T) != 0 || Returns.count(T) != 0)
         continue;
 
-      uint64_t StartAddress = findCoverage(BB).begin()->lower();
+      interval_set StartAddressRange = findCoverage(BB);
+      uint64_t StartAddress = StartAddressRange.begin()->lower();
+      assert(StartAddress != 0);
 
       for (BasicBlock *S : successors(BB)) {
         if (!JTM->isTranslatedBB(S) || Coverage.count(S) == 0)
           continue;
 
-        interval_set &BBInterval = Coverage[S];
+        assert(Coverage.find(S) != Coverage.end());
+        interval_set &DestinationAddressRange = Coverage[S];
+
         // TODO: why this?
-        if (BBInterval.size() == 0)
+        if (DestinationAddressRange.size() == 0)
           continue;
 
-        uint64_t DestinationAddress = BBInterval.begin()->lower();
+        uint64_t DestinationAddress = DestinationAddressRange.begin()->lower();
 
         interval_set JumpInterval;
         if (StartAddress <= DestinationAddress)
@@ -450,8 +427,8 @@ void FBD::cfepProcessPhase1() {
         else
           JumpInterval += interval::closed(DestinationAddress, StartAddress);
 
-        JumpInterval -= Covered;
-        JumpInterval -= NormalizedReadInterval;
+        JumpInterval -= StartAddressRange;
+        JumpInterval -= DestinationAddressRange;
         JumpInterval &= Callees;
         uint64_t Distance = JumpInterval.size();
 
@@ -480,8 +457,6 @@ void FBD::filterCFEPs() {
     bool Keep = C.hasReason(Callee);
     bool AddressTaken = C.hasReason(GlobalData) || C.hasReason(InCode);
 
-    // if (getBasicBlockPC(Head) == 0x18a70)
-    //   dbg << "here\n";
     if (!Keep && AddressTaken) {
       Keep = true;
       // Check no relation of Jump type and 0-distance exist
@@ -609,7 +584,7 @@ map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
   JTM->noReturn().computeKillerSet(CallPredecessors, Returns);
   JTM->setCFGForm(JumpTargetManager::SemanticPreservingCFG);
 
-  initNormalizedAddressSpace();
+  registerBasicBlockAddressRanges();
 
   collectInitialCFEPSet();
 
