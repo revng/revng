@@ -608,17 +608,19 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     JumpTargets.harvestGlobalData();
     VirtualAddress = Binary.entryPoint();
   }
+  JumpTargets.registerJT(VirtualAddress, JumpTargetManager::GlobalData);
 
-  BasicBlock *Head = JumpTargets.registerJT(VirtualAddress,
-                                            JumpTargetManager::GlobalData);
+  // Initialize the program counter
+  auto *StartPC = ConstantInt::get(PCReg->getType(), VirtualAddress);
+  // Use this instruction as the delimiter for local variables
+  auto *Delimiter = Builder.CreateStore(StartPC, PCReg);
 
   // Fake jumps to the dispatcher-related basic blocks. This way all the blocks
-  // are always reachable.  Also, use this switch as the delimiter to create
-  // local variables.
-  SwitchInst *Delimiter = Builder.CreateSwitch(Builder.getInt8(0), Head);
-  Delimiter->addCase(Builder.getInt8(1), JumpTargets.dispatcher());
-  Delimiter->addCase(Builder.getInt8(2), JumpTargets.anyPC());
-  Delimiter->addCase(Builder.getInt8(3), JumpTargets.unexpectedPC());
+  // are always reachable.
+  SwitchInst *ReachSwitch = Builder.CreateSwitch(Builder.getInt8(0),
+                                                 JumpTargets.dispatcher());
+  ReachSwitch->addCase(Builder.getInt8(1), JumpTargets.anyPC());
+  ReachSwitch->addCase(Builder.getInt8(2), JumpTargets.unexpectedPC());
 
   std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
