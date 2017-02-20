@@ -293,7 +293,7 @@ int main(int argc, const char *argv[]) {
                           Parameters.DetectFunctionsBoundaries,
                           !Parameters.NoLink);
 
-  Generator.translate(Parameters.EntryPointAddress, "root");
+  Generator.translate(Parameters.EntryPointAddress);
 
   Generator.serialize();
 

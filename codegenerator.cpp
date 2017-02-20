@@ -544,8 +544,7 @@ static void purgeDeadBlocks(Function *F) {
 
 }
 
-void CodeGenerator::translate(uint64_t VirtualAddress,
-                              std::string Name) {
+void CodeGenerator::translate(uint64_t VirtualAddress) {
   // Declare useful functions
   auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
   auto *AbortFunction = TheModule->getOrInsertFunction("abort", AbortTy);
@@ -566,7 +565,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   auto *MainType  = FunctionType::get(Builder.getVoidTy(), false);
   auto *MainFunction = Function::Create(MainType,
                                         Function::ExternalLinkage,
-                                        Name,
+                                        "root",
                                         TheModule.get());
 
   Debug->newFunction(MainFunction);

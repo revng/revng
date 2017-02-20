@@ -86,8 +86,7 @@ public:
   /// create in this phase.
   ///
   /// \param VirtualAddress the address from where the translation should start.
-  /// \param Name the name to give to the newly created function.
-  void translate(uint64_t VirtualAddress, std::string Name);
+  void translate(uint64_t VirtualAddress);
 
   /// Serialize the generated LLVM IR to the specified output path.
   void serialize();
