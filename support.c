@@ -2,6 +2,7 @@
  * This file is distributed under the MIT License. See LICENSE.md for details.
  */
 
+#include <assert.h>
 #include <elf.h>
 #include <endian.h>
 #include <stdint.h>
@@ -19,32 +20,35 @@ char **saved_argv;
 // Handle target specific information:
 //
 // * Register size
-// * Register used as stack pointer
 // * Macro to swap endianess from the host one
 #if defined(TARGET_arm)
 
 typedef uint32_t target_reg;
-extern target_reg r13;
-target_reg *stack = &r13;
 #define SWAP(x) (htole32(x))
 
 #elif defined(TARGET_x86_64)
 
 typedef uint64_t target_reg;
-extern target_reg rsp;
-target_reg *stack = &rsp;
 #define SWAP(x) (htole64(x))
 
 #elif defined(TARGET_mips)
 
 typedef uint32_t target_reg;
-extern target_reg sp;
-target_reg *stack = &sp;
 #define SWAP(x) (htobe32(x))
+
+#else
+
+#error "Architecture not supported"
 
 #endif
 
-void root(void);
+#define MAX_OF(t) (((0x1ULL << ((sizeof(t) * 8ULL) - 1ULL)) - 1ULL) |    \
+                   (0xFULL << ((sizeof(t) * 8ULL) - 4ULL)))
+#define SAFE_CAST(ptr) do {                             \
+    assert((uintptr_t) (ptr) <= MAX_OF(target_reg));    \
+  } while(0)
+
+void root(target_reg stack);
 
 void itoa(unsigned i, char *b){
   const char digit[] = "0123456789";
@@ -76,11 +80,11 @@ uintptr_t qemu_host_page_size = 1 << 12;
 uintptr_t qemu_host_page_mask = ~((1 << 12) - 1);
 
 
-target_reg prepare_stack(target_reg stack, int argc, char **argv) {
+void *prepare_stack(void *stack, int argc, char **argv) {
   target_reg tmp;
   target_reg platform_address;
   target_reg random_address;
-  target_reg arg_area;
+  void *arg_area;
   char **argp;
   char **arge;
 
@@ -133,7 +137,7 @@ target_reg prepare_stack(target_reg stack, int argc, char **argv) {
   random_address = (target_reg) stack;
 
   // Force 16 bytes alignment
-  stack &= ~15;
+  stack = (void *) ((uintptr_t) stack & ~15);
 
   PUSH_AUX(stack, AT_NULL, 0);
   PUSH_AUX(stack, AT_PHDR, phdr_address);
@@ -161,7 +165,8 @@ target_reg prepare_stack(target_reg stack, int argc, char **argv) {
   // First push environment variables
   while (*--argp != NULL) {
     PUSH_STR(arg_area, *argp);
-    PUSH_REG(stack, arg_area);
+    SAFE_CAST(arg_area);
+    PUSH_REG(stack, (target_reg) arg_area);
   }
 
   // Push the separator
@@ -170,7 +175,8 @@ target_reg prepare_stack(target_reg stack, int argc, char **argv) {
   // Push the arguments
   while (--argp != (argv - 1)) {
     PUSH_STR(arg_area, *argp);
-    PUSH_REG(stack, arg_area);
+    SAFE_CAST(arg_area);
+    PUSH_REG(stack, (target_reg) arg_area);
   }
 
   PUSH_REG(stack, argc);
@@ -225,6 +231,7 @@ void newpc(uint64_t pc,
            uint64_t instruction_size,
            uint32_t is_first,
            uint8_t *vars, ...) {
+#ifdef TRACE
   const size_t buffer_size = sizeof(uint64_t) * 2 + 3;
   char buffer[sizeof(uint64_t) * 2 + 3] = { 0 };
   char *last_pos = buffer + buffer_size - 1;
@@ -250,20 +257,21 @@ void newpc(uint64_t pc,
 
     write(2, last_pos, buffer_size - (last_pos - buffer));
   }
+#endif
 }
 
 int main(int argc, char *argv[]) {
   saved_argc = argc;
   saved_argv = argv;
 
-  *stack = (target_reg) mmap((void *) NULL,
-                             0x100000,
-                             PROT_READ | PROT_WRITE,
-                             MAP_ANONYMOUS | MAP_32BIT | MAP_PRIVATE,
-                             -1,
-                             0) + 0x100000 - 0x1000;
+  void *stack = mmap((void *) NULL,
+                     0x100000,
+                     PROT_READ | PROT_WRITE,
+                     MAP_ANONYMOUS | MAP_32BIT | MAP_PRIVATE,
+                     -1,
+                     0) + 0x100000 - 0x1000;
 
-  *stack = prepare_stack(*stack, argc, argv);
+  stack = prepare_stack(stack, argc, argv);
 
   target_set_brk((target_reg) mmap((void *) NULL,
                                    0x1000,
@@ -274,7 +282,8 @@ int main(int argc, char *argv[]) {
 
   syscall_init();
 
-  root();
+  SAFE_CAST(stack);
+  root((target_reg) stack);
 
   return 0;
 }

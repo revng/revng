@@ -72,7 +72,6 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              std::string Coverage,
                              std::string BBSummary,
                              bool EnableOSRA,
-                             bool EnableTracing,
                              bool DetectFunctionBoundaries,
                              bool EnableLinking) :
   TargetArchitecture(Target),
@@ -82,7 +81,6 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   Debug(new DebugHelper(Output, Debug, TheModule.get(), DebugInfo)),
   Binary(Binary),
   EnableOSRA(EnableOSRA),
-  EnableTracing(EnableTracing),
   DetectFunctionBoundaries(DetectFunctionBoundaries),
   EnableLinking(EnableLinking)
 {
@@ -545,6 +543,8 @@ static void purgeDeadBlocks(Function *F) {
 }
 
 void CodeGenerator::translate(uint64_t VirtualAddress) {
+  using FT = FunctionType;
+
   // Declare useful functions
   auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
   auto *AbortFunction = TheModule->getOrInsertFunction("abort", AbortTy);
@@ -555,14 +555,19 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   assert(CpuLoop != nullptr);
   TheModule->getOrInsertFunction("cpu_loop", CpuLoop->getFunctionType());
   TheModule->getOrInsertFunction("syscall_init",
-                                 FunctionType::get(Type::getVoidTy(Context),
-                                                   { },
-                                                   false));
+                                 FT::get(Type::getVoidTy(Context), { }, false));
+
+  // Instantiate helpers
+  VariableManager Variables(*TheModule, *HelpersModule, TargetArchitecture);
+  GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
+  GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, "sp").first;
 
   IRBuilder<> Builder(Context);
 
   // Create main function
-  auto *MainType  = FunctionType::get(Builder.getVoidTy(), false);
+  auto *MainType  = FT::get(Builder.getVoidTy(),
+                            { SPReg->getType()->getPointerElementType() },
+                            false);
   auto *MainFunction = Function::Create(MainType,
                                         Function::ExternalLinkage,
                                         "root",
@@ -572,17 +577,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   // Create the first basic block and create a placeholder for variable
   // allocations
-  BasicBlock *Entry = BasicBlock::Create(Context,
-                                         "entrypoint",
-                                         MainFunction);
+  BasicBlock *Entry = BasicBlock::Create(Context, "entrypoint", MainFunction);
   Builder.SetInsertPoint(Entry);
-
-  // Instantiate helpers
-  VariableManager Variables(*TheModule,
-                            *HelpersModule,
-                            TargetArchitecture);
-
-  GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
 
   // Create revamb.inputarch named metadata.
   QuickMetadata QMD(Context);
@@ -591,18 +587,16 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   InputArchMD = TheModule->getOrInsertNamedMetadata(MDName);
   // Currently revamb.inputarch is composed as follows:
   //
-  // revamb.inputarch = { { DelaySlotSize, PCRegisterName } }
+  // revamb.inputarch = { { DelaySlotSize, PCRegisterName, SPRegisterName } }
   auto *Tuple = MDTuple::get(Context, {
-      QMD.get(static_cast<uint32_t>(Binary.architecture().delaySlotSize())),
-      QMD.get("pc")
+    QMD.get(static_cast<uint32_t>(Binary.architecture().delaySlotSize())),
+    QMD.get("pc"),
+    QMD.get("sp"),
   });
   InputArchMD->addOperand(Tuple);
 
   // Create an instance of JumpTargetManager
-  JumpTargetManager JumpTargets(MainFunction,
-                                PCReg,
-                                Binary,
-                                EnableOSRA);
+  JumpTargetManager JumpTargets(MainFunction, PCReg, Binary, EnableOSRA);
 
   if (VirtualAddress == 0) {
     JumpTargets.harvestGlobalData();
@@ -611,14 +605,16 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   JumpTargets.registerJT(VirtualAddress, JumpTargetManager::GlobalData);
 
   // Initialize the program counter
-  auto *StartPC = ConstantInt::get(PCReg->getType(), VirtualAddress);
+  auto *StartPC = ConstantInt::get(PCReg->getType()->getPointerElementType(),
+                                   VirtualAddress);
   // Use this instruction as the delimiter for local variables
   auto *Delimiter = Builder.CreateStore(StartPC, PCReg);
+  Builder.CreateStore(&*MainFunction->arg_begin(), SPReg);
 
   // Fake jumps to the dispatcher-related basic blocks. This way all the blocks
   // are always reachable.
-  SwitchInst *ReachSwitch = Builder.CreateSwitch(Builder.getInt8(0),
-                                                 JumpTargets.dispatcher());
+  auto *ReachSwitch = Builder.CreateSwitch(Builder.getInt8(0),
+                                           JumpTargets.dispatcher());
   ReachSwitch->addCase(Builder.getInt8(1), JumpTargets.anyPC());
   ReachSwitch->addCase(Builder.getInt8(2), JumpTargets.unexpectedPC());
 
@@ -912,7 +908,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   JumpTargets.noReturn().cleanup();
 
-  Translator.finalizeNewPCMarkers(CoveragePath, EnableTracing);
+  Translator.finalizeNewPCMarkers(CoveragePath);
   Debug->generateDebugInfo();
 
 }

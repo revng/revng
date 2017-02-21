@@ -505,9 +505,8 @@ IT::InstructionTranslator(IRBuilder<>& Builder,
                                  &TheModule);
 }
 
-void IT::finalizeNewPCMarkers(std::string &CoveragePath, bool EnableTracing) {
+void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
   std::ofstream Output(CoveragePath);
-  LLVMContext &Context = TheModule.getContext();
 
   Output << std::hex;
   for (User *U : NewPCMarker->users()) {
@@ -532,12 +531,6 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath, bool EnableTracing) {
     }
   }
   Output << std::dec;
-
-  if (!EnableTracing) {
-    NewPCMarker->setLinkage(GlobalValue::InternalLinkage);
-    auto *Entry = BasicBlock::Create(Context, "", NewPCMarker);
-    ReturnInst::Create(Context, Entry);
-  }
 }
 
 std::tuple<IT::TranslationResult, MDNode *, uint64_t, uint64_t>

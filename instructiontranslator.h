@@ -111,13 +111,8 @@ public:
 
   /// \brief Handle calls to `newPC` marker and emit coverage information
   ///
-  /// This function can either remove calls to `newPC` markers or finalized them
-  /// with updated information for run-time tracing purposes.
-  ///
   /// \param CoveragePath path where the coverage information should be stored.
-  /// \param EnableTracing whether calls to an external `newPC` function should
-  ///        be removed or not.
-  void finalizeNewPCMarkers(std::string &CoveragePath, bool EnableTracing);
+  void finalizeNewPCMarkers(std::string &CoveragePath);
 
   /// \brief Notifies InstructionTranslator about a new PTC translation
   void reset() { LabeledBasicBlocks.clear(); }

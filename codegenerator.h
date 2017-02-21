@@ -60,9 +60,6 @@ public:
   ///        ".coverage.csv" suffix will be used.
   /// \param EnableOSRA specify whether OSRA should be used to discover
   ///        additional jump targets or not.
-  /// \param EnableTracing specify whether tracing in the ouptut binary should
-  ///        be enabled, that is, whether calls to an external `newPC` function
-  ///        should be removed at the end of the translation or not.
   /// \param EnableLinking specifying whether linking to QEMU helpers should be
   ///        performed or not.
   CodeGenerator(BinaryFile &Binary,
@@ -75,7 +72,6 @@ public:
                 std::string Coverage,
                 std::string BBSummary,
                 bool EnableOSRA,
-                bool EnableTracing,
                 bool DetectFunctionBoundaries,
                 bool EnableLinking);
 
@@ -121,7 +117,6 @@ private:
 
   std::string CoveragePath;
   bool EnableOSRA;
-  bool EnableTracing;
   std::string BBSummaryPath;
   std::string FunctionListPath;
   bool DetectFunctionBoundaries;
