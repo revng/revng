@@ -1269,6 +1269,10 @@ bool OSRAPass::runOnFunction(Function &F) {
           BasicBlock *BB = I->getParent();
 
           auto Handle = [&] (OSR &BaseOp) {
+            // Ignore OSR that are bottom, relative to theirselves with a factor
+            // 0 (i.e., old-style constant)
+            // TODO: probably we can drop factor == 0, we no longer handle
+            // constants this way.
             if (BaseOp.boundedValue()->isBottom()
                 || BaseOp.isRelativeTo(I)
                 || BaseOp.factor() == 0)
@@ -1290,8 +1294,10 @@ bool OSRAPass::runOnFunction(Function &F) {
               IsSigned = BaseOp.boundedValue()->isSigned();
             }
 
-            // Setting the sign might lead to bottom
-            if (BaseOp.boundedValue()->isBottom())
+            // If setting the sign we went to bottom or still don't have it
+            // (e.g., due to being top), give up
+            if (BaseOp.boundedValue()->isBottom()
+                || !BaseOp.boundedValue()->hasSignedness())
               return;
 
             // Create a copy of the current value of the BV
