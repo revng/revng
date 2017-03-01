@@ -639,7 +639,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     size_t ConsumedSize = 0;
 
     ConsumedSize = ptc.translate(VirtualAddress, InstructionList.get());
-    JumpTargets.registerOriginalBB(VirtualAddress, ConsumedSize);
 
     DBG("ptc", dumpTranslation(dbg, InstructionList.get()));
 
@@ -890,9 +889,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   PM.add(Variables.createCorrectCPUStateUsagePass());
   PM.add(createDeadCodeEliminationPass());
   PM.run(*TheModule);
-
-  // TODO: transform the following in passes?
-  JumpTargets.collectBBSummary(BBSummaryPath);
 
   JumpTargets.translateIndirectJumps();
 

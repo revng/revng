@@ -929,118 +929,6 @@ private:
   std::queue<std::pair<BasicBlock *, uint64_t>> NewPC;
 };
 
-void JumpTargetManager::collectBBSummary(std::string OutputPath) {
-  BasicBlockVisitor BBV(DispatcherSwitch);
-  uint64_t NewPC = 0;
-  uint64_t PC = 0;
-  BasicBlock *BB = nullptr;
-  while (NewPC == 0)
-    std::tie(BB, NewPC) = BBV.pop();
-  BBSummary *Summary = nullptr;
-
-  std::set<GlobalVariable *> CPUStateSet;
-  std::set<Function *> FunctionsSet;
-  std::set<const char *> OpcodesSet;
-
-  while (BB != nullptr) {
-    if (NewPC != 0) {
-      PC = NewPC;
-      auto It = containingOriginalBB(PC);
-      assert(It != OriginalBBStats.end());
-      Summary = &It->second;
-    }
-
-    // Update stats
-    for (Instruction &I : *BB) {
-      // TODO: Data dependencies
-      unsigned Opcode = I.getOpcode();
-      const char *OpcodeName = I.getOpcodeName();
-      Summary->Opcode[OpcodeName]++;
-      OpcodesSet.insert(OpcodeName);
-
-      switch (Opcode) {
-      case Instruction::Load:
-        {
-          auto *L = static_cast<LoadInst *>(&I);
-          if (auto *State = dyn_cast<GlobalVariable>(L->getPointerOperand())) {
-            CPUStateSet.insert(State);
-            Summary->ReadState[State]++;
-          }
-
-          break;
-        }
-      case Instruction::Store:
-        {
-          auto *S = static_cast<StoreInst *>(&I);
-          if (auto *State = dyn_cast<GlobalVariable>(S->getPointerOperand())) {
-            CPUStateSet.insert(State);
-            Summary->ReadState[State]++;
-          }
-
-          break;
-        }
-      case Instruction::Call:
-        {
-          auto *Call = static_cast<CallInst *>(&I);
-          if (auto *F  = Call->getCalledFunction()) {
-            FunctionsSet.insert(F);
-            Summary->CalledFunctions[F]++;
-          }
-
-          break;
-        }
-      default:
-        break;
-      }
-    }
-
-    std::tie(BB, NewPC) = BBV.pop();
-  }
-
-  std::vector<GlobalVariable *> CPUState;
-  std::copy(CPUStateSet.begin(),
-            CPUStateSet.end(),
-            std::back_inserter(CPUState));
-  std::vector<Function *> Functions;
-  std::copy(FunctionsSet.begin(),
-            FunctionsSet.end(),
-            std::back_inserter(Functions));
-  std::vector<const char *> Opcodes;
-  std::copy(OpcodesSet.begin(),
-            OpcodesSet.end(),
-            std::back_inserter(Opcodes));
-
-  std::ofstream Output(OutputPath);
-
-  Output << "address,size";
-  for (GlobalVariable *V : CPUState)
-    Output << ",read_" << V->getName().str();
-  for (GlobalVariable *V : CPUState)
-    Output << ",write_" << V->getName().str();
-  for (Function *F : Functions)
-    Output << ",call_" << F->getName().str();
-  for (const char *OpcodeName : Opcodes)
-    Output << ",opcode_" <<  OpcodeName;
-  Output << "\n";
-
-  for (auto P : OriginalBBStats) {
-    Output << std::dec << P.first << ","
-        << std::dec << P.second.Size;
-
-    for (GlobalVariable *V : CPUState)
-      Output << "," << std::dec << P.second.ReadState[V];
-    for (GlobalVariable *V : CPUState)
-      Output << "," << std::dec << P.second.WrittenState[V];
-    for (Function *F : Functions)
-      Output << "," << std::dec << P.second.CalledFunctions[F];
-    for (const char *OpcodeName : Opcodes)
-      Output << "," << P.second.Opcode[OpcodeName];
-
-    Output << "\n";
-  }
-
-}
-
 void JumpTargetManager::translateIndirectJumps() {
   if (ExitTB->use_empty())
     return;
@@ -1136,8 +1024,6 @@ BasicBlock *JumpTargetManager::registerJT(uint64_t PC, JTReason Reason) {
   if (InstrIt != OriginalInstructionAddresses.end()) {
     // Case 2: the address has already been met, but needs to be promoted to
     //         BasicBlock level.
-    registerOriginalBB(PC, 0);
-
     BasicBlock *ContainingBlock = InstrIt->second->getParent();
     if (InstrIt->second == &*ContainingBlock->begin())
       NewBlock = ContainingBlock;
