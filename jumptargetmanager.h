@@ -282,6 +282,18 @@ public:
     return JumpTargets.count(PC);
   }
 
+  /// \brief Return true if the given basic block corresponds to a jump target
+  bool isJumpTarget(llvm::BasicBlock *BB) {
+    if (BB->empty())
+      return false;
+
+    uint64_t PC = getPCFromNewPCCall(&*BB->begin());
+    if (PC != 0)
+      return isJumpTarget(PC);
+
+    return false;
+  }
+
   /// \brief Return true if \p PC is in an executable segment
   bool isExecutableAddress(uint64_t PC) const {
     for (std::pair<uint64_t, uint64_t> Range : ExecutableRanges)
@@ -467,6 +479,35 @@ public:
 
 private:
 
+  /// \brief Helper function to check if an instruction is a call to `newpc`
+  ///
+  /// \return 0 if \p I is not a call to `newpc`, otherwise the PC address of
+  ///         associated to the call to `newpc`
+  uint64_t getPCFromNewPCCall(llvm::Instruction *I) {
+    if (auto *CallNewPC = llvm::dyn_cast<llvm::CallInst>(I)) {
+      if (CallNewPC->getCalledFunction() == nullptr
+          || CallNewPC->getCalledFunction()->getName() != "newpc")
+        return 0;
+
+      return getLimitedValue(CallNewPC->getArgOperand(0));
+    }
+
+    return 0;
+  }
+
+  /// \brief Erase \p I, and deregister it in case it's a call to `newpc`
+  void eraseInstruction(llvm::Instruction *I) {
+    assert(I->use_empty());
+
+    uint64_t PC = getPCFromNewPCCall(I);
+    if (PC != 0)
+      OriginalInstructionAddresses.erase(PC);
+    I->eraseFromParent();
+  }
+
+  /// \brief Drop \p Start and all the descendants, stopping when a JT is met
+  void purgeTranslation(llvm::BasicBlock *Start);
+
   /// \brief Check if \p BB has at least a predecessor, excluding the dispatcher
   bool hasPredecessors(llvm::BasicBlock *BB) const;
 
@@ -532,6 +573,7 @@ private:
   boost::icl::interval_map<uint64_t, SymbolInfoSet> SymbolMap;
 
   CFGForm CurrentCFGForm;
+  std::set<llvm::BasicBlock *> ToPurge;
 };
 
 template<>

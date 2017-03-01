@@ -166,7 +166,6 @@ bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
           if (Address != nullptr) {
             // Compute the actual PC and get the associated BasicBlock
             uint64_t TargetPC = Address->getSExtValue();
-            // TODO: can we switch to getBlockAt()?
             auto *TargetBlock = JTM->registerJT(TargetPC,
                                                 JumpTargetManager::DirectJump);
 
@@ -962,6 +961,11 @@ void JumpTargetManager::translateIndirectJumps() {
 JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
   harvest();
 
+  // Purge all the partial translations we know might be wrong
+  for (BasicBlock *BB : ToPurge)
+    purgeTranslation(BB);
+  ToPurge.clear();
+
   if (Unexplored.empty())
     return NoMoreTargets;
   else {
@@ -1002,6 +1006,47 @@ BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
   return TargetIt->second.head();
 }
 
+void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
+  OnceQueue<BasicBlock *> Queue;
+  Queue.insert(Start);
+
+  // Collect all the descendats, except if we meet a jump target
+  while (!Queue.empty()) {
+    BasicBlock *BB = Queue.pop();
+    for (BasicBlock *Successor : successors(BB)) {
+      if (isTranslatedBB(Successor)
+          && !isJumpTarget(Successor)
+          && !hasPredecessor(Successor, Dispatcher)) {
+        Queue.insert(Successor);
+      }
+    }
+  }
+
+  // Purge (but do not erase) the starting basic block
+  while (!Start->empty())
+    eraseInstruction(&*(--Start->end()));
+
+  // Erase all the visited basic blocks
+  std::set<BasicBlock *> Visited = Queue.visited();
+  Visited.erase(Start);
+  for (BasicBlock *BB : Visited) {
+    while (!BB->empty())
+      eraseInstruction(&*(--BB->end()));
+  }
+
+  for (BasicBlock *BB : Visited) {
+    // We might have some predecessorless basic blocks jumping to us, purge them
+    // TODO: why this?
+    for (BasicBlock *Predecessor : predecessors(BB)) {
+      assert(pred_empty(Predecessor));
+      Predecessor->eraseFromParent();
+    }
+
+    assert(BB->use_empty());
+    BB->eraseFromParent();
+  }
+}
+
 // TODO: register Reason
 BasicBlock *JumpTargetManager::registerJT(uint64_t PC, JTReason Reason) {
   if (!isExecutableAddress(PC) || !isInstructionAligned(PC))
@@ -1024,21 +1069,29 @@ BasicBlock *JumpTargetManager::registerJT(uint64_t PC, JTReason Reason) {
   if (InstrIt != OriginalInstructionAddresses.end()) {
     // Case 2: the address has already been met, but needs to be promoted to
     //         BasicBlock level.
-    BasicBlock *ContainingBlock = InstrIt->second->getParent();
-    if (InstrIt->second == &*ContainingBlock->begin())
+    Instruction *I = InstrIt->second;
+    BasicBlock *ContainingBlock = I->getParent();
+    if (isFirst(I)) {
       NewBlock = ContainingBlock;
-    else {
-      assert(InstrIt->second != nullptr
-             && InstrIt->second != ContainingBlock->end());
-      NewBlock = ContainingBlock->splitBasicBlock(InstrIt->second);
+    } else {
+      assert(I != nullptr && I != ContainingBlock->end());
+      NewBlock = ContainingBlock->splitBasicBlock(I);
     }
+
+    // Register the basic block and all of its descendants to be purged so that
+    // we can retranslate this PC
+    // TODO: this might create a problem if QEMU generates control flow that
+    //       crosses an instruction boundary
+    ToPurge.insert(NewBlock);
+
     unvisit(NewBlock);
   } else {
     // Case 3: the address has never been met, create a temporary one, register
     // it for future exploration and return it
     NewBlock = BasicBlock::Create(Context, "", TheFunction);
-    Unexplored.push_back(BlockWithAddress(PC, NewBlock));
   }
+
+  Unexplored.push_back(BlockWithAddress(PC, NewBlock));
 
   if (NewBlock->getName().empty()) {
     std::stringstream Name;

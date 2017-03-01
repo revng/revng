@@ -469,4 +469,21 @@ static inline llvm::Instruction *getNext(llvm::Instruction *I) {
   return &*It;
 }
 
+/// \brief Check whether the instruction/basic block is the first in its
+///        container or not
+template<typename T>
+static inline bool isFirst(T *I) {
+  assert(I != nullptr);
+  return I == &*I->getParent()->begin();
+}
+
+/// \brief Check if among \p BB's predecessors there's \p Target
+static inline bool hasPredecessor(llvm::BasicBlock *BB,
+                                  llvm::BasicBlock *Target) {
+  for (llvm::BasicBlock *Predecessor : predecessors(BB))
+    if (Predecessor == Target)
+      return true;
+  return false;
+}
+
 #endif // _IRHELPERS_H

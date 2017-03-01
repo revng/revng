@@ -632,6 +632,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   while (Entry != nullptr) {
     Builder.SetInsertPoint(Entry);
 
+    // TODO: what if create a new instance of an InstructionTranslator here?
     Translator.reset();
 
     // TODO: rename this type

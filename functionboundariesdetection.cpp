@@ -249,6 +249,7 @@ void FBD::collectReturnInstructions() {
     bool IsReturn = true;
 
     for (BasicBlock *Successor : Terminator->successors()) {
+      assert(!Successor->empty());
 
       // A return instruction must jump to JTM->anyPC, while all the other
       // successors (if any) must be registered returns addresses
