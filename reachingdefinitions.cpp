@@ -583,12 +583,12 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
     }
   }
 
+  // Restore the entry block's terminator instruction
+  EntrySwitch.restore();
+
   // Delete all the common predecessor basic blocks, we no longer need them
   for (BasicBlock *CommonPredecessor : CommonPredecessors)
     CommonPredecessor->eraseFromParent();
-
-  // Restore the entry block's terminator instruction
-  EntrySwitch.restore();
 
   DBG("passes", { dbg << "Ending ConditionNumberingPass\n"; });
   return false;
