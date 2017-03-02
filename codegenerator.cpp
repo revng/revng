@@ -427,8 +427,13 @@ bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
 
   assert(CpuLoop != nullptr);
 
-  for (User *TheUser : CpuLoopExit->users()) {
-    auto *Call = cast<CallInst>(TheUser);
+  std::queue<User *> CpuLoopExitUsers;
+  for (User *TheUser : CpuLoopExit->users())
+    CpuLoopExitUsers.push(TheUser);
+
+  while (!CpuLoopExitUsers.empty()) {
+    auto *Call = cast<CallInst>(CpuLoopExitUsers.front());
+    CpuLoopExitUsers.pop();
     assert(Call->getCalledFunction() == CpuLoopExit);
 
     // Call cpu_loop
@@ -444,8 +449,10 @@ bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
     auto *Unreach = cast<UnreachableInst>(&*++Call->getIterator());
     Unreach->eraseFromParent();
 
-    // Remove the call to cpu_loop_exit
     Function *Caller = Call->getParent()->getParent();
+
+    // Remove the call to cpu_loop_exit
+    Call->eraseFromParent();
 
     if (FixedCallers.find(Caller) == FixedCallers.end()) {
       FixedCallers.insert(Caller);
@@ -517,9 +524,6 @@ bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
       }
     }
   }
-
-  for (User *TheUser : CpuLoopExit->users())
-    cast<Instruction>(TheUser)->eraseFromParent();
 
   return true;
 }
