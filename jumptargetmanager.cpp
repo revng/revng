@@ -21,6 +21,7 @@
 
 // LLVM includes
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -39,6 +40,7 @@
 #include "revamb.h"
 #include "set.h"
 #include "simplifycomparisons.h"
+#include "subgraph.h"
 
 using namespace llvm;
 
@@ -1022,17 +1024,20 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
     }
   }
 
-  // Purge (but do not erase) the starting basic block
-  while (!Start->empty())
-    eraseInstruction(&*(--Start->end()));
-
   // Erase all the visited basic blocks
   std::set<BasicBlock *> Visited = Queue.visited();
-  Visited.erase(Start);
-  for (BasicBlock *BB : Visited) {
+
+  // Build a subgraph, so that we can visit it in post order, and purge the
+  // content of each basic block
+  SubGraph<BasicBlock *> TranslatedBBs(Start, Visited);
+  for (auto *Node : post_order(TranslatedBBs)) {
+    BasicBlock *BB = Node->get();
     while (!BB->empty())
       eraseInstruction(&*(--BB->end()));
   }
+
+  // Remove Start, since we want to keep it (even if empty)
+  Visited.erase(Start);
 
   for (BasicBlock *BB : Visited) {
     // We might have some predecessorless basic blocks jumping to us, purge them
