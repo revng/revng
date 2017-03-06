@@ -594,7 +594,7 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
   return false;
 }
 
-void BasicBlockInfo::dump(std::ostream& Output) {
+void BasicBlockInfo::dump(std::ostream &Output) {
   set<Instruction *> Printed;
   for (const MemoryInstruction &MI : Reaching) {
     Instruction *V = MI.I;
@@ -968,17 +968,6 @@ bool ConditionalBasicBlockInfo::mergeDefinition(CondDefPair NewDefinition,
   return Old != BV;
 }
 
-static bool isSupportedPointer(Value *V) {
-  if (auto *Global = dyn_cast<GlobalVariable>(V))
-    if (Global->getName() != "env")
-      return true;
-
-  if (isa<AllocaInst>(V))
-    return true;
-
-  return false;
-}
-
 template<class BBI, ReachingDefinitionsResult R>
 bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
   auto &FCI = getAnalysis<FunctionCallIdentification>();
@@ -1027,14 +1016,12 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
       auto *Store = dyn_cast<StoreInst>(&I);
       auto *Load = dyn_cast<LoadInst>(&I);
 
-      if (Store != nullptr
-          && isSupportedPointer(Store->getPointerOperand())) {
+      if (Store != nullptr && MemoryAccess(Store, TSP).isValid()) {
 
         // Record new definition
         Info.newDefinition(Store, TSP);
 
-      } else if (Load != nullptr
-                 && isSupportedPointer(Load->getPointerOperand())) {
+      } else if (Load != nullptr && MemoryAccess(Load, TSP).isValid()) {
 
         // Check if it's a new definition and record it
         auto LoadType = Info.newDefinition(Load, TSP);
@@ -1135,21 +1122,24 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
       auto *Load = dyn_cast<LoadInst>(&I);
 
       using IMP = pair<Instruction *, MemoryAccess>;
-      if (Store != nullptr
-          && isSupportedPointer(Store->getPointerOperand())) {
-
+      if (Store != nullptr) {
         // Remove all the reaching definitions aliased by this store
         MemoryAccess TargetMA(Store, TSP);
+        if (!TargetMA.isValid())
+          continue;
+
         erase_if(Definitions, [&TargetMA] (IMP &P) {
             return TargetMA.mayAlias(P.second);
           });
         Definitions.push_back({ Store, TargetMA });
 
-      } else if (Load != nullptr
-                 && isSupportedPointer(Load->getPointerOperand())) {
+      } else if (Load != nullptr) {
 
         // Record all the relevant reaching defininitions
         MemoryAccess TargetMA(Load, TSP);
+        if (!TargetMA.isValid())
+          continue;
+
         if (FreeLoads.count(Load) != 0) {
 
           // If it's a free load, remove all the matching loads
