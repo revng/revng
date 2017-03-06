@@ -42,7 +42,7 @@ using std::make_pair;
 class OperationsStack {
 public:
   OperationsStack(JumpTargetManager *JTM,
-                  const DataLayout &DL) : JTM(JTM), DL(DL) {
+                  const DataLayout &DL) : JTM(JTM), DL(DL), LoadsCount(0) {
     reset();
   }
 
@@ -75,6 +75,7 @@ public:
     IsPCStore = false;
     SetsSyscallNumber = false;
     Target = nullptr;
+    LoadsCount = 0;
   }
 
   void reset(StoreInst *Store) {
@@ -115,6 +116,11 @@ public:
       if (Op->getParent() == nullptr)
         delete Op;
 
+      if (isa<LoadInst>(Op)) {
+        assert(LoadsCount > 0);
+        LoadsCount--;
+      }
+
       Operations.pop_back();
     }
   }
@@ -125,7 +131,7 @@ public:
 
   bool insertIfNew(Instruction *I, Instruction *Ref) {
     if (OperationsSet.find(Ref) == OperationsSet.end()) {
-      Operations.push_back(I);
+      insert(I);
       OperationsSet.insert(Ref);
       return true;
     }
@@ -138,6 +144,9 @@ public:
   }
 
   void insert(Instruction *I) {
+    if (isa<LoadInst>(I))
+      LoadsCount++;
+
     Operations.push_back(I);
   }
 
@@ -159,6 +168,8 @@ public:
 
   bool hasTrackedValues() const { return TrackedValues.size() != 0; }
 
+  bool readsMemory() const { return LoadsCount > 0; }
+
 private:
   JumpTargetManager *JTM;
   const DataLayout &DL;
@@ -172,6 +183,7 @@ private:
   TrackingType Tracking;
   bool IsPCStore;
   bool SetsSyscallNumber;
+  unsigned LoadsCount;
 
   Instruction *Target;
 };
@@ -522,10 +534,21 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
     auto MaterializedMin = OS.materialize(MinConst);
     auto MaterializedMax = OS.materialize(MaxConst);
     auto MaterializedStep = OS.materialize(CI::get(Int64, Step));
-    if (!JTM->isExecutableRange(MaterializedMin, MaterializedMax)
-        || !JTM->isInstructionAligned(MaterializedStep)
-        || O->size() >= 10000) {
+    if (O->size() >= 10000)
       return false;
+
+    if (OS.readsMemory()) {
+      // If there's a load in the stack only check the first and last element
+      if (!JTM->isPC(MaterializedMin) || !JTM->isPC(MaterializedMax)) {
+        return false;
+      }
+    } else {
+      // If there are no loads, the whole range of generated addresses must be
+      // executable and properly aligned
+      if (!JTM->isExecutableRange(MaterializedMin, MaterializedMax)
+          || !JTM->isInstructionAligned(MaterializedStep)) {
+        return false;
+      }
     }
 
     if (O->size() > 1000)
