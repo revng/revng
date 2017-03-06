@@ -7,11 +7,7 @@
 
 // Standard includes
 #include <cstdint>
-#include <stack>
-#include <limits>
 #include <map>
-#include <set>
-#include <vector>
 
 // LLVM includes
 #include "llvm/Pass.h"
@@ -36,19 +32,16 @@ class StoreInst;
 class Value;
 }
 
+class BVMap;
+
 /// \brief DFA to represent values as a + b * x, with c < x < d
 class OSRAPass : public llvm::FunctionPass {
 public:
   static char ID;
 
-  OSRAPass() : llvm::FunctionPass(ID) { }
+  OSRAPass() : llvm::FunctionPass(ID), BVs(nullptr) { }
 
   bool runOnFunction(llvm::Function &F) override;
-
-  void describe(llvm::formatted_raw_ostream &O,
-                const llvm::Instruction *I) const;
-  void describe(llvm::formatted_raw_ostream &O,
-                const llvm::BasicBlock *BB) const;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<ConditionalReachedLoadsPass>();
@@ -485,133 +478,6 @@ public:
     const BoundedValue *BV;
   };
 
-private:
-  class BVMap {
-  private:
-    using MapIndex = std::pair<llvm::BasicBlock *, const llvm::Value *>;
-    using BVWithOrigin = std::pair<llvm::BasicBlock *, BoundedValue>;
-    struct MapValue {
-      BoundedValue Summary;
-      std::vector<BVWithOrigin> Components;
-    };
-
-  public:
-    BVMap() : BlockBlackList(nullptr), DL(nullptr), Int64(nullptr) { }
-    BVMap(std::set<llvm::BasicBlock *> *BlackList,
-          const llvm::DataLayout *DL,
-          llvm::Type *Int64) :
-      BlockBlackList(BlackList), DL(DL), Int64(Int64) { }
-
-    void describe(llvm::formatted_raw_ostream &O,
-                  const llvm::BasicBlock *BB) const;
-
-    BoundedValue &get(llvm::BasicBlock *BB, const llvm::Value *V) {
-      auto Index = std::make_pair(BB, V);
-      auto MapIt = TheMap.find(Index);
-      if (MapIt == TheMap.end()) {
-        MapValue NewBVOVector;
-        NewBVOVector.Summary = BoundedValue(V);
-        auto It = TheMap.insert(std::make_pair(Index, NewBVOVector)).first;
-        return summarize(BB, &It->second);
-      }
-
-      MapValue &BVOs = MapIt->second;
-      return BVOs.Summary;
-    }
-
-    BoundedValue *getEdge(llvm::BasicBlock *BB,
-                          llvm::BasicBlock *Predecessor,
-                          const llvm::Value *V) {
-      auto MapIt = TheMap.find({ BB, V });
-      if (MapIt != TheMap.end())
-        for (auto &Component : MapIt->second.Components)
-          if (Component.first == Predecessor)
-            return &Component.second;
-
-      return nullptr;
-    }
-
-    void setSignedness(llvm::BasicBlock *BB,
-                       const llvm::Value *V,
-                       bool IsSigned) {
-      auto Index = std::make_pair(BB, V);
-      auto MapIt = TheMap.find(Index);
-      assert(MapIt != TheMap.end());
-
-      MapValue &BVOVector = MapIt->second;
-      BVOVector.Summary.setSignedness(IsSigned);
-      for (BVWithOrigin &BVO : BVOVector.Components)
-        BVO.second.setSignedness(IsSigned);
-
-      summarize(BB, &MapIt->second);
-    }
-
-    /// Associate to basic block \p Target a new constraint \p NewBV coming from
-    /// \p Origin
-    ///
-    /// \return a pair containing a boolean to indicate whether there was any
-    ///         change and a reference to the updated BV
-    std::pair<bool, BoundedValue &> update(llvm::BasicBlock *Target,
-                                           llvm::BasicBlock *Origin,
-                                           BoundedValue NewBV);
-
-    void prepareDescribe() const {
-      BBMap.clear();
-      for (auto Pair : TheMap) {
-        auto *BB = Pair.first.first;
-        if (BBMap.find(BB) == BBMap.end())
-          BBMap[BB] = std::vector<MapValue> { Pair.second };
-        else
-          BBMap[BB].push_back(Pair.second);
-      }
-    }
-
-    BoundedValue &forceBV(llvm::Instruction *V, BoundedValue BV) {
-      MapIndex I { V->getParent(), V };
-      MapValue NewValue;
-      NewValue.Summary = BV;
-      TheMap[I] = NewValue;
-      return TheMap[I].Summary;
-    }
-
-    BoundedValue &forceBV(llvm::BasicBlock *BB,
-                          llvm::Value *V,
-                          BoundedValue BV) {
-      MapIndex I { BB, V };
-      MapValue NewValue;
-      NewValue.Summary = BV;
-      TheMap[I] = NewValue;
-      return TheMap[I].Summary;
-    }
-
-    void clear() {
-      freeContainer(TheMap);
-      freeContainer(BBMap);
-    }
-
-  private:
-    BoundedValue &summarize(llvm::BasicBlock *Target,
-                            MapValue *BVOVectorLoopInfoWrapperPass);
-
-    bool isForced(std::map<MapIndex, MapValue>::iterator &It) const {
-      const MapIndex &Index = It->first;
-
-      if (auto *I = llvm::dyn_cast<llvm::Instruction>(Index.second)) {
-        return I->getParent() == Index.first
-          && It->second.Components.size() == 0;
-      } else {
-        return false;
-      }
-    }
-
-  private:
-    std::set<llvm::BasicBlock *> *BlockBlackList;
-    const llvm::DataLayout *DL;
-    llvm::Type *Int64;
-    std::map<MapIndex, MapValue> TheMap;
-    mutable std::map<const llvm::BasicBlock *, std::vector<MapValue>> BBMap;
-  };
-
 public:
   const OSR *getOSR(const llvm::Value *V) {
     auto *I = llvm::dyn_cast<llvm::Instruction>(V);
@@ -628,76 +494,25 @@ public:
 
   std::pair<llvm::Constant *, llvm::Value *>
     identifyOperands(const llvm::Instruction *I,
+                     const llvm::DataLayout &DL) {
+    return identifyOperands(OSRs, I, DL);
+  }
+
+  // TODO: make me private?
+  static std::pair<llvm::Constant *, llvm::Value *>
+    identifyOperands(std::map<const llvm::Value *, const OSR> &OSRs,
+                     const llvm::Instruction *I,
                      const llvm::DataLayout &DL);
 
-  /// \brief Return true if \p I is stored in the CPU state but never read again
-  bool isDead(llvm::Instruction *I) const;
-
-  virtual void releaseMemory() override {
-    DBG("release", { dbg << "OSRAPass is releasing memory\n"; });
-    freeContainer(OSRs);
-    BVs.clear();
-  }
+  virtual void releaseMemory() override;
 
 private:
-
-  OSR switchBlock(OSR Base, llvm::BasicBlock *BB) {
-    Base.setBoundedValue(&BVs.get(BB, Base.boundedValue()->value()));
-    return Base;
-  }
-
-  /// Return a copy of the OSR associated with \p V, or if it does not exist,
-  /// create a new one. In both cases the return value will refer to a bounded
-  /// value in the context of \p BB.
-  ///
-  /// Note: after invoking this function you should always check if the result
-  ///       is not expressed in terms of the instruction you're analyzing
-  ///       itself, otherwise we could create (possibly infinite) loops we're
-  ///       not really interested in.
-  ///
-  /// \return the newly created OSR, possibly expressed in terms of \p V itself.
-  OSR createOSR(llvm::Value *V, llvm::BasicBlock *BB);
-
-  /// Compute a BV for \p Reached by collecting constraints on the reaching
-  /// definitions over all the paths from \p Reached to them
-  BoundedValue pathSensitiveMerge(llvm::LoadInst *Reached);
-
-  llvm::pred_iterator getValidPred(llvm::BasicBlock *BB) {
-    llvm::pred_iterator Result = llvm::pred_begin(BB);
-    nextValidPred(Result, llvm::pred_end(BB));
-    return Result;
-  }
-
-  llvm::pred_iterator &nextValidPred(llvm::pred_iterator &It,
-                                     llvm::pred_iterator End) {
-    while (It != End && BlockBlackList.count(*It) != 0)
-      It++;
-
-    return It;
-  }
-
-  bool updateLoadReacher(llvm::LoadInst *Load,
-                         llvm::Instruction *I,
-                         OSR NewOSR);
-  void mergeLoadReacher(llvm::LoadInst *Load);
-
-public:
-  using BVVector = llvm::SmallVector<BoundedValue, 2>;
+  ~OSRAPass();
 
 private:
   // TODO: why value and not instruction?
   std::map<const llvm::Value *, const OSR> OSRs;
-  BVMap BVs;
-  std::map<const llvm::Instruction *, BVVector> Constraints;
-  using InstructionOSRVector = std::vector<std::pair<llvm::Instruction *, OSR>>;
-  std::map<const llvm::LoadInst *, InstructionOSRVector> LoadReachers;
-  std::set<llvm::BasicBlock *> BlockBlackList;
-
-  /// Keeps track of those instruction that need to be updated when the reachers
-  /// of a certain Load are updated
-  using SubscribersType = llvm::SmallSet<llvm::Instruction *, 3>;
-  std::map<const llvm::LoadInst *, SubscribersType> Subscriptions;
-  ConditionalReachedLoadsPass *RDP;
+  BVMap *BVs;
 };
 
 #endif // _OSRA_H
