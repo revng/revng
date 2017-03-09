@@ -340,7 +340,7 @@ public:
                        unsigned Opcode,
                        uint64_t Op2,
                        const llvm::DataLayout &DL) const;
-  public:
+  private:
     const llvm::Value *Value;
     uint64_t LowerBound;
     uint64_t UpperBound;
