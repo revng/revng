@@ -281,6 +281,7 @@ public:
     PDT(true) { }
 
   void run();
+  void dump();
 
   bool inBlackList(BasicBlock *BB) { return BlockBlackList.count(BB) > 0; }
   void enqueueUsers(Instruction *I);
@@ -1481,12 +1482,14 @@ void OSRA::run() {
     }
   }
 
-  DBG("osr", {
-      BVs.prepareDescribe();
-      raw_os_ostream OutputStream(dbg);
-      F.getParent()->print(OutputStream, new OSRAnnotationWriter(*this));
-    });
+  DBG("osr", dump());
 
+}
+
+void OSRA::dump() {
+  BVs.prepareDescribe();
+  raw_os_ostream OutputStream(dbg);
+  F.getParent()->print(OutputStream, new OSRAnnotationWriter(*this));
 }
 
 void OSR::describe(formatted_raw_ostream &O) const {
