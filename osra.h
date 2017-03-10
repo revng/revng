@@ -33,6 +33,7 @@ class Value;
 }
 
 class BVMap;
+class BoundedValueHelpers;
 
 /// \brief DFA to represent values as a + b * x, with c < x < d
 class OSRAPass : public llvm::FunctionPass {
@@ -61,11 +62,12 @@ public:
       Sign(UnknownSignedness),
       Bottom(false),
       Negated(false) {
-        if (auto *Constant = llvm::dyn_cast<llvm::ConstantInt>(V)) {
-          LowerBound = UpperBound = getLimitedValue(Constant);
-          Sign = AnySignedness;
-        }
+
+      if (auto *Constant = llvm::dyn_cast<llvm::ConstantInt>(V)) {
+        LowerBound = UpperBound = getLimitedValue(Constant);
+        Sign = AnySignedness;
       }
+    }
 
     BoundedValue() :
       Value(nullptr),
@@ -161,19 +163,60 @@ public:
       assert(false && "The BV is unlimited");
     }
 
-    bool operator ==(const BoundedValue &Other) const {
+    BoundedValue &operator=(const BoundedValue &Other) {
+      Value = Other.Value;
+      LowerBound = Other.LowerBound;
+      UpperBound = Other.UpperBound;
+      Sign = Other.Sign;
+      Bottom = Other.Bottom;
+      Negated = Other.Negated;
+      return *this;
+    }
+
+    bool operator==(const BoundedValue &Other) const {
+      if (Bottom
+          && Other.hasSignedness()
+          && Other.Negated
+          && Other.LowerBound == Other.lowerExtreme()
+          && Other.UpperBound == Other.upperExtreme())
+        return true;
+
+      if (Other.Bottom
+          && hasSignedness()
+          && Negated
+          && LowerBound == lowerExtreme()
+          && UpperBound == upperExtreme())
+        return true;
+
       if (Bottom || Other.Bottom)
         return Bottom == Other.Bottom;
 
-      return (Value == Other.Value
-              && LowerBound == Other.LowerBound
-              && UpperBound == Other.UpperBound
-              && Sign == Other.Sign
-              && Bottom == Other.Bottom
-              && Negated == Other.Negated);
+      if (!(Value == Other.Value
+            && Sign == Other.Sign
+            && Bottom == Other.Bottom))
+        return false;
+      bool Identical = LowerBound == Other.LowerBound
+        && UpperBound == Other.UpperBound
+        && Negated == Other.Negated;
+
+      if (Identical) {
+        return true;
+      } else if (hasSignedness()
+                 && Other.hasSignedness()
+                 && Negated == !Other.Negated) {
+        if (LowerBound == lowerExtreme()) {
+          return Other.UpperBound == upperExtreme()
+            && UpperBound + 1 == Other.LowerBound;
+        } else if (UpperBound == upperExtreme()) {
+          return Other.LowerBound == lowerExtreme()
+            && Other.UpperBound == LowerBound - 1;
+        }
+      }
+
+      return false;
     }
 
-    bool operator !=(const BoundedValue &Other) {
+    bool operator!=(const BoundedValue &Other) {
       return !(*this == Other);
     }
 
@@ -260,12 +303,37 @@ public:
       return Result;
     }
 
-    static BoundedValue createConstant(const llvm::Value *V,
-                                       uint64_t Value) {
+    static BoundedValue createConstant(const llvm::Value *V, uint64_t Value) {
       BoundedValue Result(V);
       Result.LowerBound = Value;
       Result.UpperBound = Value;
       Result.Sign = AnySignedness;
+      return Result;
+    }
+
+    static BoundedValue createBottom(const llvm::Value *V) {
+      BoundedValue Result(V);
+      Result.setBottom();
+      return Result;
+    }
+
+    static BoundedValue createRange(const llvm::Value *V,
+                                    uint64_t Lower,
+                                    uint64_t Upper,
+                                    bool Sign) {
+      BoundedValue Result(V);
+      Result.setSignedness(Sign);
+      Result.LowerBound = Lower;
+      Result.UpperBound = Upper;
+      return Result;
+    }
+
+    static BoundedValue createNegatedRange(const llvm::Value *V,
+                                           uint64_t Lower,
+                                           uint64_t Upper,
+                                           bool Sign) {
+      BoundedValue Result = createRange(V, Lower, Upper, Sign);
+      Result.flip();
       return Result;
     }
 
@@ -340,6 +408,11 @@ public:
                        unsigned Opcode,
                        uint64_t Op2,
                        const llvm::DataLayout &DL) const;
+
+    template<BoundedValue::MergeType MT, typename T>
+    BoundedValue mergeImpl(const BoundedValue &Other) const;
+    friend class BoundedValueHelpers;
+
   private:
     const llvm::Value *Value;
     uint64_t LowerBound;

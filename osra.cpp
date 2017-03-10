@@ -21,6 +21,9 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Pass.h"
 
+// Boost includes
+#include <boost/icl/interval_set.hpp>
+
 // Local includes
 #include "datastructures.h"
 #include "debug.h"
@@ -2286,6 +2289,94 @@ void BoundedValue::setSignedness(bool IsSigned) {
   }
 }
 
+class BoundedValueHelpers {
+public:
+  template<typename T>
+  static boost::icl::interval_set<T> getInterval(const BoundedValue &BV) {
+    using interval_set = boost::icl::interval_set<T>;
+    using interval = boost::icl::interval<T>;
+
+    interval_set Result;
+    assert(!BV.isBottom());
+    if (!BV.Negated) {
+      Result += interval::closed(BV.LowerBound, BV.UpperBound);
+    } else {
+      assert(BV.hasSignedness());
+      // not [a,b]
+      bool UpperExtreme = BV.UpperBound == BV.upperExtreme();
+      bool LowerExtreme = BV.LowerBound == BV.lowerExtreme();
+      if (!LowerExtreme)
+        Result += interval::closed(BV.lowerExtreme(), BV.LowerBound - 1);
+      if (!UpperExtreme)
+        Result += interval::closed(BV.UpperBound + 1, BV.upperExtreme());
+    }
+
+    return Result;
+  }
+
+  template<typename T>
+  static BoundedValue getBV(const BoundedValue &Base,
+                            boost::icl::interval_set<T> Intervals) {
+    const Value *V = Base.value();
+    bool IsSigned = Base.isSigned();
+
+    size_t Size = Intervals.iterative_size();
+    if (Size == 0 || Size > 2) {
+      return BoundedValue::createBottom(V);
+    } else if (Size == 1) {
+      auto Interval = *Intervals.begin();
+      bool LowerExtreme, UpperExtreme;
+      LowerExtreme = Interval.lower() == static_cast<T>(Base.lowerExtreme());
+      UpperExtreme = Interval.upper() == static_cast<T>(Base.upperExtreme());
+
+      if ((LowerExtreme && UpperExtreme)
+          || (!LowerExtreme && !UpperExtreme)) {
+        // Both extremes are finite
+        return BoundedValue::createRange(V,
+                                         Interval.lower(),
+                                         Interval.upper(),
+                                         IsSigned);
+      } else if (LowerExtreme) {
+        // [-Inf, A]
+        return BoundedValue::createLE(V, Interval.upper(), IsSigned);
+      } else {
+        assert(UpperExtreme);
+        // [A, +Inf]
+        return BoundedValue::createGE(V, Interval.lower(), IsSigned);
+      }
+    } else {
+      assert(Size == 2);
+      auto It = Intervals.begin();
+      auto FirstInterval = *It++;
+      auto SecondInterval = *It;
+      // Check if it's [-Inf, A] || [B, +Inf]
+      if (!(FirstInterval.lower() == static_cast<T>(Base.lowerExtreme())
+            && SecondInterval.upper() == static_cast<T>(Base.upperExtreme()))) {
+        return BoundedValue::createBottom(V);
+      } else {
+        return BoundedValue::createNegatedRange(V,
+                                                FirstInterval.upper() + 1,
+                                                SecondInterval.lower() - 1,
+                                                IsSigned);
+      }
+    }
+  }
+};
+
+template<BoundedValue::MergeType MT, typename T>
+BoundedValue BoundedValue::mergeImpl(const BoundedValue &Other) const {
+  using interval_set = boost::icl::interval_set<T>;
+  interval_set Result;
+
+  Result += BoundedValueHelpers::getInterval<T>(*this);
+  if (MT == And)
+    Result &= BoundedValueHelpers::getInterval<T>(Other);
+  else
+    Result += BoundedValueHelpers::getInterval<T>(Other);
+
+  return BoundedValueHelpers::getBV<T>(*this, Result);
+}
+
 template<BoundedValue::MergeType MT>
 bool BoundedValue::merge(const BoundedValue &Other,
                          const DataLayout &DL,
@@ -2336,285 +2427,18 @@ bool BoundedValue::merge(const BoundedValue &Other,
     return true;
   }
 
-  // TODO: reimplement all of this using a simple and sane range merging
-  //       approach
-
-  Predicate LE = isSigned() ? CmpInst::ICMP_SLE : CmpInst::ICMP_ULE;
-  Predicate LT = isSigned() ? CmpInst::ICMP_SLT : CmpInst::ICMP_ULT;
-  Predicate GE = isSigned() ? CmpInst::ICMP_SGE : CmpInst::ICMP_UGE;
-  Predicate GT = isSigned() ? CmpInst::ICMP_SGT : CmpInst::ICMP_UGT;
-
-  auto Compare = [&Int64, &DL] (uint64_t A, Predicate P, int64_t B) {
-    Constant *Compare = CE::getCompare(P, CI::get(Int64, A), CI::get(Int64, B));
-    return getZExtValue(Compare, DL) != 0;
-  };
-
-  const BoundedValue *LeftmostOp = this;
-  const BoundedValue *RightmostOp = &Other;
-
-  // Check that the LB of the lefmost is <= of the rightmost LB
-  if (Compare(LeftmostOp->LowerBound, GT, RightmostOp->LowerBound))
-    std::swap(LeftmostOp, RightmostOp);
-
-  // If they both start at the same point, LeftmostOp is the largest
-  if (Compare(LeftmostOp->LowerBound, CmpInst::ICMP_EQ, RightmostOp->LowerBound)
-      && Compare(RightmostOp->UpperBound, GT, LeftmostOp->UpperBound))
-    std::swap(LeftmostOp, RightmostOp);
-
-  enum {
-    Disjoint,
-    Overlapping
-  } Overlap;
-
-  bool LowerLT = Compare(LeftmostOp->LowerBound, LT, RightmostOp->LowerBound);
-  bool LowerLE = Compare(LeftmostOp->LowerBound, LE, RightmostOp->LowerBound);
-  bool UpperGT = Compare(LeftmostOp->UpperBound, GT, RightmostOp->UpperBound);
-  bool UpperGE = Compare(LeftmostOp->UpperBound, GE, RightmostOp->UpperBound);
-  bool StrictlyIncluded = LowerLT && UpperGT;
-  bool Included = LowerLE && UpperGE;
-
-  if (Compare(LeftmostOp->UpperBound, LT, RightmostOp->LowerBound))
-    Overlap = Disjoint;
+  BoundedValue Result;
+  if (isSigned())
+    Result = mergeImpl<MT, int64_t>(Other);
   else
-    Overlap = Overlapping;
+    Result = mergeImpl<MT, uint64_t>(Other);
 
-  const BoundedValue *NegatedOp = nullptr;
-  const BoundedValue *NonNegatedOp = nullptr;
-  enum {
-    NoNegated,
-    OneNegated,
-    BothNegated
-  } Operands;
-
-  if (!Negated && !Other.Negated) {
-    Operands = NoNegated;
-  } else if (Negated && Other.Negated) {
-    Operands = BothNegated;
+  if (*this != Result) {
+    *this = Result;
+    return true;
   } else {
-    Operands = OneNegated;
-    if (Negated) {
-      NegatedOp = this;
-      NonNegatedOp = &Other;
-    } else {
-      NegatedOp = &Other;
-      NonNegatedOp = this;
-    }
+    return false;
   }
-
-  uint64_t OldLowerBound = LowerBound;
-  uint64_t OldUpperBound = UpperBound;
-  bool OldNegated = Negated;
-
-  // In the following table we report all the possible situations and the
-  // relative result we produce:
-  //
-  // type overlap     op1 op2 result
-  // ======================================
-  // and  disjoint    +   +   bottom
-  // and  disjoint    +   -   op1
-  // and  disjoint    -   -   bottom
-  // and  overlapping +   +   intersection
-  // and  overlapping +   -   op1-op2
-  // and  overlapping -   -   !union
-  // or   disjoint    +   +   bottom
-  // or   disjoint    +   -   op2
-  // or   disjoint    -   -   top
-  // or   overlapping +   +   union
-  // or   overlapping +   -   !(op2-op1)
-  // or   overlapping -   -   !intersection
-  //
-
-  bool Changed = false;
-  if (MT == And) {
-    switch(Overlap) {
-    case Disjoint:
-      switch (Operands) {
-      case NoNegated:
-        setBottom();
-        Changed = true;
-        break;
-      case BothNegated:
-        if (LeftmostOp->LowerBound == LeftmostOp->lowerExtreme()
-            && RightmostOp->UpperBound == RightmostOp->upperExtreme()) {
-          std::tie(LowerBound,
-                   UpperBound) = make_pair(LeftmostOp->UpperBound,
-                                           RightmostOp->LowerBound);
-          LowerBound++;
-          UpperBound--;
-          Negated = false;
-
-          if (!Compare(LowerBound, LE, UpperBound)) {
-            LowerBound = 0;
-            UpperBound = 0;
-            setBottom();
-          }
-
-          break;
-        } else if (LeftmostOp->UpperBound + 1 == RightmostOp->LowerBound) {
-          setBound<Lower, Or>(CI::get(Int64, Other.LowerBound), DL);
-          if (!Bottom)
-            setBound<Upper, Or>(CI::get(Int64, Other.UpperBound), DL);
-          Negated = true;
-        } else {
-          setBottom();
-          Changed = true;
-        }
-
-        break;
-      case OneNegated:
-        // Assign to NotNegated
-        if (this != NonNegatedOp) {
-          LowerBound = Other.LowerBound;
-          UpperBound = Other.UpperBound;
-          Negated = Other.Negated;
-        }
-        break;
-      }
-      break;
-    case Overlapping:
-      switch (Operands) {
-      case NoNegated:
-        // Intersection
-        setBound<Lower, And>(CI::get(Int64, Other.LowerBound), DL);
-        if (!Bottom)
-          setBound<Upper, And>(CI::get(Int64, Other.UpperBound), DL);
-        Negated = false;
-        break;
-      case OneNegated:
-        // TODO: If one of the two is strictly included go to bottom
-        if (StrictlyIncluded
-            || (LowerBound == Other.LowerBound
-                && UpperBound == Other.UpperBound)
-            || (Included && LeftmostOp == NegatedOp)) {
-          setBottom();
-          Changed = true;
-          break;
-        }
-
-        // NonNegated - Negated
-        // [5,10] - ![8,12] => NonNegated.Up = Negated.Down - 1
-        // [5,10] - ![1,12] == [0,10] - ([_,0] | [13,_])
-        // [5,10] - ![0,7] => NonNegated.Down = Negated.Up + 1
-
-        // [5,10] - ![4,7]
-        // [5,10] - ![5,7]
-        // [5,10] - ![6,12]
-        // Check if NonNegated is after Negated
-        uint64_t NewLowerBound, NewUpperBound;
-        if (Compare(NonNegatedOp->LowerBound, GE, NegatedOp->LowerBound)) {
-          NewLowerBound = NegatedOp->UpperBound + 1;
-          NewUpperBound = NonNegatedOp->UpperBound;
-        } else {
-          NewLowerBound = NonNegatedOp->LowerBound;
-          NewUpperBound = NegatedOp->LowerBound - 1;
-        }
-        LowerBound = NewLowerBound;
-        UpperBound = NewUpperBound;
-        Negated = false;
-        break;
-      case BothNegated:
-        // Negated union
-        setBound<Lower, Or>(CI::get(Int64, Other.LowerBound), DL);
-        if (!Bottom)
-          setBound<Upper, Or>(CI::get(Int64, Other.UpperBound), DL);
-        Negated = true;
-        break;
-      }
-      break;
-    }
-  } else if (MT == Or) {
-    switch(Overlap) {
-    case Disjoint:
-      switch (Operands) {
-      case NoNegated:
-        if (LeftmostOp->UpperBound + 1 == RightmostOp->LowerBound) {
-          setBound<Lower, Or>(CI::get(Int64, Other.LowerBound), DL);
-          if (!Bottom)
-            setBound<Upper, Or>(CI::get(Int64, Other.UpperBound), DL);
-        } else if (LeftmostOp->LowerBound == LeftmostOp->lowerExtreme()
-            && RightmostOp->UpperBound == RightmostOp->upperExtreme()) {
-          std::tie(LowerBound,
-                   UpperBound) = make_pair(LeftmostOp->UpperBound + 1,
-                                           RightmostOp->LowerBound - 1);
-          Negated = true;
-        } else {
-          setBottom();
-          Changed = true;
-        }
-        break;
-      case OneNegated:
-        // Assign to Negated
-        if (this != NegatedOp) {
-          LowerBound = Other.LowerBound;
-          UpperBound = Other.UpperBound;
-          Negated = Other.Negated;
-        }
-        break;
-      case BothNegated:
-        setTop();
-        Changed = true;
-        break;
-      }
-      break;
-    case Overlapping:
-      switch (Operands) {
-      case NoNegated:
-        setBound<Lower, Or>(CI::get(Int64, Other.LowerBound), DL);
-        if (!Bottom)
-          setBound<Upper, Or>(CI::get(Int64, Other.UpperBound), DL);
-        break;
-      case OneNegated:
-        // TODO: comment this
-        if (StrictlyIncluded) {
-          if (LeftmostOp == NonNegatedOp)
-            setTop();
-          else
-            setBottom();
-          Changed = true;
-          break;
-        }
-
-        if ((LowerBound == Other.LowerBound
-             && UpperBound == Other.UpperBound)
-            || (Included && LeftmostOp == NonNegatedOp)) {
-          setTop();
-          Changed = true;
-          break;
-        }
-
-        // ![5,25] || [6,30]
-        // ![5,25] || [5,10]
-        // Check if NonNegated is before Negated
-        uint64_t NewLowerBound, NewUpperBound;
-        if (Compare(NonNegatedOp->LowerBound, LE, NegatedOp->LowerBound)) {
-          NewLowerBound = NonNegatedOp->UpperBound + 1;
-          NewUpperBound = NegatedOp->UpperBound;
-        } else {
-          NewLowerBound = NegatedOp->LowerBound;
-          NewUpperBound = NonNegatedOp->LowerBound - 1;
-        }
-        LowerBound = NewLowerBound;
-        UpperBound = NewUpperBound;
-        Negated = true;
-        break;
-      case BothNegated:
-        setBound<Lower, And>(CI::get(Int64, Other.LowerBound), DL);
-        if (!Bottom)
-          setBound<Upper, And>(CI::get(Int64, Other.UpperBound), DL);
-        Negated = true;
-        break;
-      }
-      break;
-    }
-  }
-
-  Changed |= (OldLowerBound != LowerBound
-              || OldUpperBound != UpperBound
-              || OldNegated != Negated);
-
-  assert(Compare(LowerBound, LE, UpperBound));
-
-  return Changed;
 }
 
 // Note: this function is implemented with lower bound restriction in mind, with
