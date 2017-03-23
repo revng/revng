@@ -1155,6 +1155,7 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
               Instruction *I = P.first;
               return isa<LoadInst>(I) && MemoryAccess(I, TSP) == TargetMA;
             });
+          Definitions.push_back({ Load, TargetMA });
 
         } else {
 
