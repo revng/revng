@@ -11,6 +11,7 @@
 #include <vector>
 
 // LLVM includes
+#include "llvm/ADT/Optional.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/Constants.h"
@@ -304,23 +305,52 @@ public:
   void handleMemoryOperation(Instruction *I);
 
   // Helper functions employed by handleComparison
-  bool mergePredicate(OSR &BaseOp,
-                      Predicate P,
-                      Constant *ConstOp,
-                      bool IsSigned,
-                      BoundedValue &NewBV);
-  void applyConstraint(OSR &BaseOp,
-                       Instruction *I,
-                       Predicate P,
-                       ICmpInst *Comparison,
-                       Constant *ConstOp,
-                       BVVector &NewConstraints);
 
+  /// \brief Given an OSR, an predicate and a constant, produce a new
+  ///        BoundedValue
+  ///
+  /// \param BaseOp the OSR representing theleft-hand side of the comparison
+  /// \param P the comparison operation to perform
+  /// \param ConstOp the constant against which the comparison is performed
+  ///
+  /// \return a new BoundedValue constraining the BoundedValue associated to \p
+  ///         BaseOp with the specified comparison
+  BoundedValue mergePredicate(OSR &BaseOp, Predicate P, Constant *ConstOp);
+
+  Optional<BoundedValue> applyConstraint(Instruction *I,
+                                         OSR &BaseOp,
+                                         Predicate P,
+                                         Constant *ConstOp);
 
   std::pair<Constant *, Value *>
   identifyOperands(const Instruction *I, const DataLayout &DL) {
     return OSRAPass::identifyOperands(OSRs, I, DL);
   }
+
+  /// \brief Possible values that an operand in a comparison can assume
+  ///
+  /// This data structure describe the set of possible values that the operand
+  /// of a comparison can assume. They can either be constants or OSRs. If a
+  /// constant is not a plain llvm::Constant but it has been obtained through a
+  /// constant OSR, then we also record the Value associated to the OSR.
+  ///
+  /// This data structure also holds the load instruction through which we had
+  /// to go through to obtain these results, and on which the comparison
+  /// therefore depends.
+  struct ComparisonOperand {
+    ComparisonOperand() { }
+    ComparisonOperand(uint64_t V) : Constants({ { V, nullptr } }) { }
+
+    SmallVector<std::pair<uint64_t, const Value *>, 1> Constants;
+    SmallVector<OSR, 4> OSRs;
+    SmallVector<const LoadInst *, 3> AffectingLoads;
+  };
+
+  /// \brief Inspect a Value to produce the possible values it can assume as
+  ///        comparison operand
+  ///
+  /// See ComparisonOperand to interpret the results.
+  ComparisonOperand identifyComparisonOperands(Value *V, BasicBlock *BB) const;
 
   /// \brief Return true if \p I is stored in the CPU state but never read again
   bool isDead(Instruction *I) const;
@@ -569,11 +599,9 @@ void OSRA::handleLogicalOperator(Instruction *I) {
 }
 
 // TODO: give a better name
-bool OSRA::mergePredicate(OSR &BaseOp,
-                          Predicate P,
-                          Constant *ConstOp,
-                          bool IsSigned,
-                          BoundedValue &NewBV) {
+BoundedValue OSRA::mergePredicate(OSR &BaseOp, Predicate P, Constant *ConstOp) {
+  const Value *V = BaseOp.boundedValue()->value();
+  bool IsSigned = BaseOp.boundedValue()->isSigned();
   // Solve the equation to obtain the new boundary value
   // x <  1.5 == x <  2 (Ceiling)
   // x <= 1.5 == x <= 1 (Floor)
@@ -586,14 +614,14 @@ bool OSRA::mergePredicate(OSR &BaseOp,
 
   Constant *NewBoundC = BaseOp.solveEquation(ConstOp, RoundUp, DL);
   if (isa<UndefValue>(NewBoundC))
-    return false;
+    return BoundedValue::createBottom(V);
 
   uint64_t NewBound = getExtValue(NewBoundC, IsSigned, DL);
 
   // TODO: this is an hack
   if (NewBound == 0
       && (P == CmpInst::ICMP_ULT || P == CmpInst::ICMP_UGE))
-    return true;
+    return BoundedValue(V);
 
   BoundedValue Constraint;
   switch (P) {
@@ -603,131 +631,202 @@ bool OSRA::mergePredicate(OSR &BaseOp,
   case CmpInst::ICMP_SGE:
     if (CmpInst::isFalseWhenEqual(P))
       NewBound++;
+    return BoundedValue::createGE(V, NewBound, IsSigned);
 
-    Constraint = BoundedValue::createGE(NewBV.value(), NewBound, IsSigned);
-    break;
   case CmpInst::ICMP_ULT:
   case CmpInst::ICMP_ULE:
   case CmpInst::ICMP_SLT:
   case CmpInst::ICMP_SLE:
     if (CmpInst::isFalseWhenEqual(P))
       NewBound--;
+    return BoundedValue::createLE(V, NewBound, IsSigned);
 
-    Constraint = BoundedValue::createLE(NewBV.value(), NewBound, IsSigned);
-    break;
   case CmpInst::ICMP_EQ:
-    Constraint = BoundedValue::createEQ(NewBV.value(),
-                                        NewBound,
-                                        NewBV.isSigned());
-    break;
+    return BoundedValue::createEQ(V, NewBound, IsSigned);
+
   case CmpInst::ICMP_NE:
-    Constraint = BoundedValue::createNE(NewBV.value(),
-                                        NewBound,
-                                        NewBV.isSigned());
-    break;
+    return BoundedValue::createNE(V, NewBound, IsSigned);
+
   default:
     assert(false);
     break;
   }
-
-  NewBV.merge(Constraint, DL, Int64);
-  return true;
 }
 
-void OSRA::applyConstraint(OSR &BaseOp,
-                           Instruction *I,
-                           Predicate P,
-                           ICmpInst *Comparison,
-                           Constant *ConstOp,
-                           BVVector &NewConstraints) {
+Optional<BoundedValue> OSRA::applyConstraint(Instruction *I,
+                                             OSR &BaseOp,
+                                             Predicate P,
+                                             Constant *ConstOp) {
   BasicBlock *BB = I->getParent();
+  const BoundedValue *OriginalBV = BaseOp.boundedValue();
 
-  // Ignore OSR that are bottom, relative to themselves with a factor 0 (i.e.,
-  // old-style constant)
-  // TODO: probably we can drop factor == 0, we no longer handle constants this
-  // way.
-  if (BaseOp.boundedValue()->isBottom()
-      || BaseOp.isRelativeTo(I)
-      || BaseOp.factor() == 0)
-    return;
+  // Ignore OSR that are bottom or relative to themselves
+  // TODO: how can BaseOp.factor() == 0? Investigate
+  if (OriginalBV->isBottom() || BaseOp.isRelativeTo(I) || BaseOp.factor() == 0)
+    return Optional<BoundedValue>();
 
   // Notify the BV about the sign we're going to use, unless it's a comparison
   // of (in)equality
   bool IsSigned;
   if (P != CmpInst::ICMP_EQ && P != CmpInst::ICMP_NE) {
-    IsSigned = Comparison->isSigned();
-    BVs.setSignedness(BB, BaseOp.boundedValue()->value(), IsSigned);
+    IsSigned = ICmpInst::isSigned(P);
+    BVs.setSignedness(BB, OriginalBV->value(), IsSigned);
   } else {
     // TODO: we don't know what sign to use here, so we ignore it, should we
     //       switch to AnySignedness?
-    if (!BaseOp.boundedValue()->hasSignedness())
-      return;
+    if (!OriginalBV->hasSignedness())
+      return Optional<BoundedValue>();
 
-    IsSigned = BaseOp.boundedValue()->isSigned();
+    IsSigned = OriginalBV->isSigned();
   }
 
   // If setting the sign we went to bottom or still don't have it (e.g., due to
   // being top), give up
-  if (BaseOp.boundedValue()->isBottom()
-      || !BaseOp.boundedValue()->hasSignedness())
-    return;
+  if (OriginalBV->isBottom() || !OriginalBV->hasSignedness())
+    return Optional<BoundedValue>();
 
-  // Create a copy of the current value of the BV
-  BoundedValue NewBV = *(BaseOp.boundedValue());
-
-  bool Result = mergePredicate(BaseOp, P, ConstOp, IsSigned, NewBV);
-  if (!Result)
-    return;
+  BoundedValue Result = mergePredicate(BaseOp, P, ConstOp);
+  // TODO: shouldn't we push to NewConstraints a bottom BV?
+  if (Result.isBottom())
+    return Optional<BoundedValue>();
 
   // Unsigned inequations implictly say that both operands are greater than or
   // equal to zero. This means that if we have `x - 5 < 10`, we don't just know
   // that `x < 15` but also that `x - 5 >= 0`, i.e., `x >= 5`.
-  if (P == CmpInst::ICMP_ULT || P == CmpInst::ICMP_ULE) {
+  if (CmpInst::isUnsigned(P)) {
+    // In case NewBV is of type [x, +Inf], we temporarily turn it into [-Inf, x
+    // - 1], apply the > 0, and then flip it again. In this way if we have
+    // x - 3 > 30, we get NOT [4, 33], which is way more informative than
+    // [33, +Inf]
+
+    bool Flip = Result.isRightOpen();
+    if (Flip)
+      Result.flip();
+
     auto *Zero = ConstantInt::get(ConstOp->getType(), 0);
-    Result = mergePredicate(BaseOp, CmpInst::ICMP_UGE, Zero, IsSigned, NewBV);
+    Result.merge(mergePredicate(BaseOp, CmpInst::ICMP_UGE, Zero), DL, Int64);
+
+    if (Flip)
+      Result.flip();
   }
 
-  if (!Result)
-    return;
+  if (Result.isBottom())
+    return Optional<BoundedValue>();
 
-  NewConstraints.push_back(NewBV);
+  // Create a copy of the current value of the BV
+  BoundedValue NewBV = *OriginalBV;
+  NewBV.merge(Result, DL, Int64);
+  return NewBV;
+}
+
+OSRA::ComparisonOperand
+OSRA::identifyComparisonOperands(Value *V, BasicBlock *BB) const {
+  // Is it an LLVM Constant?
+  if (auto *C = dyn_cast<Constant>(V))
+    return ComparisonOperand(getLimitedValue(C));
+
+  ComparisonOperand Result;
+
+  // Do we have an OSR for this value?
+  if (auto *I = dyn_cast<Instruction>(V)) {
+
+    OSR TheOSR = createOSR(I, BB);
+
+    if (TheOSR.isConstant()) {
+      // It's constant: register it as such
+      std::pair<uint64_t, const Value *> C {
+        TheOSR.constant(),
+        TheOSR.boundedValue()->value()
+      };
+      Result.Constants.push_back(C);
+    } else {
+      // A normal OSR
+      Result.OSRs.push_back(TheOSR);
+    }
+
+    // Now check if the OSR is referencing a Load instruction, which is
+    // associated with a self-referencing OSR. In this case, add to the
+    // candidate values all the reaching definitions of such load
+
+    // Is the OSR referencing a Load?
+    if (TheOSR.boundedValue() == nullptr)
+      return Result;
+
+    const Value *BaseValue = TheOSR.boundedValue()->value();
+
+    if (BaseValue == nullptr)
+      return Result;
+
+    if (auto *Load = dyn_cast<LoadInst>(BaseValue)) {
+      // Register this instruction to be visited again when Load changes
+      Result.AffectingLoads.push_back(Load);
+
+      const OSR *LoadOSR = getOSR(Load);
+
+      // Did we get an OSR? Is it self-referencing?
+      if (LoadOSR == nullptr || LoadOSR->boundedValue()->value() != Load)
+        return Result;
+
+      auto ReachersIt = LoadReachers.find(Load);
+
+      // Does the load have at least one reacher?
+      if (ReachersIt == LoadReachers.end())
+        return Result;
+      auto &Reachers = ReachersIt->second;
+      if (Reachers.size() <= 1)
+        return Result;
+
+      for (auto &Reacher : Reachers) {
+        const BoundedValue *ReacherBV = Reacher.second.boundedValue();
+        // Ignore constants and self-reaching loads
+        if (!Reacher.second.isConstant()
+            && ReacherBV != nullptr
+            && ReacherBV->value() != nullptr
+            && ReacherBV->value() != Load) {
+          // Note: here we don't handle constant OSR in a special way here
+          Result.OSRs.push_back(Reacher.second);
+        }
+      }
+
+    }
+
+  }
+
+  return Result;
 }
 
 void OSRA::handleComparison(Instruction *I) {
-  // TODO: this part is quite ugly, try to improve it
-  auto SimplifiedComparison = SCP.getComparison(cast<CmpInst>(I));
-  ICmpInst *Comparison = new ICmpInst(SimplifiedComparison.Predicate,
-                                      SimplifiedComparison.LHS,
-                                      SimplifiedComparison.RHS);
-  std::unique_ptr<ICmpInst> SimplifiedCmpInst(Comparison);
-
-  Predicate P = Comparison->getPredicate();
-
-  Value *LHS = Comparison->getOperand(0);
-  Value *RHS = Comparison->getOperand(1);
-
-  Constant *ConstOp = nullptr;
-  Value *FreeOpValue = nullptr;
-  Instruction *FreeOp = nullptr;
-  std::tie(ConstOp, FreeOpValue) = identifyOperands(Comparison, DL);
-  if (FreeOpValue != nullptr) {
-    FreeOp = dyn_cast<Instruction>(FreeOpValue);
-    if (FreeOp == nullptr)
-      return;
-  }
-
+  // Ignore dead comparisons
   if (isDead(I))
     return;
 
-  // Comparison for equality and inequality are handled to propagate constraints
-  // in case of test of the result of a comparison (e.g., (x < 3) == 0).
-  if (ConstOp != nullptr && FreeOp != nullptr
-      && Constraints.find(FreeOp) != Constraints.end()
-      && (P == CmpInst::ICMP_EQ || P == CmpInst::ICMP_NE)) {
-    // If we're comparing with 0 for equality or inequality and the non-constant
-    // operand has constraints, propagate them flipping them (if necessary).
-    if (getZExtValue(ConstOp, DL) == 0) {
+  // We use data from SimplifiedComparisonAnalysis
+  auto SC = SCP.getComparison(cast<CmpInst>(I));
+  ICmpInst *Comparison = new ICmpInst(SC.Predicate, SC.LHS, SC.RHS);
+  std::unique_ptr<ICmpInst> SimplifiedCmpInst(Comparison);
 
+  // Collect general information
+  Predicate P = Comparison->getPredicate();
+  BasicBlock *BB = I->getParent();
+
+  // First of all handle comparisons for equality (or inequality) with 0 of
+  // values with one or more constraints associated (e.g., (x < 3) == 0).
+  if (P == CmpInst::ICMP_EQ || P == CmpInst::ICMP_NE) {
+    assert(Constraints.count(nullptr) == 0);
+
+    bool LHSIsZero = isa<Constant>(SC.LHS) && getLimitedValue(SC.LHS) == 0;
+    Instruction *LHSInst = dyn_cast<Instruction>(SC.LHS);
+    bool LHSHasConstraints = Constraints.count(LHSInst) != 0;
+
+    bool RHSIsZero = isa<Constant>(SC.RHS) && getLimitedValue(SC.RHS) == 0;
+    Instruction *RHSInst = dyn_cast<Instruction>(SC.RHS);
+    bool RHSHasConstraints = Constraints.count(RHSInst) != 0;
+
+    if ((LHSIsZero && RHSHasConstraints) || (RHSIsZero && LHSHasConstraints)) {
+      // If we're comparing with 0 for equality or inequality and the
+      // non-constant operand has constraints, propagate them (flipped if
+      // necessary).
+      Value *FreeOp = LHSIsZero ? SC.RHS : SC.LHS;
       if (P == CmpInst::ICMP_EQ) {
         propagateConstraints(I, FreeOp, [] (BVVector &Constraints) {
             BVVector Result = Constraints;
@@ -747,121 +846,152 @@ void OSRA::handleComparison(Instruction *I) {
     }
   }
 
+  //
   // Compute a new constraint
-  // Check the comparison operator is a supported one
-  if (P != CmpInst::ICMP_UGT
-      && P != CmpInst::ICMP_UGE
-      && P != CmpInst::ICMP_SGT
-      && P != CmpInst::ICMP_SGE
-      && P != CmpInst::ICMP_ULT
-      && P != CmpInst::ICMP_ULE
-      && P != CmpInst::ICMP_SLT
-      && P != CmpInst::ICMP_SLE
-      && P != CmpInst::ICMP_EQ
-      && P != CmpInst::ICMP_NE)
+  //
+
+  // Check the comparison operator is supported
+  switch (P) {
+  case CmpInst::ICMP_UGT:
+  case CmpInst::ICMP_UGE:
+  case CmpInst::ICMP_SGT:
+  case CmpInst::ICMP_SGE:
+  case CmpInst::ICMP_ULT:
+  case CmpInst::ICMP_ULE:
+  case CmpInst::ICMP_SLT:
+  case CmpInst::ICMP_SLE:
+  case CmpInst::ICMP_EQ:
+  case CmpInst::ICMP_NE:
+    break;
+  default:
     return;
+  }
 
-  auto OldBVsIt = Constraints.find(I);
-  bool HasConstraints = OldBVsIt != Constraints.end();
+  // Sources of operands of the comparison:
+  //
+  // * The (simplified) comparison operands themselves
+  // * Reachers of the self-referencing load of op1
+  // * Reachers of the self-referencing load of op2
+  //
+  // Handlers:
+  //
+  // * no constant operands: no-op
+  // * constant vs constants: if contradiction, set everything to bottom
+  // * const and non-const (or viceversa): compute new constraints
+
   BVVector NewConstraints;
+  ComparisonOperand LHS = identifyComparisonOperands(SC.LHS, BB);
+  ComparisonOperand RHS = identifyComparisonOperands(SC.RHS, BB);
 
-  if (FreeOp == nullptr) {
-    if (ConstOp == nullptr) {
-      // Both operands are free, give up
+  // Register the current instruction to be analyzed again in case one of
+  // the load it depends on changes
+  for (const LoadInst *Load : LHS.AffectingLoads)
+    Subscriptions[Load].insert(I);
+  for (const LoadInst *Load : RHS.AffectingLoads)
+    Subscriptions[Load].insert(I);
 
-      // TODO: are we sure this is what we want?
-      if (HasConstraints)
-        Constraints.erase(OldBVsIt);
-      HasConstraints = false;
-      return;
-    } else {
-      // FreeOpValue is nullptr but ConstOp is not: we were able to fold the
-      // operation into a constant
-
-      if (getZExtValue(ConstOp, DL) != 0) {
-        // The comparison holds, we're saying nothing useful (e.g. 2 < 3),
-        // remove any constraint
-        if (HasConstraints)
-          Constraints.erase(OldBVsIt);
-        HasConstraints = false;
+  // const vs const: either a contradiction or a tautology
+  for (auto &LHSPair : LHS.Constants) {
+    for (auto &RHSPair : RHS.Constants) {
+      // At least one of the two operands must have a Value associated, we don't
+      // handle comparison which were originally const-foldable
+      Type *T = nullptr;
+      if (LHSPair.second != nullptr) {
+        T = LHSPair.second->getType();
       } else {
-        // The comparison does not hold, move to bottom all the involved BVs
-
-        auto *FirstOp = dyn_cast<Instruction>(LHS);
-        if (FirstOp != nullptr) {
-          auto FirstOSRIt = OSRs.find(FirstOp);
-          if (FirstOSRIt != OSRs.end()) {
-            auto FirstOSR = FirstOSRIt->second;
-            NewConstraints.push_back(*FirstOSR.boundedValue());
-          }
-        }
-
-        if (auto *SecondOp = dyn_cast<Instruction>(RHS)) {
-          auto SecondOSRIt = OSRs.find(SecondOp);
-          if (SecondOSRIt != OSRs.end()) {
-            auto SecondOSR = SecondOSRIt->second;
-            NewConstraints.push_back(*SecondOSR.boundedValue());
-          }
-        }
-
-        for (auto &Constraint : NewConstraints)
-          Constraint.setBottom();
-
+        assert(RHSPair.second != nullptr);
+        T = RHSPair.second->getType();
       }
-    }
 
-  } else {
-    // We have a constant operand and a free one
+      // Check if the comparison holds. If not, set to bottom the associate
+      // value
+      Constant *LHSConstant = CI::get(T, LHSPair.first);
+      Constant *RHSConstant = CI::get(T, RHSPair.first);
+      Constant *Compare = CE::getICmp(P, LHSConstant, RHSConstant);
 
-    BasicBlock *BB = I->getParent();
-    OSR TheOSR = createOSR(FreeOp, BB);
-    NewConstraints.clear();
-
-    // Handle the base case
-    applyConstraint(TheOSR, I, P, Comparison, ConstOp, NewConstraints);
-
-    // Handle all the reaching definitions, if it's referred to a load
-    const Value *BaseValue = nullptr;
-    if (TheOSR.boundedValue() != nullptr)
-      BaseValue = TheOSR.boundedValue()->value();
-
-    if (BaseValue != nullptr) {
-      if (auto *Load = dyn_cast<LoadInst>(BaseValue)) {
-        const OSR *LoadOSR = getOSR(Load);
-        auto &Reachers = LoadReachers[Load];
-
-        // Register this instruction to be visited again when Load changes
-        Subscriptions[Load].insert(I);
-        if (Reachers.size() > 1
-            && LoadOSR != nullptr
-            && LoadOSR->boundedValue()->value() == Load) {
-
-          for (auto &Reacher : Reachers) {
-            if (!Reacher.second.isConstant()
-                && Reacher.second.boundedValue() != nullptr
-                && Reacher.second.boundedValue()->value() != nullptr
-                && Reacher.second.boundedValue()->value() != Load) {
-              OSR TheOSR = switchBlock(Reacher.second, BB);
-              applyConstraint(TheOSR,
-                              I,
-                              P,
-                              Comparison,
-                              ConstOp,
-                              NewConstraints);
-            }
-          }
-
-        }
+      // Does the comparison hold?
+      if (getLimitedValue(Compare) == 0) {
+        // It doens't: send everything to bottom
+        if (LHSPair.second != nullptr)
+          NewConstraints.push_back(BoundedValue::createBottom(LHSPair.second));
+        if (RHSPair.second != nullptr)
+          NewConstraints.push_back(BoundedValue::createBottom(RHSPair.second));
       }
-    }
 
+    }
+  }
+
+  Type *T = I->getOperand(0)->getType();
+
+  // OSR vs const
+  for (auto &RHSPair : RHS.Constants) {
+    Constant *ConstOp = CI::get(T, RHSPair.first);
+
+    for (OSR &LHSOSR : LHS.OSRs) {
+      OSR TheOSR = switchBlock(LHSOSR, BB);
+      auto NewBV = applyConstraint(I, TheOSR, P, ConstOp);
+      if (NewBV.hasValue())
+        NewConstraints.push_back(*NewBV);
+    }
 
   }
 
-  bool Changed = true;
+  // const vs OSR
+  ICmpInst::Predicate FP = ICmpInst::getInversePredicate(P);
+  for (auto &LHSPair : LHS.Constants) {
+    Constant *ConstOp = CI::get(T, LHSPair.first);
+
+    for (OSR &RHSOSR : RHS.OSRs) {
+      OSR TheOSR = switchBlock(RHSOSR, BB);
+      auto NewBV = applyConstraint(I, TheOSR, FP, ConstOp);
+      if (NewBV.hasValue())
+        NewConstraints.push_back(*NewBV);
+    }
+
+  }
+
+  // Note: we don't handle the remaining case, i.e., OSR vs OSR
+
+  // or-merge constraints relative to the same bounded value before propagation
+  if (NewConstraints.size() > 1) {
+    BVVector MergedConstraints;
+    std::set<const Value *> HandledValues;
+
+    for (auto It = NewConstraints.begin(); It != NewConstraints.end(); It++) {
+      const Value *V = It->value();
+      if (HandledValues.count(V) == 0) {
+        HandledValues.insert(V);
+
+        // Initialize the result with the first BV relative to V
+        BoundedValue Result = *It;
+
+        // Iterate over the remaining elements of the constraints vector
+        auto ItRest = It;
+        ItRest++;
+        for (; ItRest != NewConstraints.end(); ItRest++) {
+          // Are they relative to the same Value? If so, merge them
+          if (ItRest->value() == V) {
+            Result.merge<BoundedValue::Or>(*ItRest, DL, Int64);
+          }
+        }
+
+        MergedConstraints.push_back(Result);
+      }
+    }
+
+    NewConstraints = MergedConstraints;
+  }
 
   // Check against the old constraints associated with this comparison
-  if (HasConstraints) {
+  auto OldBVsIt = Constraints.find(I);
+  bool HadConstraints = OldBVsIt != Constraints.end();
+
+  // If we had no constraints, and we still don't have them, for sure there was
+  // no change
+  bool Changed = !(HadConstraints && NewConstraints.size() == 0);
+
+  // If we had constraints, check they're actually different from the new ones
+  if (Changed && HadConstraints) {
     BVVector &OldBVsVector = OldBVsIt->second;
     if (NewConstraints.size() == OldBVsVector.size()) {
       bool Different = false;
@@ -885,6 +1015,7 @@ void OSRA::handleComparison(Instruction *I) {
     Constraints[I] = NewConstraints;
     enqueueUsers(I);
   }
+
 }
 
 void OSRA::handleUnaryOperator(Instruction *I) {
@@ -1659,6 +1790,7 @@ OSR OSRA::createOSR(Value *V, BasicBlock *BB) const {
 /// to the free operand. If none of the operands are constant returns { nullptr,
 /// nullptr }. It also returns { nullptr, nullptr } if I is not commutative and
 /// only the first operand is constant.
+// TODO: this only works with commutative instructions
 std::pair<Constant *, Value *>
 OSRAPass::identifyOperands(std::map<const Value *, const OSR> &OSRs,
                            const Instruction *I,
