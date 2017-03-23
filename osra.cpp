@@ -1970,7 +1970,8 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
 
           if (EdgeBV != nullptr) {
             // And-merge
-            Result.merge<BoundedValue::And>(*EdgeBV, DL, Int64);
+            BoundedValue Tmp = Result;
+            Tmp.merge<BoundedValue::And>(*EdgeBV, DL, Int64);
 
             DBG("psm", {
                 dbg << Indent << "    Got ";
@@ -1978,12 +1979,14 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
                 dbg << " from the " << getName(*ToMerge.PredecessorIt)
                     << " -> " << getName(ToMerge.BB)
                     << " edge: ";
-                Result.describe(FormattedStream);
+                Tmp.describe(FormattedStream);
                 dbg << "\n";
               });
 
-            if (Result.isBottom())
+            if (Tmp.isBottom())
               break;
+            else
+              Result = Tmp;
 
           } else {
             DBG("psm", {
@@ -2002,13 +2005,14 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
 
           // Register the current height as the last merge
           R.setLastMerge(Height);
+
+          // Deactivate
+          R.setInactive(Height);
         } else {
           DBG("psm", dbg << Indent
               << "    We got an incoherent situation, ignore it\n";);
         }
 
-        // Deactivate
-        R.setInactive(Height);
       } else if (MayAlias) {
         DBG("psm", dbg << Indent
             << "  Deactivating reacher " << ReacherIndex << "\n";);
