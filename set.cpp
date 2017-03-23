@@ -508,22 +508,22 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
 
   if (O == nullptr
       || O->boundedValue()->isTop()
-      || O->boundedValue()->isBottom()
-      || !O->boundedValue()->isSingleRange()) {
+      || O->boundedValue()->isBottom()) {
     return false;
   } else if (O->isConstant()) {
     // If it's just a single constant, use it
     OS.explore(CI::get(Int64, O->constant()));
   } else {
+    // Hard limit
+    if (O->size() >= 10000)
+      return false;
+
     // We have a limited range, let's use it all
 
     // Perform a preliminary check that whole range fits into the executable
     // area
     Constant *MinConst, *MaxConst;
     std::tie(MinConst, MaxConst) = O->boundaries(Int64, DL);
-    uint64_t Min = getZExtValue(MinConst, DL);
-    uint64_t Max = getZExtValue(MaxConst, DL);
-    uint64_t Step = O->factor();
 
     // TODO: note that since we check if isExecutableRange, this part will never
     //       affect the noreturn syscalls detection
@@ -533,9 +533,7 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
     //       maybe other registers (lr?)
     auto MaterializedMin = OS.materialize(MinConst);
     auto MaterializedMax = OS.materialize(MaxConst);
-    auto MaterializedStep = OS.materialize(CI::get(Int64, Step));
-    if (O->size() >= 10000)
-      return false;
+    auto MaterializedStep = OS.materialize(CI::get(Int64, O->factor()));
 
     if (OS.readsMemory()) {
       // If there's a load in the stack only check the first and last element
@@ -560,10 +558,9 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
 
     // Note: addition and comparison for equality are all sign-safe
     // operations, no need to use Constants in this case.
-    // TODO: switch to a super-elegant iterator
-    for (uint64_t Position = Min; Position != Max; Position += Step)
-      OS.explore(CI::get(Int64, Position));
-    OS.explore(CI::get(Int64, Max));
+    for (uint64_t Address : O->bounds()) {
+      OS.explore(CI::get(Int64, Address));
+    }
   }
 
   return true;

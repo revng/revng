@@ -34,6 +34,8 @@
 
 using namespace llvm;
 
+using boost::icl::interval_bounds;
+
 using Predicate = CmpInst::Predicate;
 using OSR = OSRAPass::OSR;
 using BoundedValue = OSRAPass::BoundedValue;
@@ -1263,12 +1265,6 @@ Constant *OSR::evaluate(Constant *Value, Type *Int64) const {
   return CE::getAdd(BaseC, CE::getMul(FactorC, Value));
 }
 
-static bool isPositive(Constant *C, const DataLayout &DL) {
-  auto *Zero = CI::get(C->getType(), 0, true);
-  auto *Compare = CE::getCompare(CmpInst::ICMP_SGE, C, Zero);
-  return getConstValue(Compare, DL)->getLimitedValue();
-}
-
 pair<Constant *, Constant *>
 OSR::boundaries(Type *Int64, const DataLayout &DL) const {
   Constant *Min = nullptr;
@@ -1350,14 +1346,16 @@ BoundedValue BoundedValue::moveTo(llvm::Value *V,
   Result.Value = V;
 
   using I = Instruction;
-  if (Result.LowerBound != Result.lowerExtreme()) {
-    Result.LowerBound = performOp(Result.LowerBound, I::Mul, Multiplier, DL);
-    Result.LowerBound = performOp(Result.LowerBound, I::Add, Offset, DL);
-  }
+  for (std::pair<uint64_t, uint64_t> &Bound : Result.Bounds) {
+    if (Bound.first != Result.lowerExtreme()) {
+      Bound.first = performOp(Bound.first, I::Mul, Multiplier, DL);
+      Bound.first = performOp(Bound.first, I::Add, Offset, DL);
+    }
 
-  if (Result.UpperBound != Result.upperExtreme()) {
-    Result.UpperBound = performOp(Result.UpperBound, I::Mul, Multiplier, DL);
-    Result.UpperBound = performOp(Result.UpperBound, I::Add, Offset, DL);
+    if (Bound.second != Result.upperExtreme()) {
+      Bound.second = performOp(Bound.second, I::Mul, Multiplier, DL);
+      Bound.second = performOp(Bound.second, I::Add, Offset, DL);
+    }
   }
 
   return Result;
@@ -1404,6 +1402,25 @@ bool OSR::combine(unsigned Opcode,
   }
 
   return Changed;
+}
+
+uint64_t OSR::BoundsIterator::operator*() const {
+  // return TheOSR.Base + (Current->first + Index) * TheOSR.Factor;
+
+  bool IsSigned = TheOSR.BV->isSigned();
+  auto *T = cast<IntegerType>(TheOSR.BV->value()->getType());
+
+  auto *RangeStart = CI::get(T, Current->first, IsSigned);
+  auto *RangePosition = CI::get(T, Index, IsSigned);
+  auto *Base = CI::get(T, TheOSR.Base, IsSigned);
+  auto *Factor = CI::get(T, TheOSR.Factor, IsSigned);
+
+  auto *Result = CE::getAdd(CE::getMul(CE::getAdd(RangeStart,
+                                                  RangePosition),
+                                       Factor),
+                            Base);
+
+  return getLimitedValue(Result);
 }
 
 class OSRAnnotationWriter : public AssemblyAnnotationWriter {
@@ -1535,19 +1552,23 @@ void BoundedValue::describe(formatted_raw_ostream &O) const {
   if (Bottom) {
     O << ", bottom";
   } else if (!isUninitialized()) {
-    O << ", ";
-    if (!isConstant() && LowerBound == lowerExtreme()) {
-      O << "min";
-    } else {
-      O << LowerBound;
-    }
+    for (auto Bound : Bounds) {
+      O << ", [";
+      if (!isConstant() && Bound.first == lowerExtreme()) {
+        O << "min";
+      } else {
+        O << Bound.first;
+      }
 
-    O << ", ";
+      O << ", ";
 
-    if (!isConstant() && UpperBound == upperExtreme()) {
-      O << "max";
-    } else {
-      O << UpperBound;
+      if (!isConstant() && Bound.second == upperExtreme()) {
+        O << "max";
+      } else {
+        O << Bound.second;
+      }
+
+      O << "]";
     }
   }
 
@@ -1847,16 +1868,6 @@ public:
     auto Result = ReachingOSR.apply(Summary, V, DL);
     if (!Result.hasSignedness())
       Result.setBottom();
-
-    if (!Result.isUninitialized() && !Result.isBottom()) {
-      using Cmp = CmpInst;
-      auto Predicate = Result.isSigned() ? Cmp::ICMP_SLE : Cmp::ICMP_ULE;
-      Constant *Compare = CE::getCompare(Predicate,
-                                         Result.lower(Int64),
-                                         Result.upper(Int64));
-      if (getZExtValue(Compare, DL) == 0)
-        Result.setBottom();
-    }
 
     return Result;
   }
@@ -2309,25 +2320,27 @@ void BoundedValue::setSignedness(bool IsSigned) {
 
   Signedness NewSign = IsSigned ? Signed : Unsigned;
   if (Sign == UnknownSignedness) {
-    assert(LowerBound == 0 && UpperBound == 0);
+    assert(Bounds.size() == 0);
     Sign = NewSign;
 
     if (IsSigned) {
-      LowerBound = numeric_limits<int64_t>::min();
-      UpperBound = numeric_limits<int64_t>::max();
+      Bounds.emplace_back(numeric_limits<int64_t>::min(),
+                          numeric_limits<int64_t>::max());
     } else {
-      LowerBound = numeric_limits<uint64_t>::min();
-      UpperBound = numeric_limits<uint64_t>::max();
+      Bounds.emplace_back(numeric_limits<uint64_t>::min(),
+                          numeric_limits<uint64_t>::max());
     }
   } else if (Sign == AnySignedness) {
     Sign = NewSign;
   } else if (Sign != NewSign) {
     Sign = InconsistentSignedness;
     // TODO: handle top case
-    if (LowerBound > numeric_limits<int64_t>::max()
-        || UpperBound > numeric_limits<int64_t>::max()) {
+    auto Condition = [] (std::pair<uint64_t, uint64_t> P) {
+      return P.first > numeric_limits<int64_t>::max()
+        || P.second > numeric_limits<int64_t>::max();
+    };
+    if (std::any_of(Bounds.begin(), Bounds.end(), Condition))
       setBottom();
-    }
   }
 }
 
@@ -2335,22 +2348,37 @@ class BoundedValueHelpers {
 public:
   template<typename T>
   static boost::icl::interval_set<T> getInterval(const BoundedValue &BV) {
+    assert(!BV.isBottom());
+
     using interval_set = boost::icl::interval_set<T>;
     using interval = boost::icl::interval<T>;
 
     interval_set Result;
-    assert(!BV.isBottom());
-    if (!BV.Negated) {
-      Result += interval::closed(BV.LowerBound, BV.UpperBound);
-    } else {
-      assert(BV.hasSignedness());
-      // not [a,b]
-      bool UpperExtreme = BV.UpperBound == BV.upperExtreme();
-      bool LowerExtreme = BV.LowerBound == BV.lowerExtreme();
-      if (!LowerExtreme)
-        Result += interval::closed(BV.lowerExtreme(), BV.LowerBound - 1);
-      if (!UpperExtreme)
-        Result += interval::closed(BV.UpperBound + 1, BV.upperExtreme());
+
+    for (std::pair<uint64_t, uint64_t> Bound : BV.Bounds)
+      Result += interval::closed(static_cast<T>(Bound.first),
+                                 static_cast<T>(Bound.second));
+    if (BV.Negated) {
+      interval_set FullRange;
+      FullRange += interval::closed(BV.lowerExtreme(), BV.upperExtreme());
+
+      interval_set Xor = Result ^ FullRange;
+      Result.clear();
+      for (auto I : Xor) {
+        T Lower = I.lower();
+        T Upper = I.upper();
+
+        auto Type = I.bounds().bits();
+        if (Type == interval_bounds::static_open
+            || Type == interval_bounds::static_left_open)
+          Lower++;
+
+        if (Type == interval_bounds::static_open
+            || Type == interval_bounds::static_right_open)
+          Upper--;
+
+        Result += interval::closed(Lower, Upper);
+      }
     }
 
     return Result;
@@ -2359,50 +2387,34 @@ public:
   template<typename T>
   static BoundedValue getBV(const BoundedValue &Base,
                             boost::icl::interval_set<T> Intervals) {
-    const Value *V = Base.value();
-    bool IsSigned = Base.isSigned();
 
-    size_t Size = Intervals.iterative_size();
-    if (Size == 0 || Size > 2) {
-      return BoundedValue::createBottom(V);
-    } else if (Size == 1) {
-      auto Interval = *Intervals.begin();
-      bool LowerExtreme, UpperExtreme;
-      LowerExtreme = Interval.lower() == static_cast<T>(Base.lowerExtreme());
-      UpperExtreme = Interval.upper() == static_cast<T>(Base.upperExtreme());
+    BoundedValue Result(Base.value());
 
-      if ((LowerExtreme && UpperExtreme)
-          || (!LowerExtreme && !UpperExtreme)) {
-        // Both extremes are finite
-        return BoundedValue::createRange(V,
-                                         Interval.lower(),
-                                         Interval.upper(),
-                                         IsSigned);
-      } else if (LowerExtreme) {
-        // [-Inf, A]
-        return BoundedValue::createLE(V, Interval.upper(), IsSigned);
-      } else {
-        assert(UpperExtreme);
-        // [A, +Inf]
-        return BoundedValue::createGE(V, Interval.lower(), IsSigned);
-      }
+    if (Intervals.iterative_size() == 0) {
+      Result.setBottom();
     } else {
-      assert(Size == 2);
-      auto It = Intervals.begin();
-      auto FirstInterval = *It++;
-      auto SecondInterval = *It;
-      // Check if it's [-Inf, A] || [B, +Inf]
-      if (!(FirstInterval.lower() == static_cast<T>(Base.lowerExtreme())
-            && SecondInterval.upper() == static_cast<T>(Base.upperExtreme()))) {
-        return BoundedValue::createBottom(V);
-      } else {
-        return BoundedValue::createNegatedRange(V,
-                                                FirstInterval.upper() + 1,
-                                                SecondInterval.lower() - 1,
-                                                IsSigned);
+      using BV = BoundedValue;
+      Result.Sign = Base.isSigned() ? BV::Signed : BV::Unsigned;
+      assert(Result.Bounds.size() == 0);
+      for (auto Interval : Intervals) {
+        assert(Interval.bounds().bits() == interval_bounds::static_closed);
+        Result.Bounds.emplace_back(static_cast<uint64_t>(Interval.lower()),
+                                   static_cast<uint64_t>(Interval.upper()));
+
+        for (auto &Pair : Result.Bounds) {
+          if (&Pair != &Result.Bounds.back()) {
+            assert(Pair != Result.Bounds.back());
+          }
+        }
+
       }
+      assert(Result.Bounds.size() != 0);
+
     }
+
+    return Result;
   }
+
 };
 
 template<BoundedValue::MergeType MT, typename T>
@@ -2411,11 +2423,16 @@ BoundedValue BoundedValue::mergeImpl(const BoundedValue &Other) const {
   interval_set Result;
 
   Result += BoundedValueHelpers::getInterval<T>(*this);
-  if (MT == And)
+  DBG("bv-merge", dbg << Result);
+  if (MT == And) {
+    DBG("bv-merge", dbg << " & " << BoundedValueHelpers::getInterval<T>(Other));
     Result &= BoundedValueHelpers::getInterval<T>(Other);
-  else
+  } else {
+    DBG("bv-merge", dbg << " + " << BoundedValueHelpers::getInterval<T>(Other));
     Result += BoundedValueHelpers::getInterval<T>(Other);
+  }
 
+  DBG("bv-merge", dbg << " = " << Result << "\n");
   return BoundedValueHelpers::getBV<T>(*this, Result);
 }
 
@@ -2493,48 +2510,30 @@ bool BoundedValue::merge(const BoundedValue &Other,
   }
 }
 
-// Note: this function is implemented with lower bound restriction in mind, with
-// additional changes to support bound enlargement (logical `or`) or work on the
-// upper bound just set the template arguments appopriately
-template<BoundedValue::Bound B, BoundedValue::MergeType Type>
-bool BoundedValue::setBound(Constant *NewValue, const DataLayout &DL) {
-  assert(Sign != UnknownSignedness && Sign != AnySignedness && !Bottom);
+bool BoundedValue::slowCompare(const BoundedValue &Other) const {
+  assert(hasSignedness() && Other.hasSignedness());
+  assert(Sign == Other.Sign);
 
-  uint64_t &Bound = B == Lower ? LowerBound : UpperBound;
+  using H = BoundedValueHelpers;
+  if (isSigned())
+    return H::getInterval<int64_t>(*this) == H::getInterval<int64_t>(Other);
+  else
+    return H::getInterval<uint64_t>(*this) == H::getInterval<uint64_t>(Other);
+}
 
-  // Create a Constant for the current bound
-  Constant *OldValue = CI::get(NewValue->getType(),
-                                        Bound,
-                                        isSigned());
+BoundedValue::BoundsVector BoundedValue::bounds() const {
+  assert(hasSignedness());
 
-  // If the signedness is inconsistent, check that the new value lies in the
-  // signed positive area, otherwise go to bottom
-  // Note: OldValue should already be in this range, thanks to `setSignedness`.
-  if (Sign == InconsistentSignedness && !isPositive(NewValue, DL)) {
-    setBottom();
-    return true;
-  }
+  BoundsVector Result;
+  using H = BoundedValueHelpers;
+  if (isSigned())
+    for (auto Bound : H::getInterval<int64_t>(*this))
+      Result.emplace_back(static_cast<uint64_t>(Bound.lower()),
+                          static_cast<uint64_t>(Bound.upper()));
+  else
+    for (auto Bound : H::getInterval<uint64_t>(*this))
+      Result.emplace_back(static_cast<uint64_t>(Bound.lower()),
+                          static_cast<uint64_t>(Bound.upper()));
 
-  // Update the lower bound only if NewValue > OldValue
-  Predicate CompOp = (isSigned() ?
-                               CmpInst::ICMP_SGT :
-                               CmpInst::ICMP_UGT);
-
-  // If we want a logical or, flip the direction of the comparison
-  if (Type == Or)
-    CompOp = CmpInst::getSwappedPredicate(CompOp);
-
-  if (B == Upper)
-    CompOp = CmpInst::getSwappedPredicate(CompOp);
-
-  // Perform the comparison and, in case, update the LowerBound
-  auto *Compare = CE::getCompare(CompOp, NewValue, OldValue);
-  if (getConstValue(Compare, DL)->getLimitedValue()) {
-    if (isSigned())
-      Bound = getSExtValue(NewValue, DL);
-    else
-      Bound = getZExtValue(NewValue, DL);
-    return true;
-  }
-  return false;
+  return Result;
 }
