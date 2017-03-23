@@ -2419,21 +2419,31 @@ template<BoundedValue::MergeType MT>
 bool BoundedValue::merge(const BoundedValue &Other,
                          const DataLayout &DL,
                          Type *Int64) {
-  if (Bottom)
-    return false;
 
-  if (Other.Bottom) {
-    setBottom();
-    return true;
+  if (MT == And) {
+    // x & bottom = bottom
+    if (Bottom)
+      return false;
+
+    if (Other.Bottom) {
+      setBottom();
+      return true;
+    }
+  } else {
+    // x | bottom = x
+    if (Other.Bottom)
+      return false;
+
+    if (Bottom) {
+      *this = Other;
+      return true;
+    }
   }
 
   if (isTop() && Other.isTop()) {
     return false;
   } else if (MT == And && isTop()) {
-    LowerBound = Other.LowerBound;
-    UpperBound = Other.UpperBound;
-    Sign = Other.Sign;
-    Negated = Other.Negated;
+    *this = Other;
     return true;
   } else if (MT == And && Other.isTop()) {
     return false;
