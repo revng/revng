@@ -1205,13 +1205,13 @@ void OSRA::handleMemoryOperation(Instruction *I) {
       // Does the reached load carries any constraints already?
       auto ReachedLoadConstraintIt = Constraints.find(ReachedLoad);
       if (ReachedLoadConstraintIt != Constraints.end()) {
-        // Merge the constraints (using the `or` logic) directly in-place in the
-        // reached load's BVVector
+        // Merge the constraints (using the `and` logic) directly in-place in
+        // the reached load's BVVector
         using BV = BoundedValue;
-        Changed |= mergeBVVectors<BV::Or>(ReachedLoadConstraintIt->second,
-                                          TheConstraints,
-                                          DL,
-                                          Int64);
+        Changed |= mergeBVVectors<BV::And>(ReachedLoadConstraintIt->second,
+                                           TheConstraints,
+                                           DL,
+                                           Int64);
       } else {
         // The reached load has no constraints, simply propagate the input ones
         Constraints.insert({ ReachedLoad, TheConstraints });
