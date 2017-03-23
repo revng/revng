@@ -569,12 +569,17 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
 
     // Check if it's reachable from the exit (i.e., it's not part of an infinite
     // loop).
-    if (PDTNode != nullptr) {
-      BasicBlock *ImmediatePostDominator = PDTNode->getIDom()->getBlock();
+    BasicBlock *ImmediatePostDominator = nullptr;
+    // TODO: for some reason getBlock() might give nullptr, investigate
+    if (PDTNode != nullptr)
+      ImmediatePostDominator = PDTNode->getIDom()->getBlock();
+
+    if (ImmediatePostDominator != nullptr) {
 
       // Add the current ConditionIndex to those defined by it
       // Note: ConditionIndex 0 is reserved, so we add one
-      pushIfAbsent(DefinedConditions[ImmediatePostDominator], I + 1);
+      for (BasicBlock *Successor : successors(ImmediatePostDominator))
+        pushIfAbsent(DefinedConditions[Successor], I + 1);
 
       DBG("cnp", {
           dbg << ", post-dominated by "
