@@ -378,20 +378,40 @@ static inline uint64_t getBasicBlockPC(llvm::BasicBlock *BB) {
   return 0;
 }
 
-static inline llvm::LLVMContext &getContext(llvm::Module *M) {
+static inline llvm::LLVMContext &getContext(const llvm::Module *M) {
   return M->getContext();
 }
 
-static inline llvm::LLVMContext &getContext(llvm::Function *F) {
+static inline llvm::LLVMContext &getContext(const llvm::Function *F) {
   return getContext(F->getParent());
 }
 
-static inline llvm::LLVMContext &getContext(llvm::BasicBlock *BB) {
+static inline llvm::LLVMContext &getContext(const llvm::BasicBlock *BB) {
   return getContext(BB->getParent());
 }
 
-static inline llvm::LLVMContext &getContext(llvm::Instruction *I) {
+static inline llvm::LLVMContext &getContext(const llvm::Instruction *I) {
   return getContext(I->getParent());
+}
+
+static inline llvm::LLVMContext &getContext(const llvm::Value *I) {
+  return getContext(llvm::cast<const llvm::Instruction>(I));
+}
+
+static inline const llvm::Module *getModule(const llvm::Function *F) {
+  return F->getParent();
+}
+
+static inline const llvm::Module *getModule(const llvm::BasicBlock *BB) {
+  return getModule(BB->getParent());
+}
+
+static inline const llvm::Module *getModule(const llvm::Instruction *I) {
+  return getModule(I->getParent());
+}
+
+static inline const llvm::Module *getModule(const llvm::Value *I) {
+  return getModule(llvm::cast<const llvm::Instruction>(I));
 }
 
 /// \brief Helper class to easily create and use LLVM metadata

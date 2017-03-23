@@ -324,7 +324,8 @@ public:
   bool isDead(Instruction *I) const;
 
   // TODO: this is a duplication of OSRAPass::getOSR
-  const OSR *getOSR(const Value *V) {
+  /// \brief If available, returns the OSR associated to \p V
+  const OSR *getOSR(const Value *V) const {
     auto *I = dyn_cast<Instruction>(V);
 
     if (I == nullptr)
@@ -337,7 +338,7 @@ public:
       return &It->second;
   }
 
-  OSR switchBlock(OSR Base, BasicBlock *BB) {
+  OSR switchBlock(OSR Base, BasicBlock *BB) const {
     Base.setBoundedValue(&BVs.get(BB, Base.boundedValue()->value()));
     return Base;
   }
@@ -372,7 +373,7 @@ public:
   ///       not really interested in.
   ///
   /// \return the newly created OSR, possibly expressed in terms of \p V itself.
-  OSR createOSR(Value *V, BasicBlock *BB);
+  OSR createOSR(Value *V, BasicBlock *BB) const;
 
   void describe(formatted_raw_ostream &O, const Instruction *I) const;
   void describe(formatted_raw_ostream &O, const BasicBlock *BB) const;
@@ -1623,7 +1624,7 @@ Constant *OSR::solveEquation(Constant *KnownTerm,
   return Division;
 }
 
-OSR OSRA::createOSR(Value *V, BasicBlock *BB) {
+OSR OSRA::createOSR(Value *V, BasicBlock *BB) const {
   auto OtherOSRIt = OSRs.find(V);
   if (OtherOSRIt != OSRs.end())
     return switchBlock(OtherOSRIt->second, BB);
@@ -2182,18 +2183,35 @@ void BVMap::describe(formatted_raw_ostream &O, const BasicBlock *BB) const {
 std::pair<bool, BoundedValue &> BVMap::update(BasicBlock *Target,
                                               BasicBlock *Origin,
                                               BoundedValue NewBV) {
+  // Debug support
+  raw_os_ostream OsOstream(dbg);
+  formatted_raw_ostream FormattedStream(OsOstream);
+  FormattedStream.SetUnbuffered();
+
+  DBG("osr-bv", {
+      dbg << "Updating " << getName(Target)
+          << " from " << getName(Origin)
+          << " with ";
+      NewBV.describe(FormattedStream);
+      dbg << ": ";
+    });
+
   auto Index = make_pair(Target, NewBV.value());
   auto MapIt = TheMap.find(Index);
   MapValue *BVOVector = nullptr;
 
   // Have we ever seen this value for this basic block?
   if (MapIt == TheMap.end()) {
+    DBG("osr-bv", dbg << "new\n");
+
     // No, just insert it
     MapValue NewBVOVector;
     NewBVOVector.Components.push_back({ make_pair(Origin, NewBV) });
     BVOVector = &TheMap.insert({ Index, NewBVOVector }).first->second;
     return { true, summarize(Target, BVOVector) };
   } else if (isForced(MapIt)) {
+    DBG("osr-bv", dbg << "forced\n");
+
     return { false, MapIt->second.Summary };
   } else {
     bool Changed = true;
@@ -2206,13 +2224,33 @@ std::pair<bool, BoundedValue &> BVMap::update(BasicBlock *Target,
         Base = &BVO.second;
 
     // Did we ever see this Origin?
-    if (Base == nullptr)
+    if (Base == nullptr) {
+      DBG("osr-bv", dbg << "new component");
+
       BVOVector->Components.push_back({ Origin, NewBV });
-    else
+    } else {
+      DBG("osr-bv", {
+          dbg << "merging with ";
+          Base->describe(FormattedStream);
+        });
+
       Changed = Base->merge<AndMerge>(NewBV, *DL, Int64);
+
+      DBG("osr-bv", {
+          dbg << " producing ";
+          Base->describe(FormattedStream);
+        });
+    }
 
     // Re-merge all the entries
     auto &Result = summarize(Target, BVOVector);
+
+    DBG("osr-bv", {
+        dbg << ", final result ";
+        Result.describe(FormattedStream);
+        dbg << "\n";
+      });
+
     return { Changed, Result };
   }
 

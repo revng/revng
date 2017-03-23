@@ -344,11 +344,13 @@ resettingBasicBlocks(ReachingDefinitionsPass &RDP, BranchInst * const& Branch) {
     if (AIsStore || AIsLoad) {
       // Load/store vs load/store
       vector<Instruction *> AStores;
-      if (AIsStore)
+      if (AIsStore) {
         Result.insert(cast<StoreInst>(AV)->getParent());
-      else
-        for (Instruction *I : RDP.getReachingDefinitions(cast<LoadInst>(AV)))
+      } else {
+        for (Instruction *I : RDP.getReachingDefinitions(cast<LoadInst>(AV))) {
           Result.insert(I->getParent());
+        }
+      }
 
     } else if (auto *AI = dyn_cast<Instruction>(AV)) {
       // Instruction
@@ -362,6 +364,7 @@ resettingBasicBlocks(ReachingDefinitionsPass &RDP, BranchInst * const& Branch) {
     }
 
   }
+
   return Result;
 }
 
@@ -502,7 +505,7 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
 
         // Build the list of conditions defined by each basic block
         for (BasicBlock *Definer : resettingBasicBlocks(RDP, B)) {
-          // Register that Defined defines ConditionIndex
+          // Register that Definer defines ConditionIndex
           pushIfAbsent(DefinedConditions[Definer], ConditionIndex);
 
           // Register that ConditionIndex is defined by Defined
@@ -780,7 +783,7 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
   bool Changed = false;
 
   // Get (and insert, if necessary) the bit associated to the new
-  // condition. This bit will be set in all the defintions being propagated.
+  // condition. This bit will be set in all the definitions being propagated.
   DBG("rdp-propagation", dbg << "  Adding conditions:");
   unsigned NewConditionBitIndex = Target.getConditionIndex(NewConditionIndex);
   if (NewConditionIndex != 0 && !Target.Conditions[NewConditionBitIndex]) {
@@ -789,7 +792,7 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
     Changed = true;
   }
 
-  // Condition propgation
+  // Condition propagation
   for (int SetBitIndex = Conditions.find_first();
        SetBitIndex != -1;
        SetBitIndex = Conditions.find_next(SetBitIndex)) {

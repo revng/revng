@@ -492,11 +492,11 @@ public:
       return BV;
     }
 
-    bool operator ==(const OSR& Other) const {
+    bool operator==(const OSR &Other) const {
       return Base == Other.Base && Factor == Other.Factor && BV == Other.BV;
     }
 
-    bool operator !=(const OSR& Other) const {
+    bool operator!=(const OSR &Other) const {
       return !(*this == Other);
     }
 
@@ -507,7 +507,6 @@ public:
     bool isConstant() const {
       assert(BV != nullptr);
       return BV->isConstant();
-      return (BV == nullptr || !BV->isBottom()) && Factor == 0;
     }
 
     /// \brief Helper function to performe the comparison \p P with \p C
@@ -538,8 +537,8 @@ public:
 
     // TODO: bad name
     BoundedValue apply(const BoundedValue &Target,
-        llvm::Value *V,
-        const llvm::DataLayout &DL) const {
+                       llvm::Value *V,
+                       const llvm::DataLayout &DL) const {
       if (Target.isBottom() || Target.isTop() || !Target.hasSignedness())
         return Target;
 
