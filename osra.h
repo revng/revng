@@ -447,7 +447,15 @@ public:
       BV(Other.BV) { }
 
     uint64_t constant() const {
-      return BV->constant();
+      using CE = llvm::ConstantExpr;
+      using CI = llvm::ConstantInt;
+      using Constant = llvm::Constant;
+      llvm::Type *T = BV->value()->getType();
+
+      Constant *ConstantC = CI::get(T, BV->constant());
+      Constant *FactorC = CI::get(T, Factor);
+      Constant *BaseC = CI::get(T, Base);
+      return getLimitedValue(CE::getAdd(CE::getMul(ConstantC, FactorC), BaseC));
     }
 
     /// \brief Combine this OSR with \p Operand through \p Opcode
@@ -515,6 +523,7 @@ public:
                  const llvm::DataLayout &DL,
                  llvm::Type *Int64);
 
+    // TODO: are we sure we want to use Int64 here?
     /// \brief Compute `a + b * Value`
     llvm::Constant *evaluate(llvm::Constant *Value,
                              llvm::Type *Int64) const;
