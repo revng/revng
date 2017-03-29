@@ -1,0 +1,10 @@
+source,destination
+bb._start,bb.__gxx_personality_v0
+bb._start.0x13,bb._start.0x3e
+bb._start.0x17,bb._start.0x1d
+bb._start.0x17,bb._start.0x25
+bb._start.0x1d,bb.__gxx_personality_v0
+bb._start.0x25,bb.__gxx_personality_v0
+bb._start.0x2d,bb.__gxx_personality_v0
+bb._start.0x3c,bb._start.0x13
+bb._start.0xe,bb._start.0x13
