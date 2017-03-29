@@ -536,7 +536,8 @@ public:
       using container = llvm::SmallVector<bounds_pair, 3>;
       using inner_iterator = typename container::const_iterator;
 
-      BoundsIterator(const OSR &TheOSR, inner_iterator Start) :
+      BoundsIterator(llvm::Type *T, const OSR &TheOSR, inner_iterator Start) :
+        TheType(T),
         Current(Start),
         Index(0),
         TheOSR(TheOSR),
@@ -562,6 +563,7 @@ public:
       uint64_t operator*() const;
 
     private:
+      llvm::Type *TheType;
       inner_iterator Current;
       uint64_t Index;
       const OSR &TheOSR;
@@ -573,23 +575,26 @@ public:
       using bounds_pair = std::pair<uint64_t, uint64_t>;
       using container = llvm::SmallVector<bounds_pair, 3>;
 
-      Bounds(container TheBounds, const OSR &TheOSR) :
-        TheBounds(TheBounds), TheOSR(TheOSR) { }
+      Bounds(llvm::Type *T, container TheBounds, const OSR &TheOSR) :
+        TheType(T), TheBounds(TheBounds), TheOSR(TheOSR) { }
 
       BoundsIterator begin() const {
-        return BoundsIterator(TheOSR, TheBounds.begin());
+        return BoundsIterator(TheType, TheOSR, TheBounds.begin());
       }
 
       BoundsIterator end() const {
-        return BoundsIterator(TheOSR, TheBounds.end());
+        return BoundsIterator(TheType, TheOSR, TheBounds.end());
       }
 
     private:
+      llvm::Type *TheType;
       llvm::SmallVector<std::pair<uint64_t, uint64_t>, 3> TheBounds;
       const OSR &TheOSR;
     };
 
-    Bounds bounds() const { return Bounds(BV->bounds(), *this); }
+    Bounds bounds(llvm::Type *T) const {
+      return Bounds(T, BV->bounds(), *this);
+    }
 
     /// \brief Return the size of the associated BoundedValue
     uint64_t size() const { return BV->size(); }
