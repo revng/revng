@@ -35,7 +35,7 @@ public:
 
   private:
     friend class SubGraph;
-    friend class llvm::GraphTraits<SubGraph<InnerNodeType>>;
+    friend struct llvm::GraphTraits<SubGraph<InnerNodeType>>;
 
     llvm::SmallVector<Node *, 2> Children;
     InnerNodeType Value;
