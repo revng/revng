@@ -71,6 +71,12 @@ template class ReachingDefinitionsImplPass<BasicBlockInfo,
 template<class BBI, ReachingDefinitionsResult R>
 char ReachingDefinitionsImplPass<BBI, R>::ID = 0;
 
+template<>
+char ReachingDefinitionsImplPass<BasicBlockInfo, ReachingDefinitionsResult::ReachingDefinitions>::ID = 0;
+
+template<>
+char ReachingDefinitionsImplPass<ConditionalBasicBlockInfo, ReachingDefinitionsResult::ReachedLoads>::ID = 0;
+
 static RegisterPass<ReachingDefinitionsPass> X1("rdp",
                                                 "Reaching Definitions Pass",
                                                 true,

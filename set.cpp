@@ -152,10 +152,27 @@ public:
 
   void setApproximate() { Approximate = true; }
 
-  bool isApproximate() { return Approximate; }
+  bool isApproximate() const { return Approximate; }
 
   unsigned height() const { return Operations.size(); }
   bool empty() const { return height() == 0; }
+
+  Type *topType() const {
+    Type *Result = nullptr;
+    bool NonConstFound = false;
+
+    for (Value *Op : Operations.back()->operand_values()) {
+      if (!isa<Constant>(Op)) {
+        assert(!NonConstFound);
+        (void) NonConstFound;
+        NonConstFound = true;
+        Result = Op->getType();
+      }
+    }
+
+    assert(Result != nullptr);
+    return Result;
+  }
 
   std::vector<uint64_t> trackedValues() const {
     std::vector<uint64_t> Result;
@@ -211,6 +228,7 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
 
       if (NewOperand == nullptr)
         break;
+
     } else if (auto *Call = dyn_cast<CallInst>(I)) {
       Function *Callee = Call->getCalledFunction();
       assert(Callee != nullptr && Callee->getIntrinsicID() == Intrinsic::bswap);
@@ -558,7 +576,7 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
 
     // Note: addition and comparison for equality are all sign-safe
     // operations, no need to use Constants in this case.
-    for (uint64_t Address : O->bounds()) {
+    for (uint64_t Address : O->bounds(OS.topType())) {
       OS.explore(CI::get(Int64, Address));
     }
   }

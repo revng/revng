@@ -495,6 +495,11 @@ std::string JumpTargetManager::nameForAddress(uint64_t Address) const {
 }
 
 void JumpTargetManager::harvestGlobalData() {
+  // Register landing pads, if available
+  // TODO: should register them in UnusedCodePointers?
+  for (uint64_t LandingPad : Binary.landingPads())
+    registerJT(LandingPad, GlobalData);
+
   for (auto& Segment : Binary.segments()) {
     auto *Data = cast<ConstantDataArray>(Segment.Variable->getInitializer());
     uint64_t StartVirtualAddress = Segment.StartVirtualAddress;

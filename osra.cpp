@@ -1536,15 +1536,13 @@ bool OSR::combine(unsigned Opcode,
 }
 
 uint64_t OSR::BoundsIterator::operator*() const {
-  // return TheOSR.Base + (Current->first + Index) * TheOSR.Factor;
-
   bool IsSigned = TheOSR.BV->isSigned();
-  auto *T = cast<IntegerType>(TheOSR.BV->value()->getType());
 
-  auto *RangeStart = CI::get(T, Current->first, IsSigned);
-  auto *RangePosition = CI::get(T, Index, IsSigned);
-  auto *Base = CI::get(T, TheOSR.Base, IsSigned);
-  auto *Factor = CI::get(T, TheOSR.Factor, IsSigned);
+  auto Const = [&] (uint64_t V) { return CI::get(TheType, V, IsSigned); };
+  auto *RangeStart = Const(Current->first);
+  auto *RangePosition = Const(Index);
+  auto *Base = Const(TheOSR.Base);
+  auto *Factor = Const(TheOSR.Factor);
 
   auto *Result = CE::getAdd(CE::getMul(CE::getAdd(RangeStart,
                                                   RangePosition),
