@@ -89,3 +89,5 @@ install(FILES support.c DESTINATION share/revamb)
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 
 include(tests/Tests.cmake)
+
+add_subdirectory(docs/)
