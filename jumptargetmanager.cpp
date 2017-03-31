@@ -1042,7 +1042,8 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
   for (BasicBlock *BB : Visited) {
     // We might have some predecessorless basic blocks jumping to us, purge them
     // TODO: why this?
-    for (BasicBlock *Predecessor : predecessors(BB)) {
+    while (pred_begin(BB) != pred_end(BB)) {
+      BasicBlock *Predecessor = *pred_begin(BB);
       assert(pred_empty(Predecessor));
       Predecessor->eraseFromParent();
     }

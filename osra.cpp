@@ -11,6 +11,7 @@
 #include <vector>
 
 // LLVM includes
+#include "llvm/ADT/Optional.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/Constants.h"
@@ -21,6 +22,9 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Pass.h"
 
+// Boost includes
+#include <boost/icl/interval_set.hpp>
+
 // Local includes
 #include "datastructures.h"
 #include "debug.h"
@@ -30,6 +34,8 @@
 #include "osra.h"
 
 using namespace llvm;
+
+using boost::icl::interval_bounds;
 
 using Predicate = CmpInst::Predicate;
 using OSR = OSRAPass::OSR;
@@ -299,29 +305,59 @@ public:
   void handleMemoryOperation(Instruction *I);
 
   // Helper functions employed by handleComparison
-  bool mergePredicate(OSR &BaseOp,
-                      Predicate P,
-                      Constant *ConstOp,
-                      bool IsSigned,
-                      BoundedValue &NewBV);
-  void applyConstraint(OSR &BaseOp,
-                       Instruction *I,
-                       Predicate P,
-                       ICmpInst *Comparison,
-                       Constant *ConstOp,
-                       BVVector &NewConstraints);
 
+  /// \brief Given an OSR, an predicate and a constant, produce a new
+  ///        BoundedValue
+  ///
+  /// \param BaseOp the OSR representing theleft-hand side of the comparison
+  /// \param P the comparison operation to perform
+  /// \param ConstOp the constant against which the comparison is performed
+  ///
+  /// \return a new BoundedValue constraining the BoundedValue associated to \p
+  ///         BaseOp with the specified comparison
+  BoundedValue mergePredicate(OSR &BaseOp, Predicate P, Constant *ConstOp);
+
+  Optional<BoundedValue> applyConstraint(Instruction *I,
+                                         OSR &BaseOp,
+                                         Predicate P,
+                                         Constant *ConstOp);
 
   std::pair<Constant *, Value *>
   identifyOperands(const Instruction *I, const DataLayout &DL) {
     return OSRAPass::identifyOperands(OSRs, I, DL);
   }
 
+  /// \brief Possible values that an operand in a comparison can assume
+  ///
+  /// This data structure describe the set of possible values that the operand
+  /// of a comparison can assume. They can either be constants or OSRs. If a
+  /// constant is not a plain llvm::Constant but it has been obtained through a
+  /// constant OSR, then we also record the Value associated to the OSR.
+  ///
+  /// This data structure also holds the load instruction through which we had
+  /// to go through to obtain these results, and on which the comparison
+  /// therefore depends.
+  struct ComparisonOperand {
+    ComparisonOperand() { }
+    ComparisonOperand(uint64_t V) : Constants({ { V, nullptr } }) { }
+
+    SmallVector<std::pair<uint64_t, const Value *>, 1> Constants;
+    SmallVector<OSR, 4> OSRs;
+    SmallVector<const LoadInst *, 3> AffectingLoads;
+  };
+
+  /// \brief Inspect a Value to produce the possible values it can assume as
+  ///        comparison operand
+  ///
+  /// See ComparisonOperand to interpret the results.
+  ComparisonOperand identifyComparisonOperands(Value *V, BasicBlock *BB) const;
+
   /// \brief Return true if \p I is stored in the CPU state but never read again
   bool isDead(Instruction *I) const;
 
   // TODO: this is a duplication of OSRAPass::getOSR
-  const OSR *getOSR(const Value *V) {
+  /// \brief If available, returns the OSR associated to \p V
+  const OSR *getOSR(const Value *V) const {
     auto *I = dyn_cast<Instruction>(V);
 
     if (I == nullptr)
@@ -334,7 +370,7 @@ public:
       return &It->second;
   }
 
-  OSR switchBlock(OSR Base, BasicBlock *BB) {
+  OSR switchBlock(OSR Base, BasicBlock *BB) const {
     Base.setBoundedValue(&BVs.get(BB, Base.boundedValue()->value()));
     return Base;
   }
@@ -369,7 +405,7 @@ public:
   ///       not really interested in.
   ///
   /// \return the newly created OSR, possibly expressed in terms of \p V itself.
-  OSR createOSR(Value *V, BasicBlock *BB);
+  OSR createOSR(Value *V, BasicBlock *BB) const;
 
   void describe(formatted_raw_ostream &O, const Instruction *I) const;
   void describe(formatted_raw_ostream &O, const BasicBlock *BB) const;
@@ -563,11 +599,9 @@ void OSRA::handleLogicalOperator(Instruction *I) {
 }
 
 // TODO: give a better name
-bool OSRA::mergePredicate(OSR &BaseOp,
-                          Predicate P,
-                          Constant *ConstOp,
-                          bool IsSigned,
-                          BoundedValue &NewBV) {
+BoundedValue OSRA::mergePredicate(OSR &BaseOp, Predicate P, Constant *ConstOp) {
+  const Value *V = BaseOp.boundedValue()->value();
+  bool IsSigned = BaseOp.boundedValue()->isSigned();
   // Solve the equation to obtain the new boundary value
   // x <  1.5 == x <  2 (Ceiling)
   // x <= 1.5 == x <= 1 (Floor)
@@ -580,14 +614,14 @@ bool OSRA::mergePredicate(OSR &BaseOp,
 
   Constant *NewBoundC = BaseOp.solveEquation(ConstOp, RoundUp, DL);
   if (isa<UndefValue>(NewBoundC))
-    return false;
+    return BoundedValue::createBottom(V);
 
   uint64_t NewBound = getExtValue(NewBoundC, IsSigned, DL);
 
   // TODO: this is an hack
   if (NewBound == 0
       && (P == CmpInst::ICMP_ULT || P == CmpInst::ICMP_UGE))
-    return true;
+    return BoundedValue(V);
 
   BoundedValue Constraint;
   switch (P) {
@@ -597,131 +631,202 @@ bool OSRA::mergePredicate(OSR &BaseOp,
   case CmpInst::ICMP_SGE:
     if (CmpInst::isFalseWhenEqual(P))
       NewBound++;
+    return BoundedValue::createGE(V, NewBound, IsSigned);
 
-    Constraint = BoundedValue::createGE(NewBV.value(), NewBound, IsSigned);
-    break;
   case CmpInst::ICMP_ULT:
   case CmpInst::ICMP_ULE:
   case CmpInst::ICMP_SLT:
   case CmpInst::ICMP_SLE:
     if (CmpInst::isFalseWhenEqual(P))
       NewBound--;
+    return BoundedValue::createLE(V, NewBound, IsSigned);
 
-    Constraint = BoundedValue::createLE(NewBV.value(), NewBound, IsSigned);
-    break;
   case CmpInst::ICMP_EQ:
-    Constraint = BoundedValue::createEQ(NewBV.value(),
-                                        NewBound,
-                                        NewBV.isSigned());
-    break;
+    return BoundedValue::createEQ(V, NewBound, IsSigned);
+
   case CmpInst::ICMP_NE:
-    Constraint = BoundedValue::createNE(NewBV.value(),
-                                        NewBound,
-                                        NewBV.isSigned());
-    break;
+    return BoundedValue::createNE(V, NewBound, IsSigned);
+
   default:
     assert(false);
     break;
   }
-
-  NewBV.merge(Constraint, DL, Int64);
-  return true;
 }
 
-void OSRA::applyConstraint(OSR &BaseOp,
-                           Instruction *I,
-                           Predicate P,
-                           ICmpInst *Comparison,
-                           Constant *ConstOp,
-                           BVVector &NewConstraints) {
+Optional<BoundedValue> OSRA::applyConstraint(Instruction *I,
+                                             OSR &BaseOp,
+                                             Predicate P,
+                                             Constant *ConstOp) {
   BasicBlock *BB = I->getParent();
+  const BoundedValue *OriginalBV = BaseOp.boundedValue();
 
-  // Ignore OSR that are bottom, relative to themselves with a factor 0 (i.e.,
-  // old-style constant)
-  // TODO: probably we can drop factor == 0, we no longer handle constants this
-  // way.
-  if (BaseOp.boundedValue()->isBottom()
-      || BaseOp.isRelativeTo(I)
-      || BaseOp.factor() == 0)
-    return;
+  // Ignore OSR that are bottom or relative to themselves
+  // TODO: how can BaseOp.factor() == 0? Investigate
+  if (OriginalBV->isBottom() || BaseOp.isRelativeTo(I) || BaseOp.factor() == 0)
+    return Optional<BoundedValue>();
 
   // Notify the BV about the sign we're going to use, unless it's a comparison
   // of (in)equality
   bool IsSigned;
   if (P != CmpInst::ICMP_EQ && P != CmpInst::ICMP_NE) {
-    IsSigned = Comparison->isSigned();
-    BVs.setSignedness(BB, BaseOp.boundedValue()->value(), IsSigned);
+    IsSigned = ICmpInst::isSigned(P);
+    BVs.setSignedness(BB, OriginalBV->value(), IsSigned);
   } else {
     // TODO: we don't know what sign to use here, so we ignore it, should we
     //       switch to AnySignedness?
-    if (!BaseOp.boundedValue()->hasSignedness())
-      return;
+    if (!OriginalBV->hasSignedness())
+      return Optional<BoundedValue>();
 
-    IsSigned = BaseOp.boundedValue()->isSigned();
+    IsSigned = OriginalBV->isSigned();
   }
 
   // If setting the sign we went to bottom or still don't have it (e.g., due to
   // being top), give up
-  if (BaseOp.boundedValue()->isBottom()
-      || !BaseOp.boundedValue()->hasSignedness())
-    return;
+  if (OriginalBV->isBottom() || !OriginalBV->hasSignedness())
+    return Optional<BoundedValue>();
 
-  // Create a copy of the current value of the BV
-  BoundedValue NewBV = *(BaseOp.boundedValue());
-
-  bool Result = mergePredicate(BaseOp, P, ConstOp, IsSigned, NewBV);
-  if (!Result)
-    return;
+  BoundedValue Result = mergePredicate(BaseOp, P, ConstOp);
+  // TODO: shouldn't we push to NewConstraints a bottom BV?
+  if (Result.isBottom())
+    return Optional<BoundedValue>();
 
   // Unsigned inequations implictly say that both operands are greater than or
   // equal to zero. This means that if we have `x - 5 < 10`, we don't just know
   // that `x < 15` but also that `x - 5 >= 0`, i.e., `x >= 5`.
-  if (P == CmpInst::ICMP_ULT || P == CmpInst::ICMP_ULE) {
+  if (CmpInst::isUnsigned(P)) {
+    // In case NewBV is of type [x, +Inf], we temporarily turn it into [-Inf, x
+    // - 1], apply the > 0, and then flip it again. In this way if we have
+    // x - 3 > 30, we get NOT [4, 33], which is way more informative than
+    // [33, +Inf]
+
+    bool Flip = Result.isRightOpen();
+    if (Flip)
+      Result.flip();
+
     auto *Zero = ConstantInt::get(ConstOp->getType(), 0);
-    Result = mergePredicate(BaseOp, CmpInst::ICMP_UGE, Zero, IsSigned, NewBV);
+    Result.merge(mergePredicate(BaseOp, CmpInst::ICMP_UGE, Zero), DL, Int64);
+
+    if (Flip)
+      Result.flip();
   }
 
-  if (!Result)
-    return;
+  if (Result.isBottom())
+    return Optional<BoundedValue>();
 
-  NewConstraints.push_back(NewBV);
+  // Create a copy of the current value of the BV
+  BoundedValue NewBV = *OriginalBV;
+  NewBV.merge(Result, DL, Int64);
+  return NewBV;
+}
+
+OSRA::ComparisonOperand
+OSRA::identifyComparisonOperands(Value *V, BasicBlock *BB) const {
+  // Is it an LLVM Constant?
+  if (auto *C = dyn_cast<Constant>(V))
+    return ComparisonOperand(getLimitedValue(C));
+
+  ComparisonOperand Result;
+
+  // Do we have an OSR for this value?
+  if (auto *I = dyn_cast<Instruction>(V)) {
+
+    OSR TheOSR = createOSR(I, BB);
+
+    if (TheOSR.isConstant()) {
+      // It's constant: register it as such
+      std::pair<uint64_t, const Value *> C {
+        TheOSR.constant(),
+        TheOSR.boundedValue()->value()
+      };
+      Result.Constants.push_back(C);
+    } else {
+      // A normal OSR
+      Result.OSRs.push_back(TheOSR);
+    }
+
+    // Now check if the OSR is referencing a Load instruction, which is
+    // associated with a self-referencing OSR. In this case, add to the
+    // candidate values all the reaching definitions of such load
+
+    // Is the OSR referencing a Load?
+    if (TheOSR.boundedValue() == nullptr)
+      return Result;
+
+    const Value *BaseValue = TheOSR.boundedValue()->value();
+
+    if (BaseValue == nullptr)
+      return Result;
+
+    if (auto *Load = dyn_cast<LoadInst>(BaseValue)) {
+      // Register this instruction to be visited again when Load changes
+      Result.AffectingLoads.push_back(Load);
+
+      const OSR *LoadOSR = getOSR(Load);
+
+      // Did we get an OSR? Is it self-referencing?
+      if (LoadOSR == nullptr || LoadOSR->boundedValue()->value() != Load)
+        return Result;
+
+      auto ReachersIt = LoadReachers.find(Load);
+
+      // Does the load have at least one reacher?
+      if (ReachersIt == LoadReachers.end())
+        return Result;
+      auto &Reachers = ReachersIt->second;
+      if (Reachers.size() <= 1)
+        return Result;
+
+      for (auto &Reacher : Reachers) {
+        const BoundedValue *ReacherBV = Reacher.second.boundedValue();
+        // Ignore constants and self-reaching loads
+        if (!Reacher.second.isConstant()
+            && ReacherBV != nullptr
+            && ReacherBV->value() != nullptr
+            && ReacherBV->value() != Load) {
+          // Note: here we don't handle constant OSR in a special way here
+          Result.OSRs.push_back(Reacher.second);
+        }
+      }
+
+    }
+
+  }
+
+  return Result;
 }
 
 void OSRA::handleComparison(Instruction *I) {
-  // TODO: this part is quite ugly, try to improve it
-  auto SimplifiedComparison = SCP.getComparison(cast<CmpInst>(I));
-  ICmpInst *Comparison = new ICmpInst(SimplifiedComparison.Predicate,
-                                      SimplifiedComparison.LHS,
-                                      SimplifiedComparison.RHS);
-  std::unique_ptr<ICmpInst> SimplifiedCmpInst(Comparison);
-
-  Predicate P = Comparison->getPredicate();
-
-  Value *LHS = Comparison->getOperand(0);
-  Value *RHS = Comparison->getOperand(1);
-
-  Constant *ConstOp = nullptr;
-  Value *FreeOpValue = nullptr;
-  Instruction *FreeOp = nullptr;
-  std::tie(ConstOp, FreeOpValue) = identifyOperands(Comparison, DL);
-  if (FreeOpValue != nullptr) {
-    FreeOp = dyn_cast<Instruction>(FreeOpValue);
-    if (FreeOp == nullptr)
-      return;
-  }
-
+  // Ignore dead comparisons
   if (isDead(I))
     return;
 
-  // Comparison for equality and inequality are handled to propagate constraints
-  // in case of test of the result of a comparison (e.g., (x < 3) == 0).
-  if (ConstOp != nullptr && FreeOp != nullptr
-      && Constraints.find(FreeOp) != Constraints.end()
-      && (P == CmpInst::ICMP_EQ || P == CmpInst::ICMP_NE)) {
-    // If we're comparing with 0 for equality or inequality and the non-constant
-    // operand has constraints, propagate them flipping them (if necessary).
-    if (getZExtValue(ConstOp, DL) == 0) {
+  // We use data from SimplifiedComparisonAnalysis
+  auto SC = SCP.getComparison(cast<CmpInst>(I));
+  ICmpInst *Comparison = new ICmpInst(SC.Predicate, SC.LHS, SC.RHS);
+  std::unique_ptr<ICmpInst> SimplifiedCmpInst(Comparison);
 
+  // Collect general information
+  Predicate P = Comparison->getPredicate();
+  BasicBlock *BB = I->getParent();
+
+  // First of all handle comparisons for equality (or inequality) with 0 of
+  // values with one or more constraints associated (e.g., (x < 3) == 0).
+  if (P == CmpInst::ICMP_EQ || P == CmpInst::ICMP_NE) {
+    assert(Constraints.count(nullptr) == 0);
+
+    bool LHSIsZero = isa<Constant>(SC.LHS) && getLimitedValue(SC.LHS) == 0;
+    Instruction *LHSInst = dyn_cast<Instruction>(SC.LHS);
+    bool LHSHasConstraints = Constraints.count(LHSInst) != 0;
+
+    bool RHSIsZero = isa<Constant>(SC.RHS) && getLimitedValue(SC.RHS) == 0;
+    Instruction *RHSInst = dyn_cast<Instruction>(SC.RHS);
+    bool RHSHasConstraints = Constraints.count(RHSInst) != 0;
+
+    if ((LHSIsZero && RHSHasConstraints) || (RHSIsZero && LHSHasConstraints)) {
+      // If we're comparing with 0 for equality or inequality and the
+      // non-constant operand has constraints, propagate them (flipped if
+      // necessary).
+      Value *FreeOp = LHSIsZero ? SC.RHS : SC.LHS;
       if (P == CmpInst::ICMP_EQ) {
         propagateConstraints(I, FreeOp, [] (BVVector &Constraints) {
             BVVector Result = Constraints;
@@ -741,121 +846,152 @@ void OSRA::handleComparison(Instruction *I) {
     }
   }
 
+  //
   // Compute a new constraint
-  // Check the comparison operator is a supported one
-  if (P != CmpInst::ICMP_UGT
-      && P != CmpInst::ICMP_UGE
-      && P != CmpInst::ICMP_SGT
-      && P != CmpInst::ICMP_SGE
-      && P != CmpInst::ICMP_ULT
-      && P != CmpInst::ICMP_ULE
-      && P != CmpInst::ICMP_SLT
-      && P != CmpInst::ICMP_SLE
-      && P != CmpInst::ICMP_EQ
-      && P != CmpInst::ICMP_NE)
+  //
+
+  // Check the comparison operator is supported
+  switch (P) {
+  case CmpInst::ICMP_UGT:
+  case CmpInst::ICMP_UGE:
+  case CmpInst::ICMP_SGT:
+  case CmpInst::ICMP_SGE:
+  case CmpInst::ICMP_ULT:
+  case CmpInst::ICMP_ULE:
+  case CmpInst::ICMP_SLT:
+  case CmpInst::ICMP_SLE:
+  case CmpInst::ICMP_EQ:
+  case CmpInst::ICMP_NE:
+    break;
+  default:
     return;
+  }
 
-  auto OldBVsIt = Constraints.find(I);
-  bool HasConstraints = OldBVsIt != Constraints.end();
+  // Sources of operands of the comparison:
+  //
+  // * The (simplified) comparison operands themselves
+  // * Reachers of the self-referencing load of op1
+  // * Reachers of the self-referencing load of op2
+  //
+  // Handlers:
+  //
+  // * no constant operands: no-op
+  // * constant vs constants: if contradiction, set everything to bottom
+  // * const and non-const (or viceversa): compute new constraints
+
   BVVector NewConstraints;
+  ComparisonOperand LHS = identifyComparisonOperands(SC.LHS, BB);
+  ComparisonOperand RHS = identifyComparisonOperands(SC.RHS, BB);
 
-  if (FreeOp == nullptr) {
-    if (ConstOp == nullptr) {
-      // Both operands are free, give up
+  // Register the current instruction to be analyzed again in case one of
+  // the load it depends on changes
+  for (const LoadInst *Load : LHS.AffectingLoads)
+    Subscriptions[Load].insert(I);
+  for (const LoadInst *Load : RHS.AffectingLoads)
+    Subscriptions[Load].insert(I);
 
-      // TODO: are we sure this is what we want?
-      if (HasConstraints)
-        Constraints.erase(OldBVsIt);
-      HasConstraints = false;
-      return;
-    } else {
-      // FreeOpValue is nullptr but ConstOp is not: we were able to fold the
-      // operation into a constant
-
-      if (getZExtValue(ConstOp, DL) != 0) {
-        // The comparison holds, we're saying nothing useful (e.g. 2 < 3),
-        // remove any constraint
-        if (HasConstraints)
-          Constraints.erase(OldBVsIt);
-        HasConstraints = false;
+  // const vs const: either a contradiction or a tautology
+  for (auto &LHSPair : LHS.Constants) {
+    for (auto &RHSPair : RHS.Constants) {
+      // At least one of the two operands must have a Value associated, we don't
+      // handle comparison which were originally const-foldable
+      Type *T = nullptr;
+      if (LHSPair.second != nullptr) {
+        T = LHSPair.second->getType();
       } else {
-        // The comparison does not hold, move to bottom all the involved BVs
-
-        auto *FirstOp = dyn_cast<Instruction>(LHS);
-        if (FirstOp != nullptr) {
-          auto FirstOSRIt = OSRs.find(FirstOp);
-          if (FirstOSRIt != OSRs.end()) {
-            auto FirstOSR = FirstOSRIt->second;
-            NewConstraints.push_back(*FirstOSR.boundedValue());
-          }
-        }
-
-        if (auto *SecondOp = dyn_cast<Instruction>(RHS)) {
-          auto SecondOSRIt = OSRs.find(SecondOp);
-          if (SecondOSRIt != OSRs.end()) {
-            auto SecondOSR = SecondOSRIt->second;
-            NewConstraints.push_back(*SecondOSR.boundedValue());
-          }
-        }
-
-        for (auto &Constraint : NewConstraints)
-          Constraint.setBottom();
-
+        assert(RHSPair.second != nullptr);
+        T = RHSPair.second->getType();
       }
-    }
 
-  } else {
-    // We have a constant operand and a free one
+      // Check if the comparison holds. If not, set to bottom the associate
+      // value
+      Constant *LHSConstant = CI::get(T, LHSPair.first);
+      Constant *RHSConstant = CI::get(T, RHSPair.first);
+      Constant *Compare = CE::getICmp(P, LHSConstant, RHSConstant);
 
-    BasicBlock *BB = I->getParent();
-    OSR TheOSR = createOSR(FreeOp, BB);
-    NewConstraints.clear();
-
-    // Handle the base case
-    applyConstraint(TheOSR, I, P, Comparison, ConstOp, NewConstraints);
-
-    // Handle all the reaching definitions, if it's referred to a load
-    const Value *BaseValue = nullptr;
-    if (TheOSR.boundedValue() != nullptr)
-      BaseValue = TheOSR.boundedValue()->value();
-
-    if (BaseValue != nullptr) {
-      if (auto *Load = dyn_cast<LoadInst>(BaseValue)) {
-        const OSR *LoadOSR = getOSR(Load);
-        auto &Reachers = LoadReachers[Load];
-
-        // Register this instruction to be visited again when Load changes
-        Subscriptions[Load].insert(I);
-        if (Reachers.size() > 1
-            && LoadOSR != nullptr
-            && LoadOSR->boundedValue()->value() == Load) {
-
-          for (auto &Reacher : Reachers) {
-            if (!Reacher.second.isConstant()
-                && Reacher.second.boundedValue() != nullptr
-                && Reacher.second.boundedValue()->value() != nullptr
-                && Reacher.second.boundedValue()->value() != Load) {
-              OSR TheOSR = switchBlock(Reacher.second, BB);
-              applyConstraint(TheOSR,
-                              I,
-                              P,
-                              Comparison,
-                              ConstOp,
-                              NewConstraints);
-            }
-          }
-
-        }
+      // Does the comparison hold?
+      if (getLimitedValue(Compare) == 0) {
+        // It doens't: send everything to bottom
+        if (LHSPair.second != nullptr)
+          NewConstraints.push_back(BoundedValue::createBottom(LHSPair.second));
+        if (RHSPair.second != nullptr)
+          NewConstraints.push_back(BoundedValue::createBottom(RHSPair.second));
       }
-    }
 
+    }
+  }
+
+  Type *T = I->getOperand(0)->getType();
+
+  // OSR vs const
+  for (auto &RHSPair : RHS.Constants) {
+    Constant *ConstOp = CI::get(T, RHSPair.first);
+
+    for (OSR &LHSOSR : LHS.OSRs) {
+      OSR TheOSR = switchBlock(LHSOSR, BB);
+      auto NewBV = applyConstraint(I, TheOSR, P, ConstOp);
+      if (NewBV.hasValue())
+        NewConstraints.push_back(*NewBV);
+    }
 
   }
 
-  bool Changed = true;
+  // const vs OSR
+  ICmpInst::Predicate FP = ICmpInst::getInversePredicate(P);
+  for (auto &LHSPair : LHS.Constants) {
+    Constant *ConstOp = CI::get(T, LHSPair.first);
+
+    for (OSR &RHSOSR : RHS.OSRs) {
+      OSR TheOSR = switchBlock(RHSOSR, BB);
+      auto NewBV = applyConstraint(I, TheOSR, FP, ConstOp);
+      if (NewBV.hasValue())
+        NewConstraints.push_back(*NewBV);
+    }
+
+  }
+
+  // Note: we don't handle the remaining case, i.e., OSR vs OSR
+
+  // or-merge constraints relative to the same bounded value before propagation
+  if (NewConstraints.size() > 1) {
+    BVVector MergedConstraints;
+    std::set<const Value *> HandledValues;
+
+    for (auto It = NewConstraints.begin(); It != NewConstraints.end(); It++) {
+      const Value *V = It->value();
+      if (HandledValues.count(V) == 0) {
+        HandledValues.insert(V);
+
+        // Initialize the result with the first BV relative to V
+        BoundedValue Result = *It;
+
+        // Iterate over the remaining elements of the constraints vector
+        auto ItRest = It;
+        ItRest++;
+        for (; ItRest != NewConstraints.end(); ItRest++) {
+          // Are they relative to the same Value? If so, merge them
+          if (ItRest->value() == V) {
+            Result.merge<BoundedValue::Or>(*ItRest, DL, Int64);
+          }
+        }
+
+        MergedConstraints.push_back(Result);
+      }
+    }
+
+    NewConstraints = MergedConstraints;
+  }
 
   // Check against the old constraints associated with this comparison
-  if (HasConstraints) {
+  auto OldBVsIt = Constraints.find(I);
+  bool HadConstraints = OldBVsIt != Constraints.end();
+
+  // If we had no constraints, and we still don't have them, for sure there was
+  // no change
+  bool Changed = !(HadConstraints && NewConstraints.size() == 0);
+
+  // If we had constraints, check they're actually different from the new ones
+  if (Changed && HadConstraints) {
     BVVector &OldBVsVector = OldBVsIt->second;
     if (NewConstraints.size() == OldBVsVector.size()) {
       bool Different = false;
@@ -879,6 +1015,7 @@ void OSRA::handleComparison(Instruction *I) {
     Constraints[I] = NewConstraints;
     enqueueUsers(I);
   }
+
 }
 
 void OSRA::handleUnaryOperator(Instruction *I) {
@@ -1201,13 +1338,13 @@ void OSRA::handleMemoryOperation(Instruction *I) {
       // Does the reached load carries any constraints already?
       auto ReachedLoadConstraintIt = Constraints.find(ReachedLoad);
       if (ReachedLoadConstraintIt != Constraints.end()) {
-        // Merge the constraints (using the `or` logic) directly in-place in the
-        // reached load's BVVector
+        // Merge the constraints (using the `and` logic) directly in-place in
+        // the reached load's BVVector
         using BV = BoundedValue;
-        Changed |= mergeBVVectors<BV::Or>(ReachedLoadConstraintIt->second,
-                                          TheConstraints,
-                                          DL,
-                                          Int64);
+        Changed |= mergeBVVectors<BV::And>(ReachedLoadConstraintIt->second,
+                                           TheConstraints,
+                                           DL,
+                                           Int64);
       } else {
         // The reached load has no constraints, simply propagate the input ones
         Constraints.insert({ ReachedLoad, TheConstraints });
@@ -1257,12 +1394,6 @@ Constant *OSR::evaluate(Constant *Value, Type *Int64) const {
   Constant *FactorC = CI::get(Int64, Factor, BV->isSigned());
 
   return CE::getAdd(BaseC, CE::getMul(FactorC, Value));
-}
-
-static bool isPositive(Constant *C, const DataLayout &DL) {
-  auto *Zero = CI::get(C->getType(), 0, true);
-  auto *Compare = CE::getCompare(CmpInst::ICMP_SGE, C, Zero);
-  return getConstValue(Compare, DL)->getLimitedValue();
 }
 
 pair<Constant *, Constant *>
@@ -1346,14 +1477,16 @@ BoundedValue BoundedValue::moveTo(llvm::Value *V,
   Result.Value = V;
 
   using I = Instruction;
-  if (Result.LowerBound != Result.lowerExtreme()) {
-    Result.LowerBound = performOp(Result.LowerBound, I::Mul, Multiplier, DL);
-    Result.LowerBound = performOp(Result.LowerBound, I::Add, Offset, DL);
-  }
+  for (std::pair<uint64_t, uint64_t> &Bound : Result.Bounds) {
+    if (Bound.first != Result.lowerExtreme()) {
+      Bound.first = performOp(Bound.first, I::Mul, Multiplier, DL);
+      Bound.first = performOp(Bound.first, I::Add, Offset, DL);
+    }
 
-  if (Result.UpperBound != Result.upperExtreme()) {
-    Result.UpperBound = performOp(Result.UpperBound, I::Mul, Multiplier, DL);
-    Result.UpperBound = performOp(Result.UpperBound, I::Add, Offset, DL);
+    if (Bound.second != Result.upperExtreme()) {
+      Bound.second = performOp(Bound.second, I::Mul, Multiplier, DL);
+      Bound.second = performOp(Bound.second, I::Add, Offset, DL);
+    }
   }
 
   return Result;
@@ -1400,6 +1533,25 @@ bool OSR::combine(unsigned Opcode,
   }
 
   return Changed;
+}
+
+uint64_t OSR::BoundsIterator::operator*() const {
+  // return TheOSR.Base + (Current->first + Index) * TheOSR.Factor;
+
+  bool IsSigned = TheOSR.BV->isSigned();
+  auto *T = cast<IntegerType>(TheOSR.BV->value()->getType());
+
+  auto *RangeStart = CI::get(T, Current->first, IsSigned);
+  auto *RangePosition = CI::get(T, Index, IsSigned);
+  auto *Base = CI::get(T, TheOSR.Base, IsSigned);
+  auto *Factor = CI::get(T, TheOSR.Factor, IsSigned);
+
+  auto *Result = CE::getAdd(CE::getMul(CE::getAdd(RangeStart,
+                                                  RangePosition),
+                                       Factor),
+                            Base);
+
+  return getLimitedValue(Result);
 }
 
 class OSRAnnotationWriter : public AssemblyAnnotationWriter {
@@ -1531,19 +1683,23 @@ void BoundedValue::describe(formatted_raw_ostream &O) const {
   if (Bottom) {
     O << ", bottom";
   } else if (!isUninitialized()) {
-    O << ", ";
-    if (!isConstant() && LowerBound == lowerExtreme()) {
-      O << "min";
-    } else {
-      O << LowerBound;
-    }
+    for (auto Bound : Bounds) {
+      O << ", [";
+      if (!isConstant() && Bound.first == lowerExtreme()) {
+        O << "min";
+      } else {
+        O << Bound.first;
+      }
 
-    O << ", ";
+      O << ", ";
 
-    if (!isConstant() && UpperBound == upperExtreme()) {
-      O << "max";
-    } else {
-      O << UpperBound;
+      if (!isConstant() && Bound.second == upperExtreme()) {
+        O << "max";
+      } else {
+        O << Bound.second;
+      }
+
+      O << "]";
     }
   }
 
@@ -1620,7 +1776,7 @@ Constant *OSR::solveEquation(Constant *KnownTerm,
   return Division;
 }
 
-OSR OSRA::createOSR(Value *V, BasicBlock *BB) {
+OSR OSRA::createOSR(Value *V, BasicBlock *BB) const {
   auto OtherOSRIt = OSRs.find(V);
   if (OtherOSRIt != OSRs.end())
     return switchBlock(OtherOSRIt->second, BB);
@@ -1634,6 +1790,7 @@ OSR OSRA::createOSR(Value *V, BasicBlock *BB) {
 /// to the free operand. If none of the operands are constant returns { nullptr,
 /// nullptr }. It also returns { nullptr, nullptr } if I is not commutative and
 /// only the first operand is constant.
+// TODO: this only works with commutative instructions
 std::pair<Constant *, Value *>
 OSRAPass::identifyOperands(std::map<const Value *, const OSR> &OSRs,
                            const Instruction *I,
@@ -1844,16 +2001,6 @@ public:
     if (!Result.hasSignedness())
       Result.setBottom();
 
-    if (!Result.isUninitialized() && !Result.isBottom()) {
-      using Cmp = CmpInst;
-      auto Predicate = Result.isSigned() ? Cmp::ICMP_SLE : Cmp::ICMP_ULE;
-      Constant *Compare = CE::getCompare(Predicate,
-                                         Result.lower(Int64),
-                                         Result.upper(Int64));
-      if (getZExtValue(Compare, DL) == 0)
-        Result.setBottom();
-    }
-
     return Result;
   }
 
@@ -1966,7 +2113,8 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
 
           if (EdgeBV != nullptr) {
             // And-merge
-            Result.merge<BoundedValue::And>(*EdgeBV, DL, Int64);
+            BoundedValue Tmp = Result;
+            Tmp.merge<BoundedValue::And>(*EdgeBV, DL, Int64);
 
             DBG("psm", {
                 dbg << Indent << "    Got ";
@@ -1974,12 +2122,14 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
                 dbg << " from the " << getName(*ToMerge.PredecessorIt)
                     << " -> " << getName(ToMerge.BB)
                     << " edge: ";
-                Result.describe(FormattedStream);
+                Tmp.describe(FormattedStream);
                 dbg << "\n";
               });
 
-            if (Result.isBottom())
+            if (Tmp.isBottom())
               break;
+            else
+              Result = Tmp;
 
           } else {
             DBG("psm", {
@@ -1998,13 +2148,14 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
 
           // Register the current height as the last merge
           R.setLastMerge(Height);
+
+          // Deactivate
+          R.setInactive(Height);
         } else {
           DBG("psm", dbg << Indent
               << "    We got an incoherent situation, ignore it\n";);
         }
 
-        // Deactivate
-        R.setInactive(Height);
       } else if (MayAlias) {
         DBG("psm", dbg << Indent
             << "  Deactivating reacher " << ReacherIndex << "\n";);
@@ -2179,18 +2330,35 @@ void BVMap::describe(formatted_raw_ostream &O, const BasicBlock *BB) const {
 std::pair<bool, BoundedValue &> BVMap::update(BasicBlock *Target,
                                               BasicBlock *Origin,
                                               BoundedValue NewBV) {
+  // Debug support
+  raw_os_ostream OsOstream(dbg);
+  formatted_raw_ostream FormattedStream(OsOstream);
+  FormattedStream.SetUnbuffered();
+
+  DBG("osr-bv", {
+      dbg << "Updating " << getName(Target)
+          << " from " << getName(Origin)
+          << " with ";
+      NewBV.describe(FormattedStream);
+      dbg << ": ";
+    });
+
   auto Index = make_pair(Target, NewBV.value());
   auto MapIt = TheMap.find(Index);
   MapValue *BVOVector = nullptr;
 
   // Have we ever seen this value for this basic block?
   if (MapIt == TheMap.end()) {
+    DBG("osr-bv", dbg << "new\n");
+
     // No, just insert it
     MapValue NewBVOVector;
     NewBVOVector.Components.push_back({ make_pair(Origin, NewBV) });
     BVOVector = &TheMap.insert({ Index, NewBVOVector }).first->second;
     return { true, summarize(Target, BVOVector) };
   } else if (isForced(MapIt)) {
+    DBG("osr-bv", dbg << "forced\n");
+
     return { false, MapIt->second.Summary };
   } else {
     bool Changed = true;
@@ -2203,13 +2371,33 @@ std::pair<bool, BoundedValue &> BVMap::update(BasicBlock *Target,
         Base = &BVO.second;
 
     // Did we ever see this Origin?
-    if (Base == nullptr)
+    if (Base == nullptr) {
+      DBG("osr-bv", dbg << "new component");
+
       BVOVector->Components.push_back({ Origin, NewBV });
-    else
+    } else {
+      DBG("osr-bv", {
+          dbg << "merging with ";
+          Base->describe(FormattedStream);
+        });
+
       Changed = Base->merge<AndMerge>(NewBV, *DL, Int64);
+
+      DBG("osr-bv", {
+          dbg << " producing ";
+          Base->describe(FormattedStream);
+        });
+    }
 
     // Re-merge all the entries
     auto &Result = summarize(Target, BVOVector);
+
+    DBG("osr-bv", {
+        dbg << ", final result ";
+        Result.describe(FormattedStream);
+        dbg << "\n";
+      });
+
     return { Changed, Result };
   }
 
@@ -2264,47 +2452,151 @@ void BoundedValue::setSignedness(bool IsSigned) {
 
   Signedness NewSign = IsSigned ? Signed : Unsigned;
   if (Sign == UnknownSignedness) {
-    assert(LowerBound == 0 && UpperBound == 0);
+    assert(Bounds.size() == 0);
     Sign = NewSign;
 
     if (IsSigned) {
-      LowerBound = numeric_limits<int64_t>::min();
-      UpperBound = numeric_limits<int64_t>::max();
+      Bounds.emplace_back(numeric_limits<int64_t>::min(),
+                          numeric_limits<int64_t>::max());
     } else {
-      LowerBound = numeric_limits<uint64_t>::min();
-      UpperBound = numeric_limits<uint64_t>::max();
+      Bounds.emplace_back(numeric_limits<uint64_t>::min(),
+                          numeric_limits<uint64_t>::max());
     }
   } else if (Sign == AnySignedness) {
     Sign = NewSign;
   } else if (Sign != NewSign) {
     Sign = InconsistentSignedness;
     // TODO: handle top case
-    if (LowerBound > numeric_limits<int64_t>::max()
-        || UpperBound > numeric_limits<int64_t>::max()) {
+    auto Condition = [] (std::pair<uint64_t, uint64_t> P) {
+      return P.first > numeric_limits<int64_t>::max()
+        || P.second > numeric_limits<int64_t>::max();
+    };
+    if (std::any_of(Bounds.begin(), Bounds.end(), Condition))
       setBottom();
-    }
   }
+}
+
+class BoundedValueHelpers {
+public:
+  template<typename T>
+  static boost::icl::interval_set<T> getInterval(const BoundedValue &BV) {
+    assert(!BV.isBottom());
+
+    using interval_set = boost::icl::interval_set<T>;
+    using interval = boost::icl::interval<T>;
+
+    interval_set Result;
+
+    for (std::pair<uint64_t, uint64_t> Bound : BV.Bounds)
+      Result += interval::closed(static_cast<T>(Bound.first),
+                                 static_cast<T>(Bound.second));
+    if (BV.Negated) {
+      interval_set FullRange;
+      FullRange += interval::closed(BV.lowerExtreme(), BV.upperExtreme());
+
+      interval_set Xor = Result ^ FullRange;
+      Result.clear();
+      for (auto I : Xor) {
+        T Lower = I.lower();
+        T Upper = I.upper();
+
+        auto Type = I.bounds().bits();
+        if (Type == interval_bounds::static_open
+            || Type == interval_bounds::static_left_open)
+          Lower++;
+
+        if (Type == interval_bounds::static_open
+            || Type == interval_bounds::static_right_open)
+          Upper--;
+
+        Result += interval::closed(Lower, Upper);
+      }
+    }
+
+    return Result;
+  }
+
+  template<typename T>
+  static BoundedValue getBV(const BoundedValue &Base,
+                            boost::icl::interval_set<T> Intervals) {
+
+    BoundedValue Result(Base.value());
+
+    if (Intervals.iterative_size() == 0) {
+      Result.setBottom();
+    } else {
+      using BV = BoundedValue;
+      Result.Sign = Base.isSigned() ? BV::Signed : BV::Unsigned;
+      assert(Result.Bounds.size() == 0);
+      for (auto Interval : Intervals) {
+        assert(Interval.bounds().bits() == interval_bounds::static_closed);
+        Result.Bounds.emplace_back(static_cast<uint64_t>(Interval.lower()),
+                                   static_cast<uint64_t>(Interval.upper()));
+
+        for (auto &Pair : Result.Bounds) {
+          if (&Pair != &Result.Bounds.back()) {
+            assert(Pair != Result.Bounds.back());
+          }
+        }
+
+      }
+      assert(Result.Bounds.size() != 0);
+
+    }
+
+    return Result;
+  }
+
+};
+
+template<BoundedValue::MergeType MT, typename T>
+BoundedValue BoundedValue::mergeImpl(const BoundedValue &Other) const {
+  using interval_set = boost::icl::interval_set<T>;
+  interval_set Result;
+
+  Result += BoundedValueHelpers::getInterval<T>(*this);
+  DBG("bv-merge", dbg << Result);
+  if (MT == And) {
+    DBG("bv-merge", dbg << " & " << BoundedValueHelpers::getInterval<T>(Other));
+    Result &= BoundedValueHelpers::getInterval<T>(Other);
+  } else {
+    DBG("bv-merge", dbg << " + " << BoundedValueHelpers::getInterval<T>(Other));
+    Result += BoundedValueHelpers::getInterval<T>(Other);
+  }
+
+  DBG("bv-merge", dbg << " = " << Result << "\n");
+  return BoundedValueHelpers::getBV<T>(*this, Result);
 }
 
 template<BoundedValue::MergeType MT>
 bool BoundedValue::merge(const BoundedValue &Other,
                          const DataLayout &DL,
                          Type *Int64) {
-  if (Bottom)
-    return false;
 
-  if (Other.Bottom) {
-    setBottom();
-    return true;
+  if (MT == And) {
+    // x & bottom = bottom
+    if (Bottom)
+      return false;
+
+    if (Other.Bottom) {
+      setBottom();
+      return true;
+    }
+  } else {
+    // x | bottom = x
+    if (Other.Bottom)
+      return false;
+
+    if (Bottom) {
+      *this = Other;
+      return true;
+    }
   }
 
   if (isTop() && Other.isTop()) {
     return false;
   } else if (MT == And && isTop()) {
-    LowerBound = Other.LowerBound;
-    UpperBound = Other.UpperBound;
-    Sign = Other.Sign;
-    Negated = Other.Negated;
+    *this = Other;
     return true;
   } else if (MT == And && Other.isTop()) {
     return false;
@@ -2331,328 +2623,49 @@ bool BoundedValue::merge(const BoundedValue &Other,
     return true;
 
   // We don't handle this case for now
-  if (Sign == InconsistentSignedness) {
+  if (Sign == InconsistentSignedness || Other.Sign == InconsistentSignedness) {
     setBottom();
     return true;
   }
 
-  // TODO: reimplement all of this using a simple and sane range merging
-  //       approach
-
-  Predicate LE = isSigned() ? CmpInst::ICMP_SLE : CmpInst::ICMP_ULE;
-  Predicate LT = isSigned() ? CmpInst::ICMP_SLT : CmpInst::ICMP_ULT;
-  Predicate GE = isSigned() ? CmpInst::ICMP_SGE : CmpInst::ICMP_UGE;
-  Predicate GT = isSigned() ? CmpInst::ICMP_SGT : CmpInst::ICMP_UGT;
-
-  auto Compare = [&Int64, &DL] (uint64_t A, Predicate P, int64_t B) {
-    Constant *Compare = CE::getCompare(P, CI::get(Int64, A), CI::get(Int64, B));
-    return getZExtValue(Compare, DL) != 0;
-  };
-
-  const BoundedValue *LeftmostOp = this;
-  const BoundedValue *RightmostOp = &Other;
-
-  // Check that the LB of the lefmost is <= of the rightmost LB
-  if (Compare(LeftmostOp->LowerBound, GT, RightmostOp->LowerBound))
-    std::swap(LeftmostOp, RightmostOp);
-
-  // If they both start at the same point, LeftmostOp is the largest
-  if (Compare(LeftmostOp->LowerBound, CmpInst::ICMP_EQ, RightmostOp->LowerBound)
-      && Compare(RightmostOp->UpperBound, GT, LeftmostOp->UpperBound))
-    std::swap(LeftmostOp, RightmostOp);
-
-  enum {
-    Disjoint,
-    Overlapping
-  } Overlap;
-
-  bool LowerLT = Compare(LeftmostOp->LowerBound, LT, RightmostOp->LowerBound);
-  bool LowerLE = Compare(LeftmostOp->LowerBound, LE, RightmostOp->LowerBound);
-  bool UpperGT = Compare(LeftmostOp->UpperBound, GT, RightmostOp->UpperBound);
-  bool UpperGE = Compare(LeftmostOp->UpperBound, GE, RightmostOp->UpperBound);
-  bool StrictlyIncluded = LowerLT && UpperGT;
-  bool Included = LowerLE && UpperGE;
-
-  if (Compare(LeftmostOp->UpperBound, LT, RightmostOp->LowerBound))
-    Overlap = Disjoint;
+  BoundedValue Result;
+  if (isSigned())
+    Result = mergeImpl<MT, int64_t>(Other);
   else
-    Overlap = Overlapping;
+    Result = mergeImpl<MT, uint64_t>(Other);
 
-  const BoundedValue *NegatedOp = nullptr;
-  const BoundedValue *NonNegatedOp = nullptr;
-  enum {
-    NoNegated,
-    OneNegated,
-    BothNegated
-  } Operands;
-
-  if (!Negated && !Other.Negated) {
-    Operands = NoNegated;
-  } else if (Negated && Other.Negated) {
-    Operands = BothNegated;
+  if (*this != Result) {
+    *this = Result;
+    return true;
   } else {
-    Operands = OneNegated;
-    if (Negated) {
-      NegatedOp = this;
-      NonNegatedOp = &Other;
-    } else {
-      NegatedOp = &Other;
-      NonNegatedOp = this;
-    }
+    return false;
   }
-
-  uint64_t OldLowerBound = LowerBound;
-  uint64_t OldUpperBound = UpperBound;
-  bool OldNegated = Negated;
-
-  // In the following table we report all the possible situations and the
-  // relative result we produce:
-  //
-  // type overlap     op1 op2 result
-  // ======================================
-  // and  disjoint    +   +   bottom
-  // and  disjoint    +   -   op1
-  // and  disjoint    -   -   bottom
-  // and  overlapping +   +   intersection
-  // and  overlapping +   -   op1-op2
-  // and  overlapping -   -   !union
-  // or   disjoint    +   +   bottom
-  // or   disjoint    +   -   op2
-  // or   disjoint    -   -   top
-  // or   overlapping +   +   union
-  // or   overlapping +   -   !(op2-op1)
-  // or   overlapping -   -   !intersection
-  //
-
-  bool Changed = false;
-  if (MT == And) {
-    switch(Overlap) {
-    case Disjoint:
-      switch (Operands) {
-      case NoNegated:
-        setBottom();
-        Changed = true;
-        break;
-      case BothNegated:
-        if (LeftmostOp->LowerBound == LeftmostOp->lowerExtreme()
-            && RightmostOp->UpperBound == RightmostOp->upperExtreme()) {
-          std::tie(LowerBound,
-                   UpperBound) = make_pair(LeftmostOp->UpperBound,
-                                           RightmostOp->LowerBound);
-          LowerBound++;
-          UpperBound--;
-          Negated = false;
-
-          if (!Compare(LowerBound, LE, UpperBound)) {
-            LowerBound = 0;
-            UpperBound = 0;
-            setBottom();
-          }
-
-          break;
-        } else if (LeftmostOp->UpperBound + 1 == RightmostOp->LowerBound) {
-          setBound<Lower, Or>(CI::get(Int64, Other.LowerBound), DL);
-          if (!Bottom)
-            setBound<Upper, Or>(CI::get(Int64, Other.UpperBound), DL);
-          Negated = true;
-        } else {
-          setBottom();
-          Changed = true;
-        }
-
-        break;
-      case OneNegated:
-        // Assign to NotNegated
-        if (this != NonNegatedOp) {
-          LowerBound = Other.LowerBound;
-          UpperBound = Other.UpperBound;
-          Negated = Other.Negated;
-        }
-        break;
-      }
-      break;
-    case Overlapping:
-      switch (Operands) {
-      case NoNegated:
-        // Intersection
-        setBound<Lower, And>(CI::get(Int64, Other.LowerBound), DL);
-        if (!Bottom)
-          setBound<Upper, And>(CI::get(Int64, Other.UpperBound), DL);
-        Negated = false;
-        break;
-      case OneNegated:
-        // TODO: If one of the two is strictly included go to bottom
-        if (StrictlyIncluded
-            || (LowerBound == Other.LowerBound
-                && UpperBound == Other.UpperBound)
-            || (Included && LeftmostOp == NegatedOp)) {
-          setBottom();
-          Changed = true;
-          break;
-        }
-
-        // NonNegated - Negated
-        // [5,10] - ![8,12] => NonNegated.Up = Negated.Down - 1
-        // [5,10] - ![1,12] == [0,10] - ([_,0] | [13,_])
-        // [5,10] - ![0,7] => NonNegated.Down = Negated.Up + 1
-
-        // [5,10] - ![4,7]
-        // [5,10] - ![5,7]
-        // [5,10] - ![6,12]
-        // Check if NonNegated is after Negated
-        uint64_t NewLowerBound, NewUpperBound;
-        if (Compare(NonNegatedOp->LowerBound, GE, NegatedOp->LowerBound)) {
-          NewLowerBound = NegatedOp->UpperBound + 1;
-          NewUpperBound = NonNegatedOp->UpperBound;
-        } else {
-          NewLowerBound = NonNegatedOp->LowerBound;
-          NewUpperBound = NegatedOp->LowerBound - 1;
-        }
-        LowerBound = NewLowerBound;
-        UpperBound = NewUpperBound;
-        Negated = false;
-        break;
-      case BothNegated:
-        // Negated union
-        setBound<Lower, Or>(CI::get(Int64, Other.LowerBound), DL);
-        if (!Bottom)
-          setBound<Upper, Or>(CI::get(Int64, Other.UpperBound), DL);
-        Negated = true;
-        break;
-      }
-      break;
-    }
-  } else if (MT == Or) {
-    switch(Overlap) {
-    case Disjoint:
-      switch (Operands) {
-      case NoNegated:
-        if (LeftmostOp->UpperBound + 1 == RightmostOp->LowerBound) {
-          setBound<Lower, Or>(CI::get(Int64, Other.LowerBound), DL);
-          if (!Bottom)
-            setBound<Upper, Or>(CI::get(Int64, Other.UpperBound), DL);
-        } else {
-          setBottom();
-          Changed = true;
-        }
-        break;
-      case OneNegated:
-        // Assign to Negated
-        if (this != NegatedOp) {
-          LowerBound = Other.LowerBound;
-          UpperBound = Other.UpperBound;
-          Negated = Other.Negated;
-        }
-        break;
-      case BothNegated:
-        setTop();
-        Changed = true;
-        break;
-      }
-      break;
-    case Overlapping:
-      switch (Operands) {
-      case NoNegated:
-        setBound<Lower, Or>(CI::get(Int64, Other.LowerBound), DL);
-        if (!Bottom)
-          setBound<Upper, Or>(CI::get(Int64, Other.UpperBound), DL);
-        break;
-      case OneNegated:
-        // TODO: comment this
-        if (StrictlyIncluded) {
-          if (LeftmostOp == NonNegatedOp)
-            setTop();
-          else
-            setBottom();
-          Changed = true;
-          break;
-        }
-
-        if ((LowerBound == Other.LowerBound
-             && UpperBound == Other.UpperBound)
-            || (Included && LeftmostOp == NonNegatedOp)) {
-          setTop();
-          Changed = true;
-          break;
-        }
-
-        // ![5,25] || [6,30]
-        // ![5,25] || [5,10]
-        // Check if NonNegated is before Negated
-        uint64_t NewLowerBound, NewUpperBound;
-        if (Compare(NonNegatedOp->LowerBound, LE, NegatedOp->LowerBound)) {
-          NewLowerBound = NonNegatedOp->UpperBound + 1;
-          NewUpperBound = NegatedOp->UpperBound;
-        } else {
-          NewLowerBound = NegatedOp->LowerBound;
-          NewUpperBound = NonNegatedOp->LowerBound - 1;
-        }
-        LowerBound = NewLowerBound;
-        UpperBound = NewUpperBound;
-        Negated = true;
-        break;
-      case BothNegated:
-        setBound<Lower, And>(CI::get(Int64, Other.LowerBound), DL);
-        if (!Bottom)
-          setBound<Upper, And>(CI::get(Int64, Other.UpperBound), DL);
-        Negated = true;
-        break;
-      }
-      break;
-    }
-  }
-
-  Changed |= (OldLowerBound != LowerBound
-              || OldUpperBound != UpperBound
-              || OldNegated != Negated);
-
-  assert(Compare(LowerBound, LE, UpperBound));
-
-  return Changed;
 }
 
-// Note: this function is implemented with lower bound restriction in mind, with
-// additional changes to support bound enlargement (logical `or`) or work on the
-// upper bound just set the template arguments appopriately
-template<BoundedValue::Bound B, BoundedValue::MergeType Type>
-bool BoundedValue::setBound(Constant *NewValue, const DataLayout &DL) {
-  assert(Sign != UnknownSignedness && Sign != AnySignedness && !Bottom);
+bool BoundedValue::slowCompare(const BoundedValue &Other) const {
+  assert(hasSignedness() && Other.hasSignedness());
+  assert(Sign == Other.Sign);
 
-  uint64_t &Bound = B == Lower ? LowerBound : UpperBound;
+  using H = BoundedValueHelpers;
+  if (isSigned())
+    return H::getInterval<int64_t>(*this) == H::getInterval<int64_t>(Other);
+  else
+    return H::getInterval<uint64_t>(*this) == H::getInterval<uint64_t>(Other);
+}
 
-  // Create a Constant for the current bound
-  Constant *OldValue = CI::get(NewValue->getType(),
-                                        Bound,
-                                        isSigned());
+BoundedValue::BoundsVector BoundedValue::bounds() const {
+  assert(hasSignedness());
 
-  // If the signedness is inconsistent, check that the new value lies in the
-  // signed positive area, otherwise go to bottom
-  // Note: OldValue should already be in this range, thanks to `setSignedness`.
-  if (Sign == InconsistentSignedness && !isPositive(NewValue, DL)) {
-    setBottom();
-    return true;
-  }
+  BoundsVector Result;
+  using H = BoundedValueHelpers;
+  if (isSigned())
+    for (auto Bound : H::getInterval<int64_t>(*this))
+      Result.emplace_back(static_cast<uint64_t>(Bound.lower()),
+                          static_cast<uint64_t>(Bound.upper()));
+  else
+    for (auto Bound : H::getInterval<uint64_t>(*this))
+      Result.emplace_back(static_cast<uint64_t>(Bound.lower()),
+                          static_cast<uint64_t>(Bound.upper()));
 
-  // Update the lower bound only if NewValue > OldValue
-  Predicate CompOp = (isSigned() ?
-                               CmpInst::ICMP_SGT :
-                               CmpInst::ICMP_UGT);
-
-  // If we want a logical or, flip the direction of the comparison
-  if (Type == Or)
-    CompOp = CmpInst::getSwappedPredicate(CompOp);
-
-  if (B == Upper)
-    CompOp = CmpInst::getSwappedPredicate(CompOp);
-
-  // Perform the comparison and, in case, update the LowerBound
-  auto *Compare = CE::getCompare(CompOp, NewValue, OldValue);
-  if (getConstValue(Compare, DL)->getLimitedValue()) {
-    if (isSigned())
-      Bound = getSExtValue(NewValue, DL);
-    else
-      Bound = getZExtValue(NewValue, DL);
-    return true;
-  }
-  return false;
+  return Result;
 }

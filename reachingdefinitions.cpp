@@ -344,11 +344,13 @@ resettingBasicBlocks(ReachingDefinitionsPass &RDP, BranchInst * const& Branch) {
     if (AIsStore || AIsLoad) {
       // Load/store vs load/store
       vector<Instruction *> AStores;
-      if (AIsStore)
+      if (AIsStore) {
         Result.insert(cast<StoreInst>(AV)->getParent());
-      else
-        for (Instruction *I : RDP.getReachingDefinitions(cast<LoadInst>(AV)))
+      } else {
+        for (Instruction *I : RDP.getReachingDefinitions(cast<LoadInst>(AV))) {
           Result.insert(I->getParent());
+        }
+      }
 
     } else if (auto *AI = dyn_cast<Instruction>(AV)) {
       // Instruction
@@ -362,6 +364,7 @@ resettingBasicBlocks(ReachingDefinitionsPass &RDP, BranchInst * const& Branch) {
     }
 
   }
+
   return Result;
 }
 
@@ -502,7 +505,7 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
 
         // Build the list of conditions defined by each basic block
         for (BasicBlock *Definer : resettingBasicBlocks(RDP, B)) {
-          // Register that Defined defines ConditionIndex
+          // Register that Definer defines ConditionIndex
           pushIfAbsent(DefinedConditions[Definer], ConditionIndex);
 
           // Register that ConditionIndex is defined by Defined
@@ -566,12 +569,17 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
 
     // Check if it's reachable from the exit (i.e., it's not part of an infinite
     // loop).
-    if (PDTNode != nullptr) {
-      BasicBlock *ImmediatePostDominator = PDTNode->getIDom()->getBlock();
+    BasicBlock *ImmediatePostDominator = nullptr;
+    // TODO: for some reason getBlock() might give nullptr, investigate
+    if (PDTNode != nullptr)
+      ImmediatePostDominator = PDTNode->getIDom()->getBlock();
+
+    if (ImmediatePostDominator != nullptr) {
 
       // Add the current ConditionIndex to those defined by it
       // Note: ConditionIndex 0 is reserved, so we add one
-      pushIfAbsent(DefinedConditions[ImmediatePostDominator], I + 1);
+      for (BasicBlock *Successor : successors(ImmediatePostDominator))
+        pushIfAbsent(DefinedConditions[Successor], I + 1);
 
       DBG("cnp", {
           dbg << ", post-dominated by "
@@ -780,7 +788,7 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
   bool Changed = false;
 
   // Get (and insert, if necessary) the bit associated to the new
-  // condition. This bit will be set in all the defintions being propagated.
+  // condition. This bit will be set in all the definitions being propagated.
   DBG("rdp-propagation", dbg << "  Adding conditions:");
   unsigned NewConditionBitIndex = Target.getConditionIndex(NewConditionIndex);
   if (NewConditionIndex != 0 && !Target.Conditions[NewConditionBitIndex]) {
@@ -789,7 +797,7 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
     Changed = true;
   }
 
-  // Condition propgation
+  // Condition propagation
   for (int SetBitIndex = Conditions.find_first();
        SetBitIndex != -1;
        SetBitIndex = Conditions.find_next(SetBitIndex)) {
@@ -1147,6 +1155,7 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
               Instruction *I = P.first;
               return isa<LoadInst>(I) && MemoryAccess(I, TSP) == TargetMA;
             });
+          Definitions.push_back({ Load, TargetMA });
 
         } else {
 
