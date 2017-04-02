@@ -2525,7 +2525,8 @@ public:
     } else {
       using BV = BoundedValue;
       Result.Sign = Base.isSigned() ? BV::Signed : BV::Unsigned;
-      assert(Result.Bounds.size() == 0);
+      assert(Result.Bounds.size() == 0 || Result.Bounds.size() == 1);
+      Result.Bounds.clear();
       for (auto Interval : Intervals) {
         assert(Interval.bounds().bits() == interval_bounds::static_closed);
         Result.Bounds.emplace_back(static_cast<uint64_t>(Interval.lower()),
