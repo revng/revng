@@ -73,7 +73,8 @@ public:
                 std::string BBSummary,
                 bool EnableOSRA,
                 bool DetectFunctionBoundaries,
-                bool EnableLinking);
+                bool EnableLinking,
+                bool ExternalCSVs);
 
   ~CodeGenerator();
 
@@ -121,6 +122,7 @@ private:
   std::string FunctionListPath;
   bool DetectFunctionBoundaries;
   bool EnableLinking;
+  bool ExternalCSVs;
 };
 
 #endif // _CODEGENERATOR_H

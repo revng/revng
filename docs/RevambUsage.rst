@@ -70,6 +70,11 @@ are described:
                         appear as calls to extern functions. This option makes
                         the resulting module non-functioncal but it's useful for
                         analysis-only purposes.
+:``-E``, ``--external``: Set the linkage of global variables representing the
+                         CPU state (aka CSVs) to `external` instead of
+                         `internal`. This degrades performances of the produced
+                         binary sensibly but makes debugging the generated code
+                         easier.
 :``-S``, ``--use-sections``: If they are available, ELF sections are employed to
                              identify executable code. This options is useful to
                              evaluate `revamb` ignoring the code identification

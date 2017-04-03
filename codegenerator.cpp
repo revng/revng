@@ -73,7 +73,8 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              std::string BBSummary,
                              bool EnableOSRA,
                              bool DetectFunctionBoundaries,
-                             bool EnableLinking) :
+                             bool EnableLinking,
+                             bool ExternalCSVs) :
   TargetArchitecture(Target),
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
@@ -82,7 +83,8 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   Binary(Binary),
   EnableOSRA(EnableOSRA),
   DetectFunctionBoundaries(DetectFunctionBoundaries),
-  EnableLinking(EnableLinking)
+  EnableLinking(EnableLinking),
+  ExternalCSVs(ExternalCSVs)
 {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
@@ -910,6 +912,9 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   JumpTargets.noReturn().cleanup();
 
   Translator.finalizeNewPCMarkers(CoveragePath);
+
+  Variables.finalize(ExternalCSVs);
+
   Debug->generateDebugInfo();
 
 }
