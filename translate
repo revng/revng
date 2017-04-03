@@ -119,11 +119,11 @@ OUTPUT="$INPUT.translated"
 if [ "$OPTIMIZE" -eq 0 ]; then
     "$LLC" -O0 -filetype=obj "$LINKED_LL" -o "$OBJ"
 elif [ "$OPTIMIZE" -eq 1 ]; then
-    "$LLC" -O2 -filetype=obj "$LINKED_LL" -o "$OBJ" -regalloc=fast
+    "$LLC" -O2 -filetype=obj "$LINKED_LL" -o "$OBJ" -regalloc=fast -disable-machine-licm
 elif [ "$OPTIMIZE" -eq 2 ]; then
     "$OPT" -O2 -S "$LINKED_LL" -o "$LL_OPT"
     LL="$LL_OPT"
-    "$LLC" -O2 -filetype=obj "$LINKED_LL" -o "$OBJ" -regalloc=fast
+    "$LLC" -O2 -filetype=obj "$LINKED_LL" -o "$OBJ" -regalloc=fast -disable-machine-licm
 fi
 
 "$CC" $("$TOOPT" "$CSV") \

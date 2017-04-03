@@ -93,7 +93,7 @@ optimizations:
 
 .. code-block:: sh
 
-    llc -O2 translated.linked.ll -filetype=obj -o translated.o -regalloc=fast
+    llc -O2 translated.linked.ll -filetype=obj -o translated.o -regalloc=fast -disable-machine-licm
 
 Note: as for `opt`, optimizations can take a considerable amount of time, in
 particular if slow register allocation methods are used (i.e., make sure to use
