@@ -60,9 +60,6 @@ public:
   ///        ".coverage.csv" suffix will be used.
   /// \param EnableOSRA specify whether OSRA should be used to discover
   ///        additional jump targets or not.
-  /// \param EnableTracing specify whether tracing in the ouptut binary should
-  ///        be enabled, that is, whether calls to an external `newPC` function
-  ///        should be removed at the end of the translation or not.
   /// \param EnableLinking specifying whether linking to QEMU helpers should be
   ///        performed or not.
   CodeGenerator(BinaryFile &Binary,
@@ -75,9 +72,9 @@ public:
                 std::string Coverage,
                 std::string BBSummary,
                 bool EnableOSRA,
-                bool EnableTracing,
                 bool DetectFunctionBoundaries,
-                bool EnableLinking);
+                bool EnableLinking,
+                bool ExternalCSVs);
 
   ~CodeGenerator();
 
@@ -86,8 +83,7 @@ public:
   /// create in this phase.
   ///
   /// \param VirtualAddress the address from where the translation should start.
-  /// \param Name the name to give to the newly created function.
-  void translate(uint64_t VirtualAddress, std::string Name);
+  void translate(uint64_t VirtualAddress);
 
   /// Serialize the generated LLVM IR to the specified output path.
   void serialize();
@@ -122,11 +118,11 @@ private:
 
   std::string CoveragePath;
   bool EnableOSRA;
-  bool EnableTracing;
   std::string BBSummaryPath;
   std::string FunctionListPath;
   bool DetectFunctionBoundaries;
   bool EnableLinking;
+  bool ExternalCSVs;
 };
 
 #endif // _CODEGENERATOR_H

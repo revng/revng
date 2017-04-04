@@ -72,9 +72,9 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              std::string Coverage,
                              std::string BBSummary,
                              bool EnableOSRA,
-                             bool EnableTracing,
                              bool DetectFunctionBoundaries,
-                             bool EnableLinking) :
+                             bool EnableLinking,
+                             bool ExternalCSVs) :
   TargetArchitecture(Target),
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
@@ -82,9 +82,9 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   Debug(new DebugHelper(Output, Debug, TheModule.get(), DebugInfo)),
   Binary(Binary),
   EnableOSRA(EnableOSRA),
-  EnableTracing(EnableTracing),
   DetectFunctionBoundaries(DetectFunctionBoundaries),
-  EnableLinking(EnableLinking)
+  EnableLinking(EnableLinking),
+  ExternalCSVs(ExternalCSVs)
 {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
@@ -429,8 +429,13 @@ bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
 
   assert(CpuLoop != nullptr);
 
-  for (User *TheUser : CpuLoopExit->users()) {
-    auto *Call = cast<CallInst>(TheUser);
+  std::queue<User *> CpuLoopExitUsers;
+  for (User *TheUser : CpuLoopExit->users())
+    CpuLoopExitUsers.push(TheUser);
+
+  while (!CpuLoopExitUsers.empty()) {
+    auto *Call = cast<CallInst>(CpuLoopExitUsers.front());
+    CpuLoopExitUsers.pop();
     assert(Call->getCalledFunction() == CpuLoopExit);
 
     // Call cpu_loop
@@ -446,8 +451,10 @@ bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
     auto *Unreach = cast<UnreachableInst>(&*++Call->getIterator());
     Unreach->eraseFromParent();
 
-    // Remove the call to cpu_loop_exit
     Function *Caller = Call->getParent()->getParent();
+
+    // Remove the call to cpu_loop_exit
+    Call->eraseFromParent();
 
     if (FixedCallers.find(Caller) == FixedCallers.end()) {
       FixedCallers.insert(Caller);
@@ -520,9 +527,6 @@ bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
     }
   }
 
-  for (User *TheUser : CpuLoopExit->users())
-    cast<Instruction>(TheUser)->eraseFromParent();
-
   return true;
 }
 
@@ -544,8 +548,9 @@ static void purgeDeadBlocks(Function *F) {
 
 }
 
-void CodeGenerator::translate(uint64_t VirtualAddress,
-                              std::string Name) {
+void CodeGenerator::translate(uint64_t VirtualAddress) {
+  using FT = FunctionType;
+
   // Declare useful functions
   auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
   auto *AbortFunction = TheModule->getOrInsertFunction("abort", AbortTy);
@@ -556,34 +561,30 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   assert(CpuLoop != nullptr);
   TheModule->getOrInsertFunction("cpu_loop", CpuLoop->getFunctionType());
   TheModule->getOrInsertFunction("syscall_init",
-                                 FunctionType::get(Type::getVoidTy(Context),
-                                                   { },
-                                                   false));
+                                 FT::get(Type::getVoidTy(Context), { }, false));
+
+  // Instantiate helpers
+  VariableManager Variables(*TheModule, *HelpersModule, TargetArchitecture);
+  GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
+  GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, "sp").first;
 
   IRBuilder<> Builder(Context);
 
   // Create main function
-  auto *MainType  = FunctionType::get(Builder.getVoidTy(), false);
+  auto *MainType  = FT::get(Builder.getVoidTy(),
+                            { SPReg->getType()->getPointerElementType() },
+                            false);
   auto *MainFunction = Function::Create(MainType,
                                         Function::ExternalLinkage,
-                                        Name,
+                                        "root",
                                         TheModule.get());
 
   Debug->newFunction(MainFunction);
 
   // Create the first basic block and create a placeholder for variable
   // allocations
-  BasicBlock *Entry = BasicBlock::Create(Context,
-                                         "entrypoint",
-                                         MainFunction);
+  BasicBlock *Entry = BasicBlock::Create(Context, "entrypoint", MainFunction);
   Builder.SetInsertPoint(Entry);
-
-  // Instantiate helpers
-  VariableManager Variables(*TheModule,
-                            *HelpersModule,
-                            TargetArchitecture);
-
-  GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
 
   // Create revamb.inputarch named metadata.
   QuickMetadata QMD(Context);
@@ -592,34 +593,36 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   InputArchMD = TheModule->getOrInsertNamedMetadata(MDName);
   // Currently revamb.inputarch is composed as follows:
   //
-  // revamb.inputarch = { { DelaySlotSize, PCRegisterName } }
+  // revamb.inputarch = { { DelaySlotSize, PCRegisterName, SPRegisterName } }
   auto *Tuple = MDTuple::get(Context, {
-      QMD.get(static_cast<uint32_t>(Binary.architecture().delaySlotSize())),
-      QMD.get("pc")
+    QMD.get(static_cast<uint32_t>(Binary.architecture().delaySlotSize())),
+    QMD.get("pc"),
+    QMD.get("sp"),
   });
   InputArchMD->addOperand(Tuple);
 
   // Create an instance of JumpTargetManager
-  JumpTargetManager JumpTargets(MainFunction,
-                                PCReg,
-                                Binary,
-                                EnableOSRA);
+  JumpTargetManager JumpTargets(MainFunction, PCReg, Binary, EnableOSRA);
 
   if (VirtualAddress == 0) {
     JumpTargets.harvestGlobalData();
     VirtualAddress = Binary.entryPoint();
   }
+  JumpTargets.registerJT(VirtualAddress, JumpTargetManager::GlobalData);
 
-  BasicBlock *Head = JumpTargets.registerJT(VirtualAddress,
-                                            JumpTargetManager::GlobalData);
+  // Initialize the program counter
+  auto *StartPC = ConstantInt::get(PCReg->getType()->getPointerElementType(),
+                                   VirtualAddress);
+  // Use this instruction as the delimiter for local variables
+  auto *Delimiter = Builder.CreateStore(StartPC, PCReg);
+  Builder.CreateStore(&*MainFunction->arg_begin(), SPReg);
 
   // Fake jumps to the dispatcher-related basic blocks. This way all the blocks
-  // are always reachable.  Also, use this switch as the delimiter to create
-  // local variables.
-  SwitchInst *Delimiter = Builder.CreateSwitch(Builder.getInt8(0), Head);
-  Delimiter->addCase(Builder.getInt8(1), JumpTargets.dispatcher());
-  Delimiter->addCase(Builder.getInt8(2), JumpTargets.anyPC());
-  Delimiter->addCase(Builder.getInt8(3), JumpTargets.unexpectedPC());
+  // are always reachable.
+  auto *ReachSwitch = Builder.CreateSwitch(Builder.getInt8(0),
+                                           JumpTargets.dispatcher());
+  ReachSwitch->addCase(Builder.getInt8(1), JumpTargets.anyPC());
+  ReachSwitch->addCase(Builder.getInt8(2), JumpTargets.unexpectedPC());
 
   std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
@@ -635,6 +638,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   while (Entry != nullptr) {
     Builder.SetInsertPoint(Entry);
 
+    // TODO: what if create a new instance of an InstructionTranslator here?
     Translator.reset();
 
     // TODO: rename this type
@@ -642,7 +646,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
     size_t ConsumedSize = 0;
 
     ConsumedSize = ptc.translate(VirtualAddress, InstructionList.get());
-    JumpTargets.registerOriginalBB(VirtualAddress, ConsumedSize);
 
     DBG("ptc", dumpTranslation(dbg, InstructionList.get()));
 
@@ -894,9 +897,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
   PM.add(createDeadCodeEliminationPass());
   PM.run(*TheModule);
 
-  // TODO: transform the following in passes?
-  JumpTargets.collectBBSummary(BBSummaryPath);
-
   JumpTargets.translateIndirectJumps();
 
   JumpTargets.finalizeJumpTargets();
@@ -911,7 +911,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress,
 
   JumpTargets.noReturn().cleanup();
 
-  Translator.finalizeNewPCMarkers(CoveragePath, EnableTracing);
+  Translator.finalizeNewPCMarkers(CoveragePath);
+
+  Variables.finalize(ExternalCSVs);
+
   Debug->generateDebugInfo();
 
 }

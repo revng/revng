@@ -40,3 +40,11 @@ OPTIONS
           (`llc`).
 :``-s``: Skip invoking `revamb`, assumes a file named `INFILE.ll` already
          exists. This is useful for optimizing previously generated code.
+:``-trace``: Enable tracing support: if the `REVAMB_TRACE_PATH` environment
+             variable is set at run-time, the translated program will log all
+             the executed program counters into the file specified by the
+             environment variable. This effect it obtained by linking the
+             translated program against the `support-$ARCH-trace.ll` module
+             instead of the `support-$ARCH-normal.ll`. Enabling this option
+             introduces a non-negligible slow down in the output program, even
+             if `REVAMB_TRACE_PATH` is not specified at run-time.

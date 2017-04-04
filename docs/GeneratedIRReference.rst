@@ -171,10 +171,30 @@ organized. This fuction is knonw as the `root` function:
 
 .. code-block:: llvm
 
-    define void @root() {
+    define void @root(i64) {
       ; ...
     }
 
+The `root` function takes a single argument, which is a pointer to the stack
+that the translated program has to use. This stack must have been properly set
+up by the caller, for more information see `FromIRToExecutable.rst`_.
+
+First of all, the `root` function must set up two key CSVs: the stack pointer
+and the program counter:
+
+.. code-block:: llvm
+
+    define void @root(i64) {
+    entrypoint:
+      ; ...
+      store i64 4194542, i64* @pc
+      store i64 %0, i64* @rsp
+      ; ...
+    }
+
+The program counter is obtained from the entry point of the input program and
+it's therefore statically available, while the stack pointer (the `rsp` register
+in x86-64), is taken from the first argument of the `root` function.
 
 The dispatcher
 --------------
@@ -200,7 +220,7 @@ code generated due to A.
                    a bug. It can either try to proceed with execution going to
                    ``dispatcher.entry`` or simply abort.
 
-The very first basic block is `entrypoint`. It's main purpose is to create all
+The very first basic block is `entrypoint`. Its main purpose is to create all
 the required local variables (``alloca`` instructions) and ensure that all the
 basic blocks are reachable. In fact, it is terminated by a ``switch``
 instruction which make all the previously mentioned basic blocks reachable. This
@@ -211,19 +231,20 @@ Here's how it looks like in our example:
 
 .. code-block:: llvm
 
-    define void @root() {
+    define void @root(i64) !dbg !4 {
     entrypoint:
-      %0 = alloca i64
-      %1 = bitcast i64* %0 to i8*
-      switch i8 0, label %bb._start [
-        i8 1, label %dispatcher.entry
-        i8 2, label %anypc
-        i8 3, label %unexpectedpc
+      %1 = alloca i64
+      %2 = bitcast i64* %1 to i8*
+      store i64 4194542, i64* @pc
+      store i64 %0, i64* @rsp
+      switch i8 0, label %dispatcher.entry [
+        i8 1, label %anypc
+        i8 2, label %unexpectedpc
       ]
 
     dispatcher.entry:                                 ; preds = %unexpectedpc, %anypc, %bb.myfunction, %bb._start.0x11, %entrypoint
-      %2 = load i64, i64* @pc
-      switch i64 %2, label %dispatcher.default [
+      %3 = load i64, i64* @pc
+      switch i64 %3, label %dispatcher.default [
         i64 4194536, label %bb.myfunction
         i64 4194542, label %bb._start
         i64 4194559, label %bb._start.0x11
@@ -261,7 +282,7 @@ In our example we have three basic blocks:
 
 .. code-block:: llvm
 
-    define void @root() {
+    define void @root(i64) {
     ; ...
 
     bb._start:            ; preds = %dispatcher.entry, %entrypoint
@@ -300,7 +321,7 @@ eax,0x2a``:
 
 .. code-block:: llvm
 
-    define void @root() {
+    define void @root(i64) {
 
     ; ...
 
@@ -430,7 +451,7 @@ In our example we had three basic blocks: `_start`, `_start+0x11` and
 
 .. code-block:: llvm
 
-    define void @root() !dbg !4 {
+    define void @root(i64) !dbg !4 {
 
     ; ...
 
@@ -491,3 +512,4 @@ assembly snippet using a specific feature (e.g., a performing a syscall) and
 translate it using revamb.
 
 .. _LLVM Language Reference Manual: http://llvm.org/docs/LangRef.html
+.. _`FromIRToExecutable.rst`: FromIRToExecutable.rst

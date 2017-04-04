@@ -167,6 +167,18 @@ public:
     return storeToCPUStateOffset(Builder, StoreSize, ActualOffset, ToStore);
   }
 
+  /// \brief Perform finalization steps on variables
+  ///
+  /// \param ExternalCSVs true if CSVs linkage should not be turned into static.
+  void finalize(bool ExternalCSVs) {
+    if (!ExternalCSVs) {
+      for (auto P : CPUStateGlobals)
+        P.second->setLinkage(llvm::GlobalValue::InternalLinkage);
+      for (auto P : OtherGlobals)
+        P.second->setLinkage(llvm::GlobalValue::InternalLinkage);
+    }
+  }
+
 private:
   llvm::Value *loadFromCPUStateOffset(llvm::IRBuilder<> &Builder,
                                       unsigned LoadSize,

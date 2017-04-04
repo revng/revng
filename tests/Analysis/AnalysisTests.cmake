@@ -9,13 +9,15 @@ set(OUTPUT_SUFFIX_cfg ".cfg.csv")
 set(OUTPUT_SUFFIX_noreturn ".noreturn.csv")
 set(OUTPUT_SUFFIX_functionsboundaries ".functions-boundaries.csv")
 
-set(TESTS_arm "memset" "switch-addls" "switch-ldrls")
+set(TESTS_arm "memset" "switch-addls" "switch-ldrls" "switch-disjoint-ranges")
 set(TEST_SOURCES_arm_memset "${SRC}/arm/memset.S")
 set(TEST_SOURCES_arm_switch-addls "${SRC}/arm/switch-addls.S")
 set(TEST_SOURCES_arm_switch-ldrls "${SRC}/arm/switch-ldrls.S")
+set(TEST_SOURCES_arm_switch-disjoint-ranges "${SRC}/arm/switch-disjoint-ranges.S")
 
-set(TESTS_x86_64 "switch-jump-table")
+set(TESTS_x86_64 "switch-jump-table" "try-catch-ehframe")
 set(TEST_SOURCES_x86_64_switch-jump-table "${SRC}/x86_64/switch-jump-table.S")
+set(TEST_SOURCES_x86_64_try-catch-ehframe "${SRC}/x86_64/try-catch-ehframe.S")
 
 set(TESTS_mips "switch-jump-table")
 set(TEST_SOURCES_mips_switch-jump-table "${SRC}/mips/switch-jump-table.S")

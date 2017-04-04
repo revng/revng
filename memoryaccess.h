@@ -152,7 +152,9 @@ private:
   }
 
   bool isVariable(llvm::Value *V) const {
-    return llvm::isa<llvm::GlobalVariable>(V) || llvm::isa<llvm::AllocaInst>(V);
+    auto *CSV = llvm::dyn_cast<llvm::GlobalVariable>(V);
+    return (CSV != nullptr && CSV->getName() != "env")
+      || llvm::isa<llvm::AllocaInst>(V);
   }
 
   void initialize(llvm::Value *Pointer,

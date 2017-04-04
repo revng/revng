@@ -49,10 +49,10 @@ struct ProgramParameters {
   const char *CoveragePath;
   const char *BBSummaryPath;
   bool NoOSRA;
-  bool EnableTracing;
   bool UseSections;
   bool DetectFunctionsBoundaries;
   bool NoLink;
+  bool External;
 };
 
 using LibraryDestructor = GenericFunctor<decltype(&dlclose), &dlclose>;
@@ -182,8 +182,8 @@ static int parseArgs(int Argc, const char *Argv[],
                 "disable OSRA."),
     OPT_BOOLEAN('L', "no-link", &Parameters->NoLink,
                 "do not link the output to QEMU helpers."),
-    OPT_BOOLEAN('t', "tracing", &Parameters->EnableTracing,
-                "enable PC tracing in the output binary (through newPC)"),
+    OPT_BOOLEAN('E', "external", &Parameters->External,
+                "set CSVs linkage to external, useful for debugging purposes."),
     OPT_BOOLEAN('S', "use-sections", &Parameters->UseSections,
                 "use section informations, if available."),
     OPT_STRING('b', "bb-summary",
@@ -289,11 +289,11 @@ int main(int argc, const char *argv[]) {
                           std::string(Parameters.CoveragePath),
                           std::string(Parameters.BBSummaryPath),
                           !Parameters.NoOSRA,
-                          Parameters.EnableTracing,
                           Parameters.DetectFunctionsBoundaries,
-                          !Parameters.NoLink);
+                          !Parameters.NoLink,
+                          Parameters.External);
 
-  Generator.translate(Parameters.EntryPointAddress, "root");
+  Generator.translate(Parameters.EntryPointAddress);
 
   Generator.serialize();
 

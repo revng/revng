@@ -389,4 +389,10 @@ private:
   std::map<llvm::TerminatorInst *, int32_t> BranchConditionNumberMap;
 };
 
+template<>
+char ReachingDefinitionsImplPass<BasicBlockInfo, ReachingDefinitionsResult::ReachingDefinitions>::ID;
+
+template<>
+char ReachingDefinitionsImplPass<ConditionalBasicBlockInfo, ReachingDefinitionsResult::ReachedLoads>::ID;
+
 #endif // _REACHINGDEFINITIONS_H

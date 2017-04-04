@@ -71,6 +71,12 @@ template class ReachingDefinitionsImplPass<BasicBlockInfo,
 template<class BBI, ReachingDefinitionsResult R>
 char ReachingDefinitionsImplPass<BBI, R>::ID = 0;
 
+template<>
+char ReachingDefinitionsImplPass<BasicBlockInfo, ReachingDefinitionsResult::ReachingDefinitions>::ID = 0;
+
+template<>
+char ReachingDefinitionsImplPass<ConditionalBasicBlockInfo, ReachingDefinitionsResult::ReachedLoads>::ID = 0;
+
 static RegisterPass<ReachingDefinitionsPass> X1("rdp",
                                                 "Reaching Definitions Pass",
                                                 true,
@@ -344,11 +350,13 @@ resettingBasicBlocks(ReachingDefinitionsPass &RDP, BranchInst * const& Branch) {
     if (AIsStore || AIsLoad) {
       // Load/store vs load/store
       vector<Instruction *> AStores;
-      if (AIsStore)
+      if (AIsStore) {
         Result.insert(cast<StoreInst>(AV)->getParent());
-      else
-        for (Instruction *I : RDP.getReachingDefinitions(cast<LoadInst>(AV)))
+      } else {
+        for (Instruction *I : RDP.getReachingDefinitions(cast<LoadInst>(AV))) {
           Result.insert(I->getParent());
+        }
+      }
 
     } else if (auto *AI = dyn_cast<Instruction>(AV)) {
       // Instruction
@@ -362,6 +370,7 @@ resettingBasicBlocks(ReachingDefinitionsPass &RDP, BranchInst * const& Branch) {
     }
 
   }
+
   return Result;
 }
 
@@ -502,7 +511,7 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
 
         // Build the list of conditions defined by each basic block
         for (BasicBlock *Definer : resettingBasicBlocks(RDP, B)) {
-          // Register that Defined defines ConditionIndex
+          // Register that Definer defines ConditionIndex
           pushIfAbsent(DefinedConditions[Definer], ConditionIndex);
 
           // Register that ConditionIndex is defined by Defined
@@ -566,12 +575,17 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
 
     // Check if it's reachable from the exit (i.e., it's not part of an infinite
     // loop).
-    if (PDTNode != nullptr) {
-      BasicBlock *ImmediatePostDominator = PDTNode->getIDom()->getBlock();
+    BasicBlock *ImmediatePostDominator = nullptr;
+    // TODO: for some reason getBlock() might give nullptr, investigate
+    if (PDTNode != nullptr)
+      ImmediatePostDominator = PDTNode->getIDom()->getBlock();
+
+    if (ImmediatePostDominator != nullptr) {
 
       // Add the current ConditionIndex to those defined by it
       // Note: ConditionIndex 0 is reserved, so we add one
-      pushIfAbsent(DefinedConditions[ImmediatePostDominator], I + 1);
+      for (BasicBlock *Successor : successors(ImmediatePostDominator))
+        pushIfAbsent(DefinedConditions[Successor], I + 1);
 
       DBG("cnp", {
           dbg << ", post-dominated by "
@@ -583,18 +597,18 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
     }
   }
 
+  // Restore the entry block's terminator instruction
+  EntrySwitch.restore();
+
   // Delete all the common predecessor basic blocks, we no longer need them
   for (BasicBlock *CommonPredecessor : CommonPredecessors)
     CommonPredecessor->eraseFromParent();
-
-  // Restore the entry block's terminator instruction
-  EntrySwitch.restore();
 
   DBG("passes", { dbg << "Ending ConditionNumberingPass\n"; });
   return false;
 }
 
-void BasicBlockInfo::dump(std::ostream& Output) {
+void BasicBlockInfo::dump(std::ostream &Output) {
   set<Instruction *> Printed;
   for (const MemoryInstruction &MI : Reaching) {
     Instruction *V = MI.I;
@@ -780,7 +794,7 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
   bool Changed = false;
 
   // Get (and insert, if necessary) the bit associated to the new
-  // condition. This bit will be set in all the defintions being propagated.
+  // condition. This bit will be set in all the definitions being propagated.
   DBG("rdp-propagation", dbg << "  Adding conditions:");
   unsigned NewConditionBitIndex = Target.getConditionIndex(NewConditionIndex);
   if (NewConditionIndex != 0 && !Target.Conditions[NewConditionBitIndex]) {
@@ -789,7 +803,7 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
     Changed = true;
   }
 
-  // Condition propgation
+  // Condition propagation
   for (int SetBitIndex = Conditions.find_first();
        SetBitIndex != -1;
        SetBitIndex = Conditions.find_next(SetBitIndex)) {
@@ -968,17 +982,6 @@ bool ConditionalBasicBlockInfo::mergeDefinition(CondDefPair NewDefinition,
   return Old != BV;
 }
 
-static bool isSupportedPointer(Value *V) {
-  if (auto *Global = dyn_cast<GlobalVariable>(V))
-    if (Global->getName() != "env")
-      return true;
-
-  if (isa<AllocaInst>(V))
-    return true;
-
-  return false;
-}
-
 template<class BBI, ReachingDefinitionsResult R>
 bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
   auto &FCI = getAnalysis<FunctionCallIdentification>();
@@ -1027,14 +1030,12 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
       auto *Store = dyn_cast<StoreInst>(&I);
       auto *Load = dyn_cast<LoadInst>(&I);
 
-      if (Store != nullptr
-          && isSupportedPointer(Store->getPointerOperand())) {
+      if (Store != nullptr && MemoryAccess(Store, TSP).isValid()) {
 
         // Record new definition
         Info.newDefinition(Store, TSP);
 
-      } else if (Load != nullptr
-                 && isSupportedPointer(Load->getPointerOperand())) {
+      } else if (Load != nullptr && MemoryAccess(Load, TSP).isValid()) {
 
         // Check if it's a new definition and record it
         auto LoadType = Info.newDefinition(Load, TSP);
@@ -1135,21 +1136,24 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
       auto *Load = dyn_cast<LoadInst>(&I);
 
       using IMP = pair<Instruction *, MemoryAccess>;
-      if (Store != nullptr
-          && isSupportedPointer(Store->getPointerOperand())) {
-
+      if (Store != nullptr) {
         // Remove all the reaching definitions aliased by this store
         MemoryAccess TargetMA(Store, TSP);
+        if (!TargetMA.isValid())
+          continue;
+
         erase_if(Definitions, [&TargetMA] (IMP &P) {
             return TargetMA.mayAlias(P.second);
           });
         Definitions.push_back({ Store, TargetMA });
 
-      } else if (Load != nullptr
-                 && isSupportedPointer(Load->getPointerOperand())) {
+      } else if (Load != nullptr) {
 
         // Record all the relevant reaching defininitions
         MemoryAccess TargetMA(Load, TSP);
+        if (!TargetMA.isValid())
+          continue;
+
         if (FreeLoads.count(Load) != 0) {
 
           // If it's a free load, remove all the matching loads
@@ -1157,6 +1161,7 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
               Instruction *I = P.first;
               return isa<LoadInst>(I) && MemoryAccess(I, TSP) == TargetMA;
             });
+          Definitions.push_back({ Load, TargetMA });
 
         } else {
 

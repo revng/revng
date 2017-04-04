@@ -42,7 +42,7 @@ using std::make_pair;
 class OperationsStack {
 public:
   OperationsStack(JumpTargetManager *JTM,
-                  const DataLayout &DL) : JTM(JTM), DL(DL) {
+                  const DataLayout &DL) : JTM(JTM), DL(DL), LoadsCount(0) {
     reset();
   }
 
@@ -75,6 +75,7 @@ public:
     IsPCStore = false;
     SetsSyscallNumber = false;
     Target = nullptr;
+    LoadsCount = 0;
   }
 
   void reset(StoreInst *Store) {
@@ -115,6 +116,11 @@ public:
       if (Op->getParent() == nullptr)
         delete Op;
 
+      if (isa<LoadInst>(Op)) {
+        assert(LoadsCount > 0);
+        LoadsCount--;
+      }
+
       Operations.pop_back();
     }
   }
@@ -125,7 +131,7 @@ public:
 
   bool insertIfNew(Instruction *I, Instruction *Ref) {
     if (OperationsSet.find(Ref) == OperationsSet.end()) {
-      Operations.push_back(I);
+      insert(I);
       OperationsSet.insert(Ref);
       return true;
     }
@@ -138,15 +144,35 @@ public:
   }
 
   void insert(Instruction *I) {
+    if (isa<LoadInst>(I))
+      LoadsCount++;
+
     Operations.push_back(I);
   }
 
   void setApproximate() { Approximate = true; }
 
-  bool isApproximate() { return Approximate; }
+  bool isApproximate() const { return Approximate; }
 
   unsigned height() const { return Operations.size(); }
   bool empty() const { return height() == 0; }
+
+  Type *topType() const {
+    Type *Result = nullptr;
+    bool NonConstFound = false;
+
+    for (Value *Op : Operations.back()->operand_values()) {
+      if (!isa<Constant>(Op)) {
+        assert(!NonConstFound);
+        (void) NonConstFound;
+        NonConstFound = true;
+        Result = Op->getType();
+      }
+    }
+
+    assert(Result != nullptr);
+    return Result;
+  }
 
   std::vector<uint64_t> trackedValues() const {
     std::vector<uint64_t> Result;
@@ -158,6 +184,8 @@ public:
   }
 
   bool hasTrackedValues() const { return TrackedValues.size() != 0; }
+
+  bool readsMemory() const { return LoadsCount > 0; }
 
 private:
   JumpTargetManager *JTM;
@@ -172,6 +200,7 @@ private:
   TrackingType Tracking;
   bool IsPCStore;
   bool SetsSyscallNumber;
+  unsigned LoadsCount;
 
   Instruction *Target;
 };
@@ -199,6 +228,7 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
 
       if (NewOperand == nullptr)
         break;
+
     } else if (auto *Call = dyn_cast<CallInst>(I)) {
       Function *Callee = Call->getCalledFunction();
       assert(Callee != nullptr && Callee->getIntrinsicID() == Intrinsic::bswap);
@@ -496,22 +526,22 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
 
   if (O == nullptr
       || O->boundedValue()->isTop()
-      || O->boundedValue()->isBottom()
-      || !O->boundedValue()->isSingleRange()) {
+      || O->boundedValue()->isBottom()) {
     return false;
   } else if (O->isConstant()) {
     // If it's just a single constant, use it
     OS.explore(CI::get(Int64, O->constant()));
   } else {
+    // Hard limit
+    if (O->size() >= 10000)
+      return false;
+
     // We have a limited range, let's use it all
 
     // Perform a preliminary check that whole range fits into the executable
     // area
     Constant *MinConst, *MaxConst;
     std::tie(MinConst, MaxConst) = O->boundaries(Int64, DL);
-    uint64_t Min = getZExtValue(MinConst, DL);
-    uint64_t Max = getZExtValue(MaxConst, DL);
-    uint64_t Step = O->factor();
 
     // TODO: note that since we check if isExecutableRange, this part will never
     //       affect the noreturn syscalls detection
@@ -521,11 +551,20 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
     //       maybe other registers (lr?)
     auto MaterializedMin = OS.materialize(MinConst);
     auto MaterializedMax = OS.materialize(MaxConst);
-    auto MaterializedStep = OS.materialize(CI::get(Int64, Step));
-    if (!JTM->isExecutableRange(MaterializedMin, MaterializedMax)
-        || !JTM->isInstructionAligned(MaterializedStep)
-        || O->size() >= 10000) {
-      return false;
+    auto MaterializedStep = OS.materialize(CI::get(Int64, O->factor()));
+
+    if (OS.readsMemory()) {
+      // If there's a load in the stack only check the first and last element
+      if (!JTM->isPC(MaterializedMin) || !JTM->isPC(MaterializedMax)) {
+        return false;
+      }
+    } else {
+      // If there are no loads, the whole range of generated addresses must be
+      // executable and properly aligned
+      if (!JTM->isExecutableRange(MaterializedMin, MaterializedMax)
+          || !JTM->isInstructionAligned(MaterializedStep)) {
+        return false;
+      }
     }
 
     if (O->size() > 1000)
@@ -537,10 +576,9 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
 
     // Note: addition and comparison for equality are all sign-safe
     // operations, no need to use Constants in this case.
-    // TODO: switch to a super-elegant iterator
-    for (uint64_t Position = Min; Position != Max; Position += Step)
-      OS.explore(CI::get(Int64, Position));
-    OS.explore(CI::get(Int64, Max));
+    for (uint64_t Address : O->bounds(OS.topType())) {
+      OS.explore(CI::get(Int64, Address));
+    }
   }
 
   return true;

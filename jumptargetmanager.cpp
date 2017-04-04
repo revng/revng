@@ -21,6 +21,7 @@
 
 // LLVM includes
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -39,6 +40,7 @@
 #include "revamb.h"
 #include "set.h"
 #include "simplifycomparisons.h"
+#include "subgraph.h"
 
 using namespace llvm;
 
@@ -166,7 +168,6 @@ bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
           if (Address != nullptr) {
             // Compute the actual PC and get the associated BasicBlock
             uint64_t TargetPC = Address->getSExtValue();
-            // TODO: can we switch to getBlockAt()?
             auto *TargetBlock = JTM->registerJT(TargetPC,
                                                 JumpTargetManager::DirectJump);
 
@@ -494,6 +495,11 @@ std::string JumpTargetManager::nameForAddress(uint64_t Address) const {
 }
 
 void JumpTargetManager::harvestGlobalData() {
+  // Register landing pads, if available
+  // TODO: should register them in UnusedCodePointers?
+  for (uint64_t LandingPad : Binary.landingPads())
+    registerJT(LandingPad, GlobalData);
+
   for (auto& Segment : Binary.segments()) {
     auto *Data = cast<ConstantDataArray>(Segment.Variable->getInitializer());
     uint64_t StartVirtualAddress = Segment.StartVirtualAddress;
@@ -929,118 +935,6 @@ private:
   std::queue<std::pair<BasicBlock *, uint64_t>> NewPC;
 };
 
-void JumpTargetManager::collectBBSummary(std::string OutputPath) {
-  BasicBlockVisitor BBV(DispatcherSwitch);
-  uint64_t NewPC = 0;
-  uint64_t PC = 0;
-  BasicBlock *BB = nullptr;
-  while (NewPC == 0)
-    std::tie(BB, NewPC) = BBV.pop();
-  BBSummary *Summary = nullptr;
-
-  std::set<GlobalVariable *> CPUStateSet;
-  std::set<Function *> FunctionsSet;
-  std::set<const char *> OpcodesSet;
-
-  while (BB != nullptr) {
-    if (NewPC != 0) {
-      PC = NewPC;
-      auto It = containingOriginalBB(PC);
-      assert(It != OriginalBBStats.end());
-      Summary = &It->second;
-    }
-
-    // Update stats
-    for (Instruction &I : *BB) {
-      // TODO: Data dependencies
-      unsigned Opcode = I.getOpcode();
-      const char *OpcodeName = I.getOpcodeName();
-      Summary->Opcode[OpcodeName]++;
-      OpcodesSet.insert(OpcodeName);
-
-      switch (Opcode) {
-      case Instruction::Load:
-        {
-          auto *L = static_cast<LoadInst *>(&I);
-          if (auto *State = dyn_cast<GlobalVariable>(L->getPointerOperand())) {
-            CPUStateSet.insert(State);
-            Summary->ReadState[State]++;
-          }
-
-          break;
-        }
-      case Instruction::Store:
-        {
-          auto *S = static_cast<StoreInst *>(&I);
-          if (auto *State = dyn_cast<GlobalVariable>(S->getPointerOperand())) {
-            CPUStateSet.insert(State);
-            Summary->ReadState[State]++;
-          }
-
-          break;
-        }
-      case Instruction::Call:
-        {
-          auto *Call = static_cast<CallInst *>(&I);
-          if (auto *F  = Call->getCalledFunction()) {
-            FunctionsSet.insert(F);
-            Summary->CalledFunctions[F]++;
-          }
-
-          break;
-        }
-      default:
-        break;
-      }
-    }
-
-    std::tie(BB, NewPC) = BBV.pop();
-  }
-
-  std::vector<GlobalVariable *> CPUState;
-  std::copy(CPUStateSet.begin(),
-            CPUStateSet.end(),
-            std::back_inserter(CPUState));
-  std::vector<Function *> Functions;
-  std::copy(FunctionsSet.begin(),
-            FunctionsSet.end(),
-            std::back_inserter(Functions));
-  std::vector<const char *> Opcodes;
-  std::copy(OpcodesSet.begin(),
-            OpcodesSet.end(),
-            std::back_inserter(Opcodes));
-
-  std::ofstream Output(OutputPath);
-
-  Output << "address,size";
-  for (GlobalVariable *V : CPUState)
-    Output << ",read_" << V->getName().str();
-  for (GlobalVariable *V : CPUState)
-    Output << ",write_" << V->getName().str();
-  for (Function *F : Functions)
-    Output << ",call_" << F->getName().str();
-  for (const char *OpcodeName : Opcodes)
-    Output << ",opcode_" <<  OpcodeName;
-  Output << "\n";
-
-  for (auto P : OriginalBBStats) {
-    Output << std::dec << P.first << ","
-        << std::dec << P.second.Size;
-
-    for (GlobalVariable *V : CPUState)
-      Output << "," << std::dec << P.second.ReadState[V];
-    for (GlobalVariable *V : CPUState)
-      Output << "," << std::dec << P.second.WrittenState[V];
-    for (Function *F : Functions)
-      Output << "," << std::dec << P.second.CalledFunctions[F];
-    for (const char *OpcodeName : Opcodes)
-      Output << "," << P.second.Opcode[OpcodeName];
-
-    Output << "\n";
-  }
-
-}
-
 void JumpTargetManager::translateIndirectJumps() {
   if (ExitTB->use_empty())
     return;
@@ -1073,6 +967,11 @@ void JumpTargetManager::translateIndirectJumps() {
 
 JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
   harvest();
+
+  // Purge all the partial translations we know might be wrong
+  for (BasicBlock *BB : ToPurge)
+    purgeTranslation(BB);
+  ToPurge.clear();
 
   if (Unexplored.empty())
     return NoMoreTargets;
@@ -1114,6 +1013,51 @@ BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
   return TargetIt->second.head();
 }
 
+void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
+  OnceQueue<BasicBlock *> Queue;
+  Queue.insert(Start);
+
+  // Collect all the descendats, except if we meet a jump target
+  while (!Queue.empty()) {
+    BasicBlock *BB = Queue.pop();
+    for (BasicBlock *Successor : successors(BB)) {
+      if (isTranslatedBB(Successor)
+          && !isJumpTarget(Successor)
+          && !hasPredecessor(Successor, Dispatcher)) {
+        Queue.insert(Successor);
+      }
+    }
+  }
+
+  // Erase all the visited basic blocks
+  std::set<BasicBlock *> Visited = Queue.visited();
+
+  // Build a subgraph, so that we can visit it in post order, and purge the
+  // content of each basic block
+  SubGraph<BasicBlock *> TranslatedBBs(Start, Visited);
+  for (auto *Node : post_order(TranslatedBBs)) {
+    BasicBlock *BB = Node->get();
+    while (!BB->empty())
+      eraseInstruction(&*(--BB->end()));
+  }
+
+  // Remove Start, since we want to keep it (even if empty)
+  Visited.erase(Start);
+
+  for (BasicBlock *BB : Visited) {
+    // We might have some predecessorless basic blocks jumping to us, purge them
+    // TODO: why this?
+    while (pred_begin(BB) != pred_end(BB)) {
+      BasicBlock *Predecessor = *pred_begin(BB);
+      assert(pred_empty(Predecessor));
+      Predecessor->eraseFromParent();
+    }
+
+    assert(BB->use_empty());
+    BB->eraseFromParent();
+  }
+}
+
 // TODO: register Reason
 BasicBlock *JumpTargetManager::registerJT(uint64_t PC, JTReason Reason) {
   if (!isExecutableAddress(PC) || !isInstructionAligned(PC))
@@ -1136,23 +1080,29 @@ BasicBlock *JumpTargetManager::registerJT(uint64_t PC, JTReason Reason) {
   if (InstrIt != OriginalInstructionAddresses.end()) {
     // Case 2: the address has already been met, but needs to be promoted to
     //         BasicBlock level.
-    registerOriginalBB(PC, 0);
-
-    BasicBlock *ContainingBlock = InstrIt->second->getParent();
-    if (InstrIt->second == &*ContainingBlock->begin())
+    Instruction *I = InstrIt->second;
+    BasicBlock *ContainingBlock = I->getParent();
+    if (isFirst(I)) {
       NewBlock = ContainingBlock;
-    else {
-      assert(InstrIt->second != nullptr
-             && InstrIt->second != ContainingBlock->end());
-      NewBlock = ContainingBlock->splitBasicBlock(InstrIt->second);
+    } else {
+      assert(I != nullptr && I != ContainingBlock->end());
+      NewBlock = ContainingBlock->splitBasicBlock(I);
     }
+
+    // Register the basic block and all of its descendants to be purged so that
+    // we can retranslate this PC
+    // TODO: this might create a problem if QEMU generates control flow that
+    //       crosses an instruction boundary
+    ToPurge.insert(NewBlock);
+
     unvisit(NewBlock);
   } else {
     // Case 3: the address has never been met, create a temporary one, register
     // it for future exploration and return it
     NewBlock = BasicBlock::Create(Context, "", TheFunction);
-    Unexplored.push_back(BlockWithAddress(PC, NewBlock));
   }
+
+  Unexplored.push_back(BlockWithAddress(PC, NewBlock));
 
   if (NewBlock->getName().empty()) {
     std::stringstream Name;

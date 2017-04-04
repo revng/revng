@@ -9,6 +9,7 @@ SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INPUT=""
 OPTIMIZE=0
 SKIP=0
+SUPPORT_CONFIG=normal
 
 set -e
 
@@ -26,6 +27,10 @@ do
             ;;
         -O2)
             OPTIMIZE="2"
+            shift # past argument
+            ;;
+        -trace)
+            SUPPORT_CONFIG="trace"
             shift # past argument
             ;;
         -s)
@@ -50,6 +55,7 @@ done
 
 # Output file names
 LL="$INPUT.ll"
+LINKED_LL="$INPUT.linked.ll"
 REVAMB_LOG="$LL.log"
 LL_OPT="$INPUT.opt.ll"
 CSV="$LL.li.csv"
@@ -58,19 +64,11 @@ OBJ="$LL.o"
 # Required programs
 export PATH="$SCRIPT_PATH:$PATH"
 CC="${CC:-cc}"
+LINK="llvm-link"
 LLC="llc"
 OPT="opt"
 REVAMB="revamb"
 TOOPT="li-csv-to-ld-options"
-SUPPORTC="$SCRIPT_PATH/../share/revamb/support.c"
-
-if [ '!' -e "$SUPPORTC" ]; then
-    SUPPORTC="$SCRIPT_PATH/support.c"
-    if [ '!' -e "$SUPPORTC" ]; then
-        echo "Can't find support.c"
-        exit 1
-    fi
-fi
 
 # Read endianess and architecture bytes
 ARCHID=$(python -c '
@@ -100,25 +98,35 @@ case "$ARCHID" in
         ;;
 esac
 
+SUPPORT_NAME="support-$ARCH-$SUPPORT_CONFIG.ll"
+SUPPORT_PATH="$SCRIPT_PATH/../share/revamb/$SUPPORT_NAME"
+
+if [ '!' -e "$SUPPORT_PATH" ]; then
+    SUPPORT_PATH="$SCRIPT_PATH/$SUPPORT_NAME"
+    if [ '!' -e "$SUPPORT_PATH" ]; then
+        echo "Can't find $SUPPORT_NAME"
+        exit 1
+    fi
+fi
+
 if [ "$SKIP" -eq 0 ]; then
     "$REVAMB" -g ll --debug jtcount,osrjts --use-sections "$INPUT" "$LL" "$@" |& tee "$REVAMB_LOG"
 fi
 
+"$LINK" "$LL" "$SUPPORT_PATH" -o "$LINKED_LL" -S
+
 OUTPUT="$INPUT.translated"
 if [ "$OPTIMIZE" -eq 0 ]; then
-    "$LLC" -O0 -filetype=obj "$LL" -o "$OBJ"
+    "$LLC" -O0 -filetype=obj "$LINKED_LL" -o "$OBJ"
 elif [ "$OPTIMIZE" -eq 1 ]; then
-    "$LLC" -O2 -filetype=obj "$LL" -o "$OBJ" -regalloc=fast
+    "$LLC" -O2 -filetype=obj "$LINKED_LL" -o "$OBJ" -regalloc=fast -disable-machine-licm
 elif [ "$OPTIMIZE" -eq 2 ]; then
-    "$OPT" -O2 -S -o "$LL_OPT" "$LL"
-    LL="$LL_OPT"
-    "$LLC" -O2 -filetype=obj "$LL" -o "$OBJ" -regalloc=fast
+    "$OPT" -O2 -S "$LINKED_LL" -o "$LL_OPT"
+    "$LLC" -O2 -filetype=obj "$LL_OPT" -o "$OBJ" -regalloc=fast -disable-machine-licm
 fi
 
 "$CC" $("$TOOPT" "$CSV") \
       "$OBJ" \
-      "$SUPPORTC" \
-      -DTARGET_"$ARCH" \
-      -lz -lm -lrt -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -g \
+      -lz -lm -lrt \
       -o "$OUTPUT" \
       -fno-pie

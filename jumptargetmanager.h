@@ -106,29 +106,6 @@ private:
   using interval_set = boost::icl::interval_set<uint64_t>;
   using interval = boost::icl::interval<uint64_t>;
 
-  /// \brief Data structure to collect statistics about an input basic block
-  struct BBSummary {
-    BBSummary(uint32_t Size) : Size(Size) { }
-
-    /// Size in bytes of the basic block
-    unsigned Size;
-    /// Associative map keeping track of how many times a certain register has
-    /// been read
-    std::map<llvm::GlobalVariable *, unsigned> ReadState;
-    /// Associative map keeping track of how many times a certain register has
-    /// been written
-    std::map<llvm::GlobalVariable *, unsigned> WrittenState;
-    /// Associative map keeping track of how many times a certain function has
-    /// been called in the associated basic block. This is particularly useful
-    /// to count calls to QEMU helper functions and to count the amount of
-    /// instructions (in the form of calls to `newpc`)
-    std::map<llvm::Function *, unsigned> CalledFunctions;
-    /// Associative map keeping track of how many times a certain LLVM
-    /// instruction is used in the code generated translating the input basic
-    /// block
-    std::map<const char *, unsigned> Opcode;
-  };
-
 public:
   using BlockWithAddress = std::pair<uint64_t, llvm::BasicBlock *>;
   static const BlockWithAddress NoMoreTargets;
@@ -249,14 +226,6 @@ public:
   /// \brief Translate the non-constant jumps into jumps to the dispatcher
   void translateIndirectJumps();
 
-  /// \brief Collect staticists about all the translated basic blocks
-  ///
-  /// Create a CSV containing all the information in BBSummary for all the
-  /// translated basic blocks.
-  ///
-  /// \param OutputPath path where the output CSV file should be stored.
-  void collectBBSummary(std::string OutputPath);
-
   /// \brief Return the most recent instruction writing the program counter
   ///
   /// Note that the search is performed only in the current basic block.  The
@@ -311,6 +280,18 @@ public:
   /// \brief Return true if the given PC is a jump target
   bool isJumpTarget(uint64_t PC) const {
     return JumpTargets.count(PC);
+  }
+
+  /// \brief Return true if the given basic block corresponds to a jump target
+  bool isJumpTarget(llvm::BasicBlock *BB) {
+    if (BB->empty())
+      return false;
+
+    uint64_t PC = getPCFromNewPCCall(&*BB->begin());
+    if (PC != 0)
+      return isJumpTarget(PC);
+
+    return false;
   }
 
   /// \brief Return true if \p PC is in an executable segment
@@ -431,77 +412,6 @@ public:
                                         unsigned Size,
                                         Endianess ReadEndianess) const;
 
-  /// \brief Register a new basic block in terms of the input architecture
-  ///
-  /// \param Address virtual address where the basic block starts.
-  /// \param Size size, in bytes, of the given basic block.
-  void registerOriginalBB(uint64_t Address, uint32_t Size) {
-    // TODO: this part is useful in case of erroneus situations where a basic
-    //       block includes another one, a more clean approach is probably to
-    //       drop all those included and then split again where they were.
-    auto StartIt = OriginalBBStats.lower_bound(Address);
-    if (StartIt->first == Address && StartIt->second.Size == Size)
-      return;
-
-    auto NextIt = StartIt;
-    while (NextIt != OriginalBBStats.end()
-           && NextIt->first < Address + Size
-           && NextIt->first + NextIt->second.Size < Address + Size) {
-      NextIt++;
-    }
-
-    if (StartIt != NextIt)
-      OriginalBBStats.erase(StartIt, NextIt);
-
-    auto ItStart = containingOriginalBB(Address);
-    bool StartMatches = ItStart != OriginalBBStats.end();
-
-    if (Size == 0) {
-      assert(StartMatches);
-      uint32_t NewSize = ItStart->second.Size - (Address - ItStart->first);
-      OriginalBBStats.insert({ Address, BBSummary(NewSize) });
-      ItStart->second.Size = ItStart->first - Address;
-      return;
-    }
-
-    auto ItEnd = containingOriginalBB(Address + Size);
-    bool EndMatches = ItEnd != OriginalBBStats.end();
-
-    if (!StartMatches && !EndMatches) {
-      OriginalBBStats.insert({ Address, BBSummary(Size) });
-    } else if (StartMatches && !EndMatches) {
-      ItStart->second.Size = ItStart->first - Address;
-      OriginalBBStats.insert({ Address, BBSummary(Size) });
-    } else if (!StartMatches && EndMatches) {
-      OriginalBBStats.insert({ Address, BBSummary(ItEnd->first - Address) });
-    } else if (StartMatches && EndMatches) {
-      // 100% match
-      if (Address == ItStart->first && Size == ItStart->second.Size)
-        return;
-
-      // Reduce the previous basic block
-      ItStart->second.Size = ItStart->first - Address;
-      assert(ItStart->second.Size != 0);
-
-      // Set the size of the new basic block
-      if (ItEnd == ItStart) {
-        if (!(Address + Size == ItEnd->first + ItEnd->second.Size)) {
-          // We're in a mistranslation situation, just ignore the error
-          // TODO: emit a warning
-          return;
-        }
-      } else {
-        Size = ItEnd->first - Address;
-      }
-
-      // Create the new basic block
-      OriginalBBStats.insert({ Address, BBSummary(Size) });
-
-    } else {
-      llvm_unreachable("Unexpected situation");
-    }
-  }
-
   /// \brief Increment the counter of emitted branches since the last reset
   void newBranch() { NewBranches++; }
 
@@ -569,6 +479,35 @@ public:
 
 private:
 
+  /// \brief Helper function to check if an instruction is a call to `newpc`
+  ///
+  /// \return 0 if \p I is not a call to `newpc`, otherwise the PC address of
+  ///         associated to the call to `newpc`
+  uint64_t getPCFromNewPCCall(llvm::Instruction *I) {
+    if (auto *CallNewPC = llvm::dyn_cast<llvm::CallInst>(I)) {
+      if (CallNewPC->getCalledFunction() == nullptr
+          || CallNewPC->getCalledFunction()->getName() != "newpc")
+        return 0;
+
+      return getLimitedValue(CallNewPC->getArgOperand(0));
+    }
+
+    return 0;
+  }
+
+  /// \brief Erase \p I, and deregister it in case it's a call to `newpc`
+  void eraseInstruction(llvm::Instruction *I) {
+    assert(I->use_empty());
+
+    uint64_t PC = getPCFromNewPCCall(I);
+    if (PC != 0)
+      OriginalInstructionAddresses.erase(PC);
+    I->eraseFromParent();
+  }
+
+  /// \brief Drop \p Start and all the descendants, stopping when a JT is met
+  void purgeTranslation(llvm::BasicBlock *Start);
+
   /// \brief Check if \p BB has at least a predecessor, excluding the dispatcher
   bool hasPredecessors(llvm::BasicBlock *BB) const;
 
@@ -580,20 +519,6 @@ private:
 
   /// \brief Populate the interval -> Symbol map from Binary.Symbols
   void initializeSymbolMap();
-
-  /// \brief Return an iterator to the entry containing the given address range
-  typename std::map<uint64_t, BBSummary>::iterator
-  containingOriginalBB(uint64_t Address) {
-    // Get the less or equal entry
-    auto It = containing(OriginalBBStats, Address);
-
-    // Check if it's within the upper bound
-    if (It == OriginalBBStats.end()
-        || !(Address < It->first + It->second.Size))
-      return OriginalBBStats.end();
-
-    return It;
-  }
 
   // TODO: instead of a gigantic switch case we could map the original memory
   //       area and write the address of the translated basic block at the jump
@@ -616,7 +541,7 @@ private:
   using InstructionMap = std::map<uint64_t, llvm::Instruction *>;
 
   llvm::Module &TheModule;
-  llvm::LLVMContext& Context;
+  llvm::LLVMContext &Context;
   llvm::Function* TheFunction;
   /// Holds the association between a PC and the last generated instruction for
   /// the previous instruction.
@@ -639,7 +564,6 @@ private:
 
   bool EnableOSRA;
 
-  std::map<uint64_t, BBSummary> OriginalBBStats;
   unsigned NewBranches = 0;
 
   std::set<uint64_t> UnusedCodePointers;
@@ -649,6 +573,7 @@ private:
   boost::icl::interval_map<uint64_t, SymbolInfoSet> SymbolMap;
 
   CFGForm CurrentCFGForm;
+  std::set<llvm::BasicBlock *> ToPurge;
 };
 
 template<>
