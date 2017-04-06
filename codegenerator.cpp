@@ -646,6 +646,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     size_t ConsumedSize = 0;
 
     ConsumedSize = ptc.translate(VirtualAddress, InstructionList.get());
+    SmallSet<unsigned, 1> ToIgnore;
+    ToIgnore = Translator.preprocess(InstructionList.get());
 
     DBG("ptc", dumpTranslation(dbg, InstructionList.get()));
 
@@ -666,7 +668,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       PTCInstruction *NextInstruction = nullptr;
       for (unsigned k = 1; k < InstructionCount; k++) {
         PTCInstruction *I = &InstructionList->instructions[k];
-        if (I->opc == PTC_INSTRUCTION_op_debug_insn_start) {
+        if (I->opc == PTC_INSTRUCTION_op_debug_insn_start
+            && ToIgnore.count(k) == 0) {
           NextInstruction = I;
           break;
         }
@@ -685,6 +688,9 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
     // TODO: shall we move this whole loop in InstructionTranslator?
     for (; j < InstructionCount && !StopTranslation; j++) {
+      if (ToIgnore.count(j) != 0)
+        continue;
+
       PTCInstruction Instruction = InstructionList->instructions[j];
       PTCOpcode Opcode = Instruction.opc;
 
@@ -701,7 +707,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
           PTCInstruction *NextInstruction = nullptr;
           for (unsigned k = j + 1; k < InstructionCount; k++) {
             PTCInstruction *I = &InstructionList->instructions[k];
-            if (I->opc == PTC_INSTRUCTION_op_debug_insn_start) {
+            if (I->opc == PTC_INSTRUCTION_op_debug_insn_start
+                && ToIgnore.count(k) == 0) {
               NextInstruction = I;
               break;
             }

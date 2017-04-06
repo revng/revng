@@ -117,6 +117,13 @@ public:
   /// \brief Notifies InstructionTranslator about a new PTC translation
   void reset() { LabeledBasicBlocks.clear(); }
 
+  /// \brief Preprocess the translated instructions
+  ///
+  /// Check if the translated code contains a delay slot and return a blacklist
+  /// of the PTC_INSTRUCTION_op_debug_insn_start instructions that have to be
+  /// ignored to merge the delay slot into the branch instruction.
+  llvm::SmallSet<unsigned, 1> preprocess(PTCInstructionList *Instructions);
+
 private:
   llvm::ErrorOr<std::vector<llvm::Value *>>
   translateOpcode(PTCOpcode Opcode,

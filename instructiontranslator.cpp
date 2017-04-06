@@ -533,6 +533,43 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
   Output << std::dec;
 }
 
+SmallSet<unsigned, 1> IT::preprocess(PTCInstructionList *InstructionList) {
+  SmallSet<unsigned, 1> Result;
+
+  for (unsigned I = 0; I < InstructionList->instruction_count; I++) {
+    PTCInstruction &Instruction = InstructionList->instructions[I];
+    switch (Instruction.opc) {
+    case PTC_INSTRUCTION_op_movi_i32:
+    case PTC_INSTRUCTION_op_movi_i64:
+    case PTC_INSTRUCTION_op_mov_i32:
+    case PTC_INSTRUCTION_op_mov_i64:
+      break;
+    default:
+      continue;
+    }
+
+    const PTC::Instruction TheInstruction(&Instruction);
+    unsigned OutArg = TheInstruction.OutArguments[0];
+    PTCTemp *Temporary = ptc_temp_get(InstructionList, OutArg);
+
+    if (!ptc_temp_is_global(InstructionList, OutArg))
+      continue;
+
+    if (0 != strcmp("btarget", Temporary->name))
+      continue;
+
+    for (unsigned J = I + 1; J < InstructionList->instruction_count; J++) {
+      unsigned Opcode = InstructionList->instructions[J].opc;
+      if (Opcode == PTC_INSTRUCTION_op_debug_insn_start)
+        Result.insert(J);
+    }
+
+    break;
+  }
+
+  return Result;
+}
+
 std::tuple<IT::TranslationResult, MDNode *, uint64_t, uint64_t>
 IT::newInstruction(PTCInstruction *Instr,
                    PTCInstruction *Next,
