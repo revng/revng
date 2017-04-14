@@ -74,11 +74,17 @@ static void writeMetadataIfNew(const Instruction *TheInstruction,
   }
 }
 
+/// Add a module flag, if not already present, using name and value provided.
+/// Used for creating the Dwarf compliant debug info.
+static void addModuleFlag(Module *TheModule, StringRef Flag, uint32_t Value) {
+  if (TheModule->getModuleFlag(Flag) == nullptr) {
+    TheModule->addModuleFlag(Module::Warning, Flag, Value);
+  }
+}
+
 DebugAnnotationWriter::DebugAnnotationWriter(LLVMContext& Context,
-                                             Metadata *Scope,
                                              bool DebugInfo) :
   Context(Context),
-  Scope(Scope),
   DebugInfo(DebugInfo)
 {
   OriginalInstrMDKind = Context.getMDKindID("oi");
@@ -88,9 +94,10 @@ DebugAnnotationWriter::DebugAnnotationWriter(LLVMContext& Context,
 
 void DebugAnnotationWriter::emitInstructionAnnot(const Instruction *Instr,
                                                  formatted_raw_ostream &Output) {
-  // Ignore whatever is outside the root function
-  // TODO: comparing strings here is not very elegant
-  if (Instr->getParent()->getParent()->getName() != "root")
+  DISubprogram *Subprogram = Instr->getParent()->getParent()->getSubprogram();
+
+  // Ignore whatever is outside the root and the isolated functions
+  if (Subprogram == nullptr)
     return;
 
   writeMetadataIfNew(Instr, OriginalInstrMDKind, Output, "\n  ; ");
@@ -101,14 +108,14 @@ void DebugAnnotationWriter::emitInstructionAnnot(const Instruction *Instr,
     // will contain some reference to dangling pointers. So ignore the output
     // stream if you're using the annotator to generate debug info about the IR
     // itself.
-    assert(Scope != nullptr);
+    assert(Subprogram != nullptr);
 
     // Flushing is required to have correct line and column numbers
     Output.flush();
     auto *Location = DILocation::get(Context,
                                      Output.getLine() + 1,
                                      Output.getColumn(),
-                                     Scope);
+                                     Subprogram);
 
     // Sorry Bjarne
     auto *NonConstInstruction = const_cast<Instruction *>(Instr);
@@ -149,42 +156,44 @@ DebugHelper::DebugHelper(std::string Output,
                                             "",
                                             0 /* Runtime version */);
 
-    // Add the current debug info version into the module.
-    TheModule->addModuleFlag(Module::Warning, "Debug Info Version",
-                             DEBUG_METADATA_VERSION);
-    TheModule->addModuleFlag(Module::Warning, "Dwarf Version", 4);
-  }
-}
-
-void DebugHelper::newFunction(Function *Function) {
-  if (Type != DebugInfoType::None) {
-    DISubroutineType *EmptyType = nullptr;
-    EmptyType = Builder.createSubroutineType(Builder.getOrCreateTypeArray({}));
-
-    CurrentFunction = Function;
-    assert(CompileUnit != nullptr);
-    CurrentSubprogram = Builder.createFunction(CompileUnit->getFile(), // Scope
-                                               Function->getName(),
-                                               StringRef(), // Linkage name
-                                               CompileUnit->getFile(),
-                                               1, // Line
-                                               EmptyType, // Subroutine type
-                                               false, // isLocalToUnit
-                                               true, // isDefinition
-                                               1, // ScopeLine
-                                               DINode::FlagPrototyped,
-                                               false /* isOptimized */);
-    CurrentFunction->setSubprogram(CurrentSubprogram);
+    // Add the current debug info version into the module after checking if it
+    // is already present.
+    addModuleFlag(TheModule, "Debug Info Version", DEBUG_METADATA_VERSION);
+    addModuleFlag(TheModule, "Dwarf Version", 4);
   }
 }
 
 void DebugHelper::generateDebugInfo() {
+  for (Function &F : TheModule->functions()) {
+    // TODO: find a better way to identify root and the isolated functions
+    if (F.getName() == "root" || F.getName().startswith("bb.")) {
+      if (Type != DebugInfoType::None) {
+        DISubroutineType *EmptyType = nullptr;
+        DITypeRefArray EmptyArrayType = Builder.getOrCreateTypeArray({});
+        EmptyType = Builder.createSubroutineType(EmptyArrayType);
+
+        assert(CompileUnit != nullptr);
+        DISubprogram *Subprogram = nullptr;
+        Subprogram = Builder.createFunction(CompileUnit->getFile(), // Scope
+                                            F.getName(),
+                                            StringRef(), // Linkage name
+                                            CompileUnit->getFile(),
+                                            1, // Line
+                                            EmptyType, // Subroutine type
+                                            false, // isLocalToUnit
+                                            true, // isDefinition
+                                            1, // ScopeLine
+                                            DINode::FlagPrototyped,
+                                            false /* isOptimized */);
+        F.setSubprogram(Subprogram);
+      }
+    }
+  }
+
   switch (Type) {
   case DebugInfoType::PTC:
   case DebugInfoType::OriginalAssembly:
     {
-      assert(CurrentSubprogram != nullptr && CurrentFunction != nullptr);
-
       // Generate the source file and the debugging information in tandem
 
       unsigned LineIndex = 1;
@@ -193,22 +202,28 @@ void DebugHelper::generateDebugInfo() {
 
       MDString *Last = nullptr;
       std::ofstream Source(DebugPath);
-      for (BasicBlock& Block : *CurrentFunction) {
-        for (Instruction& Instruction : Block) {
-          MDString *Body = getMD(&Instruction, MetadataKind);
+      for (Function &CurrentFunction : TheModule->functions()) {
+        if (DISubprogram *CurrentSubprogram = CurrentFunction.getSubprogram()) {
+          for (BasicBlock& Block : CurrentFunction) {
+            for (Instruction& Instruction : Block) {
+              MDString *Body = getMD(&Instruction, MetadataKind);
 
-          if (Body != nullptr && Last != Body) {
-            Last = Body;
-            std::string BodyString = Body->getString().str();
+              if (Body != nullptr && Last != Body) {
+                Last = Body;
+                std::string BodyString = Body->getString().str();
 
-            Source << BodyString;
+                Source << BodyString;
 
-            auto *Location = DILocation::get(TheModule->getContext(),
-                                             LineIndex,
-                                             0,
-                                             CurrentSubprogram);
-            Instruction.setMetadata(DbgMDKind, Location);
-            LineIndex += std::count(BodyString.begin(), BodyString.end(), '\n');
+                auto *Location = DILocation::get(TheModule->getContext(),
+                                                 LineIndex,
+                                                 0,
+                                                 CurrentSubprogram);
+                Instruction.setMetadata(DbgMDKind, Location);
+                LineIndex += std::count(BodyString.begin(),
+                                        BodyString.end(),
+                                        '\n');
+              }
+            }
           }
         }
       }
@@ -259,7 +274,6 @@ bool DebugHelper::copySource() {
 
 DebugAnnotationWriter *DebugHelper::annotator(bool DebugInfo) {
   Annotator.reset(new DebugAnnotationWriter(TheModule->getContext(),
-                                            CurrentSubprogram,
                                             DebugInfo));
   return Annotator.get();
 }

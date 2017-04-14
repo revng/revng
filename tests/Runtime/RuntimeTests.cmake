@@ -89,11 +89,24 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
     set_tests_properties(translate-${TEST_NAME}-${ARCH}
       PROPERTIES LABELS "runtime;translate;${TEST_NAME};${ARCH}")
 
+    # Test of function isolation with revamb-dump
+    add_test(NAME function-isolation-${TEST_NAME}-${ARCH}
+    COMMAND sh -c "$<TARGET_FILE:revamb-dump> --functions-isolation ${BINARY}.isolated-functions.ll ${BINARY}.ll")
+    set_tests_properties(function-isolation-${TEST_NAME}-${ARCH}
+      PROPERTIES DEPENDS translate-${TEST_NAME}-${ARCH}
+                 LABELS "runtime;function-isolation;${TEST_NAME}-${ARCH}")
+
     # Compose the command line to link support.c and the translated binaries
     string(REPLACE "-" "_" NORMALIZED_ARCH "${ARCH}")
     compile_executable("$(${CMAKE_BINARY_DIR}/li-csv-to-ld-options ${BINARY}.ll.li.csv) ${BINARY}${CMAKE_C_OUTPUT_EXTENSION} ${CMAKE_BINARY_DIR}/support.c -DTARGET_${NORMALIZED_ARCH} -lz -lm -lrt -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -g -fno-pie ${NO_PIE}"
       "${BINARY}.translated"
       COMPILE_TRANSLATED)
+
+    # Compose the command line to link support.c and the translated binaries to which we have applied function isolation
+    string(REPLACE "-" "_" NORMALIZED_ARCH "${ARCH}")
+    compile_executable("$(${CMAKE_BINARY_DIR}/li-csv-to-ld-options ${BINARY}.ll.li.csv) ${BINARY}.isolated-functions${CMAKE_C_OUTPUT_EXTENSION} ${CMAKE_BINARY_DIR}/support.c -DTARGET_${NORMALIZED_ARCH} -lz -lm -lrt -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -g -fno-pie ${NO_PIE}"
+      "${BINARY}.isolated-functions.translated"
+    COMPILE_TRANSLATED_ISOLATED)
 
     # Compile the translated LLVM IR with llc and link using the previously composed command line
     add_test(NAME compile-translated-${TEST_NAME}-${ARCH}
@@ -101,6 +114,13 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
     set_tests_properties(compile-translated-${TEST_NAME}-${ARCH}
       PROPERTIES DEPENDS translate-${TEST_NAME}-${ARCH}
                  LABELS "runtime;compile-translated;${TEST_NAME};${ARCH}")
+
+    # Compile the translated LLVM IR after function isolation pass with llc and link using the previously composed command line
+    add_test(NAME compile-translated-isolated-${TEST_NAME}-${ARCH}
+    COMMAND sh -c "${LLC} -O0 -filetype=obj ${BINARY}.isolated-functions.ll -o ${BINARY}.isolated-functions${CMAKE_C_OUTPUT_EXTENSION} && ${COMPILE_TRANSLATED_ISOLATED}")
+    set_tests_properties(compile-translated-isolated-${TEST_NAME}-${ARCH}
+    PROPERTIES DEPENDS function-isolation-${TEST_NAME}-${ARCH}
+              LABELS "runtime;compile-translated;function-isolation;${TEST_NAME};${ARCH}")
 
     # For each set of arguments
     foreach(RUN_NAME ${TEST_RUNS_${TEST_NAME}})
@@ -111,6 +131,13 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
         PROPERTIES DEPENDS compile-translated-${TEST_NAME}-${ARCH}
                    LABELS "runtime;run-translated-test;${TEST_NAME};${RUN_NAME};${ARCH}")
 
+       # Test to run the translated program after function isolation pass
+       add_test(NAME run-translated-isolated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
+       COMMAND sh -c "${BINARY}.isolated-functions.translated ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${BINARY}-run-translated-isolated-test-${RUN_NAME}-${ARCH}.log")
+       set_tests_properties(run-translated-isolated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
+         PROPERTIES DEPENDS compile-translated-isolated-${TEST_NAME}-${ARCH}
+                    LABELS "runtime;run-translated-test;function-isolation;${TEST_NAME};${RUN_NAME};${ARCH}")
+
       # Check the output of the translated binary corresponds to the native's one
       add_test(NAME check-with-native-${TEST_NAME}-${RUN_NAME}-${ARCH}
         COMMAND "${DIFF}" "${BINARY}-run-translated-test-${RUN_NAME}-${ARCH}.log" "${CMAKE_CURRENT_BINARY_DIR}/tests/run-test-native-${TEST_NAME}-${RUN_NAME}.log")
@@ -120,6 +147,16 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       set_tests_properties(check-with-native-${TEST_NAME}-${RUN_NAME}-${ARCH}
         PROPERTIES DEPENDS "${DEPS}"
                    LABELS "runtime;check-with-native;${TEST_NAME};${RUN_NAME};${ARCH}")
+
+      # Check the output of the translated and isolated binary corresponds to the native's one
+      add_test(NAME check-isolated-with-native-${TEST_NAME}-${RUN_NAME}-${ARCH}
+      COMMAND "${DIFF}" "${BINARY}-run-translated-isolated-test-${RUN_NAME}-${ARCH}.log" "${CMAKE_CURRENT_BINARY_DIR}/tests/run-test-native-${TEST_NAME}-${RUN_NAME}.log")
+      set(DEPS "")
+      list(APPEND DEPS "run-translated-isolated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}")
+      list(APPEND DEPS "run-test-native-${TEST_NAME}-${RUN_NAME}")
+      set_tests_properties(check-isolated-with-native-${TEST_NAME}-${RUN_NAME}-${ARCH}
+       PROPERTIES DEPENDS "${DEPS}"
+                  LABELS "runtime;check-with-native;function-isolation;${TEST_NAME};${RUN_NAME};${ARCH}")
 
       # Test to run the compiled program under qemu-user
       add_test(NAME run-qemu-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
@@ -137,7 +174,20 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       set_tests_properties(check-with-qemu-${TEST_NAME}-${RUN_NAME}-${ARCH}
         PROPERTIES DEPENDS "${DEPS}"
                    LABELS "runtime;check-with-qemu;${TEST_NAME};${RUN_NAME};${ARCH}")
+
+      # Check the output of the translated and isolated binary corresponds to the qemu-user's
+      # one
+      add_test(NAME check-isolated-with-qemu-${TEST_NAME}-${RUN_NAME}-${ARCH}
+      COMMAND "${DIFF}" "${BINARY}-run-translated-isolated-test-${RUN_NAME}-${ARCH}.log" "${BINARY}-run-qemu-test-${RUN_NAME}.log")
+      set(DEPS "")
+      list(APPEND DEPS "run-translated-isolated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}")
+      list(APPEND DEPS "run-qemu-test-${TEST_NAME}-${RUN_NAME}-${ARCH}")
+      set_tests_properties(check-isolated-with-qemu-${TEST_NAME}-${RUN_NAME}-${ARCH}
+       PROPERTIES DEPENDS "${DEPS}"
+                  LABELS "runtime;check-with-qemu;function-isolation;${TEST_NAME};${RUN_NAME};${ARCH}")
+
     endforeach()
+
   endforeach()
 
 endforeach()

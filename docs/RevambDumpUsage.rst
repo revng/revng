@@ -47,3 +47,6 @@ a basic block* as represented by `revamb` in the generated module (typically
                                     block of the function, and `basicblock`, the
                                     name of a basic block belonging to
                                     `function`.
+:``-i``, ``--function-isolation``: Path where to store the LLVM module that is
+                                   the result of the function isolation pass on
+                                   the input module.

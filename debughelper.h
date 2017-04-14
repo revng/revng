@@ -46,7 +46,6 @@ public:
   /// \param DebugInfo whether to decorate the IR being serialized with debug
   ///        metadata refering to the produce IR itself or not.
   DebugAnnotationWriter(llvm::LLVMContext& Context,
-                        llvm::Metadata *Scope,
                         bool DebugInfo);
 
   virtual void emitInstructionAnnot(const llvm::Instruction *TheInstruction,
@@ -54,7 +53,6 @@ public:
 
 private:
   llvm::LLVMContext &Context;
-  llvm::Metadata *Scope;
   unsigned OriginalInstrMDKind;
   unsigned PTCInstrMDKind;
   unsigned DbgMDKind;
@@ -79,13 +77,8 @@ public:
               llvm::Module *TheModule,
               DebugInfoType Type);
 
-  /// \brief Handle a new function
-  ///
-  /// Generates the debug information for the given function and caches it for
-  /// future use.
-  void newFunction(llvm::Function *Function);
-
-  /// Decorates the current function with the requested debug info
+  /// Decorates the root and the isolated functions with the requested debug
+  /// info
   void generateDebugInfo();
 
   /// Serializes to the given stream the module, with or without debug info
@@ -108,8 +101,6 @@ private:
   DebugInfoType Type;
   llvm::Module *TheModule;
   llvm::DICompileUnit *CompileUnit;
-  llvm::DISubprogram *CurrentSubprogram;
-  llvm::Function *CurrentFunction;
   std::unique_ptr<DebugAnnotationWriter> Annotator;
 
   unsigned OriginalInstrMDKind;

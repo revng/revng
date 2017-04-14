@@ -581,8 +581,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                                         "root",
                                         TheModule.get());
 
-  Debug->newFunction(MainFunction);
-
   // Create the first basic block and create a placeholder for variable
   // allocations
   BasicBlock *Entry = BasicBlock::Create(Context, "entrypoint", MainFunction);

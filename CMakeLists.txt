@@ -40,6 +40,7 @@ foreach(ARCH arm mips x86_64 i386)
       ARGS "${CMAKE_CURRENT_SOURCE_DIR}/support.c" -o "${OUTPUT}"
            -S -emit-llvm -g
            -DTARGET_${ARCH}
+           -I"${CMAKE_CURRENT_SOURCE_DIR}"
            ${SUPPORT_MODULES_CONFIG_${CONFIG}})
     add_custom_target("support-module-${OUTPUT}" ALL DEPENDS "${OUTPUT}")
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT}"
@@ -101,14 +102,15 @@ target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
 install(TARGETS revamb RUNTIME DESTINATION bin)
 
 add_executable(revamb-dump dump.cpp collectcfg.cpp collectnoreturn.cpp debug.cpp
-  collectfunctionboundaries.cpp stackanalysis.cpp generatedcodebasicinfo.cpp
-  argparse/argparse.c)
+  collectfunctionboundaries.cpp debughelper.cpp stackanalysis.cpp
+  generatedcodebasicinfo.cpp isolatefunctions.cpp argparse/argparse.c)
 target_link_libraries(revamb-dump ${LLVM_LIBRARIES})
 install(TARGETS revamb-dump RUNTIME DESTINATION bin)
 
 configure_file(li-csv-to-ld-options "${CMAKE_BINARY_DIR}/li-csv-to-ld-options"
   COPYONLY)
 configure_file(support.c "${CMAKE_BINARY_DIR}/support.c" COPYONLY)
+configure_file(support.h "${CMAKE_BINARY_DIR}/support.h" COPYONLY)
 configure_file(translate "${CMAKE_BINARY_DIR}/translate" COPYONLY)
 install(PROGRAMS translate li-csv-to-ld-options DESTINATION bin)
 install(FILES support.c DESTINATION share/revamb)

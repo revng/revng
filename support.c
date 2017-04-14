@@ -2,9 +2,11 @@
  * This file is distributed under the MIT License. See LICENSE.md for details.
  */
 
+// Standard includes
 #include <assert.h>
 #include <elf.h>
 #include <endian.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +18,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdnoreturn.h>
+#include <unwind.h>
+
+// Local includes
+#include "support.h"
 
 // Save the program arguments for meaningful error reporting
 static int saved_argc;
@@ -29,21 +35,25 @@ static char **saved_argv;
 
 typedef uint32_t target_reg;
 #define SWAP(x) (htole32(x))
+#define TARGET_REG_FORMAT PRIx32
 
 #elif defined(TARGET_i386)
 
 typedef uint32_t target_reg;
 #define SWAP(x) (htole32(x))
+#define TARGET_REG_FORMAT PRIx32
 
 #elif defined(TARGET_x86_64)
 
 typedef uint64_t target_reg;
 #define SWAP(x) (htole64(x))
+#define TARGET_REG_FORMAT PRIx64
 
 #elif defined(TARGET_mips)
 
 typedef uint32_t target_reg;
 #define SWAP(x) (htobe32(x))
+#define TARGET_REG_FORMAT PRIx32
 
 #else
 
@@ -372,4 +382,70 @@ int main(int argc, char *argv[]) {
   // Run the translated program
   SAFE_CAST(stack);
   root((target_reg) stack);
+}
+
+// Helper function used to raise an exception
+void raise_exception_helper() {
+
+  // Declare the exception object
+  struct _Unwind_Exception exc;
+
+  // Raise the exception using the function provided by the unwind library
+  _Unwind_RaiseException(&exc);
+}
+
+// Personality function
+int exception_personality(int version,
+                          _Unwind_Action actions,
+                          uint64_t exceptionClass,
+                          struct _Unwind_Exception *unwind_exception,
+                          struct _Unwind_Context *context) {
+
+  // Check the action parameter and match the correct expected return code, the
+  // other paramters are not used in our implementation
+  if (actions == _UA_SEARCH_PHASE) {
+    return _URC_HANDLER_FOUND;
+  } else if (actions == (_UA_CLEANUP_PHASE | _UA_HANDLER_FRAME)){
+    return _URC_INSTALL_CONTEXT;
+  }
+  return _URC_NO_REASON;
+}
+
+// Helper function to debug informations when an exception is about to be
+// raised
+void exception_warning(Reason Code,
+                       target_reg Source,
+                       target_reg Target,
+                       target_reg ExpectedDestination) {
+  switch(Code) {
+    case StandardTranslatedBlock:
+      fprintf(stderr,
+              "Unexpected control-flow in isolated function: 0x%"
+              TARGET_REG_FORMAT " -> 0x%" TARGET_REG_FORMAT "\n",
+              Source,
+              Target);
+      break;
+    case StandardNonTranslatedBlock:
+      fprintf(stderr,
+              "Unexpected control-flow in isolated function after unexpectedpc "
+              "or anypc block: 0x%" TARGET_REG_FORMAT "\n",
+              Target);
+      break;
+    case BadReturnAddress:
+      fprintf(stderr,
+              "Expected and actual fallthrough after ret not corresponding: 0x%"
+              TARGET_REG_FORMAT " / 0x%" TARGET_REG_FORMAT "\n",
+              Target,
+              ExpectedDestination);
+      break;
+    case FunctionDispatcherFallBack:
+      fprintf(stderr,
+              "Erroneous call to function dispatcher: "
+              "0x%" TARGET_REG_FORMAT "\n",
+              Target);
+      break;
+    default:
+      assert(0 && "Reason code not supported");
+  }
+
 }
