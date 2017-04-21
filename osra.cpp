@@ -648,7 +648,7 @@ BoundedValue OSRA::mergePredicate(OSR &BaseOp, Predicate P, Constant *ConstOp) {
     return BoundedValue::createNE(V, NewBound, IsSigned);
 
   default:
-    assert(false);
+    llvm_unreachable("Unexpected comparison operator");
     break;
   }
 }

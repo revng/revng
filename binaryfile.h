@@ -135,22 +135,22 @@ template<typename EE>
 static inline uint64_t readPointer(const uint8_t *Buf);
 
 template<>
-uint64_t readPointer<llvm::object::ELF32LE>(const uint8_t *Buf) {
+inline uint64_t readPointer<llvm::object::ELF32LE>(const uint8_t *Buf) {
   return Endianess<uint32_t, llvm::object::ELF32LE>::read(Buf);
 }
 
 template<>
-uint64_t readPointer<llvm::object::ELF32BE>(const uint8_t *Buf) {
+inline uint64_t readPointer<llvm::object::ELF32BE>(const uint8_t *Buf) {
   return Endianess<uint32_t, llvm::object::ELF32BE>::read(Buf);
 }
 
 template<>
-uint64_t readPointer<llvm::object::ELF64LE>(const uint8_t *Buf) {
+inline uint64_t readPointer<llvm::object::ELF64LE>(const uint8_t *Buf) {
   return Endianess<uint64_t, llvm::object::ELF64LE>::read(Buf);
 }
 
 template<>
-uint64_t readPointer<llvm::object::ELF64BE>(const uint8_t *Buf) {
+inline uint64_t readPointer<llvm::object::ELF64BE>(const uint8_t *Buf) {
   return Endianess<uint64_t, llvm::object::ELF64BE>::read(Buf);
 }
 

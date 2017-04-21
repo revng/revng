@@ -313,7 +313,7 @@ interval_set FBD::findCoverage(BasicBlock *BB) {
         WorkList.insert(Predecessor);
   }
 
-  assert(false);
+  llvm_unreachable("Couldn't find basic block");
 }
 
 void FBD::collectInitialCFEPSet() {
