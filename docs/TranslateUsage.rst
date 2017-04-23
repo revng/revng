@@ -16,7 +16,7 @@ translate a program from an architecture to another using revamb
 SYNOPSIS
 ========
 
-    revamb-dump [options] [--] INFILE [revamb options]
+    translate [options] INFILE [revamb options]
 
 DESCRIPTION
 ===========
