@@ -340,11 +340,11 @@ int main(int argc, char *argv[]) {
 
   // Allocate and initialize the stack
   void *stack = mmap((void *) NULL,
-                     0x100000,
+                     16 * 0x100000,
                      PROT_READ | PROT_WRITE,
                      MAP_ANONYMOUS | MAP_32BIT | MAP_PRIVATE,
                      -1,
-                     0) + 0x100000 - 0x1000;
+                     0) + 16 * 0x100000 - 0x1000;
   assert(stack != NULL);
   stack = prepare_stack(stack, argc, argv);
 
