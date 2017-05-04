@@ -106,7 +106,7 @@ that segment (read, execute, write), and *address* is the starting address.
 These variables are associated to special sections which will be assigned to the
 appropriate virtual address at link-time.
 
-In our example we have single segment, readable and writable:
+In our example we have single segment, readable and executable:
 
 .. code-block:: llvm
 
@@ -167,7 +167,7 @@ The `root` function
 ===================
 
 This section describes how the function collecting all the translated code is
-organized. This fuction is knonw as the `root` function:
+organized. This fuction is known as the `root` function:
 
 .. code-block:: llvm
 
@@ -205,7 +205,7 @@ which basically maps (with a huge ``switch`` statement) the starting address of
 each basic block A in the input program to the first basic block containing the
 code generated due to A.
 
-:``dispatcher.entry``: the body of the dispatcher. Containes the ``switch``
+:``dispatcher.entry``: the body of the dispatcher. Contains the ``switch``
                        statement. If the requested address has not been
                        translated, execution is diverted to
                        ``dispatcher.default``.
@@ -390,7 +390,7 @@ Let's see how this works for the `bb.myfunction` basic block:
 
       ; ...
 
-As you cane see there are two calls to `newpc`, the first for the ``mov``
+As you can see there are two calls to `newpc`, the first for the ``mov``
 instruction at ``0x4000e8`` (5 bytes long) and the second one for the `ret`
 instruction at ``0x4000ed`` (1 byte long). Note that the first instruction is a
 jump target, in fact `newpc`'s third parameter is set to ``1``, unlike the
@@ -487,7 +487,7 @@ point of) a single function, with the same name.
 Helper functions
 ================
 
-Certain features of the input CPU would be to big to be expanded in TCG
+Certain features of the input CPU would be too big to be expanded in TCG
 instructions by QEMU (and therefore translate them in LLVM IR). For this reason,
 call to *helper functions* are emitted. An example of an helper function is the
 function handling a syscall or a floating point division. These functions can

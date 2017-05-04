@@ -25,7 +25,7 @@ provides a quick summary of the required functions as they are implemented in
        also performs the stack initialization, which is a very delicate
        operation. As it can be seen in the `prepare_stack` function the
        environment variables, the arguments and the auxiliary vectors are
-       initialized mimicing the stack initialization performed by the Linux
+       initialized mimicking the stack initialization performed by the Linux
        kernel. `main` also performs a call to `syscall_init` a function defined
        in the generated module, taken from QEMU, which carries on some
        syscall-related initializations. Finally, the entry point of the module
@@ -49,8 +49,8 @@ provides a quick summary of the required functions as they are implemented in
 The remaining functions in `support.c` are of little interest and might be
 removed in the future. Note also that `support.c` works automatically with all
 the supported architectures, but needs to know which was the input
-architecture. For this reason, defined a macro ``TARGET_arch`` (e.g.,
-``TARGET_arm``) on the compilation command line.
+architecture. For this reason, a macro ``TARGET_arch`` (e.g.,
+``TARGET_arm``) needs to be defined on the compilation command line.
 
 The provided `support.c` offers two modes of operations: `normal` and
 `trace`. The only difference between the two modes is that the latter activates

@@ -3,7 +3,7 @@ Using `revamb` with Python: a simple instrumenation
 ***************************************************
 
 In this document we'll guide the user through using `revamb`'s output from
-Python. Amomng the many possibilities that arouse from the LLVM IR provided by
+Python. Among the many possibilities that arouse from the LLVM IR provided by
 `revamb`, in this document we'll show how it's possible to perform a simple
 instrumentation of an existing binary, by injecting some code in the generated
 LLVM IR and recompiling it.
