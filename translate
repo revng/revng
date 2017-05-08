@@ -12,6 +12,7 @@ SKIP=0
 SUPPORT_CONFIG=normal
 
 set -e
+set -o pipefail
 
 while [[ $# > 0 ]]
 do
