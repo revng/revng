@@ -49,6 +49,17 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
   ArrayRef<uint64_t> NoReturnSyscalls = { };
   unsigned DelaySlotSize = 0;
   switch (TheBinary->getArch()) {
+  case Triple::x86:
+    InstructionAlignment = 1;
+    SyscallHelper = "helper_syscall";
+    SyscallNumberRegister = "eax";
+    StackPointerRegister = "esp";
+    NoReturnSyscalls = {
+        0xfc, // exit_group
+        0x01, // exit
+        0x0b // execve
+    };
+    break;
   case Triple::x86_64:
     InstructionAlignment = 1;
     SyscallHelper = "helper_syscall";

@@ -31,7 +31,7 @@ set(SUPPORT_MODULES_CONFIGS "normal;trace")
 set(SUPPORT_MODULES_CONFIG_normal "")
 set(SUPPORT_MODULES_CONFIG_trace "-DTRACE")
 
-foreach(ARCH arm mips x86_64)
+foreach(ARCH arm mips x86_64 i386)
   foreach(CONFIG ${SUPPORT_MODULES_CONFIGS})
     set(OUTPUT "support-${ARCH}-${CONFIG}.ll")
     add_custom_command(OUTPUT "${OUTPUT}"

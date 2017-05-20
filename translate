@@ -93,6 +93,9 @@ case "$ARCHID" in
     01003e)
         ARCH=x86_64;
         ;;
+    010003)
+        ARCH=i386;
+        ;;
     *)
         echo "Unknown architecture: $ARCHID"
         exit 1

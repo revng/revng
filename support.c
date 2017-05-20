@@ -30,6 +30,11 @@ static char **saved_argv;
 typedef uint32_t target_reg;
 #define SWAP(x) (htole32(x))
 
+#elif defined(TARGET_i386)
+
+typedef uint32_t target_reg;
+#define SWAP(x) (htole32(x))
+
 #elif defined(TARGET_x86_64)
 
 typedef uint64_t target_reg;

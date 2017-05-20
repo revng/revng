@@ -12,7 +12,7 @@ find_program(DIFF diff)
 # * A cross compiler (provided by the user)
 # * libtinycode-${ARCH}.so, which must be in the search path
 
-set(SUPPORTED_ARCHITECTURES "aarch64;alpha;arm;armeb;cris;m68k;microblaze;microblazeel;mips;mips64;mips64el;mipsel;mipsn32;mipsn32el;nbd;or32;ppc;ppc64;ppc64abi32;s390x;sh4;sh4eb;sparc;sparc32plus;sparc64;unicore32;x86_64")
+set(SUPPORTED_ARCHITECTURES "aarch64;alpha;arm;armeb;cris;i386;m68k;microblaze;microblazeel;mips;mips64;mips64el;mipsel;mipsn32;mipsn32el;nbd;or32;ppc;ppc64;ppc64abi32;s390x;sh4;sh4eb;sparc;sparc32plus;sparc64;unicore32;x86_64")
 set(QEMU_BIN_PATH "${QEMU_INSTALL_PATH}/bin")
 set(QEMU_LIB_PATH "${QEMU_INSTALL_PATH}/lib")
 

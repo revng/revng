@@ -103,6 +103,13 @@ private:
                 std::string LinkingInfo,
                 bool UseSections);
 
+  /// \brief Import a helper function definition
+  ///
+  /// Queries the HelpersModule for a function and adds it to TheModule.
+  ///
+  /// \param Name name of the imported function
+  llvm::Function *importHelperFunctionDefinition(llvm::StringRef Name);
+
 private:
   Architecture TargetArchitecture;
   llvm::LLVMContext& Context;

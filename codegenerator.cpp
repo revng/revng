@@ -193,6 +193,12 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
 
 }
 
+Function *CodeGenerator::importHelperFunctionDefinition(StringRef Name) {
+  Function *HelperFunction = HelpersModule->getFunction(Name);
+  FunctionType *HelperType = HelperFunction->getFunctionType();
+  return cast<Function>(TheModule->getOrInsertFunction(Name, HelperType));
+}
+
 std::string SegmentInfo::generateName() {
   // Create name from start and size
   std::stringstream NameStream;
@@ -554,12 +560,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   // Declare useful functions
   auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
   auto *AbortFunction = TheModule->getOrInsertFunction("abort", AbortTy);
-  auto *TargetSetBrkFunction = HelpersModule->getFunction("target_set_brk");
-  TheModule->getOrInsertFunction("target_set_brk",
-                                 TargetSetBrkFunction->getFunctionType());
-  Function *CpuLoop = HelpersModule->getFunction("cpu_loop");
-  assert(CpuLoop != nullptr);
-  TheModule->getOrInsertFunction("cpu_loop", CpuLoop->getFunctionType());
+
+  importHelperFunctionDefinition("target_set_brk");
   TheModule->getOrInsertFunction("syscall_init",
                                  FT::get(Type::getVoidTy(Context), { }, false));
 
@@ -622,6 +624,13 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                                    VirtualAddress);
   // Use this instruction as the delimiter for local variables
   auto *Delimiter = Builder.CreateStore(StartPC, PCReg);
+
+  // We need to remember this instruction so we can later insert a call here.
+  // The problem is that up until now we don't know where our CPUState structure is.
+  // After the translation we will and use this information to create a call to
+  // a helper function.
+  // TODO: we need a more elegant solution here
+  auto *InitEnvInsertPoint = Delimiter;
   Builder.CreateStore(&*MainFunction->arg_begin(), SPReg);
 
   // Fake jumps to the dispatcher-related basic blocks. This way all the blocks
@@ -805,6 +814,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
   } // End translations loop
 
+  importHelperFunctionDefinition("cpu_loop");
+  Function *CpuLoop = HelpersModule->getFunction("cpu_loop");
+  assert(CpuLoop != nullptr);
+
   legacy::FunctionPassManager CpuLoopPM(TheModule.get());
   CpuLoopPM.add(new LoopInfoWrapperPass());
   CpuLoopPM.add(new CpuLoopFunctionPass());
@@ -843,6 +856,15 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   // EmulateAll: requires access to the opcode
   // do_arm_semihosting: we don't care about semihosting
+
+  // Initializes the CPUState which is important on x86 architecture.
+  if (HelpersModule->getFunction("initialize_env") != nullptr) {
+    Function *InitEnv = importHelperFunctionDefinition("initialize_env");
+    auto *CPUStateType = InitEnv->getFunctionType()->getParamType(0);
+    Instruction *InsertBefore = InitEnvInsertPoint;
+    auto *AddressComputation = Variables.computeEnvAddress(CPUStateType, InsertBefore);
+    CallInst::Create(InitEnv, { AddressComputation }, "", InsertBefore);
+  }
 
   // From syscall.c
   new GlobalVariable(*TheModule,
