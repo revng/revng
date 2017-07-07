@@ -328,6 +328,12 @@ JumpTargetManager::readRawValue(uint64_t Address,
     // Note: we also consider writeable memory areas because, despite being
     // modifiable, can contain useful information
     if (Segment.contains(Address, Size) && Segment.IsReadable) {
+      // TODO: we ignore .bss here, it might be beneficial to take it into
+      //       account in certain situations
+      const Constant *Initializer = Segment.Variable->getInitializer();
+      if (isa<ConstantAggregateZero>(Initializer))
+        continue;
+
       auto *Array = cast<ConstantDataArray>(Segment.Variable->getInitializer());
       StringRef RawData = Array->getRawDataValues();
       const unsigned char *RawDataPtr = RawData.bytes_begin();
@@ -501,7 +507,11 @@ void JumpTargetManager::harvestGlobalData() {
     registerJT(LandingPad, GlobalData);
 
   for (auto& Segment : Binary.segments()) {
-    auto *Data = cast<ConstantDataArray>(Segment.Variable->getInitializer());
+    const Constant *Initializer = Segment.Variable->getInitializer();
+    if (isa<ConstantAggregateZero>(Initializer))
+      continue;
+
+    auto *Data = cast<ConstantDataArray>(Initializer);
     uint64_t StartVirtualAddress = Segment.StartVirtualAddress;
     const unsigned char *DataStart = Data->getRawDataValues().bytes_begin();
     const unsigned char *DataEnd = Data->getRawDataValues().bytes_end();
