@@ -569,6 +569,10 @@ void FBD::createMetadata() {
     }
   }
 
+  // Mark each return instruction
+  for (TerminatorInst *T : Returns)
+    T->setMetadata("func.return", MDNode::get(Context, { }));
+
 }
 
 map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
