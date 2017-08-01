@@ -16,6 +16,7 @@
 
 // LLVM includes
 #include "llvm/ADT/Optional.h"
+#include "llvm/IR/Instructions.h"
 
 // Local includes
 #include "binaryfile.h"
@@ -123,6 +124,7 @@ public:
                            ///  by SET. Likely a function pointer.
     Callee = 128, ///< This JT is the target of a call instruction.
     SumJump = 256, ///< Obtained from the "sumjump" heuristic
+    LastReason = 256
   };
 
   class JumpTarget {
@@ -137,28 +139,72 @@ public:
     void setReason(JTReason Reason) { Reasons |= Reason; }
     uint32_t getReasons() const { return Reasons; }
 
+    static const char *getReasonName(JTReason Reason) {
+      switch(Reason) {
+      case PostHelper:
+        return "PostHelper";
+      case DirectJump:
+        return "DirectJump";
+      case GlobalData:
+        return "GlobalData";
+      case AmbigousInstruction:
+        return "AmbigousInstruction";
+      case SETToPC:
+        return "SETToPC";
+      case SETNotToPC:
+        return "SETNotToPC";
+      case UnusedGlobalData:
+        return "UnusedGlobalData";
+      case Callee:
+        return "Callee";
+      case SumJump:
+        return "SumJump";
+      default:
+        assert(false);
+      }
+    }
+
+    static JTReason getReasonFromName(llvm::StringRef ReasonName) {
+      if (ReasonName == "PostHelper")
+        return PostHelper;
+      else if (ReasonName == "DirectJump")
+        return DirectJump;
+      else if (ReasonName == "GlobalData")
+        return GlobalData;
+      else if (ReasonName == "AmbigousInstruction")
+        return AmbigousInstruction;
+      else if (ReasonName == "SETToPC")
+        return SETToPC;
+      else if (ReasonName == "SETNotToPC")
+        return SETNotToPC;
+      else if (ReasonName == "UnusedGlobalData")
+        return UnusedGlobalData;
+      else if (ReasonName == "Callee")
+        return Callee;
+      else if (ReasonName == "SumJump")
+        return SumJump;
+      else
+        assert(false);
+    }
+
+    std::vector<const char *> getReasonNames() const {
+      std::vector<const char *> Result;
+
+      for (unsigned Reason = 1; Reason <= LastReason; Reason <<= 1) {
+        JTReason R = static_cast<JTReason>(Reason);
+        if (hasReason(R))
+          Result.push_back(getReasonName(R));
+      }
+
+      return Result;
+    }
+
     std::string describe() const {
       std::stringstream SS;
       SS << getName(BB) << ":";
 
-      if (hasReason(PostHelper))
-        SS << " PostHelper";
-      if (hasReason(DirectJump))
-        SS << " DirectJump";
-      if (hasReason(GlobalData))
-        SS << " GlobalData";
-      if (hasReason(AmbigousInstruction))
-        SS << " AmbigousInstruction";
-      if (hasReason(SETToPC))
-        SS << " SETToPC";
-      if (hasReason(SETNotToPC))
-        SS << " SETNotToPC";
-      if (hasReason(UnusedGlobalData))
-        SS << " UnusedGlobalData";
-      if (hasReason(Callee))
-        SS << " Callee";
-      if (hasReason(SumJump))
-        SS << " SumJump";
+      for (const char *ReasonName : getReasonNames())
+        SS << " " << ReasonName;
 
       return SS.str();
     }
@@ -441,6 +487,19 @@ public:
 
     // We no longer need this information
     freeContainer(UnusedCodePointers);
+
+    // Tag each jump target with its reasons
+    for (auto &P : JumpTargets) {
+      JumpTarget &JT = P.second;
+      llvm::TerminatorInst *T = JT.head()->getTerminator();
+      assert(T != nullptr);
+
+      std::vector<llvm::Metadata *> Reasons;
+      for (const char *ReasonName : JT.getReasonNames())
+        Reasons.push_back(llvm::MDString::get(Context, ReasonName));
+
+      T->setMetadata("revamb.jt.reasons", llvm::MDTuple::get(Context, Reasons));
+    }
   }
 
   unsigned delaySlotSize() const {
