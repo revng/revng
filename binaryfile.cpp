@@ -45,6 +45,7 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
   unsigned InstructionAlignment = 0;
   StringRef SyscallHelper = "";
   StringRef SyscallNumberRegister = "";
+  StringRef StackPointerRegister = "";
   ArrayRef<uint64_t> NoReturnSyscalls = { };
   unsigned DelaySlotSize = 0;
   switch (TheBinary->getArch()) {
@@ -52,6 +53,7 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
     InstructionAlignment = 1;
     SyscallHelper = "helper_syscall";
     SyscallNumberRegister = "rax";
+    StackPointerRegister = "rsp";
     NoReturnSyscalls = {
       0xe7, // exit_group
       0x3c, // exit
@@ -62,6 +64,7 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
     InstructionAlignment = 4;
     SyscallHelper = "helper_exception_with_syndrome";
     SyscallNumberRegister = "r7";
+    StackPointerRegister = "r13";
     NoReturnSyscalls = {
       0xf8, // exit_group
       0x1, // exit
@@ -72,6 +75,7 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
     InstructionAlignment = 4;
     SyscallHelper = "helper_raise_exception";
     SyscallNumberRegister = "v0";
+    StackPointerRegister = "sp";
     NoReturnSyscalls = {
       0x1096, // exit_group
       0xfa1, // exit
@@ -91,7 +95,8 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
                                  SyscallHelper,
                                  SyscallNumberRegister,
                                  NoReturnSyscalls,
-                                 DelaySlotSize);
+                                 DelaySlotSize,
+                                 StackPointerRegister);
 
   assert(TheBinary->getFileFormatName().startswith("ELF")
          && "Only the ELF file format is currently supported");

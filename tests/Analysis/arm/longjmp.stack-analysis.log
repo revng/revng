@@ -1,0 +1,8 @@
+Function bb._start
+  BranchesType: bb._start (HandledCall) bb._start.0x8 (Return)
+  Saved slots: CPU+r14
+
+Function bb.longjmp
+  BranchesType: bb.longjmp (InstructionLocalCFG) bb.longjmp.0x4 (LongJmp) bb.longjmp_L0 (FunctionLocalCFG) bb.longjmp_L0_ft (InstructionLocalCFG) bb.longjmp_L1 (FunctionLocalCFG) bb.longjmp_L1_ft (InstructionLocalCFG) bb.ret (Return)
+  Saved slots:
+

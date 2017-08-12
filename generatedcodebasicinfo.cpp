@@ -35,8 +35,13 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
   auto *Tuple = dyn_cast<MDTuple>(InputArchMD->getOperand(0));
 
   QuickMetadata QMD(M->getContext());
-  DelaySlotSize = QMD.extract<uint32_t>(Tuple, 0);
-  PC = M->getGlobalVariable(QMD.extract<StringRef>(Tuple, 1));
+  InstructionAlignment = QMD.extract<uint32_t>(Tuple, 0);
+  DelaySlotSize = QMD.extract<uint32_t>(Tuple, 1);
+  PC = M->getGlobalVariable(QMD.extract<StringRef>(Tuple, 2), true);
+  SP = M->getGlobalVariable(QMD.extract<StringRef>(Tuple, 3), true);
+
+  Type *PCType = PC->getType()->getPointerElementType();
+  PCRegSize = M->getDataLayout().getTypeSizeInBits(PCType) / 8;
 
   for (BasicBlock &BB : F) {
     if (!BB.empty()) {
@@ -44,6 +49,10 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
       case DispatcherBlock:
         assert(Dispatcher == nullptr);
         Dispatcher = &BB;
+        break;
+      case DispatcherFailure:
+        assert(DispatcherFail == nullptr);
+        DispatcherFail = &BB;
         break;
       case AnyPCBlock:
         assert(AnyPC == nullptr);

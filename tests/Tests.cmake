@@ -38,6 +38,7 @@ endmacro()
 # Give control to the various subdirectories
 include(${CMAKE_SOURCE_DIR}/tests/Runtime/RuntimeTests.cmake)
 include(${CMAKE_SOURCE_DIR}/tests/Analysis/AnalysisTests.cmake)
+include(${CMAKE_SOURCE_DIR}/tests/Unit/UnitTests.cmake)
 
 # Compile the requested programs
 foreach(ARCH ${SUPPORTED_ARCHITECTURES})

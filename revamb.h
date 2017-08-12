@@ -16,6 +16,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 
+// Local includes
+#include "ir-helpers.h"
 namespace llvm {
 class GlobalVariable;
 };
@@ -38,8 +40,10 @@ enum BlockType {
   AnyPCBlock, ///< Basic block used to handle an expectedly unknown jump target.
   UnexpectedPCBlock, ///< Basic block used to handle an unexpectedly unknown
                      ///  jump target.
-  JumpTargetBlock ///< A basic block generated during translation representing a
-                  ///  jump target.
+  JumpTargetBlock, ///< A basic block generated during translation representing
+                   ///  a jump target.
+  DispatcherFailure ///< Basic block representing the default case of the
+                    ///  dispatcher switch.
 };
 
 /// \brief Basic information about an input/output architecture
@@ -67,7 +71,8 @@ public:
                llvm::StringRef SyscallHelper,
                llvm::StringRef SyscallNumberRegister,
                llvm::ArrayRef<uint64_t> NoReturnSyscalls,
-               unsigned DelaySlotSize) :
+               unsigned DelaySlotSize,
+               llvm::StringRef StackPointerRegister) :
     Type(static_cast<llvm::Triple::ArchType>(Type)),
     InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
@@ -76,7 +81,8 @@ public:
     SyscallHelper(SyscallHelper),
     SyscallNumberRegister(SyscallNumberRegister),
     NoReturnSyscalls(NoReturnSyscalls),
-    DelaySlotSize(DelaySlotSize) { }
+    DelaySlotSize(DelaySlotSize),
+    StackPointerRegister(StackPointerRegister) { }
 
   unsigned instructionAlignment() const { return InstructionAlignment; }
   unsigned defaultAlignment() const { return DefaultAlignment; }
@@ -86,6 +92,9 @@ public:
   llvm::StringRef syscallHelper() const { return SyscallHelper; }
   llvm::StringRef syscallNumberRegister() const {
     return SyscallNumberRegister;
+  }
+  llvm::StringRef stackPointerRegister() const {
+    return StackPointerRegister;
   }
   llvm::ArrayRef<uint64_t> noReturnSyscalls() const { return NoReturnSyscalls; }
   unsigned delaySlotSize() const { return DelaySlotSize; }
@@ -103,6 +112,7 @@ private:
   llvm::StringRef SyscallNumberRegister;
   llvm::ArrayRef<uint64_t> NoReturnSyscalls;
   unsigned DelaySlotSize;
+  llvm::StringRef StackPointerRegister;
 };
 
 // TODO: this requires C++14
@@ -129,6 +139,32 @@ static inline T *notNull(T *Pointer) {
 template<typename T>
 static inline bool contains(T Range, typename T::value_type V) {
   return std::find(std::begin(Range), std::end(Range), V) != std::end(Range);
+}
+
+static const std::array<llvm::StringRef, 3> MarkerFunctionNames = {
+  "newpc",
+  "function_call",
+  "exitTB"
+};
+
+static inline bool isMarker(llvm::Instruction *I) {
+  using namespace std::placeholders;
+  using llvm::any_of;
+  using std::bind;
+
+  return any_of(MarkerFunctionNames, bind(isCallTo, I, _1));
+}
+
+static inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
+  auto It = I->getIterator();
+  auto End = I->getParent()->end();
+  do {
+    It++;
+    assert(It != End);
+  } while (isMarker(&*It));
+
+  assert(It != End);
+  return &*It;
 }
 
 #endif // _REVAMB_H

@@ -495,8 +495,7 @@ IT::InstructionTranslator(IRBuilder<>& Builder,
                                 {
                                   Type::getInt64Ty(Context),
                                   Type::getInt64Ty(Context),
-                                  Type::getInt32Ty(Context),
-                                  Type::getInt8Ty(Context)->getPointerTo()
+                                  Type::getInt32Ty(Context)
                                 },
                                 true);
   NewPCMarker = Function::Create(NewPCMarkerTy,
@@ -525,7 +524,7 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
       unsigned ArgCount = Call->getNumArgOperands();
       Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
 
-      // TODO: Do we really need this?
+      // TODO: by default we should leave these
       for (unsigned I = 3; I < ArgCount - 1; I++)
         Call->setArgOperand(I, Call->getArgOperand(ArgCount - 1));
     }
@@ -624,13 +623,8 @@ IT::newInstruction(PTCInstruction *Instr,
     Builder.getInt64(NextPC - PC),
     Builder.getInt32(-1)
   };
-  PointerType *VoidPointerTy = Type::getInt8Ty(Context)->getPointerTo();
   for (AllocaInst *Local : Variables.locals())
-    Args.push_back(CastInst::CreatePointerCast(Local,
-                                               VoidPointerTy,
-                                               "",
-                                               Local->getNextNode()));
-  Args.push_back(ConstantPointerNull::get(VoidPointerTy));
+    Args.push_back(Local);
 
   auto *Call = Builder.CreateCall(NewPCMarker, Args);
 

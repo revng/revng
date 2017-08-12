@@ -1,0 +1,8 @@
+Function bb._start
+  BranchesType: bb._start (HandledCall) bb._start.0x8 (Return)
+  Saved slots: CPU+r14 CPU+r0
+
+Function bb.indirectcall
+  BranchesType: bb.indirectcall (IndirectCall) bb.indirectcall.0xc (Return)
+  Saved slots: CPU+r14 CPU+r0
+

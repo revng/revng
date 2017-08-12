@@ -424,12 +424,20 @@ public:
     return llvm::MDString::get(C, String);
   }
 
+  llvm::MDString *get(llvm::StringRef String) {
+    return llvm::MDString::get(C, String);
+  }
+
   llvm::ConstantAsMetadata *get(uint32_t Integer) {
     auto *Constant = llvm::ConstantInt::get(Int32Ty, Integer);
     return llvm::ConstantAsMetadata::get(Constant);
   }
 
   llvm::MDTuple *tuple(const char *String) {
+    return tuple(get(String));
+  }
+
+  llvm::MDTuple *tuple(llvm::StringRef String) {
     return tuple(get(String));
   }
 
@@ -504,6 +512,47 @@ static inline bool hasPredecessor(llvm::BasicBlock *BB,
     if (Predecessor == Target)
       return true;
   return false;
+}
+
+// \brief If \p V is a cast instruction, return its only operand (recursively)
+static inline llvm::Value *skipCasts(llvm::Value *V) {
+  while (llvm::isa<llvm::CastInst>(V))
+    V = llvm::cast<llvm::User>(V)->getOperand(0);
+  return V;
+}
+
+static inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
+  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(I)) {
+    llvm::Function *Callee = Call->getCalledFunction();
+    if (Callee != nullptr && Callee->getName() == Name) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static inline llvm::CallInst *getCallTo(llvm::Instruction *I,
+                                        llvm::StringRef Name) {
+  if (isCallTo(I, Name))
+    return llvm::cast<llvm::CallInst>(I);
+  else
+    return nullptr;
+}
+
+template<typename C>
+static inline auto skip(unsigned ToSkip, C &&Container)
+  -> llvm::iterator_range<decltype(Container.begin())> {
+
+  auto Begin = std::begin(Container);
+  while (ToSkip --> 0)
+    Begin++;
+  return llvm::make_range(Begin, std::end(Container));
+}
+
+template<class Container, class UnaryPredicate>
+static inline void erase_if(Container &C, UnaryPredicate P) {
+  C.erase(std::remove_if(C.begin(), C.end(), P), C.end());
 }
 
 #endif // _IRHELPERS_H

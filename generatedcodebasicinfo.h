@@ -43,10 +43,16 @@ public:
   static char ID;
 
 public:
-  GeneratedCodeBasicInfo() : llvm::FunctionPass(ID), DelaySlotSize(0),
-                             PC(nullptr), Dispatcher(nullptr),
-                             AnyPC(nullptr), UnexpectedPC(nullptr) { }
-
+  GeneratedCodeBasicInfo() :
+    llvm::FunctionPass(ID),
+    InstructionAlignment(0),
+    DelaySlotSize(0),
+    PC(nullptr),
+    Dispatcher(nullptr),
+    DispatcherFail(nullptr),
+    AnyPC(nullptr),
+    UnexpectedPC(nullptr),
+    PCRegSize(0) { }
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
@@ -83,14 +89,29 @@ public:
     return BlockType(QMD.extract<uint32_t>(BlockTypeMD, 0));
   }
 
+  /// \brief Return the value to which instructions must be aligned in the input
+  ///        architecture
+  unsigned instructionAlignment() const { return InstructionAlignment; }
+
   /// \brief Return the size of the delay slot for the input architecture
   unsigned delaySlotSize() const { return DelaySlotSize; }
+
+  /// \brief Return the CSV representing the stack pointer
+  llvm::GlobalVariable *spReg() const { return SP; }
+
+  /// \brief Check if \p GV is the stack pointer CSV
+  bool isSPReg(const llvm::GlobalVariable *GV) const {
+    assert(SP != nullptr);
+    return GV == SP;
+  }
 
   /// \brief Return the CSV representing the program counter
   llvm::GlobalVariable *pcReg() const { return PC; }
 
+  unsigned pcRegSize() const { return PCRegSize; }
+
   /// \brief Check if \p GV is the program counter CSV
-  bool isPCReg(llvm::GlobalVariable *GV) const {
+  bool isPCReg(const llvm::GlobalVariable *GV) const {
     assert(PC != nullptr);
     return GV == PC;
   }
@@ -113,7 +134,7 @@ public:
 
   bool isJump(llvm::BasicBlock *BB) const {
     return isJump(BB->getTerminator());
-   }
+  }
 
   /// \brief Return true if \p T represents a jump in the input assembly
   ///
@@ -124,6 +145,7 @@ public:
 
     for (llvm::BasicBlock *Successor : T->successors()) {
       if (!(Successor == Dispatcher
+            || Successor == DispatcherFail
             || Successor == AnyPC
             || Successor == UnexpectedPC
             || isJumpTarget(Successor)))
@@ -137,7 +159,10 @@ public:
   ///
   /// Return false if \p BB is a dispatcher-related basic block.
   bool isTranslated(llvm::BasicBlock *BB) const {
-    return BB != Dispatcher && BB != AnyPC && BB != UnexpectedPC;
+    return BB != Dispatcher
+      && BB != DispatcherFail
+      && BB != AnyPC
+      && BB != UnexpectedPC;
   }
 
   /// \brief Find the PC which lead to generated \p TheInstruction
@@ -158,13 +183,19 @@ public:
   /// See visitPredecessors in ir-helpers.h
   void visitPredecessors(llvm::Instruction *I, RVisitorFunction Visitor);
 
+  llvm::BasicBlock *anyPC() { return AnyPC; }
+
 private:
+  uint32_t InstructionAlignment;
   uint32_t DelaySlotSize;
   llvm::GlobalVariable *PC;
+  llvm::GlobalVariable *SP;
   llvm::BasicBlock *Dispatcher;
+  llvm::BasicBlock *DispatcherFail;
   llvm::BasicBlock *AnyPC;
   llvm::BasicBlock *UnexpectedPC;
   std::map<uint64_t, llvm::BasicBlock *> JumpTargets;
+  unsigned PCRegSize;
 };
 
 template<>

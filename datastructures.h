@@ -6,6 +6,8 @@
 //
 
 // Standard includes
+#include <algorithm>
+#include <cassert>
 #include <queue>
 #include <set>
 #include <stack>
@@ -27,8 +29,12 @@ public:
     return Queue.empty();
   }
 
+  T head() const {
+    return Queue.front();
+  }
+
   T pop() {
-    T Result = Queue.front();
+    T Result = head();
     Queue.pop();
     if (!Once)
       Set.erase(Result);
@@ -40,6 +46,11 @@ public:
   std::set<T> visited() {
     assert(Once);
     return std::move(Set);
+  }
+
+  void clear() {
+    std::set<T>().swap(Set);
+    std::queue<T>().swap(Queue);
   }
 
 private:

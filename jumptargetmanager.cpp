@@ -973,6 +973,10 @@ void JumpTargetManager::translateIndirectJumps() {
       }
     }
   }
+
+  assert(ExitTB->use_empty());
+  ExitTB->eraseFromParent();
+  ExitTB = nullptr;
 }
 
 JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
@@ -1143,6 +1147,7 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
                                          Value *SwitchOnPtr,
                                          bool JumpDirectly) {
   IRBuilder<> Builder(Context);
+  QuickMetadata QMD(Context);
 
   // Create the first block of the dispatcher
   BasicBlock *Entry = BasicBlock::Create(Context,
@@ -1160,14 +1165,15 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   Constant *UnknownPC = TheModule->getOrInsertFunction("unknownPC",
                                                        UnknownPCTy);
   Builder.CreateCall(cast<Function>(UnknownPC));
-  Builder.CreateUnreachable();
+  auto *FailUnreachable = Builder.CreateUnreachable();
+  FailUnreachable->setMetadata("revamb.block.type",
+                               QMD.tuple(DispatcherFailure));
 
   // Switch on the first argument of the function
   Builder.SetInsertPoint(Entry);
   Value *SwitchOn = Builder.CreateLoad(SwitchOnPtr);
   SwitchInst *Switch = Builder.CreateSwitch(SwitchOn, DispatcherFail);
   // The switch is the terminator of the dispatcher basic block
-  QuickMetadata QMD(Context);
   Switch->setMetadata("revamb.block.type", QMD.tuple(DispatcherBlock));
 
   Dispatcher = Entry;
@@ -1231,7 +1237,13 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
     if (auto *FunctionCall = TheModule.getFunction("function_call")) {
       for (User *U : FunctionCall->users()) {
         auto *Call = cast<CallInst>(U);
-        auto *Terminator = cast<TerminatorInst>(Call->getNextNode());
+
+        // Ignore indirect calls
+        // TODO: why this is needed is unclear
+        if (isa<ConstantPointerNull>(Call->getArgOperand(0)))
+          continue;
+
+        auto *Terminator = cast<TerminatorInst>(nextNonMarker(Call));
         assert(Terminator->getNumSuccessors() == 1);
 
         // Get the correct argument, the first is the callee, the second the
