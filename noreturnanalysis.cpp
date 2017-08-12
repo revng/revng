@@ -128,7 +128,7 @@ void NoReturnAnalysis::registerKiller(uint64_t StoredValue,
     return;
 
   // Register the Setter's basic block
-  registerKiller(Setter->getParent());
+  registerKiller(Setter->getParent(), KillerSyscall);
 }
 
 void NoReturnAnalysis::findInfinteLoops() {
@@ -142,13 +142,12 @@ void NoReturnAnalysis::findInfinteLoops() {
     L->getExitingBlocks(ExitingBlocks);
     if (ExitingBlocks.size() == 0) {
       for (BasicBlock *Member : L->blocks())
-        KillerBBs.insert(Member);
+        registerKiller(Member, EndlessLoop);
     }
   }
 }
 
-void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors,
-                                        std::set<TerminatorInst *> &Returns) {
+void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors) {
   // Enrich the KillerBBs set with blocks participating in infinite loops
   findInfinteLoops();
 
@@ -198,10 +197,10 @@ void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors,
 
     // These are all killer basic blocks
     for (BasicBlock *NewKiller : Descendants)
-      registerKiller(NewKiller);
+      registerKiller(NewKiller, LeadsToKiller);
 
     // Find all the callers, mark them as killers and enqueue them for
-    // processing since all the basic block domianted by the callee basic block
+    // processing since all the basic block dominated by the callee basic block
     // are killer basic blocks too
     for (BasicBlock *NewKiller : Descendants) {
       for (User *U : NewKiller->users()) {
@@ -221,7 +220,7 @@ void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors,
           BasicBlock *CallerBB = Call->getParent();
           if (!isKiller(CallerBB)) {
             // TODO: support multiple successors, i.e. check they're all killers
-            registerKiller(CallerBB);
+            registerKiller(CallerBB, LeadsToKiller);
             WorkList.insert(CallerBB);
           }
 

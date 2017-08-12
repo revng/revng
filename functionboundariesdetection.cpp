@@ -586,7 +586,7 @@ map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
 
   // TODO: move this code in JTM
   JTM->setCFGForm(JumpTargetManager::NoFunctionCallsCFG);
-  JTM->noReturn().computeKillerSet(CallPredecessors, Returns);
+  JTM->noReturn().computeKillerSet(CallPredecessors);
   JTM->setCFGForm(JumpTargetManager::SemanticPreservingCFG);
 
   registerBasicBlockAddressRanges();

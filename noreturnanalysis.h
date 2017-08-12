@@ -60,8 +60,7 @@ public:
                                    std::vector<llvm::BasicBlock *>>;
   /// Add to the set of killer basic blocks all the basic blocks who can only
   /// end in one of those already registered.
-  void computeKillerSet(PredecessorsMap &CallPredecessors,
-                        std::set<llvm::TerminatorInst *> &Returns);
+  void computeKillerSet(PredecessorsMap &CallPredecessors);
 
   void setDispatcher(llvm::BasicBlock *BB) { Dispatcher = BB; }
 
@@ -84,21 +83,42 @@ public:
   }
 
 private:
+  enum KillReason {
+    KillerSyscall,
+    EndlessLoop,
+    LeadsToKiller
+  };
+
+  static llvm::StringRef getReasonName(KillReason Reason) {
+    switch(Reason) {
+    case KillerSyscall:
+      return "KillerSyscall";
+    case EndlessLoop:
+      return "EndlessLoop";
+    case LeadsToKiller:
+      return "LeadsToKiller";
+    default:
+      assert(false);
+    }
+  }
+
   bool isKiller(llvm::BasicBlock *BB) const {
     return KillerBBs.count(BB) != 0;
   };
 
   /// \brief Register BB as killer and associate a noreturn metadata to it
-  void registerKiller(llvm::BasicBlock *BB) {
+  void registerKiller(llvm::BasicBlock *BB, KillReason Reason) {
     KillerBBs.insert(BB);
 
     if (!BB->empty()) {
       llvm::TerminatorInst *Terminator = BB->getTerminator();
       assert(Terminator != nullptr);
-      if (Terminator->getMetadata("noreturn") == nullptr)
-        Terminator->setMetadata("noreturn",
-                                llvm::MDTuple::get(getContext(BB), { }));
+      if (Terminator->getMetadata("noreturn") == nullptr) {
+        QuickMetadata QMD(getContext(BB));
+        Terminator->setMetadata("noreturn", QMD.tuple(getReasonName(Reason)));
+      }
     }
+
   }
 
   bool endsUpIn(llvm::Instruction *I, llvm::BasicBlock *Target);
