@@ -591,13 +591,20 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   NamedMDNode *InputArchMD;
   const char *MDName = "revamb.input.architecture";
   InputArchMD = TheModule->getOrInsertNamedMetadata(MDName);
+  const Architecture &Arch = Binary.architecture();
   // Currently revamb.inputarch is composed as follows:
   //
-  // revamb.inputarch = { { DelaySlotSize, PCRegisterName, SPRegisterName } }
+  // revamb.inputarch = {
+  //   InstructionAlignment,
+  //   DelaySlotSize,
+  //   PCRegisterName,
+  //   SPRegisterName
+  // }
   auto *Tuple = MDTuple::get(Context, {
-    QMD.get(static_cast<uint32_t>(Binary.architecture().delaySlotSize())),
+    QMD.get(static_cast<uint32_t>(Arch.instructionAlignment())),
+    QMD.get(static_cast<uint32_t>(Arch.delaySlotSize())),
     QMD.get("pc"),
-    QMD.get("sp"),
+    QMD.get(Arch.stackPointerRegister()),
   });
   InputArchMD->addOperand(Tuple);
 

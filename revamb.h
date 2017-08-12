@@ -69,7 +69,8 @@ public:
                llvm::StringRef SyscallHelper,
                llvm::StringRef SyscallNumberRegister,
                llvm::ArrayRef<uint64_t> NoReturnSyscalls,
-               unsigned DelaySlotSize) :
+               unsigned DelaySlotSize,
+               llvm::StringRef StackPointerRegister) :
     Type(static_cast<llvm::Triple::ArchType>(Type)),
     InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
@@ -78,7 +79,8 @@ public:
     SyscallHelper(SyscallHelper),
     SyscallNumberRegister(SyscallNumberRegister),
     NoReturnSyscalls(NoReturnSyscalls),
-    DelaySlotSize(DelaySlotSize) { }
+    DelaySlotSize(DelaySlotSize),
+    StackPointerRegister(StackPointerRegister) { }
 
   unsigned instructionAlignment() const { return InstructionAlignment; }
   unsigned defaultAlignment() const { return DefaultAlignment; }
@@ -88,6 +90,9 @@ public:
   llvm::StringRef syscallHelper() const { return SyscallHelper; }
   llvm::StringRef syscallNumberRegister() const {
     return SyscallNumberRegister;
+  }
+  llvm::StringRef stackPointerRegister() const {
+    return StackPointerRegister;
   }
   llvm::ArrayRef<uint64_t> noReturnSyscalls() const { return NoReturnSyscalls; }
   unsigned delaySlotSize() const { return DelaySlotSize; }
@@ -105,6 +110,7 @@ private:
   llvm::StringRef SyscallNumberRegister;
   llvm::ArrayRef<uint64_t> NoReturnSyscalls;
   unsigned DelaySlotSize;
+  llvm::StringRef StackPointerRegister;
 };
 
 // TODO: this requires C++14
