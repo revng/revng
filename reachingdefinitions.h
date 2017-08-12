@@ -67,11 +67,6 @@ struct MemoryInstruction {
   MemoryAccess MA;
 };
 
-template<class Container, class UnaryPredicate>
-static inline void erase_if(Container &C, UnaryPredicate P) {
-  C.erase(std::remove_if(C.begin(), C.end(), P), C.end());
-}
-
 namespace std {
 template <> struct hash<MemoryInstruction>
 {

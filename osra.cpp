@@ -51,15 +51,6 @@ const BoundedValue::MergeType OrMerge = BoundedValue::Or;
 
 using BVVector = SmallVector<BoundedValue, 2>;
 
-template<typename C>
-static auto skip(unsigned ToSkip, C &Container)
-                 -> iterator_range<decltype(Container.begin())> {
-  auto Begin = std::begin(Container);
-  while (ToSkip --> 0)
-    Begin++;
-  return make_range(Begin, std::end(Container));
-}
-
 /// Helper function to check if two BV vectors are identical
 static bool differ(SmallVector<BoundedValue, 2> &Old,
                    SmallVector<BoundedValue, 2> &New) {
