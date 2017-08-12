@@ -218,7 +218,7 @@ void FBD::collectFunctionCalls() {
     if (auto *Call = dyn_cast<CallInst>(U)) {
       BasicBlock *ReturnBB = getBlock(Call->getOperand(1));
       uint32_t ReturnPC = getLimitedValue(Call->getOperand(2));
-      auto *Terminator = cast<TerminatorInst>(getNext(Call));
+      auto *Terminator = cast<TerminatorInst>(nextNonMarker(Call));
       assert(Terminator != nullptr);
       FunctionCalls[Terminator] = ReturnBB;
       CallPredecessors[ReturnBB].push_back(Call->getParent());

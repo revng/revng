@@ -16,6 +16,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 
+// Local includes
+#include "ir-helpers.h"
 namespace llvm {
 class GlobalVariable;
 };
@@ -137,6 +139,32 @@ static inline T *notNull(T *Pointer) {
 template<typename T>
 static inline bool contains(T Range, typename T::value_type V) {
   return std::find(std::begin(Range), std::end(Range), V) != std::end(Range);
+}
+
+static const std::array<llvm::StringRef, 3> MarkerFunctionNames = {
+  "newpc",
+  "function_call",
+  "exitTB"
+};
+
+static inline bool isMarker(llvm::Instruction *I) {
+  using namespace std::placeholders;
+  using llvm::any_of;
+  using std::bind;
+
+  return any_of(MarkerFunctionNames, bind(isCallTo, I, _1));
+}
+
+static inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
+  auto It = I->getIterator();
+  auto End = I->getParent()->end();
+  do {
+    It++;
+    assert(It != End);
+  } while (isMarker(&*It));
+
+  assert(It != End);
+  return &*It;
 }
 
 #endif // _REVAMB_H

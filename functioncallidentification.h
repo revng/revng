@@ -44,11 +44,13 @@ public:
   bool isCall(llvm::TerminatorInst *T) const {
     assert(T != nullptr);
     llvm::Instruction *Previous = getPrevious(T);
-    if (Previous == nullptr)
-      return false;
+    while (Previous != nullptr && isMarker(Previous)) {
+      auto *Call = llvm::cast<llvm::CallInst>(Previous);
+      if (Call->getCalledFunction() == FunctionCall)
+        return true;
 
-    if (auto *Call = llvm::dyn_cast<llvm::CallInst>(Previous))
-      return Call->getCalledFunction() == FunctionCall;
+      Previous = getPrevious(Previous);
+    }
 
     return false;
   }

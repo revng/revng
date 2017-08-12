@@ -1237,7 +1237,7 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
     if (auto *FunctionCall = TheModule.getFunction("function_call")) {
       for (User *U : FunctionCall->users()) {
         auto *Call = cast<CallInst>(U);
-        auto *Terminator = cast<TerminatorInst>(Call->getNextNode());
+        auto *Terminator = cast<TerminatorInst>(nextNonMarker(Call));
         assert(Terminator->getNumSuccessors() == 1);
 
         // Get the correct argument, the first is the callee, the second the
