@@ -1,0 +1,8 @@
+Function bb._start
+  BranchesType: bb._start (HandledCall) bb._start.0x5 (Return)
+  Saved slots:
+
+Function bb.longjmp
+  BranchesType: bb.longjmp (InstructionLocalCFG) bb.longjmp.0x2 (IndirectTailCall) bb.longjmp_L0 (FunctionLocalCFG) bb.longjmp_L0_ft (FunctionLocalCFG) bb.ret (LongJmp)
+  Saved slots:
+

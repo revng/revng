@@ -21,6 +21,7 @@
 #include "collectfunctionboundaries.h"
 #include "collectnoreturn.h"
 #include "debug.h"
+#include "stackanalysis.h"
 
 using namespace llvm;
 
@@ -29,6 +30,7 @@ struct ProgramParameters {
   const char *CFGPath;
   const char *NoreturnPath;
   const char *FunctionBoundariesPath;
+  const char *StackAnalysisPath;
 };
 
 static const char *const Usage[] = {
@@ -56,6 +58,9 @@ static bool parseArgs(int Argc, const char *Argv[], ProgramParameters &Result) {
                &Result.FunctionBoundariesPath,
                "path where the list of function boundaries blocks should be "
                "stored."),
+    OPT_STRING('s', "stack-analysis",
+               &Result.StackAnalysisPath,
+               "path where the result of the stack analysis should be stored."),
     OPT_END(),
   };
 
@@ -112,6 +117,11 @@ public:
                                       Output));
     }
 
+    if (Parameters.StackAnalysisPath != nullptr) {
+      auto &Analysis = getAnalysis<StackAnalysis::StackAnalysis>();
+      Analysis.serialize(pathToStream(Parameters.StackAnalysisPath, Output));
+    }
+
     return false;
   }
 
@@ -126,6 +136,9 @@ public:
 
     if (Parameters.FunctionBoundariesPath != nullptr)
       AU.addRequired<CollectFunctionBoundaries>();
+
+    if (Parameters.StackAnalysisPath != nullptr)
+      AU.addRequired<StackAnalysis::StackAnalysis>();
 
   }
 

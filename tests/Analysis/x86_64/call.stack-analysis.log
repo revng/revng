@@ -1,0 +1,8 @@
+Function bb._start
+  BranchesType: bb._start (HandledCall) bb._start.0x5 (Return)
+  Saved slots:
+
+Function bb.call
+  BranchesType: bb.call (Return)
+  Saved slots:
+

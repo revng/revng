@@ -75,7 +75,8 @@ target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
 install(TARGETS revamb RUNTIME DESTINATION bin)
 
 add_executable(revamb-dump dump.cpp collectcfg.cpp collectnoreturn.cpp debug.cpp
-  collectfunctionboundaries.cpp argparse/argparse.c)
+  collectfunctionboundaries.cpp stackanalysis.cpp generatedcodebasicinfo.cpp
+  argparse/argparse.c)
 target_link_libraries(revamb-dump ${LLVM_LIBRARIES})
 install(TARGETS revamb-dump RUNTIME DESTINATION bin)
 
