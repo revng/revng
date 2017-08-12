@@ -486,6 +486,7 @@ public:
     freeContainer(UnusedCodePointers);
   }
 
+  void createJTReasonMD() {
     // Tag each jump target with its reasons
     for (auto &P : JumpTargets) {
       JumpTarget &JT = P.second;

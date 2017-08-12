@@ -921,6 +921,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     FPM.run(*MainFunction);
   }
 
+  JumpTargets.createJTReasonMD();
+
   JumpTargets.noReturn().cleanup();
 
   Translator.finalizeNewPCMarkers(CoveragePath);
