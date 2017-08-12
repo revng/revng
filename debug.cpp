@@ -11,8 +11,17 @@
 #include <string>
 #include <vector>
 
+// LLVM includes
+#include "llvm/IR/Value.h"
+
 // Local includes
 #include "debug.h"
+
+#ifndef NDEBUG
+namespace llvm {
+void Value::assertModuleIsMaterialized() const { }
+}
+#endif
 
 bool DebuggingEnabled = false;
 std::ostream& dbg(std::cerr);

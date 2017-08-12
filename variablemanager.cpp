@@ -33,12 +33,6 @@
 
 using namespace llvm;
 
-#ifndef NDEBUG
-namespace llvm {
-void Value::assertModuleIsMaterialized() const { }
-}
-#endif
-
 class OffsetValueStack {
 
 private:
