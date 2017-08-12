@@ -1237,6 +1237,12 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
     if (auto *FunctionCall = TheModule.getFunction("function_call")) {
       for (User *U : FunctionCall->users()) {
         auto *Call = cast<CallInst>(U);
+
+        // Ignore indirect calls
+        // TODO: why this is needed is unclear
+        if (isa<ConstantPointerNull>(Call->getArgOperand(0)))
+          continue;
+
         auto *Terminator = cast<TerminatorInst>(nextNonMarker(Call));
         assert(Terminator->getNumSuccessors() == 1);
 
