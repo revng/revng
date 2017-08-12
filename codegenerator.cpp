@@ -911,8 +911,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   PM.add(createDeadCodeEliminationPass());
   PM.run(*TheModule);
 
-  JumpTargets.translateIndirectJumps();
-
   JumpTargets.finalizeJumpTargets();
 
   purgeDeadBlocks(MainFunction);

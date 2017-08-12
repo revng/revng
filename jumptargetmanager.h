@@ -269,9 +269,6 @@ public:
   /// \brief Save the PC-Instruction association for future use
   void registerInstruction(uint64_t PC, llvm::Instruction *Instruction);
 
-  /// \brief Translate the non-constant jumps into jumps to the dispatcher
-  void translateIndirectJumps();
-
   /// \brief Return the most recent instruction writing the program counter
   ///
   /// Note that the search is performed only in the current basic block.  The
@@ -471,6 +468,8 @@ public:
   /// This function also fixes the "anypc" and "unexpectedpc" basic blocks to
   /// their proper behavior.
   void finalizeJumpTargets() {
+    translateIndirectJumps();
+
     unsigned ReadSize = Binary.architecture().pointerSize() / 8;
     for (uint64_t MemoryAddress : UnusedCodePointers) {
       // Read using the original endianess, we want the correct address
@@ -483,10 +482,9 @@ public:
       assert(!BB->empty());
     }
 
-    ExitTB->eraseFromParent();
-
     // We no longer need this information
     freeContainer(UnusedCodePointers);
+  }
 
     // Tag each jump target with its reasons
     for (auto &P : JumpTargets) {
@@ -537,6 +535,9 @@ public:
   std::string nameForAddress(uint64_t Address) const;
 
 private:
+
+  /// \brief Translate the non-constant jumps into jumps to the dispatcher
+  void translateIndirectJumps();
 
   /// \brief Helper function to check if an instruction is a call to `newpc`
   ///

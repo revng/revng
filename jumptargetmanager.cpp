@@ -973,6 +973,10 @@ void JumpTargetManager::translateIndirectJumps() {
       }
     }
   }
+
+  assert(ExitTB->use_empty());
+  ExitTB->eraseFromParent();
+  ExitTB = nullptr;
 }
 
 JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
