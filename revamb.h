@@ -38,8 +38,10 @@ enum BlockType {
   AnyPCBlock, ///< Basic block used to handle an expectedly unknown jump target.
   UnexpectedPCBlock, ///< Basic block used to handle an unexpectedly unknown
                      ///  jump target.
-  JumpTargetBlock ///< A basic block generated during translation representing a
-                  ///  jump target.
+  JumpTargetBlock, ///< A basic block generated during translation representing
+                   ///  a jump target.
+  DispatcherFailure ///< Basic block representing the default case of the
+                    ///  dispatcher switch.
 };
 
 /// \brief Basic information about an input/output architecture

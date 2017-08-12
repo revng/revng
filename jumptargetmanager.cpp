@@ -1143,6 +1143,7 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
                                          Value *SwitchOnPtr,
                                          bool JumpDirectly) {
   IRBuilder<> Builder(Context);
+  QuickMetadata QMD(Context);
 
   // Create the first block of the dispatcher
   BasicBlock *Entry = BasicBlock::Create(Context,
@@ -1160,14 +1161,15 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   Constant *UnknownPC = TheModule->getOrInsertFunction("unknownPC",
                                                        UnknownPCTy);
   Builder.CreateCall(cast<Function>(UnknownPC));
-  Builder.CreateUnreachable();
+  auto *FailUnreachable = Builder.CreateUnreachable();
+  FailUnreachable->setMetadata("revamb.block.type",
+                               QMD.tuple(DispatcherFailure));
 
   // Switch on the first argument of the function
   Builder.SetInsertPoint(Entry);
   Value *SwitchOn = Builder.CreateLoad(SwitchOnPtr);
   SwitchInst *Switch = Builder.CreateSwitch(SwitchOn, DispatcherFail);
   // The switch is the terminator of the dispatcher basic block
-  QuickMetadata QMD(Context);
   Switch->setMetadata("revamb.block.type", QMD.tuple(DispatcherBlock));
 
   Dispatcher = Entry;
