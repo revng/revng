@@ -375,7 +375,10 @@ void FBD::cfepProcessPhase1() {
         // This basic block ends with a function call, proceed with the return
         // address, unless it's a call to a noreturn function.
         if (JTM->noReturn().isNoreturnBasicBlock(RelatedBB)) {
-          DBG("nra", dbg << "Stopping at " << getName(RelatedBB) << " since it's a noreturn call\n");
+          DBG("nra", {
+              dbg << "Stopping at " << getName(RelatedBB)
+                  << " since it's a noreturn call\n";
+            });
         } else {
           BasicBlock *ReturnBB = FCIt->second;
           setRelation(CFEP, ReturnBB, Return);

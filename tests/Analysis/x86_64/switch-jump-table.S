@@ -8,7 +8,7 @@ _start:
     cmp    eax,0x3
     ja     end
     jmp    QWORD PTR [rax*8+jumptable]
-jumptable:  
+jumptable:
     .quad one
     .quad two
     .quad three

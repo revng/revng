@@ -29,8 +29,6 @@
 #include "ir-helpers.h"
 #include "reachingdefinitions.h"
 
-// #include "valgrind/callgrind.h"
-
 using namespace llvm;
 
 using std::pair;

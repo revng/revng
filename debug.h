@@ -15,7 +15,7 @@
 
 // TODO: use a dedicated namespace
 extern bool DebuggingEnabled;
-extern std::ostream& dbg;
+extern std::ostream &dbg;
 
 bool isDebugFeatureEnabled(std::string Name);
 void enableDebugFeature(std::string Name);
