@@ -28,11 +28,17 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
   // TODO: we could factor this out
   Module *M = F.getParent();
   LLVMContext &C = M->getContext();
-  Type *Int8PtrTy = Type::getInt8PtrTy(C);
+  PointerType *Int8PtrTy = Type::getInt8PtrTy(C);
   auto *Int32Ty = IntegerType::get(C, 32);
-  auto *FunctionCallFT = FunctionType::get(Type::getVoidTy(C),
-                                           { Int8PtrTy, Int8PtrTy, Int32Ty },
-                                           false);
+  auto *PCPtrTy = cast<PointerType>(GCBI.pcReg()->getType());
+  std::initializer_list<Type *> FunctionArgsTy = {
+    Int8PtrTy,
+    Int8PtrTy,
+    Int32Ty,
+    PCPtrTy
+  };
+  using FT = FunctionType;
+  auto *FunctionCallFT = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
   FunctionCall = cast<Function>(M->getOrInsertFunction("function_call",
                                                        FunctionCallFT));
 
@@ -46,10 +52,11 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
 
   // Collect function calls
   for (BasicBlock &BB : F) {
+    if (!GCBI.isTranslated(&BB))
+      continue;
 
-    // Consider the basic block only if it's terminator is an actual jump, it's
-    // not an unreachable instruction and it hasn't been already marked as a
-    // function call
+    // Consider the basic block only if it's terminator is an actual jump and it
+    // hasn't been already marked as a function call
     TerminatorInst *Terminator = BB.getTerminator();
     if (!GCBI.isJump(Terminator) || isCall(Terminator))
       continue;
@@ -66,28 +73,73 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
     bool StorePCFound = false;
     uint64_t ReturnPC = GCBI.getNextPC(Terminator);
     uint64_t LastPC = ReturnPC;
+    Constant *LinkRegister = nullptr;
 
     // We can meet up calls to newpc up to (1 + "size of the delay slot")
     // times
     unsigned NewPCLeft = 1 + GCBI.delaySlotSize();
 
-    auto Visitor = [&GCBI,
+    auto Visitor = [&BB,
+                    &GCBI,
                     &NewPCLeft,
                     &SaveRAFound,
                     ReturnPC,
                     &LastPC,
-                    &StorePCFound] (RBasicBlockRange R) {
+                    &StorePCFound,
+                    &LinkRegister,
+                    &PCPtrTy] (RBasicBlockRange R) {
       for (Instruction &I : R) {
         if (auto *Store = dyn_cast<StoreInst>(&I)) {
           Value *V = Store->getValueOperand();
-          auto *D = dyn_cast<GlobalVariable>(Store->getPointerOperand());
-          if (GCBI.isPCReg(D)) {
+          Value *Pointer = Store->getPointerOperand();
+          auto *TargetCSV = dyn_cast<GlobalVariable>(Pointer);
+          if (TargetCSV != nullptr && GCBI.isPCReg(TargetCSV)) {
             StorePCFound = true;
           } else if (auto *Constant = dyn_cast<ConstantInt>(V)) {
             // Note that we willingly ignore stores to the PC here
             if (Constant->getLimitedValue() == ReturnPC) {
               assert(!SaveRAFound);
               SaveRAFound = true;
+
+              // Find where the return address is being stored
+              assert(LinkRegister == nullptr);
+              if (TargetCSV != nullptr) {
+                // The return address is being written to a register
+                LinkRegister = TargetCSV;
+              } else {
+                // The return address is likely being written on the stack, we
+                // have to check the last value on the stack and check if we're
+                // writing there. This should cover basically all the cases,
+                // and, if not, expanding this should be straightforward
+
+                // Reference example:
+                //
+                // %1 = load i64, i64* @rsp
+                // %2 = sub i64 %1, 8
+                // %3 = inttoptr i64 %2 to i64*
+                // store i64 4194694, i64* %3
+                // store i64 %2, i64* @rsp
+                // store i64 4194704, i64* @pc
+
+                // Find the last write to the stack pointer
+                Value *LastStackPointer = nullptr;
+                for (Instruction &I : make_range(BB.rbegin(), BB.rend())) {
+                  if (auto *S = dyn_cast<StoreInst>(&I)) {
+                    auto *P = dyn_cast<GlobalVariable>(S->getPointerOperand());
+                    if (P != nullptr && GCBI.isSPReg(P)) {
+                      LastStackPointer = Store->getPointerOperand();
+                      break;
+                    }
+                  }
+                }
+                assert(LastStackPointer != nullptr);
+                assert(skipCasts(LastStackPointer) == skipCasts(Pointer));
+
+                // If LinkRegister is nullptr it means the return address is
+                // being pushed on the top of the stack
+                LinkRegister = ConstantPointerNull::get(PCPtrTy);
+              }
+
             }
           }
         } else if (auto *Call = dyn_cast<CallInst>(&I)) {
@@ -129,35 +181,48 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
 
       // If there is a single successor it can be anypc or an actual callee
       // basic block, both cases are fine. If there's more than one successor,
-      // we want to register only the default successor of the switch statment
+      // we want to register only the default successor of the switch statement
       // (typically anypc).
       // TODO: register in the call to function_call multiple call targets
       unsigned SuccessorsCount = Terminator->getNumSuccessors();
-      assert(SuccessorsCount >= 1);
-      BasicBlock *Callee = nullptr;
+      Value *Callee = nullptr;
 
-      if (SuccessorsCount == 1) {
-        Callee = Terminator->getSuccessor(0);
+      if (SuccessorsCount == 0) {
+        Callee = ConstantPointerNull::get(Int8PtrTy);
+      } else if (SuccessorsCount == 1) {
+        Callee = BlockAddress::get(Terminator->getSuccessor(0));
       } else {
         // If there are multiple successors, register the one that is not a
-        // jumpt target
+        // jump target
         for (BasicBlock *Successor : successors(Terminator->getParent())) {
           if (!GCBI.isJumpTarget(Successor)) {
             // There should be only one non-jump target successor (i.e., anypc
             // or unepxectedpc).
             assert(Callee == nullptr);
-            Callee = Successor;
+            Callee = BlockAddress::get(Successor);
           }
         }
         assert(Callee != nullptr);
       }
 
-      Value *Args[3] = {
-        BlockAddress::get(Callee),
+      const std::initializer_list<Value *> Args {
+        Callee,
         BlockAddress::get(ReturnBB),
-        ConstantInt::get(Int32Ty, ReturnPC)
+        ConstantInt::get(Int32Ty, ReturnPC),
+        LinkRegister
       };
-      CallInst::Create(FunctionCall, Args, "", Terminator);
+
+      // If the instruction before the terminator is a call to exitTB, inject
+      // the call to function_call before it, so it doesn't get purged
+      auto It = Terminator->getIterator();
+      if (It != Terminator->getParent()->begin()) {
+        auto PrevIt = It;
+        PrevIt--;
+        if (isCallTo(&*PrevIt, "exitTB"))
+          It = PrevIt;
+      }
+
+      CallInst::Create(FunctionCall, Args, "", &*It);
     }
   }
 
