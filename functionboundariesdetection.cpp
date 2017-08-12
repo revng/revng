@@ -253,7 +253,7 @@ void FBD::collectReturnInstructions() {
 
       // A return instruction must jump to JTM->anyPC, while all the other
       // successors (if any) must be registered returns addresses
-      if (Successor == JTM->anyPC()) {
+      if (Successor == JTM->anyPC() || Successor == JTM->dispatcher()) {
         JumpsToDispatcher = true;
       } else if (ReturnPCs.count(JTM->getPC(&*Successor->begin()).first) == 0) {
         IsReturn = false;
