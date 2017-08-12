@@ -51,9 +51,7 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
     // not an unreachable instruction and it hasn't been already marked as a
     // function call
     TerminatorInst *Terminator = BB.getTerminator();
-    if (!GCBI.isJump(Terminator)
-        || isa<UnreachableInst>(Terminator)
-        || isCall(Terminator))
+    if (!GCBI.isJump(Terminator) || isCall(Terminator))
       continue;
 
     // To be a function call we need to find:
