@@ -192,17 +192,21 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
       } else if (SuccessorsCount == 1) {
         Callee = BlockAddress::get(Terminator->getSuccessor(0));
       } else {
-        // If there are multiple successors, register the one that is not a
-        // jump target
+        // If there are multiple successors, at least one should not be a jump
+        // target
+        bool Found = false;
         for (BasicBlock *Successor : successors(Terminator->getParent())) {
           if (!GCBI.isJumpTarget(Successor)) {
             // There should be only one non-jump target successor (i.e., anypc
             // or unepxectedpc).
-            assert(Callee == nullptr);
-            Callee = BlockAddress::get(Successor);
+            assert(!Found);
+            Found = true;
           }
         }
-        assert(Callee != nullptr);
+        assert(Found);
+
+        // It's an indirect call
+        Callee = ConstantPointerNull::get(Int8PtrTy);
       }
 
       const std::initializer_list<Value *> Args {

@@ -133,6 +133,22 @@ bool TranslateDirectBranchesPass::pinJTs(Function &F) {
         Switch->addCase(C(Destination), JTM->getBlockAt(Destination));
     }
 
+    // Move all the markers right before the branch instruction
+    Instruction *Last = BB->getTerminator();
+    auto It = CallExitTB->getIterator();
+    while (isMarker(&*It)) {
+      // Get the marker instructions
+      Instruction *I = &*It;
+
+      // Move the iterator back
+      It--;
+
+      // Move the last moved instruction (initially the terminator)
+      I->moveBefore(Last);
+
+      Last = I;
+    }
+
     // Notify new branches only if the amount of possible targets actually
     // increased
     if (Destinations.size() > OldTargetsCount)
