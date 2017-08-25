@@ -130,4 +130,4 @@ fi
       "$OBJ" \
       -lz -lm -lrt \
       -o "$OUTPUT" \
-      -fno-pie
+      -fno-pie -no-pie
