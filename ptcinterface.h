@@ -7,6 +7,7 @@
 
 // Standard includes
 #include <memory>
+#include <type_traits>
 
 // Local includes
 #include "revamb.h"
@@ -14,8 +15,8 @@
 #include "ptc.h"
 
 using PTCInstructionListDestructor =
-  GenericFunctor<decltype(&ptc_instruction_list_free),
-                 &ptc_instruction_list_free>;
+  std::integral_constant<decltype(&ptc_instruction_list_free),
+                         &ptc_instruction_list_free>;
 using PTCInstructionListPtr = std::unique_ptr<PTCInstructionList,
                                               PTCInstructionListDestructor>;
 

@@ -115,15 +115,6 @@ private:
   llvm::StringRef StackPointerRegister;
 };
 
-// TODO: this requires C++14
-template<typename FnTy, FnTy Ptr>
-struct GenericFunctor {
-  template<typename... Args>
-  auto operator()(Args... args) -> decltype(Ptr(args...)) {
-    return Ptr(args...);
-  }
-};
-
 // TODO: move me somewhere more appropriate
 static inline bool startsWith(std::string String, std::string Prefix) {
   return String.substr(0, Prefix.size()) == Prefix;

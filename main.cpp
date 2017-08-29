@@ -14,6 +14,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 extern "C" {
@@ -55,7 +56,15 @@ struct ProgramParameters {
   bool External;
 };
 
-using LibraryDestructor = GenericFunctor<decltype(&dlclose), &dlclose>;
+// When LibraryPointer is destroyed, the destructor calls
+// LibraryDestructor::operator()(LibraryPointer::get()).
+// The problem is that LibraryDestructor::operator() does not take arguments,
+// while the destructor tries to pass a void * argument, so it does not match.
+// However, LibraryDestructor is an alias for
+// std::intgral_constant<decltype(&dlclose), &dlclose >, which has an implicit
+// conversion operator to value_type, which unwraps the &dlclose from the
+// std::integral_constant, making it callable.
+using LibraryDestructor = std::integral_constant<decltype(&dlclose), &dlclose>;
 using LibraryPointer = std::unique_ptr<void, LibraryDestructor>;
 
 static const char *const Usage[] = {
