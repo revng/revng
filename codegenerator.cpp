@@ -118,7 +118,7 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                                              true,
                                              GlobalValue::ExternalLinkage,
                                              ConstantInt::get(Uint8Ty, 0),
-                                             ".elfheaderhelper");
+                                             "elfheaderhelper");
   ElfHeaderHelper->setAlignment(1);
   ElfHeaderHelper->setSection(".elfheaderhelper");
 
@@ -181,10 +181,10 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
 
     // Force alignment to 1 and assign the variable to a specific section
     Segment.Variable->setAlignment(1);
-    Segment.Variable->setSection(Name);
+    Segment.Variable->setSection("." + Name);
 
     // Write the linking info CSV
-    LinkingInfoStream << Name
+    LinkingInfoStream << "." << Name
                       << ",0x" << std::hex << Segment.StartVirtualAddress
                       << ",0x" << std::hex << Segment.EndVirtualAddress
                       << std::endl;
@@ -196,7 +196,7 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
 std::string SegmentInfo::generateName() {
   // Create name from start and size
   std::stringstream NameStream;
-  NameStream << ".o_"
+  NameStream << "o_"
              << (IsReadable ? "r" : "")
              << (IsWriteable ? "w" : "")
              << (IsExecutable ? "x" : "")
