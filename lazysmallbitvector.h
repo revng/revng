@@ -105,6 +105,7 @@ class LazySmallBitVector {
 public:
   using const_iterator = LazySmallBitVectorIterator<const LazySmallBitVector>;
   using iterator = LazySmallBitVectorIterator<LazySmallBitVector>;
+  typedef bool value_type;
 
 private:
 
