@@ -71,6 +71,11 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 add_definitions("-D_FILE_OFFSET_BITS=64")
 include_directories(argparse/)
 
+CHECK_CXX_COMPILER_FLAG("-no-pie" COMPILER_SUPPORTS_NO_PIE)
+if(COMPILER_SUPPORTS_NO_PIE)
+  set(NO_PIE "${TEST_CFLAGS} -no-pie")
+endif()
+
 set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
 
 add_executable(revamb ptcdump.cpp main.cpp debughelper.cpp variablemanager.cpp

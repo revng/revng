@@ -5,7 +5,7 @@
 # Test definitions
 set(SRC ${CMAKE_SOURCE_DIR}/tests/Runtime)
 
-set(TEST_CFLAGS "-std=c99 -static -fno-pic -fno-pie -g")
+set(TEST_CFLAGS "-std=c99 -static -fno-pic -fno-pie ${NO_PIE} -g")
 set(TESTS "calc" "function_call" "floating_point" "syscall" "global")
 
 ## calc
@@ -89,7 +89,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
 
     # Compose the command line to link support.c and the translated binaries
     string(REPLACE "-" "_" NORMALIZED_ARCH "${ARCH}")
-    compile_executable("$(${CMAKE_BINARY_DIR}/li-csv-to-ld-options ${BINARY}.ll.li.csv) ${BINARY}${CMAKE_C_OUTPUT_EXTENSION} ${CMAKE_BINARY_DIR}/support.c -DTARGET_${NORMALIZED_ARCH} -lz -lm -lrt -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -g -fno-pie -no-pie"
+    compile_executable("$(${CMAKE_BINARY_DIR}/li-csv-to-ld-options ${BINARY}.ll.li.csv) ${BINARY}${CMAKE_C_OUTPUT_EXTENSION} ${CMAKE_BINARY_DIR}/support.c -DTARGET_${NORMALIZED_ARCH} -lz -lm -lrt -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -g -fno-pie ${NO_PIE}"
       "${BINARY}.translated"
       COMPILE_TRANSLATED)
 

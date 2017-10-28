@@ -126,8 +126,14 @@ elif [ "$OPTIMIZE" -eq 2 ]; then
     "$LLC" -O2 -filetype=obj "$LL_OPT" -o "$OBJ" -regalloc=fast -disable-machine-licm
 fi
 
+if "$CC" -no-pie |& grep 'unrecognized command line option'; then
+    DISABLE_PIE="-fno-pie"
+else
+    DISABLE_PIE="-fno-pie -no-pie"
+fi
+
 "$CC" $("$TOOPT" "$CSV") \
       "$OBJ" \
       -lz -lm -lrt \
       -o "$OUTPUT" \
-      -fno-pie -no-pie
+      $DISABLE_PIE
