@@ -5,7 +5,9 @@
 # Test definitions
 set(SRC ${CMAKE_SOURCE_DIR}/tests/Runtime)
 
-set(TEST_CFLAGS "-std=c99 -static -fno-pic -fno-pie ${NO_PIE} -g")
+set(TEST_CFLAGS "-std=c99 -static -fno-pic -fno-pie -g")
+set(TEST_CFLAGS_IF_AVAILABLE "-no-pie")
+set(TEST_CFLAGS_NATIVE "${TEST_CFLAGS} ${NO_PIE}")
 set(TESTS "calc" "function_call" "floating_point" "syscall" "global")
 
 ## calc
@@ -43,8 +45,8 @@ set(TEST_ARGS_global_default "nope")
 # Create native executable and tests
 foreach(TEST_NAME ${TESTS})
   add_executable(test-native-${TEST_NAME} ${TEST_SOURCES_${TEST_NAME}})
-  set_target_properties(test-native-${TEST_NAME} PROPERTIES COMPILE_FLAGS "${TEST_CFLAGS}")
-  set_target_properties(test-native-${TEST_NAME} PROPERTIES LINK_FLAGS "${TEST_CFLAGS}")
+  set_target_properties(test-native-${TEST_NAME} PROPERTIES COMPILE_FLAGS "${TEST_CFLAGS_NATIVE}")
+  set_target_properties(test-native-${TEST_NAME} PROPERTIES LINK_FLAGS "${TEST_CFLAGS_NATIVE}")
 
   foreach(RUN_NAME ${TEST_RUNS_${TEST_NAME}})
     add_test(NAME run-test-native-${TEST_NAME}-${RUN_NAME}

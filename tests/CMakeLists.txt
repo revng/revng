@@ -12,6 +12,16 @@ cmake_minimum_required(VERSION 2.8)
 project(Test C ASM)
 
 string(REPLACE ":" ";" TESTS "${TESTS}")
+string(REPLACE ":" ";" CMAKE_C_FLAGS_IF_AVAILABLE "${CMAKE_C_FLAGS_IF_AVAILABLE}")
+
+include(CheckCCompilerFlag)
+
+foreach(FLAG ${CMAKE_C_FLAGS_IF_AVAILABLE})
+  CHECK_C_COMPILER_FLAG(${FLAG} COMPILER_SUPPORTS_FLAG)
+  if(COMPILER_SUPPORTS_FLAG)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FLAG}")
+  endif()
+endforeach()
 
 foreach(TEST_NAME ${TESTS})
   string(REPLACE ":" ";" TEST_SOURCES_${TEST_NAME} "${TEST_SOURCES_${TEST_NAME}}")
