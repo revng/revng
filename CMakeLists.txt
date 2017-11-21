@@ -52,21 +52,36 @@ add_definitions("-DQEMU_INSTALL_PATH=\"${QEMU_INSTALL_PATH}\"")
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 include_directories("${QEMU_INSTALL_PATH}/include/")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror -Wno-error=unused-variable")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=return-type")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-function")
+#
+# Compiler options
+#
 
+# Basic compiler options
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror")
+
+# Additional compiler options
 include(CheckCXXCompilerFlag)
-CHECK_CXX_COMPILER_FLAG("-Wno-error=noexcept-type" COMPILER_SUPPORTS_WARN_NOEXCEPT_TYPE)
-if (COMPILER_SUPPORTS_WARN_NOEXCEPT_TYPE)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=noexcept-type")
-endif()
+macro(add_flag_if_available flag)
+  string(REPLACE "-" "_" NAME "${flag}")
+  string(REPLACE "+" "_" NAME "${NAME}")
+  string(REPLACE "=" "_" NAME "${NAME}")
+  string(REPLACE "__" "_" NAME "${NAME}")
+  string(TOUPPER "${NAME}" NAME)
+  CHECK_CXX_COMPILER_FLAG("${flag}" IS_SUPPORTED_${NAME})
+  if (IS_SUPPORTED_${NAME})
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flag}")
+  endif()
+endmacro()
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-but-set-variable")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-ignored-attributes")
-endif()
+# Disable some warnings
+add_flag_if_available("-Wno-error=unused-variable")
+add_flag_if_available("-Wno-error=unused-function")
+add_flag_if_available("-Wno-error=return-type")
+add_flag_if_available("-Wno-error=noexcept-type")
+add_flag_if_available("-Wno-error=unused-but-set-variable")
+add_flag_if_available("-Wno-error=maybe-uninitialized")
+add_flag_if_available("-Wno-error=ignored-attributes")
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 add_definitions("-D_FILE_OFFSET_BITS=64")
 include_directories(argparse/)
