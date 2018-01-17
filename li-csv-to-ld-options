@@ -24,10 +24,20 @@ END {
   #printf "-fuse-ld=gold "
   printf "-fuse-ld=bfd "
 
+  # Get the lowest page that can be allocate on this system
   getline mmap_min < "/proc/sys/vm/mmap_min_addr"
-  if (min < mmap_min) {
-    print "WARNING: The minimum address to map is too low: " min " (minimum allowed: " mmap_min "). Please run:" > "/dev/stderr";
-    print "echo " min " | sudo tee /proc/sys/vm/mmap_min_addr" > "/dev/stderr";
+
+  # We need to be able to allocate a page before the first one in the input
+  # program
+  lowest_page = min - 4096
+
+  # If such page cannot be allocate, the linked program will crash at run-time,
+  # therefore, warn the user about this
+  if (lowest_page < mmap_min) {
+    print "WARNING: The minimum address to map is too low: " lowest_page \
+          " (minimum allowed: " mmap_min "). Please run:" > "/dev/stderr";
+    print "echo " lowest_page \
+          " | sudo tee /proc/sys/vm/mmap_min_addr" > "/dev/stderr";
   }
 
   # If using gold omit these two lines
