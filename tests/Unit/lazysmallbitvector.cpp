@@ -34,7 +34,7 @@ BOOST_AUTO_TEST_CASE(TestSetAndRead) {
 
   // Test small
   BitVector.set(0);
-  BOOST_TEST(BitVector.requiredBits() == 1);
+  BOOST_TEST(BitVector.requiredBits() == 1U);
   BOOST_TEST(BitVector[0] == true);
   BOOST_TEST(BitVector[1] == false);
   BOOST_TEST(BitVector[1000] == false);

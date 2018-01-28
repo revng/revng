@@ -170,5 +170,5 @@ BOOST_AUTO_TEST_CASE(TestASSlot) {
   // Test usage in a map
   std::map<ASSlot, int> Map;
   Map[SP1Slot] = 0;
-  BOOST_TEST(Map.count(SP1Slot) != 0);
+  BOOST_TEST(Map.count(SP1Slot) != 0U);
 }
