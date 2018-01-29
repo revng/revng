@@ -78,22 +78,22 @@ import sys
 file = open(sys.argv[1], "rb")
 file.seek(5)
 result = hexlify(file.read(1))
-file.seek(17)
+file.seek(18)
 result += hexlify(file.read(2))
 file.close()
 print(result.decode("utf-8"))' "$INPUT")
 
 case "$ARCHID" in
-    010028)
+    012800)
         ARCH=arm;
         ;;
-    020200)
+    020008)
         ARCH=mips;
         ;;
-    01003e)
+    013e00)
         ARCH=x86_64;
         ;;
-    010003)
+    010300)
         ARCH=i386;
         ;;
     *)
