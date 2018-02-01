@@ -29,12 +29,12 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
   Module *M = F.getParent();
   LLVMContext &C = M->getContext();
   PointerType *Int8PtrTy = Type::getInt8PtrTy(C);
-  auto *Int32Ty = IntegerType::get(C, 32);
+  auto *PCTy = IntegerType::get(C, GCBI.pcRegSize() * 8);
   auto *PCPtrTy = cast<PointerType>(GCBI.pcReg()->getType());
   std::initializer_list<Type *> FunctionArgsTy = {
     Int8PtrTy,
     Int8PtrTy,
-    Int32Ty,
+    PCTy,
     PCPtrTy
   };
   using FT = FunctionType;
@@ -212,7 +212,7 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
       const std::initializer_list<Value *> Args {
         Callee,
         BlockAddress::get(ReturnBB),
-        ConstantInt::get(Int32Ty, ReturnPC),
+        ConstantInt::get(PCTy, ReturnPC),
         LinkRegister
       };
 
