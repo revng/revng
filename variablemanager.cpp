@@ -139,7 +139,7 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
 
           bool Success = false;
           if (Load != nullptr) {
-            unsigned Size = DL.getTypeSizeInBits(TheUser->getType()) / 8;
+            unsigned Size = DL.getTypeAllocSize(TheUser->getType());
             assert(Size != 0);
 
             unsigned CurrentEnvOffset = CurrentOffset - EnvOffset;
@@ -151,7 +151,7 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
               TheUser->replaceAllUsesWith(Loaded);
           } else {
             Value *ToStore = Store->getValueOperand();
-            unsigned Size = DL.getTypeSizeInBits(ToStore->getType()) / 8;
+            unsigned Size = DL.getTypeAllocSize(ToStore->getType());
             assert(Size != 0);
 
             unsigned CurrentEnvOffset = CurrentOffset - EnvOffset;
@@ -262,7 +262,7 @@ bool CorrectCPUStateUsagePass::runOnModule(Module& TheModule) {
               }
 
               Type *PointeeTy = Var->getType()->getPointerElementType();
-              uint64_t Size = DL.getTypeSizeInBits(PointeeTy) / 8;
+              uint64_t Size = DL.getTypeAllocSize(PointeeTy);
 
               Value *Address = Builder.CreateAdd(Builder.getInt64(Offset),
                                                  BasePtr);
@@ -560,7 +560,6 @@ VariableManager::VariableManager(Module& TheModule,
 
     if (startsWith(HelperFunction.getName(), HelperPrefix)
         && HelperFunction.getFunctionType()->getNumParams() > 1) {
-
 
       for (Type *Candidate : HelperType->params()) {
         Structs.insert(dyn_cast<StructType>(Candidate));

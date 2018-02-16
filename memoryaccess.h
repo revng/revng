@@ -27,7 +27,7 @@ public:
     if (CacheIt != Cache.end()) {
       return CacheIt->second;
     } else {
-      auto Result = DL.getTypeSizeInBits(T) * 8;
+      auto Result = DL.getTypeAllocSize(T);
       Cache[T] = Result;
       return Result;
     }
@@ -161,7 +161,7 @@ private:
                   llvm::Value *PointeeValue,
                   const llvm::DataLayout &DL) {
     // Set the size
-    Size = DL.getTypeSizeInBits(PointeeValue->getType()) * 8;
+    Size = DL.getTypeAllocSize(PointeeValue->getType());
     initialize(Pointer);
   }
 
