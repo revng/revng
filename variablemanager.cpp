@@ -468,49 +468,76 @@ static RegisterPass<CorrectCPUStateUsagePass> X("correct-cpustate-usage",
                                                 false,
                                                 false);
 
-static std::pair<Type *, unsigned> getTypeAtOffset(const DataLayout *TheLayout,
-                                                   StructType *TheStruct,
-                                                   intptr_t Offset,
-                                                   unsigned Depth=0) {
-  const StructLayout *Layout = TheLayout->getStructLayout(TheStruct);
-  unsigned FieldIndex = Layout->getElementContainingOffset(Offset);
-  uint64_t FieldOffset = Layout->getElementOffset(FieldIndex);
-  Type *VariableType = TheStruct->getTypeAtIndex(FieldIndex);
-  intptr_t FieldEnd = (FieldOffset
-                       + TheLayout->getTypeSizeInBits(VariableType) / 8);
+static std::pair<IntegerType *, unsigned>
+getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
+  unsigned Depth = 0;
+  while (1) {
+    switch (VarType->getTypeID()) {
+      case llvm::Type::TypeID::PointerTyID:
+        // BEWARE: here we return { nullptr, 0 } as an intended workaround for
+        // a specific situation.
+        //
+        // We can't use assertions on pointers, as we do for all the other
+        // unhandled types, because they will be inevitably triggered during the
+        // execution. Indeed, all the other types are not present in QEMU
+        // CPUState and we can safely assert it. This is not true for pointers
+        // that are used in different places in QEMU CPUState.
+        //
+        // Given that we have ruled out assertions, we need to handle the
+        // pointer case so that it keeps working. This function is expected to
+        // return { nullptr, 0 } when the offset points to a memory location
+        // associated to padding space. In principle, pointers are not padding
+        // space, but the result of returning { nullptr, 0 } here is that load
+        // and store operations treat pointers like padding. This means that
+        // pointers cannot be read or written, and memcpy simply skips over them
+        // leaving them alone.
+        //
+        // This behavior is intended, because a pointer into the CPUState could
+        // be used to modify CPU registers indirectly, which is against all the
+        // assumption of the analysis necessary for the translation, and also
+        // against what really happens in a CPU, where CPU state cannot be
+        // addressed.
+        return { nullptr, 0 };
 
-  DBG("type-at-offset", dbg
-      << std::string(Depth * 2, ' ')
-      << "Offset: " << Offset << " "
-      << "Name: " << TheStruct->getName().str() << " "
-      << "Index: " << FieldIndex << " "
-      << "Field offset: " << FieldOffset << " "
-      << "\n");
+      case llvm::Type::TypeID::IntegerTyID:
+        return { cast<IntegerType>(VarType), Offset };
 
-  if (Offset >= FieldEnd)
-    return { nullptr, 0 };
+      case llvm::Type::TypeID::ArrayTyID:
+        VarType = VarType->getArrayElementType();
+        Offset %= TheLayout->getTypeAllocSize(VarType);
+        DBG("type-at-offset", dbg << std::string(Depth++ * 2, ' ')
+            << " Is an Array. Offset in Element: " << Offset << '\n');
+        break;
 
-  if (VariableType->isIntegerTy())
-    return { VariableType, Offset - FieldOffset };
-  else if (VariableType->isArrayTy()) {
-    Type *ElementType = VariableType->getArrayElementType();
-    uint64_t ElementSize = TheLayout->getTypeSizeInBits(ElementType) / 8;
-    if (ElementType->isIntegerTy())
-      return { ElementType, (Offset - FieldOffset) % ElementSize };
+      case llvm::Type::TypeID::StructTyID:
+        {
+          StructType *TheStruct = cast<StructType>(VarType);
+          const StructLayout *Layout = TheLayout->getStructLayout(TheStruct);
+          unsigned FieldIndex = Layout->getElementContainingOffset(Offset);
+          uint64_t FieldOffset = Layout->getElementOffset(FieldIndex);
+          VarType = TheStruct->getTypeAtIndex(FieldIndex);
+          intptr_t FieldEnd = FieldOffset
+                              + TheLayout->getTypeAllocSize(VarType);
 
-    return getTypeAtOffset(TheLayout,
-                           cast<StructType>(ElementType),
-                           (Offset - FieldOffset) % ElementSize,
-                           Depth + 1);
+          DBG("type-at-offset", dbg
+              << std::string(Depth++ * 2, ' ')
+              << " Offset: " << Offset
+              << " Struct Name: " << TheStruct->getName().str()
+              << " Field Index: " << FieldIndex
+              << " Field offset: " << FieldOffset
+              << " Field end: " << FieldEnd
+              << "\n");
 
-  } else if (VariableType->isStructTy())
-    return getTypeAtOffset(TheLayout,
-                           cast<StructType>(VariableType),
-                           Offset - FieldOffset,
-                           Depth + 1);
-  else {
-    // TODO: do some kind of warning reporting here
-    return { nullptr, 0 };
+          if (Offset >= FieldEnd)
+            return { nullptr, 0 };
+
+          Offset -= FieldOffset;
+        }
+        break;
+
+      default:
+        assert(false and "unexpected TypeID");
+    }
   }
 }
 
