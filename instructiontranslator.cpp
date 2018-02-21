@@ -640,7 +640,7 @@ IT::newInstruction(PTCInstruction *Instr,
   return R { Success, MDOriginalInstr, PC, NextPC };
 }
 
-static StoreInst *getLastUniqueWrite(BasicBlock *BB, Value *Register) {
+static StoreInst *getLastUniqueWrite(BasicBlock *BB, const Value *Register) {
   StoreInst *Result = nullptr;
   std::set<BasicBlock *> Visited;
   std::queue<BasicBlock *> WorkList;
