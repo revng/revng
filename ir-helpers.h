@@ -365,19 +365,6 @@ static inline std::string getName(const llvm::Value *V) {
   return SS.str();
 }
 
-// TODO: this function assumes 0 is not a valid PC
-static inline uint64_t getBasicBlockPC(llvm::BasicBlock *BB) {
-  auto It = BB->begin();
-  assert(It != BB->end());
-  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(&*It)) {
-    auto *Callee = Call->getCalledFunction();
-    if (Callee && Callee->getName() == "newpc")
-      return getLimitedValue(Call->getOperand(0));
-  }
-
-  return 0;
-}
-
 static inline llvm::LLVMContext &getContext(const llvm::Module *M) {
   return M->getContext();
 }
@@ -538,6 +525,17 @@ static inline llvm::CallInst *getCallTo(llvm::Instruction *I,
     return llvm::cast<llvm::CallInst>(I);
   else
     return nullptr;
+}
+
+// TODO: this function assumes 0 is not a valid PC
+static inline uint64_t getBasicBlockPC(llvm::BasicBlock *BB) {
+  auto It = BB->begin();
+  assert(It != BB->end());
+  if (llvm::CallInst *Call = getCallTo(&*It, "newpc")) {
+    return getLimitedValue(Call->getOperand(0));
+  }
+
+  return 0;
 }
 
 template<typename C>
