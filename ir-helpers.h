@@ -509,6 +509,17 @@ static inline bool hasPredecessor(llvm::BasicBlock *BB,
 
 // \brief If \p V is a cast Instruction or a cast ConstantExpr, return its only
 //        operand (recursively)
+static inline const llvm::Value *skipCasts(const llvm::Value *V) {
+  using namespace llvm;
+  while (isa<CastInst>(V)
+         || (isa<ConstantExpr>(V)
+             && cast<ConstantExpr>(V)->getOpcode() == Instruction::BitCast))
+    V = cast<User>(V)->getOperand(0);
+  return V;
+}
+
+// \brief If \p V is a cast Instruction or a cast ConstantExpr, return its only
+//        operand (recursively)
 static inline llvm::Value *skipCasts(llvm::Value *V) {
   using namespace llvm;
   while (isa<CastInst>(V)
@@ -519,9 +530,23 @@ static inline llvm::Value *skipCasts(llvm::Value *V) {
 }
 
 static inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
-  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(I)) {
-    llvm::Function *Callee = Call->getCalledFunction();
+  using namespace llvm;
+  if (auto *Call = dyn_cast<CallInst>(I)) {
+    auto *Callee = dyn_cast<Function>(skipCasts(Call->getCalledValue()));
     if (Callee != nullptr && Callee->getName() == Name) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/// \brief Is \p I a call to an helper function?
+static inline bool isCallToHelper(const llvm::Instruction *I) {
+  using namespace llvm;
+  if (auto *Call = dyn_cast<CallInst>(I)) {
+    auto *Callee = dyn_cast<Function>(skipCasts(Call->getCalledValue()));
+    if (Callee != nullptr && Callee->getName().startswith("helper_")) {
       return true;
     }
   }
