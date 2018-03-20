@@ -108,38 +108,7 @@ public:
   DumpPass(ProgramParameters &Parameters) : FunctionPass(ID),
                                             Parameters(Parameters) { }
 
-  bool runOnFunction(Function &F) override {
-    std::ofstream Output;
-
-    if (Parameters.CFGPath != nullptr) {
-      auto &Analysis = getAnalysis<CollectCFG>();
-      Analysis.serialize(pathToStream(Parameters.CFGPath, Output));
-    }
-
-    if (Parameters.NoreturnPath != nullptr) {
-      auto &Analysis = getAnalysis<CollectNoreturn>();
-      Analysis.serialize(pathToStream(Parameters.NoreturnPath, Output));
-    }
-
-    if (Parameters.FunctionBoundariesPath != nullptr) {
-      auto &Analysis = getAnalysis<CollectFunctionBoundaries>();
-      Analysis.serialize(pathToStream(Parameters.FunctionBoundariesPath,
-                                      Output));
-    }
-
-    if (Parameters.StackAnalysisPath != nullptr) {
-      auto &Analysis = getAnalysis<StackAnalysis::StackAnalysis>();
-      Analysis.serialize(pathToStream(Parameters.StackAnalysisPath, Output));
-    }
-
-    if (Parameters.FunctionIsolationPath != nullptr) {
-      auto &Analysis = getAnalysis<IsolateFunctions>();
-      Module *ModifiedModule = Analysis.getModule();
-      dumpModule(ModifiedModule, Parameters.FunctionIsolationPath);
-    }
-
-    return false;
-  }
+  bool runOnFunction(Function &F) override;
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
@@ -192,6 +161,42 @@ private:
 };
 
 char DumpPass::ID = 0;
+
+bool DumpPass::runOnFunction(Function &F) {
+  (void) F;
+
+  std::ofstream Output;
+
+  if (Parameters.CFGPath != nullptr) {
+    auto &Analysis = getAnalysis<CollectCFG>();
+    Analysis.serialize(pathToStream(Parameters.CFGPath, Output));
+  }
+
+  if (Parameters.NoreturnPath != nullptr) {
+    auto &Analysis = getAnalysis<CollectNoreturn>();
+    Analysis.serialize(pathToStream(Parameters.NoreturnPath, Output));
+  }
+
+  if (Parameters.FunctionBoundariesPath != nullptr) {
+    auto &Analysis = getAnalysis<CollectFunctionBoundaries>();
+    Analysis.serialize(pathToStream(Parameters.FunctionBoundariesPath,
+                                    Output));
+  }
+
+  if (Parameters.StackAnalysisPath != nullptr) {
+    auto &Analysis = getAnalysis<StackAnalysis::StackAnalysis>();
+    Analysis.serialize(pathToStream(Parameters.StackAnalysisPath, Output));
+  }
+
+  if (Parameters.FunctionIsolationPath != nullptr) {
+    auto &Analysis = getAnalysis<IsolateFunctions>();
+    Module *ModifiedModule = Analysis.getModule();
+    dumpModule(ModifiedModule, Parameters.FunctionIsolationPath);
+  }
+
+  return false;
+}
+
 
 int main(int argc, const char *argv[]) {
   ProgramParameters Parameters = { };
