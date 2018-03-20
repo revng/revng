@@ -146,7 +146,7 @@ static int loadPTCLibrary(LibraryPointer& PTCLibrary) {
   PTCLibrary.reset(LibraryHandle);
 
   // Obtain the address of the ptc_load entry point
-  ptc_load = (ptc_load_ptr_t) dlsym(LibraryHandle, "ptc_load");
+  ptc_load = reinterpret_cast<ptc_load_ptr_t>(dlsym(LibraryHandle, "ptc_load"));
 
   if (ptc_load == nullptr) {
     fprintf(stderr, "Couldn't find ptc_load: %s\n", dlerror());
@@ -244,7 +244,7 @@ static int parseArgs(int Argc, const char *Argv[],
       return EXIT_FAILURE;
     }
 
-    Parameters->EntryPointAddress = (size_t) EntryPointAddress;
+    Parameters->EntryPointAddress = static_cast<size_t>(EntryPointAddress);
   }
 
   if (DebugString != nullptr) {

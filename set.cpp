@@ -19,10 +19,10 @@
 // Local includes
 #include "datastructures.h"
 #include "debug.h"
-#include "revamb.h"
+#include "jumptargetmanager.h"
 #include "ir-helpers.h"
 #include "osra.h"
-#include "jumptargetmanager.h"
+#include "revamb.h"
 #include "set.h"
 
 using namespace llvm;
@@ -34,9 +34,9 @@ using std::make_pair;
 ///
 /// * it doesn't insert more than once an item (to avoid loops)
 /// * it can traverse the stack from top to bottom to produce a value and, if
-///   required register it with the JumpTargetManager
+///   required, register it with the JumpTargetManager
 /// * cut the stack to a certain height
-/// * manage the lifetime of orphan instruction it contains
+/// * manage the lifetime of orphan instructions it contains
 /// * keep track of all the possible values assumed since the last reset and
 ///   whether this information is precise or not
 class OperationsStack {
@@ -46,9 +46,7 @@ public:
     reset();
   }
 
-  ~OperationsStack() {
-    reset();
-  }
+  ~OperationsStack() { reset(); }
 
   void explore(Constant *NewOperand);
   uint64_t materialize(Constant *NewOperand);
@@ -57,7 +55,6 @@ public:
   enum TrackingType {
     None, ///< Don't track anything
     PCsOnly, ///< Track only values which can be PCs
-    All ///< Track all the values
   };
 
   /// \brief Clean the operations stack
@@ -99,9 +96,9 @@ public:
     while (Height != Operations.size()) {
       Instruction *Op = Operations.back();
       auto It = OperationsSet.find(Op);
-      if (It != OperationsSet.end())
+      if (It != OperationsSet.end()) {
         OperationsSet.erase(It);
-      else if (isa<BinaryOperator>(Op)) {
+      } else if (isa<BinaryOperator>(Op)) {
         // It's not in OperationsSet, it might a binary instruction where we
         // forced one operand to be constant, or an instruction generated from a
         // constant unary expression
@@ -155,8 +152,9 @@ public:
   bool isApproximate() const { return Approximate; }
 
   unsigned height() const { return Operations.size(); }
-  bool empty() const { return height() == 0; }
+  bool empty() const { return Operations.empty(); }
 
+  /// \brief Get the type of the free operand of the topmost stack element
   Type *topType() const {
     Type *Result = nullptr;
     bool NonConstFound = false;
@@ -183,7 +181,7 @@ public:
     return Result;
   }
 
-  bool hasTrackedValues() const { return TrackedValues.size() != 0; }
+  bool hasTrackedValues() const { return not TrackedValues.empty(); }
 
   bool readsMemory() const { return LoadsCount > 0; }
 

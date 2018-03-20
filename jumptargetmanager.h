@@ -585,8 +585,7 @@ private:
   //       area and write the address of the translated basic block at the jump
   //       target
   void createDispatcher(llvm::Function *OutputFunction,
-                        llvm::Value *SwitchOnPtr,
-                        bool JumpDirectly);
+                        llvm::Value *SwitchOnPtr);
 
   template<typename value_type, unsigned endian>
   void findCodePointers(uint64_t StartVirtualAddress,

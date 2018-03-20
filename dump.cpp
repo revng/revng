@@ -194,7 +194,7 @@ private:
 char DumpPass::ID = 0;
 
 int main(int argc, const char *argv[]) {
-  ProgramParameters Parameters = { nullptr, nullptr };
+  ProgramParameters Parameters = { };
 
   if (!parseArgs(argc, argv, Parameters))
     return EXIT_FAILURE;

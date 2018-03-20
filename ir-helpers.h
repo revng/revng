@@ -22,17 +22,8 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 
-static inline void replaceInstruction(llvm::Instruction *Old,
-                                      llvm::Instruction *New) {
-  Old->replaceAllUsesWith(New);
-
-  llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>, 2> Metadata;
-  Old->getAllMetadata(Metadata);
-  for (auto& MDPair : Metadata)
-    New->setMetadata(MDPair.first, MDPair.second);
-
-  Old->eraseFromParent();
-}
+// Local includes
+#include "debug.h"
 
 /// Helper function to destroy an unconditional branch and, in case, the target
 /// basic block, if it doesn't have any predecessors left.

@@ -1,5 +1,5 @@
 /// \file debug.cpp
-/// \brief
+/// \brief Implementation of the debug framework
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -24,7 +24,7 @@ void Value::assertModuleIsMaterialized() const { }
 #endif
 
 bool DebuggingEnabled = false;
-std::ostream& dbg(std::cerr);
+std::ostream &dbg(std::cerr);
 static std::vector<std::string> DebugFeatures;
 
 bool isDebugFeatureEnabled(std::string Name) {

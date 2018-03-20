@@ -18,10 +18,7 @@ set(QEMU_LIB_PATH "${QEMU_INSTALL_PATH}/lib")
 
 # We can test an architecture if we have a compiler and a libtinycode-*.so
 foreach(ARCH ${SUPPORTED_ARCHITECTURES})
-  set(C_COMPILER_${ARCH} ""
-    CACHE
-    STRING
-    "Path to the C compiler to use to build tests for ${ARCH}.")
+  set(C_COMPILER_${ARCH} "")
 
   find_library(LIBTINYCODE_${ARCH} "libtinycode-${ARCH}.so"
     HINTS "${QEMU_LIB_PATH}" "${CMAKE_INSTALL_PREFIX}/lib")
