@@ -356,6 +356,24 @@ static inline std::string getName(const llvm::Value *V) {
   return SS.str();
 }
 
+template<typename T>
+using rc_t = typename std::remove_const<T>::type;
+template<typename T>
+using rp_t = typename std::remove_pointer<T>::type;
+template<typename T>
+using rpc_t = rc_t<rp_t<T>>;
+template<typename T>
+using is_base_of_value = std::is_base_of<llvm::Value, rpc_t<T>>;
+
+/// \brief Specialization of writeToLog for llvm::Value-derived types
+template<typename T,
+         typename std::enable_if<is_base_of_value<T>::value, int>::type = 0>
+inline void writeToLog(Logger<true> &This, T I, int Ignore) {
+  (void) Ignore;
+
+  This << getName(I);
+}
+
 static inline llvm::LLVMContext &getContext(const llvm::Module *M) {
   return M->getContext();
 }
