@@ -35,6 +35,7 @@ extern "C" {
 #include "debug.h"
 #include "ptcinterface.h"
 #include "revamb.h"
+#include "statistics.h"
 
 PTCInterface ptc = {}; ///< The interface with the PTC library.
 static std::string LibTinycodePath;
@@ -55,6 +56,7 @@ struct ProgramParameters {
   int DetectFunctionsBoundaries;
   int NoLink;
   int External;
+  bool PrintStats;
 };
 
 // When LibraryPointer is destroyed, the destructor calls
@@ -218,6 +220,9 @@ static int parseArgs(int Argc, const char *Argv[],
     OPT_BOOLEAN('f', "functions-boundaries",
                 &Parameters->DetectFunctionsBoundaries,
                 "enable functions boundaries detection."),
+    OPT_BOOLEAN('T', "stats",
+                &Parameters->PrintStats,
+                "print statistics upon exit or SIGINT."),
     OPT_END(),
   };
 
@@ -283,6 +288,9 @@ static int parseArgs(int Argc, const char *Argv[],
 
   if (Parameters->BBSummaryPath == nullptr)
     Parameters->BBSummaryPath = "";
+
+  if (Parameters->PrintStats)
+    OnQuitStatistics->install();
 
   return EXIT_SUCCESS;
 }

@@ -25,6 +25,7 @@
 #include "debughelper.h"
 #include "isolatefunctions.h"
 #include "stackanalysis.h"
+#include "statistics.h"
 
 using namespace llvm;
 
@@ -35,6 +36,7 @@ struct ProgramParameters {
   const char *FunctionBoundariesPath;
   const char *StackAnalysisPath;
   const char *FunctionIsolationPath;
+  bool PrintStats;
 };
 
 static const char *const Usage[] = {
@@ -71,6 +73,9 @@ static bool parseArgs(int Argc, const char *Argv[], ProgramParameters &Result) {
                "the basic blocks into the corresponding functions identified "
                "by function boundaries analysis performed by revamb should be "
                "stored."),
+    OPT_BOOLEAN('T', "stats",
+                &Result.PrintStats,
+                "print statistics upon exit or SIGINT."),
     OPT_END(),
   };
 
@@ -88,6 +93,9 @@ static bool parseArgs(int Argc, const char *Argv[], ProgramParameters &Result) {
     while (std::getline(Stream, Type, ','))
       enableDebugFeature(Type.c_str());
   }
+
+  if (Result.PrintStats)
+    OnQuitStatistics->install();
 
   // Handle positional arguments
   if (Argc != 1) {

@@ -16,7 +16,7 @@ target_compile_definitions(test_lazysmallbitvector PRIVATE "BOOST_TEST_DYN_LINK=
 target_link_libraries(test_lazysmallbitvector ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY})
 add_test(NAME test_lazysmallbitvector COMMAND test_lazysmallbitvector)
 
-add_executable(test_stackanalysis "${SRC}/stackanalysis.cpp" "${CMAKE_SOURCE_DIR}/debug.cpp")
+add_executable(test_stackanalysis "${SRC}/stackanalysis.cpp" "${CMAKE_SOURCE_DIR}/debug.cpp" "${CMAKE_SOURCE_DIR}/statistics.cpp")
 target_include_directories(test_stackanalysis PRIVATE "${CMAKE_SOURCE_DIR}" "${Boost_INCLUDE_DIRS}")
 target_compile_definitions(test_stackanalysis PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_stackanalysis ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY} ${LLVM_LIBRARIES})

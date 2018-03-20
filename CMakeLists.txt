@@ -115,13 +115,13 @@ add_executable(revamb ptcdump.cpp main.cpp debughelper.cpp variablemanager.cpp
   osra.cpp set.cpp simplifycomparisons.cpp reachingdefinitions.cpp
   functionboundariesdetection.cpp noreturnanalysis.cpp binaryfile.cpp
   generatedcodebasicinfo.cpp functioncallidentification.cpp argparse/argparse.c
-  externaljumpshandler.cpp)
+  externaljumpshandler.cpp statistics.cpp)
 target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
 install(TARGETS revamb RUNTIME DESTINATION bin)
 
 add_executable(revamb-dump dump.cpp collectcfg.cpp collectnoreturn.cpp debug.cpp
-  collectfunctionboundaries.cpp debughelper.cpp stackanalysis.cpp
-  generatedcodebasicinfo.cpp isolatefunctions.cpp argparse/argparse.c)
+  collectfunctionboundaries.cpp debughelper.cpp generatedcodebasicinfo.cpp
+  isolatefunctions.cpp statistics.cpp stackanalysis.cpp argparse/argparse.c)
 target_link_libraries(revamb-dump ${LLVM_LIBRARIES})
 install(TARGETS revamb-dump RUNTIME DESTINATION bin)
 
