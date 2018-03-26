@@ -111,12 +111,28 @@ endif()
 
 set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
 
-add_executable(revamb ptcdump.cpp main.cpp debughelper.cpp variablemanager.cpp
-  jumptargetmanager.cpp instructiontranslator.cpp codegenerator.cpp debug.cpp
-  osra.cpp set.cpp simplifycomparisons.cpp reachingdefinitions.cpp
-  functionboundariesdetection.cpp noreturnanalysis.cpp binaryfile.cpp
-  generatedcodebasicinfo.cpp functioncallidentification.cpp argparse/argparse.c
-  externaljumpshandler.cpp statistics.cpp)
+add_executable(revamb
+  binaryfile.cpp
+  codegenerator.cpp
+  cpustateaccessanalysis.cpp
+  debug.cpp
+  debughelper.cpp
+  externaljumpshandler.cpp
+  functionboundariesdetection.cpp
+  functioncallidentification.cpp
+  generatedcodebasicinfo.cpp
+  instructiontranslator.cpp
+  jumptargetmanager.cpp
+  main.cpp
+  noreturnanalysis.cpp
+  osra.cpp
+  ptcdump.cpp
+  reachingdefinitions.cpp
+  set.cpp
+  simplifycomparisons.cpp
+  statistics.cpp
+  variablemanager.cpp
+  argparse/argparse.c)
 target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
 install(TARGETS revamb RUNTIME DESTINATION bin)
 
