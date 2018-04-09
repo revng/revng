@@ -78,8 +78,10 @@ public:
   }
 
   void unindent(unsigned Level=1) {
-    if (isEnabled())
+    if (isEnabled()) {
+      assert(IndentLevel - Level >= 0);
       IndentLevel -= Level;
+    }
   }
 
   void setIndentation(unsigned Level) {
