@@ -537,29 +537,27 @@ static inline llvm::Value *skipCasts(llvm::Value *V) {
   return V;
 }
 
-static inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
-  using namespace llvm;
-  if (auto *Call = dyn_cast<CallInst>(I)) {
-    auto *Callee = dyn_cast<Function>(skipCasts(Call->getCalledValue()));
-    if (Callee != nullptr && Callee->getName() == Name) {
-      return true;
-    }
-  }
+static inline const llvm::Function *getCallee(const llvm::Instruction *I) {
+  assert(I != nullptr);
 
-  return false;
+  using namespace llvm;
+  if (auto *Call = dyn_cast<CallInst>(I))
+    return llvm::dyn_cast<Function>(skipCasts(Call->getCalledValue()));
+  else
+    return nullptr;
+}
+
+static inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
+  assert(I != nullptr);
+  const llvm::Function *Callee = getCallee(I);
+  return Callee != nullptr && Callee->getName() == Name;
 }
 
 /// \brief Is \p I a call to an helper function?
 static inline bool isCallToHelper(const llvm::Instruction *I) {
-  using namespace llvm;
-  if (auto *Call = dyn_cast<CallInst>(I)) {
-    auto *Callee = dyn_cast<Function>(skipCasts(Call->getCalledValue()));
-    if (Callee != nullptr && Callee->getName().startswith("helper_")) {
-      return true;
-    }
-  }
-
-  return false;
+  assert(I != nullptr);
+  const llvm::Function *Callee = getCallee(I);
+  return Callee != nullptr && Callee->getName().startswith("helper_");
 }
 
 static inline llvm::CallInst *getCallTo(llvm::Instruction *I,
