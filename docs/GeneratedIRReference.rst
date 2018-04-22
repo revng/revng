@@ -87,7 +87,7 @@ helper variables used to compute the CPU flags.
 
 CSVs are used by the generated code and by the helper functions. This is also
 the reason why they cannot be promoted to local variables in the `root`
-function`
+function
 
 Note that since they are global variables, the generated code interacts with
 them using load and store operations, which might sound unusual for registers.
@@ -510,6 +510,137 @@ Currently, there is no complete documentation of all the helper functions. The
 best way to understand which helper function does what, is to create a simple
 assembly snippet using a specific feature (e.g., a performing a syscall) and
 translate it using revamb.
+
+Function isolation pass output reference
+========================================
+
+This section of the document aims to describe how to apply the function
+isolation pass of revamb-dump to a simple example, to describe what to expect
+as output of this pass and the assumptions made in the isolation pass.
+
+All the following examples originate from the translation of the simple program
+already shown in the beginning of this document.
+
+Once we have applied the translation to the original binary we can apply the
+function isolation pass using the `revamb-dump` utility like this:
+
+.. code-block:: sh
+
+    revamb-dump --functions-isolation=example.isolated-functions.ll example.ll
+
+As you can see by comparing the original IR and the one to which the function
+isolation pass has been applied the main difference is that, on the basis of the
+information recovered by the function boundaries analysis applied by revamb, now
+the code is organized in different LLVM functions.
+
+As a reference we can see that the basic block `bb.myfunction` that belonged to
+the `root` function after the isolation is in the LLVM function
+`bb.myfunction`.
+
+.. code-block:: llvm
+
+    define void @bb.myfunction() {
+    bb.myfunction:
+      call void (i64, i64, i32, i8*, ...) @newpc(i64 4194536, i64 5, i32 1, i8* null), !dbg !96, !oi !97, !pi !98
+      ; ...
+      ret void
+    }
+
+Moreover, with this structure, instead of tagging the actual function calls with
+a call to ``function_call`` we can place a real LLVM function call to the target
+function.
+Just after the function call we also add a branch to the identified return
+address.
+
+As a reference take the call to ``my_function``. In the original IR it appeared in
+this form:
+
+.. code-block:: llvm
+
+    call void @function_call(i8* blockaddress(@root, %bb.myfunction), i8* blockaddress(@root, %bb._start.0x11), i32 4194559), !dbg !60
+    br label %bb.myfunction, !dbg !61, !func.entry !62, !func.member.of !63
+
+Now with the actual call appears like this:
+
+.. code-block:: llvm
+
+    call void @bb.myfunction()
+    br label %bb._start.0x11
+
+Always on the basis of the information recovered by the analysis performed by
+revamb we are able to emit `ret` instructions where needed.
+
+As a reference at the end of the basic block ``bb.myfunction`` the branch to the
+dispatcher:
+
+.. code-block:: llvm
+
+    br label %dispatcher.entry, !func.entry !151, !func.member.of !152, !func.return !151
+
+has been substituted by the `ret` instruction:
+
+.. code-block:: llvm
+
+    ret void
+
+The fact that we are now not always operating inside the ```root`` function
+means that we can't simply branch to the dispatcher when we need it.
+For this purpose we have introduced a custom exception handling mechanism to be
+able to restore the execution from the dispatcher when things do not go as
+expected.
+
+The main idea is to have a sort of separation between the world of the isolated
+functions and the `root` function. In this way, as soon as possible after the
+start of the execution of the program, we try to jump in the *isolated* world
+and continue the execution from there. When we are not anymore able to continue
+the execution in the *isolated* world we generate an exception that restores the
+execution in the other world.
+
+To do this we need to use the exception handling mechanism provided by the LLVM
+framework, modifying it a little bit to suit our needs.
+
+The first thing that we do is substitute the code of each `func.entry` block in
+the `root` function with an `invoke` instruction that calls the isolated
+function.
+In our example, examining the ``bb._start`` function, we substitute the code of
+the entry block with this:
+
+.. code-block:: llvm
+
+    bb._start:                                        ; preds = %dispatcher.entry
+      invoke void @bb._start()
+              to label %invoke_return unwind label %catchblock
+
+In this way when we reach a point, inside the body of a function, where we need
+the dispatcher we can use the ``_Unwind_RaiseException`` function provided by
+``libunwind`` to restore the execution in the ``root`` function, where we take
+care of doing the right action to correctly continue the execution(i.e. invoke)
+the dispatcher.
+
+Due to implementation details, we do not rely on the standard mechanism used by
+the C++ excpetion handling mechanism. For this reason the ``catchblock`` is not
+used, but we always transfer the execution to the ``invoke_return`` block, and
+we then check for the value of ``ExceptionFlag`` for deciding where to transfer
+the execution.
+After this we transfer the control flow to the ``dispatcher.entry`` block for
+resuming the execution in the correct manner.
+
+We then need a ``function_dispatcher`` that acts as a normal dispatcher but is
+used in presence of an indirect function call and assumes the form of a LLVM
+function. Obviously the possible targets are only the function entry blocks,
+since it is not possible that a function call requires to jump in the middle of
+the code of a function.
+
+We also add an extra check after each call to the ``function_dispatcher`` to
+ensure that the program counter value is the one that we expect to have after
+the call. This mechanism is usefull to avoid errors due to a bad identification
+of ``ret`` instructions by the function boundaries analysis.
+
+During the execution of the translated program, when an exception is raised, the
+``exception_warning`` helper function is called, and it will print on ``stdout``
+useful informations about the conditions that caused the exception (e.g. the
+current program counter at the moment of the exception, the next program
+counter, etc.).
 
 .. _LLVM Language Reference Manual: http://llvm.org/docs/LangRef.html
 .. _`FromIRToExecutable.rst`: FromIRToExecutable.rst

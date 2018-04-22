@@ -251,8 +251,9 @@ void FBD::collectReturnInstructions() {
     for (BasicBlock *Successor : Terminator->successors()) {
       assert(!Successor->empty());
 
-      // A return instruction must jump to JTM->anyPC, while all the other
-      // successors (if any) must be registered returns addresses
+      // A return instruction must jump to JTM->anyPC or to JTM->disptacher,
+      // while all the other successors (if any) must be registered returns
+      // addresses
       if (Successor == JTM->anyPC() || Successor == JTM->dispatcher()) {
         JumpsToDispatcher = true;
       } else if (ReturnPCs.count(JTM->getPC(&*Successor->begin()).first) == 0) {
@@ -575,7 +576,6 @@ void FBD::createMetadata() {
   // Mark each return instruction
   for (TerminatorInst *T : Returns)
     T->setMetadata("func.return", MDNode::get(Context, { }));
-
 }
 
 map<BasicBlock *, vector<BasicBlock *>> FBD::run() {

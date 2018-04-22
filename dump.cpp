@@ -9,6 +9,7 @@
 
 // LLVM includes
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -21,6 +22,8 @@
 #include "collectfunctionboundaries.h"
 #include "collectnoreturn.h"
 #include "debug.h"
+#include "debughelper.h"
+#include "isolatefunctions.h"
 #include "stackanalysis.h"
 
 using namespace llvm;
@@ -31,6 +34,7 @@ struct ProgramParameters {
   const char *NoreturnPath;
   const char *FunctionBoundariesPath;
   const char *StackAnalysisPath;
+  const char *FunctionIsolationPath;
 };
 
 static const char *const Usage[] = {
@@ -61,6 +65,12 @@ static bool parseArgs(int Argc, const char *Argv[], ProgramParameters &Result) {
     OPT_STRING('s', "stack-analysis",
                &Result.StackAnalysisPath,
                "path where the result of the stack analysis should be stored."),
+    OPT_STRING('i', "functions-isolation",
+               &Result.FunctionIsolationPath,
+               "path where a new LLVM module containing the reorganization of "
+               "the basic blocks into the corresponding functions identified "
+               "by function boundaries analysis performed by revamb should be "
+               "stored."),
     OPT_END(),
   };
 
@@ -122,6 +132,12 @@ public:
       Analysis.serialize(pathToStream(Parameters.StackAnalysisPath, Output));
     }
 
+    if (Parameters.FunctionIsolationPath != nullptr) {
+      auto &Analysis = getAnalysis<IsolateFunctions>();
+      Module *ModifiedModule = Analysis.getModule();
+      dumpModule(ModifiedModule, Parameters.FunctionIsolationPath);
+    }
+
     return false;
   }
 
@@ -140,6 +156,9 @@ public:
     if (Parameters.StackAnalysisPath != nullptr)
       AU.addRequired<StackAnalysis::StackAnalysis>();
 
+    if (Parameters.FunctionIsolationPath != nullptr)
+      AU.addRequired<IsolateFunctions>();
+
   }
 
 private:
@@ -152,6 +171,20 @@ private:
       File.open(Path);
       return File;
     }
+  }
+
+  void dumpModule(Module *Module, const char *Path) {
+    std::ofstream Output;
+
+    // If output path is `-` print on stdout
+    // TODO: this solution is not portable, make DebugHelper accept streams
+    if (Path[0] == '-' && Path[1] == '\0') {
+      Path = "/dev/stdout";
+    }
+
+    // Initialize the debug helper object
+    DebugHelper Debug(Path, Path, Module, DebugInfoType::LLVMIR);
+    Debug.generateDebugInfo();
   }
 
 private:

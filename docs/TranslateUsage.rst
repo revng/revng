@@ -48,3 +48,5 @@ OPTIONS
              instead of the `support-$ARCH-normal.ll`. Enabling this option
              introduces a non-negligible slow down in the output program, even
              if `REVAMB_TRACE_PATH` is not specified at run-time.
+:``-i``: Optionally apply the function isolation pass before re-compiling the
+         program.
