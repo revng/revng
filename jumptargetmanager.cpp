@@ -1286,7 +1286,7 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
 void JumpTargetManager::rebuildDispatcher() {
   // Remove all cases
   unsigned NumCases = DispatcherSwitch->getNumCases();
-  while (NumCases --> 0)
+  while (NumCases-- > 0)
     DispatcherSwitch->removeCase(DispatcherSwitch->case_begin());
 
   auto *PCRegType = PCReg->getType()->getPointerElementType();

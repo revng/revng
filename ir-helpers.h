@@ -617,7 +617,7 @@ inline auto skip(unsigned ToSkip, C &&Container)
   -> llvm::iterator_range<decltype(Container.begin())> {
 
   auto Begin = std::begin(Container);
-  while (ToSkip --> 0)
+  while (ToSkip-- > 0)
     Begin++;
   return llvm::make_range(Begin, std::end(Container));
 }
