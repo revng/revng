@@ -315,8 +315,9 @@ public:
       const LargeStorage &OtherLarge = Other.getLarge();
       const LargeStorage &ThisLarge = getLarge();
 
-      unsigned Max = std::min(ThisLarge.capacity(),
-                              OtherLarge.capacity()) / BitsPerPointer;
+      unsigned Max = std::min(ThisLarge.capacity(), OtherLarge.capacity());
+      Max /= BitsPerPointer;
+
       for (unsigned I = 0; I < Max; I++)
         if (ThisLarge.at(I) != OtherLarge.at(I))
           return false;
@@ -371,8 +372,8 @@ public:
       const LargeStorage &OtherLarge = Other.getLarge();
       LargeStorage &ThisLarge = getLarge();
 
-      unsigned Max = std::min(ThisLarge.capacity(),
-                              OtherLarge.capacity()) / BitsPerPointer;
+      unsigned Max = std::min(ThisLarge.capacity(), OtherLarge.capacity());
+      Max /= BitsPerPointer;
       for (unsigned I = 0; I < Max; I++)
         ThisLarge.at(I) = ThisLarge.at(I) ^ OtherLarge.at(I);
 
@@ -399,8 +400,9 @@ public:
       const LargeStorage &OtherLarge = Other.getLarge();
       LargeStorage &ThisLarge = getLarge();
 
-      unsigned Max = std::min(ThisLarge.capacity(),
-                              OtherLarge.capacity()) / BitsPerPointer;
+      unsigned Max = std::min(ThisLarge.capacity(), OtherLarge.capacity());
+      Max /= BitsPerPointer;
+
       for (unsigned I = 0; I < Max; I++)
         ThisLarge.at(I) = ThisLarge.at(I) | OtherLarge.at(I);
 

@@ -617,9 +617,10 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
 
   const ASSlot *StackPointerSlot = StackPointerValue.directContent();
 
+  auto SP0 = ASID::stackID();
   bool IsReadyToReturn = not (StackPointerSlot != nullptr
-      and StackPointerSlot->addressSpace() == ASID::stackID()
-      and StackPointerSlot->offset() < 0);
+                              and StackPointerSlot->addressSpace() == SP0
+                              and StackPointerSlot->offset() < 0);
 
   if (IsReadyToReturn)
     SaTerminator << " IsReadyToReturn";

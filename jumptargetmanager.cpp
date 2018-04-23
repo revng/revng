@@ -982,9 +982,10 @@ void JumpTargetManager::translateIndirectJumps() {
 
         // Look for the last write to the PC
         StoreInst *PCWrite = getPrevPCWrite(Call);
-        assert((PCWrite == nullptr
-                || !isa<ConstantInt>(PCWrite->getValueOperand()))
-               && "Direct jumps should not be handled here");
+        if (PCWrite != nullptr) {
+          assert(!isa<ConstantInt>(PCWrite->getValueOperand())
+                 && "Direct jumps should not be handled here");
+        }
 
         if (PCWrite != nullptr && EnableOSRA && isSumJump(PCWrite))
           handleSumJump(PCWrite);

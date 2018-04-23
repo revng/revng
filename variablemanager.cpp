@@ -158,18 +158,16 @@ VariableManager::VariableManager(Module& TheModule,
   NoAliasMDKindID(TheModule.getMDKindID("noalias")),
   TargetArchitecture(TargetArchitecture) {
 
-  auto *CPUStateAliasDomain = MDNode::getDistinct(TheModule.getContext(),
+  LLVMContext &Context = TheModule.getContext();
+  auto *CPUStateAliasDomain = MDNode::getDistinct(Context,
                                                   ArrayRef<Metadata *>());
 
-  auto *Temporary = MDNode::get(TheModule.getContext(), ArrayRef<Metadata *>());
-  auto *CPUStateScope = MDNode::getDistinct(TheModule.getContext(),
-                                            ArrayRef<Metadata *>({
-                                                Temporary,
-                                                CPUStateAliasDomain
-                                            }));
+  auto *Temporary = MDNode::get(Context, ArrayRef<Metadata *>());
+  ArrayRef<Metadata *> Arguments({ Temporary, CPUStateAliasDomain });
+  auto *CPUStateScope = MDNode::getDistinct(Context, Arguments);
   CPUStateScope->replaceOperandWith(0, CPUStateScope);
 
-  CPUStateScopeSet = MDNode::get(TheModule.getContext(),
+  CPUStateScopeSet = MDNode::get(Context,
                                  ArrayRef<Metadata *>({ CPUStateScope }));
 
   assert(ptc.initialized_env != nullptr);
@@ -219,9 +217,8 @@ VariableManager::VariableManager(Module& TheModule,
                      ElectionMapElement& It2) {
     return It1.second < It2.second;
   };
-  CPUStateType = std::max_element(EnvElection.begin(),
-                                  EnvElection.end(),
-                                  Compare)->first;
+  auto Max = std::max_element(EnvElection.begin(), EnvElection.end(), Compare);
+  CPUStateType = Max->first;
 
   // Look for structures containing CPUStateType as a member and promove them
   // to CPUStateType. Basically this is a flexible way to keep track of the *CPU
@@ -399,10 +396,13 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
 
     // Consider the case when there's simply nothing there (alignment space).
     if (EnvVar == nullptr) {
-      if (false and EnvIsSrc) { // TODO: remove "false and", but after adding type based stuff
+      // TODO: remove "false and", but after adding type based stuff
+      if (false and EnvIsSrc) {
         ConstantInt *ZeroByte = Builder.getInt8(0);
-        Value *NewAddress = Builder.CreateAdd(Builder.getInt64(Offset), OtherBasePtr);
-        Value *OtherPtr = Builder.CreateIntToPtr(NewAddress, Builder.getInt8Ty()->getPointerTo());
+        ConstantInt *OffsetInt = Builder.getInt64(Offset);
+        Value *NewAddress = Builder.CreateAdd(OffsetInt, OtherBasePtr);
+        Type *Int8PtrTy = Builder.getInt8Ty()->getPointerTo();
+        Value *OtherPtr = Builder.CreateIntToPtr(NewAddress, Int8PtrTy);
         Builder.CreateStore(ZeroByte, OtherPtr);
         OnlyPointersAndPadding = false;
       }
@@ -411,7 +411,8 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
     }
     OnlyPointersAndPadding = false;
 
-    Value *NewAddress = Builder.CreateAdd(Builder.getInt64(Offset), OtherBasePtr);
+    ConstantInt *OffsetInt = Builder.getInt64(Offset);
+    Value *NewAddress = Builder.CreateAdd(OffsetInt, OtherBasePtr);
     Value *OtherPtr = Builder.CreateIntToPtr(NewAddress, EnvVar->getType());
 
     Value *Dst = EnvIsSrc ? OtherPtr : EnvVar;

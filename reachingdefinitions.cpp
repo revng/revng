@@ -128,19 +128,13 @@ template class ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
 template class ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
                                            RDP::ReachedLoads>;
 
-static RegisterPass<ConditionalReachingDefinitionsPass> Y1("crdp",
-                                                           "Conditional"
-                                                           " Reaching"
-                                                           " Definitions Pass",
-                                                           true,
-                                                           true);
+using RegisterCRDP = RegisterPass<ConditionalReachingDefinitionsPass>;
+const char *CRDPDescription = "Conditional Reaching Definitions Pass";
+static RegisterCRDP Y1("crdp", CRDPDescription, true, true);
 
-static RegisterPass<ConditionalReachedLoadsPass> Y2("crlp",
-                                                    "Conditional"
-                                                    " Reaching"
-                                                    " Definitions Pass",
-                                                    true,
-                                                    true);
+using RegisterCRLP = RegisterPass<ConditionalReachedLoadsPass>;
+const char *CRLPDescription = "Conditional Reaching Definitions Pass";
+static RegisterCRLP Y2("crlp", CRLPDescription, true, true);
 
 // ConditionalReachingDefinitionsPass methods implementations
 

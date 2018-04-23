@@ -31,18 +31,20 @@ namespace StackAnalysis {
 
 template<>
 char StackAnalysis<true>::ID = 0;
-static llvm::RegisterPass<StackAnalysis<true>> X("sa",
-                                                 "Stack Analysis Pass",
-                                                 true,
-                                                 true);
+
+namespace {
+const char *Name = "Stack Analysis Pass";
+static RegisterPass<StackAnalysis<true>> X("sa", Name, true, true);
+}
 
 template<>
 char StackAnalysis<false>::ID = 0;
-static llvm::RegisterPass<StackAnalysis<false>> Y("sab",
-                                                  "Stack Analysis Pass with ABI"
-                                                  " Analysis",
-                                                  true,
-                                                  true);
+
+static RegisterPass<StackAnalysis<false>> Y("sab",
+                                            "Stack Analysis Pass with ABI"
+                                            " Analysis",
+                                            true,
+                                            true);
 
 template<bool AnalyzeABI>
 bool StackAnalysis<AnalyzeABI>::runOnFunction(Function &F) {

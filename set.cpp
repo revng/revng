@@ -488,10 +488,11 @@ bool SET::run() {
           V = handleInstruction(&Instr, V);
       }
 
-      if (IsPCStore && OS.hasTrackedValues())
-        Jumps.push_back(SETPass::JumpInfo(Store,
-                                          OS.isApproximate(),
-                                          OS.trackedValues()));
+      if (IsPCStore && OS.hasTrackedValues()) {
+        bool IsApproximate = OS.isApproximate();
+        Jumps.emplace_back(Store, IsApproximate, OS.trackedValues());
+      }
+
     }
   }
 

@@ -666,12 +666,14 @@ FunctionsSummary ResultsPool::finalize(const Module *M) {
 
   // Collect, for each call site, all the slots
   std::map<CallSite, std::set<ASSlot>> FunctionCallSlots;
-  for (auto &P : FunctionCallRegisterArguments)
-    FunctionCallSlots[P.first.first].insert(ASSlot::create(CPU,
-                                                           P.first.second));
-  for (auto &P : FunctionCallReturnValues)
-    FunctionCallSlots[P.first.first].insert(ASSlot::create(CPU,
-                                                           P.first.second));
+  for (auto &P : FunctionCallRegisterArguments) {
+    auto Slot = ASSlot::create(CPU, P.first.second);
+    FunctionCallSlots[P.first.first].insert(Slot);
+  }
+  for (auto &P : FunctionCallReturnValues) {
+    auto Slot = ASSlot::create(CPU, P.first.second);
+    FunctionCallSlots[P.first.first].insert(Slot);
+  }
 
   //
   // Merge information about a function and all the call sites targeting it

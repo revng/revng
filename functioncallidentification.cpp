@@ -40,9 +40,9 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
     PCPtrTy
   };
   using FT = FunctionType;
-  auto *FunctionCallFT = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
-  FunctionCall = cast<Function>(M->getOrInsertFunction("function_call",
-                                                       FunctionCallFT));
+  auto *Ty = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
+  Constant *FunctionCallC = M->getOrInsertFunction("function_call", Ty);
+  FunctionCall = cast<Function>(FunctionCallC);
 
   // Initialize the function, if necessary
   if (FunctionCall->empty()) {

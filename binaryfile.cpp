@@ -538,9 +538,10 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
 
     if (DynstrPortion.isAvailable()) {
       StringRef Dynstr = DynstrPortion.extractString(Segments);
-      for(auto Offset : NeededLibraryNameOffsets)
-        NeededLibraryNames.push_back(Dynstr.slice(Offset,
-                                                  Dynstr.size()).data());
+      for(auto Offset : NeededLibraryNameOffsets) {
+        StringRef LibraryName = Dynstr.slice(Offset, Dynstr.size());
+        NeededLibraryNames.push_back(LibraryName.data());
+      }
     }
 
     // Collect symbols count and code pointers in image base-relative

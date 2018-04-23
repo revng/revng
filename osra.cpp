@@ -1160,16 +1160,16 @@ void OSRA::handleBranch(Instruction *I) {
   };
 
   std::vector<WLEntry> ConstraintsWL;
+  BasicBlock *Source = Branch->getParent();
   if (!inBlackList(Branch->getSuccessor(0))) {
-    ConstraintsWL.push_back(WLEntry(Branch->getSuccessor(0),
-                                    Branch->getParent(),
-                                    BranchConstraints));
+    BasicBlock *Successor = Branch->getSuccessor(0);
+    ConstraintsWL.push_back(WLEntry(Successor, Source, BranchConstraints));
   }
 
   if (!inBlackList(Branch->getSuccessor(1))) {
-    ConstraintsWL.push_back(WLEntry(Branch->getSuccessor(1),
-                                    Branch->getParent(),
-                                    FlippedBranchConstraints));
+    BasicBlock *Successor = Branch->getSuccessor(1);
+    auto FBC = FlippedBranchConstraints;
+    ConstraintsWL.push_back(WLEntry(Successor, Source, FBC));
   }
 
   // TODO: can we do this in a DFA way?
@@ -1273,12 +1273,15 @@ void OSRA::handleBranch(Instruction *I) {
 
     // Propagate the new constraints to the successors (except for the
     // dispatcher)
-    if (Entry.Constraints.size() != 0)
-      for (BasicBlock *Successor : successors(Entry.Target))
-        if (BlockBlackList.find(Successor) == BlockBlackList.end())
-          ConstraintsWL.push_back(WLEntry(Successor,
-                                          Entry.Target,
-                                          Entry.Constraints));
+    if (Entry.Constraints.size() != 0) {
+      for (BasicBlock *Successor : successors(Entry.Target)) {
+        if (BlockBlackList.find(Successor) == BlockBlackList.end()) {
+          WLEntry Constraint(Successor, Entry.Target, Entry.Constraints);
+          ConstraintsWL.push_back(Constraint);
+        }
+      }
+    }
+
   }
 }
 

@@ -36,10 +36,8 @@ void NoReturnAnalysis::registerSyscalls(llvm::Function *F) {
   if (NoDCE == nullptr) {
     Type *VoidTy = Type::getVoidTy(M->getContext());
     Type *SNRTy = SyscallNumberRegister->getType()->getPointerElementType();
-    NoDCE = cast<Function>(M->getOrInsertFunction("nodce",
-                                                  VoidTy,
-                                                  SNRTy,
-                                                  nullptr));
+    auto *FunctionC = M->getOrInsertFunction("nodce", VoidTy, SNRTy, nullptr);
+    NoDCE = cast<Function>(FunctionC);
   }
 
   for (User *U : SyscallHandler->users()) {
