@@ -213,10 +213,12 @@ bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
             Call->eraseFromParent();
           }
         }
-      } else
+      } else {
         llvm_unreachable("Unexpected instruction using the PC");
-    } else
+      }
+    } else {
       llvm_unreachable("Unhandled usage of the PC");
+    }
   }
 
   return true;

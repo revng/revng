@@ -115,16 +115,12 @@ int root(char *buffer, size_t size) {
       // Ensure all the required arguments have been provided
       if (stack[depth].current_argument + 1 != stack[depth].argument_count)
         return FAILURE;
-      
+
       // Operation implementation
       if (stack[depth].operator == '+') {
         current_literal = stack[depth].arguments[0] + stack[depth].arguments[1];
       } else if (stack[depth].operator == '-') {
         current_literal = stack[depth].arguments[0] - stack[depth].arguments[1];
-      /* } else if (stack[depth].operator == '%') { */
-      /*   current_literal = stack[depth].arguments[0] % stack[depth].arguments[1]; */
-      /* } else if (stack[depth].operator == '/') { */
-      /*   current_literal = stack[depth].arguments[0] / stack[depth].arguments[1]; */
       } else if (stack[depth].operator == '*') {
         current_literal = stack[depth].arguments[0] * stack[depth].arguments[1];
       } else if (stack[depth].operator == '&') {
@@ -140,8 +136,9 @@ int root(char *buffer, size_t size) {
         current_literal = ~stack[depth].arguments[0];
       } else if (stack[depth].operator == '!') {
         current_literal = !stack[depth].arguments[0];
-      } else
+      } else {
         return FAILURE;
+      }
 
       depth--;
       if (depth < -1)

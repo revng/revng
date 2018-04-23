@@ -90,8 +90,9 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
         getTemporaryName(TemporaryName, MAX_TEMP_NAME_LENGTH, Instructions,
                          InArg);
         Result << "," << TemporaryName;
-      } else
+      } else {
         Result << ",<dummy>";
+      }
     }
 
   } else {

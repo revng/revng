@@ -913,8 +913,9 @@ IT::translateOpcode(PTCOpcode Opcode,
         Variables.setNoAlias(Store);
 
         return v { };
-      } else
+      } else {
         llvm_unreachable("Unknown load type");
+      }
     }
   case PTC_INSTRUCTION_op_ld8u_i32:
   case PTC_INSTRUCTION_op_ld8s_i32:
@@ -1089,8 +1090,9 @@ IT::translateOpcode(PTCOpcode Opcode,
                  Opcode == PTC_INSTRUCTION_op_divu2_i64) {
         DivisionOp = Instruction::UDiv;
         RemainderOp = Instruction::URem;
-      } else
+      } else {
         llvm_unreachable("Unknown operation type");
+      }
 
       // TODO: we're ignoring InArguments[1], which is the MSB
       // TODO: assert on sizes?
@@ -1118,8 +1120,9 @@ IT::translateOpcode(PTCOpcode Opcode,
                  Opcode == PTC_INSTRUCTION_op_rotr_i64) {
         FirstShiftOp = Instruction::LShr;
         SecondShiftOp = Instruction::Shl;
-      } else
+      } else {
         llvm_unreachable("Unexpected opcode");
+      }
 
       Value *FirstShift = Builder.CreateBinOp(FirstShiftOp,
                                               InArguments[0],
@@ -1356,8 +1359,9 @@ IT::translateOpcode(PTCOpcode Opcode,
       if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
         Target = BasicBlock::Create(Context, Label, TheFunction);
         LabeledBasicBlocks[Label] = Target;
-      } else
+      } else {
         Target = LabeledBasicBlocks[Label];
+      }
 
       if (Opcode == PTC_INSTRUCTION_op_br) {
         // Unconditional jump
@@ -1370,8 +1374,9 @@ IT::translateOpcode(PTCOpcode Opcode,
                                     InArguments[0],
                                     InArguments[1]);
         Builder.CreateCondBr(Compare, Target, Fallthrough);
-      } else
+      } else {
         llvm_unreachable("Unhandled opcode");
+      }
 
       Blocks.push_back(Fallthrough);
       Builder.SetInsertPoint(Fallthrough);
@@ -1447,8 +1452,9 @@ IT::translateOpcode(PTCOpcode Opcode,
                  || Opcode == PTC_INSTRUCTION_op_muls2_i64) {
         FirstOp = Builder.CreateSExt(InArguments[0], DestinationType);
         SecondOp = Builder.CreateSExt(InArguments[1], DestinationType);
-      } else
+      } else {
         llvm_unreachable("Unexpected opcode");
+      }
 
       Value *Result = Builder.CreateMul(FirstOp, SecondOp);
 
