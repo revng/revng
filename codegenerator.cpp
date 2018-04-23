@@ -16,6 +16,11 @@
 #include <set>
 #include <utility>
 
+// Boost includes
+#include <boost/icl/interval_map.hpp>
+#include <boost/type_traits/is_same.hpp>
+#include <boost/icl/right_open_interval.hpp>
+
 // LLVM includes
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/ExecutionEngine/RuntimeDyld.h"
@@ -32,11 +37,6 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-
-// Boost includes
-#include <boost/icl/interval_map.hpp>
-#include <boost/type_traits/is_same.hpp>
-#include <boost/icl/right_open_interval.hpp>
 
 // Local includes
 #include "codegenerator.h"

@@ -10,6 +10,9 @@
 #include <cstdint>
 #include <vector>
 
+// Boost includes
+#include <boost/icl/interval_set.hpp>
+
 // LLVM includes
 #include "llvm/ADT/Optional.h"
 #include "llvm/Analysis/ConstantFolding.h"
@@ -21,9 +24,6 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Pass.h"
-
-// Boost includes
-#include <boost/icl/interval_set.hpp>
 
 // Local includes
 #include "datastructures.h"

@@ -10,6 +10,8 @@
 #include <map>
 #include <set>
 #include <vector>
+
+// Boost includes
 #include <boost/icl/interval_set.hpp>
 #include <boost/icl/interval_map.hpp>
 #include <boost/type_traits/is_same.hpp>
