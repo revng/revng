@@ -238,8 +238,8 @@ private:
 
             Addend = SecondOp->getLimitedValue();
             V = FirstOp;
-            break;
-          }
+
+          } break;
         case llvm::Instruction::Load:
           {
             llvm::Value *LoadOperand = V->getOperand(0);
@@ -248,8 +248,8 @@ private:
               Base = LoadOperand;
               Offset = Addend;
             }
-            return;
-          }
+
+          } return;
         default:
           return;
         }

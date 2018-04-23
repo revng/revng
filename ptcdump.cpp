@@ -150,8 +150,8 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
 
         /* Consume one argument */
         i++;
-        break;
-      }
+
+      } break;
     case PTC_INSTRUCTION_op_qemu_ld_i32:
     case PTC_INSTRUCTION_op_qemu_st_i32:
     case PTC_INSTRUCTION_op_qemu_ld_i64:
@@ -193,8 +193,8 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
 
         /* Consume one argument */
         i++;
-        break;
-      }
+
+      } break;
     default:
       break;
     }

@@ -230,8 +230,7 @@ void DebugHelper::generateDebugInfo() {
       }
 
       Builder.finalize();
-      break;
-    }
+    } break;
   case DebugInfoType::LLVMIR:
     {
       // Use the annotator to obtain line and column of the textual LLVM IR for
@@ -246,8 +245,7 @@ void DebugHelper::generateDebugInfo() {
       raw_os_ostream Stream(Output);
       TheModule->print(Stream, annotator(false));
 
-      break;
-    }
+    } break;
   default:
     break;
   }

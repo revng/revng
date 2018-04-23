@@ -1224,8 +1224,7 @@ void OSRA::handleBranch(Instruction *I) {
             }
           }
 
-          break;
-        }
+        } break;
       case Instruction::Load:
         {
           // Check if any of the reaching definitions of this load is affected
@@ -1252,8 +1251,7 @@ void OSRA::handleBranch(Instruction *I) {
             }
           }
 
-          break;
-        }
+        } break;
       default:
         break;
       }

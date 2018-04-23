@@ -767,8 +767,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                                                        ForceNewBlock);
 
           ForceNewBlock = false;
-          break;
-        }
+        } break;
       case PTC_INSTRUCTION_op_call:
         {
           Result = Translator.translateCall(&Instruction);
@@ -782,8 +781,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
             Builder.CreateBr(notNull(Target));
           }
 
-          break;
-        }
+        } break;
 
       default:
         Result = Translator.translate(&Instruction, PC, NextPC);
