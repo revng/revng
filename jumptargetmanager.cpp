@@ -647,22 +647,22 @@ void JumpTargetManager::registerInstruction(uint64_t PC,
 CallInst *JumpTargetManager::findNextExitTB(Instruction *Start) {
   CallInst *Result = nullptr;
 
-  visitSuccessors(Start,
-                  make_blacklist(*this),
-                  [this,&Result] (BasicBlockRange Range) {
-      for (Instruction &I : Range) {
-        if (auto *Call = dyn_cast<CallInst>(&I)) {
-          assert(!(Call->getCalledFunction()->getName() == "newpc"));
-          if (Call->getCalledFunction() == ExitTB) {
-            assert(Result == nullptr);
-            Result = Call;
-            return ExhaustQueueAndStop;
-          }
+  auto Visitor = [this, &Result](BasicBlockRange Range) {
+    for (Instruction &I : Range) {
+      if (auto *Call = dyn_cast<CallInst>(&I)) {
+        assert(
+               !(Call->getCalledFunction()->getName() == "newpc"));
+        if (Call->getCalledFunction() == ExitTB) {
+          assert(Result == nullptr);
+          Result = Call;
+          return ExhaustQueueAndStop;
         }
       }
+    }
 
-      return Continue;
-    });
+    return Continue;
+  };
+  visitSuccessors(Start, make_blacklist(*this), Visitor);
 
   return Result;
 }

@@ -215,12 +215,13 @@ VariableManager::VariableManager(Module& TheModule,
 
   assert(EnvElection.size() > 0);
 
+  auto Compare = [] (ElectionMapElement& It1,
+                     ElectionMapElement& It2) {
+    return It1.second < It2.second;
+  };
   CPUStateType = std::max_element(EnvElection.begin(),
                                   EnvElection.end(),
-                                  [] (ElectionMapElement& It1,
-                                      ElectionMapElement& It2) {
-                                    return It1.second < It2.second;
-                                  })->first;
+                                  Compare)->first;
 
   // Look for structures containing CPUStateType as a member and promove them
   // to CPUStateType. Basically this is a flexible way to keep track of the *CPU

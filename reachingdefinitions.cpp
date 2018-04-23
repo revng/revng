@@ -620,9 +620,10 @@ void BasicBlockInfo::dump(std::ostream &Output) {
 void BasicBlockInfo::newDefinition(StoreInst *Store, TypeSizeProvider &TSP) {
   // Remove all the aliased reaching definitions
   MemoryAccess TargetMA(Store, TSP);
-  removeDefinitions([&TargetMA] (MemoryInstruction &MI) {
-      return TargetMA.mayAlias(MI.MA);
-    });
+  auto Match = [&TargetMA](MemoryInstruction &MI) {
+    return TargetMA.mayAlias(MI.MA);
+  };
+  removeDefinitions(Match);
 
   // Add this definition
   Definitions.push_back(MemoryInstruction(Store, TSP));
