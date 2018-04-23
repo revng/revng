@@ -21,10 +21,11 @@
 using namespace llvm;
 
 char GeneratedCodeBasicInfo::ID = 0;
-static RegisterPass<GeneratedCodeBasicInfo> X("gcbi",
-                                              "Generated Code Basic Info",
-                                              true,
-                                              true);
+using RegisterGCBI = RegisterPass<GeneratedCodeBasicInfo>;
+static RegisterGCBI X("gcbi",
+                      "Generated Code Basic Info",
+                      true,
+                      true);
 
 bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
   DBG("passes", { dbg << "Starting GeneratedCodeBasicInfo\n"; });

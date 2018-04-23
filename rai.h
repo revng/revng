@@ -16,14 +16,15 @@ private:
   using iterator = typename std::iterator<std::random_access_iterator_tag,
                                           TypeT>;
   using type = RandomAccessIterator<TypeT, Derived, Reference>;
+  using it_ref = typename iterator::reference;
+  template<bool C, typename A, typename B>
+  using conditional = std::conditional<C, A, B>;
 
 public:
   using iterator_category = std::random_access_iterator_tag;
   using value_type = typename iterator::value_type;
   using difference_type = typename iterator::difference_type;
-  using reference = typename std::conditional<Reference,
-                                              typename iterator::reference,
-                                              value_type>::type;
+  using reference = typename conditional<Reference, it_ref, value_type>::type;
   using pointer = typename iterator::pointer;
 
 private:

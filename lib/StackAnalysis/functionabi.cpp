@@ -25,6 +25,9 @@ using ABIIRBB = ABIIRBasicBlock;
 
 static ASID CPU = ASID::cpuID();
 
+template<typename K1, size_t N1, typename K2, typename V2, size_t N2>
+using MapOfMaps = DefaultMap<K1, DefaultMap<K2, V2, N2>, N1>;
+
 /// \brief A set of helper functions related to DefaultMap
 namespace MapHelpers {
 
@@ -83,8 +86,8 @@ unsigned cmpWithModule(const DefaultMap<K, V, N> &This,
 
 template<typename K, typename V, bool Diff, bool EarlyExit, size_t N1, size_t N2>
 unsigned
-nestedCmpWithModule(const DefaultMap<FunctionCall, DefaultMap<K, V, N1>, N2> &This,
-                    const DefaultMap<FunctionCall, DefaultMap<K, V, N1>, N2> &Other,
+nestedCmpWithModule(const MapOfMaps<FunctionCall, N1, K, V, N2> &This,
+                    const MapOfMaps<FunctionCall, N1, K, V, N2> &Other,
                     ASID ID,
                     const Module *M) {
   LoggerIndent<> Y(SaDiffLog);
@@ -209,7 +212,7 @@ inline void dump(const Module *M,
 template<typename V, typename T, size_t N1, size_t N2>
 inline void dump(const Module *M,
                  T &Output,
-                 const DefaultMap<FunctionCall, DefaultMap<int32_t, V, N1>, N2> &D,
+                 const MapOfMaps<FunctionCall, N1, int32_t, V, N2> &D,
                  ASID ID,
                  const char *Prefix) {
   std::string Longer(Prefix);
@@ -586,9 +589,7 @@ private:
   /// function call
   // TODO: We could have as well have a vector here, considering calls are
   //       relatively rare
-  DefaultMap<FunctionCall,
-             DefaultMap<int32_t, AWFC, 20>,
-             5> FunctionCallRegisterAnalyses;
+  MapOfMaps<FunctionCall, 5, int32_t, AWFC, 20> FunctionCallRegisterAnalyses;
 
 public:
   Element() {}
@@ -635,15 +636,16 @@ public:
   // TODO: review
   template<bool Diff, bool EarlyExit>
   unsigned cmp(const Element &Other, const Module *M = nullptr) const {
+    using namespace MapHelpers;
     LoggerIndent<> Y(SaDiffLog);
     unsigned Result = 0;
 
-    auto registerCmp = MapHelpers::cmpWithModule<int32_t, AWF, Diff, EarlyExit, 20>;
+    auto registerCmp = cmpWithModule<int32_t, AWF, Diff, EarlyExit, 20>;
 
     ROA((registerCmp(RegisterAnalyses, Other.RegisterAnalyses, CPU, M)),
         { SaDiffLog << "RegisterAnalyses" << DoLog; });
 
-    auto X = MapHelpers::nestedCmpWithModule<int32_t, AWFC, Diff, EarlyExit, 20, 5>;
+    auto X = nestedCmpWithModule<int32_t, AWFC, Diff, EarlyExit, 5, 20>;
     ROA((X(FunctionCallRegisterAnalyses,
            Other.FunctionCallRegisterAnalyses,
            CPU,
@@ -743,17 +745,13 @@ private:
 /// \tparam Tuple the tuple to wrap.
 template<template <typename X> class Wrapper,
          typename Tuple,
-         int Index=tuple_size<Tuple>::value,
+         int I=tuple_size<Tuple>::value,
          typename... Types>
 class WrapIn {
 public:
   /// The resulting tuple
-  using type = typename WrapIn<Wrapper,
-                               Tuple,
-                               Index - 1,
-                               Wrapper<typename tuple_element<Index - 1,
-                                                              Tuple>::type>,
-                               Types...>::type;
+  using Wrapped = Wrapper<typename tuple_element<I - 1, Tuple>::type>;
+  using type = typename WrapIn<Wrapper, Tuple, I - 1, Wrapped, Types...>::type;
 };
 
 template<template<typename X> class Wrapper, typename Tuple, typename... Types>
@@ -993,12 +991,13 @@ void FunctionABI::analyze(const ABIFunction &TheFunction) {
     // Note: Among the function analyses we also have an instance of the
     //       function call analyses so that we can use them interproceduraly to
     //       simulate the inling of the called function.
-    using ForwardList = AnalysesList<tuple<DeadRegisterArgumentsOfFunction,
-                                           UsedArgumentsOfFunction,
-                                           UsedReturnValuesOfFunctionCall,
-                                           DeadReturnValuesOfFunctionCall>,
-                                     tuple<UsedReturnValuesOfFunctionCall,
-                                           DeadReturnValuesOfFunctionCall>>;
+    using DRAOF = DeadRegisterArgumentsOfFunction;
+    using UAOF = UsedArgumentsOfFunction;
+    using URVOFC = UsedReturnValuesOfFunctionCall;
+    using DRVOFC = DeadReturnValuesOfFunctionCall;
+    using FunctionWise = tuple<DRAOF, UAOF, URVOFC, DRVOFC>;
+    using FunctionCallWise = tuple<URVOFC, DRVOFC>;
+    using ForwardList = AnalysesList<FunctionWise, FunctionCallWise>;
 
     Analysis<true, ForwardList> ForwardFunctionAnalyses(TheFunction.entry());
 
@@ -1020,9 +1019,11 @@ void FunctionABI::analyze(const ABIFunction &TheFunction) {
     SaABI << "Running backward function analyses";
     SaABI << " (" << TheFunction.finals_size() << " return points)" << DoLog;
     /// List of the backward ABI analyses to perform
-    using BackwardList = AnalysesList<tuple<UsedReturnValuesOfFunction,
-                                            RegisterArgumentsOfFunctionCall>,
-                                      tuple<RegisterArgumentsOfFunctionCall>>;
+    using URVOF = UsedReturnValuesOfFunction;
+    using RAOFC = RegisterArgumentsOfFunctionCall;
+    using FunctionWise = tuple<URVOF, RAOFC>;
+    using FunctionCallWise = tuple<RAOFC>;
+    using BackwardList = AnalysesList<FunctionWise, FunctionCallWise>;
     Analysis<false, BackwardList> BackwardFunctionAnalyses(TheFunction.entry());
 
     for (ABIIRBasicBlock *FinalBB : TheFunction.finals())

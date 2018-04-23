@@ -40,50 +40,55 @@ using std::vector;
 
 using IndexesVector = SmallVector<int32_t, 2>;
 
-template<class BBI, ReachingDefinitionsResult R>
-const vector<LoadInst *> &
-ReachingDefinitionsImplPass<BBI, R>::getReachedLoads(const Instruction *Definition) {
-  assert(R == ReachingDefinitionsResult::ReachedLoads);
-  return ReachedLoads[Definition];
-}
+template<typename T>
+using vvector = const vector<T *> &;
+
+#define RDIP ReachingDefinitionsImplPass
 
 template<class BBI, ReachingDefinitionsResult R>
-const vector<Instruction *> &
-ReachingDefinitionsImplPass<BBI, R>::getReachingDefinitions(const LoadInst *Load) {
-  return ReachingDefinitions[Load];
+vvector<LoadInst> RDIP<BBI, R>::getReachedLoads(const Instruction *I) {
+  assert(R == ReachingDefinitionsResult::ReachedLoads);
+  return ReachedLoads[I];
 }
 
 template<class B, ReachingDefinitionsResult R>
-unsigned
-ReachingDefinitionsImplPass<B, R>::getReachingDefinitionsCount(const LoadInst *Load) {
+vvector<Instruction> RDIP<B, R>::getReachingDefinitions(const LoadInst *L) {
+  return ReachingDefinitions[L];
+}
+
+template<class B, ReachingDefinitionsResult R>
+unsigned RDIP<B, R>::getReachingDefinitionsCount(const LoadInst *Load) {
   assert(R == ReachingDefinitionsResult::ReachedLoads);
   return ReachingDefinitionsCount[Load];
 }
 
-using RDP = ReachingDefinitionsResult;
+#undef RDIP
+
 template class ReachingDefinitionsImplPass<BasicBlockInfo,
-                                           RDP::ReachingDefinitions>;
+                                           RDR::ReachingDefinitions>;
 template class ReachingDefinitionsImplPass<BasicBlockInfo,
-                                           RDP::ReachedLoads>;
+                                           RDR::ReachedLoads>;
 
 template<class BBI, ReachingDefinitionsResult R>
 char ReachingDefinitionsImplPass<BBI, R>::ID = 0;
 
 template<>
-char ReachingDefinitionsImplPass<BasicBlockInfo, ReachingDefinitionsResult::ReachingDefinitions>::ID = 0;
+char RDIP<BasicBlockInfo, RDR::ReachingDefinitions>::ID = 0;
 
 template<>
-char ReachingDefinitionsImplPass<ConditionalBasicBlockInfo, ReachingDefinitionsResult::ReachedLoads>::ID = 0;
+char RDIP<ConditionalBasicBlockInfo, RDR::ReachedLoads>::ID = 0;
 
-static RegisterPass<ReachingDefinitionsPass> X1("rdp",
-                                                "Reaching Definitions Pass",
-                                                true,
-                                                true);
+using RegisterRDP = RegisterPass<ReachingDefinitionsPass>;
+static RegisterRDP X1("rdp",
+                      "Reaching Definitions Pass",
+                      true,
+                      true);
 
-static RegisterPass<ReachedLoadsPass> X2("rlp",
-                                         "Reaching Definitions Pass",
-                                         true,
-                                         true);
+using RegisterRLP = RegisterPass<ReachedLoadsPass>;
+static RegisterRLP X2("rlp",
+                      "Reaching Definitions Pass",
+                      true,
+                      true);
 
 // ReachingDefinitionsPass methods implementation
 
@@ -124,9 +129,9 @@ void ReachedLoadsPass::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 template class ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
-                                           RDP::ReachingDefinitions>;
+                                           RDR::ReachingDefinitions>;
 template class ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
-                                           RDP::ReachedLoads>;
+                                           RDR::ReachedLoads>;
 
 using RegisterCRDP = RegisterPass<ConditionalReachingDefinitionsPass>;
 const char *CRDPDescription = "Conditional Reaching Definitions Pass";
@@ -155,9 +160,10 @@ ConditionalReachingDefinitionsPass::getConditionIndex(TerminatorInst *T) {
   return getAnalysis<ConditionNumberingPass>().getConditionIndex(T);
 }
 
+using CRDP = ConditionalReachingDefinitionsPass;
+
 template<>
-void
-ConditionalReachingDefinitionsPass::getAnalysisUsage(AnalysisUsage &AU) const {
+void CRDP::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<ConditionNumberingPass>();
   AU.addRequired<FunctionCallIdentification>();
@@ -272,8 +278,8 @@ private:
   ReachingDefinitionsPass &RDP;
 };
 
-bool ConditionEqualTo::operator()(BranchInst * const& BA,
-                                  BranchInst * const& BB) const {
+using BranchRef = BranchInst * const&;
+bool ConditionEqualTo::operator()(BranchRef BA, BranchRef BB) const {
   Value *A = BA->getCondition();
   Value *B = BB->getCondition();
   queue<pair<Value *, Value *>> WorkList;
@@ -368,10 +374,11 @@ resettingBasicBlocks(ReachingDefinitionsPass &RDP, BranchInst * const& Branch) {
 
 char ConditionNumberingPass::ID = 0;
 const IndexesVector ConditionNumberingPass::NoDefinedConditions;
-static RegisterPass<ConditionNumberingPass> Z("cnp",
-                                              "Condition Numbering Pass",
-                                              true,
-                                              true);
+using RegisterCNP = RegisterPass<ConditionNumberingPass>;
+static RegisterCNP Z("cnp",
+                     "Condition Numbering Pass",
+                     true,
+                     true);
 
 template<typename C, typename T>
 static bool pushIfAbsent(C &Container, T Element) {
@@ -458,12 +465,11 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
 
   LLVMContext &C = F.getParent()->getContext();
   auto &RDP = getAnalysis<ReachingDefinitionsPass>();
-  unordered_map<BranchInst *,
-                SmallVector<BranchInst *, 1>,
-                ConditionHash,
-                ConditionEqualTo> Conditions(10,
-                                             ConditionHash(RDP),
-                                             ConditionEqualTo(RDP));
+  using cnp_hashmap = unordered_map<BranchInst *,
+                                    SmallVector<BranchInst *, 1>,
+                                    ConditionHash,
+                                    ConditionEqualTo>;
+  cnp_hashmap Conditions(10, ConditionHash(RDP), ConditionEqualTo(RDP));
 
   // Group conditions together
   for (BasicBlock &BB : F)

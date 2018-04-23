@@ -270,10 +270,11 @@ public:
 
 char CpuLoopFunctionPass::ID = 0;
 
-static RegisterPass<CpuLoopFunctionPass> X("cpu-loop",
-                                           "cpu_loop FunctionPass",
-                                           false,
-                                           false);
+using RegisterCLF = RegisterPass<CpuLoopFunctionPass>;
+static RegisterCLF X("cpu-loop",
+                     "cpu_loop FunctionPass",
+                     false,
+                     false);
 
 void CpuLoopFunctionPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<LoopInfoWrapperPass>();
@@ -379,10 +380,11 @@ private:
 
 char CpuLoopExitPass::ID = 0;
 
-static RegisterPass<CpuLoopExitPass> Y("cpu-loop-exit",
-                                       "cpu_loop_exit Pass",
-                                       false,
-                                       false);
+using RegisterCLE = RegisterPass<CpuLoopExitPass>;
+static RegisterCLE Y("cpu-loop-exit",
+                     "cpu_loop_exit Pass",
+                     false,
+                     false);
 
 static void purgeNoReturn(Function *F) {
   auto &Context = F->getParent()->getContext();
@@ -966,9 +968,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   if (DetectFunctionBoundaries) {
     legacy::FunctionPassManager FPM(&*TheModule);
-    FPM.add(new FunctionBoundariesDetectionPass(&JumpTargets,
-                                                "",
-                                                UseDebugSymbols));
+    using FBDP = FunctionBoundariesDetectionPass;
+    FPM.add(new FBDP(&JumpTargets, "", UseDebugSymbols));
     FPM.run(*MainFunction);
   }
 

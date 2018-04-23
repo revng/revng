@@ -26,6 +26,7 @@
 using llvm::BasicBlock;
 using llvm::Function;
 using llvm::Module;
+using llvm::RegisterPass;
 
 namespace StackAnalysis {
 

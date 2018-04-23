@@ -218,18 +218,17 @@ private:
   llvm::BitVector Conditions;
 };
 
-using ReachingDefinitionsPass = ReachingDefinitionsImplPass<BasicBlockInfo,
-  ReachingDefinitionsResult::ReachingDefinitions>;
-using ConditionalReachingDefinitionsPass =
-  ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
-  ReachingDefinitionsResult::ReachingDefinitions>;
+template<typename T, ReachingDefinitionsResult Q>
+using RDIP = ReachingDefinitionsImplPass<T, Q>;
 
-using ReachedLoadsPass =
-  ReachingDefinitionsImplPass<BasicBlockInfo,
-  ReachingDefinitionsResult::ReachedLoads>;
-using ConditionalReachedLoadsPass =
-  ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
-  ReachingDefinitionsResult::ReachedLoads>;
+using RDR = ReachingDefinitionsResult;
+using CBBI = ConditionalBasicBlockInfo;
+
+using ReachingDefinitionsPass = RDIP<BasicBlockInfo, RDR::ReachingDefinitions>;
+using ConditionalReachingDefinitionsPass = RDIP<CBBI, RDR::ReachingDefinitions>;
+
+using ReachedLoadsPass = RDIP<BasicBlockInfo, RDR::ReachedLoads>;
+using ConditionalReachedLoadsPass = RDIP<CBBI, RDR::ReachedLoads>;
 
 template<class BBI, ReachingDefinitionsResult R>
 class ReachingDefinitionsImplPass : public llvm::FunctionPass {
@@ -383,11 +382,5 @@ private:
   std::map<llvm::BasicBlock *, llvm::SmallVector<int32_t, 2>> DefinedConditions;
   std::map<llvm::TerminatorInst *, int32_t> BranchConditionNumberMap;
 };
-
-template<>
-char ReachingDefinitionsImplPass<BasicBlockInfo, ReachingDefinitionsResult::ReachingDefinitions>::ID;
-
-template<>
-char ReachingDefinitionsImplPass<ConditionalBasicBlockInfo, ReachingDefinitionsResult::ReachedLoads>::ID;
 
 #endif // _REACHINGDEFINITIONS_H

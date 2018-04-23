@@ -262,8 +262,8 @@ static inline void visitSuccessors(llvm::Instruction *I,
   }
 }
 
-using RBasicBlockRange =
-  llvm::iterator_range<llvm::BasicBlock::reverse_iterator>;
+using RBasicBlockIterator = llvm::BasicBlock::reverse_iterator;
+using RBasicBlockRange = llvm::iterator_range<RBasicBlockIterator>;
 using RVisitorFunction = std::function<VisitAction(RBasicBlockRange)>;
 
 /// Performs a breadth-first visit of the instructions before \p I and in the

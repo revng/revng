@@ -1414,5 +1414,6 @@ void JumpTargetManager::harvest() {
 
 }
 
-const JumpTargetManager::BlockWithAddress JumpTargetManager::NoMoreTargets =
-  JumpTargetManager::BlockWithAddress(0, nullptr);
+using BlockWithAddress = JumpTargetManager::BlockWithAddress;
+using JTM = JumpTargetManager;
+const BlockWithAddress JTM::NoMoreTargets = BlockWithAddress(0, nullptr);

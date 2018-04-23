@@ -46,11 +46,13 @@ namespace PTC {
     Const
   };
 
+  template<typename T, typename Q, bool B>
+  using RAI = RandomAccessIterator<T, Q, B>;
+
   template<ArgumentType Type, bool IsCall>
   class InstructionArgumentsIterator :
-    public RandomAccessIterator<uint64_t,
-                                InstructionArgumentsIterator<Type, IsCall>,
-                                false> {
+    public RAI<uint64_t, InstructionArgumentsIterator<Type, IsCall>, false> {
+
   public:
     using base = RandomAccessIterator<uint64_t,
                                       InstructionArgumentsIterator,

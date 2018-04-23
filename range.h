@@ -44,9 +44,11 @@ private:
   Iterator End;
 };
 
-template<typename ContainerT>
-using RangeFromContainer = 
-  Range<typename std::remove_reference<ContainerT>::type::iterator>;
+template<typename T>
+using rr = typename std::remove_reference<T>::type;
+
+template<typename C>
+using RangeFromContainer = Range<typename rr<C>::iterator>;
 
 template<typename ContainerT>
 RangeFromContainer<ContainerT> make_range(ContainerT&& Container) {

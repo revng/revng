@@ -37,9 +37,11 @@ namespace StackAnalysis {
 template class RegisterArgument<true>;
 template class RegisterArgument<false>;
 
+using FRA = FunctionRegisterArgument;
+using FCRA = FunctionCallRegisterArgument;
+
 template<>
-void
-FunctionRegisterArgument::combine(const FunctionCallRegisterArgument &Other) {
+void FRA::combine(const FCRA &Other) {
   // TODO: we're handling this as a special case
   if (Value == No || Other.Value == FunctionCallRegisterArgument::No) {
     Value = No;
@@ -96,8 +98,7 @@ FunctionRegisterArgument::combine(const FunctionCallRegisterArgument &Other) {
 }
 
 template<>
-void
-FunctionCallRegisterArgument::combine(const FunctionRegisterArgument &Other) {
+void FCRA::combine(const FRA &Other) {
   // TODO: we're handling this as a special case
   if (Value == No || Other.Value == FunctionRegisterArgument::No) {
     Value = No;

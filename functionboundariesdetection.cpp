@@ -46,10 +46,11 @@ using interval_set = boost::icl::interval_set<uint64_t>;
 using interval = boost::icl::interval<uint64_t>;
 
 char FBDP::ID = 0;
-static RegisterPass<FBDP> X("fbdp",
-                            "Function Boundaries Detection Pass",
-                            true,
-                            true);
+using RegisterFBDP = RegisterPass<FBDP>;
+static RegisterFBDP X("fbdp",
+                      "Function Boundaries Detection Pass",
+                      true,
+                      true);
 
 class FunctionBoundariesDetectionImpl {
 public:

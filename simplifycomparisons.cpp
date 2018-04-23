@@ -27,10 +27,11 @@
 using namespace llvm;
 
 char SimplifyComparisonsPass::ID = 0;
-static RegisterPass<SimplifyComparisonsPass> X("scp",
-                                               "Simplify Comparisons Pass",
-                                               true,
-                                               true);
+using RegisterSCP = RegisterPass<SimplifyComparisonsPass>;
+static RegisterSCP X("scp",
+                     "Simplify Comparisons Pass",
+                     true,
+                     true);
 
 using std::array;
 using std::pair;

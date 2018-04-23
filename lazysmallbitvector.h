@@ -35,9 +35,12 @@ static unsigned requiredBits(T Value) {
 }
 
 template<typename T, typename A, typename B>
-using enable_if_either = typename std::enable_if<std::is_same<T, A>::value
-                                                 || std::is_same<T, B>::value,
-                                                 T>::type;
+constexpr bool is_either() {
+  return std::is_same<T, A>::value || std::is_same<T, B>::value;
+}
+
+template<typename T, typename A, typename B>
+using enable_if_either = typename std::enable_if<is_either<T, A, B>(), T>::type;
 
 template<typename T>
 using enable_if_int = enable_if_either<T, unsigned, int>;
@@ -675,21 +678,25 @@ inline void LazySmallBitVectorIterator<LSBV>::increment() {
   NextBitIndex = BitVector->findNext(NextBitIndex);
 }
 
-template<typename LSBV> inline
-LazySmallBitVectorIterator<LSBV>::LazySmallBitVectorIterator(LSBV *BitVector)
-  : BitVector(BitVector), NextBitIndex(0) {
+#define LSBVI LazySmallBitVectorIterator
+
+template<typename LSBV>
+inline
+LSBVI<LSBV>::LSBVI(LSBV *BitVector) : BitVector(BitVector), NextBitIndex(0) {
 
   assert(BitVector != nullptr);
   if (!BitVector->isZero())
     increment();
 }
 
-template<typename LSBV> inline
-LazySmallBitVectorIterator<LSBV>::LazySmallBitVectorIterator(LSBV *BitVector,
-                                                             unsigned Index)
-  : BitVector(BitVector), NextBitIndex(Index) {
-
+template<typename LSBV>
+inline
+LSBVI<LSBV>::LSBVI(LSBV *BitVector, unsigned Index) :
+  BitVector(BitVector),
+  NextBitIndex(Index) {
   assert(BitVector != nullptr);
 }
+
+#undef LSBVI
 
 #endif // _LAZYSMALLBITVECTOR_H

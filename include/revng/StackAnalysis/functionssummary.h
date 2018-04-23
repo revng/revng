@@ -426,8 +426,13 @@ public:
 
     llvm::Instruction *Call;
     llvm::BasicBlock *Callee;
-    std::map<const llvm::GlobalVariable *,
-             FunctionCallRegisterDescription> RegisterSlots;
+
+    using GlobalVariable = llvm::GlobalVariable;
+
+    template<typename K, typename V>
+    using map = std::map<K, V>;
+
+    map<const GlobalVariable *, FunctionCallRegisterDescription> RegisterSlots;
   };
 
   struct FunctionDescription {

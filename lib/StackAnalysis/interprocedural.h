@@ -41,35 +41,44 @@ namespace StackAnalysis {
 class ResultsPool {
   friend struct ClobberedRegistersAnalysis;
 
+public:
+  using BasicBlock = llvm::BasicBlock;
+
+  template<typename K, typename V>
+  using map = std::map<K, V>;
+
+  using BasicBlockTypeMap = map<BasicBlock *, BranchType::Values>;
+  using StackSizeMap = map<FunctionCall, llvm::Optional<int32_t>>;
+
 private:
-  using FunctionSlot = std::pair<llvm::BasicBlock *, int32_t>;
+  using FunctionSlot = std::pair<BasicBlock *, int32_t>;
   using FunctionCallSlot = std::pair<CallSite, int32_t>;
 
 private:
   // TODO: maps with the same keys could be merged
 
   // Data about functions
-  std::map<FunctionSlot, FunctionRegisterArgument> FunctionRegisterArguments;
-  std::map<FunctionSlot, FunctionReturnValue> FunctionReturnValues;
+  map<FunctionSlot, FunctionRegisterArgument> FunctionRegisterArguments;
+  map<FunctionSlot, FunctionReturnValue> FunctionReturnValues;
 
   // Data about function calls
-  std::map<FunctionCallSlot,
-           FunctionCallRegisterArgument> FunctionCallRegisterArguments;
-  std::map<FunctionCallSlot,
-           FunctionCallReturnValue> FunctionCallReturnValues;
+  using FCS = FunctionCallSlot;
+  map<FCS, FunctionCallRegisterArgument> FunctionCallRegisterArguments;
+  map<FCS, FunctionCallReturnValue> FunctionCallReturnValues;
 
   /// \brief Height of the stack at each call site
-  std::map<CallSite, llvm::Optional<int32_t>> CallSites;
+  map<CallSite, llvm::Optional<int32_t>> CallSites;
 
   /// \brief Classification of each branch
-  std::map<Branch, BranchType::Values> BranchesType;
+  map<Branch, BranchType::Values> BranchesType;
 
   /// \brief Classification of each function
-  std::map<llvm::BasicBlock *, FunctionType::Values> FunctionTypes;
+  map<BasicBlock *, FunctionType::Values> FunctionTypes;
 
-  std::map<llvm::BasicBlock *, std::set<int32_t>> LocallyWrittenRegisters;
-  std::map<llvm::BasicBlock *, std::set<int32_t>> ExplicitlyCalleeSavedRegisters;
-  std::map<llvm::BasicBlock *, std::vector<FunctionCall>> FunctionCalls;
+  map<BasicBlock *, std::set<int32_t>> LocallyWrittenRegisters;
+  map<BasicBlock *,
+      std::set<int32_t>> ExplicitlyCalleeSavedRegisters;
+  map<BasicBlock *, std::vector<FunctionCall>> FunctionCalls;
 
 public:
   /// \brief Register a function for which a summary is not available
@@ -100,14 +109,12 @@ public:
   /// \brief Merge data about the classification of a set of branches in \p
   ///        Function
   void mergeBranches(llvm::BasicBlock *Function,
-                     const std::map<llvm::BasicBlock *,
-                                    BranchType::Values> &Branches);
+                     const BasicBlockTypeMap &Branches);
 
   /// \brief Merge information about the height of the stack at the call sites
   ///        of \p Function
   void mergeCallSites(llvm::BasicBlock *Function,
-                      const std::map<FunctionCall,
-                                     llvm::Optional<int32_t>> &ToImport);
+                      const StackSizeMap &ToImport);
 
   /// \brief Finalized the data stored in this object and produce a
   ///        FunctionsSummary

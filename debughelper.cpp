@@ -82,8 +82,9 @@ static void addModuleFlag(Module *TheModule, StringRef Flag, uint32_t Value) {
   }
 }
 
-DebugAnnotationWriter::DebugAnnotationWriter(LLVMContext& Context,
-                                             bool DebugInfo) :
+using DAW = DebugAnnotationWriter;
+
+DAW::DebugAnnotationWriter(LLVMContext &Context, bool DebugInfo) :
   Context(Context),
   DebugInfo(DebugInfo)
 {
@@ -92,8 +93,8 @@ DebugAnnotationWriter::DebugAnnotationWriter(LLVMContext& Context,
   DbgMDKind = Context.getMDKindID("dbg");
 }
 
-void DebugAnnotationWriter::emitInstructionAnnot(const Instruction *Instr,
-                                                 formatted_raw_ostream &Output) {
+void DAW::emitInstructionAnnot(const Instruction *Instr,
+                               formatted_raw_ostream &Output) {
   DISubprogram *Subprogram = Instr->getParent()->getParent()->getSubprogram();
 
   // Ignore whatever is outside the root and the isolated functions
@@ -272,8 +273,7 @@ bool DebugHelper::copySource() {
   return false;
 }
 
-DebugAnnotationWriter *DebugHelper::annotator(bool DebugInfo) {
-  Annotator.reset(new DebugAnnotationWriter(TheModule->getContext(),
-                                            DebugInfo));
+DAW *DebugHelper::annotator(bool DebugInfo) {
+  Annotator.reset(new DAW(TheModule->getContext(), DebugInfo));
   return Annotator.get();
 }

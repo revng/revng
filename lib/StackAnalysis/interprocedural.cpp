@@ -369,16 +369,14 @@ void ResultsPool::mergeFunction(BasicBlock *Function,
 }
 
 void ResultsPool::mergeBranches(BasicBlock *Function,
-                                const std::map<BasicBlock *,
-                                               BranchType::Values> &Branches) {
+                                const BasicBlockTypeMap &Branches) {
   // Merge information about the branches type
   for (auto &P : Branches)
     BranchesType[{ Function, P.first->getTerminator() }] = P.second;
 }
 
 void ResultsPool::mergeCallSites(BasicBlock *Entry,
-                                 const std::map<FunctionCall,
-                                                Optional<int32_t>> &ToImport) {
+                                 const StackSizeMap &ToImport) {
   for (auto &P : ToImport) {
     FunctionCalls[Entry].push_back(P.first);
     CallSite Call = { Entry, P.first.callInstruction() };
@@ -435,9 +433,8 @@ struct ClobberedRegistersAnalysis {
 
   public:
     bool operator==(const IterationResult &Other) const {
-      return std::tie(Clobbered,
-                      ECSVotes) == std::tie(Other.Clobbered,
-                                            Other.ECSVotes);
+      using std::tie;
+      return tie(Clobbered, ECSVotes) == tie(Other.Clobbered, Other.ECSVotes);
     }
 
     bool operator!=(const IterationResult &Other) const {

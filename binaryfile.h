@@ -98,36 +98,32 @@ struct Endianess {
 template<typename T>
 struct Endianess<T, llvm::object::ELF32LE> {
   static uint64_t read(const uint8_t *Buf) {
-    return llvm::support::endian::read<T,
-                                       llvm::support::little,
-                                       llvm::support::unaligned>(Buf);
+    using namespace llvm::support;
+    return endian::read<T, little, unaligned>(Buf);
   }
 };
 
 template<typename T>
 struct Endianess<T, llvm::object::ELF64LE> {
   static uint64_t read(const uint8_t *Buf) {
-    return llvm::support::endian::read<T,
-                                       llvm::support::little,
-                                       llvm::support::unaligned>(Buf);
+    using namespace llvm::support;
+    return endian::read<T, little, unaligned>(Buf);
   }
 };
 
 template<typename T>
 struct Endianess<T, llvm::object::ELF32BE> {
   static uint64_t read(const uint8_t *Buf) {
-    return llvm::support::endian::read<T,
-                                       llvm::support::big,
-                                       llvm::support::unaligned>(Buf);
+    using namespace llvm::support;
+    return endian::read<T, big, unaligned>(Buf);
   }
 };
 
 template<typename T>
 struct Endianess<T, llvm::object::ELF64BE> {
   static uint64_t read(const uint8_t *Buf) {
-    return llvm::support::endian::read<T,
-                                       llvm::support::big,
-                                       llvm::support::unaligned>(Buf);
+    using namespace llvm::support;
+    return endian::read<T, big, unaligned>(Buf);
   }
 };
 
