@@ -593,8 +593,9 @@ struct BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *> :
   }
 };
 
+inline
 BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *>
-static inline make_blacklist(const JumpTargetManager &JTM) {
+make_blacklist(const JumpTargetManager &JTM) {
   return BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *>(JTM);
 }
 

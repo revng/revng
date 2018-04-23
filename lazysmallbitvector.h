@@ -23,7 +23,7 @@ extern "C" {
 // TODO: implement using __builtin_clz if available
 /// \brief Returns the minimum amount of bits required to represent \p Value
 template<typename T>
-static unsigned requiredBits(T Value) {
+inline unsigned requiredBits(T Value) {
   unsigned Result = 0;
 
   while (Value != 0) {
@@ -61,12 +61,12 @@ template<typename T> inline
 unsigned findFirstBit(enable_if_long_long<T> Value) { return ffsll(Value); }
 
 template<typename T>
-static inline unsigned findFirstBit(T Value) {
+inline unsigned findFirstBit(T Value) {
   return findFirstBit<T>(Value);
 }
 
 template<typename T>
-static T excessDivide(T A, unsigned B) {
+inline T excessDivide(T A, unsigned B) {
   return (A + (B - 1)) / B;
 }
 

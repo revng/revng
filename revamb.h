@@ -315,13 +315,13 @@ private:
 };
 
 // TODO: move me somewhere more appropriate
-static inline bool startsWith(std::string String, std::string Prefix) {
+inline bool startsWith(std::string String, std::string Prefix) {
   return String.substr(0, Prefix.size()) == Prefix;
 }
 
 /// \brief Simple helper function asserting a pointer is not a `nullptr`
 template<typename T>
-static inline T *notNull(T *Pointer) {
+inline T *notNull(T *Pointer) {
   assert(Pointer != nullptr);
   return Pointer;
 }
@@ -334,7 +334,7 @@ static const std::array<llvm::StringRef, 3> MarkerFunctionNames = {
 ///
 /// A marker a function call to an empty function acting as meta-information,
 /// for example the `function_call` marker.
-static inline bool isMarker(llvm::Instruction *I) {
+inline bool isMarker(llvm::Instruction *I) {
   using namespace std::placeholders;
   using llvm::any_of;
   using std::bind;
@@ -342,7 +342,7 @@ static inline bool isMarker(llvm::Instruction *I) {
   return any_of(MarkerFunctionNames, bind(isCallTo, I, _1));
 }
 
-static inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
+inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
   auto It = I->getIterator();
   auto End = I->getParent()->end();
   do {

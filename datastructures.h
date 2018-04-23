@@ -100,7 +100,7 @@ private:
 };
 
 template<class T>
-static inline void freeContainer(T &Container) {
+inline void freeContainer(T &Container) {
   T Empty;
   Empty.swap(Container);
 }
