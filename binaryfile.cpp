@@ -44,13 +44,13 @@ BinaryFile::BinaryFile(std::string FilePath,
   auto *TheBinary = cast<object::ObjectFile>(BinaryHandle.getBinary());
 
   // TODO: QEMU should provide this information
-  unsigned InstructionAlignment = 0;
+  uint32_t InstructionAlignment = 0;
   StringRef SyscallHelper = "";
   StringRef SyscallNumberRegister = "";
   StringRef StackPointerRegister = "";
   ArrayRef<uint64_t> NoReturnSyscalls = { };
   SmallVector<ABIRegister, 20> ABIRegisters;
-  unsigned DelaySlotSize = 0;
+  uint32_t DelaySlotSize = 0;
   unsigned PCMContextIndex = ABIRegister::NotInMContext;
   llvm::StringRef WriteRegisterAsm = "";
   llvm::StringRef ReadRegisterAsm = "";
@@ -166,7 +166,7 @@ BinaryFile::BinaryFile(std::string FilePath,
     };
     DelaySlotSize = 1;
     ABIRegisters = { {"v0" }, { "v1" }, { "a0" }, { "a1" }, { "a2" }, { "a3" },
-                     { "s0" }, { "s1" }, { "s2", }, { "s3" }, { "s4" },
+                     { "s0" }, { "s1" }, { "s2" }, { "s3" }, { "s4" },
                      { "s5" }, { "s6" }, { "s7" }, { "gp" }, { "sp" },
                      { "fp" }, { "ra" } };
     HasRelocationAddend = false;
@@ -842,11 +842,11 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
         AugmentationLength = EHFrameReader.readULEB128();
 
         // Walk the augmentation string to get all the augmentation data.
-        for (unsigned i = 1, e = AugmentationString.size(); i != e; ++i) {
-          char Char = AugmentationString[i];
+        for (unsigned I = 1, e = AugmentationString.size(); I != e; ++I) {
+          char Char = AugmentationString[I];
           switch (Char) {
             case 'e':
-              assert((i + 1) != e && AugmentationString[i + 1] == 'h' &&
+              assert((I + 1) != e && AugmentationString[I + 1] == 'h' &&
                      "Expected 'eh' in augmentation string");
               break;
             case 'L':

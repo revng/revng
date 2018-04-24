@@ -37,6 +37,7 @@ static char **saved_argv;
 // integer for the target architecture we're not losing information
 #define MAX_OF(t) (((0x1ULL << ((sizeof(t) * 8ULL) - 1ULL)) - 1ULL) |    \
                    (0xFULL << ((sizeof(t) * 8ULL) - 4ULL)))
+
 #define SAFE_CAST(ptr) do {                             \
     assert((uintptr_t) (ptr) <= MAX_OF(target_reg));    \
   } while(0)

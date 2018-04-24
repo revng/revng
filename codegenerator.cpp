@@ -628,8 +628,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     ABIRegMetadata.push_back(MDString::get(Context, Register.name()));
 
   auto *Tuple = MDTuple::get(Context, {
-    QMD.get(static_cast<uint32_t>(Arch.instructionAlignment())),
-    QMD.get(static_cast<uint32_t>(Arch.delaySlotSize())),
+    QMD.get(Arch.instructionAlignment()),
+    QMD.get(Arch.delaySlotSize()),
     QMD.get("pc"),
     QMD.get(Arch.stackPointerRegister()),
     QMD.tuple(ArrayRef<Metadata*>(ABIRegMetadata)),
@@ -891,7 +891,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     Function *InitEnv = importHelperFunctionDefinition("initialize_env");
     auto *CPUStateType = InitEnv->getFunctionType()->getParamType(0);
     Instruction *InsertBefore = InitEnvInsertPoint;
-    auto *AddressComputation = Variables.computeEnvAddress(CPUStateType, InsertBefore);
+    auto *AddressComputation = Variables.computeEnvAddress(CPUStateType,
+                                                           InsertBefore);
     CallInst::Create(InitEnv, { AddressComputation }, "", InsertBefore);
   }
 

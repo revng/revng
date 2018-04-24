@@ -31,13 +31,17 @@ extern "C" {
 #endif
 
 #if defined(__clang__)
+
 #  define SILENCE_ASSUME_HEADER                          \
   _Pragma("clang diagnostic push")                       \
   _Pragma("clang diagnostic ignored \"-Wassume\"")
 #  define SILENCE_ASSUME_FOOTER _Pragma("clang diagnostic pop")
+
 #else
+
 #  define SILENCE_ASSUME_HEADER
 #  define SILENCE_ASSUME_FOOTER
+
 #endif
 
 /// \brief Same as __builtin_assume but (temporarily) suppresses warnings about
@@ -50,10 +54,14 @@ extern "C" {
 
 // We support C++11, C99 (with GNU attributes) or C11
 #ifdef __cplusplus
+
 #  define boolcast(what) static_cast<bool>(what)
 #  define noret [[noreturn]]
+
 #else
+
 #  define boolcast(what) (bool) (what)
+
 #  if __STDC_VERSION__ >= 201112L
 #    include <stdnoreturn.h>
 #    define noret noreturn
@@ -62,6 +70,7 @@ extern "C" {
 #  else
 #    warning "Can't mark functions as noreturn"
 #  endif
+
 #endif
 
 noret void revng_assert_fail(const char *AssertionBody,

@@ -848,11 +848,11 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
     DBG("rdp-propagation", dbg << " " << BannedIndex);
 
     // Check BannedIndex is not explicitly allowed
-    auto BannedIt = std::find(Target.SeenConditions.begin(),
-                              Target.SeenConditions.end(),
-                              BannedIndex);
-    bool IsAllowed = BannedIt != Target.SeenConditions.end()
-      && Target.Conditions[BannedIt - Target.SeenConditions.begin()];
+    auto It = std::find(Target.SeenConditions.begin(),
+                        Target.SeenConditions.end(),
+                        BannedIndex);
+    bool IsAllowed = It != Target.SeenConditions.end()
+                     && Target.Conditions[It - Target.SeenConditions.begin()];
     if (!IsAllowed)
       setIndexIfSeen(Banned, BannedIndex);
 
@@ -1068,8 +1068,7 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
         if (BasicBlockBlackList.count(Successor) != 0)
           continue;
 
-        const IndexesVector &DefinedConditions =
-          getDefinedConditions(Successor);
+        const IndexesVector &Conditions = getDefinedConditions(Successor);
 
         BBI &SuccessorInfo = DefinitionsMap[Successor];
 
@@ -1077,9 +1076,9 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
             dbg << "Propagating from " << getName(BB)
                 << " to " << getName(Successor);
 
-            if (DefinedConditions.size() > 0) {
+            if (Conditions.size() > 0) {
               dbg << " (resetting conditions: ";
-              for (int32_t ConditionIndex : DefinedConditions)
+              for (int32_t ConditionIndex : Conditions)
                 dbg << " " << ConditionIndex;
               dbg << ")";
             }
@@ -1095,7 +1094,7 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
         unsigned Old = SuccessorInfo.size();
         if (Info.propagateTo(SuccessorInfo,
                              TSP,
-                             DefinedConditions,
+                             Conditions,
                              ConditionIndex))
           ToVisit.insert(Successor);
 
@@ -1206,11 +1205,13 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
 
   if (R == ReachingDefinitionsResult::ReachedLoads) {
     DBG("rdp",
-        for (auto P : ReachedLoads) {
-          dbg << getName(P.first) << " reaches";
-          for (auto *Load : P.second)
-            dbg << " " << getName(Load);
-          dbg << "\n";
+        {
+          for (auto P : ReachedLoads) {
+            dbg << getName(P.first) << " reaches";
+            for (auto *Load : P.second)
+              dbg << " " << getName(Load);
+            dbg << "\n";
+          }
         });
   }
 

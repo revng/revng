@@ -650,8 +650,7 @@ CallInst *JumpTargetManager::findNextExitTB(Instruction *Start) {
   auto Visitor = [this, &Result](BasicBlockRange Range) {
     for (Instruction &I : Range) {
       if (auto *Call = dyn_cast<CallInst>(&I)) {
-        assert(
-               !(Call->getCalledFunction()->getName() == "newpc"));
+        assert(!(Call->getCalledFunction()->getName() == "newpc"));
         if (Call->getCalledFunction() == ExitTB) {
           assert(Result == nullptr);
           Result = Call;

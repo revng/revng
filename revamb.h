@@ -226,14 +226,14 @@ public:
     DelaySlotSize(0) { }
 
   Architecture(unsigned Type,
-               unsigned InstructionAlignment,
-               unsigned DefaultAlignment,
+               uint32_t InstructionAlignment,
+               uint32_t DefaultAlignment,
                bool IsLittleEndian,
                unsigned PointerSize,
                llvm::StringRef SyscallHelper,
                llvm::StringRef SyscallNumberRegister,
                llvm::ArrayRef<uint64_t> NoReturnSyscalls,
-               unsigned DelaySlotSize,
+               uint32_t DelaySlotSize,
                llvm::StringRef StackPointerRegister,
                llvm::SmallVector<ABIRegister, 20> ABIRegisters,
                unsigned PCMContextIndex,
@@ -260,8 +260,8 @@ public:
     HasRelocationAddend(HasRelocationAddend),
     BaseRelativeRelocation(BaseRelativeRelocation) { }
 
-  unsigned instructionAlignment() const { return InstructionAlignment; }
-  unsigned defaultAlignment() const { return DefaultAlignment; }
+  uint32_t instructionAlignment() const { return InstructionAlignment; }
+  uint32_t defaultAlignment() const { return DefaultAlignment; }
   EndianessType endianess() const { return Endianess; }
   unsigned pointerSize() const { return PointerSize; }
   bool isLittleEndian() const { return Endianess == LittleEndian; }
@@ -273,7 +273,7 @@ public:
     return StackPointerRegister;
   }
   llvm::ArrayRef<uint64_t> noReturnSyscalls() const { return NoReturnSyscalls; }
-  unsigned delaySlotSize() const { return DelaySlotSize; }
+  uint32_t delaySlotSize() const { return DelaySlotSize; }
   llvm::SmallVector<ABIRegister, 20> abiRegisters() const {
     return ABIRegisters;
   }
@@ -295,15 +295,15 @@ public:
 private:
   llvm::Triple::ArchType Type;
 
-  unsigned InstructionAlignment;
-  unsigned DefaultAlignment;
+  uint32_t InstructionAlignment;
+  uint32_t DefaultAlignment;
   EndianessType Endianess;
   unsigned PointerSize;
 
   llvm::StringRef SyscallHelper;
   llvm::StringRef SyscallNumberRegister;
   llvm::ArrayRef<uint64_t> NoReturnSyscalls;
-  unsigned DelaySlotSize;
+  uint32_t DelaySlotSize;
   llvm::StringRef StackPointerRegister;
   llvm::SmallVector<ABIRegister, 20> ABIRegisters;
   unsigned PCMContextIndex;

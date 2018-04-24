@@ -260,7 +260,8 @@ public:
 
 private:
   int32_t getConditionIndex(llvm::TerminatorInst *T);
-  const llvm::SmallVector<int32_t, 2> &getDefinedConditions(llvm::BasicBlock *BB);
+  const llvm::SmallVector<int32_t, 2> &
+  getDefinedConditions(llvm::BasicBlock *BB);
 
 private:
   using BasicBlock = llvm::BasicBlock;
@@ -364,7 +365,8 @@ public:
     return BranchConditionNumberMap[T];
   }
 
-  const llvm::SmallVector<int32_t, 2> &getDefinedConditions(llvm::BasicBlock *BB) const {
+  const llvm::SmallVector<int32_t, 2> &
+  getDefinedConditions(llvm::BasicBlock *BB) const {
     auto It = DefinedConditions.find(BB);
     if (It == DefinedConditions.end())
       return NoDefinedConditions;

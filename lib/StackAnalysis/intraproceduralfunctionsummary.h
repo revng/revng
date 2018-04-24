@@ -54,15 +54,14 @@ private:
     FinalState(Intraprocedural::Element::bottom()) {}
 
 public:
-  explicit
-  IntraproceduralFunctionSummary(Intraprocedural::Element FinalState,
-                                 FunctionABI ABI,
-                                 CallSiteStackSizeMap FrameSizeAtCallSite,
-                                 BranchesTypeMap BranchesType,
-                                 std::set<int32_t> WrittenRegisters) :
+  explicit IntraproceduralFunctionSummary(Intraprocedural::Element FinalState,
+                                          FunctionABI ABI,
+                                          CallSiteStackSizeMap FrameSizes,
+                                          BranchesTypeMap BranchesType,
+                                          std::set<int32_t> WrittenRegisters) :
     FinalState(std::move(FinalState)),
     ABI(std::move(ABI)),
-    FrameSizeAtCallSite(std::move(FrameSizeAtCallSite)),
+    FrameSizeAtCallSite(std::move(FrameSizes)),
     BranchesType(std::move(BranchesType)),
     WrittenRegisters(std::move(WrittenRegisters)) {
 

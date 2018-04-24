@@ -235,6 +235,7 @@ private:
 
   llvm::GlobalVariable *getByCPUStateOffset(intptr_t Offset,
                                             std::string Name="");
+
   std::pair<llvm::GlobalVariable*, unsigned>
     getByCPUStateOffsetInternal(intptr_t Offset,
                                 std::string Name="");

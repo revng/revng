@@ -139,8 +139,8 @@ static void findFiles(const char *Architecture) {
   assert(EarlyLinkedFound && "Couldn't find early-linked.ll");
 }
 
-/// Given an architecture name, loads the appropriate version of the PTC library,
-/// and initializes the PTC interface.
+/// Given an architecture name, loads the appropriate version of the PTC
+/// library, and initializes the PTC interface.
 ///
 /// \param Architecture the name of the architecture, e.g. "arm".
 /// \param PTCLibrary a reference to the library handler.

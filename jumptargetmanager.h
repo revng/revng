@@ -421,9 +421,7 @@ public:
     unsigned ReadSize = Binary.architecture().pointerSize() / 8;
     for (uint64_t MemoryAddress : UnusedCodePointers) {
       // Read using the original endianess, we want the correct address
-      uint64_t PC = readRawValue(MemoryAddress,
-                                 ReadSize,
-                                 OriginalEndianess).getValue();
+      uint64_t PC = *readRawValue(MemoryAddress, ReadSize, OriginalEndianess);
 
       // Set as reason UnusedGlobalData and ensure it's not empty
       llvm::BasicBlock *BB = registerJT(PC, JTReason::UnusedGlobalData);

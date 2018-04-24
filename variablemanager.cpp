@@ -397,7 +397,7 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
     // Consider the case when there's simply nothing there (alignment space).
     if (EnvVar == nullptr) {
       // TODO: remove "false and", but after adding type based stuff
-      if (false and EnvIsSrc) {
+      if (false && EnvIsSrc) {
         ConstantInt *ZeroByte = Builder.getInt8(0);
         ConstantInt *OffsetInt = Builder.getInt64(Offset);
         Value *NewAddress = Builder.CreateAdd(OffsetInt, OtherBasePtr);

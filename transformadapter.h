@@ -89,7 +89,8 @@ template<typename R, typename C>
 auto operator|(C Input, R Transformer)
   -> Range<TransformIterator<typename function_traits<R>::return_type,
                              typename C::iterator>> {
-  using T = adaptors::Transform<typename function_traits<R>::return_type, typename C::iterator>;
+  using T = adaptors::Transform<typename function_traits<R>::return_type,
+                                typename C::iterator>;
   return T(Transformer).transform(make_range(Input));
 }
 
