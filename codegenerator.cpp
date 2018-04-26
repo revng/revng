@@ -89,7 +89,8 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              bool EnableOSRA,
                              bool DetectFunctionBoundaries,
                              bool EnableLinking,
-                             bool ExternalCSVs) :
+                             bool ExternalCSVs,
+                             bool UseDebugSymbols) :
   TargetArchitecture(Target),
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
@@ -99,7 +100,8 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   EnableOSRA(EnableOSRA),
   DetectFunctionBoundaries(DetectFunctionBoundaries),
   EnableLinking(EnableLinking),
-  ExternalCSVs(ExternalCSVs)
+  ExternalCSVs(ExternalCSVs),
+  UseDebugSymbols(UseDebugSymbols)
 {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
@@ -964,7 +966,9 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   if (DetectFunctionBoundaries) {
     legacy::FunctionPassManager FPM(&*TheModule);
-    FPM.add(new FunctionBoundariesDetectionPass(&JumpTargets, ""));
+    FPM.add(new FunctionBoundariesDetectionPass(&JumpTargets,
+                                                "",
+                                                UseDebugSymbols));
     FPM.run(*MainFunction);
   }
 

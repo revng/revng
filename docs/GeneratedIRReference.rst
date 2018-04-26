@@ -55,7 +55,7 @@ And it has been translated as follows:
 
 .. code-block:: sh
 
-   ./revamb --no-link --functions-boundaries --use-sections --debug-info ll example example.ll
+   ./revamb --no-link --functions-boundaries --use-debug-symbols --debug-info ll example example.ll
 
 Global variables
 ================

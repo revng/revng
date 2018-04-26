@@ -516,6 +516,11 @@ std::string JumpTargetManager::nameForAddress(uint64_t Address) const {
 }
 
 void JumpTargetManager::harvestGlobalData() {
+  // Register symbols
+  for (const SymbolInfo &Symbol : Binary.symbols())
+    if (Symbol.IsFunction)
+      registerJT(Symbol.Address, JTReason::FunctionSymbol);
+
   // Register landing pads, if available
   // TODO: should register them in UnusedCodePointers?
   for (uint64_t LandingPad : Binary.landingPads())

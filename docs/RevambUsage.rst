@@ -75,10 +75,11 @@ are described:
                          `internal`. This degrades performances of the produced
                          binary sensibly but makes debugging the generated code
                          easier.
-:``-S``, ``--use-sections``: If they are available, ELF sections are employed to
-                             identify executable code. This options is useful to
-                             evaluate `revamb` ignoring the code identification
-                             issue.
+:``-S``, ``--use-debug-symbols``: If they are available, ELF sections and
+                                  function symbols are employed to identify
+                                  executable code and function boundaries. This
+                                  options is useful evaluate `revamb` ignoring
+                                  the code issue.
 :``-b``, ``--bb-summary``: Output path for the CSV containing statistics about
                            the translated basic blocks. This option is
                            deprecated in favor of using `revamb-dump` and will

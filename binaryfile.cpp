@@ -385,10 +385,11 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
     // Collect symbol names
     for (auto &Symbol : TheELF.symbols(SymtabShdr)) {
       Symbols.push_back({
-        Symbol.getName(StrtabContent).get(),
-        Symbol.st_value,
-        Symbol.st_size
-      });
+                          Symbol.getName(StrtabContent).get(),
+                          Symbol.st_value,
+                          Symbol.st_size,
+                          Symbol.getType() == ELF::STT_FUNC
+                        });
     }
   }
 

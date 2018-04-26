@@ -25,7 +25,8 @@ public:
 public:
   FunctionBoundariesDetectionPass() : llvm::FunctionPass(ID), JTM(nullptr) { }
   FunctionBoundariesDetectionPass(JumpTargetManager *JTM,
-                                  std::string SerializePath) :
+                                  std::string SerializePath,
+                                  bool UseDebugSymbols) :
     llvm::FunctionPass(ID), JTM(JTM), SerializePath(SerializePath) { }
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
@@ -40,6 +41,7 @@ private:
 private:
   JumpTargetManager *JTM;
   std::string SerializePath;
+  bool UseDebugSymbols;
   std::map<llvm::BasicBlock *, std::vector<llvm::BasicBlock *>> Functions;
 };
 

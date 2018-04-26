@@ -73,6 +73,7 @@ struct SymbolInfo {
   llvm::StringRef Name;
   uint64_t Address;
   uint64_t Size;
+  bool IsFunction;
 
   bool operator<(const SymbolInfo &Other) const {
     return Address < Other.Address;

@@ -104,7 +104,8 @@ enum Values {
   SumJump = 256, ///< Obtained from the "sumjump" heuristic
   LoadAddress = 512, ///< A load has been performed from this address
   ReturnAddress = 1024, ///< Obtained as the fallthrough of a function call
-  LastReason = ReturnAddress
+  FunctionSymbol = 2048, ///< Obtained from a function symbol
+  LastReason = FunctionSymbol
 };
 
 inline const char *getName(Values Reason) {
@@ -131,6 +132,8 @@ inline const char *getName(Values Reason) {
     return "LoadAddress";
   case ReturnAddress:
     return "ReturnAddress";
+  case FunctionSymbol:
+    return "FunctionSymbol";
   }
 
   abort();
@@ -159,6 +162,8 @@ inline Values fromName(llvm::StringRef ReasonName) {
     return LoadAddress;
   else if (ReasonName == "ReturnAddress")
     return ReturnAddress;
+  else if (ReasonName == "FunctionSymbol")
+    return FunctionSymbol;
   else
     abort();
 }

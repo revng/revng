@@ -54,7 +54,11 @@ static RegisterPass<FBDP> X("fbdp",
 class FunctionBoundariesDetectionImpl {
 public:
   FunctionBoundariesDetectionImpl(Function &F,
-                                  JumpTargetManager *JTM) : F(F), JTM(JTM) { }
+                                  JumpTargetManager *JTM,
+                                  bool UseDebugSymbols) :
+    F(F),
+    JTM(JTM),
+    UseDebugSymbols(UseDebugSymbols) { }
 
   map<BasicBlock *, vector<BasicBlock *>> run();
 
@@ -72,7 +76,8 @@ private:
     Callee = 1,
     GlobalData = 2,
     InCode = 4,
-    SkippingJump = 8
+    SkippingJump = 8,
+    FunctionSymbol = 16
   };
 
   class CFEPRelation {
@@ -175,6 +180,7 @@ private:
 private:
   Function &F;
   JumpTargetManager *JTM;
+  bool UseDebugSymbols;
 
   std::map<TerminatorInst *, BasicBlock *> FunctionCalls;
   std::map<BasicBlock *, std::vector<BasicBlock *>> CallPredecessors;
@@ -357,6 +363,13 @@ void FBD::collectInitialCFEPSet() {
       Insert = true;
     }
 
+    if (UseDebugSymbols) {
+      if (JT.hasReason(JTReason::FunctionSymbol)) {
+        registerCFEP(CFEPHead, FunctionSymbol);
+        Insert = true;
+      }
+    }
+
     if (Insert)
       CFEPWorkList.insert(CFEPHead);
   }
@@ -463,7 +476,7 @@ void FBD::filterCFEPs() {
 
     // Keep a CFEP only if its address is taken, it's a callee or all the
     // paths leading there are skipping jumps
-    bool Keep = C.hasReason(Callee);
+    bool Keep = C.hasReason(Callee) || C.hasReason(FunctionSymbol);
     bool AddressTaken = C.hasReason(GlobalData) || C.hasReason(InCode);
 
     if (!Keep && AddressTaken) {
@@ -492,6 +505,7 @@ void FBD::filterCFEPs() {
               << " GlobalData? " << C.hasReason(GlobalData)
               << " InCode? " << C.hasReason(InCode)
               << " SkippingJump? " << C.hasReason(SkippingJump)
+              << " FunctionSymbol?" << C.hasReason(FunctionSymbol)
               << "\n";
         });
       It++;
@@ -631,7 +645,7 @@ std::string FBD::CFEPRelation::describe() const {
 }
 
 bool FBDP::runOnFunction(Function &F) {
-  FBD Impl(F, JTM);
+  FBD Impl(F, JTM, UseDebugSymbols);
   Functions = Impl.run();
   serialize();
   return false;

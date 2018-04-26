@@ -75,7 +75,8 @@ public:
                 bool EnableOSRA,
                 bool DetectFunctionBoundaries,
                 bool EnableLinking,
-                bool ExternalCSVs);
+                bool ExternalCSVs,
+                bool UseDebugSymbols);
 
   ~CodeGenerator();
 
@@ -132,6 +133,7 @@ private:
   bool DetectFunctionBoundaries;
   bool EnableLinking;
   bool ExternalCSVs;
+  bool UseDebugSymbols;
 };
 
 #endif // _CODEGENERATOR_H

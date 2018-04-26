@@ -51,11 +51,11 @@ struct ProgramParameters {
   const char *LinkingInfoPath;
   const char *CoveragePath;
   const char *BBSummaryPath;
-  int NoOSRA;
-  int UseSections;
-  int DetectFunctionsBoundaries;
-  int NoLink;
-  int External;
+  bool NoOSRA;
+  bool UseDebugSymbols;
+  bool DetectFunctionsBoundaries;
+  bool NoLink;
+  bool External;
   bool PrintStats;
   uint64_t BaseAddress;
 };
@@ -228,8 +228,8 @@ static int parseArgs(int Argc, const char *Argv[],
                 "do not link the output to QEMU helpers."),
     OPT_BOOLEAN('E', "external", &Parameters->External,
                 "set CSVs linkage to external, useful for debugging purposes."),
-    OPT_BOOLEAN('S', "use-sections", &Parameters->UseSections,
-                "use section informations, if available."),
+    OPT_BOOLEAN('S', "use-debug-symbols", &Parameters->UseDebugSymbols,
+                "use section and symbol function informations, if available."),
     OPT_STRING('b', "bb-summary",
                &Parameters->BBSummaryPath,
                "destination path for the CSV containing the statistics about "
@@ -329,7 +329,7 @@ int main(int argc, const char *argv[]) {
     return EXIT_FAILURE;
 
   BinaryFile TheBinary(Parameters.InputPath,
-                       Parameters.UseSections,
+                       Parameters.UseDebugSymbols,
                        Parameters.BaseAddress);
 
   findFiles(TheBinary.architecture().name());
@@ -354,7 +354,8 @@ int main(int argc, const char *argv[]) {
                           !Parameters.NoOSRA,
                           Parameters.DetectFunctionsBoundaries,
                           !Parameters.NoLink,
-                          Parameters.External);
+                          Parameters.External,
+                          Parameters.UseDebugSymbols);
 
   Generator.translate(Parameters.EntryPointAddress);
 

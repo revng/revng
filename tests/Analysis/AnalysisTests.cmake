@@ -77,7 +77,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
 
     # Translate the compiled binary
     add_test(NAME translate-${TEST_NAME}-${ARCH}
-      COMMAND $<TARGET_FILE:revamb> --functions-boundaries --use-sections -g ll "${BINARY}" "${BINARY}.ll")
+    COMMAND $<TARGET_FILE:revamb> --functions-boundaries --use-debug-symbols -g ll "${BINARY}" "${BINARY}.ll")
     set_tests_properties(translate-${TEST_NAME}-${ARCH}
       PROPERTIES LABELS "analysis;translate;${TEST_NAME}-${ARCH}")
 
