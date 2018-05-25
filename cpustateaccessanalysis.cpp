@@ -44,8 +44,12 @@ static auto CSVAccessLog = Logger<>("cpustate-access-analysis");
 /// \brief Logger for fixing the accesses to CPUState
 static auto FixAccessLog = Logger<>("cpustate-fix-access");
 
+static uint64_t NumUnknown = 0;
+static std::map<std::string, uint64_t> FunToNumUnknown;
+static std::map<std::string, std::set<std::string>> FunToUnknowns;
+
 void writeToLog(Logger<true> &L, const CSVOffsets &O, int /*Ignore*/) {
-  L << "Kind: " << O.OffsetKind;
+  L << "Kind: " << CSVOffsets::toString(O.OffsetKind);
   L << " Offsets = { ";
   for (const auto &Offset : O)
     L << Offset << ' ';
@@ -758,8 +762,8 @@ public:
 /// \brief Gets a valid pointer to `CallInst` if the current source of `Item` is
 ///         a call from `Root`
 ///
-/// This function returns `nullptr` if the current source of `Item` is not a call
-/// from `Root`
+/// This function returns `nullptr` if the current source of `Item` is not a
+/// call from `Root`
 static CallInst *
 getCurSourceRootCall(const WorkItem &Item, const Function *Root) {
   CallInst *RootCall = nullptr;
@@ -799,6 +803,7 @@ static int GetBit(uint64_t Input, int Shift) {
 
 using CallSiteOffsetMap = std::map<CallInst *, CSVOffsets>;
 using ValueCallSiteOffsetMap = std::map<Value *, CallSiteOffsetMap>;
+using OptCSVOffsets = llvm::Optional<CSVOffsets>;
 
 /// \brief This class is used to fold constant offsets on different instructions
 template<class T>
@@ -961,7 +966,13 @@ public:
 
         bool Valid;
         CSVOffsets::Kind ResKind;
-        std::tie(Valid, ResKind) = T::checkOffsetTupleIsValid(OffsetTuple, I);
+        SmallVector<Optional<CSVOffsets>, 4> UpdatedOffsetTuple(NumSrcs);
+        assert(not UpdatedOffsetTuple[0].hasValue());
+        std::tie(Valid,
+                 ResKind) = T::checkOffsetTupleIsValid(OffsetTuple,
+                                                       I,
+                                                       UpdatedOffsetTuple);
+        assert(UpdatedOffsetTuple.size() == OffsetTuple.size());
         if (not Valid) {
           insertOrCombine(V, C, CSVOffsets(ResKind), OffsetMap);
           continue;
@@ -975,10 +986,13 @@ public:
 
         WorkItem::size_type CartesianSize = 1;
         for (WorkItem::size_type SI = 0; SI < NumSrcs; ++SI) {
-          const auto *Tuple = OffsetTuple[SI];
+          OptCSVOffsets &UpdatedOffsets = UpdatedOffsetTuple[SI];
+          bool WasUpdated = UpdatedOffsets.hasValue();
+          const CSVOffsets *Tuple = WasUpdated ? UpdatedOffsets.getPointer() :
+                                                 OffsetTuple[SI];
           OffsetsRanges.push_back(make_range(Tuple->begin(), Tuple->end()));
           OffsetsIt.push_back(Tuple->begin());
-          const WorkItem::size_type OffsetSize = OffsetTuple[SI]->size();
+          const WorkItem::size_type OffsetSize = Tuple->size();
           assert(OffsetSize);
           assert(CartesianSize <= CartesianSize * OffsetSize);
           CartesianSize *= OffsetSize;
@@ -1032,7 +1046,8 @@ public:
 private:
   static std::pair<bool, CSVOffsets::Kind>
   checkOffsetTupleIsValid(const SmallVector<const CSVOffsets *, 4> &OffsetTuple,
-                          const Instruction *I) {
+                          const Instruction *I,
+                          SmallVector<OptCSVOffsets, 4> &) {
     auto OpCode = I->getOpcode();
     assert(OpCode == Instruction::Add or OpCode == Instruction::Sub);
     assert(OffsetTuple.size() == 2);
@@ -1099,7 +1114,8 @@ public:
 private:
   static std::pair<bool, CSVOffsets::Kind>
   checkOffsetTupleIsValid(const SmallVector<const CSVOffsets *, 4> &OffsetTuple,
-                          const Instruction *I) {
+                          const Instruction *I,
+                          SmallVector<OptCSVOffsets, 4> &UpdatedOffsetTuple) {
     auto OpCode = I->getOpcode();
     assert(OpCode == Instruction::GetElementPtr);
     size_t NOperands = OffsetTuple.size();
@@ -1109,14 +1125,109 @@ private:
         or CSVOffsets::isUnknown(GEPOp0Kind))
       return { false, GEPOp0Kind };
 
+    auto *GEP = cast<GetElementPtrInst>(I);
+    auto *PtrTy = cast<PointerType>(GEP->getPointerOperandType());
+    Type *PointeeTy = PtrTy->getElementType();
+
+    if (GEP->hasIndices() and PointeeTy->isArrayTy()) {
+
+      auto FirstIdxConst = dyn_cast<ConstantInt>(*GEP->idx_begin());
+      bool FirstIdxPropagatedConst = OffsetTuple[1]->size() == 1;
+      assert(not(FirstIdxConst != nullptr) or FirstIdxPropagatedConst);
+
+      if (FirstIdxPropagatedConst) {
+
+        bool FirstIdxZero = FirstIdxConst->isZero();
+        bool FirstIdxPropagatedZero = *OffsetTuple[1]->begin() == 0;
+        assert(not FirstIdxZero or FirstIdxPropagatedZero);
+
+        if (FirstIdxPropagatedZero) {
+          SmallVector<uint64_t, 4> ConstIdxList = { 0 };
+
+          auto IdxIt = GEP->idx_begin();
+          auto IdxEnd = GEP->idx_end();
+          int IdxOpNum = 1;
+          std::set<int64_t> LastTypeOffsets = { 0 };
+
+          for (; IdxIt != IdxEnd; ++IdxIt, ++IdxOpNum) {
+            const CSVOffsets *IdxCSVOffset = OffsetTuple[IdxOpNum];
+            assert(not IdxCSVOffset->isPtr());
+
+            Type *ElementTy = GEP->getIndexedType(PointeeTy, ConstIdxList);
+
+            if (ElementTy->isAggregateType()) {
+              if (ElementTy->isArrayTy()) {
+                if (IdxCSVOffset->isUnknown()) {
+                  CSVOffsets U(CSVOffsets::Kind::Numeric, LastTypeOffsets);
+                  UpdatedOffsetTuple[IdxOpNum] = std::move(U);
+                } else {
+                  // If it's not Unknown we can leave it like it is.
+                }
+
+                auto *ArrayTy = cast<ArrayType>(ElementTy);
+                uint64_t ArrayNumElem = ArrayTy->getNumElements();
+                assert(ArrayNumElem);
+                LastTypeOffsets.clear();
+                for (uint64_t O = 0; O < ArrayNumElem; ++O)
+                  LastTypeOffsets.insert(O);
+
+                ConstIdxList.push_back(0);
+              } else if (ElementTy->isStructTy()) {
+                if (IdxCSVOffset->isUnknown()) {
+                  if (IdxIt + 1 != IdxEnd) {
+                    // I cannot fold structs with unknown index.
+                    // Early exit.
+                    return { false, CSVOffsets::makeUnknown(GEPOp0Kind) };
+                  } else {
+                    assert(not LastTypeOffsets.empty());
+                    CSVOffsets U(CSVOffsets::Kind::Numeric, LastTypeOffsets);
+                    UpdatedOffsetTuple[IdxOpNum] = std::move(U);
+                    break;
+                  }
+                } else {
+                  // If it's not Unknown we can leave it like it is.
+                  assert(not IdxCSVOffset->empty());
+                  ConstIdxList.push_back(*IdxCSVOffset->begin());
+
+                  assert(IdxCSVOffset->size() != 0);
+                  LastTypeOffsets.clear();
+                  LastTypeOffsets.insert(IdxCSVOffset->begin(),
+                                         IdxCSVOffset->end());
+                }
+              } else {
+                abort();
+              }
+            } else {
+              // I'm done.
+              assert(IdxIt + 1 == IdxEnd);
+              if (IdxCSVOffset->isUnknown()) {
+                CSVOffsets U(CSVOffsets::Kind::Numeric, LastTypeOffsets);
+                UpdatedOffsetTuple[IdxOpNum] = std::move(U);
+              } else {
+                // If it's not Unknown we can leave it like it is.
+              }
+            }
+          }
+          return { true, GEPOp0Kind };
+        } else {
+          // For now we don't handle cases when the first index of the GEP is
+          // not zero, so in those case we fall back outside the if and we fold
+          // them as ususal.
+        }
+      } else {
+        // For now we don't handle cases when the first index of the GEP is
+        // not constant, so in those case we fall back outside the if and we
+        // fold them as ususal.
+      }
+    } else {
+      // For now we don't handle cases when the GEP does not index an array, so
+      // in those case we fall back outside the if and we fold them as ususal.
+    }
+
     for (size_t O = 1; O < NOperands; O++) {
       assert(not OffsetTuple[O]->isPtr());
-      if (OffsetTuple[O]->isUnknown()) {
-        // TODO: handle cases with empty operands so that when the GEP is accessing arrays we
-        // can use the underlying type to avoid emitting Unknown and
-        // UnknownInCSV is not strictly necessary
+      if (OffsetTuple[O]->isUnknown())
         return { false, CSVOffsets::makeUnknown(GEPOp0Kind) };
-      }
     }
     return { true, GEPOp0Kind };
   }
@@ -1265,21 +1376,15 @@ private:
   /// all the immediate sources are already resolved.
   void exploreImmediateSources(Value *V, bool IsLoad);
 
-  /// \brief Returns true if V has unexplored sources
+  /// \brief Returns an emtpy Optional and fill W if there are unexplored
+  ///        sources, otherwise return the offsets
   ///
   /// \param V the `Value` whose sources must be explored.
-  /// \param [out] W a `WorkItem` initialized with the unexplored sources of `V`
-  ///                if any.
-  /// \param [out] O a `CSVOffsets` initialized with the Offsets of `V` it they
-  ///                are already known.
-  ///
-  /// \return true (and sets W) if there are unexplored sources, false (and sets
-  ///               O) otherwise
-  ///
-  bool getUnexploredSrcWorkItem(Value *V,
-                                WorkItem &W,
-                                CSVOffsets &O,
-                                bool IsLoad) const;
+  /// \param [out] W a `WorkItem` that will be initialized with the unexplored
+  ///                sources of `V` if any.
+  /// \param IsLoad true if we're exploring from a load
+  OptCSVOffsets
+  getOffsetsOrExploreSrc(Value *V, WorkItem &W, bool IsLoad) const;
 
   void insertCallSiteOffset(Value *V, CSVOffsets &&Offset);
 
@@ -1400,12 +1505,14 @@ private:
 
   bool checkNewVisitAndInsertCurCrossedCallSite(const WorkItem &Item) {
     CallInst *RootCallSite = getCurSourceRootCall(Item, RootFunction);
-    return checkNewVisitAndInsertCrossedCallSite(RootCallSite, Item.currentSourceUse());
+    return checkNewVisitAndInsertCrossedCallSite(RootCallSite,
+                                                 Item.currentSourceUse());
   }
 
   bool checkNewVisitAndInsertNextCrossedCallSite(const WorkItem &Item) {
     CallInst *RootCallSite = getNextSourceRootCall(Item, RootFunction);
-    return checkNewVisitAndInsertCrossedCallSite(RootCallSite, Item.nextSourceUse());
+    return checkNewVisitAndInsertCrossedCallSite(RootCallSite,
+                                                 Item.nextSourceUse());
   }
 
   /// \brief Selects the next source of `Item`, if possible, returning true on
@@ -1497,8 +1604,6 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
     for (const Use *Src : Item.sources()) {
       Value *SrcVal = Src->get();
       CSVAccessLog << "SrcVal: " << SrcVal << DoLog;
-      CSVAccessLog << "SrcValPtr: " << reinterpret_cast<const char *>(SrcVal)
-                   << DoLog;
       const CallSiteOffsetMap &CallSiteOffset = ValueCallSiteOffsets.at(SrcVal);
 
       // The `CallSiteOffsetMap` associated with `SrcVal` is pushed back into
@@ -1686,12 +1791,10 @@ void CPUSAOA::insertCallSiteOffset(Value *V, CSVOffsets &&Offset) {
   }
 }
 
-bool CPUSAOA::getUnexploredSrcWorkItem(Value *V,
-                                       WorkItem &Item,
-                                       CSVOffsets &O,
-                                       bool IsLoad) const {
+OptCSVOffsets
+CPUSAOA::getOffsetsOrExploreSrc(Value *V, WorkItem &Item, bool IsLoad) const {
   if (auto *Call = dyn_cast<CallInst>(V)) {
-    if (CSVAccessLog.isEnabled()){
+    if (CSVAccessLog.isEnabled()) {
       CSVAccessLog << "CALL" << DoLog;
       Call->dump();
     }
@@ -1711,28 +1814,25 @@ bool CPUSAOA::getUnexploredSrcWorkItem(Value *V,
         CSVAccessLog << "GLOBAL" << DoLog;
         if (CSV == CPUStatePtr) {
           CSVAccessLog << "ENV" << DoLog;
-          O = CSVOffsets(CSVOffsets::Kind::KnownInPtr, 0);
+          return CSVOffsets(CSVOffsets::Kind::KnownInPtr, 0);
         } else {
           CSVAccessLog << "NOT-ENV" << DoLog;
-          O = CSVOffsets(CSVOffsets::Kind::Unknown);
+          return CSVOffsets(CSVOffsets::Kind::Unknown);
         }
       } else {
         CSVAccessLog << "NOT-GLOBAL" << DoLog;
-        O = CSVOffsets(CSVOffsets::Kind::Unknown);
+        return CSVOffsets(CSVOffsets::Kind::Unknown);
       }
-      return false;
     } break;
     case Instruction::Alloca: {
       CSVAccessLog << "ALLOCA" << DoLog;
-      O = CSVOffsets(CSVOffsets::Kind::Unknown);
-      return false;
+      return CSVOffsets(CSVOffsets::Kind::Unknown);
     } break;
     case Instruction::Or:
     case Instruction::And:
     case Instruction::ICmp: {
       CSVAccessLog << "CMP" << DoLog;
-      O = CSVOffsets(CSVOffsets::Kind::Unknown);
-      return false;
+      return CSVOffsets(CSVOffsets::Kind::Unknown);
     } break;
     case Instruction::Store:
       abort();
@@ -1745,26 +1845,27 @@ bool CPUSAOA::getUnexploredSrcWorkItem(Value *V,
   } else if (const auto *IntConst = dyn_cast<const ConstantInt>(V)) {
     int64_t Offset = IntConst->getSExtValue();
     CSVAccessLog << "CONST: " << Offset << DoLog;
-    O = CSVOffsets(CSVOffsets::Kind::Numeric, Offset);
-    return false;
+    return CSVOffsets(CSVOffsets::Kind::Numeric, Offset);
   } else {
     abort();
   }
-  return true;
+  return OptCSVOffsets();
 }
 
 void CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
   // Try to get new unexplored sources for V.
   WorkItem NewItem;
-  CSVOffsets ConstantKnownOffsets;
-  if (not getUnexploredSrcWorkItem(V, NewItem, ConstantKnownOffsets, IsLoad)) {
-    CSVAccessLog << "ConstantOffset" << DoLog;
+  {
+    auto ConstKnownOffsets = getOffsetsOrExploreSrc(V, NewItem, IsLoad);
+    if (ConstKnownOffsets.hasValue()) {
+      CSVAccessLog << "ConstantOffset" << DoLog;
 
-    // If we reach this point, V only has a constant know CSVOffsets and does
-    // not really have sources that must be explored. In this case we can just
-    // insert the ConstantKnownOffsets in the map and we're done.
-    insertCallSiteOffset(V, std::move(ConstantKnownOffsets));
-    return;
+      // If we reach this point, V only has a constant know CSVOffsets and does
+      // not really have sources that must be explored. In this case we can just
+      // insert the ConstKnownOffsets in the map and we're done.
+      insertCallSiteOffset(V, std::move(ConstKnownOffsets.getValue()));
+      return;
+    }
   }
   CSVAccessLog << "New!: " << NewItem << DoLog;
   // If we reach this point NewItem is valid and contains a vector of sources
@@ -1835,11 +1936,7 @@ void CPUSAOA::analyzeAccess(Instruction *LoadOrStore, bool IsLoad) {
     if (CSVAccessLog.isEnabled()) {
       const auto *CurVal = WorkList.back().Val();
       CSVAccessLog << "Val   : " << CurVal << DoLog;
-      CSVAccessLog << "ValPtr: " << reinterpret_cast<const char *>(CurVal)
-                   << DoLog;
       CSVAccessLog << "Src   : " << CurSrcVal << DoLog;
-      CSVAccessLog << "SrcPtr: " << reinterpret_cast<const char *>(CurSrcVal)
-                   << DoLog;
     }
 
     // Explore CurSrcVal's immediate sources (going backward)
@@ -1868,12 +1965,8 @@ void CPUSAOA::analyzeAccess(Instruction *LoadOrStore, bool IsLoad) {
       if (CSVAccessLog.isEnabled()) {
         const auto *Val = Item.Val();
         CSVAccessLog << "TopItemVal: " << Val << DoLog;
-        CSVAccessLog << "TopItemPtr: " << reinterpret_cast<const char *>(Val)
-                     << DoLog;
         const auto *SrcVal = Item.currentSourceValue();
         CSVAccessLog << "CurSrc    : " << SrcVal << DoLog;
-        CSVAccessLog << "CurSrcPtr : " << reinterpret_cast<const char *>(SrcVal)
-                     << DoLog;
       }
 
       // Constant fold the finished value and pop it.
@@ -1953,11 +2046,12 @@ void CPUSAOA::computeAggregatedOffsets() {
       // also losing the size of the access. For this reason here we have to
       // take into account the sizes of all the accesses.
       {
-        CSVOffsets New;
+        OptCSVOffsets New;
         if (not O.hasOffsetSet()) {
           New = O;
         } else {
-          New = CSVOffsets(O.getKind()); // Empty, but with the correct type
+          assert(O.size());
+          std::set<int64_t> FineGrainedOffsets;
           // Now compute the fine-grained offsets
           for (const int64_t Coarse : O) {
             int64_t Refined = Coarse;
@@ -1972,7 +2066,7 @@ void CPUSAOA::computeAggregatedOffsets() {
               if (AccessedVar != nullptr) {
                 Type *AccessedTy = AccessedVar->getType();
                 SizeAtOffset = DL.getTypeAllocSize(AccessedTy);
-                New.insert(Refined);
+                FineGrainedOffsets.insert(Refined);
                 CSVAccessLog << "Value: " << I << DoLog;
                 CSVAccessLog << "Insert Refined: " << Refined << DoLog;
               } else {
@@ -1983,13 +2077,14 @@ void CPUSAOA::computeAggregatedOffsets() {
               Refined += SizeAtOffset;
             }
           }
+          New = CSVOffsets(O.getKind(), FineGrainedOffsets);
         }
         // Finally insert them or combine them
         CallSiteOffsetMap::iterator CallOffsetIt;
         std::tie(CallOffsetIt,
-                 Inserted) = CallSiteOffsets.insert({ Call, New });
+                 Inserted) = CallSiteOffsets.insert({ Call, New.getValue() });
         if (not Inserted)
-          CallOffsetIt->second.combine(New);
+          CallOffsetIt->second.combine(New.getValue());
       }
     }
   }
@@ -2013,7 +2108,8 @@ bool CPUSAOA::run() {
       TaintLog.indent(4);
       for (const auto &CSO : LoadCallSiteOffsets.at(LoadOrStore)) {
         TaintLog << "CallSite: " << CSO.first << '\n';
-        CSO.first->dump();
+        if (CSO.first != nullptr)
+          CSO.first->dump();
         TaintLog << DoLog;
         TaintLog << CSO.second << '\n';
       }
@@ -2028,7 +2124,8 @@ bool CPUSAOA::run() {
       TaintLog.indent(4);
       for (const auto &CSO : StoreCallSiteOffsets.at(LoadOrStore)) {
         TaintLog << "CallSite: " << CSO.first << '\n';
-        CSO.first->dump();
+        if (CSO.first != nullptr)
+          CSO.first->dump();
         TaintLog << DoLog;
         TaintLog << CSO.second << '\n';
       }
@@ -2210,6 +2307,14 @@ static Value *getStoreAddressValue(Instruction *I) {
   return Address;
 }
 
+static Type *getStoredType(Instruction *I) {
+  if (auto Store = dyn_cast<StoreInst>(I)) {
+    auto *PtrTy = cast<PointerType>(Store->getPointerOperand()->getType());
+    return PtrTy->getElementType();
+  }
+  return nullptr;
+}
+
 static void fixEnv2EnvMemCopies(const Module &M,
                                 AccessOffsetMap &CSVLoadOffsetMap,
                                 AccessOffsetMap &CSVStoreOffsetMap) {
@@ -2240,10 +2345,16 @@ static void fixEnv2EnvMemCopies(const Module &M,
       AllocaInst *TmpBuffer = Builder.CreateAlloca(CharTy, MemcpySize);
 
       Builder.SetInsertPoint(Instr);
-      CallInst *MemcpyLoad = Builder.CreateMemCpy(TmpBuffer, MemcpySrc, MemcpySize, TmpBuffer->getAlignment());
+      CallInst *MemcpyLoad = Builder.CreateMemCpy(TmpBuffer,
+                                                  MemcpySrc,
+                                                  MemcpySize,
+                                                  TmpBuffer->getAlignment());
       NewLoadCSOffsets.insert({ MemcpyLoad, InstCSOffset.second });
 
-      CallInst *MemcpyStore = Builder.CreateMemCpy(MemcpyDst, TmpBuffer, MemcpySize, TmpBuffer->getAlignment());
+      CallInst *MemcpyStore = Builder.CreateMemCpy(MemcpyDst,
+                                                   TmpBuffer,
+                                                   MemcpySize,
+                                                   TmpBuffer->getAlignment());
       NewStoreCSOffsets.insert({ MemcpyStore, It->second });
 
       AccessToRemove.insert(Instr);
@@ -2504,11 +2615,13 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
 
       Value *Address = nullptr;
       Type *LoadedType = nullptr; // This is not used if IsLoad is false
+      Type *StoredType = nullptr; // This is not used if IsLoad is true
       if (IsLoad) {
         Address = getLoadAddressValue(I);
         LoadedType = getLoadedType(I);
       } else {
         Address = getStoreAddressValue(I);
+        StoredType = getStoredType(I);
       }
 
       Value *OffsetValue = nullptr;
@@ -2520,6 +2633,22 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
       assert(AccessToFix != nullptr);
       LLVMContext &Context = M.getContext();
       QuickMetadata QMD(Context);
+
+      if (IsLoad) {
+        if (LoadedType != nullptr and LoadedType->isPointerTy()) {
+          FixAccessLog << "REPLACE!" << DoLog;
+          Constant *NullPtr = Constant::getNullValue(LoadedType);
+          AccessToFix->replaceAllUsesWith(NullPtr);
+          break; // out from the big switch to the verify and cleanup code
+        }
+        // TODO: Handle memcpy, not necessary for now
+      } else {
+        if (StoredType != nullptr and StoredType->isPointerTy()) {
+          FixAccessLog << "REPLACE!" << DoLog;
+          break; // out from the big switch to the verify and cleanup code
+        }
+        // TODO: Handle memcpy, not necessary for now
+      }
 
       // filter out cases where a switch is not necessary
       if (Offsets.size() == 1) {
@@ -2631,6 +2760,16 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
       assert(OffsetValue != nullptr);
 
       if (CSVOffsets::isUnknownInPtr(OKind)) {
+
+        if (FixAccessLog.isEnabled()) {
+          ++NumUnknown;
+          FunToNumUnknown[F->getName()]++;
+          std::string InstrLog;
+          raw_string_ostream OStream(InstrLog);
+          AccessToFix->print(OStream);
+          FunToUnknowns[F->getName()].insert(InstrLog);
+        }
+
         SwitchInst *SwitchOffset = Builder.CreateSwitch(OffsetValue,
                                                         Default,
                                                         EnvStructSize);
@@ -2678,9 +2817,17 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
       F->dump();
       FixAccessLog << DoLog;
     }
-    FixAccessLog << "Erasing: " << I << DoLog;
-    if (I != AccessToFix)
+    if (I != AccessToFix) {
+      if (FixAccessLog.isEnabled()) {
+        FixAccessLog << "Erasing AccessToFix: " << AccessToFix << DoLog;
+        AccessToFix->dump();
+      }
       AccessToFix->eraseFromParent();
+    }
+    if (FixAccessLog.isEnabled()) {
+      FixAccessLog << "Erasing I: " << I << DoLog;
+      I->dump();
+    }
     I->eraseFromParent();
   }
 }
@@ -2766,6 +2913,17 @@ bool CPUStateAccessAnalysis::run() {
   // Fix stores
   correctCPUStateAccesses<false>();
   assert(not verifyModule(M, &dbgs()));
+
+  if (FixAccessLog.isEnabled()) {
+    FixAccessLog << "Num Unknowns: " << NumUnknown << DoLog;
+
+    for (const auto &Fun2Num : FunToNumUnknown)
+      FixAccessLog << Fun2Num.first << ": " << Fun2Num.second << DoLog;
+
+    for (const auto &Fun2Unknowns : FunToUnknowns)
+      for (const auto &U : Fun2Unknowns.second)
+      FixAccessLog << Fun2Unknowns.first << ": " << U << DoLog;
+  }
 
   return Found;
 }

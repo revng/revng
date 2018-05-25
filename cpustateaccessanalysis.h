@@ -70,8 +70,15 @@ private:
 
 public:
   CSVOffsets() : OffsetKind(Kind::Numeric), Offsets() {}
-  CSVOffsets(Kind K) : OffsetKind(K), Offsets() {}
-  CSVOffsets(Kind K, int64_t O) : OffsetKind(K), Offsets({ O }) {}
+  CSVOffsets(Kind K) : OffsetKind(K), Offsets() {
+    // Useful for debug assert(isUnknown(K) or isUnknownInPtr(K));
+  }
+  CSVOffsets(Kind K, int64_t O) : OffsetKind(K), Offsets({ O }) {
+    // Useful for debug assert(not isUnknown(K) and not isUnknownInPtr(K));
+  }
+  CSVOffsets(Kind K, std::set<int64_t> O) : OffsetKind(K), Offsets(O) {
+    // Useful for debug assert(not isUnknown(K) and not isUnknownInPtr(K));
+  }
 
 public:
   friend void writeToLog(Logger<true> &L, const CSVOffsets &O, int /*Ignore*/);
