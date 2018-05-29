@@ -122,8 +122,11 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
 
   arge = argp;
 
+  // Push the environment variables
+  unsigned env_count = 0;
   while (*--argp != NULL) {
     MOVE(stack, strlen(*argp) + 1);
+    env_count++;
   }
 
   // Push the arguments
@@ -137,9 +140,26 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
   PUSH_STR(stack, "4 I used a dice");
   random_address = (target_reg) stack;
 
-  // Force 16 bytes alignment
-  stack = (void *) ((uintptr_t) stack & ~15);
+  // Compute the value of stack pointer once we'll be done
 
+  // WARNING: keep this number in sync with the number of auxiliary entries
+  const unsigned aux_count = 17;
+  unsigned entries_count = aux_count * 2 + 1 + env_count + 1 + argc + 1;
+  uintptr_t final_stack = ((uintptr_t) stack
+                           - entries_count * sizeof(target_reg));
+
+  // Force 256 bits alignment of the final stack value
+  const unsigned alignment = 256 / 8 - 1;
+  uintptr_t alignment_offset = (final_stack
+                                - (final_stack & ~((uintptr_t) alignment)));
+  stack -= alignment_offset;
+  final_stack -= alignment_offset;
+  assert((final_stack & alignment) == 0);
+
+  // Push the auxiliary vector
+
+  // WARNING: if you add something here, update aux_count
+  uintptr_t aux_start = (uintptr_t) stack;
   PUSH_AUX(stack, AT_NULL, 0);
   PUSH_AUX(stack, AT_PHDR, phdr_address);
   PUSH_AUX(stack, AT_PHENT, e_phentsize);
@@ -157,7 +177,11 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
   PUSH_AUX(stack, AT_CLKTCK, sysconf(_SC_CLK_TCK));
   PUSH_AUX(stack, AT_RANDOM, random_address);
   PUSH_AUX(stack, AT_PLATFORM, platform_address);
+  // WARNING: if you add something here, update aux_count
 
+  assert(aux_start - aux_count * 2 * sizeof(target_reg) == (uintptr_t) stack);
+
+  // Push a separator
   PUSH_REG(stack, 0);
 
   // Copy arguments and environment variables, and store their address
@@ -181,6 +205,9 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
   }
 
   PUSH_REG(stack, argc);
+
+  assert((((uintptr_t) stack) & alignment) == 0);
+  assert((uintptr_t) stack == final_stack);
 
 #undef PUSH_AUX
 #undef PUSH_REG
