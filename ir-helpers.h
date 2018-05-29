@@ -501,10 +501,14 @@ static inline bool hasPredecessor(llvm::BasicBlock *BB,
   return false;
 }
 
-// \brief If \p V is a cast instruction, return its only operand (recursively)
+// \brief If \p V is a cast Instruction or a cast ConstantExpr, return its only
+//        operand (recursively)
 static inline llvm::Value *skipCasts(llvm::Value *V) {
-  while (llvm::isa<llvm::CastInst>(V))
-    V = llvm::cast<llvm::User>(V)->getOperand(0);
+  using namespace llvm;
+  while (isa<CastInst>(V)
+         || (isa<ConstantExpr>(V)
+             && cast<ConstantExpr>(V)->getOpcode() == Instruction::BitCast))
+    V = cast<User>(V)->getOperand(0);
   return V;
 }
 
