@@ -81,6 +81,7 @@ add_flag_if_available("-Wno-error=return-type")
 add_flag_if_available("-Wno-error=unused-but-set-variable")
 add_flag_if_available("-Wno-error=maybe-uninitialized")
 add_flag_if_available("-Wno-error=ignored-attributes")
+add_flag_if_available("-Wno-delete-non-virtual-dtor")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 add_definitions("-D_FILE_OFFSET_BITS=64")
