@@ -49,11 +49,11 @@ struct ProgramParameters {
   const char *LinkingInfoPath;
   const char *CoveragePath;
   const char *BBSummaryPath;
-  bool NoOSRA;
-  bool UseSections;
-  bool DetectFunctionsBoundaries;
-  bool NoLink;
-  bool External;
+  int NoOSRA;
+  int UseSections;
+  int DetectFunctionsBoundaries;
+  int NoLink;
+  int External;
 };
 
 // When LibraryPointer is destroyed, the destructor calls
