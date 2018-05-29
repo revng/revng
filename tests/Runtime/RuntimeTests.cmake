@@ -8,7 +8,7 @@ set(SRC ${CMAKE_SOURCE_DIR}/tests/Runtime)
 set(TEST_CFLAGS "-std=c99 -static -fno-pic -fno-pie -g")
 set(TEST_CFLAGS_IF_AVAILABLE "-no-pie")
 set(TEST_CFLAGS_NATIVE "${TEST_CFLAGS} ${NO_PIE}")
-set(TESTS "calc" "function_call" "floating_point" "syscall" "global")
+set(TESTS "calc" "function_call" "floating_point" "syscall" "global" "printf")
 
 ## calc
 set(TEST_SOURCES_calc "${SRC}/calc.c")
@@ -38,6 +38,14 @@ set(TEST_ARGS_syscall_default "nope")
 
 ## global
 set(TEST_SOURCES_global "${SRC}/global.c")
+
+## printf
+set(TEST_SOURCES_printf "${SRC}/printf.c")
+
+set(TEST_RUNS_printf "one" "two" "threee")
+set(TEST_ARGS_printf_one "one")
+set(TEST_ARGS_printf_two "one two")
+set(TEST_ARGS_printf_three "one two three")
 
 set(TEST_RUNS_global "default")
 set(TEST_ARGS_global_default "nope")
