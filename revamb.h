@@ -22,6 +22,43 @@ namespace llvm {
 class GlobalVariable;
 };
 
+class ABIRegister {
+private:
+  llvm::StringRef Name;
+  llvm::StringRef QemuName;
+  unsigned MContextIndex;
+
+public:
+  static const unsigned NotInMContext = std::numeric_limits<unsigned>::max();
+
+public:
+  ABIRegister(llvm::StringRef Name,
+              unsigned MContextIndex) :
+    Name(Name),
+    QemuName(Name),
+    MContextIndex(MContextIndex) { }
+
+  ABIRegister(llvm::StringRef Name) :
+    Name(Name),
+    QemuName(Name),
+    MContextIndex(NotInMContext) { }
+
+  ABIRegister(llvm::StringRef Name, llvm::StringRef QemuName) :
+    Name(Name),
+    QemuName(QemuName),
+    MContextIndex(NotInMContext) { }
+
+  llvm::StringRef name() const { return Name; }
+
+  llvm::StringRef qemuName() const { return QemuName; }
+
+  bool inMContext() const { return MContextIndex != NotInMContext; }
+  unsigned mcontextIndex() const {
+    assert(inMContext());
+    return MContextIndex;
+  }
+};
+
 /// \brief Type of debug information to produce
 enum class DebugInfoType {
   None, ///< no debug information.
@@ -72,7 +109,12 @@ public:
                llvm::StringRef SyscallNumberRegister,
                llvm::ArrayRef<uint64_t> NoReturnSyscalls,
                unsigned DelaySlotSize,
-               llvm::StringRef StackPointerRegister) :
+               llvm::StringRef StackPointerRegister,
+               llvm::SmallVector<ABIRegister, 20> ABIRegisters,
+               unsigned PCMContextIndex,
+               llvm::StringRef WriteRegisterAsm,
+               llvm::StringRef ReadRegisterAsm,
+               llvm::StringRef JumpAsm) :
     Type(static_cast<llvm::Triple::ArchType>(Type)),
     InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
@@ -82,7 +124,12 @@ public:
     SyscallNumberRegister(SyscallNumberRegister),
     NoReturnSyscalls(NoReturnSyscalls),
     DelaySlotSize(DelaySlotSize),
-    StackPointerRegister(StackPointerRegister) { }
+    StackPointerRegister(StackPointerRegister),
+    ABIRegisters(ABIRegisters),
+    PCMContextIndex(PCMContextIndex),
+    WriteRegisterAsm(WriteRegisterAsm),
+    ReadRegisterAsm(ReadRegisterAsm),
+    JumpAsm(JumpAsm) { }
 
   unsigned instructionAlignment() const { return InstructionAlignment; }
   unsigned defaultAlignment() const { return DefaultAlignment; }
@@ -98,7 +145,21 @@ public:
   }
   llvm::ArrayRef<uint64_t> noReturnSyscalls() const { return NoReturnSyscalls; }
   unsigned delaySlotSize() const { return DelaySlotSize; }
+  llvm::SmallVector<ABIRegister, 20> abiRegisters() const {
+    return ABIRegisters;
+  }
   const char *name() const { return llvm::Triple::getArchTypeName(Type); }
+  unsigned pcMContextIndex() const { return PCMContextIndex; }
+
+  llvm::StringRef writeRegisterAsm() const { return WriteRegisterAsm; }
+  llvm::StringRef readRegisterAsm() const { return ReadRegisterAsm; }
+  llvm::StringRef jumpAsm() const { return JumpAsm; }
+  bool isJumpOutSupported() const {
+    bool IsSupported = WriteRegisterAsm.size() != 0;
+    assert(IsSupported == (ReadRegisterAsm.size() != 0)
+           && IsSupported == (JumpAsm.size() != 0));
+    return IsSupported;
+  }
 
 private:
   llvm::Triple::ArchType Type;
@@ -113,6 +174,11 @@ private:
   llvm::ArrayRef<uint64_t> NoReturnSyscalls;
   unsigned DelaySlotSize;
   llvm::StringRef StackPointerRegister;
+  llvm::SmallVector<ABIRegister, 20> ABIRegisters;
+  unsigned PCMContextIndex;
+  llvm::StringRef WriteRegisterAsm;
+  llvm::StringRef ReadRegisterAsm;
+  llvm::StringRef JumpAsm;
 };
 
 // TODO: move me somewhere more appropriate

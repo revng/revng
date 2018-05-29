@@ -6,60 +6,27 @@
 #include <assert.h>
 #include <elf.h>
 #include <endian.h>
+#include <fcntl.h>
 #include <inttypes.h>
-#include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <string.h>
-#include <unistd.h>
-#include <signal.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <stdnoreturn.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/ucontext.h>
+#include <unistd.h>
 #include <unwind.h>
 
 // Local includes
+#include "commonconstants.h"
 #include "support.h"
 
 // Save the program arguments for meaningful error reporting
 static int saved_argc;
 static char **saved_argv;
-
-// Handle target specific information:
-//
-// * Register size
-// * Macro to swap endianess from the host one
-#if defined(TARGET_arm)
-
-typedef uint32_t target_reg;
-#define SWAP(x) (htole32(x))
-#define TARGET_REG_FORMAT PRIx32
-
-#elif defined(TARGET_i386)
-
-typedef uint32_t target_reg;
-#define SWAP(x) (htole32(x))
-#define TARGET_REG_FORMAT PRIx32
-
-#elif defined(TARGET_x86_64)
-
-typedef uint64_t target_reg;
-#define SWAP(x) (htole64(x))
-#define TARGET_REG_FORMAT PRIx64
-
-#elif defined(TARGET_mips)
-
-typedef uint32_t target_reg;
-#define SWAP(x) (htobe32(x))
-#define TARGET_REG_FORMAT PRIx32
-
-#else
-
-#error "Architecture not supported"
-
-#endif
 
 // Macros to ensure that when we downcast from a 64-bit pointer to a 32-bit
 // integer for the target architecture we're not losing information
@@ -72,11 +39,14 @@ typedef uint32_t target_reg;
 
 noreturn void root(target_reg stack);
 
-// Variables used to initialize the stack
 static const unsigned align = sizeof(target_reg);
-extern target_reg phdr_address;
-extern target_reg e_phentsize;
-extern target_reg e_phnum;
+
+// Define some variables declared in support.h
+jmp_buf jmp_buffer;
+target_reg *saved_registers;
+
+// Default SIGSEGV handler
+static struct sigaction default_handler;
 
 static void *prepare_stack(void *stack, int argc, char **argv) {
   target_reg tmp;
@@ -372,6 +342,45 @@ void newpc(uint64_t pc,
 
 #endif
 
+// Check if the target address is inside an executable segment,
+// if so serialize and jump
+bool is_executable(uint64_t pc) {
+  assert(segments_count != 0);
+
+  // Check if the pc is inside one of the executable segments
+  for (int i = 0; i < segments_count; i++)
+    if (pc >= segment_boundaries[2 * i] && pc < segment_boundaries[2 * i + 1])
+      return true;
+
+  return false;
+}
+
+void handle_sigsegv(int signo, siginfo_t *info, void *opaque_context) {
+  // If we are catching a SIGSEGV not thrown by the kill command
+  if (signo == SIGSEGV
+      && info->si_code != SI_USER
+      && is_executable((uint64_t) info->si_addr)) {
+    ucontext_t *context = opaque_context;
+    saved_registers = (target_reg *) &context->uc_mcontext.gregs;
+    longjmp(jmp_buffer, 0);
+  }
+
+  // If the address is not executable, this is not a jump into our code
+  default_handler.sa_sigaction(SIGSEGV, info, opaque_context);
+}
+
+// Implant our custom SIGSEGV handler
+void install_sigsegv_handler(void) {
+  struct sigaction segv_handler;
+  segv_handler.sa_sigaction = &handle_sigsegv;
+  sigemptyset(&segv_handler.sa_mask);
+  segv_handler.sa_flags = SA_SIGINFO | SA_NODEFER;
+
+  int result = 0;
+  result = sigaction(SIGSEGV, &segv_handler, &default_handler);
+  assert(result == 0);
+}
+
 int main(int argc, char *argv[]) {
   // Save the program arguments for error reporting purposes
   saved_argc = argc;
@@ -405,6 +414,9 @@ int main(int argc, char *argv[]) {
 
   // Initialize the syscall system
   syscall_init();
+
+  // Implant custom SIGSEGV handler
+  install_sigsegv_handler();
 
   // Run the translated program
   SAFE_CAST(stack);

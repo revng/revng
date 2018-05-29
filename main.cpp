@@ -39,6 +39,7 @@ extern "C" {
 PTCInterface ptc = {}; ///< The interface with the PTC library.
 static std::string LibTinycodePath;
 static std::string LibHelpersPath;
+static std::string EarlyLinkedPath;
 
 struct ProgramParameters {
   const char *InputPath;
@@ -72,7 +73,7 @@ static const char *const Usage[] = {
   nullptr,
 };
 
-static void findQemu(const char *Architecture) {
+static void findFiles(const char *Architecture) {
   // TODO: make this optional
   char *FullPath = realpath("/proc/self/exe", nullptr);
   assert(FullPath != nullptr);
@@ -81,29 +82,44 @@ static void findQemu(const char *Architecture) {
 
   // TODO: add other search paths?
   std::vector<std::string> SearchPaths;
-#ifdef QEMU_INSTALL_PATH
-  SearchPaths.push_back(std::string(QEMU_INSTALL_PATH) + "/lib");
-#endif
 #ifdef INSTALL_PATH
   SearchPaths.push_back(std::string(INSTALL_PATH) + "/lib");
 #endif
-  SearchPaths.push_back(Directory + "/../lib");
+  SearchPaths.push_back(Directory);
+#ifdef QEMU_INSTALL_PATH
+  SearchPaths.push_back(std::string(QEMU_INSTALL_PATH) + "/lib");
+#endif
 
+  bool LibtinycodeFound = false;
+  bool EarlyLinkedFound = false;
   for (auto &Path : SearchPaths) {
-    std::stringstream LibraryPath;
-    LibraryPath << Path << "/libtinycode-" << Architecture << ".so";
-    std::stringstream HelpersPath;
-    HelpersPath << Path << "/libtinycode-helpers-" << Architecture << ".ll";
-    if (access(LibraryPath.str().c_str(), F_OK) != -1
-        && access(HelpersPath.str().c_str(), F_OK) != -1) {
-      LibTinycodePath = LibraryPath.str();
-      LibHelpersPath = HelpersPath.str();
-      return;
+
+    if (not LibtinycodeFound) {
+      std::stringstream LibraryPath;
+      LibraryPath << Path << "/libtinycode-" << Architecture << ".so";
+      std::stringstream HelpersPath;
+      HelpersPath << Path << "/libtinycode-helpers-" << Architecture << ".ll";
+      if (access(LibraryPath.str().c_str(), F_OK) != -1
+          && access(HelpersPath.str().c_str(), F_OK) != -1) {
+        LibTinycodePath = LibraryPath.str();
+        LibHelpersPath = HelpersPath.str();
+        LibtinycodeFound = true;
+      }
+    }
+
+    if (not EarlyLinkedFound) {
+      std::stringstream TestPath;
+      TestPath << Path << "/early-linked-" << Architecture << ".ll";
+      if (access(TestPath.str().c_str(), F_OK) != -1) {
+        EarlyLinkedPath = TestPath.str();
+        EarlyLinkedFound = true;
+      }
     }
 
   }
 
-  assert(false && "Couldn't find libtinycode and the helpers");
+  assert(LibtinycodeFound && "Couldn't find libtinycode and the helpers");
+  assert(EarlyLinkedFound && "Couldn't find early-linked.ll");
 }
 
 /// Given an architecture name, loads the appropriate version of the PTC library,
@@ -279,7 +295,7 @@ int main(int argc, const char *argv[]) {
 
   BinaryFile TheBinary(Parameters.InputPath, Parameters.UseSections);
 
-  findQemu(TheBinary.architecture().name());
+  findFiles(TheBinary.architecture().name());
 
   // Load the appropriate libtyncode version
   LibraryPointer PTCLibrary;
@@ -292,6 +308,7 @@ int main(int argc, const char *argv[]) {
                           TargetArchitecture,
                           std::string(Parameters.OutputPath),
                           LibHelpersPath,
+                          EarlyLinkedPath,
                           Parameters.DebugInfo,
                           std::string(Parameters.DebugPath),
                           std::string(Parameters.LinkingInfoPath),

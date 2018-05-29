@@ -5,9 +5,12 @@
 # Test definitions
 set(SRC ${CMAKE_SOURCE_DIR}/tests/Runtime)
 
-set(TEST_CFLAGS "-std=c99 -static -fno-pic -fno-pie -g")
+set(TEST_CFLAGS_BASE "-std=c99 -fno-pic -fno-pie -g -fno-stack-protector")
+set(TEST_CFLAGS_STATIC "${TEST_CFLAGS_BASE} -static")
+set(TEST_CFLAGS "${TEST_CFLAGS_STATIC}")
 set(TEST_CFLAGS_IF_AVAILABLE "-no-pie")
-set(TEST_CFLAGS_NATIVE "${TEST_CFLAGS} ${NO_PIE}")
+set(TEST_CFLAGS_NATIVE_DYNAMIC "${TEST_CFLAGS_BASE} ${NO_PIE}")
+set(TEST_CFLAGS_NATIVE_STATIC "${TEST_CFLAGS_STATIC} ${NO_PIE}")
 set(TESTS "calc" "function_call" "floating_point" "syscall" "global" "printf")
 
 ## calc
@@ -52,15 +55,46 @@ set(TEST_ARGS_global_default "nope")
 
 # Create native executable and tests
 foreach(TEST_NAME ${TESTS})
+  # Build the static native version
   add_executable(test-native-${TEST_NAME} ${TEST_SOURCES_${TEST_NAME}})
-  set_target_properties(test-native-${TEST_NAME} PROPERTIES COMPILE_FLAGS "${TEST_CFLAGS_NATIVE}")
-  set_target_properties(test-native-${TEST_NAME} PROPERTIES LINK_FLAGS "${TEST_CFLAGS_NATIVE}")
+  set_target_properties(test-native-${TEST_NAME} PROPERTIES COMPILE_FLAGS "${TEST_CFLAGS_NATIVE_STATIC}")
+  set_target_properties(test-native-${TEST_NAME} PROPERTIES LINK_FLAGS "${TEST_CFLAGS_NATIVE_STATIC}")
+
+  # Build the dynamic native version
+  add_executable(test-native-dynamic-${TEST_NAME} ${TEST_SOURCES_${TEST_NAME}})
+  set_target_properties(test-native-dynamic-${TEST_NAME} PROPERTIES COMPILE_FLAGS "${TEST_CFLAGS_NATIVE_DYNAMIC}")
+  set_target_properties(test-native-dynamic-${TEST_NAME} PROPERTIES LINK_FLAGS "${TEST_CFLAGS_NATIVE_DYNAMIC}")
+
+  # Translate the dynamic native version
+  add_test(NAME translate-native-dynamic-${TEST_NAME}
+    COMMAND sh -c "${CMAKE_BINARY_DIR}/translate $<TARGET_FILE:test-native-dynamic-${TEST_NAME}> -- --functions-boundaries --use-sections -g ll")
+  set_tests_properties(translate-native-dynamic-${TEST_NAME}
+    PROPERTIES LABELS "runtime;translate-native-dynamic;${TEST_NAME}")
 
   foreach(RUN_NAME ${TEST_RUNS_${TEST_NAME}})
+    # Test for running the native version
     add_test(NAME run-test-native-${TEST_NAME}-${RUN_NAME}
       COMMAND sh -c "$<TARGET_FILE:test-native-${TEST_NAME}> ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${CMAKE_CURRENT_BINARY_DIR}/tests/run-test-native-${TEST_NAME}-${RUN_NAME}.log")
     set_tests_properties(run-test-native-${TEST_NAME}-${RUN_NAME}
         PROPERTIES LABELS "runtime;run-test-native;${TEST_NAME};${RUN_NAME}")
+
+    # Test for running the translated dynamic version
+    add_test(NAME run-translated-test-native-dynamic-${TEST_NAME}-${RUN_NAME}
+      COMMAND sh -c "$<TARGET_FILE:test-native-dynamic-${TEST_NAME}>.translated ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${CMAKE_CURRENT_BINARY_DIR}/tests/run-translated-test-native-dynamic-${TEST_NAME}-${RUN_NAME}.log")
+    set_tests_properties(run-translated-test-native-dynamic-${TEST_NAME}-${RUN_NAME}
+      PROPERTIES DEPENDS translate-native-dynamic-${TEST_NAME}
+                 LABELS "runtime;run-translated-test-native-dynamic;${TEST_NAME};${RUN_NAME}")
+
+    # Check the output of the translated dynamic binary corresponds to the
+    # native one
+    add_test(NAME check-dynamic-${TEST_NAME}-${RUN_NAME}
+      COMMAND "${DIFF}" "${CMAKE_CURRENT_BINARY_DIR}/tests/run-translated-test-native-dynamic-${TEST_NAME}-${RUN_NAME}.log" "${CMAKE_CURRENT_BINARY_DIR}/tests/run-test-native-${TEST_NAME}-${RUN_NAME}.log")
+    set(DEPS "")
+    list(APPEND DEPS "run-translated-test-native-dynamic-${TEST_NAME}-${RUN_NAME}")
+    list(APPEND DEPS "run-test-native-${TEST_NAME}-${RUN_NAME}")
+    set_tests_properties(check-dynamic-${TEST_NAME}-${RUN_NAME}
+      PROPERTIES DEPENDS "${DEPS}"
+                 LABELS "runtime;check-dynamic;${TEST_NAME};${RUN_NAME}")
   endforeach()
 endforeach()
 

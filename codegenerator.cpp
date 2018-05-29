@@ -42,6 +42,7 @@
 #include "codegenerator.h"
 #include "debug.h"
 #include "debughelper.h"
+#include "externaljumpshandler.h"
 #include "functionboundariesdetection.h"
 #include "instructiontranslator.h"
 #include "jumptargetmanager.h"
@@ -62,10 +63,24 @@ make_array(Args&&... args) {
 // Outline the destructor for the sake of privacy in the header
 CodeGenerator::~CodeGenerator() = default;
 
+static std::unique_ptr<Module> parseIR(StringRef Path, LLVMContext &Context) {
+  std::unique_ptr<Module> Result;
+  SMDiagnostic Errors;
+  Result = parseIRFile(Path, Errors, Context);
+
+  if (Result.get() == nullptr) {
+    Errors.print("revamb", dbgs());
+    abort();
+  }
+
+  return Result;
+}
+
 CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              Architecture& Target,
                              std::string Output,
                              std::string Helpers,
+                             std::string EarlyLinked,
                              DebugInfoType DebugInfo,
                              std::string Debug,
                              std::string LinkingInfo,
@@ -90,13 +105,8 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   PTCInstrMDKind = Context.getMDKindID("pi");
   DbgMDKind = Context.getMDKindID("dbg");
 
-  SMDiagnostic Errors;
-  HelpersModule = parseIRFile(Helpers, Errors, Context);
-
-  if (HelpersModule.get() == nullptr) {
-    Errors.print("revamb", dbgs());
-    abort();
-  }
+  HelpersModule = parseIR(Helpers, Context);
+  EarlyLinkedModule = parseIR(EarlyLinked, Context);
 
   if (Coverage.size() == 0)
     Coverage = Output + ".coverage.csv";
@@ -603,13 +613,21 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   //   InstructionAlignment,
   //   DelaySlotSize,
   //   PCRegisterName,
-  //   SPRegisterName
+  //   SPRegisterName,
+  //   ABIRegisters
   // }
+
+  const SmallVector<ABIRegister, 20> &ABIRegisters = Arch.abiRegisters();
+  SmallVector<Metadata*, 20> ABIRegMetadata;
+  for (auto Register : ABIRegisters)
+    ABIRegMetadata.push_back(MDString::get(Context, Register.name()));
+
   auto *Tuple = MDTuple::get(Context, {
     QMD.get(static_cast<uint32_t>(Arch.instructionAlignment())),
     QMD.get(static_cast<uint32_t>(Arch.delaySlotSize())),
     QMD.get("pc"),
     QMD.get(Arch.stackPointerRegister()),
+    QMD.tuple(ArrayRef<Metadata*>(ABIRegMetadata)),
   });
   InputArchMD->addOperand(Tuple);
 
@@ -947,6 +965,18 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   }
 
   JumpTargets.createJTReasonMD();
+
+  // Link early-linked.c
+  // TODO: moving this too earlier seems to break things
+  {
+    Linker TheLinker(*TheModule);
+    bool Result = TheLinker.linkInModule(std::move(EarlyLinkedModule),
+                                         Linker::None);
+    assert(!Result && "Linking failed");
+  }
+
+  ExternalJumpsHandler JumpOutHandler(Binary, JumpTargets, *MainFunction);
+  JumpOutHandler.createExternalJumpsHandler();
 
   JumpTargets.noReturn().cleanup();
 

@@ -160,3 +160,8 @@ OBJ="$LL.o"
       -lz -lm -lrt $("$TOOPT" "$CSV" "$LIBSCSV") -L ./ \
       -o "$OUTPUT" \
       $DISABLE_PIE
+
+UNPATCHED_OUTPUT="$OUTPUT.tmp"
+mv "$OUTPUT" "$UNPATCHED_OUTPUT"
+merge-dynamic.py "$UNPATCHED_OUTPUT" "$INPUT" "$OUTPUT"
+rm "$UNPATCHED_OUTPUT"

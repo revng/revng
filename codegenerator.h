@@ -66,6 +66,7 @@ public:
                 Architecture &Target,
                 std::string Output,
                 std::string Helpers,
+                std::string EarlyLinked,
                 DebugInfoType DebugInfo,
                 std::string Debug,
                 std::string LinkingInfo,
@@ -115,6 +116,7 @@ private:
   llvm::LLVMContext& Context;
   std::unique_ptr<llvm::Module> TheModule;
   std::unique_ptr<llvm::Module> HelpersModule;
+  std::unique_ptr<llvm::Module> EarlyLinkedModule;
   std::string OutputPath;
   std::unique_ptr<DebugHelper> Debug;
   BinaryFile &Binary;

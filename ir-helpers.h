@@ -443,7 +443,7 @@ public:
 
   template<typename T>
   T extract(const llvm::Metadata *MD) {
-    assert(false);
+    abort();
   }
 
 private:
@@ -453,6 +453,12 @@ private:
 
 template<>
 inline uint32_t QuickMetadata::extract<uint32_t>(const llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getLimitedValue(C->getValue());
+}
+
+template<>
+inline uint64_t QuickMetadata::extract<uint64_t>(const llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return getLimitedValue(C->getValue());
 }

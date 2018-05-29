@@ -47,7 +47,12 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
   StringRef SyscallNumberRegister = "";
   StringRef StackPointerRegister = "";
   ArrayRef<uint64_t> NoReturnSyscalls = { };
+  SmallVector<ABIRegister, 20> ABIRegisters;
   unsigned DelaySlotSize = 0;
+  unsigned PCMContextIndex = ABIRegister::NotInMContext;
+  llvm::StringRef WriteRegisterAsm = "";
+  llvm::StringRef ReadRegisterAsm = "";
+  llvm::StringRef JumpAsm = "";
   switch (TheBinary->getArch()) {
   case Triple::x86:
     InstructionAlignment = 1;
@@ -70,6 +75,54 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
       0x3c, // exit
       0x3b // execve
     };
+    PCMContextIndex = 0x10;
+
+    // The offsets associated to the registers have been obtained running the
+    // following command:
+    //
+    // scripts/compile-time-constants.py gcc ucontext.c
+    //
+    // where `ucontext.c` is:
+    //
+    // #define _GNU_SOURCE
+    // #include <sys/ucontext.h>
+    // #include <stdint.h>
+    //
+    // static ucontext_t UContext;
+    //
+    // #define REGISTER_OFFSET(reg) const int MContextIndex ## reg = REG_ ## reg
+    //
+    // REGISTER_OFFSET(R8);
+    // REGISTER_OFFSET(R9);
+    // REGISTER_OFFSET(R10);
+    // REGISTER_OFFSET(R11);
+    // REGISTER_OFFSET(R12);
+    // REGISTER_OFFSET(R13);
+    // REGISTER_OFFSET(R14);
+    // REGISTER_OFFSET(R15);
+    // REGISTER_OFFSET(RDI);
+    // REGISTER_OFFSET(RSI);
+    // REGISTER_OFFSET(RBP);
+    // REGISTER_OFFSET(RBX);
+    // REGISTER_OFFSET(RDX);
+    // REGISTER_OFFSET(RAX);
+    // REGISTER_OFFSET(RCX);
+    // REGISTER_OFFSET(RSP);
+    // REGISTER_OFFSET(RIP);
+
+    ABIRegisters = { { "rax", 0xD }, { "rbx", 0xB }, { "rcx", 0xE },
+                     { "rdx", 0xC }, { "rbp", 0xA }, { "rsp", 0xF },
+                     { "rsi", 0x9 }, { "rdi", 0x8 }, { "r8", 0x0 },
+                     { "r9", 0x1 }, { "r10", 0x2 }, { "r11", 0x3 },
+                     { "r12", 0x4 }, { "r13", 0x5 }, { "r14", 0x6 },
+                     { "r15", 0x7 }, { "xmm0", "state_0x8558" },
+                     { "xmm1", "state_0x8598" }, { "xmm2", "state_0x85d8" },
+                     { "xmm3", "state_0x8618" }, { "xmm4", "state_0x8658" },
+                     { "xmm5", "state_0x8698" }, { "xmm6", "state_0x86d8" },
+                     { "xmm7", "state_0x8718" } };
+    WriteRegisterAsm = "movq $0, %REGISTER";
+    ReadRegisterAsm = "movq %REGISTER, $0";
+    JumpAsm = "movq $0, %r11; jmpq *%r11";
     break;
   case Triple::arm:
     InstructionAlignment = 4;
@@ -81,6 +134,9 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
       0x1, // exit
       0xb // execve
     };
+    ABIRegisters = { { "r0" }, { "r1" }, { "r2" }, { "r3" }, { "r4" },
+                     { "r5" }, { "r6" }, { "r7" }, { "r8" }, { "r9" },
+                     { "r10" }, { "r11" }, { "r12" }, { "r13" }, { "r14" } };
     break;
   case Triple::mips:
     InstructionAlignment = 4;
@@ -93,6 +149,10 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
       0xfab // execve
     };
     DelaySlotSize = 1;
+    ABIRegisters = { {"v0" }, { "v1" }, { "a0" }, { "a1" }, { "a2" }, { "a3" },
+                     { "s0" }, { "s1" }, { "s2", }, { "s3" }, { "s4" },
+                     { "s5" }, { "s6" }, { "s7" }, { "gp" }, { "sp" },
+                     { "fp" }, { "ra" } };
     break;
   default:
     assert(false);
@@ -107,7 +167,12 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
                                  SyscallNumberRegister,
                                  NoReturnSyscalls,
                                  DelaySlotSize,
-                                 StackPointerRegister);
+                                 StackPointerRegister,
+                                 ABIRegisters,
+                                 PCMContextIndex,
+                                 WriteRegisterAsm,
+                                 ReadRegisterAsm,
+                                 JumpAsm);
 
   assert(TheBinary->getFileFormatName().startswith("ELF")
          && "Only the ELF file format is currently supported");
