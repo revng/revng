@@ -206,6 +206,10 @@ public:
   const std::set<uint64_t> &landingPads() const { return LandingPads; }
   uint64_t entryPoint() const { return EntryPoint; }
 
+  const std::vector<std::string> &neededLibraryNames() const {
+    return NeededLibraryNames;
+  }
+
   //
   // ELF specific accessors
   //
@@ -272,6 +276,7 @@ private:
   Architecture TheArchitecture;
   std::vector<SymbolInfo> Symbols;
   std::vector<SegmentInfo> Segments;
+  std::vector<std::string> NeededLibraryNames;
   std::set<uint64_t> LandingPads; ///< the set of the landing pad addresses
                                   ///  collected from .eh_frame
 

@@ -108,12 +108,11 @@ add_executable(revamb-dump dump.cpp collectcfg.cpp collectnoreturn.cpp debug.cpp
 target_link_libraries(revamb-dump ${LLVM_LIBRARIES})
 install(TARGETS revamb-dump RUNTIME DESTINATION bin)
 
-configure_file(li-csv-to-ld-options "${CMAKE_BINARY_DIR}/li-csv-to-ld-options"
-  COPYONLY)
+configure_file(csv-to-ld-options "${CMAKE_BINARY_DIR}/csv-to-ld-options" COPYONLY)
 configure_file(support.c "${CMAKE_BINARY_DIR}/support.c" COPYONLY)
 configure_file(support.h "${CMAKE_BINARY_DIR}/support.h" COPYONLY)
 configure_file(translate "${CMAKE_BINARY_DIR}/translate" COPYONLY)
-install(PROGRAMS translate li-csv-to-ld-options DESTINATION bin)
+install(PROGRAMS translate csv-to-ld-options DESTINATION bin)
 install(FILES support.c DESTINATION share/revamb)
 
 # Remove -rdynamic

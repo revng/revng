@@ -120,7 +120,7 @@ columns:
         where it should be placed by the linker.
 :end: Corresponding end address.
 
-The `li-csv-to-ld-options` script converts this CSV file into parameters for the
+The `csv-to-ld-options` script converts this CSV file into parameters for the
 linker to enforce the location of this sections.
 
 As a result of this operation, the actual translated code might end up in an
@@ -130,7 +130,7 @@ In conclusion, to link the final program:
 
 .. code-block:: sh
 
-    gcc $(li-csv-to-ld-options translated.ll.li.csv) \
+    gcc $(csv-to-ld-options translated.ll.li.csv) \
         translated.o \
         -lz -lm -lrt \
         -o translated.elf

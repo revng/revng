@@ -110,7 +110,7 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   if (LinkingInfo.size() == 0)
     LinkingInfo = OutputPath + ".li.csv";
   std::ofstream LinkingInfoStream(LinkingInfo);
-  LinkingInfoStream << "name,start,end" << std::endl;
+  LinkingInfoStream << "name,start,end\n";
 
   auto *Uint8Ty = Type::getInt8Ty(Context);
   auto *ElfHeaderHelper = new GlobalVariable(*TheModule,
@@ -187,10 +187,15 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
     LinkingInfoStream << "." << Name
                       << ",0x" << std::hex << Segment.StartVirtualAddress
                       << ",0x" << std::hex << Segment.EndVirtualAddress
-                      << std::endl;
+                      << "\n";
 
   }
 
+  // Write needed libraries CSV
+  std::string NeededLibs = OutputPath + ".need.csv";
+  std::ofstream NeededLibsStream(NeededLibs);
+  for (const std::string &Library : Binary.neededLibraryNames())
+    NeededLibsStream << Library << "\n";
 }
 
 Function *CodeGenerator::importHelperFunctionDefinition(StringRef Name) {
