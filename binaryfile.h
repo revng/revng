@@ -132,7 +132,7 @@ struct Endianess<T, llvm::object::ELF64BE> {
 
 /// \brief Read a pointer-sized integer according to the given ELF type EE
 template<typename EE>
-static inline uint64_t readPointer(const uint8_t *Buf);
+inline uint64_t readPointer(const uint8_t *Buf);
 
 template<>
 inline uint64_t readPointer<llvm::object::ELF32LE>(const uint8_t *Buf) {
