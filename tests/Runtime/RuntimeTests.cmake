@@ -5,10 +5,13 @@
 # Test definitions
 set(SRC ${CMAKE_SOURCE_DIR}/tests/Runtime)
 
-set(TEST_CFLAGS "-std=c99 -static -fno-pic -fno-pie -g")
+set(TEST_CFLAGS_BASE "-std=c99 -fno-pic -fno-pie -g -fno-stack-protector")
+set(TEST_CFLAGS_STATIC "${TEST_CFLAGS_BASE} -static")
+set(TEST_CFLAGS "${TEST_CFLAGS_STATIC}")
 set(TEST_CFLAGS_IF_AVAILABLE "-no-pie")
-set(TEST_CFLAGS_NATIVE "${TEST_CFLAGS} ${NO_PIE}")
-set(TESTS "calc" "function_call" "floating_point" "syscall" "global")
+set(TEST_CFLAGS_NATIVE_DYNAMIC "${TEST_CFLAGS_BASE} ${NO_PIE}")
+set(TEST_CFLAGS_NATIVE_STATIC "${TEST_CFLAGS_STATIC} ${NO_PIE}")
+set(TESTS "calc" "function_call" "floating_point" "syscall" "global" "printf")
 
 ## calc
 set(TEST_SOURCES_calc "${SRC}/calc.c")
@@ -39,20 +42,59 @@ set(TEST_ARGS_syscall_default "nope")
 ## global
 set(TEST_SOURCES_global "${SRC}/global.c")
 
+## printf
+set(TEST_SOURCES_printf "${SRC}/printf.c")
+
+set(TEST_RUNS_printf "one" "two" "threee")
+set(TEST_ARGS_printf_one "one")
+set(TEST_ARGS_printf_two "one two")
+set(TEST_ARGS_printf_three "one two three")
+
 set(TEST_RUNS_global "default")
 set(TEST_ARGS_global_default "nope")
 
 # Create native executable and tests
 foreach(TEST_NAME ${TESTS})
+  # Build the static native version
   add_executable(test-native-${TEST_NAME} ${TEST_SOURCES_${TEST_NAME}})
-  set_target_properties(test-native-${TEST_NAME} PROPERTIES COMPILE_FLAGS "${TEST_CFLAGS_NATIVE}")
-  set_target_properties(test-native-${TEST_NAME} PROPERTIES LINK_FLAGS "${TEST_CFLAGS_NATIVE}")
+  set_target_properties(test-native-${TEST_NAME} PROPERTIES COMPILE_FLAGS "${TEST_CFLAGS_NATIVE_STATIC}")
+  set_target_properties(test-native-${TEST_NAME} PROPERTIES LINK_FLAGS "${TEST_CFLAGS_NATIVE_STATIC}")
+
+  # Build the dynamic native version
+  add_executable(test-native-dynamic-${TEST_NAME} ${TEST_SOURCES_${TEST_NAME}})
+  set_target_properties(test-native-dynamic-${TEST_NAME} PROPERTIES COMPILE_FLAGS "${TEST_CFLAGS_NATIVE_DYNAMIC}")
+  set_target_properties(test-native-dynamic-${TEST_NAME} PROPERTIES LINK_FLAGS "${TEST_CFLAGS_NATIVE_DYNAMIC}")
+
+  # Translate the dynamic native version
+  add_test(NAME translate-native-dynamic-${TEST_NAME}
+    COMMAND sh -c "${CMAKE_BINARY_DIR}/translate $<TARGET_FILE:test-native-dynamic-${TEST_NAME}> -- --functions-boundaries --use-sections -g ll")
+  set_tests_properties(translate-native-dynamic-${TEST_NAME}
+    PROPERTIES LABELS "runtime;translate-native-dynamic;${TEST_NAME}")
 
   foreach(RUN_NAME ${TEST_RUNS_${TEST_NAME}})
+    # Test for running the native version
     add_test(NAME run-test-native-${TEST_NAME}-${RUN_NAME}
       COMMAND sh -c "$<TARGET_FILE:test-native-${TEST_NAME}> ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${CMAKE_CURRENT_BINARY_DIR}/tests/run-test-native-${TEST_NAME}-${RUN_NAME}.log")
     set_tests_properties(run-test-native-${TEST_NAME}-${RUN_NAME}
         PROPERTIES LABELS "runtime;run-test-native;${TEST_NAME};${RUN_NAME}")
+
+    # Test for running the translated dynamic version
+    add_test(NAME run-translated-test-native-dynamic-${TEST_NAME}-${RUN_NAME}
+      COMMAND sh -c "$<TARGET_FILE:test-native-dynamic-${TEST_NAME}>.translated ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${CMAKE_CURRENT_BINARY_DIR}/tests/run-translated-test-native-dynamic-${TEST_NAME}-${RUN_NAME}.log")
+    set_tests_properties(run-translated-test-native-dynamic-${TEST_NAME}-${RUN_NAME}
+      PROPERTIES DEPENDS translate-native-dynamic-${TEST_NAME}
+                 LABELS "runtime;run-translated-test-native-dynamic;${TEST_NAME};${RUN_NAME}")
+
+    # Check the output of the translated dynamic binary corresponds to the
+    # native one
+    add_test(NAME check-dynamic-${TEST_NAME}-${RUN_NAME}
+      COMMAND "${DIFF}" "${CMAKE_CURRENT_BINARY_DIR}/tests/run-translated-test-native-dynamic-${TEST_NAME}-${RUN_NAME}.log" "${CMAKE_CURRENT_BINARY_DIR}/tests/run-test-native-${TEST_NAME}-${RUN_NAME}.log")
+    set(DEPS "")
+    list(APPEND DEPS "run-translated-test-native-dynamic-${TEST_NAME}-${RUN_NAME}")
+    list(APPEND DEPS "run-test-native-${TEST_NAME}-${RUN_NAME}")
+    set_tests_properties(check-dynamic-${TEST_NAME}-${RUN_NAME}
+      PROPERTIES DEPENDS "${DEPS}"
+                 LABELS "runtime;check-dynamic;${TEST_NAME};${RUN_NAME}")
   endforeach()
 endforeach()
 
@@ -85,42 +127,15 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
 
     # Translate the compiled binary
     add_test(NAME translate-${TEST_NAME}-${ARCH}
-      COMMAND sh -c "$<TARGET_FILE:revamb> --functions-boundaries --use-sections -g ll ${BINARY} ${BINARY}.ll")
+      COMMAND sh -c "${CMAKE_BINARY_DIR}/translate ${BINARY} -- --functions-boundaries --use-sections -g ll")
     set_tests_properties(translate-${TEST_NAME}-${ARCH}
       PROPERTIES LABELS "runtime;translate;${TEST_NAME};${ARCH}")
 
-    # Test of function isolation with revamb-dump
-    add_test(NAME function-isolation-${TEST_NAME}-${ARCH}
-    COMMAND sh -c "$<TARGET_FILE:revamb-dump> --functions-isolation ${BINARY}.isolated-functions.ll ${BINARY}.ll")
-    set_tests_properties(function-isolation-${TEST_NAME}-${ARCH}
-      PROPERTIES DEPENDS translate-${TEST_NAME}-${ARCH}
-                 LABELS "runtime;function-isolation;${TEST_NAME}-${ARCH}")
-
-    # Compose the command line to link support.c and the translated binaries
-    string(REPLACE "-" "_" NORMALIZED_ARCH "${ARCH}")
-    compile_executable("$(${CMAKE_BINARY_DIR}/li-csv-to-ld-options ${BINARY}.ll.li.csv) ${BINARY}${CMAKE_C_OUTPUT_EXTENSION} ${CMAKE_BINARY_DIR}/support.c -DTARGET_${NORMALIZED_ARCH} -lz -lm -lrt -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -g -fno-pie ${NO_PIE}"
-      "${BINARY}.translated"
-      COMPILE_TRANSLATED)
-
-    # Compose the command line to link support.c and the translated binaries to which we have applied function isolation
-    string(REPLACE "-" "_" NORMALIZED_ARCH "${ARCH}")
-    compile_executable("$(${CMAKE_BINARY_DIR}/li-csv-to-ld-options ${BINARY}.ll.li.csv) ${BINARY}.isolated-functions${CMAKE_C_OUTPUT_EXTENSION} ${CMAKE_BINARY_DIR}/support.c -DTARGET_${NORMALIZED_ARCH} -lz -lm -lrt -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -g -fno-pie ${NO_PIE}"
-      "${BINARY}.isolated-functions.translated"
-    COMPILE_TRANSLATED_ISOLATED)
-
-    # Compile the translated LLVM IR with llc and link using the previously composed command line
-    add_test(NAME compile-translated-${TEST_NAME}-${ARCH}
-      COMMAND sh -c "${LLC} -O0 -filetype=obj ${BINARY}.ll -o ${BINARY}${CMAKE_C_OUTPUT_EXTENSION} && ${COMPILE_TRANSLATED}")
-    set_tests_properties(compile-translated-${TEST_NAME}-${ARCH}
-      PROPERTIES DEPENDS translate-${TEST_NAME}-${ARCH}
-                 LABELS "runtime;compile-translated;${TEST_NAME};${ARCH}")
-
-    # Compile the translated LLVM IR after function isolation pass with llc and link using the previously composed command line
-    add_test(NAME compile-translated-isolated-${TEST_NAME}-${ARCH}
-    COMMAND sh -c "${LLC} -O0 -filetype=obj ${BINARY}.isolated-functions.ll -o ${BINARY}.isolated-functions${CMAKE_C_OUTPUT_EXTENSION} && ${COMPILE_TRANSLATED_ISOLATED}")
-    set_tests_properties(compile-translated-isolated-${TEST_NAME}-${ARCH}
-    PROPERTIES DEPENDS function-isolation-${TEST_NAME}-${ARCH}
-              LABELS "runtime;compile-translated;function-isolation;${TEST_NAME};${ARCH}")
+    # Translate the compiled binary with function isolation
+    add_test(NAME translate-with-isolation-${TEST_NAME}-${ARCH}
+      COMMAND sh -c "cp ${BINARY} ${BINARY}.isolated-functions && ${CMAKE_BINARY_DIR}/translate -i ${BINARY}.isolated-functions -- --functions-boundaries --use-sections -g ll")
+    set_tests_properties(translate-${TEST_NAME}-${ARCH}
+      PROPERTIES LABELS "runtime;translate-with-isolation;${TEST_NAME};${ARCH}")
 
     # For each set of arguments
     foreach(RUN_NAME ${TEST_RUNS_${TEST_NAME}})
@@ -128,17 +143,18 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
       add_test(NAME run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
         COMMAND sh -c "${BINARY}.translated ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${BINARY}-run-translated-test-${RUN_NAME}-${ARCH}.log")
       set_tests_properties(run-translated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
-        PROPERTIES DEPENDS compile-translated-${TEST_NAME}-${ARCH}
+        PROPERTIES DEPENDS translate-${TEST_NAME}-${ARCH}
                    LABELS "runtime;run-translated-test;${TEST_NAME};${RUN_NAME};${ARCH}")
 
        # Test to run the translated program after function isolation pass
        add_test(NAME run-translated-isolated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
        COMMAND sh -c "${BINARY}.isolated-functions.translated ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${BINARY}-run-translated-isolated-test-${RUN_NAME}-${ARCH}.log")
        set_tests_properties(run-translated-isolated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
-         PROPERTIES DEPENDS compile-translated-isolated-${TEST_NAME}-${ARCH}
+         PROPERTIES DEPENDS translate-with-isolation-${TEST_NAME}-${ARCH}
                     LABELS "runtime;run-translated-test;function-isolation;${TEST_NAME};${RUN_NAME};${ARCH}")
 
-      # Check the output of the translated binary corresponds to the native's one
+      # Check the output of the translated binary corresponds to the native's
+      # one
       add_test(NAME check-with-native-${TEST_NAME}-${RUN_NAME}-${ARCH}
         COMMAND "${DIFF}" "${BINARY}-run-translated-test-${RUN_NAME}-${ARCH}.log" "${CMAKE_CURRENT_BINARY_DIR}/tests/run-test-native-${TEST_NAME}-${RUN_NAME}.log")
       set(DEPS "")
@@ -148,7 +164,8 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
         PROPERTIES DEPENDS "${DEPS}"
                    LABELS "runtime;check-with-native;${TEST_NAME};${RUN_NAME};${ARCH}")
 
-      # Check the output of the translated and isolated binary corresponds to the native's one
+      # Check the output of the translated and isolated binary corresponds to
+      # the native's one
       add_test(NAME check-isolated-with-native-${TEST_NAME}-${RUN_NAME}-${ARCH}
       COMMAND "${DIFF}" "${BINARY}-run-translated-isolated-test-${RUN_NAME}-${ARCH}.log" "${CMAKE_CURRENT_BINARY_DIR}/tests/run-test-native-${TEST_NAME}-${RUN_NAME}.log")
       set(DEPS "")
@@ -175,16 +192,16 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
         PROPERTIES DEPENDS "${DEPS}"
                    LABELS "runtime;check-with-qemu;${TEST_NAME};${RUN_NAME};${ARCH}")
 
-      # Check the output of the translated and isolated binary corresponds to the qemu-user's
-      # one
+      # Check the output of the translated and isolated binary corresponds to
+      # the qemu-user's one
       add_test(NAME check-isolated-with-qemu-${TEST_NAME}-${RUN_NAME}-${ARCH}
       COMMAND "${DIFF}" "${BINARY}-run-translated-isolated-test-${RUN_NAME}-${ARCH}.log" "${BINARY}-run-qemu-test-${RUN_NAME}.log")
       set(DEPS "")
       list(APPEND DEPS "run-translated-isolated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}")
       list(APPEND DEPS "run-qemu-test-${TEST_NAME}-${RUN_NAME}-${ARCH}")
       set_tests_properties(check-isolated-with-qemu-${TEST_NAME}-${RUN_NAME}-${ARCH}
-       PROPERTIES DEPENDS "${DEPS}"
-                  LABELS "runtime;check-with-qemu;function-isolation;${TEST_NAME};${RUN_NAME};${ARCH}")
+        PROPERTIES DEPENDS "${DEPS}"
+                   LABELS "runtime;check-with-qemu;function-isolation;${TEST_NAME};${RUN_NAME};${ARCH}")
 
     endforeach()
 

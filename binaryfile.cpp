@@ -47,7 +47,12 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
   StringRef SyscallNumberRegister = "";
   StringRef StackPointerRegister = "";
   ArrayRef<uint64_t> NoReturnSyscalls = { };
+  SmallVector<ABIRegister, 20> ABIRegisters;
   unsigned DelaySlotSize = 0;
+  unsigned PCMContextIndex = ABIRegister::NotInMContext;
+  llvm::StringRef WriteRegisterAsm = "";
+  llvm::StringRef ReadRegisterAsm = "";
+  llvm::StringRef JumpAsm = "";
   switch (TheBinary->getArch()) {
   case Triple::x86:
     InstructionAlignment = 1;
@@ -70,6 +75,54 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
       0x3c, // exit
       0x3b // execve
     };
+    PCMContextIndex = 0x10;
+
+    // The offsets associated to the registers have been obtained running the
+    // following command:
+    //
+    // scripts/compile-time-constants.py gcc ucontext.c
+    //
+    // where `ucontext.c` is:
+    //
+    // #define _GNU_SOURCE
+    // #include <sys/ucontext.h>
+    // #include <stdint.h>
+    //
+    // static ucontext_t UContext;
+    //
+    // #define REGISTER_OFFSET(reg) const int MContextIndex ## reg = REG_ ## reg
+    //
+    // REGISTER_OFFSET(R8);
+    // REGISTER_OFFSET(R9);
+    // REGISTER_OFFSET(R10);
+    // REGISTER_OFFSET(R11);
+    // REGISTER_OFFSET(R12);
+    // REGISTER_OFFSET(R13);
+    // REGISTER_OFFSET(R14);
+    // REGISTER_OFFSET(R15);
+    // REGISTER_OFFSET(RDI);
+    // REGISTER_OFFSET(RSI);
+    // REGISTER_OFFSET(RBP);
+    // REGISTER_OFFSET(RBX);
+    // REGISTER_OFFSET(RDX);
+    // REGISTER_OFFSET(RAX);
+    // REGISTER_OFFSET(RCX);
+    // REGISTER_OFFSET(RSP);
+    // REGISTER_OFFSET(RIP);
+
+    ABIRegisters = { { "rax", 0xD }, { "rbx", 0xB }, { "rcx", 0xE },
+                     { "rdx", 0xC }, { "rbp", 0xA }, { "rsp", 0xF },
+                     { "rsi", 0x9 }, { "rdi", 0x8 }, { "r8", 0x0 },
+                     { "r9", 0x1 }, { "r10", 0x2 }, { "r11", 0x3 },
+                     { "r12", 0x4 }, { "r13", 0x5 }, { "r14", 0x6 },
+                     { "r15", 0x7 }, { "xmm0", "state_0x8558" },
+                     { "xmm1", "state_0x8598" }, { "xmm2", "state_0x85d8" },
+                     { "xmm3", "state_0x8618" }, { "xmm4", "state_0x8658" },
+                     { "xmm5", "state_0x8698" }, { "xmm6", "state_0x86d8" },
+                     { "xmm7", "state_0x8718" } };
+    WriteRegisterAsm = "movq $0, %REGISTER";
+    ReadRegisterAsm = "movq %REGISTER, $0";
+    JumpAsm = "movq $0, %r11; jmpq *%r11";
     break;
   case Triple::arm:
     InstructionAlignment = 4;
@@ -81,6 +134,9 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
       0x1, // exit
       0xb // execve
     };
+    ABIRegisters = { { "r0" }, { "r1" }, { "r2" }, { "r3" }, { "r4" },
+                     { "r5" }, { "r6" }, { "r7" }, { "r8" }, { "r9" },
+                     { "r10" }, { "r11" }, { "r12" }, { "r13" }, { "r14" } };
     break;
   case Triple::mips:
     InstructionAlignment = 4;
@@ -93,6 +149,10 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
       0xfab // execve
     };
     DelaySlotSize = 1;
+    ABIRegisters = { {"v0" }, { "v1" }, { "a0" }, { "a1" }, { "a2" }, { "a3" },
+                     { "s0" }, { "s1" }, { "s2", }, { "s3" }, { "s4" },
+                     { "s5" }, { "s6" }, { "s7" }, { "gp" }, { "sp" },
+                     { "fp" }, { "ra" } };
     break;
   default:
     assert(false);
@@ -107,7 +167,12 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
                                  SyscallNumberRegister,
                                  NoReturnSyscalls,
                                  DelaySlotSize,
-                                 StackPointerRegister);
+                                 StackPointerRegister,
+                                 ABIRegisters,
+                                 PCMContextIndex,
+                                 WriteRegisterAsm,
+                                 ReadRegisterAsm,
+                                 JumpAsm);
 
   assert(TheBinary->getFileFormatName().startswith("ELF")
          && "Only the ELF file format is currently supported");
@@ -136,25 +201,28 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, bool UseSections) {
   object::ELFFile<T> TheELF(TheBinary->getData(), EC);
   assert(!EC && "Error while loading the ELF file");
 
-  // Look for static or dynamic symbols
+  // Look for static or dynamic symbols and relocations
   using Elf_ShdrPtr = decltype(&(*TheELF.sections().begin()));
+  using Elf_PhdrPtr = decltype(&(*TheELF.program_headers().begin()));
   Elf_ShdrPtr SymtabShdr = nullptr;
+  Elf_PhdrPtr DynamicPhdr = nullptr;
+  Optional<uint64_t> DynamicAddress;
   Optional<uint64_t> EHFrameAddress;
   Optional<uint64_t> EHFrameSize;
   Optional<uint64_t> EHFrameHdrAddress;
 
-  for (auto &Section : TheELF.sections()){
-    auto Name = TheELF.getSectionName(&Section);
-    if (Name) {
+  for (auto &Section : TheELF.sections()) {
+    if (ErrorOr<StringRef> Name = TheELF.getSectionName(&Section)) {
       if (*Name == ".symtab") {
-        // .symtab might override .dynsym
-        SymtabShdr = &Section;
-      } else if (SymtabShdr == nullptr && *Name == ".dynsym") {
+        assert(SymtabShdr == nullptr && "Duplicate .symtab");
         SymtabShdr = &Section;
       } else if (*Name == ".eh_frame") {
-        assert(!EHFrameAddress && "Duplicate .eh_frame");
+        assert(not EHFrameAddress && "Duplicate .eh_frame");
         EHFrameAddress = static_cast<uint64_t>(Section.sh_addr);
         EHFrameSize = static_cast<uint64_t>(Section.sh_size);
+      } else if (*Name == ".dynamic") {
+        assert(not DynamicAddress && "Duplicate .dynamic");
+        DynamicAddress = static_cast<uint64_t>(Section.sh_addr);
       }
     }
   }
@@ -162,8 +230,8 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, bool UseSections) {
   // If we found a symbol table
   if (SymtabShdr != nullptr && SymtabShdr->sh_link != 0) {
     // Obtain a reference to the string table
-    auto *Strtab = TheELF.getSection(SymtabShdr->sh_link).get();
-    auto StrtabArray = TheELF.getSectionContents(Strtab).get();
+    const Elf_ShdrPtr Strtab = TheELF.getSection(SymtabShdr->sh_link).get();
+    ArrayRef<uint8_t> StrtabArray = TheELF.getSectionContents(Strtab).get();
     StringRef StrtabContent(reinterpret_cast<const char *>(StrtabArray.data()),
                             StrtabArray.size());
 
@@ -187,6 +255,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, bool UseSections) {
   // assign them a section and output information about them in the linking info
   // CSV
   using Elf_Phdr = const typename object::ELFFile<T>::Elf_Phdr;
+  using Elf_Dyn = const typename object::ELFFile<T>::Elf_Dyn;
   for (Elf_Phdr &ProgramHeader : TheELF.program_headers()) {
     switch (ProgramHeader.p_type) {
     case ELF::PT_LOAD:
@@ -235,9 +304,19 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, bool UseSections) {
       assert(!EHFrameHdrAddress);
       EHFrameHdrAddress = ProgramHeader.p_vaddr;
       break;
+
+    case ELF::PT_DYNAMIC:
+      assert(DynamicPhdr == nullptr && "Duplicate .dynamic program header");
+      DynamicPhdr = &ProgramHeader;
+      assert(((not DynamicAddress)
+              or (DynamicPhdr->p_vaddr == *DynamicAddress))
+             and ".dynamic and PT_DYNAMIC have different addresses");
+      break;
     }
 
   }
+
+  assert((DynamicPhdr != nullptr) == (DynamicAddress.hasValue()));
 
   Optional<uint64_t> FDEsCount;
   if (EHFrameHdrAddress) {
@@ -254,6 +333,40 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, bool UseSections) {
   if (EHFrameAddress)
     parseEHFrame<T>(*EHFrameAddress, FDEsCount, EHFrameSize);
 
+  // Search for needed shared libraries in the .dynamic table
+  if (DynamicPhdr != nullptr) {
+    SmallVector<uint64_t, 10> NeededLibraryNameOffsets;
+    StringRef Dynstr;
+    Optional<uint64_t> DynstrSize;
+    for (Elf_Dyn &DynamicTag : *TheELF.dynamic_table(DynamicPhdr)) {
+      switch(DynamicTag.getTag()) {
+        case ELF::DT_NEEDED:
+          NeededLibraryNameOffsets.push_back(DynamicTag.getVal());
+          break;
+
+        case ELF::DT_STRTAB: {
+          Optional<ArrayRef<uint8_t>> DynstrData;
+          DynstrData = getAddressData(DynamicTag.getPtr());
+          assert(DynstrData.hasValue() &&
+                 ".dynamic string table not available in any segment");
+          Dynstr = StringRef(reinterpret_cast<const char *>(DynstrData->data()),
+                             DynstrData->size());
+        } break;
+
+        case ELF::DT_STRSZ:
+          DynstrSize = DynamicTag.getVal();
+          break;
+
+      }
+    }
+
+    assert(DynstrSize.hasValue() && *DynstrSize < Dynstr.size());
+    Dynstr = StringRef(Dynstr.data(), *DynstrSize);
+
+    for(auto Offset : NeededLibraryNameOffsets)
+      NeededLibraryNames.push_back(Dynstr.slice(Offset, *DynstrSize).data());
+
+  }
 }
 
 //

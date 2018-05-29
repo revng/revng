@@ -14,11 +14,11 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 
 // Local includes
+#include "commonconstants.h"
 #include "debug.h"
 #include "generatedcodebasicinfo.h"
 #include "ir-helpers.h"
 #include "isolatefunctions.h"
-#include "support.h"
 
 using namespace llvm;
 
