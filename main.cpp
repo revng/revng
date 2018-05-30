@@ -86,6 +86,7 @@ static void findFiles(const char *Architecture) {
   std::vector<std::string> SearchPaths;
 #ifdef INSTALL_PATH
   SearchPaths.push_back(std::string(INSTALL_PATH) + "/lib");
+  SearchPaths.push_back(std::string(INSTALL_PATH) + "/share/revamb");
 #endif
   SearchPaths.push_back(Directory);
 #ifdef QEMU_INSTALL_PATH
