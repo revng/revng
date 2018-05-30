@@ -686,6 +686,27 @@ Value *SET::handleInstruction(Instruction *Target, Value *V) {
       OS.insert(Call);
       return Call->getArgOperand(0);
     }
+  } else if (auto *Select = dyn_cast<SelectInst>(V)) {
+    Value *TrueVal = Select->getTrueValue();
+    Value *FalseVal = Select->getFalseValue();
+    bool IsTrueConstant = isa<ConstantInt>(TrueVal);
+    bool IsFalseConstant = isa<ConstantInt>(FalseVal);
+
+    if (IsTrueConstant or IsFalseConstant) {
+
+      if (IsTrueConstant)
+        OS.explore(cast<Constant>(TrueVal));
+
+      if (IsFalseConstant)
+        OS.explore(cast<Constant>(FalseVal));
+
+      if (not(IsTrueConstant or IsFalseConstant)) {
+        if (OS.insertIfNew(Select))
+          return IsTrueConstant ? FalseVal : TrueVal;
+      } else {
+        return nullptr;
+      }
+    }
   } // End of the switch over instruction type
 
   if (!Handled)
