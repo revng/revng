@@ -45,7 +45,7 @@ set(TEST_SOURCES_global "${SRC}/global.c")
 ## printf
 set(TEST_SOURCES_printf "${SRC}/printf.c")
 
-set(TEST_RUNS_printf "one" "two" "threee")
+set(TEST_RUNS_printf "one" "two" "three")
 set(TEST_ARGS_printf_one "one")
 set(TEST_ARGS_printf_two "one two")
 set(TEST_ARGS_printf_three "one two three")

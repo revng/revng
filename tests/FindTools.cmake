@@ -18,42 +18,14 @@ set(QEMU_LIB_PATH "${QEMU_INSTALL_PATH}/lib")
 
 # We can test an architecture if we have a compiler and a libtinycode-*.so
 foreach(ARCH ${SUPPORTED_ARCHITECTURES})
-  set(C_COMPILER_${ARCH} "")
-
   find_library(LIBTINYCODE_${ARCH} "libtinycode-${ARCH}.so"
     HINTS "${QEMU_LIB_PATH}" "${CMAKE_INSTALL_PREFIX}/lib")
   find_program(QEMU_${ARCH} qemu-${ARCH} HINTS "${QEMU_BIN_PATH}")
 
-  # Try to to autodetect the compiler looking for arch*-(musl|uclibc)*-gcc in
-  # PATH
-  string(REPLACE ":" ";" PATH "$ENV{PATH}")
-  foreach(SEARCH_PATH IN LISTS PATH)
-    if (NOT C_COMPILER_${ARCH})
-      set(MUSL_TOOLCHAIN "")
-      set(UCLIBC_TOOLCHAIN "")
-      set(TOOLCHAIN "")
-
-      file(GLOB MUSL_TOOLCHAIN "${SEARCH_PATH}/${ARCH}*-musl*-gcc")
-      file(GLOB UCLIBC_TOOLCHAIN "${SEARCH_PATH}/${ARCH}*-uclibc*-gcc")
-      if(MUSL_TOOLCHAIN)
-        set(TOOLCHAIN "${MUSL_TOOLCHAIN}")
-      endif()
-      if(UCLIBC_TOOLCHAIN)
-        set(TOOLCHAIN "${UCLIBC_TOOLCHAIN}")
-      endif()
-
-      if(TOOLCHAIN)
-        set(C_COMPILER_${ARCH} "${TOOLCHAIN}")
-        message("${ARCH} compiler autodetected: ${C_COMPILER_${ARCH}}")
-      endif()
-
-    endif()
-  endforeach()
-
   # If we miss one of the required components, drop the architecture
-  if(LIBTINYCODE_${ARCH} STREQUAL "LIBTINYCODE_${ARCH}-NOTFOUND"
-      OR C_COMPILER_${ARCH} STREQUAL "C_COMPILER_${ARCH}-NOTFOUND"
-      OR QEMU_${ARCH} STREQUAL "QEMU_${ARCH}-NOTFOUND")
+  if(NOT EXISTS "${LIBTINYCODE_${ARCH}}"
+      OR NOT EXISTS "${C_COMPILER_${ARCH}}"
+      OR NOT EXISTS "${QEMU_${ARCH}}")
     list(REMOVE_ITEM SUPPORTED_ARCHITECTURES ${ARCH})
   else()
     message("Testing enabled for ${ARCH}")
