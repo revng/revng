@@ -950,7 +950,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   legacy::PassManager PM;
   PM.add(createSROAPass());
   PM.add(new CpuLoopExitPass(&Variables));
-  PM.add(Variables.createCorrectCPUStateUsagePass());
+  PM.add(Variables.createCPUStateAccessAnalysisPass());
   PM.add(createDeadCodeEliminationPass());
   PM.run(*TheModule);
 

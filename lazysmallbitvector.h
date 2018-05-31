@@ -6,8 +6,9 @@
 //
 
 // Standard includes
+#include <cassert>
+#include <climits>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 extern "C" {
 #include <strings.h>
@@ -47,13 +48,13 @@ using enable_if_long = enable_if_either<T, unsigned long, long>;
 template<typename T>
 using enable_if_long_long = enable_if_either<T, unsigned long long, long long>;
 
-template<typename T> static inline
+template<typename T> inline
 unsigned findFirstBit(enable_if_int<T> Value) { return ffs(Value); }
 
-template<typename T> static inline
+template<typename T> inline
 unsigned findFirstBit(enable_if_long<T> Value) { return ffsl(Value); }
 
-template<typename T> static inline
+template<typename T> inline
 unsigned findFirstBit(enable_if_long_long<T> Value) { return ffsll(Value); }
 
 template<typename T>

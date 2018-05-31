@@ -41,7 +41,7 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
   SP = M->getGlobalVariable(QMD.extract<StringRef>(Tuple, 3), true);
 
   Type *PCType = PC->getType()->getPointerElementType();
-  PCRegSize = M->getDataLayout().getTypeSizeInBits(PCType) / 8;
+  PCRegSize = M->getDataLayout().getTypeAllocSize(PCType);
 
   for (BasicBlock &BB : F) {
     if (!BB.empty()) {

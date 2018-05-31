@@ -25,6 +25,7 @@
 #include "debughelper.h"
 #include "isolatefunctions.h"
 #include "stackanalysis.h"
+#include "statistics.h"
 
 using namespace llvm;
 
@@ -35,6 +36,7 @@ struct ProgramParameters {
   const char *FunctionBoundariesPath;
   const char *StackAnalysisPath;
   const char *FunctionIsolationPath;
+  bool PrintStats;
 };
 
 static const char *const Usage[] = {
@@ -71,6 +73,9 @@ static bool parseArgs(int Argc, const char *Argv[], ProgramParameters &Result) {
                "the basic blocks into the corresponding functions identified "
                "by function boundaries analysis performed by revamb should be "
                "stored."),
+    OPT_BOOLEAN('T', "stats",
+                &Result.PrintStats,
+                "print statistics upon exit or SIGINT."),
     OPT_END(),
   };
 
@@ -88,6 +93,9 @@ static bool parseArgs(int Argc, const char *Argv[], ProgramParameters &Result) {
     while (std::getline(Stream, Type, ','))
       enableDebugFeature(Type.c_str());
   }
+
+  if (Result.PrintStats)
+    OnQuitStatistics->install();
 
   // Handle positional arguments
   if (Argc != 1) {
@@ -108,38 +116,7 @@ public:
   DumpPass(ProgramParameters &Parameters) : FunctionPass(ID),
                                             Parameters(Parameters) { }
 
-  bool runOnFunction(Function &F) override {
-    std::ofstream Output;
-
-    if (Parameters.CFGPath != nullptr) {
-      auto &Analysis = getAnalysis<CollectCFG>();
-      Analysis.serialize(pathToStream(Parameters.CFGPath, Output));
-    }
-
-    if (Parameters.NoreturnPath != nullptr) {
-      auto &Analysis = getAnalysis<CollectNoreturn>();
-      Analysis.serialize(pathToStream(Parameters.NoreturnPath, Output));
-    }
-
-    if (Parameters.FunctionBoundariesPath != nullptr) {
-      auto &Analysis = getAnalysis<CollectFunctionBoundaries>();
-      Analysis.serialize(pathToStream(Parameters.FunctionBoundariesPath,
-                                      Output));
-    }
-
-    if (Parameters.StackAnalysisPath != nullptr) {
-      auto &Analysis = getAnalysis<StackAnalysis::StackAnalysis>();
-      Analysis.serialize(pathToStream(Parameters.StackAnalysisPath, Output));
-    }
-
-    if (Parameters.FunctionIsolationPath != nullptr) {
-      auto &Analysis = getAnalysis<IsolateFunctions>();
-      Module *ModifiedModule = Analysis.getModule();
-      dumpModule(ModifiedModule, Parameters.FunctionIsolationPath);
-    }
-
-    return false;
-  }
+  bool runOnFunction(Function &F) override;
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
@@ -193,8 +170,44 @@ private:
 
 char DumpPass::ID = 0;
 
+bool DumpPass::runOnFunction(Function &F) {
+  (void) F;
+
+  std::ofstream Output;
+
+  if (Parameters.CFGPath != nullptr) {
+    auto &Analysis = getAnalysis<CollectCFG>();
+    Analysis.serialize(pathToStream(Parameters.CFGPath, Output));
+  }
+
+  if (Parameters.NoreturnPath != nullptr) {
+    auto &Analysis = getAnalysis<CollectNoreturn>();
+    Analysis.serialize(pathToStream(Parameters.NoreturnPath, Output));
+  }
+
+  if (Parameters.FunctionBoundariesPath != nullptr) {
+    auto &Analysis = getAnalysis<CollectFunctionBoundaries>();
+    Analysis.serialize(pathToStream(Parameters.FunctionBoundariesPath,
+                                    Output));
+  }
+
+  if (Parameters.StackAnalysisPath != nullptr) {
+    auto &Analysis = getAnalysis<StackAnalysis::StackAnalysis>();
+    Analysis.serialize(pathToStream(Parameters.StackAnalysisPath, Output));
+  }
+
+  if (Parameters.FunctionIsolationPath != nullptr) {
+    auto &Analysis = getAnalysis<IsolateFunctions>();
+    Module *ModifiedModule = Analysis.getModule();
+    dumpModule(ModifiedModule, Parameters.FunctionIsolationPath);
+  }
+
+  return false;
+}
+
+
 int main(int argc, const char *argv[]) {
-  ProgramParameters Parameters = { nullptr, nullptr };
+  ProgramParameters Parameters = { };
 
   if (!parseArgs(argc, argv, Parameters))
     return EXIT_FAILURE;

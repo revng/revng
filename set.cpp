@@ -19,10 +19,10 @@
 // Local includes
 #include "datastructures.h"
 #include "debug.h"
-#include "revamb.h"
+#include "jumptargetmanager.h"
 #include "ir-helpers.h"
 #include "osra.h"
-#include "jumptargetmanager.h"
+#include "revamb.h"
 #include "set.h"
 
 using namespace llvm;
@@ -34,9 +34,9 @@ using std::make_pair;
 ///
 /// * it doesn't insert more than once an item (to avoid loops)
 /// * it can traverse the stack from top to bottom to produce a value and, if
-///   required register it with the JumpTargetManager
+///   required, register it with the JumpTargetManager
 /// * cut the stack to a certain height
-/// * manage the lifetime of orphan instruction it contains
+/// * manage the lifetime of orphan instructions it contains
 /// * keep track of all the possible values assumed since the last reset and
 ///   whether this information is precise or not
 class OperationsStack {
@@ -46,9 +46,7 @@ public:
     reset();
   }
 
-  ~OperationsStack() {
-    reset();
-  }
+  ~OperationsStack() { reset(); }
 
   void explore(Constant *NewOperand);
   uint64_t materialize(Constant *NewOperand);
@@ -57,7 +55,6 @@ public:
   enum TrackingType {
     None, ///< Don't track anything
     PCsOnly, ///< Track only values which can be PCs
-    All ///< Track all the values
   };
 
   /// \brief Clean the operations stack
@@ -94,14 +91,19 @@ public:
       JTM->registerJT(P.first, P.second ? SETToPC : SETNotToPC);
   }
 
+  void registerLoadAddresses() const {
+    for (uint64_t Address : LoadAddresses)
+      JTM->markJT(Address, JumpTargetManager::LoadAddress);
+  }
+
   void cut(unsigned Height) {
     assert(Height <= Operations.size());
     while (Height != Operations.size()) {
       Instruction *Op = Operations.back();
       auto It = OperationsSet.find(Op);
-      if (It != OperationsSet.end())
+      if (It != OperationsSet.end()) {
         OperationsSet.erase(It);
-      else if (isa<BinaryOperator>(Op)) {
+      } else if (isa<BinaryOperator>(Op)) {
         // It's not in OperationsSet, it might a binary instruction where we
         // forced one operand to be constant, or an instruction generated from a
         // constant unary expression
@@ -155,8 +157,9 @@ public:
   bool isApproximate() const { return Approximate; }
 
   unsigned height() const { return Operations.size(); }
-  bool empty() const { return height() == 0; }
+  bool empty() const { return Operations.empty(); }
 
+  /// \brief Get the type of the free operand of the topmost stack element
   Type *topType() const {
     Type *Result = nullptr;
     bool NonConstFound = false;
@@ -183,7 +186,7 @@ public:
     return Result;
   }
 
-  bool hasTrackedValues() const { return TrackedValues.size() != 0; }
+  bool hasTrackedValues() const { return not TrackedValues.empty(); }
 
   bool readsMemory() const { return LoadsCount > 0; }
 
@@ -195,6 +198,7 @@ private:
   std::set<Instruction *> OperationsSet;
   std::set<std::pair<uint64_t, bool>> NewPCs;
   std::set<uint64_t> TrackedValues;
+  std::set<uint64_t> LoadAddresses;
 
   bool Approximate;
   TrackingType Tracking;
@@ -288,21 +292,29 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
 }
 
 void OperationsStack::explore(Constant *NewOperand) {
-  uint64_t PC = materialize(NewOperand);
+  uint64_t MaterializedValue = materialize(NewOperand);
 
-  if (PC != 0 && JTM->isPC(PC))
-    NewPCs.insert({ PC, IsPCStore });
+  bool IsStore = Target != nullptr;
+  assert(!(!IsStore && (Tracking == PCsOnly || SetsSyscallNumber)));
 
-  if (PC != 0 && (Tracking == All
-                  || (Tracking == PCsOnly && JTM->isPC(PC))))
-    TrackedValues.insert(PC);
+  if (IsStore) {
+    if (MaterializedValue != 0 && JTM->isPC(MaterializedValue))
+      NewPCs.insert({ MaterializedValue, IsPCStore });
 
-  if (SetsSyscallNumber) {
-    Instruction *Top = Operations.size() == 0 ? Target : Operations.back();
+    if (MaterializedValue != 0 && (Tracking == PCsOnly
+                                   && JTM->isPC(MaterializedValue)))
+      TrackedValues.insert(MaterializedValue);
 
-    // TODO: don't ignore temporary instructions
-    if (Top->getParent() != nullptr)
-      JTM->noReturn().registerKiller(PC, Top, Target);
+    if (SetsSyscallNumber) {
+      Instruction *Top = Operations.size() == 0 ? Target : Operations.back();
+
+      // TODO: don't ignore temporary instructions
+      if (Top->getParent() != nullptr)
+        JTM->noReturn().registerKiller(MaterializedValue, Top, Target);
+    }
+  } else {
+    // It's a load
+    LoadAddresses.insert(MaterializedValue);
   }
 }
 
@@ -439,8 +451,7 @@ bool SET::run() {
       bool IsStore = Store != nullptr;
       bool IsPCStore = IsStore && JTM->isPCReg(Store->getPointerOperand());
 
-      // TODO: either drop this or implement blacklisting of loaded locations
-      bool IsLoad = false && Load != nullptr;
+      bool IsLoad = Load != nullptr;
       if ((!IsStore && !IsLoad)
           || (IsPCStore && isa<ConstantInt>(Store->getValueOperand()))
           || (IsLoad && (isa<GlobalVariable>(Load->getPointerOperand())
@@ -485,6 +496,7 @@ bool SET::run() {
   }
 
   OS.registerPCs();
+  OS.registerLoadAddresses();
 
   return false;
 }

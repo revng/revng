@@ -35,6 +35,7 @@ extern "C" {
 #include "debug.h"
 #include "ptcinterface.h"
 #include "revamb.h"
+#include "statistics.h"
 
 PTCInterface ptc = {}; ///< The interface with the PTC library.
 static std::string LibTinycodePath;
@@ -55,6 +56,7 @@ struct ProgramParameters {
   int DetectFunctionsBoundaries;
   int NoLink;
   int External;
+  bool PrintStats;
 };
 
 // When LibraryPointer is destroyed, the destructor calls
@@ -84,6 +86,7 @@ static void findFiles(const char *Architecture) {
   std::vector<std::string> SearchPaths;
 #ifdef INSTALL_PATH
   SearchPaths.push_back(std::string(INSTALL_PATH) + "/lib");
+  SearchPaths.push_back(std::string(INSTALL_PATH) + "/share/revamb");
 #endif
   SearchPaths.push_back(Directory);
 #ifdef QEMU_INSTALL_PATH
@@ -146,7 +149,7 @@ static int loadPTCLibrary(LibraryPointer& PTCLibrary) {
   PTCLibrary.reset(LibraryHandle);
 
   // Obtain the address of the ptc_load entry point
-  ptc_load = (ptc_load_ptr_t) dlsym(LibraryHandle, "ptc_load");
+  ptc_load = reinterpret_cast<ptc_load_ptr_t>(dlsym(LibraryHandle, "ptc_load"));
 
   if (ptc_load == nullptr) {
     fprintf(stderr, "Couldn't find ptc_load: %s\n", dlerror());
@@ -218,6 +221,9 @@ static int parseArgs(int Argc, const char *Argv[],
     OPT_BOOLEAN('f', "functions-boundaries",
                 &Parameters->DetectFunctionsBoundaries,
                 "enable functions boundaries detection."),
+    OPT_BOOLEAN('T', "stats",
+                &Parameters->PrintStats,
+                "print statistics upon exit or SIGINT."),
     OPT_END(),
   };
 
@@ -244,7 +250,7 @@ static int parseArgs(int Argc, const char *Argv[],
       return EXIT_FAILURE;
     }
 
-    Parameters->EntryPointAddress = (size_t) EntryPointAddress;
+    Parameters->EntryPointAddress = static_cast<size_t>(EntryPointAddress);
   }
 
   if (DebugString != nullptr) {
@@ -283,6 +289,9 @@ static int parseArgs(int Argc, const char *Argv[],
 
   if (Parameters->BBSummaryPath == nullptr)
     Parameters->BBSummaryPath = "";
+
+  if (Parameters->PrintStats)
+    OnQuitStatistics->install();
 
   return EXIT_SUCCESS;
 }

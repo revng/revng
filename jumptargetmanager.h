@@ -124,7 +124,8 @@ public:
                            ///  by SET. Likely a function pointer.
     Callee = 128, ///< This JT is the target of a call instruction.
     SumJump = 256, ///< Obtained from the "sumjump" heuristic
-    LastReason = 256
+    LoadAddress = 512,
+    LastReason = LoadAddress
   };
 
   class JumpTarget {
@@ -159,9 +160,11 @@ public:
         return "Callee";
       case SumJump:
         return "SumJump";
-      default:
-        assert(false);
+      case LoadAddress:
+        return "LoadAddress";
       }
+
+      abort();
     }
 
     static JTReason getReasonFromName(llvm::StringRef ReasonName) {
@@ -183,6 +186,8 @@ public:
         return Callee;
       else if (ReasonName == "SumJump")
         return SumJump;
+      else if (ReasonName == "LoadAddress")
+        return LoadAddress;
       else
         assert(false);
     }
@@ -380,6 +385,12 @@ public:
     llvm::Function *Callee = CallNewPC->getCalledFunction();
     assert(Callee != nullptr && Callee->getName() == "newpc");
     registerJT(getLimitedValue(CallNewPC->getArgOperand(0)), Reason);
+  }
+
+  /// \brief As registerJT, but only if the JT has already been registered
+  void markJT(uint64_t PC, JTReason Reason) {
+    if (isJumpTarget(PC))
+      registerJT(PC, Reason);
   }
 
   /// \brief Removes a `BasicBlock` from the SET's visited list
@@ -585,8 +596,7 @@ private:
   //       area and write the address of the translated basic block at the jump
   //       target
   void createDispatcher(llvm::Function *OutputFunction,
-                        llvm::Value *SwitchOnPtr,
-                        bool JumpDirectly);
+                        llvm::Value *SwitchOnPtr);
 
   template<typename value_type, unsigned endian>
   void findCodePointers(uint64_t StartVirtualAddress,

@@ -22,17 +22,8 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 
-static inline void replaceInstruction(llvm::Instruction *Old,
-                                      llvm::Instruction *New) {
-  Old->replaceAllUsesWith(New);
-
-  llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>, 2> Metadata;
-  Old->getAllMetadata(Metadata);
-  for (auto& MDPair : Metadata)
-    New->setMetadata(MDPair.first, MDPair.second);
-
-  Old->eraseFromParent();
-}
+// Local includes
+#include "debug.h"
 
 /// Helper function to destroy an unconditional branch and, in case, the target
 /// basic block, if it doesn't have any predecessors left.
@@ -365,6 +356,23 @@ static inline std::string getName(const llvm::Value *V) {
   return SS.str();
 }
 
+template<typename T>
+using rc_t = typename std::remove_const<T>::type;
+template<typename T>
+using is_base_of_value = std::is_base_of<llvm::Value, rc_t<T>>;
+
+/// \brief Specialization of writeToLog for llvm::Value-derived types
+template<typename T,
+         typename std::enable_if<is_base_of_value<T>::value, int>::type = 0>
+inline void writeToLog(Logger<true> &This, T *I, int Ignore) {
+  (void) Ignore;
+
+  if (I != nullptr)
+    This << getName(I);
+  else
+    This << "nullptr";
+}
+
 static inline llvm::LLVMContext &getContext(const llvm::Module *M) {
   return M->getContext();
 }
@@ -509,6 +517,17 @@ static inline bool hasPredecessor(llvm::BasicBlock *BB,
 
 // \brief If \p V is a cast Instruction or a cast ConstantExpr, return its only
 //        operand (recursively)
+static inline const llvm::Value *skipCasts(const llvm::Value *V) {
+  using namespace llvm;
+  while (isa<CastInst>(V)
+         || (isa<ConstantExpr>(V)
+             && cast<ConstantExpr>(V)->getOpcode() == Instruction::BitCast))
+    V = cast<User>(V)->getOperand(0);
+  return V;
+}
+
+// \brief If \p V is a cast Instruction or a cast ConstantExpr, return its only
+//        operand (recursively)
 static inline llvm::Value *skipCasts(llvm::Value *V) {
   using namespace llvm;
   while (isa<CastInst>(V)
@@ -518,15 +537,37 @@ static inline llvm::Value *skipCasts(llvm::Value *V) {
   return V;
 }
 
-static inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
-  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(I)) {
-    llvm::Function *Callee = Call->getCalledFunction();
-    if (Callee != nullptr && Callee->getName() == Name) {
-      return true;
-    }
-  }
+static inline const llvm::Function *getCallee(const llvm::Instruction *I) {
+  assert(I != nullptr);
 
-  return false;
+  using namespace llvm;
+  if (auto *Call = dyn_cast<CallInst>(I))
+    return llvm::dyn_cast<Function>(skipCasts(Call->getCalledValue()));
+  else
+    return nullptr;
+}
+
+static inline llvm::Function *getCallee(llvm::Instruction *I) {
+  assert(I != nullptr);
+
+  using namespace llvm;
+  if (auto *Call = dyn_cast<CallInst>(I))
+    return llvm::dyn_cast<Function>(skipCasts(Call->getCalledValue()));
+  else
+    return nullptr;
+}
+
+static inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
+  assert(I != nullptr);
+  const llvm::Function *Callee = getCallee(I);
+  return Callee != nullptr && Callee->getName() == Name;
+}
+
+/// \brief Is \p I a call to an helper function?
+static inline bool isCallToHelper(const llvm::Instruction *I) {
+  assert(I != nullptr);
+  const llvm::Function *Callee = getCallee(I);
+  return Callee != nullptr && Callee->getName().startswith("helper_");
 }
 
 static inline llvm::CallInst *getCallTo(llvm::Instruction *I,

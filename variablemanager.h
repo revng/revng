@@ -16,6 +16,7 @@
 
 // Local includes
 #include "ptcdump.h"
+#include "cpustateaccessanalysis.h"
 #include "revamb.h"
 
 namespace llvm {
@@ -29,35 +30,7 @@ class Value;
 }
 
 class VariableManager;
-
-/// \brief LLVM pass to change all the access to the CPU state to the
-///        corresponding global variables.
-///
-/// If it's not possible to determine statically which part of the CPU is being
-/// accessed an abort is emitted.
-/// This pass also performs heavy specialization in case an helper is invoked
-/// with different constant parameters.
-class CorrectCPUStateUsagePass : public llvm::ModulePass {
-public:
-  static char ID;
-
-  CorrectCPUStateUsagePass() :
-    llvm::ModulePass(ID),
-    Variables(nullptr),
-    EnvOffset(0) { }
-
-  CorrectCPUStateUsagePass(VariableManager *Variables, unsigned EnvOffset) :
-    llvm::ModulePass(ID),
-    Variables(Variables),
-    EnvOffset(EnvOffset) { }
-
-public:
-  bool runOnModule(llvm::Module& TheModule) override;
-
-private:
-  VariableManager *Variables;
-  unsigned EnvOffset;
-};
+class CPUStateAccessAnalysisPass;
 
 /// \brief Maintain the list of variables required by PTC
 ///
@@ -68,8 +41,6 @@ public:
   VariableManager(llvm::Module& TheModule,
                   llvm::Module& HelpersModule,
                   Architecture &TargetArchitecture);
-
-  friend class CorrectCPUStateUsagePass;
 
   /// \brief Get or create the LLVM value associated to a PTC temporary
   ///
@@ -128,8 +99,8 @@ public:
   /// Returns true if the given variable is the env variable
   bool isEnv(llvm::Value *TheValue);
 
-  CorrectCPUStateUsagePass *createCorrectCPUStateUsagePass() {
-    return new CorrectCPUStateUsagePass(this, EnvOffset);
+  CPUStateAccessAnalysisPass *createCPUStateAccessAnalysisPass() {
+    return new CPUStateAccessAnalysisPass(this);
   }
 
   llvm::Value *computeEnvAddress(llvm::Type *TargetType,
@@ -167,6 +138,11 @@ public:
     return storeToCPUStateOffset(Builder, StoreSize, ActualOffset, ToStore);
   }
 
+  bool memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
+                         llvm::CallInst *CallMemcpy,
+                         unsigned Offset,
+                         bool EnvIsSrc);
+
   /// \brief Perform finalization steps on variables
   ///
   /// \param ExternalCSVs true if CSVs linkage should not be turned into static.
@@ -177,6 +153,11 @@ public:
       for (auto P : OtherGlobals)
         P.second->setLinkage(llvm::GlobalValue::InternalLinkage);
     }
+  }
+
+  /// \brief Gets the CPUStateType
+  llvm::StructType *getCPUStateType() const {
+    return CPUStateType;
   }
 
 private:

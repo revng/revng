@@ -89,13 +89,16 @@ macro(add_flag_if_available flag)
 endmacro()
 
 # Disable some warnings
-add_flag_if_available("-Wno-error=unused-variable")
-add_flag_if_available("-Wno-error=unused-function")
+add_flag_if_available("-Wno-error=ignored-attributes")
+add_flag_if_available("-Wno-error=maybe-uninitialized")
 add_flag_if_available("-Wno-error=return-type")
 add_flag_if_available("-Wno-error=unused-but-set-variable")
-add_flag_if_available("-Wno-error=maybe-uninitialized")
-add_flag_if_available("-Wno-error=ignored-attributes")
+add_flag_if_available("-Wno-error=unused-function")
+add_flag_if_available("-Wno-error=unused-local-typedefs")
+add_flag_if_available("-Wno-error=unused-variable")
 add_flag_if_available("-Wno-delete-non-virtual-dtor")
+add_flag_if_available("-Werror=strict-aliasing")
+add_flag_if_available("-fstrict-aliasing")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 add_definitions("-D_FILE_OFFSET_BITS=64")
@@ -108,18 +111,34 @@ endif()
 
 set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
 
-add_executable(revamb ptcdump.cpp main.cpp debughelper.cpp variablemanager.cpp
-  jumptargetmanager.cpp instructiontranslator.cpp codegenerator.cpp debug.cpp
-  osra.cpp set.cpp simplifycomparisons.cpp reachingdefinitions.cpp
-  functionboundariesdetection.cpp noreturnanalysis.cpp binaryfile.cpp
-  generatedcodebasicinfo.cpp functioncallidentification.cpp argparse/argparse.c
-  externaljumpshandler.cpp)
+add_executable(revamb
+  binaryfile.cpp
+  codegenerator.cpp
+  cpustateaccessanalysis.cpp
+  debug.cpp
+  debughelper.cpp
+  externaljumpshandler.cpp
+  functionboundariesdetection.cpp
+  functioncallidentification.cpp
+  generatedcodebasicinfo.cpp
+  instructiontranslator.cpp
+  jumptargetmanager.cpp
+  main.cpp
+  noreturnanalysis.cpp
+  osra.cpp
+  ptcdump.cpp
+  reachingdefinitions.cpp
+  set.cpp
+  simplifycomparisons.cpp
+  statistics.cpp
+  variablemanager.cpp
+  argparse/argparse.c)
 target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
 install(TARGETS revamb RUNTIME DESTINATION bin)
 
 add_executable(revamb-dump dump.cpp collectcfg.cpp collectnoreturn.cpp debug.cpp
-  collectfunctionboundaries.cpp debughelper.cpp stackanalysis.cpp
-  generatedcodebasicinfo.cpp isolatefunctions.cpp argparse/argparse.c)
+  collectfunctionboundaries.cpp debughelper.cpp generatedcodebasicinfo.cpp
+  isolatefunctions.cpp statistics.cpp stackanalysis.cpp argparse/argparse.c)
 target_link_libraries(revamb-dump ${LLVM_LIBRARIES})
 install(TARGETS revamb-dump RUNTIME DESTINATION bin)
 

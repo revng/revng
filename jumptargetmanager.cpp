@@ -450,7 +450,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                              { Type::getInt32Ty(Context) },
                                              false);
   ExitTB = cast<Function>(TheModule.getOrInsertFunction("exitTB", ExitTBTy));
-  createDispatcher(TheFunction, PCReg, true);
+  createDispatcher(TheFunction, PCReg);
 
   for (auto &Segment : Binary.segments())
     Segment.insertExecutableRanges(std::back_inserter(ExecutableRanges));
@@ -699,7 +699,7 @@ StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
 /// cases, mainly due to handcrafted assembly we can have a situation like the
 /// following:
 ///
-///     addne pc, pc, \curbit, lsl #2
+///     addne pc, pc, \\curbit, lsl #2
 ///
 /// (taken from libgcc ARM's lib1funcs.S, specifically line 592 of
 /// `libgcc/config/arm/lib1funcs.S` at commit
@@ -1160,8 +1160,7 @@ void JumpTargetManager::registerReadRange(uint64_t Address, uint64_t Size) {
 // If this function looks weird it's because it has been designed to be able
 // to create the dispatcher in the "root" function or in a standalone function
 void JumpTargetManager::createDispatcher(Function *OutputFunction,
-                                         Value *SwitchOnPtr,
-                                         bool JumpDirectly) {
+                                         Value *SwitchOnPtr) {
   IRBuilder<> Builder(Context);
   QuickMetadata QMD(Context);
 
