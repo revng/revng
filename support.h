@@ -38,6 +38,12 @@ typedef uint32_t target_reg;
 #define SWAP(x) (htobe32(x))
 #define TARGET_REG_FORMAT PRIx32
 
+#elif defined(TARGET_s390x)
+
+typedef uint64_t target_reg;
+#define SWAP(x) (htobe64(x))
+#define TARGET_REG_FORMAT PRIx64
+
 #else
 
 #error "Architecture not supported"

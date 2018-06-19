@@ -582,8 +582,9 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   // Instantiate helpers
   VariableManager Variables(*TheModule, *HelpersModule, TargetArchitecture);
+  const Architecture &Arch = Binary.architecture();
   GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
-  GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, "sp").first;
+  GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, Arch.stackPointerRegister()).first;
 
   IRBuilder<> Builder(Context);
 
@@ -606,7 +607,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   NamedMDNode *InputArchMD;
   const char *MDName = "revamb.input.architecture";
   InputArchMD = TheModule->getOrInsertNamedMetadata(MDName);
-  const Architecture &Arch = Binary.architecture();
   // Currently revamb.inputarch is composed as follows:
   //
   // revamb.inputarch = {

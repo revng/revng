@@ -154,6 +154,17 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
                      { "s5" }, { "s6" }, { "s7" }, { "gp" }, { "sp" },
                      { "fp" }, { "ra" } };
     break;
+  case Triple::systemz:
+    SyscallHelper = "helper_exception";
+    SyscallNumberRegister = "r1";
+    StackPointerRegister = "r15";
+    InstructionAlignment = 2;
+    NoReturnSyscalls = {
+      0xf8, // exit_group
+      0x1,  // exit
+      0xb,  // execve
+    };
+    break;
   default:
     assert(false);
   }

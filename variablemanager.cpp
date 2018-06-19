@@ -498,8 +498,9 @@ std::pair<GlobalVariable*, unsigned>
 VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
                                              std::string Name) {
   GlobalsMap::iterator it = CPUStateGlobals.find(Offset);
+  static const char * UnknownCSVPref = "state_0x";
   if (it == CPUStateGlobals.end() ||
-      (Name.size() != 0 && !it->second->getName().equals_lower(Name))) {
+      (Name.size() != 0 && it->second->getName().startswith(UnknownCSVPref))) {
     Type *VariableType;
     unsigned Remaining;
     std::tie(VariableType, Remaining) = getTypeAtOffset(ModuleLayout,
@@ -519,7 +520,7 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
 
     if (Name.size() == 0) {
       std::stringstream NameStream;
-      NameStream << "state_0x" << std::hex << Offset;
+      NameStream << UnknownCSVPref << std::hex << Offset;
       Name = NameStream.str();
     }
 
