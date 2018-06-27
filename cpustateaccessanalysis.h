@@ -204,7 +204,7 @@ public:
       }
     }
     assert((isNumeric(K0) and isUnknown(K1))
-           or (isNumeric(K0) and isUnknown(K1)));
+           or (isNumeric(K1) and isUnknown(K0)));
     OffsetKind = Kind::Unknown;
     Offsets = {};
   }
