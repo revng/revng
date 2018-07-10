@@ -2061,12 +2061,12 @@ void CPUSAOA::computeAggregatedOffsets() {
               GlobalVariable *AccessedVar;
               std::tie(AccessedVar,
                        InternalOffset) = Variables->getByEnvOffset(Refined);
-              assert(InternalOffset == 0);
               int64_t SizeAtOffset = 0;
               if (AccessedVar != nullptr) {
                 Type *AccessedTy = AccessedVar->getType();
-                SizeAtOffset = DL.getTypeAllocSize(AccessedTy);
-                FineGrainedOffsets.insert(Refined);
+                SizeAtOffset = DL.getTypeAllocSize(AccessedTy) - InternalOffset;
+                assert(SizeAtOffset > 0);
+                FineGrainedOffsets.insert(Refined - InternalOffset);
                 CSVAccessLog << "Value: " << I << DoLog;
                 CSVAccessLog << "Insert Refined: " << Refined << DoLog;
               } else {
