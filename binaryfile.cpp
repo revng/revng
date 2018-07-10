@@ -56,7 +56,7 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
   switch (TheBinary->getArch()) {
   case Triple::x86:
     InstructionAlignment = 1;
-    SyscallHelper = "helper_syscall";
+    SyscallHelper = "helper_raise_interrupt";
     SyscallNumberRegister = "eax";
     StackPointerRegister = "esp";
     NoReturnSyscalls = {
