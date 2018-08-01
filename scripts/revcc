@@ -1,0 +1,48 @@
+#!/usr/bin/env python
+
+import subprocess
+import sys
+import os
+
+def main():
+    if (len(sys.argv) == 1) or ("--help" in sys.argv[1]):
+        print("""Usage: {} [translate-options] -- compiler [compiler-options]""".format(sys.argv[0]))
+        return 0
+
+    # Collect translate options
+    translate_args = []
+    while sys.argv[1] != "--":
+        translate_args.append(sys.argv[1])
+        del sys.argv[1]
+    translate_args = list(reversed(translate_args))
+
+    # Drop the delimiter
+    del sys.argv[1]
+
+    # Discard argv[0] and call the compiler
+    args = sys.argv[1:]
+    res = subprocess.call(args)
+    if res != 0:
+        return res
+
+    # Are we linking?
+    if not ("-c" in args):
+        assert "-o" in args
+
+        # Identify the path of the final program
+        output = os.path.abspath(args[args.index("-o") + 1])
+
+        original = output + ".original"
+        translated = original + ".translated"
+        os.rename(output, original)
+
+        res = subprocess.call(["translate"] + translate_args + [original])
+        if res != 0:
+            return res
+
+        os.rename(translated, output)
+
+    return res
+
+if __name__ == "__main__":
+    sys.exit(main())
