@@ -25,6 +25,11 @@
 // Local includes
 #include "debug.h"
 
+template<typename T>
+static inline bool contains(T Range, typename T::value_type V) {
+  return std::find(std::begin(Range), std::end(Range), V) != std::end(Range);
+}
+
 /// Helper function to destroy an unconditional branch and, in case, the target
 /// basic block, if it doesn't have any predecessors left.
 static inline void purgeBranch(llvm::BasicBlock::iterator I) {
@@ -515,13 +520,21 @@ static inline bool hasPredecessor(llvm::BasicBlock *BB,
   return false;
 }
 
+static std::array<unsigned, 3> CastOpcodes = {
+  llvm::Instruction::BitCast,
+  llvm::Instruction::PtrToInt,
+  llvm::Instruction::IntToPtr,
+};
+
 // \brief If \p V is a cast Instruction or a cast ConstantExpr, return its only
 //        operand (recursively)
 static inline const llvm::Value *skipCasts(const llvm::Value *V) {
   using namespace llvm;
   while (isa<CastInst>(V)
-         || (isa<ConstantExpr>(V)
-             && cast<ConstantExpr>(V)->getOpcode() == Instruction::BitCast))
+         or isa<IntToPtrInst>(V)
+         or isa<PtrToIntInst>(V)
+         or (isa<ConstantExpr>(V)
+             and contains(CastOpcodes, cast<ConstantExpr>(V)->getOpcode())))
     V = cast<User>(V)->getOperand(0);
   return V;
 }
@@ -531,8 +544,10 @@ static inline const llvm::Value *skipCasts(const llvm::Value *V) {
 static inline llvm::Value *skipCasts(llvm::Value *V) {
   using namespace llvm;
   while (isa<CastInst>(V)
-         || (isa<ConstantExpr>(V)
-             && cast<ConstantExpr>(V)->getOpcode() == Instruction::BitCast))
+         or isa<IntToPtrInst>(V)
+         or isa<PtrToIntInst>(V)
+         or (isa<ConstantExpr>(V)
+             and contains(CastOpcodes, cast<ConstantExpr>(V)->getOpcode())))
     V = cast<User>(V)->getOperand(0);
   return V;
 }
