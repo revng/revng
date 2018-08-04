@@ -20,6 +20,11 @@
 #include <unistd.h>
 #include <unwind.h>
 
+#ifdef TARGET_x86_64
+#include <asm/prctl.h>
+#include <sys/prctl.h>
+#endif
+
 // Local includes
 #include "commonconstants.h"
 #include "support.h"
@@ -417,6 +422,13 @@ int main(int argc, char *argv[]) {
 
   // Implant custom SIGSEGV handler
   install_sigsegv_handler();
+
+#ifdef TARGET_x86_64
+  unsigned long fs_value;
+  int result = arch_prctl(ARCH_GET_FS, &fs_value);
+  assert(result == 0);
+  set_register(REGISTER_FS, fs_value);
+#endif
 
   // Run the translated program
   SAFE_CAST(stack);

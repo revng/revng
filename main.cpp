@@ -57,6 +57,7 @@ struct ProgramParameters {
   int NoLink;
   int External;
   bool PrintStats;
+  uint64_t BaseAddress;
 };
 
 // When LibraryPointer is destroyed, the destructor calls
@@ -74,6 +75,19 @@ static const char *const Usage[] = {
   "revamb [options] [--] INFILE OUTFILE",
   nullptr,
 };
+
+static bool toNumber(const char *String, uint64_t *Destination) {
+  const char *End = String + strlen(String);
+  char *NumberEnd;
+  unsigned long long Result;
+  Result = strtoull(String, &NumberEnd, 0);
+
+  if (End != NumberEnd)
+    return false;
+
+  *Destination = static_cast<uint64_t>(Result);
+  return true;
+}
 
 static void findFiles(const char *Architecture) {
   // TODO: make this optional
@@ -177,7 +191,9 @@ static int parseArgs(int Argc, const char *Argv[],
   const char *DebugString = nullptr;
   const char *DebugLoggingString = nullptr;
   const char *EntryPointAddressString = nullptr;
-  long long EntryPointAddress = 0;
+  uint64_t EntryPointAddress = 0;
+  const char *BaseAddressString = nullptr;
+  uint64_t BaseAddress = 0x50000000;
 
   // Initialize argument parser
   struct argparse Arguments;
@@ -224,6 +240,9 @@ static int parseArgs(int Argc, const char *Argv[],
     OPT_BOOLEAN('T', "stats",
                 &Parameters->PrintStats,
                 "print statistics upon exit or SIGINT."),
+    OPT_STRING('B', "base",
+               &BaseAddressString,
+               "base address where dynamic objects should be loaded."),
     OPT_END(),
   };
 
@@ -244,14 +263,21 @@ static int parseArgs(int Argc, const char *Argv[],
 
   // Check parameters
   if (EntryPointAddressString != nullptr) {
-    if (sscanf(EntryPointAddressString, "%lld", &EntryPointAddress) != 1) {
+    if (not toNumber(EntryPointAddressString, &EntryPointAddress)) {
       fprintf(stderr, "Entry point parameter (-e, --entry) is not a"
               " number.\n");
       return EXIT_FAILURE;
     }
-
-    Parameters->EntryPointAddress = static_cast<size_t>(EntryPointAddress);
   }
+  Parameters->EntryPointAddress = static_cast<size_t>(EntryPointAddress);
+
+  if (BaseAddressString != nullptr) {
+    if (not toNumber(BaseAddressString, &BaseAddress)) {
+      fprintf(stderr, "Base address (-B, --base) is not a number.\n");
+      return EXIT_FAILURE;
+    }
+  }
+  Parameters->BaseAddress = BaseAddress;
 
   if (DebugString != nullptr) {
     if (strcmp("none", DebugString) == 0) {
@@ -302,7 +328,9 @@ int main(int argc, const char *argv[]) {
   if (parseArgs(argc, argv, &Parameters) != EXIT_SUCCESS)
     return EXIT_FAILURE;
 
-  BinaryFile TheBinary(Parameters.InputPath, Parameters.UseSections);
+  BinaryFile TheBinary(Parameters.InputPath,
+                       Parameters.UseSections,
+                       Parameters.BaseAddress);
 
   findFiles(TheBinary.architecture().name());
 

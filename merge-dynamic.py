@@ -17,6 +17,15 @@ from pprint import pprint
 from elftools.elf.elffile import ELFFile
 from elftools.elf.constants import P_FLAGS
 from elftools.elf.enums import ENUM_P_TYPE
+from elftools.elf.enums import ENUM_RELOC_TYPE_MIPS
+from elftools.elf.enums import ENUM_RELOC_TYPE_i386
+from elftools.elf.enums import ENUM_RELOC_TYPE_x64
+from elftools.elf.enums import ENUM_RELOC_TYPE_ARM
+
+def log(message):
+  global verbose
+  if verbose:
+    sys.stderr.write(message + "\n")
 
 def set_executable(path):
   st = os.stat(path)
@@ -37,6 +46,10 @@ def only(iterable):
   assert len(iterable) == 1
   return iterable[0]
 
+def first_or_none(iterable):
+  iterable = list(iterable)
+  return iterable[0] if len(iterable) != 0 else None
+
 def read_at_offset(file, start, size):
   file.seek(start)
   return file.read(size)
@@ -52,6 +65,9 @@ def parse(buffer, struct):
 
 def serialize(list, struct):
   return b"".join(map(struct.build, list))
+
+def overlaps(start1, size1, start2, size2):
+  return (start1 + size1) >= start2 and (start2 + size2) >= start1
 
 class ParsedElf:
   def __init__(self, file):
@@ -206,6 +222,24 @@ class ParsedElf:
   def has_tag(self, tag):
     return len(self.dt_by_tag(tag)) != 0
 
+  def segment_by_range(self, address, size):
+    return first_or_none([segment
+                          for segment
+                          in self.segment_by_type("PT_LOAD")
+                          if overlaps(address,
+                                      size,
+                                      segment.header.p_vaddr,
+                                      segment.header.p_memsz)])
+
+  def dynamic_size(self):
+    return (len(self.dynsym)
+            + len(self.dynstr)
+            + len(self.gnuversion)
+            + len(self.reldyn)
+            + self.dynamic.header.p_memsz
+            + len(self.segments) * self.elf.structs.Elf_Phdr.sizeof()
+            + len(self.sections) * self.elf.structs.Elf_Shdr.sizeof())
+
 def align(start, alignment):
   return ((start + alignment - 1) / alignment) * alignment
 
@@ -215,16 +249,27 @@ def main():
                                                 + "one from the host ELF."))
   parser.add_argument("to_extend",
                       metavar="TO_EXTEND",
-                      help="The destination ELF.")
+                      help="The ELF extend.")
   parser.add_argument("source",
                       metavar="SOURCE",
-                      help="The source ELF.")
+                      help="The original ELF.")
   parser.add_argument("output",
                       metavar="OUTPUT",
                       nargs="?",
                       default="-",
                       help="The output ELF.")
+  parser.add_argument("--verbose",
+                      action="store_true",
+                      help="Print debug information and warnings.")
+  parser.add_argument("--base",
+                      metavar="ADDRESS",
+                      default="0x50000000",
+                      help=("The base address where dynamic object have been" +
+                            " loaded."))
   args = parser.parse_args()
+
+  global verbose
+  verbose = args.verbose
 
   with (sys.stdout
         if args.output == "-"
@@ -243,6 +288,26 @@ def main():
       return 0
 
     assert to_extend_elf.is_dynamic
+    assert to_extend_elf.elf.header.e_machine == source_elf.elf.header.e_machine
+
+    relocation_offset = 0
+    if source_elf.elf.header.e_type == "ET_DYN":
+      relocation_offset = int(args.base, base=0)
+
+    machine = to_extend_elf.elf.header.e_machine
+    if machine == "EM_X86_64":
+      relative_relocation = ENUM_RELOC_TYPE_x64["R_X86_64_RELATIVE"]
+    elif machine == "EM_ARM":
+      relative_relocation = ENUM_RELOC_TYPE_ARM["R_ARM_RELATIVE"]
+    elif machine == "EM_386":
+      relative_relocation = ENUM_RELOC_TYPE_i386["R_386_RELATIVE"]
+    elif machine == "EM_MIPS":
+      # TODO: check
+      relative_relocation = 0xffffffff
+    elif machine == "EM_S390":
+      relative_relocation = 12 # R_390_RELATIVE
+    else:
+      assert False
 
     # Prepare new .dynstr
     new_dynstr = to_extend_elf.dynstr
@@ -251,8 +316,32 @@ def main():
     new_dynstr += source_elf.dynstr
 
     to_extend_size = file_size(to_extend_file)
+    base_address = min([segment.header.p_vaddr
+                        for segment
+                        in to_extend_elf.segment_by_type("PT_LOAD")])
     alignment = 0x1000
-    padding = align(to_extend_size, alignment) - to_extend_size
+    estimated_size = align(to_extend_elf.dynamic_size()
+                           + source_elf.dynamic_size(), alignment)
+    start_address = align(base_address + to_extend_size, alignment)
+    matching_segment = (to_extend_elf.segment_by_range(start_address,
+                                                       estimated_size)
+                        or source_elf.segment_by_range(start_address,
+                                                       estimated_size))
+
+    while matching_segment is not None:
+      log("Discarding {} since overlaps the following segment:\n"
+          + "  {}".format(hex(start_address),
+                          matching_segment.header))
+      start_address = align(matching_segment.header.p_vaddr
+                        + matching_segment.header.p_memsz,
+                        alignment)
+      matching_segment = (to_extend_elf.segment_by_range(start_address,
+                                                         estimated_size)
+                          or source_elf.segment_by_range(start_address,
+                                                         estimated_size))
+
+    padding = start_address - base_address - to_extend_size
+    log("Padding size: {}".format(padding))
     new_dynstr_offset = to_extend_size + padding
 
     # Prepare new .dynsym
@@ -261,16 +350,22 @@ def main():
     new_symbols = list(source_elf.symbols)
     for symbol in new_symbols:
       symbol.st_name += dynstr_offset
+      if symbol.st_value != 0:
+        symbol.st_value += relocation_offset
+
     new_dynsym += serialize(new_symbols, source_elf.elf.structs.Elf_Sym)
-    new_dynsym_offset =  (new_dynstr_offset
-                + len(new_dynstr))
+    new_dynsym_offset = new_dynstr_offset + len(new_dynstr)
 
     # Prepare new .dynrel
     new_reldyn = to_extend_elf.reldyn
     new_relocations = (source_elf.relplt_relocations
                        + source_elf.reldyn_relocations)
     for relocation in new_relocations:
-      relocation.r_info_sym += dynsym_offset
+      if relocation.r_info_sym != 0:
+        relocation.r_info_sym += dynsym_offset
+      if relocation.r_info_type == relative_relocation:
+        relocation.r_addend += relocation_offset
+      relocation.r_offset += relocation_offset
       rebuild_r_info(relocation, to_extend_elf.elf.elfclass == 64)
     new_reldyn += serialize(new_relocations, source_elf.relstruct)
     new_reldyn_offset = (new_dynsym_offset + len(new_dynsym))
@@ -294,7 +389,7 @@ def main():
     new_gnuversion += source_elf.serialize_ints(new_gnuversion_indices, 2)
 
     # 4. Go through .gnu.version_r and, for each verneed add the string
-    #  table offset to the library name.
+    #    table offset to the library name.
     # 5. Go through each Vernaux and increment vna_name
     new_verneeds = to_extend_elf.verneeds
 
@@ -317,13 +412,6 @@ def main():
         vernaux.vna_other += version_index_offset
     new_verneeds += source_elf.verneeds
     new_gnuversion_r = source_elf.serialize_verneeds(new_verneeds)
-
-    # Prepare new section headers
-    start_address = min([segment.header.p_vaddr
-                         for segment
-                         in to_extend_elf.segment_by_type("PT_LOAD")])
-    start_address += new_dynstr_offset
-    assert start_address == align(start_address, alignment)
 
     # Prepare new .dynamic
     new_dynamic_tags = [dt for dt in to_extend_elf.dynamic.iter_tags()]
@@ -421,6 +509,11 @@ def main():
     new_segment_size = (new_program_headers_offset
                         + new_program_headers_size
                         - new_dynstr_offset)
+
+    if new_segment_size > estimated_size:
+      log("Warning: the new segment for dynamic sections is larger than"
+          + " expected:\n  Expected: {}\n  Actual: {}".format(estimated_size,
+                                                              new_segment_size))
 
     zeros = "\x00" * segment_header_size
     new_segment = source_elf.elf.structs.Elf_Phdr.parse(zeros)

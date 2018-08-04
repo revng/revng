@@ -15,6 +15,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Support/ELF.h"
 
 // Local includes
 #include "ir-helpers.h"
@@ -114,7 +115,9 @@ public:
                unsigned PCMContextIndex,
                llvm::StringRef WriteRegisterAsm,
                llvm::StringRef ReadRegisterAsm,
-               llvm::StringRef JumpAsm) :
+               llvm::StringRef JumpAsm,
+               bool HasRelocationAddend,
+               uint32_t BaseRelativeRelocation) :
     Type(static_cast<llvm::Triple::ArchType>(Type)),
     InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
@@ -129,7 +132,9 @@ public:
     PCMContextIndex(PCMContextIndex),
     WriteRegisterAsm(WriteRegisterAsm),
     ReadRegisterAsm(ReadRegisterAsm),
-    JumpAsm(JumpAsm) { }
+    JumpAsm(JumpAsm),
+    HasRelocationAddend(HasRelocationAddend),
+    BaseRelativeRelocation(BaseRelativeRelocation) { }
 
   unsigned instructionAlignment() const { return InstructionAlignment; }
   unsigned defaultAlignment() const { return DefaultAlignment; }
@@ -160,6 +165,8 @@ public:
            && IsSupported == (JumpAsm.size() != 0));
     return IsSupported;
   }
+  bool hasRelocationAddend() const { return HasRelocationAddend; }
+  uint32_t baseRelativeRelocation() const { return BaseRelativeRelocation; }
 
 private:
   llvm::Triple::ArchType Type;
@@ -179,6 +186,8 @@ private:
   llvm::StringRef WriteRegisterAsm;
   llvm::StringRef ReadRegisterAsm;
   llvm::StringRef JumpAsm;
+  bool HasRelocationAddend;
+  uint32_t BaseRelativeRelocation;
 };
 
 // TODO: move me somewhere more appropriate
@@ -191,11 +200,6 @@ template<typename T>
 static inline T *notNull(T *Pointer) {
   assert(Pointer != nullptr);
   return Pointer;
-}
-
-template<typename T>
-static inline bool contains(T Range, typename T::value_type V) {
-  return std::find(std::begin(Range), std::end(Range), V) != std::end(Range);
 }
 
 static const std::array<llvm::StringRef, 3> MarkerFunctionNames = {

@@ -33,7 +33,9 @@ using namespace llvm;
 
 using std::make_pair;
 
-BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
+BinaryFile::BinaryFile(std::string FilePath,
+                       bool UseSections,
+                       uint64_t BaseAddress) : BaseAddress(0) {
   auto BinaryOrErr = object::createBinary(FilePath);
   assert(BinaryOrErr && "Couldn't open the input file");
 
@@ -53,6 +55,9 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
   llvm::StringRef WriteRegisterAsm = "";
   llvm::StringRef ReadRegisterAsm = "";
   llvm::StringRef JumpAsm = "";
+  bool HasRelocationAddend = false;
+  uint32_t BaseRelativeRelocation = ~uint32_t(0);
+
   switch (TheBinary->getArch()) {
   case Triple::x86:
     InstructionAlignment = 1;
@@ -64,7 +69,10 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
         0x01, // exit
         0x0b // execve
     };
+    HasRelocationAddend = false;
+    BaseRelativeRelocation = llvm::ELF::R_386_RELATIVE;
     break;
+
   case Triple::x86_64:
     InstructionAlignment = 1;
     SyscallHelper = "helper_syscall";
@@ -110,6 +118,7 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
     // REGISTER_OFFSET(RSP);
     // REGISTER_OFFSET(RIP);
 
+    // TODO: here we're hardcoding the offsets in the QEMU struct
     ABIRegisters = { { "rax", 0xD }, { "rbx", 0xB }, { "rcx", 0xE },
                      { "rdx", 0xC }, { "rbp", 0xA }, { "rsp", 0xF },
                      { "rsi", 0x9 }, { "rdi", 0x8 }, { "r8", 0x0 },
@@ -123,7 +132,10 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
     WriteRegisterAsm = "movq $0, %REGISTER";
     ReadRegisterAsm = "movq %REGISTER, $0";
     JumpAsm = "movq $0, %r11; jmpq *%r11";
+    HasRelocationAddend = true;
+    BaseRelativeRelocation = llvm::ELF::R_X86_64_RELATIVE;
     break;
+
   case Triple::arm:
     InstructionAlignment = 4;
     SyscallHelper = "helper_exception_with_syndrome";
@@ -137,7 +149,11 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
     ABIRegisters = { { "r0" }, { "r1" }, { "r2" }, { "r3" }, { "r4" },
                      { "r5" }, { "r6" }, { "r7" }, { "r8" }, { "r9" },
                      { "r10" }, { "r11" }, { "r12" }, { "r13" }, { "r14" } };
+    HasRelocationAddend = false;
+    BaseRelativeRelocation = llvm::ELF::R_ARM_RELATIVE;
+
     break;
+
   case Triple::mips:
     InstructionAlignment = 4;
     SyscallHelper = "helper_raise_exception";
@@ -153,7 +169,12 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
                      { "s0" }, { "s1" }, { "s2", }, { "s3" }, { "s4" },
                      { "s5" }, { "s6" }, { "s7" }, { "gp" }, { "sp" },
                      { "fp" }, { "ra" } };
+    HasRelocationAddend = false;
+    // TODO: check if this is correct
+    // BaseRelativeRelocation = llvm::ELF::R_MIPS_REL32;
+
     break;
+
   case Triple::systemz:
     SyscallHelper = "helper_exception";
     SyscallNumberRegister = "r1";
@@ -164,7 +185,10 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
       0x1,  // exit
       0xb,  // execve
     };
+    HasRelocationAddend = true;
+    BaseRelativeRelocation = llvm::ELF::R_390_RELATIVE;
     break;
+
   default:
     assert(false);
   }
@@ -183,34 +207,143 @@ BinaryFile::BinaryFile(std::string FilePath, bool UseSections) {
                                  PCMContextIndex,
                                  WriteRegisterAsm,
                                  ReadRegisterAsm,
-                                 JumpAsm);
+                                 JumpAsm,
+                                 HasRelocationAddend,
+                                 BaseRelativeRelocation);
 
   assert(TheBinary->getFileFormatName().startswith("ELF")
          && "Only the ELF file format is currently supported");
 
   if (TheArchitecture.pointerSize() == 32) {
     if (TheArchitecture.isLittleEndian()) {
-      parseELF<object::ELF32LE>(TheBinary, UseSections);
+      if (TheArchitecture.hasRelocationAddend()) {
+        parseELF<object::ELF32LE, true>(TheBinary, UseSections, BaseAddress);
+      } else {
+        parseELF<object::ELF32LE, false>(TheBinary, UseSections, BaseAddress);
+      }
     } else {
-      parseELF<object::ELF32BE>(TheBinary, UseSections);
+      if (TheArchitecture.hasRelocationAddend()) {
+        parseELF<object::ELF32BE, true>(TheBinary, UseSections, BaseAddress);
+      } else {
+        parseELF<object::ELF32BE, false>(TheBinary, UseSections, BaseAddress);
+      }
     }
   } else if (TheArchitecture.pointerSize() == 64) {
     if (TheArchitecture.isLittleEndian()) {
-      parseELF<object::ELF64LE>(TheBinary, UseSections);
+      if (TheArchitecture.hasRelocationAddend()) {
+        parseELF<object::ELF64LE, true>(TheBinary, UseSections, BaseAddress);
+      } else {
+        parseELF<object::ELF64LE, false>(TheBinary, UseSections, BaseAddress);
+      }
     } else {
-      parseELF<object::ELF64BE>(TheBinary, UseSections);
+      if (TheArchitecture.hasRelocationAddend()) {
+        parseELF<object::ELF64BE, true>(TheBinary, UseSections, BaseAddress);
+      } else {
+        parseELF<object::ELF64BE, false>(TheBinary, UseSections, BaseAddress);
+      }
     }
   } else {
     assert("Unexpect address size");
   }
 }
 
+class FilePortion {
+public:
+  void setAddress(uint64_t Address) {
+    HasAddress = true;
+    this->Address = Address;
+  }
+
+  void setSize(uint64_t Size) {
+    HasSize = true;
+    this->Size = Size;
+  }
+
+  bool isAvailable() const {
+    return HasAddress;
+  }
+
+  bool isExact() const {
+    assert(HasAddress);
+    return HasSize;
+  }
+
+  StringRef extractString(const std::vector<SegmentInfo> &Segments) const {
+    ArrayRef<uint8_t> Data = extractData(Segments);
+    const char *AsChar = reinterpret_cast<const char *>(Data.data());
+    return StringRef(AsChar, Data.size());
+  }
+
+  template<typename T>
+  ArrayRef<T> extractAs(const std::vector<SegmentInfo> &Segments) const {
+    ArrayRef<uint8_t> Data = extractData(Segments);
+    const size_t TypeSize = sizeof(T);
+    assert(Data.size() % TypeSize == 0);
+    return ArrayRef<T>(reinterpret_cast<const T *>(Data.data()),
+                       Data.size() / TypeSize);
+  }
+
+  ArrayRef<uint8_t>
+  extractData(const std::vector<SegmentInfo> &Segments) const {
+    assert(HasAddress);
+
+    for (const SegmentInfo &Segment : Segments) {
+      if (Segment.contains(Address)) {
+        uint64_t Offset = Address - Segment.StartVirtualAddress;
+        uint64_t AvailableSize = Segment.size() - Offset;
+        uint64_t TheSize = AvailableSize;
+
+        if (HasSize) {
+          assert(AvailableSize >= Size);
+          TheSize = Size;
+        }
+
+        return { ArrayRef<uint8_t>(Segment.Data.data() + Offset, TheSize) };
+      }
+    }
+
+    abort();
+  }
+
+private:
+  bool HasAddress;
+  bool HasSize;
+  uint64_t Size;
+  uint64_t Address;
+
+};
+
+template<typename T, bool HasAddend>
+struct RelocationHelper {
+  static uint64_t getAddend(llvm::object::Elf_Rel_Impl<T, HasAddend>);
+};
+
 template<typename T>
-void BinaryFile::parseELF(object::ObjectFile *TheBinary, bool UseSections) {
+struct RelocationHelper<T, true> {
+  static uint64_t getAddend(llvm::object::Elf_Rel_Impl<T, true> Relocation) {
+    return Relocation.r_addend;
+  }
+};
+
+template<typename T>
+struct RelocationHelper<T, false> {
+  static uint64_t getAddend(llvm::object::Elf_Rel_Impl<T, false> Relocation) {
+    return 0;
+  }
+};
+
+template<typename T, bool HasAddend>
+void BinaryFile::parseELF(object::ObjectFile *TheBinary,
+                          bool UseSections,
+                          uint64_t BaseAddress) {
   // Parse the ELF file
   std::error_code EC;
   object::ELFFile<T> TheELF(TheBinary->getData(), EC);
   assert(!EC && "Error while loading the ELF file");
+
+  // BaseAddress makes sense only for shared (relocatable, PIC) objects
+  if (TheELF.getHeader()->e_type == ELF::ET_DYN)
+    this->BaseAddress = BaseAddress;
 
   // Look for static or dynamic symbols and relocations
   using Elf_ShdrPtr = decltype(&(*TheELF.sections().begin()));
@@ -229,11 +362,11 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, bool UseSections) {
         SymtabShdr = &Section;
       } else if (*Name == ".eh_frame") {
         assert(not EHFrameAddress && "Duplicate .eh_frame");
-        EHFrameAddress = static_cast<uint64_t>(Section.sh_addr);
+        EHFrameAddress = relocate(static_cast<uint64_t>(Section.sh_addr));
         EHFrameSize = static_cast<uint64_t>(Section.sh_size);
       } else if (*Name == ".dynamic") {
         assert(not DynamicAddress && "Duplicate .dynamic");
-        DynamicAddress = static_cast<uint64_t>(Section.sh_addr);
+        DynamicAddress = relocate(static_cast<uint64_t>(Section.sh_addr));
       }
     }
   }
@@ -257,7 +390,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, bool UseSections) {
   }
 
   const auto *ElfHeader = TheELF.getHeader();
-  EntryPoint = static_cast<uint64_t>(ElfHeader->e_entry);
+  EntryPoint = relocate(static_cast<uint64_t>(ElfHeader->e_entry));
   ProgramHeaders.Count = ElfHeader->e_phnum;
   ProgramHeaders.Size = ElfHeader->e_phentsize;
 
@@ -272,7 +405,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, bool UseSections) {
     case ELF::PT_LOAD:
       {
         SegmentInfo Segment;
-        auto Start = ProgramHeader.p_vaddr;
+        auto Start = relocate(ProgramHeader.p_vaddr);
         Segment.StartVirtualAddress = Start;
         Segment.EndVirtualAddress = Start + ProgramHeader.p_memsz;
         Segment.IsReadable = ProgramHeader.p_flags & ELF::PF_R;
@@ -289,7 +422,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, bool UseSections) {
           auto Inserter = std::back_inserter(Segment.ExecutableSections);
           for (Elf_Shdr &SectionHeader : TheELF.sections()) {
             if (SectionHeader.sh_flags & ELF::SHF_EXECINSTR) {
-              auto SectionStart = SectionHeader.sh_addr;
+              auto SectionStart = relocate(SectionHeader.sh_addr);
               auto SectionEnd = SectionStart + SectionHeader.sh_size;
               Inserter = make_pair(SectionStart, SectionEnd);
             }
@@ -303,9 +436,9 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, bool UseSections) {
         auto ProgramHeaderEnd = ProgramHeader.p_offset + ProgramHeader.p_filesz;
         if (ProgramHeaderStart <= ElfHeader->e_phoff
             && ElfHeader->e_phoff < ProgramHeaderEnd) {
-          auto PhdrAddress = static_cast<uint64_t>(ProgramHeader.p_vaddr
-                                                   + ElfHeader->e_phoff
-                                                   - ProgramHeader.p_offset);
+          uint64_t PhdrAddress = (relocate(ProgramHeader.p_vaddr)
+                                  + ElfHeader->e_phoff
+                                  - ProgramHeader.p_offset);
           ProgramHeaders.Address = PhdrAddress;
         }
       }
@@ -313,14 +446,14 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, bool UseSections) {
 
     case ELF::PT_GNU_EH_FRAME:
       assert(!EHFrameHdrAddress);
-      EHFrameHdrAddress = ProgramHeader.p_vaddr;
+      EHFrameHdrAddress = relocate(ProgramHeader.p_vaddr);
       break;
 
     case ELF::PT_DYNAMIC:
       assert(DynamicPhdr == nullptr && "Duplicate .dynamic program header");
       DynamicPhdr = &ProgramHeader;
       assert(((not DynamicAddress)
-              or (DynamicPhdr->p_vaddr == *DynamicAddress))
+              or (relocate(DynamicPhdr->p_vaddr) == *DynamicAddress))
              and ".dynamic and PT_DYNAMIC have different addresses");
       break;
     }
@@ -344,41 +477,118 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, bool UseSections) {
   if (EHFrameAddress)
     parseEHFrame<T>(*EHFrameAddress, FDEsCount, EHFrameSize);
 
-  // Search for needed shared libraries in the .dynamic table
+  // Parse the .dynamic table
   if (DynamicPhdr != nullptr) {
     SmallVector<uint64_t, 10> NeededLibraryNameOffsets;
-    StringRef Dynstr;
-    Optional<uint64_t> DynstrSize;
+
+    FilePortion DynstrPortion;
+    FilePortion DynsymPortion;
+    FilePortion ReldynPortion;
+    FilePortion RelpltPortion;
+
     for (Elf_Dyn &DynamicTag : *TheELF.dynamic_table(DynamicPhdr)) {
-      switch(DynamicTag.getTag()) {
-        case ELF::DT_NEEDED:
-          NeededLibraryNameOffsets.push_back(DynamicTag.getVal());
-          break;
 
-        case ELF::DT_STRTAB: {
-          Optional<ArrayRef<uint8_t>> DynstrData;
-          DynstrData = getAddressData(DynamicTag.getPtr());
-          assert(DynstrData.hasValue() &&
-                 ".dynamic string table not available in any segment");
-          Dynstr = StringRef(reinterpret_cast<const char *>(DynstrData->data()),
-                             DynstrData->size());
-        } break;
+      auto TheTag = DynamicTag.getTag();
+      switch(TheTag) {
+      case ELF::DT_NEEDED:
+        NeededLibraryNameOffsets.push_back(DynamicTag.getVal());
+        break;
 
-        case ELF::DT_STRSZ:
-          DynstrSize = DynamicTag.getVal();
-          break;
+      case ELF::DT_STRTAB:
+        DynstrPortion.setAddress(relocate(DynamicTag.getPtr()));
+        break;
+
+      case ELF::DT_STRSZ:
+        DynstrPortion.setSize(DynamicTag.getVal());
+        break;
+
+      case ELF::DT_SYMTAB:
+        DynsymPortion.setAddress(relocate(DynamicTag.getPtr()));
+        break;
+
+      case ELF::DT_JMPREL:
+        RelpltPortion.setAddress(relocate(DynamicTag.getPtr()));
+        break;
+
+      case ELF::DT_PLTRELSZ:
+        RelpltPortion.setSize(DynamicTag.getVal());
+        break;
+
+      case ELF::DT_REL:
+      case ELF::DT_RELA:
+        assert(TheTag == HasAddend ? ELF::DT_RELA : ELF::DT_REL);
+        ReldynPortion.setAddress(relocate(DynamicTag.getPtr()));
+        break;
+
+      case ELF::DT_RELSZ:
+      case ELF::DT_RELASZ:
+        assert(TheTag == HasAddend ? ELF::DT_RELASZ : ELF::DT_RELSZ);
+        ReldynPortion.setSize(DynamicTag.getVal());
+        break;
 
       }
     }
 
-    assert(DynstrSize.hasValue() && *DynstrSize < Dynstr.size());
-    Dynstr = StringRef(Dynstr.data(), *DynstrSize);
+    if (NeededLibraryNames.size() > 0)
+      assert(DynstrPortion.isAvailable());
 
-    for(auto Offset : NeededLibraryNameOffsets)
-      NeededLibraryNames.push_back(Dynstr.slice(Offset, *DynstrSize).data());
+    if (DynstrPortion.isAvailable()) {
+      StringRef Dynstr = DynstrPortion.extractString(Segments);
+      for(auto Offset : NeededLibraryNameOffsets)
+        NeededLibraryNames.push_back(Dynstr.slice(Offset,
+                                                  Dynstr.size()).data());
+    }
+
+    // Collect symbols count and code pointers in image base-relative
+    // relocations
+    uint32_t ReldynSymbolsCount = parseRelocations<T, HasAddend>(ReldynPortion);
+    uint32_t RelpltSymbolsCount = parseRelocations<T, HasAddend>(RelpltPortion);
+    uint32_t SymbolsCount = std::max(ReldynSymbolsCount, RelpltSymbolsCount);
+
+    // Collect function addresses contained in dynamic symbols
+    if (SymbolsCount > 0 and DynsymPortion.isAvailable()) {
+      using Elf_Sym = llvm::object::Elf_Sym_Impl<T>;
+      DynsymPortion.setSize(SymbolsCount * sizeof(Elf_Sym));
+      for (Elf_Sym Symbol : DynsymPortion.extractAs<Elf_Sym>(Segments))
+        if (Symbol.st_value != 0 and Symbol.getType() == ELF::STT_FUNC)
+          CodePointers.insert(relocate(Symbol.st_value));
+    }
 
   }
 }
+
+template<typename T, bool HasAddend>
+uint64_t BinaryFile::parseRelocations(const FilePortion &Relocations) {
+  using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
+
+  uint32_t SymbolsCount = 0;
+  if (Relocations.isAvailable()) {
+    assert(Relocations.isExact());
+    for (Elf_Rel Relocation : Relocations.extractAs<Elf_Rel>(Segments)) {
+      SymbolsCount = std::max(SymbolsCount, Relocation.getSymbol(false) + 1);
+      auto RelocationType = Relocation.getType(false);
+      if (RelocationType == TheArchitecture.baseRelativeRelocation()) {
+        uint64_t Value;
+
+        // If it's a relocation with an addend, use it, otherwise the
+        // value is taken from the value stored in the relocated
+        // address (r_offset).
+        if (HasAddend) {
+          Value = RelocationHelper<T, HasAddend>::getAddend(Relocation);
+        } else {
+          auto Data = getAddressData(relocate(Relocation.r_offset));
+          assert(Data && "r_offset is not in any segment.");
+          Value = ::readPointer<T>(Data->data());
+        }
+
+        CodePointers.insert(relocate(Value));
+      }
+    }
+  }
+
+  return SymbolsCount;
+}
+
 
 //
 // .eh_frame-related functions
