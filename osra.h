@@ -122,7 +122,7 @@ public:
 
     /// \brief Merge \p Other using the \p MT policy
     template<MergeType MT=And>
-    bool merge(const BoundedValue &Other,
+    bool merge(BoundedValue Other,
                const llvm::DataLayout &DL,
                llvm::Type *Int64);
 
@@ -146,6 +146,14 @@ public:
         return Bounds[0].second == upperExtreme();
     }
 
+    uint64_t lowerBound() const {
+      assert(isRightOpen());
+      if (Negated)
+        return Bounds[0].second;
+      else
+        return Bounds[0].first;
+    }
+
     /// \brief If the BV is limited, return its bounds considering negation
     ///
     /// Do not invoke this method on unlimited BVs.
@@ -166,6 +174,9 @@ public:
                               CI::get(Int64, upperExtreme(), isSigned()));
       } else if (UpperBound == upperExtreme()) {
         return std::make_pair(CI::get(Int64, lowerExtreme(), isSigned()),
+                              CI::get(Int64, LowerBound - 1, isSigned()));
+      } else if (Negated) {
+        return std::make_pair(CI::get(Int64, UpperBound + 1, isSigned()),
                               CI::get(Int64, LowerBound - 1, isSigned()));
       }
 
@@ -281,8 +292,8 @@ public:
     }
 
     static BoundedValue createLE(const llvm::Value *V,
-				 uint64_t Value,
-				 bool Sign) {
+                                 uint64_t Value,
+                                 bool Sign) {
       BoundedValue Result(V);
       Result.setSignedness(Sign);
       Result.Bounds = BoundsVector { { Result.lowerExtreme(), Value } };
@@ -310,6 +321,13 @@ public:
       BoundedValue Result(V);
       Result.Bounds = BoundsVector { { Value, Value } };
       Result.Sign = AnySignedness;
+      return Result;
+    }
+
+    static BoundedValue createNegatedConstant(const llvm::Value *V,
+                                              uint64_t Value) {
+      BoundedValue Result = createConstant(V, Value);
+      Result.flip();
       return Result;
     }
 
@@ -489,7 +507,7 @@ public:
       BV = NewBV;
     }
 
-    /// \brief Accessor method to BoundedValue associate to this OSR
+    /// \brief Accessor method to BoundedValue associated to this OSR
     const BoundedValue *boundedValue() const {
       assert(BV != nullptr);
       return BV;
@@ -605,6 +623,9 @@ public:
 
     /// \brief Return the size of the associated BoundedValue
     uint64_t size() const { return BV->size(); }
+
+    /// \brief Accessor to the factor value of this OSR (`b`)
+    uint64_t base() const { return Base; }
 
     /// \brief Accessor to the factor value of this OSR (`b`)
     uint64_t factor() const { return Factor; }

@@ -545,7 +545,7 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
     OS.explore(CI::get(Int64, O->constant()));
   } else {
     // Hard limit
-    if (O->size() >= 10000)
+    if (not O->boundedValue()->hasSignedness() or O->size() >= 10000)
       return false;
 
     // We have a limited range, let's use it all
