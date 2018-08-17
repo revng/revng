@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-# * DT_GNUHASH?
 # * DR_{INIT,FINI}_ARRAY?
 
 import argparse
@@ -290,6 +289,18 @@ def main():
     assert to_extend_elf.is_dynamic
     assert to_extend_elf.elf.header.e_machine == source_elf.elf.header.e_machine
 
+    if to_extend_elf.elf.little_endian:
+      parse32 = "<I"
+      parse64 = "<Q"
+    else:
+      parse32 = ">I"
+      parse64 = ">Q"
+
+    if to_extend_elf.elf.elfclass == 64:
+      parse = parse64
+    else:
+      parse = parse32
+
     relocation_offset = 0
     if source_elf.elf.header.e_type == "ET_DYN":
       relocation_offset = int(args.base, base=0)
@@ -346,12 +357,19 @@ def main():
 
     # Prepare new .dynsym
     new_dynsym = to_extend_elf.dynsym
-    dynsym_offset = len(to_extend_elf.symbols)
-    new_symbols = list(source_elf.symbols)
-    for symbol in new_symbols:
+    defined_symbols = []
+    for index, symbol in enumerate(to_extend_elf.symbols):
+      if symbol.st_shndx != "SHN_UNDEF":
+        defined_symbols.append(index)
+
+    dynsym_offset = len(to_extend_elf.symbols) - 1
+    new_symbols = list(source_elf.symbols)[1:]
+    for index, symbol in enumerate(new_symbols):
       symbol.st_name += dynstr_offset
       if symbol.st_value != 0:
         symbol.st_value += relocation_offset
+      if symbol.st_shndx != "SHN_UNDEF":
+        defined_symbols.append(index + dynsym_offset + 1)
 
     new_dynsym += serialize(new_symbols, source_elf.elf.structs.Elf_Sym)
     new_dynsym_offset = new_dynstr_offset + len(new_dynstr)
@@ -382,7 +400,7 @@ def main():
     # 3. Concat .gnu.version
     new_gnuversion_offset = new_reldyn_offset + len(new_reldyn)
     new_gnuversion = to_extend_elf.gnuversion
-    new_gnuversion_indices = source_elf.gnuversion_indices
+    new_gnuversion_indices = source_elf.gnuversion_indices[1:]
     for index, value in enumerate(new_gnuversion_indices):
       if value != 0 and value != 1:
         new_gnuversion_indices[index] += version_index_offset
@@ -413,8 +431,33 @@ def main():
     new_verneeds += source_elf.verneeds
     new_gnuversion_r = source_elf.serialize_verneeds(new_verneeds)
 
+    # We now build a fake old-style (non-GNU) hash table. Basically we have a
+    # single bucketup pointing to the first defined symbol, which in turn will
+    # point to the second one and so on, up to the last which has identifier 0
+    # and stops the search for a symbol.  Basically, we transformed a hash
+    # lookup in a linear search.
+
+    # TODO: implement an actual hash table, possibly GNU
+
+    # nbucket + nchain + [buckets] + [chains]
+    symbols_count = dynsym_offset + len(new_symbols) + 1
+
+    chain = [0 for i in range(symbols_count)]
+    for i in range(len(defined_symbols) - 1):
+      chain[defined_symbols[i]] = defined_symbols[i + 1]
+    chain = [struct.pack(parse32, chain[i]) for i in range(len(chain))]
+    chain = "".join(chain)
+
+    new_hash = (struct.pack(parse32, 1)
+                + struct.pack(parse32, symbols_count)
+                + struct.pack(parse32, defined_symbols[0])
+                + chain)
+    new_hash_offset = new_gnuversion_r_offset + len(new_gnuversion_r)
+
     # Prepare new .dynamic
-    new_dynamic_tags = [dt for dt in to_extend_elf.dynamic.iter_tags()]
+    new_dynamic_tags = [dt
+                        for dt
+                        in to_extend_elf.dynamic.iter_tags()]
 
     last_dt_needed = -1
     libraries = set()
@@ -439,6 +482,9 @@ def main():
         dynamic_tag.entry.d_val = len(new_verneeds)
       elif dynamic_tag.entry.d_tag == "DT_VERSYM":
         dynamic_tag.entry.d_val = to_address(new_gnuversion_offset)
+      elif dynamic_tag.entry.d_tag == "DT_GNU_HASH":
+        dynamic_tag.entry.d_tag = "DT_HASH"
+        dynamic_tag.entry.d_val = to_address(new_hash_offset)
 
     # This is done a link-time
     # for dt_needed in reversed(source_elf.dt_by_tag("DT_NEEDED")):
@@ -449,7 +495,7 @@ def main():
     new_dynamic_tags = [dt.entry for dt in new_dynamic_tags]
 
     new_dynamic = serialize(new_dynamic_tags, source_elf.elf.structs.Elf_Dyn)
-    new_dynamic_offset = new_gnuversion_r_offset + len(new_gnuversion_r)
+    new_dynamic_offset = new_hash_offset + len(new_hash)
 
     new_section_headers_offset = new_dynamic_offset + len(new_dynamic)
     new_sections = to_extend_elf.sections
@@ -566,6 +612,10 @@ def main():
     # Write new .rel.dyn
     assert output_file.tell() == new_gnuversion_r_offset
     output_file.write(new_gnuversion_r)
+
+    # Write new .hash
+    assert output_file.tell() == new_hash_offset
+    output_file.write(new_hash)
 
     # Write new .dynamic
     assert output_file.tell() == new_dynamic_offset
