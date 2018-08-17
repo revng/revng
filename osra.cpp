@@ -1633,6 +1633,12 @@ void OSRA::dump() {
   F.getParent()->print(OutputStream, new OSRAnnotationWriter(*this));
 }
 
+void OSR::dump() const {
+  raw_os_ostream Lol(dbg);
+  formatted_raw_ostream OutputStream(Lol);
+  describe(OutputStream);
+}
+
 void OSR::describe(formatted_raw_ostream &O) const {
   O << "[" << static_cast<int64_t>(Base)
     << " + " << static_cast<int64_t>(Factor) << " * x, with x = ";
@@ -1641,6 +1647,12 @@ void OSR::describe(formatted_raw_ostream &O) const {
   else
     BV->describe(O);
   O << "]";
+}
+
+void BoundedValue::dump() const {
+  raw_os_ostream Lol(dbg);
+  formatted_raw_ostream OutputStream(Lol);
+  describe(OutputStream);
 }
 
 void BoundedValue::describe(formatted_raw_ostream &O) const {

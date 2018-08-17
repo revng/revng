@@ -93,6 +93,8 @@ public:
 
     void describe(llvm::formatted_raw_ostream &O) const;
 
+    void dump() const debug_function;
+
     /// \brief Merge policies for BVs
     enum MergeType {
       And, ///< Intersection of the ranges
@@ -502,6 +504,8 @@ public:
     }
 
     void describe(llvm::formatted_raw_ostream &O) const;
+
+    void dump() const debug_function;
 
     /// \brief Return true if the OSR doesn't have a BoundedValue or is
     ///        ininfluent
