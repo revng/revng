@@ -706,6 +706,16 @@ Optional<BoundedValue> OSRA::applyConstraint(Instruction *I,
 
   // Create a copy of the current value of the BV
   BoundedValue NewBV = *OriginalBV;
+
+  // If NewBV is identical to the negated version of the original one, assume no
+  // changes
+  // TODO: this is fine, but we should propagate on the appropriate branch a
+  //       bottom value
+  NewBV.flip();
+  if (NewBV == Result)
+    return Result;
+  NewBV.flip();
+
   NewBV.merge(Result, DL, Int64);
   return NewBV;
 }
