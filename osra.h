@@ -107,6 +107,7 @@ public:
 
     bool isConstant() const {
       return !isUninitialized()
+        && !Negated
         && !Bottom
         && Bounds.size() == 1
         && Bounds[0].first == Bounds[0].second;
