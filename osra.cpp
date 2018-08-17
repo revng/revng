@@ -690,14 +690,29 @@ Optional<BoundedValue> OSRA::applyConstraint(Instruction *I,
     // x - 3 > 30, we get NOT [4, 33], which is way more informative than
     // [33, +Inf]
 
-    bool Flip = Result.isRightOpen();
-    if (Flip)
-      Result.flip();
-
     auto *Zero = ConstantInt::get(ConstOp->getType(), 0);
-    Result.merge(mergePredicate(BaseOp, CmpInst::ICMP_UGE, Zero), DL, Int64);
+    BoundedValue ZeroConstraint = mergePredicate(BaseOp,
+                                                 CmpInst::ICMP_UGE,
+                                                 Zero);
 
-    if (Flip)
+    // If both the base constraint and the greater-than-zero constraint are
+    // right open, flip the one with highest lower bound, so that we obtain a
+    // single interval. If the flipped constraint happens to be the base one,
+    // then flip it again before returning.
+    bool SameDirection = Result.isRightOpen() and ZeroConstraint.isRightOpen();
+    bool FlipResult = false;
+    if (SameDirection) {
+      FlipResult = Result.lowerBound() > ZeroConstraint.lowerBound();
+      if (FlipResult)
+        Result.flip();
+      else
+        ZeroConstraint.flip();
+    }
+
+    Result.merge(ZeroConstraint, DL, Int64);
+
+    // Unflip
+    if (FlipResult)
       Result.flip();
   }
 
