@@ -552,10 +552,12 @@ public:
       bool operator!=(BoundsIterator &Other) const { return !(*this == Other); }
 
       BoundsIterator &operator++() {
-        Index++;
-        if ((Current->first + Index) > Current->second) {
+
+        if ((Current->first + Index) >= Current->second) {
           ++Current;
           Index = 0;
+        } else {
+          Index++;
         }
 
         return *this;
