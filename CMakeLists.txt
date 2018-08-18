@@ -128,6 +128,7 @@ add_executable(revamb
   osra.cpp
   ptcdump.cpp
   reachingdefinitions.cpp
+  revng-assert.cpp
   set.cpp
   simplifycomparisons.cpp
   statistics.cpp
@@ -138,7 +139,8 @@ install(TARGETS revamb RUNTIME DESTINATION bin)
 
 add_executable(revamb-dump dump.cpp collectcfg.cpp collectnoreturn.cpp debug.cpp
   collectfunctionboundaries.cpp debughelper.cpp generatedcodebasicinfo.cpp
-  isolatefunctions.cpp statistics.cpp stackanalysis.cpp argparse/argparse.c)
+  isolatefunctions.cpp statistics.cpp stackanalysis.cpp revng-assert.cpp
+  argparse/argparse.c)
 target_link_libraries(revamb-dump ${LLVM_LIBRARIES})
 install(TARGETS revamb-dump RUNTIME DESTINATION bin)
 

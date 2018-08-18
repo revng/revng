@@ -14,6 +14,9 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
+// Local includes
+#include "revng-assert.h"
+
 namespace llvm {
 class Instruction;
 }

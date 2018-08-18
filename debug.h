@@ -17,6 +17,9 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ManagedStatic.h"
 
+// Local includes
+#include "revng-assert.h"
+
 // TODO: use a dedicated namespace
 extern bool DebuggingEnabled;
 extern std::ostream &dbg;
