@@ -592,7 +592,8 @@ void OSRA::handleLogicalOperator(Instruction *I) {
 // TODO: give a better name
 BoundedValue OSRA::mergePredicate(OSR &BaseOp, Predicate P, Constant *ConstOp) {
   const Value *V = BaseOp.boundedValue()->value();
-  bool IsSigned = BaseOp.boundedValue()->isSigned();
+  bool HasSignedness = BaseOp.boundedValue()->hasSignedness();
+  bool IsSigned = HasSignedness ? BaseOp.boundedValue()->isSigned() : false;
   // Solve the equation to obtain the new boundary value
   // x <  1.5 == x <  2 (Ceiling)
   // x <= 1.5 == x <= 1 (Floor)
@@ -633,10 +634,16 @@ BoundedValue OSRA::mergePredicate(OSR &BaseOp, Predicate P, Constant *ConstOp) {
     return BoundedValue::createLE(V, NewBound, IsSigned);
 
   case CmpInst::ICMP_EQ:
-    return BoundedValue::createEQ(V, NewBound, IsSigned);
+    if (HasSignedness)
+      return BoundedValue::createEQ(V, NewBound, IsSigned);
+    else
+      return BoundedValue::createConstant(V, NewBound);
 
   case CmpInst::ICMP_NE:
-    return BoundedValue::createNE(V, NewBound, IsSigned);
+    if (HasSignedness)
+      return BoundedValue::createNE(V, NewBound, IsSigned);
+    else
+      return BoundedValue::createNegatedConstant(V, NewBound);
 
   default:
     llvm_unreachable("Unexpected comparison operator");
@@ -658,22 +665,12 @@ Optional<BoundedValue> OSRA::applyConstraint(Instruction *I,
 
   // Notify the BV about the sign we're going to use, unless it's a comparison
   // of (in)equality
-  bool IsSigned;
-  if (P != CmpInst::ICMP_EQ && P != CmpInst::ICMP_NE) {
-    IsSigned = ICmpInst::isSigned(P);
-    BVs.setSignedness(BB, OriginalBV->value(), IsSigned);
-  } else {
-    // TODO: we don't know what sign to use here, so we ignore it, should we
-    //       switch to AnySignedness?
-    if (!OriginalBV->hasSignedness())
-      return Optional<BoundedValue>();
-
-    IsSigned = OriginalBV->isSigned();
-  }
+  if (P != CmpInst::ICMP_EQ && P != CmpInst::ICMP_NE)
+    BVs.setSignedness(BB, OriginalBV->value(), ICmpInst::isSigned(P));
 
   // If setting the sign we went to bottom or still don't have it (e.g., due to
   // being top), give up
-  if (OriginalBV->isBottom() || !OriginalBV->hasSignedness())
+  if (OriginalBV->isBottom())
     return Optional<BoundedValue>();
 
   BoundedValue Result = mergePredicate(BaseOp, P, ConstOp);
@@ -690,14 +687,29 @@ Optional<BoundedValue> OSRA::applyConstraint(Instruction *I,
     // x - 3 > 30, we get NOT [4, 33], which is way more informative than
     // [33, +Inf]
 
-    bool Flip = Result.isRightOpen();
-    if (Flip)
-      Result.flip();
-
     auto *Zero = ConstantInt::get(ConstOp->getType(), 0);
-    Result.merge(mergePredicate(BaseOp, CmpInst::ICMP_UGE, Zero), DL, Int64);
+    BoundedValue ZeroConstraint = mergePredicate(BaseOp,
+                                                 CmpInst::ICMP_UGE,
+                                                 Zero);
 
-    if (Flip)
+    // If both the base constraint and the greater-than-zero constraint are
+    // right open, flip the one with highest lower bound, so that we obtain a
+    // single interval. If the flipped constraint happens to be the base one,
+    // then flip it again before returning.
+    bool SameDirection = Result.isRightOpen() and ZeroConstraint.isRightOpen();
+    bool FlipResult = false;
+    if (SameDirection) {
+      FlipResult = Result.lowerBound() > ZeroConstraint.lowerBound();
+      if (FlipResult)
+        Result.flip();
+      else
+        ZeroConstraint.flip();
+    }
+
+    Result.merge(ZeroConstraint, DL, Int64);
+
+    // Unflip
+    if (FlipResult)
       Result.flip();
   }
 
@@ -706,6 +718,16 @@ Optional<BoundedValue> OSRA::applyConstraint(Instruction *I,
 
   // Create a copy of the current value of the BV
   BoundedValue NewBV = *OriginalBV;
+
+  // If NewBV is identical to the negated version of the original one, assume no
+  // changes
+  // TODO: this is fine, but we should propagate on the appropriate branch a
+  //       bottom value
+  NewBV.flip();
+  if (NewBV == Result)
+    return Result;
+  NewBV.flip();
+
   NewBV.merge(Result, DL, Int64);
   return NewBV;
 }
@@ -1633,6 +1655,12 @@ void OSRA::dump() {
   F.getParent()->print(OutputStream, new OSRAnnotationWriter(*this));
 }
 
+void OSR::dump() const {
+  raw_os_ostream Lol(dbg);
+  formatted_raw_ostream OutputStream(Lol);
+  describe(OutputStream);
+}
+
 void OSR::describe(formatted_raw_ostream &O) const {
   O << "[" << static_cast<int64_t>(Base)
     << " + " << static_cast<int64_t>(Factor) << " * x, with x = ";
@@ -1641,6 +1669,12 @@ void OSR::describe(formatted_raw_ostream &O) const {
   else
     BV->describe(O);
   O << "]";
+}
+
+void BoundedValue::dump() const {
+  raw_os_ostream Lol(dbg);
+  formatted_raw_ostream OutputStream(Lol);
+  describe(OutputStream);
 }
 
 void BoundedValue::describe(formatted_raw_ostream &O) const {
@@ -1674,7 +1708,9 @@ void BoundedValue::describe(formatted_raw_ostream &O) const {
   } else if (!isUninitialized()) {
     for (auto Bound : Bounds) {
       O << ", [";
-      if (!isConstant() && Bound.first == lowerExtreme()) {
+      if (!isConstant()
+          && hasSignedness()
+          && Bound.first == lowerExtreme()) {
         O << "min";
       } else {
         O << Bound.first;
@@ -1682,7 +1718,9 @@ void BoundedValue::describe(formatted_raw_ostream &O) const {
 
       O << ", ";
 
-      if (!isConstant() && Bound.second == upperExtreme()) {
+      if (!isConstant()
+          && hasSignedness()
+          && Bound.second == upperExtreme()) {
         O << "max";
       } else {
         O << Bound.second;
@@ -1738,8 +1776,10 @@ void OSRA::describe(formatted_raw_ostream &O, const Instruction *I) const {
 Constant *OSR::solveEquation(Constant *KnownTerm,
                              bool CeilingRounding,
                              const DataLayout &DL) {
-  // (KnownTerm - Base) udiv Factor
-  bool IsSigned = BV->isSigned();
+  // TODO: we're assuming unsigned if no signedness
+  // (KnownTerm - Base) div Factor
+  bool HasSignedness = BV->hasSignedness();
+  bool IsSigned = HasSignedness ? BV->isSigned() : false;
 
   auto *BaseConst = CI::get(KnownTerm->getType(), Base, IsSigned);
   auto *Numerator = CE::getSub(KnownTerm, BaseConst);
@@ -1747,13 +1787,30 @@ Constant *OSR::solveEquation(Constant *KnownTerm,
 
   Constant *Remainder = nullptr;
   Constant *Division = nullptr;
-  if (IsSigned) {
-    Remainder = CE::getSRem(Numerator, Denominator);
-    Division = CE::getSDiv(Numerator, Denominator);
-  } else {
-    Remainder = CE::getURem(Numerator, Denominator);
-    Division = CE::getUDiv(Numerator, Denominator);
+
+  Constant *SignedRemainder = nullptr;
+  Constant *SignedDivision = nullptr;
+  if (IsSigned or not HasSignedness) {
+    SignedRemainder = CE::getSRem(Numerator, Denominator);
+    SignedDivision = CE::getSDiv(Numerator, Denominator);
+    Remainder = SignedRemainder;
+    Division = SignedDivision;
   }
+
+  Constant *UnsignedRemainder = nullptr;
+  Constant *UnsignedDivision = nullptr;
+  if (not IsSigned or not HasSignedness) {
+    UnsignedRemainder = CE::getURem(Numerator, Denominator);
+    UnsignedDivision = CE::getUDiv(Numerator, Denominator);
+    Remainder = UnsignedRemainder;
+    Division = UnsignedDivision;
+  }
+
+  // If we no signedness but it would produce different results, bail out
+  if (not HasSignedness
+      and (SignedRemainder != UnsignedRemainder
+           or SignedDivision != UnsignedDivision))
+    return UndefValue::get(Division->getType());
 
   if (isa<UndefValue>(Division))
     return Division;
@@ -1930,8 +1987,10 @@ void OSRA::mergeLoadReacher(LoadInst *Load) {
     OSR ReachingOSR = P.second;
     if (ReachingOSR != Result) {
       OSR FreeOSR = createOSR(Load, Load->getParent());
-      if (Reachers.size() == RDP.getReachingDefinitionsCount(Load))
-        BVs.forceBV(Load, pathSensitiveMerge(Load));
+      if (Reachers.size() == RDP.getReachingDefinitionsCount(Load)) {
+        BoundedValue NewBVs = pathSensitiveMerge(Load);
+        BVs.forceBV(Load, NewBVs);
+      }
       OSRs.insert({ Load, FreeOSR });
       return;
     }
@@ -2559,9 +2618,12 @@ BoundedValue BoundedValue::mergeImpl(const BoundedValue &Other) const {
 }
 
 template<BoundedValue::MergeType MT>
-bool BoundedValue::merge(const BoundedValue &Other,
+bool BoundedValue::merge(BoundedValue Other,
                          const DataLayout &DL,
                          Type *Int64) {
+
+  if (*this == Other)
+    return false;
 
   if (MT == And) {
     // x & bottom = bottom
@@ -2603,8 +2665,12 @@ bool BoundedValue::merge(const BoundedValue &Other,
   }
 
   if (Sign == AnySignedness || Other.Sign == AnySignedness) {
-    if (Sign == AnySignedness)
+    if (Sign == AnySignedness) {
       Sign = Other.Sign;
+    } else {
+      assert(hasSignedness());
+      Other.setSignedness(Sign == Signed);
+    }
   } else {
     setSignedness(Other.isSigned());
   }

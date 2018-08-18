@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-# * DT_GNUHASH?
 # * DR_{INIT,FINI}_ARRAY?
 
 import argparse
@@ -17,6 +16,15 @@ from pprint import pprint
 from elftools.elf.elffile import ELFFile
 from elftools.elf.constants import P_FLAGS
 from elftools.elf.enums import ENUM_P_TYPE
+from elftools.elf.enums import ENUM_RELOC_TYPE_MIPS
+from elftools.elf.enums import ENUM_RELOC_TYPE_i386
+from elftools.elf.enums import ENUM_RELOC_TYPE_x64
+from elftools.elf.enums import ENUM_RELOC_TYPE_ARM
+
+def log(message):
+  global verbose
+  if verbose:
+    sys.stderr.write(message + "\n")
 
 def set_executable(path):
   st = os.stat(path)
@@ -37,6 +45,10 @@ def only(iterable):
   assert len(iterable) == 1
   return iterable[0]
 
+def first_or_none(iterable):
+  iterable = list(iterable)
+  return iterable[0] if len(iterable) != 0 else None
+
 def read_at_offset(file, start, size):
   file.seek(start)
   return file.read(size)
@@ -52,6 +64,9 @@ def parse(buffer, struct):
 
 def serialize(list, struct):
   return b"".join(map(struct.build, list))
+
+def overlaps(start1, size1, start2, size2):
+  return (start1 + size1) >= start2 and (start2 + size2) >= start1
 
 class ParsedElf:
   def __init__(self, file):
@@ -206,6 +221,24 @@ class ParsedElf:
   def has_tag(self, tag):
     return len(self.dt_by_tag(tag)) != 0
 
+  def segment_by_range(self, address, size):
+    return first_or_none([segment
+                          for segment
+                          in self.segment_by_type("PT_LOAD")
+                          if overlaps(address,
+                                      size,
+                                      segment.header.p_vaddr,
+                                      segment.header.p_memsz)])
+
+  def dynamic_size(self):
+    return (len(self.dynsym)
+            + len(self.dynstr)
+            + len(self.gnuversion)
+            + len(self.reldyn)
+            + self.dynamic.header.p_memsz
+            + len(self.segments) * self.elf.structs.Elf_Phdr.sizeof()
+            + len(self.sections) * self.elf.structs.Elf_Shdr.sizeof())
+
 def align(start, alignment):
   return ((start + alignment - 1) / alignment) * alignment
 
@@ -215,16 +248,27 @@ def main():
                                                 + "one from the host ELF."))
   parser.add_argument("to_extend",
                       metavar="TO_EXTEND",
-                      help="The destination ELF.")
+                      help="The ELF extend.")
   parser.add_argument("source",
                       metavar="SOURCE",
-                      help="The source ELF.")
+                      help="The original ELF.")
   parser.add_argument("output",
                       metavar="OUTPUT",
                       nargs="?",
                       default="-",
                       help="The output ELF.")
+  parser.add_argument("--verbose",
+                      action="store_true",
+                      help="Print debug information and warnings.")
+  parser.add_argument("--base",
+                      metavar="ADDRESS",
+                      default="0x50000000",
+                      help=("The base address where dynamic object have been" +
+                            " loaded."))
   args = parser.parse_args()
+
+  global verbose
+  verbose = args.verbose
 
   with (sys.stdout
         if args.output == "-"
@@ -243,6 +287,38 @@ def main():
       return 0
 
     assert to_extend_elf.is_dynamic
+    assert to_extend_elf.elf.header.e_machine == source_elf.elf.header.e_machine
+
+    if to_extend_elf.elf.little_endian:
+      parse32 = "<I"
+      parse64 = "<Q"
+    else:
+      parse32 = ">I"
+      parse64 = ">Q"
+
+    if to_extend_elf.elf.elfclass == 64:
+      parse = parse64
+    else:
+      parse = parse32
+
+    relocation_offset = 0
+    if source_elf.elf.header.e_type == "ET_DYN":
+      relocation_offset = int(args.base, base=0)
+
+    machine = to_extend_elf.elf.header.e_machine
+    if machine == "EM_X86_64":
+      relative_relocation = ENUM_RELOC_TYPE_x64["R_X86_64_RELATIVE"]
+    elif machine == "EM_ARM":
+      relative_relocation = ENUM_RELOC_TYPE_ARM["R_ARM_RELATIVE"]
+    elif machine == "EM_386":
+      relative_relocation = ENUM_RELOC_TYPE_i386["R_386_RELATIVE"]
+    elif machine == "EM_MIPS":
+      # TODO: check
+      relative_relocation = 0xffffffff
+    elif machine == "EM_S390":
+      relative_relocation = 12 # R_390_RELATIVE
+    else:
+      assert False
 
     # Prepare new .dynstr
     new_dynstr = to_extend_elf.dynstr
@@ -251,26 +327,63 @@ def main():
     new_dynstr += source_elf.dynstr
 
     to_extend_size = file_size(to_extend_file)
+    base_address = min([segment.header.p_vaddr
+                        for segment
+                        in to_extend_elf.segment_by_type("PT_LOAD")])
     alignment = 0x1000
-    padding = align(to_extend_size, alignment) - to_extend_size
+    estimated_size = align(to_extend_elf.dynamic_size()
+                           + source_elf.dynamic_size(), alignment)
+    start_address = align(base_address + to_extend_size, alignment)
+    matching_segment = (to_extend_elf.segment_by_range(start_address,
+                                                       estimated_size)
+                        or source_elf.segment_by_range(start_address,
+                                                       estimated_size))
+
+    while matching_segment is not None:
+      log("Discarding {} since overlaps the following segment:\n"
+          + "  {}".format(hex(start_address),
+                          matching_segment.header))
+      start_address = align(matching_segment.header.p_vaddr
+                        + matching_segment.header.p_memsz,
+                        alignment)
+      matching_segment = (to_extend_elf.segment_by_range(start_address,
+                                                         estimated_size)
+                          or source_elf.segment_by_range(start_address,
+                                                         estimated_size))
+
+    padding = start_address - base_address - to_extend_size
+    log("Padding size: {}".format(padding))
     new_dynstr_offset = to_extend_size + padding
 
     # Prepare new .dynsym
     new_dynsym = to_extend_elf.dynsym
-    dynsym_offset = len(to_extend_elf.symbols)
-    new_symbols = list(source_elf.symbols)
-    for symbol in new_symbols:
+    defined_symbols = []
+    for index, symbol in enumerate(to_extend_elf.symbols):
+      if symbol.st_shndx != "SHN_UNDEF":
+        defined_symbols.append(index)
+
+    dynsym_offset = len(to_extend_elf.symbols) - 1
+    new_symbols = list(source_elf.symbols)[1:]
+    for index, symbol in enumerate(new_symbols):
       symbol.st_name += dynstr_offset
+      if symbol.st_value != 0:
+        symbol.st_value += relocation_offset
+      if symbol.st_shndx != "SHN_UNDEF":
+        defined_symbols.append(index + dynsym_offset + 1)
+
     new_dynsym += serialize(new_symbols, source_elf.elf.structs.Elf_Sym)
-    new_dynsym_offset =  (new_dynstr_offset
-                + len(new_dynstr))
+    new_dynsym_offset = new_dynstr_offset + len(new_dynstr)
 
     # Prepare new .dynrel
     new_reldyn = to_extend_elf.reldyn
     new_relocations = (source_elf.relplt_relocations
                        + source_elf.reldyn_relocations)
     for relocation in new_relocations:
-      relocation.r_info_sym += dynsym_offset
+      if relocation.r_info_sym != 0:
+        relocation.r_info_sym += dynsym_offset
+      if relocation.r_info_type == relative_relocation:
+        relocation.r_addend += relocation_offset
+      relocation.r_offset += relocation_offset
       rebuild_r_info(relocation, to_extend_elf.elf.elfclass == 64)
     new_reldyn += serialize(new_relocations, source_elf.relstruct)
     new_reldyn_offset = (new_dynsym_offset + len(new_dynsym))
@@ -287,14 +400,14 @@ def main():
     # 3. Concat .gnu.version
     new_gnuversion_offset = new_reldyn_offset + len(new_reldyn)
     new_gnuversion = to_extend_elf.gnuversion
-    new_gnuversion_indices = source_elf.gnuversion_indices
+    new_gnuversion_indices = source_elf.gnuversion_indices[1:]
     for index, value in enumerate(new_gnuversion_indices):
       if value != 0 and value != 1:
         new_gnuversion_indices[index] += version_index_offset
     new_gnuversion += source_elf.serialize_ints(new_gnuversion_indices, 2)
 
     # 4. Go through .gnu.version_r and, for each verneed add the string
-    #  table offset to the library name.
+    #    table offset to the library name.
     # 5. Go through each Vernaux and increment vna_name
     new_verneeds = to_extend_elf.verneeds
 
@@ -318,15 +431,33 @@ def main():
     new_verneeds += source_elf.verneeds
     new_gnuversion_r = source_elf.serialize_verneeds(new_verneeds)
 
-    # Prepare new section headers
-    start_address = min([segment.header.p_vaddr
-                         for segment
-                         in to_extend_elf.segment_by_type("PT_LOAD")])
-    start_address += new_dynstr_offset
-    assert start_address == align(start_address, alignment)
+    # We now build a fake old-style (non-GNU) hash table. Basically we have a
+    # single bucketup pointing to the first defined symbol, which in turn will
+    # point to the second one and so on, up to the last which has identifier 0
+    # and stops the search for a symbol.  Basically, we transformed a hash
+    # lookup in a linear search.
+
+    # TODO: implement an actual hash table, possibly GNU
+
+    # nbucket + nchain + [buckets] + [chains]
+    symbols_count = dynsym_offset + len(new_symbols) + 1
+
+    chain = [0 for i in range(symbols_count)]
+    for i in range(len(defined_symbols) - 1):
+      chain[defined_symbols[i]] = defined_symbols[i + 1]
+    chain = [struct.pack(parse32, chain[i]) for i in range(len(chain))]
+    chain = "".join(chain)
+
+    new_hash = (struct.pack(parse32, 1)
+                + struct.pack(parse32, symbols_count)
+                + struct.pack(parse32, defined_symbols[0])
+                + chain)
+    new_hash_offset = new_gnuversion_r_offset + len(new_gnuversion_r)
 
     # Prepare new .dynamic
-    new_dynamic_tags = [dt for dt in to_extend_elf.dynamic.iter_tags()]
+    new_dynamic_tags = [dt
+                        for dt
+                        in to_extend_elf.dynamic.iter_tags()]
 
     last_dt_needed = -1
     libraries = set()
@@ -351,6 +482,9 @@ def main():
         dynamic_tag.entry.d_val = len(new_verneeds)
       elif dynamic_tag.entry.d_tag == "DT_VERSYM":
         dynamic_tag.entry.d_val = to_address(new_gnuversion_offset)
+      elif dynamic_tag.entry.d_tag == "DT_GNU_HASH":
+        dynamic_tag.entry.d_tag = "DT_HASH"
+        dynamic_tag.entry.d_val = to_address(new_hash_offset)
 
     # This is done a link-time
     # for dt_needed in reversed(source_elf.dt_by_tag("DT_NEEDED")):
@@ -361,7 +495,7 @@ def main():
     new_dynamic_tags = [dt.entry for dt in new_dynamic_tags]
 
     new_dynamic = serialize(new_dynamic_tags, source_elf.elf.structs.Elf_Dyn)
-    new_dynamic_offset = new_gnuversion_r_offset + len(new_gnuversion_r)
+    new_dynamic_offset = new_hash_offset + len(new_hash)
 
     new_section_headers_offset = new_dynamic_offset + len(new_dynamic)
     new_sections = to_extend_elf.sections
@@ -422,6 +556,11 @@ def main():
                         + new_program_headers_size
                         - new_dynstr_offset)
 
+    if new_segment_size > estimated_size:
+      log("Warning: the new segment for dynamic sections is larger than"
+          + " expected:\n  Expected: {}\n  Actual: {}".format(estimated_size,
+                                                              new_segment_size))
+
     zeros = "\x00" * segment_header_size
     new_segment = source_elf.elf.structs.Elf_Phdr.parse(zeros)
     new_segment.p_type = ENUM_P_TYPE["PT_LOAD"]
@@ -473,6 +612,10 @@ def main():
     # Write new .rel.dyn
     assert output_file.tell() == new_gnuversion_r_offset
     output_file.write(new_gnuversion_r)
+
+    # Write new .hash
+    assert output_file.tell() == new_hash_offset
+    output_file.write(new_hash)
 
     # Write new .dynamic
     assert output_file.tell() == new_dynamic_offset

@@ -67,7 +67,7 @@ public:
     } else if (auto *Store = llvm::dyn_cast<llvm::StoreInst>(I)) {
       initialize(Store->getPointerOperand(), Store->getValueOperand(), DL);
     } else {
-      assert(false);
+      abort();
     }
   }
 
@@ -80,27 +80,31 @@ public:
   }
 
   bool operator==(const MemoryAccess &Other) const {
-    if (Type != Other.Type || Size != Other.Size)
+    if (Type != Other.Type or Size != Other.Size)
       return false;
 
     switch (Type) {
     case Invalid:
       return true;
-      break;
     case CPUState:
       return Base == Other.Base;
-      break;
     case RegisterAndOffset:
       return Base == Other.Base && Offset == Other.Offset;
-      break;
+    case Absolute:
+      return Offset == Other.Offset;
     }
 
-    assert(false);
+    abort();
   }
 
   bool operator!=(const MemoryAccess &Other) const { return !(*this == Other); }
 
   bool mayAlias(const MemoryAccess &Other) const {
+    // If they are exactly the same, they do alias
+    if (*this == Other)
+      return true;
+
+    // TODO: is this correct?
     if (Type == Invalid || Other.Type == Invalid)
       return true;
 
@@ -128,7 +132,21 @@ public:
       return intersect({ Offset, Size }, { Other.Offset, Other.Size });
     }
 
-    assert(false);
+    // Absolute addresses and CPUState never alias
+    if ((Type == Absolute and Other.Type == CPUState)
+        or (Type == CPUState and Other.Type == Absolute))
+      return false;
+
+    // Absolute addresses and RegisterAndOffset may always alias
+    if ((Type == Absolute and Other.Type == RegisterAndOffset)
+        or (Type == RegisterAndOffset and Other.Type == Absolute))
+      return true;
+
+    // We have two absolute ranges, do they intersect?
+    if (Type == Absolute and Other.Type == Absolute)
+      return intersect({ Offset, Size }, { Other.Offset, Other.Size });
+
+    abort();
   }
 
   bool isValid() const { return Type != Invalid; }
@@ -147,7 +165,7 @@ public:
 private:
 
   bool intersect(std::pair<uint64_t, uint64_t> A,
-                      std::pair<uint64_t, uint64_t> B) const {
+                 std::pair<uint64_t, uint64_t> B) const {
     return A.first < (B.first + B.second) && B.first < (A.first + A.second);
   }
 
@@ -179,10 +197,18 @@ private:
     Base = nullptr;
     Offset = 0;
 
-    if (isVariable(Pointer)) {
+    Pointer = skipCasts(Pointer);
+
+    if (auto *C = llvm::dyn_cast<llvm::ConstantInt>(Pointer)) {
+      // Load from an absolute address
+      Type = Absolute;
+      Offset = C->getLimitedValue();
+
+    } else if (isVariable(Pointer)) {
       // Load from CPU state
       Type = CPUState;
       Base = Pointer;
+
     } else if (auto *V = llvm::dyn_cast<llvm::Instruction>(Pointer)) {
       // Try to handle load from an address stored in a register plus an offset
       // This mainly aims to handle very simple variables stored on the stack
@@ -227,15 +253,16 @@ private:
           return;
         }
       }
-    }
 
+    }
   }
 
 private:
   enum {
     Invalid,
     CPUState,
-    RegisterAndOffset
+    RegisterAndOffset,
+    Absolute
   } Type;
   const llvm::Value *Base;
   uint64_t Offset;

@@ -26,6 +26,35 @@ typedef uint64_t target_reg;
 #define SWAP(x) (htole64(x))
 #define TARGET_REG_FORMAT PRIx64
 
+// TODO: these have been recovered by hand
+enum {
+  REGISTER_RAX = 0x8250,
+  REGISTER_RCX = 0x8258,
+  REGISTER_RDX = 0x8260,
+  REGISTER_RBX = 0x8268,
+  REGISTER_RSP = 0x8270,
+  REGISTER_RBP = 0x8278,
+  REGISTER_RSI = 0x8280,
+  REGISTER_RDI = 0x8288,
+  REGISTER_R8 = 0x8290,
+  REGISTER_R9 = 0x8298,
+  REGISTER_R12 = 0x82b0,
+  REGISTER_R13 = 0x82b8,
+  REGISTER_R14 = 0x82c0,
+  REGISTER_R15 = 0x82c8,
+
+  REGISTER_FS = 0x8370,
+
+  REGISTER_XMM0 = 0x8558,
+  REGISTER_XMM1 = 0x8598,
+  REGISTER_XMM2 = 0x85d8,
+  REGISTER_XMM3 = 0x8618,
+  REGISTER_XMM4 = 0x8658,
+  REGISTER_XMM5 = 0x8698,
+  REGISTER_XMM6 = 0x86d8,
+  REGISTER_XMM7 = 0x8718
+};
+
 #elif defined(TARGET_i386)
 
 typedef uint32_t target_reg;
@@ -65,5 +94,6 @@ extern target_reg e_phnum;
 extern jmp_buf jmp_buffer;
 
 bool is_executable(uint64_t pc);
+void set_register(uint32_t register_id, uint64_t value);
 
 #endif // _SUPPORT_H

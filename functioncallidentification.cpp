@@ -24,6 +24,8 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
 
+  FallthroughAddresses.clear();
+
   // Create function call marker
   // TODO: we could factor this out
   Module *M = F.getParent();
@@ -215,6 +217,8 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
         ConstantInt::get(PCTy, ReturnPC),
         LinkRegister
       };
+
+      FallthroughAddresses.insert(ReturnPC);
 
       // If the instruction before the terminator is a call to exitTB, inject
       // the call to function_call before it, so it doesn't get purged

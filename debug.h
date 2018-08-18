@@ -21,6 +21,8 @@
 extern bool DebuggingEnabled;
 extern std::ostream &dbg;
 
+#define debug_function __attribute__((used,noinline))
+
 bool isDebugFeatureEnabled(std::string Name);
 void enableDebugFeature(std::string Name);
 void disableDebugFeature(std::string Name);

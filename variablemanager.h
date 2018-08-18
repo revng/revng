@@ -147,12 +147,75 @@ public:
   ///
   /// \param ExternalCSVs true if CSVs linkage should not be turned into static.
   void finalize(bool ExternalCSVs) {
+    using namespace llvm;
+
     if (!ExternalCSVs) {
-      for (auto P : CPUStateGlobals)
-        P.second->setLinkage(llvm::GlobalValue::InternalLinkage);
-      for (auto P : OtherGlobals)
-        P.second->setLinkage(llvm::GlobalValue::InternalLinkage);
+      for (auto &P : CPUStateGlobals)
+        P.second->setLinkage(GlobalValue::InternalLinkage);
+      for (auto &P : OtherGlobals)
+        P.second->setLinkage(GlobalValue::InternalLinkage);
     }
+
+    LLVMContext &Context = getContext(&TheModule);
+    IRBuilder<> Builder(Context);
+
+    // Create the setRegister function
+    auto *SetRegisterTy = FunctionType::get(Builder.getVoidTy(),
+                                            {
+                                              Builder.getInt32Ty(),
+                                              Builder.getInt64Ty()
+                                            },
+                                            false);
+    auto *Temp = TheModule.getOrInsertFunction("set_register", SetRegisterTy);
+    auto *SetRegister = cast<Function>(Temp);
+    SetRegister->setLinkage(GlobalValue::ExternalLinkage);
+
+    // Collect arguments
+    auto ArgIt = SetRegister->arg_begin();
+    auto ArgEnd = SetRegister->arg_end();
+    assert(ArgIt != ArgEnd);
+    Argument *RegisterID = &*ArgIt;
+    ArgIt++;
+    assert(ArgIt != ArgEnd);
+    Argument *NewValue = &*ArgIt;
+    ArgIt++;
+    assert(ArgIt == ArgEnd);
+
+    // Create main basic blocks
+    using BasicBlock = BasicBlock;
+    auto *EntryBB = BasicBlock::Create(Context, "", SetRegister);
+    auto *DefaultBB = BasicBlock::Create(Context, "", SetRegister);
+    auto *ReturnBB = BasicBlock::Create(Context, "", SetRegister);
+
+    // Populate the default case of the switch
+    Builder.SetInsertPoint(DefaultBB);
+    Builder.CreateCall(TheModule.getFunction("abort"));
+    Builder.CreateUnreachable();
+
+    // Create the switch statement
+    Builder.SetInsertPoint(EntryBB);
+    auto *Switch = Builder.CreateSwitch(RegisterID,
+                                        DefaultBB,
+                                        CPUStateGlobals.size());
+    for (auto &P : CPUStateGlobals) {
+      Type *CSVTy = P.second->getType();
+      auto *CSVIntTy = cast<IntegerType>(CSVTy->getPointerElementType());
+      if (CSVIntTy->getBitWidth() <= 64) {
+        // Set the value of the CSV
+        auto *SetRegisterBB = BasicBlock::Create(Context, "", SetRegister);
+        Builder.SetInsertPoint(SetRegisterBB);
+        Builder.CreateStore(Builder.CreateTrunc(NewValue, CSVIntTy),
+                            P.second);
+        Builder.CreateBr(ReturnBB);
+
+        // Add the case to the switch
+        Switch->addCase(Builder.getInt32(P.first), SetRegisterBB);
+      }
+    }
+
+    // Finally, populate the return basic block
+    Builder.SetInsertPoint(ReturnBB);
+    Builder.CreateRetVoid();
   }
 
   /// \brief Gets the CPUStateType
@@ -177,7 +240,7 @@ private:
                                 std::string Name="");
 
 private:
-  llvm::Module& TheModule;
+  llvm::Module &TheModule;
   llvm::IRBuilder<> Builder;
   using TemporariesMap = std::map<unsigned int, llvm::AllocaInst *>;
   using GlobalsMap = std::map<intptr_t, llvm::GlobalVariable *>;

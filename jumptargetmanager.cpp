@@ -522,6 +522,9 @@ void JumpTargetManager::harvestGlobalData() {
   for (uint64_t LandingPad : Binary.landingPads())
     registerJT(LandingPad, GlobalData);
 
+  for (uint64_t CodePointer : Binary.codePointers())
+    registerJT(CodePointer, GlobalData);
+
   for (auto& Segment : Binary.segments()) {
     const Constant *Initializer = Segment.Variable->getInitializer();
     if (isa<ConstantAggregateZero>(Initializer))

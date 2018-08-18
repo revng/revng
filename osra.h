@@ -93,6 +93,8 @@ public:
 
     void describe(llvm::formatted_raw_ostream &O) const;
 
+    void dump() const debug_function;
+
     /// \brief Merge policies for BVs
     enum MergeType {
       And, ///< Intersection of the ranges
@@ -107,6 +109,7 @@ public:
 
     bool isConstant() const {
       return !isUninitialized()
+        && !Negated
         && !Bottom
         && Bounds.size() == 1
         && Bounds[0].first == Bounds[0].second;
@@ -119,7 +122,7 @@ public:
 
     /// \brief Merge \p Other using the \p MT policy
     template<MergeType MT=And>
-    bool merge(const BoundedValue &Other,
+    bool merge(BoundedValue Other,
                const llvm::DataLayout &DL,
                llvm::Type *Int64);
 
@@ -143,6 +146,14 @@ public:
         return Bounds[0].second == upperExtreme();
     }
 
+    uint64_t lowerBound() const {
+      assert(isRightOpen());
+      if (Negated)
+        return Bounds[0].second;
+      else
+        return Bounds[0].first;
+    }
+
     /// \brief If the BV is limited, return its bounds considering negation
     ///
     /// Do not invoke this method on unlimited BVs.
@@ -163,6 +174,9 @@ public:
                               CI::get(Int64, upperExtreme(), isSigned()));
       } else if (UpperBound == upperExtreme()) {
         return std::make_pair(CI::get(Int64, lowerExtreme(), isSigned()),
+                              CI::get(Int64, LowerBound - 1, isSigned()));
+      } else if (Negated) {
+        return std::make_pair(CI::get(Int64, UpperBound + 1, isSigned()),
                               CI::get(Int64, LowerBound - 1, isSigned()));
       }
 
@@ -278,8 +292,8 @@ public:
     }
 
     static BoundedValue createLE(const llvm::Value *V,
-				 uint64_t Value,
-				 bool Sign) {
+                                 uint64_t Value,
+                                 bool Sign) {
       BoundedValue Result(V);
       Result.setSignedness(Sign);
       Result.Bounds = BoundsVector { { Result.lowerExtreme(), Value } };
@@ -307,6 +321,13 @@ public:
       BoundedValue Result(V);
       Result.Bounds = BoundsVector { { Value, Value } };
       Result.Sign = AnySignedness;
+      return Result;
+    }
+
+    static BoundedValue createNegatedConstant(const llvm::Value *V,
+                                              uint64_t Value) {
+      BoundedValue Result = createConstant(V, Value);
+      Result.flip();
       return Result;
     }
 
@@ -486,7 +507,7 @@ public:
       BV = NewBV;
     }
 
-    /// \brief Accessor method to BoundedValue associate to this OSR
+    /// \brief Accessor method to BoundedValue associated to this OSR
     const BoundedValue *boundedValue() const {
       assert(BV != nullptr);
       return BV;
@@ -501,6 +522,8 @@ public:
     }
 
     void describe(llvm::formatted_raw_ostream &O) const;
+
+    void dump() const debug_function;
 
     /// \brief Return true if the OSR doesn't have a BoundedValue or is
     ///        ininfluent
@@ -551,10 +574,12 @@ public:
       bool operator!=(BoundsIterator &Other) const { return !(*this == Other); }
 
       BoundsIterator &operator++() {
-        Index++;
-        if ((Current->first + Index) > Current->second) {
+
+        if ((Current->first + Index) >= Current->second) {
           ++Current;
           Index = 0;
+        } else {
+          Index++;
         }
 
         return *this;
@@ -598,6 +623,9 @@ public:
 
     /// \brief Return the size of the associated BoundedValue
     uint64_t size() const { return BV->size(); }
+
+    /// \brief Accessor to the factor value of this OSR (`b`)
+    uint64_t base() const { return Base; }
 
     /// \brief Accessor to the factor value of this OSR (`b`)
     uint64_t factor() const { return Factor; }

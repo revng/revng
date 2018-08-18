@@ -172,6 +172,8 @@ private:
 
 };
 
+class FilePortion;
+
 /// \brief BinaryFile describes an input image file in a semi-architecture
 ///        independent way
 class BinaryFile {
@@ -180,7 +182,9 @@ public:
   /// \param UseSections whether information in sections, if available, should
   ///        be employed or not. This is useful to precisely identify exeutable
   ///        code.
-  BinaryFile(std::string FilePath, bool UseSections);
+  BinaryFile(std::string FilePath,
+             bool UseSections,
+             uint64_t BaseAddress);
 
   llvm::Optional<llvm::ArrayRef<uint8_t>>
   getAddressData(uint64_t Address) const {
@@ -204,6 +208,7 @@ public:
   const std::vector<SegmentInfo> &segments() const { return Segments; }
   const std::vector<SymbolInfo> &symbols() const { return Symbols; }
   const std::set<uint64_t> &landingPads() const { return LandingPads; }
+  const std::set<uint64_t> &codePointers() const { return CodePointers; }
   uint64_t entryPoint() const { return EntryPoint; }
 
   const std::vector<std::string> &neededLibraryNames() const {
@@ -238,8 +243,10 @@ private:
   //
 
   /// \brief Parse an ELF file to load all the required information
-  template<typename T>
-  void parseELF(llvm::object::ObjectFile *TheBinary, bool UseSections);
+  template<typename T, bool HasAddend>
+  void parseELF(llvm::object::ObjectFile *TheBinary,
+                bool UseSections,
+                uint64_t BaseAddress);
 
   /// \brief Parse the .eh_frame_hdr section to obtain the address and the
   ///        number of FDEs in .eh_frame
@@ -271,6 +278,17 @@ private:
   template<typename T>
   void parseLSDA(uint64_t FDEStart, uint64_t LSDAAddress);
 
+  uint64_t relocate(uint64_t Address) const {
+    return BaseAddress + Address;
+  }
+
+  /// \brief Collect image base-relative relocation addresses and count symbols
+  ///
+  /// \return the index of the highest symbol referenced in the relocations,
+  ///         plus 1
+  template<typename T, bool HasAddend>
+  uint64_t parseRelocations(const FilePortion &Relocations);
+
 private:
   llvm::object::OwningBinary<llvm::object::Binary> BinaryHandle;
   Architecture TheArchitecture;
@@ -279,8 +297,11 @@ private:
   std::vector<std::string> NeededLibraryNames;
   std::set<uint64_t> LandingPads; ///< the set of the landing pad addresses
                                   ///  collected from .eh_frame
+  std::set<uint64_t> CodePointers; ///< These are taken from dynamic
+                                   ///  symbols/relocations.
 
   uint64_t EntryPoint; ///< the program's entry point
+  uint64_t BaseAddress;
 
   //
   // ELF specific fields

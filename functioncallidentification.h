@@ -59,8 +59,41 @@ public:
     return isCall(BB->getTerminator());
   }
 
+  llvm::BasicBlock *getFallthrough(llvm::BasicBlock *BB) const {
+    return getFallthrough(BB->getTerminator());
+  }
+
+  llvm::BasicBlock *getFallthrough(llvm::TerminatorInst *T) const {
+    assert(T != nullptr);
+    llvm::Instruction *Previous = getPrevious(T);
+    while (Previous != nullptr && isMarker(Previous)) {
+      auto *Call = llvm::cast<llvm::CallInst>(Previous);
+      if (Call->getCalledFunction() == FunctionCall) {
+        auto *Fallthrough = llvm::cast<llvm::BlockAddress>(Call->getOperand(1));
+        return Fallthrough->getBasicBlock();
+      }
+
+      Previous = getPrevious(Previous);
+    }
+
+    abort();
+  }
+
+  bool isFallthrough(uint64_t Address) const {
+    return FallthroughAddresses.count(Address) != 0;
+  }
+
+  bool isFallthrough(llvm::BasicBlock *BB) const {
+    return isFallthrough(getBasicBlockPC(BB));
+  }
+
+  bool isFallthrough(llvm::TerminatorInst *I) const {
+    return isFallthrough(I->getParent());
+  }
+
 private:
   llvm::Function *FunctionCall;
+  std::set<uint64_t> FallthroughAddresses;
 };
 
 #endif // _FUNCTIONCALLIDENTIFICATION_H
