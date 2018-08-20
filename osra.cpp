@@ -1641,6 +1641,12 @@ void OSRA::run() {
     case Instruction::Load:
       handleMemoryOperation(I);
       break;
+    case Instruction::Call:
+      if (auto *Callee = cast<CallInst>(I)->getCalledFunction())
+        if (Callee->isIntrinsic()
+            and Callee->getIntrinsicID() == Intrinsic::bswap)
+          handleUnaryOperator(I);
+      break;
     default:
       break;
     }
