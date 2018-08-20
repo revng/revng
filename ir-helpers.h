@@ -399,18 +399,26 @@ static inline llvm::LLVMContext &getContext(const llvm::Value *I) {
 }
 
 static inline const llvm::Module *getModule(const llvm::Function *F) {
+  if (F == nullptr)
+    return nullptr;
   return F->getParent();
 }
 
 static inline const llvm::Module *getModule(const llvm::BasicBlock *BB) {
+  if (BB == nullptr)
+    return nullptr;
   return getModule(BB->getParent());
 }
 
 static inline const llvm::Module *getModule(const llvm::Instruction *I) {
+  if (I == nullptr)
+    return nullptr;
   return getModule(I->getParent());
 }
 
 static inline const llvm::Module *getModule(const llvm::Value *I) {
+  if (I == nullptr)
+    return nullptr;
   return getModule(llvm::cast<const llvm::Instruction>(I));
 }
 
