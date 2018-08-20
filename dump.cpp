@@ -26,6 +26,7 @@
 #include "isolatefunctions.h"
 #include "stackanalysis.h"
 #include "statistics.h"
+#include "valgrindhelpers.h"
 
 using namespace llvm;
 
@@ -214,9 +215,13 @@ int main(int argc, const char *argv[]) {
 
   LLVMContext &Context = getGlobalContext();
   SMDiagnostic Err;
-  std::unique_ptr<Module> TheModule = parseIRFile(Parameters.InputPath,
-                                                  Err,
-                                                  Context);
+  std::unique_ptr<Module> TheModule;
+  {
+     Callgrind DisableCallgrind(false);
+     TheModule = parseIRFile(Parameters.InputPath,
+                             Err,
+                             Context);
+  }
 
   if (!TheModule) {
     fprintf(stderr, "Couldn't load the LLVM IR.");
