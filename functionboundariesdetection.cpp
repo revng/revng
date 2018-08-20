@@ -227,10 +227,14 @@ void FBD::collectFunctionCalls() {
   }
 
   // Mark all the callee basic blocks as such
-  for (auto P : FunctionCalls)
+  for (auto P : FunctionCalls) {
     for (BasicBlock *S : P.first->successors())
       if (JTM->isTranslatedBB(S))
         JTM->registerJT(S, JumpTargetManager::Callee);
+
+    if (JTM->isTranslatedBB(P.second))
+      JTM->registerJT(P.second, JumpTargetManager::ReturnAddress);
+  }
 }
 
 void FBD::collectReturnInstructions() {

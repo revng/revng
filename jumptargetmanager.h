@@ -125,7 +125,8 @@ public:
     Callee = 128, ///< This JT is the target of a call instruction.
     SumJump = 256, ///< Obtained from the "sumjump" heuristic
     LoadAddress = 512,
-    LastReason = LoadAddress
+    ReturnAddress = 1024,
+    LastReason = ReturnAddress
   };
 
   class JumpTarget {
@@ -162,6 +163,8 @@ public:
         return "SumJump";
       case LoadAddress:
         return "LoadAddress";
+      case ReturnAddress:
+        return "ReturnAddress";
       }
 
       abort();
@@ -188,6 +191,8 @@ public:
         return SumJump;
       else if (ReasonName == "LoadAddress")
         return LoadAddress;
+      else if (ReasonName == "ReturnAddress")
+        return ReturnAddress;
       else
         assert(false);
     }
