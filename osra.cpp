@@ -477,7 +477,8 @@ void OSRA::handleArithmeticOperator(Instruction *I) {
   std::tie(ConstantOp, OtherOp) = identifyOperands(I, DL);
 
   if (OtherOp == nullptr) {
-    if (ConstantOp != nullptr) {
+    if (ConstantOp != nullptr
+        and ConstantOp->getType()->getIntegerBitWidth() <= 64) {
       // If OtherOp is nullptr but ConstantOp is not it means we were able to
       // fold the operation in a constant
       if (!IsFree)
