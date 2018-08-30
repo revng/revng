@@ -519,13 +519,13 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
 
       case ELF::DT_REL:
       case ELF::DT_RELA:
-        assert(TheTag == HasAddend ? ELF::DT_RELA : ELF::DT_REL);
+        assert(TheTag == (HasAddend ? ELF::DT_RELA : ELF::DT_REL));
         ReldynPortion.setAddress(relocate(DynamicTag.getPtr()));
         break;
 
       case ELF::DT_RELSZ:
       case ELF::DT_RELASZ:
-        assert(TheTag == HasAddend ? ELF::DT_RELASZ : ELF::DT_RELSZ);
+        assert(TheTag == (HasAddend ? ELF::DT_RELASZ : ELF::DT_RELSZ));
         ReldynPortion.setSize(DynamicTag.getVal());
         break;
 
