@@ -17,12 +17,6 @@
 // Local includes
 #include "debug.h"
 
-#ifndef NDEBUG
-namespace llvm {
-void Value::assertModuleIsMaterialized() const { }
-}
-#endif
-
 static size_t MaxLoggerNameLength = 0;
 LogTerminator DoLog;
 llvm::ManagedStatic<LoggersRegistry> Loggers;
