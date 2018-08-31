@@ -1663,8 +1663,8 @@ void OSRA::dump() {
 }
 
 void OSR::dump() const {
-  raw_os_ostream Lol(dbg);
-  formatted_raw_ostream OutputStream(Lol);
+  raw_os_ostream RawOutputStream(dbg);
+  formatted_raw_ostream OutputStream(RawOutputStream);
   describe(OutputStream);
 }
 
@@ -1679,8 +1679,8 @@ void OSR::describe(formatted_raw_ostream &O) const {
 }
 
 void BoundedValue::dump() const {
-  raw_os_ostream Lol(dbg);
-  formatted_raw_ostream OutputStream(Lol);
+  raw_os_ostream RawOutputStream(dbg);
+  formatted_raw_ostream OutputStream(RawOutputStream);
   describe(OutputStream);
 }
 
