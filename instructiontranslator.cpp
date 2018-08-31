@@ -593,7 +593,7 @@ IT::newInstruction(PTCInstruction *Instr,
                                                 { MDOriginalString, MDPC });
 
   if (ForceNew)
-    JumpTargets.registerJT(PC, JumpTargetManager::PostHelper);
+    JumpTargets.registerJT(PC, JTReason::PostHelper);
 
   if (!IsFirst) {
     // Check if this PC already has a block and use it
@@ -778,7 +778,7 @@ IT::TranslationResult IT::translate(PTCInstruction *Instr,
       if (Constant != nullptr) {
         uint64_t Address = Constant->getLimitedValue();
         if (PC != Address)
-          JumpTargets.registerJT(Address, JumpTargetManager::DirectJump);
+          JumpTargets.registerJT(Address, JTReason::DirectJump);
       }
     }
   }

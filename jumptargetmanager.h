@@ -111,99 +111,31 @@ public:
   using BlockWithAddress = std::pair<uint64_t, llvm::BasicBlock *>;
   static const BlockWithAddress NoMoreTargets;
 
-  /// \brief Reason for registering a jump target
-  enum JTReason {
-    PostHelper = 1, ///< PC after an helper (e.g., a syscall)
-    DirectJump = 2, ///< Obtained from a direct store to the PC
-    GlobalData = 4, ///< Obtained digging in global data
-    AmbigousInstruction = 8, ///< Fallthrough of multiple instructions in the
-                             ///  immediately preceeding bytes
-    SETToPC = 16, ///< Obtained from SET on a store to the PC
-    SETNotToPC = 32, ///< Obtained from SET (but not from a PC-store)
-    UnusedGlobalData = 64, ///< Obtained digging in global data, buf never used
-                           ///  by SET. Likely a function pointer.
-    Callee = 128, ///< This JT is the target of a call instruction.
-    SumJump = 256, ///< Obtained from the "sumjump" heuristic
-    LoadAddress = 512,
-    ReturnAddress = 1024,
-    LastReason = ReturnAddress
-  };
-
   class JumpTarget {
   public:
     JumpTarget() : BB(nullptr), Reasons(0) { }
     JumpTarget(llvm::BasicBlock *BB) : BB(BB), Reasons(0) { }
-    JumpTarget(llvm::BasicBlock *BB,
-               JTReason Reason) : BB(BB), Reasons(Reason) { }
+    JumpTarget(llvm::BasicBlock *BB, JTReason::Values Reason) :
+      BB(BB),
+      Reasons(static_cast<uint32_t>(Reason)) {}
 
     llvm::BasicBlock *head() const { return BB; }
-    bool hasReason(JTReason Reason) const { return (Reasons & Reason) != 0; }
-    void setReason(JTReason Reason) { Reasons |= Reason; }
+    bool hasReason(JTReason::Values Reason) const {
+      return (Reasons & static_cast<uint32_t>(Reason)) != 0;
+    }
+    void setReason(JTReason::Values Reason) {
+      Reasons |= static_cast<uint32_t>(Reason);
+    }
     uint32_t getReasons() const { return Reasons; }
-
-    static const char *getReasonName(JTReason Reason) {
-      switch(Reason) {
-      case PostHelper:
-        return "PostHelper";
-      case DirectJump:
-        return "DirectJump";
-      case GlobalData:
-        return "GlobalData";
-      case AmbigousInstruction:
-        return "AmbigousInstruction";
-      case SETToPC:
-        return "SETToPC";
-      case SETNotToPC:
-        return "SETNotToPC";
-      case UnusedGlobalData:
-        return "UnusedGlobalData";
-      case Callee:
-        return "Callee";
-      case SumJump:
-        return "SumJump";
-      case LoadAddress:
-        return "LoadAddress";
-      case ReturnAddress:
-        return "ReturnAddress";
-      }
-
-      abort();
-    }
-
-    static JTReason getReasonFromName(llvm::StringRef ReasonName) {
-      if (ReasonName == "PostHelper")
-        return PostHelper;
-      else if (ReasonName == "DirectJump")
-        return DirectJump;
-      else if (ReasonName == "GlobalData")
-        return GlobalData;
-      else if (ReasonName == "AmbigousInstruction")
-        return AmbigousInstruction;
-      else if (ReasonName == "SETToPC")
-        return SETToPC;
-      else if (ReasonName == "SETNotToPC")
-        return SETNotToPC;
-      else if (ReasonName == "UnusedGlobalData")
-        return UnusedGlobalData;
-      else if (ReasonName == "Callee")
-        return Callee;
-      else if (ReasonName == "SumJump")
-        return SumJump;
-      else if (ReasonName == "LoadAddress")
-        return LoadAddress;
-      else if (ReasonName == "ReturnAddress")
-        return ReturnAddress;
-      else
-        assert(false);
-    }
 
     std::vector<const char *> getReasonNames() const {
       std::vector<const char *> Result;
 
+      uint32_t LastReason = static_cast<uint32_t>(JTReason::LastReason);
       for (unsigned Reason = 1; Reason <= LastReason; Reason <<= 1) {
-        JTReason R = static_cast<JTReason>(Reason);
+        JTReason::Values R = static_cast<JTReason::Values>(Reason);
         if (hasReason(R))
-          Result.push_back(getReasonName(R));
+          Result.push_back(JTReason::getName(R));
       }
 
       return Result;
@@ -373,7 +305,7 @@ public:
   ///         created in the past or even a `BasicBlock` already containing the
   ///         translated code.  It might also return `nullptr` if the PC is not
   ///         valid or another error occurred.
-  llvm::BasicBlock *registerJT(uint64_t PC, JTReason Reason);
+  llvm::BasicBlock *registerJT(uint64_t PC, JTReason::Values Reason);
 
   std::map<uint64_t, JumpTarget>::const_iterator begin() const {
     return JumpTargets.begin();
@@ -383,7 +315,7 @@ public:
     return JumpTargets.end();
   }
 
-  void registerJT(llvm::BasicBlock *BB, JTReason Reason) {
+  void registerJT(llvm::BasicBlock *BB, JTReason::Values Reason) {
     assert(!BB->empty());
     auto *CallNewPC = llvm::dyn_cast<llvm::CallInst>(&*BB->begin());
     assert(CallNewPC != nullptr);
@@ -393,7 +325,7 @@ public:
   }
 
   /// \brief As registerJT, but only if the JT has already been registered
-  void markJT(uint64_t PC, JTReason Reason) {
+  void markJT(uint64_t PC, JTReason::Values Reason) {
     if (isJumpTarget(PC))
       registerJT(PC, Reason);
   }
@@ -494,7 +426,7 @@ public:
                                  OriginalEndianess).getValue();
 
       // Set as reason UnusedGlobalData and ensure it's not empty
-      llvm::BasicBlock *BB = registerJT(PC, UnusedGlobalData);
+      llvm::BasicBlock *BB = registerJT(PC, JTReason::UnusedGlobalData);
       assert(!BB->empty());
     }
 

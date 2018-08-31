@@ -27,6 +27,7 @@ class MDNode;
 }
 
 static const char *BlockTypeMDName = "revamb.block.type";
+static const char *JTReasonMDName = "revamb.jt.reasons";
 
 /// \brief Pass to collect basic information about the generated code
 ///
@@ -87,6 +88,50 @@ public:
 
     QuickMetadata QMD(getContext(T));
     return BlockType(QMD.extract<uint32_t>(BlockTypeMD, 0));
+  }
+
+  uint32_t getJTReasons(llvm::BasicBlock *BB) const {
+    return getJTReasons(BB->getTerminator());
+  }
+
+  uint32_t getJTReasons(llvm::TerminatorInst *T) const {
+    using namespace llvm;
+    uint32_t Result = 0;
+
+    MDNode *Node = T->getMetadata(JTReasonMDName);
+    auto *Tuple = cast_or_null<MDTuple>(Node);
+    assert(Tuple != nullptr);
+
+    for (Metadata *ReasonMD : Tuple->operands()) {
+      StringRef Text = cast<MDString>(ReasonMD)->getString();
+      Result |= static_cast<uint32_t>(JTReason::fromName(Text));
+    }
+
+    return Result;
+  }
+
+  KillReason::Values getKillReason(llvm::BasicBlock *BB) const {
+    return getKillReason(BB->getTerminator());
+  }
+
+  KillReason::Values getKillReason(llvm::TerminatorInst *T) const {
+    using namespace llvm;
+
+    auto *NoReturnMD = T->getMetadata("noreturn");
+    if (auto *NoreturnTuple = dyn_cast_or_null<MDTuple>(NoReturnMD)) {
+      QuickMetadata QMD(getContext(T));
+      return KillReason::fromName(QMD.extract<StringRef>(NoreturnTuple, 0));
+    }
+
+    return KillReason::NonKiller;
+  }
+
+  bool isKiller(llvm::BasicBlock *BB) const {
+    return isKiller(BB->getTerminator());
+  }
+
+  bool isKiller(llvm::TerminatorInst *T) const {
+    return getKillReason(T) != KillReason::NonKiller;
   }
 
   /// \brief Return the value to which instructions must be aligned in the input

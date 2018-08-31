@@ -638,7 +638,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     JumpTargets.harvestGlobalData();
     VirtualAddress = Binary.entryPoint();
   }
-  JumpTargets.registerJT(VirtualAddress, JumpTargetManager::GlobalData);
+  JumpTargets.registerJT(VirtualAddress, JTReason::GlobalData);
 
   // Initialize the program counter
   auto *StartPC = ConstantInt::get(PCReg->getType()->getPointerElementType(),
@@ -771,9 +771,9 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
           // case force a fallthrough
           auto &IL = InstructionList;
           if (j == IL->instruction_count - 1) {
-            using JTM = JumpTargetManager;
-            Builder.CreateBr(notNull(JumpTargets.registerJT(EndPC,
-                                                            JTM::PostHelper)));
+            BasicBlock *Target = JumpTargets.registerJT(EndPC,
+                                                        JTReason::PostHelper);
+            Builder.CreateBr(notNull(Target));
           }
 
           break;
@@ -819,7 +819,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     } // End loop over instructions
 
     if (ForceNewBlock)
-      JumpTargets.registerJT(EndPC, JumpTargetManager::PostHelper);
+      JumpTargets.registerJT(EndPC, JTReason::PostHelper);
 
     // We might have a leftover block, probably due to the block created after
     // the last call to exit_tb
