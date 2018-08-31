@@ -256,6 +256,29 @@ public:
     return { iterator(Result.first), Result.second };
   }
 
+  void erase(const K &Key) {
+    if (isSmall()) {
+      auto I = Vector.begin();
+      auto E = Vector.begin() + Size;
+
+      for (; I != E; ++I)
+        if (I->first == Key)
+          break;
+
+      if (I == E)
+        return;
+
+      Size--;
+      for (; I < E - 1; I++)
+        *I = *(I + 1);
+
+    } else {
+      auto It = Map.find(Key);
+      if (It != Map.end())
+        Map.erase(It);
+    }
+  }
+
   iterator find(const K &Key) {
     if (isSmall())
       return iterator(vfind(Key));
