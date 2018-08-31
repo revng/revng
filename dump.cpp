@@ -68,6 +68,9 @@ static bool parseArgs(int Argc, const char *Argv[], ProgramParameters &Result) {
     OPT_STRING('s', "stack-analysis",
                &Result.StackAnalysisPath,
                "path where the result of the stack analysis should be stored."),
+    OPT_BOOLEAN('T', "stats",
+                &Result.PrintStats,
+                "print statistics upon exit or SIGINT."),
     OPT_STRING('i', "functions-isolation",
                &Result.FunctionIsolationPath,
                "path where a new LLVM module containing the reorganization of "
