@@ -1,0 +1,6 @@
+[
+  {
+    "entry_point": "bb.push_pop",
+    "slots": [{"slot": "rax", "argument": "Maybe"}, {"slot": "rdx", "return_value": "Maybe"}]
+  }
+]

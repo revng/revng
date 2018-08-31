@@ -1,0 +1,6 @@
+[
+  {
+    "entry_point": "bb.urvof",
+    "slots": [{"slot": "rax", "return_value": "YesCandidate"}]
+  }
+]

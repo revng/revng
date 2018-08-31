@@ -35,6 +35,7 @@ target_include_directories(test_stackanalysis
 target_compile_definitions(test_stackanalysis
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_stackanalysis
+  StackAnalysis
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_stackanalysis COMMAND test_stackanalysis)

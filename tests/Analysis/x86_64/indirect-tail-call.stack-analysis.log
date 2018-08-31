@@ -1,8 +1,0 @@
-Function bb._start
-  BranchesType: bb._start (HandledCall) bb._start.0x5 (Return)
-  Saved slots: CPU+rax
-
-Function bb.tailcall
-  BranchesType: bb.tailcall (IndirectTailCall)
-  Saved slots: CPU+rax
-

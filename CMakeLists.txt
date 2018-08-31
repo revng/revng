@@ -127,6 +127,10 @@ endif()
 
 set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
 
+include_directories(./ include/)
+
+add_subdirectory(lib)
+
 add_executable(revamb
   binaryfile.cpp
   codegenerator.cpp
@@ -165,7 +169,7 @@ add_executable(revamb-dump
   revng-assert.cpp
   statistics.cpp
   argparse/argparse.c)
-target_link_libraries(revamb-dump ${LLVM_LIBRARIES})
+target_link_libraries(revamb-dump StackAnalysis ${LLVM_LIBRARIES})
 install(TARGETS revamb-dump RUNTIME DESTINATION bin)
 
 configure_file(csv-to-ld-options "${CMAKE_BINARY_DIR}/csv-to-ld-options" COPYONLY)

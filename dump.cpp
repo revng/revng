@@ -24,9 +24,9 @@
 #include "debug.h"
 #include "debughelper.h"
 #include "isolatefunctions.h"
-#include "stackanalysis.h"
 #include "statistics.h"
 #include "valgrindhelpers.h"
+#include "revng/StackAnalysis/stackanalysis.h"
 
 using namespace llvm;
 
@@ -135,7 +135,7 @@ public:
       AU.addRequired<CollectFunctionBoundaries>();
 
     if (Parameters.StackAnalysisPath != nullptr)
-      AU.addRequired<StackAnalysis::StackAnalysis>();
+      AU.addRequired<StackAnalysis::StackAnalysis<true>>();
 
     if (Parameters.FunctionIsolationPath != nullptr)
       AU.addRequired<IsolateFunctions>();
@@ -196,7 +196,7 @@ bool DumpPass::runOnFunction(Function &F) {
   }
 
   if (Parameters.StackAnalysisPath != nullptr) {
-    auto &Analysis = getAnalysis<StackAnalysis::StackAnalysis>();
+    auto &Analysis = getAnalysis<StackAnalysis::StackAnalysis<true>>();
     Analysis.serialize(pathToStream(Parameters.StackAnalysisPath, Output));
   }
 

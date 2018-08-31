@@ -72,14 +72,9 @@ public:
 
     if (MD == nullptr) {
       llvm::Instruction *First = &*T->getParent()->begin();
-      if (auto *Call = llvm::dyn_cast<llvm::CallInst>(First)) {
-        llvm::Function *Callee = Call->getCalledFunction();
-        if (Callee != nullptr
-            && Callee->getName() == "newpc"
-            && getLimitedValue(Call->getArgOperand(2)) == 1) {
+      if (llvm::CallInst *Call = getCallTo(First, "newpc"))
+        if (getLimitedValue(Call->getArgOperand(2)) == 1)
           return JumpTargetBlock;
-        }
-      }
 
       return UntypedBlock;
     }

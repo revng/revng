@@ -1,7 +1,0 @@
-Function bb._start
-  BranchesType: bb._start (FakeFunctionCall) bb._start.0x8 (FunctionLocalCFG) bb.epilogue (Return) bb.prologue (FakeFunctionReturn)
-  Saved slots: CPU+r14 CPU+r0 CPU+r1
-
-Function bb.prologue is fake
-  BranchesType: bb.prologue (FakeFunction)
-

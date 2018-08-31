@@ -1,0 +1,6 @@
+[
+  {
+    "entry_point": "bb.draof",
+    "slots": [{"slot": "rax", "argument": "NoOrDead"}]
+  }
+]

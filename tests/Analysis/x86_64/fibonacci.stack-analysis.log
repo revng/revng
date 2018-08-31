@@ -1,8 +1,0 @@
-Function bb._start
-  BranchesType: bb._start (HandledCall) bb._start.0x9 (Return)
-  Saved slots: CPU+rbp CPU+rbx
-
-Function bb.fibonacci
-  BranchesType: bb.fibonacci (InstructionLocalCFG) bb.fibonacci.0x15 (HandledCall) bb.fibonacci.0x1f (FunctionLocalCFG) bb.fibonacci.0x22 (Return) bb.fibonacci.0xb_L0 (FunctionLocalCFG) bb.fibonacci.0xb_L0_ft (FunctionLocalCFG) bb.fibonacci.0xd (HandledCall)
-  Saved slots: CPU+rbp CPU+rbx
-

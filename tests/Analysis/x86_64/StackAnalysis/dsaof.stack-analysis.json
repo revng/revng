@@ -1,0 +1,6 @@
+[
+  {
+    "entry_point": "bb.dsaof",
+    "slots": [{"slot": "SP0+0x8", "argument": "Dead"}]
+  }
+]

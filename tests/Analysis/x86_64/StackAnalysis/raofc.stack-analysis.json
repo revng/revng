@@ -1,0 +1,14 @@
+[
+  {
+    "entry_point": "bb.callee"
+  },
+  {
+    "entry_point": "bb.raofc",
+    "function_calls": [
+      {
+        "caller": "bb.raofc:11",
+        "slots": [{"slot": "rax", "argument": "Maybe"}]
+      }
+    ]
+  }
+]

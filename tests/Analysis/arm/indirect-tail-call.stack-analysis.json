@@ -1,0 +1,11 @@
+[
+  {
+    "entry_point": "bb._start",
+    "basic_blocks": [{"name": "bb._start", "type": "HandledCall"}, {"name": "bb._start.0x8", "type": "Return"}]
+  },
+  {
+    "entry_point": "bb.tailcall",
+    "type": "IndirectTailCall",
+    "basic_blocks": [{"name": "bb.tailcall", "type": "IndirectTailCall"}]
+  }
+]

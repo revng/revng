@@ -1,0 +1,6 @@
+[
+  {
+    "entry_point": "bb.usaof",
+    "slots": [{"slot": "SP0+0x8", "argument": "Yes"}, {"slot": "SP0+0x10", "argument": "Dead"}]
+  }
+]

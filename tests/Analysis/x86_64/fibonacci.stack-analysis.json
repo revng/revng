@@ -1,0 +1,10 @@
+[
+  {
+    "entry_point": "bb._start",
+    "basic_blocks": [{"name": "bb._start", "type": "HandledCall"}, {"name": "bb._start.0x9", "type": "Return"}]
+  },
+  {
+    "entry_point": "bb.fibonacci",
+    "basic_blocks": [{"name": "bb.fibonacci", "type": "InstructionLocalCFG"}, {"name": "bb.fibonacci.0xd", "type": "HandledCall"}, {"name": "bb.fibonacci.0x15", "type": "HandledCall"}, {"name": "bb.fibonacci.0x1f", "type": "FunctionLocalCFG"}, {"name": "bb.fibonacci.0x22", "type": "Return"}, {"name": "bb.fibonacci.0xb_L0", "type": "FunctionLocalCFG"}, {"name": "bb.fibonacci.0xb_L0_ft", "type": "FunctionLocalCFG"}]
+  }
+]
