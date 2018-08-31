@@ -217,10 +217,8 @@ int main(int argc, const char *argv[]) {
   SMDiagnostic Err;
   std::unique_ptr<Module> TheModule;
   {
-     Callgrind DisableCallgrind(false);
-     TheModule = parseIRFile(Parameters.InputPath,
-                             Err,
-                             Context);
+    Callgrind DisableCallgrind(false);
+    TheModule = parseIRFile(Parameters.InputPath, Err, Context);
   }
 
   if (!TheModule) {

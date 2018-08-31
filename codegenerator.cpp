@@ -583,8 +583,9 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   // Instantiate helpers
   VariableManager Variables(*TheModule, *HelpersModule, TargetArchitecture);
   const Architecture &Arch = Binary.architecture();
+  StringRef SPName = Arch.stackPointerRegister();
   GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
-  GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, Arch.stackPointerRegister()).first;
+  GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, SPName).first;
 
   IRBuilder<> Builder(Context);
 
@@ -647,7 +648,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   auto *Delimiter = Builder.CreateStore(StartPC, PCReg);
 
   // We need to remember this instruction so we can later insert a call here.
-  // The problem is that up until now we don't know where our CPUState structure is.
+  // The problem is that up until now we don't know where our CPUState structure
+  // is.
   // After the translation we will and use this information to create a call to
   // a helper function.
   // TODO: we need a more elegant solution here
@@ -778,8 +780,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
           break;
         }
+
       default:
         Result = Translator.translate(&Instruction, PC, NextPC);
+        break;
       }
 
       switch (Result) {

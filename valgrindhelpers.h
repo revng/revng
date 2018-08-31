@@ -5,7 +5,6 @@
 
 class Callgrind {
 public:
-
   Callgrind(bool Enable) : Enabled(Enable) {
     if (Enabled) {
       CALLGRIND_START_INSTRUMENTATION;

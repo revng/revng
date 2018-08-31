@@ -177,8 +177,7 @@ public:
     if (IsSorted || !isSmall() || Size <= 1)
       return;
 
-    auto Compare = [] (const Pair &A,
-                       const Pair &B) {
+    auto Compare = [] (const Pair &A, const Pair &B) {
       return std::less<K>()(A.first, B.first);
     };
     std::sort(Vector.begin(), Vector.begin() + Size, Compare);

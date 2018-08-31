@@ -19,6 +19,7 @@
 
 // Local includes
 #include "ir-helpers.h"
+
 namespace llvm {
 class GlobalVariable;
 };
@@ -72,6 +73,7 @@ enum class DebugInfoType {
 // TODO: move me to another header file
 /// \brief Classification of the various basic blocks we are creating
 enum BlockType {
+  // TODO: UntypedBlock is a bad name
   UntypedBlock, ///< A basic block generated during translation that it's not a
                 ///  jump target.
   DispatcherBlock, ///< Basic block representing the dispatcher.
@@ -320,11 +322,13 @@ static inline T *notNull(T *Pointer) {
 }
 
 static const std::array<llvm::StringRef, 3> MarkerFunctionNames = {
-  "newpc",
-  "function_call",
-  "exitTB"
+  { "newpc", "function_call", "exitTB" }
 };
 
+/// \brief Checks if \p I is a marker
+///
+/// A marker a function call to an empty function acting as meta-information,
+/// for example the `function_call` marker.
 static inline bool isMarker(llvm::Instruction *I) {
   using namespace std::placeholders;
   using llvm::any_of;

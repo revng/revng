@@ -911,7 +911,7 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
     for (int I = DefinitionConditions.find_first();
          I != -1;
          I = DefinitionConditions.find_next(I)) {
-      // Make sure the target BBI knows about all the necessary conditinos
+      // Make sure the target BBI knows about all the necessary conditions
       assert(I < static_cast<int>(SeenConditions.size()));
       unsigned Index = Target.getConditionIndex(SeenConditions[I]);
       unsigned OppositeIndex = Target.getConditionIndex(-SeenConditions[I]);

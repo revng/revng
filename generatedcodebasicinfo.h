@@ -189,11 +189,9 @@ public:
     assert(T != nullptr);
 
     for (llvm::BasicBlock *Successor : T->successors()) {
-      if (!(Successor == Dispatcher
-            || Successor == DispatcherFail
-            || Successor == AnyPC
-            || Successor == UnexpectedPC
-            || isJumpTarget(Successor)))
+      if (not(Successor == Dispatcher or Successor == DispatcherFail
+              or Successor == AnyPC or Successor == UnexpectedPC
+              or isJumpTarget(Successor)))
         return false;
     }
 
@@ -204,10 +202,8 @@ public:
   ///
   /// Return false if \p BB is a dispatcher-related basic block.
   bool isTranslated(llvm::BasicBlock *BB) const {
-    return BB != Dispatcher
-      && BB != DispatcherFail
-      && BB != AnyPC
-      && BB != UnexpectedPC;
+    return (BB != Dispatcher and BB != DispatcherFail and BB != AnyPC
+            and BB != UnexpectedPC);
   }
 
   /// \brief Find the PC which lead to generated \p TheInstruction
