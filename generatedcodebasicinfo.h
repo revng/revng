@@ -219,6 +219,34 @@ public:
     return Pair.first + Pair.second;
   }
 
+  llvm::CallInst *getFunctionCall(llvm::BasicBlock *BB) const {
+    return getFunctionCall(BB->getTerminator());
+  }
+
+  // TODO: we could unpack the information too
+  llvm::CallInst *getFunctionCall(llvm::TerminatorInst *T) const {
+    auto It = T->getIterator();
+    auto End = T->getParent()->begin();
+    if (It != End) {
+      It--;
+      if (llvm::CallInst *Call = getCallTo(&*It, "function_call"))
+        return Call;
+
+      if (not isMarker(&*It))
+        return nullptr;
+    }
+
+    return nullptr;
+  }
+
+  bool isFunctionCall(llvm::BasicBlock *BB) const {
+    return isFunctionCall(BB->getTerminator());
+  }
+
+  bool isFunctionCall(llvm::TerminatorInst *T) const {
+    return getFunctionCall(T) != nullptr;
+  }
+
   /// \brief Calls \p Visitor for each instruction preceeding \p I
   ///
   /// See visitPredecessors in ir-helpers.h

@@ -349,4 +349,26 @@ static inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
   return &*It;
 }
 
+/// \brief Given a BasicBlock representing a function call, returns the callee
+inline llvm::BasicBlock *getFunctionCallCallee(llvm::BasicBlock *BB) {
+  using namespace llvm;
+
+  auto Last = BB->begin();
+  auto It = BB->end();
+  while (It != Last) {
+    It--;
+    if (isCallTo(&*It, "function_call")) {
+      auto *Call = cast<CallInst>(&*It);
+
+      if (auto *BA = dyn_cast<BlockAddress>(Call->getArgOperand(0)))
+        return BA->getBasicBlock();
+      else
+        return nullptr;
+    }
+  }
+
+  // TODO: is it OK to treat indirect function calls and non-calls the same way?
+  return nullptr;
+}
+
 #endif // _REVAMB_H
