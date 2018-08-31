@@ -9,6 +9,7 @@
 #include <csignal>
 #include <cstdlib>
 #include <map>
+#include <string>
 extern "C" {
 #include <strings.h>
 }
@@ -41,16 +42,16 @@ inline size_t digitsCount(T Value) {
   return Digits;
 }
 
-template<typename K, typename T>
+template<typename K, typename T = uint64_t>
 class CounterMap : public OnQuitInteraface {
 private:
   using Container = std::map<K, T>;
   Container Map;
-  llvm::Twine Name;
+  std::string Name;
 
 public:
-  CounterMap(llvm::Twine Name) : Name(Name) { init(); }
-  virtual ~CounterMap() { }
+  CounterMap(const llvm::Twine &Name) : Name(Name.str()) { init(); }
+  virtual ~CounterMap() {}
 
   void push(K Key) { Map[Key]++; }
   void push(K Key, T Value) { Map[Key] += Value; }
@@ -61,16 +62,18 @@ public:
 
   template<typename O>
   void dump(size_t Max, O &Output) {
-    if (!Name.isTriviallyEmpty())
-      Output << Name.str() << ":\n";
+    if (not Name.empty())
+      Output << Name << ":\n";
 
     using Pair = std::pair<K, T>;
     std::vector<Pair> Sorted;
     Sorted.reserve(Map.size());
     std::copy(Map.begin(), Map.end(), std::back_inserter(Sorted));
-    std::sort(Sorted.begin(),
-              Sorted.end(),
-              [] (const Pair &A, const Pair &B) { return A.second < B.second; });
+
+    auto Compare = [](const Pair &A, const Pair &B) {
+      return A.second < B.second;
+    };
+    std::sort(Sorted.begin(), Sorted.end(), Compare);
 
     size_t MaxLength = 0;
     size_t MaxDigits = 0;
@@ -87,7 +90,6 @@ public:
       Output << std::string(MaxDigits - digitsCount(P.second), ' ');
       Output << P.second << "\n";
     }
-
   }
 
   void dump(size_t Max) { dump(Max, dbg); }
@@ -95,7 +97,6 @@ public:
 
 private:
   void init();
-
 };
 
 /// \brief Collect mean and variance about a certain event.
@@ -111,12 +112,15 @@ public:
 
   RunningStatistics() : RunningStatistics(llvm::Twine(), false) { }
 
-  RunningStatistics(llvm::Twine Name) : RunningStatistics(Name, true) { }
+  RunningStatistics(const llvm::Twine &Name) : RunningStatistics(Name, true) { }
 
   /// \arg Name the name to use when printing the statistics.
   /// \arg Register whether this object should be registered for being printed
   ///      upon program termination or not.
-  RunningStatistics(llvm::Twine Name, bool Register) : Name(Name), N(0) {
+  RunningStatistics(const llvm::Twine &Name, bool Register) :
+    Name(Name.str()),
+    N(0) {
+
     if (Register)
       init();
   }
@@ -160,8 +164,8 @@ public:
 
   template<typename T>
   void dump(T &Output) {
-    if (!Name.isTriviallyEmpty())
-      Output << Name.str() << ": ";
+    if (not Name.empty())
+      Output << Name << ": ";
     Output << "{ n: " << size()
            << " u: " << mean()
            << " o: " << variance()
@@ -176,7 +180,7 @@ private:
   void init();
 
 private:
-  llvm::Twine Name;
+  std::string Name;
   int N;
   double OldM, NewM, OldS, NewS;
 };

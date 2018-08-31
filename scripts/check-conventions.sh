@@ -51,7 +51,7 @@ if test "$FORMAT" -gt 0; then
 fi
 
 # Things should never match
-for REGEXP in '\(--> 0\)' ';;' '^\s*->.*;$'; do
+for REGEXP in '\(--> 0\)' ';;' '^\s*->.*;$' 'Twine [^&]'; do
     $GREP "$REGEXP" $FILES | cat
 done
 
