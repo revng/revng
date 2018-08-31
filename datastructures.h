@@ -19,7 +19,6 @@ class QueueImpl {
 public:
   void insert(T Element) {
     if (Set.count(Element) == 0) {
-      assert(Element->getParent() != nullptr);
       Set.insert(Element);
       Queue.push(Element);
     }
