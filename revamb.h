@@ -19,6 +19,7 @@
 
 // Local includes
 #include "ir-helpers.h"
+
 namespace llvm {
 class GlobalVariable;
 };
@@ -72,6 +73,7 @@ enum class DebugInfoType {
 // TODO: move me to another header file
 /// \brief Classification of the various basic blocks we are creating
 enum BlockType {
+  // TODO: UntypedBlock is a bad name
   UntypedBlock, ///< A basic block generated during translation that it's not a
                 ///  jump target.
   DispatcherBlock, ///< Basic block representing the dispatcher.
@@ -83,6 +85,123 @@ enum BlockType {
   DispatcherFailure ///< Basic block representing the default case of the
                     ///  dispatcher switch.
 };
+
+namespace JTReason {
+
+// TODO: move me to another header file
+/// \brief Reason for registering a jump target
+enum Values {
+  PostHelper = 1, ///< PC after an helper (e.g., a syscall)
+  DirectJump = 2, ///< Obtained from a direct store to the PC
+  GlobalData = 4, ///< Obtained digging in global data
+  AmbigousInstruction = 8, ///< Fallthrough of multiple instructions in the
+                           ///  immediately preceeding bytes
+  SETToPC = 16, ///< Obtained from SET on a store to the PC
+  SETNotToPC = 32, ///< Obtained from SET (but not from a PC-store)
+  UnusedGlobalData = 64, ///< Obtained digging in global data, buf never used
+                         ///  by SET. Likely a function pointer.
+  Callee = 128, ///< This JT is the target of a call instruction.
+  SumJump = 256, ///< Obtained from the "sumjump" heuristic
+  LoadAddress = 512, ///< A load has been performed from this address
+  ReturnAddress = 1024, ///< Obtained as the fallthrough of a function call
+  LastReason = ReturnAddress
+};
+
+inline const char *getName(Values Reason) {
+  switch (Reason) {
+  case PostHelper:
+    return "PostHelper";
+  case DirectJump:
+    return "DirectJump";
+  case GlobalData:
+    return "GlobalData";
+  case AmbigousInstruction:
+    return "AmbigousInstruction";
+  case SETToPC:
+    return "SETToPC";
+  case SETNotToPC:
+    return "SETNotToPC";
+  case UnusedGlobalData:
+    return "UnusedGlobalData";
+  case Callee:
+    return "Callee";
+  case SumJump:
+    return "SumJump";
+  case LoadAddress:
+    return "LoadAddress";
+  case ReturnAddress:
+    return "ReturnAddress";
+  }
+
+  abort();
+}
+
+inline Values fromName(llvm::StringRef ReasonName) {
+  if (ReasonName == "PostHelper")
+    return PostHelper;
+  else if (ReasonName == "DirectJump")
+    return DirectJump;
+  else if (ReasonName == "GlobalData")
+    return GlobalData;
+  else if (ReasonName == "AmbigousInstruction")
+    return AmbigousInstruction;
+  else if (ReasonName == "SETToPC")
+    return SETToPC;
+  else if (ReasonName == "SETNotToPC")
+    return SETNotToPC;
+  else if (ReasonName == "UnusedGlobalData")
+    return UnusedGlobalData;
+  else if (ReasonName == "Callee")
+    return Callee;
+  else if (ReasonName == "SumJump")
+    return SumJump;
+  else if (ReasonName == "LoadAddress")
+    return LoadAddress;
+  else if (ReasonName == "ReturnAddress")
+    return ReturnAddress;
+  else
+    abort();
+}
+
+inline bool hasReason(uint32_t Reasons, Values ToCheck) {
+  return (Reasons & static_cast<uint32_t>(ToCheck)) != 0;
+}
+
+} // namespace JTReason
+
+namespace KillReason {
+
+enum Values { NonKiller, KillerSyscall, EndlessLoop, LeadsToKiller };
+
+inline llvm::StringRef getName(Values Reason) {
+  switch (Reason) {
+  case NonKiller:
+    return "NonKiller";
+  case KillerSyscall:
+    return "KillerSyscall";
+  case EndlessLoop:
+    return "EndlessLoop";
+  case LeadsToKiller:
+    return "LeadsToKiller";
+  }
+
+  revng_abort("Unexpected reason");
+}
+
+inline Values fromName(llvm::StringRef Name) {
+  if (Name == "NonKiller")
+    return NonKiller;
+  if (Name == "KillerSyscall")
+    return KillerSyscall;
+  else if (Name == "EndlessLoop")
+    return EndlessLoop;
+  else if (Name == "LeadsToKiller")
+    return LeadsToKiller;
+  else
+    revng_abort("Unexpected name");
+}
+
+} // namespace KillReason
 
 /// \brief Basic information about an input/output architecture
 class Architecture {
@@ -203,11 +322,13 @@ static inline T *notNull(T *Pointer) {
 }
 
 static const std::array<llvm::StringRef, 3> MarkerFunctionNames = {
-  "newpc",
-  "function_call",
-  "exitTB"
+  { "newpc", "function_call", "exitTB" }
 };
 
+/// \brief Checks if \p I is a marker
+///
+/// A marker a function call to an empty function acting as meta-information,
+/// for example the `function_call` marker.
 static inline bool isMarker(llvm::Instruction *I) {
   using namespace std::placeholders;
   using llvm::any_of;
@@ -226,6 +347,28 @@ static inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
 
   assert(It != End);
   return &*It;
+}
+
+/// \brief Given a BasicBlock representing a function call, returns the callee
+inline llvm::BasicBlock *getFunctionCallCallee(llvm::BasicBlock *BB) {
+  using namespace llvm;
+
+  auto Last = BB->begin();
+  auto It = BB->end();
+  while (It != Last) {
+    It--;
+    if (isCallTo(&*It, "function_call")) {
+      auto *Call = cast<CallInst>(&*It);
+
+      if (auto *BA = dyn_cast<BlockAddress>(Call->getArgOperand(0)))
+        return BA->getBasicBlock();
+      else
+        return nullptr;
+    }
+  }
+
+  // TODO: is it OK to treat indirect function calls and non-calls the same way?
+  return nullptr;
 }
 
 #endif // _REVAMB_H

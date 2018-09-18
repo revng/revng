@@ -583,8 +583,9 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   // Instantiate helpers
   VariableManager Variables(*TheModule, *HelpersModule, TargetArchitecture);
   const Architecture &Arch = Binary.architecture();
+  StringRef SPName = Arch.stackPointerRegister();
   GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
-  GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, Arch.stackPointerRegister()).first;
+  GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, SPName).first;
 
   IRBuilder<> Builder(Context);
 
@@ -638,7 +639,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     JumpTargets.harvestGlobalData();
     VirtualAddress = Binary.entryPoint();
   }
-  JumpTargets.registerJT(VirtualAddress, JumpTargetManager::GlobalData);
+  JumpTargets.registerJT(VirtualAddress, JTReason::GlobalData);
 
   // Initialize the program counter
   auto *StartPC = ConstantInt::get(PCReg->getType()->getPointerElementType(),
@@ -647,7 +648,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   auto *Delimiter = Builder.CreateStore(StartPC, PCReg);
 
   // We need to remember this instruction so we can later insert a call here.
-  // The problem is that up until now we don't know where our CPUState structure is.
+  // The problem is that up until now we don't know where our CPUState structure
+  // is.
   // After the translation we will and use this information to create a call to
   // a helper function.
   // TODO: we need a more elegant solution here
@@ -771,15 +773,17 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
           // case force a fallthrough
           auto &IL = InstructionList;
           if (j == IL->instruction_count - 1) {
-            using JTM = JumpTargetManager;
-            Builder.CreateBr(notNull(JumpTargets.registerJT(EndPC,
-                                                            JTM::PostHelper)));
+            BasicBlock *Target = JumpTargets.registerJT(EndPC,
+                                                        JTReason::PostHelper);
+            Builder.CreateBr(notNull(Target));
           }
 
           break;
         }
+
       default:
         Result = Translator.translate(&Instruction, PC, NextPC);
+        break;
       }
 
       switch (Result) {
@@ -819,7 +823,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     } // End loop over instructions
 
     if (ForceNewBlock)
-      JumpTargets.registerJT(EndPC, JumpTargetManager::PostHelper);
+      JumpTargets.registerJT(EndPC, JTReason::PostHelper);
 
     // We might have a leftover block, probably due to the block created after
     // the last call to exit_tb

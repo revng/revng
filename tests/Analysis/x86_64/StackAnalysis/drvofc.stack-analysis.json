@@ -1,0 +1,11 @@
+[
+  {
+    "entry_point": "bb.drvofc",
+    "function_calls": [
+      {
+        "caller": "bb.drvofc:10",
+        "slots": [{"slot": "rax", "return_value": "NoOrDead"}]
+      }
+    ]
+  }
+]

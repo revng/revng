@@ -177,8 +177,7 @@ public:
     if (IsSorted || !isSmall() || Size <= 1)
       return;
 
-    auto Compare = [] (const Pair &A,
-                       const Pair &B) {
+    auto Compare = [] (const Pair &A, const Pair &B) {
       return std::less<K>()(A.first, B.first);
     };
     std::sort(Vector.begin(), Vector.begin() + Size, Compare);
@@ -254,6 +253,29 @@ public:
 
     auto Result = Map.insert(P);
     return { iterator(Result.first), Result.second };
+  }
+
+  void erase(const K &Key) {
+    if (isSmall()) {
+      auto I = Vector.begin();
+      auto E = Vector.begin() + Size;
+
+      for (; I != E; ++I)
+        if (I->first == Key)
+          break;
+
+      if (I == E)
+        return;
+
+      Size--;
+      for (; I < E - 1; I++)
+        *I = *(I + 1);
+
+    } else {
+      auto It = Map.find(Key);
+      if (It != Map.end())
+        Map.erase(It);
+    }
   }
 
   iterator find(const K &Key) {

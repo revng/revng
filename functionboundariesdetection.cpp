@@ -227,10 +227,14 @@ void FBD::collectFunctionCalls() {
   }
 
   // Mark all the callee basic blocks as such
-  for (auto P : FunctionCalls)
+  for (auto P : FunctionCalls) {
     for (BasicBlock *S : P.first->successors())
       if (JTM->isTranslatedBB(S))
-        JTM->registerJT(S, JumpTargetManager::Callee);
+        JTM->registerJT(S, JTReason::Callee);
+
+    if (JTM->isTranslatedBB(P.second))
+      JTM->registerJT(P.second, JTReason::ReturnAddress);
+  }
 }
 
 void FBD::collectReturnInstructions() {
@@ -333,7 +337,7 @@ void FBD::collectInitialCFEPSet() {
 
     DBG("functions", dbg << JT.describe() << "\n");
 
-    if (JT.hasReason(JumpTargetManager::Callee)) {
+    if (JT.hasReason(JTReason::Callee)) {
       registerCFEP(CFEPHead, Callee);
 
       assert(Coverage.find(CFEPHead) != Coverage.end());
@@ -342,13 +346,13 @@ void FBD::collectInitialCFEPSet() {
       Insert = true;
     }
 
-    if (JT.hasReason(JumpTargetManager::UnusedGlobalData)) {
+    if (JT.hasReason(JTReason::UnusedGlobalData)) {
       registerCFEP(CFEPHead, GlobalData);
       Insert = true;
     }
 
-    if (JT.hasReason(JumpTargetManager::SETNotToPC)
-        && !JT.hasReason(JumpTargetManager::SETToPC)) {
+    if (JT.hasReason(JTReason::SETNotToPC)
+        && !JT.hasReason(JTReason::SETToPC)) {
       registerCFEP(CFEPHead, InCode);
       Insert = true;
     }

@@ -225,4 +225,36 @@ template<>
 inline void Logger<false>::init() {
 }
 
+extern template class Logger<true>;
+extern template class Logger<false>;
+
+class StreamWrapperBase {
+public:
+  virtual void flush(std::stringstream &Buffer) = 0;
+};
+
+/// Class that wraps a stream of any type. It has a `flush` method, that, when
+/// called with a `std::stringstream` copy all of its content in the wrapped
+/// stream.
+///
+/// The main reason for this is being able to have a dumpInternal method in a
+/// .cpp file while preserving a stream-agnostic dump method in the header.
+template<typename O>
+class StreamWrapper : public StreamWrapperBase {
+public:
+  StreamWrapper(O &Stream) : Stream(Stream) {}
+
+  virtual void flush(std::stringstream &Buffer) override {
+    Buffer.flush();
+    Stream << Buffer.str();
+    std::stringstream Empty;
+    Buffer.swap(Empty);
+  }
+
+  virtual ~StreamWrapper() {}
+
+private:
+  O &Stream;
+};
+
 #endif // _DEBUG_H

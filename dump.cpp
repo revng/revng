@@ -24,8 +24,9 @@
 #include "debug.h"
 #include "debughelper.h"
 #include "isolatefunctions.h"
-#include "stackanalysis.h"
 #include "statistics.h"
+#include "valgrindhelpers.h"
+#include "revng/StackAnalysis/stackanalysis.h"
 
 using namespace llvm;
 
@@ -67,6 +68,9 @@ static bool parseArgs(int Argc, const char *Argv[], ProgramParameters &Result) {
     OPT_STRING('s', "stack-analysis",
                &Result.StackAnalysisPath,
                "path where the result of the stack analysis should be stored."),
+    OPT_BOOLEAN('T', "stats",
+                &Result.PrintStats,
+                "print statistics upon exit or SIGINT."),
     OPT_STRING('i', "functions-isolation",
                &Result.FunctionIsolationPath,
                "path where a new LLVM module containing the reorganization of "
@@ -131,7 +135,7 @@ public:
       AU.addRequired<CollectFunctionBoundaries>();
 
     if (Parameters.StackAnalysisPath != nullptr)
-      AU.addRequired<StackAnalysis::StackAnalysis>();
+      AU.addRequired<StackAnalysis::StackAnalysis<true>>();
 
     if (Parameters.FunctionIsolationPath != nullptr)
       AU.addRequired<IsolateFunctions>();
@@ -192,7 +196,7 @@ bool DumpPass::runOnFunction(Function &F) {
   }
 
   if (Parameters.StackAnalysisPath != nullptr) {
-    auto &Analysis = getAnalysis<StackAnalysis::StackAnalysis>();
+    auto &Analysis = getAnalysis<StackAnalysis::StackAnalysis<true>>();
     Analysis.serialize(pathToStream(Parameters.StackAnalysisPath, Output));
   }
 
@@ -214,9 +218,11 @@ int main(int argc, const char *argv[]) {
 
   LLVMContext &Context = getGlobalContext();
   SMDiagnostic Err;
-  std::unique_ptr<Module> TheModule = parseIRFile(Parameters.InputPath,
-                                                  Err,
-                                                  Context);
+  std::unique_ptr<Module> TheModule;
+  {
+    Callgrind DisableCallgrind(false);
+    TheModule = parseIRFile(Parameters.InputPath, Err, Context);
+  }
 
   if (!TheModule) {
     fprintf(stderr, "Couldn't load the LLVM IR.");

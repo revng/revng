@@ -248,6 +248,15 @@ BinaryFile::BinaryFile(std::string FilePath,
 }
 
 class FilePortion {
+private:
+  bool HasAddress;
+  bool HasSize;
+  uint64_t Size;
+  uint64_t Address;
+
+public:
+  FilePortion() : HasAddress(false), HasSize(false), Size(0), Address(0) { }
+
 public:
   void setAddress(uint64_t Address) {
     HasAddress = true;
@@ -304,12 +313,6 @@ public:
 
     abort();
   }
-
-private:
-  bool HasAddress;
-  bool HasSize;
-  uint64_t Size;
-  uint64_t Address;
 
 };
 

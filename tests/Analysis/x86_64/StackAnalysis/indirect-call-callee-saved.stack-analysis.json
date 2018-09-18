@@ -1,0 +1,6 @@
+[
+  {
+    "entry_point": "bb.indirect_caller",
+    "slots": [{"slot": "r12", "argument": "No", "return_value": "No"}]
+  }
+]

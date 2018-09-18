@@ -1,0 +1,15 @@
+[
+  {
+    "entry_point": "bb.callee",
+    "slots": [{"slot": "rax", "return_value": "Yes"}]
+  },
+  {
+    "entry_point": "bb.urvofc",
+    "function_calls": [
+      {
+        "caller": "bb.urvofc:9",
+        "slots": [{"slot": "rax", "return_value": "Yes"}]
+      }
+    ]
+  }
+]

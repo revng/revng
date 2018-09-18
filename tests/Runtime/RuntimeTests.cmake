@@ -5,7 +5,7 @@
 # Test definitions
 set(SRC ${CMAKE_SOURCE_DIR}/tests/Runtime)
 
-set(TEST_CFLAGS_BASE "-std=c99 -fno-pic -fno-pie -g -fno-stack-protector")
+set(TEST_CFLAGS_BASE "-std=c99 -fno-pic -fno-pie -ggdb3 -fno-stack-protector")
 set(TEST_CFLAGS_STATIC "${TEST_CFLAGS_BASE} -static")
 set(TEST_CFLAGS "${TEST_CFLAGS_STATIC}")
 set(TEST_CFLAGS_IF_AVAILABLE "-no-pie")

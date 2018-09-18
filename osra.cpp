@@ -477,7 +477,8 @@ void OSRA::handleArithmeticOperator(Instruction *I) {
   std::tie(ConstantOp, OtherOp) = identifyOperands(I, DL);
 
   if (OtherOp == nullptr) {
-    if (ConstantOp != nullptr) {
+    if (ConstantOp != nullptr
+        and ConstantOp->getType()->getIntegerBitWidth() <= 64) {
       // If OtherOp is nullptr but ConstantOp is not it means we were able to
       // fold the operation in a constant
       if (!IsFree)
@@ -1640,6 +1641,12 @@ void OSRA::run() {
     case Instruction::Load:
       handleMemoryOperation(I);
       break;
+    case Instruction::Call:
+      if (auto *Callee = cast<CallInst>(I)->getCalledFunction())
+        if (Callee->isIntrinsic()
+            and Callee->getIntrinsicID() == Intrinsic::bswap)
+          handleUnaryOperator(I);
+      break;
     default:
       break;
     }
@@ -1656,8 +1663,8 @@ void OSRA::dump() {
 }
 
 void OSR::dump() const {
-  raw_os_ostream Lol(dbg);
-  formatted_raw_ostream OutputStream(Lol);
+  raw_os_ostream RawOutputStream(dbg);
+  formatted_raw_ostream OutputStream(RawOutputStream);
   describe(OutputStream);
 }
 
@@ -1672,8 +1679,8 @@ void OSR::describe(formatted_raw_ostream &O) const {
 }
 
 void BoundedValue::dump() const {
-  raw_os_ostream Lol(dbg);
-  formatted_raw_ostream OutputStream(Lol);
+  raw_os_ostream RawOutputStream(dbg);
+  formatted_raw_ostream OutputStream(RawOutputStream);
   describe(OutputStream);
 }
 

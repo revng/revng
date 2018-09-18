@@ -83,31 +83,12 @@ public:
   }
 
 private:
-  enum KillReason {
-    KillerSyscall,
-    EndlessLoop,
-    LeadsToKiller
-  };
-
-  static llvm::StringRef getReasonName(KillReason Reason) {
-    switch(Reason) {
-    case KillerSyscall:
-      return "KillerSyscall";
-    case EndlessLoop:
-      return "EndlessLoop";
-    case LeadsToKiller:
-      return "LeadsToKiller";
-    default:
-      assert(false);
-    }
-  }
-
   bool isKiller(llvm::BasicBlock *BB) const {
     return KillerBBs.count(BB) != 0;
   };
 
   /// \brief Register BB as killer and associate a noreturn metadata to it
-  void registerKiller(llvm::BasicBlock *BB, KillReason Reason) {
+  void registerKiller(llvm::BasicBlock *BB, KillReason::Values Reason) {
     KillerBBs.insert(BB);
 
     if (!BB->empty()) {
@@ -115,7 +96,8 @@ private:
       assert(Terminator != nullptr);
       if (Terminator->getMetadata("noreturn") == nullptr) {
         QuickMetadata QMD(getContext(BB));
-        Terminator->setMetadata("noreturn", QMD.tuple(getReasonName(Reason)));
+        Terminator->setMetadata("noreturn",
+                                QMD.tuple(KillReason::getName(Reason)));
       }
     }
 

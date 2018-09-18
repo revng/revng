@@ -85,15 +85,15 @@ public:
   }
 
   void registerPCs() const {
-    const auto SETToPC = JumpTargetManager::SETToPC;
-    const auto SETNotToPC = JumpTargetManager::SETNotToPC;
+    const auto SETToPC = JTReason::SETToPC;
+    const auto SETNotToPC = JTReason::SETNotToPC;
     for (auto &P : NewPCs)
       JTM->registerJT(P.first, P.second ? SETToPC : SETNotToPC);
   }
 
   void registerLoadAddresses() const {
     for (uint64_t Address : LoadAddresses)
-      JTM->markJT(Address, JumpTargetManager::LoadAddress);
+      JTM->markJT(Address, JTReason::LoadAddress);
   }
 
   void cut(unsigned Height) {

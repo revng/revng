@@ -1,0 +1,6 @@
+[
+  {
+    "entry_point": "bb.func",
+    "slots": [{"slot": "rax", "argument": "Yes"}]
+  }
+]

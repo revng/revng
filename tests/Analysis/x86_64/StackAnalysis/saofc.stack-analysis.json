@@ -1,0 +1,15 @@
+[
+  {
+    "entry_point": "bb.callee",
+    "slots": [{"slot": "SP0+0x10", "argument": "No"}]
+  },
+  {
+    "entry_point": "bb.saofc",
+    "function_calls": [
+      {
+        "caller": "bb.saofc:9",
+        "slots": [{"slot": "SP0+0x10", "argument": "No"}]
+      }
+    ]
+  }
+]

@@ -1,0 +1,15 @@
+[
+  {
+    "entry_point": "bb.callee",
+    "slots": [{"slot": "rax", "return_value": "Dead"}]
+  },
+  {
+    "entry_point": "bb.func",
+    "function_calls": [
+      {
+        "caller": "bb.func:9",
+        "slots": [{"slot": "rax", "return_value": "Dead"}]
+      }
+    ]
+  }
+]

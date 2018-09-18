@@ -333,11 +333,9 @@ void IFI::replaceFunctionCall(BasicBlock *NewBB,
 
     // Create a basic block that we hit if the current PC is not the one
     // expected after the function call
-    Twine PCMismatchName = NewBB->getName() + "_bad_return_pc";
-    BasicBlock *PCMismatch = BasicBlock::Create(Context,
-                                                PCMismatchName.str(),
-                                                NewBB->getParent(),
-                                                nullptr);
+    auto *PCMismatch = BasicBlock::Create(Context,
+                                          NewBB->getName() + "_bad_return_pc",
+                                          NewBB->getParent());
     throwException(BadReturnAddress, PCMismatch, ExpectedPC->getZExtValue());
     new UnreachableInst(Context, PCMismatch);
 

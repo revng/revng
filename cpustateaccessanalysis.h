@@ -232,4 +232,5 @@ public:
 public:
   bool runOnModule(llvm::Module &TheModule) override;
 };
-#endif
+
+#endif // _CPUSTATEACCESSANALYSIS_H

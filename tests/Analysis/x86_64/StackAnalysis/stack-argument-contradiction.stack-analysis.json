@@ -1,0 +1,9 @@
+[
+  {
+    "entry_point": "bb.callee"
+  },
+  {
+    "entry_point": "bb.func",
+    "slots": [{"slot": "SP0-0x10", "argument": "Dead"}, {"slot": "SP0-0x8", "argument": "Yes"}, {"slot": "SP0+0x0", "argument": "Yes"}, {"slot": "SP0+0x8", "argument": "No"}]
+  }
+]
