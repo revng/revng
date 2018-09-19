@@ -41,7 +41,7 @@ BOOST_AUTO_TEST_CASE(TestASSlot) {
   BOOST_TEST(SP0Slot == SP0Slot);
   BOOST_TEST(SP0Slot != CPUSlot);
   BOOST_TEST(SP0Slot.greaterThan(CPUSlot));
-  BOOST_TEST(SP0Slot.lowerThanOrEqual(CPUSlot));
+  BOOST_TEST(not SP0Slot.lowerThanOrEqual(CPUSlot));
 
   // Test addition and masking
   SP0Slot.add(-5);
