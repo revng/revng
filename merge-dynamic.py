@@ -15,7 +15,12 @@ from pprint import pprint
 
 from elftools.elf.elffile import ELFFile
 from elftools.elf.constants import P_FLAGS
-from elftools.elf.enums import ENUM_P_TYPE
+
+try:
+  from elftools.elf.enums import ENUM_P_TYPE
+except ImportError:
+  from elftools.elf.enums import ENUM_P_TYPE_BASE as ENUM_P_TYPE
+
 from elftools.elf.enums import ENUM_RELOC_TYPE_MIPS
 from elftools.elf.enums import ENUM_RELOC_TYPE_i386
 from elftools.elf.enums import ENUM_RELOC_TYPE_x64
