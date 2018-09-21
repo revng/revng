@@ -87,7 +87,7 @@ bool StackAnalysis<AnalyzeABI>::runOnFunction(Function &F) {
                     || (IsSETNotToPC
                         and not IsSETToPC
                         and not IsReturnAddress))) {
-      // WIP: keep IsReturnAddress?
+      // TODO: keep IsReturnAddress?
       // Consider addresses found in global data that have not been used in SET
       // or addresses coming from SET that are not return addresses and do not
       // end up in the PC directly.

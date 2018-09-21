@@ -61,7 +61,7 @@ for REGEXP in '::' '<' 'RegisterPass.*>' '(' '} else'; do
 done
 
 # Things should never be at the beginning of a line
-for REGEXP in '\.[^\.]' '\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<='; do
+for REGEXP in '\.[^\.]' '\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP'; do
     $GREP "^\s*$REGEXP" $FILES | cat
 done
 

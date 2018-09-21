@@ -212,7 +212,7 @@ public:
     InstructionContent[I] = V;
   }
 
-  // WIP: this probably needs to be able to handle casts only
+  // TODO: this probably needs to be able to handle casts only
   /// \brief Handle automatically an otherwise un-handleable instruction
   ///
   /// This is a fallback handling of instruction not otherwise manually
