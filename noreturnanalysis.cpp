@@ -55,10 +55,8 @@ void NoReturnAnalysis::registerSyscalls(llvm::Function *F) {
         SyscallRegisterReads.push_back(DeadLoad);
         RegisteredSyscalls.insert(Call);
       }
-
     }
   }
-
 }
 
 bool NoReturnAnalysis::endsUpIn(Instruction *I, BasicBlock *Target) {
@@ -104,7 +102,7 @@ void NoReturnAnalysis::collectDefinitions(ConditionalReachedLoadsPass &CRL) {
     for (Instruction *I : CRL.getReachingDefinitions(Load))
       if (auto *Store = dyn_cast<StoreInst>(I))
         if (endsUpIn(Store, Load->getParent()))
-            SyscallRegisterDefinitions.insert(Store);
+          SyscallRegisterDefinitions.insert(Store);
 }
 
 bool NoReturnAnalysis::setsSyscallNumber(llvm::StoreInst *Store) {
@@ -221,11 +219,9 @@ void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors) {
             registerKiller(CallerBB, KillReason::LeadsToKiller);
             WorkList.insert(CallerBB);
           }
-
         }
       }
     }
-
   }
 
   // Restore the backup
@@ -245,8 +241,7 @@ void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors) {
   Sink->eraseFromParent();
 
   DBG("nra", {
-      for (BasicBlock *KillerBB : KillerBBs)
-        dbg << getName(KillerBB) << " is killer BB\n";
-    });
-
+    for (BasicBlock *KillerBB : KillerBBs)
+      dbg << getName(KillerBB) << " is killer BB\n";
+  });
 }

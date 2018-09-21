@@ -124,7 +124,7 @@ private:
       CSVCount = std::distance(M->global_begin(), M->global_end());
     }
 
-    auto IsValid = [CSVCount, CPU] (ASSlot Slot) {
+    auto IsValid = [CSVCount, CPU](ASSlot Slot) {
       return Slot.addressSpace() == CPU and Slot.offset() <= CSVCount;
     };
 

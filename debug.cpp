@@ -40,9 +40,7 @@ void enableDebugFeature(std::string Name) {
 }
 
 void disableDebugFeature(std::string Name) {
-  auto It = std::find(DebugFeatures.begin(),
-                      DebugFeatures.end(),
-                      Name);
+  auto It = std::find(DebugFeatures.begin(), DebugFeatures.end(), Name);
   if (It != DebugFeatures.end())
     DebugFeatures.erase(It);
 

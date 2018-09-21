@@ -25,10 +25,7 @@ struct CompareByName {
 
 char CollectNoreturn::ID = 0;
 using RegisterCNR = RegisterPass<CollectNoreturn>;
-static RegisterCNR X("cnoreturn",
-                     "Collect noreturn Pass",
-                     true,
-                     true);
+static RegisterCNR X("cnoreturn", "Collect noreturn Pass", true, true);
 
 void CollectNoreturn::serialize(std::ostream &Output) {
   Output << "noreturn\n";

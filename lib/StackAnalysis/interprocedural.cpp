@@ -274,7 +274,6 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
 
   assert(Type != FunctionType::Invalid);
   Results.registerFunction(Entry, Type, Result.getFunctionSummary());
-
 }
 
 void ResultsPool::mergeFunction(BasicBlock *Function,
@@ -325,7 +324,6 @@ void ResultsPool::mergeFunction(BasicBlock *Function,
       FunctionReturnValues[Key] = FRV::no();
       ExplicitlyCalleeSavedRegisters[Function].insert(Slot.first.offset());
       break;
-
     }
 
     for (auto &P : CallSites) {
@@ -412,7 +410,6 @@ struct ClobberedRegistersAnalysis {
   /// \brief Struct representing the result of a single iteration
   struct IterationResult {
   public:
-
     /// \brief Description of a register
     struct ECSVote {
     public:
@@ -438,14 +435,13 @@ struct ClobberedRegistersAnalysis {
     }
 
     bool operator!=(const IterationResult &Other) const {
-      return not (*this == Other);
+      return not(*this == Other);
     }
-
   };
 
   /// \brief Compute an iteration
-  static IterationResult recompute(ResultsPool &This,
-                                   const ClobberedMap &InitialState) {
+  static IterationResult
+  recompute(ResultsPool &This, const ClobberedMap &InitialState) {
     // The results pool
     IterationResult Result;
     auto &Clobbered = Result.Clobbered;
@@ -468,13 +464,10 @@ struct ClobberedRegistersAnalysis {
         iterator EndCallIt;
 
       public:
-        State(BasicBlock *Function,
-              iterator CallIt,
-              iterator EndCallIt) :
+        State(BasicBlock *Function, iterator CallIt, iterator EndCallIt) :
           Function(Function),
           CallIt(CallIt),
           EndCallIt(EndCallIt) {}
-
       };
 
       // Worklist
@@ -564,7 +557,6 @@ struct ClobberedRegistersAnalysis {
               // Increase the counter associated to each register
               for (int32_t Index : It->second)
                 ECSVotes[Index].ECS++;
-
             }
           }
 
@@ -572,9 +564,7 @@ struct ClobberedRegistersAnalysis {
           WorkList.pop_back();
           InProgress.erase(Function);
         }
-
       }
-
     }
 
     return Result;
@@ -601,7 +591,6 @@ struct ClobberedRegistersAnalysis {
           // No, consider it clobbered by indirect function calls
           IndirectCallClobbered.insert(P.first);
         }
-
       }
 
       // Assert the new set of registers clobbered by indirect function calls
@@ -617,7 +606,6 @@ struct ClobberedRegistersAnalysis {
 
     return std::move(NewResult.Clobbered);
   }
-
 };
 
 FunctionsSummary ResultsPool::finalize(const Module *M) {

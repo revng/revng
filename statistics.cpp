@@ -17,13 +17,9 @@ struct Handler {
 
 // Print statistics on SIGINT (Ctrl + C), SIGABRT (assertions) and SIGUSR1.
 // For SIGUSR1, don't terminate program execution.
-static std::array<Handler, 3> Handlers = {
-  {
-    { SIGINT, true, { }, { } },
-    { SIGABRT, true, { }, { } },
-    { SIGUSR1, false, { }, { } }
-  }
-};
+static std::array<Handler, 3> Handlers = { { { SIGINT, true, {}, {} },
+                                             { SIGABRT, true, {}, {} },
+                                             { SIGUSR1, false, {}, {} } } };
 
 llvm::ManagedStatic<OnQuitRegistry> OnQuitStatistics;
 
@@ -70,4 +66,5 @@ void RunningStatistics::onQuit() {
   dbg << "\n";
 }
 
-OnQuitInteraface::~OnQuitInteraface() { }
+OnQuitInteraface::~OnQuitInteraface() {
+}

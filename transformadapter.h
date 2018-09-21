@@ -9,8 +9,8 @@
 #include <functional>
 
 // Local includes
-#include "range.h"
 #include "iteratorwrapper.h"
+#include "range.h"
 
 template<typename NewType, typename Wrapped>
 class TransformIterator : public IteratorWrapper<Wrapped> {
@@ -27,15 +27,13 @@ public:
 public:
   TransformIterator(Wrapped Iterator, transformer F) :
     IteratorWrapper<Wrapped>(Iterator),
-    F(F) { }
+    F(F) {}
 
-  reference operator*() const {
-    return F(base::operator*());
-  }
+  reference operator*() const { return F(base::operator*()); }
 
   pointer operator->() const = delete;
 
-  reference operator[](const difference_type& n) const {
+  reference operator[](const difference_type &n) const {
     return F(base::operator[](n));
   }
 
@@ -49,7 +47,7 @@ template<typename R, typename Iterator>
 class Transform {
 public:
   using transformer = typename TransformIterator<R, Iterator>::transformer;
-  Transform(transformer Transformer) : Transformer(Transformer) { }
+  Transform(transformer Transformer) : Transformer(Transformer) {}
 
   template<typename I>
   Range<TransformIterator<R, I>> transform(Range<I> Input) {
@@ -63,15 +61,13 @@ private:
   transformer Transformer;
 };
 
-}
+} // namespace adaptors
 
-template <typename T>
-struct function_traits
-  : public function_traits<decltype(&T::operator())>
-{ };
+template<typename T>
+struct function_traits : public function_traits<decltype(&T::operator())> {};
 
-template <typename ClassType, typename ReturnType, typename... Args>
-struct function_traits<ReturnType(ClassType::*)(Args...) const> {
+template<typename ClassType, typename ReturnType, typename... Args>
+struct function_traits<ReturnType (ClassType::*)(Args...) const> {
   using return_type = ReturnType;
 };
 

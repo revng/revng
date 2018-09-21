@@ -6,10 +6,10 @@
 //
 
 // LLVM includes
-#include "llvm/Pass.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 
 // Local includes
@@ -31,7 +31,7 @@ public:
   static char ID;
 
 public:
-  FunctionCallIdentification() : llvm::FunctionPass(ID) { }
+  FunctionCallIdentification() : llvm::FunctionPass(ID) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();

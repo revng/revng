@@ -28,7 +28,7 @@ public:
   /// object, which is something we'd like to avoid.
   class Node {
   public:
-    Node(InnerNodeType Value) : Value(Value) { }
+    Node(InnerNodeType Value) : Value(Value) {}
 
     /// \brief Return the underlying node
     InnerNodeType get() const { return Value; }
@@ -80,15 +80,12 @@ public:
           Queue.insert(Successor);
         }
       }
-
     }
-
   }
 
 private:
-
   struct CompareNodes {
-    bool operator() (const Node &A, const Node &B) const {
+    bool operator()(const Node &A, const Node &B) const {
       return A.get() < B.get();
     }
   };
@@ -126,9 +123,7 @@ struct GraphTraits<SubGraph<InnerNodeType>> {
   using nodes_iterator = typename GraphType::nodes_iterator;
 
   // TODO: here G should be const
-  static NodeType *getEntryNode(GraphType &G) {
-    return G.EntryNode;
-  }
+  static NodeType *getEntryNode(GraphType &G) { return G.EntryNode; }
 
   static ChildIteratorType child_begin(NodeType *Parent) {
     return Parent->Children.begin();
@@ -138,20 +133,13 @@ struct GraphTraits<SubGraph<InnerNodeType>> {
     return Parent->Children.end();
   }
 
-  static nodes_iterator nodes_begin(GraphType *G) {
-    return G->Nodes.begin();
-  }
+  static nodes_iterator nodes_begin(GraphType *G) { return G->Nodes.begin(); }
 
-  static nodes_iterator nodes_end(GraphType *G) {
-    return G->Nodes.end();
-  }
+  static nodes_iterator nodes_end(GraphType *G) { return G->Nodes.end(); }
 
-  static unsigned size(GraphType *G) {
-    return G->Nodes.size();
-  }
-
+  static unsigned size(GraphType *G) { return G->Nodes.size(); }
 };
 
-}
+} // namespace llvm
 
 #endif // _SUBGRAPH_H

@@ -11,16 +11,16 @@
 #include <iterator>
 
 // LLVM includes
-#include "llvm/IR/Instruction.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 
 // Local includes
 #include "datastructures.h"
 #include "debug.h"
-#include "jumptargetmanager.h"
 #include "ir-helpers.h"
+#include "jumptargetmanager.h"
 #include "osra.h"
 #include "revamb.h"
 #include "set.h"
@@ -41,8 +41,10 @@ using std::make_pair;
 ///   whether this information is precise or not
 class OperationsStack {
 public:
-  OperationsStack(JumpTargetManager *JTM,
-                  const DataLayout &DL) : JTM(JTM), DL(DL), LoadsCount(0) {
+  OperationsStack(JumpTargetManager *JTM, const DataLayout &DL) :
+    JTM(JTM),
+    DL(DL),
+    LoadsCount(0) {
     reset();
   }
 
@@ -127,9 +129,7 @@ public:
     }
   }
 
-  bool insertIfNew(Instruction *I) {
-    return insertIfNew(I, I);
-  }
+  bool insertIfNew(Instruction *I) { return insertIfNew(I, I); }
 
   bool insertIfNew(Instruction *I, Instruction *Ref) {
     if (OperationsSet.find(Ref) == OperationsSet.end()) {
@@ -301,8 +301,8 @@ void OperationsStack::explore(Constant *NewOperand) {
     if (MaterializedValue != 0 && JTM->isPC(MaterializedValue))
       NewPCs.insert({ MaterializedValue, IsPCStore });
 
-    if (MaterializedValue != 0 && (Tracking == PCsOnly
-                                   && JTM->isPC(MaterializedValue)))
+    if (MaterializedValue != 0
+        && (Tracking == PCsOnly && JTM->isPC(MaterializedValue)))
       TrackedValues.insert(MaterializedValue);
 
     if (SetsSyscallNumber) {
@@ -333,7 +333,7 @@ public:
     F(F),
     OSRA(OSRA),
     Visited(Visited),
-    Jumps(Jumps) { }
+    Jumps(Jumps) {}
 
   /// \brief Run the Simple Expression Tracker on F
   bool run();
@@ -358,7 +358,7 @@ private:
   const DataLayout &DL;
   JumpTargetManager *JTM;
   OperationsStack OS;
-  Function& F;
+  Function &F;
   OSRAPass *OSRA;
   std::set<BasicBlock *> *Visited;
   std::vector<std::pair<Value *, unsigned>> WorkList;
@@ -429,7 +429,6 @@ bool SET::enqueueStores(LoadInst *Start) {
           }
         }
       }
-
     }
   }
 
@@ -437,13 +436,13 @@ bool SET::enqueueStores(LoadInst *Start) {
 }
 
 bool SET::run() {
-  for (BasicBlock& BB : make_range(F.begin(), F.end())) {
+  for (BasicBlock &BB : make_range(F.begin(), F.end())) {
 
     if (Visited->find(&BB) != Visited->end())
       continue;
     Visited->insert(&BB);
 
-    for (Instruction& Instr : BB) {
+    for (Instruction &Instr : BB) {
       assert(Instr.getParent() == &BB);
 
       auto *Store = dyn_cast<StoreInst>(&Instr);
@@ -454,8 +453,9 @@ bool SET::run() {
       bool IsLoad = Load != nullptr;
       if ((!IsStore && !IsLoad)
           || (IsPCStore && isa<ConstantInt>(Store->getValueOperand()))
-          || (IsLoad && (isa<GlobalVariable>(Load->getPointerOperand())
-                         || isa<AllocaInst>(Load->getPointerOperand()))))
+          || (IsLoad
+              && (isa<GlobalVariable>(Load->getPointerOperand())
+                  || isa<AllocaInst>(Load->getPointerOperand()))))
         continue;
 
       assert(WorkList.empty());
@@ -492,7 +492,6 @@ bool SET::run() {
         bool IsApproximate = OS.isApproximate();
         Jumps.emplace_back(Store, IsApproximate, OS.trackedValues());
       }
-
     }
   }
 
@@ -537,8 +536,7 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
   using CI = ConstantInt;
   Type *Int64 = IntegerType::get(F.getParent()->getContext(), 64);
 
-  if (O == nullptr
-      || O->boundedValue()->isTop()
+  if (O == nullptr || O->boundedValue()->isTop()
       || O->boundedValue()->isBottom()) {
     return false;
   } else if (O->isConstant()) {
@@ -583,9 +581,9 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
     if (O->size() > 1000)
       dbg << "Warning: " << O->size() << " jump targets added\n";
 
-    DBG("osrjts", dbg << "Adding " << std::dec << O->size()
-        << " jump targets from 0x"
-        << std::hex << JTM->getPC(Target).first << "\n");
+    DBG("osrjts",
+        dbg << "Adding " << std::dec << O->size() << " jump targets from 0x"
+            << std::hex << JTM->getPC(Target).first << "\n");
 
     // Note: addition and comparison for equality are all sign-safe
     // operations, no need to use Constants in this case.

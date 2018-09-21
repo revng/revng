@@ -6,8 +6,8 @@
 //
 
 // Local includes
-#include "abiir.h"
 #include "functionabi.h"
+#include "abiir.h"
 #include "monotoneframework.h"
 
 using std::conditional;
@@ -40,8 +40,8 @@ static inline Comparison compare(T A, T B) {
 }
 
 template<typename K, typename V, bool Diff, bool EarlyExit, size_t N>
-unsigned cmp(const DefaultMap<K, V, N> &This,
-             const DefaultMap<K, V, N> &Other) {
+unsigned
+cmp(const DefaultMap<K, V, N> &This, const DefaultMap<K, V, N> &Other) {
   LoggerIndent<> Y(SaDiffLog);
   unsigned Result = 0;
 
@@ -84,12 +84,16 @@ unsigned cmpWithModule(const DefaultMap<K, V, N> &This,
   return Result;
 }
 
-template<typename K, typename V, bool Diff, bool EarlyExit, size_t N1, size_t N2>
-unsigned
-nestedCmpWithModule(const MapOfMaps<FunctionCall, N1, K, V, N2> &This,
-                    const MapOfMaps<FunctionCall, N1, K, V, N2> &Other,
-                    ASID ID,
-                    const Module *M) {
+template<typename K,
+         typename V,
+         bool Diff,
+         bool EarlyExit,
+         size_t N1,
+         size_t N2>
+unsigned nestedCmpWithModule(const MapOfMaps<FunctionCall, N1, K, V, N2> &This,
+                             const MapOfMaps<FunctionCall, N1, K, V, N2> &Other,
+                             ASID ID,
+                             const Module *M) {
   LoggerIndent<> Y(SaDiffLog);
   unsigned Result = 0;
 
@@ -124,8 +128,8 @@ static void combine(V &This, const Q &Other) {
 }
 
 template<typename K, typename V, typename Q, size_t N>
-static void combine(DefaultMap<K, V, N> &This,
-                    const DefaultMap<K, Q, N> &Other) {
+static void
+combine(DefaultMap<K, V, N> &This, const DefaultMap<K, Q, N> &Other) {
 
   combine(This.Default, Other.Default);
 
@@ -530,9 +534,7 @@ public:
   void disable() { H::disable(this->Analyses); }
   void enable() { H::enable(this->Analyses); }
 
-  void write() {
-    H::transfer(this->Analyses, GeneralTransferFunction::Write);
-  }
+  void write() { H::transfer(this->Analyses, GeneralTransferFunction::Write); }
 
   void read() { H::transfer(this->Analyses, GeneralTransferFunction::Read); }
 
@@ -743,9 +745,9 @@ private:
 /// \tparam Wrapper the template class to use for wrapping the elements of the
 ///         tuple.
 /// \tparam Tuple the tuple to wrap.
-template<template <typename X> class Wrapper,
+template<template<typename X> class Wrapper,
          typename Tuple,
-         int I=tuple_size<Tuple>::value,
+         int I = tuple_size<Tuple>::value,
          typename... Types>
 class WrapIn {
 public:

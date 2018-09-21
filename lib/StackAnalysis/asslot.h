@@ -62,9 +62,7 @@ private:
   };
 
 public:
-  explicit ASID(uint32_t ID) : ID(ID) {
-    assert(ID < LastID);
-  }
+  explicit ASID(uint32_t ID) : ID(ID) { assert(ID < LastID); }
 
   // Factory methods
   static ASID invalidID() { return ASID(InvalidID); }
@@ -77,7 +75,7 @@ public:
 
   bool operator<(const ASID &Other) const { return ID < Other.ID; }
   bool operator==(const ASID &Other) const { return ID == Other.ID; }
-  bool operator!=(const ASID &Other) const { return not (*this == Other); }
+  bool operator!=(const ASID &Other) const { return not(*this == Other); }
 
   size_t hash() const;
 
@@ -115,7 +113,6 @@ public:
 
   bool isStack() const { return ID == LastStackID; }
   bool isValid() const { return ID != InvalidID; }
-
 };
 
 /// \brief Class representing the address of an address space slot

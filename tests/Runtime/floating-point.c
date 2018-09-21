@@ -2,12 +2,15 @@
  * This file is distributed under the MIT License. See LICENSE.md for details.
  */
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 int root(char *buffer, size_t size) {
-  union { float f; int i; } number;
+  union {
+    float f;
+    int i;
+  } number;
   number.i = (127 + size) << 23;
   return (int) (number.f * number.f);
 }

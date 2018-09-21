@@ -36,7 +36,7 @@ char StackAnalysis<true>::ID = 0;
 namespace {
 const char *Name = "Stack Analysis Pass";
 static RegisterPass<StackAnalysis<true>> X("sa", Name, true, true);
-}
+} // namespace
 
 template<>
 char StackAnalysis<false>::ID = 0;
@@ -87,8 +87,7 @@ bool StackAnalysis<AnalyzeABI>::runOnFunction(Function &F) {
       Functions.emplace_back(&BB, true);
     } else if (not IsLoadAddress
                and (IsUnusedGlobalData
-                    || (IsSETNotToPC
-                        and not IsSETToPC
+                    || (IsSETNotToPC and not IsSETToPC
                         and not IsReturnAddress))) {
       // TODO: keep IsReturnAddress?
       // Consider addresses found in global data that have not been used in SET

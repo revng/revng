@@ -11,8 +11,8 @@
 #include <vector>
 
 // LLVM includes
-#include "llvm/Pass.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Pass.h"
 
 namespace llvm {
 class BasicBlock;
@@ -23,7 +23,7 @@ public:
   static char ID;
 
 public:
-  CollectFunctionBoundaries() : llvm::FunctionPass(ID) { }
+  CollectFunctionBoundaries() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
 

@@ -12,8 +12,8 @@
 #include <vector>
 
 // Boost includes
-#include <boost/icl/interval_set.hpp>
 #include <boost/icl/interval_map.hpp>
+#include <boost/icl/interval_set.hpp>
 #include <boost/type_traits/is_same.hpp>
 
 // LLVM includes
@@ -37,23 +37,24 @@ class Module;
 class SwitchInst;
 class StoreInst;
 class Value;
-}
+} // namespace llvm
 
 class JumpTargetManager;
 
-template<typename Map> typename Map::const_iterator
-  containing(Map const& m, typename Map::key_type const& k) {
+template<typename Map>
+typename Map::const_iterator
+containing(Map const &m, typename Map::key_type const &k) {
   typename Map::const_iterator it = m.upper_bound(k);
-  if(it != m.begin()) {
+  if (it != m.begin()) {
     return --it;
   }
   return m.end();
 }
 
-template<typename Map> typename Map::iterator
-  containing(Map & m, typename Map::key_type const& k) {
+template<typename Map>
+typename Map::iterator containing(Map &m, typename Map::key_type const &k) {
   typename Map::iterator it = m.upper_bound(k);
-  if(it != m.begin()) {
+  if (it != m.begin()) {
     return --it;
   }
   return m.end();
@@ -70,12 +71,11 @@ class TranslateDirectBranchesPass : public llvm::FunctionPass {
 public:
   static char ID;
 
-  TranslateDirectBranchesPass() : llvm::FunctionPass(ID),
-    JTM(nullptr) { }
+  TranslateDirectBranchesPass() : llvm::FunctionPass(ID), JTM(nullptr) {}
 
   TranslateDirectBranchesPass(JumpTargetManager *JTM) :
     FunctionPass(ID),
-    JTM(JTM) { }
+    JTM(JTM) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
@@ -115,8 +115,8 @@ public:
 
   class JumpTarget {
   public:
-    JumpTarget() : BB(nullptr), Reasons(0) { }
-    JumpTarget(llvm::BasicBlock *BB) : BB(BB), Reasons(0) { }
+    JumpTarget() : BB(nullptr), Reasons(0) {}
+    JumpTarget(llvm::BasicBlock *BB) : BB(BB), Reasons(0) {}
     JumpTarget(llvm::BasicBlock *BB, JTReason::Values Reason) :
       BB(BB),
       Reasons(static_cast<uint32_t>(Reason)) {}
@@ -208,7 +208,7 @@ public:
   /// \return the basic block to use from now on, or `nullptr` if the program
   ///         counter is not associated to a basic block.
   // TODO: return pair
-  llvm::BasicBlock *newPC(uint64_t PC, bool& ShouldContinue);
+  llvm::BasicBlock *newPC(uint64_t PC, bool &ShouldContinue);
 
   /// \brief Save the PC-Instruction association for future use
   void registerInstruction(uint64_t PC, llvm::Instruction *Instruction);
@@ -246,8 +246,8 @@ public:
   ///        executable segment
   bool isExecutableRange(uint64_t Start, uint64_t End) const {
     for (std::pair<uint64_t, uint64_t> Range : ExecutableRanges)
-      if (Range.first <= Start && Start < Range.second
-          && Range.first <= End && End < Range.second)
+      if (Range.first <= Start && Start < Range.second && Range.first <= End
+          && End < Range.second)
         return true;
     return false;
   }
@@ -265,9 +265,7 @@ public:
   }
 
   /// \brief Return true if the given PC is a jump target
-  bool isJumpTarget(uint64_t PC) const {
-    return JumpTargets.count(PC);
-  }
+  bool isJumpTarget(uint64_t PC) const { return JumpTargets.count(PC); }
 
   /// \brief Return true if the given basic block corresponds to a jump target
   bool isJumpTarget(llvm::BasicBlock *BB) {
@@ -337,10 +335,8 @@ public:
 
   /// \brief Checks if \p BB is a basic block generated during translation
   bool isTranslatedBB(llvm::BasicBlock *BB) const {
-    return BB != anyPC()
-      && BB != unexpectedPC()
-      && BB != dispatcher()
-      && BB != dispatcherFail();
+    return BB != anyPC() && BB != unexpectedPC() && BB != dispatcher()
+           && BB != dispatcherFail();
   }
 
   /// \brief Return the dispatcher basic block.
@@ -377,11 +373,7 @@ public:
     return Pair.first + Pair.second;
   }
 
-  enum Endianess {
-    OriginalEndianess,
-    DestinationEndianess
-  };
-
+  enum Endianess { OriginalEndianess, DestinationEndianess };
 
   /// \brief Read an integer number from a segment
   ///
@@ -401,9 +393,8 @@ public:
                                       llvm::Type *PointerTy,
                                       Endianess ReadEndianess);
 
-  llvm::Optional<uint64_t> readRawValue(uint64_t Address,
-                                        unsigned Size,
-                                        Endianess ReadEndianess) const;
+  llvm::Optional<uint64_t>
+  readRawValue(uint64_t Address, unsigned Size, Endianess ReadEndianess) const;
 
   /// \brief Increment the counter of emitted branches since the last reset
   void newBranch() { NewBranches++; }
@@ -460,8 +451,7 @@ public:
   // TODO: can we drop this in favor of GeneratedCodeBasicInfo::isJump?
   bool isJump(llvm::TerminatorInst *T) const {
     for (llvm::BasicBlock *Successor : T->successors()) {
-      if (!(Successor == Dispatcher
-            || Successor == DispatcherFail
+      if (!(Successor == Dispatcher || Successor == DispatcherFail
             || isJumpTarget(getBasicBlockPC(Successor))))
         return false;
     }
@@ -484,7 +474,6 @@ public:
   std::string nameForAddress(uint64_t Address) const;
 
 private:
-
   /// \brief Translate the non-constant jumps into jumps to the dispatcher
   void translateIndirectJumps();
 
@@ -532,8 +521,8 @@ private:
   // TODO: instead of a gigantic switch case we could map the original memory
   //       area and write the address of the translated basic block at the jump
   //       target
-  void createDispatcher(llvm::Function *OutputFunction,
-                        llvm::Value *SwitchOnPtr);
+  void
+  createDispatcher(llvm::Function *OutputFunction, llvm::Value *SwitchOnPtr);
 
   template<typename value_type, unsigned endian>
   void findCodePointers(uint64_t StartVirtualAddress,
@@ -550,7 +539,7 @@ private:
 
   llvm::Module &TheModule;
   llvm::LLVMContext &Context;
-  llvm::Function* TheFunction;
+  llvm::Function *TheFunction;
   /// Holds the association between a PC and the last generated instruction for
   /// the previous instruction.
   InstructionMap OriginalInstructionAddresses;
@@ -585,16 +574,15 @@ private:
 };
 
 template<>
-struct BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *> :
-  BlackListTraitBase<const JumpTargetManager &> {
+struct BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *>
+  : BlackListTraitBase<const JumpTargetManager &> {
   using BlackListTraitBase<const JumpTargetManager &>::BlackListTraitBase;
   bool isBlacklisted(llvm::BasicBlock *Value) {
     return !this->Obj.isTranslatedBB(Value);
   }
 };
 
-inline
-BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *>
+inline BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *>
 make_blacklist(const JumpTargetManager &JTM) {
   return BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *>(JTM);
 }

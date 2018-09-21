@@ -8,18 +8,18 @@
 
 // Standard includes
 #include <cstring>
-#include <memory>
-#include <sstream>
-#include <vector>
 #include <fstream>
+#include <memory>
 #include <queue>
 #include <set>
+#include <sstream>
 #include <utility>
+#include <vector>
 
 // Boost includes
 #include <boost/icl/interval_map.hpp>
-#include <boost/type_traits/is_same.hpp>
 #include <boost/icl/right_open_interval.hpp>
+#include <boost/type_traits/is_same.hpp>
 
 // LLVM includes
 #include "llvm/Analysis/LoopInfo.h"
@@ -33,8 +33,8 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
@@ -55,8 +55,7 @@ using namespace llvm;
 using std::make_pair;
 
 template<typename T, typename... Args>
-inline std::array<T, sizeof...(Args)>
-make_array(Args&&... args) {
+inline std::array<T, sizeof...(Args)> make_array(Args &&... args) {
   return { { std::forward<Args>(args)... } };
 }
 
@@ -77,7 +76,7 @@ static std::unique_ptr<Module> parseIR(StringRef Path, LLVMContext &Context) {
 }
 
 CodeGenerator::CodeGenerator(BinaryFile &Binary,
-                             Architecture& Target,
+                             Architecture &Target,
                              std::string Output,
                              std::string Helpers,
                              std::string EarlyLinked,
@@ -101,8 +100,7 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   DetectFunctionBoundaries(DetectFunctionBoundaries),
   EnableLinking(EnableLinking),
   ExternalCSVs(ExternalCSVs),
-  UseDebugSymbols(UseDebugSymbols)
-{
+  UseDebugSymbols(UseDebugSymbols) {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
   DbgMDKind = Context.getMDKindID("dbg");
@@ -136,8 +134,8 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
 
   auto *RegisterType = Type::getIntNTy(Context,
                                        Binary.architecture().pointerSize());
-  auto createConstGlobal = [this, &RegisterType] (const Twine &Name,
-                                                  uint64_t Value) {
+  auto createConstGlobal = [this, &RegisterType](const Twine &Name,
+                                                 uint64_t Value) {
     return new GlobalVariable(*TheModule,
                               RegisterType,
                               true,
@@ -174,9 +172,7 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
       // If we have extra data at the end we need to create a copy of the
       // segment and append the NULL bytes
       auto FullData = make_unique<uint8_t[]>(Segment.size());
-      ::memcpy(FullData.get(),
-               Segment.Data.data(),
-               Segment.Data.size());
+      ::memcpy(FullData.get(), Segment.Data.data(), Segment.Data.size());
       ::bzero(FullData.get() + Segment.Data.size(),
               Segment.size() - Segment.Data.size());
       auto DataRef = ArrayRef<uint8_t>(FullData.get(), Segment.size());
@@ -196,11 +192,9 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
     Segment.Variable->setSection("." + Name);
 
     // Write the linking info CSV
-    LinkingInfoStream << "." << Name
-                      << ",0x" << std::hex << Segment.StartVirtualAddress
-                      << ",0x" << std::hex << Segment.EndVirtualAddress
-                      << "\n";
-
+    LinkingInfoStream << "." << Name << ",0x" << std::hex
+                      << Segment.StartVirtualAddress << ",0x" << std::hex
+                      << Segment.EndVirtualAddress << "\n";
   }
 
   // Write needed libraries CSV
@@ -219,11 +213,9 @@ Function *CodeGenerator::importHelperFunctionDefinition(StringRef Name) {
 std::string SegmentInfo::generateName() {
   // Create name from start and size
   std::stringstream NameStream;
-  NameStream << "o_"
-             << (IsReadable ? "r" : "")
-             << (IsWriteable ? "w" : "")
-             << (IsExecutable ? "x" : "")
-             << "_0x" << std::hex << StartVirtualAddress;
+  NameStream << "o_" << (IsReadable ? "r" : "") << (IsWriteable ? "w" : "")
+             << (IsExecutable ? "x" : "") << "_0x" << std::hex
+             << StartVirtualAddress;
 
   return NameStream.str();
 }
@@ -261,7 +253,7 @@ class CpuLoopFunctionPass : public llvm::FunctionPass {
 public:
   static char ID;
 
-  CpuLoopFunctionPass() : llvm::FunctionPass(ID) { }
+  CpuLoopFunctionPass() : llvm::FunctionPass(ID) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
@@ -271,17 +263,14 @@ public:
 char CpuLoopFunctionPass::ID = 0;
 
 using RegisterCLF = RegisterPass<CpuLoopFunctionPass>;
-static RegisterCLF X("cpu-loop",
-                     "cpu_loop FunctionPass",
-                     false,
-                     false);
+static RegisterCLF X("cpu-loop", "cpu_loop FunctionPass", false, false);
 
 void CpuLoopFunctionPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<LoopInfoWrapperPass>();
 }
 
 template<class Range, class UnaryPredicate>
-auto find_unique(Range&& TheRange, UnaryPredicate Predicate)
+auto find_unique(Range &&TheRange, UnaryPredicate Predicate)
   -> decltype(*TheRange.begin()) {
 
   const auto Begin = TheRange.begin();
@@ -296,8 +285,7 @@ auto find_unique(Range&& TheRange, UnaryPredicate Predicate)
 }
 
 template<class Range>
-auto find_unique(Range&& TheRange)
-  -> decltype(*TheRange.begin()) {
+auto find_unique(Range &&TheRange) -> decltype(*TheRange.begin()) {
 
   const auto Begin = TheRange.begin();
   const auto End = TheRange.end();
@@ -323,7 +311,7 @@ bool CpuLoopFunctionPass::runOnFunction(Function &F) {
   BasicBlock *Header = OutermostLoop->getHeader();
 
   // Check that the header has only one predecessor inside the loop
-  auto IsInLoop = [&OutermostLoop] (BasicBlock *Predecessor) {
+  auto IsInLoop = [&OutermostLoop](BasicBlock *Predecessor) {
     return OutermostLoop->contains(Predecessor);
   };
   BasicBlock *Footer = find_unique(predecessors(Header), IsInLoop);
@@ -338,20 +326,20 @@ bool CpuLoopFunctionPass::runOnFunction(Function &F) {
   ReturnInst::Create(F.getParent()->getContext(), Footer);
 
   // Part 2: replace the call to cpu_*_exec with exception_index
-  auto IsCpuExec = [] (Function& TheFunction) {
+  auto IsCpuExec = [](Function &TheFunction) {
     StringRef Name = TheFunction.getName();
     return Name.startswith("cpu_") && Name.endswith("_exec");
   };
-  Function& CpuExec = find_unique(F.getParent()->functions(), IsCpuExec);
+  Function &CpuExec = find_unique(F.getParent()->functions(), IsCpuExec);
 
-  User *CallUser = find_unique(CpuExec.users(), [&F] (User *TheUser) {
-      auto *TheInstruction = dyn_cast<Instruction>(TheUser);
+  User *CallUser = find_unique(CpuExec.users(), [&F](User *TheUser) {
+    auto *TheInstruction = dyn_cast<Instruction>(TheUser);
 
-      if (TheInstruction == nullptr)
-        return false;
+    if (TheInstruction == nullptr)
+      return false;
 
-      return TheInstruction->getParent()->getParent() == &F;
-    });
+    return TheInstruction->getParent()->getParent() == &F;
+  });
 
   auto *Call = cast<CallInst>(CallUser);
   assert(Call->getCalledFunction() == &CpuExec);
@@ -368,12 +356,11 @@ class CpuLoopExitPass : public llvm::ModulePass {
 public:
   static char ID;
 
-  CpuLoopExitPass() : llvm::ModulePass(ID), VM(0) { }
-  CpuLoopExitPass(VariableManager *VM) :
-    llvm::ModulePass(ID),
-    VM(VM) { }
+  CpuLoopExitPass() : llvm::ModulePass(ID), VM(0) {}
+  CpuLoopExitPass(VariableManager *VM) : llvm::ModulePass(ID), VM(VM) {}
 
-  bool runOnModule(llvm::Module& M) override;
+  bool runOnModule(llvm::Module &M) override;
+
 private:
   VariableManager *VM;
 };
@@ -381,10 +368,7 @@ private:
 char CpuLoopExitPass::ID = 0;
 
 using RegisterCLE = RegisterPass<CpuLoopExitPass>;
-static RegisterCLE Y("cpu-loop-exit",
-                     "cpu_loop_exit Pass",
-                     false,
-                     false);
+static RegisterCLE Y("cpu-loop-exit", "cpu_loop_exit Pass", false, false);
 
 static void purgeNoReturn(Function *F) {
   auto &Context = F->getParent()->getContext();
@@ -411,7 +395,7 @@ static ReturnInst *createRet(Instruction *Position) {
   if (ReturnType->isVoidTy()) {
     return ReturnInst::Create(F->getParent()->getContext(), nullptr, Position);
   } else if (ReturnType->isIntegerTy()) {
-    auto *Zero = ConstantInt::get(static_cast<IntegerType*>(ReturnType), 0);
+    auto *Zero = ConstantInt::get(static_cast<IntegerType *>(ReturnType), 0);
     return ReturnInst::Create(F->getParent()->getContext(), Zero, Position);
   } else {
     assert("Return type not supported");
@@ -431,7 +415,7 @@ static ReturnInst *createRet(Instruction *Position) {
 /// or not.
 /// Then when we reach the root function, set cpu_loop_exiting to false after
 /// the call.
-bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
+bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
   Function *CpuLoopExit = M.getFunction("cpu_loop_exit");
 
   // Nothing to do here
@@ -538,7 +522,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module& M) {
                                                       Branch),
                                          ConstantInt::getTrue(BoolType));
 
-            BranchInst::Create(QuitBB, NewBB, Compare,  Branch);
+            BranchInst::Create(QuitBB, NewBB, Compare, Branch);
             Branch->eraseFromParent();
 
             // Add to the work list only if it hasn't been fixed already
@@ -570,7 +554,6 @@ static void purgeDeadBlocks(Function *F) {
         Kill.push_back(&BB);
 
   } while (!Kill.empty());
-
 }
 
 void CodeGenerator::translate(uint64_t VirtualAddress) {
@@ -582,7 +565,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   importHelperFunctionDefinition("target_set_brk");
   TheModule->getOrInsertFunction("syscall_init",
-                                 FT::get(Type::getVoidTy(Context), { }, false));
+                                 FT::get(Type::getVoidTy(Context), {}, false));
 
   // Instantiate helpers
   VariableManager Variables(*TheModule, *HelpersModule, TargetArchitecture);
@@ -594,9 +577,9 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   IRBuilder<> Builder(Context);
 
   // Create main function
-  auto *MainType  = FT::get(Builder.getVoidTy(),
-                            { SPReg->getType()->getPointerElementType() },
-                            false);
+  auto *MainType = FT::get(Builder.getVoidTy(),
+                           { SPReg->getType()->getPointerElementType() },
+                           false);
   auto *MainFunction = Function::Create(MainType,
                                         Function::ExternalLinkage,
                                         "root",
@@ -623,17 +606,18 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   // }
 
   const SmallVector<ABIRegister, 20> &ABIRegisters = Arch.abiRegisters();
-  SmallVector<Metadata*, 20> ABIRegMetadata;
+  SmallVector<Metadata *, 20> ABIRegMetadata;
   for (auto Register : ABIRegisters)
     ABIRegMetadata.push_back(MDString::get(Context, Register.name()));
 
-  auto *Tuple = MDTuple::get(Context, {
-    QMD.get(Arch.instructionAlignment()),
-    QMD.get(Arch.delaySlotSize()),
-    QMD.get("pc"),
-    QMD.get(Arch.stackPointerRegister()),
-    QMD.tuple(ArrayRef<Metadata*>(ABIRegMetadata)),
-  });
+  auto *Tuple = MDTuple::get(Context,
+                             {
+                               QMD.get(Arch.instructionAlignment()),
+                               QMD.get(Arch.delaySlotSize()),
+                               QMD.get("pc"),
+                               QMD.get(Arch.stackPointerRegister()),
+                               QMD.tuple(ArrayRef<Metadata *>(ABIRegMetadata)),
+                             });
   InputArchMD->addOperand(Tuple);
 
   // Create an instance of JumpTargetManager
@@ -696,7 +680,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
     Variables.newFunction(Delimiter, InstructionList.get());
     unsigned j = 0;
-    MDNode* MDOriginalInstr = nullptr;
+    MDNode *MDOriginalInstr = nullptr;
     bool StopTranslation = false;
     uint64_t PC = VirtualAddress;
     uint64_t NextPC = 0;
@@ -740,48 +724,46 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       Blocks.clear();
       Blocks.push_back(Builder.GetInsertBlock());
 
-      switch(Opcode) {
+      switch (Opcode) {
       case PTC_INSTRUCTION_op_discard:
         // Instructions we don't even consider
         break;
-      case PTC_INSTRUCTION_op_debug_insn_start:
-        {
-          // Find next instruction, if there is one
-          PTCInstruction *NextInstruction = nullptr;
-          for (unsigned k = j + 1; k < InstructionCount; k++) {
-            PTCInstruction *I = &InstructionList->instructions[k];
-            if (I->opc == PTC_INSTRUCTION_op_debug_insn_start
-                && ToIgnore.count(k) == 0) {
-              NextInstruction = I;
-              break;
-            }
+      case PTC_INSTRUCTION_op_debug_insn_start: {
+        // Find next instruction, if there is one
+        PTCInstruction *NextInstruction = nullptr;
+        for (unsigned k = j + 1; k < InstructionCount; k++) {
+          PTCInstruction *I = &InstructionList->instructions[k];
+          if (I->opc == PTC_INSTRUCTION_op_debug_insn_start
+              && ToIgnore.count(k) == 0) {
+            NextInstruction = I;
+            break;
           }
+        }
 
-          std::tie(Result,
-                   MDOriginalInstr,
-                   PC,
-                   NextPC) = Translator.newInstruction(&Instruction,
-                                                       NextInstruction,
-                                                       EndPC,
-                                                       false,
-                                                       ForceNewBlock);
+        std::tie(Result,
+                 MDOriginalInstr,
+                 PC,
+                 NextPC) = Translator.newInstruction(&Instruction,
+                                                     NextInstruction,
+                                                     EndPC,
+                                                     false,
+                                                     ForceNewBlock);
 
-          ForceNewBlock = false;
-        } break;
-      case PTC_INSTRUCTION_op_call:
-        {
-          Result = Translator.translateCall(&Instruction);
+        ForceNewBlock = false;
+      } break;
+      case PTC_INSTRUCTION_op_call: {
+        Result = Translator.translateCall(&Instruction);
 
-          // Sometimes libtinycode terminates a basic block with a call, in this
-          // case force a fallthrough
-          auto &IL = InstructionList;
-          if (j == IL->instruction_count - 1) {
-            BasicBlock *Target = JumpTargets.registerJT(EndPC,
-                                                        JTReason::PostHelper);
-            Builder.CreateBr(notNull(Target));
-          }
+        // Sometimes libtinycode terminates a basic block with a call, in this
+        // case force a fallthrough
+        auto &IL = InstructionList;
+        if (j == IL->instruction_count - 1) {
+          BasicBlock *Target = JumpTargets.registerJT(EndPC,
+                                                      JTReason::PostHelper);
+          Builder.CreateBr(notNull(Target));
+        }
 
-        } break;
+      } break;
 
       default:
         Result = Translator.translate(&Instruction, PC, NextPC);
@@ -811,7 +793,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       dumpInstruction(PTCStringStream, InstructionList.get(), j);
       std::string PTCString = PTCStringStream.str() + "\n";
       MDString *MDPTCString = MDString::get(Context, PTCString);
-      MDNode* MDPTCInstr = MDNode::getDistinct(Context, MDPTCString);
+      MDNode *MDPTCInstr = MDNode::getDistinct(Context, MDPTCString);
 
       // Set metadata for all the new instructions
       for (BasicBlock *Block : Blocks) {
@@ -910,7 +892,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     if (TheFunction != nullptr) {
       assert(HelpersModule->getFunction("abort") != nullptr);
       BasicBlock *NewBody = replaceFunction(TheFunction);
-      CallInst::Create(HelpersModule->getFunction("abort"), { }, NewBody);
+      CallInst::Create(HelpersModule->getFunction("abort"), {}, NewBody);
       new UnreachableInst(Context, NewBody);
     }
   }
@@ -924,21 +906,21 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   //       non-static symbols not directly imported as static.
   {
     std::set<StringRef> Declarations;
-    for (auto& GV : TheModule->functions())
+    for (auto &GV : TheModule->functions())
       if (GV.isDeclaration())
         Declarations.insert(GV.getName());
 
-    for (auto& GV : TheModule->globals())
+    for (auto &GV : TheModule->globals())
       if (GV.isDeclaration())
         Declarations.insert(GV.getName());
 
-    for (auto& GV : HelpersModule->functions())
+    for (auto &GV : HelpersModule->functions())
       if (!GV.isDeclaration()
           && Declarations.find(GV.getName()) == Declarations.end()
           && GV.hasExternalLinkage())
         GV.setLinkage(GlobalValue::InternalLinkage);
 
-    for (auto& GV : HelpersModule->globals())
+    for (auto &GV : HelpersModule->globals())
       if (!GV.isDeclaration()
           && Declarations.find(GV.getName()) == Declarations.end()
           && GV.hasExternalLinkage())
@@ -993,7 +975,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   Variables.finalize(ExternalCSVs);
 
   Debug->generateDebugInfo();
-
 }
 
 void CodeGenerator::serialize() {

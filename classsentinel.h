@@ -67,7 +67,7 @@ private:
 ///       sentil was allocated, possibly creating false negatives.
 class ClassSentinel {
 public:
-  ClassSentinel() : Moved(false), Destroyed(false) { }
+  ClassSentinel() : Moved(false), Destroyed(false) {}
   ClassSentinel(const ClassSentinel &) = default;
   ClassSentinel &operator=(const ClassSentinel &) = default;
   ClassSentinel(ClassSentinel &&Other) : Moved(false), Destroyed(false) {

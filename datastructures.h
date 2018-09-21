@@ -24,13 +24,9 @@ public:
     }
   }
 
-  bool empty() const {
-    return Queue.empty();
-  }
+  bool empty() const { return Queue.empty(); }
 
-  T head() const {
-    return Queue.front();
-  }
+  T head() const { return Queue.front(); }
 
   T pop() {
     T Result = head();
@@ -76,9 +72,7 @@ public:
     }
   }
 
-  bool empty() const {
-    return Queue.empty();
-  }
+  bool empty() const { return Queue.empty(); }
 
   T pop() {
     T Result = Queue.back();
@@ -88,9 +82,7 @@ public:
   }
 
   /// \brief Reverses the stack in its current status
-  void reverse() {
-    std::reverse(Queue.begin(), Queue.end());
-  }
+  void reverse() { std::reverse(Queue.begin(), Queue.end()); }
 
   size_t size() const { return Queue.size(); }
 

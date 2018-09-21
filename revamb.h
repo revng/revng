@@ -34,21 +34,20 @@ public:
   static const unsigned NotInMContext = std::numeric_limits<unsigned>::max();
 
 public:
-  ABIRegister(llvm::StringRef Name,
-              unsigned MContextIndex) :
+  ABIRegister(llvm::StringRef Name, unsigned MContextIndex) :
     Name(Name),
     QemuName(Name),
-    MContextIndex(MContextIndex) { }
+    MContextIndex(MContextIndex) {}
 
   ABIRegister(llvm::StringRef Name) :
     Name(Name),
     QemuName(Name),
-    MContextIndex(NotInMContext) { }
+    MContextIndex(NotInMContext) {}
 
   ABIRegister(llvm::StringRef Name, llvm::StringRef QemuName) :
     Name(Name),
     QemuName(QemuName),
-    MContextIndex(NotInMContext) { }
+    MContextIndex(NotInMContext) {}
 
   llvm::StringRef name() const { return Name; }
 
@@ -211,11 +210,7 @@ inline Values fromName(llvm::StringRef Name) {
 /// \brief Basic information about an input/output architecture
 class Architecture {
 public:
-
-  enum EndianessType {
-    LittleEndian,
-    BigEndian
-  };
+  enum EndianessType { LittleEndian, BigEndian };
 
 public:
   Architecture() :
@@ -223,7 +218,7 @@ public:
     DefaultAlignment(1),
     Endianess(LittleEndian),
     PointerSize(64),
-    DelaySlotSize(0) { }
+    DelaySlotSize(0) {}
 
   Architecture(unsigned Type,
                uint32_t InstructionAlignment,
@@ -258,7 +253,7 @@ public:
     ReadRegisterAsm(ReadRegisterAsm),
     JumpAsm(JumpAsm),
     HasRelocationAddend(HasRelocationAddend),
-    BaseRelativeRelocation(BaseRelativeRelocation) { }
+    BaseRelativeRelocation(BaseRelativeRelocation) {}
 
   uint32_t instructionAlignment() const { return InstructionAlignment; }
   uint32_t defaultAlignment() const { return DefaultAlignment; }
@@ -269,9 +264,7 @@ public:
   llvm::StringRef syscallNumberRegister() const {
     return SyscallNumberRegister;
   }
-  llvm::StringRef stackPointerRegister() const {
-    return StackPointerRegister;
-  }
+  llvm::StringRef stackPointerRegister() const { return StackPointerRegister; }
   llvm::ArrayRef<uint64_t> noReturnSyscalls() const { return NoReturnSyscalls; }
   uint32_t delaySlotSize() const { return DelaySlotSize; }
   llvm::SmallVector<ABIRegister, 20> abiRegisters() const {

@@ -12,8 +12,8 @@
 
 // LLVM includes
 #include "llvm/ADT/Optional.h"
-#include "llvm/Object/ELFTypes.h"
 #include "llvm/Object/Binary.h"
+#include "llvm/Object/ELFTypes.h"
 
 // Local includes
 #include "revamb.h"
@@ -22,7 +22,7 @@ namespace llvm {
 namespace object {
 class ObjectFile;
 }
-}
+} // namespace llvm
 
 /// \brief Simple data structure to describe an ELF segment
 // TODO: information hiding
@@ -56,14 +56,11 @@ struct SegmentInfo {
       return;
 
     if (ExecutableSections.size() > 0) {
-      std::copy(ExecutableSections.begin(),
-                ExecutableSections.end(),
-                Inserter);
+      std::copy(ExecutableSections.begin(), ExecutableSections.end(), Inserter);
     } else {
       Inserter = std::make_pair(StartVirtualAddress, EndVirtualAddress);
     }
   }
-
 };
 
 /// \brief Simple data structure to describe a symbol in an image format
@@ -154,11 +151,11 @@ inline uint64_t readPointer<llvm::object::ELF64BE>(const uint8_t *Buf) {
 /// \brief A pair on steroids to wrap a value or a pointer to a value
 class Pointer {
 public:
-  Pointer() { }
+  Pointer() {}
 
   Pointer(bool IsIndirect, uint64_t Value) :
     IsIndirect(IsIndirect),
-    Value(Value) { }
+    Value(Value) {}
 
   bool isIndirect() const { return IsIndirect; }
   uint64_t value() const { return Value; }
@@ -166,7 +163,6 @@ public:
 private:
   bool IsIndirect;
   uint64_t Value;
-
 };
 
 class FilePortion;
@@ -179,9 +175,7 @@ public:
   /// \param UseSections whether information in sections, if available, should
   ///        be employed or not. This is useful to precisely identify exeutable
   ///        code.
-  BinaryFile(std::string FilePath,
-             bool UseSections,
-             uint64_t BaseAddress);
+  BinaryFile(std::string FilePath, bool UseSections, uint64_t BaseAddress);
 
   llvm::Optional<llvm::ArrayRef<uint8_t>>
   getAddressData(uint64_t Address) const {
@@ -275,9 +269,7 @@ private:
   template<typename T>
   void parseLSDA(uint64_t FDEStart, uint64_t LSDAAddress);
 
-  uint64_t relocate(uint64_t Address) const {
-    return BaseAddress + Address;
-  }
+  uint64_t relocate(uint64_t Address) const { return BaseAddress + Address; }
 
   /// \brief Collect image base-relative relocation addresses and count symbols
   ///

@@ -98,9 +98,7 @@ BOOST_AUTO_TEST_CASE(TestEquality) {
 BOOST_AUTO_TEST_CASE(TestBitwiseOperators) {
   // First loop iteration tests the small implementation, the second the large
   // one
-  for (unsigned Start = 0;
-       Start <= FirstLargeBit;
-       Start += FirstLargeBit) {
+  for (unsigned Start = 0; Start <= FirstLargeBit; Start += FirstLargeBit) {
     LazySmallBitVector A;
     LazySmallBitVector B;
 
@@ -162,11 +160,8 @@ BOOST_AUTO_TEST_CASE(TestBitwiseOperators) {
   }
 }
 
-
 BOOST_AUTO_TEST_CASE(TestCopy) {
-  for (unsigned Start = 0;
-       Start <= FirstLargeBit;
-       Start += FirstLargeBit) {
+  for (unsigned Start = 0; Start <= FirstLargeBit; Start += FirstLargeBit) {
     LazySmallBitVector A;
     A.set(Start + 1);
 
@@ -189,7 +184,7 @@ BOOST_AUTO_TEST_CASE(TestIterator) {
   A.set(16);
 
   std::copy(A.begin(), A.end(), std::back_inserter(Results));
-  BOOST_REQUIRE_EQUAL(Results, (std::vector<unsigned> { 0, 16 }));
+  BOOST_REQUIRE_EQUAL(Results, (std::vector<unsigned>{ 0, 16 }));
   Results.clear();
 
   // Test empty
@@ -203,5 +198,5 @@ BOOST_AUTO_TEST_CASE(TestIterator) {
   A.set(16);
 
   std::copy(A.begin(), A.end(), std::back_inserter(Results));
-  BOOST_REQUIRE_EQUAL(Results, (std::vector<unsigned> { 0, 16, 1000 }));
+  BOOST_REQUIRE_EQUAL(Results, (std::vector<unsigned>{ 0, 16, 1000 }));
 }

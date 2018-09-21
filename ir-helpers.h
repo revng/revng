@@ -6,8 +6,8 @@
 //
 
 // Standard includes
-#include <set>
 #include <queue>
+#include <set>
 #include <sstream>
 
 // LLVM includes
@@ -35,8 +35,7 @@ inline bool contains(T Range, typename T::value_type V) {
 inline void purgeBranch(llvm::BasicBlock::iterator I) {
   auto *DeadBranch = llvm::dyn_cast<llvm::BranchInst>(I);
   // We allow only a branch and nothing else
-  assert(DeadBranch != nullptr &&
-         ++I == DeadBranch->getParent()->end());
+  assert(DeadBranch != nullptr && ++I == DeadBranch->getParent()->end());
 
   std::set<llvm::BasicBlock *> Successors;
   for (unsigned C = 0; C < DeadBranch->getNumSuccessors(); C++)
@@ -51,8 +50,8 @@ inline void purgeBranch(llvm::BasicBlock::iterator I) {
       BB->eraseFromParent();
 }
 
-inline llvm::ConstantInt *getConstValue(llvm::Constant *C,
-                                        const llvm::DataLayout &DL) {
+inline llvm::ConstantInt *
+getConstValue(llvm::Constant *C, const llvm::DataLayout &DL) {
   while (auto *Expr = llvm::dyn_cast<llvm::ConstantExpr>(C)) {
     C = ConstantFoldConstantExpression(Expr, DL);
 
@@ -71,19 +70,16 @@ inline llvm::ConstantInt *getConstValue(llvm::Constant *C,
   return Integer;
 }
 
-inline uint64_t getSExtValue(llvm::Constant *C,
-                             const llvm::DataLayout &DL){
+inline uint64_t getSExtValue(llvm::Constant *C, const llvm::DataLayout &DL) {
   return getConstValue(C, DL)->getSExtValue();
 }
 
-inline uint64_t getZExtValue(llvm::Constant *C,
-                             const llvm::DataLayout &DL){
+inline uint64_t getZExtValue(llvm::Constant *C, const llvm::DataLayout &DL) {
   return getConstValue(C, DL)->getZExtValue();
 }
 
-inline uint64_t getExtValue(llvm::Constant *C,
-                            bool Sign,
-                            const llvm::DataLayout &DL){
+inline uint64_t
+getExtValue(llvm::Constant *C, bool Sign, const llvm::DataLayout &DL) {
   if (Sign)
     return getSExtValue(C, DL);
   else
@@ -131,7 +127,7 @@ inline std::tuple<T...> operandsByType(llvm::User *V) {
 
   for (llvm::Value *Op : V->operands())
     if (!findOperand<std::tuple<T...>, 0, T...>(Op, Result))
-      return std::tuple<T...> { };
+      return std::tuple<T...>{};
 
   return Result;
 }
@@ -165,15 +161,15 @@ backward_range(llvm::Instruction *I) {
 
 template<typename C>
 struct BlackListTraitBase {
-  BlackListTraitBase(C Obj) : Obj(Obj) { }
+  BlackListTraitBase(C Obj) : Obj(Obj) {}
+
 protected:
   C Obj;
 };
 
 /// \brief Trait to wrap an object of type C that can act as a blacklist for B
 template<typename C, typename B>
-struct BlackListTrait : BlackListTraitBase<C> {
-};
+struct BlackListTrait : BlackListTraitBase<C> {};
 
 template<typename C>
 struct BlackListTrait<C, C> : BlackListTraitBase<C> {
@@ -241,8 +237,7 @@ inline void visitSuccessors(llvm::Instruction *I,
     case Continue:
       if (!ExhaustOnly) {
         for (auto *Successor : successors(Range.begin()->getParent())) {
-          if (Visited.count(Successor) == 0
-              && !BL.isBlacklisted(Successor)) {
+          if (Visited.count(Successor) == 0 && !BL.isBlacklisted(Successor)) {
             Visited.insert(Successor);
             Queue.push(make_range(Successor->begin(), Successor->end()));
           }
@@ -345,7 +340,8 @@ inline std::string getName(const llvm::Instruction *I) {
   } else {
     const llvm::BasicBlock *Parent = I->getParent();
     return getName(Parent) + ":"
-      + std::to_string(1 + std::distance(Parent->begin(), I->getIterator()));
+           + std::to_string(1
+                            + std::distance(Parent->begin(), I->getIterator()));
   }
 }
 
@@ -425,8 +421,9 @@ inline const llvm::Module *getModule(const llvm::Value *I) {
 /// \brief Helper class to easily create and use LLVM metadata
 class QuickMetadata {
 public:
-  QuickMetadata(llvm::LLVMContext &Context) : C(Context),
-    Int32Ty(llvm::IntegerType::get(C, 32)) { }
+  QuickMetadata(llvm::LLVMContext &Context) :
+    C(Context),
+    Int32Ty(llvm::IntegerType::get(C, 32)) {}
 
   llvm::MDString *get(const char *String) {
     return llvm::MDString::get(C, String);
@@ -441,17 +438,11 @@ public:
     return llvm::ConstantAsMetadata::get(Constant);
   }
 
-  llvm::MDTuple *tuple(const char *String) {
-    return tuple(get(String));
-  }
+  llvm::MDTuple *tuple(const char *String) { return tuple(get(String)); }
 
-  llvm::MDTuple *tuple(llvm::StringRef String) {
-    return tuple(get(String));
-  }
+  llvm::MDTuple *tuple(llvm::StringRef String) { return tuple(get(String)); }
 
-  llvm::MDTuple *tuple(uint32_t Integer) {
-    return tuple(get(Integer));
-  }
+  llvm::MDTuple *tuple(uint32_t Integer) { return tuple(get(Integer)); }
 
   llvm::MDTuple *tuple(llvm::ArrayRef<llvm::Metadata *> MDs) {
     return llvm::MDTuple::get(C, MDs);
@@ -520,8 +511,7 @@ inline bool isFirst(T *I) {
 }
 
 /// \brief Check if among \p BB's predecessors there's \p Target
-inline bool hasPredecessor(llvm::BasicBlock *BB,
-                           llvm::BasicBlock *Target) {
+inline bool hasPredecessor(llvm::BasicBlock *BB, llvm::BasicBlock *Target) {
   for (llvm::BasicBlock *Predecessor : predecessors(BB))
     if (Predecessor == Target)
       return true;
@@ -538,9 +528,7 @@ static std::array<unsigned, 3> CastOpcodes = {
 //        operand (recursively)
 inline const llvm::Value *skipCasts(const llvm::Value *V) {
   using namespace llvm;
-  while (isa<CastInst>(V)
-         or isa<IntToPtrInst>(V)
-         or isa<PtrToIntInst>(V)
+  while (isa<CastInst>(V) or isa<IntToPtrInst>(V) or isa<PtrToIntInst>(V)
          or (isa<ConstantExpr>(V)
              and contains(CastOpcodes, cast<ConstantExpr>(V)->getOpcode())))
     V = cast<User>(V)->getOperand(0);
@@ -551,9 +539,7 @@ inline const llvm::Value *skipCasts(const llvm::Value *V) {
 //        operand (recursively)
 inline llvm::Value *skipCasts(llvm::Value *V) {
   using namespace llvm;
-  while (isa<CastInst>(V)
-         or isa<IntToPtrInst>(V)
-         or isa<PtrToIntInst>(V)
+  while (isa<CastInst>(V) or isa<IntToPtrInst>(V) or isa<PtrToIntInst>(V)
          or (isa<ConstantExpr>(V)
              and contains(CastOpcodes, cast<ConstantExpr>(V)->getOpcode())))
     V = cast<User>(V)->getOperand(0);
@@ -593,8 +579,7 @@ inline bool isCallToHelper(const llvm::Instruction *I) {
   return Callee != nullptr && Callee->getName().startswith("helper_");
 }
 
-inline llvm::CallInst *getCallTo(llvm::Instruction *I,
-                                 llvm::StringRef Name) {
+inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::StringRef Name) {
   if (isCallTo(I, Name))
     return llvm::cast<llvm::CallInst>(I);
   else

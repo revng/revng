@@ -1714,7 +1714,7 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
         raw_string_ostream OStream(InstrLog);
         Instr->print(OStream);
         CSVAccessLog << InstrLog << DoLog;
-        for (const auto & CS2O : LoadCSOff.second) {
+        for (const auto &CS2O : LoadCSOff.second) {
           CSVAccessLog << "CallSite: ";
           std::string CallLog;
           raw_string_ostream CallOStream(CallLog);
@@ -1739,7 +1739,7 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
         raw_string_ostream OStream(InstrLog);
         Instr->print(OStream);
         CSVAccessLog << InstrLog << DoLog;
-        for (const auto & CS2O : StoreCSOff.second) {
+        for (const auto &CS2O : StoreCSOff.second) {
           CSVAccessLog << "CallSite: ";
           std::string CallLog;
           raw_string_ostream CallOStream(CallLog);
@@ -2922,7 +2922,7 @@ bool CPUStateAccessAnalysis::run() {
 
     for (const auto &Fun2Unknowns : FunToUnknowns)
       for (const auto &U : Fun2Unknowns.second)
-      FixAccessLog << Fun2Unknowns.first << ": " << U << DoLog;
+        FixAccessLog << Fun2Unknowns.first << ": " << U << DoLog;
   }
 
   return Found;

@@ -76,8 +76,7 @@ private:
   map<BasicBlock *, FunctionType::Values> FunctionTypes;
 
   map<BasicBlock *, std::set<int32_t>> LocallyWrittenRegisters;
-  map<BasicBlock *,
-      std::set<int32_t>> ExplicitlyCalleeSavedRegisters;
+  map<BasicBlock *, std::set<int32_t>> ExplicitlyCalleeSavedRegisters;
   map<BasicBlock *, std::vector<FunctionCall>> FunctionCalls;
 
 public:
@@ -108,13 +107,12 @@ public:
 
   /// \brief Merge data about the classification of a set of branches in \p
   ///        Function
-  void mergeBranches(llvm::BasicBlock *Function,
-                     const BasicBlockTypeMap &Branches);
+  void
+  mergeBranches(llvm::BasicBlock *Function, const BasicBlockTypeMap &Branches);
 
   /// \brief Merge information about the height of the stack at the call sites
   ///        of \p Function
-  void mergeCallSites(llvm::BasicBlock *Function,
-                      const StackSizeMap &ToImport);
+  void mergeCallSites(llvm::BasicBlock *Function, const StackSizeMap &ToImport);
 
   /// \brief Finalized the data stored in this object and produce a
   ///        FunctionsSummary

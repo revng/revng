@@ -10,8 +10,8 @@
 #include "llvm/IR/Instructions.h"
 
 // Local includes
-#include "datastructures.h"
 #include "collectcfg.h"
+#include "datastructures.h"
 #include "ir-helpers.h"
 
 using namespace llvm;
@@ -25,8 +25,8 @@ void CollectCFG::serialize(std::ostream &Output) {
     BasicBlock *Source = P.first;
     std::sort(P.second.begin(), P.second.end(), CompareByName<BasicBlock>());
     for (BasicBlock *Destination : P.second)
-      Output << Source->getName().data() << ","
-             << Destination->getName().data() << "\n";
+      Output << Source->getName().data() << "," << Destination->getName().data()
+             << "\n";
   }
 }
 
@@ -35,8 +35,7 @@ bool CollectCFG::isNewInstruction(BasicBlock *BB) {
     return false;
 
   auto *Call = dyn_cast<CallInst>(&*BB->begin());
-  if (Call == nullptr
-      || Call->getCalledFunction() == nullptr
+  if (Call == nullptr || Call->getCalledFunction() == nullptr
       || Call->getCalledFunction()->getName() != "newpc")
     return false;
 
@@ -71,7 +70,6 @@ bool CollectCFG::runOnFunction(Function &F) {
         } else if (BlackList.count(Successor) == 0) {
           Queue.insert(Successor);
         }
-
       }
     }
   }

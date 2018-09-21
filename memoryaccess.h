@@ -21,7 +21,7 @@
 
 class TypeSizeProvider {
 public:
-  TypeSizeProvider(const llvm::DataLayout &DL) : DL(DL) { }
+  TypeSizeProvider(const llvm::DataLayout &DL) : DL(DL) {}
 
   unsigned getSize(llvm::Type *T) {
     auto CacheIt = Cache.find(T);
@@ -42,7 +42,7 @@ private:
 /// \brief Represents an access to the CPU state or the memory
 class MemoryAccess {
 public:
-  MemoryAccess() : Type(Invalid), Base(nullptr), Offset(0), Size(0)  { }
+  MemoryAccess() : Type(Invalid), Base(nullptr), Offset(0), Size(0) {}
 
   MemoryAccess(llvm::Instruction *I, TypeSizeProvider &TSP) {
     if (auto *Load = llvm::dyn_cast<llvm::LoadInst>(I)) {
@@ -164,7 +164,6 @@ public:
   }
 
 private:
-
   bool intersect(std::pair<uint64_t, uint64_t> A,
                  std::pair<uint64_t, uint64_t> B) const {
     return A.first < (B.first + B.second) && B.first < (A.first + A.second);
@@ -173,7 +172,7 @@ private:
   bool isVariable(llvm::Value *V) const {
     auto *CSV = llvm::dyn_cast<llvm::GlobalVariable>(V);
     return (CSV != nullptr && CSV->getName() != "env")
-      || llvm::isa<llvm::AllocaInst>(V);
+           || llvm::isa<llvm::AllocaInst>(V);
   }
 
   void initialize(llvm::Value *Pointer,
@@ -217,54 +216,44 @@ private:
       while (true) {
         switch (V->getOpcode()) {
         case llvm::Instruction::IntToPtr:
-        case llvm::Instruction::PtrToInt:
-          {
-            auto *Operand = llvm::dyn_cast<llvm::Instruction>(V->getOperand(0));
-            if (Operand != nullptr)
-              V = Operand;
-            else
-              return;
+        case llvm::Instruction::PtrToInt: {
+          auto *Operand = llvm::dyn_cast<llvm::Instruction>(V->getOperand(0));
+          if (Operand != nullptr)
+            V = Operand;
+          else
+            return;
+        } break;
+        case llvm::Instruction::Add: {
+          auto Operands = operandsByType<llvm::Instruction *,
+                                         llvm::ConstantInt *>(V);
+          llvm::Instruction *FirstOp;
+          llvm::ConstantInt *SecondOp;
+          std::tie(FirstOp, SecondOp) = Operands;
+          if (Addend != 0 || SecondOp == nullptr || FirstOp == nullptr)
+            return;
+
+          Addend = SecondOp->getLimitedValue();
+          V = FirstOp;
+
+        } break;
+        case llvm::Instruction::Load: {
+          llvm::Value *LoadOperand = V->getOperand(0);
+          if (isVariable(LoadOperand)) {
+            Type = RegisterAndOffset;
+            Base = LoadOperand;
+            Offset = Addend;
           }
-          break;
-        case llvm::Instruction::Add:
-          {
-            auto Operands = operandsByType<llvm::Instruction *,
-                                           llvm::ConstantInt *>(V);
-            llvm::Instruction *FirstOp;
-            llvm::ConstantInt *SecondOp;
-            std::tie(FirstOp, SecondOp) = Operands;
-            if (Addend != 0 || SecondOp == nullptr || FirstOp == nullptr)
-              return;
-
-            Addend = SecondOp->getLimitedValue();
-            V = FirstOp;
-
-          } break;
-        case llvm::Instruction::Load:
-          {
-            llvm::Value *LoadOperand = V->getOperand(0);
-            if (isVariable(LoadOperand)) {
-              Type = RegisterAndOffset;
-              Base = LoadOperand;
-              Offset = Addend;
-            }
-
-          } return;
+        }
+          return;
         default:
           return;
         }
       }
-
     }
   }
 
 private:
-  enum {
-    Invalid,
-    CPUState,
-    RegisterAndOffset,
-    Absolute
-  } Type;
+  enum { Invalid, CPUState, RegisterAndOffset, Absolute } Type;
   const llvm::Value *Base;
   uint64_t Offset;
   uint64_t Size;

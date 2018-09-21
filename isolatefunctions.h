@@ -19,7 +19,7 @@ public:
   static char ID;
 
 public:
-  IsolateFunctions() : FunctionPass(ID) { }
+  IsolateFunctions() : FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
 

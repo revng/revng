@@ -35,7 +35,7 @@ static MDString *getMD(const Instruction *Instruction, unsigned Kind) {
 
   assert(Node != nullptr);
 
-  const MDOperand& Operand = Node->getOperand(0);
+  const MDOperand &Operand = Node->getOperand(0);
 
   Metadata *MDOperand = Operand.get();
 
@@ -70,7 +70,6 @@ static void writeMetadataIfNew(const Instruction *TheInstruction,
 
     if (TheInstruction == nullptr || PrevMD != MD)
       Output << Prefix << MD->getString();
-
   }
 }
 
@@ -86,8 +85,7 @@ using DAW = DebugAnnotationWriter;
 
 DAW::DebugAnnotationWriter(LLVMContext &Context, bool DebugInfo) :
   Context(Context),
-  DebugInfo(DebugInfo)
-{
+  DebugInfo(DebugInfo) {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
   DbgMDKind = Context.getMDKindID("dbg");
@@ -132,8 +130,7 @@ DebugHelper::DebugHelper(std::string Output,
   DebugPath(Debug),
   Builder(*TheModule),
   Type(Type),
-  TheModule(TheModule)
-{
+  TheModule(TheModule) {
   OriginalInstrMDKind = TheModule->getContext().getMDKindID("oi");
   PTCInstrMDKind = TheModule->getContext().getMDKindID("pi");
   DbgMDKind = TheModule->getContext().getMDKindID("dbg");
@@ -193,66 +190,63 @@ void DebugHelper::generateDebugInfo() {
 
   switch (Type) {
   case DebugInfoType::PTC:
-  case DebugInfoType::OriginalAssembly:
-    {
-      // Generate the source file and the debugging information in tandem
+  case DebugInfoType::OriginalAssembly: {
+    // Generate the source file and the debugging information in tandem
 
-      unsigned LineIndex = 1;
-      unsigned MetadataKind = Type == DebugInfoType::PTC ?
-        PTCInstrMDKind : OriginalInstrMDKind;
+    unsigned LineIndex = 1;
+    unsigned MetadataKind = Type == DebugInfoType::PTC ? PTCInstrMDKind :
+                                                         OriginalInstrMDKind;
 
-      MDString *Last = nullptr;
-      std::ofstream Source(DebugPath);
-      for (Function &CurrentFunction : TheModule->functions()) {
-        if (DISubprogram *CurrentSubprogram = CurrentFunction.getSubprogram()) {
-          for (BasicBlock& Block : CurrentFunction) {
-            for (Instruction& Instruction : Block) {
-              MDString *Body = getMD(&Instruction, MetadataKind);
+    MDString *Last = nullptr;
+    std::ofstream Source(DebugPath);
+    for (Function &CurrentFunction : TheModule->functions()) {
+      if (DISubprogram *CurrentSubprogram = CurrentFunction.getSubprogram()) {
+        for (BasicBlock &Block : CurrentFunction) {
+          for (Instruction &Instruction : Block) {
+            MDString *Body = getMD(&Instruction, MetadataKind);
 
-              if (Body != nullptr && Last != Body) {
-                Last = Body;
-                std::string BodyString = Body->getString().str();
+            if (Body != nullptr && Last != Body) {
+              Last = Body;
+              std::string BodyString = Body->getString().str();
 
-                Source << BodyString;
+              Source << BodyString;
 
-                auto *Location = DILocation::get(TheModule->getContext(),
-                                                 LineIndex,
-                                                 0,
-                                                 CurrentSubprogram);
-                Instruction.setMetadata(DbgMDKind, Location);
-                LineIndex += std::count(BodyString.begin(),
-                                        BodyString.end(),
-                                        '\n');
-              }
+              auto *Location = DILocation::get(TheModule->getContext(),
+                                               LineIndex,
+                                               0,
+                                               CurrentSubprogram);
+              Instruction.setMetadata(DbgMDKind, Location);
+              LineIndex += std::count(BodyString.begin(),
+                                      BodyString.end(),
+                                      '\n');
             }
           }
         }
       }
+    }
 
-      Builder.finalize();
-    } break;
-  case DebugInfoType::LLVMIR:
-    {
-      // Use the annotator to obtain line and column of the textual LLVM IR for
-      // each instruction. Discard the output since it will contain errors,
-      // regenerating it later will give a correct result.
-      Builder.finalize();
+    Builder.finalize();
+  } break;
+  case DebugInfoType::LLVMIR: {
+    // Use the annotator to obtain line and column of the textual LLVM IR for
+    // each instruction. Discard the output since it will contain errors,
+    // regenerating it later will give a correct result.
+    Builder.finalize();
 
-      raw_null_ostream NullStream;
-      TheModule->print(NullStream, annotator(true /* DebugInfo */));
+    raw_null_ostream NullStream;
+    TheModule->print(NullStream, annotator(true /* DebugInfo */));
 
-      std::ofstream Output(DebugPath);
-      raw_os_ostream Stream(Output);
-      TheModule->print(Stream, annotator(false));
+    std::ofstream Output(DebugPath);
+    raw_os_ostream Stream(Output);
+    TheModule->print(Stream, annotator(false));
 
-    } break;
+  } break;
   default:
     break;
   }
-
 }
 
-void DebugHelper::print(std::ostream& Output, bool DebugInfo) {
+void DebugHelper::print(std::ostream &Output, bool DebugInfo) {
   raw_os_ostream OutputStream(Output);
   TheModule->print(OutputStream, annotator(DebugInfo));
 }

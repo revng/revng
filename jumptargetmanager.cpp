@@ -16,8 +16,8 @@
 
 // Boost includes
 #include <boost/icl/interval_set.hpp>
-#include <boost/type_traits/is_same.hpp>
 #include <boost/icl/right_open_interval.hpp>
+#include <boost/type_traits/is_same.hpp>
 
 // LLVM includes
 #include "llvm/ADT/Optional.h"
@@ -84,7 +84,7 @@ bool TranslateDirectBranchesPass::pinJTs(Function &F) {
   LLVMContext &Context = getContext(&F);
   Value *PCReg = JTM->pcReg();
   auto *RegType = cast<IntegerType>(PCReg->getType()->getPointerElementType());
-  auto C = [RegType] (uint64_t A) { return ConstantInt::get(RegType, A); };
+  auto C = [RegType](uint64_t A) { return ConstantInt::get(RegType, A); };
   BasicBlock *AnyPC = JTM->anyPC();
   BasicBlock *UnexpectedPC = JTM->unexpectedPC();
   // TODO: enforce CFG
@@ -207,7 +207,7 @@ bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
             } else {
               // We're jumping to an invalid location, abort everything
               // TODO: emit a warning
-              CallInst::Create(F.getParent()->getFunction("abort"), { }, Call);
+              CallInst::Create(F.getParent()->getFunction("abort"), {}, Call);
               new UnreachableInst(Context, Call);
             }
             Call->eraseFromParent();
@@ -267,7 +267,6 @@ bool TranslateDirectBranchesPass::forceFallthroughAfterHelper(CallInst *Call) {
         return false;
       }
     }
-
   }
 
   exitTBCleanup(Call);
@@ -294,7 +293,7 @@ bool TranslateDirectBranchesPass::runOnFunction(Function &F) {
 }
 
 uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
-  DominatorTree& DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+  DominatorTree &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
 
   BasicBlock *Block = TheInstruction->getParent();
   BasicBlock::reverse_iterator It(make_reverse_iterator(TheInstruction));
@@ -318,8 +317,8 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
     }
 
     auto *Node = DT.getNode(Block);
-    assert(Node != nullptr &&
-           "BasicBlock not in the dominator tree, is it reachable?" );
+    assert(Node != nullptr
+           && "BasicBlock not in the dominator tree, is it reachable?");
 
     Block = Node->getIDom()->getBlock();
     It = Block->rbegin();
@@ -357,8 +356,8 @@ JumpTargetManager::readRawValue(uint64_t Address,
       uint64_t Offset = Address - Segment.StartVirtualAddress;
       const unsigned char *Start = RawDataPtr + Offset;
 
-      using support::endian::read;
       using support::endianness;
+      using support::endian::read;
       switch (Size) {
       case 1:
         return read<uint8_t, endianness::little, 1>(Start);
@@ -425,8 +424,8 @@ ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
 }
 
 template<typename T>
-static cl::opt<T> *getOption(StringMap<cl::Option *>& Options,
-                             const char *Name) {
+static cl::opt<T> *
+getOption(StringMap<cl::Option *> &Options, const char *Name) {
   return static_cast<cl::opt<T> *>(Options[Name]);
 }
 
@@ -459,7 +458,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   initializeSymbolMap();
 
   // Configure GlobalValueNumbering
-  StringMap<cl::Option *>& Options(cl::getRegisteredOptions());
+  StringMap<cl::Option *> &Options(cl::getRegisteredOptions());
   getOption<bool>(Options, "enable-load-pre")->setInitialValue(false);
   getOption<unsigned>(Options, "memdep-block-scan-limit")->setInitialValue(100);
   // getOption<bool>(Options, "enable-pre")->setInitialValue(false);
@@ -475,8 +474,7 @@ void JumpTargetManager::initializeSymbolMap() {
   for (const SymbolInfo &Symbol : Binary.symbols()) {
     // Discard symbols pointing to 0, with zero-sized names or present multiple
     // times. Note that we keep zero-size symbols.
-    if (Symbol.Address == 0
-        || Symbol.Name.size() == 0
+    if (Symbol.Address == 0 || Symbol.Name.size() == 0
         || SeenCount[std::string(Symbol.Name)] > 1)
       continue;
 
@@ -484,7 +482,7 @@ void JumpTargetManager::initializeSymbolMap() {
     unsigned Size = std::max(1UL, Symbol.Size);
     auto NewInterval = interval::right_open(Symbol.Address,
                                             Symbol.Address + Size);
-    SymbolMap += make_pair(NewInterval, SymbolInfoSet { &Symbol });
+    SymbolMap += make_pair(NewInterval, SymbolInfoSet{ &Symbol });
   }
 }
 
@@ -531,7 +529,7 @@ void JumpTargetManager::harvestGlobalData() {
   for (uint64_t CodePointer : Binary.codePointers())
     registerJT(CodePointer, JTReason::GlobalData);
 
-  for (auto& Segment : Binary.segments()) {
+  for (auto &Segment : Binary.segments()) {
     const Constant *Initializer = Segment.Variable->getInitializer();
     if (isa<ConstantAggregateZero>(Initializer))
       continue;
@@ -563,21 +561,19 @@ void JumpTargetManager::harvestGlobalData() {
     }
   }
 
-  DBG("jtcount", dbg
-      << "JumpTargets found in global data: " << std::dec
-      << Unexplored.size() << "\n");
+  DBG("jtcount",
+      dbg << "JumpTargets found in global data: " << std::dec
+          << Unexplored.size() << "\n");
 }
 
 template<typename value_type, unsigned endian>
 void JumpTargetManager::findCodePointers(uint64_t StartVirtualAddress,
                                          const unsigned char *Start,
                                          const unsigned char *End) {
-  using support::endian::read;
   using support::endianness;
+  using support::endian::read;
   for (auto Pos = Start; Pos < End - sizeof(value_type); Pos++) {
-    uint64_t Value = read<value_type,
-                          static_cast<endianness>(endian),
-                          1>(Pos);
+    uint64_t Value = read<value_type, static_cast<endianness>(endian), 1>(Pos);
     BasicBlock *Result = registerJT(Value, JTReason::GlobalData);
 
     if (Result != nullptr)
@@ -597,7 +593,7 @@ void JumpTargetManager::findCodePointers(uint64_t StartVirtualAddress,
 /// \return the basic block to use from now on, or null if the program counter
 ///         is not associated to a basic block.
 // TODO: make this return a pair
-BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool& ShouldContinue) {
+BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool &ShouldContinue) {
   // Did we already meet this PC?
   auto JTIt = JumpTargets.find(PC);
   if (JTIt != JumpTargets.end()) {
@@ -613,7 +609,6 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool& ShouldContinue) {
         assert(Result->empty());
         return Result;
       }
-
     }
 
     // It wasn't planned to visit it, so we've already been there, just jump
@@ -698,7 +693,6 @@ StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
   return nullptr;
 }
 
-
 // TODO: this is outdated and we should drop it, we now have OSRA and friends
 /// \brief Tries to detect pc += register In general, we assume what we're
 /// translating is code emitted by a compiler. This means that usually all the
@@ -759,7 +753,7 @@ static bool isSumJump(StoreInst *PCWrite) {
       case Instruction::LShr:
       case Instruction::AShr:
       case Instruction::And:
-        for (auto& Operand : BinOp->operands())
+        for (auto &Operand : BinOp->operands())
           if (!isa<Constant>(Operand.get()))
             WorkList.push(Operand.get());
         break;
@@ -828,7 +822,6 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
         }
       }
     }
-
   }
 
   // Couldn't find the current PC
@@ -887,7 +880,6 @@ void JumpTargetManager::handleSumJump(Instruction *SumJump) {
           // We've found an unparsed indirect jump
           return;
         }
-
       }
 
       // Proceed to next instruction
@@ -898,7 +890,6 @@ void JumpTargetManager::handleSumJump(Instruction *SumJump) {
     for (BasicBlock *Successor : successors(BB))
       if (Visited.find(Successor) == Visited.end())
         WorkList.push(Successor);
-
   }
 }
 
@@ -909,7 +900,7 @@ public:
     Dispatcher(Dispatcher),
     JumpTargetIndex(0),
     JumpTargetsCount(Dispatcher->getNumSuccessors()),
-    DL(Dispatcher->getParent()->getParent()->getParent()->getDataLayout()) { }
+    DL(Dispatcher->getParent()->getParent()->getParent()->getDataLayout()) {}
 
   void enqueue(BasicBlock *BB) {
     if (Visited.count(BB))
@@ -975,7 +966,7 @@ void JumpTargetManager::translateIndirectJumps() {
 
   auto I = ExitTB->use_begin();
   while (I != ExitTB->use_end()) {
-    Use& ExitTBUse = *I++;
+    Use &ExitTBUse = *I++;
     if (auto *Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
       if (Call->getCalledFunction() == ExitTB) {
 
@@ -1033,8 +1024,7 @@ void JumpTargetManager::unvisit(BasicBlock *BB) {
       Visited.erase(Current);
 
       for (BasicBlock *Successor : successors(BB)) {
-        if (Visited.find(Successor) != Visited.end()
-            && !Successor->empty()) {
+        if (Visited.find(Successor) != Visited.end() && !Successor->empty()) {
           auto *Call = dyn_cast<CallInst>(&*Successor->begin());
           if (Call == nullptr
               || Call->getCalledFunction()->getName() != "newpc") {
@@ -1060,8 +1050,7 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
   while (!Queue.empty()) {
     BasicBlock *BB = Queue.pop();
     for (BasicBlock *Successor : successors(BB)) {
-      if (isTranslatedBB(Successor)
-          && !isJumpTarget(Successor)
+      if (isTranslatedBB(Successor) && !isJumpTarget(Successor)
           && !hasPredecessor(Successor, Dispatcher)) {
         Queue.insert(Successor);
       }
@@ -1186,7 +1175,7 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   Builder.SetInsertPoint(DispatcherFail);
 
   Module *TheModule = TheFunction->getParent();
-  auto *UnknownPCTy = FunctionType::get(Type::getVoidTy(Context), { }, false);
+  auto *UnknownPCTy = FunctionType::get(Type::getVoidTy(Context), {}, false);
   Constant *UnknownPC = TheModule->getOrInsertFunction("unknownPC",
                                                        UnknownPCTy);
   Builder.CreateCall(cast<Function>(UnknownPC));
@@ -1299,7 +1288,6 @@ void JumpTargetManager::rebuildDispatcher() {
     BasicBlock *BB = P.second.head();
     if (CurrentCFGForm == SemanticPreservingCFG || !hasPredecessors(BB))
       DispatcherSwitch->addCase(ConstantInt::get(SwitchType, PC), BB);
-
   }
 }
 
@@ -1361,9 +1349,9 @@ void JumpTargetManager::harvest() {
     // Restore the CFG
     setCFGForm(SemanticPreservingCFG);
 
-    DBG("jtcount", dbg << std::dec
-                       << Unexplored.size() << " new jump targets and "
-                       << NewBranches << " new branches were found\n");
+    DBG("jtcount",
+        dbg << std::dec << Unexplored.size() << " new jump targets and "
+            << NewBranches << " new branches were found\n");
   }
 
   if (EnableOSRA && empty()) {
@@ -1400,17 +1388,16 @@ void JumpTargetManager::harvest() {
       // Restore the CFG
       setCFGForm(SemanticPreservingCFG);
 
-      DBG("jtcount", dbg << std::dec
-                         << Unexplored.size() << " new jump targets and "
-                         << NewBranches << " new branches were found\n");
+      DBG("jtcount",
+          dbg << std::dec << Unexplored.size() << " new jump targets and "
+              << NewBranches << " new branches were found\n");
 
     } while (empty() && NewBranches > 0);
   }
 
   if (empty()) {
-    DBG("jtcount", dbg<< "We're done looking for jump targets\n");
+    DBG("jtcount", dbg << "We're done looking for jump targets\n");
   }
-
 }
 
 using BlockWithAddress = JumpTargetManager::BlockWithAddress;

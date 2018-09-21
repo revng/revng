@@ -35,7 +35,8 @@ using std::make_pair;
 
 BinaryFile::BinaryFile(std::string FilePath,
                        bool UseSections,
-                       uint64_t BaseAddress) : BaseAddress(0) {
+                       uint64_t BaseAddress) :
+  BaseAddress(0) {
   auto BinaryOrErr = object::createBinary(FilePath);
   assert(BinaryOrErr && "Couldn't open the input file");
 
@@ -48,7 +49,7 @@ BinaryFile::BinaryFile(std::string FilePath,
   StringRef SyscallHelper = "";
   StringRef SyscallNumberRegister = "";
   StringRef StackPointerRegister = "";
-  ArrayRef<uint64_t> NoReturnSyscalls = { };
+  ArrayRef<uint64_t> NoReturnSyscalls = {};
   SmallVector<ABIRegister, 20> ABIRegisters;
   uint32_t DelaySlotSize = 0;
   unsigned PCMContextIndex = ABIRegister::NotInMContext;
@@ -65,9 +66,9 @@ BinaryFile::BinaryFile(std::string FilePath,
     SyscallNumberRegister = "eax";
     StackPointerRegister = "esp";
     NoReturnSyscalls = {
-        0xfc, // exit_group
-        0x01, // exit
-        0x0b // execve
+      0xfc, // exit_group
+      0x01, // exit
+      0x0b // execve
     };
     HasRelocationAddend = false;
     BaseRelativeRelocation = llvm::ELF::R_386_RELATIVE;
@@ -119,15 +120,29 @@ BinaryFile::BinaryFile(std::string FilePath,
     // REGISTER_OFFSET(RIP);
 
     // TODO: here we're hardcoding the offsets in the QEMU struct
-    ABIRegisters = { { "rax", 0xD }, { "rbx", 0xB }, { "rcx", 0xE },
-                     { "rdx", 0xC }, { "rbp", 0xA }, { "rsp", 0xF },
-                     { "rsi", 0x9 }, { "rdi", 0x8 }, { "r8", 0x0 },
-                     { "r9", 0x1 }, { "r10", 0x2 }, { "r11", 0x3 },
-                     { "r12", 0x4 }, { "r13", 0x5 }, { "r14", 0x6 },
-                     { "r15", 0x7 }, { "xmm0", "state_0x8558" },
-                     { "xmm1", "state_0x8598" }, { "xmm2", "state_0x85d8" },
-                     { "xmm3", "state_0x8618" }, { "xmm4", "state_0x8658" },
-                     { "xmm5", "state_0x8698" }, { "xmm6", "state_0x86d8" },
+    ABIRegisters = { { "rax", 0xD },
+                     { "rbx", 0xB },
+                     { "rcx", 0xE },
+                     { "rdx", 0xC },
+                     { "rbp", 0xA },
+                     { "rsp", 0xF },
+                     { "rsi", 0x9 },
+                     { "rdi", 0x8 },
+                     { "r8", 0x0 },
+                     { "r9", 0x1 },
+                     { "r10", 0x2 },
+                     { "r11", 0x3 },
+                     { "r12", 0x4 },
+                     { "r13", 0x5 },
+                     { "r14", 0x6 },
+                     { "r15", 0x7 },
+                     { "xmm0", "state_0x8558" },
+                     { "xmm1", "state_0x8598" },
+                     { "xmm2", "state_0x85d8" },
+                     { "xmm3", "state_0x8618" },
+                     { "xmm4", "state_0x8658" },
+                     { "xmm5", "state_0x8698" },
+                     { "xmm6", "state_0x86d8" },
                      { "xmm7", "state_0x8718" } };
     WriteRegisterAsm = "movq $0, %REGISTER";
     ReadRegisterAsm = "movq %REGISTER, $0";
@@ -146,8 +161,8 @@ BinaryFile::BinaryFile(std::string FilePath,
       0x1, // exit
       0xb // execve
     };
-    ABIRegisters = { { "r0" }, { "r1" }, { "r2" }, { "r3" }, { "r4" },
-                     { "r5" }, { "r6" }, { "r7" }, { "r8" }, { "r9" },
+    ABIRegisters = { { "r0" },  { "r1" },  { "r2" },  { "r3" },  { "r4" },
+                     { "r5" },  { "r6" },  { "r7" },  { "r8" },  { "r9" },
                      { "r10" }, { "r11" }, { "r12" }, { "r13" }, { "r14" } };
     HasRelocationAddend = false;
     BaseRelativeRelocation = llvm::ELF::R_ARM_RELATIVE;
@@ -165,10 +180,10 @@ BinaryFile::BinaryFile(std::string FilePath,
       0xfab // execve
     };
     DelaySlotSize = 1;
-    ABIRegisters = { {"v0" }, { "v1" }, { "a0" }, { "a1" }, { "a2" }, { "a3" },
-                     { "s0" }, { "s1" }, { "s2" }, { "s3" }, { "s4" },
-                     { "s5" }, { "s6" }, { "s7" }, { "gp" }, { "sp" },
-                     { "fp" }, { "ra" } };
+    ABIRegisters =
+      { { "v0" }, { "v1" }, { "a0" }, { "a1" }, { "a2" }, { "a3" },
+        { "s0" }, { "s1" }, { "s2" }, { "s3" }, { "s4" }, { "s5" },
+        { "s6" }, { "s7" }, { "gp" }, { "sp" }, { "fp" }, { "ra" } };
     HasRelocationAddend = false;
     // TODO: check if this is correct
     // BaseRelativeRelocation = llvm::ELF::R_MIPS_REL32;
@@ -182,8 +197,8 @@ BinaryFile::BinaryFile(std::string FilePath,
     InstructionAlignment = 2;
     NoReturnSyscalls = {
       0xf8, // exit_group
-      0x1,  // exit
-      0xb,  // execve
+      0x1, // exit
+      0xb, // execve
     };
     HasRelocationAddend = true;
     BaseRelativeRelocation = llvm::ELF::R_390_RELATIVE;
@@ -255,7 +270,7 @@ private:
   uint64_t Address;
 
 public:
-  FilePortion() : HasAddress(false), HasSize(false), Size(0), Address(0) { }
+  FilePortion() : HasAddress(false), HasSize(false), Size(0), Address(0) {}
 
 public:
   void setAddress(uint64_t Address) {
@@ -268,9 +283,7 @@ public:
     this->Size = Size;
   }
 
-  bool isAvailable() const {
-    return HasAddress;
-  }
+  bool isAvailable() const { return HasAddress; }
 
   bool isExact() const {
     assert(HasAddress);
@@ -313,7 +326,6 @@ public:
 
     abort();
   }
-
 };
 
 template<typename T, bool HasAddend>
@@ -384,12 +396,10 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
 
     // Collect symbol names
     for (auto &Symbol : TheELF.symbols(SymtabShdr)) {
-      Symbols.push_back({
-                          Symbol.getName(StrtabContent).get(),
+      Symbols.push_back({ Symbol.getName(StrtabContent).get(),
                           Symbol.st_value,
                           Symbol.st_size,
-                          Symbol.getType() == ELF::STT_FUNC
-                        });
+                          Symbol.getType() == ELF::STT_FUNC });
     }
   }
 
@@ -406,47 +416,44 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
   using Elf_Dyn = const typename object::ELFFile<T>::Elf_Dyn;
   for (Elf_Phdr &ProgramHeader : TheELF.program_headers()) {
     switch (ProgramHeader.p_type) {
-    case ELF::PT_LOAD:
-      {
-        SegmentInfo Segment;
-        auto Start = relocate(ProgramHeader.p_vaddr);
-        Segment.StartVirtualAddress = Start;
-        Segment.EndVirtualAddress = Start + ProgramHeader.p_memsz;
-        Segment.IsReadable = ProgramHeader.p_flags & ELF::PF_R;
-        Segment.IsWriteable = ProgramHeader.p_flags & ELF::PF_W;
-        Segment.IsExecutable = ProgramHeader.p_flags & ELF::PF_X;
+    case ELF::PT_LOAD: {
+      SegmentInfo Segment;
+      auto Start = relocate(ProgramHeader.p_vaddr);
+      Segment.StartVirtualAddress = Start;
+      Segment.EndVirtualAddress = Start + ProgramHeader.p_memsz;
+      Segment.IsReadable = ProgramHeader.p_flags & ELF::PF_R;
+      Segment.IsWriteable = ProgramHeader.p_flags & ELF::PF_W;
+      Segment.IsExecutable = ProgramHeader.p_flags & ELF::PF_X;
 
-        auto ActualAddress = TheELF.base() + ProgramHeader.p_offset;
-        Segment.Data = ArrayRef<uint8_t>(ActualAddress, ProgramHeader.p_filesz);
+      auto ActualAddress = TheELF.base() + ProgramHeader.p_offset;
+      Segment.Data = ArrayRef<uint8_t>(ActualAddress, ProgramHeader.p_filesz);
 
-        // If it's an executable segment, and we've been asked so, register
-        // which sections actually contain code
-        if (UseSections && Segment.IsExecutable) {
-          using Elf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
-          auto Inserter = std::back_inserter(Segment.ExecutableSections);
-          for (Elf_Shdr &SectionHeader : TheELF.sections()) {
-            if (SectionHeader.sh_flags & ELF::SHF_EXECINSTR) {
-              auto SectionStart = relocate(SectionHeader.sh_addr);
-              auto SectionEnd = SectionStart + SectionHeader.sh_size;
-              Inserter = make_pair(SectionStart, SectionEnd);
-            }
+      // If it's an executable segment, and we've been asked so, register
+      // which sections actually contain code
+      if (UseSections && Segment.IsExecutable) {
+        using Elf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
+        auto Inserter = std::back_inserter(Segment.ExecutableSections);
+        for (Elf_Shdr &SectionHeader : TheELF.sections()) {
+          if (SectionHeader.sh_flags & ELF::SHF_EXECINSTR) {
+            auto SectionStart = relocate(SectionHeader.sh_addr);
+            auto SectionEnd = SectionStart + SectionHeader.sh_size;
+            Inserter = make_pair(SectionStart, SectionEnd);
           }
         }
-
-        Segments.push_back(Segment);
-
-        // Check if it's the segment containing the program headers
-        auto ProgramHeaderStart = ProgramHeader.p_offset;
-        auto ProgramHeaderEnd = ProgramHeader.p_offset + ProgramHeader.p_filesz;
-        if (ProgramHeaderStart <= ElfHeader->e_phoff
-            && ElfHeader->e_phoff < ProgramHeaderEnd) {
-          uint64_t PhdrAddress = (relocate(ProgramHeader.p_vaddr)
-                                  + ElfHeader->e_phoff
-                                  - ProgramHeader.p_offset);
-          ProgramHeaders.Address = PhdrAddress;
-        }
       }
-      break;
+
+      Segments.push_back(Segment);
+
+      // Check if it's the segment containing the program headers
+      auto ProgramHeaderStart = ProgramHeader.p_offset;
+      auto ProgramHeaderEnd = ProgramHeader.p_offset + ProgramHeader.p_filesz;
+      if (ProgramHeaderStart <= ElfHeader->e_phoff
+          && ElfHeader->e_phoff < ProgramHeaderEnd) {
+        uint64_t PhdrAddress = (relocate(ProgramHeader.p_vaddr)
+                                + ElfHeader->e_phoff - ProgramHeader.p_offset);
+        ProgramHeaders.Address = PhdrAddress;
+      }
+    } break;
 
     case ELF::PT_GNU_EH_FRAME:
       assert(!EHFrameHdrAddress);
@@ -461,7 +468,6 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
              and ".dynamic and PT_DYNAMIC have different addresses");
       break;
     }
-
   }
 
   assert((DynamicPhdr != nullptr) == (DynamicAddress.hasValue()));
@@ -493,7 +499,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
     for (Elf_Dyn &DynamicTag : *TheELF.dynamic_table(DynamicPhdr)) {
 
       auto TheTag = DynamicTag.getTag();
-      switch(TheTag) {
+      switch (TheTag) {
       case ELF::DT_NEEDED:
         NeededLibraryNameOffsets.push_back(DynamicTag.getVal());
         break;
@@ -529,7 +535,6 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
         assert(TheTag == (HasAddend ? ELF::DT_RELASZ : ELF::DT_RELSZ));
         ReldynPortion.setSize(DynamicTag.getVal());
         break;
-
       }
     }
 
@@ -538,7 +543,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
 
     if (DynstrPortion.isAvailable()) {
       StringRef Dynstr = DynstrPortion.extractString(Segments);
-      for(auto Offset : NeededLibraryNameOffsets) {
+      for (auto Offset : NeededLibraryNameOffsets) {
         StringRef LibraryName = Dynstr.slice(Offset, Dynstr.size());
         NeededLibraryNames.push_back(LibraryName.data());
       }
@@ -558,7 +563,6 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
         if (Symbol.st_value != 0 and Symbol.getType() == ELF::STT_FUNC)
           CodePointers.insert(relocate(Symbol.st_value));
     }
-
   }
 }
 
@@ -594,7 +598,6 @@ uint64_t BinaryFile::parseRelocations(const FilePortion &Relocations) {
   return SymbolsCount;
 }
 
-
 //
 // .eh_frame-related functions
 //
@@ -606,7 +609,7 @@ public:
     Address(Address),
     Start(Buffer.data()),
     Cursor(Buffer.data()),
-    End(Buffer.data() + Buffer.size()) { }
+    End(Buffer.data() + Buffer.size()) {}
 
   template<typename T>
   T readNext() {
@@ -644,7 +647,7 @@ public:
     return Result;
   }
 
-  Pointer readPointer(unsigned Encoding, uint64_t Base=0) {
+  Pointer readPointer(unsigned Encoding, uint64_t Base = 0) {
     assert((Encoding & ~(0x70 | 0x0F | dwarf::DW_EH_PE_indirect)) == 0);
 
     if ((Encoding & 0x70) == dwarf::DW_EH_PE_pcrel)
@@ -718,13 +721,24 @@ private:
   const uint8_t *Start;
   const uint8_t *Cursor;
   const uint8_t *End;
-
 };
 
-template<> bool DwarfReader<object::ELF32BE>::is64() const { return false; }
-template<> bool DwarfReader<object::ELF32LE>::is64() const { return false; }
-template<> bool DwarfReader<object::ELF64BE>::is64() const { return true; }
-template<> bool DwarfReader<object::ELF64LE>::is64() const { return true; }
+template<>
+bool DwarfReader<object::ELF32BE>::is64() const {
+  return false;
+}
+template<>
+bool DwarfReader<object::ELF32LE>::is64() const {
+  return false;
+}
+template<>
+bool DwarfReader<object::ELF64BE>::is64() const {
+  return true;
+}
+template<>
+bool DwarfReader<object::ELF64LE>::is64() const {
+  return true;
+}
 
 template<typename T>
 std::pair<uint64_t, uint64_t>
@@ -815,8 +829,7 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
 
       // Parse a null terminated augmentation string
       SmallString<8> AugmentationString;
-      for (uint8_t Char = EHFrameReader.readNextU8();
-           Char != 0;
+      for (uint8_t Char = EHFrameReader.readNextU8(); Char != 0;
            Char = EHFrameReader.readNextU8())
         AugmentationString.push_back(Char);
 
@@ -845,46 +858,43 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
         for (unsigned I = 1, e = AugmentationString.size(); I != e; ++I) {
           char Char = AugmentationString[I];
           switch (Char) {
-            case 'e':
-              assert((I + 1) != e && AugmentationString[I + 1] == 'h' &&
-                     "Expected 'eh' in augmentation string");
-              break;
-            case 'L':
-              // This is the only information we really care about, all the rest
-              // is processed just so we can get here
-              assert(!LSDAPointerEncoding && "Duplicate LSDA encoding");
-              LSDAPointerEncoding = EHFrameReader.readNextU8();
-              break;
-            case 'P': {
-              assert(!PersonalityEncoding && "Duplicate personality");
-              PersonalityEncoding = EHFrameReader.readNextU8();
-              // Personality
-              Pointer Personality;
-              Personality = EHFrameReader.readPointer(*PersonalityEncoding);
-              uint64_t PersonalityPtr = getPointer<T>(Personality);
-              DBG("ehframe", {
-                  dbg << "Personality function: " << PersonalityPtr << "\n";
-                });
-              // TODO: technically this is not a landing pad
-              LandingPads.insert(PersonalityPtr);
-              break;
-            }
-            case 'R':
-              assert(!FDEPointerEncoding && "Duplicate FDE encoding");
-              FDEPointerEncoding = EHFrameReader.readNextU8();
-              break;
-            case 'z':
-              llvm_unreachable("'z' must be first in the augmentation string");
+          case 'e':
+            assert((I + 1) != e && AugmentationString[I + 1] == 'h'
+                   && "Expected 'eh' in augmentation string");
+            break;
+          case 'L':
+            // This is the only information we really care about, all the rest
+            // is processed just so we can get here
+            assert(!LSDAPointerEncoding && "Duplicate LSDA encoding");
+            LSDAPointerEncoding = EHFrameReader.readNextU8();
+            break;
+          case 'P': {
+            assert(!PersonalityEncoding && "Duplicate personality");
+            PersonalityEncoding = EHFrameReader.readNextU8();
+            // Personality
+            Pointer Personality;
+            Personality = EHFrameReader.readPointer(*PersonalityEncoding);
+            uint64_t PersonalityPtr = getPointer<T>(Personality);
+            DBG("ehframe",
+                { dbg << "Personality function: " << PersonalityPtr << "\n"; });
+            // TODO: technically this is not a landing pad
+            LandingPads.insert(PersonalityPtr);
+            break;
+          }
+          case 'R':
+            assert(!FDEPointerEncoding && "Duplicate FDE encoding");
+            FDEPointerEncoding = EHFrameReader.readNextU8();
+            break;
+          case 'z':
+            llvm_unreachable("'z' must be first in the augmentation string");
           }
         }
       }
 
       // Cache this entry
-      CachedCIEs[StartOffset] = {
-        FDEPointerEncoding,
-        LSDAPointerEncoding,
-        AugmentationLength.hasValue()
-      };
+      CachedCIEs[StartOffset] = { FDEPointerEncoding,
+                                  LSDAPointerEncoding,
+                                  AugmentationLength.hasValue() };
 
     } else {
       // This is an FDE
@@ -901,8 +911,8 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
 
       // Ensure we have at least the pointer encoding
       const DecodedCIE &CIE = CIEIt->getSecond();
-      assert(CIE.FDEPointerEncoding &&
-             "FDE references CIE which did not set pointer encoding");
+      assert(CIE.FDEPointerEncoding
+             && "FDE references CIE which did not set pointer encoding");
 
       // PCBegin
       auto PCBeginPointer = EHFrameReader.readPointer(*CIE.FDEPointerEncoding);
@@ -925,7 +935,6 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
     // Skip all the remaining parts
     EHFrameReader.moveTo(EndOffset);
   }
-
 }
 
 template<typename T>
@@ -975,9 +984,9 @@ void BinaryFile::parseLSDA(uint64_t FDEStart, uint64_t LSDAAddress) {
 
     if (LandingPad != 0) {
       DBG("ehframe", {
-          if (LandingPads.count(LandingPad) == 0)
-            dbg << "New landing pad found: " << std::hex << LandingPad << "\n";
-        });
+        if (LandingPads.count(LandingPad) == 0)
+          dbg << "New landing pad found: " << std::hex << LandingPad << "\n";
+      });
       LandingPads.insert(LandingPad);
     }
   }

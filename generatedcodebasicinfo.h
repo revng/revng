@@ -24,7 +24,7 @@ class BasicBlock;
 class GlobalVariable;
 class Instruction;
 class MDNode;
-}
+} // namespace llvm
 
 static const char *BlockTypeMDName = "revamb.block.type";
 static const char *JTReasonMDName = "revamb.jt.reasons";
@@ -53,7 +53,7 @@ public:
     DispatcherFail(nullptr),
     AnyPC(nullptr),
     UnexpectedPC(nullptr),
-    PCRegSize(0) { }
+    PCRegSize(0) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
@@ -263,17 +263,17 @@ private:
 };
 
 template<>
-struct BlackListTrait<const GeneratedCodeBasicInfo &, llvm::BasicBlock *> :
-  BlackListTraitBase<const GeneratedCodeBasicInfo &> {
+struct BlackListTrait<const GeneratedCodeBasicInfo &, llvm::BasicBlock *>
+  : BlackListTraitBase<const GeneratedCodeBasicInfo &> {
   using BlackListTraitBase<const GeneratedCodeBasicInfo &>::BlackListTraitBase;
   bool isBlacklisted(llvm::BasicBlock *Value) {
     return !this->Obj.isTranslated(Value);
   }
 };
 
-inline
-void GeneratedCodeBasicInfo::visitPredecessors(llvm::Instruction *I,
-                                               RVisitorFunction Visitor) {
+inline void
+GeneratedCodeBasicInfo::visitPredecessors(llvm::Instruction *I,
+                                          RVisitorFunction Visitor) {
   using BLT = BlackListTrait<const GeneratedCodeBasicInfo &,
                              llvm::BasicBlock *>;
   ::visitPredecessors(I, Visitor, BLT(*this));

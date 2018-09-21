@@ -15,20 +15,20 @@
 
 // Boost includes
 #include <boost/icl/interval_set.hpp>
-#include <boost/type_traits/is_same.hpp>
 #include <boost/icl/right_open_interval.hpp>
+#include <boost/type_traits/is_same.hpp>
 
 // LLVM includes
-#include "llvm/ADT/iterator_range.h"
-#include "llvm/ADT/ilist.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/ilist.h"
+#include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 
 // Local includes
-#include "debug.h"
 #include "datastructures.h"
+#include "debug.h"
 #include "functionboundariesdetection.h"
 #include "ir-helpers.h"
 #include "jumptargetmanager.h"
@@ -47,10 +47,7 @@ using interval = boost::icl::interval<uint64_t>;
 
 char FBDP::ID = 0;
 using RegisterFBDP = RegisterPass<FBDP>;
-static RegisterFBDP X("fbdp",
-                      "Function Boundaries Detection Pass",
-                      true,
-                      true);
+static RegisterFBDP X("fbdp", "Function Boundaries Detection Pass", true, true);
 
 class FunctionBoundariesDetectionImpl {
 public:
@@ -59,7 +56,7 @@ public:
                                   bool UseDebugSymbols) :
     F(F),
     JTM(JTM),
-    UseDebugSymbols(UseDebugSymbols) { }
+    UseDebugSymbols(UseDebugSymbols) {}
 
   map<BasicBlock *, vector<BasicBlock *>> run();
 
@@ -83,7 +80,7 @@ private:
 
   class CFEPRelation {
   public:
-    CFEPRelation(BasicBlock *CFEP) : CFEP(CFEP), Distance(0), Type(0) { }
+    CFEPRelation(BasicBlock *CFEP) : CFEP(CFEP), Distance(0), Type(0) {}
 
     void setType(RelationType T) { Type |= T; }
     bool hasType(RelationType T) const { return Type & T; }
@@ -104,7 +101,7 @@ private:
 
   class CFEP {
   public:
-    CFEP() : Reasons(0) { }
+    CFEP() : Reasons(0) {}
 
     void setReason(CFEPReason Reason) { Reasons |= Reason; }
     bool hasReason(CFEPReason Reason) { return Reasons & Reason; }
@@ -158,7 +155,7 @@ private:
     SmallVector<CFEPRelation, 2> &BBRelations = Relations[Affected];
     auto It = std::find_if(BBRelations.begin(),
                            BBRelations.end(),
-                           [CFEP] (CFEPRelation &R) {
+                           [CFEP](CFEPRelation &R) {
                              return R.cfep() == CFEP;
                            });
     if (It != BBRelations.end()) {
@@ -197,7 +194,6 @@ private:
   interval_set Callees;
   std::map<BasicBlock *, std::vector<BasicBlock *>> Functions;
 };
-
 
 void FBD::initPostDispatcherIt() {
   // Skip dispatcher and friends
@@ -271,7 +267,6 @@ void FBD::collectReturnInstructions() {
         IsReturn = false;
         break;
       }
-
     }
 
     IsReturn &= JumpsToDispatcher;
@@ -282,7 +277,6 @@ void FBD::collectReturnInstructions() {
       //       of a register
       Returns.insert(Terminator);
     }
-
   }
 }
 
@@ -395,9 +389,9 @@ void FBD::cfepProcessPhase1() {
         // address, unless it's a call to a noreturn function.
         if (JTM->noReturn().isNoreturnBasicBlock(RelatedBB)) {
           DBG("nra", {
-              dbg << "Stopping at " << getName(RelatedBB)
-                  << " since it's a noreturn call\n";
-            });
+            dbg << "Stopping at " << getName(RelatedBB)
+                << " since it's a noreturn call\n";
+          });
         } else {
           BasicBlock *ReturnBB = FCIt->second;
           setRelation(CFEP, ReturnBB, Return);
@@ -415,7 +409,6 @@ void FBD::cfepProcessPhase1() {
           setRelation(CFEP, S, Jump);
           WorkList.insert(S);
         }
-
       }
     }
 
@@ -460,9 +453,7 @@ void FBD::cfepProcessPhase1() {
           registerCFEP(S, SkippingJump);
           CFEPWorkList.insert(S);
         }
-
       }
-
     }
   }
 }
@@ -484,9 +475,8 @@ void FBD::filterCFEPs() {
       Keep = true;
       // Check no relation of Jump type and 0-distance exist
       for (CFEPRelation &Relation : Relations[CFEPHead])
-        Keep = Keep
-          && !Relation.isNonSkippingJump()
-          && !Relation.hasType(Return);
+        Keep = Keep && !Relation.isNonSkippingJump()
+               && !Relation.hasType(Return);
     }
 
     if (!Keep && !AddressTaken) {
@@ -494,30 +484,26 @@ void FBD::filterCFEPs() {
       Keep = Relations.size() > 1;
       if (Keep)
         for (CFEPRelation &Relation : CFEPRelations)
-          Keep = Keep && (Relation.hasType(Head)
-                          || Relation.isSkippingJump());
+          Keep = Keep && (Relation.hasType(Head) || Relation.isSkippingJump());
     }
 
     if (Keep) {
       DBG("functions", {
-          dbg << std::hex << "0x" << getBasicBlockPC(CFEPHead)
-              << " is a FEP: "
-              << " Callee? " << C.hasReason(Callee)
-              << " GlobalData? " << C.hasReason(GlobalData)
-              << " InCode? " << C.hasReason(InCode)
-              << " SkippingJump? " << C.hasReason(SkippingJump)
-              << " FunctionSymbol?" << C.hasReason(FunctionSymbol)
-              << "\n";
-        });
+        dbg << std::hex << "0x" << getBasicBlockPC(CFEPHead) << " is a FEP: "
+            << " Callee? " << C.hasReason(Callee) << " GlobalData? "
+            << C.hasReason(GlobalData) << " InCode? " << C.hasReason(InCode)
+            << " SkippingJump? " << C.hasReason(SkippingJump)
+            << " FunctionSymbol?" << C.hasReason(FunctionSymbol) << "\n";
+      });
       It++;
     } else {
       DBG("functions", {
-          dbg << std::hex << "0x" << getBasicBlockPC(CFEPHead)
-              << " is a not a FEP:";
-          for (CFEPRelation &Relation : Relations[CFEPHead])
-            dbg << " {" << Relation.describe() << "}";
-          dbg << "\n";
-        });
+        dbg << std::hex << "0x" << getBasicBlockPC(CFEPHead)
+            << " is a not a FEP:";
+        for (CFEPRelation &Relation : Relations[CFEPHead])
+          dbg << " {" << Relation.describe() << "}";
+        dbg << "\n";
+      });
       It = CFEPs.erase(It);
     }
   }
@@ -549,7 +535,6 @@ void FBD::cfepProcessPhase2() {
           if (!isCFEP(S))
             WorkList.insert(S);
         }
-
       }
     }
 
@@ -577,24 +562,23 @@ void FBD::createMetadata() {
 
     for (BasicBlock *Member : P.second)
       ReversedFunctions[Member].push_back(FunctionMD);
-
   }
 
   // Associate the terminator of each basic block with the previously created
   // metadata node
   for (auto &P : ReversedFunctions) {
     BasicBlock *BB = P.first;
-    if (!BB->empty() ) {
+    if (!BB->empty()) {
       Instruction *Terminator = BB->getTerminator();
       assert(Terminator != nullptr);
-      auto *FuncMDs =  MDTuple::get(Context, ArrayRef<Metadata *>(P.second));
+      auto *FuncMDs = MDTuple::get(Context, ArrayRef<Metadata *>(P.second));
       Terminator->setMetadata("func.member.of", FuncMDs);
     }
   }
 
   // Mark each return instruction
   for (TerminatorInst *T : Returns)
-    T->setMetadata("func.return", MDNode::get(Context, { }));
+    T->setMetadata("func.return", MDNode::get(Context, {}));
 }
 
 map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
@@ -628,8 +612,7 @@ map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
 
 std::string FBD::CFEPRelation::describe() const {
   std::stringstream SS;
-  SS << getName(CFEP)
-     << " Distance: " << Distance;
+  SS << getName(CFEP) << " Distance: " << Distance;
 
   if (hasType(UnknownRelation))
     SS << " UnknownRelation";

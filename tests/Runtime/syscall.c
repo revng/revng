@@ -2,11 +2,11 @@
  * This file is distributed under the MIT License. See LICENSE.md for details.
  */
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/syscall.h>
+#include <unistd.h>
 
 int root(char *buffer, size_t size) {
   int result;

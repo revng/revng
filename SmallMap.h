@@ -23,16 +23,18 @@ private:
 
   // Define some helpers
   template<typename... Ps>
-  struct are_same : std::false_type { };
+  struct are_same : std::false_type {};
 
   template<typename P, typename... Ps>
-  struct are_same<P, P, Ps...> : are_same<P, Ps...> { };
+  struct are_same<P, P, Ps...> : are_same<P, Ps...> {};
 
   template<typename P>
-  struct are_same<P, P> : std::true_type { };
+  struct are_same<P, P> : std::true_type {};
 
   template<typename P, typename... Ps>
-  struct first { using type = P; };
+  struct first {
+    using type = P;
+  };
 
   // Assert correct usage
   static_assert(are_same<typename it<Ts>::value_type...>::value,
@@ -46,22 +48,28 @@ private:
 
 public:
   template<typename T>
-  Iteratall(T I) : Iterator(I) { }
+  Iteratall(T I) : Iterator(I) {}
 
 private:
   struct PostincrementVisitor : public boost::static_visitor<Iteratall> {
-    template <typename T>
-    Iteratall operator()(T &It) const { return Iteratall(It++); }
+    template<typename T>
+    Iteratall operator()(T &It) const {
+      return Iteratall(It++);
+    }
   };
 
   struct PreincrementVisitor : public boost::static_visitor<Iteratall> {
-    template <typename T>
-    Iteratall operator()(T &It) const { return Iteratall(++It); }
+    template<typename T>
+    Iteratall operator()(T &It) const {
+      return Iteratall(++It);
+    }
   };
 
   struct DereferenceVisitor : public boost::static_visitor<reference> {
-    template <typename T>
-    reference operator()(T &It) const { return *It; }
+    template<typename T>
+    reference operator()(T &It) const {
+      return *It;
+    }
   };
 
   struct CompareVisitor : public boost::static_visitor<bool> {
@@ -93,22 +101,17 @@ public:
     return boost::apply_visitor(CompareVisitor(), Iterator, Other.Iterator);
   }
 
-  bool operator!=(const Iteratall &Other) const {
-    return !(*this == Other);
-  }
+  bool operator!=(const Iteratall &Other) const { return !(*this == Other); }
 
   reference operator*() const {
     return boost::apply_visitor(DereferenceVisitor(), Iterator);
   }
 
-  pointer operator->() const {
-    return &**this;
-  }
+  pointer operator->() const { return &**this; }
 
 private:
   boost::variant<Ts...> Iterator;
 };
-
 
 /// \brief map that usually contains less than N elements
 ///
@@ -119,10 +122,9 @@ private:
 ///       default constructor to be used.
 ///
 /// \tparam N number of elements to keep inline.
-template <typename K, typename V, unsigned N,  typename C = std::less<K> >
+template<typename K, typename V, unsigned N, typename C = std::less<K>>
 class SmallMap {
 private:
-
   // Define some helper types
   using NonConstPair = std::pair<K, V>;
   using NonConstContainer = std::array<NonConstPair, N>;
@@ -146,16 +148,14 @@ private:
   std::map<K, V, C> Map;
 
 private:
-  VIterator smallBegin() {
-    return reinterpret_cast<VIterator>(Vector.begin());
-  }
+  VIterator smallBegin() { return reinterpret_cast<VIterator>(Vector.begin()); }
 
   ConstVIterator smallBegin() const {
     return reinterpret_cast<ConstVIterator>(Vector.begin());
   }
 
 public:
-  SmallMap() : IsSorted(true), Size(0) { }
+  SmallMap() : IsSorted(true), Size(0) {}
 
   SmallMap(const SmallMap &) = default;
   SmallMap &operator=(const SmallMap &Other) = default;
@@ -163,8 +163,7 @@ public:
   SmallMap &operator=(SmallMap &&Other) = default;
 
 public:
-  using iterator = Iteratall<VIterator,
-                             typename std::map<K, V, C>::iterator>;
+  using iterator = Iteratall<VIterator, typename std::map<K, V, C>::iterator>;
   using const_iterator = Iteratall<ConstVIterator,
                                    typename std::map<K, V, C>::const_iterator>;
   using size_type = size_t;
@@ -177,7 +176,7 @@ public:
     if (IsSorted || !isSmall() || Size <= 1)
       return;
 
-    auto Compare = [] (const Pair &A, const Pair &B) {
+    auto Compare = [](const Pair &A, const Pair &B) {
       return std::less<K>()(A.first, B.first);
     };
     std::sort(Vector.begin(), Vector.begin() + Size, Compare);
@@ -314,7 +313,6 @@ private:
         return I;
     return smallBegin() + Size;
   }
-
 };
 
 #endif // _SMALLMAP_H

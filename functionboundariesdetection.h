@@ -23,11 +23,13 @@ public:
   static char ID;
 
 public:
-  FunctionBoundariesDetectionPass() : llvm::FunctionPass(ID), JTM(nullptr) { }
+  FunctionBoundariesDetectionPass() : llvm::FunctionPass(ID), JTM(nullptr) {}
   FunctionBoundariesDetectionPass(JumpTargetManager *JTM,
                                   std::string SerializePath,
                                   bool UseDebugSymbols) :
-    llvm::FunctionPass(ID), JTM(JTM), SerializePath(SerializePath) { }
+    llvm::FunctionPass(ID),
+    JTM(JTM),
+    SerializePath(SerializePath) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();

@@ -34,7 +34,7 @@ unsigned ASSlot::cmp(const ASSlot &Other, const Module *M) const {
   assert(!this->isInvalid() and !Other.isInvalid());
 
   LoggerIndent<> Y(SaDiffLog);
-  bool Result = not (AS.lowerThanOrEqual(Other.AS) && Offset == Other.Offset);
+  bool Result = not(AS.lowerThanOrEqual(Other.AS) && Offset == Other.Offset);
 
   if (Result && Diff) {
     Other.dump(M, SaDiffLog);
@@ -322,8 +322,7 @@ void Element::mergeASState(AddressSpace &ThisState,
     ThisState.ASOContent[P.first] = P.second;
 
   // Cleanup phase
-  for (auto It = ThisState.ASOContent.begin();
-       It != ThisState.ASOContent.end();
+  for (auto It = ThisState.ASOContent.begin(); It != ThisState.ASOContent.end();
        /**/) {
 
     if (!It->second.hasDirectContent() && !It->second.hasTag())

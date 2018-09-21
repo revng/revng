@@ -15,8 +15,8 @@
 #include <sstream>
 
 // LLVM includes
-#include "llvm/IR/CFG.h"
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
@@ -37,179 +37,171 @@ using IT = InstructionTranslator;
 
 namespace PTC {
 
-  template<bool C>
-  class InstructionImpl;
+template<bool C>
+class InstructionImpl;
 
-  enum ArgumentType {
-    In,
-    Out,
-    Const
-  };
+enum ArgumentType { In, Out, Const };
 
-  template<typename T, typename Q, bool B>
-  using RAI = RandomAccessIterator<T, Q, B>;
+template<typename T, typename Q, bool B>
+using RAI = RandomAccessIterator<T, Q, B>;
 
-  template<ArgumentType Type, bool IsCall>
-  class InstructionArgumentsIterator :
-    public RAI<uint64_t, InstructionArgumentsIterator<Type, IsCall>, false> {
+template<ArgumentType Type, bool IsCall>
+class InstructionArgumentsIterator
+  : public RAI<uint64_t, InstructionArgumentsIterator<Type, IsCall>, false> {
 
-  public:
-    using base = RandomAccessIterator<uint64_t,
-                                      InstructionArgumentsIterator,
-                                      false>;
+public:
+  using base = RandomAccessIterator<uint64_t,
+                                    InstructionArgumentsIterator,
+                                    false>;
 
-    InstructionArgumentsIterator&
-    operator=(const InstructionArgumentsIterator& r) {
-      base::operator=(r);
-      TheInstruction = r.TheInstruction;
-      return *this;
-    }
-
-
-    InstructionArgumentsIterator(const InstructionArgumentsIterator& r) :
-      base(r),
-      TheInstruction(r.TheInstruction) { }
-
-    InstructionArgumentsIterator(const InstructionArgumentsIterator& r,
-                                 unsigned Index) :
-      base(Index),
-      TheInstruction(r.TheInstruction) { }
-
-    InstructionArgumentsIterator(PTCInstruction *TheInstruction,
-                                 unsigned Index) :
-      base(Index),
-      TheInstruction(TheInstruction) { }
-
-    bool isCompatible(const InstructionArgumentsIterator& r) const {
-      return TheInstruction == r.TheInstruction;
-    }
-
-  public:
-    uint64_t get(unsigned Index) const;
-
-  private:
-    PTCInstruction *TheInstruction;
-  };
-
-  template<>
-  inline uint64_t
-  InstructionArgumentsIterator<In, true>::get(unsigned Index) const {
-    return ptc_call_instruction_in_arg(&ptc, TheInstruction, Index);
+  InstructionArgumentsIterator &
+  operator=(const InstructionArgumentsIterator &r) {
+    base::operator=(r);
+    TheInstruction = r.TheInstruction;
+    return *this;
   }
 
-  template<>
-  inline uint64_t
-  InstructionArgumentsIterator<Const, true>::get(unsigned Index) const {
-    return ptc_call_instruction_const_arg(&ptc, TheInstruction, Index);
+  InstructionArgumentsIterator(const InstructionArgumentsIterator &r) :
+    base(r),
+    TheInstruction(r.TheInstruction) {}
+
+  InstructionArgumentsIterator(const InstructionArgumentsIterator &r,
+                               unsigned Index) :
+    base(Index),
+    TheInstruction(r.TheInstruction) {}
+
+  InstructionArgumentsIterator(PTCInstruction *TheInstruction, unsigned Index) :
+    base(Index),
+    TheInstruction(TheInstruction) {}
+
+  bool isCompatible(const InstructionArgumentsIterator &r) const {
+    return TheInstruction == r.TheInstruction;
   }
 
-  template<>
-  inline uint64_t
-  InstructionArgumentsIterator<Out, true>::get(unsigned Index) const {
-    return ptc_call_instruction_out_arg(&ptc, TheInstruction, Index);
-  }
+public:
+  uint64_t get(unsigned Index) const;
 
-  template<>
-  inline uint64_t
-  InstructionArgumentsIterator<In, false>::get(unsigned Index) const {
-    return ptc_instruction_in_arg(&ptc, TheInstruction, Index);
-  }
+private:
+  PTCInstruction *TheInstruction;
+};
 
-  template<>
-  inline uint64_t
-  InstructionArgumentsIterator<Const, false>::get(unsigned Index) const {
-    return ptc_instruction_const_arg(&ptc, TheInstruction, Index);
-  }
-
-  template<>
-  inline uint64_t
-  InstructionArgumentsIterator<Out, false>::get(unsigned Index) const {
-    return ptc_instruction_out_arg(&ptc, TheInstruction, Index);
-  }
-
-  template<bool IsCall>
-  class InstructionImpl {
-  private:
-    template<ArgumentType Type>
-    using arguments = InstructionArgumentsIterator<Type, IsCall>;
-  public:
-    InstructionImpl(PTCInstruction *TheInstruction) :
-      TheInstruction(TheInstruction),
-      InArguments(arguments<In>(TheInstruction, 0),
-                  arguments<In>(TheInstruction, inArgCount())),
-      ConstArguments(arguments<Const>(TheInstruction, 0),
-                     arguments<Const>(TheInstruction, constArgCount())),
-      OutArguments(arguments<Out>(TheInstruction, 0),
-                   arguments<Out>(TheInstruction, outArgCount()))
-    { }
-
-    PTCOpcode opcode() const {
-      return TheInstruction->opc;
-    }
-
-    std::string helperName() const {
-      assert(IsCall);
-      PTCHelperDef *Helper = ptc_find_helper(&ptc, ConstArguments[0]);
-      assert(Helper != nullptr && Helper->name != nullptr);
-      return std::string(Helper->name);
-    }
-
-    uint64_t pc() const {
-      assert(opcode() == PTC_INSTRUCTION_op_debug_insn_start);
-      uint64_t PC = ConstArguments[0];
-      if (ConstArguments.size() > 1)
-        PC |= ConstArguments[1] << 32;
-      return PC;
-    }
-
-  private:
-    PTCInstruction* TheInstruction;
-
-  public:
-    const Range<InstructionArgumentsIterator<In, IsCall>> InArguments;
-    const Range<InstructionArgumentsIterator<Const, IsCall>> ConstArguments;
-    const Range<InstructionArgumentsIterator<Out, IsCall>> OutArguments;
-
-  private:
-    unsigned inArgCount() const;
-    unsigned constArgCount() const;
-    unsigned outArgCount() const;
-  };
-
-  using Instruction = InstructionImpl<false>;
-  using CallInstruction = InstructionImpl<true>;
-
-  template<>
-  inline unsigned CallInstruction::inArgCount() const {
-    return ptc_call_instruction_in_arg_count(&ptc, TheInstruction);
-  }
-
-  template<>
-  inline unsigned Instruction::inArgCount() const {
-    return ptc_instruction_in_arg_count(&ptc, TheInstruction);
-  }
-
-  template<>
-  inline unsigned CallInstruction::constArgCount() const {
-    return ptc_call_instruction_const_arg_count(&ptc, TheInstruction);
-  }
-
-  template<>
-  inline unsigned Instruction::constArgCount() const {
-    return ptc_instruction_const_arg_count(&ptc, TheInstruction);
-  }
-
-  template<>
-  inline unsigned CallInstruction::outArgCount() const {
-    return ptc_call_instruction_out_arg_count(&ptc, TheInstruction);
-  }
-
-  template<>
-  inline unsigned Instruction::outArgCount() const {
-    return ptc_instruction_out_arg_count(&ptc, TheInstruction);
-  }
-
+template<>
+inline uint64_t
+InstructionArgumentsIterator<In, true>::get(unsigned Index) const {
+  return ptc_call_instruction_in_arg(&ptc, TheInstruction, Index);
 }
+
+template<>
+inline uint64_t
+InstructionArgumentsIterator<Const, true>::get(unsigned Index) const {
+  return ptc_call_instruction_const_arg(&ptc, TheInstruction, Index);
+}
+
+template<>
+inline uint64_t
+InstructionArgumentsIterator<Out, true>::get(unsigned Index) const {
+  return ptc_call_instruction_out_arg(&ptc, TheInstruction, Index);
+}
+
+template<>
+inline uint64_t
+InstructionArgumentsIterator<In, false>::get(unsigned Index) const {
+  return ptc_instruction_in_arg(&ptc, TheInstruction, Index);
+}
+
+template<>
+inline uint64_t
+InstructionArgumentsIterator<Const, false>::get(unsigned Index) const {
+  return ptc_instruction_const_arg(&ptc, TheInstruction, Index);
+}
+
+template<>
+inline uint64_t
+InstructionArgumentsIterator<Out, false>::get(unsigned Index) const {
+  return ptc_instruction_out_arg(&ptc, TheInstruction, Index);
+}
+
+template<bool IsCall>
+class InstructionImpl {
+private:
+  template<ArgumentType Type>
+  using arguments = InstructionArgumentsIterator<Type, IsCall>;
+
+public:
+  InstructionImpl(PTCInstruction *TheInstruction) :
+    TheInstruction(TheInstruction),
+    InArguments(arguments<In>(TheInstruction, 0),
+                arguments<In>(TheInstruction, inArgCount())),
+    ConstArguments(arguments<Const>(TheInstruction, 0),
+                   arguments<Const>(TheInstruction, constArgCount())),
+    OutArguments(arguments<Out>(TheInstruction, 0),
+                 arguments<Out>(TheInstruction, outArgCount())) {}
+
+  PTCOpcode opcode() const { return TheInstruction->opc; }
+
+  std::string helperName() const {
+    assert(IsCall);
+    PTCHelperDef *Helper = ptc_find_helper(&ptc, ConstArguments[0]);
+    assert(Helper != nullptr && Helper->name != nullptr);
+    return std::string(Helper->name);
+  }
+
+  uint64_t pc() const {
+    assert(opcode() == PTC_INSTRUCTION_op_debug_insn_start);
+    uint64_t PC = ConstArguments[0];
+    if (ConstArguments.size() > 1)
+      PC |= ConstArguments[1] << 32;
+    return PC;
+  }
+
+private:
+  PTCInstruction *TheInstruction;
+
+public:
+  const Range<InstructionArgumentsIterator<In, IsCall>> InArguments;
+  const Range<InstructionArgumentsIterator<Const, IsCall>> ConstArguments;
+  const Range<InstructionArgumentsIterator<Out, IsCall>> OutArguments;
+
+private:
+  unsigned inArgCount() const;
+  unsigned constArgCount() const;
+  unsigned outArgCount() const;
+};
+
+using Instruction = InstructionImpl<false>;
+using CallInstruction = InstructionImpl<true>;
+
+template<>
+inline unsigned CallInstruction::inArgCount() const {
+  return ptc_call_instruction_in_arg_count(&ptc, TheInstruction);
+}
+
+template<>
+inline unsigned Instruction::inArgCount() const {
+  return ptc_instruction_in_arg_count(&ptc, TheInstruction);
+}
+
+template<>
+inline unsigned CallInstruction::constArgCount() const {
+  return ptc_call_instruction_const_arg_count(&ptc, TheInstruction);
+}
+
+template<>
+inline unsigned Instruction::constArgCount() const {
+  return ptc_instruction_const_arg_count(&ptc, TheInstruction);
+}
+
+template<>
+inline unsigned CallInstruction::outArgCount() const {
+  return ptc_call_instruction_out_arg_count(&ptc, TheInstruction);
+}
+
+template<>
+inline unsigned Instruction::outArgCount() const {
+  return ptc_instruction_out_arg_count(&ptc, TheInstruction);
+}
+
+} // namespace PTC
 
 /// Converts a PTC condition into an LLVM predicate
 ///
@@ -458,7 +450,7 @@ static unsigned getRegisterSize(unsigned Opcode) {
 ///
 /// \return a compare instruction.
 template<typename T>
-static Value *CreateICmp(T& Builder,
+static Value *CreateICmp(T &Builder,
                          uint64_t RawCondition,
                          Value *FirstOperand,
                          Value *SecondOperand) {
@@ -469,9 +461,9 @@ static Value *CreateICmp(T& Builder,
 }
 
 using LBM = IT::LabeledBlocksMap;
-IT::InstructionTranslator(IRBuilder<>& Builder,
-                          VariableManager& Variables,
-                          JumpTargetManager& JumpTargets,
+IT::InstructionTranslator(IRBuilder<> &Builder,
+                          VariableManager &Variables,
+                          JumpTargetManager &JumpTargets,
                           std::vector<BasicBlock *> Blocks,
                           const Architecture &SourceArchitecture,
                           const Architecture &TargetArchitecture) :
@@ -494,11 +486,9 @@ IT::InstructionTranslator(IRBuilder<>& Builder,
   // * isJT (-1: unknown, 0: no, 1: yes)
   // * all the local variables used by this instruction
   auto *NewPCMarkerTy = FT::get(Type::getVoidTy(Context),
-                                {
+                                { Type::getInt64Ty(Context),
                                   Type::getInt64Ty(Context),
-                                  Type::getInt64Ty(Context),
-                                  Type::getInt32Ty(Context)
-                                },
+                                  Type::getInt32Ty(Context) },
                                 true);
   NewPCMarker = Function::Create(NewPCMarkerTy,
                                  GlobalValue::ExternalLinkage,
@@ -518,9 +508,7 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
       uint64_t PC = (cast<CI>(Call->getArgOperand(0)))->getLimitedValue();
       uint64_t Size = (cast<CI>(Call->getArgOperand(1)))->getLimitedValue();
       bool IsJT = JumpTargets.isJumpTarget(PC);
-      Output << "0x" << PC
-             << ",0x" << Size
-             << "," << (IsJT ? "1" : "0")
+      Output << "0x" << PC << ",0x" << Size << "," << (IsJT ? "1" : "0")
              << std::endl;
 
       unsigned ArgCount = Call->getNumArgOperands();
@@ -583,12 +571,12 @@ IT::newInstruction(PTCInstruction *Instr,
   // A new original instruction, let's create a new metadata node
   // referencing it for all the next instructions to come
   uint64_t PC = TheInstruction.pc();
-  uint64_t NextPC = Next != nullptr ?  PTC::Instruction(Next).pc() : EndPC;
+  uint64_t NextPC = Next != nullptr ? PTC::Instruction(Next).pc() : EndPC;
 
   std::stringstream OriginalStringStream;
   disassembleOriginal(OriginalStringStream, PC);
   std::string OriginalString = OriginalStringStream.str();
-  LLVMContext& Context = TheModule.getContext();
+  LLVMContext &Context = TheModule.getContext();
   MDString *MDOriginalString = MDString::get(Context, OriginalString);
   auto *MDPC = ConstantAsMetadata::get(Builder.getInt64(PC));
   MDNode *MDOriginalInstr = MDNode::getDistinct(Context,
@@ -610,7 +598,7 @@ IT::newInstruction(PTCInstruction *Instr,
         Builder.SetInsertPoint(DivergeTo);
       } else {
         // The block contains already translated code, early exit
-        return R { Stop, MDOriginalInstr, PC, NextPC };
+        return R{ Stop, MDOriginalInstr, PC, NextPC };
       }
     }
   }
@@ -620,11 +608,9 @@ IT::newInstruction(PTCInstruction *Instr,
   // Insert a call to NewPCMarker capturing all the local temporaries
   // This prevents SROA from transforming them in SSA values, which is bad
   // in case we have to split a basic block
-  std::vector<Value *> Args = {
-    Builder.getInt64(PC),
-    Builder.getInt64(NextPC - PC),
-    Builder.getInt32(-1)
-  };
+  std::vector<Value *> Args = { Builder.getInt64(PC),
+                                Builder.getInt64(NextPC - PC),
+                                Builder.getInt32(-1) };
   for (AllocaInst *Local : Variables.locals())
     Args.push_back(Local);
 
@@ -639,7 +625,7 @@ IT::newInstruction(PTCInstruction *Instr,
       JumpTargets.registerInstruction(PC, Call);
   }
 
-  return R { Success, MDOriginalInstr, PC, NextPC };
+  return R{ Success, MDOriginalInstr, PC, NextPC };
 }
 
 static StoreInst *getLastUniqueWrite(BasicBlock *BB, const Value *Register) {
@@ -694,7 +680,7 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
     InArgs.push_back(Load);
   }
 
-  auto GetValueType = [] (Value *Argument) { return Argument->getType(); };
+  auto GetValueType = [](Value *Argument) { return Argument->getType(); };
   std::vector<Type *> InArgsType = (InArgs | GetValueType).toVector();
 
   // TODO: handle multiple return arguments
@@ -735,9 +721,8 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
   return Success;
 }
 
-IT::TranslationResult IT::translate(PTCInstruction *Instr,
-                                    uint64_t PC,
-                                    uint64_t NextPC) {
+IT::TranslationResult
+IT::translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC) {
   const PTC::Instruction TheInstruction(Instr);
 
   std::vector<Value *> InArgs;
@@ -792,7 +777,7 @@ ErrorOr<std::vector<Value *>>
 IT::translateOpcode(PTCOpcode Opcode,
                     std::vector<uint64_t> ConstArguments,
                     std::vector<Value *> InArguments) {
-  LLVMContext& Context = TheModule.getContext();
+  LLVMContext &Context = TheModule.getContext();
   unsigned RegisterSize = getRegisterSize(Opcode);
   Type *RegisterType = nullptr;
   if (RegisterSize == 32)
@@ -806,119 +791,116 @@ IT::translateOpcode(PTCOpcode Opcode,
   switch (Opcode) {
   case PTC_INSTRUCTION_op_movi_i32:
   case PTC_INSTRUCTION_op_movi_i64:
-    return v { ConstantInt::get(RegisterType, ConstArguments[0]) };
+    return v{ ConstantInt::get(RegisterType, ConstArguments[0]) };
   case PTC_INSTRUCTION_op_discard:
     // Let's overwrite the discarded temporary with a 0
-    return v { ConstantInt::get(RegisterType, 0) };
+    return v{ ConstantInt::get(RegisterType, 0) };
   case PTC_INSTRUCTION_op_mov_i32:
   case PTC_INSTRUCTION_op_mov_i64:
-    return v { Builder.CreateTrunc(InArguments[0], RegisterType) };
+    return v{ Builder.CreateTrunc(InArguments[0], RegisterType) };
   case PTC_INSTRUCTION_op_setcond_i32:
-  case PTC_INSTRUCTION_op_setcond_i64:
-    {
-      Value *Compare = CreateICmp(Builder,
-                                  ConstArguments[0],
-                                  InArguments[0],
-                                  InArguments[1]);
-      // TODO: convert single-bit registers to i1
-      return v { Builder.CreateZExt(Compare, RegisterType) };
-    }
+  case PTC_INSTRUCTION_op_setcond_i64: {
+    Value *Compare = CreateICmp(Builder,
+                                ConstArguments[0],
+                                InArguments[0],
+                                InArguments[1]);
+    // TODO: convert single-bit registers to i1
+    return v{ Builder.CreateZExt(Compare, RegisterType) };
+  }
   case PTC_INSTRUCTION_op_movcond_i32: // Resist the fallthrough temptation
-  case PTC_INSTRUCTION_op_movcond_i64:
-    {
-      Value *Compare = CreateICmp(Builder,
-                                  ConstArguments[0],
-                                  InArguments[0],
-                                  InArguments[1]);
-      Value *Select = Builder.CreateSelect(Compare,
-                                           InArguments[2],
-                                           InArguments[3]);
-      return v { Select };
-    }
+  case PTC_INSTRUCTION_op_movcond_i64: {
+    Value *Compare = CreateICmp(Builder,
+                                ConstArguments[0],
+                                InArguments[0],
+                                InArguments[1]);
+    Value *Select = Builder.CreateSelect(Compare,
+                                         InArguments[2],
+                                         InArguments[3]);
+    return v{ Select };
+  }
   case PTC_INSTRUCTION_op_qemu_ld_i32:
   case PTC_INSTRUCTION_op_qemu_ld_i64:
   case PTC_INSTRUCTION_op_qemu_st_i32:
-  case PTC_INSTRUCTION_op_qemu_st_i64:
-    {
-      PTCLoadStoreArg MemoryAccess;
-      MemoryAccess = ptc.parse_load_store_arg(ConstArguments[0]);
+  case PTC_INSTRUCTION_op_qemu_st_i64: {
+    PTCLoadStoreArg MemoryAccess;
+    MemoryAccess = ptc.parse_load_store_arg(ConstArguments[0]);
 
-      // What are we supposed to do in this case?
-      assert(MemoryAccess.access_type != PTC_MEMORY_ACCESS_UNKNOWN);
+    // What are we supposed to do in this case?
+    assert(MemoryAccess.access_type != PTC_MEMORY_ACCESS_UNKNOWN);
 
-      unsigned Alignment = 0;
-      if (MemoryAccess.access_type == PTC_MEMORY_ACCESS_UNALIGNED)
-        Alignment = 1;
-      else
-        Alignment = SourceArchitecture.defaultAlignment();
+    unsigned Alignment = 0;
+    if (MemoryAccess.access_type == PTC_MEMORY_ACCESS_UNALIGNED)
+      Alignment = 1;
+    else
+      Alignment = SourceArchitecture.defaultAlignment();
 
-      // Load size
-      IntegerType *MemoryType = nullptr;
-      switch (ptc_get_memory_access_size(MemoryAccess.type)) {
-      case PTC_MO_8:
-        MemoryType = Builder.getInt8Ty();
-        break;
-      case PTC_MO_16:
-        MemoryType = Builder.getInt16Ty();
-        break;
-      case PTC_MO_32:
-        MemoryType = Builder.getInt32Ty();
-        break;
-      case PTC_MO_64:
-        MemoryType = Builder.getInt64Ty();
-        break;
-      default:
-        llvm_unreachable("Unexpected load size");
-      }
-
-      // If necessary, handle endianess mismatch
-      // TODO: it might be a bit overkill, but it be nice to make this function
-      //       template-parametric w.r.t. endianess mismatch
-      Function *BSwapFunction = nullptr;
-      if (MemoryType != Builder.getInt8Ty() &&
-          SourceArchitecture.endianess() != TargetArchitecture.endianess())
-        BSwapFunction = Intrinsic::getDeclaration(&TheModule,
-                                                  Intrinsic::bswap,
-                                                  { MemoryType });
-
-      bool SignExtend = ptc_is_sign_extended_load(MemoryAccess.type);
-
-      Value *Pointer = nullptr;
-      if (Opcode == PTC_INSTRUCTION_op_qemu_ld_i32 ||
-          Opcode == PTC_INSTRUCTION_op_qemu_ld_i64) {
-
-        Pointer = Builder.CreateIntToPtr(InArguments[0],
-                                         MemoryType->getPointerTo());
-        auto *Load = Builder.CreateAlignedLoad(Pointer, Alignment);
-        Variables.setNoAlias(Load);
-        Value *Loaded = Load;
-
-        if (BSwapFunction != nullptr)
-          Loaded = Builder.CreateCall(BSwapFunction, Load);
-
-        if (SignExtend)
-          return v { Builder.CreateSExt(Loaded, RegisterType) };
-        else
-          return v { Builder.CreateZExt(Loaded, RegisterType) };
-
-      } else if (Opcode == PTC_INSTRUCTION_op_qemu_st_i32 ||
-                 Opcode == PTC_INSTRUCTION_op_qemu_st_i64) {
-
-        Pointer = Builder.CreateIntToPtr(InArguments[1],
-                                         MemoryType->getPointerTo());
-        Value *Value = Builder.CreateTrunc(InArguments[0], MemoryType);
-
-        if (BSwapFunction != nullptr)
-          Value = Builder.CreateCall(BSwapFunction, Value);
-
-        auto *Store = Builder.CreateAlignedStore(Value, Pointer, Alignment);
-        Variables.setNoAlias(Store);
-
-        return v { };
-      } else {
-        llvm_unreachable("Unknown load type");
-      }
+    // Load size
+    IntegerType *MemoryType = nullptr;
+    switch (ptc_get_memory_access_size(MemoryAccess.type)) {
+    case PTC_MO_8:
+      MemoryType = Builder.getInt8Ty();
+      break;
+    case PTC_MO_16:
+      MemoryType = Builder.getInt16Ty();
+      break;
+    case PTC_MO_32:
+      MemoryType = Builder.getInt32Ty();
+      break;
+    case PTC_MO_64:
+      MemoryType = Builder.getInt64Ty();
+      break;
+    default:
+      llvm_unreachable("Unexpected load size");
     }
+
+    // If necessary, handle endianess mismatch
+    // TODO: it might be a bit overkill, but it be nice to make this function
+    //       template-parametric w.r.t. endianess mismatch
+    Function *BSwapFunction = nullptr;
+    if (MemoryType != Builder.getInt8Ty()
+        && SourceArchitecture.endianess() != TargetArchitecture.endianess())
+      BSwapFunction = Intrinsic::getDeclaration(&TheModule,
+                                                Intrinsic::bswap,
+                                                { MemoryType });
+
+    bool SignExtend = ptc_is_sign_extended_load(MemoryAccess.type);
+
+    Value *Pointer = nullptr;
+    if (Opcode == PTC_INSTRUCTION_op_qemu_ld_i32
+        || Opcode == PTC_INSTRUCTION_op_qemu_ld_i64) {
+
+      Pointer = Builder.CreateIntToPtr(InArguments[0],
+                                       MemoryType->getPointerTo());
+      auto *Load = Builder.CreateAlignedLoad(Pointer, Alignment);
+      Variables.setNoAlias(Load);
+      Value *Loaded = Load;
+
+      if (BSwapFunction != nullptr)
+        Loaded = Builder.CreateCall(BSwapFunction, Load);
+
+      if (SignExtend)
+        return v{ Builder.CreateSExt(Loaded, RegisterType) };
+      else
+        return v{ Builder.CreateZExt(Loaded, RegisterType) };
+
+    } else if (Opcode == PTC_INSTRUCTION_op_qemu_st_i32
+               || Opcode == PTC_INSTRUCTION_op_qemu_st_i64) {
+
+      Pointer = Builder.CreateIntToPtr(InArguments[1],
+                                       MemoryType->getPointerTo());
+      Value *Value = Builder.CreateTrunc(InArguments[0], MemoryType);
+
+      if (BSwapFunction != nullptr)
+        Value = Builder.CreateCall(BSwapFunction, Value);
+
+      auto *Store = Builder.CreateAlignedStore(Value, Pointer, Alignment);
+      Variables.setNoAlias(Store);
+
+      return v{};
+    } else {
+      llvm_unreachable("Unknown load type");
+    }
+  }
   case PTC_INSTRUCTION_op_ld8u_i32:
   case PTC_INSTRUCTION_op_ld8s_i32:
   case PTC_INSTRUCTION_op_ld16u_i32:
@@ -930,119 +912,116 @@ IT::translateOpcode(PTCOpcode Opcode,
   case PTC_INSTRUCTION_op_ld16s_i64:
   case PTC_INSTRUCTION_op_ld32u_i64:
   case PTC_INSTRUCTION_op_ld32s_i64:
-  case PTC_INSTRUCTION_op_ld_i64:
-    {
-      Value *Base = dyn_cast<LoadInst>(InArguments[0])->getPointerOperand();
-      if (Base == nullptr || !Variables.isEnv(Base)) {
-        // TODO: emit warning
-        return std::errc::invalid_argument;
-      }
-
-      bool Signed;
-      switch (Opcode) {
-      case PTC_INSTRUCTION_op_ld_i32:
-      case PTC_INSTRUCTION_op_ld_i64:
-
-      case PTC_INSTRUCTION_op_ld8u_i32:
-      case PTC_INSTRUCTION_op_ld16u_i32:
-      case PTC_INSTRUCTION_op_ld8u_i64:
-      case PTC_INSTRUCTION_op_ld16u_i64:
-      case PTC_INSTRUCTION_op_ld32u_i64:
-        Signed = false;
-        break;
-      case PTC_INSTRUCTION_op_ld8s_i32:
-      case PTC_INSTRUCTION_op_ld16s_i32:
-      case PTC_INSTRUCTION_op_ld8s_i64:
-      case PTC_INSTRUCTION_op_ld16s_i64:
-      case PTC_INSTRUCTION_op_ld32s_i64:
-        Signed = true;
-        break;
-      default:
-        llvm_unreachable("Unexpected opcode");
-      }
-
-      unsigned LoadSize;
-      switch (Opcode) {
-      case PTC_INSTRUCTION_op_ld8u_i32:
-      case PTC_INSTRUCTION_op_ld8s_i32:
-      case PTC_INSTRUCTION_op_ld8u_i64:
-      case PTC_INSTRUCTION_op_ld8s_i64:
-        LoadSize = 1;
-        break;
-      case PTC_INSTRUCTION_op_ld16u_i32:
-      case PTC_INSTRUCTION_op_ld16s_i32:
-      case PTC_INSTRUCTION_op_ld16u_i64:
-      case PTC_INSTRUCTION_op_ld16s_i64:
-        LoadSize = 2;
-        break;
-      case PTC_INSTRUCTION_op_ld_i32:
-      case PTC_INSTRUCTION_op_ld32u_i64:
-      case PTC_INSTRUCTION_op_ld32s_i64:
-        LoadSize = 4;
-        break;
-      case PTC_INSTRUCTION_op_ld_i64:
-        LoadSize = 8;
-        break;
-      default:
-        llvm_unreachable("Unexpected opcode");
-      }
-
-      Value *Result = Variables.loadFromEnvOffset(Builder,
-                                                  LoadSize,
-                                                  ConstArguments[0]);
-      assert(Result != nullptr);
-
-      // Zero/sign extend in the target dimension
-      if (Signed)
-        return v { Builder.CreateSExt(Result, RegisterType) };
-      else
-        return v { Builder.CreateZExt(Result, RegisterType) };
-
+  case PTC_INSTRUCTION_op_ld_i64: {
+    Value *Base = dyn_cast<LoadInst>(InArguments[0])->getPointerOperand();
+    if (Base == nullptr || !Variables.isEnv(Base)) {
+      // TODO: emit warning
+      return std::errc::invalid_argument;
     }
+
+    bool Signed;
+    switch (Opcode) {
+    case PTC_INSTRUCTION_op_ld_i32:
+    case PTC_INSTRUCTION_op_ld_i64:
+
+    case PTC_INSTRUCTION_op_ld8u_i32:
+    case PTC_INSTRUCTION_op_ld16u_i32:
+    case PTC_INSTRUCTION_op_ld8u_i64:
+    case PTC_INSTRUCTION_op_ld16u_i64:
+    case PTC_INSTRUCTION_op_ld32u_i64:
+      Signed = false;
+      break;
+    case PTC_INSTRUCTION_op_ld8s_i32:
+    case PTC_INSTRUCTION_op_ld16s_i32:
+    case PTC_INSTRUCTION_op_ld8s_i64:
+    case PTC_INSTRUCTION_op_ld16s_i64:
+    case PTC_INSTRUCTION_op_ld32s_i64:
+      Signed = true;
+      break;
+    default:
+      llvm_unreachable("Unexpected opcode");
+    }
+
+    unsigned LoadSize;
+    switch (Opcode) {
+    case PTC_INSTRUCTION_op_ld8u_i32:
+    case PTC_INSTRUCTION_op_ld8s_i32:
+    case PTC_INSTRUCTION_op_ld8u_i64:
+    case PTC_INSTRUCTION_op_ld8s_i64:
+      LoadSize = 1;
+      break;
+    case PTC_INSTRUCTION_op_ld16u_i32:
+    case PTC_INSTRUCTION_op_ld16s_i32:
+    case PTC_INSTRUCTION_op_ld16u_i64:
+    case PTC_INSTRUCTION_op_ld16s_i64:
+      LoadSize = 2;
+      break;
+    case PTC_INSTRUCTION_op_ld_i32:
+    case PTC_INSTRUCTION_op_ld32u_i64:
+    case PTC_INSTRUCTION_op_ld32s_i64:
+      LoadSize = 4;
+      break;
+    case PTC_INSTRUCTION_op_ld_i64:
+      LoadSize = 8;
+      break;
+    default:
+      llvm_unreachable("Unexpected opcode");
+    }
+
+    Value *Result = Variables.loadFromEnvOffset(Builder,
+                                                LoadSize,
+                                                ConstArguments[0]);
+    assert(Result != nullptr);
+
+    // Zero/sign extend in the target dimension
+    if (Signed)
+      return v{ Builder.CreateSExt(Result, RegisterType) };
+    else
+      return v{ Builder.CreateZExt(Result, RegisterType) };
+  }
   case PTC_INSTRUCTION_op_st8_i32:
   case PTC_INSTRUCTION_op_st16_i32:
   case PTC_INSTRUCTION_op_st_i32:
   case PTC_INSTRUCTION_op_st8_i64:
   case PTC_INSTRUCTION_op_st16_i64:
   case PTC_INSTRUCTION_op_st32_i64:
-  case PTC_INSTRUCTION_op_st_i64:
-    {
-      unsigned StoreSize;
-      switch (Opcode) {
-      case PTC_INSTRUCTION_op_st8_i32:
-      case PTC_INSTRUCTION_op_st8_i64:
-        StoreSize = 1;
-        break;
-      case PTC_INSTRUCTION_op_st16_i32:
-      case PTC_INSTRUCTION_op_st16_i64:
-        StoreSize = 2;
-        break;
-      case PTC_INSTRUCTION_op_st_i32:
-      case PTC_INSTRUCTION_op_st32_i64:
-        StoreSize = 4;
-        break;
-      case PTC_INSTRUCTION_op_st_i64:
-        StoreSize = 8;
-        break;
-      default:
-        llvm_unreachable("Unexpected opcode");
-      }
-
-      Value *Base = dyn_cast<LoadInst>(InArguments[1])->getPointerOperand();
-      if (Base == nullptr || !Variables.isEnv(Base)) {
-        // TODO: emit warning
-        return std::errc::invalid_argument;
-      }
-
-      bool Result = Variables.storeToEnvOffset(Builder,
-                                               StoreSize,
-                                               ConstArguments[0],
-                                               InArguments[0]);
-      assert(Result);
-      (void) Result;
-
-      return v { };
+  case PTC_INSTRUCTION_op_st_i64: {
+    unsigned StoreSize;
+    switch (Opcode) {
+    case PTC_INSTRUCTION_op_st8_i32:
+    case PTC_INSTRUCTION_op_st8_i64:
+      StoreSize = 1;
+      break;
+    case PTC_INSTRUCTION_op_st16_i32:
+    case PTC_INSTRUCTION_op_st16_i64:
+      StoreSize = 2;
+      break;
+    case PTC_INSTRUCTION_op_st_i32:
+    case PTC_INSTRUCTION_op_st32_i64:
+      StoreSize = 4;
+      break;
+    case PTC_INSTRUCTION_op_st_i64:
+      StoreSize = 8;
+      break;
+    default:
+      llvm_unreachable("Unexpected opcode");
     }
+
+    Value *Base = dyn_cast<LoadInst>(InArguments[1])->getPointerOperand();
+    if (Base == nullptr || !Variables.isEnv(Base)) {
+      // TODO: emit warning
+      return std::errc::invalid_argument;
+    }
+
+    bool Result = Variables.storeToEnvOffset(Builder,
+                                             StoreSize,
+                                             ConstArguments[0],
+                                             InArguments[0]);
+    assert(Result);
+    (void) Result;
+
+    return v{};
+  }
   case PTC_INSTRUCTION_op_add_i32:
   case PTC_INSTRUCTION_op_sub_i32:
   case PTC_INSTRUCTION_op_mul_i32:
@@ -1068,100 +1047,95 @@ IT::translateOpcode(PTCOpcode Opcode,
   case PTC_INSTRUCTION_op_xor_i64:
   case PTC_INSTRUCTION_op_shl_i64:
   case PTC_INSTRUCTION_op_shr_i64:
-  case PTC_INSTRUCTION_op_sar_i64:
-    {
-      // TODO: assert on sizes?
-      Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
-      Value *Operation = Builder.CreateBinOp(BinaryOp,
-                                             InArguments[0],
-                                             InArguments[1]);
-      return v { Operation };
-    }
+  case PTC_INSTRUCTION_op_sar_i64: {
+    // TODO: assert on sizes?
+    Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
+    Value *Operation = Builder.CreateBinOp(BinaryOp,
+                                           InArguments[0],
+                                           InArguments[1]);
+    return v{ Operation };
+  }
   case PTC_INSTRUCTION_op_div2_i32:
   case PTC_INSTRUCTION_op_divu2_i32:
   case PTC_INSTRUCTION_op_div2_i64:
-  case PTC_INSTRUCTION_op_divu2_i64:
-    {
-      Instruction::BinaryOps DivisionOp, RemainderOp;
+  case PTC_INSTRUCTION_op_divu2_i64: {
+    Instruction::BinaryOps DivisionOp, RemainderOp;
 
-      if (Opcode == PTC_INSTRUCTION_op_div2_i32 ||
-          Opcode == PTC_INSTRUCTION_op_div2_i64) {
-        DivisionOp = Instruction::SDiv;
-        RemainderOp = Instruction::SRem;
-      } else if (Opcode == PTC_INSTRUCTION_op_divu2_i32 ||
-                 Opcode == PTC_INSTRUCTION_op_divu2_i64) {
-        DivisionOp = Instruction::UDiv;
-        RemainderOp = Instruction::URem;
-      } else {
-        llvm_unreachable("Unknown operation type");
-      }
-
-      // TODO: we're ignoring InArguments[1], which is the MSB
-      // TODO: assert on sizes?
-      Value *Division = Builder.CreateBinOp(DivisionOp,
-                                            InArguments[0],
-                                            InArguments[2]);
-      Value *Remainder = Builder.CreateBinOp(RemainderOp,
-                                             InArguments[0],
-                                             InArguments[2]);
-      return v { Division, Remainder };
+    if (Opcode == PTC_INSTRUCTION_op_div2_i32
+        || Opcode == PTC_INSTRUCTION_op_div2_i64) {
+      DivisionOp = Instruction::SDiv;
+      RemainderOp = Instruction::SRem;
+    } else if (Opcode == PTC_INSTRUCTION_op_divu2_i32
+               || Opcode == PTC_INSTRUCTION_op_divu2_i64) {
+      DivisionOp = Instruction::UDiv;
+      RemainderOp = Instruction::URem;
+    } else {
+      llvm_unreachable("Unknown operation type");
     }
+
+    // TODO: we're ignoring InArguments[1], which is the MSB
+    // TODO: assert on sizes?
+    Value *Division = Builder.CreateBinOp(DivisionOp,
+                                          InArguments[0],
+                                          InArguments[2]);
+    Value *Remainder = Builder.CreateBinOp(RemainderOp,
+                                           InArguments[0],
+                                           InArguments[2]);
+    return v{ Division, Remainder };
+  }
   case PTC_INSTRUCTION_op_rotr_i32:
   case PTC_INSTRUCTION_op_rotr_i64:
   case PTC_INSTRUCTION_op_rotl_i32:
-  case PTC_INSTRUCTION_op_rotl_i64:
-    {
-      Value *Bits = ConstantInt::get(RegisterType, RegisterSize);
+  case PTC_INSTRUCTION_op_rotl_i64: {
+    Value *Bits = ConstantInt::get(RegisterType, RegisterSize);
 
-      Instruction::BinaryOps FirstShiftOp, SecondShiftOp;
-      if (Opcode == PTC_INSTRUCTION_op_rotl_i32 ||
-          Opcode == PTC_INSTRUCTION_op_rotl_i64) {
-        FirstShiftOp = Instruction::Shl;
-        SecondShiftOp = Instruction::LShr;
-      } else if (Opcode == PTC_INSTRUCTION_op_rotr_i32 ||
-                 Opcode == PTC_INSTRUCTION_op_rotr_i64) {
-        FirstShiftOp = Instruction::LShr;
-        SecondShiftOp = Instruction::Shl;
-      } else {
-        llvm_unreachable("Unexpected opcode");
-      }
-
-      Value *FirstShift = Builder.CreateBinOp(FirstShiftOp,
-                                              InArguments[0],
-                                              InArguments[1]);
-      Value *SecondShiftAmount = Builder.CreateSub(Bits,
-                                                   InArguments[1]);
-      Value *SecondShift = Builder.CreateBinOp(SecondShiftOp,
-                                               InArguments[0],
-                                               SecondShiftAmount);
-
-      return v { Builder.CreateOr(FirstShift, SecondShift) };
+    Instruction::BinaryOps FirstShiftOp, SecondShiftOp;
+    if (Opcode == PTC_INSTRUCTION_op_rotl_i32
+        || Opcode == PTC_INSTRUCTION_op_rotl_i64) {
+      FirstShiftOp = Instruction::Shl;
+      SecondShiftOp = Instruction::LShr;
+    } else if (Opcode == PTC_INSTRUCTION_op_rotr_i32
+               || Opcode == PTC_INSTRUCTION_op_rotr_i64) {
+      FirstShiftOp = Instruction::LShr;
+      SecondShiftOp = Instruction::Shl;
+    } else {
+      llvm_unreachable("Unexpected opcode");
     }
+
+    Value *FirstShift = Builder.CreateBinOp(FirstShiftOp,
+                                            InArguments[0],
+                                            InArguments[1]);
+    Value *SecondShiftAmount = Builder.CreateSub(Bits, InArguments[1]);
+    Value *SecondShift = Builder.CreateBinOp(SecondShiftOp,
+                                             InArguments[0],
+                                             SecondShiftAmount);
+
+    return v{ Builder.CreateOr(FirstShift, SecondShift) };
+  }
   case PTC_INSTRUCTION_op_deposit_i32:
-  case PTC_INSTRUCTION_op_deposit_i64:
-    {
-      unsigned Position = ConstArguments[0];
-      if (Position == RegisterSize)
-        return v { InArguments[0] };
+  case PTC_INSTRUCTION_op_deposit_i64: {
+    unsigned Position = ConstArguments[0];
+    if (Position == RegisterSize)
+      return v{ InArguments[0] };
 
-      unsigned Length = ConstArguments[1];
-      uint64_t Bits = 0;
+    unsigned Length = ConstArguments[1];
+    uint64_t Bits = 0;
 
-      // Thou shall not << 32
-      if (Length == RegisterSize)
-        Bits = getMaxValue(RegisterSize);
-      else
-        Bits = (1 << Length) - 1;
+    // Thou shall not << 32
+    if (Length == RegisterSize)
+      Bits = getMaxValue(RegisterSize);
+    else
+      Bits = (1 << Length) - 1;
 
-      // result = (t1 & ~(bits << position)) | ((t2 & bits) << position)
-      uint64_t BaseMask = ~(Bits << Position);
-      Value *MaskedBase = Builder.CreateAnd(InArguments[0], BaseMask);
-      Value *Deposit = Builder.CreateAnd(InArguments[1], Bits);
-      Value *ShiftedDeposit = Builder.CreateShl(Deposit, Position);
-      Value *Result = Builder.CreateOr(MaskedBase, ShiftedDeposit);
+    // result = (t1 & ~(bits << position)) | ((t2 & bits) << position)
+    uint64_t BaseMask = ~(Bits << Position);
+    Value *MaskedBase = Builder.CreateAnd(InArguments[0], BaseMask);
+    Value *Deposit = Builder.CreateAnd(InArguments[1], Bits);
+    Value *ShiftedDeposit = Builder.CreateShl(Deposit, Position);
+    Value *Result = Builder.CreateOr(MaskedBase, ShiftedDeposit);
 
-      return v { Result };
-    }
+    return v{ Result };
+  }
   case PTC_INSTRUCTION_op_ext8s_i32:
   case PTC_INSTRUCTION_op_ext16s_i32:
   case PTC_INSTRUCTION_op_ext8u_i32:
@@ -1171,301 +1145,289 @@ IT::translateOpcode(PTCOpcode Opcode,
   case PTC_INSTRUCTION_op_ext32s_i64:
   case PTC_INSTRUCTION_op_ext8u_i64:
   case PTC_INSTRUCTION_op_ext16u_i64:
-  case PTC_INSTRUCTION_op_ext32u_i64:
-    {
-      Type *SourceType = nullptr;
-      switch (Opcode) {
-      case PTC_INSTRUCTION_op_ext8s_i32:
-      case PTC_INSTRUCTION_op_ext8u_i32:
-      case PTC_INSTRUCTION_op_ext8s_i64:
-      case PTC_INSTRUCTION_op_ext8u_i64:
-        SourceType = Builder.getInt8Ty();
-        break;
-      case PTC_INSTRUCTION_op_ext16s_i32:
-      case PTC_INSTRUCTION_op_ext16u_i32:
-      case PTC_INSTRUCTION_op_ext16s_i64:
-      case PTC_INSTRUCTION_op_ext16u_i64:
-        SourceType = Builder.getInt16Ty();
-        break;
-      case PTC_INSTRUCTION_op_ext32s_i64:
-      case PTC_INSTRUCTION_op_ext32u_i64:
-        SourceType = Builder.getInt32Ty();
-        break;
-      default:
-        llvm_unreachable("Unexpected opcode");
-      }
-
-      Value *Truncated = Builder.CreateTrunc(InArguments[0], SourceType);
-
-      switch (Opcode) {
-      case PTC_INSTRUCTION_op_ext8s_i32:
-      case PTC_INSTRUCTION_op_ext8s_i64:
-      case PTC_INSTRUCTION_op_ext16s_i32:
-      case PTC_INSTRUCTION_op_ext16s_i64:
-      case PTC_INSTRUCTION_op_ext32s_i64:
-        return v { Builder.CreateSExt(Truncated, RegisterType) };
-      case PTC_INSTRUCTION_op_ext8u_i32:
-      case PTC_INSTRUCTION_op_ext8u_i64:
-      case PTC_INSTRUCTION_op_ext16u_i32:
-      case PTC_INSTRUCTION_op_ext16u_i64:
-      case PTC_INSTRUCTION_op_ext32u_i64:
-        return v { Builder.CreateZExt(Truncated, RegisterType) };
-      default:
-        llvm_unreachable("Unexpected opcode");
-      }
+  case PTC_INSTRUCTION_op_ext32u_i64: {
+    Type *SourceType = nullptr;
+    switch (Opcode) {
+    case PTC_INSTRUCTION_op_ext8s_i32:
+    case PTC_INSTRUCTION_op_ext8u_i32:
+    case PTC_INSTRUCTION_op_ext8s_i64:
+    case PTC_INSTRUCTION_op_ext8u_i64:
+      SourceType = Builder.getInt8Ty();
+      break;
+    case PTC_INSTRUCTION_op_ext16s_i32:
+    case PTC_INSTRUCTION_op_ext16u_i32:
+    case PTC_INSTRUCTION_op_ext16s_i64:
+    case PTC_INSTRUCTION_op_ext16u_i64:
+      SourceType = Builder.getInt16Ty();
+      break;
+    case PTC_INSTRUCTION_op_ext32s_i64:
+    case PTC_INSTRUCTION_op_ext32u_i64:
+      SourceType = Builder.getInt32Ty();
+      break;
+    default:
+      llvm_unreachable("Unexpected opcode");
     }
+
+    Value *Truncated = Builder.CreateTrunc(InArguments[0], SourceType);
+
+    switch (Opcode) {
+    case PTC_INSTRUCTION_op_ext8s_i32:
+    case PTC_INSTRUCTION_op_ext8s_i64:
+    case PTC_INSTRUCTION_op_ext16s_i32:
+    case PTC_INSTRUCTION_op_ext16s_i64:
+    case PTC_INSTRUCTION_op_ext32s_i64:
+      return v{ Builder.CreateSExt(Truncated, RegisterType) };
+    case PTC_INSTRUCTION_op_ext8u_i32:
+    case PTC_INSTRUCTION_op_ext8u_i64:
+    case PTC_INSTRUCTION_op_ext16u_i32:
+    case PTC_INSTRUCTION_op_ext16u_i64:
+    case PTC_INSTRUCTION_op_ext32u_i64:
+      return v{ Builder.CreateZExt(Truncated, RegisterType) };
+    default:
+      llvm_unreachable("Unexpected opcode");
+    }
+  }
   case PTC_INSTRUCTION_op_not_i32:
   case PTC_INSTRUCTION_op_not_i64:
-    return v { Builder.CreateXor(InArguments[0], getMaxValue(RegisterSize)) };
+    return v{ Builder.CreateXor(InArguments[0], getMaxValue(RegisterSize)) };
   case PTC_INSTRUCTION_op_neg_i32:
-  case PTC_INSTRUCTION_op_neg_i64:
-    {
-      auto *InitialValue = ConstantInt::get(RegisterType, 0);
-      return v { Builder.CreateSub(InitialValue, InArguments[0]) };
-    }
+  case PTC_INSTRUCTION_op_neg_i64: {
+    auto *InitialValue = ConstantInt::get(RegisterType, 0);
+    return v{ Builder.CreateSub(InitialValue, InArguments[0]) };
+  }
   case PTC_INSTRUCTION_op_andc_i32:
   case PTC_INSTRUCTION_op_andc_i64:
   case PTC_INSTRUCTION_op_orc_i32:
   case PTC_INSTRUCTION_op_orc_i64:
   case PTC_INSTRUCTION_op_eqv_i32:
-  case PTC_INSTRUCTION_op_eqv_i64:
-    {
-      Instruction::BinaryOps ExternalOp;
-      switch (Opcode) {
-      case PTC_INSTRUCTION_op_andc_i32:
-      case PTC_INSTRUCTION_op_andc_i64:
-        ExternalOp = Instruction::And;
-        break;
-      case PTC_INSTRUCTION_op_orc_i32:
-      case PTC_INSTRUCTION_op_orc_i64:
-        ExternalOp = Instruction::Or;
-        break;
-      case PTC_INSTRUCTION_op_eqv_i32:
-      case PTC_INSTRUCTION_op_eqv_i64:
-        ExternalOp = Instruction::Xor;
-        break;
-      default:
-        llvm_unreachable("Unexpected opcode");
-      }
+  case PTC_INSTRUCTION_op_eqv_i64: {
+    Instruction::BinaryOps ExternalOp;
+    switch (Opcode) {
+    case PTC_INSTRUCTION_op_andc_i32:
+    case PTC_INSTRUCTION_op_andc_i64:
+      ExternalOp = Instruction::And;
+      break;
+    case PTC_INSTRUCTION_op_orc_i32:
+    case PTC_INSTRUCTION_op_orc_i64:
+      ExternalOp = Instruction::Or;
+      break;
+    case PTC_INSTRUCTION_op_eqv_i32:
+    case PTC_INSTRUCTION_op_eqv_i64:
+      ExternalOp = Instruction::Xor;
+      break;
+    default:
+      llvm_unreachable("Unexpected opcode");
+    }
 
-      Value *Negate = Builder.CreateXor(InArguments[1],
-                                        getMaxValue(RegisterSize));
-      Value *Result = Builder.CreateBinOp(ExternalOp, InArguments[0], Negate);
-      return v { Result };
-    }
+    Value *Negate = Builder.CreateXor(InArguments[1],
+                                      getMaxValue(RegisterSize));
+    Value *Result = Builder.CreateBinOp(ExternalOp, InArguments[0], Negate);
+    return v{ Result };
+  }
   case PTC_INSTRUCTION_op_nand_i32:
-  case PTC_INSTRUCTION_op_nand_i64:
-    {
-      Value *AndValue = Builder.CreateAnd(InArguments[0], InArguments[1]);
-      Value *Result = Builder.CreateXor(AndValue, getMaxValue(RegisterSize));
-      return v { Result };
-    }
+  case PTC_INSTRUCTION_op_nand_i64: {
+    Value *AndValue = Builder.CreateAnd(InArguments[0], InArguments[1]);
+    Value *Result = Builder.CreateXor(AndValue, getMaxValue(RegisterSize));
+    return v{ Result };
+  }
   case PTC_INSTRUCTION_op_nor_i32:
-  case PTC_INSTRUCTION_op_nor_i64:
-    {
-      Value *OrValue = Builder.CreateOr(InArguments[0], InArguments[1]);
-      Value *Result = Builder.CreateXor(OrValue, getMaxValue(RegisterSize));
-      return v { Result };
-    }
+  case PTC_INSTRUCTION_op_nor_i64: {
+    Value *OrValue = Builder.CreateOr(InArguments[0], InArguments[1]);
+    Value *Result = Builder.CreateXor(OrValue, getMaxValue(RegisterSize));
+    return v{ Result };
+  }
   case PTC_INSTRUCTION_op_bswap16_i32:
   case PTC_INSTRUCTION_op_bswap32_i32:
   case PTC_INSTRUCTION_op_bswap16_i64:
   case PTC_INSTRUCTION_op_bswap32_i64:
-  case PTC_INSTRUCTION_op_bswap64_i64:
-    {
-      Type *SwapType = nullptr;
-      switch (Opcode) {
-      case PTC_INSTRUCTION_op_bswap16_i32:
-      case PTC_INSTRUCTION_op_bswap16_i64:
-        SwapType = Builder.getInt16Ty();
-        break;
-      case PTC_INSTRUCTION_op_bswap32_i32:
-      case PTC_INSTRUCTION_op_bswap32_i64:
-        SwapType = Builder.getInt32Ty();
-        break;
-      case PTC_INSTRUCTION_op_bswap64_i64:
-        SwapType = Builder.getInt64Ty();
-        break;
-      default:
-        llvm_unreachable("Unexpected opcode");
-      }
-
-      Value *Truncated = Builder.CreateTrunc(InArguments[0], SwapType);
-
-      Function *BSwapFunction = Intrinsic::getDeclaration(&TheModule,
-                                                          Intrinsic::bswap,
-                                                          { SwapType });
-      Value *Swapped = Builder.CreateCall(BSwapFunction, Truncated);
-
-      return v { Builder.CreateZExt(Swapped, RegisterType) };
+  case PTC_INSTRUCTION_op_bswap64_i64: {
+    Type *SwapType = nullptr;
+    switch (Opcode) {
+    case PTC_INSTRUCTION_op_bswap16_i32:
+    case PTC_INSTRUCTION_op_bswap16_i64:
+      SwapType = Builder.getInt16Ty();
+      break;
+    case PTC_INSTRUCTION_op_bswap32_i32:
+    case PTC_INSTRUCTION_op_bswap32_i64:
+      SwapType = Builder.getInt32Ty();
+      break;
+    case PTC_INSTRUCTION_op_bswap64_i64:
+      SwapType = Builder.getInt64Ty();
+      break;
+    default:
+      llvm_unreachable("Unexpected opcode");
     }
-  case PTC_INSTRUCTION_op_set_label:
-    {
-      unsigned LabelId = ptc.get_arg_label_id(ConstArguments[0]);
 
-      std::stringstream LabelSS;
-      LabelSS << "bb." << JumpTargets.nameForAddress(LastPC);
-      LabelSS << "_L" << std::dec << LabelId;
-      std::string Label = LabelSS.str();
+    Value *Truncated = Builder.CreateTrunc(InArguments[0], SwapType);
 
-      BasicBlock *Fallthrough = nullptr;
-      auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
+    Function *BSwapFunction = Intrinsic::getDeclaration(&TheModule,
+                                                        Intrinsic::bswap,
+                                                        { SwapType });
+    Value *Swapped = Builder.CreateCall(BSwapFunction, Truncated);
 
-      if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
-        Fallthrough = BasicBlock::Create(Context, Label, TheFunction);
-        Fallthrough->moveAfter(Builder.GetInsertBlock());
-        LabeledBasicBlocks[Label] = Fallthrough;
-      } else {
-        // A basic block with that label already exist
-        Fallthrough = LabeledBasicBlocks[Label];
+    return v{ Builder.CreateZExt(Swapped, RegisterType) };
+  }
+  case PTC_INSTRUCTION_op_set_label: {
+    unsigned LabelId = ptc.get_arg_label_id(ConstArguments[0]);
 
-        // Ensure it's empty
-        assert(Fallthrough->begin() == Fallthrough->end());
+    std::stringstream LabelSS;
+    LabelSS << "bb." << JumpTargets.nameForAddress(LastPC);
+    LabelSS << "_L" << std::dec << LabelId;
+    std::string Label = LabelSS.str();
 
-        // Move it to the bottom
-        Fallthrough->removeFromParent();
-        TheFunction->getBasicBlockList().push_back(Fallthrough);
-      }
+    BasicBlock *Fallthrough = nullptr;
+    auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
 
-      Builder.CreateBr(Fallthrough);
+    if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
+      Fallthrough = BasicBlock::Create(Context, Label, TheFunction);
+      Fallthrough->moveAfter(Builder.GetInsertBlock());
+      LabeledBasicBlocks[Label] = Fallthrough;
+    } else {
+      // A basic block with that label already exist
+      Fallthrough = LabeledBasicBlocks[Label];
 
-      Blocks.push_back(Fallthrough);
-      Builder.SetInsertPoint(Fallthrough);
-      Variables.newBasicBlock();
+      // Ensure it's empty
+      assert(Fallthrough->begin() == Fallthrough->end());
 
-      return v { };
+      // Move it to the bottom
+      Fallthrough->removeFromParent();
+      TheFunction->getBasicBlockList().push_back(Fallthrough);
     }
+
+    Builder.CreateBr(Fallthrough);
+
+    Blocks.push_back(Fallthrough);
+    Builder.SetInsertPoint(Fallthrough);
+    Variables.newBasicBlock();
+
+    return v{};
+  }
   case PTC_INSTRUCTION_op_br:
   case PTC_INSTRUCTION_op_brcond_i32:
   case PTC_INSTRUCTION_op_brcond2_i32:
-  case PTC_INSTRUCTION_op_brcond_i64:
-    {
-      // We take the last constant arguments, which is the LabelId both in
-      // conditional and unconditional jumps
-      unsigned LabelId = ptc.get_arg_label_id(ConstArguments.back());
+  case PTC_INSTRUCTION_op_brcond_i64: {
+    // We take the last constant arguments, which is the LabelId both in
+    // conditional and unconditional jumps
+    unsigned LabelId = ptc.get_arg_label_id(ConstArguments.back());
 
-      std::stringstream LabelSS;
-      LabelSS << "bb." << JumpTargets.nameForAddress(LastPC);
-      LabelSS << "_L" << std::dec << LabelId;
-      std::string Label = LabelSS.str();
+    std::stringstream LabelSS;
+    LabelSS << "bb." << JumpTargets.nameForAddress(LastPC);
+    LabelSS << "_L" << std::dec << LabelId;
+    std::string Label = LabelSS.str();
 
-      BasicBlock *Fallthrough = BasicBlock::Create(Context,
-                                                   Label + "_ft",
-                                                   TheFunction);
+    BasicBlock *Fallthrough = BasicBlock::Create(Context,
+                                                 Label + "_ft",
+                                                 TheFunction);
 
-      // Look for a matching label
-      BasicBlock *Target = nullptr;
-      auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
+    // Look for a matching label
+    BasicBlock *Target = nullptr;
+    auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
 
-      // No matching label, create a temporary block
-      if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
-        Target = BasicBlock::Create(Context, Label, TheFunction);
-        LabeledBasicBlocks[Label] = Target;
-      } else {
-        Target = LabeledBasicBlocks[Label];
-      }
-
-      if (Opcode == PTC_INSTRUCTION_op_br) {
-        // Unconditional jump
-        Builder.CreateBr(Target);
-      } else if (Opcode == PTC_INSTRUCTION_op_brcond_i32
-                 || Opcode == PTC_INSTRUCTION_op_brcond_i64) {
-        // Conditional jump
-        Value *Compare = CreateICmp(Builder,
-                                    ConstArguments[0],
-                                    InArguments[0],
-                                    InArguments[1]);
-        Builder.CreateCondBr(Compare, Target, Fallthrough);
-      } else {
-        llvm_unreachable("Unhandled opcode");
-      }
-
-      Blocks.push_back(Fallthrough);
-      Builder.SetInsertPoint(Fallthrough);
-      Variables.newBasicBlock();
-
-      return v { };
+    // No matching label, create a temporary block
+    if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
+      Target = BasicBlock::Create(Context, Label, TheFunction);
+      LabeledBasicBlocks[Label] = Target;
+    } else {
+      Target = LabeledBasicBlocks[Label];
     }
-  case PTC_INSTRUCTION_op_exit_tb:
-    {
-      auto *Zero = ConstantInt::get(Type::getInt32Ty(Context), 0);
-      Builder.CreateCall(JumpTargets.exitTB(), { Zero });
-      Builder.CreateUnreachable();
 
-      auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
-      Blocks.push_back(NextBB);
-      Builder.SetInsertPoint(NextBB);
-      Variables.newBasicBlock();
-
-      return v { };
+    if (Opcode == PTC_INSTRUCTION_op_br) {
+      // Unconditional jump
+      Builder.CreateBr(Target);
+    } else if (Opcode == PTC_INSTRUCTION_op_brcond_i32
+               || Opcode == PTC_INSTRUCTION_op_brcond_i64) {
+      // Conditional jump
+      Value *Compare = CreateICmp(Builder,
+                                  ConstArguments[0],
+                                  InArguments[0],
+                                  InArguments[1]);
+      Builder.CreateCondBr(Compare, Target, Fallthrough);
+    } else {
+      llvm_unreachable("Unhandled opcode");
     }
+
+    Blocks.push_back(Fallthrough);
+    Builder.SetInsertPoint(Fallthrough);
+    Variables.newBasicBlock();
+
+    return v{};
+  }
+  case PTC_INSTRUCTION_op_exit_tb: {
+    auto *Zero = ConstantInt::get(Type::getInt32Ty(Context), 0);
+    Builder.CreateCall(JumpTargets.exitTB(), { Zero });
+    Builder.CreateUnreachable();
+
+    auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
+    Blocks.push_back(NextBB);
+    Builder.SetInsertPoint(NextBB);
+    Variables.newBasicBlock();
+
+    return v{};
+  }
   case PTC_INSTRUCTION_op_goto_tb:
     // Nothing to do here
-    return v { };
+    return v{};
   case PTC_INSTRUCTION_op_add2_i32:
   case PTC_INSTRUCTION_op_sub2_i32:
   case PTC_INSTRUCTION_op_add2_i64:
-  case PTC_INSTRUCTION_op_sub2_i64:
-    {
-      Value *FirstOpLow = nullptr;
-      Value *FirstOpHigh = nullptr;
-      Value *SecondOpLow = nullptr;
-      Value *SecondOpHigh = nullptr;
+  case PTC_INSTRUCTION_op_sub2_i64: {
+    Value *FirstOpLow = nullptr;
+    Value *FirstOpHigh = nullptr;
+    Value *SecondOpLow = nullptr;
+    Value *SecondOpHigh = nullptr;
 
-      IntegerType *DestinationType = Builder.getIntNTy(RegisterSize * 2);
+    IntegerType *DestinationType = Builder.getIntNTy(RegisterSize * 2);
 
-      FirstOpLow = Builder.CreateZExt(InArguments[0], DestinationType);
-      FirstOpHigh = Builder.CreateZExt(InArguments[1], DestinationType);
-      SecondOpLow = Builder.CreateZExt(InArguments[2], DestinationType);
-      SecondOpHigh = Builder.CreateZExt(InArguments[3], DestinationType);
+    FirstOpLow = Builder.CreateZExt(InArguments[0], DestinationType);
+    FirstOpHigh = Builder.CreateZExt(InArguments[1], DestinationType);
+    SecondOpLow = Builder.CreateZExt(InArguments[2], DestinationType);
+    SecondOpHigh = Builder.CreateZExt(InArguments[3], DestinationType);
 
-      FirstOpHigh = Builder.CreateShl(FirstOpHigh, RegisterSize);
-      SecondOpHigh = Builder.CreateShl(SecondOpHigh, RegisterSize);
+    FirstOpHigh = Builder.CreateShl(FirstOpHigh, RegisterSize);
+    SecondOpHigh = Builder.CreateShl(SecondOpHigh, RegisterSize);
 
-      Value *FirstOp = Builder.CreateOr(FirstOpHigh, FirstOpLow);
-      Value *SecondOp = Builder.CreateOr(SecondOpHigh,
-                                              SecondOpLow);
+    Value *FirstOp = Builder.CreateOr(FirstOpHigh, FirstOpLow);
+    Value *SecondOp = Builder.CreateOr(SecondOpHigh, SecondOpLow);
 
-      Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
+    Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
 
-      Value *Result = Builder.CreateBinOp(BinaryOp, FirstOp, SecondOp);
+    Value *Result = Builder.CreateBinOp(BinaryOp, FirstOp, SecondOp);
 
-      Value *ResultLow = Builder.CreateTrunc(Result, RegisterType);
-      Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
-      Value *ResultHigh = Builder.CreateTrunc(ShiftedResult, RegisterType);
+    Value *ResultLow = Builder.CreateTrunc(Result, RegisterType);
+    Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
+    Value *ResultHigh = Builder.CreateTrunc(ShiftedResult, RegisterType);
 
-      return v { ResultLow, ResultHigh };
-    }
+    return v{ ResultLow, ResultHigh };
+  }
   case PTC_INSTRUCTION_op_mulu2_i32:
   case PTC_INSTRUCTION_op_mulu2_i64:
   case PTC_INSTRUCTION_op_muls2_i32:
-  case PTC_INSTRUCTION_op_muls2_i64:
-    {
-      IntegerType *DestinationType = Builder.getIntNTy(RegisterSize * 2);
+  case PTC_INSTRUCTION_op_muls2_i64: {
+    IntegerType *DestinationType = Builder.getIntNTy(RegisterSize * 2);
 
-      Value *FirstOp = nullptr;
-      Value *SecondOp = nullptr;
+    Value *FirstOp = nullptr;
+    Value *SecondOp = nullptr;
 
-      if (Opcode == PTC_INSTRUCTION_op_mulu2_i32
-          || Opcode == PTC_INSTRUCTION_op_mulu2_i64) {
-        FirstOp = Builder.CreateZExt(InArguments[0], DestinationType);
-        SecondOp = Builder.CreateZExt(InArguments[1], DestinationType);
-      } else if (Opcode == PTC_INSTRUCTION_op_muls2_i32
-                 || Opcode == PTC_INSTRUCTION_op_muls2_i64) {
-        FirstOp = Builder.CreateSExt(InArguments[0], DestinationType);
-        SecondOp = Builder.CreateSExt(InArguments[1], DestinationType);
-      } else {
-        llvm_unreachable("Unexpected opcode");
-      }
-
-      Value *Result = Builder.CreateMul(FirstOp, SecondOp);
-
-      Value *ResultLow = Builder.CreateTrunc(Result, RegisterType);
-      Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
-      Value *ResultHigh = Builder.CreateTrunc(ShiftedResult, RegisterType);
-
-      return v { ResultLow, ResultHigh };
+    if (Opcode == PTC_INSTRUCTION_op_mulu2_i32
+        || Opcode == PTC_INSTRUCTION_op_mulu2_i64) {
+      FirstOp = Builder.CreateZExt(InArguments[0], DestinationType);
+      SecondOp = Builder.CreateZExt(InArguments[1], DestinationType);
+    } else if (Opcode == PTC_INSTRUCTION_op_muls2_i32
+               || Opcode == PTC_INSTRUCTION_op_muls2_i64) {
+      FirstOp = Builder.CreateSExt(InArguments[0], DestinationType);
+      SecondOp = Builder.CreateSExt(InArguments[1], DestinationType);
+    } else {
+      llvm_unreachable("Unexpected opcode");
     }
+
+    Value *Result = Builder.CreateMul(FirstOp, SecondOp);
+
+    Value *ResultLow = Builder.CreateTrunc(Result, RegisterType);
+    Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
+    Value *ResultHigh = Builder.CreateTrunc(ShiftedResult, RegisterType);
+
+    return v{ ResultLow, ResultHigh };
+  }
   case PTC_INSTRUCTION_op_muluh_i32:
   case PTC_INSTRUCTION_op_mulsh_i32:
   case PTC_INSTRUCTION_op_muluh_i64:
