@@ -50,6 +50,8 @@ if test "$FORMAT" -gt 0; then
     clang-format -style=file -i $FILES
 fi
 
+$GREP -E '^.{81,}$' $FILES | cat
+
 # Things should never match
 for REGEXP in '\(--> 0\)' ';;' '^\s*->.*;$' 'Twine [^&]'; do
     $GREP "$REGEXP" $FILES | cat
