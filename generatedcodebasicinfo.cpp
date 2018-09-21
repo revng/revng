@@ -7,8 +7,8 @@
 //
 
 // Standard includes
-#include <set>
 #include <queue>
+#include <set>
 
 // LLVM includes
 #include "llvm/IR/Function.h"
@@ -21,10 +21,8 @@
 using namespace llvm;
 
 char GeneratedCodeBasicInfo::ID = 0;
-static RegisterPass<GeneratedCodeBasicInfo> X("gcbi",
-                                              "Generated Code Basic Info",
-                                              true,
-                                              true);
+using RegisterGCBI = RegisterPass<GeneratedCodeBasicInfo>;
+static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
 
 bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
   DBG("passes", { dbg << "Starting GeneratedCodeBasicInfo\n"; });
@@ -62,13 +60,12 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
         assert(UnexpectedPC == nullptr);
         UnexpectedPC = &BB;
         break;
-      case JumpTargetBlock:
-        {
-          auto *Call = cast<CallInst>(&*BB.begin());
-          assert(Call->getCalledFunction()->getName() == "newpc");
-          JumpTargets[getLimitedValue(Call->getArgOperand(0))] = &BB;
-          break;
-        }
+      case JumpTargetBlock: {
+        auto *Call = cast<CallInst>(&*BB.begin());
+        assert(Call->getCalledFunction()->getName() == "newpc");
+        JumpTargets[getLimitedValue(Call->getArgOperand(0))] = &BB;
+        break;
+      }
       case UntypedBlock:
         // Nothing to do here
         break;
@@ -76,9 +73,7 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
     }
   }
 
-  assert(Dispatcher != nullptr
-         && AnyPC != nullptr
-         && UnexpectedPC != nullptr);
+  assert(Dispatcher != nullptr && AnyPC != nullptr && UnexpectedPC != nullptr);
 
   DBG("passes", { dbg << "Ending GeneratedCodeBasicInfo\n"; });
 
@@ -137,7 +132,6 @@ GeneratedCodeBasicInfo::getPC(Instruction *TheInstruction) const {
         }
       }
     }
-
   }
 
   // Couldn't find the current PC

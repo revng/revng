@@ -6,8 +6,8 @@
 //
 
 // Standard includes
-#include <set>
 #include <queue>
+#include <set>
 #include <sstream>
 
 // LLVM includes
@@ -26,17 +26,16 @@
 #include "debug.h"
 
 template<typename T>
-static inline bool contains(T Range, typename T::value_type V) {
+inline bool contains(T Range, typename T::value_type V) {
   return std::find(std::begin(Range), std::end(Range), V) != std::end(Range);
 }
 
 /// Helper function to destroy an unconditional branch and, in case, the target
 /// basic block, if it doesn't have any predecessors left.
-static inline void purgeBranch(llvm::BasicBlock::iterator I) {
+inline void purgeBranch(llvm::BasicBlock::iterator I) {
   auto *DeadBranch = llvm::dyn_cast<llvm::BranchInst>(I);
   // We allow only a branch and nothing else
-  assert(DeadBranch != nullptr &&
-         ++I == DeadBranch->getParent()->end());
+  assert(DeadBranch != nullptr && ++I == DeadBranch->getParent()->end());
 
   std::set<llvm::BasicBlock *> Successors;
   for (unsigned C = 0; C < DeadBranch->getNumSuccessors(); C++)
@@ -51,8 +50,8 @@ static inline void purgeBranch(llvm::BasicBlock::iterator I) {
       BB->eraseFromParent();
 }
 
-static inline llvm::ConstantInt *getConstValue(llvm::Constant *C,
-                                               const llvm::DataLayout &DL) {
+inline llvm::ConstantInt *
+getConstValue(llvm::Constant *C, const llvm::DataLayout &DL) {
   while (auto *Expr = llvm::dyn_cast<llvm::ConstantExpr>(C)) {
     C = ConstantFoldConstantExpression(Expr, DL);
 
@@ -71,46 +70,43 @@ static inline llvm::ConstantInt *getConstValue(llvm::Constant *C,
   return Integer;
 }
 
-static inline uint64_t getSExtValue(llvm::Constant *C,
-                                    const llvm::DataLayout &DL){
+inline uint64_t getSExtValue(llvm::Constant *C, const llvm::DataLayout &DL) {
   return getConstValue(C, DL)->getSExtValue();
 }
 
-static inline uint64_t getZExtValue(llvm::Constant *C,
-                                    const llvm::DataLayout &DL){
+inline uint64_t getZExtValue(llvm::Constant *C, const llvm::DataLayout &DL) {
   return getConstValue(C, DL)->getZExtValue();
 }
 
-static inline uint64_t getExtValue(llvm::Constant *C,
-                                   bool Sign,
-                                   const llvm::DataLayout &DL){
+inline uint64_t
+getExtValue(llvm::Constant *C, bool Sign, const llvm::DataLayout &DL) {
   if (Sign)
     return getSExtValue(C, DL);
   else
     return getZExtValue(C, DL);
 }
 
-static inline uint64_t getLimitedValue(const llvm::Value *V) {
+inline uint64_t getLimitedValue(const llvm::Value *V) {
   return llvm::cast<llvm::ConstantInt>(V)->getLimitedValue();
 }
 
-static inline llvm::iterator_range<llvm::Interval::pred_iterator>
+inline llvm::iterator_range<llvm::Interval::pred_iterator>
 predecessors(llvm::Interval *BB) {
   return make_range(pred_begin(BB), pred_end(BB));
 }
 
-static inline llvm::iterator_range<llvm::Interval::succ_iterator>
+inline llvm::iterator_range<llvm::Interval::succ_iterator>
 successors(llvm::Interval *BB) {
   return make_range(succ_begin(BB), succ_end(BB));
 }
 
 template<typename T, unsigned I>
-static inline bool findOperand(llvm::Value *Op, T &Result) {
+inline bool findOperand(llvm::Value *Op, T &Result) {
   return false;
 }
 
 template<typename T, unsigned I, typename Head, typename... Tail>
-static inline bool findOperand(llvm::Value *Op, T &Result) {
+inline bool findOperand(llvm::Value *Op, T &Result) {
   using VT = typename std::remove_pointer<Head>::type;
   if (auto *Casted = llvm::dyn_cast<VT>(Op)) {
     std::get<I>(Result) = Casted;
@@ -124,14 +120,14 @@ static inline bool findOperand(llvm::Value *Op, T &Result) {
 /// \return a tuple with the operands of the specified type in the specified
 ///         order, or, if not possible, a nullptr tuple.
 template<typename... T>
-static inline std::tuple<T...> operandsByType(llvm::User *V) {
+inline std::tuple<T...> operandsByType(llvm::User *V) {
   std::tuple<T...> Result;
   unsigned OpCount = V->getNumOperands();
   assert(OpCount == sizeof...(T));
 
   for (llvm::Value *Op : V->operands())
     if (!findOperand<std::tuple<T...>, 0, T...>(Op, Result))
-      return std::tuple<T...> { };
+      return std::tuple<T...>{};
 
   return Result;
 }
@@ -139,7 +135,7 @@ static inline std::tuple<T...> operandsByType(llvm::User *V) {
 /// \brief Checks the instruction type and its operands
 /// \return the instruction casted to I, or nullptr if not possible.
 template<typename I, typename F, typename S>
-static inline I *isa_with_op(llvm::Instruction *Inst) {
+inline I *isa_with_op(llvm::Instruction *Inst) {
   if (auto *Casted = llvm::dyn_cast<I>(Inst)) {
     assert(Casted->getNumOperands() == 2);
     if (llvm::isa<F>(Casted->getOperand(0))
@@ -157,7 +153,7 @@ static inline I *isa_with_op(llvm::Instruction *Inst) {
 }
 
 /// \brief Return an range iterating backward from the given instruction
-static inline llvm::iterator_range<llvm::BasicBlock::reverse_iterator>
+inline llvm::iterator_range<llvm::BasicBlock::reverse_iterator>
 backward_range(llvm::Instruction *I) {
   return llvm::make_range(llvm::make_reverse_iterator(I->getIterator()),
                           I->getParent()->rend());
@@ -165,15 +161,15 @@ backward_range(llvm::Instruction *I) {
 
 template<typename C>
 struct BlackListTraitBase {
-  BlackListTraitBase(C Obj) : Obj(Obj) { }
+  BlackListTraitBase(C Obj) : Obj(Obj) {}
+
 protected:
   C Obj;
 };
 
 /// \brief Trait to wrap an object of type C that can act as a blacklist for B
 template<typename C, typename B>
-struct BlackListTrait : BlackListTraitBase<C> {
-};
+struct BlackListTrait : BlackListTraitBase<C> {};
 
 template<typename C>
 struct BlackListTrait<C, C> : BlackListTraitBase<C> {
@@ -189,12 +185,12 @@ struct BlackListTrait<const std::set<B> &, B>
 };
 
 template<typename B, typename C>
-static inline BlackListTrait<C, B> make_blacklist(C Obj) {
+inline BlackListTrait<C, B> make_blacklist(C Obj) {
   return BlackListTrait<C, B>(Obj);
 }
 
 template<typename B>
-static inline BlackListTrait<const std::set<B> &, B>
+inline BlackListTrait<const std::set<B> &, B>
 make_blacklist(const std::set<B> &Obj) {
   return BlackListTrait<const std::set<B> &, B>(Obj);
 }
@@ -220,9 +216,9 @@ using VisitorFunction = std::function<VisitAction(BasicBlockRange)>;
 /// \param Visitor the visitor function, see VisitAction to understand what this
 ///        function should return
 template<typename C>
-static inline void visitSuccessors(llvm::Instruction *I,
-                                   BlackListTrait<C, llvm::BasicBlock *> BL,
-                                   VisitorFunction Visitor) {
+inline void visitSuccessors(llvm::Instruction *I,
+                            BlackListTrait<C, llvm::BasicBlock *> BL,
+                            VisitorFunction Visitor) {
   std::set<llvm::BasicBlock *> Visited;
 
   llvm::BasicBlock::iterator It(I);
@@ -241,8 +237,7 @@ static inline void visitSuccessors(llvm::Instruction *I,
     case Continue:
       if (!ExhaustOnly) {
         for (auto *Successor : successors(Range.begin()->getParent())) {
-          if (Visited.count(Successor) == 0
-              && !BL.isBlacklisted(Successor)) {
+          if (Visited.count(Successor) == 0 && !BL.isBlacklisted(Successor)) {
             Visited.insert(Successor);
             Queue.push(make_range(Successor->begin(), Successor->end()));
           }
@@ -262,8 +257,8 @@ static inline void visitSuccessors(llvm::Instruction *I,
   }
 }
 
-using RBasicBlockRange =
-  llvm::iterator_range<llvm::BasicBlock::reverse_iterator>;
+using RBasicBlockIterator = llvm::BasicBlock::reverse_iterator;
+using RBasicBlockRange = llvm::iterator_range<RBasicBlockIterator>;
 using RVisitorFunction = std::function<VisitAction(RBasicBlockRange)>;
 
 /// Performs a breadth-first visit of the instructions before \p I and in the
@@ -274,9 +269,9 @@ using RVisitorFunction = std::function<VisitAction(RBasicBlockRange)>;
 /// \param Visitor the visitor function, see VisitAction to understand what this
 ///        function should return
 template<typename C>
-static inline void visitPredecessors(llvm::Instruction *I,
-                                     RVisitorFunction Visitor,
-                                     BlackListTrait<C, llvm::BasicBlock *> BL) {
+inline void visitPredecessors(llvm::Instruction *I,
+                              RVisitorFunction Visitor,
+                              BlackListTrait<C, llvm::BasicBlock *> BL) {
   std::set<llvm::BasicBlock *> Visited;
 
   llvm::BasicBlock::reverse_iterator It(make_reverse_iterator(I));
@@ -321,7 +316,7 @@ static inline void visitPredecessors(llvm::Instruction *I,
 /// \brief Return a sensible name for the given basic block
 /// \return the name of the basic block, if available, its pointer value
 ///         otherwise.
-static inline std::string getName(const llvm::BasicBlock *BB) {
+inline std::string getName(const llvm::BasicBlock *BB) {
   if (BB == nullptr)
     return "(nullptr)";
 
@@ -338,21 +333,22 @@ static inline std::string getName(const llvm::BasicBlock *BB) {
 /// \brief Return a sensible name for the given instruction
 /// \return the name of the instruction, if available, a
 ///         [basic blockname]:[instruction index] string otherwise.
-static inline std::string getName(const llvm::Instruction *I) {
+inline std::string getName(const llvm::Instruction *I) {
   llvm::StringRef Result = I->getName();
   if (!Result.empty()) {
     return Result.str();
   } else {
     const llvm::BasicBlock *Parent = I->getParent();
     return getName(Parent) + ":"
-      + std::to_string(1 + std::distance(Parent->begin(), I->getIterator()));
+           + std::to_string(1
+                            + std::distance(Parent->begin(), I->getIterator()));
   }
 }
 
 /// \brief Return a sensible name for the given Value
 /// \return if \p V is an Instruction, call the appropriate getName function,
 ///         otherwise return a pointer to \p V.
-static inline std::string getName(const llvm::Value *V) {
+inline std::string getName(const llvm::Value *V) {
   if (V != nullptr)
     if (auto *I = llvm::dyn_cast<llvm::Instruction>(V))
       return getName(I);
@@ -378,45 +374,45 @@ inline void writeToLog(Logger<true> &This, T *I, int Ignore) {
     This << "nullptr";
 }
 
-static inline llvm::LLVMContext &getContext(const llvm::Module *M) {
+inline llvm::LLVMContext &getContext(const llvm::Module *M) {
   return M->getContext();
 }
 
-static inline llvm::LLVMContext &getContext(const llvm::Function *F) {
+inline llvm::LLVMContext &getContext(const llvm::Function *F) {
   return getContext(F->getParent());
 }
 
-static inline llvm::LLVMContext &getContext(const llvm::BasicBlock *BB) {
+inline llvm::LLVMContext &getContext(const llvm::BasicBlock *BB) {
   return getContext(BB->getParent());
 }
 
-static inline llvm::LLVMContext &getContext(const llvm::Instruction *I) {
+inline llvm::LLVMContext &getContext(const llvm::Instruction *I) {
   return getContext(I->getParent());
 }
 
-static inline llvm::LLVMContext &getContext(const llvm::Value *I) {
+inline llvm::LLVMContext &getContext(const llvm::Value *I) {
   return getContext(llvm::cast<const llvm::Instruction>(I));
 }
 
-static inline const llvm::Module *getModule(const llvm::Function *F) {
+inline const llvm::Module *getModule(const llvm::Function *F) {
   if (F == nullptr)
     return nullptr;
   return F->getParent();
 }
 
-static inline const llvm::Module *getModule(const llvm::BasicBlock *BB) {
+inline const llvm::Module *getModule(const llvm::BasicBlock *BB) {
   if (BB == nullptr)
     return nullptr;
   return getModule(BB->getParent());
 }
 
-static inline const llvm::Module *getModule(const llvm::Instruction *I) {
+inline const llvm::Module *getModule(const llvm::Instruction *I) {
   if (I == nullptr)
     return nullptr;
   return getModule(I->getParent());
 }
 
-static inline const llvm::Module *getModule(const llvm::Value *I) {
+inline const llvm::Module *getModule(const llvm::Value *I) {
   if (I == nullptr)
     return nullptr;
   return getModule(llvm::cast<const llvm::Instruction>(I));
@@ -425,8 +421,9 @@ static inline const llvm::Module *getModule(const llvm::Value *I) {
 /// \brief Helper class to easily create and use LLVM metadata
 class QuickMetadata {
 public:
-  QuickMetadata(llvm::LLVMContext &Context) : C(Context),
-    Int32Ty(llvm::IntegerType::get(C, 32)) { }
+  QuickMetadata(llvm::LLVMContext &Context) :
+    C(Context),
+    Int32Ty(llvm::IntegerType::get(C, 32)) {}
 
   llvm::MDString *get(const char *String) {
     return llvm::MDString::get(C, String);
@@ -441,17 +438,11 @@ public:
     return llvm::ConstantAsMetadata::get(Constant);
   }
 
-  llvm::MDTuple *tuple(const char *String) {
-    return tuple(get(String));
-  }
+  llvm::MDTuple *tuple(const char *String) { return tuple(get(String)); }
 
-  llvm::MDTuple *tuple(llvm::StringRef String) {
-    return tuple(get(String));
-  }
+  llvm::MDTuple *tuple(llvm::StringRef String) { return tuple(get(String)); }
 
-  llvm::MDTuple *tuple(uint32_t Integer) {
-    return tuple(get(Integer));
-  }
+  llvm::MDTuple *tuple(uint32_t Integer) { return tuple(get(Integer)); }
 
   llvm::MDTuple *tuple(llvm::ArrayRef<llvm::Metadata *> MDs) {
     return llvm::MDTuple::get(C, MDs);
@@ -492,7 +483,7 @@ QuickMetadata::extract<llvm::StringRef>(const llvm::Metadata *MD) {
 
 /// \brief Return the instruction coming before \p I, or nullptr if it's the
 ///        first.
-static inline llvm::Instruction *getPrevious(llvm::Instruction *I) {
+inline llvm::Instruction *getPrevious(llvm::Instruction *I) {
   llvm::BasicBlock::reverse_iterator It(make_reverse_iterator(I));
   if (It == I->getParent()->rend())
     return nullptr;
@@ -502,7 +493,7 @@ static inline llvm::Instruction *getPrevious(llvm::Instruction *I) {
 
 /// \brief Return the instruction coming after \p I, or nullptr if it's the
 ///        last.
-static inline llvm::Instruction *getNext(llvm::Instruction *I) {
+inline llvm::Instruction *getNext(llvm::Instruction *I) {
   llvm::BasicBlock::iterator It(I);
   if (It == I->getParent()->end())
     return nullptr;
@@ -514,14 +505,13 @@ static inline llvm::Instruction *getNext(llvm::Instruction *I) {
 /// \brief Check whether the instruction/basic block is the first in its
 ///        container or not
 template<typename T>
-static inline bool isFirst(T *I) {
+inline bool isFirst(T *I) {
   assert(I != nullptr);
   return I == &*I->getParent()->begin();
 }
 
 /// \brief Check if among \p BB's predecessors there's \p Target
-static inline bool hasPredecessor(llvm::BasicBlock *BB,
-                                  llvm::BasicBlock *Target) {
+inline bool hasPredecessor(llvm::BasicBlock *BB, llvm::BasicBlock *Target) {
   for (llvm::BasicBlock *Predecessor : predecessors(BB))
     if (Predecessor == Target)
       return true;
@@ -536,11 +526,9 @@ static std::array<unsigned, 3> CastOpcodes = {
 
 // \brief If \p V is a cast Instruction or a cast ConstantExpr, return its only
 //        operand (recursively)
-static inline const llvm::Value *skipCasts(const llvm::Value *V) {
+inline const llvm::Value *skipCasts(const llvm::Value *V) {
   using namespace llvm;
-  while (isa<CastInst>(V)
-         or isa<IntToPtrInst>(V)
-         or isa<PtrToIntInst>(V)
+  while (isa<CastInst>(V) or isa<IntToPtrInst>(V) or isa<PtrToIntInst>(V)
          or (isa<ConstantExpr>(V)
              and contains(CastOpcodes, cast<ConstantExpr>(V)->getOpcode())))
     V = cast<User>(V)->getOperand(0);
@@ -549,18 +537,16 @@ static inline const llvm::Value *skipCasts(const llvm::Value *V) {
 
 // \brief If \p V is a cast Instruction or a cast ConstantExpr, return its only
 //        operand (recursively)
-static inline llvm::Value *skipCasts(llvm::Value *V) {
+inline llvm::Value *skipCasts(llvm::Value *V) {
   using namespace llvm;
-  while (isa<CastInst>(V)
-         or isa<IntToPtrInst>(V)
-         or isa<PtrToIntInst>(V)
+  while (isa<CastInst>(V) or isa<IntToPtrInst>(V) or isa<PtrToIntInst>(V)
          or (isa<ConstantExpr>(V)
              and contains(CastOpcodes, cast<ConstantExpr>(V)->getOpcode())))
     V = cast<User>(V)->getOperand(0);
   return V;
 }
 
-static inline const llvm::Function *getCallee(const llvm::Instruction *I) {
+inline const llvm::Function *getCallee(const llvm::Instruction *I) {
   assert(I != nullptr);
 
   using namespace llvm;
@@ -570,7 +556,7 @@ static inline const llvm::Function *getCallee(const llvm::Instruction *I) {
     return nullptr;
 }
 
-static inline llvm::Function *getCallee(llvm::Instruction *I) {
+inline llvm::Function *getCallee(llvm::Instruction *I) {
   assert(I != nullptr);
 
   using namespace llvm;
@@ -580,21 +566,20 @@ static inline llvm::Function *getCallee(llvm::Instruction *I) {
     return nullptr;
 }
 
-static inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
+inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
   assert(I != nullptr);
   const llvm::Function *Callee = getCallee(I);
   return Callee != nullptr && Callee->getName() == Name;
 }
 
 /// \brief Is \p I a call to an helper function?
-static inline bool isCallToHelper(const llvm::Instruction *I) {
+inline bool isCallToHelper(const llvm::Instruction *I) {
   assert(I != nullptr);
   const llvm::Function *Callee = getCallee(I);
   return Callee != nullptr && Callee->getName().startswith("helper_");
 }
 
-static inline llvm::CallInst *getCallTo(llvm::Instruction *I,
-                                        llvm::StringRef Name) {
+inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::StringRef Name) {
   if (isCallTo(I, Name))
     return llvm::cast<llvm::CallInst>(I);
   else
@@ -602,7 +587,7 @@ static inline llvm::CallInst *getCallTo(llvm::Instruction *I,
 }
 
 // TODO: this function assumes 0 is not a valid PC
-static inline uint64_t getBasicBlockPC(llvm::BasicBlock *BB) {
+inline uint64_t getBasicBlockPC(llvm::BasicBlock *BB) {
   auto It = BB->begin();
   assert(It != BB->end());
   if (llvm::CallInst *Call = getCallTo(&*It, "newpc")) {
@@ -613,17 +598,17 @@ static inline uint64_t getBasicBlockPC(llvm::BasicBlock *BB) {
 }
 
 template<typename C>
-static inline auto skip(unsigned ToSkip, C &&Container)
+inline auto skip(unsigned ToSkip, C &&Container)
   -> llvm::iterator_range<decltype(Container.begin())> {
 
   auto Begin = std::begin(Container);
-  while (ToSkip --> 0)
+  while (ToSkip-- > 0)
     Begin++;
   return llvm::make_range(Begin, std::end(Container));
 }
 
 template<class Container, class UnaryPredicate>
-static inline void erase_if(Container &C, UnaryPredicate P) {
+inline void erase_if(Container &C, UnaryPredicate P) {
   C.erase(std::remove_if(C.begin(), C.end(), P), C.end());
 }
 

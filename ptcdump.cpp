@@ -18,7 +18,8 @@
 
 static const int MAX_TEMP_NAME_LENGTH = 128;
 
-static void getTemporaryName(char *Buffer, size_t BufferSize,
+static void getTemporaryName(char *Buffer,
+                             size_t BufferSize,
                              PTCInstructionList *Instructions,
                              unsigned TemporaryId) {
   PTCTemp *Temporary = ptc_temp_get(Instructions, TemporaryId);
@@ -26,19 +27,24 @@ static void getTemporaryName(char *Buffer, size_t BufferSize,
   if (ptc_temp_is_global(Instructions, TemporaryId))
     strncpy(Buffer, Temporary->name, BufferSize);
   else if (Temporary->temp_local)
-    snprintf(Buffer, BufferSize, "loc%u",
+    snprintf(Buffer,
+             BufferSize,
+             "loc%u",
              TemporaryId - Instructions->global_temps);
   else
-    snprintf(Buffer, BufferSize, "tmp%u",
+    snprintf(Buffer,
+             BufferSize,
+             "tmp%u",
              TemporaryId - Instructions->global_temps);
 }
 
-int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
+int dumpInstruction(std::ostream &Result,
+                    PTCInstructionList *Instructions,
                     unsigned Index) {
   size_t i = 0;
   // TODO: this should stay in Architecture
   int is64 = 0;
-  PTCInstruction& Instruction = Instructions->instructions[Index];
+  PTCInstruction &Instruction = Instructions->instructions[Index];
 
   PTCOpcode Opcode = Instruction.opc;
   PTCOpcodeDef *Definition = ptc_instruction_opcode_def(&ptc, &Instruction);
@@ -57,7 +63,8 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
     PTCInstructionArg FunctionPointer = 0;
     FunctionPointer = ptc_call_instruction_const_arg(&ptc, &Instruction, 0);
     PTCInstructionArg Flags = ptc_call_instruction_const_arg(&ptc,
-                                                             &Instruction, 1);
+                                                             &Instruction,
+                                                             1);
     size_t OutArgsCount = ptc_call_instruction_out_arg_count(&ptc,
                                                              &Instruction);
     PTCHelperDef *Helper = ptc_find_helper(&ptc, FunctionPointer);
@@ -68,14 +75,14 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
 
     // The output format is:
     // call name, flags, out_args_count, out_args [...], in_args [...]
-    Result << Definition->name
-           << " " << HelperName
-           << "," << "$0x" << std::hex << Flags
-           << "," << std::dec << OutArgsCount;
+    Result << Definition->name << " " << HelperName << ","
+           << "$0x" << std::hex << Flags << "," << std::dec << OutArgsCount;
 
     // Print out arguments
     for (i = 0; i < OutArgsCount; i++) {
-      getTemporaryName(TemporaryName, MAX_TEMP_NAME_LENGTH, Instructions,
+      getTemporaryName(TemporaryName,
+                       MAX_TEMP_NAME_LENGTH,
+                       Instructions,
                        ptc_call_instruction_out_arg(&ptc, &Instruction, i));
       Result << "," << TemporaryName;
     }
@@ -84,14 +91,18 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
     size_t InArgsCount = ptc_call_instruction_in_arg_count(&ptc, &Instruction);
     for (i = 0; i < InArgsCount; i++) {
       PTCInstructionArg InArg = ptc_call_instruction_in_arg(&ptc,
-                                                            &Instruction, i);
+                                                            &Instruction,
+                                                            i);
 
       if (InArg != PTC_CALL_DUMMY_ARG) {
-        getTemporaryName(TemporaryName, MAX_TEMP_NAME_LENGTH, Instructions,
+        getTemporaryName(TemporaryName,
+                         MAX_TEMP_NAME_LENGTH,
+                         Instructions,
                          InArg);
         Result << "," << TemporaryName;
-      } else
+      } else {
         Result << ",<dummy>";
+      }
     }
 
   } else {
@@ -103,7 +114,9 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
       if (i != 0)
         Result << ",";
 
-      getTemporaryName(TemporaryName, MAX_TEMP_NAME_LENGTH, Instructions,
+      getTemporaryName(TemporaryName,
+                       MAX_TEMP_NAME_LENGTH,
+                       Instructions,
                        ptc_instruction_out_arg(&ptc, &Instruction, i));
       Result << TemporaryName;
     }
@@ -116,7 +129,9 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
       if (i != 0)
         Result << ",";
 
-      getTemporaryName(TemporaryName, MAX_TEMP_NAME_LENGTH, Instructions,
+      getTemporaryName(TemporaryName,
+                       MAX_TEMP_NAME_LENGTH,
+                       Instructions,
                        ptc_instruction_in_arg(&ptc, &Instruction, i));
       Result << TemporaryName;
     }
@@ -134,66 +149,63 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
     case PTC_INSTRUCTION_op_setcond2_i32:
     case PTC_INSTRUCTION_op_brcond_i64:
     case PTC_INSTRUCTION_op_setcond_i64:
-    case PTC_INSTRUCTION_op_movcond_i64:
-      {
-        PTCInstructionArg Arg = ptc_instruction_const_arg(&ptc,
-                                                          &Instruction,
-                                                          0);
-        PTCCondition ConditionId = static_cast<PTCCondition>(Arg);
-        const char *ConditionName = ptc.get_condition_name(ConditionId);
+    case PTC_INSTRUCTION_op_movcond_i64: {
+      PTCInstructionArg Arg = ptc_instruction_const_arg(&ptc, &Instruction, 0);
+      PTCCondition ConditionId = static_cast<PTCCondition>(Arg);
+      const char *ConditionName = ptc.get_condition_name(ConditionId);
 
-        if (ConditionName != nullptr)
-          Result << "," << ConditionName;
-        else
-          Result << "," << "$0x" << std::hex << Arg;
+      if (ConditionName != nullptr)
+        Result << "," << ConditionName;
+      else
+        Result << ","
+               << "$0x" << std::hex << Arg;
 
-        /* Consume one argument */
-        i++;
-        break;
-      }
+      /* Consume one argument */
+      i++;
+
+    } break;
     case PTC_INSTRUCTION_op_qemu_ld_i32:
     case PTC_INSTRUCTION_op_qemu_st_i32:
     case PTC_INSTRUCTION_op_qemu_ld_i64:
-    case PTC_INSTRUCTION_op_qemu_st_i64:
-      {
-        PTCInstructionArg Arg = ptc_instruction_const_arg(&ptc,
-                                                          &Instruction, 0);
-        PTCLoadStoreArg LoadStoreArg = {};
-        LoadStoreArg = ptc.parse_load_store_arg(Arg);
+    case PTC_INSTRUCTION_op_qemu_st_i64: {
+      PTCInstructionArg Arg = ptc_instruction_const_arg(&ptc, &Instruction, 0);
+      PTCLoadStoreArg LoadStoreArg = {};
+      LoadStoreArg = ptc.parse_load_store_arg(Arg);
 
-        if (LoadStoreArg.access_type == PTC_MEMORY_ACCESS_UNKNOWN)
-          Result << "," << "$0x" << std::hex << LoadStoreArg.raw_op;
-        else {
-          const char *Alignment = nullptr;
-          const char *LoadStoreName = nullptr;
-          LoadStoreName = ptc.get_load_store_name(LoadStoreArg.type);
+      if (LoadStoreArg.access_type == PTC_MEMORY_ACCESS_UNKNOWN)
+        Result << ","
+               << "$0x" << std::hex << LoadStoreArg.raw_op;
+      else {
+        const char *Alignment = nullptr;
+        const char *LoadStoreName = nullptr;
+        LoadStoreName = ptc.get_load_store_name(LoadStoreArg.type);
 
-          switch (LoadStoreArg.access_type) {
-          case PTC_MEMORY_ACCESS_NORMAL:
-            Alignment = "";
-            break;
-          case PTC_MEMORY_ACCESS_UNALIGNED:
-            Alignment = "un+";
-            break;
-          case PTC_MEMORY_ACCESS_ALIGNED:
-            Alignment = "al+";
-            break;
-          default:
-            return EXIT_FAILURE;
-          }
-
-          if (LoadStoreName == nullptr)
-            return EXIT_FAILURE;
-
-          Result << "," << Alignment << LoadStoreName;
+        switch (LoadStoreArg.access_type) {
+        case PTC_MEMORY_ACCESS_NORMAL:
+          Alignment = "";
+          break;
+        case PTC_MEMORY_ACCESS_UNALIGNED:
+          Alignment = "un+";
+          break;
+        case PTC_MEMORY_ACCESS_ALIGNED:
+          Alignment = "al+";
+          break;
+        default:
+          return EXIT_FAILURE;
         }
 
-        Result << "," << LoadStoreArg.mmu_index;
+        if (LoadStoreName == nullptr)
+          return EXIT_FAILURE;
 
-        /* Consume one argument */
-        i++;
-        break;
+        Result << "," << Alignment << LoadStoreName;
       }
+
+      Result << "," << LoadStoreArg.mmu_index;
+
+      /* Consume one argument */
+      i++;
+
+    } break;
     default:
       break;
     }
@@ -203,17 +215,15 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
     case PTC_INSTRUCTION_op_br:
     case PTC_INSTRUCTION_op_brcond_i32:
     case PTC_INSTRUCTION_op_brcond_i64:
-    case PTC_INSTRUCTION_op_brcond2_i32:
-      {
-        PTCInstructionArg Arg = ptc_instruction_const_arg(&ptc,
-                                                          &Instruction,
-                                                          i);
-        Result << "," << "$L" << ptc.get_arg_label_id(Arg);
+    case PTC_INSTRUCTION_op_brcond2_i32: {
+      PTCInstructionArg Arg = ptc_instruction_const_arg(&ptc, &Instruction, i);
+      Result << ","
+             << "$L" << ptc.get_arg_label_id(Arg);
 
-        /* Consume one more argument */
-        i++;
-        break;
-      }
+      /* Consume one more argument */
+      i++;
+      break;
+    }
     default:
       break;
     }
@@ -227,13 +237,12 @@ int dumpInstruction(std::ostream& Result, PTCInstructionList *Instructions,
       Result << "$0x" << std::hex
              << ptc_instruction_const_arg(&ptc, &Instruction, i);
     }
-
   }
 
   return EXIT_SUCCESS;
 }
 
-void disassembleOriginal(std::ostream& Result, uint64_t PC) {
+void disassembleOriginal(std::ostream &Result, uint64_t PC) {
   char *BufferPtr = nullptr;
   size_t BufferLenPtr = 0;
   FILE *MemoryStream = open_memstream(&BufferPtr, &BufferLenPtr);
@@ -253,12 +262,12 @@ void disassembleOriginal(std::ostream& Result, uint64_t PC) {
   free(BufferPtr);
 }
 
-int dumpTranslation(std::ostream& Result, PTCInstructionList *Instructions) {
+int dumpTranslation(std::ostream &Result, PTCInstructionList *Instructions) {
   // TODO: this should stay in Architecture
   int is64 = 0;
 
   for (unsigned Index = 0; Index < Instructions->instruction_count; Index++) {
-    PTCInstruction& Instruction = Instructions->instructions[Index];
+    PTCInstruction &Instruction = Instructions->instructions[Index];
     PTCOpcode Opcode = Instruction.opc;
 
     if (Opcode == PTC_INSTRUCTION_op_debug_insn_start) {

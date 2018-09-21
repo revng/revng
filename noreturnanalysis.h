@@ -12,8 +12,8 @@
 
 // LLVM includes
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Triple.h"
 
 // Local includes
 #include "reachingdefinitions.h"
@@ -26,12 +26,13 @@ class Instruction;
 class LoadInst;
 class StoreInst;
 class TerminatorInst;
-}
+} // namespace llvm
 
 class NoReturnAnalysis {
 public:
-  NoReturnAnalysis(Architecture TheArchitecture)
-    : SourceArchitecture(TheArchitecture), NoDCE(nullptr) { }
+  NoReturnAnalysis(Architecture TheArchitecture) :
+    SourceArchitecture(TheArchitecture),
+    NoDCE(nullptr) {}
 
   /// Records all the calls to the syscall helper and inject a sentinel load
   /// from the syscall number register
@@ -100,7 +101,6 @@ private:
                                 QMD.tuple(KillReason::getName(Reason)));
       }
     }
-
   }
 
   bool endsUpIn(llvm::Instruction *I, llvm::BasicBlock *Target);

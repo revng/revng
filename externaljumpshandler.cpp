@@ -27,9 +27,8 @@
 using namespace llvm;
 using std::string;
 
-static string &replace(string &Target,
-                       const StringRef Search,
-                       const StringRef Replace) {
+static string &
+replace(string &Target, const StringRef Search, const StringRef Replace) {
   size_t Position = Target.find(Search.data());
   assert(Position != string::npos);
   Target.replace(Position, Search.size(), Replace);
@@ -80,9 +79,7 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
                                         true,
                                         InlineAsm::AsmDialect::AD_ATT);
         Builder.CreateCall(Asm, CSV);
-
       }
-
     }
   }
 
@@ -101,7 +98,8 @@ ExternalJumpsHandler::ExternalJumpsHandler(BinaryFile &TheBinary,
   Arch(TheBinary.architecture()),
   JumpTargets(JumpTargets),
   RegisterType(JumpTargets.pcReg()->getType()->getPointerElementType()),
-  VoidFunctionType(FunctionType::get(Type::getVoidTy(Context), false)) { }
+  VoidFunctionType(FunctionType::get(Type::getVoidTy(Context), false)) {
+}
 
 BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
   // Create the serialize and branch Basic Block
@@ -169,7 +167,7 @@ llvm::BasicBlock *ExternalJumpsHandler::createSetjmp(BasicBlock *FirstReturn,
 
 void ExternalJumpsHandler::buildExecutableSegmentsList() {
   SmallVector<Constant *, 10> ExecutableSegments;
-  auto Int = [this] (uint64_t V) { return ConstantInt::get(RegisterType, V); };
+  auto Int = [this](uint64_t V) { return ConstantInt::get(RegisterType, V); };
   for (auto &Segment : TheBinary.segments()) {
     if (Segment.IsExecutable) {
       ExecutableSegments.push_back(Int(Segment.StartVirtualAddress));

@@ -2,10 +2,10 @@
  * This file is distributed under the MIT License. See LICENSE.md for details.
  */
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 
 #define FAILURE 666
 #define MAX_OPERATIONS 10
@@ -13,11 +13,7 @@
 
 typedef int value_t;
 
-typedef enum {
-  none,
-  positive,
-  negative
-} literal_status;
+typedef enum { none, positive, negative } literal_status;
 
 typedef struct {
   uint8_t operator;
@@ -52,17 +48,13 @@ int root(char *buffer, size_t size) {
         return FAILURE;
 
       // Check the operator is supported
-      if (buffer[position] == '+' ||
-          buffer[position] == '-' ||
+      if (buffer[position] == '+' || buffer[position] == '-' ||
           /* buffer[position] == '%' || */
           /* buffer[position] == '/' || */
-          buffer[position] == '*' ||
-          buffer[position] == '&' ||
-          buffer[position] == '|' ||
-          buffer[position] == '^') {
+          buffer[position] == '*' || buffer[position] == '&'
+          || buffer[position] == '|' || buffer[position] == '^') {
         stack[depth].argument_count = 2;
-      } else if (buffer[position] == '~' ||
-                 buffer[position] == '!') {
+      } else if (buffer[position] == '~' || buffer[position] == '!') {
         stack[depth].argument_count = 1;
       } else if (buffer[position] == '?') {
         stack[depth].argument_count = 3;
@@ -71,7 +63,7 @@ int root(char *buffer, size_t size) {
         return FAILURE;
       }
 
-      stack[depth].operator = buffer[position];
+      stack[depth].operator= buffer[position];
       stack[depth].current_argument = 0;
 
       // Move to space
@@ -84,8 +76,7 @@ int root(char *buffer, size_t size) {
 
       literal = negative;
 
-    } else if (buffer[position] >= '0' &&
-               buffer[position] <= '9') {
+    } else if (buffer[position] >= '0' && buffer[position] <= '9') {
       // We got a number literal
       current_literal = current_literal * 10 + (buffer[position] - '0');
 
@@ -115,33 +106,31 @@ int root(char *buffer, size_t size) {
       // Ensure all the required arguments have been provided
       if (stack[depth].current_argument + 1 != stack[depth].argument_count)
         return FAILURE;
-      
+
       // Operation implementation
-      if (stack[depth].operator == '+') {
+      if (stack[depth].operator== '+') {
         current_literal = stack[depth].arguments[0] + stack[depth].arguments[1];
-      } else if (stack[depth].operator == '-') {
+      } else if (stack[depth].operator== '-') {
         current_literal = stack[depth].arguments[0] - stack[depth].arguments[1];
-      /* } else if (stack[depth].operator == '%') { */
-      /*   current_literal = stack[depth].arguments[0] % stack[depth].arguments[1]; */
-      /* } else if (stack[depth].operator == '/') { */
-      /*   current_literal = stack[depth].arguments[0] / stack[depth].arguments[1]; */
-      } else if (stack[depth].operator == '*') {
+      } else if (stack[depth].operator== '*') {
         current_literal = stack[depth].arguments[0] * stack[depth].arguments[1];
-      } else if (stack[depth].operator == '&') {
+      } else if (stack[depth].operator== '&') {
         current_literal = stack[depth].arguments[0] & stack[depth].arguments[1];
-      } else if (stack[depth].operator == '|') {
+      } else if (stack[depth].operator== '|') {
         current_literal = stack[depth].arguments[0] | stack[depth].arguments[1];
-      } else if (stack[depth].operator == '^') {
+      } else if (stack[depth].operator== '^') {
         current_literal = stack[depth].arguments[0] ^ stack[depth].arguments[1];
-      } else if (stack[depth].operator == '?') {
-        current_literal = stack[depth].arguments[0] ? stack[depth].arguments[1]
-          : stack[depth].arguments[2];
-      } else if (stack[depth].operator == '~') {
+      } else if (stack[depth].operator== '?') {
+        current_literal = stack[depth].arguments[0] ?
+                            stack[depth].arguments[1] :
+                            stack[depth].arguments[2];
+      } else if (stack[depth].operator== '~') {
         current_literal = ~stack[depth].arguments[0];
-      } else if (stack[depth].operator == '!') {
+      } else if (stack[depth].operator== '!') {
         current_literal = !stack[depth].arguments[0];
-      } else
+      } else {
         return FAILURE;
+      }
 
       depth--;
       if (depth < -1)
@@ -152,7 +141,6 @@ int root(char *buffer, size_t size) {
   }
 
   return current_literal;
-
 }
 
 int main(int argc, char *argv[]) {

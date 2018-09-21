@@ -40,50 +40,48 @@ using std::vector;
 
 using IndexesVector = SmallVector<int32_t, 2>;
 
-template<class BBI, ReachingDefinitionsResult R>
-const vector<LoadInst *> &
-ReachingDefinitionsImplPass<BBI, R>::getReachedLoads(const Instruction *Definition) {
-  assert(R == ReachingDefinitionsResult::ReachedLoads);
-  return ReachedLoads[Definition];
-}
+template<typename T>
+using vvector = const vector<T *> &;
+
+#define RDIP ReachingDefinitionsImplPass
 
 template<class BBI, ReachingDefinitionsResult R>
-const vector<Instruction *> &
-ReachingDefinitionsImplPass<BBI, R>::getReachingDefinitions(const LoadInst *Load) {
-  return ReachingDefinitions[Load];
+vvector<LoadInst> RDIP<BBI, R>::getReachedLoads(const Instruction *I) {
+  assert(R == ReachingDefinitionsResult::ReachedLoads);
+  return ReachedLoads[I];
 }
 
 template<class B, ReachingDefinitionsResult R>
-unsigned
-ReachingDefinitionsImplPass<B, R>::getReachingDefinitionsCount(const LoadInst *Load) {
+vvector<Instruction> RDIP<B, R>::getReachingDefinitions(const LoadInst *L) {
+  return ReachingDefinitions[L];
+}
+
+template<class B, ReachingDefinitionsResult R>
+unsigned RDIP<B, R>::getReachingDefinitionsCount(const LoadInst *Load) {
   assert(R == ReachingDefinitionsResult::ReachedLoads);
   return ReachingDefinitionsCount[Load];
 }
 
-using RDP = ReachingDefinitionsResult;
+#undef RDIP
+
 template class ReachingDefinitionsImplPass<BasicBlockInfo,
-                                           RDP::ReachingDefinitions>;
-template class ReachingDefinitionsImplPass<BasicBlockInfo,
-                                           RDP::ReachedLoads>;
+                                           RDR::ReachingDefinitions>;
+template class ReachingDefinitionsImplPass<BasicBlockInfo, RDR::ReachedLoads>;
 
 template<class BBI, ReachingDefinitionsResult R>
 char ReachingDefinitionsImplPass<BBI, R>::ID = 0;
 
 template<>
-char ReachingDefinitionsImplPass<BasicBlockInfo, ReachingDefinitionsResult::ReachingDefinitions>::ID = 0;
+char RDIP<BasicBlockInfo, RDR::ReachingDefinitions>::ID = 0;
 
 template<>
-char ReachingDefinitionsImplPass<ConditionalBasicBlockInfo, ReachingDefinitionsResult::ReachedLoads>::ID = 0;
+char RDIP<ConditionalBasicBlockInfo, RDR::ReachedLoads>::ID = 0;
 
-static RegisterPass<ReachingDefinitionsPass> X1("rdp",
-                                                "Reaching Definitions Pass",
-                                                true,
-                                                true);
+using RegisterRDP = RegisterPass<ReachingDefinitionsPass>;
+static RegisterRDP X1("rdp", "Reaching Definitions Pass", true, true);
 
-static RegisterPass<ReachedLoadsPass> X2("rlp",
-                                         "Reaching Definitions Pass",
-                                         true,
-                                         true);
+using RegisterRLP = RegisterPass<ReachedLoadsPass>;
+static RegisterRLP X2("rlp", "Reaching Definitions Pass", true, true);
 
 // ReachingDefinitionsPass methods implementation
 
@@ -107,8 +105,7 @@ void ReachingDefinitionsPass::getAnalysisUsage(AnalysisUsage &AU) const {
 // ReachedLoadsPass methods implementations
 
 template<>
-const IndexesVector &
-ReachedLoadsPass::getDefinedConditions(BasicBlock *BB) {
+const IndexesVector &ReachedLoadsPass::getDefinedConditions(BasicBlock *BB) {
   return ConditionNumberingPass::NoDefinedConditions;
 }
 
@@ -124,23 +121,17 @@ void ReachedLoadsPass::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 template class ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
-                                           RDP::ReachingDefinitions>;
+                                           RDR::ReachingDefinitions>;
 template class ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
-                                           RDP::ReachedLoads>;
+                                           RDR::ReachedLoads>;
 
-static RegisterPass<ConditionalReachingDefinitionsPass> Y1("crdp",
-                                                           "Conditional"
-                                                           " Reaching"
-                                                           " Definitions Pass",
-                                                           true,
-                                                           true);
+using RegisterCRDP = RegisterPass<ConditionalReachingDefinitionsPass>;
+const char *CRDPDescription = "Conditional Reaching Definitions Pass";
+static RegisterCRDP Y1("crdp", CRDPDescription, true, true);
 
-static RegisterPass<ConditionalReachedLoadsPass> Y2("crlp",
-                                                    "Conditional"
-                                                    " Reaching"
-                                                    " Definitions Pass",
-                                                    true,
-                                                    true);
+using RegisterCRLP = RegisterPass<ConditionalReachedLoadsPass>;
+const char *CRLPDescription = "Conditional Reaching Definitions Pass";
+static RegisterCRLP Y2("crlp", CRLPDescription, true, true);
 
 // ConditionalReachingDefinitionsPass methods implementations
 
@@ -161,17 +152,17 @@ ConditionalReachingDefinitionsPass::getConditionIndex(TerminatorInst *T) {
   return getAnalysis<ConditionNumberingPass>().getConditionIndex(T);
 }
 
+using CRDP = ConditionalReachingDefinitionsPass;
+
 template<>
-void
-ConditionalReachingDefinitionsPass::getAnalysisUsage(AnalysisUsage &AU) const {
+void CRDP::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<ConditionNumberingPass>();
   AU.addRequired<FunctionCallIdentification>();
 }
 
 template<>
-int32_t
-ConditionalReachedLoadsPass::getConditionIndex(TerminatorInst *T) {
+int32_t ConditionalReachedLoadsPass::getConditionIndex(TerminatorInst *T) {
   auto *Branch = dyn_cast<BranchInst>(T);
   if (Branch == nullptr || !Branch->isConditional())
     return 0;
@@ -188,8 +179,7 @@ ConditionalReachedLoadsPass::getDefinedConditions(BasicBlock *BB) {
 }
 
 template<>
-void
-ConditionalReachedLoadsPass::getAnalysisUsage(AnalysisUsage &AU) const {
+void ConditionalReachedLoadsPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<ConditionNumberingPass>();
   AU.addRequired<FunctionCallIdentification>();
@@ -217,15 +207,15 @@ static bool isSupportedOperator(unsigned Opcode) {
 
 class ConditionHash {
 public:
-  ConditionHash(ReachingDefinitionsPass &RDP) : RDP(RDP) { }
+  ConditionHash(ReachingDefinitionsPass &RDP) : RDP(RDP) {}
 
-  size_t operator()(BranchInst * const& V) const;
+  size_t operator()(BranchInst *const &V) const;
 
 private:
   ReachingDefinitionsPass &RDP;
 };
 
-size_t ConditionHash::operator()(BranchInst * const& B) const {
+size_t ConditionHash::operator()(BranchInst *const &B) const {
   Value *V = B->getCondition();
   size_t Hash = 0;
   queue<Value *> WorkList;
@@ -262,7 +252,6 @@ size_t ConditionHash::operator()(BranchInst * const& B) const {
     } else {
       Hash = combine(Hash, V);
     }
-
   }
 
   return Hash;
@@ -270,20 +259,20 @@ size_t ConditionHash::operator()(BranchInst * const& B) const {
 
 class ConditionEqualTo {
 public:
-  ConditionEqualTo(ReachingDefinitionsPass &RDP) : RDP(RDP) { }
+  ConditionEqualTo(ReachingDefinitionsPass &RDP) : RDP(RDP) {}
 
-  bool operator()(BranchInst * const& A, BranchInst * const& B) const;
+  bool operator()(BranchInst *const &A, BranchInst *const &B) const;
 
 private:
   ReachingDefinitionsPass &RDP;
 };
 
-bool ConditionEqualTo::operator()(BranchInst * const& BA,
-                                  BranchInst * const& BB) const {
+using BranchRef = BranchInst *const &;
+bool ConditionEqualTo::operator()(BranchRef BA, BranchRef BB) const {
   Value *A = BA->getCondition();
   Value *B = BB->getCondition();
   queue<pair<Value *, Value *>> WorkList;
-  WorkList.push({A, B});
+  WorkList.push({ A, B });
   while (!WorkList.empty()) {
     Value *AV, *BV;
     tie(AV, BV) = WorkList.front();
@@ -316,8 +305,7 @@ bool ConditionEqualTo::operator()(BranchInst * const& BA,
     } else if (auto *AI = dyn_cast<Instruction>(AV)) {
       // Instruction
       auto *BI = dyn_cast<Instruction>(BV);
-      if (BI == nullptr
-          || AI->getOpcode() != BI->getOpcode()
+      if (BI == nullptr || AI->getOpcode() != BI->getOpcode()
           || AI->getNumOperands() != BI->getNumOperands()
           || !isSupportedOperator(AI->getOpcode()))
         return false;
@@ -327,13 +315,12 @@ bool ConditionEqualTo::operator()(BranchInst * const& BA,
     } else {
       return false;
     }
-
   }
   return true;
 }
 
 static SmallSet<BasicBlock *, 2>
-resettingBasicBlocks(ReachingDefinitionsPass &RDP, BranchInst * const& Branch) {
+resettingBasicBlocks(ReachingDefinitionsPass &RDP, BranchInst *const &Branch) {
   SmallSet<BasicBlock *, 2> Result;
   Value *A = Branch->getCondition();
   queue<Value *> WorkList;
@@ -359,14 +346,13 @@ resettingBasicBlocks(ReachingDefinitionsPass &RDP, BranchInst * const& Branch) {
     } else if (auto *AI = dyn_cast<Instruction>(AV)) {
       // Instruction
       if (!isSupportedOperator(AI->getOpcode()))
-        return { };
+        return {};
 
       for (unsigned I = 0; I < AI->getNumOperands(); I++)
         WorkList.push(AI->getOperand(I));
     } else if (!isa<Constant>(AV)) {
-      return { };
+      return {};
     }
-
   }
 
   return Result;
@@ -374,10 +360,8 @@ resettingBasicBlocks(ReachingDefinitionsPass &RDP, BranchInst * const& Branch) {
 
 char ConditionNumberingPass::ID = 0;
 const IndexesVector ConditionNumberingPass::NoDefinedConditions;
-static RegisterPass<ConditionNumberingPass> Z("cnp",
-                                              "Condition Numbering Pass",
-                                              true,
-                                              true);
+using RegisterCNP = RegisterPass<ConditionNumberingPass>;
+static RegisterCNP Z("cnp", "Condition Numbering Pass", true, true);
 
 template<typename C, typename T>
 static bool pushIfAbsent(C &Container, T Element) {
@@ -398,13 +382,15 @@ static bool pushIfAbsent(C &Container, T Element) {
 class FakeSwitch {
 public:
   FakeSwitch(BasicBlock *Target, unsigned NumCases) :
-    Target(Target), SavedTerminator(nullptr), Switch(nullptr),
-    Ty(IntegerType::get(getContext(Target), 32)), NumCases(NumCases) {
+    Target(Target),
+    SavedTerminator(nullptr),
+    Switch(nullptr),
+    Ty(IntegerType::get(getContext(Target), 32)),
+    NumCases(NumCases) {
 
     SavedTerminator = Target->getTerminator();
     if (SavedTerminator != nullptr)
       this->NumCases += SavedTerminator->getNumSuccessors();
-
   }
 
   void add(BasicBlock *New) {
@@ -427,7 +413,6 @@ public:
           add(Successor);
         }
       }
-
     }
 
     // Add the requested basic block
@@ -447,7 +432,6 @@ public:
       Target->getInstList().push_back(SavedTerminator);
       assert(Target->getTerminator() == SavedTerminator);
     }
-
   }
 
 private:
@@ -464,12 +448,11 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
 
   LLVMContext &C = F.getParent()->getContext();
   auto &RDP = getAnalysis<ReachingDefinitionsPass>();
-  unordered_map<BranchInst *,
-                SmallVector<BranchInst *, 1>,
-                ConditionHash,
-                ConditionEqualTo> Conditions(10,
-                                             ConditionHash(RDP),
-                                             ConditionEqualTo(RDP));
+  using cnp_hashmap = unordered_map<BranchInst *,
+                                    SmallVector<BranchInst *, 1>,
+                                    ConditionHash,
+                                    ConditionEqualTo>;
+  cnp_hashmap Conditions(10, ConditionHash(RDP), ConditionEqualTo(RDP));
 
   // Group conditions together
   for (BasicBlock &BB : F)
@@ -513,32 +496,29 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
           pushIfAbsent(DefinedConditions[Definer], ConditionIndex);
 
           // Register that ConditionIndex is defined by Defined
-          DBG("cnp", {
-              pushIfAbsent(ResettingBasicBlocks[ConditionIndex], Definer);
-            });
+          DBG("cnp",
+              { pushIfAbsent(ResettingBasicBlocks[ConditionIndex], Definer); });
         }
 
         // Add an edge from the common predecessor to this basic block
         Switch.add(B->getParent());
       }
 
-      DBG("cnp",
-          {
-            dbg << std::dec << ConditionIndex << ":";
-            for (BranchInst *B : P.second)
-              dbg << " " << getName(B);
+      DBG("cnp", {
+        dbg << std::dec << ConditionIndex << ":";
+        for (BranchInst *B : P.second)
+          dbg << " " << getName(B);
 
-            auto It = P.second.begin();
-            if (It != P.second.end()) {
-              dbg << " (defined by:";
-              for (BasicBlock *Definer : resettingBasicBlocks(RDP, *It)) {
-                dbg << " " << getName(Definer);
-              }
-              dbg << ")";
-            }
-            dbg << "\n";
-          });
-
+        auto It = P.second.begin();
+        if (It != P.second.end()) {
+          dbg << " (defined by:";
+          for (BasicBlock *Definer : resettingBasicBlocks(RDP, *It)) {
+            dbg << " " << getName(Definer);
+          }
+          dbg << ")";
+        }
+        dbg << "\n";
+      });
     }
   }
 
@@ -558,15 +538,15 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
     BasicBlock *CommonPredecessor = CommonPredecessors[I];
 
     DBG("cnp", {
-        dbg << "Condition index " << (I + 1) << " (";
-        for (BasicBlock *Successor : successors(CommonPredecessor))
-          dbg << getName(Successor) << " ";
-        dbg << ")";
+      dbg << "Condition index " << (I + 1) << " (";
+      for (BasicBlock *Successor : successors(CommonPredecessor))
+        dbg << getName(Successor) << " ";
+      dbg << ")";
 
-        dbg << ", defined by";
-        for (BasicBlock *Defined : ResettingBasicBlocks[I + 1])
-          dbg << " " << getName(Defined);
-      });
+      dbg << ", defined by";
+      for (BasicBlock *Defined : ResettingBasicBlocks[I + 1])
+        dbg << " " << getName(Defined);
+    });
 
     // Get the immediate post-dominator of the common predecessor
     auto *PDTNode = PDT.getNode(CommonPredecessor);
@@ -586,9 +566,9 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
         pushIfAbsent(DefinedConditions[Successor], I + 1);
 
       DBG("cnp", {
-          dbg << ", post-dominated by "
-              << getName(ImmediatePostDominator) << "\n";
-        });
+        dbg << ", post-dominated by " << getName(ImmediatePostDominator)
+            << "\n";
+      });
 
     } else {
       DBG("cnp", dbg << ", no post dominator\n");
@@ -620,16 +600,17 @@ void BasicBlockInfo::dump(std::ostream &Output) {
 void BasicBlockInfo::newDefinition(StoreInst *Store, TypeSizeProvider &TSP) {
   // Remove all the aliased reaching definitions
   MemoryAccess TargetMA(Store, TSP);
-  removeDefinitions([&TargetMA] (MemoryInstruction &MI) {
-      return TargetMA.mayAlias(MI.MA);
-    });
+  auto Match = [&TargetMA](MemoryInstruction &MI) {
+    return TargetMA.mayAlias(MI.MA);
+  };
+  removeDefinitions(Match);
 
   // Add this definition
   Definitions.push_back(MemoryInstruction(Store, TSP));
 }
 
-LoadDefinitionType BasicBlockInfo::newDefinition(LoadInst *Load,
-                                                 TypeSizeProvider &TSP) {
+LoadDefinitionType
+BasicBlockInfo::newDefinition(LoadInst *Load, TypeSizeProvider &TSP) {
   LoadDefinitionType Result = NoReachingDefinitions;
 
   // Check if it's a self-referencing load
@@ -638,9 +619,9 @@ LoadDefinitionType BasicBlockInfo::newDefinition(LoadInst *Load,
     auto *Definition = MI.I;
     if (Definition == Load) {
       // It's self-referencing, suppress all the matching loads
-      removeDefinitions([&TargetMA] (MemoryInstruction &MI) {
-          return isa<LoadInst>(MI.I) && TargetMA == MI.MA;
-        });
+      removeDefinitions([&TargetMA](MemoryInstruction &MI) {
+        return isa<LoadInst>(MI.I) && TargetMA == MI.MA;
+      });
       Result = SelfReaching;
       break;
     } else if (TargetMA == MI.MA) {
@@ -688,7 +669,7 @@ BasicBlockInfo::getReachingDefinitions(set<LoadInst *> &WhiteList,
   return Result;
 }
 
-void ConditionalBasicBlockInfo::dump(std::ostream& Output) {
+void ConditionalBasicBlockInfo::dump(std::ostream &Output) {
   set<Instruction *> Printed;
   for (auto &P : Reaching) {
     Instruction *I = P.first.I;
@@ -703,10 +684,10 @@ void ConditionalBasicBlockInfo::newDefinition(StoreInst *Store,
                                               TypeSizeProvider &TSP) {
   // Remove all the aliased reaching definitions
   MemoryAccess TargetMA(Store, TSP);
-  removeDefinitions([&TargetMA] (CondDefPair &P) {
-      // TODO: don't erase if conditions are complementary
-      return TargetMA.mayAlias(P.second.MA);
-    });
+  removeDefinitions([&TargetMA](CondDefPair &P) {
+    // TODO: don't erase if conditions are complementary
+    return TargetMA.mayAlias(P.second.MA);
+  });
 
   // Perform the merge
   // Note that the new definition absorbes all the conditions holding in the
@@ -727,11 +708,11 @@ ConditionalBasicBlockInfo::newDefinition(LoadInst *Load,
     auto *Definition = P.second.I;
     if (Definition == Load) {
       // It's self-referencing, suppress all the matching loads
-      removeDefinitions([&TargetMA] (CondDefPair &P) {
-          // TODO: can we embed if it's a load or a store in
-          //       MemoryInstruction?
-          return isa<LoadInst>(P.second.I) && P.second.MA == TargetMA;
-        });
+      removeDefinitions([&TargetMA](CondDefPair &P) {
+        // TODO: can we embed if it's a load or a store in
+        //       MemoryInstruction?
+        return isa<LoadInst>(P.second.I) && P.second.MA == TargetMA;
+      });
       Result = SelfReaching;
       break;
     } else if (TargetMA == P.second.MA) {
@@ -784,11 +765,10 @@ bool ConditionalBasicBlockInfo::setIndexIfSeen(BitVector &Target,
   return false;
 }
 
-bool
-ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
-                                       TypeSizeProvider &TSP,
-                                       const IndexesVector &DefinedIndexes,
-                                       int32_t NewConditionIndex) {
+bool ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
+                                            TypeSizeProvider &TSP,
+                                            const IndexesVector &DefinedIndexes,
+                                            int32_t NewConditionIndex) {
   bool Changed = false;
 
   // Get (and insert, if necessary) the bit associated to the new
@@ -802,8 +782,7 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
   }
 
   // Condition propagation
-  for (int SetBitIndex = Conditions.find_first();
-       SetBitIndex != -1;
+  for (int SetBitIndex = Conditions.find_first(); SetBitIndex != -1;
        SetBitIndex = Conditions.find_next(SetBitIndex)) {
     int32_t ToPropagate = SeenConditions[SetBitIndex];
 
@@ -815,20 +794,17 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
     //
     auto It = std::find_if(DefinedIndexes.begin(),
                            DefinedIndexes.end(),
-                           [ToPropagate] (int32_t Defined) {
+                           [ToPropagate](int32_t Defined) {
                              return Defined == ToPropagate
-                             || Defined == -ToPropagate;
+                                    || Defined == -ToPropagate;
                            });
 
-    if (ToPropagate != NewConditionIndex
-        && ToPropagate != -NewConditionIndex
-        && It == DefinedIndexes.end()
-        && !Target.hasCondition(ToPropagate)) {
+    if (ToPropagate != NewConditionIndex && ToPropagate != -NewConditionIndex
+        && It == DefinedIndexes.end() && !Target.hasCondition(ToPropagate)) {
       Target.addCondition(ToPropagate);
       DBG("rdp-propagation", dbg << "  " << ToPropagate);
       Changed = true;
     }
-
   }
   DBG("rdp-propagation", dbg << "\n");
 
@@ -838,8 +814,7 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
   DBG("rdp-propagation", dbg << "  Banned conditions:");
 
   // For each set bit in the target's conditions
-  for (int SetBitIndex = Target.Conditions.find_first();
-       SetBitIndex != -1;
+  for (int SetBitIndex = Target.Conditions.find_first(); SetBitIndex != -1;
        SetBitIndex = Target.Conditions.find_next(SetBitIndex)) {
 
     // Consider the opposite condition as banned
@@ -847,14 +822,13 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
     DBG("rdp-propagation", dbg << " " << BannedIndex);
 
     // Check BannedIndex is not explicitly allowed
-    auto BannedIt = std::find(Target.SeenConditions.begin(),
-                              Target.SeenConditions.end(),
-                              BannedIndex);
-    bool IsAllowed = BannedIt != Target.SeenConditions.end()
-      && Target.Conditions[BannedIt - Target.SeenConditions.begin()];
+    auto It = std::find(Target.SeenConditions.begin(),
+                        Target.SeenConditions.end(),
+                        BannedIndex);
+    bool IsAllowed = It != Target.SeenConditions.end()
+                     && Target.Conditions[It - Target.SeenConditions.begin()];
     if (!IsAllowed)
       setIndexIfSeen(Banned, BannedIndex);
-
   }
 
   DBG("rdp-propagation", dbg << "\n");
@@ -872,25 +846,24 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
   for (auto &Definition : Definitions) {
     BitVector DefinitionConditions = Definition.first;
     DBG("rdp-propagation", {
-        dbg << "  Propagate " << getName(Definition.second.I);
+      dbg << "  Propagate " << getName(Definition.second.I);
 
-        if (auto *Load = dyn_cast<LoadInst>(Definition.second.I))
-          dbg << " about " << Load->getPointerOperand()->getName().str();
-        else if (auto *Store = dyn_cast<StoreInst>(Definition.second.I))
-          dbg << " about " << Store->getPointerOperand()->getName().str();
+      if (auto *Load = dyn_cast<LoadInst>(Definition.second.I))
+        dbg << " about " << Load->getPointerOperand()->getName().str();
+      else if (auto *Store = dyn_cast<StoreInst>(Definition.second.I))
+        dbg << " about " << Store->getPointerOperand()->getName().str();
 
-        if (DefinitionConditions.any()) {
-          dbg << " (conditions:";
-          for (int I = DefinitionConditions.find_first();
-               I != -1;
-               I = DefinitionConditions.find_next(I)) {
-            dbg << " " << SeenConditions[I];
-          }
-          dbg << ")";
+      if (DefinitionConditions.any()) {
+        dbg << " (conditions:";
+        for (int I = DefinitionConditions.find_first(); I != -1;
+             I = DefinitionConditions.find_next(I)) {
+          dbg << " " << SeenConditions[I];
         }
+        dbg << ")";
+      }
 
-        dbg << "? ";
-      });
+      dbg << "? ";
+    });
 
     // Reset all the conditions that are defined in the target basic block
     DefinitionConditions &= NotDefined;
@@ -908,8 +881,7 @@ ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
     // Translate the conditions bitvector to the context of the target BBI
     BitVector Translated(Target.SeenConditions.size());
 
-    for (int I = DefinitionConditions.find_first();
-         I != -1;
+    for (int I = DefinitionConditions.find_first(); I != -1;
          I = DefinitionConditions.find_next(I)) {
       // Make sure the target BBI knows about all the necessary conditions
       assert(I < static_cast<int>(SeenConditions.size()));
@@ -955,7 +927,6 @@ bool ConditionalBasicBlockInfo::mergeDefinition(CondDefPair NewDefinition,
       } else {
         return false;
       }
-
     }
   }
 
@@ -985,11 +956,11 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
   auto &FCI = getAnalysis<FunctionCallIdentification>();
 
   DBG("passes", {
-      if (std::is_same<BBI, ConditionalBasicBlockInfo>::value)
-        dbg << "Starting ConditionalReachingDefinitionsPass\n";
-      else
-        dbg << "Starting ReachingDefinitionsPass\n";
-    });
+    if (std::is_same<BBI, ConditionalBasicBlockInfo>::value)
+      dbg << "Starting ConditionalReachingDefinitionsPass\n";
+    else
+      dbg << "Starting ReachingDefinitionsPass\n";
+  });
 
   for (auto &BB : F) {
     if (!BB.empty()) {
@@ -1048,7 +1019,6 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
           NRDLoads.erase(Load);
           break;
         }
-
       }
     }
 
@@ -1067,41 +1037,37 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
         if (BasicBlockBlackList.count(Successor) != 0)
           continue;
 
-        const IndexesVector &DefinedConditions =
-          getDefinedConditions(Successor);
+        const IndexesVector &Conditions = getDefinedConditions(Successor);
 
         BBI &SuccessorInfo = DefinitionsMap[Successor];
 
         DBG("rdp-propagation", {
-            dbg << "Propagating from " << getName(BB)
-                << " to " << getName(Successor);
+          dbg << "Propagating from " << getName(BB) << " to "
+              << getName(Successor);
 
-            if (DefinedConditions.size() > 0) {
-              dbg << " (resetting conditions: ";
-              for (int32_t ConditionIndex : DefinedConditions)
-                dbg << " " << ConditionIndex;
-              dbg << ")";
-            }
+          if (Conditions.size() > 0) {
+            dbg << " (resetting conditions: ";
+            for (int32_t ConditionIndex : Conditions)
+              dbg << " " << ConditionIndex;
+            dbg << ")";
+          }
 
-            if (ConditionIndex != 0)
-              dbg << ", using a " << ConditionIndex << " branch"
-                  << " (" << getName(BB->getTerminator()) << ")";
+          if (ConditionIndex != 0)
+            dbg << ", using a " << ConditionIndex << " branch"
+                << " (" << getName(BB->getTerminator()) << ")";
 
-            dbg << "\n";
-          });
+          dbg << "\n";
+        });
 
         // Enqueue the successor only if the propagation actually did something
         unsigned Old = SuccessorInfo.size();
-        if (Info.propagateTo(SuccessorInfo,
-                             TSP,
-                             DefinedConditions,
-                             ConditionIndex))
+        if (Info.propagateTo(SuccessorInfo, TSP, Conditions, ConditionIndex))
           ToVisit.insert(Successor);
 
         DBG("rdp-propagation",
-            dbg << getName(Successor) << std::dec
-            << " got " << (SuccessorInfo.size() - Old) << " new reachers "
-            << "from " << getName(BB) << " (had " << Old << ")\n");
+            dbg << getName(Successor) << std::dec << " got "
+                << (SuccessorInfo.size() - Old) << " new reachers "
+                << "from " << getName(BB) << " (had " << Old << ")\n");
 
         // Add the condition relative to the current branch instruction (if any)
         if (ConditionIndex != 0) {
@@ -1110,7 +1076,6 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
           if (ConditionIndex > 0)
             ConditionIndex = -ConditionIndex;
         }
-
       }
 
       // We no longer need to keep track of the definitions
@@ -1140,9 +1105,8 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
         if (!TargetMA.isValid())
           continue;
 
-        erase_if(Definitions, [&TargetMA] (IMP &P) {
-            return TargetMA.mayAlias(P.second);
-          });
+        erase_if(Definitions,
+                 [&TargetMA](IMP &P) { return TargetMA.mayAlias(P.second); });
         Definitions.push_back({ Store, TargetMA });
 
       } else if (Load != nullptr) {
@@ -1155,10 +1119,10 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
         if (FreeLoads.count(Load) != 0) {
 
           // If it's a free load, remove all the matching loads
-          erase_if(Definitions, [&TargetMA, &TSP] (IMP &P) {
-              Instruction *I = P.first;
-              return isa<LoadInst>(I) && MemoryAccess(I, TSP) == TargetMA;
-            });
+          erase_if(Definitions, [&TargetMA, &TSP](IMP &P) {
+            Instruction *I = P.first;
+            return isa<LoadInst>(I) && MemoryAccess(I, TSP) == TargetMA;
+          });
           Definitions.push_back({ Load, TargetMA });
 
         } else {
@@ -1179,38 +1143,34 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
 
           // Save them in ReachingDefinitions
           std::sort(LoadDefinitions.begin(), LoadDefinitions.end());
-          DBG("rdp",
-              {
-                dbg << getName(Load) << " is reached by:";
-                for (auto *Definition : LoadDefinitions)
-                  dbg << " " << getName(Definition);
-                dbg << "\n";
-              });
+          DBG("rdp", {
+            dbg << getName(Load) << " is reached by:";
+            for (auto *Definition : LoadDefinitions)
+              dbg << " " << getName(Definition);
+            dbg << "\n";
+          });
           ReachingDefinitions[Load] = std::move(LoadDefinitions);
-
         }
-
       }
-
     }
   }
 
-  DBG("rdp",
-      {
-        dbg << "Basic blocks: " << std::dec << BasicBlockCount << "\n"
-            << "Visited: " << std::dec << BasicBlockVisits << "\n"
-            << "Average visits per basic block: " << std::setprecision(2)
-            << float(BasicBlockVisits) / BasicBlockCount << "\n";
-      });
+  DBG("rdp", {
+    dbg << "Basic blocks: " << std::dec << BasicBlockCount << "\n"
+        << "Visited: " << std::dec << BasicBlockVisits << "\n"
+        << "Average visits per basic block: " << std::setprecision(2)
+        << float(BasicBlockVisits) / BasicBlockCount << "\n";
+  });
 
   if (R == ReachingDefinitionsResult::ReachedLoads) {
-    DBG("rdp",
-        for (auto P : ReachedLoads) {
-          dbg << getName(P.first) << " reaches";
-          for (auto *Load : P.second)
-            dbg << " " << getName(Load);
-          dbg << "\n";
-        });
+    DBG("rdp", {
+      for (auto P : ReachedLoads) {
+        dbg << getName(P.first) << " reaches";
+        for (auto *Load : P.second)
+          dbg << " " << getName(Load);
+        dbg << "\n";
+      }
+    });
   }
 
   // Clear all the temporary data that is not part of the analysis result
@@ -1221,11 +1181,11 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
   freeContainer(SelfReachingLoads);
 
   DBG("passes", {
-      if (std::is_same<BBI, ConditionalBasicBlockInfo>::value)
-        dbg << "Ending ConditionalReachingDefinitionsPass\n";
-      else
-        dbg << "Ending ReachingDefinitionsPass\n";
-    });
+    if (std::is_same<BBI, ConditionalBasicBlockInfo>::value)
+      dbg << "Ending ConditionalReachingDefinitionsPass\n";
+    else
+      dbg << "Ending ReachingDefinitionsPass\n";
+  });
 
   return false;
 }

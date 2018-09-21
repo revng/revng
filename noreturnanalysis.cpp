@@ -36,10 +36,8 @@ void NoReturnAnalysis::registerSyscalls(llvm::Function *F) {
   if (NoDCE == nullptr) {
     Type *VoidTy = Type::getVoidTy(M->getContext());
     Type *SNRTy = SyscallNumberRegister->getType()->getPointerElementType();
-    NoDCE = cast<Function>(M->getOrInsertFunction("nodce",
-                                                  VoidTy,
-                                                  SNRTy,
-                                                  nullptr));
+    auto *FunctionC = M->getOrInsertFunction("nodce", VoidTy, SNRTy, nullptr);
+    NoDCE = cast<Function>(FunctionC);
   }
 
   for (User *U : SyscallHandler->users()) {
@@ -57,10 +55,8 @@ void NoReturnAnalysis::registerSyscalls(llvm::Function *F) {
         SyscallRegisterReads.push_back(DeadLoad);
         RegisteredSyscalls.insert(Call);
       }
-
     }
   }
-
 }
 
 bool NoReturnAnalysis::endsUpIn(Instruction *I, BasicBlock *Target) {
@@ -106,7 +102,7 @@ void NoReturnAnalysis::collectDefinitions(ConditionalReachedLoadsPass &CRL) {
     for (Instruction *I : CRL.getReachingDefinitions(Load))
       if (auto *Store = dyn_cast<StoreInst>(I))
         if (endsUpIn(Store, Load->getParent()))
-            SyscallRegisterDefinitions.insert(Store);
+          SyscallRegisterDefinitions.insert(Store);
 }
 
 bool NoReturnAnalysis::setsSyscallNumber(llvm::StoreInst *Store) {
@@ -223,11 +219,9 @@ void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors) {
             registerKiller(CallerBB, KillReason::LeadsToKiller);
             WorkList.insert(CallerBB);
           }
-
         }
       }
     }
-
   }
 
   // Restore the backup
@@ -247,8 +241,7 @@ void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors) {
   Sink->eraseFromParent();
 
   DBG("nra", {
-      for (BasicBlock *KillerBB : KillerBBs)
-        dbg << getName(KillerBB) << " is killer BB\n";
-    });
-
+    for (BasicBlock *KillerBB : KillerBBs)
+      dbg << getName(KillerBB) << " is killer BB\n";
+  });
 }

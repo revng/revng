@@ -8,9 +8,9 @@
 
 // Standard includes
 #include <cstdint>
-#include <stack>
-#include <sstream>
 #include <set>
+#include <sstream>
+#include <stack>
 #include <string>
 
 // LLVM includes
@@ -26,10 +26,10 @@
 // Local includes
 #include "debug.h"
 #include "ir-helpers.h"
-#include "variablemanager.h"
-#include "revamb.h"
 #include "ptcdump.h"
 #include "ptcinterface.h"
+#include "revamb.h"
+#include "variablemanager.h"
 
 using namespace llvm;
 
@@ -77,77 +77,72 @@ getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
   unsigned Depth = 0;
   while (1) {
     switch (VarType->getTypeID()) {
-      case llvm::Type::TypeID::PointerTyID:
-        // BEWARE: here we return { nullptr, 0 } as an intended workaround for
-        // a specific situation.
-        //
-        // We can't use assertions on pointers, as we do for all the other
-        // unhandled types, because they will be inevitably triggered during the
-        // execution. Indeed, all the other types are not present in QEMU
-        // CPUState and we can safely assert it. This is not true for pointers
-        // that are used in different places in QEMU CPUState.
-        //
-        // Given that we have ruled out assertions, we need to handle the
-        // pointer case so that it keeps working. This function is expected to
-        // return { nullptr, 0 } when the offset points to a memory location
-        // associated to padding space. In principle, pointers are not padding
-        // space, but the result of returning { nullptr, 0 } here is that load
-        // and store operations treat pointers like padding. This means that
-        // pointers cannot be read or written, and memcpy simply skips over them
-        // leaving them alone.
-        //
-        // This behavior is intended, because a pointer into the CPUState could
-        // be used to modify CPU registers indirectly, which is against all the
-        // assumption of the analysis necessary for the translation, and also
-        // against what really happens in a CPU, where CPU state cannot be
-        // addressed.
-        return { nullptr, 0 };
+    case llvm::Type::TypeID::PointerTyID:
+      // BEWARE: here we return { nullptr, 0 } as an intended workaround for
+      // a specific situation.
+      //
+      // We can't use assertions on pointers, as we do for all the other
+      // unhandled types, because they will be inevitably triggered during the
+      // execution. Indeed, all the other types are not present in QEMU
+      // CPUState and we can safely assert it. This is not true for pointers
+      // that are used in different places in QEMU CPUState.
+      //
+      // Given that we have ruled out assertions, we need to handle the
+      // pointer case so that it keeps working. This function is expected to
+      // return { nullptr, 0 } when the offset points to a memory location
+      // associated to padding space. In principle, pointers are not padding
+      // space, but the result of returning { nullptr, 0 } here is that load
+      // and store operations treat pointers like padding. This means that
+      // pointers cannot be read or written, and memcpy simply skips over them
+      // leaving them alone.
+      //
+      // This behavior is intended, because a pointer into the CPUState could
+      // be used to modify CPU registers indirectly, which is against all the
+      // assumption of the analysis necessary for the translation, and also
+      // against what really happens in a CPU, where CPU state cannot be
+      // addressed.
+      return { nullptr, 0 };
 
-      case llvm::Type::TypeID::IntegerTyID:
-        return { cast<IntegerType>(VarType), Offset };
+    case llvm::Type::TypeID::IntegerTyID:
+      return { cast<IntegerType>(VarType), Offset };
 
-      case llvm::Type::TypeID::ArrayTyID:
-        VarType = VarType->getArrayElementType();
-        Offset %= TheLayout->getTypeAllocSize(VarType);
-        DBG("type-at-offset", dbg << std::string(Depth++ * 2, ' ')
-            << " Is an Array. Offset in Element: " << Offset << '\n');
-        break;
+    case llvm::Type::TypeID::ArrayTyID:
+      VarType = VarType->getArrayElementType();
+      Offset %= TheLayout->getTypeAllocSize(VarType);
+      DBG("type-at-offset",
+          dbg << std::string(Depth++ * 2, ' ')
+              << " Is an Array. Offset in Element: " << Offset << '\n');
+      break;
 
-      case llvm::Type::TypeID::StructTyID:
-        {
-          StructType *TheStruct = cast<StructType>(VarType);
-          const StructLayout *Layout = TheLayout->getStructLayout(TheStruct);
-          unsigned FieldIndex = Layout->getElementContainingOffset(Offset);
-          uint64_t FieldOffset = Layout->getElementOffset(FieldIndex);
-          VarType = TheStruct->getTypeAtIndex(FieldIndex);
-          intptr_t FieldEnd = FieldOffset
-                              + TheLayout->getTypeAllocSize(VarType);
+    case llvm::Type::TypeID::StructTyID: {
+      StructType *TheStruct = cast<StructType>(VarType);
+      const StructLayout *Layout = TheLayout->getStructLayout(TheStruct);
+      unsigned FieldIndex = Layout->getElementContainingOffset(Offset);
+      uint64_t FieldOffset = Layout->getElementOffset(FieldIndex);
+      VarType = TheStruct->getTypeAtIndex(FieldIndex);
+      intptr_t FieldEnd = FieldOffset + TheLayout->getTypeAllocSize(VarType);
 
-          DBG("type-at-offset", dbg
-              << std::string(Depth++ * 2, ' ')
-              << " Offset: " << Offset
+      DBG("type-at-offset",
+          dbg << std::string(Depth++ * 2, ' ') << " Offset: " << Offset
               << " Struct Name: " << TheStruct->getName().str()
-              << " Field Index: " << FieldIndex
-              << " Field offset: " << FieldOffset
-              << " Field end: " << FieldEnd
-              << "\n");
+              << " Field Index: " << FieldIndex << " Field offset: "
+              << FieldOffset << " Field end: " << FieldEnd << "\n");
 
-          if (Offset >= FieldEnd)
-            return { nullptr, 0 }; // It's padding
+      if (Offset >= FieldEnd)
+        return { nullptr, 0 }; // It's padding
 
-          Offset -= FieldOffset;
-        }
-        break;
+      Offset -= FieldOffset;
+    } break;
 
-      default:
-        assert(false and "unexpected TypeID");
+    default:
+      assert(false and "unexpected TypeID");
     }
   }
 }
 
-VariableManager::VariableManager(Module& TheModule,
-                                 Module& HelpersModule,
-                                 Architecture& TargetArchitecture) :
+VariableManager::VariableManager(Module &TheModule,
+                                 Module &HelpersModule,
+                                 Architecture &TargetArchitecture) :
   TheModule(TheModule),
   Builder(TheModule.getContext()),
   CPUStateType(nullptr),
@@ -158,28 +153,26 @@ VariableManager::VariableManager(Module& TheModule,
   NoAliasMDKindID(TheModule.getMDKindID("noalias")),
   TargetArchitecture(TargetArchitecture) {
 
-  auto *CPUStateAliasDomain = MDNode::getDistinct(TheModule.getContext(),
+  LLVMContext &Context = TheModule.getContext();
+  auto *CPUStateAliasDomain = MDNode::getDistinct(Context,
                                                   ArrayRef<Metadata *>());
 
-  auto *Temporary = MDNode::get(TheModule.getContext(), ArrayRef<Metadata *>());
-  auto *CPUStateScope = MDNode::getDistinct(TheModule.getContext(),
-                                            ArrayRef<Metadata *>({
-                                                Temporary,
-                                                CPUStateAliasDomain
-                                            }));
+  auto *Temporary = MDNode::get(Context, ArrayRef<Metadata *>());
+  ArrayRef<Metadata *> Arguments({ Temporary, CPUStateAliasDomain });
+  auto *CPUStateScope = MDNode::getDistinct(Context, Arguments);
   CPUStateScope->replaceOperandWith(0, CPUStateScope);
 
-  CPUStateScopeSet = MDNode::get(TheModule.getContext(),
+  CPUStateScopeSet = MDNode::get(Context,
                                  ArrayRef<Metadata *>({ CPUStateScope }));
 
   assert(ptc.initialized_env != nullptr);
 
   using ElectionMap = std::map<StructType *, unsigned>;
-  using ElectionMapElement = std::pair<StructType * const, unsigned>;
+  using ElectionMapElement = std::pair<StructType *const, unsigned>;
   ElectionMap EnvElection;
   const std::string HelperPrefix = "helper_";
   std::set<StructType *> Structs;
-  for (Function& HelperFunction : HelpersModule) {
+  for (Function &HelperFunction : HelpersModule) {
     FunctionType *HelperType = HelperFunction.getFunctionType();
     Type *ReturnType = HelperType->getReturnType();
     if (ReturnType->isPointerTy())
@@ -215,12 +208,11 @@ VariableManager::VariableManager(Module& TheModule,
 
   assert(EnvElection.size() > 0);
 
-  CPUStateType = std::max_element(EnvElection.begin(),
-                                  EnvElection.end(),
-                                  [] (ElectionMapElement& It1,
-                                      ElectionMapElement& It2) {
-                                    return It1.second < It2.second;
-                                  })->first;
+  auto Compare = [](ElectionMapElement &It1, ElectionMapElement &It2) {
+    return It1.second < It2.second;
+  };
+  auto Max = std::max_element(EnvElection.begin(), EnvElection.end(), Compare);
+  CPUStateType = Max->first;
 
   // Look for structures containing CPUStateType as a member and promove them
   // to CPUStateType. Basically this is a flexible way to keep track of the *CPU
@@ -275,9 +267,8 @@ bool VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
   ShiftAmount *= 8;
 
   // Build blanking mask
-  uint64_t BitMask = (StoreSize == 8 ?
-                      (uint64_t) -1
-                      : ((uint64_t) 1 << StoreSize * 8) - 1);
+  uint64_t BitMask = (StoreSize == 8 ? (uint64_t) -1 :
+                                       ((uint64_t) 1 << StoreSize * 8) - 1);
   assert(ShiftAmount != 64);
   BitMask <<= ShiftAmount;
   BitMask = ~BitMask;
@@ -374,7 +365,6 @@ Value *VariableManager::loadFromCPUStateOffset(IRBuilder<> &Builder,
   return Builder.CreateTrunc(Result, LoadTy);
 }
 
-
 bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
                                         llvm::CallInst *CallMemcpy,
                                         unsigned InitialEnvOffset,
@@ -398,10 +388,13 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
 
     // Consider the case when there's simply nothing there (alignment space).
     if (EnvVar == nullptr) {
-      if (false and EnvIsSrc) { // TODO: remove "false and", but after adding type based stuff
+      // TODO: remove "false and", but after adding type based stuff
+      if (false && EnvIsSrc) {
         ConstantInt *ZeroByte = Builder.getInt8(0);
-        Value *NewAddress = Builder.CreateAdd(Builder.getInt64(Offset), OtherBasePtr);
-        Value *OtherPtr = Builder.CreateIntToPtr(NewAddress, Builder.getInt8Ty()->getPointerTo());
+        ConstantInt *OffsetInt = Builder.getInt64(Offset);
+        Value *NewAddress = Builder.CreateAdd(OffsetInt, OtherBasePtr);
+        Type *Int8PtrTy = Builder.getInt8Ty()->getPointerTo();
+        Value *OtherPtr = Builder.CreateIntToPtr(NewAddress, Int8PtrTy);
         Builder.CreateStore(ZeroByte, OtherPtr);
         OnlyPointersAndPadding = false;
       }
@@ -410,7 +403,8 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
     }
     OnlyPointersAndPadding = false;
 
-    Value *NewAddress = Builder.CreateAdd(Builder.getInt64(Offset), OtherBasePtr);
+    ConstantInt *OffsetInt = Builder.getInt64(Offset);
+    Value *NewAddress = Builder.CreateAdd(OffsetInt, OtherBasePtr);
     Value *OtherPtr = Builder.CreateIntToPtr(NewAddress, EnvVar->getType());
 
     Value *Dst = EnvIsSrc ? OtherPtr : EnvVar;
@@ -485,8 +479,8 @@ static ConstantInt *fromBytes(IntegerType *Type, void *Data) {
 }
 
 // TODO: document that it can return nullptr
-GlobalVariable* VariableManager::getByCPUStateOffset(intptr_t Offset,
-                                                     std::string Name) {
+GlobalVariable *
+VariableManager::getByCPUStateOffset(intptr_t Offset, std::string Name) {
   GlobalVariable *Result = nullptr;
   unsigned Remaining;
   std::tie(Result, Remaining) = getByCPUStateOffsetInternal(Offset, Name);
@@ -494,18 +488,18 @@ GlobalVariable* VariableManager::getByCPUStateOffset(intptr_t Offset,
   return Result;
 }
 
-std::pair<GlobalVariable*, unsigned>
+std::pair<GlobalVariable *, unsigned>
 VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
                                              std::string Name) {
   GlobalsMap::iterator it = CPUStateGlobals.find(Offset);
-  static const char * UnknownCSVPref = "state_0x";
-  if (it == CPUStateGlobals.end() ||
-      (Name.size() != 0 && it->second->getName().startswith(UnknownCSVPref))) {
+  static const char *UnknownCSVPref = "state_0x";
+  if (it == CPUStateGlobals.end()
+      || (Name.size() != 0
+          && it->second->getName().startswith(UnknownCSVPref))) {
     Type *VariableType;
     unsigned Remaining;
-    std::tie(VariableType, Remaining) = getTypeAtOffset(ModuleLayout,
-                                                        CPUStateType,
-                                                        Offset);
+    std::tie(VariableType,
+             Remaining) = getTypeAtOffset(ModuleLayout, CPUStateType, Offset);
 
     // Unsupported type, let the caller handle the situation
     if (VariableType == nullptr)
@@ -553,8 +547,8 @@ Value *VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
   assert(Instructions != nullptr);
 
   PTCTemp *Temporary = ptc_temp_get(Instructions, TemporaryId);
-  Type *VariableType = Temporary->type == PTC_TYPE_I32 ?
-    Builder.getInt32Ty() : Builder.getInt64Ty();
+  Type *VariableType = Temporary->type == PTC_TYPE_I32 ? Builder.getInt32Ty() :
+                                                         Builder.getInt64Ty();
 
   if (ptc_temp_is_global(Instructions, TemporaryId)) {
     // Basically we use fixed_reg to detect "env"
@@ -639,10 +633,10 @@ Value *VariableManager::computeEnvAddress(Type *TargetType,
   Type *EnvType = Env->getType()->getPointerElementType();
   Value *Integer = LoadEnv;
   if (Offset != 0)
-    Integer =  BinaryOperator::Create(Instruction::Add,
-                                      LoadEnv,
-                                      ConstantInt::get(EnvType, Offset),
-                                      "",
-                                      InsertBefore);
+    Integer = BinaryOperator::Create(Instruction::Add,
+                                     LoadEnv,
+                                     ConstantInt::get(EnvType, Offset),
+                                     "",
+                                     InsertBefore);
   return new IntToPtrInst(Integer, TargetType, "", InsertBefore);
 }

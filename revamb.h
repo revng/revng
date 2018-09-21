@@ -34,21 +34,20 @@ public:
   static const unsigned NotInMContext = std::numeric_limits<unsigned>::max();
 
 public:
-  ABIRegister(llvm::StringRef Name,
-              unsigned MContextIndex) :
+  ABIRegister(llvm::StringRef Name, unsigned MContextIndex) :
     Name(Name),
     QemuName(Name),
-    MContextIndex(MContextIndex) { }
+    MContextIndex(MContextIndex) {}
 
   ABIRegister(llvm::StringRef Name) :
     Name(Name),
     QemuName(Name),
-    MContextIndex(NotInMContext) { }
+    MContextIndex(NotInMContext) {}
 
   ABIRegister(llvm::StringRef Name, llvm::StringRef QemuName) :
     Name(Name),
     QemuName(QemuName),
-    MContextIndex(NotInMContext) { }
+    MContextIndex(NotInMContext) {}
 
   llvm::StringRef name() const { return Name; }
 
@@ -211,11 +210,7 @@ inline Values fromName(llvm::StringRef Name) {
 /// \brief Basic information about an input/output architecture
 class Architecture {
 public:
-
-  enum EndianessType {
-    LittleEndian,
-    BigEndian
-  };
+  enum EndianessType { LittleEndian, BigEndian };
 
 public:
   Architecture() :
@@ -223,17 +218,17 @@ public:
     DefaultAlignment(1),
     Endianess(LittleEndian),
     PointerSize(64),
-    DelaySlotSize(0) { }
+    DelaySlotSize(0) {}
 
   Architecture(unsigned Type,
-               unsigned InstructionAlignment,
-               unsigned DefaultAlignment,
+               uint32_t InstructionAlignment,
+               uint32_t DefaultAlignment,
                bool IsLittleEndian,
                unsigned PointerSize,
                llvm::StringRef SyscallHelper,
                llvm::StringRef SyscallNumberRegister,
                llvm::ArrayRef<uint64_t> NoReturnSyscalls,
-               unsigned DelaySlotSize,
+               uint32_t DelaySlotSize,
                llvm::StringRef StackPointerRegister,
                llvm::SmallVector<ABIRegister, 20> ABIRegisters,
                unsigned PCMContextIndex,
@@ -258,10 +253,10 @@ public:
     ReadRegisterAsm(ReadRegisterAsm),
     JumpAsm(JumpAsm),
     HasRelocationAddend(HasRelocationAddend),
-    BaseRelativeRelocation(BaseRelativeRelocation) { }
+    BaseRelativeRelocation(BaseRelativeRelocation) {}
 
-  unsigned instructionAlignment() const { return InstructionAlignment; }
-  unsigned defaultAlignment() const { return DefaultAlignment; }
+  uint32_t instructionAlignment() const { return InstructionAlignment; }
+  uint32_t defaultAlignment() const { return DefaultAlignment; }
   EndianessType endianess() const { return Endianess; }
   unsigned pointerSize() const { return PointerSize; }
   bool isLittleEndian() const { return Endianess == LittleEndian; }
@@ -269,11 +264,9 @@ public:
   llvm::StringRef syscallNumberRegister() const {
     return SyscallNumberRegister;
   }
-  llvm::StringRef stackPointerRegister() const {
-    return StackPointerRegister;
-  }
+  llvm::StringRef stackPointerRegister() const { return StackPointerRegister; }
   llvm::ArrayRef<uint64_t> noReturnSyscalls() const { return NoReturnSyscalls; }
-  unsigned delaySlotSize() const { return DelaySlotSize; }
+  uint32_t delaySlotSize() const { return DelaySlotSize; }
   llvm::SmallVector<ABIRegister, 20> abiRegisters() const {
     return ABIRegisters;
   }
@@ -295,15 +288,15 @@ public:
 private:
   llvm::Triple::ArchType Type;
 
-  unsigned InstructionAlignment;
-  unsigned DefaultAlignment;
+  uint32_t InstructionAlignment;
+  uint32_t DefaultAlignment;
   EndianessType Endianess;
   unsigned PointerSize;
 
   llvm::StringRef SyscallHelper;
   llvm::StringRef SyscallNumberRegister;
   llvm::ArrayRef<uint64_t> NoReturnSyscalls;
-  unsigned DelaySlotSize;
+  uint32_t DelaySlotSize;
   llvm::StringRef StackPointerRegister;
   llvm::SmallVector<ABIRegister, 20> ABIRegisters;
   unsigned PCMContextIndex;
@@ -315,13 +308,13 @@ private:
 };
 
 // TODO: move me somewhere more appropriate
-static inline bool startsWith(std::string String, std::string Prefix) {
+inline bool startsWith(std::string String, std::string Prefix) {
   return String.substr(0, Prefix.size()) == Prefix;
 }
 
 /// \brief Simple helper function asserting a pointer is not a `nullptr`
 template<typename T>
-static inline T *notNull(T *Pointer) {
+inline T *notNull(T *Pointer) {
   assert(Pointer != nullptr);
   return Pointer;
 }
@@ -334,7 +327,7 @@ static const std::array<llvm::StringRef, 3> MarkerFunctionNames = {
 ///
 /// A marker a function call to an empty function acting as meta-information,
 /// for example the `function_call` marker.
-static inline bool isMarker(llvm::Instruction *I) {
+inline bool isMarker(llvm::Instruction *I) {
   using namespace std::placeholders;
   using llvm::any_of;
   using std::bind;
@@ -342,7 +335,7 @@ static inline bool isMarker(llvm::Instruction *I) {
   return any_of(MarkerFunctionNames, bind(isCallTo, I, _1));
 }
 
-static inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
+inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
   auto It = I->getIterator();
   auto End = I->getParent()->end();
   do {

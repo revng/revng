@@ -22,7 +22,7 @@ class Module;
 class DICompileUnit;
 class DISubprogram;
 class Function;
-}
+} // namespace llvm
 
 /// \brief AssemblyAnnotationWriter decorating the output withe debug
 ///        information
@@ -45,8 +45,7 @@ public:
   /// \param Scope the scope, typically a `DISubprogram`.
   /// \param DebugInfo whether to decorate the IR being serialized with debug
   ///        metadata refering to the produce IR itself or not.
-  DebugAnnotationWriter(llvm::LLVMContext& Context,
-                        bool DebugInfo);
+  DebugAnnotationWriter(llvm::LLVMContext &Context, bool DebugInfo);
 
   virtual void emitInstructionAnnot(const llvm::Instruction *TheInstruction,
                                     llvm::formatted_raw_ostream &Output);
@@ -82,7 +81,7 @@ public:
   void generateDebugInfo();
 
   /// Serializes to the given stream the module, with or without debug info
-  void print(std::ostream& Output, bool DebugInfo);
+  void print(std::ostream &Output, bool DebugInfo);
 
   /// Copy the debug file to the output path, if they are the same
   bool copySource();

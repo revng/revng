@@ -109,10 +109,9 @@ private:
 /// program termination.
 class RunningStatistics : public OnQuitInteraface {
 public:
+  RunningStatistics() : RunningStatistics(llvm::Twine(), false) {}
 
-  RunningStatistics() : RunningStatistics(llvm::Twine(), false) { }
-
-  RunningStatistics(const llvm::Twine &Name) : RunningStatistics(Name, true) { }
+  RunningStatistics(const llvm::Twine &Name) : RunningStatistics(Name, true) {}
 
   /// \arg Name the name to use when printing the statistics.
   /// \arg Register whether this object should be registered for being printed
@@ -125,7 +124,7 @@ public:
       init();
   }
 
-  virtual ~RunningStatistics() { }
+  virtual ~RunningStatistics() {}
 
   void clear() { N = 0; }
 
@@ -150,25 +149,17 @@ public:
   /// \return the total number of recorded values.
   int size() const { return N; }
 
-  double mean() const {
-    return (N > 0) ? NewM : 0.0;
-  }
+  double mean() const { return (N > 0) ? NewM : 0.0; }
 
-  double variance() const {
-    return ((N > 1) ? NewS / (N - 1) : 0.0);
-  }
+  double variance() const { return ((N > 1) ? NewS / (N - 1) : 0.0); }
 
-  double standardDeviation() const {
-    return sqrt(variance());
-  }
+  double standardDeviation() const { return sqrt(variance()); }
 
   template<typename T>
   void dump(T &Output) {
     if (not Name.empty())
       Output << Name << ": ";
-    Output << "{ n: " << size()
-           << " u: " << mean()
-           << " o: " << variance()
+    Output << "{ n: " << size() << " u: " << mean() << " o: " << variance()
            << " }";
   }
 
@@ -187,8 +178,7 @@ private:
 
 // TODO: this is duplicated
 template<typename T, typename... Args>
-inline std::array<T, sizeof...(Args)>
-make_array(Args&&... args) {
+inline std::array<T, sizeof...(Args)> make_array(Args &&... args) {
   return { { std::forward<Args>(args)... } };
 }
 

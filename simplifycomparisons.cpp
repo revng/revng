@@ -27,10 +27,8 @@
 using namespace llvm;
 
 char SimplifyComparisonsPass::ID = 0;
-static RegisterPass<SimplifyComparisonsPass> X("scp",
-                                               "Simplify Comparisons Pass",
-                                               true,
-                                               true);
+using RegisterSCP = RegisterPass<SimplifyComparisonsPass>;
+static RegisterSCP X("scp", "Simplify Comparisons Pass", true, true);
 
 using std::array;
 using std::pair;
@@ -42,7 +40,7 @@ using std::vector;
 using Predicate = CmpInst::Predicate;
 
 // TODO: expand this
-static const array<tuple<unsigned, unsigned, Predicate>, 1> KnownTruthTables {
+static const array<tuple<unsigned, unsigned, Predicate>, 1> KnownTruthTables{
   { std::make_tuple(0b010110010U, 8U, CmpInst::ICMP_SGE) }
 };
 
@@ -58,8 +56,8 @@ public:
 /// It has to be associated to the index of the variable
 class VariableTerm : public Term {
 public:
-  VariableTerm(unsigned Index) : VariableIndex(Index) { }
-  VariableTerm() : VariableIndex(0) { }
+  VariableTerm(unsigned Index) : VariableIndex(Index) {}
+  VariableTerm() : VariableIndex(0) {}
 
   virtual bool evaluate(unsigned Assignments) const override;
 
@@ -72,8 +70,8 @@ class BinaryTerm;
 /// \brief Simple data structure associating a Term to a BinaryTerm operand
 class TermUse {
 public:
-  TermUse(BinaryTerm *Op, unsigned OpIndex) : T(Op), OpIndex(OpIndex) { }
-  TermUse() : T(nullptr), OpIndex(0) { }
+  TermUse(BinaryTerm *Op, unsigned OpIndex) : T(Op), OpIndex(OpIndex) {}
+  TermUse() : T(nullptr), OpIndex(0) {}
 
   void set(Term *Operand);
 
@@ -85,16 +83,13 @@ private:
 /// \brief Term representing a binary operation
 class BinaryTerm : public Term {
 public:
-  BinaryTerm() : Opcode(0), Operands({{ nullptr, nullptr }}) {
-  }
+  BinaryTerm() : Opcode(0), Operands({ { nullptr, nullptr } }) {}
 
-  BinaryTerm(unsigned Opcode) : Opcode(Opcode),
-                                Operands({{ nullptr, nullptr }}) {
-  }
+  BinaryTerm(unsigned Opcode) :
+    Opcode(Opcode),
+    Operands({ { nullptr, nullptr } }) {}
 
-  void setOperand(unsigned Index, Term *T) {
-    Operands[Index] = T;
-  }
+  void setOperand(unsigned Index, Term *T) { Operands[Index] = T; }
 
   TermUse getOperandUse(unsigned OperandIndex) {
     assert(OperandIndex < 2);
@@ -211,13 +206,9 @@ static const auto NoEquivalentPredicate = CmpInst::FCMP_FALSE;
 static Predicate getEquivalentPredicate(SimplifyComparisonsPass *SCP,
                                         CmpInst *Cmp,
                                         BinaryOperator *Subtraction) {
-  array<Value *, 3> Variables = {
-    {
-      SCP->findOldest(Subtraction->getOperand(0)),
-      SCP->findOldest(Subtraction->getOperand(1)),
-      Subtraction
-    }
-  };
+  array<Value *, 3> Variables = { { SCP->findOldest(Subtraction->getOperand(0)),
+                                    SCP->findOldest(Subtraction->getOperand(1)),
+                                    Subtraction } };
   const unsigned OpsCount = std::tuple_size<decltype(Variables)>::value;
   array<VariableTerm, OpsCount> VariableTerms;
   for (unsigned I = 0; I < OpsCount; I++)
@@ -269,9 +260,10 @@ static Predicate getEquivalentPredicate(SimplifyComparisonsPass *SCP,
     if (Start.getOperand(0)->evaluate(Assignment))
       TruthTable |= 1 << Assignment;
 
-  DBG("sc", dbg << "Found truth table "
-      << "0b" << std::bitset<8 * sizeof(unsigned)>(TruthTable)
-      << " at " << Cmp->getParent()->getName().data() << "\n");
+  DBG("sc",
+      dbg << "Found truth table "
+          << "0b" << std::bitset<8 * sizeof(unsigned)>(TruthTable) << " at "
+          << Cmp->getParent()->getName().data() << "\n");
 
   // Compare with known truth tables
   for (auto &P : KnownTruthTables)

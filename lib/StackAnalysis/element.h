@@ -59,7 +59,7 @@ public:
 
   bool hasTag() const { return not TheTag.isInvalid(); }
 
-  bool isEmpty() const { return not (hasDirectContent() || hasTag()); }
+  bool isEmpty() const { return not(hasDirectContent() || hasTag()); }
 
   bool operator==(const Value &Other) const {
     return DirectContent == Other.DirectContent && TheTag == Other.TheTag;

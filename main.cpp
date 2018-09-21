@@ -9,9 +9,9 @@
 // Standard includes
 #include <cstdio>
 #include <cstdlib>
-#include <memory>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <type_traits>
@@ -132,21 +132,20 @@ static void findFiles(const char *Architecture) {
         EarlyLinkedFound = true;
       }
     }
-
   }
 
   assert(LibtinycodeFound && "Couldn't find libtinycode and the helpers");
   assert(EarlyLinkedFound && "Couldn't find early-linked.ll");
 }
 
-/// Given an architecture name, loads the appropriate version of the PTC library,
-/// and initializes the PTC interface.
+/// Given an architecture name, loads the appropriate version of the PTC
+/// library, and initializes the PTC interface.
 ///
 /// \param Architecture the name of the architecture, e.g. "arm".
 /// \param PTCLibrary a reference to the library handler.
 ///
 /// \return EXIT_SUCCESS if the library has been successfully loaded.
-static int loadPTCLibrary(LibraryPointer& PTCLibrary) {
+static int loadPTCLibrary(LibraryPointer &PTCLibrary) {
   ptc_load_ptr_t ptc_load = nullptr;
   void *LibraryHandle = nullptr;
 
@@ -186,8 +185,8 @@ static int loadPTCLibrary(LibraryPointer& PTCLibrary) {
 /// \param Parameters where to store the parsed parameters.
 ///
 /// \return EXIT_SUCCESS if the parameters have been successfully parsed.
-static int parseArgs(int Argc, const char *Argv[],
-                     ProgramParameters *Parameters) {
+static int
+parseArgs(int Argc, const char *Argv[], ProgramParameters *Parameters) {
   const char *DebugString = nullptr;
   const char *DebugLoggingString = nullptr;
   const char *EntryPointAddressString = nullptr;
@@ -200,54 +199,67 @@ static int parseArgs(int Argc, const char *Argv[],
   struct argparse_option Options[] = {
     OPT_HELP(),
     OPT_GROUP("Input description"),
-    OPT_STRING('e', "entry",
+    OPT_STRING('e',
+               "entry",
                &EntryPointAddressString,
                "virtual address of the entry point where to start."),
-    OPT_STRING('s', "debug-path",
+    OPT_STRING('s',
+               "debug-path",
                &Parameters->DebugPath,
                "destination path for the generated debug source."),
-    OPT_STRING('c', "coverage-path",
+    OPT_STRING('c',
+               "coverage-path",
                &Parameters->CoveragePath,
                "destination path for the CSV containing translated ranges."),
-    OPT_STRING('i', "linking-info",
+    OPT_STRING('i',
+               "linking-info",
                &Parameters->LinkingInfoPath,
                "destination path for the CSV containing linking info."),
-    OPT_STRING('g', "debug-info",
+    OPT_STRING('g',
+               "debug-info",
                &DebugString,
                "emit debug information. Possible values are 'none' for no debug"
                " information, 'asm' for debug information referring to the"
                " assembly of the input file, 'ptc' for debug information"
                " referred to the Portable Tiny Code, or 'll' for debug"
                " information referred to the LLVM IR."),
-    OPT_STRING('d', "debug",
-               &DebugLoggingString,
-               "enable verbose logging."),
-    OPT_BOOLEAN('O', "no-osra", &Parameters->NoOSRA,
-                "disable OSRA."),
-    OPT_BOOLEAN('L', "no-link", &Parameters->NoLink,
+    OPT_STRING('d', "debug", &DebugLoggingString, "enable verbose logging."),
+    OPT_BOOLEAN('O', "no-osra", &Parameters->NoOSRA, "disable OSRA."),
+    OPT_BOOLEAN('L',
+                "no-link",
+                &Parameters->NoLink,
                 "do not link the output to QEMU helpers."),
-    OPT_BOOLEAN('E', "external", &Parameters->External,
+    OPT_BOOLEAN('E',
+                "external",
+                &Parameters->External,
                 "set CSVs linkage to external, useful for debugging purposes."),
-    OPT_BOOLEAN('S', "use-debug-symbols", &Parameters->UseDebugSymbols,
+    OPT_BOOLEAN('S',
+                "use-debug-symbols",
+                &Parameters->UseDebugSymbols,
                 "use section and symbol function informations, if available."),
-    OPT_STRING('b', "bb-summary",
+    OPT_STRING('b',
+               "bb-summary",
                &Parameters->BBSummaryPath,
                "destination path for the CSV containing the statistics about "
                "the translated basic blocks."),
-    OPT_BOOLEAN('f', "functions-boundaries",
+    OPT_BOOLEAN('f',
+                "functions-boundaries",
                 &Parameters->DetectFunctionsBoundaries,
                 "enable functions boundaries detection."),
-    OPT_BOOLEAN('T', "stats",
+    OPT_BOOLEAN('T',
+                "stats",
                 &Parameters->PrintStats,
                 "print statistics upon exit or SIGINT."),
-    OPT_STRING('B', "base",
+    OPT_STRING('B',
+               "base",
                &BaseAddressString,
                "base address where dynamic objects should be loaded."),
     OPT_END(),
   };
 
   argparse_init(&Arguments, Options, Usage, 0);
-  argparse_describe(&Arguments, "\nrevamb.",
+  argparse_describe(&Arguments,
+                    "\nrevamb.",
                     "\nTranslates a binary into a program for a different "
                     "architecture.\n");
   Argc = argparse_parse(&Arguments, Argc, Argv);
@@ -264,7 +276,8 @@ static int parseArgs(int Argc, const char *Argv[],
   // Check parameters
   if (EntryPointAddressString != nullptr) {
     if (not toNumber(EntryPointAddressString, &EntryPointAddress)) {
-      fprintf(stderr, "Entry point parameter (-e, --entry) is not a"
+      fprintf(stderr,
+              "Entry point parameter (-e, --entry) is not a"
               " number.\n");
       return EXIT_FAILURE;
     }
@@ -289,7 +302,8 @@ static int parseArgs(int Argc, const char *Argv[],
     } else if (strcmp("ll", DebugString) == 0) {
       Parameters->DebugInfo = DebugInfoType::LLVMIR;
     } else {
-      fprintf(stderr, "Unexpected value for the debug type parameter"
+      fprintf(stderr,
+              "Unexpected value for the debug type parameter"
               " (-g, --debug).\n");
       return EXIT_FAILURE;
     }
@@ -324,7 +338,7 @@ static int parseArgs(int Argc, const char *Argv[],
 
 int main(int argc, const char *argv[]) {
   // Parse arguments
-  ProgramParameters Parameters {};
+  ProgramParameters Parameters{};
   if (parseArgs(argc, argv, &Parameters) != EXIT_SUCCESS)
     return EXIT_FAILURE;
 

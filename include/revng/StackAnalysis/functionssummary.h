@@ -426,17 +426,22 @@ public:
 
     llvm::Instruction *Call;
     llvm::BasicBlock *Callee;
-    std::map<const llvm::GlobalVariable *,
-             FunctionCallRegisterDescription> RegisterSlots;
+
+    using GlobalVariable = llvm::GlobalVariable;
+
+    template<typename K, typename V>
+    using map = std::map<K, V>;
+
+    map<const GlobalVariable *, FunctionCallRegisterDescription> RegisterSlots;
   };
 
   struct FunctionDescription {
-    FunctionDescription() : Type(FunctionType::Invalid) { }
+    FunctionDescription() : Type(FunctionType::Invalid) {}
 
     FunctionType::Values Type;
     std::map<llvm::BasicBlock *, BranchType::Values> BasicBlocks;
-    std::map<const llvm::GlobalVariable *,
-             FunctionRegisterDescription> RegisterSlots;
+    std::map<const llvm::GlobalVariable *, FunctionRegisterDescription>
+      RegisterSlots;
     std::vector<CallSiteDescription> CallSites;
     std::set<const llvm::GlobalVariable *> ClobberedRegisters;
   };
@@ -500,7 +505,6 @@ public:
 
 private:
   void dumpInternal(const llvm::Module *M, StreamWrapperBase &&Stream) const;
-
 };
 
 } // namespace StackAnalysis

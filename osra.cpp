@@ -10,28 +10,28 @@
 #include <cstdint>
 #include <vector>
 
+// Boost includes
+#include <boost/icl/interval_set.hpp>
+
 // LLVM includes
 #include "llvm/ADT/Optional.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/Dominators.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Pass.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/raw_os_ostream.h"
-#include "llvm/Pass.h"
-
-// Boost includes
-#include <boost/icl/interval_set.hpp>
 
 // Local includes
 #include "datastructures.h"
 #include "debug.h"
-#include "memoryaccess.h"
-#include "revamb.h"
 #include "ir-helpers.h"
+#include "memoryaccess.h"
 #include "osra.h"
+#include "revamb.h"
 
 using namespace llvm;
 
@@ -42,9 +42,9 @@ using OSR = OSRAPass::OSR;
 using BoundedValue = OSRAPass::BoundedValue;
 using CE = ConstantExpr;
 using CI = ConstantInt;
-using std::pair;
 using std::make_pair;
 using std::numeric_limits;
+using std::pair;
 
 const BoundedValue::MergeType AndMerge = BoundedValue::And;
 const BoundedValue::MergeType OrMerge = BoundedValue::Or;
@@ -52,8 +52,8 @@ const BoundedValue::MergeType OrMerge = BoundedValue::Or;
 using BVVector = SmallVector<BoundedValue, 2>;
 
 /// Helper function to check if two BV vectors are identical
-static bool differ(SmallVector<BoundedValue, 2> &Old,
-                   SmallVector<BoundedValue, 2> &New) {
+static bool
+differ(SmallVector<BoundedValue, 2> &Old, SmallVector<BoundedValue, 2> &New) {
   if (Old.size() != New.size())
     return true;
 
@@ -80,15 +80,13 @@ static bool isSupportedOperation(unsigned Opcode,
                                  unsigned FreeOpIndex,
                                  const DataLayout &DL) {
   // Division by zero
-  if ((Opcode == Instruction::SDiv
-       || Opcode == Instruction::UDiv)
+  if ((Opcode == Instruction::SDiv || Opcode == Instruction::UDiv)
       && getZExtValue(ConstantOp, DL) == 0)
     return false;
 
   // Shift too much
   auto *OperandTy = dyn_cast<IntegerType>(ConstantOp->getType());
-  if ((Opcode == Instruction::Shl
-       || Opcode == Instruction::LShr
+  if ((Opcode == Instruction::Shl || Opcode == Instruction::LShr
        || Opcode == Instruction::AShr)
       && getZExtValue(ConstantOp, DL) >= OperandTy->getBitWidth())
     return false;
@@ -98,8 +96,7 @@ static bool isSupportedOperation(unsigned Opcode,
   if (ConstantOpTy != nullptr && ConstantOpTy->getBitWidth() > 64)
     return false;
 
-  if (!Instruction::isCommutative(Opcode)
-      && FreeOpIndex != 0
+  if (!Instruction::isCommutative(Opcode) && FreeOpIndex != 0
       && Opcode != Instruction::Sub)
     return false;
 
@@ -141,7 +138,7 @@ private:
   };
 
 public:
-  BVMap() : BlockBlackList(nullptr), DL(nullptr), Int64(nullptr) { }
+  BVMap() : BlockBlackList(nullptr), DL(nullptr), Int64(nullptr) {}
 
   void initialize(std::set<BasicBlock *> *BlackList,
                   const DataLayout *DL,
@@ -167,9 +164,8 @@ public:
     return BVOs.Summary;
   }
 
-  BoundedValue *getEdge(BasicBlock *BB,
-                        BasicBlock *Predecessor,
-                        const Value *V) {
+  BoundedValue *
+  getEdge(BasicBlock *BB, BasicBlock *Predecessor, const Value *V) {
     auto MapIt = TheMap.find({ BB, V });
     if (MapIt != TheMap.end())
       for (auto &Component : MapIt->second.Components)
@@ -197,23 +193,22 @@ public:
   ///
   /// \return a pair containing a boolean to indicate whether there was any
   ///         change and a reference to the updated BV
-  std::pair<bool, BoundedValue &> update(BasicBlock *Target,
-                                         BasicBlock *Origin,
-                                         BoundedValue NewBV);
+  std::pair<bool, BoundedValue &>
+  update(BasicBlock *Target, BasicBlock *Origin, BoundedValue NewBV);
 
   void prepareDescribe() const {
     BBMap.clear();
     for (auto Pair : TheMap) {
       auto *BB = Pair.first.first;
       if (BBMap.find(BB) == BBMap.end())
-        BBMap[BB] = std::vector<MapValue> { Pair.second };
+        BBMap[BB] = std::vector<MapValue>{ Pair.second };
       else
         BBMap[BB].push_back(Pair.second);
     }
   }
 
   BoundedValue &forceBV(Instruction *V, BoundedValue BV) {
-    MapIndex I { V->getParent(), V };
+    MapIndex I{ V->getParent(), V };
     MapValue NewValue;
     NewValue.Summary = BV;
     TheMap[I] = NewValue;
@@ -221,7 +216,7 @@ public:
   }
 
   BoundedValue &forceBV(BasicBlock *BB, Value *V, BoundedValue BV) {
-    MapIndex I { BB, V };
+    MapIndex I{ BB, V };
     MapValue NewValue;
     NewValue.Summary = BV;
     TheMap[I] = NewValue;
@@ -234,15 +229,14 @@ public:
   }
 
 private:
-  BoundedValue &summarize(BasicBlock *Target,
-                          MapValue *BVOVectorLoopInfoWrapperPass);
+  BoundedValue &
+  summarize(BasicBlock *Target, MapValue *BVOVectorLoopInfoWrapperPass);
 
   bool isForced(std::map<MapIndex, MapValue>::iterator &It) const {
     const MapIndex &Index = It->first;
 
     if (auto *I = dyn_cast<Instruction>(Index.second)) {
-      return I->getParent() == Index.first
-        && It->second.Components.size() == 0;
+      return I->getParent() == Index.first && It->second.Components.size() == 0;
     } else {
       return false;
     }
@@ -275,7 +269,7 @@ public:
     Int64(IntegerType::get(getContext(&F), 64)),
     OSRs(OSRs),
     BVs(BVs),
-    PDT(true) { }
+    PDT(true) {}
 
   void run();
   void dump();
@@ -283,9 +277,7 @@ public:
   bool inBlackList(BasicBlock *BB) { return BlockBlackList.count(BB) > 0; }
   void enqueueUsers(Instruction *I);
 
-  void propagateConstraints(Instruction *I,
-                            Value *Operand,
-                            UpdateFunc Updater);
+  void propagateConstraints(Instruction *I, Value *Operand, UpdateFunc Updater);
 
   // Functions handling the various class of instructions in the DFA
   void handleArithmeticOperator(Instruction *I);
@@ -308,10 +300,8 @@ public:
   ///         BaseOp with the specified comparison
   BoundedValue mergePredicate(OSR &BaseOp, Predicate P, Constant *ConstOp);
 
-  Optional<BoundedValue> applyConstraint(Instruction *I,
-                                         OSR &BaseOp,
-                                         Predicate P,
-                                         Constant *ConstOp);
+  Optional<BoundedValue>
+  applyConstraint(Instruction *I, OSR &BaseOp, Predicate P, Constant *ConstOp);
 
   std::pair<Constant *, Value *>
   identifyOperands(const Instruction *I, const DataLayout &DL) {
@@ -329,8 +319,8 @@ public:
   /// to go through to obtain these results, and on which the comparison
   /// therefore depends.
   struct ComparisonOperand {
-    ComparisonOperand() { }
-    ComparisonOperand(uint64_t V) : Constants({ { V, nullptr } }) { }
+    ComparisonOperand() {}
+    ComparisonOperand(uint64_t V) : Constants({ { V, nullptr } }) {}
 
     SmallVector<std::pair<uint64_t, const Value *>, 1> Constants;
     SmallVector<OSR, 4> OSRs;
@@ -523,14 +513,12 @@ void OSRA::handleArithmeticOperator(Instruction *I) {
   // TODO: skip this if isDead(I)
   // Update signedness information if the given operation is sign-aware
   unsigned Opcode = I->getOpcode();
-  if (Opcode == Instruction::SDiv
-      || Opcode == Instruction::UDiv
-      || Opcode == Instruction::LShr
-      || Opcode == Instruction::AShr) {
+  if (Opcode == Instruction::SDiv || Opcode == Instruction::UDiv
+      || Opcode == Instruction::LShr || Opcode == Instruction::AShr) {
     BVs.setSignedness(I->getParent(),
                       NewOSR.boundedValue()->value(),
                       Opcode == Instruction::SDiv
-                      || Opcode == Instruction::AShr);
+                        || Opcode == Instruction::AShr);
   }
 
   // Check for undefined behaviors
@@ -600,10 +588,8 @@ BoundedValue OSRA::mergePredicate(OSR &BaseOp, Predicate P, Constant *ConstOp) {
   // x <= 1.5 == x <= 1 (Floor)
   // x >  1.5 == x >  1 (Floor)
   // x >= 1.5 == x >= 2 (Ceiling)
-  bool RoundUp = (P == CmpInst::ICMP_UGE
-                  || P == CmpInst::ICMP_SGE
-                  || P == CmpInst::ICMP_ULT
-                  || P == CmpInst::ICMP_SLT);
+  bool RoundUp = (P == CmpInst::ICMP_UGE || P == CmpInst::ICMP_SGE
+                  || P == CmpInst::ICMP_ULT || P == CmpInst::ICMP_SLT);
 
   Constant *NewBoundC = BaseOp.solveEquation(ConstOp, RoundUp, DL);
   if (isa<UndefValue>(NewBoundC))
@@ -612,8 +598,7 @@ BoundedValue OSRA::mergePredicate(OSR &BaseOp, Predicate P, Constant *ConstOp) {
   uint64_t NewBound = getExtValue(NewBoundC, IsSigned, DL);
 
   // TODO: this is an hack
-  if (NewBound == 0
-      && (P == CmpInst::ICMP_ULT || P == CmpInst::ICMP_UGE))
+  if (NewBound == 0 && (P == CmpInst::ICMP_ULT || P == CmpInst::ICMP_UGE))
     return BoundedValue(V);
 
   BoundedValue Constraint;
@@ -748,10 +733,8 @@ OSRA::identifyComparisonOperands(Value *V, BasicBlock *BB) const {
 
     if (TheOSR.isConstant()) {
       // It's constant: register it as such
-      std::pair<uint64_t, const Value *> C {
-        TheOSR.constant(),
-        TheOSR.boundedValue()->value()
-      };
+      std::pair<uint64_t, const Value *> C{ TheOSR.constant(),
+                                            TheOSR.boundedValue()->value() };
       Result.Constants.push_back(C);
     } else {
       // A normal OSR
@@ -793,17 +776,13 @@ OSRA::identifyComparisonOperands(Value *V, BasicBlock *BB) const {
       for (auto &Reacher : Reachers) {
         const BoundedValue *ReacherBV = Reacher.second.boundedValue();
         // Ignore constants and self-reaching loads
-        if (!Reacher.second.isConstant()
-            && ReacherBV != nullptr
-            && ReacherBV->value() != nullptr
-            && ReacherBV->value() != Load) {
+        if (!Reacher.second.isConstant() && ReacherBV != nullptr
+            && ReacherBV->value() != nullptr && ReacherBV->value() != Load) {
           // Note: here we don't handle constant OSR in a special way here
           Result.OSRs.push_back(Reacher.second);
         }
       }
-
     }
-
   }
 
   return Result;
@@ -842,17 +821,17 @@ void OSRA::handleComparison(Instruction *I) {
       // necessary).
       Value *FreeOp = LHSIsZero ? SC.RHS : SC.LHS;
       if (P == CmpInst::ICMP_EQ) {
-        propagateConstraints(I, FreeOp, [] (BVVector &Constraints) {
-            BVVector Result = Constraints;
-            // TODO: This is wrong! !(a & b) == !a || !b, not !a && !b
-            for (auto &Constraint : Result)
-              Constraint.flip();
-            return Result;
-          });
+        propagateConstraints(I, FreeOp, [](BVVector &Constraints) {
+          BVVector Result = Constraints;
+          // TODO: This is wrong! !(a & b) == !a || !b, not !a && !b
+          for (auto &Constraint : Result)
+            Constraint.flip();
+          return Result;
+        });
       } else {
-        propagateConstraints(I, FreeOp, [] (BVVector &Constraints) {
-            return Constraints;
-          });
+        propagateConstraints(I, FreeOp, [](BVVector &Constraints) {
+          return Constraints;
+        });
       }
 
       // Do not proceed
@@ -931,7 +910,6 @@ void OSRA::handleComparison(Instruction *I) {
         if (RHSPair.second != nullptr)
           NewConstraints.push_back(BoundedValue::createBottom(RHSPair.second));
       }
-
     }
   }
 
@@ -947,7 +925,6 @@ void OSRA::handleComparison(Instruction *I) {
       if (NewBV.hasValue())
         NewConstraints.push_back(*NewBV);
     }
-
   }
 
   // const vs OSR
@@ -961,7 +938,6 @@ void OSRA::handleComparison(Instruction *I) {
       if (NewBV.hasValue())
         NewConstraints.push_back(*NewBV);
     }
-
   }
 
   // Note: we don't handle the remaining case, i.e., OSR vs OSR
@@ -1029,7 +1005,6 @@ void OSRA::handleComparison(Instruction *I) {
     Constraints[I] = NewConstraints;
     enqueueUsers(I);
   }
-
 }
 
 void OSRA::handleUnaryOperator(Instruction *I) {
@@ -1042,7 +1017,7 @@ void OSRA::handleUnaryOperator(Instruction *I) {
   OSRs.emplace(make_pair(I, NewOSR));
   enqueueUsers(I);
 
-  propagateConstraints(I, Operand, [] (BVVector &BV) { return BV; });
+  propagateConstraints(I, Operand, [](BVVector &BV) { return BV; });
 }
 
 void OSRA::handleBranch(Instruction *I) {
@@ -1126,7 +1101,6 @@ void OSRA::handleBranch(Instruction *I) {
         }
       }
     }
-
   }
 
   // Remove all the basic blocks post-domainated by another basic block in the
@@ -1147,12 +1121,13 @@ void OSRA::handleBranch(Instruction *I) {
 
   freeContainer(AffectedSet);
 
-
   // Create and initialize the worklist with the positive constraints for the
   // true branch, and the negated constraints for the false branch
   struct WLEntry {
     WLEntry(BasicBlock *Target, BasicBlock *Origin, BVVector Constraints) :
-      Target(Target), Origin(Origin), Constraints(Constraints) { }
+      Target(Target),
+      Origin(Origin),
+      Constraints(Constraints) {}
 
     BasicBlock *Target;
     BasicBlock *Origin;
@@ -1160,16 +1135,16 @@ void OSRA::handleBranch(Instruction *I) {
   };
 
   std::vector<WLEntry> ConstraintsWL;
+  BasicBlock *Source = Branch->getParent();
   if (!inBlackList(Branch->getSuccessor(0))) {
-    ConstraintsWL.push_back(WLEntry(Branch->getSuccessor(0),
-                                    Branch->getParent(),
-                                    BranchConstraints));
+    BasicBlock *Successor = Branch->getSuccessor(0);
+    ConstraintsWL.push_back(WLEntry(Successor, Source, BranchConstraints));
   }
 
   if (!inBlackList(Branch->getSuccessor(1))) {
-    ConstraintsWL.push_back(WLEntry(Branch->getSuccessor(1),
-                                    Branch->getParent(),
-                                    FlippedBranchConstraints));
+    BasicBlock *Successor = Branch->getSuccessor(1);
+    auto FBC = FlippedBranchConstraints;
+    ConstraintsWL.push_back(WLEntry(Successor, Source, FBC));
   }
 
   // TODO: can we do this in a DFA way?
@@ -1206,64 +1181,59 @@ void OSRA::handleBranch(Instruction *I) {
       switch (ConstraintUser.getOpcode()) {
       case Instruction::ICmp:
       case Instruction::And:
-      case Instruction::Or:
-        {
-          // Ignore instructions without an associated constraint
-          auto ConstraintIt = Constraints.find(&ConstraintUser);
-          if (ConstraintIt == Constraints.end())
-            continue;
+      case Instruction::Or: {
+        // Ignore instructions without an associated constraint
+        auto ConstraintIt = Constraints.find(&ConstraintUser);
+        if (ConstraintIt == Constraints.end())
+          continue;
 
-          // If it's using one of the changed variables, insert it in the
-          // worklist
-          BVVector &InstructionConstraints = ConstraintIt->second;
+        // If it's using one of the changed variables, insert it in the
+        // worklist
+        BVVector &InstructionConstraints = ConstraintIt->second;
 
-          for (BoundedValue &Constraint : InstructionConstraints) {
-            if (Affected.count(Constraint.value()) != 0) {
-              WorkList.insert(&ConstraintUser);
-              break;
-            }
-          }
-
-          break;
-        }
-      case Instruction::Load:
-        {
-          // Check if any of the reaching definitions of this load is affected
-          // by the constraints being propagated
-          LoadInst *Load = cast<LoadInst>(&ConstraintUser);
-          auto ReachersIt = LoadReachers.find(Load);
-          if (ReachersIt == LoadReachers.end())
+        for (BoundedValue &Constraint : InstructionConstraints) {
+          if (Affected.count(Constraint.value()) != 0) {
+            WorkList.insert(&ConstraintUser);
             break;
-
-          auto &Reachers = ReachersIt->second;
-
-          for (auto &P : Reachers) {
-            const Value *ReacherValue = nullptr;
-            if (P.second.boundedValue() != nullptr)
-              ReacherValue = P.second.boundedValue()->value();
-
-            if (Affected.count(ReacherValue) != 0) {
-              // We're affected, update
-              mergeLoadReacher(Load);
-              WorkList.insert(Load);
-              enqueueUsers(Load);
-              Affected.insert(Load);
-              break;
-            }
           }
-
-          break;
         }
+
+      } break;
+      case Instruction::Load: {
+        // Check if any of the reaching definitions of this load is affected
+        // by the constraints being propagated
+        LoadInst *Load = cast<LoadInst>(&ConstraintUser);
+        auto ReachersIt = LoadReachers.find(Load);
+        if (ReachersIt == LoadReachers.end())
+          break;
+
+        auto &Reachers = ReachersIt->second;
+
+        for (auto &P : Reachers) {
+          const Value *ReacherValue = nullptr;
+          if (P.second.boundedValue() != nullptr)
+            ReacherValue = P.second.boundedValue()->value();
+
+          if (Affected.count(ReacherValue) != 0) {
+            // We're affected, update
+            mergeLoadReacher(Load);
+            WorkList.insert(Load);
+            enqueueUsers(Load);
+            Affected.insert(Load);
+            break;
+          }
+        }
+
+      } break;
       default:
         break;
       }
-
     }
 
     // TODO: transform set into vector
     if (std::all_of(RecursivelyAffected.begin(),
                     RecursivelyAffected.end(),
-                    [this, &Entry] (const BasicBlock *BB) {
+                    [this, &Entry](const BasicBlock *BB) {
                       return PDT.dominates(Entry.Target, BB);
                     }))
       continue;
@@ -1273,12 +1243,14 @@ void OSRA::handleBranch(Instruction *I) {
 
     // Propagate the new constraints to the successors (except for the
     // dispatcher)
-    if (Entry.Constraints.size() != 0)
-      for (BasicBlock *Successor : successors(Entry.Target))
-        if (BlockBlackList.find(Successor) == BlockBlackList.end())
-          ConstraintsWL.push_back(WLEntry(Successor,
-                                          Entry.Target,
-                                          Entry.Constraints));
+    if (Entry.Constraints.size() != 0) {
+      for (BasicBlock *Successor : successors(Entry.Target)) {
+        if (BlockBlackList.find(Successor) == BlockBlackList.end()) {
+          WLEntry Constraint(Successor, Entry.Target, Entry.Constraints);
+          ConstraintsWL.push_back(Constraint);
+        }
+      }
+    }
   }
 }
 
@@ -1328,9 +1300,7 @@ void OSRA::handleMemoryOperation(Instruction *I) {
       HasConstraints = ConstraintIt != Constraints.end();
       if (HasConstraints)
         TheConstraints = ConstraintIt->second;
-
     }
-
   }
 
   auto &ReachedLoads = RDP.getReachedLoads(I);
@@ -1374,9 +1344,7 @@ void OSRA::handleMemoryOperation(Instruction *I) {
       for (Instruction *Subscriber : Subscriptions[ReachedLoad])
         WorkList.insert(Subscriber);
     }
-
   }
-
 }
 
 void OSRA::enqueueUsers(Instruction *I) {
@@ -1542,7 +1510,6 @@ bool OSR::combine(unsigned Opcode,
     if (Multiplicative) {
       Factor = combineImpl(Opcode, Signed, Factor, Operand, TheType, DL);
       Changed |= OldFactor != Factor;
-
     }
   }
 
@@ -1552,14 +1519,13 @@ bool OSR::combine(unsigned Opcode,
 uint64_t OSR::BoundsIterator::operator*() const {
   bool IsSigned = TheOSR.BV->isSigned();
 
-  auto Const = [&] (uint64_t V) { return CI::get(TheType, V, IsSigned); };
+  auto Const = [&](uint64_t V) { return CI::get(TheType, V, IsSigned); };
   auto *RangeStart = Const(Current->first);
   auto *RangePosition = Const(Index);
   auto *Base = Const(TheOSR.Base);
   auto *Factor = Const(TheOSR.Factor);
 
-  auto *Result = CE::getAdd(CE::getMul(CE::getAdd(RangeStart,
-                                                  RangePosition),
+  auto *Result = CE::getAdd(CE::getMul(CE::getAdd(RangeStart, RangePosition),
                                        Factor),
                             Base);
 
@@ -1568,10 +1534,10 @@ uint64_t OSR::BoundsIterator::operator*() const {
 
 class OSRAnnotationWriter : public AssemblyAnnotationWriter {
 public:
-  OSRAnnotationWriter(OSRA &JTFC) : JTFC(JTFC) { }
+  OSRAnnotationWriter(OSRA &JTFC) : JTFC(JTFC) {}
 
-  virtual void emitInstructionAnnot(const Instruction *I,
-                                    formatted_raw_ostream &Output) {
+  virtual void
+  emitInstructionAnnot(const Instruction *I, formatted_raw_ostream &Output) {
     JTFC.describe(Output, I);
   }
 
@@ -1653,7 +1619,6 @@ void OSRA::run() {
   }
 
   DBG("osr", dump());
-
 }
 
 void OSRA::dump() {
@@ -1669,8 +1634,8 @@ void OSR::dump() const {
 }
 
 void OSR::describe(formatted_raw_ostream &O) const {
-  O << "[" << static_cast<int64_t>(Base)
-    << " + " << static_cast<int64_t>(Factor) << " * x, with x = ";
+  O << "[" << static_cast<int64_t>(Base) << " + "
+    << static_cast<int64_t>(Factor) << " * x, with x = ";
   if (BV == nullptr)
     O << "null";
   else
@@ -1715,9 +1680,7 @@ void BoundedValue::describe(formatted_raw_ostream &O) const {
   } else if (!isUninitialized()) {
     for (auto Bound : Bounds) {
       O << ", [";
-      if (!isConstant()
-          && hasSignedness()
-          && Bound.first == lowerExtreme()) {
+      if (!isConstant() && hasSignedness() && Bound.first == lowerExtreme()) {
         O << "min";
       } else {
         O << Bound.first;
@@ -1725,9 +1688,7 @@ void BoundedValue::describe(formatted_raw_ostream &O) const {
 
       O << ", ";
 
-      if (!isConstant()
-          && hasSignedness()
-          && Bound.second == upperExtreme()) {
+      if (!isConstant() && hasSignedness() && Bound.second == upperExtreme()) {
         O << "max";
       } else {
         O << Bound.second;
@@ -1851,10 +1812,8 @@ OSRAPass::identifyOperands(std::map<const Value *, const OSR> &OSRs,
   assert(I->getNumOperands() == 2);
   Value *FirstOp = I->getOperand(0);
   Value *SecondOp = I->getOperand(1);
-  Constant *Constants[2] = {
-    dyn_cast<Constant>(FirstOp),
-    dyn_cast<Constant>(SecondOp)
-  };
+  Constant *Constants[2] = { dyn_cast<Constant>(FirstOp),
+                             dyn_cast<Constant>(SecondOp) };
 
   // Is the first operand constant?
   if (auto *Operand = dyn_cast<Instruction>(FirstOp)) {
@@ -1899,7 +1858,7 @@ bool OSRA::updateLoadReacher(LoadInst *Load, Instruction *I, OSR NewOSR) {
   auto ReachersIt = LoadReachers.find(Load);
   if (ReachersIt != LoadReachers.end()) {
     auto &Reachers = ReachersIt->second;
-    auto Pred = [I] (const std::pair<Instruction *, OSR> &P) {
+    auto Pred = [I](const std::pair<Instruction *, OSR> &P) {
       return P.first == I;
     };
     auto ReacherIt = std::find_if(Reachers.begin(), Reachers.end(), Pred);
@@ -1911,8 +1870,7 @@ bool OSRA::updateLoadReacher(LoadInst *Load, Instruction *I, OSR NewOSR) {
         return false;
       } else {
         const Value *ReacherValue = ReacherIt->second.boundedValue()->value();
-        assert(!(Reachers.size() > 1
-                 && ReacherValue == Load
+        assert(!(Reachers.size() > 1 && ReacherValue == Load
                  && ReacherValue != NewOSR.boundedValue()->value()));
         *ReacherIt = make_pair(I, NewOSR);
         return true;
@@ -1941,39 +1899,37 @@ bool OSRA::isDead(Instruction *I) const {
     case Instruction::PtrToInt:
       I = dyn_cast<Instruction>(U);
       break;
-    case Instruction::Store:
-      {
-        auto *Store = cast<StoreInst>(U);
-        if (Store->getValueOperand() != I)
-          return false;
+    case Instruction::Store: {
+      auto *Store = cast<StoreInst>(U);
+      if (Store->getValueOperand() != I)
+        return false;
 
-        bool Used = false;
-        auto *State = dyn_cast<GlobalVariable>(Store->getPointerOperand());
-        if (State == nullptr)
-          return false;
+      bool Used = false;
+      auto *State = dyn_cast<GlobalVariable>(Store->getPointerOperand());
+      if (State == nullptr)
+        return false;
 
-        auto Visitor = [State, &Used] (BasicBlockRange R) {
-          for (Instruction &I : R) {
+      auto Visitor = [State, &Used](BasicBlockRange R) {
+        for (Instruction &I : R) {
 
-            if (auto *Load = dyn_cast<LoadInst>(&I)) {
-              if (Load->getPointerOperand() == State) {
-                Used = true;
-                return StopNow;
-              }
-            } else if (auto *Store = dyn_cast<StoreInst>(&I)) {
-              if (Store->getPointerOperand() == State) {
-                return NoSuccessors;
-              }
+          if (auto *Load = dyn_cast<LoadInst>(&I)) {
+            if (Load->getPointerOperand() == State) {
+              Used = true;
+              return StopNow;
             }
-
+          } else if (auto *Store = dyn_cast<StoreInst>(&I)) {
+            if (Store->getPointerOperand() == State) {
+              return NoSuccessors;
+            }
           }
+        }
 
-          return Continue;
-        };
-        visitSuccessors(Store, make_blacklist(BlockBlackList), Visitor);
+        return Continue;
+      };
+      visitSuccessors(Store, make_blacklist(BlockBlackList), Visitor);
 
-        return !Used;
-      }
+      return !Used;
+    }
     default:
       return false;
     }
@@ -2011,14 +1967,12 @@ void OSRA::mergeLoadReacher(LoadInst *Load) {
 ///        OSRAPass::pathSensitiveMerge
 class Reacher {
 public:
-  Reacher(LoadInst *Reached,
-          Instruction *Reacher,
-          OSR &ReachingOSR) :
+  Reacher(LoadInst *Reached, Instruction *Reacher, OSR &ReachingOSR) :
     Summary(BoundedValue(ReachingOSR.boundedValue()->value())),
     LastMergeHeight(0),
     ReachingOSR(ReachingOSR),
-    LTR(std::set<BasicBlock *> { Reacher->getParent() }),
-    LastActiveHeight(Active) { }
+    LTR(std::set<BasicBlock *>{ Reacher->getParent() }),
+    LastActiveHeight(Active) {}
 
   /// \brief Notify that the stack has grown
   void newHeight(unsigned NewHeight) {
@@ -2063,8 +2017,8 @@ public:
   const OSR &osr() const { return ReachingOSR; }
 
 public:
-  BoundedValue Summary;   ///< BV representing the known constraints on the
-                          ///  reaching definition's value
+  BoundedValue Summary; ///< BV representing the known constraints on the
+                        ///  reaching definition's value
 
 private:
   unsigned LastMergeHeight;
@@ -2098,10 +2052,10 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
     if (P.second.factor() == 0)
       return BoundedValue(Reached);
     Reachers.emplace_back(Reached, P.first, P.second);
-    DBG("psm", dbg << "  Reacher " << std::dec << ReacherIndex
-        << " is " << getName(P.first)
-        << " (relative to "
-        << getName(P.second.boundedValue()->value()) << ")\n";);
+    DBG("psm",
+        dbg << "  Reacher " << std::dec << ReacherIndex << " is "
+            << getName(P.first) << " (relative to "
+            << getName(P.second.boundedValue()->value()) << ")\n";);
   }
   assert(Reachers.size() > 0);
 
@@ -2148,8 +2102,9 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
 
       // Is this a BB leading to the reacher?
       if (R.isLTR(Pred)) {
-        DBG("psm", dbg << Indent << "  Merging reacher " << ReacherIndex
-            << " (relative to " << getName(R.Summary.value()) << ")\n";);
+        DBG("psm",
+            dbg << Indent << "  Merging reacher " << ReacherIndex
+                << " (relative to " << getName(R.Summary.value()) << ")\n";);
 
         // Insert everything is on the stack, but stop if we meet one that's
         // already there
@@ -2172,14 +2127,13 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
             Tmp.merge<BoundedValue::And>(*EdgeBV, DL, Int64);
 
             DBG("psm", {
-                dbg << Indent << "    Got ";
-                EdgeBV->describe(FormattedStream);
-                dbg << " from the " << getName(*ToMerge.PredecessorIt)
-                    << " -> " << getName(ToMerge.BB)
-                    << " edge: ";
-                Tmp.describe(FormattedStream);
-                dbg << "\n";
-              });
+              dbg << Indent << "    Got ";
+              EdgeBV->describe(FormattedStream);
+              dbg << " from the " << getName(*ToMerge.PredecessorIt) << " -> "
+                  << getName(ToMerge.BB) << " edge: ";
+              Tmp.describe(FormattedStream);
+              dbg << "\n";
+            });
 
             if (Tmp.isBottom())
               break;
@@ -2188,11 +2142,10 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
 
           } else {
             DBG("psm", {
-                dbg << Indent << "    Got no info"
-                    << " from the " << getName(*ToMerge.PredecessorIt)
-                    << " -> " << getName(ToMerge.BB)
-                    << " edge\n";
-              });
+              dbg << Indent << "    Got no info"
+                  << " from the " << getName(*ToMerge.PredecessorIt) << " -> "
+                  << getName(ToMerge.BB) << " edge\n";
+            });
           }
         }
 
@@ -2207,13 +2160,15 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
           // Deactivate
           R.setInactive(Height);
         } else {
-          DBG("psm", dbg << Indent
-              << "    We got an incoherent situation, ignore it\n";);
+          DBG("psm",
+              dbg << Indent
+                  << "    We got an incoherent situation, ignore it\n";);
         }
 
       } else if (MayAlias) {
-        DBG("psm", dbg << Indent
-            << "  Deactivating reacher " << ReacherIndex << "\n";);
+        DBG("psm",
+            dbg << Indent << "  Deactivating reacher " << ReacherIndex
+                << "\n";);
 
         // We don't know if it's an LTR, check if it may alias, and if so,
         // deactivate this reacher
@@ -2231,31 +2186,25 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
     // Check it's not already in stack
     Proceed &= InStack.count(Pred) == 0;
     DBG("psm", if (!(InStack.count(Pred) == 0)) {
-        dbg << Indent
-            << "    It's already on the stack\n";
-      });
+      dbg << Indent << "    It's already on the stack\n";
+    });
 
     // Check we're not exceeding the maximum allowed depth
     Proceed &= Height < MaxDepth;
     DBG("psm", if (!(Height < MaxDepth)) {
-        dbg << Indent
-            << "    We exceeded the maximum depth\n";
-      });
+      dbg << Indent << "    We exceeded the maximum depth\n";
+    });
 
     // Check we have at least a non-dispatcher predecessor
     pred_iterator NewPredIt = getValidPred(Pred);
     Proceed &= NewPredIt != pred_end(Pred);
     DBG("psm", if (!(NewPredIt != pred_end(Pred))) {
-        dbg << Indent
-            << "    No predecessors\n";
-      });
+      dbg << Indent << "    No predecessors\n";
+    });
 
     if (Proceed) {
       // We have to go deeper
-      State NewState = {
-        Pred,
-        NewPredIt
-      };
+      State NewState = { Pred, NewPredIt };
       Stack.push_back(NewState);
       InStack.insert(Pred);
     } else {
@@ -2277,7 +2226,6 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
         for (Reacher &R : Reachers)
           R.newHeight(NewHeight);
     }
-
   }
 
   // Or-merge all the collected BVs
@@ -2285,29 +2233,29 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
   BoundedValue FinalBV = Reachers[0].computeBV(Reached, DL, Int64);
 
   DBG("psm", {
-      unsigned I = 0;
-      for (const Reacher &R : Reachers) {
-        BoundedValue ReacherBV = R.computeBV(Reached, DL, Int64);
-        dbg << "Reacher " << ++I << ": ";
-        ReacherBV.describe(FormattedStream);
-        dbg << " (from ";
-        R.osr().describe(FormattedStream);
-        dbg << ")\n";
-      }
-    });
+    unsigned I = 0;
+    for (const Reacher &R : Reachers) {
+      BoundedValue ReacherBV = R.computeBV(Reached, DL, Int64);
+      dbg << "Reacher " << ++I << ": ";
+      ReacherBV.describe(FormattedStream);
+      dbg << " (from ";
+      R.osr().describe(FormattedStream);
+      dbg << ")\n";
+    }
+  });
 
   for (Reacher &R : skip(1, Reachers)) {
     BoundedValue ReacherBV = R.computeBV(Reached, DL, Int64);
 
     DBG("psm", {
-        dbg << "";
-        FinalBV.describe(FormattedStream);
-        dbg << " += ";
-        ReacherBV.describe(FormattedStream);
-        dbg << " (from ";
-        R.osr().describe(FormattedStream);
-        dbg << ")\n";
-      });
+      dbg << "";
+      FinalBV.describe(FormattedStream);
+      dbg << " += ";
+      ReacherBV.describe(FormattedStream);
+      dbg << " (from ";
+      R.osr().describe(FormattedStream);
+      dbg << ")\n";
+    });
 
     if (FinalBV.isBottom())
       return BoundedValue(Reached);
@@ -2319,10 +2267,10 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
     return BoundedValue(Reached);
 
   DBG("psm", {
-      dbg << "FinalBV: ";
-      FinalBV.describe(FormattedStream);
-      dbg << "\n";
-    });
+    dbg << "FinalBV: ";
+    FinalBV.describe(FormattedStream);
+    dbg << "\n";
+  });
 
   assert(!FinalBV.isUninitialized());
   return FinalBV;
@@ -2382,21 +2330,19 @@ void BVMap::describe(formatted_raw_ostream &O, const BasicBlock *BB) const {
   O << "\n";
 }
 
-std::pair<bool, BoundedValue &> BVMap::update(BasicBlock *Target,
-                                              BasicBlock *Origin,
-                                              BoundedValue NewBV) {
+std::pair<bool, BoundedValue &>
+BVMap::update(BasicBlock *Target, BasicBlock *Origin, BoundedValue NewBV) {
   // Debug support
   raw_os_ostream OsOstream(dbg);
   formatted_raw_ostream FormattedStream(OsOstream);
   FormattedStream.SetUnbuffered();
 
   DBG("osr-bv", {
-      dbg << "Updating " << getName(Target)
-          << " from " << getName(Origin)
-          << " with ";
-      NewBV.describe(FormattedStream);
-      dbg << ": ";
-    });
+    dbg << "Updating " << getName(Target) << " from " << getName(Origin)
+        << " with ";
+    NewBV.describe(FormattedStream);
+    dbg << ": ";
+  });
 
   auto Index = make_pair(Target, NewBV.value());
   auto MapIt = TheMap.find(Index);
@@ -2432,32 +2378,31 @@ std::pair<bool, BoundedValue &> BVMap::update(BasicBlock *Target,
       BVOVector->Components.push_back({ Origin, NewBV });
     } else {
       DBG("osr-bv", {
-          dbg << "merging with ";
-          Base->describe(FormattedStream);
-        });
+        dbg << "merging with ";
+        Base->describe(FormattedStream);
+      });
 
       Changed = Base->merge<AndMerge>(NewBV, *DL, Int64);
 
       DBG("osr-bv", {
-          dbg << " producing ";
-          Base->describe(FormattedStream);
-        });
+        dbg << " producing ";
+        Base->describe(FormattedStream);
+      });
     }
 
     // Re-merge all the entries
     auto &Result = summarize(Target, BVOVector);
 
     DBG("osr-bv", {
-        dbg << ", final result ";
-        Result.describe(FormattedStream);
-        dbg << "\n";
-      });
+      dbg << ", final result ";
+      Result.describe(FormattedStream);
+      dbg << "\n";
+    });
 
     return { Changed, Result };
   }
 
   // TODO: should Changed be false if isForced?
-
 }
 
 BoundedValue &BVMap::summarize(BasicBlock *Target, MapValue *BVOVector) {
@@ -2522,9 +2467,9 @@ void BoundedValue::setSignedness(bool IsSigned) {
   } else if (Sign != NewSign) {
     Sign = InconsistentSignedness;
     // TODO: handle top case
-    auto Condition = [] (std::pair<uint64_t, uint64_t> P) {
+    auto Condition = [](std::pair<uint64_t, uint64_t> P) {
       return P.first > numeric_limits<int64_t>::max()
-        || P.second > numeric_limits<int64_t>::max();
+             || P.second > numeric_limits<int64_t>::max();
     };
     if (std::any_of(Bounds.begin(), Bounds.end(), Condition))
       setBottom();
@@ -2572,8 +2517,8 @@ public:
   }
 
   template<typename T>
-  static BoundedValue getBV(const BoundedValue &Base,
-                            boost::icl::interval_set<T> Intervals) {
+  static BoundedValue
+  getBV(const BoundedValue &Base, boost::icl::interval_set<T> Intervals) {
 
     BoundedValue Result(Base.value());
 
@@ -2594,15 +2539,12 @@ public:
             assert(Pair != Result.Bounds.back());
           }
         }
-
       }
       assert(Result.Bounds.size() != 0);
-
     }
 
     return Result;
   }
-
 };
 
 template<BoundedValue::MergeType MT, typename T>

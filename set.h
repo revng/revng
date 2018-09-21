@@ -19,7 +19,7 @@ class AnalysisUsage;
 class Function;
 class LoadInst;
 class Value;
-}
+} // namespace llvm
 
 class JumpTargetManager;
 
@@ -28,24 +28,25 @@ public:
   /// \brief Information about the possible destination of a jump instruction
   struct JumpInfo {
     JumpInfo(llvm::StoreInst *Instruction,
-         bool Approximate,
-         std::vector<uint64_t> Destinations) : Instruction(Instruction),
-                                               Approximate(Approximate),
-                                               Destinations(Destinations) { }
+             bool Approximate,
+             std::vector<uint64_t> Destinations) :
+      Instruction(Instruction),
+      Approximate(Approximate),
+      Destinations(Destinations) {}
 
     llvm::StoreInst *Instruction; ///< The jump instruction
     bool Approximate; ///< Is the destination list approximate or exhaustive?
     std::vector<uint64_t> Destinations; ///< Possible target PCs
   };
 
-
 public:
   static char ID;
 
-  SETPass() : llvm::FunctionPass(ID),
+  SETPass() :
+    llvm::FunctionPass(ID),
     JTM(nullptr),
     Visited(nullptr),
-    UseOSRA(false) { }
+    UseOSRA(false) {}
 
   SETPass(JumpTargetManager *JTM,
           bool UseOSRA,
@@ -53,15 +54,13 @@ public:
     llvm::FunctionPass(ID),
     JTM(JTM),
     Visited(Visited),
-    UseOSRA(UseOSRA) { }
+    UseOSRA(UseOSRA) {}
 
   bool runOnFunction(llvm::Function &F) override;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
-  const std::vector<JumpInfo> &jumps() const {
-    return Jumps;
-  }
+  const std::vector<JumpInfo> &jumps() const { return Jumps; }
 
   virtual void releaseMemory() override {
     DBG("release", { dbg << "SETPass is releasing memory\n"; });

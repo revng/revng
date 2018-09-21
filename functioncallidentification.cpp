@@ -7,8 +7,8 @@
 //
 
 // Local includes
-#include "debug.h"
 #include "functioncallidentification.h"
+#include "debug.h"
 
 using namespace llvm;
 
@@ -33,16 +33,14 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
   PointerType *Int8PtrTy = Type::getInt8PtrTy(C);
   auto *PCTy = IntegerType::get(C, GCBI.pcRegSize() * 8);
   auto *PCPtrTy = cast<PointerType>(GCBI.pcReg()->getType());
-  std::initializer_list<Type *> FunctionArgsTy = {
-    Int8PtrTy,
-    Int8PtrTy,
-    PCTy,
-    PCPtrTy
-  };
+  std::initializer_list<Type *> FunctionArgsTy = { Int8PtrTy,
+                                                   Int8PtrTy,
+                                                   PCTy,
+                                                   PCPtrTy };
   using FT = FunctionType;
-  auto *FunctionCallFT = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
-  FunctionCall = cast<Function>(M->getOrInsertFunction("function_call",
-                                                       FunctionCallFT));
+  auto *Ty = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
+  Constant *FunctionCallC = M->getOrInsertFunction("function_call", Ty);
+  FunctionCall = cast<Function>(FunctionCallC);
 
   // Initialize the function, if necessary
   if (FunctionCall->empty()) {
@@ -89,7 +87,7 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
                     &LastPC,
                     &StorePCFound,
                     &LinkRegister,
-                    &PCPtrTy] (RBasicBlockRange R) {
+                    &PCPtrTy](RBasicBlockRange R) {
       for (Instruction &I : R) {
         if (auto *Store = dyn_cast<StoreInst>(&I)) {
           Value *V = Store->getValueOperand();
@@ -141,7 +139,6 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
                 // being pushed on the top of the stack
                 LinkRegister = ConstantPointerNull::get(PCPtrTy);
               }
-
             }
           }
         } else if (auto *Call = dyn_cast<CallInst>(&I)) {
@@ -211,12 +208,11 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
         Callee = ConstantPointerNull::get(Int8PtrTy);
       }
 
-      const std::initializer_list<Value *> Args {
-        Callee,
-        BlockAddress::get(ReturnBB),
-        ConstantInt::get(PCTy, ReturnPC),
-        LinkRegister
-      };
+      const std::initializer_list<Value *> Args{ Callee,
+                                                 BlockAddress::get(ReturnBB),
+                                                 ConstantInt::get(PCTy,
+                                                                  ReturnPC),
+                                                 LinkRegister };
 
       FallthroughAddresses.insert(ReturnPC);
 

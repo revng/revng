@@ -5,12 +5,12 @@
 #include <sstream>
 
 // Local includes
+#include "SmallMap.h"
 #include "abidataflows.h"
 #include "asslot.h"
 #include "basicblockinstructionpair.h"
-#include "SmallMap.h"
-#include "statistics.h"
 #include "revng/StackAnalysis/functionssummary.h"
+#include "statistics.h"
 
 extern Logger<> SaABI;
 
@@ -52,7 +52,6 @@ struct CombineHelper {
         abort();
       }
     }
-
   }
 
   /// \brief Combine with DRAOF
@@ -106,8 +105,8 @@ struct CombineHelper {
   }
 
   /// \brief Combine with URVOF
-  static void combine(FunctionReturnValue &This,
-                      UsedReturnValuesOfFunction::Values V) {
+  static void
+  combine(FunctionReturnValue &This, UsedReturnValuesOfFunction::Values V) {
     if (V == UsedReturnValuesOfFunction::Yes) {
       switch (This.Value) {
       case FunctionReturnValue::Maybe:
@@ -169,7 +168,6 @@ struct CombineHelper {
       }
     }
   }
-
 };
 
 /// \brief Map with an updatable default value
@@ -177,7 +175,7 @@ struct CombineHelper {
 /// This is a map that can be used to lazily handle K elements: proceed with
 /// your processing using the Default member, then when K is met, record the
 /// state of Default in the map and proceed.
-template<typename K, typename V, size_t N=40>
+template<typename K, typename V, size_t N = 40>
 class DefaultMap {
 public:
   // TODO: the size of the SmallMap needs to be fine tuned

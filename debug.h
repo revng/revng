@@ -8,8 +8,8 @@
 // Standard includes
 #include <functional>
 #include <ostream>
-#include <string>
 #include <sstream>
+#include <string>
 #include <vector>
 
 // LLVM includes
@@ -24,7 +24,7 @@
 extern bool DebuggingEnabled;
 extern std::ostream &dbg;
 
-#define debug_function __attribute__((used,noinline))
+#define debug_function __attribute__((used, noinline))
 
 bool isDebugFeatureEnabled(std::string Name);
 void enableDebugFeature(std::string Name);
@@ -34,10 +34,11 @@ void disableDebugFeature(std::string Name);
 ///
 /// \note This approach is deprecated, please consider using Logger and letting
 ///       the DCE do its job for you.
-#define DBG(feature, code) do {                                     \
-    if (DebuggingEnabled && isDebugFeatureEnabled(feature)) {       \
-      code;                                                         \
-    }                                                               \
+#define DBG(feature, code)                                    \
+  do {                                                        \
+    if (DebuggingEnabled && isDebugFeatureEnabled(feature)) { \
+      code;                                                   \
+    }                                                         \
   } while (0)
 
 /// \brief Enables a debug feature and disables it when goes out of scope
@@ -45,8 +46,9 @@ class ScopedDebugFeature {
 public:
   /// \param Name the name of the debugging feature
   /// \param Enable whether to actually enable it or not
-  ScopedDebugFeature(std::string Name, bool Enable)
-    : Name(Name), Enabled(Enable) {
+  ScopedDebugFeature(std::string Name, bool Enable) :
+    Name(Name),
+    Enabled(Enable) {
     if (Enabled)
       enableDebugFeature(Name);
   }
@@ -62,7 +64,7 @@ private:
 };
 
 /// \brief Stream an instance of this class to call Logger::emit()
-struct LogTerminator { };
+struct LogTerminator {};
 extern LogTerminator DoLog;
 
 /// \brief Logger that self-registers itself, can be disable, has a name and
@@ -70,19 +72,20 @@ extern LogTerminator DoLog;
 ///
 /// The typical usage of this class is to be a static global variable in a
 /// translation unit.
-template<bool StaticEnabled=true>
+template<bool StaticEnabled = true>
 class Logger {
 private:
   static unsigned IndentLevel;
+
 public:
   Logger(llvm::StringRef Name) : Name(Name), Enabled(false) { init(); }
 
-  void indent(unsigned Level=1) {
+  void indent(unsigned Level = 1) {
     if (isEnabled())
       IndentLevel += Level;
   }
 
-  void unindent(unsigned Level=1) {
+  void unindent(unsigned Level = 1) {
     if (isEnabled()) {
       assert(IndentLevel - Level >= 0);
       IndentLevel -= Level;
@@ -129,7 +132,7 @@ private:
 };
 
 /// \brief Indent all loggers within the scope of this object
-template<bool StaticEnabled=true>
+template<bool StaticEnabled = true>
 class LoggerIndent {
 public:
   LoggerIndent(Logger<StaticEnabled> &L) : L(L) { L.indent(); }
@@ -144,10 +147,10 @@ private:
 /// You can create an instance of this object associated to a Logger, so that
 /// when the object goes out of scope (typically, on return), the emit method
 /// will be invoked.
-template<bool StaticEnabled=true>
+template<bool StaticEnabled = true>
 class LogOnReturn {
 public:
-  LogOnReturn(Logger<StaticEnabled> &L) : L(L) { }
+  LogOnReturn(Logger<StaticEnabled> &L) : L(L) {}
   ~LogOnReturn() { L.emit(); }
 
 private:
@@ -193,7 +196,7 @@ inline void writeToLog(Logger<X> &This, const LogTerminator T, int Ignore) {
 /// of this class is collecting them.
 class LoggersRegistry {
 public:
-  LoggersRegistry() { }
+  LoggersRegistry() {}
 
   void add(Logger<true> *L) { Loggers.push_back(L); }
   void add(Logger<false> *L) { (void) L; }

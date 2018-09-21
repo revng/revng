@@ -46,17 +46,17 @@ bool ABIFunction::verify() const {
 
     for (auto &Successor : BB.successors()) {
       auto SuccessorPredecessors = Successor->predecessors();
-      if (std::find(SuccessorPredecessors.begin(),
-                    SuccessorPredecessors.end(),
-                    &BB) == SuccessorPredecessors.end())
+      auto StartIt = SuccessorPredecessors.begin();
+      auto EndIt = SuccessorPredecessors.end();
+      if (std::find(StartIt, EndIt, &BB) == EndIt)
         return false;
     }
 
     for (auto &Predecessor : BB.predecessors()) {
       auto PredecessorSuccessors = Predecessor->successors();
-      if (std::find(PredecessorSuccessors.begin(),
-                    PredecessorSuccessors.end(),
-                    &BB) == PredecessorSuccessors.end())
+      auto StartIt = PredecessorSuccessors.begin();
+      auto EndIt = PredecessorSuccessors.end();
+      if (std::find(StartIt, EndIt, &BB) == EndIt)
         return false;
     }
 

@@ -27,7 +27,7 @@ class IsolateFunctionsImpl;
 // Define an alias for the data structure that will contain the LLVM functions
 using FunctionsMap = std::map<MDString *, Function *>;
 
-typedef DenseMap<const Value*, Value*> ValueToValueMap;
+typedef DenseMap<const Value *, Value *> ValueToValueMap;
 
 using IF = IsolateFunctions;
 using IFI = IsolateFunctionsImpl;
@@ -41,24 +41,21 @@ public:
                        Module *NewModule,
                        GeneratedCodeBasicInfo &GCBI,
                        ValueToValueMapTy &ModuleCloningVMap) :
-  RootFunction(RootFunction),
-  NewModule(NewModule),
-  GCBI(GCBI),
-  ModuleCloningVMap(ModuleCloningVMap),
-  Context(getContext(NewModule)),
-  PCBitSize(8 * GCBI.pcRegSize()) {
-  }
+    RootFunction(RootFunction),
+    NewModule(NewModule),
+    GCBI(GCBI),
+    ModuleCloningVMap(ModuleCloningVMap),
+    Context(getContext(NewModule)),
+    PCBitSize(8 * GCBI.pcRegSize()) {}
 
   void run();
 
 private:
-
   /// \brief Creates the call that simulates the throw of an exception
   void throwException(Reason Code, BasicBlock *BB, uint64_t AdditionalPC);
 
   /// \brief Instantiate a basic block that consists only of an exception throw
-  BasicBlock *createUnreachableBlock(StringRef Name,
-                                     Function *CurrentFunction);
+  BasicBlock *createUnreachableBlock(StringRef Name, Function *CurrentFunction);
 
   /// \brief Populate the @function_dispatcher, needed to handle the indirect
   ///        function calls
@@ -66,13 +63,11 @@ private:
 
   /// \brief Create the basic blocks that are hit on exit after an invoke
   ///        instruction
-  BasicBlock *createInvokeReturnBlock(Function *Root,
-                                      BasicBlock *UnexpectedPC);
+  BasicBlock *createInvokeReturnBlock(Function *Root, BasicBlock *UnexpectedPC);
 
   /// \brief Create the basic blocks that represent the catch of the invoke
   ///        instruction
-  BasicBlock *createCatchBlock(Function *Root,
-                               BasicBlock *UnexpectedPC);
+  BasicBlock *createCatchBlock(Function *Root, BasicBlock *UnexpectedPC);
 
   /// \brief Replace the call to the @function_call marker with the actual call
   void replaceFunctionCall(BasicBlock *NewBB,
@@ -151,29 +146,27 @@ void IFI::throwException(Reason Code, BasicBlock *BB, uint64_t AdditionalPC) {
 
   // Emit the call to exception_warning
   Builder.CreateCall(DebugException,
-                     {
-                       ReasonValue,
+                     { ReasonValue,
                        ConstantLastPC,
                        ProgramCounter,
-                       ConstantAdditionalPC
-                     },
+                       ConstantAdditionalPC },
                      "");
 
   // Emit the call to _Unwind_RaiseException
   Builder.CreateCall(RaiseException);
 }
 
-BasicBlock *IFI::createUnreachableBlock(StringRef Name,
-                                        Function *CurrentFunction) {
+BasicBlock *
+IFI::createUnreachableBlock(StringRef Name, Function *CurrentFunction) {
 
-    // Create the basic block and add it in the function passed as parameter
-    BasicBlock* NewBB = BasicBlock::Create(Context,
-                                           Name,
-                                           CurrentFunction,
-                                           nullptr);
+  // Create the basic block and add it in the function passed as parameter
+  BasicBlock *NewBB = BasicBlock::Create(Context,
+                                         Name,
+                                         CurrentFunction,
+                                         nullptr);
 
-    throwException(StandardNonTranslatedBlock, NewBB, 0);
-    return NewBB;
+  throwException(StandardNonTranslatedBlock, NewBB, 0);
+  return NewBB;
 }
 
 void IFI::populateFunctionDispatcher() {
@@ -218,8 +211,8 @@ void IFI::populateFunctionDispatcher() {
   }
 }
 
-BasicBlock *IFI::createInvokeReturnBlock(Function *Root,
-                                         BasicBlock *UnexpectedPC) {
+BasicBlock *
+IFI::createInvokeReturnBlock(Function *Root, BasicBlock *UnexpectedPC) {
 
   // Create the first block
   BasicBlock *InvokeReturnBlock = BasicBlock::Create(Context,
@@ -261,8 +254,7 @@ BasicBlock *IFI::createInvokeReturnBlock(Function *Root,
   return InvokeReturnBlock;
 }
 
-BasicBlock *IFI::createCatchBlock(Function *Root,
-                                  BasicBlock *UnexpectedPC) {
+BasicBlock *IFI::createCatchBlock(Function *Root, BasicBlock *UnexpectedPC) {
 
   // Create a basic block that represents the catch part of the exception
   BasicBlock *CatchBB = BasicBlock::Create(Context,
@@ -277,7 +269,7 @@ BasicBlock *IFI::createCatchBlock(Function *Root,
   // Create the StructType necessary for the landingpad
   PointerType *RetTyPointerType = Type::getInt8PtrTy(Context);
   IntegerType *RetTyIntegerType = Type::getInt32Ty(Context);
-  std::vector<Type *> InArgsType { RetTyPointerType, RetTyIntegerType };
+  std::vector<Type *> InArgsType{ RetTyPointerType, RetTyIntegerType };
   StructType *RetTyStruct = StructType::create(Context,
                                                ArrayRef<Type *>(InArgsType),
                                                "",
@@ -300,7 +292,7 @@ void IFI::replaceFunctionCall(BasicBlock *NewBB,
   // Retrieve the called function and emit the call
   StringRef FunctionNameString;
 
-  if (BlockAddress *Callee = dyn_cast<BlockAddress>(Call->getOperand(0))){
+  if (BlockAddress *Callee = dyn_cast<BlockAddress>(Call->getOperand(0))) {
     BasicBlock *CalleeEntry = Callee->getBasicBlock();
     TerminatorInst *Terminator = CalleeEntry->getTerminator();
     MDNode *Node = Terminator->getMetadata("func.entry");
@@ -390,9 +382,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
 
     // Function call handling
     CallInst *Call = cast<CallInst>(OldInstruction);
-    replaceFunctionCall(NewBB,
-                        Call,
-                        LocalVMap);
+    replaceFunctionCall(NewBB, Call, LocalVMap);
 
     // We return true if we emitted a function call to signal that we ended
     // the inspection of the current basic block and that we should exit from
@@ -429,7 +419,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
           Function *OldFunction = Address->getFunction();
           BasicBlock *OldBlock = Address->getBasicBlock();
           Function *NewFunction = cast<Function>(LocalVMap[OldFunction]);
-          BasicBlock *NewBlock  = cast<BasicBlock>(LocalVMap[OldBlock]);
+          BasicBlock *NewBlock = cast<BasicBlock>(LocalVMap[OldBlock]);
           BlockAddress *B = BlockAddress::get(NewFunction, NewBlock);
 
           CurrentUse.set(B);
@@ -534,12 +524,10 @@ void IFI::run() {
 
   // Create the Arrayref necessary for the arguments of exception_warning
   auto *IntegerType = IntegerType::get(Context, PCBitSize);
-  std::vector<Type *> ArgsType {
-                                 Type::getInt32Ty(Context),
-                                 IntegerType,
-                                 IntegerType,
-                                 IntegerType
-                               };
+  std::vector<Type *> ArgsType{ Type::getInt32Ty(Context),
+                                IntegerType,
+                                IntegerType,
+                                IntegerType };
 
   // Declare the exception_warning function
   auto *DebugExceptionFT = FunctionType::get(Type::getVoidTy(Context),
@@ -583,7 +571,6 @@ void IFI::run() {
         if (Value *SkippedCast = skipCasts(UserInstruction)) {
           FilteredUsers.insert(cast<Instruction>(SkippedCast)->getParent());
         }
-
       }
       for (BasicBlock *Parent : FilteredUsers) {
         UsedAllocas[Parent].push_back(Alloca);
@@ -627,10 +614,10 @@ void IFI::run() {
       if (Functions.count(FunctionNameMD) == 0) {
 
         // Actual creation of an empty instance of a function
-        Function *Function =  Function::Create(FT,
-                                               Function::ExternalLinkage,
-                                               FunctionNameString,
-                                               NewModule);
+        Function *Function = Function::Create(FT,
+                                              Function::ExternalLinkage,
+                                              FunctionNameString,
+                                              NewModule);
 
         Functions[FunctionNameMD] = Function;
         FunctionsPC[Function] = getBasicBlockPC(&BB);
@@ -672,7 +659,7 @@ void IFI::run() {
         // function, preserving the original name. We need to take care that if
         // we are examining a basic block that is the entry point of a function
         // we need to place it in the as the first block of the function.
-        BasicBlock* NewBB;
+        BasicBlock *NewBB;
         if (Terminator->getMetadata("func.entry") && !ParentFunction->empty()) {
           NewBB = BasicBlock::Create(Context,
                                      BB.getName(),
@@ -712,8 +699,8 @@ void IFI::run() {
     //    instruction that has the role of preserving the actual shape of the
     //    function control flow. This will be helpful in order to traverse the
     //    BBs in reverse post-order.
-    BasicBlock* UnexpectedPC = nullptr;
-    BasicBlock* AnyPC = nullptr;
+    BasicBlock *UnexpectedPC = nullptr;
+    BasicBlock *AnyPC = nullptr;
 
     for (BasicBlock &NewBB : *AnalyzedFunction) {
 
@@ -742,8 +729,7 @@ void IFI::run() {
         if (GCBI.getType(Successor) == AnyPCBlock) {
           // Check if it already exists and create an anypc block
           if (AnyPC == nullptr) {
-            AnyPC = createUnreachableBlock("anypc",
-                                           AnalyzedFunction);
+            AnyPC = createUnreachableBlock("anypc", AnalyzedFunction);
             LocalVMap[Successor] = AnyPC;
             NewToOldBBMap[AnyPC] = Successor;
           }
@@ -786,7 +772,7 @@ void IFI::run() {
       Builder.SetInsertPoint(&NewBB);
 
       // Handle the degenerate case in which we didn't identified successors
-      if(Successors.size() == 0) {
+      if (Successors.size() == 0) {
         Builder.CreateUnreachable();
       } else {
 
@@ -868,9 +854,7 @@ void IFI::run() {
 
       // Actual copy of the instructions
       for (Instruction &OldInstruction : *OldBB) {
-        bool IsCall = cloneInstruction(NewBB,
-                                       &OldInstruction,
-                                       LocalVMap);
+        bool IsCall = cloneInstruction(NewBB, &OldInstruction, LocalVMap);
 
         // If the cloneInstruction function returns true it means that we
         // emitted a function call and also the branch to the fallthrough block,
@@ -954,7 +938,6 @@ void IFI::run() {
   //     verifyModule pass
   raw_os_ostream Stream(dbg);
   assert(verifyModule(*NewModule, &Stream) == false);
-
 }
 
 bool IF::runOnFunction(Function &F) {

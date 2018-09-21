@@ -10,9 +10,9 @@
 #include <vector>
 
 // LLVM includes
-#include "llvm/Pass.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/Pass.h"
 
 // Local includes
 #include "datastructures.h"
@@ -28,15 +28,12 @@ class LoadInst;
 class Value;
 class BranchInst;
 class TerminatorInst;
-};
+}; // namespace llvm
 
 // TODO: [speedup] Use LoadStorePtr
 // TODO: store in definitions/reaching the MemoryAccess
 
-enum class ReachingDefinitionsResult {
-  ReachingDefinitions,
-  ReachedLoads
-};
+enum class ReachingDefinitionsResult { ReachingDefinitions, ReachedLoads };
 
 template<class BBI, ReachingDefinitionsResult R>
 class ReachingDefinitionsImplPass;
@@ -48,33 +45,32 @@ enum LoadDefinitionType {
 };
 
 struct MemoryInstruction {
-  MemoryInstruction(llvm::Instruction *I,
-                    TypeSizeProvider &TSP) : I(I), MA(I, TSP) { }
-  MemoryInstruction(llvm::StoreInst *I,
-                    TypeSizeProvider &TSP) : I(I), MA(I, TSP) { }
-  MemoryInstruction(llvm::LoadInst *I,
-                    TypeSizeProvider &TSP) : I(I), MA(I, TSP) { }
+  MemoryInstruction(llvm::Instruction *I, TypeSizeProvider &TSP) :
+    I(I),
+    MA(I, TSP) {}
+  MemoryInstruction(llvm::StoreInst *I, TypeSizeProvider &TSP) :
+    I(I),
+    MA(I, TSP) {}
+  MemoryInstruction(llvm::LoadInst *I, TypeSizeProvider &TSP) :
+    I(I),
+    MA(I, TSP) {}
 
-  bool operator<(const MemoryInstruction Other) const {
-    return I < Other.I;
-  }
+  bool operator<(const MemoryInstruction Other) const { return I < Other.I; }
 
-  bool operator==(const MemoryInstruction Other) const {
-    return I == Other.I;
-  }
+  bool operator==(const MemoryInstruction Other) const { return I == Other.I; }
 
   llvm::Instruction *I;
   MemoryAccess MA;
 };
 
 namespace std {
-template <> struct hash<MemoryInstruction>
-{
-  size_t operator()(const MemoryInstruction & MI) const {
+template<>
+struct hash<MemoryInstruction> {
+  size_t operator()(const MemoryInstruction &MI) const {
     return std::hash<llvm::Instruction *>()(MI.I);
   }
 };
-}
+} // namespace std
 
 class BasicBlockInfo {
 public:
@@ -91,13 +87,10 @@ public:
 
   unsigned size() const { return Reaching.size(); }
 
-  void clearDefinitions() {
-    Definitions.clear();
-  }
+  void clearDefinitions() { Definitions.clear(); }
 
   void newDefinition(llvm::StoreInst *Store, TypeSizeProvider &TSP);
-  LoadDefinitionType newDefinition(llvm::LoadInst *Load,
-                                   TypeSizeProvider &TSP);
+  LoadDefinitionType newDefinition(llvm::LoadInst *Load, TypeSizeProvider &TSP);
   bool propagateTo(BasicBlockInfo &Target,
                    TypeSizeProvider &TSP,
                    const llvm::SmallVector<int32_t, 2> &DefinedIndexes,
@@ -110,7 +103,6 @@ public:
   void dump(std::ostream &Output);
 
 private:
-
   template<class UnaryPredicate>
   void removeDefinitions(UnaryPredicate P) {
     erase_if(Definitions, P);
@@ -142,13 +134,10 @@ public:
 
   unsigned size() const { return Reaching.size(); }
 
-  void clearDefinitions() {
-    Definitions.clear();
-  }
+  void clearDefinitions() { Definitions.clear(); }
 
   void newDefinition(llvm::StoreInst *Store, TypeSizeProvider &TSP);
-  LoadDefinitionType newDefinition(llvm::LoadInst *Load,
-                                   TypeSizeProvider &TSP);
+  LoadDefinitionType newDefinition(llvm::LoadInst *Load, TypeSizeProvider &TSP);
   bool propagateTo(ConditionalBasicBlockInfo &Target,
                    TypeSizeProvider &TSP,
                    const llvm::SmallVector<int32_t, 2> &DefinedIndexes,
@@ -158,17 +147,13 @@ public:
   getReachingDefinitions(std::set<llvm::LoadInst *> &WhiteList,
                          TypeSizeProvider &TSP);
 
-  void dump(std::ostream& Output);
+  void dump(std::ostream &Output);
 
 private:
   using CondDefPair = std::pair<llvm::BitVector, MemoryInstruction>;
   using ReachingType = std::unordered_map<MemoryInstruction, llvm::BitVector>;
 
-  enum ConditionsComparison {
-    Identical,
-    Different,
-    Complementary
-  };
+  enum ConditionsComparison { Identical, Different, Complementary };
 
 private:
   /// \brief Set the bit corresponding to \p Index in \p Target, if present in
@@ -218,25 +203,24 @@ private:
   llvm::BitVector Conditions;
 };
 
-using ReachingDefinitionsPass = ReachingDefinitionsImplPass<BasicBlockInfo,
-  ReachingDefinitionsResult::ReachingDefinitions>;
-using ConditionalReachingDefinitionsPass =
-  ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
-  ReachingDefinitionsResult::ReachingDefinitions>;
+template<typename T, ReachingDefinitionsResult Q>
+using RDIP = ReachingDefinitionsImplPass<T, Q>;
 
-using ReachedLoadsPass =
-  ReachingDefinitionsImplPass<BasicBlockInfo,
-  ReachingDefinitionsResult::ReachedLoads>;
-using ConditionalReachedLoadsPass =
-  ReachingDefinitionsImplPass<ConditionalBasicBlockInfo,
-  ReachingDefinitionsResult::ReachedLoads>;
+using RDR = ReachingDefinitionsResult;
+using CBBI = ConditionalBasicBlockInfo;
+
+using ReachingDefinitionsPass = RDIP<BasicBlockInfo, RDR::ReachingDefinitions>;
+using ConditionalReachingDefinitionsPass = RDIP<CBBI, RDR::ReachingDefinitions>;
+
+using ReachedLoadsPass = RDIP<BasicBlockInfo, RDR::ReachedLoads>;
+using ConditionalReachedLoadsPass = RDIP<CBBI, RDR::ReachedLoads>;
 
 template<class BBI, ReachingDefinitionsResult R>
 class ReachingDefinitionsImplPass : public llvm::FunctionPass {
 public:
   static char ID;
 
-  ReachingDefinitionsImplPass() : llvm::FunctionPass(ID) { };
+  ReachingDefinitionsImplPass() : llvm::FunctionPass(ID){};
 
   bool runOnFunction(llvm::Function &F) override;
 
@@ -251,9 +235,8 @@ public:
   unsigned getReachingDefinitionsCount(const llvm::LoadInst *Load);
 
   virtual void releaseMemory() override {
-    DBG("release", {
-        dbg << "ReachingDefinitionsImplPass is releasing memory\n";
-      });
+    DBG("release",
+        { dbg << "ReachingDefinitionsImplPass is releasing memory\n"; });
     freeContainer(ReachedLoads);
     freeContainer(ReachingDefinitions);
     freeContainer(ReachingDefinitionsCount);
@@ -261,7 +244,8 @@ public:
 
 private:
   int32_t getConditionIndex(llvm::TerminatorInst *T);
-  const llvm::SmallVector<int32_t, 2> &getDefinedConditions(llvm::BasicBlock *BB);
+  const llvm::SmallVector<int32_t, 2> &
+  getDefinedConditions(llvm::BasicBlock *BB);
 
 private:
   using BasicBlock = llvm::BasicBlock;
@@ -273,7 +257,7 @@ private:
   std::set<LoadInst *> SelfReachingLoads;
   std::map<const Instruction *, std::vector<LoadInst *>> ReachedLoads;
   std::map<const LoadInst *, std::vector<Instruction *>> ReachingDefinitions;
-  std::map<const LoadInst *, unsigned>  ReachingDefinitionsCount;
+  std::map<const LoadInst *, unsigned> ReachingDefinitionsCount;
 };
 
 /// The ConditionNumberingPass loops over all the conditional branch
@@ -352,7 +336,7 @@ public:
 
   static const llvm::SmallVector<int32_t, 2> NoDefinedConditions;
 
-  ConditionNumberingPass() : llvm::FunctionPass(ID) { };
+  ConditionNumberingPass() : llvm::FunctionPass(ID){};
 
   bool runOnFunction(llvm::Function &F) override;
 
@@ -365,7 +349,8 @@ public:
     return BranchConditionNumberMap[T];
   }
 
-  const llvm::SmallVector<int32_t, 2> &getDefinedConditions(llvm::BasicBlock *BB) const {
+  const llvm::SmallVector<int32_t, 2> &
+  getDefinedConditions(llvm::BasicBlock *BB) const {
     auto It = DefinedConditions.find(BB);
     if (It == DefinedConditions.end())
       return NoDefinedConditions;
@@ -383,11 +368,5 @@ private:
   std::map<llvm::BasicBlock *, llvm::SmallVector<int32_t, 2>> DefinedConditions;
   std::map<llvm::TerminatorInst *, int32_t> BranchConditionNumberMap;
 };
-
-template<>
-char ReachingDefinitionsImplPass<BasicBlockInfo, ReachingDefinitionsResult::ReachingDefinitions>::ID;
-
-template<>
-char ReachingDefinitionsImplPass<ConditionalBasicBlockInfo, ReachingDefinitionsResult::ReachedLoads>::ID;
 
 #endif // _REACHINGDEFINITIONS_H

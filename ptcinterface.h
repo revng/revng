@@ -14,11 +14,13 @@
 #define USE_DYNAMIC_PTC
 #include "ptc.h"
 
-using PTCInstructionListDestructor =
-  std::integral_constant<decltype(&ptc_instruction_list_free),
-                         &ptc_instruction_list_free>;
+template<void (*T)(PTCInstructionList *)>
+using PTCDestructorWrapper = std::integral_constant<decltype(T), T>;
+
+using PTCDestructor = PTCDestructorWrapper<&ptc_instruction_list_free>;
+
 using PTCInstructionListPtr = std::unique_ptr<PTCInstructionList,
-                                              PTCInstructionListDestructor>;
+                                              PTCDestructor>;
 
 extern PTCInterface ptc;
 

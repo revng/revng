@@ -15,8 +15,8 @@
 #include "llvm/Pass.h"
 
 // Local includes
-#include "ptcdump.h"
 #include "cpustateaccessanalysis.h"
+#include "ptcdump.h"
 #include "revamb.h"
 
 namespace llvm {
@@ -27,7 +27,7 @@ class GlobalVariable;
 class Module;
 class StructType;
 class Value;
-}
+} // namespace llvm
 
 class VariableManager;
 class CPUStateAccessAnalysisPass;
@@ -38,8 +38,8 @@ class CPUStateAccessAnalysisPass;
 /// created on the fly.
 class VariableManager {
 public:
-  VariableManager(llvm::Module& TheModule,
-                  llvm::Module& HelpersModule,
+  VariableManager(llvm::Module &TheModule,
+                  llvm::Module &HelpersModule,
                   Architecture &TargetArchitecture);
 
   /// \brief Get or create the LLVM value associated to a PTC temporary
@@ -62,9 +62,8 @@ public:
   /// \return a pair composed by the request global variable and the offset in
   ///         it corresponding to \p Offset. For instance, if you're accessing
   ///         the third byte of a 32-bit integer it will 2.
-  std::pair<llvm::GlobalVariable*,
-            unsigned> getByEnvOffset(intptr_t Offset,
-                                     std::string Name="") {
+  std::pair<llvm::GlobalVariable *, unsigned>
+  getByEnvOffset(intptr_t Offset, std::string Name = "") {
     return getByCPUStateOffsetInternal(EnvOffset + Offset, Name);
   }
 
@@ -81,8 +80,8 @@ public:
   /// \param Delimiter the new point where to insert allocations for local
   ///        variables.
   /// \param Instructions the new PTCInstructionList to use from now on.
-  void newFunction(llvm::Instruction *Delimiter=nullptr,
-                   PTCInstructionList *Instructions=nullptr);
+  void newFunction(llvm::Instruction *Delimiter = nullptr,
+                   PTCInstructionList *Instructions = nullptr);
 
   /// Informs the VariableManager that a new basic block has begun, so it can
   /// discard basic block-level variables.
@@ -90,11 +89,11 @@ public:
   /// \param Delimiter the new point where to insert allocations for local
   /// variables.
   /// \param Instructions the new PTCInstructionList to use from now on.
-  void newBasicBlock(llvm::Instruction *Delimiter=nullptr,
-                     PTCInstructionList *Instructions=nullptr);
+  void newBasicBlock(llvm::Instruction *Delimiter = nullptr,
+                     PTCInstructionList *Instructions = nullptr);
 
   void newBasicBlock(llvm::BasicBlock *Delimiter,
-                     PTCInstructionList *Instructions=nullptr);
+                     PTCInstructionList *Instructions = nullptr);
 
   /// Returns true if the given variable is the env variable
   bool isEnv(llvm::Value *TheValue);
@@ -161,10 +160,8 @@ public:
 
     // Create the setRegister function
     auto *SetRegisterTy = FunctionType::get(Builder.getVoidTy(),
-                                            {
-                                              Builder.getInt32Ty(),
-                                              Builder.getInt64Ty()
-                                            },
+                                            { Builder.getInt32Ty(),
+                                              Builder.getInt64Ty() },
                                             false);
     auto *Temp = TheModule.getOrInsertFunction("set_register", SetRegisterTy);
     auto *SetRegister = cast<Function>(Temp);
@@ -204,8 +201,7 @@ public:
         // Set the value of the CSV
         auto *SetRegisterBB = BasicBlock::Create(Context, "", SetRegister);
         Builder.SetInsertPoint(SetRegisterBB);
-        Builder.CreateStore(Builder.CreateTrunc(NewValue, CSVIntTy),
-                            P.second);
+        Builder.CreateStore(Builder.CreateTrunc(NewValue, CSVIntTy), P.second);
         Builder.CreateBr(ReturnBB);
 
         // Add the case to the switch
@@ -219,9 +215,7 @@ public:
   }
 
   /// \brief Gets the CPUStateType
-  llvm::StructType *getCPUStateType() const {
-    return CPUStateType;
-  }
+  llvm::StructType *getCPUStateType() const { return CPUStateType; }
 
 private:
   llvm::Value *loadFromCPUStateOffset(llvm::IRBuilder<> &Builder,
@@ -233,11 +227,11 @@ private:
                              unsigned Offset,
                              llvm::Value *ToStore);
 
-  llvm::GlobalVariable *getByCPUStateOffset(intptr_t Offset,
-                                            std::string Name="");
-  std::pair<llvm::GlobalVariable*, unsigned>
-    getByCPUStateOffsetInternal(intptr_t Offset,
-                                std::string Name="");
+  llvm::GlobalVariable *
+  getByCPUStateOffset(intptr_t Offset, std::string Name = "");
+
+  std::pair<llvm::GlobalVariable *, unsigned>
+  getByCPUStateOffsetInternal(intptr_t Offset, std::string Name = "");
 
 private:
   llvm::Module &TheModule;

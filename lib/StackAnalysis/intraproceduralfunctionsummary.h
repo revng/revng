@@ -54,15 +54,14 @@ private:
     FinalState(Intraprocedural::Element::bottom()) {}
 
 public:
-  explicit
-  IntraproceduralFunctionSummary(Intraprocedural::Element FinalState,
-                                 FunctionABI ABI,
-                                 CallSiteStackSizeMap FrameSizeAtCallSite,
-                                 BranchesTypeMap BranchesType,
-                                 std::set<int32_t> WrittenRegisters) :
+  explicit IntraproceduralFunctionSummary(Intraprocedural::Element FinalState,
+                                          FunctionABI ABI,
+                                          CallSiteStackSizeMap FrameSizes,
+                                          BranchesTypeMap BranchesType,
+                                          std::set<int32_t> WrittenRegisters) :
     FinalState(std::move(FinalState)),
     ABI(std::move(ABI)),
-    FrameSizeAtCallSite(std::move(FrameSizeAtCallSite)),
+    FrameSizeAtCallSite(std::move(FrameSizes)),
     BranchesType(std::move(BranchesType)),
     WrittenRegisters(std::move(WrittenRegisters)) {
 
@@ -125,7 +124,7 @@ private:
       CSVCount = std::distance(M->global_begin(), M->global_end());
     }
 
-    auto IsValid = [CSVCount, CPU] (ASSlot Slot) {
+    auto IsValid = [CSVCount, CPU](ASSlot Slot) {
       return Slot.addressSpace() == CPU and Slot.offset() <= CSVCount;
     };
 

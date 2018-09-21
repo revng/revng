@@ -7,8 +7,8 @@
 
 // Standard includes
 #include <cstdint>
-#include <string>
 #include <memory>
+#include <string>
 
 // LLVM includes
 #include "llvm/ADT/ArrayRef.h"
@@ -32,7 +32,7 @@ namespace object {
 class ObjectFile;
 };
 
-};
+}; // namespace llvm
 
 class DebugHelper;
 
@@ -114,7 +114,7 @@ private:
 
 private:
   Architecture TargetArchitecture;
-  llvm::LLVMContext& Context;
+  llvm::LLVMContext &Context;
   std::unique_ptr<llvm::Module> TheModule;
   std::unique_ptr<llvm::Module> HelpersModule;
   std::unique_ptr<llvm::Module> EarlyLinkedModule;

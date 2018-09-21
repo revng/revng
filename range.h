@@ -16,10 +16,11 @@ private:
   using difference_type = typename Iterator::difference_type;
 
 public:
-  Range(Iterator Begin, Iterator End) : Begin(Begin), End(End) { }
+  Range(Iterator Begin, Iterator End) : Begin(Begin), End(End) {}
   template<typename ContainerT>
-  Range(ContainerT&& Container) : Begin(Container.begin()),
-                                  End(Container.end()) { }
+  Range(ContainerT &&Container) :
+    Begin(Container.begin()),
+    End(Container.end()) {}
 
   Iterator begin() const { return Begin; }
   Iterator end() const { return End; }
@@ -31,25 +32,23 @@ public:
     return Result;
   }
 
-  reference operator[](const difference_type& n) const {
-    return Begin[n];
-  }
+  reference operator[](const difference_type &n) const { return Begin[n]; }
 
-  difference_type size() const {
-    return End - Begin;
-  }
+  difference_type size() const { return End - Begin; }
 
 private:
   Iterator Begin;
   Iterator End;
 };
 
-template<typename ContainerT>
-using RangeFromContainer = 
-  Range<typename std::remove_reference<ContainerT>::type::iterator>;
+template<typename T>
+using rr = typename std::remove_reference<T>::type;
+
+template<typename C>
+using RangeFromContainer = Range<typename rr<C>::iterator>;
 
 template<typename ContainerT>
-RangeFromContainer<ContainerT> make_range(ContainerT&& Container) {
+RangeFromContainer<ContainerT> make_range(ContainerT &&Container) {
   return RangeFromContainer<ContainerT>(Container);
 }
 

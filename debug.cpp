@@ -26,9 +26,7 @@ std::ostream &dbg(std::cerr);
 static std::vector<std::string> DebugFeatures;
 
 bool isDebugFeatureEnabled(std::string Name) {
-  return std::find(DebugFeatures.begin(),
-                   DebugFeatures.end(),
-                   Name) != DebugFeatures.end();
+  return std::count(DebugFeatures.begin(), DebugFeatures.end(), Name) != 0;
 }
 
 void enableDebugFeature(std::string Name) {
@@ -42,9 +40,7 @@ void enableDebugFeature(std::string Name) {
 }
 
 void disableDebugFeature(std::string Name) {
-  auto It = std::find(DebugFeatures.begin(),
-                      DebugFeatures.end(),
-                      Name);
+  auto It = std::find(DebugFeatures.begin(), DebugFeatures.end(), Name);
   if (It != DebugFeatures.end())
     DebugFeatures.erase(It);
 

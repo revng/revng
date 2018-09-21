@@ -5,8 +5,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
-
 // Boost includes
 #define BOOST_TEST_MODULE StackAnalysis
 #include <boost/test/unit_test.hpp>

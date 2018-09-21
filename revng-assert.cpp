@@ -5,8 +5,8 @@
 #include <iostream>
 
 // LLVM includes
-#include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/raw_os_ostream.h"
 
 // Local includes
 #include "revng-assert.h"
@@ -22,10 +22,8 @@ static void print_stack_trace() {
   abort();
 }
 
-static void report(const char *Type,
-                   const char *File,
-                   unsigned Line,
-                   const char *What) {
+static void
+report(const char *Type, const char *File, unsigned Line, const char *What) {
   fprintf(stderr, "%s at %s:%d: %s\n", Type, File, Line, What);
 }
 
@@ -47,9 +45,7 @@ void revng_check_fail(const char *CheckBody,
   terminate();
 }
 
-void revng_do_abort(const char *Message,
-                    const char *File,
-                    unsigned Line) {
+void revng_do_abort(const char *Message, const char *File, unsigned Line) {
   report("Abort", File, Line, Message);
   terminate();
 }

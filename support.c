@@ -35,12 +35,14 @@ static char **saved_argv;
 
 // Macros to ensure that when we downcast from a 64-bit pointer to a 32-bit
 // integer for the target architecture we're not losing information
-#define MAX_OF(t) (((0x1ULL << ((sizeof(t) * 8ULL) - 1ULL)) - 1ULL) |    \
-                   (0xFULL << ((sizeof(t) * 8ULL) - 4ULL)))
-#define SAFE_CAST(ptr) do {                             \
-    assert((uintptr_t) (ptr) <= MAX_OF(target_reg));    \
-  } while(0)
+#define MAX_OF(t)                                   \
+  (((0x1ULL << ((sizeof(t) * 8ULL) - 1ULL)) - 1ULL) \
+   | (0xFULL << ((sizeof(t) * 8ULL) - 4ULL)))
 
+#define SAFE_CAST(ptr)                              \
+  do {                                              \
+    assert((uintptr_t)(ptr) <= MAX_OF(target_reg)); \
+  } while (0)
 
 noreturn void root(target_reg stack);
 
@@ -62,29 +64,34 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
   char **arge;
 
   // Define some helper macros for building the stack
-#define MOVE(ptr, size) do {                        \
-    (ptr) -= ((size) + align - 1) & ~(align - 1);   \
+#define MOVE(ptr, size)                           \
+  do {                                            \
+    (ptr) -= ((size) + align - 1) & ~(align - 1); \
   } while (0);
 
-#define PUSH(ptr, size, data) do {                  \
-    MOVE(ptr, size);                                \
-    memcpy((void *) (ptr), (data), size);           \
-  } while(0)
+#define PUSH(ptr, size, data)             \
+  do {                                    \
+    MOVE(ptr, size);                      \
+    memcpy((void *) (ptr), (data), size); \
+  } while (0)
 
-#define PUSH_STR(ptr, data) do {                \
-    tmp = strlen(data) + 1;                     \
-    PUSH(ptr, (tmp), (void *) (data));          \
-  } while(0)
+#define PUSH_STR(ptr, data)            \
+  do {                                 \
+    tmp = strlen(data) + 1;            \
+    PUSH(ptr, (tmp), (void *) (data)); \
+  } while (0)
 
-#define PUSH_REG(ptr, data) do {                \
-    tmp = SWAP(data);                           \
-    PUSH(ptr, align, (void *) &tmp);            \
+#define PUSH_REG(ptr, data)          \
+  do {                               \
+    tmp = SWAP(data);                \
+    PUSH(ptr, align, (void *) &tmp); \
   } while (0);
 
-#define PUSH_AUX(ptr, key, value) do {          \
-    PUSH_REG(ptr, (target_reg) (value));        \
-    PUSH_REG(ptr, key);                         \
-  } while(0)
+#define PUSH_AUX(ptr, key, value)       \
+  do {                                  \
+    PUSH_REG(ptr, (target_reg)(value)); \
+    PUSH_REG(ptr, key);                 \
+  } while (0)
 
   // Reserve space for arguments and environment variables
   arg_area = stack;
@@ -218,14 +225,14 @@ void *g_malloc0_n(size_t n, size_t size) {
 }
 
 void *g_malloc(size_t n_bytes) {
-  if(n_bytes == 0)
+  if (n_bytes == 0)
     return NULL;
   else
     return malloc(n_bytes);
 }
 
 void g_free(void *memory) {
-  if(memory == NULL)
+  if (memory == NULL)
     return;
   else
     return free(memory);
@@ -263,37 +270,37 @@ void init_tracing(void) {
     trace_fd = open(trace_path,
                     O_WRONLY | O_CREAT | O_TRUNC,
                     S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-     assert(trace_fd != -1);
+    assert(trace_fd != -1);
 
-     // Set REVAMB_TRACE_BUFFER_SIZE to customimze buffer size, default is 1024
-     // * 1024 instructions
-     char *trace_buffer_size_string = getenv("REVAMB_TRACE_BUFFER_SIZE");
-     if (trace_buffer_size_string != NULL
-         && strlen(trace_buffer_size_string) > 0) {
-       char **first_invalid = NULL;
-       trace_buffer_size = strtoll(trace_buffer_size_string, first_invalid, 0);
-       assert(**first_invalid == '\0');
-     }
+    // Set REVAMB_TRACE_BUFFER_SIZE to customimze buffer size, default is 1024
+    // * 1024 instructions
+    char *trace_buffer_size_string = getenv("REVAMB_TRACE_BUFFER_SIZE");
+    if (trace_buffer_size_string != NULL
+        && strlen(trace_buffer_size_string) > 0) {
+      char **first_invalid = NULL;
+      trace_buffer_size = strtoll(trace_buffer_size_string, first_invalid, 0);
+      assert(**first_invalid == '\0');
+    }
 
-     // Allocate buffer to hold program counters
-     trace_buffer = malloc(trace_buffer_size * sizeof(uint64_t));
-     assert(trace_buffer != NULL);
+    // Allocate buffer to hold program counters
+    trace_buffer = malloc(trace_buffer_size * sizeof(uint64_t));
+    assert(trace_buffer != NULL);
 
-     // In case of a crash, flush the buffer
-     static const int signals[] = { SIGINT, SIGABRT, SIGTERM, SIGSEGV };
-     for (unsigned c = 0; c < sizeof(signals) / sizeof(int); c++) {
-       struct sigaction new_handler;
-       struct sigaction old_handler;
-       new_handler.sa_handler = flush_trace_buffer_signal_handler;
-       int result = sigaction(signals[c], &new_handler, &old_handler);
-       assert(result == 0);
-       assert(old_handler.sa_handler == SIG_IGN
-              || old_handler.sa_handler == SIG_DFL);
-     }
+    // In case of a crash, flush the buffer
+    static const int signals[] = { SIGINT, SIGABRT, SIGTERM, SIGSEGV };
+    for (unsigned c = 0; c < sizeof(signals) / sizeof(int); c++) {
+      struct sigaction new_handler;
+      struct sigaction old_handler;
+      new_handler.sa_handler = flush_trace_buffer_signal_handler;
+      int result = sigaction(signals[c], &new_handler, &old_handler);
+      assert(result == 0);
+      assert(old_handler.sa_handler == SIG_IGN
+             || old_handler.sa_handler == SIG_DFL);
+    }
 
-     // Upon exit, flush the buffer too
-     int result = atexit(flush_trace_buffer);
-     assert(result == 0);
+    // Upon exit, flush the buffer too
+    int result = atexit(flush_trace_buffer);
+    assert(result == 0);
   }
 }
 
@@ -318,7 +325,8 @@ void on_exit_syscall(void) {
 void newpc(uint64_t pc,
            uint64_t instruction_size,
            uint32_t is_first,
-           uint8_t *vars, ...) {
+           uint8_t *vars,
+           ...) {
   // Check if tracing is enabled
   if (trace_fd == -1)
     return;
@@ -342,7 +350,8 @@ void on_exit_syscall(void) {
 void newpc(uint64_t pc,
            uint64_t instruction_size,
            uint32_t is_first,
-           uint8_t *vars, ...) {
+           uint8_t *vars,
+           ...) {
 }
 
 #endif
@@ -362,8 +371,7 @@ bool is_executable(uint64_t pc) {
 
 void handle_sigsegv(int signo, siginfo_t *info, void *opaque_context) {
   // If we are catching a SIGSEGV not thrown by the kill command
-  if (signo == SIGSEGV
-      && info->si_code != SI_USER
+  if (signo == SIGSEGV && info->si_code != SI_USER
       && is_executable((uint64_t) info->si_addr)) {
     ucontext_t *context = opaque_context;
     saved_registers = (target_reg *) &context->uc_mcontext.gregs;
@@ -400,7 +408,8 @@ int main(int argc, char *argv[]) {
                      PROT_READ | PROT_WRITE,
                      MAP_ANONYMOUS | MAP_32BIT | MAP_PRIVATE,
                      -1,
-                     0) + 16 * 0x100000 - 0x1000;
+                     0)
+                + 16 * 0x100000 - 0x1000;
   assert(stack != NULL);
   stack = prepare_stack(stack, argc, argv);
 
@@ -456,7 +465,7 @@ int exception_personality(int version,
   // other paramters are not used in our implementation
   if (actions == _UA_SEARCH_PHASE) {
     return _URC_HANDLER_FOUND;
-  } else if (actions == (_UA_CLEANUP_PHASE | _UA_HANDLER_FRAME)){
+  } else if (actions == (_UA_CLEANUP_PHASE | _UA_HANDLER_FRAME)) {
     return _URC_INSTALL_CONTEXT;
   }
   return _URC_NO_REASON;
@@ -468,35 +477,34 @@ void exception_warning(Reason Code,
                        target_reg Source,
                        target_reg Target,
                        target_reg ExpectedDestination) {
-  switch(Code) {
-    case StandardTranslatedBlock:
-      fprintf(stderr,
-              "Unexpected control-flow in isolated function: 0x%"
-              TARGET_REG_FORMAT " -> 0x%" TARGET_REG_FORMAT "\n",
-              Source,
-              Target);
-      break;
-    case StandardNonTranslatedBlock:
-      fprintf(stderr,
-              "Unexpected control-flow in isolated function after unexpectedpc "
-              "or anypc block: 0x%" TARGET_REG_FORMAT "\n",
-              Target);
-      break;
-    case BadReturnAddress:
-      fprintf(stderr,
-              "Expected and actual fallthrough after ret not corresponding: 0x%"
-              TARGET_REG_FORMAT " / 0x%" TARGET_REG_FORMAT "\n",
-              Target,
-              ExpectedDestination);
-      break;
-    case FunctionDispatcherFallBack:
-      fprintf(stderr,
-              "Erroneous call to function dispatcher: "
-              "0x%" TARGET_REG_FORMAT "\n",
-              Target);
-      break;
-    default:
-      assert(0 && "Reason code not supported");
+  switch (Code) {
+  case StandardTranslatedBlock:
+    fprintf(stderr,
+            "Unexpected control-flow in isolated function: "
+            "0x%" TARGET_REG_FORMAT " -> 0x%" TARGET_REG_FORMAT "\n",
+            Source,
+            Target);
+    break;
+  case StandardNonTranslatedBlock:
+    fprintf(stderr,
+            "Unexpected control-flow in isolated function after unexpectedpc "
+            "or anypc block: 0x%" TARGET_REG_FORMAT "\n",
+            Target);
+    break;
+  case BadReturnAddress:
+    fprintf(stderr,
+            "Expected and actual fallthrough after ret not corresponding: "
+            "0x%" TARGET_REG_FORMAT " / 0x%" TARGET_REG_FORMAT "\n",
+            Target,
+            ExpectedDestination);
+    break;
+  case FunctionDispatcherFallBack:
+    fprintf(stderr,
+            "Erroneous call to function dispatcher: "
+            "0x%" TARGET_REG_FORMAT "\n",
+            Target);
+    break;
+  default:
+    assert(0 && "Reason code not supported");
   }
-
 }

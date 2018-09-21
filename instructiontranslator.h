@@ -16,9 +16,9 @@
 #include "llvm/Support/ErrorOr.h"
 
 // Local includes
-#include "revamb.h"
-#include "ptcdump.h"
 #include "jumptargetmanager.h"
+#include "ptcdump.h"
+#include "revamb.h"
 
 // Forward declarations
 namespace llvm {
@@ -27,7 +27,7 @@ class CallInst;
 class Function;
 class MDNode;
 class Module;
-}
+} // namespace llvm
 
 class JumpTargetManager;
 class VariableManager;
@@ -46,9 +46,9 @@ public:
   ///        further processing.
   /// \param SourceArchitecture the input architecture.
   /// \param TargetArchitecture the output architecture.
-  InstructionTranslator(llvm::IRBuilder<>& Builder,
-                        VariableManager& Variables,
-                        JumpTargetManager& JumpTargets,
+  InstructionTranslator(llvm::IRBuilder<> &Builder,
+                        VariableManager &Variables,
+                        JumpTargetManager &JumpTargets,
                         std::vector<llvm::BasicBlock *> Blocks,
                         const Architecture &SourceArchitecture,
                         const Architecture &TargetArchitecture);
@@ -82,14 +82,12 @@ public:
   ///         `uint64_t` representing the current and next PC.
   // TODO: rename to newPC
   // TODO: the signature of this function is ugly
-  std::tuple<TranslationResult,
-    llvm::MDNode *,
-    uint64_t,
-    uint64_t> newInstruction(PTCInstruction *Instr,
-                             PTCInstruction *Next,
-                             uint64_t EndPC,
-                             bool IsFirst,
-                             bool ForceNew);
+  std::tuple<TranslationResult, llvm::MDNode *, uint64_t, uint64_t>
+  newInstruction(PTCInstruction *Instr,
+                 PTCInstruction *Next,
+                 uint64_t EndPC,
+                 bool IsFirst,
+                 bool ForceNew);
 
   /// \brief Translate an ordinary instruction
   ///
@@ -98,9 +96,8 @@ public:
   /// \param NextPC the PC associated to instruction after \p Instr.
   ///
   /// \return see InstructionTranslator::TranslationResult.
-  TranslationResult translate(PTCInstruction *Instr,
-                              uint64_t PC,
-                              uint64_t NextPC);
+  TranslationResult
+  translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC);
 
   /// \brief Translate a call to an helper
   ///
@@ -129,10 +126,11 @@ private:
   translateOpcode(PTCOpcode Opcode,
                   std::vector<uint64_t> ConstArguments,
                   std::vector<llvm::Value *> InArguments);
+
 private:
-  llvm::IRBuilder<>& Builder;
-  VariableManager& Variables;
-  JumpTargetManager& JumpTargets;
+  llvm::IRBuilder<> &Builder;
+  VariableManager &Variables;
+  JumpTargetManager &JumpTargets;
   std::map<std::string, llvm::BasicBlock *> LabeledBasicBlocks;
   std::vector<llvm::BasicBlock *> Blocks;
   llvm::Module &TheModule;

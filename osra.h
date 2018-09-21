@@ -13,8 +13,8 @@
 #include "llvm/Pass.h"
 
 // Local includes
-#include "ir-helpers.h"
 #include "functioncallidentification.h"
+#include "ir-helpers.h"
 #include "reachingdefinitions.h"
 #include "simplifycomparisons.h"
 
@@ -30,7 +30,7 @@ class Module;
 class SwitchInst;
 class StoreInst;
 class Value;
-}
+} // namespace llvm
 
 class BVMap;
 class BoundedValueHelpers;
@@ -40,7 +40,7 @@ class OSRAPass : public llvm::FunctionPass {
 public:
   static char ID;
 
-  OSRAPass() : llvm::FunctionPass(ID), BVs(nullptr) { }
+  OSRAPass() : llvm::FunctionPass(ID), BVs(nullptr) {}
 
   bool runOnFunction(llvm::Function &F) override;
 
@@ -66,7 +66,7 @@ public:
 
       if (auto *Constant = llvm::dyn_cast<llvm::ConstantInt>(V)) {
         uint64_t Value = getLimitedValue(Constant);
-        Bounds = BoundsVector { { Value, Value } };
+        Bounds = BoundsVector{ { Value, Value } };
         Sign = AnySignedness;
       }
     }
@@ -75,7 +75,7 @@ public:
       Value(nullptr),
       Sign(UnknownSignedness),
       Bottom(false),
-      Negated(false) { }
+      Negated(false) {}
 
     /// \brief Notify about a usage of the SSA value with a certain signedness
     ///
@@ -108,11 +108,8 @@ public:
     }
 
     bool isConstant() const {
-      return !isUninitialized()
-        && !Negated
-        && !Bottom
-        && Bounds.size() == 1
-        && Bounds[0].first == Bounds[0].second;
+      return !isUninitialized() && !Negated && !Bottom && Bounds.size() == 1
+             && Bounds[0].first == Bounds[0].second;
     }
 
     uint64_t constant() const {
@@ -121,18 +118,15 @@ public:
     }
 
     /// \brief Merge \p Other using the \p MT policy
-    template<MergeType MT=And>
-    bool merge(BoundedValue Other,
-               const llvm::DataLayout &DL,
-               llvm::Type *Int64);
+    template<MergeType MT = And>
+    bool
+    merge(BoundedValue Other, const llvm::DataLayout &DL, llvm::Type *Int64);
 
     /// \brief Accessor to the SSA value represent by this BV
     const llvm::Value *value() const { return Value; }
 
     bool isSigned() const {
-      assert(Sign != UnknownSignedness
-             && Sign != AnySignedness
-             && !Bottom);
+      assert(Sign != UnknownSignedness && Sign != AnySignedness && !Bottom);
       return Sign != Unsigned;
     }
 
@@ -210,8 +204,7 @@ public:
       // Are they fully identical?
       if (Negated == Other.Negated && Bounds == Other.Bounds) {
         return true;
-      } else if (hasSignedness()
-                 && Other.hasSignedness()
+      } else if (hasSignedness() && Other.hasSignedness()
                  && Negated == !Other.Negated) {
         // One is negated, the other is not, normalize them and perform a
         // comparison
@@ -221,9 +214,7 @@ public:
       return false;
     }
 
-    bool operator!=(const BoundedValue &Other) {
-      return !(*this == Other);
-    }
+    bool operator!=(const BoundedValue &Other) { return !(*this == Other); }
 
     /// \brief Negates this BV
     void flip() {
@@ -244,11 +235,9 @@ public:
     /// A BV is top if it's uninitialized or it's not negated and both its
     /// boundaries are at their respective extremes.
     bool isTop() const {
-      return (!isConstant()
-              && Sign != AnySignedness
+      return (!isConstant() && Sign != AnySignedness
               && (isUninitialized()
-                  || (!Negated
-                      && Bounds.size() == 1
+                  || (!Negated && Bounds.size() == 1
                       && Bounds[0].first == lowerExtreme()
                       && Bounds[0].second == upperExtreme())));
     }
@@ -282,36 +271,32 @@ public:
       return Result;
     }
 
-    static BoundedValue createGE(const llvm::Value *V,
-                                 uint64_t Value,
-                                 bool Sign) {
+    static BoundedValue
+    createGE(const llvm::Value *V, uint64_t Value, bool Sign) {
       BoundedValue Result(V);
       Result.setSignedness(Sign);
-      Result.Bounds = BoundsVector { { Value, Result.upperExtreme() } };
+      Result.Bounds = BoundsVector{ { Value, Result.upperExtreme() } };
       return Result;
     }
 
-    static BoundedValue createLE(const llvm::Value *V,
-                                 uint64_t Value,
-                                 bool Sign) {
+    static BoundedValue
+    createLE(const llvm::Value *V, uint64_t Value, bool Sign) {
       BoundedValue Result(V);
       Result.setSignedness(Sign);
-      Result.Bounds = BoundsVector { { Result.lowerExtreme(), Value } };
+      Result.Bounds = BoundsVector{ { Result.lowerExtreme(), Value } };
       return Result;
     }
 
-    static BoundedValue createEQ(const llvm::Value *V,
-                                 uint64_t Value,
-                                 bool Sign) {
+    static BoundedValue
+    createEQ(const llvm::Value *V, uint64_t Value, bool Sign) {
       BoundedValue Result(V);
       Result.setSignedness(Sign);
-      Result.Bounds = BoundsVector { { Value, Value } };
+      Result.Bounds = BoundsVector{ { Value, Value } };
       return Result;
     }
 
-    static BoundedValue createNE(const llvm::Value *V,
-                                 uint64_t Value,
-                                 bool Sign) {
+    static BoundedValue
+    createNE(const llvm::Value *V, uint64_t Value, bool Sign) {
       BoundedValue Result = createEQ(V, Value, Sign);
       Result.flip();
       return Result;
@@ -319,13 +304,13 @@ public:
 
     static BoundedValue createConstant(const llvm::Value *V, uint64_t Value) {
       BoundedValue Result(V);
-      Result.Bounds = BoundsVector { { Value, Value } };
+      Result.Bounds = BoundsVector{ { Value, Value } };
       Result.Sign = AnySignedness;
       return Result;
     }
 
-    static BoundedValue createNegatedConstant(const llvm::Value *V,
-                                              uint64_t Value) {
+    static BoundedValue
+    createNegatedConstant(const llvm::Value *V, uint64_t Value) {
       BoundedValue Result = createConstant(V, Value);
       Result.flip();
       return Result;
@@ -343,7 +328,7 @@ public:
                                     bool Sign) {
       BoundedValue Result(V);
       Result.setSignedness(Sign);
-      Result.Bounds = BoundsVector { { Lower, Upper } };
+      Result.Bounds = BoundsVector{ { Lower, Upper } };
       return Result;
     }
 
@@ -371,7 +356,7 @@ public:
         return;
       }
 
-      Bounds = BoundsVector { { lowerExtreme(), upperExtreme() } };
+      Bounds = BoundsVector{ { lowerExtreme(), upperExtreme() } };
       Negated = false;
       Bottom = false;
     }
@@ -380,8 +365,8 @@ public:
     /// Multiplier and then adding \p Offset
     BoundedValue moveTo(llvm::Value *V,
                         const llvm::DataLayout &DL,
-                        uint64_t Offset=0,
-                        uint64_t Multiplier=0) const;
+                        uint64_t Offset = 0,
+                        uint64_t Multiplier = 0) const;
 
   private:
     uint64_t lowerExtreme() const {
@@ -448,16 +433,15 @@ public:
   /// \brief An OSR represents an expression a + b * x, x being a BoundedValue
   class OSR {
   public:
-
     /// \brief Constructor for a basic OSR
-    OSR(const BoundedValue *Value) : Base(0), Factor(1), BV(Value) { }
+    OSR(const BoundedValue *Value) : Base(0), Factor(1), BV(Value) {}
 
-    OSR() : Base(0), Factor(1), BV(nullptr) { }
+    OSR() : Base(0), Factor(1), BV(nullptr) {}
 
     OSR(const OSR &Other) :
       Base(Other.Base),
       Factor(Other.Factor),
-      BV(Other.BV) { }
+      BV(Other.BV) {}
 
     uint64_t constant() const {
       using CE = llvm::ConstantExpr;
@@ -482,7 +466,8 @@ public:
     /// \param FreeOpIndex the index of the non-constant operator.
     ///
     /// \return true if the OSR has been modified.
-    bool combine(unsigned Opcode, llvm::Constant *Operand,
+    bool combine(unsigned Opcode,
+                 llvm::Constant *Operand,
                  unsigned FreeOpIndex,
                  const llvm::DataLayout &DL);
 
@@ -498,14 +483,10 @@ public:
                                   const llvm::DataLayout &DL);
 
     /// \brief Checks if this OSR is relative to \p V
-    bool isRelativeTo(const llvm::Value *V) const {
-      return BV->value() == V;
-    }
+    bool isRelativeTo(const llvm::Value *V) const { return BV->value() == V; }
 
     /// \brief Change the BoundedValue associated to this OSR
-    void setBoundedValue(BoundedValue *NewBV) {
-      BV = NewBV;
-    }
+    void setBoundedValue(BoundedValue *NewBV) { BV = NewBV; }
 
     /// \brief Accessor method to BoundedValue associated to this OSR
     const BoundedValue *boundedValue() const {
@@ -517,9 +498,7 @@ public:
       return Base == Other.Base && Factor == Other.Factor && BV == Other.BV;
     }
 
-    bool operator!=(const OSR &Other) const {
-      return !(*this == Other);
-    }
+    bool operator!=(const OSR &Other) const { return !(*this == Other); }
 
     void describe(llvm::formatted_raw_ostream &O) const;
 
@@ -540,8 +519,7 @@ public:
 
     // TODO: are we sure we want to use Int64 here?
     /// \brief Compute `a + b * Value`
-    llvm::Constant *evaluate(llvm::Constant *Value,
-                             llvm::Type *Int64) const;
+    llvm::Constant *evaluate(llvm::Constant *Value, llvm::Type *Int64) const;
 
     /// \brief Compute the boundaries value
     ///
@@ -549,9 +527,8 @@ public:
     /// and `d` the boundaries of the associated BoundedValue.
     ///
     /// \return a pair of `Constant` representing the lower and upper bounds.
-    std::pair<llvm::Constant *,
-              llvm::Constant *> boundaries(llvm::Type *Int64,
-                                           const llvm::DataLayout &DL) const;
+    std::pair<llvm::Constant *, llvm::Constant *>
+    boundaries(llvm::Type *Int64, const llvm::DataLayout &DL) const;
 
     class BoundsIterator {
     public:
@@ -564,7 +541,7 @@ public:
         Current(Start),
         Index(0),
         TheOSR(TheOSR),
-        DL(getModule(TheOSR.boundedValue()->value())->getDataLayout()) { }
+        DL(getModule(TheOSR.boundedValue()->value())->getDataLayout()) {}
 
       bool operator==(BoundsIterator &Other) const {
         assert(TheOSR.Factor == Other.TheOSR.Factor);
@@ -601,7 +578,9 @@ public:
       using container = llvm::SmallVector<bounds_pair, 3>;
 
       Bounds(llvm::Type *T, container TheBounds, const OSR &TheOSR) :
-        TheType(T), TheBounds(TheBounds), TheOSR(TheOSR) { }
+        TheType(T),
+        TheBounds(TheBounds),
+        TheOSR(TheOSR) {}
 
       BoundsIterator begin() const {
         return BoundsIterator(TheType, TheOSR, TheBounds.begin());
@@ -639,6 +618,7 @@ public:
 
       return Target.moveTo(V, DL, Base, Factor);
     }
+
   private:
     uint64_t Base;
     uint64_t Factor;
@@ -660,16 +640,15 @@ public:
   }
 
   std::pair<llvm::Constant *, llvm::Value *>
-    identifyOperands(const llvm::Instruction *I,
-                     const llvm::DataLayout &DL) {
+  identifyOperands(const llvm::Instruction *I, const llvm::DataLayout &DL) {
     return identifyOperands(OSRs, I, DL);
   }
 
   // TODO: make me private?
   static std::pair<llvm::Constant *, llvm::Value *>
-    identifyOperands(std::map<const llvm::Value *, const OSR> &OSRs,
-                     const llvm::Instruction *I,
-                     const llvm::DataLayout &DL);
+  identifyOperands(std::map<const llvm::Value *, const OSR> &OSRs,
+                   const llvm::Instruction *I,
+                   const llvm::DataLayout &DL);
 
   virtual void releaseMemory() override;
 

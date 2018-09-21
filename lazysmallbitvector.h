@@ -23,7 +23,7 @@ extern "C" {
 // TODO: implement using __builtin_clz if available
 /// \brief Returns the minimum amount of bits required to represent \p Value
 template<typename T>
-static unsigned requiredBits(T Value) {
+inline unsigned requiredBits(T Value) {
   unsigned Result = 0;
 
   while (Value != 0) {
@@ -35,9 +35,12 @@ static unsigned requiredBits(T Value) {
 }
 
 template<typename T, typename A, typename B>
-using enable_if_either = typename std::enable_if<std::is_same<T, A>::value
-                                                 || std::is_same<T, B>::value,
-                                                 T>::type;
+constexpr bool is_either() {
+  return std::is_same<T, A>::value || std::is_same<T, B>::value;
+}
+
+template<typename T, typename A, typename B>
+using enable_if_either = typename std::enable_if<is_either<T, A, B>(), T>::type;
 
 template<typename T>
 using enable_if_int = enable_if_either<T, unsigned, int>;
@@ -48,36 +51,41 @@ using enable_if_long = enable_if_either<T, unsigned long, long>;
 template<typename T>
 using enable_if_long_long = enable_if_either<T, unsigned long long, long long>;
 
-template<typename T> inline
-unsigned findFirstBit(enable_if_int<T> Value) { return ffs(Value); }
-
-template<typename T> inline
-unsigned findFirstBit(enable_if_long<T> Value) { return ffsl(Value); }
-
-template<typename T> inline
-unsigned findFirstBit(enable_if_long_long<T> Value) { return ffsll(Value); }
+template<typename T>
+inline unsigned findFirstBit(enable_if_int<T> Value) {
+  return ffs(Value);
+}
 
 template<typename T>
-static inline unsigned findFirstBit(T Value) {
+inline unsigned findFirstBit(enable_if_long<T> Value) {
+  return ffsl(Value);
+}
+
+template<typename T>
+inline unsigned findFirstBit(enable_if_long_long<T> Value) {
+  return ffsll(Value);
+}
+
+template<typename T>
+inline unsigned findFirstBit(T Value) {
   return findFirstBit<T>(Value);
 }
 
 template<typename T>
-static T excessDivide(T A, unsigned B) {
+inline T excessDivide(T A, unsigned B) {
   return (A + (B - 1)) / B;
 }
 
 class LazySmallBitVector;
 
 template<typename LSBV>
-class LazySmallBitVectorIterator :
-  public boost::iterator_facade<LazySmallBitVectorIterator<LSBV>,
-                                unsigned,
-                                boost::forward_traversal_tag,
-                                unsigned>
-{
+class LazySmallBitVectorIterator
+  : public boost::iterator_facade<LazySmallBitVectorIterator<LSBV>,
+                                  unsigned,
+                                  boost::forward_traversal_tag,
+                                  unsigned> {
 public:
-  LazySmallBitVectorIterator() : BitVector(nullptr), NextBitIndex(0) { }
+  LazySmallBitVectorIterator() : BitVector(nullptr), NextBitIndex(0) {}
   LazySmallBitVectorIterator(LSBV *BitVector);
   LazySmallBitVectorIterator(LSBV *BitVector, unsigned Index);
 
@@ -109,7 +117,6 @@ public:
   typedef bool value_type;
 
 private:
-
   static const unsigned BitsPerPointer = sizeof(uintptr_t) * CHAR_BIT;
   static const unsigned MaxSmallSize = BitsPerPointer - 1;
   static const uintptr_t One = 1;
@@ -141,17 +148,11 @@ private:
       memset(&at(From), 0, Count * sizeof(uintptr_t));
     }
 
-    void zero(size_t From) {
-      zero(From, wordCount());
-    }
+    void zero(size_t From) { zero(From, wordCount()); }
 
-    void zero() {
-      zero(0);
-    }
+    void zero() { zero(0); }
 
-    void setCapacity(size_t Count) {
-      Capacity = Count;
-    }
+    void setCapacity(size_t Count) { Capacity = Count; }
 
     LargeStorage &operator=(const LargeStorage &Other) {
       assert(Capacity >= Other.Capacity);
@@ -165,7 +166,7 @@ private:
   };
 
 public:
-  LazySmallBitVector() : Storage(1) { }
+  LazySmallBitVector() : Storage(1) {}
 
   LazySmallBitVector(const LazySmallBitVector &Other) : Storage(1) {
     *this = Other;
@@ -240,13 +241,9 @@ public:
     }
   }
 
-  void zero(size_t From) {
-    zero(From, capacity() - From);
-  }
+  void zero(size_t From) { zero(From, capacity() - From); }
 
-  void zero() {
-    zero(0);
-  }
+  void zero() { zero(0); }
 
   bool operator[](unsigned Index) const {
     if (Index >= capacity())
@@ -273,9 +270,7 @@ public:
     }
   }
 
-  bool isZero() const {
-    return requiredBits() == 0;
-  }
+  bool isZero() const { return requiredBits() == 0; }
 
   LazySmallBitVector &operator=(const LazySmallBitVector &Other) {
     if (!(Other.isSmall() || Other.capacity() > 63))
@@ -315,8 +310,9 @@ public:
       const LargeStorage &OtherLarge = Other.getLarge();
       const LargeStorage &ThisLarge = getLarge();
 
-      unsigned Max = std::min(ThisLarge.capacity(),
-                              OtherLarge.capacity()) / BitsPerPointer;
+      unsigned Max = std::min(ThisLarge.capacity(), OtherLarge.capacity());
+      Max /= BitsPerPointer;
+
       for (unsigned I = 0; I < Max; I++)
         if (ThisLarge.at(I) != OtherLarge.at(I))
           return false;
@@ -371,8 +367,8 @@ public:
       const LargeStorage &OtherLarge = Other.getLarge();
       LargeStorage &ThisLarge = getLarge();
 
-      unsigned Max = std::min(ThisLarge.capacity(),
-                              OtherLarge.capacity()) / BitsPerPointer;
+      unsigned Max = std::min(ThisLarge.capacity(), OtherLarge.capacity());
+      Max /= BitsPerPointer;
       for (unsigned I = 0; I < Max; I++)
         ThisLarge.at(I) = ThisLarge.at(I) ^ OtherLarge.at(I);
 
@@ -399,8 +395,9 @@ public:
       const LargeStorage &OtherLarge = Other.getLarge();
       LargeStorage &ThisLarge = getLarge();
 
-      unsigned Max = std::min(ThisLarge.capacity(),
-                              OtherLarge.capacity()) / BitsPerPointer;
+      unsigned Max = std::min(ThisLarge.capacity(), OtherLarge.capacity());
+      Max /= BitsPerPointer;
+
       for (unsigned I = 0; I < Max; I++)
         ThisLarge.at(I) = ThisLarge.at(I) | OtherLarge.at(I);
 
@@ -446,7 +443,6 @@ public:
         unsigned Max = std::min(OtherPointersCount, ThisPointersCount);
         for (unsigned I = 0; I < Max; I++)
           Large.at(I) = Large.at(I) & OtherLarge.at(I);
-
       }
     }
 
@@ -472,11 +468,11 @@ public:
     unsigned SourceIndex = Amount / BitsPerPointer;
     unsigned Count = Large.wordCount() - SourceIndex;
 
-    auto Destination = [&Large] (unsigned I) -> uintptr_t & {
+    auto Destination = [&Large](unsigned I) -> uintptr_t & {
       return Large.at(I);
     };
 
-    auto Source = [SourceIndex, &Large] (unsigned I) -> uintptr_t & {
+    auto Source = [SourceIndex, &Large](unsigned I) -> uintptr_t & {
       return Large.at(SourceIndex + I);
     };
 
@@ -513,7 +509,6 @@ public:
         // We have to enlarge
         alloc(NewSize);
       }
-
     }
 
     LargeStorage &Large = getLarge();
@@ -530,11 +525,11 @@ public:
     LargeStorage &NewLarge = getLarge();
 
     unsigned ToSkip = Amount / BitsPerPointer;
-    auto Destination = [ToSkip, &NewLarge] (unsigned I) -> uintptr_t & {
+    auto Destination = [ToSkip, &NewLarge](unsigned I) -> uintptr_t & {
       return NewLarge.at(ToSkip + I);
     };
 
-    auto Source = [&NewLarge] (unsigned I) -> uintptr_t & {
+    auto Source = [&NewLarge](unsigned I) -> uintptr_t & {
       return NewLarge.at(I);
     };
 
@@ -574,11 +569,10 @@ public:
         Index++;
         if (Index * BitsPerPointer >= capacity())
           return 0;
-      } while(Large.at(Index) == 0);
+      } while (Large.at(Index) == 0);
 
       return Index * BitsPerPointer + findFirstBit(Large.at(Index));
     }
-
   }
 
   const_iterator begin() const { return const_iterator(this); }
@@ -673,21 +667,25 @@ inline void LazySmallBitVectorIterator<LSBV>::increment() {
   NextBitIndex = BitVector->findNext(NextBitIndex);
 }
 
-template<typename LSBV> inline
-LazySmallBitVectorIterator<LSBV>::LazySmallBitVectorIterator(LSBV *BitVector)
-  : BitVector(BitVector), NextBitIndex(0) {
+#define LSBVI LazySmallBitVectorIterator
+
+template<typename LSBV>
+inline LSBVI<LSBV>::LSBVI(LSBV *BitVector) :
+  BitVector(BitVector),
+  NextBitIndex(0) {
 
   assert(BitVector != nullptr);
   if (!BitVector->isZero())
     increment();
 }
 
-template<typename LSBV> inline
-LazySmallBitVectorIterator<LSBV>::LazySmallBitVectorIterator(LSBV *BitVector,
-                                                             unsigned Index)
-  : BitVector(BitVector), NextBitIndex(Index) {
-
+template<typename LSBV>
+inline LSBVI<LSBV>::LSBVI(LSBV *BitVector, unsigned Index) :
+  BitVector(BitVector),
+  NextBitIndex(Index) {
   assert(BitVector != nullptr);
 }
+
+#undef LSBVI
 
 #endif // _LAZYSMALLBITVECTOR_H

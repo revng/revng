@@ -50,6 +50,8 @@ if test "$FORMAT" -gt 0; then
     clang-format -style=file -i $FILES
 fi
 
+$GREP -E '^.{81,}$' $FILES | cat
+
 # Things should never match
 for REGEXP in '\(--> 0\)' ';;' '^\s*->.*;$' 'Twine [^&]'; do
     $GREP "$REGEXP" $FILES | cat
@@ -61,7 +63,7 @@ for REGEXP in '::' '<' 'RegisterPass.*>' '(' '} else'; do
 done
 
 # Things should never be at the beginning of a line
-for REGEXP in '\.[^\.]' '\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<='; do
+for REGEXP in '\.[^\.]' '\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP'; do
     $GREP "^\s*$REGEXP" $FILES | cat
 done
 

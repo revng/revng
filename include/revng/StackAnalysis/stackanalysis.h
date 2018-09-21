@@ -25,7 +25,7 @@ public:
   static char ID;
 
 public:
-  StackAnalysis() : llvm::FunctionPass(ID) { }
+  StackAnalysis() : llvm::FunctionPass(ID) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
@@ -39,14 +39,11 @@ public:
     return GrandResult.Functions[Function].ClobberedRegisters;
   }
 
-  void serialize(std::ostream &Output) {
-    Output << TextRepresentation;
-  }
+  void serialize(std::ostream &Output) { Output << TextRepresentation; }
 
 private:
   FunctionsSummary GrandResult;
   std::string TextRepresentation;
-
 };
 
 } // namespace StackAnalysis

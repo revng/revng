@@ -26,23 +26,26 @@
 using llvm::BasicBlock;
 using llvm::Function;
 using llvm::Module;
+using llvm::RegisterPass;
 
 namespace StackAnalysis {
 
 template<>
 char StackAnalysis<true>::ID = 0;
-static llvm::RegisterPass<StackAnalysis<true>> X("sa",
-                                                 "Stack Analysis Pass",
-                                                 true,
-                                                 true);
+
+namespace {
+const char *Name = "Stack Analysis Pass";
+static RegisterPass<StackAnalysis<true>> X("sa", Name, true, true);
+} // namespace
 
 template<>
 char StackAnalysis<false>::ID = 0;
-static llvm::RegisterPass<StackAnalysis<false>> Y("sab",
-                                                  "Stack Analysis Pass with ABI"
-                                                  " Analysis",
-                                                  true,
-                                                  true);
+
+static RegisterPass<StackAnalysis<false>> Y("sab",
+                                            "Stack Analysis Pass with ABI"
+                                            " Analysis",
+                                            true,
+                                            true);
 
 template<bool AnalyzeABI>
 bool StackAnalysis<AnalyzeABI>::runOnFunction(Function &F) {
@@ -84,10 +87,9 @@ bool StackAnalysis<AnalyzeABI>::runOnFunction(Function &F) {
       Functions.emplace_back(&BB, true);
     } else if (not IsLoadAddress
                and (IsUnusedGlobalData
-                    || (IsSETNotToPC
-                        and not IsSETToPC
+                    || (IsSETNotToPC and not IsSETToPC
                         and not IsReturnAddress))) {
-      // WIP: keep IsReturnAddress?
+      // TODO: keep IsReturnAddress?
       // Consider addresses found in global data that have not been used in SET
       // or addresses coming from SET that are not return addresses and do not
       // end up in the PC directly.

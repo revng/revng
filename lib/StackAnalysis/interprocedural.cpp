@@ -274,7 +274,6 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
 
   assert(Type != FunctionType::Invalid);
   Results.registerFunction(Entry, Type, Result.getFunctionSummary());
-
 }
 
 void ResultsPool::mergeFunction(BasicBlock *Function,
@@ -325,7 +324,6 @@ void ResultsPool::mergeFunction(BasicBlock *Function,
       FunctionReturnValues[Key] = FRV::no();
       ExplicitlyCalleeSavedRegisters[Function].insert(Slot.first.offset());
       break;
-
     }
 
     for (auto &P : CallSites) {
@@ -369,16 +367,14 @@ void ResultsPool::mergeFunction(BasicBlock *Function,
 }
 
 void ResultsPool::mergeBranches(BasicBlock *Function,
-                                const std::map<BasicBlock *,
-                                               BranchType::Values> &Branches) {
+                                const BasicBlockTypeMap &Branches) {
   // Merge information about the branches type
   for (auto &P : Branches)
     BranchesType[{ Function, P.first->getTerminator() }] = P.second;
 }
 
 void ResultsPool::mergeCallSites(BasicBlock *Entry,
-                                 const std::map<FunctionCall,
-                                                Optional<int32_t>> &ToImport) {
+                                 const StackSizeMap &ToImport) {
   for (auto &P : ToImport) {
     FunctionCalls[Entry].push_back(P.first);
     CallSite Call = { Entry, P.first.callInstruction() };
@@ -414,7 +410,6 @@ struct ClobberedRegistersAnalysis {
   /// \brief Struct representing the result of a single iteration
   struct IterationResult {
   public:
-
     /// \brief Description of a register
     struct ECSVote {
     public:
@@ -435,20 +430,18 @@ struct ClobberedRegistersAnalysis {
 
   public:
     bool operator==(const IterationResult &Other) const {
-      return std::tie(Clobbered,
-                      ECSVotes) == std::tie(Other.Clobbered,
-                                            Other.ECSVotes);
+      using std::tie;
+      return tie(Clobbered, ECSVotes) == tie(Other.Clobbered, Other.ECSVotes);
     }
 
     bool operator!=(const IterationResult &Other) const {
-      return not (*this == Other);
+      return not(*this == Other);
     }
-
   };
 
   /// \brief Compute an iteration
-  static IterationResult recompute(ResultsPool &This,
-                                   const ClobberedMap &InitialState) {
+  static IterationResult
+  recompute(ResultsPool &This, const ClobberedMap &InitialState) {
     // The results pool
     IterationResult Result;
     auto &Clobbered = Result.Clobbered;
@@ -471,13 +464,10 @@ struct ClobberedRegistersAnalysis {
         iterator EndCallIt;
 
       public:
-        State(BasicBlock *Function,
-              iterator CallIt,
-              iterator EndCallIt) :
+        State(BasicBlock *Function, iterator CallIt, iterator EndCallIt) :
           Function(Function),
           CallIt(CallIt),
           EndCallIt(EndCallIt) {}
-
       };
 
       // Worklist
@@ -567,7 +557,6 @@ struct ClobberedRegistersAnalysis {
               // Increase the counter associated to each register
               for (int32_t Index : It->second)
                 ECSVotes[Index].ECS++;
-
             }
           }
 
@@ -575,9 +564,7 @@ struct ClobberedRegistersAnalysis {
           WorkList.pop_back();
           InProgress.erase(Function);
         }
-
       }
-
     }
 
     return Result;
@@ -604,7 +591,6 @@ struct ClobberedRegistersAnalysis {
           // No, consider it clobbered by indirect function calls
           IndirectCallClobbered.insert(P.first);
         }
-
       }
 
       // Assert the new set of registers clobbered by indirect function calls
@@ -620,7 +606,6 @@ struct ClobberedRegistersAnalysis {
 
     return std::move(NewResult.Clobbered);
   }
-
 };
 
 FunctionsSummary ResultsPool::finalize(const Module *M) {
@@ -666,12 +651,14 @@ FunctionsSummary ResultsPool::finalize(const Module *M) {
 
   // Collect, for each call site, all the slots
   std::map<CallSite, std::set<ASSlot>> FunctionCallSlots;
-  for (auto &P : FunctionCallRegisterArguments)
-    FunctionCallSlots[P.first.first].insert(ASSlot::create(CPU,
-                                                           P.first.second));
-  for (auto &P : FunctionCallReturnValues)
-    FunctionCallSlots[P.first.first].insert(ASSlot::create(CPU,
-                                                           P.first.second));
+  for (auto &P : FunctionCallRegisterArguments) {
+    auto Slot = ASSlot::create(CPU, P.first.second);
+    FunctionCallSlots[P.first.first].insert(Slot);
+  }
+  for (auto &P : FunctionCallReturnValues) {
+    auto Slot = ASSlot::create(CPU, P.first.second);
+    FunctionCallSlots[P.first.first].insert(Slot);
+  }
 
   //
   // Merge information about a function and all the call sites targeting it

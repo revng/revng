@@ -9,9 +9,9 @@
 #include <vector>
 
 // LLVM includes
-#include "llvm/Pass.h"
-#include "llvm/IR/Instruction.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/Pass.h"
 
 // Local includes
 #include "binaryfile.h"
@@ -49,8 +49,8 @@ private:
 public:
   /// \param TheFunction the root function.
   ExternalJumpsHandler(BinaryFile &TheBinary,
-                         JumpTargetManager &JumpTargets,
-                         llvm::Function &TheFunction);
+                       JumpTargetManager &JumpTargets,
+                       llvm::Function &TheFunction);
 
 public:
   /// \brief Creates the jump out and jump back in handling infrastructure.
@@ -70,8 +70,8 @@ private:
   /// pointer in particular) and then go to serialize_and_jump_out.
   /// The second return of setjmp instead will deserialize the CPU state and go
   /// back to the dispatcher.
-  llvm::BasicBlock *createSetjmp(llvm::BasicBlock *FirstReturn,
-                                 llvm::BasicBlock *SecondReturn);
+  llvm::BasicBlock *
+  createSetjmp(llvm::BasicBlock *FirstReturn, llvm::BasicBlock *SecondReturn);
 
   /// \brief Extends the dispatcher to handle jumps to basic blocks not handled
   ///        by us.

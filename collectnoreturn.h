@@ -21,7 +21,7 @@ public:
   static char ID;
 
 public:
-  CollectNoreturn() : llvm::FunctionPass(ID) { }
+  CollectNoreturn() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
 

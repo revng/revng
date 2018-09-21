@@ -103,8 +103,8 @@ void Analysis::initialize() {
 
   // Record the slot where ther return address is stored
   ReturnAddressSlot = ((LinkRegister == nullptr) ?
-                       StackSlot0 :
-                       ASSlot::create(ASID::cpuID(), LinkRegisterIndex));
+                         StackSlot0 :
+                         ASSlot::create(ASID::cpuID(), LinkRegisterIndex));
 
   DBG("sa", {
     dbg << "The return address is in ";
@@ -212,7 +212,7 @@ public:
     InstructionContent[I] = V;
   }
 
-  // WIP: this probably needs to be able to handle casts only
+  // TODO: this probably needs to be able to handle casts only
   /// \brief Handle automatically an otherwise un-handleable instruction
   ///
   /// This is a fallback handling of instruction not otherwise manually
@@ -236,9 +236,7 @@ public:
     default:
       set(I, Value::empty());
       break;
-
     }
-
   }
 
   /// \brief Compute the set of BasicBlocks affected by changes in the current
@@ -617,9 +615,10 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
 
   const ASSlot *StackPointerSlot = StackPointerValue.directContent();
 
-  bool IsReadyToReturn = not (StackPointerSlot != nullptr
-      and StackPointerSlot->addressSpace() == ASID::stackID()
-      and StackPointerSlot->offset() < 0);
+  auto SP0 = ASID::stackID();
+  bool IsReadyToReturn = not(StackPointerSlot != nullptr
+                             and StackPointerSlot->addressSpace() == SP0
+                             and StackPointerSlot->offset() < 0);
 
   if (IsReadyToReturn)
     SaTerminator << " IsReadyToReturn";
@@ -800,7 +799,7 @@ Interrupt Analysis::handleCall(Instruction *Caller,
   IFS EmptyCallSummary = IFS::bottom();
   const IFS *CallSummary = &EmptyCallSummary;
 
-  assert(not (IsRecursive && IsIndirect));
+  assert(not(IsRecursive && IsIndirect));
 
   // Is it an direct function call?
   if (not IsIndirect) {
@@ -904,7 +903,7 @@ Interrupt Analysis::handleCall(Instruction *Caller,
   ASSlot ReturnAddressSlot = ASSlot::create(ASID::globalID(), ReturnAddress);
   Result.store(PC, Value::fromSlot(ReturnAddressSlot));
 
-  assert(not (IsIndirectTailCall and IsKiller));
+  assert(not(IsIndirectTailCall and IsKiller));
   if (IsIndirectTailCall) {
     return AI::create(std::move(Result), BT::IndirectTailCall);
   } else if (IsKiller) {

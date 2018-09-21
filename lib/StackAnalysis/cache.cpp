@@ -66,7 +66,7 @@ static bool areEquivalent(const LoadInst *A, const LoadInst *B) {
 }
 
 static bool mayAlias(const llvm::Value *A, const llvm::Value *B) {
-  return not ((isa<GlobalVariable>(A) or isa<GlobalVariable>(B)) and A != B);
+  return not((isa<GlobalVariable>(A) or isa<GlobalVariable>(B)) and A != B);
 }
 
 static bool noWritesTo(const Instruction *Start,
@@ -75,8 +75,8 @@ static bool noWritesTo(const Instruction *Start,
   if (Start->getParent() != End->getParent())
     return false;
 
-  for (const Instruction &I : llvm::make_range(Start->getIterator(),
-                                               End->getIterator()))
+  for (const Instruction &I :
+       llvm::make_range(Start->getIterator(), End->getIterator()))
     if (auto *Store = dyn_cast<StoreInst>(&I))
       if (mayAlias(Store->getPointerOperand(), Address))
         return false;
@@ -166,7 +166,6 @@ void Cache::identifyPartialStores(const Function *F) {
 
         if (LoadFromSame != nullptr)
           IdentityLoads.insert(LoadFromSame);
-
       }
     }
   }

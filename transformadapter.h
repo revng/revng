@@ -9,8 +9,8 @@
 #include <functional>
 
 // Local includes
-#include "range.h"
 #include "iteratorwrapper.h"
+#include "range.h"
 
 template<typename NewType, typename Wrapped>
 class TransformIterator : public IteratorWrapper<Wrapped> {
@@ -27,15 +27,13 @@ public:
 public:
   TransformIterator(Wrapped Iterator, transformer F) :
     IteratorWrapper<Wrapped>(Iterator),
-    F(F) { }
+    F(F) {}
 
-  reference operator*() const {
-    return F(base::operator*());
-  }
+  reference operator*() const { return F(base::operator*()); }
 
   pointer operator->() const = delete;
 
-  reference operator[](const difference_type& n) const {
+  reference operator[](const difference_type &n) const {
     return F(base::operator[](n));
   }
 
@@ -49,7 +47,7 @@ template<typename R, typename Iterator>
 class Transform {
 public:
   using transformer = typename TransformIterator<R, Iterator>::transformer;
-  Transform(transformer Transformer) : Transformer(Transformer) { }
+  Transform(transformer Transformer) : Transformer(Transformer) {}
 
   template<typename I>
   Range<TransformIterator<R, I>> transform(Range<I> Input) {
@@ -63,15 +61,13 @@ private:
   transformer Transformer;
 };
 
-}
+} // namespace adaptors
 
-template <typename T>
-struct function_traits
-  : public function_traits<decltype(&T::operator())>
-{ };
+template<typename T>
+struct function_traits : public function_traits<decltype(&T::operator())> {};
 
-template <typename ClassType, typename ReturnType, typename... Args>
-struct function_traits<ReturnType(ClassType::*)(Args...) const> {
+template<typename ClassType, typename ReturnType, typename... Args>
+struct function_traits<ReturnType (ClassType::*)(Args...) const> {
   using return_type = ReturnType;
 };
 
@@ -79,13 +75,19 @@ template<typename R, typename I>
 using TransformFunction = std::function<R(typename I::reference)>;
 
 template<typename R, typename I>
-auto operator|(Range<I> Input, R Transformer) -> Range<TransformIterator<typename function_traits<R>::return_type, I>> {
-  return adaptors::Transform<typename function_traits<R>::return_type, I>(Transformer).transform(Input);
+auto operator|(Range<I> Input, R Transformer)
+  -> Range<TransformIterator<typename function_traits<R>::return_type, I>> {
+  using T = adaptors::Transform<typename function_traits<R>::return_type, I>;
+  return T(Transformer).transform(Input);
 }
 
 template<typename R, typename C>
-auto operator|(C Input, R Transformer) -> Range<TransformIterator<typename function_traits<R>::return_type, typename C::iterator>> {
-  return adaptors::Transform<typename function_traits<R>::return_type, typename C::iterator>(Transformer).transform(make_range(Input));
+auto operator|(C Input, R Transformer)
+  -> Range<TransformIterator<typename function_traits<R>::return_type,
+                             typename C::iterator>> {
+  using T = adaptors::Transform<typename function_traits<R>::return_type,
+                                typename C::iterator>;
+  return T(Transformer).transform(make_range(Input));
 }
 
 // template<typename C>

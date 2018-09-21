@@ -11,9 +11,9 @@
 #include <set>
 
 // LLVM includes
-#include "llvm/Pass.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Pass.h"
 
 template<typename T>
 struct CompareByName {
@@ -27,7 +27,7 @@ public:
   static char ID;
 
 public:
-  CollectCFG() : llvm::FunctionPass(ID) { }
+  CollectCFG() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
 
@@ -41,10 +41,14 @@ private:
   bool isNewInstruction(llvm::BasicBlock *BB);
 
 private:
-  std::map<llvm::BasicBlock *,
-           llvm::SmallVector<llvm::BasicBlock *, 2>,
-           CompareByName<llvm::BasicBlock>> Result;
-  std::set<llvm::BasicBlock *> BlackList;
+  using BasicBlock = llvm::BasicBlock;
+
+  template<typename T, size_t N>
+  using SmallVector = llvm::SmallVector<T, N>;
+
+  using Comparer = CompareByName<BasicBlock>;
+  std::map<BasicBlock *, SmallVector<BasicBlock *, 2>, Comparer> Result;
+  std::set<BasicBlock *> BlackList;
 };
 
 #endif // _COLLECTCFG_H

@@ -294,8 +294,9 @@ public:
 /// \brief The ABI IR, a container of ABIIRBasicBlocks
 class ABIFunction {
 public:
-  using calls_container = std::vector<std::pair<ABIIRBasicBlock *,
-                                                ABIIRInstruction *>>;
+  template<typename K, typename V>
+  using VectorOfPairs = std::vector<std::pair<K, V>>;
+  using calls_container = VectorOfPairs<ABIIRBasicBlock *, ABIIRInstruction *>;
 
   using calls_iterator = calls_container::iterator;
   using calls_range = llvm::iterator_range<calls_iterator>;

@@ -28,11 +28,11 @@ public:
 
 public:
   struct Comparison {
-    Comparison() { }
+    Comparison() {}
     Comparison(llvm::CmpInst *Cmp) :
       Predicate(Cmp->getPredicate()),
       LHS(Cmp->getOperand(0)),
-      RHS(Cmp->getOperand(1)) { }
+      RHS(Cmp->getOperand(1)) {}
 
     llvm::CmpInst::Predicate Predicate;
     llvm::Value *LHS;
@@ -40,8 +40,7 @@ public:
   };
 
 public:
-
-  SimplifyComparisonsPass() : llvm::FunctionPass(ID) { }
+  SimplifyComparisonsPass() : llvm::FunctionPass(ID) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
