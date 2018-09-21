@@ -57,6 +57,11 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
 
   string(REPLACE "-" "_" NORMALIZED_ARCH "${ARCH}")
   set(TEST_CFLAGS_${ARCH} "${TEST_CFLAGS_${ARCH}} ${TEST_CFLAGS} -D_GNU_SOURCE -DTARGET_${NORMALIZED_ARCH}")
+
+  if("${ARCH}" STREQUAL "arm")
+    set(TEST_CFLAGS_${ARCH} "${TEST_CFLAGS_${ARCH}} -Wl,-Ttext-segment=0x20000")
+  endif()
+
   list(APPEND TEST_CFLAGS_IF_AVAILABLE_${ARCH} ${TEST_CFLAGS_IF_AVAILABLE})
 
   # Serialize compilation flags
