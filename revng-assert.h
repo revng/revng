@@ -32,9 +32,11 @@ extern "C" {
 
 #if defined(__clang__)
 
+// clang-format off
 #define SILENCE_ASSUME_HEADER                                          \
-  _Pragma("clang diagnostic push") _Pragma("clang diagnostic ignored " \
-                                           "\"-Wassume\"")
+  _Pragma("clang diagnostic push")                                     \
+  _Pragma("clang diagnostic ignored \"-Wassume\"")
+// clang-format on
 #define SILENCE_ASSUME_FOOTER _Pragma("clang diagnostic pop")
 
 #else
