@@ -46,6 +46,12 @@ private:
   std::string TextRepresentation;
 };
 
+template<>
+char StackAnalysis<true>::ID;
+
+template<>
+char StackAnalysis<false>::ID;
+
 } // namespace StackAnalysis
 
 #endif // STACKANALYSIS_H

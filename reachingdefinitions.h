@@ -268,6 +268,18 @@ private:
   std::map<const LoadInst *, unsigned> ReachingDefinitionsCount;
 };
 
+template<>
+char RDIP<BasicBlockInfo, RDR::ReachingDefinitions>::ID;
+
+template<>
+char RDIP<BasicBlockInfo, RDR::ReachedLoads>::ID;
+
+template<>
+char RDIP<ConditionalBasicBlockInfo, RDR::ReachingDefinitions>::ID;
+
+template<>
+char RDIP<ConditionalBasicBlockInfo, RDR::ReachedLoads>::ID;
+
 /// The ConditionNumberingPass loops over all the conditional branch
 /// instructions in the program and tries to identify those that are based on
 /// exactly the same condition, i.e., the pair for which can be sure that, if

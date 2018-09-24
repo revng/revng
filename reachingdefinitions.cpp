@@ -49,11 +49,14 @@ template class ReachingDefinitionsImplPass<BasicBlockInfo,
                                            RDR::ReachingDefinitions>;
 template class ReachingDefinitionsImplPass<BasicBlockInfo, RDR::ReachedLoads>;
 
-template<class BBI, ReachingDefinitionsResult R>
-char ReachingDefinitionsImplPass<BBI, R>::ID = 0;
-
 template<>
 char RDIP<BasicBlockInfo, RDR::ReachingDefinitions>::ID = 0;
+
+template<>
+char RDIP<BasicBlockInfo, RDR::ReachedLoads>::ID = 0;
+
+template<>
+char RDIP<ConditionalBasicBlockInfo, RDR::ReachingDefinitions>::ID = 0;
 
 template<>
 char RDIP<ConditionalBasicBlockInfo, RDR::ReachedLoads>::ID = 0;
