@@ -127,6 +127,12 @@ if(COMPILER_SUPPORTS_NO_PIE)
   set(NO_PIE "-no-pie")
 endif()
 
+include(CheckIncludeFiles)
+CHECK_INCLUDE_FILES(valgrind/callgrind.h HAVE_VALGRIND_CALLGRIND_H)
+if(HAVE_VALGRIND_CALLGRIND_H)
+add_definitions("-DHAVE_VALGRIND_CALLGRIND_H")
+endif()
+
 set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
 
 include_directories(./ include/)

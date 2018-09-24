@@ -1,7 +1,20 @@
 #ifndef VALGRINDHELPERS_H
 #define VALGRINDHELPERS_H
 
+#ifdef HAVE_VALGRIND_CALLGRIND_H
+
 #include "valgrind/callgrind.h"
+
+#else
+
+#define CALLGRIND_START_INSTRUMENTATION \
+  do {                                  \
+  } while (0)
+#define CALLGRIND_STOP_INSTRUMENTATION \
+  do {                                 \
+  } while (0)
+
+#endif
 
 class Callgrind {
 public:
