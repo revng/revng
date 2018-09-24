@@ -1901,7 +1901,7 @@ void CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
   }
 }
 
-bool callsBuiltinMemcpy(const Instruction *TheCall) {
+static bool callsBuiltinMemcpy(const Instruction *TheCall) {
   const Function *Callee = getCallee(TheCall);
   return Callee != nullptr and Callee->getIntrinsicID() == Intrinsic::memcpy;
 }

@@ -166,7 +166,8 @@ Value *SimplifyComparisonsPass::findOldest(Value *V) {
 }
 
 /// \brief Find the subtraction of the comparison
-BinaryOperator *findSubtraction(SimplifyComparisonsPass *SCP, User *Cmp) {
+static BinaryOperator *
+findSubtraction(SimplifyComparisonsPass *SCP, User *Cmp) {
   queue<pair<unsigned, Value *>> WorkList;
   WorkList.push({ 0, Cmp->getOperand(0) });
   while (!WorkList.empty()) {
