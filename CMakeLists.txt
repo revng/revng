@@ -105,16 +105,18 @@ macro(add_flag_if_available flag)
 endmacro()
 
 # Disable some warnings
-add_flag_if_available("-Wno-error=ignored-attributes")
-add_flag_if_available("-Wno-error=maybe-uninitialized")
-add_flag_if_available("-Wno-error=return-type")
-add_flag_if_available("-Wno-error=unused-but-set-variable")
-add_flag_if_available("-Wno-error=unused-function")
-add_flag_if_available("-Wno-error=unused-local-typedefs")
-add_flag_if_available("-Wno-error=unused-variable")
-add_flag_if_available("-Wno-delete-non-virtual-dtor")
-add_flag_if_available("-Werror=strict-aliasing")
+add_flag_if_available("-Wno-maybe-uninitialized")
+add_flag_if_available("-Wno-unused-local-typedefs")
+
+# Add some extra warnings
+add_flag_if_available("-Wstrict-aliasing")
 add_flag_if_available("-fstrict-aliasing")
+
+add_flag_if_available("-Wnon-virtual-dtor")
+add_flag_if_available("-Wunreachable-code-break")
+add_flag_if_available("-Winconsistent-missing-destructor-override")
+add_flag_if_available("-Wnewline-eof")
+add_flag_if_available("-Wmissing-prototypes")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 add_definitions("-D_FILE_OFFSET_BITS=64")
