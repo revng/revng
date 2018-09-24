@@ -23,6 +23,10 @@
 #ifdef TARGET_x86_64
 #include <asm/prctl.h>
 #include <sys/prctl.h>
+
+// glibc doesn't define this function, despite providing it
+int arch_prctl(int code, unsigned long *addr);
+
 #endif
 
 // Local libraries includes
