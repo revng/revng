@@ -50,6 +50,7 @@ static const unsigned MaxDepth = 10;
 class Term {
 public:
   virtual bool evaluate(unsigned Assignments) const { revng_abort(); }
+  virtual ~Term() {}
 };
 
 /// \brief A free-operand term (a variable)

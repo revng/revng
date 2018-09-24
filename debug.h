@@ -228,6 +228,7 @@ extern template class Logger<false>;
 class StreamWrapperBase {
 public:
   virtual void flush(std::stringstream &Buffer) = 0;
+  virtual ~StreamWrapperBase() {}
 };
 
 /// Class that wraps a stream of any type. It has a `flush` method, that, when
@@ -247,8 +248,6 @@ public:
     std::stringstream Empty;
     Buffer.swap(Empty);
   }
-
-  virtual ~StreamWrapper() {}
 
 private:
   O &Stream;
