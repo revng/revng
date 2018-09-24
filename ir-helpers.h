@@ -365,9 +365,7 @@ using is_base_of_value = std::is_base_of<llvm::Value, rc_t<T>>;
 /// \brief Specialization of writeToLog for llvm::Value-derived types
 template<typename T,
          typename std::enable_if<is_base_of_value<T>::value, int>::type = 0>
-inline void writeToLog(Logger<true> &This, T *I, int Ignore) {
-  (void) Ignore;
-
+inline void writeToLog(Logger<true> &This, T *I, int) {
   if (I != nullptr)
     This << getName(I);
   else

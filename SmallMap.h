@@ -77,10 +77,7 @@ private:
 
   struct CompareVisitor : public boost::static_visitor<bool> {
     template<typename T, typename R>
-    bool operator()(T &It, R &Other) const {
-      (void) It;
-      (void) Other;
-
+    bool operator()(T &, R &) const {
       // The compared type should always be the same
       revng_abort();
     }

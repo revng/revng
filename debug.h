@@ -173,20 +173,14 @@ private:
 ///
 /// For an example see the next specialization.
 template<bool X, typename T, typename LowPrio>
-inline void writeToLog(Logger<X> &This, const T Other, LowPrio Ignore) {
-  (void) Other;
-  (void) Ignore;
-
+inline void writeToLog(Logger<X> &This, const T Other, LowPrio) {
   if (This.isEnabled())
     This.Buffer << Other;
 }
 
 /// \brief Specialization of writeToLog to emit a message
 template<bool X>
-inline void writeToLog(Logger<X> &This, const LogTerminator T, int Ignore) {
-  (void) T;
-  (void) Ignore;
-
+inline void writeToLog(Logger<X> &This, const LogTerminator, int) {
   This.emit();
 }
 

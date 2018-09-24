@@ -180,9 +180,7 @@ private:
 
 char DumpPass::ID = 0;
 
-bool DumpPass::runOnFunction(Function &F) {
-  (void) F;
-
+bool DumpPass::runOnFunction(Function &) {
   std::ofstream Output;
 
   if (Parameters.CFGPath != nullptr) {
