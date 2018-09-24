@@ -150,7 +150,7 @@ class RegisterArgument {
   // We're friends with the class with opposite FunctionCall status
   friend class RegisterArgument<not FunctionCall>;
 
-  friend class CombineHelper;
+  friend struct CombineHelper;
 
 public:
   enum Values { No, NoOrDead, Dead, Yes, Maybe, Contradiction };
@@ -255,7 +255,7 @@ class FunctionCallReturnValue;
 class FunctionReturnValue {
   friend class FunctionCallReturnValue;
 
-  friend class CombineHelper;
+  friend struct CombineHelper;
 
 public:
   enum Values { No, NoOrDead, Dead, Yes, Maybe, YesCandidate, Contradiction };
@@ -323,7 +323,7 @@ public:
 class FunctionCallReturnValue {
   friend class FunctionReturnValue;
 
-  friend class CombineHelper;
+  friend struct CombineHelper;
 
 public:
   enum Values { No, NoOrDead, Maybe, Yes, Dead, Contradiction };
