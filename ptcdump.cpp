@@ -14,6 +14,7 @@
 #include <iostream>
 
 // Local includes
+#include "ptcdump.h"
 #include "ptcinterface.h"
 
 static const int MAX_TEMP_NAME_LENGTH = 128;
