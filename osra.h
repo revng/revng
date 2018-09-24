@@ -654,7 +654,7 @@ public:
   virtual void releaseMemory() override;
 
 private:
-  ~OSRAPass();
+  ~OSRAPass() override;
 
 private:
   // TODO: why value and not instruction?
