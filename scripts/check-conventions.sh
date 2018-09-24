@@ -50,26 +50,35 @@ if test "$FORMAT" -gt 0; then
     clang-format -style=file -i $FILES
 fi
 
-$GREP -E '^.{81,}$' $FILES | cat
+(
+    # Check for lines longer than 80 columns
+    $GREP -E '^.{81,}$' $FILES | cat
 
-# Things should never match
-for REGEXP in '\(--> 0\)' ';;' '^\s*->.*;$' 'Twine [^&]'; do
-    $GREP "$REGEXP" $FILES | cat
-done
+    # Things should never match
+    for REGEXP in '\(--> 0\)' ';;' '^\s*->.*;$' 'Twine [^&]'; do
+        $GREP "$REGEXP" $FILES | cat
+    done
 
-# Things should never be at the end of a line
-for REGEXP in '::' '<' 'RegisterPass.*>' '(' '} else'; do
-    $GREP "$REGEXP\$" $FILES | cat
-done
+    # Things should never match (except in support.c)
+    FILTERED_FILES="$(echo $FILES | sed 's|\bsupport\.c\b||g; s|\brevng-assert\.cpp\b||g;')"
+    for REGEXP in '\babort(' '\bassert(' 'assert(false' 'llvm_unreachable'; do
+        $GREP "$REGEXP" $FILTERED_FILES | cat
+    done
 
-# Things should never be at the beginning of a line
-for REGEXP in '\.[^\.]' '\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP'; do
-    $GREP "^\s*$REGEXP" $FILES | cat
-done
+    # Things should never be at the end of a line
+    for REGEXP in '::' '<' 'RegisterPass.*>' '(' '} else'; do
+        $GREP "$REGEXP\$" $FILES | cat
+    done
 
-# Check there are no static functions in header files
-for FILE in $FILES; do
-    if [[ $FILE == *h ]]; then
-        $GREP -H '^static[^=]*$' "$FILE" | cat
-    fi
-done
+    # Things should never be at the beginning of a line
+    for REGEXP in '\.[^\.]' '\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP'; do
+        $GREP "^\s*$REGEXP" $FILES | cat
+    done
+
+    # Check there are no static functions in header files
+    for FILE in $FILES; do
+        if [[ $FILE == *h ]]; then
+            $GREP -H '^static[^=]*$' "$FILE" | cat
+        fi
+    done
+) | sort -u
