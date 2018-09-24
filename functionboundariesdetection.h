@@ -1,5 +1,5 @@
-#ifndef _FUNCTIONBOUNDARIESDETECTION_H
-#define _FUNCTIONBOUNDARIESDETECTION_H
+#ifndef FUNCTIONBOUNDARIESDETECTION_H
+#define FUNCTIONBOUNDARIESDETECTION_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -47,4 +47,4 @@ private:
   std::map<llvm::BasicBlock *, std::vector<llvm::BasicBlock *>> Functions;
 };
 
-#endif // _FUNCTIONBOUNDARIESDETECTION_H
+#endif // FUNCTIONBOUNDARIESDETECTION_H

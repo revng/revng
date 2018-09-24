@@ -1,5 +1,5 @@
-#ifndef _COMMONCONSTANTS_H
-#define _COMMONCONSTANTS_H
+#ifndef COMMONCONSTANTS_H
+#define COMMONCONSTANTS_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -19,4 +19,4 @@ typedef enum {
                              ///  corresponding to any function entry block
 } Reason;
 
-#endif // _COMMONCONSTANTS_H
+#endif // COMMONCONSTANTS_H

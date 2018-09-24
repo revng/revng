@@ -1,5 +1,5 @@
-#ifndef _FUNCTIONSSUMMARY_H
-#define _FUNCTIONSSUMMARY_H
+#ifndef FUNCTIONSSUMMARY_H
+#define FUNCTIONSSUMMARY_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -509,4 +509,4 @@ private:
 
 } // namespace StackAnalysis
 
-#endif // _FUNCTIONSSUMMARY_H
+#endif // FUNCTIONSSUMMARY_H

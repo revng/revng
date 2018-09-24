@@ -1,5 +1,5 @@
-#ifndef _MONOTONEFRAMEWORK_H
-#define _MONOTONEFRAMEWORK_H
+#ifndef MONOTONEFRAMEWORK_H
+#define MONOTONEFRAMEWORK_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -683,4 +683,4 @@ public:
 
 } // namespace StackAnalysis
 
-#endif // _MONOTONEFRAMEWORK_H
+#endif // MONOTONEFRAMEWORK_H

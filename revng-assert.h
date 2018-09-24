@@ -1,5 +1,5 @@
-#ifndef _REVNG_ASSERT_H
-#define _REVNG_ASSERT_H
+#ifndef REVNG_ASSERT_H
+#define REVNG_ASSERT_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -148,4 +148,4 @@ noret void revng_do_abort(const char *Message, const char *File, unsigned Line);
 }
 #endif
 
-#endif // _REVNG_ASSERT_H
+#endif // REVNG_ASSERT_H

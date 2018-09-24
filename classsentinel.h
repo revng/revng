@@ -1,5 +1,5 @@
-#ifndef _CLASSSENTINEL_H
-#define _CLASSSENTINEL_H
+#ifndef CLASSSENTINEL_H
+#define CLASSSENTINEL_H
 
 // Standard includes
 #include <cassert>
@@ -132,4 +132,4 @@ private:
 #endif
 };
 
-#endif // _CLASSSENTINEL_H
+#endif // CLASSSENTINEL_H

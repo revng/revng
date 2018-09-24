@@ -1,5 +1,5 @@
-#ifndef _ISOLATEFUNCTIONS_H
-#define _ISOLATEFUNCTIONS_H
+#ifndef ISOLATEFUNCTIONS_H
+#define ISOLATEFUNCTIONS_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -34,4 +34,4 @@ private:
   std::unique_ptr<llvm::Module> NewModule;
 };
 
-#endif // _ISOLATEFUNCTIONS_H
+#endif // ISOLATEFUNCTIONS_H

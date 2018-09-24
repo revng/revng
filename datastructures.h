@@ -1,5 +1,5 @@
-#ifndef _DATASTRUCTURES_H
-#define _DATASTRUCTURES_H
+#ifndef DATASTRUCTURES_H
+#define DATASTRUCTURES_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -97,4 +97,4 @@ inline void freeContainer(T &Container) {
   Empty.swap(Container);
 }
 
-#endif // _DATASTRUCTURES_H
+#endif // DATASTRUCTURES_H

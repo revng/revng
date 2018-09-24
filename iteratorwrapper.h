@@ -1,5 +1,5 @@
-#ifndef _ITERATORWRAPPER_H
-#define _ITERATORWRAPPER_H
+#ifndef ITERATORWRAPPER_H
+#define ITERATORWRAPPER_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -91,4 +91,4 @@ private:
   Wrapped Iterator;
 };
 
-#endif // _ITERATORWRAPPER_H
+#endif // ITERATORWRAPPER_H

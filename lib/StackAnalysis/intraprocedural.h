@@ -1,5 +1,5 @@
-#ifndef _INTRAPROCEDURAL_H
-#define _INTRAPROCEDURAL_H
+#ifndef INTRAPROCEDURAL_H
+#define INTRAPROCEDURAL_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -622,4 +622,4 @@ private:
 
 } // namespace StackAnalysis
 
-#endif // _INTRAPROCEDURAL_H
+#endif // INTRAPROCEDURAL_H

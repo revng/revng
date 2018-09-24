@@ -1,5 +1,5 @@
-#ifndef _LAZYSMALLBITVECTOR_H
-#define _LAZYSMALLBITVECTOR_H
+#ifndef LAZYSMALLBITVECTOR_H
+#define LAZYSMALLBITVECTOR_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -688,4 +688,4 @@ inline LSBVI<LSBV>::LSBVI(LSBV *BitVector, unsigned Index) :
 
 #undef LSBVI
 
-#endif // _LAZYSMALLBITVECTOR_H
+#endif // LAZYSMALLBITVECTOR_H

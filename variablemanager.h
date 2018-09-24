@@ -1,5 +1,5 @@
-#ifndef _VARIABLEMANAGER_H
-#define _VARIABLEMANAGER_H
+#ifndef VARIABLEMANAGER_H
+#define VARIABLEMANAGER_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -256,4 +256,4 @@ private:
   Architecture &TargetArchitecture;
 };
 
-#endif // _VARIABLEMANAGER_H
+#endif // VARIABLEMANAGER_H

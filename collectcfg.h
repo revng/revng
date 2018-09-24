@@ -1,5 +1,5 @@
-#ifndef _COLLECTCFG_H
-#define _COLLECTCFG_H
+#ifndef COLLECTCFG_H
+#define COLLECTCFG_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -51,4 +51,4 @@ private:
   std::set<BasicBlock *> BlackList;
 };
 
-#endif // _COLLECTCFG_H
+#endif // COLLECTCFG_H

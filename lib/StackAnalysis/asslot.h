@@ -1,5 +1,5 @@
-#ifndef _ASSLOT_H
-#define _ASSLOT_H
+#ifndef ASSLOT_H
+#define ASSLOT_H
 
 // Standard includes
 #include <limits>
@@ -263,4 +263,4 @@ struct hash<StackAnalysis::ASID> {
     }                                \
   } while (false)
 
-#endif // _ASSLOT_H
+#endif // ASSLOT_H

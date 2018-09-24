@@ -1,5 +1,5 @@
-#ifndef _GENERATEDCODEBASICINFO_H
-#define _GENERATEDCODEBASICINFO_H
+#ifndef GENERATEDCODEBASICINFO_H
+#define GENERATEDCODEBASICINFO_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -279,4 +279,4 @@ GeneratedCodeBasicInfo::visitPredecessors(llvm::Instruction *I,
   ::visitPredecessors(I, Visitor, BLT(*this));
 }
 
-#endif // _GENERATEDCODEBASICINFO_H
+#endif // GENERATEDCODEBASICINFO_H

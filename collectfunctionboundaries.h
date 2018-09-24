@@ -1,5 +1,5 @@
-#ifndef _COLLECTFUNCTIONBOUNDARIES_H
-#define _COLLECTFUNCTIONBOUNDARIES_H
+#ifndef COLLECTFUNCTIONBOUNDARIES_H
+#define COLLECTFUNCTIONBOUNDARIES_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -37,4 +37,4 @@ private:
   std::map<llvm::StringRef, std::vector<llvm::BasicBlock *>> Functions;
 };
 
-#endif // _COLLECTFUNCTIONBOUNDARIES_H
+#endif // COLLECTFUNCTIONBOUNDARIES_H

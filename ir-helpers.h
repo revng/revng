@@ -1,5 +1,5 @@
-#ifndef _IRHELPERS_H
-#define _IRHELPERS_H
+#ifndef IRHELPERS_H
+#define IRHELPERS_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -612,4 +612,4 @@ inline void erase_if(Container &C, UnaryPredicate P) {
   C.erase(std::remove_if(C.begin(), C.end(), P), C.end());
 }
 
-#endif // _IRHELPERS_H
+#endif // IRHELPERS_H

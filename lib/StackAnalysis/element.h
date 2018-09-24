@@ -1,5 +1,5 @@
-#ifndef _ELEMENT_H
-#define _ELEMENT_H
+#ifndef ELEMENT_H
+#define ELEMENT_H
 
 // Standard includes
 #include <set>
@@ -436,4 +436,4 @@ struct hash<StackAnalysis::Intraprocedural::Value> {
 
 } // namespace std
 
-#endif // _ELEMENT_H
+#endif // ELEMENT_H

@@ -1,5 +1,5 @@
-#ifndef _CODEGENERATOR_H
-#define _CODEGENERATOR_H
+#ifndef CODEGENERATOR_H
+#define CODEGENERATOR_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -136,4 +136,4 @@ private:
   bool UseDebugSymbols;
 };
 
-#endif // _CODEGENERATOR_H
+#endif // CODEGENERATOR_H

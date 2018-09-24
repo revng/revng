@@ -1,5 +1,5 @@
-#ifndef _SMALLMAP_H
-#define _SMALLMAP_H
+#ifndef SMALLMAP_H
+#define SMALLMAP_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -315,4 +315,4 @@ private:
   }
 };
 
-#endif // _SMALLMAP_H
+#endif // SMALLMAP_H

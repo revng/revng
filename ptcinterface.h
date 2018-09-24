@@ -1,5 +1,5 @@
-#ifndef _PTCINTERFACE_H
-#define _PTCINTERFACE_H
+#ifndef PTCINTERFACE_H
+#define PTCINTERFACE_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -24,4 +24,4 @@ using PTCInstructionListPtr = std::unique_ptr<PTCInstructionList,
 
 extern PTCInterface ptc;
 
-#endif // _PTCINTERFACE_H
+#endif // PTCINTERFACE_H

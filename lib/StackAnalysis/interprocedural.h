@@ -1,5 +1,5 @@
-#ifndef _INTERPROCEDURAL_H
-#define _INTERPROCEDURAL_H
+#ifndef INTERPROCEDURAL_H
+#define INTERPROCEDURAL_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -220,4 +220,4 @@ private:
 
 } // namespace StackAnalysis
 
-#endif // _INTERPROCEDURAL_H
+#endif // INTERPROCEDURAL_H

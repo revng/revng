@@ -1,5 +1,5 @@
-#ifndef _PTCDUMP_H
-#define _PTCDUMP_H
+#ifndef PTCDUMP_H
+#define PTCDUMP_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -39,4 +39,4 @@ int dumpTranslation(std::ostream &Result, PTCInstructionList *Instructions);
 /// \param PC the program counter in the current context.
 void disassembleOriginal(std::ostream &Result, uint64_t PC);
 
-#endif // _PTCDUMP_H
+#endif // PTCDUMP_H

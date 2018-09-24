@@ -1,5 +1,5 @@
-#ifndef _BINARYFILE_H
-#define _BINARYFILE_H
+#ifndef BINARYFILE_H
+#define BINARYFILE_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -303,4 +303,4 @@ private:
   } ProgramHeaders;
 };
 
-#endif // _BINARYFILE_H
+#endif // BINARYFILE_H

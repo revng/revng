@@ -1,5 +1,5 @@
-#ifndef _EXTERNALJUMPSHANDLER_H
-#define _EXTERNALJUMPSHANDLER_H
+#ifndef EXTERNALJUMPSHANDLER_H
+#define EXTERNALJUMPSHANDLER_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -106,4 +106,4 @@ private:
   llvm::BasicBlock *createReturnFromExternal();
 };
 
-#endif // _EXTERNALJUMPSHANDLER_H
+#endif // EXTERNALJUMPSHANDLER_H

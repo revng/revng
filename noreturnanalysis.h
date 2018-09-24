@@ -1,5 +1,5 @@
-#ifndef _NORETURNANALYSIS_H
-#define _NORETURNANALYSIS_H
+#ifndef NORETURNANALYSIS_H
+#define NORETURNANALYSIS_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -130,4 +130,4 @@ private:
   llvm::Function *NoDCE;
 };
 
-#endif // _NORETURNANALYSIS_H
+#endif // NORETURNANALYSIS_H

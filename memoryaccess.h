@@ -1,5 +1,5 @@
-#ifndef _MEMORYACCESS_H
-#define _MEMORYACCESS_H
+#ifndef MEMORYACCESS_H
+#define MEMORYACCESS_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -259,4 +259,4 @@ private:
   uint64_t Size;
 };
 
-#endif // _MEMORYACCESS_H
+#endif // MEMORYACCESS_H

@@ -1,5 +1,5 @@
-#ifndef _FUNCTIONABI_H
-#define _FUNCTIONABI_H
+#ifndef FUNCTIONABI_H
+#define FUNCTIONABI_H
 
 // Standard includes
 #include <sstream>
@@ -598,4 +598,4 @@ private:
 
 } // namespace StackAnalysis
 
-#endif // _FUNCTIONABI_H
+#endif // FUNCTIONABI_H

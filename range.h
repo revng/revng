@@ -1,5 +1,5 @@
-#ifndef _RANGE_H
-#define _RANGE_H
+#ifndef RANGE_H
+#define RANGE_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -58,4 +58,4 @@ void copy(Range<T> Source, OutputIterator Destination) {
     *Destination++ = Element;
 }
 
-#endif // _RANGE_H
+#endif // RANGE_H

@@ -1,5 +1,5 @@
-#ifndef _FUNCTIONCALLIDENTIFICATION_H
-#define _FUNCTIONCALLIDENTIFICATION_H
+#ifndef FUNCTIONCALLIDENTIFICATION_H
+#define FUNCTIONCALLIDENTIFICATION_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -96,4 +96,4 @@ private:
   std::set<uint64_t> FallthroughAddresses;
 };
 
-#endif // _FUNCTIONCALLIDENTIFICATION_H
+#endif // FUNCTIONCALLIDENTIFICATION_H

@@ -1,5 +1,5 @@
-#ifndef _VALGRINDHELPERS_H
-#define _VALGRINDHELPERS_H
+#ifndef VALGRINDHELPERS_H
+#define VALGRINDHELPERS_H
 
 #include "valgrind/callgrind.h"
 
@@ -25,4 +25,4 @@ private:
   bool Enabled;
 };
 
-#endif // _VALGRINDHELPERS_H
+#endif // VALGRINDHELPERS_H

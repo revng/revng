@@ -1,5 +1,5 @@
-#ifndef _RAI_H
-#define _RAI_H
+#ifndef RAI_H
+#define RAI_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -138,4 +138,4 @@ private:
   unsigned Index;
 };
 
-#endif // _RAI_H
+#endif // RAI_H

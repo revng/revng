@@ -1,5 +1,5 @@
-#ifndef _DEBUGHELPER_H
-#define _DEBUGHELPER_H
+#ifndef DEBUGHELPER_H
+#define DEBUGHELPER_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -107,4 +107,4 @@ private:
   unsigned DbgMDKind;
 };
 
-#endif // _DEBUGHELPER_H
+#endif // DEBUGHELPER_H

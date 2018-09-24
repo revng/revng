@@ -1,5 +1,5 @@
-#ifndef _REACHINGDEFINITIONS_H
-#define _REACHINGDEFINITIONS_H
+#ifndef REACHINGDEFINITIONS_H
+#define REACHINGDEFINITIONS_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -369,4 +369,4 @@ private:
   std::map<llvm::TerminatorInst *, int32_t> BranchConditionNumberMap;
 };
 
-#endif // _REACHINGDEFINITIONS_H
+#endif // REACHINGDEFINITIONS_H

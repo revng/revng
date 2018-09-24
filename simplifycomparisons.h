@@ -1,5 +1,5 @@
-#ifndef _SIMPLIFYCOMPARISON_H
-#define _SIMPLIFYCOMPARISON_H
+#ifndef SIMPLIFYCOMPARISON_H
+#define SIMPLIFYCOMPARISON_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -72,4 +72,4 @@ private:
   std::unordered_map<llvm::CmpInst *, Comparison> SimplifiedComparisons;
 };
 
-#endif // _SIMPLIFYCOMPARISON_H
+#endif // SIMPLIFYCOMPARISON_H

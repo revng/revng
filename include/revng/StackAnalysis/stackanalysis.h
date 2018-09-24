@@ -1,5 +1,5 @@
-#ifndef _STACKANALYSIS_H
-#define _STACKANALYSIS_H
+#ifndef STACKANALYSIS_H
+#define STACKANALYSIS_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -48,4 +48,4 @@ private:
 
 } // namespace StackAnalysis
 
-#endif // _STACKANALYSIS_H
+#endif // STACKANALYSIS_H

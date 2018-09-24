@@ -1,5 +1,5 @@
-#ifndef _SET_H
-#define _SET_H
+#ifndef SET_H
+#define SET_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -74,4 +74,4 @@ private:
   std::vector<JumpInfo> Jumps;
 };
 
-#endif // _SET_H
+#endif // SET_H

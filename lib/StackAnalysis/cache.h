@@ -1,5 +1,5 @@
-#ifndef _CACHE_H
-#define _CACHE_H
+#ifndef CACHE_H
+#define CACHE_H
 
 // Local includes
 #include "element.h"
@@ -114,4 +114,4 @@ private:
 
 } // namespace StackAnalysis
 
-#endif // _CACHE_H
+#endif // CACHE_H

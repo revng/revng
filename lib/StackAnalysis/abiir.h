@@ -1,5 +1,5 @@
-#ifndef _ABIIR_H
-#define _ABIIR_H
+#ifndef ABIIR_H
+#define ABIIR_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -470,4 +470,4 @@ struct GraphTraits<StackAnalysis::ABIIRBasicBlock *> {
 
 } // namespace llvm
 
-#endif // _ABIIR_H
+#endif // ABIIR_H

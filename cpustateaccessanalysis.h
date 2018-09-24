@@ -1,5 +1,5 @@
-#ifndef _CPUSTATEACCESSANALYSIS_H
-#define _CPUSTATEACCESSANALYSIS_H
+#ifndef CPUSTATEACCESSANALYSIS_H
+#define CPUSTATEACCESSANALYSIS_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -233,4 +233,4 @@ public:
   bool runOnModule(llvm::Module &TheModule) override;
 };
 
-#endif // _CPUSTATEACCESSANALYSIS_H
+#endif // CPUSTATEACCESSANALYSIS_H

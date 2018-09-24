@@ -1,5 +1,5 @@
-#ifndef _DEBUG_H
-#define _DEBUG_H
+#ifndef DEBUG_H
+#define DEBUG_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -260,4 +260,4 @@ private:
   O &Stream;
 };
 
-#endif // _DEBUG_H
+#endif // DEBUG_H

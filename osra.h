@@ -1,5 +1,5 @@
-#ifndef _OSRA_H
-#define _OSRA_H
+#ifndef OSRA_H
+#define OSRA_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -661,4 +661,4 @@ private:
   BVMap *BVs;
 };
 
-#endif // _OSRA_H
+#endif // OSRA_H

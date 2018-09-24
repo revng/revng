@@ -1,5 +1,5 @@
-#ifndef _TRANSFORMADAPTER_H
-#define _TRANSFORMADAPTER_H
+#ifndef TRANSFORMADAPTER_H
+#define TRANSFORMADAPTER_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -98,4 +98,4 @@ auto operator|(C Input, R Transformer)
 //   return Transformer.transform(make_range(Input));
 // }
 
-#endif // _TRANSFORMADAPTER_H
+#endif // TRANSFORMADAPTER_H

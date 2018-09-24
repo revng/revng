@@ -1,5 +1,5 @@
-#ifndef _COLLECTNORETURN_H
-#define _COLLECTNORETURN_H
+#ifndef COLLECTNORETURN_H
+#define COLLECTNORETURN_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -35,4 +35,4 @@ private:
   std::vector<llvm::BasicBlock *> NoreturnBBs;
 };
 
-#endif // _COLLECTNORETURN_H
+#endif // COLLECTNORETURN_H

@@ -1,5 +1,5 @@
-#ifndef _STATISTICS_H
-#define _STATISTICS_H
+#ifndef STATISTICS_H
+#define STATISTICS_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -210,4 +210,4 @@ inline void CounterMap<K, T>::init() {
   OnQuitStatistics->add(this);
 }
 
-#endif // _STATISTICS_H
+#endif // STATISTICS_H
