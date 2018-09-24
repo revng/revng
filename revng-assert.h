@@ -48,11 +48,11 @@ extern "C" {
 
 /// \brief Same as __builtin_assume but (temporarily) suppresses warnings about
 ///        ignored side-effects
-#define silent_assume(what) \
-  do {                      \
-    SILENCE_ASSUME_HEADER   \
-    __builtin_assume(what); \
-    SILENCE_ASSUME_FOOTER   \
+#define silent_assume(what)                    \
+  do {                                         \
+    SILENCE_ASSUME_HEADER                      \
+    __builtin_assume(static_cast<bool>(what)); \
+    SILENCE_ASSUME_FOOTER                      \
   } while (0)
 
 // We support C++11, C99 (with GNU attributes) or C11
