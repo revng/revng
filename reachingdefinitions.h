@@ -74,7 +74,7 @@ struct hash<MemoryInstruction> {
 
 class BasicBlockInfo {
 public:
-  unsigned addCondition(int32_t ConditionIndex) { assert(false); }
+  unsigned addCondition(int32_t ConditionIndex) { revng_abort(); }
 
   void resetDefinitions(TypeSizeProvider &TSP) {
     Definitions.clear();
@@ -227,12 +227,20 @@ public:
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
   const std::vector<llvm::LoadInst *> &
-  getReachedLoads(const llvm::Instruction *I);
+  getReachedLoads(const llvm::Instruction *I) {
+    revng_assert(R == ReachingDefinitionsResult::ReachedLoads);
+    return ReachedLoads[I];
+  }
 
   const std::vector<llvm::Instruction *> &
-  getReachingDefinitions(const llvm::LoadInst *Load);
+  getReachingDefinitions(const llvm::LoadInst *Load) {
+    return ReachingDefinitions[Load];
+  }
 
-  unsigned getReachingDefinitionsCount(const llvm::LoadInst *Load);
+  unsigned getReachingDefinitionsCount(const llvm::LoadInst *Load) {
+    revng_assert(R == ReachingDefinitionsResult::ReachedLoads);
+    return ReachingDefinitionsCount[Load];
+  }
 
   virtual void releaseMemory() override {
     DBG("release",

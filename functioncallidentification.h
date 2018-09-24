@@ -42,7 +42,7 @@ public:
 
   /// \brief Return true if \p T is a function call in the input assembly
   bool isCall(llvm::TerminatorInst *T) const {
-    assert(T != nullptr);
+    revng_assert(T != nullptr);
     llvm::Instruction *Previous = getPrevious(T);
     while (Previous != nullptr && isMarker(Previous)) {
       auto *Call = llvm::cast<llvm::CallInst>(Previous);
@@ -64,7 +64,7 @@ public:
   }
 
   llvm::BasicBlock *getFallthrough(llvm::TerminatorInst *T) const {
-    assert(T != nullptr);
+    revng_assert(T != nullptr);
     llvm::Instruction *Previous = getPrevious(T);
     while (Previous != nullptr && isMarker(Previous)) {
       auto *Call = llvm::cast<llvm::CallInst>(Previous);
@@ -76,7 +76,7 @@ public:
       Previous = getPrevious(Previous);
     }
 
-    abort();
+    revng_abort();
   }
 
   bool isFallthrough(uint64_t Address) const {

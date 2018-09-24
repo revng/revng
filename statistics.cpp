@@ -35,7 +35,7 @@ static void onQuitSignalHandler(int Signal) {
       SignalHandler = &H;
 
   // Assert we were notified of the signal we expected
-  assert(SignalHandler != nullptr);
+  revng_assert(SignalHandler != nullptr);
 
   onQuit();
 
@@ -43,7 +43,7 @@ static void onQuitSignalHandler(int Signal) {
     return;
 
   int Result = sigaction(Signal, &SignalHandler->OldHandler, nullptr);
-  assert(Result == 0);
+  revng_assert(Result == 0);
   raise(Signal);
 }
 
@@ -56,8 +56,8 @@ void OnQuitRegistry::install() {
     H.NewHandler.sa_handler = &onQuitSignalHandler;
 
     int Result = sigaction(H.Signal, &H.NewHandler, &H.OldHandler);
-    assert(Result == 0);
-    assert(H.OldHandler.sa_handler == nullptr);
+    revng_assert(Result == 0);
+    revng_assert(H.OldHandler.sa_handler == nullptr);
   }
 }
 

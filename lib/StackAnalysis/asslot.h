@@ -37,7 +37,7 @@ assertLowerThanOrEqual(const T &LHS, const T &RHS, const llvm::Module *M) {
   if (!Result) {
     SaDiffLog.enable();
     debug_cmp<T>::cmp(LHS, RHS, M);
-    abort();
+    revng_abort();
   }
 #endif
 }
@@ -62,7 +62,7 @@ private:
   };
 
 public:
-  explicit ASID(uint32_t ID) : ID(ID) { assert(ID < LastID); }
+  explicit ASID(uint32_t ID) : ID(ID) { revng_assert(ID < LastID); }
 
   // Factory methods
   static ASID invalidID() { return ASID(InvalidID); }
@@ -127,7 +127,7 @@ private:
 public:
   static ASSlot invalid() { return ASSlot(ASID::invalidID(), 0); }
   static ASSlot create(ASID ID, int32_t Offset) {
-    assert(ID.isValid());
+    revng_assert(ID.isValid());
     return ASSlot(ID, Offset);
   }
 

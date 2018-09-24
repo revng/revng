@@ -15,7 +15,7 @@
 namespace StackAnalysis {
 
 void ABIFunction::finalize() {
-  assert(Calls.empty());
+  revng_assert(Calls.empty());
 
   for (auto &P : BBMap) {
     // Build backward links

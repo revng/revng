@@ -816,11 +816,11 @@ public:
       return true;
     }
 
-    abort();
+    revng_abort();
   }
 
   bool isReturn() const {
-    assert(TheReason == Regular or TheReason == Return);
+    revng_assert(TheReason == Regular or TheReason == Return);
     return TheReason == Return;
   }
 

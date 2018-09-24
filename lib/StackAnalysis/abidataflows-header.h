@@ -8,7 +8,7 @@
 // This file has been automatically generated, please don't change it
 
 // Standard includes
-#include <cassert>
+#include "revng-assert.h"
 #include <cstdlib>
 #include <ostream>
 

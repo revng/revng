@@ -87,7 +87,7 @@ public:
 
   void unindent(unsigned Level = 1) {
     if (isEnabled()) {
-      assert(IndentLevel - Level >= 0);
+      revng_assert(IndentLevel - Level >= 0);
       IndentLevel -= Level;
     }
   }

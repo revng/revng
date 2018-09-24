@@ -163,7 +163,7 @@ public:
 
   using ASOContentIt = Container::iterator;
   ASOContentIt eraseASO(ASOContentIt It) {
-    assert(!It->second.hasDirectContent());
+    revng_assert(!It->second.hasDirectContent());
     return ASOContent.erase(It);
   }
 
@@ -197,7 +197,7 @@ public:
 
   /// \brief Handle loading from a specific slot
   Value load(ASSlot Address) const {
-    assert(Address.addressSpace() == ID);
+    revng_assert(Address.addressSpace() == ID);
 
     // If we can load from it, return the result right away, otherwise return a
     // value tagged with the requested address

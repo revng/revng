@@ -24,7 +24,7 @@ using namespace llvm;
 /// Boring code to get the text of the metadata with the specified kind
 /// associated to the given instruction
 static MDString *getMD(const Instruction *Instruction, unsigned Kind) {
-  assert(Instruction != nullptr);
+  revng_assert(Instruction != nullptr);
 
   Metadata *MD = Instruction->getMetadata(Kind);
 
@@ -33,7 +33,7 @@ static MDString *getMD(const Instruction *Instruction, unsigned Kind) {
 
   auto Node = dyn_cast<MDNode>(MD);
 
-  assert(Node != nullptr);
+  revng_assert(Node != nullptr);
 
   const MDOperand &Operand = Node->getOperand(0);
 
@@ -43,7 +43,7 @@ static MDString *getMD(const Instruction *Instruction, unsigned Kind) {
     return nullptr;
 
   auto *String = dyn_cast<MDString>(MDOperand);
-  assert(String != nullptr);
+  revng_assert(String != nullptr);
 
   return String;
 }
@@ -107,7 +107,7 @@ void DAW::emitInstructionAnnot(const Instruction *Instr,
     // will contain some reference to dangling pointers. So ignore the output
     // stream if you're using the annotator to generate debug info about the IR
     // itself.
-    assert(Subprogram != nullptr);
+    revng_assert(Subprogram != nullptr);
 
     // Flushing is required to have correct line and column numbers
     Output.flush();
@@ -170,7 +170,7 @@ void DebugHelper::generateDebugInfo() {
         DITypeRefArray EmptyArrayType = Builder.getOrCreateTypeArray({});
         EmptyType = Builder.createSubroutineType(EmptyArrayType);
 
-        assert(CompileUnit != nullptr);
+        revng_assert(CompileUnit != nullptr);
         DISubprogram *Subprogram = nullptr;
         Subprogram = Builder.createFunction(CompileUnit->getFile(), // Scope
                                             F.getName(),

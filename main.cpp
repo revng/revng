@@ -92,7 +92,7 @@ static bool toNumber(const char *String, uint64_t *Destination) {
 static void findFiles(const char *Architecture) {
   // TODO: make this optional
   char *FullPath = realpath("/proc/self/exe", nullptr);
-  assert(FullPath != nullptr);
+  revng_assert(FullPath != nullptr);
   std::string Directory(dirname(FullPath));
   free(FullPath);
 
@@ -134,8 +134,8 @@ static void findFiles(const char *Architecture) {
     }
   }
 
-  assert(LibtinycodeFound && "Couldn't find libtinycode and the helpers");
-  assert(EarlyLinkedFound && "Couldn't find early-linked.ll");
+  revng_assert(LibtinycodeFound, "Couldn't find libtinycode and the helpers");
+  revng_assert(EarlyLinkedFound, "Couldn't find early-linked.ll");
 }
 
 /// Given an architecture name, loads the appropriate version of the PTC

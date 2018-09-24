@@ -33,7 +33,7 @@ struct CombineHelper {
   template<bool FunctionCall>
   static void combine(RegisterArgument<FunctionCall> &This,
                       UsedArgumentsOfFunction::Values V) {
-    assert(!FunctionCall);
+    revng_assert(!FunctionCall);
 
     if (V == UsedArgumentsOfFunction::Yes) {
       switch (This.Value) {
@@ -49,7 +49,7 @@ struct CombineHelper {
       case RegisterArgument<FunctionCall>::Dead:
       case RegisterArgument<FunctionCall>::Yes:
       case RegisterArgument<FunctionCall>::Contradiction:
-        abort();
+        revng_abort();
       }
     }
   }
@@ -58,7 +58,7 @@ struct CombineHelper {
   template<bool FunctionCall>
   static void combine(RegisterArgument<FunctionCall> &This,
                       DeadRegisterArgumentsOfFunction::Values V) {
-    assert(not FunctionCall);
+    revng_assert(not FunctionCall);
 
     if (V == DeadRegisterArgumentsOfFunction::NoOrDead) {
       switch (This.Value) {
@@ -74,7 +74,7 @@ struct CombineHelper {
       case RegisterArgument<FunctionCall>::NoOrDead:
       case RegisterArgument<FunctionCall>::Dead:
       case RegisterArgument<FunctionCall>::Contradiction:
-        abort();
+        revng_abort();
       }
     }
   }
@@ -83,7 +83,7 @@ struct CombineHelper {
   template<bool FunctionCall>
   static void combine(RegisterArgument<FunctionCall> &This,
                       RegisterArgumentsOfFunctionCall::Values V) {
-    assert(FunctionCall);
+    revng_assert(FunctionCall);
 
     if (V == RegisterArgumentsOfFunctionCall::Yes) {
       switch (This.Value) {
@@ -120,7 +120,7 @@ struct CombineHelper {
       case FunctionReturnValue::NoOrDead:
       case FunctionReturnValue::Dead:
       case FunctionReturnValue::Contradiction:
-        abort();
+        revng_abort();
       }
     }
   }
@@ -142,7 +142,7 @@ struct CombineHelper {
       case FunctionCallReturnValue::Contradiction:
       case FunctionCallReturnValue::Dead:
       case FunctionCallReturnValue::NoOrDead:
-        abort();
+        revng_abort();
       }
     }
   }
@@ -164,7 +164,7 @@ struct CombineHelper {
         // No comes from ECS and wins over everything
         break;
       case FunctionCallReturnValue::Contradiction:
-        abort();
+        revng_abort();
       }
     }
   }
@@ -223,7 +223,7 @@ public:
 
   const V &get(const K Key) const {
     auto It = M.find(Key);
-    assert(It != M.end());
+    revng_assert(It != M.end());
     return It->second;
   }
 
@@ -528,14 +528,14 @@ public:
     if (Slot.addressSpace() == ASID::cpuID())
       RegisterAnalyses.erase(Slot.offset());
     else
-      abort();
+      revng_abort();
   }
 
   void resetToUnknown(ASSlot Slot) {
     if (Slot.addressSpace() == ASID::cpuID())
       RegisterAnalyses[Slot.offset()].resetToUnknown();
     else
-      abort();
+      revng_abort();
   }
 
   void applyResults(FunctionRegisterArgument &V, int32_t Offset) const {

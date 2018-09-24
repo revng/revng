@@ -24,17 +24,17 @@ class Label {};
 class LatticeElement {
 public:
   static LatticeElement bottom() { return LatticeElement(); }
-  LatticeElement copy() { abort(); }
-  void combine(const LatticeElement &) { abort(); }
-  bool greaterThan(const LatticeElement &) { abort(); }
-  void dump() { abort(); }
+  LatticeElement copy() { revng_abort(); }
+  void combine(const LatticeElement &) { revng_abort(); }
+  bool greaterThan(const LatticeElement &) { revng_abort(); }
+  void dump() { revng_abort(); }
 };
 
 class Interrupt {
 public:
-  bool requiresInterproceduralHandling() { abort(); }
-  LatticeElement &&extractResult() { abort(); }
-  bool isReturn() const { abort(); }
+  bool requiresInterproceduralHandling() { revng_abort(); }
+  LatticeElement &&extractResult() { revng_abort(); }
+  bool isReturn() const { revng_abort(); }
 };
 
 class Analysis : public MonotoneFramework<Label *,
@@ -45,23 +45,23 @@ class Analysis : public MonotoneFramework<Label *,
 public:
   void assertLowerThanOrEqual(const LatticeElement &A,
                               const LatticeElement &B) const {
-    abort();
+    revng_abort();
   }
 
   Analysis(Label *Entry) : MonotoneFramework(Entry) {}
 
-  void dumpFinalState() const { abort(); }
+  void dumpFinalState() const { revng_abort(); }
 
   llvm::iterator_range<Label **> successors(Label *, Interrupt &) const {
-    abort();
+    revng_abort();
   }
 
-  size_t successor_size(Label *, Interrupt &) const { abort(); }
-  Interrupt createSummaryInterrupt() { abort(); }
-  Interrupt createNoReturnInterrupt() const { abort(); }
-  LatticeElement extremalValue(Label *) const { abort(); }
-  LabelRange extremalLabels() const { abort(); }
-  Interrupt transfer(Label *) { abort(); }
+  size_t successor_size(Label *, Interrupt &) const { revng_abort(); }
+  Interrupt createSummaryInterrupt() { revng_abort(); }
+  Interrupt createNoReturnInterrupt() const { revng_abort(); }
+  LatticeElement extremalValue(Label *) const { revng_abort(); }
+  LabelRange extremalLabels() const { revng_abort(); }
+  Interrupt transfer(Label *) { revng_abort(); }
 };
 
 inline void testFunction() {

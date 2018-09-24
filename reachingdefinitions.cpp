@@ -45,25 +45,6 @@ using vvector = const vector<T *> &;
 
 #define RDIP ReachingDefinitionsImplPass
 
-template<class BBI, ReachingDefinitionsResult R>
-vvector<LoadInst> RDIP<BBI, R>::getReachedLoads(const Instruction *I) {
-  assert(R == ReachingDefinitionsResult::ReachedLoads);
-  return ReachedLoads[I];
-}
-
-template<class B, ReachingDefinitionsResult R>
-vvector<Instruction> RDIP<B, R>::getReachingDefinitions(const LoadInst *L) {
-  return ReachingDefinitions[L];
-}
-
-template<class B, ReachingDefinitionsResult R>
-unsigned RDIP<B, R>::getReachingDefinitionsCount(const LoadInst *Load) {
-  assert(R == ReachingDefinitionsResult::ReachedLoads);
-  return ReachingDefinitionsCount[Load];
-}
-
-#undef RDIP
-
 template class ReachingDefinitionsImplPass<BasicBlockInfo,
                                            RDR::ReachingDefinitions>;
 template class ReachingDefinitionsImplPass<BasicBlockInfo, RDR::ReachedLoads>;
@@ -430,7 +411,7 @@ public:
     // Restore the old terminator
     if (SavedTerminator != nullptr) {
       Target->getInstList().push_back(SavedTerminator);
-      assert(Target->getTerminator() == SavedTerminator);
+      revng_assert(Target->getTerminator() == SavedTerminator);
     }
   }
 
@@ -664,7 +645,7 @@ BasicBlockInfo::getReachingDefinitions(set<LoadInst *> &WhiteList,
   }
 
   freeContainer(Reaching);
-  assert(Reaching.size() == 0);
+  revng_assert(Reaching.size() == 0);
 
   return Result;
 }
@@ -884,7 +865,7 @@ bool ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
     for (int I = DefinitionConditions.find_first(); I != -1;
          I = DefinitionConditions.find_next(I)) {
       // Make sure the target BBI knows about all the necessary conditions
-      assert(I < static_cast<int>(SeenConditions.size()));
+      revng_assert(I < static_cast<int>(SeenConditions.size()));
       unsigned Index = Target.getConditionIndex(SeenConditions[I]);
       unsigned OppositeIndex = Target.getConditionIndex(-SeenConditions[I]);
 
@@ -914,7 +895,7 @@ bool ConditionalBasicBlockInfo::mergeDefinition(CondDefPair NewDefinition,
                                                 vector<CondDefPair> &Targets,
                                                 TypeSizeProvider &TSP) const {
   BitVector &NewConditionsBV = NewDefinition.first;
-  assert(NewConditionsBV.size() == SeenConditions.size());
+  revng_assert(NewConditionsBV.size() == SeenConditions.size());
 
   for (CondDefPair &Target : Targets) {
     // Does this definition matches the one we're looking for?
@@ -940,7 +921,7 @@ bool ConditionalBasicBlockInfo::mergeDefinition(CondDefPair NewDefinition,
                                                 ReachingType &Targets,
                                                 TypeSizeProvider &TSP) const {
   BitVector &NewConditionsBV = NewDefinition.first;
-  assert(NewConditionsBV.size() == SeenConditions.size());
+  revng_assert(NewConditionsBV.size() == SeenConditions.size());
 
   // Merge the conditions of the new definition
   BitVector &BV = Targets[NewDefinition.second];
@@ -1029,7 +1010,7 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
     if (!FCI.isCall(BB) && Size * SuccessorsCount <= 5000) {
       // Get the identifier of the conditional instruction
       int32_t ConditionIndex = getConditionIndex(BB->getTerminator());
-      assert(ConditionIndex == 0 || ConditionIndex > 0);
+      revng_assert(ConditionIndex == 0 || ConditionIndex > 0);
 
       // Propagate definitions to successors, checking if actually we changed
       // something, and if so re-enqueue them

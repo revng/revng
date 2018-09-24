@@ -6,7 +6,7 @@
 //
 
 // Standard includes
-#include <cassert>
+#include "revng-assert.h"
 #include <climits>
 #include <cstdint>
 #include <cstring>
@@ -97,7 +97,7 @@ private:
   }
 
   unsigned dereference() const {
-    assert(BitVector != nullptr && NextBitIndex != 0);
+    revng_assert(BitVector != nullptr && NextBitIndex != 0);
     return NextBitIndex - 1;
   }
 
@@ -120,6 +120,7 @@ private:
   static const unsigned BitsPerPointer = sizeof(uintptr_t) * CHAR_BIT;
   static const unsigned MaxSmallSize = BitsPerPointer - 1;
   static const uintptr_t One = 1;
+  static const unsigned IntMax = std::numeric_limits<int32_t>::max();
 
   struct LargeStorage {
     unsigned wordCount() const { return Capacity / BitsPerPointer; }
@@ -134,17 +135,17 @@ private:
     }
 
     uintptr_t &at(size_t Index) {
-      assert(Index < wordCount());
+      revng_assert(Index < wordCount());
       return Storage[Index];
     }
 
     const uintptr_t &at(size_t Index) const {
-      assert(Index < wordCount());
+      revng_assert(Index < wordCount());
       return Storage[Index];
     }
 
     void zero(size_t From, size_t Count) {
-      assert(From + Count <= wordCount());
+      revng_assert(From + Count <= wordCount());
       memset(&at(From), 0, Count * sizeof(uintptr_t));
     }
 
@@ -155,7 +156,7 @@ private:
     void setCapacity(size_t Count) { Capacity = Count; }
 
     LargeStorage &operator=(const LargeStorage &Other) {
-      assert(Capacity >= Other.Capacity);
+      revng_assert(Capacity >= Other.Capacity);
       memcpy(&at(0), &Other.at(0), Other.Capacity / sizeof(uintptr_t));
       return *this;
     }
@@ -179,13 +180,13 @@ public:
   bool isSmall() const { return Storage & 1; }
 
   void set(unsigned Index) {
-    assert(Index < static_cast<unsigned>(std::numeric_limits<int32_t>::max()));
+    revng_assert(Index < IntMax);
 
     if (Index >= capacity())
       alloc(Index + 1);
 
     if (isSmall()) {
-      assert(Index < MaxSmallSize);
+      revng_assert(Index < MaxSmallSize);
       Storage = Storage | (One << (Index + 1));
     } else {
       uintptr_t &Target = getLarge().at(Index / BitsPerPointer);
@@ -194,13 +195,13 @@ public:
   }
 
   void unset(unsigned Index) {
-    assert(Index < static_cast<unsigned>(std::numeric_limits<int32_t>::max()));
+    revng_assert(Index < IntMax);
 
     if (Index >= capacity())
       return;
 
     if (isSmall()) {
-      assert(Index < MaxSmallSize);
+      revng_assert(Index < MaxSmallSize);
       Storage = Storage & ~(One << (Index + 1));
     } else {
       uintptr_t &Target = getLarge().at(Index / BitsPerPointer);
@@ -225,7 +226,7 @@ public:
         Large.at(From / BitsPerPointer) &= Mask;
         From += Head;
         Count -= Head;
-        assert(From % BitsPerPointer == 0);
+        revng_assert(From % BitsPerPointer == 0);
       }
 
       // Blank trailing bits
@@ -233,7 +234,7 @@ public:
       if (Tail != 0) {
         Large.at((From + Count) / BitsPerPointer) &= ~((One << Tail) - 1);
         Count -= Tail;
-        assert(Count % BitsPerPointer == 0);
+        revng_assert(Count % BitsPerPointer == 0);
       }
 
       if (Count != 0)
@@ -274,7 +275,7 @@ public:
 
   LazySmallBitVector &operator=(const LazySmallBitVector &Other) {
     if (!(Other.isSmall() || Other.capacity() > 63))
-      abort();
+      revng_abort();
 
     if (Other.isSmall()) {
       Storage = Other.Storage;
@@ -359,7 +360,7 @@ public:
 
     // This situation should never happen, since we just ensured we have at
     // least the same capacity
-    assert(!(isSmall() && !Other.isSmall()));
+    revng_assert(!(isSmall() && !Other.isSmall()));
 
     if (isSmall() && Other.isSmall()) {
       Storage = (Storage ^ Other.Storage) | 1;
@@ -387,7 +388,7 @@ public:
 
     // This situation should never happen, since we just ensured we have at
     // least the same capacity
-    assert(!(isSmall() && !Other.isSmall()));
+    revng_assert(!(isSmall() && !Other.isSmall()));
 
     if (isSmall() && Other.isSmall()) {
       Storage = Storage | Other.Storage;
@@ -450,7 +451,7 @@ public:
   }
 
   LazySmallBitVector &operator>>=(unsigned Amount) {
-    assert(Amount <= capacity());
+    revng_assert(Amount <= capacity());
 
     if (isSmall()) {
       Storage >>= Amount;
@@ -592,14 +593,14 @@ private:
   friend const_iterator;
 
   uintptr_t getSmall() const {
-    assert(isSmall());
+    revng_assert(isSmall());
     return Storage >> 1;
   }
 
   void setSmall(uintptr_t Value) {
-    assert(isSmall());
+    revng_assert(isSmall());
     Storage = (Value << 1) | 1;
-    assert(isSmall());
+    revng_assert(isSmall());
   }
 
   size_t capacity() const {
@@ -610,7 +611,7 @@ private:
   }
 
   void alloc(size_t NewSize) {
-    assert(NewSize > capacity());
+    revng_assert(NewSize > capacity());
 
     // Allocate the maximum between the requested index and twice the current
     // capacity (rounding to the size of a uintptr_t)
@@ -621,7 +622,7 @@ private:
     // uintptr_t entry
     size_t ExtraSize = (PointersCount - 1) * sizeof(uintptr_t);
     void *Ptr = malloc(sizeof(LargeStorage) + ExtraSize);
-    assert(Ptr != nullptr);
+    revng_assert(Ptr != nullptr);
     LargeStorage &Result = *reinterpret_cast<LargeStorage *>(Ptr);
 
     // Initialize the Capacity field
@@ -642,16 +643,16 @@ private:
     }
 
     Storage = reinterpret_cast<uintptr_t>(&Result);
-    assert(!isSmall());
+    revng_assert(!isSmall());
   }
 
   LargeStorage &getLarge() {
-    assert(!isSmall());
+    revng_assert(!isSmall());
     return *reinterpret_cast<LargeStorage *>(Storage);
   }
 
   const LargeStorage &getLarge() const {
-    assert(!isSmall());
+    revng_assert(!isSmall());
     return *reinterpret_cast<const LargeStorage *>(Storage);
   }
 
@@ -661,8 +662,8 @@ private:
 
 template<typename LSBV>
 inline void LazySmallBitVectorIterator<LSBV>::increment() {
-  assert(BitVector != nullptr);
-  assert(NextBitIndex == 0 || (*BitVector)[NextBitIndex - 1] == true);
+  revng_assert(BitVector != nullptr);
+  revng_assert(NextBitIndex == 0 || (*BitVector)[NextBitIndex - 1] == true);
 
   NextBitIndex = BitVector->findNext(NextBitIndex);
 }
@@ -674,7 +675,7 @@ inline LSBVI<LSBV>::LSBVI(LSBV *BitVector) :
   BitVector(BitVector),
   NextBitIndex(0) {
 
-  assert(BitVector != nullptr);
+  revng_assert(BitVector != nullptr);
   if (!BitVector->isZero())
     increment();
 }
@@ -683,7 +684,7 @@ template<typename LSBV>
 inline LSBVI<LSBV>::LSBVI(LSBV *BitVector, unsigned Index) :
   BitVector(BitVector),
   NextBitIndex(Index) {
-  assert(BitVector != nullptr);
+  revng_assert(BitVector != nullptr);
 }
 
 #undef LSBVI

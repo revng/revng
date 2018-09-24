@@ -47,7 +47,7 @@ inline const char *getName(Values Type) {
     return "Fake";
   }
 
-  abort();
+  revng_abort();
 }
 
 } // namespace FunctionType
@@ -132,7 +132,7 @@ inline const char *getName(Values Type) {
     return "IndirectTailCallFunction";
   }
 
-  abort();
+  revng_abort();
 }
 
 } // namespace BranchType
@@ -179,7 +179,7 @@ public:
   /// This RegisterArgument concerns a function call for which either the callee
   /// is unknown or doesn't use this register at all.
   void notAvailable() {
-    assert(FunctionCall);
+    revng_assert(FunctionCall);
 
     // All the situations which embed the possibility of being an argument have
     // to go to a case that includes the possibility of *not* being an argument
@@ -220,7 +220,7 @@ public:
       return "No";
     }
 
-    abort();
+    revng_abort();
   }
 
   Values value() const { return Value; }
@@ -281,7 +281,7 @@ public:
 public:
   bool isContradiction() const { return Value == Contradiction; }
 
-  void notAvailable() { abort(); }
+  void notAvailable() { revng_abort(); }
 
   void combine(const FunctionCallReturnValue &Other);
 
@@ -303,7 +303,7 @@ public:
       return "Contradiction";
     }
 
-    abort();
+    revng_abort();
   }
 
   Values value() const { return Value; }

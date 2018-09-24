@@ -12,6 +12,9 @@
 // Boost includes
 #include <boost/variant.hpp>
 
+// Local includes
+#include "revng-assert.h"
+
 // TODO: test SmallMap
 
 /// \brief Type-safe wrapper for different iterators sharing value_type
@@ -79,7 +82,7 @@ private:
       (void) Other;
 
       // The compared type should always be the same
-      abort();
+      revng_abort();
     }
 
     template<typename T>
@@ -246,7 +249,7 @@ public:
     }
 
     // Otherwise, grow from vector to set.
-    assert(Map.empty());
+    revng_assert(Map.empty());
     for (unsigned I = 0; I < Size; I++)
       Map.insert(Vector[I]);
 

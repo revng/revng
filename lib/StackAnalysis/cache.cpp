@@ -130,8 +130,8 @@ void Cache::identifyPartialStores(const Function *F) {
               // the (partially clobbered) old value.
               if (TheLoad->getPointerOperand() == &CSV and PartialClobber
                   and noWritesTo(TheLoad, Store, &CSV)) {
-                assert(LoadFromSame == nullptr
-                       or areEquivalent(LoadFromSame, TheLoad));
+                revng_assert(LoadFromSame == nullptr
+                             or areEquivalent(LoadFromSame, TheLoad));
                 LoadFromSame = TheLoad;
               }
 
@@ -269,15 +269,15 @@ void Cache::identifyLinkRegisters(const Module *M) {
     std::map<BasicBlock *, GlobalVariable *> LinkRegistersMap;
     for (User *U : FunctionCallFunction->users()) {
       if (auto *Call = dyn_cast<CallInst>(U)) {
-        assert(isCallTo(Call, "function_call"));
+        revng_assert(isCallTo(Call, "function_call"));
         auto *LinkRegister = dyn_cast<GlobalVariable>(Call->getArgOperand(3));
         LinkRegisterStats[LinkRegister]++;
 
         // The callee might be unknown
         if (auto *BBA = dyn_cast<BlockAddress>(Call->getArgOperand(0))) {
           BasicBlock *Callee = BBA->getBasicBlock();
-          assert(LinkRegistersMap.count(Callee) == 0
-                 || LinkRegistersMap.at(Callee) == LinkRegister);
+          revng_assert(LinkRegistersMap.count(Callee) == 0
+                       || LinkRegistersMap.at(Callee) == LinkRegister);
           LinkRegistersMap[Callee] = LinkRegister;
         }
       }
@@ -292,7 +292,7 @@ void Cache::identifyLinkRegisters(const Module *M) {
         if (P.second > Max.second)
           Max = P;
       }
-      assert(Max.first != nullptr && Max.second != 0);
+      revng_assert(Max.first != nullptr && Max.second != 0);
       DefaultLinkRegister = Max.first;
     }
   }
@@ -349,7 +349,7 @@ bool Cache::update(BasicBlock *Function,
     // the analysis only once most of the times. The main exception are
     // recursive function calls which will temporarily inject in the cache a
     // temporary top entry, which will be overwritten later on.
-    assert(New.lowerThanOrEqual(Old));
+    revng_assert(New.lowerThanOrEqual(Old));
 
     It->second = Result.copy();
 

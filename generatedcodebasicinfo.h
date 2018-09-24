@@ -67,7 +67,7 @@ public:
   }
 
   BlockType getType(llvm::TerminatorInst *T) const {
-    assert(T != nullptr);
+    revng_assert(T != nullptr);
     llvm::MDNode *MD = T->getMetadata(BlockTypeMDName);
 
     if (MD == nullptr) {
@@ -95,7 +95,7 @@ public:
 
     MDNode *Node = T->getMetadata(JTReasonMDName);
     auto *Tuple = cast_or_null<MDTuple>(Node);
-    assert(Tuple != nullptr);
+    revng_assert(Tuple != nullptr);
 
     for (Metadata *ReasonMD : Tuple->operands()) {
       StringRef Text = cast<MDString>(ReasonMD)->getString();
@@ -141,7 +141,7 @@ public:
 
   /// \brief Check if \p GV is the stack pointer CSV
   bool isSPReg(const llvm::GlobalVariable *GV) const {
-    assert(SP != nullptr);
+    revng_assert(SP != nullptr);
     return GV == SP;
   }
 
@@ -152,7 +152,7 @@ public:
 
   /// \brief Check if \p GV is the program counter CSV
   bool isPCReg(const llvm::GlobalVariable *GV) const {
-    assert(PC != nullptr);
+    revng_assert(PC != nullptr);
     return GV == PC;
   }
 
@@ -181,7 +181,7 @@ public:
   /// Return true if \p T targets include only dispatcher-related basic blocks
   /// and jump targets.
   bool isJump(llvm::TerminatorInst *T) const {
-    assert(T != nullptr);
+    revng_assert(T != nullptr);
 
     for (llvm::BasicBlock *Successor : T->successors()) {
       if (not(Successor == Dispatcher or Successor == DispatcherFail

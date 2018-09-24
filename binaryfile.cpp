@@ -38,7 +38,7 @@ BinaryFile::BinaryFile(std::string FilePath,
                        uint64_t BaseAddress) :
   BaseAddress(0) {
   auto BinaryOrErr = object::createBinary(FilePath);
-  assert(BinaryOrErr && "Couldn't open the input file");
+  revng_assert(BinaryOrErr, "Couldn't open the input file");
 
   BinaryHandle = std::move(BinaryOrErr.get());
 
@@ -205,7 +205,7 @@ BinaryFile::BinaryFile(std::string FilePath,
     break;
 
   default:
-    assert(false);
+    revng_abort();
   }
 
   TheArchitecture = Architecture(TheBinary->getArch(),
@@ -226,8 +226,8 @@ BinaryFile::BinaryFile(std::string FilePath,
                                  HasRelocationAddend,
                                  BaseRelativeRelocation);
 
-  assert(TheBinary->getFileFormatName().startswith("ELF")
-         && "Only the ELF file format is currently supported");
+  revng_assert(TheBinary->getFileFormatName().startswith("ELF"),
+               "Only the ELF file format is currently supported");
 
   if (TheArchitecture.pointerSize() == 32) {
     if (TheArchitecture.isLittleEndian()) {
@@ -258,7 +258,7 @@ BinaryFile::BinaryFile(std::string FilePath,
       }
     }
   } else {
-    assert("Unexpect address size");
+    revng_assert("Unexpect address size");
   }
 }
 
@@ -286,7 +286,7 @@ public:
   bool isAvailable() const { return HasAddress; }
 
   bool isExact() const {
-    assert(HasAddress);
+    revng_assert(HasAddress);
     return HasSize;
   }
 
@@ -300,14 +300,14 @@ public:
   ArrayRef<T> extractAs(const std::vector<SegmentInfo> &Segments) const {
     ArrayRef<uint8_t> Data = extractData(Segments);
     const size_t TypeSize = sizeof(T);
-    assert(Data.size() % TypeSize == 0);
+    revng_assert(Data.size() % TypeSize == 0);
     return ArrayRef<T>(reinterpret_cast<const T *>(Data.data()),
                        Data.size() / TypeSize);
   }
 
   ArrayRef<uint8_t>
   extractData(const std::vector<SegmentInfo> &Segments) const {
-    assert(HasAddress);
+    revng_assert(HasAddress);
 
     for (const SegmentInfo &Segment : Segments) {
       if (Segment.contains(Address)) {
@@ -316,7 +316,7 @@ public:
         uint64_t TheSize = AvailableSize;
 
         if (HasSize) {
-          assert(AvailableSize >= Size);
+          revng_assert(AvailableSize >= Size);
           TheSize = Size;
         }
 
@@ -324,7 +324,7 @@ public:
       }
     }
 
-    abort();
+    revng_abort();
   }
 };
 
@@ -354,7 +354,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
   // Parse the ELF file
   std::error_code EC;
   object::ELFFile<T> TheELF(TheBinary->getData(), EC);
-  assert(!EC && "Error while loading the ELF file");
+  revng_assert(!EC, "Error while loading the ELF file");
 
   // BaseAddress makes sense only for shared (relocatable, PIC) objects
   if (TheELF.getHeader()->e_type == ELF::ET_DYN)
@@ -373,14 +373,14 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
   for (auto &Section : TheELF.sections()) {
     if (ErrorOr<StringRef> Name = TheELF.getSectionName(&Section)) {
       if (*Name == ".symtab") {
-        assert(SymtabShdr == nullptr && "Duplicate .symtab");
+        revng_assert(SymtabShdr == nullptr, "Duplicate .symtab");
         SymtabShdr = &Section;
       } else if (*Name == ".eh_frame") {
-        assert(not EHFrameAddress && "Duplicate .eh_frame");
+        revng_assert(not EHFrameAddress, "Duplicate .eh_frame");
         EHFrameAddress = relocate(static_cast<uint64_t>(Section.sh_addr));
         EHFrameSize = static_cast<uint64_t>(Section.sh_size);
       } else if (*Name == ".dynamic") {
-        assert(not DynamicAddress && "Duplicate .dynamic");
+        revng_assert(not DynamicAddress, "Duplicate .dynamic");
         DynamicAddress = relocate(static_cast<uint64_t>(Section.sh_addr));
       }
     }
@@ -456,21 +456,21 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
     } break;
 
     case ELF::PT_GNU_EH_FRAME:
-      assert(!EHFrameHdrAddress);
+      revng_assert(!EHFrameHdrAddress);
       EHFrameHdrAddress = relocate(ProgramHeader.p_vaddr);
       break;
 
     case ELF::PT_DYNAMIC:
-      assert(DynamicPhdr == nullptr && "Duplicate .dynamic program header");
+      revng_assert(DynamicPhdr == nullptr, "Duplicate .dynamic program header");
       DynamicPhdr = &ProgramHeader;
-      assert(((not DynamicAddress)
-              or (relocate(DynamicPhdr->p_vaddr) == *DynamicAddress))
-             and ".dynamic and PT_DYNAMIC have different addresses");
+      revng_assert(((not DynamicAddress)
+                    or (relocate(DynamicPhdr->p_vaddr) == *DynamicAddress)),
+                   ".dynamic and PT_DYNAMIC have different addresses");
       break;
     }
   }
 
-  assert((DynamicPhdr != nullptr) == (DynamicAddress.hasValue()));
+  revng_assert((DynamicPhdr != nullptr) == (DynamicAddress.hasValue()));
 
   Optional<uint64_t> FDEsCount;
   if (EHFrameHdrAddress) {
@@ -478,7 +478,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
 
     std::tie(Address, FDEsCount) = ehFrameFromEhFrameHdr<T>(*EHFrameHdrAddress);
     if (EHFrameAddress) {
-      assert(*EHFrameAddress == Address);
+      revng_assert(*EHFrameAddress == Address);
     }
 
     EHFrameAddress = Address;
@@ -526,20 +526,20 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
 
       case ELF::DT_REL:
       case ELF::DT_RELA:
-        assert(TheTag == (HasAddend ? ELF::DT_RELA : ELF::DT_REL));
+        revng_assert(TheTag == (HasAddend ? ELF::DT_RELA : ELF::DT_REL));
         ReldynPortion.setAddress(relocate(DynamicTag.getPtr()));
         break;
 
       case ELF::DT_RELSZ:
       case ELF::DT_RELASZ:
-        assert(TheTag == (HasAddend ? ELF::DT_RELASZ : ELF::DT_RELSZ));
+        revng_assert(TheTag == (HasAddend ? ELF::DT_RELASZ : ELF::DT_RELSZ));
         ReldynPortion.setSize(DynamicTag.getVal());
         break;
       }
     }
 
     if (NeededLibraryNames.size() > 0)
-      assert(DynstrPortion.isAvailable());
+      revng_assert(DynstrPortion.isAvailable());
 
     if (DynstrPortion.isAvailable()) {
       StringRef Dynstr = DynstrPortion.extractString(Segments);
@@ -572,7 +572,7 @@ uint64_t BinaryFile::parseRelocations(const FilePortion &Relocations) {
 
   uint32_t SymbolsCount = 0;
   if (Relocations.isAvailable()) {
-    assert(Relocations.isExact());
+    revng_assert(Relocations.isExact());
     for (Elf_Rel Relocation : Relocations.extractAs<Elf_Rel>(Segments)) {
       SymbolsCount = std::max(SymbolsCount, Relocation.getSymbol(false) + 1);
       auto RelocationType = Relocation.getType(false);
@@ -586,7 +586,7 @@ uint64_t BinaryFile::parseRelocations(const FilePortion &Relocations) {
           Value = RelocationHelper<T, HasAddend>::getAddend(Relocation);
         } else {
           auto Data = getAddressData(relocate(Relocation.r_offset));
-          assert(Data && "r_offset is not in any segment.");
+          revng_assert(Data, "r_offset is not in any segment.");
           Value = ::readPointer<T>(Data->data());
         }
 
@@ -613,7 +613,7 @@ public:
 
   template<typename T>
   T readNext() {
-    assert(Cursor + sizeof(T) <= End);
+    revng_assert(Cursor + sizeof(T) <= End);
     T Result = Endianess<T, E>::read(Cursor);
     Cursor += sizeof(T);
     return Result;
@@ -635,7 +635,7 @@ public:
     unsigned Length;
     uint64_t Result = decodeULEB128(Cursor, &Length);
     Cursor += Length;
-    assert(Cursor <= End);
+    revng_assert(Cursor <= End);
     return Result;
   }
 
@@ -643,12 +643,12 @@ public:
     unsigned Length;
     int64_t Result = decodeSLEB128(Cursor, &Length);
     Cursor += Length;
-    assert(Cursor <= End);
+    revng_assert(Cursor <= End);
     return Result;
   }
 
   Pointer readPointer(unsigned Encoding, uint64_t Base = 0) {
-    assert((Encoding & ~(0x70 | 0x0F | dwarf::DW_EH_PE_indirect)) == 0);
+    revng_assert((Encoding & ~(0x70 | 0x0F | dwarf::DW_EH_PE_indirect)) == 0);
 
     if ((Encoding & 0x70) == dwarf::DW_EH_PE_pcrel)
       Base = Address + (Cursor - Start);
@@ -682,13 +682,13 @@ public:
     case dwarf::DW_EH_PE_sdata8:
       return readPointerInternal(readNext<int64_t>(), Encoding, Base);
     default:
-      llvm_unreachable("Unknown Encoding");
+      revng_unreachable("Unknown Encoding");
     }
   }
 
   void moveTo(uint64_t Offset) {
     const uint8_t *NewCursor = Start + Offset;
-    assert(NewCursor >= Cursor && NewCursor <= End);
+    revng_assert(NewCursor >= Cursor && NewCursor <= End);
     Cursor = NewCursor;
   }
 
@@ -702,7 +702,7 @@ private:
 
     if (Value != 0) {
       int EncodingRelative = Encoding & 0x70;
-      assert(EncodingRelative == 0 || EncodingRelative == 0x10);
+      revng_assert(EncodingRelative == 0 || EncodingRelative == 0x10);
 
       Result = Base;
       if (std::numeric_limits<T>::is_signed)
@@ -744,13 +744,13 @@ template<typename T>
 std::pair<uint64_t, uint64_t>
 BinaryFile::ehFrameFromEhFrameHdr(uint64_t EHFrameHdrAddress) {
   auto R = getAddressData(EHFrameHdrAddress);
-  assert(R && ".eh_frame_hdr section not available in any segment");
+  revng_assert(R, ".eh_frame_hdr section not available in any segment");
   llvm::ArrayRef<uint8_t> EHFrameHdr = *R;
 
   DwarfReader<T> EHFrameHdrReader(EHFrameHdr, EHFrameHdrAddress);
 
   uint64_t VersionNumber = EHFrameHdrReader.readNextU8();
-  assert(VersionNumber == 1);
+  revng_assert(VersionNumber == 1);
 
   // ExceptionFrameEncoding
   uint64_t ExceptionFrameEncoding = EHFrameHdrReader.readNextU8();
@@ -771,7 +771,7 @@ template<typename T>
 void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
                               Optional<uint64_t> FDEsCount,
                               Optional<uint64_t> EHFrameSize) {
-  assert(FDEsCount || EHFrameSize);
+  revng_assert(FDEsCount || EHFrameSize);
 
   auto R = getAddressData(EHFrameAddress);
 
@@ -813,7 +813,7 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
 
     // Zero-sized entry, skip it
     if (Length == 0) {
-      assert(EHFrameReader.offset() == EndOffset);
+      revng_assert(EHFrameReader.offset() == EndOffset);
       continue;
     }
 
@@ -825,7 +825,7 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
 
       // Ensure the version is the one we expect
       uint32_t Version = EHFrameReader.readNextU8();
-      assert(Version == 1);
+      revng_assert(Version == 1);
 
       // Parse a null terminated augmentation string
       SmallString<8> AugmentationString;
@@ -859,17 +859,17 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
           char Char = AugmentationString[I];
           switch (Char) {
           case 'e':
-            assert((I + 1) != e && AugmentationString[I + 1] == 'h'
-                   && "Expected 'eh' in augmentation string");
+            revng_assert((I + 1) != e && AugmentationString[I + 1] == 'h',
+                         "Expected 'eh' in augmentation string");
             break;
           case 'L':
             // This is the only information we really care about, all the rest
             // is processed just so we can get here
-            assert(!LSDAPointerEncoding && "Duplicate LSDA encoding");
+            revng_assert(!LSDAPointerEncoding, "Duplicate LSDA encoding");
             LSDAPointerEncoding = EHFrameReader.readNextU8();
             break;
           case 'P': {
-            assert(!PersonalityEncoding && "Duplicate personality");
+            revng_assert(!PersonalityEncoding, "Duplicate personality");
             PersonalityEncoding = EHFrameReader.readNextU8();
             // Personality
             Pointer Personality;
@@ -882,11 +882,11 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
             break;
           }
           case 'R':
-            assert(!FDEPointerEncoding && "Duplicate FDE encoding");
+            revng_assert(!FDEPointerEncoding, "Duplicate FDE encoding");
             FDEPointerEncoding = EHFrameReader.readNextU8();
             break;
           case 'z':
-            llvm_unreachable("'z' must be first in the augmentation string");
+            revng_unreachable("'z' must be first in the augmentation string");
           }
         }
       }
@@ -906,13 +906,13 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
 
       // Ensure we already met this CIE
       auto CIEIt = CachedCIEs.find(CIEOffset);
-      assert(CIEIt != CachedCIEs.end()
-             && "Couldn't find CIE at offset in to __eh_frame section");
+      revng_assert(CIEIt != CachedCIEs.end(),
+                   "Couldn't find CIE at offset in to __eh_frame section");
 
       // Ensure we have at least the pointer encoding
       const DecodedCIE &CIE = CIEIt->getSecond();
-      assert(CIE.FDEPointerEncoding
-             && "FDE references CIE which did not set pointer encoding");
+      revng_assert(CIE.FDEPointerEncoding,
+                   "FDE references CIE which did not set pointer encoding");
 
       // PCBegin
       auto PCBeginPointer = EHFrameReader.readPointer(*CIE.FDEPointerEncoding);
@@ -942,7 +942,7 @@ void BinaryFile::parseLSDA(uint64_t FDEStart, uint64_t LSDAAddress) {
   DBG("ehframe", dbg << "LSDAAddress: " << std::hex << LSDAAddress << "\n");
 
   auto R = getAddressData(LSDAAddress);
-  assert(R && "LSDA not available in any segment");
+  revng_assert(R, "LSDA not available in any segment");
   llvm::ArrayRef<uint8_t> LSDA = *R;
 
   DwarfReader<T> LSDAReader(LSDA, LSDAAddress);

@@ -62,7 +62,7 @@ public:
     case OutAndUnknownInPtr:
       return "OutAndUnknownInPtr";
     default:
-      abort();
+      revng_abort();
     }
     return "";
   }
@@ -74,13 +74,15 @@ private:
 public:
   CSVOffsets() : OffsetKind(Kind::Numeric), Offsets() {}
   CSVOffsets(Kind K) : OffsetKind(K), Offsets() {
-    // Useful for debug assert(isUnknown(K) or isUnknownInPtr(K));
+    // Useful for debug revng_assert(isUnknown(K) or isUnknownInPtr(K));
   }
   CSVOffsets(Kind K, int64_t O) : OffsetKind(K), Offsets({ O }) {
-    // Useful for debug assert(not isUnknown(K) and not isUnknownInPtr(K));
+    // Useful for debug revng_assert(not isUnknown(K) and not
+    // isUnknownInPtr(K));
   }
   CSVOffsets(Kind K, std::set<int64_t> O) : OffsetKind(K), Offsets(O) {
-    // Useful for debug assert(not isUnknown(K) and not isUnknownInPtr(K));
+    // Useful for debug revng_assert(not isUnknown(K) and not
+    // isUnknownInPtr(K));
   }
 
 public:
@@ -146,8 +148,7 @@ public:
     case Kind::OutAndKnownInPtr:
       return Kind::OutAndUnknownInPtr;
     default:
-      assert(false);
-      break;
+      revng_abort();
     }
     return K;
   }
@@ -198,16 +199,16 @@ public:
     {
       bool KIP0 = K0 == Kind::KnownInPtr;
       if (KIP0 or K1 == Kind::KnownInPtr) {
-        assert(isNumeric(K0) or isNumeric(K1) or isUnknown(K0)
-               or isUnknown(K1));
+        revng_assert(isNumeric(K0) or isNumeric(K1) or isUnknown(K0)
+                     or isUnknown(K1));
         OffsetKind = Kind::OutAndKnownInPtr;
         if (not KIP0)
           Offsets = other.Offsets;
         return;
       }
     }
-    assert((isNumeric(K0) and isUnknown(K1))
-           or (isNumeric(K1) and isUnknown(K0)));
+    revng_assert((isNumeric(K0) and isUnknown(K1))
+                 or (isNumeric(K1) and isUnknown(K0)));
     OffsetKind = Kind::Unknown;
     Offsets = {};
   }

@@ -69,7 +69,7 @@ static std::unique_ptr<Module> parseIR(StringRef Path, LLVMContext &Context) {
 
   if (Result.get() == nullptr) {
     Errors.print("revamb", dbgs());
-    abort();
+    revng_abort();
   }
 
   return Result;
@@ -237,13 +237,14 @@ static void replaceFunctionWithRet(Function *ToReplace, uint64_t Result) {
   Value *ResultValue;
 
   if (ToReplace->getReturnType()->isVoidTy()) {
-    assert(Result == 0);
+    revng_assert(Result == 0);
     ResultValue = nullptr;
   } else if (ToReplace->getReturnType()->isIntegerTy()) {
     auto *ReturnType = cast<IntegerType>(ToReplace->getReturnType());
     ResultValue = ConstantInt::get(ReturnType, Result, false);
   } else {
-    llvm_unreachable("No-op functions can only return void or an integer type");
+    revng_unreachable("No-op functions can only return void or an integer "
+                      "type");
   }
 
   ReturnInst::Create(ToReplace->getParent()->getContext(), ResultValue, Body);
@@ -278,8 +279,8 @@ auto find_unique(Range &&TheRange, UnaryPredicate Predicate)
 
   auto It = std::find_if(Begin, End, Predicate);
   auto Result = It;
-  assert(Result != End);
-  assert(std::find_if(++It, End, Predicate) == End);
+  revng_assert(Result != End);
+  revng_assert(std::find_if(++It, End, Predicate) == End);
 
   return *Result;
 }
@@ -291,16 +292,14 @@ auto find_unique(Range &&TheRange) -> decltype(*TheRange.begin()) {
   const auto End = TheRange.end();
 
   auto Result = Begin;
-  assert(Begin != End && ++Result == End);
-  (void) Result;
-  (void) End;
+  revng_assert(Begin != End && ++Result == End);
 
   return *Begin;
 }
 
 bool CpuLoopFunctionPass::runOnFunction(Function &F) {
   // cpu_loop must return void
-  assert(F.getReturnType()->isVoidTy());
+  revng_assert(F.getReturnType()->isVoidTy());
 
   Module *TheModule = F.getParent();
 
@@ -317,9 +316,9 @@ bool CpuLoopFunctionPass::runOnFunction(Function &F) {
   BasicBlock *Footer = find_unique(predecessors(Header), IsInLoop);
 
   // Assert on the type of the last instruction (branch or brcond)
-  assert(Footer->end() != Footer->begin());
+  revng_assert(Footer->end() != Footer->begin());
   Instruction *LastInstruction = &*--Footer->end();
-  assert(isa<BranchInst>(LastInstruction));
+  revng_assert(isa<BranchInst>(LastInstruction));
 
   // Remove the last instruction and replace it with a ret
   LastInstruction->eraseFromParent();
@@ -342,7 +341,7 @@ bool CpuLoopFunctionPass::runOnFunction(Function &F) {
   });
 
   auto *Call = cast<CallInst>(CallUser);
-  assert(Call->getCalledFunction() == &CpuExec);
+  revng_assert(Call->getCalledFunction() == &CpuExec);
   Value *ExceptionIndex = TheModule->getOrInsertGlobal("exception_index",
                                                        CpuExec.getReturnType());
   Value *LoadExceptionIndex = new LoadInst(ExceptionIndex, "", Call);
@@ -398,7 +397,7 @@ static ReturnInst *createRet(Instruction *Position) {
     auto *Zero = ConstantInt::get(static_cast<IntegerType *>(ReturnType), 0);
     return ReturnInst::Create(F->getParent()->getContext(), Zero, Position);
   } else {
-    assert("Return type not supported");
+    revng_assert("Return type not supported");
   }
 
   return nullptr;
@@ -436,7 +435,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
                                               ConstantInt::getFalse(BoolType),
                                               StringRef("cpu_loop_exiting"));
 
-  assert(CpuLoop != nullptr);
+  revng_assert(CpuLoop != nullptr);
 
   std::queue<User *> CpuLoopExitUsers;
   for (User *TheUser : CpuLoopExit->users())
@@ -445,7 +444,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
   while (!CpuLoopExitUsers.empty()) {
     auto *Call = cast<CallInst>(CpuLoopExitUsers.front());
     CpuLoopExitUsers.pop();
-    assert(Call->getCalledFunction() == CpuLoopExit);
+    revng_assert(Call->getCalledFunction() == CpuLoopExit);
 
     // Call cpu_loop
     auto *EnvType = CpuLoop->getFunctionType()->getParamType(0);
@@ -479,8 +478,8 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
           auto *RecCall = dyn_cast<CallInst>(RecUser);
           if (RecCall == nullptr) {
             auto *Cast = dyn_cast<ConstantExpr>(RecUser);
-            assert(Cast != nullptr && "Unexpected user");
-            assert(Cast->getOperand(0) == F && Cast->isCast());
+            revng_assert(Cast != nullptr, "Unexpected user");
+            revng_assert(Cast->getOperand(0) == F && Cast->isCast());
             WorkList.push(Cast);
             continue;
           }
@@ -501,7 +500,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
             // Split BB
             BasicBlock *OldBB = RecCall->getParent();
             BasicBlock::iterator SplitPoint = ++RecCall->getIterator();
-            assert(SplitPoint != OldBB->end());
+            revng_assert(SplitPoint != OldBB->end());
             BasicBlock *NewBB = OldBB->splitBasicBlock(SplitPoint);
 
             // Add a BB with a ret
@@ -825,7 +824,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   importHelperFunctionDefinition("cpu_loop");
   Function *CpuLoop = HelpersModule->getFunction("cpu_loop");
-  assert(CpuLoop != nullptr);
+  revng_assert(CpuLoop != nullptr);
 
   legacy::FunctionPassManager CpuLoopPM(TheModule.get());
   CpuLoopPM.add(new LoopInfoWrapperPass());
@@ -890,7 +889,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   for (auto Name : AbortFunctionNames) {
     Function *TheFunction = HelpersModule->getFunction(Name);
     if (TheFunction != nullptr) {
-      assert(HelpersModule->getFunction("abort") != nullptr);
+      revng_assert(HelpersModule->getFunction("abort") != nullptr);
       BasicBlock *NewBody = replaceFunction(TheFunction);
       CallInst::Create(HelpersModule->getFunction("abort"), {}, NewBody);
       new UnreachableInst(Context, NewBody);
@@ -931,7 +930,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     Linker TheLinker(*TheModule);
     bool Result = TheLinker.linkInModule(std::move(HelpersModule),
                                          Linker::LinkOnlyNeeded);
-    assert(!Result && "Linking failed");
+    revng_assert(!Result, "Linking failed");
   }
 
   Variables.setDataLayout(&TheModule->getDataLayout());
@@ -962,7 +961,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     Linker TheLinker(*TheModule);
     bool Result = TheLinker.linkInModule(std::move(EarlyLinkedModule),
                                          Linker::None);
-    assert(!Result && "Linking failed");
+    revng_assert(!Result, "Linking failed");
   }
 
   ExternalJumpsHandler JumpOutHandler(Binary, JumpTargets, *MainFunction);

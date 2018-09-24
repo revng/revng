@@ -35,7 +35,7 @@ inline bool contains(T Range, typename T::value_type V) {
 inline void purgeBranch(llvm::BasicBlock::iterator I) {
   auto *DeadBranch = llvm::dyn_cast<llvm::BranchInst>(I);
   // We allow only a branch and nothing else
-  assert(DeadBranch != nullptr && ++I == DeadBranch->getParent()->end());
+  revng_assert(DeadBranch != nullptr && ++I == DeadBranch->getParent()->end());
 
   std::set<llvm::BasicBlock *> Successors;
   for (unsigned C = 0; C < DeadBranch->getNumSuccessors(); C++)
@@ -123,7 +123,7 @@ template<typename... T>
 inline std::tuple<T...> operandsByType(llvm::User *V) {
   std::tuple<T...> Result;
   unsigned OpCount = V->getNumOperands();
-  assert(OpCount == sizeof...(T));
+  revng_assert(OpCount == sizeof...(T));
 
   for (llvm::Value *Op : V->operands())
     if (!findOperand<std::tuple<T...>, 0, T...>(Op, Result))
@@ -137,13 +137,13 @@ inline std::tuple<T...> operandsByType(llvm::User *V) {
 template<typename I, typename F, typename S>
 inline I *isa_with_op(llvm::Instruction *Inst) {
   if (auto *Casted = llvm::dyn_cast<I>(Inst)) {
-    assert(Casted->getNumOperands() == 2);
+    revng_assert(Casted->getNumOperands() == 2);
     if (llvm::isa<F>(Casted->getOperand(0))
         && llvm::isa<S>(Casted->getOperand(1))) {
       return Casted;
     } else if (llvm::isa<F>(Casted->getOperand(0))
                && llvm::isa<S>(Casted->getOperand(1))) {
-      assert(Casted->isCommutative());
+      revng_assert(Casted->isCommutative());
       Casted->swapOperands();
       return Casted;
     }
@@ -252,7 +252,7 @@ inline void visitSuccessors(llvm::Instruction *I,
     case StopNow:
       return;
     default:
-      assert(false);
+      revng_abort();
     }
   }
 }
@@ -308,7 +308,7 @@ inline void visitPredecessors(llvm::Instruction *I,
     case StopNow:
       return;
     default:
-      assert(false);
+      revng_abort();
     }
   }
 }
@@ -455,7 +455,7 @@ public:
 
   template<typename T>
   T extract(const llvm::Metadata *MD) {
-    abort();
+    revng_abort();
   }
 
 private:
@@ -506,7 +506,7 @@ inline llvm::Instruction *getNext(llvm::Instruction *I) {
 ///        container or not
 template<typename T>
 inline bool isFirst(T *I) {
-  assert(I != nullptr);
+  revng_assert(I != nullptr);
   return I == &*I->getParent()->begin();
 }
 
@@ -547,7 +547,7 @@ inline llvm::Value *skipCasts(llvm::Value *V) {
 }
 
 inline const llvm::Function *getCallee(const llvm::Instruction *I) {
-  assert(I != nullptr);
+  revng_assert(I != nullptr);
 
   using namespace llvm;
   if (auto *Call = dyn_cast<CallInst>(I))
@@ -557,7 +557,7 @@ inline const llvm::Function *getCallee(const llvm::Instruction *I) {
 }
 
 inline llvm::Function *getCallee(llvm::Instruction *I) {
-  assert(I != nullptr);
+  revng_assert(I != nullptr);
 
   using namespace llvm;
   if (auto *Call = dyn_cast<CallInst>(I))
@@ -567,14 +567,14 @@ inline llvm::Function *getCallee(llvm::Instruction *I) {
 }
 
 inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
-  assert(I != nullptr);
+  revng_assert(I != nullptr);
   const llvm::Function *Callee = getCallee(I);
   return Callee != nullptr && Callee->getName() == Name;
 }
 
 /// \brief Is \p I a call to an helper function?
 inline bool isCallToHelper(const llvm::Instruction *I) {
-  assert(I != nullptr);
+  revng_assert(I != nullptr);
   const llvm::Function *Callee = getCallee(I);
   return Callee != nullptr && Callee->getName().startswith("helper_");
 }
@@ -589,7 +589,7 @@ inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::StringRef Name) {
 // TODO: this function assumes 0 is not a valid PC
 inline uint64_t getBasicBlockPC(llvm::BasicBlock *BB) {
   auto It = BB->begin();
-  assert(It != BB->end());
+  revng_assert(It != BB->end());
   if (llvm::CallInst *Call = getCallTo(&*It, "newpc")) {
     return getLimitedValue(Call->getOperand(0));
   }

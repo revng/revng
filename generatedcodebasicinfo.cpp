@@ -45,24 +45,24 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
     if (!BB.empty()) {
       switch (getType(&BB)) {
       case DispatcherBlock:
-        assert(Dispatcher == nullptr);
+        revng_assert(Dispatcher == nullptr);
         Dispatcher = &BB;
         break;
       case DispatcherFailure:
-        assert(DispatcherFail == nullptr);
+        revng_assert(DispatcherFail == nullptr);
         DispatcherFail = &BB;
         break;
       case AnyPCBlock:
-        assert(AnyPC == nullptr);
+        revng_assert(AnyPC == nullptr);
         AnyPC = &BB;
         break;
       case UnexpectedPCBlock:
-        assert(UnexpectedPC == nullptr);
+        revng_assert(UnexpectedPC == nullptr);
         UnexpectedPC = &BB;
         break;
       case JumpTargetBlock: {
         auto *Call = cast<CallInst>(&*BB.begin());
-        assert(Call->getCalledFunction()->getName() == "newpc");
+        revng_assert(Call->getCalledFunction()->getName() == "newpc");
         JumpTargets[getLimitedValue(Call->getArgOperand(0))] = &BB;
         break;
       }
@@ -73,7 +73,8 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
     }
   }
 
-  assert(Dispatcher != nullptr && AnyPC != nullptr && UnexpectedPC != nullptr);
+  revng_assert(Dispatcher != nullptr && AnyPC != nullptr
+               && UnexpectedPC != nullptr);
 
   DBG("passes", { dbg << "Ending GeneratedCodeBasicInfo\n"; });
 
@@ -118,7 +119,7 @@ GeneratedCodeBasicInfo::getPC(Instruction *TheInstruction) const {
       // If one of the predecessors is the dispatcher, don't explore any further
       for (BasicBlock *Predecessor : predecessors(BB)) {
         // Assert we didn't reach the almighty dispatcher
-        assert(!(NewPCCall == nullptr && Predecessor == Dispatcher));
+        revng_assert(!(NewPCCall == nullptr && Predecessor == Dispatcher));
         if (Predecessor == Dispatcher)
           continue;
       }
@@ -140,6 +141,6 @@ GeneratedCodeBasicInfo::getPC(Instruction *TheInstruction) const {
 
   uint64_t PC = getLimitedValue(NewPCCall->getArgOperand(0));
   uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(1));
-  assert(Size != 0);
+  revng_assert(Size != 0);
   return { PC, Size };
 }

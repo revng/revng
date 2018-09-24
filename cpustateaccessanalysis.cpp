@@ -86,7 +86,7 @@ computeDirectlyReachableFunctions(const Function *RootFunction) {
           CallGraph[Caller].insert(Callee);
         }
       } else if (const auto *CExpr = dyn_cast<const ConstantExpr>(TheUser)) {
-        assert(CExpr->getOpcode() == Instruction::BitCast);
+        revng_assert(CExpr->getOpcode() == Instruction::BitCast);
         SmallSet<const ConstantExpr *, 10> CurBitCasts;
         SmallSet<const ConstantExpr *, 10> NextBitCasts;
         CurBitCasts.insert(CExpr);
@@ -103,7 +103,7 @@ computeDirectlyReachableFunctions(const Function *RootFunction) {
                   CallGraph[Caller].insert(Callee);
                 }
               } else if (NewCExpr) {
-                assert(NewCExpr->getOpcode() == Instruction::BitCast);
+                revng_assert(NewCExpr->getOpcode() == Instruction::BitCast);
                 NextBitCasts.insert(NewCExpr);
               }
             }
@@ -209,8 +209,8 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
   std::set<std::pair<const Function *, const Argument *>>
     FunctionArgTaintsReturn;
 
-  assert(CPUStatePtr != nullptr);
-  assert(CPUStatePtr->getType()->isPointerTy());
+  revng_assert(CPUStatePtr != nullptr);
+  revng_assert(CPUStatePtr->getType()->isPointerTy());
 
   struct CallSiteInfo {
     const CallInst *CallSite;
@@ -236,7 +236,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
     // Sanity check for the uses of CPUStatePtr.
     // They must all be direct Loads from CPUStatePtr.
     const auto *Load = cast<const LoadInst>(U);
-    assert(Load->getPointerOperand() == CPUStatePtr);
+    revng_assert(Load->getPointerOperand() == CPUStatePtr);
 
     // Push the first use on the WorkList
     const Function *F = Load->getParent()->getParent();
@@ -251,7 +251,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
     //      building a WorkList of `Use`s in exploration
     while (not ToTaintWorkList.empty()) {
       const Use *TheUse = ToTaintWorkList.top();
-      assert(TheUse != nullptr);
+      revng_assert(TheUse != nullptr);
       auto *TheUser = cast<Instruction>(TheUse->getUser());
       const auto OpCode = TheUser->getOpcode();
       if (TaintLog.isEnabled()) {
@@ -259,7 +259,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
         TheUser->dump();
       }
 
-      const auto size = ToTaintWorkList.size();
+      const size_t Size = ToTaintWorkList.size();
 
       // 3. If we find unexplored uses keep pushing them on the WorkList. If we
       // find a Load or a Store we taint it and don't push anything on the
@@ -267,10 +267,12 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
 
       // This switch explores the use-chains depth-first, pushing unexplored
       // uses on the ToTaintWorkList if necessary.
+      unsigned OperandNo = TheUse->getOperandNo();
       switch (OpCode) {
       case Instruction::Load: {
         TaintLog << "LOAD" << DoLog;
-        assert(TheUse->getOperandNo() == LoadInst::getPointerOperandIndex());
+
+        revng_assert(OperandNo == LoadInst::getPointerOperandIndex());
         auto *L = cast<LoadInst>(TheUser);
         if (TheUse->get() == L->getPointerOperand()) {
           if (TaintLog.isEnabled()) {
@@ -282,7 +284,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
       } break;
       case Instruction::Store: {
         TaintLog << "STORE" << DoLog;
-        assert(TheUse->getOperandNo() == StoreInst::getPointerOperandIndex());
+        revng_assert(OperandNo == StoreInst::getPointerOperandIndex());
         auto *S = cast<StoreInst>(TheUser);
         if (TheUse->get() == S->getPointerOperand()) {
           if (TaintLog.isEnabled()) {
@@ -303,8 +305,8 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
       case Instruction::Add: {
         TaintLog << "OP" << DoLog;
         auto OperandId = GetElementPtrInst::getPointerOperandIndex();
-        assert(OpCode != Instruction::GetElementPtr
-               or TheUse->getOperandNo() == OperandId);
+        revng_assert(OpCode != Instruction::GetElementPtr
+                     or TheUse->getOperandNo() == OperandId);
 
         // Taint TheUser, and if this is the first time we taint it we also push
         // on the ToTaintWorkList its first use that is not tainted
@@ -345,7 +347,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
         }
         if (Callee->getIntrinsicID() == Intrinsic::memcpy) {
           unsigned OpNo = TheUse->getOperandNo();
-          assert(OpNo == 0 or OpNo == 1);
+          revng_assert(OpNo == 0 or OpNo == 1);
           if (isa<ConstantInt>(TheCall->getArgOperand(2))) {
             if (OpNo == 0) {
               if (TaintLog.isEnabled()) {
@@ -371,7 +373,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
           Results.IllegalCalls.insert(TheCall);
           break;
         }
-        assert(ReachableFunctions.count(Callee) != 0);
+        revng_assert(ReachableFunctions.count(Callee) != 0);
 
         // Select the correct formal argument associated with this use
         const Argument *FormalArgument = nullptr;
@@ -384,7 +386,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
           }
         }
         TaintLog << "Found Argument" << DoLog;
-        assert(FormalArgument != nullptr);
+        revng_assert(FormalArgument != nullptr);
 
         // Taint the Argument, and if this is the first time we taint it we
         // also push on the ToTaintWorkList its first use that is not tainted.
@@ -448,7 +450,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
         // propagated interprocedurally to the Function.
         // (propagation from the callee to all call sites)
         TaintLog << "RET" << DoLog;
-        assert(not CallSiteInfos.empty());
+        revng_assert(not CallSiteInfos.empty());
 
         // Taint the return instruction, then, if this is the first time that we
         // taint also the call site, so that it's marked for propagation of the
@@ -481,19 +483,18 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
       case Instruction::Or:
         break;
       default:
-        abort();
-        break;
+        revng_abort();
       }
 
       // If we pushed something new on the ToTaintWorkList we want to keep
       // exploring its uses until we reach a leaf.
-      if (size < ToTaintWorkList.size())
+      if (Size < ToTaintWorkList.size())
         continue;
       TaintLog << "not grown" << DoLog;
 
       // 4. If we didn't push anything on the WorkList we can start exploring
       // the other `Use`s of the item that is currently on top of the WorkList
-      if (size == ToTaintWorkList.size()) {
+      if (Size == ToTaintWorkList.size()) {
         Use *NextUse = TheUse->getNext();
         if (NextUse != nullptr) {
           TaintLog << "advance" << DoLog;
@@ -534,10 +535,10 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
           TaintLog << "Finish Argument" << DoLog;
 
           const CallSiteInfo &CSInfo = CallSiteInfos.top();
-          assert(CSInfo.Arg == Arg);
+          revng_assert(CSInfo.Arg == Arg);
 
           unsigned ArgNo = Arg->getArgNo();
-          assert(CSInfo.ArgNo == ArgNo);
+          revng_assert(CSInfo.ArgNo == ArgNo);
 
           const User *ArgUser = ToTaintWorkList.top()->getUser();
           const auto *CallSite = cast<const CallInst>(ArgUser);
@@ -627,7 +628,7 @@ public:
       const auto PtrOpNum = StoreInst::getPointerOperandIndex();
       Sources.push_back(&I->getOperandUse(PtrOpNum));
     }
-    assert(not Sources.empty());
+    revng_assert(not Sources.empty());
   }
 
   explicit WorkItem(Argument *A,
@@ -636,7 +637,7 @@ public:
     Sources(),
     SourceIndex(0) {
     const Function *F = A->getParent();
-    assert(not F->empty());
+    revng_assert(not F->empty());
     CSVAccessLog << "Function: " << F << DoLog;
     const unsigned ArgNo = A->getArgNo();
     CSVAccessLog << "ArgNo: " << ArgNo << DoLog;
@@ -659,7 +660,7 @@ public:
       } else if (const auto *CExpr = dyn_cast<const ConstantExpr>(FUser)) {
         CSVAccessLog << "BitCast" << DoLog;
         const auto OpCode = CExpr->getOpcode();
-        assert(OpCode == Instruction::BitCast);
+        revng_assert(OpCode == Instruction::BitCast);
         for (const User *RealCall : CExpr->users()) {
           CSVAccessLog << "RealCall:" << RealCall << DoLog;
           const auto *FCall = dyn_cast<const CallInst>(RealCall);
@@ -678,7 +679,7 @@ public:
     }
     // This might be too strict, because the arguments of the root function
     // don't have any sources. However, we assume that we never reach them.
-    assert(not Sources.empty());
+    revng_assert(not Sources.empty());
   }
 
   explicit WorkItem(CallInst *C, bool IsLoad) :
@@ -686,7 +687,7 @@ public:
     Sources(),
     SourceIndex(0) {
     const Function *F = getCallee(C);
-    assert(F != nullptr); // Assume no indirect calls
+    revng_assert(F != nullptr); // Assume no indirect calls
     if (F->getIntrinsicID() == Intrinsic::memcpy) {
       const Use &AddrOp = C->getOperandUse(IsLoad ? 1 : 0);
       Sources.push_back(&AddrOp);
@@ -696,13 +697,13 @@ public:
       for (const BasicBlock &BB : *F) {
         const TerminatorInst *I = BB.getTerminator();
         if (I and isa<ReturnInst>(I) and I->getNumOperands() != 0) {
-          assert(I->getNumOperands() == 1);
+          revng_assert(I->getNumOperands() == 1);
           const Use &RetValUse = I->getOperandUse(0);
           Sources.push_back(&RetValUse);
         }
       }
     }
-    assert(not Sources.empty());
+    revng_assert(not Sources.empty());
   }
 
 public:
@@ -850,7 +851,7 @@ public:
   ///                  the folded offsets for `Item`.
   void fold(const WorkItem &Item, ValueCallSiteOffsetMap &OffsetMap) {
     WorkItem::size_type NumSrcs = Item.getNumSources();
-    assert(NumSrcs);
+    revng_assert(NumSrcs);
     SmallVector<Constant *, 4> Operands(NumSrcs, nullptr);
     // Collect Call Sites across all the sources of this User
     CallPtrSet CallSites;
@@ -860,7 +861,7 @@ public:
     NonRootOffsetsPtrs.reserve(NumSrcs);
     for (const Use *U : Item.sources()) {
       const CallSiteOffsetMap &CallSiteOffsets = OffsetMap.at(U->get());
-      assert(not CallSiteOffsets.empty());
+      revng_assert(not CallSiteOffsets.empty());
       const CSVOffsets *NonRootOffsets = nullptr;
       for (const auto &CSO : CallSiteOffsets) {
         CallInst *TheCall = CSO.first;
@@ -878,8 +879,8 @@ public:
       // of iteration on Item.sources()
       NonRootOffsetsPtrs.push_back(NonRootOffsets);
     }
-    assert(NumSrcs == SrcCallSiteOffsetsPtrs.size());
-    assert(NumSrcs == NonRootOffsetsPtrs.size());
+    revng_assert(NumSrcs == SrcCallSiteOffsetsPtrs.size());
+    revng_assert(NumSrcs == NonRootOffsetsPtrs.size());
 
     if (CSVAccessLog.isEnabled())
       for (const CallInst *C : CallSites)
@@ -899,7 +900,7 @@ public:
           break;
         }
       }
-      assert(found_nullptr or found_all_calls);
+      revng_assert(found_nullptr or found_all_calls);
     }
 
     for (CallInst *C : CallSites) {
@@ -926,7 +927,7 @@ public:
       if (empty_pair)
         continue;
       CSVAccessLog << "start" << DoLog;
-      assert(NumSrcs < (8ULL * sizeof(uint64_t)));
+      revng_assert(NumSrcs < (8ULL * sizeof(uint64_t)));
       uint64_t combinations = 1ULL << NumSrcs;
       Value *V = Item.Val();
       Instruction *I = cast<Instruction>(V);
@@ -967,12 +968,12 @@ public:
         bool Valid;
         CSVOffsets::Kind ResKind;
         SmallVector<Optional<CSVOffsets>, 4> UpdatedOffsetTuple(NumSrcs);
-        assert(not UpdatedOffsetTuple[0].hasValue());
+        revng_assert(not UpdatedOffsetTuple[0].hasValue());
         std::tie(Valid,
                  ResKind) = T::checkOffsetTupleIsValid(OffsetTuple,
                                                        I,
                                                        UpdatedOffsetTuple);
-        assert(UpdatedOffsetTuple.size() == OffsetTuple.size());
+        revng_assert(UpdatedOffsetTuple.size() == OffsetTuple.size());
         if (not Valid) {
           insertOrCombine(V, C, CSVOffsets(ResKind), OffsetMap);
           continue;
@@ -993,8 +994,8 @@ public:
           OffsetsRanges.push_back(make_range(Tuple->begin(), Tuple->end()));
           OffsetsIt.push_back(Tuple->begin());
           const WorkItem::size_type OffsetSize = Tuple->size();
-          assert(OffsetSize);
-          assert(CartesianSize <= CartesianSize * OffsetSize);
+          revng_assert(OffsetSize);
+          revng_assert(CartesianSize <= CartesianSize * OffsetSize);
           CartesianSize *= OffsetSize;
         }
 
@@ -1049,15 +1050,15 @@ private:
                           const Instruction *I,
                           SmallVector<OptCSVOffsets, 4> &) {
     auto OpCode = I->getOpcode();
-    assert(OpCode == Instruction::Add or OpCode == Instruction::Sub);
-    assert(OffsetTuple.size() == 2);
+    revng_assert(OpCode == Instruction::Add or OpCode == Instruction::Sub);
+    revng_assert(OffsetTuple.size() == 2);
     const auto O0 = OffsetTuple[0], O1 = OffsetTuple[1];
     if (OpCode == Instruction::Add) {
       // Cannot add pointers
-      assert(not(O0->isPtr() and O1->isPtr()));
+      revng_assert(not(O0->isPtr() and O1->isPtr()));
     } else {
       // Cannot subtract a pointer from something else
-      assert(not O1->isPtr());
+      revng_assert(not O1->isPtr());
     }
 
     if (O0->isUnknown() or O1->isUnknown()) {
@@ -1078,7 +1079,7 @@ private:
           return { true, ResKind };
       }
     }
-    abort();
+    revng_abort();
   }
 
   CSVOffsets foldOffsets(CSVOffsets::Kind ResultKind,
@@ -1086,7 +1087,7 @@ private:
                          const Instruction *I,
                          const SmallVector<offset_iterator, 4> &OffsetsIt) {
     auto OpCode = I->getOpcode();
-    assert(OpCode == Instruction::Add or OpCode == Instruction::Sub);
+    revng_assert(OpCode == Instruction::Add or OpCode == Instruction::Sub);
     SmallVector<Constant *, 4> Operands(NumSrcs, nullptr);
     // Setup operands
     for (WorkItem::size_type SI = 0; SI < NumSrcs; ++SI) {
@@ -1117,9 +1118,9 @@ private:
                           const Instruction *I,
                           SmallVector<OptCSVOffsets, 4> &UpdatedOffsetTuple) {
     auto OpCode = I->getOpcode();
-    assert(OpCode == Instruction::GetElementPtr);
+    revng_assert(OpCode == Instruction::GetElementPtr);
     size_t NOperands = OffsetTuple.size();
-    assert(NOperands > 1);
+    revng_assert(NOperands > 1);
     CSVOffsets::Kind GEPOp0Kind = OffsetTuple[0]->getKind();
     if (CSVOffsets::isUnknownInPtr(GEPOp0Kind)
         or CSVOffsets::isUnknown(GEPOp0Kind))
@@ -1133,13 +1134,13 @@ private:
 
       auto FirstIdxConst = dyn_cast<ConstantInt>(*GEP->idx_begin());
       bool FirstIdxPropagatedConst = OffsetTuple[1]->size() == 1;
-      assert(not(FirstIdxConst != nullptr) or FirstIdxPropagatedConst);
+      revng_assert(not(FirstIdxConst != nullptr) or FirstIdxPropagatedConst);
 
       if (FirstIdxPropagatedConst) {
 
         bool FirstIdxZero = FirstIdxConst->isZero();
         bool FirstIdxPropagatedZero = *OffsetTuple[1]->begin() == 0;
-        assert(not FirstIdxZero or FirstIdxPropagatedZero);
+        revng_assert(not FirstIdxZero or FirstIdxPropagatedZero);
 
         if (FirstIdxPropagatedZero) {
           SmallVector<uint64_t, 4> ConstIdxList = { 0 };
@@ -1151,7 +1152,7 @@ private:
 
           for (; IdxIt != IdxEnd; ++IdxIt, ++IdxOpNum) {
             const CSVOffsets *IdxCSVOffset = OffsetTuple[IdxOpNum];
-            assert(not IdxCSVOffset->isPtr());
+            revng_assert(not IdxCSVOffset->isPtr());
 
             Type *ElementTy = GEP->getIndexedType(PointeeTy, ConstIdxList);
 
@@ -1166,7 +1167,7 @@ private:
 
                 auto *ArrayTy = cast<ArrayType>(ElementTy);
                 uint64_t ArrayNumElem = ArrayTy->getNumElements();
-                assert(ArrayNumElem);
+                revng_assert(ArrayNumElem);
                 LastTypeOffsets.clear();
                 for (uint64_t O = 0; O < ArrayNumElem; ++O)
                   LastTypeOffsets.insert(O);
@@ -1179,27 +1180,27 @@ private:
                     // Early exit.
                     return { false, CSVOffsets::makeUnknown(GEPOp0Kind) };
                   } else {
-                    assert(not LastTypeOffsets.empty());
+                    revng_assert(not LastTypeOffsets.empty());
                     CSVOffsets U(CSVOffsets::Kind::Numeric, LastTypeOffsets);
                     UpdatedOffsetTuple[IdxOpNum] = std::move(U);
                     break;
                   }
                 } else {
                   // If it's not Unknown we can leave it like it is.
-                  assert(not IdxCSVOffset->empty());
+                  revng_assert(not IdxCSVOffset->empty());
                   ConstIdxList.push_back(*IdxCSVOffset->begin());
 
-                  assert(IdxCSVOffset->size() != 0);
+                  revng_assert(IdxCSVOffset->size() != 0);
                   LastTypeOffsets.clear();
                   LastTypeOffsets.insert(IdxCSVOffset->begin(),
                                          IdxCSVOffset->end());
                 }
               } else {
-                abort();
+                revng_abort();
               }
             } else {
               // I'm done.
-              assert(IdxIt + 1 == IdxEnd);
+              revng_assert(IdxIt + 1 == IdxEnd);
               if (IdxCSVOffset->isUnknown()) {
                 CSVOffsets U(CSVOffsets::Kind::Numeric, LastTypeOffsets);
                 UpdatedOffsetTuple[IdxOpNum] = std::move(U);
@@ -1225,7 +1226,7 @@ private:
     }
 
     for (size_t O = 1; O < NOperands; O++) {
-      assert(not OffsetTuple[O]->isPtr());
+      revng_assert(not OffsetTuple[O]->isPtr());
       if (OffsetTuple[O]->isUnknown())
         return { false, CSVOffsets::makeUnknown(GEPOp0Kind) };
     }
@@ -1260,10 +1261,10 @@ private:
         R = cast<const ConstantInt>(Const);
       } else if (auto *PtrCast = dyn_cast<ConstantExpr>(Res)) {
         auto OpCode = PtrCast->getAsInstruction()->getOpcode();
-        assert(OpCode == Instruction::IntToPtr);
+        revng_assert(OpCode == Instruction::IntToPtr);
         R = cast<const ConstantInt>(PtrCast->getOperand(0));
       } else {
-        abort();
+        revng_abort();
       }
     } else {
       R = cast<const ConstantInt>(Res);
@@ -1395,7 +1396,7 @@ private:
     CallInst *RootCallSite = getCurSourceRootCall(Item, RootFunction);
     if (RootCallSite) {
       auto NumErased = CrossedCallSites.erase(RootCallSite);
-      assert(NumErased);
+      revng_assert(NumErased);
       return true;
     }
     return false;
@@ -1496,7 +1497,7 @@ private:
     if (isNewVisitWithCallSite(U->get(), RootCall)) {
       if (RootCall) {
         bool New = CrossedCallSites.insert(RootCall).second;
-        assert(New);
+        revng_assert(New);
       }
       return true;
     }
@@ -1640,13 +1641,13 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
 
       CSVAccessLog << "MAP Instrinsic::memcpy: " << ItemVal << DoLog;
 
-      assert(isa<ConstantInt>(Call->getArgOperand(2)));
+      revng_assert(isa<ConstantInt>(Call->getArgOperand(2)));
       ValueCallSiteOffsetMap &VCSOffsets = IsLoad ? LoadCallSiteOffsets :
                                                     StoreCallSiteOffsets;
       Value *PtrOp = IsLoad ? Call->getArgOperand(1) : Call->getArgOperand(0);
       auto CSOff = std::make_pair(ItemVal, ValueCallSiteOffsets.at(PtrOp));
       bool New = VCSOffsets.insert(CSOff).second;
-      assert(New);
+      revng_assert(New);
 
     } else {
 
@@ -1726,7 +1727,7 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
           CSVAccessLog << CS2O.second << DoLog;
         }
       }
-      assert(New);
+      revng_assert(New);
     } break;
     case Instruction::Store: {
       Value *AddressValue = cast<StoreInst>(Instr)->getPointerOperand();
@@ -1751,14 +1752,13 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
           CSVAccessLog << CS2O.second << DoLog;
         }
       }
-      assert(New);
+      revng_assert(New);
     } break;
     default:
-      abort();
-      break;
+      revng_abort();
     }
   } else {
-    abort();
+    revng_abort();
   }
 }
 
@@ -1835,8 +1835,7 @@ CPUSAOA::getOffsetsOrExploreSrc(Value *V, WorkItem &Item, bool IsLoad) const {
       return CSVOffsets(CSVOffsets::Kind::Unknown);
     } break;
     case Instruction::Store:
-      abort();
-      break;
+      revng_abort();
     default:
       break;
     }
@@ -1847,7 +1846,7 @@ CPUSAOA::getOffsetsOrExploreSrc(Value *V, WorkItem &Item, bool IsLoad) const {
     CSVAccessLog << "CONST: " << Offset << DoLog;
     return CSVOffsets(CSVOffsets::Kind::Numeric, Offset);
   } else {
-    abort();
+    revng_abort();
   }
   return OptCSVOffsets();
 }
@@ -1999,9 +1998,9 @@ void CPUSAOA::computeAggregatedOffsets() {
     bool isInstr = isa<Instruction>(I);
     bool isCorrectAccessType = IsLoad ? isa<LoadInst>(I) : isa<StoreInst>(I);
     bool isCallToBuiltinMemcpy = callsBuiltinMemcpy(dyn_cast<Instruction>(I));
-    assert(isInstr and (isCorrectAccessType or isCallToBuiltinMemcpy));
+    revng_assert(isInstr and (isCorrectAccessType or isCallToBuiltinMemcpy));
     auto *Instr = dyn_cast<Instruction>(I);
-    assert(Tainted.count(Instr) != 0);
+    revng_assert(Tainted.count(Instr) != 0);
 
     int64_t AccessSize;
     if (isCallToBuiltinMemcpy) {
@@ -2019,13 +2018,13 @@ void CPUSAOA::computeAggregatedOffsets() {
       Type *StoredType = PtrTy->getElementType();
       AccessSize = DL.getTypeAllocSize(StoredType);
     }
-    assert(AccessSize != 0);
+    revng_assert(AccessSize != 0);
 
     CallSiteOffsetMap &CallSiteMap = ACSO.second;
     for (std::pair<CallInst *const, CSVOffsets> &CSO : CallSiteMap) {
       CallInst *const Call = CSO.first;
       CSVOffsets &O = CSO.second;
-      assert(O.isPtr());
+      revng_assert(O.isPtr());
 
       bool Inserted;
 
@@ -2050,7 +2049,7 @@ void CPUSAOA::computeAggregatedOffsets() {
         if (not O.hasOffsetSet()) {
           New = O;
         } else {
-          assert(O.size());
+          revng_assert(O.size());
           std::set<int64_t> FineGrainedOffsets;
           // Now compute the fine-grained offsets
           for (const int64_t Coarse : O) {
@@ -2065,7 +2064,7 @@ void CPUSAOA::computeAggregatedOffsets() {
               if (AccessedVar != nullptr) {
                 Type *AccessedTy = AccessedVar->getType();
                 SizeAtOffset = DL.getTypeAllocSize(AccessedTy) - InternalOffset;
-                assert(SizeAtOffset > 0);
+                revng_assert(SizeAtOffset > 0);
                 FineGrainedOffsets.insert(Refined - InternalOffset);
                 CSVAccessLog << "Value: " << I << DoLog;
                 CSVAccessLog << "Insert Refined: " << Refined << DoLog;
@@ -2073,7 +2072,7 @@ void CPUSAOA::computeAggregatedOffsets() {
                 // Skip padding one byte at a time, without adding offsets
                 SizeAtOffset = 1;
               }
-              assert(SizeAtOffset != 0);
+              revng_assert(SizeAtOffset != 0);
               Refined += SizeAtOffset;
             }
           }
@@ -2222,7 +2221,7 @@ static void addAccessMetadata(const CallSiteOffsetMap &OffsetMap,
     CallInst *const CallSite = AccessOffsets.first;
     if (CallSite == nullptr)
       continue;
-    assert(Offsets.isPtr());
+    revng_assert(Offsets.isPtr());
 
     ConstantAsMetadata *UnknownAccess = nullptr;
     MDTuple *AccessedVariablesTuple = nullptr;
@@ -2268,12 +2267,13 @@ static Value *getLoadAddressValue(Instruction *I) {
     auto *Call = cast<CallInst>(I);
     Function *Callee = getCallee(Call);
     // We only support memcpys where the last parameter is constant
-    assert(Callee != nullptr
-           and (Callee->getIntrinsicID() == Intrinsic::memcpy
-                and isa<ConstantInt>(Call->getArgOperand(2))));
+    revng_assert(Callee != nullptr
+                 and (Callee->getIntrinsicID() == Intrinsic::memcpy
+                      and isa<ConstantInt>(Call->getArgOperand(2))));
     Address = Call->getArgOperand(1);
   } break;
-  default: { abort(); } break;
+  default:
+    revng_abort();
   }
   return Address;
 }
@@ -2297,12 +2297,13 @@ static Value *getStoreAddressValue(Instruction *I) {
     auto *Call = cast<CallInst>(I);
     Function *Callee = getCallee(Call);
     // We only support memcpys where the last parameter is constant
-    assert(Callee != nullptr
-           and (Callee->getIntrinsicID() == Intrinsic::memcpy
-                and isa<ConstantInt>(Call->getArgOperand(2))));
+    revng_assert(Callee != nullptr
+                 and (Callee->getIntrinsicID() == Intrinsic::memcpy
+                      and isa<ConstantInt>(Call->getArgOperand(2))));
     Address = Call->getArgOperand(0);
   } break;
-  default: { abort(); } break;
+  default:
+    revng_abort();
   }
   return Address;
 }
@@ -2332,9 +2333,9 @@ static void fixEnv2EnvMemCopies(const Module &M,
     if (It != CSVStoreOffsetMap.end()) {
       auto *Call = cast<CallInst>(Instr);
       Function *Memcpy = getCallee(Call);
-      assert(Memcpy != nullptr
-             and (Memcpy->getIntrinsicID() == Intrinsic::memcpy
-                  and isa<ConstantInt>(Call->getArgOperand(2))));
+      revng_assert(Memcpy != nullptr
+                   and (Memcpy->getIntrinsicID() == Intrinsic::memcpy
+                        and isa<ConstantInt>(Call->getArgOperand(2))));
 
       Value *MemcpySize = Call->getArgOperand(2);
       Value *MemcpySrc = Call->getArgOperand(1);
@@ -2392,8 +2393,8 @@ CPUStateAccessAnalysis::setupOutEnvAccess(Instruction *AccessToFix) {
   BasicBlock *AccessToFixBB = AccessToFix->getParent();
   Function *F = AccessToFixBB->getParent();
   auto InstrIt = AccessToFix->getIterator();
-  assert(InstrIt != AccessToFixBB->end());
-  assert(std::next(InstrIt) != AccessToFixBB->end());
+  revng_assert(InstrIt != AccessToFixBB->end());
+  revng_assert(std::next(InstrIt) != AccessToFixBB->end());
   // Create a new block NextBB and move there all the instructions after
   // the access
   BasicBlock *NextBB = BasicBlock::Create(Context, "AfterAccess", F);
@@ -2402,7 +2403,7 @@ CPUStateAccessAnalysis::setupOutEnvAccess(Instruction *AccessToFix) {
                                AccessToFixBB->getInstList(),
                                std::next(InstrIt),
                                AccessToFixBB->getInstList().end());
-  assert(not NextBB->empty());
+  revng_assert(not NextBB->empty());
 
   // Create a new block OutAccessBB only for accesses outside env, and
   // clone the accessing instruction in there. This clone of the
@@ -2476,14 +2477,14 @@ void CPUStateAccessAnalysis::setupLoadInEnv(Instruction *LoadToFix,
 
     Type *OriginalLoadedType = Clone->getType();
     unsigned Size = DL.getTypeAllocSize(OriginalLoadedType);
-    assert(Size != 0);
+    revng_assert(Size != 0);
     auto *Loaded = Variables->loadFromEnvOffset(Builder, Size, EnvOffset);
     Ok = Loaded != nullptr;
     if (Ok) {
       Type *LoadedType = Loaded->getType();
       if (LoadedType != OriginalLoadedType) {
         unsigned LoadedSize = DL.getTypeAllocSize(LoadedType);
-        assert(LoadedSize == Size);
+        revng_assert(LoadedSize == Size);
         Loaded = Builder.CreateIntToPtr(Loaded, OriginalLoadedType);
       }
       CaseBlock->insertInto(F);
@@ -2515,8 +2516,7 @@ void CPUStateAccessAnalysis::setupLoadInEnv(Instruction *LoadToFix,
   } break;
 
   default:
-    abort();
-    break;
+    revng_abort();
   }
 }
 
@@ -2542,7 +2542,7 @@ void CPUStateAccessAnalysis::setupStoreInEnv(Instruction *StoreToFix,
     auto *Store = cast<StoreInst>(Clone);
     auto *ToStore = Store->getValueOperand();
     unsigned Size = DL.getTypeAllocSize(ToStore->getType());
-    assert(Size != 0);
+    revng_assert(Size != 0);
     Ok = Variables->storeToEnvOffset(Builder, Size, EnvOffset, ToStore);
   } break;
 
@@ -2552,8 +2552,7 @@ void CPUStateAccessAnalysis::setupStoreInEnv(Instruction *StoreToFix,
   } break;
 
   default:
-    abort();
-    break;
+    revng_abort();
   }
 
   Clone->eraseFromParent();
@@ -2582,16 +2581,14 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
     FixAccessLog << "Fixing access: " << I
                  << "\nCSVOffsets Kind: " << CSVOffsets::toString(OKind)
                  << DoLog;
-    assert(CSVOffsets::isPtr(OKind));
+    revng_assert(CSVOffsets::isPtr(OKind));
     Function *F = I->getParent()->getParent();
     Instruction *AccessToFix = I;
 
     switch (OKind) {
     case CSVOffsets::Kind::Unknown:
     case CSVOffsets::Kind::Numeric:
-      assert(false);
-      continue; // to the next access, but this point should never be reached
-      break;
+      revng_abort();
     case CSVOffsets::Kind::OutAndKnownInPtr:
     case CSVOffsets::Kind::UnknownInPtr:
     case CSVOffsets::Kind::OutAndUnknownInPtr:
@@ -2630,7 +2627,7 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
                  LoadedType,
                  OffsetValue) = setupOutEnvAccess<IsLoad>(I);
 
-      assert(AccessToFix != nullptr);
+      revng_assert(AccessToFix != nullptr);
       LLVMContext &Context = M.getContext();
       QuickMetadata QMD(Context);
 
@@ -2666,20 +2663,20 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
           if (IsLoad) {
             Type *OriginalLoadedType = Clone->getType();
             unsigned Size = DL.getTypeAllocSize(OriginalLoadedType);
-            assert(Size != 0);
+            revng_assert(Size != 0);
             auto *Loaded = Variables->loadFromEnvOffset(Builder, Size, Offset);
             Ok = Loaded != nullptr;
             if (Ok) {
               Type *LoadedType = Loaded->getType();
               if (LoadedType != OriginalLoadedType) {
                 unsigned LoadedSize = DL.getTypeAllocSize(LoadedType);
-                assert(LoadedSize == Size);
+                revng_assert(LoadedSize == Size);
                 Loaded = Builder.CreateIntToPtr(Loaded, OriginalLoadedType);
               }
               Clone->replaceAllUsesWith(Loaded);
             }
           } else {
-            abort();
+            revng_abort();
           }
         } break;
 
@@ -2688,10 +2685,10 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
             auto *Store = cast<StoreInst>(Clone);
             auto *ToStore = Store->getValueOperand();
             unsigned Size = DL.getTypeAllocSize(ToStore->getType());
-            assert(Size != 0);
+            revng_assert(Size != 0);
             Ok = Variables->storeToEnvOffset(Builder, Size, Offset, ToStore);
           } else {
-            abort();
+            revng_abort();
           }
         } break;
 
@@ -2701,8 +2698,7 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
         } break;
 
         default:
-          abort();
-          break;
+          revng_abort();
         }
 
         if (not Ok) {
@@ -2721,16 +2717,16 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
       // instructions after the access
       BasicBlock *AccessToFixBB = AccessToFix->getParent();
       auto InstrIt = AccessToFix->getIterator();
-      assert(InstrIt != AccessToFixBB->end());
-      assert(std::next(InstrIt) != AccessToFixBB->end());
+      revng_assert(InstrIt != AccessToFixBB->end());
+      revng_assert(std::next(InstrIt) != AccessToFixBB->end());
       BasicBlock *NextBB = BasicBlock::Create(Context, "AfterInAccess", F);
       AccessToFixBB->replaceSuccessorsPhiUsesWith(NextBB);
       NextBB->getInstList().splice(NextBB->end(),
                                    AccessToFixBB->getInstList(),
                                    std::next(InstrIt),
                                    AccessToFixBB->getInstList().end());
-      assert(not NextBB->empty());
-      assert(std::next(InstrIt) == AccessToFixBB->end());
+      revng_assert(not NextBB->empty());
+      revng_assert(std::next(InstrIt) == AccessToFixBB->end());
       // If we're processing loads, add a PHI in NextBB if necessary
       PHINode *Phi = nullptr;
       if (IsLoad) {
@@ -2741,7 +2737,7 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
         }
       }
 
-      // Create the default BB for the switch, calling abort()
+      // Create the default BB for the switch, calling revng_abort()
       BasicBlock *Default = BasicBlock::Create(Context, "DefaultInAccess", F);
       Builder.SetInsertPoint(Default);
       CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
@@ -2757,7 +2753,7 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
                                           CPUStatePtr,
                                           Address,
                                           Int64Ty);
-      assert(OffsetValue != nullptr);
+      revng_assert(OffsetValue != nullptr);
 
       if (CSVOffsets::isUnknownInPtr(OKind)) {
 
@@ -2779,11 +2775,11 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
           else
             setupStoreInEnv(AccessToFix, CurrEnvOff, SwitchOffset, NextBB);
         }
-        assert(SwitchOffset->getNumCases() > 0);
+        revng_assert(SwitchOffset->getNumCases() > 0);
         break; // out from the switch, to the verify and cleanup code
       }
 
-      assert(Offsets.size() > 0);
+      revng_assert(Offsets.size() > 0);
       SwitchInst *SwitchOffset = Builder.CreateSwitch(OffsetValue,
                                                       Default,
                                                       Offsets.size());
@@ -2836,7 +2832,7 @@ bool CPUStateAccessAnalysis::run() {
 
   // Get the root Function
   const Function *RootFunction = M.getFunction("root");
-  assert(RootFunction);
+  revng_assert(RootFunction);
 
   // Preprocessing: detect all the functions that are directly reachable from
   // the RootFunction
@@ -2912,7 +2908,7 @@ bool CPUStateAccessAnalysis::run() {
   correctCPUStateAccesses<true>();
   // Fix stores
   correctCPUStateAccesses<false>();
-  assert(not verifyModule(M, &dbgs()));
+  revng_assert(not verifyModule(M, &dbgs()));
 
   if (FixAccessLog.isEnabled()) {
     FixAccessLog << "Num Unknowns: " << NumUnknown << DoLog;

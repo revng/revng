@@ -2,6 +2,7 @@
 /// \brief Implementation of the various functions to assert and abort.
 
 // Standard includes
+#include <cassert>
 #include <iostream>
 
 // LLVM includes

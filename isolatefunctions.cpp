@@ -108,9 +108,9 @@ private:
 };
 
 void IFI::throwException(Reason Code, BasicBlock *BB, uint64_t AdditionalPC) {
-  assert(PC != nullptr);
-  assert(RaiseException != nullptr);
-  assert(DebugException != nullptr);
+  revng_assert(PC != nullptr);
+  revng_assert(RaiseException != nullptr);
+  revng_assert(DebugException != nullptr);
 
   // Create a builder object
   IRBuilder<> Builder(Context);
@@ -129,7 +129,7 @@ void IFI::throwException(Reason Code, BasicBlock *BB, uint64_t AdditionalPC) {
     // Retrieve the value of the PC in the basic block where the exception has
     // been raised, this is possible since BB should be a translated block
     LastPC = GCBI.getPC(&*BB->rbegin()).first;
-    assert(LastPC != 0);
+    revng_assert(LastPC != 0);
   } else {
 
     // The current basic block has not been translated from the original binary
@@ -302,7 +302,7 @@ void IFI::replaceFunctionCall(BasicBlock *NewBB,
   }
 
   Function *TargetFunction = NewModule->getFunction(FunctionNameString);
-  assert(TargetFunction != nullptr);
+  revng_assert(TargetFunction != nullptr);
 
   // Create a builder object
   IRBuilder<> Builder(Context);
@@ -427,7 +427,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
         } else if (isa<BasicBlock>(CurrentOperand)) {
           // Assert if we encounter a basic block and we don't find a
           // reference in the ValueToValueMap
-          assert(LocalVMap.count(CurrentOperand) != 0);
+          revng_assert(LocalVMap.count(CurrentOperand) != 0);
         } else if (!isa<Constant>(CurrentOperand)) {
           // Manage values that are themself users (recursive exploration
           // of the operands) taking care of avoiding to add operands of
@@ -483,8 +483,8 @@ void IFI::run() {
 
   // Assert if we don't find @function_call, sign that the function boundaries
   // analysis hasn't been run on the translated binary
-  assert(RootFunction.getParent()->getFunction("function_call") != nullptr);
   Function *CallMarker = RootFunction.getParent()->getFunction("function_call");
+  revng_assert(CallMarker != nullptr);
 
   // Fill the GlobalVMap to contain the mappings made by the CloneModule
   // function, in order to have the mappings between global objects (global
@@ -599,7 +599,7 @@ void IFI::run() {
   std::map<Function *, ValueToValueMap> MetaVMap;
 
   for (BasicBlock &BB : RootFunction) {
-    assert(!BB.empty());
+    revng_assert(!BB.empty());
 
     TerminatorInst *Terminator = BB.getTerminator();
     if (MDNode *Node = Terminator->getMetadata("func.entry")) {
@@ -640,7 +640,7 @@ void IFI::run() {
   // 6. Population of the LLVM functions with the basic blocks that belong to
   //    them, always on the basis of the function boundaries analysis
   for (BasicBlock &BB : RootFunction) {
-    assert(!BB.empty());
+    revng_assert(!BB.empty());
 
     // We iterate over all the metadata that represent the functions a basic
     // block belongs to, and add the basic block in each function
@@ -653,7 +653,7 @@ void IFI::run() {
         Function *ParentFunction = Functions[FunctionNameMD];
 
         // We assert if we can't find the parent function of the basic block
-        assert(ParentFunction != nullptr);
+        revng_assert(ParentFunction != nullptr);
 
         // Creation of a new empty BB in the new generated corresponding
         // function, preserving the original name. We need to take care that if
@@ -735,10 +735,10 @@ void IFI::run() {
           }
         }
 
-        assert(GCBI.isTranslated(Successor)
-               || GCBI.getType(Successor) == AnyPCBlock
-               || GCBI.getType(Successor) == UnexpectedPCBlock
-               || GCBI.getType(Successor) == DispatcherBlock);
+        revng_assert(GCBI.isTranslated(Successor)
+                     || GCBI.getType(Successor) == AnyPCBlock
+                     || GCBI.getType(Successor) == UnexpectedPCBlock
+                     || GCBI.getType(Successor) == DispatcherBlock);
         auto SuccessorIt = LocalVMap.find(Successor);
 
         // We add a successor if it is not a revamb block type and it is present
@@ -803,7 +803,7 @@ void IFI::run() {
       // populated with a dummy switch beforehand
       if (&BB != UnexpectedPC && &BB != AnyPC) {
         Instruction &I = *BB.begin();
-        assert(isa<SwitchInst>(I) || isa<UnreachableInst>(I));
+        revng_assert(isa<SwitchInst>(I) || isa<UnreachableInst>(I));
         I.eraseFromParent();
       }
     }
@@ -818,7 +818,7 @@ void IFI::run() {
     BasicBlock *Dummy = BasicBlock::Create(Context,
                                            "dummy_entry",
                                            AnalyzedFunction,
-                                           &AnalyzedFunction->getEntryBlock());
+                                           EntryBlock);
 
     // 12. We copy the allocas at the beginning of the function where they will
     //     be used
@@ -839,7 +839,7 @@ void IFI::run() {
         // block, instead of keeping track of them with an additional data
         // structure.
         InstructionList.push_back(NewAlloca);
-        assert(NewAlloca->getParent() == &AnalyzedFunction->getEntryBlock());
+        revng_assert(NewAlloca->getParent() == EntryBlock);
         LocalVMap[&*OldAlloca] = NewAlloca;
       }
     }
@@ -909,7 +909,7 @@ void IFI::run() {
   // Emit at the beginning of the basic blocks identified as function entries
   // by revamb a call to the newly created corresponding LLVM function
   for (BasicBlock &BB : *Root) {
-    assert(!BB.empty());
+    revng_assert(!BB.empty());
 
     TerminatorInst *Terminator = BB.getTerminator();
     if (MDNode *Node = Terminator->getMetadata("func.entry")) {
@@ -937,7 +937,7 @@ void IFI::run() {
   // 15. Before emitting it in output we check that the module in passes the
   //     verifyModule pass
   raw_os_ostream Stream(dbg);
-  assert(verifyModule(*NewModule, &Stream) == false);
+  revng_assert(verifyModule(*NewModule, &Stream) == false);
 }
 
 bool IF::runOnFunction(Function &F) {

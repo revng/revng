@@ -48,11 +48,11 @@ void FRA::combine(const FCRA &Other) {
     return;
   }
 
-  assert(Other.Value == FunctionCallRegisterArgument::Maybe
-         || Other.Value == FunctionCallRegisterArgument::Yes);
+  revng_assert(Other.Value == FunctionCallRegisterArgument::Maybe
+               || Other.Value == FunctionCallRegisterArgument::Yes);
 
-  assert(Value == NoOrDead || Value == Maybe || Value == Contradiction
-         || Value == Yes || Value == Dead);
+  revng_assert(Value == NoOrDead || Value == Maybe || Value == Contradiction
+               || Value == Yes || Value == Dead);
 
   if (Other.Value == FunctionCallRegisterArgument::Yes) {
     switch (Value) {
@@ -72,7 +72,7 @@ void FRA::combine(const FCRA &Other) {
       Value = Dead;
       break;
     case No:
-      abort();
+      revng_abort();
     }
   } else {
     switch (Value) {
@@ -92,7 +92,7 @@ void FRA::combine(const FCRA &Other) {
       Value = Dead;
       break;
     case No:
-      abort();
+      revng_abort();
     }
   }
 }
@@ -105,12 +105,12 @@ void FCRA::combine(const FRA &Other) {
     return;
   }
 
-  assert(Value == Maybe || Value == Yes);
+  revng_assert(Value == Maybe || Value == Yes);
 
-  assert(Other.Value == FunctionRegisterArgument::NoOrDead
-         || Other.Value == FunctionRegisterArgument::Maybe
-         || Other.Value == FunctionRegisterArgument::Contradiction
-         || Other.Value == FunctionRegisterArgument::Yes);
+  revng_assert(Other.Value == FunctionRegisterArgument::NoOrDead
+               || Other.Value == FunctionRegisterArgument::Maybe
+               || Other.Value == FunctionRegisterArgument::Contradiction
+               || Other.Value == FunctionRegisterArgument::Yes);
 
   if (Value == Yes) {
     switch (Other.Value) {
@@ -127,7 +127,7 @@ void FCRA::combine(const FRA &Other) {
       Value = Yes;
       break;
     default:
-      abort();
+      revng_abort();
     }
   } else {
     switch (Other.Value) {
@@ -144,7 +144,7 @@ void FCRA::combine(const FRA &Other) {
       Value = Yes;
       break;
     default:
-      abort();
+      revng_abort();
     }
   }
 }
@@ -157,15 +157,15 @@ void FunctionReturnValue::combine(const FunctionCallReturnValue &Other) {
   }
 
   // *this has seen only URVOF, which can only have Maybe or Yes value
-  assert(Value == Maybe || Value == YesCandidate || Value == Dead
-         || Value == Yes || Value == NoOrDead);
+  revng_assert(Value == Maybe || Value == YesCandidate || Value == Dead
+               || Value == Yes || Value == NoOrDead);
 
   // Other is affected by URVOFC and DRVOFC, so that possible states are Maybe,
   // NoOrDead and Yes
-  assert(Other.Value == FunctionCallReturnValue::Maybe
-         || Other.Value == FunctionCallReturnValue::Contradiction
-         || Other.Value == FunctionCallReturnValue::NoOrDead
-         || Other.Value == FunctionCallReturnValue::Yes);
+  revng_assert(Other.Value == FunctionCallReturnValue::Maybe
+               || Other.Value == FunctionCallReturnValue::Contradiction
+               || Other.Value == FunctionCallReturnValue::NoOrDead
+               || Other.Value == FunctionCallReturnValue::Yes);
 
   switch (Value) {
   case YesCandidate:
@@ -183,7 +183,7 @@ void FunctionReturnValue::combine(const FunctionCallReturnValue &Other) {
       Value = Contradiction;
       break;
     default:
-      abort();
+      revng_abort();
     }
     break;
   case Maybe:
@@ -201,7 +201,7 @@ void FunctionReturnValue::combine(const FunctionCallReturnValue &Other) {
       Value = Contradiction;
       break;
     default:
-      abort();
+      revng_abort();
     }
     break;
   case Dead:
@@ -219,7 +219,7 @@ void FunctionReturnValue::combine(const FunctionCallReturnValue &Other) {
       Value = Contradiction;
       break;
     default:
-      abort();
+      revng_abort();
     }
     break;
   case Yes:
@@ -238,7 +238,7 @@ void FunctionReturnValue::combine(const FunctionCallReturnValue &Other) {
       Value = Contradiction;
       break;
     default:
-      abort();
+      revng_abort();
     }
     break;
   case NoOrDead:
@@ -256,11 +256,11 @@ void FunctionReturnValue::combine(const FunctionCallReturnValue &Other) {
       Value = Contradiction;
       break;
     default:
-      abort();
+      revng_abort();
     }
     break;
   default:
-    abort();
+    revng_abort();
   }
 }
 
@@ -272,13 +272,13 @@ void FunctionCallReturnValue::combine(const FunctionReturnValue &Other) {
   }
 
   // *this has seen only URVOF, which can only have Maybe or Yes value
-  assert(Other.Value == FunctionReturnValue::Maybe
-         || Other.Value == FunctionReturnValue::YesCandidate);
+  revng_assert(Other.Value == FunctionReturnValue::Maybe
+               || Other.Value == FunctionReturnValue::YesCandidate);
 
   // Other is affected by URVOFC and DRVOFC, so that possible states are Maybe,
   // NoOrDead, Yes and Contradiction
-  assert(Value == Maybe || Value == NoOrDead || Value == Yes
-         || Value == Contradiction);
+  revng_assert(Value == Maybe || Value == NoOrDead || Value == Yes
+               || Value == Contradiction);
 
   if (Other.Value == FunctionReturnValue::YesCandidate) {
     switch (Value) {
@@ -295,7 +295,7 @@ void FunctionCallReturnValue::combine(const FunctionReturnValue &Other) {
       Value = Contradiction;
       break;
     default:
-      abort();
+      revng_abort();
     }
   } else {
     switch (Value) {
@@ -312,7 +312,7 @@ void FunctionCallReturnValue::combine(const FunctionReturnValue &Other) {
       Value = Contradiction;
       break;
     default:
-      abort();
+      revng_abort();
     }
   }
 }
@@ -333,7 +333,7 @@ void FunctionsSummary::dumpInternal(const Module *M,
     BasicBlock *BB = Call->getParent();
     uint64_t Address = getLimitedValue(Call->getOperand(0));
     uint64_t Size = getLimitedValue(Call->getOperand(1));
-    assert(Address > 0 && Size > 0);
+    revng_assert(Address > 0 && Size > 0);
 
     Coverage[BB] += interval::right_open(Address, Address + Size);
   }
@@ -368,7 +368,7 @@ void FunctionsSummary::dumpInternal(const Module *M,
     if (Entry != nullptr) {
       const char *JTReasonsDelimiter = "";
       TerminatorInst *T = Entry->getTerminator();
-      assert(T != nullptr);
+      revng_assert(T != nullptr);
       MDNode *Node = T->getMetadata("revamb.jt.reasons");
       SmallVector<StringRef, 4> Reasons;
       if (auto *Tuple = cast_or_null<MDTuple>(Node)) {
@@ -405,7 +405,7 @@ void FunctionsSummary::dumpInternal(const Module *M,
       if (It != Coverage.end()) {
         const interval_set &IntervalSet = It->second;
         FunctionCoverage += IntervalSet;
-        assert(IntervalSet.iterative_size() == 1);
+        revng_assert(IntervalSet.iterative_size() == 1);
         const auto &Range = *(IntervalSet.begin());
         Output << "\"start\": \"0x" << std::hex << Range.lower() << "\", ";
         Output << "\"end\": \"0x" << std::hex << Range.upper() << "\"";

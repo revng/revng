@@ -6,8 +6,8 @@
 //
 
 // Standard includes
+#include "revng-assert.h"
 #include <algorithm>
-#include <cassert>
 #include <queue>
 #include <set>
 #include <stack>
@@ -39,7 +39,7 @@ public:
   size_t size() const { return Queue.size(); }
 
   std::set<T> visited() {
-    assert(Once);
+    revng_assert(Once);
     return std::move(Set);
   }
 
@@ -66,7 +66,7 @@ class UniquedStack {
 public:
   void insert(T Element) {
     if (Set.count(Element) == 0) {
-      assert(Element->getParent() != nullptr);
+      revng_assert(Element->getParent() != nullptr);
       Set.insert(Element);
       Queue.push_back(Element);
     }

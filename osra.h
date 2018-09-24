@@ -113,7 +113,7 @@ public:
     }
 
     uint64_t constant() const {
-      assert(isConstant());
+      revng_assert(isConstant());
       return Bounds[0].first;
     }
 
@@ -126,7 +126,8 @@ public:
     const llvm::Value *value() const { return Value; }
 
     bool isSigned() const {
-      assert(Sign != UnknownSignedness && Sign != AnySignedness && !Bottom);
+      revng_assert(Sign != UnknownSignedness && Sign != AnySignedness
+                   && !Bottom);
       return Sign != Unsigned;
     }
 
@@ -141,7 +142,7 @@ public:
     }
 
     uint64_t lowerBound() const {
-      assert(isRightOpen());
+      revng_assert(isRightOpen());
       if (Negated)
         return Bounds[0].second;
       else
@@ -154,8 +155,8 @@ public:
     // TODO: should this method perform a cast to the type of Value?
     std::pair<llvm::Constant *, llvm::Constant *>
     actualBoundaries(llvm::Type *Int64) const {
-      assert(!(Negated && isConstant()));
-      assert(Bounds.size() > 0);
+      revng_assert(!(Negated && isConstant()));
+      revng_assert(Bounds.size() > 0);
 
       using CI = llvm::ConstantInt;
       uint64_t LowerBound = Bounds.front().first;
@@ -174,7 +175,7 @@ public:
                               CI::get(Int64, LowerBound - 1, isSigned()));
       }
 
-      assert(false && "The BV is unlimited");
+      revng_abort("The BV is unlimited");
     }
 
     BoundsVector bounds() const;
@@ -224,7 +225,7 @@ public:
 
     /// \brief Set this BV to bottom
     void setBottom() {
-      assert(!Bottom);
+      revng_assert(!Bottom);
       Bottom = true;
     }
 
@@ -246,9 +247,9 @@ public:
     ///
     /// Do not invoke this method on unlimited BVs.
     uint64_t size() const {
-      assert(!(Negated && isConstant()));
-      assert(!Bottom);
-      assert(Bounds.size() > 0);
+      revng_assert(!(Negated && isConstant()));
+      revng_assert(!Bottom);
+      revng_assert(Bounds.size() > 0);
 
       const uint64_t Max = std::numeric_limits<uint64_t>::max();
       uint64_t Result = 0;
@@ -378,7 +379,7 @@ public:
       case InconsistentSignedness:
         return std::numeric_limits<uint64_t>::min();
       default:
-        llvm_unreachable("Unexpected signedness");
+        revng_unreachable("Unexpected signedness");
       }
     }
 
@@ -391,7 +392,7 @@ public:
       case InconsistentSignedness:
         return std::numeric_limits<int64_t>::max();
       default:
-        llvm_unreachable("Unexpected signedness");
+        revng_unreachable("Unexpected signedness");
       }
     }
 
@@ -490,7 +491,7 @@ public:
 
     /// \brief Accessor method to BoundedValue associated to this OSR
     const BoundedValue *boundedValue() const {
-      assert(BV != nullptr);
+      revng_assert(BV != nullptr);
       return BV;
     }
 
@@ -507,7 +508,7 @@ public:
     /// \brief Return true if the OSR doesn't have a BoundedValue or is
     ///        ininfluent
     bool isConstant() const {
-      assert(BV != nullptr);
+      revng_assert(BV != nullptr);
       return BV->isConstant();
     }
 
@@ -544,7 +545,7 @@ public:
         DL(getModule(TheOSR.boundedValue()->value())->getDataLayout()) {}
 
       bool operator==(BoundsIterator &Other) const {
-        assert(TheOSR.Factor == Other.TheOSR.Factor);
+        revng_assert(TheOSR.Factor == Other.TheOSR.Factor);
         return std::tie(Current, Index) == std::tie(Other.Current, Other.Index);
       }
 

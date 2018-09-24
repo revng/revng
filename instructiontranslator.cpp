@@ -7,7 +7,7 @@
 //
 
 // Standard includes
-#include <cassert>
+#include "revng-assert.h"
 #include <cstdint>
 #include <fstream>
 #include <queue>
@@ -140,14 +140,14 @@ public:
   PTCOpcode opcode() const { return TheInstruction->opc; }
 
   std::string helperName() const {
-    assert(IsCall);
+    revng_assert(IsCall);
     PTCHelperDef *Helper = ptc_find_helper(&ptc, ConstArguments[0]);
-    assert(Helper != nullptr && Helper->name != nullptr);
+    revng_assert(Helper != nullptr && Helper->name != nullptr);
     return std::string(Helper->name);
   }
 
   uint64_t pc() const {
-    assert(opcode() == PTC_INSTRUCTION_op_debug_insn_start);
+    revng_assert(opcode() == PTC_INSTRUCTION_op_debug_insn_start);
     uint64_t PC = ConstArguments[0];
     if (ConstArguments.size() > 1)
       PC |= ConstArguments[1] << 32;
@@ -237,7 +237,7 @@ static CmpInst::Predicate conditionToPredicate(PTCCondition Condition) {
   case PTC_COND_GTU:
     return CmpInst::ICMP_UGT;
   default:
-    llvm_unreachable("Unknown comparison operator");
+    revng_unreachable("Unknown comparison operator");
   }
 }
 
@@ -292,7 +292,7 @@ static Instruction::BinaryOps opcodeToBinaryOp(PTCOpcode Opcode) {
   case PTC_INSTRUCTION_op_sar_i64:
     return Instruction::AShr;
   default:
-    llvm_unreachable("PTC opcode is not a binary operator");
+    revng_unreachable("PTC opcode is not a binary operator");
   }
 }
 
@@ -304,7 +304,7 @@ static uint64_t getMaxValue(unsigned Bits) {
   else if (Bits == 64)
     return 0xffffffffffffffff;
   else
-    llvm_unreachable("Not the number of bits in a integer type");
+    revng_unreachable("Not the number of bits in a integer type");
 }
 
 /// Maps an opcode the corresponding input and output register size.
@@ -436,8 +436,7 @@ static unsigned getRegisterSize(unsigned Opcode) {
   case PTC_INSTRUCTION_op_set_label:
     return 0;
   default:
-    llvm_unreachable("Unexpected opcode");
-    break;
+    revng_unreachable("Unexpected opcode");
   }
 }
 
@@ -566,7 +565,7 @@ IT::newInstruction(PTCInstruction *Instr,
                    bool IsFirst,
                    bool ForceNew) {
   using R = std::tuple<TranslationResult, MDNode *, uint64_t, uint64_t>;
-  assert(Instr != nullptr);
+  revng_assert(Instr != nullptr);
   const PTC::Instruction TheInstruction(Instr);
   // A new original instruction, let's create a new metadata node
   // referencing it for all the next instructions to come
@@ -620,7 +619,7 @@ IT::newInstruction(PTCInstruction *Instr,
     // Inform the JumpTargetManager about the new PC we met
     BasicBlock::iterator CurrentIt = Builder.GetInsertPoint();
     if (CurrentIt == Builder.GetInsertBlock()->begin())
-      assert(JumpTargets.getBlockAt(PC) == Builder.GetInsertBlock());
+      revng_assert(JumpTargets.getBlockAt(PC) == Builder.GetInsertBlock());
     else
       JumpTargets.registerInstruction(PC, Call);
   }
@@ -643,7 +642,7 @@ static StoreInst *getLastUniqueWrite(BasicBlock *BB, const Value *Register) {
       if (auto *Store = dyn_cast<StoreInst>(&*I)) {
         if (Store->getPointerOperand() == Register
             && isa<ConstantInt>(Store->getValueOperand())) {
-          assert(Result == nullptr);
+          revng_assert(Result == nullptr);
           Result = Store;
           Stop = true;
           break;
@@ -684,7 +683,7 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
   std::vector<Type *> InArgsType = (InArgs | GetValueType).toVector();
 
   // TODO: handle multiple return arguments
-  assert(TheCall.OutArguments.size() <= 1);
+  revng_assert(TheCall.OutArguments.size() <= 1);
 
   Value *ResultDestination = nullptr;
   Type *ResultType = nullptr;
@@ -746,7 +745,7 @@ IT::translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC) {
   if (!Result)
     return Abort;
 
-  assert(Result->size() == (size_t) TheInstruction.OutArguments.size());
+  revng_assert(Result->size() == (size_t) TheInstruction.OutArguments.size());
   // TODO: use ZipIterator here
   for (unsigned I = 0; I < Result->size(); I++) {
     auto *Destination = Variables.getOrCreate(TheInstruction.OutArguments[I],
@@ -785,7 +784,7 @@ IT::translateOpcode(PTCOpcode Opcode,
   else if (RegisterSize == 64)
     RegisterType = Builder.getInt64Ty();
   else if (RegisterSize != 0)
-    llvm_unreachable("Unexpected register size");
+    revng_unreachable("Unexpected register size");
 
   using v = std::vector<Value *>;
   switch (Opcode) {
@@ -826,7 +825,7 @@ IT::translateOpcode(PTCOpcode Opcode,
     MemoryAccess = ptc.parse_load_store_arg(ConstArguments[0]);
 
     // What are we supposed to do in this case?
-    assert(MemoryAccess.access_type != PTC_MEMORY_ACCESS_UNKNOWN);
+    revng_assert(MemoryAccess.access_type != PTC_MEMORY_ACCESS_UNKNOWN);
 
     unsigned Alignment = 0;
     if (MemoryAccess.access_type == PTC_MEMORY_ACCESS_UNALIGNED)
@@ -850,7 +849,7 @@ IT::translateOpcode(PTCOpcode Opcode,
       MemoryType = Builder.getInt64Ty();
       break;
     default:
-      llvm_unreachable("Unexpected load size");
+      revng_unreachable("Unexpected load size");
     }
 
     // If necessary, handle endianess mismatch
@@ -898,7 +897,7 @@ IT::translateOpcode(PTCOpcode Opcode,
 
       return v{};
     } else {
-      llvm_unreachable("Unknown load type");
+      revng_unreachable("Unknown load type");
     }
   }
   case PTC_INSTRUCTION_op_ld8u_i32:
@@ -939,7 +938,7 @@ IT::translateOpcode(PTCOpcode Opcode,
       Signed = true;
       break;
     default:
-      llvm_unreachable("Unexpected opcode");
+      revng_unreachable("Unexpected opcode");
     }
 
     unsigned LoadSize;
@@ -965,13 +964,13 @@ IT::translateOpcode(PTCOpcode Opcode,
       LoadSize = 8;
       break;
     default:
-      llvm_unreachable("Unexpected opcode");
+      revng_unreachable("Unexpected opcode");
     }
 
     Value *Result = Variables.loadFromEnvOffset(Builder,
                                                 LoadSize,
                                                 ConstArguments[0]);
-    assert(Result != nullptr);
+    revng_assert(Result != nullptr);
 
     // Zero/sign extend in the target dimension
     if (Signed)
@@ -1004,7 +1003,7 @@ IT::translateOpcode(PTCOpcode Opcode,
       StoreSize = 8;
       break;
     default:
-      llvm_unreachable("Unexpected opcode");
+      revng_unreachable("Unexpected opcode");
     }
 
     Value *Base = dyn_cast<LoadInst>(InArguments[1])->getPointerOperand();
@@ -1017,8 +1016,7 @@ IT::translateOpcode(PTCOpcode Opcode,
                                              StoreSize,
                                              ConstArguments[0],
                                              InArguments[0]);
-    assert(Result);
-    (void) Result;
+    revng_assert(Result);
 
     return v{};
   }
@@ -1070,7 +1068,7 @@ IT::translateOpcode(PTCOpcode Opcode,
       DivisionOp = Instruction::UDiv;
       RemainderOp = Instruction::URem;
     } else {
-      llvm_unreachable("Unknown operation type");
+      revng_unreachable("Unknown operation type");
     }
 
     // TODO: we're ignoring InArguments[1], which is the MSB
@@ -1099,7 +1097,7 @@ IT::translateOpcode(PTCOpcode Opcode,
       FirstShiftOp = Instruction::LShr;
       SecondShiftOp = Instruction::Shl;
     } else {
-      llvm_unreachable("Unexpected opcode");
+      revng_unreachable("Unexpected opcode");
     }
 
     Value *FirstShift = Builder.CreateBinOp(FirstShiftOp,
@@ -1165,7 +1163,7 @@ IT::translateOpcode(PTCOpcode Opcode,
       SourceType = Builder.getInt32Ty();
       break;
     default:
-      llvm_unreachable("Unexpected opcode");
+      revng_unreachable("Unexpected opcode");
     }
 
     Value *Truncated = Builder.CreateTrunc(InArguments[0], SourceType);
@@ -1184,7 +1182,7 @@ IT::translateOpcode(PTCOpcode Opcode,
     case PTC_INSTRUCTION_op_ext32u_i64:
       return v{ Builder.CreateZExt(Truncated, RegisterType) };
     default:
-      llvm_unreachable("Unexpected opcode");
+      revng_unreachable("Unexpected opcode");
     }
   }
   case PTC_INSTRUCTION_op_not_i32:
@@ -1216,7 +1214,7 @@ IT::translateOpcode(PTCOpcode Opcode,
       ExternalOp = Instruction::Xor;
       break;
     default:
-      llvm_unreachable("Unexpected opcode");
+      revng_unreachable("Unexpected opcode");
     }
 
     Value *Negate = Builder.CreateXor(InArguments[1],
@@ -1255,7 +1253,7 @@ IT::translateOpcode(PTCOpcode Opcode,
       SwapType = Builder.getInt64Ty();
       break;
     default:
-      llvm_unreachable("Unexpected opcode");
+      revng_unreachable("Unexpected opcode");
     }
 
     Value *Truncated = Builder.CreateTrunc(InArguments[0], SwapType);
@@ -1287,7 +1285,7 @@ IT::translateOpcode(PTCOpcode Opcode,
       Fallthrough = LabeledBasicBlocks[Label];
 
       // Ensure it's empty
-      assert(Fallthrough->begin() == Fallthrough->end());
+      revng_assert(Fallthrough->begin() == Fallthrough->end());
 
       // Move it to the bottom
       Fallthrough->removeFromParent();
@@ -1343,7 +1341,7 @@ IT::translateOpcode(PTCOpcode Opcode,
                                   InArguments[1]);
       Builder.CreateCondBr(Compare, Target, Fallthrough);
     } else {
-      llvm_unreachable("Unhandled opcode");
+      revng_unreachable("Unhandled opcode");
     }
 
     Blocks.push_back(Fallthrough);
@@ -1417,7 +1415,7 @@ IT::translateOpcode(PTCOpcode Opcode,
       FirstOp = Builder.CreateSExt(InArguments[0], DestinationType);
       SecondOp = Builder.CreateSExt(InArguments[1], DestinationType);
     } else {
-      llvm_unreachable("Unexpected opcode");
+      revng_unreachable("Unexpected opcode");
     }
 
     Value *Result = Builder.CreateMul(FirstOp, SecondOp);
@@ -1436,8 +1434,8 @@ IT::translateOpcode(PTCOpcode Opcode,
   case PTC_INSTRUCTION_op_setcond2_i32:
 
   case PTC_INSTRUCTION_op_trunc_shr_i32:
-    llvm_unreachable("Instruction not implemented");
+    revng_unreachable("Instruction not implemented");
   default:
-    llvm_unreachable("Unknown opcode");
+    revng_unreachable("Unknown opcode");
   }
 }

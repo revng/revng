@@ -99,7 +99,7 @@ public:
   }
 
   void cut(unsigned Height) {
-    assert(Height <= Operations.size());
+    revng_assert(Height <= Operations.size());
     while (Height != Operations.size()) {
       Instruction *Op = Operations.back();
       auto It = OperationsSet.find(Op);
@@ -112,7 +112,7 @@ public:
         unsigned FreeOpIndex = isa<Constant>(Op->getOperand(0)) ? 1 : 0;
         auto *FreeOp = cast<Instruction>(Op->getOperand(FreeOpIndex));
         auto It = OperationsSet.find(FreeOp);
-        assert(It != OperationsSet.end());
+        revng_assert(It != OperationsSet.end());
         OperationsSet.erase(It);
       }
 
@@ -121,7 +121,7 @@ public:
         delete Op;
 
       if (isa<LoadInst>(Op)) {
-        assert(LoadsCount > 0);
+        revng_assert(LoadsCount > 0);
         LoadsCount--;
       }
 
@@ -166,14 +166,13 @@ public:
 
     for (Value *Op : Operations.back()->operand_values()) {
       if (!isa<Constant>(Op)) {
-        assert(!NonConstFound);
-        (void) NonConstFound;
+        revng_assert(!NonConstFound);
         NonConstFound = true;
         Result = Op->getType();
       }
     }
 
-    assert(Result != nullptr);
+    revng_assert(Result != nullptr);
     return Result;
   }
 
@@ -214,7 +213,7 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
     if (auto *Load = dyn_cast<LoadInst>(I)) {
       // OK, we've got a load, let's see if the load address is
       // constant
-      assert(NewOperand != nullptr && !isa<UndefValue>(NewOperand));
+      revng_assert(NewOperand != nullptr && !isa<UndefValue>(NewOperand));
 
       // Read the value using the endianess of the destination architecture,
       // since, if there's a mismatch, in the stack we will also have a byteswap
@@ -222,12 +221,12 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
       JumpTargetManager::Endianess E = JumpTargetManager::DestinationEndianess;
       if (Load->getType()->isIntegerTy()) {
         unsigned Size = Load->getType()->getPrimitiveSizeInBits() / 8;
-        assert(Size != 0);
+        revng_assert(Size != 0);
         NewOperand = JTM->readConstantInt(NewOperand, Size, E);
       } else if (Load->getType()->isPointerTy()) {
         NewOperand = JTM->readConstantPointer(NewOperand, Load->getType(), E);
       } else {
-        assert(false);
+        revng_abort();
       }
 
       if (NewOperand == nullptr)
@@ -235,8 +234,8 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
 
     } else if (auto *Call = dyn_cast<CallInst>(I)) {
       Function *Callee = Call->getCalledFunction();
-      assert(Callee != nullptr && Callee->getIntrinsicID() == Intrinsic::bswap);
-      (void) Callee;
+      revng_assert(Callee != nullptr
+                   && Callee->getIntrinsicID() == Intrinsic::bswap);
 
       uint64_t Value = NewOperand->getUniqueInteger().getLimitedValue();
 
@@ -248,20 +247,19 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
       else if (T->isIntegerTy(64))
         Value = ByteSwap_64(Value);
       else
-        llvm_unreachable("Unexpected type");
+        revng_unreachable("Unexpected type");
 
       NewOperand = ConstantInt::get(T, Value);
     } else {
       // Replace non-const operand with NewOperand
       std::vector<Constant *> Operands;
       bool NonConstFound = false;
-      (void) NonConstFound;
 
       for (Value *Op : I->operand_values()) {
         if (auto *Const = dyn_cast<Constant>(Op)) {
           Operands.push_back(Const);
         } else {
-          assert(!NonConstFound);
+          revng_assert(!NonConstFound);
           NonConstFound = true;
           NewOperand = ConstantExpr::getTruncOrBitCast(NewOperand,
                                                        Op->getType());
@@ -273,7 +271,7 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
                                             I->getType(),
                                             Operands,
                                             DL);
-      assert(NewOperand != nullptr);
+      revng_assert(NewOperand != nullptr);
       // TODO: this is an hack hiding a bigger problem
       if (isa<UndefValue>(NewOperand)) {
         NewOperand = nullptr;
@@ -284,7 +282,7 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
 
   // We made it, mark the value to be explored
   if (NewOperand != nullptr) {
-    assert(!isa<UndefValue>(NewOperand));
+    revng_assert(!isa<UndefValue>(NewOperand));
     return getZExtValue(NewOperand, DL);
   }
 
@@ -295,7 +293,7 @@ void OperationsStack::explore(Constant *NewOperand) {
   uint64_t MaterializedValue = materialize(NewOperand);
 
   bool IsStore = Target != nullptr;
-  assert(!(!IsStore && (Tracking == PCsOnly || SetsSyscallNumber)));
+  revng_assert(!(!IsStore && (Tracking == PCsOnly || SetsSyscallNumber)));
 
   if (IsStore) {
     if (MaterializedValue != 0 && JTM->isPC(MaterializedValue))
@@ -443,7 +441,7 @@ bool SET::run() {
     Visited->insert(&BB);
 
     for (Instruction &Instr : BB) {
-      assert(Instr.getParent() == &BB);
+      revng_assert(Instr.getParent() == &BB);
 
       auto *Store = dyn_cast<StoreInst>(&Instr);
       auto *Load = dyn_cast<LoadInst>(&Instr);
@@ -458,7 +456,7 @@ bool SET::run() {
                   || isa<AllocaInst>(Load->getPointerOperand()))))
         continue;
 
-      assert(WorkList.empty());
+      revng_assert(WorkList.empty());
       if (IsStore) {
         // Clean the OperationsStack and, if we're dealing with a store to the
         // PC, ask it to track all the possible values that the PC will assume.
@@ -528,7 +526,7 @@ bool SETPass::runOnFunction(Function &F) {
 }
 
 bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
-  assert(OSRA != nullptr);
+  revng_assert(OSRA != nullptr);
 
   // We don't know how to proceed, but we can still check if the current
   // instruction is associated with a suitable OSR
@@ -624,7 +622,7 @@ Value *SET::handleInstruction(Instruction *Target, Value *V) {
     bool IsSecondConstant = isa<ConstantInt>(SecondOp.get());
 
     if (IsFirstConstant || IsSecondConstant) {
-      assert(!(IsFirstConstant && IsSecondConstant));
+      revng_assert(!(IsFirstConstant && IsSecondConstant));
 
       // Add to the operations stack the constant one and proceed with the other
       if (OS.insertIfNew(BinOp))

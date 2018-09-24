@@ -30,7 +30,7 @@ using std::string;
 static string &
 replace(string &Target, const StringRef Search, const StringRef Replace) {
   size_t Position = Target.find(Search.data());
-  assert(Position != string::npos);
+  revng_assert(Position != string::npos);
   Target.replace(Position, Search.size(), Replace);
   return Target;
 }

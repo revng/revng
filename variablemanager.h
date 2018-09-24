@@ -170,13 +170,13 @@ public:
     // Collect arguments
     auto ArgIt = SetRegister->arg_begin();
     auto ArgEnd = SetRegister->arg_end();
-    assert(ArgIt != ArgEnd);
+    revng_assert(ArgIt != ArgEnd);
     Argument *RegisterID = &*ArgIt;
     ArgIt++;
-    assert(ArgIt != ArgEnd);
+    revng_assert(ArgIt != ArgEnd);
     Argument *NewValue = &*ArgIt;
     ArgIt++;
-    assert(ArgIt == ArgEnd);
+    revng_assert(ArgIt == ArgEnd);
 
     // Create main basic blocks
     using BasicBlock = BasicBlock;

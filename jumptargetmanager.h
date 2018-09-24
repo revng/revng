@@ -316,11 +316,11 @@ public:
   }
 
   void registerJT(llvm::BasicBlock *BB, JTReason::Values Reason) {
-    assert(!BB->empty());
+    revng_assert(!BB->empty());
     auto *CallNewPC = llvm::dyn_cast<llvm::CallInst>(&*BB->begin());
-    assert(CallNewPC != nullptr);
+    revng_assert(CallNewPC != nullptr);
     llvm::Function *Callee = CallNewPC->getCalledFunction();
-    assert(Callee != nullptr && Callee->getName() == "newpc");
+    revng_assert(Callee != nullptr && Callee->getName() == "newpc");
     registerJT(getLimitedValue(CallNewPC->getArgOperand(0)), Reason);
   }
 
@@ -418,7 +418,7 @@ public:
 
       // Set as reason UnusedGlobalData and ensure it's not empty
       llvm::BasicBlock *BB = registerJT(PC, JTReason::UnusedGlobalData);
-      assert(!BB->empty());
+      revng_assert(!BB->empty());
     }
 
     // We no longer need this information
@@ -430,7 +430,7 @@ public:
     for (auto &P : JumpTargets) {
       JumpTarget &JT = P.second;
       llvm::TerminatorInst *T = JT.head()->getTerminator();
-      assert(T != nullptr);
+      revng_assert(T != nullptr);
 
       std::vector<llvm::Metadata *> Reasons;
       for (const char *ReasonName : JT.getReasonNames())
@@ -495,7 +495,7 @@ private:
 
   /// \brief Erase \p I, and deregister it in case it's a call to `newpc`
   void eraseInstruction(llvm::Instruction *I) {
-    assert(I->use_empty());
+    revng_assert(I->use_empty());
 
     uint64_t PC = getPCFromNewPCCall(I);
     if (PC != 0)

@@ -222,7 +222,7 @@ public:
       return Ptr.value();
 
     auto R = getAddressData(Ptr.value());
-    assert(R && "Pointer not available in any segment");
+    revng_assert(R, "Pointer not available in any segment");
     llvm::ArrayRef<uint8_t> Pointer = *R;
 
     return ::readPointer<T>(Pointer.data());

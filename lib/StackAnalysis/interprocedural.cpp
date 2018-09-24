@@ -51,7 +51,7 @@ void InterproceduralAnalysis::push(BasicBlock *Entry) {
 void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
   using IFS = IntraproceduralFunctionSummary;
 
-  assert(InProgress.size() == 0);
+  revng_assert(InProgress.size() == 0);
 
   Optional<const IFS *> Cached = TheCache.get(Entry);
 
@@ -71,7 +71,7 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
     // Regular functions need to be composed by at least a basic block
     const IFS &Summary = **Cached;
     if (Type == FunctionType::Regular)
-      assert(Summary.BranchesType.size() != 0);
+      revng_assert(Summary.BranchesType.size() != 0);
 
     Results.registerFunction(Entry, Type, Summary);
 
@@ -112,7 +112,7 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
     FunctionAnalysisTime.push(Current.entry()->getName().str(),
                               nanoseconds(End - Begin));
 
-    assert(Result.requiresInterproceduralHandling());
+    revng_assert(Result.requiresInterproceduralHandling());
 
     switch (Result.type()) {
     case BranchType::FakeFunction:
@@ -139,7 +139,7 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
 
     case BranchType::UnhandledCall: {
       BasicBlock *Callee = Result.getCallee();
-      assert(Callee != nullptr);
+      revng_assert(Callee != nullptr);
 
       SaInterpLog << Current.entry() << " performs an unhandled call to "
                   << Callee << DoLog;
@@ -155,7 +155,7 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
         TheCache.update(Callee, IFS::bottom());
 
         // Ensure it was inserted in the cache
-        assert(TheCache.get(Callee));
+        revng_assert(TheCache.get(Callee));
 
         // At this point the intraprocedural analysis will resume employing
         // bottom for the recursive call. Then, once the analysis is done, the
@@ -187,7 +187,7 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
           SaInterpLog << Entry << " leads to contradiction,"
                       << " marking it as fake" << DoLog;
 
-          assert(Current.entry() != Entry);
+          revng_assert(Current.entry() != Entry);
           TheCache.markAsFake(Entry);
         }
 
@@ -204,7 +204,7 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
         // changes w.r.t. to the last time we analyzed this function
         MustReanalyze = TheCache.update(Current.entry(), SummaryForCache);
 
-        assert(TheCache.get(Current.entry()));
+        revng_assert(TheCache.get(Current.entry()));
       }
 
       DBG("sa", {
@@ -246,7 +246,7 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
           break;
 
         default:
-          abort();
+          revng_abort();
         }
 
         // We're done here, let's go up one position in the stack
@@ -272,7 +272,7 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
 
   } while (InProgress.size() > 0);
 
-  assert(Type != FunctionType::Invalid);
+  revng_assert(Type != FunctionType::Invalid);
   Results.registerFunction(Entry, Type, Result.getFunctionSummary());
 }
 
@@ -295,8 +295,8 @@ void ResultsPool::mergeFunction(BasicBlock *Function,
     int32_t Offset = Slot.first.offset();
     FunctionSlot Key = { Function, Offset };
 
-    assert(Slot.first.addressSpace() == ASID::cpuID()
-           and Offset <= static_cast<int32_t>(CSVCount));
+    revng_assert(Slot.first.addressSpace() == ASID::cpuID()
+                 and Offset <= static_cast<int32_t>(CSVCount));
 
     switch (Slot.second) {
     case LocalSlotType::UsedRegister:
@@ -597,7 +597,7 @@ struct ClobberedRegistersAnalysis {
       // contains at least all of the registers clobbered in the previous
       // iteration. If this is not the case, the algorithm might not converge.
       for (int32_t Clobbered : LastResult.Clobbered[nullptr])
-        assert(IndirectCallClobbered.count(Clobbered) != 0);
+        revng_assert(IndirectCallClobbered.count(Clobbered) != 0);
 
       // Save the results of the vote as the result associated with nullptr
       NewResult.Clobbered[nullptr] = std::move(IndirectCallClobbered);
@@ -667,7 +667,7 @@ FunctionsSummary ResultsPool::finalize(const Module *M) {
   // For each function call
   for (auto &P : FunctionCallSlots) {
     CallSite Call = P.first;
-    assert(CallSites.count(Call) != 0);
+    revng_assert(CallSites.count(Call) != 0);
     Optional<int32_t> StackFrameSize = CallSites[Call];
     Instruction *I = Call.callInstruction();
     BasicBlock *Callee = getFunctionCallCallee(I->getParent());
@@ -683,16 +683,16 @@ FunctionsSummary ResultsPool::finalize(const Module *M) {
       int32_t Offset = Slot.offset();
       FunctionCallSlot FCS{ Call, Offset };
 
-      assert(Slot.addressSpace() == CPU);
+      revng_assert(Slot.addressSpace() == CPU);
       FunctionSlot TheFunctionSlot{ Callee, Offset };
 
       // Take the result of the analyses for the current call site
       auto &FCRA = FunctionCallRegisterArguments;
-      assert(FCRA.count(FCS) != 0);
+      revng_assert(FCRA.count(FCS) != 0);
       const auto &CallerRegisterArgument = FCRA[FCS];
 
       auto &FCRV = FunctionCallReturnValues;
-      assert(FCRV.count(FCS) != 0);
+      revng_assert(FCRV.count(FCS) != 0);
       const auto &CallerReturnValue = FCRV[FCS];
 
       const GlobalVariable *CSV = IndexToCSV.at(Offset);

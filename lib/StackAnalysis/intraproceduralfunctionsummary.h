@@ -28,7 +28,7 @@ inline const char *getName(Values Type) {
     return "ForwardedReturnValue";
   }
 
-  abort();
+  revng_abort();
 }
 
 } // namespace LocalSlotType
@@ -134,12 +134,12 @@ private:
     ABI.collectLocalSlots(SlotsPool);
     set<ASSlot> CalleeSaved = FinalState.computeCalleeSavedSlots();
 
-    assert(std::all_of(SlotsPool.begin(), SlotsPool.end(), IsValid));
+    revng_assert(std::all_of(SlotsPool.begin(), SlotsPool.end(), IsValid));
 
     for (ASSlot Slot : CalleeSaved)
       if (Slot.addressSpace() == ASID::cpuID())
         SlotsPool.insert(Slot);
-    assert(std::all_of(SlotsPool.begin(), SlotsPool.end(), IsValid));
+    revng_assert(std::all_of(SlotsPool.begin(), SlotsPool.end(), IsValid));
 
     set<ASSlot> ForwardedArguments;
     set<ASSlot> ForwardedReturnValues;
@@ -171,7 +171,7 @@ private:
 
     // Sort out CPU slots by type
     for (ASSlot Slot : SlotsPool) {
-      assert(Slot.addressSpace() == CPU);
+      revng_assert(Slot.addressSpace() == CPU);
       if (CalleeSaved.count(Slot) != 0) {
         LocalSlots.emplace_back(Slot,
                                 LocalSlotType::ExplicitlyCalleeSavedRegister);

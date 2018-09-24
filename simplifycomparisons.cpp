@@ -49,7 +49,7 @@ static const unsigned MaxDepth = 10;
 /// \brief Base class for all the types of terms of a boolean expression
 class Term {
 public:
-  virtual bool evaluate(unsigned Assignments) const { assert(false); }
+  virtual bool evaluate(unsigned Assignments) const { revng_abort(); }
 };
 
 /// \brief A free-operand term (a variable)
@@ -92,12 +92,12 @@ public:
   void setOperand(unsigned Index, Term *T) { Operands[Index] = T; }
 
   TermUse getOperandUse(unsigned OperandIndex) {
-    assert(OperandIndex < 2);
+    revng_assert(OperandIndex < 2);
     return TermUse(this, OperandIndex);
   }
 
   Term *getOperand(unsigned OperandIndex) {
-    assert(OperandIndex < 2);
+    revng_assert(OperandIndex < 2);
     return Operands[OperandIndex];
   }
 
@@ -138,7 +138,7 @@ bool BinaryTerm::evaluate(unsigned Assignments) const {
   case Instruction::Or:
     return A | B;
   default:
-    assert(false);
+    revng_abort();
   }
 }
 
@@ -253,7 +253,7 @@ static Predicate getEquivalentPredicate(SimplifyComparisonsPass *SCP,
   }
 
   // Build the truth table
-  assert(OpsCount < 8 * sizeof(unsigned));
+  revng_assert(OpsCount < 8 * sizeof(unsigned));
   unsigned TruthTable = 0;
   unsigned TruthTableSize = 1 << OpsCount;
   for (unsigned Assignment = 0; Assignment < TruthTableSize; Assignment++)

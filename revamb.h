@@ -55,7 +55,7 @@ public:
 
   bool inMContext() const { return MContextIndex != NotInMContext; }
   unsigned mcontextIndex() const {
-    assert(inMContext());
+    revng_assert(inMContext());
     return MContextIndex;
   }
 };
@@ -135,7 +135,7 @@ inline const char *getName(Values Reason) {
     return "FunctionSymbol";
   }
 
-  abort();
+  revng_abort();
 }
 
 inline Values fromName(llvm::StringRef ReasonName) {
@@ -164,7 +164,7 @@ inline Values fromName(llvm::StringRef ReasonName) {
   else if (ReasonName == "FunctionSymbol")
     return FunctionSymbol;
   else
-    abort();
+    revng_abort();
 }
 
 inline bool hasReason(uint32_t Reasons, Values ToCheck) {
@@ -278,8 +278,8 @@ public:
   llvm::StringRef jumpAsm() const { return JumpAsm; }
   bool isJumpOutSupported() const {
     bool IsSupported = WriteRegisterAsm.size() != 0;
-    assert(IsSupported == (ReadRegisterAsm.size() != 0)
-           && IsSupported == (JumpAsm.size() != 0));
+    revng_assert(IsSupported == (ReadRegisterAsm.size() != 0)
+                 && IsSupported == (JumpAsm.size() != 0));
     return IsSupported;
   }
   bool hasRelocationAddend() const { return HasRelocationAddend; }
@@ -315,7 +315,7 @@ inline bool startsWith(std::string String, std::string Prefix) {
 /// \brief Simple helper function asserting a pointer is not a `nullptr`
 template<typename T>
 inline T *notNull(T *Pointer) {
-  assert(Pointer != nullptr);
+  revng_assert(Pointer != nullptr);
   return Pointer;
 }
 
@@ -340,10 +340,10 @@ inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
   auto End = I->getParent()->end();
   do {
     It++;
-    assert(It != End);
+    revng_assert(It != End);
   } while (isMarker(&*It));
 
-  assert(It != End);
+  revng_assert(It != End);
   return &*It;
 }
 

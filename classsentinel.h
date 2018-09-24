@@ -2,7 +2,7 @@
 #define CLASSSENTINEL_H
 
 // Standard includes
-#include <cassert>
+#include "revng-assert.h"
 
 #ifdef SENTINEL_STACKTRACES
 extern "C" {
@@ -20,7 +20,7 @@ public:
 
   void print() const {
     char **Strings = backtrace_symbols(Buffer, Count);
-    assert(Strings != nullptr);
+    revng_assert(Strings != nullptr);
 
     std::string Result;
     for (int J = 0; J < Count; J++)
@@ -104,7 +104,7 @@ public:
       dbg << "It was moved with the following backtrace:\n\n";
       DestroyBacktrace.print();
 #endif
-      abort();
+      revng_abort();
     }
   }
 
@@ -116,7 +116,7 @@ public:
       dbg << "It was moved with the following backtrace:\n\n";
       MoveBacktrace.print();
 #endif
-      abort();
+      revng_abort();
     }
   }
 

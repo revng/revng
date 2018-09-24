@@ -129,13 +129,13 @@ private:
   void serialize();
 
   void setRelation(BasicBlock *CFEP, BasicBlock *Affected, RelationType T) {
-    assert(CFEP != nullptr);
+    revng_assert(CFEP != nullptr);
     CFEPRelation &Relation = getRelation(CFEP, Affected);
     Relation.setType(T);
   }
 
   void setDistance(BasicBlock *CFEP, BasicBlock *Affected, uint64_t Distance) {
-    assert(CFEP != nullptr);
+    revng_assert(CFEP != nullptr);
     const uint64_t Max = std::numeric_limits<uint32_t>::max();
     Distance = std::min(Distance, Max);
     CFEPRelation &Relation = getRelation(CFEP, Affected);
@@ -144,7 +144,7 @@ private:
 
   bool isCFEP(BasicBlock *BB) const { return CFEPs.count(BB); }
   void registerCFEP(BasicBlock *BB, CFEPReason Reason) {
-    assert(BB != nullptr);
+    revng_assert(BB != nullptr);
     CFEPs[BB].setReason(Reason);
     setRelation(BB, BB, Head);
   }
@@ -222,7 +222,7 @@ void FBD::collectFunctionCalls() {
       BasicBlock *ReturnBB = getBlock(Call->getOperand(1));
       uint32_t ReturnPC = getLimitedValue(Call->getOperand(2));
       auto *Terminator = cast<TerminatorInst>(nextNonMarker(Call));
-      assert(Terminator != nullptr);
+      revng_assert(Terminator != nullptr);
       FunctionCalls[Terminator] = ReturnBB;
       CallPredecessors[ReturnBB].push_back(Call->getParent());
       ReturnPCs.insert(ReturnPC);
@@ -256,7 +256,7 @@ void FBD::collectReturnInstructions() {
     bool IsReturn = true;
 
     for (BasicBlock *Successor : Terminator->successors()) {
-      assert(!Successor->empty());
+      revng_assert(!Successor->empty());
 
       // A return instruction must jump to JTM->anyPC or to JTM->disptacher,
       // while all the other successors (if any) must be registered returns
@@ -291,7 +291,7 @@ void FBD::registerBasicBlockAddressRanges() {
     BasicBlock *BB = Call->getParent();
     uint64_t Address = getLimitedValue(Call->getOperand(0));
     uint64_t Size = getLimitedValue(Call->getOperand(1));
-    assert(Address > 0 && Size > 0);
+    revng_assert(Address > 0 && Size > 0);
 
     Coverage[BB] += interval::right_open(Address, Address + Size);
   }
@@ -319,7 +319,7 @@ interval_set FBD::findCoverage(BasicBlock *BB) {
         WorkList.insert(Predecessor);
   }
 
-  llvm_unreachable("Couldn't find basic block");
+  revng_unreachable("Couldn't find basic block");
 }
 
 void FBD::collectInitialCFEPSet() {
@@ -341,7 +341,7 @@ void FBD::collectInitialCFEPSet() {
     if (JT.hasReason(JTReason::Callee)) {
       registerCFEP(CFEPHead, Callee);
 
-      assert(Coverage.find(CFEPHead) != Coverage.end());
+      revng_assert(Coverage.find(CFEPHead) != Coverage.end());
       Callees += Coverage[CFEPHead];
 
       Insert = true;
@@ -422,13 +422,13 @@ void FBD::cfepProcessPhase1() {
 
       interval_set StartAddressRange = findCoverage(BB);
       uint64_t StartAddress = StartAddressRange.begin()->lower();
-      assert(StartAddress != 0);
+      revng_assert(StartAddress != 0);
 
       for (BasicBlock *S : successors(BB)) {
         if (!JTM->isTranslatedBB(S) || Coverage.count(S) == 0)
           continue;
 
-        assert(Coverage.find(S) != Coverage.end());
+        revng_assert(Coverage.find(S) != Coverage.end());
         interval_set &DestinationAddressRange = Coverage[S];
 
         // TODO: why this?
@@ -462,9 +462,9 @@ void FBD::filterCFEPs() {
   std::map<BasicBlock *, CFEP>::iterator It = CFEPs.begin();
   while (It != CFEPs.end()) {
     BasicBlock *CFEPHead = It->first;
-    assert(CFEPHead != nullptr);
+    revng_assert(CFEPHead != nullptr);
     CFEP &C = It->second;
-    assert(!C.hasReason(UnknownReason));
+    revng_assert(!C.hasReason(UnknownReason));
 
     // Keep a CFEP only if its address is taken, it's a callee or all the
     // paths leading there are skipping jumps
@@ -519,7 +519,7 @@ void FBD::cfepProcessPhase2() {
 
     while (!WorkList.empty()) {
       BasicBlock *RelatedBB = WorkList.pop();
-      assert(JTM->isTranslatedBB(RelatedBB));
+      revng_assert(JTM->isTranslatedBB(RelatedBB));
 
       auto FCIt = FunctionCalls.find(RelatedBB->getTerminator());
       if (FCIt != FunctionCalls.end()) {
@@ -557,7 +557,7 @@ void FBD::createMetadata() {
     MDTuple *FunctionMD = MDNode::get(Context, { Name });
 
     Instruction *Terminator = Header->getTerminator();
-    assert(Terminator != nullptr);
+    revng_assert(Terminator != nullptr);
     Terminator->setMetadata("func.entry", FunctionMD);
 
     for (BasicBlock *Member : P.second)
@@ -570,7 +570,7 @@ void FBD::createMetadata() {
     BasicBlock *BB = P.first;
     if (!BB->empty()) {
       Instruction *Terminator = BB->getTerminator();
-      assert(Terminator != nullptr);
+      revng_assert(Terminator != nullptr);
       auto *FuncMDs = MDTuple::get(Context, ArrayRef<Metadata *>(P.second));
       Terminator->setMetadata("func.member.of", FuncMDs);
     }
@@ -582,7 +582,7 @@ void FBD::createMetadata() {
 }
 
 map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
-  assert(JTM != nullptr);
+  revng_assert(JTM != nullptr);
 
   initPostDispatcherIt();
 

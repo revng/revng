@@ -8,7 +8,7 @@
 //
 
 // Standard includes
-#include <cassert>
+#include "revng-assert.h"
 #include <cstdint>
 #include <fstream>
 #include <queue>
@@ -99,10 +99,10 @@ bool TranslateDirectBranchesPass::pinJTs(Function &F) {
     // remove everything after this call and put a new handler
     CallInst *CallExitTB = JTM->findNextExitTB(PCWrite);
 
-    assert(CallExitTB != nullptr);
-    assert(PCWrite->getParent()->getParent() == &F);
-    assert(JTM->isPCReg(PCWrite->getPointerOperand()));
-    assert(Destinations.size() != 0);
+    revng_assert(CallExitTB != nullptr);
+    revng_assert(PCWrite->getParent()->getParent() == &F);
+    revng_assert(JTM->isPCReg(PCWrite->getPointerOperand()));
+    revng_assert(Destinations.size() != 0);
 
     auto *ExitTBArg = ConstantInt::get(Type::getInt32Ty(Context),
                                        Destinations.size());
@@ -190,7 +190,7 @@ bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
             BasicBlock::iterator CallIt(Call);
             BasicBlock::iterator BlockEnd = Call->getParent()->end();
             CallIt++;
-            assert(CallIt != BlockEnd && isa<UnreachableInst>(&*CallIt));
+            revng_assert(CallIt != BlockEnd && isa<UnreachableInst>(&*CallIt));
             CallIt->eraseFromParent();
 
             // Cleanup of what's afterwards (only a unconditional jump is
@@ -214,10 +214,10 @@ bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
           }
         }
       } else {
-        llvm_unreachable("Unexpected instruction using the PC");
+        revng_unreachable("Unexpected instruction using the PC");
       }
     } else {
-      llvm_unreachable("Unhandled usage of the PC");
+      revng_unreachable("Unhandled usage of the PC");
     }
   }
 
@@ -310,21 +310,21 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
         if (Marker->getCalledFunction()->getName() == "newpc") {
           uint64_t PC = getLimitedValue(Marker->getArgOperand(0));
           uint64_t Size = getLimitedValue(Marker->getArgOperand(1));
-          assert(Size != 0);
+          revng_assert(Size != 0);
           return PC + Size;
         }
       }
     }
 
     auto *Node = DT.getNode(Block);
-    assert(Node != nullptr
-           && "BasicBlock not in the dominator tree, is it reachable?");
+    revng_assert(Node != nullptr,
+                 "BasicBlock not in the dominator tree, is it reachable?");
 
     Block = Node->getIDom()->getBlock();
     It = Block->rbegin();
   }
 
-  llvm_unreachable("Can't find the PC marker");
+  revng_unreachable("Can't find the PC marker");
 }
 
 Optional<uint64_t>
@@ -337,7 +337,7 @@ JumpTargetManager::readRawValue(uint64_t Address,
   } else if (ReadEndianess == DestinationEndianess) {
     IsLittleEndian = TheModule.getDataLayout().isLittleEndian();
   } else {
-    abort();
+    revng_abort();
   }
 
   for (auto &Segment : Binary.segments()) {
@@ -377,7 +377,7 @@ JumpTargetManager::readRawValue(uint64_t Address,
         else
           return read<uint64_t, endianness::big, 1>(Start);
       default:
-        assert(false && "Unexpected read size");
+        revng_abort("Unexpected read size");
       }
     }
   }
@@ -606,7 +606,7 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool &ShouldContinue) {
         auto Result = UnexploredIt->second;
         Unexplored.erase(UnexploredIt);
         ShouldContinue = true;
-        assert(Result->empty());
+        revng_assert(Result->empty());
         return Result;
       }
     }
@@ -614,7 +614,7 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool &ShouldContinue) {
     // It wasn't planned to visit it, so we've already been there, just jump
     // there
     BasicBlock *BB = JTIt->second.head();
-    assert(!BB->empty());
+    revng_assert(!BB->empty());
     ShouldContinue = false;
     return BB;
   }
@@ -635,7 +635,7 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool &ShouldContinue) {
 void JumpTargetManager::registerInstruction(uint64_t PC,
                                             Instruction *Instruction) {
   // Never save twice a PC
-  assert(!OriginalInstructionAddresses.count(PC));
+  revng_assert(!OriginalInstructionAddresses.count(PC));
   OriginalInstructionAddresses[PC] = Instruction;
 }
 
@@ -645,9 +645,9 @@ CallInst *JumpTargetManager::findNextExitTB(Instruction *Start) {
   auto Visitor = [this, &Result](BasicBlockRange Range) {
     for (Instruction &I : Range) {
       if (auto *Call = dyn_cast<CallInst>(&I)) {
-        assert(!(Call->getCalledFunction()->getName() == "newpc"));
+        revng_assert(!(Call->getCalledFunction()->getName() == "newpc"));
         if (Call->getCalledFunction() == ExitTB) {
-          assert(Result == nullptr);
+          revng_assert(Result == nullptr);
           Result = Call;
           return ExhaustQueueAndStop;
         }
@@ -808,7 +808,7 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
       // If one of the predecessors is the dispatcher, don't explore any further
       for (BasicBlock *Predecessor : predecessors(BB)) {
         // Assert we didn't reach the almighty dispatcher
-        assert(!(NewPCCall == nullptr && Predecessor == Dispatcher));
+        revng_assert(!(NewPCCall == nullptr && Predecessor == Dispatcher));
         if (Predecessor == Dispatcher)
           continue;
       }
@@ -830,16 +830,16 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
 
   uint64_t PC = getLimitedValue(NewPCCall->getArgOperand(0));
   uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(1));
-  assert(Size != 0);
+  revng_assert(Size != 0);
   return { PC, Size };
 }
 
 void JumpTargetManager::handleSumJump(Instruction *SumJump) {
   // Take the next PC
   uint64_t NextPC = getNextPC(SumJump);
-  assert(NextPC != 0);
+  revng_assert(NextPC != 0);
   BasicBlock *BB = registerJT(NextPC, JTReason::SumJump);
-  assert(BB && !BB->empty());
+  revng_assert(BB && !BB->empty());
 
   std::set<BasicBlock *> Visited;
   Visited.insert(Dispatcher);
@@ -973,8 +973,8 @@ void JumpTargetManager::translateIndirectJumps() {
         // Look for the last write to the PC
         StoreInst *PCWrite = getPrevPCWrite(Call);
         if (PCWrite != nullptr) {
-          assert(!isa<ConstantInt>(PCWrite->getValueOperand())
-                 && "Direct jumps should not be handled here");
+          revng_assert(!isa<ConstantInt>(PCWrite->getValueOperand()),
+                       "Direct jumps should not be handled here");
         }
 
         if (PCWrite != nullptr && EnableOSRA && isSumJump(PCWrite))
@@ -990,7 +990,7 @@ void JumpTargetManager::translateIndirectJumps() {
     }
   }
 
-  assert(ExitTB->use_empty());
+  revng_assert(ExitTB->use_empty());
   ExitTB->eraseFromParent();
   ExitTB = nullptr;
 }
@@ -1038,7 +1038,7 @@ void JumpTargetManager::unvisit(BasicBlock *BB) {
 
 BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
   auto TargetIt = JumpTargets.find(PC);
-  assert(TargetIt != JumpTargets.end());
+  revng_assert(TargetIt != JumpTargets.end());
   return TargetIt->second.head();
 }
 
@@ -1077,11 +1077,11 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
     // TODO: why this?
     while (pred_begin(BB) != pred_end(BB)) {
       BasicBlock *Predecessor = *pred_begin(BB);
-      assert(pred_empty(Predecessor));
+      revng_assert(pred_empty(Predecessor));
       Predecessor->eraseFromParent();
     }
 
-    assert(BB->use_empty());
+    revng_assert(BB->use_empty());
     BB->eraseFromParent();
   }
 }
@@ -1114,7 +1114,7 @@ JumpTargetManager::registerJT(uint64_t PC, JTReason::Values Reason) {
     if (isFirst(I)) {
       NewBlock = ContainingBlock;
     } else {
-      assert(I != nullptr && I != ContainingBlock->end());
+      revng_assert(I != nullptr && I != ContainingBlock->end());
       NewBlock = ContainingBlock->splitBasicBlock(I);
     }
 
@@ -1205,12 +1205,12 @@ static void purge(BasicBlock *BB) {
   // Allow up to a single instruction in the basic block
   if (!BB->empty())
     BB->begin()->eraseFromParent();
-  assert(BB->empty());
+  revng_assert(BB->empty());
 }
 
 void JumpTargetManager::setCFGForm(CFGForm NewForm) {
-  assert(CurrentCFGForm != NewForm);
-  assert(NewForm != UnknownFormCFG);
+  revng_assert(CurrentCFGForm != NewForm);
+  revng_assert(NewForm != UnknownFormCFG);
 
   CFGForm OldForm = CurrentCFGForm;
   CurrentCFGForm = NewForm;
@@ -1235,8 +1235,7 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
     break;
 
   default:
-    assert(false && "Not implemented yet");
-    break;
+    revng_abort("Not implemented yet");
   }
 
   QuickMetadata QMD(Context);
@@ -1258,7 +1257,7 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
           continue;
 
         auto *Terminator = cast<TerminatorInst>(nextNonMarker(Call));
-        assert(Terminator->getNumSuccessors() == 1);
+        revng_assert(Terminator->getNumSuccessors() == 1);
 
         // Get the correct argument, the first is the callee, the second the
         // return basic block
@@ -1326,7 +1325,7 @@ void JumpTargetManager::harvest() {
       }
     }
 
-    DBG("verify", if (verifyModule(TheModule, &dbgs())) { abort(); });
+    DBG("verify", if (verifyModule(TheModule, &dbgs())) { revng_abort(); });
 
     DBG("jtcount", dbg << "Harvesting: SROA, ConstProp, EarlyCSE and SET\n");
 
@@ -1355,7 +1354,7 @@ void JumpTargetManager::harvest() {
   }
 
   if (EnableOSRA && empty()) {
-    DBG("verify", if (verifyModule(TheModule, &dbgs())) { abort(); });
+    DBG("verify", if (verifyModule(TheModule, &dbgs())) { revng_abort(); });
 
     NoReturn.registerSyscalls(TheFunction);
 

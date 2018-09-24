@@ -94,7 +94,7 @@ private:
 
     if (!BB->empty()) {
       llvm::TerminatorInst *Terminator = BB->getTerminator();
-      assert(Terminator != nullptr);
+      revng_assert(Terminator != nullptr);
       if (Terminator->getMetadata("noreturn") == nullptr) {
         QuickMetadata QMD(getContext(BB));
         Terminator->setMetadata("noreturn",

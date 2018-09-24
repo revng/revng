@@ -50,7 +50,7 @@ public:
     } else if (auto *Store = llvm::dyn_cast<llvm::StoreInst>(I)) {
       initialize(Store->getPointerOperand(), Store->getValueOperand(), TSP);
     } else {
-      assert(false);
+      revng_abort();
     }
   }
 
@@ -68,7 +68,7 @@ public:
     } else if (auto *Store = llvm::dyn_cast<llvm::StoreInst>(I)) {
       initialize(Store->getPointerOperand(), Store->getValueOperand(), DL);
     } else {
-      abort();
+      revng_abort();
     }
   }
 
@@ -95,7 +95,7 @@ public:
       return Offset == Other.Offset;
     }
 
-    abort();
+    revng_abort();
   }
 
   bool operator!=(const MemoryAccess &Other) const { return !(*this == Other); }
@@ -147,7 +147,7 @@ public:
     if (Type == Absolute and Other.Type == Absolute)
       return intersect({ Offset, Size }, { Other.Offset, Other.Size });
 
-    abort();
+    revng_abort();
   }
 
   bool isValid() const { return Type != Invalid; }

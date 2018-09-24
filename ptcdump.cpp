@@ -6,7 +6,7 @@
 //
 
 // Standard includes
-#include <cassert>
+#include "revng-assert.h"
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -247,14 +247,14 @@ void disassembleOriginal(std::ostream &Result, uint64_t PC) {
   size_t BufferLenPtr = 0;
   FILE *MemoryStream = open_memstream(&BufferPtr, &BufferLenPtr);
 
-  assert(MemoryStream != nullptr);
+  revng_assert(MemoryStream != nullptr);
 
   // Using SIZE_MAX is not very nice but the code should disassemble only a
   // single instruction nonetheless.
   ptc.disassemble(MemoryStream, PC, SIZE_MAX, 1);
   fflush(MemoryStream);
 
-  assert(BufferPtr != nullptr);
+  revng_assert(BufferPtr != nullptr);
 
   Result << BufferPtr;
 

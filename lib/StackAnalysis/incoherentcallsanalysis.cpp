@@ -73,7 +73,7 @@ public:
       return true;
     }
 
-    abort();
+    revng_abort();
   }
 
   Element &&extractResult() { return std::move(Result); }

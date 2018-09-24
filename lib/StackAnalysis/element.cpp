@@ -31,7 +31,7 @@ bool ASSlot::lowerThanOrEqual(const ASSlot &Other) const {
 
 template<bool Diff, bool EarlyExit>
 unsigned ASSlot::cmp(const ASSlot &Other, const Module *M) const {
-  assert(!this->isInvalid() and !Other.isInvalid());
+  revng_assert(!this->isInvalid() and !Other.isInvalid());
 
   LoggerIndent<> Y(SaDiffLog);
   bool Result = not(AS.lowerThanOrEqual(Other.AS) && Offset == Other.Offset);
@@ -179,7 +179,7 @@ unsigned Element::cmp(const Element &Other, const Module *M) const {
   if (State.size() == 0)
     return 1;
 
-  assert(State.size() == Other.State.size());
+  revng_assert(State.size() == Other.State.size());
 
   size_t TotalASCount = State.size();
   for (unsigned I = 0; I < TotalASCount; I++) {
@@ -207,7 +207,7 @@ Element &Element::combine(const Element &Other) {
     return *this;
   }
 
-  assert(State.size() == Other.State.size());
+  revng_assert(State.size() == Other.State.size());
   for (unsigned I = 0; I < State.size(); I++)
     mergeASState(State[I], Other.State[I]);
 
@@ -229,7 +229,7 @@ void Element::cleanup() {
 }
 
 void Element::apply(const Element &Other) {
-  assert(State.size() == Other.State.size());
+  revng_assert(State.size() == Other.State.size());
 
   ASID CPU = ASID::cpuID();
   const AddressSpace &OtherCPU = Other.State[CPU.id()];
@@ -301,8 +301,8 @@ void Element::mergeASState(AddressSpace &ThisState,
       ThisIt++;
     } else {
       // Both have the current offset: update ThisContent with OtherContent
-      assert(ThisIt != ThisEndIt && OtherIt != OtherEndIt);
-      assert(ThisIt->first == OtherIt->first);
+      revng_assert(ThisIt != ThisEndIt && OtherIt != OtherEndIt);
+      revng_assert(ThisIt->first == OtherIt->first);
 
       ThisContent = &ThisIt->second;
       OtherContent = &OtherIt->second;

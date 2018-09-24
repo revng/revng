@@ -5,7 +5,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <cassert>
+#include "revng-assert.h"
 #include <iterator>
 
 template<typename TypeT, typename Derived, bool Reference = true>
@@ -41,7 +41,7 @@ private:
   }
 
   void assertCompatibility(const type &r) const {
-    assert(constThisDerived().isCompatible(r.constThisDerived()));
+    revng_assert(constThisDerived().isCompatible(r.constThisDerived()));
   }
 
 protected:

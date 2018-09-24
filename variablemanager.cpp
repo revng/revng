@@ -135,7 +135,7 @@ getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
     } break;
 
     default:
-      assert(false and "unexpected TypeID");
+      revng_abort("unexpected TypeID");
     }
   }
 }
@@ -165,7 +165,7 @@ VariableManager::VariableManager(Module &TheModule,
   CPUStateScopeSet = MDNode::get(Context,
                                  ArrayRef<Metadata *>({ CPUStateScope }));
 
-  assert(ptc.initialized_env != nullptr);
+  revng_assert(ptc.initialized_env != nullptr);
 
   using ElectionMap = std::map<StructType *, unsigned>;
   using ElectionMapElement = std::pair<StructType *const, unsigned>;
@@ -206,7 +206,7 @@ VariableManager::VariableManager(Module &TheModule,
 
   Structs.erase(nullptr);
 
-  assert(EnvElection.size() > 0);
+  revng_assert(EnvElection.size() > 0);
 
   auto Compare = [](ElectionMapElement &It1, ElectionMapElement &It2) {
     return It1.second < It2.second;
@@ -261,7 +261,7 @@ bool VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
     // >> (Size1 - Size2) - Remaining;
     Type *PointeeTy = Target->getType()->getPointerElementType();
     unsigned GlobalSize = cast<IntegerType>(PointeeTy)->getBitWidth() / 8;
-    assert(GlobalSize != 0);
+    revng_assert(GlobalSize != 0);
     ShiftAmount = (GlobalSize - StoreSize) - Remaining;
   }
   ShiftAmount *= 8;
@@ -269,7 +269,7 @@ bool VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
   // Build blanking mask
   uint64_t BitMask = (StoreSize == 8 ? (uint64_t) -1 :
                                        ((uint64_t) 1 << StoreSize * 8) - 1);
-  assert(ShiftAmount != 64);
+  revng_assert(ShiftAmount != 64);
   BitMask <<= ShiftAmount;
   BitMask = ~BitMask;
 
@@ -338,7 +338,7 @@ Value *VariableManager::loadFromCPUStateOffset(IRBuilder<> &Builder,
     // >> (Size1 - Size2) - Remaining;
     auto *LoadedTy = cast<IntegerType>(LoadEnvField->getType());
     unsigned GlobalSize = LoadedTy->getBitWidth() / 8;
-    assert(GlobalSize != 0);
+    revng_assert(GlobalSize != 0);
     ShiftAmount = (GlobalSize - LoadSize) - Remaining;
   }
   ShiftAmount *= 8;
@@ -371,9 +371,9 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
                                         bool EnvIsSrc) {
   Function *Callee = getCallee(CallMemcpy);
   // We only support memcpys where the last parameter is constant
-  assert(Callee != nullptr
-         and (Callee->getIntrinsicID() == Intrinsic::memcpy
-              and isa<ConstantInt>(CallMemcpy->getArgOperand(2))));
+  revng_assert(Callee != nullptr
+               and (Callee->getIntrinsicID() == Intrinsic::memcpy
+                    and isa<ConstantInt>(CallMemcpy->getArgOperand(2))));
 
   Value *OtherOp = CallMemcpy->getArgOperand(EnvIsSrc ? 0 : 1);
   auto *MemcpySize = cast<Constant>(CallMemcpy->getArgOperand(2));
@@ -475,7 +475,7 @@ static ConstantInt *fromBytes(IntegerType *Type, void *Data) {
     return ConstantInt::get(Type, *(static_cast<uint64_t *>(Data)));
   }
 
-  llvm_unreachable("Unexpected type");
+  revng_unreachable("Unexpected type");
 }
 
 // TODO: document that it can return nullptr
@@ -484,7 +484,7 @@ VariableManager::getByCPUStateOffset(intptr_t Offset, std::string Name) {
   GlobalVariable *Result = nullptr;
   unsigned Remaining;
   std::tie(Result, Remaining) = getByCPUStateOffsetInternal(Offset, Name);
-  assert(Remaining == 0);
+  revng_assert(Remaining == 0);
   return Result;
 }
 
@@ -528,7 +528,7 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
                                            GlobalValue::ExternalLinkage,
                                            InitialValue,
                                            Name);
-    assert(NewVariable != nullptr);
+    revng_assert(NewVariable != nullptr);
 
     if (it != CPUStateGlobals.end()) {
       it->second->replaceAllUsesWith(NewVariable);
@@ -544,7 +544,7 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
 }
 
 Value *VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
-  assert(Instructions != nullptr);
+  revng_assert(Instructions != nullptr);
 
   PTCTemp *Temporary = ptc_temp_get(Instructions, TemporaryId);
   Type *VariableType = Temporary->type == PTC_TYPE_I32 ? Builder.getInt32Ty() :
@@ -555,7 +555,7 @@ Value *VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
     if (Temporary->fixed_reg == 0) {
       Value *Result = getByCPUStateOffset(EnvOffset + Temporary->mem_offset,
                                           StringRef(Temporary->name));
-      assert(Result != nullptr);
+      revng_assert(Result != nullptr);
       return Result;
     } else {
       GlobalsMap::iterator it = OtherGlobals.find(TemporaryId);

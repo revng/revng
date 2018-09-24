@@ -111,7 +111,7 @@ public:
   }
 
   size_t size() const {
-    assert(verify());
+    revng_assert(verify());
 
     if (empty())
       return 0;
@@ -133,7 +133,7 @@ public:
   void insert(Iterated Entry) {
     // Find the entry
     auto It = PostOrderListIndex.find(Entry);
-    assert(It != PostOrderListIndex.end());
+    revng_assert(It != PostOrderListIndex.end());
 
     // Enable it
     PostOrderList[It->second].enable();
@@ -145,13 +145,13 @@ public:
   bool empty() const { return Next == InvalidIndex; }
 
   Iterated head() const {
-    assert(Next != InvalidIndex);
+    revng_assert(Next != InvalidIndex);
     return PostOrderList[Next].entry();
   }
 
   Iterated pop() {
-    assert(not empty());
-    assert(verify());
+    revng_assert(not empty());
+    revng_assert(verify());
 
     // Start from the next element and look for an enabled element
     size_t I = Next + 1;
@@ -452,7 +452,7 @@ public:
 
       if (Result.isReturn()) {
         // The current label is a final state
-        assert(SuccessorsCount == 0);
+        revng_assert(SuccessorsCount == 0);
 
         // If so, accumulate the result in FinalResult (or in FinalStates in
         // case of dynamic graph)
@@ -515,7 +515,7 @@ public:
           // The successors must match, unless the current label has become a
           // return label
           if (Successors->size() != 0)
-            assert(NewSuccessors == *Successors);
+            revng_assert(NewSuccessors == *Successors);
 
           *Successors = std::move(NewSuccessors);
         }
@@ -523,12 +523,12 @@ public:
     }
 
     if (DynamicGraph)
-      assert(FirstFinalResult == (FinalStates.size() == 0));
+      revng_assert(FirstFinalResult == (FinalStates.size() == 0));
     else
-      assert(FinalStates.size() == 0 and SuccessorsMap.size() == 0);
+      revng_assert(FinalStates.size() == 0 and SuccessorsMap.size() == 0);
 
     // The work list is empty
-    assert(ToVisit.empty());
+    revng_assert(ToVisit.empty());
     if (FirstFinalResult) {
       // We haven't find any return label
       return createNoReturnInterrupt();
@@ -555,7 +555,7 @@ public:
         while (not ReachableLabels.empty()) {
           Label L = ReachableLabels.pop();
           auto It = SuccessorsMap.find(L);
-          assert(It != SuccessorsMap.end());
+          revng_assert(It != SuccessorsMap.end());
           for (Label Successor : It->second)
             ReachableLabels.insert(Successor);
         }
@@ -566,7 +566,7 @@ public:
         // TODO: if this assert never triggers, all the SuccessorsMaps thingy is
         //       only for debugging purposes and the DynamicGraph template
         //       argument should be replaced with an `#ifndef NDEBUG`.
-        assert(Reachable.size() == State.size());
+        revng_assert(Reachable.size() == State.size());
 
         // Merge all the final states, if they are reachable
         bool First = true;
@@ -582,7 +582,7 @@ public:
           }
         }
 
-        assert(not First);
+        revng_assert(not First);
       }
 
       return createSummaryInterrupt();

@@ -75,7 +75,7 @@ void Analysis::initialize() {
   }
 
   TerminatorInst *T = Entry->getTerminator();
-  assert(T != nullptr);
+  revng_assert(T != nullptr);
 
   // Obtain the link register used to call this function
   GlobalVariable *LinkRegister = TheCache->getLinkRegister(Entry);
@@ -91,8 +91,8 @@ void Analysis::initialize() {
   LinkRegisterIndex = Indices[1];
   SPIndex = Indices[2];
 
-  assert(PCIndex != -1
-         && ((LinkRegisterIndex == -1) ^ (LinkRegister != nullptr)));
+  revng_assert(PCIndex != -1
+               && ((LinkRegisterIndex == -1) ^ (LinkRegister != nullptr)));
 
   // Set the stack pointer to SP0+0
   ASSlot StackPointer = ASSlot::create(ASID::cpuID(), SPIndex);
@@ -159,7 +159,7 @@ public:
 
       int32_t Index;
       Index = getCPUIndex<1>(M, { { static_cast<const User *>(CSV) } })[0];
-      assert(Index != -1);
+      revng_assert(Index != -1);
       return Value::fromSlot(ASID::cpuID(), Index);
 
     } else if (auto *CSV = dyn_cast<GlobalVariable>(V)) {
@@ -167,7 +167,7 @@ public:
       int32_t Index;
       Index = getCPUIndex<1>(CSV->getParent(),
                              { { static_cast<const User *>(CSV) } })[0];
-      assert(Index != -1);
+      revng_assert(Index != -1);
       return Value::fromSlot(ASID::cpuID(), Index);
 
     } else if (auto *C = dyn_cast<Constant>(V)) {
@@ -192,12 +192,12 @@ public:
     else if (VariableContentIt != VariableContent.end())
       return VariableContentIt->second;
     else
-      abort();
+      revng_abort();
   }
 
   /// \brief Register the value of instruction \p I
   void set(Instruction *I, Value V) {
-    assert(I != nullptr);
+    revng_assert(I != nullptr);
     revng_assert(I->getParent() == BB,
                  "Instruction from an unexpected basic block");
     revng_assert(InstructionContent.count(I) == 0,
@@ -229,7 +229,7 @@ public:
     case Instruction::ZExt:
     case Instruction::SExt:
     case Instruction::Trunc:
-      assert(I->getNumOperands() == 1);
+      revng_assert(I->getNumOperands() == 1);
       set(I, get(I->getOperand(0)));
       break;
 
@@ -247,7 +247,7 @@ public:
       Instruction *I = P.first;
       Value &NewValue = P.second;
 
-      assert(I->getParent() == BB);
+      revng_assert(I->getParent() == BB);
 
       if (I->isUsedOutsideOfBlock(BB)) {
         bool Changed = false;
@@ -287,7 +287,7 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
 
   // Create a copy of the initial state associated to this basic block
   auto It = State.find(BB);
-  assert(It != State.end());
+  revng_assert(It != State.end());
   Element Result = It->second.copy();
 
   SaBBLog << "Analyzing " << getName(BB) << DoLog;
@@ -371,7 +371,7 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
         if (GCBI->pcRegSize() == 4) {
           SignificantPCBits = std::numeric_limits<uint32_t>::max();
         } else {
-          assert(GCBI->pcRegSize() == 8);
+          revng_assert(GCBI->pcRegSize() == 8);
           SignificantPCBits = std::numeric_limits<uint64_t>::max();
         }
         uint64_t AlignmentMask = GCBI->instructionAlignment() - 1;
@@ -414,11 +414,11 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
       FunctionCall Indirect(nullptr, &I);
 
       const llvm::Function *Callee = getCallee(&I);
-      assert(Callee != nullptr);
+      revng_assert(Callee != nullptr);
       // We should have function calls to helpers, markers, abort or
       // intrinsics. Assert in other cases.
-      assert(isCallToHelper(&I) || isMarker(&I) || Callee->getName() == "abort"
-             || Callee->isIntrinsic());
+      revng_assert(isCallToHelper(&I) || isMarker(&I)
+                   || Callee->getName() == "abort" || Callee->isIntrinsic());
 
       if (isCallToHelper(&I)) {
 
@@ -494,10 +494,10 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
       break;
     }
 
-    assert(Result.verify());
+    revng_assert(Result.verify());
   }
 
-  abort();
+  revng_abort();
 }
 
 Interrupt Analysis::handleTerminator(TerminatorInst *T,
@@ -505,7 +505,7 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
                                      ABIIRBasicBlock &ABIBB) {
   namespace BT = BranchType;
 
-  assert(not isa<UnreachableInst>(T));
+  revng_assert(not isa<UnreachableInst>(T));
 
   LogOnReturn<> X(SaTerminator);
   SaTerminator << T;
@@ -799,12 +799,12 @@ Interrupt Analysis::handleCall(Instruction *Caller,
   IFS EmptyCallSummary = IFS::bottom();
   const IFS *CallSummary = &EmptyCallSummary;
 
-  assert(not(IsRecursive && IsIndirect));
+  revng_assert(not(IsRecursive && IsIndirect));
 
   // Is it an direct function call?
   if (not IsIndirect) {
     // We have a direct call
-    assert(Callee != nullptr);
+    revng_assert(Callee != nullptr);
 
     // It's a direct function call, lookup the <Callee, Context> pair in the
     // cache
@@ -844,7 +844,7 @@ Interrupt Analysis::handleCall(Instruction *Caller,
       CallSummary = *CacheEntry;
     } else {
       // Ensure we don't get a cache miss twice in a row
-      assert(not CacheMustHit);
+      revng_assert(not CacheMustHit);
 
       // Next time the cache will have to hit
       CacheMustHit = true;
@@ -903,13 +903,13 @@ Interrupt Analysis::handleCall(Instruction *Caller,
   ASSlot ReturnAddressSlot = ASSlot::create(ASID::globalID(), ReturnAddress);
   Result.store(PC, Value::fromSlot(ReturnAddressSlot));
 
-  assert(not(IsIndirectTailCall and IsKiller));
+  revng_assert(not(IsIndirectTailCall and IsKiller));
   if (IsIndirectTailCall) {
     return AI::create(std::move(Result), BT::IndirectTailCall);
   } else if (IsKiller) {
     return AI::create(std::move(Result), BT::Killer);
   } else {
-    assert(ReturnFromCall != nullptr);
+    revng_assert(ReturnFromCall != nullptr);
     auto Reason = IsIndirect ? BT::IndirectCall : BT::HandledCall;
     return AI::createWithSuccessor(std::move(Result), Reason, ReturnFromCall);
   }

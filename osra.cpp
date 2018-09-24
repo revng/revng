@@ -178,7 +178,7 @@ public:
   void setSignedness(BasicBlock *BB, const Value *V, bool IsSigned) {
     auto Index = std::make_pair(BB, V);
     auto MapIt = TheMap.find(Index);
-    assert(MapIt != TheMap.end());
+    revng_assert(MapIt != TheMap.end());
 
     MapValue &BVOVector = MapIt->second;
     BVOVector.Summary.setSignedness(IsSigned);
@@ -499,7 +499,7 @@ void OSRA::handleArithmeticOperator(Instruction *I) {
 
   // Check we're not depending on ourselves, if we are leave us as a free value
   if (NewOSR.isRelativeTo(I)) {
-    assert(IsFree);
+    revng_assert(IsFree);
     return;
   }
 
@@ -632,8 +632,7 @@ BoundedValue OSRA::mergePredicate(OSR &BaseOp, Predicate P, Constant *ConstOp) {
       return BoundedValue::createNegatedConstant(V, NewBound);
 
   default:
-    llvm_unreachable("Unexpected comparison operator");
-    break;
+    revng_unreachable("Unexpected comparison operator");
   }
 }
 
@@ -805,7 +804,7 @@ void OSRA::handleComparison(Instruction *I) {
   // First of all handle comparisons for equality (or inequality) with 0 of
   // values with one or more constraints associated (e.g., (x < 3) == 0).
   if (P == CmpInst::ICMP_EQ || P == CmpInst::ICMP_NE) {
-    assert(Constraints.count(nullptr) == 0);
+    revng_assert(Constraints.count(nullptr) == 0);
 
     bool LHSIsZero = isa<Constant>(SC.LHS) && getLimitedValue(SC.LHS) == 0;
     Instruction *LHSInst = dyn_cast<Instruction>(SC.LHS);
@@ -892,7 +891,7 @@ void OSRA::handleComparison(Instruction *I) {
       if (LHSPair.second != nullptr) {
         T = LHSPair.second->getType();
       } else {
-        assert(RHSPair.second != nullptr);
+        revng_assert(RHSPair.second != nullptr);
         T = RHSPair.second->getType();
       }
 
@@ -1093,7 +1092,7 @@ void OSRA::handleBranch(Instruction *I) {
           // In case of load we don't need to propagate
           break;
         default:
-          assert(isa<TerminatorInst>(I) && "Unexpected instruction");
+          revng_assert(isa<TerminatorInst>(I), "Unexpected instruction");
           AffectedSet.insert(I->getParent());
           for (const BasicBlock *Successor : successors(I->getParent()))
             AffectedSet.insert(Successor);
@@ -1152,7 +1151,7 @@ void OSRA::handleBranch(Instruction *I) {
   while (!ConstraintsWL.empty()) {
     auto Entry = ConstraintsWL.back();
     ConstraintsWL.pop_back();
-    assert(BlockBlackList.find(Entry.Target) == BlockBlackList.end());
+    revng_assert(BlockBlackList.find(Entry.Target) == BlockBlackList.end());
 
     // Merge each changed bound with the existing one
     for (auto ConstraintIt = Entry.Constraints.begin();
@@ -1305,7 +1304,7 @@ void OSRA::handleMemoryOperation(Instruction *I) {
 
   auto &ReachedLoads = RDP.getReachedLoads(I);
   for (LoadInst *ReachedLoad : ReachedLoads) {
-    assert(ReachedLoad != I);
+    revng_assert(ReachedLoad != I);
 
     // OSR propagation first
 
@@ -1430,7 +1429,7 @@ uint64_t BoundedValue::performOp(uint64_t Op1,
                                  unsigned Opcode,
                                  uint64_t Op2,
                                  const DataLayout &DL) const {
-  assert(Value != nullptr);
+  revng_assert(Value != nullptr);
 
   // Obtain the type
   IntegerType *Ty = dyn_cast<IntegerType>(Value->getType());
@@ -1493,7 +1492,7 @@ bool OSR::combine(unsigned Opcode,
   // Handle the only case of non-commutative operation with first operand
   // constant that we handle: subtraction
   if (!I::isCommutative(Opcode) && FreeOpIndex != 0) {
-    assert(Opcode == I::Sub);
+    revng_assert(Opcode == I::Sub);
     // c - x
     // x = a + b * y
     // (c - a) + (-b) * y
@@ -1809,7 +1808,7 @@ std::pair<Constant *, Value *>
 OSRAPass::identifyOperands(std::map<const Value *, const OSR> &OSRs,
                            const Instruction *I,
                            const DataLayout &DL) {
-  assert(I->getNumOperands() == 2);
+  revng_assert(I->getNumOperands() == 2);
   Value *FirstOp = I->getOperand(0);
   Value *SecondOp = I->getOperand(1);
   Constant *Constants[2] = { dyn_cast<Constant>(FirstOp),
@@ -1870,8 +1869,8 @@ bool OSRA::updateLoadReacher(LoadInst *Load, Instruction *I, OSR NewOSR) {
         return false;
       } else {
         const Value *ReacherValue = ReacherIt->second.boundedValue()->value();
-        assert(!(Reachers.size() > 1 && ReacherValue == Load
-                 && ReacherValue != NewOSR.boundedValue()->value()));
+        revng_assert(!(Reachers.size() > 1 && ReacherValue == Load
+                       && ReacherValue != NewOSR.boundedValue()->value()));
         *ReacherIt = make_pair(I, NewOSR);
         return true;
       }
@@ -1940,7 +1939,7 @@ bool OSRA::isDead(Instruction *I) const {
 
 void OSRA::mergeLoadReacher(LoadInst *Load) {
   auto &Reachers = LoadReachers[Load];
-  assert(Reachers.size() > 0);
+  revng_assert(Reachers.size() > 0);
 
   OSRs.erase(Load);
 
@@ -2057,7 +2056,7 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
             << getName(P.first) << " (relative to "
             << getName(P.second.boundedValue()->value()) << ")\n";);
   }
-  assert(Reachers.size() > 0);
+  revng_assert(Reachers.size() > 0);
 
   struct State {
     BasicBlock *BB;
@@ -2272,7 +2271,7 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
     dbg << "\n";
   });
 
-  assert(!FinalBV.isUninitialized());
+  revng_assert(!FinalBV.isUninitialized());
   return FinalBV;
 }
 
@@ -2452,7 +2451,7 @@ void BoundedValue::setSignedness(bool IsSigned) {
 
   Signedness NewSign = IsSigned ? Signed : Unsigned;
   if (Sign == UnknownSignedness) {
-    assert(Bounds.size() == 0);
+    revng_assert(Bounds.size() == 0);
     Sign = NewSign;
 
     if (IsSigned) {
@@ -2480,7 +2479,7 @@ class BoundedValueHelpers {
 public:
   template<typename T>
   static boost::icl::interval_set<T> getInterval(const BoundedValue &BV) {
-    assert(!BV.isBottom());
+    revng_assert(!BV.isBottom());
 
     using interval_set = boost::icl::interval_set<T>;
     using interval = boost::icl::interval<T>;
@@ -2527,20 +2526,21 @@ public:
     } else {
       using BV = BoundedValue;
       Result.Sign = Base.isSigned() ? BV::Signed : BV::Unsigned;
-      assert(Result.Bounds.size() == 0 || Result.Bounds.size() == 1);
+      revng_assert(Result.Bounds.size() == 0 || Result.Bounds.size() == 1);
       Result.Bounds.clear();
       for (auto Interval : Intervals) {
-        assert(Interval.bounds().bits() == interval_bounds::static_closed);
+        const auto static_closed = interval_bounds::static_closed;
+        revng_assert(Interval.bounds().bits() == static_closed);
         Result.Bounds.emplace_back(static_cast<uint64_t>(Interval.lower()),
                                    static_cast<uint64_t>(Interval.upper()));
 
         for (auto &Pair : Result.Bounds) {
           if (&Pair != &Result.Bounds.back()) {
-            assert(Pair != Result.Bounds.back());
+            revng_assert(Pair != Result.Bounds.back());
           }
         }
       }
-      assert(Result.Bounds.size() != 0);
+      revng_assert(Result.Bounds.size() != 0);
     }
 
     return Result;
@@ -2617,7 +2617,7 @@ bool BoundedValue::merge(BoundedValue Other,
     if (Sign == AnySignedness) {
       Sign = Other.Sign;
     } else {
-      assert(hasSignedness());
+      revng_assert(hasSignedness());
       Other.setSignedness(Sign == Signed);
     }
   } else {
@@ -2648,8 +2648,8 @@ bool BoundedValue::merge(BoundedValue Other,
 }
 
 bool BoundedValue::slowCompare(const BoundedValue &Other) const {
-  assert(hasSignedness() && Other.hasSignedness());
-  assert(Sign == Other.Sign);
+  revng_assert(hasSignedness() && Other.hasSignedness());
+  revng_assert(Sign == Other.Sign);
 
   using H = BoundedValueHelpers;
   if (isSigned())
@@ -2659,7 +2659,7 @@ bool BoundedValue::slowCompare(const BoundedValue &Other) const {
 }
 
 BoundedValue::BoundsVector BoundedValue::bounds() const {
-  assert(hasSignedness());
+  revng_assert(hasSignedness());
 
   BoundsVector Result;
   using H = BoundedValueHelpers;

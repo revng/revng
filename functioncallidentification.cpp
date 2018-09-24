@@ -47,7 +47,7 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
     FunctionCall->setLinkage(GlobalValue::InternalLinkage);
     auto *EntryBB = BasicBlock::Create(C, "", FunctionCall);
     ReturnInst::Create(C, EntryBB);
-    assert(FunctionCall->user_begin() == FunctionCall->user_end());
+    revng_assert(FunctionCall->user_begin() == FunctionCall->user_end());
   }
 
   // Collect function calls
@@ -98,11 +98,11 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
           } else if (auto *Constant = dyn_cast<ConstantInt>(V)) {
             // Note that we willingly ignore stores to the PC here
             if (Constant->getLimitedValue() == ReturnPC) {
-              assert(!SaveRAFound);
+              revng_assert(!SaveRAFound);
               SaveRAFound = true;
 
               // Find where the return address is being stored
-              assert(LinkRegister == nullptr);
+              revng_assert(LinkRegister == nullptr);
               if (TargetCSV != nullptr) {
                 // The return address is being written to a register
                 LinkRegister = TargetCSV;
@@ -132,8 +132,8 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
                     }
                   }
                 }
-                assert(LastStackPointer != nullptr);
-                assert(skipCasts(LastStackPointer) == skipCasts(Pointer));
+                revng_assert(LastStackPointer != nullptr);
+                revng_assert(skipCasts(LastStackPointer) == skipCasts(Pointer));
 
                 // If LinkRegister is nullptr it means the return address is
                 // being pushed on the top of the stack
@@ -144,7 +144,7 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
         } else if (auto *Call = dyn_cast<CallInst>(&I)) {
           auto *Callee = Call->getCalledFunction();
           if (Callee != nullptr && Callee->getName() == "newpc") {
-            assert(NewPCLeft > 0);
+            revng_assert(NewPCLeft > 0);
 
             uint64_t ProgramCounter = getLimitedValue(Call->getOperand(0));
             uint64_t InstructionSize = getLimitedValue(Call->getOperand(1));
@@ -198,11 +198,11 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
           if (!GCBI.isJumpTarget(Successor)) {
             // There should be only one non-jump target successor (i.e., anypc
             // or unepxectedpc).
-            assert(!Found);
+            revng_assert(!Found);
             Found = true;
           }
         }
-        assert(Found);
+        revng_assert(Found);
 
         // It's an indirect call
         Callee = ConstantPointerNull::get(Int8PtrTy);

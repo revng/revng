@@ -55,7 +55,7 @@ private:
     Call(Call),
     ABI(new FunctionABI(std::move(ABI))),
     WrittenStackSlots(std::move(WrittenStackSlots)) {
-    assert(O == DirectCall);
+    revng_assert(O == DirectCall);
   }
 
   ABIIRInstruction(Opcode O, ASSlot Target) :
@@ -63,7 +63,7 @@ private:
     Target(Target),
     ABI(),
     WrittenStackSlots() {
-    assert(O == Load || O == Store);
+    revng_assert(O == Load || O == Store);
   }
 
   ABIIRInstruction(Opcode O, FunctionCall Call) :
@@ -72,7 +72,7 @@ private:
     Call(Call),
     ABI(),
     WrittenStackSlots() {
-    assert(O == IndirectCall);
+    revng_assert(O == IndirectCall);
   }
 
 public:
@@ -106,23 +106,23 @@ public:
   bool isStore() const { return O == Store; }
 
   const ASSlot target() const {
-    assert(O == Load || O == Store);
+    revng_assert(O == Load || O == Store);
     return Target;
   }
 
   const FunctionABI &abi() const {
-    assert(O == DirectCall);
+    revng_assert(O == DirectCall);
     return *ABI;
   }
 
   const std::set<int32_t> &stackArguments() const {
-    assert(O == DirectCall);
+    revng_assert(O == DirectCall);
     return WrittenStackSlots;
   }
 
   FunctionCall call() const {
-    assert(isCall());
-    assert(Call.callInstruction() != nullptr);
+    revng_assert(isCall());
+    revng_assert(Call.callInstruction() != nullptr);
     return Call;
   }
 
@@ -200,7 +200,7 @@ public:
 public:
   /// \brief Purge basic block content
   void clear() {
-    assert(Predecessors.empty());
+    revng_assert(Predecessors.empty());
     Instructions.clear();
     Successors.clear();
     IsReturn = false;
@@ -366,7 +366,7 @@ public:
 
   const ABIIRBasicBlock &get(llvm::BasicBlock *BB) const {
     auto It = BBMap.find(BB);
-    assert(It != BBMap.end());
+    revng_assert(It != BBMap.end());
     return It->second;
   }
 

@@ -73,7 +73,7 @@ getCPUIndex(const llvm::Module *M, std::array<const llvm::User *, N> Search) {
     int32_t J = 0;
     for (const llvm::User *U : Search) {
       if (U == &GV) {
-        assert(Result[J] == -1);
+        revng_assert(Result[J] == -1);
         Result[J] = I;
         break;
       }
@@ -91,7 +91,7 @@ getCPUIndex(const llvm::Module *M, std::array<const llvm::User *, N> Search) {
     int32_t J = 0;
     for (const llvm::User *U : Search) {
       if (U == &*It) {
-        assert(Result[J] == -1);
+        revng_assert(Result[J] == -1);
         Result[J] = I;
         break;
       }
@@ -169,10 +169,10 @@ public:
   static Interrupt createWithSuccessor(Element Result,
                                        BranchType::Values Type,
                                        llvm::BasicBlock *Successor) {
-    assert(Type == BranchType::FakeFunctionCall
-           || Type == BranchType::HandledCall
-           || Type == BranchType::IndirectCall
-           || Type == BranchType::FakeFunctionReturn);
+    revng_assert(Type == BranchType::FakeFunctionCall
+                 || Type == BranchType::HandledCall
+                 || Type == BranchType::IndirectCall
+                 || Type == BranchType::FakeFunctionReturn);
 
     return Interrupt(std::move(Result), Type, { Successor });
   }
@@ -180,18 +180,18 @@ public:
   static Interrupt createWithSuccessors(Element Result,
                                         BranchType::Values Type,
                                         vector Successors) {
-    assert(Type == BranchType::InstructionLocalCFG
-           || Type == BranchType::FunctionLocalCFG);
-    assert(Successors.size() > 0);
+    revng_assert(Type == BranchType::InstructionLocalCFG
+                 || Type == BranchType::FunctionLocalCFG);
+    revng_assert(Successors.size() > 0);
 
     return Interrupt(std::move(Result), Type, Successors);
   }
 
   static Interrupt create(Element Result, BranchType::Values Type) {
-    assert(Type == BranchType::Return || Type == BranchType::IndirectTailCall
-           || Type == BranchType::FakeFunction || Type == BranchType::LongJmp
-           || Type == BranchType::Killer || Type == BranchType::Unreachable
-           || Type == BranchType::NoReturnFunction);
+    using namespace BranchType;
+    revng_assert(Type == Return || Type == IndirectTailCall
+                 || Type == FakeFunction || Type == LongJmp || Type == Killer
+                 || Type == Unreachable || Type == NoReturnFunction);
 
     return Interrupt(std::move(Result), Type);
   }
@@ -237,10 +237,10 @@ public:
     case BranchType::FunctionSummary:
     case BranchType::NoReturnFunction:
     case BranchType::IndirectTailCallFunction:
-      abort();
+      revng_abort();
     }
 
-    abort();
+    revng_abort();
   }
 
   /// \brief Is this a regular function terminator?
@@ -274,10 +274,10 @@ public:
     case BranchType::FunctionSummary:
     case BranchType::NoReturnFunction:
     case BranchType::IndirectTailCallFunction:
-      abort();
+      revng_abort();
     }
 
-    abort();
+    revng_abort();
   }
 
   BranchType::Values type() const { return Type; }
@@ -305,40 +305,40 @@ public:
     case BranchType::Unreachable:
       return false;
     case BranchType::Invalid:
-      abort();
+      revng_abort();
     }
 
-    abort();
+    revng_abort();
   }
 
   Element &&extractResult() {
-    assert(Type != BranchType::FunctionSummary
-           and Type != BranchType::UnhandledCall);
+    revng_assert(Type != BranchType::FunctionSummary
+                 and Type != BranchType::UnhandledCall);
 
-    assert(not ResultExtracted);
+    revng_assert(not ResultExtracted);
     ResultExtracted = true;
     return std::move(Result);
   }
 
   llvm::BasicBlock *getCallee() const {
-    assert(Type == BranchType::UnhandledCall);
-    assert(RelatedBasicBlocks.size() == 1);
+    revng_assert(Type == BranchType::UnhandledCall);
+    revng_assert(RelatedBasicBlocks.size() == 1);
     return RelatedBasicBlocks[0];
   }
 
   const IntraproceduralFunctionSummary &getFunctionSummary() {
     // TODO: is it OK for fake functions to have summaries?
-    assert(Type == BranchType::FunctionSummary
-           || Type == BranchType::FakeFunction
-           || Type == BranchType::NoReturnFunction
-           || Type == BranchType::IndirectTailCallFunction);
+    revng_assert(Type == BranchType::FunctionSummary
+                 || Type == BranchType::FakeFunction
+                 || Type == BranchType::NoReturnFunction
+                 || Type == BranchType::IndirectTailCallFunction);
     return Summary;
   }
 
   const_iterator begin() { return RelatedBasicBlocks.begin(); }
   const_iterator end() { return RelatedBasicBlocks.end(); }
   size_t size() const {
-    assert(hasSuccessors());
+    revng_assert(hasSuccessors());
     return RelatedBasicBlocks.size();
   }
 
@@ -381,7 +381,7 @@ public:
     case BranchType::Invalid:
     case BranchType::IndirectTailCallFunction:
     case BranchType::Unreachable:
-      abort();
+      revng_abort();
     }
   }
 };
