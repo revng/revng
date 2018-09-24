@@ -68,8 +68,7 @@ inline void testFunction() {
   Label Entry;
   Analysis Example(&Entry);
   Example.initialize();
-  Interrupt Result = Example.run();
-  (void) Result;
+  Example.run();
 }
 
 } // namespace ExampleAnalysis

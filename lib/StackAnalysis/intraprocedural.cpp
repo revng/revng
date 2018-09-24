@@ -68,11 +68,7 @@ void Analysis::initialize() {
 
   DBG("sa", { dbg << "Creating Analysis for " << getName(Entry) << "\n"; });
 
-  CSVCount = 0;
-  for (const GlobalVariable &Ignore : M->globals()) {
-    (void) Ignore;
-    CSVCount++;
-  }
+  CSVCount = std::distance(M->globals().begin(), M->globals().end());
 
   TerminatorInst *T = Entry->getTerminator();
   revng_assert(T != nullptr);
