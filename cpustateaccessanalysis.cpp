@@ -1823,17 +1823,15 @@ CPUSAOA::getOffsetsOrExploreSrc(Value *V, WorkItem &Item, bool IsLoad) const {
         CSVAccessLog << "NOT-GLOBAL" << DoLog;
         return CSVOffsets(CSVOffsets::Kind::Unknown);
       }
-    } break;
-    case Instruction::Alloca: {
+    }
+    case Instruction::Alloca:
       CSVAccessLog << "ALLOCA" << DoLog;
       return CSVOffsets(CSVOffsets::Kind::Unknown);
-    } break;
     case Instruction::Or:
     case Instruction::And:
-    case Instruction::ICmp: {
+    case Instruction::ICmp:
       CSVAccessLog << "CMP" << DoLog;
       return CSVOffsets(CSVOffsets::Kind::Unknown);
-    } break;
     case Instruction::Store:
       revng_abort();
     default:
