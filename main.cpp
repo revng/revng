@@ -68,7 +68,8 @@ struct ProgramParameters {
 // std::intgral_constant<decltype(&dlclose), &dlclose >, which has an implicit
 // conversion operator to value_type, which unwraps the &dlclose from the
 // std::integral_constant, making it callable.
-using LibraryDestructor = std::integral_constant<decltype(&dlclose), &dlclose>;
+using LibraryDestructor = std::integral_constant<int (*)(void *) noexcept,
+                                                 &dlclose>;
 using LibraryPointer = std::unique_ptr<void, LibraryDestructor>;
 
 static const char *const Usage[] = {
