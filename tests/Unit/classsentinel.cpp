@@ -5,15 +5,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
-
 // Boost includes
 #define BOOST_TEST_MODULE StackAnalysis
 bool init_unit_test();
 #include <boost/test/unit_test.hpp>
 
-// Local includes
-#include "classsentinel.h"
+// Local libraries includes
+#include "revng/Support/ClassSentinel.h"
 
 struct TestClass {
   ClassSentinel Sentinel;

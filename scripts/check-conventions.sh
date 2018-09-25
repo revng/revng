@@ -60,7 +60,7 @@ fi
     done
 
     # Things should never match (except in support.c)
-    FILTERED_FILES="$(echo $FILES | sed 's|\bsupport\.c\b||g; s|\brevng-assert\.cpp\b||g;')"
+    FILTERED_FILES="$(echo $FILES | sed 's|\bruntime/support\.c\b||g; s|\blib/Support/Assert\.cpp\b||g;')"
     for REGEXP in '\babort(' '\bassert(' 'assert(false' 'llvm_unreachable'; do
         $GREP "$REGEXP" $FILTERED_FILES | cat
     done

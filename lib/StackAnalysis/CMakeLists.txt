@@ -11,7 +11,7 @@ execute_process(COMMAND python -c "import pygraphviz"
 if(NOT HAS_PYGRAPHVIZ EQUAL "0")
   # Don't drop the whitespaces
   message(FATAL_ERROR "  
-  Cannot find the pygraphviz module: abidataflows.h cannot be generated.
+  Cannot find the pygraphviz module: ABIDataFlows.h cannot be generated.
   Please try one of the following commands:
   
   Debian/Ubuntu:
@@ -30,26 +30,33 @@ endif()
 
 # Generate classes for the ABI data flow analyses
 set(ABIDATAFLOWS_SOURCES
-  "${CMAKE_CURRENT_SOURCE_DIR}/abidataflows-header.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/abidataflows-footer.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/dead-register-arguments-of-function.dot"
-  "${CMAKE_CURRENT_SOURCE_DIR}/dead-return-values-of-function-call.dot"
-  "${CMAKE_CURRENT_SOURCE_DIR}/register-arguments-of-function-call.dot"
-  "${CMAKE_CURRENT_SOURCE_DIR}/used-arguments-of-function.dot"
-  "${CMAKE_CURRENT_SOURCE_DIR}/used-return-values-of-function-call.dot"
-  "${CMAKE_CURRENT_SOURCE_DIR}/used-return-values-of-function.dot")
-add_custom_command(OUTPUT abidataflows.h
+  "${CMAKE_CURRENT_SOURCE_DIR}/ABIDataFlows-header.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/ABIDataFlows-footer.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/DeadRegisterArgumentsOfFunction.dot"
+  "${CMAKE_CURRENT_SOURCE_DIR}/DeadReturnValuesOfFunctionCall.dot"
+  "${CMAKE_CURRENT_SOURCE_DIR}/RegisterArgumentsOfFunctionCall.dot"
+  "${CMAKE_CURRENT_SOURCE_DIR}/UsedArgumentsOfFunction.dot"
+  "${CMAKE_CURRENT_SOURCE_DIR}/UsedReturnValuesOfFunctionCall.dot"
+  "${CMAKE_CURRENT_SOURCE_DIR}/UsedReturnValuesOfFunction.dot")
+add_custom_command(OUTPUT ABIDataFlows.h
   COMMAND "${CMAKE_SOURCE_DIR}/scripts/monotone-framework.py"
-    --call-arcs ${ABIDATAFLOWS_SOURCES} > abidataflows.h
+    --call-arcs ${ABIDATAFLOWS_SOURCES} > ABIDataFlows.h
   DEPENDS "${CMAKE_SOURCE_DIR}/scripts/monotone-framework.py"
            ${ABIDATAFLOWS_SOURCES}
   VERBATIM)
-add_custom_target(abidataflows DEPENDS abidataflows.h)
+add_custom_target(abidataflows DEPENDS ABIDataFlows.h)
 
-add_library(StackAnalysis STATIC
-  stackanalysis.cpp functionssummary.cpp intraprocedural.cpp interprocedural.cpp
-  element.cpp functionabi.cpp cache.cpp abiir.cpp incoherentcallsanalysis.cpp
-  monotoneframeworkexample.cpp)
+add_library(StackAnalysis
+  ABIIR.cpp
+  Cache.cpp
+  Element.cpp
+  FunctionABI.cpp
+  FunctionsSummary.cpp
+  IncoherentCallsAnalysis.cpp
+  InterproceduralAnalysis.cpp
+  Intraprocedural.cpp
+  StackAnalysis.cpp)
+target_link_libraries(StackAnalysis Support)
 target_include_directories(StackAnalysis
   PRIVATE
   "${CMAKE_CURRENT_BINARY_DIR}")
