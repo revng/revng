@@ -63,7 +63,7 @@ public:
   const std::vector<JumpInfo> &jumps() const { return Jumps; }
 
   virtual void releaseMemory() override {
-    DBG("release", { dbg << "SETPass is releasing memory\n"; });
+    revng_log(ReleaseLog, "SETPass is releasing memory");
     freeContainer(Jumps);
   }
 

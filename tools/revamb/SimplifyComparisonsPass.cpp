@@ -30,6 +30,7 @@ using namespace llvm;
 char SimplifyComparisonsPass::ID = 0;
 using RegisterSCP = RegisterPass<SimplifyComparisonsPass>;
 static RegisterSCP X("scp", "Simplify Comparisons Pass", true, true);
+static Logger<> SCLog("sc");
 
 using std::array;
 using std::pair;
@@ -263,10 +264,10 @@ static Predicate getEquivalentPredicate(SimplifyComparisonsPass *SCP,
     if (Start.getOperand(0)->evaluate(Assignment))
       TruthTable |= 1 << Assignment;
 
-  DBG("sc",
-      dbg << "Found truth table "
-          << "0b" << std::bitset<8 * sizeof(unsigned)>(TruthTable) << " at "
-          << Cmp->getParent()->getName().data() << "\n");
+  revng_log(SCLog,
+            "Found truth table 0b"
+              << std::bitset<8 * sizeof(unsigned)>(TruthTable) << " at "
+              << Cmp->getParent()->getName().data());
 
   // Compare with known truth tables
   for (auto &P : KnownTruthTables)

@@ -84,7 +84,7 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
   // Setup logger: each time we start a new intraprocedural analysis we indent
   // the output
   SaInterpLog.setIndentation(0);
-  SaInterpLog << "Running interprocedural analysis on " << Entry << DoLog;
+  revng_log(SaInterpLog, "Running interprocedural analysis on " << Entry);
 
   // Push the request function in the worklist
   push(Entry);
@@ -100,9 +100,10 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
     Analysis &Current = InProgress.back();
 
     SaInterpLog.setIndentation(InProgress.size());
-    SaInterpLog << "Analyzing function " << Current.entry()
-                << " (size: " << Current.size()
-                << " BBs, MustHit: " << Current.cacheMustHit() << ")" << DoLog;
+    revng_log(SaInterpLog,
+              "Analyzing function "
+                << Current.entry() << " (size: " << Current.size()
+                << " BBs, MustHit: " << Current.cacheMustHit() << ")");
     SaInterpLog.indent();
 
     time_point Begin = std::chrono::steady_clock::now();
@@ -118,7 +119,7 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
 
     switch (Result.type()) {
     case BranchType::FakeFunction:
-      SaInterpLog << Current.entry() << " is fake" << DoLog;
+      revng_log(SaInterpLog, Current.entry() << " is fake");
 
       // It's a fake function, mark it as so and resume from the caller
       TheCache.markAsFake(Current.entry());
@@ -143,15 +144,17 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
       BasicBlock *Callee = Result.getCallee();
       revng_assert(Callee != nullptr);
 
-      SaInterpLog << Current.entry() << " performs an unhandled call to "
-                  << Callee << DoLog;
+      revng_log(SaInterpLog,
+                Current.entry() << " performs an unhandled call to " << Callee);
 
       // Is it recursive?
       if (getRecursionRoot(Callee) != nullptr) {
-        SaInterpLog << Callee << " is recursive. Call stack:";
-        for (const Analysis &WorkItem : InProgress)
-          SaInterpLog << " " << WorkItem.entry();
-        SaInterpLog << DoLog;
+        if (SaInterpLog.isEnabled()) {
+          SaInterpLog << Callee << " is recursive. Call stack:";
+          for (const Analysis &WorkItem : InProgress)
+            SaInterpLog << " " << WorkItem.entry();
+          SaInterpLog << DoLog;
+        }
 
         // We now have to inject in the cache a temporary entry.
         TheCache.update(Callee, IFS::bottom());
@@ -177,7 +180,7 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
     case BranchType::FunctionSummary: {
       const IFS &Summary = Result.getFunctionSummary();
 
-      SaInterpLog << "We have a summary for " << Current.entry() << DoLog;
+      revng_log(SaInterpLog, "We have a summary for " << Current.entry());
 
       bool MustReanalyze = false;
 
@@ -186,8 +189,8 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
       if (Offending.size() != 0) {
         // If so, mark the called function as fake and re-analyze the caller
         for (BasicBlock *Entry : Offending) {
-          SaInterpLog << Entry << " leads to contradiction,"
-                      << " marking it as fake" << DoLog;
+          revng_log(SaInterpLog,
+                    Entry << " leads to contradiction, marking it as fake");
 
           revng_assert(Current.entry() != Entry);
           TheCache.markAsFake(Entry);
@@ -209,13 +212,13 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
         revng_assert(TheCache.get(Current.entry()));
       }
 
-      DBG("sa", {
-        dbg << "FinalState for " << getName(Current.entry()) << "\n";
-        Summary.dump(getModule(Entry));
-      });
+      if (SaLog.isEnabled()) {
+        revng_log(SaLog, "FinalState for " << getName(Current.entry()));
+        Summary.dump(getModule(Entry), SaLog);
+      }
 
       if (MustReanalyze) {
-        SaInterpLog << "Something has changed, let's reanalyze" << DoLog;
+        revng_log(SaInterpLog, "Something has changed, let's reanalyze");
 
         // Go back to the root of the recursion, if any
         if (const auto *Root = getRecursionRoot(Current.entry()))
@@ -226,19 +229,19 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
 
       } else {
 
-        SaInterpLog << "No improvement over the last analysis, we're OK"
-                    << DoLog;
+        revng_log(SaInterpLog,
+                  "No improvement over the last analysis, we're OK");
 
         switch (Result.type()) {
         case BranchType::IndirectTailCallFunction:
-          SaInterpLog << Current.entry() << " ends with an indirect tail call"
-                      << DoLog;
+          revng_log(SaInterpLog,
+                    Current.entry() << " ends with an indirect tail call");
           TheCache.markAsIndirectTailCall(Current.entry());
           Type = FunctionType::IndirectTailCall;
           break;
 
         case BranchType::NoReturnFunction:
-          SaInterpLog << Current.entry() << " doesn't return" << DoLog;
+          revng_log(SaInterpLog, Current.entry() << " doesn't return");
           TheCache.markAsNoReturn(Current.entry());
           Type = FunctionType::NoReturn;
           break;

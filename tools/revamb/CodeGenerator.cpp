@@ -56,6 +56,8 @@ using namespace llvm;
 
 using std::make_pair;
 
+static Logger<> PTCLog("ptc");
+
 template<typename T, typename... Args>
 inline std::array<T, sizeof...(Args)> make_array(Args &&... args) {
   return { { std::forward<Args>(args)... } };
@@ -677,7 +679,11 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     SmallSet<unsigned, 1> ToIgnore;
     ToIgnore = Translator.preprocess(InstructionList.get());
 
-    DBG("ptc", dumpTranslation(dbg, InstructionList.get()));
+    if (PTCLog.isEnabled()) {
+      std::stringstream Stream;
+      dumpTranslation(Stream, InstructionList.get());
+      PTCLog << Stream.str() << DoLog;
+    }
 
     Variables.newFunction(Delimiter, InstructionList.get());
     unsigned j = 0;

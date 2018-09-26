@@ -5,6 +5,8 @@
 #include "Element.h"
 #include "FunctionABI.h"
 
+extern Logger<> SaLog;
+
 namespace StackAnalysis {
 
 namespace LocalSlotType {

@@ -98,12 +98,11 @@ static bool parseArgs(int Argc, const char *Argv[], ProgramParameters &Result) {
   Argc = argparse_parse(&Arguments, Argc, Argv);
 
   if (DebugLoggingString != nullptr) {
-    DebuggingEnabled = true;
     std::string Input(DebugLoggingString);
     std::stringstream Stream(Input);
     std::string Type;
     while (std::getline(Stream, Type, ','))
-      enableDebugFeature(Type.c_str());
+      Loggers->enable(Type.c_str());
   }
 
   if (Result.PrintStats)

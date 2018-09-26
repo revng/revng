@@ -15,6 +15,8 @@
 /// \brief Average number of slots tracked by an address space
 extern RunningStatistics AddressSpaceSizeStats;
 
+extern Logger<> SaVerboseLog;
+
 namespace StackAnalysis {
 
 namespace Intraprocedural {
@@ -348,14 +350,14 @@ public:
   /// \brief Update the element after a store of \p StoredValue has been
   ///        performed to \p Address
   void store(Value Address, Value StoredValue) {
-    DBG("sa-verbose", {
+    if (SaVerboseLog.isEnabled()) {
       // TODO: get module
-      dbg << "Storing ";
-      StoredValue.dump(nullptr);
-      dbg << " to ";
-      Address.dump(nullptr);
-      dbg << "\n";
-    });
+      SaVerboseLog << "Storing ";
+      StoredValue.dump(nullptr, SaVerboseLog);
+      SaVerboseLog << " to ";
+      Address.dump(nullptr, SaVerboseLog);
+      SaVerboseLog << DoLog;
+    }
 
     // Does target have a direct component?
     if (const ASSlot *AddressASO = Address.directContent()) {

@@ -2925,7 +2925,6 @@ bool CPUStateAccessAnalysis::run() {
 }
 
 bool CPUStateAccessAnalysisPass::runOnModule(Module &Mod) {
-  DBG("access-analysis-results", Mod.dump());
   CPUStateAccessAnalysis CSVAccessAnalysis(Mod, Variables);
   return CSVAccessAnalysis.run();
 }

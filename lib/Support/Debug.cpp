@@ -17,35 +17,14 @@
 // Local libraries includes
 #include "revng/Support/Debug.h"
 
-static size_t MaxLoggerNameLength = 0;
+size_t MaxLoggerNameLength = 0;
 LogTerminator DoLog;
 llvm::ManagedStatic<LoggersRegistry> Loggers;
 
-bool DebuggingEnabled = false;
 std::ostream &dbg(std::cerr);
-static std::vector<std::string> DebugFeatures;
 
-bool isDebugFeatureEnabled(std::string Name) {
-  return std::count(DebugFeatures.begin(), DebugFeatures.end(), Name) != 0;
-}
-
-void enableDebugFeature(std::string Name) {
-  if (!isDebugFeatureEnabled(Name))
-    DebugFeatures.push_back(Name);
-
-  Loggers->enable(Name);
-
-  if (Name.size() > MaxLoggerNameLength)
-    MaxLoggerNameLength = Name.size();
-}
-
-void disableDebugFeature(std::string Name) {
-  auto It = std::find(DebugFeatures.begin(), DebugFeatures.end(), Name);
-  if (It != DebugFeatures.end())
-    DebugFeatures.erase(It);
-
-  Loggers->disable(Name);
-}
+Logger<> PassesLog("passes");
+Logger<> ReleaseLog("release");
 
 template<bool X>
 void Logger<X>::emit() {

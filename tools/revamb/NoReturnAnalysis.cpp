@@ -22,6 +22,8 @@
 
 using namespace llvm;
 
+Logger<> NRALog("nra");
+
 void NoReturnAnalysis::registerSyscalls(llvm::Function *F) {
   // Look for calls to the syscall helper
   Module *M = F->getParent();
@@ -242,8 +244,7 @@ void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors) {
   // We no longer need the sink
   Sink->eraseFromParent();
 
-  DBG("nra", {
+  if (NRALog.isEnabled())
     for (BasicBlock *KillerBB : KillerBBs)
-      dbg << getName(KillerBB) << " is killer BB\n";
-  });
+      NRALog << getName(KillerBB) << " is killer BB" << DoLog;
 }

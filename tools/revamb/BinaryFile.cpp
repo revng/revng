@@ -35,6 +35,8 @@ using namespace llvm;
 
 using std::make_pair;
 
+static Logger<> EhFrameLog("ehframe");
+
 BinaryFile::BinaryFile(std::string FilePath,
                        bool UseSections,
                        uint64_t BaseAddress) :
@@ -823,7 +825,7 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
     uint32_t ID = EHFrameReader.readNextU32();
     if (ID == 0) {
       // This is a CIE
-      DBG("ehframe", dbg << "New CIE\n");
+      revng_log(EhFrameLog, "New CIE");
 
       // Ensure the version is the one we expect
       uint32_t Version = EHFrameReader.readNextU8();
@@ -877,8 +879,7 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
             Pointer Personality;
             Personality = EHFrameReader.readPointer(*PersonalityEncoding);
             uint64_t PersonalityPtr = getPointer<T>(Personality);
-            DBG("ehframe",
-                { dbg << "Personality function: " << PersonalityPtr << "\n"; });
+            revng_log(EhFrameLog, "Personality function: " << PersonalityPtr);
             // TODO: technically this is not a landing pad
             LandingPads.insert(PersonalityPtr);
             break;
@@ -919,7 +920,7 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
       // PCBegin
       auto PCBeginPointer = EHFrameReader.readPointer(*CIE.FDEPointerEncoding);
       uint64_t PCBegin = getPointer<T>(PCBeginPointer);
-      DBG("ehframe", dbg << "PCBegin: " << std::hex << PCBegin << "\n");
+      revng_log(EhFrameLog, "PCBegin: " << std::hex << PCBegin);
 
       // PCRange
       EHFrameReader.readPointer(*CIE.FDEPointerEncoding);
@@ -941,7 +942,7 @@ void BinaryFile::parseEHFrame(uint64_t EHFrameAddress,
 
 template<typename T>
 void BinaryFile::parseLSDA(uint64_t FDEStart, uint64_t LSDAAddress) {
-  DBG("ehframe", dbg << "LSDAAddress: " << std::hex << LSDAAddress << "\n");
+  revng_log(EhFrameLog, "LSDAAddress: " << std::hex << LSDAAddress);
 
   auto R = getAddressData(LSDAAddress);
   revng_assert(R, "LSDA not available in any segment");
@@ -958,8 +959,7 @@ void BinaryFile::parseLSDA(uint64_t FDEStart, uint64_t LSDAAddress) {
     LandingPadBase = FDEStart;
   }
 
-  DBG("ehframe",
-      dbg << "LandingPadBase: " << std::hex << LandingPadBase << "\n");
+  revng_log(EhFrameLog, "LandingPadBase: " << std::hex << LandingPadBase);
 
   uint32_t TypeTableEncoding = LSDAReader.readNextU8();
   if (TypeTableEncoding != dwarf::DW_EH_PE_omit)
@@ -985,10 +985,10 @@ void BinaryFile::parseLSDA(uint64_t FDEStart, uint64_t LSDAAddress) {
     LSDAReader.readULEB128();
 
     if (LandingPad != 0) {
-      DBG("ehframe", {
-        if (LandingPads.count(LandingPad) == 0)
-          dbg << "New landing pad found: " << std::hex << LandingPad << "\n";
-      });
+      if (EhFrameLog.isEnabled() and LandingPads.count(LandingPad) == 0) {
+        EhFrameLog << "New landing pad found: " << std::hex << LandingPad
+                   << DoLog;
+      }
       LandingPads.insert(LandingPad);
     }
   }

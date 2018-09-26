@@ -21,6 +21,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/raw_ostream.h"
 
 // Local libraries includes
 #include "revng/Support/Debug.h"
@@ -614,6 +615,22 @@ inline auto skip(unsigned ToSkip, C &&Container)
 template<class Container, class UnaryPredicate>
 inline void erase_if(Container &C, UnaryPredicate P) {
   C.erase(std::remove_if(C.begin(), C.end(), P), C.end());
+}
+
+inline std::string dumpToString(llvm::Value *V) {
+  std::string Result;
+  llvm::raw_string_ostream Stream(Result);
+  V->print(Stream, true);
+  Stream.str();
+  return Result;
+}
+
+inline std::string dumpToString(llvm::Module *M) {
+  std::string Result;
+  llvm::raw_string_ostream Stream(Result);
+  M->print(Stream, nullptr, false, true);
+  Stream.str();
+  return Result;
 }
 
 #endif // IRHELPERS_H

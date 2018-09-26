@@ -52,7 +52,7 @@ static RegisterPass<StackAnalysis<false>> Y("sab",
 template<bool AnalyzeABI>
 bool StackAnalysis<AnalyzeABI>::runOnFunction(Function &F) {
 
-  DBG("passes", { dbg << "Starting StackAnalysis\n"; });
+  revng_log(PassesLog, "Starting StackAnalysis");
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
   const Module *M = F.getParent();
@@ -131,7 +131,7 @@ bool StackAnalysis<AnalyzeABI>::runOnFunction(Function &F) {
   GrandResult.dump(M, Output);
   TextRepresentation = Output.str();
 
-  DBG("passes", { dbg << "Ending StackAnalysis\n"; });
+  revng_log(PassesLog, "Ending StackAnalysis");
 
   return false;
 }

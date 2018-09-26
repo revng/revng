@@ -46,6 +46,7 @@
 
 using namespace llvm;
 
+
 static bool isSumJump(StoreInst *PCWrite);
 
 char TranslateDirectBranchesPass::ID = 0;
@@ -55,6 +56,10 @@ static RegisterPass<TranslateDirectBranchesPass> X("translate-db",
                                                    " Pass",
                                                    false,
                                                    false);
+
+// TODO: this is kind of an abuse
+static Logger<> Verify("verify");
+static Logger<> JTCountLog("jtcount");
 
 void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<DominatorTreeWrapperPass>();
@@ -563,9 +568,9 @@ void JumpTargetManager::harvestGlobalData() {
     }
   }
 
-  DBG("jtcount",
-      dbg << "JumpTargets found in global data: " << std::dec
-          << Unexplored.size() << "\n");
+  revng_log(JTCountLog,
+            "JumpTargets found in global data: " << std::dec
+                                                 << Unexplored.size());
 }
 
 template<typename value_type, unsigned endian>
@@ -1327,9 +1332,10 @@ void JumpTargetManager::harvest() {
       }
     }
 
-    DBG("verify", if (verifyModule(TheModule, &dbgs())) { revng_abort(); });
+    if (Verify.isEnabled())
+      revng_assert(not verifyModule(TheModule, &dbgs()));
 
-    DBG("jtcount", dbg << "Harvesting: SROA, ConstProp, EarlyCSE and SET\n");
+    revng_log(JTCountLog, "Harvesting: SROA, ConstProp, EarlyCSE and SET");
 
     legacy::PassManager OptimizingPM;
     OptimizingPM.add(createSROAPass());
@@ -1350,22 +1356,23 @@ void JumpTargetManager::harvest() {
     // Restore the CFG
     setCFGForm(SemanticPreservingCFG);
 
-    DBG("jtcount",
-        dbg << std::dec << Unexplored.size() << " new jump targets and "
-            << NewBranches << " new branches were found\n");
+    revng_log(JTCountLog,
+              std::dec << Unexplored.size() << " new jump targets and "
+                       << NewBranches << " new branches were found");
   }
 
   if (EnableOSRA && empty()) {
-    DBG("verify", if (verifyModule(TheModule, &dbgs())) { revng_abort(); });
+    if (Verify.isEnabled())
+      revng_assert(not verifyModule(TheModule, &dbgs()));
 
     NoReturn.registerSyscalls(TheFunction);
 
     do {
 
-      DBG("jtcount",
-          dbg << "Harvesting: reset Visited, "
-              << (NewBranches > 0 ? "SROA, ConstProp, EarlyCSE, " : "")
-              << "SET + OSRA\n");
+      revng_log(JTCountLog,
+                "Harvesting: reset Visited, "
+                  << (NewBranches > 0 ? "SROA, ConstProp, EarlyCSE, " : "")
+                  << "SET + OSRA");
 
       // TODO: decide what to do with Visited
       Visited.clear();
@@ -1389,15 +1396,15 @@ void JumpTargetManager::harvest() {
       // Restore the CFG
       setCFGForm(SemanticPreservingCFG);
 
-      DBG("jtcount",
-          dbg << std::dec << Unexplored.size() << " new jump targets and "
-              << NewBranches << " new branches were found\n");
+      revng_log(JTCountLog,
+                std::dec << Unexplored.size() << " new jump targets and "
+                         << NewBranches << " new branches were found");
 
     } while (empty() && NewBranches > 0);
   }
 
   if (empty()) {
-    DBG("jtcount", dbg << "We're done looking for jump targets\n");
+    revng_log(JTCountLog, "We're done looking for jump targets");
   }
 }
 

@@ -63,7 +63,7 @@ public:
   }
 
   virtual void releaseMemory() override {
-    DBG("release", { dbg << "SimplifyComparisonsPass is releasing memory\n"; });
+    revng_log(ReleaseLog, "SimplifyComparisonsPass is releasing memory");
     freeContainer(SimplifiedComparisons);
   }
 

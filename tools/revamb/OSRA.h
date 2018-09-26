@@ -93,7 +93,9 @@ public:
     // TODO: update users in case the sign changed
     void setSignedness(bool IsSigned);
 
-    void describe(llvm::formatted_raw_ostream &O) const;
+    void describe(llvm::raw_ostream &O) const;
+
+    std::string describe() const;
 
     void dump() const debug_function;
 
@@ -503,7 +505,9 @@ public:
 
     bool operator!=(const OSR &Other) const { return !(*this == Other); }
 
-    void describe(llvm::formatted_raw_ostream &O) const;
+    void describe(llvm::raw_ostream &O) const;
+
+    std::string describe() const;
 
     void dump() const debug_function;
 

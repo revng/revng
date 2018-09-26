@@ -17,6 +17,8 @@ Logger<> SaDiffLog("sa-diff");
 
 RunningStatistics AddressSpaceSizeStats("AddressSpaceSizeStats");
 
+Logger<> SaVerboseLog("sa-verbose");
+
 static size_t combineHash(size_t A, size_t B) {
   return (A << 1 | A >> 31) ^ B;
 }
@@ -38,7 +40,7 @@ unsigned ASSlot::cmp(const ASSlot &Other, const Module *M) const {
   LoggerIndent<> Y(SaDiffLog);
   bool Result = not(AS.lowerThanOrEqual(Other.AS) && Offset == Other.Offset);
 
-  if (Result && Diff) {
+  if (SaDiffLog.isEnabled() && Result && Diff) {
     Other.dump(M, SaDiffLog);
     SaDiffLog << " does not contain ";
     dump(M, SaDiffLog);
@@ -68,21 +70,21 @@ unsigned Value::cmp(const Value &Other, const Module *M) const {
     // TODO: is this correct? shouldn't we assert DirectContent ==
     //       Other.DirectContent?
     ROA((DirectContent.cmp<Diff, EarlyExit>(Other.DirectContent, M)),
-        { SaDiffLog << "DirectContent vs DirectContent" << DoLog; });
+        { revng_log(SaDiffLog, "DirectContent vs DirectContent"); });
   }
 
   // hasDirectContent() && !Other.hasDirectContent() is fine
 
   // Other has direct content and we don't, it's more specific than us
   ROA(!hasDirectContent() && Other.hasDirectContent(),
-      { SaDiffLog << "RHS has direct content, LHS doesn't" << DoLog; });
+      { revng_log(SaDiffLog, "RHS has direct content, LHS doesn't"); });
 
   // Losing the name is fine, acquiring it is not
   ROA(!hasTag() && Other.hasTag(),
-      { SaDiffLog << "RHS has tag, LHS doesn't" << DoLog; });
+      { revng_log(SaDiffLog, "RHS has tag, LHS doesn't"); });
 
   ROA(hasTag() && Other.hasTag() && TheTag.greaterThan(Other.TheTag),
-      { SaDiffLog << "Tag" << DoLog; });
+      { revng_log(SaDiffLog, "Tag"); });
 
   return Result;
 }
@@ -133,7 +135,7 @@ unsigned AddressSpace::cmp(const AddressSpace &Other, const Module *M) const {
     ROA(It == ASOContent.end() && P.second.hasDirectContent(), {
       slot(P.first).dump(M, SaDiffLog);
       SaDiffLog << " is absent in the LHS and has direct content on the";
-      SaDiffLog << " RHS" << DoLog;
+      revng_log(SaDiffLog, " RHS");
     });
   }
 

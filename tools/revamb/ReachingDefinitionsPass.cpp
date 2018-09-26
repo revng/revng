@@ -42,6 +42,10 @@ using std::vector;
 
 using IndexesVector = SmallVector<int32_t, 2>;
 
+static Logger<> PropagationLog("rdp-propagation");
+static Logger<> CNPLog("cnp");
+static Logger<> RDPLog("rdp");
+
 template<typename T>
 using vvector = const vector<T *> &;
 
@@ -430,7 +434,9 @@ private:
 
 bool ConditionNumberingPass::runOnFunction(Function &F) {
 
-  DBG("passes", { dbg << "Starting ConditionNumberingPass\n"; });
+  revng_log(PassesLog, "Starting ConditionNumberingPass");
+
+  auto &Log = CNPLog;
 
   LLVMContext &C = F.getParent()->getContext();
   auto &RDP = getAnalysis<ReachingDefinitionsPass>();
@@ -482,29 +488,28 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
           pushIfAbsent(DefinedConditions[Definer], ConditionIndex);
 
           // Register that ConditionIndex is defined by Defined
-          DBG("cnp",
-              { pushIfAbsent(ResettingBasicBlocks[ConditionIndex], Definer); });
+          if (Log.isEnabled())
+            pushIfAbsent(ResettingBasicBlocks[ConditionIndex], Definer);
         }
 
         // Add an edge from the common predecessor to this basic block
         Switch.add(B->getParent());
       }
 
-      DBG("cnp", {
-        dbg << std::dec << ConditionIndex << ":";
+      if (Log.isEnabled()) {
+        Log << std::dec << ConditionIndex << ":";
         for (BranchInst *B : P.second)
-          dbg << " " << getName(B);
+          Log << " " << getName(B);
 
         auto It = P.second.begin();
         if (It != P.second.end()) {
-          dbg << " (defined by:";
-          for (BasicBlock *Definer : resettingBasicBlocks(RDP, *It)) {
-            dbg << " " << getName(Definer);
-          }
-          dbg << ")";
+          Log << " (defined by:";
+          for (BasicBlock *Definer : resettingBasicBlocks(RDP, *It))
+            Log << " " << getName(Definer);
+          Log << ")";
         }
-        dbg << "\n";
-      });
+        Log << DoLog;
+      }
     }
   }
 
@@ -523,16 +528,16 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
   for (unsigned I = 0; I < CommonPredecessors.size(); I++) {
     BasicBlock *CommonPredecessor = CommonPredecessors[I];
 
-    DBG("cnp", {
-      dbg << "Condition index " << (I + 1) << " (";
+    if (Log.isEnabled()) {
+      Log << "Condition index " << (I + 1) << " (";
       for (BasicBlock *Successor : successors(CommonPredecessor))
-        dbg << getName(Successor) << " ";
-      dbg << ")";
+        Log << getName(Successor) << " ";
+      Log << ")";
 
-      dbg << ", defined by";
+      Log << ", defined by";
       for (BasicBlock *Defined : ResettingBasicBlocks[I + 1])
-        dbg << " " << getName(Defined);
-    });
+        Log << " " << getName(Defined);
+    };
 
     // Get the immediate post-dominator of the common predecessor
     auto *PDTNode = PDT.getNode(CommonPredecessor);
@@ -551,14 +556,14 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
       for (BasicBlock *Successor : successors(ImmediatePostDominator))
         pushIfAbsent(DefinedConditions[Successor], I + 1);
 
-      DBG("cnp", {
-        dbg << ", post-dominated by " << getName(ImmediatePostDominator)
-            << "\n";
-      });
+      if (Log.isEnabled())
+        Log << ", post-dominated by " << getName(ImmediatePostDominator);
 
     } else {
-      DBG("cnp", dbg << ", no post dominator\n");
+      Log << ", no post dominator";
     }
+
+    Log << DoLog;
   }
 
   // Restore the entry block's terminator instruction
@@ -568,7 +573,7 @@ bool ConditionNumberingPass::runOnFunction(Function &F) {
   for (BasicBlock *CommonPredecessor : CommonPredecessors)
     CommonPredecessor->eraseFromParent();
 
-  DBG("passes", { dbg << "Ending ConditionNumberingPass\n"; });
+  revng_log(PassesLog, "Ending ConditionNumberingPass");
   return false;
 }
 
@@ -759,11 +764,11 @@ bool ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
 
   // Get (and insert, if necessary) the bit associated to the new
   // condition. This bit will be set in all the definitions being propagated.
-  DBG("rdp-propagation", dbg << "  Adding conditions:");
+  PropagationLog << "  Adding conditions:";
   unsigned NewConditionBitIndex = Target.getConditionIndex(NewConditionIndex);
   if (NewConditionIndex != 0 && !Target.Conditions[NewConditionBitIndex]) {
     Target.Conditions.set(NewConditionBitIndex);
-    DBG("rdp-propagation", dbg << " " << NewConditionIndex);
+    PropagationLog << " " << NewConditionIndex;
     Changed = true;
   }
 
@@ -788,16 +793,16 @@ bool ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
     if (ToPropagate != NewConditionIndex && ToPropagate != -NewConditionIndex
         && It == DefinedIndexes.end() && !Target.hasCondition(ToPropagate)) {
       Target.addCondition(ToPropagate);
-      DBG("rdp-propagation", dbg << "  " << ToPropagate);
+      PropagationLog << "  " << ToPropagate;
       Changed = true;
     }
   }
-  DBG("rdp-propagation", dbg << "\n");
+  PropagationLog << DoLog;
 
   // Compute a bit vector with all the conditions that are incompatible with the
   // target
   BitVector Banned(SeenConditions.size());
-  DBG("rdp-propagation", dbg << "  Banned conditions:");
+  PropagationLog << "  Banned conditions:";
 
   // For each set bit in the target's conditions
   for (int SetBitIndex = Target.Conditions.find_first(); SetBitIndex != -1;
@@ -805,7 +810,7 @@ bool ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
 
     // Consider the opposite condition as banned
     int32_t BannedIndex = -Target.SeenConditions[SetBitIndex];
-    DBG("rdp-propagation", dbg << " " << BannedIndex);
+    PropagationLog << " " << BannedIndex;
 
     // Check BannedIndex is not explicitly allowed
     auto It = std::find(Target.SeenConditions.begin(),
@@ -817,7 +822,7 @@ bool ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
       setIndexIfSeen(Banned, BannedIndex);
   }
 
-  DBG("rdp-propagation", dbg << "\n");
+  PropagationLog << DoLog;
 
   // Create a BitVector for conditions defined in the target basic block, so
   // that we can later exclude them
@@ -831,25 +836,27 @@ bool ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
 
   for (auto &Definition : Definitions) {
     BitVector DefinitionConditions = Definition.first;
-    DBG("rdp-propagation", {
-      dbg << "  Propagate " << getName(Definition.second.I);
+    if (PropagationLog.isEnabled()) {
+      PropagationLog << "  Propagate " << getName(Definition.second.I);
 
       if (auto *Load = dyn_cast<LoadInst>(Definition.second.I))
-        dbg << " about " << Load->getPointerOperand()->getName().str();
+        PropagationLog << " about "
+                       << Load->getPointerOperand()->getName().str();
       else if (auto *Store = dyn_cast<StoreInst>(Definition.second.I))
-        dbg << " about " << Store->getPointerOperand()->getName().str();
+        PropagationLog << " about "
+                       << Store->getPointerOperand()->getName().str();
 
       if (DefinitionConditions.any()) {
-        dbg << " (conditions:";
+        PropagationLog << " (conditions:";
         for (int I = DefinitionConditions.find_first(); I != -1;
              I = DefinitionConditions.find_next(I)) {
-          dbg << " " << SeenConditions[I];
+          PropagationLog << " " << SeenConditions[I];
         }
-        dbg << ")";
+        PropagationLog << ")";
       }
 
-      dbg << "? ";
-    });
+      PropagationLog << "? ";
+    }
 
     // Reset all the conditions that are defined in the target basic block
     DefinitionConditions &= NotDefined;
@@ -858,11 +865,11 @@ bool ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
     auto BannedConditions = DefinitionConditions;
     BannedConditions &= Banned;
     if (BannedConditions.any()) {
-      DBG("rdp-propagation", dbg << "no\n");
+      PropagationLog << "no" << DoLog;
       continue;
     }
 
-    DBG("rdp-propagation", dbg << "yes");
+    PropagationLog << "yes" << DoLog;
 
     // Translate the conditions bitvector to the context of the target BBI
     BitVector Translated(Target.SeenConditions.size());
@@ -890,7 +897,7 @@ bool ConditionalBasicBlockInfo::propagateTo(ConditionalBasicBlockInfo &Target,
                                       Target.Reaching,
                                       TSP);
 
-    DBG("rdp-propagation", dbg << " Changed? " << Changed << "\n");
+    revng_log(PropagationLog, " Changed? " << Changed);
   }
 
   return Changed;
@@ -939,14 +946,14 @@ bool ConditionalBasicBlockInfo::mergeDefinition(CondDefPair NewDefinition,
 
 template<class BBI, ReachingDefinitionsResult R>
 bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
+  auto &Log = RDPLog;
+
   auto &FCI = getAnalysis<FunctionCallIdentification>();
 
-  DBG("passes", {
-    if (std::is_same<BBI, ConditionalBasicBlockInfo>::value)
-      dbg << "Starting ConditionalReachingDefinitionsPass\n";
-    else
-      dbg << "Starting ReachingDefinitionsPass\n";
-  });
+  if (std::is_same<BBI, ConditionalBasicBlockInfo>::value)
+    revng_log(PassesLog, "Starting ConditionalReachingDefinitionsPass");
+  else
+    revng_log(PassesLog, "Starting ReachingDefinitionsPass");
 
   for (auto &BB : F) {
     if (!BB.empty()) {
@@ -1027,33 +1034,34 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
 
         BBI &SuccessorInfo = DefinitionsMap[Successor];
 
-        DBG("rdp-propagation", {
-          dbg << "Propagating from " << getName(BB) << " to "
-              << getName(Successor);
+        if (PropagationLog.isEnabled()) {
+          PropagationLog << "Propagating from " << getName(BB) << " to "
+                         << getName(Successor);
 
           if (Conditions.size() > 0) {
-            dbg << " (resetting conditions: ";
+            PropagationLog << " (resetting conditions: ";
             for (int32_t ConditionIndex : Conditions)
-              dbg << " " << ConditionIndex;
-            dbg << ")";
+              PropagationLog << " " << ConditionIndex;
+            PropagationLog << ")";
           }
 
           if (ConditionIndex != 0)
-            dbg << ", using a " << ConditionIndex << " branch"
-                << " (" << getName(BB->getTerminator()) << ")";
+            PropagationLog << ", using a " << ConditionIndex << " branch"
+                           << " (" << getName(BB->getTerminator()) << ")";
 
-          dbg << "\n";
-        });
+          PropagationLog << DoLog;
+        }
 
         // Enqueue the successor only if the propagation actually did something
         unsigned Old = SuccessorInfo.size();
         if (Info.propagateTo(SuccessorInfo, TSP, Conditions, ConditionIndex))
           ToVisit.insert(Successor);
 
-        DBG("rdp-propagation",
-            dbg << getName(Successor) << std::dec << " got "
-                << (SuccessorInfo.size() - Old) << " new reachers "
-                << "from " << getName(BB) << " (had " << Old << ")\n");
+        revng_log(PropagationLog,
+                  getName(Successor)
+                    << std::dec << " got " << (SuccessorInfo.size() - Old)
+                    << " new reachers "
+                    << "from " << getName(BB) << " (had " << Old << ")");
 
         // Add the condition relative to the current branch instruction (if any)
         if (ConditionIndex != 0) {
@@ -1129,34 +1137,34 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
 
           // Save them in ReachingDefinitions
           std::sort(LoadDefinitions.begin(), LoadDefinitions.end());
-          DBG("rdp", {
-            dbg << getName(Load) << " is reached by:";
+          if (Log.isEnabled()) {
+            Log << getName(Load) << " is reached by:";
             for (auto *Definition : LoadDefinitions)
-              dbg << " " << getName(Definition);
-            dbg << "\n";
-          });
+              Log << " " << getName(Definition);
+            Log << DoLog;
+          }
           ReachingDefinitions[Load] = std::move(LoadDefinitions);
         }
       }
     }
   }
 
-  DBG("rdp", {
-    dbg << "Basic blocks: " << std::dec << BasicBlockCount << "\n"
-        << "Visited: " << std::dec << BasicBlockVisits << "\n"
-        << "Average visits per basic block: " << std::setprecision(2)
-        << float(BasicBlockVisits) / BasicBlockCount << "\n";
-  });
+  revng_log(Log,
+            "Basic blocks: "
+              << std::dec << BasicBlockCount << "\n"
+              << "Visited: " << std::dec << BasicBlockVisits << "\n"
+              << "Average visits per basic block: " << std::setprecision(2)
+              << float(BasicBlockVisits) / BasicBlockCount);
 
   if (R == ReachingDefinitionsResult::ReachedLoads) {
-    DBG("rdp", {
+    if (Log.isEnabled()) {
       for (auto P : ReachedLoads) {
-        dbg << getName(P.first) << " reaches";
+        Log << getName(P.first) << " reaches";
         for (auto *Load : P.second)
-          dbg << " " << getName(Load);
-        dbg << "\n";
+          Log << " " << getName(Load);
+        Log << DoLog;
       }
-    });
+    }
   }
 
   // Clear all the temporary data that is not part of the analysis result
@@ -1166,12 +1174,10 @@ bool ReachingDefinitionsImplPass<BBI, R>::runOnFunction(Function &F) {
   freeContainer(NRDLoads);
   freeContainer(SelfReachingLoads);
 
-  DBG("passes", {
-    if (std::is_same<BBI, ConditionalBasicBlockInfo>::value)
-      dbg << "Ending ConditionalReachingDefinitionsPass\n";
-    else
-      dbg << "Ending ReachingDefinitionsPass\n";
-  });
+  if (std::is_same<BBI, ConditionalBasicBlockInfo>::value)
+    revng_log(PassesLog, "Ending ConditionalReachingDefinitionsPass");
+  else
+    revng_log(PassesLog, "Ending ReachingDefinitionsPass");
 
   return false;
 }

@@ -20,7 +20,7 @@ static RegisterPass<FunctionCallIdentification> X("fci",
                                                   true);
 
 bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
-  DBG("passes", { dbg << "Starting FunctionCallIdentification\n"; });
+  revng_log(PassesLog, "Starting FunctionCallIdentification");
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
 
@@ -230,7 +230,7 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
     }
   }
 
-  DBG("passes", { dbg << "Ending FunctionCallIdentification\n"; });
+  revng_log(PassesLog, "Ending FunctionCallIdentification");
 
   return false;
 }

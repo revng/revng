@@ -146,7 +146,7 @@ public:
   Element extremalValue(ABIIRBasicBlock *) const { return Element(); }
 
   Interrupt transfer(ABIIRBasicBlock *BB) {
-    SaABI << "Analyzing " << BB->basicBlock() << DoLog;
+    revng_log(SaABI, "Analyzing " << BB->basicBlock());
     Element Result = this->State[BB];
     auto SP0 = ASID::stackID();
 
@@ -198,7 +198,7 @@ computeIncoherentCalls(ABIIRBasicBlock *Entry,
                        std::vector<ABIIRBasicBlock *> &Extremals) {
   using namespace IncoherentCallsAnalysis;
 
-  SaABI << "Checking coherency for stack arguments" << DoLog;
+  revng_log(SaABI, "Checking coherency for stack arguments");
   Analysis BackwardFunctionAnalyses(Entry);
 
   for (ABIIRBasicBlock *Extremal : Extremals)

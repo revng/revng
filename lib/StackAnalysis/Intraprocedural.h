@@ -541,11 +541,11 @@ public:
   }
 
   void dumpFinalState() const {
-    DBG("sa", {
-      dbg << "FinalResult:\n";
-      FinalResult.dump(getModule(Entry));
-      dbg << "\n";
-    });
+    if (SaLog.isEnabled()) {
+      SaLog << "FinalResult:\n";
+      FinalResult.dump(getModule(Entry), SaLog);
+      SaLog << DoLog;
+    }
   }
 
   Interrupt::const_iterator_range

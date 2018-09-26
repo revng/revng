@@ -27,6 +27,7 @@ using llvm::Use;
 using llvm::User;
 
 static Logger<> SaPreprocess("sa-preprocess");
+Logger<> SaLog("sa");
 
 namespace StackAnalysis {
 
@@ -304,17 +305,19 @@ Cache::Cache(const Function *F) : DefaultLinkRegister(nullptr) {
   identifyLinkRegisters(F->getParent());
 
   // Dump the results
-  SaPreprocess << "IdentityStores:\n";
-  for (const StoreInst *I : IdentityStores)
-    SaPreprocess << I << "\n";
-  SaPreprocess << DoLog;
+  if (SaPreprocess.isEnabled()) {
+    SaPreprocess << "IdentityStores:\n";
+    for (const StoreInst *I : IdentityStores)
+      SaPreprocess << I << "\n";
+    SaPreprocess << DoLog;
 
-  SaPreprocess << "IdentityLoads:\n";
-  for (const LoadInst *I : IdentityLoads)
-    SaPreprocess << I << "\n";
-  SaPreprocess << DoLog;
+    SaPreprocess << "IdentityLoads:\n";
+    for (const LoadInst *I : IdentityLoads)
+      SaPreprocess << I << "\n";
+    SaPreprocess << DoLog;
 
-  SaPreprocess << "DefaultLinkRegister: " << DefaultLinkRegister << DoLog;
+    SaPreprocess << "DefaultLinkRegister: " << DefaultLinkRegister << DoLog;
+  }
 }
 
 Optional<const IntraproceduralFunctionSummary *>
@@ -328,11 +331,12 @@ Cache::get(BasicBlock *Function) const {
 
 bool Cache::update(BasicBlock *Function,
                    const IntraproceduralFunctionSummary &Result) {
-  DBG("sa", {
-    dbg << "Cache.update(" << getName(Function) << ") with value\n";
-    Result.dump(getModule(Function));
-    dbg << "\n";
-  });
+
+  if (SaLog.isEnabled()) {
+    SaLog << "Cache.update(" << getName(Function) << ") with value\n";
+    Result.dump(getModule(Function), SaLog);
+    SaLog << DoLog;
+  }
 
   auto It = Results.find(Function);
   if (It == Results.end()) {

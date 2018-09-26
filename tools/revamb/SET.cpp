@@ -29,6 +29,8 @@
 using namespace llvm;
 using std::make_pair;
 
+static Logger<> OSRJTSLog("osrjts");
+
 /// \brief Stack to keep track of the operations generating a specific value
 ///
 /// The OperationsStacks offers the following features:
@@ -510,7 +512,7 @@ void SETPass::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool SETPass::runOnFunction(Function &F) {
-  DBG("passes", { dbg << "Starting SETPass\n"; });
+  revng_log(PassesLog, "Starting SETPass");
 
   freeContainer(Jumps);
 
@@ -522,7 +524,7 @@ bool SETPass::runOnFunction(Function &F) {
 
   SET SimpleExpressionTracker(F, JTM, OSRA, Visited, Jumps);
 
-  DBG("passes", { dbg << "Ending SETPass\n"; });
+  revng_log(PassesLog, "Ending SETPass");
   return SimpleExpressionTracker.run();
 }
 
@@ -580,9 +582,9 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
     if (O->size() > 1000)
       dbg << "Warning: " << O->size() << " jump targets added\n";
 
-    DBG("osrjts",
-        dbg << "Adding " << std::dec << O->size() << " jump targets from 0x"
-            << std::hex << JTM->getPC(Target).first << "\n");
+    revng_log(OSRJTSLog,
+              "Adding " << std::dec << O->size() << " jump targets from 0x"
+                        << std::hex << JTM->getPC(Target).first);
 
     // Note: addition and comparison for equality are all sign-safe
     // operations, no need to use Constants in this case.

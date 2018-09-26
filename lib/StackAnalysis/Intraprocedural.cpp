@@ -66,7 +66,7 @@ namespace Intraprocedural {
 void Analysis::initialize() {
   CacheMustHit = false;
 
-  DBG("sa", { dbg << "Creating Analysis for " << getName(Entry) << "\n"; });
+  revng_log(SaLog, "Creating Analysis for " << getName(Entry));
 
   CSVCount = std::distance(M->globals().begin(), M->globals().end());
 
@@ -102,14 +102,14 @@ void Analysis::initialize() {
                          StackSlot0 :
                          ASSlot::create(ASID::cpuID(), LinkRegisterIndex));
 
-  DBG("sa", {
-    dbg << "The return address is in ";
+  if (SaLog.isEnabled()) {
+    SaLog << "The return address is in ";
     if (LinkRegister != nullptr)
-      dbg << LinkRegister->getName().str();
+      SaLog << LinkRegister->getName().str();
     else
-      dbg << "the top of the stack";
-    dbg << "\n";
-  });
+      SaLog << "the top of the stack";
+    SaLog << DoLog;
+  }
 
   TheABIIR.reset();
   IncoherentFunctions.clear();
@@ -199,11 +199,11 @@ public:
     revng_assert(InstructionContent.count(I) == 0,
                  "Instruction met more than once in a basic block");
 
-    DBG("sa-verbose", {
-      dbg << "Set " << getName(I) << " to ";
-      V.dump(M);
-      dbg << "\n";
-    });
+    if (SaVerboseLog.isEnabled()) {
+      SaVerboseLog << "Set " << getName(I) << " to ";
+      V.dump(M, SaVerboseLog);
+      SaVerboseLog << DoLog;
+    }
 
     InstructionContent[I] = V;
   }
@@ -286,14 +286,14 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
   revng_assert(It != State.end());
   Element Result = It->second.copy();
 
-  SaBBLog << "Analyzing " << getName(BB) << DoLog;
+  revng_log(SaBBLog, "Analyzing " << getName(BB));
   LoggerIndent<> Y(SaBBLog);
-  DBG("sa", {
-    dbg << "Analyzing basic block " << getName(BB);
-    dbg << "\n";
-    Result.dump(M);
-    dbg << "\n";
-  });
+
+  if (SaLog.isEnabled()) {
+    SaLog << "Analyzing basic block " << getName(BB) << DoLog;
+    Result.dump(M, SaLog);
+    SaLog << DoLog;
+  }
 
   // Reset the basic ABI IR basic block
   ABIIRBasicBlock &ABIBB = TheABIIR.get(BB);
@@ -307,10 +307,7 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
 
   for (Instruction &I : *BB) {
 
-    DBG("sa-verbose", {
-      dbg << "NewInstruction: ";
-      I.dump();
-    });
+    revng_log(SaVerboseLog, "NewInstruction: " << dumpToString(&I));
 
     switch (I.getOpcode()) {
     case Instruction::Load: {
@@ -430,8 +427,9 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
         // Register the call site (as an indirect call) along with the current
         // stack size
         if (not registerStackSizeAtCallSite(Indirect, CallerStackSize)) {
-          SaTerminator << "Warning: unknown stack size while calling "
-                       << getName(Callee) << DoLog;
+          revng_log(SaTerminator,
+                    "Warning: unknown stack size while calling "
+                      << getName(Callee));
         }
 
         for (const llvm::Argument &Argument : Callee->args()) {
@@ -473,11 +471,11 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
       for (BasicBlock *BB : ToReanalyze)
         registerToVisit(BB);
 
-      DBG("sa", {
-        dbg << "Basic block terminated: " << getName(BB) << "\n";
-        BBResult.dump(M);
-        dbg << "\n";
-      });
+      if (SaLog.isEnabled()) {
+        SaLog << "Basic block terminated: " << getName(BB) << "\n";
+        BBResult.dump(M, SaLog);
+        SaLog << DoLog;
+      }
 
       return BBResult;
     }
@@ -599,8 +597,8 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
 
     ReturnAddress = getLimitedValue(Arg2);
 
-    SaTerminator << " IsFunctionCall (callee " << Callee;
-    SaTerminator << ", return " << ReturnFromCall << ")";
+    SaTerminator << " IsFunctionCall (callee " << Callee << ", return "
+                 << ReturnFromCall << ")";
   }
 
   // 4. Check if the stack pointer is in position valid for returning
@@ -637,17 +635,19 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
     // initial value of the link register
     IsReturn = PCTag != nullptr and *PCTag == ReturnAddressSlot;
 
-    if (IsReturn) {
-      SaTerminator << " ReturnsToLinkRegister";
-    } else {
-      SaTerminator << " (";
-      ReturnAddressSlot.dump(M, SaTerminator);
-      SaTerminator << " != ";
-      if (PCTag == nullptr)
-        SaTerminator << "nullptr";
-      else
-        PCTag->dump(M, SaTerminator);
-      SaTerminator << ")";
+    if (SaTerminator.isEnabled()) {
+      if (IsReturn) {
+        SaTerminator << " ReturnsToLinkRegister";
+      } else {
+        SaTerminator << " (";
+        ReturnAddressSlot.dump(M, SaTerminator);
+        SaTerminator << " != ";
+        if (PCTag == nullptr)
+          SaTerminator << "nullptr";
+        else
+          PCTag->dump(M, SaTerminator);
+        SaTerminator << ")";
+      }
     }
 
     if (PCContent != nullptr) {
@@ -678,9 +678,10 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
     } else {
       // We have a return instruction, but the stack is not in the position we'd
       // expect, mark this function as a fake function.
-      SaFake << "A return instruction has been found, but the stack"
-             << " pointer is not in the expected position, marking " << Entry
-             << " as fake." << DoLog;
+      revng_log(SaFake,
+                "A return instruction has been found, but the stack"
+                " pointer is not in the expected position, marking "
+                  << Entry << " as fake.");
       return AI::create(std::move(Result), BT::FakeFunction);
     }
   }
@@ -784,8 +785,9 @@ Interrupt Analysis::handleCall(Instruction *Caller,
     // We have a call with a stack lower than the initial one, there's
     // definitely something wrong going on here. Mark it as a fake function.
     if (*CallerStackSize < 0) {
-      SaFake << "Final stack is lower than initial one, marking" << Entry
-             << " as fake." << DoLog;
+      revng_log(SaFake,
+                "Final stack is lower than initial one, marking"
+                  << Entry << " as fake.");
       return AI::create(std::move(Result), BT::FakeFunction);
     }
   } else {
@@ -819,14 +821,15 @@ Interrupt Analysis::handleCall(Instruction *Caller,
         ResultString = "miss";
       }
 
-      SaInterpLog << "Cache " << ResultString << " for " << Callee << " at "
-                  << Caller << " (";
-      auto Mean = FunctionCacheHitRate[Callee].mean();
-      SaInterpLog << "function hit rate: " << round(100 * Mean, 4) << "%";
-      SaInterpLog << ", "
-                  << "hit rate: " << round(100 * CacheHitRate.mean(), 4) << "%"
-                  << ") ";
-      SaInterpLog << DoLog;
+      if (SaInterpLog.isEnabled()) {
+        SaInterpLog << "Cache " << ResultString << " for " << Callee << " at "
+                    << Caller << " (";
+        auto Mean = FunctionCacheHitRate[Callee].mean();
+        SaInterpLog << "function hit rate: " << round(100 * Mean, 4) << "%";
+        SaInterpLog << ", hit rate: " << round(100 * CacheHitRate.mean(), 4)
+                    << "%) ";
+        SaInterpLog << DoLog;
+      }
     }
 
     // Do we have a cache hit?
@@ -855,11 +858,11 @@ Interrupt Analysis::handleCall(Instruction *Caller,
   // If we got to this point, we now have a cached result of what the callee
   // does. Let's apply it.
 
-  DBG("sa", {
-    dbg << "The summary result for a call to " << getName(Callee) << "is\n";
-    CallSummary->dump(M);
-    dbg << "\n";
-  });
+  if (SaLog.isEnabled()) {
+    SaLog << "The summary result for a call to " << getName(Callee) << "is\n";
+    CallSummary->dump(M, SaLog);
+    SaLog << DoLog;
+  }
 
   if (not ABIOnly and not CallSummary->FinalState.isBottom()) {
     // Use the summary from the cache
@@ -879,9 +882,10 @@ Interrupt Analysis::handleCall(Instruction *Caller,
 
   // Record frame size
   if (not registerStackSizeAtCallSite(TheFunctionCall, CallerStackSize)) {
-    SaTerminator << "Warning: unknown stack size while calling "
-                 << getName(Callee) << DoLog << " (return address: " << std::hex
-                 << ReturnAddress << std::dec << ")" << DoLog;
+    revng_log(SaTerminator,
+              "Warning: unknown stack size while calling "
+                << getName(Callee) << DoLog << " (return address: " << std::hex
+                << ReturnAddress << std::dec << ")");
   }
 
   // Resume the analysis from where we left off
@@ -918,9 +922,12 @@ IFS Analysis::createSummary() {
   FunctionABI ABI;
 
   if (AnalyzeABI) {
-    SaABI << "Starting analysis of " << Entry << DoLog;
-    TheABIIR.dump(SaABI, M);
-    SaABI << DoLog;
+
+    if (SaABI.isEnabled()) {
+      revng_log(SaABI, "Starting analysis of " << Entry);
+      TheABIIR.dump(SaABI, M);
+      SaABI << DoLog;
+    }
 
     revng_assert(TheABIIR.verify(), "The ABI IR is invalid");
 
@@ -940,9 +947,11 @@ IFS Analysis::createSummary() {
               std::move(WrittenRegisters));
   findIncoherentFunctions(Summary);
 
-  SaABI << "ABI analyses on " << Entry << " completed:\n";
-  Summary.dump(M, SaABI);
-  SaABI << DoLog;
+  if (SaABI.isEnabled()) {
+    SaABI << "ABI analyses on " << Entry << " completed:\n";
+    Summary.dump(M, SaABI);
+    SaABI << DoLog;
+  }
 
   return Summary;
 }
@@ -953,8 +962,8 @@ void Analysis::findIncoherentFunctions(const IFS &ABISummary) {
   const IFS::LocalSlotVector &Slots = ABISummary.LocalSlots;
 
   for (const FunctionCall &FC : TheABIIR.incoherentCalls()) {
-    SaFake << FC.callee() << " (" << FC.callInstruction() << ") is fake.";
-    SaFake << DoLog;
+    revng_log(SaFake,
+              FC.callee() << " (" << FC.callInstruction() << ") is fake.");
     IncoherentFunctions.insert(FC.callee());
   }
 
@@ -1008,15 +1017,18 @@ bool Analysis::isCoherent(const FunctionABI &CallerSummary,
     CombinedArgument.combine(FunctionCallArgument);
 
     if (CombinedArgument.isContradiction()) {
-      SaFake << "Contradiction at ";
-      TheFunctionCall.dump(SaFake);
-      SaFake << " on argument ";
-      ASSlot::create(ASID::cpuID(), Offset).dump(M, SaFake);
-      SaFake << ": caller says is ";
-      FunctionCallArgument.dump(SaFake);
-      SaFake << ", while callee says is ";
-      FunctionArgument.dump(SaFake);
-      SaFake << ", marking " << Callee << " as fake." << DoLog;
+
+      if (SaFake.isEnabled()) {
+        SaFake << "Contradiction at ";
+        TheFunctionCall.dump(SaFake);
+        SaFake << " on argument ";
+        ASSlot::create(ASID::cpuID(), Offset).dump(M, SaFake);
+        SaFake << ": caller says is ";
+        FunctionCallArgument.dump(SaFake);
+        SaFake << ", while callee says is ";
+        FunctionArgument.dump(SaFake);
+        SaFake << ", marking " << Callee << " as fake." << DoLog;
+      }
 
       return false;
     }
@@ -1031,15 +1043,18 @@ bool Analysis::isCoherent(const FunctionABI &CallerSummary,
     CombinedReturnValue.combine(TheFunctionCallReturnValue);
 
     if (CombinedReturnValue.isContradiction()) {
-      SaFake << "Contradiction at ";
-      TheFunctionCall.dump(SaFake);
-      SaFake << " on return value ";
-      ASSlot::create(ASID::cpuID(), Offset).dump(M, SaFake);
-      SaFake << ": caller says is ";
-      TheFunctionCallReturnValue.dump(SaFake);
-      SaFake << ", while callee says is ";
-      TheFunctionReturnValue.dump(SaFake);
-      SaFake << ", marking " << Callee << " as fake." << DoLog;
+
+      if (SaFake.isEnabled()) {
+        SaFake << "Contradiction at ";
+        TheFunctionCall.dump(SaFake);
+        SaFake << " on return value ";
+        ASSlot::create(ASID::cpuID(), Offset).dump(M, SaFake);
+        SaFake << ": caller says is ";
+        TheFunctionCallReturnValue.dump(SaFake);
+        SaFake << ", while callee says is ";
+        TheFunctionReturnValue.dump(SaFake);
+        SaFake << ", marking " << Callee << " as fake." << DoLog;
+      }
 
       return false;
     }

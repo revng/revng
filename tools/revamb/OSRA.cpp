@@ -53,6 +53,11 @@ const BoundedValue::MergeType OrMerge = BoundedValue::Or;
 
 using BVVector = SmallVector<BoundedValue, 2>;
 
+static Logger<> OsrDump("osr");
+static Logger<> PSMLog("psm");
+static Logger<> OSRBVLog("osr-bv");
+static Logger<> BVMerge("bv-merge");
+
 /// Helper function to check if two BV vectors are identical
 static bool
 differ(SmallVector<BoundedValue, 2> &Old, SmallVector<BoundedValue, 2> &New) {
@@ -1364,7 +1369,7 @@ OSRAPass::~OSRAPass() {
 }
 
 void OSRAPass::releaseMemory() {
-  DBG("release", { dbg << "OSRAPass is releasing memory\n"; });
+  revng_log(ReleaseLog, "OSRAPass is releasing memory");
   freeContainer(OSRs);
   if (BVs) {
     delete BVs;
@@ -1619,7 +1624,9 @@ void OSRA::run() {
     }
   }
 
-  DBG("osr", dump());
+  // TODO: this dumps on dbg directly to avoid serializing in a string
+  if (OsrDump.isEnabled())
+    dump();
 }
 
 void OSRA::dump() {
@@ -1630,11 +1637,10 @@ void OSRA::dump() {
 
 void OSR::dump() const {
   raw_os_ostream RawOutputStream(dbg);
-  formatted_raw_ostream OutputStream(RawOutputStream);
-  describe(OutputStream);
+  describe(RawOutputStream);
 }
 
-void OSR::describe(formatted_raw_ostream &O) const {
+void OSR::describe(raw_ostream &O) const {
   O << "[" << static_cast<int64_t>(Base) << " + "
     << static_cast<int64_t>(Factor) << " * x, with x = ";
   if (BV == nullptr)
@@ -1644,13 +1650,20 @@ void OSR::describe(formatted_raw_ostream &O) const {
   O << "]";
 }
 
-void BoundedValue::dump() const {
-  raw_os_ostream RawOutputStream(dbg);
-  formatted_raw_ostream OutputStream(RawOutputStream);
-  describe(OutputStream);
+std::string OSR::describe() const {
+  std::string Result;
+  llvm::raw_string_ostream Stream(Result);
+  describe(Stream);
+  Stream.str();
+  return Result;
 }
 
-void BoundedValue::describe(formatted_raw_ostream &O) const {
+void BoundedValue::dump() const {
+  raw_os_ostream RawOutputStream(dbg);
+  describe(RawOutputStream);
+}
+
+void BoundedValue::describe(raw_ostream &O) const {
   if (Negated)
     O << "NOT ";
 
@@ -1700,6 +1713,14 @@ void BoundedValue::describe(formatted_raw_ostream &O) const {
   }
 
   O << ")";
+}
+
+std::string BoundedValue::describe() const {
+  std::string Result;
+  llvm::raw_string_ostream Stream(Result);
+  describe(Stream);
+  Stream.str();
+  return Result;
 }
 
 void OSRA::describe(formatted_raw_ostream &O, const BasicBlock *BB) const {
@@ -2030,6 +2051,8 @@ private:
 };
 
 BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
+  auto &Log = PSMLog;
+
   // Initialization steps
   const unsigned MaxDepth = 10;
   Module *M = Reached->getParent()->getParent()->getParent();
@@ -2037,12 +2060,7 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
   Type *Int64 = IntegerType::get(M->getContext(), 64);
   MemoryAccess ReachedMA(Reached, DL);
 
-  // Debug support
-  raw_os_ostream OsOstream(dbg);
-  formatted_raw_ostream FormattedStream(OsOstream);
-  FormattedStream.SetUnbuffered();
-
-  DBG("psm", dbg << "Performing PSM for " << getName(Reached) << "\n";);
+  revng_log(Log, "Performing PSM for " << getName(Reached));
 
   std::vector<Reacher> Reachers;
   Reachers.reserve(LoadReachers[Reached].size());
@@ -2053,10 +2071,10 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
     if (P.second.factor() == 0)
       return BoundedValue(Reached);
     Reachers.emplace_back(Reached, P.first, P.second);
-    DBG("psm",
-        dbg << "  Reacher " << std::dec << ReacherIndex << " is "
-            << getName(P.first) << " (relative to "
-            << getName(P.second.boundedValue()->value()) << ")\n";);
+    revng_log(Log,
+              "  Reacher " << std::dec << ReacherIndex << " is "
+                           << getName(P.first) << " (relative to "
+                           << getName(P.second.boundedValue()->value()) << ")");
   }
   revng_assert(Reachers.size() > 0);
 
@@ -2082,7 +2100,7 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
     BasicBlock *Pred = *S.PredecessorIt;
     std::string Indent(Height * 2, ' ');
 
-    DBG("psm", dbg << Indent << "Exploring " << getName(Pred) << "\n";);
+    revng_log(Log, Indent << "Exploring " << getName(Pred));
 
     // Check if any store in Pred can alias ReachedMA
     bool MayAlias = MemoryAccess::mayAlias(Pred, ReachedMA, DL);
@@ -2103,9 +2121,10 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
 
       // Is this a BB leading to the reacher?
       if (R.isLTR(Pred)) {
-        DBG("psm",
-            dbg << Indent << "  Merging reacher " << ReacherIndex
-                << " (relative to " << getName(R.Summary.value()) << ")\n";);
+        revng_log(Log,
+                  Indent << "  Merging reacher " << ReacherIndex
+                         << " (relative to " << getName(R.Summary.value())
+                         << ")");
 
         // Insert everything is on the stack, but stop if we meet one that's
         // already there
@@ -2127,14 +2146,11 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
             BoundedValue Tmp = Result;
             Tmp.merge<BoundedValue::And>(*EdgeBV, DL, Int64);
 
-            DBG("psm", {
-              dbg << Indent << "    Got ";
-              EdgeBV->describe(FormattedStream);
-              dbg << " from the " << getName(*ToMerge.PredecessorIt) << " -> "
-                  << getName(ToMerge.BB) << " edge: ";
-              Tmp.describe(FormattedStream);
-              dbg << "\n";
-            });
+            revng_log(Log,
+                      Indent << "    Got " << EdgeBV->describe() << " from the "
+                             << getName(*ToMerge.PredecessorIt) << " -> "
+                             << getName(ToMerge.BB)
+                             << " edge: " << Tmp.describe());
 
             if (Tmp.isBottom())
               break;
@@ -2142,11 +2158,10 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
               Result = Tmp;
 
           } else {
-            DBG("psm", {
-              dbg << Indent << "    Got no info"
-                  << " from the " << getName(*ToMerge.PredecessorIt) << " -> "
-                  << getName(ToMerge.BB) << " edge\n";
-            });
+            revng_log(Log,
+                      Indent << "    Got no info from the "
+                             << getName(*ToMerge.PredecessorIt) << " -> "
+                             << getName(ToMerge.BB) << " edge");
           }
         }
 
@@ -2161,15 +2176,12 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
           // Deactivate
           R.setInactive(Height);
         } else {
-          DBG("psm",
-              dbg << Indent
-                  << "    We got an incoherent situation, ignore it\n";);
+          revng_log(Log,
+                    Indent << "    We got an incoherent situation, ignore it");
         }
 
       } else if (MayAlias) {
-        DBG("psm",
-            dbg << Indent << "  Deactivating reacher " << ReacherIndex
-                << "\n";);
+        revng_log(Log, Indent << "  Deactivating reacher " << ReacherIndex);
 
         // We don't know if it's an LTR, check if it may alias, and if so,
         // deactivate this reacher
@@ -2186,22 +2198,18 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
 
     // Check it's not already in stack
     Proceed &= InStack.count(Pred) == 0;
-    DBG("psm", if (!(InStack.count(Pred) == 0)) {
-      dbg << Indent << "    It's already on the stack\n";
-    });
+    revng_log(Log, Indent << "    It's already on the stack");
 
     // Check we're not exceeding the maximum allowed depth
     Proceed &= Height < MaxDepth;
-    DBG("psm", if (!(Height < MaxDepth)) {
-      dbg << Indent << "    We exceeded the maximum depth\n";
-    });
+    if (not(Height < MaxDepth))
+      revng_log(Log, Indent << "    We exceeded the maximum depth");
 
     // Check we have at least a non-dispatcher predecessor
     pred_iterator NewPredIt = getValidPred(Pred);
     Proceed &= NewPredIt != pred_end(Pred);
-    DBG("psm", if (!(NewPredIt != pred_end(Pred))) {
-      dbg << Indent << "    No predecessors\n";
-    });
+    if (not(NewPredIt != pred_end(Pred)))
+      revng_log(Log, Indent << "    No predecessors");
 
     if (Proceed) {
       // We have to go deeper
@@ -2233,30 +2241,21 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
   // TODO: adding the OSR offset is safe, but the multiplier?
   BoundedValue FinalBV = Reachers[0].computeBV(Reached, DL, Int64);
 
-  DBG("psm", {
+  if (Log.isEnabled()) {
     unsigned I = 0;
     for (const Reacher &R : Reachers) {
       BoundedValue ReacherBV = R.computeBV(Reached, DL, Int64);
-      dbg << "Reacher " << ++I << ": ";
-      ReacherBV.describe(FormattedStream);
-      dbg << " (from ";
-      R.osr().describe(FormattedStream);
-      dbg << ")\n";
+      Log << "Reacher " << ++I << ": " << ReacherBV.describe();
+      Log << " (from " << R.osr().describe() << ")" << DoLog;
     }
-  });
+  }
 
   for (Reacher &R : skip(1, Reachers)) {
     BoundedValue ReacherBV = R.computeBV(Reached, DL, Int64);
 
-    DBG("psm", {
-      dbg << "";
-      FinalBV.describe(FormattedStream);
-      dbg << " += ";
-      ReacherBV.describe(FormattedStream);
-      dbg << " (from ";
-      R.osr().describe(FormattedStream);
-      dbg << ")\n";
-    });
+    revng_log(Log,
+              FinalBV.describe() << " += " << ReacherBV.describe() << " (from "
+                                 << R.osr().describe() << ")");
 
     if (FinalBV.isBottom())
       return BoundedValue(Reached);
@@ -2267,13 +2266,9 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
   if (FinalBV.isUninitialized() || FinalBV.isTop() || FinalBV.isBottom())
     return BoundedValue(Reached);
 
-  DBG("psm", {
-    dbg << "FinalBV: ";
-    FinalBV.describe(FormattedStream);
-    dbg << "\n";
-  });
+  revng_log(Log, "FinalBV: " << FinalBV.describe());
 
-  revng_assert(!FinalBV.isUninitialized());
+  revng_assert(not FinalBV.isUninitialized());
   return FinalBV;
 }
 
@@ -2286,7 +2281,7 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
 // * free value: a value we can't represent as an OSR of another value
 // * bounded variable (or BV): a free value and the range within which it lies.
 bool OSRAPass::runOnFunction(Function &F) {
-  DBG("passes", { dbg << "Starting OSRAPass\n"; });
+  revng_log(PassesLog, "Starting OSRAPass");
 
   releaseMemory();
   BVs = new BVMap();
@@ -2299,7 +2294,7 @@ bool OSRAPass::runOnFunction(Function &F) {
                *BVs);
   TheOSRA.run();
 
-  DBG("passes", { dbg << "Ending OSRAPass\n"; });
+  revng_log(PassesLog, "Ending OSRAPass");
   return false;
 }
 
@@ -2333,17 +2328,13 @@ void BVMap::describe(formatted_raw_ostream &O, const BasicBlock *BB) const {
 
 std::pair<bool, BoundedValue &>
 BVMap::update(BasicBlock *Target, BasicBlock *Origin, BoundedValue NewBV) {
-  // Debug support
-  raw_os_ostream OsOstream(dbg);
-  formatted_raw_ostream FormattedStream(OsOstream);
-  FormattedStream.SetUnbuffered();
+  auto &Log = OSRBVLog;
+  LogOnReturn<> X(Log);
 
-  DBG("osr-bv", {
-    dbg << "Updating " << getName(Target) << " from " << getName(Origin)
-        << " with ";
-    NewBV.describe(FormattedStream);
-    dbg << ": ";
-  });
+  if (Log.isEnabled()) {
+    Log << "Updating " << getName(Target) << " from " << getName(Origin)
+        << " with " << NewBV.describe() << ": ";
+  }
 
   auto Index = make_pair(Target, NewBV.value());
   auto MapIt = TheMap.find(Index);
@@ -2351,7 +2342,7 @@ BVMap::update(BasicBlock *Target, BasicBlock *Origin, BoundedValue NewBV) {
 
   // Have we ever seen this value for this basic block?
   if (MapIt == TheMap.end()) {
-    DBG("osr-bv", dbg << "new\n");
+    Log << "new";
 
     // No, just insert it
     MapValue NewBVOVector;
@@ -2359,7 +2350,7 @@ BVMap::update(BasicBlock *Target, BasicBlock *Origin, BoundedValue NewBV) {
     BVOVector = &TheMap.insert({ Index, NewBVOVector }).first->second;
     return { true, summarize(Target, BVOVector) };
   } else if (isForced(MapIt)) {
-    DBG("osr-bv", dbg << "forced\n");
+    Log << "forced";
 
     return { false, MapIt->second.Summary };
   } else {
@@ -2374,31 +2365,25 @@ BVMap::update(BasicBlock *Target, BasicBlock *Origin, BoundedValue NewBV) {
 
     // Did we ever see this Origin?
     if (Base == nullptr) {
-      DBG("osr-bv", dbg << "new component");
+      Log << "new component";
 
       BVOVector->Components.push_back({ Origin, NewBV });
     } else {
-      DBG("osr-bv", {
-        dbg << "merging with ";
-        Base->describe(FormattedStream);
-      });
+      if (Log.isEnabled())
+        Log << "merging with " << Base->describe();
 
       Changed = Base->merge<AndMerge>(NewBV, *DL, Int64);
 
-      DBG("osr-bv", {
-        dbg << " producing ";
-        Base->describe(FormattedStream);
-      });
+      if (Log.isEnabled())
+        Log << " producing " << Base->describe();
     }
 
     // Re-merge all the entries
     auto &Result = summarize(Target, BVOVector);
 
-    DBG("osr-bv", {
-      dbg << ", final result ";
-      Result.describe(FormattedStream);
-      dbg << "\n";
-    });
+    if (Log.isEnabled()) {
+      Log << ", final result " << Result.describe();
+    }
 
     return { Changed, Result };
   }
@@ -2554,17 +2539,20 @@ BoundedValue BoundedValue::mergeImpl(const BoundedValue &Other) const {
   using interval_set = boost::icl::interval_set<T>;
   interval_set Result;
 
-  Result += BoundedValueHelpers::getInterval<T>(*this);
-  DBG("bv-merge", dbg << Result);
+  auto ThisInterval = BoundedValueHelpers::getInterval<T>(*this);
+  auto OtherInterval = BoundedValueHelpers::getInterval<T>(Other);
+
+  Result += ThisInterval;
+  BVMerge << Result;
   if (MT == And) {
-    DBG("bv-merge", dbg << " & " << BoundedValueHelpers::getInterval<T>(Other));
-    Result &= BoundedValueHelpers::getInterval<T>(Other);
+    BVMerge << " & " << OtherInterval;
+    Result &= OtherInterval;
   } else {
-    DBG("bv-merge", dbg << " + " << BoundedValueHelpers::getInterval<T>(Other));
-    Result += BoundedValueHelpers::getInterval<T>(Other);
+    BVMerge << " + " << OtherInterval;
+    Result += OtherInterval;
   }
 
-  DBG("bv-merge", dbg << " = " << Result << "\n");
+  BVMerge << " = " << Result << DoLog;
   return BoundedValueHelpers::getBV<T>(*this, Result);
 }
 

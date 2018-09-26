@@ -21,47 +21,10 @@
 #include "revng/Support/Assert.h"
 
 // TODO: use a dedicated namespace
-extern bool DebuggingEnabled;
 extern std::ostream &dbg;
+extern size_t MaxLoggerNameLength;
 
 #define debug_function __attribute__((used, noinline))
-
-bool isDebugFeatureEnabled(std::string Name);
-void enableDebugFeature(std::string Name);
-void disableDebugFeature(std::string Name);
-
-/// \brief Executes \p code only if \p feature is enabled
-///
-/// \note This approach is deprecated, please consider using Logger and letting
-///       the DCE do its job for you.
-#define DBG(feature, code)                                    \
-  do {                                                        \
-    if (DebuggingEnabled && isDebugFeatureEnabled(feature)) { \
-      code;                                                   \
-    }                                                         \
-  } while (0)
-
-/// \brief Enables a debug feature and disables it when goes out of scope
-class ScopedDebugFeature {
-public:
-  /// \param Name the name of the debugging feature
-  /// \param Enable whether to actually enable it or not
-  ScopedDebugFeature(std::string Name, bool Enable) :
-    Name(Name),
-    Enabled(Enable) {
-    if (Enabled)
-      enableDebugFeature(Name);
-  }
-
-  ~ScopedDebugFeature() {
-    if (Enabled)
-      disableDebugFeature(Name);
-  }
-
-private:
-  std::string Name;
-  bool Enabled;
-};
 
 /// \brief Stream an instance of this class to call Logger::emit()
 struct LogTerminator {};
@@ -196,15 +159,26 @@ public:
   void add(Logger<false> *L) { (void) L; }
 
   void enable(llvm::StringRef Name) {
-    for (Logger<true> *L : Loggers)
-      if (L->name() == Name)
+    for (Logger<true> *L : Loggers) {
+      if (L->name() == Name) {
         L->enable();
+        MaxLoggerNameLength = std::max(MaxLoggerNameLength, Name.size());
+        return;
+      }
+    }
+
+    revng_abort("Requested logger not available");
   }
 
   void disable(llvm::StringRef Name) {
-    for (Logger<true> *L : Loggers)
-      if (L->name() == Name)
+    for (Logger<true> *L : Loggers) {
+      if (L->name() == Name) {
         L->disable();
+        return;
+      }
+    }
+
+    revng_abort("Requested logger not available");
   }
 
 private:
@@ -252,5 +226,38 @@ public:
 private:
   O &Stream;
 };
+
+/// \brief Enables a debug feature and disables it when goes out of scope
+class ScopedDebugFeature {
+public:
+  /// \param Name the name of the debugging feature
+  /// \param Enable whether to actually enable it or not
+  ScopedDebugFeature(std::string Name, bool Enable) :
+    Name(Name),
+    Enabled(Enable) {
+    if (Enabled)
+      Loggers->enable(Name);
+  }
+
+  ~ScopedDebugFeature() {
+    if (Enabled)
+      Loggers->disable(Name);
+  }
+
+private:
+  std::string Name;
+  bool Enabled;
+};
+
+#define revng_log(Logger, Expr)  \
+  do {                           \
+    if (Logger.isEnabled()) {    \
+      (Logger) << Expr << DoLog; \
+    }                            \
+  } while (0)
+
+extern Logger<> NRALog;
+extern Logger<> PassesLog;
+extern Logger<> ReleaseLog;
 
 #endif // DEBUG_H

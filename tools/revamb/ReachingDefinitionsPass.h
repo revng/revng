@@ -243,8 +243,7 @@ public:
   }
 
   virtual void releaseMemory() override {
-    DBG("release",
-        { dbg << "ReachingDefinitionsImplPass is releasing memory\n"; });
+    revng_log(ReleaseLog, "ReachingDefinitionsImplPass is releasing memory");
     freeContainer(ReachedLoads);
     freeContainer(ReachingDefinitions);
     freeContainer(ReachingDefinitionsCount);
@@ -379,7 +378,7 @@ public:
   }
 
   virtual void releaseMemory() override {
-    DBG("release", { dbg << "ConditionNumberingPass is releasing memory\n"; });
+    revng_log(ReleaseLog, "ConditionNumberingPass is releasing memory");
     freeContainer(DefinedConditions);
     freeContainer(BranchConditionNumberMap);
   }

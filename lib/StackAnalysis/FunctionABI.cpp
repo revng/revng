@@ -48,12 +48,12 @@ cmp(const DefaultMap<K, V, N> &This, const DefaultMap<K, V, N> &Other) {
   for (auto &P : This) {
     P.second.template cmp<Diff, EarlyExit>(Other.getOrDefault(P.first));
     ROA((P.second.template cmp<Diff, EarlyExit>(Other.getOrDefault(P.first))),
-        { SaDiffLog << P.first << DoLog; });
+        { revng_log(SaDiffLog, P.first); });
   }
 
   for (auto &P : Other) {
     ROA((This.getOrDefault(P.first).template cmp<Diff, EarlyExit>(P.second)),
-        { SaDiffLog << P.first << DoLog; });
+        { revng_log(SaDiffLog, P.first); });
   }
 
   return Result;
@@ -476,7 +476,7 @@ struct AnalysesWrapperHelpers {
       if (EarlyExit)
         return Result;
 
-      if (Diff) {
+      if (SaDiffLog.isEnabled() and Diff) {
         SaDiffLog << Type::name() << ": ";
         get(This).dump(SaDiffLog);
         SaDiffLog << " and ";
@@ -645,14 +645,14 @@ public:
     auto registerCmp = cmpWithModule<int32_t, AWF, Diff, EarlyExit, 20>;
 
     ROA((registerCmp(RegisterAnalyses, Other.RegisterAnalyses, CPU, M)),
-        { SaDiffLog << "RegisterAnalyses" << DoLog; });
+        { revng_log(SaDiffLog, "RegisterAnalyses"); });
 
     auto X = nestedCmpWithModule<int32_t, AWFC, Diff, EarlyExit, 5, 20>;
     ROA((X(FunctionCallRegisterAnalyses,
            Other.FunctionCallRegisterAnalyses,
            CPU,
            M)),
-        { SaDiffLog << "RegisterAnalyses" << DoLog; });
+        { revng_log(SaDiffLog, "RegisterAnalyses"); });
 
     return Result;
   }
@@ -922,7 +922,7 @@ public:
   unsigned visitsCount() const { return VisitsCount; }
 
   Interrupt<E> transfer(ABIIRBasicBlock *BB) {
-    SaABI << "Analyzing " << BB->basicBlock() << DoLog;
+    revng_log(SaABI, "Analyzing " << BB->basicBlock());
     Element<E> Result = this->State[BB].copy();
 
     VisitsCount++;
@@ -987,7 +987,7 @@ void FunctionABI::analyze(const ABIFunction &TheFunction) {
   using namespace ABIAnalysis;
 
   {
-    SaABI << "Running forward function analyses" << DoLog;
+    revng_log(SaABI, "Running forward function analyses");
 
     // List of the forward ABI analyses to perform
     // Note: Among the function analyses we also have an instance of the
@@ -1009,17 +1009,19 @@ void FunctionABI::analyze(const ABIFunction &TheFunction) {
     Interrupt<ForwardList> Result = ForwardFunctionAnalyses.run();
 
     int Average = ForwardFunctionAnalyses.visitsCount() / TheFunction.size();
-    SaABI << "Forward function analyses terminated: "
-          << ForwardFunctionAnalyses.visitsCount() << " visits performed on "
-          << TheFunction.size() << " blocks ("
-          << "average: " << Average << ")." << DoLog;
+    revng_log(SaABI,
+              "Forward function analyses terminated: "
+                << ForwardFunctionAnalyses.visitsCount() << " visits performed"
+                << " on " << TheFunction.size() << " blocks ("
+                << "average: " << Average << ").");
 
     this->combine(Result.extractResult());
   }
 
   {
-    SaABI << "Running backward function analyses";
-    SaABI << " (" << TheFunction.finals_size() << " return points)" << DoLog;
+    revng_log(SaABI,
+              "Running backward function analyses ("
+                << TheFunction.finals_size() << " return points)");
     /// List of the backward ABI analyses to perform
     using URVOF = UsedReturnValuesOfFunction;
     using RAOFC = RegisterArgumentsOfFunctionCall;

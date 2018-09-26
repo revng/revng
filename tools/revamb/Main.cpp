@@ -313,12 +313,11 @@ parseArgs(int Argc, const char *Argv[], ProgramParameters *Parameters) {
   }
 
   if (DebugLoggingString != nullptr) {
-    DebuggingEnabled = true;
     std::string Input(DebugLoggingString);
     std::stringstream Stream(Input);
     std::string Type;
     while (std::getline(Stream, Type, ','))
-      enableDebugFeature(Type.c_str());
+      Loggers->enable(Type.c_str());
   }
 
   if (Parameters->DebugPath == nullptr)

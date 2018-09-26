@@ -247,20 +247,20 @@ struct hash<StackAnalysis::ASID> {
 /// user to choose whether to return on the first call to ROA that evaluates to
 /// non-zero or proceed and accumulate the number of differences in the Result
 /// variable.
-#define ROA(Expression, OnDiff)      \
-  do {                               \
-    if (unsigned C = (Expression)) { \
-                                     \
-      if (Diff) {                    \
-        OnDiff                       \
-      }                              \
-                                     \
-      if (EarlyExit) {               \
-        return 1;                    \
-      } else {                       \
-        Result += C;                 \
-      }                              \
-    }                                \
+#define ROA(Expression, OnDiff)            \
+  do {                                     \
+    if (unsigned C = (Expression)) {       \
+                                           \
+      if (SaDiffLog.isEnabled() && Diff) { \
+        OnDiff                             \
+      }                                    \
+                                           \
+      if (EarlyExit) {                     \
+        return 1;                          \
+      } else {                             \
+        Result += C;                       \
+      }                                    \
+    }                                      \
   } while (false)
 
 #endif // ASSLOT_H

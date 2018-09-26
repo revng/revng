@@ -47,6 +47,8 @@ using FBD = FunctionBoundariesDetectionImpl;
 using interval_set = boost::icl::interval_set<uint64_t>;
 using interval = boost::icl::interval<uint64_t>;
 
+static Logger<> FunctionsLog("functions");
+
 char FBDP::ID = 0;
 using RegisterFBDP = RegisterPass<FBDP>;
 static RegisterFBDP X("fbdp", "Function Boundaries Detection Pass", true, true);
@@ -338,7 +340,7 @@ void FBD::collectInitialCFEPSet() {
     BasicBlock *CFEPHead = JT.head();
     bool Insert = false;
 
-    DBG("functions", dbg << JT.describe() << "\n");
+    revng_log(FunctionsLog, JT.describe());
 
     if (JT.hasReason(JTReason::Callee)) {
       registerCFEP(CFEPHead, Callee);
@@ -390,10 +392,9 @@ void FBD::cfepProcessPhase1() {
         // This basic block ends with a function call, proceed with the return
         // address, unless it's a call to a noreturn function.
         if (JTM->noReturn().isNoreturnBasicBlock(RelatedBB)) {
-          DBG("nra", {
-            dbg << "Stopping at " << getName(RelatedBB)
-                << " since it's a noreturn call\n";
-          });
+          revng_log(NRALog,
+                    "Stopping at " << getName(RelatedBB)
+                                   << " since it's a noreturn call");
         } else {
           BasicBlock *ReturnBB = FCIt->second;
           setRelation(CFEP, ReturnBB, Return);
@@ -490,22 +491,22 @@ void FBD::filterCFEPs() {
     }
 
     if (Keep) {
-      DBG("functions", {
-        dbg << std::hex << "0x" << getBasicBlockPC(CFEPHead) << " is a FEP: "
-            << " Callee? " << C.hasReason(Callee) << " GlobalData? "
-            << C.hasReason(GlobalData) << " InCode? " << C.hasReason(InCode)
-            << " SkippingJump? " << C.hasReason(SkippingJump)
-            << " FunctionSymbol?" << C.hasReason(FunctionSymbol) << "\n";
-      });
+      revng_log(FunctionsLog,
+                std::hex << "0x" << getBasicBlockPC(CFEPHead) << " is a FEP: "
+                         << " Callee? " << C.hasReason(Callee)
+                         << " GlobalData? " << C.hasReason(GlobalData)
+                         << " InCode? " << C.hasReason(InCode)
+                         << " SkippingJump? " << C.hasReason(SkippingJump)
+                         << " FunctionSymbol?" << C.hasReason(FunctionSymbol));
       It++;
     } else {
-      DBG("functions", {
-        dbg << std::hex << "0x" << getBasicBlockPC(CFEPHead)
-            << " is a not a FEP:";
+      if (FunctionsLog.isEnabled()) {
+        FunctionsLog << std::hex << "0x" << getBasicBlockPC(CFEPHead)
+                     << " is a not a FEP:";
         for (CFEPRelation &Relation : Relations[CFEPHead])
-          dbg << " {" << Relation.describe() << "}";
-        dbg << "\n";
-      });
+          FunctionsLog << " {" << Relation.describe() << "}";
+        FunctionsLog << DoLog;
+      }
       It = CFEPs.erase(It);
     }
   }

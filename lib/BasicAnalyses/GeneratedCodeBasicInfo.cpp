@@ -25,7 +25,7 @@ using RegisterGCBI = RegisterPass<GeneratedCodeBasicInfo>;
 static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
 
 bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
-  DBG("passes", { dbg << "Starting GeneratedCodeBasicInfo\n"; });
+  revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 
   Module *M = F.getParent();
   const char *MDName = "revamb.input.architecture";
@@ -76,7 +76,7 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
   revng_assert(Dispatcher != nullptr && AnyPC != nullptr
                && UnexpectedPC != nullptr);
 
-  DBG("passes", { dbg << "Ending GeneratedCodeBasicInfo\n"; });
+  revng_log(PassesLog, "Ending GeneratedCodeBasicInfo");
 
   return false;
 }

@@ -35,6 +35,8 @@
 
 using namespace llvm;
 
+static Logger<> TypeAtOffsetLog("type-at-offset");
+
 class OffsetValueStack {
 
 private:
@@ -76,6 +78,8 @@ private:
 
 static std::pair<IntegerType *, unsigned>
 getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
+  auto &Log = TypeAtOffsetLog;
+
   unsigned Depth = 0;
   while (1) {
     switch (VarType->getTypeID()) {
@@ -111,9 +115,9 @@ getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
     case llvm::Type::TypeID::ArrayTyID:
       VarType = VarType->getArrayElementType();
       Offset %= TheLayout->getTypeAllocSize(VarType);
-      DBG("type-at-offset",
-          dbg << std::string(Depth++ * 2, ' ')
-              << " Is an Array. Offset in Element: " << Offset << '\n');
+      revng_log(Log,
+                std::string(Depth++ * 2, ' ')
+                  << " Is an Array. Offset in Element: " << Offset);
       break;
 
     case llvm::Type::TypeID::StructTyID: {
@@ -124,11 +128,12 @@ getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
       VarType = TheStruct->getTypeAtIndex(FieldIndex);
       intptr_t FieldEnd = FieldOffset + TheLayout->getTypeAllocSize(VarType);
 
-      DBG("type-at-offset",
-          dbg << std::string(Depth++ * 2, ' ') << " Offset: " << Offset
-              << " Struct Name: " << TheStruct->getName().str()
-              << " Field Index: " << FieldIndex << " Field offset: "
-              << FieldOffset << " Field end: " << FieldEnd << "\n");
+      revng_log(Log,
+                std::string(Depth++ * 2, ' ')
+                  << " Offset: " << Offset
+                  << " Struct Name: " << TheStruct->getName().str()
+                  << " Field Index: " << FieldIndex << " Field offset: "
+                  << FieldOffset << " Field end: " << FieldEnd);
 
       if (Offset >= FieldEnd)
         return { nullptr, 0 }; // It's padding
