@@ -168,7 +168,7 @@ noret void revng_do_abort(const char *Message, const char *File, unsigned Line);
                     HAS_COMMA(COMMA_IF_INVOKED __VA_ARGS__), \
                     HAS_COMMA(__VA_ARGS__()),                \
                     HAS_COMMA(COMMA_IF_INVOKED __VA_ARGS__())))
-// It's empty if the first three conditions are fasle and the last is true
+// It's empty if the first three conditions are false and the last is true
 #define IS_EMPTY_0001 ,
 
 #define REVNG_ABORT_0(...) revng_abort_impl(__VA_ARGS__)
