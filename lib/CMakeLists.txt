@@ -4,6 +4,5 @@
 
 add_subdirectory(Support)
 add_subdirectory(DebugHelper)
-add_subdirectory(argparse)
 add_subdirectory(BasicAnalyses)
 add_subdirectory(StackAnalysis)

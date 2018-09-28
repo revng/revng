@@ -15,6 +15,7 @@
 #include "llvm/Pass.h"
 
 // Local libraries includes
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/revng.h"
 
 // Local includes
@@ -33,6 +34,9 @@ class Value;
 
 class VariableManager;
 class CPUStateAccessAnalysisPass;
+
+// TODO: rename
+extern llvm::cl::opt<bool> External;
 
 /// \brief Maintain the list of variables required by PTC
 ///
@@ -145,12 +149,10 @@ public:
                          bool EnvIsSrc);
 
   /// \brief Perform finalization steps on variables
-  ///
-  /// \param ExternalCSVs true if CSVs linkage should not be turned into static.
-  void finalize(bool ExternalCSVs) {
+  void finalize() {
     using namespace llvm;
 
-    if (!ExternalCSVs) {
+    if (not External) {
       for (auto &P : CPUStateGlobals)
         P.second->setLinkage(GlobalValue::InternalLinkage);
       for (auto &P : OtherGlobals)

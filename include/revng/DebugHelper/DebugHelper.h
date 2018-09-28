@@ -24,6 +24,22 @@ class DISubprogram;
 class Function;
 } // namespace llvm
 
+namespace DebugInfoType {
+
+/// \brief Type of debug information to produce
+enum Values {
+  /// No debug information
+  None,
+  /// Produce a file containing the assembly code of the input binary
+  OriginalAssembly,
+  /// Produce the PTC as translated by libtinycode
+  PTC,
+  /// Prduce an LLVM IR with debug metadata referring to itself
+  LLVMIR
+};
+
+} // namespace DebugInfoType
+
 /// \brief AssemblyAnnotationWriter decorating the output withe debug
 ///        information
 ///
@@ -70,11 +86,10 @@ public:
   ///        DebugInfoType::PTC, `.S` if it's DebugInfoType::OriginalAssembly or
   ///        will match \p Output if \p Type is DebugInfoType::LLVMIR.
   /// \param TheModule the LLVM module to print out.
-  /// \param Type type of debug information requested.
   DebugHelper(std::string Output,
-              std::string Debug,
               llvm::Module *TheModule,
-              DebugInfoType Type);
+              DebugInfoType::Values DebugInfo,
+              std::string DebugPath);
 
   /// Decorates the root and the isolated functions with the requested debug
   /// info
@@ -95,9 +110,7 @@ private:
 
 private:
   std::string OutputPath;
-  std::string DebugPath;
   llvm::DIBuilder Builder;
-  DebugInfoType Type;
   llvm::Module *TheModule;
   llvm::DICompileUnit *CompileUnit;
   std::unique_ptr<DebugAnnotationWriter> Annotator;
@@ -105,6 +118,9 @@ private:
   unsigned OriginalInstrMDKind;
   unsigned PTCInstrMDKind;
   unsigned DbgMDKind;
+
+  DebugInfoType::Values DebugInfo;
+  std::string DebugPath;
 };
 
 #endif // DEBUGHELPER_H

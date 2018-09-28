@@ -122,7 +122,6 @@ add_flag_if_available("-Wmissing-prototypes")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 add_definitions("-D_FILE_OFFSET_BITS=64")
-include_directories(argparse/)
 
 CHECK_CXX_COMPILER_FLAG("-no-pie" COMPILER_SUPPORTS_NO_PIE)
 if(COMPILER_SUPPORTS_NO_PIE)

@@ -49,36 +49,11 @@ public:
   /// \param Target target architecture.
   /// \param Output path where the generate LLVM IR must be saved.
   /// \param Helpers path of the LLVM IR file containing the QEMU helpers.
-  /// \param DebugInfo type of debug information to generate.
-  /// \param Debug path where the debugging source file must be written. If an
-  ///        empty string, the output file name plus ".S", if \p DebugInfo is
-  ///        DebugInfoType::OriginalAssembly, or ".ptc", if \p DebugInfo is
-  ///        DebugInfoType::PTC.
-  /// \param LinkingInfo path where the information about how the linking should
-  ///        be stored. If an empty string, the output file name with a
-  ///        ".li.csv" suffix will be used.
-  /// \param Coverage path where the information about instruction coverage
-  ///        should be stored. If an empty string, the output file name with a
-  ///        ".coverage.csv" suffix will be used.
-  /// \param EnableOSRA specify whether OSRA should be used to discover
-  ///        additional jump targets or not.
-  /// \param EnableLinking specifying whether linking to QEMU helpers should be
-  ///        performed or not.
   CodeGenerator(BinaryFile &Binary,
                 Architecture &Target,
                 std::string Output,
                 std::string Helpers,
-                std::string EarlyLinked,
-                DebugInfoType DebugInfo,
-                std::string Debug,
-                std::string LinkingInfo,
-                std::string Coverage,
-                std::string BBSummary,
-                bool EnableOSRA,
-                bool DetectFunctionBoundaries,
-                bool EnableLinking,
-                bool ExternalCSVs,
-                bool UseDebugSymbols);
+                std::string EarlyLinked);
 
   ~CodeGenerator();
 
@@ -103,9 +78,7 @@ private:
   /// \param TheBinary the LLVM ObjectFile representing the ELF file.
   /// \param LinkingInfo path where the .li.csv file should be created.
   template<typename T>
-  void parseELF(llvm::object::ObjectFile *TheBinary,
-                std::string LinkingInfo,
-                bool UseSections);
+  void parseELF(llvm::object::ObjectFile *TheBinary, bool UseSections);
 
   /// \brief Import a helper function definition
   ///
@@ -128,14 +101,7 @@ private:
   unsigned PTCInstrMDKind;
   unsigned DbgMDKind;
 
-  std::string CoveragePath;
-  bool EnableOSRA;
-  std::string BBSummaryPath;
   std::string FunctionListPath;
-  bool DetectFunctionBoundaries;
-  bool EnableLinking;
-  bool ExternalCSVs;
-  bool UseDebugSymbols;
 };
 
 #endif // CODEGENERATOR_H

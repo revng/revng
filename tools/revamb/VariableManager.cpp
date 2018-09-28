@@ -35,7 +35,15 @@
 
 using namespace llvm;
 
-static Logger<> TypeAtOffsetLog("type-at-offset");
+// TODO: rename
+cl::opt<bool> External("external",
+                       cl::desc("set CSVs linkage to external, useful for "
+                                "debugging purposes"),
+                       cl::cat(MainCategory));
+static cl::alias A1("E",
+                    cl::desc("Alias for -external"),
+                    cl::aliasopt(External),
+                    cl::cat(MainCategory));
 
 class OffsetValueStack {
 
@@ -78,7 +86,7 @@ private:
 
 static std::pair<IntegerType *, unsigned>
 getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
-  auto &Log = TypeAtOffsetLog;
+  static Logger<> Log("type-at-offset");
 
   unsigned Depth = 0;
   while (1) {

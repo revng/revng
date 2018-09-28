@@ -15,7 +15,11 @@
 #include "llvm/IR/Value.h"
 
 // Local libraries includes
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/revng.h"
+
+namespace cl = llvm::cl;
 
 size_t MaxLoggerNameLength = 0;
 LogTerminator DoLog;
@@ -37,6 +41,55 @@ void Logger<X>::emit() {
     Buffer.str("");
     Buffer.clear();
   }
+}
+
+/// \brief Class for dynamically registering arguments options
+template<class DataType>
+class DynamicValuesClass {
+private:
+  struct Alternative {
+    const char *Name;
+    int Value;
+    const char *Description;
+  };
+
+  std::vector<Alternative> Values;
+
+public:
+  void addOption(const char *Name, int Value, const char *Description) {
+    Values.push_back({ Name, Value, Description });
+  }
+
+  template<class Opt>
+  void apply(Opt &O) const {
+    for (const Alternative &A : Values)
+      O.getParser().addLiteralOption(A.Name, A.Value, A.Description);
+  }
+};
+
+enum PlaceholderEnum {};
+static std::unique_ptr<cl::list<PlaceholderEnum>> DebugLogging;
+static std::unique_ptr<cl::alias> DebugLoggingAlias;
+
+void LoggersRegistry::registerArguments() const {
+  DynamicValuesClass<std::string> Values;
+  unsigned I = 0;
+  for (Logger<true> *L : Loggers)
+    Values.addOption(L->name().data(), I++, L->description().data());
+  auto *Opt = new cl::list<PlaceholderEnum>("debug-log",
+                                            cl::desc("enable verbose logging"),
+                                            Values,
+                                            cl::cat(MainCategory));
+  DebugLogging.reset(Opt);
+  DebugLoggingAlias.reset(new cl::alias("d",
+                                        cl::desc("Alias for -debug-log"),
+                                        cl::aliasopt(*DebugLogging),
+                                        cl::cat(MainCategory)));
+}
+
+void LoggersRegistry::activateArguments() {
+  for (unsigned I : *DebugLogging)
+    Loggers[I]->enable();
 }
 
 template<bool X>

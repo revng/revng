@@ -183,11 +183,9 @@ public:
   /// \param PCReg the global variable representing the program counter.
   /// \param Binary reference to the information about a given binary, such as
   ///        segments and symbols.
-  /// \param EnableOSRA whether OSRA is enabled or not.
   JumpTargetManager(llvm::Function *TheFunction,
                     llvm::Value *PCReg,
-                    const BinaryFile &Binary,
-                    bool EnableOSRA);
+                    const BinaryFile &Binary);
 
   /// \brief Transform the IR to represent the request form of CFG
   void setCFGForm(CFGForm NewForm);
@@ -231,8 +229,6 @@ public:
   /// `exitTB` is called when jump to the current value of the PC must be
   /// performed.
   llvm::Function *exitTB() { return ExitTB; }
-
-  bool isOSRAEnabled() { return EnableOSRA; }
 
   /// \brief Pop from the list of program counters to explore
   ///
@@ -559,8 +555,6 @@ private:
   std::set<llvm::BasicBlock *> Visited;
 
   const BinaryFile &Binary;
-
-  bool EnableOSRA;
 
   unsigned NewBranches = 0;
 

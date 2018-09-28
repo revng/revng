@@ -175,7 +175,7 @@ public:
   /// \param UseSections whether information in sections, if available, should
   ///        be employed or not. This is useful to precisely identify exeutable
   ///        code.
-  BinaryFile(std::string FilePath, bool UseSections, uint64_t BaseAddress);
+  BinaryFile(std::string FilePath, uint64_t BaseAddress);
 
   llvm::Optional<llvm::ArrayRef<uint8_t>>
   getAddressData(uint64_t Address) const {
@@ -235,9 +235,7 @@ private:
 
   /// \brief Parse an ELF file to load all the required information
   template<typename T, bool HasAddend>
-  void parseELF(llvm::object::ObjectFile *TheBinary,
-                bool UseSections,
-                uint64_t BaseAddress);
+  void parseELF(llvm::object::ObjectFile *TheBinary, uint64_t BaseAddress);
 
   /// \brief Parse the .eh_frame_hdr section to obtain the address and the
   ///        number of FDEs in .eh_frame

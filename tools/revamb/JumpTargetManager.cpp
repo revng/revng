@@ -34,6 +34,7 @@
 // Local libraries includes
 #include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/revng.h"
@@ -46,20 +47,30 @@
 
 using namespace llvm;
 
+namespace {
 
-static bool isSumJump(StoreInst *PCWrite);
+Logger<> JTCountLog("jtcount");
+
+cl::opt<bool> NoOSRA("no-osra", cl::desc(" OSRA"), cl::cat(MainCategory));
+cl::alias A1("O",
+             cl::desc("Alias for -no-osra"),
+             cl::aliasopt(NoOSRA),
+             cl::cat(MainCategory));
+
+RegisterPass<TranslateDirectBranchesPass> X("translate-db",
+                                            "Translate Direct Branches"
+                                            " Pass",
+                                            false,
+                                            false);
+
+// TODO: this is kind of an abuse
+Logger<> Verify("verify");
+
+} // namespace
 
 char TranslateDirectBranchesPass::ID = 0;
 
-static RegisterPass<TranslateDirectBranchesPass> X("translate-db",
-                                                   "Translate Direct Branches"
-                                                   " Pass",
-                                                   false,
-                                                   false);
-
-// TODO: this is kind of an abuse
-static Logger<> Verify("verify");
-static Logger<> JTCountLog("jtcount");
+static bool isSumJump(StoreInst *PCWrite);
 
 void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<DominatorTreeWrapperPass>();
@@ -184,7 +195,7 @@ bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
           forceFallthroughAfterHelper(Call);
         } else {
           uint64_t NextPC = JTM->getNextPC(PCWrite);
-          if (NextPC != 0 && JTM->isOSRAEnabled() && isSumJump(PCWrite))
+          if (NextPC != 0 && not NoOSRA && isSumJump(PCWrite))
             JTM->registerJT(NextPC, JTReason::SumJump);
 
           auto *Address = dyn_cast<ConstantInt>(PCWrite->getValueOperand());
@@ -438,8 +449,7 @@ getOption(StringMap<cl::Option *> &Options, const char *Name) {
 
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                      Value *PCReg,
-                                     const BinaryFile &Binary,
-                                     bool EnableOSRA) :
+                                     const BinaryFile &Binary) :
   TheModule(*TheFunction->getParent()),
   Context(TheModule.getContext()),
   TheFunction(TheFunction),
@@ -450,7 +460,6 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   Dispatcher(nullptr),
   DispatcherSwitch(nullptr),
   Binary(Binary),
-  EnableOSRA(EnableOSRA),
   NoReturn(Binary.architecture()),
   CurrentCFGForm(UnknownFormCFG) {
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
@@ -984,7 +993,7 @@ void JumpTargetManager::translateIndirectJumps() {
                        "Direct jumps should not be handled here");
         }
 
-        if (PCWrite != nullptr && EnableOSRA && isSumJump(PCWrite))
+        if (PCWrite != nullptr && not NoOSRA && isSumJump(PCWrite))
           handleSumJump(PCWrite);
 
         if (getLimitedValue(Call->getArgOperand(0)) == 0) {
@@ -1361,7 +1370,7 @@ void JumpTargetManager::harvest() {
                        << NewBranches << " new branches were found");
   }
 
-  if (EnableOSRA && empty()) {
+  if (not NoOSRA && empty()) {
     if (Verify.isEnabled())
       revng_assert(not verifyModule(TheModule, &dbgs()));
 

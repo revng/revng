@@ -9,7 +9,6 @@ add_executable(revamb-dump
   CollectNoreturn.cpp
   IsolateFunctions.cpp)
 target_link_libraries(revamb-dump
-  argparse
   Support
   DebugHelper
   StackAnalysis

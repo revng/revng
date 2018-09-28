@@ -23,7 +23,6 @@ target_link_libraries(revamb
   m
   Support
   DebugHelper
-  argparse
   BasicAnalyses
   ${LLVM_LIBRARIES})
 add_custom_command(TARGET revamb POST_BUILD VERBATIM

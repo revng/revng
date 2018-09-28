@@ -62,8 +62,13 @@ public:
 
   bool isEnabled() const { return StaticEnabled && Enabled; }
   llvm::StringRef name() const { return Name; }
+  // TODO: allow optional description
+  llvm::StringRef description() const { return ""; }
 
-  void enable() { Enabled = true; }
+  void enable() {
+    MaxLoggerNameLength = std::max(MaxLoggerNameLength, Name.size());
+    Enabled = true;
+  }
 
   void disable() { Enabled = false; }
 
@@ -162,7 +167,6 @@ public:
     for (Logger<true> *L : Loggers) {
       if (L->name() == Name) {
         L->enable();
-        MaxLoggerNameLength = std::max(MaxLoggerNameLength, Name.size());
         return;
       }
     }
@@ -180,6 +184,9 @@ public:
 
     revng_abort("Requested logger not available");
   }
+
+  void registerArguments() const;
+  void activateArguments();
 
 private:
   std::vector<Logger<true> *> Loggers;

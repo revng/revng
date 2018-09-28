@@ -28,6 +28,7 @@
 
 // Local libraries includes
 #include "revng/ADT/Queue.h"
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -55,12 +56,9 @@ static RegisterFBDP X("fbdp", "Function Boundaries Detection Pass", true, true);
 
 class FunctionBoundariesDetectionImpl {
 public:
-  FunctionBoundariesDetectionImpl(Function &F,
-                                  JumpTargetManager *JTM,
-                                  bool UseDebugSymbols) :
+  FunctionBoundariesDetectionImpl(Function &F, JumpTargetManager *JTM) :
     F(F),
-    JTM(JTM),
-    UseDebugSymbols(UseDebugSymbols) {}
+    JTM(JTM) {}
 
   map<BasicBlock *, vector<BasicBlock *>> run();
 
@@ -182,7 +180,6 @@ private:
 private:
   Function &F;
   JumpTargetManager *JTM;
-  bool UseDebugSymbols;
 
   std::map<TerminatorInst *, BasicBlock *> FunctionCalls;
   std::map<BasicBlock *, std::vector<BasicBlock *>> CallPredecessors;
@@ -632,7 +629,7 @@ std::string FBD::CFEPRelation::describe() const {
 }
 
 bool FBDP::runOnFunction(Function &F) {
-  FBD Impl(F, JTM, UseDebugSymbols);
+  FBD Impl(F, JTM);
   Functions = Impl.run();
   serialize();
   return false;

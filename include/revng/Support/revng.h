@@ -60,15 +60,6 @@ public:
   }
 };
 
-/// \brief Type of debug information to produce
-enum class DebugInfoType {
-  None, ///< no debug information.
-  OriginalAssembly, ///< produce a file containing the assembly code of the
-                    ///  input binary.
-  PTC, ///< produce the PTC as translated by libtinycode.
-  LLVMIR ///< produce an LLVM IR with debug metadata referring to itself.
-};
-
 // TODO: move me to another header file
 /// \brief Classification of the various basic blocks we are creating
 enum BlockType {

@@ -35,7 +35,7 @@ while [[ $# > 0 ]]; do
 done
 
 if [[ $# -eq 0 ]]; then
-    FILES="$(git ls-files | grep -E '(\.cpp|\.c|\.h)$' | grep -v argparse)"
+    FILES="$(git ls-files | grep -E '(\.cpp|\.c|\.h)$')"
 else
     FILES="$@"
 fi
@@ -66,7 +66,7 @@ fi
     done
 
     # Things should never be at the end of a line
-    for REGEXP in '::' '<' 'RegisterPass.*>' '(' '} else'; do
+    for REGEXP in '::' '<' 'RegisterPass.*>' '(' '} else' '\bopt\b.*>'; do
         $GREP "$REGEXP\$" $FILES | cat
     done
 

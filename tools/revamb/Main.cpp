@@ -29,10 +29,10 @@ extern "C" {
 #include "llvm/Object/ELF.h"
 
 // Local libraries includes
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/Statistics.h"
 #include "revng/Support/revng.h"
-#include "revng/argparse/argparse.h"
 
 // Local includes
 #include "BinaryFile.h"
@@ -40,27 +40,46 @@ extern "C" {
 #include "PTCInterface.h"
 
 PTCInterface ptc = {}; ///< The interface with the PTC library.
+
+using namespace llvm::cl;
+
+using std::string;
+
+// TODO: drop short aliases
+
+namespace {
+
+#define DESCRIPTION desc("virtual address of the entry point where to start")
+opt<unsigned long long> EntryPointAddress("entry",
+                                          DESCRIPTION,
+                                          value_desc("address"),
+                                          cat(MainCategory));
+#undef DESCRIPTION
+alias A1("e",
+         desc("Alias for -entry"),
+         aliasopt(EntryPointAddress),
+         cat(MainCategory));
+
+#define DESCRIPTION desc("base address where dynamic objects should be loaded")
+opt<unsigned long long> BaseAddress("base",
+                                    DESCRIPTION,
+                                    value_desc("address"),
+                                    cat(MainCategory),
+                                    init(0x50000000));
+#undef DESCRIPTION
+
+#define DESCRIPTION desc("Alias for -base")
+alias A2("B", DESCRIPTION, aliasopt(BaseAddress), cat(MainCategory));
+#undef DESCRIPTION
+
+opt<string> InputPath(Positional, Required, desc("<input path>"));
+opt<string> OutputPath(Positional, Required, desc("<output path>"));
+
+} // namespace
+
 static std::string LibTinycodePath;
 static std::string LibHelpersPath;
 static std::string EarlyLinkedPath;
-
-struct ProgramParameters {
-  const char *InputPath;
-  const char *OutputPath;
-  size_t EntryPointAddress;
-  DebugInfoType DebugInfo;
-  const char *DebugPath;
-  const char *LinkingInfoPath;
-  const char *CoveragePath;
-  const char *BBSummaryPath;
-  bool NoOSRA;
-  bool UseDebugSymbols;
-  bool DetectFunctionsBoundaries;
-  bool NoLink;
-  bool External;
-  bool PrintStats;
-  uint64_t BaseAddress;
-};
 
 // When LibraryPointer is destroyed, the destructor calls
 // LibraryDestructor::operator()(LibraryPointer::get()).
@@ -73,24 +92,6 @@ struct ProgramParameters {
 using LibraryDestructor = std::integral_constant<int (*)(void *) noexcept,
                                                  &dlclose>;
 using LibraryPointer = std::unique_ptr<void, LibraryDestructor>;
-
-static const char *const Usage[] = {
-  "revamb [options] [--] INFILE OUTFILE",
-  nullptr,
-};
-
-static bool toNumber(const char *String, uint64_t *Destination) {
-  const char *End = String + strlen(String);
-  char *NumberEnd;
-  unsigned long long Result;
-  Result = strtoull(String, &NumberEnd, 0);
-
-  if (End != NumberEnd)
-    return false;
-
-  *Destination = static_cast<uint64_t>(Result);
-  return true;
-}
 
 static void findFiles(const char *Architecture) {
   // TODO: make this optional
@@ -181,172 +182,14 @@ static int loadPTCLibrary(LibraryPointer &PTCLibrary) {
   return EXIT_SUCCESS;
 }
 
-/// Parses the input arguments to the program.
-///
-/// \param Argc number of arguments.
-/// \param Argv array of strings containing the arguments.
-/// \param Parameters where to store the parsed parameters.
-///
-/// \return EXIT_SUCCESS if the parameters have been successfully parsed.
-static int
-parseArgs(int Argc, const char *Argv[], ProgramParameters *Parameters) {
-  const char *DebugString = nullptr;
-  const char *DebugLoggingString = nullptr;
-  const char *EntryPointAddressString = nullptr;
-  uint64_t EntryPointAddress = 0;
-  const char *BaseAddressString = nullptr;
-  uint64_t BaseAddress = 0x50000000;
-
-  // Initialize argument parser
-  struct argparse Arguments;
-  struct argparse_option Options[] = {
-    OPT_HELP(),
-    OPT_GROUP("Input description"),
-    OPT_STRING('e',
-               "entry",
-               &EntryPointAddressString,
-               "virtual address of the entry point where to start."),
-    OPT_STRING('s',
-               "debug-path",
-               &Parameters->DebugPath,
-               "destination path for the generated debug source."),
-    OPT_STRING('c',
-               "coverage-path",
-               &Parameters->CoveragePath,
-               "destination path for the CSV containing translated ranges."),
-    OPT_STRING('i',
-               "linking-info",
-               &Parameters->LinkingInfoPath,
-               "destination path for the CSV containing linking info."),
-    OPT_STRING('g',
-               "debug-info",
-               &DebugString,
-               "emit debug information. Possible values are 'none' for no debug"
-               " information, 'asm' for debug information referring to the"
-               " assembly of the input file, 'ptc' for debug information"
-               " referred to the Portable Tiny Code, or 'll' for debug"
-               " information referred to the LLVM IR."),
-    OPT_STRING('d', "debug", &DebugLoggingString, "enable verbose logging."),
-    OPT_BOOLEAN('O', "no-osra", &Parameters->NoOSRA, "disable OSRA."),
-    OPT_BOOLEAN('L',
-                "no-link",
-                &Parameters->NoLink,
-                "do not link the output to QEMU helpers."),
-    OPT_BOOLEAN('E',
-                "external",
-                &Parameters->External,
-                "set CSVs linkage to external, useful for debugging purposes."),
-    OPT_BOOLEAN('S',
-                "use-debug-symbols",
-                &Parameters->UseDebugSymbols,
-                "use section and symbol function informations, if available."),
-    OPT_STRING('b',
-               "bb-summary",
-               &Parameters->BBSummaryPath,
-               "destination path for the CSV containing the statistics about "
-               "the translated basic blocks."),
-    OPT_BOOLEAN('f',
-                "functions-boundaries",
-                &Parameters->DetectFunctionsBoundaries,
-                "enable functions boundaries detection."),
-    OPT_BOOLEAN('T',
-                "stats",
-                &Parameters->PrintStats,
-                "print statistics upon exit or SIGINT."),
-    OPT_STRING('B',
-               "base",
-               &BaseAddressString,
-               "base address where dynamic objects should be loaded."),
-    OPT_END(),
-  };
-
-  argparse_init(&Arguments, Options, Usage, 0);
-  argparse_describe(&Arguments,
-                    "\nrevamb.",
-                    "\nTranslates a binary into a program for a different "
-                    "architecture.\n");
-  Argc = argparse_parse(&Arguments, Argc, Argv);
-
-  // Handle positional arguments
-  if (Argc != 2) {
-    fprintf(stderr, "Too many arguments.\n");
-    return EXIT_FAILURE;
-  }
-
-  Parameters->InputPath = Argv[0];
-  Parameters->OutputPath = Argv[1];
-
-  // Check parameters
-  if (EntryPointAddressString != nullptr) {
-    if (not toNumber(EntryPointAddressString, &EntryPointAddress)) {
-      fprintf(stderr,
-              "Entry point parameter (-e, --entry) is not a"
-              " number.\n");
-      return EXIT_FAILURE;
-    }
-  }
-  Parameters->EntryPointAddress = static_cast<size_t>(EntryPointAddress);
-
-  if (BaseAddressString != nullptr) {
-    if (not toNumber(BaseAddressString, &BaseAddress)) {
-      fprintf(stderr, "Base address (-B, --base) is not a number.\n");
-      return EXIT_FAILURE;
-    }
-  }
-  Parameters->BaseAddress = BaseAddress;
-
-  if (DebugString != nullptr) {
-    if (strcmp("none", DebugString) == 0) {
-      Parameters->DebugInfo = DebugInfoType::None;
-    } else if (strcmp("asm", DebugString) == 0) {
-      Parameters->DebugInfo = DebugInfoType::OriginalAssembly;
-    } else if (strcmp("ptc", DebugString) == 0) {
-      Parameters->DebugInfo = DebugInfoType::PTC;
-    } else if (strcmp("ll", DebugString) == 0) {
-      Parameters->DebugInfo = DebugInfoType::LLVMIR;
-    } else {
-      fprintf(stderr,
-              "Unexpected value for the debug type parameter"
-              " (-g, --debug).\n");
-      return EXIT_FAILURE;
-    }
-  }
-
-  if (DebugLoggingString != nullptr) {
-    std::string Input(DebugLoggingString);
-    std::stringstream Stream(Input);
-    std::string Type;
-    while (std::getline(Stream, Type, ','))
-      Loggers->enable(Type.c_str());
-  }
-
-  if (Parameters->DebugPath == nullptr)
-    Parameters->DebugPath = "";
-
-  if (Parameters->LinkingInfoPath == nullptr)
-    Parameters->LinkingInfoPath = "";
-
-  if (Parameters->CoveragePath == nullptr)
-    Parameters->CoveragePath = "";
-
-  if (Parameters->BBSummaryPath == nullptr)
-    Parameters->BBSummaryPath = "";
-
-  if (Parameters->PrintStats)
-    OnQuitStatistics->install();
-
-  return EXIT_SUCCESS;
-}
-
 int main(int argc, const char *argv[]) {
-  // Parse arguments
-  ProgramParameters Parameters{};
-  if (parseArgs(argc, argv, &Parameters) != EXIT_SUCCESS)
-    return EXIT_FAILURE;
+  Loggers->registerArguments();
+  HideUnrelatedOptions({ &MainCategory });
+  ParseCommandLineOptions(argc, argv);
+  installStatistics();
+  Loggers->activateArguments();
 
-  BinaryFile TheBinary(Parameters.InputPath,
-                       Parameters.UseDebugSymbols,
-                       Parameters.BaseAddress);
+  BinaryFile TheBinary(InputPath, BaseAddress);
 
   findFiles(TheBinary.architecture().name());
 
@@ -359,21 +202,11 @@ int main(int argc, const char *argv[]) {
   Architecture TargetArchitecture;
   CodeGenerator Generator(TheBinary,
                           TargetArchitecture,
-                          std::string(Parameters.OutputPath),
+                          std::string(OutputPath),
                           LibHelpersPath,
-                          EarlyLinkedPath,
-                          Parameters.DebugInfo,
-                          std::string(Parameters.DebugPath),
-                          std::string(Parameters.LinkingInfoPath),
-                          std::string(Parameters.CoveragePath),
-                          std::string(Parameters.BBSummaryPath),
-                          !Parameters.NoOSRA,
-                          Parameters.DetectFunctionsBoundaries,
-                          !Parameters.NoLink,
-                          Parameters.External,
-                          Parameters.UseDebugSymbols);
+                          EarlyLinkedPath);
 
-  Generator.translate(Parameters.EntryPointAddress);
+  Generator.translate(EntryPointAddress);
 
   Generator.serialize();
 

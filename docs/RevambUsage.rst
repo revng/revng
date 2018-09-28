@@ -84,6 +84,6 @@ are described:
                            the translated basic blocks. This option is
                            deprecated in favor of using `revamb-dump` and will
                            be removed. Default: ``OUTFILE.bbsummary.csv``.
-:``-f``, ``--function-boundaries``: Enable function boundaries detection. This
+:``-f``, ``--functions-boundaries``: Enable function boundaries detection. This
                                     process currently can be quite expensive and
                                     it's therefore disabled by default.

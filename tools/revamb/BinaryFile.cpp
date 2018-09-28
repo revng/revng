@@ -25,6 +25,7 @@
 #include "llvm/Support/LEB128.h"
 
 // Local libraries includes
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 
 // Local includes
@@ -37,9 +38,7 @@ using std::make_pair;
 
 static Logger<> EhFrameLog("ehframe");
 
-BinaryFile::BinaryFile(std::string FilePath,
-                       bool UseSections,
-                       uint64_t BaseAddress) :
+BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
   BaseAddress(0) {
   auto BinaryOrErr = object::createBinary(FilePath);
   revng_assert(BinaryOrErr, "Couldn't open the input file");
@@ -236,29 +235,29 @@ BinaryFile::BinaryFile(std::string FilePath,
   if (TheArchitecture.pointerSize() == 32) {
     if (TheArchitecture.isLittleEndian()) {
       if (TheArchitecture.hasRelocationAddend()) {
-        parseELF<object::ELF32LE, true>(TheBinary, UseSections, BaseAddress);
+        parseELF<object::ELF32LE, true>(TheBinary, BaseAddress);
       } else {
-        parseELF<object::ELF32LE, false>(TheBinary, UseSections, BaseAddress);
+        parseELF<object::ELF32LE, false>(TheBinary, BaseAddress);
       }
     } else {
       if (TheArchitecture.hasRelocationAddend()) {
-        parseELF<object::ELF32BE, true>(TheBinary, UseSections, BaseAddress);
+        parseELF<object::ELF32BE, true>(TheBinary, BaseAddress);
       } else {
-        parseELF<object::ELF32BE, false>(TheBinary, UseSections, BaseAddress);
+        parseELF<object::ELF32BE, false>(TheBinary, BaseAddress);
       }
     }
   } else if (TheArchitecture.pointerSize() == 64) {
     if (TheArchitecture.isLittleEndian()) {
       if (TheArchitecture.hasRelocationAddend()) {
-        parseELF<object::ELF64LE, true>(TheBinary, UseSections, BaseAddress);
+        parseELF<object::ELF64LE, true>(TheBinary, BaseAddress);
       } else {
-        parseELF<object::ELF64LE, false>(TheBinary, UseSections, BaseAddress);
+        parseELF<object::ELF64LE, false>(TheBinary, BaseAddress);
       }
     } else {
       if (TheArchitecture.hasRelocationAddend()) {
-        parseELF<object::ELF64BE, true>(TheBinary, UseSections, BaseAddress);
+        parseELF<object::ELF64BE, true>(TheBinary, BaseAddress);
       } else {
-        parseELF<object::ELF64BE, false>(TheBinary, UseSections, BaseAddress);
+        parseELF<object::ELF64BE, false>(TheBinary, BaseAddress);
       }
     }
   } else {
@@ -352,9 +351,7 @@ struct RelocationHelper<T, false> {
 };
 
 template<typename T, bool HasAddend>
-void BinaryFile::parseELF(object::ObjectFile *TheBinary,
-                          bool UseSections,
-                          uint64_t BaseAddress) {
+void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
   // Parse the ELF file
   std::error_code EC;
   object::ELFFile<T> TheELF(TheBinary->getData(), EC);
@@ -434,7 +431,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
 
       // If it's an executable segment, and we've been asked so, register
       // which sections actually contain code
-      if (UseSections && Segment.IsExecutable) {
+      if (UseDebugSymbols && Segment.IsExecutable) {
         using Elf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
         auto Inserter = std::back_inserter(Segment.ExecutableSections);
         for (Elf_Shdr &SectionHeader : TheELF.sections()) {

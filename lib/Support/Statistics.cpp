@@ -7,6 +7,21 @@
 
 // Local libraries includes
 #include "revng/Support/Statistics.h"
+#include "revng/Support/CommandLine.h"
+
+namespace cl = llvm::cl;
+
+// Was: -stats
+static cl::opt<bool> Statistics("statistics",
+                                cl::desc("print statistics upon exit or "
+                                         "SIGINT. Use "
+                                         "this argument, ignore -stats."),
+                                cl::cat(MainCategory));
+
+static cl::alias A1("T",
+                    cl::desc("Alias for -statistics"),
+                    cl::aliasopt(Statistics),
+                    cl::cat(MainCategory));
 
 struct Handler {
   int Signal;
@@ -22,6 +37,11 @@ static std::array<Handler, 3> Handlers = { { { SIGINT, true, {}, {} },
                                              { SIGUSR1, false, {}, {} } } };
 
 llvm::ManagedStatic<OnQuitRegistry> OnQuitStatistics;
+
+void installStatistics() {
+  if (Statistics)
+    OnQuitStatistics->install();
+}
 
 static void onQuit() {
   dbg << "\n";

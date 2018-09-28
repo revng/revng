@@ -210,4 +210,6 @@ inline void CounterMap<K, T>::init() {
   OnQuitStatistics->add(this);
 }
 
+extern void installStatistics();
+
 #endif // STATISTICS_H

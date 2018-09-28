@@ -7,6 +7,7 @@
 
 // Standard includes
 #include <fstream>
+#include <string>
 
 // LLVM includes
 #include "llvm/IR/AssemblyAnnotationWriter.h"
@@ -18,6 +19,7 @@
 
 // Local libraries includes
 #include "revng/DebugHelper/DebugHelper.h"
+#include "revng/Support/CommandLine.h"
 
 using namespace llvm;
 
@@ -123,31 +125,32 @@ void DAW::emitInstructionAnnot(const Instruction *Instr,
 }
 
 DebugHelper::DebugHelper(std::string Output,
-                         std::string Debug,
                          Module *TheModule,
-                         DebugInfoType Type) :
+                         DebugInfoType::Values DebugInfo,
+                         std::string DebugPath) :
   OutputPath(Output),
-  DebugPath(Debug),
   Builder(*TheModule),
-  Type(Type),
-  TheModule(TheModule) {
+  TheModule(TheModule),
+  DebugInfo(DebugInfo),
+  DebugPath(DebugPath) {
+
   OriginalInstrMDKind = TheModule->getContext().getMDKindID("oi");
   PTCInstrMDKind = TheModule->getContext().getMDKindID("pi");
   DbgMDKind = TheModule->getContext().getMDKindID("dbg");
 
   // Generate automatically the name of the source file for debugging
   if (DebugPath.empty()) {
-    if (Type == DebugInfoType::PTC)
-      DebugPath = OutputPath + ".ptc";
-    else if (Type == DebugInfoType::OriginalAssembly)
-      DebugPath = OutputPath + ".S";
-    else if (Type == DebugInfoType::LLVMIR)
-      DebugPath = OutputPath;
+    if (DebugInfo == DebugInfoType::PTC)
+      this->DebugPath = OutputPath + ".ptc";
+    else if (DebugInfo == DebugInfoType::OriginalAssembly)
+      this->DebugPath = OutputPath + ".S";
+    else if (DebugInfo == DebugInfoType::LLVMIR)
+      this->DebugPath = OutputPath;
   }
 
-  if (Type != DebugInfoType::None) {
+  if (DebugInfo != DebugInfoType::None) {
     CompileUnit = Builder.createCompileUnit(dwarf::DW_LANG_C,
-                                            DebugPath,
+                                            this->DebugPath,
                                             "",
                                             "revamb",
                                             false,
@@ -165,7 +168,7 @@ void DebugHelper::generateDebugInfo() {
   for (Function &F : TheModule->functions()) {
     // TODO: find a better way to identify root and the isolated functions
     if (F.getName() == "root" || F.getName().startswith("bb.")) {
-      if (Type != DebugInfoType::None) {
+      if (DebugInfo != DebugInfoType::None) {
         DISubroutineType *EmptyType = nullptr;
         DITypeRefArray EmptyArrayType = Builder.getOrCreateTypeArray({});
         EmptyType = Builder.createSubroutineType(EmptyArrayType);
@@ -188,14 +191,15 @@ void DebugHelper::generateDebugInfo() {
     }
   }
 
-  switch (Type) {
+  switch (DebugInfo) {
   case DebugInfoType::PTC:
   case DebugInfoType::OriginalAssembly: {
     // Generate the source file and the debugging information in tandem
 
     unsigned LineIndex = 1;
-    unsigned MetadataKind = Type == DebugInfoType::PTC ? PTCInstrMDKind :
-                                                         OriginalInstrMDKind;
+    unsigned MetadataKind = DebugInfo == DebugInfoType::PTC ?
+                              PTCInstrMDKind :
+                              OriginalInstrMDKind;
 
     MDString *Last = nullptr;
     std::ofstream Source(DebugPath);
@@ -253,7 +257,7 @@ void DebugHelper::print(std::ostream &Output, bool DebugInfo) {
 
 bool DebugHelper::copySource() {
   // If debug info refer to LLVM IR, just copy the output file
-  if (Type == DebugInfoType::LLVMIR && DebugPath != OutputPath) {
+  if (DebugInfo == DebugInfoType::LLVMIR && DebugPath != OutputPath) {
     std::ifstream Source(DebugPath, std::ios::binary);
     std::ofstream Destination(OutputPath, std::ios::binary);
 

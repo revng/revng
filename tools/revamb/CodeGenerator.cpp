@@ -13,6 +13,7 @@
 #include <queue>
 #include <set>
 #include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -40,6 +41,7 @@
 
 // Local libraries includes
 #include "revng/DebugHelper/DebugHelper.h"
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/revng.h"
 
@@ -55,6 +57,98 @@
 using namespace llvm;
 
 using std::make_pair;
+using std::string;
+
+// Register all the arguments
+
+// TODO: can we drop this and the associated functionality?
+static cl::opt<string> CoveragePath("coverage-path",
+                                    cl::desc("destination path for the CSV "
+                                             "containing "
+                                             "translated ranges"),
+                                    cl::value_desc("path"),
+                                    cl::cat(MainCategory));
+static cl::alias A1("c",
+                    cl::desc("Alias for -coverage-path"),
+                    cl::aliasopt(CoveragePath),
+                    cl::cat(MainCategory));
+
+// TODO: linking-info-path?
+static cl::opt<string> LinkingInfoPath("linking-info",
+                                       cl::desc("destination path for the CSV "
+                                                "containing linking info"),
+                                       cl::value_desc("path"),
+                                       cl::cat(MainCategory));
+static cl::alias A2("i",
+                    cl::desc("Alias for -linking-info"),
+                    cl::aliasopt(LinkingInfoPath),
+                    cl::cat(MainCategory));
+
+// TODO: can we drop this and the associated functionality?
+static cl::opt<string> BBSummaryPath("bb-summary",
+                                     cl::desc("destination path for the CSV "
+                                              "containing the statistics about "
+                                              "the translated basic blocks"),
+                                     cl::value_desc("path"),
+                                     cl::cat(MainCategory));
+static cl::alias A3("b",
+                    cl::desc("Alias for -bb-summary"),
+                    cl::aliasopt(BBSummaryPath),
+                    cl::cat(MainCategory));
+
+static cl::opt<bool> NoLink("no-link",
+                            cl::desc("do not link the output to QEMU helpers"),
+                            cl::cat(MainCategory));
+static cl::alias A4("L",
+                    cl::desc("Alias for -no-link"),
+                    cl::aliasopt(NoLink),
+                    cl::cat(MainCategory));
+
+// TODO: this will disappear once we integrate the stack analysis
+static cl::opt<bool> DetectFunctionBoundaries("functions-boundaries",
+                                              cl::desc("enable functions "
+                                                       "boundaries "
+                                                       "detection"),
+                                              cl::cat(MainCategory));
+static cl::alias A5("f",
+                    cl::desc("Alias for -functions-boundaries"),
+                    cl::aliasopt(DetectFunctionBoundaries),
+                    cl::cat(MainCategory));
+
+// Enable Debug Options to be specified on the command line
+auto X = cl::values(clEnumValN(DebugInfoType::None,
+                               "none",
+                               "no debug information"),
+                    clEnumValN(DebugInfoType::OriginalAssembly,
+                               "asm",
+                               "debug information referred to the assembly "
+                               "of the input file"),
+                    clEnumValN(DebugInfoType::PTC,
+                               "ptc",
+                               "debug information referred to the Portable "
+                               "Tiny Code"),
+                    clEnumValN(DebugInfoType::LLVMIR,
+                               "ll",
+                               "debug information referred to the LLVM IR"),
+                    clEnumValEnd);
+static cl::opt<DebugInfoType::Values> DebugInfo("debug-info",
+                                                cl::desc("emit debug "
+                                                         "information"),
+                                                X,
+                                                cl::cat(MainCategory));
+
+static cl::alias A6("g",
+                    cl::desc("Alias for -debug-info"),
+                    cl::aliasopt(DebugInfo),
+                    cl::cat(MainCategory));
+
+// TODO: is this still active?
+static cl::opt<string> DebugPath("debug-path",
+                                 cl::desc("destination path for the generated "
+                                          "debug "
+                                          "source"),
+                                 cl::value_desc("path"),
+                                 cl::cat(MainCategory));
 
 static Logger<> PTCLog("ptc");
 
@@ -83,28 +177,13 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              Architecture &Target,
                              std::string Output,
                              std::string Helpers,
-                             std::string EarlyLinked,
-                             DebugInfoType DebugInfo,
-                             std::string Debug,
-                             std::string LinkingInfo,
-                             std::string Coverage,
-                             std::string BBSummary,
-                             bool EnableOSRA,
-                             bool DetectFunctionBoundaries,
-                             bool EnableLinking,
-                             bool ExternalCSVs,
-                             bool UseDebugSymbols) :
+                             std::string EarlyLinked) :
   TargetArchitecture(Target),
   Context(getGlobalContext()),
   TheModule((new Module("top", Context))),
   OutputPath(Output),
-  Debug(new DebugHelper(Output, Debug, TheModule.get(), DebugInfo)),
-  Binary(Binary),
-  EnableOSRA(EnableOSRA),
-  DetectFunctionBoundaries(DetectFunctionBoundaries),
-  EnableLinking(EnableLinking),
-  ExternalCSVs(ExternalCSVs),
-  UseDebugSymbols(UseDebugSymbols) {
+  Debug(new DebugHelper(Output, TheModule.get(), DebugInfo, DebugPath)),
+  Binary(Binary) {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
   DbgMDKind = Context.getMDKindID("dbg");
@@ -112,18 +191,16 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   HelpersModule = parseIR(Helpers, Context);
   EarlyLinkedModule = parseIR(EarlyLinked, Context);
 
-  if (Coverage.size() == 0)
-    Coverage = Output + ".coverage.csv";
-  this->CoveragePath = Coverage;
+  if (CoveragePath.size() == 0)
+    CoveragePath = Output + ".coverage.csv";
 
-  if (BBSummary.size() == 0)
-    BBSummary = Output + ".bbsummary.csv";
-  this->BBSummaryPath = BBSummary;
+  if (BBSummaryPath.size() == 0)
+    BBSummaryPath = Output + ".bbsummary.csv";
 
   // Prepare the linking info CSV
-  if (LinkingInfo.size() == 0)
-    LinkingInfo = OutputPath + ".li.csv";
-  std::ofstream LinkingInfoStream(LinkingInfo);
+  if (LinkingInfoPath.size() == 0)
+    LinkingInfoPath = OutputPath + ".li.csv";
+  std::ofstream LinkingInfoStream(LinkingInfoPath);
   LinkingInfoStream << "name,start,end\n";
 
   auto *Uint8Ty = Type::getInt8Ty(Context);
@@ -268,7 +345,7 @@ public:
 char CpuLoopFunctionPass::ID = 0;
 
 using RegisterCLF = RegisterPass<CpuLoopFunctionPass>;
-static RegisterCLF X("cpu-loop", "cpu_loop FunctionPass", false, false);
+static RegisterCLF Y("cpu-loop", "cpu_loop FunctionPass", false, false);
 
 void CpuLoopFunctionPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<LoopInfoWrapperPass>();
@@ -371,7 +448,7 @@ private:
 char CpuLoopExitPass::ID = 0;
 
 using RegisterCLE = RegisterPass<CpuLoopExitPass>;
-static RegisterCLE Y("cpu-loop-exit", "cpu_loop_exit Pass", false, false);
+static RegisterCLE Z("cpu-loop-exit", "cpu_loop_exit Pass", false, false);
 
 static void purgeNoReturn(Function *F) {
   auto &Context = F->getParent()->getContext();
@@ -624,7 +701,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   InputArchMD->addOperand(Tuple);
 
   // Create an instance of JumpTargetManager
-  JumpTargetManager JumpTargets(MainFunction, PCReg, Binary, EnableOSRA);
+  JumpTargetManager JumpTargets(MainFunction, PCReg, Binary);
 
   if (VirtualAddress == 0) {
     JumpTargets.harvestGlobalData();
@@ -934,7 +1011,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
         GV.setLinkage(GlobalValue::InternalLinkage);
   }
 
-  if (EnableLinking) {
+  if (not NoLink) {
     Linker TheLinker(*TheModule);
     bool Result = TheLinker.linkInModule(std::move(HelpersModule),
                                          Linker::LinkOnlyNeeded);
@@ -957,7 +1034,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   if (DetectFunctionBoundaries) {
     legacy::FunctionPassManager FPM(&*TheModule);
     using FBDP = FunctionBoundariesDetectionPass;
-    FPM.add(new FBDP(&JumpTargets, "", UseDebugSymbols));
+    FPM.add(new FBDP(&JumpTargets, ""));
     FPM.run(*MainFunction);
   }
 
@@ -979,7 +1056,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   Translator.finalizeNewPCMarkers(CoveragePath);
 
-  Variables.finalize(ExternalCSVs);
+  Variables.finalize();
 
   Debug->generateDebugInfo();
 }
