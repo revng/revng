@@ -810,40 +810,42 @@ void IFI::run() {
       }
     }
 
-    // 11. We add a dummy entry basic block that is usefull for storing the
+    // 11. We add a dummy entry basic block that is useful for storing the
     //     alloca instructions used in each function and to avoid that the entry
     //     block has predecessors. The dummy entry basic blocks simply branches
     //     to the real entry block to have valid IR.
     BasicBlock *EntryBlock = &AnalyzedFunction->getEntryBlock();
 
-    // If the entry block of the function has predecessors add a dummy block
+    // Add a dummy block
     BasicBlock *Dummy = BasicBlock::Create(Context,
                                            "dummy_entry",
                                            AnalyzedFunction,
                                            EntryBlock);
+    IRBuilder<> Builder(Dummy);
 
     // 12. We copy the allocas at the beginning of the function where they will
     //     be used
-    for (BasicBlock &BB : *AnalyzedFunction) {
+    std::set<Instruction *> AllocasToClone;
+    for (BasicBlock &BB : *AnalyzedFunction)
+      for (Instruction *OldAlloca : UsedAllocas[NewToOldBBMap[&BB]])
+        AllocasToClone.insert(OldAlloca);
 
-      auto &InstructionList = AnalyzedFunction->getEntryBlock().getInstList();
-      for (auto &OldAlloca : UsedAllocas[NewToOldBBMap[&BB]]) {
-        Instruction *NewAlloca = OldAlloca->clone();
-        if (OldAlloca->hasName()) {
-          NewAlloca->setName(OldAlloca->getName());
-        }
-
-        // Please be aware that we are inserting the alloca after the dummy
-        // switches, so until their removal done in phase 13 we will have
-        // instruction after a terminator. This is done as we want to have the
-        // dummy switches as first instructions in the basic blocks in order to
-        // remove them by simply erasing the first instruction from each basic
-        // block, instead of keeping track of them with an additional data
-        // structure.
-        InstructionList.push_back(NewAlloca);
-        revng_assert(NewAlloca->getParent() == EntryBlock);
-        LocalVMap[&*OldAlloca] = NewAlloca;
+    for (Instruction *OldAlloca : AllocasToClone) {
+      Instruction *NewAlloca = OldAlloca->clone();
+      if (OldAlloca->hasName()) {
+        NewAlloca->setName(OldAlloca->getName());
       }
+
+      // Please be aware that we are inserting the alloca after the dummy
+      // switches, so until their removal done in phase 13 we will have
+      // instruction after a terminator. This is done as we want to have the
+      // dummy switches as first instructions in the basic blocks in order to
+      // remove them by simply erasing the first instruction from each basic
+      // block, instead of keeping track of them with an additional data
+      // structure.
+      Builder.Insert(NewAlloca);
+      revng_assert(NewAlloca->getParent() == Dummy);
+      LocalVMap[OldAlloca] = NewAlloca;
     }
 
     // Create the unconditional branch to the real entry block
