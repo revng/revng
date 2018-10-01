@@ -76,7 +76,7 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
         replace(AsmString, "REGISTER", Register.name());
         std::stringstream ConstraintStringStream;
         ConstraintStringStream << "*m,~{},~{dirflag},~{fpsr},~{flags}";
-        InlineAsm *Asm = InlineAsm::get(VoidFunctionType,
+        InlineAsm *Asm = InlineAsm::get(AsmFunctionType,
                                         AsmString,
                                         ConstraintStringStream.str(),
                                         true,
@@ -100,8 +100,11 @@ ExternalJumpsHandler::ExternalJumpsHandler(BinaryFile &TheBinary,
   TheBinary(TheBinary),
   Arch(TheBinary.architecture()),
   JumpTargets(JumpTargets),
-  RegisterType(JumpTargets.pcReg()->getType()->getPointerElementType()),
-  VoidFunctionType(FunctionType::get(Type::getVoidTy(Context), false)) {
+  RegisterType(JumpTargets.pcReg()->getType()->getPointerElementType()) {
+
+  AsmFunctionType = FunctionType::get(Type::getVoidTy(Context),
+                                      { RegisterType->getPointerTo() },
+                                      false);
 }
 
 BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
@@ -124,7 +127,7 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
     std::stringstream ConstraintStringStream;
     ConstraintStringStream << "*m,~{" << Register.name().data()
                            << "},~{dirflag},~{fpsr},~{flags}";
-    InlineAsm *Asm = InlineAsm::get(VoidFunctionType,
+    InlineAsm *Asm = InlineAsm::get(AsmFunctionType,
                                     AsmString,
                                     ConstraintStringStream.str(),
                                     true,
@@ -133,7 +136,7 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
   }
 
   // Branch to the Program Counter address
-  InlineAsm *Asm = InlineAsm::get(VoidFunctionType,
+  InlineAsm *Asm = InlineAsm::get(AsmFunctionType,
                                   Arch.jumpAsm(),
                                   "*m,~{dirflag},~{fpsr},~{flags}",
                                   true,

@@ -46,7 +46,7 @@ private:
   JumpTargetManager &JumpTargets;
 
   llvm::Type *RegisterType;
-  llvm::FunctionType *VoidFunctionType;
+  llvm::FunctionType *AsmFunctionType;
 
 public:
   /// \param TheFunction the root function.
