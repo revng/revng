@@ -17,6 +17,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Casting.h"
@@ -169,14 +170,9 @@ VariableManager::VariableManager(Module &TheModule,
   TargetArchitecture(TargetArchitecture) {
 
   LLVMContext &Context = TheModule.getContext();
-  auto *CPUStateAliasDomain = MDNode::getDistinct(Context,
-                                                  ArrayRef<Metadata *>());
 
-  auto *Temporary = MDNode::get(Context, ArrayRef<Metadata *>());
-  ArrayRef<Metadata *> Arguments({ Temporary, CPUStateAliasDomain });
-  auto *CPUStateScope = MDNode::getDistinct(Context, Arguments);
-  CPUStateScope->replaceOperandWith(0, CPUStateScope);
-
+  MDBuilder MDB(Context);
+  auto *CPUStateScope = MDB.createAnonymousAliasScopeDomain();
   CPUStateScopeSet = MDNode::get(Context,
                                  ArrayRef<Metadata *>({ CPUStateScope }));
 
