@@ -12,10 +12,8 @@ namespace llvm {
 class Module;
 }
 
-// Local includes
-#include "MonotoneFramework.h"
-
-namespace StackAnalysis {
+// Local libraries includes
+#include "revng/Support/MonotoneFramework.h"
 
 namespace ExampleAnalysis {
 
@@ -72,5 +70,3 @@ inline void testFunction() {
 }
 
 } // namespace ExampleAnalysis
-
-} // namespace StackAnalysis

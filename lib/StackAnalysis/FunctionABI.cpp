@@ -5,10 +5,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+// Local libraries includes
+#include "revng/Support/MonotoneFramework.h"
+
 // Local includes
-#include "FunctionABI.h"
 #include "ABIIR.h"
-#include "MonotoneFramework.h"
+#include "FunctionABI.h"
 
 using std::conditional;
 using std::tuple;

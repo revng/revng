@@ -18,8 +18,6 @@
 #include "revng/ADT/Queue.h"
 #include "revng/Support/Debug.h"
 
-namespace StackAnalysis {
-
 enum VisitType {
   /// Breadth first visit, useful if the function body is unknown
   BreadthFirst,
@@ -680,7 +678,5 @@ public:
     Output << " }";
   }
 };
-
-} // namespace StackAnalysis
 
 #endif // MONOTONEFRAMEWORK_H
