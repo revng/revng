@@ -396,9 +396,20 @@ void FunctionsSummary::dumpInternal(const Module *M,
 
     const char *BasicBlockDelimiter = "";
     Output << "    \"basic_blocks\": [";
-    for (auto &P : Function.BasicBlocks) {
-      BasicBlock *BB = P.first;
-      BranchType::Values Type = P.second;
+
+    // Sort basic blocks by name
+    using Pair = std::pair<BasicBlock *const, BranchType::Values>;
+    std::vector<const Pair *> SortedBasicBlocks;
+    for (const Pair &P : Function.BasicBlocks)
+      SortedBasicBlocks.push_back(&*Function.BasicBlocks.find(P.first));
+    auto Compare = [](const Pair *P, const Pair *Q) {
+      return P->first->getName() < Q->first->getName();
+    };
+    std::sort(SortedBasicBlocks.begin(), SortedBasicBlocks.end(), Compare);
+
+    for (const Pair *P : SortedBasicBlocks) {
+      BasicBlock *BB = P->first;
+      BranchType::Values Type = P->second;
       const char *TypeName = BranchType::getName(Type);
       Output << BasicBlockDelimiter;
       Output << "{\"name\": \"" << getName(BB) << "\", ";
