@@ -7,10 +7,11 @@
 
 // Boost includes
 #define BOOST_TEST_MODULE StackAnalysis
+bool init_unit_test();
 #include <boost/test/unit_test.hpp>
 
 // Local includes
-#include "intraprocedural.h"
+#include "Intraprocedural.h"
 
 using namespace StackAnalysis;
 

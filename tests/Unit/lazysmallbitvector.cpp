@@ -13,10 +13,11 @@
 
 // Boost includes
 #define BOOST_TEST_MODULE LazySmallBitVector
+bool init_unit_test();
 #include <boost/test/unit_test.hpp>
 
-// Local includes
-#include "lazysmallbitvector.h"
+// Local libraries includes
+#include "revng/ADT/LazySmallBitVector.h"
 
 static const unsigned FirstLargeBit = sizeof(uintptr_t) * CHAR_BIT;
 

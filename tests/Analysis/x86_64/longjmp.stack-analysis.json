@@ -5,6 +5,6 @@
   },
   {
     "entry_point": "bb.longjmp",
-    "basic_blocks": [{"name": "bb.longjmp", "type": "InstructionLocalCFG"}, {"name": "bb.longjmp.0x2", "type": "LongJmp"}, {"name": "bb.ret", "type": "Return"}, {"name": "bb.longjmp_L0", "type": "FunctionLocalCFG"}, {"name": "bb.longjmp_L0_ft", "type": "FunctionLocalCFG"}]
+    "basic_blocks": [{"name": "bb.longjmp", "type": "InstructionLocalCFG"}, {"name": "bb.longjmp.0x2", "type": "LongJmp"}, {"name": "bb.longjmp_L0", "type": "FunctionLocalCFG"}, {"name": "bb.longjmp_L0_ft", "type": "FunctionLocalCFG"}, {"name": "bb.ret", "type": "Return"}]
   }
 ]

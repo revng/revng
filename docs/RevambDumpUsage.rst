@@ -40,7 +40,7 @@ a basic block* as represented by `revamb` in the generated module (typically
                          should be stored. The output will be a CSV file with a
                          single column `noreturn`, containing the name of the
                          ``noreturn`` basic block.
-:``-f``, ``--function-boundaries``: Path where the list of *function*<->*basic
+:``-f``, ``--functions-boundaries``: Path where the list of *function*<->*basic
                                     block* pairs should be stored. The output
                                     will be a CSV file with two column:
                                     `function`, the name of the entry basic

@@ -77,13 +77,13 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
 
     # Translate the compiled binary
     add_test(NAME translate-${TEST_NAME}-${ARCH}
-    COMMAND $<TARGET_FILE:revamb> --functions-boundaries --use-debug-symbols -g ll "${BINARY}" "${BINARY}.ll")
+    COMMAND "${CMAKE_CURRENT_BINARY_DIR}/revamb" --functions-boundaries --use-debug-symbols -g ll "${BINARY}" "${BINARY}.ll")
     set_tests_properties(translate-${TEST_NAME}-${ARCH}
       PROPERTIES LABELS "analysis;translate;${TEST_NAME}-${ARCH}")
 
     # Extract all the information in a single shot
     add_test(NAME extract-info-${TEST_NAME}-${ARCH}
-      COMMAND $<TARGET_FILE:revamb-dump>
+      COMMAND "${CMAKE_CURRENT_BINARY_DIR}/revamb-dump"
               --cfg "${BINARY}${OUTPUT_SUFFIX_cfg}"
               --noreturn "${BINARY}${OUTPUT_SUFFIX_noreturn}"
               --functions-boundaries "${BINARY}${OUTPUT_SUFFIX_functionsboundaries}"

@@ -1,0 +1,1 @@
+add_library(BasicAnalyses STATIC GeneratedCodeBasicInfo.cpp FunctionCallIdentification.cpp)

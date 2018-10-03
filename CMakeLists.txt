@@ -50,13 +50,14 @@ set(SUPPORT_MODULES_CONFIG_trace "-DTRACE")
 foreach(ARCH arm mips x86_64 i386 s390x)
   set(OUTPUT "early-linked-${ARCH}.ll")
   add_custom_command(OUTPUT "${OUTPUT}"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/early-linked.c"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/early-linked.c"
     COMMAND "${CLANG}"
-    ARGS "${CMAKE_CURRENT_SOURCE_DIR}/early-linked.c"
+    ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/early-linked.c"
          -o "${OUTPUT}"
          -S -emit-llvm -g
          -DTARGET_${ARCH}
-         -I"${CMAKE_CURRENT_SOURCE_DIR}/")
+         -I"${CMAKE_CURRENT_SOURCE_DIR}/runtime"
+         -I"${CMAKE_CURRENT_SOURCE_DIR}/include")
   add_custom_target("early-linked-module-${OUTPUT}" ALL DEPENDS "${OUTPUT}")
   install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT}"
     DESTINATION share/revamb)
@@ -64,13 +65,14 @@ foreach(ARCH arm mips x86_64 i386 s390x)
   foreach(CONFIG ${SUPPORT_MODULES_CONFIGS})
     set(OUTPUT "support-${ARCH}-${CONFIG}.ll")
     add_custom_command(OUTPUT "${OUTPUT}"
-      DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/support.c"
+      DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
       COMMAND "${CLANG}"
-      ARGS "${CMAKE_CURRENT_SOURCE_DIR}/support.c"
+      ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
            -o "${OUTPUT}"
            -S -emit-llvm -g
            -DTARGET_${ARCH}
-           -I"${CMAKE_CURRENT_SOURCE_DIR}"
+           -I"${CMAKE_CURRENT_SOURCE_DIR}/runtime"
+           -I"${CMAKE_CURRENT_SOURCE_DIR}/include"
            ${SUPPORT_MODULES_CONFIG_${CONFIG}})
     add_custom_target("support-module-${OUTPUT}" ALL DEPENDS "${OUTPUT}")
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT}"
@@ -88,7 +90,7 @@ include_directories("${QEMU_INSTALL_PATH}/include/")
 #
 
 # Basic compiler options
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -Werror")
 
 # Additional compiler options
 include(CheckCXXCompilerFlag)
@@ -105,24 +107,31 @@ macro(add_flag_if_available flag)
 endmacro()
 
 # Disable some warnings
-add_flag_if_available("-Wno-error=ignored-attributes")
-add_flag_if_available("-Wno-error=maybe-uninitialized")
-add_flag_if_available("-Wno-error=return-type")
-add_flag_if_available("-Wno-error=unused-but-set-variable")
-add_flag_if_available("-Wno-error=unused-function")
-add_flag_if_available("-Wno-error=unused-local-typedefs")
-add_flag_if_available("-Wno-error=unused-variable")
-add_flag_if_available("-Wno-delete-non-virtual-dtor")
-add_flag_if_available("-Werror=strict-aliasing")
+add_flag_if_available("-Wno-maybe-uninitialized")
+add_flag_if_available("-Wno-unused-local-typedefs")
+
+# Add some extra warnings
+add_flag_if_available("-Wstrict-aliasing")
 add_flag_if_available("-fstrict-aliasing")
+
+add_flag_if_available("-Wnon-virtual-dtor")
+add_flag_if_available("-Wunreachable-code-break")
+add_flag_if_available("-Winconsistent-missing-destructor-override")
+add_flag_if_available("-Wnewline-eof")
+add_flag_if_available("-Wmissing-prototypes")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 add_definitions("-D_FILE_OFFSET_BITS=64")
-include_directories(argparse/)
 
 CHECK_CXX_COMPILER_FLAG("-no-pie" COMPILER_SUPPORTS_NO_PIE)
 if(COMPILER_SUPPORTS_NO_PIE)
   set(NO_PIE "-no-pie")
+endif()
+
+include(CheckIncludeFiles)
+CHECK_INCLUDE_FILES(valgrind/callgrind.h HAVE_VALGRIND_CALLGRIND_H)
+if(HAVE_VALGRIND_CALLGRIND_H)
+add_definitions("-DHAVE_VALGRIND_CALLGRIND_H")
 endif()
 
 set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
@@ -130,59 +139,19 @@ set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
 include_directories(./ include/)
 
 add_subdirectory(lib)
+add_subdirectory(tools)
 
-add_executable(revamb
-  binaryfile.cpp
-  codegenerator.cpp
-  cpustateaccessanalysis.cpp
-  debug.cpp
-  debughelper.cpp
-  externaljumpshandler.cpp
-  functionboundariesdetection.cpp
-  functioncallidentification.cpp
-  generatedcodebasicinfo.cpp
-  instructiontranslator.cpp
-  jumptargetmanager.cpp
-  main.cpp
-  noreturnanalysis.cpp
-  osra.cpp
-  ptcdump.cpp
-  reachingdefinitions.cpp
-  revng-assert.cpp
-  set.cpp
-  simplifycomparisons.cpp
-  statistics.cpp
-  variablemanager.cpp
-  argparse/argparse.c)
-target_link_libraries(revamb dl m ${LLVM_LIBRARIES})
-install(TARGETS revamb RUNTIME DESTINATION bin)
-
-add_executable(revamb-dump
-  dump.cpp
-  collectcfg.cpp
-  collectnoreturn.cpp
-  debug.cpp
-  collectfunctionboundaries.cpp
-  debughelper.cpp
-  generatedcodebasicinfo.cpp
-  isolatefunctions.cpp
-  revng-assert.cpp
-  statistics.cpp
-  argparse/argparse.c)
-target_link_libraries(revamb-dump StackAnalysis ${LLVM_LIBRARIES})
-install(TARGETS revamb-dump RUNTIME DESTINATION bin)
-
-configure_file(csv-to-ld-options "${CMAKE_BINARY_DIR}/csv-to-ld-options" COPYONLY)
-configure_file(support.c "${CMAKE_BINARY_DIR}/support.c" COPYONLY)
-configure_file(support.h "${CMAKE_BINARY_DIR}/support.h" COPYONLY)
-configure_file(commonconstants.h "${CMAKE_BINARY_DIR}/commonconstants.h" COPYONLY)
-configure_file(early-linked.c "${CMAKE_BINARY_DIR}/early-linked.c" COPYONLY)
-configure_file(translate "${CMAKE_BINARY_DIR}/translate" COPYONLY)
-configure_file(merge-dynamic.py "${CMAKE_BINARY_DIR}/merge-dynamic.py" COPYONLY)
-install(PROGRAMS translate csv-to-ld-options merge-dynamic.py DESTINATION bin)
-install(FILES support.c DESTINATION share/revamb)
-install(FILES support.h DESTINATION share/revamb)
-install(FILES commonconstants.h DESTINATION share/revamb)
+configure_file(scripts/csv-to-ld-options "${CMAKE_BINARY_DIR}/csv-to-ld-options" COPYONLY)
+configure_file(runtime/support.c "${CMAKE_BINARY_DIR}/support.c" COPYONLY)
+configure_file(runtime/support.h "${CMAKE_BINARY_DIR}/support.h" COPYONLY)
+configure_file(include/revng/Runtime/commonconstants.h "${CMAKE_BINARY_DIR}/commonconstants.h" COPYONLY)
+configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/early-linked.c" COPYONLY)
+configure_file(scripts/translate "${CMAKE_BINARY_DIR}/translate" COPYONLY)
+configure_file(scripts/merge-dynamic.py "${CMAKE_BINARY_DIR}/merge-dynamic.py" COPYONLY)
+install(PROGRAMS scripts/translate scripts/csv-to-ld-options scripts/merge-dynamic.py DESTINATION bin)
+install(FILES runtime/support.c DESTINATION share/revamb)
+install(FILES runtime/support.h DESTINATION share/revamb)
+install(FILES include/revng/Runtime/commonconstants.h DESTINATION share/revamb)
 
 # Remove -rdynamic
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)

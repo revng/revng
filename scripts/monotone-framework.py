@@ -395,7 +395,7 @@ public:
 """)
 
   out += ("""    default:
-      abort();
+      revng_abort();
     }
 
   }
@@ -415,7 +415,7 @@ public:
 """.format(value, value))
     out += ("""    }
 
-    abort();
+    revng_abort();
   }
 
 """)
