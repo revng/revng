@@ -461,7 +461,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   DispatcherSwitch(nullptr),
   Binary(Binary),
   NoReturn(Binary.architecture()),
-  CurrentCFGForm(UnknownFormCFG) {
+  CurrentCFGForm(CFGForm::UnknownFormCFG) {
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { Type::getInt32Ty(Context) },
                                              false);
@@ -1214,7 +1214,7 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   AnyPC = BasicBlock::Create(Context, "anypc", OutputFunction);
   UnexpectedPC = BasicBlock::Create(Context, "unexpectedpc", OutputFunction);
 
-  setCFGForm(SemanticPreservingCFG);
+  setCFGForm(CFGForm::SemanticPreservingCFG);
 }
 
 static void purge(BasicBlock *BB) {
@@ -1224,15 +1224,32 @@ static void purge(BasicBlock *BB) {
   revng_assert(BB->empty());
 }
 
-void JumpTargetManager::setCFGForm(CFGForm NewForm) {
-  revng_assert(CurrentCFGForm != NewForm);
-  revng_assert(NewForm != UnknownFormCFG);
+std::set<BasicBlock *> JumpTargetManager::computeUnreachable() {
+  ReversePostOrderTraversal<BasicBlock *> RPOT(&TheFunction->getEntryBlock());
+  std::set<BasicBlock *> Reachable;
+  for (BasicBlock *BB : RPOT)
+    Reachable.insert(BB);
 
-  CFGForm OldForm = CurrentCFGForm;
+  // TODO: why is isTranslatedBB(&BB) necessary?
+  std::set<BasicBlock *> Unreachable;
+  for (BasicBlock &BB : *TheFunction)
+    if (Reachable.count(&BB) == 0 and isTranslatedBB(&BB))
+      Unreachable.insert(&BB);
+
+  return Unreachable;
+}
+
+void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
+  revng_assert(CurrentCFGForm != NewForm);
+  revng_assert(NewForm != CFGForm::UnknownFormCFG);
+
+  std::set<BasicBlock *> Unreachable;
+
+  CFGForm::Values OldForm = CurrentCFGForm;
   CurrentCFGForm = NewForm;
 
   switch (NewForm) {
-  case SemanticPreservingCFG:
+  case CFGForm::SemanticPreservingCFG:
     purge(AnyPC);
     BranchInst::Create(dispatcher(), AnyPC);
     // TODO: Here we should have an hard fail, since it's the situation in
@@ -1242,8 +1259,8 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
     BranchInst::Create(dispatcher(), UnexpectedPC);
     break;
 
-  case RecoveredOnlyCFG:
-  case NoFunctionCallsCFG:
+  case CFGForm::RecoveredOnlyCFG:
+  case CFGForm::NoFunctionCallsCFG:
     purge(AnyPC);
     new UnreachableInst(Context, AnyPC);
     purge(UnexpectedPC);
@@ -1262,7 +1279,8 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
 
   // If we're entering or leaving the NoFunctionCallsCFG form, update all the
   // branch instruction forming a function call
-  if (NewForm == NoFunctionCallsCFG || OldForm == NoFunctionCallsCFG) {
+  if (NewForm == CFGForm::NoFunctionCallsCFG
+      || OldForm == CFGForm::NoFunctionCallsCFG) {
     if (auto *FunctionCall = TheModule.getFunction("function_call")) {
       for (User *U : FunctionCall->users()) {
         auto *Call = cast<CallInst>(U);
@@ -1277,7 +1295,8 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
 
         // Get the correct argument, the first is the callee, the second the
         // return basic block
-        Value *Op = Call->getArgOperand(NewForm == NoFunctionCallsCFG ? 1 : 0);
+        int OperandIndex = NewForm == CFGForm::NoFunctionCallsCFG ? 1 : 0;
+        Value *Op = Call->getArgOperand(OperandIndex);
         BasicBlock *NewSuccessor = cast<BlockAddress>(Op)->getBasicBlock();
         Terminator->setSuccessor(0, NewSuccessor);
       }
@@ -1285,6 +1304,31 @@ void JumpTargetManager::setCFGForm(CFGForm NewForm) {
   }
 
   rebuildDispatcher();
+
+  if (Verify.isEnabled()) {
+    Unreachable = computeUnreachable();
+    if (Unreachable.size() != 0) {
+      Verify << "The following basic blocks are unreachable after setCFGForm("
+             << CFGForm::getName(NewForm) << "):\n";
+      for (BasicBlock *BB : Unreachable) {
+        Verify << "  " << getName(BB) << " (predecessors:";
+        for (BasicBlock *Predecessor : make_range(pred_begin(BB), pred_end(BB)))
+          Verify << " " << getName(Predecessor);
+
+        if (uint64_t PC = getBasicBlockPC(BB)) {
+          auto It = JumpTargets.find(PC);
+          if (It != JumpTargets.end()) {
+            Verify << ", reasons:";
+            for (const char *Reason : It->second.getReasonNames())
+              Verify << " " << Reason;
+          }
+        }
+
+        Verify << ")\n";
+      }
+      revng_abort();
+    }
+  }
 }
 
 void JumpTargetManager::rebuildDispatcher() {
@@ -1301,8 +1345,41 @@ void JumpTargetManager::rebuildDispatcher() {
   for (auto &P : JumpTargets) {
     uint64_t PC = P.first;
     BasicBlock *BB = P.second.head();
-    if (CurrentCFGForm == SemanticPreservingCFG || !hasPredecessors(BB))
+    if (CurrentCFGForm == CFGForm::SemanticPreservingCFG
+        || !hasPredecessors(BB))
       DispatcherSwitch->addCase(ConstantInt::get(SwitchType, PC), BB);
+  }
+
+  //
+  // Make sure every generated basic block is reachable
+  //
+  if (CurrentCFGForm != CFGForm::SemanticPreservingCFG) {
+    // Compute the set of reachable jump targets
+    OnceQueue<BasicBlock *> WorkList;
+    for (BasicBlock *BB : DispatcherSwitch->successors())
+      WorkList.insert(BB);
+
+    while (not WorkList.empty()) {
+      BasicBlock *BB = WorkList.pop();
+      for (BasicBlock *Successor : make_range(succ_begin(BB), succ_end(BB)))
+        WorkList.insert(Successor);
+    }
+
+    std::set<BasicBlock *> Reachable = WorkList.visited();
+
+    // Identify all the unreachable jump targets
+    for (auto &P : JumpTargets) {
+      uint64_t PC = P.first;
+      const JumpTarget &JT = P.second;
+      BasicBlock *BB = JT.head();
+
+      // Add to the switch all the unreachable jump targets whose reason is not
+      // just direct jump
+      if (Reachable.count(BB) == 0
+          and not JT.isOnlyReason(JTReason::DirectJump)) {
+        DispatcherSwitch->addCase(ConstantInt::get(SwitchType, PC), BB);
+      }
+    }
   }
 }
 
@@ -1321,6 +1398,18 @@ bool JumpTargetManager::hasPredecessors(BasicBlock *BB) const {
 // block to translate we proceed as long as we are able to create new edges on
 // the CFG (not considering the dispatcher).
 void JumpTargetManager::harvest() {
+  // Purge all the generated basic blocks without predecessors
+  std::vector<BasicBlock *> ToDelete;
+  for (BasicBlock &BB : *TheFunction) {
+    if (isTranslatedBB(&BB) and &BB != &TheFunction->getEntryBlock()
+        and pred_begin(&BB) == pred_end(&BB)) {
+      revng_assert(getBasicBlockPC(&BB) == 0);
+      ToDelete.push_back(&BB);
+    }
+  }
+  for (BasicBlock *BB : ToDelete)
+    BB->eraseFromParent();
+
   if (empty()) {
     // TODO: move me to a commit function
     // Update the third argument of newpc calls (isJT, i.e., is this instruction
@@ -1346,24 +1435,28 @@ void JumpTargetManager::harvest() {
 
     revng_log(JTCountLog, "Harvesting: SROA, ConstProp, EarlyCSE and SET");
 
-    legacy::PassManager OptimizingPM;
+    legacy::FunctionPassManager OptimizingPM(&TheModule);
     OptimizingPM.add(createSROAPass());
     OptimizingPM.add(createConstantPropagationPass());
     OptimizingPM.add(createEarlyCSEPass());
-    OptimizingPM.run(TheModule);
+    OptimizingPM.run(*TheFunction);
+
+    legacy::FunctionPassManager PreliminaryBranchesPM(&TheModule);
+    PreliminaryBranchesPM.add(new TranslateDirectBranchesPass(this));
+    PreliminaryBranchesPM.run(*TheFunction);
 
     // To improve the quality of our analysis, keep in the CFG only the edges we
     // where able to recover (e.g., no jumps to the dispatcher)
-    setCFGForm(RecoveredOnlyCFG);
+    setCFGForm(CFGForm::RecoveredOnlyCFG);
 
     NewBranches = 0;
-    legacy::PassManager AnalysisPM;
+    legacy::FunctionPassManager AnalysisPM(&TheModule);
     AnalysisPM.add(new SETPass(this, false, &Visited));
     AnalysisPM.add(new TranslateDirectBranchesPass(this));
-    AnalysisPM.run(TheModule);
+    AnalysisPM.run(*TheFunction);
 
     // Restore the CFG
-    setCFGForm(SemanticPreservingCFG);
+    setCFGForm(CFGForm::SemanticPreservingCFG);
 
     revng_log(JTCountLog,
               std::dec << Unexplored.size() << " new jump targets and "
@@ -1385,25 +1478,24 @@ void JumpTargetManager::harvest() {
 
       // TODO: decide what to do with Visited
       Visited.clear();
-      legacy::PassManager PM;
       if (NewBranches > 0) {
-        legacy::PassManager OptimizingPM;
+        legacy::FunctionPassManager OptimizingPM(&TheModule);
         OptimizingPM.add(createSROAPass());
         OptimizingPM.add(createConstantPropagationPass());
         OptimizingPM.add(createEarlyCSEPass());
-        OptimizingPM.run(TheModule);
+        OptimizingPM.run(*TheFunction);
       }
 
-      setCFGForm(RecoveredOnlyCFG);
+      setCFGForm(CFGForm::RecoveredOnlyCFG);
 
       NewBranches = 0;
-      legacy::PassManager AnalysisPM;
+      legacy::FunctionPassManager AnalysisPM(&TheModule);
       AnalysisPM.add(new SETPass(this, true, &Visited));
       AnalysisPM.add(new TranslateDirectBranchesPass(this));
-      AnalysisPM.run(TheModule);
+      AnalysisPM.run(*TheFunction);
 
       // Restore the CFG
-      setCFGForm(SemanticPreservingCFG);
+      setCFGForm(CFGForm::SemanticPreservingCFG);
 
       revng_log(JTCountLog,
                 std::dec << Unexplored.size() << " new jump targets and "

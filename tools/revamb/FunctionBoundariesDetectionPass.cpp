@@ -591,9 +591,9 @@ map<BasicBlock *, vector<BasicBlock *>> FBD::run() {
   collectReturnInstructions();
 
   // TODO: move this code in JTM
-  JTM->setCFGForm(JumpTargetManager::NoFunctionCallsCFG);
+  JTM->setCFGForm(CFGForm::NoFunctionCallsCFG);
   JTM->noReturn().computeKillerSet(CallPredecessors);
-  JTM->setCFGForm(JumpTargetManager::SemanticPreservingCFG);
+  JTM->setCFGForm(CFGForm::SemanticPreservingCFG);
 
   registerBasicBlockAddressRanges();
 
