@@ -2453,14 +2453,18 @@ void BoundedValue::setSignedness(bool IsSigned) {
   } else if (Sign == AnySignedness) {
     Sign = NewSign;
   } else if (Sign != NewSign) {
-    Sign = InconsistentSignedness;
-    // TODO: handle top case
-    auto Condition = [](std::pair<uint64_t, uint64_t> P) {
-      return P.first > numeric_limits<int64_t>::max()
-             || P.second > numeric_limits<int64_t>::max();
-    };
-    if (std::any_of(Bounds.begin(), Bounds.end(), Condition))
-      setBottom();
+    if (isTop()) {
+      Sign = NewSign;
+      setTop();
+    } else {
+      Sign = InconsistentSignedness;
+      auto Condition = [](std::pair<uint64_t, uint64_t> P) {
+        return P.first > numeric_limits<int64_t>::max()
+               || P.second > numeric_limits<int64_t>::max();
+      };
+      if (std::any_of(Bounds.begin(), Bounds.end(), Condition))
+        setBottom();
+    }
   }
 }
 
