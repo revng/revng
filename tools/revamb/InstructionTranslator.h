@@ -11,6 +11,7 @@
 #include <vector>
 
 // LLVM includes
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/ErrorOr.h"

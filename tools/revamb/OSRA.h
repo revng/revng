@@ -14,10 +14,10 @@
 
 // Local libraries includes
 #include "revng/BasicAnalyses/FunctionCallIdentification.h"
+#include "revng/BasicAnalyses/ReachingDefinitionsPass.h"
 #include "revng/Support/IRHelpers.h"
 
 // Local includes
-#include "ReachingDefinitionsPass.h"
 #include "SimplifyComparisonsPass.h"
 
 // Forward declarations

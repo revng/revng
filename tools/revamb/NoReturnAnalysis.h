@@ -16,10 +16,8 @@
 #include "llvm/ADT/Triple.h"
 
 // Local libraries includes
+#include "revng/BasicAnalyses/ReachingDefinitionsPass.h"
 #include "revng/Support/revng.h"
-
-// Local includes
-#include "ReachingDefinitionsPass.h"
 
 namespace llvm {
 class BasicBlock;

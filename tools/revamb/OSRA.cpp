@@ -15,6 +15,7 @@
 
 // LLVM includes
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/Constants.h"
@@ -29,10 +30,10 @@
 #include "revng/ADT/Queue.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/MemoryAccess.h"
 #include "revng/Support/revng.h"
 
 // Local includes
-#include "MemoryAccess.h"
 #include "OSRA.h"
 
 using namespace llvm;
@@ -1973,7 +1974,7 @@ void OSRA::mergeLoadReacher(LoadInst *Load) {
     OSR ReachingOSR = P.second;
     if (ReachingOSR != Result) {
       OSR FreeOSR = createOSR(Load, Load->getParent());
-      if (Reachers.size() == RDP.getReachingDefinitionsCount(Load)) {
+      if (Reachers.size() == RDP.getReachingDefinitions(Load).size()) {
         BoundedValue NewBVs = pathSensitiveMerge(Load);
         BVs.forceBV(Load, NewBVs);
       }

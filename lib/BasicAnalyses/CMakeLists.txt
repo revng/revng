@@ -1,1 +1,6 @@
-add_library(BasicAnalyses STATIC GeneratedCodeBasicInfo.cpp FunctionCallIdentification.cpp)
+add_library(BasicAnalyses
+  STATIC
+  FunctionCallIdentification.cpp
+  GeneratedCodeBasicInfo.cpp
+  ReachingDefinitionsPass.cpp)
+target_link_libraries(BasicAnalyses Support)

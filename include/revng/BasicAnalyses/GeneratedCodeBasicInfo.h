@@ -266,7 +266,7 @@ template<>
 struct BlackListTrait<const GeneratedCodeBasicInfo &, llvm::BasicBlock *>
   : BlackListTraitBase<const GeneratedCodeBasicInfo &> {
   using BlackListTraitBase<const GeneratedCodeBasicInfo &>::BlackListTraitBase;
-  bool isBlacklisted(llvm::BasicBlock *Value) {
+  bool isBlacklisted(llvm::BasicBlock *Value) const {
     return !this->Obj.isTranslated(Value);
   }
 };
