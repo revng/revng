@@ -119,14 +119,14 @@ public:
         OperationsSet.erase(It);
       }
 
-      // We have the ownership of instruction without parent
-      if (Op->getParent() == nullptr)
-        delete Op;
-
       if (isa<LoadInst>(Op)) {
         revng_assert(LoadsCount > 0);
         LoadsCount--;
       }
+
+      // We have the ownership of instruction without parent
+      if (Op->getParent() == nullptr)
+        delete Op;
 
       Operations.pop_back();
     }
