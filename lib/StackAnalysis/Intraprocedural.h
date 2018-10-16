@@ -477,6 +477,12 @@ public:
     ::StackAnalysis::assertLowerThanOrEqual(A, B, getModule(Entry));
   }
 
+  llvm::Optional<Element> handleEdge(const Element &Original,
+                                     llvm::BasicBlock *Source,
+                                     llvm::BasicBlock *Destination) const {
+    return llvm::Optional<Element>();
+  }
+
   llvm::BasicBlock *entry() const { return Entry; }
 
   void resetCacheMustHit() { CacheMustHit = false; }

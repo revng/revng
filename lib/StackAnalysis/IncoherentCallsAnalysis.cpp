@@ -128,6 +128,12 @@ public:
 
   void dumpFinalState() const {}
 
+  llvm::Optional<Element> handleEdge(const Element &Original,
+                                     ABIIRBasicBlock *Source,
+                                     ABIIRBasicBlock *Destination) const {
+    return llvm::Optional<Element>();
+  }
+
   ABIIRBasicBlock::links_const_range
   successors(ABIIRBasicBlock *BB, Interrupt &) const {
     return BB->next<false>();

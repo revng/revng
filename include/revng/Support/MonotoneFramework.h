@@ -11,6 +11,7 @@
 #include <vector>
 
 // LLVM includes
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -378,6 +379,17 @@ public:
     derived().assertLowerThanOrEqual(A, B);
   }
 
+  /// \brief Handle the propagation of \p Original from \p Source to
+  ///        \p Destination
+  ///
+  /// \return Empty optional value if \p Original is fine, a new LatticeElement
+  ///         otherwise.
+  llvm::Optional<LatticeElement> handleEdge(const LatticeElement &Original,
+                                            Label Source,
+                                            Label Destination) const {
+    return derived().handleEdge(Original, Source, Destination);
+  }
+
   /// \brief Initialize/reset the analysis
   ///
   /// Call this method before invoking run or if you want to reset the state of
@@ -418,6 +430,8 @@ public:
 
   /// \brief Resolve the data flow analysis problem using the MFP solution
   Interrupt run() {
+    using namespace llvm;
+
     // Proceed until there are elements in the work list
     while (not WorkList.empty()) {
       Label ToAnalyze = WorkList.head();
@@ -444,7 +458,7 @@ public:
 
       // In case we have a dynamic graph, prepare for registering the successors
       // of the current label
-      llvm::SmallVector<Label, 2> *Successors = nullptr;
+      SmallVector<Label, 2> *Successors = nullptr;
       if (DynamicGraph)
         Successors = &SuccessorsMap[ToAnalyze];
 
@@ -471,10 +485,16 @@ public:
         // The current label is NOT a final state
 
         // Used only if DynamicGraph
-        llvm::SmallVector<Label, 2> NewSuccessors;
+        SmallVector<Label, 2> NewSuccessors;
 
         // If it has successors, check if we have to re-enqueue them
         for (Label Successor : successors(ToAnalyze, Result)) {
+
+          Optional<LatticeElement> NewElement = handleEdge(NewLatticeElement,
+                                                           ToAnalyze,
+                                                           Successor);
+          LatticeElement &ActualElement = NewElement ? *NewElement :
+                                                       NewLatticeElement;
 
           if (DynamicGraph)
             NewSuccessors.push_back(Successor);
@@ -486,22 +506,22 @@ public:
             // If this is the only successor we can use move semantics,
             // otherwise create a copy
             if (SuccessorsCount == 1)
-              insert_or_assign(State, Successor, std::move(NewLatticeElement));
+              insert_or_assign(State, Successor, std::move(ActualElement));
             else
-              insert_or_assign(State, Successor, NewLatticeElement.copy());
+              insert_or_assign(State, Successor, ActualElement.copy());
 
             // Enqueue the successor
             WorkList.insert(Successor);
 
-          } else if (NewLatticeElement.greaterThan(It->second)) {
+          } else if (ActualElement.greaterThan(It->second)) {
             // We have already seen this Label but the result of the transfer
             // function is larger than its previous initial state
 
-            // Update the state merginge NewLatticeElement
-            It->second.combine(NewLatticeElement);
+            // Update the state merging ActualElement
+            It->second.combine(ActualElement);
 
             // Assert we're now actually lower than or equal
-            assertLowerThanOrEqual(NewLatticeElement, It->second);
+            assertLowerThanOrEqual(ActualElement, It->second);
 
             // Re-enqueue
             WorkList.insert(Successor);

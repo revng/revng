@@ -893,6 +893,12 @@ public:
 
   void dumpFinalState() const {}
 
+  llvm::Optional<Element<E>> handleEdge(const Element<E> &Original,
+                                        ABIIRBasicBlock *Source,
+                                        ABIIRBasicBlock *Destination) const {
+    return llvm::Optional<Element<E>>();
+  }
+
   ABIIRBasicBlock::links_const_range
   successors(ABIIRBasicBlock *BB, Interrupt<E> &) const {
     return BB->next<IsForward>();
