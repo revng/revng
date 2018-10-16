@@ -2197,8 +2197,10 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
     }
 
     // Check it's not already in stack
-    Proceed &= InStack.count(Pred) == 0;
-    revng_log(Log, Indent << "    It's already on the stack");
+    bool AlreadyInStack = InStack.count(Pred) != 0;
+    Proceed &= not AlreadyInStack;
+    if (AlreadyInStack)
+      revng_log(Log, Indent << "    It's already on the stack");
 
     // Check we're not exceeding the maximum allowed depth
     Proceed &= Height < MaxDepth;
