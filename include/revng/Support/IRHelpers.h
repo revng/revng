@@ -633,4 +633,6 @@ inline std::string dumpToString(llvm::Module *M) {
   return Result;
 }
 
+void dumpModule(const llvm::Module *M, const char *Path) debug_function;
+
 #endif // IRHELPERS_H
