@@ -65,6 +65,7 @@ RegisterPass<TranslateDirectBranchesPass> X("translate-db",
 
 // TODO: this is kind of an abuse
 Logger<> Verify("verify");
+Logger<> RegisterJTLog("registerjt");
 
 } // namespace
 
@@ -1107,6 +1108,10 @@ BasicBlock *
 JumpTargetManager::registerJT(uint64_t PC, JTReason::Values Reason) {
   if (!isExecutableAddress(PC) || !isInstructionAligned(PC))
     return nullptr;
+
+  revng_log(RegisterJTLog,
+            "Registering bb." << nameForAddress(PC) << " for "
+                              << JTReason::getName(Reason));
 
   // Do we already have a BasicBlock for this PC?
   BlockMap::iterator TargetIt = JumpTargets.find(PC);
