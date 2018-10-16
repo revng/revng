@@ -15,6 +15,7 @@
 
 // LLVM includes
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/Constants.h"
@@ -29,10 +30,10 @@
 #include "revng/ADT/Queue.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/MemoryAccess.h"
 #include "revng/Support/revng.h"
 
 // Local includes
-#include "MemoryAccess.h"
 #include "OSRA.h"
 
 using namespace llvm;
@@ -1325,6 +1326,7 @@ void OSRA::handleMemoryOperation(Instruction *I) {
 
     // Constraints propagation
     if (HasConstraints) {
+
       // Does the reached load carries any constraints already?
       auto ReachedLoadConstraintIt = Constraints.find(ReachedLoad);
       if (ReachedLoadConstraintIt != Constraints.end()) {
@@ -1972,7 +1974,7 @@ void OSRA::mergeLoadReacher(LoadInst *Load) {
     OSR ReachingOSR = P.second;
     if (ReachingOSR != Result) {
       OSR FreeOSR = createOSR(Load, Load->getParent());
-      if (Reachers.size() == RDP.getReachingDefinitionsCount(Load)) {
+      if (Reachers.size() == RDP.getReachingDefinitions(Load).size()) {
         BoundedValue NewBVs = pathSensitiveMerge(Load);
         BVs.forceBV(Load, NewBVs);
       }
@@ -1982,7 +1984,6 @@ void OSRA::mergeLoadReacher(LoadInst *Load) {
   }
 
   OSRs.insert({ Load, Result });
-  return;
 }
 
 /// \brief State of a definition reaching a load while being processed by
@@ -2197,8 +2198,10 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
     }
 
     // Check it's not already in stack
-    Proceed &= InStack.count(Pred) == 0;
-    revng_log(Log, Indent << "    It's already on the stack");
+    bool AlreadyInStack = InStack.count(Pred) != 0;
+    Proceed &= not AlreadyInStack;
+    if (AlreadyInStack)
+      revng_log(Log, Indent << "    It's already on the stack");
 
     // Check we're not exceeding the maximum allowed depth
     Proceed &= Height < MaxDepth;
@@ -2237,10 +2240,6 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
     }
   }
 
-  // Or-merge all the collected BVs
-  // TODO: adding the OSR offset is safe, but the multiplier?
-  BoundedValue FinalBV = Reachers[0].computeBV(Reached, DL, Int64);
-
   if (Log.isEnabled()) {
     unsigned I = 0;
     for (const Reacher &R : Reachers) {
@@ -2249,6 +2248,10 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
       Log << " (from " << R.osr().describe() << ")" << DoLog;
     }
   }
+
+  // Or-merge all the collected BVs
+  // TODO: adding the OSR offset is safe, but the multiplier?
+  BoundedValue FinalBV = Reachers[0].computeBV(Reached, DL, Int64);
 
   for (Reacher &R : skip(1, Reachers)) {
     BoundedValue ReacherBV = R.computeBV(Reached, DL, Int64);
@@ -2451,14 +2454,18 @@ void BoundedValue::setSignedness(bool IsSigned) {
   } else if (Sign == AnySignedness) {
     Sign = NewSign;
   } else if (Sign != NewSign) {
-    Sign = InconsistentSignedness;
-    // TODO: handle top case
-    auto Condition = [](std::pair<uint64_t, uint64_t> P) {
-      return P.first > numeric_limits<int64_t>::max()
-             || P.second > numeric_limits<int64_t>::max();
-    };
-    if (std::any_of(Bounds.begin(), Bounds.end(), Condition))
-      setBottom();
+    if (isTop()) {
+      Sign = NewSign;
+      setTop();
+    } else {
+      Sign = InconsistentSignedness;
+      auto Condition = [](std::pair<uint64_t, uint64_t> P) {
+        return P.first > numeric_limits<int64_t>::max()
+               || P.second > numeric_limits<int64_t>::max();
+      };
+      if (std::any_of(Bounds.begin(), Bounds.end(), Condition))
+        setBottom();
+    }
   }
 }
 

@@ -178,17 +178,26 @@ protected:
 template<typename C, typename B>
 struct BlackListTrait : BlackListTraitBase<C> {};
 
+class NullBlackList {};
+
+template<typename B>
+struct BlackListTrait<const NullBlackList &, B>
+  : BlackListTraitBase<const NullBlackList &> {
+  using BlackListTraitBase<const NullBlackList &>::BlackListTraitBase;
+  bool isBlacklisted(B Value) const { return false; }
+};
+
 template<typename C>
 struct BlackListTrait<C, C> : BlackListTraitBase<C> {
   using BlackListTraitBase<C>::BlackListTraitBase;
-  bool isBlacklisted(C Value) { return Value == this->Obj; }
+  bool isBlacklisted(C Value) const { return Value == this->Obj; }
 };
 
 template<typename B>
 struct BlackListTrait<const std::set<B> &, B>
   : BlackListTraitBase<const std::set<B> &> {
   using BlackListTraitBase<const std::set<B> &>::BlackListTraitBase;
-  bool isBlacklisted(B Value) { return this->Obj.count(Value) != 0; }
+  bool isBlacklisted(B Value) const { return this->Obj.count(Value) != 0; }
 };
 
 template<typename B, typename C>
@@ -632,5 +641,7 @@ inline std::string dumpToString(llvm::Module *M) {
   Stream.str();
   return Result;
 }
+
+void dumpModule(const llvm::Module *M, const char *Path) debug_function;
 
 #endif // IRHELPERS_H

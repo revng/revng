@@ -11,14 +11,13 @@
 #include <vector>
 
 // LLVM includes
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallVector.h"
 
 // Local libraries includes
 #include "revng/ADT/Queue.h"
 #include "revng/Support/Debug.h"
-
-namespace StackAnalysis {
 
 enum VisitType {
   /// Breadth first visit, useful if the function body is unknown
@@ -380,6 +379,17 @@ public:
     derived().assertLowerThanOrEqual(A, B);
   }
 
+  /// \brief Handle the propagation of \p Original from \p Source to
+  ///        \p Destination
+  ///
+  /// \return Empty optional value if \p Original is fine, a new LatticeElement
+  ///         otherwise.
+  llvm::Optional<LatticeElement> handleEdge(const LatticeElement &Original,
+                                            Label Source,
+                                            Label Destination) const {
+    return derived().handleEdge(Original, Source, Destination);
+  }
+
   /// \brief Initialize/reset the analysis
   ///
   /// Call this method before invoking run or if you want to reset the state of
@@ -420,6 +430,8 @@ public:
 
   /// \brief Resolve the data flow analysis problem using the MFP solution
   Interrupt run() {
+    using namespace llvm;
+
     // Proceed until there are elements in the work list
     while (not WorkList.empty()) {
       Label ToAnalyze = WorkList.head();
@@ -446,7 +458,7 @@ public:
 
       // In case we have a dynamic graph, prepare for registering the successors
       // of the current label
-      llvm::SmallVector<Label, 2> *Successors = nullptr;
+      SmallVector<Label, 2> *Successors = nullptr;
       if (DynamicGraph)
         Successors = &SuccessorsMap[ToAnalyze];
 
@@ -473,10 +485,16 @@ public:
         // The current label is NOT a final state
 
         // Used only if DynamicGraph
-        llvm::SmallVector<Label, 2> NewSuccessors;
+        SmallVector<Label, 2> NewSuccessors;
 
         // If it has successors, check if we have to re-enqueue them
         for (Label Successor : successors(ToAnalyze, Result)) {
+
+          Optional<LatticeElement> NewElement = handleEdge(NewLatticeElement,
+                                                           ToAnalyze,
+                                                           Successor);
+          LatticeElement &ActualElement = NewElement ? *NewElement :
+                                                       NewLatticeElement;
 
           if (DynamicGraph)
             NewSuccessors.push_back(Successor);
@@ -488,22 +506,22 @@ public:
             // If this is the only successor we can use move semantics,
             // otherwise create a copy
             if (SuccessorsCount == 1)
-              insert_or_assign(State, Successor, std::move(NewLatticeElement));
+              insert_or_assign(State, Successor, std::move(ActualElement));
             else
-              insert_or_assign(State, Successor, NewLatticeElement.copy());
+              insert_or_assign(State, Successor, ActualElement.copy());
 
             // Enqueue the successor
             WorkList.insert(Successor);
 
-          } else if (NewLatticeElement.greaterThan(It->second)) {
+          } else if (ActualElement.greaterThan(It->second)) {
             // We have already seen this Label but the result of the transfer
             // function is larger than its previous initial state
 
-            // Update the state merginge NewLatticeElement
-            It->second.combine(NewLatticeElement);
+            // Update the state merging ActualElement
+            It->second.combine(ActualElement);
 
             // Assert we're now actually lower than or equal
-            assertLowerThanOrEqual(NewLatticeElement, It->second);
+            assertLowerThanOrEqual(ActualElement, It->second);
 
             // Re-enqueue
             WorkList.insert(Successor);
@@ -609,6 +627,9 @@ private:
 /// \tparam T type of the elements of the set
 template<typename T>
 class MonotoneFrameworkSet {
+public:
+  using const_iterator = typename std::set<T>::const_iterator;
+
 private:
   std::set<T> Set;
 
@@ -616,6 +637,18 @@ public:
   static MonotoneFrameworkSet bottom() { return MonotoneFrameworkSet(); }
 
   MonotoneFrameworkSet copy() const { return *this; }
+
+  void erase_if(std::function<bool(const T &)> Predicate) {
+    for (auto It = Set.begin(), End = Set.end(); It != End;) {
+      if (Predicate(*It)) {
+        It = Set.erase(It);
+      } else {
+        ++It;
+      }
+    }
+  }
+
+  const_iterator erase(const_iterator It) { return Set.erase(It); }
 
   void combine(const MonotoneFrameworkSet &Other) {
     // Simply join the sets
@@ -649,6 +682,12 @@ public:
 
   void drop(T Key) { Set.erase(Key); }
   void insert(T Key) { Set.insert(Key); }
+  bool contains(std::function<bool(const T &)> Predicate) {
+    for (const T &Element : Set)
+      if (Predicate(Element))
+        return true;
+    return false;
+  }
   bool contains(T Key) const { return Set.count(Key); }
   bool contains(std::set<T> Other) const {
     auto ThisIt = Set.begin();
@@ -670,6 +709,10 @@ public:
     return false;
   }
 
+  const_iterator begin() const { return Set.begin(); }
+  const_iterator end() const { return Set.end(); }
+  size_t size() const { return Set.size(); }
+
   void dump() const { dump(dbg); }
 
   template<typename O>
@@ -680,7 +723,5 @@ public:
     Output << " }";
   }
 };
-
-} // namespace StackAnalysis
 
 #endif // MONOTONEFRAMEWORK_H

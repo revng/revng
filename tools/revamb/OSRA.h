@@ -14,10 +14,10 @@
 
 // Local libraries includes
 #include "revng/BasicAnalyses/FunctionCallIdentification.h"
+#include "revng/BasicAnalyses/ReachingDefinitionsPass.h"
 #include "revng/Support/IRHelpers.h"
 
 // Local includes
-#include "ReachingDefinitionsPass.h"
 #include "SimplifyComparisonsPass.h"
 
 // Forward declarations
@@ -409,7 +409,7 @@ public:
     template<BoundedValue::MergeType MT, typename T>
     BoundedValue mergeImpl(const BoundedValue &Other) const;
 
-    /// \brief Performa a full comparison among two BoundedValues
+    /// \brief Perform a full comparison among two BoundedValues
     ///
     /// Use this in case you have a positive and a negative BoundedValue which
     /// might actually be the same

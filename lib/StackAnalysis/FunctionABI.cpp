@@ -5,10 +5,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+// Local libraries includes
+#include "revng/Support/MonotoneFramework.h"
+
 // Local includes
-#include "FunctionABI.h"
 #include "ABIIR.h"
-#include "MonotoneFramework.h"
+#include "FunctionABI.h"
 
 using std::conditional;
 using std::tuple;
@@ -890,6 +892,12 @@ public:
   }
 
   void dumpFinalState() const {}
+
+  llvm::Optional<Element<E>> handleEdge(const Element<E> &Original,
+                                        ABIIRBasicBlock *Source,
+                                        ABIIRBasicBlock *Destination) const {
+    return llvm::Optional<Element<E>>();
+  }
 
   ABIIRBasicBlock::links_const_range
   successors(ABIIRBasicBlock *BB, Interrupt<E> &) const {

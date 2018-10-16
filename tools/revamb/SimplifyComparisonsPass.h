@@ -11,8 +11,8 @@
 // LLVM includes
 #include "llvm/Pass.h"
 
-// Local includes
-#include "ReachingDefinitionsPass.h"
+// Local libraries includes
+#include "revng/BasicAnalyses/ReachingDefinitionsPass.h"
 
 /// \brief Look for sophisticated comparisons that can be simplified
 /// This pass looks for comparisons checkin for the sign of a value, and, if

@@ -14,7 +14,6 @@ add_executable(revamb
   NoReturnAnalysis.cpp
   OSRA.cpp
   PTCDump.cpp
-  ReachingDefinitionsPass.cpp
   SET.cpp
   SimplifyComparisonsPass.cpp
   VariableManager.cpp)

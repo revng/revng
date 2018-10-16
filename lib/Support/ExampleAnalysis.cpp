@@ -12,10 +12,8 @@ namespace llvm {
 class Module;
 }
 
-// Local includes
-#include "MonotoneFramework.h"
-
-namespace StackAnalysis {
+// Local libraries includes
+#include "revng/Support/MonotoneFramework.h"
 
 namespace ExampleAnalysis {
 
@@ -56,6 +54,11 @@ public:
     revng_abort();
   }
 
+  llvm::Optional<LatticeElement> handleEdge(const LatticeElement &Original,
+                                            Label *Source,
+                                            Label *Destination) const {
+    revng_abort();
+  }
   size_t successor_size(Label *, Interrupt &) const { revng_abort(); }
   Interrupt createSummaryInterrupt() { revng_abort(); }
   Interrupt createNoReturnInterrupt() const { revng_abort(); }
@@ -72,5 +75,3 @@ inline void testFunction() {
 }
 
 } // namespace ExampleAnalysis
-
-} // namespace StackAnalysis

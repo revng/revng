@@ -105,6 +105,45 @@ private:
   JumpTargetManager *JTM;
 };
 
+namespace CFGForm {
+
+/// \brief Possible forms the CFG we're building can assume.
+///
+/// Generally the CFG should stay in the SemanticPreservingCFG state, but it
+/// can be temporarily changed to make certain analysis (e.g., computation of
+/// the dominator tree) more effective for certain purposes.
+enum Values {
+  /// The CFG is an unknown state
+  UnknownFormCFG,
+  /// The dispatcher jumps to all the jump targets, and all the indirect jumps
+  /// go to the dispatcher
+  SemanticPreservingCFG,
+  /// The dispatcher only jumps to jump targets without other predecessors and
+  /// indirect jumps do not go to the dispatcher, but to an unreachable
+  /// instruction
+  RecoveredOnlyCFG,
+  /// Similar to RecoveredOnlyCFG, but all jumps forming a function call are
+  /// converted to jumps to the return address
+  NoFunctionCallsCFG
+};
+
+inline const char *getName(Values V) {
+  switch (V) {
+  case UnknownFormCFG:
+    return "UnknownFormCFG";
+  case SemanticPreservingCFG:
+    return "SemanticPreservingCFG";
+  case RecoveredOnlyCFG:
+    return "RecoveredOnlyCFG";
+  case NoFunctionCallsCFG:
+    return "NoFunctionCallsCFG";
+  }
+
+  revng_abort();
+}
+
+} // namespace CFGForm
+
 class JumpTargetManager {
 private:
   using interval_set = boost::icl::interval_set<uint64_t>;
@@ -130,6 +169,11 @@ public:
       Reasons |= static_cast<uint32_t>(Reason);
     }
     uint32_t getReasons() const { return Reasons; }
+
+    bool isOnlyReason(JTReason::Values Reason) const {
+      return (hasReason(Reason)
+              and (Reasons & ~static_cast<uint32_t>(Reason)) == 0);
+    }
 
     std::vector<const char *> getReasonNames() const {
       std::vector<const char *> Result;
@@ -159,23 +203,6 @@ public:
     uint32_t Reasons;
   };
 
-  /// \brief Possible forms the CFG we're building can assume.
-  ///
-  /// Generally the CFG should stay in the SemanticPreservingCFG state, but it
-  /// can be temporarily changed to make certain analysis (e.g., computation of
-  /// the dominator tree) more effective for certain purposes.
-  enum CFGForm {
-    UnknownFormCFG, ///< The CFG is an unknown state.
-    SemanticPreservingCFG, ///< The dispatcher jumps to all the jump targets,
-                           ///  and all the indirect jumps go to the dispatcher.
-    RecoveredOnlyCFG, ///< The dispatcher only jumps to jump targets without
-                      ///  other predecessors and indirect jumps do not go to
-                      ///  the dispatcher, but to an unreachable instruction.
-    NoFunctionCallsCFG ///< Similar to RecoveredOnlyCFG, but all jumps forming a
-                       ///  function call are converted to jumps to the return
-                       ///  address.
-  };
-
 public:
   using RangesVector = std::vector<std::pair<uint64_t, uint64_t>>;
 
@@ -188,9 +215,9 @@ public:
                     const BinaryFile &Binary);
 
   /// \brief Transform the IR to represent the request form of CFG
-  void setCFGForm(CFGForm NewForm);
+  void setCFGForm(CFGForm::Values NewForm);
 
-  CFGForm cfgForm() const { return CurrentCFGForm; }
+  CFGForm::Values cfgForm() const { return CurrentCFGForm; }
 
   /// \brief Collect jump targets from the program's segments
   void harvestGlobalData();
@@ -471,6 +498,8 @@ public:
   std::string nameForAddress(uint64_t Address) const;
 
 private:
+  std::set<llvm::BasicBlock *> computeUnreachable();
+
   /// \brief Translate the non-constant jumps into jumps to the dispatcher
   void translateIndirectJumps();
 
@@ -564,7 +593,7 @@ private:
   using SymbolInfoSet = std::set<const SymbolInfo *>;
   boost::icl::interval_map<uint64_t, SymbolInfoSet> SymbolMap;
 
-  CFGForm CurrentCFGForm;
+  CFGForm::Values CurrentCFGForm;
   std::set<llvm::BasicBlock *> ToPurge;
 };
 

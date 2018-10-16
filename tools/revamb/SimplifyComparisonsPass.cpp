@@ -10,6 +10,7 @@
 #include <tuple>
 
 // LLVM includes
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"

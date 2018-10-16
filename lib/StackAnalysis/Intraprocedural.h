@@ -19,13 +19,13 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/MonotoneFramework.h"
 
 // Local includes
 #include "ABIIR.h"
 #include "Element.h"
 #include "FunctionABI.h"
 #include "IntraproceduralFunctionSummary.h"
-#include "MonotoneFramework.h"
 
 template<typename T>
 inline bool compareOptional(llvm::Optional<T> LHS, llvm::Optional<T> RHS) {
@@ -475,6 +475,12 @@ public:
 
   void assertLowerThanOrEqual(const Element &A, const Element &B) const {
     ::StackAnalysis::assertLowerThanOrEqual(A, B, getModule(Entry));
+  }
+
+  llvm::Optional<Element> handleEdge(const Element &Original,
+                                     llvm::BasicBlock *Source,
+                                     llvm::BasicBlock *Destination) const {
+    return llvm::Optional<Element>();
   }
 
   llvm::BasicBlock *entry() const { return Entry; }

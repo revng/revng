@@ -6,9 +6,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+// Local libraries includes
+#include "revng/Support/MonotoneFramework.h"
+
 // Local includes
 #include "ABIIR.h"
-#include "MonotoneFramework.h"
 
 using llvm::Module;
 
@@ -125,6 +127,12 @@ public:
   const std::set<FunctionCall> &incoherentCalls() { return Incoherent; }
 
   void dumpFinalState() const {}
+
+  llvm::Optional<Element> handleEdge(const Element &Original,
+                                     ABIIRBasicBlock *Source,
+                                     ABIIRBasicBlock *Destination) const {
+    return llvm::Optional<Element>();
+  }
 
   ABIIRBasicBlock::links_const_range
   successors(ABIIRBasicBlock *BB, Interrupt &) const {

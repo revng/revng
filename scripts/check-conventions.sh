@@ -66,9 +66,12 @@ fi
     done
 
     # Things should never be at the end of a line
-    for REGEXP in '::' '<' 'RegisterPass.*>' '(' '} else' '\bopt\b.*>'; do
+    for REGEXP in '::' '<' 'RegisterPass.*>' '} else' '\bopt\b.*>'; do
         $GREP "$REGEXP\$" $FILES | cat
     done
+
+    # Parenthesis at the end of line (except for raw strings)
+    $GREP "(\$" $FILES | grep -v 'R"LLVM.*(' | cat
 
     # Things should never be at the beginning of a line
     for REGEXP in '\.[^\.]' '\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP'; do
