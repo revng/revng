@@ -36,9 +36,8 @@ void CollectFunctionBoundaries::serialize(std::ostream &Output) {
   auto Comparator = CompareByName<const BasicBlock>();
   for (auto &P : Functions) {
     std::sort(P.second.begin(), P.second.end(), Comparator);
-    for (BasicBlock *BB : P.second) {
+    for (BasicBlock *BB : P.second)
       Output << P.first.data() << "," << BB->getName().data() << "\n";
-    }
   }
 }
 

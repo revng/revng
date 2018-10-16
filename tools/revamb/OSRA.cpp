@@ -1325,6 +1325,7 @@ void OSRA::handleMemoryOperation(Instruction *I) {
 
     // Constraints propagation
     if (HasConstraints) {
+
       // Does the reached load carries any constraints already?
       auto ReachedLoadConstraintIt = Constraints.find(ReachedLoad);
       if (ReachedLoadConstraintIt != Constraints.end()) {
@@ -1982,7 +1983,6 @@ void OSRA::mergeLoadReacher(LoadInst *Load) {
   }
 
   OSRs.insert({ Load, Result });
-  return;
 }
 
 /// \brief State of a definition reaching a load while being processed by
@@ -2239,10 +2239,6 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
     }
   }
 
-  // Or-merge all the collected BVs
-  // TODO: adding the OSR offset is safe, but the multiplier?
-  BoundedValue FinalBV = Reachers[0].computeBV(Reached, DL, Int64);
-
   if (Log.isEnabled()) {
     unsigned I = 0;
     for (const Reacher &R : Reachers) {
@@ -2251,6 +2247,10 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
       Log << " (from " << R.osr().describe() << ")" << DoLog;
     }
   }
+
+  // Or-merge all the collected BVs
+  // TODO: adding the OSR offset is safe, but the multiplier?
+  BoundedValue FinalBV = Reachers[0].computeBV(Reached, DL, Int64);
 
   for (Reacher &R : skip(1, Reachers)) {
     BoundedValue ReacherBV = R.computeBV(Reached, DL, Int64);

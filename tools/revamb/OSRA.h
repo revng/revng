@@ -409,7 +409,7 @@ public:
     template<BoundedValue::MergeType MT, typename T>
     BoundedValue mergeImpl(const BoundedValue &Other) const;
 
-    /// \brief Performa a full comparison among two BoundedValues
+    /// \brief Perform a full comparison among two BoundedValues
     ///
     /// Use this in case you have a positive and a negative BoundedValue which
     /// might actually be the same
