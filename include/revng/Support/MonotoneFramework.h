@@ -627,6 +627,9 @@ private:
 /// \tparam T type of the elements of the set
 template<typename T>
 class MonotoneFrameworkSet {
+public:
+  using const_iterator = typename std::set<T>::const_iterator;
+
 private:
   std::set<T> Set;
 
@@ -634,6 +637,18 @@ public:
   static MonotoneFrameworkSet bottom() { return MonotoneFrameworkSet(); }
 
   MonotoneFrameworkSet copy() const { return *this; }
+
+  void erase_if(std::function<bool(const T &)> Predicate) {
+    for (auto It = Set.begin(), End = Set.end(); It != End;) {
+      if (Predicate(*It)) {
+        It = Set.erase(It);
+      } else {
+        ++It;
+      }
+    }
+  }
+
+  const_iterator erase(const_iterator It) { return Set.erase(It); }
 
   void combine(const MonotoneFrameworkSet &Other) {
     // Simply join the sets
@@ -667,6 +682,12 @@ public:
 
   void drop(T Key) { Set.erase(Key); }
   void insert(T Key) { Set.insert(Key); }
+  bool contains(std::function<bool(const T &)> Predicate) {
+    for (const T &Element : Set)
+      if (Predicate(Element))
+        return true;
+    return false;
+  }
   bool contains(T Key) const { return Set.count(Key); }
   bool contains(std::set<T> Other) const {
     auto ThisIt = Set.begin();
@@ -687,6 +708,10 @@ public:
 
     return false;
   }
+
+  const_iterator begin() const { return Set.begin(); }
+  const_iterator end() const { return Set.end(); }
+  size_t size() const { return Set.size(); }
 
   void dump() const { dump(dbg); }
 
