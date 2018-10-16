@@ -297,6 +297,26 @@ public:
     Map.clear();
   }
 
+  V &operator[](K &&Key) {
+    return insert(std::make_pair(std::move(Key), V())).first->second;
+  }
+
+  V &operator[](const K &Key) {
+    return insert(std::make_pair(Key, V())).first->second;
+  }
+
+  V &at(const K &Key) {
+    iterator It = find(Key);
+    revng_assert(It != end());
+    return It->second;
+  }
+
+  const V &at(const K &Key) const {
+    const_iterator It = find(Key);
+    revng_assert(It != end());
+    return It->second;
+  }
+
 private:
   bool isSmall() const { return Map.empty(); }
 
