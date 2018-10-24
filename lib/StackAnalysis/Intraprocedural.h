@@ -80,19 +80,13 @@ private:
     Result(Element::bottom()),
     Summary(IntraproceduralFunctionSummary::bottom()) {}
 
-  Interrupt(Element Result, BranchType::Values Type) :
-    ResultExtracted(false),
-    Type(Type),
-    Result(std::move(Result)),
-    Summary(IntraproceduralFunctionSummary::bottom()) {}
-
   Interrupt(BranchType::Values Type, IntraproceduralFunctionSummary Summary) :
     ResultExtracted(false),
     Type(Type),
     Result(Element::bottom()),
     Summary(std::move(Summary)) {}
 
-  Interrupt(Element Result, BranchType::Values Type, vector Successors) :
+  Interrupt(Element Result, BranchType::Values Type, vector Successors = {}) :
     ResultExtracted(false),
     Type(Type),
     Result(std::move(Result)),
