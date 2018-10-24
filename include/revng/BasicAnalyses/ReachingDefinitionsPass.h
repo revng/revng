@@ -161,9 +161,9 @@ public:
   getResetColors(llvm::BasicBlock *BB) const {
     auto It = ResetColors.find(BB);
     if (It == ResetColors.end())
-      return &It->second;
-    else
       return nullptr;
+    else
+      return &It->second;
   }
 
   virtual void releaseMemory() override {
