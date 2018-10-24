@@ -137,7 +137,7 @@ bool ConditionalReachedLoadsPass::runOnModule(llvm::Module &M) {
   A.initialize();
   A.run();
 
-  ReachingDefinitions = std::move(A.extractResults());
+  ReachingDefinitions = A.extractResults();
 
   auto GetOperand = [](Instruction *I) {
     if (auto *Store = dyn_cast<StoreInst>(I))
