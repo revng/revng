@@ -3,11 +3,11 @@ bb.__start,bb.__start
 bb.__start,bb.__start.0x18_L0
 bb.__start,bb.__start.0x18_L0_ft
 bb.__start,bb.__start.0x1c
-bb.__start,bb.__start.0x28_L1
-bb.__start,bb.__start.0x28_L1_ft
+bb.__start,bb.__start.0x24_L1
+bb.__start,bb.__start.0x24_L1_ft
 bb.__start,bb.__start.0x2c
-bb.__start,bb.__start.0x8_L0
-bb.__start,bb.__start.0x8_L0_ft
+bb.__start,bb.__start.0x4_L0
+bb.__start,bb.__start.0x4_L0_ft
 bb.__start,bb.__start.0xc
 bb.__start,bb.end
 bb.__start,bb.nullptr
