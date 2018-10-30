@@ -99,7 +99,9 @@ void DAW::emitInstructionAnnot(const Instruction *Instr,
   DISubprogram *Subprogram = Instr->getParent()->getParent()->getSubprogram();
 
   // Ignore whatever is outside the root and the isolated functions
-  if (Subprogram == nullptr)
+  StringRef FunctionName = Instr->getParent()->getParent()->getName();
+  if (Subprogram == nullptr
+      or not(FunctionName == "root" or FunctionName.startswith("bb.")))
     return;
 
   writeMetadataIfNew(Instr, OriginalInstrMDKind, Output, "\n  ; ");
@@ -114,6 +116,8 @@ void DAW::emitInstructionAnnot(const Instruction *Instr,
 
     // Flushing is required to have correct line and column numbers
     Output.flush();
+
+    StringRef FunctionName = Instr->getParent()->getParent()->getName();
     auto *Location = DILocation::get(Context,
                                      Output.getLine() + 1,
                                      Output.getColumn(),
@@ -123,6 +127,7 @@ void DAW::emitInstructionAnnot(const Instruction *Instr,
     auto *NonConstInstruction = const_cast<Instruction *>(Instr);
     NonConstInstruction->setMetadata(DbgMDKind, Location);
   }
+
 }
 
 DebugHelper::DebugHelper(std::string Output,
@@ -204,9 +209,13 @@ void DebugHelper::generateDebugInfo() {
 
     MDString *Last = nullptr;
     std::ofstream Source(DebugPath);
-    for (Function &CurrentFunction : TheModule->functions()) {
-      if (DISubprogram *CurrentSubprogram = CurrentFunction.getSubprogram()) {
-        for (BasicBlock &Block : CurrentFunction) {
+    for (Function &F : TheModule->functions()) {
+
+      if (not(F.getName() == "root" || F.getName().startswith("bb.")))
+        continue;
+
+      if (DISubprogram *CurrentSubprogram = F.getSubprogram()) {
+        for (BasicBlock &Block : F) {
           for (Instruction &Instruction : Block) {
             MDString *Body = getMD(&Instruction, MetadataKind);
 
