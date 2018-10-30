@@ -173,6 +173,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
     break;
 
   case Triple::mips:
+  case Triple::mipsel:
     InstructionAlignment = 4;
     SyscallHelper = "helper_raise_exception";
     SyscallNumberRegister = "v0";
