@@ -1054,9 +1054,9 @@ private:
   checkOffsetTupleIsValid(const SmallVector<const CSVOffsets *, 4> &OffsetTuple,
                           const Instruction *I,
                           SmallVector<OptCSVOffsets, 4> &) {
+    revng_assert(OffsetTuple.size() == 2);
     auto OpCode = I->getOpcode();
     revng_assert(OpCode == Instruction::Add or OpCode == Instruction::Sub);
-    revng_assert(OffsetTuple.size() == 2);
     const auto O0 = OffsetTuple[0], O1 = OffsetTuple[1];
     if (OpCode == Instruction::Add) {
       // Cannot add pointers
@@ -1261,6 +1261,72 @@ private:
   }
 };
 
+/// \brief Specialization of CRTPOffsetFolder for non-address binary operations
+class NumericOffsetFolder : public CRTPOffsetFolder<NumericOffsetFolder> {
+
+public:
+  NumericOffsetFolder(const Module &M) :
+    CRTPOffsetFolder<NumericOffsetFolder>(M) {}
+
+public:
+  friend class CRTPOffsetFolder<NumericOffsetFolder>;
+
+private:
+  static std::pair<bool, CSVOffsets::Kind>
+  checkOffsetTupleIsValid(const SmallVector<const CSVOffsets *, 4> &OffsetTuple,
+                          const Instruction *I,
+                          SmallVector<OptCSVOffsets, 4> &) {
+    revng_assert(OffsetTuple.size() == 2);
+
+    auto OpCode = I->getOpcode();
+    revng_assert(OpCode == Instruction::Shl
+                 or OpCode == Instruction::AShr
+                 or OpCode == Instruction::LShr
+                 or OpCode == Instruction::Mul
+                 or OpCode == Instruction::URem
+                 or OpCode == Instruction::SRem
+                 or OpCode == Instruction::SDiv
+                 or OpCode == Instruction::UDiv);
+
+    const auto O0 = OffsetTuple[0], O1 = OffsetTuple[1];
+    revng_assert(not O0->isPtr() and not O1->isPtr());
+    if (O0->isUnknown() or O1->isUnknown()) {
+      return std::make_pair(false, CSVOffsets::Kind::Unknown);
+    } else  {
+      return std::make_pair(true, CSVOffsets::Kind::Numeric);
+    }
+  }
+
+  CSVOffsets foldOffsets(CSVOffsets::Kind ResultKind,
+                         WorkItem::size_type NumSrcs,
+                         Instruction *I,
+                         const SmallVector<offset_iterator, 4> &OffsetsIt) {
+
+    auto OpCode = I->getOpcode();
+    revng_assert(OpCode == Instruction::Shl
+                 or OpCode == Instruction::AShr
+                 or OpCode == Instruction::LShr
+                 or OpCode == Instruction::Mul
+                 or OpCode == Instruction::URem
+                 or OpCode == Instruction::SRem
+                 or OpCode == Instruction::SDiv
+                 or OpCode == Instruction::UDiv);
+
+    SmallVector<Constant *, 4> Operands(NumSrcs, nullptr);
+    // Setup operands
+    for (WorkItem::size_type SI = 0; SI < NumSrcs; ++SI) {
+      const int64_t O = *OffsetsIt[SI];
+      Operands[SI] = ConstantInt::get(Int64Ty, APInt(64, O, true));
+    }
+    // Constant fold the operation with the selected operands
+    ArrayRef<Constant *> TmpOp(Operands);
+    Constant *Res = ConstantFoldInstOperands(I, TmpOp, DL);
+    ConstantInt *R = cast<ConstantInt>(Res);
+    const int64_t ResO = R->getSExtValue();
+    return CSVOffsets(ResultKind, ResO);
+  }
+};
+
 using AccessOffsetMap = std::map<llvm::Instruction *, CSVOffsets>;
 
 class CPUStateAccessOffsetAnalysis {
@@ -1299,6 +1365,7 @@ private:
   std::vector<WorkItem> WorkList;
   ConstValuePtrSet InExploration;
   AddSubOffsetFolder AddSubFolder;
+  NumericOffsetFolder NumericFolder;
   GEPOffsetFolder GEPFolder;
 
 public:
@@ -1329,6 +1396,7 @@ public:
     WorkList(),
     InExploration(),
     AddSubFolder(M),
+    NumericFolder(M),
     GEPFolder(M) {}
 
 public:
@@ -1686,6 +1754,17 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
     case Instruction::Add: {
       CSVAccessLog << "Add/Sub" << DoLog;
       AddSubFolder.fold(Item, ValueCallSiteOffsets);
+    } break;
+    case Instruction::Shl:
+    case Instruction::AShr:
+    case Instruction::LShr:
+    case Instruction::Mul:
+    case Instruction::URem:
+    case Instruction::SRem:
+    case Instruction::SDiv:
+    case Instruction::UDiv: {
+      CSVAccessLog << "NumericFold" << DoLog;
+      NumericFolder.fold(Item, ValueCallSiteOffsets);
     } break;
     case Instruction::GetElementPtr: {
       CSVAccessLog << "GEP" << DoLog;
