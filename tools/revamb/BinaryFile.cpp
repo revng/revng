@@ -378,22 +378,22 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
   auto Sections = TheELF.sections();
   if (not Sections) {
     logAllUnhandledErrors(std::move(Sections.takeError()), errs(), "");
-    revng_abort();
-  }
-  for (auto &Section : *Sections) {
-    auto NameOrErr = TheELF.getSectionName(&Section);
-    if (NameOrErr) {
-      auto &Name = *NameOrErr;
-      if (Name == ".symtab") {
-        revng_assert(SymtabShdr == nullptr, "Duplicate .symtab");
-        SymtabShdr = &Section;
-      } else if (Name == ".eh_frame") {
-        revng_assert(not EHFrameAddress, "Duplicate .eh_frame");
-        EHFrameAddress = relocate(static_cast<uint64_t>(Section.sh_addr));
-        EHFrameSize = static_cast<uint64_t>(Section.sh_size);
-      } else if (Name == ".dynamic") {
-        revng_assert(not DynamicAddress, "Duplicate .dynamic");
-        DynamicAddress = relocate(static_cast<uint64_t>(Section.sh_addr));
+  } else {
+    for (auto &Section : *Sections) {
+      auto NameOrErr = TheELF.getSectionName(&Section);
+      if (NameOrErr) {
+        auto &Name = *NameOrErr;
+        if (Name == ".symtab") {
+          revng_assert(SymtabShdr == nullptr, "Duplicate .symtab");
+          SymtabShdr = &Section;
+        } else if (Name == ".eh_frame") {
+          revng_assert(not EHFrameAddress, "Duplicate .eh_frame");
+          EHFrameAddress = relocate(static_cast<uint64_t>(Section.sh_addr));
+          EHFrameSize = static_cast<uint64_t>(Section.sh_size);
+        } else if (Name == ".dynamic") {
+          revng_assert(not DynamicAddress, "Duplicate .dynamic");
+          DynamicAddress = relocate(static_cast<uint64_t>(Section.sh_addr));
+        }
       }
     }
   }
@@ -467,7 +467,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
 
       // If it's an executable segment, and we've been asked so, register
       // which sections actually contain code
-      if (UseDebugSymbols && Segment.IsExecutable) {
+      if (Sections and UseDebugSymbols and Segment.IsExecutable) {
         using Elf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
         auto Inserter = std::back_inserter(Segment.ExecutableSections);
         for (Elf_Shdr &SectionHeader : *Sections) {
