@@ -503,6 +503,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
       revng_assert(((not DynamicAddress)
                     or (relocate(DynamicPhdr->p_vaddr) == *DynamicAddress)),
                    ".dynamic and PT_DYNAMIC have different addresses");
+      DynamicAddress = relocate(DynamicPhdr->p_vaddr);
       break;
     }
   }
