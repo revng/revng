@@ -1283,7 +1283,9 @@ void OSRA::handleMemoryOperation(Instruction *I) {
     MA = MemoryAccess(TheStore, DL);
     Value *ValueOp = TheStore->getValueOperand();
 
-    if (auto *ConstantOp = dyn_cast<Constant>(ValueOp)) {
+    if (isa<UndefValue>(ValueOp)) {
+      // Do nothing
+    } else if (auto *ConstantOp = dyn_cast<Constant>(ValueOp)) {
 
       // We're storing a constant, create a constant OSR
       uint64_t Constant = getZExtValue(ConstantOp, DL);
