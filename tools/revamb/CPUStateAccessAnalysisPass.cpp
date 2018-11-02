@@ -2872,6 +2872,9 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
 
 bool CPUStateAccessAnalysis::run() {
 
+  if (CPUStatePtr == nullptr)
+    return false;
+
   // Get the root Function
   const Function *RootFunction = M.getFunction("root");
   revng_assert(RootFunction);
