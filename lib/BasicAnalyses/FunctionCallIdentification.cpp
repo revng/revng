@@ -93,12 +93,16 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
           Value *V = Store->getValueOperand();
           Value *Pointer = Store->getPointerOperand();
           auto *TargetCSV = dyn_cast<GlobalVariable>(Pointer);
-          if (TargetCSV != nullptr && GCBI.isPCReg(TargetCSV)) {
-            StorePCFound = true;
+          if (GCBI.isPCReg(TargetCSV)) {
+            if (TargetCSV != nullptr)
+              StorePCFound = true;
           } else if (auto *Constant = dyn_cast<ConstantInt>(V)) {
             // Note that we willingly ignore stores to the PC here
             if (Constant->getLimitedValue() == ReturnPC) {
-              revng_assert(!SaveRAFound);
+              if (SaveRAFound) {
+                SaveRAFound = false;
+                return StopNow;
+              }
               SaveRAFound = true;
 
               // Find where the return address is being stored
