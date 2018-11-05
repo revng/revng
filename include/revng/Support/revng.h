@@ -15,7 +15,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
-#include "llvm/Support/ELF.h"
+#include "llvm/BinaryFormat/ELF.h"
 
 // Local libraries includes
 #include "revng/Support/IRHelpers.h"
@@ -261,7 +261,9 @@ public:
   llvm::SmallVector<ABIRegister, 20> abiRegisters() const {
     return ABIRegisters;
   }
-  const char *name() const { return llvm::Triple::getArchTypeName(Type); }
+  const char *name() const {
+    return llvm::Triple::getArchTypeName(Type).data();
+  }
   unsigned pcMContextIndex() const { return PCMContextIndex; }
 
   llvm::StringRef writeRegisterAsm() const { return WriteRegisterAsm; }

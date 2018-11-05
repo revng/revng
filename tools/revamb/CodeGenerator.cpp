@@ -31,13 +31,16 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 
 // Local libraries includes
 #include "revng/DebugHelper/DebugHelper.h"
@@ -129,8 +132,7 @@ auto X = cl::values(clEnumValN(DebugInfoType::None,
                                "Tiny Code"),
                     clEnumValN(DebugInfoType::LLVMIR,
                                "ll",
-                               "debug information referred to the LLVM IR"),
-                    clEnumValEnd);
+                               "debug information referred to the LLVM IR"));
 static cl::opt<DebugInfoType::Values> DebugInfo("debug-info",
                                                 cl::desc("emit debug "
                                                          "information"),
@@ -175,20 +177,31 @@ static std::unique_ptr<Module> parseIR(StringRef Path, LLVMContext &Context) {
 
 CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              Architecture &Target,
+                             llvm::LLVMContext &TheContext,
                              std::string Output,
                              std::string Helpers,
                              std::string EarlyLinked) :
   TargetArchitecture(Target),
-  Context(getGlobalContext()),
+  Context(TheContext),
   TheModule((new Module("top", Context))),
   OutputPath(Output),
   Debug(new DebugHelper(Output, TheModule.get(), DebugInfo, DebugPath)),
   Binary(Binary) {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
-  DbgMDKind = Context.getMDKindID("dbg");
 
   HelpersModule = parseIR(Helpers, Context);
+  for (auto &F : HelpersModule->functions()) {
+    // Remove 'optnone' Function attribute from QEMU helpers.
+    // QEMU helpers are compiled with -O0 in libtinycode because the LLVM IR
+    // generated in this way it much more readable, but we need to optimize
+    // them when we link them with the decompiled code.
+    // In particular we desperately need SROA to get rid of allocas, to
+    // enable the CPUStateAccessAnalysisPass.
+    // If we don't remove this attribute future optimizations are blocked.
+    F.removeFnAttr(Attribute::OptimizeNone);
+    F.setDSOLocal(false);
+  }
   EarlyLinkedModule = parseIR(EarlyLinked, Context);
 
   if (CoveragePath.size() == 0)
@@ -285,10 +298,14 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
     NeededLibsStream << Library << "\n";
 }
 
-Function *CodeGenerator::importHelperFunctionDefinition(StringRef Name) {
-  Function *HelperFunction = HelpersModule->getFunction(Name);
-  FunctionType *HelperType = HelperFunction->getFunctionType();
-  return cast<Function>(TheModule->getOrInsertFunction(Name, HelperType));
+Function *CodeGenerator::importHelperFunctionDeclaration(StringRef Name) {
+  // Don't copy the FunctionType from the HelpersModule. Simply add the function
+  // declaration with the correct name, and this will trigger the Linker.
+  // The Linker will then overwrite the stub declaration with the real imported
+  // definition, fixing it up with the correct FunctionType.
+  FunctionType *StubType = FunctionType::get(Type::getVoidTy(Context), false);
+  Constant *Inserted = TheModule->getOrInsertFunction(Name, StubType);
+  return cast<Function>(Inserted);
 }
 
 std::string SegmentInfo::generateName() {
@@ -347,7 +364,7 @@ char CpuLoopFunctionPass::ID = 0;
 using RegisterCLF = RegisterPass<CpuLoopFunctionPass>;
 static RegisterCLF Y("cpu-loop", "cpu_loop FunctionPass", false, false);
 
-void CpuLoopFunctionPass::getAnalysisUsage(AnalysisUsage &AU) const {
+void CpuLoopFunctionPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<LoopInfoWrapperPass>();
 }
 
@@ -461,7 +478,7 @@ static void purgeNoReturn(Function *F) {
       if (Call->hasFnAttr(Attribute::NoReturn)) {
         auto OldAttr = Call->getAttributes();
         auto NewAttr = OldAttr.removeAttribute(Context,
-                                               AttributeSet::FunctionIndex,
+                                               AttributeList::FunctionIndex,
                                                Attribute::NoReturn);
         Call->setAttributes(NewAttr);
       }
@@ -530,7 +547,14 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
     // Call cpu_loop
     auto *EnvType = CpuLoop->getFunctionType()->getParamType(0);
     auto *AddressComputation = VM->computeEnvAddress(EnvType, Call);
-    CallInst::Create(CpuLoop, { AddressComputation }, "", Call);
+    auto *CallCpuLoop = CallInst::Create(CpuLoop,
+                                         { AddressComputation },
+                                         "",
+                                         Call);
+    // In recent versions of LLVM you can no longer inject a CallInst in a
+    // Function with debug location if the call itself has not a debug location
+    // as well, otherwise verifyModule() will fail.
+    CallCpuLoop->setDebugLoc(Call->getDebugLoc());
 
     // Set cpu_loop_exiting to true
     new StoreInst(ConstantInt::getTrue(BoolType), CpuLoopExitingVariable, Call);
@@ -643,7 +667,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
   auto *AbortFunction = TheModule->getOrInsertFunction("abort", AbortTy);
 
-  importHelperFunctionDefinition("target_set_brk");
+  importHelperFunctionDeclaration("target_set_brk");
   TheModule->getOrInsertFunction("syscall_init",
                                  FT::get(Type::getVoidTy(Context), {}, false));
 
@@ -907,7 +931,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
   } // End translations loop
 
-  importHelperFunctionDefinition("cpu_loop");
+  importHelperFunctionDeclaration("cpu_loop");
   Function *CpuLoop = HelpersModule->getFunction("cpu_loop");
   revng_assert(CpuLoop != nullptr);
 
@@ -920,9 +944,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   Variables.getByEnvOffset(ptc.exception_index, "exception_index");
 
   // Handle some specific QEMU functions as no-ops or abort
-  auto NoOpFunctionNames = make_array<const char *>("qemu_log_mask",
+  auto NoOpFunctionNames = make_array<const char *>("cpu_dump_state",
+                                                    "cpu_exit",
+                                                    "end_exclusive"
                                                     "fprintf",
-                                                    "cpu_dump_state",
                                                     "mmap_lock",
                                                     "mmap_unlock",
                                                     "pthread_cond_broadcast",
@@ -930,35 +955,30 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                                                     "pthread_mutex_lock",
                                                     "pthread_cond_wait",
                                                     "pthread_cond_signal",
-                                                    "cpu_exit",
-                                                    "start_exclusive",
                                                     "process_pending_signals",
-                                                    "end_exclusive");
+                                                    "qemu_log_mask",
+                                                    "qemu_thread_atexit_init",
+                                                    "start_exclusive");
   auto AbortFunctionNames = make_array<const char *>("cpu_restore_state",
+                                                     "cpu_mips_exec",
                                                      "gdb_handlesig",
                                                      "queue_signal",
-                                                     "cpu_mips_exec",
                                                      // syscall.c
+                                                     "do_ioctl_dm",
                                                      "print_syscall",
                                                      "print_syscall_ret",
-                                                     "do_ioctl_dm",
                                                      // ARM cpu_loop
-                                                     "EmulateAll",
                                                      "cpu_abort",
-                                                     "do_arm_semihosting");
+                                                     "do_arm_semihosting",
+                                                     "EmulateAll");
 
-  // EmulateAll: requires access to the opcode
   // do_arm_semihosting: we don't care about semihosting
+  // EmulateAll: requires access to the opcode
 
-  // Initializes the CPUState which is important on x86 architecture.
-  if (HelpersModule->getFunction("initialize_env") != nullptr) {
-    Function *InitEnv = importHelperFunctionDefinition("initialize_env");
-    auto *CPUStateType = InitEnv->getFunctionType()->getParamType(0);
-    Instruction *InsertBefore = InitEnvInsertPoint;
-    auto *AddressComputation = Variables.computeEnvAddress(CPUStateType,
-                                                           InsertBefore);
-    CallInst::Create(InitEnv, { AddressComputation }, "", InsertBefore);
-  }
+  // Import the function to initialize the CPUState, if present.
+  // This is important on x86 architecture.
+  if (HelpersModule->getFunction("initialize_env") != nullptr)
+    importHelperFunctionDeclaration("initialize_env");
 
   // From syscall.c
   new GlobalVariable(*TheModule,
@@ -990,24 +1010,23 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   //       non-static symbols not directly imported as static.
   {
     std::set<StringRef> Declarations;
-    for (auto &GV : TheModule->functions())
-      if (GV.isDeclaration())
-        Declarations.insert(GV.getName());
+    for (auto &F : TheModule->functions())
+      if (F.isDeclaration())
+        Declarations.insert(F.getName());
 
+    for (auto &F : HelpersModule->functions())
+      if (not F.isDeclaration() and Declarations.count(F.getName()) == 0
+          and F.hasExternalLinkage())
+        F.setLinkage(GlobalValue::InternalLinkage);
+
+    Declarations.clear();
     for (auto &GV : TheModule->globals())
       if (GV.isDeclaration())
         Declarations.insert(GV.getName());
 
-    for (auto &GV : HelpersModule->functions())
-      if (!GV.isDeclaration()
-          && Declarations.find(GV.getName()) == Declarations.end()
-          && GV.hasExternalLinkage())
-        GV.setLinkage(GlobalValue::InternalLinkage);
-
     for (auto &GV : HelpersModule->globals())
-      if (!GV.isDeclaration()
-          && Declarations.find(GV.getName()) == Declarations.end()
-          && GV.hasExternalLinkage())
+      if (not GV.isDeclaration() and Declarations.count(GV.getName()) == 0
+          and GV.hasExternalLinkage())
         GV.setLinkage(GlobalValue::InternalLinkage);
   }
 
@@ -1016,6 +1035,22 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     bool Result = TheLinker.linkInModule(std::move(HelpersModule),
                                          Linker::LinkOnlyNeeded);
     revng_assert(!Result, "Linking failed");
+  }
+
+  // Add a call to the function to initialize the CPUState, if present.
+  // This is important on x86 architecture.
+  // We only add the call after the Linker has imported the
+  // initialize_env function from the helpers, because the declaration
+  // imported before with importHelperFunctionDeclaration() only has
+  // stub types and injecting the CallInst earlier would break
+  if (Function *InitEnv = TheModule->getFunction("initialize_env")) {
+    revng_assert(not InitEnv->getFunctionType()->isVarArg());
+    revng_assert(InitEnv->getFunctionType()->getNumParams() == 1);
+    auto *CPUStateType = InitEnv->getFunctionType()->getParamType(0);
+    Instruction *InsertBefore = InitEnvInsertPoint;
+    auto *AddressComputation = Variables.computeEnvAddress(CPUStateType,
+                                                           InsertBefore);
+    CallInst::Create(InitEnv, { AddressComputation }, "", InsertBefore);
   }
 
   Variables.setDataLayout(&TheModule->getDataLayout());

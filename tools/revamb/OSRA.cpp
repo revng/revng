@@ -277,7 +277,7 @@ public:
     Int64(IntegerType::get(getContext(&F), 64)),
     OSRs(OSRs),
     BVs(BVs),
-    PDT(true) {}
+    PDT() {}
 
   void run();
   void dump();
@@ -434,7 +434,7 @@ private:
   using SubscribersType = SmallSet<Instruction *, 3>;
   std::map<const LoadInst *, SubscribersType> Subscriptions;
 
-  DominatorTreeBase<BasicBlock> PDT;
+  DominatorTreeBase<BasicBlock, /* IsPostDom = */ true> PDT;
 };
 
 void OSRA::propagateConstraints(Instruction *I,
@@ -1410,9 +1410,8 @@ static uint64_t combineImpl(unsigned Opcode,
                             bool Signed,
                             Constant *Op1,
                             Constant *Op2,
-                            IntegerType *T,
                             const DataLayout &DL) {
-  auto *R = ConstantFoldInstOperands(Opcode, T, { Op1, Op2 }, DL);
+  auto *R = ConstantFoldBinaryOpOperands(Opcode, Op1, Op2, DL);
   return getExtValue(R, Signed, DL);
 }
 
@@ -1422,7 +1421,7 @@ static uint64_t combineImpl(unsigned Opcode,
                             Constant *Op2,
                             IntegerType *T,
                             const DataLayout &DL) {
-  return combineImpl(Opcode, Signed, CI::get(T, Op1, Signed), Op2, T, DL);
+  return combineImpl(Opcode, Signed, CI::get(T, Op1, Signed), Op2, DL);
 }
 
 static uint64_t combineImpl(unsigned Opcode,
@@ -1431,7 +1430,7 @@ static uint64_t combineImpl(unsigned Opcode,
                             uint64_t Op2,
                             IntegerType *T,
                             const DataLayout &DL) {
-  return combineImpl(Opcode, Signed, Op1, CI::get(T, Op2, Signed), T, DL);
+  return combineImpl(Opcode, Signed, Op1, CI::get(T, Op2, Signed), DL);
 }
 
 uint64_t BoundedValue::performOp(uint64_t Op1,
@@ -1455,7 +1454,7 @@ uint64_t BoundedValue::performOp(uint64_t Op1,
   auto *COp2 = CI::get(Ty, Op2, IsSigned);
 
   // Compute the result
-  auto *Result = ConstantFoldInstOperands(Opcode, Ty, { COp1, COp2 }, DL);
+  auto *Result = ConstantFoldBinaryOpOperands(Opcode, COp1, COp2, DL);
   return getExtValue(Result, IsSigned, DL);
 }
 
@@ -1863,6 +1862,7 @@ OSRAPass::identifyOperands(std::map<const Value *, const OSR> &OSRs,
     Clone->setOperand(0, Constants[0]);
     Clone->setOperand(1, Constants[1]);
     Constant *Result = ConstantFoldInstruction(Clone, DL);
+    Clone->deleteValue();
     if (isa<UndefValue>(Result))
       return { nullptr, nullptr };
     else

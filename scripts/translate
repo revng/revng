@@ -166,7 +166,7 @@ fi
 OBJ="$LL.o"
 "$CC" \
       "$OBJ" \
-      -lz -lm -lrt $("$TOOPT" "$CSV" "$LIBSCSV") -L ./ \
+      -lz -lm -lrt -lpthread $("$TOOPT" "$CSV" "$LIBSCSV") -L ./ \
       -o "$OUTPUT" \
       $DISABLE_PIE
 

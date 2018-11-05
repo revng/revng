@@ -65,9 +65,12 @@ public:
   /// \brief Clean the operations stack
   void reset() {
     // Delete all the temporary instructions we created
-    for (Instruction *I : Operations)
-      if (I->getParent() == nullptr)
-        delete I;
+    for (Instruction *I : Operations) {
+      if (I->getParent() == nullptr) {
+        I->dropUnknownNonDebugMetadata();
+        I->deleteValue();
+      }
+    }
 
     Operations.clear();
     OperationsSet.clear();
@@ -125,8 +128,10 @@ public:
       }
 
       // We have the ownership of instruction without parent
-      if (Op->getParent() == nullptr)
-        delete Op;
+      if (Op->getParent() == nullptr) {
+        Op->dropUnknownNonDebugMetadata();
+        Op->deleteValue();
+      }
 
       Operations.pop_back();
     }
@@ -142,8 +147,10 @@ public:
     }
 
     // If the given instruction doesn't have a parent we take ownership of it
-    if (I->getParent() == nullptr)
-      delete I;
+    if (I->getParent() == nullptr) {
+      I->dropUnknownNonDebugMetadata();
+      I->deleteValue();
+    }
 
     return false;
   }
@@ -270,10 +277,7 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
         }
       }
 
-      NewOperand = ConstantFoldInstOperands(I->getOpcode(),
-                                            I->getType(),
-                                            Operands,
-                                            DL);
+      NewOperand = ConstantFoldInstOperands(I, Operands, DL);
       revng_assert(NewOperand != nullptr);
       // TODO: this is an hack hiding a bigger problem
       if (isa<UndefValue>(NewOperand)) {
@@ -390,7 +394,7 @@ bool SET::enqueueStores(LoadInst *Start) {
     }
 
     Visited.insert(BB);
-    BasicBlock::reverse_iterator It(make_reverse_iterator(I));
+    BasicBlock::reverse_iterator It(++I->getReverseIterator());
     BasicBlock::reverse_iterator Begin(BB->rend());
 
     bool Found = false;

@@ -253,7 +253,7 @@ bool TranslateDirectBranchesPass::forceFallthroughAfterHelper(CallInst *Call) {
   auto PCRegTy = PCReg->getType()->getPointerElementType();
   bool ForceFallthrough = false;
 
-  BasicBlock::reverse_iterator It(make_reverse_iterator(Call));
+  BasicBlock::reverse_iterator It(++Call->getReverseIterator());
   auto *BB = Call->getParent();
   auto EndIt = BB->rend();
   while (!ForceFallthrough) {
@@ -316,7 +316,7 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
   DominatorTree &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
 
   BasicBlock *Block = TheInstruction->getParent();
-  BasicBlock::reverse_iterator It(make_reverse_iterator(TheInstruction));
+  BasicBlock::reverse_iterator It(++TheInstruction->getReverseIterator());
 
   while (true) {
     BasicBlock::reverse_iterator Begin(Block->rend());
@@ -408,11 +408,11 @@ JumpTargetManager::readRawValue(uint64_t Address,
 Constant *JumpTargetManager::readConstantPointer(Constant *Address,
                                                  Type *PointerTy,
                                                  Endianess ReadEndianess) {
-  auto *Value = readConstantInt(Address,
-                                Binary.architecture().pointerSize() / 8,
-                                ReadEndianess);
-  if (Value != nullptr) {
-    return ConstantExpr::getIntToPtr(Value, PointerTy);
+  Constant *ConstInt = readConstantInt(Address,
+                                       Binary.architecture().pointerSize() / 8,
+                                       ReadEndianess);
+  if (ConstInt != nullptr) {
+    return Constant::getIntegerValue(PointerTy, ConstInt->getUniqueInteger());
   } else {
     return nullptr;
   }
@@ -796,7 +796,7 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
   if (TheInstruction->getIterator() == TheInstruction->getParent()->begin())
     WorkList.push(--TheInstruction->getParent()->rend());
   else
-    WorkList.push(make_reverse_iterator(TheInstruction));
+    WorkList.push(++TheInstruction->getReverseIterator());
 
   while (!WorkList.empty()) {
     auto I = WorkList.front();
@@ -1136,7 +1136,7 @@ JumpTargetManager::registerJT(uint64_t PC, JTReason::Values Reason) {
     if (isFirst(I)) {
       NewBlock = ContainingBlock;
     } else {
-      revng_assert(I != nullptr && I != ContainingBlock->end());
+      revng_assert(I != nullptr && I->getIterator() != ContainingBlock->end());
       NewBlock = ContainingBlock->splitBasicBlock(I);
     }
 

@@ -493,11 +493,9 @@ void IFI::run() {
   // variables and functions). We'll initialize the LocalVMaps of the single
   // functions with these mappings.
   ValueToValueMap GlobalVMap;
-  for (auto Iter : ModuleCloningVMap) {
-    if (isa<GlobalObject>(Iter.first)) {
+  for (auto Iter : ModuleCloningVMap)
+    if (isa<GlobalObject>(Iter.first) or isa<ConstantExpr>(Iter.first))
       GlobalVMap[Iter.first] = Iter.second;
-    }
-  }
 
   // 2. Create the needed structure to handle the throw of an exception
 
@@ -920,13 +918,9 @@ void IFI::run() {
       StringRef FunctionNameString = getFunctionNameString(Node);
       Function *TargetFunc = NewModule->getFunction(FunctionNameString);
 
-      // Remove the old instruction that compose the entry block (note that we
-      // do not increment the iterator since the removal of the instruction
-      // seems to automatically do that)
-      auto It = BB.rbegin();
-      while (It != BB.rend()) {
-        It->eraseFromParent();
-      }
+      // Remove the old instruction that compose the entry block
+      BB.dropAllReferences();
+      BB.getInstList().clear();
 
       // Emit the invoke instruction
       InvokeInst::Create(TargetFunc,
@@ -954,7 +948,7 @@ bool IF::runOnFunction(Function &F) {
   // functions. We additionaly store all the mappings created in the
   // ModuleCloningVMap.
   ValueToValueMapTy ModuleCloningVMap;
-  NewModule = CloneModule(F.getParent(), ModuleCloningVMap);
+  NewModule = CloneModule(*F.getParent(), ModuleCloningVMap);
 
   // Create an object of type IsolateFunctionsImpl and run the pass
   IFI Impl(F, NewModule.get(), GCBI, ModuleCloningVMap);

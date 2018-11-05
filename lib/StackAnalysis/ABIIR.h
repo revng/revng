@@ -451,10 +451,10 @@ namespace llvm {
 
 template<>
 struct GraphTraits<StackAnalysis::ABIIRBasicBlock *> {
-  using NodeType = StackAnalysis::ABIIRBasicBlock;
+  using NodeRef = StackAnalysis::ABIIRBasicBlock *;
   using ChildIteratorType = StackAnalysis::ABIIRBasicBlock::links_iterator;
 
-  static NodeType *getEntryNode(StackAnalysis::ABIIRBasicBlock *BB) {
+  static NodeRef getEntryNode(StackAnalysis::ABIIRBasicBlock *BB) {
     return BB;
   }
 

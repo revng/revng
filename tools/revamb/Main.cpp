@@ -25,6 +25,7 @@ extern "C" {
 
 // LLVM includes
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ELF.h"
 
@@ -200,14 +201,15 @@ int main(int argc, const char *argv[]) {
 
   // Translate everything
   Architecture TargetArchitecture;
+  llvm::LLVMContext RevambGlobalContext;
   CodeGenerator Generator(TheBinary,
                           TargetArchitecture,
+                          RevambGlobalContext,
                           std::string(OutputPath),
                           LibHelpersPath,
                           EarlyLinkedPath);
 
   Generator.translate(EntryPointAddress);
-
   Generator.serialize();
 
   return EXIT_SUCCESS;

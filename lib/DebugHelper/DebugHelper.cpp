@@ -11,6 +11,7 @@
 
 // LLVM includes
 #include "llvm/IR/AssemblyAnnotationWriter.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -62,7 +63,7 @@ static void writeMetadataIfNew(const Instruction *TheInstruction,
     MDString *PrevMD = nullptr;
 
     do {
-      if (TheInstruction == TheInstruction->getParent()->begin())
+      if (TheInstruction->getIterator() == TheInstruction->getParent()->begin())
         TheInstruction = nullptr;
       else {
         TheInstruction = TheInstruction->getPrevNode();
@@ -149,9 +150,9 @@ DebugHelper::DebugHelper(std::string Output,
   }
 
   if (DebugInfo != DebugInfoType::None) {
+    auto File = Builder.createFile(this->DebugPath, "");
     CompileUnit = Builder.createCompileUnit(dwarf::DW_LANG_C,
-                                            this->DebugPath,
-                                            "",
+                                            File,
                                             "revamb",
                                             false,
                                             "",

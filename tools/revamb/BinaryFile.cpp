@@ -15,11 +15,11 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/BinaryFormat/Dwarf.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/Dwarf.h"
-#include "llvm/Support/ELF.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LEB128.h"
@@ -353,34 +353,44 @@ struct RelocationHelper<T, false> {
 template<typename T, bool HasAddend>
 void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
   // Parse the ELF file
-  std::error_code EC;
-  object::ELFFile<T> TheELF(TheBinary->getData(), EC);
-  revng_assert(!EC, "Error while loading the ELF file");
+  auto TheELFOrErr = object::ELFFile<T>::create(TheBinary->getData());
+  if (not TheELFOrErr) {
+    logAllUnhandledErrors(std::move(TheELFOrErr.takeError()), errs(), "");
+    revng_abort();
+  }
+  object::ELFFile<T> TheELF = *TheELFOrErr;
 
   // BaseAddress makes sense only for shared (relocatable, PIC) objects
   if (TheELF.getHeader()->e_type == ELF::ET_DYN)
     this->BaseAddress = BaseAddress;
 
   // Look for static or dynamic symbols and relocations
-  using Elf_ShdrPtr = decltype(&(*TheELF.sections().begin()));
-  using Elf_PhdrPtr = decltype(&(*TheELF.program_headers().begin()));
-  Elf_ShdrPtr SymtabShdr = nullptr;
+  using ConstElf_ShdrPtr = const typename object::ELFFile<T>::Elf_Shdr *;
+  using Elf_PhdrPtr = const typename object::ELFFile<T>::Elf_Phdr *;
+  ConstElf_ShdrPtr SymtabShdr = nullptr;
   Elf_PhdrPtr DynamicPhdr = nullptr;
   Optional<uint64_t> DynamicAddress;
   Optional<uint64_t> EHFrameAddress;
   Optional<uint64_t> EHFrameSize;
   Optional<uint64_t> EHFrameHdrAddress;
 
-  for (auto &Section : TheELF.sections()) {
-    if (ErrorOr<StringRef> Name = TheELF.getSectionName(&Section)) {
-      if (*Name == ".symtab") {
+  auto Sections = TheELF.sections();
+  if (not Sections) {
+    logAllUnhandledErrors(std::move(Sections.takeError()), errs(), "");
+    revng_abort();
+  }
+  for (auto &Section : *Sections) {
+    auto NameOrErr = TheELF.getSectionName(&Section);
+    if (NameOrErr) {
+      auto &Name = *NameOrErr;
+      if (Name == ".symtab") {
         revng_assert(SymtabShdr == nullptr, "Duplicate .symtab");
         SymtabShdr = &Section;
-      } else if (*Name == ".eh_frame") {
+      } else if (Name == ".eh_frame") {
         revng_assert(not EHFrameAddress, "Duplicate .eh_frame");
         EHFrameAddress = relocate(static_cast<uint64_t>(Section.sh_addr));
         EHFrameSize = static_cast<uint64_t>(Section.sh_size);
-      } else if (*Name == ".dynamic") {
+      } else if (Name == ".dynamic") {
         revng_assert(not DynamicAddress, "Duplicate .dynamic");
         DynamicAddress = relocate(static_cast<uint64_t>(Section.sh_addr));
       }
@@ -390,14 +400,33 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
   // If we found a symbol table
   if (SymtabShdr != nullptr && SymtabShdr->sh_link != 0) {
     // Obtain a reference to the string table
-    const Elf_ShdrPtr Strtab = TheELF.getSection(SymtabShdr->sh_link).get();
-    ArrayRef<uint8_t> StrtabArray = TheELF.getSectionContents(Strtab).get();
-    StringRef StrtabContent(reinterpret_cast<const char *>(StrtabArray.data()),
-                            StrtabArray.size());
+    auto Strtab = TheELF.getSection(SymtabShdr->sh_link);
+    if (not Strtab) {
+      logAllUnhandledErrors(std::move(Strtab.takeError()), errs(), "");
+      revng_abort();
+    }
+    auto StrtabArray = TheELF.getSectionContents(*Strtab);
+    if (not StrtabArray) {
+      logAllUnhandledErrors(std::move(StrtabArray.takeError()), errs(), "");
+      revng_abort();
+    }
+    StringRef StrtabContent(reinterpret_cast<const char *>(StrtabArray->data()),
+                            StrtabArray->size());
 
     // Collect symbol names
-    for (auto &Symbol : TheELF.symbols(SymtabShdr)) {
-      Symbols.push_back({ Symbol.getName(StrtabContent).get(),
+    auto ELFSymbols = TheELF.symbols(SymtabShdr);
+    if (not ELFSymbols) {
+      logAllUnhandledErrors(std::move(ELFSymbols.takeError()), errs(), "");
+      revng_abort();
+    }
+    for (auto &Symbol : *ELFSymbols) {
+      auto Name = Symbol.getName(StrtabContent);
+      if (not Name) {
+        logAllUnhandledErrors(std::move(Name.takeError()), errs(), "");
+        revng_abort();
+      }
+
+      Symbols.push_back({ *Name,
                           Symbol.st_value,
                           Symbol.st_size,
                           Symbol.getType() == ELF::STT_FUNC });
@@ -415,7 +444,13 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
   // CSV
   using Elf_Phdr = const typename object::ELFFile<T>::Elf_Phdr;
   using Elf_Dyn = const typename object::ELFFile<T>::Elf_Dyn;
-  for (Elf_Phdr &ProgramHeader : TheELF.program_headers()) {
+
+  auto ProgHeaders = TheELF.program_headers();
+  if (not ProgHeaders) {
+    logAllUnhandledErrors(std::move(ProgHeaders.takeError()), errs(), "");
+    revng_abort();
+  }
+  for (Elf_Phdr &ProgramHeader : *ProgHeaders) {
     switch (ProgramHeader.p_type) {
     case ELF::PT_LOAD: {
       SegmentInfo Segment;
@@ -434,7 +469,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
       if (UseDebugSymbols && Segment.IsExecutable) {
         using Elf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
         auto Inserter = std::back_inserter(Segment.ExecutableSections);
-        for (Elf_Shdr &SectionHeader : TheELF.sections()) {
+        for (Elf_Shdr &SectionHeader : *Sections) {
           if (SectionHeader.sh_flags & ELF::SHF_EXECINSTR) {
             auto SectionStart = relocate(SectionHeader.sh_addr);
             auto SectionEnd = SectionStart + SectionHeader.sh_size;
@@ -497,7 +532,12 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
     FilePortion ReldynPortion;
     FilePortion RelpltPortion;
 
-    for (Elf_Dyn &DynamicTag : *TheELF.dynamic_table(DynamicPhdr)) {
+    auto DynamicEntries = TheELF.dynamicEntries();
+    if (not DynamicEntries) {
+      logAllUnhandledErrors(std::move(DynamicEntries.takeError()), errs(), "");
+      revng_abort();
+    }
+    for (Elf_Dyn &DynamicTag : *DynamicEntries) {
 
       auto TheTag = DynamicTag.getTag();
       switch (TheTag) {
