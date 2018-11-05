@@ -621,10 +621,18 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool &ShouldContinue) {
          UnexploredIt++) {
 
       if (UnexploredIt->first == PC) {
-        auto Result = UnexploredIt->second;
-        Unexplored.erase(UnexploredIt);
-        ShouldContinue = true;
-        revng_assert(Result->empty());
+        BasicBlock *Result = UnexploredIt->second;
+
+        // Check if we already have a translation for that
+        ShouldContinue = Result->empty();
+        if (ShouldContinue) {
+          // We don't, OK let's explore it next
+          Unexplored.erase(UnexploredIt);
+        } else {
+          // We do, it will be purged at the next `peek`
+          revng_assert(ToPurge.count(Result) != 0);
+        }
+
         return Result;
       }
     }
