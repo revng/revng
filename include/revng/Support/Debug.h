@@ -153,6 +153,12 @@ inline void writeToLog(Logger<X> &This, const LogTerminator, int) {
   This.emit();
 }
 
+/// \brief Specialization for llvm::StringRef
+template<bool X>
+inline void writeToLog(Logger<X> &This, const llvm::StringRef &S, int Ign) {
+  writeToLog(This, S.data(), Ign);
+}
+
 /// \brief A global registry for all the loggers
 ///
 /// Loggers are usually global static variables in translation units, the role
