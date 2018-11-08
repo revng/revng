@@ -431,7 +431,8 @@ class QuickMetadata {
 public:
   QuickMetadata(llvm::LLVMContext &Context) :
     C(Context),
-    Int32Ty(llvm::IntegerType::get(C, 32)) {}
+    Int32Ty(llvm::IntegerType::get(C, 32)),
+    Int64Ty(llvm::IntegerType::get(C, 64)) {}
 
   llvm::MDString *get(const char *String) {
     return llvm::MDString::get(C, String);
@@ -446,11 +447,18 @@ public:
     return llvm::ConstantAsMetadata::get(Constant);
   }
 
+  llvm::ConstantAsMetadata *get(uint64_t Integer) {
+    auto *Constant = llvm::ConstantInt::get(Int64Ty, Integer);
+    return llvm::ConstantAsMetadata::get(Constant);
+  }
+
   llvm::MDTuple *tuple(const char *String) { return tuple(get(String)); }
 
   llvm::MDTuple *tuple(llvm::StringRef String) { return tuple(get(String)); }
 
   llvm::MDTuple *tuple(uint32_t Integer) { return tuple(get(Integer)); }
+
+  llvm::MDTuple *tuple(uint64_t Integer) { return tuple(get(Integer)); }
 
   llvm::MDTuple *tuple(llvm::ArrayRef<llvm::Metadata *> MDs) {
     return llvm::MDTuple::get(C, MDs);
@@ -469,6 +477,7 @@ public:
 private:
   llvm::LLVMContext &C;
   llvm::IntegerType *Int32Ty;
+  llvm::IntegerType *Int64Ty;
 };
 
 template<>
