@@ -1285,6 +1285,7 @@ void OSRA::handleMemoryOperation(Instruction *I) {
 
     if (isa<UndefValue>(ValueOp)) {
       // Do nothing
+      return;
     } else if (auto *ConstantOp = dyn_cast<Constant>(ValueOp)) {
 
       // We're storing a constant, create a constant OSR
