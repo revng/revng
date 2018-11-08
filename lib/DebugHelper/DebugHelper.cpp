@@ -51,6 +51,20 @@ static MDString *getMD(const Instruction *Instruction, unsigned Kind) {
   return String;
 }
 
+static void replaceAll(std::string &Input,
+                       const std::string &From,
+                       const std::string &To) {
+  if(From.empty())
+    return;
+
+  size_t Start = 0;
+  while((Start = Input.find(From, Start)) != std::string::npos) {
+    Input.replace(Start, From.length(), To);
+    Start += To.length();
+  }
+
+}
+
 /// Writes the text contained in the metadata with the specified kind ID to the
 /// output stream, unless that metadata is exactly the same as in the previous
 /// instruction.
@@ -71,8 +85,11 @@ static void writeMetadataIfNew(const Instruction *TheInstruction,
       }
     } while (TheInstruction != nullptr && PrevMD == nullptr);
 
-    if (TheInstruction == nullptr || PrevMD != MD)
-      Output << Prefix << MD->getString();
+    if (TheInstruction == nullptr || PrevMD != MD) {
+      std::string Text = MD->getString().str();
+      replaceAll(Text, "\n", " ");
+      Output << Prefix << Text << "\n";
+    }
   }
 }
 

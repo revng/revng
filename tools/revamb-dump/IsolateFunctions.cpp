@@ -430,7 +430,8 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
           // Assert if we encounter a basic block and we don't find a
           // reference in the ValueToValueMap
           revng_assert(LocalVMap.count(CurrentOperand) != 0);
-        } else if (!isa<Constant>(CurrentOperand)) {
+        } else if (!isa<Constant>(CurrentOperand)
+                   and !isa<MetadataAsValue>(CurrentOperand)) {
           // Manage values that are themself users (recursive exploration
           // of the operands) taking care of avoiding to add operands of
           // constants

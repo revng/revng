@@ -515,7 +515,7 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
       Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
 
       // TODO: by default we should leave these
-      for (unsigned I = 3; I < ArgCount - 1; I++)
+      for (unsigned I = 4; I < ArgCount - 1; I++)
         Call->setArgOperand(I, Call->getArgOperand(ArgCount - 1));
     }
   }
@@ -574,7 +574,7 @@ IT::newInstruction(PTCInstruction *Instr,
   uint64_t NextPC = Next != nullptr ? PTC::Instruction(Next).pc() : EndPC;
 
   std::stringstream OriginalStringStream;
-  disassembleOriginal(OriginalStringStream, PC);
+  disassemble(OriginalStringStream, PC, NextPC - PC);
   std::string OriginalString = OriginalStringStream.str();
   LLVMContext &Context = TheModule.getContext();
   MDString *MDOriginalString = MDString::get(Context, OriginalString);
@@ -610,7 +610,8 @@ IT::newInstruction(PTCInstruction *Instr,
   // in case we have to split a basic block
   std::vector<Value *> Args = { Builder.getInt64(PC),
                                 Builder.getInt64(NextPC - PC),
-                                Builder.getInt32(-1) };
+                                Builder.getInt32(-1),
+                                MetadataAsValue::get(Context, MDOriginalString) };
   for (AllocaInst *Local : Variables.locals())
     Args.push_back(Local);
 

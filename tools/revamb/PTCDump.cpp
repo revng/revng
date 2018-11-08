@@ -243,7 +243,10 @@ int dumpInstruction(std::ostream &Result,
   return EXIT_SUCCESS;
 }
 
-void disassembleOriginal(std::ostream &Result, uint64_t PC) {
+void disassemble(std::ostream &Result,
+                 uint64_t PC,
+                 uint32_t MaxBytes,
+                 uint32_t InstructionCount) {
   char *BufferPtr = nullptr;
   size_t BufferLenPtr = 0;
   FILE *MemoryStream = open_memstream(&BufferPtr, &BufferLenPtr);
@@ -252,7 +255,7 @@ void disassembleOriginal(std::ostream &Result, uint64_t PC) {
 
   // Using SIZE_MAX is not very nice but the code should disassemble only a
   // single instruction nonetheless.
-  ptc.disassemble(MemoryStream, PC, SIZE_MAX, 1);
+  ptc.disassemble(MemoryStream, PC, MaxBytes, InstructionCount);
   fflush(MemoryStream);
 
   revng_assert(BufferPtr != nullptr);
@@ -277,7 +280,7 @@ int dumpTranslation(std::ostream &Result, PTCInstructionList *Instructions) {
       if (is64)
         PC |= Instruction.args[1] << 32;
 
-      disassembleOriginal(Result, PC);
+      disassemble(Result, PC);
     }
 
     Result << std::dec << Index << ": ";
