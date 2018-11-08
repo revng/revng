@@ -77,7 +77,7 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
 
     // We can meet up calls to newpc up to (1 + "size of the delay slot")
     // times
-    unsigned NewPCLeft = 1 + GCBI.delaySlotSize();
+    unsigned NewPCLeft = 1;
 
     auto Visitor = [&BB,
                     &GCBI,
