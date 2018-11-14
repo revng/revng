@@ -36,7 +36,12 @@ using namespace llvm;
 
 using std::make_pair;
 
+using LabelList = BinaryFile::LabelList;
+
 static Logger<> EhFrameLog("ehframe");
+static Logger<> LabelsLog("labels");
+
+const unsigned char R_MIPS_IMPLICIT_RELATIVE = 255;
 
 BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
   BaseAddress(0) {
@@ -59,8 +64,11 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
   llvm::StringRef WriteRegisterAsm = "";
   llvm::StringRef ReadRegisterAsm = "";
   llvm::StringRef JumpAsm = "";
-  bool HasRelocationAddend = false;
-  uint32_t BaseRelativeRelocation = ~uint32_t(0);
+  bool HasRelocationAddend;
+
+  using RD = RelocationDescription;
+  using namespace llvm::ELF;
+  Architecture::RelocationTypesMap RelocationTypes;
 
   switch (TheBinary->getArch()) {
   case Triple::x86:
@@ -73,8 +81,13 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
       0x01, // exit
       0x0b // execve
     };
+
     HasRelocationAddend = false;
-    BaseRelativeRelocation = llvm::ELF::R_386_RELATIVE;
+
+    RelocationTypes[R_386_RELATIVE] = RD(RD::BaseRelative, RD::TargetValue);
+    RelocationTypes[R_386_JUMP_SLOT] = RD(RD::SymbolRelative);
+    RelocationTypes[R_386_GLOB_DAT] = RD(RD::SymbolRelative);
+    RelocationTypes[R_386_COPY] = RD(RD::LabelOnly, RD::TargetValue);
     break;
 
   case Triple::x86_64:
@@ -150,8 +163,13 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
     WriteRegisterAsm = "movq $0, %REGISTER";
     ReadRegisterAsm = "movq %REGISTER, $0";
     JumpAsm = "movq $0, %r11; jmpq *%r11";
+
     HasRelocationAddend = true;
-    BaseRelativeRelocation = llvm::ELF::R_X86_64_RELATIVE;
+
+    RelocationTypes[R_X86_64_RELATIVE] = RD(RD::BaseRelative, RD::Addend);
+    RelocationTypes[R_X86_64_JUMP_SLOT] = RD(RD::SymbolRelative);
+    RelocationTypes[R_X86_64_GLOB_DAT] = RD(RD::SymbolRelative);
+    RelocationTypes[R_X86_64_COPY] = RD(RD::LabelOnly, RD::TargetValue);
     break;
 
   case Triple::arm:
@@ -167,9 +185,13 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
     ABIRegisters = { { "r0" },  { "r1" },  { "r2" },  { "r3" },  { "r4" },
                      { "r5" },  { "r6" },  { "r7" },  { "r8" },  { "r9" },
                      { "r10" }, { "r11" }, { "r12" }, { "r13" }, { "r14" } };
-    HasRelocationAddend = false;
-    BaseRelativeRelocation = llvm::ELF::R_ARM_RELATIVE;
 
+    HasRelocationAddend = false;
+
+    RelocationTypes[R_ARM_RELATIVE] = RD(RD::BaseRelative, RD::TargetValue);
+    RelocationTypes[R_ARM_JUMP_SLOT] = RD(RD::SymbolRelative);
+    RelocationTypes[R_ARM_GLOB_DAT] = RD(RD::SymbolRelative);
+    RelocationTypes[R_ARM_COPY] = RD(RD::LabelOnly, RD::TargetValue);
     break;
 
   case Triple::mips:
@@ -184,14 +206,21 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
       0xfab // execve
     };
     DelaySlotSize = 1;
-    ABIRegisters =
-      { { "v0" }, { "v1" }, { "a0" }, { "a1" }, { "a2" }, { "a3" },
-        { "s0" }, { "s1" }, { "s2" }, { "s3" }, { "s4" }, { "s5" },
-        { "s6" }, { "s7" }, { "gp" }, { "sp" }, { "fp" }, { "ra" } };
-    HasRelocationAddend = false;
-    // TODO: check if this is correct
-    // BaseRelativeRelocation = llvm::ELF::R_MIPS_REL32;
+    ABIRegisters = {
+      { "v0" }, { "v1" }, { "a0" }, { "a1" }, { "a2" }, { "a3" },
+      { "s0" }, { "s1" }, { "s2" }, { "s3" }, { "s4" }, { "s5" },
+      { "s6" }, { "s7" }, { "gp" }, { "sp" }, { "fp" }, { "ra" }
+    };
 
+    HasRelocationAddend = false;
+
+    // R_MIPS_RELATIVE does not exist since the GOT has implicit base-relative
+    // relocations
+    RelocationTypes[R_MIPS_IMPLICIT_RELATIVE] = RD(RD::BaseRelative,
+                                                   RD::TargetValue);
+    RelocationTypes[R_MIPS_JUMP_SLOT] = RD(RD::SymbolRelative);
+    RelocationTypes[R_MIPS_GLOB_DAT] = RD(RD::SymbolRelative);
+    RelocationTypes[R_MIPS_COPY] = RD(RD::LabelOnly, RD::TargetValue);
     break;
 
   case Triple::systemz:
@@ -204,8 +233,12 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
       0x1, // exit
       0xb, // execve
     };
+
     HasRelocationAddend = true;
-    BaseRelativeRelocation = llvm::ELF::R_390_RELATIVE;
+
+    // TODO: investigate (R_390_RELATIVE does not exist)
+    RelocationTypes[R_390_GLOB_DAT] = RD(RD::SymbolRelative);
+    RelocationTypes[R_390_COPY] = RD(RD::LabelOnly, RD::TargetValue);
     break;
 
   default:
@@ -228,7 +261,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
                                  ReadRegisterAsm,
                                  JumpAsm,
                                  HasRelocationAddend,
-                                 BaseRelativeRelocation);
+                                 std::move(RelocationTypes));
 
   revng_assert(TheBinary->getFileFormatName().startswith("ELF"),
                "Only the ELF file format is currently supported");
@@ -264,6 +297,8 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
   } else {
     revng_assert("Unexpect address size");
   }
+
+  rebuildLabelsMap();
 }
 
 class FilePortion {
@@ -285,6 +320,20 @@ public:
   void setSize(uint64_t Size) {
     HasSize = true;
     this->Size = Size;
+  }
+
+  uint64_t addressAtOffset(uint64_t Offset) {
+    revng_assert(HasAddress and HasSize);
+    revng_assert(Offset <= Size);
+    return Address + Offset;
+  }
+
+  template<typename T>
+  uint64_t addressAtIndex(uint64_t Index) {
+    revng_assert(HasAddress and HasSize);
+    uint64_t Offset = Index * sizeof(T);
+    revng_assert(Offset <= Size);
+    return Address + Offset;
   }
 
   bool isAvailable() const { return HasAddress; }
@@ -384,6 +433,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
       if (NameOrErr) {
         auto &Name = *NameOrErr;
         if (Name == ".symtab") {
+          // TODO: check dedicated field in section header
           revng_assert(SymtabShdr == nullptr, "Duplicate .symtab");
           SymtabShdr = &Section;
         } else if (Name == ".eh_frame") {
@@ -427,10 +477,11 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
         revng_abort();
       }
 
-      Symbols.push_back({ *Name,
-                          Symbol.st_value,
-                          Symbol.st_size,
-                          Symbol.getType() == ELF::STT_FUNC });
+      registerLabel(Label::createSymbol(LabelOrigin::StaticSymbol,
+                                        Symbol.st_value,
+                                        Symbol.st_size,
+                                        *Name,
+                                        SymbolType::fromELF(Symbol.getType())));
     }
   }
 
@@ -445,6 +496,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
   // CSV
   using Elf_Phdr = const typename object::ELFFile<T>::Elf_Phdr;
   using Elf_Dyn = const typename object::ELFFile<T>::Elf_Dyn;
+  using Elf_Addr = const typename object::ELFFile<T>::Elf_Addr;
 
   auto ProgHeaders = TheELF.program_headers();
   if (not ProgHeaders) {
@@ -533,6 +585,12 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
     FilePortion DynsymPortion;
     FilePortion ReldynPortion;
     FilePortion RelpltPortion;
+    FilePortion GotPortion;
+    Optional<uint64_t> SymbolsCount;
+    Optional<uint64_t> MIPSFirstGotSymbol;
+    Optional<uint64_t> MIPSLocalGotEntries;
+    bool IsMIPS = (TheArchitecture.type() == Triple::mips
+                   or TheArchitecture.type() == Triple::mipsel);
 
     auto DynamicEntries = TheELF.dynamicEntries();
     if (not DynamicEntries) {
@@ -578,14 +636,47 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
         revng_assert(TheTag == (HasAddend ? ELF::DT_RELASZ : ELF::DT_RELSZ));
         ReldynPortion.setSize(DynamicTag.getVal());
         break;
+
+      case ELF::DT_PLTGOT:
+        GotPortion.setAddress(relocate(DynamicTag.getPtr()));
+
+        // Obtaint the canonical value of the global pointer in MIPS
+        if (IsMIPS)
+          CanonicalValues["gp"] = relocate(DynamicTag.getPtr() + 0x7ff0);
+        break;
+
+      case ELF::DT_MIPS_SYMTABNO:
+        if (IsMIPS)
+          SymbolsCount = DynamicTag.getVal();
+        break;
+
+      case ELF::DT_MIPS_GOTSYM:
+        if (IsMIPS)
+          MIPSFirstGotSymbol = DynamicTag.getVal();
+        break;
+
+      case ELF::DT_MIPS_LOCAL_GOTNO:
+        if (IsMIPS)
+          MIPSLocalGotEntries = DynamicTag.getVal();
+        break;
       }
     }
 
     if (NeededLibraryNames.size() > 0)
       revng_assert(DynstrPortion.isAvailable());
 
+    // In MIPS the GOT has one entry per symbol
+    if (IsMIPS and SymbolsCount and MIPSFirstGotSymbol
+        and MIPSLocalGotEntries) {
+      uint32_t GotEntries = (*MIPSLocalGotEntries
+                             + (*SymbolsCount - *MIPSFirstGotSymbol));
+      GotPortion.setSize(GotEntries * sizeof(Elf_Addr));
+    }
+
+    StringRef Dynstr;
+
     if (DynstrPortion.isAvailable()) {
-      StringRef Dynstr = DynstrPortion.extractString(Segments);
+      Dynstr = DynstrPortion.extractString(Segments);
       for (auto Offset : NeededLibraryNameOffsets) {
         StringRef LibraryName = Dynstr.slice(Offset, Dynstr.size());
         NeededLibraryNames.push_back(LibraryName.data());
@@ -594,51 +685,326 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
 
     // Collect symbols count and code pointers in image base-relative
     // relocations
-    uint32_t ReldynSymbolsCount = parseRelocations<T, HasAddend>(ReldynPortion);
-    uint32_t RelpltSymbolsCount = parseRelocations<T, HasAddend>(RelpltPortion);
-    uint32_t SymbolsCount = std::max(ReldynSymbolsCount, RelpltSymbolsCount);
+
+    if (not SymbolsCount) {
+      SymbolsCount = std::max(symbolsCount<T, HasAddend>(ReldynPortion),
+                              symbolsCount<T, HasAddend>(RelpltPortion));
+    }
 
     // Collect function addresses contained in dynamic symbols
-    if (SymbolsCount > 0 and DynsymPortion.isAvailable()) {
+    if (SymbolsCount and *SymbolsCount > 0 and DynsymPortion.isAvailable()) {
       using Elf_Sym = llvm::object::Elf_Sym_Impl<T>;
-      DynsymPortion.setSize(SymbolsCount * sizeof(Elf_Sym));
-      for (Elf_Sym Symbol : DynsymPortion.extractAs<Elf_Sym>(Segments))
-        if (Symbol.st_value != 0 and Symbol.getType() == ELF::STT_FUNC)
-          CodePointers.insert(relocate(Symbol.st_value));
+      DynsymPortion.setSize(*SymbolsCount * sizeof(Elf_Sym));
+      ArrayRef<Elf_Sym> Symbols = DynsymPortion.extractAs<Elf_Sym>(Segments);
+      for (Elf_Sym Symbol : Symbols) {
+        auto Name = Symbol.getName(Dynstr);
+        if (not Name) {
+          logAllUnhandledErrors(std::move(Name.takeError()), errs(), "");
+          revng_abort();
+        }
+        auto SymbolType = SymbolType::fromELF(Symbol.getType());
+        registerLabel(Label::createSymbol(LabelOrigin::DynamicSymbol,
+                                          Symbol.st_value,
+                                          Symbol.st_size,
+                                          *Name,
+                                          SymbolType));
+      }
+
+      using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
+      if (ReldynPortion.isAvailable()) {
+        auto Relocations = ReldynPortion.extractAs<Elf_Rel>(Segments);
+        registerRelocations<T, HasAddend>(Relocations,
+                                          DynsymPortion,
+                                          DynstrPortion);
+      }
+
+      if (RelpltPortion.isAvailable()) {
+        auto Relocations = RelpltPortion.extractAs<Elf_Rel>(Segments);
+        registerRelocations<T, HasAddend>(Relocations,
+                                          DynsymPortion,
+                                          DynstrPortion);
+      }
+
+      if (IsMIPS and GotPortion.isAvailable()) {
+        std::vector<Elf_Rel> MIPSImplicitRelocations;
+        uint32_t GotIndex = 0;
+
+        // Perform local relocations on GOT
+        if (MIPSLocalGotEntries) {
+          for (; GotIndex < *MIPSLocalGotEntries; GotIndex++) {
+            auto Address = GotPortion.addressAtIndex<Elf_Addr>(GotIndex);
+            Elf_Rel NewRelocation;
+            NewRelocation.r_offset = Address;
+            NewRelocation.setSymbolAndType(0, R_MIPS_IMPLICIT_RELATIVE, false);
+            MIPSImplicitRelocations.push_back(NewRelocation);
+          }
+        }
+
+        // Relocate the remaining entries of the GOT with global symbols
+        if (MIPSFirstGotSymbol and SymbolsCount and DynstrPortion.isAvailable()
+            and DynsymPortion.isAvailable()) {
+          for (uint32_t SymbolIndex = *MIPSFirstGotSymbol;
+               SymbolIndex < *SymbolsCount;
+               SymbolIndex++, GotIndex++) {
+            auto Address = GotPortion.addressAtIndex<Elf_Addr>(GotIndex);
+
+            Elf_Rel NewRelocation;
+            NewRelocation.r_offset = Address;
+            NewRelocation.setSymbolAndType(SymbolIndex,
+                                           llvm::ELF::R_MIPS_JUMP_SLOT,
+                                           false);
+            MIPSImplicitRelocations.push_back(NewRelocation);
+          }
+        }
+
+        auto Relocations = ArrayRef<Elf_Rel>(MIPSImplicitRelocations);
+        registerRelocations<T, HasAddend>(Relocations,
+                                          DynsymPortion,
+                                          DynstrPortion);
+      }
+
+      for (Label &L : Labels) {
+        if (L.isSymbol() and L.isCode())
+          CodePointers.insert(relocate(L.address()));
+        else if (L.isBaseRelativeValue())
+          CodePointers.insert(relocate(L.value()));
+      }
     }
   }
 }
 
 template<typename T, bool HasAddend>
-uint64_t BinaryFile::parseRelocations(const FilePortion &Relocations) {
+uint64_t BinaryFile::symbolsCount(const FilePortion &Relocations) {
   using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
 
+  if (not Relocations.isAvailable())
+    return 0;
+
   uint32_t SymbolsCount = 0;
-  if (Relocations.isAvailable()) {
-    revng_assert(Relocations.isExact());
-    for (Elf_Rel Relocation : Relocations.extractAs<Elf_Rel>(Segments)) {
-      SymbolsCount = std::max(SymbolsCount, Relocation.getSymbol(false) + 1);
-      auto RelocationType = Relocation.getType(false);
-      if (RelocationType == TheArchitecture.baseRelativeRelocation()) {
-        uint64_t Value;
+  revng_assert(Relocations.isExact());
+  for (Elf_Rel Relocation : Relocations.extractAs<Elf_Rel>(Segments))
+    SymbolsCount = std::max(SymbolsCount, Relocation.getSymbol(false) + 1);
 
-        // If it's a relocation with an addend, use it, otherwise the
-        // value is taken from the value stored in the relocated
-        // address (r_offset).
-        if (HasAddend) {
-          Value = RelocationHelper<T, HasAddend>::getAddend(Relocation);
-        } else {
-          auto Data = getAddressData(relocate(Relocation.r_offset));
-          revng_assert(Data, "r_offset is not in any segment.");
-          Value = ::readPointer<T>(Data->data());
-        }
+  return SymbolsCount;
+}
 
-        CodePointers.insert(relocate(Value));
+Optional<uint64_t>
+BinaryFile::readRawValue(uint64_t Address, unsigned Size, Endianess E) const {
+  bool IsLittleEndian = ((E == OriginalEndianess) ?
+                           architecture().isLittleEndian() :
+                           E == LittleEndian);
+
+  for (auto &Segment : segments()) {
+    // Note: we also consider writeable memory areas because, despite being
+    // modifiable, can contain useful information
+    if (Segment.contains(Address, Size) && Segment.IsReadable) {
+      const unsigned char *RawDataPtr = Segment.Data.data();
+      uint64_t Offset = Address - Segment.StartVirtualAddress;
+      const unsigned char *Start = RawDataPtr + Offset;
+
+      using support::endianness;
+      using support::endian::read;
+      switch (Size) {
+      case 1:
+        return read<uint8_t, endianness::little, 1>(Start);
+      case 2:
+        if (IsLittleEndian)
+          return read<uint16_t, endianness::little, 1>(Start);
+        else
+          return read<uint16_t, endianness::big, 1>(Start);
+      case 4:
+        if (IsLittleEndian)
+          return read<uint32_t, endianness::little, 1>(Start);
+        else
+          return read<uint32_t, endianness::big, 1>(Start);
+      case 8:
+        if (IsLittleEndian)
+          return read<uint64_t, endianness::little, 1>(Start);
+        else
+          return read<uint64_t, endianness::big, 1>(Start);
+      default:
+        revng_abort("Unexpected read size");
       }
     }
   }
 
-  return SymbolsCount;
+  return Optional<uint64_t>();
+}
+
+Label BinaryFile::parseRelocation(unsigned char RelocationType,
+                                  uint64_t Target,
+                                  uint64_t Addend,
+                                  StringRef SymbolName,
+                                  uint64_t SymbolSize,
+                                  SymbolType::Values SymbolType) {
+
+  const auto &RelocationTypes = TheArchitecture.relocationTypes();
+  auto It = RelocationTypes.find(RelocationType);
+  if (It == RelocationTypes.end()) {
+    dbg << "Warning: unhandled relocation type " << (int) RelocationType
+        << "\n";
+    return Label::createInvalid();
+  }
+
+  uint64_t Offset;
+
+  using RD = RelocationDescription;
+  const RD &Description = It->second;
+  uint64_t PointerSize = TheArchitecture.pointerSize() / 8;
+
+  switch (Description.Offset) {
+  case RD::None:
+    Offset = 0;
+    break;
+
+  case RD::Addend:
+    Offset = Addend;
+    break;
+
+  case RD::TargetValue:
+    Optional<uint64_t> ReadResult = readRawValue(Target, PointerSize);
+    if (not ReadResult)
+      return Label::createInvalid();
+    Offset = *ReadResult;
+    break;
+  }
+
+  const auto Origin = LabelOrigin::DynamicRelocation;
+  switch (Description.Type) {
+  case RD::BaseRelative:
+    return Label::createBaseRelativeValue(Origin, Target, PointerSize, Offset);
+
+  case RD::LabelOnly:
+    return Label::createSymbol(Origin,
+                               Target,
+                               SymbolSize,
+                               SymbolName,
+                               SymbolType);
+
+  case RD::SymbolRelative:
+    return Label::createSymbolRelativeValue(Origin,
+                                            Target,
+                                            PointerSize,
+                                            SymbolName,
+                                            SymbolType,
+                                            Offset);
+
+  case RD::Invalid:
+  default:
+    revng_abort("Invalid relocation type");
+    break;
+  }
+}
+
+template<typename T, bool HasAddend>
+void BinaryFile::registerRelocations(Elf_Rel_Array<T, HasAddend> Relocations,
+                                     const FilePortion &Dynsym,
+                                     const FilePortion &Dynstr) {
+  using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
+  using Elf_Sym = llvm::object::Elf_Sym_Impl<T>;
+
+  ArrayRef<Elf_Sym> Symbols;
+  if (Dynsym.isAvailable())
+    Symbols = Dynsym.extractAs<Elf_Sym>(Segments);
+
+  for (Elf_Rel Relocation : Relocations) {
+    unsigned char Type = Relocation.getType(false);
+    uint64_t Addend = RelocationHelper<T, HasAddend>::getAddend(Relocation);
+    uint64_t Address = relocate(Relocation.r_offset);
+
+    StringRef SymbolName;
+    uint64_t SymbolSize = 0;
+    unsigned char SymbolType = llvm::ELF::STT_NOTYPE;
+    if (Dynsym.isAvailable() and Dynstr.isAvailable()) {
+      uint32_t SymbolIndex = Relocation.getSymbol(false);
+      revng_check(SymbolIndex < Symbols.size());
+      const Elf_Sym &Symbol = Symbols[SymbolIndex];
+      auto Result = Symbol.getName(Dynstr.extractString(Segments));
+      if (Result)
+        SymbolName = *Result;
+      SymbolSize = Symbol.st_size;
+      SymbolType = Symbol.getType();
+    }
+
+    registerLabel(parseRelocation(Type,
+                                  Address,
+                                  Addend,
+                                  SymbolName,
+                                  SymbolSize,
+                                  SymbolType::fromELF(SymbolType)));
+  }
+}
+
+static LabelList &operator+=(LabelList &This, const LabelList &Other) {
+  This.insert(std::end(This), std::begin(Other), std::end(Other));
+  return This;
+}
+
+void BinaryFile::rebuildLabelsMap() {
+  using Interval = boost::icl::interval<uint64_t>;
+
+  // Clear the map
+  LabelsMap.clear();
+
+  // Identify all the 0-sized labels
+  std::vector<Label *> ZeroSizedLabels;
+  for (Label &L : Labels)
+    if (L.isSymbol() and L.size() == 0)
+      ZeroSizedLabels.push_back(&L);
+
+  // Sort the 0-sized labels
+  auto Compare = [](Label *This, Label *Other) {
+    return This->address() < Other->address();
+  };
+  std::sort(ZeroSizedLabels.begin(), ZeroSizedLabels.end(), Compare);
+
+  // Create virtual terminator label
+  uint64_t HighestAddress = 0;
+  for (const SegmentInfo &Segment : Segments)
+    HighestAddress = std::max(HighestAddress, Segment.EndVirtualAddress);
+  Label EndLabel = Label::createSymbol(LabelOrigin::Unknown,
+                                       HighestAddress,
+                                       0,
+                                       "",
+                                       SymbolType::Unknown);
+  ZeroSizedLabels.push_back(&EndLabel);
+
+  // Insert the 0-sized labels in the map
+  for (unsigned I = 0; I < ZeroSizedLabels.size() - 1; I++) {
+    uint64_t Start = ZeroSizedLabels[I]->address();
+
+    const SegmentInfo *Segment = findSegment(Start);
+    if (Segment == nullptr)
+      continue;
+
+    // Limit the symbol to the end of the segment containing it
+    uint64_t End = std::min(ZeroSizedLabels[I + 1]->address(),
+                            Segment->EndVirtualAddress);
+    revng_assert(Start <= End);
+
+    // Register virtual size
+    ZeroSizedLabels[I]->setVirtualSize(End - Start);
+  }
+
+  // Insert all the other labels in the map
+  for (Label &L : Labels) {
+    uint64_t Start = L.address();
+    uint64_t End = L.address() + L.size();
+    LabelsMap += make_pair(Interval::right_open(Start, End), LabelList{ &L });
+  }
+
+  // Dump the map out
+  if (LabelsLog.isEnabled()) {
+    for (auto &P : LabelsMap) {
+      dbg << P.first << "\n";
+      for (const Label *L : P.second) {
+        dbg << "  ";
+        L->dump(dbg);
+        dbg << "\n";
+      }
+      dbg << "\n";
+    }
+  }
 }
 
 //

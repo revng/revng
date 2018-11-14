@@ -198,10 +198,29 @@ inline Values fromName(llvm::StringRef Name) {
 
 } // namespace KillReason
 
+class RelocationDescription {
+public:
+  enum RelocationType { Invalid, BaseRelative, LabelOnly, SymbolRelative };
+
+  enum OffsetType { None, Addend, TargetValue };
+
+public:
+  RelocationType Type;
+  OffsetType Offset;
+
+public:
+  RelocationDescription() : Type(Invalid), Offset(None) {}
+  RelocationDescription(RelocationType Type) : Type(Type), Offset(None) {}
+  RelocationDescription(RelocationType Type, OffsetType Offset) :
+    Type(Type),
+    Offset(Offset) {}
+};
+
 /// \brief Basic information about an input/output architecture
 class Architecture {
 public:
   enum EndianessType { LittleEndian, BigEndian };
+  using RelocationTypesMap = std::map<unsigned char, RelocationDescription>;
 
 public:
   Architecture() :
@@ -227,7 +246,7 @@ public:
                llvm::StringRef ReadRegisterAsm,
                llvm::StringRef JumpAsm,
                bool HasRelocationAddend,
-               uint32_t BaseRelativeRelocation) :
+               RelocationTypesMap RelocationTypes) :
     Type(static_cast<llvm::Triple::ArchType>(Type)),
     InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
@@ -244,7 +263,7 @@ public:
     ReadRegisterAsm(ReadRegisterAsm),
     JumpAsm(JumpAsm),
     HasRelocationAddend(HasRelocationAddend),
-    BaseRelativeRelocation(BaseRelativeRelocation) {}
+    RelocationTypes(RelocationTypes) {}
 
   uint32_t instructionAlignment() const { return InstructionAlignment; }
   uint32_t defaultAlignment() const { return DefaultAlignment; }
@@ -276,7 +295,7 @@ public:
     return IsSupported;
   }
   bool hasRelocationAddend() const { return HasRelocationAddend; }
-  uint32_t baseRelativeRelocation() const { return BaseRelativeRelocation; }
+  const RelocationTypesMap &relocationTypes() const { return RelocationTypes; }
 
 private:
   llvm::Triple::ArchType Type;
@@ -297,7 +316,7 @@ private:
   llvm::StringRef ReadRegisterAsm;
   llvm::StringRef JumpAsm;
   bool HasRelocationAddend;
-  uint32_t BaseRelativeRelocation;
+  RelocationTypesMap RelocationTypes;
 };
 
 // TODO: move me somewhere more appropriate

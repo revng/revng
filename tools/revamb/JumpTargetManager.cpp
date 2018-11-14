@@ -347,70 +347,12 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
   revng_unreachable("Can't find the PC marker");
 }
 
-Optional<uint64_t>
-JumpTargetManager::readRawValue(uint64_t Address,
-                                unsigned Size,
-                                Endianess ReadEndianess) const {
-  bool IsLittleEndian;
-  if (ReadEndianess == OriginalEndianess) {
-    IsLittleEndian = Binary.architecture().isLittleEndian();
-  } else if (ReadEndianess == DestinationEndianess) {
-    IsLittleEndian = TheModule.getDataLayout().isLittleEndian();
-  } else {
-    revng_abort();
-  }
-
-  for (auto &Segment : Binary.segments()) {
-    // Note: we also consider writeable memory areas because, despite being
-    // modifiable, can contain useful information
-    if (Segment.contains(Address, Size) && Segment.IsReadable) {
-      // TODO: we ignore .bss here, it might be beneficial to take it into
-      //       account in certain situations
-      const Constant *Initializer = Segment.Variable->getInitializer();
-      if (isa<ConstantAggregateZero>(Initializer))
-        continue;
-
-      auto *Array = cast<ConstantDataArray>(Segment.Variable->getInitializer());
-      StringRef RawData = Array->getRawDataValues();
-      const unsigned char *RawDataPtr = RawData.bytes_begin();
-      uint64_t Offset = Address - Segment.StartVirtualAddress;
-      const unsigned char *Start = RawDataPtr + Offset;
-
-      using support::endianness;
-      using support::endian::read;
-      switch (Size) {
-      case 1:
-        return read<uint8_t, endianness::little, 1>(Start);
-      case 2:
-        if (IsLittleEndian)
-          return read<uint16_t, endianness::little, 1>(Start);
-        else
-          return read<uint16_t, endianness::big, 1>(Start);
-      case 4:
-        if (IsLittleEndian)
-          return read<uint32_t, endianness::little, 1>(Start);
-        else
-          return read<uint32_t, endianness::big, 1>(Start);
-      case 8:
-        if (IsLittleEndian)
-          return read<uint64_t, endianness::little, 1>(Start);
-        else
-          return read<uint64_t, endianness::big, 1>(Start);
-      default:
-        revng_abort("Unexpected read size");
-      }
-    }
-  }
-
-  return Optional<uint64_t>();
-}
-
 Constant *JumpTargetManager::readConstantPointer(Constant *Address,
                                                  Type *PointerTy,
-                                                 Endianess ReadEndianess) {
+                                                 BinaryFile::Endianess E) {
   Constant *ConstInt = readConstantInt(Address,
                                        Binary.architecture().pointerSize() / 8,
-                                       ReadEndianess);
+                                       E);
   if (ConstInt != nullptr) {
     return Constant::getIntegerValue(PointerTy, ConstInt->getUniqueInteger());
   } else {
@@ -420,7 +362,7 @@ Constant *JumpTargetManager::readConstantPointer(Constant *Address,
 
 ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
                                                 unsigned Size,
-                                                Endianess ReadEndianess) {
+                                                BinaryFile::Endianess E) {
   const DataLayout &DL = TheModule.getDataLayout();
 
   if (ConstantAddress->getType()->isPointerTy()) {
@@ -434,7 +376,7 @@ ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
   UnusedCodePointers.erase(Address);
   registerReadRange(Address, Size);
 
-  auto Result = readRawValue(Address, Size, ReadEndianess);
+  auto Result = Binary.readRawValue(Address, Size, E);
 
   if (Result.hasValue())
     return ConstantInt::get(IntegerType::get(Context, Size * 8),
@@ -473,8 +415,6 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   for (auto &Segment : Binary.segments())
     Segment.insertExecutableRanges(std::back_inserter(ExecutableRanges));
 
-  initializeSymbolMap();
-
   // Configure GlobalValueNumbering
   StringMap<cl::Option *> &Options(cl::getRegisteredOptions());
   getOption<bool>(Options, "enable-load-pre")->setInitialValue(false);
@@ -483,61 +423,78 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   // getOption<uint32_t>(Options, "max-recurse-depth")->setInitialValue(10);
 }
 
-void JumpTargetManager::initializeSymbolMap() {
-  // Collect how many times each name is used
-  std::map<std::string, unsigned> SeenCount;
-  for (const SymbolInfo &Symbol : Binary.symbols())
-    SeenCount[std::string(Symbol.Name)]++;
-
-  for (const SymbolInfo &Symbol : Binary.symbols()) {
-    // Discard symbols pointing to 0, with zero-sized names or present multiple
-    // times. Note that we keep zero-size symbols.
-    if (Symbol.Address == 0 || Symbol.Name.size() == 0
-        || SeenCount[std::string(Symbol.Name)] > 1)
-      continue;
-
-    // Associate to this interval the symbol
-    unsigned Size = std::max(1UL, Symbol.Size);
-    auto NewInterval = interval::right_open(Symbol.Address,
-                                            Symbol.Address + Size);
-    SymbolMap += make_pair(NewInterval, SymbolInfoSet{ &Symbol });
-  }
-}
-
 // TODO: move this in BinaryFile?
-std::string JumpTargetManager::nameForAddress(uint64_t Address) const {
+std::string
+JumpTargetManager::nameForAddress(uint64_t Address, uint64_t Size) const {
   std::stringstream Result;
+  const auto &SymbolMap = Binary.labels();
 
-  // Take the interval greater than [Address, Address + 1[
-  auto It = SymbolMap.upper_bound(interval::right_open(Address, Address + 1));
-  if (It != SymbolMap.begin()) {
-    // Go back one position
-    It--;
+  auto It = SymbolMap.find(interval::right_open(Address, Address + Size));
+  if (It != SymbolMap.end()) {
+    // We have to look for (in order):
+    //
+    // * Exact match
+    // * Contained (non 0-sized)
+    // * Contained (0-sized)
+    const Label *ExactMatch = nullptr;
+    const Label *ContainedNonZeroSized = nullptr;
+    const Label *ContainedZeroSized = nullptr;
 
-    // In case we have multiple matching symbols, take the closest one
-    const SymbolInfoSet &Matching = It->second;
-    auto MaxIt = std::max_element(Matching.begin(), Matching.end());
-    const SymbolInfo *const BestMatch = *MaxIt;
+    for (const Label *L : It->second) {
+      // Consider symbols only
+      if (not L->isSymbol())
+        continue;
 
-    // Use the symbol name
-    Result << BestMatch->Name.str();
+      if (L->matches(Address, Size)) {
+        // It's an exact match
+        ExactMatch = L;
+        break;
+      } else if (not L->isSizeVirtual() and L->contains(Address, Size)) {
+        // It's contained in a not 0-sized symbol
+        if (ContainedNonZeroSized == nullptr
+            or L->address() > ContainedNonZeroSized->address()) {
+          ContainedNonZeroSized = L;
+        }
+      } else if (L->isSizeVirtual() and L->contains(Address, 0)) {
+        // It's contained in a 0-sized symbol
+        if (ContainedZeroSized == nullptr
+            or L->address() > ContainedZeroSized->address()) {
+          ContainedZeroSized = L;
+        }
+      }
+    }
 
-    // And, if necessary, an offset
-    if (Address != BestMatch->Address)
-      Result << ".0x" << std::hex << (Address - BestMatch->Address);
-  } else {
-    // We don't have a symbol to use, just return the address
-    Result << "0x" << std::hex << Address;
+    const Label *Chosen = nullptr;
+    if (ExactMatch != nullptr)
+      Chosen = ExactMatch;
+    else if (ContainedNonZeroSized != nullptr)
+      Chosen = ContainedNonZeroSized;
+    else if (ContainedZeroSized != nullptr)
+      Chosen = ContainedZeroSized;
+
+    if (Chosen != nullptr and Chosen->symbolName().size() != 0) {
+      // Use the symbol name
+      Result << Chosen->symbolName().str();
+
+      // And, if necessary, an offset
+      if (Address != Chosen->address())
+        Result << ".0x" << std::hex << (Address - Chosen->address());
+
+      return Result.str();
+    }
   }
 
+  // We don't have a symbol to use, just return the address
+  Result << "0x" << std::hex << Address;
   return Result.str();
 }
 
 void JumpTargetManager::harvestGlobalData() {
   // Register symbols
-  for (const SymbolInfo &Symbol : Binary.symbols())
-    if (Symbol.IsFunction)
-      registerJT(Symbol.Address, JTReason::FunctionSymbol);
+  for (auto &P : Binary.labels())
+    for (const Label *L : P.second)
+      if (L->isSymbol() and L->isCode())
+        registerJT(L->address(), JTReason::FunctionSymbol);
 
   // Register landing pads, if available
   // TODO: should register them in UnusedCodePointers?

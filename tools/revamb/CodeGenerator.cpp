@@ -694,14 +694,25 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   BasicBlock *Entry = BasicBlock::Create(Context, "entrypoint", MainFunction);
   Builder.SetInsertPoint(Entry);
 
-  // Create revamb.inputarch named metadata.
   QuickMetadata QMD(Context);
-  NamedMDNode *InputArchMD;
-  const char *MDName = "revamb.input.architecture";
-  InputArchMD = TheModule->getOrInsertNamedMetadata(MDName);
-  // Currently revamb.inputarch is composed as follows:
+
   //
-  // revamb.inputarch = {
+  // Create revamb.input named metadata
+  //
+
+  const char *MDName = "revamb.input.canonical-values";
+  NamedMDNode *CanonicalValuesMD;
+  CanonicalValuesMD = TheModule->getOrInsertNamedMetadata(MDName);
+  for (auto &P : Binary.canonicalValues()) {
+    StringRef CSVName = P.first;
+    uint64_t CanonicalValue = P.second;
+    ArrayRef<Metadata *> Entry{ QMD.get(CSVName), QMD.get(CanonicalValue) };
+    CanonicalValuesMD->addOperand(QMD.tuple(Entry));
+  }
+
+  // Currently revamb.input.architecture is composed as follows:
+  //
+  // revamb.input.architecture = {
   //   InstructionAlignment,
   //   DelaySlotSize,
   //   PCRegisterName,
@@ -722,6 +733,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                                QMD.get(Arch.stackPointerRegister()),
                                QMD.tuple(ArrayRef<Metadata *>(ABIRegMetadata)),
                              });
+  MDName = "revamb.input.architecture";
+  NamedMDNode *InputArchMD = TheModule->getOrInsertNamedMetadata(MDName);
   InputArchMD->addOperand(Tuple);
 
   // Create an instance of JumpTargetManager
