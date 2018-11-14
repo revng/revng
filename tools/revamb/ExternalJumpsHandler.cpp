@@ -206,7 +206,7 @@ void ExternalJumpsHandler::buildExecutableSegmentsList() {
                      RegisterType,
                      true,
                      GlobalValue::ExternalLinkage,
-                     Int(TheBinary.segments().size()),
+                     Int(ExecutableSegments.size() / 2),
                      "segments_count");
 }
 
