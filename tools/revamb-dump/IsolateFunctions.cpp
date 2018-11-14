@@ -525,10 +525,9 @@ void IFI::run() {
 
   // Create the Arrayref necessary for the arguments of exception_warning
   auto *IntegerType = IntegerType::get(Context, PCBitSize);
-  std::vector<Type *> ArgsType{ Type::getInt32Ty(Context),
-                                IntegerType,
-                                IntegerType,
-                                IntegerType };
+  std::vector<Type *> ArgsType{
+    Type::getInt32Ty(Context), IntegerType, IntegerType, IntegerType
+  };
 
   // Declare the exception_warning function
   auto *DebugExceptionFT = FunctionType::get(Type::getVoidTy(Context),

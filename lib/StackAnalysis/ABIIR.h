@@ -454,9 +454,7 @@ struct GraphTraits<StackAnalysis::ABIIRBasicBlock *> {
   using NodeRef = StackAnalysis::ABIIRBasicBlock *;
   using ChildIteratorType = StackAnalysis::ABIIRBasicBlock::links_iterator;
 
-  static NodeRef getEntryNode(StackAnalysis::ABIIRBasicBlock *BB) {
-    return BB;
-  }
+  static NodeRef getEntryNode(StackAnalysis::ABIIRBasicBlock *BB) { return BB; }
 
   static inline ChildIteratorType
   child_begin(StackAnalysis::ABIIRBasicBlock *N) {

@@ -420,16 +420,16 @@ end:
 )LLVM";
 
   runTest(RepeatedIf,
-         { { "load_three", { "s:storeone", "s:storetwo" } },
-           { "load_four", { "s:storeone", "s:storetwo" } } },
-         {},
-         Regular);
+          { { "load_three", { "s:storeone", "s:storetwo" } },
+            { "load_four", { "s:storeone", "s:storetwo" } } },
+          {},
+          Regular);
 
   runTest(RepeatedIf,
-         { { "load_three", { "s:storeone" } },
-           { "load_four", { "s:storetwo" } } },
-         {},
-         Conditional);
+          { { "load_three", { "s:storeone" } },
+            { "load_four", { "s:storetwo" } } },
+          {},
+          Conditional);
 }
 
 BOOST_AUTO_TEST_CASE(ConditionalDefinition) {
@@ -462,10 +462,10 @@ end:
 )LLVM";
 
   runTest(ConditionalDefinition,
-         { { "load_one", { "s:storeone" } },
-           { "load_two", { "s:storezero" } } },
-         {},
-         Conditional);
+          { { "load_one", { "s:storeone" } },
+            { "load_two", { "s:storezero" } } },
+          {},
+          Conditional);
 }
 
 BOOST_AUTO_TEST_CASE(LoopClobbering) {
@@ -494,7 +494,7 @@ end:
 )LLVM";
 
   runTest(ConditionalDefinition,
-         { { "load_one", { "s:storezero" } } },
-         {},
-         Conditional);
+          { { "load_one", { "s:storezero" } } },
+          {},
+          Conditional);
 }

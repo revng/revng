@@ -11,8 +11,8 @@
 #include <sstream>
 
 // LLVM includes
-#include "llvm/ADT/iterator_range.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/Interval.h"
 #include "llvm/IR/CFG.h"

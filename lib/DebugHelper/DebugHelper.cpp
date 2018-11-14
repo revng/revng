@@ -144,7 +144,6 @@ void DAW::emitInstructionAnnot(const Instruction *Instr,
     auto *NonConstInstruction = const_cast<Instruction *>(Instr);
     NonConstInstruction->setMetadata(DbgMDKind, Location);
   }
-
 }
 
 DebugHelper::DebugHelper(std::string Output,

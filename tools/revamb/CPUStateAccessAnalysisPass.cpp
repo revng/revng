@@ -1279,20 +1279,16 @@ private:
     revng_assert(OffsetTuple.size() == 2);
 
     auto OpCode = I->getOpcode();
-    revng_assert(OpCode == Instruction::Shl
-                 or OpCode == Instruction::AShr
-                 or OpCode == Instruction::LShr
-                 or OpCode == Instruction::Mul
-                 or OpCode == Instruction::URem
-                 or OpCode == Instruction::SRem
-                 or OpCode == Instruction::SDiv
-                 or OpCode == Instruction::UDiv);
+    revng_assert(OpCode == Instruction::Shl or OpCode == Instruction::AShr
+                 or OpCode == Instruction::LShr or OpCode == Instruction::Mul
+                 or OpCode == Instruction::URem or OpCode == Instruction::SRem
+                 or OpCode == Instruction::SDiv or OpCode == Instruction::UDiv);
 
     const auto O0 = OffsetTuple[0], O1 = OffsetTuple[1];
     revng_assert(not O0->isPtr() and not O1->isPtr());
     if (O0->isUnknown() or O1->isUnknown()) {
       return std::make_pair(false, CSVOffsets::Kind::Unknown);
-    } else  {
+    } else {
       return std::make_pair(true, CSVOffsets::Kind::Numeric);
     }
   }
@@ -1303,14 +1299,10 @@ private:
                          const SmallVector<offset_iterator, 4> &OffsetsIt) {
 
     auto OpCode = I->getOpcode();
-    revng_assert(OpCode == Instruction::Shl
-                 or OpCode == Instruction::AShr
-                 or OpCode == Instruction::LShr
-                 or OpCode == Instruction::Mul
-                 or OpCode == Instruction::URem
-                 or OpCode == Instruction::SRem
-                 or OpCode == Instruction::SDiv
-                 or OpCode == Instruction::UDiv);
+    revng_assert(OpCode == Instruction::Shl or OpCode == Instruction::AShr
+                 or OpCode == Instruction::LShr or OpCode == Instruction::Mul
+                 or OpCode == Instruction::URem or OpCode == Instruction::SRem
+                 or OpCode == Instruction::SDiv or OpCode == Instruction::UDiv);
 
     SmallVector<Constant *, 4> Operands(NumSrcs, nullptr);
     // Setup operands

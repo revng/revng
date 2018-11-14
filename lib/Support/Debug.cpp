@@ -1,4 +1,4 @@
-/// \file debug.cpp
+/// \file Debug.cpp
 /// \brief Implementation of the debug framework
 
 //

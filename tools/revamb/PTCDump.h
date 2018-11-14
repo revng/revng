@@ -41,7 +41,7 @@ int dumpTranslation(std::ostream &Result, PTCInstructionList *Instructions);
 /// \param InstructionCount the maximum number of instructions to disassemble.
 void disassemble(std::ostream &Result,
                  uint64_t PC,
-                 uint32_t MaxBytes=4096,
-                 uint32_t InstructionCount=4096);
+                 uint32_t MaxBytes = 4096,
+                 uint32_t InstructionCount = 4096);
 
 #endif // PTCDUMP_H

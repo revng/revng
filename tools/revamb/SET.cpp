@@ -1,5 +1,7 @@
 /// \file set.cpp
+///
 /// \brief Simple Expression Tracker pass implementation
+///
 /// This file is composed by three main parts: the OperationsStack
 /// implementation, the SET algorithm and the SET pass
 
