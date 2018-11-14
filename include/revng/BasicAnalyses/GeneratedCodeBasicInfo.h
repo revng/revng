@@ -218,6 +218,7 @@ public:
     return getFunctionCall(BB->getTerminator());
   }
 
+  // TODO: is this a duplication of FunctionCallIdentification::isCall?
   // TODO: we could unpack the information too
   llvm::CallInst *getFunctionCall(llvm::TerminatorInst *T) const {
     auto It = T->getIterator();
