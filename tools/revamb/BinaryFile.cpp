@@ -400,6 +400,10 @@ struct RelocationHelper<T, false> {
   }
 };
 
+static bool shouldIgnoreSymbol(StringRef Name) {
+  return Name == "$a" or Name == "$d";
+}
+
 template<typename T, bool HasAddend>
 void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
   // Parse the ELF file
@@ -476,6 +480,9 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
         logAllUnhandledErrors(std::move(Name.takeError()), errs(), "");
         revng_abort();
       }
+
+      if (shouldIgnoreSymbol(*Name))
+        continue;
 
       registerLabel(Label::createSymbol(LabelOrigin::StaticSymbol,
                                         Symbol.st_value,
@@ -702,6 +709,10 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
           logAllUnhandledErrors(std::move(Name.takeError()), errs(), "");
           revng_abort();
         }
+
+        if (shouldIgnoreSymbol(*Name))
+          continue;
+
         auto SymbolType = SymbolType::fromELF(Symbol.getType());
         registerLabel(Label::createSymbol(LabelOrigin::DynamicSymbol,
                                           Symbol.st_value,
@@ -875,6 +886,8 @@ Label BinaryFile::parseRelocation(unsigned char RelocationType,
     return Label::createBaseRelativeValue(Origin, Target, PointerSize, Offset);
 
   case RD::LabelOnly:
+    if (shouldIgnoreSymbol(SymbolName))
+      return Label::createInvalid();
     return Label::createSymbol(Origin,
                                Target,
                                SymbolSize,
@@ -882,6 +895,8 @@ Label BinaryFile::parseRelocation(unsigned char RelocationType,
                                SymbolType);
 
   case RD::SymbolRelative:
+    if (shouldIgnoreSymbol(SymbolName))
+      return Label::createInvalid();
     return Label::createSymbolRelativeValue(Origin,
                                             Target,
                                             PointerSize,

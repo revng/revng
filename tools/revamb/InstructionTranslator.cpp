@@ -484,11 +484,13 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
   // * address of the instruction
   // * instruction size
   // * isJT (-1: unknown, 0: no, 1: yes)
+  // * pointer to the disassembled instruction
   // * all the local variables used by this instruction
   auto *NewPCMarkerTy = FT::get(Type::getVoidTy(Context),
                                 { Type::getInt64Ty(Context),
                                   Type::getInt64Ty(Context),
-                                  Type::getInt32Ty(Context) },
+                                  Type::getInt32Ty(Context),
+                                  Type::getInt8PtrTy(Context) },
                                 true);
   NewPCMarker = Function::Create(NewPCMarkerTy,
                                  GlobalValue::ExternalLinkage,
@@ -567,6 +569,9 @@ IT::newInstruction(PTCInstruction *Instr,
                    bool ForceNew) {
   using R = std::tuple<TranslationResult, MDNode *, uint64_t, uint64_t>;
   revng_assert(Instr != nullptr);
+
+  LLVMContext &Context = TheModule.getContext();
+
   const PTC::Instruction TheInstruction(Instr);
   // A new original instruction, let's create a new metadata node
   // referencing it for all the next instructions to come
@@ -576,11 +581,17 @@ IT::newInstruction(PTCInstruction *Instr,
   std::stringstream OriginalStringStream;
   disassemble(OriginalStringStream, PC, NextPC - PC);
   std::string OriginalString = OriginalStringStream.str();
-  LLVMContext &Context = TheModule.getContext();
-  MDString *MDOriginalString = MDString::get(Context, OriginalString);
+
+  // We don't deduplicate this string since performing a lookup each time is
+  // increasingly expensive and we should have relatively few collisions
+  std::string AddressName = JumpTargets.nameForAddress(PC);
+  Constant *String = buildStringPtr(&TheModule,
+                                    OriginalString,
+                                    Twine("disam_") + AddressName);
+
+  auto *MDOriginalString = ConstantAsMetadata::get(String);
   auto *MDPC = ConstantAsMetadata::get(Builder.getInt64(PC));
-  MDNode *MDOriginalInstr = MDNode::getDistinct(Context,
-                                                { MDOriginalString, MDPC });
+  MDNode *MDOriginalInstr = MDNode::get(Context, { MDOriginalString, MDPC });
 
   if (ForceNew)
     JumpTargets.registerJT(PC, JTReason::PostHelper);
@@ -611,7 +622,7 @@ IT::newInstruction(PTCInstruction *Instr,
   std::vector<Value *> Args = { Builder.getInt64(PC),
                                 Builder.getInt64(NextPC - PC),
                                 Builder.getInt32(-1),
-                                MetadataAsValue::get(Context, MDOriginalString) };
+                                String };
   for (AllocaInst *Local : Variables.locals())
     Args.push_back(Local);
 

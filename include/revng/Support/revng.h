@@ -283,6 +283,7 @@ public:
   const char *name() const {
     return llvm::Triple::getArchTypeName(Type).data();
   }
+  llvm::Triple::ArchType type() const { return Type; }
   unsigned pcMContextIndex() const { return PCMContextIndex; }
 
   llvm::StringRef writeRegisterAsm() const { return WriteRegisterAsm; }

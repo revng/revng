@@ -33,6 +33,39 @@ using std::make_pair;
 
 static Logger<> OSRJTSLog("osrjts");
 
+class MaterializedValue {
+private:
+  bool IsValid;
+  Optional<StringRef> SymbolName;
+  uint64_t Value;
+
+private:
+  MaterializedValue() : IsValid(false), Value(0) {}
+
+public:
+  MaterializedValue(uint64_t Value) : IsValid(true), Value(Value) {}
+  MaterializedValue(StringRef Name, uint64_t Offset) :
+    IsValid(true),
+    SymbolName(Name),
+    Value(Offset) {}
+
+public:
+  static MaterializedValue invalid() { return MaterializedValue(); }
+
+public:
+  uint64_t value() const {
+    revng_assert(isValid());
+    return Value;
+  }
+  bool isValid() const { return IsValid; }
+  bool hasSymbol() const { return SymbolName.hasValue(); }
+  StringRef symbolName() const {
+    revng_assert(isValid());
+    revng_assert(hasSymbol());
+    return *SymbolName;
+  }
+};
+
 /// \brief Stack to keep track of the operations generating a specific value
 ///
 /// The OperationsStacks offers the following features:
@@ -46,17 +79,29 @@ static Logger<> OSRJTSLog("osrjts");
 ///   whether this information is precise or not
 class OperationsStack {
 public:
-  OperationsStack(JumpTargetManager *JTM, const DataLayout &DL) :
+  OperationsStack(JumpTargetManager *JTM,
+                  const DataLayout &DL,
+                  FunctionCallIdentification *FCI) :
     JTM(JTM),
     DL(DL),
-    LoadsCount(0) {
+    LoadsCount(0),
+    FCI(FCI) {
     reset();
   }
 
   ~OperationsStack() { reset(); }
 
   void explore(Constant *NewOperand);
-  uint64_t materialize(Constant *NewOperand);
+  uint64_t materializeSimple(Constant *NewOperand) {
+    MaterializedValue Result = materialize(NewOperand, false);
+    if (not Result.isValid())
+      return 0;
+
+    revng_assert(not Result.hasSymbol());
+
+    return Result.value();
+  }
+  MaterializedValue materialize(Constant *NewOperand, bool HandleSymbols);
 
   /// \brief What values should be tracked
   enum TrackingType {
@@ -201,6 +246,14 @@ public:
 
   bool readsMemory() const { return LoadsCount > 0; }
 
+  void dump() const debug_function { dump(dbg); }
+
+  template<typename O>
+  void dump(O &Output) const {
+    for (Instruction *I : Operations)
+      Output << dumpToString(I) << "\n";
+  }
+
 private:
   JumpTargetManager *JTM;
   const DataLayout &DL;
@@ -218,27 +271,80 @@ private:
   unsigned LoadsCount;
 
   Instruction *Target;
+  FunctionCallIdentification *FCI;
 };
 
-uint64_t OperationsStack::materialize(Constant *NewOperand) {
+MaterializedValue
+OperationsStack::materialize(Constant *NewOperand, bool HandleSymbols) {
+  Optional<StringRef> SymbolName;
+
   for (Instruction *I : make_range(Operations.rbegin(), Operations.rend())) {
     if (auto *Load = dyn_cast<LoadInst>(I)) {
-      // OK, we've got a load, let's see if the load address is
-      // constant
+      // OK, we've got a load, let's see if the load address is constant
       revng_assert(NewOperand != nullptr && !isa<UndefValue>(NewOperand));
+
+      if (SymbolName)
+        return MaterializedValue::invalid();
+
+      uint64_t LoadAddress = getZExtValue(NewOperand, DL);
+      unsigned LoadSize;
 
       // Read the value using the endianess of the destination architecture,
       // since, if there's a mismatch, in the stack we will also have a byteswap
       // instruction
-      JumpTargetManager::Endianess E = JumpTargetManager::DestinationEndianess;
+      using Endianess = BinaryFile::Endianess;
+      Endianess E = (DL.isLittleEndian() ? Endianess::LittleEndian :
+                                           Endianess::BigEndian);
       if (Load->getType()->isIntegerTy()) {
-        unsigned Size = Load->getType()->getPrimitiveSizeInBits() / 8;
-        revng_assert(Size != 0);
-        NewOperand = JTM->readConstantInt(NewOperand, Size, E);
+        LoadSize = Load->getType()->getPrimitiveSizeInBits() / 8;
+        revng_assert(LoadSize != 0);
+        NewOperand = JTM->readConstantInt(NewOperand, LoadSize, E);
       } else if (Load->getType()->isPointerTy()) {
+        LoadSize = JTM->binary().architecture().pointerSize() / 8;
         NewOperand = JTM->readConstantPointer(NewOperand, Load->getType(), E);
       } else {
         revng_abort();
+      }
+
+      const auto &Labels = JTM->binary().labels();
+      using interval = boost::icl::interval<uint64_t>;
+      auto Interval = interval::right_open(LoadAddress, LoadAddress + LoadSize);
+      auto It = Labels.find(Interval);
+      if (It != Labels.end()) {
+        const Label *Match = nullptr;
+        for (const Label *Candidate : It->second) {
+          if (Candidate->size() == LoadSize
+              and (Candidate->isAbsoluteValue()
+                   or Candidate->isBaseRelativeValue()
+                   or (HandleSymbols and Candidate->isSymbolRelativeValue()))) {
+            revng_assert(Match == nullptr,
+                         "Multiple value labels at the same location");
+            Match = Candidate;
+          }
+        }
+
+        if (Match != nullptr) {
+          uint64_t Value;
+          switch (Match->type()) {
+          case LabelType::AbsoluteValue:
+            Value = Match->value();
+            break;
+
+          case LabelType::BaseRelativeValue:
+            Value = JTM->binary().relocate(Match->value());
+            break;
+
+          case LabelType::SymbolRelativeValue:
+            Value = Match->offset();
+            SymbolName = Match->symbolName();
+            break;
+
+          default:
+            revng_abort();
+          }
+
+          NewOperand = ConstantInt::get(Load->getType(), Value);
+        }
       }
 
       if (NewOperand == nullptr)
@@ -263,6 +369,21 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
 
       NewOperand = ConstantInt::get(T, Value);
     } else {
+
+      if (SymbolName) {
+        // In case the result is relative to a symbol, whitelist the allowed
+        // instructions
+        switch (I->getOpcode()) {
+        case Instruction::Add:
+        case Instruction::Sub:
+        case Instruction::And:
+          break;
+        default:
+          if (I->getNumOperands() > 1)
+            return MaterializedValue::invalid();
+        }
+      }
+
       // Replace non-const operand with NewOperand
       std::vector<Constant *> Operands;
       bool NonConstFound = false;
@@ -292,51 +413,89 @@ uint64_t OperationsStack::materialize(Constant *NewOperand) {
   // We made it, mark the value to be explored
   if (NewOperand != nullptr) {
     revng_assert(!isa<UndefValue>(NewOperand));
-    return getZExtValue(NewOperand, DL);
+    uint64_t Value = getZExtValue(NewOperand, DL);
+    if (SymbolName)
+      return MaterializedValue(*SymbolName, Value);
+    else
+      return MaterializedValue(Value);
   }
 
-  return 0;
+  return MaterializedValue::invalid();
 }
 
 void OperationsStack::explore(Constant *NewOperand) {
-  uint64_t MaterializedValue = materialize(NewOperand);
+  MaterializedValue SymbolicValue = materialize(NewOperand, true);
+
+  if (not SymbolicValue.isValid())
+    return;
+
+  if (SymbolicValue.hasSymbol()) {
+    if (IsPCStore and SymbolicValue.value() == 0) {
+      if (CallInst *Call = FCI->getCall(Target->getParent())) {
+        LLVMContext &Context = getContext(Call);
+        QuickMetadata QMD(Context);
+        auto *Callee = cast<Constant>(Call->getOperand(0));
+        revng_assert(Callee->isNullValue(), "Direct call to external symbol");
+
+        StringRef Name = SymbolicValue.symbolName();
+
+        Value *Old = Call->getOperand(4);
+        if (not isa<ConstantPointerNull>(Old)) {
+          auto *Casted = cast<ConstantExpr>(Old)->getOperand(0);
+          auto *Initializer = cast<GlobalVariable>(Casted)->getInitializer();
+          auto String = cast<ConstantDataArray>(Initializer)->getAsString();
+          revng_assert(String.drop_back() == Name);
+        }
+
+        Module *M = Call->getParent()->getParent()->getParent();
+        Constant *String = getUniqueString(M,
+                                           "revamb.input.symbol-names",
+                                           Name,
+                                           Twine("symbol_") + Name);
+        Call->setOperand(4, String);
+      }
+    }
+
+    return;
+  }
+
+  uint64_t Value = SymbolicValue.value();
 
   bool IsStore = Target != nullptr;
   revng_assert(!(!IsStore && (Tracking == PCsOnly || SetsSyscallNumber)));
 
   if (IsStore) {
-    if (MaterializedValue != 0 && JTM->isPC(MaterializedValue))
-      NewPCs.insert({ MaterializedValue, IsPCStore });
+    if (Value != 0 && JTM->isPC(Value))
+      NewPCs.insert({ Value, IsPCStore });
 
-    if (MaterializedValue != 0
-        && (Tracking == PCsOnly && JTM->isPC(MaterializedValue)))
-      TrackedValues.insert(MaterializedValue);
+    if (Value != 0 && (Tracking == PCsOnly && JTM->isPC(Value)))
+      TrackedValues.insert(Value);
 
     if (SetsSyscallNumber) {
       Instruction *Top = Operations.size() == 0 ? Target : Operations.back();
 
       // TODO: don't ignore temporary instructions
       if (Top->getParent() != nullptr)
-        JTM->noReturn().registerKiller(MaterializedValue, Top, Target);
+        JTM->noReturn().registerKiller(Value, Top, Target);
     }
   } else {
     // It's a load
-    LoadAddresses.insert(MaterializedValue);
+    LoadAddresses.insert(Value);
   }
 }
 
 /// \brief Simple Expression Tracker implementation
 class SET {
-
 public:
   SET(Function &F,
       JumpTargetManager *JTM,
       OSRAPass *OSRA,
+      FunctionCallIdentification *FCI,
       std::set<BasicBlock *> *Visited,
       std::vector<SETPass::JumpInfo> &Jumps) :
     DL(F.getParent()->getDataLayout()),
     JTM(JTM),
-    OS(JTM, DL),
+    OS(JTM, DL, FCI),
     F(F),
     OSRA(OSRA),
     Visited(Visited),
@@ -360,6 +519,8 @@ private:
   /// \return true if the instruction was handled.
   bool handleInstructionWithOSRA(Instruction *Target, Value *V);
 
+  void collectMetadata();
+
 private:
   const unsigned MaxDepth = 3;
   const DataLayout &DL;
@@ -370,6 +531,7 @@ private:
   std::set<BasicBlock *> *Visited;
   std::vector<std::pair<Value *, unsigned>> WorkList;
   std::vector<SETPass::JumpInfo> &Jumps;
+  std::map<GlobalVariable *, uint64_t> CanonicalValues;
 };
 
 bool SET::enqueueStores(LoadInst *Start) {
@@ -442,7 +604,27 @@ bool SET::enqueueStores(LoadInst *Start) {
   return Handled;
 }
 
+void SET::collectMetadata() {
+  const Module *M = getModule(&F);
+  QuickMetadata QMD(getContext(M));
+
+  // Collect canonical values
+  const char *MDName = "revamb.input.canonical-values";
+  NamedMDNode *CanonicalValuesMD = M->getNamedMetadata(MDName);
+  for (MDNode *CanonicalValueMD : CanonicalValuesMD->operands()) {
+    auto *CanonicalValueTuple = cast<MDTuple>(CanonicalValueMD);
+    auto Name = QMD.extract<StringRef>(CanonicalValueTuple, 0);
+    if (GlobalVariable *CSV = M->getGlobalVariable(Name)) {
+      uint64_t Value = QMD.extract<uint64_t>(CanonicalValueTuple, 1);
+      CanonicalValues[CSV] = Value;
+    }
+  }
+}
+
 bool SET::run() {
+  collectMetadata();
+
+  // Run the actual analysis
   for (BasicBlock &BB : make_range(F.begin(), F.end())) {
 
     if (Visited->find(&BB) != Visited->end())
@@ -515,6 +697,8 @@ void SETPass::getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<OSRAPass>();
     AU.addRequired<ConditionalReachedLoadsPass>();
   }
+
+  AU.addRequired<FunctionCallIdentification>();
 }
 
 bool SETPass::runOnFunction(Function &F) {
@@ -528,7 +712,9 @@ bool SETPass::runOnFunction(Function &F) {
     JTM->noReturn().collectDefinitions(CRDP);
   }
 
-  SET SimpleExpressionTracker(F, JTM, OSRA, Visited, Jumps);
+  FunctionCallIdentification &FCI = getAnalysis<FunctionCallIdentification>();
+
+  SET SimpleExpressionTracker(F, JTM, OSRA, &FCI, Visited, Jumps);
 
   revng_log(PassesLog, "Ending SETPass");
   return SimpleExpressionTracker.run();
@@ -567,9 +753,9 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
     //       here is probably restore it to int64_t::max(), assert if it's
     //       larger than 10000 and only apply it to store to memory, pc and
     //       maybe other registers (lr?)
-    auto MaterializedMin = OS.materialize(MinConst);
-    auto MaterializedMax = OS.materialize(MaxConst);
-    auto MaterializedStep = OS.materialize(CI::get(Int64, O->factor()));
+    auto MaterializedMin = OS.materializeSimple(MinConst);
+    auto MaterializedMax = OS.materializeSimple(MaxConst);
+    auto MaterializedStep = OS.materializeSimple(CI::get(Int64, O->factor()));
 
     if (OS.readsMemory()) {
       // If there's a load in the stack only check the first and last element
@@ -614,6 +800,20 @@ Value *SET::handleInstruction(Instruction *Target, Value *V) {
     // We reached the end of the path, materialize the value
     OS.explore(C);
     return nullptr;
+  }
+
+  if (auto *Load = dyn_cast<LoadInst>(V)) {
+
+    //
+    // Handle canonical values
+    //
+    if (auto *Target = dyn_cast<GlobalVariable>(Load->getPointerOperand())) {
+      auto It = CanonicalValues.find(Target);
+      if (It != CanonicalValues.end()) {
+        OS.explore(ConstantInt::get(Load->getType(), It->second));
+        // Do not return, proceed as usual
+      }
+    }
   }
 
   if (OSRA != nullptr && !OS.empty()) {

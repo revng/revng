@@ -647,4 +647,16 @@ inline std::string dumpToString(const llvm::Module *M) {
 
 void dumpModule(const llvm::Module *M, const char *Path) debug_function;
 
+llvm::GlobalVariable *
+buildString(llvm::Module *M, llvm::StringRef String, const llvm::Twine &Name);
+
+llvm::Constant *buildStringPtr(llvm::Module *M,
+                               llvm::StringRef String,
+                               const llvm::Twine &Name);
+
+llvm::Constant *getUniqueString(llvm::Module *M,
+                                llvm::StringRef Namespace,
+                                llvm::StringRef String,
+                                const llvm::Twine &Name = llvm::Twine());
+
 #endif // IRHELPERS_H

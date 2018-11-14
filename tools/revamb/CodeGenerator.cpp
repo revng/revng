@@ -119,25 +119,24 @@ static cl::alias A5("f",
                     cl::cat(MainCategory));
 
 // Enable Debug Options to be specified on the command line
-auto X = cl::values(clEnumValN(DebugInfoType::None,
-                               "none",
-                               "no debug information"),
-                    clEnumValN(DebugInfoType::OriginalAssembly,
+namespace DIT = DebugInfoType;
+auto X = cl::values(clEnumValN(DIT::None, "none", "no debug information"),
+                    clEnumValN(DIT::OriginalAssembly,
                                "asm",
                                "debug information referred to the assembly "
                                "of the input file"),
-                    clEnumValN(DebugInfoType::PTC,
+                    clEnumValN(DIT::PTC,
                                "ptc",
                                "debug information referred to the Portable "
                                "Tiny Code"),
-                    clEnumValN(DebugInfoType::LLVMIR,
+                    clEnumValN(DIT::LLVMIR,
                                "ll",
                                "debug information referred to the LLVM IR"));
-static cl::opt<DebugInfoType::Values> DebugInfo("debug-info",
-                                                cl::desc("emit debug "
-                                                         "information"),
-                                                X,
-                                                cl::cat(MainCategory));
+static cl::opt<DIT::Values> DebugInfo("debug-info",
+                                      cl::desc("emit debug information"),
+                                      X,
+                                      cl::cat(MainCategory),
+                                      cl::init(DIT::LLVMIR));
 
 static cl::alias A6("g",
                     cl::desc("Alias for -debug-info"),
@@ -147,8 +146,7 @@ static cl::alias A6("g",
 // TODO: is this still active?
 static cl::opt<string> DebugPath("debug-path",
                                  cl::desc("destination path for the generated "
-                                          "debug "
-                                          "source"),
+                                          "debug source"),
                                  cl::value_desc("path"),
                                  cl::cat(MainCategory));
 

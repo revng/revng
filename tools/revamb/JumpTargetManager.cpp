@@ -423,6 +423,22 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   // getOption<uint32_t>(Options, "max-recurse-depth")->setInitialValue(10);
 }
 
+static bool isBetterThan(const Label *NewCandidate, const Label *OldCandidate) {
+  if (OldCandidate == nullptr)
+    return true;
+
+  if (NewCandidate->address() > OldCandidate->address())
+    return true;
+
+  if (NewCandidate->address() == OldCandidate->address()) {
+    StringRef OldName = OldCandidate->symbolName();
+    if (OldName.size() == 0)
+      return true;
+  }
+
+  return false;
+}
+
 // TODO: move this in BinaryFile?
 std::string
 JumpTargetManager::nameForAddress(uint64_t Address, uint64_t Size) const {
@@ -446,21 +462,22 @@ JumpTargetManager::nameForAddress(uint64_t Address, uint64_t Size) const {
         continue;
 
       if (L->matches(Address, Size)) {
+
         // It's an exact match
         ExactMatch = L;
         break;
+
       } else if (not L->isSizeVirtual() and L->contains(Address, Size)) {
+
         // It's contained in a not 0-sized symbol
-        if (ContainedNonZeroSized == nullptr
-            or L->address() > ContainedNonZeroSized->address()) {
+        if (isBetterThan(L, ContainedNonZeroSized))
           ContainedNonZeroSized = L;
-        }
+
       } else if (L->isSizeVirtual() and L->contains(Address, 0)) {
+
         // It's contained in a 0-sized symbol
-        if (ContainedZeroSized == nullptr
-            or L->address() > ContainedZeroSized->address()) {
+        if (isBetterThan(L, ContainedZeroSized))
           ContainedZeroSized = L;
-        }
       }
     }
 

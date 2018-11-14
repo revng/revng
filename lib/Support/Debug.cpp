@@ -7,14 +7,12 @@
 
 // Standard includes
 #include <algorithm>
-#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 
 // LLVM includes
 #include "llvm/IR/Value.h"
-#include "llvm/Support/raw_os_ostream.h"
 
 // Local libraries includes
 #include "revng/Support/CommandLine.h"
@@ -100,9 +98,3 @@ unsigned Logger<X>::IndentLevel;
 // Force instantiation
 template class Logger<true>;
 template class Logger<false>;
-
-void dumpModule(const llvm::Module *M, const char *Path) {
-  std::ofstream FileStream(Path);
-  llvm::raw_os_ostream Stream(FileStream);
-  M->print(Stream, nullptr, true);
-}
