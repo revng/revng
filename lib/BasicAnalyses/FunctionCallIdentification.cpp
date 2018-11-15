@@ -31,12 +31,12 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
   Module *M = F.getParent();
   LLVMContext &C = M->getContext();
   PointerType *Int8PtrTy = Type::getInt8PtrTy(C);
+  auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
   auto *PCTy = IntegerType::get(C, GCBI.pcRegSize() * 8);
   auto *PCPtrTy = cast<PointerType>(GCBI.pcReg()->getType());
-  std::initializer_list<Type *> FunctionArgsTy = { Int8PtrTy,
-                                                   Int8PtrTy,
-                                                   PCTy,
-                                                   PCPtrTy };
+  std::initializer_list<Type *> FunctionArgsTy = {
+    Int8PtrTy, Int8PtrTy, PCTy, PCPtrTy, Int8PtrTy
+  };
   using FT = FunctionType;
   auto *Ty = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
   Constant *FunctionCallC = M->getOrInsertFunction("function_call", Ty);
@@ -58,7 +58,7 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
     // Consider the basic block only if it's terminator is an actual jump and it
     // hasn't been already marked as a function call
     TerminatorInst *Terminator = BB.getTerminator();
-    if (!GCBI.isJump(Terminator) || isCall(Terminator))
+    if (BB.empty() or not GCBI.isJump(Terminator) or isCall(Terminator))
       continue;
 
     // To be a function call we need to find:
@@ -77,7 +77,7 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
 
     // We can meet up calls to newpc up to (1 + "size of the delay slot")
     // times
-    unsigned NewPCLeft = 1 + GCBI.delaySlotSize();
+    unsigned NewPCLeft = 1;
 
     auto Visitor = [&BB,
                     &GCBI,
@@ -93,12 +93,16 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
           Value *V = Store->getValueOperand();
           Value *Pointer = Store->getPointerOperand();
           auto *TargetCSV = dyn_cast<GlobalVariable>(Pointer);
-          if (TargetCSV != nullptr && GCBI.isPCReg(TargetCSV)) {
-            StorePCFound = true;
+          if (GCBI.isPCReg(TargetCSV)) {
+            if (TargetCSV != nullptr)
+              StorePCFound = true;
           } else if (auto *Constant = dyn_cast<ConstantInt>(V)) {
             // Note that we willingly ignore stores to the PC here
             if (Constant->getLimitedValue() == ReturnPC) {
-              revng_assert(!SaveRAFound);
+              if (SaveRAFound) {
+                SaveRAFound = false;
+                return StopNow;
+              }
               SaveRAFound = true;
 
               // Find where the return address is being stored
@@ -187,7 +191,7 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
       Value *Callee = nullptr;
 
       if (SuccessorsCount == 0) {
-        Callee = ConstantPointerNull::get(Int8PtrTy);
+        Callee = Int8NullPtr;
       } else if (SuccessorsCount == 1) {
         Callee = BlockAddress::get(Terminator->getSuccessor(0));
       } else {
@@ -205,14 +209,15 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
         revng_assert(Found);
 
         // It's an indirect call
-        Callee = ConstantPointerNull::get(Int8PtrTy);
+        Callee = Int8NullPtr;
       }
 
       const std::initializer_list<Value *> Args{ Callee,
                                                  BlockAddress::get(ReturnBB),
                                                  ConstantInt::get(PCTy,
                                                                   ReturnPC),
-                                                 LinkRegister };
+                                                 LinkRegister,
+                                                 Int8NullPtr };
 
       FallthroughAddresses.insert(ReturnPC);
 

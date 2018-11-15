@@ -11,6 +11,7 @@
 
 // LLVM includes
 #include "llvm/IR/AssemblyAnnotationWriter.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -25,13 +26,13 @@ using namespace llvm;
 
 /// Boring code to get the text of the metadata with the specified kind
 /// associated to the given instruction
-static MDString *getMD(const Instruction *Instruction, unsigned Kind) {
+static StringRef getText(const Instruction *Instruction, unsigned Kind) {
   revng_assert(Instruction != nullptr);
 
   Metadata *MD = Instruction->getMetadata(Kind);
 
   if (MD == nullptr)
-    return nullptr;
+    return StringRef();
 
   auto Node = dyn_cast<MDNode>(MD);
 
@@ -42,12 +43,30 @@ static MDString *getMD(const Instruction *Instruction, unsigned Kind) {
   Metadata *MDOperand = Operand.get();
 
   if (MDOperand == nullptr)
-    return nullptr;
+    return StringRef();
 
-  auto *String = dyn_cast<MDString>(MDOperand);
-  revng_assert(String != nullptr);
+  if (auto *String = dyn_cast<MDString>(MDOperand)) {
+    return String->getString();
+  } else if (auto *CAM = dyn_cast<ConstantAsMetadata>(MDOperand)) {
+    auto *Cast = cast<ConstantExpr>(CAM->getValue());
+    auto *GV = cast<GlobalVariable>(Cast->getOperand(0));
+    auto *Initializer = GV->getInitializer();
+    return cast<ConstantDataArray>(Initializer)->getAsString().drop_back();
+  } else {
+    revng_abort();
+  }
+}
 
-  return String;
+static void
+replaceAll(std::string &Input, const std::string &From, const std::string &To) {
+  if (From.empty())
+    return;
+
+  size_t Start = 0;
+  while ((Start = Input.find(From, Start)) != std::string::npos) {
+    Input.replace(Start, From.length(), To);
+    Start += To.length();
+  }
 }
 
 /// Writes the text contained in the metadata with the specified kind ID to the
@@ -57,21 +76,25 @@ static void writeMetadataIfNew(const Instruction *TheInstruction,
                                unsigned MDKind,
                                formatted_raw_ostream &Output,
                                StringRef Prefix) {
-  MDString *MD = getMD(TheInstruction, MDKind);
-  if (MD != nullptr) {
-    MDString *PrevMD = nullptr;
+  auto BeginIt = TheInstruction->getParent()->begin();
+  StringRef Text = getText(TheInstruction, MDKind);
+  if (Text.size()) {
+    StringRef LastText;
 
     do {
-      if (TheInstruction == TheInstruction->getParent()->begin())
+      if (TheInstruction->getIterator() == BeginIt) {
         TheInstruction = nullptr;
-      else {
+      } else {
         TheInstruction = TheInstruction->getPrevNode();
-        PrevMD = getMD(TheInstruction, MDKind);
+        LastText = getText(TheInstruction, MDKind);
       }
-    } while (TheInstruction != nullptr && PrevMD == nullptr);
+    } while (TheInstruction != nullptr && LastText.size() == 0);
 
-    if (TheInstruction == nullptr || PrevMD != MD)
-      Output << Prefix << MD->getString();
+    if (TheInstruction == nullptr or LastText != Text) {
+      std::string TextToSerialize = Text.str();
+      replaceAll(TextToSerialize, "\n", " ");
+      Output << Prefix << TextToSerialize << "\n";
+    }
   }
 }
 
@@ -98,7 +121,9 @@ void DAW::emitInstructionAnnot(const Instruction *Instr,
   DISubprogram *Subprogram = Instr->getParent()->getParent()->getSubprogram();
 
   // Ignore whatever is outside the root and the isolated functions
-  if (Subprogram == nullptr)
+  StringRef FunctionName = Instr->getParent()->getParent()->getName();
+  if (Subprogram == nullptr
+      or not(FunctionName == "root" or FunctionName.startswith("bb.")))
     return;
 
   writeMetadataIfNew(Instr, OriginalInstrMDKind, Output, "\n  ; ");
@@ -113,6 +138,7 @@ void DAW::emitInstructionAnnot(const Instruction *Instr,
 
     // Flushing is required to have correct line and column numbers
     Output.flush();
+
     auto *Location = DILocation::get(Context,
                                      Output.getLine() + 1,
                                      Output.getColumn(),
@@ -149,9 +175,9 @@ DebugHelper::DebugHelper(std::string Output,
   }
 
   if (DebugInfo != DebugInfoType::None) {
+    auto File = Builder.createFile(this->DebugPath, "");
     CompileUnit = Builder.createCompileUnit(dwarf::DW_LANG_C,
-                                            this->DebugPath,
-                                            "",
+                                            File,
                                             "revamb",
                                             false,
                                             "",
@@ -201,28 +227,28 @@ void DebugHelper::generateDebugInfo() {
                               PTCInstrMDKind :
                               OriginalInstrMDKind;
 
-    MDString *Last = nullptr;
+    StringRef Last;
     std::ofstream Source(DebugPath);
-    for (Function &CurrentFunction : TheModule->functions()) {
-      if (DISubprogram *CurrentSubprogram = CurrentFunction.getSubprogram()) {
-        for (BasicBlock &Block : CurrentFunction) {
+    for (Function &F : TheModule->functions()) {
+
+      if (not(F.getName() == "root" || F.getName().startswith("bb.")))
+        continue;
+
+      if (DISubprogram *CurrentSubprogram = F.getSubprogram()) {
+        for (BasicBlock &Block : F) {
           for (Instruction &Instruction : Block) {
-            MDString *Body = getMD(&Instruction, MetadataKind);
+            StringRef Body = getText(&Instruction, MetadataKind);
 
-            if (Body != nullptr && Last != Body) {
+            if (Body.size() != 0 && Last != Body) {
               Last = Body;
-              std::string BodyString = Body->getString().str();
-
-              Source << BodyString;
+              Source << Body.data();
 
               auto *Location = DILocation::get(TheModule->getContext(),
                                                LineIndex,
                                                0,
                                                CurrentSubprogram);
               Instruction.setMetadata(DbgMDKind, Location);
-              LineIndex += std::count(BodyString.begin(),
-                                      BodyString.end(),
-                                      '\n');
+              LineIndex += std::count(Body.begin(), Body.end(), '\n');
             }
           }
         }

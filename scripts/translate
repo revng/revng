@@ -96,6 +96,9 @@ case "$ARCHID" in
     012800)
         ARCH=arm;
         ;;
+    010800)
+        ARCH=mipsel;
+        ;;
     020008)
         ARCH=mips;
         ;;
@@ -166,7 +169,7 @@ fi
 OBJ="$LL.o"
 "$CC" \
       "$OBJ" \
-      -lz -lm -lrt $("$TOOPT" "$CSV" "$LIBSCSV") -L ./ \
+      -lz -lm -lrt -lpthread $("$TOOPT" "$CSV" "$LIBSCSV") -L ./ \
       -o "$OUTPUT" \
       $DISABLE_PIE
 

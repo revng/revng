@@ -12,6 +12,7 @@
 
 // LLVM includes
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/Interval.h"
 #include "llvm/IR/CFG.h"
@@ -60,7 +61,7 @@ inline void purgeBranch(llvm::BasicBlock::iterator I) {
 inline llvm::ConstantInt *
 getConstValue(llvm::Constant *C, const llvm::DataLayout &DL) {
   while (auto *Expr = llvm::dyn_cast<llvm::ConstantExpr>(C)) {
-    C = ConstantFoldConstantExpression(Expr, DL);
+    C = ConstantFoldConstant(Expr, DL);
 
     if (Expr->getOpcode() == llvm::Instruction::IntToPtr
         || Expr->getOpcode() == llvm::Instruction::PtrToInt)
@@ -157,13 +158,6 @@ inline I *isa_with_op(llvm::Instruction *Inst) {
   }
 
   return nullptr;
-}
-
-/// \brief Return an range iterating backward from the given instruction
-inline llvm::iterator_range<llvm::BasicBlock::reverse_iterator>
-backward_range(llvm::Instruction *I) {
-  return llvm::make_range(llvm::make_reverse_iterator(I->getIterator()),
-                          I->getParent()->rend());
 }
 
 template<typename C>
@@ -290,7 +284,7 @@ inline void visitPredecessors(llvm::Instruction *I,
                               BlackListTrait<C, llvm::BasicBlock *> BL) {
   std::set<llvm::BasicBlock *> Visited;
 
-  llvm::BasicBlock::reverse_iterator It(make_reverse_iterator(I));
+  llvm::BasicBlock::reverse_iterator It(++I->getReverseIterator());
 
   if (It == I->getParent()->rend())
     return;
@@ -437,7 +431,8 @@ class QuickMetadata {
 public:
   QuickMetadata(llvm::LLVMContext &Context) :
     C(Context),
-    Int32Ty(llvm::IntegerType::get(C, 32)) {}
+    Int32Ty(llvm::IntegerType::get(C, 32)),
+    Int64Ty(llvm::IntegerType::get(C, 64)) {}
 
   llvm::MDString *get(const char *String) {
     return llvm::MDString::get(C, String);
@@ -452,11 +447,18 @@ public:
     return llvm::ConstantAsMetadata::get(Constant);
   }
 
+  llvm::ConstantAsMetadata *get(uint64_t Integer) {
+    auto *Constant = llvm::ConstantInt::get(Int64Ty, Integer);
+    return llvm::ConstantAsMetadata::get(Constant);
+  }
+
   llvm::MDTuple *tuple(const char *String) { return tuple(get(String)); }
 
   llvm::MDTuple *tuple(llvm::StringRef String) { return tuple(get(String)); }
 
   llvm::MDTuple *tuple(uint32_t Integer) { return tuple(get(Integer)); }
+
+  llvm::MDTuple *tuple(uint64_t Integer) { return tuple(get(Integer)); }
 
   llvm::MDTuple *tuple(llvm::ArrayRef<llvm::Metadata *> MDs) {
     return llvm::MDTuple::get(C, MDs);
@@ -475,6 +477,7 @@ public:
 private:
   llvm::LLVMContext &C;
   llvm::IntegerType *Int32Ty;
+  llvm::IntegerType *Int64Ty;
 };
 
 template<>
@@ -498,7 +501,7 @@ QuickMetadata::extract<llvm::StringRef>(const llvm::Metadata *MD) {
 /// \brief Return the instruction coming before \p I, or nullptr if it's the
 ///        first.
 inline llvm::Instruction *getPrevious(llvm::Instruction *I) {
-  llvm::BasicBlock::reverse_iterator It(make_reverse_iterator(I));
+  llvm::BasicBlock::reverse_iterator It(++I->getReverseIterator());
   if (It == I->getParent()->rend())
     return nullptr;
 
@@ -626,7 +629,7 @@ inline void erase_if(Container &C, UnaryPredicate P) {
   C.erase(std::remove_if(C.begin(), C.end(), P), C.end());
 }
 
-inline std::string dumpToString(llvm::Value *V) {
+inline std::string dumpToString(const llvm::Value *V) {
   std::string Result;
   llvm::raw_string_ostream Stream(Result);
   V->print(Stream, true);
@@ -634,7 +637,7 @@ inline std::string dumpToString(llvm::Value *V) {
   return Result;
 }
 
-inline std::string dumpToString(llvm::Module *M) {
+inline std::string dumpToString(const llvm::Module *M) {
   std::string Result;
   llvm::raw_string_ostream Stream(Result);
   M->print(Stream, nullptr, false, true);
@@ -643,5 +646,17 @@ inline std::string dumpToString(llvm::Module *M) {
 }
 
 void dumpModule(const llvm::Module *M, const char *Path) debug_function;
+
+llvm::GlobalVariable *
+buildString(llvm::Module *M, llvm::StringRef String, const llvm::Twine &Name);
+
+llvm::Constant *buildStringPtr(llvm::Module *M,
+                               llvm::StringRef String,
+                               const llvm::Twine &Name);
+
+llvm::Constant *getUniqueString(llvm::Module *M,
+                                llvm::StringRef Namespace,
+                                llvm::StringRef String,
+                                const llvm::Twine &Name = llvm::Twine());
 
 #endif // IRHELPERS_H

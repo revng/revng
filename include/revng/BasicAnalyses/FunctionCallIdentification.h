@@ -40,20 +40,33 @@ public:
 
   bool runOnFunction(llvm::Function &F) override;
 
+  llvm::CallInst *getCall(llvm::Instruction *I) const {
+    return getCall(llvm::cast<llvm::TerminatorInst>(I));
+  }
+
+  llvm::CallInst *getCall(llvm::BasicBlock *BB) const {
+    return getCall(BB->getTerminator());
+  }
+
   /// \brief Return true if \p T is a function call in the input assembly
-  bool isCall(llvm::TerminatorInst *T) const {
+  llvm::CallInst *getCall(llvm::TerminatorInst *T) const {
     revng_assert(T != nullptr);
     llvm::Instruction *Previous = getPrevious(T);
     while (Previous != nullptr && isMarker(Previous)) {
       auto *Call = llvm::cast<llvm::CallInst>(Previous);
       if (Call->getCalledFunction() == FunctionCall)
-        return true;
+        return Call;
 
       Previous = getPrevious(Previous);
     }
 
-    return false;
+    return nullptr;
   }
+
+  /// \brief Return true if \p T is a function call in the input assembly
+  bool isCall(llvm::TerminatorInst *T) const { return getCall(T) != nullptr; }
+
+  bool isCall(llvm::Instruction *I) const { return getCall(I) != nullptr; }
 
   bool isCall(llvm::BasicBlock *BB) const {
     return isCall(BB->getTerminator());

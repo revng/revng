@@ -25,7 +25,10 @@ static void print_stack_trace() {
 
 static void
 report(const char *Type, const char *File, unsigned Line, const char *What) {
-  fprintf(stderr, "%s at %s:%d: %s\n", Type, File, Line, What);
+  fprintf(stderr, "%s at %s:%d", Type, File, Line);
+  if (What != NULL)
+    fprintf(stderr, ": %s", What);
+  puts("");
 }
 
 void revng_assert_fail(const char *AssertionBody,

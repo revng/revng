@@ -89,7 +89,7 @@ GeneratedCodeBasicInfo::getPC(Instruction *TheInstruction) const {
   if (TheInstruction->getIterator() == TheInstruction->getParent()->begin())
     WorkList.push(--TheInstruction->getParent()->rend());
   else
-    WorkList.push(make_reverse_iterator(TheInstruction));
+    WorkList.push(++TheInstruction->getReverseIterator());
 
   while (!WorkList.empty()) {
     auto I = WorkList.front();

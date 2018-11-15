@@ -184,9 +184,9 @@ public:
     revng_assert(T != nullptr);
 
     for (llvm::BasicBlock *Successor : T->successors()) {
-      if (not(Successor == Dispatcher or Successor == DispatcherFail
-              or Successor == AnyPC or Successor == UnexpectedPC
-              or isJumpTarget(Successor)))
+      if (not(Successor->empty() or Successor == Dispatcher
+              or Successor == DispatcherFail or Successor == AnyPC
+              or Successor == UnexpectedPC or isJumpTarget(Successor)))
         return false;
     }
 
@@ -218,6 +218,7 @@ public:
     return getFunctionCall(BB->getTerminator());
   }
 
+  // TODO: is this a duplication of FunctionCallIdentification::isCall?
   // TODO: we could unpack the information too
   llvm::CallInst *getFunctionCall(llvm::TerminatorInst *T) const {
     auto It = T->getIterator();

@@ -20,6 +20,7 @@
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/raw_ostream.h"
 
 // Local libraries includes
 #include "revng/Support/Debug.h"
@@ -224,6 +225,12 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
       ArgNo(N) {}
   };
 
+  Module *M = CPUStatePtr->getParent();
+  if (TaintLog.isEnabled()) {
+    TaintLog << "MODULE:" << DoLog;
+    TaintLog << dumpToString(M) << DoLog;
+  }
+
   // 1. Iterate on the users of `CPUStatePtr`
   for (const User *U : CPUStatePtr->users()) {
 
@@ -244,9 +251,12 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
     const Function *F = Load->getParent()->getParent();
     if (Load->getNumUses() != 0
         and ReachableFunctions.find(F) != ReachableFunctions.end()) {
-      TaintLog << "Tainted origin: " << Load << DoLog;
+      if (TaintLog.isEnabled()) {
+        TaintLog << "Tainted origin: " << Load << DoLog;
+        TaintLog << dumpToString(Load) << DoLog;
+        TaintLog.indent();
+      }
       ToTaintWorkList.push(&*Load->use_begin());
-      TaintLog.indent();
     }
 
     //   2. For each user of `CPUStatePtr`, consider its next user,
@@ -258,7 +268,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
       const auto OpCode = TheUser->getOpcode();
       if (TaintLog.isEnabled()) {
         TaintLog << "Inst: " << TheUser << DoLog;
-        TheUser->dump();
+        TaintLog << dumpToString(TheUser) << DoLog;
       }
 
       const size_t Size = ToTaintWorkList.size();
@@ -279,7 +289,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
         if (TheUse->get() == L->getPointerOperand()) {
           if (TaintLog.isEnabled()) {
             TaintLog << "TAINT: " << TheUser << DoLog;
-            TheUser->dump();
+            TaintLog << dumpToString(TheUser) << DoLog;
           }
           Results.TaintedLoads.insert(TheUser);
         }
@@ -291,7 +301,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
         if (TheUse->get() == S->getPointerOperand()) {
           if (TaintLog.isEnabled()) {
             TaintLog << "TAINT: " << TheUser << DoLog;
-            TheUser->dump();
+            TaintLog << dumpToString(TheUser) << DoLog;
           }
           Results.TaintedStores.insert(TheUser);
         }
@@ -315,7 +325,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
         bool JustTainted = Results.TaintedValues.insert(TheUser).second;
         if (TaintLog.isEnabled()) {
           TaintLog << "TAINT: " << TheUser << DoLog;
-          TheUser->dump();
+          TaintLog << dumpToString(TheUser) << DoLog;
         }
         if (JustTainted) {
           TaintLog << "Just Tainted" << DoLog;
@@ -354,14 +364,14 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
             if (OpNo == 0) {
               if (TaintLog.isEnabled()) {
                 TaintLog << "TAINT: " << TheUser << DoLog;
-                TheUser->dump();
+                TaintLog << dumpToString(TheUser) << DoLog;
               }
               Results.TaintedStores.insert(TheUser);
             }
             if (OpNo == 1) {
               if (TaintLog.isEnabled()) {
                 TaintLog << "TAINT: " << TheUser << DoLog;
-                TheUser->dump();
+                TaintLog << dumpToString(TheUser) << DoLog;
               }
               Results.TaintedLoads.insert(TheUser);
             }
@@ -394,10 +404,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
         // also push on the ToTaintWorkList its first use that is not tainted.
         if (TaintLog.isEnabled()) {
           TaintLog << "Argument: " << FormalArgument << DoLog;
-          std::string ArgLog;
-          raw_string_ostream OStream(ArgLog);
-          FormalArgument->print(OStream);
-          CSVAccessLog << ArgLog << DoLog;
+          TaintLog << dumpToString(FormalArgument) << DoLog;
         }
         bool JustTainted = Results.TaintedValues.insert(FormalArgument).second;
         if (JustTainted) {
@@ -405,10 +412,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
           for (const Use &U : FormalArgument->uses()) {
             if (TaintLog.isEnabled()) {
               TaintLog << "User: " << U.getUser() << DoLog;
-              std::string UserLog;
-              raw_string_ostream OStream(UserLog);
-              U.getUser()->print(OStream);
-              CSVAccessLog << UserLog << DoLog;
+              TaintLog << dumpToString(U.getUser()) << DoLog;
             }
             if (Results.TaintedValues.count(U.getUser()) == 0) {
               TaintLog << "PUSH" << DoLog;
@@ -430,7 +434,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
           bool JustTainted = Results.TaintedValues.insert(TheUser).second;
           if (TaintLog.isEnabled()) {
             TaintLog << "TAINT: " << TheUser << DoLog;
-            TheUser->dump();
+            TaintLog << dumpToString(TheUser) << DoLog;
           }
           if (JustTainted) {
             TaintLog << "Just Tainted" << DoLog;
@@ -459,7 +463,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
         // taint analysis to its uses.
         if (TaintLog.isEnabled()) {
           TaintLog << "TAINT: " << TheUser << DoLog;
-          TheUser->dump();
+          TaintLog << dumpToString(TheUser) << DoLog;
         }
         bool JustTainted = Results.TaintedValues.insert(TheUser).second;
         if (JustTainted) {
@@ -472,7 +476,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
 
           if (TaintLog.isEnabled()) {
             TaintLog << "TAINT: " << CSInfo.CallSite << DoLog;
-            CallSiteInfos.top().CallSite->dump();
+            TaintLog << dumpToString(CallSiteInfos.top().CallSite) << DoLog;
             std::string Name = getCallee(CSInfo.CallSite)->getName();
             TaintLog << "pair: < " << Name << ", " << CSInfo.ArgNo << " > "
                      << DoLog;
@@ -519,11 +523,11 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
         const Use *PoppedTopUse = ToTaintWorkList.top();
         if (TaintLog.isEnabled()) {
           TaintLog << "POP : " << PoppedTopUse->get() << DoLog;
-          PoppedTopUse->get()->dump();
+          TaintLog << dumpToString(PoppedTopUse->get()) << DoLog;
         }
         if (TaintLog.isEnabled()) {
           TaintLog << "PoppedUser : " << PoppedTopUse->getUser() << DoLog;
-          PoppedTopUse->getUser()->dump();
+          TaintLog << dumpToString(PoppedTopUse->getUser()) << DoLog;
         }
         ToTaintWorkList.pop();
         TaintLog.unindent();
@@ -548,7 +552,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
 
           if (TaintLog.isEnabled()) {
             TaintLog << "CallSite: " << CallSite << DoLog;
-            CallSite->dump();
+            TaintLog << dumpToString(CallSite) << DoLog;
           }
 
           // If the CallSite was tainted it means that the taint analysis
@@ -588,7 +592,6 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
     }
   }
 
-  Module *M = CPUStatePtr->getParent();
   QuickMetadata QMD(M->getContext());
   for (CallInst *Call : Results.IllegalCalls) {
     CallInst *Abort = CallInst::Create(M->getFunction("abort"), {}, Call);
@@ -1030,7 +1033,7 @@ public:
 private:
   CSVOffsets foldOffsets(CSVOffsets::Kind ResKind,
                          WorkItem::size_type NumSrcs,
-                         const Instruction *I,
+                         Instruction *I,
                          const SmallVector<offset_iterator, 4> &OffsetsIt) {
     return static_cast<T *>(this)->foldOffsets(ResKind, NumSrcs, I, OffsetsIt);
   }
@@ -1051,9 +1054,9 @@ private:
   checkOffsetTupleIsValid(const SmallVector<const CSVOffsets *, 4> &OffsetTuple,
                           const Instruction *I,
                           SmallVector<OptCSVOffsets, 4> &) {
+    revng_assert(OffsetTuple.size() == 2);
     auto OpCode = I->getOpcode();
     revng_assert(OpCode == Instruction::Add or OpCode == Instruction::Sub);
-    revng_assert(OffsetTuple.size() == 2);
     const auto O0 = OffsetTuple[0], O1 = OffsetTuple[1];
     if (OpCode == Instruction::Add) {
       // Cannot add pointers
@@ -1086,20 +1089,20 @@ private:
 
   CSVOffsets foldOffsets(CSVOffsets::Kind ResultKind,
                          WorkItem::size_type NumSrcs,
-                         const Instruction *I,
+                         Instruction *I,
                          const SmallVector<offset_iterator, 4> &OffsetsIt) {
     auto OpCode = I->getOpcode();
     revng_assert(OpCode == Instruction::Add or OpCode == Instruction::Sub);
     SmallVector<Constant *, 4> Operands(NumSrcs, nullptr);
     // Setup operands
     for (WorkItem::size_type SI = 0; SI < NumSrcs; ++SI) {
-      const int64_t o = *OffsetsIt[SI];
-      Operands[SI] = ConstantInt::get(Int64Ty, APInt(64, o, true));
+      const int64_t O = *OffsetsIt[SI];
+      Operands[SI] = ConstantInt::get(Int64Ty, APInt(64, O, true));
     }
     // Constant fold the operation with the selected operands
     ArrayRef<Constant *> TmpOp(Operands);
-    Constant *Res = ConstantFoldInstOperands(OpCode, Int64Ty, TmpOp, DL);
-    const ConstantInt *R = cast<const ConstantInt>(Res);
+    Constant *Res = ConstantFoldInstOperands(I, TmpOp, DL);
+    ConstantInt *R = cast<ConstantInt>(Res);
     const int64_t ResO = R->getSExtValue();
     return CSVOffsets(ResultKind, ResO);
   }
@@ -1237,40 +1240,80 @@ private:
 
   CSVOffsets foldOffsets(CSVOffsets::Kind ResultKind,
                          WorkItem::size_type NumSrcs,
-                         const Instruction *I,
+                         Instruction *I,
                          const SmallVector<offset_iterator, 4> &OffsetsIt) {
     const auto *GEP = cast<const GetElementPtrInst>(I);
-    const auto OpResTy = GEP->getType();
     const auto PtrOpTy = GEP->getPointerOperand()->getType();
     SmallVector<Constant *, 4> Operands(NumSrcs, nullptr);
     // Setup operands
-    int64_t ptr_o = *OffsetsIt[0];
-    Constant *int_c = ConstantInt::get(Int64Ty, APInt(64, ptr_o, true));
-    Constant *ptr_c = ConstantExpr::getIntToPtr(int_c, PtrOpTy);
-    Operands[0] = ptr_c;
+    int64_t PtrOp = *OffsetsIt[0];
+    Operands[0] = Constant::getIntegerValue(PtrOpTy, APInt(64, PtrOp, true));
     for (WorkItem::size_type SI = 1; SI < NumSrcs; ++SI) {
-      const int64_t o = *OffsetsIt[SI];
-      Operands[SI] = ConstantInt::get(Int32Ty, APInt(32, o, true));
+      const int64_t O = *OffsetsIt[SI];
+      Operands[SI] = ConstantInt::get(Int32Ty, APInt(32, O, true));
     }
     // Constant fold the operation with the selected operands
     ArrayRef<Constant *> TmpOp(Operands);
+    Constant *Res = ConstantFoldInstOperands(I, TmpOp, DL);
+    ConstantInt *R = getConstValue(Res, DL);
+    const int64_t ResO = getSExtValue(R, DL);
+    return CSVOffsets(ResultKind, ResO);
+  }
+};
+
+/// \brief Specialization of CRTPOffsetFolder for non-address binary operations
+class NumericOffsetFolder : public CRTPOffsetFolder<NumericOffsetFolder> {
+
+public:
+  NumericOffsetFolder(const Module &M) :
+    CRTPOffsetFolder<NumericOffsetFolder>(M) {}
+
+public:
+  friend class CRTPOffsetFolder<NumericOffsetFolder>;
+
+private:
+  static std::pair<bool, CSVOffsets::Kind>
+  checkOffsetTupleIsValid(const SmallVector<const CSVOffsets *, 4> &OffsetTuple,
+                          const Instruction *I,
+                          SmallVector<OptCSVOffsets, 4> &) {
+    revng_assert(OffsetTuple.size() == 2);
+
     auto OpCode = I->getOpcode();
-    Constant *Res = ConstantFoldInstOperands(OpCode, OpResTy, TmpOp, DL);
-    const ConstantInt *R = nullptr;
-    if (Res->getType()->isPointerTy()) {
-      if (isa<ConstantPointerNull>(Res)) {
-        auto Const = ConstantInt::get(Int32Ty, APInt(32, 0, true));
-        R = cast<const ConstantInt>(Const);
-      } else if (auto *PtrCast = dyn_cast<ConstantExpr>(Res)) {
-        auto OpCode = PtrCast->getAsInstruction()->getOpcode();
-        revng_assert(OpCode == Instruction::IntToPtr);
-        R = cast<const ConstantInt>(PtrCast->getOperand(0));
-      } else {
-        revng_abort();
-      }
+    revng_assert(OpCode == Instruction::Shl or OpCode == Instruction::AShr
+                 or OpCode == Instruction::LShr or OpCode == Instruction::Mul
+                 or OpCode == Instruction::URem or OpCode == Instruction::SRem
+                 or OpCode == Instruction::SDiv or OpCode == Instruction::UDiv);
+
+    const auto O0 = OffsetTuple[0], O1 = OffsetTuple[1];
+    revng_assert(not O0->isPtr() and not O1->isPtr());
+    if (O0->isUnknown() or O1->isUnknown()) {
+      return std::make_pair(false, CSVOffsets::Kind::Unknown);
     } else {
-      R = cast<const ConstantInt>(Res);
+      return std::make_pair(true, CSVOffsets::Kind::Numeric);
     }
+  }
+
+  CSVOffsets foldOffsets(CSVOffsets::Kind ResultKind,
+                         WorkItem::size_type NumSrcs,
+                         Instruction *I,
+                         const SmallVector<offset_iterator, 4> &OffsetsIt) {
+
+    auto OpCode = I->getOpcode();
+    revng_assert(OpCode == Instruction::Shl or OpCode == Instruction::AShr
+                 or OpCode == Instruction::LShr or OpCode == Instruction::Mul
+                 or OpCode == Instruction::URem or OpCode == Instruction::SRem
+                 or OpCode == Instruction::SDiv or OpCode == Instruction::UDiv);
+
+    SmallVector<Constant *, 4> Operands(NumSrcs, nullptr);
+    // Setup operands
+    for (WorkItem::size_type SI = 0; SI < NumSrcs; ++SI) {
+      const int64_t O = *OffsetsIt[SI];
+      Operands[SI] = ConstantInt::get(Int64Ty, APInt(64, O, true));
+    }
+    // Constant fold the operation with the selected operands
+    ArrayRef<Constant *> TmpOp(Operands);
+    Constant *Res = ConstantFoldInstOperands(I, TmpOp, DL);
+    ConstantInt *R = cast<ConstantInt>(Res);
     const int64_t ResO = R->getSExtValue();
     return CSVOffsets(ResultKind, ResO);
   }
@@ -1314,6 +1357,7 @@ private:
   std::vector<WorkItem> WorkList;
   ConstValuePtrSet InExploration;
   AddSubOffsetFolder AddSubFolder;
+  NumericOffsetFolder NumericFolder;
   GEPOffsetFolder GEPFolder;
 
 public:
@@ -1344,6 +1388,7 @@ public:
     WorkList(),
     InExploration(),
     AddSubFolder(M),
+    NumericFolder(M),
     GEPFolder(M) {}
 
 public:
@@ -1702,6 +1747,17 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
       CSVAccessLog << "Add/Sub" << DoLog;
       AddSubFolder.fold(Item, ValueCallSiteOffsets);
     } break;
+    case Instruction::Shl:
+    case Instruction::AShr:
+    case Instruction::LShr:
+    case Instruction::Mul:
+    case Instruction::URem:
+    case Instruction::SRem:
+    case Instruction::SDiv:
+    case Instruction::UDiv: {
+      CSVAccessLog << "NumericFold" << DoLog;
+      NumericFolder.fold(Item, ValueCallSiteOffsets);
+    } break;
     case Instruction::GetElementPtr: {
       CSVAccessLog << "GEP" << DoLog;
       GEPFolder.fold(Item, ValueCallSiteOffsets);
@@ -1712,20 +1768,15 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
                                       ValueCallSiteOffsets.at(AddressValue));
       bool New = LoadCallSiteOffsets.insert(LoadCSOff).second;
       if (CSVAccessLog.isEnabled()) {
-        CSVAccessLog << "Load ";
-        std::string InstrLog;
-        raw_string_ostream OStream(InstrLog);
-        Instr->print(OStream);
-        CSVAccessLog << InstrLog << DoLog;
+        CSVAccessLog << "Load " << dumpToString(Instr) << DoLog;
+
         for (const auto &CS2O : LoadCSOff.second) {
           CSVAccessLog << "CallSite: ";
-          std::string CallLog;
-          raw_string_ostream CallOStream(CallLog);
           if (CS2O.first)
-            Instr->print(CallOStream);
+            CSVAccessLog << dumpToString(Instr);
           else
-            CallOStream << "nullptr";
-          CSVAccessLog << CallLog << DoLog;
+            CSVAccessLog << "nullptr";
+          CSVAccessLog << DoLog;
           CSVAccessLog << CS2O.second << DoLog;
         }
       }
@@ -1737,27 +1788,21 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
                                        ValueCallSiteOffsets.at(AddressValue));
       bool New = StoreCallSiteOffsets.insert(StoreCSOff).second;
       if (CSVAccessLog.isEnabled()) {
-        CSVAccessLog << "Store ";
-        std::string InstrLog;
-        raw_string_ostream OStream(InstrLog);
-        Instr->print(OStream);
-        CSVAccessLog << InstrLog << DoLog;
+        CSVAccessLog << "Store " << dumpToString(Instr) << DoLog;
         for (const auto &CS2O : StoreCSOff.second) {
           CSVAccessLog << "CallSite: ";
-          std::string CallLog;
-          raw_string_ostream CallOStream(CallLog);
           if (CS2O.first)
-            Instr->print(CallOStream);
+            CSVAccessLog << dumpToString(Instr);
           else
-            CallOStream << "nullptr";
-          CSVAccessLog << CallLog << DoLog;
+            CSVAccessLog << "nullptr";
+          CSVAccessLog << DoLog;
           CSVAccessLog << CS2O.second << DoLog;
         }
       }
       revng_assert(New);
     } break;
     default:
-      revng_abort();
+      revng_abort(dumpToString(Instr).data());
     }
   } else {
     revng_abort();
@@ -1798,7 +1843,7 @@ CPUSAOA::getOffsetsOrExploreSrc(Value *V, WorkItem &Item, bool IsLoad) const {
   if (auto *Call = dyn_cast<CallInst>(V)) {
     if (CSVAccessLog.isEnabled()) {
       CSVAccessLog << "CALL" << DoLog;
-      Call->dump();
+      CSVAccessLog << dumpToString(Call) << DoLog;
     }
     Item = WorkItem(Call, IsLoad);
   } else if (auto *Arg = dyn_cast<Argument>(V)) {
@@ -2102,13 +2147,12 @@ bool CPUSAOA::run() {
     TaintLog << "== Loads ==\n";
     for (Instruction *LoadOrStore : TaintedAccesses.TaintedLoads) {
       TaintLog << "INSTRUCTION: " << LoadOrStore << DoLog;
-      LoadOrStore->dump();
-      TaintLog << DoLog;
+      TaintLog << dumpToString(LoadOrStore) << DoLog;
       TaintLog.indent(4);
       for (const auto &CSO : LoadCallSiteOffsets.at(LoadOrStore)) {
         TaintLog << "CallSite: " << CSO.first << '\n';
         if (CSO.first != nullptr)
-          CSO.first->dump();
+          TaintLog << dumpToString(CSO.first);
         TaintLog << DoLog;
         TaintLog << CSO.second << '\n';
       }
@@ -2118,13 +2162,12 @@ bool CPUSAOA::run() {
     TaintLog << "== Stores ==\n";
     for (Instruction *LoadOrStore : TaintedAccesses.TaintedStores) {
       TaintLog << "INSTRUCTION: " << LoadOrStore << DoLog;
-      LoadOrStore->dump();
-      TaintLog << DoLog;
+      TaintLog << dumpToString(LoadOrStore) << DoLog;
       TaintLog.indent(4);
       for (const auto &CSO : StoreCallSiteOffsets.at(LoadOrStore)) {
         TaintLog << "CallSite: " << CSO.first << '\n';
         if (CSO.first != nullptr)
-          CSO.first->dump();
+          TaintLog << dumpToString(CSO.first);
         TaintLog << DoLog;
         TaintLog << CSO.second << '\n';
       }
@@ -2347,15 +2390,17 @@ static void fixEnv2EnvMemCopies(const Module &M,
 
       Builder.SetInsertPoint(Instr);
       CallInst *MemcpyLoad = Builder.CreateMemCpy(TmpBuffer,
+                                                  TmpBuffer->getAlignment(),
                                                   MemcpySrc,
-                                                  MemcpySize,
-                                                  TmpBuffer->getAlignment());
+                                                  1,
+                                                  MemcpySize);
       NewLoadCSOffsets.insert({ MemcpyLoad, InstCSOffset.second });
 
       CallInst *MemcpyStore = Builder.CreateMemCpy(MemcpyDst,
+                                                   1,
                                                    TmpBuffer,
-                                                   MemcpySize,
-                                                   TmpBuffer->getAlignment());
+                                                   TmpBuffer->getAlignment(),
+                                                   MemcpySize);
       NewStoreCSOffsets.insert({ MemcpyStore, It->second });
 
       AccessToRemove.insert(Instr);
@@ -2594,11 +2639,7 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
     case CSVOffsets::Kind::OutAndUnknownInPtr:
     case CSVOffsets::Kind::KnownInPtr: {
 
-      if (FixAccessLog.isEnabled()) {
-        FixAccessLog << "Before: " << DoLog;
-        F->dump();
-        FixAccessLog << DoLog;
-      }
+      revng_log(FixAccessLog, "Before: " << dumpToString(F));
 
       // This is necessary to get the correct debug info.
       // Setting the insert point to an Instruction also updates the Builder
@@ -2760,10 +2801,7 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
         if (FixAccessLog.isEnabled()) {
           ++NumUnknown;
           FunToNumUnknown[F->getName()]++;
-          std::string InstrLog;
-          raw_string_ostream OStream(InstrLog);
-          AccessToFix->print(OStream);
-          FunToUnknowns[F->getName()].insert(InstrLog);
+          FunToUnknowns[F->getName()].insert(dumpToString(AccessToFix));
         }
 
         SwitchInst *SwitchOffset = Builder.CreateSwitch(OffsetValue,
@@ -2808,27 +2846,26 @@ void CPUStateAccessAnalysis::correctCPUStateAccesses() {
     }
 
     // Verify the transformation and cleanup the access to fix
-    if (FixAccessLog.isEnabled()) {
-      FixAccessLog << "After: " << DoLog;
-      F->dump();
-      FixAccessLog << DoLog;
-    }
+    revng_log(FixAccessLog, "After: " << dumpToString(F));
     if (I != AccessToFix) {
       if (FixAccessLog.isEnabled()) {
         FixAccessLog << "Erasing AccessToFix: " << AccessToFix << DoLog;
-        AccessToFix->dump();
+        FixAccessLog << dumpToString(AccessToFix) << DoLog;
       }
       AccessToFix->eraseFromParent();
     }
     if (FixAccessLog.isEnabled()) {
       FixAccessLog << "Erasing I: " << I << DoLog;
-      I->dump();
+      FixAccessLog << dumpToString(I) << DoLog;
     }
     I->eraseFromParent();
   }
 }
 
 bool CPUStateAccessAnalysis::run() {
+
+  if (CPUStatePtr == nullptr)
+    return false;
 
   // Get the root Function
   const Function *RootFunction = M.getFunction("root");
@@ -2852,21 +2889,21 @@ bool CPUStateAccessAnalysis::run() {
     TaintLog << "==== Tainted Loads =====\n";
     for (const Instruction *I : TaintResults.TaintedLoads) {
       TaintLog << I << DoLog;
-      I->dump();
+      TaintLog << dumpToString(I) << DoLog;
       std::string Name = I->getParent()->getParent()->getName();
       TaintLog << "In Function: " << Name << DoLog;
     }
     TaintLog << "==== Tainted Stores ====\n";
     for (const Instruction *I : TaintResults.TaintedStores) {
       TaintLog << I << DoLog;
-      I->dump();
+      TaintLog << dumpToString(I) << DoLog;
       std::string Name = I->getParent()->getParent()->getName();
       TaintLog << "In Function: " << Name << DoLog;
     }
     TaintLog << "==== Illegal Calls =====\n";
     for (const Instruction *I : TaintResults.IllegalCalls) {
       TaintLog << I << DoLog;
-      I->dump();
+      TaintLog << dumpToString(I) << DoLog;
       std::string Name = I->getParent()->getParent()->getName();
       TaintLog << "In Function: " << Name << DoLog;
     }

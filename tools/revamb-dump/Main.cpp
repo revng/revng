@@ -197,12 +197,12 @@ int main(int argc, const char *argv[]) {
   Loggers->activateArguments();
   installStatistics();
 
-  LLVMContext &Context = getGlobalContext();
+  LLVMContext RevambDumpContext;
   SMDiagnostic Err;
   std::unique_ptr<Module> TheModule;
   {
     Callgrind DisableCallgrind(false);
-    TheModule = parseIRFile(InputPath, Err, Context);
+    TheModule = parseIRFile(InputPath, Err, RevambDumpContext);
   }
 
   if (!TheModule) {

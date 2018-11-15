@@ -397,8 +397,6 @@ public:
     return Pair.first + Pair.second;
   }
 
-  enum Endianess { OriginalEndianess, DestinationEndianess };
-
   /// \brief Read an integer number from a segment
   ///
   /// \param Address the address from which to read.
@@ -407,18 +405,17 @@ public:
   /// \return a `ConstantInt` with the read value or `nullptr` in case it wasn't
   ///         possible to read the value (e.g., \p Address is not inside any of
   ///         the segments).
-  llvm::ConstantInt *readConstantInt(llvm::Constant *Address,
-                                     unsigned Size,
-                                     Endianess ReadEndianess);
+  llvm::ConstantInt *
+  readConstantInt(llvm::Constant *Address,
+                  unsigned Size,
+                  BinaryFile::Endianess E = BinaryFile::OriginalEndianess);
 
   /// \brief Reads a pointer-sized value from a segment
   /// \see readConstantInt
-  llvm::Constant *readConstantPointer(llvm::Constant *Address,
-                                      llvm::Type *PointerTy,
-                                      Endianess ReadEndianess);
-
-  llvm::Optional<uint64_t>
-  readRawValue(uint64_t Address, unsigned Size, Endianess ReadEndianess) const;
+  llvm::Constant *
+  readConstantPointer(llvm::Constant *Address,
+                      llvm::Type *PointerTy,
+                      BinaryFile::Endianess E = BinaryFile::OriginalEndianess);
 
   /// \brief Increment the counter of emitted branches since the last reset
   void newBranch() { NewBranches++; }
@@ -438,7 +435,7 @@ public:
     unsigned ReadSize = Binary.architecture().pointerSize() / 8;
     for (uint64_t MemoryAddress : UnusedCodePointers) {
       // Read using the original endianess, we want the correct address
-      uint64_t PC = *readRawValue(MemoryAddress, ReadSize, OriginalEndianess);
+      uint64_t PC = *Binary.readRawValue(MemoryAddress, ReadSize);
 
       // Set as reason UnusedGlobalData and ensure it's not empty
       llvm::BasicBlock *BB = registerJT(PC, JTReason::UnusedGlobalData);
@@ -468,6 +465,8 @@ public:
     return Binary.architecture().delaySlotSize();
   }
 
+  const BinaryFile &binary() const { return Binary; }
+
   /// \brief Return the next call to exitTB after I, or nullptr if it can't find
   ///        one
   llvm::CallInst *findNextExitTB(llvm::Instruction *I);
@@ -495,7 +494,7 @@ public:
   ///
   /// \return a string containing the symbol name and, if necessary an offset,
   ///         or if no symbol can be found, just the address.
-  std::string nameForAddress(uint64_t Address) const;
+  std::string nameForAddress(uint64_t Address, uint64_t Size = 1) const;
 
 private:
   std::set<llvm::BasicBlock *> computeUnreachable();
@@ -540,9 +539,6 @@ private:
   /// Depending on the CFG form we're currently adopting the dispatcher might go
   /// to all the jump targets or only to those who have no other predecessor.
   void rebuildDispatcher();
-
-  /// \brief Populate the interval -> Symbol map from Binary.Symbols
-  void initializeSymbolMap();
 
   // TODO: instead of a gigantic switch case we could map the original memory
   //       area and write the address of the translated basic block at the jump
@@ -590,8 +586,6 @@ private:
   std::set<uint64_t> UnusedCodePointers;
   interval_set ReadIntervalSet;
   NoReturnAnalysis NoReturn;
-  using SymbolInfoSet = std::set<const SymbolInfo *>;
-  boost::icl::interval_map<uint64_t, SymbolInfoSet> SymbolMap;
 
   CFGForm::Values CurrentCFGForm;
   std::set<llvm::BasicBlock *> ToPurge;

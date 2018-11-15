@@ -121,18 +121,18 @@ namespace llvm {
 template<typename InnerNodeType>
 struct GraphTraits<SubGraph<InnerNodeType>> {
   using GraphType = SubGraph<InnerNodeType>;
-  using NodeType = typename GraphType::Node;
+  using NodeRef = typename GraphType::Node *;
   using ChildIteratorType = typename GraphType::ChildIteratorType;
   using nodes_iterator = typename GraphType::nodes_iterator;
 
   // TODO: here G should be const
-  static NodeType *getEntryNode(GraphType &G) { return G.EntryNode; }
+  static NodeRef getEntryNode(GraphType &G) { return G.EntryNode; }
 
-  static ChildIteratorType child_begin(NodeType *Parent) {
+  static ChildIteratorType child_begin(NodeRef Parent) {
     return Parent->Children.begin();
   }
 
-  static ChildIteratorType child_end(NodeType *Parent) {
+  static ChildIteratorType child_end(NodeRef Parent) {
     return Parent->Children.end();
   }
 

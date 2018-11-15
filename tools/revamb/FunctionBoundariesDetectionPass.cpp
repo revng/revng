@@ -185,7 +185,7 @@ private:
   std::map<BasicBlock *, std::vector<BasicBlock *>> CallPredecessors;
   std::set<uint64_t> ReturnPCs;
   std::set<TerminatorInst *> Returns;
-  ilist_iterator<BasicBlock> PostDispatcherIt;
+  Function::iterator PostDispatcherIt;
   std::map<BasicBlock *, interval_set> Coverage;
 
   // CFEP related data

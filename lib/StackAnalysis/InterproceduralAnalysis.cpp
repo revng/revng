@@ -673,7 +673,6 @@ FunctionsSummary ResultsPool::finalize(const Module *M) {
   for (auto &P : FunctionCallSlots) {
     CallSite Call = P.first;
     revng_assert(CallSites.count(Call) != 0);
-    Optional<int32_t> StackFrameSize = CallSites[Call];
     Instruction *I = Call.callInstruction();
     BasicBlock *Callee = getFunctionCallCallee(I->getParent());
     bool UnknownCallee = (Callee == nullptr);

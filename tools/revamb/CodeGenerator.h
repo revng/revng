@@ -51,6 +51,7 @@ public:
   /// \param Helpers path of the LLVM IR file containing the QEMU helpers.
   CodeGenerator(BinaryFile &Binary,
                 Architecture &Target,
+                llvm::LLVMContext &TheContext,
                 std::string Output,
                 std::string Helpers,
                 std::string EarlyLinked);
@@ -85,7 +86,7 @@ private:
   /// Queries the HelpersModule for a function and adds it to TheModule.
   ///
   /// \param Name name of the imported function
-  llvm::Function *importHelperFunctionDefinition(llvm::StringRef Name);
+  llvm::Function *importHelperFunctionDeclaration(llvm::StringRef Name);
 
 private:
   Architecture TargetArchitecture;

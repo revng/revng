@@ -172,25 +172,25 @@ noret void revng_do_abort(const char *Message, const char *File, unsigned Line);
 #define IS_EMPTY_0001 ,
 
 #define REVNG_ABORT_0(...) revng_abort_impl(__VA_ARGS__)
-#define REVNG_ABORT_1(...) revng_abort_impl("")
+#define REVNG_ABORT_1(...) revng_abort_impl(NULL)
 #define revng_abort(...) \
   CONCAT2(REVNG_ABORT_, IS_EMPTY(__VA_ARGS__))(__VA_ARGS__)
 
 #define REVNG_UNREACHABLE_0(...) revng_unreachable_impl(__VA_ARGS__)
-#define REVNG_UNREACHABLE_1(...) revng_unreachable_impl("")
+#define REVNG_UNREACHABLE_1(...) revng_unreachable_impl(NULL)
 #define revng_unreachable(...) \
   CONCAT2(REVNG_UNREACHABLE_, IS_EMPTY(__VA_ARGS__))(__VA_ARGS__)
 
 #define MACRO_OVERLOAD_1_OR_2(_1, _2, NAME, ...) NAME
 
-#define revng_assert_impl_nomsg(what) revng_assert_impl(what, "")
+#define revng_assert_impl_nomsg(what) revng_assert_impl(what, NULL)
 #define revng_assert(...)                        \
   MACRO_OVERLOAD_1_OR_2(__VA_ARGS__,             \
                         revng_assert_impl,       \
                         revng_assert_impl_nomsg) \
   (__VA_ARGS__)
 
-#define revng_check_impl_nomsg(what) revng_check_impl(what, "")
+#define revng_check_impl_nomsg(what) revng_check_impl(what, NULL)
 #define revng_check(...)                                                       \
   MACRO_OVERLOAD_1_OR_2(__VA_ARGS__, revng_check_impl, revng_check_impl_nomsg) \
   (__VA_ARGS__)

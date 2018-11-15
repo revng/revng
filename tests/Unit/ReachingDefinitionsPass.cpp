@@ -167,92 +167,82 @@ struct ColorsProviderTraits<ColorMap> {
 
 } // namespace RDA
 
-class Test {
-public:
-  enum Type { Regular, Conditional, Both };
+enum TestType { Regular, Conditional, Both };
 
-private:
-  LLVMContext &Context;
+static void
+runTest(const char *Body,
+        std::vector<std::pair<const char *, std::vector<const char *>>> Checks,
+        std::vector<const char *> BlackList = {},
+        TestType T = Both) {
 
-public:
-  Test() : Context(getGlobalContext()) {}
+  LLVMContext TestContext;
+  std::unique_ptr<Module> M = loadModule(TestContext, Body);
+  Function *F = M->getFunction("main");
 
-  void
-  test(const char *Body,
-       std::vector<std::pair<const char *, std::vector<const char *>>> Checks,
-       std::vector<const char *> BlackList = {},
-       Type T = Both) {
+  std::set<BasicBlock *> BasicBlockBlackList;
+  for (const char *Name : BlackList)
+    BasicBlockBlackList.insert(basicBlockByName(F, Name));
 
-    std::unique_ptr<Module> M = loadModule(Context, Body);
-    Function *F = M->getFunction("main");
+  if (T == Regular || T == Both) {
+    using Analysis = RDA::Analysis<RDA::NullColorsProvider,
+                                   std::set<BasicBlock *>>;
+    Analysis A(F, RDA::NullColorsProvider(), BasicBlockBlackList);
+    A.registerExtremal(&F->getEntryBlock());
+    A.initialize();
+    A.run();
 
-    std::set<BasicBlock *> BasicBlockBlackList;
-    for (const char *Name : BlackList)
-      BasicBlockBlackList.insert(basicBlockByName(F, Name));
-
-    if (T == Regular || T == Both) {
-      using Analysis = RDA::Analysis<RDA::NullColorsProvider,
-                                     std::set<BasicBlock *>>;
-      Analysis A(F, RDA::NullColorsProvider(), BasicBlockBlackList);
-      A.registerExtremal(&F->getEntryBlock());
-      A.initialize();
-      A.run();
-
-      for (auto &P : Checks)
-        assertReachers(F, A, P.first, P.second);
-    }
-
-    if (T == Conditional || T == Both) {
-
-      highlightConditionEdges(*F);
-
-      // Compute the dominator tree
-      // TODO: in more recent LLVM versions we don't need to recompute the
-      //       dominator tree but we'll be able to update it
-      DominatorTree DT(*F);
-
-      ColorMap Colors;
-
-      // Perform a light version of the ConditionNumberingPass
-      std::map<Value *, int> ConditionsMap;
-      for (BasicBlock &BB : *F) {
-        auto *T = dyn_cast<BranchInst>(BB.getTerminator());
-        if (T == nullptr or T->isUnconditional())
-          continue;
-
-        int32_t ConditionIndex = reinterpret_cast<intptr_t>(T->getCondition());
-
-        // ConditionIndex at the first iteration will be positive, at the second
-        // negative
-        std::array<BasicBlock *, 2> Successors{ T->getSuccessor(0),
-                                                T->getSuccessor(1) };
-        for (BasicBlock *Successor : Successors) {
-          revng_assert(Successor->getSinglePredecessor() == &BB);
-
-          SmallVector<BasicBlock *, 6> Descendants;
-          DT.getDescendants(Successor, Descendants);
-          for (BasicBlock *Descendant : Descendants)
-            Colors[Descendant].push_back(ConditionIndex);
-
-          ConditionIndex = -ConditionIndex;
-        }
-      }
-
-      using Analysis = RDA::Analysis<ColorMap, std::set<BasicBlock *>>;
-      Analysis CA(F, Colors, BasicBlockBlackList);
-      CA.registerExtremal(&F->getEntryBlock());
-      CA.initialize();
-      CA.run();
-
-      for (auto &P : Checks)
-        assertReachers(F, CA, P.first, P.second);
-    }
+    for (auto &P : Checks)
+      assertReachers(F, A, P.first, P.second);
   }
-};
+
+  if (T == Conditional || T == Both) {
+
+    highlightConditionEdges(*F);
+
+    // Compute the dominator tree
+    // TODO: in more recent LLVM versions we don't need to recompute the
+    //       dominator tree but we'll be able to update it
+    DominatorTree DT(*F);
+
+    ColorMap Colors;
+
+    // Perform a light version of the ConditionNumberingPass
+    std::map<Value *, int> ConditionsMap;
+    for (BasicBlock &BB : *F) {
+      auto *T = dyn_cast<BranchInst>(BB.getTerminator());
+      if (T == nullptr or T->isUnconditional())
+        continue;
+
+      int32_t ConditionIndex = reinterpret_cast<intptr_t>(T->getCondition());
+
+      // ConditionIndex at the first iteration will be positive, at the second
+      // negative
+      std::array<BasicBlock *, 2> Successors{ T->getSuccessor(0),
+                                              T->getSuccessor(1) };
+      for (BasicBlock *Successor : Successors) {
+        revng_assert(Successor->getSinglePredecessor() == &BB);
+
+        SmallVector<BasicBlock *, 6> Descendants;
+        DT.getDescendants(Successor, Descendants);
+        for (BasicBlock *Descendant : Descendants)
+          Colors[Descendant].push_back(ConditionIndex);
+
+        ConditionIndex = -ConditionIndex;
+      }
+    }
+
+    using Analysis = RDA::Analysis<ColorMap, std::set<BasicBlock *>>;
+    Analysis CA(F, Colors, BasicBlockBlackList);
+    CA.registerExtremal(&F->getEntryBlock());
+    CA.initialize();
+    CA.run();
+
+    for (auto &P : Checks)
+      assertReachers(F, CA, P.first, P.second);
+  }
+}
 
 BOOST_AUTO_TEST_CASE(OneStoreOneLoad) {
-  Test X;
-
   //
   // One store, one load
   //
@@ -263,12 +253,10 @@ BOOST_AUTO_TEST_CASE(OneStoreOneLoad) {
   ret void
 )LLVM";
 
-  X.test(Body, { { "load_rax", { "s:zero" } } });
+  runTest(Body, { { "load_rax", { "s:zero" } } });
 }
 
 BOOST_AUTO_TEST_CASE(StoreToDifferentCSV) {
-  Test X;
-
   //
   // Store to a different CSV
   //
@@ -281,12 +269,10 @@ BOOST_AUTO_TEST_CASE(StoreToDifferentCSV) {
   ret void
 )LLVM";
 
-  X.test(Body, { { "load_rax", { "s:zero" } } });
+  runTest(Body, { { "load_rax", { "s:zero" } } });
 }
 
 BOOST_AUTO_TEST_CASE(ClobberingStore) {
-  Test X;
-
   //
   // Store clobbering a previous store
   //
@@ -299,12 +285,10 @@ BOOST_AUTO_TEST_CASE(ClobberingStore) {
   ret void
 )LLVM";
 
-  X.test(Body, { { "load_rax", { "s:one" } } });
+  runTest(Body, { { "load_rax", { "s:one" } } });
 }
 
 BOOST_AUTO_TEST_CASE(LoadReachingAnotherLoad) {
-  Test X;
-
   //
   // Load reaching another load
   //
@@ -314,12 +298,10 @@ BOOST_AUTO_TEST_CASE(LoadReachingAnotherLoad) {
   ret void
 )LLVM";
 
-  X.test(Body, { { "load_rax2", { "load_rax1" } } });
+  runTest(Body, { { "load_rax2", { "load_rax1" } } });
 }
 
 BOOST_AUTO_TEST_CASE(MultipleLoadsReachingAnotherLoad) {
-  Test X;
-
   //
   // Multiple loads reaching another load
   //
@@ -330,12 +312,10 @@ BOOST_AUTO_TEST_CASE(MultipleLoadsReachingAnotherLoad) {
   ret void
 )LLVM";
 
-  X.test(Body, { { "load_rax3", { "load_rax1" } } });
+  runTest(Body, { { "load_rax3", { "load_rax1" } } });
 }
 
 BOOST_AUTO_TEST_CASE(IfStatement) {
-  Test X;
-
   //
   // If statement
   //
@@ -359,15 +339,13 @@ end:
   ret void
 )LLVM";
 
-  X.test(If, { { "load_rax", { "s:storeone", "s:storetwo" } } });
+  runTest(If, { { "load_rax", { "s:storeone", "s:storetwo" } } });
 
   // Now try again but inhibiting propgation to the end basic block
-  X.test(If, { { "load_rax", {} } }, { "end" });
+  runTest(If, { { "load_rax", {} } }, { "end" });
 }
 
 BOOST_AUTO_TEST_CASE(Loop) {
-  Test X;
-
   //
   // Loop
   //
@@ -386,12 +364,10 @@ end:
   ret void
 )LLVM";
 
-  X.test(Body, { { "load_rax", { "s:storeone", "s:storetwo" } } });
+  runTest(Body, { { "load_rax", { "s:storeone", "s:storetwo" } } });
 }
 
 BOOST_AUTO_TEST_CASE(SelfReachingLoad) {
-  Test X;
-
   //
   // Self-reaching load
   //
@@ -406,12 +382,10 @@ end:
   ret void
 )LLVM";
 
-  X.test(Body, { { "load_rax", {} } });
+  runTest(Body, { { "load_rax", {} } });
 }
 
 BOOST_AUTO_TEST_CASE(RepeatedIfStatement) {
-  Test X;
-
   //
   // Repeated if statement
   //
@@ -445,22 +419,20 @@ end:
   ret void
 )LLVM";
 
-  X.test(RepeatedIf,
-         { { "load_three", { "s:storeone", "s:storetwo" } },
-           { "load_four", { "s:storeone", "s:storetwo" } } },
-         {},
-         Test::Regular);
+  runTest(RepeatedIf,
+          { { "load_three", { "s:storeone", "s:storetwo" } },
+            { "load_four", { "s:storeone", "s:storetwo" } } },
+          {},
+          Regular);
 
-  X.test(RepeatedIf,
-         { { "load_three", { "s:storeone" } },
-           { "load_four", { "s:storetwo" } } },
-         {},
-         Test::Conditional);
+  runTest(RepeatedIf,
+          { { "load_three", { "s:storeone" } },
+            { "load_four", { "s:storetwo" } } },
+          {},
+          Conditional);
 }
 
 BOOST_AUTO_TEST_CASE(ConditionalDefinition) {
-  Test X;
-
   //
   // Conditional definition
   //
@@ -489,16 +461,14 @@ end:
   ret void
 )LLVM";
 
-  X.test(ConditionalDefinition,
-         { { "load_one", { "s:storeone" } },
-           { "load_two", { "s:storezero" } } },
-         {},
-         Test::Conditional);
+  runTest(ConditionalDefinition,
+          { { "load_one", { "s:storeone" } },
+            { "load_two", { "s:storezero" } } },
+          {},
+          Conditional);
 }
 
 BOOST_AUTO_TEST_CASE(LoopClobbering) {
-  Test X;
-
   //
   // Conditional definition
   //
@@ -523,8 +493,8 @@ end:
   ret void
 )LLVM";
 
-  X.test(ConditionalDefinition,
-         { { "load_one", { "s:storezero" } } },
-         {},
-         Test::Conditional);
+  runTest(ConditionalDefinition,
+          { { "load_one", { "s:storezero" } } },
+          {},
+          Conditional);
 }

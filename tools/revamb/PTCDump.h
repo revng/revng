@@ -37,6 +37,11 @@ int dumpTranslation(std::ostream &Result, PTCInstructionList *Instructions);
 ///
 /// \param Result the output stream
 /// \param PC the program counter in the current context.
-void disassembleOriginal(std::ostream &Result, uint64_t PC);
+/// \param MaxSize the maximum number of bytes to disassemble.
+/// \param InstructionCount the maximum number of instructions to disassemble.
+void disassemble(std::ostream &Result,
+                 uint64_t PC,
+                 uint32_t MaxBytes = 4096,
+                 uint32_t InstructionCount = 4096);
 
 #endif // PTCDUMP_H

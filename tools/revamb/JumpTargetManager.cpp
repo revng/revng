@@ -253,7 +253,7 @@ bool TranslateDirectBranchesPass::forceFallthroughAfterHelper(CallInst *Call) {
   auto PCRegTy = PCReg->getType()->getPointerElementType();
   bool ForceFallthrough = false;
 
-  BasicBlock::reverse_iterator It(make_reverse_iterator(Call));
+  BasicBlock::reverse_iterator It(++Call->getReverseIterator());
   auto *BB = Call->getParent();
   auto EndIt = BB->rend();
   while (!ForceFallthrough) {
@@ -316,7 +316,7 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
   DominatorTree &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
 
   BasicBlock *Block = TheInstruction->getParent();
-  BasicBlock::reverse_iterator It(make_reverse_iterator(TheInstruction));
+  BasicBlock::reverse_iterator It(++TheInstruction->getReverseIterator());
 
   while (true) {
     BasicBlock::reverse_iterator Begin(Block->rend());
@@ -347,72 +347,14 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
   revng_unreachable("Can't find the PC marker");
 }
 
-Optional<uint64_t>
-JumpTargetManager::readRawValue(uint64_t Address,
-                                unsigned Size,
-                                Endianess ReadEndianess) const {
-  bool IsLittleEndian;
-  if (ReadEndianess == OriginalEndianess) {
-    IsLittleEndian = Binary.architecture().isLittleEndian();
-  } else if (ReadEndianess == DestinationEndianess) {
-    IsLittleEndian = TheModule.getDataLayout().isLittleEndian();
-  } else {
-    revng_abort();
-  }
-
-  for (auto &Segment : Binary.segments()) {
-    // Note: we also consider writeable memory areas because, despite being
-    // modifiable, can contain useful information
-    if (Segment.contains(Address, Size) && Segment.IsReadable) {
-      // TODO: we ignore .bss here, it might be beneficial to take it into
-      //       account in certain situations
-      const Constant *Initializer = Segment.Variable->getInitializer();
-      if (isa<ConstantAggregateZero>(Initializer))
-        continue;
-
-      auto *Array = cast<ConstantDataArray>(Segment.Variable->getInitializer());
-      StringRef RawData = Array->getRawDataValues();
-      const unsigned char *RawDataPtr = RawData.bytes_begin();
-      uint64_t Offset = Address - Segment.StartVirtualAddress;
-      const unsigned char *Start = RawDataPtr + Offset;
-
-      using support::endianness;
-      using support::endian::read;
-      switch (Size) {
-      case 1:
-        return read<uint8_t, endianness::little, 1>(Start);
-      case 2:
-        if (IsLittleEndian)
-          return read<uint16_t, endianness::little, 1>(Start);
-        else
-          return read<uint16_t, endianness::big, 1>(Start);
-      case 4:
-        if (IsLittleEndian)
-          return read<uint32_t, endianness::little, 1>(Start);
-        else
-          return read<uint32_t, endianness::big, 1>(Start);
-      case 8:
-        if (IsLittleEndian)
-          return read<uint64_t, endianness::little, 1>(Start);
-        else
-          return read<uint64_t, endianness::big, 1>(Start);
-      default:
-        revng_abort("Unexpected read size");
-      }
-    }
-  }
-
-  return Optional<uint64_t>();
-}
-
 Constant *JumpTargetManager::readConstantPointer(Constant *Address,
                                                  Type *PointerTy,
-                                                 Endianess ReadEndianess) {
-  auto *Value = readConstantInt(Address,
-                                Binary.architecture().pointerSize() / 8,
-                                ReadEndianess);
-  if (Value != nullptr) {
-    return ConstantExpr::getIntToPtr(Value, PointerTy);
+                                                 BinaryFile::Endianess E) {
+  Constant *ConstInt = readConstantInt(Address,
+                                       Binary.architecture().pointerSize() / 8,
+                                       E);
+  if (ConstInt != nullptr) {
+    return Constant::getIntegerValue(PointerTy, ConstInt->getUniqueInteger());
   } else {
     return nullptr;
   }
@@ -420,7 +362,7 @@ Constant *JumpTargetManager::readConstantPointer(Constant *Address,
 
 ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
                                                 unsigned Size,
-                                                Endianess ReadEndianess) {
+                                                BinaryFile::Endianess E) {
   const DataLayout &DL = TheModule.getDataLayout();
 
   if (ConstantAddress->getType()->isPointerTy()) {
@@ -434,7 +376,7 @@ ConstantInt *JumpTargetManager::readConstantInt(Constant *ConstantAddress,
   UnusedCodePointers.erase(Address);
   registerReadRange(Address, Size);
 
-  auto Result = readRawValue(Address, Size, ReadEndianess);
+  auto Result = Binary.readRawValue(Address, Size, E);
 
   if (Result.hasValue())
     return ConstantInt::get(IntegerType::get(Context, Size * 8),
@@ -473,8 +415,6 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   for (auto &Segment : Binary.segments())
     Segment.insertExecutableRanges(std::back_inserter(ExecutableRanges));
 
-  initializeSymbolMap();
-
   // Configure GlobalValueNumbering
   StringMap<cl::Option *> &Options(cl::getRegisteredOptions());
   getOption<bool>(Options, "enable-load-pre")->setInitialValue(false);
@@ -483,61 +423,95 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   // getOption<uint32_t>(Options, "max-recurse-depth")->setInitialValue(10);
 }
 
-void JumpTargetManager::initializeSymbolMap() {
-  // Collect how many times each name is used
-  std::map<std::string, unsigned> SeenCount;
-  for (const SymbolInfo &Symbol : Binary.symbols())
-    SeenCount[std::string(Symbol.Name)]++;
+static bool isBetterThan(const Label *NewCandidate, const Label *OldCandidate) {
+  if (OldCandidate == nullptr)
+    return true;
 
-  for (const SymbolInfo &Symbol : Binary.symbols()) {
-    // Discard symbols pointing to 0, with zero-sized names or present multiple
-    // times. Note that we keep zero-size symbols.
-    if (Symbol.Address == 0 || Symbol.Name.size() == 0
-        || SeenCount[std::string(Symbol.Name)] > 1)
-      continue;
+  if (NewCandidate->address() > OldCandidate->address())
+    return true;
 
-    // Associate to this interval the symbol
-    unsigned Size = std::max(1UL, Symbol.Size);
-    auto NewInterval = interval::right_open(Symbol.Address,
-                                            Symbol.Address + Size);
-    SymbolMap += make_pair(NewInterval, SymbolInfoSet{ &Symbol });
+  if (NewCandidate->address() == OldCandidate->address()) {
+    StringRef OldName = OldCandidate->symbolName();
+    if (OldName.size() == 0)
+      return true;
   }
+
+  return false;
 }
 
 // TODO: move this in BinaryFile?
-std::string JumpTargetManager::nameForAddress(uint64_t Address) const {
+std::string
+JumpTargetManager::nameForAddress(uint64_t Address, uint64_t Size) const {
   std::stringstream Result;
+  const auto &SymbolMap = Binary.labels();
 
-  // Take the interval greater than [Address, Address + 1[
-  auto It = SymbolMap.upper_bound(interval::right_open(Address, Address + 1));
-  if (It != SymbolMap.begin()) {
-    // Go back one position
-    It--;
+  auto It = SymbolMap.find(interval::right_open(Address, Address + Size));
+  if (It != SymbolMap.end()) {
+    // We have to look for (in order):
+    //
+    // * Exact match
+    // * Contained (non 0-sized)
+    // * Contained (0-sized)
+    const Label *ExactMatch = nullptr;
+    const Label *ContainedNonZeroSized = nullptr;
+    const Label *ContainedZeroSized = nullptr;
 
-    // In case we have multiple matching symbols, take the closest one
-    const SymbolInfoSet &Matching = It->second;
-    auto MaxIt = std::max_element(Matching.begin(), Matching.end());
-    const SymbolInfo *const BestMatch = *MaxIt;
+    for (const Label *L : It->second) {
+      // Consider symbols only
+      if (not L->isSymbol())
+        continue;
 
-    // Use the symbol name
-    Result << BestMatch->Name.str();
+      if (L->matches(Address, Size)) {
 
-    // And, if necessary, an offset
-    if (Address != BestMatch->Address)
-      Result << ".0x" << std::hex << (Address - BestMatch->Address);
-  } else {
-    // We don't have a symbol to use, just return the address
-    Result << "0x" << std::hex << Address;
+        // It's an exact match
+        ExactMatch = L;
+        break;
+
+      } else if (not L->isSizeVirtual() and L->contains(Address, Size)) {
+
+        // It's contained in a not 0-sized symbol
+        if (isBetterThan(L, ContainedNonZeroSized))
+          ContainedNonZeroSized = L;
+
+      } else if (L->isSizeVirtual() and L->contains(Address, 0)) {
+
+        // It's contained in a 0-sized symbol
+        if (isBetterThan(L, ContainedZeroSized))
+          ContainedZeroSized = L;
+      }
+    }
+
+    const Label *Chosen = nullptr;
+    if (ExactMatch != nullptr)
+      Chosen = ExactMatch;
+    else if (ContainedNonZeroSized != nullptr)
+      Chosen = ContainedNonZeroSized;
+    else if (ContainedZeroSized != nullptr)
+      Chosen = ContainedZeroSized;
+
+    if (Chosen != nullptr and Chosen->symbolName().size() != 0) {
+      // Use the symbol name
+      Result << Chosen->symbolName().str();
+
+      // And, if necessary, an offset
+      if (Address != Chosen->address())
+        Result << ".0x" << std::hex << (Address - Chosen->address());
+
+      return Result.str();
+    }
   }
 
+  // We don't have a symbol to use, just return the address
+  Result << "0x" << std::hex << Address;
   return Result.str();
 }
 
 void JumpTargetManager::harvestGlobalData() {
   // Register symbols
-  for (const SymbolInfo &Symbol : Binary.symbols())
-    if (Symbol.IsFunction)
-      registerJT(Symbol.Address, JTReason::FunctionSymbol);
+  for (auto &P : Binary.labels())
+    for (const Label *L : P.second)
+      if (L->isSymbol() and L->isCode())
+        registerJT(L->address(), JTReason::FunctionSymbol);
 
   // Register landing pads, if available
   // TODO: should register them in UnusedCodePointers?
@@ -621,10 +595,18 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool &ShouldContinue) {
          UnexploredIt++) {
 
       if (UnexploredIt->first == PC) {
-        auto Result = UnexploredIt->second;
-        Unexplored.erase(UnexploredIt);
-        ShouldContinue = true;
-        revng_assert(Result->empty());
+        BasicBlock *Result = UnexploredIt->second;
+
+        // Check if we already have a translation for that
+        ShouldContinue = Result->empty();
+        if (ShouldContinue) {
+          // We don't, OK let's explore it next
+          Unexplored.erase(UnexploredIt);
+        } else {
+          // We do, it will be purged at the next `peek`
+          revng_assert(ToPurge.count(Result) != 0);
+        }
+
         return Result;
       }
     }
@@ -796,7 +778,7 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
   if (TheInstruction->getIterator() == TheInstruction->getParent()->begin())
     WorkList.push(--TheInstruction->getParent()->rend());
   else
-    WorkList.push(make_reverse_iterator(TheInstruction));
+    WorkList.push(++TheInstruction->getReverseIterator());
 
   while (!WorkList.empty()) {
     auto I = WorkList.front();
@@ -1136,7 +1118,7 @@ JumpTargetManager::registerJT(uint64_t PC, JTReason::Values Reason) {
     if (isFirst(I)) {
       NewBlock = ContainingBlock;
     } else {
-      revng_assert(I != nullptr && I != ContainingBlock->end());
+      revng_assert(I != nullptr && I->getIterator() != ContainingBlock->end());
       NewBlock = ContainingBlock->splitBasicBlock(I);
     }
 
@@ -1203,14 +1185,15 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   Builder.CreateCall(cast<Function>(UnknownPC));
   auto *FailUnreachable = Builder.CreateUnreachable();
   FailUnreachable->setMetadata("revamb.block.type",
-                               QMD.tuple(DispatcherFailure));
+                               QMD.tuple((uint32_t) DispatcherFailure));
 
   // Switch on the first argument of the function
   Builder.SetInsertPoint(Entry);
   Value *SwitchOn = Builder.CreateLoad(SwitchOnPtr);
   SwitchInst *Switch = Builder.CreateSwitch(SwitchOn, DispatcherFail);
   // The switch is the terminator of the dispatcher basic block
-  Switch->setMetadata("revamb.block.type", QMD.tuple(DispatcherBlock));
+  Switch->setMetadata("revamb.block.type",
+                      QMD.tuple((uint32_t) DispatcherBlock));
 
   Dispatcher = Entry;
   DispatcherSwitch = Switch;
@@ -1279,9 +1262,10 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
 
   QuickMetadata QMD(Context);
   AnyPC->getTerminator()->setMetadata("revamb.block.type",
-                                      QMD.tuple(AnyPCBlock));
-  UnexpectedPC->getTerminator()->setMetadata("revamb.block.type",
-                                             QMD.tuple(UnexpectedPCBlock));
+                                      QMD.tuple((uint32_t) AnyPCBlock));
+  TerminatorInst *UnexpectedPCJump = UnexpectedPC->getTerminator();
+  UnexpectedPCJump->setMetadata("revamb.block.type",
+                                QMD.tuple((uint32_t) UnexpectedPCBlock));
 
   // If we're entering or leaving the NoFunctionCallsCFG form, update all the
   // branch instruction forming a function call

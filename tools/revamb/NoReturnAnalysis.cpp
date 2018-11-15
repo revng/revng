@@ -40,7 +40,7 @@ void NoReturnAnalysis::registerSyscalls(llvm::Function *F) {
   if (NoDCE == nullptr) {
     Type *VoidTy = Type::getVoidTy(M->getContext());
     Type *SNRTy = SyscallNumberRegister->getType()->getPointerElementType();
-    auto *FunctionC = M->getOrInsertFunction("nodce", VoidTy, SNRTy, nullptr);
+    auto *FunctionC = M->getOrInsertFunction("nodce", VoidTy, SNRTy);
     NoDCE = cast<Function>(FunctionC);
   }
 
@@ -133,7 +133,7 @@ void NoReturnAnalysis::registerKiller(uint64_t StoredValue,
 
 void NoReturnAnalysis::findInfinteLoops() {
   Function *F = Dispatcher->getParent();
-  DominatorTreeBase<BasicBlock> DT(false);
+  DominatorTreeBase<BasicBlock, /* IsPostDom = */ false> DT;
   DT.recalculate(*F);
 
   LoopInfo LI(DT);
@@ -180,7 +180,7 @@ void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors) {
   }
 
   // Compute the post-dominator tree on the CFG (in NoFunctionCallsCFG state)
-  DominatorTreeBase<BasicBlock> PDT(true);
+  DominatorTreeBase<BasicBlock, /* IsPostDom = */ true> PDT;
   PDT.recalculate(*F);
 
   // The worklist initially contains only the sink but will be populated with

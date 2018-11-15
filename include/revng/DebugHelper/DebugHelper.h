@@ -63,8 +63,9 @@ public:
   ///        metadata refering to the produce IR itself or not.
   DebugAnnotationWriter(llvm::LLVMContext &Context, bool DebugInfo);
 
-  virtual void emitInstructionAnnot(const llvm::Instruction *TheInstruction,
-                                    llvm::formatted_raw_ostream &Output);
+  virtual void
+  emitInstructionAnnot(const llvm::Instruction *TheInstruction,
+                       llvm::formatted_raw_ostream &Output) override;
 
 private:
   llvm::LLVMContext &Context;
