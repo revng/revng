@@ -42,7 +42,7 @@ fi
 GREP="git grep -n --color=always"
 
 if test "$FORMAT" -gt 0; then
-    if test "$FORMAT" -eq 1 && not git diff --exit-code > /dev/null; then
+    if test "$FORMAT" -eq 1 && ! git diff --exit-code > /dev/null; then
         echo "Can't run clang-format -i: there are unstaged changes!" > /dev/stderr
         echo 'Run `git reset --hard` or use --force-format to run it anyway.' > /dev/stderr
         exit 1
