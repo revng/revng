@@ -291,14 +291,15 @@ void IFI::replaceFunctionCall(BasicBlock *NewBB,
 
   // Retrieve the called function and emit the call
   StringRef FunctionNameString;
-
-  if (BlockAddress *Callee = dyn_cast<BlockAddress>(Call->getOperand(0))) {
+  BlockAddress *Callee = dyn_cast<BlockAddress>(Call->getOperand(0));
+  bool IsIndirect = (Callee == nullptr);
+  if (IsIndirect) {
+    FunctionNameString = FunctionDispatcher->getName();
+  } else {
     BasicBlock *CalleeEntry = Callee->getBasicBlock();
     TerminatorInst *Terminator = CalleeEntry->getTerminator();
     MDNode *Node = Terminator->getMetadata("func.entry");
     FunctionNameString = getFunctionNameString(Node);
-  } else {
-    FunctionNameString = FunctionDispatcher->getName();
   }
 
   Function *TargetFunction = TheModule->getFunction(FunctionNameString);
@@ -308,7 +309,10 @@ void IFI::replaceFunctionCall(BasicBlock *NewBB,
   IRBuilder<> Builder(Context);
   Builder.SetInsertPoint(NewBB);
 
-  Builder.CreateCall(TargetFunction);
+  if (IsIndirect)
+    Builder.CreateCall(TargetFunction, { Call->getOperand(4) });
+  else
+    Builder.CreateCall(TargetFunction);
 
   // Retrieve the fallthrough basic block and emit the branch
   BlockAddress *FallThroughAddress = cast<BlockAddress>(Call->getOperand(1));
@@ -530,7 +534,9 @@ void IFI::run() {
 
   // Instantiate the dispatcher function, that is called in occurence of an
   // indirect function call.
-  auto *FT = FunctionType::get(Type::getVoidTy(Context), false);
+  auto *FT = FunctionType::get(Type::getVoidTy(Context),
+                               { Type::getInt8PtrTy(Context) },
+                               false);
 
   // Creation of the function
   FunctionDispatcher = Function::Create(FT,
