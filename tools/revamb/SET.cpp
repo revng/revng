@@ -272,6 +272,9 @@ private:
 
   Instruction *Target;
   FunctionCallIdentification *FCI;
+
+  /// Calls to `function_call` targeting multiple different dynamic symbols
+  std::set<CallInst *> MultipleTargetsCalls;
 };
 
 MaterializedValue
@@ -437,6 +440,10 @@ void OperationsStack::explore(Constant *NewOperand) {
   if (SymbolicValue.hasSymbol()) {
     if (IsPCStore and SymbolicValue.value() == 0) {
       if (CallInst *Call = FCI->getCall(Target->getParent())) {
+
+        if (MultipleTargetsCalls.count(Call) != 0)
+          return;
+
         LLVMContext &Context = getContext(Call);
         QuickMetadata QMD(Context);
         auto *Callee = cast<Constant>(Call->getOperand(0));
@@ -449,7 +456,17 @@ void OperationsStack::explore(Constant *NewOperand) {
           auto *Casted = cast<ConstantExpr>(Old)->getOperand(0);
           auto *Initializer = cast<GlobalVariable>(Casted)->getInitializer();
           auto String = cast<ConstantDataArray>(Initializer)->getAsString();
-          revng_assert(String.drop_back() == Name);
+
+          // If this call can target multiple external symbols, simply don't tag
+          // it
+          // TODO: we should duplicate the call
+          if (String.drop_back() != Name) {
+            MultipleTargetsCalls.insert(Call);
+            auto *PointerTy = dyn_cast<PointerType>(Old->getType());
+            Call->setOperand(4, ConstantPointerNull::get(PointerTy));
+            return;
+          }
+
         }
 
         Module *M = Call->getParent()->getParent()->getParent();
