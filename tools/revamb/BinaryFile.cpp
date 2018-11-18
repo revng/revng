@@ -809,9 +809,12 @@ BinaryFile::readRawValue(uint64_t Address, unsigned Size, Endianess E) const {
     // Note: we also consider writeable memory areas because, despite being
     // modifiable, can contain useful information
     if (Segment.contains(Address, Size) && Segment.IsReadable) {
-      const unsigned char *RawDataPtr = Segment.Data.data();
       uint64_t Offset = Address - Segment.StartVirtualAddress;
-      const unsigned char *Start = RawDataPtr + Offset;
+      // Handle the [p_filesz, p_memsz] portion of the segment
+      if (Offset > Segment.Data.size())
+        return 0;
+
+      const unsigned char *Start = Segment.Data.data() + Offset;
 
       using support::endianness;
       using support::endian::read;
