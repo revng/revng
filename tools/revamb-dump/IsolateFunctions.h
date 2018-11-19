@@ -31,7 +31,7 @@ public:
   llvm::Module *getModule();
 
 private:
-  std::unique_ptr<llvm::Module> NewModule;
+  std::unique_ptr<llvm::Module> TheModule;
 };
 
 #endif // ISOLATEFUNCTIONS_H

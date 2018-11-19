@@ -12,6 +12,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/Local.h"
 
 // Local libraries includes
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
@@ -40,14 +41,12 @@ static RegisterPass<IF> X("if", "Isolate Functions Pass", true, true);
 class IsolateFunctionsImpl {
 public:
   IsolateFunctionsImpl(Function &RootFunction,
-                       Module *NewModule,
-                       GeneratedCodeBasicInfo &GCBI,
-                       ValueToValueMapTy &ModuleCloningVMap) :
+                       Module *TheModule,
+                       GeneratedCodeBasicInfo &GCBI) :
     RootFunction(RootFunction),
-    NewModule(NewModule),
+    TheModule(TheModule),
     GCBI(GCBI),
-    ModuleCloningVMap(ModuleCloningVMap),
-    Context(getContext(NewModule)),
+    Context(getContext(TheModule)),
     PCBitSize(8 * GCBI.pcRegSize()) {}
 
   void run();
@@ -95,9 +94,8 @@ private:
 
 private:
   Function &RootFunction;
-  Module *NewModule;
+  Module *TheModule;
   GeneratedCodeBasicInfo &GCBI;
-  ValueToValueMapTy &ModuleCloningVMap;
   LLVMContext &Context;
   Function *RaiseException;
   Function *DebugException;
@@ -303,7 +301,7 @@ void IFI::replaceFunctionCall(BasicBlock *NewBB,
     FunctionNameString = FunctionDispatcher->getName();
   }
 
-  Function *TargetFunction = NewModule->getFunction(FunctionNameString);
+  Function *TargetFunction = TheModule->getFunction(FunctionNameString);
   revng_assert(TargetFunction != nullptr);
 
   // Create a builder object
@@ -489,31 +487,22 @@ void IFI::run() {
   Function *CallMarker = RootFunction.getParent()->getFunction("function_call");
   revng_assert(CallMarker != nullptr);
 
-  // Fill the GlobalVMap to contain the mappings made by the CloneModule
-  // function, in order to have the mappings between global objects (global
-  // variables and functions). We'll initialize the LocalVMaps of the single
-  // functions with these mappings.
-  ValueToValueMap GlobalVMap;
-  for (auto Iter : ModuleCloningVMap)
-    if (isa<GlobalObject>(Iter.first) or isa<ConstantExpr>(Iter.first))
-      GlobalVMap[Iter.first] = Iter.second;
-
   // 2. Create the needed structure to handle the throw of an exception
 
   // Retrieve the global variable corresponding to the program counter
-  PC = NewModule->getGlobalVariable("pc", true);
+  PC = TheModule->getGlobalVariable("pc", true);
 
   // Create a new global variable used as a flag for signaling the raise of an
   // exception
   auto *BoolTy = IntegerType::get(Context, 1);
   auto *ConstantFalse = ConstantInt::get(BoolTy, 0);
-  new GlobalVariable(*NewModule,
+  new GlobalVariable(*TheModule,
                      Type::getInt1Ty(Context),
                      false,
                      GlobalValue::ExternalLinkage,
                      ConstantFalse,
                      "ExceptionFlag");
-  ExceptionFlag = NewModule->getGlobalVariable("ExceptionFlag");
+  ExceptionFlag = TheModule->getGlobalVariable("ExceptionFlag");
 
   // Declare the _Unwind_RaiseException function that we will use as a throw
   auto *RaiseExceptionFT = FunctionType::get(Type::getVoidTy(Context), false);
@@ -521,7 +510,7 @@ void IFI::run() {
   RaiseException = Function::Create(RaiseExceptionFT,
                                     Function::ExternalLinkage,
                                     "raise_exception_helper",
-                                    NewModule);
+                                    TheModule);
 
   // Create the Arrayref necessary for the arguments of exception_warning
   auto *IntegerType = IntegerType::get(Context, PCBitSize);
@@ -537,7 +526,7 @@ void IFI::run() {
   DebugException = Function::Create(DebugExceptionFT,
                                     Function::ExternalLinkage,
                                     "exception_warning",
-                                    NewModule);
+                                    TheModule);
 
   // Instantiate the dispatcher function, that is called in occurence of an
   // indirect function call.
@@ -547,7 +536,7 @@ void IFI::run() {
   FunctionDispatcher = Function::Create(FT,
                                         Function::ExternalLinkage,
                                         "function_dispatcher",
-                                        NewModule);
+                                        TheModule);
 
   // 3. Search for all the alloca instructions and place them in an helper data
   //    structure in order to copy them at the beginning of the function where
@@ -617,7 +606,7 @@ void IFI::run() {
         Function *Function = Function::Create(FT,
                                               Function::ExternalLinkage,
                                               FunctionNameString,
-                                              NewModule);
+                                              TheModule);
 
         Functions[FunctionNameMD] = Function;
         FunctionsPC[Function] = getBasicBlockPC(&BB);
@@ -625,10 +614,6 @@ void IFI::run() {
         // Update v2v map with an ad-hoc mapping between the root function and
         // the current function, useful for subsequent analysis
         ValueToValueMap &LocalVMap = MetaVMap[Function];
-
-        // Copy all the mappings between global variables already created when
-        // we cloned the module
-        LocalVMap = GlobalVMap;
 
         // Add the mapping between root function and all the functions we
         // will create
@@ -852,17 +837,22 @@ void IFI::run() {
     // 13. Visit of the basic blocks of the function in reverse post-order and
     //     population of them with the instructions
     for (BasicBlock *NewBB : RPOT) {
-      BasicBlock *OldBB = NewToOldBBMap[NewBB];
 
-      // Actual copy of the instructions
-      for (Instruction &OldInstruction : *OldBB) {
-        bool IsCall = cloneInstruction(NewBB, &OldInstruction, LocalVMap);
+      // Do not try to populate unexpectedpc and anypc, since they have already
+      // been populated in an ad-hoc manner.
+      if (NewBB != UnexpectedPC && NewBB != AnyPC) {
+        BasicBlock *OldBB = NewToOldBBMap[NewBB];
 
-        // If the cloneInstruction function returns true it means that we
-        // emitted a function call and also the branch to the fallthrough block,
-        // so we must end the inspection of the current basic block
-        if (IsCall == true) {
-          break;
+        // Actual copy of the instructions
+        for (Instruction &OldInstruction : *OldBB) {
+          bool IsCall = cloneInstruction(NewBB, &OldInstruction, LocalVMap);
+
+          // If the cloneInstruction function returns true it means that we
+          // emitted a function call and also the branch to the fallthrough
+          // block, so we must end the inspection of the current basic block
+          if (IsCall == true) {
+            break;
+          }
         }
       }
     }
@@ -875,7 +865,7 @@ void IFI::run() {
   populateFunctionDispatcher();
 
   // Retrieve the root function, we use it a lot.
-  Function *Root = NewModule->getFunction("root");
+  Function *Root = TheModule->getFunction("root");
 
   // Get the unexpectedpc block of the root function
   // TODO: do this in a more elegant way (see if we have some helper)
@@ -903,7 +893,7 @@ void IFI::run() {
   Function *PersonalityFunction = Function::Create(PersonalityFT,
                                                    Function::ExternalLinkage,
                                                    "exception_personality",
-                                                   NewModule);
+                                                   TheModule);
 
   // Add the personality to the root function
   Root->setPersonalityFn(PersonalityFunction);
@@ -916,11 +906,13 @@ void IFI::run() {
     TerminatorInst *Terminator = BB.getTerminator();
     if (MDNode *Node = Terminator->getMetadata("func.entry")) {
       StringRef FunctionNameString = getFunctionNameString(Node);
-      Function *TargetFunc = NewModule->getFunction(FunctionNameString);
+      Function *TargetFunc = TheModule->getFunction(FunctionNameString);
 
-      // Remove the old instruction that compose the entry block
-      BB.dropAllReferences();
-      BB.getInstList().clear();
+      // Create a new trampoline entry block and substitute it to the old entry
+      // block
+      BasicBlock *NewBB = BasicBlock::Create(Context, "", BB.getParent(), &BB);
+      BB.replaceAllUsesWith(NewBB);
+      NewBB->takeName(&BB);
 
       // Emit the invoke instruction
       InvokeInst::Create(TargetFunc,
@@ -928,14 +920,18 @@ void IFI::run() {
                          CatchBB,
                          ArrayRef<Value *>(),
                          "",
-                         &BB);
+                         NewBB);
     }
   }
+
+  // Remove all the orphan basic blocks from the root function (e.g., the
+  // blocks that have been substitued by the trampoline)
+  removeUnreachableBlocks(*Root);
 
   // 15. Before emitting it in output we check that the module in passes the
   //     verifyModule pass
   raw_os_ostream Stream(dbg);
-  revng_assert(verifyModule(*NewModule, &Stream) == false);
+  revng_assert(verifyModule(*TheModule, &Stream) == false);
 }
 
 bool IF::runOnFunction(Function &F) {
@@ -943,15 +939,12 @@ bool IF::runOnFunction(Function &F) {
   // Retrieve analysis of the GeneratedCodeBasicInfo pass
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
 
-  // Clone the starting module and take note of all the mappings between
-  // global objects. The new module will contain the newly generated
-  // functions. We additionaly store all the mappings created in the
-  // ModuleCloningVMap.
-  ValueToValueMapTy ModuleCloningVMap;
-  NewModule = CloneModule(*F.getParent(), ModuleCloningVMap);
+  // Clone the starting module. The new module will contain the newly generated
+  // functions.
+  TheModule = CloneModule(*F.getParent());
 
   // Create an object of type IsolateFunctionsImpl and run the pass
-  IFI Impl(F, NewModule.get(), GCBI, ModuleCloningVMap);
+  IFI Impl(*TheModule->getFunction("root"), TheModule.get(), GCBI);
   Impl.run();
 
   return false;
@@ -959,5 +952,5 @@ bool IF::runOnFunction(Function &F) {
 
 Module *IF::getModule() {
   // Propagate the llvm module to the meta-pass
-  return NewModule.get();
+  return TheModule.get();
 }
