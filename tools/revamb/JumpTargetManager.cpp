@@ -1388,19 +1388,20 @@ bool JumpTargetManager::hasPredecessors(BasicBlock *BB) const {
 // block to translate we proceed as long as we are able to create new edges on
 // the CFG (not considering the dispatcher).
 void JumpTargetManager::harvest() {
-  // Purge all the generated basic blocks without predecessors
-  std::vector<BasicBlock *> ToDelete;
-  for (BasicBlock &BB : *TheFunction) {
-    if (isTranslatedBB(&BB) and &BB != &TheFunction->getEntryBlock()
-        and pred_begin(&BB) == pred_end(&BB)) {
-      revng_assert(getBasicBlockPC(&BB) == 0);
-      ToDelete.push_back(&BB);
-    }
-  }
-  for (BasicBlock *BB : ToDelete)
-    BB->eraseFromParent();
 
   if (empty()) {
+    // Purge all the generated basic blocks without predecessors
+    std::vector<BasicBlock *> ToDelete;
+    for (BasicBlock &BB : *TheFunction) {
+      if (isTranslatedBB(&BB) and &BB != &TheFunction->getEntryBlock()
+          and pred_begin(&BB) == pred_end(&BB)) {
+        revng_assert(getBasicBlockPC(&BB) == 0);
+        ToDelete.push_back(&BB);
+      }
+    }
+    for (BasicBlock *BB : ToDelete)
+      BB->eraseFromParent();
+
     // TODO: move me to a commit function
     // Update the third argument of newpc calls (isJT, i.e., is this instruction
     // a jump target?)
