@@ -617,6 +617,7 @@ FunctionsSummary ResultsPool::finalize(const Module *M) {
   ASID CPU = ASID::cpuID();
 
   std::vector<const GlobalVariable *> IndexToCSV;
+  IndexToCSV.push_back(nullptr);
   for (const GlobalVariable &CSV : M->globals())
     IndexToCSV.push_back(&CSV);
 

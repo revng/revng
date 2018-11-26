@@ -70,6 +70,32 @@ void Analysis::initialize() {
 
   CSVCount = std::distance(M->globals().begin(), M->globals().end());
 
+  // Enumerate CPU state and allocas
+  {
+    CPUIndices.clear();
+
+    // Skip 0, keep it as "invalid value"
+    int32_t I = 1;
+
+    // Go through global variables first
+    for (const llvm::GlobalVariable &GV : M->globals()) {
+      if (not GV.getName().startswith("disasm_"))
+        CPUIndices[&GV] = I;
+      I++;
+    }
+
+    // Look for AllocaInst at the beginning of the root function
+    const llvm::BasicBlock *Entry = &*M->getFunction("root")->begin();
+    auto It = Entry->begin();
+    while (It != Entry->end() and isa<AllocaInst>(&*It)) {
+      CPUIndices[&*It] = I;
+
+      I++;
+      It++;
+    }
+
+  }
+
   TerminatorInst *T = Entry->getTerminator();
   revng_assert(T != nullptr);
 
@@ -77,18 +103,13 @@ void Analysis::initialize() {
   GlobalVariable *LinkRegister = TheCache->getLinkRegister(Entry);
 
   // Get the register indices for for the stack pointer, the program counter
-  // andn the link register
-  int32_t LinkRegisterIndex;
-  auto *PCUser = static_cast<const User *>(GCBI->pcReg());
-  auto *LRUser = static_cast<const User *>(LinkRegister);
-  auto *SPUser = static_cast<const User *>(GCBI->spReg());
-  auto Indices = getCPUIndex<3>(M, { { PCUser, LRUser, SPUser } });
-  PCIndex = Indices[0];
-  LinkRegisterIndex = Indices[1];
-  SPIndex = Indices[2];
+  // and the link register
+  int32_t LinkRegisterIndex = CPUIndices[LinkRegister];
+  PCIndex = CPUIndices[GCBI->pcReg()];
+  SPIndex = CPUIndices[GCBI->spReg()];
 
-  revng_assert(PCIndex != -1
-               && ((LinkRegisterIndex == -1) ^ (LinkRegister != nullptr)));
+  revng_assert(PCIndex != 0
+               && ((LinkRegisterIndex == 0) ^ (LinkRegister != nullptr)));
 
   // Set the stack pointer to SP0+0
   ASSlot StackPointer = ASSlot::create(ASID::cpuID(), SPIndex);
@@ -99,8 +120,8 @@ void Analysis::initialize() {
 
   // Record the slot where ther return address is stored
   ReturnAddressSlot = ((LinkRegister == nullptr) ?
-                         StackSlot0 :
-                         ASSlot::create(ASID::cpuID(), LinkRegisterIndex));
+                       StackSlot0 :
+                       ASSlot::create(ASID::cpuID(), LinkRegisterIndex));
 
   if (SaLog.isEnabled()) {
     SaLog << "The return address is in ";
@@ -129,15 +150,18 @@ private:
   ContentMap InstructionContent; ///< Map for the instructions in this BB
   ContentMap &VariableContent; ///< Reference to map for allocas
   const DataLayout &DL;
+  const std::map<const User *, int32_t> &CPUIndices;
 
 public:
   BasicBlockState(BasicBlock *BB,
                   ContentMap &VariableContent,
-                  const DataLayout &DL) :
+                  const DataLayout &DL,
+                  const std::map<const User *, int32_t> &CPUIndices) :
     BB(BB),
     M(getModule(BB)),
     VariableContent(VariableContent),
-    DL(DL) {}
+    DL(DL),
+    CPUIndices(CPUIndices) {}
 
   /// \brief Gets the Value associated to \p V
   ///
@@ -153,18 +177,11 @@ public:
   Value get(llvm::Value *V) const {
     if (auto *CSV = dyn_cast<AllocaInst>(V)) {
 
-      int32_t Index;
-      Index = getCPUIndex<1>(M, { { static_cast<const User *>(CSV) } })[0];
-      revng_assert(Index != -1);
-      return Value::fromSlot(ASID::cpuID(), Index);
+      return Value::fromSlot(ASID::cpuID(), CPUIndices.at(CSV));
 
     } else if (auto *CSV = dyn_cast<GlobalVariable>(V)) {
 
-      int32_t Index;
-      Index = getCPUIndex<1>(CSV->getParent(),
-                             { { static_cast<const User *>(CSV) } })[0];
-      revng_assert(Index != -1);
-      return Value::fromSlot(ASID::cpuID(), Index);
+      return Value::fromSlot(ASID::cpuID(), CPUIndices.at(CSV));
 
     } else if (auto *C = dyn_cast<Constant>(V)) {
 
@@ -303,7 +320,7 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
 
   // Initialize an object to keep track of the values associated to each
   // instruction in the current basic block
-  BasicBlockState BBState(BB, VariableContent, M->getDataLayout());
+  BasicBlockState BBState(BB, VariableContent, M->getDataLayout(), CPUIndices);
 
   for (Instruction &I : *BB) {
 
