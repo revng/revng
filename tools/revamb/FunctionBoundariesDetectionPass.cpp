@@ -329,13 +329,17 @@ void FBD::collectInitialCFEPSet() {
 
   // Collect initial set of CFEPs
   for (auto &P : *JTM) {
-    if (contains(JTM->readRange(), P.first))
-      continue;
-
     const JumpTargetManager::JumpTarget &JT = P.second;
 
     BasicBlock *CFEPHead = JT.head();
     bool Insert = false;
+
+    if (not JT.hasReason(JTReason::Callee)
+        and contains(JTM->readRange(), P.first)) {
+      revng_log(FunctionsLog,
+                "Skipping " << CFEPHead << ", it has been read\n");
+      continue;
+    }
 
     revng_log(FunctionsLog, JT.describe());
 
