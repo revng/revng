@@ -306,6 +306,11 @@ OperationsStack::materialize(Constant *NewOperand, bool HandleSymbols) {
         revng_abort();
       }
 
+      // Prevent overflow when computing the label interval
+      if (LoadAddress + LoadSize < LoadAddress) {
+        return MaterializedValue::invalid();
+      }
+
       const auto &Labels = JTM->binary().labels();
       using interval = boost::icl::interval<uint64_t>;
       auto Interval = interval::right_open(LoadAddress, LoadAddress + LoadSize);
