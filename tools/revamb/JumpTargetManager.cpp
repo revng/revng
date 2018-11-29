@@ -298,10 +298,18 @@ bool TranslateDirectBranchesPass::forceFallthroughAfterHelper(CallInst *Call) {
   // Create the fallthrough jump
   uint64_t NextPC = JTM->getNextPC(Call);
   Value *NextPCConst = Builder.getIntN(PCRegTy->getIntegerBitWidth(), NextPC);
-  Builder.CreateCondBr(Builder.CreateICmpEQ(Builder.CreateLoad(PCReg),
-                                            NextPCConst),
-                       JTM->registerJT(NextPC, JTReason::PostHelper),
-                       JTM->anyPC());
+
+  // Get the fallthrough basic block and emit a conditional branch, if not
+  // possible simply jump to anyPC
+  BasicBlock *NextPCBB = JTM->registerJT(NextPC, JTReason::PostHelper);
+  if (NextPCBB != nullptr) {
+    Builder.CreateCondBr(Builder.CreateICmpEQ(Builder.CreateLoad(PCReg),
+                                              NextPCConst),
+                         NextPCBB,
+                         JTM->anyPC());
+  } else {
+    Builder.CreateBr(JTM->anyPC());
+  }
 
   return true;
 }
