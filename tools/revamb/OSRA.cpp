@@ -1,4 +1,4 @@
-/// \file osra.cpp
+/// \file OSRA.cpp
 /// \brief
 
 //
@@ -31,6 +31,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MemoryAccess.h"
+#include "revng/Support/Transform.h"
 #include "revng/Support/revng.h"
 
 // Local includes
@@ -162,14 +163,20 @@ private:
   };
 
 public:
-  BVMap() : BlockBlackList(nullptr), DL(nullptr), Int64(nullptr) {}
+  BVMap() :
+    BlockBlackList(nullptr),
+    DL(nullptr),
+    Int64(nullptr),
+    FilteredCFG(nullptr) {}
 
   void initialize(std::set<BasicBlock *> *BlackList,
                   const DataLayout *DL,
-                  Type *Int64) {
+                  Type *Int64,
+                  const CustomCFG *FilteredCFG) {
     this->BlockBlackList = BlackList;
     this->DL = DL;
     this->Int64 = Int64;
+    this->FilteredCFG = FilteredCFG;
   }
 
   void describe(formatted_raw_ostream &O, const BasicBlock *BB) const;
@@ -272,7 +279,18 @@ private:
   Type *Int64;
   std::map<MapIndex, MapValue> TheMap;
   mutable std::map<const BasicBlock *, std::vector<MapValue>> BBMap;
+  const CustomCFG *FilteredCFG;
 };
+
+using CFGNode = CustomCFGNode;
+
+static llvm::BasicBlock *getNode(CFGNode *Node) {
+  return Node->block();
+}
+
+static const llvm::BasicBlock *getConstNode(const CFGNode *Node) {
+  return Node->block();
+}
 
 class OSRA {
 public:
@@ -293,7 +311,8 @@ public:
     Int64(IntegerType::get(getContext(&F), 64)),
     OSRs(OSRs),
     BVs(BVs),
-    PDT() {}
+    PDT(),
+    FilteredCFG(FCI.cfg()) {}
 
   void run();
   void dump();
@@ -380,17 +399,56 @@ public:
     return Base;
   }
 
-  pred_iterator getValidPred(BasicBlock *BB) {
-    pred_iterator Result = pred_begin(BB);
-    nextValidPred(Result, pred_end(BB));
-    return Result;
+  using node_iterator = TransformIterator<BasicBlock *,
+                                          CFGNode::links_const_iterator>;
+  using node_range = iterator_range<node_iterator>;
+
+  node_iterator filtered_pred_begin(BasicBlock *BB) {
+    return node_iterator(FilteredCFG.getNode(BB)->pred_begin(), getNode);
+  }
+  node_iterator filtered_pred_end(BasicBlock *BB) {
+    return node_iterator(FilteredCFG.getNode(BB)->pred_end(), getNode);
+  }
+  node_range filtered_predecessors(BasicBlock *BB) {
+    return make_range(filtered_pred_begin(BB), filtered_pred_end(BB));
   }
 
-  pred_iterator &nextValidPred(pred_iterator &It, pred_iterator End) {
-    while (It != End && BlockBlackList.count(*It) != 0)
-      It++;
+  node_iterator filtered_succ_begin(BasicBlock *BB) {
+    return node_iterator(FilteredCFG.getNode(BB)->succ_begin(), getNode);
+  }
+  node_iterator filtered_succ_end(BasicBlock *BB) {
+    return node_iterator(FilteredCFG.getNode(BB)->succ_end(), getNode);
+  }
+  node_range filtered_successors(BasicBlock *BB) {
+    return make_range(filtered_succ_begin(BB), filtered_succ_end(BB));
+  }
 
-    return It;
+  using node_const_iterator = TransformIterator<const BasicBlock *,
+                                                CFGNode::links_const_iterator>;
+  using node_const_range = iterator_range<node_const_iterator>;
+
+  node_const_iterator filtered_pred_begin(const BasicBlock *BB) {
+    return node_const_iterator(FilteredCFG.getNode(BB)->pred_begin(),
+                               getConstNode);
+  }
+  node_const_iterator filtered_pred_end(const BasicBlock *BB) {
+    return node_const_iterator(FilteredCFG.getNode(BB)->pred_end(),
+                               getConstNode);
+  }
+  node_const_range filtered_predecessors(const BasicBlock *BB) {
+    return make_range(filtered_pred_begin(BB), filtered_pred_end(BB));
+  }
+
+  node_const_iterator filtered_succ_begin(const BasicBlock *BB) {
+    return node_const_iterator(FilteredCFG.getNode(BB)->succ_begin(),
+                               getConstNode);
+  }
+  node_const_iterator filtered_succ_end(const BasicBlock *BB) {
+    return node_const_iterator(FilteredCFG.getNode(BB)->succ_end(),
+                               getConstNode);
+  }
+  node_const_range filtered_successors(const BasicBlock *BB) {
+    return make_range(filtered_succ_begin(BB), filtered_succ_end(BB));
   }
 
   /// Compute a BV for \p Reached by collecting constraints on the reaching
@@ -451,6 +509,7 @@ private:
   std::map<const LoadInst *, SubscribersType> Subscriptions;
 
   DominatorTreeBase<BasicBlock, /* IsPostDom = */ true> PDT;
+  const CustomCFG &FilteredCFG;
 };
 
 void OSRA::propagateConstraints(Instruction *I,
@@ -1119,7 +1178,7 @@ void OSRA::handleBranch(Instruction *I) {
         default:
           revng_assert(isa<TerminatorInst>(I), "Unexpected instruction");
           AffectedSet.insert(I->getParent());
-          for (const BasicBlock *Successor : successors(I->getParent()))
+          for (const auto *Successor : filtered_successors(I->getParent()))
             AffectedSet.insert(Successor);
           break;
         }
@@ -1160,15 +1219,24 @@ void OSRA::handleBranch(Instruction *I) {
 
   std::vector<WLEntry> ConstraintsWL;
   BasicBlock *Source = Branch->getParent();
-  if (!inBlackList(Branch->getSuccessor(0))) {
-    BasicBlock *Successor = Branch->getSuccessor(0);
-    ConstraintsWL.push_back(WLEntry(Successor, Source, BranchConstraints));
-  }
+  if (FilteredCFG.hasNode(Source)) {
+    const CFGNode *Node = FilteredCFG.getNode(Source);
+    SmallVector<const CFGNode *, 2> Successors;
+    std::copy(Node->succ_begin(),
+              Node->succ_end(),
+              std::back_inserter(Successors));
+    revng_assert(Successors.size() <= 2);
 
-  if (!inBlackList(Branch->getSuccessor(1))) {
-    BasicBlock *Successor = Branch->getSuccessor(1);
-    auto FBC = FlippedBranchConstraints;
-    ConstraintsWL.push_back(WLEntry(Successor, Source, FBC));
+    if (Successors.size() >= 1) {
+      BasicBlock *Successor = Successors[0]->block();
+      ConstraintsWL.push_back(WLEntry(Successor, Source, BranchConstraints));
+    }
+
+    if (Successors.size() >= 2) {
+      BasicBlock *Successor = Successors[1]->block();
+      auto FBC = FlippedBranchConstraints;
+      ConstraintsWL.push_back(WLEntry(Successor, Source, FBC));
+    }
   }
 
   // TODO: can we do this in a DFA way?
@@ -1268,11 +1336,9 @@ void OSRA::handleBranch(Instruction *I) {
     // Propagate the new constraints to the successors (except for the
     // dispatcher)
     if (Entry.Constraints.size() != 0) {
-      for (BasicBlock *Successor : successors(Entry.Target)) {
-        if (BlockBlackList.find(Successor) == BlockBlackList.end()) {
-          WLEntry Constraint(Successor, Entry.Target, Entry.Constraints);
-          ConstraintsWL.push_back(Constraint);
-        }
+      for (BasicBlock *Successor : filtered_successors(Entry.Target)) {
+        WLEntry Constraint(Successor, Entry.Target, Entry.Constraints);
+        ConstraintsWL.push_back(Constraint);
       }
     }
   }
@@ -1577,30 +1643,18 @@ private:
 };
 
 void OSRA::run() {
-  BVs.initialize(&BlockBlackList, &DL, Int64);
-  PDT.recalculate(F);
-
-  for (auto &BB : F) {
-    if (!BB.empty()) {
-      if (auto *Call = dyn_cast<CallInst>(&*BB.begin())) {
-        Function *Callee = Call->getCalledFunction();
-        // TODO: comparing with "newpc" string is sad
-        if (Callee != nullptr && Callee->getName() == "newpc")
-          break;
-      }
-    }
-
-    BlockBlackList.insert(&BB);
-  }
-
-  // Initialize the WorkList with all the instructions in the function
-  auto &BBList = F.getBasicBlockList();
-  for (auto &BB : make_range(BBList.begin(), BBList.end()))
-    if (BlockBlackList.find(&BB) == BlockBlackList.end())
+  // Populate the WorkList
+  for (BasicBlock &BB : F)
+    if (FilteredCFG.hasNode(&BB))
       for (auto &I : make_range(BB.begin(), BB.end()))
         WorkList.insert(&I);
 
-  while (!WorkList.empty()) {
+  // TODO: drop BlockBlackList
+  BVs.initialize(&BlockBlackList, &DL, Int64, &FilteredCFG);
+  // TODO: compute on FilteredCFG?
+  PDT.recalculate(F);
+
+  while (not WorkList.empty()) {
     Instruction *I = WorkList.pop();
 
     unsigned Opcode = I->getOpcode();
@@ -1890,31 +1944,57 @@ bool OSRA::isDead(Instruction *I) const {
       if (Store->getValueOperand() != I)
         return false;
 
-      bool Used = false;
       auto *State = dyn_cast<GlobalVariable>(Store->getPointerOperand());
       if (State == nullptr)
         return false;
 
-      auto Visitor = [State, &Used](BasicBlockRange R) {
-        for (Instruction &I : R) {
+      struct Visitor
+        : public BFSVisitorBase<true, Visitor, SmallVector<BasicBlock *, 4>> {
+      public:
+        using SuccessorsType = SmallVector<BasicBlock *, 4>;
 
-          if (auto *Load = dyn_cast<LoadInst>(&I)) {
-            if (Load->getPointerOperand() == State) {
-              Used = true;
-              return StopNow;
-            }
-          } else if (auto *Store = dyn_cast<StoreInst>(&I)) {
-            if (Store->getPointerOperand() == State) {
-              return NoSuccessors;
+      public:
+        bool Used;
+        GlobalVariable *State;
+        const CustomCFG &FilteredCFG;
+
+      public:
+        Visitor(GlobalVariable *State, const CustomCFG &FilteredCFG) :
+          Used(false),
+          State(State),
+          FilteredCFG(FilteredCFG) {}
+
+      public:
+        VisitAction visit(BasicBlockRange Range) {
+          for (Instruction &I : Range) {
+
+            if (auto *Load = dyn_cast<LoadInst>(&I)) {
+              if (Load->getPointerOperand() == State) {
+                Used = true;
+                return StopNow;
+              }
+            } else if (auto *Store = dyn_cast<StoreInst>(&I)) {
+              if (Store->getPointerOperand() == State) {
+                return NoSuccessors;
+              }
             }
           }
+
+          return Continue;
         }
 
-        return Continue;
+        SuccessorsType successors(BasicBlock *BB) {
+          SuccessorsType Successors;
+          for (CFGNode *Successor : FilteredCFG.getNode(BB)->successors())
+            Successors.push_back(Successor->block());
+          return Successors;
+        }
       };
-      visitSuccessors(Store, make_blacklist(BlockBlackList), Visitor);
 
-      return !Used;
+      Visitor V(State, FilteredCFG);
+      V.run(Store);
+
+      return not V.Used;
     }
     default:
       return false;
@@ -2043,15 +2123,15 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
 
   struct State {
     BasicBlock *BB;
-    pred_iterator PredecessorIt;
+    node_iterator PredecessorIt;
   };
   std::set<BasicBlock *> InStack;
   std::vector<State> Stack;
   State Initial = {
     Reached->getParent(),
-    getValidPred(Reached->getParent()),
+    filtered_pred_begin(Reached->getParent()),
   };
-  if (Initial.PredecessorIt == pred_end(Initial.BB))
+  if (Initial.PredecessorIt == filtered_pred_end(Initial.BB))
     return BoundedValue(Reached);
 
   Stack.push_back(Initial);
@@ -2171,9 +2251,9 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
       revng_log(Log, Indent << "    We exceeded the maximum depth");
 
     // Check we have at least a non-dispatcher predecessor
-    pred_iterator NewPredIt = getValidPred(Pred);
-    Proceed &= NewPredIt != pred_end(Pred);
-    if (not(NewPredIt != pred_end(Pred)))
+    auto NewPredIt = filtered_pred_begin(Pred);
+    Proceed &= NewPredIt != filtered_pred_end(Pred);
+    if (not(NewPredIt != filtered_pred_end(Pred)))
       revng_log(Log, Indent << "    No predecessors");
 
     if (Proceed) {
@@ -2186,8 +2266,8 @@ BoundedValue OSRA::pathSensitiveMerge(LoadInst *Reached) {
       unsigned OldHeight = Stack.size();
       while (Stack.size() != 0) {
         State &Top = Stack.back();
-        auto End = pred_end(Top.BB);
-        if (nextValidPred(++Top.PredecessorIt, End) != End)
+        auto End = filtered_pred_end(Top.BB);
+        if (++Top.PredecessorIt != End)
           break;
 
         InStack.erase(Top.BB);
@@ -2364,13 +2444,9 @@ BoundedValue &BVMap::summarize(BasicBlock *Target, MapValue *BVOVector) {
   // Initialize the summary BV with the first BV
   BVOVector->Summary = BVOVector->Components[0].second;
 
-  unsigned PredecessorsCount = 0;
-  for (auto *Predecessor : predecessors(Target))
-    if (BlockBlackList->find(Predecessor) == BlockBlackList->end()
-        && !pred_empty(Predecessor))
-      PredecessorsCount++;
-
   // Do we have a constraint for each predecessor?
+  unsigned PredecessorsCount = FilteredCFG->getNode(Target)->predecessor_size();
+  revng_assert(PredecessorsCount >= BVOVector->Components.size());
   if (BVOVector->Components.size() == PredecessorsCount) {
     // Yes, we can populate the summary by merging all the components
     for (auto &BVO : skip(1, BVOVector->Components))

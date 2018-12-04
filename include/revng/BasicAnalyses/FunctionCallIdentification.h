@@ -13,6 +13,7 @@
 #include "llvm/Support/Casting.h"
 
 // Local libraries includes
+#include "revng/BasicAnalyses/CustomCFG.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -104,9 +105,15 @@ public:
     return isFallthrough(I->getParent());
   }
 
+  const CustomCFG &cfg() const { return FilteredCFG; }
+
+private:
+  void buildFilteredCFG(llvm::Function &F);
+
 private:
   llvm::Function *FunctionCall;
   std::set<uint64_t> FallthroughAddresses;
+  CustomCFG FilteredCFG;
 };
 
 #endif // FUNCTIONCALLIDENTIFICATION_H

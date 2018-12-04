@@ -76,3 +76,19 @@ target_link_libraries(test_reachingdefinitionspass
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_reachingdefinitionspass COMMAND test_reachingdefinitionspass)
+
+#
+# test_irhelpers
+#
+
+add_executable(test_irhelpers "${SRC}/IRHelpers.cpp")
+target_include_directories(test_irhelpers
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+          "${Boost_INCLUDE_DIRS}")
+target_compile_definitions(test_irhelpers
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_link_libraries(test_irhelpers
+  revngSupport
+  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+  ${LLVM_LIBRARIES})
+add_test(NAME test_irhelpers COMMAND test_irhelpers)

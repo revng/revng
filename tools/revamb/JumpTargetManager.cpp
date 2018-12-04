@@ -648,25 +648,52 @@ void JumpTargetManager::registerInstruction(uint64_t PC,
 }
 
 CallInst *JumpTargetManager::findNextExitTB(Instruction *Start) {
-  CallInst *Result = nullptr;
 
-  auto Visitor = [this, &Result](BasicBlockRange Range) {
-    for (Instruction &I : Range) {
-      if (auto *Call = dyn_cast<CallInst>(&I)) {
-        revng_assert(!(Call->getCalledFunction()->getName() == "newpc"));
-        if (Call->getCalledFunction() == ExitTB) {
-          revng_assert(Result == nullptr);
-          Result = Call;
-          return ExhaustQueueAndStop;
+  struct Visitor
+    : public BFSVisitorBase<true, Visitor, SmallVector<BasicBlock *, 4>> {
+  public:
+    using SuccessorsType = SmallVector<BasicBlock *, 4>;
+
+  public:
+    CallInst *Result;
+    Function *ExitTB;
+    JumpTargetManager *JTM;
+
+  public:
+    Visitor(Function *ExitTB, JumpTargetManager *JTM) :
+      Result(nullptr),
+      ExitTB(ExitTB),
+      JTM(JTM) {}
+
+  public:
+    VisitAction visit(BasicBlockRange Range) {
+      for (Instruction &I : Range) {
+        if (auto *Call = dyn_cast<CallInst>(&I)) {
+          revng_assert(!(Call->getCalledFunction()->getName() == "newpc"));
+          if (Call->getCalledFunction() == ExitTB) {
+            revng_assert(Result == nullptr);
+            Result = Call;
+            return ExhaustQueueAndStop;
+          }
         }
       }
+
+      return Continue;
     }
 
-    return Continue;
+    SuccessorsType successors(BasicBlock *BB) {
+      SuccessorsType Successors;
+      for (BasicBlock *Successor : make_range(succ_begin(BB), succ_end(BB)))
+        if (JTM->isTranslatedBB(Successor))
+          Successors.push_back(Successor);
+      return Successors;
+    }
   };
-  visitSuccessors(Start, make_blacklist(*this), Visitor);
 
-  return Result;
+  Visitor V(ExitTB, this);
+  V.run(Start);
+
+  return V.Result;
 }
 
 StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {

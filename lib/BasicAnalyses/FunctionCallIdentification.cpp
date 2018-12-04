@@ -19,6 +19,8 @@ static RegisterPass<FunctionCallIdentification> X("fci",
                                                   true,
                                                   true);
 
+static Logger<> FilteredCFGLog("filtered-cfg");
+
 bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
   revng_log(PassesLog, "Starting FunctionCallIdentification");
 
@@ -78,113 +80,143 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
     //
     // TODO: the function call detection criteria in reachingdefinitions.cpp
     //       is probably more elegant, import it.
-    bool SaveRAFound = false;
-    bool StorePCFound = false;
-    uint64_t ReturnPC = GCBI.getNextPC(Terminator);
-    uint64_t LastPC = ReturnPC;
-    Constant *LinkRegister = nullptr;
+    struct Visitor
+      : public BFSVisitorBase<false, Visitor, SmallVector<BasicBlock *, 4>> {
+    public:
+      using SuccessorsType = SmallVector<BasicBlock *, 4>;
 
-    // We can meet up calls to newpc up to (1 + "size of the delay slot")
-    // times
-    unsigned NewPCLeft = 1;
+    public:
+      BasicBlock *BB;
+      const GeneratedCodeBasicInfo &GCBI;
+      bool SaveRAFound;
+      bool StorePCFound;
+      Constant *LinkRegister;
+      const uint64_t ReturnPC;
+      uint64_t LastPC;
 
-    auto Visitor = [&BB,
-                    &GCBI,
-                    &NewPCLeft,
-                    &SaveRAFound,
-                    ReturnPC,
-                    &LastPC,
-                    &StorePCFound,
-                    &LinkRegister,
-                    &PCPtrTy](RBasicBlockRange R) {
-      for (Instruction &I : R) {
-        if (auto *Store = dyn_cast<StoreInst>(&I)) {
-          Value *V = Store->getValueOperand();
-          Value *Pointer = Store->getPointerOperand();
-          auto *TargetCSV = dyn_cast<GlobalVariable>(Pointer);
-          if (GCBI.isPCReg(TargetCSV)) {
-            if (TargetCSV != nullptr)
-              StorePCFound = true;
-          } else if (auto *Constant = dyn_cast<ConstantInt>(V)) {
-            // Note that we willingly ignore stores to the PC here
-            if (Constant->getLimitedValue() == ReturnPC) {
-              if (SaveRAFound) {
-                SaveRAFound = false;
-                return StopNow;
-              }
-              SaveRAFound = true;
+      // We can meet calls up to newpc up to (1 + "size of the delay slot")
+      // times
+      uint64_t NewPCLeft;
+      PointerType *PCPtrTy;
 
-              // Find where the return address is being stored
-              revng_assert(LinkRegister == nullptr);
-              if (TargetCSV != nullptr) {
-                // The return address is being written to a register
-                LinkRegister = TargetCSV;
-              } else {
-                // The return address is likely being written on the stack, we
-                // have to check the last value on the stack and check if we're
-                // writing there. This should cover basically all the cases,
-                // and, if not, expanding this should be straightforward
+    public:
+      Visitor(BasicBlock *BB,
+              const GeneratedCodeBasicInfo &GCBI,
+              uint64_t ReturnPC,
+              PointerType *PCPtrTy) :
+        BB(BB),
+        GCBI(GCBI),
+        SaveRAFound(false),
+        StorePCFound(false),
+        LinkRegister(nullptr),
+        ReturnPC(ReturnPC),
+        LastPC(ReturnPC),
+        NewPCLeft(1),
+        PCPtrTy(PCPtrTy) {}
 
-                // Reference example:
-                //
-                // %1 = load i64, i64* @rsp
-                // %2 = sub i64 %1, 8
-                // %3 = inttoptr i64 %2 to i64*
-                // store i64 4194694, i64* %3
-                // store i64 %2, i64* @rsp
-                // store i64 4194704, i64* @pc
+    public:
+      VisitAction visit(instruction_range Range) {
+        for (Instruction &I : Range) {
+          if (auto *Store = dyn_cast<StoreInst>(&I)) {
+            Value *V = Store->getValueOperand();
+            Value *Pointer = skipCasts(Store->getPointerOperand());
+            auto *TargetCSV = dyn_cast<GlobalVariable>(Pointer);
+            if (GCBI.isPCReg(TargetCSV)) {
+              if (TargetCSV != nullptr)
+                StorePCFound = true;
+            } else if (auto *Constant = dyn_cast<ConstantInt>(V)) {
+              // Note that we willingly ignore stores to the PC here
+              if (Constant->getLimitedValue() == ReturnPC) {
+                if (SaveRAFound) {
+                  SaveRAFound = false;
+                  return StopNow;
+                }
+                SaveRAFound = true;
 
-                // Find the last write to the stack pointer
-                Value *LastStackPointer = nullptr;
-                for (Instruction &I : make_range(BB.rbegin(), BB.rend())) {
-                  if (auto *S = dyn_cast<StoreInst>(&I)) {
-                    auto *P = dyn_cast<GlobalVariable>(S->getPointerOperand());
-                    if (P != nullptr && GCBI.isSPReg(P)) {
-                      LastStackPointer = Store->getPointerOperand();
-                      break;
+                // Find where the return address is being stored
+                revng_assert(LinkRegister == nullptr);
+                if (TargetCSV != nullptr) {
+                  // The return address is being written to a register
+                  LinkRegister = TargetCSV;
+                } else {
+                  // The return address is likely being written on the stack, we
+                  // have to check the last value on the stack and check if
+                  // we're writing there. This should cover basically all the
+                  // cases, and, if not, expanding this should be
+                  // straightforward
+
+                  // Reference example:
+                  //
+                  // %1 = load i64, i64* @rsp
+                  // %2 = sub i64 %1, 8
+                  // %3 = inttoptr i64 %2 to i64*
+                  // store i64 4194694, i64* %3
+                  // store i64 %2, i64* @rsp
+                  // store i64 4194704, i64* @pc
+
+                  // Find the last write to the stack pointer
+                  Value *LastStackPointer = nullptr;
+                  for (Instruction &I : make_range(BB->rbegin(), BB->rend())) {
+                    if (auto *S = dyn_cast<StoreInst>(&I)) {
+                      Value *Pointer = skipCasts(S->getPointerOperand());
+                      auto *P = dyn_cast<GlobalVariable>(Pointer);
+                      if (P != nullptr && GCBI.isSPReg(P)) {
+                        LastStackPointer = Store->getPointerOperand();
+                        break;
+                      }
                     }
                   }
-                }
-                revng_assert(LastStackPointer != nullptr);
-                revng_assert(skipCasts(LastStackPointer) == skipCasts(Pointer));
+                  revng_assert(LastStackPointer != nullptr);
+                  revng_assert(skipCasts(LastStackPointer) == Pointer);
 
-                // If LinkRegister is nullptr it means the return address is
-                // being pushed on the top of the stack
-                LinkRegister = ConstantPointerNull::get(PCPtrTy);
+                  // If LinkRegister is nullptr it means the return address is
+                  // being pushed on the top of the stack
+                  LinkRegister = ConstantPointerNull::get(PCPtrTy);
+                }
               }
             }
-          }
-        } else if (auto *Call = dyn_cast<CallInst>(&I)) {
-          auto *Callee = Call->getCalledFunction();
-          if (Callee != nullptr && Callee->getName() == "newpc") {
-            revng_assert(NewPCLeft > 0);
+          } else if (auto *Call = dyn_cast<CallInst>(&I)) {
+            auto *Callee = Call->getCalledFunction();
+            if (Callee != nullptr && Callee->getName() == "newpc") {
+              revng_assert(NewPCLeft > 0);
 
-            uint64_t ProgramCounter = getLimitedValue(Call->getOperand(0));
-            uint64_t InstructionSize = getLimitedValue(Call->getOperand(1));
+              uint64_t ProgramCounter = getLimitedValue(Call->getOperand(0));
+              uint64_t InstructionSize = getLimitedValue(Call->getOperand(1));
 
-            // Check that, w.r.t. to the last newpc, we're looking at the
-            // immediately preceeding instruction, if not fail.
-            if (ProgramCounter + InstructionSize != LastPC)
-              return StopNow;
+              // Check that, w.r.t. to the last newpc, we're looking at the
+              // immediately preceeding instruction, if not fail.
+              if (ProgramCounter + InstructionSize != LastPC)
+                return StopNow;
 
-            // Update the last seen PC
-            LastPC = ProgramCounter;
+              // Update the last seen PC
+              LastPC = ProgramCounter;
 
-            NewPCLeft--;
-            if (NewPCLeft == 0)
-              return StopNow;
+              NewPCLeft--;
+              if (NewPCLeft == 0)
+                return StopNow;
+            }
           }
         }
+
+        return Continue;
       }
 
-      return Continue;
+      SuccessorsType successors(BasicBlock *BB) {
+        SuccessorsType Successors;
+        for (BasicBlock *Successor : make_range(pred_begin(BB), pred_end(BB)))
+          if (not BB->empty() and GCBI.isTranslated(Successor))
+            Successors.push_back(Successor);
+        return Successors;
+      }
     };
 
-    // TODO: adapt visitPredecessors from visitSuccessors
-    GCBI.visitPredecessors(Terminator, Visitor);
+    uint64_t ReturnPC = GCBI.getNextPC(Terminator);
+    Visitor V(&BB, GCBI, ReturnPC, PCPtrTy);
+    V.run(Terminator);
 
     BasicBlock *ReturnBB = GCBI.getBlockAt(ReturnPC);
-    if (SaveRAFound && StorePCFound && NewPCLeft == 0 && ReturnBB != nullptr) {
+    if (V.SaveRAFound and V.StorePCFound and V.NewPCLeft == 0
+        and ReturnBB != nullptr) {
       // It's a function call, register it
 
       // Emit a call to "function_call" with three parameters: the first is the
@@ -225,7 +257,7 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
                                                  BlockAddress::get(ReturnBB),
                                                  ConstantInt::get(PCTy,
                                                                   ReturnPC),
-                                                 LinkRegister,
+                                                 V.LinkRegister,
                                                  Int8NullPtr };
 
       FallthroughAddresses.insert(ReturnPC);
@@ -244,7 +276,65 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
     }
   }
 
+  buildFilteredCFG(F);
+
   revng_log(PassesLog, "Ending FunctionCallIdentification");
 
   return false;
+}
+
+void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+
+  // We have to create a view on the CFG where:
+  //
+  // * We only have translate basic blocks
+  // * Function call edges proceed towards the falltrough basic block
+  for (BasicBlock &BB : F) {
+
+    if (BB.empty() or not GCBI.isTranslated(&BB))
+      continue;
+
+    CustomCFGNode *Node = FilteredCFG.getNode(&BB);
+
+    // Is this a function call?
+    if (CallInst *Call = GCBI.getFunctionCall(&BB)) {
+
+      Value *SecondArgument = Call->getArgOperand(1);
+      auto *Fallthrough = cast<BlockAddress>(SecondArgument)->getBasicBlock();
+      Node->addSuccessor(FilteredCFG.getNode(Fallthrough));
+
+    } else {
+
+      unsigned SuccessorsCount = succ_end(&BB) - succ_begin(&BB);
+      bool IsReturn = SuccessorsCount > 0;
+      bool AllZero = true;
+      auto SuccessorsRange = make_range(succ_begin(&BB), succ_end(&BB));
+      for (llvm::BasicBlock *Successor : SuccessorsRange) {
+
+        if (Successor->empty())
+          continue;
+
+        uint64_t Address = getBasicBlockPC(Successor);
+        AllZero = AllZero and (Address == 0);
+        IsReturn = IsReturn and (Address == 0 or isFallthrough(Address));
+      }
+      IsReturn = IsReturn and not AllZero;
+
+      if (not IsReturn) {
+        for (BasicBlock *Successor : SuccessorsRange) {
+
+          if (Successor->empty() or not GCBI.isTranslated(Successor))
+            continue;
+
+          Node->addSuccessor(FilteredCFG.getNode(Successor));
+        }
+      }
+    }
+  }
+
+  FilteredCFG.buildBackLinks();
+
+  if (FilteredCFGLog.isEnabled())
+    FilteredCFG.dump(FilteredCFGLog);
 }

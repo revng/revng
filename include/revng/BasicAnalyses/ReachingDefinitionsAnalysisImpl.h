@@ -9,6 +9,7 @@
 #include "llvm/ADT/SmallVector.h"
 
 // Local libraries includes
+#include "revng/BasicAnalyses/FunctionCallIdentification.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/MemoryAccess.h"
 #include "revng/Support/MonotoneFramework.h"
@@ -203,15 +204,18 @@ private:
   BlackListTrait<const BlackList &, llvm::BasicBlock *> TheBlackList;
 
   const GeneratedCodeBasicInfo *GCBI;
+  const FunctionCallIdentification *FCI;
 
 public:
   Analysis(llvm::Function *F,
            const ColorsProvider &TheColorsProvider,
-           const BlackList &TheBlackList) :
+           const BlackList &TheBlackList,
+           const FunctionCallIdentification *FCI) :
     Base(&F->getEntryBlock()),
     F(F),
     TheColorsProvider(TheColorsProvider),
-    TheBlackList(TheBlackList) {
+    TheBlackList(TheBlackList),
+    FCI(FCI) {
 
     GCBI = getGCBIOrNull(TheBlackList);
   }
@@ -232,13 +236,23 @@ public:
 
   SuccessorsList successors(llvm::BasicBlock *BB, Interrupt &) const {
     SuccessorsList Result;
-    for (llvm::BasicBlock *Successor : make_range(succ_begin(BB), succ_end(BB)))
-      Result.push_back(Successor);
+
+    if (FCI != nullptr) {
+      const CustomCFG &FilteredCFG = FCI->cfg();
+      revng_assert(FilteredCFG.hasNode(BB));
+      for (CustomCFGNode *Node : FilteredCFG.getNode(BB)->successors())
+        Result.push_back(Node->block());
+    } else {
+      for (llvm::BasicBlock *BB : make_range(succ_begin(BB), succ_end(BB)))
+        Result.push_back(BB);
+    }
+
     return Result;
   }
 
   size_t successor_size(llvm::BasicBlock *BB, Interrupt &I) const {
-    return succ_end(BB) - succ_begin(BB);
+    // TODO: not nice
+    return successors(BB, I).size();
   }
 
   Interrupt createSummaryInterrupt() { return Interrupt::createSummary(); }

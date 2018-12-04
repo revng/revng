@@ -1,4 +1,4 @@
-/// \file set.cpp
+/// \file SET.cpp
 ///
 /// \brief Simple Expression Tracker pass implementation
 ///
@@ -539,7 +539,7 @@ private:
   /// \brief Enqueue all the store seen by the Start load instruction
   /// \return true if it was possible to fully handle all instruction writing to
   ///         the source of the load instruction.
-  bool enqueueStores(LoadInst *Start);
+  bool enqueueStores(LoadInst *Load);
 
   /// \brief Process \p V
   /// \return a boolean indicating whether V has been handled properly and a new

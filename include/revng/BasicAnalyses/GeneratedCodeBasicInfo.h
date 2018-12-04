@@ -250,11 +250,6 @@ public:
     return getFunctionCall(T) != nullptr;
   }
 
-  /// \brief Calls \p Visitor for each instruction preceeding \p I
-  ///
-  /// See visitPredecessors in revng/Support/IRHelpers.h
-  void visitPredecessors(llvm::Instruction *I, RVisitorFunction Visitor);
-
   llvm::BasicBlock *anyPC() { return AnyPC; }
 
 private:
@@ -279,13 +274,5 @@ struct BlackListTrait<const GeneratedCodeBasicInfo &, llvm::BasicBlock *>
     return !this->Obj.isTranslated(Value);
   }
 };
-
-inline void
-GeneratedCodeBasicInfo::visitPredecessors(llvm::Instruction *I,
-                                          RVisitorFunction Visitor) {
-  using BLT = BlackListTrait<const GeneratedCodeBasicInfo &,
-                             llvm::BasicBlock *>;
-  ::visitPredecessors(I, Visitor, BLT(*this));
-}
 
 #endif // GENERATEDCODEBASICINFO_H

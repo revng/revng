@@ -118,7 +118,10 @@ runTest(const char *Body,
   if (T == Regular || T == Both) {
     using Analysis = RDA::Analysis<RDA::NullColorsProvider,
                                    std::set<BasicBlock *>>;
-    Analysis A(F, RDA::NullColorsProvider(), BasicBlockBlackList);
+    Analysis A(F,
+               RDA::NullColorsProvider(),
+               BasicBlockBlackList,
+               nullptr);
     A.registerExtremal(&F->getEntryBlock());
     A.initialize();
     A.run();
@@ -164,7 +167,7 @@ runTest(const char *Body,
     }
 
     using Analysis = RDA::Analysis<ColorMap, std::set<BasicBlock *>>;
-    Analysis CA(F, Colors, BasicBlockBlackList);
+    Analysis CA(F, Colors, BasicBlockBlackList, nullptr);
     CA.registerExtremal(&F->getEntryBlock());
     CA.initialize();
     CA.run();

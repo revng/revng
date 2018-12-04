@@ -90,10 +90,14 @@ bool ReachingDefinitionsPass::runOnFunction(llvm::Function &F) {
 
   using Analysis = RDA::Analysis<RDA::NullColorsProvider,
                                  GeneratedCodeBasicInfo>;
+  auto &GCBI = this->getAnalysis<GeneratedCodeBasicInfo>();
   Analysis A(&F,
              RDA::NullColorsProvider(),
-             this->getAnalysis<GeneratedCodeBasicInfo>());
-  A.registerExtremal(&F.getEntryBlock());
+             GCBI,
+             &this->getAnalysis<FunctionCallIdentification>());
+  for (BasicBlock &BB : F)
+    if (GCBI.getType(&BB) == JumpTargetBlock)
+      A.registerExtremal(&BB);
   A.initialize();
   A.run();
 
@@ -118,10 +122,14 @@ bool ConditionalReachedLoadsPass::runOnFunction(llvm::Function &F) {
 
   using Analysis = RDA::Analysis<ConditionNumberingPass,
                                  GeneratedCodeBasicInfo>;
+  auto &GCBI = this->getAnalysis<GeneratedCodeBasicInfo>();
   Analysis A(&F,
              this->getAnalysis<ConditionNumberingPass>(),
-             this->getAnalysis<GeneratedCodeBasicInfo>());
-  A.registerExtremal(&F.getEntryBlock());
+             GCBI,
+             &this->getAnalysis<FunctionCallIdentification>());
+  for (BasicBlock &BB : F)
+    if (GCBI.getType(&BB) == JumpTargetBlock)
+      A.registerExtremal(&BB);
   A.initialize();
   A.run();
 
