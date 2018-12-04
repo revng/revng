@@ -500,7 +500,7 @@ void OSRA::handleArithmeticOperator(Instruction *I) {
         OSRs.erase(I);
 
       uint64_t Constant = getZExtValue(ConstantOp, DL);
-      BoundedValue ConstantBV = BoundedValue::createConstant(I, Constant);
+      auto ConstantBV = BoundedValue::createConstant(ConstantOp, Constant);
       auto &BV = BVs.forceBV(I, ConstantBV);
       OSR ConstantOSR(&BV);
       OSRs.emplace(make_pair(I, ConstantOSR));
@@ -1307,8 +1307,7 @@ void OSRA::handleMemoryOperation(Instruction *I) {
 
       // We're storing a constant, create a constant OSR
       uint64_t Constant = getZExtValue(ConstantOp, DL);
-      BoundedValue ConstantBV = BoundedValue::createConstant(ConstantOp,
-                                                             Constant);
+      auto ConstantBV = BoundedValue::createConstant(ConstantOp, Constant);
       auto &BV = BVs.forceBV(I->getParent(), ConstantOp, ConstantBV);
       SelfOSR = OSR(&BV);
 
