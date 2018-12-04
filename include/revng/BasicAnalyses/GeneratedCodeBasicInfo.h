@@ -203,8 +203,8 @@ public:
   ///
   /// Return false if \p BB is a dispatcher-related basic block.
   bool isTranslated(llvm::BasicBlock *BB) const {
-    return (BB != Dispatcher and BB != DispatcherFail and BB != AnyPC
-            and BB != UnexpectedPC);
+    BlockType Type = getType(BB);
+    return Type == UntypedBlock or Type == JumpTargetBlock;
   }
 
   /// \brief Find the PC which lead to generated \p TheInstruction
