@@ -452,6 +452,8 @@ public:
     return llvm::ConstantAsMetadata::get(Constant);
   }
 
+  llvm::MDNode *get() { return llvm::MDNode::get(C, {}); }
+
   llvm::MDTuple *tuple(const char *String) { return tuple(get(String)); }
 
   llvm::MDTuple *tuple(llvm::StringRef String) { return tuple(get(String)); }
