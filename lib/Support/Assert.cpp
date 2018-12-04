@@ -13,8 +13,8 @@
 #include "revng/Support/Assert.h"
 
 static void print_stack_trace() {
-  llvm::raw_os_ostream Output(std::cout);
-  std::cout << "\n";
+  llvm::raw_os_ostream Output(std::cerr);
+  std::cerr << "\n";
   llvm::sys::PrintStackTrace(Output);
 }
 
@@ -28,7 +28,7 @@ report(const char *Type, const char *File, unsigned Line, const char *What) {
   fprintf(stderr, "%s at %s:%d", Type, File, Line);
   if (What != NULL)
     fprintf(stderr, ": %s", What);
-  puts("");
+  fprintf(stderr, "\n");
 }
 
 void revng_assert_fail(const char *AssertionBody,
@@ -36,7 +36,7 @@ void revng_assert_fail(const char *AssertionBody,
                        const char *File,
                        unsigned Line) {
   report("Assertion failed", File, Line, Message);
-  fprintf(stderr, "%s\n", AssertionBody);
+  fprintf(stderr, "\n%s\n", AssertionBody);
   terminate();
 }
 
@@ -45,7 +45,7 @@ void revng_check_fail(const char *CheckBody,
                       const char *File,
                       unsigned Line) {
   report("Check failed", File, Line, Message);
-  fprintf(stderr, "%s\n", CheckBody);
+  fprintf(stderr, "\n%s\n", CheckBody);
   terminate();
 }
 
