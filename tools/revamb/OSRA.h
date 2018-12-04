@@ -93,11 +93,64 @@ public:
     // TODO: update users in case the sign changed
     void setSignedness(bool IsSigned);
 
-    void describe(llvm::raw_ostream &O) const;
-
     std::string describe() const;
 
-    void dump() const debug_function;
+    void dump() const debug_function { dump(dbg); }
+
+    template<typename T>
+    void dump(T &O) const {
+      if (Negated)
+        O << "NOT ";
+
+      O << "(";
+      O << getName(Value);
+      O << ", ";
+
+      switch (Sign) {
+      case AnySignedness:
+        O << "*";
+        break;
+      case UnknownSignedness:
+        O << "?";
+        break;
+      case Signed:
+        O << "s";
+        break;
+      case Unsigned:
+        O << "u";
+        break;
+      case InconsistentSignedness:
+        O << "x";
+        break;
+      }
+
+      if (Bottom) {
+        O << ", bottom";
+      } else if (!isUninitialized()) {
+        for (auto Bound : Bounds) {
+          O << ", [";
+          if (!isConstant() && hasSignedness()
+              and Bound.first == lowerExtreme()) {
+            O << "min";
+          } else {
+            O << Bound.first;
+          }
+
+          O << ", ";
+
+          if (not isConstant() and hasSignedness()
+              and Bound.second == upperExtreme()) {
+            O << "max";
+          } else {
+            O << Bound.second;
+          }
+
+          O << "]";
+        }
+      }
+
+      O << ")";
+    }
 
     /// \brief Merge policies for BVs
     enum MergeType {
