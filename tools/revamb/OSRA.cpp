@@ -465,6 +465,7 @@ void OSRA::propagateConstraints(Instruction *I,
 }
 
 void OSRA::handleArithmeticOperator(Instruction *I) {
+
   // Check if it's a free value
   auto OldOSRIt = OSRs.find(I);
   bool IsFree = OldOSRIt == OSRs.end();

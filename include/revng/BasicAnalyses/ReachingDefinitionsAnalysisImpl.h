@@ -193,8 +193,8 @@ private:
   llvm::Function *F;
 
   /// Map for the results: records all the reaching definitions
-  std::map<llvm::LoadInst *, llvm::SmallVector<llvm::Instruction *, 4>>
-    ReachedBy;
+  using InstructionVector = llvm::SmallVector<llvm::Instruction *, 4>;
+  std::map<llvm::LoadInst *, InstructionVector> ReachedBy;
 
   /// Map of colors associated to a basic block
   const ColorsProvider &TheColorsProvider;
@@ -335,10 +335,12 @@ public:
 
     MISet AliveMIs = this->State[BB];
 
+    //
     // Remove the colors that need to be reset in this basic block
-    const llvm::SmallVector<int32_t, 4> &ResetColors = getResetColors(BB);
+    //
+    const SmallVector<int32_t, 4> &ResetColors = getResetColors(BB);
 
-    llvm::SmallVector<MemoryInstruction, 4> ToInsert;
+    SmallVector<MemoryInstruction, 4> ToInsert;
     for (auto It = AliveMIs.begin(); It != AliveMIs.end();) {
 
       // Clone and drop all reset colors
@@ -366,6 +368,9 @@ public:
     for (MemoryInstruction &MI : ToInsert)
       AliveMIs.insert(MI);
 
+    //
+    // Apply the transfer function instruction by instruction
+    //
     const DataLayout &DL = getModule(BB)->getDataLayout();
 
     for (Instruction &I : *BB) {

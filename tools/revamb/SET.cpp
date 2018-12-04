@@ -466,7 +466,6 @@ void OperationsStack::explore(Constant *NewOperand) {
             Call->setOperand(4, ConstantPointerNull::get(PointerTy));
             return;
           }
-
         }
 
         Module *M = Call->getParent()->getParent()->getParent();
@@ -728,7 +727,7 @@ bool SETPass::runOnFunction(Function &F) {
 
   freeContainer(Jumps);
 
-  OSRAPass *OSRA = getAnalysisIfAvailable<OSRAPass>();
+  auto *OSRA = getAnalysisIfAvailable<OSRAPass>();
   if (OSRA != nullptr) {
     auto &CRDP = getAnalysis<ConditionalReachedLoadsPass>();
     JTM->noReturn().collectDefinitions(CRDP);

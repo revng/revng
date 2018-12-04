@@ -93,7 +93,6 @@ void Analysis::initialize() {
       I++;
       It++;
     }
-
   }
 
   TerminatorInst *T = Entry->getTerminator();
@@ -120,8 +119,8 @@ void Analysis::initialize() {
 
   // Record the slot where ther return address is stored
   ReturnAddressSlot = ((LinkRegister == nullptr) ?
-                       StackSlot0 :
-                       ASSlot::create(ASID::cpuID(), LinkRegisterIndex));
+                         StackSlot0 :
+                         ASSlot::create(ASID::cpuID(), LinkRegisterIndex));
 
   if (SaLog.isEnabled()) {
     SaLog << "The return address is in ";
