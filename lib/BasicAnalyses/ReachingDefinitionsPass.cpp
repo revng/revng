@@ -94,7 +94,8 @@ bool ReachingDefinitionsPass::runOnFunction(llvm::Function &F) {
   Analysis A(&F,
              RDA::NullColorsProvider(),
              GCBI,
-             &this->getAnalysis<FunctionCallIdentification>());
+             &this->getAnalysis<FunctionCallIdentification>(),
+             &this->getAnalysis<StackAnalysis::StackAnalysis<false>>());
   for (BasicBlock &BB : F)
     if (GCBI.getType(&BB) == JumpTargetBlock)
       A.registerExtremal(&BB);
@@ -126,7 +127,8 @@ bool ConditionalReachedLoadsPass::runOnFunction(llvm::Function &F) {
   Analysis A(&F,
              this->getAnalysis<ConditionNumberingPass>(),
              GCBI,
-             &this->getAnalysis<FunctionCallIdentification>());
+             &this->getAnalysis<FunctionCallIdentification>(),
+             &this->getAnalysis<StackAnalysis::StackAnalysis<false>>());
   for (BasicBlock &BB : F)
     if (GCBI.getType(&BB) == JumpTargetBlock)
       A.registerExtremal(&BB);

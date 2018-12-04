@@ -16,6 +16,7 @@
 // Local libraries includes
 #include "revng/BasicAnalyses/FunctionCallIdentification.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/StackAnalysis/StackAnalysis.h"
 
 extern llvm::SmallVector<llvm::Instruction *, 4> EmptyReachingDefinitionsList;
 
@@ -35,6 +36,7 @@ public:
     AU.setPreservesAll();
     AU.addRequired<GeneratedCodeBasicInfo>();
     AU.addRequired<FunctionCallIdentification>();
+    AU.addRequired<StackAnalysis::StackAnalysis<false>>();
   }
 
   const ReachingDefinitionsVector &
@@ -201,6 +203,7 @@ public:
     AU.addRequired<FunctionCallIdentification>();
     AU.addRequired<GeneratedCodeBasicInfo>();
     AU.addRequired<ConditionNumberingPass>();
+    AU.addRequired<StackAnalysis::StackAnalysis<false>>();
   }
 
   virtual void releaseMemory() override {

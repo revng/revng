@@ -121,6 +121,7 @@ runTest(const char *Body,
     Analysis A(F,
                RDA::NullColorsProvider(),
                BasicBlockBlackList,
+               nullptr,
                nullptr);
     A.registerExtremal(&F->getEntryBlock());
     A.initialize();
@@ -167,7 +168,7 @@ runTest(const char *Body,
     }
 
     using Analysis = RDA::Analysis<ColorMap, std::set<BasicBlock *>>;
-    Analysis CA(F, Colors, BasicBlockBlackList, nullptr);
+    Analysis CA(F, Colors, BasicBlockBlackList, nullptr, nullptr);
     CA.registerExtremal(&F->getEntryBlock());
     CA.initialize();
     CA.run();

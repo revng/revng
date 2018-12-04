@@ -11,6 +11,7 @@
 // Local libraries includes
 #include "revng/BasicAnalyses/FunctionCallIdentification.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/StackAnalysis/StackAnalysis.h"
 #include "revng/Support/MemoryAccess.h"
 #include "revng/Support/MonotoneFramework.h"
 
@@ -205,17 +206,20 @@ private:
 
   const GeneratedCodeBasicInfo *GCBI;
   const FunctionCallIdentification *FCI;
+  const StackAnalysis::StackAnalysis<false> *SA;
 
 public:
   Analysis(llvm::Function *F,
            const ColorsProvider &TheColorsProvider,
            const BlackList &TheBlackList,
-           const FunctionCallIdentification *FCI) :
+           const FunctionCallIdentification *FCI,
+           const StackAnalysis::StackAnalysis<false> *SA) :
     Base(&F->getEntryBlock()),
     F(F),
     TheColorsProvider(TheColorsProvider),
     TheBlackList(TheBlackList),
-    FCI(FCI) {
+    FCI(FCI),
+    SA(SA) {
 
     GCBI = getGCBIOrNull(TheBlackList);
   }
@@ -428,12 +432,33 @@ public:
       }
     }
 
-    // Don't follow function calls for now
-    if (GCBI != nullptr && GCBI->isFunctionCall(BB))
-      return Interrupt::createRegular(MISet());
+    //
+    // Drop MIs clobbered by callee, if function call
+    //
+    if (FCI != nullptr and SA != nullptr and GCBI != nullptr
+        and FCI->isCall(BB)) {
+      // Filter definitions according to stack analysis
+      BasicBlock *Callee = getFunctionCallCallee(BB);
+      const auto &Clobbered = SA->getClobbered(Callee);
+      GlobalVariable *StackPointer = GCBI->spReg();
+      auto IsClobbered = [&Clobbered,
+                          StackPointer](const MemoryInstruction &Other) {
+        const Value *CSVValue = Other.MA.globalVariable();
+        if (const auto *CSV = dyn_cast_or_null<GlobalVariable>(CSVValue))
+          return Clobbered.count(CSV) != 0;
+        else if (const Value *Base = Other.MA.base())
+          return Base != StackPointer;
+        else
+          return false;
+      };
 
-    // TODO: this is an hack and should be replaced once we integrate calling
-    //       convention and call graph in the basic block harvesting process
+      AliveMIs.erase_if(IsClobbered);
+    }
+
+    //
+    // Prevent excessive propagation
+    //
+    // TODO: is this still necessary? This was an issue with return instructions
     unsigned SuccessorsCount = succ_end(BB) - succ_begin(BB);
     unsigned Size = AliveMIs.size();
     if (Size * SuccessorsCount > 5000)

@@ -68,9 +68,10 @@ set(TEST_SOURCES_x86_64_indirect-call-callee-saved "${SRC}/x86_64/StackAnalysis/
 set(TEST_SOURCES_x86_64_helper "${SRC}/x86_64/StackAnalysis/helper.S")
 set(TEST_SOURCES_x86_64_return_value_to_argument "${SRC}/x86_64/StackAnalysis/return-value-to-argument.S")
 
-set(TESTS_mips "switch-jump-table" "switch-jump-table-stack")
+set(TESTS_mips "switch-jump-table" "switch-jump-table-stack" "jump-table-base-before-function-call")
 set(TEST_SOURCES_mips_switch-jump-table "${SRC}/mips/switch-jump-table.S")
 set(TEST_SOURCES_mips_switch-jump-table-stack "${SRC}/mips/switch-jump-table-stack.S")
+set(TEST_SOURCES_mips_jump-table-base-before-function-call "${SRC}/mips/jump-table-base-before-function-call.S")
 
 foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   foreach(TEST_NAME ${TESTS_${ARCH}})

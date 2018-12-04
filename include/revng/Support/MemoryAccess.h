@@ -163,6 +163,21 @@ public:
     return false;
   }
 
+public:
+  const llvm::Value *globalVariable() const {
+    if (Type == CPUState)
+      return Base;
+    else
+      return nullptr;
+  }
+
+  const llvm::Value *base() const {
+    if (Type == RegisterAndOffset)
+      return Base;
+    else
+      return nullptr;
+  }
+
 private:
   bool intersect(std::pair<uint64_t, uint64_t> A,
                  std::pair<uint64_t, uint64_t> B) const {

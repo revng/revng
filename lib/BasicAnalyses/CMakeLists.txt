@@ -7,7 +7,9 @@ add_library(revngBasicAnalyses
   FunctionCallIdentification.cpp
   GeneratedCodeBasicInfo.cpp
   ReachingDefinitionsPass.cpp)
-target_link_libraries(revngBasicAnalyses revngSupport)
+target_link_libraries(revngBasicAnalyses
+  revngSupport
+  revngStackAnalysis)
 install(TARGETS revngBasicAnalyses
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)

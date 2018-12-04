@@ -30,6 +30,9 @@ using llvm::Function;
 using llvm::Module;
 using llvm::RegisterPass;
 
+static Logger<> ClobberedLog("clobbered");
+static Logger<> StackAnalysisLog("stackanalysis");
+
 namespace StackAnalysis {
 
 std::set<const llvm::GlobalVariable *> EmptyCSVSet;
@@ -132,6 +135,17 @@ bool StackAnalysis<AnalyzeABI>::runOnFunction(Function &F) {
   GrandResult = Results.finalize(M);
   GrandResult.dump(M, Output);
   TextRepresentation = Output.str();
+
+  if (ClobberedLog.isEnabled()) {
+    for (auto &P : GrandResult.Functions) {
+      ClobberedLog << getName(P.first) << ":";
+      for (const llvm::GlobalVariable *CSV : P.second.ClobberedRegisters)
+        ClobberedLog << " " << CSV->getName().data();
+      ClobberedLog << DoLog;
+    }
+  }
+
+  revng_log(StackAnalysisLog, TextRepresentation);
 
   revng_log(PassesLog, "Ending StackAnalysis");
 
