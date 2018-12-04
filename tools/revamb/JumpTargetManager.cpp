@@ -1444,6 +1444,7 @@ void JumpTargetManager::harvest() {
     PreliminaryBranchesPM.add(new TranslateDirectBranchesPass(this));
     PreliminaryBranchesPM.run(*TheFunction);
 
+    // TODO: eventually, `setCFGForm` should be replaced by using a CustomCFG
     // To improve the quality of our analysis, keep in the CFG only the edges we
     // where able to recover (e.g., no jumps to the dispatcher)
     setCFGForm(CFGForm::RecoveredOnlyCFG);
@@ -1484,6 +1485,12 @@ void JumpTargetManager::harvest() {
         OptimizingPM.add(createEarlyCSEPass());
         OptimizingPM.run(*TheFunction);
       }
+
+      legacy::FunctionPassManager FunctionCallPM(&TheModule);
+      FunctionCallPM.add(new FunctionCallIdentification());
+      FunctionCallPM.run(*TheFunction);
+
+      createJTReasonMD();
 
       setCFGForm(CFGForm::RecoveredOnlyCFG);
 

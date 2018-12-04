@@ -1077,6 +1077,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   purgeDeadBlocks(MainFunction);
 
+  JumpTargets.createJTReasonMD();
+
   if (DetectFunctionBoundaries) {
     legacy::FunctionPassManager FPM(&*TheModule);
     using FBDP = FunctionBoundariesDetectionPass;

@@ -447,17 +447,33 @@ public:
   }
 
   void createJTReasonMD() {
+    using namespace llvm;
+
+    Function *CallMarker = TheModule.getFunction("function_call");
+    if (CallMarker != nullptr) {
+      auto unwrapBA = [](Value *V) {
+        return cast<BlockAddress>(V)->getBasicBlock();
+      };
+      for (User *U : CallMarker->users()) {
+        if (CallInst *Call = dyn_cast<CallInst>(U)) {
+          if (isa<BlockAddress>(Call->getOperand(0)))
+            registerJT(unwrapBA(Call->getOperand(0)), JTReason::Callee);
+          registerJT(unwrapBA(Call->getOperand(1)), JTReason::ReturnAddress);
+        }
+      }
+    }
+
     // Tag each jump target with its reasons
     for (auto &P : JumpTargets) {
       JumpTarget &JT = P.second;
-      llvm::TerminatorInst *T = JT.head()->getTerminator();
+      TerminatorInst *T = JT.head()->getTerminator();
       revng_assert(T != nullptr);
 
-      std::vector<llvm::Metadata *> Reasons;
+      std::vector<Metadata *> Reasons;
       for (const char *ReasonName : JT.getReasonNames())
-        Reasons.push_back(llvm::MDString::get(Context, ReasonName));
+        Reasons.push_back(MDString::get(Context, ReasonName));
 
-      T->setMetadata("revamb.jt.reasons", llvm::MDTuple::get(Context, Reasons));
+      T->setMetadata("revamb.jt.reasons", MDTuple::get(Context, Reasons));
     }
   }
 
