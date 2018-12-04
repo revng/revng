@@ -332,8 +332,8 @@ inline T *notNull(T *Pointer) {
   return Pointer;
 }
 
-static const std::array<llvm::StringRef, 3> MarkerFunctionNames = {
-  { "newpc", "function_call", "exitTB" }
+static const std::array<llvm::StringRef, 4> MarkerFunctionNames = {
+  { "newpc", "function_call", "exitTB", "nodce" }
 };
 
 /// \brief Checks if \p I is a marker
