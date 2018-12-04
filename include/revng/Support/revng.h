@@ -72,8 +72,9 @@ enum BlockType {
                      ///  jump target.
   JumpTargetBlock, ///< A basic block generated during translation representing
                    ///  a jump target.
-  DispatcherFailure ///< Basic block representing the default case of the
-                    ///  dispatcher switch.
+  DispatcherFailure, ///< Basic block representing the default case of the
+                     ///  dispatcher switch.
+  EntryPoint ///< The entry point of the root function
 };
 
 namespace JTReason {

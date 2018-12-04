@@ -66,6 +66,7 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
         JumpTargets[getLimitedValue(Call->getArgOperand(0))] = &BB;
         break;
       }
+      case EntryPoint:
       case UntypedBlock:
         // Nothing to do here
         break;

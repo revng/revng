@@ -67,19 +67,25 @@ public:
   }
 
   BlockType getType(llvm::TerminatorInst *T) const {
+    using namespace llvm;
+
     revng_assert(T != nullptr);
-    llvm::MDNode *MD = T->getMetadata(BlockTypeMDName);
+    MDNode *MD = T->getMetadata(BlockTypeMDName);
+
+    BasicBlock *BB = T->getParent();
+    if (BB == &BB->getParent()->getEntryBlock())
+      return EntryPoint;
 
     if (MD == nullptr) {
-      llvm::Instruction *First = &*T->getParent()->begin();
-      if (llvm::CallInst *Call = getCallTo(First, "newpc"))
+      Instruction *First = &*T->getParent()->begin();
+      if (CallInst *Call = getCallTo(First, "newpc"))
         if (getLimitedValue(Call->getArgOperand(2)) == 1)
           return JumpTargetBlock;
 
       return UntypedBlock;
     }
 
-    auto *BlockTypeMD = llvm::cast<llvm::MDTuple>(MD);
+    auto *BlockTypeMD = cast<MDTuple>(MD);
 
     QuickMetadata QMD(getContext(T));
     return BlockType(QMD.extract<uint32_t>(BlockTypeMD, 0));
