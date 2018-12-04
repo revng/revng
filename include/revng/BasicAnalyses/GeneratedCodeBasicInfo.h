@@ -223,7 +223,7 @@ public:
   llvm::CallInst *getFunctionCall(llvm::TerminatorInst *T) const {
     auto It = T->getIterator();
     auto End = T->getParent()->begin();
-    if (It != End) {
+    while (It != End) {
       It--;
       if (llvm::CallInst *Call = getCallTo(&*It, "function_call"))
         return Call;
