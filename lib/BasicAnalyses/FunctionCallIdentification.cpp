@@ -52,13 +52,22 @@ bool FunctionCallIdentification::runOnFunction(llvm::Function &F) {
 
   // Collect function calls
   for (BasicBlock &BB : F) {
-    if (!GCBI.isTranslated(&BB))
+
+    if (BB.empty() or not GCBI.isTranslated(&BB))
       continue;
 
     // Consider the basic block only if it's terminator is an actual jump and it
     // hasn't been already marked as a function call
     TerminatorInst *Terminator = BB.getTerminator();
-    if (BB.empty() or not GCBI.isJump(Terminator) or isCall(Terminator))
+
+    if (Terminator != nullptr) {
+      if (CallInst *Call = getCall(Terminator)) {
+        FallthroughAddresses.insert(getLimitedValue(Call->getOperand(2)));
+        continue;
+      }
+    }
+
+    if (not GCBI.isJump(Terminator))
       continue;
 
     // To be a function call we need to find:
