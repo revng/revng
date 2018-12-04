@@ -82,6 +82,7 @@ fi
     for FILE in $FILES; do
         if [[ $FILE == *h ]]; then
             $GREP -H '^static[^=]*$' "$FILE" | cat
+            $GREP -HE '#ifndef\s*_.*_H\s*$' "$FILE" | cat
         fi
     done
 ) | sort -u
