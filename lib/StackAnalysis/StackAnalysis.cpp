@@ -32,6 +32,8 @@ using llvm::RegisterPass;
 
 namespace StackAnalysis {
 
+std::set<const llvm::GlobalVariable *> EmptyCSVSet;
+
 template<>
 char StackAnalysis<true>::ID = 0;
 
