@@ -8,23 +8,23 @@
 // Standard includes
 #include <iterator>
 
-template<typename Wrapped>
+template<typename W>
 class IteratorWrapper
-  : public std::iterator<typename Wrapped::iterator_category,
-                         typename Wrapped::value_type> {
+  : public std::iterator<typename std::iterator_traits<W>::iterator_category,
+                         typename std::iterator_traits<W>::value_type> {
 
 private:
-  using type = IteratorWrapper<Wrapped>;
+  using type = IteratorWrapper<W>;
 
 public:
-  using iterator_category = typename Wrapped::iterator_category;
-  using value_type = typename Wrapped::value_type;
-  using difference_type = typename Wrapped::difference_type;
-  using reference = typename Wrapped::reference;
-  using pointer = typename Wrapped::pointer;
+  using iterator_category = typename std::iterator_traits<W>::iterator_category;
+  using value_type = typename std::iterator_traits<W>::value_type;
+  using difference_type = typename std::iterator_traits<W>::difference_type;
+  using reference = typename std::iterator_traits<W>::reference;
+  using pointer = typename std::iterator_traits<W>::pointer;
 
 public:
-  IteratorWrapper(Wrapped Iterator) : Iterator(Iterator) {}
+  IteratorWrapper(W Iterator) : Iterator(Iterator) {}
 
   type &operator=(const type &r) {
     Iterator = r.Iterator;
@@ -77,18 +77,18 @@ public:
 
   bool operator>=(const type &r2) { return Iterator >= r2.Iterator; }
 
-  template<typename W>
-  type operator+(const IteratorWrapper<W> &r2) {
+  template<typename O>
+  type operator+(const IteratorWrapper<O> &r2) {
     return type(Iterator + r2.Iterator);
   }
 
-  template<typename W>
-  difference_type operator-(const IteratorWrapper<W> &r2) {
+  template<typename O>
+  difference_type operator-(const IteratorWrapper<O> &r2) {
     return Iterator - r2.Iterator;
   }
 
 private:
-  Wrapped Iterator;
+  W Iterator;
 };
 
 #endif // ITERATORWRAPPER_H
