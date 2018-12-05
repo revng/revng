@@ -65,12 +65,15 @@ foreach(ARCH arm mips mipsel x86_64 i386 s390x)
   install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT}"
     DESTINATION share/revamb)
 
+  # Enable the support for C exceptions to avoid optimizations that break
+  # exception support when linking a module with isolated functions
   foreach(CONFIG ${SUPPORT_MODULES_CONFIGS})
     set(OUTPUT "support-${ARCH}-${CONFIG}.ll")
     add_custom_command(OUTPUT "${OUTPUT}"
       DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
       COMMAND "${CLANG}"
       ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
+           -fexceptions
            -o "${OUTPUT}"
            -S -emit-llvm -g
            -DTARGET_${ARCH}

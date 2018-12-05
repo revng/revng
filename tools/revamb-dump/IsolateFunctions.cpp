@@ -280,7 +280,12 @@ BasicBlock *IFI::createCatchBlock(Function *Root, BasicBlock *UnexpectedPC) {
 
   // Add a catch all (constructed with the null value as clause)
   LandingPad->addClause(ConstantPointerNull::get(Type::getInt8PtrTy(Context)));
-  Builder.CreateUnreachable();
+
+  // This should be an unreachable (we should never reach the catch block), but
+  // to avoid optimizations that purge this basic block (and also the
+  // correlated invoke instructions) we need a fake ret here
+  Builder.CreateCall(TheModule->getFunction("abort"));
+  Builder.CreateRetVoid();
 
   return CatchBB;
 }
@@ -921,12 +926,16 @@ void IFI::run() {
       NewBB->takeName(&BB);
 
       // Emit the invoke instruction
-      InvokeInst::Create(TargetFunc,
-                         InvokeReturnBlock,
-                         CatchBB,
-                         ArrayRef<Value *>(),
-                         "",
-                         NewBB);
+      InvokeInst *Invoke = InvokeInst::Create(TargetFunc,
+                                              InvokeReturnBlock,
+                                              CatchBB,
+                                              ArrayRef<Value *>(),
+                                              "",
+                                              NewBB);
+
+      // Mark the invoke as non eligible for inlining that could break our
+      // exception mechanism
+      Invoke->setIsNoInline();
     }
   }
 
