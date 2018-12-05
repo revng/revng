@@ -46,7 +46,7 @@ add_custom_command(OUTPUT ABIDataFlows.h
   VERBATIM)
 add_custom_target(abidataflows DEPENDS ABIDataFlows.h)
 
-add_library(StackAnalysis
+add_library(revngStackAnalysis
   ABIIR.cpp
   Cache.cpp
   Element.cpp
@@ -56,8 +56,15 @@ add_library(StackAnalysis
   InterproceduralAnalysis.cpp
   Intraprocedural.cpp
   StackAnalysis.cpp)
-target_link_libraries(StackAnalysis Support)
-target_include_directories(StackAnalysis
+
+target_link_libraries(revngStackAnalysis revngSupport)
+
+target_include_directories(revngStackAnalysis
   PRIVATE
   "${CMAKE_CURRENT_BINARY_DIR}")
-add_dependencies(StackAnalysis abidataflows)
+
+add_dependencies(revngStackAnalysis abidataflows)
+
+install(TARGETS revngStackAnalysis
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib)

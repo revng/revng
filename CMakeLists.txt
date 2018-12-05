@@ -143,6 +143,7 @@ endif()
 
 set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
 
+add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
 
