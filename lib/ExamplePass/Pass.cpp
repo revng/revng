@@ -1,6 +1,10 @@
+// LLVM includes
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
+
+// revng includes
+#include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
 
