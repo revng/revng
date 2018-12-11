@@ -382,23 +382,20 @@ public:
       };
 
       if (Load != nullptr) {
-        Value *Pointer = Load->getPointerOperand();
-        if ((not isa<GlobalVariable>(Pointer) and not isa<AllocaInst>(Pointer))
-            or Pointer->getName() == "env")
-          continue;
-
         MI = MemoryInstruction::create(Load, DL, getBlockColors(BB));
+
+        if (not MI.MA.isValid())
+          continue;
 
         // Register all the reachers
         SmallVector<Instruction *, 4> &Reachers = ReachedBy[Load];
         Reachers.clear();
+
         for (const MemoryInstruction &AliveMI : AliveMIs)
-          if (AliveMI.I != MI.I and AliveMI.MA.mayAlias(MI.MA))
+          if (AliveMI.I != MI.I and AliveMI.MA == MI.MA)
             Reachers.push_back(AliveMI.I);
 
-        // If no other instruction is writing in the load address, register this
-        // instruction as alive
-        if (not AliveMIs.contains(MayAlias))
+        if (Reachers.size() == 0)
           AliveMIs.insert(MI);
 
       } else if (Store != nullptr) {
