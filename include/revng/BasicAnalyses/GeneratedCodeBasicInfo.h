@@ -53,7 +53,8 @@ public:
     DispatcherFail(nullptr),
     AnyPC(nullptr),
     UnexpectedPC(nullptr),
-    PCRegSize(0) {}
+    PCRegSize(0),
+    RootFunction(nullptr) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
@@ -267,6 +268,7 @@ private:
   llvm::BasicBlock *UnexpectedPC;
   std::map<uint64_t, llvm::BasicBlock *> JumpTargets;
   unsigned PCRegSize;
+  llvm::Function *RootFunction;
 };
 
 template<>
