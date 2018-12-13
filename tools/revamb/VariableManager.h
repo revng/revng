@@ -221,6 +221,8 @@ public:
   /// \brief Gets the CPUStateType
   llvm::StructType *getCPUStateType() const { return CPUStateType; }
 
+  bool hasEnv() const { return Env != nullptr; }
+
 private:
   llvm::Value *loadFromCPUStateOffset(llvm::IRBuilder<> &Builder,
                                       unsigned LoadSize,

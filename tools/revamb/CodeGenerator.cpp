@@ -511,16 +511,21 @@ static ReturnInst *createRet(Instruction *Position) {
 /// Then when we reach the root function, set cpu_loop_exiting to false after
 /// the call.
 bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
+  LLVMContext &Context = M.getContext();
   Function *CpuLoopExit = M.getFunction("cpu_loop_exit");
 
   // Nothing to do here
   if (CpuLoopExit == nullptr)
     return false;
 
+  if (not VM->hasEnv()) {
+    ReturnInst::Create(Context, BasicBlock::Create(Context, "", CpuLoopExit));
+    return true;
+  }
+
   purgeNoReturn(CpuLoopExit);
 
   Function *CpuLoop = M.getFunction("cpu_loop");
-  LLVMContext &Context = M.getContext();
   IntegerType *BoolType = Type::getInt1Ty(Context);
   std::set<Function *> FixedCallers;
   Constant *CpuLoopExitingVariable = nullptr;
