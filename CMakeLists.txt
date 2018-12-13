@@ -73,6 +73,7 @@ foreach(ARCH arm mips mipsel x86_64 i386 s390x)
       DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
       COMMAND "${CLANG}"
       ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
+           -O2
            -fexceptions
            -o "${OUTPUT}"
            -S -emit-llvm -g
