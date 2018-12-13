@@ -96,7 +96,8 @@ enum Values {
   LoadAddress = 512, ///< A load has been performed from this address
   ReturnAddress = 1024, ///< Obtained as the fallthrough of a function call
   FunctionSymbol = 2048, ///< Obtained from a function symbol
-  LastReason = FunctionSymbol
+  SimpleLiteral = 4096, ///< Immediate value found before SET
+  LastReason = SimpleLiteral
 };
 
 inline const char *getName(Values Reason) {
@@ -125,6 +126,8 @@ inline const char *getName(Values Reason) {
     return "ReturnAddress";
   case FunctionSymbol:
     return "FunctionSymbol";
+  case SimpleLiteral:
+    return "SimpleLiteral";
   }
 
   revng_abort();
@@ -155,6 +158,8 @@ inline Values fromName(llvm::StringRef ReasonName) {
     return ReturnAddress;
   else if (ReasonName == "FunctionSymbol")
     return FunctionSymbol;
+  else if (ReasonName == "SimpleLiteral")
+    return SimpleLiteral;
   else
     revng_abort();
 }

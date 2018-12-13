@@ -331,6 +331,8 @@ public:
   ///         valid or another error occurred.
   llvm::BasicBlock *registerJT(uint64_t PC, JTReason::Values Reason);
 
+  bool hasJT(uint64_t PC) { return JumpTargets.count(PC) != 0; }
+
   std::map<uint64_t, JumpTarget>::const_iterator begin() const {
     return JumpTargets.begin();
   }
@@ -512,6 +514,19 @@ public:
   ///         or if no symbol can be found, just the address.
   std::string nameForAddress(uint64_t Address, uint64_t Size = 1) const;
 
+  /// \brief Register a simple literal collected during translation for
+  ///        harvesting
+  ///
+  /// A simple literal is a literal value found in the input program that is
+  /// simple enough not to require SET. The typcal example is the return address
+  /// of a function call, that is provided to use by libtinycode in full.
+  ///
+  /// Simple literals are registered as possible jump targets before attempting
+  /// more expensive techniques such as SET.
+  void registerSimpleLiteral(uint64_t Address) {
+    SimpleLiterals.insert(Address);
+  }
+
 private:
   std::set<llvm::BasicBlock *> computeUnreachable();
 
@@ -605,6 +620,7 @@ private:
 
   CFGForm::Values CurrentCFGForm;
   std::set<llvm::BasicBlock *> ToPurge;
+  std::set<uint64_t> SimpleLiterals;
 };
 
 template<>

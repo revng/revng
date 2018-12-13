@@ -25,7 +25,9 @@ _start:
     movls   r3, #1
     movhi   r3, #0
     bhi     end
+indirect_jump:
     add     pc, pc, r0, lsl #2
+no1:
     .word   0                   @ -1
     .word   0                   @ 0
     .word   0                   @ 1
@@ -37,21 +39,25 @@ _start:
     .word   0                   @ 7
     .word   0                   @ 8
     .word   0                   @ 9
+yes1:
     b       end                 @ 10
     b       end                 @ 11
     b       end                 @ 12
     b       end                 @ 13
     b       end                 @ 14
+no2:
     .word   0                   @ 15
     .word   0                   @ 16
     .word   0                   @ 17
     .word   0                   @ 18
     .word   0                   @ 19
+yes2:
     b       end                 @ 20
     b       end                 @ 21
     b       end                 @ 22
     b       end                 @ 23
     b       end                 @ 24
+no3:
     .word   0                   @ 25
 
 end:

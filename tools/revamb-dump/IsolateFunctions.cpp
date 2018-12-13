@@ -451,7 +451,8 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
           ReturnInst::Create(Context, Trampoline);
         } else {
           uint64_t PC = getBasicBlockPC(BB);
-          new StoreInst(ConstantInt::get(PCReg->getType()->getPointerElementType(), PC), PCReg, Trampoline);
+          auto *PCType = PCReg->getType()->getPointerElementType();
+          new StoreInst(ConstantInt::get(PCType, PC), PCReg, Trampoline);
           throwException(StandardNonTranslatedBlock, Trampoline, 0);
         }
 

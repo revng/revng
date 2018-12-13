@@ -1145,11 +1145,9 @@ JumpTargetManager::registerJT(uint64_t PC, JTReason::Values Reason) {
 
   Unexplored.push_back(BlockWithAddress(PC, NewBlock));
 
-  if (NewBlock->getName().empty()) {
-    std::stringstream Name;
-    Name << "bb." << nameForAddress(PC);
-    NewBlock->setName(Name.str());
-  }
+  std::stringstream Name;
+  Name << "bb." << nameForAddress(PC);
+  NewBlock->setName(Name.str());
 
   // Create a case for the address associated to the new block
   auto *PCRegType = PCReg->getType();
@@ -1396,6 +1394,12 @@ bool JumpTargetManager::hasPredecessors(BasicBlock *BB) const {
 // block to translate we proceed as long as we are able to create new edges on
 // the CFG (not considering the dispatcher).
 void JumpTargetManager::harvest() {
+
+  if (empty()) {
+    for (uint64_t PC : SimpleLiterals)
+      registerJT(PC, JTReason::SimpleLiteral);
+    SimpleLiterals.clear();
+  }
 
   if (empty()) {
     // Purge all the generated basic blocks without predecessors

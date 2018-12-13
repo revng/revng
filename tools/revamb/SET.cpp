@@ -31,7 +31,7 @@
 using namespace llvm;
 using std::make_pair;
 
-static Logger<> OSRJTSLog("osrjts");
+static Logger<> NewEdgesLog("new-edges");
 
 class MaterializedValue {
 private:
@@ -142,8 +142,18 @@ public:
   void registerPCs() const {
     const auto SETToPC = JTReason::SETToPC;
     const auto SETNotToPC = JTReason::SETNotToPC;
-    for (auto &P : NewPCs)
+    for (auto &P : NewPCs) {
+
+      if (not JTM->hasJT(P.first) and NewEdgesLog.isEnabled()) {
+        uint64_t Source = JTM->getPC(Target).first;
+        uint64_t Destination = P.first;
+        NewEdgesLog << std::hex << "0x" << Source << " -> 0x" << Destination
+                    << " (" << getName(Target->getParent()) << " -> "
+                    << JTM->nameForAddress(Destination) << ")" << DoLog;
+      }
+
       JTM->registerJT(P.first, P.second ? SETToPC : SETNotToPC);
+    }
   }
 
   void registerLoadAddresses() const {
@@ -794,10 +804,6 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
 
     if (O->size() > 1000)
       dbg << "Warning: " << O->size() << " jump targets added\n";
-
-    revng_log(OSRJTSLog,
-              "Adding " << std::dec << O->size() << " jump targets from 0x"
-                        << std::hex << JTM->getPC(Target).first);
 
     // Note: addition and comparison for equality are all sign-safe
     // operations, no need to use Constants in this case.
