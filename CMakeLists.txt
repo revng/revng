@@ -6,6 +6,9 @@ cmake_minimum_required(VERSION 2.8)
 
 project(revamb)
 
+# This has to be first to get highest priority
+include_directories(include/)
+
 # Doxygen
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
@@ -135,8 +138,6 @@ add_definitions("-DHAVE_VALGRIND_CALLGRIND_H")
 endif()
 
 set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
-
-include_directories(./ include/)
 
 add_subdirectory(lib)
 add_subdirectory(tools)
