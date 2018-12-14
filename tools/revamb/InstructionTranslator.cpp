@@ -688,7 +688,6 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
     if (Temporary == nullptr)
       return Abort;
     auto *Load = Builder.CreateLoad(Temporary);
-    Variables.setAliasScope(Load);
     InArgs.push_back(Load);
   }
 
@@ -722,10 +721,8 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
                                           JumpTargets.pcReg());
   CallInst *Result = Builder.CreateCall(FunctionDeclaration, InArgs);
 
-  if (TheCall.OutArguments.size() != 0) {
-    auto *Store = Builder.CreateStore(Result, ResultDestination);
-    Variables.setAliasScope(Store);
-  }
+  if (TheCall.OutArguments.size() != 0)
+    Builder.CreateStore(Result, ResultDestination);
 
   if (PCSaver != nullptr)
     return ForceNewPC;
@@ -744,7 +741,6 @@ IT::translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC) {
       return Abort;
 
     auto *Load = Builder.CreateLoad(Temporary);
-    Variables.setAliasScope(Load);
     InArgs.push_back(Load);
   }
 
@@ -767,8 +763,7 @@ IT::translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC) {
       return Abort;
 
     auto *Value = Result.get()[I];
-    auto *Store = Builder.CreateStore(Value, Destination);
-    Variables.setAliasScope(Store);
+    Builder.CreateStore(Value, Destination);
 
     // If we're writing the PC with an immediate, register it for exploration
     // immediately
@@ -884,7 +879,6 @@ IT::translateOpcode(PTCOpcode Opcode,
       Pointer = Builder.CreateIntToPtr(InArguments[0],
                                        MemoryType->getPointerTo());
       auto *Load = Builder.CreateAlignedLoad(Pointer, Alignment);
-      Variables.setNoAlias(Load);
       Value *Loaded = Load;
 
       if (BSwapFunction != nullptr)
@@ -905,8 +899,7 @@ IT::translateOpcode(PTCOpcode Opcode,
       if (BSwapFunction != nullptr)
         Value = Builder.CreateCall(BSwapFunction, Value);
 
-      auto *Store = Builder.CreateAlignedStore(Value, Pointer, Alignment);
-      Variables.setNoAlias(Store);
+      Builder.CreateAlignedStore(Value, Pointer, Alignment);
 
       return v{};
     } else {

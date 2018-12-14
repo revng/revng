@@ -116,12 +116,6 @@ public:
     ModuleLayout = NewLayout;
   }
 
-  template<typename T>
-  T *setAliasScope(T *Instruction);
-
-  template<typename T>
-  T *setNoAlias(T *Instruction);
-
   std::vector<llvm::AllocaInst *> locals() {
     std::vector<llvm::AllocaInst *> Locals;
     for (auto Pair : LocalTemporaries)
@@ -149,74 +143,7 @@ public:
                          bool EnvIsSrc);
 
   /// \brief Perform finalization steps on variables
-  void finalize() {
-    using namespace llvm;
-
-    if (not External) {
-      for (auto &P : CPUStateGlobals)
-        P.second->setLinkage(GlobalValue::InternalLinkage);
-      for (auto &P : OtherGlobals)
-        P.second->setLinkage(GlobalValue::InternalLinkage);
-    }
-
-    LLVMContext &Context = getContext(&TheModule);
-    IRBuilder<> Builder(Context);
-
-    // Create the setRegister function
-    auto *SetRegisterTy = FunctionType::get(Builder.getVoidTy(),
-                                            { Builder.getInt32Ty(),
-                                              Builder.getInt64Ty() },
-                                            false);
-    auto *Temp = TheModule.getOrInsertFunction("set_register", SetRegisterTy);
-    auto *SetRegister = cast<Function>(Temp);
-    SetRegister->setLinkage(GlobalValue::ExternalLinkage);
-
-    // Collect arguments
-    auto ArgIt = SetRegister->arg_begin();
-    auto ArgEnd = SetRegister->arg_end();
-    revng_assert(ArgIt != ArgEnd);
-    Argument *RegisterID = &*ArgIt;
-    ArgIt++;
-    revng_assert(ArgIt != ArgEnd);
-    Argument *NewValue = &*ArgIt;
-    ArgIt++;
-    revng_assert(ArgIt == ArgEnd);
-
-    // Create main basic blocks
-    using BasicBlock = BasicBlock;
-    auto *EntryBB = BasicBlock::Create(Context, "", SetRegister);
-    auto *DefaultBB = BasicBlock::Create(Context, "", SetRegister);
-    auto *ReturnBB = BasicBlock::Create(Context, "", SetRegister);
-
-    // Populate the default case of the switch
-    Builder.SetInsertPoint(DefaultBB);
-    Builder.CreateCall(TheModule.getFunction("abort"));
-    Builder.CreateUnreachable();
-
-    // Create the switch statement
-    Builder.SetInsertPoint(EntryBB);
-    auto *Switch = Builder.CreateSwitch(RegisterID,
-                                        DefaultBB,
-                                        CPUStateGlobals.size());
-    for (auto &P : CPUStateGlobals) {
-      Type *CSVTy = P.second->getType();
-      auto *CSVIntTy = cast<IntegerType>(CSVTy->getPointerElementType());
-      if (CSVIntTy->getBitWidth() <= 64) {
-        // Set the value of the CSV
-        auto *SetRegisterBB = BasicBlock::Create(Context, "", SetRegister);
-        Builder.SetInsertPoint(SetRegisterBB);
-        Builder.CreateStore(Builder.CreateTrunc(NewValue, CSVIntTy), P.second);
-        Builder.CreateBr(ReturnBB);
-
-        // Add the case to the switch
-        Switch->addCase(Builder.getInt32(P.first), SetRegisterBB);
-      }
-    }
-
-    // Finally, populate the return basic block
-    Builder.SetInsertPoint(ReturnBB);
-    Builder.CreateRetVoid();
-  }
+  void finalize();
 
   /// \brief Gets the CPUStateType
   llvm::StructType *getCPUStateType() const { return CPUStateType; }
@@ -224,6 +151,8 @@ public:
   bool hasEnv() const { return Env != nullptr; }
 
 private:
+  void aliasAnalysis();
+
   llvm::Value *loadFromCPUStateOffset(llvm::IRBuilder<> &Builder,
                                       unsigned LoadSize,
                                       unsigned Offset);
