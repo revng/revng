@@ -184,10 +184,6 @@ private:
   unsigned EnvOffset;
 
   llvm::Value *Env;
-  unsigned AliasScopeMDKindID;
-  unsigned NoAliasMDKindID;
-  llvm::MDNode *CPUStateScopeSet;
-
   Architecture &TargetArchitecture;
 };
 
