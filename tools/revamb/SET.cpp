@@ -31,7 +31,7 @@
 using namespace llvm;
 using std::make_pair;
 
-static Logger<> OSRJTSLog("osrjts");
+static Logger<> NewEdgesLog("new-edges");
 
 class MaterializedValue {
 private:
@@ -142,8 +142,18 @@ public:
   void registerPCs() const {
     const auto SETToPC = JTReason::SETToPC;
     const auto SETNotToPC = JTReason::SETNotToPC;
-    for (auto &P : NewPCs)
+    for (auto &P : NewPCs) {
+
+      if (not JTM->hasJT(P.first) and NewEdgesLog.isEnabled()) {
+        uint64_t Source = JTM->getPC(Target).first;
+        uint64_t Destination = P.first;
+        NewEdgesLog << std::hex << "0x" << Source << " -> 0x" << Destination
+                    << " (" << getName(Target->getParent()) << " -> "
+                    << JTM->nameForAddress(Destination) << ")" << DoLog;
+      }
+
       JTM->registerJT(P.first, P.second ? SETToPC : SETNotToPC);
+    }
   }
 
   void registerLoadAddresses() const {
@@ -272,6 +282,9 @@ private:
 
   Instruction *Target;
   FunctionCallIdentification *FCI;
+
+  /// Calls to `function_call` targeting multiple different dynamic symbols
+  std::set<CallInst *> MultipleTargetsCalls;
 };
 
 MaterializedValue
@@ -437,6 +450,10 @@ void OperationsStack::explore(Constant *NewOperand) {
   if (SymbolicValue.hasSymbol()) {
     if (IsPCStore and SymbolicValue.value() == 0) {
       if (CallInst *Call = FCI->getCall(Target->getParent())) {
+
+        if (MultipleTargetsCalls.count(Call) != 0)
+          return;
+
         LLVMContext &Context = getContext(Call);
         QuickMetadata QMD(Context);
         auto *Callee = cast<Constant>(Call->getOperand(0));
@@ -449,7 +466,16 @@ void OperationsStack::explore(Constant *NewOperand) {
           auto *Casted = cast<ConstantExpr>(Old)->getOperand(0);
           auto *Initializer = cast<GlobalVariable>(Casted)->getInitializer();
           auto String = cast<ConstantDataArray>(Initializer)->getAsString();
-          revng_assert(String.drop_back() == Name);
+
+          // If this call can target multiple external symbols, simply don't tag
+          // it
+          // TODO: we should duplicate the call
+          if (String.drop_back() != Name) {
+            MultipleTargetsCalls.insert(Call);
+            auto *PointerTy = dyn_cast<PointerType>(Old->getType());
+            Call->setOperand(4, ConstantPointerNull::get(PointerTy));
+            return;
+          }
         }
 
         Module *M = Call->getParent()->getParent()->getParent();
@@ -711,7 +737,7 @@ bool SETPass::runOnFunction(Function &F) {
 
   freeContainer(Jumps);
 
-  OSRAPass *OSRA = getAnalysisIfAvailable<OSRAPass>();
+  auto *OSRA = getAnalysisIfAvailable<OSRAPass>();
   if (OSRA != nullptr) {
     auto &CRDP = getAnalysis<ConditionalReachedLoadsPass>();
     JTM->noReturn().collectDefinitions(CRDP);
@@ -778,10 +804,6 @@ bool SET::handleInstructionWithOSRA(Instruction *Target, Value *V) {
 
     if (O->size() > 1000)
       dbg << "Warning: " << O->size() << " jump targets added\n";
-
-    revng_log(OSRJTSLog,
-              "Adding " << std::dec << O->size() << " jump targets from 0x"
-                        << std::hex << JTM->getPC(Target).first);
 
     // Note: addition and comparison for equality are all sign-safe
     // operations, no need to use Constants in this case.

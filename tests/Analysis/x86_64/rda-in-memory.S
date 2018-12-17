@@ -5,8 +5,9 @@
     .intel_syntax noprefix
 	.globl	_start
 _start:
-    cmp    eax,0x3
+    cmp    DWORD PTR [rbx+0x8],0x3
     ja     end
+    mov    eax,DWORD PTR [rbx+0x8]
     jmp    QWORD PTR [rax*8+jumptable]
 one:
     ret

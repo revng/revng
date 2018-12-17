@@ -13,82 +13,14 @@ bool init_unit_test();
 // LLVM includes
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/LegacyPassManager.h"
-#include "llvm/IRReader/IRReader.h"
-#include "llvm/Support/SourceMgr.h"
 
 // Local libraries includes
 #include "revng/BasicAnalyses/ReachingDefinitionsAnalysisImpl.h"
 
+// Local includes
+#include "LLVMTestHelpers.h"
+
 using namespace llvm;
-
-static const char *ModuleBegin = R"LLVM(
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
-target triple = "x86_64-pc-linux-gnu"
-
-@rax = internal global i64 0
-@rdi = internal global i64 0
-@rsi = internal global i64 0
-@rbx = internal global i64 0
-@rcx = internal global i64 0
-
-define void @main() {
-)LLVM";
-
-static const char *ModuleEnd = "\n}\n";
-
-static std::string buildModule(const char *Body) {
-  std::string Result;
-  Result += ModuleBegin;
-  Result += Body;
-  Result += ModuleEnd;
-  return Result;
-}
-
-static Instruction *instructionByName(Function *F, const char *Name) {
-  if (StringRef(Name).startswith("s:")) {
-    Name = Name + 2;
-    for (BasicBlock &BB : *F)
-      for (Instruction &I : BB)
-        if (auto *Store = dyn_cast<StoreInst>(&I))
-          if (Store->getValueOperand()->hasName()
-              and Store->getValueOperand()->getName() == Name)
-            return &I;
-  } else {
-    for (BasicBlock &BB : *F)
-      for (Instruction &I : BB)
-        if (I.hasName() and I.getName() == Name)
-          return &I;
-  }
-
-  revng_abort("Couldn't find a Value with the requested name");
-}
-
-static BasicBlock *basicBlockByName(Function *F, const char *Name) {
-  revng_assert(F != nullptr);
-
-  for (BasicBlock &BB : *F)
-    if (BB.hasName() and BB.getName() == Name)
-      return &BB;
-
-  revng_abort("Couldn't find a Value with the requested name");
-}
-
-static std::unique_ptr<Module> loadModule(LLVMContext &C, const char *Body) {
-  std::string ModuleText = buildModule(Body);
-  SMDiagnostic Diagnostic;
-  using MB = MemoryBuffer;
-  std::unique_ptr<MB> Buffer = MB::getMemBuffer(StringRef(ModuleText));
-  std::unique_ptr<Module> M = parseIR(Buffer.get()->getMemBufferRef(),
-                                      Diagnostic,
-                                      C);
-
-  if (M.get() == nullptr) {
-    Diagnostic.print("revamb", dbgs());
-    revng_abort();
-  }
-
-  return M;
-}
 
 template<typename T, typename B>
 static void assertReachers(Function *F,

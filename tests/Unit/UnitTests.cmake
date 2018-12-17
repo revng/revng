@@ -20,7 +20,7 @@ target_include_directories(test_lazysmallbitvector
 target_compile_definitions(test_lazysmallbitvector
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_lazysmallbitvector
-  Support
+  revngSupport
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_lazysmallbitvector COMMAND test_lazysmallbitvector)
@@ -38,8 +38,8 @@ target_include_directories(test_stackanalysis
 target_compile_definitions(test_stackanalysis
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_stackanalysis
-  StackAnalysis
-  Support
+  revngStackAnalysis
+  revngSupport
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_stackanalysis COMMAND test_stackanalysis)
@@ -55,7 +55,7 @@ target_include_directories(test_classsentinel
 target_compile_definitions(test_classsentinel
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_classsentinel
-  Support
+  revngSupport
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_classsentinel COMMAND test_classsentinel)
@@ -71,8 +71,8 @@ target_include_directories(test_reachingdefinitionspass
 target_compile_definitions(test_reachingdefinitionspass
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_reachingdefinitionspass
-  Support
-  BasicAnalyses
+  revngSupport
+  revngBasicAnalyses
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_reachingdefinitionspass COMMAND test_reachingdefinitionspass)

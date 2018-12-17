@@ -17,6 +17,7 @@
 // Local libraries includes
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Runtime/commonconstants.h"
+#include "revng/StackAnalysis/FunctionsSummary.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -39,6 +40,14 @@ char IF::ID = 0;
 static RegisterPass<IF> X("if", "Isolate Functions Pass", true, true);
 
 class IsolateFunctionsImpl {
+private:
+  struct IsolatedFunctionDescriptor {
+    uint64_t PC;
+    Function *IsolatedFunction;
+    ValueToValueMap ValueMap;
+    std::map<BasicBlock *, BasicBlock *> Trampolines;
+  };
+
 public:
   IsolateFunctionsImpl(Function &RootFunction,
                        Module *TheModule,
@@ -71,7 +80,7 @@ private:
   BasicBlock *createCatchBlock(Function *Root, BasicBlock *UnexpectedPC);
 
   /// \brief Replace the call to the @function_call marker with the actual call
-  void replaceFunctionCall(BasicBlock *NewBB,
+  bool replaceFunctionCall(BasicBlock *NewBB,
                            CallInst *Call,
                            const ValueToValueMap &LocalVMap);
 
@@ -85,7 +94,7 @@ private:
   ///         the current basic block
   bool cloneInstruction(BasicBlock *NewBB,
                         Instruction *OldInstruction,
-                        ValueToValueMap &LocalVMap);
+                        IsolatedFunctionDescriptor &Descriptor);
 
   /// \brief Extract the string representing a function name starting from the
   ///        MDNode
@@ -100,8 +109,8 @@ private:
   Function *RaiseException;
   Function *DebugException;
   Function *FunctionDispatcher;
+  std::map<MDString *, IsolatedFunctionDescriptor> Functions;
   std::map<BasicBlock *, BasicBlock *> NewToOldBBMap;
-  std::map<Function *, uint64_t> FunctionsPC;
   GlobalVariable *ExceptionFlag;
   GlobalVariable *PC;
   const unsigned PCBitSize;
@@ -154,6 +163,7 @@ void IFI::throwException(Reason Code, BasicBlock *BB, uint64_t AdditionalPC) {
 
   // Emit the call to _Unwind_RaiseException
   Builder.CreateCall(RaiseException);
+  Builder.CreateUnreachable();
 }
 
 BasicBlock *
@@ -181,7 +191,6 @@ void IFI::populateFunctionDispatcher() {
                                                 FunctionDispatcher,
                                                 nullptr);
   throwException(FunctionDispatcherFallBack, UnexpectedPC, 0);
-  new UnreachableInst(Context, UnexpectedPC);
 
   // Create a builder object for the DispatcherBB basic block
   IRBuilder<> Builder(Context);
@@ -191,8 +200,9 @@ void IFI::populateFunctionDispatcher() {
 
   SwitchInst *Switch = Builder.CreateSwitch(ProgramCounter, UnexpectedPC);
 
-  for (auto &Pair : FunctionsPC) {
-    Function *Function = Pair.first;
+  for (auto &Pair : Functions) {
+    IsolatedFunctionDescriptor &Descriptor = Pair.second;
+    Function *Function = Descriptor.IsolatedFunction;
     StringRef Name = Function->getName();
 
     // Creation of a basic block correspondent to the trampoline for each
@@ -205,8 +215,7 @@ void IFI::populateFunctionDispatcher() {
     CallInst::Create(Function, "", TrampolineBB);
     ReturnInst::Create(Context, TrampolineBB);
 
-    uint64_t FunctionPC = Pair.second;
-    auto *Label = Builder.getIntN(PCBitSize, FunctionPC);
+    auto *Label = Builder.getIntN(PCBitSize, Descriptor.PC);
     Switch->addCase(Label, TrampolineBB);
   }
 }
@@ -280,35 +289,55 @@ BasicBlock *IFI::createCatchBlock(Function *Root, BasicBlock *UnexpectedPC) {
 
   // Add a catch all (constructed with the null value as clause)
   LandingPad->addClause(ConstantPointerNull::get(Type::getInt8PtrTy(Context)));
-  Builder.CreateUnreachable();
+
+  // This should be an unreachable (we should never reach the catch block), but
+  // to avoid optimizations that purge this basic block (and also the
+  // correlated invoke instructions) we need a fake ret here
+  Builder.CreateCall(TheModule->getFunction("abort"));
+  Builder.CreateRetVoid();
 
   return CatchBB;
 }
 
-void IFI::replaceFunctionCall(BasicBlock *NewBB,
+bool IFI::replaceFunctionCall(BasicBlock *NewBB,
                               CallInst *Call,
                               const ValueToValueMap &LocalVMap) {
 
   // Retrieve the called function and emit the call
-  StringRef FunctionNameString;
+  BlockAddress *Callee = dyn_cast<BlockAddress>(Call->getOperand(0));
+  bool IsIndirect = (Callee == nullptr);
+  Function *TargetFunction = nullptr;
 
-  if (BlockAddress *Callee = dyn_cast<BlockAddress>(Call->getOperand(0))) {
+  if (IsIndirect) {
+    TargetFunction = FunctionDispatcher;
+  } else {
     BasicBlock *CalleeEntry = Callee->getBasicBlock();
     TerminatorInst *Terminator = CalleeEntry->getTerminator();
-    MDNode *Node = Terminator->getMetadata("func.entry");
-    FunctionNameString = getFunctionNameString(Node);
-  } else {
-    FunctionNameString = FunctionDispatcher->getName();
+    auto *Node = cast<MDTuple>(Terminator->getMetadata("func.entry"));
+
+    // The callee is not a real function, it must be part of us then.
+    if (Node == nullptr) {
+      TerminatorInst *T = Call->getParent()->getTerminator();
+      revng_assert(not isTerminatorWithInvalidTarget(T, LocalVMap));
+
+      // Do nothing, don't emit the call to `function_call` and proceed
+      return false;
+    }
+
+    auto *NameMD = cast<MDString>(&*Node->getOperand(0));
+    TargetFunction = Functions.at(NameMD).IsolatedFunction;
   }
 
-  Function *TargetFunction = TheModule->getFunction(FunctionNameString);
   revng_assert(TargetFunction != nullptr);
 
   // Create a builder object
   IRBuilder<> Builder(Context);
   Builder.SetInsertPoint(NewBB);
 
-  Builder.CreateCall(TargetFunction);
+  if (IsIndirect)
+    Builder.CreateCall(TargetFunction, { Call->getOperand(4) });
+  else
+    Builder.CreateCall(TargetFunction);
 
   // Retrieve the fallthrough basic block and emit the branch
   BlockAddress *FallThroughAddress = cast<BlockAddress>(Call->getOperand(1));
@@ -329,7 +358,6 @@ void IFI::replaceFunctionCall(BasicBlock *NewBB,
                                           NewBB->getName() + "_bad_return_pc",
                                           NewBB->getParent());
     throwException(BadReturnAddress, PCMismatch, ExpectedPC->getZExtValue());
-    new UnreachableInst(Context, PCMismatch);
 
     // Conditional branch to jump to the right block
     Builder.CreateCondBr(Result, FallthroughNew, PCMismatch);
@@ -338,8 +366,9 @@ void IFI::replaceFunctionCall(BasicBlock *NewBB,
     // If the fallthrough basic block is not in the current function raise an
     // exception
     throwException(StandardTranslatedBlock, NewBB, 0);
-    Builder.CreateUnreachable();
   }
+
+  return true;
 }
 
 bool IFI::isTerminatorWithInvalidTarget(Instruction *I,
@@ -347,7 +376,7 @@ bool IFI::isTerminatorWithInvalidTarget(Instruction *I,
   if (auto *Terminator = dyn_cast<TerminatorInst>(I)) {
 
     // Here we check if among the successors of a terminator instruction
-    // there is one that doesn't belong anymore to the current function.
+    // there is one that doesn't belong to the current function.
     for (BasicBlock *Target : Terminator->successors()) {
       if (LocalVMap.count(Target) == 0) {
         return true;
@@ -360,7 +389,11 @@ bool IFI::isTerminatorWithInvalidTarget(Instruction *I,
 
 bool IFI::cloneInstruction(BasicBlock *NewBB,
                            Instruction *OldInstruction,
-                           ValueToValueMap &LocalVMap) {
+                           IsolatedFunctionDescriptor &Descriptor) {
+  Value *PCReg = getModule(NewBB)->getGlobalVariable(GCBI.pcReg()->getName(),
+                                                     true);
+  revng_assert(PCReg != nullptr);
+  ValueToValueMap &LocalVMap = Descriptor.ValueMap;
 
   // Create a builder object
   IRBuilder<> Builder(Context);
@@ -373,21 +406,104 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
 
   } else if (isTerminatorWithInvalidTarget(OldInstruction, LocalVMap)) {
 
-    // If we are in presence of a terminator with a successor no more in the
-    // current function we throw an exception
-    throwException(StandardTranslatedBlock, NewBB, 0);
-    Builder.CreateUnreachable();
+    // We are in presence of a terminator with a successor no more in
+    // the current function, let's throw an exception
+
+    // If there's more than one successor, create a "trampoline" basic block
+    // for each of them (lazily, `Descriptor.Trampolines` caches them).
+    //
+    // A trampoline stores the address of the corresponding successor in PC
+    // and then throws the exception.
+
+    // Lazily create the store-in-pc-and-throw trampoline
+    auto GetTrampoline = [this, &Descriptor, PCReg](BasicBlock *BB) {
+      Instruction *T = BB->getTerminator();
+
+      auto *Node = cast_or_null<MDTuple>(T->getMetadata("func.entry"));
+      auto FunctionsIt = Functions.end();
+      if (Node != nullptr) {
+        auto *NameMD = cast<MDString>(&*Node->getOperand(0));
+        FunctionsIt = Functions.find(NameMD);
+      }
+
+      auto It = Descriptor.Trampolines.find(BB);
+      if (It != Descriptor.Trampolines.end()) {
+        return It->second;
+      } else {
+
+        auto *Trampoline = BasicBlock::Create(Context,
+                                              "",
+                                              Descriptor.IsolatedFunction);
+
+        BlockType Type = GCBI.getType(BB);
+        if (Type == AnyPCBlock or Type == UnexpectedPCBlock) {
+          // The target is not a translated block, let's try to go through the
+          // function dispatcher and let it throw the exception if necessary
+          auto *Null = ConstantPointerNull::get(Type::getInt8PtrTy(Context));
+          CallInst::Create(FunctionDispatcher, { Null }, "", Trampoline);
+          ReturnInst::Create(Context, Trampoline);
+        } else if (FunctionsIt != Functions.end()) {
+          // The target is a function entry point, we assume we're dealing with
+          // a tail call
+          CallInst::Create(FunctionsIt->second.IsolatedFunction,
+                           "",
+                           Trampoline);
+          ReturnInst::Create(Context, Trampoline);
+        } else {
+          uint64_t PC = getBasicBlockPC(BB);
+          auto *PCType = PCReg->getType()->getPointerElementType();
+          new StoreInst(ConstantInt::get(PCType, PC), PCReg, Trampoline);
+          throwException(StandardNonTranslatedBlock, Trampoline, 0);
+        }
+
+        Descriptor.Trampolines[BB] = Trampoline;
+        return Trampoline;
+      }
+    };
+
+    // TODO: maybe cloning and patching would have been more effective
+    switch (OldInstruction->getOpcode()) {
+    case Instruction::Br: {
+      auto *Branch = cast<BranchInst>(OldInstruction);
+      if (Branch->isConditional()) {
+        auto *Condition = LocalVMap[Branch->getCondition()];
+        Builder.CreateCondBr(Condition,
+                             GetTrampoline(Branch->getSuccessor(0)),
+                             GetTrampoline(Branch->getSuccessor(1)));
+      } else {
+        Builder.CreateBr(GetTrampoline(Branch->getSuccessor(0)));
+      }
+    } break;
+
+    case Instruction::Switch: {
+      auto *Switch = cast<SwitchInst>(OldInstruction);
+      auto *Condition = LocalVMap[Switch->getCondition()];
+      auto *DefaultCase = GetTrampoline(Switch->getDefaultDest());
+      auto *NewSwitch = Builder.CreateSwitch(Condition,
+                                             DefaultCase,
+                                             Switch->getNumCases());
+
+      for (SwitchInst::CaseHandle &Case : Switch->cases()) {
+        NewSwitch->addCase(Case.getCaseValue(),
+                           GetTrampoline(Case.getCaseSuccessor()));
+      }
+
+    } break;
+
+    default:
+      revng_abort();
+    }
 
   } else if (isCallTo(OldInstruction, "function_call")) {
 
     // Function call handling
     CallInst *Call = cast<CallInst>(OldInstruction);
-    replaceFunctionCall(NewBB, Call, LocalVMap);
+    bool Result = replaceFunctionCall(NewBB, Call, LocalVMap);
 
     // We return true if we emitted a function call to signal that we ended
     // the inspection of the current basic block and that we should exit from
     // the loop over the instructions
-    return true;
+    return Result;
 
   } else {
 
@@ -530,7 +646,9 @@ void IFI::run() {
 
   // Instantiate the dispatcher function, that is called in occurence of an
   // indirect function call.
-  auto *FT = FunctionType::get(Type::getVoidTy(Context), false);
+  auto *FT = FunctionType::get(Type::getVoidTy(Context),
+                               { Type::getInt8PtrTy(Context) },
+                               false);
 
   // Creation of the function
   FunctionDispatcher = Function::Create(FT,
@@ -567,9 +685,9 @@ void IFI::run() {
     }
   }
 
-  // 4. Search for all the users of the helper function @function_call and
-  //    populate the AdditionalSucc structure in order to be able to identify
-  //    all the successors of a basic block
+  // 4. Search for all the users of @function_call and populate the
+  //    AdditionalSucc structure in order to be able to identify all the
+  //    successors of a basic block
   std::map<BasicBlock *, BasicBlock *> AdditionalSucc;
   for (User *U : CallMarker->users()) {
     if (CallInst *Call = dyn_cast<CallInst>(U)) {
@@ -582,10 +700,7 @@ void IFI::run() {
 
   // 5. Creation of the new LLVM functions on the basis of what recovered by
   //    the function boundaries analysis and storage of the pointers in a
-  //    dedicated data strucure. We also initialize each VMap contained in the
-  //    MetaVMap structure with the mappings contained in GlobalVMap.
-  std::map<MDString *, Function *> Functions;
-  std::map<Function *, ValueToValueMap> MetaVMap;
+  //    dedicated data strucure.
 
   for (BasicBlock &BB : RootFunction) {
     revng_assert(!BB.empty());
@@ -600,30 +715,27 @@ void IFI::run() {
       auto *FT = FunctionType::get(Type::getVoidTy(Context), false);
 
       // Check if we already have an entry for a function with a certain name
-      if (Functions.count(FunctionNameMD) == 0) {
+      revng_assert(Functions.count(FunctionNameMD) == 0);
 
-        // Actual creation of an empty instance of a function
-        Function *Function = Function::Create(FT,
-                                              Function::ExternalLinkage,
-                                              FunctionNameString,
-                                              TheModule);
+      // Actual creation of an empty instance of a function
+      Function *Function = Function::Create(FT,
+                                            Function::ExternalLinkage,
+                                            FunctionNameString,
+                                            TheModule);
 
-        Functions[FunctionNameMD] = Function;
-        FunctionsPC[Function] = getBasicBlockPC(&BB);
+      IsolatedFunctionDescriptor &Descriptor = Functions[FunctionNameMD];
+      Descriptor.PC = getBasicBlockPC(&BB);
+      Descriptor.IsolatedFunction = Function;
 
-        // Update v2v map with an ad-hoc mapping between the root function and
-        // the current function, useful for subsequent analysis
-        ValueToValueMap &LocalVMap = MetaVMap[Function];
-
-        // Add the mapping between root function and all the functions we
-        // will create
-        LocalVMap[&RootFunction] = Function;
-      }
+      // Update v2v map with an ad-hoc mapping between the root function and
+      // the current function, useful for subsequent analysis
+      Descriptor.ValueMap[&RootFunction] = Function;
     }
   }
 
   // 6. Population of the LLVM functions with the basic blocks that belong to
   //    them, always on the basis of the function boundaries analysis
+  QuickMetadata QMD(Context);
   for (BasicBlock &BB : RootFunction) {
     revng_assert(!BB.empty());
 
@@ -635,7 +747,8 @@ void IFI::run() {
       for (const MDOperand &Op : Tuple->operands()) {
         auto *FunctionMD = cast<MDTuple>(Op);
         auto *FunctionNameMD = cast<MDString>(&*FunctionMD->getOperand(0));
-        Function *ParentFunction = Functions[FunctionNameMD];
+        IsolatedFunctionDescriptor &Descriptor = Functions.at(FunctionNameMD);
+        Function *ParentFunction = Descriptor.IsolatedFunction;
 
         // We assert if we can't find the parent function of the basic block
         revng_assert(ParentFunction != nullptr);
@@ -658,8 +771,7 @@ void IFI::run() {
         }
 
         // Update v2v map with the mapping between basic blocks
-        ValueToValueMap &LocalVMap = MetaVMap[ParentFunction];
-        LocalVMap[&BB] = NewBB;
+        Descriptor.ValueMap[&BB] = NewBB;
 
         // Update the map that we will use later for filling the basic blocks
         // with instructions
@@ -671,54 +783,51 @@ void IFI::run() {
   // 7. Analyze all the created functions and populate them
   for (auto &Pair : Functions) {
 
+    IsolatedFunctionDescriptor &Descriptor = Pair.second;
+
     // We are iterating over a map, so we need to extract the element from the
     // pair
-    Function *AnalyzedFunction = Pair.second;
+    Function *AnalyzedFunction = Descriptor.IsolatedFunction;
 
-    // Initialize a local ValueToValueMap with the mapping between basic
-    // blocks (done in the previous loop) and the global objects contained
-    // in the correspondig VMap in the MetaVMap structure
-    ValueToValueMap LocalVMap = std::move(MetaVMap[AnalyzedFunction]);
+    ValueToValueMap &LocalVMap = Descriptor.ValueMap;
 
     // 8. We populate the basic blocks that are empty with a dummy switch
     //    instruction that has the role of preserving the actual shape of the
     //    function control flow. This will be helpful in order to traverse the
     //    BBs in reverse post-order.
-    BasicBlock *UnexpectedPC = nullptr;
-    BasicBlock *AnyPC = nullptr;
+    BasicBlock *UnexpectedPC = createUnreachableBlock("unexpectedpc",
+                                                      AnalyzedFunction);
+    BasicBlock *AnyPC = createUnreachableBlock("anypc", AnalyzedFunction);
+
+    // TODO: this is an hack. In theory we could use GCBI.anypc() to update the
+    //       map, but GCBI still refers to the old module. Once we drop the
+    //       module cloning we can drop this.
+    for (BasicBlock &BB : RootFunction) {
+
+      if (GCBI.getType(&BB) == UnexpectedPCBlock) {
+        LocalVMap[&BB] = UnexpectedPC;
+        NewToOldBBMap[UnexpectedPC] = &BB;
+      }
+
+      if (GCBI.getType(&BB) == AnyPCBlock) {
+        LocalVMap[&BB] = AnyPC;
+        NewToOldBBMap[AnyPC] = &BB;
+      }
+    }
 
     for (BasicBlock &NewBB : *AnalyzedFunction) {
 
+      if (&NewBB == AnyPC or &NewBB == UnexpectedPC)
+        continue;
+
       BasicBlock *BB = NewToOldBBMap[&NewBB];
+      revng_assert(BB != nullptr);
       TerminatorInst *Terminator = BB->getTerminator();
 
       // Collect all the successors of a basic block and add them in a proper
       // data structure
       std::vector<BasicBlock *> Successors;
       for (BasicBlock *Successor : Terminator->successors()) {
-
-        // Check if among the successors of the current basic block there is
-        // the unexpectedpc basic block, and if needed create it
-        if (GCBI.getType(Successor) == UnexpectedPCBlock) {
-          // Check if it already exists and create an unexpectedpc block
-          if (UnexpectedPC == nullptr) {
-            UnexpectedPC = createUnreachableBlock("unexpectedpc",
-                                                  AnalyzedFunction);
-            LocalVMap[Successor] = UnexpectedPC;
-            NewToOldBBMap[UnexpectedPC] = Successor;
-          }
-        }
-
-        // Check if among the successors of the current basic block there is
-        // the anypc basic block, and if needed create it
-        if (GCBI.getType(Successor) == AnyPCBlock) {
-          // Check if it already exists and create an anypc block
-          if (AnyPC == nullptr) {
-            AnyPC = createUnreachableBlock("anypc", AnalyzedFunction);
-            LocalVMap[Successor] = AnyPC;
-            NewToOldBBMap[AnyPC] = Successor;
-          }
-        }
 
         revng_assert(GCBI.isTranslated(Successor)
                      || GCBI.getType(Successor) == AnyPCBlock
@@ -757,6 +866,7 @@ void IFI::run() {
       Builder.SetInsertPoint(&NewBB);
 
       // Handle the degenerate case in which we didn't identified successors
+      revng_assert(NewBB.getTerminator() == nullptr);
       if (Successors.size() == 0) {
         Builder.CreateUnreachable();
       } else {
@@ -845,7 +955,7 @@ void IFI::run() {
 
         // Actual copy of the instructions
         for (Instruction &OldInstruction : *OldBB) {
-          bool IsCall = cloneInstruction(NewBB, &OldInstruction, LocalVMap);
+          bool IsCall = cloneInstruction(NewBB, &OldInstruction, Descriptor);
 
           // If the cloneInstruction function returns true it means that we
           // emitted a function call and also the branch to the fallthrough
@@ -856,6 +966,8 @@ void IFI::run() {
         }
       }
     }
+
+    freeContainer(LocalVMap);
   }
 
   // 14. Create the functions and basic blocks needed for the correct execution
@@ -871,11 +983,14 @@ void IFI::run() {
   // TODO: do this in a more elegant way (see if we have some helper)
   BasicBlock *UnexpectedPC = nullptr;
   for (BasicBlock &BB : *Root) {
+    if (BB.getName() == "unexpectedpc")
+      revng_assert(GCBI.getType(&BB) == UnexpectedPCBlock);
     if (GCBI.getType(&BB) == UnexpectedPCBlock) {
       UnexpectedPC = &BB;
       break;
     }
   }
+  revng_assert(UnexpectedPC != nullptr);
 
   // Instantiate the basic block structure that handles the control flow after
   // an invoke
@@ -915,12 +1030,16 @@ void IFI::run() {
       NewBB->takeName(&BB);
 
       // Emit the invoke instruction
-      InvokeInst::Create(TargetFunc,
-                         InvokeReturnBlock,
-                         CatchBB,
-                         ArrayRef<Value *>(),
-                         "",
-                         NewBB);
+      InvokeInst *Invoke = InvokeInst::Create(TargetFunc,
+                                              InvokeReturnBlock,
+                                              CatchBB,
+                                              ArrayRef<Value *>(),
+                                              "",
+                                              NewBB);
+
+      // Mark the invoke as non eligible for inlining that could break our
+      // exception mechanism
+      Invoke->setIsNoInline();
     }
   }
 

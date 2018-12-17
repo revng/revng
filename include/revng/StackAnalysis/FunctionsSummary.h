@@ -136,6 +136,45 @@ inline const char *getName(Values Type) {
   revng_abort();
 }
 
+inline Values fromName(llvm::StringRef Name) {
+  if (Name == "Invalid")
+    return Invalid;
+  else if (Name == "InstructionLocalCFG")
+    return InstructionLocalCFG;
+  else if (Name == "FunctionLocalCFG")
+    return FunctionLocalCFG;
+  else if (Name == "FakeFunctionCall")
+    return FakeFunctionCall;
+  else if (Name == "FakeFunctionReturn")
+    return FakeFunctionReturn;
+  else if (Name == "HandledCall")
+    return HandledCall;
+  else if (Name == "IndirectCall")
+    return IndirectCall;
+  else if (Name == "UnhandledCall")
+    return UnhandledCall;
+  else if (Name == "Return")
+    return Return;
+  else if (Name == "IndirectTailCall")
+    return IndirectTailCall;
+  else if (Name == "FakeFunction")
+    return FakeFunction;
+  else if (Name == "LongJmp")
+    return LongJmp;
+  else if (Name == "Killer")
+    return Killer;
+  else if (Name == "FunctionSummary")
+    return FunctionSummary;
+  else if (Name == "NoReturnFunction")
+    return NoReturnFunction;
+  else if (Name == "Unreachable")
+    return Unreachable;
+  else if (Name == "IndirectTailCallFunction")
+    return IndirectTailCallFunction;
+  else
+    revng_abort();
+}
+
 } // namespace BranchType
 
 /// \brief Class representing the state of a register in terms of being an

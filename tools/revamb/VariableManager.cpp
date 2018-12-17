@@ -165,16 +165,7 @@ VariableManager::VariableManager(Module &TheModule,
   ModuleLayout(&HelpersModule.getDataLayout()),
   EnvOffset(0),
   Env(nullptr),
-  AliasScopeMDKindID(TheModule.getMDKindID("alias.scope")),
-  NoAliasMDKindID(TheModule.getMDKindID("noalias")),
   TargetArchitecture(TargetArchitecture) {
-
-  LLVMContext &Context = TheModule.getContext();
-
-  MDBuilder MDB(Context);
-  auto *CPUStateScope = MDB.createAnonymousAliasScopeDomain();
-  CPUStateScopeSet = MDNode::get(Context,
-                                 ArrayRef<Metadata *>({ CPUStateScope }));
 
   revng_assert(ptc.initialized_env != nullptr);
 
@@ -307,7 +298,6 @@ bool VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
   if (BitMask != 0) {
     // Load the value
     auto *LoadEnvField = Builder.CreateLoad(Target);
-    setAliasScope(LoadEnvField);
 
     auto *Blanked = Builder.CreateAnd(LoadEnvField, BitMask);
 
@@ -318,10 +308,7 @@ bool VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
     ToStore = Builder.CreateOr(ToStore, Blanked);
   }
 
-  // Type *TargetPointer = Target->getType()->getPointerElementType();
-  // Value *ToStore = Builder.CreateZExt(InArguments[0], TargetPointer);
-  auto *Store = Builder.CreateStore(ToStore, Target);
-  setAliasScope(Store);
+  Builder.CreateStore(ToStore, Target);
 
   return true;
 }
@@ -338,7 +325,6 @@ Value *VariableManager::loadFromCPUStateOffset(IRBuilder<> &Builder,
 
   // Load the whole field
   auto *LoadEnvField = Builder.CreateLoad(Target);
-  setAliasScope(LoadEnvField);
 
   // Extract the desired part
   // Shift right of the desired amount
@@ -430,6 +416,152 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
     cast<Instruction>(OtherBasePtr)->eraseFromParent();
 
   return Offset == TotalSize;
+}
+
+void VariableManager::aliasAnalysis() {
+  unsigned AliasScopeMDKindID = TheModule.getMDKindID("alias.scope");
+  unsigned NoAliasMDKindID = TheModule.getMDKindID("noalias");
+
+  LLVMContext &Context = TheModule.getContext();
+  MDBuilder MDB(Context);
+  MDNode *CSVDomain = MDB.createAliasScopeDomain("CSVAliasDomain");
+
+  struct CSVAliasInfo {
+    MDNode *AliasScope;
+    MDNode *AliasSet;
+    MDNode *NoAliasSet;
+  };
+  std::map<const GlobalVariable *, CSVAliasInfo> CSVAliasInfoMap;
+
+  // Build alias scopes
+  std::vector<Metadata *> AllCSVScopes;
+  for (auto &P : CPUStateGlobals) {
+    const GlobalVariable *GV = P.second;
+    CSVAliasInfo &AliasInfo = CSVAliasInfoMap[GV];
+
+    std::string Name = GV->getName();
+    MDNode *CSVScope = MDB.createAliasScope(Name, CSVDomain);
+    AliasInfo.AliasScope = CSVScope;
+    AllCSVScopes.push_back(CSVScope);
+    MDNode *CSVAliasSet = MDNode::get(Context,
+                                      ArrayRef<Metadata *>({ CSVScope }));
+    AliasInfo.AliasSet = CSVAliasSet;
+  }
+  MDNode *MemoryAliasSet = MDNode::get(Context, AllCSVScopes);
+
+  // Build noalias sets
+  for (auto &P : CPUStateGlobals) {
+    const GlobalVariable *GV = P.second;
+    CSVAliasInfo &AliasInfo = CSVAliasInfoMap[GV];
+    std::vector<Metadata *> OtherCSVScopes;
+    for (const auto &Q : CSVAliasInfoMap)
+      if (Q.first != GV)
+        OtherCSVScopes.push_back(Q.second.AliasScope);
+
+    MDNode *CSVNoAliasSet = MDNode::get(Context, OtherCSVScopes);
+    AliasInfo.NoAliasSet = CSVNoAliasSet;
+  }
+
+  // Decorate the IR with alias information
+  for (Function &F : TheModule) {
+    for (BasicBlock &BB : F) {
+      for (Instruction &I : BB) {
+        Value *Ptr = nullptr;
+
+        if (auto *L = dyn_cast<LoadInst>(&I))
+          Ptr = L->getPointerOperand();
+        else if (auto *S = dyn_cast<StoreInst>(&I))
+          Ptr = S->getPointerOperand();
+        else
+          continue;
+
+        // Check if the pointer is a CSV
+        if (auto *GV = dyn_cast<GlobalVariable>(Ptr)) {
+          auto It = CSVAliasInfoMap.find(GV);
+          if (It != CSVAliasInfoMap.end()) {
+            // Set alias.scope and noalias metadata
+            I.setMetadata(AliasScopeMDKindID, It->second.AliasSet);
+            I.setMetadata(NoAliasMDKindID, It->second.NoAliasSet);
+            continue;
+          }
+        }
+
+        // It's not a CSV memory access, set noalias info
+        I.setMetadata(NoAliasMDKindID, MemoryAliasSet);
+      }
+    }
+  }
+}
+
+void VariableManager::finalize() {
+
+  // Decorate memory accesses with information about CSV aliasing
+  aliasAnalysis();
+
+  if (not External) {
+    for (auto &P : CPUStateGlobals)
+      P.second->setLinkage(GlobalValue::InternalLinkage);
+    for (auto &P : OtherGlobals)
+      P.second->setLinkage(GlobalValue::InternalLinkage);
+  }
+
+  LLVMContext &Context = getContext(&TheModule);
+  IRBuilder<> Builder(Context);
+
+  // Create the setRegister function
+  auto *SetRegisterTy = FunctionType::get(Builder.getVoidTy(),
+                                          { Builder.getInt32Ty(),
+                                            Builder.getInt64Ty() },
+                                          false);
+  auto *Temp = TheModule.getOrInsertFunction("set_register", SetRegisterTy);
+  auto *SetRegister = cast<Function>(Temp);
+  SetRegister->setLinkage(GlobalValue::ExternalLinkage);
+
+  // Collect arguments
+  auto ArgIt = SetRegister->arg_begin();
+  auto ArgEnd = SetRegister->arg_end();
+  revng_assert(ArgIt != ArgEnd);
+  Argument *RegisterID = &*ArgIt;
+  ArgIt++;
+  revng_assert(ArgIt != ArgEnd);
+  Argument *NewValue = &*ArgIt;
+  ArgIt++;
+  revng_assert(ArgIt == ArgEnd);
+
+  // Create main basic blocks
+  using BasicBlock = BasicBlock;
+  auto *EntryBB = BasicBlock::Create(Context, "", SetRegister);
+  auto *DefaultBB = BasicBlock::Create(Context, "", SetRegister);
+  auto *ReturnBB = BasicBlock::Create(Context, "", SetRegister);
+
+  // Populate the default case of the switch
+  Builder.SetInsertPoint(DefaultBB);
+  Builder.CreateCall(TheModule.getFunction("abort"));
+  Builder.CreateUnreachable();
+
+  // Create the switch statement
+  Builder.SetInsertPoint(EntryBB);
+  auto *Switch = Builder.CreateSwitch(RegisterID,
+                                      DefaultBB,
+                                      CPUStateGlobals.size());
+  for (auto &P : CPUStateGlobals) {
+    Type *CSVTy = P.second->getType();
+    auto *CSVIntTy = cast<IntegerType>(CSVTy->getPointerElementType());
+    if (CSVIntTy->getBitWidth() <= 64) {
+      // Set the value of the CSV
+      auto *SetRegisterBB = BasicBlock::Create(Context, "", SetRegister);
+      Builder.SetInsertPoint(SetRegisterBB);
+      Builder.CreateStore(Builder.CreateTrunc(NewValue, CSVIntTy), P.second);
+      Builder.CreateBr(ReturnBB);
+
+      // Add the case to the switch
+      Switch->addCase(Builder.getInt32(P.first), SetRegisterBB);
+    }
+  }
+
+  // Finally, populate the return basic block
+  Builder.SetInsertPoint(ReturnBB);
+  Builder.CreateRetVoid();
 }
 
 // TODO: `newFunction` reflects the tcg terminology but in this context is
@@ -613,28 +745,6 @@ Value *VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
       return NewTemporary;
     }
   }
-}
-
-template LoadInst *VariableManager::setAliasScope(LoadInst *);
-template StoreInst *VariableManager::setAliasScope(StoreInst *);
-
-template<typename T>
-T *VariableManager::setAliasScope(T *Instruction) {
-  auto *Pointer = Instruction->getPointerOperand();
-  if (isa<AllocaInst>(Pointer))
-    return Instruction;
-
-  Instruction->setMetadata(AliasScopeMDKindID, CPUStateScopeSet);
-  return Instruction;
-}
-
-template LoadInst *VariableManager::setNoAlias(LoadInst *);
-template StoreInst *VariableManager::setNoAlias(StoreInst *);
-
-template<typename T>
-T *VariableManager::setNoAlias(T *Instruction) {
-  Instruction->setMetadata(NoAliasMDKindID, CPUStateScopeSet);
-  return Instruction;
 }
 
 Value *VariableManager::computeEnvAddress(Type *TargetType,

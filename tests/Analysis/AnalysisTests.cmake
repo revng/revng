@@ -34,9 +34,10 @@ set(TEST_SOURCES_arm_indirect-call "${SRC}/arm/indirect-call.S")
 set(TEST_SOURCES_arm_longjmp "${SRC}/arm/longjmp.S")
 set(TEST_SOURCES_arm_indirect-tail-call "${SRC}/arm/indirect-tail-call.S")
 
-set(TESTS_x86_64 "switch-jump-table" "try-catch-ehframe" "call" "fibonacci"
-  "indirect-call" "longjmp" "indirect-tail-call")
+set(TESTS_x86_64 "switch-jump-table" "rda-in-memory" "try-catch-ehframe" "call"
+  "fibonacci" "indirect-call" "longjmp" "indirect-tail-call")
 set(TEST_SOURCES_x86_64_switch-jump-table "${SRC}/x86_64/switch-jump-table.S")
+set(TEST_SOURCES_x86_64_rda-in-memory "${SRC}/x86_64/rda-in-memory.S")
 set(TEST_SOURCES_x86_64_try-catch-ehframe "${SRC}/x86_64/try-catch-ehframe.S")
 set(TEST_SOURCES_x86_64_call "${SRC}/x86_64/call.S")
 set(TEST_SOURCES_x86_64_fibonacci "${SRC}/x86_64/fibonacci.c")

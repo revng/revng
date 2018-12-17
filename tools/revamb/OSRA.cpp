@@ -143,6 +143,22 @@ private:
   struct MapValue {
     BoundedValue Summary;
     std::vector<BVWithOrigin> Components;
+
+    void dump() const debug_function { dump(dbg); }
+
+    template<typename T>
+    void dump(T &Output) const {
+      Output << "Summary: ";
+      Summary.dump(Output);
+      Output << "\n";
+      Output << "Components:\n";
+      for (const BVWithOrigin &P : Components) {
+        Output << "  " << getName(P.first) << ": ";
+        P.second.dump(Output);
+        Output << "\n";
+      }
+      Output << "\n";
+    }
   };
 
 public:
@@ -465,6 +481,7 @@ void OSRA::propagateConstraints(Instruction *I,
 }
 
 void OSRA::handleArithmeticOperator(Instruction *I) {
+
   // Check if it's a free value
   auto OldOSRIt = OSRs.find(I);
   bool IsFree = OldOSRIt == OSRs.end();
@@ -483,7 +500,7 @@ void OSRA::handleArithmeticOperator(Instruction *I) {
         OSRs.erase(I);
 
       uint64_t Constant = getZExtValue(ConstantOp, DL);
-      BoundedValue ConstantBV = BoundedValue::createConstant(I, Constant);
+      auto ConstantBV = BoundedValue::createConstant(ConstantOp, Constant);
       auto &BV = BVs.forceBV(I, ConstantBV);
       OSR ConstantOSR(&BV);
       OSRs.emplace(make_pair(I, ConstantOSR));
@@ -1290,8 +1307,7 @@ void OSRA::handleMemoryOperation(Instruction *I) {
 
       // We're storing a constant, create a constant OSR
       uint64_t Constant = getZExtValue(ConstantOp, DL);
-      BoundedValue ConstantBV = BoundedValue::createConstant(ConstantOp,
-                                                             Constant);
+      auto ConstantBV = BoundedValue::createConstant(ConstantOp, Constant);
       auto &BV = BVs.forceBV(I->getParent(), ConstantOp, ConstantBV);
       SelfOSR = OSR(&BV);
 
@@ -1650,7 +1666,7 @@ void OSR::describe(raw_ostream &O) const {
   if (BV == nullptr)
     O << "null";
   else
-    BV->describe(O);
+    BV->dump(O);
   O << "]";
 }
 
@@ -1662,67 +1678,10 @@ std::string OSR::describe() const {
   return Result;
 }
 
-void BoundedValue::dump() const {
-  raw_os_ostream RawOutputStream(dbg);
-  describe(RawOutputStream);
-}
-
-void BoundedValue::describe(raw_ostream &O) const {
-  if (Negated)
-    O << "NOT ";
-
-  O << "(";
-  O << getName(Value);
-  O << ", ";
-
-  switch (Sign) {
-  case AnySignedness:
-    O << "*";
-    break;
-  case UnknownSignedness:
-    O << "?";
-    break;
-  case Signed:
-    O << "s";
-    break;
-  case Unsigned:
-    O << "u";
-    break;
-  case InconsistentSignedness:
-    O << "x";
-    break;
-  }
-
-  if (Bottom) {
-    O << ", bottom";
-  } else if (!isUninitialized()) {
-    for (auto Bound : Bounds) {
-      O << ", [";
-      if (!isConstant() && hasSignedness() && Bound.first == lowerExtreme()) {
-        O << "min";
-      } else {
-        O << Bound.first;
-      }
-
-      O << ", ";
-
-      if (!isConstant() && hasSignedness() && Bound.second == upperExtreme()) {
-        O << "max";
-      } else {
-        O << Bound.second;
-      }
-
-      O << "]";
-    }
-  }
-
-  O << ")";
-}
-
 std::string BoundedValue::describe() const {
   std::string Result;
   llvm::raw_string_ostream Stream(Result);
-  describe(Stream);
+  dump(Stream);
   Stream.str();
   return Result;
 }
@@ -1748,7 +1707,7 @@ void OSRA::describe(formatted_raw_ostream &O, const Instruction *I) const {
     O << "  ;";
     for (auto Constraint : ConstraintsIt->second) {
       O << " ";
-      Constraint.describe(O);
+      Constraint.dump(O);
     }
     O << "\n";
   }
@@ -2312,7 +2271,7 @@ void BVMap::describe(formatted_raw_ostream &O, const BasicBlock *BB) const {
       {
         auto &BVO = MV.Summary;
         O << "<";
-        BVO.describe(O);
+        BVO.dump(O);
         O << ">";
       }
 
@@ -2323,7 +2282,7 @@ void BVMap::describe(formatted_raw_ostream &O, const BasicBlock *BB) const {
         O << "<";
         O << getName(BVO.first);
         O << ", ";
-        BVO.second.describe(O);
+        BVO.second.dump(O);
         O << "> || ";
       }
 

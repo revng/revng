@@ -204,7 +204,7 @@ public:
 private:
   static llvm::Optional<std::string>
   csvNameByOffset(int32_t Offset, const llvm::Module *M) {
-    int32_t I = 0;
+    int32_t I = 1;
     for (const llvm::GlobalVariable &GV : M->globals()) {
       if (Offset == I)
         return { GV.getName().str() };

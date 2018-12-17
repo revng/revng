@@ -6,6 +6,9 @@ cmake_minimum_required(VERSION 2.8)
 
 project(revamb)
 
+# This has to be first to get highest priority
+include_directories(include/)
+
 # Doxygen
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
@@ -62,12 +65,16 @@ foreach(ARCH arm mips mipsel x86_64 i386 s390x)
   install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT}"
     DESTINATION share/revamb)
 
+  # Enable the support for C exceptions to avoid optimizations that break
+  # exception support when linking a module with isolated functions
   foreach(CONFIG ${SUPPORT_MODULES_CONFIGS})
     set(OUTPUT "support-${ARCH}-${CONFIG}.ll")
     add_custom_command(OUTPUT "${OUTPUT}"
       DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
       COMMAND "${CLANG}"
       ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
+           -O2
+           -fexceptions
            -o "${OUTPUT}"
            -S -emit-llvm -g
            -DTARGET_${ARCH}
@@ -136,8 +143,7 @@ endif()
 
 set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
 
-include_directories(./ include/)
-
+add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
 
@@ -147,8 +153,9 @@ configure_file(runtime/support.h "${CMAKE_BINARY_DIR}/support.h" COPYONLY)
 configure_file(include/revng/Runtime/commonconstants.h "${CMAKE_BINARY_DIR}/commonconstants.h" COPYONLY)
 configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/early-linked.c" COPYONLY)
 configure_file(scripts/translate "${CMAKE_BINARY_DIR}/translate" COPYONLY)
+configure_file(scripts/revcc "${CMAKE_BINARY_DIR}/revcc" COPYONLY)
 configure_file(scripts/merge-dynamic.py "${CMAKE_BINARY_DIR}/merge-dynamic.py" COPYONLY)
-install(PROGRAMS scripts/translate scripts/csv-to-ld-options scripts/merge-dynamic.py DESTINATION bin)
+install(PROGRAMS scripts/translate scripts/revcc scripts/csv-to-ld-options scripts/merge-dynamic.py DESTINATION bin)
 install(FILES runtime/support.c DESTINATION share/revamb)
 install(FILES runtime/support.h DESTINATION share/revamb)
 install(FILES include/revng/Runtime/commonconstants.h DESTINATION share/revamb)

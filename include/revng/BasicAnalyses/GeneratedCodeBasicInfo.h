@@ -53,7 +53,8 @@ public:
     DispatcherFail(nullptr),
     AnyPC(nullptr),
     UnexpectedPC(nullptr),
-    PCRegSize(0) {}
+    PCRegSize(0),
+    RootFunction(nullptr) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
@@ -67,19 +68,25 @@ public:
   }
 
   BlockType getType(llvm::TerminatorInst *T) const {
+    using namespace llvm;
+
     revng_assert(T != nullptr);
-    llvm::MDNode *MD = T->getMetadata(BlockTypeMDName);
+    MDNode *MD = T->getMetadata(BlockTypeMDName);
+
+    BasicBlock *BB = T->getParent();
+    if (BB == &BB->getParent()->getEntryBlock())
+      return EntryPoint;
 
     if (MD == nullptr) {
-      llvm::Instruction *First = &*T->getParent()->begin();
-      if (llvm::CallInst *Call = getCallTo(First, "newpc"))
+      Instruction *First = &*T->getParent()->begin();
+      if (CallInst *Call = getCallTo(First, "newpc"))
         if (getLimitedValue(Call->getArgOperand(2)) == 1)
           return JumpTargetBlock;
 
       return UntypedBlock;
     }
 
-    auto *BlockTypeMD = llvm::cast<llvm::MDTuple>(MD);
+    auto *BlockTypeMD = cast<MDTuple>(MD);
 
     QuickMetadata QMD(getContext(T));
     return BlockType(QMD.extract<uint32_t>(BlockTypeMD, 0));
@@ -197,8 +204,8 @@ public:
   ///
   /// Return false if \p BB is a dispatcher-related basic block.
   bool isTranslated(llvm::BasicBlock *BB) const {
-    return (BB != Dispatcher and BB != DispatcherFail and BB != AnyPC
-            and BB != UnexpectedPC);
+    BlockType Type = getType(BB);
+    return Type == UntypedBlock or Type == JumpTargetBlock;
   }
 
   /// \brief Find the PC which lead to generated \p TheInstruction
@@ -223,7 +230,7 @@ public:
   llvm::CallInst *getFunctionCall(llvm::TerminatorInst *T) const {
     auto It = T->getIterator();
     auto End = T->getParent()->begin();
-    if (It != End) {
+    while (It != End) {
       It--;
       if (llvm::CallInst *Call = getCallTo(&*It, "function_call"))
         return Call;
@@ -261,6 +268,7 @@ private:
   llvm::BasicBlock *UnexpectedPC;
   std::map<uint64_t, llvm::BasicBlock *> JumpTargets;
   unsigned PCRegSize;
+  llvm::Function *RootFunction;
 };
 
 template<>

@@ -27,6 +27,8 @@ static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
 bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 
+  RootFunction = &F;
+
   Module *M = F.getParent();
   const char *MDName = "revamb.input.architecture";
   NamedMDNode *InputArchMD = M->getOrInsertNamedMetadata(MDName);
@@ -66,6 +68,7 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
         JumpTargets[getLimitedValue(Call->getArgOperand(0))] = &BB;
         break;
       }
+      case EntryPoint:
       case UntypedBlock:
         // Nothing to do here
         break;

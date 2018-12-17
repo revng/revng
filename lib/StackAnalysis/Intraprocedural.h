@@ -48,65 +48,6 @@ inline T copyContainer(const T &I) {
   return Result;
 }
 
-/// \brief Given an array of GlobalVariable/AllocaInst, returns a unique index
-///        for each one of them
-///
-/// Get an index for each GlobalVariabe defined in \p M and each AllocaInst in
-/// the root function.
-///
-/// \tparam N the number of elements to search
-///
-/// \return a std::array of integers representing the index of the corresponding
-///         input GlobalVariable/AllocaInst, or -1 if the request object
-///         couldn't be found
-template<unsigned N>
-inline std::array<int32_t, N>
-getCPUIndex(const llvm::Module *M, std::array<const llvm::User *, N> Search) {
-  std::array<int32_t, N> Result;
-
-  // Initialize results to -1
-  for (int32_t &Index : Result)
-    Index = -1;
-
-  // Go through global variables first
-  int32_t I = 0;
-  for (const llvm::GlobalVariable &GV : M->globals()) {
-
-    int32_t J = 0;
-    for (const llvm::User *U : Search) {
-      if (U == &GV) {
-        revng_assert(Result[J] == -1);
-        Result[J] = I;
-        break;
-      }
-      J++;
-    }
-
-    I++;
-  }
-
-  // Look for AllocaInst at the beginning of the root function
-  const llvm::BasicBlock *Entry = &*M->getFunction("root")->begin();
-  auto It = Entry->begin();
-  while (It != Entry->end() && llvm::isa<llvm::AllocaInst>(&*It)) {
-
-    int32_t J = 0;
-    for (const llvm::User *U : Search) {
-      if (U == &*It) {
-        revng_assert(Result[J] == -1);
-        Result[J] = I;
-        break;
-      }
-      J++;
-    }
-
-    I++;
-    It++;
-  }
-
-  return Result;
-}
-
 namespace Intraprocedural {
 
 /// \brief Result of the transfer function
@@ -447,6 +388,8 @@ private:
   std::set<llvm::BasicBlock *> IncoherentFunctions;
 
   bool AnalyzeABI;
+
+  std::map<const llvm::User *, int32_t> CPUIndices;
 
 public:
   Analysis(llvm::BasicBlock *Entry,

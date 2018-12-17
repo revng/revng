@@ -8,6 +8,7 @@ _start:
     cmp     ip, #3
     ldrls   pc, [pc, ip, lsl #2]
     b       end
+no:
     .word one
     .word two
     .word three

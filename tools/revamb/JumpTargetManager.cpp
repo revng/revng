@@ -1145,11 +1145,9 @@ JumpTargetManager::registerJT(uint64_t PC, JTReason::Values Reason) {
 
   Unexplored.push_back(BlockWithAddress(PC, NewBlock));
 
-  if (NewBlock->getName().empty()) {
-    std::stringstream Name;
-    Name << "bb." << nameForAddress(PC);
-    NewBlock->setName(Name.str());
-  }
+  std::stringstream Name;
+  Name << "bb." << nameForAddress(PC);
+  NewBlock->setName(Name.str());
 
   // Create a case for the address associated to the new block
   auto *PCRegType = PCReg->getType();
@@ -1398,6 +1396,12 @@ bool JumpTargetManager::hasPredecessors(BasicBlock *BB) const {
 void JumpTargetManager::harvest() {
 
   if (empty()) {
+    for (uint64_t PC : SimpleLiterals)
+      registerJT(PC, JTReason::SimpleLiteral);
+    SimpleLiterals.clear();
+  }
+
+  if (empty()) {
     // Purge all the generated basic blocks without predecessors
     std::vector<BasicBlock *> ToDelete;
     for (BasicBlock &BB : *TheFunction) {
@@ -1444,6 +1448,7 @@ void JumpTargetManager::harvest() {
     PreliminaryBranchesPM.add(new TranslateDirectBranchesPass(this));
     PreliminaryBranchesPM.run(*TheFunction);
 
+    // TODO: eventually, `setCFGForm` should be replaced by using a CustomCFG
     // To improve the quality of our analysis, keep in the CFG only the edges we
     // where able to recover (e.g., no jumps to the dispatcher)
     setCFGForm(CFGForm::RecoveredOnlyCFG);
@@ -1484,6 +1489,12 @@ void JumpTargetManager::harvest() {
         OptimizingPM.add(createEarlyCSEPass());
         OptimizingPM.run(*TheFunction);
       }
+
+      legacy::FunctionPassManager FunctionCallPM(&TheModule);
+      FunctionCallPM.add(new FunctionCallIdentification());
+      FunctionCallPM.run(*TheFunction);
+
+      createJTReasonMD();
 
       setCFGForm(CFGForm::RecoveredOnlyCFG);
 
