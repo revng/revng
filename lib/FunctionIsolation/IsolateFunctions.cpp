@@ -695,7 +695,7 @@ void IFI::run() {
 
   // Creation of the function
   FunctionDispatcher = Function::Create(FT,
-                                        Function::ExternalLinkage,
+                                        Function::InternalLinkage,
                                         "function_dispatcher",
                                         TheModule);
 
@@ -761,7 +761,7 @@ void IFI::run() {
 
       // Actual creation of an empty instance of a function
       Function *Function = Function::Create(FT,
-                                            Function::ExternalLinkage,
+                                            Function::InternalLinkage,
                                             FunctionNameString,
                                             TheModule);
       Function->setMetadata("func.entry", Node);
