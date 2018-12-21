@@ -21,7 +21,7 @@ struct debug_cmp {
   ///        the differences
   ///
   /// We need this so that types not fully under our control (e.g.,
-  /// MonotoneFrameworkSet) can implement this method too. This has to be part
+  /// UnionMonotoneSet) can implement this method too. This has to be part
   /// of a struct so that we can perform partial template specialization.
   static unsigned cmp(const T &This, const T &Other, const llvm::Module *M) {
     return This.template cmp<true, false>(Other, M);

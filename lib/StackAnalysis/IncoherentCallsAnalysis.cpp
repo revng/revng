@@ -16,11 +16,11 @@ using llvm::Module;
 
 namespace StackAnalysis {
 
-// Specialize debug_cmp for MonotoneFrameworkSet
+// Specialize debug_cmp for UnionMonotoneSet
 template<typename T>
-struct debug_cmp<MonotoneFrameworkSet<T>> {
-  static unsigned cmp(const MonotoneFrameworkSet<T> &This,
-                      const MonotoneFrameworkSet<T> &Other,
+struct debug_cmp<UnionMonotoneSet<T>> {
+  static unsigned cmp(const UnionMonotoneSet<T> &This,
+                      const UnionMonotoneSet<T> &Other,
                       const llvm::Module *M) {
     return This.lowerThanOrEqual(Other) ? 0 : 1;
   }
@@ -28,7 +28,7 @@ struct debug_cmp<MonotoneFrameworkSet<T>> {
 
 namespace IncoherentCallsAnalysis {
 
-using Element = MonotoneFrameworkSet<int32_t>;
+using Element = UnionMonotoneSet<int32_t>;
 
 class Interrupt {
 private:
@@ -155,7 +155,7 @@ public:
 
   Interrupt transfer(ABIIRBasicBlock *BB) {
     revng_log(SaABI, "Analyzing " << BB->basicBlock());
-    Element Result = this->State[BB];
+    Element Result = this->State[BB].copy();
     auto SP0 = ASID::stackID();
 
     for (ABIIRInstruction &I : range(BB)) {
@@ -177,7 +177,7 @@ public:
       case ABIIRInstruction::DirectCall:
         // If a stack argument is read by the caller after a call but before a
         // store, it's incoherent
-        if (Result.contains(I.stackArguments()))
+        if (Result.contains_any_of(I.stackArguments()))
           Incoherent.insert(I.call());
         break;
 

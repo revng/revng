@@ -89,7 +89,7 @@ inline std::set<llvm::BasicBlock *> highlightConditionEdges(llvm::Function &F) {
 namespace RDA {
 
 using ColorsList = llvm::SmallVector<int32_t, 4>;
-using MISet = MonotoneFrameworkSet<MemoryInstruction>;
+using MISet = UnionMonotoneSet<MemoryInstruction>;
 
 class Interrupt {
 private:
@@ -102,12 +102,14 @@ private:
 private:
   Interrupt(InterruptType Type) : Type(Type) { revng_assert(Type != Regular); }
 
-  Interrupt(InterruptType Type, MISet E) : Type(Type), E(E) {
+  Interrupt(InterruptType Type, MISet E) : Type(Type), E(E.copy()) {
     revng_assert(Type == Regular);
   }
 
 public:
-  static Interrupt createRegular(MISet E) { return Interrupt(Regular, E); }
+  static Interrupt createRegular(MISet E) {
+    return Interrupt(Regular, E.copy());
+  }
 
   static Interrupt createNoReturn() { return Interrupt(NoReturn); }
 
@@ -305,7 +307,7 @@ public:
     if (EdgeColor == 0)
       return Optional<MISet>();
 
-    MISet Filtered = Original;
+    MISet Filtered = Original.copy();
 
     using MI = MemoryInstruction;
     auto HasOppositeColors = [EdgeColor](const MI &Other) {
@@ -343,7 +345,7 @@ public:
 
     // If something changed, return the updated version
     if (Changed)
-      return { Filtered };
+      return { std::move(Filtered) };
 
     // Returning an empty optional means Original will be used as is
     return Optional<MISet>();
@@ -352,7 +354,7 @@ public:
   Interrupt transfer(llvm::BasicBlock *BB) {
     using namespace llvm;
 
-    MISet AliveMIs = this->State[BB];
+    MISet AliveMIs = this->State[BB].copy();
 
     //
     // Remove the colors that need to be reset in this basic block

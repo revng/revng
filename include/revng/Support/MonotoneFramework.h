@@ -472,7 +472,7 @@ public:
           FinalStates.emplace_back(ToAnalyze, NewLatticeElement.copy());
         } else {
           if (FirstFinalResult)
-            FinalResult = NewLatticeElement.copy();
+            FinalResult = std::move(NewLatticeElement);
           else
             FinalResult.combine(NewLatticeElement);
         }
@@ -493,8 +493,9 @@ public:
           Optional<LatticeElement> NewElement = handleEdge(NewLatticeElement,
                                                            ToAnalyze,
                                                            Successor);
-          LatticeElement &ActualElement = NewElement ? *NewElement :
-                                                       NewLatticeElement;
+          bool GotNewElement = NewElement.hasValue();
+          LatticeElement &ActualElement = GotNewElement ? *NewElement :
+                                                          NewLatticeElement;
 
           if (DynamicGraph)
             NewSuccessors.push_back(Successor);
@@ -503,9 +504,9 @@ public:
           if (It == State.end()) {
             // We have never seen this Label, register it in the analysis state
 
-            // If this is the only successor we can use move semantics,
-            // otherwise create a copy
-            if (SuccessorsCount == 1)
+            // If this is the only successor or we got a new element we can use
+            // move semantics, otherwise create a copy
+            if (SuccessorsCount == 1 or GotNewElement)
               insert_or_assign(State, Successor, std::move(ActualElement));
             else
               insert_or_assign(State, Successor, ActualElement.copy());
@@ -619,99 +620,36 @@ private:
   }
 };
 
-/// \brief A lattice for a MonotoneFramework built over a set of T
+/// \brief Base class for lattices for MonotoneFrameworks built over a set of T
 ///
 /// You can have a custom lattice for your monotone framework instance, but
 /// using sets makes everything quite smooth.
 ///
 /// \tparam T type of the elements of the set
 template<typename T>
-class MonotoneFrameworkSet {
+class MonotoneSet {
 public:
   using const_iterator = typename std::set<T>::const_iterator;
+  using size_type = typename std::set<T>::size_type;
 
-private:
+protected:
   std::set<T> Set;
 
+protected:
+  MonotoneSet(const MonotoneSet &) = default;
+
 public:
-  static MonotoneFrameworkSet bottom() { return MonotoneFrameworkSet(); }
+  MonotoneSet() = default;
 
-  MonotoneFrameworkSet copy() const { return *this; }
+  MonotoneSet copy() const { return *this; }
+  MonotoneSet &operator=(const MonotoneSet &) = default;
 
-  void erase_if(std::function<bool(const T &)> Predicate) {
-    for (auto It = Set.begin(), End = Set.end(); It != End;) {
-      if (Predicate(*It)) {
-        It = Set.erase(It);
-      } else {
-        ++It;
-      }
-    }
-  }
+  MonotoneSet(MonotoneSet &&) = default;
+  MonotoneSet &operator=(MonotoneSet &&) = default;
 
-  const_iterator erase(const_iterator It) { return Set.erase(It); }
-
-  void combine(const MonotoneFrameworkSet &Other) {
-    // Simply join the sets
-    Set.insert(Other.Set.begin(), Other.Set.end());
-  }
-
-  bool greaterThan(const MonotoneFrameworkSet &Other) const {
-    return not lowerThanOrEqual(Other);
-  }
-
-  bool lowerThanOrEqual(const MonotoneFrameworkSet &Other) const {
-    // Simply compare the elements of the sets pairwise, and return false if
-    // this has an extra element compared to Other
-
-    auto ThisIt = Set.begin();
-    auto ThisEnd = Set.end();
-    auto OtherIt = Other.Set.begin();
-    auto OtherEnd = Other.Set.end();
-
-    while (ThisIt != ThisEnd) {
-      if (OtherIt == OtherEnd or *OtherIt > *ThisIt)
-        return false;
-      else if (*ThisIt == *OtherIt)
-        ThisIt++;
-
-      OtherIt++;
-    }
-
-    return true;
-  }
-
-  void drop(T Key) { Set.erase(Key); }
-  void insert(T Key) { Set.insert(Key); }
-  bool contains(std::function<bool(const T &)> Predicate) {
-    for (const T &Element : Set)
-      if (Predicate(Element))
-        return true;
-    return false;
-  }
-  bool contains(T Key) const { return Set.count(Key); }
-  bool contains(std::set<T> Other) const {
-    auto ThisIt = Set.begin();
-    auto ThisEnd = Set.end();
-    auto OtherIt = Other.begin();
-    auto OtherEnd = Other.end();
-
-    while (OtherIt != OtherEnd) {
-      if (ThisIt == ThisEnd)
-        return false;
-      else if (*ThisIt == *OtherIt)
-        return true;
-      else if (*OtherIt > *ThisIt)
-        OtherIt++;
-
-      ThisIt++;
-    }
-
-    return false;
-  }
-
+public:
   const_iterator begin() const { return Set.begin(); }
   const_iterator end() const { return Set.end(); }
-  size_t size() const { return Set.size(); }
 
   void dump() const { dump(dbg); }
 
@@ -722,6 +660,176 @@ public:
       Output << Value << " ";
     Output << " }";
   }
+
+protected:
+  size_t size() const { return Set.size(); }
+
+  void insert(const T Key) { Set.insert(Key); }
+
+  size_type erase(const T &El) { return Set.erase(El); }
+  const_iterator erase(const_iterator It) { return this->Set.erase(It); }
+
+  bool contains(const T Key) const { return Set.count(Key); }
 };
 
+/// \brief Lattice for a MonotoneFramework over a set,
+///        where combine is set union
+template<typename T>
+class UnionMonotoneSet : public MonotoneSet<T> {
+private:
+  UnionMonotoneSet(const UnionMonotoneSet &) = default;
+
+public:
+  UnionMonotoneSet() = default;
+
+  UnionMonotoneSet copy() const { return *this; }
+  UnionMonotoneSet &operator=(const UnionMonotoneSet &) = default;
+
+  UnionMonotoneSet(UnionMonotoneSet &&) = default;
+  UnionMonotoneSet &operator=(UnionMonotoneSet &&) = default;
+
+  static UnionMonotoneSet bottom() { return UnionMonotoneSet(); }
+
+public:
+  typename MonotoneSet<T>::size_type size() const {
+    return MonotoneSet<T>::size();
+  }
+
+  void insert(const T Key) { MonotoneSet<T>::insert(Key); }
+
+  typename MonotoneSet<T>::size_type erase(const T &El) {
+    return MonotoneSet<T>::erase(El);
+  }
+  typename MonotoneSet<T>::const_iterator
+  erase(typename MonotoneSet<T>::const_iterator It) {
+    return MonotoneSet<T>::erase(It);
+  }
+
+  bool contains(const T Key) const { return MonotoneSet<T>::contains(Key); }
+
+  bool contains(std::function<bool(const T &)> Predicate) const {
+    return std::any_of(this->begin(), this->end(), Predicate);
+  }
+  bool contains_any_of(const std::set<T> &Other) const {
+    return contains([&Other](const T &El) { return Other.count(El); });
+  }
+
+  void erase_if(std::function<bool(const T &)> Predicate) {
+    for (auto It = this->begin(), End = this->end(); It != End;) {
+      if (Predicate(*It)) {
+        It = erase(It);
+      } else {
+        ++It;
+      }
+    }
+  }
+
+  void drop(const T &Key) { this->Set.erase(Key); }
+
+  void combine(const UnionMonotoneSet &Other) {
+    // Simply join the sets
+    this->Set.insert(Other.begin(), Other.end());
+  }
+
+  bool greaterThan(const UnionMonotoneSet &Other) const {
+    return not lowerThanOrEqual(Other);
+  }
+
+  bool lowerThanOrEqual(const UnionMonotoneSet &Other) const {
+    if (size() > Other.size())
+      return false;
+    return std::includes(Other.begin(),
+                         Other.end(),
+                         this->begin(),
+                         this->end());
+  }
+};
+
+/// \brief Lattice for a MonotoneFramework over a set,
+///        where combine is set intersection
+template<typename T>
+class IntersectionMonotoneSet : public MonotoneSet<T> {
+private:
+  bool IsBottom;
+
+private:
+  IntersectionMonotoneSet(const IntersectionMonotoneSet &) = default;
+
+public:
+  IntersectionMonotoneSet() : MonotoneSet<T>(), IsBottom(true){};
+
+  IntersectionMonotoneSet copy() const { return *this; }
+  IntersectionMonotoneSet &operator=(const IntersectionMonotoneSet &) = default;
+
+  IntersectionMonotoneSet(IntersectionMonotoneSet &&) = default;
+  IntersectionMonotoneSet &operator=(IntersectionMonotoneSet &&) = default;
+
+  static IntersectionMonotoneSet bottom() { return IntersectionMonotoneSet(); }
+
+  static IntersectionMonotoneSet top() {
+    IntersectionMonotoneSet Res = {};
+    Res.IsBottom = false;
+    return Res;
+  }
+
+public:
+  typename MonotoneSet<T>::size_type size() const {
+    revng_assert(not IsBottom);
+    return MonotoneSet<T>::size();
+  }
+
+  void insert(const T Key) {
+    revng_assert(not IsBottom);
+    MonotoneSet<T>::insert(Key);
+  }
+
+  typename MonotoneSet<T>::size_type erase(const T &El) {
+    revng_assert(not IsBottom);
+    return MonotoneSet<T>::erase(El);
+  }
+  typename MonotoneSet<T>::const_iterator
+  erase(typename MonotoneSet<T>::const_iterator It) {
+    revng_assert(not IsBottom);
+    return MonotoneSet<T>::erase(It);
+  }
+
+  bool contains(const T Key) const {
+    revng_assert(not IsBottom);
+    return MonotoneSet<T>::contains(Key);
+  }
+
+  void combine(const IntersectionMonotoneSet &Other) {
+    // Simply intersects the sets
+    if (Other.IsBottom)
+      return;
+    if (IsBottom) {
+      this->Set = Other.Set;
+      IsBottom = false;
+      return;
+    }
+    std::vector<T> ToDrop;
+    for (auto &I : this->Set)
+      if (not Other.contains(I))
+        ToDrop.push_back(I);
+    for (auto &I : this->Set)
+      erase(I);
+  }
+
+  bool greaterThan(const IntersectionMonotoneSet &Other) const {
+    return not lowerThanOrEqual(Other);
+  }
+
+  bool lowerThanOrEqual(const IntersectionMonotoneSet &Other) const {
+    if (IsBottom)
+      return true;
+    if (Other.IsBottom)
+      return false;
+    if (size() < Other.size())
+      return false;
+    return std::includes(this->begin(),
+                         this->end(),
+                         Other.begin(),
+                         Other.end());
+  }
+};
 #endif // MONOTONEFRAMEWORK_H
