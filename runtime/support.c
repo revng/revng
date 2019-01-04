@@ -450,16 +450,6 @@ int main(int argc, char *argv[]) {
   root((target_reg) stack);
 }
 
-// Helper function used to raise an exception
-void raise_exception_helper() {
-
-  // Declare the exception object
-  struct _Unwind_Exception exc;
-
-  // Raise the exception using the function provided by the unwind library
-  _Unwind_RaiseException(&exc);
-}
-
 // Personality function
 int exception_personality(int version,
                           _Unwind_Action actions,
@@ -513,4 +503,20 @@ void exception_warning(Reason Code,
   default:
     assert(0 && "Reason code not supported");
   }
+}
+
+// Helper function used to raise an exception
+void raise_exception_helper(Reason Code,
+                            target_reg Source,
+                            target_reg Target,
+                            target_reg ExpectedDestination) {
+
+  // Call the exception debug helper
+  exception_warning(Code, Source, Target, ExpectedDestination);
+
+  // Declare the exception object
+  struct _Unwind_Exception exc;
+
+  // Raise the exception using the function provided by the unwind library
+  _Unwind_RaiseException(&exc);
 }

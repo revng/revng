@@ -109,7 +109,6 @@ private:
   GeneratedCodeBasicInfo &GCBI;
   LLVMContext &Context;
   Function *RaiseException;
-  Function *DebugException;
   Function *FunctionDispatcher;
   std::map<MDString *, IsolatedFunctionDescriptor> Functions;
   std::map<BasicBlock *, BasicBlock *> IsolatedToRootBB;
@@ -121,7 +120,6 @@ private:
 void IFI::throwException(Reason Code, BasicBlock *BB, uint64_t AdditionalPC) {
   revng_assert(PC != nullptr);
   revng_assert(RaiseException != nullptr);
-  revng_assert(DebugException != nullptr);
 
   // Create a builder object
   IRBuilder<> Builder(Context);
@@ -155,16 +153,13 @@ void IFI::throwException(Reason Code, BasicBlock *BB, uint64_t AdditionalPC) {
   ConstantInt *ConstantLastPC = Builder.getIntN(PCBitSize, LastPC);
   ConstantInt *ConstantAdditionalPC = Builder.getIntN(PCBitSize, AdditionalPC);
 
-  // Emit the call to exception_warning
-  Builder.CreateCall(DebugException,
+  // Emit the call to the exception helper in support.c, which in turn calls the
+  // exception_warning function and then the _Unwind_RaiseException
+  Builder.CreateCall(RaiseException,
                      { ReasonValue,
                        ConstantLastPC,
                        ProgramCounter,
-                       ConstantAdditionalPC },
-                     "");
-
-  // Emit the call to _Unwind_RaiseException
-  Builder.CreateCall(RaiseException);
+                       ConstantAdditionalPC });
   Builder.CreateUnreachable();
 }
 
@@ -675,28 +670,20 @@ void IFI::run() {
                      "ExceptionFlag");
   ExceptionFlag = TheModule->getGlobalVariable("ExceptionFlag");
 
-  // Declare the _Unwind_RaiseException function that we will use as a throw
-  auto *RaiseExceptionFT = FunctionType::get(Type::getVoidTy(Context), false);
-
-  RaiseException = Function::Create(RaiseExceptionFT,
-                                    Function::ExternalLinkage,
-                                    "raise_exception_helper",
-                                    TheModule);
-
-  // Create the Arrayref necessary for the arguments of exception_warning
+  // Create the Arrayref necessary for the arguments of raise_exception_helper
   auto *IntegerType = IntegerType::get(Context, PCBitSize);
   std::vector<Type *> ArgsType{
     Type::getInt32Ty(Context), IntegerType, IntegerType, IntegerType
   };
 
-  // Declare the exception_warning function
-  auto *DebugExceptionFT = FunctionType::get(Type::getVoidTy(Context),
+  // Declare the _Unwind_RaiseException function that we will use as a throw
+  auto *RaiseExceptionFT = FunctionType::get(Type::getVoidTy(Context),
                                              ArgsType,
                                              false);
 
-  DebugException = Function::Create(DebugExceptionFT,
+  RaiseException = Function::Create(RaiseExceptionFT,
                                     Function::ExternalLinkage,
-                                    "exception_warning",
+                                    "raise_exception_helper",
                                     TheModule);
 
   // Instantiate the dispatcher function, that is called in occurence of an
