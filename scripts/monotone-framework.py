@@ -169,7 +169,7 @@ def check_transfer_functions(tf_graph, reachability, transfer_functions):
   tf_graph = tf_graph.copy()
   # Automatically add self-loops where required
   all_vertices = set(tf_graph.nodes())
-  for name, edges in transfer_functions.iteritems():
+  for name, edges in transfer_functions.items():
     no_self = set()
     for edge in edges:
       no_self.add(edge[0])
