@@ -242,26 +242,10 @@ ExternalJumpsHandler::createExternalDispatcher(BasicBlock *IsExecutable,
   return ExternalJumpHandler;
 }
 
-void ExternalJumpsHandler::buildEmptyExecutableSegmentsList() {
-  new GlobalVariable(TheModule,
-                     RegisterType->getPointerTo(),
-                     true,
-                     GlobalValue::ExternalLinkage,
-                     Constant::getNullValue(RegisterType->getPointerTo()),
-                     "segment_boundaries");
-
-  new GlobalVariable(TheModule,
-                     RegisterType,
-                     true,
-                     GlobalValue::ExternalLinkage,
-                     Constant::getNullValue(RegisterType),
-                     "segments_count");
-}
-
 void ExternalJumpsHandler::createExternalJumpsHandler() {
 
   if (not Arch.isJumpOutSupported()) {
-    buildEmptyExecutableSegmentsList();
+    buildExecutableSegmentsList();
     return;
   }
 
