@@ -220,6 +220,44 @@ public:
   }
 };
 
+/// \brief Default class to represent a simple Interrupt for a MonotoneFramework
+///
+/// This class provides the simplest possible implementation for an Interrupt
+/// for a Monotone Framework.
+///
+/// In particular this interrupt is suitable for MonotoneFrameworks that are NOT
+/// interprocedural, and that DO NOT need to combine all the results on the
+/// terminal labels at the end of the analysis in a single FinalResult.
+///
+/// With these assumptions, the resulting Interrupt is pretty simple and it just
+/// forwards the results of the transfer function.
+template<typename LatticeElement>
+class DefaultInterrupt {
+private:
+  explicit DefaultInterrupt(const LatticeElement &Element) :
+    Result(Element.copy()) {}
+  explicit DefaultInterrupt(LatticeElement &&Element) : Result(Element) {}
+
+public:
+  explicit DefaultInterrupt() = default;
+
+  static DefaultInterrupt createInterrupt(const LatticeElement &Element) {
+    return DefaultInterrupt(Element);
+  }
+
+  static DefaultInterrupt createInterrupt(LatticeElement &&Element) {
+    return DefaultInterrupt(Element);
+  }
+
+public:
+  static bool requiresInterproceduralHandling() { return false; }
+  LatticeElement &&extractResult() { return std::move(Result); }
+  static bool isPartOfFinalResults() { return false; }
+
+private:
+  LatticeElement Result;
+};
+
 /// \brief CRTP base class for implementing a monotone framework
 ///
 /// This class provides the base structure to implement an analysis based on a
