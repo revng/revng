@@ -63,7 +63,6 @@ public:
   Interrupt createSummaryInterrupt() { revng_abort(); }
   Interrupt createNoReturnInterrupt() const { revng_abort(); }
   LatticeElement extremalValue(Label *) const { revng_abort(); }
-  LabelRange extremalLabels() const { revng_abort(); }
   Interrupt transfer(Label *) { revng_abort(); }
 };
 

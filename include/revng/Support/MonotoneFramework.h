@@ -317,15 +317,6 @@ public:
   /// \note This method must be implemented by the derived class D
   Interrupt transfer(Label L) { return derived().transfer(L); }
 
-  /// \brief Return a list of all the extremal labels
-  ///
-  /// An extremal node is typically the entry or the exit nodes of the function,
-  /// depending on whether the analysis being implemented is a forward or
-  /// backward analysis.
-  ///
-  /// \note This method must be implemented by the derived class D
-  LabelRange extremalLabels() const { return derived().extremalLabels(); }
-
   /// \brief Return the element of the lattice associated with the extremal
   ///        label \p L
   ///

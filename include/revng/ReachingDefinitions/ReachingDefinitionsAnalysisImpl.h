@@ -270,10 +270,6 @@ public:
 
   MISet extremalValue(llvm::BasicBlock *) const { return MISet(); }
 
-  typename Base::LabelRange extremalLabels() const {
-    return { &F->getEntryBlock() };
-  }
-
   const ColorsList &getBlockColors(llvm::BasicBlock *BB) const {
     using CP = ColorsProviderTraits<ColorsProvider>;
     return CP::getBlockColors(TheColorsProvider, BB);
