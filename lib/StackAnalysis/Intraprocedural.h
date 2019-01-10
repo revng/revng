@@ -219,7 +219,7 @@ public:
 
   BranchType::Values type() const { return Type; }
 
-  bool isReturn() const { return Type == BranchType::Return; }
+  bool isPartOfFinalResults() const { return Type == BranchType::Return; }
 
   bool requiresInterproceduralHandling() const {
     switch (Type) {

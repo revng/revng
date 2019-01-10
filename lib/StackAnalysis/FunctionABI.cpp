@@ -821,7 +821,7 @@ public:
     revng_abort();
   }
 
-  bool isReturn() const {
+  bool isPartOfFinalResults() const {
     revng_assert(TheReason == Regular or TheReason == Return);
     return TheReason == Return;
   }
@@ -921,7 +921,7 @@ public:
     // Initialize to `::initial()` and enable all the function-related
     // analyses. Some of the backward analyses are available only if we're
     // starting from a proper return.
-    Result.resetFunctionAnalyses(BB->isReturn());
+    Result.resetFunctionAnalyses(BB->isPartOfFinalResults());
 
     return Result;
   }
@@ -965,12 +965,12 @@ public:
       }
     }
 
-    // We don't check BB->isReturn() since there are basic blocks that have no
-    // successors but are not returns. And we want to consider those too, unlike
-    // what happens with the stack analysis, where we are intersted in
-    // understanding what happens from the point of view of the caller (e.g., if
-    // a callee-saved register is not restored on a noreturn path, we don't
-    // care).
+    // We don't check BB->isPartOfFinalResults() since there are basic blocks
+    // that have no successors but are not returns. And we want to consider
+    // those too, unlike what happens with the stack analysis, where we are
+    // interested in understanding what happens from the point of view of the
+    // caller (e.g., if a callee-saved register is not restored on a noreturn
+    // path, we don't care).
     if ((IsForward and BB->successor_size() == 0)
         or (not IsForward and BB->predecessor_size() == 0))
       return Interrupt<E>::createReturn(std::move(Result));

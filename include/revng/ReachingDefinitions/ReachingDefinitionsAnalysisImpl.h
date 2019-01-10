@@ -128,7 +128,7 @@ public:
   }
 
   MISet &&extractResult() { return std::move(E); }
-  bool isReturn() const { return false; }
+  bool isPartOfFinalResults() const { return false; }
 };
 
 template<typename T>

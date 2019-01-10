@@ -32,7 +32,7 @@ class Interrupt {
 public:
   bool requiresInterproceduralHandling() { revng_abort(); }
   LatticeElement &&extractResult() { revng_abort(); }
-  bool isReturn() const { revng_abort(); }
+  bool isPartOfFinalResults() const { revng_abort(); }
 };
 
 class Analysis : public MonotoneFramework<Label *,

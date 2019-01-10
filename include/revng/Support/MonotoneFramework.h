@@ -450,7 +450,7 @@ public:
       if (DynamicGraph)
         Successors = &SuccessorsMap[ToAnalyze];
 
-      if (Result.isReturn()) {
+      if (Result.isPartOfFinalResults()) {
         // The current label is a final state
         revng_assert(SuccessorsCount == 0);
 

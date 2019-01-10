@@ -206,7 +206,7 @@ public:
     IsReturn = false;
   }
 
-  bool isReturn() const { return IsReturn; }
+  bool isPartOfFinalResults() const { return IsReturn; }
   void setReturn() { IsReturn = true; }
 
   void append(ABIIRInstruction I) { Instructions.push_back(std::move(I)); }

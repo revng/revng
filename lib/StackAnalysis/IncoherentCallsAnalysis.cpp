@@ -80,7 +80,7 @@ public:
 
   Element &&extractResult() { return std::move(Result); }
 
-  bool isReturn() const { return TheReason == Return; }
+  bool isPartOfFinalResults() const { return TheReason == Return; }
 };
 
 /// \brief Analysis that computes the set of stack slots used incoherently
