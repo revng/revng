@@ -859,7 +859,6 @@ public:
                                  Analysis<IsForward, E>,
                                  ABIIRBasicBlock::links_const_range,
                                  IsForward ? ReversePostOrder : PostOrder>;
-  using LabelRange = typename Base::LabelRange;
 
 private:
   /// The entry basic block of the function

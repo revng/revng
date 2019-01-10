@@ -254,9 +254,6 @@ class MonotoneFramework {
   static_assert(DynamicGraph ? Visit == BreadthFirst : true,
                 "Cannot compute (reverse) post order for dynamic graphs");
 
-public:
-  using LabelRange = std::vector<Label>;
-
 protected:
   /// Lattice element where the results on return points of the function are
   /// accumulated

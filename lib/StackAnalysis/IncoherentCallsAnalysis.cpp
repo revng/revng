@@ -105,7 +105,6 @@ public:
                                  Analysis,
                                  ABIIRBasicBlock::links_const_range,
                                  PostOrder>;
-  using LabelRange = typename Base::LabelRange;
 
 private:
   ABIIRBasicBlock *FunctionEntry;
