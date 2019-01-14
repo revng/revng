@@ -708,6 +708,7 @@ public:
   using size_type = typename std::set<T>::size_type;
 
 protected:
+  using iterator = typename std::set<T>::iterator;
   std::set<T> Set;
 
 protected:
@@ -737,14 +738,14 @@ public:
   }
 
 protected:
-  size_t size() const { return Set.size(); }
+  size_type size() const { return Set.size(); }
 
   void insert(const T Key) { Set.insert(Key); }
 
   size_type erase(const T &El) { return Set.erase(El); }
   const_iterator erase(const_iterator It) { return this->Set.erase(It); }
 
-  bool contains(const T Key) const { return Set.count(Key); }
+  bool contains(const T &Key) const { return Set.count(Key); }
 };
 
 /// \brief Lattice for a MonotoneFramework over a set,
@@ -780,7 +781,7 @@ public:
     return MonotoneSet<T>::erase(It);
   }
 
-  bool contains(const T Key) const { return MonotoneSet<T>::contains(Key); }
+  bool contains(const T &Key) const { return MonotoneSet<T>::contains(Key); }
 
   bool contains(std::function<bool(const T &)> Predicate) const {
     return std::any_of(this->begin(), this->end(), Predicate);
@@ -868,7 +869,7 @@ public:
     return MonotoneSet<T>::erase(It);
   }
 
-  bool contains(const T Key) const {
+  bool contains(const T &Key) const {
     revng_assert(not IsBottom);
     return MonotoneSet<T>::contains(Key);
   }
@@ -882,12 +883,18 @@ public:
       IsBottom = false;
       return;
     }
-    std::vector<T> ToDrop;
-    for (auto &I : this->Set)
-      if (not Other.contains(I))
-        ToDrop.push_back(I);
-    for (auto &I : this->Set)
-      erase(I);
+    using iterator = typename MonotoneSet<T>::iterator;
+    std::vector<iterator> ToDrop;
+    iterator OtherEnd = Other.end();
+    iterator SetIt = this->Set.begin();
+    iterator SetEnd = this->Set.end();
+    for (; SetIt != SetEnd; ++SetIt) {
+      iterator OtherIt = Other.Set.find(*SetIt);
+      if (OtherIt == OtherEnd)
+        ToDrop.push_back(SetIt);
+    }
+    for (iterator I : ToDrop)
+      this->Set.erase(I);
   }
 
   bool greaterThan(const IntersectionMonotoneSet &Other) const {
