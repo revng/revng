@@ -989,9 +989,13 @@ bool RestructureCFG::runOnFunction(Function &F) {
       revng_assert(Exit != nullptr);
       addEdge(EdgeDescriptor(CollapsedNode, Exit));
     } else {
-      for (EdgeDescriptor Edge : OutgoingEdges) {
-        moveEdgeSource(Edge, CollapsedNode);
-      }
+
+      // Double check that we have a single successor
+      revng_assert(Successors.size() == 1);
+      BasicBlockNode *Successor = *Successors.begin();
+
+      //Connect the collapsed node to the unique successor
+      addEdge(EdgeDescriptor(CollapsedNode, Successor));
     }
 
     // Remove collapsed nodes from the outer region.
