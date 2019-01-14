@@ -1,3 +1,4 @@
 add_subdirectory(ExamplePass)
-add_subdirectory(revng-c)
 add_subdirectory(Liveness)
+add_subdirectory(RestructureCFGPass)
+add_subdirectory(revng-c)
