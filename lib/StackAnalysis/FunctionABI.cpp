@@ -345,10 +345,6 @@ public:
     Enabled = Enabled || Other.Enabled;
   }
 
-  bool greaterThan(const Inhibitor &Other) const {
-    return not lowerThanOrEqual(Other);
-  }
-
   bool lowerThanOrEqual(const Inhibitor &Other) const {
     if (isEnabled() and not Other.isEnabled())
       return false;
@@ -657,10 +653,6 @@ public:
         { revng_log(SaDiffLog, "RegisterAnalyses"); });
 
     return Result;
-  }
-
-  bool greaterThan(const Element &Other) const {
-    return not lowerThanOrEqual(Other);
   }
 
   Element &combine(const Element &Other) {

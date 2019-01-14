@@ -322,11 +322,7 @@ public:
 """)
 
   # Emit the comparison operator of the lattice
-  out += ("""  bool greaterThan(const {} &Other) const {{
-    return !lowerThanOrEqual(Other);
-  }}
-
-  bool lowerThanOrEqual(const {} &Other) const {{
+  out += ("""  bool lowerThanOrEqual(const {} &Other) const {{
     return Value == Other.Value
       || """.format(name, name))
 

@@ -87,10 +87,6 @@ public:
   ///       perform an equality comparison here.
   bool lowerThanOrEqual(const ASID &Other) const { return ID == Other.ID; }
 
-  bool greaterThan(const ASID &Other) const {
-    return not lowerThanOrEqual(Other);
-  }
-
   void dump() const debug_function { dump(dbg); }
 
   template<typename T>
@@ -139,10 +135,6 @@ public:
   unsigned cmp(const ASSlot &Other, const llvm::Module *M) const;
 
   size_t hash() const;
-
-  bool greaterThan(const ASSlot &Other) const {
-    return not lowerThanOrEqual(Other);
-  }
 
   bool operator==(const ASSlot &Other) const {
     return std::tie(AS, Offset) == std::tie(Other.AS, Other.Offset);

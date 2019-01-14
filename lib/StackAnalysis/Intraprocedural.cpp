@@ -272,7 +272,7 @@ public:
         } else {
           // If not, are we saying something new?
           Value &OldValue = It->second;
-          if (NewValue.greaterThan(OldValue)) {
+          if (not NewValue.lowerThanOrEqual(OldValue)) {
             OldValue = NewValue;
             Changed = true;
           }

@@ -83,7 +83,7 @@ unsigned Value::cmp(const Value &Other, const Module *M) const {
   ROA(!hasTag() && Other.hasTag(),
       { revng_log(SaDiffLog, "RHS has tag, LHS doesn't"); });
 
-  ROA(hasTag() && Other.hasTag() && TheTag.greaterThan(Other.TheTag),
+  ROA(hasTag() && Other.hasTag() && !TheTag.lowerThanOrEqual(Other.TheTag),
       { revng_log(SaDiffLog, "Tag"); });
 
   return Result;

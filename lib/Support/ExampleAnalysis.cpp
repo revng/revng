@@ -24,7 +24,7 @@ public:
   static LatticeElement bottom() { return LatticeElement(); }
   LatticeElement copy() { revng_abort(); }
   void combine(const LatticeElement &) { revng_abort(); }
-  bool greaterThan(const LatticeElement &) { revng_abort(); }
+  bool lowerThanOrEqual(const LatticeElement &) { revng_abort(); }
   void dump() { revng_abort(); }
 };
 

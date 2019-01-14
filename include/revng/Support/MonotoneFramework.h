@@ -209,11 +209,6 @@ public:
     return This.lowerThanOrEqual(Other);
   }
 
-  /// \brief The opposite of the partial ordering operation
-  bool greaterThan(const ElementBase &RHS) const {
-    return !this->lowerThanOrEqual(RHS);
-  }
-
   /// \brief The combination operator
   // TODO: assert monotonicity
   ElementBase &combine(const ElementBase &RHS) {
@@ -589,7 +584,7 @@ public:
             // Enqueue the successor
             WorkList.insert(Successor);
 
-          } else if (ActualElement.greaterThan(It->second)) {
+          } else if (not ActualElement.lowerThanOrEqual(It->second)) {
             // We have already seen this Label but the result of the transfer
             // function is larger than its previous initial state
 
@@ -807,10 +802,6 @@ public:
     this->Set.insert(Other.begin(), Other.end());
   }
 
-  bool greaterThan(const UnionMonotoneSet &Other) const {
-    return not lowerThanOrEqual(Other);
-  }
-
   bool lowerThanOrEqual(const UnionMonotoneSet &Other) const {
     if (size() > Other.size())
       return false;
@@ -897,10 +888,6 @@ public:
       this->Set.erase(I);
   }
 
-  bool greaterThan(const IntersectionMonotoneSet &Other) const {
-    return not lowerThanOrEqual(Other);
-  }
-
   bool lowerThanOrEqual(const IntersectionMonotoneSet &Other) const {
     if (IsBottom)
       return true;
@@ -914,4 +901,5 @@ public:
                          Other.end());
   }
 };
+
 #endif // MONOTONEFRAMEWORK_H
