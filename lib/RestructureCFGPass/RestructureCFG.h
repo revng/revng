@@ -12,7 +12,7 @@
 #include "llvm/Pass.h"
 
 // Local libraries includes
-#include "revng/BasicAnalyses/ReachabilityPass.h"
+#include "ReachabilityPass.h"
 
 // Local includes
 #include "RegionCFGTree.h"
