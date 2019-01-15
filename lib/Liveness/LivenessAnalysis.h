@@ -88,8 +88,19 @@ public:
   ///
   /// NOTE: we only track Instructions, because anything that is not an
   /// Instruction is always live.
-  const LivenessMap &getLiveIn() {
+  const LivenessMap &getLiveIn() const {
     return LiveIn;
+  };
+
+  /// \brief Extracts the final results of the analysis.
+  ///
+  /// Returns a LivenessMap, mapping each BasicBlock to its LiveIn set,
+  /// representing all the Instructions that are live at the beginning.
+  ///
+  /// NOTE: The LiveIn is moved from, so it's left is undetermined state
+  ///       after a call to this method.
+  LivenessMap &&extractLiveIn() {
+    return std::move(LiveIn);
   };
 
   // ---- Transfer function and handleEdge, to propagate the analysis ----
