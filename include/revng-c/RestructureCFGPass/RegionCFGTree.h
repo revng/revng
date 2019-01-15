@@ -7,6 +7,7 @@
 
 // Standard includes
 #include <cstdlib>
+#include <set>
 
 // Local libraries includes
 #include "revng/Support/Transform.h"
