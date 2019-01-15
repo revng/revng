@@ -1,5 +1,5 @@
-#ifndef GLOBALDECLCREATIONACTION_H
-#define GLOBALDECLCREATIONACTION_H
+#ifndef REVNGC_GLOBALDECLCREATIONACTION_H
+#define REVNGC_GLOBALDECLCREATIONACTION_H
 
 #include <clang/Frontend/ASTConsumers.h>
 #include <clang/Frontend/FrontendAction.h>
@@ -48,4 +48,4 @@ CreateGlobalDeclCreator(llvm::Module &Module,
 
 } // end namespace clang
 
-#endif // GLOBALDECLCREATIONACTION_H
+#endif // REVNGC_GLOBALDECLCREATIONACTION_H

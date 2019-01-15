@@ -1,5 +1,5 @@
-#ifndef ASTBUILDANALYSIS_H
-#define ASTBUILDANALYSIS_H
+#ifndef REVNGC_ASTBUILDANALYSIS_H
+#define REVNGC_ASTBUILDANALYSIS_H
 /// \brief DataFlow analysis to build the AST for a Function
 
 //
@@ -157,4 +157,4 @@ private:
 };
 
 } // namespace IR2AST
-#endif // ASTBUILDANALYSIS_H
+#endif // REVNGC_ASTBUILDANALYSIS_H

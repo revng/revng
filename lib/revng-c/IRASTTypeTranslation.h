@@ -1,5 +1,5 @@
-#ifndef IRASTTYPETRANSLATION_H
-#define IRASTTYPETRANSLATION_H
+#ifndef REVNGC_IRASTTYPETRANSLATION_H
+#define REVNGC_IRASTTYPETRANSLATION_H
 
 #include <llvm/ADT/Optional.h>
 
@@ -21,4 +21,4 @@ clang::QualType getQualType(const llvm::Type *T, clang::ASTContext &C);
 
 } // end namespace IRASTTypeTranslation
 
-#endif // IRASTTYPETRANSLATION_H
+#endif // REVNGC_IRASTTYPETRANSLATION_H

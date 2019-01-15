@@ -1,5 +1,5 @@
-#ifndef FUNCTIONDECLCREATIONACTION_H
-#define FUNCTIONDECLCREATIONACTION_H
+#ifndef REVNGC_FUNCTIONDECLCREATIONACTION_H
+#define REVNGC_FUNCTIONDECLCREATIONACTION_H
 
 #include <clang/Frontend/ASTConsumers.h>
 #include <clang/Frontend/FrontendAction.h>
@@ -53,4 +53,4 @@ CreateFuncDeclCreator(llvm::Module &M,
 
 } // end namespace clang
 
-#endif // FUNCTIONDECLCREATIONACTION_H
+#endif // REVNGC_FUNCTIONDECLCREATIONACTION_H

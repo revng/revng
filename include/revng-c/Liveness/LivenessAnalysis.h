@@ -2,8 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#ifndef REVNG_LIVENESS_ANALYSIS_H
-#define REVNG_LIVENESS_ANALYSIS_H
+#ifndef REVNGC_LIVENESS_ANALYSIS_H
+#define REVNGC_LIVENESS_ANALYSIS_H
 
 // LLVM includes
 #include <llvm/IR/Function.h>
@@ -115,4 +115,4 @@ public:
 
 } // end namespace LivenessAnalysis
 
-#endif // REVNG_LIVENESS_ANALYSIS_H
+#endif // REVNGC_LIVENESS_ANALYSIS_H

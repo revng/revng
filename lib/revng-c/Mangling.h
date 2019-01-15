@@ -1,5 +1,5 @@
-#ifndef REVNG_MANGLING_H
-#define REVNG_MANGLING_H
+#ifndef REVNGC_MANGLING_H
+#define REVNGC_MANGLING_H
 
 // This is very simple for now.
 // In the future we might consider making it more robust using something like
@@ -10,4 +10,4 @@ inline std::string makeCIdentifier(std::string S) {
   return S;
 }
 
-#endif // REVNG_MANGLING_H
+#endif // REVNGC_MANGLING_H

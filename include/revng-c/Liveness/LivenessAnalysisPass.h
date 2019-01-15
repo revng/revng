@@ -2,8 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#ifndef REVNG_LIVENESS_ANALYSIS_PASS_H
-#define REVNG_LIVENESS_ANALYSIS_PASS_H
+#ifndef REVNGC_LIVENESS_ANALYSIS_PASS_H
+#define REVNGC_LIVENESS_ANALYSIS_PASS_H
 
 // LLVM includes
 #include <llvm/Pass.h>
@@ -26,4 +26,4 @@ protected:
   LivenessAnalysis::LivenessMap LiveIn;
 
 };
-#endif // REVNG_LIVENESS_ANALYSIS_PASS_H
+#endif // REVNGC_LIVENESS_ANALYSIS_PASS_H
