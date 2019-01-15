@@ -18,13 +18,15 @@
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include "llvm/Support/raw_os_ostream.h"
 
-// Local libraries includes
+// revng includes
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
+// Local libraries includes
+#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/RestructureCFGPass/RestructureCFG.h"
+
 // Local includes
-#include "RegionCFGTree.h"
-#include "RestructureCFG.h"
 #include "Utils.h"
 
 using namespace llvm;

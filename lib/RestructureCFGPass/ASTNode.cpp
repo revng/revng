@@ -10,8 +10,8 @@
 #include <fstream>
 #include <iostream>
 
-// Local includes
-#include "ASTNode.h"
+// Local libraries includes
+#include "revng-c/RestructureCFGPass/ASTNode.h"
 
 void CodeNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"" << this->getName() << "\" [";

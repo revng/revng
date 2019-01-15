@@ -12,10 +12,10 @@
 #include "llvm/Pass.h"
 
 // Local libraries includes
-#include "ReachabilityPass.h"
+#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 
 // Local includes
-#include "RegionCFGTree.h"
+#include "ReachabilityPass.h"
 
 // Forward reference to object types
 class ASTTree;

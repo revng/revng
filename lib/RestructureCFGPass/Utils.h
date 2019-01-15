@@ -10,9 +10,9 @@
 #include <memory>
 #include <set>
 
-// Local includes
-#include "ASTNode.h"
-#include "BasicBlockNode.h"
+// Local libraries includes
+#include "revng-c/RestructureCFGPass/ASTNode.h"
+#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 
 // TODO: move the definition of this object in an unique place, to avoid using
 // an extern declaration

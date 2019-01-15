@@ -14,9 +14,11 @@
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include "llvm/Support/raw_os_ostream.h"
 
+// Local libraries includes
+#include "revng-c/RestructureCFGPass/ASTTree.h"
+#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+
 // Local includes
-#include "ASTTree.h"
-#include "RegionCFGTree.h"
 #include "Utils.h"
 
 // EdgeDescriptor is a handy way to create and manipulate edges on the CFG.

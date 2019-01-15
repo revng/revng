@@ -8,9 +8,11 @@
 // Standard includes
 #include <cstdlib>
 
+// Local libraries includes
+#include "revng-c/RestructureCFGPass/ASTNode.h"
+#include "revng-c/RestructureCFGPass/ASTTree.h"
+
 // Local includes
-#include "ASTNode.h"
-#include "ASTTree.h"
 #include "Utils.h"
 
 // Helper to obtain a unique incremental counter (to give name to sequence

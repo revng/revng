@@ -10,8 +10,10 @@
 #include <map>
 #include <set>
 
+// Local libraries includes
+#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
+
 // Local includes
-#include "BasicBlockNode.h"
 #include "Utils.h"
 
 using namespace llvm;
