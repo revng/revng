@@ -68,13 +68,13 @@ public:
   llvm::SmallVector<llvm::BasicBlock *, 2>
   successors(llvm::BasicBlock *BB, InterruptType &) const {
     llvm::SmallVector<llvm::BasicBlock *, 2> Result;
-    for (llvm::BasicBlock *Pred : make_range(pred_begin(BB), pred_end(BB)))
+    for (llvm::BasicBlock *Pred : predecessors(BB))
       Result.push_back(Pred);
     return Result;
   }
 
   size_t successor_size(llvm::BasicBlock *BB, InterruptType &) const {
-    return succ_end(BB) - succ_begin(BB);
+    return pred_size(BB);
   }
 
   static LiveSet extremalValue(llvm::BasicBlock *BB) {
