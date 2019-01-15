@@ -7,6 +7,8 @@ find_package(Clang REQUIRED)
 
 find_library(REVNG_SUPPORT_LIBRARY revngSupport)
 
+include_directories(include/)
+
 add_definitions(${LLVM_DEFINITIONS})
 include_directories(${LLVM_INCLUDE_DIRS})
 

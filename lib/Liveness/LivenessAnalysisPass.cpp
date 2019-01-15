@@ -3,7 +3,7 @@
 //
 
 // local includes
-#include "LivenessAnalysisPass.h"
+#include "revng-c/Liveness/LivenessAnalysisPass.h"
 
 using namespace llvm;
 
