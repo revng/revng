@@ -445,6 +445,18 @@ static std::vector<MetaRegion *> applyPartialOrder(std::vector<MetaRegion> &V) {
   return OrderedVector;
 }
 
+static bool alreadyInMetaregion(std::vector<MetaRegion> &V, BasicBlockNode *N) {
+
+  // Scan all the metaregions and check if a node is already contained in one of them
+  for (MetaRegion &Region : V) {
+    if (Region.containsNode(N)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 char RestructureCFG::ID = 0;
 static RegisterPass<RestructureCFG> X("restructureCFG",
                                       "Apply CFG restructuring transformation",
@@ -844,7 +856,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
       for (BasicBlockNode *Frontier : Frontiers) {
         for (BasicBlockNode *Successor : Successors) {
           if ((DT.dominates(Head, Successor))
-              and (DT.dominates(Frontier, Successor))) {
+              and (DT.dominates(Frontier, Successor))
+              and !alreadyInMetaregion(MetaRegions, Successor)) {
             Meta->insertNode(Successor);
             AnotherIteration = true;
             if (Log.isEnabled()) {
@@ -855,6 +868,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
         }
       }
 
+      // Remove the frontier nodes since we do not need them anymore.
       for (BasicBlockNode *Frontier : Frontiers) {
         BasicBlockNode *OriginalSource = EdgeExtremal[Frontier].first;
         BasicBlockNode *OriginalTarget = EdgeExtremal[Frontier].second;
