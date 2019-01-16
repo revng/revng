@@ -7,6 +7,7 @@
 
 // local librariesincludes
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/RestructureCFGPass/Utils.h"
 
 // local includes
 #include "BasicBlockViewAnalysis.h"
@@ -21,9 +22,23 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
   auto &RestructurePass = getAnalysis<RestructureCFG>();
   CFG &RCFGT = RestructurePass.getRCT();
 
-  // TODO: Perform preprocessing on RCFGT to ensure that each node with more
-  // than one successor only has dummy successors. If that's not true, inject
-  // dummy successors when necessary.
+  {
+    // Perform preprocessing on RCFGT to ensure that each node with more
+    // than one successor only has dummy successors. If that's not true,
+    // inject dummy successors when necessary.
+    std::vector<EdgeDescriptor> NeedDummy;
+    for (BasicBlockNode *Node : RCFGT.nodes())
+      if (not Node->isDummy() and Node->successor_size() > 1)
+        for (BasicBlockNode *Succ : Node->successors())
+          if (not Succ->isDummy())
+            NeedDummy.push_back({Node, Succ});
+
+    for (auto &Pair : NeedDummy) {
+      BasicBlockNode *Dummy = RCFGT.newDummyNodeID("bb view dummy");
+      moveEdgeTarget(Pair, Dummy);
+      addEdge({Dummy, Pair.second});
+    }
+  }
 
   BasicBlockViewAnalysis::Analysis BBViewAnalysis(RCFGT, F);
   BBViewAnalysis.initialize();

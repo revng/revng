@@ -17,9 +17,7 @@
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
-
-// Local includes
-#include "Utils.h"
+#include "revng-c/RestructureCFGPass/Utils.h"
 
 // EdgeDescriptor is a handy way to create and manipulate edges on the CFG.
 using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;

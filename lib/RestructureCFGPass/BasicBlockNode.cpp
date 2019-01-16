@@ -12,9 +12,7 @@
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
-
-// Local includes
-#include "Utils.h"
+#include "revng-c/RestructureCFGPass/Utils.h"
 
 using namespace llvm;
 

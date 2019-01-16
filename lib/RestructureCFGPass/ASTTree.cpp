@@ -11,9 +11,7 @@
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTNode.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
-
-// Local includes
-#include "Utils.h"
+#include "revng-c/RestructureCFGPass/Utils.h"
 
 // Helper to obtain a unique incremental counter (to give name to sequence
 // nodes).
