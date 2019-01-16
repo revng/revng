@@ -20,6 +20,7 @@ Analysis::InterruptType Analysis::transfer(BasicBlockNode *InputBB) {
   revng_assert(OriginalBB);
   bool New = VisibleBB.insert(std::make_pair(OriginalBB, InputBB)).second;
   revng_assert(New);
+  BBViewMap[InputBB] = VisibleBB.copy();
   return InterruptType::createInterrupt(std::move(VisibleBB));
 }
 

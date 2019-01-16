@@ -87,6 +87,8 @@ public: // map methods
 
 };
 
+using BBNodeBBViewMap = std::map<BasicBlockNode *, BasicBlockViewMap>;
+
 class Analysis
   : public MonotoneFramework<Analysis,
                              BasicBlockNode *,
@@ -96,6 +98,7 @@ class Analysis
 private:
   CFG &RegionCFGTree;
   const llvm::Function &OriginalFunction;
+  BBNodeBBViewMap BBViewMap;
 
 public:
   using Base = MonotoneFramework<Analysis,
@@ -117,11 +120,16 @@ public:
 
   void initialize() {
     Base::initialize();
+    BBViewMap.clear();
   }
 
   void assertLowerThanOrEqual(const BasicBlockViewMap &A,
                               const BasicBlockViewMap &B) const {
     revng_assert(A.lowerThanOrEqual(B));
+  }
+
+  const BBNodeBBViewMap &getBBNodeBBViewMap() const {
+    return BBViewMap;
   }
 
   /// This Analysis uses DefaultInterrupt, hence it is never supposed to dump
