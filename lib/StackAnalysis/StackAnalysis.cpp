@@ -35,7 +35,7 @@ static Logger<> StackAnalysisLog("stackanalysis");
 
 namespace StackAnalysis {
 
-std::set<const llvm::GlobalVariable *> EmptyCSVSet;
+const std::set<llvm::GlobalVariable *> EmptyCSVSet;
 
 template<>
 char StackAnalysis<true>::ID = 0;
@@ -60,7 +60,7 @@ bool StackAnalysis<AnalyzeABI>::runOnFunction(Function &F) {
   revng_log(PassesLog, "Starting StackAnalysis");
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
-  const Module *M = F.getParent();
+  Module *M = F.getParent();
 
   // The stack analysis works function-wise. We consider two sets of functions:
   // first (Force == true) those that are highly likely to be real functions

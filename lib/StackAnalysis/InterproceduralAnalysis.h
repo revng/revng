@@ -118,7 +118,7 @@ public:
 
   /// \brief Finalized the data stored in this object and produce a
   ///        FunctionsSummary
-  FunctionsSummary finalize(const llvm::Module *M);
+  FunctionsSummary finalize(llvm::Module *M);
 
   void dump(const llvm::Module *M) const debug_function { dump(M, dbg); }
 

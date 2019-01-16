@@ -472,7 +472,8 @@ public:
     template<typename K, typename V>
     using map = std::map<K, V>;
 
-    map<const GlobalVariable *, FunctionCallRegisterDescription> RegisterSlots;
+    map<GlobalVariable *, FunctionCallRegisterDescription> RegisterSlots;
+
   };
 
   struct FunctionDescription {
@@ -480,10 +481,9 @@ public:
 
     FunctionType::Values Type;
     std::map<llvm::BasicBlock *, BranchType::Values> BasicBlocks;
-    std::map<const llvm::GlobalVariable *, FunctionRegisterDescription>
-      RegisterSlots;
+    std::map<llvm::GlobalVariable *, FunctionRegisterDescription> RegisterSlots;
     std::vector<CallSiteDescription> CallSites;
-    std::set<const llvm::GlobalVariable *> ClobberedRegisters;
+    std::set<llvm::GlobalVariable *> ClobberedRegisters;
   };
 
 public:

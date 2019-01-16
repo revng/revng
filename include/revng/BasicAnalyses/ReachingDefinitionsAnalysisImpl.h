@@ -443,8 +443,8 @@ public:
       GlobalVariable *StackPointer = GCBI->spReg();
       auto IsClobbered = [&Clobbered,
                           StackPointer](const MemoryInstruction &Other) {
-        const Value *CSVValue = Other.MA.globalVariable();
-        if (const auto *CSV = dyn_cast_or_null<GlobalVariable>(CSVValue))
+        Value *CSVValue = Other.MA.globalVariable();
+        if (auto *CSV = dyn_cast_or_null<GlobalVariable>(CSVValue))
           return Clobbered.count(CSV) != 0;
         else if (const Value *Base = Other.MA.base())
           return Base != StackPointer;

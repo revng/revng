@@ -18,7 +18,7 @@
 
 namespace StackAnalysis {
 
-extern std::set<const llvm::GlobalVariable *> EmptyCSVSet;
+extern const std::set<llvm::GlobalVariable *> EmptyCSVSet;
 
 template<bool AnalyzeABI>
 class StackAnalysis : public llvm::FunctionPass {
@@ -36,7 +36,7 @@ public:
 
   bool runOnFunction(llvm::Function &F) override;
 
-  const std::set<const llvm::GlobalVariable *> &
+  const std::set<llvm::GlobalVariable *> &
   getClobbered(llvm::BasicBlock *Function) const {
     auto It = GrandResult.Functions.find(Function);
     if (It == GrandResult.Functions.end())
