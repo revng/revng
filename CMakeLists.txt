@@ -9,6 +9,8 @@ project(revamb)
 include(cmake/Common.cmake)
 install(FILES cmake/revngConfig.cmake cmake/Common.cmake
   DESTINATION share/revng/cmake)
+  
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # This has to be first to get highest priority
 include_directories(include/)
