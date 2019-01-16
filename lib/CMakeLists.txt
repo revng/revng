@@ -1,3 +1,4 @@
+add_subdirectory(EnforceCFGCombingPass)
 add_subdirectory(ExamplePass)
 add_subdirectory(Liveness)
 add_subdirectory(RestructureCFGPass)
