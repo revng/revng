@@ -47,10 +47,12 @@ add_custom_command(OUTPUT ABIDataFlows.h
 add_custom_target(abidataflows DEPENDS ABIDataFlows.h)
 
 revng_add_analyses_library_internal(revngStackAnalysis
+  ABIDetectionPass.cpp
   ABIIR.cpp
   Cache.cpp
   Element.cpp
   FunctionABI.cpp
+  FunctionBoundariesDetectionPass.cpp
   FunctionsSummary.cpp
   IncoherentCallsAnalysis.cpp
   InterproceduralAnalysis.cpp

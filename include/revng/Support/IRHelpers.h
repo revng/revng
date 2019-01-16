@@ -465,6 +465,10 @@ public:
     return llvm::MDString::get(C, String);
   }
 
+  llvm::ConstantAsMetadata *get(llvm::Constant *C) {
+    return llvm::ConstantAsMetadata::get(C);
+  }
+
   llvm::ConstantAsMetadata *get(uint32_t Integer) {
     auto *Constant = llvm::ConstantInt::get(Int32Ty, Integer);
     return llvm::ConstantAsMetadata::get(Constant);
@@ -499,6 +503,11 @@ public:
     revng_abort();
   }
 
+  template<typename T>
+  T extract(llvm::Metadata *MD) {
+    revng_abort();
+  }
+
 private:
   llvm::LLVMContext &C;
   llvm::IntegerType *Int32Ty;
@@ -506,7 +515,33 @@ private:
 };
 
 template<>
+inline llvm::MDTuple *
+QuickMetadata::extract<llvm::MDTuple *>(llvm::Metadata *MD) {
+  return llvm::cast<llvm::MDTuple>(MD);
+}
+
+template<>
+inline llvm::Constant *
+QuickMetadata::extract<llvm::Constant *>(const llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return C->getValue();
+}
+
+template<>
+inline llvm::Constant *
+QuickMetadata::extract<llvm::Constant *>(llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return C->getValue();
+}
+
+template<>
 inline uint32_t QuickMetadata::extract<uint32_t>(const llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getLimitedValue(C->getValue());
+}
+
+template<>
+inline uint32_t QuickMetadata::extract<uint32_t>(llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return getLimitedValue(C->getValue());
 }
@@ -518,9 +553,33 @@ inline uint64_t QuickMetadata::extract<uint64_t>(const llvm::Metadata *MD) {
 }
 
 template<>
+inline uint64_t QuickMetadata::extract<uint64_t>(llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getLimitedValue(C->getValue());
+}
+
+template<>
 inline llvm::StringRef
 QuickMetadata::extract<llvm::StringRef>(const llvm::Metadata *MD) {
   return llvm::cast<llvm::MDString>(MD)->getString();
+}
+
+template<>
+inline llvm::StringRef
+QuickMetadata::extract<llvm::StringRef>(llvm::Metadata *MD) {
+  return llvm::cast<llvm::MDString>(MD)->getString();
+}
+
+template<>
+inline const llvm::MDString *
+QuickMetadata::extract<const llvm::MDString *>(const llvm::Metadata *MD) {
+  return llvm::cast<llvm::MDString>(MD);
+}
+
+template<>
+inline llvm::MDString *
+QuickMetadata::extract<llvm::MDString *>(llvm::Metadata *MD) {
+  return llvm::cast<llvm::MDString>(MD);
 }
 
 /// \brief Return the instruction coming before \p I, or nullptr if it's the

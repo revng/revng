@@ -175,4 +175,101 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
   return false;
 }
 
+template<bool AnalyzeABI>
+void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
+  using namespace llvm;
+
+  const FunctionsSummary &Summary = GrandResult;
+
+  LLVMContext &Context = getContext(&F);
+  QuickMetadata QMD(Context);
+
+  // Temporary data structure so we can set all the `func.member.of` in a single
+  // shot at the end
+  std::map<TerminatorInst *, std::vector<Metadata *>> MemberOf;
+
+  // Loop over all the detected functions
+  for (const auto &P : Summary.Functions) {
+    BasicBlock *Entry = P.first;
+    const FunctionsSummary::FunctionDescription &Function = P.second;
+
+    if (Entry == nullptr or Function.BasicBlocks.size() == 0)
+      continue;
+
+    //
+    // Add `func.entry`:
+    // { name, type, { clobbered csv, ... }, { { csv, argument, return value },
+    // ... } }
+    //
+    auto TypeMD = QMD.get(FunctionType::getName(Function.Type));
+
+    // Clobbered registers metadata
+    std::vector<Metadata *> ClobberedMDs;
+    for (GlobalVariable *ClobberedCSV : Function.ClobberedRegisters) {
+      ClobberedMDs.push_back(QMD.get(ClobberedCSV));
+    }
+
+    // Register slots metadata
+    std::vector<Metadata *> SlotMDs;
+    if (AnalyzeABI) {
+      for (auto &P : Function.RegisterSlots) {
+        auto *CSV = QMD.get(P.first);
+        auto *Argument = QMD.get(P.second.Argument.valueName());
+        auto *ReturnValue = QMD.get(P.second.ReturnValue.valueName());
+        SlotMDs.push_back(QMD.tuple({ CSV, Argument, ReturnValue }));
+      }
+    }
+
+    // Create func.entry metadata
+    MDTuple *FunctionMD = QMD.tuple({ QMD.get(getName(Entry)),
+                                      TypeMD,
+                                      QMD.tuple(ClobberedMDs),
+                                      QMD.tuple(SlotMDs) });
+    Entry->getTerminator()->setMetadata("func.entry", FunctionMD);
+
+    if (AnalyzeABI) {
+      //
+      // Create func.call
+      //
+      for (const FunctionsSummary::CallSiteDescription &CallSite :
+           Function.CallSites) {
+        Instruction *Call = CallSite.Call;
+
+        // Register slots metadata
+        std::vector<Metadata *> SlotMDs;
+        for (auto &P : CallSite.RegisterSlots) {
+          auto *CSV = QMD.get(P.first);
+          auto *Argument = QMD.get(P.second.Argument.valueName());
+          auto *ReturnValue = QMD.get(P.second.ReturnValue.valueName());
+          SlotMDs.push_back(QMD.tuple({ CSV, Argument, ReturnValue }));
+        }
+
+        Call->setMetadata("func.call", QMD.tuple(QMD.tuple(SlotMDs)));
+      }
+    }
+
+    //
+    // Create func.member.of
+    //
+
+    // Loop over all the basic blocks composing the function
+    for (const auto &P : Function.BasicBlocks) {
+      BasicBlock *BB = P.first;
+      BranchType::Values Type = P.second;
+
+      auto *Pair = QMD.tuple({ FunctionMD, QMD.get(getName(Type)) });
+
+      // Register that this block is associated to this function
+      MemberOf[BB->getTerminator()].push_back(Pair);
+    }
+  }
+
+  // Apply `func.member.of`
+  for (auto &P : MemberOf)
+    P.first->setMetadata("func.member.of", QMD.tuple(P.second));
+}
+
+template void StackAnalysis<true>::serializeMetadata(Function &F);
+template void StackAnalysis<false>::serializeMetadata(Function &F);
+
 } // namespace StackAnalysis

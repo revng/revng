@@ -48,7 +48,9 @@ public:
 
   void serialize(std::ostream &Output) { Output << TextRepresentation; }
 
-private:
+  void serializeMetadata(llvm::Function &F);
+
+public:
   FunctionsSummary GrandResult;
   std::string TextRepresentation;
 };
@@ -58,6 +60,9 @@ char StackAnalysis<true>::ID;
 
 template<>
 char StackAnalysis<false>::ID;
+
+extern template void StackAnalysis<true>::serializeMetadata(llvm::Function &F);
+extern template void StackAnalysis<false>::serializeMetadata(llvm::Function &F);
 
 } // namespace StackAnalysis
 

@@ -52,7 +52,6 @@
 // Local includes
 #include "CodeGenerator.h"
 #include "ExternalJumpsHandler.h"
-#include "FunctionBoundariesDetectionPass.h"
 #include "InstructionTranslator.h"
 #include "JumpTargetManager.h"
 #include "PTCInterface.h"
@@ -106,17 +105,6 @@ static cl::opt<bool> NoLink("no-link",
 static cl::alias A4("L",
                     cl::desc("Alias for -no-link"),
                     cl::aliasopt(NoLink),
-                    cl::cat(MainCategory));
-
-// TODO: this will disappear once we integrate the stack analysis
-static cl::opt<bool> DetectFunctionBoundaries("functions-boundaries",
-                                              cl::desc("enable functions "
-                                                       "boundaries "
-                                                       "detection"),
-                                              cl::cat(MainCategory));
-static cl::alias A5("f",
-                    cl::desc("Alias for -functions-boundaries"),
-                    cl::aliasopt(DetectFunctionBoundaries),
                     cl::cat(MainCategory));
 
 // Enable Debug Options to be specified on the command line
@@ -1082,15 +1070,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   JumpTargets.finalizeJumpTargets();
 
   purgeDeadBlocks(MainFunction);
-
-  JumpTargets.createJTReasonMD();
-
-  if (DetectFunctionBoundaries) {
-    legacy::FunctionPassManager FPM(&*TheModule);
-    using FBDP = FunctionBoundariesDetectionPass;
-    FPM.add(new FBDP(&JumpTargets, ""));
-    FPM.run(*MainFunction);
-  }
 
   JumpTargets.createJTReasonMD();
 

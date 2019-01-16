@@ -7,7 +7,6 @@ add_executable(revng-lift
   CPUStateAccessAnalysisPass.cpp
   CodeGenerator.cpp
   ExternalJumpsHandler.cpp
-  FunctionBoundariesDetectionPass.cpp
   InstructionTranslator.cpp
   JumpTargetManager.cpp
   Main.cpp
