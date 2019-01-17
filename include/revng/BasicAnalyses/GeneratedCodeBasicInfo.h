@@ -258,6 +258,7 @@ public:
   }
 
   llvm::BasicBlock *anyPC() { return AnyPC; }
+  llvm::BasicBlock *unexpectedPC() { return UnexpectedPC; }
 
 private:
   uint32_t InstructionAlignment;

@@ -14,23 +14,19 @@
 // Local libraries includes
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 
-class IsolateFunctions : public llvm::FunctionPass {
+class IsolateFunctions : public llvm::ModulePass {
 public:
   static char ID;
 
 public:
-  IsolateFunctions() : FunctionPass(ID) {}
+  IsolateFunctions() : ModulePass(ID) {}
 
-  bool runOnFunction(llvm::Function &F) override;
+  bool runOnModule(llvm::Module &M) override;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<GeneratedCodeBasicInfo>();
   }
-  llvm::Module *getModule();
-
-private:
-  std::unique_ptr<llvm::Module> TheModule;
 };
 
 #endif // ISOLATEFUNCTIONS_H
