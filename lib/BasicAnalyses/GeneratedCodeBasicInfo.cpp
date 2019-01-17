@@ -50,18 +50,22 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
         revng_assert(Dispatcher == nullptr);
         Dispatcher = &BB;
         break;
-      case DispatcherFailure:
+
+      case DispatcherFailureBlock:
         revng_assert(DispatcherFail == nullptr);
         DispatcherFail = &BB;
         break;
+
       case AnyPCBlock:
         revng_assert(AnyPC == nullptr);
         AnyPC = &BB;
         break;
+
       case UnexpectedPCBlock:
         revng_assert(UnexpectedPC == nullptr);
         UnexpectedPC = &BB;
         break;
+
       case JumpTargetBlock: {
         auto *Call = cast<CallInst>(&*BB.begin());
         revng_assert(Call->getCalledFunction()->getName() == "newpc");
@@ -69,6 +73,7 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
         break;
       }
       case EntryPoint:
+      case ExternalJumpsHandlerBlock:
       case UntypedBlock:
         // Nothing to do here
         break;

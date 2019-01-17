@@ -86,7 +86,9 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
     }
   }
 
-  Builder.CreateBr(JumpTargets.dispatcher());
+  TerminatorInst *T = Builder.CreateBr(JumpTargets.dispatcher());
+  T->setMetadata("revamb.block.type",
+                 QMD.tuple((uint32_t) ExternalJumpsHandlerBlock));
 
   return ReturnFromExternal;
 }
@@ -95,6 +97,7 @@ ExternalJumpsHandler::ExternalJumpsHandler(BinaryFile &TheBinary,
                                            JumpTargetManager &JumpTargets,
                                            Function &TheFunction) :
   Context(getContext(&TheFunction)),
+  QMD(Context),
   TheModule(*TheFunction.getParent()),
   TheFunction(TheFunction),
   TheBinary(TheBinary),
@@ -143,7 +146,10 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
                                   InlineAsm::AsmDialect::AD_ATT);
   Value *PCReg = JumpTargets.pcReg();
   Builder.CreateCall(Asm, PCReg);
-  Builder.CreateUnreachable();
+
+  TerminatorInst *T = Builder.CreateUnreachable();
+  T->setMetadata("revamb.block.type",
+                 QMD.tuple((uint32_t) ExternalJumpsHandlerBlock));
 
   return Result;
 }
@@ -166,7 +172,10 @@ llvm::BasicBlock *ExternalJumpsHandler::createSetjmp(BasicBlock *FirstReturn,
   // Check if it's the first or second return
   auto *Zero = CI::get(cast<FunctionType>(SetJmpTy)->getReturnType(), 0);
   Value *BrCond = Builder.CreateICmpNE(SetjmpRes, Zero);
-  Builder.CreateCondBr(BrCond, SecondReturn, FirstReturn);
+
+  TerminatorInst *T = Builder.CreateCondBr(BrCond, SecondReturn, FirstReturn);
+  T->setMetadata("revamb.block.type",
+                 QMD.tuple((uint32_t) ExternalJumpsHandlerBlock));
 
   return SetjmpBB;
 }
@@ -224,7 +233,11 @@ ExternalJumpsHandler::createExternalDispatcher(BasicBlock *IsExecutable,
   Value *IsExecutableResult = Builder.CreateCall(IsExecutableFunction, { PC });
 
   // If is_executable returns true go to default, otherwise setjmp
-  Builder.CreateCondBr(IsExecutableResult, IsNotExecutable, IsExecutable);
+  TerminatorInst *T = Builder.CreateCondBr(IsExecutableResult,
+                                           IsNotExecutable,
+                                           IsExecutable);
+  T->setMetadata("revamb.block.type",
+                 QMD.tuple((uint32_t) ExternalJumpsHandlerBlock));
 
   return ExternalJumpHandler;
 }

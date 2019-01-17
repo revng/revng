@@ -1218,7 +1218,7 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   Builder.CreateCall(cast<Function>(UnknownPC));
   auto *FailUnreachable = Builder.CreateUnreachable();
   FailUnreachable->setMetadata("revamb.block.type",
-                               QMD.tuple((uint32_t) DispatcherFailure));
+                               QMD.tuple((uint32_t) DispatcherFailureBlock));
 
   // Switch on the first argument of the function
   Builder.SetInsertPoint(Entry);

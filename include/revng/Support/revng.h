@@ -61,20 +61,33 @@ public:
 };
 
 // TODO: move me to another header file
+// TODO: create namespace for this enum
 /// \brief Classification of the various basic blocks we are creating
 enum BlockType {
   // TODO: UntypedBlock is a bad name
-  UntypedBlock, ///< A basic block generated during translation that it's not a
-                ///  jump target.
-  DispatcherBlock, ///< Basic block representing the dispatcher.
-  AnyPCBlock, ///< Basic block used to handle an expectedly unknown jump target.
-  UnexpectedPCBlock, ///< Basic block used to handle an unexpectedly unknown
-                     ///  jump target.
-  JumpTargetBlock, ///< A basic block generated during translation representing
-                   ///  a jump target.
-  DispatcherFailure, ///< Basic block representing the default case of the
-                     ///  dispatcher switch.
-  EntryPoint ///< The entry point of the root function
+  /// A basic block generated during translation representing a jump target
+  JumpTargetBlock,
+
+  /// A basic block generated during translation that it's not a jump target
+  UntypedBlock,
+
+  /// Basic block representing the dispatcher
+  DispatcherBlock,
+
+  /// Basic block used to handle an expectedly unknown jump target
+  AnyPCBlock,
+
+  /// Basic block used to handle an unexpectedly unknown jump target
+  UnexpectedPCBlock,
+
+  /// Basic block representing the default case of the dispatcher switch
+  DispatcherFailureBlock,
+
+  /// Basic block to handle jumps to non-translated code
+  ExternalJumpsHandlerBlock,
+
+  /// The entry point of the root function
+  EntryPoint
 };
 
 namespace JTReason {

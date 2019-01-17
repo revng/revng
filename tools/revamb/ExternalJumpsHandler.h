@@ -38,6 +38,7 @@
 class ExternalJumpsHandler {
 private:
   llvm::LLVMContext &Context;
+  QuickMetadata QMD;
   llvm::Module &TheModule;
   llvm::Function &TheFunction;
 
