@@ -323,7 +323,7 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
 
   for (Instruction &I : *BB) {
 
-    revng_log(SaVerboseLog, "NewInstruction: " << dumpToString(&I));
+    revng_log(SaVerboseLog, "NewInstruction: " << getName(&I));
 
     switch (I.getOpcode()) {
     case Instruction::Load: {
@@ -875,7 +875,7 @@ Interrupt Analysis::handleCall(Instruction *Caller,
   // does. Let's apply it.
 
   if (SaLog.isEnabled()) {
-    SaLog << "The summary result for a call to " << getName(Callee) << "is\n";
+    SaLog << "The summary result for a call to " << getName(Callee) << " is\n";
     CallSummary->dump(M, SaLog);
     SaLog << DoLog;
   }
