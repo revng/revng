@@ -114,68 +114,64 @@ CFG::CFG() {}
 
 void CFG::initialize(llvm::Function &F) {
 
- // Create a new node for each basic block in the module.
- for (llvm::BasicBlock &BB : F) {
-   addNode(&BB);
- }
+  // Create a new node for each basic block in the module.
+  for (llvm::BasicBlock &BB : F) {
+    addNode(&BB);
+  }
 
- dbg << F.getName().str() << "\n";
- if (F.getName() == "bb.printf_core") {
-   dbg << "here\n";
- }
+  // Set entry node references.
+  Entry = &(F.getEntryBlock());
+  EntryNode = &(get(Entry));
 
- // Set entry node references.
- Entry = &(F.getEntryBlock());
- EntryNode = &(get(Entry));
+  // Connect each node to its successors.
+  for (llvm::BasicBlock &BB : F) {
+    BasicBlockNode &Node = get(&BB);
 
- // Connect each node to its successors.
- for (llvm::BasicBlock &BB : F) {
-   BasicBlockNode &Node = get(&BB);
+    llvm::TerminatorInst *Terminator = BB.getTerminator();
+    int SuccessorNumber = Terminator->getNumSuccessors();
 
-   llvm::TerminatorInst *Terminator = BB.getTerminator();
-   int SuccessorNumber = Terminator->getNumSuccessors();
-   if (SuccessorNumber < 3) {
-     // Add the successors to the node.
-     for (llvm::BasicBlock *Successor : Terminator->successors()) {
-       BasicBlockNode &SuccessorNode = get(Successor);
-       Node.addSuccessor(&SuccessorNode);
-       SuccessorNode.addPredecessor(&Node);
-     }
-   } else {
+    if (SuccessorNumber < 3) {
+      // Add the successors to the node.
+      for (llvm::BasicBlock *Successor : Terminator->successors()) {
+        BasicBlockNode &SuccessorNode = get(Successor);
+        Node.addSuccessor(&SuccessorNode);
+        SuccessorNode.addPredecessor(&Node);
+      }
+    } else {
 
-     // HACK: handle switches as a nested tree of ifs.
-     std::vector<llvm::BasicBlock *> WorkList;
-     for (llvm::BasicBlock *Successor : reverse(Terminator->successors())) {
-       WorkList.push_back(Successor);
-     }
+      // HACK: handle switches as a nested tree of ifs.
+      std::vector<llvm::BasicBlock *> WorkList;
+      for (llvm::BasicBlock *Successor : reverse(Terminator->successors())) {
+        WorkList.push_back(Successor);
+      }
 
-     BasicBlockNode *PrevDummy = &get(&BB);
+      BasicBlockNode *PrevDummy = &get(&BB);
 
-     // For each iteration except the last create a new dummy node
-     // connecting the successors.
-     while (WorkList.size() > 2) {
-       BasicBlockNode *NewDummy = newNodeID("switch dummy ");
-       BasicBlockNode *Dest1 = &get(WorkList.back());
-       WorkList.pop_back();
-       addEdge(EdgeDescriptor(PrevDummy, Dest1));
-       addEdge(EdgeDescriptor(PrevDummy, NewDummy));
-       PrevDummy = NewDummy;
-     }
+      // For each iteration except the last create a new dummy node
+      // connecting the successors.
+      while (WorkList.size() > 2) {
+        BasicBlockNode *NewDummy = newNodeID("switch dummy ");
+        BasicBlockNode *Dest1 = &get(WorkList.back());
+        WorkList.pop_back();
+        addEdge(EdgeDescriptor(PrevDummy, Dest1));
+        addEdge(EdgeDescriptor(PrevDummy, NewDummy));
+        PrevDummy = NewDummy;
+      }
 
-     BasicBlockNode *Dest1 = &get(WorkList.back());
-     WorkList.pop_back();
-     BasicBlockNode *Dest2 = &get(WorkList.back());
-     WorkList.pop_back();
-     revng_assert(WorkList.empty());
-     addEdge(EdgeDescriptor(PrevDummy, Dest1));
-     addEdge(EdgeDescriptor(PrevDummy, Dest2));
-   }
+      BasicBlockNode *Dest1 = &get(WorkList.back());
+      WorkList.pop_back();
+      BasicBlockNode *Dest2 = &get(WorkList.back());
+      WorkList.pop_back();
+      revng_assert(WorkList.empty());
+      addEdge(EdgeDescriptor(PrevDummy, Dest1));
+      addEdge(EdgeDescriptor(PrevDummy, Dest2));
+    }
 
-   // Set as return block if there are no successors.
-   if (Terminator->getNumSuccessors() == 0) {
-     Node.setReturn();
-   }
- }
+    // Set as return block if there are no successors.
+    if (Terminator->getNumSuccessors() == 0) {
+      Node.setReturn();
+    }
+  }
 }
 
 std::string CFG::getID() {
