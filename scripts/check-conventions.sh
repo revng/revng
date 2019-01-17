@@ -74,7 +74,7 @@ fi
     $GREP "(\$" $FILES | grep -v 'R"LLVM.*(' | cat
 
     # Things should never be at the beginning of a line
-    for REGEXP in '\.[^\.]' '\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP'; do
+    for REGEXP in '\.[^\.]' '\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP' '#if\s*[01]'; do
         $GREP "^\s*$REGEXP" $FILES | cat
     done
 
