@@ -485,7 +485,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Dump the object in .dot format if debug mode is activated.
   if (Log.isEnabled()) {
-    Graph.dumpDot();
+    Graph.dumpDotOnFile(F.getName(), "begin");
   }
 
   // Identify SCS regions.
@@ -690,6 +690,17 @@ bool RestructureCFG::runOnFunction(Function &F) {
   for (MetaRegion *Meta : OrderedMetaRegions) {
     if (Log.isEnabled()) {
       Log << "\nAnalyzing region: " << Meta->getIndex() <<"\n";
+    }
+    auto &Nodes = Meta->getNodes();
+    Log << "Which is composed of nodes:\n";
+    for (auto *Node : Nodes) {
+      Log << Node->getNameStr() << "\n";
+    }
+
+    if (Log.isEnabled()) {
+      Log << "Dumping main graph snapshot before restructuring\n";
+      Graph.dumpDotOnFile(F.getName(),
+                          "Out-pre-" + std::to_string(Meta->getIndex()));
     }
 
     std::map<BasicBlockNode *, int> IncomingDegree;
@@ -1037,16 +1048,18 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // Serialize the newly collapsed SCS region.
     if (Log.isEnabled()) {
       Log << "Dumping CFG of metaregion " << Meta->getIndex() << "\n";
-      CollapsedGraph.dumpDot();
-      Log << "Dumping main graph snapshot\n";
-      Graph.dumpDot();
+      CollapsedGraph.dumpDotOnFile(F.getName(),
+                                   "In-" + std::to_string(Meta->getIndex()));
+      Log << "Dumping main graph snapshot post restructuring\n";
+      Graph.dumpDotOnFile(F.getName(),
+                          "Out-post-" + std::to_string(Meta->getIndex()));
     }
   }
 
   // Serialize the newly collapsed SCS region.
   if (Log.isEnabled()) {
     Log << "Dumping main graph before final purge\n";
-    Graph.dumpDot();
+    Graph.dumpDotOnFile(F.getName(), "Final-before-purge");
   }
 
   // Remove nodes that have no predecessors (nodes that are the result of node
@@ -1067,7 +1080,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Serialize the newly collapsed SCS region.
   if (Log.isEnabled()) {
     Log << "Dumping main graph after final purge\n";
-    Graph.dumpDot();
+    Graph.dumpDotOnFile(F.getName(), "Final-after-purge");
   }
 
   // Print metaregions after ordering.

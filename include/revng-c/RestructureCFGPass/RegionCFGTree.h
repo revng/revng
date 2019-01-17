@@ -100,6 +100,9 @@ public:
   /// \brief Dump a GraphViz file on stdout representing this function
   void dumpDot();
 
+  /// \brief Dump a GraphViz file on a file representing this function
+  void dumpDotOnFile(std::string FunctionName, std::string FileName);
+
   void purgeDummies();
 
   void purgeVirtualSink(BasicBlockNode *Sink);

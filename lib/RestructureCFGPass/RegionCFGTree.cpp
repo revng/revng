@@ -7,6 +7,8 @@
 
 // Standard includes
 #include <cstdlib>
+#include <fstream>
+#include <sys/stat.h>
 
 // LLVM includes
 #include "llvm/ADT/PostOrderIterator.h"
@@ -304,6 +306,33 @@ void CFG::dumpDot() {
   }
 
   CombLogger << "}\n";
+}
+
+void CFG::dumpDotOnFile(std::string FunctionName, std::string FileName) {
+  std::ofstream DotFile;
+  std::string PathName = "dots/" + FunctionName;
+  mkdir(PathName.c_str(), 0775);
+  DotFile.open("dots/" + FunctionName + "/" + FileName + ".dot");
+  DotFile << "digraph CFGFunction {\n";
+
+  for (std::unique_ptr<BasicBlockNode> &BB : BlockNodes) {
+    DotFile << "\"" << BB->getNameStr() << "\" [";
+    DotFile << "label=\"" << BB->getNameStr();
+    DotFile << "\"";
+    if (BB.get() == EntryNode)
+      DotFile << ",fillcolor=green,style=filled";
+    if (BB->isReturn())
+      DotFile << ",fillcolor=red,style=filled";
+    DotFile << "];\n";
+
+    for (auto &Successor : BB->successors()) {
+      DotFile << "\"" << BB->getNameStr() << "\""
+          << " -> \"" << Successor->getNameStr() << "\""
+          << " [color=green];\n";
+    }
+  }
+
+  DotFile << "}\n";
 }
 
 void CFG::purgeDummies() {
