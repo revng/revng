@@ -98,6 +98,10 @@ inline uint64_t getLimitedValue(const llvm::Value *V) {
   return llvm::cast<llvm::ConstantInt>(V)->getLimitedValue();
 }
 
+inline uint64_t getSignedLimitedValue(const llvm::Value *V) {
+  return llvm::cast<llvm::ConstantInt>(V)->getSExtValue();
+}
+
 inline llvm::iterator_range<llvm::Interval::pred_iterator>
 predecessors(llvm::Interval *BB) {
   return make_range(pred_begin(BB), pred_end(BB));

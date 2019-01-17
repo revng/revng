@@ -294,6 +294,22 @@ public:
   }
 };
 
+static llvm::Value *getModifyAndReassign(Instruction *I) {
+  auto *Load = dyn_cast<LoadInst>(I->getOperand(0));
+  if (Load == nullptr)
+    return nullptr;
+
+  for (User *U : I->users()) {
+    auto *Store = dyn_cast<StoreInst>(U);
+    if (Store != nullptr and Store->getValueOperand() == I
+        and Load->getPointerOperand() == Store->getPointerOperand()) {
+      return Load->getPointerOperand();
+    }
+  }
+
+  return nullptr;
+}
+
 Interrupt Analysis::transfer(BasicBlock *BB) {
   auto SP0 = ASID::stackID();
 
@@ -374,21 +390,36 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
       // necessarily if it's pointing to data.
       Value FirstOperand = BBState.get(I.getOperand(0));
       if (auto *SecondOperand = dyn_cast<ConstantInt>(I.getOperand(1))) {
-        uint64_t Mask = getLimitedValue(SecondOperand);
+        uint64_t Mask = getSignedLimitedValue(SecondOperand);
+        uint64_t Flip = ~Mask + 1;
+        bool IsContiguousMask = Flip and not(Flip & (Flip - 1));
 
-        uint64_t SignificantPCBits;
-        if (GCBI->pcRegSize() == 4) {
-          SignificantPCBits = std::numeric_limits<uint32_t>::max();
-        } else {
-          revng_assert(GCBI->pcRegSize() == 8);
-          SignificantPCBits = std::numeric_limits<uint64_t>::max();
-        }
-        uint64_t AlignmentMask = GCBI->instructionAlignment() - 1;
-        SignificantPCBits = SignificantPCBits & ~AlignmentMask;
+        if (IsContiguousMask) {
+          bool Forward = false;
 
-        if ((SignificantPCBits & Mask) == SignificantPCBits) {
-          BBState.set(&I, FirstOperand);
-          break;
+          // Forward any contiguous mask applied to the stack pointer, it's
+          // likely stack alignment
+          llvm::Value *Pointer = getModifyAndReassign(&I);
+          if (Pointer != nullptr and GCBI->isSPReg(Pointer)) {
+            Forward = true;
+          } else {
+            uint64_t SignificantPCBits;
+            if (GCBI->pcRegSize() == 4) {
+              SignificantPCBits = std::numeric_limits<uint32_t>::max();
+            } else {
+              revng_assert(GCBI->pcRegSize() == 8);
+              SignificantPCBits = std::numeric_limits<uint64_t>::max();
+            }
+            uint64_t AlignmentMask = GCBI->instructionAlignment() - 1;
+            SignificantPCBits = SignificantPCBits & ~AlignmentMask;
+
+            Forward = (SignificantPCBits & Mask) == SignificantPCBits;
+          }
+
+          if (Forward) {
+            BBState.set(&I, FirstOperand);
+            break;
+          }
         }
       }
 

@@ -152,6 +152,13 @@ public:
     return GV == SP;
   }
 
+  bool isSPReg(const llvm::Value *V) const {
+    auto *GV = llvm::dyn_cast<const llvm::GlobalVariable>(V);
+    if (GV != nullptr)
+      return isSPReg(GV);
+    return false;
+  }
+
   /// \brief Return the CSV representing the program counter
   llvm::GlobalVariable *pcReg() const { return PC; }
 
