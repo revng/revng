@@ -44,7 +44,31 @@ static ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
     #endif
   }
 
-  return RootSequenceNode;
+return RootSequenceNode;
+}
+
+// Helper function that simplifies useless dummy nodes
+static void simplifyDummies(ASTNode *RootNode) {
+
+  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
+    std::vector<ASTNode *> UselessDummies;
+
+    for (ASTNode *Node : Sequence->nodes()) {
+      if (Node->isDummy()) {
+        UselessDummies.push_back(Node);
+      } else {
+        simplifyDummies(Node);
+      }
+    }
+
+    for (ASTNode *Node : UselessDummies) {
+      Sequence->removeNode(Node);
+    }
+
+  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
+    simplifyDummies(If->getThen());
+    simplifyDummies(If->getElse());
+  }
 }
 
 // Helper function which simplifies sequence nodes composed by a single AST
@@ -734,6 +758,9 @@ ASTNode *CFG::generateAst() {
     dumpNode(RootNode);
     CombLogger << "}\n";
   }
+
+  // Simplify useless sequence nodes.
+  simplifyDummies(RootNode);
 
   // Simplify useless sequence nodes.
   RootNode = simplifyAtomicSequence(RootNode);

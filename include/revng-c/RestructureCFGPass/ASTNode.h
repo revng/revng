@@ -65,6 +65,9 @@ public:
     return Successor;
   }
 
+  bool isDummy() {
+    return CFGNode->isDummy();
+  }
 };
 
 class CodeNode : public ASTNode {
@@ -176,6 +179,11 @@ public:
     if (Node->getSuccessor() != nullptr) {
       this->addNode(Node->getSuccessor());
     }
+  }
+
+  void removeNode(ASTNode *Node) {
+    NodeList.erase(std::remove(NodeList.begin(), NodeList.end(), Node),
+                   NodeList.end());
   }
 
   int listSize() {
