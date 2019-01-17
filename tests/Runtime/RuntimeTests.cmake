@@ -134,7 +134,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
     # Translate the compiled binary with function isolation
     add_test(NAME translate-with-isolation-${TEST_NAME}-${ARCH}
       COMMAND sh -c "cp ${BINARY} ${BINARY}.isolated-functions && ${CMAKE_BINARY_DIR}/translate -i ${BINARY}.isolated-functions")
-    set_tests_properties(translate-${TEST_NAME}-${ARCH}
+    set_tests_properties(translate-with-isolation-${TEST_NAME}-${ARCH}
       PROPERTIES LABELS "runtime;translate-with-isolation;${TEST_NAME};${ARCH}")
 
     # For each set of arguments
