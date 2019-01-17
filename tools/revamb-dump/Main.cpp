@@ -191,10 +191,8 @@ bool DumpPass::runOnFunction(Function &) {
 }
 
 int main(int argc, const char *argv[]) {
-  Loggers->registerArguments();
   HideUnrelatedOptions({ &MainCategory });
   ParseCommandLineOptions(argc, argv);
-  Loggers->activateArguments();
   installStatistics();
 
   LLVMContext RevambDumpContext;

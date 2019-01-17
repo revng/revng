@@ -184,11 +184,9 @@ static int loadPTCLibrary(LibraryPointer &PTCLibrary) {
 }
 
 int main(int argc, const char *argv[]) {
-  Loggers->registerArguments();
   HideUnrelatedOptions({ &MainCategory });
   ParseCommandLineOptions(argc, argv);
   installStatistics();
-  Loggers->activateArguments();
 
   BinaryFile TheBinary(InputPath, BaseAddress);
 
