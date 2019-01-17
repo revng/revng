@@ -240,18 +240,16 @@ void CFG::removeNode(BasicBlockNode *Node) {
 void CFG::insertBulkNodes(std::set<BasicBlockNode *> &Nodes,
                      BasicBlockNode *Head) {
   BlockNodes.clear();
-
-  // HACK: Force add of the entry node
-  Nodes.insert(Head);
+  SubstitutionMap.clear();
 
   for (BasicBlockNode *Node : Nodes) {
     BlockNodes.emplace_back(new BasicBlockNode(*Node));
     SubstitutionMap[Node] = BlockNodes.back().get();
   }
 
-  assert(Head != nullptr);
+  revng_assert(Head != nullptr);
   EntryNode = SubstitutionMap[Head];
-  assert(EntryNode != nullptr);
+  revng_assert(EntryNode != nullptr);
   for (std::unique_ptr<BasicBlockNode> &Node : BlockNodes) {
     Node->updatePointers(SubstitutionMap);
   }

@@ -750,6 +750,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
             (BasicBlockNode *Node)
             { return IncomingDegree[Node] == MaxDegree; });
 
+    assert(MaxDegree > 0);
+
     BasicBlockNode *FirstCandidate;
     if (MaximuxEdgesNodes.size() > 1) {
       for (BasicBlockNode *BN : RPOT) {
@@ -833,8 +835,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
     } else {
       Head = FirstCandidate;
-      //Meta->insertNode(Head);
     }
+
+    revng_assert(Head != nullptr);
     if (Log.isEnabled()) {
       Log << "New head name is: " << Head->getNameStr() << "\n";
     }
