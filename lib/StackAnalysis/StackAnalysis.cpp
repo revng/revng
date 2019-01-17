@@ -8,6 +8,7 @@
 //
 
 // Standard includes
+#include <fstream>
 #include <map>
 #include <sstream>
 #include <vector>
@@ -18,6 +19,7 @@
 
 // Local libraries includes
 #include "revng/StackAnalysis/StackAnalysis.h"
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/IRHelpers.h"
 
 // Local includes
@@ -33,6 +35,8 @@ using llvm::RegisterPass;
 static Logger<> ClobberedLog("clobbered");
 static Logger<> StackAnalysisLog("stackanalysis");
 
+using namespace llvm::cl;
+
 namespace StackAnalysis {
 
 const std::set<llvm::GlobalVariable *> EmptyCSVSet;
@@ -42,25 +46,35 @@ char StackAnalysis<true>::ID = 0;
 
 namespace {
 const char *Name = "Stack Analysis Pass";
-static RegisterPass<StackAnalysis<true>> X("sa", Name, true, true);
+static RegisterPass<StackAnalysis<false>> X("stack-analysis", Name, true, true);
+
+static opt<std::string> StackAnalysisOutputPath("stack-analysis-output",
+                                                desc("Destination path for the "
+                                                     "Static Analysis Pass"),
+                                                value_desc("path"),
+                                                cat(MainCategory));
+
 } // namespace
 
 template<>
 char StackAnalysis<false>::ID = 0;
 
-static RegisterPass<StackAnalysis<false>> Y("sab",
-                                            "Stack Analysis Pass with ABI"
-                                            " Analysis",
-                                            true,
-                                            true);
+using RegisterABI = RegisterPass<StackAnalysis<true>>;
+static RegisterABI Y("abi-analysis", "ABI Analysis Pass", true, true);
+
+static opt<std::string> ABIAnalysisOutputPath("abi-analysis-output",
+                                              desc("Destination path for the "
+                                                   "ABI Analysis Pass"),
+                                              value_desc("path"),
+                                              cat(MainCategory));
 
 template<bool AnalyzeABI>
-bool StackAnalysis<AnalyzeABI>::runOnFunction(Function &F) {
+bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
+  Function &F = *M.getFunction("root");
 
   revng_log(PassesLog, "Starting StackAnalysis");
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
-  Module *M = F.getParent();
 
   // The stack analysis works function-wise. We consider two sets of functions:
   // first (Force == true) those that are highly likely to be real functions
@@ -132,8 +146,8 @@ bool StackAnalysis<AnalyzeABI>::runOnFunction(Function &F) {
   }
 
   std::stringstream Output;
-  GrandResult = Results.finalize(M);
-  GrandResult.dump(M, Output);
+  GrandResult = Results.finalize(&M);
+  GrandResult.dump(&M, Output);
   TextRepresentation = Output.str();
 
   if (ClobberedLog.isEnabled()) {
@@ -148,6 +162,15 @@ bool StackAnalysis<AnalyzeABI>::runOnFunction(Function &F) {
   revng_log(StackAnalysisLog, TextRepresentation);
 
   revng_log(PassesLog, "Ending StackAnalysis");
+
+  if (AnalyzeABI and ABIAnalysisOutputPath.getNumOccurrences() == 1) {
+    std::ofstream Output;
+    serialize(pathToStream(ABIAnalysisOutputPath, Output));
+  } else if (not AnalyzeABI
+             and StackAnalysisOutputPath.getNumOccurrences() == 1) {
+    std::ofstream Output;
+    serialize(pathToStream(StackAnalysisOutputPath, Output));
+  }
 
   return false;
 }

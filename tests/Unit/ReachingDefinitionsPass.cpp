@@ -15,7 +15,7 @@ bool init_unit_test();
 #include "llvm/IR/LegacyPassManager.h"
 
 // Local libraries includes
-#include "revng/BasicAnalyses/ReachingDefinitionsAnalysisImpl.h"
+#include "revng/ReachingDefinitions/ReachingDefinitionsAnalysisImpl.h"
 
 // Local includes
 #include "LLVMTestHelpers.h"

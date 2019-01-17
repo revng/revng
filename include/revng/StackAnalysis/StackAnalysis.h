@@ -12,8 +12,8 @@
 #include "llvm/Pass.h"
 
 // Local libraries includes
-#include "revng/BasicAnalyses/FunctionCallIdentification.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/StackAnalysis/FunctionsSummary.h"
 
 namespace StackAnalysis {
@@ -21,20 +21,21 @@ namespace StackAnalysis {
 extern const std::set<llvm::GlobalVariable *> EmptyCSVSet;
 
 template<bool AnalyzeABI>
-class StackAnalysis : public llvm::FunctionPass {
+class StackAnalysis : public llvm::ModulePass {
+  friend class FunctionBoundariesDetectionPass;
 
 public:
   static char ID;
 
 public:
-  StackAnalysis() : llvm::FunctionPass(ID) {}
+  StackAnalysis() : llvm::ModulePass(ID) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<GeneratedCodeBasicInfo>();
   }
 
-  bool runOnFunction(llvm::Function &F) override;
+  bool runOnModule(llvm::Module &M) override;
 
   const std::set<llvm::GlobalVariable *> &
   getClobbered(llvm::BasicBlock *Function) const {

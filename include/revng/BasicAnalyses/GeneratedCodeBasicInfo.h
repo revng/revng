@@ -39,13 +39,13 @@ static const char *JTReasonMDName = "revamb.jt.reasons";
 /// provides information about the generated basic blocks, distinguishing
 /// between basic blocks generated due to translation and dispatcher-related
 /// basic blocks.
-class GeneratedCodeBasicInfo : public llvm::FunctionPass {
+class GeneratedCodeBasicInfo : public llvm::ModulePass {
 public:
   static char ID;
 
 public:
   GeneratedCodeBasicInfo() :
-    llvm::FunctionPass(ID),
+    llvm::ModulePass(ID),
     InstructionAlignment(0),
     DelaySlotSize(0),
     PC(nullptr),
@@ -60,7 +60,7 @@ public:
     AU.setPreservesAll();
   }
 
-  bool runOnFunction(llvm::Function &F) override;
+  bool runOnModule(llvm::Module &M) override;
 
   /// \brief Return the type of basic block, see BlockType.
   BlockType getType(llvm::BasicBlock *BB) const {

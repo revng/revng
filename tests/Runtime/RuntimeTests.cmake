@@ -67,7 +67,7 @@ foreach(TEST_NAME ${TESTS})
 
   # Translate the dynamic native version
   add_test(NAME translate-native-dynamic-${TEST_NAME}
-    COMMAND sh -c "${CMAKE_BINARY_DIR}/translate $<TARGET_FILE:test-native-dynamic-${TEST_NAME}>")
+    COMMAND "${CMAKE_BINARY_DIR}/revng" translate $<TARGET_FILE:test-native-dynamic-${TEST_NAME}>)
   set_tests_properties(translate-native-dynamic-${TEST_NAME}
     PROPERTIES LABELS "runtime;translate-native-dynamic;${TEST_NAME}")
 
@@ -127,13 +127,13 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
 
     # Translate the compiled binary
     add_test(NAME translate-${TEST_NAME}-${ARCH}
-      COMMAND sh -c "${CMAKE_BINARY_DIR}/translate ${BINARY}")
+      COMMAND "${CMAKE_BINARY_DIR}/revng" translate ${BINARY})
     set_tests_properties(translate-${TEST_NAME}-${ARCH}
       PROPERTIES LABELS "runtime;translate;${TEST_NAME};${ARCH}")
 
     # Translate the compiled binary with function isolation
     add_test(NAME translate-with-isolation-${TEST_NAME}-${ARCH}
-      COMMAND sh -c "cp ${BINARY} ${BINARY}.isolated-functions && ${CMAKE_BINARY_DIR}/translate -i ${BINARY}.isolated-functions")
+      COMMAND sh -c "cp ${BINARY} ${BINARY}.isolated-functions && ${CMAKE_BINARY_DIR}/revng translate -i ${BINARY}.isolated-functions")
     set_tests_properties(translate-with-isolation-${TEST_NAME}-${ARCH}
       PROPERTIES LABELS "runtime;translate-with-isolation;${TEST_NAME};${ARCH}")
 
@@ -148,10 +148,10 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
 
        # Test to run the translated program after function isolation pass
        add_test(NAME run-translated-isolated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
-       COMMAND sh -c "${BINARY}.isolated-functions.translated ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${BINARY}-run-translated-isolated-test-${RUN_NAME}-${ARCH}.log")
+         COMMAND sh -c "${BINARY}.isolated-functions.translated ${TEST_ARGS_${TEST_NAME}_${RUN_NAME}} > ${BINARY}-run-translated-isolated-test-${RUN_NAME}-${ARCH}.log")
        set_tests_properties(run-translated-isolated-test-${TEST_NAME}-${RUN_NAME}-${ARCH}
          PROPERTIES DEPENDS translate-with-isolation-${TEST_NAME}-${ARCH}
-                    LABELS "runtime;run-translated-test;function-isolation;${TEST_NAME};${RUN_NAME};${ARCH}")
+                    LABELS "runtime;run-translated-test;function-isolation;${TEST_NAME};${RUN_NAME}${ARCH}")
 
       # Check the output of the translated binary corresponds to the native's
       # one
