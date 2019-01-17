@@ -191,6 +191,8 @@ void CFG::setSize(int Size) {
 void CFG::addNode(llvm::BasicBlock *BB) {
   BlockNodes.emplace_back(new BasicBlockNode(BB, this));
   BBMap[BB] = BlockNodes.back().get();
+  CombLogger << "Building " << BB->getName();
+  CombLogger << " at address: " << BBMap[BB] << "\n";
 }
 
 BasicBlockNode *CFG::newNode(std::string Name) {
@@ -216,6 +218,8 @@ BasicBlockNode *CFG::newDummyNodeID(std::string Name) {
 }
 
 void CFG::removeNode(BasicBlockNode *Node) {
+
+  CombLogger << "Removing node named: " << Node->getNameStr() << "\n";
 
   for (BasicBlockNode *Predecessor : Node->predecessors()) {
     Predecessor->removeSuccessor(Node);
@@ -293,6 +297,12 @@ std::vector<BasicBlockNode *> CFG::orderNodes(std::vector<BasicBlockNode *> &L,
 
   if (DoReverse) {
     std::reverse(RPOT.begin(), RPOT.end());
+  }
+
+  CombLogger << "New ordering" << "\n";
+  for (BasicBlockNode *Node : L) {
+    CombLogger << Node->getNameStr() << "\n";
+    CombLogger.emit();
   }
 
   for (BasicBlockNode *RPOTBB : RPOT) {
@@ -646,6 +656,7 @@ ASTNode *CFG::generateAst() {
   CFG &Graph = *this;
 
   // Apply combing to the current CFG.
+  CombLogger << "Inflating region\n";
   Graph.inflate();
 
   // TODO: factorize out the AST generation phase.
@@ -761,6 +772,13 @@ ASTNode *CFG::generateAst() {
 
   // Simplify useless sequence nodes.
   simplifyDummies(RootNode);
+
+  if (CombLogger.isEnabled()) {
+    CombLogger << "AST after useless dummies simplification:\n";
+    CombLogger << "digraph CFGFunction {\n";
+    dumpNode(RootNode);
+    CombLogger << "}\n";
+  }
 
   // Simplify useless sequence nodes.
   RootNode = simplifyAtomicSequence(RootNode);

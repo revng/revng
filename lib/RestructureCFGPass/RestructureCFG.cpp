@@ -476,6 +476,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Logger object
   auto &Log = CombLogger;
 
+  // HACK: Manually enable the logger, since opt does not accept `-debug-log`
+  // argument yet
+  Log.enable();
+
   // Random seed initialization
   srand(time(NULL));
 
@@ -642,6 +646,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     for (auto *Meta : OrderedMetaRegions) {
       Log << "\n";
       Log << Meta << "\n";
+      Log << "With index " << Meta->getIndex() << "\n";
+      Log << "With size " << Meta->nodes_size() << "\n";
       auto &Nodes = Meta->getNodes();
       Log << "Is composed of nodes:\n";
       for (auto *Node : Nodes) {
@@ -755,6 +761,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
     } else {
       FirstCandidate = *MaximuxEdgesNodes.begin();
     }
+
+    // Print out the name of the node that has been selected as head of the
+    // region
     if (Log.isEnabled()) {
       Log << "Elected head is: " << FirstCandidate->getNameStr() << "\n";
     }
@@ -989,10 +998,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
     BasicBlockNode *Break = CollapsedGraph.newNodeID("break ");
 
     // Connect the break and continue nodes with the necessary edges.
-    Log.emit();
-    if (F.getName() == "bb.printf_core") {
-      dbg << "here\n";
-    }
     CollapsedGraph.connectContinueNode(Continue);
     CollapsedGraph.connectBreakNode(OutgoingEdges, Break);
 
@@ -1089,6 +1094,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     for (auto *Meta : OrderedMetaRegions) {
       Log << "\n";
       Log << Meta << "\n";
+      Log << "With index " << Meta->getIndex() << "\n";
+      Log << "With size " << Meta->nodes_size() << "\n";
       auto &Nodes = Meta->getNodes();
       Log << "Is composed of nodes:\n";
       for (auto *Node : Nodes) {
