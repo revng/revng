@@ -199,7 +199,7 @@ BasicBlockNode *CFG::newNode(std::string Name) {
 }
 
 BasicBlockNode *CFG::newNodeID(std::string Name) {
-  Name = Name + getID();
+  Name += getID();
   BlockNodes.emplace_back(new BasicBlockNode(Name, this));
   return BlockNodes.back().get();
 }
@@ -210,7 +210,7 @@ BasicBlockNode *CFG::newDummyNode(std::string Name) {
 }
 
 BasicBlockNode *CFG::newDummyNodeID(std::string Name) {
-  Name = Name + getID();
+  Name += getID();
   BlockNodes.emplace_back(new BasicBlockNode(Name, this, true));
   return BlockNodes.back().get();
 }

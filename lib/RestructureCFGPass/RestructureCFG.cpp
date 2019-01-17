@@ -787,11 +787,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
 
     BasicBlockNode *Head;
-    if (F.getName() == "bb.printf_core") {
-      dbg << "here\n";
-    }
     if (NewHeadNeeded) {
-      Head = Graph.newNode("head dispatcher");
+      Head = Graph.newNodeID("head dispatcher");
       Meta->insertNode(Head);
 
       // Move the incoming edge from the old head to new one.
@@ -819,7 +816,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       for (EdgeDescriptor Retreating : Retreatings) {
         Idx = RetreatingIdxMap[Retreating.second];
         string NodeName = "entry idx set " + std::to_string(Idx);
-        BasicBlockNode *IdxSetNode = Graph.newNode(NodeName);
+        BasicBlockNode *IdxSetNode = Graph.newNodeID(NodeName);
         Meta->insertNode(IdxSetNode);
         addEdge(EdgeDescriptor(Retreating.first, IdxSetNode));
         addEdge(EdgeDescriptor(IdxSetNode, Head));
@@ -853,7 +850,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
                pair<BasicBlockNode *, BasicBlockNode *>> EdgeExtremal;
 
       for (EdgeDescriptor Edge : OutgoingEdges) {
-        BasicBlockNode *Frontier = Graph.newNode("frontier");
+        BasicBlockNode *Frontier = Graph.newDummyNodeID("frontier");
         BasicBlockNode *OldSource = Edge.first;
         BasicBlockNode *OldTarget = Edge.second;
         EdgeExtremal[Frontier] = make_pair(OldSource, OldTarget);
@@ -896,7 +893,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     std::map<BasicBlockNode *, BasicBlockNode *> ClonedMap;
     for (BasicBlockNode *Node : Meta->nodes()) {
       if (Node != Head) {
-        BasicBlockNode *Clone = Graph.newNode(Node->getNameStr() + " clone");
+        BasicBlockNode *Clone = Graph.newNodeID(Node->getNameStr() + " clone");
         ClonedMap[Node] = Clone;
       }
     }
@@ -945,7 +942,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
 
     if (NewExitNeeded) {
-      Exit = Graph.newNode("exit dispatcher");
+      Exit = Graph.newNodeID("exit dispatcher");
       ExitDispatcherNodes.push_back(Exit);
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
 
@@ -967,7 +964,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       for (EdgeDescriptor Edge : OutEdges) {
         Idx = SuccessorsIdxMap[Edge.second];
         string NodeName = "exit idx " + std::to_string(Idx);
-        BasicBlockNode *IdxSetNode = Graph.newNode(NodeName);
+        BasicBlockNode *IdxSetNode = Graph.newNodeID(NodeName);
         Meta->insertNode(IdxSetNode);
         addEdge(EdgeDescriptor(Edge.first, IdxSetNode));
         addEdge(EdgeDescriptor(IdxSetNode, Edge.second));
