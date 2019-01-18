@@ -290,6 +290,8 @@ def run_translate(args):
     subprocess.check_call(log_command([get_command("opt"),
                                        "-O2",
                                        "-S",
+                                       "-enable-pre=false",
+                                       "-enable-load-pre=false",
                                        output,
                                        "-o", optimized]))
     subprocess.check_call(log_command([llc,
