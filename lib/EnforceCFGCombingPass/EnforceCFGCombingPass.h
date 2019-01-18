@@ -6,7 +6,6 @@
 #include <llvm/Pass.h>
 
 // revng-c includes
-#include "revng-c/Liveness/LivenessAnalysisPass.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 
 struct EnforceCFGCombingPass : public llvm::FunctionPass {
@@ -17,7 +16,6 @@ struct EnforceCFGCombingPass : public llvm::FunctionPass {
   bool runOnFunction(llvm::Function &F) override;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.addRequired<LivenessAnalysisPass>();
     AU.addRequired<RestructureCFG>();
   }
 

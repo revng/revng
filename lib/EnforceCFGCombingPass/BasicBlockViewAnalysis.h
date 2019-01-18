@@ -19,17 +19,23 @@ class BasicBlockNode;
 
 namespace BasicBlockViewAnalysis {
 
-class BasicBlockViewMap {
+using BBMap = std::map<llvm::BasicBlock *, llvm::BasicBlock *>;
+using BBViewMap = std::map<llvm::BasicBlock *, BBMap>;
 
-protected:
-  using BBMap = std::map<llvm::BasicBlock *, BasicBlockNode *>;
-  BBMap Map;
-  bool IsBottom;
+using BBNodeToBBMap = std::map<BasicBlockNode *, llvm::BasicBlock *>;
+
+class BasicBlockViewMap {
 
 public:
   using iterator = BBMap::iterator;
   using const_iterator = BBMap::const_iterator;
   using value_type = BBMap::value_type;
+  using key_type = BBMap::key_type;
+  using mapped_type = BBMap::mapped_type;
+
+protected:
+  BBMap Map;
+  bool IsBottom;
 
 protected:
   BasicBlockViewMap(const BasicBlockViewMap &) = default;
@@ -42,6 +48,8 @@ public:
 
   BasicBlockViewMap(BasicBlockViewMap &&) = default;
   BasicBlockViewMap &operator=(BasicBlockViewMap &&) = default;
+
+  BBMap copyMap() const { return Map; }
 
   static BasicBlockViewMap bottom() { return BasicBlockViewMap(); }
 
@@ -83,11 +91,20 @@ public: // map methods
     IsBottom = false;
     return Map.insert(V);
   }
-
-
+  mapped_type &operator[](const key_type& Key) {
+    return Map[Key];
+  }
+  mapped_type &operator[](key_type&& Key) {
+    return Map[Key];
+  }
+  mapped_type &at(const key_type& Key) {
+    return Map.at(Key);
+  }
+  const mapped_type &at(const key_type& Key) const {
+    return Map.at(Key);
+  }
 };
 
-using BBNodeBBViewMap = std::map<BasicBlockNode *, BasicBlockViewMap>;
 
 class Analysis
   : public MonotoneFramework<Analysis,
@@ -97,8 +114,8 @@ class Analysis
                              llvm::SmallVector<BasicBlockNode *, 2>> {
 private:
   CFG &RegionCFGTree;
-  const llvm::Function &OriginalFunction;
-  BBNodeBBViewMap BBViewMap;
+  const BBNodeToBBMap &EnforcedBBMap;
+  BBViewMap ViewMap;
 
 public:
   using Base = MonotoneFramework<Analysis,
@@ -107,11 +124,10 @@ public:
                                  VisitType::PostOrder,
                                  llvm::SmallVector<BasicBlockNode *, 2>>;
 
-  Analysis(CFG &RegionCFGTree,
-           const llvm::Function &OriginalFunction) :
+  Analysis(CFG &RegionCFGTree, const BBNodeToBBMap &EnforcedBBMap) :
     Base(&RegionCFGTree.getEntryNode()),
     RegionCFGTree(RegionCFGTree),
-    OriginalFunction(OriginalFunction) {
+    EnforcedBBMap(EnforcedBBMap) {
       for (BasicBlockNode *BB : RegionCFGTree) {
         if (BB->successor_size() == 0)
           Base::registerExtremal(BB);
@@ -120,7 +136,7 @@ public:
 
   void initialize() {
     Base::initialize();
-    BBViewMap.clear();
+    ViewMap.clear();
   }
 
   void assertLowerThanOrEqual(const BasicBlockViewMap &A,
@@ -128,9 +144,9 @@ public:
     revng_assert(A.lowerThanOrEqual(B));
   }
 
-  const BBNodeBBViewMap &getBBNodeBBViewMap() const {
-    return BBViewMap;
-  }
+  const BBViewMap &getBBViewMap() const { return ViewMap; }
+
+  BBViewMap &getBBViewMap() { return ViewMap; }
 
   /// This Analysis uses DefaultInterrupt, hence it is never supposed to dump
   /// the final state.
