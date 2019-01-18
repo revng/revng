@@ -415,32 +415,32 @@ public:
 
   void combine(const FunctionReturnValue &Other);
 
+  const char *valueName() const {
+    switch (Value) {
+    case NoOrDead:
+      return "NoOrDead";
+    case Maybe:
+      return "Maybe";
+    case Yes:
+      return "Yes";
+    case Dead:
+      return "Dead";
+    case Contradiction:
+      return "Contradiction";
+    case No:
+      return "No";
+    }
+
+    revng_abort();
+  }
+
   Values value() const { return Value; }
 
   void dump() const { dump(dbg); }
 
   template<typename T>
   void dump(T &Output) const {
-    switch (Value) {
-    case NoOrDead:
-      Output << "NoOrDead";
-      break;
-    case Maybe:
-      Output << "Maybe";
-      break;
-    case Yes:
-      Output << "Yes";
-      break;
-    case Dead:
-      Output << "Dead";
-      break;
-    case Contradiction:
-      Output << "Contradiction";
-      break;
-    case No:
-      Output << "No";
-      break;
-    }
+    Output << valueName();
   }
 };
 
@@ -472,7 +472,7 @@ public:
     template<typename K, typename V>
     using map = std::map<K, V>;
 
-    map<const GlobalVariable *, FunctionCallRegisterDescription> RegisterSlots;
+    map<GlobalVariable *, FunctionCallRegisterDescription> RegisterSlots;
   };
 
   struct FunctionDescription {
@@ -480,10 +480,9 @@ public:
 
     FunctionType::Values Type;
     std::map<llvm::BasicBlock *, BranchType::Values> BasicBlocks;
-    std::map<const llvm::GlobalVariable *, FunctionRegisterDescription>
-      RegisterSlots;
+    std::map<llvm::GlobalVariable *, FunctionRegisterDescription> RegisterSlots;
     std::vector<CallSiteDescription> CallSites;
-    std::set<const llvm::GlobalVariable *> ClobberedRegisters;
+    std::set<llvm::GlobalVariable *> ClobberedRegisters;
   };
 
 public:

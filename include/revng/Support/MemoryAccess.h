@@ -163,6 +163,21 @@ public:
     return false;
   }
 
+public:
+  llvm::Value *globalVariable() const {
+    if (Type == CPUState)
+      return Base;
+    else
+      return nullptr;
+  }
+
+  llvm::Value *base() const {
+    if (Type == RegisterAndOffset)
+      return Base;
+    else
+      return nullptr;
+  }
+
 private:
   bool intersect(std::pair<uint64_t, uint64_t> A,
                  std::pair<uint64_t, uint64_t> B) const {
@@ -254,7 +269,7 @@ private:
 
 private:
   enum { Invalid, CPUState, RegisterAndOffset, Absolute } Type;
-  const llvm::Value *Base;
+  llvm::Value *Base;
   uint64_t Offset;
   uint64_t Size;
 };

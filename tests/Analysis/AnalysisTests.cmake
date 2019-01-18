@@ -8,15 +8,19 @@ set(SRC ${CMAKE_SOURCE_DIR}/tests/Analysis)
 set(OUTPUT_NAMES "cfg" "noreturn" "functionsboundaries" "stack-analysis")
 
 # For each analysis, choose a file suffix and a tool to perform the diff
+set(OUTPUT_OPT_cfg "collect-cfg")
 set(OUTPUT_SUFFIX_cfg ".cfg.csv")
 set(OUTPUT_DIFF_cfg "${DIFF}")
 
+set(OUTPUT_OPT_noreturn "collect-noreturn")
 set(OUTPUT_SUFFIX_noreturn ".noreturn.csv")
 set(OUTPUT_DIFF_noreturn "${DIFF}")
 
+set(OUTPUT_OPT_functionsboundaries "detect-function-boundaries")
 set(OUTPUT_SUFFIX_functionsboundaries ".functions-boundaries.csv")
 set(OUTPUT_DIFF_functionsboundaries "${DIFF}")
 
+set(OUTPUT_OPT_stack-analysis "abi-analysis")
 set(OUTPUT_SUFFIX_stack-analysis ".stack-analysis.json")
 set(OUTPUT_DIFF_stack-analysis ${CMAKE_SOURCE_DIR}/scripts/compare-json.py --order)
 
@@ -68,9 +72,10 @@ set(TEST_SOURCES_x86_64_indirect-call-callee-saved "${SRC}/x86_64/StackAnalysis/
 set(TEST_SOURCES_x86_64_helper "${SRC}/x86_64/StackAnalysis/helper.S")
 set(TEST_SOURCES_x86_64_return_value_to_argument "${SRC}/x86_64/StackAnalysis/return-value-to-argument.S")
 
-set(TESTS_mips "switch-jump-table" "switch-jump-table-stack")
+set(TESTS_mips "switch-jump-table" "switch-jump-table-stack" "jump-table-base-before-function-call")
 set(TEST_SOURCES_mips_switch-jump-table "${SRC}/mips/switch-jump-table.S")
 set(TEST_SOURCES_mips_switch-jump-table-stack "${SRC}/mips/switch-jump-table-stack.S")
+set(TEST_SOURCES_mips_jump-table-base-before-function-call "${SRC}/mips/jump-table-base-before-function-call.S")
 
 foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   foreach(TEST_NAME ${TESTS_${ARCH}})
@@ -78,21 +83,11 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
 
     # Translate the compiled binary
     add_test(NAME translate-${TEST_NAME}-${ARCH}
-    COMMAND "${CMAKE_CURRENT_BINARY_DIR}/revamb" --functions-boundaries --use-debug-symbols -g ll "${BINARY}" "${BINARY}.ll")
+    COMMAND "${CMAKE_CURRENT_BINARY_DIR}/revng" lift --use-debug-symbols -g ll "${BINARY}" "${BINARY}.ll")
     set_tests_properties(translate-${TEST_NAME}-${ARCH}
       PROPERTIES LABELS "analysis;translate;${TEST_NAME}-${ARCH}")
 
-    # Extract all the information in a single shot
-    add_test(NAME extract-info-${TEST_NAME}-${ARCH}
-      COMMAND "${CMAKE_CURRENT_BINARY_DIR}/revamb-dump"
-              --cfg "${BINARY}${OUTPUT_SUFFIX_cfg}"
-              --noreturn "${BINARY}${OUTPUT_SUFFIX_noreturn}"
-              --functions-boundaries "${BINARY}${OUTPUT_SUFFIX_functionsboundaries}"
-              --stack-analysis "${BINARY}${OUTPUT_SUFFIX_stack-analysis}"
-              "${BINARY}.ll")
-    set_tests_properties(extract-info-${TEST_NAME}-${ARCH}
-      PROPERTIES DEPENDS translate-${TEST_NAME}-${ARCH}
-                 LABELS "analysis;extract-info;${TEST_NAME}-${ARCH}")
+    # Extract all the information, one-by-one
 
     list(GET TEST_SOURCES_${ARCH}_${TEST_NAME} 0 FIRST_SOURCE)
     get_filename_component(SOURCE_DIRECTORY "${FIRST_SOURCE}" DIRECTORY)
@@ -100,6 +95,18 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
     set(SOURCE_PREFIX "${SOURCE_DIRECTORY}/${SOURCE_BASENAME}")
 
     foreach(OUTPUT_NAME ${OUTPUT_NAMES})
+
+      add_test(NAME extract-info-${TEST_NAME}-${ARCH}-${OUTPUT_NAME}
+        COMMAND "${CMAKE_CURRENT_BINARY_DIR}/revng"
+                opt
+                -o /dev/null
+                --${OUTPUT_OPT_${OUTPUT_NAME}}
+                "--${OUTPUT_OPT_${OUTPUT_NAME}}-output=${BINARY}${OUTPUT_SUFFIX_${OUTPUT_NAME}}"
+                "${BINARY}.ll")
+      set_tests_properties(extract-info-${TEST_NAME}-${ARCH}-${OUTPUT_NAME}
+        PROPERTIES DEPENDS translate-${TEST_NAME}-${ARCH}
+        LABELS "analysis;extract-info;${TEST_NAME};${ARCH};${OUTPUT_NAME}")
+
       set(REFERENCE_OUTPUT "${SOURCE_PREFIX}${OUTPUT_SUFFIX_${OUTPUT_NAME}}")
       set(OUTPUT "${BINARY}${OUTPUT_SUFFIX_${OUTPUT_NAME}}")
 
@@ -107,7 +114,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
         add_test(NAME check-${TEST_NAME}-${ARCH}-${OUTPUT_NAME}
           COMMAND ${OUTPUT_DIFF_${OUTPUT_NAME}} "${REFERENCE_OUTPUT}" "${OUTPUT}")
         set_tests_properties(check-${TEST_NAME}-${ARCH}-${OUTPUT_NAME}
-          PROPERTIES DEPENDS extract-info-${TEST_NAME}-${ARCH}
+          PROPERTIES DEPENDS extract-info-${TEST_NAME}-${ARCH}-${OUTPUT_NAME}
                      LABELS "analysis;check-with-reference;${TEST_NAME};${ARCH};${OUTPUT_NAME};${TEST_NAME}-${ARCH};analysis-${OUTPUT_NAME}")
       endif()
     endforeach()

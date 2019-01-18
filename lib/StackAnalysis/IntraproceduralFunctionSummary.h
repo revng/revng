@@ -1,6 +1,13 @@
 #ifndef INTRAPROCEDURALFUNCTIONSUMMARY_H
 #define INTRAPROCEDURALFUNCTIONSUMMARY_H
 
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+// Standard includes
+#include <limits>
+
 // Local includes
 #include "Element.h"
 #include "FunctionABI.h"

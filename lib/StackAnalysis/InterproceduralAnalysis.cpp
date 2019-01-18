@@ -613,12 +613,12 @@ struct ClobberedRegistersAnalysis {
   }
 };
 
-FunctionsSummary ResultsPool::finalize(const Module *M) {
+FunctionsSummary ResultsPool::finalize(Module *M) {
   ASID CPU = ASID::cpuID();
 
-  std::vector<const GlobalVariable *> IndexToCSV;
+  std::vector<GlobalVariable *> IndexToCSV;
   IndexToCSV.push_back(nullptr);
-  for (const GlobalVariable &CSV : M->globals())
+  for (GlobalVariable &CSV : M->globals())
     IndexToCSV.push_back(&CSV);
 
   FunctionsSummary Result;
@@ -645,13 +645,13 @@ FunctionsSummary ResultsPool::finalize(const Module *M) {
   // Initialize the information about functions in Result
   for (auto &P : FunctionRegisterArguments) {
     auto &Function = Result.Functions[P.first.first];
-    const GlobalVariable *CSV = IndexToCSV.at(P.first.second);
+    GlobalVariable *CSV = IndexToCSV.at(P.first.second);
     Function.RegisterSlots[CSV].Argument = P.second;
   }
 
   for (auto &P : FunctionReturnValues) {
     auto &Function = Result.Functions[P.first.first];
-    const GlobalVariable *CSV = IndexToCSV.at(P.first.second);
+    GlobalVariable *CSV = IndexToCSV.at(P.first.second);
     Function.RegisterSlots[CSV].ReturnValue = P.second;
   }
 
@@ -700,7 +700,7 @@ FunctionsSummary ResultsPool::finalize(const Module *M) {
       revng_assert(FCRV.count(FCS) != 0);
       const auto &CallerReturnValue = FCRV[FCS];
 
-      const GlobalVariable *CSV = IndexToCSV.at(Offset);
+      GlobalVariable *CSV = IndexToCSV.at(Offset);
       NewCallSite.RegisterSlots[CSV].Argument = CallerRegisterArgument;
       NewCallSite.RegisterSlots[CSV].ReturnValue = CallerReturnValue;
 

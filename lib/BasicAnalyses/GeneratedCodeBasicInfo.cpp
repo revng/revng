@@ -24,24 +24,25 @@ char GeneratedCodeBasicInfo::ID = 0;
 using RegisterGCBI = RegisterPass<GeneratedCodeBasicInfo>;
 static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
 
-bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
+bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
+  Function &F = *M.getFunction("root");
+
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 
   RootFunction = &F;
 
-  Module *M = F.getParent();
   const char *MDName = "revamb.input.architecture";
-  NamedMDNode *InputArchMD = M->getOrInsertNamedMetadata(MDName);
+  NamedMDNode *InputArchMD = M.getOrInsertNamedMetadata(MDName);
   auto *Tuple = dyn_cast<MDTuple>(InputArchMD->getOperand(0));
 
-  QuickMetadata QMD(M->getContext());
+  QuickMetadata QMD(M.getContext());
   InstructionAlignment = QMD.extract<uint32_t>(Tuple, 0);
   DelaySlotSize = QMD.extract<uint32_t>(Tuple, 1);
-  PC = M->getGlobalVariable(QMD.extract<StringRef>(Tuple, 2), true);
-  SP = M->getGlobalVariable(QMD.extract<StringRef>(Tuple, 3), true);
+  PC = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, 2), true);
+  SP = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, 3), true);
 
   Type *PCType = PC->getType()->getPointerElementType();
-  PCRegSize = M->getDataLayout().getTypeAllocSize(PCType);
+  PCRegSize = M.getDataLayout().getTypeAllocSize(PCType);
 
   for (BasicBlock &BB : F) {
     if (!BB.empty()) {
@@ -50,18 +51,22 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
         revng_assert(Dispatcher == nullptr);
         Dispatcher = &BB;
         break;
-      case DispatcherFailure:
+
+      case DispatcherFailureBlock:
         revng_assert(DispatcherFail == nullptr);
         DispatcherFail = &BB;
         break;
+
       case AnyPCBlock:
         revng_assert(AnyPC == nullptr);
         AnyPC = &BB;
         break;
+
       case UnexpectedPCBlock:
         revng_assert(UnexpectedPC == nullptr);
         UnexpectedPC = &BB;
         break;
+
       case JumpTargetBlock: {
         auto *Call = cast<CallInst>(&*BB.begin());
         revng_assert(Call->getCalledFunction()->getName() == "newpc");
@@ -69,6 +74,7 @@ bool GeneratedCodeBasicInfo::runOnFunction(llvm::Function &F) {
         break;
       }
       case EntryPoint:
+      case ExternalJumpsHandlerBlock:
       case UntypedBlock:
         // Nothing to do here
         break;

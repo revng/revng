@@ -39,13 +39,13 @@ static const char *JTReasonMDName = "revamb.jt.reasons";
 /// provides information about the generated basic blocks, distinguishing
 /// between basic blocks generated due to translation and dispatcher-related
 /// basic blocks.
-class GeneratedCodeBasicInfo : public llvm::FunctionPass {
+class GeneratedCodeBasicInfo : public llvm::ModulePass {
 public:
   static char ID;
 
 public:
   GeneratedCodeBasicInfo() :
-    llvm::FunctionPass(ID),
+    llvm::ModulePass(ID),
     InstructionAlignment(0),
     DelaySlotSize(0),
     PC(nullptr),
@@ -60,7 +60,7 @@ public:
     AU.setPreservesAll();
   }
 
-  bool runOnFunction(llvm::Function &F) override;
+  bool runOnModule(llvm::Module &M) override;
 
   /// \brief Return the type of basic block, see BlockType.
   BlockType getType(llvm::BasicBlock *BB) const {
@@ -150,6 +150,13 @@ public:
   bool isSPReg(const llvm::GlobalVariable *GV) const {
     revng_assert(SP != nullptr);
     return GV == SP;
+  }
+
+  bool isSPReg(const llvm::Value *V) const {
+    auto *GV = llvm::dyn_cast<const llvm::GlobalVariable>(V);
+    if (GV != nullptr)
+      return isSPReg(GV);
+    return false;
   }
 
   /// \brief Return the CSV representing the program counter
@@ -250,12 +257,8 @@ public:
     return getFunctionCall(T) != nullptr;
   }
 
-  /// \brief Calls \p Visitor for each instruction preceeding \p I
-  ///
-  /// See visitPredecessors in revng/Support/IRHelpers.h
-  void visitPredecessors(llvm::Instruction *I, RVisitorFunction Visitor);
-
   llvm::BasicBlock *anyPC() { return AnyPC; }
+  llvm::BasicBlock *unexpectedPC() { return UnexpectedPC; }
 
 private:
   uint32_t InstructionAlignment;
@@ -279,13 +282,5 @@ struct BlackListTrait<const GeneratedCodeBasicInfo &, llvm::BasicBlock *>
     return !this->Obj.isTranslated(Value);
   }
 };
-
-inline void
-GeneratedCodeBasicInfo::visitPredecessors(llvm::Instruction *I,
-                                          RVisitorFunction Visitor) {
-  using BLT = BlackListTrait<const GeneratedCodeBasicInfo &,
-                             llvm::BasicBlock *>;
-  ::visitPredecessors(I, Visitor, BLT(*this));
-}
 
 #endif // GENERATEDCODEBASICINFO_H

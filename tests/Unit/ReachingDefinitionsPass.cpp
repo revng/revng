@@ -15,7 +15,7 @@ bool init_unit_test();
 #include "llvm/IR/LegacyPassManager.h"
 
 // Local libraries includes
-#include "revng/BasicAnalyses/ReachingDefinitionsAnalysisImpl.h"
+#include "revng/ReachingDefinitions/ReachingDefinitionsAnalysisImpl.h"
 
 // Local includes
 #include "LLVMTestHelpers.h"
@@ -118,7 +118,11 @@ runTest(const char *Body,
   if (T == Regular || T == Both) {
     using Analysis = RDA::Analysis<RDA::NullColorsProvider,
                                    std::set<BasicBlock *>>;
-    Analysis A(F, RDA::NullColorsProvider(), BasicBlockBlackList);
+    Analysis A(F,
+               RDA::NullColorsProvider(),
+               BasicBlockBlackList,
+               nullptr,
+               nullptr);
     A.registerExtremal(&F->getEntryBlock());
     A.initialize();
     A.run();
@@ -164,7 +168,7 @@ runTest(const char *Body,
     }
 
     using Analysis = RDA::Analysis<ColorMap, std::set<BasicBlock *>>;
-    Analysis CA(F, Colors, BasicBlockBlackList);
+    Analysis CA(F, Colors, BasicBlockBlackList, nullptr, nullptr);
     CA.registerExtremal(&F->getEntryBlock());
     CA.initialize();
     CA.run();

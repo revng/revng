@@ -98,6 +98,10 @@ inline uint64_t getLimitedValue(const llvm::Value *V) {
   return llvm::cast<llvm::ConstantInt>(V)->getLimitedValue();
 }
 
+inline uint64_t getSignedLimitedValue(const llvm::Value *V) {
+  return llvm::cast<llvm::ConstantInt>(V)->getSExtValue();
+}
+
 inline llvm::iterator_range<llvm::Interval::pred_iterator>
 predecessors(llvm::Interval *BB) {
   return make_range(pred_begin(BB), pred_end(BB));
@@ -218,110 +222,129 @@ enum VisitAction {
 using BasicBlockRange = llvm::iterator_range<llvm::BasicBlock::iterator>;
 using VisitorFunction = std::function<VisitAction(BasicBlockRange)>;
 
-/// Performs a breadth-first visit of the instructions after \p I and in the
-/// successor basic blocks
-///
-/// \param I the instruction from where to the visit should start
-/// \param BL a blacklist for basic blocks to ignore.
-/// \param Visitor the visitor function, see VisitAction to understand what this
-///        function should return
-template<typename C>
-inline void visitSuccessors(llvm::Instruction *I,
-                            BlackListTrait<C, llvm::BasicBlock *> BL,
-                            VisitorFunction Visitor) {
-  std::set<llvm::BasicBlock *> Visited;
+template<bool Forward>
+struct IteratorDirection {};
 
-  llvm::BasicBlock::iterator It(I);
-  It++;
+template<>
+struct IteratorDirection<true> {
 
-  std::queue<llvm::iterator_range<llvm::BasicBlock::iterator>> Queue;
-  Queue.push(make_range(It, I->getParent()->end()));
+  static llvm::BasicBlock::iterator iterator(llvm::Instruction *I) {
+    return ++llvm::BasicBlock::iterator(I);
+  }
 
-  bool ExhaustOnly = false;
+  static llvm::BasicBlock::iterator begin(llvm::BasicBlock *BB) {
+    return BB->begin();
+  }
 
-  while (!Queue.empty()) {
-    auto Range = Queue.front();
-    Queue.pop();
+  static llvm::BasicBlock::iterator end(llvm::BasicBlock *BB) {
+    return BB->end();
+  }
+};
 
-    switch (Visitor(Range)) {
-    case Continue:
-      if (!ExhaustOnly) {
-        for (auto *Successor : successors(Range.begin()->getParent())) {
-          if (Visited.count(Successor) == 0 && !BL.isBlacklisted(Successor)) {
-            Visited.insert(Successor);
-            Queue.push(make_range(Successor->begin(), Successor->end()));
+template<>
+struct IteratorDirection<false> {
+
+  static llvm::BasicBlock::reverse_iterator iterator(llvm::Instruction *I) {
+    return llvm::BasicBlock::reverse_iterator(++I->getReverseIterator());
+  }
+
+  static llvm::BasicBlock::reverse_iterator begin(llvm::BasicBlock *BB) {
+    return BB->rbegin();
+  }
+
+  static llvm::BasicBlock::reverse_iterator end(llvm::BasicBlock *BB) {
+    return BB->rend();
+  }
+};
+
+template<bool Forward, typename Derived, typename SuccessorsRange>
+struct BFSVisitorBase {
+public:
+  using BasicBlock = llvm::BasicBlock;
+  using forward_iterator = BasicBlock::iterator;
+  using backward_iterator = BasicBlock::reverse_iterator;
+  template<bool C, typename A, typename B>
+  using conditional_t = std::conditional_t<C, A, B>;
+  using instruction_iterator = conditional_t<Forward,
+                                             forward_iterator,
+                                             backward_iterator>;
+  using instruction_range = llvm::iterator_range<instruction_iterator>;
+
+  void run(llvm::Instruction *I) {
+    auto &ThisDerived = *static_cast<Derived *>(this);
+    std::set<BasicBlock *> Visited;
+
+    using ID = IteratorDirection<Forward>;
+    instruction_iterator It = ID::iterator(I);
+
+    struct WorkItem {
+      WorkItem(BasicBlock *BB, instruction_iterator Start) :
+        BB(BB),
+        Range(make_range(Start, ID::end(BB))) {}
+
+      WorkItem(BasicBlock *BB) :
+        BB(BB),
+        Range(make_range(ID::begin(BB), ID::end(BB))) {}
+
+      BasicBlock *BB;
+      instruction_range Range;
+    };
+
+    std::queue<WorkItem> Queue;
+    Queue.push(WorkItem(I->getParent(), It));
+
+    bool ExhaustOnly = false;
+
+    while (not Queue.empty()) {
+      WorkItem Item = Queue.front();
+      Queue.pop();
+
+      switch (ThisDerived.visit(Item.Range)) {
+      case Continue:
+        if (not ExhaustOnly) {
+          for (auto *Successor : ThisDerived.successors(Item.BB)) {
+            if (Visited.count(Successor) == 0) {
+              Visited.insert(Successor);
+              Queue.push(WorkItem(Successor));
+            }
           }
         }
+        break;
+      case NoSuccessors:
+        break;
+      case ExhaustQueueAndStop:
+        ExhaustOnly = true;
+        break;
+      case StopNow:
+        return;
+      default:
+        revng_abort();
       }
-      break;
-    case NoSuccessors:
-      break;
-    case ExhaustQueueAndStop:
-      ExhaustOnly = true;
-      break;
-    case StopNow:
-      return;
-    default:
-      revng_abort();
     }
   }
-}
+};
 
-using RBasicBlockIterator = llvm::BasicBlock::reverse_iterator;
-using RBasicBlockRange = llvm::iterator_range<RBasicBlockIterator>;
-using RVisitorFunction = std::function<VisitAction(RBasicBlockRange)>;
+template<typename Derived>
+struct BackwardBFSVisitor
+  : public BFSVisitorBase<false,
+                          Derived,
+                          llvm::iterator_range<llvm::pred_iterator>> {
 
-/// Performs a breadth-first visit of the instructions before \p I and in the
-/// predecessor basic blocks
-///
-/// \param I the instruction from where to the visit should start
-/// \param BL a blacklist for basic blocks to ignore.
-/// \param Visitor the visitor function, see VisitAction to understand what this
-///        function should return
-template<typename C>
-inline void visitPredecessors(llvm::Instruction *I,
-                              RVisitorFunction Visitor,
-                              BlackListTrait<C, llvm::BasicBlock *> BL) {
-  std::set<llvm::BasicBlock *> Visited;
-
-  llvm::BasicBlock::reverse_iterator It(++I->getReverseIterator());
-
-  if (It == I->getParent()->rend())
-    return;
-
-  std::queue<RBasicBlockRange> Queue;
-  Queue.push(llvm::make_range(It, I->getParent()->rend()));
-
-  bool ExhaustOnly = false;
-
-  while (!Queue.empty()) {
-    RBasicBlockRange &Range = Queue.front();
-    Queue.pop();
-
-    switch (Visitor(Range)) {
-    case Continue:
-      if (!ExhaustOnly && Range.begin() != Range.end()) {
-        for (auto *Predecessor : predecessors(Range.begin()->getParent())) {
-          if (Visited.count(Predecessor) == 0
-              && !BL.isBlacklisted(Predecessor)) {
-            Visited.insert(Predecessor);
-            Queue.push(make_range(Predecessor->rbegin(), Predecessor->rend()));
-          }
-        }
-      }
-      break;
-    case NoSuccessors:
-      break;
-    case ExhaustQueueAndStop:
-      ExhaustOnly = true;
-      break;
-    case StopNow:
-      return;
-    default:
-      revng_abort();
-    }
+  llvm::iterator_range<llvm::pred_iterator> successors(llvm::BasicBlock *BB) {
+    return llvm::make_range(pred_begin(BB), pred_end(BB));
   }
-}
+};
+
+template<typename Derived>
+struct ForwardBFSVisitor
+  : public BFSVisitorBase<true,
+                          Derived,
+                          llvm::iterator_range<llvm::succ_iterator>> {
+
+  llvm::iterator_range<llvm::succ_iterator> successors(llvm::BasicBlock *BB) {
+    return llvm::make_range(succ_begin(BB), succ_end(BB));
+  }
+};
 
 /// \brief Return a sensible name for the given basic block
 /// \return the name of the basic block, if available, its pointer value
@@ -442,6 +465,10 @@ public:
     return llvm::MDString::get(C, String);
   }
 
+  llvm::ConstantAsMetadata *get(llvm::Constant *C) {
+    return llvm::ConstantAsMetadata::get(C);
+  }
+
   llvm::ConstantAsMetadata *get(uint32_t Integer) {
     auto *Constant = llvm::ConstantInt::get(Int32Ty, Integer);
     return llvm::ConstantAsMetadata::get(Constant);
@@ -476,6 +503,11 @@ public:
     revng_abort();
   }
 
+  template<typename T>
+  T extract(llvm::Metadata *MD) {
+    revng_abort();
+  }
+
 private:
   llvm::LLVMContext &C;
   llvm::IntegerType *Int32Ty;
@@ -483,7 +515,33 @@ private:
 };
 
 template<>
+inline llvm::MDTuple *
+QuickMetadata::extract<llvm::MDTuple *>(llvm::Metadata *MD) {
+  return llvm::cast<llvm::MDTuple>(MD);
+}
+
+template<>
+inline llvm::Constant *
+QuickMetadata::extract<llvm::Constant *>(const llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return C->getValue();
+}
+
+template<>
+inline llvm::Constant *
+QuickMetadata::extract<llvm::Constant *>(llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return C->getValue();
+}
+
+template<>
 inline uint32_t QuickMetadata::extract<uint32_t>(const llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getLimitedValue(C->getValue());
+}
+
+template<>
+inline uint32_t QuickMetadata::extract<uint32_t>(llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return getLimitedValue(C->getValue());
 }
@@ -495,9 +553,33 @@ inline uint64_t QuickMetadata::extract<uint64_t>(const llvm::Metadata *MD) {
 }
 
 template<>
+inline uint64_t QuickMetadata::extract<uint64_t>(llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getLimitedValue(C->getValue());
+}
+
+template<>
 inline llvm::StringRef
 QuickMetadata::extract<llvm::StringRef>(const llvm::Metadata *MD) {
   return llvm::cast<llvm::MDString>(MD)->getString();
+}
+
+template<>
+inline llvm::StringRef
+QuickMetadata::extract<llvm::StringRef>(llvm::Metadata *MD) {
+  return llvm::cast<llvm::MDString>(MD)->getString();
+}
+
+template<>
+inline const llvm::MDString *
+QuickMetadata::extract<const llvm::MDString *>(const llvm::Metadata *MD) {
+  return llvm::cast<llvm::MDString>(MD);
+}
+
+template<>
+inline llvm::MDString *
+QuickMetadata::extract<llvm::MDString *>(llvm::Metadata *MD) {
+  return llvm::cast<llvm::MDString>(MD);
 }
 
 /// \brief Return the instruction coming before \p I, or nullptr if it's the

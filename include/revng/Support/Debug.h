@@ -19,6 +19,7 @@
 
 // Local libraries includes
 #include "revng/Support/Assert.h"
+#include "revng/Support/CommandLine.h"
 
 // TODO: use a dedicated namespace
 extern std::ostream &dbg;
@@ -161,7 +162,9 @@ public:
   LoggersRegistry() {}
 
   void add(Logger<true> *L) { Loggers.push_back(L); }
-  void add(Logger<false> *L) { (void) L; }
+  void add(Logger<false> *) {}
+
+  size_t size() const { return Loggers.size(); }
 
   void enable(llvm::StringRef Name) {
     for (Logger<true> *L : Loggers) {
@@ -186,7 +189,6 @@ public:
   }
 
   void registerArguments() const;
-  void activateArguments();
 
 private:
   std::vector<Logger<true> *> Loggers;
@@ -194,9 +196,34 @@ private:
 
 extern llvm::ManagedStatic<LoggersRegistry> Loggers;
 
+enum PlaceholderEnum {};
+struct DebugLogOptionList : public llvm::cl::list<PlaceholderEnum> {
+  using list = llvm::cl::list<PlaceholderEnum>;
+  DebugLogOptionList() :
+    list("debug-log",
+         llvm::cl::desc("enable verbose logging"),
+         llvm::cl::cat(MainCategory)) {}
+
+  virtual bool addOccurrence(unsigned pos,
+                             llvm::StringRef ArgName,
+                             llvm::StringRef Value,
+                             bool MultiArg = false) override {
+    Loggers->enable(Value);
+    return list::addOccurrence(pos, ArgName, Value, MultiArg);
+  }
+};
+
+struct DebugLogOptionWrapper {
+  DebugLogOptionList TheOption;
+};
+extern llvm::ManagedStatic<DebugLogOptionWrapper> DebugLogOption;
+
 template<>
 inline void Logger<true>::init() {
   Loggers->add(this);
+  DebugLogOption->TheOption.getParser().addLiteralOption(Name.data(),
+                                                         Loggers->size(),
+                                                         description().data());
 }
 
 template<>

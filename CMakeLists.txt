@@ -6,6 +6,12 @@ cmake_minimum_required(VERSION 2.8)
 
 project(revamb)
 
+include(cmake/Common.cmake)
+install(FILES cmake/revngConfig.cmake cmake/Common.cmake
+  DESTINATION share/revng/cmake)
+  
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 # This has to be first to get highest priority
 include_directories(include/)
 
@@ -147,15 +153,13 @@ add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
 
-configure_file(scripts/csv-to-ld-options "${CMAKE_BINARY_DIR}/csv-to-ld-options" COPYONLY)
 configure_file(runtime/support.c "${CMAKE_BINARY_DIR}/support.c" COPYONLY)
 configure_file(runtime/support.h "${CMAKE_BINARY_DIR}/support.h" COPYONLY)
 configure_file(include/revng/Runtime/commonconstants.h "${CMAKE_BINARY_DIR}/commonconstants.h" COPYONLY)
 configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/early-linked.c" COPYONLY)
-configure_file(scripts/translate "${CMAKE_BINARY_DIR}/translate" COPYONLY)
-configure_file(scripts/revcc "${CMAKE_BINARY_DIR}/revcc" COPYONLY)
-configure_file(scripts/merge-dynamic.py "${CMAKE_BINARY_DIR}/merge-dynamic.py" COPYONLY)
-install(PROGRAMS scripts/translate scripts/revcc scripts/csv-to-ld-options scripts/merge-dynamic.py DESTINATION bin)
+configure_file(scripts/revng "${CMAKE_BINARY_DIR}/revng" COPYONLY)
+configure_file(scripts/revng-merge-dynamic "${CMAKE_BINARY_DIR}/revng-merge-dynamic" COPYONLY)
+install(PROGRAMS scripts/revng scripts/revng-merge-dynamic DESTINATION bin)
 install(FILES runtime/support.c DESTINATION share/revamb)
 install(FILES runtime/support.h DESTINATION share/revamb)
 install(FILES include/revng/Runtime/commonconstants.h DESTINATION share/revamb)
@@ -164,5 +168,7 @@ install(FILES include/revng/Runtime/commonconstants.h DESTINATION share/revamb)
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 
 include(tests/Tests.cmake)
+
+install(EXPORT revng NAMESPACE revng:: DESTINATION share/revng/cmake)
 
 add_subdirectory(docs/)
