@@ -26,7 +26,7 @@ static void print_stack_trace() {
 static void
 report(const char *Type, const char *File, unsigned Line, const char *What) {
   fprintf(stderr, "%s at %s:%d", Type, File, Line);
-  if (What != NULL)
+  if (What != nullptr)
     fprintf(stderr, ": %s", What);
   fprintf(stderr, "\n");
 }
