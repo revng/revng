@@ -44,22 +44,9 @@ private:
 public:
   Logger(llvm::StringRef Name) : Name(Name), Enabled(false) { init(); }
 
-  void indent(unsigned Level = 1) {
-    if (isEnabled())
-      IndentLevel += Level;
-  }
-
-  void unindent(unsigned Level = 1) {
-    if (isEnabled()) {
-      revng_assert(IndentLevel - Level >= 0);
-      IndentLevel -= Level;
-    }
-  }
-
-  void setIndentation(unsigned Level) {
-    if (isEnabled())
-      IndentLevel = Level;
-  }
+  void indent(unsigned Level = 1);
+  void unindent(unsigned Level = 1);
+  void setIndentation(unsigned Level);
 
   bool isEnabled() const { return StaticEnabled && Enabled; }
   llvm::StringRef name() const { return Name; }
@@ -235,9 +222,6 @@ inline void Logger<true>::init() {
 template<>
 inline void Logger<false>::init() {
 }
-
-extern template class Logger<true>;
-extern template class Logger<false>;
 
 class StreamWrapperBase {
 public:
