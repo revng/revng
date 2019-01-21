@@ -100,7 +100,7 @@ static ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
 }
 
 // Helper function to simplify short-circuit IFs
-void simplifyShortCircuit(ASTNode *RootNode) {
+static void simplifyShortCircuit(ASTNode *RootNode) {
 
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
