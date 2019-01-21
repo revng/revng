@@ -457,6 +457,24 @@ static bool alreadyInMetaregion(std::vector<MetaRegion> &V, BasicBlockNode *N) {
   return false;
 }
 
+static void removeNotReachables(CFG &Graph) {
+
+  // Remove nodes that have no predecessors (nodes that are the result of node
+  // cloning and that remains dandling around).
+  bool Difference = true;
+  while (Difference) {
+    Difference = false;
+    BasicBlockNode *EntryNode = &Graph.getEntryNode();
+    for (auto It = Graph.begin(); It != Graph.end(); It++) {
+      if ((EntryNode != *It and (*It)->predecessor_size() == 0)) {
+        Graph.removeNode(*It);
+        Difference = true;
+        break;
+      }
+    }
+  }
+}
+
 char RestructureCFG::ID = 0;
 static RegisterPass<RestructureCFG> X("restructureCFG",
                                       "Apply CFG restructuring transformation",
@@ -1057,6 +1075,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // Replace the pointers inside SCS.
     Meta->replaceNodes(CollapsedGraph.getNodes());
 
+    // Remove useless nodes inside the SCS (like dandling break/continue)
+    removeNotReachables(CollapsedGraph);
+
     // Serialize the newly collapsed SCS region.
     if (Log.isEnabled()) {
       Log << "Dumping CFG of metaregion " << Meta->getIndex() << "\n";
@@ -1074,20 +1095,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     Graph.dumpDotOnFile(F.getName(), "Final-before-purge");
   }
 
-  // Remove nodes that have no predecessors (nodes that are the result of node
-  // cloning and that remains dandling around).
-  bool Difference = true;
-  while (Difference) {
-    Difference = false;
-    BasicBlockNode *EntryNode = &Graph.getEntryNode();
-    for (auto It = Graph.begin(); It != Graph.end(); It++) {
-      if ((EntryNode != *It and (*It)->predecessor_size() == 0)) {
-        Graph.removeNode(*It);
-        Difference = true;
-        break;
-      }
-    }
-  }
+  // Remove not reachables nodes from the main final graph.
+  removeNotReachables(Graph);
 
   // Serialize the newly collapsed SCS region.
   if (Log.isEnabled()) {
