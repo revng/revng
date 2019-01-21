@@ -697,6 +697,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
     if (Log.isEnabled()) {
       Log << "\nAnalyzing region: " << Meta->getIndex() <<"\n";
     }
+
+    // Refresh backedges, since some of them may have been modified during
+    // the transformations
+    Backedges = getBackedges(Graph);
+
     auto &Nodes = Meta->getNodes();
     Log << "Which is composed of nodes:\n";
     for (auto *Node : Nodes) {
