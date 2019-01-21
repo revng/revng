@@ -23,7 +23,7 @@
 #include "IRASTTypeTranslation.h"
 #include "Mangling.h"
 
-static auto ASTBuildLog = Logger<>("ast-builder");
+static Logger<> ASTBuildLog("ast-builder");
 
 using namespace llvm;
 using namespace clang;

@@ -495,10 +495,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Logger object
   auto &Log = CombLogger;
 
-  // HACK: Manually enable the logger, since opt does not accept `-debug-log`
-  // argument yet
-  Log.enable();
-
   // Random seed initialization
   srand(time(NULL));
 
