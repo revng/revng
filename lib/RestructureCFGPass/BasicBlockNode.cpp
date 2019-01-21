@@ -118,6 +118,7 @@ BasicBlockNode *BasicBlockNode::getSuccessorI(size_t i) {
 
 
 BasicBlock *BasicBlockNode::basicBlock() const { return BB; }
+void BasicBlockNode::setBasicBlock(BasicBlock *NewBB) { BB = NewBB; }
 StringRef BasicBlockNode::getName() const { return Name; }
 std::string BasicBlockNode::getNameStr() const { return Name; }
 

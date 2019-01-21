@@ -75,6 +75,8 @@ public:
 
   BasicBlockNode *newDummyNodeID(std::string Name);
 
+  BasicBlockNode *cloneNode(BasicBlockNode *OriginalNode);
+
   void removeNode(BasicBlockNode *Node);
 
   void insertBulkNodes(std::set<BasicBlockNode *> &Nodes,

@@ -102,6 +102,7 @@ public:
   }
 
   llvm::BasicBlock *basicBlock() const;
+  void setBasicBlock(llvm::BasicBlock *NewBB);
   llvm::StringRef getName() const;
   std::string getNameStr() const;
 

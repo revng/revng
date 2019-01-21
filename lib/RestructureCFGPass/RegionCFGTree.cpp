@@ -99,6 +99,90 @@ static ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
   return RootNode;
 }
 
+// Helper function to simplify short-circuit IFs
+void simplifyShortCircuit(ASTNode *RootNode) {
+
+  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
+    for (ASTNode *Node : Sequence->nodes()) {
+      simplifyShortCircuit(Node);
+    }
+  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
+    simplifyShortCircuit(Scs->getBody());
+  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
+    if (If->hasBothBranches()) {
+
+      if (auto InternalIf = llvm::dyn_cast<IfNode>(If->getThen())) {
+
+        // TODO: Refactor this with some kind of iterator
+        if (InternalIf->getThen() != nullptr) {
+          if (If->getElse()->isEqual(InternalIf->getThen())) {
+            CombLogger << "Candidate for short-circuit reduction found:\n";
+            CombLogger << "IF " << If->getName() << " and ";
+            CombLogger << "IF " << InternalIf->getName() << "\n";
+            CombLogger << "Nodes being simplified:\n";
+            CombLogger << If->getElse()->getName() << " and ";
+            CombLogger << InternalIf->getThen()->getName() << "\n";
+
+            If->setThen(InternalIf->getElse());
+            If->setElse(InternalIf->getThen());
+            simplifyShortCircuit(If);
+          }
+        }
+
+        if (InternalIf->getElse() != nullptr) {
+          if (If->getElse()->isEqual(InternalIf->getElse())) {
+            CombLogger << "Candidate for short-circuit reduction found:\n";
+            CombLogger << "IF " << If->getName() << " and ";
+            CombLogger << "IF " << InternalIf->getName() << "\n";
+            CombLogger << "Nodes being simplified:\n";
+            CombLogger << If->getElse()->getName() << " and ";
+            CombLogger << InternalIf->getElse()->getName() << "\n";
+
+            If->setThen(InternalIf->getThen());
+            If->setElse(InternalIf->getElse());
+            simplifyShortCircuit(If);
+          }
+        }
+      }
+
+      if (auto InternalIf = llvm::dyn_cast<IfNode>(If->getElse())) {
+
+        // TODO: Refactor this with some kind of iterator
+        if (InternalIf->getThen() != nullptr) {
+          if (If->getThen()->isEqual(InternalIf->getThen())) {
+            CombLogger << "Candidate for short-circuit reduction found:\n";
+            CombLogger << "IF " << If->getName() << " and ";
+            CombLogger << "IF " << InternalIf->getName() << "\n";
+            CombLogger << "Nodes being simplified:\n";
+            CombLogger << If->getThen()->getName() << " and ";
+            CombLogger << InternalIf->getThen()->getName() << "\n";
+
+            If->setElse(InternalIf->getElse());
+            If->setThen(InternalIf->getThen());
+            simplifyShortCircuit(If);
+          }
+        }
+
+        if (InternalIf->getElse() != nullptr) {
+          if (If->getThen()->isEqual(InternalIf->getElse())) {
+            CombLogger << "Candidate for short-circuit reduction found:\n";
+            CombLogger << "IF " << If->getName() << " and ";
+            CombLogger << "IF " << InternalIf->getName() << "\n";
+            CombLogger << "Nodes being simplified:\n";
+            CombLogger << If->getThen()->getName() << " and ";
+            CombLogger << InternalIf->getElse()->getName() << "\n";
+
+            If->setElse(InternalIf->getThen());
+            If->setThen(InternalIf->getElse());
+            simplifyShortCircuit(If);
+          }
+        }
+      }
+
+    }
+  }
+}
+
 CFG::CFG(std::set<BasicBlockNode *> &Nodes) {
   for (BasicBlockNode *Node : Nodes) {
     BlockNodes.emplace_back(new BasicBlockNode(*Node));
@@ -210,6 +294,16 @@ BasicBlockNode *CFG::newDummyNode(std::string Name) {
 BasicBlockNode *CFG::newDummyNodeID(std::string Name) {
   Name += getID();
   BlockNodes.emplace_back(new BasicBlockNode(Name, this, true));
+  return BlockNodes.back().get();
+}
+
+BasicBlockNode *CFG::cloneNode(BasicBlockNode *OriginalNode) {
+  std::string Name = OriginalNode->getNameStr() + " cloned ";
+  Name += getID();
+  BlockNodes.emplace_back(new BasicBlockNode(Name, this));
+
+  // Copy the information about the original basic block
+  BlockNodes.back()->setBasicBlock(OriginalNode->basicBlock());
   return BlockNodes.back().get();
 }
 
@@ -609,8 +703,10 @@ void CFG::inflate() {
         if (Candidate->isDummy()) {
           Duplicated = Graph.newDummyNodeID(NodeName);
         } else {
-          Duplicated = Graph.newNodeID(NodeName);
+          Duplicated = Graph.cloneNode(Candidate);
         }
+
+        assert(Duplicated != nullptr);
 
         for (BasicBlockNode *Successor : Candidate->successors()) {
           addEdge(EdgeDescriptor(Duplicated, Successor));
@@ -783,6 +879,17 @@ ASTNode *CFG::generateAst() {
     dumpNode(RootNode);
     CombLogger << "}\n";
   }
+
+  // Simplify short-circuit nodes.
+  CombLogger << "Performing short-circuit simplification\n";
+  simplifyShortCircuit(RootNode);
+  if (CombLogger.isEnabled()) {
+    CombLogger << "AST after short-circuit simplification:\n";
+    CombLogger << "digraph CFGFunction {\n";
+    dumpNode(RootNode);
+    CombLogger << "}\n";
+  }
+
 
   return RootNode;
 }

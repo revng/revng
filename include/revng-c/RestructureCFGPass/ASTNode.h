@@ -68,6 +68,26 @@ public:
   bool isDummy() {
     return CFGNode->isDummy();
   }
+
+  llvm::BasicBlock *getOriginalBB() {
+    if (CFGNode != nullptr) {
+      return CFGNode->basicBlock();
+    } else {
+      return nullptr;
+    }
+  }
+
+  bool isEqual(ASTNode *Node) {
+    if ((getOriginalBB() != nullptr)
+        and (getOriginalBB() == Node->getOriginalBB())) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+private:
+
 };
 
 class CodeNode : public ASTNode {
@@ -117,6 +137,14 @@ public:
 
   void setElse(ASTNode *Node) {
     Else = Node;
+  }
+
+  bool hasBothBranches() {
+    if ((Then != nullptr) and (Else != nullptr)) {
+      return true;
+    } else {
+      return false;
+    }
   }
 
   void dump(std::ofstream &ASTFile);

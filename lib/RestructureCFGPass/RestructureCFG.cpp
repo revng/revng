@@ -447,7 +447,8 @@ static std::vector<MetaRegion *> applyPartialOrder(std::vector<MetaRegion> &V) {
 
 static bool alreadyInMetaregion(std::vector<MetaRegion> &V, BasicBlockNode *N) {
 
-  // Scan all the metaregions and check if a node is already contained in one of them
+  // Scan all the metaregions and check if a node is already contained in one of
+  // them
   for (MetaRegion &Region : V) {
     if (Region.containsNode(N)) {
       return true;
