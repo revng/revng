@@ -13,6 +13,87 @@
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTNode.h"
 
+using namespace llvm;
+
+bool CodeNode::isEqual(ASTNode *Node) {
+  if (auto *OtherCode = dyn_cast<CodeNode>(Node)) {
+    if ((getOriginalBB() != nullptr)
+        and (getOriginalBB() == OtherCode->getOriginalBB())) {
+      return true;
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+}
+
+bool IfNode::isEqual(ASTNode *Node) {
+  if (auto *OtherIf = dyn_cast<IfNode>(Node)) {
+    if ((getOriginalBB() != nullptr)
+        and (getOriginalBB() == OtherIf->getOriginalBB())) {
+
+      // TODO: this is necessary since we may not have one between `then` or
+      //       `else` branches, refactor in a more elegant way
+      bool ComparisonState = true;
+      if (hasThen()) {
+        ComparisonState = Then->isEqual(OtherIf->getThen());
+      }
+      if (hasElse()) {
+        ComparisonState = Else->isEqual(OtherIf->getElse());
+      }
+      return ComparisonState;
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+}
+
+bool ScsNode::isEqual(ASTNode *Node) {
+  if (auto *OtherScs = dyn_cast<ScsNode>(Node)) {
+    if (Body->isEqual(OtherScs->getBody())) {
+      return true;
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+}
+
+bool SequenceNode::isEqual(ASTNode *Node) {
+  if (auto *OtherSequence = dyn_cast<SequenceNode>(Node)) {
+    bool ComparisonState = true;
+    int FirstDimension = NodeList.size();
+    int SecondDimension = OtherSequence->listSize();
+    if (FirstDimension != SecondDimension) {
+      ComparisonState = false;
+    }
+
+    // Continue the comparison only if the sequence node size are the same
+    if (ComparisonState) {
+      assert (FirstDimension == SecondDimension);
+      for (int I = 0; I < FirstDimension; I++) {
+        ASTNode *FirstNode = getNodeN(I);
+        ASTNode *SecondNode = OtherSequence->getNodeN(I);
+
+        // As soon as two nodes does not match, exit and make the comparison
+        // fail
+        if (!FirstNode->isEqual(SecondNode)) {
+          ComparisonState = false;
+          break;
+        }
+      }
+    }
+
+    return ComparisonState;
+  } else {
+    return false;
+  }
+}
+
 void CodeNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"" << this->getName() << "\" [";
   ASTFile << "label=\"" << this->getName();

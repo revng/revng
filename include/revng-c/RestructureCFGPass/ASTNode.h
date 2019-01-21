@@ -47,8 +47,6 @@ public:
 
   virtual ~ASTNode() {}
 
-  virtual void dump(std::ofstream &ASTFile) = 0;
-
 public:
 
   NodeKind getKind() const { return Kind; }
@@ -56,6 +54,8 @@ public:
   std::string getName() {
     return Name;
   }
+
+  virtual void dump(std::ofstream &ASTFile) = 0;
 
   BasicBlockNode *getCFGNode() {
     return CFGNode;
@@ -77,14 +77,7 @@ public:
     }
   }
 
-  bool isEqual(ASTNode *Node) {
-    if ((getOriginalBB() != nullptr)
-        and (getOriginalBB() == Node->getOriginalBB())) {
-      return true;
-    } else {
-      return false;
-    }
-  }
+  virtual bool isEqual(ASTNode *Node) = 0;
 
 private:
 
@@ -100,6 +93,8 @@ public:
   static bool classof(const ASTNode *N) {
     return N->getKind() == NK_Code;
   }
+
+  bool isEqual(ASTNode *Node);
 
   void dump(std::ofstream &ASTFile);
 
@@ -139,6 +134,20 @@ public:
     Else = Node;
   }
 
+  bool hasThen() {
+    if (Then != nullptr) {
+      return true;
+    }
+    return false;
+  }
+
+  bool hasElse() {
+    if (Else != nullptr) {
+      return true;
+    }
+    return false;
+  }
+
   bool hasBothBranches() {
     if ((Then != nullptr) and (Else != nullptr)) {
       return true;
@@ -146,6 +155,8 @@ public:
       return false;
     }
   }
+
+  bool isEqual(ASTNode *Node);
 
   void dump(std::ofstream &ASTFile);
 
@@ -174,6 +185,8 @@ public:
   void setBody(ASTNode *Node) {
     Body = Node;
   }
+
+  bool isEqual(ASTNode *Node);
 
   void dump(std::ofstream &ASTFile);
 
@@ -221,6 +234,8 @@ public:
   ASTNode *getNodeN(int N) {
     return NodeList[N];
   }
+
+  bool isEqual(ASTNode *Node);
 
   void dump(std::ofstream &ASTFile);
 
