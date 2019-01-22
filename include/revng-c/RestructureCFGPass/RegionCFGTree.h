@@ -42,6 +42,8 @@ private:
   BasicBlockNode *EntryNode;
   ASTTree AST;
   unsigned IDCounter = 0;
+  std::string FunctionName;
+  std::string RegionName;
 
 public:
   RegionCFG() = default;
@@ -55,6 +57,14 @@ public:
   unsigned getNewID() { return IDCounter++; }
 
   links_range nodes() { return llvm::make_range(begin(), end()); }
+
+  void setFunctionName(std::string Name);
+
+  void setRegionName(std::string Name);
+
+  std::string getFunctionName();
+
+  std::string getRegionName();
 
   links_iterator begin() {
     return links_iterator(BlockNodes.begin(), getPointer);
@@ -149,7 +159,9 @@ public:
   template<typename StreamT> void dumpDot(StreamT &);
 
   /// \brief Dump a GraphViz file on a file representing this function
-  void dumpDotOnFile(std::string FunctionName, std::string FileName);
+  void dumpDotOnFile(std::string FolderName,
+                     std::string FunctionName,
+                     std::string FileName);
 
   void purgeDummies();
 

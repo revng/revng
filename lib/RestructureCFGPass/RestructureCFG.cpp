@@ -281,7 +281,6 @@ static void removeNotReachables(RegionCFG &Graph) {
 
 static std::vector<MetaRegion>
 createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
-
   std::vector<std::set<BasicBlockNode *>> Regions;
   for (auto &Backedge : Backedges) {
     auto SCSNodes = findReachableNodes(*Backedge.second, *Backedge.first);
@@ -361,6 +360,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Clear graph object from the previous pass.
   CompleteGraph = RegionCFG();
 
+  // Set names of the CFG region
+  CompleteGraph.setFunctionName(F.getName());
+  CompleteGraph.setRegionName("root");
+
   // Logger object
   auto &Log = CombLogger;
 
@@ -373,7 +376,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Dump the object in .dot format if debug mode is activated.
   if (Log.isEnabled()) {
-    CompleteGraph.dumpDotOnFile(F.getName(), "begin");
+    CompleteGraph.dumpDotOnFile("dots", F.getName(), "begin");
   }
 
   // Identify SCS regions.
@@ -538,7 +541,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
 
       Log << "Dumping main graph snapshot before restructuring\n";
-      CompleteGraph.dumpDotOnFile(F.getName(),
+      Graph.dumpDotOnFile("dots",
+                          F.getName(),
                           "Out-pre-" + std::to_string(Meta->getIndex()));
     }
 
@@ -823,9 +827,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // populate it with the internal nodes.
     std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
     std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
-    //RegionCFG &CollapsedGraph = Meta->getGraph();
     RegionCFG CollapsedGraph{};
     RegionCFG::BBNodeMap SubstitutionMap{};
+    CollapsedGraph.setFunctionName(F.getName());
+    CollapsedGraph.setRegionName(std::to_string(Meta->getIndex()));
     revng_assert(Head != nullptr);
     CollapsedGraph.insertBulkNodes(Meta->getNodes(), Head, SubstitutionMap);
 
@@ -886,11 +891,13 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     // Serialize the newly collapsed SCS region.
     if (Log.isEnabled()) {
-      Log << "Dumping RegionCFG of metaregion " << Meta->getIndex() << "\n";
-      CollapsedGraph.dumpDotOnFile(F.getName(),
+      Log << "Dumping CFG of metaregion " << Meta->getIndex() << "\n";
+      CollapsedGraph.dumpDotOnFile("dots",
+                                   F.getName(),
                                    "In-" + std::to_string(Meta->getIndex()));
       Log << "Dumping main graph snapshot post restructuring\n";
-      CompleteGraph.dumpDotOnFile(F.getName(),
+      Graph.dumpDotOnFile("dots",
+                          F.getName(),
                           "Out-post-" + std::to_string(Meta->getIndex()));
     }
     Regions.push_back(std::move(CollapsedGraph));
@@ -899,7 +906,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Serialize the newly collapsed SCS region.
   if (Log.isEnabled()) {
     Log << "Dumping main graph before final purge\n";
-    CompleteGraph.dumpDotOnFile(F.getName(), "Final-before-purge");
+    Graph.dumpDotOnFile("dots", F.getName(), "Final-before-purge");
   }
 
   // Remove not reachables nodes from the main final graph.
@@ -908,7 +915,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Serialize the newly collapsed SCS region.
   if (Log.isEnabled()) {
     Log << "Dumping main graph after final purge\n";
-    CompleteGraph.dumpDotOnFile(F.getName(), "Final-after-purge");
+    Graph.dumpDotOnFile("dots", F.getName(), "Final-after-purge");
   }
 
   // Print metaregions after ordering.
@@ -967,7 +974,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Serialize the newly collapsed SCS region.
   if (Log.isEnabled()) {
     Log << "Dumping main graph after Flattening\n";
-    CompleteGraph.dumpDotOnFile(F.getName(), "final-after-flattening");
+    CompleteGraph.dumpDotOnFile("dots", F.getName(), "final-after-flattening");
   }
 
   return false;

@@ -319,6 +319,22 @@ void RegionCFG::initialize(llvm::Function &F) {
   }
 }
 
+void RegionCFG::setFunctionName(std::string Name) {
+  FunctionName = Name;
+}
+
+void RegionCFG::setRegionName(std::string Name) {
+  RegionName = Name;
+}
+
+std::string RegionCFG::getFunctionName() {
+  return FunctionName;
+}
+
+std::string RegionCFG::getRegionName() {
+  return RegionName;
+}
+
 void RegionCFG::addNode(llvm::BasicBlock *BB) {
   BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, BB));
   BBMap[BB] = BlockNodes.back().get();
@@ -473,11 +489,13 @@ void RegionCFG::dumpDot(StreamT &S) {
   S << "}\n";
 }
 
-void RegionCFG::dumpDotOnFile(std::string FunctionName, std::string FileName) {
+void RegionCFG::dumpDotOnFile(std::string FolderName,
+                              std::string FunctionName,
+                              std::string FileName) {
   std::ofstream DotFile;
-  std::string PathName = "dots/" + FunctionName;
+  std::string PathName = FolderName + "/" + FunctionName;
   mkdir(PathName.c_str(), 0775);
-  DotFile.open("dots/" + FunctionName + "/" + FileName + ".dot");
+  DotFile.open(PathName + "/" + FileName + ".dot");
   dumpDot(DotFile);
 }
 
@@ -606,7 +624,9 @@ void RegionCFG::inflate() {
   // Dump graph after virtual sink add.
   if (CombLogger.isEnabled()) {
     CombLogger << "Graph after sink addition is:\n";
-    Graph.dumpDot(CombLogger);
+    Graph.dumpDotOnFile("inflates",
+                        FunctionName,
+                        "Region-" + RegionName + "-after-sink");
   }
 
   // Collect all the conditional nodes in the graph.
@@ -638,7 +658,10 @@ void RegionCFG::inflate() {
                  << "\n";
 
     }
-    Graph.dumpDot(CombLogger);
+    Graph.dumpDotOnFile("inflates",
+                        FunctionName,
+                        "Region-" + RegionName + "-conditional-"
+                        + Conditional->getNameStr() + "-begin");
     CombLogger.emit();
 
     // Update information of dominator and postdominator trees.
@@ -661,7 +684,10 @@ void RegionCFG::inflate() {
         CombLogger << "Analyzing candidate " << Candidate->getNameStr()
                    << "\n";
       }
-      Graph.dumpDot(CombLogger);
+      Graph.dumpDotOnFile("inflates",
+                          FunctionName,
+                          "Region-" + RegionName + "-conditional-"
+                          + Conditional->getNameStr());
       CombLogger.emit();
 
       // Decide wether to insert a dummy or to duplicate.
@@ -760,7 +786,9 @@ void RegionCFG::inflate() {
 
   if (CombLogger.isEnabled()) {
     CombLogger << "Graph after combing is:\n";
-    Graph.dumpDot(CombLogger);
+    Graph.dumpDotOnFile("inflates",
+                        FunctionName,
+                        "Region-" + RegionName + "-after-combing");
   }
 }
 
