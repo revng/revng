@@ -183,6 +183,36 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
   }
 }
 
+static void flipEmptyThen(ASTNode *RootNode) {
+  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
+    for (ASTNode *Node : Sequence->nodes()) {
+      flipEmptyThen(Node);
+    }
+  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
+    if (!If->hasThen()) {
+      if (CombLogger.isEnabled()) {
+        CombLogger << "Flipping then and else branches for : ";
+        CombLogger << If->getName() << "\n";
+      }
+      If->setThen(If->getElse());
+      If->setElse(nullptr);
+      flipEmptyThen(If->getThen());
+    } else {
+
+      // We are sure to have the `then` branch since the previous check did
+      // not verify
+      flipEmptyThen(If->getThen());
+
+      // We have not the same assurance for the `else` branch
+      if (If->hasElse()) {
+        flipEmptyThen(If->getElse());
+      }
+    }
+  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
+    flipEmptyThen(Scs->getBody());
+  }
+}
+
 void RegionCFG::initialize(llvm::Function &F) {
 
   // Create a new node for each basic block in the module.
@@ -822,6 +852,16 @@ ASTNode *RegionCFG::generateAst() {
 
   if (CombLogger.isEnabled()) {
     CombLogger << "AST after useless sequence simplification:\n";
+    CombLogger << "digraph CFGFunction {\n";
+    dumpNode(RootNode);
+    CombLogger << "}\n";
+  }
+
+  // Flip IFs with empty then branches.
+  flipEmptyThen(RootNode);
+
+  if (CombLogger.isEnabled()) {
+    CombLogger << "AST after flipping IFs with empty then branches\n";
     CombLogger << "digraph CFGFunction {\n";
     dumpNode(RootNode);
     CombLogger << "}\n";
