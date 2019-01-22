@@ -59,10 +59,10 @@ public:
       return true;
     if (RHS.IsBottom)
       return false;
-    return std::includes(Map.begin(),
-                         Map.end(),
-                         RHS.Map.begin(),
-                         RHS.Map.end());
+    return std::includes(RHS.Map.begin(),
+                         RHS.Map.end(),
+                         Map.begin(),
+                         Map.end());
   }
 
   void combine(const BasicBlockViewMap &RHS) {
@@ -77,8 +77,8 @@ public:
       iterator MapIt;
       bool New;
       std::tie(MapIt, New) = Map.insert(Pair);
-      if (not New)
-        Map.erase(MapIt);
+      if (not New and MapIt->second != Pair.second)
+        MapIt->second = nullptr;
     }
   }
 
