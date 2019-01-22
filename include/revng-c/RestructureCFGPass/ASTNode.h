@@ -66,7 +66,15 @@ public:
   }
 
   bool isDummy() {
-    return CFGNode->isDummy();
+
+    // Check if the corresponding CFGNode is a dummy node. In case we do not
+    // have a corresponding CFGNode (e.g., a sequence node), assume that this
+    // property is not verified
+    if (CFGNode != nullptr) {
+      return CFGNode->isDummy();
+    } else {
+      return false;
+    }
   }
 
   llvm::BasicBlock *getOriginalBB() {
