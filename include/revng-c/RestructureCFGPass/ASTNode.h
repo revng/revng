@@ -117,16 +117,24 @@ public:
 
 class IfNode : public ASTNode {
 
+public:
+  using links_container  = std::vector<BasicBlockNode *>;
+  using links_iterator = typename links_container::iterator;
+  using links_range = llvm::iterator_range<links_iterator>;
+
 private:
   ASTNode *Then;
   ASTNode *Else;
+  std::vector<BasicBlockNode *> ConditionalNodes;
 
 public:
   IfNode(BasicBlockNode *CFGNode,
          ASTNode *Then,
          ASTNode *Else,
          ASTNode *PostDom) :
-    ASTNode(NK_If, CFGNode, PostDom), Then(Then), Else(Else) {}
+    ASTNode(NK_If, CFGNode, PostDom), Then(Then), Else(Else) {
+      ConditionalNodes.push_back(CFGNode);
+    }
 
 public:
   static bool classof(const ASTNode *N) {
@@ -170,6 +178,12 @@ public:
       return false;
     }
   }
+
+  links_range conditionalNodes() {
+    return llvm::make_range(ConditionalNodes.begin(), ConditionalNodes.end());
+  }
+
+  void addConditionalNodesFrom(IfNode *Other);
 
   bool isEqual(ASTNode *Node);
 

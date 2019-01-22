@@ -127,6 +127,10 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
 
             If->setThen(InternalIf->getElse());
             If->setElse(InternalIf->getThen());
+
+            // Absorb the conditional nodes
+            If->addConditionalNodesFrom(InternalIf);
+
             simplifyShortCircuit(If);
           }
         }
@@ -144,6 +148,10 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
 
             If->setThen(InternalIf->getThen());
             If->setElse(InternalIf->getElse());
+
+            // Absorb the conditional nodes
+            If->addConditionalNodesFrom(InternalIf);
+
             simplifyShortCircuit(If);
           }
         }
@@ -165,6 +173,10 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
 
             If->setElse(InternalIf->getElse());
             If->setThen(InternalIf->getThen());
+
+            // Absorb the conditional nodes
+            If->addConditionalNodesFrom(InternalIf);
+
             simplifyShortCircuit(If);
           }
         }
@@ -182,6 +194,10 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
 
             If->setElse(InternalIf->getThen());
             If->setThen(InternalIf->getElse());
+
+            // Absorb the conditional nodes
+            If->addConditionalNodesFrom(InternalIf);
+
             simplifyShortCircuit(If);
           }
         }
@@ -243,6 +259,10 @@ static void simplifyTrivialShortCircuit(ASTNode *RootNode) {
           }
 
           If->setThen(InternalIf->getThen());
+
+          // Absorb the conditional nodes
+          If->addConditionalNodesFrom(InternalIf);
+
           simplifyTrivialShortCircuit(RootNode);
         }
       }

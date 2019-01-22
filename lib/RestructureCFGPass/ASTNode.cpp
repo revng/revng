@@ -15,6 +15,12 @@
 
 using namespace llvm;
 
+void IfNode::addConditionalNodesFrom(IfNode *Other) {
+  for (BasicBlockNode *Node : Other->conditionalNodes()) {
+    ConditionalNodes.push_back(Node);
+  }
+}
+
 bool CodeNode::isEqual(ASTNode *Node) {
   if (auto *OtherCode = dyn_cast<CodeNode>(Node)) {
     if ((getOriginalBB() != nullptr)
@@ -103,7 +109,16 @@ void CodeNode::dump(std::ofstream &ASTFile) {
 
 void IfNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"" << this->getName() << "\" [";
-  ASTFile << "label=\"" << this->getName();
+
+  // For the label of the If node go take all the nodes in the list
+  std::string ConditionalNames;
+  for (BasicBlockNode *Conditional : this->conditionalNodes()) {
+    ConditionalNames += Conditional->getNameStr() + ", ";
+  }
+  ConditionalNames.pop_back();
+  ConditionalNames.pop_back();
+
+  ASTFile << "label=\"" << ConditionalNames;
   ASTFile << "\"";
   ASTFile << ",shape=\"invhouse\",color=\"blue\"];\n";
 

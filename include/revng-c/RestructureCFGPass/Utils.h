@@ -94,7 +94,16 @@ inline std::set<BasicBlockNode *> findReachableNodes(BasicBlockNode &Source,
 inline void dumpNode(ASTNode *Node) {
   if (auto *If = llvm::dyn_cast<IfNode>(Node)) {
     CombLogger << "\"" << If->getName() << "\" [";
-    CombLogger << "label=\"" << If->getName();
+
+    // For the label of the If node go take all the nodes in the list
+    std::string ConditionalNames;
+    for (BasicBlockNode *Conditional : If->conditionalNodes()) {
+      ConditionalNames += Conditional->getNameStr() + ", ";
+    }
+    ConditionalNames.pop_back();
+    ConditionalNames.pop_back();
+
+    CombLogger << "label=\"" << ConditionalNames;
     CombLogger << "\"";
     CombLogger << ",shape=\"invhouse\",color=\"blue\"];\n";
 
