@@ -116,12 +116,14 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
         // TODO: Refactor this with some kind of iterator
         if (InternalIf->getThen() != nullptr) {
           if (If->getElse()->isEqual(InternalIf->getThen())) {
-            CombLogger << "Candidate for short-circuit reduction found:\n";
-            CombLogger << "IF " << If->getName() << " and ";
-            CombLogger << "IF " << InternalIf->getName() << "\n";
-            CombLogger << "Nodes being simplified:\n";
-            CombLogger << If->getElse()->getName() << " and ";
-            CombLogger << InternalIf->getThen()->getName() << "\n";
+            if (CombLogger.isEnabled()) {
+              CombLogger << "Candidate for short-circuit reduction found:\n";
+              CombLogger << "IF " << If->getName() << " and ";
+              CombLogger << "IF " << InternalIf->getName() << "\n";
+              CombLogger << "Nodes being simplified:\n";
+              CombLogger << If->getElse()->getName() << " and ";
+              CombLogger << InternalIf->getThen()->getName() << "\n";
+            }
 
             If->setThen(InternalIf->getElse());
             If->setElse(InternalIf->getThen());
@@ -131,12 +133,14 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
 
         if (InternalIf->getElse() != nullptr) {
           if (If->getElse()->isEqual(InternalIf->getElse())) {
-            CombLogger << "Candidate for short-circuit reduction found:\n";
-            CombLogger << "IF " << If->getName() << " and ";
-            CombLogger << "IF " << InternalIf->getName() << "\n";
-            CombLogger << "Nodes being simplified:\n";
-            CombLogger << If->getElse()->getName() << " and ";
-            CombLogger << InternalIf->getElse()->getName() << "\n";
+            if (CombLogger.isEnabled()) {
+              CombLogger << "Candidate for short-circuit reduction found:\n";
+              CombLogger << "IF " << If->getName() << " and ";
+              CombLogger << "IF " << InternalIf->getName() << "\n";
+              CombLogger << "Nodes being simplified:\n";
+              CombLogger << If->getElse()->getName() << " and ";
+              CombLogger << InternalIf->getElse()->getName() << "\n";
+            }
 
             If->setThen(InternalIf->getThen());
             If->setElse(InternalIf->getElse());
@@ -150,12 +154,14 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
         // TODO: Refactor this with some kind of iterator
         if (InternalIf->getThen() != nullptr) {
           if (If->getThen()->isEqual(InternalIf->getThen())) {
-            CombLogger << "Candidate for short-circuit reduction found:\n";
-            CombLogger << "IF " << If->getName() << " and ";
-            CombLogger << "IF " << InternalIf->getName() << "\n";
-            CombLogger << "Nodes being simplified:\n";
-            CombLogger << If->getThen()->getName() << " and ";
-            CombLogger << InternalIf->getThen()->getName() << "\n";
+            if (CombLogger.isEnabled()) {
+              CombLogger << "Candidate for short-circuit reduction found:\n";
+              CombLogger << "IF " << If->getName() << " and ";
+              CombLogger << "IF " << InternalIf->getName() << "\n";
+              CombLogger << "Nodes being simplified:\n";
+              CombLogger << If->getThen()->getName() << " and ";
+              CombLogger << InternalIf->getThen()->getName() << "\n";
+            }
 
             If->setElse(InternalIf->getElse());
             If->setThen(InternalIf->getThen());
@@ -165,12 +171,14 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
 
         if (InternalIf->getElse() != nullptr) {
           if (If->getThen()->isEqual(InternalIf->getElse())) {
-            CombLogger << "Candidate for short-circuit reduction found:\n";
-            CombLogger << "IF " << If->getName() << " and ";
-            CombLogger << "IF " << InternalIf->getName() << "\n";
-            CombLogger << "Nodes being simplified:\n";
-            CombLogger << If->getThen()->getName() << " and ";
-            CombLogger << InternalIf->getElse()->getName() << "\n";
+            if (CombLogger.isEnabled()) {
+              CombLogger << "Candidate for short-circuit reduction found:\n";
+              CombLogger << "IF " << If->getName() << " and ";
+              CombLogger << "IF " << InternalIf->getName() << "\n";
+              CombLogger << "Nodes being simplified:\n";
+              CombLogger << If->getThen()->getName() << " and ";
+              CombLogger << InternalIf->getElse()->getName() << "\n";
+            }
 
             If->setElse(InternalIf->getThen());
             If->setThen(InternalIf->getElse());
