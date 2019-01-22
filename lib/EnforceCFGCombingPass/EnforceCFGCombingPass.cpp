@@ -24,6 +24,8 @@ using BBToBBNodeMap = std::map<BasicBlock *, BasicBlockNode *>;
 using BBViewMap = BasicBlockViewAnalysis::BBViewMap;
 
 bool EnforceCFGCombingPass::runOnFunction(Function &F) {
+  if (not F.getName().startswith("bb."))
+    return false;
   auto &RestructurePass = getAnalysis<RestructureCFG>();
   CFG &RCFGT = RestructurePass.getRCT();
 
@@ -75,13 +77,13 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
     if (BasicBlock *OriginalBB = Node->basicBlock()) {
       ValueToValueMapTy VMap{};
       BB = CloneBasicBlock(OriginalBB, VMap, "", EnforcedF);
-      EnforcedBBMap[OriginalBB].push_back(BB);
       InstrMap IMap;
       for (const auto &I : VMap) {
         auto *OriginalInstr = cast<Instruction>(I.first);
         auto *EnforcedInstr = cast<Instruction>(I.second);
         IMap[OriginalInstr] = EnforcedInstr;
       }
+      EnforcedBBMap[OriginalBB].push_back(BB);
       EnforcedInstrMap[OriginalBB].push_back(std::move(IMap));
     } else {
       BB = BasicBlock::Create(F.getContext(), "", EnforcedF);
@@ -139,14 +141,14 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
   auto BBMapIt = EnforcedBBMap.begin();
   auto BBMapEnd = EnforcedBBMap.end();
   auto InstrMapIt = EnforcedInstrMap.begin();
-  for (; BBMapIt != BBMapEnd; ++BBMapIt, ++BBMapEnd) {
+  for (; BBMapIt != BBMapEnd; ++BBMapIt, ++InstrMapIt) {
     const std::vector<BasicBlock *> &BBClones = BBMapIt->second;
     const std::vector<InstrMap> &InstrMapClones = InstrMapIt->second;
     revng_assert(BBClones.size() == InstrMapClones.size());
     auto BBCloneIt = BBClones.begin();
     auto BBCloneEnd = BBClones.end();
     auto InstrMapCloneIt = InstrMapClones.begin();
-    for (; BBCloneIt != BBCloneEnd; ++BBCloneIt, ++BBCloneEnd) {
+    for (; BBCloneIt != BBCloneEnd; ++BBCloneIt, ++InstrMapCloneIt) {
       BasicBlock *EnforcedBB = *BBCloneIt;
       for (Instruction &EnforcedInstr : *EnforcedBB) {
         for (Use &Op : EnforcedInstr.operands()) {
