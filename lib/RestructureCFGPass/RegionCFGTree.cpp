@@ -393,7 +393,13 @@ RegionCFG::connectBreakNode(std::set<EdgeDescriptor> &Outgoing,
 }
 
 void RegionCFG::connectContinueNode(BasicBlockNode *Continue) {
+  std::vector<BasicBlockNode *> ContinueNodes;
+
+  // We need to pre-save the edges to avoid breaking the predecessor iterator
   for (BasicBlockNode *Source : EntryNode->predecessors()) {
+    ContinueNodes.push_back(Source);
+  }
+  for (BasicBlockNode *Source : ContinueNodes) {
     moveEdgeTarget(EdgeDescriptor(Source, EntryNode), Continue);
   }
 }
