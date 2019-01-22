@@ -770,7 +770,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
             (BasicBlockNode *Node)
             { return IncomingDegree[Node] == MaxDegree; });
 
-    assert(MaxDegree > 0);
+    revng_assert(MaxDegree > 0);
 
     BasicBlockNode *FirstCandidate;
     if (MaximuxEdgesNodes.size() > 1) {
@@ -1013,7 +1013,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
     std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
     CFG &CollapsedGraph = Meta->getGraph();
-    assert(Head != nullptr);
+    revng_assert(Head != nullptr);
     CollapsedGraph.insertBulkNodes(Meta->getNodes(), Head);
 
     // Create the break and continue node.

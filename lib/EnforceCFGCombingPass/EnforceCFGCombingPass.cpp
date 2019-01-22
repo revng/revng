@@ -159,7 +159,9 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
             revng_assert(It != ArgMap.end());
             Op.set(It->second);
           } else if (auto *BBOp = dyn_cast<BasicBlock>(Op)) {
-            Op.set(BasicBlockViewMap.at(EnforcedBB).at(BBOp));
+            BasicBlock *BBView = BasicBlockViewMap.at(EnforcedBB).at(BBOp);
+            revng_assert(BBView != nullptr);
+            Op.set(BBView);
           } else if (auto *ConstOp = dyn_cast<Constant>(Op)) {
             revng_assert(not isa<BlockAddress>(ConstOp));
           } else {
@@ -170,7 +172,9 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
           unsigned NIncoming = PHI->getNumIncomingValues();
           for (unsigned I = 0; I < NIncoming; ++I) {
             BasicBlock *OrigIncomingBB = PHI->getIncomingBlock(I);
-            PHI->setIncomingBlock(I, BasicBlockViewMap.at(EnforcedBB).at(OrigIncomingBB));
+            BasicBlock *BBView = BasicBlockViewMap.at(EnforcedBB).at(OrigIncomingBB);
+            revng_assert(BBView != nullptr);
+            PHI->setIncomingBlock(I, BBView);
           }
         }
       }
