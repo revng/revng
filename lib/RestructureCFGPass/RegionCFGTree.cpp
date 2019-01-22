@@ -221,6 +221,42 @@ static void flipEmptyThen(ASTNode *RootNode) {
   }
 }
 
+static void simplifyTrivialShortCircuit(ASTNode *RootNode) {
+  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
+    for (ASTNode *Node : Sequence->nodes()) {
+      simplifyTrivialShortCircuit(Node);
+    }
+  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
+    simplifyTrivialShortCircuit(Scs->getBody());
+  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
+    if (!If->hasElse()) {
+      if (auto *InternalIf = llvm::dyn_cast<IfNode>(If->getThen())) {
+        if (!InternalIf->hasElse()) {
+          if (CombLogger.isEnabled()) {
+            CombLogger << "Candidate for trivial short-circuit reduction";
+            CombLogger << "found:\n";
+            CombLogger << "IF " << If->getName() << " and ";
+            CombLogger << "If " << InternalIf->getName() << "\n";
+            CombLogger << "Nodes being simplified:\n";
+            CombLogger << If->getThen()->getName() << " and ";
+            CombLogger << InternalIf->getThen()->getName() << "\n";
+          }
+
+          If->setThen(InternalIf->getThen());
+          simplifyTrivialShortCircuit(RootNode);
+        }
+      }
+    }
+
+    if (If->hasThen()) {
+      simplifyTrivialShortCircuit(If->getThen());
+    }
+    if (If->hasElse()) {
+      simplifyTrivialShortCircuit(If->getElse());
+    }
+  }
+}
+
 void RegionCFG::initialize(llvm::Function &F) {
 
   // Create a new node for each basic block in the module.
@@ -880,6 +916,16 @@ ASTNode *RegionCFG::generateAst() {
   simplifyShortCircuit(RootNode);
   if (CombLogger.isEnabled()) {
     CombLogger << "AST after short-circuit simplification:\n";
+    CombLogger << "digraph CFGFunction {\n";
+    dumpNode(RootNode);
+    CombLogger << "}\n";
+  }
+
+  // Simplify trivial short-circuit nodes.
+  CombLogger << "Performing trivial short-circuit simplification\n";
+  simplifyTrivialShortCircuit(RootNode);
+  if (CombLogger.isEnabled()) {
+    CombLogger << "AST after trivial short-circuit simplification:\n";
     CombLogger << "digraph CFGFunction {\n";
     dumpNode(RootNode);
     CombLogger << "}\n";
