@@ -372,7 +372,7 @@ static void simplifySCS(std::vector<MetaRegion> &MetaRegions) {
   }
 }
 
- static void sortMetaRegions(std::vector<MetaRegion> &MetaRegions) {
+static void sortMetaRegions(std::vector<MetaRegion> &MetaRegions) {
   std::sort(MetaRegions.begin(),
             MetaRegions.end(),
             [](MetaRegion &First,
@@ -484,13 +484,13 @@ static RegisterPass<RestructureCFG> X("restructureCFG",
 
 bool RestructureCFG::runOnFunction(Function &F) {
 
-  // Clear graph object from the previous pass.
-  CompleteGraph = CFG();
-
   // Analyze only isolated functions.
   if (!F.getName().startswith("bb.")) {
     return false;
   }
+
+  // Clear graph object from the previous pass.
+  CompleteGraph = CFG();
 
   // Logger object
   auto &Log = CombLogger;
