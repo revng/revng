@@ -27,6 +27,10 @@
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 
+// Local includes
+#include "MetaRegion.h"
+#include "Flattening.h"
+
 using namespace llvm;
 
 using std::make_pair;
@@ -160,189 +164,6 @@ static std::set<EdgeDescriptor> getBackedges(CFG &Graph) {
 
   return Backedges;
 }
-
-/// \brief The MetaRegion class, a wrapper for a set of nodes.
-class MetaRegion {
-
-public:
-  using links_container = std::set<BasicBlockNode *>;
-  using links_iterator = typename links_container::iterator;
-  using links_const_iterator = typename links_container::const_iterator;
-  using links_range = iterator_range<links_iterator>;
-  using links_const_range = iterator_range<links_const_iterator>;
-
-  inline links_iterator begin() { return Nodes.begin(); };
-  inline links_const_iterator cbegin() const { return Nodes.cbegin(); };
-  inline links_iterator end() { return Nodes.end(); };
-  inline links_const_iterator cend() const { return Nodes.cend(); };
-
-private:
-  int Index;
-  links_container Nodes;
-  MetaRegion *ParentRegion;
-  bool IsSCS;
-  CFG Graph;
-
-public:
-  MetaRegion(int Index, std::set<BasicBlockNode *> &Nodes, bool IsSCS = false) :
-    Index(Index), Nodes(Nodes), IsSCS(IsSCS) {}
-
-  int getIndex() {
-    return Index;
-  }
-
-  void replaceNodes(std::vector<std::unique_ptr<BasicBlockNode>> &NewNodes) {
-    Nodes.erase(Nodes.begin(), Nodes.end());
-    for (std::unique_ptr<BasicBlockNode> &Node : NewNodes) {
-      Nodes.insert(Node.get());
-    }
-  }
-
-  void updateNodes(std::set<BasicBlockNode *> &Removal,
-                   BasicBlockNode *Collapsed,
-                   std::vector<BasicBlockNode *> Dispatcher) {
-
-    // Remove the old SCS nodes
-    bool NeedSubstitution = false;
-    for (BasicBlockNode *Node : Removal) {
-      if (Nodes.count(Node) != 0) {
-        Nodes.erase(Node);
-        NeedSubstitution = true;
-      }
-    }
-
-    // Add the collapsed node.
-    if (NeedSubstitution) {
-          Nodes.insert(Collapsed);
-          Nodes.insert(Dispatcher.begin(), Dispatcher.end());
-    }
-  }
-
-  void setParent(MetaRegion *Parent) {
-    ParentRegion = Parent;
-  }
-
-  MetaRegion *getParent() {
-    return ParentRegion;
-  }
-
-  std::set<BasicBlockNode *> &getNodes() {
-    return Nodes;
-  }
-
-  size_t nodes_size() const { return Nodes.size(); }
-  links_const_range nodes() const {
-    return make_range(Nodes.begin(), Nodes.end());
-  }
-  links_range nodes() {
-    return make_range(Nodes.begin(), Nodes.end());
-  }
-
-  std::set<BasicBlockNode *> getSuccessors() {
-    std::set<BasicBlockNode *> Successors;
-
-    for (BasicBlockNode *Node : nodes()) {
-      for (BasicBlockNode *Successor : Node->successors()) {
-        if (!containsNode(Successor)) {
-          Successors.insert(Successor);
-        }
-      }
-    }
-
-    return Successors;
-  }
-
-  std::set<EdgeDescriptor> getOutEdges() {
-    std::set<EdgeDescriptor> OutEdges;
-
-    for (BasicBlockNode *Node : nodes()) {
-      for (BasicBlockNode *Successor : Node->successors()) {
-        if (!containsNode(Successor)) {
-          OutEdges.insert(EdgeDescriptor(Node, Successor));
-        }
-      }
-    }
-
-    return OutEdges;
-  }
-
-  std::set<EdgeDescriptor> getInEdges() {
-    std::set<EdgeDescriptor> InEdges;
-
-    for (BasicBlockNode *Node : nodes()) {
-      for (BasicBlockNode *Predecessor : Node->predecessors()) {
-        if (!containsNode(Predecessor)) {
-          InEdges.insert(EdgeDescriptor(Predecessor, Node));
-        }
-      }
-    }
-
-    return InEdges;
-  }
-
-  bool intersectsWith(MetaRegion &Other) {
-    std::vector<BasicBlockNode *> Intersection;
-    std::set<BasicBlockNode *> &OtherNodes = Other.getNodes();
-
-    std::set_intersection(Nodes.begin(),
-                          Nodes.end(),
-                          OtherNodes.begin(),
-                          OtherNodes.end(),
-                          std::back_inserter(Intersection));
-
-    return (Intersection.size() != 0);
-  }
-
-  bool isSubSet(MetaRegion &Other) {
-    std::set<BasicBlockNode *> &OtherNodes = Other.getNodes();
-    return std::includes(OtherNodes.begin(),
-                         OtherNodes.end(),
-                         Nodes.begin(),
-                         Nodes.end());
-  }
-
-  bool isSuperSet(MetaRegion &Other) {
-    std::set<BasicBlockNode *> &OtherNodes = Other.getNodes();
-    return std::includes(Nodes.begin(),
-                         Nodes.end(),
-                         OtherNodes.begin(),
-                         OtherNodes.end());
-  }
-
-  bool nodesEquality(MetaRegion &Other) {
-    std::set<BasicBlockNode *> &OtherNodes = Other.getNodes();
-    return Nodes == OtherNodes;
-  }
-
-  void mergeWith(MetaRegion &Other) {
-    std::set<BasicBlockNode *> &OtherNodes = Other.getNodes();
-    Nodes.insert(OtherNodes.begin(), OtherNodes.end());
-  }
-
-  bool isSCS() {
-    return IsSCS;
-  }
-
-  bool containsNode(BasicBlockNode *Node) {
-    if (Nodes.count(Node) != 0) {
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  void insertNode(BasicBlockNode *NewNode) {
-    Nodes.insert(NewNode);
-  }
-
-  void removeNode(BasicBlockNode *Node) {
-    Nodes.erase(Node);
-  }
-
-  CFG &getGraph() {
-    return Graph;
-  }
-};
 
 static bool mergeSCSStep(std::vector<MetaRegion> &MetaRegions) {
   for (auto RegionIt1 = MetaRegions.begin(); RegionIt1 != MetaRegions.end();
@@ -1140,6 +961,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Sync Logger.
   Log.emit();
+
+  flattenRegionCFGTree(MetaRegions);
 
   return false;
 }

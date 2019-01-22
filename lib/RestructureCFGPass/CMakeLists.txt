@@ -4,6 +4,8 @@ revng_add_analyses_library(RestructureCFGPass SHARED
                            ASTNode.cpp
                            ASTTree.cpp
                            BasicBlockNode.cpp
+                           Flattening.cpp
+                           MetaRegion.cpp
                            RegionCFGTree.cpp
                            RestructureCFG.cpp
                            )

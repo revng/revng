@@ -755,10 +755,14 @@ ASTNode *CFG::generateAst() {
   // TODO: factorize out the AST generation phase.
   llvm::DominatorTreeBase<BasicBlockNode, false> DT;
   DT.recalculate(Graph);
+#if 0
   llvm::raw_os_ostream Stream(dbg);
+#endif
   DT.updateDFSNumbers();
+#if 0
   DT.print(Stream);
   Stream.flush();
+#endif
 
   //DT.print(CombLogger);
   CombLogger.emit();
