@@ -304,6 +304,9 @@ BasicBlockNode *CFG::cloneNode(BasicBlockNode *OriginalNode) {
 
   // Copy the information about the original basic block
   BlockNodes.back()->setBasicBlock(OriginalNode->basicBlock());
+  if (OriginalNode->isCollapsed()) {
+    BlockNodes.back()->setCollapsedCFG(OriginalNode->getCollapsedCFG());
+  }
   return BlockNodes.back().get();
 }
 
