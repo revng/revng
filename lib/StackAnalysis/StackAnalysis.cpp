@@ -92,7 +92,7 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
 
   // Register all the Candidate Function Entry Points
   for (BasicBlock &BB : F) {
-    if (GCBI.getType(&BB) != JumpTargetBlock)
+    if (GCBI.getType(&BB) != BlockType::JumpTargetBlock)
       continue;
 
     uint32_t Reasons = GCBI.getJTReasons(&BB);

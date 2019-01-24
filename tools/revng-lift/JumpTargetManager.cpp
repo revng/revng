@@ -1218,16 +1218,15 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
                                                        UnknownPCTy);
   Builder.CreateCall(cast<Function>(UnknownPC));
   auto *FailUnreachable = Builder.CreateUnreachable();
-  FailUnreachable->setMetadata("revng.block.type",
-                               QMD.tuple((uint32_t) DispatcherFailureBlock));
+  setBlockType(FailUnreachable, BlockType::DispatcherFailureBlock);
 
   // Switch on the first argument of the function
   Builder.SetInsertPoint(Entry);
   Value *SwitchOn = Builder.CreateLoad(SwitchOnPtr);
   SwitchInst *Switch = Builder.CreateSwitch(SwitchOn, DispatcherFail);
+
   // The switch is the terminator of the dispatcher basic block
-  Switch->setMetadata("revng.block.type",
-                      QMD.tuple((uint32_t) DispatcherBlock));
+  setBlockType(Switch, BlockType::DispatcherBlock);
 
   Dispatcher = Entry;
   DispatcherSwitch = Switch;
@@ -1294,12 +1293,10 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
     revng_abort("Not implemented yet");
   }
 
-  QuickMetadata QMD(Context);
-  AnyPC->getTerminator()->setMetadata("revng.block.type",
-                                      QMD.tuple((uint32_t) AnyPCBlock));
+  setBlockType(AnyPC->getTerminator(), BlockType::AnyPCBlock);
+
   TerminatorInst *UnexpectedPCJump = UnexpectedPC->getTerminator();
-  UnexpectedPCJump->setMetadata("revng.block.type",
-                                QMD.tuple((uint32_t) UnexpectedPCBlock));
+  setBlockType(UnexpectedPCJump, BlockType::UnexpectedPCBlock);
 
   // If we're entering or leaving the NoFunctionCallsCFG form, update all the
   // branch instruction forming a function call

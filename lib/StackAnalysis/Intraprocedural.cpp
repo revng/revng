@@ -574,11 +574,11 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
   bool IsUnresolvedIndirect = false;
 
   for (BasicBlock *Successor : T->successors()) {
-    BlockType SuccessorType = GCBI->getType(Successor->getTerminator());
+    BlockType::Values SuccessorType = GCBI->getType(Successor->getTerminator());
 
     // TODO: this is not very clean
     // After call to helpers we emit a jump to anypc, ignore it
-    if (SuccessorType == AnyPCBlock) {
+    if (SuccessorType == BlockType::AnyPCBlock) {
       bool ShouldSkip = false;
       BasicBlock *BB = T->getParent();
       for (Instruction &I : make_range(BB->rbegin(), BB->rend())) {
@@ -596,14 +596,15 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
     // If at least one successor is not a jump target, the branch is instruction
     // local
     IsInstructionLocal = (IsInstructionLocal
-                          or GCBI->getType(Successor) == UntypedBlock);
+                          or SuccessorType == BlockType::UntypedBlock);
 
-    IsIndirect = (IsIndirect or SuccessorType == AnyPCBlock
-                  or SuccessorType == UnexpectedPCBlock
-                  or SuccessorType == DispatcherBlock);
+    IsIndirect = (IsIndirect or SuccessorType == BlockType::AnyPCBlock
+                  or SuccessorType == BlockType::UnexpectedPCBlock
+                  or SuccessorType == BlockType::DispatcherBlock);
 
-    IsUnresolvedIndirect = (IsUnresolvedIndirect or SuccessorType == AnyPCBlock
-                            or SuccessorType == DispatcherBlock);
+    IsUnresolvedIndirect = (IsUnresolvedIndirect
+                            or SuccessorType == BlockType::AnyPCBlock
+                            or SuccessorType == BlockType::DispatcherBlock);
   }
 
   if (IsIndirect)
@@ -767,8 +768,9 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
   // function-local
   SmallVector<BasicBlock *, 2> Successors;
   for (BasicBlock *Successor : T->successors()) {
-    BlockType SuccessorType = GCBI->getType(Successor);
-    if (SuccessorType != UnexpectedPCBlock and SuccessorType != AnyPCBlock)
+    BlockType::Values SuccessorType = GCBI->getType(Successor);
+    if (SuccessorType != BlockType::UnexpectedPCBlock
+        and SuccessorType != BlockType::AnyPCBlock)
       Successors.push_back(Successor);
   }
 

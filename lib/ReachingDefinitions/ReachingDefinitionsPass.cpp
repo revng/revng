@@ -98,7 +98,7 @@ bool ReachingDefinitionsPass::runOnModule(llvm::Module &M) {
              &this->getAnalysis<FunctionCallIdentification>(),
              &this->getAnalysis<StackAnalysis::StackAnalysis<false>>());
   for (BasicBlock &BB : F)
-    if (GCBI.getType(&BB) == JumpTargetBlock)
+    if (GCBI.getType(&BB) == BlockType::JumpTargetBlock)
       A.registerExtremal(&BB);
   A.initialize();
   A.run();
@@ -132,7 +132,7 @@ bool ConditionalReachedLoadsPass::runOnModule(llvm::Module &M) {
              &this->getAnalysis<FunctionCallIdentification>(),
              &this->getAnalysis<StackAnalysis::StackAnalysis<false>>());
   for (BasicBlock &BB : F)
-    if (GCBI.getType(&BB) == JumpTargetBlock)
+    if (GCBI.getType(&BB) == BlockType::JumpTargetBlock)
       A.registerExtremal(&BB);
   A.initialize();
   A.run();

@@ -193,6 +193,7 @@ void IFI::populateFunctionDispatcher() {
                                                 FunctionDispatcher,
                                                 nullptr);
   throwException(FunctionDispatcherFallBack, UnexpectedPC, 0);
+  setBlockType(UnexpectedPC->getTerminator(), BlockType::UnexpectedPCBlock);
 
   // Create a builder object for the DispatcherBB basic block
   IRBuilder<> Builder(Context);
@@ -472,9 +473,10 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
                                               "",
                                               Descriptor.IsolatedFunction);
 
-        BlockType Type = GCBI.getType(BB);
-        if (Type == AnyPCBlock or Type == UnexpectedPCBlock
-            or Type == DispatcherBlock) {
+        BlockType::Values Type = GCBI.getType(BB);
+        if (Type == BlockType::AnyPCBlock
+            or Type == BlockType::UnexpectedPCBlock
+            or Type == BlockType::DispatcherBlock) {
           // The target is not a translated block, let's try to go through the
           // function dispatcher and let it throw the exception if necessary
           auto *Null = ConstantPointerNull::get(Type::getInt8PtrTy(Context));
@@ -848,7 +850,9 @@ void IFI::run() {
     //    BBs in reverse post-order.
     BasicBlock *UnexpectedPC = createUnreachableBlock("unexpectedpc",
                                                       AnalyzedFunction);
+    setBlockType(UnexpectedPC->getTerminator(), BlockType::UnexpectedPCBlock);
     BasicBlock *AnyPC = createUnreachableBlock("anypc", AnalyzedFunction);
+    setBlockType(AnyPC->getTerminator(), BlockType::AnyPCBlock);
 
     BasicBlock *RootUnexepctedPC = GCBI.unexpectedPC();
     RootToIsolated[RootUnexepctedPC] = UnexpectedPC;
@@ -882,9 +886,9 @@ void IFI::run() {
       for (BasicBlock *Successor : Terminator->successors()) {
 
         revng_assert(GCBI.isTranslated(Successor)
-                     || GCBI.getType(Successor) == AnyPCBlock
-                     || GCBI.getType(Successor) == UnexpectedPCBlock
-                     || GCBI.getType(Successor) == DispatcherBlock);
+                     || GCBI.getType(Successor) == BlockType::AnyPCBlock
+                     || GCBI.getType(Successor) == BlockType::UnexpectedPCBlock
+                     || GCBI.getType(Successor) == BlockType::DispatcherBlock);
         auto SuccessorIt = RootToIsolated.find(Successor);
 
         // We add a successor if it is not a revng block type and it is present
@@ -1095,8 +1099,8 @@ void IFI::run() {
   BasicBlock *UnexpectedPC = nullptr;
   for (BasicBlock &BB : *Root) {
     if (BB.getName() == "unexpectedpc")
-      revng_assert(GCBI.getType(&BB) == UnexpectedPCBlock);
-    if (GCBI.getType(&BB) == UnexpectedPCBlock) {
+      revng_assert(GCBI.getType(&BB) == BlockType::UnexpectedPCBlock);
+    if (GCBI.getType(&BB) == BlockType::UnexpectedPCBlock) {
       UnexpectedPC = &BB;
       break;
     }

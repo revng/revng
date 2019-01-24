@@ -47,35 +47,35 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
   for (BasicBlock &BB : F) {
     if (!BB.empty()) {
       switch (getType(&BB)) {
-      case DispatcherBlock:
+      case BlockType::DispatcherBlock:
         revng_assert(Dispatcher == nullptr);
         Dispatcher = &BB;
         break;
 
-      case DispatcherFailureBlock:
+      case BlockType::DispatcherFailureBlock:
         revng_assert(DispatcherFail == nullptr);
         DispatcherFail = &BB;
         break;
 
-      case AnyPCBlock:
+      case BlockType::AnyPCBlock:
         revng_assert(AnyPC == nullptr);
         AnyPC = &BB;
         break;
 
-      case UnexpectedPCBlock:
+      case BlockType::UnexpectedPCBlock:
         revng_assert(UnexpectedPC == nullptr);
         UnexpectedPC = &BB;
         break;
 
-      case JumpTargetBlock: {
+      case BlockType::JumpTargetBlock: {
         auto *Call = cast<CallInst>(&*BB.begin());
         revng_assert(Call->getCalledFunction()->getName() == "newpc");
         JumpTargets[getLimitedValue(Call->getArgOperand(0))] = &BB;
         break;
       }
-      case EntryPoint:
-      case ExternalJumpsHandlerBlock:
-      case UntypedBlock:
+      case BlockType::EntryPoint:
+      case BlockType::ExternalJumpsHandlerBlock:
+      case BlockType::UntypedBlock:
         // Nothing to do here
         break;
       }
