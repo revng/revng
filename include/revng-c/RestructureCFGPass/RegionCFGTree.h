@@ -176,6 +176,8 @@ public:
   // Get reference to the AST object which is inside the RegionCFG object
   ASTTree &getAST();
 
+  void removeNotReachables();
+
 protected:
   template<typename StreamT>
   void streamNode(StreamT &S, const BasicBlockNode *) const;

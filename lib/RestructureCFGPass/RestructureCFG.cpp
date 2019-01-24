@@ -261,24 +261,6 @@ static bool alreadyInMetaregion(std::vector<MetaRegion> &V, BasicBlockNode *N) {
   return false;
 }
 
-static void removeNotReachables(RegionCFG &Graph) {
-
-  // Remove nodes that have no predecessors (nodes that are the result of node
-  // cloning and that remains dandling around).
-  bool Difference = true;
-  while (Difference) {
-    Difference = false;
-    BasicBlockNode *EntryNode = &Graph.getEntryNode();
-    for (auto It = Graph.begin(); It != Graph.end(); It++) {
-      if ((EntryNode != *It and (*It)->predecessor_size() == 0)) {
-        Graph.removeNode(*It);
-        Difference = true;
-        break;
-      }
-    }
-  }
-}
-
 static std::vector<MetaRegion>
 createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
   std::vector<std::set<BasicBlockNode *>> Regions;
@@ -364,18 +346,14 @@ bool RestructureCFG::runOnFunction(Function &F) {
   CompleteGraph.setFunctionName(F.getName());
   CompleteGraph.setRegionName("root");
 
-  // Logger object
-  auto &Log = CombLogger;
-
   // Random seed initialization
   srand(time(NULL));
 
   // Initialize the RegionCFG object
   CompleteGraph.initialize(F);
-  RegionCFG &Graph = CompleteGraph;
 
   // Dump the object in .dot format if debug mode is activated.
-  if (Log.isEnabled()) {
+  if (CombLogger.isEnabled()) {
     CompleteGraph.dumpDotOnFile("dots", F.getName(), "begin");
   }
 
@@ -383,22 +361,22 @@ bool RestructureCFG::runOnFunction(Function &F) {
   if (CombLogger.isEnabled()) {
     BasicBlockNode &FirstRandom = CompleteGraph.getRandomNode();
     BasicBlockNode &SecondRandom = CompleteGraph.getRandomNode();
-    Log << "Source: ";
-    Log << FirstRandom.getNameStr() << "\n";
-    Log << "Target: ";
-    Log << SecondRandom.getNameStr() << "\n";
-    Log << "Nodes Reachable:\n";
+    CombLogger << "Source: ";
+    CombLogger << FirstRandom.getNameStr() << "\n";
+    CombLogger << "Target: ";
+    CombLogger << SecondRandom.getNameStr() << "\n";
+    CombLogger << "Nodes Reachable:\n";
     std::set<BasicBlockNode *> Reachables = findReachableNodes(FirstRandom,
                                                                SecondRandom);
     for (BasicBlockNode *Element : Reachables) {
-      Log << Element->getNameStr() << "\n";
+      CombLogger << Element->getNameStr() << "\n";
     }
   }
 
   std::set<EdgeDescriptor> Backedges = getBackedges(CompleteGraph);
-  Log << "Backedges in the graph:\n";
+  CombLogger << "Backedges in the graph:\n";
   for (auto &Backedge : Backedges) {
-    Log << Backedge.first->getNameStr() << " -> "
+    CombLogger << Backedge.first->getNameStr() << " -> "
         << Backedge.second->getNameStr() << "\n";
   }
 
@@ -409,16 +387,16 @@ bool RestructureCFG::runOnFunction(Function &F) {
   simplifySCS(MetaRegions);
 
   // Print SCS after simplification.
-  if (Log.isEnabled()) {
-    Log << "\n";
-    Log << "Metaregions after simplification:\n";
+  if (CombLogger.isEnabled()) {
+    CombLogger << "\n";
+    CombLogger << "Metaregions after simplification:\n";
     for (auto &Meta : MetaRegions) {
-      Log << "\n";
-      Log << &Meta << "\n";
+      CombLogger << "\n";
+      CombLogger << &Meta << "\n";
       auto &Nodes = Meta.getNodes();
-      Log << "Is composed of nodes:\n";
+      CombLogger << "Is composed of nodes:\n";
       for (auto *Node : Nodes) {
-        Log << Node->getNameStr() << "\n";
+        CombLogger << Node->getNameStr() << "\n";
       }
     }
   }
@@ -427,16 +405,16 @@ bool RestructureCFG::runOnFunction(Function &F) {
   sortMetaRegions(MetaRegions);
 
   // Print SCS after ordering.
-  if (Log.isEnabled()) {
-    Log << "\n";
-    Log << "Metaregions after ordering:\n";
+  if (CombLogger.isEnabled()) {
+    CombLogger << "\n";
+    CombLogger << "Metaregions after ordering:\n";
     for (auto &Meta : MetaRegions) {
-      Log << "\n";
-      Log << &Meta << "\n";
-      Log << "Is composed of nodes:\n";
+      CombLogger << "\n";
+      CombLogger << &Meta << "\n";
+      CombLogger << "Is composed of nodes:\n";
       auto &Nodes = Meta.getNodes();
       for (auto *Node : Nodes) {
-        Log << Node->getNameStr() << "\n";
+        CombLogger << Node->getNameStr() << "\n";
       }
     }
   }
@@ -447,18 +425,18 @@ bool RestructureCFG::runOnFunction(Function &F) {
   computeParents(MetaRegions, &RootMetaRegion);
 
   // Print metaregions after ordering.
-  if (Log.isEnabled()) {
-    Log << "\n";
-    Log << "Metaregions parent relationship:\n";
+  if (CombLogger.isEnabled()) {
+    CombLogger << "\n";
+    CombLogger << "Metaregions parent relationship:\n";
     for (auto &Meta : MetaRegions) {
-      Log << "\n";
-      Log << &Meta << "\n";
+      CombLogger << "\n";
+      CombLogger << &Meta << "\n";
       auto &Nodes = Meta.getNodes();
-      Log << "Is composed of nodes:\n";
+      CombLogger << "Is composed of nodes:\n";
       for (auto *Node : Nodes) {
-        Log << Node->getNameStr() << "\n";
+        CombLogger << Node->getNameStr() << "\n";
       }
-      Log << "Has parent: " << Meta.getParent() << "\n";
+      CombLogger << "Has parent: " << Meta.getParent() << "\n";
     }
   }
 
@@ -468,35 +446,35 @@ bool RestructureCFG::runOnFunction(Function &F) {
   std::vector<MetaRegion *> OrderedMetaRegions = applyPartialOrder(MetaRegions);
 
   // Print metaregions after ordering.
-  if (Log.isEnabled()) {
-    Log << "\n";
-    Log << "Metaregions after ordering:\n";
+  if (CombLogger.isEnabled()) {
+    CombLogger << "\n";
+    CombLogger << "Metaregions after ordering:\n";
     for (auto *Meta : OrderedMetaRegions) {
-      Log << "\n";
-      Log << Meta << "\n";
-      Log << "With index " << Meta->getIndex() << "\n";
-      Log << "With size " << Meta->nodes_size() << "\n";
+      CombLogger << "\n";
+      CombLogger << Meta << "\n";
+      CombLogger << "With index " << Meta->getIndex() << "\n";
+      CombLogger << "With size " << Meta->nodes_size() << "\n";
       auto &Nodes = Meta->getNodes();
-      Log << "Is composed of nodes:\n";
+      CombLogger << "Is composed of nodes:\n";
       for (auto *Node : Nodes) {
-        Log << Node->getNameStr() << "\n";
+        CombLogger << Node->getNameStr() << "\n";
       }
-      Log << "Has parent: " << Meta->getParent() << "\n";
-      Log << "Is SCS: " << Meta->isSCS() << "\n";
+      CombLogger << "Has parent: " << Meta->getParent() << "\n";
+      CombLogger << "Is SCS: " << Meta->isSCS() << "\n";
     }
   }
 
   ReversePostOrderTraversal<BasicBlockNode *> RPOT(&CompleteGraph.getEntryNode());
-  if (Log.isEnabled()) {
-    Log << "Reverse post order is:\n";
+  if (CombLogger.isEnabled()) {
+    CombLogger << "Reverse post order is:\n";
     for (BasicBlockNode *BN : RPOT) {
-      Log << BN->getNameStr() << "\n";
+      CombLogger << BN->getNameStr() << "\n";
     }
-    Log << "Reverse post order end\n";
+    CombLogger << "Reverse post order end\n";
   }
 
-  Log << "Debugged function" << "\n";
-  Log << F.getName().equals("bb._start_c") << "\n";
+  CombLogger << "Debugged function" << "\n";
+  CombLogger << F.getName().equals("bb._start_c") << "\n";
 
   DominatorTreeBase<BasicBlockNode, false> DT;
   DT.recalculate(CompleteGraph);
@@ -505,45 +483,45 @@ bool RestructureCFG::runOnFunction(Function &F) {
   PDT.recalculate(CompleteGraph);
 
   // Some debug information on dominator and postdominator tree.
-  if (Log.isEnabled()) {
-    Log << DT.isPostDominator() << "\n";
-    Log << "The root node of the dominator tree is:\n";
-    Log << DT.getRoot()->getNameStr() << "\n";
-    Log << "Between these two nodes:\n";
+  if (CombLogger.isEnabled()) {
+    CombLogger << DT.isPostDominator() << "\n";
+    CombLogger << "The root node of the dominator tree is:\n";
+    CombLogger << DT.getRoot()->getNameStr() << "\n";
+    CombLogger << "Between these two nodes:\n";
     BasicBlockNode *Random = &CompleteGraph.getRandomNode();
     BasicBlockNode *Random2 = &CompleteGraph.getRandomNode();
-    Log << Random->getNameStr() << "\n";
-    Log << Random2->getNameStr() << "\n";
-    Log << "Dominance:\n";
-    Log << DT.dominates(Random, Random2) << "\n";
-    Log << "PostDominance:\n";
-    Log << PDT.dominates(Random, Random2) << "\n";
-    Log << PDT.isPostDominator() << "\n";
+    CombLogger << Random->getNameStr() << "\n";
+    CombLogger << Random2->getNameStr() << "\n";
+    CombLogger << "Dominance:\n";
+    CombLogger << DT.dominates(Random, Random2) << "\n";
+    CombLogger << "PostDominance:\n";
+    CombLogger << PDT.dominates(Random, Random2) << "\n";
+    CombLogger << PDT.isPostDominator() << "\n";
   }
 
 
   std::vector<RegionCFG> Regions(OrderedMetaRegions.size());
   for (MetaRegion *Meta : OrderedMetaRegions) {
-    if (Log.isEnabled()) {
-      Log << "\nAnalyzing region: " << Meta->getIndex() <<"\n";
+    if (CombLogger.isEnabled()) {
+      CombLogger << "\nAnalyzing region: " << Meta->getIndex() <<"\n";
     }
 
     // Refresh backedges, since some of them may have been modified during
     // the transformations
     Backedges = getBackedges(CompleteGraph);
 
-    if (Log.isEnabled()) {
+    if (CombLogger.isEnabled()) {
 
       auto &Nodes = Meta->getNodes();
-      Log << "Which is composed of nodes:\n";
+      CombLogger << "Which is composed of nodes:\n";
       for (auto *Node : Nodes) {
-        Log << Node->getNameStr() << "\n";
+        CombLogger << Node->getNameStr() << "\n";
       }
 
-      Log << "Dumping main graph snapshot before restructuring\n";
-      Graph.dumpDotOnFile("dots",
-                          F.getName(),
-                          "Out-pre-" + std::to_string(Meta->getIndex()));
+      CombLogger << "Dumping main graph snapshot before restructuring\n";
+      CompleteGraph.dumpDotOnFile("dots",
+                                  F.getName(),
+                                  "Out-pre-" + std::to_string(Meta->getIndex()));
     }
 
     std::map<BasicBlockNode *, int> IncomingDegree;
@@ -560,10 +538,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
 
     // Print information about incoming edge degrees.
-    if (Log.isEnabled()) {
-      Log << "Incoming degree:\n";
+    if (CombLogger.isEnabled()) {
+      CombLogger << "Incoming degree:\n";
       for (auto &it : IncomingDegree) {
-        Log << it.first->getNameStr() << " " << it.second << "\n";
+        CombLogger << it.first->getNameStr() << " " << it.second << "\n";
       }
     }
 
@@ -574,9 +552,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
                                    { return p1.second < p2.second; });
     int MaxDegree = (*MaxDegreeIt).second;
 
-    if (Log.isEnabled()) {
-      Log << "Maximum incoming degree found: ";
-      Log << MaxDegree << "\n";
+    if (CombLogger.isEnabled()) {
+      CombLogger << "Maximum incoming degree found: ";
+      CombLogger << MaxDegree << "\n";
     }
 
     std::set<BasicBlockNode *> MaximuxEdgesNodes;
@@ -603,8 +581,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     // Print out the name of the node that has been selected as head of the
     // region
-    if (Log.isEnabled()) {
-      Log << "Elected head is: " << FirstCandidate->getNameStr() << "\n";
+    if (CombLogger.isEnabled()) {
+      CombLogger << "Elected head is: " << FirstCandidate->getNameStr() << "\n";
     }
 
     // Identify all the abnormal retreating edges in a SCS.
@@ -616,11 +594,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
         RetreatingTargets.insert(Backedge.second);
       }
     }
-    if (Log.isEnabled()) {
-      Log << "Retreatings found:\n";
+    if (CombLogger.isEnabled()) {
+      CombLogger << "Retreatings found:\n";
       for (EdgeDescriptor Retreating : Retreatings) {
-        Log << Retreating.first->getNameStr() << " -> ";
-        Log << Retreating.second->getNameStr() << "\n";
+        CombLogger << Retreating.first->getNameStr() << " -> ";
+        CombLogger << Retreating.second->getNameStr() << "\n";
       }
     }
 
@@ -630,8 +608,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
         NewHeadNeeded = true;
       }
     }
-    if (Log.isEnabled()) {
-      Log << "New head needed: " << NewHeadNeeded << "\n";
+    if (CombLogger.isEnabled()) {
+      CombLogger << "New head needed: " << NewHeadNeeded << "\n";
     }
 
     BasicBlockNode *Head;
@@ -674,17 +652,17 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
 
     revng_assert(Head != nullptr);
-    if (Log.isEnabled()) {
-      Log << "New head name is: " << Head->getNameStr() << "\n";
+    if (CombLogger.isEnabled()) {
+      CombLogger << "New head name is: " << Head->getNameStr() << "\n";
     }
 
     // Successor refinement step.
     std::set<BasicBlockNode *> Successors = Meta->getSuccessors();
 
-    if (Log.isEnabled()) {
-      Log << "Region successors are:\n";
+    if (CombLogger.isEnabled()) {
+      CombLogger << "Region successors are:\n";
       for (BasicBlockNode *Node : Successors) {
-        Log << Node->getNameStr() << "\n";
+        CombLogger << Node->getNameStr() << "\n";
       }
     }
 
@@ -716,9 +694,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
               and !alreadyInMetaregion(MetaRegions, Successor)) {
             Meta->insertNode(Successor);
             AnotherIteration = true;
-            if (Log.isEnabled()) {
-              Log << "Identified new candidate for successor refinement:";
-              Log << Successor->getNameStr() << "\n";
+            if (CombLogger.isEnabled()) {
+              CombLogger << "Identified new candidate for successor refinement:";
+              CombLogger << Successor->getNameStr() << "\n";
             }
           }
         }
@@ -785,8 +763,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     if (Successors.size() > 1) {
       NewExitNeeded = true;
     }
-    if (Log.isEnabled()) {
-      Log << "New exit needed: " << NewExitNeeded << "\n";
+    if (CombLogger.isEnabled()) {
+      CombLogger << "New exit needed: " << NewExitNeeded << "\n";
     }
 
     if (NewExitNeeded) {
@@ -817,8 +795,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
         addEdge(EdgeDescriptor(IdxSetNode, Edge.second));
         removeEdge(EdgeDescriptor(Edge.first, Edge.second));
       }
-      if (Log.isEnabled()) {
-        Log << "New exit name is: " << Exit->getNameStr() << "\n";
+      if (CombLogger.isEnabled()) {
+        CombLogger << "New exit name is: " << Exit->getNameStr() << "\n";
       }
     }
 
@@ -867,8 +845,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     // Remove collapsed nodes from the outer region.
     for (BasicBlockNode *Node : Meta->nodes()) {
-      if (Log.isEnabled()) {
-        Log << "Removing from main graph node :" << Node->getNameStr() << "\n";
+      if (CombLogger.isEnabled()) {
+        CombLogger << "Removing from main graph node :" << Node->getNameStr() << "\n";
       }
       CompleteGraph.removeNode(Node);
     }
@@ -887,65 +865,65 @@ bool RestructureCFG::runOnFunction(Function &F) {
     Meta->replaceNodes(CollapsedGraph.getNodes());
 
     // Remove useless nodes inside the SCS (like dandling break/continue)
-    removeNotReachables(CollapsedGraph);
+    CollapsedGraph.removeNotReachables();
 
     // Serialize the newly collapsed SCS region.
-    if (Log.isEnabled()) {
-      Log << "Dumping CFG of metaregion " << Meta->getIndex() << "\n";
+    if (CombLogger.isEnabled()) {
+      CombLogger << "Dumping CFG of metaregion " << Meta->getIndex() << "\n";
       CollapsedGraph.dumpDotOnFile("dots",
                                    F.getName(),
                                    "In-" + std::to_string(Meta->getIndex()));
-      Log << "Dumping main graph snapshot post restructuring\n";
-      Graph.dumpDotOnFile("dots",
-                          F.getName(),
-                          "Out-post-" + std::to_string(Meta->getIndex()));
+      CombLogger << "Dumping main graph snapshot post restructuring\n";
+      CompleteGraph.dumpDotOnFile("dots",
+                                  F.getName(),
+                                  "Out-post-" + std::to_string(Meta->getIndex()));
     }
     Regions.push_back(std::move(CollapsedGraph));
   }
 
   // Serialize the newly collapsed SCS region.
-  if (Log.isEnabled()) {
-    Log << "Dumping main graph before final purge\n";
-    Graph.dumpDotOnFile("dots", F.getName(), "Final-before-purge");
+  if (CombLogger.isEnabled()) {
+    CombLogger << "Dumping main graph before final purge\n";
+    CompleteGraph.dumpDotOnFile("dots", F.getName(), "Final-before-purge");
   }
 
   // Remove not reachables nodes from the main final graph.
-  removeNotReachables(CompleteGraph);
+  CompleteGraph.removeNotReachables();
 
   // Serialize the newly collapsed SCS region.
-  if (Log.isEnabled()) {
-    Log << "Dumping main graph after final purge\n";
-    Graph.dumpDotOnFile("dots", F.getName(), "Final-after-purge");
+  if (CombLogger.isEnabled()) {
+    CombLogger << "Dumping main graph after final purge\n";
+    CompleteGraph.dumpDotOnFile("dots", F.getName(), "Final-after-purge");
   }
 
   // Print metaregions after ordering.
-  if (Log.isEnabled()) {
-    Log << "\n";
-    Log << "Metaregions after collapse:\n";
+  if (CombLogger.isEnabled()) {
+    CombLogger << "\n";
+    CombLogger << "Metaregions after collapse:\n";
     for (auto *Meta : OrderedMetaRegions) {
-      Log << "\n";
-      Log << Meta << "\n";
-      Log << "With index " << Meta->getIndex() << "\n";
-      Log << "With size " << Meta->nodes_size() << "\n";
+      CombLogger << "\n";
+      CombLogger << Meta << "\n";
+      CombLogger << "With index " << Meta->getIndex() << "\n";
+      CombLogger << "With size " << Meta->nodes_size() << "\n";
       auto &Nodes = Meta->getNodes();
-      Log << "Is composed of nodes:\n";
+      CombLogger << "Is composed of nodes:\n";
       for (auto *Node : Nodes) {
-        Log << Node->getNameStr() << "\n";
+        CombLogger << Node->getNameStr() << "\n";
       }
-      Log << "Has parent: " << Meta->getParent() << "\n";
-      Log << "Is SCS: " << Meta->isSCS() << "\n";
+      CombLogger << "Has parent: " << Meta->getParent() << "\n";
+      CombLogger << "Is SCS: " << Meta->isSCS() << "\n";
     }
   }
 
   // Invoke the AST generation for the root region.
-  Log.emit();
+  CombLogger.emit();
   ASTNode *RootNode = CompleteGraph.generateAst();
 
   // Serialize final AST on file
   dumpASTOnFile("ast", F.getName(), "Final", RootNode);
 
   // Sync Logger.
-  Log.emit();
+  CombLogger.emit();
 
   // Early exit if the AST generation produced a version of the AST which is
   // identical to the cached version.
@@ -957,8 +935,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
   flattenRegionCFGTree(CompleteGraph, Regions);
 
   // Serialize the newly collapsed SCS region.
-  if (Log.isEnabled()) {
-    Log << "Dumping main graph after Flattening\n";
+  if (CombLogger.isEnabled()) {
+    CombLogger << "Dumping main graph after Flattening\n";
     CompleteGraph.dumpDotOnFile("dots", F.getName(), "final-after-flattening");
   }
 

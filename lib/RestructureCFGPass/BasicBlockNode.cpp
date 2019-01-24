@@ -17,7 +17,6 @@
 
 using namespace llvm;
 
-
 BasicBlockNode::BasicBlockNode(RegionCFG *Parent,
                                llvm::BasicBlock * BB,
                                RegionCFG *Collapsed,
@@ -29,6 +28,10 @@ BasicBlockNode::BasicBlockNode(RegionCFG *Parent,
     CollapsedRegion(Collapsed),
     ExitType(E),
     Name(Name) {
+}
+
+void BasicBlockNode::removeNode() {
+  Parent->removeNode(this);
 }
 
 // TODO: Check why this implementation is really necessary.

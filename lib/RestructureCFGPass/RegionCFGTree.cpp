@@ -99,6 +99,23 @@ static ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
   return RootNode;
 }
 
+static void deoptimizeNodes(ASTNode *First, ASTNode *Second) {
+  if (CombLogger.isEnabled()) {
+    CombLogger << "\n";
+    CombLogger << "Trying to de-optimize: ";
+    CombLogger << First->getName() << " and ";
+    CombLogger << Second->getName() << "\n\n";
+  }
+
+  BasicBlockNode *FirstEntry = First->getFirstCFG();
+  BasicBlockNode *SecondEntry = Second->getFirstCFG();
+  assert((FirstEntry != nullptr) and (SecondEntry != nullptr));
+  for (BasicBlockNode *Predecessor : FirstEntry->predecessors()) {
+    addEdge(EdgeDescriptor(Predecessor, SecondEntry));
+  }
+  FirstEntry->removeNode();
+}
+
 // Helper function to simplify short-circuit IFs
 static void simplifyShortCircuit(ASTNode *RootNode) {
 
@@ -125,6 +142,9 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
               CombLogger << InternalIf->getThen()->getName() << "\n";
             }
 
+            // Deoptimize the CFG
+            deoptimizeNodes(If->getElse(), InternalIf->getThen());
+
             If->setThen(InternalIf->getElse());
             If->setElse(InternalIf->getThen());
 
@@ -145,6 +165,9 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
               CombLogger << If->getElse()->getName() << " and ";
               CombLogger << InternalIf->getElse()->getName() << "\n";
             }
+
+            // Deoptimize the CFG
+            deoptimizeNodes(If->getElse(), InternalIf->getElse());
 
             If->setThen(InternalIf->getThen());
             If->setElse(InternalIf->getElse());
@@ -171,6 +194,9 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
               CombLogger << InternalIf->getThen()->getName() << "\n";
             }
 
+            // Deoptimize the CFG
+            deoptimizeNodes(If->getThen(), InternalIf->getThen());
+
             If->setElse(InternalIf->getElse());
             If->setThen(InternalIf->getThen());
 
@@ -191,6 +217,9 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
               CombLogger << If->getThen()->getName() << " and ";
               CombLogger << InternalIf->getElse()->getName() << "\n";
             }
+
+            // Deoptimize the CFG
+            deoptimizeNodes(If->getThen(), InternalIf->getElse());
 
             If->setElse(InternalIf->getThen());
             If->setThen(InternalIf->getElse());
@@ -947,6 +976,15 @@ ASTNode *RegionCFG::generateAst() {
   simplifyShortCircuit(RootNode);
   dumpASTOnFile("ast", FunctionName, "After-short-circuit", RootNode);
 
+  // Remove danling nodes (possibly created by the de-optimization pass, after
+  // disconnecting the first CFG node corresponding to the simplified AST node),
+  // and superfluos dummy nodes
+  removeNotReachables();
+  purgeDummies();
+
+  // TODO: Remove or change this
+  dumpDotOnFile("deoptimizes", FunctionName, "Deoptimized-cfg-" + RegionName);
+
   // Simplify trivial short-circuit nodes.
   CombLogger << "Performing trivial short-circuit simplification\n";
   simplifyTrivialShortCircuit(RootNode);
@@ -958,4 +996,22 @@ ASTNode *RegionCFG::generateAst() {
 // Get reference to the AST object which is inside the RegionCFG object
 ASTTree &RegionCFG::getAST() {
   return AST;
+}
+
+void RegionCFG::removeNotReachables() {
+
+  // Remove nodes that have no predecessors (nodes that are the result of node
+  // cloning and that remains dandling around).
+  bool Difference = true;
+  while (Difference) {
+    Difference = false;
+    BasicBlockNode *EntryNode = &getEntryNode();
+    for (auto It = begin(); It != end(); It++) {
+      if ((EntryNode != *It and (*It)->predecessor_size() == 0)) {
+        removeNode(*It);
+        Difference = true;
+        break;
+      }
+    }
+  }
 }

@@ -94,6 +94,8 @@ public:
 
   virtual bool isEqual(ASTNode *Node) = 0;
 
+  virtual BasicBlockNode *getFirstCFG() = 0;
+
 private:
 
 };
@@ -112,6 +114,8 @@ public:
   bool isEqual(ASTNode *Node);
 
   void dump(std::ofstream &ASTFile);
+
+  BasicBlockNode *getFirstCFG();
 
 };
 
@@ -189,6 +193,8 @@ public:
 
   void dump(std::ofstream &ASTFile);
 
+  BasicBlockNode *getFirstCFG();
+
 };
 
 class ScsNode : public ASTNode {
@@ -218,6 +224,8 @@ public:
   bool isEqual(ASTNode *Node);
 
   void dump(std::ofstream &ASTFile);
+
+  BasicBlockNode *getFirstCFG();
 
 };
 
@@ -267,6 +275,8 @@ public:
   bool isEqual(ASTNode *Node);
 
   void dump(std::ofstream &ASTFile);
+
+  BasicBlockNode *getFirstCFG();
 
 };
 

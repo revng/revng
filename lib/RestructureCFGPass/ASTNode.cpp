@@ -34,6 +34,10 @@ bool CodeNode::isEqual(ASTNode *Node) {
   }
 }
 
+BasicBlockNode *CodeNode::getFirstCFG() {
+  return CFGNode;
+}
+
 bool IfNode::isEqual(ASTNode *Node) {
   if (auto *OtherIf = dyn_cast<IfNode>(Node)) {
     if ((getOriginalBB() != nullptr)
@@ -57,6 +61,10 @@ bool IfNode::isEqual(ASTNode *Node) {
   }
 }
 
+BasicBlockNode *IfNode::getFirstCFG() {
+  return CFGNode;
+}
+
 bool ScsNode::isEqual(ASTNode *Node) {
   if (auto *OtherScs = dyn_cast<ScsNode>(Node)) {
     if (Body->isEqual(OtherScs->getBody())) {
@@ -67,6 +75,10 @@ bool ScsNode::isEqual(ASTNode *Node) {
   } else {
     return false;
   }
+}
+
+BasicBlockNode *ScsNode::getFirstCFG() {
+  return CFGNode;
 }
 
 bool SequenceNode::isEqual(ASTNode *Node) {
@@ -98,6 +110,10 @@ bool SequenceNode::isEqual(ASTNode *Node) {
   } else {
     return false;
   }
+}
+
+BasicBlockNode *SequenceNode::getFirstCFG() {
+  return getNodeN(0)->getCFGNode();
 }
 
 void CodeNode::dump(std::ofstream &ASTFile) {
