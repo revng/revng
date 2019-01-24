@@ -941,23 +941,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
   Log.emit();
   ASTNode *RootNode = CompleteGraph.generateAst();
 
-  // Serialize AST on a file named as the function
-  {
-    std::ofstream ASTFile;
-    ASTFile.open("ast/" + F.getName().str() + ".dot");
-    ASTFile << "digraph CFGFunction {\n";
-    RootNode->dump(ASTFile);
-    ASTFile << "}\n";
-    ASTFile.close();
-  }
-
-  // Serialize AST on stderr
-  if (Log.isEnabled()) {
-    Log << "\nFinal AST is:\n";
-    Log << "digraph CFGFunction {\n";
-    dumpNode(RootNode);
-    Log << "}\n";
-  }
+  // Serialize final AST on file
+  dumpASTOnFile("ast", F.getName(), "Final", RootNode);
 
   // Sync Logger.
   Log.emit();

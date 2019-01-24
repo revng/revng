@@ -7,8 +7,10 @@
 
 // Standard includes
 #include <cstdlib>
+#include <fstream>
 #include <memory>
 #include <set>
+#include <sys/stat.h>
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTNode.h"
@@ -88,6 +90,22 @@ inline std::set<BasicBlockNode *> findReachableNodes(BasicBlockNode &Source,
   }
 
   return Targets;
+}
+
+inline void dumpASTOnFile(std::string FolderName,
+                          std::string FunctionName,
+                          std::string FileName,
+                          ASTNode *RootNode) {
+
+  std::ofstream ASTFile;
+  std::string PathName = FolderName + "/" + FunctionName;
+  mkdir(FolderName.c_str(), 0775);
+  mkdir(PathName.c_str(), 0775);
+  ASTFile.open(PathName + "/" + FileName + ".dot");
+  ASTFile << "digraph CFGFunction {\n";
+  RootNode->dump(ASTFile);
+  ASTFile << "}\n";
+  ASTFile.close();
 }
 
 // Debug function to serialize an AST node.

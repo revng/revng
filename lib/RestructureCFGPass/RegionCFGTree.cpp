@@ -514,6 +514,7 @@ void RegionCFG::dumpDotOnFile(std::string FolderName,
                               std::string FileName) {
   std::ofstream DotFile;
   std::string PathName = FolderName + "/" + FunctionName;
+  mkdir(FolderName.c_str(), 0775);
   mkdir(PathName.c_str(), 0775);
   DotFile.open(PathName + "/" + FileName + ".dot");
   dumpDot(DotFile);
@@ -918,72 +919,38 @@ ASTNode *RegionCFG::generateAst() {
   BasicBlockNode *Root = DT.getRootNode()->getBlock();
   ASTNode *RootNode = AST.findASTNode(Root);
 
-  if (CombLogger.isEnabled()) {
-    CombLogger << "First AST draft is:\n";
-    CombLogger << "digraph CFGFunction {\n";
-    dumpNode(RootNode);
-    CombLogger << "}\n";
-  }
+  CombLogger << "Serializing first AST draft:\n";
+  dumpASTOnFile("ast", FunctionName, "First-draft", RootNode);
 
   // Create sequence nodes.
+  CombLogger << "Performing sequence insertion:\n";
   RootNode = createSequence(AST, RootNode);
-
-  if (CombLogger.isEnabled()) {
-    CombLogger << "AST after sequence insertion:\n";
-    CombLogger << "digraph CFGFunction {\n";
-    dumpNode(RootNode);
-    CombLogger << "}\n";
-  }
+  dumpASTOnFile("ast", FunctionName, "After-sequence", RootNode);
 
   // Simplify useless sequence nodes.
+  CombLogger << "Performing useless dummies simplification:\n";
   simplifyDummies(RootNode);
-
-  if (CombLogger.isEnabled()) {
-    CombLogger << "AST after useless dummies simplification:\n";
-    CombLogger << "digraph CFGFunction {\n";
-    dumpNode(RootNode);
-    CombLogger << "}\n";
-  }
+  dumpASTOnFile("ast", FunctionName, "After-dummies-removal", RootNode);
 
   // Simplify useless sequence nodes.
+  CombLogger << "Performing useless sequence simplification:\n";
   RootNode = simplifyAtomicSequence(RootNode);
-
-  if (CombLogger.isEnabled()) {
-    CombLogger << "AST after useless sequence simplification:\n";
-    CombLogger << "digraph CFGFunction {\n";
-    dumpNode(RootNode);
-    CombLogger << "}\n";
-  }
+  dumpASTOnFile("ast", FunctionName, "After-sequence-simplification", RootNode);
 
   // Flip IFs with empty then branches.
+  CombLogger << "Performing IFs with empty then branches flipping\n";
   flipEmptyThen(RootNode);
-
-  if (CombLogger.isEnabled()) {
-    CombLogger << "AST after flipping IFs with empty then branches\n";
-    CombLogger << "digraph CFGFunction {\n";
-    dumpNode(RootNode);
-    CombLogger << "}\n";
-  }
+  dumpASTOnFile("ast", FunctionName, "After-if-flip", RootNode);
 
   // Simplify short-circuit nodes.
   CombLogger << "Performing short-circuit simplification\n";
   simplifyShortCircuit(RootNode);
-  if (CombLogger.isEnabled()) {
-    CombLogger << "AST after short-circuit simplification:\n";
-    CombLogger << "digraph CFGFunction {\n";
-    dumpNode(RootNode);
-    CombLogger << "}\n";
-  }
+  dumpASTOnFile("ast", FunctionName, "After-short-circuit", RootNode);
 
   // Simplify trivial short-circuit nodes.
   CombLogger << "Performing trivial short-circuit simplification\n";
   simplifyTrivialShortCircuit(RootNode);
-  if (CombLogger.isEnabled()) {
-    CombLogger << "AST after trivial short-circuit simplification:\n";
-    CombLogger << "digraph CFGFunction {\n";
-    dumpNode(RootNode);
-    CombLogger << "}\n";
-  }
+  dumpASTOnFile("ast", FunctionName, "After-trivial-short-circuit", RootNode);
 
   return RootNode;
 }
