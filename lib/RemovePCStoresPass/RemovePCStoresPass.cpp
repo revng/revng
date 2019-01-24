@@ -1,5 +1,5 @@
 /// \file Restructure.cpp
-/// \brief FunctionPass that applies the comb to the CFG of a function
+/// \brief FunctionPass that applies the comb to the RegionCFG of a function
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

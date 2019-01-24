@@ -1,5 +1,5 @@
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef REVNGC_RESTRUCTURE_CFG_UTILS_H
+#define REVNGC_RESTRUCTURE_CFG_UTILS_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -18,7 +18,7 @@
 // an extern declaration
 extern Logger<> CombLogger;
 
-// EdgeDescriptor is a handy way to create and manipulate edges on the CFG.
+// EdgeDescriptor is a handy way to create and manipulate edges on the RegionCFG.
 using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
 
 inline void addEdge(EdgeDescriptor NewEdge) {
@@ -145,4 +145,4 @@ inline void dumpNode(ASTNode *Node) {
   }
 }
 
-#endif // UTILS_H
+#endif // REVNGC_RESTRUCTURE_CFG_UTILS_H

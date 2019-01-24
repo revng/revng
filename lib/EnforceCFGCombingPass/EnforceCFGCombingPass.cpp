@@ -27,7 +27,7 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
   if (not F.getName().startswith("bb."))
     return false;
   auto &RestructurePass = getAnalysis<RestructureCFG>();
-  CFG &RCFGT = RestructurePass.getRCT();
+  RegionCFG &RCFGT = RestructurePass.getRCT();
 
   // Perform preprocessing on RCFGT to ensure that each node with more
   // than one successor only has dummy successors. If that's not true,
@@ -41,7 +41,7 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
             NeedDummy.push_back({Node, Succ});
 
     for (auto &Pair : NeedDummy) {
-      BasicBlockNode *Dummy = RCFGT.newDummyNodeID("bb view dummy");
+      BasicBlockNode *Dummy = RCFGT.addDummyNode("bb view dummy");
       moveEdgeTarget(Pair, Dummy);
       addEdge({Dummy, Pair.second});
     }
@@ -74,7 +74,7 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
 
   for (BasicBlockNode *Node : RCFGT.nodes()) {
     BasicBlock *BB = nullptr;
-    if (BasicBlock *OriginalBB = Node->basicBlock()) {
+    if (BasicBlock *OriginalBB = Node->getBasicBlock()) {
       ValueToValueMapTy VMap{};
       BB = CloneBasicBlock(OriginalBB, VMap, "", EnforcedF);
       InstrMap IMap;
@@ -116,11 +116,11 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
         for (BasicBlockNode *PredIt : Tmp->predecessors()) {
           BasicBlockNode *Pred = PredIt;
           while (Pred->isDummy()) {
-            revng_assert(Pred->basicBlock() == nullptr);
+            revng_assert(Pred->getBasicBlock() == nullptr);
             revng_assert(Pred->predecessor_size() == 1);
             Pred = *Pred->predecessors().begin();
           }
-          BasicBlock *PredOriginalBB = Pred->basicBlock();
+          BasicBlock *PredOriginalBB = Pred->getBasicBlock();
           revng_assert(PredOriginalBB != nullptr);
           if (PredOriginalBB == OriginalIncomingBB) {
             EnforcedIncomingBB = EnforcedBBNodeToBBMap.at(PredIt);

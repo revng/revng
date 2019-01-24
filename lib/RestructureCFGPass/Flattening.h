@@ -4,11 +4,15 @@
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
+#ifndef REVNGC_RESTRUCTURE_CFG_FLATTENING_H
+#define REVNGC_RESTRUCTURE_CFG_FLATTENING_H
 
 // std includes
 #include <vector>
 
 // local includes
-#include "MetaRegion.h"
+#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 
-void flattenRegionCFGTree(std::vector<MetaRegion> &MetaRegions);
+void flattenRegionCFGTree(RegionCFG &Root, std::vector<RegionCFG> &Regions);
+
+#endif // REVNGC_RESTRUCTURE_CFG_FLATTENING_H

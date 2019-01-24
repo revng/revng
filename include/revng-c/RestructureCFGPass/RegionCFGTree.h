@@ -1,5 +1,5 @@
-#ifndef REGIONCFGTREE_H
-#define REGIONCFGTREE_H
+#ifndef REVNGC_RESTRUCTURE_CFG_REGIONCFGTREE_H
+#define REVNGC_RESTRUCTURE_CFG_REGIONCFGTREE_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -14,13 +14,14 @@
 
 // Local includes
 #include "ASTTree.h"
+#include "BasicBlockNode.h"
 
 inline BasicBlockNode *getPointer(std::unique_ptr<BasicBlockNode> &Original) {
   return Original.get();
 }
 
-/// \brief The CFG, a container for BasicBlockNodes
-class CFG {
+/// \brief The RegionCFG, a container for BasicBlockNodes
+class RegionCFG {
 
 public:
   using links_container = std::vector<std::unique_ptr<BasicBlockNode>>;
@@ -28,11 +29,7 @@ public:
   using links_iterator = TransformIterator<BasicBlockNode *,
                                            links_underlying_iterator>;
   using links_range = llvm::iterator_range<links_iterator>;
-
-  links_iterator begin() { return links_iterator(BlockNodes.begin(),
-                                                 getPointer); };
-  links_iterator end() { return links_iterator(BlockNodes.end(),
-                                                 getPointer); };
+  using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
 
 private:
   /// Storage for basic block nodes, associated to their original counterpart
@@ -43,64 +40,113 @@ private:
   /// Pointer to the entry basic block of this function
   llvm::BasicBlock *Entry;
   BasicBlockNode *EntryNode;
-  std::map<BasicBlockNode *, BasicBlockNode *> SubstitutionMap;
   ASTTree AST;
-  int IDCounter = 0;
+  unsigned IDCounter = 0;
 
 public:
-
-  CFG(std::set<BasicBlockNode *> &Nodes);
-
-  CFG();
+  RegionCFG() = default;
+  RegionCFG(const RegionCFG &) = default;
+  RegionCFG(RegionCFG &&) = default;
+  RegionCFG &operator=(const RegionCFG &) = default;
+  RegionCFG &operator=(RegionCFG &&) = default;
 
   void initialize(llvm::Function &F);
 
-  std::string getID();
+  unsigned getNewID() { return IDCounter++; }
 
-  links_range nodes() {
-    return llvm::make_range(begin(), end());
-  }
+  links_range nodes() { return llvm::make_range(begin(), end()); }
 
-  size_t size();
+  links_iterator begin() {
+    return links_iterator(BlockNodes.begin(), getPointer);
+  };
 
-  void setSize(int Size);
+  links_iterator end() {
+    return links_iterator(BlockNodes.end(), getPointer);
+  };
+
+  size_t size() const { return BlockNodes.size(); }
+  void setSize(int Size) { BlockNodes.reserve(Size); }
 
   void addNode(llvm::BasicBlock *BB);
 
-  BasicBlockNode *newNode(std::string Name);
+  BasicBlockNode *createCollapsedNode(RegionCFG *Collapsed,
+                                      const std::string &Name = "collapsed") {
+    BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this,
+                                                             Collapsed,
+                                                             Name));
+    return BlockNodes.back().get();
+  }
 
-  BasicBlockNode *newNodeID(std::string Name);
+  BasicBlockNode *
+  addDummyNode(const std::string &Name = "",
+               BasicBlockNode::ExitTypeT E = BasicBlockNode::ExitTypeT::None) {
+    BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, Name, E));
+    return BlockNodes.back().get();
+  }
 
-  BasicBlockNode *newDummyNode(std::string Name);
+  BasicBlockNode *addDummyReturn(const std::string &Name = "return") {
+    return addDummyNode(Name, BasicBlockNode::ExitTypeT::Return);
+  }
+  BasicBlockNode *addDummyUnreachable(const std::string &Name = "unreachable") {
+    return addDummyNode(Name, BasicBlockNode::ExitTypeT::Unreachable);
+  }
+  BasicBlockNode *addDummyContinue(const std::string &Name = "continue") {
+    return addDummyNode(Name, BasicBlockNode::ExitTypeT::Continue);
+  }
+  BasicBlockNode *addDummyBreak(const std::string &Name = "break") {
+    return addDummyNode(Name, BasicBlockNode::ExitTypeT::Break);
+  }
 
-  BasicBlockNode *newDummyNodeID(std::string Name);
-
-  BasicBlockNode *cloneNode(BasicBlockNode *OriginalNode);
+  BasicBlockNode *cloneNode(const BasicBlockNode &OriginalNode);
 
   void removeNode(BasicBlockNode *Node);
 
   void insertBulkNodes(std::set<BasicBlockNode *> &Nodes,
-                       BasicBlockNode *Head);
+                       BasicBlockNode *Head,
+                       BBNodeMap &SubstitutionMap);
+
+  llvm::iterator_range<links_container::iterator> moveNodesFrom(RegionCFG &O) {
+    size_t NumCurrNodes = size();
+    size_t NumNodesToInsert = O.size();
+    size_t NewNumNodes = NumCurrNodes + NumNodesToInsert;
+    revng_assert(NewNumNodes > NumCurrNodes);
+
+    // reserve space so iterators are guaranteed not to be invalidated from now
+    // until the end of this function
+    BlockNodes.reserve(NewNumNodes);
+
+    links_container::iterator BeginInserted = BlockNodes.end();
+    std::move(O.BlockNodes.begin(),
+              O.BlockNodes.end(),
+              std::back_inserter(BlockNodes));
+    links_container::iterator EndInserted = BlockNodes.end();
+    return llvm::make_range(BeginInserted, EndInserted);
+  }
 
   void connectBreakNode(std::set<std::pair<BasicBlockNode *,
                                            BasicBlockNode *>> &Outgoing,
-                        BasicBlockNode *Break);
+                        BasicBlockNode *Break,
+                        const BBNodeMap &SubstitutionMap);
 
   void connectContinueNode(BasicBlockNode *Continue);
 
   BasicBlockNode &get(llvm::BasicBlock *BB);
 
-  BasicBlockNode &getEntryNode();
+  BasicBlockNode &getEntryNode() { return *EntryNode; }
 
-  std::vector<std::unique_ptr<BasicBlockNode>> &getNodes();
+  std::vector<std::unique_ptr<BasicBlockNode>> &getNodes() {
+    return BlockNodes;
+  }
 
   BasicBlockNode &getRandomNode();
 
   std::vector<BasicBlockNode *> orderNodes(std::vector<BasicBlockNode *> &List,
                                            bool DoReverse);
 
-  /// \brief Dump a GraphViz file on stdout representing this function
-  void dumpDot();
+public:
+
+  /// \brief Dump a GraphViz representing this function on any stream
+  template<typename StreamT> void dumpDot(StreamT &);
 
   /// \brief Dump a GraphViz file on a file representing this function
   void dumpDotOnFile(std::string FunctionName, std::string FileName);
@@ -115,39 +161,44 @@ public:
 
   ASTNode *generateAst();
 
-  // Get reference to the AST object which is inside the CFG object
+  // Get reference to the AST object which is inside the RegionCFG object
   ASTTree &getAST();
+
+protected:
+  template<typename StreamT>
+  void streamNode(StreamT &S, const BasicBlockNode *) const;
 };
 
 // Provide graph traits for usage with, e.g., llvm::ReversePostOrderTraversal
 namespace llvm {
 
-template<> struct GraphTraits<CFG *> : public GraphTraits<BasicBlockNode *> {
-  using nodes_iterator = CFG::links_iterator;
+template<>
+struct GraphTraits<RegionCFG *> : public GraphTraits<BasicBlockNode *> {
+  using nodes_iterator = RegionCFG::links_iterator;
 
-  static NodeRef getEntryNode(CFG *F) {
+  static NodeRef getEntryNode(RegionCFG *F) {
     return &F->getEntryNode();
   }
 
-  static nodes_iterator nodes_begin(CFG *F) {
+  static nodes_iterator nodes_begin(RegionCFG *F) {
     return F->begin();
   }
 
-  static nodes_iterator nodes_end(CFG *F) {
+  static nodes_iterator nodes_end(RegionCFG *F) {
     return F->end();
   }
 
-  static size_t size(CFG *F) { return F->size(); }
+  static size_t size(RegionCFG *F) { return F->size(); }
 };
 
-template<> struct GraphTraits<Inverse<CFG *>> :
-  public GraphTraits<Inverse<BasicBlockNode *>> {
+template<>
+struct GraphTraits<Inverse<RegionCFG *>> : public GraphTraits<Inverse<BasicBlockNode *>> {
 
-  static NodeRef getEntryNode(Inverse<CFG *> G) {
+  static NodeRef getEntryNode(Inverse<RegionCFG *> G) {
     return &G.Graph->getEntryNode();
   }
 };
 
 } // namespace llvm
 
-#endif // REGIONCFGTREE_H
+#endif // REVNGC_RESTRUCTURE_CFG_REGIONCFGTREE_H

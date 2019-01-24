@@ -24,7 +24,6 @@ void MetaRegion::replaceNodes(std::vector<std::unique_ptr<BasicBlockNode>> &NewN
 void MetaRegion::updateNodes(std::set<BasicBlockNode *> &Removal,
                              BasicBlockNode *Collapsed,
                              std::vector<BasicBlockNode *> Dispatcher) {
-
   // Remove the old SCS nodes
   bool NeedSubstitution = false;
   for (BasicBlockNode *Node : Removal) {

@@ -1,5 +1,5 @@
-#ifndef ASTNODE_H
-#define ASTNODE_H
+#ifndef REVNGC_RESTRUCTURE_CFG_ASTNODE_H
+#define REVNGC_RESTRUCTURE_CFG_ASTNODE_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -8,8 +8,15 @@
 // Standard includes
 #include <cstdlib>
 
-// Local includes
-#include "BasicBlockNode.h"
+// local includes
+#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
+
+// forward declarations
+namespace llvm {
+class BasicBlock;
+}
+
+class BasicBlockNode;
 
 class ASTNode {
 
@@ -79,7 +86,7 @@ public:
 
   llvm::BasicBlock *getOriginalBB() {
     if (CFGNode != nullptr) {
-      return CFGNode->basicBlock();
+      return CFGNode->getBasicBlock();
     } else {
       return nullptr;
     }
@@ -249,4 +256,4 @@ public:
 
 };
 
-#endif // ASTNODE_H
+#endif // define REVNGC_RESTRUCTURE_CFG_ASTNODE_H

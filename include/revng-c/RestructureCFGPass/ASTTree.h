@@ -1,5 +1,5 @@
-#ifndef ASTTREE_H
-#define ASTTREE_H
+#ifndef REVNGC_RESTRUCTURE_CFG_ASTTREE_H
+#define REVNGC_RESTRUCTURE_CFG_ASTTREE_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -10,6 +10,10 @@
 
 // Local includes
 #include "ASTNode.h"
+
+class ASTNode;
+class BasicBlockNode;
+class SequenceNode;
 
 class ASTTree {
 
@@ -43,4 +47,4 @@ public:
 
 };
 
-#endif // ASTTREE_H
+#endif // REVNGC_RESTRUCTURE_CFG_ASTTREE_H

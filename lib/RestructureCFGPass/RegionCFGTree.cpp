@@ -21,7 +21,7 @@
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 
-// EdgeDescriptor is a handy way to create and manipulate edges on the CFG.
+// EdgeDescriptor is a handy way to create and manipulate edges on the RegionCFG.
 using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
 
 // Helper function that visit an AST tree and creates the sequence nodes
@@ -183,20 +183,7 @@ void simplifyShortCircuit(ASTNode *RootNode) {
   }
 }
 
-CFG::CFG(std::set<BasicBlockNode *> &Nodes) {
-  for (BasicBlockNode *Node : Nodes) {
-    BlockNodes.emplace_back(new BasicBlockNode(*Node));
-  }
-  #if 0
-  if (F.getName() == "bb.printf_core") {
-    dbg << "here\n";
-  }
-  #endif
-}
-
-CFG::CFG() {}
-
-void CFG::initialize(llvm::Function &F) {
+void RegionCFG::initialize(llvm::Function &F) {
 
   // Create a new node for each basic block in the module.
   for (llvm::BasicBlock &BB : F) {
@@ -234,7 +221,7 @@ void CFG::initialize(llvm::Function &F) {
       // For each iteration except the last create a new dummy node
       // connecting the successors.
       while (WorkList.size() > 2) {
-        BasicBlockNode *NewDummy = newNodeID("switch dummy ");
+        BasicBlockNode *NewDummy = addDummyNode("switch dummy");
         BasicBlockNode *Dest1 = &get(WorkList.back());
         WorkList.pop_back();
         addEdge(EdgeDescriptor(PrevDummy, Dest1));
@@ -258,59 +245,21 @@ void CFG::initialize(llvm::Function &F) {
   }
 }
 
-std::string CFG::getID() {
-  return std::to_string(IDCounter++);
-}
-
-size_t CFG::size() { return BlockNodes.size(); }
-
-void CFG::setSize(int Size) {
-  BlockNodes.reserve(Size);
-}
-
-void CFG::addNode(llvm::BasicBlock *BB) {
-  BlockNodes.emplace_back(new BasicBlockNode(BB, this));
+void RegionCFG::addNode(llvm::BasicBlock *BB) {
+  BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, BB));
   BBMap[BB] = BlockNodes.back().get();
   CombLogger << "Building " << BB->getName();
   CombLogger << " at address: " << BBMap[BB] << "\n";
 }
 
-BasicBlockNode *CFG::newNode(std::string Name) {
-  BlockNodes.emplace_back(new BasicBlockNode(Name, this));
-  return BlockNodes.back().get();
+BasicBlockNode *RegionCFG::cloneNode(const BasicBlockNode &OriginalNode) {
+  BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(OriginalNode));
+  BasicBlockNode *New = BlockNodes.back().get();
+  New->setName(std::string(OriginalNode.getName()) + "cloned");
+  return New;
 }
 
-BasicBlockNode *CFG::newNodeID(std::string Name) {
-  Name += getID();
-  BlockNodes.emplace_back(new BasicBlockNode(Name, this));
-  return BlockNodes.back().get();
-}
-
-BasicBlockNode *CFG::newDummyNode(std::string Name) {
-  BlockNodes.emplace_back(new BasicBlockNode(Name, this, true));
-  return BlockNodes.back().get();
-}
-
-BasicBlockNode *CFG::newDummyNodeID(std::string Name) {
-  Name += getID();
-  BlockNodes.emplace_back(new BasicBlockNode(Name, this, true));
-  return BlockNodes.back().get();
-}
-
-BasicBlockNode *CFG::cloneNode(BasicBlockNode *OriginalNode) {
-  std::string Name = OriginalNode->getNameStr() + " cloned ";
-  Name += getID();
-  BlockNodes.emplace_back(new BasicBlockNode(Name, this));
-
-  // Copy the information about the original basic block
-  BlockNodes.back()->setBasicBlock(OriginalNode->basicBlock());
-  if (OriginalNode->isCollapsed()) {
-    BlockNodes.back()->setCollapsedCFG(OriginalNode->getCollapsedCFG());
-  }
-  return BlockNodes.back().get();
-}
-
-void CFG::removeNode(BasicBlockNode *Node) {
+void RegionCFG::removeNode(BasicBlockNode *Node) {
 
   CombLogger << "Removing node named: " << Node->getNameStr() << "\n";
 
@@ -330,58 +279,64 @@ void CFG::removeNode(BasicBlockNode *Node) {
   }
 }
 
-void CFG::insertBulkNodes(std::set<BasicBlockNode *> &Nodes,
-                     BasicBlockNode *Head) {
+void
+RegionCFG::insertBulkNodes(std::set<BasicBlockNode *> &Nodes,
+                           BasicBlockNode *Head,
+                           RegionCFG::BBNodeMap &SubstitutionMap) {
   BlockNodes.clear();
-  SubstitutionMap.clear();
 
   for (BasicBlockNode *Node : Nodes) {
-    BlockNodes.emplace_back(new BasicBlockNode(*Node));
-    SubstitutionMap[Node] = BlockNodes.back().get();
+    BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(*Node));
+    BasicBlockNode *New = BlockNodes.back().get();
+    // The copy constructor used above does not bring along the successors and
+    // the predecessors, neither adjusts the parent.
+    // The following lines are a hack to fix this problem, but they momentarily
+    // build a broken data structure where the predecessors and the successors
+    // of the New BasicBlockNodes in *this still refer to the BasicBlockNodes in
+    // the Parent CFGRegion of Nodes. This will be fixed later by updatePointers
+    New->setParent(this);
+    for (BasicBlockNode *Succ : Node->successors())
+      New->addSuccessor(Succ);
+    for (BasicBlockNode *Pred : Node->predecessors())
+      New->addPredecessor(Pred);
+    SubstitutionMap[Node] = New;
   }
 
   revng_assert(Head != nullptr);
   EntryNode = SubstitutionMap[Head];
   revng_assert(EntryNode != nullptr);
-  for (std::unique_ptr<BasicBlockNode> &Node : BlockNodes) {
+  // Fix the hack above
+  for (std::unique_ptr<BasicBlockNode> &Node : BlockNodes)
     Node->updatePointers(SubstitutionMap);
-  }
 }
 
-void CFG::connectBreakNode(std::set<EdgeDescriptor> &Outgoing,
-                      BasicBlockNode *Break) {
-  for (EdgeDescriptor Edge : Outgoing) {
-    addEdge(EdgeDescriptor(SubstitutionMap[Edge.first], Break));
-  }
+void
+RegionCFG::connectBreakNode(std::set<EdgeDescriptor> &Outgoing,
+                            BasicBlockNode *Break,
+                            const BBNodeMap &SubstitutionMap) {
+  for (EdgeDescriptor Edge : Outgoing)
+    addEdge(EdgeDescriptor(SubstitutionMap.at(Edge.first), Break));
 }
 
-void CFG::connectContinueNode(BasicBlockNode *Continue) {
+void RegionCFG::connectContinueNode(BasicBlockNode *Continue) {
   for (BasicBlockNode *Source : EntryNode->predecessors()) {
     moveEdgeTarget(EdgeDescriptor(Source, EntryNode), Continue);
   }
 }
 
-BasicBlockNode &CFG::get(llvm::BasicBlock *BB) {
+BasicBlockNode &RegionCFG::get(llvm::BasicBlock *BB) {
   auto It = BBMap.find(BB);
   revng_assert(It != BBMap.end());
   return *(It->second);
 }
 
-BasicBlockNode &CFG::getEntryNode() {
-  return *EntryNode;
-}
-
-std::vector<std::unique_ptr<BasicBlockNode>> &CFG::getNodes() {
-  return BlockNodes;
-}
-
-BasicBlockNode &CFG::getRandomNode() {
+BasicBlockNode &RegionCFG::getRandomNode() {
   int randNum = rand() % (BBMap.size());
   auto randomIt = std::next(std::begin(BBMap), randNum);
   return *(randomIt->second);
 }
 
-std::vector<BasicBlockNode *> CFG::orderNodes(std::vector<BasicBlockNode *> &L,
+std::vector<BasicBlockNode *> RegionCFG::orderNodes(std::vector<BasicBlockNode *> &L,
                                               bool DoReverse) {
   llvm::ReversePostOrderTraversal<BasicBlockNode *> RPOT(EntryNode);
   std::vector<BasicBlockNode *> Result;
@@ -409,59 +364,45 @@ std::vector<BasicBlockNode *> CFG::orderNodes(std::vector<BasicBlockNode *> &L,
   return Result;
 }
 
-/// \brief Dump a GraphViz file on stdout representing this function
-void CFG::dumpDot() {
-  CombLogger << "digraph CFGFunction {\n";
-
-  for (std::unique_ptr<BasicBlockNode> &BB : BlockNodes) {
-    CombLogger << "\"" << BB->getNameStr() << "\" [";
-    CombLogger << "label=\"" << BB->getNameStr();
-    CombLogger << "\"";
-    if (BB.get() == EntryNode)
-      CombLogger << ",fillcolor=green,style=filled";
-    if (BB->isReturn())
-      CombLogger << ",fillcolor=red,style=filled";
-    CombLogger << "];\n";
-
-    for (auto &Successor : BB->successors()) {
-      CombLogger << "\"" << BB->getNameStr() << "\""
-          << " -> \"" << Successor->getNameStr() << "\""
-          << " [color=green];\n";
-    }
-  }
-
-  CombLogger << "}\n";
+template<typename StreamT>
+void RegionCFG::streamNode(StreamT &S, const BasicBlockNode *BB) const {
+  unsigned NodeID = BB->getID();
+  S << "\"" << NodeID << "\"";
+  S << " [" << "label=\"ID: " << NodeID << " Name: " << BB->getName().str() << "\"";
+  if (BB == EntryNode)
+    S << ",fillcolor=green,style=filled";
+  if (BB->isReturn())
+    S << ",fillcolor=red,style=filled";
+  S << "];\n";
 }
 
-void CFG::dumpDotOnFile(std::string FunctionName, std::string FileName) {
+/// \brief Dump a GraphViz file on stdout representing this function
+template<typename StreamT>
+void RegionCFG::dumpDot(StreamT &S) {
+  S << "digraph CFGFunction {\n";
+
+  for (std::unique_ptr<BasicBlockNode> &BB : BlockNodes) {
+    streamNode(S, BB.get());
+    for (auto &Successor : BB->successors()) {
+      unsigned PredID = BB->getID();
+      unsigned SuccID = Successor->getID();
+      S << "\"" << PredID << "\"" << " -> \"" << SuccID << "\""
+        << " [color=green];\n";
+    }
+  }
+  S << "}\n";
+}
+
+void RegionCFG::dumpDotOnFile(std::string FunctionName, std::string FileName) {
   std::ofstream DotFile;
   std::string PathName = "dots/" + FunctionName;
   mkdir(PathName.c_str(), 0775);
   DotFile.open("dots/" + FunctionName + "/" + FileName + ".dot");
-  DotFile << "digraph CFGFunction {\n";
-
-  for (std::unique_ptr<BasicBlockNode> &BB : BlockNodes) {
-    DotFile << "\"" << BB->getNameStr() << "\" [";
-    DotFile << "label=\"" << BB->getNameStr();
-    DotFile << "\"";
-    if (BB.get() == EntryNode)
-      DotFile << ",fillcolor=green,style=filled";
-    if (BB->isReturn())
-      DotFile << ",fillcolor=red,style=filled";
-    DotFile << "];\n";
-
-    for (auto &Successor : BB->successors()) {
-      DotFile << "\"" << BB->getNameStr() << "\""
-          << " -> \"" << Successor->getNameStr() << "\""
-          << " [color=green];\n";
-    }
-  }
-
-  DotFile << "}\n";
+  dumpDot(DotFile);
 }
 
-void CFG::purgeDummies() {
-  CFG &Graph = *this;
+void RegionCFG::purgeDummies() {
+  RegionCFG &Graph = *this;
   bool AnotherIteration = true;
 
   while (AnotherIteration) {
@@ -489,9 +430,9 @@ void CFG::purgeDummies() {
   }
 }
 
-void CFG::purgeVirtualSink(BasicBlockNode *Sink) {
+void RegionCFG::purgeVirtualSink(BasicBlockNode *Sink) {
 
-  CFG &Graph = *this;
+  RegionCFG &Graph = *this;
 
   std::vector<BasicBlockNode *> WorkList;
   std::vector<BasicBlockNode *> PurgeList;
@@ -516,9 +457,9 @@ void CFG::purgeVirtualSink(BasicBlockNode *Sink) {
   }
 }
 
-std::vector<BasicBlockNode *> CFG::getInterestingNodes(BasicBlockNode *Cond) {
+std::vector<BasicBlockNode *> RegionCFG::getInterestingNodes(BasicBlockNode *Cond) {
 
-  CFG &Graph = *this;
+  RegionCFG &Graph = *this;
 
   llvm::DominatorTreeBase<BasicBlockNode, false> DT;
   DT.recalculate(Graph);
@@ -545,11 +486,11 @@ std::vector<BasicBlockNode *> CFG::getInterestingNodes(BasicBlockNode *Cond) {
   return NotDominatedCandidates;
 }
 
-void CFG::inflate() {
+void RegionCFG::inflate() {
 
-  // Apply the comb to a CFG object.
+  // Apply the comb to a RegionCFG object.
   // TODO: handle all the collapsed regions.
-  CFG &Graph = *this;
+  RegionCFG &Graph = *this;
 
   // Refresh information of dominator and postdominator trees.
   llvm::DominatorTreeBase<BasicBlockNode, false> DT;
@@ -577,7 +518,7 @@ void CFG::inflate() {
   }
 
   // Add a new virtual sink node to which all the exit nodes are connected.
-  BasicBlockNode *Sink = Graph.newDummyNode("Virtual sink");
+  BasicBlockNode *Sink = Graph.addDummyNode("Virtual sink");
   for (BasicBlockNode *Exit : ExitNodes) {
     addEdge(EdgeDescriptor(Exit, Sink));
   }
@@ -585,7 +526,7 @@ void CFG::inflate() {
   // Dump graph after virtual sink add.
   if (CombLogger.isEnabled()) {
     CombLogger << "Graph after sink addition is:\n";
-    Graph.dumpDot();
+    Graph.dumpDot(CombLogger);
   }
 
   // Collect all the conditional nodes in the graph.
@@ -617,7 +558,7 @@ void CFG::inflate() {
                  << "\n";
 
     }
-    Graph.dumpDot();
+    Graph.dumpDot(CombLogger);
     CombLogger.emit();
 
     // Update information of dominator and postdominator trees.
@@ -640,7 +581,7 @@ void CFG::inflate() {
         CombLogger << "Analyzing candidate " << Candidate->getNameStr()
                    << "\n";
       }
-      Graph.dumpDot();
+      Graph.dumpDot(CombLogger);
       CombLogger.emit();
 
       // Decide wether to insert a dummy or to duplicate.
@@ -658,8 +599,7 @@ void CFG::inflate() {
         std::map<Side, BasicBlockNode *> Dummies;
 
         for (Side S : Sides) {
-          std::string NodeName = "dummy";
-          BasicBlockNode *Dummy = Graph.newDummyNodeID(NodeName);
+          BasicBlockNode *Dummy = Graph.addDummyNode("dummy");
           Dummies[S] = Dummy;
         }
 
@@ -698,15 +638,15 @@ void CFG::inflate() {
           CombLogger << Candidate->getNameStr() << "\n";
         }
 
-        std::string NodeName = Candidate->getNameStr() + " duplicated ";
 
         // TODO: change this using a clone like method of BasicBlockNode that
         //       preserves the dummy information.
         BasicBlockNode *Duplicated;
         if (Candidate->isDummy()) {
-          Duplicated = Graph.newDummyNodeID(NodeName);
+          std::string NodeName = Candidate->getNameStr() + " duplicated";
+          Duplicated = Graph.addDummyNode(NodeName);
         } else {
-          Duplicated = Graph.cloneNode(Candidate);
+          Duplicated = Graph.cloneNode(*Candidate);
         }
 
         assert(Duplicated != nullptr);
@@ -740,15 +680,15 @@ void CFG::inflate() {
 
   if (CombLogger.isEnabled()) {
     CombLogger << "Graph after combing is:\n";
-    Graph.dumpDot();
+    Graph.dumpDot(CombLogger);
   }
 }
 
-ASTNode *CFG::generateAst() {
+ASTNode *RegionCFG::generateAst() {
 
-  CFG &Graph = *this;
+  RegionCFG &Graph = *this;
 
-  // Apply combing to the current CFG.
+  // Apply combing to the current RegionCFG.
   CombLogger << "Inflating region\n";
   Graph.inflate();
 
@@ -762,9 +702,9 @@ ASTNode *CFG::generateAst() {
 #if 0
   DT.print(Stream);
   Stream.flush();
+  DT.print(CombLogger);
 #endif
 
-  //DT.print(CombLogger);
   CombLogger.emit();
 
   std::map<int, BasicBlockNode *> DFSNodeMap;
@@ -802,7 +742,7 @@ ASTNode *CFG::generateAst() {
     if (Node->isCollapsed()) {
       revng_assert(ASTChildren.size() <= 1);
       if (ASTChildren.size() == 1) {
-        CFG *BodyGraph = Node->getCollapsedCFG();
+        RegionCFG *BodyGraph = Node->getCollapsedCFG();
         revng_assert(BodyGraph != nullptr);
         CombLogger << "Inspecting collapsed node: " << Node->getNameStr()
                    << "\n";
@@ -813,7 +753,7 @@ ASTNode *CFG::generateAst() {
                                                        ASTChildren[0]));
         AST.addASTNode(Node, std::move(ASTObject));
       } else {
-        CFG *BodyGraph = Node->getCollapsedCFG();
+        RegionCFG *BodyGraph = Node->getCollapsedCFG();
         CombLogger << "Inspecting collapsed node: " << Node->getNameStr()
                    << "\n";
         CombLogger.emit();
@@ -897,11 +837,10 @@ ASTNode *CFG::generateAst() {
     CombLogger << "}\n";
   }
 
-
   return RootNode;
 }
 
-// Get reference to the AST object which is inside the CFG object
-ASTTree &CFG::getAST() {
+// Get reference to the AST object which is inside the RegionCFG object
+ASTTree &RegionCFG::getAST() {
   return AST;
 }

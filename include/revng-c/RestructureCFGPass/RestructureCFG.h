@@ -1,5 +1,5 @@
-#ifndef RESTRUCTURECFG_H
-#define RESTRUCTURECFG_H
+#ifndef REVNGC_RESTRUCTURE_CFG_RESTRUCTURECFG_H
+#define REVNGC_RESTRUCTURE_CFG_RESTRUCTURECFG_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -21,11 +21,14 @@
 class ASTTree;
 
 class RestructureCFG : public llvm::FunctionPass {
+protected:
+  bool Done;
+
 public:
   static char ID;
 
 public:
-  RestructureCFG() : llvm::FunctionPass(ID) { }
+  RestructureCFG() : llvm::FunctionPass(ID), Done(false) { }
 
   bool runOnFunction(llvm::Function &F) override;
 
@@ -33,17 +36,15 @@ public:
     AU.setPreservesAll();
   }
 
-  ASTTree &getAST() {
-    return CompleteGraph.getAST();
-  }
+  ASTTree &getAST() { return CompleteGraph.getAST(); }
 
-  CFG &getRCT() {
-    return CompleteGraph;
-  }
+  RegionCFG &getRCT() { return CompleteGraph; }
+
+  bool isDone() { return Done; }
 
 private:
-  CFG CompleteGraph;
+  RegionCFG CompleteGraph;
 
 };
 
-#endif // RESTRUCTURECFG_H
+#endif // REVNGC_RESTRUCTURE_CFG_RESTRUCTURECFG_H

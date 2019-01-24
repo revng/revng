@@ -5,11 +5,16 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+// revng libraries includes
+#include "revng/Support/Debug.h"
+
+// local libraries includes
+#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+
 // local includes
 #include "Flattening.h"
-#include "MetaRegion.h"
 
 Logger<> FlattenLog("flattening");
 
-void flattenRegionCFGTree(std::vector<MetaRegion> &MetaRegions) {
+void flattenRegionCFGTree(RegionCFG &Root, std::vector<RegionCFG> &Regions) {
 }

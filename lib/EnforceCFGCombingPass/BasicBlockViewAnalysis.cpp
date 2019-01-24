@@ -14,15 +14,15 @@ Analysis::InterruptType Analysis::transfer(BasicBlockNode *InputBBNode) {
 
   if (InputBBNode->isDummy()) {
     while (InputBBNode->isDummy()) {
-      revng_assert(InputBBNode->basicBlock() == nullptr);
+      revng_assert(InputBBNode->getBasicBlock() == nullptr);
       revng_assert(InputBBNode->successor_size() == 1);
       InputBBNode = *InputBBNode->successors().begin();
     }
-    BasicBlock *OriginalBB = InputBBNode->basicBlock();
+    BasicBlock *OriginalBB = InputBBNode->getBasicBlock();
     revng_assert(OriginalBB != nullptr);
     VisibleBB.at(OriginalBB) = EnforcedBB;
   } else {
-    BasicBlock *OriginalBB = InputBBNode->basicBlock();
+    BasicBlock *OriginalBB = InputBBNode->getBasicBlock();
     revng_assert(OriginalBB != nullptr);
     bool New = VisibleBB.insert(std::make_pair(OriginalBB, EnforcedBB)).second;
     revng_assert(New);

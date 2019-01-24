@@ -113,7 +113,7 @@ class Analysis
                              VisitType::PostOrder,
                              llvm::SmallVector<BasicBlockNode *, 2>> {
 private:
-  CFG &RegionCFGTree;
+  RegionCFG &RegionCFGTree;
   const BBNodeToBBMap &EnforcedBBMap;
   BBViewMap ViewMap;
 
@@ -124,7 +124,7 @@ public:
                                  VisitType::PostOrder,
                                  llvm::SmallVector<BasicBlockNode *, 2>>;
 
-  Analysis(CFG &RegionCFGTree, const BBNodeToBBMap &EnforcedBBMap) :
+  Analysis(RegionCFG &RegionCFGTree, const BBNodeToBBMap &EnforcedBBMap) :
     Base(&RegionCFGTree.getEntryNode()),
     RegionCFGTree(RegionCFGTree),
     EnforcedBBMap(EnforcedBBMap) {
@@ -154,7 +154,7 @@ public:
 
   /// Gets the predecessor BasicBlockNode in the RegionCFGTree.
   /// Being a backward analysis the 'successors' in analysis order are the
-  /// 'predecessor' in CFG order.
+  /// 'predecessor' in RegionCFG order.
   llvm::SmallVector<BasicBlockNode *, 2>
   successors(BasicBlockNode *BB, InterruptType &) const {
     llvm::SmallVector<BasicBlockNode *, 2> Result;

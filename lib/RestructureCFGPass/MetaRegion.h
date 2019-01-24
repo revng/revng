@@ -42,7 +42,6 @@ private:
   links_container Nodes;
   MetaRegion *ParentRegion;
   bool IsSCS;
-  CFG Graph;
 
 public:
   MetaRegion(int Index, std::set<BasicBlockNode *> &Nodes, bool IsSCS = false) :
@@ -98,8 +97,6 @@ public:
   void insertNode(BasicBlockNode *NewNode) { Nodes.insert(NewNode); }
 
   void removeNode(BasicBlockNode *Node) { Nodes.erase(Node); }
-
-  CFG &getGraph() { return Graph; }
 };
 
 #endif // REVNGC_RESTRUCTURE_CFG_META_REGIONS_H
