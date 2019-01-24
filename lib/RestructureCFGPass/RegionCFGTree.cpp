@@ -31,8 +31,12 @@ static ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
 
   for (ASTNode *Node : RootSequenceNode->nodes()) {
     if (auto *If = llvm::dyn_cast<IfNode>(Node)) {
-      If->setThen(createSequence(Tree, If->getThen()));
-      If->setElse(createSequence(Tree, If->getElse()));
+      if (If->hasThen()) {
+        If->setThen(createSequence(Tree, If->getThen()));
+      }
+      if (If->hasElse()) {
+        If->setElse(createSequence(Tree, If->getElse()));
+      }
     }
     #if 0
   } else if (auto *Code = llvm::dyn_cast<CodeNode>(Node)) {
@@ -66,8 +70,12 @@ static void simplifyDummies(ASTNode *RootNode) {
     }
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
-    simplifyDummies(If->getThen());
-    simplifyDummies(If->getElse());
+    if (If->hasThen()) {
+      simplifyDummies(If->getThen());
+    }
+    if (If->hasElse()) {
+      simplifyDummies(If->getElse());
+    }
   }
 }
 
@@ -86,8 +94,12 @@ static ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
       }
     }
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
-    If->setThen(simplifyAtomicSequence(If->getThen()));
-    If->setElse(simplifyAtomicSequence(If->getElse()));
+    if (If->hasThen()) {
+      If->setThen(simplifyAtomicSequence(If->getThen()));
+    }
+    if (If->hasElse()) {
+      If->setElse(simplifyAtomicSequence(If->getElse()));
+    }
   }
   #if 0
 } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
