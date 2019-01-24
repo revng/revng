@@ -240,7 +240,6 @@ public:
     case Instruction::PtrToInt:
     case Instruction::ZExt:
     case Instruction::SExt:
-    case Instruction::Trunc:
       revng_assert(I->getNumOperands() == 1);
       set(I, get(I->getOperand(0)));
       break;
