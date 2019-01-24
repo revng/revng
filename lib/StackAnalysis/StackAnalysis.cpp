@@ -196,10 +196,17 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
     if (Entry == nullptr or Function.BasicBlocks.size() == 0)
       continue;
 
+    uint64_t EntryPC = getBasicBlockPC(Entry);
+
     //
     // Add `func.entry`:
-    // { name, type, { clobbered csv, ... }, { { csv, argument, return value },
-    // ... } }
+    // {
+    //   name,
+    //   address,
+    //   type,
+    //   { clobbered csv, ... },
+    //   { { csv, argument, return value }, ... }
+    // }
     //
     auto TypeMD = QMD.get(FunctionType::getName(Function.Type));
 
@@ -222,6 +229,7 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
 
     // Create func.entry metadata
     MDTuple *FunctionMD = QMD.tuple({ QMD.get(getName(Entry)),
+                                      QMD.get(EntryPC),
                                       TypeMD,
                                       QMD.tuple(ClobberedMDs),
                                       QMD.tuple(SlotMDs) });
