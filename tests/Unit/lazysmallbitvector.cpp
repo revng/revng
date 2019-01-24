@@ -174,6 +174,26 @@ BOOST_AUTO_TEST_CASE(TestCopy) {
   }
 }
 
+BOOST_AUTO_TEST_CASE(TestComparison) {
+  LazySmallBitVector A;
+  A.set(1);
+  BOOST_TEST(not(A < A));
+
+  LazySmallBitVector B;
+  BOOST_TEST(B < A);
+
+  B.set(2);
+  BOOST_TEST(A < B);
+
+  B.set(80);
+  BOOST_TEST(A < B);
+  BOOST_TEST(not(B < A));
+
+  A.set(160);
+  BOOST_TEST(B < A);
+  BOOST_TEST(not(A < B));
+}
+
 #include <boost/iterator/transform_iterator.hpp>
 
 BOOST_AUTO_TEST_CASE(TestIterator) {
