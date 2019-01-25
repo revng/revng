@@ -358,6 +358,8 @@ public:
   llvm::BasicBlock *anyPC() { return AnyPC; }
   llvm::BasicBlock *unexpectedPC() { return UnexpectedPC; }
 
+  const llvm::ArrayRef<llvm::GlobalVariable *> csvs() const { return CSVs; }
+
 private:
   uint32_t InstructionAlignment;
   uint32_t DelaySlotSize;
@@ -370,6 +372,7 @@ private:
   std::map<uint64_t, llvm::BasicBlock *> JumpTargets;
   unsigned PCRegSize;
   llvm::Function *RootFunction;
+  std::vector<llvm::GlobalVariable *> CSVs;
 };
 
 template<>

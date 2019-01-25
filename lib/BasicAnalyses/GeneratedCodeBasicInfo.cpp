@@ -85,6 +85,14 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
   revng_assert(Dispatcher != nullptr && AnyPC != nullptr
                && UnexpectedPC != nullptr);
 
+  if (auto *NamedMD = M.getNamedMetadata("revng.csv")) {
+    auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
+    for (const MDOperand &Operand : Tuple->operands()) {
+      auto *CSV = cast<GlobalVariable>(QMD.extract<Constant *>(Operand.get()));
+      CSVs.push_back(CSV);
+    }
+  }
+
   revng_log(PassesLog, "Ending GeneratedCodeBasicInfo");
 
   return false;
