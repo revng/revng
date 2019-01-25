@@ -1380,7 +1380,7 @@ public:
     LoadOffsets(LoadOff),
     StoreOffsets(StoreOff),
     CallSiteLoadOffsets(CallSiteLoadOff),
-    CallSiteStoreOffsets(CallSiteLoadOff),
+    CallSiteStoreOffsets(CallSiteStoreOff),
     ValueCallSiteOffsets(),
     LoadCallSiteOffsets(),
     StoreCallSiteOffsets(),
