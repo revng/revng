@@ -499,8 +499,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
     CombLogger << PDT.isPostDominator() << "\n";
   }
 
-
+  // Reserve enough space for all the OrderedMetaRegions.
+  // The following algorithms stores pointers to the elements of this vector, so
+  // we need to make sure that no reallocation happens.
   std::vector<RegionCFG> Regions(OrderedMetaRegions.size());
+
   for (MetaRegion *Meta : OrderedMetaRegions) {
     if (CombLogger.isEnabled()) {
       CombLogger << "\nAnalyzing region: " << Meta->getIndex() <<"\n";
@@ -805,7 +808,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // populate it with the internal nodes.
     std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
     std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
-    RegionCFG CollapsedGraph{};
+    Regions.push_back(RegionCFG());
+    RegionCFG &CollapsedGraph = Regions.back();
     RegionCFG::BBNodeMap SubstitutionMap{};
     CollapsedGraph.setFunctionName(F.getName());
     CollapsedGraph.setRegionName(std::to_string(Meta->getIndex()));
@@ -878,7 +882,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
                                   F.getName(),
                                   "Out-post-" + std::to_string(Meta->getIndex()));
     }
-    Regions.push_back(std::move(CollapsedGraph));
   }
 
   // Serialize the newly collapsed SCS region.
