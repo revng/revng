@@ -406,7 +406,7 @@ void RegionCFG::addNode(llvm::BasicBlock *BB) {
 BasicBlockNode *RegionCFG::cloneNode(const BasicBlockNode &OriginalNode) {
   BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(OriginalNode));
   BasicBlockNode *New = BlockNodes.back().get();
-  New->setName(std::string(OriginalNode.getName()) + "cloned");
+  New->setName(std::string(OriginalNode.getName()) + " cloned");
   return New;
 }
 
@@ -806,17 +806,7 @@ void RegionCFG::inflate() {
           CombLogger << Candidate->getNameStr() << "\n";
         }
 
-
-        // TODO: change this using a clone like method of BasicBlockNode that
-        //       preserves the dummy information.
-        BasicBlockNode *Duplicated;
-        if (Candidate->isDummy()) {
-          std::string NodeName = Candidate->getNameStr() + " duplicated";
-          Duplicated = Graph.addDummyNode(NodeName);
-        } else {
-          Duplicated = Graph.cloneNode(*Candidate);
-        }
-
+        BasicBlockNode *Duplicated = Graph.cloneNode(*Candidate);
         assert(Duplicated != nullptr);
 
         for (BasicBlockNode *Successor : Candidate->successors()) {
