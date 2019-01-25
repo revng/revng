@@ -561,6 +561,10 @@ private:
         return true;
     return false;
   }
+
+  ASSlot slotFromCSV(llvm::User *U) const {
+    return ASSlot::create(ASID::cpuID(), CPUIndices.at(U));
+  }
 };
 
 } // namespace Intraprocedural

@@ -478,19 +478,15 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
                       << getName(Callee));
         }
 
-        for (const llvm::Argument &Argument : Callee->args()) {
-          if (Argument.getType()->isPointerTy()) {
-            // This call to helper can alter the CPU state, register it in the
-            // ABI IR as an indirect call
+        // Create in the ABIIR a load for each read register and a store for
+        // each written register
+        auto UsedCSVs = GeneratedCodeBasicInfo::getCSVUsedByHelperCall(Call);
 
-            // TODO: here we should CPUStateAccessAnalysisPass, which can
-            //       provide us with very accurate information about the
-            //       helper
+        for (GlobalVariable *CSV : UsedCSVs.Read)
+          ABIBB.append(ABIIRInstruction::createLoad(slotFromCSV(CSV)));
 
-            ABIBB.append(ABIIRInstruction::createIndirectCall(Indirect));
-            break;
-          }
-        }
+        for (GlobalVariable *CSV : UsedCSVs.Written)
+          ABIBB.append(ABIIRInstruction::createStore(slotFromCSV(CSV)));
       }
 
     } break;

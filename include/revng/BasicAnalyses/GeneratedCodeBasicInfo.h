@@ -360,6 +360,47 @@ public:
 
   const llvm::ArrayRef<llvm::GlobalVariable *> csvs() const { return CSVs; }
 
+  class CSVsUsedByHelperCall {
+  public:
+    void sort() {
+      std::sort(Read.begin(), Read.end());
+      std::sort(Written.begin(), Written.end());
+    }
+
+  public:
+    std::vector<llvm::GlobalVariable *> Read;
+    std::vector<llvm::GlobalVariable *> Written;
+  };
+
+  static CSVsUsedByHelperCall getCSVUsedByHelperCall(llvm::CallInst *Call) {
+    revng_assert(isCallToHelper(Call));
+    CSVsUsedByHelperCall Result;
+    Result.Read = extractCSVs(Call, "revng.csvaccess.offsets.load");
+    Result.Written = extractCSVs(Call, "revng.csvaccess.offsets.store");
+    return Result;
+  }
+
+private:
+  static std::vector<llvm::GlobalVariable *>
+  extractCSVs(llvm::CallInst *Call, const char *MetadataKind) {
+    using namespace llvm;
+
+    std::vector<GlobalVariable *> Result;
+    auto *Tuple = cast_or_null<MDTuple>(Call->getMetadata(MetadataKind));
+    if (Tuple == nullptr)
+      return Result;
+
+    QuickMetadata QMD(getContext(Call));
+
+    auto OperandsRange = QMD.extract<MDTuple *>(Tuple, 1)->operands();
+    for (const MDOperand &Operand : OperandsRange) {
+      auto *CSV = QMD.extract<Constant *>(Operand.get());
+      Result.push_back(cast<GlobalVariable>(CSV));
+    }
+
+    return Result;
+  }
+
 private:
   uint32_t InstructionAlignment;
   uint32_t DelaySlotSize;
