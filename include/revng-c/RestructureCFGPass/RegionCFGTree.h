@@ -107,6 +107,27 @@ public:
     return addDummyNode(Name, BasicBlockNode::ExitTypeT::Break);
   }
 
+  BasicBlockNode *addDispatcher(unsigned StateVariableValue,
+                                 const std::string &Name = "dispatcher") {
+    using Op = BasicBlockNode::StateVariableOp;
+    using BBNode = BasicBlockNode;
+    BlockNodes.emplace_back(std::make_unique<BBNode>(this, Op::Compare,
+                                                     StateVariableValue,
+						     Name));
+    return BlockNodes.back().get();
+  }
+
+  BasicBlockNode *addSetStateNode(unsigned StateVariableValue,
+                                  const std::string &Name = "set idx") {
+    using Op = BasicBlockNode::StateVariableOp;
+    using BBNode = BasicBlockNode;
+    std::string IdStr = std::to_string(StateVariableValue);
+    BlockNodes.emplace_back(std::make_unique<BBNode>(this, Op::Set,
+                                                     StateVariableValue,
+						     Name + IdStr));
+    return BlockNodes.back().get();
+  }
+
   BasicBlockNode *cloneNode(const BasicBlockNode &OriginalNode);
 
   void removeNode(BasicBlockNode *Node);

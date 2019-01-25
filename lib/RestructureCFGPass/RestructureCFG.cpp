@@ -617,8 +617,32 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     BasicBlockNode *Head;
     if (NewHeadNeeded) {
-      Head = CompleteGraph.addDummyNode("head dispatcher");
+      revng_assert(RetreatingTargets.size() > 1);
+      Head = CompleteGraph.addDummyUnreachable();
       Meta->insertNode(Head);
+
+      // Build the tree dispatcher structure, bottom up from the unreachable.
+      std::map<BasicBlockNode *, int> RetreatingIdxMap;
+      int Idx = RetreatingTargets.size() - 1;
+      for (BasicBlockNode *Target : llvm::reverse(RetreatingTargets)) {
+        BasicBlockNode *NewHead = CompleteGraph.addDispatcher(Idx, "entry dispatcher");
+        Meta->insertNode(NewHead);
+        RetreatingIdxMap[Target] = Idx;
+        Idx--;
+        addEdge(EdgeDescriptor(NewHead, Target));
+        addEdge(EdgeDescriptor(NewHead, Head));
+        Head = NewHead;
+      }
+      revng_assert(Idx == -1);
+
+      for (EdgeDescriptor Retreating : Retreatings) {
+        Idx = RetreatingIdxMap[Retreating.second];
+        BasicBlockNode *IdxSetNode = CompleteGraph.addSetStateNode(Idx);
+        Meta->insertNode(IdxSetNode);
+        addEdge(EdgeDescriptor(Retreating.first, IdxSetNode));
+        addEdge(EdgeDescriptor(IdxSetNode, Head));
+        removeEdge(EdgeDescriptor(Retreating.first, Retreating.second));
+      }
 
       // Move the incoming edge from the old head to new one.
       for (BasicBlockNode *Predecessor : FirstCandidate->predecessors()) {
@@ -627,29 +651,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
         }
       }
 
-      // Build the tree dispatcher structure.
-      BasicBlockNode *Dummy = Head;
-      std::map<BasicBlockNode *, int> RetreatingIdxMap;
-      int Idx = 0;
-      for (BasicBlockNode *Target : RetreatingTargets) {
-        BasicBlockNode *NewDummy = CompleteGraph.addDummyNode("entry dummy dispatcher "
-                                                      "idx " + to_string(Idx));
-        Meta->insertNode(NewDummy);
-        RetreatingIdxMap[Target] = Idx;
-        Idx++;
-        addEdge(EdgeDescriptor(Dummy, Target));
-        addEdge(EdgeDescriptor(Dummy, NewDummy));
-        Dummy = NewDummy;
-      }
-      for (EdgeDescriptor Retreating : Retreatings) {
-        Idx = RetreatingIdxMap[Retreating.second];
-        string NodeName = "entry idx set " + std::to_string(Idx);
-        BasicBlockNode *IdxSetNode = CompleteGraph.addDummyNode(NodeName);
-        Meta->insertNode(IdxSetNode);
-        addEdge(EdgeDescriptor(Retreating.first, IdxSetNode));
-        addEdge(EdgeDescriptor(IdxSetNode, Head));
-        removeEdge(EdgeDescriptor(Retreating.first, Retreating.second));
-      }
     } else {
       Head = FirstCandidate;
     }
@@ -771,28 +772,29 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
 
     if (NewExitNeeded) {
-      Exit = CompleteGraph.addDummyNode("exit dispatcher");
+      revng_assert(Successors.size() > 1);
+      Exit = CompleteGraph.addDummyUnreachable();
       ExitDispatcherNodes.push_back(Exit);
-      std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
 
       // Build the tree dispatcher structure.
       BasicBlockNode *Dummy = Exit;
       std::map<BasicBlockNode *, int> SuccessorsIdxMap;
-      int Idx = 0;
-      for (BasicBlockNode *Target : Successors) {
-        BasicBlockNode *NewDummy = CompleteGraph.addDummyNode("exit dummy dispatcher "
-                                                      + to_string(Idx));
-        ExitDispatcherNodes.push_back(NewDummy);
+      int Idx = Successors.size() - 1;
+      for (BasicBlockNode *Target : llvm::reverse(Successors)) {
+        BasicBlockNode *NewExit = CompleteGraph.addDispatcher(Idx, "exit dispatcher");
+        ExitDispatcherNodes.push_back(NewExit);
         SuccessorsIdxMap[Target] = Idx;
-        Idx++;
-        addEdge(EdgeDescriptor(Dummy, Target));
-        addEdge(EdgeDescriptor(Dummy, NewDummy));
-        Dummy = NewDummy;
+        Idx--;
+        addEdge(EdgeDescriptor(NewExit, Target));
+        addEdge(EdgeDescriptor(NewExit, Exit));
+        Exit = NewExit;
       }
+      revng_assert(Idx == -1);
+
+      std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
       for (EdgeDescriptor Edge : OutEdges) {
         Idx = SuccessorsIdxMap[Edge.second];
-        string NodeName = "exit idx " + std::to_string(Idx);
-        BasicBlockNode *IdxSetNode = CompleteGraph.addDummyNode(NodeName);
+        BasicBlockNode *IdxSetNode = CompleteGraph.addSetStateNode(Idx);
         Meta->insertNode(IdxSetNode);
         addEdge(EdgeDescriptor(Edge.first, IdxSetNode));
         addEdge(EdgeDescriptor(IdxSetNode, Edge.second));

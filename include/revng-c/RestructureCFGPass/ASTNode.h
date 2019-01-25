@@ -78,7 +78,7 @@ public:
     // have a corresponding CFGNode (e.g., a sequence node), assume that this
     // property is not verified
     if (CFGNode != nullptr) {
-      return CFGNode->isDummy();
+      return CFGNode->isEmptyDummy();
     } else {
       return false;
     }

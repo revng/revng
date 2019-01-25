@@ -33,6 +33,12 @@ public:
     Unreachable,
   };
 
+  enum class StateVariableOp {
+    None,
+    Set,
+    Compare,
+  };
+
   using links_container = llvm::SmallVector<BasicBlockNode *, 2>;
   using links_iterator = typename links_container::iterator;
   using links_const_iterator = typename links_container::const_iterator;
@@ -59,8 +65,13 @@ protected:
   /// Flag to identify the exit type of a block
   ExitTypeT ExitType;
 
+  /// Flag to identify the exit type of a block
+  StateVariableOp Op;
+
   /// Name of the basic block.
   std::string Name;
+
+  unsigned StateVariableValue;
 
   /// List of successors
   links_container Successors;
@@ -71,8 +82,10 @@ protected:
   explicit BasicBlockNode(RegionCFG *Parent,
                           llvm::BasicBlock * BB,
                           RegionCFG *Collapsed,
+                          const std::string &Name,
                           ExitTypeT E,
-                          const std::string &Name);
+                          StateVariableOp Op,
+                          unsigned Value = 0);
 
 public:
 
@@ -86,8 +99,10 @@ public:
     BasicBlockNode(BBN.Parent,
                    BBN.BB,
                    BBN.CollapsedRegion,
+                   BBN.Name,
                    BBN.ExitType,
-                   BBN.Name) {}
+                   BBN.Op,
+                   BBN.StateVariableValue) {}
 
   /// \brief Constructor for nodes pointing to LLVM IR BasicBlock
   explicit BasicBlockNode(RegionCFG *Parent,
@@ -97,8 +112,9 @@ public:
     BasicBlockNode(Parent,
                   BB,
                   nullptr,
+                  Name.size() ? Name : std::string(BB->getName()),
                   E,
-                  Name.size() ? Name : std::string(BB->getName())) {}
+                  StateVariableOp::None) {}
 
   /// \brief Constructor for nodes representing collapsed subgraphs
   explicit BasicBlockNode(RegionCFG *Parent,
@@ -107,18 +123,33 @@ public:
     BasicBlockNode(Parent,
                    nullptr,
                    Collapsed,
+                   Name,
                    ExitTypeT::None,
-                   Name) {}
+                   StateVariableOp::None) {}
 
-  /// \brief Constructor for dummy nodes (not BasicBlock nodes nor collapsed)
+  /// \brief Constructor for empty dummy nodes
   explicit BasicBlockNode(RegionCFG *Parent,
                           const std::string &Name = "",
                           ExitTypeT E = ExitTypeT::None) :
     BasicBlockNode(Parent,
                    nullptr,
                    nullptr,
+                   Name,
                    E,
-                   Name) {}
+                   StateVariableOp::None) {}
+
+  /// \brief Constructor for dummy nodes that handle the state variable
+  explicit BasicBlockNode(RegionCFG *Parent,
+                          StateVariableOp O,
+                          unsigned Value,
+                          const std::string &Name = "") :
+    BasicBlockNode(Parent,
+                   nullptr,
+                   nullptr,
+                   Name,
+                   ExitTypeT::None,
+                   O,
+                   Value) {}
 
 public:
   bool isExit() const { return ExitType != ExitTypeT::None; }
@@ -140,6 +171,9 @@ public:
   void setParent(RegionCFG *P) { Parent = P; }
 
   bool isDummy() const { return CollapsedRegion == nullptr and BB == nullptr; }
+  bool isEmptyDummy() const {
+    return isDummy() and Op == StateVariableOp::None;
+  }
 
   void removeNode();
 

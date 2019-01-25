@@ -569,7 +569,7 @@ void RegionCFG::purgeDummies() {
     AnotherIteration = false;
 
     for (auto It = Graph.begin(); It != Graph.end(); It++) {
-      if (((*It)->isDummy())
+      if (((*It)->isEmptyDummy())
           and ((*It)->predecessor_size() == 1)
           and ((*It)->successor_size() == 1)) {
 
@@ -603,7 +603,7 @@ void RegionCFG::purgeVirtualSink(BasicBlockNode *Sink) {
     BasicBlockNode *CurrentNode = WorkList.back();
     WorkList.pop_back();
 
-    if (CurrentNode->isDummy()) {
+    if (CurrentNode->isEmptyDummy()) {
       PurgeList.push_back(CurrentNode);
 
       for (BasicBlockNode *Predecessor : CurrentNode->predecessors()) {
@@ -836,12 +836,12 @@ void RegionCFG::inflate() {
   purgeDummies();
   purgeVirtualSink(Sink);
 
-  if (CombLogger.isEnabled()) {
+  //if (CombLogger.isEnabled()) {
     CombLogger << "Graph after combing is:\n";
     Graph.dumpDotOnFile("inflates",
                         FunctionName,
                         "Region-" + RegionName + "-after-combing");
-  }
+  //}
 }
 
 ASTNode *RegionCFG::generateAst() {

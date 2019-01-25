@@ -20,14 +20,18 @@ using namespace llvm;
 BasicBlockNode::BasicBlockNode(RegionCFG *Parent,
                                llvm::BasicBlock * BB,
                                RegionCFG *Collapsed,
+                               const std::string &Name,
                                ExitTypeT E,
-                               const std::string &Name) :
+                               StateVariableOp O,
+                               unsigned Value) :
     ID(Parent->getNewID()),
     Parent(Parent),
     BB(BB),
     CollapsedRegion(Collapsed),
     ExitType(E),
-    Name(Name) {
+    Op(O),
+    Name(Name),
+    StateVariableValue(Value) {
 }
 
 void BasicBlockNode::removeNode() {
