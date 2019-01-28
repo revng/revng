@@ -2,6 +2,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#ifndef REVNGC_ENFORCECFGCOMBINGPASS_H
+#define REVNGC_ENFORCECFGCOMBINGPASS_H
+
 // LLVM includes
 #include <llvm/Pass.h>
 
@@ -20,3 +23,5 @@ struct EnforceCFGCombingPass : public llvm::FunctionPass {
   }
 
 };
+
+#endif // REVNGC_ENFORCECFGCOMBINGPASS_H

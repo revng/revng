@@ -2,8 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#ifndef REVNG_BASIC_BLOCK_VIEW_ANALYSIS_H
-#define REVNG_BASIC_BLOCK_VIEW_ANALYSIS_H
+#ifndef REVNGC_BASICBLOCKVIEWANALYSIS_H
+#define REVNGC_BASICBLOCKVIEWANALYSIS_H
 
 // LLVM includes
 #include <llvm/IR/Function.h>
@@ -186,4 +186,4 @@ public:
 
 } // end namespace BasicBlockViewAnalysis
 
-#endif // REVNG_BASIC_BLOCK_VIEW_ANALYSIS_H
+#endif // REVNGC_BASICBLOCKVIEWANALYSIS_H

@@ -1,5 +1,5 @@
-#ifndef REMOVEPCSTORESPASS_H
-#define REMOVEPCSTORESPASS_H
+#ifndef REVNGC_REMOVE_PC_STORES_REMOVEPCSTORES_H
+#define REVNGC_REMOVE_PC_STORES_REMOVEPCSTORES_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -26,4 +26,4 @@ public:
 
 };
 
-#endif // REMOVEPCSTORESPASS_H
+#endif // REVNGC_REMOVE_PC_STORES_REMOVEPCSTORES_H
