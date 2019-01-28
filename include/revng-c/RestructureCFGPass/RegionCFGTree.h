@@ -9,6 +9,10 @@
 #include <cstdlib>
 #include <set>
 
+// LLVM includes
+#include "llvm/IR/Dominators.h"
+#include "llvm/Support/GenericDomTreeConstruction.h"
+
 // Local libraries includes
 #include "revng/Support/Transform.h"
 
@@ -44,6 +48,9 @@ private:
   unsigned IDCounter = 0;
   std::string FunctionName;
   std::string RegionName;
+  bool ToInflate = true;
+  llvm::DominatorTreeBase<BasicBlockNode, false> DT;
+  llvm::DominatorTreeBase<BasicBlockNode, true> PDT;
 
 public:
   RegionCFG() = default;
@@ -164,6 +171,8 @@ public:
   BasicBlockNode &get(llvm::BasicBlock *BB);
 
   BasicBlockNode &getEntryNode() { return *EntryNode; }
+
+  BasicBlockNode &front() { return *EntryNode; }
 
   std::vector<std::unique_ptr<BasicBlockNode>> &getNodes() {
     return BlockNodes;

@@ -18,6 +18,7 @@
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
+#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 
@@ -621,11 +622,6 @@ std::vector<BasicBlockNode *> RegionCFG::getInterestingNodes(BasicBlockNode *Con
 
   RegionCFG &Graph = *this;
 
-  llvm::DominatorTreeBase<BasicBlockNode, false> DT;
-  DT.recalculate(Graph);
-  llvm::DominatorTreeBase<BasicBlockNode, true> PDT;
-  PDT.recalculate(Graph);
-
   // Retrieve the immediate postdominator.
   llvm::DomTreeNodeBase<BasicBlockNode> *PostBase = PDT[Cond]->getIDom();
   BasicBlockNode *PostDominator = PostBase->getBlock();
@@ -651,13 +647,6 @@ void RegionCFG::inflate() {
   // Apply the comb to a RegionCFG object.
   // TODO: handle all the collapsed regions.
   RegionCFG &Graph = *this;
-
-  // Refresh information of dominator and postdominator trees.
-  llvm::DominatorTreeBase<BasicBlockNode, false> DT;
-  DT.recalculate(Graph);
-
-  llvm::DominatorTreeBase<BasicBlockNode, true> PDT;
-  PDT.recalculate(Graph);
 
   // Collect entry and exit nodes.
   BasicBlockNode *EntryNode = &Graph.getEntryNode();
@@ -710,6 +699,10 @@ void RegionCFG::inflate() {
     }
   }
 
+  // Refresh information of dominator and postdominator trees.
+  DT.recalculate(Graph);
+  PDT.recalculate(Graph);
+
   while (!ConditionalNodes.empty()) {
 
     // Process each conditional node after ordering it.
@@ -726,10 +719,6 @@ void RegionCFG::inflate() {
                         + Conditional->getNameStr() + "-begin");
     CombLogger.emit();
 
-    // Update information of dominator and postdominator trees.
-    DT.recalculate(Graph);
-    PDT.recalculate(Graph);
-
     // Get all the nodes reachable from the current conditional node (stopping
     // at the immediate postdominator) and that we want to duplicate/split.
     std::vector<BasicBlockNode *> NotDominatedCandidates;
@@ -739,7 +728,6 @@ void RegionCFG::inflate() {
       if (CombLogger.isEnabled()) {
         CombLogger << "Analyzing candidate nodes\n ";
       }
-      DT.recalculate(Graph);
       BasicBlockNode *Candidate = NotDominatedCandidates.back();
       NotDominatedCandidates.pop_back();
       if (CombLogger.isEnabled()) {
@@ -787,14 +775,30 @@ void RegionCFG::inflate() {
           if (DT.dominates(Conditional, Predecessor)) {
             moveEdgeTarget(EdgeDescriptor(Predecessor, Candidate),
                            Dummies[Left]);
+
+            // Inform the dominator and postdominator tree about the update
+            DT.insertEdge(Predecessor, Dummies[Left]);
+            PDT.insertEdge(Predecessor, Dummies[Left]);
+            DT.deleteEdge(Predecessor, Candidate);
+            PDT.deleteEdge(Predecessor, Candidate);
           } else {
             moveEdgeTarget(EdgeDescriptor(Predecessor, Candidate),
                            Dummies[Right]);
+
+            // Inform the dominator and postdominator tree about the update
+            DT.insertEdge(Predecessor, Dummies[Right]);
+            PDT.insertEdge(Predecessor, Dummies[Right]);
+            DT.deleteEdge(Predecessor, Candidate);
+            PDT.deleteEdge(Predecessor, Candidate);
           }
         }
 
         for (Side S : Sides) {
           addEdge(EdgeDescriptor(Dummies[S], Candidate));
+
+          // Inform the dominator and postdominator tree about the update
+          DT.insertEdge(Dummies[S], Candidate);
+          PDT.insertEdge(Dummies[S], Candidate);
         }
 
         NotDominatedCandidates = getInterestingNodes(Conditional);
@@ -811,6 +815,10 @@ void RegionCFG::inflate() {
 
         for (BasicBlockNode *Successor : Candidate->successors()) {
           addEdge(EdgeDescriptor(Duplicated, Successor));
+
+          // Inform the dominator and postdominator tree about the update
+          DT.insertEdge(Duplicated, Successor);
+          PDT.insertEdge(Duplicated, Successor);
         }
 
         std::vector<BasicBlockNode *> Predecessors;
@@ -823,6 +831,12 @@ void RegionCFG::inflate() {
           if (!DT.dominates(Conditional, Predecessor)) {
             moveEdgeTarget(EdgeDescriptor(Predecessor, Candidate),
                            Duplicated);
+
+            // Inform the dominator and postdominator tree about the update
+            DT.insertEdge(Predecessor, Duplicated);
+            PDT.insertEdge(Predecessor, Duplicated);
+            DT.deleteEdge(Predecessor, Candidate);
+            PDT.deleteEdge(Predecessor, Candidate);
           }
         }
       }
@@ -853,16 +867,16 @@ ASTNode *RegionCFG::generateAst() {
   Graph.inflate();
 
   // TODO: factorize out the AST generation phase.
-  llvm::DominatorTreeBase<BasicBlockNode, false> DT;
-  DT.recalculate(Graph);
+  llvm::DominatorTreeBase<BasicBlockNode, false> ASTDT;
+  ASTDT.recalculate(Graph);
 #if 0
   llvm::raw_os_ostream Stream(dbg);
 #endif
-  DT.updateDFSNumbers();
+  ASTDT.updateDFSNumbers();
 #if 0
-  DT.print(Stream);
+  ASTDT.print(Stream);
   Stream.flush();
-  DT.print(CombLogger);
+  ASTDT.print(CombLogger);
 #endif
 
   CombLogger.emit();
@@ -871,7 +885,7 @@ ASTNode *RegionCFG::generateAst() {
 
   // Compute the ideal order of visit for creating AST nodes.
   for (BasicBlockNode *Node : Graph.nodes()) {
-    DFSNodeMap[DT[Node]->getDFSNumOut()] = Node;
+    DFSNodeMap[ASTDT[Node]->getDFSNumOut()] = Node;
   }
 
   // Visiting order of the dominator tree.
@@ -886,7 +900,7 @@ ASTNode *RegionCFG::generateAst() {
 
     // Collect the children nodes in the dominator tree.
     std::vector<llvm::DomTreeNodeBase<BasicBlockNode> *> Children =
-      DT[Node]->getChildren();
+      ASTDT[Node]->getChildren();
 
     std::vector<ASTNode *> ASTChildren;
     for (llvm::DomTreeNodeBase<BasicBlockNode> *TreeNode : Children) {
@@ -947,7 +961,7 @@ ASTNode *RegionCFG::generateAst() {
   }
 
   // Serialize the graph starting from the root node.
-  BasicBlockNode *Root = DT.getRootNode()->getBlock();
+  BasicBlockNode *Root = ASTDT.getRootNode()->getBlock();
   ASTNode *RootNode = AST.findASTNode(Root);
 
   CombLogger << "Serializing first AST draft:\n";

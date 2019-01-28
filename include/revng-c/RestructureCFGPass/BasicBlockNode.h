@@ -167,7 +167,7 @@ public:
   bool isUnreachable() const { return ExitType == ExitTypeT::Unreachable; }
   void setUnreachable() { ExitType = ExitTypeT::Unreachable; }
 
-  RegionCFG *getParent();
+  RegionCFG *getParent() { return Parent; }
   void setParent(RegionCFG *P) { Parent = P; }
 
   bool isDummy() const { return CollapsedRegion == nullptr and BB == nullptr; }
