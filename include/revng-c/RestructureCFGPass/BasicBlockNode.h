@@ -95,8 +95,8 @@ public:
   BasicBlockNode &operator=(BasicBlockNode &&BBN) = delete;
 
   /// Copy ctor: clone the node in the same Parent with new ID and without edges
-  explicit BasicBlockNode(const BasicBlockNode &BBN) :
-    BasicBlockNode(BBN.Parent,
+  explicit BasicBlockNode(const BasicBlockNode &BBN, RegionCFG *Parent) :
+    BasicBlockNode(Parent,
                    BBN.BB,
                    BBN.CollapsedRegion,
                    BBN.Name,
@@ -172,7 +172,7 @@ public:
 
   bool isDummy() const { return CollapsedRegion == nullptr and BB == nullptr; }
   bool isEmptyDummy() const {
-    return isDummy() and Op == StateVariableOp::None;
+    return isDummy() and not isExit() and Op == StateVariableOp::None;
   }
 
   void removeNode();

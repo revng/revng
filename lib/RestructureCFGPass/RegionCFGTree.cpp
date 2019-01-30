@@ -405,7 +405,7 @@ void RegionCFG::addNode(llvm::BasicBlock *BB) {
 }
 
 BasicBlockNode *RegionCFG::cloneNode(const BasicBlockNode &OriginalNode) {
-  BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(OriginalNode));
+  BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(OriginalNode, this));
   BasicBlockNode *New = BlockNodes.back().get();
   New->setName(std::string(OriginalNode.getName()) + " cloned");
   return New;
@@ -431,27 +431,30 @@ void RegionCFG::removeNode(BasicBlockNode *Node) {
   }
 }
 
+static void copyNeighbors(BasicBlockNode *Dst, BasicBlockNode *Src) {
+  for (BasicBlockNode *Succ : Src->successors())
+    Dst->addSuccessor(Succ);
+  for (BasicBlockNode *Pred : Src->predecessors())
+    Dst->addPredecessor(Pred);
+}
+
 void
 RegionCFG::insertBulkNodes(std::set<BasicBlockNode *> &Nodes,
                            BasicBlockNode *Head,
                            RegionCFG::BBNodeMap &SubstitutionMap) {
-  BlockNodes.clear();
+  revng_assert(BlockNodes.empty());
 
   for (BasicBlockNode *Node : Nodes) {
-    BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(*Node));
+    BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(*Node, this));
     BasicBlockNode *New = BlockNodes.back().get();
+    SubstitutionMap[Node] = New;
     // The copy constructor used above does not bring along the successors and
     // the predecessors, neither adjusts the parent.
     // The following lines are a hack to fix this problem, but they momentarily
     // build a broken data structure where the predecessors and the successors
     // of the New BasicBlockNodes in *this still refer to the BasicBlockNodes in
     // the Parent CFGRegion of Nodes. This will be fixed later by updatePointers
-    New->setParent(this);
-    for (BasicBlockNode *Succ : Node->successors())
-      New->addSuccessor(Succ);
-    for (BasicBlockNode *Pred : Node->predecessors())
-      New->addPredecessor(Pred);
-    SubstitutionMap[Node] = New;
+    copyNeighbors(New, Node);
   }
 
   revng_assert(Head != nullptr);
@@ -460,6 +463,26 @@ RegionCFG::insertBulkNodes(std::set<BasicBlockNode *> &Nodes,
   // Fix the hack above
   for (std::unique_ptr<BasicBlockNode> &Node : BlockNodes)
     Node->updatePointers(SubstitutionMap);
+}
+
+llvm::iterator_range<RegionCFG::links_container::iterator>
+RegionCFG::copyNodesAndEdgesFrom(RegionCFG *O, BBNodeMap &SubstitutionMap) {
+  size_t NumCurrNodes = size();
+
+  for (BasicBlockNode *Node : *O) {
+    BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(*Node, this));
+    BasicBlockNode *New = BlockNodes.back().get();
+    SubstitutionMap[Node] = New;
+    copyNeighbors(New, Node);
+  }
+
+  links_container::iterator BeginInserted = BlockNodes.begin() + NumCurrNodes;
+  links_container::iterator EndInserted = BlockNodes.end();
+  using MovedIteratorRange = llvm::iterator_range<links_container::iterator>;
+  MovedIteratorRange Result = llvm::make_range(BeginInserted, EndInserted);
+  for (std::unique_ptr<BasicBlockNode> &NewNode : Result)
+    NewNode->updatePointers(SubstitutionMap);
+  return Result;
 }
 
 void

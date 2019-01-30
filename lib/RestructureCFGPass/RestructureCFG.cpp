@@ -937,7 +937,12 @@ bool RestructureCFG::runOnFunction(Function &F) {
   if (Done)
     return false;
 
-  flattenRegionCFGTree(CompleteGraph, Regions);
+  if (CombLogger.isEnabled()) {
+    CombLogger << "Dumping main graph after Flattening\n";
+    CompleteGraph.dumpDotOnFile("dots", F.getName(), "final-before-flattening");
+  }
+
+  flattenRegionCFGTree(CompleteGraph);
 
   // Serialize the newly collapsed SCS region.
   if (CombLogger.isEnabled()) {

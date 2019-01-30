@@ -7,12 +7,9 @@
 #ifndef REVNGC_RESTRUCTURE_CFG_FLATTENING_H
 #define REVNGC_RESTRUCTURE_CFG_FLATTENING_H
 
-// std includes
-#include <vector>
+// forward declarations
+class RegionCFG;
 
-// local includes
-#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
-
-void flattenRegionCFGTree(RegionCFG &Root, std::vector<RegionCFG> &Regions);
+void flattenRegionCFGTree(RegionCFG &Root);
 
 #endif // REVNGC_RESTRUCTURE_CFG_FLATTENING_H

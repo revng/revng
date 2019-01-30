@@ -115,12 +115,12 @@ public:
   }
 
   BasicBlockNode *addDispatcher(unsigned StateVariableValue,
-                                 const std::string &Name = "dispatcher") {
+                                const std::string &Name = "dispatcher") {
     using Op = BasicBlockNode::StateVariableOp;
     using BBNode = BasicBlockNode;
     BlockNodes.emplace_back(std::make_unique<BBNode>(this, Op::Compare,
                                                      StateVariableValue,
-						     Name));
+                                                     Name));
     return BlockNodes.back().get();
   }
 
@@ -131,7 +131,7 @@ public:
     std::string IdStr = std::to_string(StateVariableValue);
     BlockNodes.emplace_back(std::make_unique<BBNode>(this, Op::Set,
                                                      StateVariableValue,
-						     Name + IdStr));
+                                                     Name + IdStr));
     return BlockNodes.back().get();
   }
 
@@ -143,23 +143,8 @@ public:
                        BasicBlockNode *Head,
                        BBNodeMap &SubstitutionMap);
 
-  llvm::iterator_range<links_container::iterator> moveNodesFrom(RegionCFG &O) {
-    size_t NumCurrNodes = size();
-    size_t NumNodesToInsert = O.size();
-    size_t NewNumNodes = NumCurrNodes + NumNodesToInsert;
-    revng_assert(NewNumNodes > NumCurrNodes);
-
-    // reserve space so iterators are guaranteed not to be invalidated from now
-    // until the end of this function
-    BlockNodes.reserve(NewNumNodes);
-
-    links_container::iterator BeginInserted = BlockNodes.end();
-    std::move(O.BlockNodes.begin(),
-              O.BlockNodes.end(),
-              std::back_inserter(BlockNodes));
-    links_container::iterator EndInserted = BlockNodes.end();
-    return llvm::make_range(BeginInserted, EndInserted);
-  }
+  llvm::iterator_range<links_container::iterator>
+  copyNodesAndEdgesFrom(RegionCFG *O, BBNodeMap &SubstitutionMap);
 
   void connectBreakNode(std::set<std::pair<BasicBlockNode *,
                                            BasicBlockNode *>> &Outgoing,
