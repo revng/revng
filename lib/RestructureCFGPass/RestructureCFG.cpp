@@ -334,8 +334,19 @@ static RegisterPass<RestructureCFG> X("restructureCFG",
 
 bool RestructureCFG::runOnFunction(Function &F) {
 
+  #if 0
   // Analyze only isolated functions.
   if (!F.getName().startswith("bb.")) {
+    return false;
+  }
+  #endif
+
+  // Analyze only isolated functions.
+  if (!F.getName().startswith("bb.")
+      or F.getName().startswith("bb.quotearg_buffer_restyled")
+      or F.getName().startswith("bb._getopt_internal_r")
+      or F.getName().startswith("bb.printf_parse")
+      or F.getName().startswith("bb.vasnprintf")) {
     return false;
   }
 
