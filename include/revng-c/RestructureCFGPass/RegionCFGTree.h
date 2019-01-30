@@ -186,7 +186,7 @@ public:
 
   void inflate();
 
-  ASTNode *generateAst();
+  void generateAst();
 
   // Get reference to the AST object which is inside the RegionCFG object
   ASTTree &getAST();

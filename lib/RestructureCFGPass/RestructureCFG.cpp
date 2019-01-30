@@ -933,10 +933,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Invoke the AST generation for the root region.
   CombLogger.emit();
-  ASTNode *RootNode = CompleteGraph.generateAst();
+  CompleteGraph.generateAst();
 
   // Serialize final AST on file
-  dumpASTOnFile("ast", F.getName(), "Final", RootNode);
+  CompleteGraph.getAST().dumpOnFile("ast", F.getName(), "Final");
 
   // Sync Logger.
   CombLogger.emit();

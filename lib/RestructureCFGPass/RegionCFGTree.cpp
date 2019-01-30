@@ -881,7 +881,7 @@ void RegionCFG::inflate() {
   //}
 }
 
-ASTNode *RegionCFG::generateAst() {
+void RegionCFG::generateAst() {
 
   RegionCFG &Graph = *this;
 
@@ -944,7 +944,8 @@ ASTNode *RegionCFG::generateAst() {
         CombLogger << "Inspecting collapsed node: " << Node->getNameStr()
                    << "\n";
         CombLogger.emit();
-        ASTNode *Body = BodyGraph->generateAst();
+        BodyGraph->generateAst();
+        ASTNode *Body = BodyGraph->getAST().getRoot();
         std::unique_ptr<ASTNode> ASTObject(new ScsNode(Node,
                                                        Body,
                                                        ASTChildren[0]));
@@ -954,7 +955,8 @@ ASTNode *RegionCFG::generateAst() {
         CombLogger << "Inspecting collapsed node: " << Node->getNameStr()
                    << "\n";
         CombLogger.emit();
-        ASTNode *Body = BodyGraph->generateAst();
+        BodyGraph->generateAst();
+        ASTNode *Body = BodyGraph->getAST().getRoot();
         std::unique_ptr<ASTNode> ASTObject(new ScsNode(Node, Body));
         AST.addASTNode(Node, std::move(ASTObject));
       }
@@ -983,37 +985,44 @@ ASTNode *RegionCFG::generateAst() {
     }
   }
 
-  // Serialize the graph starting from the root node.
+  // Set in the ASTTree object the root node.
   BasicBlockNode *Root = ASTDT.getRootNode()->getBlock();
   ASTNode *RootNode = AST.findASTNode(Root);
 
+  // Serialize the graph starting from the root node.
   CombLogger << "Serializing first AST draft:\n";
-  dumpASTOnFile("ast", FunctionName, "First-draft", RootNode);
+  AST.setRoot(RootNode);
+  AST.dumpOnFile("ast", FunctionName, "First-draft");
 
   // Create sequence nodes.
   CombLogger << "Performing sequence insertion:\n";
   RootNode = createSequence(AST, RootNode);
-  dumpASTOnFile("ast", FunctionName, "After-sequence", RootNode);
+  AST.setRoot(RootNode);
+  AST.dumpOnFile("ast", FunctionName, "After-sequence");
 
   // Simplify useless sequence nodes.
   CombLogger << "Performing useless dummies simplification:\n";
   simplifyDummies(RootNode);
-  dumpASTOnFile("ast", FunctionName, "After-dummies-removal", RootNode);
+  AST.setRoot(RootNode);
+  AST.dumpOnFile("ast", FunctionName, "After-dummies-removal");
 
   // Simplify useless sequence nodes.
   CombLogger << "Performing useless sequence simplification:\n";
   RootNode = simplifyAtomicSequence(RootNode);
-  dumpASTOnFile("ast", FunctionName, "After-sequence-simplification", RootNode);
+  AST.setRoot(RootNode);
+  AST.dumpOnFile("ast", FunctionName, "After-sequence-simplification");
 
   // Flip IFs with empty then branches.
   CombLogger << "Performing IFs with empty then branches flipping\n";
   flipEmptyThen(RootNode);
-  dumpASTOnFile("ast", FunctionName, "After-if-flip", RootNode);
+  AST.setRoot(RootNode);
+  AST.dumpOnFile("ast", FunctionName, "After-if-flip");
 
   // Simplify short-circuit nodes.
   CombLogger << "Performing short-circuit simplification\n";
   simplifyShortCircuit(RootNode);
-  dumpASTOnFile("ast", FunctionName, "After-short-circuit", RootNode);
+  AST.setRoot(RootNode);
+  AST.dumpOnFile("ast", FunctionName, "After-short-circuit");
 
   // Remove danling nodes (possibly created by the de-optimization pass, after
   // disconnecting the first CFG node corresponding to the simplified AST node),
@@ -1027,9 +1036,11 @@ ASTNode *RegionCFG::generateAst() {
   // Simplify trivial short-circuit nodes.
   CombLogger << "Performing trivial short-circuit simplification\n";
   simplifyTrivialShortCircuit(RootNode);
-  dumpASTOnFile("ast", FunctionName, "After-trivial-short-circuit", RootNode);
+  AST.setRoot(RootNode);
+  AST.dumpOnFile("ast", FunctionName, "After-trivial-short-circuit");
 
-  return RootNode;
+  // Set the entry
+  AST.setRoot(RootNode);
 }
 
 // Get reference to the AST object which is inside the RegionCFG object

@@ -28,6 +28,7 @@ public:
 private:
   std::map<BasicBlockNode *, std::unique_ptr<ASTNode>> NodeASTMap;
   links_container ASTNodeList;
+  ASTNode *RootNode;
 
 public:
 
@@ -44,6 +45,14 @@ public:
   void addASTNode(BasicBlockNode *Node, std::unique_ptr<ASTNode>&& ASTObject);
 
   ASTNode *findASTNode(BasicBlockNode *BlockNode);
+
+  void setRoot(ASTNode *Root);
+
+  ASTNode *getRoot();
+
+  void dumpOnFile(std::string FolderName,
+                  std::string FunctionName,
+                  std::string FileName);
 
 };
 

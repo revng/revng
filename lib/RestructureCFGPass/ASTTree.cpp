@@ -20,7 +20,6 @@ static std::string getID() {
   return std::to_string(Counter++);
 }
 
-
 SequenceNode *ASTTree::addSequenceNode() {
   ASTNodeList.emplace_back(new SequenceNode("sequence " + getID()));
   return llvm::cast<SequenceNode>(ASTNodeList.back().get());
@@ -36,6 +35,29 @@ void ASTTree::addASTNode(BasicBlockNode *Node,
 ASTNode *ASTTree::findASTNode(BasicBlockNode *BlockNode) {
   ASTNode *ASTPointer = ((NodeASTMap.find(BlockNode))->second).get();
   return ASTPointer;
+}
+
+void ASTTree::setRoot(ASTNode *Root) {
+  RootNode = Root;
+}
+
+ASTNode *ASTTree::getRoot() {
+  return RootNode;
+}
+
+void ASTTree::dumpOnFile(std::string FolderName,
+                         std::string FunctionName,
+                         std::string FileName) {
+
+  std::ofstream ASTFile;
+  std::string PathName = FolderName + "/" + FunctionName;
+  mkdir(FolderName.c_str(), 0775);
+  mkdir(PathName.c_str(), 0775);
+  ASTFile.open(PathName + "/" + FileName + ".dot");
+  ASTFile << "digraph CFGFunction {\n";
+  RootNode->dump(ASTFile);
+  ASTFile << "}\n";
+  ASTFile.close();
 }
 
 // Helper function that visit an AST tree and creates the sequence nodes
