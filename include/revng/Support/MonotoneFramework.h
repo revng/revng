@@ -533,8 +533,8 @@ public:
         Successors = &SuccessorsMap[ToAnalyze];
 
       if (Result.isPartOfFinalResults()) {
-        // The current label is a final state
-        revng_assert(SuccessorsCount == 0);
+        // The current label is a final state (but not necessarily a return or
+        // without successors)
 
         // If so, accumulate the result in FinalResult (or in FinalStates in
         // case of dynamic graph)
@@ -550,64 +550,63 @@ public:
         FirstFinalResult = false;
 
         dumpFinalState();
+      }
 
-      } else {
-        // The current label is NOT a final state
+      // The current label is NOT a final state
 
-        // Used only if DynamicGraph
-        SmallVector<Label, 2> NewSuccessors;
+      // Used only if DynamicGraph
+      SmallVector<Label, 2> NewSuccessors;
 
-        // If it has successors, check if we have to re-enqueue them
-        for (Label Successor : successors(ToAnalyze, Result)) {
+      // If it has successors, check if we have to re-enqueue them
+      for (Label Successor : successors(ToAnalyze, Result)) {
 
-          Optional<LatticeElement> NewElement = handleEdge(NewLatticeElement,
-                                                           ToAnalyze,
-                                                           Successor);
-          bool GotNewElement = NewElement.hasValue();
-          LatticeElement &ActualElement = GotNewElement ? *NewElement :
-                                                          NewLatticeElement;
+        Optional<LatticeElement> NewElement = handleEdge(NewLatticeElement,
+                                                         ToAnalyze,
+                                                         Successor);
+        bool GotNewElement = NewElement.hasValue();
+        LatticeElement &ActualElement = GotNewElement ? *NewElement :
+                                                        NewLatticeElement;
 
-          if (DynamicGraph)
-            NewSuccessors.push_back(Successor);
+        if (DynamicGraph)
+          NewSuccessors.push_back(Successor);
 
-          auto It = State.find(Successor);
-          if (It == State.end()) {
-            // We have never seen this Label, register it in the analysis state
+        auto It = State.find(Successor);
+        if (It == State.end()) {
+          // We have never seen this Label, register it in the analysis state
 
-            // If this is the only successor or we got a new element we can use
-            // move semantics, otherwise create a copy
-            if (SuccessorsCount == 1 or GotNewElement)
-              insert_or_assign(State, Successor, std::move(ActualElement));
-            else
-              insert_or_assign(State, Successor, ActualElement.copy());
+          // If this is the only successor or we got a new element we can use
+          // move semantics, otherwise create a copy
+          if (SuccessorsCount == 1 or GotNewElement)
+            insert_or_assign(State, Successor, std::move(ActualElement));
+          else
+            insert_or_assign(State, Successor, ActualElement.copy());
 
-            // Enqueue the successor
-            WorkList.insert(Successor);
+          // Enqueue the successor
+          WorkList.insert(Successor);
 
-          } else if (not ActualElement.lowerThanOrEqual(It->second)) {
-            // We have already seen this Label but the result of the transfer
-            // function is larger than its previous initial state
+        } else if (not ActualElement.lowerThanOrEqual(It->second)) {
+          // We have already seen this Label but the result of the transfer
+          // function is larger than its previous initial state
 
-            // Update the state merging ActualElement
-            It->second.combine(ActualElement);
+          // Update the state merging ActualElement
+          It->second.combine(ActualElement);
 
-            // Assert we're now actually lower than or equal
-            assertLowerThanOrEqual(ActualElement, It->second);
+          // Assert we're now actually lower than or equal
+          assertLowerThanOrEqual(ActualElement, It->second);
 
-            // Re-enqueue
-            WorkList.insert(Successor);
-          }
+          // Re-enqueue
+          WorkList.insert(Successor);
         }
+      }
 
-        // In case of dynamic graph, register successors of this label
-        if (DynamicGraph) {
-          // The successors must match, unless the current label has become a
-          // return label
-          if (Successors->size() != 0)
-            revng_assert(NewSuccessors == *Successors);
+      // In case of dynamic graph, register successors of this label
+      if (DynamicGraph) {
+        // The successors must match, unless the current label has become a
+        // return label
+        if (Successors->size() != 0)
+          revng_assert(NewSuccessors == *Successors);
 
-          *Successors = std::move(NewSuccessors);
-        }
+        *Successors = std::move(NewSuccessors);
       }
     }
 
