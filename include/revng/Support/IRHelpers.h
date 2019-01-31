@@ -393,6 +393,16 @@ inline std::string getName(const llvm::Value *V) {
   return SS.str();
 }
 
+inline std::string getName(const llvm::Function *F) {
+  if (F == nullptr)
+    return "(nullptr)";
+
+  if (not F->hasName())
+    return getName(static_cast<const llvm::Value *>(F));
+
+  return F->getName();
+}
+
 template<typename T>
 using rc_t = typename std::remove_const<T>::type;
 template<typename T>
