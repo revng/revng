@@ -277,6 +277,9 @@ public:
     using ID = IteratorDirection<Forward>;
     instruction_iterator It = ID::iterator(I);
 
+    if (not Forward)
+      It--;
+
     struct WorkItem {
       WorkItem(BasicBlock *BB, instruction_iterator Start) :
         BB(BB),
