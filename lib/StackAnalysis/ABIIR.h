@@ -216,15 +216,28 @@ public:
   }
 
   size_t successor_size() const { return Successors.size(); }
+  links_const_iterator successor_begin() const { return Successors.begin(); }
+  links_const_iterator successor_end() const { return Successors.end(); }
   links_const_range successors() const {
     return llvm::make_range(Successors.begin(), Successors.end());
   }
+  links_iterator successor_begin() { return Successors.begin(); }
+  links_iterator successor_end() { return Successors.end(); }
   links_range successors() {
     return llvm::make_range(Successors.begin(), Successors.end());
   }
 
   size_t predecessor_size() const { return Predecessors.size(); }
+  links_const_iterator predecessor_begin() const {
+    return Predecessors.begin();
+  }
+  links_const_iterator predecessor_end() const { return Predecessors.end(); }
   links_const_range predecessors() const {
+    return llvm::make_range(Predecessors.begin(), Predecessors.end());
+  }
+  links_iterator predecessor_begin() { return Predecessors.begin(); }
+  links_iterator predecessor_end() { return Predecessors.end(); }
+  links_range predecessors() {
     return llvm::make_range(Predecessors.begin(), Predecessors.end());
   }
 
@@ -463,6 +476,23 @@ struct GraphTraits<StackAnalysis::ABIIRBasicBlock *> {
 
   static inline ChildIteratorType child_end(StackAnalysis::ABIIRBasicBlock *N) {
     return N->successors().end();
+  }
+};
+
+template<>
+struct GraphTraits<Inverse<StackAnalysis::ABIIRBasicBlock *>> {
+  using NodeRef = StackAnalysis::ABIIRBasicBlock *;
+  using ChildIteratorType = StackAnalysis::ABIIRBasicBlock::links_iterator;
+
+  static NodeRef getEntryNode(StackAnalysis::ABIIRBasicBlock *BB) { return BB; }
+
+  static inline ChildIteratorType
+  child_begin(StackAnalysis::ABIIRBasicBlock *N) {
+    return N->predecessor_begin();
+  }
+
+  static inline ChildIteratorType child_end(StackAnalysis::ABIIRBasicBlock *N) {
+    return N->predecessor_end();
   }
 };
 
