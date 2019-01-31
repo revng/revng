@@ -605,7 +605,14 @@ void RegionCFG::purgeDummies() {
         BasicBlockNode *Successor = (*It)->getSuccessorI(0);
 
         moveEdgeTarget(EdgeDescriptor(Predecessor, (*It)), Successor);
+        DT.insertEdge(Predecessor, Successor);
+        PDT.insertEdge(Predecessor, Successor);
+        DT.deleteEdge(Predecessor, (*It));
+        PDT.deleteEdge(Predecessor, (*It));
+
         removeEdge(EdgeDescriptor((*It), Successor));
+        DT.deleteEdge((*It), Successor);
+
         Graph.removeNode(*It);
         AnotherIteration = true;
         break;
@@ -863,6 +870,9 @@ void RegionCFG::inflate() {
           }
         }
       }
+
+      // Purge extra dummies at each iteration
+      purgeDummies();
 
       // Refresh the info on candidates.
       NotDominatedCandidates = getInterestingNodes(Conditional);
