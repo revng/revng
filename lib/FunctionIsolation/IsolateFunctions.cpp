@@ -430,7 +430,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
 
     case StackAnalysis::BranchType::FakeFunctionReturn:
       Builder.CreateBr(Descriptor.FakeReturnPaths.at(NewBB));
-      break;
+      return false;
 
     case StackAnalysis::BranchType::FakeFunction:
     case StackAnalysis::BranchType::FunctionSummary:
@@ -1080,6 +1080,12 @@ void IFI::run() {
           }
         }
       }
+
+      unsigned Terminators = 0;
+      for (Instruction &I : *NewBB)
+        if (isa<TerminatorInst>(&I))
+          Terminators++;
+      revng_assert(Terminators == 1);
     }
 
     freeContainer(RootToIsolated);
