@@ -91,6 +91,8 @@ public:
   }
 
 public: // map methods
+  const_iterator begin() const { return Map.begin(); }
+  const_iterator end() const { return Map.end(); }
   std::pair<const_iterator, bool> insert (const value_type &V) {
     IsBottom = false;
     return Map.insert(V);

@@ -109,24 +109,27 @@ public:
   }
 
   BasicBlockNode *addDispatcher(unsigned StateVariableValue,
-                                const std::string &Name = "check idx ") {
+                                BasicBlockNode *True,
+                                BasicBlockNode *False) {
     using Type = BasicBlockNode::Type;
     using BBNode = BasicBlockNode;
     std::string IdStr = std::to_string(StateVariableValue);
     BlockNodes.emplace_back(std::make_unique<BBNode>(this, Type::Check,
                                                      StateVariableValue,
-                                                     Name + IdStr));
-    return BlockNodes.back().get();
+                                                     "check idx " + IdStr));
+    BBNode *Dispatcher = BlockNodes.back().get();
+    Dispatcher->setTrue(True);
+    Dispatcher->setFalse(False);
+    return Dispatcher;
   }
 
-  BasicBlockNode *addSetStateNode(unsigned StateVariableValue,
-                                  const std::string &Name = "set idx ") {
+  BasicBlockNode *addSetStateNode(unsigned StateVariableValue) {
     using Type = BasicBlockNode::Type;
     using BBNode = BasicBlockNode;
     std::string IdStr = std::to_string(StateVariableValue);
     BlockNodes.emplace_back(std::make_unique<BBNode>(this, Type::Set,
                                                      StateVariableValue,
-                                                     Name + IdStr));
+                                                     "set idx " + IdStr));
     return BlockNodes.back().get();
   }
 

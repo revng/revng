@@ -23,29 +23,46 @@ using BBNodeToBBMap = BasicBlockViewAnalysis::BBNodeToBBMap;
 using BBToBBNodeMap = std::map<BasicBlock *, BasicBlockNode *>;
 using BBViewMap = BasicBlockViewAnalysis::BBViewMap;
 
+static void preprocessRCFGT(RegionCFG &RCFGT) {
+  // Perform preprocessing on RCFGT to ensure that each node with more
+  // than one successor only has dummy successors. If that's not true,
+  // inject dummy successors when necessary.
+  //
+  // At the same time assert all the assumptions we make for the enforcing
+
+  std::vector<EdgeDescriptor> NeedDummy;
+  for (BasicBlockNode *Node : RCFGT.nodes()) {
+    // Flattening should eliminate all Collapsed nodes, as well as all the Break
+    // and Continue artificial nodes
+    revng_assert(not Node->isCollapsed()
+                 and not Node->isBreak()
+                 and not Node->isContinue());
+    // Empty and Set artificial nodes should always have exactly one successor
+    revng_assert(not (Node->isEmpty() or Node->isSet())
+                 or (Node->successor_size() == 1
+                     and Node->predecessor_size() == 1));
+    // Check artificial nodes should always have exactly two successors
+    revng_assert(not Node->isCheck() or Node->successor_size() == 2);
+
+    if (not Node->isArtificial() and Node->successor_size() > 1)
+      for (BasicBlockNode *Succ : Node->successors())
+        if (not Succ->isArtificial())
+          NeedDummy.push_back({Node, Succ});
+  }
+
+  for (auto &Pair : NeedDummy) {
+    BasicBlockNode *Dummy = RCFGT.addArtificialNode("bb view dummy");
+    moveEdgeTarget(Pair, Dummy);
+    addEdge({Dummy, Pair.second});
+  }
+}
+
 bool EnforceCFGCombingPass::runOnFunction(Function &F) {
   if (not F.getName().startswith("bb."))
     return false;
   auto &RestructurePass = getAnalysis<RestructureCFG>();
   RegionCFG &RCFGT = RestructurePass.getRCT();
-
-  // Perform preprocessing on RCFGT to ensure that each node with more
-  // than one successor only has dummy successors. If that's not true,
-  // inject dummy successors when necessary.
-  {
-    std::vector<EdgeDescriptor> NeedDummy;
-    for (BasicBlockNode *Node : RCFGT.nodes())
-      if (not Node->isDummy() and Node->successor_size() > 1)
-        for (BasicBlockNode *Succ : Node->successors())
-          if (not Succ->isDummy())
-            NeedDummy.push_back({Node, Succ});
-
-    for (auto &Pair : NeedDummy) {
-      BasicBlockNode *Dummy = RCFGT.addDummyNode("bb view dummy");
-      moveEdgeTarget(Pair, Dummy);
-      addEdge({Dummy, Pair.second});
-    }
-  }
+  preprocessRCFGT(RCFGT);
 
   // Clone Function, with all BasicBlocks and their Instructions.
   // The clone will be all messed up at this point, becasue all the operands of
@@ -115,7 +132,7 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
         BasicBlock *EnforcedIncomingBB = nullptr;
         for (BasicBlockNode *PredIt : Tmp->predecessors()) {
           BasicBlockNode *Pred = PredIt;
-          while (Pred->isDummy()) {
+          while (Pred->isArtificial()) {
             revng_assert(Pred->getBasicBlock() == nullptr);
             revng_assert(Pred->predecessor_size() == 1);
             Pred = *Pred->predecessors().begin();

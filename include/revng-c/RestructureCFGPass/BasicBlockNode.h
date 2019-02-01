@@ -152,6 +152,30 @@ public:
     return NodeType != Type::Code and NodeType != Type::Collapsed;
   }
 
+  void setTrue(BasicBlockNode *Succ) {
+    revng_assert(isCheck());
+    Successors.resize(2, nullptr);
+    Successors[1] = Succ;
+  }
+
+  BasicBlockNode *getTrue() const {
+    revng_assert(isCheck());
+    Successors.resize(2, nullptr);
+    return Successors[1];
+  }
+
+  void setFalse(BasicBlockNode *Succ) {
+    revng_assert(isCheck());
+    Successors.resize(2, nullptr);
+    Successors[0] = Succ;
+  }
+
+  BasicBlockNode *getFalse() const {
+    revng_assert(isCheck());
+    Successors.resize(2, nullptr);
+    return Successors[0];
+  }
+
   RegionCFG *getParent() { return Parent; }
   void setParent(RegionCFG *P) { Parent = P; }
 
@@ -161,6 +185,7 @@ public:
   void printAsOperand(llvm::raw_ostream &O, bool PrintType);
 
   void addSuccessor(BasicBlockNode *Successor) {
+    revng_assert(not isCheck()); // you should use setFalse() and setTrue()
     Successors.push_back(Successor);
   }
 

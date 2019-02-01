@@ -350,12 +350,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
     return false;
   }
 
-  BasicBlock *UnexpectedPC = nullptr;
-  for (BasicBlock &BB : F) {
-    if (BB.getName() == "unexpectedpc")
-      UnexpectedPC = &BB;
-  }
-
   // Clear graph object from the previous pass.
   CompleteGraph = RegionCFG();
 
@@ -635,22 +629,30 @@ bool RestructureCFG::runOnFunction(Function &F) {
     BasicBlockNode *Head;
     if (NewHeadNeeded) {
       revng_assert(RetreatingTargets.size() > 1);
-      Head = CompleteGraph.addNode(UnexpectedPC);
+      std::map<BasicBlockNode *, int> RetreatingIdxMap;
+
+      BasicBlockNode *const First = *RetreatingTargets.begin();
+      RetreatingIdxMap[First] = 0;
+
+      BasicBlockNode *const Second = *std::next(RetreatingTargets.begin());
+      RetreatingIdxMap[Second] = 1;
+
+      unsigned Idx = 1;
+      Head = CompleteGraph.addDispatcher(Idx, Second, First);
       Meta->insertNode(Head);
 
-      // Build the tree dispatcher structure, bottom up from the unreachable.
-      std::map<BasicBlockNode *, int> RetreatingIdxMap;
-      int Idx = RetreatingTargets.size() - 1;
-      for (BasicBlockNode *Target : llvm::reverse(RetreatingTargets)) {
-        BasicBlockNode *NewHead = CompleteGraph.addDispatcher(Idx, "entry dispatcher");
-        Meta->insertNode(NewHead);
-        RetreatingIdxMap[Target] = Idx;
-        Idx--;
-        addEdge(EdgeDescriptor(NewHead, Target));
-        addEdge(EdgeDescriptor(NewHead, Head));
-        Head = NewHead;
+      Idx = 2;
+      using TargetIterator = std::set<BasicBlockNode *>::iterator;
+      TargetIterator TgtIt = std::next(std::next(RetreatingTargets.begin()));
+      TargetIterator TgtEnd = RetreatingTargets.end();
+      for (; TgtIt != TgtEnd; ++TgtIt) {
+        BasicBlockNode *New = CompleteGraph.addDispatcher(Idx, Head, *TgtIt);
+        Meta->insertNode(New);
+        RetreatingIdxMap[*TgtIt] = Idx;
+        Idx++;
+        Head = New;
       }
-      revng_assert(Idx == -1);
+      revng_assert(Idx == RetreatingTargets.size());
 
       for (EdgeDescriptor Retreating : Retreatings) {
         Idx = RetreatingIdxMap[Retreating.second];
@@ -776,6 +778,23 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
     }
 
+    if (NewHeadNeeded) {
+      revng_assert(Head->isCheck());
+      std::set<BasicBlockNode *> SetCandidates;
+      for (BasicBlockNode *Pred : Head->predecessors()) {
+        if (not Pred->isSet()) {
+          SetCandidates.insert(Pred);
+        }
+      }
+      unsigned Value = RetreatingTargets.size() - 1;
+      for (BasicBlockNode *Pred : SetCandidates) {
+        BasicBlockNode *Set = CompleteGraph.addSetStateNode(Value);
+          addEdge(EdgeDescriptor(Pred, Set));
+          addEdge(EdgeDescriptor(Set, Head));
+          removeEdge(EdgeDescriptor(Pred, Head));
+      }
+    }
+
     // Exit dispatcher creation.
     // TODO: Factorize this out together with the head dispatcher creation.
     bool NewExitNeeded = false;
@@ -790,23 +809,30 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     if (NewExitNeeded) {
       revng_assert(Successors.size() > 1);
-      Exit = CompleteGraph.addNode(UnexpectedPC);
+      std::map<BasicBlockNode *, int> SuccessorsIdxMap;
+
+      BasicBlockNode *const First = *Successors.begin();
+      SuccessorsIdxMap[First] = 0;
+
+      BasicBlockNode *const Second = *std::next(Successors.begin());
+      SuccessorsIdxMap[Second] = 1;
+
+      unsigned Idx = 1;
+      Exit = CompleteGraph.addDispatcher(Idx, Second, First);
       ExitDispatcherNodes.push_back(Exit);
 
-      // Build the tree dispatcher structure.
-      BasicBlockNode *Dummy = Exit;
-      std::map<BasicBlockNode *, int> SuccessorsIdxMap;
-      int Idx = Successors.size() - 1;
-      for (BasicBlockNode *Target : llvm::reverse(Successors)) {
-        BasicBlockNode *NewExit = CompleteGraph.addDispatcher(Idx, "exit dispatcher");
-        ExitDispatcherNodes.push_back(NewExit);
-        SuccessorsIdxMap[Target] = Idx;
-        Idx--;
-        addEdge(EdgeDescriptor(NewExit, Target));
-        addEdge(EdgeDescriptor(NewExit, Exit));
-        Exit = NewExit;
+      Idx = 2;
+      using SuccessIterator = std::set<BasicBlockNode *>::iterator;
+      SuccessIterator SuccIt = std::next(std::next(RetreatingTargets.begin()));
+      SuccessIterator SuccEnd = RetreatingTargets.end();
+      for (; SuccIt != SuccEnd; ++SuccIt) {
+        BasicBlockNode *New = CompleteGraph.addDispatcher(Idx, Exit, *SuccIt);
+        ExitDispatcherNodes.push_back(New);
+        SuccessorsIdxMap[*SuccIt] = Idx;
+        Idx++;
+        Exit = New;
       }
-      revng_assert(Idx == -1);
+      revng_assert(Idx == Successors.size());
 
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
       for (EdgeDescriptor Edge : OutEdges) {
