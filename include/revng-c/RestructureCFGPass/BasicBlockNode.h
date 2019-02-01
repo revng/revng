@@ -143,26 +143,17 @@ public:
 
 public:
   bool isBreak() const { return NodeType == Type::Break; }
-  void setBreak() { NodeType = Type::Break; }
-
   bool isContinue() const { return NodeType == Type::Continue; }
-  void setContinue() { NodeType = Type::Continue; }
-
   bool isSet() const { return NodeType == Type::Set; }
-  void setSet() { NodeType = Type::Set; }
-
   bool isCheck() const { return NodeType == Type::Check; }
-  void setCheck() { NodeType = Type::Check; }
-
+  bool isCode() const { return NodeType == Type::Code; }
   bool isEmpty() const { return NodeType == Type::Empty; }
-  void setEmpty() { NodeType = Type::Empty; }
-
-  RegionCFG *getParent() { return Parent; }
-  void setParent(RegionCFG *P) { Parent = P; }
-
   bool isArtificial() const {
     return NodeType != Type::Code and NodeType != Type::Collapsed;
   }
+
+  RegionCFG *getParent() { return Parent; }
+  void setParent(RegionCFG *P) { Parent = P; }
 
   void removeNode();
 
