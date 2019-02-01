@@ -25,18 +25,14 @@ class BasicBlockNode {
 
 public:
 
-  enum class ExitTypeT {
-    None,
-    Return,
+  enum class Type {
+    Code,
+    Empty,
     Break,
     Continue,
-    Unreachable,
-  };
-
-  enum class StateVariableOp {
-    None,
     Set,
-    Compare,
+    Check,
+    Collapsed,
   };
 
   using links_container = llvm::SmallVector<BasicBlockNode *, 2>;
@@ -63,10 +59,7 @@ protected:
   RegionCFG *CollapsedRegion;
 
   /// Flag to identify the exit type of a block
-  ExitTypeT ExitType;
-
-  /// Flag to identify the exit type of a block
-  StateVariableOp Op;
+  Type NodeType;
 
   /// Name of the basic block.
   std::string Name;
@@ -83,8 +76,7 @@ protected:
                           llvm::BasicBlock * BB,
                           RegionCFG *Collapsed,
                           const std::string &Name,
-                          ExitTypeT E,
-                          StateVariableOp Op,
+                          Type T,
                           unsigned Value = 0);
 
 public:
@@ -100,21 +92,18 @@ public:
                    BBN.BB,
                    BBN.CollapsedRegion,
                    BBN.Name,
-                   BBN.ExitType,
-                   BBN.Op,
+                   BBN.NodeType,
                    BBN.StateVariableValue) {}
 
   /// \brief Constructor for nodes pointing to LLVM IR BasicBlock
   explicit BasicBlockNode(RegionCFG *Parent,
                           llvm::BasicBlock *BB,
-                          ExitTypeT E = ExitTypeT::None,
                           const std::string &Name = "") :
     BasicBlockNode(Parent,
-                  BB,
-                  nullptr,
-                  Name.size() ? Name : std::string(BB->getName()),
-                  E,
-                  StateVariableOp::None) {}
+                   BB,
+                   nullptr,
+                   Name.size() ? Name : std::string(BB->getName()),
+                   Type::Code) {}
 
   /// \brief Constructor for nodes representing collapsed subgraphs
   explicit BasicBlockNode(RegionCFG *Parent,
@@ -124,55 +113,55 @@ public:
                    nullptr,
                    Collapsed,
                    Name,
-                   ExitTypeT::None,
-                   StateVariableOp::None) {}
+                   Type::Collapsed) {}
 
   /// \brief Constructor for empty dummy nodes
   explicit BasicBlockNode(RegionCFG *Parent,
                           const std::string &Name = "",
-                          ExitTypeT E = ExitTypeT::None) :
+                          Type T = Type::Empty) :
     BasicBlockNode(Parent,
                    nullptr,
                    nullptr,
                    Name,
-                   E,
-                   StateVariableOp::None) {}
+                   T) {
+    revng_assert(T == Type::Empty or T == Type::Break or T == Type::Continue);
+  }
 
   /// \brief Constructor for dummy nodes that handle the state variable
   explicit BasicBlockNode(RegionCFG *Parent,
-                          StateVariableOp O,
+                          Type T,
                           unsigned Value,
                           const std::string &Name = "") :
     BasicBlockNode(Parent,
                    nullptr,
                    nullptr,
                    Name,
-                   ExitTypeT::None,
-                   O,
-                   Value) {}
+                   T,
+                   Value) {
+    revng_assert(T == Type::Set or T == Type::Check);
+  }
 
 public:
-  bool isExit() const { return ExitType != ExitTypeT::None; }
-  void setExit(ExitTypeT E) { ExitType = E; }
+  bool isBreak() const { return NodeType == Type::Break; }
+  void setBreak() { NodeType = Type::Break; }
 
-  bool isReturn() const { return ExitType == ExitTypeT::Return; }
-  void setReturn() { ExitType = ExitTypeT::Return; }
+  bool isContinue() const { return NodeType == Type::Continue; }
+  void setContinue() { NodeType = Type::Continue; }
 
-  bool isBreak() const { return ExitType == ExitTypeT::Break; }
-  void setBreak() { ExitType = ExitTypeT::Break; }
+  bool isSet() const { return NodeType == Type::Set; }
+  void setSet() { NodeType = Type::Set; }
 
-  bool isContinue() const { return ExitType == ExitTypeT::Continue; }
-  void setContinue() { ExitType = ExitTypeT::Continue; }
+  bool isCheck() const { return NodeType == Type::Check; }
+  void setCheck() { NodeType = Type::Check; }
 
-  bool isUnreachable() const { return ExitType == ExitTypeT::Unreachable; }
-  void setUnreachable() { ExitType = ExitTypeT::Unreachable; }
+  bool isEmpty() const { return NodeType == Type::Empty; }
+  void setEmpty() { NodeType = Type::Empty; }
 
   RegionCFG *getParent() { return Parent; }
   void setParent(RegionCFG *P) { Parent = P; }
 
-  bool isDummy() const { return CollapsedRegion == nullptr and BB == nullptr; }
-  bool isEmptyDummy() const {
-    return isDummy() and not isExit() and Op == StateVariableOp::None;
+  bool isArtificial() const {
+    return NodeType != Type::Code and NodeType != Type::Collapsed;
   }
 
   void removeNode();
@@ -219,15 +208,13 @@ public:
   unsigned getID() const { return ID; }
   llvm::BasicBlock *isBasicBlock() const { return BB; }
   llvm::BasicBlock *getBasicBlock() { return BB; }
-  void setBasicBlock(llvm::BasicBlock *NewBB) { BB = NewBB; }
 
   llvm::StringRef getName() const { return Name; }
   std::string getNameStr() const { return Name; }
   void setName(const std::string &N) { Name = N; }
 
-  bool isCollapsed() const { return CollapsedRegion != nullptr; }
+  bool isCollapsed() const { return NodeType == Type::Collapsed; }
   RegionCFG *getCollapsedCFG() { return CollapsedRegion; }
-  void setCollapsedCFG(RegionCFG *Graph);
 };
 
 // Provide graph traits for usage with, e.g., llvm::ReversePostOrderTraversal

@@ -59,7 +59,7 @@ static void simplifyDummies(ASTNode *RootNode) {
     std::vector<ASTNode *> UselessDummies;
 
     for (ASTNode *Node : Sequence->nodes()) {
-      if (Node->isDummy()) {
+      if (Node->isEmpty()) {
         UselessDummies.push_back(Node);
       } else {
         simplifyDummies(Node);
@@ -357,7 +357,7 @@ void RegionCFG::initialize(llvm::Function &F) {
       // For each iteration except the last create a new dummy node
       // connecting the successors.
       while (WorkList.size() > 2) {
-        BasicBlockNode *NewDummy = addDummyNode("switch dummy");
+        BasicBlockNode *NewDummy = addArtificialNode("switch dummy");
         BasicBlockNode *Dest1 = &get(WorkList.back());
         WorkList.pop_back();
         addEdge(EdgeDescriptor(PrevDummy, Dest1));
@@ -372,11 +372,6 @@ void RegionCFG::initialize(llvm::Function &F) {
       revng_assert(WorkList.empty());
       addEdge(EdgeDescriptor(PrevDummy, Dest1));
       addEdge(EdgeDescriptor(PrevDummy, Dest2));
-    }
-
-    // Set as return block if there are no successors.
-    if (Terminator->getNumSuccessors() == 0) {
-      Node.setReturn();
     }
   }
 }
@@ -397,11 +392,13 @@ std::string RegionCFG::getRegionName() {
   return RegionName;
 }
 
-void RegionCFG::addNode(llvm::BasicBlock *BB) {
+BasicBlockNode *RegionCFG::addNode(llvm::BasicBlock *BB) {
   BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, BB));
-  BBMap[BB] = BlockNodes.back().get();
-  CombLogger << "Building " << BB->getName();
-  CombLogger << " at address: " << BBMap[BB] << "\n";
+  BasicBlockNode *Result = BlockNodes.back().get();
+  BBMap[BB] = Result;;
+  revng_log(CombLogger, "Building " << BB->getName()
+                         << " at address: " << BBMap[BB] << "\n");
+  return Result;
 }
 
 BasicBlockNode *RegionCFG::cloneNode(const BasicBlockNode &OriginalNode) {
@@ -552,8 +549,6 @@ void RegionCFG::streamNode(StreamT &S, const BasicBlockNode *BB) const {
   S << " [" << "label=\"ID: " << NodeID << " Name: " << BB->getName().str() << "\"";
   if (BB == EntryNode)
     S << ",fillcolor=green,style=filled";
-  if (BB->isReturn())
-    S << ",fillcolor=red,style=filled";
   S << "];\n";
 }
 
@@ -593,7 +588,7 @@ void RegionCFG::purgeDummies() {
     AnotherIteration = false;
 
     for (auto It = Graph.begin(); It != Graph.end(); It++) {
-      if (((*It)->isEmptyDummy())
+      if (((*It)->isEmpty())
           and ((*It)->predecessor_size() == 1)
           and ((*It)->successor_size() == 1)) {
 
@@ -634,7 +629,7 @@ void RegionCFG::purgeVirtualSink(BasicBlockNode *Sink) {
     BasicBlockNode *CurrentNode = WorkList.back();
     WorkList.pop_back();
 
-    if (CurrentNode->isEmptyDummy()) {
+    if (CurrentNode->isEmpty()) {
       PurgeList.push_back(CurrentNode);
 
       for (BasicBlockNode *Predecessor : CurrentNode->predecessors()) {
@@ -697,7 +692,7 @@ void RegionCFG::inflate() {
   }
 
   // Add a new virtual sink node to which all the exit nodes are connected.
-  BasicBlockNode *Sink = Graph.addDummyNode("Virtual sink");
+  BasicBlockNode *Sink = Graph.addArtificialNode("Virtual sink");
   for (BasicBlockNode *Exit : ExitNodes) {
     addEdge(EdgeDescriptor(Exit, Sink));
   }
@@ -785,7 +780,7 @@ void RegionCFG::inflate() {
         std::map<Side, BasicBlockNode *> Dummies;
 
         for (Side S : Sides) {
-          BasicBlockNode *Dummy = Graph.addDummyNode("dummy");
+          BasicBlockNode *Dummy = Graph.addArtificialNode("dummy");
           Dummies[S] = Dummy;
         }
 
@@ -830,8 +825,6 @@ void RegionCFG::inflate() {
           DT.insertEdge(Dummies[S], Candidate);
           PDT.insertEdge(Dummies[S], Candidate);
         }
-
-        NotDominatedCandidates = getInterestingNodes(Conditional);
       } else {
 
         // Duplicate node.

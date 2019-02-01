@@ -21,15 +21,13 @@ BasicBlockNode::BasicBlockNode(RegionCFG *Parent,
                                llvm::BasicBlock * BB,
                                RegionCFG *Collapsed,
                                const std::string &Name,
-                               ExitTypeT E,
-                               StateVariableOp O,
+                               Type T,
                                unsigned Value) :
     ID(Parent->getNewID()),
     Parent(Parent),
     BB(BB),
     CollapsedRegion(Collapsed),
-    ExitType(E),
-    Op(O),
+    NodeType(T),
     Name(Name),
     StateVariableValue(Value) {
 }

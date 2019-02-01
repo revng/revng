@@ -350,6 +350,12 @@ bool RestructureCFG::runOnFunction(Function &F) {
     return false;
   }
 
+  BasicBlock *UnexpectedPC = nullptr;
+  for (BasicBlock &BB : F) {
+    if (BB.getName() == "unexpectedpc")
+      UnexpectedPC = &BB;
+  }
+
   // Clear graph object from the previous pass.
   CompleteGraph = RegionCFG();
 
@@ -629,7 +635,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     BasicBlockNode *Head;
     if (NewHeadNeeded) {
       revng_assert(RetreatingTargets.size() > 1);
-      Head = CompleteGraph.addDummyUnreachable();
+      Head = CompleteGraph.addNode(UnexpectedPC);
       Meta->insertNode(Head);
 
       // Build the tree dispatcher structure, bottom up from the unreachable.
@@ -691,7 +697,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
                pair<BasicBlockNode *, BasicBlockNode *>> EdgeExtremal;
 
       for (EdgeDescriptor Edge : OutgoingEdges) {
-        BasicBlockNode *Frontier = CompleteGraph.addDummyNode("frontier");
+        BasicBlockNode *Frontier = CompleteGraph.addArtificialNode("frontier");
         BasicBlockNode *OldSource = Edge.first;
         BasicBlockNode *OldTarget = Edge.second;
         EdgeExtremal[Frontier] = make_pair(OldSource, OldTarget);
@@ -784,7 +790,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     if (NewExitNeeded) {
       revng_assert(Successors.size() > 1);
-      Exit = CompleteGraph.addDummyUnreachable();
+      Exit = CompleteGraph.addNode(UnexpectedPC);
       ExitDispatcherNodes.push_back(Exit);
 
       // Build the tree dispatcher structure.
@@ -830,8 +836,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     CollapsedGraph.insertBulkNodes(Meta->getNodes(), Head, SubstitutionMap);
 
     // Create the break and continue node.
-    BasicBlockNode *Continue = CollapsedGraph.addDummyContinue();
-    BasicBlockNode *Break = CollapsedGraph.addDummyBreak();
+    BasicBlockNode *Continue = CollapsedGraph.addContinue();
+    BasicBlockNode *Break = CollapsedGraph.addBreak();
 
     // Connect the break and continue nodes with the necessary edges.
     CollapsedGraph.connectContinueNode(Continue);

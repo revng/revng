@@ -84,7 +84,7 @@ public:
   size_t size() const { return BlockNodes.size(); }
   void setSize(int Size) { BlockNodes.reserve(Size); }
 
-  void addNode(llvm::BasicBlock *BB);
+  BasicBlockNode *addNode(llvm::BasicBlock *BB);
 
   BasicBlockNode *createCollapsedNode(RegionCFG *Collapsed,
                                       const std::string &Name = "collapsed") {
@@ -95,41 +95,36 @@ public:
   }
 
   BasicBlockNode *
-  addDummyNode(const std::string &Name = "",
-               BasicBlockNode::ExitTypeT E = BasicBlockNode::ExitTypeT::None) {
-    BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, Name, E));
+  addArtificialNode(const std::string &Name = "",
+                    BasicBlockNode::Type T = BasicBlockNode::Type::Empty) {
+    BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, Name, T));
     return BlockNodes.back().get();
   }
 
-  BasicBlockNode *addDummyReturn(const std::string &Name = "return") {
-    return addDummyNode(Name, BasicBlockNode::ExitTypeT::Return);
+  BasicBlockNode *addContinue(const std::string &Name = "continue") {
+    return addArtificialNode(Name, BasicBlockNode::Type::Continue);
   }
-  BasicBlockNode *addDummyUnreachable(const std::string &Name = "unreachable") {
-    return addDummyNode(Name, BasicBlockNode::ExitTypeT::Unreachable);
-  }
-  BasicBlockNode *addDummyContinue(const std::string &Name = "continue") {
-    return addDummyNode(Name, BasicBlockNode::ExitTypeT::Continue);
-  }
-  BasicBlockNode *addDummyBreak(const std::string &Name = "break") {
-    return addDummyNode(Name, BasicBlockNode::ExitTypeT::Break);
+  BasicBlockNode *addBreak(const std::string &Name = "break") {
+    return addArtificialNode(Name, BasicBlockNode::Type::Break);
   }
 
   BasicBlockNode *addDispatcher(unsigned StateVariableValue,
-                                const std::string &Name = "dispatcher") {
-    using Op = BasicBlockNode::StateVariableOp;
+                                const std::string &Name = "check idx ") {
+    using Type = BasicBlockNode::Type;
     using BBNode = BasicBlockNode;
-    BlockNodes.emplace_back(std::make_unique<BBNode>(this, Op::Compare,
+    std::string IdStr = std::to_string(StateVariableValue);
+    BlockNodes.emplace_back(std::make_unique<BBNode>(this, Type::Check,
                                                      StateVariableValue,
-                                                     Name));
+                                                     Name + IdStr));
     return BlockNodes.back().get();
   }
 
   BasicBlockNode *addSetStateNode(unsigned StateVariableValue,
-                                  const std::string &Name = "set idx") {
-    using Op = BasicBlockNode::StateVariableOp;
+                                  const std::string &Name = "set idx ") {
+    using Type = BasicBlockNode::Type;
     using BBNode = BasicBlockNode;
     std::string IdStr = std::to_string(StateVariableValue);
-    BlockNodes.emplace_back(std::make_unique<BBNode>(this, Op::Set,
+    BlockNodes.emplace_back(std::make_unique<BBNode>(this, Type::Set,
                                                      StateVariableValue,
                                                      Name + IdStr));
     return BlockNodes.back().get();
