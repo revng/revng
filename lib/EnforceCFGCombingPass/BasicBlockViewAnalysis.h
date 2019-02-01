@@ -53,6 +53,13 @@ public:
 
   static BasicBlockViewMap bottom() { return BasicBlockViewMap(); }
 
+private:
+
+  static bool latticeCompareHelper(const value_type &A, const value_type &B) {
+    return A.first < B.first;
+  }
+
+
 public:
   bool lowerThanOrEqual(const BasicBlockViewMap &RHS) const {
     if (IsBottom)
@@ -62,7 +69,8 @@ public:
     return std::includes(RHS.Map.begin(),
                          RHS.Map.end(),
                          Map.begin(),
-                         Map.end());
+                         Map.end(),
+                         latticeCompareHelper);
   }
 
   void combine(const BasicBlockViewMap &RHS) {
