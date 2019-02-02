@@ -160,7 +160,7 @@ public:
 
   BasicBlockNode *getTrue() const {
     revng_assert(isCheck());
-    Successors.resize(2, nullptr);
+    revng_assert(successor_size() == 2);
     return Successors[1];
   }
 
@@ -172,8 +172,13 @@ public:
 
   BasicBlockNode *getFalse() const {
     revng_assert(isCheck());
-    Successors.resize(2, nullptr);
+    revng_assert(successor_size() == 2);
     return Successors[0];
+  }
+
+  unsigned getStateVariableValue() const {
+    revng_assert(isCheck() or isSet());
+    return StateVariableValue;
   }
 
   RegionCFG *getParent() { return Parent; }
