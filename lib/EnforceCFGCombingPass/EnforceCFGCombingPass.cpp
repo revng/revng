@@ -4,6 +4,7 @@
 
 // LLVM includes
 #include <llvm/Pass.h>
+#include <llvm/IR/IRBuilder.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/Transforms/Utils/ValueMapper.h>
 
@@ -38,6 +39,7 @@ static void preprocessRCFGT(RegionCFG &RCFGT) {
                  and not Node->isBreak()
                  and not Node->isContinue());
     // Empty and Set artificial nodes should always have exactly one successor
+    // and exactly one predecessor
     revng_assert(not (Node->isEmpty() or Node->isSet())
                  or (Node->successor_size() == 1
                      and Node->predecessor_size() == 1));
@@ -115,6 +117,65 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
   BBViewAnalysis.initialize();
   BBViewAnalysis.run();
   BBViewMap &BasicBlockViewMap = BBViewAnalysis.getBBViewMap();
+
+  // Build Instructions in the artificial nodes
+  {
+    LLVMContext &Context = F.getContext();
+    IntegerType *PHITy = Type::getInt32Ty(Context);
+    IRBuilder<> Builder(Context);
+    for (BasicBlockNode *Node : RCFGT.nodes()) {
+
+      if (not Node->isArtificial())
+        continue;
+
+      if (Node->isSet() or Node->isEmpty()) {
+        BasicBlockNode *NodeSucc = *Node->successors().begin();
+        BasicBlock *Next = EnforcedBBNodeToBBMap.at(NodeSucc);
+        Builder.SetInsertPoint(EnforcedBBNodeToBBMap.at(Node));
+        Builder.CreateBr(Next);
+        continue;
+      }
+
+      revng_assert(Node->isCheck());
+      if (Node->predecessor_size() == 1)
+        continue;
+
+      BasicBlockNode *Check = Node;
+      // The first needs a PHINode for all the values of incoming state
+      // variables
+      BasicBlock *CheckBB = EnforcedBBNodeToBBMap.at(Check);
+      Builder.SetInsertPoint(CheckBB);
+      PHINode *PHI = Builder.CreatePHI(PHITy, Node->predecessor_size());
+      unsigned I = 0;
+      for (BasicBlockNode *Pred : Check->predecessors()) {
+        revng_assert(Pred->isSet());
+
+        unsigned SetID = Pred->getStateVariableValue();
+        ConstantInt *SetVal = ConstantInt::get(PHITy, SetID);
+        PHI->setIncomingValue(I, SetVal);
+
+        BasicBlock *PredBB = EnforcedBBNodeToBBMap.at(Pred);
+        PHI->setIncomingBlock(I, PredBB);
+
+        ++I;
+      }
+
+      do {
+        Builder.SetInsertPoint(CheckBB);
+        BasicBlockNode *TrueNode = Check->getTrue();
+        BasicBlockNode *FalseNode = Check->getFalse();
+        revng_assert(not TrueNode->isCheck());
+        revng_assert(FalseNode->isCheck());
+        BasicBlock *TrueBB = EnforcedBBNodeToBBMap.at(TrueNode);
+        BasicBlock *FalseBB = EnforcedBBNodeToBBMap.at(FalseNode);
+        unsigned CheckID = Check->getStateVariableValue();
+        ConstantInt *CheckVal = ConstantInt::get(PHITy, CheckID);
+        Value *Cmp = Builder.CreateICmpEQ(PHI, CheckVal);
+        Builder.CreateCondBr(Cmp, TrueBB, FalseBB);
+      } while (Check = Check->getFalse(), Check->isCheck());
+    }
+  }
+
   // Adjust BasicBlockViewMap with information on incoming blocks for PHINodes
   for (auto &BBViewMapPair : BasicBlockViewMap) {
     BasicBlock *EnforcedBB = BBViewMapPair.first;
