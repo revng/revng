@@ -14,17 +14,23 @@ Analysis::InterruptType Analysis::transfer(BasicBlockNode *InputBBNode) {
 
   if (InputBBNode->isArtificial()) {
     for (BasicBlockNode *Succ : InputBBNode->successors()) {
-      BasicBlock *SuccEnforcedBB = EnforcedBBMap.at(Succ);
-      BasicBlockViewMap &SuccVisibleBB = State.at(Succ);
-      for (const BasicBlockViewMap::value_type &BBPair : SuccVisibleBB)
-        if (BBPair.second == SuccEnforcedBB)
-          VisibleBB.insert(std::make_pair(BBPair.first, EnforcedBB));
+      BasicBlock *EnforcedSuccBB = EnforcedBBMap.at(Succ);
+      bool Found = false;
+      for (BasicBlockViewMap::value_type &BBPair : VisibleBB) {
+        if (BBPair.second == EnforcedSuccBB) {
+          revng_assert(not Found);
+          BBPair.second = EnforcedBB;
+          Found = true;
+        }
+      }
+      revng_assert(Found);
     }
   } else {
     BasicBlock *OriginalBB = InputBBNode->getBasicBlock();
-    revng_assert(OriginalBB != nullptr);
-    bool New = VisibleBB.insert(std::make_pair(OriginalBB, EnforcedBB)).second;
-    revng_assert(New);
+    bool New;
+    BasicBlockViewMap::iterator It;
+    std::tie(It, New) = VisibleBB.insert(std::make_pair(OriginalBB, EnforcedBB));
+    revng_assert(New or It->second == EnforcedBB);
     ViewMap[EnforcedBB] = VisibleBB.copyMap();
   }
   return InterruptType::createInterrupt(std::move(VisibleBB));

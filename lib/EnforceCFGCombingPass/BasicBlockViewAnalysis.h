@@ -91,13 +91,13 @@ public:
   }
 
 public: // map methods
-  const_iterator begin() const { return Map.begin(); }
-  const_iterator end() const { return Map.end(); }
-  std::pair<const_iterator, bool> insert (const value_type &V) {
+  iterator begin() { return Map.begin(); }
+  iterator end() { return Map.end(); }
+  std::pair<iterator, bool> insert (const value_type &V) {
     IsBottom = false;
     return Map.insert(V);
   }
-  std::pair<const_iterator, bool> insert (value_type &&V) {
+  std::pair<iterator, bool> insert (value_type &&V) {
     IsBottom = false;
     return Map.insert(V);
   }
