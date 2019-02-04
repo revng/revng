@@ -823,8 +823,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
       Idx = 2;
       using SuccessIterator = std::set<BasicBlockNode *>::iterator;
-      SuccessIterator SuccIt = std::next(std::next(RetreatingTargets.begin()));
-      SuccessIterator SuccEnd = RetreatingTargets.end();
+      SuccessIterator SuccIt = std::next(std::next(Successors.begin()));
+      SuccessIterator SuccEnd = Successors.end();
       for (; SuccIt != SuccEnd; ++SuccIt) {
         BasicBlockNode *New = CompleteGraph.addDispatcher(Idx, Exit, *SuccIt);
         ExitDispatcherNodes.push_back(New);
