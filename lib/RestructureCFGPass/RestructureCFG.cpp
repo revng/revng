@@ -263,9 +263,11 @@ static bool alreadyInMetaregion(std::vector<MetaRegion> &V, BasicBlockNode *N) {
 
 static std::vector<MetaRegion>
 createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
-  std::vector<std::set<BasicBlockNode *>> Regions;
+  std::map<BasicBlockNode *, std::set<BasicBlockNode *>> AdditionalSCSNodes;
+  std::vector<std::pair<BasicBlockNode *, std::set<BasicBlockNode *>>> Regions;
   for (auto &Backedge : Backedges) {
     auto SCSNodes = findReachableNodes(*Backedge.second, *Backedge.first);
+    AdditionalSCSNodes[Backedge.second].insert(SCSNodes.begin(), SCSNodes.end());
 
     if (CombLogger.isEnabled()) {
       CombLogger << "SCS identified by: ";
@@ -277,41 +279,21 @@ createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
       }
     }
 
-    Regions.push_back(SCSNodes);
+    Regions.push_back(std::make_pair(Backedge.second, SCSNodes));
   }
 
-  for (auto RegionIt1 = Regions.begin(); RegionIt1 != Regions.end();
-       RegionIt1++) {
-    for (auto RegionIt2 = std::next(RegionIt1); RegionIt2 != Regions.end();
-         RegionIt2++) {
-      if (RegionIt1 != RegionIt2) {
-        std::vector<BasicBlockNode *> Intersection;
-        bool IsSubset = std::includes((*RegionIt1).begin(),
-                                      (*RegionIt1).end(),
-                                      (*RegionIt2).begin(),
-                                      (*RegionIt2).end());
-        std::set_intersection((*RegionIt1).begin(),
-                              (*RegionIt1).end(),
-                              (*RegionIt2).begin(),
-                              (*RegionIt2).end(),
-                              std::back_inserter(Intersection));
-
-        if (CombLogger.isEnabled()) {
-          CombLogger << "IsSubset: " << IsSubset << "\n";
-          CombLogger << "Intersection between:\n";
-          CombLogger << "1:\n";
-          for (auto &Node : *RegionIt1) {
-            CombLogger << Node->getNameStr() << "\n";
-          }
-          CombLogger << "2:\n";
-          for (auto &Node : *RegionIt2) {
-            CombLogger << Node->getNameStr() << "\n";
-          }
-          CombLogger << "is:\n";
-          for (auto &Node : Intersection) {
-            CombLogger << Node->getNameStr() << "\n";
-          }
-        }
+  // Include in the regions found before other possible sub-regions, if an edge
+  // which is the target of a backedge is included in an outer region.
+  for (auto &Region : Regions) {
+    BasicBlockNode *Head = Region.first;
+    std::set<BasicBlockNode *> &Nodes = Region.second;
+    for (BasicBlockNode *Node : Nodes) {
+      if ((Node != Head) and (AdditionalSCSNodes.count(Node) != 0)) {
+        CombLogger << "Adding additional nodes for region with head: ";
+        CombLogger << Head->getNameStr();
+        CombLogger << " and relative to node: ";
+        CombLogger << Node->getNameStr() << "\n";
+        Nodes.insert(AdditionalSCSNodes[Node].begin(), AdditionalSCSNodes[Node].end());
       }
     }
   }
@@ -319,7 +301,7 @@ createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
   std::vector<MetaRegion> MetaRegions;
   int SCSIndex = 1;
   for (size_t I = 0; I < Regions.size(); ++I) {
-    auto &SCS = Regions[I];
+    auto &SCS = Regions[I].second;
     MetaRegions.push_back(MetaRegion(SCSIndex, SCS, true));
     SCSIndex++;
   }
