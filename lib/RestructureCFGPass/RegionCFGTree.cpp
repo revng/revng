@@ -554,10 +554,10 @@ void RegionCFG::streamNode(StreamT &S, const BasicBlockNode *BB) const {
 
 /// \brief Dump a GraphViz file on stdout representing this function
 template<typename StreamT>
-void RegionCFG::dumpDot(StreamT &S) {
+void RegionCFG::dumpDot(StreamT &S) const {
   S << "digraph CFGFunction {\n";
 
-  for (std::unique_ptr<BasicBlockNode> &BB : BlockNodes) {
+  for (const std::unique_ptr<BasicBlockNode> &BB : BlockNodes) {
     streamNode(S, BB.get());
     for (auto &Successor : BB->successors()) {
       unsigned PredID = BB->getID();
@@ -571,7 +571,7 @@ void RegionCFG::dumpDot(StreamT &S) {
 
 void RegionCFG::dumpDotOnFile(std::string FolderName,
                               std::string FunctionName,
-                              std::string FileName) {
+                              std::string FileName) const {
   std::ofstream DotFile;
   std::string PathName = FolderName + "/" + FunctionName;
   mkdir(FolderName.c_str(), 0775);

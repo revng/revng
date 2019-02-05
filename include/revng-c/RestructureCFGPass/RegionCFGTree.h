@@ -169,12 +169,12 @@ public:
 public:
 
   /// \brief Dump a GraphViz representing this function on any stream
-  template<typename StreamT> void dumpDot(StreamT &);
+  template<typename StreamT> void dumpDot(StreamT &) const;
 
   /// \brief Dump a GraphViz file on a file representing this function
   void dumpDotOnFile(std::string FolderName,
                      std::string FunctionName,
-                     std::string FileName);
+                     std::string FileName) const;
 
   void purgeDummies();
 
