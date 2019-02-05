@@ -156,6 +156,7 @@ public:
     revng_assert(isCheck());
     Successors.resize(2, nullptr);
     Successors[1] = Succ;
+    Succ->addPredecessor(this);
   }
 
   BasicBlockNode *getTrue() const {
@@ -168,6 +169,7 @@ public:
     revng_assert(isCheck());
     Successors.resize(2, nullptr);
     Successors[0] = Succ;
+    Succ->addPredecessor(this);
   }
 
   BasicBlockNode *getFalse() const {
