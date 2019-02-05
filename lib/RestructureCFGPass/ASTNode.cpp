@@ -172,10 +172,12 @@ void SequenceNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"";
   ASTFile << ",shape=\"box\",color=\"black\"];\n";
 
+  int SuccessorIndex = 0;
   for (ASTNode *Successor : this->nodes()) {
     ASTFile << "\"" << this->getName() << "\""
         << " -> \"" << Successor->getName() << "\""
-        << " [color=green,label=\"elem\"];\n";
+        << " [color=green,label=\"elem " << SuccessorIndex << "\"];\n";
     Successor->dump(ASTFile);
+    SuccessorIndex += 1;
   }
 }

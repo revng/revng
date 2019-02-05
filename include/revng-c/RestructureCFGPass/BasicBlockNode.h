@@ -233,7 +233,7 @@ public:
   llvm::BasicBlock *getBasicBlock() { return BB; }
 
   llvm::StringRef getName() const { return Name; }
-  std::string getNameStr() const { return Name; }
+  std::string getNameStr() const { return "ID:" + std::to_string(getID()) + " " + Name; }
   void setName(const std::string &N) { Name = N; }
 
   bool isCollapsed() const { return NodeType == Type::Collapsed; }

@@ -345,6 +345,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Initialize the RegionCFG object
   CompleteGraph.initialize(F);
 
+  // Dump the function name.
+  if (CombLogger.isEnabled()) {
+    CombLogger << "Analyzing function: " << F.getName() << "\n";
+  }
+
   // Dump the object in .dot format if debug mode is activated.
   if (CombLogger.isEnabled()) {
     CompleteGraph.dumpDotOnFile("dots", F.getName(), "begin");
@@ -574,6 +579,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     } else {
       FirstCandidate = *MaximuxEdgesNodes.begin();
     }
+
+    revng_assert(FirstCandidate != nullptr);
 
     // Print out the name of the node that has been selected as head of the
     // region

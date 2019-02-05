@@ -42,13 +42,13 @@ static ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
     }
     #if 0
   } else if (auto *Code = llvm::dyn_cast<CodeNode>(Node)) {
-      // TODO: confirm that doesn't make sense to process a code node.
-    } else if (auto *Scs = llvm::dyn_cast<ScsNode>(Node)) {
-      // TODO: confirm that this phase is not needed since the processing is
-      //       done inside the processing of each SCS region.
-    }
-    #endif
+    // TODO: confirm that doesn't make sense to process a code node.
+  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(Node)) {
+    // TODO: confirm that this phase is not needed since the processing is
+    //       done inside the processing of each SCS region.
   }
+  #endif
+}
 
 return RootSequenceNode;
 }
@@ -524,11 +524,13 @@ std::vector<BasicBlockNode *> RegionCFG::orderNodes(std::vector<BasicBlockNode *
     std::reverse(RPOT.begin(), RPOT.end());
   }
 
+  #if 0
   CombLogger << "New ordering" << "\n";
   for (BasicBlockNode *Node : L) {
     CombLogger << Node->getNameStr() << "\n";
     CombLogger.emit();
   }
+  #endif
 
   for (BasicBlockNode *RPOTBB : RPOT) {
     for (BasicBlockNode *Node : L) {
