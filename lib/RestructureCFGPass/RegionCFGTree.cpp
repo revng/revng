@@ -599,16 +599,16 @@ void RegionCFG::purgeDummies() {
         BasicBlockNode *Predecessor = (*It)->getPredecessorI(0);
         BasicBlockNode *Successor = (*It)->getSuccessorI(0);
 
-        moveEdgeTarget(EdgeDescriptor(Predecessor, (*It)), Successor);
+        // Connect directly predecessor and successor, and remove the dummy node
+        // under analysis
+        addEdge(EdgeDescriptor(Predecessor, Successor));
         DT.insertEdge(Predecessor, Successor);
         PDT.insertEdge(Predecessor, Successor);
-        DT.deleteEdge(Predecessor, (*It));
-        PDT.deleteEdge(Predecessor, (*It));
 
-        removeEdge(EdgeDescriptor((*It), Successor));
-        DT.deleteEdge((*It), Successor);
-
+        DT.eraseNode(*It);
+        PDT.eraseNode(*It);
         Graph.removeNode(*It);
+
         AnotherIteration = true;
         break;
       }
