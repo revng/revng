@@ -794,6 +794,7 @@ void RegionCFG::inflate() {
     std::vector<BasicBlockNode *> NotDominatedCandidates;
     NotDominatedCandidates = getInterestingNodes(Conditional);
 
+    int Iteration = 0;
     while (!NotDominatedCandidates.empty()) {
       if (CombLogger.isEnabled()) {
         CombLogger << "Analyzing candidate nodes\n ";
@@ -804,11 +805,6 @@ void RegionCFG::inflate() {
         CombLogger << "Analyzing candidate " << Candidate->getNameStr()
                    << "\n";
       }
-      Graph.dumpDotOnFile("inflates",
-                          FunctionName,
-                          "Region-" + RegionName + "-conditional-"
-                          + Conditional->getNameStr());
-      CombLogger.emit();
 
       // Decide wether to insert a dummy or to duplicate.
       if (Candidate->predecessor_size() > 2) {
@@ -918,6 +914,18 @@ void RegionCFG::inflate() {
 
       // Purge extra dummies at each iteration
       purgeDummies();
+
+      if (CombLogger.isEnabled()) {
+        Graph.dumpDotOnFile("inflates",
+                            FunctionName,
+                            "Region-" + RegionName + "-conditional-"
+                            + Conditional->getNameStr() + "-"
+                            + std::to_string(Iteration));
+      }
+      Iteration++;
+
+      CombLogger << "Finished looking at: ";
+      CombLogger << Conditional->getNameStr() << "\n";
 
       // Refresh the info on candidates.
       NotDominatedCandidates = getInterestingNodes(Conditional);
