@@ -941,8 +941,11 @@ void RegionCFG::generateAst() {
   RegionCFG &Graph = *this;
 
   // Apply combing to the current RegionCFG.
-  CombLogger << "Inflating region\n";
-  Graph.inflate();
+  if (ToInflate) {
+    CombLogger << "Inflating region " + RegionName + "\n";
+    Graph.inflate();
+    ToInflate = false;
+  }
 
   // TODO: factorize out the AST generation phase.
   llvm::DominatorTreeBase<BasicBlockNode, false> ASTDT;
