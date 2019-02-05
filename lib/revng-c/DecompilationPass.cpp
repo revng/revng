@@ -2,7 +2,6 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/SourceMgr.h>
-#include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/Scalar.h>
 
 #include <clang/Tooling/CommonOptionsParser.h>
@@ -10,17 +9,12 @@
 
 #include <revng/Support/IRHelpers.h>
 
+#include <revng-c/DecompilationPass.h>
 #include "DecompilationAction.h"
 
 using namespace llvm;
 using namespace clang;
 using namespace clang::tooling;
-
-struct DecompilationPass : public ModulePass {
-  static char ID;
-  DecompilationPass() : ModulePass(ID) {};
-  bool runOnModule(llvm::Module &F) override;
-};
 
 char DecompilationPass::ID = 0;
 
@@ -30,6 +24,19 @@ static RegisterPass<DecompilationPass> X("decompilation",
                                          false);
 
 static cl::OptionCategory RevNgCategory("revng options");
+
+DecompilationPass::DecompilationPass(const llvm::Function *Function,
+                                     std::unique_ptr<llvm::raw_ostream> Out) :
+  llvm::ModulePass(ID),
+  TheFunction(Function),
+  Out(std::move(Out)) {
+}
+
+DecompilationPass::DecompilationPass() :
+  llvm::ModulePass(ID),
+  TheFunction(nullptr),
+  Out(nullptr) {
+}
 
 bool DecompilationPass::runOnModule(llvm::Module &M) {
 
@@ -65,7 +72,7 @@ bool DecompilationPass::runOnModule(llvm::Module &M) {
   // Here we build the artificial command line for clang tooling
   std::vector<const char *> ArgV = {
     "revng-c",
-    "/home/fez/prova.c", // use /dev/null as input file to start from empty AST
+    "/dev/null", // use /dev/null as input file to start from empty AST
     "--", // separator between tool arguments and clang arguments
     "-xc", // tell clang to compile C language
     "-std=c11", // tell clang to compile C11
@@ -75,7 +82,7 @@ bool DecompilationPass::runOnModule(llvm::Module &M) {
   ClangTool RevNg = ClangTool(OptionParser.getCompilations(),
                               OptionParser.getSourcePathList());
 
-  DecompilationAction Decompilation(M);
+  DecompilationAction Decompilation(M, TheFunction, std::move(Out));
   using FactoryUniquePtr = std::unique_ptr<FrontendActionFactory>;
   FactoryUniquePtr Factory = newFrontendActionFactory(&Decompilation);
   RevNg.run(Factory.get());

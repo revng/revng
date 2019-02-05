@@ -3,6 +3,7 @@
 
 #include <clang/Frontend/ASTConsumers.h>
 #include <clang/Frontend/FrontendAction.h>
+#include <cstdio>
 
 namespace clang {
 
@@ -13,7 +14,12 @@ namespace tooling {
 class DecompilationAction : public ASTFrontendAction {
 
 public:
-  DecompilationAction(llvm::Module &M) : M(M) {}
+  DecompilationAction(llvm::Module &M,
+                      const llvm::Function *F,
+                      std::unique_ptr<llvm::raw_ostream> O) :
+    M(M),
+    F(F),
+    O(std::move(O)) {}
 
 public:
   std::unique_ptr<ASTConsumer> newASTConsumer();
@@ -25,10 +31,12 @@ public:
 
 private:
   llvm::Module &M;
+  const llvm::Function *F;
+  std::unique_ptr<llvm::raw_ostream> O;
 };
 
 } // end namespace tooling
 
-} // end namespace clang
+} // namespace clang
 
 #endif // REVNGC_DECOMPILATIONACTION_H

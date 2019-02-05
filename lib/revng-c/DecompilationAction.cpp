@@ -74,7 +74,12 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
 
 class Decompiler : public ASTConsumer {
 public:
-  explicit Decompiler(llvm::Module &M) : M(M) {}
+  explicit Decompiler(llvm::Module &M,
+                      const llvm::Function *F,
+                      std::unique_ptr<llvm::raw_ostream> Out) :
+    M(M),
+    TheF(F),
+    Out(std::move(Out)) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override {
     using ConsumerPtr = std::unique_ptr<ASTConsumer>;
@@ -103,25 +108,30 @@ public:
                                            FunctionDecls);
       IR2ASTBuildAnalysis.initialize();
       IR2ASTBuildAnalysis.run();
-      auto &&ASTInfo = IR2ASTBuildAnalysis.extractASTInfo();
-      buildFunctionBody(F, ASTInfo);
+
+      if (TheF == nullptr or LLVMFunc == TheF) {
+        auto &&ASTInfo = IR2ASTBuildAnalysis.extractASTInfo();
+        buildFunctionBody(F, ASTInfo);
+      }
     }
 
     // ConsumerPtr Dumper = CreateASTDumper(nullptr, "", true, false, false);
     // Dumper->HandleTranslationUnit(Context);
-    ConsumerPtr Printer = CreateASTPrinter(nullptr, "");
+    ConsumerPtr Printer = CreateASTPrinter(std::move(Out), "");
     Printer->HandleTranslationUnit(Context);
   }
 
 private:
   llvm::Module &M;
+  const llvm::Function *TheF;
+  std::unique_ptr<llvm::raw_ostream> Out;
   FunctionsMap FunctionDecls;
   FunctionsMap FunctionDefs;
   GlobalsMap GlobalVarAST;
 };
 
 std::unique_ptr<ASTConsumer> DecompilationAction::newASTConsumer() {
-  return std::make_unique<Decompiler>(M);
+  return std::make_unique<Decompiler>(M, F, std::move(O));
 }
 
 } // end namespace tooling

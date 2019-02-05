@@ -13,4 +13,5 @@ include_directories(${LLVM_INCLUDE_DIRS})
 llvm_map_components_to_libnames(LLVM_LIBRARIES core support irreader ScalarOpts
   linker Analysis object transformutils)
 
+add_subdirectory(include)
 add_subdirectory(lib)
