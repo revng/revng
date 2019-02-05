@@ -50,7 +50,7 @@ inline void moveEdgeSource(EdgeDescriptor Edge, BasicBlockNode *NewSource) {
 // Helper function to find all nodes on paths between a source and a target
 // node
 inline std::set<BasicBlockNode *> findReachableNodes(BasicBlockNode &Source,
-                                                    BasicBlockNode &Target) {
+                                                     BasicBlockNode &Target) {
 
   // Add to the Targets set the original target node.
   std::set<BasicBlockNode *> Targets;

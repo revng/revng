@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 
 // LLVM includes
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
@@ -691,6 +692,28 @@ void RegionCFG::inflate() {
     }
   }
 
+  // Helper data structure for exit reachability computation.
+  std::set<BasicBlockNode *> ConditionalBlacklist;
+  std::map<BasicBlockNode *, std::set<BasicBlockNode *>> ReachableExits;
+
+  // Collect nodes reachable from each exit node in the graph.
+  for (BasicBlockNode *Exit : ExitNodes) {
+    CombLogger << "From exit node: " << Exit->getNameStr() << "\n";
+    CombLogger << "We can reach:\n";
+    for (BasicBlockNode *Node : llvm::inverse_depth_first(Exit)) {
+      CombLogger << Node->getNameStr() << "\n";
+      ReachableExits[Node].insert(Exit);
+    }
+  }
+
+  // Dump graph before virtual sink add.
+  if (CombLogger.isEnabled()) {
+    CombLogger << "Graph before sink addition is:\n";
+    Graph.dumpDotOnFile("inflates",
+                        FunctionName,
+                        "Region-" + RegionName + "-before-sink");
+  }
+
   // Add a new virtual sink node to which all the exit nodes are connected.
   BasicBlockNode *Sink = Graph.addArtificialNode("Virtual sink");
   for (BasicBlockNode *Exit : ExitNodes) {
@@ -706,11 +729,33 @@ void RegionCFG::inflate() {
   }
 
   // Collect all the conditional nodes in the graph.
+  // This is the working list of conditional nodes on which we will operate and
+  // will contain only the filtered conditionals.
   std::vector<BasicBlockNode *> ConditionalNodes;
+
+  // This set contains all the conditional nodes present in the graph
+  std::set<BasicBlockNode *> ConditionalNodesComplete;
+
   for (auto It = Graph.begin(); It != Graph.end(); It++) {
     revng_assert((*It)->successor_size() < 3);
     if ((*It)->successor_size() == 2) {
-      ConditionalNodes.push_back(*It);
+
+      // Check that the intersection of exits nodes reachable from the then and
+      // else branches are not disjoint
+      std::set<BasicBlockNode *> ThenExits = ReachableExits[(*It)->getSuccessorI(0)];
+      std::set<BasicBlockNode *> ElseExits = ReachableExits[(*It)->getSuccessorI(1)];
+      std::vector<BasicBlockNode *> Intersection;
+      std::set_intersection(ThenExits.begin(),
+                            ThenExits.end(),
+                            ElseExits.begin(),
+                            ElseExits.end(),
+                            std::back_inserter(Intersection));
+      if (Intersection.size() != 0) {
+          ConditionalNodes.push_back(*It);
+          ConditionalNodesComplete.insert(*It);
+      } else {
+        CombLogger << "Blacklisted conditional: " << (*It)->getNameStr() << "\n";
+      }
     }
   }
 
@@ -835,6 +880,13 @@ void RegionCFG::inflate() {
 
         BasicBlockNode *Duplicated = Graph.cloneNode(*Candidate);
         assert(Duplicated != nullptr);
+
+        // If the node we are duplicating is a conditional node, add it to the
+        // working list of the conditional nodes.
+        if (ConditionalNodesComplete.count(Candidate) != 0) {
+          ConditionalNodes.push_back(Duplicated);
+          ConditionalNodesComplete.insert(Duplicated);
+        }
 
         for (BasicBlockNode *Successor : Candidate->successors()) {
           addEdge(EdgeDescriptor(Duplicated, Successor));
