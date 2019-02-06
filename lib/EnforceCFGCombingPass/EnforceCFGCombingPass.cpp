@@ -176,6 +176,10 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
     }
   }
 
+  // Liveness Analysis
+  auto &LivenessPass = getAnalysis<LivenessAnalysisPass>();
+  const LivenessAnalysis::LivenessMap &LiveOut = LivenessPass.getLiveOut();
+
   // Adjust BasicBlockViewMap with information on incoming blocks for PHINodes
   for (auto &BBViewMapPair : BasicBlockViewMap) {
     BasicBlock *EnforcedBB = BBViewMapPair.first;
