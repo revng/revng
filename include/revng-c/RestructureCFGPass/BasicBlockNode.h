@@ -229,7 +229,7 @@ public:
   }
 
   unsigned getID() const { return ID; }
-  llvm::BasicBlock *isBasicBlock() const { return BB; }
+  bool isBasicBlock() const { return NodeType == Type::Code; }
   llvm::BasicBlock *getBasicBlock() { return BB; }
 
   llvm::StringRef getName() const { return Name; }
