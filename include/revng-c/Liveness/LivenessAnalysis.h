@@ -27,9 +27,9 @@ class Analysis
 private:
   llvm::Function &F;
   LivenessMap LiveOut;
+  using BBEdge = std::pair<llvm::BasicBlock *, llvm::BasicBlock *>;
   using UseSet = llvm::SmallPtrSet<llvm::Use *, 8>;
-  using BBUseSetMap = llvm::DenseMap<llvm::BasicBlock *, UseSet>;
-  llvm::DenseMap<llvm::BasicBlock *, BBUseSetMap> PHIEdges;
+  std::map<BBEdge, UseSet> PHIEdges;
 
 public:
   using Base = MonotoneFramework<Analysis,

@@ -15,12 +15,10 @@ Analysis::handleEdge(const LiveSet &Original,
                              llvm::BasicBlock *Destination) const {
   llvm::Optional<LiveSet> Result;
 
-  auto SrcIt = PHIEdges.find(Source);
-  if (SrcIt == PHIEdges.end())
+  auto UseIt = PHIEdges.find(std::make_pair(Source, Destination));
+  if (UseIt == PHIEdges.end())
     return Result;
 
-  auto UseIt = SrcIt->second.find(Destination);
-  revng_assert(UseIt != SrcIt->second.end());
   const UseSet &Pred = UseIt->second;
   for (Use *P : Pred) {
     auto *ThePHI = cast<PHINode>(P->getUser());
@@ -42,14 +40,12 @@ Analysis::handleEdge(const LiveSet &Original,
 
 Analysis::InterruptType Analysis::transfer(llvm::BasicBlock *BB) {
   LiveSet Result = State[BB].copy();
-  auto RIt = BB->rbegin();
-  auto REnd= BB->rend();
-  for (; RIt != REnd; ++RIt) {
-    Instruction &I = *RIt;
+
+  for (Instruction &I : llvm::reverse(*BB)) {
 
     if (auto *PHI = dyn_cast<PHINode>(&I))
       for (Use &U : PHI->incoming_values())
-        PHIEdges[BB][PHI->getIncomingBlock(U)].insert(&U);
+        PHIEdges[std::make_pair(BB, PHI->getIncomingBlock(U))].insert(&U);
 
     for (Use &U : I.operands())
       if (auto *OpInst = dyn_cast<Instruction>(U))

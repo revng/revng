@@ -4,6 +4,7 @@
 
 // LLVM includes
 #include <llvm/Pass.h>
+#include <llvm/ADT/SmallSet.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/Transforms/Utils/ValueMapper.h>
@@ -11,6 +12,7 @@
 // local librariesincludes
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
+#include "revng-c/Liveness/LivenessAnalysis.h"
 
 // local includes
 #include "BasicBlockViewAnalysis.h"
@@ -39,10 +41,10 @@ static void preprocessRCFGT(RegionCFG &RCFGT) {
                  and not Node->isBreak()
                  and not Node->isContinue());
     // Empty and Set artificial nodes should always have exactly one successor
-    // and exactly one predecessor
-    revng_assert(not (Node->isEmpty() or Node->isSet())
-                 or (Node->successor_size() == 1
-                     and Node->predecessor_size() == 1));
+    revng_assert(not Node->isEmpty() or Node->successor_size() == 1);
+    // Set should also have  exactly one predecessor
+    revng_assert((Node->successor_size() == 1 and Node->predecessor_size() == 1)
+                 or not Node->isSet());
     // Check artificial nodes should always have exactly two successors
     revng_assert(not Node->isCheck() or Node->successor_size() == 2);
 
@@ -59,18 +61,105 @@ static void preprocessRCFGT(RegionCFG &RCFGT) {
   }
 }
 
+using InstrView = std::map<Instruction *, Instruction *>;
+
+static void combineInstrView(InstrView &Result, const InstrView &Other) {
+  if (Other.empty())
+    return;
+
+  if (Result.empty()) {
+    Result = Other;
+    return;
+  }
+
+  for (const InstrView::value_type &OtherPair : Other) {
+    InstrView::iterator ViewIt = Result.find(OtherPair.first);
+    if (ViewIt == Result.end()) {
+      Result.insert(OtherPair);
+      continue;
+    }
+    ViewIt->second = nullptr;
+  }
+}
+
 bool EnforceCFGCombingPass::runOnFunction(Function &F) {
+  // Analyze only isolated functions.
   if (not F.getName().startswith("bb."))
     return false;
+
+  // HACK!
+  if (F.getName().startswith("bb.quotearg_buffer_restyled")
+      or F.getName().startswith("bb._getopt_internal_r")
+      or F.getName().startswith("bb.printf_parse")
+      or F.getName().startswith("bb.vasnprintf")) {
+    return false;
+  }
+
+  LLVMContext &Context = F.getContext();
+
   auto &RestructurePass = getAnalysis<RestructureCFG>();
   RegionCFG &RCFGT = RestructurePass.getRCT();
   preprocessRCFGT(RCFGT);
+
+  // First, remove the PHINodes in the original function.
+  {
+    BasicBlock &Entry = F.getEntryBlock();
+    IRBuilder<> AllocaBuilder(Context);
+    AllocaBuilder.SetInsertPoint(&*Entry.begin());
+    IRBuilder<> OpBuilder(Context);
+    for (BasicBlock &BB : F) {
+      SmallVector<PHINode *, 4> PHIToErase;
+      for (PHINode &PHI : BB.phis()) {
+        PHIToErase.push_back(&PHI);
+        Type *PHITy = PHI.getType();
+        AllocaInst *Alloca = AllocaBuilder.CreateAlloca(PHITy);
+        unsigned NumIncoming = PHI.getNumIncomingValues();
+        for (unsigned I = 0; I < NumIncoming; ++I) {
+
+          bool found = false;
+          for (unsigned K = 0; K < NumIncoming; ++K)
+            if (K != I and PHI.getIncomingBlock(I) == PHI.getIncomingBlock(K))
+              found = true;
+          revng_assert(not found); // TODO, we should emit a conditional store
+
+          Value *InVal = PHI.getIncomingValue(I);
+          if (Instruction *Instr = dyn_cast<Instruction>(InVal)) {
+            OpBuilder.SetInsertPoint(&*std::next(Instr->getIterator()));
+            OpBuilder.CreateStore(Instr, Alloca);
+          } else if (isa<Constant>(InVal)) {
+            BasicBlock *Pred = PHI.getIncomingBlock(I);
+            OpBuilder.SetInsertPoint(&*std::prev(Pred->end()));
+            OpBuilder.CreateStore(InVal, Alloca);
+          } else {
+            revng_abort();
+          }
+        }
+        for (Use &PHIUse : PHI.uses()) {
+          auto *UserInstr = cast<Instruction>(PHIUse.getUser());
+          OpBuilder.SetInsertPoint(UserInstr);
+          LoadInst *TheLoad = OpBuilder.CreateLoad(PHITy, Alloca);
+          PHIUse.set(TheLoad);
+        }
+      }
+      for (PHINode *PHI : PHIToErase) {
+        revng_assert(PHI->getNumUses() == 0);
+        PHI->eraseFromParent();
+      }
+    }
+  }
+
+  // Liveness Analysis
+  // WARNING: this liveness analysis must be performed before cloning the
+  // duplicated enforced BasicBlocks in the Enforced Function.
+  LivenessAnalysis::Analysis Liveness(F);
+  Liveness.initialize();
+  Liveness.run();
+  const LivenessAnalysis::LivenessMap &LiveOut = Liveness.getLiveOut();
 
   // Clone Function, with all BasicBlocks and their Instructions.
   // The clone will be all messed up at this point, becasue all the operands of
   // the cloned instruction will refer to the original function, not to the
   // cloned version. We will fix this later.
-
   Function *EnforcedF = Function::Create(F.getFunctionType(), F.getLinkage(),
                                          F.getName(), F.getParent());
 
@@ -85,42 +174,21 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
 
   BBNodeToBBMap EnforcedBBNodeToBBMap;
   BBToBBNodeMap EnforcedBBToNodeBBMap;
-
-  std::map<BasicBlock *, std::vector<BasicBlock *>> EnforcedBBMap;
-
-  using InstrMap = std::map<const Instruction *, Instruction *>;
-  std::map<BasicBlock *, std::vector<InstrMap>> EnforcedInstrMap;
-
   for (BasicBlockNode *Node : RCFGT.nodes()) {
-    BasicBlock *BB = nullptr;
+    BasicBlock *EnforcedBB = nullptr;
     if (BasicBlock *OriginalBB = Node->getBasicBlock()) {
       ValueToValueMapTy VMap{};
-      BB = CloneBasicBlock(OriginalBB, VMap, "", EnforcedF);
-      InstrMap IMap;
-      for (const auto &I : VMap) {
-        auto *OriginalInstr = cast<Instruction>(I.first);
-        auto *EnforcedInstr = cast<Instruction>(I.second);
-        IMap[OriginalInstr] = EnforcedInstr;
-      }
-      EnforcedBBMap[OriginalBB].push_back(BB);
-      EnforcedInstrMap[OriginalBB].push_back(std::move(IMap));
+      EnforcedBB = CloneBasicBlock(OriginalBB, VMap, "", EnforcedF);
     } else {
-      BB = BasicBlock::Create(F.getContext(), "", EnforcedF);
+      EnforcedBB = BasicBlock::Create(F.getContext(), "", EnforcedF);
     }
-    revng_assert(BB != nullptr);
-    EnforcedBBNodeToBBMap[Node] = BB;
-    EnforcedBBToNodeBBMap[BB] = Node;
+    revng_assert(EnforcedBB != nullptr);
+    EnforcedBBNodeToBBMap[Node] = EnforcedBB;
+    EnforcedBBToNodeBBMap[EnforcedBB] = Node;
   }
-
-  // BasicBlockViewAnalysis
-  BasicBlockViewAnalysis::Analysis BBViewAnalysis(RCFGT, EnforcedBBNodeToBBMap);
-  BBViewAnalysis.initialize();
-  BBViewAnalysis.run();
-  BBViewMap &BasicBlockViewMap = BBViewAnalysis.getBBViewMap();
 
   // Build Instructions in the artificial nodes
   {
-    LLVMContext &Context = F.getContext();
     IntegerType *PHITy = Type::getInt32Ty(Context);
     IRBuilder<> Builder(Context);
     for (BasicBlockNode *Node : RCFGT.nodes()) {
@@ -165,102 +233,121 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
         BasicBlockNode *TrueNode = Check->getTrue();
         BasicBlockNode *FalseNode = Check->getFalse();
         revng_assert(not TrueNode->isCheck());
-        revng_assert(FalseNode->isCheck());
         BasicBlock *TrueBB = EnforcedBBNodeToBBMap.at(TrueNode);
         BasicBlock *FalseBB = EnforcedBBNodeToBBMap.at(FalseNode);
         unsigned CheckID = Check->getStateVariableValue();
         ConstantInt *CheckVal = ConstantInt::get(PHITy, CheckID);
         Value *Cmp = Builder.CreateICmpEQ(PHI, CheckVal);
         Builder.CreateCondBr(Cmp, TrueBB, FalseBB);
-      } while (Check = Check->getFalse(), Check->isCheck());
+        Check = FalseNode;
+      } while (Check->isCheck());
     }
   }
 
-  // Liveness Analysis
-  auto &LivenessPass = getAnalysis<LivenessAnalysisPass>();
-  const LivenessAnalysis::LivenessMap &LiveOut = LivenessPass.getLiveOut();
+  // BasicBlockViewAnalysis
+  BasicBlockViewAnalysis::Analysis BBViewAnalysis(RCFGT, EnforcedBBNodeToBBMap);
+  BBViewAnalysis.initialize();
+  BBViewAnalysis.run();
+  BBViewMap &BasicBlockViewMap = BBViewAnalysis.getBBViewMap();
 
-  // Adjust BasicBlockViewMap with information on incoming blocks for PHINodes
-  for (auto &BBViewMapPair : BasicBlockViewMap) {
-    BasicBlock *EnforcedBB = BBViewMapPair.first;
-    llvm::iterator_range<BasicBlock::phi_iterator> PHIS = EnforcedBB->phis();
-    if (PHIS.begin() == PHIS.end())
+  IRBuilder<> PHIBuilder(Context);
+  std::map<BasicBlock *, InstrView> BBInstrViewMap;
+  llvm::ReversePostOrderTraversal<BasicBlockNode *> RPOT(&RCFGT.getEntryNode());
+  for (BasicBlockNode *BBNode : RPOT) {
+
+    InstrView IncomingView;
+
+    for (BasicBlockNode *PredNode : BBNode->predecessors()) {
+      BasicBlock *Pred = EnforcedBBNodeToBBMap.at(PredNode);
+      auto ViewIt = BBInstrViewMap.find(Pred);
+      if (ViewIt == BBInstrViewMap.end()) // this is a back edge
+        continue;
+      InstrView &PredView = ViewIt->second;
+      combineInstrView(IncomingView, PredView);
+    }
+
+    if (BBNode->isArtificial()) {
+      BasicBlock *EnforcedArtificialBB = EnforcedBBNodeToBBMap.at(BBNode);
+      BBInstrViewMap[EnforcedArtificialBB] = std::move(IncomingView);
       continue;
-
-    BBMap &EnforcedIncomingBBMap = BasicBlockViewMap.at(EnforcedBB);
-
-    for (PHINode &PHI : PHIS) {
-      unsigned NIncoming = PHI.getNumIncomingValues();
-      for (unsigned I = 0; I < NIncoming; ++I) {
-        BasicBlock *OriginalIncomingBB = PHI.getIncomingBlock(I);
-        BasicBlockNode *Tmp = EnforcedBBToNodeBBMap.at(EnforcedBB);
-        BasicBlock *EnforcedIncomingBB = nullptr;
-        for (BasicBlockNode *PredIt : Tmp->predecessors()) {
-          BasicBlockNode *Pred = PredIt;
-          while (Pred->isArtificial()) {
-            revng_assert(Pred->getBasicBlock() == nullptr);
-            revng_assert(Pred->predecessor_size() == 1);
-            Pred = *Pred->predecessors().begin();
-          }
-          BasicBlock *PredOriginalBB = Pred->getBasicBlock();
-          revng_assert(PredOriginalBB != nullptr);
-          if (PredOriginalBB == OriginalIncomingBB) {
-            EnforcedIncomingBB = EnforcedBBNodeToBBMap.at(PredIt);
-            break;
-          }
-        }
-        revng_assert(EnforcedIncomingBB != nullptr);
-        BBMap::iterator It;
-        bool New;
-        std::tie(It, New) = EnforcedIncomingBBMap.insert({OriginalIncomingBB,
-                                                          EnforcedIncomingBB});
-        revng_assert(New or It->second == EnforcedIncomingBB);
-      }
     }
-  }
 
-  revng_assert(EnforcedBBMap.size() == EnforcedInstrMap.size());
-  auto BBMapIt = EnforcedBBMap.begin();
-  auto BBMapEnd = EnforcedBBMap.end();
-  auto InstrMapIt = EnforcedInstrMap.begin();
-  for (; BBMapIt != BBMapEnd; ++BBMapIt, ++InstrMapIt) {
-    const std::vector<BasicBlock *> &BBClones = BBMapIt->second;
-    const std::vector<InstrMap> &InstrMapClones = InstrMapIt->second;
-    revng_assert(BBClones.size() == InstrMapClones.size());
-    auto BBCloneIt = BBClones.begin();
-    auto BBCloneEnd = BBClones.end();
-    auto InstrMapCloneIt = InstrMapClones.begin();
-    for (; BBCloneIt != BBCloneEnd; ++BBCloneIt, ++InstrMapCloneIt) {
-      BasicBlock *EnforcedBB = *BBCloneIt;
-      for (Instruction &EnforcedInstr : *EnforcedBB) {
-        for (Use &Op : EnforcedInstr.operands()) {
-          if (auto *OriginalInstrOp = dyn_cast<Instruction>(Op)) {
-            Op.set(InstrMapCloneIt->at(OriginalInstrOp));
-          } else if (auto *ArgOp = dyn_cast<Argument>(Op)) {
-            ValueToValueMapTy::iterator It = ArgMap.find(ArgOp);
-            revng_assert(It != ArgMap.end());
-            Op.set(It->second);
-          } else if (auto *BBOp = dyn_cast<BasicBlock>(Op)) {
-            BasicBlock *BBView = BasicBlockViewMap.at(EnforcedBB).at(BBOp);
-            revng_assert(BBView != nullptr);
-            Op.set(BBView);
-          } else if (auto *ConstOp = dyn_cast<Constant>(Op)) {
-            revng_assert(not isa<BlockAddress>(ConstOp));
+    revng_assert(BBNode->isBasicBlock());
+    BasicBlock *EnforcedBB = EnforcedBBNodeToBBMap.at(BBNode);
+
+    for (InstrView::value_type &View : IncomingView) {
+      if (View.second == nullptr) {
+        // The predecessors of BBNode disagreed on the view on this, so we need
+        // to create a PHINode, which becomes the new view of this Instruction
+        // from now on.
+        PHIBuilder.SetInsertPoint(&*EnforcedBB->begin());
+        Type *InstrTy = View.first->getType();
+        unsigned NumPred = BBNode->predecessor_size();
+        unsigned I = 0;
+        PHINode *ThePHI = PHIBuilder.CreatePHI(InstrTy, NumPred);
+        for (BasicBlockNode *PredNode : BBNode->predecessors()) {
+          BasicBlock *Pred = EnforcedBBNodeToBBMap.at(PredNode);
+          ThePHI->setIncomingBlock(I, Pred);
+
+          auto ViewIt = BBInstrViewMap.find(Pred);
+          if (ViewIt == BBInstrViewMap.end()) {
+            // It's a back edge.
+            ThePHI->setIncomingValue(I, ThePHI);
           } else {
-            revng_abort();
+            InstrView &PredView = ViewIt->second;
+            InstrView::iterator PredViewIt = PredView.find(View.first);
+            revng_assert(PredViewIt->second != nullptr);
+            ThePHI->setIncomingValue(I, PredViewIt->second);
           }
+          ++I;
         }
-        if (auto *PHI = dyn_cast<PHINode>(&EnforcedInstr)) {
-          unsigned NIncoming = PHI->getNumIncomingValues();
-          for (unsigned I = 0; I < NIncoming; ++I) {
-            BasicBlock *OrigIncomingBB = PHI->getIncomingBlock(I);
-            BasicBlock *BBView = BasicBlockViewMap.at(EnforcedBB).at(OrigIncomingBB);
-            revng_assert(BBView != nullptr);
-            PHI->setIncomingBlock(I, BBView);
-          }
+        View.second = ThePHI;
+      }
+    }
+
+    for (Instruction &EnforcedInstr : *EnforcedBB) {
+      if (auto *PHI = dyn_cast<PHINode>(&EnforcedInstr)) {
+        for (BasicBlock *B : PHI->blocks())
+          revng_assert(B->getParent() == EnforcedF);
+        for (Value *V : PHI->incoming_values()) {
+          revng_assert(not isa<Instruction>(V) or
+                      cast<Instruction>(V)->getFunction() == EnforcedF);
+        }
+        continue;
+      }
+      for (Use &Op : EnforcedInstr.operands()) {
+        if (auto *OriginalInstrOp = dyn_cast<Instruction>(Op)) {
+          if (OriginalInstrOp->getFunction() == &F)
+            continue;
+          if (isa<PHINode>(Op))
+            continue;
+          Value *EnforcedOp = IncomingView.at(OriginalInstrOp);
+          Op.set(EnforcedOp);
+        } else if (auto *ArgOp = dyn_cast<Argument>(Op)) {
+          ValueToValueMapTy::iterator It = ArgMap.find(ArgOp);
+          revng_assert(It != ArgMap.end());
+          Op.set(It->second);
+        } else if (auto *BBOp = dyn_cast<BasicBlock>(Op)) {
+          BasicBlock *BBView = BasicBlockViewMap.at(EnforcedBB).at(BBOp);
+          revng_assert(BBView != nullptr);
+          Op.set(BBView);
+        } else if (auto *ConstOp = dyn_cast<Constant>(Op)) {
+          revng_assert(not isa<BlockAddress>(ConstOp));
+        } else {
+          revng_abort();
         }
       }
     }
+
+    llvm::SmallPtrSet<Instruction *, 32> DeadInstr;
+    auto &OriginalLiveOut = LiveOut.at(BBNode->getBasicBlock());
+    for (InstrView::value_type &IView : IncomingView)
+      if (not OriginalLiveOut.contains(IView.first))
+        DeadInstr.insert(IView.first);
+    for (Instruction *Dead : DeadInstr)
+      IncomingView.erase(Dead);
+
+    BBInstrViewMap[EnforcedBB] = std::move(IncomingView);
   }
 
   return true;

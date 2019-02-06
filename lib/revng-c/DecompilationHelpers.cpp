@@ -10,7 +10,7 @@
 using namespace llvm;
 
 static bool isInAnyFunction(Instruction *I, const std::set<Function *> &Funcs) {
-  return Funcs.count(I->getParent()->getParent()) != 0;
+  return Funcs.count(I->getFunction()) != 0;
 }
 
 static bool

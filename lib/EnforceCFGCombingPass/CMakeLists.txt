@@ -7,6 +7,7 @@ revng_add_analyses_library(EnforceCFGCombingPass SHARED
 
 target_link_libraries(EnforceCFGCombingPass
                       RestructureCFGPass
+                      LivenessAnalysisPass
                       revng::revngSupport
                       ${LLVM_LIBRARIES}
                       )
