@@ -101,15 +101,15 @@ public:
 
       std::map<const llvm::BasicBlock *, clang::CompoundStmt *> BBAST;
 
-      IR2AST::Analysis IR2ASTBuildAnalysis(*LLVMFunc,
-                                           Context,
-                                           *F.second,
-                                           GlobalVarAST,
-                                           FunctionDecls);
-      IR2ASTBuildAnalysis.initialize();
-      IR2ASTBuildAnalysis.run();
-
       if (TheF == nullptr or LLVMFunc == TheF) {
+        IR2AST::Analysis IR2ASTBuildAnalysis(*LLVMFunc,
+                                             Context,
+                                             *F.second,
+                                             GlobalVarAST,
+                                             FunctionDecls);
+        IR2ASTBuildAnalysis.initialize();
+        IR2ASTBuildAnalysis.run();
+
         auto &&ASTInfo = IR2ASTBuildAnalysis.extractASTInfo();
         buildFunctionBody(F, ASTInfo);
       }

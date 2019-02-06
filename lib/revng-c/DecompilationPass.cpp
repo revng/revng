@@ -9,8 +9,8 @@
 
 #include <revng/Support/IRHelpers.h>
 
-#include <revng-c/DecompilationPass.h>
 #include "DecompilationAction.h"
+#include <revng-c/DecompilationPass.h>
 
 using namespace llvm;
 using namespace clang;
@@ -18,14 +18,12 @@ using namespace clang::tooling;
 
 char DecompilationPass::ID = 0;
 
-static RegisterPass<DecompilationPass> X("decompilation",
-                                         "Decompilation Pass",
-                                         false,
-                                         false);
+static RegisterPass<DecompilationPass>
+  X("decompilation", "Decompilation Pass", false, false);
 
 static cl::OptionCategory RevNgCategory("revng options");
 
-DecompilationPass::DecompilationPass(const llvm::Function *Function,
+DecompilationPass::DecompilationPass(llvm::Function *Function,
                                      std::unique_ptr<llvm::raw_ostream> Out) :
   llvm::ModulePass(ID),
   TheFunction(Function),
@@ -38,6 +36,26 @@ DecompilationPass::DecompilationPass() :
   Out(nullptr) {
 }
 
+static void processFunction(llvm::Module &M, llvm::Function &F) {
+  for (BasicBlock &BB : F) {
+    std::vector<Instruction *> ToErase;
+    for (Instruction &I : BB)
+      if (auto *C = dyn_cast<CallInst>(&I))
+        if (getCallee(C)->getName() == "newpc")
+          ToErase.push_back(C);
+
+    for (Instruction *I : ToErase)
+      I->eraseFromParent();
+
+    legacy::FunctionPassManager OptPM(&M);
+    OptPM.add(createSROAPass());
+    OptPM.add(createConstantPropagationPass());
+    OptPM.add(createDeadCodeEliminationPass());
+    OptPM.add(createEarlyCSEPass());
+    OptPM.run(F);
+  }
+}
+
 bool DecompilationPass::runOnModule(llvm::Module &M) {
 
   // This is a hack to prevent clashes between LLVM's `opt` arguments and
@@ -48,26 +66,28 @@ bool DecompilationPass::runOnModule(llvm::Module &M) {
   cl::getRegisteredOptions().clear();
 
   for (Function &F : M) {
-    if (F.getName().startswith("bb.")) {
-      for (BasicBlock &BB : F) {
-        std::vector<Instruction *> ToErase;
-        for (Instruction &I : BB)
-          if (auto *C = dyn_cast<CallInst>(&I))
-            if (getCallee(C)->getName() == "newpc")
-              ToErase.push_back(C);
+    for (BasicBlock &BB : F) {
+      if (!F.getName().startswith("bb."))
+        continue;
 
-        for (Instruction *I : ToErase)
-          I->eraseFromParent();
+      std::vector<Instruction *> ToErase;
+      for (Instruction &I : BB)
+        if (auto *C = dyn_cast<CallInst>(&I))
+          if (getCallee(C)->getName() == "newpc")
+            ToErase.push_back(C);
 
-        legacy::FunctionPassManager OptPM(&M);
-        OptPM.add(createSROAPass());
-        OptPM.add(createConstantPropagationPass());
-        OptPM.add(createDeadCodeEliminationPass());
-        OptPM.add(createEarlyCSEPass());
-        OptPM.run(F);
-      }
+      for (Instruction *I : ToErase)
+        I->eraseFromParent();
     }
   }
+
+  if (TheFunction == nullptr)
+    for (Function &F : M) {
+      if (F.getName().startswith("bb."))
+        processFunction(M, F);
+    }
+  else
+    processFunction(M, *TheFunction);
 
   // Here we build the artificial command line for clang tooling
   std::vector<const char *> ArgV = {

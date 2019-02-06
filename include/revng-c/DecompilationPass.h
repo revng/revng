@@ -9,13 +9,13 @@ struct DecompilationPass : public llvm::ModulePass {
   static char ID;
 
   DecompilationPass();
-  DecompilationPass(const llvm::Function *Function,
+  DecompilationPass(llvm::Function *Function,
                     std::unique_ptr<llvm::raw_ostream> Out);
 
   bool runOnModule(llvm::Module &F) override;
 
 private:
-  const llvm::Function *TheFunction;
+  llvm::Function *const TheFunction;
   std::unique_ptr<llvm::raw_ostream> Out;
 };
 
