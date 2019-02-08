@@ -40,9 +40,7 @@ BasicBlockNode *CodeNode::getFirstCFG() {
 
 void CodeNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
   dbg << "Updating pointers for node: " << getName() << "\n";
-  if ((CFGNode != nullptr)
-      and (!CFGNode->isBreak())
-      and (!CFGNode->isContinue())) {
+  if (CFGNode != nullptr) {
     assert(SubstitutionMap.count(CFGNode) != 0);
     CFGNode = SubstitutionMap[CFGNode];
   } else {
