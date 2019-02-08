@@ -42,7 +42,7 @@ void BasicBlockNode::printAsOperand(raw_ostream &O, bool PrintType) {
 }
 
 void BasicBlockNode::removeSuccessor(BasicBlockNode *Successor) {
-  revng_assert(not isCheck()); // TODO: maybe add removeTrue and removeFalse?
+  //revng_assert(not isCheck()); // TODO: maybe add removeTrue and removeFalse?
   for (auto It = Successors.begin(); It != Successors.end(); It++) {
     if (*It == Successor) {
       Successors.erase(It);

@@ -35,9 +35,28 @@ inline void removeEdge(EdgeDescriptor Edge) {
 
 inline void moveEdgeTarget(EdgeDescriptor Edge, BasicBlockNode *NewTarget) {
   Edge.second->removePredecessor(Edge.first);
-  Edge.first->removeSuccessor(Edge.second);
-  Edge.first->addSuccessor(NewTarget);
-  NewTarget->addPredecessor(Edge.first);
+
+  // Special handle for dispatcher check nodes.
+  if (Edge.first->isCheck()) {
+
+    // Confirm that the old target of the edge was one of the two branches.
+    revng_assert((Edge.first->getTrue() == Edge.second)
+                 or (Edge.first->getFalse() == Edge.second));
+
+    // Set the appropriate successor.
+    if (Edge.first->getTrue() == Edge.second) {
+      Edge.first->setTrue(NewTarget);
+    } else if (Edge.first->getFalse() == Edge.second) {
+      Edge.first->setFalse(NewTarget);
+    } else {
+      revng_assert(false && "Wrong successor for check node");
+    }
+  } else {
+    // General case when we are not handling a dispatcher check node.
+    Edge.first->removeSuccessor(Edge.second);
+    Edge.first->addSuccessor(NewTarget);
+    NewTarget->addPredecessor(Edge.first);
+  }
 }
 
 inline void moveEdgeSource(EdgeDescriptor Edge, BasicBlockNode *NewSource) {

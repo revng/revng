@@ -192,7 +192,9 @@ public:
   void printAsOperand(llvm::raw_ostream &O, bool PrintType);
 
   void addSuccessor(BasicBlockNode *Successor) {
-    revng_assert(not isCheck()); // you should use setFalse() and setTrue()
+    // TODO: Disabled this, since even for set node if we copy the successors
+    //       in order we should be fine.
+    //revng_assert(not isCheck()); // you should use setFalse() and setTrue()
     Successors.push_back(Successor);
   }
 

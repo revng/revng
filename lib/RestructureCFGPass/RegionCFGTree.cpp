@@ -886,14 +886,26 @@ void RegionCFG::inflate() {
           ConditionalNodesComplete.insert(Duplicated);
         }
 
-        for (BasicBlockNode *Successor : Candidate->successors()) {
-          addEdge(EdgeDescriptor(Duplicated, Successor));
+        // Specifically handle the check idx node situation.
+        if (Candidate->isCheck()) {
+          revng_assert(Candidate->getTrue() != nullptr
+                       and Candidate->getFalse() != nullptr);
+          BasicBlockNode *TrueSuccessor = Candidate->getTrue();
+          BasicBlockNode *FalseSuccessor = Candidate->getFalse();
+          Duplicated->setTrue(TrueSuccessor);
+          DT.insertEdge(Duplicated, TrueSuccessor);
+          Duplicated->setFalse(FalseSuccessor);
+          DT.insertEdge(Duplicated, FalseSuccessor);
 
-          // Inform the dominator and postdominator tree about the update
-          DT.insertEdge(Duplicated, Successor);
-          PDT.insertEdge(Duplicated, Successor);
+        } else {
+          for (BasicBlockNode *Successor : Candidate->successors()) {
+            addEdge(EdgeDescriptor(Duplicated, Successor));
+
+            // Inform the dominator and postdominator tree about the update
+            DT.insertEdge(Duplicated, Successor);
+            PDT.insertEdge(Duplicated, Successor);
+          }
         }
-
         std::vector<BasicBlockNode *> Predecessors;
 
         for (BasicBlockNode *Predecessor : Candidate->predecessors()) {
