@@ -150,7 +150,8 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
 
   // Liveness Analysis
   // WARNING: this liveness analysis must be performed before cloning the
-  // duplicated enforced BasicBlocks in the Enforced Function.
+  // duplicated enforced BasicBlocks in the Enforced Function, but after we have
+  // removed the PHINodes in the original function.
   LivenessAnalysis::Analysis Liveness(F);
   Liveness.initialize();
   Liveness.run();
@@ -348,6 +349,15 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
       IncomingView.erase(Dead);
 
     BBInstrViewMap[EnforcedBB] = std::move(IncomingView);
+  }
+
+  ASTTree &FunctionAST = RCFGT.getAST();
+  for (std::unique_ptr<ASTNode> &AST : FunctionAST) {
+    if (AST->isEmpty())
+      continue;
+    BasicBlockNode *BBNode = AST->getCFGNode();
+    if (BBNode->isCode())
+      BBNode->setBasicBlock(EnforcedBBNodeToBBMap.at(BBNode));
   }
 
   return true;

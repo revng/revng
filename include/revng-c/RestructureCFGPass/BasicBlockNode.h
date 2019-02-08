@@ -233,6 +233,7 @@ public:
   unsigned getID() const { return ID; }
   bool isBasicBlock() const { return NodeType == Type::Code; }
   llvm::BasicBlock *getBasicBlock() { return BB; }
+  void setBasicBlock(llvm::BasicBlock *B) { BB = B; }
 
   llvm::StringRef getName() const { return Name; }
   std::string getNameStr() const { return "ID:" + std::to_string(getID()) + " " + Name; }
