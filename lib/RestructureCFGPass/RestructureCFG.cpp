@@ -976,6 +976,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   flattenRegionCFGTree(CompleteGraph);
 
+  // Serialize final AST after flattening on file
+  CompleteGraph.getAST().dumpOnFile("ast",
+                                    F.getName(),
+                                    "Final-after-flattening");
+
   // Serialize the newly collapsed SCS region.
   if (CombLogger.isEnabled()) {
     CombLogger << "Dumping main graph after Flattening\n";

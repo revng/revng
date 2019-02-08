@@ -38,6 +38,23 @@ BasicBlockNode *CodeNode::getFirstCFG() {
   return CFGNode;
 }
 
+void CodeNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
+  dbg << "Updating pointers for node: " << getName() << "\n";
+  if ((CFGNode != nullptr)
+      and (!CFGNode->isBreak())
+      and (!CFGNode->isContinue())) {
+    assert(SubstitutionMap.count(CFGNode) != 0);
+    CFGNode = SubstitutionMap[CFGNode];
+  } else {
+    CFGNode = nullptr;
+  }
+}
+
+void CodeNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
+  // A CodeNode should not contain any reference to other AST nodes, we do not
+  // need to apply updates.
+}
+
 bool IfNode::isEqual(ASTNode *Node) {
   if (auto *OtherIf = dyn_cast<IfNode>(Node)) {
     if ((getOriginalBB() != nullptr)
@@ -65,6 +82,27 @@ BasicBlockNode *IfNode::getFirstCFG() {
   return CFGNode;
 }
 
+void IfNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
+  for (BasicBlockNode *Elem : ConditionalNodes) {
+    assert(SubstitutionMap.count(Elem) != 0);
+    Elem = SubstitutionMap[Elem];
+    dbg << "Updating pointers for node: " << getName() << "\n";
+  }
+}
+
+void IfNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
+  // Update the pointers to the `then` and `else` branches.
+  if (hasThen()) {
+    revng_assert(SubstitutionMap.count(Then) != 0);
+    Then = SubstitutionMap[Then];
+  }
+
+  if (hasElse()) {
+    revng_assert(SubstitutionMap.count(Else) != 0);
+    Else = SubstitutionMap[Else];
+  }
+}
+
 bool ScsNode::isEqual(ASTNode *Node) {
   if (auto *OtherScs = dyn_cast<ScsNode>(Node)) {
     if (Body->isEqual(OtherScs->getBody())) {
@@ -79,6 +117,23 @@ bool ScsNode::isEqual(ASTNode *Node) {
 
 BasicBlockNode *ScsNode::getFirstCFG() {
   return CFGNode;
+}
+
+void ScsNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
+
+  // Invalidate the pointer to the CFGNode, since the corresponding node will
+  // not exist anymore after the flattening phase.
+  CFGNode = nullptr;
+
+  //revng_assert(SubstitutionMap.count(CFGNode) != 0);
+  if (SubstitutionMap.count(CFGNode) > 0) {
+    //CFGNode = SubstitutionMap[CFGNode];
+  }
+}
+
+void ScsNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
+  // The link to the body AST node should be fixed explicitly during the
+  // flattening.
 }
 
 bool SequenceNode::isEqual(ASTNode *Node) {
@@ -114,6 +169,19 @@ bool SequenceNode::isEqual(ASTNode *Node) {
 
 BasicBlockNode *SequenceNode::getFirstCFG() {
   return getNodeN(0)->getCFGNode();
+}
+
+void SequenceNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
+  // This should do nothing, since we should be adjusting the pointers when
+  // iterating over the ASTTree.
+}
+
+void SequenceNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
+  // Update all the pointers of the sequence node.
+  for (ASTNode *Node : nodes()) {
+    revng_assert(SubstitutionMap.count(Node) != 0);
+    Node = SubstitutionMap[Node];
+  }
 }
 
 void CodeNode::dump(std::ofstream &ASTFile) {

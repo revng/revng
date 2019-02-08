@@ -13,6 +13,8 @@
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 
+using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
+
 // Helper to obtain a unique incremental counter (to give name to sequence
 // nodes).
 static int Counter = 1;
@@ -29,11 +31,13 @@ size_t ASTTree::size() { return ASTNodeList.size(); }
 
 void ASTTree::addASTNode(BasicBlockNode *Node,
                          std::unique_ptr<ASTNode>&& ASTObject) {
-  NodeASTMap.insert(make_pair(Node, std::move(ASTObject)));
+  ASTNodeList.emplace_back(std::move(ASTObject));
+  NodeASTMap.insert(std::make_pair(Node, ASTNodeList.back().get()));
 }
 
 ASTNode *ASTTree::findASTNode(BasicBlockNode *BlockNode) {
-  ASTNode *ASTPointer = ((NodeASTMap.find(BlockNode))->second).get();
+  revng_assert(NodeASTMap.count(BlockNode) != 0);
+  ASTNode *ASTPointer = NodeASTMap[BlockNode];
   return ASTPointer;
 }
 
@@ -44,6 +48,52 @@ void ASTTree::setRoot(ASTNode *Root) {
 ASTNode *ASTTree::getRoot() {
   return RootNode;
 }
+
+ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST,
+                                   BBNodeMap &SubstitutionMap) {
+  size_t NumCurrNodes = size();
+  ASTNodeMap ASTSubstitutionMap{};
+
+  // Clone each ASTNode in the current AST.
+  for (std::unique_ptr<ASTNode> &Old : OldAST.nodes()) {
+    //ASTNodeList.emplace_back(std::make_unique<ASTNode>(*Old));
+    ASTNodeList.emplace_back(std::move(Old->Clone()));
+    BasicBlockNode *OldCFGNode = Old->getCFGNode();
+    if (OldCFGNode != nullptr) {
+      NodeASTMap.insert(std::make_pair(OldCFGNode, ASTNodeList.back().get()));
+    }
+    ASTNode *New = ASTNodeList.back().get();
+    ASTSubstitutionMap[Old.get()] = New;
+  }
+
+  // Update the AST and BBNode pointers inside the newly created AST nodes,
+  // to reflect the changes made.
+  links_container::iterator BeginInserted = ASTNodeList.begin()
+                                            + NumCurrNodes;
+  links_container::iterator EndInserted = ASTNodeList.end();
+  using MovedIteratorRange = llvm::iterator_range<links_container::iterator>;
+  MovedIteratorRange Result = llvm::make_range(BeginInserted, EndInserted);
+  for (std::unique_ptr<ASTNode> &NewNode : Result) {
+    NewNode->updateASTNodesPointers(ASTSubstitutionMap);
+    NewNode->updateBBNodePointers(SubstitutionMap);
+  }
+
+  // Update the map between `BasicBlockNode` and `ASTNode`.
+  for (auto SubIt : SubstitutionMap) {
+    BasicBlockNode *OldBB = SubIt.first;
+    BasicBlockNode *NewBB = SubIt.second;
+    auto MapIt = NodeASTMap.find(OldBB);
+
+    // HACK:: update the key of the NodeASTMap
+    revng_assert(MapIt != NodeASTMap.end());
+    std::swap(NodeASTMap[NewBB], MapIt->second);
+    NodeASTMap.erase(MapIt);
+  }
+
+  revng_assert(ASTSubstitutionMap.count(OldAST.getRoot()) != 0);
+  return ASTSubstitutionMap[OldAST.getRoot()];
+}
+
 
 void ASTTree::dumpOnFile(std::string FolderName,
                          std::string FunctionName,

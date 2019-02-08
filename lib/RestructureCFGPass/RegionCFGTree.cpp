@@ -798,6 +798,10 @@ void RegionCFG::inflate() {
 
     int Iteration = 0;
     while (!NotDominatedCandidates.empty()) {
+
+      // TODO: Remove this
+      //NotDominatedCandidates = getInterestingNodes(Conditional);
+
       if (CombLogger.isEnabled()) {
         CombLogger << "Analyzing candidate nodes\n ";
       }
@@ -1083,7 +1087,6 @@ void RegionCFG::generateAst() {
   // Simplify useless sequence nodes.
   CombLogger << "Performing useless dummies simplification:\n";
   simplifyDummies(RootNode);
-  AST.setRoot(RootNode);
   AST.dumpOnFile("ast", FunctionName, "After-dummies-removal");
 
   // Simplify useless sequence nodes.
@@ -1095,13 +1098,11 @@ void RegionCFG::generateAst() {
   // Flip IFs with empty then branches.
   CombLogger << "Performing IFs with empty then branches flipping\n";
   flipEmptyThen(RootNode);
-  AST.setRoot(RootNode);
   AST.dumpOnFile("ast", FunctionName, "After-if-flip");
 
   // Simplify short-circuit nodes.
   CombLogger << "Performing short-circuit simplification\n";
   simplifyShortCircuit(RootNode);
-  AST.setRoot(RootNode);
   AST.dumpOnFile("ast", FunctionName, "After-short-circuit");
 
   // Remove danling nodes (possibly created by the de-optimization pass, after
@@ -1116,11 +1117,7 @@ void RegionCFG::generateAst() {
   // Simplify trivial short-circuit nodes.
   CombLogger << "Performing trivial short-circuit simplification\n";
   simplifyTrivialShortCircuit(RootNode);
-  AST.setRoot(RootNode);
   AST.dumpOnFile("ast", FunctionName, "After-trivial-short-circuit");
-
-  // Set the entry
-  AST.setRoot(RootNode);
 }
 
 // Get reference to the AST object which is inside the RegionCFG object

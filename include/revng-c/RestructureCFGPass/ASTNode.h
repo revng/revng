@@ -18,6 +18,8 @@ class BasicBlock;
 
 class BasicBlockNode;
 
+using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
+
 class ASTNode {
 
 public:
@@ -27,6 +29,8 @@ public:
     NK_Scs,
     NK_List
   };
+
+  using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
 
 private:
   const NodeKind Kind;
@@ -53,6 +57,8 @@ public:
     Successor(Successor) {}
 
   virtual ~ASTNode() {}
+
+  virtual ASTNode *Clone() = 0;
 
 public:
 
@@ -96,6 +102,10 @@ public:
 
   virtual BasicBlockNode *getFirstCFG() = 0;
 
+  virtual void updateBBNodePointers(BBNodeMap &SubstitutionMap) = 0;
+
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) = 0;
+
 private:
 
 };
@@ -116,6 +126,12 @@ public:
   void dump(std::ofstream &ASTFile);
 
   BasicBlockNode *getFirstCFG();
+
+  void updateBBNodePointers(BBNodeMap &SubstitutionMap);
+
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+
+  ASTNode *Clone() { return new CodeNode(*this); }
 
 };
 
@@ -195,6 +211,12 @@ public:
 
   BasicBlockNode *getFirstCFG();
 
+  void updateBBNodePointers(BBNodeMap &SubstitutionMap);
+
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+
+  ASTNode *Clone() { return new IfNode(*this); }
+
 };
 
 class ScsNode : public ASTNode {
@@ -226,6 +248,12 @@ public:
   void dump(std::ofstream &ASTFile);
 
   BasicBlockNode *getFirstCFG();
+
+  void updateBBNodePointers(BBNodeMap &SubstitutionMap);
+
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+
+  ASTNode *Clone() { return new ScsNode(*this); }
 
 };
 
@@ -277,6 +305,12 @@ public:
   void dump(std::ofstream &ASTFile);
 
   BasicBlockNode *getFirstCFG();
+
+  void updateBBNodePointers(BBNodeMap &SubstitutionMap);
+
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+
+  ASTNode *Clone() { return new SequenceNode(*this); }
 
 };
 

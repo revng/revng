@@ -22,12 +22,17 @@ public:
   using links_iterator = typename links_container::iterator;
   using links_range = llvm::iterator_range<links_iterator>;
 
+  // TODO: consider including BasicBlockNode header file.
+  using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
+
+  using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
+
   links_iterator begin() { return links_iterator(ASTNodeList.begin()); };
   links_iterator end() { return links_iterator(ASTNodeList.end()); };
 
 private:
-  std::map<BasicBlockNode *, std::unique_ptr<ASTNode>> NodeASTMap;
   links_container ASTNodeList;
+  std::map<BasicBlockNode *, ASTNode *> NodeASTMap;
   ASTNode *RootNode;
 
 public:
@@ -49,6 +54,8 @@ public:
   void setRoot(ASTNode *Root);
 
   ASTNode *getRoot();
+
+  ASTNode *copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap2);
 
   void dumpOnFile(std::string FolderName,
                   std::string FunctionName,

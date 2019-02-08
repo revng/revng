@@ -39,6 +39,17 @@ void flattenRegionCFGTree(RegionCFG &Root) {
       MovedIterRange MovedRange = Root.copyNodesAndEdgesFrom(CollapsedRegion,
                                                              SubstitutionMap);
 
+      // Obtain a reference to the root AST node.
+      ASTTree &RootAST = Root.getAST();
+      ASTNode *ASTEntry = RootAST.copyASTNodesFrom(CollapsedRegion->getAST(),
+                                                   SubstitutionMap);
+
+      // Fix body field of predecessor AST nodes
+      ASTNode *SCSNode = RootAST.findASTNode(CollapsedNode);
+      revng_assert((SCSNode != nullptr) and (llvm::isa<ScsNode>(SCSNode)));
+      ScsNode *SCS = llvm::cast<ScsNode>(SCSNode);
+      SCS->setBody(ASTEntry);
+
       // Fix predecessors
       BasicBlockNode *Entry = SubstitutionMap.at(OldEntry);
       for (BasicBlockNode *Pred : CollapsedNode->predecessors())
