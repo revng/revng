@@ -8,6 +8,9 @@
 // Standard includes
 #include <cstdlib>
 
+// LLVM includes
+#include <llvm/Support/Casting.h>
+
 // local includes
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 
@@ -25,6 +28,8 @@ class ASTNode {
 public:
   enum NodeKind {
     NK_Code,
+    NK_Break,
+    NK_Continue,
     NK_If,
     NK_Scs,
     NK_List
@@ -42,15 +47,13 @@ protected:
   ASTNode *Successor = nullptr;
 
 public:
-  ASTNode(NodeKind K, BasicBlockNode *CFGNode) :
-    Kind(K), CFGNode(CFGNode), Name(CFGNode->getNameStr()) {}
-
-  ASTNode(NodeKind K, std::string Name) :
+  ASTNode(NodeKind K, const std::string &Name, ASTNode *Successor = nullptr) :
     Kind(K),
     CFGNode(nullptr),
-    Name(Name) {}
+    Name(Name),
+    Successor(Successor) {}
 
-  ASTNode(NodeKind K, BasicBlockNode *CFGNode, ASTNode *Successor) :
+  ASTNode(NodeKind K, BasicBlockNode *CFGNode, ASTNode *Successor = nullptr) :
     Kind(K),
     CFGNode(CFGNode),
     Name(CFGNode->getNameStr()),
@@ -106,7 +109,53 @@ public:
 
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) = 0;
 
-private:
+};
+
+class ContinueNode : public ASTNode {
+
+public:
+  ContinueNode() :
+    ASTNode(NK_Continue, "continue") {};
+
+  static bool classof(const ASTNode *N) {
+    return N->getKind() == NK_Continue;
+  }
+
+  ASTNode *Clone() { return new ContinueNode(*this); }
+
+  void dump(std::ofstream &ASTFile);
+
+  bool isEqual(ASTNode *Node) { return llvm::isa<ContinueNode>(Node); }
+
+  BasicBlockNode *getFirstCFG() { return nullptr; };
+
+  void updateBBNodePointers(BBNodeMap &SubstitutionMap) { }
+
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) { }
+
+};
+
+class BreakNode : public ASTNode {
+
+public:
+  BreakNode() :
+    ASTNode(NK_Break, "break") {};
+
+  static bool classof(const ASTNode *N) {
+    return N->getKind() == NK_Break;
+  }
+
+  ASTNode *Clone() { return new BreakNode(*this); }
+
+  void dump(std::ofstream &ASTFile);
+
+  bool isEqual(ASTNode *Node) { return llvm::isa<BreakNode>(Node); }
+
+  BasicBlockNode *getFirstCFG() { return nullptr; };
+
+  void updateBBNodePointers(BBNodeMap &SubstitutionMap) { }
+
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) { }
 
 };
 

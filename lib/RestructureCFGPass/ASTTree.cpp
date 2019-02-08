@@ -85,15 +85,17 @@ ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST,
     auto MapIt = NodeASTMap.find(OldBB);
 
     // HACK:: update the key of the NodeASTMap
-    revng_assert(MapIt != NodeASTMap.end());
-    std::swap(NodeASTMap[NewBB], MapIt->second);
-    NodeASTMap.erase(MapIt);
+    bool isBreakOrContinue = OldBB->isContinue() or OldBB->isBreak();
+    if (not isBreakOrContinue) {
+      revng_assert(MapIt != NodeASTMap.end());
+      std::swap(NodeASTMap[NewBB], MapIt->second);
+      NodeASTMap.erase(MapIt);
+    }
   }
 
   revng_assert(ASTSubstitutionMap.count(OldAST.getRoot()) != 0);
   return ASTSubstitutionMap[OldAST.getRoot()];
 }
-
 
 void ASTTree::dumpOnFile(std::string FolderName,
                          std::string FunctionName,

@@ -83,9 +83,10 @@ BasicBlockNode *IfNode::getFirstCFG() {
 }
 
 void IfNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
+  revng_assert(CFGNode != nullptr);
+  CFGNode = SubstitutionMap.at(CFGNode);
   for (BasicBlockNode *Elem : ConditionalNodes) {
-    assert(SubstitutionMap.count(Elem) != 0);
-    Elem = SubstitutionMap[Elem];
+    Elem = SubstitutionMap.at(Elem);
     dbg << "Updating pointers for node: " << getName() << "\n";
   }
 }
@@ -120,7 +121,6 @@ BasicBlockNode *ScsNode::getFirstCFG() {
 }
 
 void ScsNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
-
   // Invalidate the pointer to the CFGNode, since the corresponding node will
   // not exist anymore after the flattening phase.
   CFGNode = nullptr;
@@ -182,6 +182,18 @@ void SequenceNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
     revng_assert(SubstitutionMap.count(Node) != 0);
     Node = SubstitutionMap[Node];
   }
+}
+
+void BreakNode::dump(std::ofstream &ASTFile) {
+  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "label=\"break\"";
+  ASTFile << ",shape=\"box\",color=\"red\"];\n";
+}
+
+void ContinueNode::dump(std::ofstream &ASTFile) {
+  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "label=\"continue\"";
+  ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
 void CodeNode::dump(std::ofstream &ASTFile) {

@@ -1046,26 +1046,27 @@ void RegionCFG::generateAst() {
       }
     } else {
       revng_assert(Children.size() < 4);
+      std::unique_ptr<ASTNode> ASTObject;
       if (Children.size() == 3) {
-        std::unique_ptr<ASTNode> ASTObject(new IfNode(Node,
-                                                      ASTChildren[0],
-                                                      ASTChildren[2],
-                                                      ASTChildren[1]));
-        AST.addASTNode(Node, std::move(ASTObject));
+        ASTObject.reset(new IfNode(Node, ASTChildren[0], ASTChildren[2],
+                                   ASTChildren[1]));
       } else if (Children.size() == 2) {
-        std::unique_ptr<ASTNode> ASTObject(new IfNode(Node,
-                                                      ASTChildren[0],
-                                                      ASTChildren[1],
-                                                      nullptr));
-        AST.addASTNode(Node, std::move(ASTObject));
+        ASTObject.reset(new IfNode(Node, ASTChildren[0], ASTChildren[1],
+                                   nullptr));
       } else if (Children.size() == 1) {
-        std::unique_ptr<ASTNode> ASTObject(new CodeNode(Node,
-                                                        ASTChildren[0]));
-        AST.addASTNode(Node, std::move(ASTObject));
+        revng_assert(not Node->isBreak() and not Node->isContinue());
+        ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
       } else if (Children.size() == 0) {
-        std::unique_ptr<ASTNode> ASTObject(new CodeNode(Node, nullptr));
-        AST.addASTNode(Node, std::move(ASTObject));
+        if (Node->isBreak())
+          ASTObject.reset(new BreakNode());
+        else if (Node->isContinue())
+          ASTObject.reset(new ContinueNode());
+        else if (Node->isEmpty() or Node->isCode())
+          ASTObject.reset(new CodeNode(Node, nullptr));
+        else
+          revng_abort();
       }
+      AST.addASTNode(Node, std::move(ASTObject));
     }
   }
 
