@@ -16,6 +16,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Local.h"
 
 // revng includes
 #include "revng/Support/Debug.h"
@@ -83,6 +84,7 @@ bool RemoveSwitch::runOnFunction(Function &F) {
       Builder.CreateBr(DestFalse);
     }
   }
+  removeUnreachableBlocks(F);
 
   return true;
 }
