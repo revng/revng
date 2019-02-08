@@ -1100,10 +1100,12 @@ void RegionCFG::generateAst() {
   flipEmptyThen(RootNode);
   AST.dumpOnFile("ast", FunctionName, "After-if-flip");
 
+  #if 0
   // Simplify short-circuit nodes.
   CombLogger << "Performing short-circuit simplification\n";
   simplifyShortCircuit(RootNode);
   AST.dumpOnFile("ast", FunctionName, "After-short-circuit");
+  #endif
 
   // Remove danling nodes (possibly created by the de-optimization pass, after
   // disconnecting the first CFG node corresponding to the simplified AST node),
@@ -1114,10 +1116,12 @@ void RegionCFG::generateAst() {
   // TODO: Remove or change this
   dumpDotOnFile("deoptimizes", FunctionName, "Deoptimized-cfg-" + RegionName);
 
+  #if 0
   // Simplify trivial short-circuit nodes.
   CombLogger << "Performing trivial short-circuit simplification\n";
   simplifyTrivialShortCircuit(RootNode);
   AST.dumpOnFile("ast", FunctionName, "After-trivial-short-circuit");
+  #endif
 }
 
 // Get reference to the AST object which is inside the RegionCFG object
