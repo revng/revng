@@ -1155,8 +1155,15 @@ void IFI::run() {
   }
 
   // Remove all the orphan basic blocks from the root function (e.g., the
-  // blocks that have been substitued by the trampoline)
+  // blocks that have been substitued by the trampoline), and from the isolated
+  // functions (basically just anypc and unexpected pc if they were inserted but
+  // not used
   removeUnreachableBlocks(*Root);
+  for (auto &Pair : Functions) {
+    IsolatedFunctionDescriptor &Descriptor = Pair.second;
+    Function *IsolatedF = Descriptor.IsolatedFunction;
+    removeUnreachableBlocks(*IsolatedF);
+  }
 
   // 15. Before emitting it in output we check that the module in passes the
   //     verifyModule pass
