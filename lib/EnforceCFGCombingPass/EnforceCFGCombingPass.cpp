@@ -351,14 +351,9 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
     BBInstrViewMap[EnforcedBB] = std::move(IncomingView);
   }
 
-  ASTTree &FunctionAST = RCFGT.getAST();
-  for (std::unique_ptr<ASTNode> &AST : FunctionAST) {
-    if (AST->isEmpty())
-      continue;
-    BasicBlockNode *BBNode = AST->getCFGNode();
-    if (BBNode->isCode())
-      BBNode->setBasicBlock(EnforcedBBNodeToBBMap.at(BBNode));
-  }
+  // This indirectly fixes the AST
+  for (BasicBlockNode *BBNode : RCFGT.nodes())
+    BBNode->setBasicBlock(EnforcedBBNodeToBBMap.at(BBNode));
 
   return true;
 }
