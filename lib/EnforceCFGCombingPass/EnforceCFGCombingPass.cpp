@@ -41,7 +41,7 @@ static void preprocessRCFGT(RegionCFG &RCFGT) {
                  and not Node->isBreak()
                  and not Node->isContinue());
     // Empty and Set artificial nodes should always have exactly one successor
-    revng_assert(not Node->isEmpty() or Node->successor_size() == 1);
+    revng_assert(not Node->isEmpty() or Node->successor_size() <= 1);
     // Set should also have  exactly one predecessor
     revng_assert((Node->successor_size() == 1 and Node->predecessor_size() == 1)
                  or not Node->isSet());
