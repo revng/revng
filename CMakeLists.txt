@@ -4,6 +4,8 @@ find_package(revng REQUIRED)
 find_package(LLVM REQUIRED CONFIG)
 find_package(Clang REQUIRED CONFIG)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+
 include_directories(include/)
 
 add_definitions(${LLVM_DEFINITIONS})

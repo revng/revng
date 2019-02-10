@@ -1,14 +1,12 @@
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
-
 revng_add_analyses_library(revng-c
+                           revngc
                            DecompilationPass.cpp
                            ASTBuildAnalysis.cpp
                            DecompilationAction.cpp
                            DecompilationHelpers.cpp
                            FuncDeclCreationAction.cpp
                            GlobalDeclCreationAction.cpp
-                           IRASTTypeTranslation.cpp
-                           )
+                           IRASTTypeTranslation.cpp)
 
 target_link_libraries(revng-c
                       revng::revngSupport
@@ -16,5 +14,4 @@ target_link_libraries(revng-c
                       clangAST
                       clangBasic
                       clangFrontend
-                      ${LLVM_LIBRARIES}
-                      )
+                      ${LLVM_LIBRARIES})
