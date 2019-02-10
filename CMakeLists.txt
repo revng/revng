@@ -6,6 +6,9 @@ find_package(Clang REQUIRED CONFIG)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
+install(FILES cmake/revngcConfig.cmake DESTINATION share/revngc/cmake)
+install(EXPORT revngc NAMESPACE revngc:: DESTINATION share/revngc/cmake)
+
 include_directories(include/)
 
 add_definitions(${LLVM_DEFINITIONS})
