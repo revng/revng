@@ -620,14 +620,14 @@ bool RestructureCFG::runOnFunction(Function &F) {
       revng_assert(RetreatingTargets.size() > 1);
       std::map<BasicBlockNode *, int> RetreatingIdxMap;
 
-      BasicBlockNode *const First = *RetreatingTargets.begin();
-      RetreatingIdxMap[First] = 0;
+      BasicBlockNode *const False = *RetreatingTargets.begin();
+      RetreatingIdxMap[False] = 0;
 
-      BasicBlockNode *const Second = *std::next(RetreatingTargets.begin());
-      RetreatingIdxMap[Second] = 1;
+      BasicBlockNode *const True = *std::next(RetreatingTargets.begin());
+      RetreatingIdxMap[True] = 1;
 
       unsigned Idx = 1;
-      Head = CompleteGraph.addDispatcher(Idx, Second, First);
+      Head = CompleteGraph.addDispatcher(Idx, True, False);
       Meta->insertNode(Head);
 
       Idx = 2;
@@ -635,7 +635,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       TargetIterator TgtIt = std::next(std::next(RetreatingTargets.begin()));
       TargetIterator TgtEnd = RetreatingTargets.end();
       for (; TgtIt != TgtEnd; ++TgtIt) {
-        BasicBlockNode *New = CompleteGraph.addDispatcher(Idx, Head, *TgtIt);
+        BasicBlockNode *New = CompleteGraph.addDispatcher(Idx, *TgtIt, Head);
         Meta->insertNode(New);
         RetreatingIdxMap[*TgtIt] = Idx;
         Idx++;
@@ -800,14 +800,14 @@ bool RestructureCFG::runOnFunction(Function &F) {
       revng_assert(Successors.size() > 1);
       std::map<BasicBlockNode *, int> SuccessorsIdxMap;
 
-      BasicBlockNode *const First = *Successors.begin();
-      SuccessorsIdxMap[First] = 0;
+      BasicBlockNode *const False = *Successors.begin();
+      SuccessorsIdxMap[False] = 0;
 
-      BasicBlockNode *const Second = *std::next(Successors.begin());
-      SuccessorsIdxMap[Second] = 1;
+      BasicBlockNode *const True = *std::next(Successors.begin());
+      SuccessorsIdxMap[True] = 1;
 
       unsigned Idx = 1;
-      Exit = CompleteGraph.addDispatcher(Idx, Second, First);
+      Exit = CompleteGraph.addDispatcher(Idx, True, False);
       ExitDispatcherNodes.push_back(Exit);
 
       Idx = 2;
@@ -815,7 +815,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       SuccessIterator SuccIt = std::next(std::next(Successors.begin()));
       SuccessIterator SuccEnd = Successors.end();
       for (; SuccIt != SuccEnd; ++SuccIt) {
-        BasicBlockNode *New = CompleteGraph.addDispatcher(Idx, Exit, *SuccIt);
+        BasicBlockNode *New = CompleteGraph.addDispatcher(Idx, *SuccIt, Exit);
         ExitDispatcherNodes.push_back(New);
         SuccessorsIdxMap[*SuccIt] = Idx;
         Idx++;

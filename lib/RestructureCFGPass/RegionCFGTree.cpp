@@ -1048,9 +1048,13 @@ void RegionCFG::generateAst() {
       revng_assert(Children.size() < 4);
       std::unique_ptr<ASTNode> ASTObject;
       if (Children.size() == 3) {
+        revng_assert(not Node->isBreak() and not Node->isContinue()
+                     and not Node->isSet());
         ASTObject.reset(new IfNode(Node, ASTChildren[0], ASTChildren[2],
                                    ASTChildren[1]));
       } else if (Children.size() == 2) {
+        revng_assert(not Node->isBreak() and not Node->isContinue()
+                     and not Node->isSet());
         ASTObject.reset(new IfNode(Node, ASTChildren[0], ASTChildren[1],
                                    nullptr));
       } else if (Children.size() == 1) {
@@ -1061,7 +1065,7 @@ void RegionCFG::generateAst() {
           ASTObject.reset(new BreakNode());
         else if (Node->isContinue())
           ASTObject.reset(new ContinueNode());
-        else if (Node->isEmpty() or Node->isCode())
+        else if (Node->isEmpty() or Node->isCode() or Node->isSet())
           ASTObject.reset(new CodeNode(Node, nullptr));
         else
           revng_abort();

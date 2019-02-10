@@ -15,7 +15,7 @@
 
 namespace LivenessAnalysis {
 
-using LiveSet = UnionMonotoneSet<llvm::Instruction *>;
+using LiveSet = UnionMonotoneSet<const llvm::Instruction *>;
 using LivenessMap =  std::map<llvm::BasicBlock *, LiveSet>;
 
 class Analysis

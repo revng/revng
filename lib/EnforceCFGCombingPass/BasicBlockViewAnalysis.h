@@ -35,13 +35,12 @@ public:
 
 protected:
   BBMap Map;
-  bool IsBottom;
 
 protected:
   BasicBlockViewMap(const BasicBlockViewMap &) = default;
 
 public:
-  BasicBlockViewMap() : Map(), IsBottom(true) {}
+  BasicBlockViewMap() : Map() {}
 
   BasicBlockViewMap copy() const { return *this; }
   BasicBlockViewMap &operator=(const BasicBlockViewMap &) = default;
@@ -53,52 +52,40 @@ public:
 
   static BasicBlockViewMap bottom() { return BasicBlockViewMap(); }
 
-private:
-
-  static bool latticeCompareHelper(const value_type &A, const value_type &B) {
-    return A.first < B.first;
-  }
-
-
 public:
   bool lowerThanOrEqual(const BasicBlockViewMap &RHS) const {
-    if (IsBottom)
-      return true;
-    if (RHS.IsBottom)
-      return false;
-    return std::includes(RHS.Map.begin(),
-                         RHS.Map.end(),
-                         Map.begin(),
-                         Map.end(),
-                         latticeCompareHelper);
+    if (Map.size() > RHS.Map.size())
+      return false; // this is larger than RHS, so it cannot be smaller
+
+    for (const value_type &ThisView : Map) {
+      auto RHSIt = RHS.Map.find(ThisView.first);
+      if (RHSIt == RHS.Map.end()) {
+        // Something is in this->Map but is not in RHS.Map, so this is not
+        // lowerThanOrEqual than RHS
+        return false;
+      } else /* RHSIt != Map.end() */ {
+        // If the mapped values are the same it's ok.
+        // If in RHS the mapped value is nullptr is also ok.
+        // In all the other cases, RHS and this disagree, hence return false
+        if (not (RHSIt->second == ThisView.second or RHSIt->second == nullptr))
+          return false;
+      }
+    }
+
+    return true;
   }
 
-  void combine(const BasicBlockViewMap &RHS) {
-    if (RHS.IsBottom)
-      return;
-    if (IsBottom) {
-      Map = RHS.Map;
-      IsBottom = false;
-      return;
-    }
-    for (const value_type &Pair : RHS.Map) {
-      iterator MapIt;
-      bool New;
-      std::tie(MapIt, New) = Map.insert(Pair);
-      if (not New and MapIt->second != Pair.second)
-        MapIt->second = nullptr;
-    }
-  }
+  void combine(const BasicBlockViewMap &RHS);
 
 public: // map methods
   iterator begin() { return Map.begin(); }
   iterator end() { return Map.end(); }
+  const_iterator begin() const { return Map.cbegin(); }
+  const_iterator end() const { return Map.cend(); }
   std::pair<iterator, bool> insert (const value_type &V) {
-    IsBottom = false;
     return Map.insert(V);
   }
   std::pair<iterator, bool> insert (value_type &&V) {
-    IsBottom = false;
     return Map.insert(V);
   }
   mapped_type &operator[](const key_type& Key) {
