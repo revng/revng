@@ -1,23 +1,29 @@
 #ifndef REVNG_C_DECOMPILATIONPASS_H
 #define REVNG_C_DECOMPILATIONPASS_H
 
-
+// std includes
 #include <memory>
 
-#include <llvm/IR/Module.h>
+// LLVM includes
+#include <llvm/IR/Function.h>
 #include <llvm/Support/raw_ostream.h>
 
-struct DecompilationPass : public llvm::ModulePass {
+// local library includes
+#include "revng-c/EnforceCFGCombingPass/EnforceCFGCombingPass.h"
+
+struct DecompilationPass : public llvm::FunctionPass {
   static char ID;
 
   DecompilationPass();
-  DecompilationPass(llvm::Function *Function,
-                    std::unique_ptr<llvm::raw_ostream> Out);
+  DecompilationPass(std::unique_ptr<llvm::raw_ostream> Out);
 
-  bool runOnModule(llvm::Module &F) override;
+  bool runOnFunction(llvm::Function &F) override;
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.addRequired<EnforceCFGCombingPass>();
+  }
 
 private:
-  llvm::Function *const TheFunction;
   std::unique_ptr<llvm::raw_ostream> Out;
 };
 

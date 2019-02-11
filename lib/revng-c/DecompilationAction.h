@@ -14,10 +14,9 @@ namespace tooling {
 class DecompilationAction : public ASTFrontendAction {
 
 public:
-  DecompilationAction(llvm::Module &M,
-                      const llvm::Function *F,
+  DecompilationAction(llvm::Function &F,
                       std::unique_ptr<llvm::raw_ostream> O) :
-    M(M),
+
     F(F),
     O(std::move(O)) {}
 
@@ -30,8 +29,7 @@ public:
   }
 
 private:
-  llvm::Module &M;
-  const llvm::Function *F;
+  llvm::Function &F;
   std::unique_ptr<llvm::raw_ostream> O;
 };
 

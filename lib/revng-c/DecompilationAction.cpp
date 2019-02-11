@@ -74,45 +74,46 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
 
 class Decompiler : public ASTConsumer {
 public:
-  explicit Decompiler(llvm::Module &M,
-                      const llvm::Function *F,
+  explicit Decompiler(llvm::Function &F,
                       std::unique_ptr<llvm::raw_ostream> Out) :
-    M(M),
     TheF(F),
     Out(std::move(Out)) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override {
     using ConsumerPtr = std::unique_ptr<ASTConsumer>;
 
+    llvm::Module *M = TheF.getParent();
+
     // Build declaration of global variables
-    ConsumerPtr GlobalDeclCreation = CreateGlobalDeclCreator(M, GlobalVarAST);
+    ConsumerPtr GlobalDeclCreation = CreateGlobalDeclCreator(*M, GlobalVarAST);
     GlobalDeclCreation->HandleTranslationUnit(Context);
     // Build function declaration
-    ConsumerPtr FunDeclCreation = CreateFuncDeclCreator(M,
+    ConsumerPtr FunDeclCreation = CreateFuncDeclCreator(*M,
                                                         FunctionDecls,
                                                         FunctionDefs);
     FunDeclCreation->HandleTranslationUnit(Context);
 
+    revng_assert(not TheF.isDeclaration());
+    revng_assert(TheF.getName().startswith("bb."));
+    auto It = FunctionDefs.find(&TheF);
+    revng_assert(It != FunctionDefs.end());
+    clang::FunctionDecl *FunctionDecl = It->second;
+
+    IR2AST::Analysis IR2ASTBuildAnalysis(TheF,
+                                         Context,
+                                         *FunctionDecl,
+                                         GlobalVarAST,
+                                         FunctionDecls);
+    IR2ASTBuildAnalysis.initialize();
+    IR2ASTBuildAnalysis.run();
+    auto &&ASTInfo = IR2ASTBuildAnalysis.extractASTInfo();
+
+    buildFunctionBody(*It, ASTInfo);
+
     for (auto &F : FunctionDefs) {
       llvm::Function *LLVMFunc = F.first;
-      revng_assert(not LLVMFunc->isDeclaration());
       const llvm::StringRef FName = LLVMFunc->getName();
-      revng_assert(FName.startswith("bb."));
 
-      std::map<const llvm::BasicBlock *, clang::CompoundStmt *> BBAST;
-
-      if (TheF == nullptr or LLVMFunc == TheF) {
-        IR2AST::Analysis IR2ASTBuildAnalysis(*LLVMFunc,
-                                             Context,
-                                             *F.second,
-                                             GlobalVarAST,
-                                             FunctionDecls);
-        IR2ASTBuildAnalysis.initialize();
-        IR2ASTBuildAnalysis.run();
-
-        auto &&ASTInfo = IR2ASTBuildAnalysis.extractASTInfo();
-        buildFunctionBody(F, ASTInfo);
-      }
     }
 
     // ConsumerPtr Dumper = CreateASTDumper(nullptr, "", true, false, false);
@@ -122,8 +123,7 @@ public:
   }
 
 private:
-  llvm::Module &M;
-  const llvm::Function *TheF;
+  llvm::Function &TheF;
   std::unique_ptr<llvm::raw_ostream> Out;
   FunctionsMap FunctionDecls;
   FunctionsMap FunctionDefs;
@@ -131,7 +131,7 @@ private:
 };
 
 std::unique_ptr<ASTConsumer> DecompilationAction::newASTConsumer() {
-  return std::make_unique<Decompiler>(M, F, std::move(O));
+  return std::make_unique<Decompiler>(F, std::move(O));
 }
 
 } // end namespace tooling

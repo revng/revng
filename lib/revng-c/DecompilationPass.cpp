@@ -9,7 +9,8 @@
 
 #include <revng/Support/IRHelpers.h>
 
-#include "revng-c/EnforceCFGCombingPass/EnforceCFGCombingPass.h"
+#include "revng-c/RestructureCFGPass/ASTTree.h"
+#include "revng-c/RestructureCFGPass/RestructureCFG.h"
 
 #include "revng-c/DecompilationPass.h"
 
@@ -26,31 +27,20 @@ static RegisterPass<DecompilationPass>
 
 static cl::OptionCategory RevNgCategory("revng options");
 
-DecompilationPass::DecompilationPass(llvm::Function *Function,
-                                     std::unique_ptr<llvm::raw_ostream> Out) :
-  llvm::ModulePass(ID),
-  TheFunction(Function),
+DecompilationPass::DecompilationPass(std::unique_ptr<llvm::raw_ostream> Out) :
+  llvm::FunctionPass(ID),
   Out(std::move(Out)) {
 }
 
 DecompilationPass::DecompilationPass() :
-  llvm::ModulePass(ID),
-  TheFunction(nullptr),
+  llvm::FunctionPass(ID),
   Out(nullptr) {
 }
 
-static void processFunction(llvm::Module &M, llvm::Function &F) {
+static void processFunction(llvm::Function &F) {
+  llvm::Module *M = F.getParent();
   for (BasicBlock &BB : F) {
-    std::vector<Instruction *> ToErase;
-    for (Instruction &I : BB)
-      if (auto *C = dyn_cast<CallInst>(&I))
-        if (getCallee(C)->getName() == "newpc")
-          ToErase.push_back(C);
-
-    for (Instruction *I : ToErase)
-      I->eraseFromParent();
-
-    legacy::FunctionPassManager OptPM(&M);
+    legacy::FunctionPassManager OptPM(M);
     OptPM.add(createSROAPass());
     OptPM.add(createConstantPropagationPass());
     OptPM.add(createDeadCodeEliminationPass());
@@ -59,7 +49,7 @@ static void processFunction(llvm::Module &M, llvm::Function &F) {
   }
 }
 
-bool DecompilationPass::runOnModule(llvm::Module &M) {
+bool DecompilationPass::runOnFunction(llvm::Function &F) {
 
   // This is a hack to prevent clashes between LLVM's `opt` arguments and
   // clangTooling's CommonOptionParser arguments.
@@ -68,29 +58,23 @@ bool DecompilationPass::runOnModule(llvm::Module &M) {
   // with its own stuff.
   cl::getRegisteredOptions().clear();
 
-  for (Function &F : M) {
-    for (BasicBlock &BB : F) {
-      if (!F.getName().startswith("bb."))
-        continue;
+  for (BasicBlock &BB : F) {
+    if (!F.getName().startswith("bb."))
+      continue;
 
-      std::vector<Instruction *> ToErase;
-      for (Instruction &I : BB)
-        if (auto *C = dyn_cast<CallInst>(&I))
-          if (getCallee(C)->getName() == "newpc")
-            ToErase.push_back(C);
+    std::vector<Instruction *> ToErase;
+    for (Instruction &I : BB)
+      if (auto *C = dyn_cast<CallInst>(&I))
+        if (getCallee(C)->getName() == "newpc")
+          ToErase.push_back(C);
 
-      for (Instruction *I : ToErase)
-        I->eraseFromParent();
-    }
+    for (Instruction *I : ToErase)
+      I->eraseFromParent();
   }
 
-  if (TheFunction == nullptr)
-    for (Function &F : M) {
-      if (F.getName().startswith("bb."))
-        processFunction(M, F);
-    }
-  else
-    processFunction(M, *TheFunction);
+  processFunction(F);
+  auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>(F);
+  ASTTree &CombedCFGAST = RestructureCFGAnalysis.getAST();
 
   // Here we build the artificial command line for clang tooling
   std::vector<const char *> ArgV = {
@@ -105,7 +89,7 @@ bool DecompilationPass::runOnModule(llvm::Module &M) {
   ClangTool RevNg = ClangTool(OptionParser.getCompilations(),
                               OptionParser.getSourcePathList());
 
-  DecompilationAction Decompilation(M, TheFunction, std::move(Out));
+  DecompilationAction Decompilation(F, std::move(Out));
   using FactoryUniquePtr = std::unique_ptr<FrontendActionFactory>;
   FactoryUniquePtr Factory = newFrontendActionFactory(&Decompilation);
   RevNg.run(Factory.get());
