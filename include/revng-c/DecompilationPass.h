@@ -1,9 +1,11 @@
 #ifndef REVNG_C_DECOMPILATIONPASS_H
 #define REVNG_C_DECOMPILATIONPASS_H
 
+
+#include <memory>
+
 #include <llvm/IR/Module.h>
 #include <llvm/Support/raw_ostream.h>
-#include <memory>
 
 struct DecompilationPass : public llvm::ModulePass {
   static char ID;

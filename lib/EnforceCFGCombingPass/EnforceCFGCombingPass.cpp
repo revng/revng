@@ -11,13 +11,13 @@
 #include <llvm/Transforms/Utils/ValueMapper.h>
 
 // local librariesincludes
+#include "revng-c/EnforceCFGCombingPass/EnforceCFGCombingPass.h"
+#include "revng-c/Liveness/LivenessAnalysis.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
-#include "revng-c/Liveness/LivenessAnalysis.h"
 
 // local includes
 #include "BasicBlockViewAnalysis.h"
-#include "EnforceCFGCombingPass.h"
 
 using namespace llvm;
 

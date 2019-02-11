@@ -9,8 +9,11 @@
 
 #include <revng/Support/IRHelpers.h>
 
+#include "revng-c/EnforceCFGCombingPass/EnforceCFGCombingPass.h"
+
+#include "revng-c/DecompilationPass.h"
+
 #include "DecompilationAction.h"
-#include <revng-c/DecompilationPass.h>
 
 using namespace llvm;
 using namespace clang;
