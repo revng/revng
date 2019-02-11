@@ -55,6 +55,9 @@ bool RemoveSwitch::runOnFunction(Function &F) {
         SuccVect.push_back(std::make_pair(CaseValue, CaseSuccessor));
       }
 
+      // Restore the order of the successors (we are using a std::vector).
+      std::reverse(SuccVect.begin(), SuccVect.end());
+
       BasicBlock *DestFalse = SuccVect.back().second;
       SuccVect.pop_back();
 
