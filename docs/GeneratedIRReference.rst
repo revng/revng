@@ -1,8 +1,8 @@
 ***********************
-revamb Output Reference
+revng Output Reference
 ***********************
 
-The main goal of revamb is to produce an LLVM module reproducing the behavior of
+The main goal of revng is to produce an LLVM module reproducing the behavior of
 the input program. The module should be compilable and work out of the
 box. However, such module contains also a rich set of additional information
 recovered during the analysis process that the user can exploit to develop any
@@ -55,7 +55,7 @@ And it has been translated as follows:
 
 .. code-block:: sh
 
-   ./revamb --no-link --functions-boundaries --use-debug-symbols --debug-info ll example example.ll
+   ./revng --no-link --functions-boundaries --use-debug-symbols --debug-info ll example example.ll
 
 Global variables
 ================
@@ -146,7 +146,7 @@ Input architecture description
 ==============================
 
 The generated module also contains a *named metadata node*:
-`revamb.input.architecture`. Currently it's composed by a metadata tuple with
+`revng.input.architecture`. Currently it's composed by a metadata tuple with
 two values:
 
 :u32 DelaySlotSize: the size, in number of instructions of the delay slot of the
@@ -157,7 +157,7 @@ Here's how this information appears in our example:
 
 .. code-block:: llvm
 
-    !revamb.input.architecture = !{!0}
+    !revng.input.architecture = !{!0}
     !0 = !{i32 0, !"pc"}
 
 There is no delay slot on x86-64 and the CSV representing the program counter is
@@ -248,17 +248,17 @@ Here's how it looks like in our example:
         i64 4194536, label %bb.myfunction
         i64 4194542, label %bb._start
         i64 4194559, label %bb._start.0x11
-      ], !revamb.block.type !1
+      ], !revng.block.type !1
 
     dispatcher.default:                               ; preds = %dispatcher.entry
       call void @unknownPC()
       unreachable
 
     anypc:                                            ; preds = %entrypoint
-      br label %dispatcher.entry, !revamb.block.type !2
+      br label %dispatcher.entry, !revng.block.type !2
 
     unexpectedpc:                                     ; preds = %entrypoint
-      br label %dispatcher.entry, !revamb.block.type !3
+      br label %dispatcher.entry, !revng.block.type !3
 
     ; ...
 
@@ -399,7 +399,7 @@ second call.
 Function calls
 --------------
 
-revamb can detect function calls. The terminator of a basic block can be
+revng can detect function calls. The terminator of a basic block can be
 considered a function call if it's preceeded by a call to a function called
 `function_call`. This function take three parameters:
 
@@ -433,7 +433,7 @@ and the third one is the return address (``0x4000ff``).
 Function boundaries
 -------------------
 
-revamb can identify function boundaries. This information is also encoded in the
+revng can identify function boundaries. This information is also encoded in the
 generated module by associating two types of metadata (`func_entry` and `func`)
 to the terminator instruction of each basic block.
 
@@ -494,11 +494,11 @@ function handling a syscall or a floating point division. These functions can
 take arguments and can read and modify freely all the CSV.
 
 Helper functions are obtained from QEMU in the form of LLVM IR (e.g.,
-``libtinycode-helpers-mips.ll``) and are statically linked by revamb before
+``libtinycode-helpers-mips.ll``) and are statically linked by revng before
 emitting the module.
 
 The presence of helper functions also import a quite large number of data
-structures, which are not directly related to revamb's output.
+structures, which are not directly related to revng's output.
 
 Note that an helper function might be present multiple times with different
 suffixes. This happens every time an helper function takes as an argument a
@@ -509,28 +509,28 @@ which parts of the CPU state is touched by an helper.
 Currently, there is no complete documentation of all the helper functions. The
 best way to understand which helper function does what, is to create a simple
 assembly snippet using a specific feature (e.g., a performing a syscall) and
-translate it using revamb.
+translate it using revng.
 
 Function isolation pass output reference
 ========================================
 
 This section of the document aims to describe how to apply the function
-isolation pass of revamb-dump to a simple example, to describe what to expect
+isolation pass of revng-dump to a simple example, to describe what to expect
 as output of this pass and the assumptions made in the isolation pass.
 
 All the following examples originate from the translation of the simple program
 already shown in the beginning of this document.
 
 Once we have applied the translation to the original binary we can apply the
-function isolation pass using the `revamb-dump` utility like this:
+function isolation pass using the `revng-dump` utility like this:
 
 .. code-block:: sh
 
-    revamb-dump --functions-isolation=example.isolated-functions.ll example.ll
+    revng-dump --functions-isolation=example.isolated-functions.ll example.ll
 
 As you can see by comparing the original IR and the one to which the function
 isolation pass has been applied the main difference is that, on the basis of the
-information recovered by the function boundaries analysis applied by revamb, now
+information recovered by the function boundaries analysis applied by revng, now
 the code is organized in different LLVM functions.
 
 As a reference we can see that the basic block `bb.myfunction` that belonged to
@@ -568,7 +568,7 @@ Now with the actual call appears like this:
     br label %bb._start.0x11
 
 Always on the basis of the information recovered by the analysis performed by
-revamb we are able to emit `ret` instructions where needed.
+revng we are able to emit `ret` instructions where needed.
 
 As a reference at the end of the basic block ``bb.myfunction`` the branch to the
 dispatcher:

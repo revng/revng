@@ -155,7 +155,7 @@ static std::unique_ptr<Module> parseIR(StringRef Path, LLVMContext &Context) {
   Result = parseIRFile(Path, Errors, Context);
 
   if (Result.get() == nullptr) {
-    Errors.print("revamb", dbgs());
+    Errors.print("revng", dbgs());
     revng_abort();
   }
 
@@ -691,10 +691,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   QuickMetadata QMD(Context);
 
   //
-  // Create revamb.input named metadata
+  // Create revng.input named metadata
   //
 
-  const char *MDName = "revamb.input.canonical-values";
+  const char *MDName = "revng.input.canonical-values";
   NamedMDNode *CanonicalValuesMD;
   CanonicalValuesMD = TheModule->getOrInsertNamedMetadata(MDName);
   for (auto &P : Binary.canonicalValues()) {
@@ -704,9 +704,9 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     CanonicalValuesMD->addOperand(QMD.tuple(Entry));
   }
 
-  // Currently revamb.input.architecture is composed as follows:
+  // Currently revng.input.architecture is composed as follows:
   //
-  // revamb.input.architecture = {
+  // revng.input.architecture = {
   //   InstructionAlignment,
   //   DelaySlotSize,
   //   PCRegisterName,
@@ -727,7 +727,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                                QMD.get(Arch.stackPointerRegister()),
                                QMD.tuple(ArrayRef<Metadata *>(ABIRegMetadata)),
                              });
-  MDName = "revamb.input.architecture";
+  MDName = "revng.input.architecture";
   NamedMDNode *InputArchMD = TheModule->getOrInsertNamedMetadata(MDName);
   InputArchMD->addOperand(Tuple);
 

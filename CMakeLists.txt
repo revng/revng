@@ -4,7 +4,7 @@
 
 cmake_minimum_required(VERSION 2.8)
 
-project(revamb)
+project(revng)
 
 include(cmake/Common.cmake)
 install(FILES cmake/revngConfig.cmake cmake/Common.cmake
@@ -69,7 +69,7 @@ foreach(ARCH arm mips mipsel x86_64 i386 s390x)
          -I"${CMAKE_CURRENT_SOURCE_DIR}/include")
   add_custom_target("early-linked-module-${OUTPUT}" ALL DEPENDS "${OUTPUT}")
   install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT}"
-    DESTINATION share/revamb)
+    DESTINATION share/revng)
 
   # Enable the support for C exceptions to avoid optimizations that break
   # exception support when linking a module with isolated functions
@@ -89,7 +89,7 @@ foreach(ARCH arm mips mipsel x86_64 i386 s390x)
            ${SUPPORT_MODULES_CONFIG_${CONFIG}})
     add_custom_target("support-module-${OUTPUT}" ALL DEPENDS "${OUTPUT}")
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT}"
-      DESTINATION share/revamb)
+      DESTINATION share/revng)
   endforeach()
 endforeach()
 
@@ -160,9 +160,9 @@ configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/early-linked.c" COPYO
 configure_file(scripts/revng "${CMAKE_BINARY_DIR}/revng" COPYONLY)
 configure_file(scripts/revng-merge-dynamic "${CMAKE_BINARY_DIR}/revng-merge-dynamic" COPYONLY)
 install(PROGRAMS scripts/revng scripts/revng-merge-dynamic DESTINATION bin)
-install(FILES runtime/support.c DESTINATION share/revamb)
-install(FILES runtime/support.h DESTINATION share/revamb)
-install(FILES include/revng/Runtime/commonconstants.h DESTINATION share/revamb)
+install(FILES runtime/support.c DESTINATION share/revng)
+install(FILES runtime/support.h DESTINATION share/revng)
+install(FILES include/revng/Runtime/commonconstants.h DESTINATION share/revng)
 
 # Remove -rdynamic
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)

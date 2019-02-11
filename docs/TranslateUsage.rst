@@ -3,7 +3,7 @@ translate
 *********
 
 ----------------------------------------------------------------
-translate a program from an architecture to another using revamb
+translate a program from an architecture to another using revng
 ----------------------------------------------------------------
 
 :Author: Alessandro Di Federico <ale+revng@clearmind.me>
@@ -16,19 +16,19 @@ translate a program from an architecture to another using revamb
 SYNOPSIS
 ========
 
-    revamb-dump [options] [--] INFILE [revamb options]
+    revng-dump [options] [--] INFILE [revng options]
 
 DESCRIPTION
 ===========
 
-`translate` is a simple wrapper script which using `revamb` to lift an input
+`translate` is a simple wrapper script which using `revng` to lift an input
 program to LLVM IR and then compiling it to x86-64.
 
-In practice, `translate` first invokes `revamb` then, depending on the options,
+In practice, `translate` first invokes `revng` then, depending on the options,
 some optimizations are performed using `llc` and or `opt`, and finally the
 generated object file is linked against the require libraries and `support.c`.
 
-Options after `INFILE` are forwarded as is to `revamb`.
+Options after `INFILE` are forwarded as is to `revng`.
 
 OPTIONS
 =======
@@ -38,7 +38,7 @@ OPTIONS
 :``-O1``: Enable backend optimizations (`llc`).
 :``-O2``: Enable optimizations both in the mid-end (`opt`) and the backend
           (`llc`).
-:``-s``: Skip invoking `revamb`, assumes a file named `INFILE.ll` already
+:``-s``: Skip invoking `revng`, assumes a file named `INFILE.ll` already
          exists. This is useful for optimizing previously generated code.
 :``-trace``: Enable tracing support: if the `REVAMB_TRACE_PATH` environment
              variable is set at run-time, the translated program will log all

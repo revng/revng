@@ -887,7 +887,7 @@ void IFI::run() {
                      || GCBI.getType(Successor) == DispatcherBlock);
         auto SuccessorIt = RootToIsolated.find(Successor);
 
-        // We add a successor if it is not a revamb block type and it is present
+        // We add a successor if it is not a revng block type and it is present
         // in the VMap. It may be that we don't find a reference for Successor
         // in the RootToIsolated in case the block it is no more in the current
         // function. This happens for example in case we have a function call,
@@ -1125,7 +1125,7 @@ void IFI::run() {
   Root->setPersonalityFn(PersonalityFunction);
 
   // Emit at the beginning of the basic blocks identified as function entries
-  // by revamb a call to the newly created corresponding LLVM function
+  // by revng a call to the newly created corresponding LLVM function
   for (BasicBlock &BB : *Root) {
     revng_assert(!BB.empty());
 

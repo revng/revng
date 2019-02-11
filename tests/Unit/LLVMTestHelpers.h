@@ -78,7 +78,7 @@ loadModule(llvm::LLVMContext &C, const char *Body) {
                                       C);
 
   if (M.get() == nullptr) {
-    Diagnostic.print("revamb", dbgs());
+    Diagnostic.print("revng", dbgs());
     revng_abort();
   }
 

@@ -31,7 +31,7 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
 
   RootFunction = &F;
 
-  const char *MDName = "revamb.input.architecture";
+  const char *MDName = "revng.input.architecture";
   NamedMDNode *InputArchMD = M.getOrInsertNamedMetadata(MDName);
   auto *Tuple = dyn_cast<MDTuple>(InputArchMD->getOperand(0));
 

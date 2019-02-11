@@ -87,7 +87,7 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
   }
 
   TerminatorInst *T = Builder.CreateBr(JumpTargets.dispatcher());
-  T->setMetadata("revamb.block.type",
+  T->setMetadata("revng.block.type",
                  QMD.tuple((uint32_t) ExternalJumpsHandlerBlock));
 
   return ReturnFromExternal;
@@ -148,7 +148,7 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
   Builder.CreateCall(Asm, PCReg);
 
   TerminatorInst *T = Builder.CreateUnreachable();
-  T->setMetadata("revamb.block.type",
+  T->setMetadata("revng.block.type",
                  QMD.tuple((uint32_t) ExternalJumpsHandlerBlock));
 
   return Result;
@@ -174,7 +174,7 @@ llvm::BasicBlock *ExternalJumpsHandler::createSetjmp(BasicBlock *FirstReturn,
   Value *BrCond = Builder.CreateICmpNE(SetjmpRes, Zero);
 
   TerminatorInst *T = Builder.CreateCondBr(BrCond, SecondReturn, FirstReturn);
-  T->setMetadata("revamb.block.type",
+  T->setMetadata("revng.block.type",
                  QMD.tuple((uint32_t) ExternalJumpsHandlerBlock));
 
   return SetjmpBB;
@@ -236,7 +236,7 @@ ExternalJumpsHandler::createExternalDispatcher(BasicBlock *IsExecutable,
   TerminatorInst *T = Builder.CreateCondBr(IsExecutableResult,
                                            IsNotExecutable,
                                            IsExecutable);
-  T->setMetadata("revamb.block.type",
+  T->setMetadata("revng.block.type",
                  QMD.tuple((uint32_t) ExternalJumpsHandlerBlock));
 
   return ExternalJumpHandler;

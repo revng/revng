@@ -2926,10 +2926,10 @@ bool CPUStateAccessAnalysis::run() {
   LLVMContext &Context = M.getContext();
   QuickMetadata QMD(Context);
   if (Found) {
-    auto LoadMDKind = Context.getMDKindID("revamb.csvaccess.offsets."
+    auto LoadMDKind = Context.getMDKindID("revng.csvaccess.offsets."
                                           "load");
     addAccessMetadata(CallSiteLoadOffset, Variables, QMD, LoadMDKind);
-    auto StoreMDKind = Context.getMDKindID("revamb.csvaccess.offsets."
+    auto StoreMDKind = Context.getMDKindID("revng.csvaccess.offsets."
                                            "store");
     addAccessMetadata(CallSiteStoreOffset, Variables, QMD, StoreMDKind);
   }

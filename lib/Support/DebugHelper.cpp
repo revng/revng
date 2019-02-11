@@ -178,7 +178,7 @@ DebugHelper::DebugHelper(std::string Output,
     auto File = Builder.createFile(this->DebugPath, "");
     CompileUnit = Builder.createCompileUnit(dwarf::DW_LANG_C,
                                             File,
-                                            "revamb",
+                                            "revng",
                                             false,
                                             "",
                                             0 /* Runtime version */);

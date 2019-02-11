@@ -122,7 +122,7 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
     MOVE(stack, strlen(*argp) + 1);
   }
 
-  PUSH_STR(stack, "revamb");
+  PUSH_STR(stack, "revng");
   platform_address = (target_reg) stack;
 
   PUSH_STR(stack, "4 I used a dice");

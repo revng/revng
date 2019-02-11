@@ -1,9 +1,9 @@
 ***********
-revamb-dump
+revng-dump
 ***********
 
 ----------------------------------------
-extract information from `revamb` output
+extract information from `revng` output
 ----------------------------------------
 
 :Author: Alessandro Di Federico <ale+revng@clearmind.me>
@@ -16,20 +16,20 @@ extract information from `revamb` output
 SYNOPSIS
 ========
 
-    revamb-dump [options] INFILE
+    revng-dump [options] INFILE
 
 DESCRIPTION
 ===========
 
-`revamb-dump` is a simple tool to extract some high level information from the
-IR produced by `revamb`.
+`revng-dump` is a simple tool to extract some high level information from the
+IR produced by `revng`.
 
 OPTIONS
 =======
 
 Note that all the options specifying a path support the special value ``-``
-which indicates ``stdout``. Note also that `revamb-dump` expresses the *name of
-a basic block* as represented by `revamb` in the generated module (typically
+which indicates ``stdout``. Note also that `revng-dump` expresses the *name of
+a basic block* as represented by `revng` in the generated module (typically
 ``bb.0xaddress`` or ``bb.symbol.0xoffset``.
 
 :``-c``, ``--cfg``: Path where the control-flow graph should be stored. The

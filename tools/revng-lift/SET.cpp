@@ -480,7 +480,7 @@ void OperationsStack::explore(Constant *NewOperand) {
 
         Module *M = Call->getParent()->getParent()->getParent();
         Constant *String = getUniqueString(M,
-                                           "revamb.input.symbol-names",
+                                           "revng.input.symbol-names",
                                            Name,
                                            Twine("symbol_") + Name);
         Call->setOperand(4, String);
@@ -640,7 +640,7 @@ void SET::collectMetadata() {
   QuickMetadata QMD(getContext(M));
 
   // Collect canonical values
-  const char *MDName = "revamb.input.canonical-values";
+  const char *MDName = "revng.input.canonical-values";
   NamedMDNode *CanonicalValuesMD = M->getNamedMetadata(MDName);
   for (MDNode *CanonicalValueMD : CanonicalValuesMD->operands()) {
     auto *CanonicalValueTuple = cast<MDTuple>(CanonicalValueMD);

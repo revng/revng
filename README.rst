@@ -2,9 +2,9 @@
 Purpose
 *******
 
-`revamb` is a static binary translator. Given a input ELF binary for one of the
+`revng` is a static binary translator. Given a input ELF binary for one of the
 supported architectures (currently MIPS, ARM and x86-64) it will analyze it and
-emit an equivalent LLVM IR. To do so, `revamb` employs the QEMU intermediate
+emit an equivalent LLVM IR. To do so, `revng` employs the QEMU intermediate
 representation (a series of TCG instructions) and then translates them to LLVM
 IR.
 
@@ -12,7 +12,7 @@ IR.
 How to build
 ************
 
-`revamb` employs CMake as a build system. The build system will try to
+`revng` employs CMake as a build system. The build system will try to
 automatically detect the QEMU installation and the GCC toolchains require to
 build the test binaries.
 

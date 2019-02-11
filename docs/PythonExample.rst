@@ -1,10 +1,10 @@
 ***************************************************
-Using `revamb` with Python: a simple instrumenation
+Using `revng` with Python: a simple instrumenation
 ***************************************************
 
-In this document we'll guide the user through using `revamb`'s output from
+In this document we'll guide the user through using `revng`'s output from
 Python. Among the many possibilities that arouse from the LLVM IR provided by
-`revamb`, in this document we'll show how it's possible to perform a simple
+`revng`, in this document we'll show how it's possible to perform a simple
 instrumentation of an existing binary, by injecting some code in the generated
 LLVM IR and recompiling it.
 
@@ -31,7 +31,7 @@ We can compile `hello.c` for ARM and link it statically:
 
     armv7a-hardfloat-linux-uclibceabi-gcc hello.c -o hello -static
 
-Using the `translate`_ tool we can have `revamb` produce the
+Using the `translate`_ tool we can have `revng` produce the
 LLVM IR and recompile it for us. The output should be a working
 ``hello.translated`` program for x86-64 (our host architecture):
 
@@ -47,7 +47,7 @@ Tracing all the syscall invocations
 ===================================
 
 For this example, we'll write a simple Python script (``instrument.py``) which
-takes in input the `revamb` generated LLVM IR, identifies all the syscalls and
+takes in input the `revng` generated LLVM IR, identifies all the syscalls and
 instrument them injecting the code to print the number of syscall to be
 performed.
 
@@ -70,7 +70,7 @@ object and load the input LLVM IR:
     buffer = llvm.create_memory_buffer_with_contents_of_file(sys.argv[1])
     module = context.parse_ir(buffer)
 
-Now that we a reference to the module produced by `revamb` we can collect the
+Now that we a reference to the module produced by `revng` we can collect the
 objects required to perform the `dprintf` call, i.e., the function itself, the
 CSV representing the register `r7`, a constant integer representing `stderr` and
 the format string for `dprintf`:

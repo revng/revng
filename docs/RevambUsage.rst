@@ -1,5 +1,5 @@
 ******
-revamb
+revng
 ******
 
 ---------------------------------------------------------
@@ -16,28 +16,28 @@ lift a binary from any architecture to compilable LLVM IR
 SYNOPSIS
 ========
 
-    revamb [options] [--] INFILE OUTFILE
+    revng [options] [--] INFILE OUTFILE
 
 OPTIONS
 =======
 
-`revamb` options allow to customize its output. In the following the main ones
+`revng` options allow to customize its output. In the following the main ones
 are described:
 
-:``-e``, ``--entry``: Tell `revamb` to ignore the program entry point (typically
+:``-e``, ``--entry``: Tell `revng` to ignore the program entry point (typically
                       the `_start` function) and start to translated code at the
                       specified address (as *decimal* number). Note that this
                       option also disables the harvesting of the global data in
                       search for code pointers (see
-                      `/usr/share/doc/revamb/GeneratedIRReference.html`). This
-                      option is mainly useful to test how `revamb` acts on a
+                      `/usr/share/doc/revng/GeneratedIRReference.html`). This
+                      option is mainly useful to test how `revng` acts on a
                       limited portion of code without translating the whole
                       program. Default: entry point specified by the ELF header
                       (``ElfN_Ehdr.e_entry``).
 :``-i``, ``--linking-info``: Path where the CSV containing instructions for the
                              linker on how to position the segment variables
                              (see
-                             `/usr/share/doc/revamb/FromIRToExecutable.html`).
+                             `/usr/share/doc/revng/FromIRToExecutable.html`).
                              Default: ``OUTFILE.li.csv``.
 :``-g``, ``--debug-info``: Type of debug information to associate to the
                            generated module, i.e. the type of *source code* to
@@ -56,7 +56,7 @@ are described:
 :``-c``, ``--coverage-path``: Path where the list of the address ranges that
                               have been translated should be stored (in CSV
                               form). This option is deprecated in favor of using
-                              `revamb-dump` and will be removed. Default:
+                              `revng-dump` and will be removed. Default:
                               ``OUTFILE.coverage.csv``
 :``-d``, ``--debug``: Enable verbose debugging info during execution. The
                       argument is a comma-separated list of keywords identifying
@@ -78,11 +78,11 @@ are described:
 :``-S``, ``--use-debug-symbols``: If they are available, ELF sections and
                                   function symbols are employed to identify
                                   executable code and function boundaries. This
-                                  options is useful evaluate `revamb` ignoring
+                                  options is useful evaluate `revng` ignoring
                                   the code issue.
 :``-b``, ``--bb-summary``: Output path for the CSV containing statistics about
                            the translated basic blocks. This option is
-                           deprecated in favor of using `revamb-dump` and will
+                           deprecated in favor of using `revng-dump` and will
                            be removed. Default: ``OUTFILE.bbsummary.csv``.
 :``-f``, ``--functions-boundaries``: Enable function boundaries detection. This
                                     process currently can be quite expensive and

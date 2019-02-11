@@ -371,7 +371,7 @@ void FunctionsSummary::dumpInternal(const Module *M,
       const char *JTReasonsDelimiter = "";
       TerminatorInst *T = Entry->getTerminator();
       revng_assert(T != nullptr);
-      MDNode *Node = T->getMetadata("revamb.jt.reasons");
+      MDNode *Node = T->getMetadata("revng.jt.reasons");
       SmallVector<StringRef, 4> Reasons;
       if (auto *Tuple = cast_or_null<MDTuple>(Node)) {
         // Collect reasons

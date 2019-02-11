@@ -31,14 +31,14 @@ if(NOT "${RST2HTML}" STREQUAL RST2HTML-NOTFOUND)
       MAIN_DEPENDENCY "${INPUT_FILE}")
     set(DOC_DEPS ${DOC_DEPS} ${OUTPUT_FILE})
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_FILE}
-      DESTINATION ${CMAKE_INSTALL_PREFIX}/share/doc/revamb/)
+      DESTINATION ${CMAKE_INSTALL_PREFIX}/share/doc/revng/)
   endforeach()
 endif()
 
 foreach(INPUT_FILE ${DOC_COPY})
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${INPUT_FILE}" "${INPUT_FILE}" COPYONLY)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${INPUT_FILE}
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/doc/revamb/)
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/doc/revng/)
 endforeach()
 
 add_custom_target(docs ALL DEPENDS ${DOC_DEPS})

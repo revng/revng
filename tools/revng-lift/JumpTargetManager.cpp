@@ -1218,7 +1218,7 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
                                                        UnknownPCTy);
   Builder.CreateCall(cast<Function>(UnknownPC));
   auto *FailUnreachable = Builder.CreateUnreachable();
-  FailUnreachable->setMetadata("revamb.block.type",
+  FailUnreachable->setMetadata("revng.block.type",
                                QMD.tuple((uint32_t) DispatcherFailureBlock));
 
   // Switch on the first argument of the function
@@ -1226,7 +1226,7 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   Value *SwitchOn = Builder.CreateLoad(SwitchOnPtr);
   SwitchInst *Switch = Builder.CreateSwitch(SwitchOn, DispatcherFail);
   // The switch is the terminator of the dispatcher basic block
-  Switch->setMetadata("revamb.block.type",
+  Switch->setMetadata("revng.block.type",
                       QMD.tuple((uint32_t) DispatcherBlock));
 
   Dispatcher = Entry;
@@ -1295,10 +1295,10 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
   }
 
   QuickMetadata QMD(Context);
-  AnyPC->getTerminator()->setMetadata("revamb.block.type",
+  AnyPC->getTerminator()->setMetadata("revng.block.type",
                                       QMD.tuple((uint32_t) AnyPCBlock));
   TerminatorInst *UnexpectedPCJump = UnexpectedPC->getTerminator();
-  UnexpectedPCJump->setMetadata("revamb.block.type",
+  UnexpectedPCJump->setMetadata("revng.block.type",
                                 QMD.tuple((uint32_t) UnexpectedPCBlock));
 
   // If we're entering or leaving the NoFunctionCallsCFG form, update all the

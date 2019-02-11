@@ -226,7 +226,7 @@ def run_translate(args):
                            [os.path.join(script_path,
                                          "..",
                                          "share",
-                                         "revamb"),
+                                         "revng"),
                             script_path])
 
   # Perform lifting

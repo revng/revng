@@ -2,7 +2,7 @@
 Identifying the required components
 ***********************************
 
-`revamb` requires three main components: LLVM, QEMU and one or more GCC
+`revng` requires three main components: LLVM, QEMU and one or more GCC
 toolchains.
 
 LLVM
@@ -31,9 +31,9 @@ using the ``QEMU_INSTALL_PATH`` variable:
 GCC
 ===
 
-The `revamb` build system will try to automatically detect toolchains to compile
+The `revng` build system will try to automatically detect toolchains to compile
 code for the supported architectures. The toolchains are required to correctly
-run the `revamb` test suite.
+run the `revng` test suite.
 
 The autodetction mechanism looks in all the directories in the ``PATH``
 environment variable for an executable matching the pattern ``$ARCH*-musl*-gcc``
@@ -49,7 +49,7 @@ architecture using the CMake variable ``C_COMPILER_$ARCH``:
           -DC_COMPILER_x86_64="/home/me/my-x86_64-compiler" \
           ../
 
-The `revamb` build system also provides an option to specify additional flags to
+The `revng` build system also provides an option to specify additional flags to
 employ when using the above mentioned commpilers for compilation and linking of
 test binaries. This can be done using the variables ``TEST_CFLAGS_$ARCH`` (for
 compile-time flags) and ``TEST_LINK_LIBRARIES_$ARCH`` (for linking).
@@ -68,7 +68,7 @@ Common CMake options
 ********************
 
 In the following we provide some useful-to-know CMake variables, that are not
-specific to `revamb`. They can be specified using the ``-D`` flag, e.g.:
+specific to `revng`. They can be specified using the ``-D`` flag, e.g.:
 
 .. code-block:: sh
 

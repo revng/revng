@@ -26,8 +26,8 @@ class Instruction;
 class MDNode;
 } // namespace llvm
 
-static const char *BlockTypeMDName = "revamb.block.type";
-static const char *JTReasonMDName = "revamb.jt.reasons";
+static const char *BlockTypeMDName = "revng.block.type";
+static const char *JTReasonMDName = "revng.jt.reasons";
 
 /// \brief Pass to collect basic information about the generated code
 ///
