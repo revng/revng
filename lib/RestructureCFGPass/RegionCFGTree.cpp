@@ -515,8 +515,11 @@ BasicBlockNode &RegionCFG::getRandomNode() {
   return *(randomIt->second);
 }
 
-std::vector<BasicBlockNode *> RegionCFG::orderNodes(std::vector<BasicBlockNode *> &L,
-                                              bool DoReverse) {
+std::vector<BasicBlockNode *>
+RegionCFG::orderNodes(std::vector<BasicBlockNode *> &L,
+                      bool DoReverse) {
+  std::set<BasicBlockNode *> ToOrder;
+  ToOrder.insert(L.begin(), L.end());
   llvm::ReversePostOrderTraversal<BasicBlockNode *> RPOT(EntryNode);
   std::vector<BasicBlockNode *> Result;
 
@@ -533,10 +536,8 @@ std::vector<BasicBlockNode *> RegionCFG::orderNodes(std::vector<BasicBlockNode *
   #endif
 
   for (BasicBlockNode *RPOTBB : RPOT) {
-    for (BasicBlockNode *Node : L) {
-      if (RPOTBB == Node) {
-        Result.push_back(Node);
-      }
+    if (ToOrder.count(RPOTBB) != 0) {
+      Result.push_back(RPOTBB);
     }
   }
 
