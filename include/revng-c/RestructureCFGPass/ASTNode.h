@@ -46,6 +46,11 @@ protected:
   std::string Name;
   ASTNode *Successor = nullptr;
 
+  /// Unique Node ID inside a ASTNode, useful for printing to graphviz
+  /// This field is initialized to 0, and will be re-assigned when the ASTNode
+  /// will be inserted in an ASTTree.
+  unsigned ID = 0;
+
 public:
   ASTNode(NodeKind K, const std::string &Name, ASTNode *Successor = nullptr) :
     Kind(K),
@@ -68,8 +73,12 @@ public:
   NodeKind getKind() const { return Kind; }
 
   std::string getName() {
-    return Name;
+    return "ID:" + std::to_string(getID()) + " Name:" + Name;
   }
+
+  void setID(unsigned NewID) { ID = NewID; }
+
+  unsigned getID() const { return ID; }
 
   virtual void dump(std::ofstream &ASTFile) = 0;
 

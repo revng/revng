@@ -34,12 +34,15 @@ private:
   links_container ASTNodeList;
   std::map<BasicBlockNode *, ASTNode *> NodeASTMap;
   ASTNode *RootNode;
+  unsigned IDCounter = 0;
 
 public:
 
   void addCFGNode() {}
 
   SequenceNode *addSequenceNode();
+
+  unsigned getNewID() { return IDCounter++; }
 
   links_range nodes() {
     return llvm::make_range(begin(), end());

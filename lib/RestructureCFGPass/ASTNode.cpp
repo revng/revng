@@ -176,9 +176,11 @@ void SequenceNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
 
 void SequenceNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // Update all the pointers of the sequence node.
-  for (ASTNode *Node : nodes()) {
+  for (auto NodeIt = NodeList.begin(); NodeIt != NodeList.end(); NodeIt++) {
+    ASTNode *Node = *NodeIt;
     revng_assert(SubstitutionMap.count(Node) != 0);
-    Node = SubstitutionMap[Node];
+    ASTNode *NewNode = SubstitutionMap[Node];
+    *NodeIt = NewNode;
   }
 }
 
@@ -212,7 +214,8 @@ void IfNode::dump(std::ofstream &ASTFile) {
   ConditionalNames.pop_back();
   ConditionalNames.pop_back();
 
-  ASTFile << "label=\"" << ConditionalNames;
+  //ASTFile << "label=\"" << ConditionalNames;
+  ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"invhouse\",color=\"blue\"];\n";
 

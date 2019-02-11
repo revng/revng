@@ -24,6 +24,10 @@ static std::string getID() {
 
 SequenceNode *ASTTree::addSequenceNode() {
   ASTNodeList.emplace_back(new SequenceNode("sequence " + getID()));
+
+  // Set the Node ID
+  ASTNodeList.back()->setID(getNewID());
+
   return llvm::cast<SequenceNode>(ASTNodeList.back().get());
 }
 
@@ -32,6 +36,10 @@ size_t ASTTree::size() { return ASTNodeList.size(); }
 void ASTTree::addASTNode(BasicBlockNode *Node,
                          std::unique_ptr<ASTNode>&& ASTObject) {
   ASTNodeList.emplace_back(std::move(ASTObject));
+
+  // Set the Node ID
+  ASTNodeList.back()->setID(getNewID());
+
   NodeASTMap.insert(std::make_pair(Node, ASTNodeList.back().get()));
 }
 
@@ -58,6 +66,10 @@ ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST,
   for (std::unique_ptr<ASTNode> &Old : OldAST.nodes()) {
     //ASTNodeList.emplace_back(std::make_unique<ASTNode>(*Old));
     ASTNodeList.emplace_back(std::move(Old->Clone()));
+
+    // Set the Node ID
+    ASTNodeList.back()->setID(getNewID());
+
     BasicBlockNode *OldCFGNode = Old->getCFGNode();
     if (OldCFGNode != nullptr) {
       NodeASTMap.insert(std::make_pair(OldCFGNode, ASTNodeList.back().get()));
