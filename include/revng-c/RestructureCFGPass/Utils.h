@@ -24,11 +24,13 @@ extern Logger<> CombLogger;
 using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
 
 inline void addEdge(EdgeDescriptor NewEdge) {
+  revng_assert(not NewEdge.first->isCheck());
   NewEdge.first->addSuccessor(NewEdge.second);
   NewEdge.second->addPredecessor(NewEdge.first);
 }
 
 inline void removeEdge(EdgeDescriptor Edge) {
+  revng_assert(not Edge.first->isCheck());
   Edge.first->removeSuccessor(Edge.second);
   Edge.second->removePredecessor(Edge.first);
 }
@@ -57,13 +59,6 @@ inline void moveEdgeTarget(EdgeDescriptor Edge, BasicBlockNode *NewTarget) {
     Edge.first->addSuccessor(NewTarget);
     NewTarget->addPredecessor(Edge.first);
   }
-}
-
-inline void moveEdgeSource(EdgeDescriptor Edge, BasicBlockNode *NewSource) {
-  Edge.first->removeSuccessor(Edge.second);
-  Edge.second->removePredecessor(Edge.first);
-  Edge.second->addPredecessor(NewSource);
-  NewSource->addSuccessor(Edge.second);
 }
 
 // Helper function to find all nodes on paths between a source and a target

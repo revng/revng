@@ -219,6 +219,13 @@ public:
     return N->getKind() == NK_If;
   }
 
+  llvm::BasicBlock *getUniqueCondBlock() {
+    revng_assert(ConditionalNodes.size() == 1);
+    BasicBlockNode *N = ConditionalNodes[0];
+    revng_assert(N->isCode() or N->isCheck());
+    return N->getBasicBlock();
+  }
+
   ASTNode *getThen() {
     return Then;
   }

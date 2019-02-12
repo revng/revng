@@ -5,6 +5,8 @@
 #include <clang/Frontend/FrontendAction.h>
 #include <cstdio>
 
+class ASTTree;
+
 namespace clang {
 
 class CompilerInstance;
@@ -15,9 +17,11 @@ class DecompilationAction : public ASTFrontendAction {
 
 public:
   DecompilationAction(llvm::Function &F,
+                      ASTTree &CombedAST,
                       std::unique_ptr<llvm::raw_ostream> O) :
 
     F(F),
+    CombedAST(CombedAST),
     O(std::move(O)) {}
 
 public:
@@ -30,6 +34,7 @@ public:
 
 private:
   llvm::Function &F;
+  ASTTree &CombedAST;
   std::unique_ptr<llvm::raw_ostream> O;
 };
 

@@ -155,8 +155,12 @@ public:
   void setTrue(BasicBlockNode *Succ) {
     revng_assert(isCheck());
     Successors.resize(2, nullptr);
+    if (Successors[1])
+      Successors[1]->removePredecessor(this);
     Successors[1] = Succ;
-    Succ->addPredecessor(this);
+    if (Succ) {
+      Succ->addPredecessor(this);
+    }
   }
 
   BasicBlockNode *getTrue() const {
@@ -168,8 +172,11 @@ public:
   void setFalse(BasicBlockNode *Succ) {
     revng_assert(isCheck());
     Successors.resize(2, nullptr);
+    if (Successors[1])
+      Successors[1]->removePredecessor(this);
     Successors[0] = Succ;
-    Succ->addPredecessor(this);
+    if (Succ)
+      Succ->addPredecessor(this);
   }
 
   BasicBlockNode *getFalse() const {

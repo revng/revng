@@ -487,8 +487,18 @@ void
 RegionCFG::connectBreakNode(std::set<EdgeDescriptor> &Outgoing,
                             BasicBlockNode *Break,
                             const BBNodeMap &SubstitutionMap) {
-  for (EdgeDescriptor Edge : Outgoing)
-    addEdge(EdgeDescriptor(SubstitutionMap.at(Edge.first), Break));
+  for (EdgeDescriptor Edge : Outgoing) {
+    if (not Edge.first->isCheck()) {
+      addEdge(EdgeDescriptor(SubstitutionMap.at(Edge.first), Break));
+    } else {
+      revng_assert(Edge.second == Edge.first->getTrue()
+                   or Edge.second == Edge.first->getFalse());
+      if (Edge.second == Edge.first->getTrue())
+        SubstitutionMap.at(Edge.first)->setTrue(Break);
+      else
+        SubstitutionMap.at(Edge.first)->setFalse(Break);
+    }
+  }
 }
 
 void RegionCFG::connectContinueNode(BasicBlockNode *Continue) {
@@ -566,8 +576,11 @@ void RegionCFG::dumpDot(StreamT &S) const {
     for (auto &Successor : BB->successors()) {
       unsigned PredID = BB->getID();
       unsigned SuccID = Successor->getID();
-      S << "\"" << PredID << "\"" << " -> \"" << SuccID << "\""
-        << " [color=green];\n";
+      S << "\"" << PredID << "\"" << " -> \"" << SuccID << "\"";
+      if (BB->isCheck() and BB->getFalse() == Successor)
+        S << " [color=red];\n";
+      else
+        S << " [color=green];\n";
     }
   }
   S << "}\n";
@@ -605,7 +618,7 @@ void RegionCFG::purgeDummies() {
 
         // Connect directly predecessor and successor, and remove the dummy node
         // under analysis
-        addEdge(EdgeDescriptor(Predecessor, Successor));
+        moveEdgeTarget({Predecessor, *It}, Successor);
         DT.insertEdge(Predecessor, Successor);
         PDT.insertEdge(Predecessor, Successor);
 
@@ -968,11 +981,13 @@ void RegionCFG::generateAst() {
   RegionCFG &Graph = *this;
 
   // Apply combing to the current RegionCFG.
+  dumpDotOnFile("dots", FunctionName, "PRECOMB");
   if (ToInflate) {
     CombLogger << "Inflating region " + RegionName + "\n";
     Graph.inflate();
     ToInflate = false;
   }
+  dumpDotOnFile("dots", FunctionName, "POSTCOMB");
 
   // TODO: factorize out the AST generation phase.
   llvm::DominatorTreeBase<BasicBlockNode, false> ASTDT;

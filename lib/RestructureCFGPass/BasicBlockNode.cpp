@@ -60,7 +60,6 @@ void BasicBlockNode::removePredecessor(BasicBlockNode *Predecessor) {
   }
 }
 
-
 using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
 
 static void handleNeighbors(const BBNodeMap &SubstitutionMap,
@@ -79,5 +78,21 @@ static void handleNeighbors(const BBNodeMap &SubstitutionMap,
 
 void BasicBlockNode::updatePointers(const BBNodeMap &SubstitutionMap) {
   handleNeighbors(SubstitutionMap, Predecessors);
-  handleNeighbors(SubstitutionMap, Successors);
+  if (not isCheck())  {
+    handleNeighbors(SubstitutionMap, Successors);
+  } else {// don't screw up the if/then/else of check nodes
+
+    auto It = SubstitutionMap.find(getTrue());
+    if (It != SubstitutionMap.end())
+      setTrue(It->second);
+    else
+      setTrue(nullptr);
+
+    It = SubstitutionMap.find(getFalse());
+    if (It != SubstitutionMap.end())
+      setFalse(It->second);
+    else
+      setFalse(nullptr);
+
+  }
 }

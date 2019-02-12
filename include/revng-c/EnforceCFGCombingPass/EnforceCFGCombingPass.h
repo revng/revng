@@ -20,6 +20,7 @@ struct EnforceCFGCombingPass : public llvm::FunctionPass {
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<RestructureCFG>();
+    AU.setPreservesAll();
   }
 
 };

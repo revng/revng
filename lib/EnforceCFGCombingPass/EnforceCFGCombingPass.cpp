@@ -353,7 +353,7 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
         } else if (auto *BBOp = dyn_cast<BasicBlock>(Op)) {
           if (BBOp->getParent() == EnforcedF)
             continue;
-          BasicBlock *BBView = BasicBlockViewMap.at(EnforcedBB).at(BBOp);
+          BasicBlock *BBView = BasicBlockViewMap.at(EnforcedBB).at(BBOp).BB;
           revng_assert(BBView != nullptr);
           Op.set(BBView);
         } else if (auto *ConstOp = dyn_cast<Constant>(Op)) {
@@ -375,10 +375,6 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
     BBInstrViewMap[EnforcedBB] = std::move(IncomingView);
   }
 
-  // This indirectly fixes the AST
-  for (BasicBlockNode *BBNode : RCFGT.nodes())
-    BBNode->setBasicBlock(EnforcedBBNodeToBBMap.at(BBNode));
-
   revng_assert(not verifyFunction(*EnforcedF, &dbgs()));
   revng_assert(not verifyModule(*F.getParent(), &dbgs()));
 
@@ -386,6 +382,14 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
   ValueToValueMapTy VMap{};
   SmallVector<ReturnInst *, 4> R;
   CloneFunctionInto(&F, EnforcedF, VMap, /*ModuleLevelChanges*/false, R);
+
+  // This indirectly fixes the AST
+  for (BasicBlockNode *BBNode : RCFGT.nodes()) {
+    auto It = VMap.find(EnforcedBBNodeToBBMap.at(BBNode));
+    revng_assert(It != VMap.end());
+    BBNode->setBasicBlock(cast<BasicBlock>(It->second));
+  }
+
   EnforcedF->eraseFromParent();
   revng_assert(not verifyFunction(F, &dbgs()));
   revng_assert(not verifyModule(*F.getParent(), &dbgs()));

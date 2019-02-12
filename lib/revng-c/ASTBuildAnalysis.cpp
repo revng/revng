@@ -248,7 +248,7 @@ static void computePHIVarAssignments(const PHINode *ThePHI,
 }
 
 static bool needsLabel(const BasicBlock &) {
-  return true;
+  return false;
 }
 
 void Analysis::computePHIVars() {
@@ -377,6 +377,7 @@ Stmt *Analysis::buildAST(Instruction &I) {
     return new (ASTCtx) ReturnStmt({}, RetVal, nullptr);
   }
   case Instruction::Switch: {
+    revng_abort("switch instructions are not supported yet");
     auto *Switch = cast<SwitchInst>(&I);
 
     Value *Cond = Switch->getCondition();
@@ -724,6 +725,10 @@ Analysis::InterruptType Analysis::transfer(BasicBlock *BB) {
   for (Instruction &I : *BB) {
     if (isa<PHINode>(&I))
       continue;
+    // Skip this for now. We'll need to change it if we ever want to emit code
+    // with goto statements
+    if (isa<BranchInst>(&I))
+      continue;
     Stmt *NewStmt = buildAST(I);
     ASTInfo.PendingExprs[&I] = NewStmt;
     revng_log(ASTBuildLog, "Add to Pending");
@@ -758,7 +763,10 @@ Analysis::InterruptType Analysis::transfer(BasicBlock *BB) {
     } else {
       switch (I.getNumUses()) {
       case 1:
-        PendingToSerialize.insert(&I);
+        if (isa<BranchInst>(I.uses().begin()->getUser()))
+          markValueToSerialize(&I);
+        else
+          PendingToSerialize.insert(&I);
         break;
       default:
         revng_log(ASTBuildLog, "Mark this to serialize");

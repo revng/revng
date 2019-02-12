@@ -10,7 +10,6 @@
 #include <revng/Support/IRHelpers.h>
 
 #include "revng-c/RestructureCFGPass/ASTTree.h"
-#include "revng-c/RestructureCFGPass/RestructureCFG.h"
 
 #include "revng-c/DecompilationPass.h"
 
@@ -38,18 +37,24 @@ DecompilationPass::DecompilationPass() :
 }
 
 static void processFunction(llvm::Function &F) {
-  llvm::Module *M = F.getParent();
-  for (BasicBlock &BB : F) {
-    legacy::FunctionPassManager OptPM(M);
-    OptPM.add(createSROAPass());
-    OptPM.add(createConstantPropagationPass());
-    OptPM.add(createDeadCodeEliminationPass());
-    OptPM.add(createEarlyCSEPass());
-    OptPM.run(F);
-  }
+  legacy::FunctionPassManager OptPM(F.getParent());
+  OptPM.add(createSROAPass());
+  OptPM.add(createConstantPropagationPass());
+  OptPM.add(createDeadCodeEliminationPass());
+  OptPM.add(createEarlyCSEPass());
+  OptPM.run(F);
 }
 
 bool DecompilationPass::runOnFunction(llvm::Function &F) {
+  if (not F.getName().startswith("bb."))
+    return false;
+  // HACK!!!
+  if (F.getName().startswith("bb.quotearg_buffer_restyled")
+      or F.getName().startswith("bb._getopt_internal_r")
+      or F.getName().startswith("bb.printf_parse")
+      or F.getName().startswith("bb.vasnprintf")) {
+    return false;
+  }
 
   // This is a hack to prevent clashes between LLVM's `opt` arguments and
   // clangTooling's CommonOptionParser arguments.
@@ -58,22 +63,25 @@ bool DecompilationPass::runOnFunction(llvm::Function &F) {
   // with its own stuff.
   cl::getRegisteredOptions().clear();
 
-  for (BasicBlock &BB : F) {
-    if (!F.getName().startswith("bb."))
-      continue;
+  for (Function &F : *F.getParent()) {
+    for (BasicBlock &BB : F) {
+      if (!F.getName().startswith("bb."))
+        continue;
 
-    std::vector<Instruction *> ToErase;
-    for (Instruction &I : BB)
-      if (auto *C = dyn_cast<CallInst>(&I))
-        if (getCallee(C)->getName() == "newpc")
-          ToErase.push_back(C);
+      std::vector<Instruction *> ToErase;
+      for (Instruction &I : BB)
+        if (auto *C = dyn_cast<CallInst>(&I))
+          if (getCallee(C)->getName() == "newpc")
+            ToErase.push_back(C);
 
-    for (Instruction *I : ToErase)
-      I->eraseFromParent();
+      for (Instruction *I : ToErase)
+        I->eraseFromParent();
+    }
   }
 
   processFunction(F);
-  auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>(F);
+
+  auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
   ASTTree &CombedCFGAST = RestructureCFGAnalysis.getAST();
 
   // Here we build the artificial command line for clang tooling
@@ -89,7 +97,7 @@ bool DecompilationPass::runOnFunction(llvm::Function &F) {
   ClangTool RevNg = ClangTool(OptionParser.getCompilations(),
                               OptionParser.getSourcePathList());
 
-  DecompilationAction Decompilation(F, std::move(Out));
+  DecompilationAction Decompilation(F, CombedCFGAST, std::move(Out));
   using FactoryUniquePtr = std::unique_ptr<FrontendActionFactory>;
   FactoryUniquePtr Factory = newFrontendActionFactory(&Decompilation);
   RevNg.run(Factory.get());

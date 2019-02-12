@@ -645,7 +645,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
       for (EdgeDescriptor Retreating : Retreatings) {
         Idx = RetreatingIdxMap[Retreating.second];
-        BasicBlockNode *IdxSetNode = CompleteGraph.addSetStateNode(Idx);
+        BasicBlockNode *IdxSetNode = CompleteGraph.addSetStateNode(Idx, Retreating.second->getName());
         Meta->insertNode(IdxSetNode);
         addEdge(EdgeDescriptor(Retreating.first, IdxSetNode));
         addEdge(EdgeDescriptor(IdxSetNode, Head));
@@ -716,9 +716,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
       // Remove the frontier nodes since we do not need them anymore.
       for (BasicBlockNode *Frontier : Frontiers) {
+        EdgeDescriptor Extremal = EdgeExtremal[Frontier];
         BasicBlockNode *OriginalSource = EdgeExtremal[Frontier].first;
         BasicBlockNode *OriginalTarget = EdgeExtremal[Frontier].second;
-        addEdge(EdgeDescriptor(OriginalSource, OriginalTarget));
+        moveEdgeTarget({OriginalSource, Frontier}, OriginalTarget);
         CompleteGraph.removeNode(Frontier);
         Meta->removeNode(Frontier);
       }
@@ -741,29 +742,40 @@ bool RestructureCFG::runOnFunction(Function &F) {
       if (Node != Head) {
 
         // Handle outgoing edges from SCS nodes.
-        for (BasicBlockNode *Successor : Node->successors()) {
-          if (Meta->containsNode(Successor)) {
-            // Handle edges pointing inside the SCS.
-            if ((Successor == Head) or (Successor == FirstCandidate)) {
-              // Retreating edges should point to the new head.
-              addEdge(EdgeDescriptor(ClonedMap[Node], Head));
+        if (Node->isCheck()) {
+
+          if (Meta->containsNode(Node->getTrue()))
+            ClonedMap.at(Node)->setTrue(ClonedMap.at(Node->getTrue()));
+          else
+            ClonedMap.at(Node)->setTrue(Node->getTrue());
+
+          if (Meta->containsNode(Node->getFalse()))
+            ClonedMap.at(Node)->setFalse(ClonedMap.at(Node->getFalse()));
+          else
+            ClonedMap.at(Node)->setFalse(Node->getFalse());
+
+        } else {
+          for (BasicBlockNode *Successor : Node->successors()) {
+            if (Meta->containsNode(Successor)) {
+              // Handle edges pointing inside the SCS.
+              if ((Successor == Head) or (Successor == FirstCandidate)) {
+                // Retreating edges should point to the new head.
+                addEdge(EdgeDescriptor(ClonedMap[Node], Head));
+              } else {
+                // Other edges should be restored between cloned nodes.
+                addEdge(EdgeDescriptor(ClonedMap[Node], ClonedMap[Successor]));
+              }
             } else {
-              // Other edges should be restored between cloned nodes.
-              addEdge(EdgeDescriptor(ClonedMap[Node], ClonedMap[Successor]));
+              // Edges exiting from the SCS should go to the right target.
+              addEdge(EdgeDescriptor(ClonedMap[Node], Successor));
             }
-          } else {
-            // Edges exiting from the SCS should go to the right target.
-            addEdge(EdgeDescriptor(ClonedMap[Node], Successor));
           }
         }
 
         // Handle incoming edges in SCS nodes.
-        for (BasicBlockNode *Predecessor : Node->predecessors()) {
-          if (!Meta->containsNode(Predecessor)) {
-            addEdge(EdgeDescriptor(Predecessor, ClonedMap[Node]));
-            removeEdge(EdgeDescriptor(Predecessor, Node));
-          }
-        }
+        for (BasicBlockNode *Predecessor : Node->predecessors())
+          if (!Meta->containsNode(Predecessor))
+            moveEdgeTarget(EdgeDescriptor(Predecessor, Node), ClonedMap[Node]);
       }
     }
 
@@ -777,10 +789,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
       unsigned Value = RetreatingTargets.size() - 1;
       for (BasicBlockNode *Pred : SetCandidates) {
-        BasicBlockNode *Set = CompleteGraph.addSetStateNode(Value);
-          addEdge(EdgeDescriptor(Pred, Set));
-          addEdge(EdgeDescriptor(Set, Head));
-          removeEdge(EdgeDescriptor(Pred, Head));
+        BasicBlockNode *Set = CompleteGraph.addSetStateNode(Value, Head->getName());
+        addEdge(EdgeDescriptor(Pred, Set));
+        addEdge(EdgeDescriptor(Set, Head));
+        removeEdge(EdgeDescriptor(Pred, Head));
       }
     }
 
@@ -811,9 +823,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
       ExitDispatcherNodes.push_back(Exit);
 
       Idx = 2;
-      using SuccessIterator = std::set<BasicBlockNode *>::iterator;
-      SuccessIterator SuccIt = std::next(std::next(Successors.begin()));
-      SuccessIterator SuccEnd = Successors.end();
+      using SuccessorIterator = std::set<BasicBlockNode *>::iterator;
+      SuccessorIterator SuccIt = std::next(std::next(Successors.begin()));
+      SuccessorIterator SuccEnd = Successors.end();
       for (; SuccIt != SuccEnd; ++SuccIt) {
         BasicBlockNode *New = CompleteGraph.addDispatcher(Idx, *SuccIt, Exit);
         ExitDispatcherNodes.push_back(New);
@@ -825,12 +837,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
       for (EdgeDescriptor Edge : OutEdges) {
-        Idx = SuccessorsIdxMap[Edge.second];
-        BasicBlockNode *IdxSetNode = CompleteGraph.addSetStateNode(Idx);
+        Idx = SuccessorsIdxMap.at(Edge.second);
+        BasicBlockNode *IdxSetNode = CompleteGraph.addSetStateNode(Idx, Edge.second->getName());
         Meta->insertNode(IdxSetNode);
-        addEdge(EdgeDescriptor(Edge.first, IdxSetNode));
+        moveEdgeTarget(EdgeDescriptor(Edge.first, Edge.second), IdxSetNode);
         addEdge(EdgeDescriptor(IdxSetNode, Edge.second));
-        removeEdge(EdgeDescriptor(Edge.first, Edge.second));
       }
       if (CombLogger.isEnabled()) {
         CombLogger << "New exit name is: " << Exit->getNameStr() << "\n";
@@ -840,8 +851,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // Collapse Region.
     // Create a new RegionCFG object for representing the collapsed region and
     // populate it with the internal nodes.
-    std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
-    std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
     Regions.push_back(RegionCFG());
     RegionCFG &CollapsedGraph = Regions.back();
     RegionCFG::BBNodeMap SubstitutionMap{};
@@ -856,12 +865,14 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     // Connect the break and continue nodes with the necessary edges.
     CollapsedGraph.connectContinueNode(Continue);
+    std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
     CollapsedGraph.connectBreakNode(OutgoingEdges, Break, SubstitutionMap);
 
     // Create the collapsed node in the outer region.
     BasicBlockNode *CollapsedNode = CompleteGraph.createCollapsedNode(&CollapsedGraph);
 
     // Connect the old incoming edges to the collapsed node.
+    std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
     for (EdgeDescriptor Edge : IncomingEdges)
       moveEdgeTarget(Edge, CollapsedNode);
 

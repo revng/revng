@@ -19,7 +19,25 @@ class BasicBlockNode;
 
 namespace BasicBlockViewAnalysis {
 
-using BBMap = std::map<llvm::BasicBlock *, llvm::BasicBlock *>;
+struct TaggedBB {
+  llvm::BasicBlock *BB;
+  unsigned StateVar;
+
+  TaggedBB() = default;
+  TaggedBB(const TaggedBB &) = default;
+  TaggedBB(TaggedBB &&) = default;
+  TaggedBB &operator=(const TaggedBB &) = default;
+  TaggedBB &operator=(TaggedBB &&) = default;
+  TaggedBB(llvm::BasicBlock *B, unsigned S = 0xffffffff) : BB(B), StateVar(S) {}
+  TaggedBB(std::pair<llvm::BasicBlock *, unsigned> P) : TaggedBB(P.first,
+                                                                 P.second) {}
+  bool operator!=(const TaggedBB &O) const {
+    return BB != O.BB or StateVar != O.StateVar;
+  }
+  bool operator==(const TaggedBB &O) const { return not (*this != O); }
+};
+
+using BBMap = std::map<llvm::BasicBlock *, TaggedBB>;
 using BBViewMap = std::map<llvm::BasicBlock *, BBMap>;
 
 using BBNodeToBBMap = std::map<BasicBlockNode *, llvm::BasicBlock *>;
@@ -67,7 +85,8 @@ public:
         // If the mapped values are the same it's ok.
         // If in RHS the mapped value is nullptr is also ok.
         // In all the other cases, RHS and this disagree, hence return false
-        if (not (RHSIt->second == ThisView.second or RHSIt->second == nullptr))
+        if (not (RHSIt->second.BB == ThisView.second.BB
+                 or RHSIt->second.BB == nullptr))
           return false;
       }
     }
@@ -175,9 +194,7 @@ public:
   llvm::Optional<BasicBlockViewMap>
   handleEdge(const BasicBlockViewMap &Original,
              BasicBlockNode *Source,
-             BasicBlockNode *Destination) const {
-    return llvm::Optional<BasicBlockViewMap>();
-  };
+             BasicBlockNode *Destination) const;
 
 };
 

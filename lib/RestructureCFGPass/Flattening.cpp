@@ -5,6 +5,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+// LLVM includes
+#include <llvm/ADT/SmallVector.h>
+
 // revng libraries includes
 #include "revng/Support/Debug.h"
 
@@ -50,18 +53,26 @@ void flattenRegionCFGTree(RegionCFG &Root) {
       ScsNode *SCS = llvm::cast<ScsNode>(SCSNode);
       SCS->setBody(ASTEntry);
 
+      using EdgeDescriptor = std::pair<BasicBlockNode*, BasicBlockNode*>;
+      llvm::SmallVector<EdgeDescriptor, 4> ToMove;
+
       // Fix predecessors
       BasicBlockNode *Entry = SubstitutionMap.at(OldEntry);
       for (BasicBlockNode *Pred : CollapsedNode->predecessors())
-        moveEdgeTarget({Pred, CollapsedNode}, Entry);
+        ToMove.push_back({Pred, CollapsedNode});
+      for (EdgeDescriptor &Edge : ToMove)
+        moveEdgeTarget(Edge, Entry);
 
       // Fix successors and loops
       BasicBlockNode *Succ = *CollapsedNode->successors().begin();
       for (std::unique_ptr<BasicBlockNode> &UniqueBBNode : MovedRange) {
         if (UniqueBBNode->isBreak() or UniqueBBNode->isContinue()) {
           BasicBlockNode *NewTarget = UniqueBBNode->isBreak() ?  Succ : Entry;
+          ToMove.clear();
           for (BasicBlockNode *Pred : UniqueBBNode->predecessors())
-            moveEdgeTarget({Pred, UniqueBBNode.get()}, NewTarget);
+            ToMove.push_back({Pred, UniqueBBNode.get()});
+          for (EdgeDescriptor &Edge : ToMove)
+            moveEdgeTarget(Edge, NewTarget);
           // breaks and continues need to be removed
           NodesToRemove.insert(UniqueBBNode.get());
         }

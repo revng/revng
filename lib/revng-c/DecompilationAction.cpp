@@ -5,7 +5,12 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 
+#include <clang/AST/Stmt.h>
+#include <clang/Basic/SourceLocation.h>
+
 #include <revng/Support/Assert.h>
+
+#include "revng-c/RestructureCFGPass/ASTTree.h"
 
 #include "DecompilationAction.h"
 
@@ -20,8 +25,81 @@ namespace tooling {
 using GlobalsMap = GlobalDeclCreationAction::GlobalsMap;
 using FunctionsMap = FuncDeclCreationAction::FunctionsMap;
 
-static void createLocalVarDecls(FunctionsMap::value_type &FPair,
-                                IR2AST::SerializationInfo &ASTInfo) {
+static clang::Stmt *buildScope(ASTContext &ASTCtx,
+                               ASTNode *N,
+                               IR2AST::StmtMap &InstrStmts
+                               ) {
+  if (N == nullptr)
+    return nullptr;
+  switch (N->getKind()) {
+    case ASTNode::NodeKind::NK_Break:
+      return new (ASTCtx) clang::BreakStmt(SourceLocation{});
+    case ASTNode::NodeKind::NK_Continue:
+      return new (ASTCtx) clang::ContinueStmt(SourceLocation{});
+    case ASTNode::NodeKind::NK_Code: {
+      SmallVector<clang::Stmt *, 16> Stmts;
+      CodeNode *Code = cast<CodeNode>(N);
+      llvm::BasicBlock *BB = Code->getOriginalBB();
+      revng_assert(BB != nullptr);
+      auto End = InstrStmts.end();
+      for (llvm::Instruction &Instr : *BB) {
+        auto It = InstrStmts.find(&Instr);
+        if (It != End)
+          Stmts.push_back(It->second);
+      }
+      return CompoundStmt::Create(ASTCtx, Stmts, {}, {});
+    }
+    case ASTNode::NodeKind::NK_If: {
+      IfNode *If = cast<IfNode>(N);
+      clang::Stmt *ThenScope = buildScope(ASTCtx, If->getThen(), InstrStmts);
+      clang::Stmt *ElseScope = buildScope(ASTCtx, If->getElse(), InstrStmts);
+      llvm::BasicBlock *CondBlock = If->getUniqueCondBlock();
+      llvm::Instruction *CondTerminator = CondBlock->getTerminator();
+      llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
+      revng_assert(Br->isConditional());
+      llvm::Value *CondValue = Br->getCondition();
+      //clang::Expr *CondExpr = getExprForValue(CondValue);
+
+      QualType UInt = ASTCtx.UnsignedIntTy;
+      uint64_t UIntSize = ASTCtx.getTypeSize(UInt);
+      clang::Expr *TrueCond = IntegerLiteral::Create(ASTCtx,
+                                                     llvm::APInt(UIntSize, 1),
+                                                     UInt,
+                                                     {});
+      return new (ASTCtx) IfStmt (ASTCtx, {}, false, nullptr, nullptr,
+                            TrueCond, ThenScope, {}, ElseScope);
+    }
+    case ASTNode::NodeKind::NK_Scs: {
+      ScsNode *LoopBody = cast<ScsNode>(N);
+      clang::Stmt *Body = buildScope(ASTCtx, LoopBody->getBody(), InstrStmts);
+
+      QualType UInt = ASTCtx.UnsignedIntTy;
+      uint64_t UIntSize = ASTCtx.getTypeSize(UInt);
+      clang::Expr *TrueCond = IntegerLiteral::Create(ASTCtx,
+                                                     llvm::APInt(UIntSize, 1),
+                                                     UInt,
+                                                     {});
+
+      return new (ASTCtx) WhileStmt(ASTCtx, nullptr, TrueCond, Body, {});
+    }
+    case ASTNode::NodeKind::NK_List: {
+      SmallVector<clang::Stmt *, 16> Stmts;
+      SequenceNode *Seq = cast<SequenceNode>(N);
+      for (ASTNode *Child : Seq->nodes()) {
+        if (clang::Stmt *S = buildScope(ASTCtx, Child, InstrStmts))
+          Stmts.push_back(S);
+      }
+      return CompoundStmt::Create(ASTCtx, Stmts, {}, {});
+    }
+    default:
+      revng_abort();
+      return nullptr;
+  }
+}
+
+static void buildFunctionBody(FunctionsMap::value_type &FPair,
+                              ASTTree &CombedAST,
+                              IR2AST::SerializationInfo &ASTInfo) {
   llvm::Function &F = *FPair.first;
   clang::FunctionDecl *FDecl = FPair.second;
   ASTContext &ASTCtx = FDecl->getASTContext();
@@ -36,7 +114,7 @@ static void createLocalVarDecls(FunctionsMap::value_type &FPair,
   //   the local variables, if any.
   // - a CompoundStmt for each BasicBlock, if any.
   unsigned NumLocalVars = LocalVarDecls.size();
-  unsigned NumStmtsInBody = F.size() + NumLocalVars;
+  unsigned NumStmtsInBody = 1 + NumLocalVars;
   CompoundStmt *Body = CompoundStmt::CreateEmpty(ASTCtx, NumStmtsInBody);
   FDecl->setBody(Body);
 
@@ -46,6 +124,10 @@ static void createLocalVarDecls(FunctionsMap::value_type &FPair,
     Body->body_begin()[I] = LocalVarDeclStmt;
   }
 
+  Body->body_begin()[NumLocalVars] =
+  buildScope(ASTCtx, CombedAST.getRoot(), ASTInfo.InstrStmts);
+
+#if 0
   int I = NumLocalVars;
   auto End = ASTInfo.InstrStmts.end();
   for (llvm::BasicBlock &BB : F) {
@@ -60,23 +142,16 @@ static void createLocalVarDecls(FunctionsMap::value_type &FPair,
       LabelStmt({}, ASTInfo.LabelDecls.at(&BB), BBCompoundStmt);
     ++I;
   }
-}
-
-static void createInstructionStmts(FunctionsMap::value_type & /*FPair*/,
-                                   IR2AST::SerializationInfo & /*ASTInfo*/) {
-}
-
-static void buildFunctionBody(FunctionsMap::value_type &FPair,
-                              IR2AST::SerializationInfo &ASTInfo) {
-  createLocalVarDecls(FPair, ASTInfo);
-  createInstructionStmts(FPair, ASTInfo);
+#endif
 }
 
 class Decompiler : public ASTConsumer {
 public:
   explicit Decompiler(llvm::Function &F,
+                      ASTTree &CombedAST,
                       std::unique_ptr<llvm::raw_ostream> Out) :
     TheF(F),
+    CombedAST(CombedAST),
     Out(std::move(Out)) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override {
@@ -108,7 +183,7 @@ public:
     IR2ASTBuildAnalysis.run();
     auto &&ASTInfo = IR2ASTBuildAnalysis.extractASTInfo();
 
-    buildFunctionBody(*It, ASTInfo);
+    buildFunctionBody(*It, CombedAST, ASTInfo);
 
     for (auto &F : FunctionDefs) {
       llvm::Function *LLVMFunc = F.first;
@@ -124,6 +199,7 @@ public:
 
 private:
   llvm::Function &TheF;
+  ASTTree &CombedAST;
   std::unique_ptr<llvm::raw_ostream> Out;
   FunctionsMap FunctionDecls;
   FunctionsMap FunctionDefs;
@@ -131,7 +207,7 @@ private:
 };
 
 std::unique_ptr<ASTConsumer> DecompilationAction::newASTConsumer() {
-  return std::make_unique<Decompiler>(F, std::move(O));
+  return std::make_unique<Decompiler>(F, CombedAST, std::move(O));
 }
 
 } // end namespace tooling

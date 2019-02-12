@@ -83,7 +83,7 @@ BasicBlockNode *IfNode::getFirstCFG() {
 void IfNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
   revng_assert(CFGNode != nullptr);
   CFGNode = SubstitutionMap.at(CFGNode);
-  for (BasicBlockNode *Elem : ConditionalNodes) {
+  for (BasicBlockNode *&Elem : ConditionalNodes) {
     Elem = SubstitutionMap.at(Elem);
     dbg << "Updating pointers for node: " << getName() << "\n";
   }

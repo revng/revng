@@ -10,6 +10,7 @@
 
 // local library includes
 #include "revng-c/EnforceCFGCombingPass/EnforceCFGCombingPass.h"
+#include "revng-c/RestructureCFGPass/RestructureCFG.h"
 
 struct DecompilationPass : public llvm::FunctionPass {
   static char ID;
@@ -20,6 +21,7 @@ struct DecompilationPass : public llvm::FunctionPass {
   bool runOnFunction(llvm::Function &F) override;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.addRequired<RestructureCFG>();
     AU.addRequired<EnforceCFGCombingPass>();
   }
 
