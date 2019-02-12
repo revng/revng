@@ -88,7 +88,8 @@ class ParsedElf:
     self.sections = list(self.elf.iter_sections())
 
     self.dynamic = only(self.segment_by_type("PT_DYNAMIC"))
-    self.is_rela = self.tag("DT_PLTREL") == 7
+    self.is_rela = ((self.has_tag("DT_PLTREL") and self.tag("DT_PLTREL") == 7)
+                    or self.has_tag("DT_RELA"))
 
     self.dynstr = self.read_section("DT_STRTAB", "DT_STRSZ")
     if self.is_rela:
@@ -103,8 +104,9 @@ class ParsedElf:
     self.relplt_relocations = parse(self.relplt, self.relstruct)
 
     self.symbols_count = max([relocation.r_info_sym
-                  for relocation
-                  in self.reldyn_relocations + self.relplt_relocations]) + 1
+                              for relocation
+                              in (self.reldyn_relocations
+                                  + self.relplt_relocations)]) + 1
 
     self.dynsym = self.read_section("DT_SYMTAB",
                                     "DT_SYMENT",
