@@ -3,7 +3,7 @@
 #
 
 # Check if graph_tool is available
-execute_process(COMMAND python -c "import pygraphviz"
+execute_process(COMMAND python3 -c "import pygraphviz"
   RESULT_VARIABLE HAS_PYGRAPHVIZ
   OUTPUT_VARIABLE PYGRAPHVIZ_OUTPUT
   ERROR_VARIABLE PYGRAPHVIZ_OUTPUT)
@@ -15,17 +15,16 @@ if(NOT HAS_PYGRAPHVIZ EQUAL "0")
   Please try one of the following commands:
   
   Debian/Ubuntu:
-    apt-get install python-pygraphviz
+    apt-get install python3-pygraphviz
   
   Fedora/Red Hat/CentOS:
-    yum install python2-pygraphviz
     yum install python3-pygraphviz
   
   pip (current user only):
-    pip install --user pygraphviz
+    pip3 install --user pygraphviz
   
   In case of successful installation, the following command should succeed with no output:
-    python -c 'import pygraphviz'")
+    python3 -c 'import pygraphviz'")
 endif()
 
 # Generate classes for the ABI data flow analyses

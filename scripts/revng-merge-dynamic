@@ -1,4 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
+
+# TODO: this script works with Python 2 only due to limitations in pyelftools
 
 # * DR_{INIT,FINI}_ARRAY?
 

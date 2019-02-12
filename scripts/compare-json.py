@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # This script compares two JSON files. In general, the reference JSON file is
 # supposed to be included in the other one. For instance, {"a": 1, "b": 2}
