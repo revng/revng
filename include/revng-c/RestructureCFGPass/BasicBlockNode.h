@@ -172,8 +172,8 @@ public:
   void setFalse(BasicBlockNode *Succ) {
     revng_assert(isCheck());
     Successors.resize(2, nullptr);
-    if (Successors[1])
-      Successors[1]->removePredecessor(this);
+    if (Successors[0])
+      Successors[0]->removePredecessor(this);
     Successors[0] = Succ;
     if (Succ)
       Succ->addPredecessor(this);
