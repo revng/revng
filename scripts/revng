@@ -14,39 +14,40 @@ from shutil import which
 def log_error(msg):
   sys.stderr.write(msg + "\n")
 
-def interleave(base, repeat):
-  return list(sum(zip([repeat] * len(base), base), ()))
-
 def get_command(command):
   global search_path
   path = which(command, path=search_path)
   assert path
   return os.path.abspath(path)
 
-def build_opt_args(args, load_libs=True):
-  if load_libs:
-    script_path = os.path.dirname(os.path.realpath(__file__))
+def get_opt_env():
+  script_path = os.path.dirname(os.path.realpath(__file__))
 
-    analyses_path = None
-    analyses_build_path = os.path.join(script_path, "analyses")
-    analyses_install_path = os.path.join(script_path,
-                                         "..",
-                                         "lib",
-                                         "revng",
-                                         "analyses")
-    if os.path.isdir(analyses_build_path):
-      analyses_path = analyses_build_path
-    elif os.path.isdir(analyses_install_path):
-      analyses_path = analyses_install_path
-    else:
-      log_error("Couldn't find a valid path containing the analyses libraries")
-      assert False
+  analyses_path = None
+  analyses_build_path = os.path.join(script_path, "analyses")
+  analyses_install_path = os.path.join(script_path,
+                                       "..",
+                                       "lib",
+                                       "revng",
+                                       "analyses")
+  if os.path.isdir(analyses_build_path):
+    analyses_path = analyses_build_path
+  elif os.path.isdir(analyses_install_path):
+    analyses_path = analyses_install_path
+  else:
+    log_error("Couldn't find a valid path containing the analyses libraries")
+    assert False
 
-    analysis_libraries = glob.glob(os.path.join(analyses_path, "*.so"))
-    args = interleave(analysis_libraries, "-load") + args
+  analysis_libraries = glob.glob(os.path.join(analyses_path, "*.so"))
+  ld_preload = os.environ.get("LD_PRELOAD", "")
+  if ld_preload:
+    ld_preload += ":"
+  ld_preload += ":".join(analysis_libraries)
 
-  opt_path = get_command("opt")
-  return opt_path, [opt_path] + args
+  environment = os.environ.copy()
+  environment["LD_PRELOAD"] = ld_preload
+
+  return environment
 
 def split_dash_dash(args):
   if not args:
@@ -252,11 +253,12 @@ def run_translate(args):
   # Perform function isolation
   if args.isolate:
     isolated = "{}.isolated".format(input)
-    subprocess.check_call(log_command(build_opt_args(["-S",
-                                                      "-detect-function-boundaries",
-                                                      "-isolate",
-                                                      output,
-                                                      "-o", isolated])[1]))
+    subprocess.check_call(log_command([get_command("opt"),
+                                       "-S",
+                                       "-detect-function-boundaries",
+                                       "-isolate",
+                                       output,
+                                       "-o", isolated]), env=get_opt_env())
     output = isolated
 
   # Link with support
@@ -396,10 +398,10 @@ def print_version():
   sys.stdout.write(("`{} opt` offers the following extra options compared to"
                     + " `opt`:\n\n").format(sys.argv[0]))
 
-  _, args = build_opt_args(["--help"], False)
+  args = [get_command("opt"), "--help"]
   base = subprocess.check_output(log_command(args)).split(b"\n")
-  _, args = build_opt_args(["--help"], True)
-  extended = subprocess.check_output(log_command(args)).split(b"\n")
+  extended = subprocess.check_output(log_command(args),
+                                     env=get_opt_env()).split(b"\n")
 
   extra = []
   i = 0
@@ -464,8 +466,8 @@ def main():
   if command == "help":
     parser.print_help()
   elif command == "opt":
-    program, args = build_opt_args(command_args)
-    os.execv(program, log_command(args))
+    program = get_command("opt")
+    os.execve(program, log_command([program] + command_args), get_opt_env())
   elif command == "cc":
     return run_cc(command_args)
   elif command == "translate":
