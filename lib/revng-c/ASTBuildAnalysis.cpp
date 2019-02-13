@@ -377,8 +377,10 @@ Stmt *Analysis::buildAST(Instruction &I) {
   }
   case Instruction::Ret: {
     // FIXME: handle returned values properly
-    Expr *RetVal = nullptr;
-    return new (ASTCtx) ReturnStmt({}, RetVal, nullptr);
+    ReturnInst *Ret = cast<ReturnInst>(&I);
+    Value *RetVal = Ret->getReturnValue();
+    Expr *ReturnedExpr = RetVal ? getExprForValue(RetVal) : nullptr;
+    return new (ASTCtx) ReturnStmt({}, ReturnedExpr, nullptr);
   }
   case Instruction::Switch: {
     revng_abort("switch instructions are not supported yet");
