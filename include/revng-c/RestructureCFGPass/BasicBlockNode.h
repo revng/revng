@@ -208,7 +208,18 @@ public:
   void removeSuccessor(BasicBlockNode *Successor);
 
   void addPredecessor(BasicBlockNode *Predecessor) {
-    Predecessors.push_back(Predecessor);
+
+    // HACK to avoid double insertion due to `setFalse`, remove this.
+    bool Found = false;
+    for (BasicBlockNode *Pred : Predecessors) {
+      if (Pred == Predecessor) {
+        Found = true;
+      }
+    }
+
+    if (not Found) {
+      Predecessors.push_back(Predecessor);
+    }
   }
 
   void removePredecessor(BasicBlockNode *Predecessor);
