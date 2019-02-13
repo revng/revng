@@ -169,11 +169,16 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
   // Create a Map of the arguments, used later to fix operands of the cloned
   // Instructions
   ValueToValueMapTy ArgMap;
+  ValueToValueMapTy InverseVMap;
   Function::arg_iterator DestArg = EnforcedF->arg_begin();
-  for (const Argument &A : F.args()) {
+  for (Argument &A : F.args()) {
     DestArg->setName(A.getName());
     ArgMap[&A] = &*DestArg;
+    InverseVMap[&*DestArg] = &A;
+    ++DestArg;
   }
+  for (const Argument &I : EnforcedF->args())
+    revng_assert(InverseVMap.count(&I));
 
   BBNodeToBBMap EnforcedBBNodeToBBMap;
   BBToBBNodeMap EnforcedBBToNodeBBMap;
@@ -379,14 +384,15 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
   revng_assert(not verifyModule(*F.getParent(), &dbgs()));
 
   F.deleteBody();
-  ValueToValueMapTy VMap{};
   SmallVector<ReturnInst *, 4> R;
-  CloneFunctionInto(&F, EnforcedF, VMap, /*ModuleLevelChanges*/false, R);
+  for (const Argument &I : EnforcedF->args())
+    revng_assert(InverseVMap.count(&I));
+  CloneFunctionInto(&F, EnforcedF, InverseVMap, false, R);
 
   // This indirectly fixes the AST
   for (BasicBlockNode *BBNode : RCFGT.nodes()) {
-    auto It = VMap.find(EnforcedBBNodeToBBMap.at(BBNode));
-    revng_assert(It != VMap.end());
+    auto It = InverseVMap.find(EnforcedBBNodeToBBMap.at(BBNode));
+    revng_assert(It != InverseVMap.end());
     BBNode->setBasicBlock(cast<BasicBlock>(It->second));
   }
 

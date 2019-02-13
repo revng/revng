@@ -21,12 +21,8 @@ public:
   using FunctionsMap = std::map<llvm::Function *, clang::FunctionDecl *>;
 
 public:
-  FuncDeclCreationAction(llvm::Module &M,
-                         FunctionsMap &Decls,
-                         FunctionsMap &Defs) :
-    M(M),
-    FunctionDecls(Decls),
-    FunctionDefs(Defs) {}
+  FuncDeclCreationAction(llvm::Module &M, FunctionsMap &Decls) :
+    M(M), FunctionDecls(Decls) {}
 
 public:
   std::unique_ptr<ASTConsumer> newASTConsumer();
@@ -39,16 +35,14 @@ public:
 private:
   llvm::Module &M;
   FunctionsMap &FunctionDecls;
-  FunctionsMap &FunctionDefs;
 };
 
 } // end namespace tooling
 
 inline std::unique_ptr<ASTConsumer>
 CreateFuncDeclCreator(llvm::Module &M,
-                      tooling::FuncDeclCreationAction::FunctionsMap &FunDecls,
-                      tooling::FuncDeclCreationAction::FunctionsMap &FunDefs) {
-  return tooling::FuncDeclCreationAction(M, FunDecls, FunDefs).newASTConsumer();
+                      tooling::FuncDeclCreationAction::FunctionsMap &FunDecls) {
+  return tooling::FuncDeclCreationAction(M, FunDecls).newASTConsumer();
 }
 
 } // end namespace clang

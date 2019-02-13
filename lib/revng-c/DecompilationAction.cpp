@@ -192,15 +192,13 @@ public:
     ConsumerPtr GlobalDeclCreation = CreateGlobalDeclCreator(*M, GlobalVarAST);
     GlobalDeclCreation->HandleTranslationUnit(Context);
     // Build function declaration
-    ConsumerPtr FunDeclCreation = CreateFuncDeclCreator(*M,
-                                                        FunctionDecls,
-                                                        FunctionDefs);
+    ConsumerPtr FunDeclCreation = CreateFuncDeclCreator(*M, FunctionDecls);
     FunDeclCreation->HandleTranslationUnit(Context);
 
     revng_assert(not TheF.isDeclaration());
     revng_assert(TheF.getName().startswith("bb."));
-    auto It = FunctionDefs.find(&TheF);
-    revng_assert(It != FunctionDefs.end());
+    auto It = FunctionDecls.find(&TheF);
+    revng_assert(It != FunctionDecls.end());
     clang::FunctionDecl *FunctionDecl = It->second;
 
     IR2AST::Analysis IR2ASTBuildAnalysis(TheF,
@@ -214,12 +212,6 @@ public:
 
     buildFunctionBody(*It, CombedAST, GlobalVarAST, FunctionDecls, ASTInfo);
 
-    for (auto &F : FunctionDefs) {
-      llvm::Function *LLVMFunc = F.first;
-      const llvm::StringRef FName = LLVMFunc->getName();
-
-    }
-
     // ConsumerPtr Dumper = CreateASTDumper(nullptr, "", true, false, false);
     // Dumper->HandleTranslationUnit(Context);
     ConsumerPtr Printer = CreateASTPrinter(std::move(Out), "");
@@ -231,7 +223,6 @@ private:
   ASTTree &CombedAST;
   std::unique_ptr<llvm::raw_ostream> Out;
   FunctionsMap FunctionDecls;
-  FunctionsMap FunctionDefs;
   GlobalsMap GlobalVarAST;
 };
 

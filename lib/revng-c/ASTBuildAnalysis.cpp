@@ -1264,8 +1264,27 @@ Expr *getExprForValue(Value *V,
       return Result;
     }
     revng_abort();
-  } else if (isa<Argument>(V)) {
-    revng_abort();
+  } else if (auto *Arg =  dyn_cast<Argument>(V)) {
+    llvm::Function *F = Arg->getParent();
+    llvm::FunctionType *FType = F->getFunctionType();
+    revng_assert(not FType->isVarArg());
+    unsigned NumLLVMParams = FType->getNumParams();
+    unsigned ArgNo = Arg->getArgNo();
+    clang::FunctionDecl *FDecl = FunctionAST.at(F);
+    unsigned DeclNumParams = FDecl->getNumParams();
+    revng_assert(NumLLVMParams == DeclNumParams);
+    clang::ParmVarDecl *ParamVDecl = FDecl->getParamDecl(ArgNo);
+    QualType Type = ParamVDecl->getType();
+    DeclRefExpr *Res = new (ASTCtx)
+      DeclRefExpr(ParamVDecl, false, Type, VK_LValue, {});
+    return Res;
+
+    //return ImplicitCastExpr::Create(ASTCtx,
+    //                                Param->getType(),
+    //                                CastKind::CK_LValueToRValue,
+    //                                Param,
+    //                                nullptr,
+    //                                VK_RValue);
   } else {
     revng_abort();
   }
@@ -1343,11 +1362,7 @@ static Expr *getLiteralFromConstant(Constant *C,
     case Instruction::IntToPtr:
     case Instruction::PtrToInt:
     case Instruction::BitCast: {
-      Result = getExprForValue(cast<ConstantInt>(CE->getOperand(0)),
-  GlobalVarAST,
-  FunctionAST,
-  ASTCtx,
-  ASTInfo);
+      Result = getExprForValue(cast<ConstantInt>(CE->getOperand(0)), GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
       revng_log(ASTBuildLog, "GOT!");
       revng_assert(Result);
       if (ASTBuildLog.isEnabled())

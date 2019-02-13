@@ -85,11 +85,9 @@ static FunctionDecl *createFunDecl(ASTContext &Context,
 class FuncDeclCreator : public ASTConsumer {
 public:
   explicit FuncDeclCreator(llvm::Module &M,
-                           FunctionsMap &Decls,
-                           FunctionsMap &Defs) :
+                           FunctionsMap &Decls) :
     M(M),
-    FunctionDecls(Decls),
-    FunctionDefs(Defs) {}
+    FunctionDecls(Decls) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override {
     TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
@@ -117,18 +115,17 @@ public:
       // This definition starts as a declaration that is than inflated by the
       // ASTBuildAnalysis.
       FunctionDecl *NewFDecl = createFunDecl(Context, TUDecl, F, true);
-      FunctionDefs[F] = NewFDecl;
+      FunctionDecls[F] = NewFDecl;
     }
   }
 
 private:
   llvm::Module &M;
   FunctionsMap &FunctionDecls;
-  FunctionsMap &FunctionDefs;
 };
 
 std::unique_ptr<ASTConsumer> FuncDeclCreationAction::newASTConsumer() {
-  return std::make_unique<FuncDeclCreator>(M, FunctionDecls, FunctionDefs);
+  return std::make_unique<FuncDeclCreator>(M, FunctionDecls);
 }
 
 } // end namespace tooling

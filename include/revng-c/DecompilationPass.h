@@ -23,6 +23,7 @@ struct DecompilationPass : public llvm::FunctionPass {
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<RestructureCFG>();
     AU.addRequired<EnforceCFGCombingPass>();
+    AU.setPreservesAll();
   }
 
 private:
