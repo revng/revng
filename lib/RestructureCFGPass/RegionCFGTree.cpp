@@ -263,6 +263,7 @@ static void flipEmptyThen(ASTNode *RootNode) {
       }
       If->setThen(If->getElse());
       If->setElse(nullptr);
+      If->negateCondition();
       flipEmptyThen(If->getThen());
     } else {
 

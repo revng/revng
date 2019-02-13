@@ -204,6 +204,7 @@ private:
   ASTNode *Then;
   ASTNode *Else;
   std::vector<BasicBlockNode *> ConditionalNodes;
+  bool NegatedCondition = false;
 
 public:
   IfNode(BasicBlockNode *CFGNode,
@@ -281,6 +282,10 @@ public:
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   ASTNode *Clone() { return new IfNode(*this); }
+
+  void negateCondition() { NegatedCondition = true; }
+
+  bool conditionNegated() { return NegatedCondition; }
 
 };
 
