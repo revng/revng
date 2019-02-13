@@ -25,21 +25,46 @@ namespace tooling {
 using GlobalsMap = GlobalDeclCreationAction::GlobalsMap;
 using FunctionsMap = FuncDeclCreationAction::FunctionsMap;
 
-static clang::Stmt *buildScope(ASTNode *N,
-                               IR2AST::StmtMap &InstrStmts,
-                               GlobalsMap &GlobalVarAST,
-                               FunctionsMap &FunctionAST,
-                               clang::ASTContext &ASTCtx,
-                               IR2AST::SerializationInfo &ASTInfo) {
+static void
+buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
+                   ASTNode *N,
+                   IR2AST::StmtMap &InstrStmts,
+                   GlobalsMap &GlobalVarAST,
+                   FunctionsMap &FunctionAST,
+                   clang::ASTContext &ASTCtx,
+                   IR2AST::SerializationInfo &ASTInfo);
+
+static clang::CompoundStmt *
+buildCompoundScope(ASTNode *N,
+                   IR2AST::StmtMap &InstrStmts,
+                   GlobalsMap &GlobalVarAST,
+                   FunctionsMap &FunctionAST,
+                   clang::ASTContext &ASTCtx,
+                   IR2AST::SerializationInfo &ASTInfo) {
+  SmallVector<clang::Stmt *, 32> Stmts;
+  buildAndAppendSmts(Stmts, N, InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+  return CompoundStmt::Create(ASTCtx, Stmts, {}, {});
+}
+
+static void
+buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
+                   ASTNode *N,
+                   IR2AST::StmtMap &InstrStmts,
+                   GlobalsMap &GlobalVarAST,
+                   FunctionsMap &FunctionAST,
+                   clang::ASTContext &ASTCtx,
+                   IR2AST::SerializationInfo &ASTInfo) {
+
   if (N == nullptr)
-    return nullptr;
+    return;
   switch (N->getKind()) {
     case ASTNode::NodeKind::NK_Break:
-      return new (ASTCtx) clang::BreakStmt(SourceLocation{});
+      Stmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
+      break;
     case ASTNode::NodeKind::NK_Continue:
-      return new (ASTCtx) clang::ContinueStmt(SourceLocation{});
+      Stmts.push_back(new (ASTCtx) clang::ContinueStmt(SourceLocation{}));
+      break;
     case ASTNode::NodeKind::NK_Code: {
-      SmallVector<clang::Stmt *, 16> Stmts;
       CodeNode *Code = cast<CodeNode>(N);
       llvm::BasicBlock *BB = Code->getOriginalBB();
       revng_assert(BB != nullptr);
@@ -49,15 +74,13 @@ static clang::Stmt *buildScope(ASTNode *N,
         if (It != End)
           Stmts.push_back(It->second);
       }
-      return CompoundStmt::Create(ASTCtx, Stmts, {}, {});
+      break;
     }
     case ASTNode::NodeKind::NK_If: {
       IfNode *If = cast<IfNode>(N);
-      clang::Stmt *ThenScope = buildScope(If->getThen(), InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
-      clang::Stmt *ElseScope = buildScope(If->getElse(), InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+      clang::Stmt *ThenScope = buildCompoundScope(If->getThen(), InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+      clang::Stmt *ElseScope = buildCompoundScope(If->getElse(), InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
       llvm::BasicBlock *CondBlock = If->getUniqueCondBlock();
-
-      SmallVector<clang::Stmt *, 16> Stmts;
 
       auto End = InstrStmts.end();
       for (llvm::Instruction &Instr : *CondBlock) {
@@ -74,11 +97,11 @@ static clang::Stmt *buildScope(ASTNode *N,
 
       Stmts.push_back(new (ASTCtx) IfStmt (ASTCtx, {}, false, nullptr, nullptr,
                             CondExpr, ThenScope, {}, ElseScope));
-      return CompoundStmt::Create(ASTCtx, Stmts, {}, {});
+      break;
     }
     case ASTNode::NodeKind::NK_Scs: {
       ScsNode *LoopBody = cast<ScsNode>(N);
-      clang::Stmt *Body = buildScope(LoopBody->getBody(), InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+      clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(), InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
 
       QualType UInt = ASTCtx.UnsignedIntTy;
       uint64_t UIntSize = ASTCtx.getTypeSize(UInt);
@@ -87,20 +110,17 @@ static clang::Stmt *buildScope(ASTNode *N,
                                                      UInt,
                                                      {});
 
-      return new (ASTCtx) WhileStmt(ASTCtx, nullptr, TrueCond, Body, {});
+      Stmts.push_back(new (ASTCtx) WhileStmt(ASTCtx, nullptr, TrueCond, Body, {}));
+      break;
     }
     case ASTNode::NodeKind::NK_List: {
-      SmallVector<clang::Stmt *, 16> Stmts;
       SequenceNode *Seq = cast<SequenceNode>(N);
-      for (ASTNode *Child : Seq->nodes()) {
-        if (clang::Stmt *S = buildScope(Child, InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo))
-          Stmts.push_back(S);
-      }
-      return CompoundStmt::Create(ASTCtx, Stmts, {}, {});
+      for (ASTNode *Child : Seq->nodes())
+        buildAndAppendSmts(Stmts, Child, InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+      break;
     }
     default:
       revng_abort();
-      return nullptr;
   }
 }
 
@@ -118,12 +138,12 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
   for (auto &DeclPair : ASTInfo.VarDecls)
     LocalVarDecls.push_back(DeclPair.second);
 
-  // Body is a CompoundStmt, composed of:
-  // - an (optional) initial sequence of DeclStmts holding the declaration of
-  //   the local variables, if any.
-  // - a CompoundStmt for each BasicBlock, if any.
+
+  SmallVector<clang::Stmt *, 32> BodyStmts;
+  buildAndAppendSmts(BodyStmts, CombedAST.getRoot(), ASTInfo.InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+
   unsigned NumLocalVars = LocalVarDecls.size();
-  unsigned NumStmtsInBody = 1 + NumLocalVars;
+  unsigned NumStmtsInBody = BodyStmts.size() + NumLocalVars;
   CompoundStmt *Body = CompoundStmt::CreateEmpty(ASTCtx, NumStmtsInBody);
   FDecl->setBody(Body);
 
@@ -133,12 +153,8 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
     Body->body_begin()[I] = LocalVarDeclStmt;
   }
 
-  Body->body_begin()[NumLocalVars] =
-  buildScope(CombedAST.getRoot(), ASTInfo.InstrStmts,
-  GlobalVarAST,
-  FunctionAST,
-  ASTCtx,
-  ASTInfo);
+  for (unsigned I = NumLocalVars; I < NumStmtsInBody; ++I)
+    Body->body_begin()[I] = BodyStmts[I - NumLocalVars];
 
 #if 0
   int I = NumLocalVars;
