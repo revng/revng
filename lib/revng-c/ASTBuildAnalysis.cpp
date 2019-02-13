@@ -281,8 +281,12 @@ void Analysis::initialize() {
   computePHIVars();
 }
 
-Expr *Analysis::getParenthesizedExprForValue(Value *V) {
-  Expr *Res = getExprForValue(V);
+static Expr *getParenthesizedExprForValue(Value *V,
+                                          GlobalsMap &GlobalVarAST,
+                                          FunctionsMap &FunctionAST,
+                                          clang::ASTContext &ASTCtx,
+                                          SerializationInfo &ASTInfo) {
+  Expr *Res = getExprForValue(V, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
   if (isa<clang::BinaryOperator>(Res) or isa<ConditionalOperator>(Res))
     Res = new (ASTCtx) ParenExpr({}, {}, Res);
   return Res;
@@ -501,7 +505,7 @@ Stmt *Analysis::buildAST(Instruction &I) {
   case Instruction::Load: {
     auto *Load = cast<LoadInst>(&I);
     Value *Addr = Load->getPointerOperand();
-    Expr *AddrExpr = getParenthesizedExprForValue(Addr);
+    Expr *AddrExpr = getParenthesizedExprForValue(Addr, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and AddrExpr)
       AddrExpr->dump();
@@ -548,12 +552,12 @@ Stmt *Analysis::buildAST(Instruction &I) {
   case Instruction::Store: {
     auto *Store = cast<StoreInst>(&I);
     Value *Stored = Store->getValueOperand();
-    Expr *LHS = getParenthesizedExprForValue(Store);
+    Expr *LHS = getParenthesizedExprForValue(Store, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
     QualType LHSQualTy = LHS->getType();
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and LHS)
       LHS->dump();
-    Expr *RHS = getParenthesizedExprForValue(Stored);
+    Expr *RHS = getParenthesizedExprForValue(Stored, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and RHS)
       RHS->dump();
@@ -582,7 +586,7 @@ Stmt *Analysis::buildAST(Instruction &I) {
   case Instruction::PtrToInt:
   case Instruction::BitCast: {
     revng_assert(I.getNumOperands() == 1);
-    Expr *Res = getParenthesizedExprForValue(I.getOperand(0));
+    Expr *Res = getParenthesizedExprForValue(I.getOperand(0), GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
     QualType LHSQualType = IRASTTypeTranslation::getQualType(&I, ASTCtx);
     if (LHSQualType != Res->getType())
       Res = createCast(LHSQualType, Res, ASTCtx);
@@ -593,15 +597,15 @@ Stmt *Analysis::buildAST(Instruction &I) {
   }
   // Other instructions
   case Instruction::Select: {
-    Expr *Cond = getParenthesizedExprForValue(I.getOperand(0));
+    Expr *Cond = getParenthesizedExprForValue(I.getOperand(0), GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and Cond)
       Cond->dump();
-    Expr *TrueExpr = getParenthesizedExprForValue(I.getOperand(1));
+    Expr *TrueExpr = getParenthesizedExprForValue(I.getOperand(1), GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and TrueExpr)
       TrueExpr->dump();
-    Expr *FalseExpr = getParenthesizedExprForValue(I.getOperand(2));
+    Expr *FalseExpr = getParenthesizedExprForValue(I.getOperand(2), GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and FalseExpr)
       FalseExpr->dump();
@@ -988,7 +992,7 @@ Expr *Analysis::createRValueExprForBinaryOperator(Instruction &I) {
   BinaryOperatorKind BinOpKind = getClangBinaryOpKind(I);
 
   Value *LHSVal = I.getOperand(0);
-  Expr *LHS = getParenthesizedExprForValue(LHSVal);
+  Expr *LHS = getParenthesizedExprForValue(LHSVal, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
   revng_log(ASTBuildLog, "GOT!");
   if (ASTBuildLog.isEnabled() and LHS)
     LHS->dump();
@@ -1001,7 +1005,7 @@ Expr *Analysis::createRValueExprForBinaryOperator(Instruction &I) {
                                    VK_RValue);
 
   Value *RHSVal = I.getOperand(1);
-  Expr *RHS = getParenthesizedExprForValue(RHSVal);
+  Expr *RHS = getParenthesizedExprForValue(RHSVal, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
   revng_log(ASTBuildLog, "GOT!");
   if (ASTBuildLog.isEnabled() and RHS)
     RHS->dump();
@@ -1040,92 +1044,20 @@ Expr *Analysis::createRValueExprForBinaryOperator(Instruction &I) {
   return Res;
 }
 
-Expr *Analysis::getLiteralFromConstant(Constant *C) {
-  if (auto *CD = dyn_cast<ConstantData>(C)) {
-    if (auto *CInt = dyn_cast<ConstantInt>(CD)) {
-      QualType LiteralTy = IRASTTypeTranslation::getQualType(CInt, ASTCtx);
-      const clang::Type *UnderlyingTy = LiteralTy.getTypePtrOrNull();
-      revng_assert(UnderlyingTy != nullptr);
-      const BuiltinType *BuiltinTy = cast<BuiltinType>(UnderlyingTy);
-      uint64_t ConstValue = CInt->getValue().getZExtValue();
-      APInt Const = APInt(ASTCtx.getIntWidth(LiteralTy), ConstValue);
-      switch (BuiltinTy->getKind()) {
-      case BuiltinType::Char_U:
-      case BuiltinType::UChar:
-      case BuiltinType::Char_S:
-      case BuiltinType::SChar: {
-        using CharKind = CharacterLiteral::CharacterKind;
-        return new (ASTCtx)
-          CharacterLiteral(ConstValue, CharKind::Ascii, ASTCtx.CharTy, {});
-      }
-      case BuiltinType::UShort: {
-        Expr *Literal = IntegerLiteral::Create(ASTCtx, Const, ASTCtx.UnsignedIntTy, {});
-        return createCast(ASTCtx.UnsignedShortTy, Literal, ASTCtx);
-      }
-      case BuiltinType::Short: {
-        Expr *Literal = IntegerLiteral::Create(ASTCtx, Const, ASTCtx.IntTy, {});
-        return createCast(ASTCtx.ShortTy, Literal, ASTCtx);
-      }
-      case BuiltinType::UInt:
-      case BuiltinType::ULong:
-      case BuiltinType::ULongLong:
-      case BuiltinType::Int:
-      case BuiltinType::Long:
-      case BuiltinType::LongLong:
-        return IntegerLiteral::Create(ASTCtx, Const, LiteralTy, {});
-      case BuiltinType::UInt128: {
-        uint64_t U128ConstVal = CInt->getValue().getZExtValue();
-        APInt U128Const = APInt(128, U128ConstVal);
-        return IntegerLiteral::Create(ASTCtx,
-                                      U128Const,
-                                      ASTCtx.UnsignedInt128Ty,
-                                      {});
-      }
-      case BuiltinType::Int128: {
-        uint64_t I128ConstVal = CInt->getValue().getZExtValue();
-        APInt I128Const = APInt(128, I128ConstVal);
-        return IntegerLiteral::Create(ASTCtx, I128Const, ASTCtx.Int128Ty, {});
-      }
-      default:
-        revng_abort();
-      }
-    } else if (isa<ConstantPointerNull>(CD)) {
-      QualType UIntPtr = ASTCtx.getUIntPtrType();
-      uint64_t UIntPtrSize = ASTCtx.getTypeSize(UIntPtr);
-      return IntegerLiteral::Create(ASTCtx,
-                                    APInt::getNullValue(UIntPtrSize),
-                                    UIntPtr,
-                                    {});
-    }
-    revng_abort();
-  }
-  if (auto *CE = dyn_cast<ConstantExpr>(C)) {
-    Expr *Result = nullptr;
-    switch (CE->getOpcode()) {
-    case Instruction::Trunc:
-    case Instruction::ZExt:
-    case Instruction::SExt:
-    case Instruction::IntToPtr:
-    case Instruction::PtrToInt:
-    case Instruction::BitCast: {
-      Result = getExprForValue(cast<ConstantInt>(CE->getOperand(0)));
-      revng_log(ASTBuildLog, "GOT!");
-      revng_assert(Result);
-      if (ASTBuildLog.isEnabled())
-        Result->dump();
-    } break;
-    default:
-      revng_abort();
-    }
-    return Result;
-  }
-  revng_abort();
-}
+static Expr *getLiteralFromConstant(Constant *C,
+                                    GlobalsMap &GlobalVarAST,
+                                    FunctionsMap &FunctionAST,
+                                    clang::ASTContext &ASTCtx,
+                                    SerializationInfo &ASTInfo);
 
-Expr *Analysis::getExprForValue(Value *V) {
+Expr *getExprForValue(Value *V,
+                      GlobalsMap &GlobalVarAST,
+                      FunctionsMap &FunctionAST,
+                      clang::ASTContext &ASTCtx,
+                      SerializationInfo &ASTInfo) {
   revng_log(ASTBuildLog, "getExprForValue: " << dumpToString(V));
   if (isa<ConstantData>(V) or isa<ConstantExpr>(V)) {
-    return getLiteralFromConstant(cast<Constant>(V));
+    return getLiteralFromConstant(cast<Constant>(V), GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
   } else if (auto *F = dyn_cast<Function>(V)) {
     FunctionDecl *FDecl = FunctionAST.at(F);
     QualType Type = FDecl->getType();
@@ -1177,7 +1109,7 @@ Expr *Analysis::getExprForValue(Value *V) {
       else
         Addr = Store->getPointerOperand();
 
-      Expr *AddrExpr = getParenthesizedExprForValue(Addr);
+      Expr *AddrExpr = getParenthesizedExprForValue(Addr, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
       revng_log(ASTBuildLog, "GOT!");
       if (ASTBuildLog.isEnabled() and AddrExpr)
         AddrExpr->dump();
@@ -1239,7 +1171,7 @@ Expr *Analysis::getExprForValue(Value *V) {
     }
     if (auto *Cast = dyn_cast<CastInst>(I)) {
       Value *RHS = Cast->getOperand(0);
-      Expr *Result = getParenthesizedExprForValue(RHS);
+      Expr *Result = getParenthesizedExprForValue(RHS, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
       LLVMType *RHSTy = Cast->getSrcTy();
       LLVMType *LHSTy = Cast->getDestTy();
       if (RHSTy != LHSTy) {
@@ -1337,6 +1269,100 @@ Expr *Analysis::getExprForValue(Value *V) {
   } else {
     revng_abort();
   }
+}
+
+static Expr *getLiteralFromConstant(Constant *C,
+                                    GlobalsMap &GlobalVarAST,
+                                    FunctionsMap &FunctionAST,
+                                    clang::ASTContext &ASTCtx,
+                                    SerializationInfo &ASTInfo) {
+  if (auto *CD = dyn_cast<ConstantData>(C)) {
+    if (auto *CInt = dyn_cast<ConstantInt>(CD)) {
+      QualType LiteralTy = IRASTTypeTranslation::getQualType(CInt, ASTCtx);
+      const clang::Type *UnderlyingTy = LiteralTy.getTypePtrOrNull();
+      revng_assert(UnderlyingTy != nullptr);
+      const BuiltinType *BuiltinTy = cast<BuiltinType>(UnderlyingTy);
+      uint64_t ConstValue = CInt->getValue().getZExtValue();
+      APInt Const = APInt(ASTCtx.getIntWidth(LiteralTy), ConstValue);
+      switch (BuiltinTy->getKind()) {
+      case BuiltinType::Char_U:
+      case BuiltinType::UChar:
+      case BuiltinType::Char_S:
+      case BuiltinType::SChar: {
+        using CharKind = CharacterLiteral::CharacterKind;
+        return new (ASTCtx)
+          CharacterLiteral(ConstValue, CharKind::Ascii, ASTCtx.CharTy, {});
+      }
+      case BuiltinType::UShort: {
+        Expr *Literal = IntegerLiteral::Create(ASTCtx, Const, ASTCtx.UnsignedIntTy, {});
+        return createCast(ASTCtx.UnsignedShortTy, Literal, ASTCtx);
+      }
+      case BuiltinType::Short: {
+        Expr *Literal = IntegerLiteral::Create(ASTCtx, Const, ASTCtx.IntTy, {});
+        return createCast(ASTCtx.ShortTy, Literal, ASTCtx);
+      }
+      case BuiltinType::UInt:
+      case BuiltinType::ULong:
+      case BuiltinType::ULongLong:
+      case BuiltinType::Int:
+      case BuiltinType::Long:
+      case BuiltinType::LongLong:
+        return IntegerLiteral::Create(ASTCtx, Const, LiteralTy, {});
+      case BuiltinType::UInt128: {
+        uint64_t U128ConstVal = CInt->getValue().getZExtValue();
+        APInt U128Const = APInt(128, U128ConstVal);
+        return IntegerLiteral::Create(ASTCtx,
+                                      U128Const,
+                                      ASTCtx.UnsignedInt128Ty,
+                                      {});
+      }
+      case BuiltinType::Int128: {
+        uint64_t I128ConstVal = CInt->getValue().getZExtValue();
+        APInt I128Const = APInt(128, I128ConstVal);
+        return IntegerLiteral::Create(ASTCtx, I128Const, ASTCtx.Int128Ty, {});
+      }
+      default:
+        revng_abort();
+      }
+    } else if (isa<ConstantPointerNull>(CD)) {
+      QualType UIntPtr = ASTCtx.getUIntPtrType();
+      uint64_t UIntPtrSize = ASTCtx.getTypeSize(UIntPtr);
+      return IntegerLiteral::Create(ASTCtx,
+                                    APInt::getNullValue(UIntPtrSize),
+                                    UIntPtr,
+                                    {});
+    }
+    revng_abort();
+  }
+  if (auto *CE = dyn_cast<ConstantExpr>(C)) {
+    Expr *Result = nullptr;
+    switch (CE->getOpcode()) {
+    case Instruction::Trunc:
+    case Instruction::ZExt:
+    case Instruction::SExt:
+    case Instruction::IntToPtr:
+    case Instruction::PtrToInt:
+    case Instruction::BitCast: {
+      Result = getExprForValue(cast<ConstantInt>(CE->getOperand(0)),
+  GlobalVarAST,
+  FunctionAST,
+  ASTCtx,
+  ASTInfo);
+      revng_log(ASTBuildLog, "GOT!");
+      revng_assert(Result);
+      if (ASTBuildLog.isEnabled())
+        Result->dump();
+    } break;
+    default:
+      revng_abort();
+    }
+    return Result;
+  }
+  revng_abort();
+}
+
+Expr *Analysis::getExprForValue(Value *V) {
+  return IR2AST::getExprForValue(V, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
 }
 
 } // namespace IR2AST

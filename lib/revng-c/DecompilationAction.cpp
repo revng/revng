@@ -25,10 +25,12 @@ namespace tooling {
 using GlobalsMap = GlobalDeclCreationAction::GlobalsMap;
 using FunctionsMap = FuncDeclCreationAction::FunctionsMap;
 
-static clang::Stmt *buildScope(ASTContext &ASTCtx,
-                               ASTNode *N,
-                               IR2AST::StmtMap &InstrStmts
-                               ) {
+static clang::Stmt *buildScope(ASTNode *N,
+                               IR2AST::StmtMap &InstrStmts,
+                               GlobalsMap &GlobalVarAST,
+                               FunctionsMap &FunctionAST,
+                               clang::ASTContext &ASTCtx,
+                               IR2AST::SerializationInfo &ASTInfo) {
   if (N == nullptr)
     return nullptr;
   switch (N->getKind()) {
@@ -51,27 +53,32 @@ static clang::Stmt *buildScope(ASTContext &ASTCtx,
     }
     case ASTNode::NodeKind::NK_If: {
       IfNode *If = cast<IfNode>(N);
-      clang::Stmt *ThenScope = buildScope(ASTCtx, If->getThen(), InstrStmts);
-      clang::Stmt *ElseScope = buildScope(ASTCtx, If->getElse(), InstrStmts);
+      clang::Stmt *ThenScope = buildScope(If->getThen(), InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+      clang::Stmt *ElseScope = buildScope(If->getElse(), InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
       llvm::BasicBlock *CondBlock = If->getUniqueCondBlock();
+
+      SmallVector<clang::Stmt *, 16> Stmts;
+
+      auto End = InstrStmts.end();
+      for (llvm::Instruction &Instr : *CondBlock) {
+        auto It = InstrStmts.find(&Instr);
+        if (It != End)
+          Stmts.push_back(It->second);
+      }
+
       llvm::Instruction *CondTerminator = CondBlock->getTerminator();
       llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
       revng_assert(Br->isConditional());
       llvm::Value *CondValue = Br->getCondition();
-      //clang::Expr *CondExpr = getExprForValue(CondValue);
+      clang::Expr *CondExpr = getExprForValue(CondValue, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
 
-      QualType UInt = ASTCtx.UnsignedIntTy;
-      uint64_t UIntSize = ASTCtx.getTypeSize(UInt);
-      clang::Expr *TrueCond = IntegerLiteral::Create(ASTCtx,
-                                                     llvm::APInt(UIntSize, 1),
-                                                     UInt,
-                                                     {});
-      return new (ASTCtx) IfStmt (ASTCtx, {}, false, nullptr, nullptr,
-                            TrueCond, ThenScope, {}, ElseScope);
+      Stmts.push_back(new (ASTCtx) IfStmt (ASTCtx, {}, false, nullptr, nullptr,
+                            CondExpr, ThenScope, {}, ElseScope));
+      return CompoundStmt::Create(ASTCtx, Stmts, {}, {});
     }
     case ASTNode::NodeKind::NK_Scs: {
       ScsNode *LoopBody = cast<ScsNode>(N);
-      clang::Stmt *Body = buildScope(ASTCtx, LoopBody->getBody(), InstrStmts);
+      clang::Stmt *Body = buildScope(LoopBody->getBody(), InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
 
       QualType UInt = ASTCtx.UnsignedIntTy;
       uint64_t UIntSize = ASTCtx.getTypeSize(UInt);
@@ -86,7 +93,7 @@ static clang::Stmt *buildScope(ASTContext &ASTCtx,
       SmallVector<clang::Stmt *, 16> Stmts;
       SequenceNode *Seq = cast<SequenceNode>(N);
       for (ASTNode *Child : Seq->nodes()) {
-        if (clang::Stmt *S = buildScope(ASTCtx, Child, InstrStmts))
+        if (clang::Stmt *S = buildScope(Child, InstrStmts, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo))
           Stmts.push_back(S);
       }
       return CompoundStmt::Create(ASTCtx, Stmts, {}, {});
@@ -99,6 +106,8 @@ static clang::Stmt *buildScope(ASTContext &ASTCtx,
 
 static void buildFunctionBody(FunctionsMap::value_type &FPair,
                               ASTTree &CombedAST,
+                              GlobalsMap &GlobalVarAST,
+                              FunctionsMap &FunctionAST,
                               IR2AST::SerializationInfo &ASTInfo) {
   llvm::Function &F = *FPair.first;
   clang::FunctionDecl *FDecl = FPair.second;
@@ -125,7 +134,11 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
   }
 
   Body->body_begin()[NumLocalVars] =
-  buildScope(ASTCtx, CombedAST.getRoot(), ASTInfo.InstrStmts);
+  buildScope(CombedAST.getRoot(), ASTInfo.InstrStmts,
+  GlobalVarAST,
+  FunctionAST,
+  ASTCtx,
+  ASTInfo);
 
 #if 0
   int I = NumLocalVars;
@@ -183,7 +196,7 @@ public:
     IR2ASTBuildAnalysis.run();
     auto &&ASTInfo = IR2ASTBuildAnalysis.extractASTInfo();
 
-    buildFunctionBody(*It, CombedAST, ASTInfo);
+    buildFunctionBody(*It, CombedAST, GlobalVarAST, FunctionDecls, ASTInfo);
 
     for (auto &F : FunctionDefs) {
       llvm::Function *LLVMFunc = F.first;

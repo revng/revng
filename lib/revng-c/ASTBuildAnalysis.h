@@ -39,6 +39,8 @@ using PHIIncomingMap = SmallMap<const llvm::PHINode *, unsigned, 8>;
 using BlockToPHIIncomingMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 8>;
 using DeclMap = std::map<llvm::Instruction *, clang::VarDecl *>;
 using StmtMap = std::map<llvm::Instruction *, clang::Stmt *>;
+using GlobalsMap = std::map<const llvm::GlobalVariable *, clang::VarDecl *>;
+using FunctionsMap = std::map<llvm::Function *, clang::FunctionDecl *>;
 
 struct SerializationInfo {
   std::map<llvm::AllocaInst *, clang::VarDecl *> AllocaDecls;
@@ -65,9 +67,7 @@ private:
   clang::FunctionDecl &FDecl;
   clang::ASTContext &ASTCtx;
 
-  using GlobalsMap = std::map<const llvm::GlobalVariable *, clang::VarDecl *>;
   GlobalsMap &GlobalVarAST;
-  using FunctionsMap = std::map<llvm::Function *, clang::FunctionDecl *>;
   FunctionsMap &FunctionAST;
 
   uint64_t NVar;
@@ -151,10 +151,14 @@ private:
   clang::Stmt *buildAST(llvm::Instruction &I);
 
   clang::Expr *getExprForValue(llvm::Value *V);
-  clang::Expr *getParenthesizedExprForValue(llvm::Value *V);
   clang::Expr *createRValueExprForBinaryOperator(llvm::Instruction &I);
-  clang::Expr *getLiteralFromConstant(llvm::Constant *C);
 };
+
+clang::Expr *getExprForValue(llvm::Value *V,
+                             GlobalsMap &GlobalVarAST,
+                             FunctionsMap &FunctionAST,
+                             clang::ASTContext &ASTCtx,
+                             SerializationInfo &ASTInfo);
 
 } // namespace IR2AST
 #endif // REVNGC_ASTBUILDANALYSIS_H
