@@ -158,7 +158,11 @@ public:
     if (Successors[1])
       Successors[1]->removePredecessor(this);
     Successors[1] = Succ;
-    if (Succ) {
+
+    // We may not have a succesor (nullptr) or it may be already inserted
+    // (insertBulkNodes on with check nodes around).
+    // TODO: remove this check and handle this explicitly.
+    if (Succ and (not Succ->hasPredecessor(this))) {
       Succ->addPredecessor(this);
     }
   }
@@ -175,7 +179,11 @@ public:
     if (Successors[0])
       Successors[0]->removePredecessor(this);
     Successors[0] = Succ;
-    if (Succ)
+
+    // We may not have a succesor (nullptr) or it may be already inserted
+    // (insertBulkNodes on with check nodes around).
+    // TODO: remove this check and handle this explicitly.
+    if (Succ and (not Succ->hasPredecessor(this)))
       Succ->addPredecessor(this);
   }
 
@@ -202,6 +210,17 @@ public:
     // TODO: Disabled this, since even for set node if we copy the successors
     //       in order we should be fine.
     //revng_assert(not isCheck()); // you should use setFalse() and setTrue()
+
+    // Assert that we are not double inserting.
+    bool Found = false;
+    for (BasicBlockNode *Candidate : Successors) {
+      if (Successor == Candidate) {
+        Found = true;
+        break;
+      }
+    }
+    revng_assert(not Found);
+
     Successors.push_back(Successor);
   }
 
@@ -209,17 +228,30 @@ public:
 
   void addPredecessor(BasicBlockNode *Predecessor) {
 
-    // HACK to avoid double insertion due to `setFalse`, remove this.
+    // Assert that we are not double inserting.
     bool Found = false;
-    for (BasicBlockNode *Pred : Predecessors) {
-      if (Pred == Predecessor) {
+    for (BasicBlockNode *Candidate : Predecessors) {
+      if (Predecessor == Candidate) {
         Found = true;
+        break;
       }
     }
+    revng_assert(not Found);
 
-    if (not Found) {
-      Predecessors.push_back(Predecessor);
+    Predecessors.push_back(Predecessor);
+  }
+
+  bool hasPredecessor(BasicBlockNode *Candidate) {
+
+    // HACK to avoid double insertion due to `setFalse`, remove this.
+    bool Found = false;
+    for (BasicBlockNode *Predecessor : Predecessors) {
+      if (Predecessor == Candidate) {
+        Found = true;
+        break;
+      }
     }
+    return Found;
   }
 
   void removePredecessor(BasicBlockNode *Predecessor);
