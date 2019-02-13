@@ -103,13 +103,12 @@ static ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
     if (If->hasElse()) {
       If->setElse(simplifyAtomicSequence(If->getElse()));
     }
-  }
-#if 0
-} else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
+  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     // TODO: check if this is not needed as the simplification is done for each
     //       SCS region.
+    // After flattening this situation may arise again.
+    Scs->setBody(simplifyAtomicSequence(Scs->getBody()));
   }
-#endif
 
   return RootNode;
 }

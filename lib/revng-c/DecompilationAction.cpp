@@ -39,7 +39,8 @@ buildCompoundScope(ASTNode *N,
                    GlobalsMap &GlobalVarAST,
                    FunctionsMap &FunctionAST,
                    clang::ASTContext &ASTCtx,
-                   IR2AST::SerializationInfo &ASTInfo) {
+                   IR2AST::SerializationInfo &ASTInfo,
+                   SmallVector<clang::Stmt*, 32> AdditionalStmts = {}) {
   SmallVector<clang::Stmt *, 32> Stmts;
   buildAndAppendSmts(Stmts,
                      N,
@@ -48,6 +49,9 @@ buildCompoundScope(ASTNode *N,
                      FunctionAST,
                      ASTCtx,
                      ASTInfo);
+
+  // Add additional statement to handle while e dowhile condition computation.
+  Stmts.append(AdditionalStmts.begin(), AdditionalStmts.end());
   return CompoundStmt::Create(ASTCtx, Stmts, {}, {});
 }
 
@@ -136,22 +140,107 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
   }
   case ASTNode::NodeKind::NK_Scs: {
     ScsNode *LoopBody = cast<ScsNode>(N);
-    clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(),
-                                           InstrStmts,
-                                           GlobalVarAST,
-                                           FunctionAST,
-                                           ASTCtx,
-                                           ASTInfo);
 
-    QualType UInt = ASTCtx.UnsignedIntTy;
-    uint64_t UIntSize = ASTCtx.getTypeSize(UInt);
-    clang::Expr *TrueCond = IntegerLiteral::Create(ASTCtx,
-                                                   llvm::APInt(UIntSize, 1),
-                                                   UInt,
-                                                   {});
+    if (LoopBody->isDoWhile()) {
+      SmallVector<clang::Stmt*, 32> AdditionalStmts;
 
-    Stmts.push_back(new (ASTCtx)
-                      WhileStmt(ASTCtx, nullptr, TrueCond, Body, {}));
+      // This shold retrieve the if which generates the condition of the loop
+      // by accesing a dedicated field in the ScsNode.
+      IfNode *LoopCondition = LoopBody->getRelatedCondition();
+      llvm::BasicBlock *CondBlock = LoopCondition->getUniqueCondBlock();
+
+      // Emission of the code that computes the condition.
+      // TODO: Where do this go in a do-while??? Before each condition check!
+      //       So we pass them as additional statements.
+      auto End = InstrStmts.end();
+      for (llvm::Instruction &Instr : *CondBlock) {
+        auto It = InstrStmts.find(&Instr);
+        if (It != End) {
+          revng_assert(It->second != nullptr);
+          AdditionalStmts.push_back(It->second);
+        }
+      }
+
+      clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(),
+                                             InstrStmts,
+                                             GlobalVarAST,
+                                             FunctionAST,
+                                             ASTCtx,
+                                             ASTInfo,
+                                             AdditionalStmts);
+
+      llvm::Instruction *CondTerminator = CondBlock->getTerminator();
+      llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
+      revng_assert(Br->isConditional());
+      llvm::Value *CondValue = Br->getCondition();
+      clang::Expr *CondExpr = getExprForValue(CondValue,
+                                              GlobalVarAST,
+                                              FunctionAST,
+                                              ASTCtx,
+                                              ASTInfo);
+
+      Stmts.push_back(new (ASTCtx) DoStmt(Body, CondExpr, {}, {}, {}));
+    } else if (LoopBody->isWhile()) {
+
+      SmallVector<clang::Stmt*, 32> AdditionalStmts;
+
+      // This shold retrieve the if which generates the condition of the loop
+      // by accesing a dedicated field in the ScsNode.
+      IfNode *LoopCondition = LoopBody->getRelatedCondition();
+      llvm::BasicBlock *CondBlock = LoopCondition->getUniqueCondBlock();
+
+      // Emission of the code that computes the condition.
+      // TODO: Where do this go in a while loop??? before the loop and as
+      //       additional statements at the end of each iteration..
+      auto End = InstrStmts.end();
+      for (llvm::Instruction &Instr : *CondBlock) {
+        auto It = InstrStmts.find(&Instr);
+        if (It != End) {
+          revng_assert(It->second != nullptr);
+          Stmts.push_back(It->second);
+          AdditionalStmts.push_back(It->second);
+        }
+      }
+
+      clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(),
+                                             InstrStmts,
+                                             GlobalVarAST,
+                                             FunctionAST,
+                                             ASTCtx,
+                                             ASTInfo,
+                                             AdditionalStmts);
+
+      llvm::Instruction *CondTerminator = CondBlock->getTerminator();
+      llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
+      revng_assert(Br->isConditional());
+      llvm::Value *CondValue = Br->getCondition();
+      clang::Expr *CondExpr = getExprForValue(CondValue,
+                                              GlobalVarAST,
+                                              FunctionAST,
+                                              ASTCtx,
+                                              ASTInfo);
+
+      Stmts.push_back(new (ASTCtx)
+                        WhileStmt(ASTCtx, nullptr, CondExpr, Body, {}));
+    } else {
+
+      // Standard case.
+      clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(),
+                                             InstrStmts,
+                                             GlobalVarAST,
+                                             FunctionAST,
+                                             ASTCtx,
+                                             ASTInfo);
+      QualType UInt = ASTCtx.UnsignedIntTy;
+      uint64_t UIntSize = ASTCtx.getTypeSize(UInt);
+      clang::Expr *TrueCond = IntegerLiteral::Create(ASTCtx,
+                                                     llvm::APInt(UIntSize, 1),
+                                                     UInt,
+                                                     {});
+
+      Stmts.push_back(new (ASTCtx)
+                        WhileStmt(ASTCtx, nullptr, TrueCond, Body, {}));
+    }
     break;
   }
   case ASTNode::NodeKind::NK_List: {

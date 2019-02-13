@@ -258,8 +258,17 @@ public:
 
 class ScsNode : public ASTNode {
 
+public:
+  enum class Type {
+    Standard,
+    While,
+    DoWhile,
+  };
+
 private:
   ASTNode *Body;
+  Type LoopType = Type::Standard;
+  IfNode *RelatedCondition = nullptr;
 
 public:
   ScsNode(BasicBlockNode *CFGNode, ASTNode *Body) :
@@ -287,6 +296,30 @@ public:
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   ASTNode *Clone() { return new ScsNode(*this); }
+
+  bool isStandard() { return LoopType == Type::Standard; }
+
+  bool isWhile() { return LoopType == Type::While; }
+
+  bool isDoWhile() { return LoopType == Type::DoWhile; }
+
+  void setWhile(IfNode *Condition) {
+    LoopType = Type::While;
+    RelatedCondition = Condition;
+  }
+
+  void setDoWhile(IfNode *Condition) {
+    LoopType = Type::DoWhile;
+    RelatedCondition = Condition;
+  }
+
+  IfNode *getRelatedCondition () {
+    revng_assert(LoopType == Type::While or LoopType == Type::DoWhile);
+    revng_assert(RelatedCondition != nullptr);
+
+    return RelatedCondition;
+  }
+
 };
 
 class SequenceNode : public ASTNode {
