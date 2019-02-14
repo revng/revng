@@ -526,6 +526,9 @@ private:
   template<typename T, bool HasAddend>
   void parseELF(llvm::object::ObjectFile *TheBinary, uint64_t BaseAddress);
 
+  /// \brief Parse a COFF file
+  void parseCOFF(llvm::object::ObjectFile *TheBinary, uint64_t BaseAddress);
+
   /// \brief Parse the .eh_frame_hdr section to obtain the address and the
   ///        number of FDEs in .eh_frame
   ///

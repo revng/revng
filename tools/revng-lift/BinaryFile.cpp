@@ -17,6 +17,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/Object/COFF.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Casting.h"
@@ -276,39 +277,50 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
                                  HasRelocationAddend,
                                  std::move(RelocationTypes));
 
-  revng_assert(TheBinary->getFileFormatName().startswith("ELF"),
-               "Only the ELF file format is currently supported");
+  const StringRef FileFormat = TheBinary->getFileFormatName();
 
-  if (TheArchitecture.pointerSize() == 32) {
-    if (TheArchitecture.isLittleEndian()) {
-      if (TheArchitecture.hasRelocationAddend()) {
-        parseELF<object::ELF32LE, true>(TheBinary, BaseAddress);
+  if (FileFormat.startswith("ELF")) {
+    if (TheArchitecture.pointerSize() == 32) {
+      if (TheArchitecture.isLittleEndian()) {
+        if (TheArchitecture.hasRelocationAddend()) {
+          parseELF<object::ELF32LE, true>(TheBinary, BaseAddress);
+        } else {
+          parseELF<object::ELF32LE, false>(TheBinary, BaseAddress);
+        }
       } else {
-        parseELF<object::ELF32LE, false>(TheBinary, BaseAddress);
+        if (TheArchitecture.hasRelocationAddend()) {
+          parseELF<object::ELF32BE, true>(TheBinary, BaseAddress);
+        } else {
+          parseELF<object::ELF32BE, false>(TheBinary, BaseAddress);
+        }
+      }
+    } else if (TheArchitecture.pointerSize() == 64) {
+      if (TheArchitecture.isLittleEndian()) {
+        if (TheArchitecture.hasRelocationAddend()) {
+          parseELF<object::ELF64LE, true>(TheBinary, BaseAddress);
+        } else {
+          parseELF<object::ELF64LE, false>(TheBinary, BaseAddress);
+        }
+      } else {
+        if (TheArchitecture.hasRelocationAddend()) {
+          parseELF<object::ELF64BE, true>(TheBinary, BaseAddress);
+        } else {
+          parseELF<object::ELF64BE, false>(TheBinary, BaseAddress);
+        }
       }
     } else {
-      if (TheArchitecture.hasRelocationAddend()) {
-        parseELF<object::ELF32BE, true>(TheBinary, BaseAddress);
-      } else {
-        parseELF<object::ELF32BE, false>(TheBinary, BaseAddress);
-      }
+      revng_assert("Unexpect address size");
     }
-  } else if (TheArchitecture.pointerSize() == 64) {
-    if (TheArchitecture.isLittleEndian()) {
-      if (TheArchitecture.hasRelocationAddend()) {
-        parseELF<object::ELF64LE, true>(TheBinary, BaseAddress);
-      } else {
-        parseELF<object::ELF64LE, false>(TheBinary, BaseAddress);
-      }
-    } else {
-      if (TheArchitecture.hasRelocationAddend()) {
-        parseELF<object::ELF64BE, true>(TheBinary, BaseAddress);
-      } else {
-        parseELF<object::ELF64BE, false>(TheBinary, BaseAddress);
-      }
-    }
+  } else if (FileFormat.startswith("COFF")) {
+    revng_assert(TheArchitecture.pointerSize() == 32
+                   || TheArchitecture.pointerSize() == 64,
+                 "Only 32/64-bit COFF files are supported");
+    revng_assert(TheArchitecture.isLittleEndian() == true,
+                 "Only Little-Endian COFF files are supported");
+    // TODO handle relocations
+    parseCOFF(TheBinary, BaseAddress);
   } else {
-    revng_assert("Unexpect address size");
+    revng_assert("Invalid file format.");
   }
 
   rebuildLabelsMap();
@@ -415,6 +427,68 @@ struct RelocationHelper<T, false> {
 
 static bool shouldIgnoreSymbol(StringRef Name) {
   return Name == "$a" or Name == "$d";
+}
+
+void BinaryFile::parseCOFF(object::ObjectFile *TheBinary,
+                           uint64_t BaseAddress) {
+  std::error_code EC;
+  object::COFFObjectFile TheCOFF(TheBinary->getMemoryBufferRef(), EC);
+
+  const object::pe32_header *PE32Header = nullptr;
+  TheCOFF.getPE32Header(PE32Header);
+
+  uint64_t ImageBase = 0;
+  if (PE32Header) {
+    // TODO: ImageBase should aligned to 4kb pages, should we check that?
+    ImageBase = PE32Header->ImageBase;
+
+    EntryPoint = ImageBase + PE32Header->AddressOfEntryPoint;
+    ProgramHeaders.Count = PE32Header->NumberOfRvaAndSize;
+    ProgramHeaders.Size = PE32Header->SizeOfHeaders;
+  } else {
+    const object::pe32plus_header *PE32PlusHeader = nullptr;
+    TheCOFF.getPE32PlusHeader(PE32PlusHeader);
+    if (!PE32PlusHeader) {
+      revng_assert("Invalid PE Header.\n");
+      return;
+    }
+
+    // PE32+ Header
+    ImageBase = PE32PlusHeader->ImageBase;
+    EntryPoint = ImageBase + PE32PlusHeader->AddressOfEntryPoint;
+    ProgramHeaders.Count = PE32PlusHeader->NumberOfRvaAndSize;
+    ProgramHeaders.Size = PE32PlusHeader->SizeOfHeaders;
+  }
+
+  // Read sections
+  for (const llvm::object::SectionRef Section : TheCOFF.sections()) {
+    llvm::StringRef Name;
+    Section.getName(Name);
+
+    unsigned Id = TheCOFF.getSectionID(Section);
+    const object::coff_section *CoffRef = nullptr;
+    TheCOFF.getSection(Id, CoffRef);
+
+    SegmentInfo Segment;
+    Segment.StartVirtualAddress = ImageBase + CoffRef->VirtualAddress;
+    Segment.EndVirtualAddress = Segment.StartVirtualAddress
+                                + CoffRef->VirtualSize;
+    Segment.IsExecutable = CoffRef->Characteristics
+                           & COFF::IMAGE_SCN_MEM_EXECUTE;
+    Segment.IsReadable = CoffRef->Characteristics & COFF::IMAGE_SCN_MEM_READ;
+    Segment.IsWriteable = CoffRef->Characteristics & COFF::IMAGE_SCN_MEM_WRITE;
+
+    const uint8_t *AddrOfRawData = nullptr;
+    AddrOfRawData = (const uint8_t *) Section.getObject()->getData().data()
+                    + CoffRef->PointerToRawData;
+
+    uint64_t SegmentSize = std::min(CoffRef->VirtualSize,
+                                    CoffRef->SizeOfRawData);
+    Segment.Data = ArrayRef<uint8_t>(AddrOfRawData, SegmentSize);
+
+    if (Segment.IsExecutable)
+      Segments.push_back(Segment);
+  }
 }
 
 template<typename T, bool HasAddend>

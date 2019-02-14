@@ -253,9 +253,12 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
       // If we have extra data at the end we need to create a copy of the
       // segment and append the NULL bytes
       auto FullData = make_unique<uint8_t[]>(Segment.size());
-      ::memcpy(FullData.get(), Segment.Data.data(), Segment.Data.size());
-      ::bzero(FullData.get() + Segment.Data.size(),
-              Segment.size() - Segment.Data.size());
+
+      size_t MinSize = std::min(Segment.size(), Segment.Data.size());
+      ::memcpy(FullData.get(), Segment.Data.data(), MinSize);
+      if (Segment.size() > Segment.Data.size())
+        ::bzero(FullData.get() + Segment.Data.size(),
+                Segment.size() - Segment.Data.size());
       auto DataRef = ArrayRef<uint8_t>(FullData.get(), Segment.size());
       TheData = ConstantDataArray::get(Context, DataRef);
     }
