@@ -9,7 +9,7 @@ project(revng)
 include(cmake/Common.cmake)
 install(FILES cmake/revngConfig.cmake cmake/Common.cmake
   DESTINATION share/revng/cmake)
-  
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # This has to be first to get highest priority
@@ -147,7 +147,7 @@ if(HAVE_VALGRIND_CALLGRIND_H)
 add_definitions("-DHAVE_VALGRIND_CALLGRIND_H")
 endif()
 
-set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
+set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}:\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}/revng/analyses")
 
 add_subdirectory(include)
 add_subdirectory(lib)
