@@ -136,12 +136,9 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
             revng_abort();
           }
         }
-        for (Use &PHIUse : PHI.uses()) {
-          auto *UserInstr = cast<Instruction>(PHIUse.getUser());
-          OpBuilder.SetInsertPoint(UserInstr);
-          LoadInst *TheLoad = OpBuilder.CreateLoad(PHITy, Alloca);
-          PHIUse.set(TheLoad);
-        }
+        OpBuilder.SetInsertPoint(BB.getFirstNonPHI());
+        LoadInst *TheLoad = OpBuilder.CreateLoad(PHITy, Alloca);
+        PHI.replaceAllUsesWith(TheLoad);
       }
       for (PHINode *PHI : PHIToErase) {
         revng_assert(PHI->getNumUses() == 0);
