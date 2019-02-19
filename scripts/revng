@@ -140,6 +140,8 @@ def build_linking_options(li_csv_path, need_csv_path):
   result.append("-Wl,-Ttext-segment={}".format(hex(text_address)))
 
   # Link required dynamic libraries
+  result.append("-Wl,--no-as-needed")
+
   with open(need_csv_path, "r") as need_csv_file:
     for library in need_csv_file:
       library = library.strip()
@@ -154,6 +156,8 @@ def build_linking_options(li_csv_path, need_csv_path):
         library = "-l:" + library
 
       result.append(library)
+
+  result.append("-Wl,--as-needed")
 
   return result
 
