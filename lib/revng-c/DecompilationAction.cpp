@@ -94,6 +94,16 @@ buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       revng_assert(Br->isConditional());
       llvm::Value *CondValue = Br->getCondition();
       clang::Expr *CondExpr = getExprForValue(CondValue, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+      if (If->conditionNegated()) {
+        using Unary = clang::UnaryOperator;
+        CondExpr = new (ASTCtx) Unary(CondExpr,
+                                      UnaryOperatorKind::UO_Not,
+                                      CondExpr->getType(),
+                                      VK_RValue,
+                                      OK_Ordinary,
+                                      {},
+                                      false);
+      }
 
       Stmts.push_back(new (ASTCtx) IfStmt (ASTCtx, {}, false, nullptr, nullptr,
                             CondExpr, ThenScope, {}, ElseScope));

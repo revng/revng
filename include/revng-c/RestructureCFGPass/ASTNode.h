@@ -285,7 +285,7 @@ public:
 
   void negateCondition() { NegatedCondition = true; }
 
-  bool conditionNegated() { return NegatedCondition; }
+  bool conditionNegated() const { return NegatedCondition; }
 
 };
 
