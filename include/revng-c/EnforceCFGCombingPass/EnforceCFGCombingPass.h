@@ -22,7 +22,6 @@ struct EnforceCFGCombingPass : public llvm::FunctionPass {
     AU.addRequired<RestructureCFG>();
     AU.setPreservesAll();
   }
-
 };
 
 #endif // REVNGC_ENFORCECFGCOMBINGPASS_H

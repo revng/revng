@@ -11,8 +11,8 @@ namespace LivenessAnalysis {
 
 llvm::Optional<LiveSet>
 Analysis::handleEdge(const LiveSet &Original,
-                             llvm::BasicBlock *Source,
-                             llvm::BasicBlock *Destination) const {
+                     llvm::BasicBlock *Source,
+                     llvm::BasicBlock *Destination) const {
   llvm::Optional<LiveSet> Result;
 
   auto UseIt = PHIEdges.find(std::make_pair(Source, Destination));

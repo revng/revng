@@ -22,8 +22,6 @@ struct LivenessAnalysisPass : public llvm::FunctionPass {
   const LivenessAnalysis::LivenessMap &getLiveOut() const { return LiveOut; };
 
 protected:
-
   LivenessAnalysis::LivenessMap LiveOut;
-
 };
 #endif // REVNGC_LIVENESS_ANALYSIS_PASS_H

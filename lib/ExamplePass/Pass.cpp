@@ -18,7 +18,6 @@ struct ExamplePass : public FunctionPass {
     errs().write_escaped(F.getName()) << '\n';
     return false;
   }
-
 };
 
 char ExamplePass::ID = 0;

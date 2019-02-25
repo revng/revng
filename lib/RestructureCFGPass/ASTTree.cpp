@@ -31,10 +31,12 @@ SequenceNode *ASTTree::addSequenceNode() {
   return llvm::cast<SequenceNode>(ASTNodeList.back().get());
 }
 
-size_t ASTTree::size() { return ASTNodeList.size(); }
+size_t ASTTree::size() {
+  return ASTNodeList.size();
+}
 
 void ASTTree::addASTNode(BasicBlockNode *Node,
-                         std::unique_ptr<ASTNode>&& ASTObject) {
+                         std::unique_ptr<ASTNode> &&ASTObject) {
   ASTNodeList.emplace_back(std::move(ASTObject));
 
   // Set the Node ID
@@ -57,14 +59,14 @@ ASTNode *ASTTree::getRoot() {
   return RootNode;
 }
 
-ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST,
-                                   BBNodeMap &SubstitutionMap) {
+ASTNode *
+ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
   size_t NumCurrNodes = size();
   ASTNodeMap ASTSubstitutionMap{};
 
   // Clone each ASTNode in the current AST.
   for (std::unique_ptr<ASTNode> &Old : OldAST.nodes()) {
-    //ASTNodeList.emplace_back(std::make_unique<ASTNode>(*Old));
+    // ASTNodeList.emplace_back(std::make_unique<ASTNode>(*Old));
     ASTNodeList.emplace_back(std::move(Old->Clone()));
 
     // Set the Node ID
@@ -80,8 +82,7 @@ ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST,
 
   // Update the AST and BBNode pointers inside the newly created AST nodes,
   // to reflect the changes made.
-  links_container::iterator BeginInserted = ASTNodeList.begin()
-                                            + NumCurrNodes;
+  links_container::iterator BeginInserted = ASTNodeList.begin() + NumCurrNodes;
   links_container::iterator EndInserted = ASTNodeList.end();
   using MovedIteratorRange = llvm::iterator_range<links_container::iterator>;
   MovedIteratorRange Result = llvm::make_range(BeginInserted, EndInserted);
@@ -134,14 +135,14 @@ ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
       If->setThen(createSequence(Tree, If->getThen()));
       If->setElse(createSequence(Tree, If->getElse()));
     }
-    #if 0
+#if 0
   } else if (auto *Code = llvm::dyn_cast<CodeNode>(Node)) {
       // TODO: confirm that doesn't make sense to process a code node.
     } else if (auto *Scs = llvm::dyn_cast<ScsNode>(Node)) {
       // TODO: confirm that this phase is not needed since the processing is
       //       done inside the processing of each SCS region.
     }
-    #endif
+#endif
   }
 
   return RootSequenceNode;
@@ -166,12 +167,12 @@ ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
     If->setThen(simplifyAtomicSequence(If->getThen()));
     If->setElse(simplifyAtomicSequence(If->getElse()));
   }
-  #if 0
+#if 0
 } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     // TODO: check if this is not needed as the simplification is done for each
     //       SCS region.
   }
-  #endif
+#endif
 
   return RootNode;
 }

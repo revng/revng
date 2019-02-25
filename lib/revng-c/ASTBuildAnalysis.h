@@ -136,7 +136,7 @@ private:
 
   void markValueToSerialize(llvm::Instruction *I);
   void markSetToSerialize(const LatticeElement &S) {
-    for (llvm::Instruction *I: S)
+    for (llvm::Instruction *I : S)
       markValueToSerialize(I);
   }
 

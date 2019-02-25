@@ -29,12 +29,12 @@ struct TaggedBB {
   TaggedBB &operator=(const TaggedBB &) = default;
   TaggedBB &operator=(TaggedBB &&) = default;
   TaggedBB(llvm::BasicBlock *B, unsigned S = 0xffffffff) : BB(B), StateVar(S) {}
-  TaggedBB(std::pair<llvm::BasicBlock *, unsigned> P) : TaggedBB(P.first,
-                                                                 P.second) {}
+  TaggedBB(std::pair<llvm::BasicBlock *, unsigned> P) :
+    TaggedBB(P.first, P.second) {}
   bool operator!=(const TaggedBB &O) const {
     return BB != O.BB or StateVar != O.StateVar;
   }
-  bool operator==(const TaggedBB &O) const { return not (*this != O); }
+  bool operator==(const TaggedBB &O) const { return not(*this != O); }
 };
 
 using BBMap = std::map<llvm::BasicBlock *, TaggedBB>;
@@ -85,8 +85,8 @@ public:
         // If the mapped values are the same it's ok.
         // If in RHS the mapped value is nullptr is also ok.
         // In all the other cases, RHS and this disagree, hence return false
-        if (not (RHSIt->second.BB == ThisView.second.BB
-                 or RHSIt->second.BB == nullptr))
+        if (not(RHSIt->second.BB == ThisView.second.BB
+                or RHSIt->second.BB == nullptr))
           return false;
       }
     }
@@ -101,26 +101,15 @@ public: // map methods
   iterator end() { return Map.end(); }
   const_iterator begin() const { return Map.cbegin(); }
   const_iterator end() const { return Map.cend(); }
-  std::pair<iterator, bool> insert (const value_type &V) {
+  std::pair<iterator, bool> insert(const value_type &V) {
     return Map.insert(V);
   }
-  std::pair<iterator, bool> insert (value_type &&V) {
-    return Map.insert(V);
-  }
-  mapped_type &operator[](const key_type& Key) {
-    return Map[Key];
-  }
-  mapped_type &operator[](key_type&& Key) {
-    return Map[Key];
-  }
-  mapped_type &at(const key_type& Key) {
-    return Map.at(Key);
-  }
-  const mapped_type &at(const key_type& Key) const {
-    return Map.at(Key);
-  }
+  std::pair<iterator, bool> insert(value_type &&V) { return Map.insert(V); }
+  mapped_type &operator[](const key_type &Key) { return Map[Key]; }
+  mapped_type &operator[](key_type &&Key) { return Map[Key]; }
+  mapped_type &at(const key_type &Key) { return Map.at(Key); }
+  const mapped_type &at(const key_type &Key) const { return Map.at(Key); }
 };
-
 
 class Analysis
   : public MonotoneFramework<Analysis,
@@ -144,9 +133,9 @@ public:
     Base(&RegionCFGTree.getEntryNode()),
     RegionCFGTree(RegionCFGTree),
     EnforcedBBMap(EnforcedBBMap) {
-      for (BasicBlockNode *BB : RegionCFGTree) {
-        if (BB->successor_size() == 0)
-          Base::registerExtremal(BB);
+    for (BasicBlockNode *BB : RegionCFGTree) {
+      if (BB->successor_size() == 0)
+        Base::registerExtremal(BB);
     }
   }
 
@@ -195,7 +184,6 @@ public:
   handleEdge(const BasicBlockViewMap &Original,
              BasicBlockNode *Source,
              BasicBlockNode *Destination) const;
-
 };
 
 } // end namespace BasicBlockViewAnalysis

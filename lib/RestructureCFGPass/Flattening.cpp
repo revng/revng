@@ -53,13 +53,13 @@ void flattenRegionCFGTree(RegionCFG &Root) {
       ScsNode *SCS = llvm::cast<ScsNode>(SCSNode);
       SCS->setBody(ASTEntry);
 
-      using EdgeDescriptor = std::pair<BasicBlockNode*, BasicBlockNode*>;
+      using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
       llvm::SmallVector<EdgeDescriptor, 4> ToMove;
 
       // Fix predecessors
       BasicBlockNode *Entry = SubstitutionMap.at(OldEntry);
       for (BasicBlockNode *Pred : CollapsedNode->predecessors())
-        ToMove.push_back({Pred, CollapsedNode});
+        ToMove.push_back({ Pred, CollapsedNode });
       for (EdgeDescriptor &Edge : ToMove)
         moveEdgeTarget(Edge, Entry);
 
@@ -67,10 +67,10 @@ void flattenRegionCFGTree(RegionCFG &Root) {
       BasicBlockNode *Succ = *CollapsedNode->successors().begin();
       for (std::unique_ptr<BasicBlockNode> &UniqueBBNode : MovedRange) {
         if (UniqueBBNode->isBreak() or UniqueBBNode->isContinue()) {
-          BasicBlockNode *NewTarget = UniqueBBNode->isBreak() ?  Succ : Entry;
+          BasicBlockNode *NewTarget = UniqueBBNode->isBreak() ? Succ : Entry;
           ToMove.clear();
           for (BasicBlockNode *Pred : UniqueBBNode->predecessors())
-            ToMove.push_back({Pred, UniqueBBNode.get()});
+            ToMove.push_back({ Pred, UniqueBBNode.get() });
           for (EdgeDescriptor &Edge : ToMove)
             moveEdgeTarget(Edge, NewTarget);
           // breaks and continues need to be removed
@@ -82,7 +82,7 @@ void flattenRegionCFGTree(RegionCFG &Root) {
     }
 
     // remove superfluous nodes
-    for (BasicBlockNode *BBNode: NodesToRemove)
+    for (BasicBlockNode *BBNode : NodesToRemove)
       Root.removeNode(BBNode);
     NodesToRemove.clear();
 
@@ -91,6 +91,5 @@ void flattenRegionCFGTree(RegionCFG &Root) {
     for (BasicBlockNode *CollapsedNode : Root)
       if (CollapsedNode->isCollapsed())
         CollapsedNodes.insert(CollapsedNode);
-
   }
 }

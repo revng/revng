@@ -22,7 +22,8 @@ public:
 
 public:
   FuncDeclCreationAction(llvm::Module &M, FunctionsMap &Decls) :
-    M(M), FunctionDecls(Decls) {}
+    M(M),
+    FunctionDecls(Decls) {}
 
 public:
   std::unique_ptr<ASTConsumer> newASTConsumer();

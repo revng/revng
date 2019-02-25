@@ -5,20 +5,19 @@
 //
 
 // std includes
-#include <utility>
-#include <set>
 #include <memory>
+#include <set>
+#include <utility>
 #include <vector>
 
 // local libraries includes
-#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 #include "MetaRegion.h"
+#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 
-void MetaRegion::replaceNodes(std::vector<std::unique_ptr<BasicBlockNode>> &NewNodes) {
+void MetaRegion::replaceNodes(std::vector<std::unique_ptr<BasicBlockNode>> &N) {
   Nodes.erase(Nodes.begin(), Nodes.end());
-  for (std::unique_ptr<BasicBlockNode> &Node : NewNodes) {
+  for (std::unique_ptr<BasicBlockNode> &Node : N)
     Nodes.insert(Node.get());
-  }
 }
 
 void MetaRegion::updateNodes(std::set<BasicBlockNode *> &Removal,
@@ -35,8 +34,8 @@ void MetaRegion::updateNodes(std::set<BasicBlockNode *> &Removal,
 
   // Add the collapsed node.
   if (NeedSubstitution) {
-        Nodes.insert(Collapsed);
-        Nodes.insert(Dispatcher.begin(), Dispatcher.end());
+    Nodes.insert(Collapsed);
+    Nodes.insert(Dispatcher.begin(), Dispatcher.end());
   }
 }
 

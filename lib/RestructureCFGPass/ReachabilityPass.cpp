@@ -25,10 +25,8 @@
 using namespace llvm;
 
 char ReachabilityPass::ID = 0;
-static RegisterPass<ReachabilityPass> X("reachability",
-                                        "Compute reachability information",
-                                        true,
-                                        true);
+static RegisterPass<ReachabilityPass>
+  X("reachability", "Compute reachability information", true, true);
 
 bool ReachabilityPass::runOnFunction(Function &F) {
 
@@ -51,9 +49,9 @@ bool ReachabilityPass::runOnFunction(Function &F) {
   int MaxIndex = Index - 1;
 
   // Create and initialize the incidence matrix.
-  bool Matrix [Dimension][Dimension];
-  for (int i=0; i<=MaxIndex; i++) {
-    for (int j=0; j<=MaxIndex; j++) {
+  bool Matrix[Dimension][Dimension];
+  for (int i = 0; i <= MaxIndex; i++) {
+    for (int j = 0; j <= MaxIndex; j++) {
       if (i == j) {
         Matrix[i][j] = 1;
       } else {
@@ -78,23 +76,22 @@ bool ReachabilityPass::runOnFunction(Function &F) {
   }
 
   dbg << "Matrix is:\n";
-  for (int i=0; i<=MaxIndex; i++) {
-    for (int j=0; j<=MaxIndex; j++) {
+  for (int i = 0; i <= MaxIndex; i++) {
+    for (int j = 0; j <= MaxIndex; j++) {
       dbg << Matrix[i][j] << " ";
     }
     dbg << "\n";
   }
 
-
   bool Change = true;
   while (Change) {
     Change = false;
 
-    bool MatrixClosure [Dimension][Dimension];
-    for (int i=0; i<=MaxIndex; i++) {
-      for (int j=0; j<=MaxIndex; j++) {
+    bool MatrixClosure[Dimension][Dimension];
+    for (int i = 0; i <= MaxIndex; i++) {
+      for (int j = 0; j <= MaxIndex; j++) {
         bool Value = 0;
-        for (int k=0; k<=MaxIndex; k++) {
+        for (int k = 0; k <= MaxIndex; k++) {
           Value = Value or (Matrix[i][k] and Matrix[k][j]);
         }
         MatrixClosure[i][j] = Value;
@@ -102,15 +99,15 @@ bool ReachabilityPass::runOnFunction(Function &F) {
     }
 
     dbg << "Matrix closure is:\n";
-    for (int i=0; i<=MaxIndex; i++) {
-      for (int j=0; j<=MaxIndex; j++) {
+    for (int i = 0; i <= MaxIndex; i++) {
+      for (int j = 0; j <= MaxIndex; j++) {
         dbg << MatrixClosure[i][j] << " ";
       }
       dbg << "\n";
     }
 
-    for (int i=0; i<=MaxIndex; i++) {
-      for (int j=0; j<=MaxIndex; j++) {
+    for (int i = 0; i <= MaxIndex; i++) {
+      for (int j = 0; j <= MaxIndex; j++) {
         bool OldValue = Matrix[i][j];
         Matrix[i][j] |= MatrixClosure[i][j];
         bool NewValue = Matrix[i][j];
@@ -121,8 +118,8 @@ bool ReachabilityPass::runOnFunction(Function &F) {
     }
 
     dbg << "Matrix sum is:\n";
-    for (int i=0; i<=MaxIndex; i++) {
-      for (int j=0; j<=MaxIndex; j++) {
+    for (int i = 0; i <= MaxIndex; i++) {
+      for (int j = 0; j <= MaxIndex; j++) {
         dbg << Matrix[i][j] << " ";
       }
       dbg << "\n";
@@ -130,8 +127,8 @@ bool ReachabilityPass::runOnFunction(Function &F) {
   }
 
   // Fill the final data structure.
-  for (int i=0; i<=MaxIndex; i++) {
-    for (int j=0; j<=MaxIndex; j++) {
+  for (int i = 0; i <= MaxIndex; i++) {
+    for (int j = 0; j <= MaxIndex; j++) {
       BasicBlock *SourceBB = IndexToBB[i];
       BasicBlock *TargetBB = IndexToBB[j];
       if (Matrix[i][j]) {

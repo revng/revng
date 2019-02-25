@@ -84,8 +84,7 @@ static FunctionDecl *createFunDecl(ASTContext &Context,
 
 class FuncDeclCreator : public ASTConsumer {
 public:
-  explicit FuncDeclCreator(llvm::Module &M,
-                           FunctionsMap &Decls) :
+  explicit FuncDeclCreator(llvm::Module &M, FunctionsMap &Decls) :
     M(M),
     FunctionDecls(Decls) {}
 

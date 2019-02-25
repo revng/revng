@@ -16,7 +16,7 @@ public:
   static char ID;
 
 public:
-  ReachabilityPass() : llvm::FunctionPass(ID) {};
+  ReachabilityPass() : llvm::FunctionPass(ID){};
 
   bool runOnFunction(llvm::Function &F) override;
 
@@ -29,7 +29,6 @@ public:
 
 private:
   std::map<llvm::BasicBlock *, std::set<llvm::BasicBlock *>> ReachableBlocks;
-
 };
 
 #endif // REVNGC_RESTRUCTURE_CFG_REACHABILITY_H

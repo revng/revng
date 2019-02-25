@@ -3,10 +3,10 @@
 //
 
 // LLVM includes
-#include <llvm/Pass.h>
 #include <llvm/ADT/SmallSet.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/Pass.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/Transforms/Utils/ValueMapper.h>
 
@@ -20,7 +20,6 @@
 #include "BasicBlockViewAnalysis.h"
 
 using namespace llvm;
-
 
 using BBMap = BasicBlockViewAnalysis::BBMap;
 using BBNodeToBBMap = BasicBlockViewAnalysis::BBNodeToBBMap;
@@ -38,8 +37,7 @@ static void preprocessRCFGT(RegionCFG &RCFGT) {
   for (BasicBlockNode *Node : RCFGT.nodes()) {
     // Flattening should eliminate all Collapsed nodes, as well as all the Break
     // and Continue artificial nodes
-    revng_assert(not Node->isCollapsed()
-                 and not Node->isBreak()
+    revng_assert(not Node->isCollapsed() and not Node->isBreak()
                  and not Node->isContinue());
     // Empty and Set artificial nodes should always have exactly one successor
     revng_assert(not Node->isEmpty() or Node->successor_size() <= 1);
@@ -52,13 +50,13 @@ static void preprocessRCFGT(RegionCFG &RCFGT) {
     if (not Node->isArtificial() and Node->successor_size() > 1)
       for (BasicBlockNode *Succ : Node->successors())
         if (not Succ->isArtificial())
-          NeedDummy.push_back({Node, Succ});
+          NeedDummy.push_back({ Node, Succ });
   }
 
   for (auto &Pair : NeedDummy) {
     BasicBlockNode *Dummy = RCFGT.addArtificialNode("bb view dummy");
     moveEdgeTarget(Pair, Dummy);
-    addEdge({Dummy, Pair.second});
+    addEdge({ Dummy, Pair.second });
   }
 }
 
@@ -160,8 +158,10 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
   // The clone will be all messed up at this point, becasue all the operands of
   // the cloned instruction will refer to the original function, not to the
   // cloned version. We will fix this later.
-  Function *EnforcedF = Function::Create(F.getFunctionType(), F.getLinkage(),
-                                         F.getName(), F.getParent());
+  Function *EnforcedF = Function::Create(F.getFunctionType(),
+                                         F.getLinkage(),
+                                         F.getName(),
+                                         F.getParent());
 
   // Create a Map of the arguments, used later to fix operands of the cloned
   // Instructions
@@ -196,7 +196,9 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
       }
 
     } else {
-      EnforcedBB = BasicBlock::Create(F.getContext(), Node->getName(), EnforcedF);
+      EnforcedBB = BasicBlock::Create(F.getContext(),
+                                      Node->getName(),
+                                      EnforcedF);
     }
     revng_assert(EnforcedBB != nullptr);
     EnforcedBBNodeToBBMap[Node] = EnforcedBB;
@@ -334,8 +336,8 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
         for (BasicBlock *B : PHI->blocks())
           revng_assert(B->getParent() == EnforcedF);
         for (Value *V : PHI->incoming_values()) {
-          revng_assert(not isa<Instruction>(V) or
-                      cast<Instruction>(V)->getFunction() == EnforcedF);
+          revng_assert(not isa<Instruction>(V)
+                       or cast<Instruction>(V)->getFunction() == EnforcedF);
         }
         continue;
       }
@@ -401,6 +403,8 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
 
 char EnforceCFGCombingPass::ID = 0;
 
-static RegisterPass<EnforceCFGCombingPass>
-X("enforce-combing",
-  "Enforce Combing on the Control Flow Graph of all Functions", false, false);
+static RegisterPass<EnforceCFGCombingPass> X("enforce-combing",
+                                             "Enforce Combing on the Control "
+                                             "Flow Graph of all Functions",
+                                             false,
+                                             false);

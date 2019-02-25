@@ -9,14 +9,14 @@
 #include <llvm/IR/Function.h>
 
 // revng includes
-#include <revng/Support/IRHelpers.h>
 #include <revng/Support/CommandLine.h>
+#include <revng/Support/IRHelpers.h>
 #include <revng/Support/MonotoneFramework.h>
 
 namespace LivenessAnalysis {
 
 using LiveSet = UnionMonotoneSet<const llvm::Instruction *>;
-using LivenessMap =  std::map<llvm::BasicBlock *, LiveSet>;
+using LivenessMap = std::map<llvm::BasicBlock *, LiveSet>;
 
 class Analysis
   : public MonotoneFramework<Analysis,
@@ -38,9 +38,7 @@ public:
                                  VisitType::PostOrder,
                                  llvm::SmallVector<llvm::BasicBlock *, 2>>;
 
-  Analysis(llvm::Function &F) :
-    Base(&F.getEntryBlock()),
-    F(F) {
+  Analysis(llvm::Function &F) : Base(&F.getEntryBlock()), F(F) {
     for (llvm::BasicBlock &BB : F) {
       auto NextSucc = llvm::succ_begin(&BB);
       auto EndSucc = llvm::succ_end(&BB);
@@ -55,8 +53,7 @@ public:
     PHIEdges.clear();
   }
 
-  void assertLowerThanOrEqual(const LiveSet &A,
-                              const LiveSet &B) const {
+  void assertLowerThanOrEqual(const LiveSet &A, const LiveSet &B) const {
     revng_assert(A.lowerThanOrEqual(B));
   }
 
@@ -89,9 +86,7 @@ public:
   ///
   /// NOTE: we only track Instructions, because anything that is not an
   /// Instruction is always live.
-  const LivenessMap &getLiveOut() const {
-    return State;
-  };
+  const LivenessMap &getLiveOut() const { return State; };
 
   /// \brief Extracts the final results of the analysis.
   ///
@@ -100,18 +95,15 @@ public:
   ///
   /// NOTE: The LiveOut is moved from, so it's left is undetermined state
   ///       after a call to this method.
-  LivenessMap &&extractLiveOut() {
-    return std::move(LiveOut);
-  };
+  LivenessMap &&extractLiveOut() { return std::move(LiveOut); };
 
   // ---- Transfer function and handleEdge, to propagate the analysis ----
 
   InterruptType transfer(llvm::BasicBlock *BB);
 
-  llvm::Optional<LiveSet>
-  handleEdge(const LiveSet &Original,
-             llvm::BasicBlock *Source,
-             llvm::BasicBlock *Destination) const;
+  llvm::Optional<LiveSet> handleEdge(const LiveSet &Original,
+                                     llvm::BasicBlock *Source,
+                                     llvm::BasicBlock *Destination) const;
 };
 
 } // end namespace LivenessAnalysis

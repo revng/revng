@@ -28,10 +28,8 @@
 using namespace llvm;
 
 char RemoveSwitch::ID = 0;
-static RegisterPass<RemoveSwitch> X("removeSwitch",
-                                   "Remove switch instructions",
-                                   false,
-                                   false);
+static RegisterPass<RemoveSwitch>
+  X("removeSwitch", "Remove switch instructions", false, false);
 
 bool RemoveSwitch::runOnFunction(Function &F) {
   if (!F.getName().startswith("bb.")) {
@@ -45,7 +43,7 @@ bool RemoveSwitch::runOnFunction(Function &F) {
 
     TerminatorInst *Terminator = BB->getTerminator();
     if (auto *Switch = dyn_cast<SwitchInst>(Terminator)) {
-      std::vector<std::pair<ConstantInt *, BasicBlock*>> SuccVect;
+      std::vector<std::pair<ConstantInt *, BasicBlock *>> SuccVect;
 
       Value *Condition = Switch->getCondition();
 

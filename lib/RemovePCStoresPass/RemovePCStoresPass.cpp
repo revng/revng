@@ -29,10 +29,8 @@
 using namespace llvm;
 
 char RemovePCStores::ID = 0;
-static RegisterPass<RemovePCStores> X("removePCstores",
-                                      "Remove PC store basic block",
-                                      false,
-                                      false);
+static RegisterPass<RemovePCStores>
+  X("removePCstores", "Remove PC store basic block", false, false);
 
 bool RemovePCStores::runOnFunction(Function &F) {
   if (!F.getName().startswith("bb.")) {
@@ -42,7 +40,7 @@ bool RemovePCStores::runOnFunction(Function &F) {
   ReversePostOrderTraversal<llvm::Function *> RPOT(&F);
 
   // Create a new node for each basic block in the module.
-  //for (llvm::BasicBlock &BB : F) {
+  // for (llvm::BasicBlock &BB : F) {
   for (BasicBlock *BB : RPOT) {
 
     // Do not serialize blocks that only update the pc variable, taking also

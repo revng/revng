@@ -26,14 +26,7 @@ using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
 class ASTNode {
 
 public:
-  enum NodeKind {
-    NK_Code,
-    NK_Break,
-    NK_Continue,
-    NK_If,
-    NK_Scs,
-    NK_List
-  };
+  enum NodeKind { NK_Code, NK_Break, NK_Continue, NK_If, NK_Scs, NK_List };
 
   using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
 
@@ -69,7 +62,6 @@ public:
   virtual ASTNode *Clone() = 0;
 
 public:
-
   NodeKind getKind() const { return Kind; }
 
   std::string getName() {
@@ -82,13 +74,9 @@ public:
 
   virtual void dump(std::ofstream &ASTFile) = 0;
 
-  BasicBlockNode *getCFGNode() {
-    return CFGNode;
-  }
+  BasicBlockNode *getCFGNode() { return CFGNode; }
 
-  ASTNode *getSuccessor() {
-    return Successor;
-  }
+  ASTNode *getSuccessor() { return Successor; }
 
   bool isEmpty() {
 
@@ -117,18 +105,14 @@ public:
   virtual void updateBBNodePointers(BBNodeMap &SubstitutionMap) = 0;
 
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) = 0;
-
 };
 
 class ContinueNode : public ASTNode {
 
 public:
-  ContinueNode() :
-    ASTNode(NK_Continue, "continue") {};
+  ContinueNode() : ASTNode(NK_Continue, "continue"){};
 
-  static bool classof(const ASTNode *N) {
-    return N->getKind() == NK_Continue;
-  }
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_Continue; }
 
   ASTNode *Clone() { return new ContinueNode(*this); }
 
@@ -138,21 +122,17 @@ public:
 
   BasicBlockNode *getFirstCFG() { return nullptr; };
 
-  void updateBBNodePointers(BBNodeMap &SubstitutionMap) { }
+  void updateBBNodePointers(BBNodeMap &SubstitutionMap) {}
 
-  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) { }
-
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {}
 };
 
 class BreakNode : public ASTNode {
 
 public:
-  BreakNode() :
-    ASTNode(NK_Break, "break") {};
+  BreakNode() : ASTNode(NK_Break, "break"){};
 
-  static bool classof(const ASTNode *N) {
-    return N->getKind() == NK_Break;
-  }
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_Break; }
 
   ASTNode *Clone() { return new BreakNode(*this); }
 
@@ -162,10 +142,9 @@ public:
 
   BasicBlockNode *getFirstCFG() { return nullptr; };
 
-  void updateBBNodePointers(BBNodeMap &SubstitutionMap) { }
+  void updateBBNodePointers(BBNodeMap &SubstitutionMap) {}
 
-  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) { }
-
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {}
 };
 
 class CodeNode : public ASTNode {
@@ -175,9 +154,7 @@ public:
     ASTNode(NK_Code, CFGNode, Successor) {}
 
 public:
-  static bool classof(const ASTNode *N) {
-    return N->getKind() == NK_Code;
-  }
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_Code; }
 
   bool isEqual(ASTNode *Node);
 
@@ -190,13 +167,12 @@ public:
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   ASTNode *Clone() { return new CodeNode(*this); }
-
 };
 
 class IfNode : public ASTNode {
 
 public:
-  using links_container  = std::vector<BasicBlockNode *>;
+  using links_container = std::vector<BasicBlockNode *>;
   using links_iterator = typename links_container::iterator;
   using links_range = llvm::iterator_range<links_iterator>;
 
@@ -211,14 +187,14 @@ public:
          ASTNode *Then,
          ASTNode *Else,
          ASTNode *PostDom) :
-    ASTNode(NK_If, CFGNode, PostDom), Then(Then), Else(Else) {
-      ConditionalNodes.push_back(CFGNode);
-    }
+    ASTNode(NK_If, CFGNode, PostDom),
+    Then(Then),
+    Else(Else) {
+    ConditionalNodes.push_back(CFGNode);
+  }
 
 public:
-  static bool classof(const ASTNode *N) {
-    return N->getKind() == NK_If;
-  }
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_If; }
 
   llvm::BasicBlock *getUniqueCondBlock() {
     revng_assert(ConditionalNodes.size() == 1);
@@ -227,21 +203,13 @@ public:
     return N->getBasicBlock();
   }
 
-  ASTNode *getThen() {
-    return Then;
-  }
+  ASTNode *getThen() { return Then; }
 
-  ASTNode *getElse() {
-    return Else;
-  }
+  ASTNode *getElse() { return Else; }
 
-  void setThen(ASTNode *Node) {
-    Then = Node;
-  }
+  void setThen(ASTNode *Node) { Then = Node; }
 
-  void setElse(ASTNode *Node) {
-    Else = Node;
-  }
+  void setElse(ASTNode *Node) { Else = Node; }
 
   bool hasThen() {
     if (Then != nullptr) {
@@ -286,7 +254,6 @@ public:
   void negateCondition() { NegatedCondition = true; }
 
   bool conditionNegated() const { return NegatedCondition; }
-
 };
 
 class ScsNode : public ASTNode {
@@ -296,22 +263,18 @@ private:
 
 public:
   ScsNode(BasicBlockNode *CFGNode, ASTNode *Body) :
-    ASTNode(NK_Scs, CFGNode), Body(Body) {}
+    ASTNode(NK_Scs, CFGNode),
+    Body(Body) {}
   ScsNode(BasicBlockNode *CFGNode, ASTNode *Body, ASTNode *Successor) :
-    ASTNode(NK_Scs, CFGNode, Successor), Body(Body) {}
+    ASTNode(NK_Scs, CFGNode, Successor),
+    Body(Body) {}
 
 public:
-  static bool classof(const ASTNode *N) {
-    return N->getKind() == NK_Scs;
-  }
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_Scs; }
 
-  ASTNode *getBody() {
-    return Body;
-  }
+  ASTNode *getBody() { return Body; }
 
-  void setBody(ASTNode *Node) {
-    Body = Node;
-  }
+  void setBody(ASTNode *Node) { Body = Node; }
 
   bool isEqual(ASTNode *Node);
 
@@ -324,13 +287,12 @@ public:
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   ASTNode *Clone() { return new ScsNode(*this); }
-
 };
 
 class SequenceNode : public ASTNode {
 
 public:
-  using links_container  = std::vector<ASTNode *>;
+  using links_container = std::vector<ASTNode *>;
   using links_iterator = typename links_container::iterator;
   using links_range = llvm::iterator_range<links_iterator>;
 
@@ -342,9 +304,7 @@ public:
   SequenceNode(BasicBlockNode *CFGNode) : ASTNode(NK_List, CFGNode) {}
 
 public:
-  static bool classof(const ASTNode *N) {
-    return N->getKind() == NK_List;
-  }
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_List; }
 
   links_range nodes() {
     return llvm::make_range(NodeList.begin(), NodeList.end());
@@ -362,13 +322,9 @@ public:
                    NodeList.end());
   }
 
-  int listSize() {
-    return NodeList.size();
-  }
+  int listSize() { return NodeList.size(); }
 
-  ASTNode *getNodeN(int N) {
-    return NodeList[N];
-  }
+  ASTNode *getNodeN(int N) { return NodeList[N]; }
 
   bool isEqual(ASTNode *Node);
 
@@ -381,7 +337,6 @@ public:
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   ASTNode *Clone() { return new SequenceNode(*this); }
-
 };
 
 #endif // define REVNGC_RESTRUCTURE_CFG_ASTNODE_H

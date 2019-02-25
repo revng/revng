@@ -28,7 +28,7 @@ public:
   static char ID;
 
 public:
-  RestructureCFG() : llvm::FunctionPass(ID), Done(false) { }
+  RestructureCFG() : llvm::FunctionPass(ID), Done(false) {}
 
   bool runOnFunction(llvm::Function &F) override;
 
@@ -36,15 +36,14 @@ public:
     AU.setPreservesAll();
   }
 
-  ASTTree &getAST() { return CompleteGraph.getAST(); }
+  ASTTree &getAST() { return RootCFG.getAST(); }
 
-  RegionCFG &getRCT() { return CompleteGraph; }
+  RegionCFG &getRCT() { return RootCFG; }
 
   bool isDone() { return Done; }
 
 private:
-  RegionCFG CompleteGraph;
-
+  RegionCFG RootCFG;
 };
 
 #endif // REVNGC_RESTRUCTURE_CFG_RESTRUCTURECFG_H

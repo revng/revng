@@ -28,8 +28,8 @@
 #include "revng-c/RestructureCFGPass/Utils.h"
 
 // Local includes
-#include "MetaRegion.h"
 #include "Flattening.h"
+#include "MetaRegion.h"
 
 using namespace llvm;
 
@@ -42,7 +42,8 @@ using std::to_string;
 // Debug logger.
 Logger<> CombLogger("restructure");
 
-// EdgeDescriptor is a handy way to create and manipulate edges on the RegionCFG.
+// EdgeDescriptor is a handy way to create and manipulate edges on the
+// RegionCFG.
 using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
 
 #if 0
@@ -156,8 +157,8 @@ static bool mergeSCSStep(std::vector<MetaRegion> &MetaRegions) {
       bool IsIncluded = (*RegionIt1).isSubSet(*RegionIt2);
       bool IsIncludedReverse = (*RegionIt2).isSubSet(*RegionIt1);
       bool AreEquivalent = (*RegionIt1).nodesEquality(*RegionIt2);
-      if (Intersects and
-          (((!IsIncluded) and (!IsIncludedReverse)) or AreEquivalent)) {
+      if (Intersects
+          and (((!IsIncluded) and (!IsIncludedReverse)) or AreEquivalent)) {
         (*RegionIt1).mergeWith(*RegionIt2);
         MetaRegions.erase(RegionIt2);
         return true;
@@ -178,13 +179,13 @@ static void simplifySCS(std::vector<MetaRegion> &MetaRegions) {
 static void sortMetaRegions(std::vector<MetaRegion> &MetaRegions) {
   std::sort(MetaRegions.begin(),
             MetaRegions.end(),
-            [](MetaRegion &First,
-               MetaRegion &Second)
-            { return First.getNodes().size() < Second.getNodes().size(); });
+            [](MetaRegion &First, MetaRegion &Second) {
+              return First.getNodes().size() < Second.getNodes().size();
+            });
 }
 
 static void computeParents(std::vector<MetaRegion> &MetaRegions,
-                    MetaRegion *RootMetaRegion) {
+                           MetaRegion *RootMetaRegion) {
   for (MetaRegion &MetaRegion1 : MetaRegions) {
     bool ParentFound = false;
     for (MetaRegion &MetaRegion2 : MetaRegions) {
@@ -221,12 +222,10 @@ static std::vector<MetaRegion *> applyPartialOrder(std::vector<MetaRegion> &V) {
   std::set<MetaRegion *> Processed;
 
   while (V.size() != Processed.size()) {
-    for (auto RegionIt1 = V.begin(); RegionIt1 != V.end();
-         RegionIt1++) {
+    for (auto RegionIt1 = V.begin(); RegionIt1 != V.end(); RegionIt1++) {
       if (Processed.count(&*RegionIt1) == 0) {
         bool FoundParent = false;
-        for (auto RegionIt2 = V.begin(); RegionIt2 != V.end();
-             RegionIt2++) {
+        for (auto RegionIt2 = V.begin(); RegionIt2 != V.end(); RegionIt2++) {
           if ((RegionIt1 != RegionIt2) and Processed.count(&*RegionIt2) == 0) {
             if ((*RegionIt1).getParent() == &*RegionIt2) {
               FoundParent = true;
@@ -267,12 +266,13 @@ createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
   std::vector<std::pair<BasicBlockNode *, std::set<BasicBlockNode *>>> Regions;
   for (auto &Backedge : Backedges) {
     auto SCSNodes = findReachableNodes(*Backedge.second, *Backedge.first);
-    AdditionalSCSNodes[Backedge.second].insert(SCSNodes.begin(), SCSNodes.end());
+    AdditionalSCSNodes[Backedge.second].insert(SCSNodes.begin(),
+                                               SCSNodes.end());
 
     if (CombLogger.isEnabled()) {
       CombLogger << "SCS identified by: ";
       CombLogger << Backedge.first->getNameStr() << " -> "
-          << Backedge.second->getNameStr() << "\n";
+                 << Backedge.second->getNameStr() << "\n";
       CombLogger << "Is composed of nodes:\n";
       for (auto Node : SCSNodes) {
         CombLogger << Node->getNameStr() << "\n";
@@ -293,7 +293,8 @@ createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
         CombLogger << Head->getNameStr();
         CombLogger << " and relative to node: ";
         CombLogger << Node->getNameStr() << "\n";
-        Nodes.insert(AdditionalSCSNodes[Node].begin(), AdditionalSCSNodes[Node].end());
+        Nodes.insert(AdditionalSCSNodes[Node].begin(),
+                     AdditionalSCSNodes[Node].end());
       }
     }
   }
@@ -310,18 +311,19 @@ createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
 
 char RestructureCFG::ID = 0;
 static RegisterPass<RestructureCFG> X("restructureCFG",
-                                      "Apply RegionCFG restructuring transformation",
+                                      "Apply RegionCFG restructuring "
+                                      "transformation",
                                       true,
                                       true);
 
 bool RestructureCFG::runOnFunction(Function &F) {
 
-  #if 0
+#if 0
   // Analyze only isolated functions.
   if (!F.getName().startswith("bb.")) {
     return false;
   }
-  #endif
+#endif
 
   // Analyze only isolated functions.
   if (!F.getName().startswith("bb.")
@@ -333,17 +335,17 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Clear graph object from the previous pass.
-  CompleteGraph = RegionCFG();
+  RootCFG = RegionCFG();
 
   // Set names of the CFG region
-  CompleteGraph.setFunctionName(F.getName());
-  CompleteGraph.setRegionName("root");
+  RootCFG.setFunctionName(F.getName());
+  RootCFG.setRegionName("root");
 
   // Random seed initialization
   srand(time(NULL));
 
   // Initialize the RegionCFG object
-  CompleteGraph.initialize(F);
+  RootCFG.initialize(F);
 
   // Dump the function name.
   if (CombLogger.isEnabled()) {
@@ -352,13 +354,13 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Dump the object in .dot format if debug mode is activated.
   if (CombLogger.isEnabled()) {
-    CompleteGraph.dumpDotOnFile("dots", F.getName(), "begin");
+    RootCFG.dumpDotOnFile("dots", F.getName(), "begin");
   }
 
   // Identify SCS regions.
   if (CombLogger.isEnabled()) {
-    BasicBlockNode &FirstRandom = CompleteGraph.getRandomNode();
-    BasicBlockNode &SecondRandom = CompleteGraph.getRandomNode();
+    BasicBlockNode &FirstRandom = RootCFG.getRandomNode();
+    BasicBlockNode &SecondRandom = RootCFG.getRandomNode();
     CombLogger << "Source: ";
     CombLogger << FirstRandom.getNameStr() << "\n";
     CombLogger << "Target: ";
@@ -371,11 +373,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
   }
 
-  std::set<EdgeDescriptor> Backedges = getBackedges(CompleteGraph);
+  std::set<EdgeDescriptor> Backedges = getBackedges(RootCFG);
   CombLogger << "Backedges in the graph:\n";
   for (auto &Backedge : Backedges) {
     CombLogger << Backedge.first->getNameStr() << " -> "
-        << Backedge.second->getNameStr() << "\n";
+               << Backedge.second->getNameStr() << "\n";
   }
 
   // Create meta regions
@@ -462,7 +464,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
   }
 
-  ReversePostOrderTraversal<BasicBlockNode *> RPOT(&CompleteGraph.getEntryNode());
+  ReversePostOrderTraversal<BasicBlockNode *> RPOT(&RootCFG.getEntryNode());
   if (CombLogger.isEnabled()) {
     CombLogger << "Reverse post order is:\n";
     for (BasicBlockNode *BN : RPOT) {
@@ -471,14 +473,15 @@ bool RestructureCFG::runOnFunction(Function &F) {
     CombLogger << "Reverse post order end\n";
   }
 
-  CombLogger << "Debugged function" << "\n";
+  CombLogger << "Debugged function"
+             << "\n";
   CombLogger << F.getName().equals("bb._start_c") << "\n";
 
   DominatorTreeBase<BasicBlockNode, false> DT;
-  DT.recalculate(CompleteGraph);
+  DT.recalculate(RootCFG);
 
   DominatorTreeBase<BasicBlockNode, true> PDT;
-  PDT.recalculate(CompleteGraph);
+  PDT.recalculate(RootCFG);
 
   // Some debug information on dominator and postdominator tree.
   if (CombLogger.isEnabled()) {
@@ -486,8 +489,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     CombLogger << "The root node of the dominator tree is:\n";
     CombLogger << DT.getRoot()->getNameStr() << "\n";
     CombLogger << "Between these two nodes:\n";
-    BasicBlockNode *Random = &CompleteGraph.getRandomNode();
-    BasicBlockNode *Random2 = &CompleteGraph.getRandomNode();
+    BasicBlockNode *Random = &RootCFG.getRandomNode();
+    BasicBlockNode *Random2 = &RootCFG.getRandomNode();
     CombLogger << Random->getNameStr() << "\n";
     CombLogger << Random2->getNameStr() << "\n";
     CombLogger << "Dominance:\n";
@@ -504,12 +507,12 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   for (MetaRegion *Meta : OrderedMetaRegions) {
     if (CombLogger.isEnabled()) {
-      CombLogger << "\nAnalyzing region: " << Meta->getIndex() <<"\n";
+      CombLogger << "\nAnalyzing region: " << Meta->getIndex() << "\n";
     }
 
     // Refresh backedges, since some of them may have been modified during
     // the transformations
-    Backedges = getBackedges(CompleteGraph);
+    Backedges = getBackedges(RootCFG);
 
     if (CombLogger.isEnabled()) {
 
@@ -520,9 +523,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
 
       CombLogger << "Dumping main graph snapshot before restructuring\n";
-      CompleteGraph.dumpDotOnFile("dots",
-                                  F.getName(),
-                                  "Out-pre-" + std::to_string(Meta->getIndex()));
+      RootCFG.dumpDotOnFile("dots",
+                            F.getName(),
+                            "Out-pre-" + std::to_string(Meta->getIndex()));
     }
 
     std::map<BasicBlockNode *, int> IncomingDegree;
@@ -530,8 +533,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       int IncomingCounter = 0;
       for (BasicBlockNode *Predecessor : Node->predecessors()) {
         EdgeDescriptor Edge = make_pair(Predecessor, Node);
-        if ((Meta->containsNode(Predecessor))
-            and (Backedges.count(Edge))) {
+        if ((Meta->containsNode(Predecessor)) and (Backedges.count(Edge))) {
           IncomingCounter++;
         }
       }
@@ -549,8 +551,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
     auto MaxDegreeIt = max_element(IncomingDegree.begin(),
                                    IncomingDegree.end(),
                                    [](const pair<BasicBlockNode *, int> &p1,
-                                      const pair<BasicBlockNode *, int> &p2)
-                                   { return p1.second < p2.second; });
+                                      const pair<BasicBlockNode *, int> &p2) {
+                                     return p1.second < p2.second;
+                                   });
     int MaxDegree = (*MaxDegreeIt).second;
 
     if (CombLogger.isEnabled()) {
@@ -562,9 +565,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
     copy_if(Meta->begin(),
             Meta->end(),
             std::inserter(MaximuxEdgesNodes, MaximuxEdgesNodes.begin()),
-            [&IncomingDegree, &MaxDegree]
-            (BasicBlockNode *Node)
-            { return IncomingDegree[Node] == MaxDegree; });
+            [&IncomingDegree, &MaxDegree](BasicBlockNode *Node) {
+              return IncomingDegree[Node] == MaxDegree;
+            });
 
     revng_assert(MaxDegree > 0);
 
@@ -627,7 +630,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       RetreatingIdxMap[True] = 1;
 
       unsigned Idx = 1;
-      Head = CompleteGraph.addDispatcher(Idx, True, False);
+      Head = RootCFG.addDispatcher(Idx, True, False);
       Meta->insertNode(Head);
 
       Idx = 2;
@@ -635,7 +638,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       TargetIterator TgtIt = std::next(std::next(RetreatingTargets.begin()));
       TargetIterator TgtEnd = RetreatingTargets.end();
       for (; TgtIt != TgtEnd; ++TgtIt) {
-        BasicBlockNode *New = CompleteGraph.addDispatcher(Idx, *TgtIt, Head);
+        BasicBlockNode *New = RootCFG.addDispatcher(Idx, *TgtIt, Head);
         Meta->insertNode(New);
         RetreatingIdxMap[*TgtIt] = Idx;
         Idx++;
@@ -643,13 +646,13 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
       revng_assert(Idx == RetreatingTargets.size());
 
-      for (EdgeDescriptor Retreating : Retreatings) {
-        Idx = RetreatingIdxMap[Retreating.second];
-        BasicBlockNode *IdxSetNode = CompleteGraph.addSetStateNode(Idx, Retreating.second->getName());
-        Meta->insertNode(IdxSetNode);
-        addEdge(EdgeDescriptor(Retreating.first, IdxSetNode));
-        addEdge(EdgeDescriptor(IdxSetNode, Head));
-        removeEdge(EdgeDescriptor(Retreating.first, Retreating.second));
+      for (EdgeDescriptor R : Retreatings) {
+        Idx = RetreatingIdxMap[R.second];
+        auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
+        Meta->insertNode(SetNode);
+        addEdge(EdgeDescriptor(R.first, SetNode));
+        addEdge(EdgeDescriptor(SetNode, Head));
+        removeEdge(EdgeDescriptor(R.first, R.second));
       }
 
       // Move the incoming edge from the old head to new one.
@@ -684,11 +687,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
       std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
 
       std::vector<BasicBlockNode *> Frontiers;
-      std::map<BasicBlockNode *,
-               pair<BasicBlockNode *, BasicBlockNode *>> EdgeExtremal;
+      std::map<BasicBlockNode *, pair<BasicBlockNode *, BasicBlockNode *>>
+        EdgeExtremal;
 
       for (EdgeDescriptor Edge : OutgoingEdges) {
-        BasicBlockNode *Frontier = CompleteGraph.addArtificialNode("frontier");
+        BasicBlockNode *Frontier = RootCFG.addArtificialNode("frontier");
         BasicBlockNode *OldSource = Edge.first;
         BasicBlockNode *OldTarget = Edge.second;
         EdgeExtremal[Frontier] = make_pair(OldSource, OldTarget);
@@ -698,7 +701,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
         Frontiers.push_back(Frontier);
       }
 
-      DT.recalculate(CompleteGraph);
+      DT.recalculate(RootCFG);
       for (BasicBlockNode *Frontier : Frontiers) {
         for (BasicBlockNode *Successor : Successors) {
           if ((DT.dominates(Head, Successor))
@@ -707,7 +710,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
             Meta->insertNode(Successor);
             AnotherIteration = true;
             if (CombLogger.isEnabled()) {
-              CombLogger << "Identified new candidate for successor refinement:";
+              CombLogger << "Identified new candidate for successor "
+                            "refinement:";
               CombLogger << Successor->getNameStr() << "\n";
             }
           }
@@ -719,8 +723,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
         EdgeDescriptor Extremal = EdgeExtremal[Frontier];
         BasicBlockNode *OriginalSource = EdgeExtremal[Frontier].first;
         BasicBlockNode *OriginalTarget = EdgeExtremal[Frontier].second;
-        moveEdgeTarget({OriginalSource, Frontier}, OriginalTarget);
-        CompleteGraph.removeNode(Frontier);
+        moveEdgeTarget({ OriginalSource, Frontier }, OriginalTarget);
+        RootCFG.removeNode(Frontier);
         Meta->removeNode(Frontier);
       }
 
@@ -732,7 +736,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     std::map<BasicBlockNode *, BasicBlockNode *> ClonedMap;
     for (BasicBlockNode *Node : Meta->nodes()) {
       if (Node != Head) {
-        BasicBlockNode *Clone = CompleteGraph.cloneNode(*Node);
+        BasicBlockNode *Clone = RootCFG.cloneNode(*Node);
         ClonedMap[Node] = Clone;
       }
     }
@@ -789,7 +793,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
       unsigned Value = RetreatingTargets.size() - 1;
       for (BasicBlockNode *Pred : SetCandidates) {
-        BasicBlockNode *Set = CompleteGraph.addSetStateNode(Value, Head->getName());
+        BasicBlockNode *Set = RootCFG.addSetStateNode(Value, Head->getName());
         addEdge(EdgeDescriptor(Pred, Set));
         addEdge(EdgeDescriptor(Set, Head));
         removeEdge(EdgeDescriptor(Pred, Head));
@@ -819,7 +823,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       SuccessorsIdxMap[True] = 1;
 
       unsigned Idx = 1;
-      Exit = CompleteGraph.addDispatcher(Idx, True, False);
+      Exit = RootCFG.addDispatcher(Idx, True, False);
       ExitDispatcherNodes.push_back(Exit);
 
       Idx = 2;
@@ -827,7 +831,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       SuccessorIterator SuccIt = std::next(std::next(Successors.begin()));
       SuccessorIterator SuccEnd = Successors.end();
       for (; SuccIt != SuccEnd; ++SuccIt) {
-        BasicBlockNode *New = CompleteGraph.addDispatcher(Idx, *SuccIt, Exit);
+        BasicBlockNode *New = RootCFG.addDispatcher(Idx, *SuccIt, Exit);
         ExitDispatcherNodes.push_back(New);
         SuccessorsIdxMap[*SuccIt] = Idx;
         Idx++;
@@ -838,7 +842,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
       for (EdgeDescriptor Edge : OutEdges) {
         Idx = SuccessorsIdxMap.at(Edge.second);
-        BasicBlockNode *IdxSetNode = CompleteGraph.addSetStateNode(Idx, Edge.second->getName());
+        auto *IdxSetNode = RootCFG.addSetStateNode(Idx, Edge.second->getName());
         Meta->insertNode(IdxSetNode);
         moveEdgeTarget(EdgeDescriptor(Edge.first, Edge.second), IdxSetNode);
         addEdge(EdgeDescriptor(IdxSetNode, Edge.second));
@@ -869,35 +873,36 @@ bool RestructureCFG::runOnFunction(Function &F) {
     CollapsedGraph.connectBreakNode(OutgoingEdges, Break, SubstitutionMap);
 
     // Create the collapsed node in the outer region.
-    BasicBlockNode *CollapsedNode = CompleteGraph.createCollapsedNode(&CollapsedGraph);
+    BasicBlockNode *Collapsed = RootCFG.createCollapsedNode(&CollapsedGraph);
 
     // Connect the old incoming edges to the collapsed node.
     std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
     for (EdgeDescriptor Edge : IncomingEdges)
-      moveEdgeTarget(Edge, CollapsedNode);
+      moveEdgeTarget(Edge, Collapsed);
 
     // Connect the outgoing edges to the collapsed node.
     if (NewExitNeeded) {
       revng_assert(Exit != nullptr);
-      addEdge(EdgeDescriptor(CollapsedNode, Exit));
+      addEdge(EdgeDescriptor(Collapsed, Exit));
     } else {
 
       // Double check that we have at most a single successor
       revng_assert(Successors.size() <= 1);
       if (Successors.size() == 1) {
 
-        //Connect the collapsed node to the unique successor
+        // Connect the collapsed node to the unique successor
         BasicBlockNode *Successor = *Successors.begin();
-        addEdge(EdgeDescriptor(CollapsedNode, Successor));
+        addEdge(EdgeDescriptor(Collapsed, Successor));
       }
     }
 
     // Remove collapsed nodes from the outer region.
     for (BasicBlockNode *Node : Meta->nodes()) {
       if (CombLogger.isEnabled()) {
-        CombLogger << "Removing from main graph node :" << Node->getNameStr() << "\n";
+        CombLogger << "Removing from main graph node :" << Node->getNameStr()
+                   << "\n";
       }
-      CompleteGraph.removeNode(Node);
+      RootCFG.removeNode(Node);
     }
 
     // Substitute in the other SCSs the nodes of the current SCS with the
@@ -905,7 +910,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     for (MetaRegion *OtherMeta : OrderedMetaRegions) {
       if (OtherMeta != Meta) {
         OtherMeta->updateNodes(Meta->getNodes(),
-                               CollapsedNode,
+                               Collapsed,
                                ExitDispatcherNodes);
       }
     }
@@ -923,25 +928,25 @@ bool RestructureCFG::runOnFunction(Function &F) {
                                    F.getName(),
                                    "In-" + std::to_string(Meta->getIndex()));
       CombLogger << "Dumping main graph snapshot post restructuring\n";
-      CompleteGraph.dumpDotOnFile("dots",
-                                  F.getName(),
-                                  "Out-post-" + std::to_string(Meta->getIndex()));
+      RootCFG.dumpDotOnFile("dots",
+                            F.getName(),
+                            "Out-post-" + std::to_string(Meta->getIndex()));
     }
   }
 
   // Serialize the newly collapsed SCS region.
   if (CombLogger.isEnabled()) {
     CombLogger << "Dumping main graph before final purge\n";
-    CompleteGraph.dumpDotOnFile("dots", F.getName(), "Final-before-purge");
+    RootCFG.dumpDotOnFile("dots", F.getName(), "Final-before-purge");
   }
 
   // Remove not reachables nodes from the main final graph.
-  CompleteGraph.removeNotReachables();
+  RootCFG.removeNotReachables();
 
   // Serialize the newly collapsed SCS region.
   if (CombLogger.isEnabled()) {
     CombLogger << "Dumping main graph after final purge\n";
-    CompleteGraph.dumpDotOnFile("dots", F.getName(), "Final-after-purge");
+    RootCFG.dumpDotOnFile("dots", F.getName(), "Final-after-purge");
   }
 
   // Print metaregions after ordering.
@@ -965,10 +970,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Invoke the AST generation for the root region.
   CombLogger.emit();
-  CompleteGraph.generateAst();
+  RootCFG.generateAst();
 
   // Serialize final AST on file
-  CompleteGraph.getAST().dumpOnFile("ast", F.getName(), "Final");
+  RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final");
 
   // Sync Logger.
   CombLogger.emit();
@@ -982,20 +987,18 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   if (CombLogger.isEnabled()) {
     CombLogger << "Dumping main graph after Flattening\n";
-    CompleteGraph.dumpDotOnFile("dots", F.getName(), "final-before-flattening");
+    RootCFG.dumpDotOnFile("dots", F.getName(), "final-before-flattening");
   }
 
-  flattenRegionCFGTree(CompleteGraph);
+  flattenRegionCFGTree(RootCFG);
 
   // Serialize final AST after flattening on file
-  CompleteGraph.getAST().dumpOnFile("ast",
-                                    F.getName(),
-                                    "Final-after-flattening");
+  RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final-after-flattening");
 
   // Serialize the newly collapsed SCS region.
   if (CombLogger.isEnabled()) {
     CombLogger << "Dumping main graph after Flattening\n";
-    CompleteGraph.dumpDotOnFile("dots", F.getName(), "final-after-flattening");
+    RootCFG.dumpDotOnFile("dots", F.getName(), "final-after-flattening");
   }
 
   return false;

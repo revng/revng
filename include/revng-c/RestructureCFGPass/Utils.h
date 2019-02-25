@@ -20,7 +20,8 @@
 // an extern declaration
 extern Logger<> CombLogger;
 
-// EdgeDescriptor is a handy way to create and manipulate edges on the RegionCFG.
+// EdgeDescriptor is a handy way to create and manipulate edges on the
+// RegionCFG.
 using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
 
 inline void addEdge(EdgeDescriptor NewEdge) {
@@ -63,8 +64,8 @@ inline void moveEdgeTarget(EdgeDescriptor Edge, BasicBlockNode *NewTarget) {
 
 // Helper function to find all nodes on paths between a source and a target
 // node
-inline std::set<BasicBlockNode *> findReachableNodes(BasicBlockNode &Source,
-                                                     BasicBlockNode &Target) {
+inline std::set<BasicBlockNode *>
+findReachableNodes(BasicBlockNode &Source, BasicBlockNode &Target) {
 
   // Add to the Targets set the original target node.
   std::set<BasicBlockNode *> Targets;
@@ -141,15 +142,15 @@ inline void dumpNode(ASTNode *Node) {
 
     if (If->getThen() != nullptr) {
       CombLogger << "\"" << If->getName() << "\""
-          << " -> \"" << If->getThen()->getName() << "\""
-          << " [color=green,label=\"then\"];\n";
+                 << " -> \"" << If->getThen()->getName() << "\""
+                 << " [color=green,label=\"then\"];\n";
       dumpNode(If->getThen());
     }
 
     if (If->getElse() != nullptr) {
       CombLogger << "\"" << If->getName() << "\""
-          << " -> \"" << If->getElse()->getName() << "\""
-          << " [color=green,label=\"else\"];\n";
+                 << " -> \"" << If->getElse()->getName() << "\""
+                 << " [color=green,label=\"else\"];\n";
       dumpNode(If->getElse());
     }
   } else if (auto *Code = llvm::dyn_cast<CodeNode>(Node)) {
@@ -167,8 +168,8 @@ inline void dumpNode(ASTNode *Node) {
 
     for (ASTNode *Successor : Sequence->nodes()) {
       CombLogger << "\"" << Sequence->getName() << "\""
-          << " -> \"" << Successor->getName() << "\""
-          << " [color=green,label=\"elem\"];\n";
+                 << " -> \"" << Successor->getName() << "\""
+                 << " [color=green,label=\"elem\"];\n";
       dumpNode(Successor);
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(Node)) {
@@ -180,8 +181,8 @@ inline void dumpNode(ASTNode *Node) {
 
     revng_assert(Scs->getBody() != nullptr);
     CombLogger << "\"" << Scs->getName() << "\""
-        << " -> \"" << Scs->getBody()->getName() << "\""
-        << " [color=green,label=\"body\"];\n";
+               << " -> \"" << Scs->getBody()->getName() << "\""
+               << " [color=green,label=\"body\"];\n";
     dumpNode(Scs->getBody());
   }
 }

@@ -8,12 +8,12 @@
 using namespace llvm;
 
 bool LivenessAnalysisPass::runOnFunction(Function &F) {
-    LivenessAnalysis::Analysis LA(F);
-    LA.initialize();
-    LA.run();
-    LiveOut = LA.extractLiveOut();
-    return false;
-  }
+  LivenessAnalysis::Analysis LA(F);
+  LA.initialize();
+  LA.run();
+  LiveOut = LA.extractLiveOut();
+  return false;
+}
 
 char LivenessAnalysisPass::ID = 0;
 

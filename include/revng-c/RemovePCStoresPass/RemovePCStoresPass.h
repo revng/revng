@@ -16,14 +16,13 @@ public:
   static char ID;
 
 public:
-  RemovePCStores() : llvm::FunctionPass(ID) { }
+  RemovePCStores() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
   }
-
 };
 
 #endif // REVNGC_REMOVE_PC_STORES_REMOVEPCSTORES_H

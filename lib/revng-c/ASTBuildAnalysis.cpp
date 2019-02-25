@@ -261,8 +261,9 @@ void Analysis::computePHIVars() {
     if (needsLabel(BB)) {
       auto BBName = BB.getName();
       IdentifierInfo &Id = BBName.empty() ?
-        ASTCtx.Idents.get("unnamed_bb_" + std::to_string(BBId++)) :
-        ASTCtx.Idents.get(makeCIdentifier(BBName));
+                             ASTCtx.Idents.get("unnamed_bb_"
+                                               + std::to_string(BBId++)) :
+                             ASTCtx.Idents.get(makeCIdentifier(BBName));
       LabelDecl *Label = LabelDecl::Create(ASTCtx, &FDecl, {}, &Id);
       ASTInfo.LabelDecls[&BB] = Label;
     }
@@ -507,7 +508,11 @@ Stmt *Analysis::buildAST(Instruction &I) {
   case Instruction::Load: {
     auto *Load = cast<LoadInst>(&I);
     Value *Addr = Load->getPointerOperand();
-    Expr *AddrExpr = getParenthesizedExprForValue(Addr, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+    Expr *AddrExpr = getParenthesizedExprForValue(Addr,
+                                                  GlobalVarAST,
+                                                  FunctionAST,
+                                                  ASTCtx,
+                                                  ASTInfo);
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and AddrExpr)
       AddrExpr->dump();
@@ -529,7 +534,6 @@ Stmt *Analysis::buildAST(Instruction &I) {
           AddrExpr = createCast(ASTCtx.getUIntPtrType(), AddrExpr, ASTCtx);
         AddrExpr = createCast(PtrTy, AddrExpr, ASTCtx);
       }
-
 
       if (isa<llvm::ConstantPointerNull>(Addr)) {
         QualType QualPtrTy = AddrExpr->getType();
@@ -554,12 +558,20 @@ Stmt *Analysis::buildAST(Instruction &I) {
   case Instruction::Store: {
     auto *Store = cast<StoreInst>(&I);
     Value *Stored = Store->getValueOperand();
-    Expr *LHS = getParenthesizedExprForValue(Store, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+    Expr *LHS = getParenthesizedExprForValue(Store,
+                                             GlobalVarAST,
+                                             FunctionAST,
+                                             ASTCtx,
+                                             ASTInfo);
     QualType LHSQualTy = LHS->getType();
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and LHS)
       LHS->dump();
-    Expr *RHS = getParenthesizedExprForValue(Stored, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+    Expr *RHS = getParenthesizedExprForValue(Stored,
+                                             GlobalVarAST,
+                                             FunctionAST,
+                                             ASTCtx,
+                                             ASTInfo);
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and RHS)
       RHS->dump();
@@ -588,7 +600,11 @@ Stmt *Analysis::buildAST(Instruction &I) {
   case Instruction::PtrToInt:
   case Instruction::BitCast: {
     revng_assert(I.getNumOperands() == 1);
-    Expr *Res = getParenthesizedExprForValue(I.getOperand(0), GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+    Expr *Res = getParenthesizedExprForValue(I.getOperand(0),
+                                             GlobalVarAST,
+                                             FunctionAST,
+                                             ASTCtx,
+                                             ASTInfo);
     QualType LHSQualType = IRASTTypeTranslation::getQualType(&I, ASTCtx);
     if (LHSQualType != Res->getType())
       Res = createCast(LHSQualType, Res, ASTCtx);
@@ -599,15 +615,27 @@ Stmt *Analysis::buildAST(Instruction &I) {
   }
   // Other instructions
   case Instruction::Select: {
-    Expr *Cond = getParenthesizedExprForValue(I.getOperand(0), GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+    Expr *Cond = getParenthesizedExprForValue(I.getOperand(0),
+                                              GlobalVarAST,
+                                              FunctionAST,
+                                              ASTCtx,
+                                              ASTInfo);
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and Cond)
       Cond->dump();
-    Expr *TrueExpr = getParenthesizedExprForValue(I.getOperand(1), GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+    Expr *TrueExpr = getParenthesizedExprForValue(I.getOperand(1),
+                                                  GlobalVarAST,
+                                                  FunctionAST,
+                                                  ASTCtx,
+                                                  ASTInfo);
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and TrueExpr)
       TrueExpr->dump();
-    Expr *FalseExpr = getParenthesizedExprForValue(I.getOperand(2), GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+    Expr *FalseExpr = getParenthesizedExprForValue(I.getOperand(2),
+                                                   GlobalVarAST,
+                                                   FunctionAST,
+                                                   ASTCtx,
+                                                   ASTInfo);
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and FalseExpr)
       FalseExpr->dump();
@@ -994,7 +1022,11 @@ Expr *Analysis::createRValueExprForBinaryOperator(Instruction &I) {
   BinaryOperatorKind BinOpKind = getClangBinaryOpKind(I);
 
   Value *LHSVal = I.getOperand(0);
-  Expr *LHS = getParenthesizedExprForValue(LHSVal, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+  Expr *LHS = getParenthesizedExprForValue(LHSVal,
+                                           GlobalVarAST,
+                                           FunctionAST,
+                                           ASTCtx,
+                                           ASTInfo);
   revng_log(ASTBuildLog, "GOT!");
   if (ASTBuildLog.isEnabled() and LHS)
     LHS->dump();
@@ -1007,7 +1039,11 @@ Expr *Analysis::createRValueExprForBinaryOperator(Instruction &I) {
                                    VK_RValue);
 
   Value *RHSVal = I.getOperand(1);
-  Expr *RHS = getParenthesizedExprForValue(RHSVal, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+  Expr *RHS = getParenthesizedExprForValue(RHSVal,
+                                           GlobalVarAST,
+                                           FunctionAST,
+                                           ASTCtx,
+                                           ASTInfo);
   revng_log(ASTBuildLog, "GOT!");
   if (ASTBuildLog.isEnabled() and RHS)
     RHS->dump();
@@ -1059,7 +1095,11 @@ Expr *getExprForValue(Value *V,
                       SerializationInfo &ASTInfo) {
   revng_log(ASTBuildLog, "getExprForValue: " << dumpToString(V));
   if (isa<ConstantData>(V) or isa<ConstantExpr>(V)) {
-    return getLiteralFromConstant(cast<Constant>(V), GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+    return getLiteralFromConstant(cast<Constant>(V),
+                                  GlobalVarAST,
+                                  FunctionAST,
+                                  ASTCtx,
+                                  ASTInfo);
   } else if (auto *F = dyn_cast<Function>(V)) {
     FunctionDecl *FDecl = FunctionAST.at(F);
     QualType Type = FDecl->getType();
@@ -1111,7 +1151,11 @@ Expr *getExprForValue(Value *V,
       else
         Addr = Store->getPointerOperand();
 
-      Expr *AddrExpr = getParenthesizedExprForValue(Addr, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+      Expr *AddrExpr = getParenthesizedExprForValue(Addr,
+                                                    GlobalVarAST,
+                                                    FunctionAST,
+                                                    ASTCtx,
+                                                    ASTInfo);
       revng_log(ASTBuildLog, "GOT!");
       if (ASTBuildLog.isEnabled() and AddrExpr)
         AddrExpr->dump();
@@ -1173,7 +1217,11 @@ Expr *getExprForValue(Value *V,
     }
     if (auto *Cast = dyn_cast<CastInst>(I)) {
       Value *RHS = Cast->getOperand(0);
-      Expr *Result = getParenthesizedExprForValue(RHS, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+      Expr *Result = getParenthesizedExprForValue(RHS,
+                                                  GlobalVarAST,
+                                                  FunctionAST,
+                                                  ASTCtx,
+                                                  ASTInfo);
       LLVMType *RHSTy = Cast->getSrcTy();
       LLVMType *LHSTy = Cast->getDestTy();
       if (RHSTy != LHSTy) {
@@ -1266,7 +1314,7 @@ Expr *getExprForValue(Value *V,
       return Result;
     }
     revng_abort();
-  } else if (auto *Arg =  dyn_cast<Argument>(V)) {
+  } else if (auto *Arg = dyn_cast<Argument>(V)) {
     llvm::Function *F = Arg->getParent();
     llvm::FunctionType *FType = F->getFunctionType();
     revng_assert(not FType->isVarArg());
@@ -1281,7 +1329,7 @@ Expr *getExprForValue(Value *V,
       DeclRefExpr(ParamVDecl, false, Type, VK_LValue, {});
     return Res;
 
-    //return ImplicitCastExpr::Create(ASTCtx,
+    // return ImplicitCastExpr::Create(ASTCtx,
     //                                Param->getType(),
     //                                CastKind::CK_LValueToRValue,
     //                                Param,
@@ -1315,7 +1363,10 @@ static Expr *getLiteralFromConstant(Constant *C,
           CharacterLiteral(ConstValue, CharKind::Ascii, ASTCtx.CharTy, {});
       }
       case BuiltinType::UShort: {
-        Expr *Literal = IntegerLiteral::Create(ASTCtx, Const, ASTCtx.UnsignedIntTy, {});
+        Expr *Literal = IntegerLiteral::Create(ASTCtx,
+                                               Const,
+                                               ASTCtx.UnsignedIntTy,
+                                               {});
         return createCast(ASTCtx.UnsignedShortTy, Literal, ASTCtx);
       }
       case BuiltinType::Short: {
@@ -1364,7 +1415,11 @@ static Expr *getLiteralFromConstant(Constant *C,
     case Instruction::IntToPtr:
     case Instruction::PtrToInt:
     case Instruction::BitCast: {
-      Result = getExprForValue(cast<ConstantInt>(CE->getOperand(0)), GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+      Result = getExprForValue(cast<ConstantInt>(CE->getOperand(0)),
+                               GlobalVarAST,
+                               FunctionAST,
+                               ASTCtx,
+                               ASTInfo);
       revng_log(ASTBuildLog, "GOT!");
       revng_assert(Result);
       if (ASTBuildLog.isEnabled())

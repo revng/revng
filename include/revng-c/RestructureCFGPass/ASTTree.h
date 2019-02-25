@@ -18,7 +18,7 @@ class SequenceNode;
 class ASTTree {
 
 public:
-  using links_container  = std::vector<std::unique_ptr<ASTNode>>;
+  using links_container = std::vector<std::unique_ptr<ASTNode>>;
   using links_iterator = typename links_container::iterator;
   using links_range = llvm::iterator_range<links_iterator>;
 
@@ -37,20 +37,17 @@ private:
   unsigned IDCounter = 0;
 
 public:
-
   void addCFGNode() {}
 
   SequenceNode *addSequenceNode();
 
   unsigned getNewID() { return IDCounter++; }
 
-  links_range nodes() {
-    return llvm::make_range(begin(), end());
-  }
+  links_range nodes() { return llvm::make_range(begin(), end()); }
 
   size_t size();
 
-  void addASTNode(BasicBlockNode *Node, std::unique_ptr<ASTNode>&& ASTObject);
+  void addASTNode(BasicBlockNode *Node, std::unique_ptr<ASTNode> &&ASTObject);
 
   ASTNode *findASTNode(BasicBlockNode *BlockNode);
 
@@ -63,7 +60,6 @@ public:
   void dumpOnFile(std::string FolderName,
                   std::string FunctionName,
                   std::string FileName);
-
 };
 
 #endif // REVNGC_RESTRUCTURE_CFG_ASTTREE_H

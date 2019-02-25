@@ -23,7 +23,8 @@
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 
-// EdgeDescriptor is a handy way to create and manipulate edges on the RegionCFG.
+// EdgeDescriptor is a handy way to create and manipulate edges on the
+// RegionCFG.
 using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
 
 // Helper function that visit an AST tree and creates the sequence nodes
@@ -40,17 +41,17 @@ static ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
         If->setElse(createSequence(Tree, If->getElse()));
       }
     }
-    #if 0
+#if 0
   } else if (auto *Code = llvm::dyn_cast<CodeNode>(Node)) {
     // TODO: confirm that doesn't make sense to process a code node.
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(Node)) {
     // TODO: confirm that this phase is not needed since the processing is
     //       done inside the processing of each SCS region.
   }
-  #endif
-}
+#endif
+  }
 
-return RootSequenceNode;
+  return RootSequenceNode;
 }
 
 // Helper function that simplifies useless dummy nodes
@@ -103,12 +104,12 @@ static ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
       If->setElse(simplifyAtomicSequence(If->getElse()));
     }
   }
-  #if 0
+#if 0
 } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     // TODO: check if this is not needed as the simplification is done for each
     //       SCS region.
   }
-  #endif
+#endif
 
   return RootNode;
 }
@@ -123,7 +124,7 @@ static void deoptimizeNodes(ASTNode *First, ASTNode *Second) {
 
   BasicBlockNode *FirstEntry = First->getFirstCFG();
   BasicBlockNode *SecondEntry = Second->getFirstCFG();
-  assert((FirstEntry != nullptr) and (SecondEntry != nullptr));
+  revng_assert((FirstEntry != nullptr) and (SecondEntry != nullptr));
   for (BasicBlockNode *Predecessor : FirstEntry->predecessors()) {
     addEdge(EdgeDescriptor(Predecessor, SecondEntry));
   }
@@ -245,7 +246,6 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
           }
         }
       }
-
     }
   }
 }
@@ -397,9 +397,11 @@ std::string RegionCFG::getRegionName() {
 BasicBlockNode *RegionCFG::addNode(llvm::BasicBlock *BB) {
   BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, BB));
   BasicBlockNode *Result = BlockNodes.back().get();
-  BBMap[BB] = Result;;
-  revng_log(CombLogger, "Building " << BB->getName()
-                         << " at address: " << BBMap[BB] << "\n");
+  BBMap[BB] = Result;
+  ;
+  revng_log(CombLogger,
+            "Building " << BB->getName() << " at address: " << BBMap[BB]
+                        << "\n");
   return Result;
 }
 
@@ -437,10 +439,9 @@ static void copyNeighbors(BasicBlockNode *Dst, BasicBlockNode *Src) {
     Dst->addPredecessor(Pred);
 }
 
-void
-RegionCFG::insertBulkNodes(std::set<BasicBlockNode *> &Nodes,
-                           BasicBlockNode *Head,
-                           RegionCFG::BBNodeMap &SubstitutionMap) {
+void RegionCFG::insertBulkNodes(std::set<BasicBlockNode *> &Nodes,
+                                BasicBlockNode *Head,
+                                RegionCFG::BBNodeMap &SubstitutionMap) {
   revng_assert(BlockNodes.empty());
 
   for (BasicBlockNode *Node : Nodes) {
@@ -484,10 +485,9 @@ RegionCFG::copyNodesAndEdgesFrom(RegionCFG *O, BBNodeMap &SubstitutionMap) {
   return Result;
 }
 
-void
-RegionCFG::connectBreakNode(std::set<EdgeDescriptor> &Outgoing,
-                            BasicBlockNode *Break,
-                            const BBNodeMap &SubstitutionMap) {
+void RegionCFG::connectBreakNode(std::set<EdgeDescriptor> &Outgoing,
+                                 BasicBlockNode *Break,
+                                 const BBNodeMap &SubstitutionMap) {
   for (EdgeDescriptor Edge : Outgoing) {
     if (not Edge.first->isCheck()) {
       addEdge(EdgeDescriptor(SubstitutionMap.at(Edge.first), Break));
@@ -527,8 +527,7 @@ BasicBlockNode &RegionCFG::getRandomNode() {
 }
 
 std::vector<BasicBlockNode *>
-RegionCFG::orderNodes(std::vector<BasicBlockNode *> &L,
-                      bool DoReverse) {
+RegionCFG::orderNodes(std::vector<BasicBlockNode *> &L, bool DoReverse) {
   std::set<BasicBlockNode *> ToOrder;
   ToOrder.insert(L.begin(), L.end());
   llvm::ReversePostOrderTraversal<BasicBlockNode *> RPOT(EntryNode);
@@ -538,13 +537,13 @@ RegionCFG::orderNodes(std::vector<BasicBlockNode *> &L,
     std::reverse(RPOT.begin(), RPOT.end());
   }
 
-  #if 0
+#if 0
   CombLogger << "New ordering" << "\n";
   for (BasicBlockNode *Node : L) {
     CombLogger << Node->getNameStr() << "\n";
     CombLogger.emit();
   }
-  #endif
+#endif
 
   for (BasicBlockNode *RPOTBB : RPOT) {
     if (ToOrder.count(RPOTBB) != 0) {
@@ -561,7 +560,8 @@ template<typename StreamT>
 void RegionCFG::streamNode(StreamT &S, const BasicBlockNode *BB) const {
   unsigned NodeID = BB->getID();
   S << "\"" << NodeID << "\"";
-  S << " [" << "label=\"ID: " << NodeID << " Name: " << BB->getName().str() << "\"";
+  S << " ["
+    << "label=\"ID: " << NodeID << " Name: " << BB->getName().str() << "\"";
   if (BB == EntryNode)
     S << ",fillcolor=green,style=filled";
   S << "];\n";
@@ -577,7 +577,8 @@ void RegionCFG::dumpDot(StreamT &S) const {
     for (auto &Successor : BB->successors()) {
       unsigned PredID = BB->getID();
       unsigned SuccID = Successor->getID();
-      S << "\"" << PredID << "\"" << " -> \"" << SuccID << "\"";
+      S << "\"" << PredID << "\""
+        << " -> \"" << SuccID << "\"";
       if (BB->isCheck() and BB->getFalse() == Successor)
         S << " [color=red];\n";
       else
@@ -606,8 +607,7 @@ void RegionCFG::purgeDummies() {
     AnotherIteration = false;
 
     for (auto It = Graph.begin(); It != Graph.end(); It++) {
-      if (((*It)->isEmpty())
-          and ((*It)->predecessor_size() == 1)
+      if (((*It)->isEmpty()) and ((*It)->predecessor_size() == 1)
           and ((*It)->successor_size() == 1)) {
 
         if (CombLogger.isEnabled()) {
@@ -619,7 +619,7 @@ void RegionCFG::purgeDummies() {
 
         // Connect directly predecessor and successor, and remove the dummy node
         // under analysis
-        moveEdgeTarget({Predecessor, *It}, Successor);
+        moveEdgeTarget({ Predecessor, *It }, Successor);
         DT.insertEdge(Predecessor, Successor);
         PDT.insertEdge(Predecessor, Successor);
 
@@ -661,7 +661,8 @@ void RegionCFG::purgeVirtualSink(BasicBlockNode *Sink) {
   }
 }
 
-std::vector<BasicBlockNode *> RegionCFG::getInterestingNodes(BasicBlockNode *Cond) {
+std::vector<BasicBlockNode *>
+RegionCFG::getInterestingNodes(BasicBlockNode *Cond) {
 
   RegionCFG &Graph = *this;
 
@@ -759,8 +760,10 @@ void RegionCFG::inflate() {
 
       // Check that the intersection of exits nodes reachable from the then and
       // else branches are not disjoint
-      std::set<BasicBlockNode *> ThenExits = ReachableExits[(*It)->getSuccessorI(0)];
-      std::set<BasicBlockNode *> ElseExits = ReachableExits[(*It)->getSuccessorI(1)];
+      std::set<BasicBlockNode *>
+        ThenExits = ReachableExits[(*It)->getSuccessorI(0)];
+      std::set<BasicBlockNode *>
+        ElseExits = ReachableExits[(*It)->getSuccessorI(1)];
       std::vector<BasicBlockNode *> Intersection;
       std::set_intersection(ThenExits.begin(),
                             ThenExits.end(),
@@ -768,10 +771,11 @@ void RegionCFG::inflate() {
                             ElseExits.end(),
                             std::back_inserter(Intersection));
       if (Intersection.size() != 0) {
-          ConditionalNodes.push_back(*It);
-          ConditionalNodesComplete.insert(*It);
+        ConditionalNodes.push_back(*It);
+        ConditionalNodesComplete.insert(*It);
       } else {
-        CombLogger << "Blacklisted conditional: " << (*It)->getNameStr() << "\n";
+        CombLogger << "Blacklisted conditional: " << (*It)->getNameStr()
+                   << "\n";
       }
     }
   }
@@ -798,12 +802,11 @@ void RegionCFG::inflate() {
     if (CombLogger.isEnabled()) {
       CombLogger << "Analyzing conditional node " << Conditional->getNameStr()
                  << "\n";
-
     }
     Graph.dumpDotOnFile("inflates",
                         FunctionName,
                         "Region-" + RegionName + "-conditional-"
-                        + Conditional->getNameStr() + "-begin");
+                          + Conditional->getNameStr() + "-begin");
     CombLogger.emit();
 
     // Get all the nodes reachable from the current conditional node (stopping
@@ -815,7 +818,7 @@ void RegionCFG::inflate() {
     while (!NotDominatedCandidates.empty()) {
 
       // TODO: Remove this
-      //NotDominatedCandidates = getInterestingNodes(Conditional);
+      // NotDominatedCandidates = getInterestingNodes(Conditional);
 
       if (CombLogger.isEnabled()) {
         CombLogger << "Analyzing candidate nodes\n ";
@@ -823,8 +826,7 @@ void RegionCFG::inflate() {
       BasicBlockNode *Candidate = NotDominatedCandidates.back();
       NotDominatedCandidates.pop_back();
       if (CombLogger.isEnabled()) {
-        CombLogger << "Analyzing candidate " << Candidate->getNameStr()
-                   << "\n";
+        CombLogger << "Analyzing candidate " << Candidate->getNameStr() << "\n";
       }
 
       // Decide wether to insert a dummy or to duplicate.
@@ -836,9 +838,9 @@ void RegionCFG::inflate() {
           CombLogger << Candidate->getNameStr() << "\n";
         }
 
-        typedef enum {Left, Right} Side;
+        typedef enum { Left, Right } Side;
 
-        std::vector<Side> Sides{Left, Right};
+        std::vector<Side> Sides{ Left, Right };
         std::map<Side, BasicBlockNode *> Dummies;
 
         for (Side S : Sides) {
@@ -896,7 +898,7 @@ void RegionCFG::inflate() {
         }
 
         BasicBlockNode *Duplicated = Graph.cloneNode(*Candidate);
-        assert(Duplicated != nullptr);
+        revng_assert(Duplicated != nullptr);
 
         // If the node we are duplicating is a conditional node, add it to the
         // working list of the conditional nodes.
@@ -933,8 +935,7 @@ void RegionCFG::inflate() {
 
         for (BasicBlockNode *Predecessor : Predecessors) {
           if (!DT.dominates(Conditional, Predecessor)) {
-            moveEdgeTarget(EdgeDescriptor(Predecessor, Candidate),
-                           Duplicated);
+            moveEdgeTarget(EdgeDescriptor(Predecessor, Candidate), Duplicated);
 
             // Inform the dominator and postdominator tree about the update
             DT.insertEdge(Predecessor, Duplicated);
@@ -952,8 +953,8 @@ void RegionCFG::inflate() {
         Graph.dumpDotOnFile("inflates",
                             FunctionName,
                             "Region-" + RegionName + "-conditional-"
-                            + Conditional->getNameStr() + "-"
-                            + std::to_string(Iteration));
+                              + Conditional->getNameStr() + "-"
+                              + std::to_string(Iteration));
       }
       Iteration++;
 
@@ -969,11 +970,11 @@ void RegionCFG::inflate() {
   purgeDummies();
   purgeVirtualSink(Sink);
 
-  //if (CombLogger.isEnabled()) {
-    CombLogger << "Graph after combing is:\n";
-    Graph.dumpDotOnFile("inflates",
-                        FunctionName,
-                        "Region-" + RegionName + "-after-combing");
+  // if (CombLogger.isEnabled()) {
+  CombLogger << "Graph after combing is:\n";
+  Graph.dumpDotOnFile("inflates",
+                      FunctionName,
+                      "Region-" + RegionName + "-after-combing");
   //}
 }
 
@@ -1023,8 +1024,8 @@ void RegionCFG::generateAst() {
     BasicBlockNode *Node = Pair.second;
 
     // Collect the children nodes in the dominator tree.
-    std::vector<llvm::DomTreeNodeBase<BasicBlockNode> *> Children =
-      ASTDT[Node]->getChildren();
+    std::vector<llvm::DomTreeNodeBase<BasicBlockNode> *>
+      Children = ASTDT[Node]->getChildren();
 
     std::vector<ASTNode *> ASTChildren;
     for (llvm::DomTreeNodeBase<BasicBlockNode> *TreeNode : Children) {
@@ -1047,8 +1048,7 @@ void RegionCFG::generateAst() {
         CombLogger.emit();
         BodyGraph->generateAst();
         ASTNode *Body = BodyGraph->getAST().getRoot();
-        std::unique_ptr<ASTNode> ASTObject(new ScsNode(Node,
-                                                       Body,
+        std::unique_ptr<ASTNode> ASTObject(new ScsNode(Node, Body,
                                                        ASTChildren[0]));
         AST.addASTNode(Node, std::move(ASTObject));
       } else {
@@ -1067,13 +1067,13 @@ void RegionCFG::generateAst() {
       if (Children.size() == 3) {
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
-        ASTObject.reset(new IfNode(Node, ASTChildren[0], ASTChildren[2],
-                                   ASTChildren[1]));
+        ASTObject.reset(new IfNode(Node, ASTChildren[0],
+                                   ASTChildren[2], ASTChildren[1]));
       } else if (Children.size() == 2) {
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
-        ASTObject.reset(new IfNode(Node, ASTChildren[0], ASTChildren[1],
-                                   nullptr));
+        ASTObject.reset(new IfNode(Node, ASTChildren[0],
+                                   ASTChildren[1], nullptr));
       } else if (Children.size() == 1) {
         revng_assert(not Node->isBreak() and not Node->isContinue());
         ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
@@ -1122,12 +1122,12 @@ void RegionCFG::generateAst() {
   flipEmptyThen(RootNode);
   AST.dumpOnFile("ast", FunctionName, "After-if-flip");
 
-  #if 0
+#if 0
   // Simplify short-circuit nodes.
   CombLogger << "Performing short-circuit simplification\n";
   simplifyShortCircuit(RootNode);
   AST.dumpOnFile("ast", FunctionName, "After-short-circuit");
-  #endif
+#endif
 
   // Remove danling nodes (possibly created by the de-optimization pass, after
   // disconnecting the first CFG node corresponding to the simplified AST node),
@@ -1138,12 +1138,12 @@ void RegionCFG::generateAst() {
   // TODO: Remove or change this
   dumpDotOnFile("deoptimizes", FunctionName, "Deoptimized-cfg-" + RegionName);
 
-  #if 0
+#if 0
   // Simplify trivial short-circuit nodes.
   CombLogger << "Performing trivial short-circuit simplification\n";
   simplifyTrivialShortCircuit(RootNode);
   AST.dumpOnFile("ast", FunctionName, "After-trivial-short-circuit");
-  #endif
+#endif
 }
 
 // Get reference to the AST object which is inside the RegionCFG object

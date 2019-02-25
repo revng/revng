@@ -18,18 +18,18 @@
 using namespace llvm;
 
 BasicBlockNode::BasicBlockNode(RegionCFG *Parent,
-                               llvm::BasicBlock * BB,
+                               llvm::BasicBlock *BB,
                                RegionCFG *Collapsed,
                                const std::string &Name,
                                Type T,
                                unsigned Value) :
-    ID(Parent->getNewID()),
-    Parent(Parent),
-    BB(BB),
-    CollapsedRegion(Collapsed),
-    NodeType(T),
-    Name(Name),
-    StateVariableValue(Value) {
+  ID(Parent->getNewID()),
+  Parent(Parent),
+  BB(BB),
+  CollapsedRegion(Collapsed),
+  NodeType(T),
+  Name(Name),
+  StateVariableValue(Value) {
 }
 
 void BasicBlockNode::removeNode() {
@@ -42,7 +42,7 @@ void BasicBlockNode::printAsOperand(raw_ostream &O, bool PrintType) {
 }
 
 void BasicBlockNode::removeSuccessor(BasicBlockNode *Successor) {
-  //revng_assert(not isCheck()); // TODO: maybe add removeTrue and removeFalse?
+  // revng_assert(not isCheck()); // TODO: maybe add removeTrue and removeFalse?
   for (auto It = Successors.begin(); It != Successors.end(); It++) {
     if (*It == Successor) {
       Successors.erase(It);
@@ -63,13 +63,13 @@ void BasicBlockNode::removePredecessor(BasicBlockNode *Predecessor) {
 using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
 
 static void handleNeighbors(const BBNodeMap &SubstitutionMap,
-                             BasicBlockNode::links_container & Neighbors) {
+                            BasicBlockNode::links_container &Neighbors) {
   Neighbors.erase(std::remove_if(Neighbors.begin(),
                                  Neighbors.end(),
                                  [&SubstitutionMap](BasicBlockNode *N) {
                                    return SubstitutionMap.count(N) == 0;
                                  }),
-                                 Neighbors.end());
+                  Neighbors.end());
   for (BasicBlockNode *&Neighbor : Neighbors) {
     revng_assert(SubstitutionMap.count(Neighbor) != 0);
     Neighbor = SubstitutionMap.at(Neighbor);
@@ -78,9 +78,9 @@ static void handleNeighbors(const BBNodeMap &SubstitutionMap,
 
 void BasicBlockNode::updatePointers(const BBNodeMap &SubstitutionMap) {
   handleNeighbors(SubstitutionMap, Predecessors);
-  if (not isCheck())  {
+  if (not isCheck()) {
     handleNeighbors(SubstitutionMap, Successors);
-  } else {// don't screw up the if/then/else of check nodes
+  } else { // don't screw up the if/then/else of check nodes
 
     auto It = SubstitutionMap.find(getTrue());
     if (It != SubstitutionMap.end())
@@ -93,6 +93,5 @@ void BasicBlockNode::updatePointers(const BBNodeMap &SubstitutionMap) {
       setFalse(It->second);
     else
       setFalse(nullptr);
-
   }
 }

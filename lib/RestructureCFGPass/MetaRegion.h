@@ -8,9 +8,9 @@
 #define REVNGC_RESTRUCTURE_CFG_META_REGIONS_H
 
 // std includes
-#include <utility>
-#include <set>
 #include <memory>
+#include <set>
+#include <utility>
 #include <vector>
 
 // LLVM includes
@@ -45,7 +45,9 @@ private:
 
 public:
   MetaRegion(int Index, std::set<BasicBlockNode *> &Nodes, bool IsSCS = false) :
-    Index(Index), Nodes(Nodes), IsSCS(IsSCS) {}
+    Index(Index),
+    Nodes(Nodes),
+    IsSCS(IsSCS) {}
 
   int getIndex() const { return Index; }
 
@@ -67,9 +69,7 @@ public:
     return llvm::make_range(Nodes.begin(), Nodes.end());
   }
 
-  links_range nodes() {
-    return llvm::make_range(Nodes.begin(), Nodes.end());
-  }
+  links_range nodes() { return llvm::make_range(Nodes.begin(), Nodes.end()); }
 
   std::set<BasicBlockNode *> getSuccessors();
 

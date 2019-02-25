@@ -16,14 +16,13 @@ public:
   static char ID;
 
 public:
-  RemoveBadPC() : llvm::FunctionPass(ID) { }
+  RemoveBadPC() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
   }
-
 };
 
 #endif // REVNGC_REMOVE_BAD_PC_REMOVEBADPC_H

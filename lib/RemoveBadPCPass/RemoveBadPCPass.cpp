@@ -26,10 +26,8 @@
 using namespace llvm;
 
 char RemoveBadPC::ID = 0;
-static RegisterPass<RemoveBadPC> X("removeBadPC",
-                                   "Remove bad return pc check",
-                                   false,
-                                   false);
+static RegisterPass<RemoveBadPC>
+  X("removeBadPC", "Remove bad return pc check", false, false);
 
 bool RemoveBadPC::runOnFunction(Function &F) {
   if (!F.getName().startswith("bb.")) {
@@ -44,7 +42,6 @@ bool RemoveBadPC::runOnFunction(Function &F) {
     if (BB->getName().endswith("_bad_return_pc")) {
       revng_assert(BB->getUniquePredecessor() != nullptr);
 
-
       // Get the basic block that performs the pc check.
       BasicBlock *Predecessor = BB->getUniquePredecessor();
       TerminatorInst *Terminator = Predecessor->getTerminator();
@@ -57,7 +54,7 @@ bool RemoveBadPC::runOnFunction(Function &F) {
       BasicBlock *Else = Branch->getSuccessor(1);
 
       // Print the name of the block being removed.
-      //dbg << "Removing successor: " << Else->getName().str() << "\n";
+      // dbg << "Removing successor: " << Else->getName().str() << "\n";
 
       // Remove the conditional branch.
       Branch->eraseFromParent();

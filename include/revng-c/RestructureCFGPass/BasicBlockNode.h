@@ -24,7 +24,6 @@ class RegionCFG;
 class BasicBlockNode {
 
 public:
-
   enum class Type {
     Code,
     Empty,
@@ -73,14 +72,13 @@ protected:
   links_container Predecessors;
 
   explicit BasicBlockNode(RegionCFG *Parent,
-                          llvm::BasicBlock * BB,
+                          llvm::BasicBlock *BB,
                           RegionCFG *Collapsed,
                           const std::string &Name,
                           Type T,
                           unsigned Value = 0);
 
 public:
-
   BasicBlockNode() = delete;
   BasicBlockNode(BasicBlockNode &&BBN) = delete;
   BasicBlockNode &operator=(const BasicBlockNode &BBN) = delete;
@@ -109,21 +107,13 @@ public:
   explicit BasicBlockNode(RegionCFG *Parent,
                           RegionCFG *Collapsed,
                           const std::string &Name = "") :
-    BasicBlockNode(Parent,
-                   nullptr,
-                   Collapsed,
-                   Name,
-                   Type::Collapsed) {}
+    BasicBlockNode(Parent, nullptr, Collapsed, Name, Type::Collapsed) {}
 
   /// \brief Constructor for empty dummy nodes
   explicit BasicBlockNode(RegionCFG *Parent,
                           const std::string &Name = "",
                           Type T = Type::Empty) :
-    BasicBlockNode(Parent,
-                   nullptr,
-                   nullptr,
-                   Name,
-                   T) {
+    BasicBlockNode(Parent, nullptr, nullptr, Name, T) {
     revng_assert(T == Type::Empty or T == Type::Break or T == Type::Continue);
   }
 
@@ -132,12 +122,7 @@ public:
                           Type T,
                           unsigned Value,
                           const std::string &Name = "") :
-    BasicBlockNode(Parent,
-                   nullptr,
-                   nullptr,
-                   Name,
-                   T,
-                   Value) {
+    BasicBlockNode(Parent, nullptr, nullptr, Name, T, Value) {
     revng_assert(T == Type::Set or T == Type::Check);
   }
 
@@ -209,7 +194,7 @@ public:
   void addSuccessor(BasicBlockNode *Successor) {
     // TODO: Disabled this, since even for set node if we copy the successors
     //       in order we should be fine.
-    //revng_assert(not isCheck()); // you should use setFalse() and setTrue()
+    // revng_assert(not isCheck()); // you should use setFalse() and setTrue()
 
     // Assert that we are not double inserting.
     bool Found = false;
@@ -257,7 +242,7 @@ public:
   void removePredecessor(BasicBlockNode *Predecessor);
 
   void updatePointers(const std::map<BasicBlockNode *,
-                      BasicBlockNode *> &SubstitutionMap);
+		                     BasicBlockNode *> &SubstitutionMap);
 
   size_t successor_size() const { return Successors.size(); }
   links_const_range successors() const {
@@ -286,7 +271,9 @@ public:
   void setBasicBlock(llvm::BasicBlock *B) { BB = B; }
 
   llvm::StringRef getName() const { return Name; }
-  std::string getNameStr() const { return "ID:" + std::to_string(getID()) + " " + Name; }
+  std::string getNameStr() const {
+    return "ID:" + std::to_string(getID()) + " " + Name;
+  }
   void setName(const std::string &N) { Name = N; }
 
   bool isCollapsed() const { return NodeType == Type::Collapsed; }
@@ -296,13 +283,12 @@ public:
 // Provide graph traits for usage with, e.g., llvm::ReversePostOrderTraversal
 namespace llvm {
 
-template<> struct GraphTraits<BasicBlockNode *> {
+template<>
+struct GraphTraits<BasicBlockNode *> {
   using NodeRef = BasicBlockNode *;
   using ChildIteratorType = BasicBlockNode::links_iterator;
 
-  static NodeRef getEntryNode(BasicBlockNode *N) {
-    return N;
-  }
+  static NodeRef getEntryNode(BasicBlockNode *N) { return N; }
 
   static inline ChildIteratorType child_begin(NodeRef N) {
     return N->successors().begin();
@@ -313,13 +299,12 @@ template<> struct GraphTraits<BasicBlockNode *> {
   }
 };
 
-template<> struct GraphTraits<Inverse<BasicBlockNode *>> {
+template<>
+struct GraphTraits<Inverse<BasicBlockNode *>> {
   using NodeRef = BasicBlockNode *;
   using ChildIteratorType = BasicBlockNode::links_iterator;
 
-  static NodeRef getEntryNode(Inverse<BasicBlockNode *> G) {
-    return G.Graph;
-  }
+  static NodeRef getEntryNode(Inverse<BasicBlockNode *> G) { return G.Graph; }
 
   static inline ChildIteratorType child_begin(NodeRef N) {
     return N->predecessors().begin();
@@ -332,4 +317,4 @@ template<> struct GraphTraits<Inverse<BasicBlockNode *>> {
 
 } // namespace llvm
 
-#endif //REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODE_H
+#endif // REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODE_H

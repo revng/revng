@@ -77,9 +77,7 @@ public:
     return links_iterator(BlockNodes.begin(), getPointer);
   };
 
-  links_iterator end() {
-    return links_iterator(BlockNodes.end(), getPointer);
-  };
+  links_iterator end() { return links_iterator(BlockNodes.end(), getPointer); };
 
   size_t size() const { return BlockNodes.size(); }
   void setSize(int Size) { BlockNodes.reserve(Size); }
@@ -114,10 +112,11 @@ public:
     using Type = BasicBlockNode::Type;
     using BBNode = BasicBlockNode;
     std::string IdStr = std::to_string(StateVariableValue);
-    std::string NodeName = "check idx " + IdStr +
-                           " (true) " + True->getNameStr() +
-                           " (false) " + False->getNameStr();
-    BlockNodes.emplace_back(std::make_unique<BBNode>(this, Type::Check,
+    std::string NodeName = "check idx " + IdStr + " (true) "
+                           + True->getNameStr() + " (false) "
+                           + False->getNameStr();
+    BlockNodes.emplace_back(std::make_unique<BBNode>(this,
+                                                     Type::Check,
                                                      StateVariableValue,
                                                      NodeName));
     BBNode *Dispatcher = BlockNodes.back().get();
@@ -126,15 +125,14 @@ public:
     return Dispatcher;
   }
 
-  BasicBlockNode *addSetStateNode(unsigned StateVariableValue,
-                                  const std::string &TargetName) {
+  BasicBlockNode *
+  addSetStateNode(unsigned StateVariableValue, const std::string &TargetName) {
     using Type = BasicBlockNode::Type;
     using BBNode = BasicBlockNode;
     std::string IdStr = std::to_string(StateVariableValue);
     std::string Name = "set idx " + IdStr + " (desired target) " + TargetName;
     BlockNodes.emplace_back(std::make_unique<BBNode>(this, Type::Set,
-                                                     StateVariableValue,
-                                                     Name));
+                                                     StateVariableValue, Name));
     return BlockNodes.back().get();
   }
 
@@ -168,13 +166,13 @@ public:
 
   BasicBlockNode &getRandomNode();
 
-  std::vector<BasicBlockNode *> orderNodes(std::vector<BasicBlockNode *> &List,
-                                           bool DoReverse);
+  std::vector<BasicBlockNode *>
+  orderNodes(std::vector<BasicBlockNode *> &List, bool DoReverse);
 
 public:
-
   /// \brief Dump a GraphViz representing this function on any stream
-  template<typename StreamT> void dumpDot(StreamT &) const;
+  template<typename StreamT>
+  void dumpDot(StreamT &) const;
 
   /// \brief Dump a GraphViz file on a file representing this function
   void dumpDotOnFile(std::string FolderName,
@@ -208,23 +206,18 @@ template<>
 struct GraphTraits<RegionCFG *> : public GraphTraits<BasicBlockNode *> {
   using nodes_iterator = RegionCFG::links_iterator;
 
-  static NodeRef getEntryNode(RegionCFG *F) {
-    return &F->getEntryNode();
-  }
+  static NodeRef getEntryNode(RegionCFG *F) { return &F->getEntryNode(); }
 
-  static nodes_iterator nodes_begin(RegionCFG *F) {
-    return F->begin();
-  }
+  static nodes_iterator nodes_begin(RegionCFG *F) { return F->begin(); }
 
-  static nodes_iterator nodes_end(RegionCFG *F) {
-    return F->end();
-  }
+  static nodes_iterator nodes_end(RegionCFG *F) { return F->end(); }
 
   static size_t size(RegionCFG *F) { return F->size(); }
 };
 
 template<>
-struct GraphTraits<Inverse<RegionCFG *>> : public GraphTraits<Inverse<BasicBlockNode *>> {
+struct GraphTraits<Inverse<RegionCFG *>>
+  : public GraphTraits<Inverse<BasicBlockNode *>> {
 
   static NodeRef getEntryNode(Inverse<RegionCFG *> G) {
     return &G.Graph->getEntryNode();

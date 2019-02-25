@@ -41,7 +41,7 @@ BasicBlockNode *CodeNode::getFirstCFG() {
 void CodeNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
   dbg << "Updating pointers for node: " << getName() << "\n";
   if (CFGNode != nullptr) {
-    assert(SubstitutionMap.count(CFGNode) != 0);
+    revng_assert(SubstitutionMap.count(CFGNode) != 0);
     CFGNode = SubstitutionMap[CFGNode];
   } else {
     CFGNode = nullptr;
@@ -123,9 +123,9 @@ void ScsNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
   // not exist anymore after the flattening phase.
   CFGNode = nullptr;
 
-  //revng_assert(SubstitutionMap.count(CFGNode) != 0);
+  // revng_assert(SubstitutionMap.count(CFGNode) != 0);
   if (SubstitutionMap.count(CFGNode) > 0) {
-    //CFGNode = SubstitutionMap[CFGNode];
+    // CFGNode = SubstitutionMap[CFGNode];
   }
 }
 
@@ -145,7 +145,7 @@ bool SequenceNode::isEqual(ASTNode *Node) {
 
     // Continue the comparison only if the sequence node size are the same
     if (ComparisonState) {
-      assert (FirstDimension == SecondDimension);
+      revng_assert(FirstDimension == SecondDimension);
       for (int I = 0; I < FirstDimension; I++) {
         ASTNode *FirstNode = getNodeN(I);
         ASTNode *SecondNode = OtherSequence->getNodeN(I);
@@ -214,22 +214,22 @@ void IfNode::dump(std::ofstream &ASTFile) {
   ConditionalNames.pop_back();
   ConditionalNames.pop_back();
 
-  //ASTFile << "label=\"" << ConditionalNames;
+  // ASTFile << "label=\"" << ConditionalNames;
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"invhouse\",color=\"blue\"];\n";
 
   if (this->getThen() != nullptr) {
     ASTFile << "\"" << this->getName() << "\""
-        << " -> \"" << this->getThen()->getName() << "\""
-        << " [color=green,label=\"then\"];\n";
+            << " -> \"" << this->getThen()->getName() << "\""
+            << " [color=green,label=\"then\"];\n";
     this->getThen()->dump(ASTFile);
   }
 
   if (this->getElse() != nullptr) {
     ASTFile << "\"" << this->getName() << "\""
-        << " -> \"" << this->getElse()->getName() << "\""
-        << " [color=green,label=\"else\"];\n";
+            << " -> \"" << this->getElse()->getName() << "\""
+            << " [color=green,label=\"else\"];\n";
     this->getElse()->dump(ASTFile);
   }
 }
@@ -242,8 +242,8 @@ void ScsNode::dump(std::ofstream &ASTFile) {
 
   revng_assert(this->getBody() != nullptr);
   ASTFile << "\"" << this->getName() << "\""
-      << " -> \"" << this->getBody()->getName() << "\""
-      << " [color=green,label=\"body\"];\n";
+          << " -> \"" << this->getBody()->getName() << "\""
+          << " [color=green,label=\"body\"];\n";
   this->getBody()->dump(ASTFile);
 }
 
@@ -256,8 +256,8 @@ void SequenceNode::dump(std::ofstream &ASTFile) {
   int SuccessorIndex = 0;
   for (ASTNode *Successor : this->nodes()) {
     ASTFile << "\"" << this->getName() << "\""
-        << " -> \"" << Successor->getName() << "\""
-        << " [color=green,label=\"elem " << SuccessorIndex << "\"];\n";
+            << " -> \"" << Successor->getName() << "\""
+            << " [color=green,label=\"elem " << SuccessorIndex << "\"];\n";
     Successor->dump(ASTFile);
     SuccessorIndex += 1;
   }

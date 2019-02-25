@@ -31,9 +31,7 @@ DecompilationPass::DecompilationPass(std::unique_ptr<llvm::raw_ostream> Out) :
   Out(std::move(Out)) {
 }
 
-DecompilationPass::DecompilationPass() :
-  llvm::FunctionPass(ID),
-  Out(nullptr) {
+DecompilationPass::DecompilationPass() : llvm::FunctionPass(ID), Out(nullptr) {
 }
 
 static void processFunction(llvm::Function &F) {
