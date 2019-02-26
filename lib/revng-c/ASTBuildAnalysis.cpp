@@ -99,17 +99,18 @@ getCandidatesInfo(const PHINode *ThePHI, const DomTree &DT) {
     }
     revng_assert(CandidateB != nullptr);
     revng_assert(DefBlock != nullptr);
+    auto *DefBlockNode = DT.getNode(DefBlock);
+    revng_assert(DefBlockNode != nullptr);
 
-    BasicBlock *B = nullptr;
     auto &Candidates = Res.IncomingCandidates[K];
-    auto *DomNode = DT.getNode(CandidateB);
-    revng_assert(DomNode != nullptr);
+    auto *DTNode = DT.getNode(CandidateB);
+    revng_assert(DTNode != nullptr);
     do {
-      B = DomNode->getBlock();
+      BasicBlock *B = DTNode->getBlock();
       Candidates.push_back(B);
       Res.BlocksToIncoming[B].insert(K);
-      DomNode = DT.getNode(B)->getIDom();
-    } while (DomNode != nullptr and DT.dominates(DefBlock, B));
+      DTNode = DT.getNode(B)->getIDom();
+    } while (DTNode != nullptr and DT.dominates(DefBlockNode, DTNode));
   }
 
   for (unsigned K = 0; K < NPred; ++K) {
