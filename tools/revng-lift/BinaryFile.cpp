@@ -199,6 +199,25 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
     RelocationTypes[R_ARM_COPY] = RD(RD::LabelOnly, RD::TargetValue);
     break;
 
+  case Triple::aarch64:
+    InstructionAlignment = 4;
+    SyscallHelper = "helper_exception_with_syndrome";
+    SyscallNumberRegister = "x8";
+    StackPointerRegister = "sp";
+    NoReturnSyscalls = {
+      0x5e, // exit_group
+      0x5d, // exit
+      0xdd // execve
+    };
+    ABIRegisters = { { "x0" },  { "x1" },  { "x2" },  { "x3" },  { "x4" },
+                     { "x5" },  { "x6" },  { "x7" },  { "x8" },  { "x9" },
+                     { "x10" }, { "x11" }, { "x12" }, { "x13" }, { "x14" },
+                     { "x15" }, { "x16" }, { "x17" }, { "x18" }, { "x19" },
+                     { "x20" }, { "x21" }, { "x22" }, { "x23" }, { "x24" },
+                     { "x25" }, { "x26" }, { "x27" }, { "x28" }, { "x29" },
+                     { "lr" },  { "sp" } };
+    break;
+
   case Triple::mips:
   case Triple::mipsel:
     InstructionAlignment = 4;

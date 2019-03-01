@@ -134,6 +134,8 @@ def get_architecture(path):
 
   if arch_id == "012800":
     return "arm"
+  elif arch_id == "01b700":
+    return "aarch64"
   elif arch_id == "010800":
     return "mipsel"
   elif arch_id == "020008":

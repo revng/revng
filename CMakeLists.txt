@@ -56,7 +56,7 @@ set(SUPPORT_MODULES_CONFIGS "normal;trace")
 set(SUPPORT_MODULES_CONFIG_normal "")
 set(SUPPORT_MODULES_CONFIG_trace "-DTRACE")
 
-foreach(ARCH arm mips mipsel x86_64 i386 s390x)
+foreach(ARCH aarch64 arm mips mipsel x86_64 i386 s390x)
   set(OUTPUT "early-linked-${ARCH}.ll")
   add_custom_command(OUTPUT "${OUTPUT}"
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/early-linked.c"
