@@ -10,6 +10,7 @@ revng_add_analyses_library(revng-c
 
 target_link_libraries(revng-c
                       revng::revngSupport
+                      EnforceCFGCombingPass
                       clangTooling
                       clangAST
                       clangBasic
