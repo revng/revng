@@ -9,7 +9,34 @@ import sys
 from binascii import hexlify
 from ctypes.util import find_library
 from functools import reduce
+from itertools import chain
 from shutil import which
+
+from elftools.elf.dynamic import DynamicSegment
+from elftools.elf.elffile import ELFFile
+
+def interleave(base, repeat):
+  return list(sum(zip([repeat] * len(base), base), ()))
+
+def get_elf_needed(path):
+  with open(path, "rb") as elf_file:
+    segments = [segment
+                for segment
+                in ELFFile(elf_file).iter_segments()
+                if type(segment) is DynamicSegment]
+
+    if len(segments) == 1:
+      return [tag.needed
+              for tag
+              in segments[0].iter_tags()
+              if tag.entry.d_tag == "DT_NEEDED"]
+    else:
+      return []
+
+def execv(args):
+  sys.stdout.flush()
+  sys.stderr.flush()
+  os.execv(which(args[0]), args)
 
 def log_error(msg):
   sys.stderr.write(msg + "\n")
@@ -20,7 +47,7 @@ def get_command(command):
   assert path
   return os.path.abspath(path)
 
-def get_opt_env():
+def build_opt_args(args):
   script_path = os.path.dirname(os.path.realpath(__file__))
 
   analyses_path = None
@@ -38,16 +65,25 @@ def get_opt_env():
     log_error("Couldn't find a valid path containing the analyses libraries")
     assert False
 
+  # Enumerate all the libraries containing analyses
   analysis_libraries = glob.glob(os.path.join(analyses_path, "*.so"))
-  ld_preload = os.environ.get("LD_PRELOAD", "")
-  if ld_preload:
-    ld_preload += ":"
-  ld_preload += ":".join(analysis_libraries)
 
-  environment = os.environ.copy()
-  environment["LD_PRELOAD"] = ld_preload
+  # Identify all the libraries that are dependencies of other libraries, i.e.,
+  # non-roots in the dependencies tree. Note that circular dependencies are not
+  # allowed.
+  provided = set(chain.from_iterable([get_elf_needed(path)
+                                      for path
+                                      in analysis_libraries]))
 
-  return environment
+  # Full list of library names
+  all = set([os.path.basename(path) for path in analysis_libraries])
+
+  # Path to libraries representing the roots in the dependency tree
+  roots = [os.path.join(analyses_path, name) for name in all - provided]
+
+  return ([get_command("opt")]
+          + interleave(roots, "-load")
+          + args)
 
 def split_dash_dash(args):
   if not args:
@@ -161,10 +197,14 @@ def build_linking_options(li_csv_path, need_csv_path):
 
   return result
 
-def log_command(args):
+def wrap(args):
+  global command_prefix
+  args = command_prefix + args
+
   global log_commands
   if log_commands:
     sys.stderr.write("{}\n\n".format(" \\\n  ".join(args)))
+
   return args
 
 def run_translate(args):
@@ -245,34 +285,34 @@ def run_translate(args):
 
     lift_log = "{}.log".format(output)
     with open(lift_log, "w") as log_file:
-      subprocess.check_call(log_command([get_command("revng"), "lift",
-                                         "-g", "ll",
-                                         "--debug-log", "jtcount",
-                                         "--debug-log", "new-edges",
-                                         "--use-debug-symbols"]
-                                        + lift_options
-                                        + [input, output]),
+      subprocess.check_call(wrap([get_command("revng"), "lift",
+                                  "-g", "ll",
+                                  "--debug-log", "jtcount",
+                                  "--debug-log", "new-edges",
+                                  "--use-debug-symbols"]
+                                 + lift_options
+                                 + [input, output]),
                             stdout=log_file,
                             stderr=log_file)
 
   # Perform function isolation
   if args.isolate:
     isolated = "{}.isolated".format(input)
-    subprocess.check_call(log_command([get_command("opt"),
-                                       "-S",
-                                       "-detect-function-boundaries",
-                                       "-isolate",
-                                       output,
-                                       "-o", isolated]), env=get_opt_env())
+    opt_invocation = build_opt_args(["-S",
+                                     "-detect-function-boundaries",
+                                     "-isolate",
+                                     output,
+                                     "-o", isolated])
+    subprocess.check_call(wrap(opt_invocation))
     output = isolated
 
   # Link with support
   linked = "{}.linked.ll".format(output)
-  subprocess.check_call(log_command([get_command("llvm-link"),
-                                     "-S",
-                                     output,
-                                     support_path,
-                                     "-o", linked]))
+  subprocess.check_call(wrap([get_command("llvm-link"),
+                              "-S",
+                              output,
+                              support_path,
+                              "-o", linked]))
   output = linked
 
   # Compile
@@ -281,31 +321,31 @@ def run_translate(args):
   common_llc_options = ["-disable-machine-licm", "-filetype=obj"]
   llc = get_command("llc")
   if optimization_level == 0:
-    subprocess.check_call(log_command([llc,
-                                       "-O0",
-                                       output,
-                                       "-o", object_file])
-                                      + common_llc_options)
+    subprocess.check_call(wrap([llc,
+                                "-O0",
+                                output,
+                                "-o", object_file]
+                               + common_llc_options))
   elif optimization_level == 1:
-    subprocess.check_call(log_command([llc,
-                                       "-O2",
-                                       output,
-                                       "-o", object_file])
-                                      + common_llc_options)
+    subprocess.check_call(wrap([llc,
+                                "-O2",
+                                output,
+                                "-o", object_file]
+                               + common_llc_options))
   elif optimization_level == 2:
     optimized = "{}.opt.ll".format(output)
-    subprocess.check_call(log_command([get_command("opt"),
-                                       "-O2",
-                                       "-S",
-                                       "-enable-pre=false",
-                                       "-enable-load-pre=false",
-                                       output,
-                                       "-o", optimized]))
-    subprocess.check_call(log_command([llc,
-                                       "-O2",
-                                       optimized,
-                                       "-o", object_file]
-                                      + common_llc_options))
+    subprocess.check_call(wrap([get_command("opt"),
+                                "-O2",
+                                "-S",
+                                "-enable-pre=false",
+                                "-enable-load-pre=false",
+                                output,
+                                "-o", optimized]))
+    subprocess.check_call(wrap([llc,
+                                "-O2",
+                                optimized,
+                                "-o", object_file]
+                               + common_llc_options))
 
   # Parse .li.csv and .need.csv files
   linking_options = build_linking_options(li_csv_path, need_csv_path)
@@ -317,24 +357,24 @@ def run_translate(args):
     no_pie.append("-no-pie")
 
   executable = "{}.translated".format(input)
-  subprocess.check_call(log_command([compiler,
-                                     object_file,
-                                     "-lz", "-lm", "-lrt", "-lpthread",
-                                     "-L", "./",
-                                     "-o", executable]
-                                    + no_pie
-                                    + linking_options))
+  subprocess.check_call(wrap([compiler,
+                              object_file,
+                              "-lz", "-lm", "-lrt", "-lpthread",
+                              "-L", "./",
+                              "-o", executable]
+                             + no_pie
+                             + linking_options))
 
   # Invoke revng-merge-dynamic
   unpatched_output = "{}.tmp".format(executable)
   os.rename(executable, unpatched_output)
   base_args = ["--base", args.base] if args.base else []
-  subprocess.check_call(log_command([get_command("revng"),
-                                     "merge-dynamic",
-                                     unpatched_output,
-                                     input,
-                                     executable]
-                                    + base_args))
+  subprocess.check_call(wrap([get_command("revng"),
+                              "merge-dynamic",
+                              unpatched_output,
+                              input,
+                              executable]
+                             + base_args))
   os.unlink(unpatched_output)
 
 def run_cc(args):
@@ -404,9 +444,9 @@ def print_version():
                     + " `opt`:\n\n").format(sys.argv[0]))
 
   args = [get_command("opt"), "--help"]
-  base = subprocess.check_output(log_command(args)).split(b"\n")
-  extended = subprocess.check_output(log_command(args),
-                                     env=get_opt_env()).split(b"\n")
+  base = subprocess.check_output(wrap(args)).split(b"\n")
+  output = subprocess.check_output(wrap(build_opt_args(args)))
+  extended = output.split(b"\n")
 
   extra = []
   i = 0
@@ -427,6 +467,21 @@ def main():
   parser.add_argument("--verbose",
                       action="store_true",
                       help="Log all executed commands.")
+  parser.add_argument("--perf",
+                      action="store_true",
+                      help="Run programs under perf.")
+  parser.add_argument("--heaptrack",
+                      action="store_true",
+                      help="Run programs under heaptrack.")
+  parser.add_argument("--gdb",
+                      action="store_true",
+                      help="Run programs under gdb.")
+  parser.add_argument("--valgrind",
+                      action="store_true",
+                      help="Run programs under valgrind.")
+  parser.add_argument("--callgrind",
+                      action="store_true",
+                      help="Run programs under valgrind.")
   parser.add_argument("command",
                       nargs="?",
                       default="help",
@@ -451,6 +506,29 @@ def main():
   global log_commands
   log_commands = args.verbose
 
+  global command_prefix
+  command_prefix = []
+
+  assert (args.gdb + args.valgrind + args.callgrind) <= 1
+
+  if args.gdb:
+    command_prefix += ["gdb", "--args"]
+
+  if args.valgrind:
+    command_prefix += ["valgrind"]
+
+  if args.callgrind:
+    command_prefix += ["valgrind", "--tool=callgrind"]
+
+  if args.perf:
+    command_prefix += ["perf",
+                       "record",
+                       "--call-graph", "dwarf",
+                       "--output=perf.data"]
+
+  if args.heaptrack:
+    command_prefix += ["heaptrack"]
+
   # Get script_path
   global script_path
   script_path = os.path.dirname(os.path.realpath(__file__))
@@ -471,8 +549,7 @@ def main():
   if command == "help":
     parser.print_help()
   elif command == "opt":
-    program = get_command("opt")
-    os.execve(program, log_command([program] + command_args), get_opt_env())
+    execv(wrap(build_opt_args(command_args)))
   elif command == "cc":
     return run_cc(command_args)
   elif command == "translate":
@@ -485,8 +562,7 @@ def main():
 
     in_path = get_command(executable)
     if in_path:
-      in_path = os.path.abspath(in_path)
-      os.execv(in_path, [in_path] + command_args)
+      execv([os.path.abspath(in_path)] + command_args)
     else:
       log_error("\"revng-{}\" is not a valid command".format(command))
       return -1
