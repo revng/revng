@@ -1353,46 +1353,47 @@ static Expr *getLiteralFromConstant(Constant *C,
       revng_assert(UnderlyingTy != nullptr);
       const BuiltinType *BuiltinTy = cast<BuiltinType>(UnderlyingTy);
       uint64_t ConstValue = CInt->getValue().getZExtValue();
-      APInt Const = APInt(ASTCtx.getIntWidth(LiteralTy), ConstValue);
       switch (BuiltinTy->getKind()) {
       case BuiltinType::Char_U:
-      case BuiltinType::UChar:
       case BuiltinType::Char_S:
+      case BuiltinType::UChar:
       case BuiltinType::SChar: {
         using CharKind = CharacterLiteral::CharacterKind;
         return new (ASTCtx)
           CharacterLiteral(ConstValue, CharKind::Ascii, ASTCtx.CharTy, {});
       }
       case BuiltinType::UShort: {
-        Expr *Literal = IntegerLiteral::Create(ASTCtx,
-                                               Const,
-                                               ASTCtx.UnsignedIntTy,
-                                               {});
-        return createCast(ASTCtx.UnsignedShortTy, Literal, ASTCtx);
+        QualType IntT = ASTCtx.UnsignedIntTy;
+        QualType ShortT = ASTCtx.UnsignedShortTy;
+        APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue);
+        Expr *Literal = IntegerLiteral::Create(ASTCtx, Const, IntT, {});
+        return createCast(ShortT, Literal, ASTCtx);
       }
       case BuiltinType::Short: {
-        Expr *Literal = IntegerLiteral::Create(ASTCtx, Const, ASTCtx.IntTy, {});
-        return createCast(ASTCtx.ShortTy, Literal, ASTCtx);
+        QualType IntT = ASTCtx.IntTy;
+        QualType ShortT = ASTCtx.ShortTy;
+        APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue);
+        Expr *Literal = IntegerLiteral::Create(ASTCtx, Const, IntT, {});
+        return createCast(ShortT, Literal, ASTCtx);
       }
       case BuiltinType::UInt:
       case BuiltinType::ULong:
       case BuiltinType::ULongLong:
       case BuiltinType::Int:
       case BuiltinType::Long:
-      case BuiltinType::LongLong:
+      case BuiltinType::LongLong: {
+        APInt Const = APInt(ASTCtx.getIntWidth(LiteralTy), ConstValue);
         return IntegerLiteral::Create(ASTCtx, Const, LiteralTy, {});
+      }
       case BuiltinType::UInt128: {
-        uint64_t U128ConstVal = CInt->getValue().getZExtValue();
-        APInt U128Const = APInt(128, U128ConstVal);
-        return IntegerLiteral::Create(ASTCtx,
-                                      U128Const,
-                                      ASTCtx.UnsignedInt128Ty,
-                                      {});
+        APInt Const = APInt(128, ConstValue);
+        QualType T = ASTCtx.UnsignedInt128Ty;
+        return IntegerLiteral::Create(ASTCtx, Const, T, {});
       }
       case BuiltinType::Int128: {
-        uint64_t I128ConstVal = CInt->getValue().getZExtValue();
-        APInt I128Const = APInt(128, I128ConstVal);
-        return IntegerLiteral::Create(ASTCtx, I128Const, ASTCtx.Int128Ty, {});
+        APInt Const = APInt(128, ConstValue);
+        QualType T = ASTCtx.Int128Ty;
+        return IntegerLiteral::Create(ASTCtx, Const, T, {});
       }
       default:
         revng_abort();
