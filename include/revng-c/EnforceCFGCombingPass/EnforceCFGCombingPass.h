@@ -8,9 +8,6 @@
 // LLVM includes
 #include <llvm/Pass.h>
 
-// revng-c includes
-#include "revng-c/RestructureCFGPass/RestructureCFG.h"
-
 struct EnforceCFGCombingPass : public llvm::FunctionPass {
   static char ID;
 
@@ -18,10 +15,7 @@ struct EnforceCFGCombingPass : public llvm::FunctionPass {
 
   bool runOnFunction(llvm::Function &F) override;
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.addRequired<RestructureCFG>();
-    AU.setPreservesAll();
-  }
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 };
 
 #endif // REVNGC_ENFORCECFGCOMBINGPASS_H

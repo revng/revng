@@ -10,16 +10,26 @@
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/Transforms/Utils/ValueMapper.h>
 
-// local librariesincludes
+// revng includes
+#include <revng/BasicAnalyses/RemoveDbgMetadata.h>
+
+// local libraries includes
 #include "revng-c/EnforceCFGCombingPass/EnforceCFGCombingPass.h"
 #include "revng-c/Liveness/LivenessAnalysis.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/RestructureCFGPass/RestructureCFG.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 
 // local includes
 #include "BasicBlockViewAnalysis.h"
 
 using namespace llvm;
+
+void EnforceCFGCombingPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<RestructureCFG>();
+  AU.addRequired<RemoveDbgMetadata>();
+  AU.setPreservesAll();
+}
 
 using BBMap = BasicBlockViewAnalysis::BBMap;
 using BBNodeToBBMap = BasicBlockViewAnalysis::BBNodeToBBMap;
@@ -95,6 +105,9 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
     return false;
   }
 
+  revng_assert(not verifyFunction(F, &dbgs()));
+  revng_assert(not verifyModule(*F.getParent(), &dbgs()));
+
   LLVMContext &Context = F.getContext();
 
   auto &RestructurePass = getAnalysis<RestructureCFG>();
@@ -154,6 +167,9 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
   Liveness.run();
   const LivenessAnalysis::LivenessMap &LiveOut = Liveness.getLiveOut();
 
+  revng_assert(not verifyFunction(F, &dbgs()));
+  revng_assert(not verifyModule(*F.getParent(), &dbgs()));
+
   // Clone Function, with all BasicBlocks and their Instructions.
   // The clone will be all messed up at this point, becasue all the operands of
   // the cloned instruction will refer to the original function, not to the
@@ -186,7 +202,7 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
       ValueToValueMapTy VMap{};
       EnforcedBB = CloneBasicBlock(OriginalBB, VMap, "enforced", EnforcedF);
       for (Instruction &EnfI : *EnforcedBB)
-        llvm::RemapInstruction(&EnfI, VMap);
+        llvm::RemapInstruction(&EnfI, VMap, llvm::RF_IgnoreMissingLocals);
       InstrView &IView = BBInstrMap[EnforcedBB];
       for (const auto &Pair : VMap) {
         if (const Instruction *OrigI = dyn_cast<Instruction>(Pair.first)) {
@@ -379,6 +395,7 @@ bool EnforceCFGCombingPass::runOnFunction(Function &F) {
     BBInstrViewMap[EnforcedBB] = std::move(IncomingView);
   }
 
+  revng_assert(not verifyFunction(F, &dbgs()));
   revng_assert(not verifyFunction(*EnforcedF, &dbgs()));
   revng_assert(not verifyModule(*F.getParent(), &dbgs()));
 
