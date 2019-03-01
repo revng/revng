@@ -247,8 +247,8 @@ public:
       for (CustomCFGNode *Node : FilteredCFG.getNode(BB)->successors())
         Result.push_back(Node->block());
     } else {
-      for (llvm::BasicBlock *Successor : make_range(succ_begin(BB),
-                                                    succ_end(BB)))
+      for (llvm::BasicBlock *Successor :
+           make_range(succ_begin(BB), succ_end(BB)))
         Result.push_back(Successor);
     }
 

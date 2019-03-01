@@ -559,6 +559,7 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
   // 0. Check if it's a direct killer basic block
   // TODO: we should move the metadata enums and functions to get their names to
   //       GCBI
+  // TODO: this is likely wrong
   if (GCBI->isKiller(T)
       and GCBI->getKillReason(T) != KillReason::LeadsToKiller) {
     SaTerminator << " Killer";
