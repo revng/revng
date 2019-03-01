@@ -40,6 +40,11 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
   DelaySlotSize = QMD.extract<uint32_t>(Tuple, 1);
   PC = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, 2), true);
   SP = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, 3), true);
+  auto Operands = QMD.extract<MDTuple *>(Tuple, 4)->operands();
+  for (const MDOperand &Operand : Operands) {
+    StringRef Name = QMD.extract<StringRef>(Operand.get());
+    ABIRegisters.push_back(M.getGlobalVariable(Name, true));
+  }
 
   Type *PCType = PC->getType()->getPointerElementType();
   PCRegSize = M.getDataLayout().getTypeAllocSize(PCType);

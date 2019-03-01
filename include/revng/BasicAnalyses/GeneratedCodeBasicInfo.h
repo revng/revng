@@ -380,6 +380,10 @@ public:
     return Result;
   }
 
+  const std::vector<llvm::GlobalVariable *> &abiRegisters() const {
+    return ABIRegisters;
+  }
+
 private:
   static std::vector<llvm::GlobalVariable *>
   extractCSVs(llvm::CallInst *Call, const char *MetadataKind) {
@@ -414,6 +418,7 @@ private:
   unsigned PCRegSize;
   llvm::Function *RootFunction;
   std::vector<llvm::GlobalVariable *> CSVs;
+  std::vector<llvm::GlobalVariable *> ABIRegisters;
 };
 
 template<>

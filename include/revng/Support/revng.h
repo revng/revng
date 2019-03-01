@@ -266,7 +266,7 @@ public:
   llvm::StringRef stackPointerRegister() const { return StackPointerRegister; }
   llvm::ArrayRef<uint64_t> noReturnSyscalls() const { return NoReturnSyscalls; }
   uint32_t delaySlotSize() const { return DelaySlotSize; }
-  llvm::SmallVector<ABIRegister, 20> abiRegisters() const {
+  const llvm::SmallVector<ABIRegister, 20> &abiRegisters() const {
     return ABIRegisters;
   }
   const char *name() const {
