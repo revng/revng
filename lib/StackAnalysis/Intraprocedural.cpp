@@ -68,8 +68,6 @@ void Analysis::initialize() {
 
   revng_log(SaLog, "Creating Analysis for " << getName(Entry));
 
-  CSVCount = std::distance(M->globals().begin(), M->globals().end());
-
   // Enumerate CPU state and allocas
   {
     CPUIndices.clear();
@@ -77,12 +75,13 @@ void Analysis::initialize() {
     // Skip 0, keep it as "invalid value"
     int32_t I = 1;
 
+    CPUIndices[GCBI->pcReg()] = I++;
+
     // Go through global variables first
-    for (const llvm::GlobalVariable &GV : M->globals()) {
-      if (not GV.getName().startswith("disasm_"))
-        CPUIndices[&GV] = I;
-      I++;
-    }
+    for (const llvm::GlobalVariable *GV : GCBI->abiRegisters())
+      CPUIndices[GV] = I++;
+
+    CSVCount = I;
 
     // Look for AllocaInst at the beginning of the root function
     const llvm::BasicBlock *Entry = &*M->getFunction("root")->begin();
@@ -103,12 +102,11 @@ void Analysis::initialize() {
 
   // Get the register indices for for the stack pointer, the program counter
   // and the link register
-  int32_t LinkRegisterIndex = CPUIndices[LinkRegister];
-  PCIndex = CPUIndices[GCBI->pcReg()];
-  SPIndex = CPUIndices[GCBI->spReg()];
-
-  revng_assert(PCIndex != 0
-               && ((LinkRegisterIndex == 0) ^ (LinkRegister != nullptr)));
+  int32_t LinkRegisterIndex = 0;
+  if (LinkRegister != nullptr)
+    LinkRegisterIndex = CPUIndices.at(LinkRegister);
+  PCIndex = CPUIndices.at(GCBI->pcReg());
+  SPIndex = CPUIndices.at(GCBI->spReg());
 
   // Set the stack pointer to SP0+0
   ASSlot StackPointer = ASSlot::create(ASID::cpuID(), SPIndex);
@@ -180,7 +178,11 @@ public:
 
     } else if (auto *CSV = dyn_cast<GlobalVariable>(V)) {
 
-      return Value::fromSlot(ASID::cpuID(), CPUIndices.at(CSV));
+      auto It = CPUIndices.find(CSV);
+      if (It != CPUIndices.end())
+        return Value::fromSlot(ASID::cpuID(), It->second);
+      else
+        return Value();
 
     } else if (auto *C = dyn_cast<Constant>(V)) {
 

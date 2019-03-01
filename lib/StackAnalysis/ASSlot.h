@@ -10,6 +10,7 @@
 
 // Local libraries includes
 #include "revng/Support/Debug.h"
+#include "revng/Support/IRHelpers.h"
 
 extern Logger<> SaDiffLog;
 
@@ -196,14 +197,21 @@ public:
 private:
   static llvm::Optional<std::string>
   csvNameByOffset(int32_t Offset, const llvm::Module *M) {
-    int32_t I = 1;
-    for (const llvm::GlobalVariable &GV : M->globals()) {
-      if (Offset == I)
-        return { GV.getName().str() };
-      I++;
-    }
+    using namespace llvm;
 
-    return llvm::Optional<std::string>();
+    revng_assert(Offset != 0);
+
+    if (Offset == 1)
+      return { "pc" };
+
+    const char *MDName = "revng.input.architecture";
+    NamedMDNode *InputArchMD = M->getNamedMetadata(MDName);
+    auto *Tuple = dyn_cast<MDTuple>(InputArchMD->getOperand(0));
+
+    QuickMetadata QMD(M->getContext());
+    Offset = Offset - 2;
+    const auto &Operand = QMD.extract<MDTuple *>(Tuple, 4)->getOperand(Offset);
+    return QMD.extract<StringRef>(Operand.get()).str();
   }
 };
 
