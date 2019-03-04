@@ -686,11 +686,27 @@ inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
   return Callee != nullptr && Callee->getName() == Name;
 }
 
-/// \brief Is \p I a call to an helper function?
-inline bool isCallToHelper(const llvm::Instruction *I) {
+inline const llvm::CallInst *getCallToHelper(const llvm::Instruction *I) {
   revng_assert(I != nullptr);
   const llvm::Function *Callee = getCallee(I);
-  return Callee != nullptr && Callee->getName().startswith("helper_");
+  if (Callee != nullptr && Callee->getName().startswith("helper_"))
+    return llvm::cast<llvm::CallInst>(I);
+  else
+    return nullptr;
+}
+
+inline llvm::CallInst *getCallToHelper(llvm::Instruction *I) {
+  revng_assert(I != nullptr);
+  const llvm::Function *Callee = getCallee(I);
+  if (Callee != nullptr && Callee->getName().startswith("helper_"))
+    return llvm::cast<llvm::CallInst>(I);
+  else
+    return nullptr;
+}
+
+/// \brief Is \p I a call to an helper function?
+inline bool isCallToHelper(const llvm::Instruction *I) {
+  return getCallToHelper(I) != nullptr;
 }
 
 inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::StringRef Name) {
