@@ -475,7 +475,7 @@ struct ClobberedRegistersAnalysis {
       };
 
       // Worklist
-      std::vector<State> WorkList;
+      std::deque<State> WorkList;
 
       // Set of currently in-progress functions, used to detect recursive
       // function calls

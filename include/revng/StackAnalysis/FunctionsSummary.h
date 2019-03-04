@@ -8,6 +8,7 @@
 // This file is NOT automatically generated.
 
 // Standard includes
+#include <deque>
 #include <map>
 #include <set>
 
@@ -697,7 +698,7 @@ public:
     std::map<llvm::BasicBlock *, BranchType::Values> BasicBlocks;
     // TODO: this should be a vector
     std::map<llvm::GlobalVariable *, FunctionRegisterDescription> RegisterSlots;
-    std::vector<CallSiteDescription> CallSites;
+    std::deque<CallSiteDescription> CallSites;
     std::set<llvm::GlobalVariable *> ClobberedRegisters;
   };
 
