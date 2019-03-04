@@ -250,8 +250,7 @@ public:
   }
 
   bool isSPReg(const llvm::Value *V) const {
-    auto *GV = llvm::dyn_cast<const llvm::GlobalVariable>(V);
-    if (GV != nullptr)
+    if (auto *GV = llvm::dyn_cast<const llvm::GlobalVariable>(V))
       return isSPReg(GV);
     return false;
   }
@@ -265,6 +264,11 @@ public:
   bool isPCReg(const llvm::GlobalVariable *GV) const {
     revng_assert(PC != nullptr);
     return GV == PC;
+  }
+
+  bool isServiceRegister(const llvm::Value *V) const {
+    auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(V);
+    return GV != nullptr and (isPCReg(GV) or isSPReg(GV));
   }
 
   /// \brief Return the basic block associated to \p PC

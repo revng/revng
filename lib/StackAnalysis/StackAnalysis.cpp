@@ -188,6 +188,8 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
   // shot at the end
   std::map<TerminatorInst *, std::vector<Metadata *>> MemberOf;
 
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+
   // Loop over all the detected functions
   for (const auto &P : Summary.Functions) {
     BasicBlock *Entry = P.first;
@@ -213,13 +215,17 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
     // Clobbered registers metadata
     std::vector<Metadata *> ClobberedMDs;
     for (GlobalVariable *ClobberedCSV : Function.ClobberedRegisters) {
-      ClobberedMDs.push_back(QMD.get(ClobberedCSV));
+      if (not GCBI.isServiceRegister(ClobberedCSV))
+        ClobberedMDs.push_back(QMD.get(ClobberedCSV));
     }
 
     // Register slots metadata
     std::vector<Metadata *> SlotMDs;
     if (AnalyzeABI) {
       for (auto &P : Function.RegisterSlots) {
+        if (GCBI.isServiceRegister(P.first))
+          continue;
+
         auto *CSV = QMD.get(P.first);
         auto *Argument = QMD.get(P.second.Argument.valueName());
         auto *ReturnValue = QMD.get(P.second.ReturnValue.valueName());
@@ -246,6 +252,9 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
         // Register slots metadata
         std::vector<Metadata *> SlotMDs;
         for (auto &P : CallSite.RegisterSlots) {
+          if (GCBI.isServiceRegister(P.first))
+            continue;
+
           auto *CSV = QMD.get(P.first);
           auto *Argument = QMD.get(P.second.Argument.valueName());
           auto *ReturnValue = QMD.get(P.second.ReturnValue.valueName());
