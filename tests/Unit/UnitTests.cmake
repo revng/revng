@@ -92,3 +92,19 @@ target_link_libraries(test_irhelpers
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_irhelpers COMMAND test_irhelpers)
+
+#
+# test_zipmapiterator
+#
+
+add_executable(test_zipmapiterator "${SRC}/ZipMapIterator.cpp")
+target_include_directories(test_zipmapiterator
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+          "${Boost_INCLUDE_DIRS}")
+target_compile_definitions(test_zipmapiterator
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_link_libraries(test_zipmapiterator
+  revngSupport
+  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+  ${LLVM_LIBRARIES})
+add_test(NAME test_zipmapiterator COMMAND test_zipmapiterator)

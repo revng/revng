@@ -6,6 +6,7 @@
 //
 
 // Local libraries includes
+#include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/MonotoneFramework.h"
 
 // Local includes
@@ -47,8 +48,28 @@ cmp(const DefaultMap<K, V, N> &This, const DefaultMap<K, V, N> &Other) {
   LoggerIndent<> Y(SaDiffLog);
   unsigned Result = 0;
 
+  This.sort();
+  Other.sort();
+
+  for (auto &P : zipmap_range(This, Other)) {
+    auto *ThisEntry = P.first;
+    auto *OtherEntry = P.second;
+
+    if (ThisEntry != nullptr and OtherEntry != nullptr) {
+      ROA((ThisEntry->second.template cmp<Diff, EarlyExit>(OtherEntry->second)),
+          { revng_log(SaDiffLog, ThisEntry->first); });
+    } else if (ThisEntry != nullptr) {
+      ROA((ThisEntry->second.template cmp<Diff, EarlyExit>(Other.getDefault())),
+          { revng_log(SaDiffLog, ThisEntry->first); });
+    } else if (OtherEntry != nullptr) {
+      ROA((This.getDefault().template cmp<Diff, EarlyExit>(OtherEntry->second)),
+          { revng_log(SaDiffLog, OtherEntry->first); });
+    } else {
+      revng_abort();
+    }
+  }
+
   for (auto &P : This) {
-    P.second.template cmp<Diff, EarlyExit>(Other.getOrDefault(P.first));
     ROA((P.second.template cmp<Diff, EarlyExit>(Other.getOrDefault(P.first))),
         { revng_log(SaDiffLog, P.first); });
   }
@@ -68,6 +89,36 @@ unsigned cmpWithModule(const DefaultMap<K, V, N> &This,
                        const Module *M) {
   LoggerIndent<> Y(SaDiffLog);
   unsigned Result = 0;
+
+  This.sort();
+  Other.sort();
+
+  for (auto &P : zipmap_range(This, Other)) {
+    auto *ThisEntry = P.first;
+    auto *OtherEntry = P.second;
+
+    if (ThisEntry != nullptr and OtherEntry != nullptr) {
+      ROA((ThisEntry->second.template cmp<Diff, EarlyExit>(OtherEntry->second)),
+          {
+            ASSlot::create(ID, ThisEntry->first).dump(M, SaDiffLog);
+            SaDiffLog << DoLog;
+          });
+    } else if (ThisEntry != nullptr) {
+      ROA((ThisEntry->second.template cmp<Diff, EarlyExit>(Other.getDefault())),
+          {
+            ASSlot::create(ID, ThisEntry->first).dump(M, SaDiffLog);
+            SaDiffLog << DoLog;
+          });
+    } else if (OtherEntry != nullptr) {
+      ROA((This.getDefault().template cmp<Diff, EarlyExit>(OtherEntry->second)),
+          {
+            ASSlot::create(ID, OtherEntry->first).dump(M, SaDiffLog);
+            SaDiffLog << DoLog;
+          });
+    } else {
+      revng_abort();
+    }
+  }
 
   for (auto &P : This) {
     ROA((P.second.template cmp<Diff, EarlyExit>(Other.getOrDefault(P.first))), {
@@ -98,6 +149,45 @@ unsigned nestedCmpWithModule(const MapOfMaps<FunctionCall, N1, K, V, N2> &This,
                              const Module *M) {
   LoggerIndent<> Y(SaDiffLog);
   unsigned Result = 0;
+
+  This.sort();
+  Other.sort();
+
+  for (auto &P : zipmap_range(This, Other)) {
+    auto *ThisEntry = P.first;
+    auto *OtherEntry = P.second;
+
+    if (ThisEntry != nullptr and OtherEntry != nullptr) {
+      ROA((cmpWithModule<K, V, Diff, EarlyExit>(ThisEntry->second,
+                                                OtherEntry->second,
+                                                ID,
+                                                M)),
+          {
+            ThisEntry->first.dump(SaDiffLog);
+            SaDiffLog << DoLog;
+          });
+    } else if (ThisEntry != nullptr) {
+      ROA((cmpWithModule<K, V, Diff, EarlyExit>(ThisEntry->second,
+                                                Other.getDefault(),
+                                                ID,
+                                                M)),
+          {
+            ThisEntry->first.dump(SaDiffLog);
+            SaDiffLog << DoLog;
+          });
+    } else if (OtherEntry != nullptr) {
+      ROA((cmpWithModule<K, V, Diff, EarlyExit>(This.getDefault(),
+                                                OtherEntry->second,
+                                                ID,
+                                                M)),
+          {
+            OtherEntry->first.dump(SaDiffLog);
+            SaDiffLog << DoLog;
+          });
+    } else {
+      revng_abort();
+    }
+  }
 
   for (auto &P : This) {
     ROA((cmpWithModule<K, V, Diff, EarlyExit>(P.second,
@@ -134,6 +224,8 @@ static void
 combine(DefaultMap<K, V, N> &This, const DefaultMap<K, Q, N> &Other) {
 
   combine(This.Default, Other.Default);
+
+  // TODO: use zipmap_range
 
   This.sort();
   Other.sort();
