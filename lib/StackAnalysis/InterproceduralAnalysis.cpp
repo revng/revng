@@ -344,6 +344,7 @@ void ResultsPool::mergeFunction(BasicBlock *Function,
       case LocalSlotType::UsedRegister:
       case LocalSlotType::ForwardedArgument:
       case LocalSlotType::ForwardedReturnValue:
+      case LocalSlotType::ExplicitlyCalleeSavedRegister:
 
         ABI.applyResults(FunctionCallRegisterArguments[K], TheCall, Offset);
         ABI.applyResults(FunctionCallReturnValues[K], TheCall, Offset);
@@ -358,13 +359,6 @@ void ResultsPool::mergeFunction(BasicBlock *Function,
             && FunctionCallReturnValues[K].value() == FCRV::Yes) {
           FunctionCallReturnValues[K] = FCRV::maybe();
         }
-
-        break;
-
-      case LocalSlotType::ExplicitlyCalleeSavedRegister:
-        FunctionCallRegisterArguments[K] = FunctionCallRegisterArgument::no();
-        FunctionCallReturnValues[K] = FunctionCallReturnValue::no();
-        break;
       }
     }
   }
