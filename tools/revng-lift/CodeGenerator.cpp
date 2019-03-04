@@ -1071,6 +1071,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   purgeDeadBlocks(MainFunction);
 
+  JumpTargets.runNoreturnAnalysis();
+
   JumpTargets.createJTReasonMD();
 
   // Link early-linked.c

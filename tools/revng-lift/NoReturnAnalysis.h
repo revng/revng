@@ -57,11 +57,9 @@ public:
                       llvm::Instruction *Setter,
                       llvm::Instruction *Definition);
 
-  using PredecessorsMap = std::map<llvm::BasicBlock *,
-                                   std::vector<llvm::BasicBlock *>>;
   /// Add to the set of killer basic blocks all the basic blocks who can only
   /// end in one of those already registered.
-  void computeKillerSet(PredecessorsMap &CallPredecessors);
+  void computeKillerSet();
 
   void setDispatcher(llvm::BasicBlock *BB) { Dispatcher = BB; }
 
