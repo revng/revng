@@ -57,29 +57,9 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
 
   Optional<const IFS *> Cached = TheCache.get(Entry);
 
-  // Has this function been analyzed already? If so, only now we register it in
-  // the ResultsPool.
-  if (Cached) {
-    FunctionType::Values Type;
-    if (TheCache.isFakeFunction(Entry))
-      Type = FunctionType::Fake;
-    else if (TheCache.isIndirectTailCall(Entry))
-      Type = FunctionType::IndirectTailCall;
-    else if (TheCache.isNoReturnFunction(Entry))
-      Type = FunctionType::NoReturn;
-    else
-      Type = FunctionType::Regular;
-
-    // Regular functions need to be composed by at least a basic block
-    const IFS &Summary = **Cached;
-    if (Type == FunctionType::Regular)
-      revng_assert(Summary.BranchesType.size() != 0);
-
-    Results.registerFunction(Entry, Type, Summary);
-
-    // We're done here
+  // Has this function been analyzed already? If so, skip it.
+  if (Cached)
     return;
-  }
 
   // Setup logger: each time we start a new intraprocedural analysis we indent
   // the output
@@ -278,7 +258,6 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
   } while (InProgress.size() > 0);
 
   revng_assert(Type != FunctionType::Invalid);
-  Results.registerFunction(Entry, Type, Result.getFunctionSummary());
 }
 
 void ResultsPool::mergeFunction(BasicBlock *Function,

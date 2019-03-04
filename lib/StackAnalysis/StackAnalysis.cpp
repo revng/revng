@@ -145,6 +145,36 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
     }
   }
 
+  for (CFEP &Function : Functions) {
+    using IFS = IntraproceduralFunctionSummary;
+    BasicBlock *Entry = Function.Entry;
+    llvm::Optional<const IFS *> Cached = TheCache.get(Entry);
+    revng_assert(Cached or TheCache.isFakeFunction(Entry));
+
+    // Has this function been analyzed already? If so, only now we register it
+    // in the ResultsPool.
+    FunctionType::Values Type;
+    if (TheCache.isFakeFunction(Entry))
+      Type = FunctionType::Fake;
+    else if (TheCache.isIndirectTailCall(Entry))
+      Type = FunctionType::IndirectTailCall;
+    else if (TheCache.isNoReturnFunction(Entry))
+      Type = FunctionType::NoReturn;
+    else
+      Type = FunctionType::Regular;
+
+    // Regular functions need to be composed by at least a basic block
+    if (Cached) {
+      const IFS *Summary = *Cached;
+      if (Type == FunctionType::Regular)
+        revng_assert(Summary->BranchesType.size() != 0);
+
+      Results.registerFunction(Entry, Type, Summary);
+    } else {
+      Results.registerFunction(Entry, Type, nullptr);
+    }
+  }
+
   std::stringstream Output;
   GrandResult = Results.finalize(&M);
   GrandResult.dump(&M, Output);

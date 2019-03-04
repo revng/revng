@@ -89,13 +89,15 @@ public:
 
   void registerFunction(llvm::BasicBlock *Entry,
                         FunctionType::Values Type,
-                        const IntraproceduralFunctionSummary &Summary) {
+                        const IntraproceduralFunctionSummary *Summary) {
     registerFunction(Entry, Type);
-    mergeCallSites(Entry, Summary.FrameSizeAtCallSite);
-    mergeBranches(Entry, Summary.BranchesType);
-    if (Type == FunctionType::Regular or Type == FunctionType::NoReturn
-        or Type == FunctionType::IndirectTailCall)
-      mergeFunction(Entry, Summary);
+    if (Summary != nullptr) {
+      mergeCallSites(Entry, Summary->FrameSizeAtCallSite);
+      mergeBranches(Entry, Summary->BranchesType);
+      if (Type == FunctionType::Regular or Type == FunctionType::NoReturn
+          or Type == FunctionType::IndirectTailCall)
+        mergeFunction(Entry, *Summary);
+    }
   }
 
   /// \brief Merge data about \p Function in \p Summary into the results pool
