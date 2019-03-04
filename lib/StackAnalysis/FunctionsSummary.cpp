@@ -152,118 +152,7 @@ void FCRA::combine(const FRA &Other) {
 }
 
 void FunctionReturnValue::combine(const FunctionCallReturnValue &Other) {
-  // TODO: we're handling this as a special case
-  if (Value == No || Other.Value == FunctionCallReturnValue::No) {
-    Value = No;
-    return;
-  }
-
-  // *this has seen only URVOF, which can only have Maybe or Yes value
-  revng_assert(Value == Maybe || Value == YesCandidate || Value == Dead
-               || Value == Yes || Value == NoOrDead);
-
-  // Other is affected by URVOFC and DRVOFC, so that possible states are Maybe,
-  // NoOrDead and Yes
-  revng_assert(Other.Value == FunctionCallReturnValue::Maybe
-               || Other.Value == FunctionCallReturnValue::Contradiction
-               || Other.Value == FunctionCallReturnValue::NoOrDead
-               || Other.Value == FunctionCallReturnValue::Yes);
-
-  switch (Value) {
-  case YesCandidate:
-    switch (Other.Value) {
-    case FunctionCallReturnValue::Maybe:
-      Value = YesCandidate;
-      break;
-    case FunctionCallReturnValue::NoOrDead:
-      Value = Dead;
-      break;
-    case FunctionCallReturnValue::Yes:
-      Value = Yes;
-      break;
-    case FunctionCallReturnValue::Contradiction:
-      Value = Contradiction;
-      break;
-    default:
-      revng_abort();
-    }
-    break;
-  case Maybe:
-    switch (Other.Value) {
-    case FunctionCallReturnValue::Maybe:
-      Value = Maybe;
-      break;
-    case FunctionCallReturnValue::NoOrDead:
-      Value = NoOrDead;
-      break;
-    case FunctionCallReturnValue::Yes:
-      Value = Yes;
-      break;
-    case FunctionCallReturnValue::Contradiction:
-      Value = Contradiction;
-      break;
-    default:
-      revng_abort();
-    }
-    break;
-  case Dead:
-    switch (Other.Value) {
-    case FunctionCallReturnValue::Maybe:
-      Value = Dead;
-      break;
-    case FunctionCallReturnValue::NoOrDead:
-      Value = Dead;
-      break;
-    case FunctionCallReturnValue::Yes:
-      Value = Yes;
-      break;
-    case FunctionCallReturnValue::Contradiction:
-      Value = Contradiction;
-      break;
-    default:
-      revng_abort();
-    }
-    break;
-  case Yes:
-    switch (Other.Value) {
-    case FunctionCallReturnValue::Maybe:
-      Value = Yes;
-      break;
-    case FunctionCallReturnValue::NoOrDead:
-      // TODO: contradiction?
-      Value = Yes;
-      break;
-    case FunctionCallReturnValue::Yes:
-      Value = Yes;
-      break;
-    case FunctionCallReturnValue::Contradiction:
-      Value = Contradiction;
-      break;
-    default:
-      revng_abort();
-    }
-    break;
-  case NoOrDead:
-    switch (Other.Value) {
-    case FunctionCallReturnValue::Maybe:
-      Value = NoOrDead;
-      break;
-    case FunctionCallReturnValue::NoOrDead:
-      Value = NoOrDead;
-      break;
-    case FunctionCallReturnValue::Yes:
-      Value = Yes;
-      break;
-    case FunctionCallReturnValue::Contradiction:
-      Value = Contradiction;
-      break;
-    default:
-      revng_abort();
-    }
-    break;
-  default:
-    revng_abort();
-  }
+  revng_abort();
 }
 
 void FunctionCallReturnValue::combine(const FunctionReturnValue &Other) {
@@ -275,14 +164,14 @@ void FunctionCallReturnValue::combine(const FunctionReturnValue &Other) {
 
   // *this has seen only URVOF, which can only have Maybe or Yes value
   revng_assert(Other.Value == FunctionReturnValue::Maybe
-               || Other.Value == FunctionReturnValue::YesCandidate);
+               || Other.Value == FunctionReturnValue::YesOrDead);
 
   // Other is affected by URVOFC and DRVOFC, so that possible states are Maybe,
   // NoOrDead, Yes and Contradiction
   revng_assert(Value == Maybe || Value == NoOrDead || Value == Yes
                || Value == Contradiction);
 
-  if (Other.Value == FunctionReturnValue::YesCandidate) {
+  if (Other.Value == FunctionReturnValue::YesOrDead) {
     switch (Value) {
     case Maybe:
       Value = Yes;
@@ -507,6 +396,25 @@ void FunctionsSummary::dumpInternal(const Module *M,
   Output << "\n]\n";
 
   Stream.flush(Output);
+}
+
+using CSD = FunctionsSummary::CallSiteDescription;
+GlobalVariable *
+CSD::isCompatibleWith(const FunctionDescription &Function) const {
+  std::set<GlobalVariable *> Slots;
+  for (auto &P : RegisterSlots)
+    Slots.insert(P.first);
+  for (auto &P : Function.RegisterSlots)
+    Slots.insert(P.first);
+
+  for (GlobalVariable *CSV : Slots) {
+    FunctionCallRegisterDescription FCRD = getOrDefault(RegisterSlots, CSV);
+    FunctionRegisterDescription FRD = getOrDefault(Function.RegisterSlots, CSV);
+    if (not FCRD.isCompatibleWith(FRD))
+      return CSV;
+  }
+
+  return nullptr;
 }
 
 } // namespace StackAnalysis

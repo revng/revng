@@ -317,8 +317,7 @@ void ResultsPool::mergeFunction(BasicBlock *Function,
       }
 
       if (Slot.second == LocalSlotType::ForwardedReturnValue
-          && (FunctionReturnValues[Key].value() == FRV::Yes
-              || FunctionReturnValues[Key].value() == FRV::YesCandidate)) {
+          && (FunctionReturnValues[Key].value() == FRV::YesOrDead)) {
         FunctionReturnValues[Key] = FRV::maybe();
       }
 
@@ -616,11 +615,14 @@ struct ClobberedRegistersAnalysis {
 FunctionsSummary ResultsPool::finalize(Module *M) {
   ASID CPU = ASID::cpuID();
 
+  // Build a map from indices used in the stack analysis to the corresponding
+  // CSVs
   std::vector<GlobalVariable *> IndexToCSV;
   IndexToCSV.push_back(nullptr);
   for (GlobalVariable &CSV : M->globals())
     IndexToCSV.push_back(&CSV);
 
+  // Create the result data structure
   FunctionsSummary Result;
 
   // Set function types
@@ -642,99 +644,410 @@ FunctionsSummary ResultsPool::finalize(Module *M) {
     Result.Functions[P.first.entry()].BasicBlocks[BB] = P.second;
   }
 
-  // Initialize the information about functions in Result
-  for (auto &P : FunctionRegisterArguments) {
-    auto &Function = Result.Functions[P.first.first];
-    GlobalVariable *CSV = IndexToCSV.at(P.first.second);
-    Function.RegisterSlots[CSV].Argument = P.second;
+  using CallSiteDescription = FunctionsSummary::CallSiteDescription;
+
+  //
+  // Collect, for each call site, all the slots and create a CallSiteDescription
+  //
+  struct FunctionCallSites {
+    /// \brief Collect all the slots used by the function/its callers
+    std::set<ASSlot> Slots;
+    /// \brief The callers
+    std::map<CallSite, CallSiteDescription *> CallSites;
+  };
+  std::map<BasicBlock *, FunctionCallSites> FunctionCallSitesMap;
+
+  auto &FCRA = FunctionCallRegisterArguments;
+  auto &FCRV = FunctionCallReturnValues;
+  auto &FRA = FunctionRegisterArguments;
+  auto &FRV = FunctionReturnValues;
+
+  for (auto &P : FRA) {
+    BasicBlock *FunctionEntry = P.first.first;
+    FunctionCallSites &FCS = FunctionCallSitesMap[FunctionEntry];
+    auto Slot = ASSlot::create(CPU, P.first.second);
+    FCS.Slots.insert(Slot);
   }
 
-  for (auto &P : FunctionReturnValues) {
-    auto &Function = Result.Functions[P.first.first];
-    GlobalVariable *CSV = IndexToCSV.at(P.first.second);
-    Function.RegisterSlots[CSV].ReturnValue = P.second;
+  for (auto &P : FRV) {
+    BasicBlock *FunctionEntry = P.first.first;
+    FunctionCallSites &FCS = FunctionCallSitesMap[FunctionEntry];
+    auto Slot = ASSlot::create(CPU, P.first.second);
+    FCS.Slots.insert(Slot);
   }
 
-  // Collect, for each call site, all the slots
-  std::map<CallSite, std::set<ASSlot>> FunctionCallSlots;
-  for (auto &P : FunctionCallRegisterArguments) {
+  // Go over arguments of function calls
+  for (auto &P : FCRA) {
+    const CallSite &TheCallSite = P.first.first;
     auto Slot = ASSlot::create(CPU, P.first.second);
-    FunctionCallSlots[P.first.first].insert(Slot);
+    BasicBlock *CallerBB = TheCallSite.callInstruction()->getParent();
+    BasicBlock *Callee = getFunctionCallCallee(CallerBB);
+    FunctionCallSites &FCS = FunctionCallSitesMap[Callee];
+
+    // Register the slot
+    FCS.Slots.insert(Slot);
+
+    // Check if we already created the CallSiteDescription
+    auto It = FCS.CallSites.find(TheCallSite);
+    if (It == FCS.CallSites.end()) {
+      auto &CallerCallSites = Result.Functions[TheCallSite.caller()].CallSites;
+      Instruction *I = TheCallSite.callInstruction();
+      CallerCallSites.emplace_back(I, Callee);
+      FCS.CallSites[TheCallSite] = &CallerCallSites.back();
+      revng_assert(FCS.CallSites[TheCallSite] == &CallerCallSites.back());
+    }
   }
-  for (auto &P : FunctionCallReturnValues) {
+
+  // Go over return values of function calls
+  for (auto &P : FCRV) {
+    const CallSite &TheCallSite = P.first.first;
     auto Slot = ASSlot::create(CPU, P.first.second);
-    FunctionCallSlots[P.first.first].insert(Slot);
+    BasicBlock *CallerBB = TheCallSite.callInstruction()->getParent();
+    BasicBlock *Callee = getFunctionCallCallee(CallerBB);
+    FunctionCallSites &FCS = FunctionCallSitesMap[Callee];
+    FCS.Slots.insert(Slot);
   }
 
   //
   // Merge information about a function and all the call sites targeting it
   //
 
-  // For each function call
-  for (auto &P : FunctionCallSlots) {
-    CallSite Call = P.first;
-    revng_assert(CallSites.count(Call) != 0);
-    Instruction *I = Call.callInstruction();
-    BasicBlock *Callee = getFunctionCallCallee(I->getParent());
-    bool UnknownCallee = (Callee == nullptr);
+  // For each function
+  for (auto &P : Result.Functions) {
+    BasicBlock *FunctionEntry = P.first;
 
-    // Register this call site among the call sites of the caller
-    auto &CallerCallSites = Result.Functions[Call.caller()].CallSites;
-    CallerCallSites.emplace_back(I, Callee);
-    auto &NewCallSite = CallerCallSites.back();
+    // Integrate slots from each call site
+    FunctionCallSites &FCS = FunctionCallSitesMap[FunctionEntry];
 
-    // For each slot in this function call
-    for (ASSlot Slot : P.second) {
-      int32_t Offset = Slot.offset();
-      FunctionCallSlot FCS{ Call, Offset };
-
+    // Iterate over each slot
+    for (ASSlot Slot : FCS.Slots) {
       revng_assert(Slot.addressSpace() == CPU);
-      FunctionSlot TheFunctionSlot{ Callee, Offset };
-
-      // Take the result of the analyses for the current call site
-      auto &FCRA = FunctionCallRegisterArguments;
-      revng_assert(FCRA.count(FCS) != 0);
-      const auto &CallerRegisterArgument = FCRA[FCS];
-
-      auto &FCRV = FunctionCallReturnValues;
-      revng_assert(FCRV.count(FCS) != 0);
-      const auto &CallerReturnValue = FCRV[FCS];
-
+      int32_t Offset = Slot.offset();
       GlobalVariable *CSV = IndexToCSV.at(Offset);
-      NewCallSite.RegisterSlots[CSV].Argument = CallerRegisterArgument;
-      NewCallSite.RegisterSlots[CSV].ReturnValue = CallerReturnValue;
+      FunctionSlot TheFunctionSlot{ FunctionEntry, Offset };
 
-      // Check if the register is used at all in this function
-      auto &FRA = FunctionRegisterArguments;
-      auto &FRV = FunctionReturnValues;
-      auto &Register = Result.Functions[Callee].RegisterSlots[CSV];
       bool CalleeHasSlot = FRA.count(TheFunctionSlot) != 0;
+      if (FunctionEntry == nullptr or not CalleeHasSlot) {
+        for (auto &Q : FCS.CallSites) {
+          CallSiteDescription &TheCallSiteDescription = *Q.second;
+          auto &CallSiteRegister = TheCallSiteDescription.RegisterSlots[CSV];
+          const CallSite &TheCallSite = Q.first;
+          FunctionCallSlot FCS{ TheCallSite, Offset };
 
-      if (not UnknownCallee and CalleeHasSlot) {
-        // The register is used and the callee is available, collect the
-        // information on the called function
-        const auto &Argument = FRA[TheFunctionSlot];
-        const auto &ReturnValue = FRV[TheFunctionSlot];
+          CallSiteRegister.Argument = FCRA[FCS];
+          CallSiteRegister.Argument.notAvailable();
+          CallSiteRegister.ReturnValue = FCRV[FCS];
+          CallSiteRegister.ReturnValue.notAvailable();
 
-        // Update the information on the caller side incorporating those
-        // coming from the called function
-        NewCallSite.RegisterSlots[CSV].Argument.combine(Argument);
-        NewCallSite.RegisterSlots[CSV].ReturnValue.combine(ReturnValue);
+          if (FunctionEntry != nullptr) {
+            using FRegisterArgument = FunctionRegisterArgument;
+            using FReturnValue = FunctionReturnValue;
+            auto &Slot = P.second.RegisterSlots[CSV];
+            Slot.Argument = FRegisterArgument(FRegisterArgument::Maybe);
+            Slot.ReturnValue = FReturnValue(FReturnValue::Maybe);
+          }
+        }
 
-        // Update the information on the called function incorporating the
-        // information coming from the current call site
-        Register.Argument.combine(CallerRegisterArgument);
-        Register.ReturnValue.combine(CallerReturnValue);
-      } else {
-        // TODO: Closed World Assumption
-        auto &CallSiteRegister = NewCallSite.RegisterSlots[CSV];
+        continue;
+      }
 
-        // Either the callee is unknown or does not use this slot
-        CallSiteRegister.Argument.notAvailable();
-        CallSiteRegister.ReturnValue.notAvailable();
+      {
+        //
+        // Merge arguments
+        //
 
-        Register.Argument.combine(CallSiteRegister.Argument);
-        Register.ReturnValue.combine(CallSiteRegister.ReturnValue);
+        // Register status at the function
+        const FunctionRegisterArgument &FunctionStatus = FRA[TheFunctionSlot];
+        auto Status = FunctionStatus.value();
+        revng_assert(Status == FunctionRegisterArgument::Maybe
+                     or Status == FunctionRegisterArgument::NoOrDead
+                     or Status == FunctionRegisterArgument::Contradiction
+                     or Status == FunctionRegisterArgument::Yes
+                     or Status == FunctionRegisterArgument::No);
+
+        // Propagate information from the function to callers (and record if for
+        // at least a call site we have Yes information before the merge)
+        bool AtLeastAYes = false;
+
+        for (auto &Q : FCS.CallSites) {
+          const CallSite &TheCallSite = Q.first;
+          revng_assert(Q.second != nullptr);
+          CallSiteDescription &TheCallSiteDescription = *Q.second;
+          FunctionCallSlot FCS{ TheCallSite, Offset };
+
+          // Register status at current call site
+          const FunctionCallRegisterArgument &CallerStatus = FCRA[FCS];
+          auto Status = CallerStatus.value();
+          revng_assert(Status == FunctionCallRegisterArgument::Maybe
+                       or Status == FunctionCallRegisterArgument::Yes);
+
+          // Register if there's at least a Yes
+          AtLeastAYes = (AtLeastAYes
+                         or Status == FunctionCallRegisterArgument::Yes);
+
+          // Update the status at the call site, starting from the status of the
+          // callee
+          FunctionCallRegisterArgument Result;
+          using FCRegisterArgument = FunctionCallRegisterArgument;
+          switch (FunctionStatus.value()) {
+          case FunctionRegisterArgument::Maybe:
+            Result = FCRegisterArgument(FCRegisterArgument::Maybe);
+            break;
+          case FunctionRegisterArgument::NoOrDead:
+            Result = FCRegisterArgument(FCRegisterArgument::NoOrDead);
+            break;
+          case FunctionRegisterArgument::Contradiction:
+            Result = FCRegisterArgument(FCRegisterArgument::Contradiction);
+            break;
+          case FunctionRegisterArgument::Yes:
+            Result = FCRegisterArgument(FCRegisterArgument::Yes);
+            break;
+          case FunctionRegisterArgument::No:
+            Result = FCRegisterArgument(FCRegisterArgument::No);
+            break;
+          default:
+            revng_abort();
+          }
+
+          // If the callee doesn't say No and the caller says yes
+          if (not(FunctionStatus.value() == FunctionRegisterArgument::No)
+              and CallerStatus.value() == FCRegisterArgument::Yes) {
+            // Promote caller using the Yes information
+            switch (FunctionStatus.value()) {
+            case FunctionRegisterArgument::NoOrDead:
+              Result = FCRegisterArgument(FCRegisterArgument::Dead);
+              break;
+            case FunctionRegisterArgument::Maybe:
+              Result = FCRegisterArgument(FCRegisterArgument::Yes);
+              break;
+            case FunctionRegisterArgument::Contradiction:
+            case FunctionRegisterArgument::Yes:
+              // Do nothing
+              break;
+            default:
+              revng_abort();
+            }
+          }
+
+          // In all other cases, no changes
+
+          // Register the result
+          TheCallSiteDescription.RegisterSlots[CSV].Argument = Result;
+        }
+
+        // Propagate the information from callers to function
+        FunctionRegisterArgument Result = FunctionStatus;
+
+        if (AtLeastAYes) {
+          switch (FunctionStatus.value()) {
+          case FunctionRegisterArgument::Maybe:
+            Result = FunctionRegisterArgument(FunctionRegisterArgument::Yes);
+            break;
+          case FunctionRegisterArgument::NoOrDead:
+            Result = FunctionRegisterArgument(FunctionRegisterArgument::Dead);
+            break;
+          case FunctionRegisterArgument::Contradiction:
+          case FunctionRegisterArgument::Yes:
+          case FunctionRegisterArgument::No:
+            // Do nothing
+            break;
+          default:
+            revng_abort();
+          }
+        }
+
+        // Register the result for the argument of the function
+        P.second.RegisterSlots[CSV].Argument = Result;
+      }
+
+      {
+        //
+        // Merge return values
+        //
+
+        // Register status at the function
+        const FunctionReturnValue &FunctionStatus = FRV[TheFunctionSlot];
+        auto Status = FunctionStatus.value();
+        revng_assert(Status == FunctionReturnValue::Maybe
+                     or Status == FunctionReturnValue::No
+                     or Status == FunctionReturnValue::YesOrDead);
+
+        // Propagate information from the function to callers (and record if at
+        // least on call sites says Yes or Dead)
+        bool AtLeastAYesOrDead = false;
+        for (auto &Q : FCS.CallSites) {
+          const CallSite &TheCallSite = Q.first;
+          auto &TheCallSiteDescription = *Q.second;
+          FunctionCallSlot FCS{ TheCallSite, Offset };
+
+          // Register status at current call site
+          const FunctionCallReturnValue &CallerStatus = FCRV[FCS];
+          auto Status = CallerStatus.value();
+          revng_assert(Status == FunctionCallReturnValue::Maybe
+                       or Status == FunctionCallReturnValue::NoOrDead
+                       or Status == FunctionCallReturnValue::Yes
+                       or Status == FunctionCallReturnValue::Contradiction);
+
+          FunctionCallReturnValue Result = CallerStatus;
+
+          switch (FunctionStatus.value()) {
+          case FunctionReturnValue::No:
+            // No from the function is propagated as is
+            Result = FunctionCallReturnValue::no();
+            break;
+          case FunctionReturnValue::YesOrDead:
+            // Propagate the strong yes information
+            switch (CallerStatus.value()) {
+            case FunctionCallReturnValue::Maybe:
+              Result = FunctionCallReturnValue(FunctionCallReturnValue::Yes);
+              break;
+            case FunctionCallReturnValue::NoOrDead:
+              Result = FunctionCallReturnValue(FunctionCallReturnValue::Dead);
+              break;
+            case FunctionCallReturnValue::Yes:
+            case FunctionCallReturnValue::Contradiction:
+              // Do nothing
+              break;
+            default:
+              revng_abort();
+            }
+            break;
+          case FunctionReturnValue::Maybe:
+            break;
+          default:
+            revng_abort();
+          }
+
+          // In all other cases, no changes
+
+          // Record if at least one result is Yes or Dead
+          {
+            auto Status = Result.value();
+            AtLeastAYesOrDead = (AtLeastAYesOrDead
+                                 or Status == FunctionCallReturnValue::Yes
+                                 or Status == FunctionCallReturnValue::Dead);
+          }
+
+          // Register the result for this call site
+          TheCallSiteDescription.RegisterSlots[CSV].ReturnValue = Result;
+        }
+
+        // Cross-contamination of callers
+        if (AtLeastAYesOrDead) {
+          // If at least a call site states that this slot is a return value,
+          // all the other call sites can benefit from this information
+
+          for (auto &Q : FCS.CallSites) {
+            using FCReturnValue = FunctionCallReturnValue;
+            auto &TheCallSiteDescription = *Q.second;
+            auto &Value = TheCallSiteDescription.RegisterSlots[CSV].ReturnValue;
+            switch (Value.value()) {
+            case FCReturnValue::NoOrDead:
+              Value = FCReturnValue(FCReturnValue::Dead);
+              break;
+            case FCReturnValue::Maybe:
+              Value = FCReturnValue(FCReturnValue::YesOrDead);
+              break;
+            case FCReturnValue::Yes:
+            case FCReturnValue::Dead:
+            case FCReturnValue::Contradiction:
+              // Do nothing
+              break;
+            case FCReturnValue::No:
+            default:
+              revng_abort();
+            }
+          }
+        }
+
+        // Update the result associated to the function
+        FunctionReturnValue Result = FunctionStatus;
+        using FCReturnValue = FunctionCallReturnValue;
+
+        if (FCS.CallSites.size() > 0) {
+          // At this point the information associated to the call sites is
+          // either all "No", one of "Yes", "Dead" and "YesOrDead" or one of
+          // "NoOrDead" and "Maybe"
+          bool AllNo = true;
+          bool AllYesOrDead = true;
+          bool AllNoOrDead = true;
+
+          // Initialize the result to propagate to the callee with the first
+          // call site
+          auto BeginIt = FCS.CallSites.begin();
+          auto Accumulate = BeginIt->second->RegisterSlots[CSV].ReturnValue;
+
+          for (auto &Q : FCS.CallSites) {
+            auto &TheCallSiteDescription = *Q.second;
+            auto &Value = TheCallSiteDescription.RegisterSlots[CSV].ReturnValue;
+
+            AllNo = AllNo and Value.value() == FCReturnValue::No;
+
+            auto Status = Value.value();
+            AllYesOrDead = (AllYesOrDead
+                            and (Status == FCReturnValue::Yes
+                                 or Status == FCReturnValue::Dead
+                                 or Status == FCReturnValue::YesOrDead));
+
+            AllNoOrDead = (AllNoOrDead
+                           and (Status == FCReturnValue::NoOrDead
+                                or Status == FCReturnValue::Maybe));
+
+            // If the value has changed, move towards the most generic
+            if (Status != Accumulate.value()) {
+              using FCReturnValue = FCReturnValue;
+              switch (Status) {
+              case FCReturnValue::Yes:
+              case FCReturnValue::Dead:
+              case FCReturnValue::YesOrDead:
+                Accumulate = FCReturnValue(FCReturnValue::YesOrDead);
+                break;
+              case FCReturnValue::NoOrDead:
+              case FCReturnValue::Maybe:
+                Accumulate = FCReturnValue(FCReturnValue::Maybe);
+                break;
+              case FCReturnValue::No:
+              case FCReturnValue::Contradiction:
+                revng_abort();
+              }
+            }
+          }
+
+          // AllNo XOR AllYesOrDead XOR AllNoOrDead
+          revng_assert((AllNo and not(AllYesOrDead or AllNoOrDead))
+                       or (AllYesOrDead and not(AllNo or AllNoOrDead))
+                       or (AllNoOrDead and not(AllYesOrDead or AllNo)));
+
+          // Propagate the information from callers to function
+
+          // If AllNo, nothing to do
+          using FReturnValue = FunctionReturnValue;
+          bool IsNo = FunctionStatus.value() == FReturnValue::No;
+          revng_assert(AllNo ? IsNo : true);
+
+          // If the function status was maybe, we might have something to
+          // promote in the call
+          if (FunctionStatus.value() == FReturnValue::Maybe) {
+            switch (Accumulate.value()) {
+            case FCReturnValue::Yes:
+            case FCReturnValue::Dead:
+            case FCReturnValue::YesOrDead:
+              Result = FReturnValue(FReturnValue::YesOrDead);
+              break;
+            case FCReturnValue::NoOrDead:
+              Result = FReturnValue(FReturnValue::NoOrDead);
+              break;
+            case FCReturnValue::Maybe:
+              Result = FReturnValue(FReturnValue::Maybe);
+              break;
+            default:
+              revng_abort();
+            }
+          }
+        }
+
+        // Register the result with the function
+        P.second.RegisterSlots[CSV].ReturnValue = Result;
       }
     }
   }

@@ -5,17 +5,17 @@
 digraph UsedReturnValuesOfFunction {
   Bottom;
   Maybe [peripheries=2];
-  Yes;
+  YesOrDead;
   Unknown;
 
   # Lattice
-  Bottom->Yes;
+  Bottom->YesOrDead;
   Bottom->Maybe;
-  Yes->Unknown;
+  YesOrDead->Unknown;
   Maybe->Unknown;
 
   # Transfer functions
-  Maybe->Yes [label="Write"];
+  Maybe->YesOrDead [label="Write"];
   Maybe->Unknown [label="Read"];
   Maybe->Unknown [label="UnknownFunctionCall"];
 }

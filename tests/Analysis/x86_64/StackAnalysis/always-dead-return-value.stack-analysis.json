@@ -1,7 +1,7 @@
 [
   {
     "entry_point": "bb.callee",
-    "slots": [{"slot": "rax", "return_value": "Dead"}]
+    "slots": [{"slot": "rax", "return_value": "YesOrDead"}]
   },
   {
     "entry_point": "bb.func",

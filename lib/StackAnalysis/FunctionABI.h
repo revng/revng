@@ -229,18 +229,16 @@ struct CombineHelper {
   /// \brief Combine with URVOF
   static void
   combine(FunctionReturnValue &This, UsedReturnValuesOfFunction::Values V) {
-    if (V == UsedReturnValuesOfFunction::Yes) {
+    if (V == UsedReturnValuesOfFunction::YesOrDead) {
       switch (This.Value) {
       case FunctionReturnValue::Maybe:
-        This.Value = FunctionReturnValue::YesCandidate;
+        This.Value = FunctionReturnValue::YesOrDead;
         break;
       case FunctionReturnValue::No:
         // No comes from ECS and wins over everything
         break;
-      case FunctionReturnValue::Yes:
-      case FunctionReturnValue::YesCandidate:
+      case FunctionReturnValue::YesOrDead:
       case FunctionReturnValue::NoOrDead:
-      case FunctionReturnValue::Dead:
       case FunctionReturnValue::Contradiction:
         revng_abort();
       }
@@ -264,6 +262,7 @@ struct CombineHelper {
       case FunctionCallReturnValue::Contradiction:
       case FunctionCallReturnValue::Dead:
       case FunctionCallReturnValue::NoOrDead:
+      case FunctionCallReturnValue::YesOrDead:
         revng_abort();
       }
     }
@@ -286,6 +285,7 @@ struct CombineHelper {
         // No comes from ECS and wins over everything
         break;
       case FunctionCallReturnValue::Contradiction:
+      case FunctionCallReturnValue::YesOrDead:
         revng_abort();
       }
     }
@@ -441,7 +441,7 @@ public:
   }
 
   bool isReturnValue() const {
-    return URVOF.value() == UsedReturnValuesOfFunction::Yes;
+    return URVOF.value() == UsedReturnValuesOfFunction::YesOrDead;
   }
 
   void dump() const debug_function { dump(dbg); }

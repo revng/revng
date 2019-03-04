@@ -19,6 +19,7 @@ class BasicBlock;
 class GlobalVariable;
 class Instruction;
 class Module;
+class Value;
 } // namespace llvm
 
 namespace StackAnalysis {
@@ -201,6 +202,8 @@ private:
 public:
   RegisterArgument() : Value(Maybe) {}
 
+  RegisterArgument(Values Value) : Value(Value) {}
+
   static RegisterArgument no() {
     RegisterArgument Result;
     Result.Value = No;
@@ -210,6 +213,26 @@ public:
   static RegisterArgument maybe() {
     RegisterArgument Result;
     Result.Value = Maybe;
+    return Result;
+  }
+
+  static RegisterArgument fromName(llvm::StringRef Name) {
+    RegisterArgument Result;
+    if (Name == "No")
+      Result.Value = No;
+    else if (Name == "NoOrDead")
+      Result.Value = NoOrDead;
+    else if (Name == "Dead")
+      Result.Value = Dead;
+    else if (Name == "Yes")
+      Result.Value = Yes;
+    else if (Name == "Maybe")
+      Result.Value = Maybe;
+    else if (Name == "Contradiction")
+      Result.Value = Contradiction;
+    else
+      revng_abort();
+
     return Result;
   }
 
@@ -225,24 +248,86 @@ public:
     // to go to a case that includes the possibility of *not* being an argument
     // due to the register being a callee-saved register
     switch (Value) {
-    case No:
-    case NoOrDead:
     case Maybe:
-    case Contradiction:
       // These are already good
       break;
-    case Dead:
-      // Weakend the statement
-      Value = NoOrDead;
-      break;
     case Yes:
-      // Weakend the statement
+      // Weaken the statement
       Value = Maybe;
       break;
+    case No:
+    case NoOrDead:
+    case Contradiction:
+    case Dead:
+      revng_abort();
     }
   }
 
   void combine(const RegisterArgument<not FunctionCall> &Other);
+
+  bool isCompatibleWith(const RegisterArgument<false> &Other) const {
+    switch (Value) {
+    case NoOrDead:
+      switch (Other.Value) {
+      case RegisterArgument<false>::NoOrDead:
+      case RegisterArgument<false>::Dead:
+      case RegisterArgument<false>::No:
+      case RegisterArgument<false>::Maybe:
+        return true;
+      case RegisterArgument<false>::Yes:
+      case RegisterArgument<false>::Contradiction:
+        return false;
+      }
+    case Maybe:
+      switch (Other.Value) {
+      case RegisterArgument<false>::Maybe:
+      case RegisterArgument<false>::NoOrDead:
+      case RegisterArgument<false>::Dead:
+      case RegisterArgument<false>::No:
+      case RegisterArgument<false>::Yes:
+        return true;
+      case RegisterArgument<false>::Contradiction:
+        return false;
+      }
+    case Yes:
+      switch (Other.Value) {
+      case RegisterArgument<false>::Yes:
+      case RegisterArgument<false>::Maybe:
+        return true;
+      case RegisterArgument<false>::NoOrDead:
+      case RegisterArgument<false>::Dead:
+      case RegisterArgument<false>::No:
+      case RegisterArgument<false>::Contradiction:
+        return false;
+      }
+    case Dead:
+      switch (Other.Value) {
+      case RegisterArgument<false>::Dead:
+      case RegisterArgument<false>::NoOrDead:
+      case RegisterArgument<false>::Maybe:
+        return true;
+      case RegisterArgument<false>::Yes:
+      case RegisterArgument<false>::No:
+      case RegisterArgument<false>::Contradiction:
+        return false;
+      }
+    case Contradiction:
+      return false;
+    case No:
+      switch (Other.Value) {
+      case RegisterArgument<false>::No:
+      case RegisterArgument<false>::NoOrDead:
+      case RegisterArgument<false>::Maybe:
+        return true;
+      case RegisterArgument<false>::Dead:
+      case RegisterArgument<false>::Yes:
+      case RegisterArgument<false>::Contradiction:
+        return false;
+      }
+    }
+
+    revng_abort();
+  }
 
   const char *valueName() const {
     switch (Value) {
@@ -298,13 +383,15 @@ class FunctionReturnValue {
   friend struct CombineHelper;
 
 public:
-  enum Values { No, NoOrDead, Dead, Yes, Maybe, YesCandidate, Contradiction };
+  enum Values { No, NoOrDead, Maybe, Contradiction, YesOrDead };
 
 private:
   Values Value;
 
 public:
   FunctionReturnValue() : Value(Maybe) {}
+
+  FunctionReturnValue(Values Value) : Value(Value) {}
 
   static FunctionReturnValue no() {
     FunctionReturnValue Result;
@@ -315,6 +402,23 @@ public:
   static FunctionReturnValue maybe() {
     FunctionReturnValue Result;
     Result.Value = Maybe;
+    return Result;
+  }
+
+  static FunctionReturnValue fromName(llvm::StringRef Name) {
+    FunctionReturnValue Result;
+    if (Name == "No")
+      Result.Value = No;
+    else if (Name == "NoOrDead")
+      Result.Value = NoOrDead;
+    else if (Name == "Maybe")
+      Result.Value = Maybe;
+    else if (Name == "Contradiction")
+      Result.Value = Contradiction;
+    else if (Name == "YesOrDead")
+      Result.Value = YesOrDead;
+    else
+      revng_abort();
     return Result;
   }
 
@@ -331,16 +435,12 @@ public:
       return "NoOrDead";
     case Maybe:
       return "Maybe";
-    case Yes:
-      return "Yes";
-    case Dead:
-      return "Dead";
     case No:
       return "No";
-    case YesCandidate:
-      return "YesCandidate";
     case Contradiction:
       return "Contradiction";
+    case YesOrDead:
+      return "YesOrDead";
     }
 
     revng_abort();
@@ -366,13 +466,15 @@ class FunctionCallReturnValue {
   friend struct CombineHelper;
 
 public:
-  enum Values { No, NoOrDead, Maybe, Yes, Dead, Contradiction };
+  enum Values { No, NoOrDead, Maybe, Yes, Dead, Contradiction, YesOrDead };
 
 private:
   Values Value;
 
 public:
   FunctionCallReturnValue() : Value(Maybe) {}
+
+  FunctionCallReturnValue(Values Value) : Value(Value) {}
 
   static FunctionCallReturnValue no() {
     FunctionCallReturnValue Result;
@@ -386,6 +488,29 @@ public:
     return Result;
   }
 
+  static FunctionCallReturnValue fromName(llvm::StringRef Name) {
+    FunctionCallReturnValue Result;
+
+    if (Name == "NoOrDead")
+      Result.Value = NoOrDead;
+    else if (Name == "Maybe")
+      Result.Value = Maybe;
+    else if (Name == "Yes")
+      Result.Value = Yes;
+    else if (Name == "Dead")
+      Result.Value = Dead;
+    else if (Name == "Contradiction")
+      Result.Value = Contradiction;
+    else if (Name == "No")
+      Result.Value = No;
+    else if (Name == "YesOrDead")
+      Result.Value = YesOrDead;
+    else
+      revng_abort();
+
+    return Result;
+  }
+
 public:
   bool isContradiction() const { return Value == Contradiction; }
 
@@ -394,10 +519,8 @@ public:
     // to go to a case that includes the possibility of *not* being an argument
     // due to the register being a callee-saved register
     switch (Value) {
-    case No:
     case NoOrDead:
     case Maybe:
-    case Contradiction:
       // These are fine
       break;
 
@@ -406,14 +529,84 @@ public:
       Value = Maybe;
       break;
 
+    case No:
+    case Contradiction:
+    case YesOrDead:
     case Dead:
-      // Weakend Dead statement
-      Value = NoOrDead;
-      break;
+      revng_abort();
     }
   }
 
   void combine(const FunctionReturnValue &Other);
+
+  bool isCompatibleWith(const FunctionReturnValue &Other) const {
+    switch (Value) {
+    case YesOrDead:
+      switch (Other.Value) {
+      case FunctionReturnValue::YesOrDead:
+      case FunctionReturnValue::Maybe:
+      case FunctionReturnValue::NoOrDead:
+        return true;
+      case FunctionReturnValue::No:
+      case FunctionReturnValue::Contradiction:
+        return false;
+      }
+    case NoOrDead:
+      switch (Other.Value) {
+      case FunctionReturnValue::NoOrDead:
+      case FunctionReturnValue::No:
+      case FunctionReturnValue::Maybe:
+      case FunctionReturnValue::YesOrDead:
+        return true;
+      case FunctionReturnValue::Contradiction:
+        return false;
+      }
+    case Maybe:
+      switch (Other.Value) {
+      case FunctionReturnValue::Maybe:
+      case FunctionReturnValue::YesOrDead:
+      case FunctionReturnValue::NoOrDead:
+      case FunctionReturnValue::No:
+        return true;
+      case FunctionReturnValue::Contradiction:
+        return false;
+      }
+    case Yes:
+      switch (Other.Value) {
+      case FunctionReturnValue::YesOrDead:
+      case FunctionReturnValue::Maybe:
+        return true;
+      case FunctionReturnValue::NoOrDead:
+      case FunctionReturnValue::No:
+      case FunctionReturnValue::Contradiction:
+        return false;
+      }
+    case Dead:
+      switch (Other.Value) {
+      case FunctionReturnValue::NoOrDead:
+      case FunctionReturnValue::YesOrDead:
+      case FunctionReturnValue::Maybe:
+        return true;
+      case FunctionReturnValue::No:
+      case FunctionReturnValue::Contradiction:
+        return false;
+      }
+    case Contradiction:
+      return false;
+    case No:
+      switch (Other.Value) {
+      case FunctionReturnValue::NoOrDead:
+      case FunctionReturnValue::No:
+      case FunctionReturnValue::Maybe:
+        return true;
+      case FunctionReturnValue::YesOrDead:
+      case FunctionReturnValue::Contradiction:
+        return false;
+      }
+    }
+
+    revng_abort();
+  }
 
   const char *valueName() const {
     switch (Value) {
@@ -427,6 +620,8 @@ public:
       return "Dead";
     case Contradiction:
       return "Contradiction";
+    case YesOrDead:
+      return "YesOrDead";
     case No:
       return "No";
     }
@@ -444,6 +639,15 @@ public:
   }
 };
 
+template<typename K, typename V>
+inline V getOrDefault(const std::map<K, V> &Map, K Key) {
+  auto It = Map.find(Key);
+  if (It == Map.end())
+    return V();
+  else
+    return It->second;
+}
+
 /// \brief Class containg the final results about all the analyzed functions
 class FunctionsSummary {
 public:
@@ -455,17 +659,24 @@ public:
   struct FunctionCallRegisterDescription {
     FunctionCallRegisterArgument Argument;
     FunctionCallReturnValue ReturnValue;
+
+    bool isCompatibleWith(const FunctionRegisterDescription &FRD) const {
+      return (Argument.isCompatibleWith(FRD.Argument)
+              and ReturnValue.isCompatibleWith(FRD.ReturnValue));
+    }
   };
+
+  struct FunctionDescription;
 
   // TODO: this is finalized stuff, should we use vectors/SmalMaps instead of
   //       maps?
   struct CallSiteDescription {
-    CallSiteDescription(llvm::Instruction *Call, llvm::BasicBlock *Callee) :
+    CallSiteDescription(llvm::Instruction *Call, llvm::Value *Callee) :
       Call(Call),
       Callee(Callee) {}
 
     llvm::Instruction *Call;
-    llvm::BasicBlock *Callee;
+    llvm::Value *Callee;
 
     using GlobalVariable = llvm::GlobalVariable;
 
@@ -473,13 +684,18 @@ public:
     using map = std::map<K, V>;
 
     map<GlobalVariable *, FunctionCallRegisterDescription> RegisterSlots;
+
+    llvm::GlobalVariable *
+    isCompatibleWith(const FunctionDescription &Function) const;
   };
 
   struct FunctionDescription {
-    FunctionDescription() : Type(FunctionType::Invalid) {}
+    FunctionDescription() : Function(nullptr), Type(FunctionType::Invalid) {}
 
+    llvm::Value *Function;
     FunctionType::Values Type;
     std::map<llvm::BasicBlock *, BranchType::Values> BasicBlocks;
+    // TODO: this should be a vector
     std::map<llvm::GlobalVariable *, FunctionRegisterDescription> RegisterSlots;
     std::vector<CallSiteDescription> CallSites;
     std::set<llvm::GlobalVariable *> ClobberedRegisters;
@@ -490,7 +706,7 @@ public:
   std::map<llvm::BasicBlock *, FunctionDescription> Functions;
 
 public:
-  void dump(const llvm::Module *M) const { dump(M, dbg); }
+  void dump(const llvm::Module *M) const debug_function { dump(M, dbg); }
 
   /// \brief Dump in JSON format
   ///
