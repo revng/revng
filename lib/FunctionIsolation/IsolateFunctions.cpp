@@ -306,8 +306,15 @@ bool IFI::replaceFunctionCall(BasicBlock *NewBB,
                               CallInst *Call,
                               const ValueToValueMap &RootToIsolated) {
 
-  // Retrieve the called function and emit the call
+  // Extract relevant information from the call to function_call
+  TerminatorInst *T = Call->getParent()->getTerminator();
+  MDNode *FuncCall = T->getMetadata("func.call");
   BlockAddress *Callee = dyn_cast<BlockAddress>(Call->getOperand(0));
+  BlockAddress *FallThroughAddress = cast<BlockAddress>(Call->getOperand(1));
+  BasicBlock *FallthroughOld = FallThroughAddress->getBasicBlock();
+  ConstantInt *ReturnPC = cast<ConstantInt>(Call->getOperand(2));
+  Value *ExternalFunctionName = Call->getOperand(4);
+
   bool IsIndirect = (Callee == nullptr);
   Function *TargetFunction = nullptr;
 
@@ -320,7 +327,6 @@ bool IFI::replaceFunctionCall(BasicBlock *NewBB,
 
     // The callee is not a real function, it must be part of us then.
     if (Node == nullptr) {
-      TerminatorInst *T = Call->getParent()->getTerminator();
       revng_assert(not isTerminatorWithInvalidTarget(T, RootToIsolated));
 
       // Do nothing, don't emit the call to `function_call` and proceed
@@ -339,35 +345,29 @@ bool IFI::replaceFunctionCall(BasicBlock *NewBB,
 
   CallInst *NewCall = nullptr;
   if (IsIndirect)
-    NewCall = Builder.CreateCall(TargetFunction, { Call->getOperand(4) });
+    NewCall = Builder.CreateCall(TargetFunction, { ExternalFunctionName });
   else
     NewCall = Builder.CreateCall(TargetFunction);
 
   // Copy the func.call metadata from the terminator of the original block
-  auto *T = Call->getParent()->getTerminator();
-  MDNode *FuncCall = T->getMetadata("func.call");
   if (FuncCall != nullptr)
     NewCall->setMetadata("func.call", FuncCall);
 
-  // Retrieve the fallthrough basic block and emit the branch
-  BlockAddress *FallThroughAddress = cast<BlockAddress>(Call->getOperand(1));
-  BasicBlock *FallthroughOld = FallThroughAddress->getBasicBlock();
-
+  // Emit the branch
   auto FallthroughOldIt = RootToIsolated.find(FallthroughOld);
   if (FallthroughOldIt != RootToIsolated.end()) {
     BasicBlock *FallthroughNew = cast<BasicBlock>(FallthroughOldIt->second);
 
     // Additional check for the return address PC
     LoadInst *ProgramCounter = Builder.CreateLoad(PC, "");
-    ConstantInt *ExpectedPC = cast<ConstantInt>(Call->getOperand(2));
-    Value *Result = Builder.CreateICmpEQ(ProgramCounter, ExpectedPC);
+    Value *Result = Builder.CreateICmpEQ(ProgramCounter, ReturnPC);
 
     // Create a basic block that we hit if the current PC is not the one
     // expected after the function call
     auto *PCMismatch = BasicBlock::Create(Context,
                                           NewBB->getName() + "_bad_return_pc",
                                           NewBB->getParent());
-    throwException(BadReturnAddress, PCMismatch, ExpectedPC->getZExtValue());
+    throwException(BadReturnAddress, PCMismatch, ReturnPC->getZExtValue());
 
     // Conditional branch to jump to the right block
     Builder.CreateCondBr(Result, FallthroughNew, PCMismatch);
@@ -410,18 +410,21 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
   Builder.SetInsertPoint(NewBB);
 
   if (isa<TerminatorInst>(OldInstruction)) {
+
     auto Type = Descriptor.Members.at(NewBB);
     switch (Type) {
     case StackAnalysis::BranchType::InstructionLocalCFG:
     case StackAnalysis::BranchType::FunctionLocalCFG:
     case StackAnalysis::BranchType::HandledCall:
     case StackAnalysis::BranchType::IndirectCall:
-    case StackAnalysis::BranchType::IndirectTailCall:
-    case StackAnalysis::BranchType::LongJmp:
     case StackAnalysis::BranchType::Killer:
     case StackAnalysis::BranchType::Unreachable:
     case StackAnalysis::BranchType::FakeFunctionCall:
       // These are handled later on
+      break;
+
+    case StackAnalysis::BranchType::IndirectTailCall:
+    case StackAnalysis::BranchType::LongJmp:
       break;
 
     case StackAnalysis::BranchType::Return:
@@ -443,7 +446,6 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
   }
 
   if (isTerminatorWithInvalidTarget(OldInstruction, RootToIsolated)) {
-
     // We are in presence of a terminator with a successor no more in
     // the current function, let's throw an exception
 
@@ -454,6 +456,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
     // and then throws the exception.
 
     // Lazily create the store-in-pc-and-throw trampoline
+    // TODO: make a method
     auto GetTrampoline = [this, &Descriptor, PCReg](BasicBlock *BB) {
       Instruction *T = BB->getTerminator();
 
@@ -503,16 +506,17 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
     };
 
     // TODO: maybe cloning and patching would have been more effective
+    TerminatorInst *NewT = nullptr;
     switch (OldInstruction->getOpcode()) {
     case Instruction::Br: {
       auto *Branch = cast<BranchInst>(OldInstruction);
       if (Branch->isConditional()) {
         auto *Condition = RootToIsolated[Branch->getCondition()];
-        Builder.CreateCondBr(Condition,
-                             GetTrampoline(Branch->getSuccessor(0)),
-                             GetTrampoline(Branch->getSuccessor(1)));
+        NewT = Builder.CreateCondBr(Condition,
+                                    GetTrampoline(Branch->getSuccessor(0)),
+                                    GetTrampoline(Branch->getSuccessor(1)));
       } else {
-        Builder.CreateBr(GetTrampoline(Branch->getSuccessor(0)));
+        NewT = Builder.CreateBr(GetTrampoline(Branch->getSuccessor(0)));
       }
     } break;
 
@@ -529,14 +533,20 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
                            GetTrampoline(Case.getCaseSuccessor()));
       }
 
+      NewT = NewSwitch;
+
     } break;
 
     default:
       revng_abort();
     }
 
+    if (auto *FuncCallMD = OldInstruction->getMetadata("func.call"))
+      NewT->setMetadata("func.call", FuncCallMD);
+
   } else if (isCallTo(OldInstruction, "function_call")) {
 
+    // TODO: drop me in favor of checking func.call metadata
     TerminatorInst *Terminator = OldInstruction->getParent()->getTerminator();
     if (isTerminatorWithInvalidTarget(Terminator, RootToIsolated)) {
       // Function call handling
@@ -1078,6 +1088,13 @@ void IFI::run() {
           if (IsCall == true) {
             break;
           }
+        }
+
+        {
+          using namespace StackAnalysis::BranchType;
+          Values Type = Descriptor.Members.at(NewBB);
+          TerminatorInst *T = NewBB->getTerminator();
+          T->setMetadata("member.type", QMD.tuple(getName(Type)));
         }
       }
 
