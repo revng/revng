@@ -124,6 +124,21 @@ public:
 
   template<typename T>
   void dump(const llvm::Module *M, T &Output) const {
+    Output << "CallSites:\n";
+    for (auto &P : CallSites) {
+      const CallSite &TheCallSite = P.first;
+      llvm::Optional<int32_t> StackHeight = P.second;
+
+      TheCallSite.dump(Output);
+      Output << ": ";
+      if (StackHeight)
+        Output << *StackHeight;
+      else
+        Output << "unknown";
+
+      Output << "\n";
+    }
+
     Output << "FunctionRegisterArguments:\n";
     for (auto &P : FunctionRegisterArguments) {
       Output << getName(P.first.first) << " ";
