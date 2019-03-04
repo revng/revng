@@ -5,6 +5,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+// Standard includes
+#include <algorithm>
+
+// LLVM includes
+#include "llvm/ADT/SCCIterator.h"
+
 // Local libraries includes
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/MonotoneFramework.h"
@@ -18,7 +24,10 @@ using std::tuple;
 using std::tuple_element;
 using std::tuple_size;
 
+using llvm::make_range;
 using llvm::Module;
+using llvm::scc_begin;
+using llvm::scc_end;
 
 Logger<> SaABI("sa-abi");
 
@@ -954,12 +963,16 @@ private:
   /// Flag to prevent the analysis from being run more than once
   bool FirstRun;
 
+  const std::set<ABIIRBasicBlock *> *ExtraFinalStates;
+
 public:
-  Analysis(ABIIRBasicBlock *FunctionEntry) :
+  Analysis(ABIIRBasicBlock *FunctionEntry,
+           const std::set<ABIIRBasicBlock *> *ExtraFinalStates) :
     Base(FunctionEntry),
     FunctionEntry(FunctionEntry),
     VisitsCount(0),
-    FirstRun(true) {}
+    FirstRun(true),
+    ExtraFinalStates(ExtraFinalStates) {}
 
 public:
   void assertLowerThanOrEqual(const Element<E> &A, const Element<E> &B) const {
@@ -1056,7 +1069,8 @@ public:
     // caller (e.g., if a callee-saved register is not restored on a noreturn
     // path, we don't care).
     if ((IsForward and BB->successor_size() == 0)
-        or (not IsForward and BB->predecessor_size() == 0))
+        or (not IsForward and BB->predecessor_size() == 0)
+        or (ExtraFinalStates != nullptr and ExtraFinalStates->count(BB) != 0))
       return Interrupt<E>::createReturn(std::move(Result));
     else
       return Interrupt<E>::createRegular(std::move(Result));
@@ -1074,8 +1088,130 @@ private:
 // FunctionaABI methods
 //
 
+// TODO: test me
+template<typename NodeTy>
+std::set<NodeTy> findMaximalSimplePathTerminatorsOfExitlessSCCs(NodeTy Entry) {
+  using GT = llvm::GraphTraits<NodeTy>;
+  using InverseGT = llvm::GraphTraits<llvm::Inverse<NodeTy>>;
+
+  std::set<NodeTy> Result;
+
+  using NodesVector = std::vector<NodeTy>;
+  auto Range = make_range(scc_begin(Entry), scc_end(Entry));
+  std::set<NodeTy> SCCNodes;
+  for (const NodesVector &SCC : Range) {
+    SCCNodes.clear();
+    for (NodeTy BB : SCC)
+      SCCNodes.insert(BB);
+
+    bool HasExit = false;
+    bool AtLeastOneEdge = false;
+    for (NodeTy BB : SCC) {
+      auto Successors = make_range(GT::child_begin(BB), GT::child_end(BB));
+      for (NodeTy Successor : Successors) {
+        AtLeastOneEdge = true;
+        if (SCCNodes.count(Successor) == 0) {
+          HasExit = true;
+          break;
+        }
+      }
+
+      if (HasExit)
+        break;
+    }
+
+    if ((not HasExit) and AtLeastOneEdge) {
+      // We have find a exitless SCC (e.g., an infinite loop)
+
+      // Identify all the entry points
+      llvm::SmallVector<NodeTy, 2> EntryPoints;
+      for (NodeTy BB : SCC) {
+        auto Predecessors = make_range(InverseGT::child_begin(BB),
+                                       InverseGT::child_end(BB));
+        for (NodeTy Predecessor : Predecessors) {
+          if (SCCNodes.count(Predecessor) == 0) {
+            EntryPoints.push_back(BB);
+            break;
+          }
+        }
+      }
+
+      std::set<NodeTy> OnStack;
+      auto IsOnStack = [&OnStack](NodeTy Successor) {
+        return OnStack.count(Successor) != 0;
+      };
+
+      struct StackElement {
+        StackElement(NodeTy Node) :
+          Node(Node),
+          Next(GT::child_begin(Node)),
+          End(GT::child_end(Node)) {}
+
+        NodeTy Node;
+        typename GT::ChildIteratorType Next;
+        const typename GT::ChildIteratorType End;
+      };
+      std::stack<StackElement> Stack;
+
+      for (NodeTy EntryPoint : EntryPoints) {
+        revng_assert(Stack.empty());
+        Stack.emplace(EntryPoint);
+
+        OnStack.clear();
+        OnStack.insert(EntryPoint);
+
+        while (not Stack.empty()) {
+          StackElement &Current = Stack.top();
+
+          if (Current.Next == Current.End) {
+
+            // Check if all the successors are on the stack
+            auto Begin = GT::child_begin(Current.Node);
+            auto End = GT::child_end(Current.Node);
+            if (std::all_of(Begin, End, IsOnStack)) {
+              // OK, this is the terminator of a maximal simple path
+              Result.insert(Current.Node);
+            }
+
+            // We're done with this node pop it
+            Stack.pop();
+            OnStack.erase(Current.Node);
+
+          } else {
+
+            // We still have a successor to process
+            NodeTy Successor = *Current.Next;
+            Current.Next++;
+
+            // Push the successor on the stack, unless it's already there
+            if (not IsOnStack(Successor)) {
+              Stack.emplace(Successor);
+              OnStack.insert(Successor);
+            }
+          }
+        }
+      }
+
+      revng_assert(Result.size() > 0);
+    }
+  }
+
+  return Result;
+}
+
 void FunctionABI::analyze(const ABIFunction &TheFunction) {
   using namespace ABIAnalysis;
+  ABIIRBasicBlock *E = TheFunction.entry();
+
+  auto InfiniteLoopsExits = findMaximalSimplePathTerminatorsOfExitlessSCCs(E);
+
+  if (InfiniteLoopsExits.size() > 0 and SaABI.isEnabled()) {
+    SaABI << "The following simple path terminators have been found: ";
+    for (const ABIIRBasicBlock *BB : InfiniteLoopsExits) {
+      SaABI << getName(BB->basicBlock()) << " ";
+    }
+    SaABI << DoLog;
+  }
 
   {
     revng_log(SaABI, "Running forward function analyses");
@@ -1092,9 +1228,9 @@ void FunctionABI::analyze(const ABIFunction &TheFunction) {
     using FunctionCallWise = tuple<URVOFC, DRVOFC>;
     using ForwardList = AnalysesList<FunctionWise, FunctionCallWise>;
 
-    Analysis<true, ForwardList> ForwardFunctionAnalyses(TheFunction.entry());
+    Analysis<true, ForwardList> ForwardFunctionAnalyses(E, &InfiniteLoopsExits);
 
-    ForwardFunctionAnalyses.registerExtremal(TheFunction.entry());
+    ForwardFunctionAnalyses.registerExtremal(E);
 
     ForwardFunctionAnalyses.initialize();
     Interrupt<ForwardList> Result = ForwardFunctionAnalyses.run();
@@ -1119,9 +1255,12 @@ void FunctionABI::analyze(const ABIFunction &TheFunction) {
     using FunctionWise = tuple<URVOF, RAOFC>;
     using FunctionCallWise = tuple<RAOFC>;
     using BackwardList = AnalysesList<FunctionWise, FunctionCallWise>;
-    Analysis<false, BackwardList> BackwardFunctionAnalyses(TheFunction.entry());
+    Analysis<false, BackwardList> BackwardFunctionAnalyses(E, nullptr);
 
     for (ABIIRBasicBlock *FinalBB : TheFunction.finals())
+      BackwardFunctionAnalyses.registerExtremal(FinalBB);
+
+    for (ABIIRBasicBlock *FinalBB : InfiniteLoopsExits)
       BackwardFunctionAnalyses.registerExtremal(FinalBB);
 
     BackwardFunctionAnalyses.initialize();
