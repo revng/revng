@@ -549,6 +549,7 @@ public:
   FunctionABI copy() const {
     FunctionABI Result;
     Result.RegisterAnalyses = RegisterAnalyses;
+    Result.Calls = Calls;
     return Result;
   }
 
