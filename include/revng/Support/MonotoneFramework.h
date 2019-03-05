@@ -8,6 +8,7 @@
 // Standard includes
 #include <map>
 #include <set>
+#include <type_traits>
 #include <vector>
 
 // LLVM includes
@@ -258,6 +259,49 @@ private:
   LatticeElement Result;
 };
 
+/// \brief Helper struct for creation of Interrupts for MonotoneFramework
+///
+/// This is for creating generic Interrupts.
+/// In this case we delegate the construction of the Interrupts to the
+/// derived class in the CRTP.
+/// There is a full specialization for DefaultInterrupt<LatticeElement>.
+///
+/// \tparam D the CRTP derived class of MonotoneFramework
+/// \tparam LatticeElement the type representing an element of the lattice of
+///         the MonotoneFramework
+/// \tparam InterruptTy the type representing an Interrupt of the
+///         MonotoneFramework
+template<typename D, typename LatticeElement, typename InterruptTy>
+struct InterruptCreator {
+  InterruptTy createSummaryInterrupt(D &d) {
+    return d.createSummaryInterrupt();
+  }
+
+  InterruptTy createNoReturnInterrupt(D &d) {
+    return d.createNoReturnInterrupt();
+  }
+};
+
+/// \brief Specialization of InterruptCreator for DefaultInterrupt
+///
+/// This is for creating DefaultInterrupt<LatticeElement>.
+/// In case of DefaultInterrupt the Summary Interrupt is never created,
+/// because there is never a Final State to compute the Summary.
+///
+/// \tparam D the CRTP derived class of MonotoneFramework
+/// \tparam LatticeElement the type representing an element of the lattice of
+///         the MonotoneFramework
+template<typename D, typename LatticeElement>
+struct InterruptCreator<D, LatticeElement, DefaultInterrupt<LatticeElement>> {
+  DefaultInterrupt<LatticeElement> createSummaryInterrupt(D &) {
+    revng_abort();
+    return DefaultInterrupt<LatticeElement>();
+  }
+
+  DefaultInterrupt<LatticeElement> createNoReturnInterrupt(D &) {
+    return DefaultInterrupt<LatticeElement>();
+  }
+};
 /// \brief CRTP base class for implementing a monotone framework
 ///
 /// This class provides the base structure to implement an analysis based on a
@@ -344,6 +388,7 @@ public:
 private:
   const D &derived() const { return *static_cast<const D *>(this); }
   D &derived() { return *static_cast<D *>(this); }
+  InterruptCreator<D, LatticeElement, InterruptType> TheInterruptCreator;
 
 public:
   /// \brief The transfer function
@@ -365,17 +410,19 @@ public:
   /// \brief Create a "summary" interrupt, used upon a regular analysis
   ///        completion
   ///
-  /// \note This method must be implemented by the derived class D
+  /// \note This method must be implemented by the derived class D only if
+  ///       Interrupt != DefaultInterrupt<LatticeElement>
   Interrupt createSummaryInterrupt() {
-    return derived().createSummaryInterrupt();
+    return TheInterruptCreator.createSummaryInterrupt(derived());
   }
 
   /// \brief Create a "no return" interrupt, used when the analysis terminates
   ///        without identifying a return basic block
   ///
-  /// \note This method must be implemented by the derived class D
+  /// \note This method must be implemented by the derived class D only if
+  ///       Interrupt != DefaultInterrupt<LatticeElement>
   Interrupt createNoReturnInterrupt() {
-    return derived().createNoReturnInterrupt();
+    return TheInterruptCreator.createNoReturnInterrupt(derived());
   }
 
   /// \brief Dump the final state
