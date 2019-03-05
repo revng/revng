@@ -248,11 +248,14 @@ void ScsNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"";
   ASTFile << ",shape=\"circle\",color=\"black\"];\n";
 
-  revng_assert(this->getBody() != nullptr);
-  ASTFile << "\"" << this->getName() << "\""
-          << " -> \"" << this->getBody()->getName() << "\""
-          << " [color=green,label=\"body\"];\n";
-  this->getBody()->dump(ASTFile);
+  // After do-while and while match loop nodes could be empty
+  //revng_assert(this->getBody() != nullptr);
+  if (this->getBody() != nullptr) {
+    ASTFile << "\"" << this->getName() << "\""
+            << " -> \"" << this->getBody()->getName() << "\""
+            << " [color=green,label=\"body\"];\n";
+    this->getBody()->dump(ASTFile);
+  }
 }
 
 void SequenceNode::dump(std::ofstream &ASTFile) {

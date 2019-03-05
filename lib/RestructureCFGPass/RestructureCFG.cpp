@@ -359,6 +359,12 @@ static void removeLastContinue(ASTNode *RootNode) {
       removeLastContinue(LastNode);
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
+
+    // Body could be nullptr (previous while/dowhile semplification)
+    if (Scs->getBody() == nullptr) {
+      return;
+    }
+
     simplifyLastContinue(Scs->getBody());
   }
 }
@@ -377,6 +383,12 @@ static void simplifyLastContinue(ASTNode *RootNode) {
       simplifyLastContinue(If->getElse());
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
+
+    // Body could be nullptr (previous while/dowhile semplification)
+    if (Scs->getBody() == nullptr) {
+      return;
+    }
+
     // Recursive invocation on the body
     simplifyLastContinue(Scs->getBody());
 
@@ -488,6 +500,11 @@ static void matchWhile(ASTNode *RootNode) {
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     ASTNode *Body = Scs->getBody();
+
+    // Body could be nullptr (previous while/dowhile semplification)
+    if (Body == nullptr) {
+      return;
+    }
 
     // Recursive scs nesting handling
     matchWhile(Body);
