@@ -88,23 +88,23 @@ public:
 /// This (backward) analysis identifies stack slots that are used as stack
 /// arguments in a function call, but are read (before a store) by the
 /// caller. We consider these incoherent.
-class Analysis : public MonotoneFramework<ABIIRBasicBlock *,
+class Analysis : public MonotoneFramework<Analysis,
+                                          ABIIRBasicBlock *,
                                           Element,
-                                          Interrupt,
-                                          Analysis,
+                                          PostOrder,
                                           ABIIRBasicBlock::links_const_range,
-                                          PostOrder> {
+                                          Interrupt> {
 
 private:
   using DirectedLabelRange = ABIIRBasicBlock::reverse_range;
 
 public:
-  using Base = MonotoneFramework<ABIIRBasicBlock *,
+  using Base = MonotoneFramework<Analysis,
+                                 ABIIRBasicBlock *,
                                  Element,
-                                 Interrupt,
-                                 Analysis,
+                                 PostOrder,
                                  ABIIRBasicBlock::links_const_range,
-                                 PostOrder>;
+                                 Interrupt>;
 
 private:
   ABIIRBasicBlock *FunctionEntry;

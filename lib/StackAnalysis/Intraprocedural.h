@@ -324,12 +324,12 @@ public:
 };
 
 /// \brief Intraprocedural part of the stack analysis
-class Analysis : public MonotoneFramework<llvm::BasicBlock *,
+class Analysis : public MonotoneFramework<Analysis,
+                                          llvm::BasicBlock *,
                                           Element,
-                                          Interrupt,
-                                          Analysis,
-                                          Interrupt::const_iterator_range,
                                           BreadthFirst,
+                                          Interrupt::const_iterator_range,
+                                          Interrupt,
                                           true> {
 private:
   // Label: llvm::BasicBlock *
@@ -339,12 +339,12 @@ private:
   // SuccessorsRange: Interrupt::const_iterator_range
   // Visit: BreadthFirst
   // DynamicGraph: true
-  using Base = MonotoneFramework<llvm::BasicBlock *,
+  using Base = MonotoneFramework<Analysis,
+                                 llvm::BasicBlock *,
                                  Element,
-                                 Interrupt,
-                                 Analysis,
-                                 Interrupt::const_iterator_range,
                                  BreadthFirst,
+                                 Interrupt::const_iterator_range,
+                                 Interrupt,
                                  true>;
 
 private:

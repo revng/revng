@@ -281,12 +281,12 @@ private:
 /// \tparam SuccessorsRange the return type of D::successors.
 /// \tparam Visit type of visit to perform.
 // TODO: static_assert features of these classes (Interrupt in particular)
-template<typename Label,
+template<typename D,
+         typename Label,
          typename LatticeElement,
-         typename Interrupt,
-         typename D,
+         VisitType Visit,
          typename SuccessorsRange,
-         VisitType Visit = BreadthFirst,
+         typename Interrupt = DefaultInterrupt<LatticeElement>,
          bool DynamicGraph = false>
 class MonotoneFramework {
   static_assert(DynamicGraph ? Visit == BreadthFirst : true,
@@ -335,6 +335,8 @@ protected:
   std::map<Label, llvm::SmallVector<Label, 2>> SuccessorsMap;
 
 public:
+  using InterruptType = Interrupt;
+
   MonotoneFramework(Label Entry) :
     FinalResult(LatticeElement::bottom()),
     WorkList(Entry) {}

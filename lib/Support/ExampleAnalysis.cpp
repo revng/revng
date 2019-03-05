@@ -35,11 +35,12 @@ public:
   bool isPartOfFinalResults() const { revng_abort(); }
 };
 
-class Analysis : public MonotoneFramework<Label *,
+class Analysis : public MonotoneFramework<Analysis,
+                                          Label *,
                                           LatticeElement,
-                                          Interrupt,
-                                          Analysis,
-                                          llvm::iterator_range<Label **>> {
+                                          BreadthFirst,
+                                          llvm::iterator_range<Label **>,
+                                          Interrupt> {
 public:
   void assertLowerThanOrEqual(const LatticeElement &A,
                               const LatticeElement &B) const {

@@ -175,22 +175,22 @@ getGCBIOrNull<GeneratedCodeBasicInfo>(const GeneratedCodeBasicInfo &GCBI) {
 template<typename ColorsProvider = NullColorsProvider,
          typename BlackList = NullBlackList>
 class Analysis
-  : public MonotoneFramework<llvm::BasicBlock *,
+  : public MonotoneFramework<Analysis<ColorsProvider, BlackList>,
+                             llvm::BasicBlock *,
                              MISet,
-                             Interrupt,
-                             Analysis<ColorsProvider, BlackList>,
+                             ReversePostOrder,
                              llvm::SmallVector<llvm::BasicBlock *, 2>,
-                             ReversePostOrder> {
+                             Interrupt> {
 public:
   using SuccessorsList = llvm::SmallVector<llvm::BasicBlock *, 2>;
 
 private:
-  using Base = MonotoneFramework<llvm::BasicBlock *,
+  using Base = MonotoneFramework<Analysis<ColorsProvider, BlackList>,
+                                 llvm::BasicBlock *,
                                  MISet,
-                                 Interrupt,
-                                 Analysis<ColorsProvider, BlackList>,
+                                 ReversePostOrder,
                                  SuccessorsList,
-                                 ReversePostOrder>;
+                                 Interrupt>;
 
 private:
   /// The function to analyze

@@ -840,12 +840,12 @@ public:
 /// \note Don't reset and re-run this analysis
 template<bool IsForward, typename E>
 class Analysis
-  : public MonotoneFramework<ABIIRBasicBlock *,
+  : public MonotoneFramework<Analysis<IsForward, E>,
+                             ABIIRBasicBlock *,
                              Element<E>,
-                             Interrupt<E>,
-                             Analysis<IsForward, E>,
+                             IsForward ? ReversePostOrder : PostOrder,
                              ABIIRBasicBlock::links_const_range,
-                             IsForward ? ReversePostOrder : PostOrder> {
+                             Interrupt<E>> {
 
 private:
   using DirectedLabelRange = typename conditional<IsForward,
@@ -853,12 +853,12 @@ private:
                                                   ABIIRBB::reverse_range>::type;
 
 public:
-  using Base = MonotoneFramework<ABIIRBasicBlock *,
+  using Base = MonotoneFramework<Analysis<IsForward, E>,
+                                 ABIIRBasicBlock *,
                                  Element<E>,
-                                 Interrupt<E>,
-                                 Analysis<IsForward, E>,
+                                 IsForward ? ReversePostOrder : PostOrder,
                                  ABIIRBasicBlock::links_const_range,
-                                 IsForward ? ReversePostOrder : PostOrder>;
+                                 Interrupt<E>>;
 
 private:
   /// The entry basic block of the function
