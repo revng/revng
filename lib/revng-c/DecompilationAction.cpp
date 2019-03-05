@@ -179,6 +179,18 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                               ASTCtx,
                                               ASTInfo);
 
+      // Invert loop condition when negated.
+      if (LoopCondition->conditionNegated()) {
+        using Unary = clang::UnaryOperator;
+        CondExpr = new (ASTCtx) Unary(CondExpr,
+                                      UnaryOperatorKind::UO_Not,
+                                      CondExpr->getType(),
+                                      VK_RValue,
+                                      OK_Ordinary,
+                                      {},
+                                      false);
+      }
+
       Stmts.push_back(new (ASTCtx) DoStmt(Body, CondExpr, {}, {}, {}));
     } else if (LoopBody->isWhile()) {
 
@@ -219,6 +231,18 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                               FunctionAST,
                                               ASTCtx,
                                               ASTInfo);
+
+      // Invert loop condition when negated.
+      if (LoopCondition->conditionNegated()) {
+        using Unary = clang::UnaryOperator;
+        CondExpr = new (ASTCtx) Unary(CondExpr,
+                                      UnaryOperatorKind::UO_Not,
+                                      CondExpr->getType(),
+                                      VK_RValue,
+                                      OK_Ordinary,
+                                      {},
+                                      false);
+      }
 
       Stmts.push_back(new (ASTCtx)
                         WhileStmt(ASTCtx, nullptr, CondExpr, Body, {}));
