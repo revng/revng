@@ -454,6 +454,24 @@ static void matchDoWhile(ASTNode *RootNode) {
   }
 }
 
+static void addComputationToContinue(ASTNode *RootNode, IfNode *ConditionIf) {
+  CombLogger << "Adding computation code to continue node" << "\n";
+  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
+    for (ASTNode *Node : Sequence->nodes()) {
+      addComputationToContinue(Node, ConditionIf);
+    }
+  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
+    if (If->hasThen()) {
+      addComputationToContinue(If->getThen(), ConditionIf);
+    }
+    if (If->hasElse()) {
+      addComputationToContinue(If->getElse(), ConditionIf);
+    }
+  } else if (auto *Continue = llvm::dyn_cast<ContinueNode>(RootNode)) {
+    Continue->addComputationIfNode(ConditionIf);
+  }
+}
+
 static void matchWhile(ASTNode *RootNode) {
 
   CombLogger << "Matching whiles" << "\n";
@@ -504,6 +522,9 @@ static void matchWhile(ASTNode *RootNode) {
             cast<SequenceNode>(Body)->removeNode(If);
           } else {
             Scs->setBody(If->getElse());
+
+            // Add computation before the continue nodes
+            addComputationToContinue(Scs->getBody(), If);
           }
         } else if (llvm::isa<BreakNode>(Else)) {
           Scs->setWhile(If);
@@ -513,6 +534,9 @@ static void matchWhile(ASTNode *RootNode) {
             cast<SequenceNode>(Body)->removeNode(If);
           } else {
             Scs->setBody(If->getThen());
+
+            // Add computation before the continue nodes
+            addComputationToContinue(Scs->getBody(), If);
           }
         }
       }

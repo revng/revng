@@ -69,9 +69,24 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
   case ASTNode::NodeKind::NK_Break:
     Stmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
     break;
-  case ASTNode::NodeKind::NK_Continue:
+  case ASTNode::NodeKind::NK_Continue: {
+    ContinueNode *Continue = cast<ContinueNode>(N);
+
+    // Print the condition computation code of the if statement.
+    if (Continue->hasComputation()) {
+      IfNode *ComputationIfNode = Continue->getComputationIfNode();
+      llvm::BasicBlock *CondBlock = ComputationIfNode->getUniqueCondBlock();
+
+      auto End = InstrStmts.end();
+      for (llvm::Instruction &Instr : *CondBlock) {
+        auto It = InstrStmts.find(&Instr);
+        if (It != End)
+          Stmts.push_back(It->second);
+      }
+    }
     Stmts.push_back(new (ASTCtx) clang::ContinueStmt(SourceLocation{}));
     break;
+  }
   case ASTNode::NodeKind::NK_Code: {
     CodeNode *Code = cast<CodeNode>(N);
     llvm::BasicBlock *BB = Code->getOriginalBB();

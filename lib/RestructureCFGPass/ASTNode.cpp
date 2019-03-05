@@ -194,6 +194,16 @@ void ContinueNode::dump(std::ofstream &ASTFile) {
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
+void ContinueNode::addComputationIfNode(IfNode *ComputationIfNode) {
+  assert(ComputationIf == nullptr);
+  ComputationIf = ComputationIfNode;
+}
+
+IfNode *ContinueNode::getComputationIfNode() {
+  assert(ComputationIf != nullptr);
+  return ComputationIf;
+}
+
 void CodeNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"" << this->getName() << "\" [";
   ASTFile << "label=\"" << this->getName();

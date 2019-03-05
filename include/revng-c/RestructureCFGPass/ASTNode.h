@@ -107,46 +107,6 @@ public:
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) = 0;
 };
 
-class ContinueNode : public ASTNode {
-
-public:
-  ContinueNode() : ASTNode(NK_Continue, "continue"){};
-
-  static bool classof(const ASTNode *N) { return N->getKind() == NK_Continue; }
-
-  ASTNode *Clone() { return new ContinueNode(*this); }
-
-  void dump(std::ofstream &ASTFile);
-
-  bool isEqual(ASTNode *Node) { return llvm::isa<ContinueNode>(Node); }
-
-  BasicBlockNode *getFirstCFG() { return nullptr; };
-
-  void updateBBNodePointers(BBNodeMap &SubstitutionMap) {}
-
-  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {}
-};
-
-class BreakNode : public ASTNode {
-
-public:
-  BreakNode() : ASTNode(NK_Break, "break"){};
-
-  static bool classof(const ASTNode *N) { return N->getKind() == NK_Break; }
-
-  ASTNode *Clone() { return new BreakNode(*this); }
-
-  void dump(std::ofstream &ASTFile);
-
-  bool isEqual(ASTNode *Node) { return llvm::isa<BreakNode>(Node); }
-
-  BasicBlockNode *getFirstCFG() { return nullptr; };
-
-  void updateBBNodePointers(BBNodeMap &SubstitutionMap) {}
-
-  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {}
-};
-
 class CodeNode : public ASTNode {
 
 public:
@@ -370,6 +330,55 @@ public:
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   ASTNode *Clone() { return new SequenceNode(*this); }
+};
+
+
+class ContinueNode : public ASTNode {
+private:
+  IfNode *ComputationIf = nullptr;
+
+public:
+  ContinueNode() : ASTNode(NK_Continue, "continue"){};
+
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_Continue; }
+
+  ASTNode *Clone() { return new ContinueNode(*this); }
+
+  void dump(std::ofstream &ASTFile);
+
+  bool isEqual(ASTNode *Node) { return llvm::isa<ContinueNode>(Node); }
+
+  BasicBlockNode *getFirstCFG() { return nullptr; };
+
+  void updateBBNodePointers(BBNodeMap &SubstitutionMap) {}
+
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {}
+
+  bool hasComputation() { return ComputationIf != nullptr; };
+
+  void addComputationIfNode(IfNode *ComputationIfNode);
+
+  IfNode *getComputationIfNode();
+};
+
+class BreakNode : public ASTNode {
+
+public:
+  BreakNode() : ASTNode(NK_Break, "break"){};
+
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_Break; }
+
+  ASTNode *Clone() { return new BreakNode(*this); }
+
+  void dump(std::ofstream &ASTFile);
+
+  bool isEqual(ASTNode *Node) { return llvm::isa<BreakNode>(Node); }
+
+  BasicBlockNode *getFirstCFG() { return nullptr; };
+
+  void updateBBNodePointers(BBNodeMap &SubstitutionMap) {}
+
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {}
 };
 
 #endif // define REVNGC_RESTRUCTURE_CFG_ASTNODE_H
