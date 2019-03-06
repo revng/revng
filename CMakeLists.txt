@@ -133,7 +133,7 @@ add_flag_if_available("-Winconsistent-missing-destructor-override")
 add_flag_if_available("-Wnewline-eof")
 add_flag_if_available("-Wmissing-prototypes")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions")
 add_definitions("-D_FILE_OFFSET_BITS=64")
 
 CHECK_CXX_COMPILER_FLAG("-no-pie" COMPILER_SUPPORTS_NO_PIE)

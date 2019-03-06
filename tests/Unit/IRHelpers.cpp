@@ -15,6 +15,7 @@ bool init_unit_test();
 
 // Local includes
 #include "LLVMTestHelpers.h"
+#include "UnitTestsHelpers.h"
 
 using namespace llvm;
 

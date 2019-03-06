@@ -19,6 +19,9 @@ bool init_unit_test();
 #include "revng/ADT/SmallMap.h"
 #include "revng/ADT/ZipMapIterator.h"
 
+// Local includes
+#include "UnitTestsHelpers.h"
+
 using namespace llvm;
 
 template<typename T>
