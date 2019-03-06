@@ -485,10 +485,12 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
         auto UsedCSVs = GeneratedCodeBasicInfo::getCSVUsedByHelperCall(Call);
 
         for (GlobalVariable *CSV : UsedCSVs.Read)
-          ABIBB.append(ABIIRInstruction::createLoad(slotFromCSV(CSV)));
+          if (TheCache->isCSV(CSV))
+            ABIBB.append(ABIIRInstruction::createLoad(slotFromCSV(CSV)));
 
         for (GlobalVariable *CSV : UsedCSVs.Written)
-          ABIBB.append(ABIIRInstruction::createStore(slotFromCSV(CSV)));
+          if (TheCache->isCSV(CSV))
+            ABIBB.append(ABIIRInstruction::createStore(slotFromCSV(CSV)));
       }
 
     } break;
