@@ -119,7 +119,7 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
   }
 
   // Initialize the cache where all the results will be accumulated
-  Cache TheCache(&F);
+  Cache TheCache(&F, &GCBI);
 
   // Pool where the final results will be collected
   ResultsPool Results;
@@ -176,7 +176,7 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
   }
 
   std::stringstream Output;
-  GrandResult = Results.finalize(&M);
+  GrandResult = Results.finalize(&M, &TheCache);
   GrandResult.dump(&M, Output);
   TextRepresentation = Output.str();
 

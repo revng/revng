@@ -210,7 +210,11 @@ private:
 
     QuickMetadata QMD(M->getContext());
     Offset = Offset - 2;
-    const auto &Operand = QMD.extract<MDTuple *>(Tuple, 4)->getOperand(Offset);
+    const auto *ABIRegisters = QMD.extract<MDTuple *>(Tuple, 4);
+    if (Offset >= static_cast<int32_t>(ABIRegisters->getNumOperands()))
+      return llvm::Optional<std::string>();
+
+    const auto &Operand = ABIRegisters->getOperand(Offset);
     return QMD.extract<StringRef>(Operand.get()).str();
   }
 };

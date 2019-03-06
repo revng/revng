@@ -585,15 +585,8 @@ struct ClobberedRegistersAnalysis {
   }
 };
 
-FunctionsSummary ResultsPool::finalize(Module *M) {
+FunctionsSummary ResultsPool::finalize(Module *M, Cache *TheCache) {
   ASID CPU = ASID::cpuID();
-
-  // Build a map from indices used in the stack analysis to the corresponding
-  // CSVs
-  std::vector<GlobalVariable *> IndexToCSV;
-  IndexToCSV.push_back(nullptr);
-  for (GlobalVariable &CSV : M->globals())
-    IndexToCSV.push_back(&CSV);
 
   // Create the result data structure
   FunctionsSummary Result;
@@ -608,7 +601,7 @@ FunctionsSummary ResultsPool::finalize(Module *M) {
   for (auto &P : Clobbered) {
     auto &Function = Result.Functions[P.first];
     for (int32_t Offset : P.second)
-      Function.ClobberedRegisters.insert(IndexToCSV.at(Offset));
+      Function.ClobberedRegisters.insert(TheCache->getCSVByIndex(Offset));
   }
 
   // Register block types
@@ -696,7 +689,10 @@ FunctionsSummary ResultsPool::finalize(Module *M) {
     for (ASSlot Slot : FCS.Slots) {
       revng_assert(Slot.addressSpace() == CPU);
       int32_t Offset = Slot.offset();
-      GlobalVariable *CSV = IndexToCSV.at(Offset);
+      if (not TheCache->isCSVIndex(Offset))
+        continue;
+
+      GlobalVariable *CSV = TheCache->getCSVByIndex(Offset);
       FunctionSlot TheFunctionSlot{ FunctionEntry, Offset };
 
       bool CalleeHasSlot = FRA.count(TheFunctionSlot) != 0;

@@ -120,7 +120,7 @@ public:
 
   /// \brief Finalized the data stored in this object and produce a
   ///        FunctionsSummary
-  FunctionsSummary finalize(llvm::Module *M);
+  FunctionsSummary finalize(llvm::Module *M, Cache *TheCache);
 
   void dump(const llvm::Module *M) const debug_function { dump(M, dbg); }
 

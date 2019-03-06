@@ -23,6 +23,7 @@
 
 // Local includes
 #include "ABIIR.h"
+#include "Cache.h"
 #include "Element.h"
 #include "FunctionABI.h"
 #include "IntraproceduralFunctionSummary.h"
@@ -357,7 +358,6 @@ private:
   int32_t SPIndex; ///< Offset of the stack pointer CSV
   int32_t PCIndex; ///< Offset of the PC CSV
   ABIFunction TheABIIR; ///< The ABI IR
-  int32_t CSVCount; ///< Number of CSVs, used to distinguish from alloca
 
   /// \brief Set of return addresses from fake function calls
   std::set<uint64_t> FakeReturnAddresses;
@@ -383,8 +383,6 @@ private:
 
   bool AnalyzeABI;
 
-  std::map<const llvm::User *, int32_t> CPUIndices;
-
 public:
   Analysis(llvm::BasicBlock *Entry,
            const Cache &TheCache,
@@ -407,7 +405,8 @@ public:
   }
 
   bool isCSV(ASSlot Slot) const {
-    return Slot.addressSpace() == ASID::cpuID() && Slot.offset() < CSVCount;
+    return (Slot.addressSpace() == ASID::cpuID()
+            and TheCache->isCSVIndex(Slot.offset()));
   }
 
   void assertLowerThanOrEqual(const Element &A, const Element &B) const {
@@ -562,9 +561,7 @@ private:
     return false;
   }
 
-  ASSlot slotFromCSV(llvm::User *U) const {
-    return ASSlot::create(ASID::cpuID(), CPUIndices.at(U));
-  }
+  ASSlot slotFromCSV(llvm::User *U) const;
 };
 
 } // namespace Intraprocedural

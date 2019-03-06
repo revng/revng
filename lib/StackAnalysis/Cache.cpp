@@ -5,9 +5,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+// Local libraries includes
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+
 // Local includes
 #include "Cache.h"
 
+using llvm::AllocaInst;
 using llvm::BasicBlock;
 using llvm::BinaryOperator;
 using llvm::BlockAddress;
@@ -299,7 +303,39 @@ void Cache::identifyLinkRegisters(const Module *M) {
   }
 }
 
-Cache::Cache(const Function *F) : DefaultLinkRegister(nullptr) {
+void Cache::assignCPUIndices(Function *F, GeneratedCodeBasicInfo *GCBI) {
+  // Enumerate CPU state and allocas
+  CSVToIndexMap.clear();
+  IndexToCSVMap.clear();
+
+  // Skip 0, keep it as "invalid value"
+  int32_t I = 1;
+
+  IndexToCSVMap[I++] = GCBI->pcReg();
+
+  // Go through global variables first
+  for (llvm::GlobalVariable *GV : GCBI->abiRegisters())
+    IndexToCSVMap[I++] = GV;
+
+  CSVCount = I;
+
+  // Look for AllocaInst at the beginning of the root function
+  llvm::BasicBlock *Entry = &*F->begin();
+  auto It = Entry->begin();
+  while (It != Entry->end() and isa<AllocaInst>(&*It)) {
+    IndexToCSVMap[I] = &*It;
+
+    I++;
+    It++;
+  }
+
+  for (auto &P : IndexToCSVMap)
+    CSVToIndexMap[P.second] = P.first;
+}
+
+Cache::Cache(Function *F, GeneratedCodeBasicInfo *GCBI) :
+  DefaultLinkRegister(nullptr) {
+  assignCPUIndices(F, GCBI);
   identifyPartialStores(F);
   identifyIdentityLoads(F);
   identifyLinkRegisters(F->getParent());

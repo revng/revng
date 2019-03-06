@@ -68,32 +68,6 @@ void Analysis::initialize() {
 
   revng_log(SaLog, "Creating Analysis for " << getName(Entry));
 
-  // Enumerate CPU state and allocas
-  {
-    CPUIndices.clear();
-
-    // Skip 0, keep it as "invalid value"
-    int32_t I = 1;
-
-    CPUIndices[GCBI->pcReg()] = I++;
-
-    // Go through global variables first
-    for (const llvm::GlobalVariable *GV : GCBI->abiRegisters())
-      CPUIndices[GV] = I++;
-
-    CSVCount = I;
-
-    // Look for AllocaInst at the beginning of the root function
-    const llvm::BasicBlock *Entry = &*M->getFunction("root")->begin();
-    auto It = Entry->begin();
-    while (It != Entry->end() and isa<AllocaInst>(&*It)) {
-      CPUIndices[&*It] = I;
-
-      I++;
-      It++;
-    }
-  }
-
   TerminatorInst *T = Entry->getTerminator();
   revng_assert(T != nullptr);
 
@@ -104,9 +78,9 @@ void Analysis::initialize() {
   // and the link register
   int32_t LinkRegisterIndex = 0;
   if (LinkRegister != nullptr)
-    LinkRegisterIndex = CPUIndices.at(LinkRegister);
-  PCIndex = CPUIndices.at(GCBI->pcReg());
-  SPIndex = CPUIndices.at(GCBI->spReg());
+    LinkRegisterIndex = TheCache->getCPUIndex(LinkRegister);
+  PCIndex = TheCache->getCPUIndex(GCBI->pcReg());
+  SPIndex = TheCache->getCPUIndex(GCBI->spReg());
 
   // Set the stack pointer to SP0+0
   ASSlot StackPointer = ASSlot::create(ASID::cpuID(), SPIndex);
@@ -147,18 +121,18 @@ private:
   ContentMap InstructionContent; ///< Map for the instructions in this BB
   ContentMap &VariableContent; ///< Reference to map for allocas
   const DataLayout &DL;
-  const std::map<const User *, int32_t> &CPUIndices;
+  const Cache *TheCache;
 
 public:
   BasicBlockState(BasicBlock *BB,
                   ContentMap &VariableContent,
                   const DataLayout &DL,
-                  const std::map<const User *, int32_t> &CPUIndices) :
+                  const Cache *TheCache) :
     BB(BB),
     M(getModule(BB)),
     VariableContent(VariableContent),
     DL(DL),
-    CPUIndices(CPUIndices) {}
+    TheCache(TheCache) {}
 
   /// \brief Gets the Value associated to \p V
   ///
@@ -174,13 +148,12 @@ public:
   Value get(llvm::Value *V) const {
     if (auto *CSV = dyn_cast<AllocaInst>(V)) {
 
-      return Value::fromSlot(ASID::cpuID(), CPUIndices.at(CSV));
+      return Value::fromSlot(ASID::cpuID(), TheCache->getCPUIndex(CSV));
 
     } else if (auto *CSV = dyn_cast<GlobalVariable>(V)) {
 
-      auto It = CPUIndices.find(CSV);
-      if (It != CPUIndices.end())
-        return Value::fromSlot(ASID::cpuID(), It->second);
+      if (TheCache->isCPU(CSV))
+        return Value::fromSlot(ASID::cpuID(), TheCache->getCPUIndex(CSV));
       else
         return Value();
 
@@ -336,7 +309,7 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
 
   // Initialize an object to keep track of the values associated to each
   // instruction in the current basic block
-  BasicBlockState BBState(BB, VariableContent, M->getDataLayout(), CPUIndices);
+  BasicBlockState BBState(BB, VariableContent, M->getDataLayout(), TheCache);
 
   for (Instruction &I : *BB) {
 
@@ -962,6 +935,10 @@ Interrupt Analysis::handleCall(Instruction *Caller,
     auto Reason = IsIndirect ? BT::IndirectCall : BT::HandledCall;
     return AI::createWithSuccessor(std::move(Result), Reason, ReturnFromCall);
   }
+}
+
+ASSlot Analysis::slotFromCSV(llvm::User *U) const {
+  return ASSlot::create(ASID::cpuID(), TheCache->getCPUIndex(U));
 }
 
 IFS Analysis::createSummary() {

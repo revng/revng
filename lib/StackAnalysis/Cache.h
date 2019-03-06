@@ -5,6 +5,8 @@
 #include "Element.h"
 #include "IntraproceduralFunctionSummary.h"
 
+class GeneratedCodeBasicInfo;
+
 namespace StackAnalysis {
 
 /// \brief Cache for the result of the analysis of a function
@@ -33,9 +35,25 @@ private:
   std::set<const llvm::LoadInst *> IdentityLoads;
   std::set<const llvm::StoreInst *> IdentityStores;
 
+  std::map<const llvm::User *, int32_t> CSVToIndexMap;
+  std::map<int32_t, llvm::User *> IndexToCSVMap;
+  int32_t CSVCount;
+
 public:
   /// \brief Identify default storage for link register, identity loads
-  Cache(const llvm::Function *F);
+  Cache(llvm::Function *F, GeneratedCodeBasicInfo *GCBI);
+
+  int32_t getCPUIndex(const llvm::User *U) const { return CSVToIndexMap.at(U); }
+  bool isCPU(const llvm::User *U) const { return CSVToIndexMap.count(U) != 0; }
+  bool isCSV(const llvm::User *U) const {
+    return CSVToIndexMap.count(U) != 0 and CSVToIndexMap.at(U) < CSVCount;
+  }
+  llvm::GlobalVariable *getCSVByIndex(int32_t I) const {
+    return llvm::cast<llvm::GlobalVariable>(IndexToCSVMap.at(I));
+  }
+  bool isCSVIndex(int32_t I) const {
+    return IndexToCSVMap.count(I) != 0 and I < CSVCount;
+  }
 
   bool isFakeFunction(llvm::BasicBlock *Function) const {
     return FakeFunctions.count(Function) != 0;
@@ -107,6 +125,7 @@ public:
   }
 
 private:
+  void assignCPUIndices(llvm::Function *F, GeneratedCodeBasicInfo *GCBI);
   void identifyPartialStores(const llvm::Function *F);
   void identifyIdentityLoads(const llvm::Function *F);
   void identifyLinkRegisters(const llvm::Module *M);
