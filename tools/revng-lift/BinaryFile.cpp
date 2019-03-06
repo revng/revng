@@ -88,6 +88,10 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
     RelocationTypes[R_386_JUMP_SLOT] = RD(RD::SymbolRelative);
     RelocationTypes[R_386_GLOB_DAT] = RD(RD::SymbolRelative);
     RelocationTypes[R_386_COPY] = RD(RD::LabelOnly, RD::TargetValue);
+
+    ABIRegisters = { { "eax" }, { "ebx" }, { "ecx" }, { "edx" },
+                     { "esi" }, { "edi" }, { "ebp" }, { "esp" } };
+
     break;
 
   case Triple::x86_64:
@@ -239,6 +243,15 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
     // TODO: investigate (R_390_RELATIVE does not exist)
     RelocationTypes[R_390_GLOB_DAT] = RD(RD::SymbolRelative);
     RelocationTypes[R_390_COPY] = RD(RD::LabelOnly, RD::TargetValue);
+
+    ABIRegisters = { { "r0" },  { "r1" },  { "r2" },  { "r3" },  { "r4" },
+                     { "r5" },  { "r6" },  { "r7" },  { "r8" },  { "r9" },
+                     { "r10" }, { "r11" }, { "r12" }, { "r13" }, { "r14" },
+                     { "r15" }, { "f0" },  { "f1" },  { "f2" },  { "f3" },
+                     { "f4" },  { "f5" },  { "f6" },  { "f7" },  { "f8" },
+                     { "f9" },  { "f10" }, { "f11" }, { "f12" }, { "f13" },
+                     { "f14" }, { "f15" } };
+
     break;
 
   default:
