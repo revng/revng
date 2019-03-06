@@ -5,7 +5,6 @@
 #include <clang/Frontend/FrontendAction.h>
 
 namespace llvm {
-class Module;
 class GlobalVariable;
 } // namespace llvm
 
@@ -21,8 +20,8 @@ public:
   using GlobalsMap = std::map<const llvm::GlobalVariable *, clang::VarDecl *>;
 
 public:
-  GlobalDeclCreationAction(llvm::Module &M, GlobalsMap &Map) :
-    M(M),
+  GlobalDeclCreationAction(llvm::Function &F, GlobalsMap &Map) :
+    TheF(F),
     GlobalVarAST(Map) {}
 
 public:
@@ -34,16 +33,16 @@ public:
   }
 
 private:
-  llvm::Module &M;
+  llvm::Function &TheF;
   GlobalsMap &GlobalVarAST;
 };
 
 } // end namespace tooling
 
 inline std::unique_ptr<ASTConsumer>
-CreateGlobalDeclCreator(llvm::Module &Module,
+CreateGlobalDeclCreator(llvm::Function &F,
                         tooling::GlobalDeclCreationAction::GlobalsMap &Map) {
-  return tooling::GlobalDeclCreationAction(Module, Map).newASTConsumer();
+  return tooling::GlobalDeclCreationAction(F, Map).newASTConsumer();
 }
 
 } // end namespace clang

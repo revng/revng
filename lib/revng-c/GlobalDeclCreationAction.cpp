@@ -18,15 +18,14 @@ using GlobalsMap = GlobalDeclCreationAction::GlobalsMap;
 
 class GlobalDeclsCreator : public ASTConsumer {
 public:
-  explicit GlobalDeclsCreator(llvm::Module &M, GlobalsMap &Map) :
-    M(M),
+  explicit GlobalDeclsCreator(llvm::Function &F, GlobalsMap &Map) :
+    TheF(F),
     GlobalVarAST(Map) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override {
     uint64_t UnnamedNum = 0;
     TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
-    std::set<Function *> IsolatedFunctions = getIsolatedFunctions(M);
-    for (const GlobalVariable *G : getDirectlyUsedGlobals(IsolatedFunctions)) {
+    for (const GlobalVariable *G : getDirectlyUsedGlobals(TheF)) {
       QualType ASTTy = IRASTTypeTranslation::getQualType(G, Context);
 
       std::string VarName = G->getName();
@@ -75,12 +74,12 @@ public:
   }
 
 private:
-  llvm::Module &M;
+  llvm::Function &TheF;
   GlobalsMap &GlobalVarAST;
 };
 
 std::unique_ptr<ASTConsumer> GlobalDeclCreationAction::newASTConsumer() {
-  return std::make_unique<GlobalDeclsCreator>(M, GlobalVarAST);
+  return std::make_unique<GlobalDeclsCreator>(TheF, GlobalVarAST);
 }
 
 } // end namespace tooling

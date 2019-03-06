@@ -84,47 +84,43 @@ static FunctionDecl *createFunDecl(ASTContext &Context,
 
 class FuncDeclCreator : public ASTConsumer {
 public:
-  explicit FuncDeclCreator(llvm::Module &M, FunctionsMap &Decls) :
-    M(M),
-    FunctionDecls(Decls) {}
+  explicit FuncDeclCreator(llvm::Function &F, FunctionsMap &Decls) :
+    TheF(F), FunctionDecls(Decls) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override {
+    llvm::Module &M = *TheF.getParent();
     TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
-    std::set<Function *> IsolatedFunctions = getIsolatedFunctions(M);
 
-    std::set<Function *> Called = getDirectlyCalledFunctions(IsolatedFunctions);
+    std::set<Function *> Called = getDirectlyCalledFunctions(TheF);
+    Called.erase(&TheF);
     // we need abort for decompiling UnreachableInst
     Called.insert(M.getFunction("abort"));
     for (Function *F : Called) {
       const llvm::StringRef FName = F->getName();
       revng_assert(not FName.empty());
       bool IsIsolated = FName.startswith("bb.");
-      FunctionDecl *NewFDecl = createFunDecl(Context, TUDecl, F, IsIsolated);
+      FunctionDecl *NewFDecl = createFunDecl(Context, TUDecl, F, false);
       FunctionDecls[F] = NewFDecl;
     }
 
-    for (Function *F : IsolatedFunctions) {
-      const llvm::StringRef FName = F->getName();
-      revng_assert(not FName.empty());
-      revng_assert(FName.startswith("bb."));
-      // This is actually a definition, because the isolated functions need
-      // will be fully decompiled and they need a body.
-      // We still emit the forward declarations for all the prototypes, and
-      // we emit a full definition for the isolated functions.
-      // This definition starts as a declaration that is than inflated by the
-      // ASTBuildAnalysis.
-      FunctionDecl *NewFDecl = createFunDecl(Context, TUDecl, F, true);
-      FunctionDecls[F] = NewFDecl;
-    }
+    const llvm::StringRef FName = TheF.getName();
+    revng_assert(not FName.empty());
+    revng_assert(FName.startswith("bb."));
+    // This is actually a definition, because the isolated function need will
+    // be fully decompiled and it needs a body.
+    // This definition starts as a declaration that is than inflated by the
+    // ASTBuildAnalysis.
+    FunctionDecl *NewFDecl = createFunDecl(Context, TUDecl, &TheF, true);
+    FunctionDecls[&TheF] = NewFDecl;
   }
 
 private:
-  llvm::Module &M;
+  llvm::Function &TheF;
   FunctionsMap &FunctionDecls;
 };
 
 std::unique_ptr<ASTConsumer> FuncDeclCreationAction::newASTConsumer() {
-  return std::make_unique<FuncDeclCreator>(M, FunctionDecls);
+  return std::make_unique<FuncDeclCreator>(F, FunctionDecls);
 }
 
 } // end namespace tooling

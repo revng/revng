@@ -14,7 +14,7 @@ static bool isInAnyFunction(Instruction *I, const std::set<Function *> &Funcs) {
 }
 
 static bool
-isUsedInFunctions(ConstantExpr *CE, const std::set<Function *> &Funcs) {
+isUsedInFunction(ConstantExpr *CE, const Function &F) {
   SmallSet<Constant *, 16> UnexploredCEUsers;
   UnexploredCEUsers.insert(CE);
   SmallSet<Constant *, 16> NextUnexploredCEUsers;
@@ -24,7 +24,7 @@ isUsedInFunctions(ConstantExpr *CE, const std::set<Function *> &Funcs) {
       for (User *U : CEUser->users()) {
 
         if (auto *I = dyn_cast<Instruction>(U)) {
-          if (isInAnyFunction(I, Funcs))
+          if (I->getFunction() == &F)
             return true;
 
         } else if (auto *CExpr = dyn_cast<Constant>(U)) {
@@ -41,26 +41,18 @@ isUsedInFunctions(ConstantExpr *CE, const std::set<Function *> &Funcs) {
   return false;
 }
 
-std::set<GlobalVariable *>
-getDirectlyUsedGlobals(const std::set<Function *> &Funcs) {
-  if (Funcs.empty())
-    return {};
-
-  Module *M = (*Funcs.begin())->getParent();
-  revng_assert(std::all_of(Funcs.begin(), Funcs.end(), [M](Function *F) {
-    return F->getParent() == M;
-  }));
-
+std::set<GlobalVariable *> getDirectlyUsedGlobals(Function &F) {
   std::set<GlobalVariable *> Results;
+  Module *M =  F.getParent();
   for (GlobalVariable &G : M->globals()) {
     for (User *U : G.users()) {
       if (auto *I = dyn_cast<Instruction>(U)) {
-        if (isInAnyFunction(I, Funcs)) {
+        if (I->getFunction() == &F) {
           Results.insert(&G);
           break;
         }
       } else if (auto *CE = dyn_cast<ConstantExpr>(U)) {
-        if (isUsedInFunctions(CE, Funcs)) {
+        if (isUsedInFunction(CE, F)) {
           Results.insert(&G);
           break;
         }
@@ -72,38 +64,12 @@ getDirectlyUsedGlobals(const std::set<Function *> &Funcs) {
   return Results;
 }
 
-std::set<Function *>
-getDirectlyCalledFunctions(const std::set<Function *> &Funcs) {
+std::set<Function *> getDirectlyCalledFunctions(Function &F) {
   std::set<Function *> Results;
-  for (Function *F : Funcs)
-    for (BasicBlock &BB : *F)
-      for (Instruction &I : BB)
-        if (auto *Call = dyn_cast<CallInst>(&I))
-          if (Function *Callee = getCallee(Call))
-            Results.insert(Callee);
+  for (BasicBlock &BB : F)
+    for (Instruction &I : BB)
+      if (auto *Call = dyn_cast<CallInst>(&I))
+        if (Function *Callee = getCallee(Call))
+          Results.insert(Callee);
   return Results;
-}
-
-std::set<Function *>
-getRecursivelyCalledFunctions(const std::set<Function *> &Funcs) {
-  std::set<Function *> Results = Funcs;
-  bool NewInsertions;
-  do {
-    NewInsertions = false;
-    for (Function *F : getDirectlyCalledFunctions(Results))
-      NewInsertions |= Results.insert(F).second;
-
-  } while (NewInsertions);
-  return Results;
-}
-
-std::set<Function *> getIsolatedFunctions(llvm::Module &M) {
-  std::set<Function *> Result;
-  for (Function &F : M.functions()) {
-    const llvm::StringRef FName = F.getName();
-    bool IsIsolatedFunction = FName.startswith("bb.");
-    if (IsIsolatedFunction)
-      Result.insert(&F);
-  }
-  return Result;
 }

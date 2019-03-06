@@ -241,10 +241,10 @@ public:
     llvm::Module *M = TheF.getParent();
 
     // Build declaration of global variables
-    ConsumerPtr GlobalDeclCreation = CreateGlobalDeclCreator(*M, GlobalVarAST);
+    ConsumerPtr GlobalDeclCreation = CreateGlobalDeclCreator(TheF, GlobalVarAST);
     GlobalDeclCreation->HandleTranslationUnit(Context);
     // Build function declaration
-    ConsumerPtr FunDeclCreation = CreateFuncDeclCreator(*M, FunctionDecls);
+    ConsumerPtr FunDeclCreation = CreateFuncDeclCreator(TheF, FunctionDecls);
     FunDeclCreation->HandleTranslationUnit(Context);
 
     revng_assert(not TheF.isDeclaration());

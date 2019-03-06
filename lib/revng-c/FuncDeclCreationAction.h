@@ -5,7 +5,6 @@
 #include <clang/Frontend/FrontendAction.h>
 
 namespace llvm {
-class Module;
 class Function;
 } // namespace llvm
 
@@ -21,9 +20,8 @@ public:
   using FunctionsMap = std::map<llvm::Function *, clang::FunctionDecl *>;
 
 public:
-  FuncDeclCreationAction(llvm::Module &M, FunctionsMap &Decls) :
-    M(M),
-    FunctionDecls(Decls) {}
+  FuncDeclCreationAction(llvm::Function &F, FunctionsMap &Decls) :
+    F(F), FunctionDecls(Decls) {}
 
 public:
   std::unique_ptr<ASTConsumer> newASTConsumer();
@@ -34,16 +32,16 @@ public:
   }
 
 private:
-  llvm::Module &M;
+  llvm::Function &F;
   FunctionsMap &FunctionDecls;
 };
 
 } // end namespace tooling
 
 inline std::unique_ptr<ASTConsumer>
-CreateFuncDeclCreator(llvm::Module &M,
+CreateFuncDeclCreator(llvm::Function &F,
                       tooling::FuncDeclCreationAction::FunctionsMap &FunDecls) {
-  return tooling::FuncDeclCreationAction(M, FunDecls).newASTConsumer();
+  return tooling::FuncDeclCreationAction(F, FunDecls).newASTConsumer();
 }
 
 } // end namespace clang
