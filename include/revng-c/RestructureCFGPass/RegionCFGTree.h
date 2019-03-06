@@ -106,6 +106,21 @@ public:
     return addArtificialNode(Name, BasicBlockNode::Type::Break);
   }
 
+  BasicBlockNode *addSwitch(unsigned StateVariableValue,
+                            BasicBlockNode *True,
+                            BasicBlockNode *False) {
+    using Type = BasicBlockNode::Type;
+    using BBNode = BasicBlockNode;
+    std::string IdStr = std::to_string(StateVariableValue);
+    BlockNodes.emplace_back(std::make_unique<BBNode>(this, Type::Check,
+                                                     StateVariableValue,
+                                                     "switch " + IdStr));
+    BBNode *Switch = BlockNodes.back().get();
+    Switch->setTrue(True);
+    Switch->setFalse(False);
+    return Switch;
+  }
+
   BasicBlockNode *addDispatcher(unsigned StateVariableValue,
                                 BasicBlockNode *True,
                                 BasicBlockNode *False) {

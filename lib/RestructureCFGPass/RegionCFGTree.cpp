@@ -320,6 +320,25 @@ static void simplifyTrivialShortCircuit(ASTNode *RootNode) {
   }
 }
 
+#if 0
+static void matchSwitch(ASTNode *RootNode) {
+
+  // Inspect all the nodes composing a sequence node.
+  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
+    for (ASTNode *Node : Sequence->nodes()) {
+      matchSwitch(Node);
+    }
+  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
+    // Inspect the body of a SCS region.
+    matchSwitch(Scs->getBody());
+  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
+    // An if node could be a switch statement
+
+  }
+
+}
+#endif
+
 void RegionCFG::initialize(llvm::Function &F) {
 
   // Create a new node for each basic block in the module.
@@ -353,26 +372,35 @@ void RegionCFG::initialize(llvm::Function &F) {
         WorkList.push_back(Successor);
       }
 
-      BasicBlockNode *PrevDummy = &get(&BB);
+      // Remove from the successor the `unexpectedpc` basic block.
+      // TODO: Consider moving the `unexpectedpc` block at the beginning (so
+      //       that we do not break post-dominance) instead of directly removing
+      //       it.
+      //WorkList.pop_back();
 
-      // For each iteration except the last create a new dummy node
-      // connecting the successors.
-      while (WorkList.size() > 2) {
-        BasicBlockNode *NewDummy = addArtificialNode("switch dummy");
-        BasicBlockNode *Dest1 = &get(WorkList.back());
+      // We construct the nested tree structure from the bottom up.
+      // Get a pointer to the last node of the switch. In successive iterations
+      // `DestFalse` will be the intermediate dummy switch node.
+      BasicBlockNode *DestFalse = &get(WorkList.back());
+      WorkList.pop_back();
+
+      // The index used for the `switch` nodes, will be decremented by one from
+      // the expected value, since the last check will go to two different code
+      // nodes.
+      int SwitchIndex = WorkList.size() - 1;
+
+      while (WorkList.size() > 0) {
+        BasicBlockNode *DestTrue = &get(WorkList.back());
+        BasicBlockNode *Switch = addSwitch(SwitchIndex, DestTrue, DestFalse);
         WorkList.pop_back();
-        addEdge(EdgeDescriptor(PrevDummy, Dest1));
-        addEdge(EdgeDescriptor(PrevDummy, NewDummy));
-        PrevDummy = NewDummy;
+        DestFalse = Switch;
+        SwitchIndex--;
       }
 
-      BasicBlockNode *Dest1 = &get(WorkList.back());
-      WorkList.pop_back();
-      BasicBlockNode *Dest2 = &get(WorkList.back());
-      WorkList.pop_back();
-      revng_assert(WorkList.empty());
-      addEdge(EdgeDescriptor(PrevDummy, Dest1));
-      addEdge(EdgeDescriptor(PrevDummy, Dest2));
+      // Connect the node that contained the switch instruction to the switch
+      // dispatcher structure.
+      BasicBlockNode *CodeSwitch = &get(&BB);
+      addEdge(EdgeDescriptor(CodeSwitch, DestFalse));
     }
   }
 }
@@ -889,6 +917,11 @@ void RegionCFG::inflate() {
           PDT.insertEdge(Dummies[S], Candidate);
         }
       } else {
+        #if 0
+        if (Conditional->isSwitch()) {
+          continue;
+        }
+        #endif
 
         // Duplicate node.
         if (CombLogger.isEnabled()) {

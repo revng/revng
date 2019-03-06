@@ -32,6 +32,7 @@ public:
     Set,
     Check,
     Collapsed,
+    Switch,
   };
 
   using links_container = llvm::SmallVector<BasicBlockNode *, 2>;
@@ -123,7 +124,7 @@ public:
                           unsigned Value,
                           const std::string &Name = "") :
     BasicBlockNode(Parent, nullptr, nullptr, Name, T, Value) {
-    revng_assert(T == Type::Set or T == Type::Check);
+    revng_assert(T == Type::Set or T == Type::Check or T == Type::Switch);
   }
 
 public:
@@ -133,6 +134,7 @@ public:
   bool isCheck() const { return NodeType == Type::Check; }
   bool isCode() const { return NodeType == Type::Code; }
   bool isEmpty() const { return NodeType == Type::Empty; }
+  bool isSwitch() const { return NodeType == Type::Switch; }
   bool isArtificial() const {
     return NodeType != Type::Code and NodeType != Type::Collapsed;
   }
