@@ -1372,27 +1372,38 @@ static Expr *getLiteralFromConstant(Constant *C,
       case BuiltinType::Short: {
         QualType IntT = ASTCtx.IntTy;
         QualType ShortT = ASTCtx.ShortTy;
-        APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue);
+        APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue, true);
         Expr *Literal = IntegerLiteral::Create(ASTCtx, Const, IntT, {});
         return createCast(ShortT, Literal, ASTCtx);
       }
       case BuiltinType::UInt:
       case BuiltinType::ULong:
-      case BuiltinType::ULongLong:
-      case BuiltinType::Int:
-      case BuiltinType::Long:
-      case BuiltinType::LongLong: {
+      case BuiltinType::ULongLong: {
         APInt Const = APInt(ASTCtx.getIntWidth(LiteralTy), ConstValue);
         return IntegerLiteral::Create(ASTCtx, Const, LiteralTy, {});
       }
+      case BuiltinType::Int:
+      case BuiltinType::Long:
+      case BuiltinType::LongLong: {
+        APInt Const = APInt(ASTCtx.getIntWidth(LiteralTy), ConstValue, true);
+        return IntegerLiteral::Create(ASTCtx, Const, LiteralTy, {});
+      }
       case BuiltinType::UInt128: {
-        APInt Const = APInt(128, ConstValue);
-        QualType T = ASTCtx.UnsignedInt128Ty;
+        // With LLVM compiled in debug this asserts whenever ConstValue is
+        // larger than 64 bits.
+        // We don't use 128 instead of 64 because C hasn't 128 bits integer
+        // literals.
+        APInt Const = APInt(64, ConstValue);
+        QualType T = ASTCtx.UnsignedLongLongTy;
         return IntegerLiteral::Create(ASTCtx, Const, T, {});
       }
       case BuiltinType::Int128: {
-        APInt Const = APInt(128, ConstValue);
-        QualType T = ASTCtx.Int128Ty;
+        // With LLVM compiled in debug this asserts whenever ConstValue is
+        // larger than 64 bits.
+        // We don't use 128 instead of 64 because C hasn't 128 bits integer
+        // literals.
+        APInt Const = APInt(64, ConstValue, true);
+        QualType T = ASTCtx.LongLongTy;
         return IntegerLiteral::Create(ASTCtx, Const, T, {});
       }
       default:
