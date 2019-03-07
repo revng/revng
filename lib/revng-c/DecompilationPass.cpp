@@ -83,15 +83,15 @@ bool DecompilationPass::runOnFunction(llvm::Function &F) {
   ASTTree &CombedCFGAST = RestructureCFGAnalysis.getAST();
 
   // Here we build the artificial command line for clang tooling
-  std::vector<const char *> ArgV = {
+  static std::array<const char *, 5> ArgV = {
     "revng-c",
     "/dev/null", // use /dev/null as input file to start from empty AST
     "--", // separator between tool arguments and clang arguments
     "-xc", // tell clang to compile C language
     "-std=c11", // tell clang to compile C11
   };
-  int ArgC = ArgV.size();
-  CommonOptionsParser OptionParser(ArgC, ArgV.data(), RevNgCategory);
+  static int ArgC = ArgV.size();
+  static CommonOptionsParser OptionParser(ArgC, ArgV.data(), RevNgCategory);
   ClangTool RevNg = ClangTool(OptionParser.getCompilations(),
                               OptionParser.getSourcePathList());
 
