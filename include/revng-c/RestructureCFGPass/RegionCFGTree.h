@@ -106,14 +106,17 @@ public:
     return addArtificialNode(Name, BasicBlockNode::Type::Break);
   }
 
-  BasicBlockNode *addSwitch(unsigned StateVariableValue,
+  BasicBlockNode *addSwitch(llvm::BasicBlock *OriginalSwitch,
+                            unsigned CaseIdx,
                             BasicBlockNode *True,
                             BasicBlockNode *False) {
     using Type = BasicBlockNode::Type;
     using BBNode = BasicBlockNode;
-    std::string IdStr = std::to_string(StateVariableValue);
-    BlockNodes.emplace_back(std::make_unique<BBNode>(this, Type::Check,
-                                                     StateVariableValue,
+    std::string IdStr = std::to_string(CaseIdx);
+    BlockNodes.emplace_back(std::make_unique<BBNode>(this,
+                                                     Type::Switch,
+                                                     OriginalSwitch,
+                                                     CaseIdx,
                                                      "switch " + IdStr));
     BBNode *Switch = BlockNodes.back().get();
     Switch->setTrue(True);

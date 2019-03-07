@@ -1000,7 +1000,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       if (Node != Head) {
 
         // Handle outgoing edges from SCS nodes.
-        if (Node->isCheck()) {
+        if (Node->isCheckOrSwitch()) {
 
           if (Meta->containsNode(Node->getTrue()))
             ClonedMap.at(Node)->setTrue(ClonedMap.at(Node->getTrue()));
@@ -1038,7 +1038,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
 
     if (NewHeadNeeded) {
-      revng_assert(Head->isCheck());
+      revng_assert(Head->isCheckOrSwitch());
       std::set<BasicBlockNode *> SetCandidates;
       for (BasicBlockNode *Pred : Head->predecessors()) {
         if (not Pred->isSet()) {

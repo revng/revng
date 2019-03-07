@@ -42,7 +42,7 @@ void BasicBlockNode::printAsOperand(raw_ostream &O, bool PrintType) {
 }
 
 void BasicBlockNode::removeSuccessor(BasicBlockNode *Successor) {
-  // revng_assert(not isCheck()); // TODO: maybe add removeTrue and removeFalse?
+  // revng_assert(not isCheckOrSwitch()); // TODO: maybe add removeTrue and removeFalse?
   for (auto It = Successors.begin(); It != Successors.end(); It++) {
     if (*It == Successor) {
       Successors.erase(It);
@@ -78,7 +78,7 @@ static void handleNeighbors(const BBNodeMap &SubstitutionMap,
 
 void BasicBlockNode::updatePointers(const BBNodeMap &SubstitutionMap) {
   handleNeighbors(SubstitutionMap, Predecessors);
-  if (not isCheck()) {
+  if (not isCheckOrSwitch()) {
     handleNeighbors(SubstitutionMap, Successors);
   } else { // don't screw up the if/then/else of check nodes
 

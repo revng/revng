@@ -25,13 +25,13 @@ extern Logger<> CombLogger;
 using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
 
 inline void addEdge(EdgeDescriptor NewEdge) {
-  revng_assert(not NewEdge.first->isCheck());
+  revng_assert(not NewEdge.first->isCheckOrSwitch());
   NewEdge.first->addSuccessor(NewEdge.second);
   NewEdge.second->addPredecessor(NewEdge.first);
 }
 
 inline void removeEdge(EdgeDescriptor Edge) {
-  revng_assert(not Edge.first->isCheck());
+  revng_assert(not Edge.first->isCheckOrSwitch());
   Edge.first->removeSuccessor(Edge.second);
   Edge.second->removePredecessor(Edge.first);
 }
@@ -40,7 +40,7 @@ inline void moveEdgeTarget(EdgeDescriptor Edge, BasicBlockNode *NewTarget) {
   Edge.second->removePredecessor(Edge.first);
 
   // Special handle for dispatcher check nodes.
-  if (Edge.first->isCheck()) {
+  if (Edge.first->isCheckOrSwitch()) {
 
     // Confirm that the old target of the edge was one of the two branches.
     revng_assert((Edge.first->getTrue() == Edge.second)

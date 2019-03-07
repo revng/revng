@@ -14,6 +14,8 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/IR/Dominators.h"
+#include <llvm/IR/Instructions.h>
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include "llvm/Support/raw_os_ostream.h"
 
@@ -376,6 +378,7 @@ void RegionCFG::initialize(llvm::Function &F) {
       // TODO: Consider moving the `unexpectedpc` block at the beginning (so
       //       that we do not break post-dominance) instead of directly removing
       //       it.
+      // Remove the unexpectedpc basic block.
       //WorkList.pop_back();
 
       // We construct the nested tree structure from the bottom up.
@@ -384,17 +387,20 @@ void RegionCFG::initialize(llvm::Function &F) {
       BasicBlockNode *DestFalse = &get(WorkList.back());
       WorkList.pop_back();
 
-      // The index used for the `switch` nodes, will be decremented by one from
-      // the expected value, since the last check will go to two different code
-      // nodes.
-      int SwitchIndex = WorkList.size() - 1;
-
       while (WorkList.size() > 0) {
-        BasicBlockNode *DestTrue = &get(WorkList.back());
-        BasicBlockNode *Switch = addSwitch(SwitchIndex, DestTrue, DestFalse);
+        llvm::BasicBlock *DestTrueBB = WorkList.back();
+        BasicBlockNode *DestTrue = &get(DestTrueBB);
+
+        // Retrieve the case value integer.
+        llvm::SwitchInst *OldSwitch = llvm::cast<llvm::SwitchInst>(Terminator);
+        llvm::ConstantInt *ConstantValue = OldSwitch->findCaseDest(DestTrueBB);
+        unsigned SwitchValue = ConstantValue->getZExtValue();
+        BasicBlockNode *Switch = addSwitch(&BB,
+                                           SwitchValue,
+                                           DestTrue,
+                                           DestFalse);
         WorkList.pop_back();
         DestFalse = Switch;
-        SwitchIndex--;
       }
 
       // Connect the node that contained the switch instruction to the switch
@@ -516,7 +522,7 @@ void RegionCFG::connectBreakNode(std::set<EdgeDescriptor> &Outgoing,
                                  BasicBlockNode *Break,
                                  const BBNodeMap &SubstitutionMap) {
   for (EdgeDescriptor Edge : Outgoing) {
-    if (not Edge.first->isCheck()) {
+    if (not Edge.first->isCheckOrSwitch()) {
       addEdge(EdgeDescriptor(SubstitutionMap.at(Edge.first), Break));
     } else {
       revng_assert(Edge.second == Edge.first->getTrue()
@@ -606,7 +612,7 @@ void RegionCFG::dumpDot(StreamT &S) const {
       unsigned SuccID = Successor->getID();
       S << "\"" << PredID << "\""
         << " -> \"" << SuccID << "\"";
-      if (BB->isCheck() and BB->getFalse() == Successor)
+      if (BB->isCheckOrSwitch() and BB->getFalse() == Successor)
         S << " [color=red];\n";
       else
         S << " [color=green];\n";
@@ -940,7 +946,7 @@ void RegionCFG::inflate() {
         }
 
         // Specifically handle the check idx node situation.
-        if (Candidate->isCheck()) {
+        if (Candidate->isCheckOrSwitch()) {
           revng_assert(Candidate->getTrue() != nullptr
                        and Candidate->getFalse() != nullptr);
           BasicBlockNode *TrueSuccessor = Candidate->getTrue();
