@@ -26,7 +26,14 @@ using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
 class ASTNode {
 
 public:
-  enum NodeKind { NK_Code, NK_Break, NK_Continue, NK_If, NK_Scs, NK_List };
+  enum NodeKind { NK_Code,
+                  NK_Break,
+                  NK_Continue,
+                  NK_If,
+                  NK_IfEqual,
+                  NK_Scs,
+                  NK_List,
+                  NK_Switch };
 
   using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
 
@@ -146,15 +153,17 @@ public:
   IfNode(BasicBlockNode *CFGNode,
          ASTNode *Then,
          ASTNode *Else,
-         ASTNode *PostDom) :
-    ASTNode(NK_If, CFGNode, PostDom),
+         ASTNode *PostDom,
+         NodeKind Kind = NK_If) :
+    ASTNode(Kind, CFGNode, PostDom),
     Then(Then),
     Else(Else) {
     ConditionalNodes.push_back(CFGNode);
   }
 
 public:
-  static bool classof(const ASTNode *N) { return N->getKind() == NK_If; }
+  static bool classof(const ASTNode *N) { return N->getKind() >= NK_If &&
+                                                 N->getKind() <= NK_IfEqual; }
 
   llvm::BasicBlock *getUniqueCondBlock() {
     revng_assert(ConditionalNodes.size() == 1);
@@ -379,6 +388,34 @@ public:
   void updateBBNodePointers(BBNodeMap &SubstitutionMap) {}
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {}
+};
+
+class IfEqualNode : public IfNode {
+
+private:
+  unsigned SwitchCaseValue;
+
+public:
+  IfEqualNode(BasicBlockNode *CFGNode,
+              ASTNode *Then,
+              ASTNode *Else,
+              ASTNode *PostDom) :
+    IfNode(CFGNode, Then, Else, PostDom, NK_IfEqual) {
+      SwitchCaseValue = CFGNode->getSwitchCaseValue();
+  }
+
+public:
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_IfEqual; }
+
+  ASTNode *Clone() { return new IfEqualNode(*this); }
+
+  unsigned getCaseValue() { return SwitchCaseValue; }
+
+  llvm::BasicBlock *getSwitchCondition() {
+    return CFGNode->getSwitchCondition();
+  }
+
+  void dump(std::ofstream &ASTFile);
 };
 
 #endif // define REVNGC_RESTRUCTURE_CFG_ASTNODE_H

@@ -273,3 +273,34 @@ void SequenceNode::dump(std::ofstream &ASTFile) {
     SuccessorIndex += 1;
   }
 }
+
+void IfEqualNode::dump(std::ofstream &ASTFile) {
+  ASTFile << "\"" << this->getName() << "\" [";
+
+  // For the label of the If node go take all the nodes in the list
+  std::string ConditionalNames;
+  for (BasicBlockNode *Conditional : this->conditionalNodes()) {
+    ConditionalNames += Conditional->getNameStr() + ", ";
+  }
+  ConditionalNames.pop_back();
+  ConditionalNames.pop_back();
+
+  // ASTFile << "label=\"" << ConditionalNames;
+  ASTFile << "label=\"" << this->getName();
+  ASTFile << "\"";
+  ASTFile << ",shape=\"invtrapezium\",color=\"blue\"];\n";
+
+  if (this->getThen() != nullptr) {
+    ASTFile << "\"" << this->getName() << "\""
+            << " -> \"" << this->getThen()->getName() << "\""
+            << " [color=green,label=\"then\"];\n";
+    this->getThen()->dump(ASTFile);
+  }
+
+  if (this->getElse() != nullptr) {
+    ASTFile << "\"" << this->getName() << "\""
+            << " -> \"" << this->getElse()->getName() << "\""
+            << " [color=green,label=\"else\"];\n";
+    this->getElse()->dump(ASTFile);
+  }
+}

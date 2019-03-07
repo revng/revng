@@ -1105,15 +1105,39 @@ void RegionCFG::generateAst() {
       if (Children.size() == 3) {
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
-        ASTObject.reset(new IfNode(Node, ASTChildren[0],
-                                   ASTChildren[2], ASTChildren[1]));
+
+        // If we are creating the AST for the switch tree, create the adequate,
+        // AST node, otherwise create a classical node.
+        if (Node->isSwitch()) {
+          ASTObject.reset(new IfEqualNode(Node,
+                                          ASTChildren[0],
+                                          ASTChildren[2],       ASTChildren[1]));
+        } else {
+          ASTObject.reset(new IfNode(Node,
+                                     ASTChildren[0],
+                                     ASTChildren[2], ASTChildren[1]));
+        }
       } else if (Children.size() == 2) {
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
-        ASTObject.reset(new IfNode(Node, ASTChildren[0],
-                                   ASTChildren[1], nullptr));
+
+        // If we are creating the AST for the switch tree, create the adequate,
+        // AST node, otherwise create a classical node.
+        if (Node->isSwitch()) {
+          ASTObject.reset(new IfEqualNode(Node,
+                                          ASTChildren[0],
+                                          ASTChildren[1],
+                                          nullptr));
+        } else {
+          ASTObject.reset(new IfNode(Node,
+                                     ASTChildren[0],
+                                     ASTChildren[1],
+                                     nullptr));
+        }
       } else if (Children.size() == 1) {
-        revng_assert(not Node->isBreak() and not Node->isContinue());
+        revng_assert(not Node->isBreak()
+                     and not Node->isContinue()
+                     and not Node->isSwitch());
         ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
       } else if (Children.size() == 0) {
         if (Node->isBreak())
