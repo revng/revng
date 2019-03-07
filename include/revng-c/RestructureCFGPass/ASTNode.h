@@ -390,6 +390,48 @@ public:
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {}
 };
 
+class SwitchNode : public ASTNode {
+
+public:
+  using links_container = std::vector<ASTNode *>;
+  using links_iterator = typename links_container::iterator;
+  using links_range = llvm::iterator_range<links_iterator>;
+
+private:
+  links_container CaseList;
+
+public:
+  SwitchNode(BasicBlockNode *CFGNode, std::vector<ASTNode *> &Cases) :
+    ASTNode(NK_List, CFGNode) {
+      for(ASTNode *Node : Cases) {
+        CaseList.push_back(Node);
+      }
+    }
+
+public:
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_Switch; }
+
+  links_range cases() {
+    return llvm::make_range(CaseList.begin(), CaseList.end());
+  }
+
+  int CaseSize() { return CaseList.size(); }
+
+  ASTNode *getCaseN(int N) { return CaseList[N]; }
+
+  bool isEqual(ASTNode *Node);
+
+  void dump(std::ofstream &ASTFile);
+
+  BasicBlockNode *getFirstCFG();
+
+  void updateBBNodePointers(BBNodeMap &SubstitutionMap);
+
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+
+  ASTNode *Clone() { return new SwitchNode(*this); }
+};
+
 class IfEqualNode : public IfNode {
 
 private:

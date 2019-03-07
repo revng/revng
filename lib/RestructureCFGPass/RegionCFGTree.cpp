@@ -1110,12 +1110,14 @@ void RegionCFG::generateAst() {
         // AST node, otherwise create a classical node.
         if (Node->isSwitch()) {
           ASTObject.reset(new IfEqualNode(Node,
+                                          ASTChildren[2],
                                           ASTChildren[0],
-                                          ASTChildren[2],       ASTChildren[1]));
+                                          ASTChildren[1]));
         } else {
           ASTObject.reset(new IfNode(Node,
+                                     ASTChildren[2],
                                      ASTChildren[0],
-                                     ASTChildren[2], ASTChildren[1]));
+                                     ASTChildren[1]));
         }
       } else if (Children.size() == 2) {
         revng_assert(not Node->isBreak() and not Node->isContinue()
