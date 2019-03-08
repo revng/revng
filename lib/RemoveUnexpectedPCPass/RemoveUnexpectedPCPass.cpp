@@ -29,7 +29,7 @@ using namespace llvm;
 
 char RemoveUnexpectedPC::ID = 0;
 static RegisterPass<RemoveUnexpectedPC>
-  X("removeunexpectedpc", "Remove unexpectedpc from switches", false, false);
+  X("remove-unexpected-pc", "Remove unexpectedpc from switches", false, false);
 
 bool RemoveUnexpectedPC::runOnFunction(Function &F) {
   if (!F.getName().startswith("bb.")) {

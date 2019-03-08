@@ -367,7 +367,7 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
     CandidatesCases.push_back(std::make_pair(0, DefaultCase));
 
 
-    std::unique_ptr<SwitchNode> Switch(new SwitchNode(OriginalSwitchNode,
+    std::unique_ptr<SwitchNode> Switch(new SwitchNode(FirstIfEqual,
                                                       CandidatesCases));
 
     dbg << "Finishing a switch match\n";
@@ -1113,10 +1113,12 @@ void RegionCFG::generateAst() {
       Children = ASTDT[Node]->getChildren();
 
     std::vector<ASTNode *> ASTChildren;
+    std::vector<BasicBlockNode *> BBChildren;
     for (llvm::DomTreeNodeBase<BasicBlockNode> *TreeNode : Children) {
       BasicBlockNode *BlockNode = TreeNode->getBlock();
       ASTNode *ASTPointer = AST.findASTNode(BlockNode);
       ASTChildren.push_back(ASTPointer);
+      BBChildren.push_back(BlockNode);
     }
 
     // Check that the two vector have the same size.
@@ -1156,18 +1158,21 @@ void RegionCFG::generateAst() {
         // If we are creating the AST for the switch tree, create the adequate,
         // AST node, otherwise create a classical node.
         if (Node->isSwitch()) {
-          if (llvm::isa<IfEqualNode>(ASTChildren[0])) {
+          if (BBChildren[0] == Node->getTrue()
+              and BBChildren[2] == Node->getFalse()) {
+            ASTObject.reset(new IfEqualNode(Node,
+                                            ASTChildren[0],
+                                            ASTChildren[2],
+                                            ASTChildren[1]));
+          } else if (BBChildren[2] == Node->getTrue()
+                     and BBChildren[0] == Node->getFalse()){
             ASTObject.reset(new IfEqualNode(Node,
                                             ASTChildren[2],
                                             ASTChildren[0],
                                             ASTChildren[1]));
           } else {
-            ASTObject.reset(new IfEqualNode(Node,
-                                            ASTChildren[0],
-                                            ASTChildren[2],
-                                            ASTChildren[1]));
+            revng_abort("Then and else branches cannot be matched");
           }
-
         } else {
           ASTObject.reset(new IfNode(Node,
                                      ASTChildren[2],
@@ -1181,18 +1186,21 @@ void RegionCFG::generateAst() {
         // If we are creating the AST for the switch tree, create the adequate,
         // AST node, otherwise create a classical node.
         if (Node->isSwitch()) {
-          if (llvm::isa<IfEqualNode>(ASTChildren[1])) {
+          if (BBChildren[0] == Node->getTrue()
+              and BBChildren[1] == Node->getFalse()) {
             ASTObject.reset(new IfEqualNode(Node,
                                             ASTChildren[0],
                                             ASTChildren[1],
+                                            nullptr));
+          } else if (BBChildren[1] == Node->getTrue()
+                     and BBChildren[0] == Node->getFalse()) {
+            ASTObject.reset(new IfEqualNode(Node,
+                                            ASTChildren[1],
+                                            ASTChildren[0],
                                             nullptr));
           } else {
-            ASTObject.reset(new IfEqualNode(Node,
-                                            ASTChildren[1],
-                                            ASTChildren[0],
-                                            nullptr));
+            revng_abort("Then and else branches cannot be matched");
           }
-
         } else {
           ASTObject.reset(new IfNode(Node,
                                      ASTChildren[0],
