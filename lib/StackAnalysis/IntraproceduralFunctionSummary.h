@@ -159,6 +159,10 @@ private:
 
     // Loop over return values to identify forwarded arguments (push rax; pop
     // rdx)
+    //
+    // A forwarded argument is a register that seems to be a return value but it
+    // contains the initial value of another register, which appears to be an
+    // argument and whose value is on the stack.
     for (int32_t Register : ReturnValues) {
       ASSlot RegisterSlot = ASSlot::create(CPU, Register);
       Value Content = FinalState.load(Value::fromSlot(RegisterSlot));

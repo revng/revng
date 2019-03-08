@@ -98,7 +98,7 @@ bool ReachingDefinitionsPass::runOnModule(llvm::Module &M) {
              &this->getAnalysis<FunctionCallIdentification>(),
              &this->getAnalysis<StackAnalysis::StackAnalysis<false>>());
   for (BasicBlock &BB : F)
-    if (GCBI.getType(&BB) == JumpTargetBlock)
+    if (GCBI.getType(&BB) == BlockType::JumpTargetBlock)
       A.registerExtremal(&BB);
   A.initialize();
   A.run();
@@ -132,12 +132,12 @@ bool ConditionalReachedLoadsPass::runOnModule(llvm::Module &M) {
              &this->getAnalysis<FunctionCallIdentification>(),
              &this->getAnalysis<StackAnalysis::StackAnalysis<false>>());
   for (BasicBlock &BB : F)
-    if (GCBI.getType(&BB) == JumpTargetBlock)
+    if (GCBI.getType(&BB) == BlockType::JumpTargetBlock)
       A.registerExtremal(&BB);
   A.initialize();
   A.run();
 
-  ReachingDefinitions = std::move(A.extractResults());
+  ReachingDefinitions = A.extractResults();
 
   auto GetOperand = [](Instruction *I) {
     if (auto *Store = dyn_cast<StoreInst>(I))

@@ -13,6 +13,7 @@
 #include <boost/variant.hpp>
 
 // Local libraries includes
+#include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Assert.h"
 
 // TODO: test SmallMap
@@ -167,6 +168,11 @@ public:
   using const_iterator = Iteratall<ConstVIterator,
                                    typename std::map<K, V, C>::const_iterator>;
   using size_type = size_t;
+  using value_type = Pair;
+  using pointer = Pair *;
+  using const_pointer = const Pair *;
+  using key_type = const K;
+  using mapped_type = V;
 
 public:
   /// \brief If necessary, sorts the inline vector.
@@ -297,6 +303,26 @@ public:
     Map.clear();
   }
 
+  V &operator[](K &&Key) {
+    return insert(std::make_pair(std::move(Key), V())).first->second;
+  }
+
+  V &operator[](const K &Key) {
+    return insert(std::make_pair(Key, V())).first->second;
+  }
+
+  V &at(const K &Key) {
+    iterator It = find(Key);
+    revng_assert(It != end());
+    return It->second;
+  }
+
+  const V &at(const K &Key) const {
+    const_iterator It = find(Key);
+    revng_assert(It != end());
+    return It->second;
+  }
+
 private:
   bool isSmall() const { return Map.empty(); }
 
@@ -313,6 +339,46 @@ private:
         return I;
     return smallBegin() + Size;
   }
+};
+
+template<typename>
+struct isSmallMap : public std::false_type {};
+
+template<typename K, typename V, unsigned N, typename C>
+struct isSmallMap<SmallMap<K, V, N, C>> : public std::true_type {};
+
+template<typename K, typename V, unsigned N, typename C>
+struct isSmallMap<const SmallMap<K, V, N, C>> : public std::true_type {};
+
+static_assert(isSmallMap<SmallMap<int, int, 1>>::value, "");
+static_assert(isSmallMap<const SmallMap<int, int, 1>>::value, "");
+
+template<typename T>
+struct KeyContainer<T, typename std::enable_if_t<isSmallMap<T>::value>> {
+  using key_type = typename T::key_type;
+  using pointer = typename std::conditional<std::is_const<T>::value,
+                                            typename T::const_pointer,
+                                            typename T::pointer>::type;
+  using value_type = typename std::conditional<std::is_const<T>::value,
+                                               const typename T::value_type,
+                                               typename T::value_type>::type;
+  using mapped_type = typename std::conditional<std::is_const<T>::value,
+                                                const typename T::mapped_type,
+                                                typename T::mapped_type>::type;
+
+  static const typename T::key_type &getKey(value_type &Value) {
+    return Value.first;
+  }
+
+  static void insert(T &Container, key_type Key) {
+    Container.insert({ Key, mapped_type() });
+  }
+
+  static pointer find(T &Container, key_type &Key) {
+    return &*Container.find(Key);
+  }
+
+  static void sort(T &Container) { Container.sort(); }
 };
 
 #endif // SMALLMAP_H

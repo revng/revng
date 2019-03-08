@@ -81,7 +81,7 @@ fi
     # Check there are no static functions in header files
     for FILE in $FILES; do
         if [[ $FILE == *h ]]; then
-            $GREP -H '^static[^=]*$' "$FILE" | cat
+            $GREP -H '^static\b[^=]*$' "$FILE" | cat
             $GREP -HE '#ifndef\s*_.*_H\s*$' "$FILE" | cat
         fi
     done

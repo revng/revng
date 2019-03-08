@@ -494,6 +494,7 @@ void VariableManager::aliasAnalysis() {
 }
 
 void VariableManager::finalize() {
+  LLVMContext &Context = getContext(&TheModule);
 
   // Decorate memory accesses with information about CSV aliasing
   aliasAnalysis();
@@ -505,7 +506,14 @@ void VariableManager::finalize() {
       P.second->setLinkage(GlobalValue::InternalLinkage);
   }
 
-  LLVMContext &Context = getContext(&TheModule);
+  // Register the list of CSVs
+  QuickMetadata QMD(Context);
+  NamedMDNode *NamedMD = TheModule.getOrInsertNamedMetadata("revng.csv");
+  std::vector<Metadata *> CSVsMD;
+  for (auto &P : CPUStateGlobals)
+    CSVsMD.push_back(QMD.get(P.second));
+  NamedMD->addOperand(QMD.tuple(CSVsMD));
+
   IRBuilder<> Builder(Context);
 
   // Create the setRegister function

@@ -79,10 +79,6 @@ public:
   template<bool Diff, bool EarlyExit>
   unsigned cmp(const Value &Other, const llvm::Module *M) const;
 
-  bool greaterThan(const Value &Other) const {
-    return !this->lowerThanOrEqual(Other);
-  }
-
   Value &combine(const Value &Other) {
     // If direct content is different go to top (invalid)
     if (DirectContent != Other.DirectContent)
@@ -184,10 +180,6 @@ public:
   unsigned cmp(const AddressSpace &Other, const llvm::Module *M) const;
 
   size_t hash() const;
-
-  bool greaterThan(const AddressSpace &Other) const {
-    return not this->lowerThanOrEqual(Other);
-  }
 
   bool contains(int32_t Offset) const { return ASOContent.count(Offset) != 0; }
 
@@ -300,10 +292,6 @@ public:
 
   /// \brief Perform a comparison according to the analysis' lattice
   bool lowerThanOrEqual(const Element &Other) const;
-
-  bool greaterThan(const Element &RHS) const {
-    return !this->lowerThanOrEqual(RHS);
-  }
 
   bool equal(const Element &RHS) const {
     return this->lowerThanOrEqual(RHS) && RHS.lowerThanOrEqual(*this);

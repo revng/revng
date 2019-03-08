@@ -23,6 +23,7 @@
 
 // Local includes
 #include "ABIIR.h"
+#include "Cache.h"
 #include "Element.h"
 #include "FunctionABI.h"
 #include "IntraproceduralFunctionSummary.h"
@@ -80,19 +81,13 @@ private:
     Result(Element::bottom()),
     Summary(IntraproceduralFunctionSummary::bottom()) {}
 
-  Interrupt(Element Result, BranchType::Values Type) :
-    ResultExtracted(false),
-    Type(Type),
-    Result(std::move(Result)),
-    Summary(IntraproceduralFunctionSummary::bottom()) {}
-
   Interrupt(BranchType::Values Type, IntraproceduralFunctionSummary Summary) :
     ResultExtracted(false),
     Type(Type),
     Result(Element::bottom()),
     Summary(std::move(Summary)) {}
 
-  Interrupt(Element Result, BranchType::Values Type, vector Successors) :
+  Interrupt(Element Result, BranchType::Values Type, vector Successors = {}) :
     ResultExtracted(false),
     Type(Type),
     Result(std::move(Result)),
@@ -225,7 +220,7 @@ public:
 
   BranchType::Values type() const { return Type; }
 
-  bool isReturn() const { return Type == BranchType::Return; }
+  bool isPartOfFinalResults() const { return Type == BranchType::Return; }
 
   bool requiresInterproceduralHandling() const {
     switch (Type) {
@@ -330,12 +325,12 @@ public:
 };
 
 /// \brief Intraprocedural part of the stack analysis
-class Analysis : public MonotoneFramework<llvm::BasicBlock *,
+class Analysis : public MonotoneFramework<Analysis,
+                                          llvm::BasicBlock *,
                                           Element,
-                                          Interrupt,
-                                          Analysis,
-                                          Interrupt::const_iterator_range,
                                           BreadthFirst,
+                                          Interrupt::const_iterator_range,
+                                          Interrupt,
                                           true> {
 private:
   // Label: llvm::BasicBlock *
@@ -345,12 +340,12 @@ private:
   // SuccessorsRange: Interrupt::const_iterator_range
   // Visit: BreadthFirst
   // DynamicGraph: true
-  using Base = MonotoneFramework<llvm::BasicBlock *,
+  using Base = MonotoneFramework<Analysis,
+                                 llvm::BasicBlock *,
                                  Element,
-                                 Interrupt,
-                                 Analysis,
-                                 Interrupt::const_iterator_range,
                                  BreadthFirst,
+                                 Interrupt::const_iterator_range,
+                                 Interrupt,
                                  true>;
 
 private:
@@ -363,7 +358,6 @@ private:
   int32_t SPIndex; ///< Offset of the stack pointer CSV
   int32_t PCIndex; ///< Offset of the PC CSV
   ABIFunction TheABIIR; ///< The ABI IR
-  int32_t CSVCount; ///< Number of CSVs, used to distinguish from alloca
 
   /// \brief Set of return addresses from fake function calls
   std::set<uint64_t> FakeReturnAddresses;
@@ -389,8 +383,6 @@ private:
 
   bool AnalyzeABI;
 
-  std::map<const llvm::User *, int32_t> CPUIndices;
-
 public:
   Analysis(llvm::BasicBlock *Entry,
            const Cache &TheCache,
@@ -413,7 +405,8 @@ public:
   }
 
   bool isCSV(ASSlot Slot) const {
-    return Slot.addressSpace() == ASID::cpuID() && Slot.offset() < CSVCount;
+    return (Slot.addressSpace() == ASID::cpuID()
+            and TheCache->isCSVIndex(Slot.offset()));
   }
 
   void assertLowerThanOrEqual(const Element &A, const Element &B) const {
@@ -567,6 +560,8 @@ private:
         return true;
     return false;
   }
+
+  ASSlot slotFromCSV(llvm::User *U) const;
 };
 
 } // namespace Intraprocedural

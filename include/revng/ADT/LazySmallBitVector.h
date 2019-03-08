@@ -181,6 +181,11 @@ public:
 
   bool isSmall() const { return Storage & 1; }
 
+  void reserve(unsigned Size) {
+    if (Size + 1 >= capacity())
+      alloc(Size);
+  }
+
   void set(unsigned Index) {
     revng_assert(Index < IntMax);
 
@@ -353,6 +358,52 @@ public:
 
   bool operator!=(const LazySmallBitVector &Other) const {
     return !(*this == Other);
+  }
+
+  bool operator<(const LazySmallBitVector &Other) const {
+    if (isSmall() && Other.isSmall()) {
+      return Storage < Other.Storage;
+    } else if (!isSmall() && !Other.isSmall()) {
+      const LargeStorage &OtherLarge = Other.getLarge();
+      const LargeStorage &ThisLarge = getLarge();
+
+      signed Max = std::min(ThisLarge.capacity(), OtherLarge.capacity());
+      Max /= BitsPerPointer;
+
+      if (ThisLarge.capacity() > OtherLarge.capacity()) {
+        for (signed I = ThisLarge.wordCount() - 1; I >= Max; I--)
+          if (ThisLarge.at(I) != 0)
+            return false;
+      } else {
+        for (signed I = OtherLarge.wordCount() - 1; I >= Max; I--)
+          if (OtherLarge.at(I) != 0)
+            return true;
+      }
+
+      for (signed I = Max - 1; I >= 0; I--)
+        if (ThisLarge.at(I) != OtherLarge.at(I))
+          return ThisLarge.at(I) < OtherLarge.at(I);
+
+      return false;
+
+    } else if (!isSmall() && Other.isSmall()) {
+      const LargeStorage &ThisLarge = getLarge();
+      for (signed I = ThisLarge.wordCount() - 1; I >= 1; I--)
+        if (ThisLarge.at(I) != 0)
+          return false;
+
+      return ThisLarge.at(0) < Other.getSmall();
+
+    } else if (isSmall() && !Other.isSmall()) {
+      const LargeStorage &OtherLarge = Other.getLarge();
+      for (signed I = OtherLarge.wordCount() - 1; I >= 1; I--)
+        if (OtherLarge.at(I) != 0)
+          return true;
+
+      return getSmall() < OtherLarge.at(0);
+    }
+
+    revng_abort();
   }
 
   LazySmallBitVector &operator^=(const LazySmallBitVector &Other) {

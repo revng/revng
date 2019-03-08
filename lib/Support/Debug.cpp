@@ -50,6 +50,26 @@ llvm::ManagedStatic<DebugLogOptionWrapper> DebugLogOption;
 template<bool X>
 unsigned Logger<X>::IndentLevel;
 
+template<bool X>
+void Logger<X>::indent(unsigned Level) {
+  if (isEnabled())
+    IndentLevel += Level;
+}
+
+template<bool X>
+void Logger<X>::unindent(unsigned Level) {
+  if (isEnabled()) {
+    revng_assert(IndentLevel - Level >= 0);
+    IndentLevel -= Level;
+  }
+}
+
+template<bool X>
+void Logger<X>::setIndentation(unsigned Level) {
+  if (isEnabled())
+    IndentLevel = Level;
+}
+
 // Force instantiation
 template class Logger<true>;
 template class Logger<false>;

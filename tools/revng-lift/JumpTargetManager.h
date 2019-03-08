@@ -422,6 +422,14 @@ public:
   /// \brief Increment the counter of emitted branches since the last reset
   void newBranch() { NewBranches++; }
 
+  NoReturnAnalysis &noReturn() { return NoReturn; }
+
+  void runNoreturnAnalysis() {
+    setCFGForm(CFGForm::NoFunctionCallsCFG);
+    NoReturn.computeKillerSet();
+    setCFGForm(CFGForm::SemanticPreservingCFG);
+  }
+
   /// \brief Finalizes information about the jump targets
   ///
   /// Call this function once no more jump targets can be discovered.  It will
@@ -441,6 +449,10 @@ public:
 
       // Set as reason UnusedGlobalData and ensure it's not empty
       llvm::BasicBlock *BB = registerJT(PC, JTReason::UnusedGlobalData);
+
+      // TODO: can this happen?
+      revng_assert(BB != nullptr);
+
       revng_assert(!BB->empty());
     }
 
@@ -503,8 +515,6 @@ public:
   void registerReadRange(uint64_t Address, uint64_t Size);
 
   const interval_set &readRange() const { return ReadIntervalSet; }
-
-  NoReturnAnalysis &noReturn() { return NoReturn; }
 
   /// \brief Return a proper name for the given address, possibly using symbols
   ///

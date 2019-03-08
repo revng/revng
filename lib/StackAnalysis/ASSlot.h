@@ -10,6 +10,7 @@
 
 // Local libraries includes
 #include "revng/Support/Debug.h"
+#include "revng/Support/IRHelpers.h"
 
 extern Logger<> SaDiffLog;
 
@@ -21,7 +22,7 @@ struct debug_cmp {
   ///        the differences
   ///
   /// We need this so that types not fully under our control (e.g.,
-  /// MonotoneFrameworkSet) can implement this method too. This has to be part
+  /// UnionMonotoneSet) can implement this method too. This has to be part
   /// of a struct so that we can perform partial template specialization.
   static unsigned cmp(const T &This, const T &Other, const llvm::Module *M) {
     return This.template cmp<true, false>(Other, M);
@@ -87,10 +88,6 @@ public:
   ///       perform an equality comparison here.
   bool lowerThanOrEqual(const ASID &Other) const { return ID == Other.ID; }
 
-  bool greaterThan(const ASID &Other) const {
-    return not lowerThanOrEqual(Other);
-  }
-
   void dump() const debug_function { dump(dbg); }
 
   template<typename T>
@@ -139,10 +136,6 @@ public:
   unsigned cmp(const ASSlot &Other, const llvm::Module *M) const;
 
   size_t hash() const;
-
-  bool greaterThan(const ASSlot &Other) const {
-    return not lowerThanOrEqual(Other);
-  }
 
   bool operator==(const ASSlot &Other) const {
     return std::tie(AS, Offset) == std::tie(Other.AS, Other.Offset);
@@ -204,14 +197,25 @@ public:
 private:
   static llvm::Optional<std::string>
   csvNameByOffset(int32_t Offset, const llvm::Module *M) {
-    int32_t I = 1;
-    for (const llvm::GlobalVariable &GV : M->globals()) {
-      if (Offset == I)
-        return { GV.getName().str() };
-      I++;
-    }
+    using namespace llvm;
 
-    return llvm::Optional<std::string>();
+    revng_assert(Offset != 0);
+
+    if (Offset == 1)
+      return { "pc" };
+
+    const char *MDName = "revng.input.architecture";
+    NamedMDNode *InputArchMD = M->getNamedMetadata(MDName);
+    auto *Tuple = dyn_cast<MDTuple>(InputArchMD->getOperand(0));
+
+    QuickMetadata QMD(M->getContext());
+    Offset = Offset - 2;
+    const auto *ABIRegisters = QMD.extract<MDTuple *>(Tuple, 4);
+    if (Offset >= static_cast<int32_t>(ABIRegisters->getNumOperands()))
+      return llvm::Optional<std::string>();
+
+    const auto &Operand = ABIRegisters->getOperand(Offset);
+    return QMD.extract<StringRef>(Operand.get()).str();
   }
 };
 

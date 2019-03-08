@@ -87,8 +87,7 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
   }
 
   TerminatorInst *T = Builder.CreateBr(JumpTargets.dispatcher());
-  T->setMetadata("revng.block.type",
-                 QMD.tuple((uint32_t) ExternalJumpsHandlerBlock));
+  setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
 
   return ReturnFromExternal;
 }
@@ -148,8 +147,7 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
   Builder.CreateCall(Asm, PCReg);
 
   TerminatorInst *T = Builder.CreateUnreachable();
-  T->setMetadata("revng.block.type",
-                 QMD.tuple((uint32_t) ExternalJumpsHandlerBlock));
+  setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
 
   return Result;
 }
@@ -174,8 +172,7 @@ llvm::BasicBlock *ExternalJumpsHandler::createSetjmp(BasicBlock *FirstReturn,
   Value *BrCond = Builder.CreateICmpNE(SetjmpRes, Zero);
 
   TerminatorInst *T = Builder.CreateCondBr(BrCond, SecondReturn, FirstReturn);
-  T->setMetadata("revng.block.type",
-                 QMD.tuple((uint32_t) ExternalJumpsHandlerBlock));
+  setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
 
   return SetjmpBB;
 }
@@ -236,32 +233,15 @@ ExternalJumpsHandler::createExternalDispatcher(BasicBlock *IsExecutable,
   TerminatorInst *T = Builder.CreateCondBr(IsExecutableResult,
                                            IsNotExecutable,
                                            IsExecutable);
-  T->setMetadata("revng.block.type",
-                 QMD.tuple((uint32_t) ExternalJumpsHandlerBlock));
+  setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
 
   return ExternalJumpHandler;
-}
-
-void ExternalJumpsHandler::buildEmptyExecutableSegmentsList() {
-  new GlobalVariable(TheModule,
-                     RegisterType->getPointerTo(),
-                     true,
-                     GlobalValue::ExternalLinkage,
-                     Constant::getNullValue(RegisterType->getPointerTo()),
-                     "segment_boundaries");
-
-  new GlobalVariable(TheModule,
-                     RegisterType,
-                     true,
-                     GlobalValue::ExternalLinkage,
-                     Constant::getNullValue(RegisterType),
-                     "segments_count");
 }
 
 void ExternalJumpsHandler::createExternalJumpsHandler() {
 
   if (not Arch.isJumpOutSupported()) {
-    buildEmptyExecutableSegmentsList();
+    buildExecutableSegmentsList();
     return;
   }
 

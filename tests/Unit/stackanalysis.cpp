@@ -12,6 +12,7 @@ bool init_unit_test();
 
 // Local includes
 #include "Intraprocedural.h"
+#include "UnitTestsHelpers.h"
 
 using namespace StackAnalysis;
 
@@ -29,8 +30,7 @@ using ASVector = std::vector<ASID>;
 BOOST_AUTO_TEST_CASE(TestAddressSpaceID) {
   // Test ordering
   BOOST_TEST(SP0.lowerThanOrEqual(SP0));
-  BOOST_TEST(not SP0.greaterThan(SP0));
-  BOOST_TEST(SP0.greaterThan(GLB));
+  BOOST_TEST(not SP0.lowerThanOrEqual(GLB));
 }
 
 BOOST_AUTO_TEST_CASE(TestASSlot) {
@@ -39,7 +39,6 @@ BOOST_AUTO_TEST_CASE(TestASSlot) {
   ASSlot CPUSlot = ASSlot::create(CPU, 0);
   BOOST_TEST(SP0Slot == SP0Slot);
   BOOST_TEST(SP0Slot != CPUSlot);
-  BOOST_TEST(SP0Slot.greaterThan(CPUSlot));
   BOOST_TEST(not SP0Slot.lowerThanOrEqual(CPUSlot));
 
   // Test addition and masking

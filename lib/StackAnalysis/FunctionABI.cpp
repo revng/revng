@@ -5,7 +5,14 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+// Standard includes
+#include <algorithm>
+
+// LLVM includes
+#include "llvm/ADT/SCCIterator.h"
+
 // Local libraries includes
+#include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/MonotoneFramework.h"
 
 // Local includes
@@ -17,7 +24,10 @@ using std::tuple;
 using std::tuple_element;
 using std::tuple_size;
 
+using llvm::make_range;
 using llvm::Module;
+using llvm::scc_begin;
+using llvm::scc_end;
 
 Logger<> SaABI("sa-abi");
 
@@ -47,8 +57,28 @@ cmp(const DefaultMap<K, V, N> &This, const DefaultMap<K, V, N> &Other) {
   LoggerIndent<> Y(SaDiffLog);
   unsigned Result = 0;
 
+  This.sort();
+  Other.sort();
+
+  for (auto &P : zipmap_range(This, Other)) {
+    auto *ThisEntry = P.first;
+    auto *OtherEntry = P.second;
+
+    if (ThisEntry != nullptr and OtherEntry != nullptr) {
+      ROA((ThisEntry->second.template cmp<Diff, EarlyExit>(OtherEntry->second)),
+          { revng_log(SaDiffLog, ThisEntry->first); });
+    } else if (ThisEntry != nullptr) {
+      ROA((ThisEntry->second.template cmp<Diff, EarlyExit>(Other.getDefault())),
+          { revng_log(SaDiffLog, ThisEntry->first); });
+    } else if (OtherEntry != nullptr) {
+      ROA((This.getDefault().template cmp<Diff, EarlyExit>(OtherEntry->second)),
+          { revng_log(SaDiffLog, OtherEntry->first); });
+    } else {
+      revng_abort();
+    }
+  }
+
   for (auto &P : This) {
-    P.second.template cmp<Diff, EarlyExit>(Other.getOrDefault(P.first));
     ROA((P.second.template cmp<Diff, EarlyExit>(Other.getOrDefault(P.first))),
         { revng_log(SaDiffLog, P.first); });
   }
@@ -68,6 +98,36 @@ unsigned cmpWithModule(const DefaultMap<K, V, N> &This,
                        const Module *M) {
   LoggerIndent<> Y(SaDiffLog);
   unsigned Result = 0;
+
+  This.sort();
+  Other.sort();
+
+  for (auto &P : zipmap_range(This, Other)) {
+    auto *ThisEntry = P.first;
+    auto *OtherEntry = P.second;
+
+    if (ThisEntry != nullptr and OtherEntry != nullptr) {
+      ROA((ThisEntry->second.template cmp<Diff, EarlyExit>(OtherEntry->second)),
+          {
+            ASSlot::create(ID, ThisEntry->first).dump(M, SaDiffLog);
+            SaDiffLog << DoLog;
+          });
+    } else if (ThisEntry != nullptr) {
+      ROA((ThisEntry->second.template cmp<Diff, EarlyExit>(Other.getDefault())),
+          {
+            ASSlot::create(ID, ThisEntry->first).dump(M, SaDiffLog);
+            SaDiffLog << DoLog;
+          });
+    } else if (OtherEntry != nullptr) {
+      ROA((This.getDefault().template cmp<Diff, EarlyExit>(OtherEntry->second)),
+          {
+            ASSlot::create(ID, OtherEntry->first).dump(M, SaDiffLog);
+            SaDiffLog << DoLog;
+          });
+    } else {
+      revng_abort();
+    }
+  }
 
   for (auto &P : This) {
     ROA((P.second.template cmp<Diff, EarlyExit>(Other.getOrDefault(P.first))), {
@@ -98,6 +158,45 @@ unsigned nestedCmpWithModule(const MapOfMaps<FunctionCall, N1, K, V, N2> &This,
                              const Module *M) {
   LoggerIndent<> Y(SaDiffLog);
   unsigned Result = 0;
+
+  This.sort();
+  Other.sort();
+
+  for (auto &P : zipmap_range(This, Other)) {
+    auto *ThisEntry = P.first;
+    auto *OtherEntry = P.second;
+
+    if (ThisEntry != nullptr and OtherEntry != nullptr) {
+      ROA((cmpWithModule<K, V, Diff, EarlyExit>(ThisEntry->second,
+                                                OtherEntry->second,
+                                                ID,
+                                                M)),
+          {
+            ThisEntry->first.dump(SaDiffLog);
+            SaDiffLog << DoLog;
+          });
+    } else if (ThisEntry != nullptr) {
+      ROA((cmpWithModule<K, V, Diff, EarlyExit>(ThisEntry->second,
+                                                Other.getDefault(),
+                                                ID,
+                                                M)),
+          {
+            ThisEntry->first.dump(SaDiffLog);
+            SaDiffLog << DoLog;
+          });
+    } else if (OtherEntry != nullptr) {
+      ROA((cmpWithModule<K, V, Diff, EarlyExit>(This.getDefault(),
+                                                OtherEntry->second,
+                                                ID,
+                                                M)),
+          {
+            OtherEntry->first.dump(SaDiffLog);
+            SaDiffLog << DoLog;
+          });
+    } else {
+      revng_abort();
+    }
+  }
 
   for (auto &P : This) {
     ROA((cmpWithModule<K, V, Diff, EarlyExit>(P.second,
@@ -134,6 +233,8 @@ static void
 combine(DefaultMap<K, V, N> &This, const DefaultMap<K, Q, N> &Other) {
 
   combine(This.Default, Other.Default);
+
+  // TODO: use zipmap_range
 
   This.sort();
   Other.sort();
@@ -343,10 +444,6 @@ public:
     // TODO: we should assert the non-enabled one is bottom, or just ignore it
     S::combine(Other);
     Enabled = Enabled || Other.Enabled;
-  }
-
-  bool greaterThan(const Inhibitor &Other) const {
-    return not lowerThanOrEqual(Other);
   }
 
   bool lowerThanOrEqual(const Inhibitor &Other) const {
@@ -659,10 +756,6 @@ public:
     return Result;
   }
 
-  bool greaterThan(const Element &Other) const {
-    return not lowerThanOrEqual(Other);
-  }
-
   Element &combine(const Element &Other) {
     MapHelpers::combine(RegisterAnalyses, Other.RegisterAnalyses);
     MapHelpers::combine(FunctionCallRegisterAnalyses,
@@ -821,7 +914,7 @@ public:
     revng_abort();
   }
 
-  bool isReturn() const {
+  bool isPartOfFinalResults() const {
     revng_assert(TheReason == Regular or TheReason == Return);
     return TheReason == Return;
   }
@@ -840,12 +933,12 @@ public:
 /// \note Don't reset and re-run this analysis
 template<bool IsForward, typename E>
 class Analysis
-  : public MonotoneFramework<ABIIRBasicBlock *,
+  : public MonotoneFramework<Analysis<IsForward, E>,
+                             ABIIRBasicBlock *,
                              Element<E>,
-                             Interrupt<E>,
-                             Analysis<IsForward, E>,
+                             IsForward ? ReversePostOrder : PostOrder,
                              ABIIRBasicBlock::links_const_range,
-                             IsForward ? ReversePostOrder : PostOrder> {
+                             Interrupt<E>> {
 
 private:
   using DirectedLabelRange = typename conditional<IsForward,
@@ -853,13 +946,12 @@ private:
                                                   ABIIRBB::reverse_range>::type;
 
 public:
-  using Base = MonotoneFramework<ABIIRBasicBlock *,
+  using Base = MonotoneFramework<Analysis<IsForward, E>,
+                                 ABIIRBasicBlock *,
                                  Element<E>,
-                                 Interrupt<E>,
-                                 Analysis<IsForward, E>,
+                                 IsForward ? ReversePostOrder : PostOrder,
                                  ABIIRBasicBlock::links_const_range,
-                                 IsForward ? ReversePostOrder : PostOrder>;
-  using LabelRange = typename Base::LabelRange;
+                                 Interrupt<E>>;
 
 private:
   /// The entry basic block of the function
@@ -871,12 +963,16 @@ private:
   /// Flag to prevent the analysis from being run more than once
   bool FirstRun;
 
+  const std::set<ABIIRBasicBlock *> *ExtraFinalStates;
+
 public:
-  Analysis(ABIIRBasicBlock *FunctionEntry) :
+  Analysis(ABIIRBasicBlock *FunctionEntry,
+           const std::set<ABIIRBasicBlock *> *ExtraFinalStates) :
     Base(FunctionEntry),
     FunctionEntry(FunctionEntry),
     VisitsCount(0),
-    FirstRun(true) {}
+    FirstRun(true),
+    ExtraFinalStates(ExtraFinalStates) {}
 
 public:
   void assertLowerThanOrEqual(const Element<E> &A, const Element<E> &B) const {
@@ -922,7 +1018,7 @@ public:
     // Initialize to `::initial()` and enable all the function-related
     // analyses. Some of the backward analyses are available only if we're
     // starting from a proper return.
-    Result.resetFunctionAnalyses(BB->isReturn());
+    Result.resetFunctionAnalyses(BB->isPartOfFinalResults());
 
     return Result;
   }
@@ -966,14 +1062,15 @@ public:
       }
     }
 
-    // We don't check BB->isReturn() since there are basic blocks that have no
-    // successors but are not returns. And we want to consider those too, unlike
-    // what happens with the stack analysis, where we are intersted in
-    // understanding what happens from the point of view of the caller (e.g., if
-    // a callee-saved register is not restored on a noreturn path, we don't
-    // care).
+    // We don't check BB->isPartOfFinalResults() since there are basic blocks
+    // that have no successors but are not returns. And we want to consider
+    // those too, unlike what happens with the stack analysis, where we are
+    // interested in understanding what happens from the point of view of the
+    // caller (e.g., if a callee-saved register is not restored on a noreturn
+    // path, we don't care).
     if ((IsForward and BB->successor_size() == 0)
-        or (not IsForward and BB->predecessor_size() == 0))
+        or (not IsForward and BB->predecessor_size() == 0)
+        or (ExtraFinalStates != nullptr and ExtraFinalStates->count(BB) != 0))
       return Interrupt<E>::createReturn(std::move(Result));
     else
       return Interrupt<E>::createRegular(std::move(Result));
@@ -991,8 +1088,130 @@ private:
 // FunctionaABI methods
 //
 
+// TODO: test me
+template<typename NodeTy>
+std::set<NodeTy> findMaximalSimplePathTerminatorsOfExitlessSCCs(NodeTy Entry) {
+  using GT = llvm::GraphTraits<NodeTy>;
+  using InverseGT = llvm::GraphTraits<llvm::Inverse<NodeTy>>;
+
+  std::set<NodeTy> Result;
+
+  using NodesVector = std::vector<NodeTy>;
+  auto Range = make_range(scc_begin(Entry), scc_end(Entry));
+  std::set<NodeTy> SCCNodes;
+  for (const NodesVector &SCC : Range) {
+    SCCNodes.clear();
+    for (NodeTy BB : SCC)
+      SCCNodes.insert(BB);
+
+    bool HasExit = false;
+    bool AtLeastOneEdge = false;
+    for (NodeTy BB : SCC) {
+      auto Successors = make_range(GT::child_begin(BB), GT::child_end(BB));
+      for (NodeTy Successor : Successors) {
+        AtLeastOneEdge = true;
+        if (SCCNodes.count(Successor) == 0) {
+          HasExit = true;
+          break;
+        }
+      }
+
+      if (HasExit)
+        break;
+    }
+
+    if ((not HasExit) and AtLeastOneEdge) {
+      // We have find a exitless SCC (e.g., an infinite loop)
+
+      // Identify all the entry points
+      llvm::SmallVector<NodeTy, 2> EntryPoints;
+      for (NodeTy BB : SCC) {
+        auto Predecessors = make_range(InverseGT::child_begin(BB),
+                                       InverseGT::child_end(BB));
+        for (NodeTy Predecessor : Predecessors) {
+          if (SCCNodes.count(Predecessor) == 0) {
+            EntryPoints.push_back(BB);
+            break;
+          }
+        }
+      }
+
+      std::set<NodeTy> OnStack;
+      auto IsOnStack = [&OnStack](NodeTy Successor) {
+        return OnStack.count(Successor) != 0;
+      };
+
+      struct StackElement {
+        StackElement(NodeTy Node) :
+          Node(Node),
+          Next(GT::child_begin(Node)),
+          End(GT::child_end(Node)) {}
+
+        NodeTy Node;
+        typename GT::ChildIteratorType Next;
+        const typename GT::ChildIteratorType End;
+      };
+      std::stack<StackElement> Stack;
+
+      for (NodeTy EntryPoint : EntryPoints) {
+        revng_assert(Stack.empty());
+        Stack.emplace(EntryPoint);
+
+        OnStack.clear();
+        OnStack.insert(EntryPoint);
+
+        while (not Stack.empty()) {
+          StackElement &Current = Stack.top();
+
+          if (Current.Next == Current.End) {
+
+            // Check if all the successors are on the stack
+            auto Begin = GT::child_begin(Current.Node);
+            auto End = GT::child_end(Current.Node);
+            if (std::all_of(Begin, End, IsOnStack)) {
+              // OK, this is the terminator of a maximal simple path
+              Result.insert(Current.Node);
+            }
+
+            // We're done with this node pop it
+            Stack.pop();
+            OnStack.erase(Current.Node);
+
+          } else {
+
+            // We still have a successor to process
+            NodeTy Successor = *Current.Next;
+            Current.Next++;
+
+            // Push the successor on the stack, unless it's already there
+            if (not IsOnStack(Successor)) {
+              Stack.emplace(Successor);
+              OnStack.insert(Successor);
+            }
+          }
+        }
+      }
+
+      revng_assert(Result.size() > 0);
+    }
+  }
+
+  return Result;
+}
+
 void FunctionABI::analyze(const ABIFunction &TheFunction) {
   using namespace ABIAnalysis;
+  ABIIRBasicBlock *E = TheFunction.entry();
+
+  auto InfiniteLoopsExits = findMaximalSimplePathTerminatorsOfExitlessSCCs(E);
+
+  if (InfiniteLoopsExits.size() > 0 and SaABI.isEnabled()) {
+    SaABI << "The following simple path terminators have been found: ";
+    for (const ABIIRBasicBlock *BB : InfiniteLoopsExits) {
+      SaABI << getName(BB->basicBlock()) << " ";
+    }
+    SaABI << DoLog;
+  }
 
   {
     revng_log(SaABI, "Running forward function analyses");
@@ -1009,9 +1228,9 @@ void FunctionABI::analyze(const ABIFunction &TheFunction) {
     using FunctionCallWise = tuple<URVOFC, DRVOFC>;
     using ForwardList = AnalysesList<FunctionWise, FunctionCallWise>;
 
-    Analysis<true, ForwardList> ForwardFunctionAnalyses(TheFunction.entry());
+    Analysis<true, ForwardList> ForwardFunctionAnalyses(E, &InfiniteLoopsExits);
 
-    ForwardFunctionAnalyses.registerExtremal(TheFunction.entry());
+    ForwardFunctionAnalyses.registerExtremal(E);
 
     ForwardFunctionAnalyses.initialize();
     Interrupt<ForwardList> Result = ForwardFunctionAnalyses.run();
@@ -1036,9 +1255,12 @@ void FunctionABI::analyze(const ABIFunction &TheFunction) {
     using FunctionWise = tuple<URVOF, RAOFC>;
     using FunctionCallWise = tuple<RAOFC>;
     using BackwardList = AnalysesList<FunctionWise, FunctionCallWise>;
-    Analysis<false, BackwardList> BackwardFunctionAnalyses(TheFunction.entry());
+    Analysis<false, BackwardList> BackwardFunctionAnalyses(E, nullptr);
 
     for (ABIIRBasicBlock *FinalBB : TheFunction.finals())
+      BackwardFunctionAnalyses.registerExtremal(FinalBB);
+
+    for (ABIIRBasicBlock *FinalBB : InfiniteLoopsExits)
       BackwardFunctionAnalyses.registerExtremal(FinalBB);
 
     BackwardFunctionAnalyses.initialize();

@@ -19,6 +19,9 @@ bool init_unit_test();
 // Local libraries includes
 #include "revng/ADT/LazySmallBitVector.h"
 
+// Local includes
+#include "UnitTestsHelpers.h"
+
 static const unsigned FirstLargeBit = sizeof(uintptr_t) * CHAR_BIT;
 
 // The following types don't have a << operator
@@ -172,6 +175,26 @@ BOOST_AUTO_TEST_CASE(TestCopy) {
     LazySmallBitVector C = A;
     BOOST_TEST(C[Start + 1] == true);
   }
+}
+
+BOOST_AUTO_TEST_CASE(TestComparison) {
+  LazySmallBitVector A;
+  A.set(1);
+  BOOST_TEST(not(A < A));
+
+  LazySmallBitVector B;
+  BOOST_TEST(B < A);
+
+  B.set(2);
+  BOOST_TEST(A < B);
+
+  B.set(80);
+  BOOST_TEST(A < B);
+  BOOST_TEST(not(B < A));
+
+  A.set(160);
+  BOOST_TEST(B < A);
+  BOOST_TEST(not(A < B));
 }
 
 #include <boost/iterator/transform_iterator.hpp>

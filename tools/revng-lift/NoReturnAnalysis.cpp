@@ -147,7 +147,19 @@ void NoReturnAnalysis::findInfinteLoops() {
   }
 }
 
-void NoReturnAnalysis::computeKillerSet(PredecessorsMap &CallPredecessors) {
+void NoReturnAnalysis::computeKillerSet() {
+  // Collect call predecessors
+  std::map<BasicBlock *, std::vector<BasicBlock *>> CallPredecessors;
+  Module *M = Dispatcher->getParent()->getParent();
+  Function *FC = M->getFunction("function_call");
+  for (User *U : FC->users()) {
+    if (auto *Call = dyn_cast<CallInst>(U)) {
+      Value *FirstOperand = Call->getOperand(1);
+      BasicBlock *ReturnBB = cast<BlockAddress>(FirstOperand)->getBasicBlock();
+      CallPredecessors[ReturnBB].push_back(Call->getParent());
+    }
+  }
+
   // Enrich the KillerBBs set with blocks participating in infinite loops
   findInfinteLoops();
 

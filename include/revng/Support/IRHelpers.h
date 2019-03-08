@@ -277,6 +277,9 @@ public:
     using ID = IteratorDirection<Forward>;
     instruction_iterator It = ID::iterator(I);
 
+    if (not Forward)
+      It--;
+
     struct WorkItem {
       WorkItem(BasicBlock *BB, instruction_iterator Start) :
         BB(BB),
@@ -388,6 +391,16 @@ inline std::string getName(const llvm::Value *V) {
   std::stringstream SS;
   SS << "0x" << std::hex << intptr_t(V);
   return SS.str();
+}
+
+inline std::string getName(const llvm::Function *F) {
+  if (F == nullptr)
+    return "(nullptr)";
+
+  if (not F->hasName())
+    return getName(static_cast<const llvm::Value *>(F));
+
+  return F->getName();
 }
 
 template<typename T>
@@ -673,11 +686,27 @@ inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
   return Callee != nullptr && Callee->getName() == Name;
 }
 
-/// \brief Is \p I a call to an helper function?
-inline bool isCallToHelper(const llvm::Instruction *I) {
+inline const llvm::CallInst *getCallToHelper(const llvm::Instruction *I) {
   revng_assert(I != nullptr);
   const llvm::Function *Callee = getCallee(I);
-  return Callee != nullptr && Callee->getName().startswith("helper_");
+  if (Callee != nullptr && Callee->getName().startswith("helper_"))
+    return llvm::cast<llvm::CallInst>(I);
+  else
+    return nullptr;
+}
+
+inline llvm::CallInst *getCallToHelper(llvm::Instruction *I) {
+  revng_assert(I != nullptr);
+  const llvm::Function *Callee = getCallee(I);
+  if (Callee != nullptr && Callee->getName().startswith("helper_"))
+    return llvm::cast<llvm::CallInst>(I);
+  else
+    return nullptr;
+}
+
+/// \brief Is \p I a call to an helper function?
+inline bool isCallToHelper(const llvm::Instruction *I) {
+  return getCallToHelper(I) != nullptr;
 }
 
 inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::StringRef Name) {

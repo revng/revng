@@ -29,6 +29,103 @@ class MDNode;
 static const char *BlockTypeMDName = "revng.block.type";
 static const char *JTReasonMDName = "revng.jt.reasons";
 
+namespace BlockType {
+
+/// \brief Classification of the various basic blocks we are creating
+enum Values {
+  /// A basic block generated during translation representing a jump target
+  JumpTargetBlock,
+
+  // TODO: UntypedBlock is a bad name
+  /// A basic block generated during translation that it's not a jump target
+  UntypedBlock,
+
+  /// Basic block representing the dispatcher
+  DispatcherBlock,
+
+  /// Basic block used to handle an expectedly unknown jump target
+  AnyPCBlock,
+
+  /// Basic block used to handle an unexpectedly unknown jump target
+  UnexpectedPCBlock,
+
+  /// Basic block representing the default case of the dispatcher switch
+  DispatcherFailureBlock,
+
+  /// Basic block to handle jumps to non-translated code
+  ExternalJumpsHandlerBlock,
+
+  /// The entry point of the root function
+  EntryPoint
+};
+
+inline const char *getName(Values Reason) {
+  switch (Reason) {
+  case JumpTargetBlock:
+    return "JumpTargetBlock";
+  case UntypedBlock:
+    return "UntypedBlock";
+  case DispatcherBlock:
+    return "DispatcherBlock";
+  case AnyPCBlock:
+    return "AnyPCBlock";
+  case UnexpectedPCBlock:
+    return "UnexpectedPCBlock";
+  case DispatcherFailureBlock:
+    return "DispatcherFailureBlock";
+  case ExternalJumpsHandlerBlock:
+    return "ExternalJumpsHandlerBlock";
+  case EntryPoint:
+    return "EntryPoint";
+  }
+
+  revng_abort();
+}
+
+inline Values fromName(llvm::StringRef ReasonName) {
+  if (ReasonName == "JumpTargetBlock")
+    return JumpTargetBlock;
+  else if (ReasonName == "UntypedBlock")
+    return UntypedBlock;
+  else if (ReasonName == "DispatcherBlock")
+    return DispatcherBlock;
+  else if (ReasonName == "AnyPCBlock")
+    return AnyPCBlock;
+  else if (ReasonName == "UnexpectedPCBlock")
+    return UnexpectedPCBlock;
+  else if (ReasonName == "DispatcherFailureBlock")
+    return DispatcherFailureBlock;
+  else if (ReasonName == "ExternalJumpsHandlerBlock")
+    return ExternalJumpsHandlerBlock;
+  else if (ReasonName == "EntryPoint")
+    return EntryPoint;
+  else
+    revng_abort();
+}
+
+} // namespace BlockType
+
+inline void setBlockType(llvm::TerminatorInst *T, BlockType::Values Value) {
+  QuickMetadata QMD(getContext(T));
+  T->setMetadata(BlockTypeMDName, QMD.tuple(BlockType::getName(Value)));
+}
+
+inline llvm::BasicBlock *
+findByBlockType(llvm::Function *F, BlockType::Values Value) {
+  using namespace llvm;
+  QuickMetadata QMD(getContext(F));
+  for (BasicBlock &BB : *F) {
+    if (auto *T = BB.getTerminator()) {
+      auto *MD = T->getMetadata(BlockTypeMDName);
+      if (auto *Node = cast_or_null<MDTuple>(MD))
+        if (BlockType::fromName(QMD.extract<StringRef>(Node, 0)) == Value)
+          return &BB;
+    }
+  }
+
+  return nullptr;
+}
+
 /// \brief Pass to collect basic information about the generated code
 ///
 /// This pass provides useful information for other passes by extracting them
@@ -63,11 +160,11 @@ public:
   bool runOnModule(llvm::Module &M) override;
 
   /// \brief Return the type of basic block, see BlockType.
-  BlockType getType(llvm::BasicBlock *BB) const {
+  BlockType::Values getType(llvm::BasicBlock *BB) const {
     return getType(BB->getTerminator());
   }
 
-  BlockType getType(llvm::TerminatorInst *T) const {
+  BlockType::Values getType(llvm::TerminatorInst *T) const {
     using namespace llvm;
 
     revng_assert(T != nullptr);
@@ -75,21 +172,21 @@ public:
 
     BasicBlock *BB = T->getParent();
     if (BB == &BB->getParent()->getEntryBlock())
-      return EntryPoint;
+      return BlockType::EntryPoint;
 
     if (MD == nullptr) {
       Instruction *First = &*T->getParent()->begin();
       if (CallInst *Call = getCallTo(First, "newpc"))
         if (getLimitedValue(Call->getArgOperand(2)) == 1)
-          return JumpTargetBlock;
+          return BlockType::JumpTargetBlock;
 
-      return UntypedBlock;
+      return BlockType::UntypedBlock;
     }
 
     auto *BlockTypeMD = cast<MDTuple>(MD);
 
     QuickMetadata QMD(getContext(T));
-    return BlockType(QMD.extract<uint32_t>(BlockTypeMD, 0));
+    return BlockType::fromName(QMD.extract<llvm::StringRef>(BlockTypeMD, 0));
   }
 
   uint32_t getJTReasons(llvm::BasicBlock *BB) const {
@@ -153,8 +250,7 @@ public:
   }
 
   bool isSPReg(const llvm::Value *V) const {
-    auto *GV = llvm::dyn_cast<const llvm::GlobalVariable>(V);
-    if (GV != nullptr)
+    if (auto *GV = llvm::dyn_cast<const llvm::GlobalVariable>(V))
       return isSPReg(GV);
     return false;
   }
@@ -170,6 +266,11 @@ public:
     return GV == PC;
   }
 
+  bool isServiceRegister(const llvm::Value *V) const {
+    auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(V);
+    return GV != nullptr and (isPCReg(GV) or isSPReg(GV));
+  }
+
   /// \brief Return the basic block associated to \p PC
   ///
   /// Returns nullptr if the PC doesn't have a basic block (yet)
@@ -183,7 +284,7 @@ public:
 
   /// \brief Return true if the basic block is a jump target
   bool isJumpTarget(llvm::BasicBlock *BB) const {
-    return getType(BB->getTerminator()) == JumpTargetBlock;
+    return getType(BB->getTerminator()) == BlockType::JumpTargetBlock;
   }
 
   bool isJump(llvm::BasicBlock *BB) const {
@@ -211,8 +312,9 @@ public:
   ///
   /// Return false if \p BB is a dispatcher-related basic block.
   bool isTranslated(llvm::BasicBlock *BB) const {
-    BlockType Type = getType(BB);
-    return Type == UntypedBlock or Type == JumpTargetBlock;
+    BlockType::Values Type = getType(BB);
+    return (Type == BlockType::UntypedBlock
+            or Type == BlockType::JumpTargetBlock);
   }
 
   /// \brief Find the PC which lead to generated \p TheInstruction
@@ -260,6 +362,53 @@ public:
   llvm::BasicBlock *anyPC() { return AnyPC; }
   llvm::BasicBlock *unexpectedPC() { return UnexpectedPC; }
 
+  const llvm::ArrayRef<llvm::GlobalVariable *> csvs() const { return CSVs; }
+
+  class CSVsUsedByHelperCall {
+  public:
+    void sort() {
+      std::sort(Read.begin(), Read.end());
+      std::sort(Written.begin(), Written.end());
+    }
+
+  public:
+    std::vector<llvm::GlobalVariable *> Read;
+    std::vector<llvm::GlobalVariable *> Written;
+  };
+
+  static CSVsUsedByHelperCall getCSVUsedByHelperCall(llvm::CallInst *Call) {
+    revng_assert(isCallToHelper(Call));
+    CSVsUsedByHelperCall Result;
+    Result.Read = extractCSVs(Call, "revng.csvaccess.offsets.load");
+    Result.Written = extractCSVs(Call, "revng.csvaccess.offsets.store");
+    return Result;
+  }
+
+  const std::vector<llvm::GlobalVariable *> &abiRegisters() const {
+    return ABIRegisters;
+  }
+
+private:
+  static std::vector<llvm::GlobalVariable *>
+  extractCSVs(llvm::CallInst *Call, const char *MetadataKind) {
+    using namespace llvm;
+
+    std::vector<GlobalVariable *> Result;
+    auto *Tuple = cast_or_null<MDTuple>(Call->getMetadata(MetadataKind));
+    if (Tuple == nullptr)
+      return Result;
+
+    QuickMetadata QMD(getContext(Call));
+
+    auto OperandsRange = QMD.extract<MDTuple *>(Tuple, 1)->operands();
+    for (const MDOperand &Operand : OperandsRange) {
+      auto *CSV = QMD.extract<Constant *>(Operand.get());
+      Result.push_back(cast<GlobalVariable>(CSV));
+    }
+
+    return Result;
+  }
+
 private:
   uint32_t InstructionAlignment;
   uint32_t DelaySlotSize;
@@ -272,6 +421,8 @@ private:
   std::map<uint64_t, llvm::BasicBlock *> JumpTargets;
   unsigned PCRegSize;
   llvm::Function *RootFunction;
+  std::vector<llvm::GlobalVariable *> CSVs;
+  std::vector<llvm::GlobalVariable *> ABIRegisters;
 };
 
 template<>

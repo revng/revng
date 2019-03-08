@@ -97,10 +97,6 @@ private:
   ///   segments.
   void buildExecutableSegmentsList();
 
-  /// \brief Builds an empty segment list, for linking purposed in case external
-  ///        jumps are not supported.
-  void buildEmptyExecutableSegmentsList();
-
   /// \brief Creates the basic block taking care of deserializing the CPU state
   ///        to the CSVs.
   ///

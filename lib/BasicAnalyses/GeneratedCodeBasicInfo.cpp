@@ -40,6 +40,11 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
   DelaySlotSize = QMD.extract<uint32_t>(Tuple, 1);
   PC = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, 2), true);
   SP = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, 3), true);
+  auto Operands = QMD.extract<MDTuple *>(Tuple, 4)->operands();
+  for (const MDOperand &Operand : Operands) {
+    StringRef Name = QMD.extract<StringRef>(Operand.get());
+    ABIRegisters.push_back(M.getGlobalVariable(Name, true));
+  }
 
   Type *PCType = PC->getType()->getPointerElementType();
   PCRegSize = M.getDataLayout().getTypeAllocSize(PCType);
@@ -47,35 +52,35 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
   for (BasicBlock &BB : F) {
     if (!BB.empty()) {
       switch (getType(&BB)) {
-      case DispatcherBlock:
+      case BlockType::DispatcherBlock:
         revng_assert(Dispatcher == nullptr);
         Dispatcher = &BB;
         break;
 
-      case DispatcherFailureBlock:
+      case BlockType::DispatcherFailureBlock:
         revng_assert(DispatcherFail == nullptr);
         DispatcherFail = &BB;
         break;
 
-      case AnyPCBlock:
+      case BlockType::AnyPCBlock:
         revng_assert(AnyPC == nullptr);
         AnyPC = &BB;
         break;
 
-      case UnexpectedPCBlock:
+      case BlockType::UnexpectedPCBlock:
         revng_assert(UnexpectedPC == nullptr);
         UnexpectedPC = &BB;
         break;
 
-      case JumpTargetBlock: {
+      case BlockType::JumpTargetBlock: {
         auto *Call = cast<CallInst>(&*BB.begin());
         revng_assert(Call->getCalledFunction()->getName() == "newpc");
         JumpTargets[getLimitedValue(Call->getArgOperand(0))] = &BB;
         break;
       }
-      case EntryPoint:
-      case ExternalJumpsHandlerBlock:
-      case UntypedBlock:
+      case BlockType::EntryPoint:
+      case BlockType::ExternalJumpsHandlerBlock:
+      case BlockType::UntypedBlock:
         // Nothing to do here
         break;
       }
@@ -84,6 +89,14 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
 
   revng_assert(Dispatcher != nullptr && AnyPC != nullptr
                && UnexpectedPC != nullptr);
+
+  if (auto *NamedMD = M.getNamedMetadata("revng.csv")) {
+    auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
+    for (const MDOperand &Operand : Tuple->operands()) {
+      auto *CSV = cast<GlobalVariable>(QMD.extract<Constant *>(Operand.get()));
+      CSVs.push_back(CSV);
+    }
+  }
 
   revng_log(PassesLog, "Ending GeneratedCodeBasicInfo");
 

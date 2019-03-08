@@ -89,13 +89,15 @@ public:
 
   void registerFunction(llvm::BasicBlock *Entry,
                         FunctionType::Values Type,
-                        const IntraproceduralFunctionSummary &Summary) {
+                        const IntraproceduralFunctionSummary *Summary) {
     registerFunction(Entry, Type);
-    mergeCallSites(Entry, Summary.FrameSizeAtCallSite);
-    mergeBranches(Entry, Summary.BranchesType);
-    if (Type == FunctionType::Regular or Type == FunctionType::NoReturn
-        or Type == FunctionType::IndirectTailCall)
-      mergeFunction(Entry, Summary);
+    if (Summary != nullptr) {
+      mergeCallSites(Entry, Summary->FrameSizeAtCallSite);
+      mergeBranches(Entry, Summary->BranchesType);
+      if (Type == FunctionType::Regular or Type == FunctionType::NoReturn
+          or Type == FunctionType::IndirectTailCall)
+        mergeFunction(Entry, *Summary);
+    }
   }
 
   /// \brief Merge data about \p Function in \p Summary into the results pool
@@ -118,12 +120,27 @@ public:
 
   /// \brief Finalized the data stored in this object and produce a
   ///        FunctionsSummary
-  FunctionsSummary finalize(llvm::Module *M);
+  FunctionsSummary finalize(llvm::Module *M, Cache *TheCache);
 
   void dump(const llvm::Module *M) const debug_function { dump(M, dbg); }
 
   template<typename T>
   void dump(const llvm::Module *M, T &Output) const {
+    Output << "CallSites:\n";
+    for (auto &P : CallSites) {
+      const CallSite &TheCallSite = P.first;
+      llvm::Optional<int32_t> StackHeight = P.second;
+
+      TheCallSite.dump(Output);
+      Output << ": ";
+      if (StackHeight)
+        Output << *StackHeight;
+      else
+        Output << "unknown";
+
+      Output << "\n";
+    }
+
     Output << "FunctionRegisterArguments:\n";
     for (auto &P : FunctionRegisterArguments) {
       Output << getName(P.first.first) << " ";

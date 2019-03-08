@@ -24,7 +24,7 @@ public:
   static LatticeElement bottom() { return LatticeElement(); }
   LatticeElement copy() { revng_abort(); }
   void combine(const LatticeElement &) { revng_abort(); }
-  bool greaterThan(const LatticeElement &) { revng_abort(); }
+  bool lowerThanOrEqual(const LatticeElement &) { revng_abort(); }
   void dump() { revng_abort(); }
 };
 
@@ -32,14 +32,15 @@ class Interrupt {
 public:
   bool requiresInterproceduralHandling() { revng_abort(); }
   LatticeElement &&extractResult() { revng_abort(); }
-  bool isReturn() const { revng_abort(); }
+  bool isPartOfFinalResults() const { revng_abort(); }
 };
 
-class Analysis : public MonotoneFramework<Label *,
+class Analysis : public MonotoneFramework<Analysis,
+                                          Label *,
                                           LatticeElement,
-                                          Interrupt,
-                                          Analysis,
-                                          llvm::iterator_range<Label **>> {
+                                          BreadthFirst,
+                                          llvm::iterator_range<Label **>,
+                                          Interrupt> {
 public:
   void assertLowerThanOrEqual(const LatticeElement &A,
                               const LatticeElement &B) const {
@@ -63,7 +64,6 @@ public:
   Interrupt createSummaryInterrupt() { revng_abort(); }
   Interrupt createNoReturnInterrupt() const { revng_abort(); }
   LatticeElement extremalValue(Label *) const { revng_abort(); }
-  LabelRange extremalLabels() const { revng_abort(); }
   Interrupt transfer(Label *) { revng_abort(); }
 };
 

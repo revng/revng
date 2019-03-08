@@ -68,33 +68,6 @@ void Analysis::initialize() {
 
   revng_log(SaLog, "Creating Analysis for " << getName(Entry));
 
-  CSVCount = std::distance(M->globals().begin(), M->globals().end());
-
-  // Enumerate CPU state and allocas
-  {
-    CPUIndices.clear();
-
-    // Skip 0, keep it as "invalid value"
-    int32_t I = 1;
-
-    // Go through global variables first
-    for (const llvm::GlobalVariable &GV : M->globals()) {
-      if (not GV.getName().startswith("disasm_"))
-        CPUIndices[&GV] = I;
-      I++;
-    }
-
-    // Look for AllocaInst at the beginning of the root function
-    const llvm::BasicBlock *Entry = &*M->getFunction("root")->begin();
-    auto It = Entry->begin();
-    while (It != Entry->end() and isa<AllocaInst>(&*It)) {
-      CPUIndices[&*It] = I;
-
-      I++;
-      It++;
-    }
-  }
-
   TerminatorInst *T = Entry->getTerminator();
   revng_assert(T != nullptr);
 
@@ -103,12 +76,11 @@ void Analysis::initialize() {
 
   // Get the register indices for for the stack pointer, the program counter
   // and the link register
-  int32_t LinkRegisterIndex = CPUIndices[LinkRegister];
-  PCIndex = CPUIndices[GCBI->pcReg()];
-  SPIndex = CPUIndices[GCBI->spReg()];
-
-  revng_assert(PCIndex != 0
-               && ((LinkRegisterIndex == 0) ^ (LinkRegister != nullptr)));
+  int32_t LinkRegisterIndex = 0;
+  if (LinkRegister != nullptr)
+    LinkRegisterIndex = TheCache->getCPUIndex(LinkRegister);
+  PCIndex = TheCache->getCPUIndex(GCBI->pcReg());
+  SPIndex = TheCache->getCPUIndex(GCBI->spReg());
 
   // Set the stack pointer to SP0+0
   ASSlot StackPointer = ASSlot::create(ASID::cpuID(), SPIndex);
@@ -149,18 +121,18 @@ private:
   ContentMap InstructionContent; ///< Map for the instructions in this BB
   ContentMap &VariableContent; ///< Reference to map for allocas
   const DataLayout &DL;
-  const std::map<const User *, int32_t> &CPUIndices;
+  const Cache *TheCache;
 
 public:
   BasicBlockState(BasicBlock *BB,
                   ContentMap &VariableContent,
                   const DataLayout &DL,
-                  const std::map<const User *, int32_t> &CPUIndices) :
+                  const Cache *TheCache) :
     BB(BB),
     M(getModule(BB)),
     VariableContent(VariableContent),
     DL(DL),
-    CPUIndices(CPUIndices) {}
+    TheCache(TheCache) {}
 
   /// \brief Gets the Value associated to \p V
   ///
@@ -176,11 +148,14 @@ public:
   Value get(llvm::Value *V) const {
     if (auto *CSV = dyn_cast<AllocaInst>(V)) {
 
-      return Value::fromSlot(ASID::cpuID(), CPUIndices.at(CSV));
+      return Value::fromSlot(ASID::cpuID(), TheCache->getCPUIndex(CSV));
 
     } else if (auto *CSV = dyn_cast<GlobalVariable>(V)) {
 
-      return Value::fromSlot(ASID::cpuID(), CPUIndices.at(CSV));
+      if (TheCache->isCPU(CSV))
+        return Value::fromSlot(ASID::cpuID(), TheCache->getCPUIndex(CSV));
+      else
+        return Value();
 
     } else if (auto *C = dyn_cast<Constant>(V)) {
 
@@ -240,7 +215,6 @@ public:
     case Instruction::PtrToInt:
     case Instruction::ZExt:
     case Instruction::SExt:
-    case Instruction::Trunc:
       revng_assert(I->getNumOperands() == 1);
       set(I, get(I->getOperand(0)));
       break;
@@ -272,7 +246,7 @@ public:
         } else {
           // If not, are we saying something new?
           Value &OldValue = It->second;
-          if (NewValue.greaterThan(OldValue)) {
+          if (not NewValue.lowerThanOrEqual(OldValue)) {
             OldValue = NewValue;
             Changed = true;
           }
@@ -335,7 +309,7 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
 
   // Initialize an object to keep track of the values associated to each
   // instruction in the current basic block
-  BasicBlockState BBState(BB, VariableContent, M->getDataLayout(), CPUIndices);
+  BasicBlockState BBState(BB, VariableContent, M->getDataLayout(), TheCache);
 
   for (Instruction &I : *BB) {
 
@@ -479,19 +453,17 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
                       << getName(Callee));
         }
 
-        for (const llvm::Argument &Argument : Callee->args()) {
-          if (Argument.getType()->isPointerTy()) {
-            // This call to helper can alter the CPU state, register it in the
-            // ABI IR as an indirect call
+        // Create in the ABIIR a load for each read register and a store for
+        // each written register
+        auto UsedCSVs = GeneratedCodeBasicInfo::getCSVUsedByHelperCall(Call);
 
-            // TODO: here we should CPUStateAccessAnalysisPass, which can
-            //       provide us with very accurate information about the
-            //       helper
+        for (GlobalVariable *CSV : UsedCSVs.Read)
+          if (TheCache->isCSV(CSV))
+            ABIBB.append(ABIIRInstruction::createLoad(slotFromCSV(CSV)));
 
-            ABIBB.append(ABIIRInstruction::createIndirectCall(Indirect));
-            break;
-          }
-        }
+        for (GlobalVariable *CSV : UsedCSVs.Written)
+          if (TheCache->isCSV(CSV))
+            ABIBB.append(ABIIRInstruction::createStore(slotFromCSV(CSV)));
       }
 
     } break;
@@ -559,6 +531,7 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
   // 0. Check if it's a direct killer basic block
   // TODO: we should move the metadata enums and functions to get their names to
   //       GCBI
+  // TODO: this is likely wrong
   if (GCBI->isKiller(T)
       and GCBI->getKillReason(T) != KillReason::LeadsToKiller) {
     SaTerminator << " Killer";
@@ -574,11 +547,11 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
   bool IsUnresolvedIndirect = false;
 
   for (BasicBlock *Successor : T->successors()) {
-    BlockType SuccessorType = GCBI->getType(Successor->getTerminator());
+    BlockType::Values SuccessorType = GCBI->getType(Successor->getTerminator());
 
     // TODO: this is not very clean
     // After call to helpers we emit a jump to anypc, ignore it
-    if (SuccessorType == AnyPCBlock) {
+    if (SuccessorType == BlockType::AnyPCBlock) {
       bool ShouldSkip = false;
       BasicBlock *BB = T->getParent();
       for (Instruction &I : make_range(BB->rbegin(), BB->rend())) {
@@ -596,14 +569,15 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
     // If at least one successor is not a jump target, the branch is instruction
     // local
     IsInstructionLocal = (IsInstructionLocal
-                          or GCBI->getType(Successor) == UntypedBlock);
+                          or SuccessorType == BlockType::UntypedBlock);
 
-    IsIndirect = (IsIndirect or SuccessorType == AnyPCBlock
-                  or SuccessorType == UnexpectedPCBlock
-                  or SuccessorType == DispatcherBlock);
+    IsIndirect = (IsIndirect or SuccessorType == BlockType::AnyPCBlock
+                  or SuccessorType == BlockType::UnexpectedPCBlock
+                  or SuccessorType == BlockType::DispatcherBlock);
 
-    IsUnresolvedIndirect = (IsUnresolvedIndirect or SuccessorType == AnyPCBlock
-                            or SuccessorType == DispatcherBlock);
+    IsUnresolvedIndirect = (IsUnresolvedIndirect
+                            or SuccessorType == BlockType::AnyPCBlock
+                            or SuccessorType == BlockType::DispatcherBlock);
   }
 
   if (IsIndirect)
@@ -767,8 +741,9 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
   // function-local
   SmallVector<BasicBlock *, 2> Successors;
   for (BasicBlock *Successor : T->successors()) {
-    BlockType SuccessorType = GCBI->getType(Successor);
-    if (SuccessorType != UnexpectedPCBlock and SuccessorType != AnyPCBlock)
+    BlockType::Values SuccessorType = GCBI->getType(Successor);
+    if (SuccessorType != BlockType::UnexpectedPCBlock
+        and SuccessorType != BlockType::AnyPCBlock)
       Successors.push_back(Successor);
   }
 
@@ -960,6 +935,10 @@ Interrupt Analysis::handleCall(Instruction *Caller,
     auto Reason = IsIndirect ? BT::IndirectCall : BT::HandledCall;
     return AI::createWithSuccessor(std::move(Result), Reason, ReturnFromCall);
   }
+}
+
+ASSlot Analysis::slotFromCSV(llvm::User *U) const {
+  return ASSlot::create(ASID::cpuID(), TheCache->getCPUIndex(U));
 }
 
 IFS Analysis::createSummary() {

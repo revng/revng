@@ -15,6 +15,7 @@ bool init_unit_test();
 
 // Local includes
 #include "LLVMTestHelpers.h"
+#include "UnitTestsHelpers.h"
 
 using namespace llvm;
 
@@ -67,9 +68,10 @@ BOOST_AUTO_TEST_CASE(TestBackwardBFSVisitor) {
   Visitor V;
   V.run(instructionByName(F, "target"));
 
-  const std::vector<std::string> GroundTruth = {
-    "d", "first_if_false:2", "c", "first_if_true:2", "b", "initial_block:2", "a"
-  };
+  const std::vector<std::string> GroundTruth = { "target",           "d",
+                                                 "first_if_false:2", "c",
+                                                 "first_if_true:2",  "b",
+                                                 "initial_block:2",  "a" };
   revng_assert(V.VisitLog == GroundTruth);
 }
 

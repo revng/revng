@@ -60,36 +60,6 @@ public:
   }
 };
 
-// TODO: move me to another header file
-// TODO: create namespace for this enum
-/// \brief Classification of the various basic blocks we are creating
-enum BlockType {
-  // TODO: UntypedBlock is a bad name
-  /// A basic block generated during translation representing a jump target
-  JumpTargetBlock,
-
-  /// A basic block generated during translation that it's not a jump target
-  UntypedBlock,
-
-  /// Basic block representing the dispatcher
-  DispatcherBlock,
-
-  /// Basic block used to handle an expectedly unknown jump target
-  AnyPCBlock,
-
-  /// Basic block used to handle an unexpectedly unknown jump target
-  UnexpectedPCBlock,
-
-  /// Basic block representing the default case of the dispatcher switch
-  DispatcherFailureBlock,
-
-  /// Basic block to handle jumps to non-translated code
-  ExternalJumpsHandlerBlock,
-
-  /// The entry point of the root function
-  EntryPoint
-};
-
 namespace JTReason {
 
 // TODO: move me to another header file
@@ -296,7 +266,7 @@ public:
   llvm::StringRef stackPointerRegister() const { return StackPointerRegister; }
   llvm::ArrayRef<uint64_t> noReturnSyscalls() const { return NoReturnSyscalls; }
   uint32_t delaySlotSize() const { return DelaySlotSize; }
-  llvm::SmallVector<ABIRegister, 20> abiRegisters() const {
+  const llvm::SmallVector<ABIRegister, 20> &abiRegisters() const {
     return ABIRegisters;
   }
   const char *name() const {
@@ -351,9 +321,13 @@ inline T *notNull(T *Pointer) {
   return Pointer;
 }
 
-static const std::array<llvm::StringRef, 4> MarkerFunctionNames = {
-  { "newpc", "function_call", "exitTB", "nodce" }
-};
+static llvm::StringRef MarkerFunctionNames[] = { "newpc",
+                                                 "function_call",
+                                                 "exitTB",
+                                                 "nodce",
+                                                 "exception_warning",
+                                                 "raise_exception_helper",
+                                                 "function_dispatcher" };
 
 /// \brief Checks if \p I is a marker
 ///

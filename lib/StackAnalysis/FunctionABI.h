@@ -4,18 +4,140 @@
 // Standard includes
 #include <sstream>
 
+// Local libraries includes
+#include "revng/ADT/SmallMap.h"
+#include "revng/ADT/ZipMapIterator.h"
+#include "revng/StackAnalysis/FunctionsSummary.h"
+#include "revng/Support/Statistics.h"
+
 // Local includes
 #include "ABIDataFlows.h"
 #include "ASSlot.h"
 #include "BasicBlockInstructionPair.h"
-#include "revng/ADT/SmallMap.h"
-#include "revng/StackAnalysis/FunctionsSummary.h"
-#include "revng/Support/Statistics.h"
 
 extern Logger<> SaABI;
 
 /// \brief Average number of registers tracked by the ABI analysis
 extern RunningStatistics ABIRegistersCountStats;
+
+/// \brief Map with an updatable default value
+///
+/// This is a map that can be used to lazily handle K elements: proceed with
+/// your processing using the Default member, then when K is met, record the
+/// state of Default in the map and proceed.
+template<typename K, typename V, size_t N = 40>
+class DefaultMap {
+public:
+  // TODO: the size of the SmallMap needs to be fine tuned
+  using Container = SmallMap<K, V, N>;
+  using const_iterator = typename Container::const_iterator;
+  using iterator = typename Container::iterator;
+  using key_type = K;
+  using pointer = typename Container::pointer;
+  using const_pointer = typename Container::const_pointer;
+  using value_type = typename Container::value_type;
+  using mapped_type = typename Container::mapped_type;
+
+public:
+  V Default;
+
+private:
+  Container M;
+
+public:
+  DefaultMap() : Default() {}
+
+  DefaultMap(const DefaultMap &) = default;
+  DefaultMap &operator=(const DefaultMap &) = default;
+
+  DefaultMap(DefaultMap &&) = default;
+  DefaultMap &operator=(DefaultMap &&) = default;
+
+public:
+  const V &getDefault() const { return Default; }
+
+  void clear() {
+    Default = V();
+    M.clear();
+  }
+
+  void clear(V NewDefault) {
+    Default = V(NewDefault);
+    M.clear();
+  }
+
+  void sort() const { M.sort(); }
+
+  size_t size() const { return M.size(); }
+
+  bool contains(K Key) const { return M.count(Key) != 0; }
+
+  void erase(K Key) { M.erase(Key); }
+
+  V &operator[](const K Key) {
+    return (*M.insert({ Key, Default }).first).second;
+  }
+
+  const V &get(const K Key) const {
+    auto It = M.find(Key);
+    revng_assert(It != M.end());
+    return It->second;
+  }
+
+  const V &getOrDefault(const K Key) const {
+    auto It = M.find(Key);
+    if (It == M.end())
+      return Default;
+    else
+      return It->second;
+  }
+
+  const_iterator begin() const { return M.begin(); }
+  const_iterator end() const { return M.end(); }
+
+  iterator begin() { return M.begin(); }
+  iterator end() { return M.end(); }
+};
+
+template<typename>
+struct isDefaultMap : public std::false_type {};
+
+template<typename K, typename V, size_t N>
+struct isDefaultMap<DefaultMap<K, V, N>> : public std::true_type {};
+
+template<typename K, typename V, size_t N>
+struct isDefaultMap<const DefaultMap<K, V, N>> : public std::true_type {};
+
+static_assert(isDefaultMap<DefaultMap<int, int, 1>>::value, "");
+static_assert(isDefaultMap<const DefaultMap<int, int, 1>>::value, "");
+
+template<typename T>
+struct KeyContainer<T, typename std::enable_if_t<isDefaultMap<T>::value>> {
+  using key_type = typename T::key_type;
+  using pointer = typename std::conditional<std::is_const<T>::value,
+                                            typename T::const_pointer,
+                                            typename T::pointer>::type;
+  using value_type = typename std::conditional<std::is_const<T>::value,
+                                               const typename T::value_type,
+                                               typename T::value_type>::type;
+  using mapped_type = typename std::conditional<std::is_const<T>::value,
+                                                const typename T::mapped_type,
+                                                typename T::mapped_type>::type;
+
+  static const typename T::key_type &getKey(value_type &Value) {
+    return Value.first;
+  }
+
+  static void insert(T &Container, key_type Key) {
+    Container.insert({ Key, mapped_type() });
+  }
+
+  static pointer find(T &Container, key_type &Key) {
+    return &*Container.find(Key);
+  }
+
+  static void sort(T &Container) { Container.sort(); }
+};
 
 namespace StackAnalysis {
 
@@ -107,18 +229,16 @@ struct CombineHelper {
   /// \brief Combine with URVOF
   static void
   combine(FunctionReturnValue &This, UsedReturnValuesOfFunction::Values V) {
-    if (V == UsedReturnValuesOfFunction::Yes) {
+    if (V == UsedReturnValuesOfFunction::YesOrDead) {
       switch (This.Value) {
       case FunctionReturnValue::Maybe:
-        This.Value = FunctionReturnValue::YesCandidate;
+        This.Value = FunctionReturnValue::YesOrDead;
         break;
       case FunctionReturnValue::No:
         // No comes from ECS and wins over everything
         break;
-      case FunctionReturnValue::Yes:
-      case FunctionReturnValue::YesCandidate:
+      case FunctionReturnValue::YesOrDead:
       case FunctionReturnValue::NoOrDead:
-      case FunctionReturnValue::Dead:
       case FunctionReturnValue::Contradiction:
         revng_abort();
       }
@@ -142,6 +262,7 @@ struct CombineHelper {
       case FunctionCallReturnValue::Contradiction:
       case FunctionCallReturnValue::Dead:
       case FunctionCallReturnValue::NoOrDead:
+      case FunctionCallReturnValue::YesOrDead:
         revng_abort();
       }
     }
@@ -164,82 +285,11 @@ struct CombineHelper {
         // No comes from ECS and wins over everything
         break;
       case FunctionCallReturnValue::Contradiction:
+      case FunctionCallReturnValue::YesOrDead:
         revng_abort();
       }
     }
   }
-};
-
-/// \brief Map with an updatable default value
-///
-/// This is a map that can be used to lazily handle K elements: proceed with
-/// your processing using the Default member, then when K is met, record the
-/// state of Default in the map and proceed.
-template<typename K, typename V, size_t N = 40>
-class DefaultMap {
-public:
-  // TODO: the size of the SmallMap needs to be fine tuned
-  using Container = SmallMap<K, V, N>;
-  using const_iterator = typename Container::const_iterator;
-  using iterator = typename Container::iterator;
-
-public:
-  V Default;
-
-private:
-  Container M;
-
-public:
-  DefaultMap() : Default() {}
-
-  DefaultMap(const DefaultMap &) = default;
-  DefaultMap &operator=(const DefaultMap &) = default;
-
-  DefaultMap(DefaultMap &&) = default;
-  DefaultMap &operator=(DefaultMap &&) = default;
-
-public:
-  void clear() {
-    Default = V();
-    M.clear();
-  }
-
-  void clear(V NewDefault) {
-    Default = V(NewDefault);
-    M.clear();
-  }
-
-  void sort() const { M.sort(); }
-
-  size_t size() const { return M.size(); }
-
-  bool contains(K Key) const { return M.count(Key) != 0; }
-
-  void erase(K Key) { M.erase(Key); }
-
-  V &operator[](const K Key) {
-    return (*M.insert({ Key, Default }).first).second;
-  }
-
-  const V &get(const K Key) const {
-    auto It = M.find(Key);
-    revng_assert(It != M.end());
-    return It->second;
-  }
-
-  const V &getOrDefault(const K Key) const {
-    auto It = M.find(Key);
-    if (It == M.end())
-      return Default;
-    else
-      return It->second;
-  }
-
-  const_iterator begin() const { return M.begin(); }
-  const_iterator end() const { return M.end(); }
-
-  iterator begin() { return M.begin(); }
-  iterator end() { return M.end(); }
 };
 
 template<typename V, typename T>
@@ -391,7 +441,7 @@ public:
   }
 
   bool isReturnValue() const {
-    return URVOF.value() == UsedReturnValuesOfFunction::Yes;
+    return URVOF.value() == UsedReturnValuesOfFunction::YesOrDead;
   }
 
   void dump() const debug_function { dump(dbg); }
@@ -499,6 +549,7 @@ public:
   FunctionABI copy() const {
     FunctionABI Result;
     Result.RegisterAnalyses = RegisterAnalyses;
+    Result.Calls = Calls;
     return Result;
   }
 

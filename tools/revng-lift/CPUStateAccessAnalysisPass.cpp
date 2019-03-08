@@ -1380,7 +1380,7 @@ public:
     LoadOffsets(LoadOff),
     StoreOffsets(StoreOff),
     CallSiteLoadOffsets(CallSiteLoadOff),
-    CallSiteStoreOffsets(CallSiteLoadOff),
+    CallSiteStoreOffsets(CallSiteStoreOff),
     ValueCallSiteOffsets(),
     LoadCallSiteOffsets(),
     StoreCallSiteOffsets(),
@@ -2270,7 +2270,7 @@ static void addAccessMetadata(const CallSiteOffsetMap &OffsetMap,
     MDTuple *AccessedVariablesTuple = nullptr;
     SmallVector<Metadata *, 10> OffsetMetadata;
     OffsetMetadata.reserve(Offsets.size());
-    SmallSet<std::string, 10> AccessedVarNames;
+    std::set<GlobalVariable *> AccessedVars;
     if (Offsets.isUnknownInPtr()) {
       CSVAccessLog << "Unknown access to CSV" << DoLog;
       UnknownAccess = QMD.get((uint32_t) 1);
@@ -2281,13 +2281,11 @@ static void addAccessMetadata(const CallSiteOffsetMap &OffsetMap,
         CSVAccessLog << "CallSite: " << CallSite << DoLog;
         CSVAccessLog << "Refined: " << O << DoLog;
         GlobalVariable *AccessedVar = Variables->getByEnvOffset(O).first;
-        std::string VarName = AccessedVar->getName();
-        MDString *VarNameMD = QMD.get(VarName);
-        bool NewlyInserted = AccessedVarNames.insert(VarName).second;
+        bool NewlyInserted = AccessedVars.insert(AccessedVar).second;
         if (NewlyInserted) {
-          OffsetMetadata.push_back(VarNameMD);
+          OffsetMetadata.push_back(QMD.get(AccessedVar));
         }
-        CSVAccessLog << "Accessed Var: " << AccessedVar << " Name: " << VarName
+        CSVAccessLog << "Accessed Var: " << AccessedVar
                      << " Offset: " << Variables->getByEnvOffset(O).second
                      << DoLog;
       }

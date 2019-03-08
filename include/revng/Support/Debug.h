@@ -44,22 +44,9 @@ private:
 public:
   Logger(llvm::StringRef Name) : Name(Name), Enabled(false) { init(); }
 
-  void indent(unsigned Level = 1) {
-    if (isEnabled())
-      IndentLevel += Level;
-  }
-
-  void unindent(unsigned Level = 1) {
-    if (isEnabled()) {
-      revng_assert(IndentLevel - Level >= 0);
-      IndentLevel -= Level;
-    }
-  }
-
-  void setIndentation(unsigned Level) {
-    if (isEnabled())
-      IndentLevel = Level;
-  }
+  void indent(unsigned Level = 1);
+  void unindent(unsigned Level = 1);
+  void setIndentation(unsigned Level);
 
   bool isEnabled() const { return StaticEnabled && Enabled; }
   llvm::StringRef name() const { return Name; }
@@ -153,6 +140,12 @@ inline void writeToLog(Logger<X> &This, const LogTerminator, int) {
   This.emit();
 }
 
+/// \brief Specialization for llvm::StringRef
+template<bool X>
+inline void writeToLog(Logger<X> &This, const llvm::StringRef &S, int Ign) {
+  writeToLog(This, S.data(), Ign);
+}
+
 /// \brief A global registry for all the loggers
 ///
 /// Loggers are usually global static variables in translation units, the role
@@ -229,9 +222,6 @@ inline void Logger<true>::init() {
 template<>
 inline void Logger<false>::init() {
 }
-
-extern template class Logger<true>;
-extern template class Logger<false>;
 
 class StreamWrapperBase {
 public:

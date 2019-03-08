@@ -92,7 +92,7 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
 
   // Register all the Candidate Function Entry Points
   for (BasicBlock &BB : F) {
-    if (GCBI.getType(&BB) != JumpTargetBlock)
+    if (GCBI.getType(&BB) != BlockType::JumpTargetBlock)
       continue;
 
     uint32_t Reasons = GCBI.getJTReasons(&BB);
@@ -119,7 +119,7 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
   }
 
   // Initialize the cache where all the results will be accumulated
-  Cache TheCache(&F);
+  Cache TheCache(&F, &GCBI);
 
   // Pool where the final results will be collected
   ResultsPool Results;
@@ -145,8 +145,38 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
     }
   }
 
+  for (CFEP &Function : Functions) {
+    using IFS = IntraproceduralFunctionSummary;
+    BasicBlock *Entry = Function.Entry;
+    llvm::Optional<const IFS *> Cached = TheCache.get(Entry);
+    revng_assert(Cached or TheCache.isFakeFunction(Entry));
+
+    // Has this function been analyzed already? If so, only now we register it
+    // in the ResultsPool.
+    FunctionType::Values Type;
+    if (TheCache.isFakeFunction(Entry))
+      Type = FunctionType::Fake;
+    else if (TheCache.isIndirectTailCall(Entry))
+      Type = FunctionType::IndirectTailCall;
+    else if (TheCache.isNoReturnFunction(Entry))
+      Type = FunctionType::NoReturn;
+    else
+      Type = FunctionType::Regular;
+
+    // Regular functions need to be composed by at least a basic block
+    if (Cached) {
+      const IFS *Summary = *Cached;
+      if (Type == FunctionType::Regular)
+        revng_assert(Summary->BranchesType.size() != 0);
+
+      Results.registerFunction(Entry, Type, Summary);
+    } else {
+      Results.registerFunction(Entry, Type, nullptr);
+    }
+  }
+
   std::stringstream Output;
-  GrandResult = Results.finalize(&M);
+  GrandResult = Results.finalize(&M, &TheCache);
   GrandResult.dump(&M, Output);
   TextRepresentation = Output.str();
 
@@ -188,6 +218,8 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
   // shot at the end
   std::map<TerminatorInst *, std::vector<Metadata *>> MemberOf;
 
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+
   // Loop over all the detected functions
   for (const auto &P : Summary.Functions) {
     BasicBlock *Entry = P.first;
@@ -196,23 +228,34 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
     if (Entry == nullptr or Function.BasicBlocks.size() == 0)
       continue;
 
+    uint64_t EntryPC = getBasicBlockPC(Entry);
+
     //
     // Add `func.entry`:
-    // { name, type, { clobbered csv, ... }, { { csv, argument, return value },
-    // ... } }
+    // {
+    //   name,
+    //   address,
+    //   type,
+    //   { clobbered csv, ... },
+    //   { { csv, argument, return value }, ... }
+    // }
     //
     auto TypeMD = QMD.get(FunctionType::getName(Function.Type));
 
     // Clobbered registers metadata
     std::vector<Metadata *> ClobberedMDs;
     for (GlobalVariable *ClobberedCSV : Function.ClobberedRegisters) {
-      ClobberedMDs.push_back(QMD.get(ClobberedCSV));
+      if (not GCBI.isServiceRegister(ClobberedCSV))
+        ClobberedMDs.push_back(QMD.get(ClobberedCSV));
     }
 
     // Register slots metadata
     std::vector<Metadata *> SlotMDs;
     if (AnalyzeABI) {
       for (auto &P : Function.RegisterSlots) {
+        if (GCBI.isServiceRegister(P.first))
+          continue;
+
         auto *CSV = QMD.get(P.first);
         auto *Argument = QMD.get(P.second.Argument.valueName());
         auto *ReturnValue = QMD.get(P.second.ReturnValue.valueName());
@@ -222,6 +265,7 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
 
     // Create func.entry metadata
     MDTuple *FunctionMD = QMD.tuple({ QMD.get(getName(Entry)),
+                                      QMD.get(EntryPC),
                                       TypeMD,
                                       QMD.tuple(ClobberedMDs),
                                       QMD.tuple(SlotMDs) });
@@ -238,6 +282,9 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
         // Register slots metadata
         std::vector<Metadata *> SlotMDs;
         for (auto &P : CallSite.RegisterSlots) {
+          if (GCBI.isServiceRegister(P.first))
+            continue;
+
           auto *CSV = QMD.get(P.first);
           auto *Argument = QMD.get(P.second.Argument.valueName());
           auto *ReturnValue = QMD.get(P.second.ReturnValue.valueName());
