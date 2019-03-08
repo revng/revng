@@ -39,7 +39,6 @@ BasicBlockNode *CodeNode::getFirstCFG() {
 }
 
 void CodeNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
-  dbg << "Updating pointers for node: " << getName() << "\n";
   if (CFGNode != nullptr) {
     revng_assert(SubstitutionMap.count(CFGNode) != 0);
     CFGNode = SubstitutionMap[CFGNode];
@@ -85,7 +84,6 @@ void IfNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
   CFGNode = SubstitutionMap.at(CFGNode);
   for (BasicBlockNode *&Elem : ConditionalNodes) {
     Elem = SubstitutionMap.at(Elem);
-    dbg << "Updating pointers for node: " << getName() << "\n";
   }
 }
 
