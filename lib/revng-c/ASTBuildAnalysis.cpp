@@ -964,14 +964,21 @@ static clang::BinaryOperatorKind getClangBinaryOpKind(const Instruction &I) {
   return Res;
 }
 
+static bool is128Int(ASTContext &ASTCtx, clang::Expr *E) {
+  const clang::Type *T = E->getType().getTypePtr();
+  const clang::Type *Int128T = ASTCtx.Int128Ty.getTypePtr();
+  const clang::Type *UInt128T = ASTCtx.UnsignedInt128Ty.getTypePtr();
+  return T == Int128T or T == UInt128T;
+}
+
 static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
                                                          const Instruction &I,
-                                                         Expr *Op0Expr,
-                                                         Expr *Op1Expr) {
-  std::pair<Expr *, Expr *> Res = std::make_pair(Op0Expr, Op1Expr);
+                                                         Expr *LHS,
+                                                         Expr *RHS) {
+  std::pair<Expr *, Expr *> Res = std::make_pair(LHS, RHS);
 
-  QualType LHSQualTy = Op0Expr->getType();
-  QualType RHSQualTy = Op1Expr->getType();
+  QualType LHSQualTy = LHS->getType();
+  QualType RHSQualTy = RHS->getType();
   const ClangType *LHSTy = LHSQualTy.getTypePtr();
   const ClangType *RHSTy = RHSQualTy.getTypePtr();
   revng_assert(LHSTy->isIntegerType() and RHSTy->isIntegerType());
@@ -979,8 +986,10 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
   uint64_t RHSSize = ASTCtx.getTypeSize(RHSTy);
   unsigned OpCode = I.getOpcode();
   revng_assert(LHSSize == RHSSize or OpCode == Instruction::Shl
-               or OpCode == Instruction::LShr or OpCode == Instruction::AShr);
-  QualType SignedTy = ASTCtx.getIntTypeForBitwidth(LHSSize, /* Signed */ true);
+               or OpCode == Instruction::LShr or OpCode == Instruction::AShr
+               or is128Int(ASTCtx, RHS) or is128Int(ASTCtx, LHS));
+  uint64_t Size = std::max(LHSSize, RHSSize);
+  QualType SignedTy = ASTCtx.getIntTypeForBitwidth(Size, /* Signed */ true);
 
   switch (OpCode) {
   case Instruction::Add:
