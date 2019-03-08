@@ -393,7 +393,7 @@ public:
 class SwitchNode : public ASTNode {
 
 public:
-  using links_container = std::vector<ASTNode *>;
+  using links_container = std::vector<std::pair<unsigned, ASTNode *>>;
   using links_iterator = typename links_container::iterator;
   using links_range = llvm::iterator_range<links_iterator>;
 
@@ -401,10 +401,10 @@ private:
   links_container CaseList;
 
 public:
-  SwitchNode(BasicBlockNode *CFGNode, std::vector<ASTNode *> &Cases) :
-    ASTNode(NK_List, CFGNode) {
-      for(ASTNode *Node : Cases) {
-        CaseList.push_back(Node);
+  SwitchNode(BasicBlockNode *CFGNode, std::vector<std::pair<unsigned, ASTNode *>> &Cases) :
+    ASTNode(NK_Switch, CFGNode) {
+      for(std::pair<unsigned, ASTNode *> Case : Cases) {
+        CaseList.push_back(Case);
       }
     }
 
@@ -417,7 +417,7 @@ public:
 
   int CaseSize() { return CaseList.size(); }
 
-  ASTNode *getCaseN(int N) { return CaseList[N]; }
+  ASTNode *getCaseN(int N) { return CaseList[N].second; }
 
   bool isEqual(ASTNode *Node);
 

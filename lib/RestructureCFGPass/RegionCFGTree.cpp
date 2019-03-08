@@ -322,24 +322,69 @@ static void simplifyTrivialShortCircuit(ASTNode *RootNode) {
   }
 }
 
-#if 0
-static void matchSwitch(ASTNode *RootNode) {
+static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
 
   // Inspect all the nodes composing a sequence node.
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
-    for (ASTNode *Node : Sequence->nodes()) {
-      matchSwitch(Node);
+    for (ASTNode *&Node : Sequence->nodes()) {
+      Node = matchSwitch(AST, Node);
     }
+
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     // Inspect the body of a SCS region.
-    matchSwitch(Scs->getBody());
-  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
-    // An if node could be a switch statement
+    Scs->setBody(matchSwitch(AST, Scs->getBody()));
 
+  } else if (auto *IfEqual = llvm::dyn_cast<IfEqualNode>(RootNode)) {
+
+    dbg << "Starting a switch match\n";
+
+    // An IfEqualNode represents the start of a switch statement.
+    std::vector<IfEqualNode *> Candidates;
+    Candidates.push_back(IfEqual);
+
+    BasicBlockNode *FirstIfEqual = IfEqual->getCFGNode();
+    BasicBlockNode *OriginalSwitchNode = FirstIfEqual->getSwitchNode();
+
+    // Retrieve the original switch basic block.
+    llvm::BasicBlock *OriginalSwitch = IfEqual->getOriginalBB();
+
+    // Continue to accumulate the IfEqual nodes until it is possible.
+    while (llvm::isa<IfEqualNode>(IfEqual->getElse())) {
+      IfEqual = llvm::cast<IfEqualNode>(IfEqual->getElse());
+      Candidates.push_back(IfEqual);
+    }
+
+
+
+    std::vector<std::pair<unsigned, ASTNode *>> CandidatesCases;
+    for (IfEqualNode *Candidate : Candidates) {
+      CandidatesCases.push_back(std::make_pair(Candidate->getCaseValue(),
+                                               Candidate->getThen()));
+    }
+
+    // Collect the last else (which will become the default case).
+    ASTNode *DefaultCase = Candidates.back()->getElse();
+    CandidatesCases.push_back(std::make_pair(0, DefaultCase));
+
+
+    std::unique_ptr<SwitchNode> Switch(new SwitchNode(OriginalSwitchNode,
+                                                      CandidatesCases));
+
+    dbg << "Finishing a switch match\n";
+
+    return AST.addSwitch(std::move(Switch));
+
+  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
+    if (If->hasThen()) {
+      If->setThen(matchSwitch(AST, If->getThen()));
+    }
+    if (If->hasElse()) {
+      If->setElse(matchSwitch(AST, If->getElse()));
+    }
   }
 
+  return RootNode;
 }
-#endif
 
 void RegionCFG::initialize(llvm::Function &F) {
 
@@ -358,6 +403,8 @@ void RegionCFG::initialize(llvm::Function &F) {
 
     llvm::TerminatorInst *Terminator = BB.getTerminator();
     int SuccessorNumber = Terminator->getNumSuccessors();
+
+    BasicBlockNode *CodeSwitch = &get(&BB);
 
     if (SuccessorNumber < 3) {
       // Add the successors to the node.
@@ -396,6 +443,7 @@ void RegionCFG::initialize(llvm::Function &F) {
         llvm::ConstantInt *ConstantValue = OldSwitch->findCaseDest(DestTrueBB);
         unsigned SwitchValue = ConstantValue->getZExtValue();
         BasicBlockNode *Switch = addSwitch(&BB,
+                                           CodeSwitch,
                                            SwitchValue,
                                            DestTrue,
                                            DestFalse);
@@ -405,7 +453,6 @@ void RegionCFG::initialize(llvm::Function &F) {
 
       // Connect the node that contained the switch instruction to the switch
       // dispatcher structure.
-      BasicBlockNode *CodeSwitch = &get(&BB);
       addEdge(EdgeDescriptor(CodeSwitch, DestFalse));
     }
   }
@@ -1109,10 +1156,18 @@ void RegionCFG::generateAst() {
         // If we are creating the AST for the switch tree, create the adequate,
         // AST node, otherwise create a classical node.
         if (Node->isSwitch()) {
-          ASTObject.reset(new IfEqualNode(Node,
-                                          ASTChildren[2],
-                                          ASTChildren[0],
-                                          ASTChildren[1]));
+          if (llvm::isa<IfEqualNode>(ASTChildren[0])) {
+            ASTObject.reset(new IfEqualNode(Node,
+                                            ASTChildren[2],
+                                            ASTChildren[0],
+                                            ASTChildren[1]));
+          } else {
+            ASTObject.reset(new IfEqualNode(Node,
+                                            ASTChildren[0],
+                                            ASTChildren[2],
+                                            ASTChildren[1]));
+          }
+
         } else {
           ASTObject.reset(new IfNode(Node,
                                      ASTChildren[2],
@@ -1126,10 +1181,18 @@ void RegionCFG::generateAst() {
         // If we are creating the AST for the switch tree, create the adequate,
         // AST node, otherwise create a classical node.
         if (Node->isSwitch()) {
-          ASTObject.reset(new IfEqualNode(Node,
-                                          ASTChildren[0],
-                                          ASTChildren[1],
-                                          nullptr));
+          if (llvm::isa<IfEqualNode>(ASTChildren[1])) {
+            ASTObject.reset(new IfEqualNode(Node,
+                                            ASTChildren[0],
+                                            ASTChildren[1],
+                                            nullptr));
+          } else {
+            ASTObject.reset(new IfEqualNode(Node,
+                                            ASTChildren[1],
+                                            ASTChildren[0],
+                                            nullptr));
+          }
+
         } else {
           ASTObject.reset(new IfNode(Node,
                                      ASTChildren[0],
@@ -1208,6 +1271,12 @@ void RegionCFG::generateAst() {
   simplifyTrivialShortCircuit(RootNode);
   AST.dumpOnFile("ast", FunctionName, "After-trivial-short-circuit");
 #endif
+
+  // Match switch node.
+  CombLogger << "Performing switch nodes matching\n";
+  RootNode = matchSwitch(AST, RootNode);
+  AST.dumpOnFile("ast", FunctionName, "After-switch-match");
+
 }
 
 // Get reference to the AST object which is inside the RegionCFG object

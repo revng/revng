@@ -66,6 +66,9 @@ protected:
 
   unsigned StateVariableValue;
 
+  /// Pointer to the switchnode.
+  BasicBlockNode *SwitchNode;
+
   /// List of successors
   links_container Successors;
 
@@ -131,9 +134,12 @@ public:
   explicit BasicBlockNode(RegionCFG *Parent,
                           Type T,
                           llvm::BasicBlock *OriginalSwitch,
+                          BasicBlockNode *OriginalSwitchNode,
                           unsigned Value,
                           const std::string &Name = "") :
     BasicBlockNode(Parent, OriginalSwitch, nullptr, Name, T, Value) {
+    revng_assert(OriginalSwitchNode != nullptr);
+    SwitchNode = OriginalSwitchNode;
     revng_assert(T == Type::Switch);
   }
 
@@ -205,6 +211,12 @@ public:
   unsigned getSwitchCaseValue() const {
     revng_assert(isSwitch());
     return StateVariableValue;
+  }
+
+  BasicBlockNode *getSwitchNode() {
+    revng_assert(isSwitch());
+    revng_assert(SwitchNode != nullptr);
+    return SwitchNode;
   }
 
   RegionCFG *getParent() { return Parent; }

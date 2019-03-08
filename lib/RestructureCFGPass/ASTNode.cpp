@@ -278,14 +278,14 @@ void SwitchNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"" << this->getName() << "\" [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
-  ASTFile << ",shape=\"box\",color=\"black\"];\n";
+  ASTFile << ",shape=\"hexagon\",color=\"black\"];\n";
 
   int CaseIndex = 0;
-  for (ASTNode *Case : this->cases()) {
+  for (auto Case : this->cases()) {
     ASTFile << "\"" << this->getName() << "\""
-            << " -> \"" << Case->getName() << "\""
-            << " [color=green,label=\"case " << CaseIndex << "\"];\n";
-    Case->dump(ASTFile);
+            << " -> \"" << Case.second->getName() << "\""
+            << " [color=green,label=\"case " << Case.first << "\"];\n";
+    Case.second->dump(ASTFile);
     CaseIndex += 1;
   }
 }
@@ -332,8 +332,8 @@ void SwitchNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
 
 void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // Update all the case pointers.
-  for (ASTNode *&Case : CaseList) {
-    Case = SubstitutionMap.at(Case);
+  for (auto Case : CaseList) {
+    Case.second = SubstitutionMap.at(Case.second);
   }
 }
 
