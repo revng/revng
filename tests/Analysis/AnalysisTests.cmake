@@ -24,10 +24,9 @@ set(OUTPUT_OPT_stack-analysis "abi-analysis")
 set(OUTPUT_SUFFIX_stack-analysis ".stack-analysis.json")
 set(OUTPUT_DIFF_stack-analysis ${CMAKE_SOURCE_DIR}/scripts/compare-json.py --order)
 
-set(TESTS_arm "memset" "switch-addls" "switch-ldrls" "switch-disjoint-ranges"
+set(TESTS_arm "switch-addls" "switch-ldrls" "switch-disjoint-ranges"
   "call" "fake-function" "fake-function-without-push" "indirect-call" "longjmp"
   "indirect-tail-call")
-set(TEST_SOURCES_arm_memset "${SRC}/arm/memset.S")
 set(TEST_SOURCES_arm_switch-addls "${SRC}/arm/switch-addls.S")
 set(TEST_SOURCES_arm_switch-ldrls "${SRC}/arm/switch-ldrls.S")
 set(TEST_SOURCES_arm_switch-disjoint-ranges "${SRC}/arm/switch-disjoint-ranges.S")
@@ -72,10 +71,9 @@ set(TEST_SOURCES_x86_64_indirect-call-callee-saved "${SRC}/x86_64/StackAnalysis/
 set(TEST_SOURCES_x86_64_helper "${SRC}/x86_64/StackAnalysis/helper.S")
 set(TEST_SOURCES_x86_64_return_value_to_argument "${SRC}/x86_64/StackAnalysis/return-value-to-argument.S")
 
-set(TESTS_mips "switch-jump-table" "switch-jump-table-stack" "jump-table-base-before-function-call")
+set(TESTS_mips "switch-jump-table" "switch-jump-table-stack")
 set(TEST_SOURCES_mips_switch-jump-table "${SRC}/mips/switch-jump-table.S")
 set(TEST_SOURCES_mips_switch-jump-table-stack "${SRC}/mips/switch-jump-table-stack.S")
-set(TEST_SOURCES_mips_jump-table-base-before-function-call "${SRC}/mips/jump-table-base-before-function-call.S")
 
 foreach(ARCH ${SUPPORTED_ARCHITECTURES})
   foreach(TEST_NAME ${TESTS_${ARCH}})
