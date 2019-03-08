@@ -29,7 +29,7 @@ using namespace llvm;
 
 char RemoveSwitch::ID = 0;
 static RegisterPass<RemoveSwitch>
-  X("removeSwitch", "Remove switch instructions", false, false);
+  X("remove-switch", "Remove switch instructions", false, false);
 
 bool RemoveSwitch::runOnFunction(Function &F) {
   if (!F.getName().startswith("bb.")) {

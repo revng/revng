@@ -310,7 +310,7 @@ createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
 }
 
 char RestructureCFG::ID = 0;
-static RegisterPass<RestructureCFG> X("restructureCFG",
+static RegisterPass<RestructureCFG> X("restructure-cfg",
                                       "Apply RegionCFG restructuring "
                                       "transformation",
                                       true,
