@@ -107,7 +107,6 @@ public:
   }
 
   BasicBlockNode *addSwitch(llvm::BasicBlock *OriginalSwitch,
-                            BasicBlockNode *OriginalSwitchNode,
                             unsigned CaseIdx,
                             BasicBlockNode *True,
                             BasicBlockNode *False) {
@@ -117,7 +116,6 @@ public:
     BlockNodes.emplace_back(std::make_unique<BBNode>(this,
                                                      Type::Switch,
                                                      OriginalSwitch,
-                                                     OriginalSwitchNode,
                                                      CaseIdx,
                                                      "switch " + IdStr));
     BBNode *Switch = BlockNodes.back().get();

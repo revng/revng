@@ -332,7 +332,7 @@ void SwitchNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
 
 void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // Update all the case pointers.
-  for (auto Case : CaseList) {
+  for (auto &Case : CaseList) {
     Case.second = SubstitutionMap.at(Case.second);
   }
 }

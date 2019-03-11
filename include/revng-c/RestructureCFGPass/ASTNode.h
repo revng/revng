@@ -453,8 +453,8 @@ public:
 
   unsigned getCaseValue() { return SwitchCaseValue; }
 
-  llvm::BasicBlock *getSwitchCondition() {
-    return CFGNode->getSwitchCondition();
+  llvm::BasicBlock *getSwitchBB() {
+    return CFGNode->getSwitchBB();
   }
 
   void dump(std::ofstream &ASTFile);

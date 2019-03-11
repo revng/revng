@@ -168,7 +168,7 @@ ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
       RootNode = Sequence->getNodeN(0);
       RootNode = simplifyAtomicSequence(RootNode);
     } else {
-      for (ASTNode *Node : Sequence->nodes()) {
+      for (ASTNode *&Node : Sequence->nodes()) {
         Node = simplifyAtomicSequence(Node);
       }
     }

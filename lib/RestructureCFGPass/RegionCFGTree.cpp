@@ -336,14 +336,13 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
 
   } else if (auto *IfEqual = llvm::dyn_cast<IfEqualNode>(RootNode)) {
 
-    dbg << "Starting a switch match\n";
-
     // An IfEqualNode represents the start of a switch statement.
     std::vector<IfEqualNode *> Candidates;
     Candidates.push_back(IfEqual);
 
+    // TODO: Check if we really want to save in the `SwitchNode` a pointer to
+    //       the `IfEqualNode`.
     BasicBlockNode *FirstIfEqual = IfEqual->getCFGNode();
-    BasicBlockNode *OriginalSwitchNode = FirstIfEqual->getSwitchNode();
 
     // Retrieve the original switch basic block.
     llvm::BasicBlock *OriginalSwitch = IfEqual->getOriginalBB();
@@ -353,8 +352,6 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
       IfEqual = llvm::cast<IfEqualNode>(IfEqual->getElse());
       Candidates.push_back(IfEqual);
     }
-
-
 
     std::vector<std::pair<unsigned, ASTNode *>> CandidatesCases;
     for (IfEqualNode *Candidate : Candidates) {
@@ -366,12 +363,9 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
     ASTNode *DefaultCase = Candidates.back()->getElse();
     CandidatesCases.push_back(std::make_pair(0, DefaultCase));
 
-
+    // Create the switch node.
     std::unique_ptr<SwitchNode> Switch(new SwitchNode(FirstIfEqual,
                                                       CandidatesCases));
-
-    dbg << "Finishing a switch match\n";
-
     return AST.addSwitch(std::move(Switch));
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
@@ -443,7 +437,6 @@ void RegionCFG::initialize(llvm::Function &F) {
         llvm::ConstantInt *ConstantValue = OldSwitch->findCaseDest(DestTrueBB);
         unsigned SwitchValue = ConstantValue->getZExtValue();
         BasicBlockNode *Switch = addSwitch(&BB,
-                                           CodeSwitch,
                                            SwitchValue,
                                            DestTrue,
                                            DestFalse);
