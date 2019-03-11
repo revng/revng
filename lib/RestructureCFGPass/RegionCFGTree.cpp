@@ -322,6 +322,67 @@ static void simplifyTrivialShortCircuit(ASTNode *RootNode) {
   }
 }
 
+static unsigned getCaseConstant(ASTNode *Node) {
+  llvm::BasicBlock *BB = Node->getOriginalBB();
+  revng_assert(BB->size() == 2);
+
+  llvm::Instruction &CompareInst = BB->front();
+  llvm::Instruction &BranchInst = BB->back();
+  revng_assert(llvm::isa<llvm::ICmpInst>(CompareInst));
+  revng_assert(llvm::isa<llvm::BranchInst>(BranchInst));
+  revng_assert(llvm::cast<llvm::BranchInst>(BranchInst).isConditional());
+
+  auto *Compare = llvm::cast<llvm::ICmpInst>(&CompareInst);
+  revng_assert(Compare->getNumOperands() == 2);
+
+  llvm::ConstantInt *CI = llvm::cast<llvm::ConstantInt>(Compare->getOperand(1));
+  unsigned Constant = CI->getZExtValue();
+
+  return Constant;
+}
+
+static llvm::Value *getCaseValue(ASTNode *Node) {
+  llvm::BasicBlock *BB = Node->getOriginalBB();
+  revng_assert(BB->size() == 2);
+
+  llvm::Instruction &CompareInst = BB->front();
+  llvm::Instruction &BranchInst = BB->back();
+  revng_assert(llvm::isa<llvm::ICmpInst>(CompareInst));
+  revng_assert(llvm::isa<llvm::BranchInst>(BranchInst));
+  revng_assert(llvm::cast<llvm::BranchInst>(BranchInst).isConditional());
+
+  auto *Compare = llvm::cast<llvm::ICmpInst>(&CompareInst);
+  revng_assert(Compare->getNumOperands() == 2);
+
+  return Compare->getOperand(0);
+}
+
+static bool isSwitchCheck(ASTNode *Candidate) {
+  llvm::BasicBlock *BB = Candidate->getOriginalBB();
+
+  // Check that the if corresponds to an original basic block.
+  if (BB != nullptr) {
+
+    // Check that the body contains an `icmp` instruction over the condition
+    // of the switch and a constant, and then a conditional branch.
+    if (BB->size() == 2) {
+      auto &InstList = BB->getInstList();
+      llvm::Instruction &First = BB->front();
+      llvm::Instruction &Second = BB->back();
+
+      if (llvm::isa<llvm::ICmpInst>(First)) {
+        if (auto *Branch = llvm::dyn_cast<llvm::BranchInst>(&Second)) {
+          if (Branch->isConditional()) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+  }
+}
+
 static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
 
   // Inspect all the nodes composing a sequence node.
@@ -334,46 +395,64 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
     // Inspect the body of a SCS region.
     Scs->setBody(matchSwitch(AST, Scs->getBody()));
 
-  } else if (auto *IfEqual = llvm::dyn_cast<IfEqualNode>(RootNode)) {
-
-    // An IfEqualNode represents the start of a switch statement.
-    std::vector<IfEqualNode *> Candidates;
-    Candidates.push_back(IfEqual);
-
-    // TODO: Check if we really want to save in the `SwitchNode` a pointer to
-    //       the `IfEqualNode`.
-    BasicBlockNode *FirstIfEqual = IfEqual->getCFGNode();
-
-    // Retrieve the original switch basic block.
-    llvm::BasicBlock *OriginalSwitch = IfEqual->getOriginalBB();
-
-    // Continue to accumulate the IfEqual nodes until it is possible.
-    while (llvm::isa<IfEqualNode>(IfEqual->getElse())) {
-      IfEqual = llvm::cast<IfEqualNode>(IfEqual->getElse());
-      Candidates.push_back(IfEqual);
-    }
-
-    std::vector<std::pair<unsigned, ASTNode *>> CandidatesCases;
-    for (IfEqualNode *Candidate : Candidates) {
-      CandidatesCases.push_back(std::make_pair(Candidate->getCaseValue(),
-                                               Candidate->getThen()));
-    }
-
-    // Collect the last else (which will become the default case).
-    ASTNode *DefaultCase = Candidates.back()->getElse();
-    CandidatesCases.push_back(std::make_pair(0, DefaultCase));
-
-    // Create the switch node.
-    std::unique_ptr<SwitchNode> Switch(new SwitchNode(FirstIfEqual,
-                                                      CandidatesCases));
-    return AST.addSwitch(std::move(Switch));
-
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
-    if (If->hasThen()) {
-      If->setThen(matchSwitch(AST, If->getThen()));
+
+    // Switch matching routine.
+    if (isSwitchCheck(If)) {
+
+      // Get the Value of the condition.
+      llvm::Value *SwitchValue = getCaseValue(If);
+
+      // An IfEqualNode represents the start of a switch statement.
+      std::vector<IfNode *> Candidates;
+      Candidates.push_back(If);
+
+      // TODO: Check if we really want to save in the `SwitchNode` a pointer to
+      //       the `IfEqualNode`.
+      BasicBlockNode *FirstIfEqual = If->getCFGNode();
+
+      // Continue to accumulate the IfEqual nodes until it is possible.
+      while (isSwitchCheck(If->getElse())
+             and (SwitchValue == getCaseValue(If->getElse()))) {
+        If = llvm::cast<IfNode>(If->getElse());
+        Candidates.push_back(If);
+      }
+
+      std::vector<std::pair<unsigned, ASTNode *>> CandidatesCases;
+      for (IfNode *Candidate : Candidates) {
+        unsigned CaseConstant = getCaseConstant(Candidate);
+        CandidatesCases.push_back(std::make_pair(CaseConstant,
+                                                 Candidate->getThen()));
+      }
+
+      // Collect the last else (which will become the default case).
+      ASTNode *DefaultCase = Candidates.back()->getElse();
+      CandidatesCases.push_back(std::make_pair(0, DefaultCase));
+
+      // Create the switch node.
+      std::unique_ptr<SwitchNode> Switch(new SwitchNode(FirstIfEqual,
+                                                        CandidatesCases));
+
+      // Invoke the switch matching on the switch just reconstructed.
+      matchSwitch(AST, Switch.get());
+
+      // Return the new object.
+      return AST.addSwitch(std::move(Switch));
+
+    } else {
+
+      // Analyze a standard IfNode.
+      if (If->hasThen()) {
+        If->setThen(matchSwitch(AST, If->getThen()));
+      }
+      if (If->hasElse()) {
+        If->setElse(matchSwitch(AST, If->getElse()));
+      }
     }
-    if (If->hasElse()) {
-      If->setElse(matchSwitch(AST, If->getElse()));
+
+  } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
+    for (auto &Case : Switch->cases()) {
+      Case.second = matchSwitch(AST, Case.second);
     }
   }
 
