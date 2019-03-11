@@ -150,6 +150,7 @@ public:
   bool isArtificial() const {
     return NodeType != Type::Code and NodeType != Type::Collapsed;
   }
+  Type getNodeType() const { return NodeType; }
 
   void setTrue(BasicBlockNode *Succ) {
     revng_assert(isCheckOrSwitch());
