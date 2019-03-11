@@ -1247,8 +1247,8 @@ void RegionCFG::generateAst() {
           }
         } else {
           ASTObject.reset(new IfNode(Node,
-                                     ASTChildren[2],
                                      ASTChildren[0],
+                                     ASTChildren[2],
                                      ASTChildren[1]));
         }
       } else if (Children.size() == 2) {
