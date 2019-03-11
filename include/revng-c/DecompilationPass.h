@@ -9,7 +9,6 @@
 #include <llvm/Support/raw_ostream.h>
 
 // local library includes
-#include "revng-c/EnforceCFGCombingPass/EnforceCFGCombingPass.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 
 struct DecompilationPass : public llvm::FunctionPass {
@@ -22,7 +21,6 @@ struct DecompilationPass : public llvm::FunctionPass {
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<RestructureCFG>();
-    AU.addRequired<EnforceCFGCombingPass>();
     AU.setPreservesAll();
   }
 
