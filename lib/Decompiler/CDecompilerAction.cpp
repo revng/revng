@@ -12,7 +12,7 @@
 
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 
-#include "DecompilationAction.h"
+#include "CDecompilerAction.h"
 
 #include "ASTBuildAnalysis.h"
 #include "FuncDeclCreationAction.h"
@@ -396,7 +396,7 @@ private:
   GlobalsMap GlobalVarAST;
 };
 
-std::unique_ptr<ASTConsumer> DecompilationAction::newASTConsumer() {
+std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
   return std::make_unique<Decompiler>(F, CombedAST, std::move(O));
 }
 

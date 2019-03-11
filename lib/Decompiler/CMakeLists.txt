@@ -1,14 +1,13 @@
-revng_add_analyses_library(revng-c
-                           revngc
-                           DecompilationPass.cpp
+revng_add_analyses_library(Decompiler revngc
+                           CDecompilerPass.cpp
                            ASTBuildAnalysis.cpp
-                           DecompilationAction.cpp
+                           CDecompilerAction.cpp
                            DecompilationHelpers.cpp
                            FuncDeclCreationAction.cpp
                            GlobalDeclCreationAction.cpp
                            IRASTTypeTranslation.cpp)
 
-target_link_libraries(revng-c
+target_link_libraries(Decompiler
                       revng::revngSupport
                       EnforceCFGCombingPass
                       clangTooling

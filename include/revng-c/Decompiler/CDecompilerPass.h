@@ -11,11 +11,11 @@
 // local library includes
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 
-struct DecompilationPass : public llvm::FunctionPass {
+struct CDecompilerPass : public llvm::FunctionPass {
   static char ID;
 
-  DecompilationPass();
-  DecompilationPass(std::unique_ptr<llvm::raw_ostream> Out);
+  CDecompilerPass();
+  CDecompilerPass(std::unique_ptr<llvm::raw_ostream> Out);
 
   bool runOnFunction(llvm::Function &F) override;
 

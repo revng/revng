@@ -13,10 +13,10 @@ class CompilerInstance;
 
 namespace tooling {
 
-class DecompilationAction : public ASTFrontendAction {
+class CDecompilerAction : public ASTFrontendAction {
 
 public:
-  DecompilationAction(llvm::Function &F,
+  CDecompilerAction(llvm::Function &F,
                       ASTTree &CombedAST,
                       std::unique_ptr<llvm::raw_ostream> O) :
 

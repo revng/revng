@@ -11,27 +11,27 @@
 
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 
-#include "revng-c/DecompilationPass.h"
+#include "revng-c/Decompiler/CDecompilerPass.h"
 
-#include "DecompilationAction.h"
+#include "CDecompilerAction.h"
 
 using namespace llvm;
 using namespace clang;
 using namespace clang::tooling;
 
-char DecompilationPass::ID = 0;
+char CDecompilerPass::ID = 0;
 
-static RegisterPass<DecompilationPass>
+static RegisterPass<CDecompilerPass>
   X("decompilation", "Decompilation Pass", false, false);
 
 static cl::OptionCategory RevNgCategory("revng options");
 
-DecompilationPass::DecompilationPass(std::unique_ptr<llvm::raw_ostream> Out) :
+CDecompilerPass::CDecompilerPass(std::unique_ptr<llvm::raw_ostream> Out) :
   llvm::FunctionPass(ID),
   Out(std::move(Out)) {
 }
 
-DecompilationPass::DecompilationPass() : llvm::FunctionPass(ID), Out(nullptr) {
+CDecompilerPass::CDecompilerPass() : llvm::FunctionPass(ID), Out(nullptr) {
 }
 
 static void processFunction(llvm::Function &F) {
@@ -43,7 +43,7 @@ static void processFunction(llvm::Function &F) {
   OptPM.run(F);
 }
 
-bool DecompilationPass::runOnFunction(llvm::Function &F) {
+bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   if (not F.getName().startswith("bb."))
     return false;
   // HACK!!!
@@ -95,7 +95,7 @@ bool DecompilationPass::runOnFunction(llvm::Function &F) {
   ClangTool RevNg = ClangTool(OptionParser.getCompilations(),
                               OptionParser.getSourcePathList());
 
-  DecompilationAction Decompilation(F, CombedCFGAST, std::move(Out));
+  CDecompilerAction Decompilation(F, CombedCFGAST, std::move(Out));
   using FactoryUniquePtr = std::unique_ptr<FrontendActionFactory>;
   FactoryUniquePtr Factory = newFrontendActionFactory(&Decompilation);
   RevNg.run(Factory.get());
