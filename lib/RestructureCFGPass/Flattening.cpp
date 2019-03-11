@@ -92,4 +92,74 @@ void flattenRegionCFGTree(RegionCFG &Root) {
       if (CollapsedNode->isCollapsed())
         CollapsedNodes.insert(CollapsedNode);
   }
+
+  NodesToRemove.clear();
+  std::vector<BasicBlockNode *> SetNodes;
+  // After we've finished the flattening, remove all the Set nodes and all the
+  // chains of Switch nodes. This is beneficial, because Set and Check nodes
+  // added by the combing do actually introduce new control flow that was not
+  // present in the original LLVM IR. We want to avoid this because adding
+  // non-existing control flow may hamper the results of future analyses
+  // performed on the LLVM IR after the combing.
+  for (BasicBlockNode *Node : Root) {
+    switch (Node->getNodeType()) {
+      case BasicBlockNode::Type::Set: {
+        SetNodes.push_back(Node);
+      } break;
+      case BasicBlockNode::Type::Check: {
+        revng_assert(Node->predecessor_size() != 0);
+        revng_assert((Node->predecessor_size() == 1
+                      and Node->getPredecessorI(0)->isCheck())
+                     or (Node->predecessor_size() > 1
+                         and std::all_of(Node->predecessors().begin(),
+                                         Node->predecessors().end(),
+                                         [] (BasicBlockNode *N) {
+                                           return N->isSet();
+                                         })));
+        BasicBlockNode *Pred = Node->getPredecessorI(0);
+        if (Pred->isCheck())
+          continue;
+        // Here Node is the head of a chain of Check nodes, and all its
+        // predecessors are Set nodes
+        std::multimap<unsigned, BasicBlockNode *> VarToSet;
+        for (BasicBlockNode *Pred : Node->predecessors()) {
+          revng_assert(Pred->isSet());
+          unsigned SetID = Pred->getStateVariableValue();
+          VarToSet.insert({SetID, Pred});
+        }
+        BasicBlockNode *Check = Node;
+        BasicBlockNode *False = nullptr;
+        while (1) {
+          NodesToRemove.insert(Check);
+          unsigned CheckId = Check->getStateVariableValue();
+          BasicBlockNode *True = Check->getTrue();
+          auto Range = VarToSet.equal_range(CheckId);
+          for (auto &Pair: llvm::make_range(Range.first, Range.second)) {
+            BasicBlockNode *SetNode = Pair.second;
+            moveEdgeTarget({SetNode, Node}, True);
+          }
+          False = Check->getFalse();
+          if (not False->isCheck())
+            break;
+          Check = False;
+        }
+        auto Range = VarToSet.equal_range(0);
+        for (auto &Pair: llvm::make_range(Range.first, Range.second)) {
+          BasicBlockNode *SetNode = Pair.second;
+          moveEdgeTarget({SetNode, Node}, False);
+        }
+      } break;
+      default: {
+      } break;
+    }
+  }
+  for (BasicBlockNode *SetNode : SetNodes) {
+    revng_assert(SetNode->successor_size() == 1);
+    BasicBlockNode *Succ = SetNode->getSuccessorI(0);
+    for (BasicBlockNode *Pred : SetNode->predecessors())
+      moveEdgeTarget({Pred, SetNode}, Succ);
+    NodesToRemove.insert(SetNode);
+  }
+  for (BasicBlockNode *BBNode : NodesToRemove)
+    Root.removeNode(BBNode);
 }

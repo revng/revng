@@ -48,14 +48,12 @@ static void preprocessRCFGT(RegionCFG &RCFGT) {
     // Flattening should eliminate all Collapsed nodes, as well as all the Break
     // and Continue artificial nodes
     revng_assert(not Node->isCollapsed() and not Node->isBreak()
-                 and not Node->isContinue());
+                 and not Node->isContinue() and not Node->isCheck());
     // Empty and Set artificial nodes should always have exactly one successor
     revng_assert(not Node->isEmpty() or Node->successor_size() <= 1);
     // Set should also have  exactly one predecessor
     revng_assert((Node->successor_size() == 1 and Node->predecessor_size() == 1)
                  or not Node->isSet());
-    // Check artificial nodes should always have exactly two successors
-    revng_assert(not Node->isCheck() or Node->successor_size() == 2);
 
     if (not Node->isArtificial() and Node->successor_size() > 1)
       for (BasicBlockNode *Succ : Node->successors())
