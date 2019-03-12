@@ -219,7 +219,8 @@ public:
   void addSuccessor(BasicBlockNode *Successor) {
     // TODO: Disabled this, since even for set node if we copy the successors
     //       in order we should be fine.
-    // revng_assert(not isCheckOrSwitch()); // you should use setFalse() and setTrue()
+    // revng_assert(not isCheckOrSwitch()); // you should use setFalse() and
+    // setTrue()
 
     // Assert that we are not double inserting.
     bool Found = false;
@@ -267,7 +268,7 @@ public:
   void removePredecessor(BasicBlockNode *Predecessor);
 
   void updatePointers(const std::map<BasicBlockNode *,
-		                     BasicBlockNode *> &SubstitutionMap);
+                                     BasicBlockNode *> &SubstitutionMap);
 
   size_t successor_size() const { return Successors.size(); }
   links_const_range successors() const {

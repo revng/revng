@@ -282,13 +282,12 @@ public:
     RelatedCondition = Condition;
   }
 
-  IfNode *getRelatedCondition () {
+  IfNode *getRelatedCondition() {
     revng_assert(LoopType == Type::While or LoopType == Type::DoWhile);
     revng_assert(RelatedCondition != nullptr);
 
     return RelatedCondition;
   }
-
 };
 
 class SequenceNode : public ASTNode {
@@ -340,7 +339,6 @@ public:
 
   ASTNode *Clone() { return new SequenceNode(*this); }
 };
-
 
 class ContinueNode : public ASTNode {
 private:
@@ -401,7 +399,8 @@ private:
   links_container CaseList;
 
 public:
-  SwitchNode(BasicBlockNode *CFGNode, std::vector<std::pair<unsigned, ASTNode *>> &Cases) :
+  SwitchNode(BasicBlockNode *CFGNode,
+             std::vector<std::pair<unsigned, ASTNode *>> &Cases) :
     ASTNode(NK_Switch, CFGNode) {
       for(std::pair<unsigned, ASTNode *> Case : Cases) {
         CaseList.push_back(Case);

@@ -195,12 +195,12 @@ void ContinueNode::dump(std::ofstream &ASTFile) {
 }
 
 void ContinueNode::addComputationIfNode(IfNode *ComputationIfNode) {
-  assert(ComputationIf == nullptr);
+  revng_assert(ComputationIf == nullptr);
   ComputationIf = ComputationIfNode;
 }
 
 IfNode *ContinueNode::getComputationIfNode() {
-  assert(ComputationIf != nullptr);
+  revng_assert(ComputationIf != nullptr);
   return ComputationIf;
 }
 

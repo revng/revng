@@ -39,10 +39,12 @@ void ASTTree::addASTNode(BasicBlockNode *Node,
                          std::unique_ptr<ASTNode> &&ASTObject) {
   ASTNodeList.emplace_back(std::move(ASTObject));
 
-  // Set the Node ID
-  ASTNodeList.back()->setID(getNewID());
+  ASTNode *ASTNode = ASTNodeList.back().get();
 
-  auto InsertResult = NodeASTMap.insert(std::make_pair(Node, ASTNodeList.back().get()));
+  // Set the Node ID
+  ASTNode->setID(getNewID());
+
+  auto InsertResult = NodeASTMap.insert(std::make_pair(Node, ASTNode));
 }
 
 SwitchNode *ASTTree::addSwitch(std::unique_ptr<ASTNode> &&ASTObject) {
@@ -143,15 +145,12 @@ ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
     if (auto *If = llvm::dyn_cast<IfNode>(Node)) {
       If->setThen(createSequence(Tree, If->getThen()));
       If->setElse(createSequence(Tree, If->getElse()));
-    }
-#if 0
-  } else if (auto *Code = llvm::dyn_cast<CodeNode>(Node)) {
+    } else if (auto *Code = llvm::dyn_cast<CodeNode>(Node)) {
       // TODO: confirm that doesn't make sense to process a code node.
     } else if (auto *Scs = llvm::dyn_cast<ScsNode>(Node)) {
       // TODO: confirm that this phase is not needed since the processing is
       //       done inside the processing of each SCS region.
     }
-#endif
   }
 
   return RootSequenceNode;
@@ -175,13 +174,10 @@ ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     If->setThen(simplifyAtomicSequence(If->getThen()));
     If->setElse(simplifyAtomicSequence(If->getElse()));
+  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
+    // TODO: check if this is not needed as the simplification is done for
+    //       each SCS region.
   }
-#if 0
-} else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    // TODO: check if this is not needed as the simplification is done for each
-    //       SCS region.
-  }
-#endif
 
   return RootNode;
 }

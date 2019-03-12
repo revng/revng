@@ -42,15 +42,12 @@ static ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
       if (If->hasElse()) {
         If->setElse(createSequence(Tree, If->getElse()));
       }
+    } else if (auto *Code = llvm::dyn_cast<CodeNode>(Node)) {
+      // TODO: confirm that doesn't make sense to process a code node.
+    } else if (auto *Scs = llvm::dyn_cast<ScsNode>(Node)) {
+      // TODO: confirm that this phase is not needed since the processing is
+      //       done inside the processing of each SCS region.
     }
-#if 0
-  } else if (auto *Code = llvm::dyn_cast<CodeNode>(Node)) {
-    // TODO: confirm that doesn't make sense to process a code node.
-  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(Node)) {
-    // TODO: confirm that this phase is not needed since the processing is
-    //       done inside the processing of each SCS region.
-  }
-#endif
   }
 
   return RootSequenceNode;
@@ -689,14 +686,6 @@ RegionCFG::orderNodes(std::vector<BasicBlockNode *> &L, bool DoReverse) {
     std::reverse(RPOT.begin(), RPOT.end());
   }
 
-#if 0
-  CombLogger << "New ordering" << "\n";
-  for (BasicBlockNode *Node : L) {
-    CombLogger << Node->getNameStr() << "\n";
-    CombLogger.emit();
-  }
-#endif
-
   for (BasicBlockNode *RPOTBB : RPOT) {
     if (ToOrder.count(RPOTBB) != 0) {
       Result.push_back(RPOTBB);
@@ -1042,11 +1031,6 @@ void RegionCFG::inflate() {
           PDT.insertEdge(Dummies[S], Candidate);
         }
       } else {
-        #if 0
-        if (Conditional->isSwitch()) {
-          continue;
-        }
-        #endif
 
         // Duplicate node.
         if (CombLogger.isEnabled()) {
@@ -1151,15 +1135,7 @@ void RegionCFG::generateAst() {
   // TODO: factorize out the AST generation phase.
   llvm::DominatorTreeBase<BasicBlockNode, false> ASTDT;
   ASTDT.recalculate(Graph);
-#if 0
-  llvm::raw_os_ostream Stream(dbg);
-#endif
   ASTDT.updateDFSNumbers();
-#if 0
-  ASTDT.print(Stream);
-  Stream.flush();
-  ASTDT.print(CombLogger);
-#endif
 
   CombLogger.emit();
 
@@ -1237,7 +1213,7 @@ void RegionCFG::generateAst() {
                                             ASTChildren[2],
                                             ASTChildren[1]));
           } else if (BBChildren[2] == Node->getTrue()
-                     and BBChildren[0] == Node->getFalse()){
+                     and BBChildren[0] == Node->getFalse()) {
             ASTObject.reset(new IfEqualNode(Node,
                                             ASTChildren[2],
                                             ASTChildren[0],

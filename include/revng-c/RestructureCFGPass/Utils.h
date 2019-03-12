@@ -52,7 +52,7 @@ inline void moveEdgeTarget(EdgeDescriptor Edge, BasicBlockNode *NewTarget) {
     } else if (Edge.first->getFalse() == Edge.second) {
       Edge.first->setFalse(NewTarget);
     } else {
-      revng_assert(false && "Wrong successor for check node");
+      revng_abort("Wrong successor for check node");
     }
   } else {
     // General case when we are not handling a dispatcher check node.

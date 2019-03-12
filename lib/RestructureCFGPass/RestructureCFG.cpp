@@ -46,51 +46,6 @@ Logger<> CombLogger("restructure");
 // RegionCFG.
 using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
 
-#if 0
-static bool existsPath(BasicBlockNode &Source, BasicBlockNode &Target) {
-  std::set<BasicBlockNode *> Visited;
-  std::vector<BasicBlockNode *> Stack;
-
-  Stack.push_back(&Source);
-  while (!Stack.empty()) {
-    BasicBlockNode *Vertex = Stack.back();
-    Stack.pop_back();
-
-    if (Vertex == &Target) {
-      return true;
-    }
-
-    if (Visited.count(Vertex) == 0) {
-      Visited.insert(Vertex);
-      for (BasicBlockNode *Successor : Vertex->successors()) {
-        Stack.push_back(Successor);
-      }
-    }
-  }
-
-  return false;
-}
-#endif
-
-#if 0
-static std::set<BasicBlockNode *> findReachableNodes2(RegionCFG &RegionCFG,
-                                               ReachabilityPass &Reachability,
-                                               BasicBlockNode &Source,
-                                               BasicBlockNode &Target) {
-
-  std::set<BasicBlock *> &ReachableBlocks =
-      Reachability.reachableFrom(Source.basicBlock());
-  std::set<BasicBlockNode *> ReachableNodes;
-  BasicBlock *TargetBlock = Target.basicBlock();
-  for (BasicBlock *Block : ReachableBlocks) {
-    if (Reachability.existsPath(Block, TargetBlock)) {
-      ReachableNodes.insert(&RegionCFG.get(Block));
-    }
-  }
-  return ReachableNodes;
-}
-#endif
-
 static std::set<EdgeDescriptor> getBackedges(RegionCFG &Graph) {
 
   // Some helper data structures.
@@ -449,7 +404,8 @@ static void matchDoWhile(ASTNode *RootNode) {
           } else {
             Scs->setBody(nullptr);
           }
-        } else if (llvm::isa<BreakNode>(Else) and llvm::isa<ContinueNode>(Then)) {
+        } else if (llvm::isa<BreakNode>(Else)
+                   and llvm::isa<ContinueNode>(Then)) {
           Scs->setDoWhile(If);
 
           // Remove the if node
@@ -571,13 +527,6 @@ static RegisterPass<RestructureCFG> X("restructure-cfg",
                                       true);
 
 bool RestructureCFG::runOnFunction(Function &F) {
-
-#if 0
-  // Analyze only isolated functions.
-  if (!F.getName().startswith("bb.")) {
-    return false;
-  }
-#endif
 
   // Analyze only isolated functions.
   if (!F.getName().startswith("bb.")
