@@ -14,6 +14,7 @@
 
 // local library includes
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
+#include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 
 struct CDecompilerPass : public llvm::FunctionPass {
   static char ID;
@@ -25,6 +26,7 @@ struct CDecompilerPass : public llvm::FunctionPass {
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<RestructureCFG>();
+    AU.addRequired<PHIASAPAssignmentInfo>();
     AU.setPreservesAll();
   }
 
