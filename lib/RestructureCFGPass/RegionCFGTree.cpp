@@ -1219,13 +1219,19 @@ void RegionCFG::generateAst() {
       } else if (Children.size() == 1) {
         revng_assert(not Node->isBreak()
                      and not Node->isContinue());
-        ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
+        if (Node->isSet()) {
+          ASTObject.reset(new SetNode(Node, ASTChildren[0]));
+        } else {
+          ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
+        }
       } else if (Children.size() == 0) {
         if (Node->isBreak())
           ASTObject.reset(new BreakNode());
         else if (Node->isContinue())
           ASTObject.reset(new ContinueNode());
-        else if (Node->isEmpty() or Node->isCode() or Node->isSet())
+        else if (Node->isSet())
+          ASTObject.reset(new SetNode(Node));
+        else if (Node->isEmpty() or Node->isCode())
           ASTObject.reset(new CodeNode(Node, nullptr));
         else
           revng_abort();

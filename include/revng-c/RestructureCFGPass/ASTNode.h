@@ -32,7 +32,8 @@ public:
                   NK_If,
                   NK_Scs,
                   NK_List,
-                  NK_Switch };
+                  NK_Switch,
+                  NK_Set };
 
   using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
 
@@ -427,6 +428,38 @@ public:
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   ASTNode *Clone() { return new SwitchNode(*this); }
+};
+
+class SetNode : public ASTNode {
+
+private:
+  unsigned StateVariableValue;
+
+public:
+  SetNode(BasicBlockNode *CFGNode, ASTNode *Successor) :
+    ASTNode(NK_Set, CFGNode, Successor),
+    StateVariableValue(CFGNode->getStateVariableValue()) {}
+
+  SetNode(BasicBlockNode *CFGNode) :
+    ASTNode(NK_Set, CFGNode),
+    StateVariableValue(CFGNode->getStateVariableValue()) {}
+
+public:
+  static bool classof(const ASTNode *N) {return N->getKind() == NK_Set; }
+
+  bool isEqual(ASTNode *Node);
+
+  void dump(std::ofstream &ASTFile);
+
+  BasicBlockNode *getFirstCFG();
+
+  void updateBBNodePointers(BBNodeMap &SubstitutionMap);
+
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+
+  ASTNode *Clone() {return new SetNode(*this); }
+
+  unsigned getStateVariableValue() { return StateVariableValue; }
 };
 
 #endif // define REVNGC_RESTRUCTURE_CFG_ASTNODE_H

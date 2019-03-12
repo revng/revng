@@ -336,3 +336,37 @@ void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
     Case.second = SubstitutionMap.at(Case.second);
   }
 }
+
+bool SetNode::isEqual(ASTNode *Node) {
+  if (auto *OtherSet = dyn_cast<SetNode>(Node)) {
+    if (StateVariableValue == OtherSet->getStateVariableValue()) {
+      return true;
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+}
+
+void SetNode::dump(std::ofstream &ASTFile) {
+  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "label=\"" << this->getName();
+  ASTFile << "\"";
+  ASTFile << ",shape=\"box\",color=\"red\"];\n";
+}
+
+BasicBlockNode *SetNode::getFirstCFG() {
+  return CFGNode;
+}
+
+void SetNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
+  revng_assert(CFGNode != nullptr);
+
+  // Update the pointer to the BBNode.
+  CFGNode = SubstitutionMap[CFGNode];
+}
+
+void SetNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
+  // A SetNode should not contain any reference to other AST nodes.
+}
