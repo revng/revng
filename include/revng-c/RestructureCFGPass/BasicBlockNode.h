@@ -32,7 +32,6 @@ public:
     Set,
     Check,
     Collapsed,
-    Switch,
   };
 
   using links_container = llvm::SmallVector<BasicBlockNode *, 2>;
@@ -127,16 +126,6 @@ public:
     revng_assert(T == Type::Set or T == Type::Check);
   }
 
-  /// \brief Constructor for dummy nodes that represent the switch node.
-  explicit BasicBlockNode(RegionCFG *Parent,
-                          Type T,
-                          llvm::BasicBlock *OriginalSwitch,
-                          unsigned Value,
-                          const std::string &Name = "") :
-    BasicBlockNode(Parent, OriginalSwitch, nullptr, Name, T, Value) {
-    revng_assert(T == Type::Switch);
-  }
-
 public:
   bool isBreak() const { return NodeType == Type::Break; }
   bool isContinue() const { return NodeType == Type::Continue; }
@@ -144,16 +133,13 @@ public:
   bool isCheck() const { return NodeType == Type::Check; }
   bool isCode() const { return NodeType == Type::Code; }
   bool isEmpty() const { return NodeType == Type::Empty; }
-  bool isSwitch() const { return NodeType == Type::Switch; }
-  bool isCheckOrSwitch() const { return NodeType == Type::Check
-                                        or NodeType == Type::Switch; }
   bool isArtificial() const {
     return NodeType != Type::Code and NodeType != Type::Collapsed;
   }
   Type getNodeType() const { return NodeType; }
 
   void setTrue(BasicBlockNode *Succ) {
-    revng_assert(isCheckOrSwitch());
+    revng_assert(isCheck());
     Successors.resize(2, nullptr);
     if (Successors[1])
       Successors[1]->removePredecessor(this);
@@ -168,13 +154,13 @@ public:
   }
 
   BasicBlockNode *getTrue() const {
-    revng_assert(isCheckOrSwitch());
+    revng_assert(isCheck());
     revng_assert(successor_size() == 2);
     return Successors[1];
   }
 
   void setFalse(BasicBlockNode *Succ) {
-    revng_assert(isCheckOrSwitch());
+    revng_assert(isCheck());
     Successors.resize(2, nullptr);
     if (Successors[0])
       Successors[0]->removePredecessor(this);
@@ -188,23 +174,13 @@ public:
   }
 
   BasicBlockNode *getFalse() const {
-    revng_assert(isCheckOrSwitch());
+    revng_assert(isCheck());
     revng_assert(successor_size() == 2);
     return Successors[0];
   }
 
   unsigned getStateVariableValue() const {
     revng_assert(isCheck() or isSet());
-    return StateVariableValue;
-  }
-
-  llvm::BasicBlock *getSwitchBB() const {
-    revng_assert(isSwitch());
-    return BB;
-  }
-
-  unsigned getSwitchCaseValue() const {
-    revng_assert(isSwitch());
     return StateVariableValue;
   }
 
@@ -219,7 +195,7 @@ public:
   void addSuccessor(BasicBlockNode *Successor) {
     // TODO: Disabled this, since even for set node if we copy the successors
     //       in order we should be fine.
-    // revng_assert(not isCheckOrSwitch()); // you should use setFalse() and
+    // revng_assert(not isCheck()); // you should use setFalse() and
     // setTrue()
 
     // Assert that we are not double inserting.

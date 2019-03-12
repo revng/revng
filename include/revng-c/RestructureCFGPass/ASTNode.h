@@ -30,7 +30,6 @@ public:
                   NK_Break,
                   NK_Continue,
                   NK_If,
-                  NK_IfEqual,
                   NK_Scs,
                   NK_List,
                   NK_Switch };
@@ -162,8 +161,7 @@ public:
   }
 
 public:
-  static bool classof(const ASTNode *N) { return N->getKind() >= NK_If &&
-                                                 N->getKind() <= NK_IfEqual; }
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_If; }
 
   llvm::BasicBlock *getUniqueCondBlock() {
     revng_assert(ConditionalNodes.size() == 1);
@@ -429,34 +427,6 @@ public:
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   ASTNode *Clone() { return new SwitchNode(*this); }
-};
-
-class IfEqualNode : public IfNode {
-
-private:
-  unsigned SwitchCaseValue;
-
-public:
-  IfEqualNode(BasicBlockNode *CFGNode,
-              ASTNode *Then,
-              ASTNode *Else,
-              ASTNode *PostDom) :
-    IfNode(CFGNode, Then, Else, PostDom, NK_IfEqual) {
-      SwitchCaseValue = CFGNode->getSwitchCaseValue();
-  }
-
-public:
-  static bool classof(const ASTNode *N) { return N->getKind() == NK_IfEqual; }
-
-  ASTNode *Clone() { return new IfEqualNode(*this); }
-
-  unsigned getCaseValue() { return SwitchCaseValue; }
-
-  llvm::BasicBlock *getSwitchBB() {
-    return CFGNode->getSwitchBB();
-  }
-
-  void dump(std::ofstream &ASTFile);
 };
 
 #endif // define REVNGC_RESTRUCTURE_CFG_ASTNODE_H

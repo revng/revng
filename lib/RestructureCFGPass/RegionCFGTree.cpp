@@ -374,10 +374,9 @@ static bool isSwitchCheck(ASTNode *Candidate) {
           }
         }
       }
-
-      return false;
     }
   }
+  return false;
 }
 
 static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
@@ -476,53 +475,14 @@ void RegionCFG::initialize(llvm::Function &F) {
 
     BasicBlockNode *CodeSwitch = &get(&BB);
 
-    if (SuccessorNumber < 3) {
-      // Add the successors to the node.
-      for (llvm::BasicBlock *Successor : Terminator->successors()) {
-        BasicBlockNode &SuccessorNode = get(Successor);
-        Node.addSuccessor(&SuccessorNode);
-        SuccessorNode.addPredecessor(&Node);
-      }
-    } else {
+    // All switch should have been preprocessed.
+    revng_assert(SuccessorNumber < 3);
 
-      // HACK: handle switches as a nested tree of ifs.
-      std::vector<llvm::BasicBlock *> WorkList;
-      for (llvm::BasicBlock *Successor : reverse(Terminator->successors())) {
-        WorkList.push_back(Successor);
-      }
-
-      // Remove from the successor the `unexpectedpc` basic block.
-      // TODO: Consider moving the `unexpectedpc` block at the beginning (so
-      //       that we do not break post-dominance) instead of directly removing
-      //       it.
-      // Remove the unexpectedpc basic block.
-      //WorkList.pop_back();
-
-      // We construct the nested tree structure from the bottom up.
-      // Get a pointer to the last node of the switch. In successive iterations
-      // `DestFalse` will be the intermediate dummy switch node.
-      BasicBlockNode *DestFalse = &get(WorkList.back());
-      WorkList.pop_back();
-
-      while (WorkList.size() > 0) {
-        llvm::BasicBlock *DestTrueBB = WorkList.back();
-        BasicBlockNode *DestTrue = &get(DestTrueBB);
-
-        // Retrieve the case value integer.
-        llvm::SwitchInst *OldSwitch = llvm::cast<llvm::SwitchInst>(Terminator);
-        llvm::ConstantInt *ConstantValue = OldSwitch->findCaseDest(DestTrueBB);
-        unsigned SwitchValue = ConstantValue->getZExtValue();
-        BasicBlockNode *Switch = addSwitch(&BB,
-                                           SwitchValue,
-                                           DestTrue,
-                                           DestFalse);
-        WorkList.pop_back();
-        DestFalse = Switch;
-      }
-
-      // Connect the node that contained the switch instruction to the switch
-      // dispatcher structure.
-      addEdge(EdgeDescriptor(CodeSwitch, DestFalse));
+    // Add the successors to the node.
+    for (llvm::BasicBlock *Successor : Terminator->successors()) {
+      BasicBlockNode &SuccessorNode = get(Successor);
+      Node.addSuccessor(&SuccessorNode);
+      SuccessorNode.addPredecessor(&Node);
     }
   }
 }
@@ -638,7 +598,7 @@ void RegionCFG::connectBreakNode(std::set<EdgeDescriptor> &Outgoing,
                                  BasicBlockNode *Break,
                                  const BBNodeMap &SubstitutionMap) {
   for (EdgeDescriptor Edge : Outgoing) {
-    if (not Edge.first->isCheckOrSwitch()) {
+    if (not Edge.first->isCheck()) {
       addEdge(EdgeDescriptor(SubstitutionMap.at(Edge.first), Break));
     } else {
       revng_assert(Edge.second == Edge.first->getTrue()
@@ -720,7 +680,7 @@ void RegionCFG::dumpDot(StreamT &S) const {
       unsigned SuccID = Successor->getID();
       S << "\"" << PredID << "\""
         << " -> \"" << SuccID << "\"";
-      if (BB->isCheckOrSwitch() and BB->getFalse() == Successor)
+      if (BB->isCheck() and BB->getFalse() == Successor)
         S << " [color=red];\n";
       else
         S << " [color=green];\n";
@@ -1049,7 +1009,7 @@ void RegionCFG::inflate() {
         }
 
         // Specifically handle the check idx node situation.
-        if (Candidate->isCheckOrSwitch()) {
+        if (Candidate->isCheck()) {
           revng_assert(Candidate->getTrue() != nullptr
                        and Candidate->getFalse() != nullptr);
           BasicBlockNode *TrueSuccessor = Candidate->getTrue();
@@ -1203,21 +1163,22 @@ void RegionCFG::generateAst() {
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
 
-        // If we are creating the AST for the switch tree, create the adequate,
-        // AST node, otherwise create a classical node.
-        if (Node->isSwitch()) {
+        // If we are creating the AST for the check node, create the adequate
+        // AST node preserving the then and else branches, otherwise create a
+        // classical node.
+        if (Node->isCheck()) {
           if (BBChildren[0] == Node->getTrue()
               and BBChildren[2] == Node->getFalse()) {
-            ASTObject.reset(new IfEqualNode(Node,
-                                            ASTChildren[0],
-                                            ASTChildren[2],
-                                            ASTChildren[1]));
+            ASTObject.reset(new IfNode(Node,
+                                       ASTChildren[0],
+                                       ASTChildren[2],
+                                       ASTChildren[1]));
           } else if (BBChildren[2] == Node->getTrue()
                      and BBChildren[0] == Node->getFalse()) {
-            ASTObject.reset(new IfEqualNode(Node,
-                                            ASTChildren[2],
-                                            ASTChildren[0],
-                                            ASTChildren[1]));
+            ASTObject.reset(new IfNode(Node,
+                                       ASTChildren[2],
+                                       ASTChildren[0],
+                                       ASTChildren[1]));
           } else {
             revng_abort("Then and else branches cannot be matched");
           }
@@ -1233,19 +1194,19 @@ void RegionCFG::generateAst() {
 
         // If we are creating the AST for the switch tree, create the adequate,
         // AST node, otherwise create a classical node.
-        if (Node->isSwitch()) {
+        if (Node->isCheck()) {
           if (BBChildren[0] == Node->getTrue()
               and BBChildren[1] == Node->getFalse()) {
-            ASTObject.reset(new IfEqualNode(Node,
-                                            ASTChildren[0],
-                                            ASTChildren[1],
-                                            nullptr));
+            ASTObject.reset(new IfNode(Node,
+                                       ASTChildren[0],
+                                       ASTChildren[1],
+                                       nullptr));
           } else if (BBChildren[1] == Node->getTrue()
                      and BBChildren[0] == Node->getFalse()) {
-            ASTObject.reset(new IfEqualNode(Node,
-                                            ASTChildren[1],
-                                            ASTChildren[0],
-                                            nullptr));
+            ASTObject.reset(new IfNode(Node,
+                                       ASTChildren[1],
+                                       ASTChildren[0],
+                                       nullptr));
           } else {
             revng_abort("Then and else branches cannot be matched");
           }
@@ -1257,8 +1218,7 @@ void RegionCFG::generateAst() {
         }
       } else if (Children.size() == 1) {
         revng_assert(not Node->isBreak()
-                     and not Node->isContinue()
-                     and not Node->isSwitch());
+                     and not Node->isContinue());
         ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
       } else if (Children.size() == 0) {
         if (Node->isBreak())
