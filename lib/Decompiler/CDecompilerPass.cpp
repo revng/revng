@@ -1,3 +1,7 @@
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IRReader/IRReader.h>

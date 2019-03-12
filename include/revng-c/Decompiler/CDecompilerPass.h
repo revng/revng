@@ -1,6 +1,10 @@
 #ifndef REVNGC_CDECOMPILERPASS_H
 #define REVNGC_CDECOMPILERPASS_H
 
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
 // std includes
 #include <memory>
 
