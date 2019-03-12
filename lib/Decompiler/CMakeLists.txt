@@ -1,7 +1,7 @@
 revng_add_analyses_library(Decompiler revngc
-                           CDecompilerPass.cpp
                            ASTBuildAnalysis.cpp
                            CDecompilerAction.cpp
+                           CDecompilerPass.cpp
                            DecompilationHelpers.cpp
                            FuncDeclCreationAction.cpp
                            GlobalDeclCreationAction.cpp

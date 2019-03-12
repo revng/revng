@@ -1,5 +1,5 @@
-#ifndef REVNGC_DECOMPILATIONACTION_H
-#define REVNGC_DECOMPILATIONACTION_H
+#ifndef REVNGC_CDECOMPILERACTION_H
+#define REVNGC_CDECOMPILERACTION_H
 
 #include <clang/Frontend/ASTConsumers.h>
 #include <clang/Frontend/FrontendAction.h>
@@ -42,4 +42,4 @@ private:
 
 } // namespace clang
 
-#endif // REVNGC_DECOMPILATIONACTION_H
+#endif // REVNGC_CDECOMPILERACTION_H

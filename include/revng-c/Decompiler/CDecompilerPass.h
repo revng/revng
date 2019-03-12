@@ -1,5 +1,5 @@
-#ifndef REVNG_C_DECOMPILATIONPASS_H
-#define REVNG_C_DECOMPILATIONPASS_H
+#ifndef REVNGC_CDECOMPILERPASS_H
+#define REVNGC_CDECOMPILERPASS_H
 
 // std includes
 #include <memory>
@@ -28,4 +28,4 @@ private:
   std::unique_ptr<llvm::raw_ostream> Out;
 };
 
-#endif /* ifndef REVNG_C_DECOMPILATIONPASS_H */
+#endif /* ifndef REVNGC_CDECOMPILERPASS_H */
