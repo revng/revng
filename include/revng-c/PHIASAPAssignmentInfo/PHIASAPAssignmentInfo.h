@@ -1,8 +1,14 @@
 #ifndef REVNGC_PHIASAPASSIGNMENTINFO_H
 #define REVNGC_PHIASAPASSIGNMENTINFO_H
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
 
 // LLVM includes
 #include <llvm/Pass.h>
+
+// revng includes
+#include <revng/ADT/SmallMap.h>
 
 struct PHIASAPAssignmentInfo : public llvm::FunctionPass {
 

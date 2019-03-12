@@ -11,11 +11,8 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Casting.h>
 
-// revng includes
-#include <revng/ADT/SmallMap.h>
-
-// local includes
-#include "PHIASAPAssignmentInfo.h"
+// local library includes
+#include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 
 using namespace llvm;
 
