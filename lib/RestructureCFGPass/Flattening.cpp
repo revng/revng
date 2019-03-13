@@ -117,8 +117,11 @@ void flattenRegionCFGTree(RegionCFG &Root) {
                                            return N->isSet();
                                          })));
         BasicBlockNode *Pred = Node->getPredecessorI(0);
-        if (Pred->isCheck())
+        if (Pred->isCheck()) {
+          Node->predecessor_size() == 1;
           continue;
+        }
+
         // Here Node is the head of a chain of Check nodes, and all its
         // predecessors are Set nodes
         std::multimap<unsigned, BasicBlockNode *> VarToSet;

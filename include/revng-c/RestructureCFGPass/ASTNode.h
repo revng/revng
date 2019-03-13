@@ -30,6 +30,7 @@ public:
                   NK_Break,
                   NK_Continue,
                   NK_If,
+                  NK_IfCheck,
                   NK_Scs,
                   NK_List,
                   NK_Switch,
@@ -162,9 +163,10 @@ public:
   }
 
 public:
-  static bool classof(const ASTNode *N) { return N->getKind() == NK_If; }
+  static bool classof(const ASTNode *N) { return N->getKind() >= NK_If &&
+                                                 N->getKind() <= NK_IfCheck; }
 
-  llvm::BasicBlock *getUniqueCondBlock() {
+  virtual llvm::BasicBlock *getUniqueCondBlock() {
     revng_assert(ConditionalNodes.size() == 1);
     BasicBlockNode *N = ConditionalNodes[0];
     revng_assert(N->isCode() or N->isCheck());
@@ -201,15 +203,15 @@ public:
     }
   }
 
-  links_range conditionalNodes() {
+  virtual links_range conditionalNodes() {
     return llvm::make_range(ConditionalNodes.begin(), ConditionalNodes.end());
   }
 
-  void addConditionalNodesFrom(IfNode *Other);
+  virtual void addConditionalNodesFrom(IfNode *Other);
 
   bool isEqual(ASTNode *Node);
 
-  void dump(std::ofstream &ASTFile);
+  virtual void dump(std::ofstream &ASTFile);
 
   BasicBlockNode *getFirstCFG();
 
@@ -217,11 +219,11 @@ public:
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
-  ASTNode *Clone() { return new IfNode(*this); }
+  virtual ASTNode *Clone() { return new IfNode(*this); }
 
-  void negateCondition() { NegatedCondition = true; }
+  virtual void negateCondition() { NegatedCondition = true; }
 
-  bool conditionNegated() const { return NegatedCondition; }
+  virtual bool conditionNegated() const { return NegatedCondition; }
 };
 
 class ScsNode : public ASTNode {
@@ -460,6 +462,43 @@ public:
   ASTNode *Clone() {return new SetNode(*this); }
 
   unsigned getStateVariableValue() { return StateVariableValue; }
+};
+
+class IfCheckNode : public IfNode {
+
+private:
+  unsigned StateVariableValue;
+
+public:
+  IfCheckNode(BasicBlockNode *CFGNode,
+              ASTNode *Then,
+              ASTNode *Else,
+              ASTNode *PostDom) :
+    IfNode(CFGNode, Then, Else, PostDom, NK_IfCheck) {
+      StateVariableValue = CFGNode->getStateVariableValue();
+  }
+
+public:
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_IfCheck; }
+
+  void dump(std::ofstream &ASTFile);
+
+  ASTNode *Clone() { return new IfCheckNode(*this); }
+
+  unsigned getCaseValue() { return StateVariableValue; }
+
+  llvm::BasicBlock *getUniqueCondBlock() override {
+    revng_abort("This function should not be used.");
+  }
+
+  links_range conditionalNodes() override {
+    revng_abort("This function should not be used.");
+  }
+
+  void addConditionalNodesFrom(IfNode *Other) override {
+    revng_abort("This function should not be used.");
+  }
+
 };
 
 #endif // define REVNGC_RESTRUCTURE_CFG_ASTNODE_H

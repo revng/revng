@@ -1169,13 +1169,13 @@ void RegionCFG::generateAst() {
         if (Node->isCheck()) {
           if (BBChildren[0] == Node->getTrue()
               and BBChildren[2] == Node->getFalse()) {
-            ASTObject.reset(new IfNode(Node,
+            ASTObject.reset(new IfCheckNode(Node,
                                        ASTChildren[0],
                                        ASTChildren[2],
                                        ASTChildren[1]));
           } else if (BBChildren[2] == Node->getTrue()
                      and BBChildren[0] == Node->getFalse()) {
-            ASTObject.reset(new IfNode(Node,
+            ASTObject.reset(new IfCheckNode(Node,
                                        ASTChildren[2],
                                        ASTChildren[0],
                                        ASTChildren[1]));
@@ -1197,13 +1197,13 @@ void RegionCFG::generateAst() {
         if (Node->isCheck()) {
           if (BBChildren[0] == Node->getTrue()
               and BBChildren[1] == Node->getFalse()) {
-            ASTObject.reset(new IfNode(Node,
+            ASTObject.reset(new IfCheckNode(Node,
                                        ASTChildren[0],
                                        ASTChildren[1],
                                        nullptr));
           } else if (BBChildren[1] == Node->getTrue()
                      and BBChildren[0] == Node->getFalse()) {
-            ASTObject.reset(new IfNode(Node,
+            ASTObject.reset(new IfCheckNode(Node,
                                        ASTChildren[1],
                                        ASTChildren[0],
                                        nullptr));

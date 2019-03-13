@@ -370,3 +370,26 @@ void SetNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
 void SetNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // A SetNode should not contain any reference to other AST nodes.
 }
+
+void IfCheckNode::dump(std::ofstream &ASTFile) {
+  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "label=\"" << this->getName();
+  ASTFile << "\"";
+  ASTFile << ",shape=\"invtrapezium\",color=\"red\"];\n";
+
+  // We may not have one between the `then` and `else` branches, since its
+  // function could be replaced by the fallthrough AST node.
+  if (this->getThen() != nullptr) {
+    ASTFile << "\"" << this->getName() << "\""
+            << " -> \"" << this->getThen()->getName() << "\""
+            << " [color=green,label=\"then\"];\n";
+    this->getThen()->dump(ASTFile);
+  }
+
+  if (this->getElse() != nullptr) {
+    ASTFile << "\"" << this->getName() << "\""
+            << " -> \"" << this->getElse()->getName() << "\""
+            << " [color=red,label=\"else\"];\n";
+    this->getElse()->dump(ASTFile);
+  }
+}
