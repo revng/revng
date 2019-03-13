@@ -108,28 +108,55 @@ void flattenRegionCFGTree(RegionCFG &Root) {
       } break;
       case BasicBlockNode::Type::Check: {
         revng_assert(Node->predecessor_size() != 0);
-        revng_assert((Node->predecessor_size() == 1
-                      and Node->getPredecessorI(0)->isCheck())
-                     or (Node->predecessor_size() > 1
-                         and std::all_of(Node->predecessors().begin(),
-                                         Node->predecessors().end(),
-                                         [] (BasicBlockNode *N) {
-                                           return N->isSet();
-                                         })));
         BasicBlockNode *Pred = Node->getPredecessorI(0);
         if (Pred->isCheck()) {
-          Node->predecessor_size() == 1;
+          revng_assert(Node->predecessor_size() == 1);
           continue;
         }
 
         // Here Node is the head of a chain of Check nodes, and all its
-        // predecessors are Set nodes
+        // predecessors are Set nodes, or they are dummy nodes, the predecessor
+        // of which must in turn be Check nodes or dummy nodes.
         std::multimap<unsigned, BasicBlockNode *> VarToSet;
+        std::vector<BasicBlockNode *> Candidates;
+
+        // Iterative exploration going upwards from the check node searching for
+        // the set nodes.
         for (BasicBlockNode *Pred : Node->predecessors()) {
-          revng_assert(Pred->isSet());
-          unsigned SetID = Pred->getStateVariableValue();
-          VarToSet.insert({SetID, Pred});
+          Candidates.push_back(Pred);
         }
+        while (Candidates.size() > 0) {
+          BasicBlockNode *Candidate = Candidates.back();
+          Candidates.pop_back();
+          if (Candidate->isSet()) {
+
+            // If the predecessor is a set node add it for later processing.
+            unsigned SetID = Candidate->getStateVariableValue();
+            VarToSet.insert({SetID, Candidate});
+          } else if (Candidate->isEmpty()) {
+
+            // If the predecessor is a dummy node, enqueue all its predecessor
+            // for processing, after verifying that they are in turn either set
+            // or dummy nodes.
+            std::vector<EdgeDescriptor> EdgesToRemove;
+            for (BasicBlockNode *Pred : Candidate->predecessors()) {
+              revng_assert(Pred->isSet() or Pred->isEmpty());
+              Candidates.push_back(Pred);
+              EdgesToRemove.push_back({Pred, Candidate});
+            }
+
+            // Remove the dummy node when we have finished.
+            NodesToRemove.insert(Candidate);
+
+            // Remove the edges between the set nodes to the dummy node.
+            for (EdgeDescriptor &Edge : EdgesToRemove) {
+              removeEdge(Edge);
+            }
+          } else {
+            revng_abort("Wrong ascending path towards set nodes");
+          }
+        }
+
         BasicBlockNode *Check = Node;
         BasicBlockNode *False = nullptr;
         while (1) {
@@ -156,6 +183,9 @@ void flattenRegionCFGTree(RegionCFG &Root) {
       } break;
     }
   }
+
+  // Connect all the predecessors of the set nodes directly to the original
+  // successor, ignoring the set and check nodes.
   for (BasicBlockNode *SetNode : SetNodes) {
     revng_assert(SetNode->successor_size() == 1);
     BasicBlockNode *Succ = SetNode->getSuccessorI(0);
