@@ -8,14 +8,11 @@
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Instructions.h>
 
-// revng includes
-#include <revng/Support/IRHelpers.h>
-#include <revng/Support/MonotoneFramework.h>
-
 // local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 
+// local includes
 #include "MarkForSerialization.h"
 
 static Logger<> MarkLog("mark-serialization");

@@ -11,6 +11,10 @@
 
 // LLVM includes
 #include <llvm/IR/Function.h>
+#include <revng/Support/IRHelpers.h>
+
+// revng includes
+#include <revng/Support/MonotoneFramework.h>
 
 class RegionCFG;
 

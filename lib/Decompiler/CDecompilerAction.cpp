@@ -21,6 +21,7 @@
 
 // local includes
 #include "ASTBuildAnalysis.h"
+#include "CDecompilerBeautify.h"
 #include "FuncDeclCreationAction.h"
 #include "GlobalDeclCreationAction.h"
 #include "IRASTTypeTranslation.h"
@@ -353,11 +354,6 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
 #endif
 }
 
-static void beautifyAST(ASTTree &CombedAST,
-                        MarkForSerialization::Analysis &Mark) {
-  // TODO: do something useful here
-}
-
 class Decompiler : public ASTConsumer {
 public:
   explicit Decompiler(llvm::Function &F,
@@ -375,7 +371,7 @@ public:
     Mark.initialize();
     Mark.run();
 
-    beautifyAST(CombedAST, Mark);
+    beautifyAST(TheF, CombedAST, Mark);
 
     using ConsumerPtr = std::unique_ptr<ASTConsumer>;
     {
