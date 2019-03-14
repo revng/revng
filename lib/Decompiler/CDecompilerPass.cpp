@@ -65,6 +65,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   // with its own stuff.
   cl::getRegisteredOptions().clear();
 
+  // Remove calls to newpc
   for (Function &F : *F.getParent()) {
     for (BasicBlock &BB : F) {
       if (!F.getName().startswith("bb."))
@@ -81,10 +82,12 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
     }
   }
 
+  // Optimize the Function
   processFunction(F);
 
   auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
   ASTTree &CombedCFGAST = RestructureCFGAnalysis.getAST();
+  RegionCFG &RCFGT = RestructureCFGAnalysis.getRCT();
 
   // Here we build the artificial command line for clang tooling
   static std::array<const char *, 5> ArgV = {
@@ -99,7 +102,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   ClangTool RevNg = ClangTool(OptionParser.getCompilations(),
                               OptionParser.getSourcePathList());
 
-  CDecompilerAction Decompilation(F, CombedCFGAST, std::move(Out));
+  CDecompilerAction Decompilation(F, RCFGT, CombedCFGAST, std::move(Out));
   using FactoryUniquePtr = std::unique_ptr<FrontendActionFactory>;
   FactoryUniquePtr Factory = newFrontendActionFactory(&Decompilation);
   RevNg.run(Factory.get());

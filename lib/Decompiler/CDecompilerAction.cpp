@@ -1,23 +1,32 @@
-#include <clang/AST/Expr.h>
-#include <clang/AST/Stmt.h>
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
 
+// LLVM includes
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 
+// clang includes
+#include <clang/AST/Expr.h>
 #include <clang/AST/Stmt.h>
 #include <clang/Basic/SourceLocation.h>
 
+// revng includes
 #include <revng/Support/Assert.h>
 
+// local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
+#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 
-#include "CDecompilerAction.h"
-
+// local includes
 #include "ASTBuildAnalysis.h"
 #include "FuncDeclCreationAction.h"
 #include "GlobalDeclCreationAction.h"
 #include "IRASTTypeTranslation.h"
+#include "MarkForSerialization.h"
+
+#include "CDecompilerAction.h"
 
 namespace clang {
 namespace tooling {
@@ -344,26 +353,39 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
 #endif
 }
 
+static void beautifyAST(ASTTree &CombedAST,
+                        MarkForSerialization::Analysis &Mark) {
+  // TODO: do something useful here
+}
+
 class Decompiler : public ASTConsumer {
 public:
   explicit Decompiler(llvm::Function &F,
+                      RegionCFG &RCFG,
                       ASTTree &CombedAST,
                       std::unique_ptr<llvm::raw_ostream> Out) :
     TheF(F),
+    RCFG(RCFG),
     CombedAST(CombedAST),
     Out(std::move(Out)) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override {
+
+    MarkForSerialization::Analysis Mark(TheF, RCFG);
+    Mark.initialize();
+    Mark.run();
+
+    beautifyAST(CombedAST, Mark);
+
     using ConsumerPtr = std::unique_ptr<ASTConsumer>;
-
-    llvm::Module *M = TheF.getParent();
-
-    // Build declaration of global variables
-    ConsumerPtr GlobalDeclCreation = CreateGlobalDeclCreator(TheF, GlobalVarAST);
-    GlobalDeclCreation->HandleTranslationUnit(Context);
-    // Build function declaration
-    ConsumerPtr FunDeclCreation = CreateFuncDeclCreator(TheF, FunctionDecls);
-    FunDeclCreation->HandleTranslationUnit(Context);
+    {
+      // Build declaration of global variables
+      ConsumerPtr GlobalDecls = CreateGlobalDeclCreator(TheF, GlobalVarAST);
+      GlobalDecls->HandleTranslationUnit(Context);
+      // Build function declaration
+      ConsumerPtr FunDecls = CreateFuncDeclCreator(TheF, FunctionDecls);
+      FunDecls->HandleTranslationUnit(Context);
+    }
 
     revng_assert(not TheF.isDeclaration());
     revng_assert(TheF.getName().startswith("bb."));
@@ -390,6 +412,7 @@ public:
 
 private:
   llvm::Function &TheF;
+  RegionCFG &RCFG;
   ASTTree &CombedAST;
   std::unique_ptr<llvm::raw_ostream> Out;
   FunctionsMap FunctionDecls;
@@ -397,7 +420,7 @@ private:
 };
 
 std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
-  return std::make_unique<Decompiler>(F, CombedAST, std::move(O));
+  return std::make_unique<Decompiler>(F, RCFG, CombedAST, std::move(O));
 }
 
 } // end namespace tooling

@@ -1,11 +1,19 @@
 #ifndef REVNGC_CDECOMPILERACTION_H
 #define REVNGC_CDECOMPILERACTION_H
 
-#include <clang/Frontend/ASTConsumers.h>
-#include <clang/Frontend/FrontendAction.h>
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+// std includes
 #include <cstdio>
 
+// clang includes
+#include <clang/Frontend/ASTConsumers.h>
+#include <clang/Frontend/FrontendAction.h>
+
 class ASTTree;
+class RegionCFG;
 
 namespace clang {
 
@@ -17,10 +25,12 @@ class CDecompilerAction : public ASTFrontendAction {
 
 public:
   CDecompilerAction(llvm::Function &F,
-                      ASTTree &CombedAST,
-                      std::unique_ptr<llvm::raw_ostream> O) :
+                    RegionCFG &RCFG,
+                    ASTTree &CombedAST,
+                    std::unique_ptr<llvm::raw_ostream> O) :
 
     F(F),
+    RCFG(RCFG),
     CombedAST(CombedAST),
     O(std::move(O)) {}
 
@@ -34,6 +44,7 @@ public:
 
 private:
   llvm::Function &F;
+  RegionCFG &RCFG;
   ASTTree &CombedAST;
   std::unique_ptr<llvm::raw_ostream> O;
 };
