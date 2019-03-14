@@ -47,7 +47,7 @@ void ASTTree::addASTNode(BasicBlockNode *Node,
   auto InsertResult = NodeASTMap.insert(std::make_pair(Node, ASTNode));
 }
 
-SwitchNode *ASTTree::addSwitch(std::unique_ptr<ASTNode> &&ASTObject) {
+SwitchNode *ASTTree::addSwitch(std::unique_ptr<ASTNode> ASTObject) {
   ASTNodeList.emplace_back(std::move(ASTObject));
 
   // Set the Node ID
@@ -60,6 +60,22 @@ ASTNode *ASTTree::findASTNode(BasicBlockNode *BlockNode) {
   revng_assert(NodeASTMap.count(BlockNode) != 0);
   ASTNode *ASTPointer = NodeASTMap[BlockNode];
   return ASTPointer;
+}
+
+// TODO: This is higly inefficient (it is a linear scan over a std::map).
+//       Consider keeping another map for the inverse direction (and updating
+//       it).
+BasicBlockNode *ASTTree::findCFGNode(ASTNode *Node) {
+  BasicBlockNode *Result = nullptr;
+  for (auto MapIt = NodeASTMap.begin(); MapIt != NodeASTMap.end(); MapIt++) {
+    if (MapIt->second == Node) {
+      Result = MapIt->first;
+    }
+  }
+
+  // We may return nullptr, since for example continue and break nodes do not
+  // have a corresponding CFGNode.
+  return Result;
 }
 
 void ASTTree::setRoot(ASTNode *Root) {
@@ -77,13 +93,12 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
 
   // Clone each ASTNode in the current AST.
   for (std::unique_ptr<ASTNode> &Old : OldAST.nodes()) {
-    // ASTNodeList.emplace_back(std::make_unique<ASTNode>(*Old));
     ASTNodeList.emplace_back(std::move(Old->Clone()));
 
     // Set the Node ID
     ASTNodeList.back()->setID(getNewID());
 
-    BasicBlockNode *OldCFGNode = Old->getCFGNode();
+    BasicBlockNode *OldCFGNode = OldAST.findCFGNode(Old.get());
     if (OldCFGNode != nullptr) {
       NodeASTMap.insert(std::make_pair(OldCFGNode, ASTNodeList.back().get()));
     }
@@ -99,7 +114,6 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
   MovedIteratorRange Result = llvm::make_range(BeginInserted, EndInserted);
   for (std::unique_ptr<ASTNode> &NewNode : Result) {
     NewNode->updateASTNodesPointers(ASTSubstitutionMap);
-    NewNode->updateBBNodePointers(SubstitutionMap);
   }
 
   // Update the map between `BasicBlockNode` and `ASTNode`.

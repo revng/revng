@@ -112,23 +112,6 @@ static ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
   return RootNode;
 }
 
-static void deoptimizeNodes(ASTNode *First, ASTNode *Second) {
-  if (CombLogger.isEnabled()) {
-    CombLogger << "\n";
-    CombLogger << "Trying to de-optimize: ";
-    CombLogger << First->getName() << " and ";
-    CombLogger << Second->getName() << "\n\n";
-  }
-
-  BasicBlockNode *FirstEntry = First->getFirstCFG();
-  BasicBlockNode *SecondEntry = Second->getFirstCFG();
-  revng_assert((FirstEntry != nullptr) and (SecondEntry != nullptr));
-  for (BasicBlockNode *Predecessor : FirstEntry->predecessors()) {
-    addEdge(EdgeDescriptor(Predecessor, SecondEntry));
-  }
-  FirstEntry->removeNode();
-}
-
 // Helper function to simplify short-circuit IFs
 static void simplifyShortCircuit(ASTNode *RootNode) {
 
@@ -155,9 +138,6 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
               CombLogger << InternalIf->getThen()->getName() << "\n";
             }
 
-            // Deoptimize the CFG
-            deoptimizeNodes(If->getElse(), InternalIf->getThen());
-
             If->setThen(InternalIf->getElse());
             If->setElse(InternalIf->getThen());
 
@@ -178,9 +158,6 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
               CombLogger << If->getElse()->getName() << " and ";
               CombLogger << InternalIf->getElse()->getName() << "\n";
             }
-
-            // Deoptimize the CFG
-            deoptimizeNodes(If->getElse(), InternalIf->getElse());
 
             If->setThen(InternalIf->getThen());
             If->setElse(InternalIf->getElse());
@@ -207,9 +184,6 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
               CombLogger << InternalIf->getThen()->getName() << "\n";
             }
 
-            // Deoptimize the CFG
-            deoptimizeNodes(If->getThen(), InternalIf->getThen());
-
             If->setElse(InternalIf->getElse());
             If->setThen(InternalIf->getThen());
 
@@ -230,9 +204,6 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
               CombLogger << If->getThen()->getName() << " and ";
               CombLogger << InternalIf->getElse()->getName() << "\n";
             }
-
-            // Deoptimize the CFG
-            deoptimizeNodes(If->getThen(), InternalIf->getElse());
 
             If->setElse(InternalIf->getThen());
             If->setThen(InternalIf->getElse());
@@ -403,10 +374,6 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
       std::vector<IfNode *> Candidates;
       Candidates.push_back(If);
 
-      // TODO: Check if we really want to save in the `SwitchNode` a pointer to
-      //       the `IfEqualNode`.
-      BasicBlockNode *FirstIfEqual = If->getCFGNode();
-
       // Continue to accumulate the IfEqual nodes until it is possible.
       while (isSwitchCheck(If->getElse())
              and (SwitchValue == getCaseValue(If->getElse()))) {
@@ -426,8 +393,7 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
       CandidatesCases.push_back(std::make_pair(0, DefaultCase));
 
       // Create the switch node.
-      std::unique_ptr<SwitchNode> Switch(new SwitchNode(FirstIfEqual,
-                                                        CandidatesCases));
+      std::unique_ptr<SwitchNode> Switch(new SwitchNode(CandidatesCases));
 
       // Invoke the switch matching on the switch just reconstructed.
       matchSwitch(AST, Switch.get());

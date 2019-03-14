@@ -130,8 +130,8 @@ inline void dumpNode(ASTNode *Node) {
 
     // For the label of the If node go take all the nodes in the list
     std::string ConditionalNames;
-    for (BasicBlockNode *Conditional : If->conditionalNodes()) {
-      ConditionalNames += Conditional->getNameStr() + ", ";
+    for (llvm::BasicBlock *Conditional : If->conditionalNodes()) {
+      ConditionalNames += Conditional->getName().str() + ", ";
     }
     ConditionalNames.pop_back();
     ConditionalNames.pop_back();

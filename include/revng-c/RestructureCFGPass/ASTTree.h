@@ -49,9 +49,11 @@ public:
 
   void addASTNode(BasicBlockNode *Node, std::unique_ptr<ASTNode> &&ASTObject);
 
-  SwitchNode *addSwitch(std::unique_ptr<ASTNode> &&ASTObject);
+  SwitchNode *addSwitch(std::unique_ptr<ASTNode> ASTObject);
 
   ASTNode *findASTNode(BasicBlockNode *BlockNode);
+
+  BasicBlockNode *findCFGNode(ASTNode *Node);
 
   void setRoot(ASTNode *Root);
 

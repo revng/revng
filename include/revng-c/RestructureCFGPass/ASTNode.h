@@ -40,9 +40,10 @@ public:
 
 private:
   const NodeKind Kind;
+  bool IsEmpty = false;
 
 protected:
-  BasicBlockNode *CFGNode;
+  llvm::BasicBlock *BB;
   bool Processed = false;
   std::string Name;
   ASTNode *Successor = nullptr;
@@ -55,15 +56,16 @@ protected:
 public:
   ASTNode(NodeKind K, const std::string &Name, ASTNode *Successor = nullptr) :
     Kind(K),
-    CFGNode(nullptr),
+    BB(nullptr),
     Name(Name),
     Successor(Successor) {}
 
   ASTNode(NodeKind K, BasicBlockNode *CFGNode, ASTNode *Successor = nullptr) :
     Kind(K),
-    CFGNode(CFGNode),
+    BB(CFGNode->getBasicBlock()),
     Name(CFGNode->getNameStr()),
-    Successor(Successor) {}
+    Successor(Successor),
+    IsEmpty(CFGNode->isEmpty()) {}
 
   virtual ~ASTNode() {}
 
@@ -82,35 +84,22 @@ public:
 
   virtual void dump(std::ofstream &ASTFile) = 0;
 
-  BasicBlockNode *getCFGNode() { return CFGNode; }
+  llvm::BasicBlock *getBB() { return BB; }
 
   ASTNode *getSuccessor() { return Successor; }
 
   bool isEmpty() {
 
-    // Check if the corresponding CFGNode is a dummy node. In case we do not
-    // have a corresponding CFGNode (e.g., a sequence node), assume that this
-    // property is not verified
-    if (CFGNode != nullptr) {
-      return CFGNode->isEmpty();
-    } else {
-      return false;
-    }
+    // Since we do not have a pointer to the CFGNode anymore, we need to save
+    // this information in a field inside the constructor.
+    return IsEmpty;
   }
 
   llvm::BasicBlock *getOriginalBB() {
-    if (CFGNode != nullptr) {
-      return CFGNode->getBasicBlock();
-    } else {
-      return nullptr;
-    }
+    return BB;
   }
 
   virtual bool isEqual(ASTNode *Node) = 0;
-
-  virtual BasicBlockNode *getFirstCFG() = 0;
-
-  virtual void updateBBNodePointers(BBNodeMap &SubstitutionMap) = 0;
 
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) = 0;
 };
@@ -128,10 +117,6 @@ public:
 
   void dump(std::ofstream &ASTFile);
 
-  BasicBlockNode *getFirstCFG();
-
-  void updateBBNodePointers(BBNodeMap &SubstitutionMap);
-
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   ASTNode *Clone() { return new CodeNode(*this); }
@@ -140,14 +125,14 @@ public:
 class IfNode : public ASTNode {
 
 public:
-  using links_container = std::vector<BasicBlockNode *>;
+  using links_container = std::vector<llvm::BasicBlock *>;
   using links_iterator = typename links_container::iterator;
   using links_range = llvm::iterator_range<links_iterator>;
 
 private:
   ASTNode *Then;
   ASTNode *Else;
-  std::vector<BasicBlockNode *> ConditionalNodes;
+  std::vector<llvm::BasicBlock *> ConditionalNodes;
   bool NegatedCondition = false;
 
 public:
@@ -159,7 +144,7 @@ public:
     ASTNode(Kind, CFGNode, PostDom),
     Then(Then),
     Else(Else) {
-    ConditionalNodes.push_back(CFGNode);
+    ConditionalNodes.push_back(CFGNode->getBasicBlock());
   }
 
 public:
@@ -168,9 +153,9 @@ public:
 
   virtual llvm::BasicBlock *getUniqueCondBlock() {
     revng_assert(ConditionalNodes.size() == 1);
-    BasicBlockNode *N = ConditionalNodes[0];
-    revng_assert(N->isCode() or N->isCheck());
-    return N->getBasicBlock();
+    llvm::BasicBlock *N = ConditionalNodes[0];
+    revng_assert(N != nullptr);
+    return N;
   }
 
   ASTNode *getThen() { return Then; }
@@ -213,10 +198,6 @@ public:
 
   virtual void dump(std::ofstream &ASTFile);
 
-  BasicBlockNode *getFirstCFG();
-
-  void updateBBNodePointers(BBNodeMap &SubstitutionMap);
-
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   virtual ASTNode *Clone() { return new IfNode(*this); }
@@ -258,10 +239,6 @@ public:
   bool isEqual(ASTNode *Node);
 
   void dump(std::ofstream &ASTFile);
-
-  BasicBlockNode *getFirstCFG();
-
-  void updateBBNodePointers(BBNodeMap &SubstitutionMap);
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
@@ -332,10 +309,6 @@ public:
 
   void dump(std::ofstream &ASTFile);
 
-  BasicBlockNode *getFirstCFG();
-
-  void updateBBNodePointers(BBNodeMap &SubstitutionMap);
-
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   ASTNode *Clone() { return new SequenceNode(*this); }
@@ -355,10 +328,6 @@ public:
   void dump(std::ofstream &ASTFile);
 
   bool isEqual(ASTNode *Node) { return llvm::isa<ContinueNode>(Node); }
-
-  BasicBlockNode *getFirstCFG() { return nullptr; };
-
-  void updateBBNodePointers(BBNodeMap &SubstitutionMap) {}
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {}
 
@@ -382,10 +351,6 @@ public:
 
   bool isEqual(ASTNode *Node) { return llvm::isa<BreakNode>(Node); }
 
-  BasicBlockNode *getFirstCFG() { return nullptr; };
-
-  void updateBBNodePointers(BBNodeMap &SubstitutionMap) {}
-
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {}
 };
 
@@ -400,9 +365,8 @@ private:
   links_container CaseList;
 
 public:
-  SwitchNode(BasicBlockNode *CFGNode,
-             std::vector<std::pair<unsigned, ASTNode *>> &Cases) :
-    ASTNode(NK_Switch, CFGNode) {
+  SwitchNode(std::vector<std::pair<unsigned, ASTNode *>> &Cases) :
+    ASTNode(NK_Switch, "SwitchNode") {
       for(std::pair<unsigned, ASTNode *> Case : Cases) {
         CaseList.push_back(Case);
       }
@@ -422,10 +386,6 @@ public:
   bool isEqual(ASTNode *Node);
 
   void dump(std::ofstream &ASTFile);
-
-  BasicBlockNode *getFirstCFG();
-
-  void updateBBNodePointers(BBNodeMap &SubstitutionMap);
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
@@ -452,10 +412,6 @@ public:
   bool isEqual(ASTNode *Node);
 
   void dump(std::ofstream &ASTFile);
-
-  BasicBlockNode *getFirstCFG();
-
-  void updateBBNodePointers(BBNodeMap &SubstitutionMap);
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 

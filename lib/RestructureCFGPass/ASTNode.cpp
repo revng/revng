@@ -16,7 +16,7 @@
 using namespace llvm;
 
 void IfNode::addConditionalNodesFrom(IfNode *Other) {
-  for (BasicBlockNode *Node : Other->conditionalNodes()) {
+  for (BasicBlock *Node : Other->conditionalNodes()) {
     ConditionalNodes.push_back(Node);
   }
 }
@@ -31,19 +31,6 @@ bool CodeNode::isEqual(ASTNode *Node) {
     }
   } else {
     return false;
-  }
-}
-
-BasicBlockNode *CodeNode::getFirstCFG() {
-  return CFGNode;
-}
-
-void CodeNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
-  if (CFGNode != nullptr) {
-    revng_assert(SubstitutionMap.count(CFGNode) != 0);
-    CFGNode = SubstitutionMap[CFGNode];
-  } else {
-    CFGNode = nullptr;
   }
 }
 
@@ -75,18 +62,6 @@ bool IfNode::isEqual(ASTNode *Node) {
   }
 }
 
-BasicBlockNode *IfNode::getFirstCFG() {
-  return CFGNode;
-}
-
-void IfNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
-  revng_assert(CFGNode != nullptr);
-  CFGNode = SubstitutionMap.at(CFGNode);
-  for (BasicBlockNode *&Elem : ConditionalNodes) {
-    Elem = SubstitutionMap.at(Elem);
-  }
-}
-
 void IfNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // Update the pointers to the `then` and `else` branches.
   if (hasThen()) {
@@ -109,21 +84,6 @@ bool ScsNode::isEqual(ASTNode *Node) {
     }
   } else {
     return false;
-  }
-}
-
-BasicBlockNode *ScsNode::getFirstCFG() {
-  return CFGNode;
-}
-
-void ScsNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
-  // Invalidate the pointer to the CFGNode, since the corresponding node will
-  // not exist anymore after the flattening phase.
-  CFGNode = nullptr;
-
-  // revng_assert(SubstitutionMap.count(CFGNode) != 0);
-  if (SubstitutionMap.count(CFGNode) > 0) {
-    // CFGNode = SubstitutionMap[CFGNode];
   }
 }
 
@@ -161,15 +121,6 @@ bool SequenceNode::isEqual(ASTNode *Node) {
   } else {
     return false;
   }
-}
-
-BasicBlockNode *SequenceNode::getFirstCFG() {
-  return getNodeN(0)->getCFGNode();
-}
-
-void SequenceNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
-  // This should do nothing, since we should be adjusting the pointers when
-  // iterating over the ASTTree.
 }
 
 void SequenceNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
@@ -216,8 +167,8 @@ void IfNode::dump(std::ofstream &ASTFile) {
 
   // For the label of the If node go take all the nodes in the list
   std::string ConditionalNames;
-  for (BasicBlockNode *Conditional : this->conditionalNodes()) {
-    ConditionalNames += Conditional->getNameStr() + ", ";
+  for (BasicBlock *Conditional : this->conditionalNodes()) {
+    ConditionalNames += Conditional->getName().str() + ", ";
   }
   ConditionalNames.pop_back();
   ConditionalNames.pop_back();
@@ -321,15 +272,6 @@ bool SwitchNode::isEqual(ASTNode *Node) {
   }
 }
 
-BasicBlockNode *SwitchNode::getFirstCFG() {
-  return CFGNode;
-}
-
-void SwitchNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
-  revng_assert(CFGNode != nullptr);
-  CFGNode = SubstitutionMap.at(CFGNode);
-}
-
 void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // Update all the case pointers.
   for (auto &Case : CaseList) {
@@ -354,17 +296,6 @@ void SetNode::dump(std::ofstream &ASTFile) {
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
-}
-
-BasicBlockNode *SetNode::getFirstCFG() {
-  return CFGNode;
-}
-
-void SetNode::updateBBNodePointers(BBNodeMap &SubstitutionMap) {
-  revng_assert(CFGNode != nullptr);
-
-  // Update the pointer to the BBNode.
-  CFGNode = SubstitutionMap[CFGNode];
 }
 
 void SetNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
