@@ -34,47 +34,12 @@ using LLVMPointerType = llvm::PointerType;
 
 namespace IR2AST {
 
-void Analysis::initInternal() {
-  NVar = 0;
-  ASTInfo = SerializationInfo();
-}
-
 static bool needsLabel(const BasicBlock &) {
   return false;
 }
 
-void Analysis::computePHIVars() {
-  uint64_t BBId = 0;
-  for (BasicBlock &BB : F) {
-    if (needsLabel(BB)) {
-      auto BBName = BB.getName();
-      IdentifierInfo &Id = BBName.empty() ?
-                             ASTCtx.Idents.get("unnamed_bb_"
-                                               + std::to_string(BBId++)) :
-                             ASTCtx.Idents.get(makeCIdentifier(BBName));
-      LabelDecl *Label = LabelDecl::Create(ASTCtx, &FDecl, {}, &Id);
-      ASTInfo.LabelDecls[&BB] = Label;
-    }
-    for (Instruction &I : BB) {
-      if (PHINode *ThePHI = dyn_cast<PHINode>(&I)) {
-        createVarDecl(ThePHI);
-      }
-    }
-  }
-}
-
-void Analysis::initialize() {
-  Base::initialize();
-  initInternal();
-  computePHIVars();
-}
-
-static Expr *getParenthesizedExprForValue(Value *V,
-                                          GlobalsMap &GlobalVarAST,
-                                          FunctionsMap &FunctionAST,
-                                          clang::ASTContext &ASTCtx,
-                                          SerializationInfo &ASTInfo) {
-  Expr *Res = getExprForValue(V, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
+Expr *StmtBuilder::getParenthesizedExprForValue(Value *V) {
+  Expr *Res = getExprForValue(V);
   if (isa<clang::BinaryOperator>(Res) or isa<ConditionalOperator>(Res))
     Res = new (ASTCtx) ParenExpr({}, {}, Res);
   return Res;
@@ -125,20 +90,21 @@ createCast(QualType LHSQualTy, Expr *RHS, ASTContext &ASTCtx) {
                                 {});
 }
 
-Stmt *Analysis::buildAST(Instruction &I) {
+Stmt *StmtBuilder::buildStmt(Instruction &I) {
   revng_log(ASTBuildLog, "Build AST for" << dumpToString(&I));
   switch (I.getOpcode()) {
   // ---- SUPPORTED INSTRUCTIONS ----
   // Terminators
   case Instruction::Br: {
+    revng_abort("branch instructions are not supported yet");
     auto *Branch = cast<BranchInst>(&I);
     if (Branch->isUnconditional()) {
-      LabelDecl *Label = ASTInfo.LabelDecls.at(Branch->getSuccessor(0));
+      LabelDecl *Label = BBLabelDecls.at(Branch->getSuccessor(0));
       GotoStmt *GoTo = new (ASTCtx) GotoStmt(Label, {}, {});
       return GoTo;
     } else {
-      LabelDecl *Then = ASTInfo.LabelDecls.at(Branch->getSuccessor(0));
-      LabelDecl *Else = ASTInfo.LabelDecls.at(Branch->getSuccessor(1));
+      LabelDecl *Then = BBLabelDecls.at(Branch->getSuccessor(0));
+      LabelDecl *Else = BBLabelDecls.at(Branch->getSuccessor(1));
       GotoStmt *GoToThen = new (ASTCtx) GotoStmt(Then, {}, {});
       GotoStmt *GoToElse = new (ASTCtx) GotoStmt(Else, {}, {});
       Expr *Cond = getExprForValue(Branch->getCondition());
@@ -183,7 +149,7 @@ Stmt *Analysis::buildAST(Instruction &I) {
     CompoundStmt *Body = CompoundStmt::CreateEmpty(ASTCtx, NumCases);
 
     BasicBlock *DefaultBlock = Switch->getDefaultDest();
-    LabelDecl *DefaultLabel = ASTInfo.LabelDecls.at(DefaultBlock);
+    LabelDecl *DefaultLabel = BBLabelDecls.at(DefaultBlock);
     GotoStmt *GoToDefault = new (ASTCtx) GotoStmt(DefaultLabel, {}, {});
     DefaultStmt *Default = new (ASTCtx) DefaultStmt({}, {}, GoToDefault);
     S->addSwitchCase(Default);
@@ -196,7 +162,7 @@ Stmt *Analysis::buildAST(Instruction &I) {
         continue;
       ConstantInt *CaseVal = CIt.getCaseValue();
       Expr *CaseCond = getExprForValue(CaseVal);
-      LabelDecl *CaseLabel = ASTInfo.LabelDecls.at(CaseBlock);
+      LabelDecl *CaseLabel = BBLabelDecls.at(CaseBlock);
       GotoStmt *GoToCase = new (ASTCtx) GotoStmt(CaseLabel, {}, {});
       CaseStmt *Case = new (ASTCtx) CaseStmt(CaseCond, nullptr, {}, {}, {});
       Case->setSubStmt(GoToCase);
@@ -230,39 +196,9 @@ Stmt *Analysis::buildAST(Instruction &I) {
   }
   // Memory instructions
   case Instruction::Alloca: {
-    // TODO: for now we ignore the alignment of the alloca. This might turn out
-    // not to be safe later, because it does not take into account the alignment
-    // of future accesses in the `Alloca`ted space. If the code is then
-    // recompiled for an architecture that does not support unaligned access
-    // this may cause crashes.
-    auto *Alloca = cast<AllocaInst>(&I);
-    revng_assert(Alloca->isStaticAlloca());
-    // First, create a VarDecl, for an array of char to place in the BasicBlock
-    // where the AllocaInst is
-    const DataLayout &DL = F.getParent()->getDataLayout();
-    uint64_t AllocaSize = *Alloca->getAllocationSizeInBits(DL);
-    revng_assert(AllocaSize <= std::numeric_limits<unsigned>::max());
-    APInt ArraySize = APInt(32, static_cast<unsigned>(AllocaSize));
-    using ArraySizeMod = clang::ArrayType::ArraySizeModifier;
-    ArraySizeMod SizeMod = ArraySizeMod::Normal;
-    QualType CharTy = ASTCtx.CharTy;
-    QualType ArrayTy = ASTCtx.getConstantArrayType(CharTy,
-                                                   ArraySize,
-                                                   SizeMod,
-                                                   0);
-    const std::string VarName = "var_" + std::to_string(NVar++);
-    IdentifierInfo &Id = ASTCtx.Idents.get(VarName);
-    VarDecl *ArrayDecl = VarDecl::Create(ASTCtx,
-                                         &FDecl,
-                                         {},
-                                         {},
-                                         &Id,
-                                         ArrayTy,
-                                         nullptr,
-                                         StorageClass::SC_None);
-    FDecl.addDecl(ArrayDecl);
-    ASTInfo.AllocaDecls[Alloca] = ArrayDecl;
-    // Second, create an Expr for the address of the first element of the array.
+    VarDecl *ArrayDecl = AllocaDecls.at(cast<AllocaInst>(&I));
+    QualType ArrayTy = ArrayDecl->getType();
+    // Create an Expr for the address of the first element of the array.
     QualType CharPtrTy = ASTCtx.getPointerType(ASTCtx.CharTy);
     Expr *ArrayDeclRef = new (ASTCtx)
       DeclRefExpr(ArrayDecl, false, ArrayTy, VK_LValue, {});
@@ -295,11 +231,7 @@ Stmt *Analysis::buildAST(Instruction &I) {
   case Instruction::Load: {
     auto *Load = cast<LoadInst>(&I);
     Value *Addr = Load->getPointerOperand();
-    Expr *AddrExpr = getParenthesizedExprForValue(Addr,
-                                                  GlobalVarAST,
-                                                  FunctionAST,
-                                                  ASTCtx,
-                                                  ASTInfo);
+    Expr *AddrExpr = getParenthesizedExprForValue(Addr);
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and AddrExpr)
       AddrExpr->dump();
@@ -345,20 +277,12 @@ Stmt *Analysis::buildAST(Instruction &I) {
   case Instruction::Store: {
     auto *Store = cast<StoreInst>(&I);
     Value *Stored = Store->getValueOperand();
-    Expr *LHS = getParenthesizedExprForValue(Store,
-                                             GlobalVarAST,
-                                             FunctionAST,
-                                             ASTCtx,
-                                             ASTInfo);
+    Expr *LHS = getParenthesizedExprForValue(Store);
     QualType LHSQualTy = LHS->getType();
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and LHS)
       LHS->dump();
-    Expr *RHS = getParenthesizedExprForValue(Stored,
-                                             GlobalVarAST,
-                                             FunctionAST,
-                                             ASTCtx,
-                                             ASTInfo);
+    Expr *RHS = getParenthesizedExprForValue(Stored);
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and RHS)
       RHS->dump();
@@ -387,11 +311,7 @@ Stmt *Analysis::buildAST(Instruction &I) {
   case Instruction::PtrToInt:
   case Instruction::BitCast: {
     revng_assert(I.getNumOperands() == 1);
-    Expr *Res = getParenthesizedExprForValue(I.getOperand(0),
-                                             GlobalVarAST,
-                                             FunctionAST,
-                                             ASTCtx,
-                                             ASTInfo);
+    Expr *Res = getParenthesizedExprForValue(I.getOperand(0));
     QualType LHSQualType = IRASTTypeTranslation::getQualType(&I, ASTCtx);
     if (LHSQualType != Res->getType())
       Res = createCast(LHSQualType, Res, ASTCtx);
@@ -402,27 +322,15 @@ Stmt *Analysis::buildAST(Instruction &I) {
   }
   // Other instructions
   case Instruction::Select: {
-    Expr *Cond = getParenthesizedExprForValue(I.getOperand(0),
-                                              GlobalVarAST,
-                                              FunctionAST,
-                                              ASTCtx,
-                                              ASTInfo);
+    Expr *Cond = getParenthesizedExprForValue(I.getOperand(0));
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and Cond)
       Cond->dump();
-    Expr *TrueExpr = getParenthesizedExprForValue(I.getOperand(1),
-                                                  GlobalVarAST,
-                                                  FunctionAST,
-                                                  ASTCtx,
-                                                  ASTInfo);
+    Expr *TrueExpr = getParenthesizedExprForValue(I.getOperand(1));
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and TrueExpr)
       TrueExpr->dump();
-    Expr *FalseExpr = getParenthesizedExprForValue(I.getOperand(2),
-                                                   GlobalVarAST,
-                                                   FunctionAST,
-                                                   ASTCtx,
-                                                   ASTInfo);
+    Expr *FalseExpr = getParenthesizedExprForValue(I.getOperand(2));
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and FalseExpr)
       FalseExpr->dump();
@@ -446,7 +354,7 @@ Stmt *Analysis::buildAST(Instruction &I) {
       CalleeExpr->dump();
 
     size_t NumArgs = CalleeFun->arg_size();
-    FunctionDecl *FD = FunctionAST.at(CalleeFun);
+    FunctionDecl *FD = FunctionDecls.at(CalleeFun);
     size_t NumParms = FD->param_size();
     unsigned NumOps = TheCall->getNumArgOperands();
     bool HasNoParms = NumParms == 0
@@ -536,145 +444,105 @@ static bool isPure(const Instruction & /*Call*/) {
   return false;
 }
 
-Analysis::InterruptType Analysis::transfer(BasicBlock *BB) {
-  LatticeElement PendingToSerialize = this->State[BB].copy();
-
+void StmtBuilder::createAST() {
   revng_log(ASTBuildLog,
-            "BB in Function: " << BB->getParent()->getName() << '\n'
-                               << BB);
+            "Building AST for Instructions in Function " << F.getName());
 
-  for (Instruction &I : *BB) {
-    if (isa<PHINode>(&I))
-      continue;
-    // Skip this for now. We'll need to change it if we ever want to emit code
-    // with goto statements
-    if (isa<BranchInst>(&I))
-      continue;
-    Stmt *NewStmt = buildAST(I);
-    ASTInfo.PendingExprs[&I] = NewStmt;
-    revng_log(ASTBuildLog, "Add to Pending");
-    if (ASTBuildLog.isEnabled() and NewStmt)
-      NewStmt->dump();
+  uint64_t BBId = 0;
 
-    revng_log(ASTBuildLog, "Operands:");
-    ASTBuildLog.indent();
+  ReversePostOrderTraversal<Function *> RPOT(&F);
+  for (BasicBlock *BB : RPOT) {
+    revng_log(ASTBuildLog, "BB: " << BB->getName());
 
-    for (auto &TheUse : I.operands()) {
-      ASTBuildLog.indent();
-      Value *V = TheUse.get();
-      if (auto *UseInstr = dyn_cast<Instruction>(V)) {
-        revng_log(ASTBuildLog, "Op is Instruction: " << dumpToString(UseInstr));
-        PendingToSerialize.erase(UseInstr);
-      } else {
-        revng_log(ASTBuildLog, "Op is NOT Instruction: " << dumpToString(V));
-        revng_assert(isa<Argument>(V) or isa<Constant>(V) or isa<BasicBlock>(V)
-                     or isa<MetadataAsValue>(V));
-      }
-      ASTBuildLog.unindent();
+    {
+      // Create labels for Basic Blocks. This could potentially be disabled if
+      // we choose not to have the option to emit goto statements ever.
+      IdentifierInfo &Id = ASTCtx.Idents.get("bb_" + std::to_string(BBId++));
+      LabelDecl *Label = LabelDecl::Create(ASTCtx, &FDecl, {}, &Id);
+      BBLabelDecls[BB] = Label;
     }
-    ASTBuildLog.unindent();
 
-    bool HasSideEffects = isa<StoreInst>(&I)
-                          or (isa<CallInst>(&I) and not isPure(I));
-    if (HasSideEffects) {
-      revng_log(ASTBuildLog, "Serialize Pending");
-      markSetToSerialize(PendingToSerialize);
-      PendingToSerialize = LatticeElement::top(); // empty set
-      markValueToSerialize(&I);
-    } else {
-      switch (I.getNumUses()) {
-      case 1:
-        if (isa<BranchInst>(I.uses().begin()->getUser()))
-          markValueToSerialize(&I);
-        else
-          PendingToSerialize.insert(&I);
-        break;
-      default:
-        revng_log(ASTBuildLog, "Mark this to serialize");
-        markValueToSerialize(&I);
-        break;
+    for (Instruction &I : *BB) {
+      // We don't build clang's AST expressions for PHINodes nor for
+      // BranchInsts.
+      // PHINodes are not expanded into expressions because they expand in a
+      // local variable, that is assigned multiple times for all the incoming
+      // Values of the PHINode.
+      // For BranchInsts, we don't create AST right now, because the emission of
+      // control flow statements in C is driven by the ASTTree
+      if (isa<BranchInst>(&I))
+        continue;
+
+      // Each PHINode has an associated VarDecl
+      if (isa<PHINode>(&I)) {
+        revng_assert(VarDecls.count(&I) == 0);
+        VarDecl *NewVarDecl = createVarDecl(&I);
+        VarDecls[&I] = NewVarDecl;
+        continue;
+      }
+
+      if (isa<AllocaInst>(&I)) {
+        // TODO: for now we ignore the alignment of the alloca. This might turn
+        // out not to be safe later, because it does not take into account the
+        // alignment of future accesses in the `Alloca`ted space. If the code is
+        // then recompiled for an architecture that does not support unaligned
+        // access this may cause crashes.
+        AllocaInst *Alloca = cast<AllocaInst>(&I);
+        revng_assert(Alloca->isStaticAlloca());
+        // First, create a VarDecl, for an array of char to place in the
+        // BasicBlock where the AllocaInst is
+        const DataLayout &DL = F.getParent()->getDataLayout();
+        uint64_t AllocaSize = *Alloca->getAllocationSizeInBits(DL);
+        revng_assert(AllocaSize <= std::numeric_limits<unsigned>::max());
+        APInt ArraySize = APInt(32, static_cast<unsigned>(AllocaSize));
+        using ArraySizeMod = clang::ArrayType::ArraySizeModifier;
+        ArraySizeMod SizeMod = ArraySizeMod::Normal;
+        QualType CharTy = ASTCtx.CharTy;
+        QualType ArrayTy = ASTCtx.getConstantArrayType(CharTy,
+                                                       ArraySize,
+                                                       SizeMod,
+                                                       0);
+        const std::string VarName = "var_" + std::to_string(NVar++);
+        IdentifierInfo &Id = ASTCtx.Idents.get(VarName);
+        VarDecl *ArrayDecl = VarDecl::Create(ASTCtx,
+                                             &FDecl,
+                                             {},
+                                             {},
+                                             &Id,
+                                             ArrayTy,
+                                             nullptr,
+                                             StorageClass::SC_None);
+        FDecl.addDecl(ArrayDecl);
+        AllocaDecls[Alloca] = ArrayDecl;
+      }
+
+      Stmt *NewStmt = buildStmt(I);
+      revng_assert(NewStmt != nullptr);
+      InstrStmts[&I] = NewStmt;
+      if (I.getNumUses() > 0 and ToSerialize.count(&I)) {
+        revng_assert(VarDecls.count(&I) == 0);
+        VarDecl *NewVarDecl = createVarDecl(&I);
+        VarDecls[&I] = NewVarDecl;
       }
     }
   }
-
-  return InterruptType::createInterrupt(std::move(PendingToSerialize));
 }
 
-DeclMap::iterator Analysis::createVarDecl(Instruction *I) {
-  revng_assert(ASTInfo.VarDecls.count(I) == 0);
+VarDecl *StmtBuilder::createVarDecl(Instruction *I) {
   QualType ASTType = IRASTTypeTranslation::getQualType(I, ASTCtx);
   revng_assert(not ASTType.isNull());
   const std::string VarName = "var_" + std::to_string(NVar++);
   IdentifierInfo &Id = ASTCtx.Idents.get(VarName);
-  VarDecl *NewVar = VarDecl::Create(ASTCtx,
-                                    &FDecl,
-                                    {},
-                                    {},
-                                    &Id,
-                                    ASTType,
-                                    nullptr,
-                                    StorageClass::SC_None);
-  FDecl.addDecl(NewVar);
-  return ASTInfo.VarDecls.insert({ I, NewVar }).first;
-}
-
-void Analysis::markValueToSerialize(Instruction *I) {
-  using DeclMap = std::map<llvm::Instruction *, clang::VarDecl *>;
-  revng_assert(ASTInfo.InstrStmts.count(I) == 0);
-  DeclMap &VarDecls = ASTInfo.VarDecls;
-  DeclMap::iterator VarDeclIt = VarDecls.end();
-  unsigned NUses = I->getNumUses();
-
-  if (NUses) {
-    // If the value has more than one use we need to create a variable for it,
-    // but only if we haven't already
-    VarDeclIt = VarDecls.find(I);
-    if (VarDeclIt == VarDecls.end()) {
-      VarDeclIt = createVarDecl(I);
-      revng_log(ASTBuildLog, "Created VarDecl");
-      if (ASTBuildLog.isEnabled())
-        VarDeclIt->second->dump();
-    }
-  }
-
-  revng_assert(VarDecls.find(I) == VarDecls.end() or NUses);
-  Stmt *Result = nullptr;
-  auto &Pending = ASTInfo.PendingExprs;
-  auto InstrExprIt = Pending.find(I);
-  revng_assert(InstrExprIt != Pending.end());
-  Stmt *InstrExpr = InstrExprIt->second;
-  if (VarDeclIt != VarDecls.end()) {
-    BinaryOperatorKind BinOpKind = BinaryOperatorKind::BO_Assign;
-    VarDecl *LHSVDecl = VarDeclIt->second;
-    QualType LHSType = LHSVDecl->getType();
-    Expr *LHS = new (ASTCtx)
-      DeclRefExpr(LHSVDecl, false, LHSType, VK_LValue, {});
-
-    Expr *RHS = cast<Expr>(InstrExpr);
-
-    if (RHS->getType() != LHSType) {
-      if (isa<clang::BinaryOperator>(RHS))
-        RHS = new (ASTCtx) ParenExpr({}, {}, RHS);
-      RHS = createCast(LHSType, RHS, ASTCtx);
-    }
-
-    Stmt *Assign = new (ASTCtx) clang::BinaryOperator(LHS,
-                                                      RHS,
-                                                      BinOpKind,
-                                                      LHSType,
-                                                      VK_RValue,
-                                                      OK_Ordinary,
-                                                      {},
-                                                      FPOptions());
-    Result = Assign;
-  } else {
-    Result = InstrExpr;
-  }
-  revng_log(ASTBuildLog, "Remove From Pending:");
-  if (ASTBuildLog.isEnabled())
-    InstrExpr->dump();
-  Pending.erase(InstrExprIt);
-  ASTInfo.InstrStmts[I] = Result;
+  VarDecl *NewVarDecl = VarDecl::Create(ASTCtx,
+                                        &FDecl,
+                                        {},
+                                        {},
+                                        &Id,
+                                        ASTType,
+                                        nullptr,
+                                        StorageClass::SC_None);
+  FDecl.addDecl(NewVarDecl);
+  return NewVarDecl;
 }
 
 static clang::BinaryOperatorKind getClangBinaryOpKind(const Instruction &I) {
@@ -813,16 +681,12 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
   return Res;
 }
 
-Expr *Analysis::createRValueExprForBinaryOperator(Instruction &I) {
+Expr *StmtBuilder::createRValueExprForBinaryOperator(Instruction &I) {
   revng_assert(I.getNumOperands() == 2);
   BinaryOperatorKind BinOpKind = getClangBinaryOpKind(I);
 
   Value *LHSVal = I.getOperand(0);
-  Expr *LHS = getParenthesizedExprForValue(LHSVal,
-                                           GlobalVarAST,
-                                           FunctionAST,
-                                           ASTCtx,
-                                           ASTInfo);
+  Expr *LHS = getParenthesizedExprForValue(LHSVal);
   revng_log(ASTBuildLog, "GOT!");
   if (ASTBuildLog.isEnabled() and LHS)
     LHS->dump();
@@ -835,11 +699,7 @@ Expr *Analysis::createRValueExprForBinaryOperator(Instruction &I) {
                                    VK_RValue);
 
   Value *RHSVal = I.getOperand(1);
-  Expr *RHS = getParenthesizedExprForValue(RHSVal,
-                                           GlobalVarAST,
-                                           FunctionAST,
-                                           ASTCtx,
-                                           ASTInfo);
+  Expr *RHS = getParenthesizedExprForValue(RHSVal);
   revng_log(ASTBuildLog, "GOT!");
   if (ASTBuildLog.isEnabled() and RHS)
     RHS->dump();
@@ -878,52 +738,27 @@ Expr *Analysis::createRValueExprForBinaryOperator(Instruction &I) {
   return Res;
 }
 
-static Expr *getLiteralFromConstant(Constant *C,
-                                    GlobalsMap &GlobalVarAST,
-                                    FunctionsMap &FunctionAST,
-                                    clang::ASTContext &ASTCtx,
-                                    SerializationInfo &ASTInfo);
-
-Expr *getExprForValue(Value *V,
-                      GlobalsMap &GlobalVarAST,
-                      FunctionsMap &FunctionAST,
-                      clang::ASTContext &ASTCtx,
-                      SerializationInfo &ASTInfo) {
+Expr *StmtBuilder::getExprForValue(Value *V) {
   revng_log(ASTBuildLog, "getExprForValue: " << dumpToString(V));
   if (isa<ConstantData>(V) or isa<ConstantExpr>(V)) {
-    return getLiteralFromConstant(cast<Constant>(V),
-                                  GlobalVarAST,
-                                  FunctionAST,
-                                  ASTCtx,
-                                  ASTInfo);
+    return getLiteralFromConstant(cast<Constant>(V));
   } else if (auto *F = dyn_cast<Function>(V)) {
-    FunctionDecl *FDecl = FunctionAST.at(F);
+    FunctionDecl *FDecl = FunctionDecls.at(F);
     QualType Type = FDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
       DeclRefExpr(FDecl, false, Type, VK_LValue, {});
     return Res;
   } else if (auto *G = dyn_cast<GlobalVariable>(V)) {
-    VarDecl *GlobalVarDecl = GlobalVarAST.at(G);
+    VarDecl *GlobalVarDecl = GlobalDecls.at(G);
     QualType Type = GlobalVarDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
       DeclRefExpr(GlobalVarDecl, false, Type, VK_LValue, {});
     return Res;
   } else if (auto *I = dyn_cast<Instruction>(V)) {
 
-    auto &Pending = ASTInfo.PendingExprs;
-    auto InstrExprIt = Pending.find(I);
-    if (InstrExprIt != Pending.end()) {
-      // If the Instruction has an entry in Pending, it means that it has not
-      // been marked for serialization yet, hence the Expr for that Value should
-      // simply be what we've found in Pending.
-
-      return cast<Expr>(InstrExprIt->second);
-    }
-
     // For all the other instructions that have already been marked for
     // serialization we should have an associated entry in VarDecl.
     // We simply return a DeclRefExpr wrapping the VarDecl associated with I.
-    auto &VarDecls = ASTInfo.VarDecls;
     auto VarDeclIt = VarDecls.find(I);
     if (VarDeclIt != VarDecls.end()) {
       revng_assert(VarDeclIt->second != nullptr);
@@ -933,6 +768,16 @@ Expr *getExprForValue(Value *V,
         DeclRefExpr(VDecl, false, Type, VK_LValue, {});
       return Res;
     }
+
+    auto InstrStmtIt = InstrStmts.find(I);
+    if (InstrStmtIt != InstrStmts.end()) {
+      // If the Instruction has an entry in InstrStmts, it means that we have
+      // already computed an expression for it, so we can directly use that.
+      return cast<Expr>(InstrStmtIt->second);
+    }
+
+    // If we reach this point we are creating an expression for a new
+    // Instruction. This should only happen for Load, Store and casts.
 
     // If we don't have a VarDecl associated with I
     if (isa<LoadInst>(I) or isa<StoreInst>(I)) {
@@ -947,15 +792,11 @@ Expr *getExprForValue(Value *V,
       else
         Addr = Store->getPointerOperand();
 
-      Expr *AddrExpr = getParenthesizedExprForValue(Addr,
-                                                    GlobalVarAST,
-                                                    FunctionAST,
-                                                    ASTCtx,
-                                                    ASTInfo);
+      Expr *AddrExpr = getParenthesizedExprForValue(Addr);
       revng_log(ASTBuildLog, "GOT!");
       if (ASTBuildLog.isEnabled() and AddrExpr)
         AddrExpr->dump();
-      // If we're moving from or into a GlobalVariable ExprLHS is just aì
+      // If we're moving from or into a GlobalVariable ExprLHS is just
       // DeclRefExpr for that GlobalVariable
       if (isa<GlobalVariable>(Addr))
         return AddrExpr;
@@ -1013,11 +854,7 @@ Expr *getExprForValue(Value *V,
     }
     if (auto *Cast = dyn_cast<CastInst>(I)) {
       Value *RHS = Cast->getOperand(0);
-      Expr *Result = getParenthesizedExprForValue(RHS,
-                                                  GlobalVarAST,
-                                                  FunctionAST,
-                                                  ASTCtx,
-                                                  ASTInfo);
+      Expr *Result = getParenthesizedExprForValue(RHS);
       LLVMType *RHSTy = Cast->getSrcTy();
       LLVMType *LHSTy = Cast->getDestTy();
       if (RHSTy != LHSTy) {
@@ -1116,7 +953,7 @@ Expr *getExprForValue(Value *V,
     revng_assert(not FType->isVarArg());
     unsigned NumLLVMParams = FType->getNumParams();
     unsigned ArgNo = Arg->getArgNo();
-    clang::FunctionDecl *FDecl = FunctionAST.at(F);
+    clang::FunctionDecl *FDecl = FunctionDecls.at(F);
     unsigned DeclNumParams = FDecl->getNumParams();
     revng_assert(NumLLVMParams == DeclNumParams);
     clang::ParmVarDecl *ParamVDecl = FDecl->getParamDecl(ArgNo);
@@ -1124,23 +961,12 @@ Expr *getExprForValue(Value *V,
     DeclRefExpr *Res = new (ASTCtx)
       DeclRefExpr(ParamVDecl, false, Type, VK_LValue, {});
     return Res;
-
-    // return ImplicitCastExpr::Create(ASTCtx,
-    //                                Param->getType(),
-    //                                CastKind::CK_LValueToRValue,
-    //                                Param,
-    //                                nullptr,
-    //                                VK_RValue);
   } else {
     revng_abort();
   }
 }
 
-static Expr *getLiteralFromConstant(Constant *C,
-                                    GlobalsMap &GlobalVarAST,
-                                    FunctionsMap &FunctionAST,
-                                    clang::ASTContext &ASTCtx,
-                                    SerializationInfo &ASTInfo) {
+Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
   if (auto *CD = dyn_cast<ConstantData>(C)) {
     if (auto *CInt = dyn_cast<ConstantInt>(CD)) {
       QualType LiteralTy = IRASTTypeTranslation::getQualType(CInt, ASTCtx);
@@ -1223,11 +1049,7 @@ static Expr *getLiteralFromConstant(Constant *C,
     case Instruction::IntToPtr:
     case Instruction::PtrToInt:
     case Instruction::BitCast: {
-      Result = getExprForValue(cast<ConstantInt>(CE->getOperand(0)),
-                               GlobalVarAST,
-                               FunctionAST,
-                               ASTCtx,
-                               ASTInfo);
+      Result = getExprForValue(cast<ConstantInt>(CE->getOperand(0)));
       revng_log(ASTBuildLog, "GOT!");
       revng_assert(Result);
       if (ASTBuildLog.isEnabled())
@@ -1239,10 +1061,6 @@ static Expr *getLiteralFromConstant(Constant *C,
     return Result;
   }
   revng_abort();
-}
-
-Expr *Analysis::getExprForValue(Value *V) {
-  return IR2AST::getExprForValue(V, GlobalVarAST, FunctionAST, ASTCtx, ASTInfo);
 }
 
 } // namespace IR2AST

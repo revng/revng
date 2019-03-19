@@ -37,28 +37,16 @@ using FunctionsMap = FuncDeclCreationAction::FunctionsMap;
 
 static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                ASTNode *N,
-                               IR2AST::StmtMap &InstrStmts,
-                               GlobalsMap &GlobalVarAST,
-                               FunctionsMap &FunctionAST,
                                clang::ASTContext &ASTCtx,
-                               IR2AST::SerializationInfo &ASTInfo);
+                               IR2AST::StmtBuilder &ASTBuilder);
 
 static clang::CompoundStmt *
 buildCompoundScope(ASTNode *N,
-                   IR2AST::StmtMap &InstrStmts,
-                   GlobalsMap &GlobalVarAST,
-                   FunctionsMap &FunctionAST,
                    clang::ASTContext &ASTCtx,
-                   IR2AST::SerializationInfo &ASTInfo,
+                   IR2AST::StmtBuilder &ASTBuilder,
                    SmallVector<clang::Stmt*, 32> AdditionalStmts = {}) {
   SmallVector<clang::Stmt *, 32> Stmts;
-  buildAndAppendSmts(Stmts,
-                     N,
-                     InstrStmts,
-                     GlobalVarAST,
-                     FunctionAST,
-                     ASTCtx,
-                     ASTInfo);
+  buildAndAppendSmts(Stmts, N, ASTCtx, ASTBuilder);
 
   // Add additional statement to handle while e dowhile condition computation.
   Stmts.append(AdditionalStmts.begin(), AdditionalStmts.end());
@@ -81,11 +69,8 @@ static clang::Expr *negateExpr(clang::ASTContext &ASTCtx, clang::Expr *E) {
 
 static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                ASTNode *N,
-                               IR2AST::StmtMap &InstrStmts,
-                               GlobalsMap &GlobalVarAST,
-                               FunctionsMap &FunctionAST,
                                clang::ASTContext &ASTCtx,
-                               IR2AST::SerializationInfo &ASTInfo) {
+                               IR2AST::StmtBuilder &ASTBuilder) {
 
   if (N == nullptr)
     return;
@@ -101,9 +86,9 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       IfNode *ComputationIfNode = Continue->getComputationIfNode();
       llvm::BasicBlock *CondBlock = ComputationIfNode->getUniqueCondBlock();
 
-      auto End = InstrStmts.end();
+      auto End = ASTBuilder.InstrStmts.end();
       for (llvm::Instruction &Instr : *CondBlock) {
-        auto It = InstrStmts.find(&Instr);
+        auto It = ASTBuilder.InstrStmts.find(&Instr);
         if (It != End)
           Stmts.push_back(It->second);
       }
@@ -115,9 +100,9 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     CodeNode *Code = cast<CodeNode>(N);
     llvm::BasicBlock *BB = Code->getOriginalBB();
     revng_assert(BB != nullptr);
-    auto End = InstrStmts.end();
+    auto End = ASTBuilder.InstrStmts.end();
     for (llvm::Instruction &Instr : *BB) {
-      auto It = InstrStmts.find(&Instr);
+      auto It = ASTBuilder.InstrStmts.find(&Instr);
       if (It != End)
         Stmts.push_back(It->second);
     }
@@ -125,23 +110,15 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
   }
   case ASTNode::NodeKind::NK_If: {
     IfNode *If = cast<IfNode>(N);
-    clang::Stmt *ThenScope = buildCompoundScope(If->getThen(),
-                                                InstrStmts,
-                                                GlobalVarAST,
-                                                FunctionAST,
-                                                ASTCtx,
-                                                ASTInfo);
-    clang::Stmt *ElseScope = buildCompoundScope(If->getElse(),
-                                                InstrStmts,
-                                                GlobalVarAST,
-                                                FunctionAST,
-                                                ASTCtx,
-                                                ASTInfo);
+    clang::Stmt *ThenScope = buildCompoundScope(If->getThen(), ASTCtx,
+                                                ASTBuilder);
+    clang::Stmt *ElseScope = buildCompoundScope(If->getElse(), ASTCtx,
+                                                ASTBuilder);
     llvm::BasicBlock *CondBlock = If->getUniqueCondBlock();
 
-    auto End = InstrStmts.end();
+    auto End = ASTBuilder.InstrStmts.end();
     for (llvm::Instruction &Instr : *CondBlock) {
-      auto It = InstrStmts.find(&Instr);
+      auto It = ASTBuilder.InstrStmts.find(&Instr);
       if (It != End)
         Stmts.push_back(It->second);
     }
@@ -150,11 +127,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
     revng_assert(Br->isConditional());
     llvm::Value *CondValue = Br->getCondition();
-    clang::Expr *CondExpr = getExprForValue(CondValue,
-                                            GlobalVarAST,
-                                            FunctionAST,
-                                            ASTCtx,
-                                            ASTInfo);
+    clang::Expr *CondExpr = ASTBuilder.getExprForValue(CondValue);
     if (If->conditionNegated())
       CondExpr = negateExpr(ASTCtx, CondExpr);
 
@@ -183,32 +156,23 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       // Emission of the code that computes the condition.
       // TODO: Where do this go in a do-while??? Before each condition check!
       //       So we pass them as additional statements.
-      auto End = InstrStmts.end();
+      auto End = ASTBuilder.InstrStmts.end();
       for (llvm::Instruction &Instr : *CondBlock) {
-        auto It = InstrStmts.find(&Instr);
+        auto It = ASTBuilder.InstrStmts.find(&Instr);
         if (It != End) {
           revng_assert(It->second != nullptr);
           AdditionalStmts.push_back(It->second);
         }
       }
 
-      clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(),
-                                             InstrStmts,
-                                             GlobalVarAST,
-                                             FunctionAST,
-                                             ASTCtx,
-                                             ASTInfo,
-                                             AdditionalStmts);
+      clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(), ASTCtx,
+                                             ASTBuilder, AdditionalStmts);
 
       llvm::Instruction *CondTerminator = CondBlock->getTerminator();
       llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
       revng_assert(Br->isConditional());
       llvm::Value *CondValue = Br->getCondition();
-      clang::Expr *CondExpr = getExprForValue(CondValue,
-                                              GlobalVarAST,
-                                              FunctionAST,
-                                              ASTCtx,
-                                              ASTInfo);
+      clang::Expr *CondExpr = ASTBuilder.getExprForValue(CondValue);
 
       // Invert loop condition when negated.
       if (LoopCondition->conditionNegated())
@@ -227,9 +191,9 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       // Emission of the code that computes the condition.
       // TODO: Where do this go in a while loop??? before the loop and as
       //       additional statements at the end of each iteration..
-      auto End = InstrStmts.end();
+      auto End = ASTBuilder.InstrStmts.end();
       for (llvm::Instruction &Instr : *CondBlock) {
-        auto It = InstrStmts.find(&Instr);
+        auto It = ASTBuilder.InstrStmts.find(&Instr);
         if (It != End) {
           revng_assert(It->second != nullptr);
           Stmts.push_back(It->second);
@@ -237,23 +201,14 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
         }
       }
 
-      clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(),
-                                             InstrStmts,
-                                             GlobalVarAST,
-                                             FunctionAST,
-                                             ASTCtx,
-                                             ASTInfo,
-                                             AdditionalStmts);
+      clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(), ASTCtx,
+                                             ASTBuilder, AdditionalStmts);
 
       llvm::Instruction *CondTerminator = CondBlock->getTerminator();
       llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
       revng_assert(Br->isConditional());
       llvm::Value *CondValue = Br->getCondition();
-      clang::Expr *CondExpr = getExprForValue(CondValue,
-                                              GlobalVarAST,
-                                              FunctionAST,
-                                              ASTCtx,
-                                              ASTInfo);
+      clang::Expr *CondExpr = ASTBuilder.getExprForValue(CondValue);
 
       // Invert loop condition when negated.
       if (LoopCondition->conditionNegated())
@@ -265,11 +220,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
 
       // Standard case.
       clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(),
-                                             InstrStmts,
-                                             GlobalVarAST,
-                                             FunctionAST,
-                                             ASTCtx,
-                                             ASTInfo);
+                                             ASTCtx, ASTBuilder);
       QualType UInt = ASTCtx.UnsignedIntTy;
       uint64_t UIntSize = ASTCtx.getTypeSize(UInt);
       clang::Expr *TrueCond = IntegerLiteral::Create(ASTCtx,
@@ -285,13 +236,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
   case ASTNode::NodeKind::NK_List: {
     SequenceNode *Seq = cast<SequenceNode>(N);
     for (ASTNode *Child : Seq->nodes())
-      buildAndAppendSmts(Stmts,
-                         Child,
-                         InstrStmts,
-                         GlobalVarAST,
-                         FunctionAST,
-                         ASTCtx,
-                         ASTInfo);
+      buildAndAppendSmts(Stmts, Child, ASTCtx, ASTBuilder);
     break;
   }
   default:
@@ -301,26 +246,18 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
 
 static void buildFunctionBody(FunctionsMap::value_type &FPair,
                               ASTTree &CombedAST,
-                              GlobalsMap &GlobalVarAST,
-                              FunctionsMap &FunctionAST,
-                              IR2AST::SerializationInfo &ASTInfo) {
+                              IR2AST::StmtBuilder &ASTBuilder) {
   llvm::Function &F = *FPair.first;
   clang::FunctionDecl *FDecl = FPair.second;
   ASTContext &ASTCtx = FDecl->getASTContext();
   SmallVector<clang::Decl *, 16> LocalVarDecls;
-  for (auto &DeclPair : ASTInfo.AllocaDecls)
+  for (auto &DeclPair : ASTBuilder.AllocaDecls)
     LocalVarDecls.push_back(DeclPair.second);
-  for (auto &DeclPair : ASTInfo.VarDecls)
+  for (auto &DeclPair : ASTBuilder.VarDecls)
     LocalVarDecls.push_back(DeclPair.second);
 
   SmallVector<clang::Stmt *, 32> BodyStmts;
-  buildAndAppendSmts(BodyStmts,
-                     CombedAST.getRoot(),
-                     ASTInfo.InstrStmts,
-                     GlobalVarAST,
-                     FunctionAST,
-                     ASTCtx,
-                     ASTInfo);
+  buildAndAppendSmts(BodyStmts, CombedAST.getRoot(), ASTCtx, ASTBuilder);
 
   unsigned NumLocalVars = LocalVarDecls.size();
   unsigned NumStmtsInBody = BodyStmts.size() + NumLocalVars;
@@ -355,14 +292,22 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
 }
 
 class Decompiler : public ASTConsumer {
+
+private:
+
+  using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
+  using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
+
 public:
   explicit Decompiler(llvm::Function &F,
                       RegionCFG &RCFG,
                       ASTTree &CombedAST,
+                      BBPHIMap &BlockToPHIIncoming,
                       std::unique_ptr<llvm::raw_ostream> Out) :
     TheF(F),
     RCFG(RCFG),
     CombedAST(CombedAST),
+    BlockToPHIIncoming(BlockToPHIIncoming),
     Out(std::move(Out)) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override {
@@ -374,7 +319,13 @@ public:
     beautifyAST(TheF, CombedAST, Mark);
 
     using ConsumerPtr = std::unique_ptr<ASTConsumer>;
+    FunctionsMap FunctionDecls;
+    GlobalsMap GlobalVarAST;
     {
+      // TODO: probably we don't need to use ASTConsumers for
+      // CreateGlobalDeclCreator and CreateFuncDeclCreator. It's probably enough
+      // to have standalone functions instead of full-fledged classes.
+
       // Build declaration of global variables
       ConsumerPtr GlobalDecls = CreateGlobalDeclCreator(TheF, GlobalVarAST);
       GlobalDecls->HandleTranslationUnit(Context);
@@ -389,16 +340,13 @@ public:
     revng_assert(It != FunctionDecls.end());
     clang::FunctionDecl *FunctionDecl = It->second;
 
-    IR2AST::Analysis IR2ASTBuildAnalysis(TheF,
-                                         Context,
-                                         *FunctionDecl,
-                                         GlobalVarAST,
-                                         FunctionDecls);
-    IR2ASTBuildAnalysis.initialize();
-    IR2ASTBuildAnalysis.run();
-    auto &&ASTInfo = IR2ASTBuildAnalysis.extractASTInfo();
+    IR2AST::StmtBuilder ASTBuilder(TheF, Mark.getToSerialize(), Context,
+                                   *FunctionDecl, GlobalVarAST, FunctionDecls,
+                                   BlockToPHIIncoming);
+    ASTBuilder.createAST();
+    // auto &&ASTInfo = IR2ASTBuildAnalysis.extractASTInfo();
 
-    buildFunctionBody(*It, CombedAST, GlobalVarAST, FunctionDecls, ASTInfo);
+    buildFunctionBody(*It, CombedAST, ASTBuilder);
 
     // ConsumerPtr Dumper = CreateASTDumper(nullptr, "", true, false, false);
     // Dumper->HandleTranslationUnit(Context);
@@ -411,12 +359,12 @@ private:
   RegionCFG &RCFG;
   ASTTree &CombedAST;
   std::unique_ptr<llvm::raw_ostream> Out;
-  FunctionsMap FunctionDecls;
-  GlobalsMap GlobalVarAST;
+  BBPHIMap &BlockToPHIIncoming;
 };
 
 std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
-  return std::make_unique<Decompiler>(F, RCFG, CombedAST, std::move(O));
+  return std::make_unique<Decompiler>(F, RCFG, CombedAST,
+                                      BlockToPHIIncoming, std::move(O));
 }
 
 } // end namespace tooling

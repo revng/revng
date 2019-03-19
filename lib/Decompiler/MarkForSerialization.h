@@ -45,7 +45,7 @@ public:
 
   void assertLowerThanOrEqual(const LatticeElement &A,
                               const LatticeElement &B) const {
-    revng_abort();
+    revng_assert(A.lowerThanOrEqual(B));
   }
 
   Analysis(llvm::Function &F, RegionCFG &RCFG) :

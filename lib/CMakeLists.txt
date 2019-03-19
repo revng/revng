@@ -1,4 +1,3 @@
-add_subdirectory(EnforceCFGCombingPass)
 add_subdirectory(ExamplePass)
 add_subdirectory(Decompiler)
 add_subdirectory(Liveness)

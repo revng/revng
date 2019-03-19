@@ -14,6 +14,8 @@
 #include <revng/Support/IRHelpers.h>
 
 #include "revng-c/RestructureCFGPass/ASTTree.h"
+#include "revng-c/RestructureCFGPass/RestructureCFG.h"
+#include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 
 #include "revng-c/Decompiler/CDecompilerPass.h"
 
@@ -22,6 +24,9 @@
 using namespace llvm;
 using namespace clang;
 using namespace clang::tooling;
+
+using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
+using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
 
 char CDecompilerPass::ID = 0;
 
@@ -35,7 +40,7 @@ CDecompilerPass::CDecompilerPass(std::unique_ptr<llvm::raw_ostream> Out) :
   Out(std::move(Out)) {
 }
 
-CDecompilerPass::CDecompilerPass() : llvm::FunctionPass(ID), Out(nullptr) {
+CDecompilerPass::CDecompilerPass() : CDecompilerPass(nullptr) {
 }
 
 static void processFunction(llvm::Function &F) {
@@ -86,8 +91,10 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   processFunction(F);
 
   auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
-  ASTTree &CombedCFGAST = RestructureCFGAnalysis.getAST();
-  RegionCFG &RCFGT = RestructureCFGAnalysis.getRCT();
+  ASTTree &GHAST = RestructureCFGAnalysis.getAST();
+  RegionCFG &RCFG = RestructureCFGAnalysis.getRCT();
+  auto &PHIASAPAssignments = getAnalysis<PHIASAPAssignmentInfo>();
+  BBPHIMap PHIMap = PHIASAPAssignments.extractBBToPHIIncomingMap();
 
   // Here we build the artificial command line for clang tooling
   static std::array<const char *, 5> ArgV = {
@@ -102,7 +109,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   ClangTool RevNg = ClangTool(OptionParser.getCompilations(),
                               OptionParser.getSourcePathList());
 
-  CDecompilerAction Decompilation(F, RCFGT, CombedCFGAST, std::move(Out));
+  CDecompilerAction Decompilation(F, RCFG, GHAST, PHIMap, std::move(Out));
   using FactoryUniquePtr = std::unique_ptr<FrontendActionFactory>;
   FactoryUniquePtr Factory = newFrontendActionFactory(&Decompilation);
   RevNg.run(Factory.get());

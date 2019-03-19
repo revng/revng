@@ -12,9 +12,9 @@
 #include <llvm/IR/Function.h>
 #include <llvm/Support/raw_ostream.h>
 
-// local library includes
-#include "revng-c/RestructureCFGPass/RestructureCFG.h"
+// local libraries includes
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
+#include "revng-c/RestructureCFGPass/RestructureCFG.h"
 
 struct CDecompilerPass : public llvm::FunctionPass {
   static char ID;

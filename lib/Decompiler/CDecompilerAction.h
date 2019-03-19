@@ -23,15 +23,22 @@ namespace tooling {
 
 class CDecompilerAction : public ASTFrontendAction {
 
+private:
+
+  using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
+  using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
+
 public:
+
   CDecompilerAction(llvm::Function &F,
                     RegionCFG &RCFG,
                     ASTTree &CombedAST,
+                    BBPHIMap &BlockToPHIIncoming,
                     std::unique_ptr<llvm::raw_ostream> O) :
-
     F(F),
     RCFG(RCFG),
     CombedAST(CombedAST),
+    BlockToPHIIncoming(BlockToPHIIncoming),
     O(std::move(O)) {}
 
 public:
@@ -46,6 +53,7 @@ private:
   llvm::Function &F;
   RegionCFG &RCFG;
   ASTTree &CombedAST;
+  BBPHIMap &BlockToPHIIncoming;
   std::unique_ptr<llvm::raw_ostream> O;
 };
 

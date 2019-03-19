@@ -16,6 +16,9 @@
 
 using namespace llvm;
 
+using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
+using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
+
 using DomTree = DominatorTreeBase<BasicBlock, /* IsPostDom = */ false>;
 
 using IncomingIDSet = SmallSet<unsigned, 8>;
@@ -108,11 +111,9 @@ getCandidatesInfo(const PHINode *ThePHI, const DomTree &DT) {
   return Res;
 }
 
-using BlockToPHIIncomingMap = PHIASAPAssignmentInfo::BlockToPHIIncomingMap;
-
 static void computePHIVarAssignments(PHINode *ThePHI,
                                      const DomTree &DT,
-                                     BlockToPHIIncomingMap &AssignmentBlocks) {
+                                     BBPHIMap &AssignmentBlocks) {
 
   IncomingCandidatesInfoTy CandidatesInfo = getCandidatesInfo(ThePHI, DT);
   IncomingCandidatesVec &IncomingCandidates = CandidatesInfo.IncomingCandidates;

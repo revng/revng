@@ -10,32 +10,36 @@
 // revng includes
 #include <revng/ADT/SmallMap.h>
 
+
 struct PHIASAPAssignmentInfo : public llvm::FunctionPass {
 
-  using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
-  using BlockToPHIIncomingMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
+private:
 
+  using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
+  using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
+
+public:
   static char ID;
 
-  PHIASAPAssignmentInfo() : llvm::FunctionPass(ID) {}
+  PHIASAPAssignmentInfo() : llvm::FunctionPass(ID), PHIInfoMap() {}
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.setPreservesAll();
+  }
 
   bool runOnFunction(llvm::Function &F) override;
 
-  struct PHIInfo {
-    llvm::BasicBlock *AllocaBlock;
-    llvm::SmallVector<llvm::BasicBlock *, 2> *AssignmentBlocks;
+  const BBPHIMap &getBBToPHIIncomingMap() const {
+    return PHIInfoMap;
+  }
 
-    PHIInfo() = default;
+  BBPHIMap &&extractBBToPHIIncomingMap() {
+    return std::move(PHIInfoMap);
+  }
 
-    PHIInfo(const PHIInfo &) = default;
-    PHIInfo &operator=(const PHIInfo &) = default;
+private:
 
-    PHIInfo(PHIInfo &&) = default;
-    PHIInfo &operator=(PHIInfo &&) = default;
-  };
-
-  private:
-  BlockToPHIIncomingMap PHIInfoMap;
+  BBPHIMap PHIInfoMap;
 
 };
 

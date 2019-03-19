@@ -10,8 +10,9 @@ revng_add_analyses_library(Decompiler revngc
                            MarkForSerialization.cpp)
 
 target_link_libraries(Decompiler
+                      PHIASAPAssignmentInfo
+                      RestructureCFGPass
                       revng::revngSupport
-                      EnforceCFGCombingPass
                       clangTooling
                       clangAST
                       clangBasic

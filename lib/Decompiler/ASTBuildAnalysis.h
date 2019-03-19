@@ -29,136 +29,78 @@ class Stmt;
 namespace llvm {
 class AllocaInst;
 class BasicBlock;
+class Constant;
 class Function;
 class PHINode;
 } // namespace llvm
 
 namespace IR2AST {
 
-using PHIIncomingMap = SmallMap<const llvm::PHINode *, unsigned, 8>;
-using BlockToPHIIncomingMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 8>;
+using AllocaVarDeclMap = std::map<llvm::AllocaInst *, clang::VarDecl *>;
+using BBLabelsMap = std::map<llvm::BasicBlock *, clang::LabelDecl *>;
 using DeclMap = std::map<llvm::Instruction *, clang::VarDecl *>;
-using StmtMap = std::map<llvm::Instruction *, clang::Stmt *>;
-using GlobalsMap = std::map<const llvm::GlobalVariable *, clang::VarDecl *>;
 using FunctionsMap = std::map<llvm::Function *, clang::FunctionDecl *>;
-
-struct SerializationInfo {
-  std::map<llvm::AllocaInst *, clang::VarDecl *> AllocaDecls;
-  std::map<llvm::BasicBlock *, clang::LabelDecl *> LabelDecls;
-  DeclMap VarDecls;
-  StmtMap InstrStmts;
-  BlockToPHIIncomingMap BlockToPHIIncoming;
-  std::map<llvm::Instruction *, clang::Stmt *> PendingExprs;
-};
-
-static_assert(std::is_move_constructible<SerializationInfo>::value,
-              "SerializationInfo should be move constructible");
+using GlobalsMap = std::map<const llvm::GlobalVariable *, clang::VarDecl *>;
+using StmtMap = std::map<llvm::Instruction *, clang::Stmt *>;
 
 using LatticeElement = IntersectionMonotoneSet<llvm::Instruction *>;
 
-class Analysis
-  : public MonotoneFramework<Analysis,
-                             llvm::BasicBlock *,
-                             LatticeElement,
-                             VisitType::ReversePostOrder,
-                             llvm::SmallVector<llvm::BasicBlock *, 2>> {
+class StmtBuilder {
+
 private:
+
+  using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
+  using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
+
   llvm::Function &F;
+  const std::set<llvm::Instruction *> &ToSerialize;
   clang::FunctionDecl &FDecl;
   clang::ASTContext &ASTCtx;
-
-  GlobalsMap &GlobalVarAST;
-  FunctionsMap &FunctionAST;
-
   uint64_t NVar;
-  SerializationInfo ASTInfo;
 
 public:
-  using Base = MonotoneFramework<Analysis,
-                                 llvm::BasicBlock *,
-                                 LatticeElement,
-                                 VisitType::ReversePostOrder,
-                                 llvm::SmallVector<llvm::BasicBlock *, 2>>;
 
-  void assertLowerThanOrEqual(const LatticeElement &A,
-                              const LatticeElement &B) const {
-    revng_abort();
-  }
+  AllocaVarDeclMap AllocaDecls;
+  BBLabelsMap BBLabelDecls;
+  DeclMap VarDecls;
+  FunctionsMap &FunctionDecls;
+  GlobalsMap &GlobalDecls;
+  StmtMap InstrStmts;
+  BBPHIMap &BlockToPHIIncoming;
 
-  Analysis(llvm::Function &F,
-           clang::ASTContext &Ctx,
-           clang::FunctionDecl &FD,
-           GlobalsMap &GMap,
-           FunctionsMap &FMap) :
-    Base(&F.getEntryBlock()),
+public:
+
+  StmtBuilder(llvm::Function &F,
+              const std::set<llvm::Instruction *> &ToSerialize,
+              clang::ASTContext &Ctx,
+              clang::FunctionDecl &FD,
+              GlobalsMap &GMap,
+              FunctionsMap &FMap,
+              BBPHIMap &BlockToPHIIncoming) :
     F(F),
+    ToSerialize(ToSerialize),
     FDecl(FD),
     ASTCtx(Ctx),
-    GlobalVarAST(GMap),
-    FunctionAST(FMap) {
-    Base::registerExtremal(&F.getEntryBlock());
-  }
+    NVar(0),
+    AllocaDecls(),
+    BBLabelDecls(),
+    VarDecls(),
+    FunctionDecls(FMap),
+    GlobalDecls(GMap),
+    InstrStmts(),
+    BlockToPHIIncoming(BlockToPHIIncoming) {}
 
-  void dumpFinalState() const { revng_abort(); }
+  // SerializationInfo &&extractASTInfo() { return std::move(ASTInfo); }
 
-  SerializationInfo &&extractASTInfo() { return std::move(ASTInfo); }
-
-  llvm::SmallVector<llvm::BasicBlock *, 2>
-  successors(llvm::BasicBlock *BB, InterruptType &) const {
-    llvm::SmallVector<llvm::BasicBlock *, 2> Result;
-    for (llvm::BasicBlock *Successor : make_range(succ_begin(BB), succ_end(BB)))
-      Result.push_back(Successor);
-    return Result;
-  }
-
-  llvm::Optional<LatticeElement>
-  handleEdge(const LatticeElement & /*Original*/,
-             llvm::BasicBlock * /*Source*/,
-             llvm::BasicBlock * /*Destination*/) const {
-    return llvm::Optional<LatticeElement>();
-  }
-
-  size_t successor_size(llvm::BasicBlock *BB, InterruptType &) const {
-    return succ_end(BB) - succ_begin(BB);
-  }
-
-  static LatticeElement extremalValue(llvm::BasicBlock *) {
-    return LatticeElement::top();
-  }
-
-  InterruptType transfer(llvm::BasicBlock *);
-
-  void initialize();
-
-private:
-  void initInternal();
-  void computePHIVars();
-
-  void markValueToSerialize(llvm::Instruction *I);
-  void markSetToSerialize(const LatticeElement &S) {
-    for (llvm::Instruction *I : S)
-      markValueToSerialize(I);
-  }
-
-  DeclMap::iterator createVarDecl(llvm::Instruction *I);
-  void createVarDecls(const LatticeElement &S) {
-    for (llvm::Instruction *I : S) {
-      revng_assert(ASTInfo.VarDecls.count(I) == 0);
-      createVarDecl(I);
-    }
-  }
-
-  clang::Stmt *buildAST(llvm::Instruction &I);
+  void createAST();
 
   clang::Expr *getExprForValue(llvm::Value *V);
+private:
+  clang::VarDecl *createVarDecl(llvm::Instruction *I);
+  clang::Stmt *buildStmt(llvm::Instruction &I);
   clang::Expr *createRValueExprForBinaryOperator(llvm::Instruction &I);
+  clang::Expr *getParenthesizedExprForValue(llvm::Value *V);
+  clang::Expr *getLiteralFromConstant(llvm::Constant *C);
 };
-
-clang::Expr *getExprForValue(llvm::Value *V,
-                             GlobalsMap &GlobalVarAST,
-                             FunctionsMap &FunctionAST,
-                             clang::ASTContext &ASTCtx,
-                             SerializationInfo &ASTInfo);
-
 } // namespace IR2AST
 #endif // REVNGC_ASTBUILDANALYSIS_H

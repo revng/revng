@@ -93,7 +93,7 @@ Analysis::InterruptType Analysis::transfer(BasicBlock *BB) {
     }
     MarkLog.unindent();
 
-    bool HasSideEffects = isa<StoreInst>(&I)
+    bool HasSideEffects = isa<AllocaInst>(&I) or isa<StoreInst>(&I)
                           or (isa<CallInst>(&I) and not isPure(I));
     if (HasSideEffects) {
       revng_log(MarkLog, "Serialize Pending");
