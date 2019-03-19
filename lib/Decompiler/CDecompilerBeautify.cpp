@@ -280,7 +280,8 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
       CandidatesCases.push_back(std::make_pair(0, DefaultCase));
 
       // Create the switch node.
-      std::unique_ptr<SwitchNode> Switch(new SwitchNode(CandidatesCases));
+      std::unique_ptr<SwitchNode> Switch(new SwitchNode(SwitchValue,
+                                                        CandidatesCases));
 
       // Invoke the switch matching on the switch just reconstructed.
       matchSwitch(AST, Switch.get());

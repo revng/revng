@@ -363,10 +363,12 @@ public:
 
 private:
   links_container CaseList;
+  llvm::Value *SwitchCondition;
 
 public:
-  SwitchNode(std::vector<std::pair<unsigned, ASTNode *>> &Cases) :
-    ASTNode(NK_Switch, "SwitchNode") {
+  SwitchNode(llvm::Value *Condition,
+             std::vector<std::pair<unsigned, ASTNode *>> &Cases) :
+    ASTNode(NK_Switch, "SwitchNode"), SwitchCondition(Condition) {
       for(std::pair<unsigned, ASTNode *> Case : Cases) {
         CaseList.push_back(Case);
       }
@@ -390,6 +392,8 @@ public:
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   ASTNode *Clone() { return new SwitchNode(*this); }
+
+  llvm::Value *getCondition() { return SwitchCondition; }
 };
 
 class SetNode : public ASTNode {
