@@ -22,6 +22,10 @@ public:
   using links_iterator = typename links_container::iterator;
   using links_range = llvm::iterator_range<links_iterator>;
 
+  using links_container_expr = std::vector<std::unique_ptr<ExprNode>>;
+  using links_iterator_expr = typename links_container_expr::iterator;
+  using links_range_expr = llvm::iterator_range<links_iterator_expr>;
+
   // TODO: consider including BasicBlockNode header file.
   using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
 
@@ -30,11 +34,19 @@ public:
   links_iterator begin() { return links_iterator(ASTNodeList.begin()); };
   links_iterator end() { return links_iterator(ASTNodeList.end()); };
 
+  links_iterator_expr beginExpr() {
+    return links_iterator_expr(CondExprList.begin());
+  };
+  links_iterator_expr endExpr() {
+    return links_iterator_expr(CondExprList.end());
+  };
+
 private:
   links_container ASTNodeList;
   std::map<BasicBlockNode *, ASTNode *> NodeASTMap;
   ASTNode *RootNode;
   unsigned IDCounter = 0;
+  links_container_expr CondExprList;
 
 public:
   void addCFGNode() {}
@@ -44,6 +56,10 @@ public:
   unsigned getNewID() { return IDCounter++; }
 
   links_range nodes() { return llvm::make_range(begin(), end()); }
+
+  links_range_expr expressions() {
+    return llvm::make_range(beginExpr(), endExpr());
+  }
 
   size_t size();
 
@@ -64,6 +80,10 @@ public:
   void dumpOnFile(std::string FolderName,
                   std::string FunctionName,
                   std::string FileName);
+
+  ExprNode *addCondExpr(std::unique_ptr<ExprNode> &&Expr);
+
+  void copyASTNodesFrom(ASTTree &OldAST);
 };
 
 #endif // REVNGC_RESTRUCTURE_CFG_ASTTREE_H

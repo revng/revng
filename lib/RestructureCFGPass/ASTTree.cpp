@@ -14,6 +14,7 @@
 #include "revng-c/RestructureCFGPass/Utils.h"
 
 using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
+using ExprNodeMap = std::map<ExprNode *, ExprNode *>;
 
 // Helper to obtain a unique incremental counter (to give name to sequence
 // nodes).
@@ -90,6 +91,7 @@ ASTNode *
 ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
   size_t NumCurrNodes = size();
   ASTNodeMap ASTSubstitutionMap{};
+  ExprNodeMap CondExprMap{};
 
   // Clone each ASTNode in the current AST.
   for (std::unique_ptr<ASTNode> &Old : OldAST.nodes()) {
@@ -106,14 +108,26 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
     ASTSubstitutionMap[Old.get()] = New;
   }
 
+  // Clone the conditional expression nodes.
+  for (std::unique_ptr<ExprNode> &OldExpr : OldAST.expressions()) {
+    CondExprList.emplace_back(std::move(llvm::cast<AtomicNode>(OldExpr.get())));
+    ExprNode *NewExpr = CondExprList.back().get();
+    CondExprMap[OldExpr.get()] = NewExpr;
+
+  }
+
   // Update the AST and BBNode pointers inside the newly created AST nodes,
-  // to reflect the changes made.
+  // to reflect the changes made. Update also the pointer to the conditional
+  // expressions just cloned.
   links_container::iterator BeginInserted = ASTNodeList.begin() + NumCurrNodes;
   links_container::iterator EndInserted = ASTNodeList.end();
   using MovedIteratorRange = llvm::iterator_range<links_container::iterator>;
   MovedIteratorRange Result = llvm::make_range(BeginInserted, EndInserted);
   for (std::unique_ptr<ASTNode> &NewNode : Result) {
     NewNode->updateASTNodesPointers(ASTSubstitutionMap);
+    if (auto *If = llvm::dyn_cast<IfNode>(NewNode.get())) {
+      If->updateCondExprPtr(CondExprMap);
+    }
   }
 
   // Update the map between `BasicBlockNode` and `ASTNode`.
@@ -194,4 +208,9 @@ ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
   }
 
   return RootNode;
+}
+
+ExprNode *ASTTree::addCondExpr(std::unique_ptr<ExprNode> &&Expr) {
+  CondExprList.emplace_back(std::move(Expr));
+  return CondExprList.back().get();
 }

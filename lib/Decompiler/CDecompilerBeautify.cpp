@@ -17,6 +17,7 @@
 
 // local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
+#include "revng-c/RestructureCFGPass/ExprNode.h"
 
 // local includes
 #include "MarkForSerialization.h"
@@ -25,16 +26,54 @@
 Logger<> BeautifyLogger("beautify");
 
 using namespace llvm;
+using std::unique_ptr;
+using std::make_unique;
+
+static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
+  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
+    for (ASTNode *Node : Sequence->nodes()) {
+      flipEmptyThen(Node, AST);
+    }
+  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
+    if (!If->hasThen()) {
+      if (BeautifyLogger.isEnabled()) {
+        BeautifyLogger << "Flipping then and else branches for : ";
+        BeautifyLogger << If->getName() << "\n";
+      }
+      If->setThen(If->getElse());
+      If->setElse(nullptr);
+
+      // Invert the conditional expression of the current `IfNode`.
+      unique_ptr<ExprNode> Not = std::make_unique<NotNode>(If->getCondExpr());
+      ExprNode *NotNode = AST.addCondExpr(std::move(Not));
+      If->replaceCondExpr(NotNode);
+
+      flipEmptyThen(If->getThen(), AST);
+    } else {
+
+      // We are sure to have the `then` branch since the previous check did
+      // not verify
+      flipEmptyThen(If->getThen(), AST);
+
+      // We have not the same assurance for the `else` branch
+      if (If->hasElse()) {
+        flipEmptyThen(If->getElse(), AST);
+      }
+    }
+  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
+    flipEmptyThen(Scs->getBody(), AST);
+  }
+}
 
 // Helper function to simplify short-circuit IFs
-static void simplifyShortCircuit(ASTNode *RootNode) {
+static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
 
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
-      simplifyShortCircuit(Node);
+      simplifyShortCircuit(Node, AST);
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    simplifyShortCircuit(Scs->getBody());
+    simplifyShortCircuit(Scs->getBody(), AST);
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (If->hasBothBranches()) {
 
@@ -56,10 +95,19 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
             If->setThen(InternalIf->getElse());
             If->setElse(InternalIf->getThen());
 
-            // Absorb the conditional nodes
-            If->addConditionalNodesFrom(InternalIf);
+            // `if A and not B` situation.
+            unique_ptr<ExprNode> NotB =
+              std::make_unique<NotNode>(InternalIf->getCondExpr());
+            ExprNode *NotBNode = AST.addCondExpr(std::move(NotB));
 
-            simplifyShortCircuit(If);
+            unique_ptr<ExprNode> AAndNotB =
+              std::make_unique<AndNode>(If->getCondExpr(), NotBNode);
+            ExprNode *AAndNotBNode = AST.addCondExpr(std::move(AAndNotB));
+
+            If->replaceCondExpr(AAndNotBNode);
+
+            // Recursive call.
+            simplifyShortCircuit(If, AST);
           }
         }
 
@@ -78,10 +126,16 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
             If->setThen(InternalIf->getThen());
             If->setElse(InternalIf->getElse());
 
-            // Absorb the conditional nodes
-            If->addConditionalNodesFrom(InternalIf);
+            // `if A and B` situation.
+            unique_ptr<ExprNode> AAndB =
+              std::make_unique<AndNode>(If->getCondExpr(),
+                                   InternalIf->getCondExpr());
+            ExprNode *AAndBNode = AST.addCondExpr(std::move(AAndB));
 
-            simplifyShortCircuit(If);
+            If->replaceCondExpr(AAndBNode);
+
+            // Recursive call.
+            simplifyShortCircuit(If, AST);
           }
         }
       }
@@ -104,10 +158,21 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
             If->setElse(InternalIf->getElse());
             If->setThen(InternalIf->getThen());
 
-            // Absorb the conditional nodes
-            If->addConditionalNodesFrom(InternalIf);
+            // `if not A and not B` situation.
+            unique_ptr<ExprNode> NotA =
+              std::make_unique<NotNode>(If->getCondExpr());
+            ExprNode *NotANode = AST.addCondExpr(std::move(NotA));
 
-            simplifyShortCircuit(If);
+            unique_ptr<ExprNode> NotB =
+              std::make_unique<NotNode>(InternalIf->getCondExpr());
+            ExprNode *NotBNode = AST.addCondExpr(std::move(NotB));
+
+            unique_ptr<ExprNode> NotAAndNotB =
+              std::make_unique<AndNode>(NotANode, NotBNode);
+            ExprNode *NotAAndNotBNode = AST.addCondExpr(std::move(NotAAndNotB));
+
+            // Recursive call.
+            simplifyShortCircuit(If, AST);
           }
         }
 
@@ -126,10 +191,16 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
             If->setElse(InternalIf->getThen());
             If->setThen(InternalIf->getElse());
 
-            // Absorb the conditional nodes
-            If->addConditionalNodesFrom(InternalIf);
+            // `if not A and B` situation.
+            unique_ptr<ExprNode> NotA = std::make_unique<NotNode>(If->getCondExpr());
+            ExprNode *NotANode = AST.addCondExpr(std::move(NotA));
 
-            simplifyShortCircuit(If);
+            unique_ptr<ExprNode> NotAAndB =
+              std::make_unique<AndNode>(NotANode, InternalIf->getCondExpr());
+            ExprNode *NotAAndBNode = AST.addCondExpr(std::move(NotAAndB));
+
+            // Recursive call.
+            simplifyShortCircuit(If, AST);
           }
         }
       }
@@ -137,13 +208,13 @@ static void simplifyShortCircuit(ASTNode *RootNode) {
   }
 }
 
-static void simplifyTrivialShortCircuit(ASTNode *RootNode) {
+static void simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST) {
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
-      simplifyTrivialShortCircuit(Node);
+      simplifyTrivialShortCircuit(Node, AST);
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    simplifyTrivialShortCircuit(Scs->getBody());
+    simplifyTrivialShortCircuit(Scs->getBody(), AST);
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (!If->hasElse()) {
       if (auto *InternalIf = llvm::dyn_cast<IfNode>(If->getThen())) {
@@ -160,19 +231,23 @@ static void simplifyTrivialShortCircuit(ASTNode *RootNode) {
 
           If->setThen(InternalIf->getThen());
 
-          // Absorb the conditional nodes
-          If->addConditionalNodesFrom(InternalIf);
+          // `if A and B` situation.
+          unique_ptr<ExprNode> AAndB =
+            std::make_unique<AndNode>(If->getCondExpr(), InternalIf->getCondExpr());
+          ExprNode *AAndBNode = AST.addCondExpr(std::move(AAndB));
 
-          simplifyTrivialShortCircuit(RootNode);
+          If->replaceCondExpr(AAndBNode);
+
+          simplifyTrivialShortCircuit(RootNode, AST);
         }
       }
     }
 
     if (If->hasThen()) {
-      simplifyTrivialShortCircuit(If->getThen());
+      simplifyTrivialShortCircuit(If->getThen(), AST);
     }
     if (If->hasElse()) {
-      simplifyTrivialShortCircuit(If->getElse());
+      simplifyTrivialShortCircuit(If->getElse(), AST);
     }
   }
 }
@@ -280,8 +355,8 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
       CandidatesCases.push_back(std::make_pair(0, DefaultCase));
 
       // Create the switch node.
-      std::unique_ptr<SwitchNode> Switch(new SwitchNode(SwitchValue,
-                                                        CandidatesCases));
+      unique_ptr<SwitchNode> Switch(new SwitchNode(SwitchValue,
+                                                   CandidatesCases));
 
       // Invoke the switch matching on the switch just reconstructed.
       matchSwitch(AST, Switch.get());
@@ -397,25 +472,25 @@ static void simplifyLastContinue(ASTNode *RootNode) {
   }
 }
 
-static void matchDoWhile(ASTNode *RootNode) {
+static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
 
   BeautifyLogger << "Matching do whiles" << "\n";
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
-      matchDoWhile(Node);
+      matchDoWhile(Node, AST);
     }
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (If->hasThen()) {
-      matchDoWhile(If->getThen());
+      matchDoWhile(If->getThen(), AST);
     }
     if (If->hasElse()) {
-      matchDoWhile(If->getElse());
+      matchDoWhile(If->getElse(), AST);
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     ASTNode *Body = Scs->getBody();
 
     // Recursive scs nesting handling
-    matchDoWhile(Body);
+    matchDoWhile(Body, AST);
 
     //ASTNode *LastNode = getLastOfSequenceOrSelf(Scs->getBody());
     ASTNode *LastNode = nullptr;
@@ -441,7 +516,11 @@ static void matchDoWhile(ASTNode *RootNode) {
 
           // The condition in the while should be negated.
           Scs->setDoWhile(If);
-          If->negateCondition();
+
+          // Invert the conditional expression of the current `IfNode`.
+          unique_ptr<ExprNode> Not = std::make_unique<NotNode>(If->getCondExpr());
+          ExprNode *NotNode = AST.addCondExpr(std::move(Not));
+          If->replaceCondExpr(NotNode);
 
           // Remove the if node
           if (InsideSequence) {
@@ -485,19 +564,19 @@ static void addComputationToContinue(ASTNode *RootNode, IfNode *ConditionIf) {
   }
 }
 
-static void matchWhile(ASTNode *RootNode) {
+static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
 
   BeautifyLogger << "Matching whiles" << "\n";
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
-      matchWhile(Node);
+      matchWhile(Node, AST);
     }
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (If->hasThen()) {
-      matchWhile(If->getThen());
+      matchWhile(If->getThen(), AST);
     }
     if (If->hasElse()) {
-      matchWhile(If->getElse());
+      matchWhile(If->getElse(), AST);
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     ASTNode *Body = Scs->getBody();
@@ -508,7 +587,7 @@ static void matchWhile(ASTNode *RootNode) {
     }
 
     // Recursive scs nesting handling
-    matchWhile(Body);
+    matchWhile(Body, AST);
 
     //ASTNode *FirstNode = getLastOfSequenceOrSelf(Scs->getBody());
     ASTNode *FirstNode = nullptr;
@@ -533,7 +612,11 @@ static void matchWhile(ASTNode *RootNode) {
 
           // The condition in the while should be negated.
           Scs->setWhile(If);
-          If->negateCondition();
+
+          // Invert the conditional expression of the current `IfNode`.
+          unique_ptr<ExprNode> Not = std::make_unique<NotNode>(If->getCondExpr());
+          ExprNode *NotNode = AST.addCondExpr(std::move(Not));
+          If->replaceCondExpr(NotNode);
 
           // Remove the if node
           if (InsideSequence) {
@@ -570,14 +653,19 @@ void beautifyAST(Function &F,
 
   ASTNode *RootNode = CombedAST.getRoot();
 
+  // Flip IFs with empty then branches.
+  BeautifyLogger << "Performing IFs with empty then branches flipping\n";
+  flipEmptyThen(RootNode, CombedAST);
+  CombedAST.dumpOnFile("ast", F.getName(), "After-if-flip");
+
   // Simplify short-circuit nodes.
   BeautifyLogger << "Performing short-circuit simplification\n";
-  simplifyShortCircuit(RootNode);
+  simplifyShortCircuit(RootNode, CombedAST);
   CombedAST.dumpOnFile("ast", F.getName(), "After-short-circuit");
 
   // Simplify trivial short-circuit nodes.
   BeautifyLogger << "Performing trivial short-circuit simplification\n";
-  simplifyTrivialShortCircuit(RootNode);
+  simplifyTrivialShortCircuit(RootNode, CombedAST);
   CombedAST.dumpOnFile("ast", F.getName(), "After-trivial-short-circuit");
 
   // Match switch node.
@@ -589,13 +677,13 @@ void beautifyAST(Function &F,
 
   // Match dowhile.
   BeautifyLogger << "Matching do-while\n";
-  matchDoWhile(RootNode);
+  matchDoWhile(RootNode, CombedAST);
   CombedAST.dumpOnFile("ast", F.getName(), "After-match-do-while");
 
   // Match while.
   BeautifyLogger << "Matching do-while\n";
   // Disabled for now
-  matchWhile(RootNode);
+  matchWhile(RootNode, CombedAST);
   CombedAST.dumpOnFile("ast", F.getName(), "After-match-while");
 
   // Remove useless continues.

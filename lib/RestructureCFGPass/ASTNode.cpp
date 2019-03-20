@@ -15,12 +15,6 @@
 
 using namespace llvm;
 
-void IfNode::addConditionalNodesFrom(IfNode *Other) {
-  for (BasicBlock *Node : Other->conditionalNodes()) {
-    ConditionalNodes.push_back(Node);
-  }
-}
-
 bool CodeNode::isEqual(ASTNode *Node) {
   if (auto *OtherCode = dyn_cast<CodeNode>(Node)) {
     if ((getOriginalBB() != nullptr)
@@ -72,6 +66,13 @@ void IfNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   if (hasElse()) {
     revng_assert(SubstitutionMap.count(Else) != 0);
     Else = SubstitutionMap[Else];
+  }
+}
+
+void IfNode::updateCondExprPtr(ExprNodeMap &Map) {
+  if (not llvm::isa<IfCheckNode>(this)) {
+      revng_assert(ConditionExpression != nullptr);
+      ConditionExpression = Map[ConditionExpression];
   }
 }
 
@@ -165,13 +166,7 @@ void CodeNode::dump(std::ofstream &ASTFile) {
 void IfNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"" << this->getName() << "\" [";
 
-  // For the label of the If node go take all the nodes in the list
-  std::string ConditionalNames;
-  for (BasicBlock *Conditional : this->conditionalNodes()) {
-    ConditionalNames += Conditional->getName().str() + ", ";
-  }
-  ConditionalNames.pop_back();
-  ConditionalNames.pop_back();
+  // TODO: Implement the printing of the conditional expression for the if.
 
   // ASTFile << "label=\"" << ConditionalNames;
   ASTFile << "label=\"" << this->getName();

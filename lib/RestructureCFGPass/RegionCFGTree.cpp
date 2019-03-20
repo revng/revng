@@ -112,37 +112,6 @@ static ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
   return RootNode;
 }
 
-static void flipEmptyThen(ASTNode *RootNode) {
-  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
-    for (ASTNode *Node : Sequence->nodes()) {
-      flipEmptyThen(Node);
-    }
-  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
-    if (!If->hasThen()) {
-      if (CombLogger.isEnabled()) {
-        CombLogger << "Flipping then and else branches for : ";
-        CombLogger << If->getName() << "\n";
-      }
-      If->setThen(If->getElse());
-      If->setElse(nullptr);
-      If->negateCondition();
-      flipEmptyThen(If->getThen());
-    } else {
-
-      // We are sure to have the `then` branch since the previous check did
-      // not verify
-      flipEmptyThen(If->getThen());
-
-      // We have not the same assurance for the `else` branch
-      if (If->hasElse()) {
-        flipEmptyThen(If->getElse());
-      }
-    }
-  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    flipEmptyThen(Scs->getBody());
-  }
-}
-
 void RegionCFG::initialize(llvm::Function &F) {
 
   // Create a new node for each basic block in the module.
@@ -851,6 +820,11 @@ void RegionCFG::generateAst() {
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
 
+        // Create the conditional expression associated with the if node.
+        std::unique_ptr<ExprNode> CondExpr =
+          std::make_unique<AtomicNode>(Node->getBasicBlock());
+        ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
+
         // If we are creating the AST for the check node, create the adequate
         // AST node preserving the then and else branches, otherwise create a
         // classical node.
@@ -858,20 +832,21 @@ void RegionCFG::generateAst() {
           if (BBChildren[0] == Node->getTrue()
               and BBChildren[2] == Node->getFalse()) {
             ASTObject.reset(new IfCheckNode(Node,
-                                       ASTChildren[0],
-                                       ASTChildren[2],
-                                       ASTChildren[1]));
+                                            ASTChildren[0],
+                                            ASTChildren[2],
+                                            ASTChildren[1]));
           } else if (BBChildren[2] == Node->getTrue()
                      and BBChildren[0] == Node->getFalse()) {
             ASTObject.reset(new IfCheckNode(Node,
-                                       ASTChildren[2],
-                                       ASTChildren[0],
-                                       ASTChildren[1]));
+                                            ASTChildren[2],
+                                            ASTChildren[0],
+                                            ASTChildren[1]));
           } else {
             revng_abort("Then and else branches cannot be matched");
           }
         } else {
           ASTObject.reset(new IfNode(Node,
+                                     CondExprNode,
                                      ASTChildren[0],
                                      ASTChildren[2],
                                      ASTChildren[1]));
@@ -880,26 +855,32 @@ void RegionCFG::generateAst() {
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
 
+        // Create the conditional expression associated with the if node.
+        std::unique_ptr<ExprNode> CondExpr =
+          std::make_unique<AtomicNode>(Node->getBasicBlock());
+        ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
+
         // If we are creating the AST for the switch tree, create the adequate,
         // AST node, otherwise create a classical node.
         if (Node->isCheck()) {
           if (BBChildren[0] == Node->getTrue()
               and BBChildren[1] == Node->getFalse()) {
             ASTObject.reset(new IfCheckNode(Node,
-                                       ASTChildren[0],
-                                       ASTChildren[1],
-                                       nullptr));
+                                            ASTChildren[0],
+                                            ASTChildren[1],
+                                            nullptr));
           } else if (BBChildren[1] == Node->getTrue()
                      and BBChildren[0] == Node->getFalse()) {
             ASTObject.reset(new IfCheckNode(Node,
-                                       ASTChildren[1],
-                                       ASTChildren[0],
-                                       nullptr));
+                                            ASTChildren[1],
+                                            ASTChildren[0],
+                                            nullptr));
           } else {
             revng_abort("Then and else branches cannot be matched");
           }
         } else {
           ASTObject.reset(new IfNode(Node,
+                                     CondExprNode,
                                      ASTChildren[0],
                                      ASTChildren[1],
                                      nullptr));
@@ -953,11 +934,6 @@ void RegionCFG::generateAst() {
   RootNode = simplifyAtomicSequence(RootNode);
   AST.setRoot(RootNode);
   AST.dumpOnFile("ast", FunctionName, "After-sequence-simplification");
-
-  // Flip IFs with empty then branches.
-  CombLogger << "Performing IFs with empty then branches flipping\n";
-  flipEmptyThen(RootNode);
-  AST.dumpOnFile("ast", FunctionName, "After-if-flip");
 
   // Remove danling nodes (possibly created by the de-optimization pass, after
   // disconnecting the first CFG node corresponding to the simplified AST node),

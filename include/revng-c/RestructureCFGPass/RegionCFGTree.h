@@ -34,6 +34,7 @@ public:
                                            links_underlying_iterator>;
   using links_range = llvm::iterator_range<links_iterator>;
   using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
+  using ExprNodeMap = std::map<ExprNode *, ExprNode *>;
 
 private:
   /// Storage for basic block nodes, associated to their original counterpart

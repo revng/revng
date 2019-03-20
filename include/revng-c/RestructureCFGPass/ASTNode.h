@@ -11,8 +11,9 @@
 // LLVM includes
 #include <llvm/Support/Casting.h>
 
-// local includes
+// local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
+#include "revng-c/RestructureCFGPass/ExprNode.h"
 
 // forward declarations
 namespace llvm {
@@ -22,6 +23,7 @@ class BasicBlock;
 class BasicBlockNode;
 
 using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
+using ExprNodeMap = std::map<ExprNode *, ExprNode *>;
 
 class ASTNode {
 
@@ -124,19 +126,14 @@ public:
 
 class IfNode : public ASTNode {
 
-public:
-  using links_container = std::vector<llvm::BasicBlock *>;
-  using links_iterator = typename links_container::iterator;
-  using links_range = llvm::iterator_range<links_iterator>;
-
 private:
   ASTNode *Then;
   ASTNode *Else;
-  std::vector<llvm::BasicBlock *> ConditionalNodes;
-  bool NegatedCondition = false;
+  ExprNode *ConditionExpression;
 
 public:
   IfNode(BasicBlockNode *CFGNode,
+         ExprNode *CondExpr,
          ASTNode *Then,
          ASTNode *Else,
          ASTNode *PostDom,
@@ -144,19 +141,12 @@ public:
     ASTNode(Kind, CFGNode, PostDom),
     Then(Then),
     Else(Else) {
-    ConditionalNodes.push_back(CFGNode->getBasicBlock());
+    ConditionExpression = CondExpr;
   }
 
 public:
   static bool classof(const ASTNode *N) { return N->getKind() >= NK_If &&
                                                  N->getKind() <= NK_IfCheck; }
-
-  virtual llvm::BasicBlock *getUniqueCondBlock() {
-    revng_assert(ConditionalNodes.size() == 1);
-    llvm::BasicBlock *N = ConditionalNodes[0];
-    revng_assert(N != nullptr);
-    return N;
-  }
 
   ASTNode *getThen() { return Then; }
 
@@ -188,12 +178,6 @@ public:
     }
   }
 
-  virtual links_range conditionalNodes() {
-    return llvm::make_range(ConditionalNodes.begin(), ConditionalNodes.end());
-  }
-
-  virtual void addConditionalNodesFrom(IfNode *Other);
-
   bool isEqual(ASTNode *Node);
 
   virtual void dump(std::ofstream &ASTFile);
@@ -202,9 +186,15 @@ public:
 
   virtual ASTNode *Clone() { return new IfNode(*this); }
 
-  virtual void negateCondition() { NegatedCondition = true; }
+  ExprNode *getCondExpr() {
+    return ConditionExpression;
+  }
 
-  virtual bool conditionNegated() const { return NegatedCondition; }
+  void replaceCondExpr(ExprNode *NewExpr) {
+    ConditionExpression = NewExpr;
+  }
+
+  void updateCondExprPtr(ExprNodeMap &Map);
 };
 
 class ScsNode : public ASTNode {
@@ -434,7 +424,7 @@ public:
               ASTNode *Then,
               ASTNode *Else,
               ASTNode *PostDom) :
-    IfNode(CFGNode, Then, Else, PostDom, NK_IfCheck) {
+    IfNode(CFGNode, nullptr, Then, Else, PostDom, NK_IfCheck) {
       StateVariableValue = CFGNode->getStateVariableValue();
   }
 
@@ -446,18 +436,6 @@ public:
   ASTNode *Clone() { return new IfCheckNode(*this); }
 
   unsigned getCaseValue() { return StateVariableValue; }
-
-  llvm::BasicBlock *getUniqueCondBlock() override {
-    revng_abort("This function should not be used.");
-  }
-
-  links_range conditionalNodes() override {
-    revng_abort("This function should not be used.");
-  }
-
-  void addConditionalNodesFrom(IfNode *Other) override {
-    revng_abort("This function should not be used.");
-  }
 
 };
 
