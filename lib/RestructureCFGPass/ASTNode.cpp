@@ -10,6 +10,9 @@
 #include <fstream>
 #include <iostream>
 
+// LLVM includes
+#include <llvm/IR/Constants.h>
+
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTNode.h"
 
@@ -228,9 +231,10 @@ void SwitchNode::dump(std::ofstream &ASTFile) {
 
   int CaseIndex = 0;
   for (auto Case : this->cases()) {
+    uint64_t CaseVal = Case.first->getZExtValue();
     ASTFile << "\"" << this->getName() << "\""
             << " -> \"" << Case.second->getName() << "\""
-            << " [color=green,label=\"case " << Case.first << "\"];\n";
+            << " [color=green,label=\"case " << CaseVal << "\"];\n";
     Case.second->dump(ASTFile);
     CaseIndex += 1;
   }

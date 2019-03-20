@@ -24,6 +24,7 @@ private:
 public:
   NodeKind getKind() const { return Kind; }
 
+protected:
   ExprNode(NodeKind K) : Kind(K) {}
 
 };
@@ -38,6 +39,10 @@ public:
   static bool classof(const ExprNode *E) {
     return E->getKind() == NK_Atomic;
   }
+
+  llvm::BasicBlock *getConditionalBasicBlock() const {
+    return ConditionBB;
+  }
 };
 
 class NotNode : public ExprNode {
@@ -51,43 +56,48 @@ public:
     return E->getKind() == NK_Not;
   }
 
-  ExprNode *getInternalNode() {
+  ExprNode *getNegatedNode() const {
     return Child;
   }
 
 };
 
-class AndNode : public ExprNode {
+class BinaryNode : public ExprNode {
 private:
   ExprNode *LeftChild;
   ExprNode *RightChild;
 
 public:
-  AndNode(ExprNode *Left, ExprNode *Right) : ExprNode(NK_And), LeftChild(Left), RightChild(Right) {}
+  std::pair<ExprNode *, ExprNode *> getInternalNodes() {
+    return std::make_pair(LeftChild, RightChild);
+  }
+
+  static bool classof(const ExprNode *E) {
+    return E->getKind() <= NK_Or and E->getKind() >= NK_And;
+  }
+
+protected:
+  BinaryNode(NodeKind K, ExprNode *Left, ExprNode *Right) :
+    ExprNode(K), LeftChild(Left), RightChild(Right) {}
+};
+
+class AndNode : public BinaryNode {
+
+public:
+  AndNode(ExprNode *Left, ExprNode *Right) : BinaryNode(NK_And, Left, Right) {}
 
   static bool classof(const ExprNode *E) {
     return E->getKind() == NK_And;
   }
-
-  std::pair<ExprNode *, ExprNode *> getInternalNodes() {
-    return std::make_pair(LeftChild, RightChild);
-  }
 };
 
-class OrNode : public ExprNode {
-private:
-  ExprNode *LeftChild;
-  ExprNode *RightChild;
+class OrNode : public BinaryNode {
 
 public:
-  OrNode(ExprNode *Left, ExprNode *Right) : ExprNode(NK_Or), LeftChild(Left), RightChild(Right) {}
+  OrNode(ExprNode *Left, ExprNode *Right) : BinaryNode(NK_Or, Left, Right) {}
 
   static bool classof(const ExprNode *E) {
     return E->getKind() == NK_Or;
-  }
-
-  std::pair<ExprNode *, ExprNode *> getInternalNodes() {
-    return std::make_pair(LeftChild, RightChild);
   }
 };
 

@@ -18,6 +18,7 @@
 // forward declarations
 namespace llvm {
 class BasicBlock;
+class ConstantInt;
 }
 
 class BasicBlockNode;
@@ -126,7 +127,12 @@ public:
 
 class IfNode : public ASTNode {
 
-private:
+public:
+  using links_container = std::vector<llvm::BasicBlock *>;
+  using links_iterator = typename links_container::iterator;
+  using links_range = llvm::iterator_range<links_iterator>;
+
+protected:
   ASTNode *Then;
   ASTNode *Else;
   ExprNode *ConditionExpression;
@@ -140,8 +146,8 @@ public:
          NodeKind Kind = NK_If) :
     ASTNode(Kind, CFGNode, PostDom),
     Then(Then),
-    Else(Else) {
-    ConditionExpression = CondExpr;
+    Else(Else),
+    ConditionExpression(CondExpr) {
   }
 
 public:
@@ -347,7 +353,7 @@ public:
 class SwitchNode : public ASTNode {
 
 public:
-  using links_container = std::vector<std::pair<unsigned, ASTNode *>>;
+  using links_container = std::vector<std::pair<llvm::ConstantInt *, ASTNode *>>;
   using links_iterator = typename links_container::iterator;
   using links_range = llvm::iterator_range<links_iterator>;
 
@@ -357,9 +363,9 @@ private:
 
 public:
   SwitchNode(llvm::Value *Condition,
-             std::vector<std::pair<unsigned, ASTNode *>> &Cases) :
+             std::vector<std::pair<llvm::ConstantInt *, ASTNode *>> &Cases) :
     ASTNode(NK_Switch, "SwitchNode"), SwitchCondition(Condition) {
-      for(std::pair<unsigned, ASTNode *> Case : Cases) {
+      for(auto &Case : Cases) {
         CaseList.push_back(Case);
       }
     }
@@ -424,8 +430,8 @@ public:
               ASTNode *Then,
               ASTNode *Else,
               ASTNode *PostDom) :
-    IfNode(CFGNode, nullptr, Then, Else, PostDom, NK_IfCheck) {
-      StateVariableValue = CFGNode->getStateVariableValue();
+    IfNode(CFGNode, nullptr, Then, Else, PostDom, NK_IfCheck),
+    StateVariableValue(CFGNode->getStateVariableValue()) {
   }
 
 public:

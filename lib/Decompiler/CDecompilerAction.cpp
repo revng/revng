@@ -17,6 +17,7 @@
 
 // local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
+#include "revng-c/RestructureCFGPass/ExprNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 
 // local includes
@@ -67,6 +68,96 @@ static clang::Expr *negateExpr(clang::ASTContext &ASTCtx, clang::Expr *E) {
   return E;
 }
 
+static clang::Expr *createCondExpr(ExprNode *E,
+                                   clang::ASTContext &ASTCtx,
+                                   SmallVectorImpl<clang::Stmt *> &Stmts,
+                                   IR2AST::StmtBuilder &ASTBuilder) {
+  struct StackElement {
+    ExprNode *Node;
+    llvm::SmallVector<clang::Expr *, 2> ResolvedOperands;
+  };
+  llvm::SmallVector<StackElement, 4> VisitStack;
+  clang::Expr *Result = nullptr;
+  VisitStack.push_back( { nullptr, {} } );
+  VisitStack.push_back( { E, {} });
+  bool FoundBasicBlock = false;
+
+  revng_assert(VisitStack.size() == 2);
+  while (VisitStack.size() > 1) {
+    StackElement &Current = VisitStack.back();
+    switch (Current.Node->getKind()) {
+    case ExprNode::NodeKind::NK_Atomic: {
+      AtomicNode *Atomic = cast<AtomicNode>(Current.Node);
+      llvm::BasicBlock *BB = Atomic->getConditionalBasicBlock();
+
+      auto End = ASTBuilder.InstrStmts.end();
+      for (llvm::Instruction &Instr : *BB) {
+        auto It = ASTBuilder.InstrStmts.find(&Instr);
+        if (It != End) {
+          revng_assert(not FoundBasicBlock);
+          Stmts.push_back(It->second);
+        }
+      }
+      FoundBasicBlock = true;
+
+      llvm::Instruction *CondTerminator = BB->getTerminator();
+      llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
+      revng_assert(Br->isConditional());
+      llvm::Value *CondValue = Br->getCondition();
+      clang::Expr *CondExpr = ASTBuilder.getExprForValue(CondValue);
+      VisitStack.pop_back();
+      VisitStack.back().ResolvedOperands.push_back(CondExpr);
+    } break;
+    case ExprNode::NodeKind::NK_Not: {
+      NotNode *N = cast<NotNode>(Current.Node);
+      revng_assert(Current.ResolvedOperands.size() <= 1);
+      if (Current.ResolvedOperands.size() != 1) {
+        ExprNode *Negated = N->getNegatedNode();
+        VisitStack.push_back( {Negated, {} } );
+      } else {
+        clang::Expr *NotExpr = negateExpr(ASTCtx, Current.ResolvedOperands[0]);
+        VisitStack.pop_back();
+        VisitStack.back().ResolvedOperands.push_back(NotExpr);
+      }
+    } break;
+    case ExprNode::NodeKind::NK_And:
+    case ExprNode::NodeKind::NK_Or: {
+      unsigned NumOperands = Current.ResolvedOperands.size();
+      revng_assert(NumOperands <= 1);
+      using ExprPair = std::pair<ExprNode *, ExprNode *>;
+      BinaryNode *Binary = cast<BinaryNode>(Current.Node);
+      if (NumOperands != 2) {
+        ExprPair Childs = Binary->getInternalNodes();
+        ExprNode *Op = (NumOperands == 0) ? Childs.first : Childs.second;
+        VisitStack.push_back( {Op, {} } );
+      } else {
+        BinaryOperatorKind BinOpKind = isa<AndNode>(Binary) ?
+                                       clang::BinaryOperatorKind::BO_And :
+                                       clang::BinaryOperatorKind::BO_Or;
+        clang::Expr *LHS = Current.ResolvedOperands[0];
+        clang::Expr *RHS = Current.ResolvedOperands[1];
+        clang::Expr *BinExpr = new (ASTCtx)
+                               clang::BinaryOperator(LHS,
+                                                     RHS,
+                                                     BinOpKind,
+                                                     LHS->getType(),
+                                                     VK_RValue,
+                                                     OK_Ordinary,
+                                                     {},
+                                                     FPOptions());
+        VisitStack.pop_back();
+        VisitStack.back().ResolvedOperands.push_back(BinExpr);
+      }
+    } break;
+    default:
+      revng_abort();
+    }
+  }
+  revng_assert(VisitStack.size() == 1);
+  revng_assert(VisitStack.back().ResolvedOperands.size() == 1);
+  return VisitStack.back().ResolvedOperands[0];
+}
+
 static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                ASTNode *N,
                                clang::ASTContext &ASTCtx,
@@ -84,14 +175,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     // Print the condition computation code of the if statement.
     if (Continue->hasComputation()) {
       IfNode *ComputationIfNode = Continue->getComputationIfNode();
-      llvm::BasicBlock *CondBlock = ComputationIfNode->getUniqueCondBlock();
-
-      auto End = ASTBuilder.InstrStmts.end();
-      for (llvm::Instruction &Instr : *CondBlock) {
-        auto It = ASTBuilder.InstrStmts.find(&Instr);
-        if (It != End)
-          Stmts.push_back(It->second);
-      }
+      createCondExpr(ComputationIfNode->getCondExpr(), ASTCtx, Stmts, ASTBuilder);
     }
     Stmts.push_back(new (ASTCtx) clang::ContinueStmt(SourceLocation{}));
     break;
@@ -110,27 +194,10 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
   }
   case ASTNode::NodeKind::NK_If: {
     IfNode *If = cast<IfNode>(N);
-    clang::Stmt *ThenScope = buildCompoundScope(If->getThen(), ASTCtx,
-                                                ASTBuilder);
-    clang::Stmt *ElseScope = buildCompoundScope(If->getElse(), ASTCtx,
-                                                ASTBuilder);
-    llvm::BasicBlock *CondBlock = If->getUniqueCondBlock();
-
-    auto End = ASTBuilder.InstrStmts.end();
-    for (llvm::Instruction &Instr : *CondBlock) {
-      auto It = ASTBuilder.InstrStmts.find(&Instr);
-      if (It != End)
-        Stmts.push_back(It->second);
-    }
-
-    llvm::Instruction *CondTerminator = CondBlock->getTerminator();
-    llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
-    revng_assert(Br->isConditional());
-    llvm::Value *CondValue = Br->getCondition();
-    clang::Expr *CondExpr = ASTBuilder.getExprForValue(CondValue);
-    if (If->conditionNegated())
-      CondExpr = negateExpr(ASTCtx, CondExpr);
-
+    clang::Expr *CondExpr = createCondExpr(If->getCondExpr(), ASTCtx, Stmts, ASTBuilder);
+    revng_assert(CondExpr != nullptr);
+    clang::Stmt *ThenScope = buildCompoundScope(If->getThen(), ASTCtx, ASTBuilder);
+    clang::Stmt *ElseScope = buildCompoundScope(If->getElse(), ASTCtx, ASTBuilder);
     Stmts.push_back(new (ASTCtx) IfStmt(ASTCtx,
                                         {},
                                         false,
@@ -151,69 +218,24 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       // This shold retrieve the if which generates the condition of the loop
       // by accesing a dedicated field in the ScsNode.
       IfNode *LoopCondition = LoopBody->getRelatedCondition();
-      llvm::BasicBlock *CondBlock = LoopCondition->getUniqueCondBlock();
-
-      // Emission of the code that computes the condition.
-      // TODO: Where do this go in a do-while??? Before each condition check!
-      //       So we pass them as additional statements.
-      auto End = ASTBuilder.InstrStmts.end();
-      for (llvm::Instruction &Instr : *CondBlock) {
-        auto It = ASTBuilder.InstrStmts.find(&Instr);
-        if (It != End) {
-          revng_assert(It->second != nullptr);
-          AdditionalStmts.push_back(It->second);
-        }
-      }
+      clang::Expr *CondExpr = createCondExpr(LoopCondition->getCondExpr(),
+                                             ASTCtx, AdditionalStmts, ASTBuilder);
 
       clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(), ASTCtx,
                                              ASTBuilder, AdditionalStmts);
 
-      llvm::Instruction *CondTerminator = CondBlock->getTerminator();
-      llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
-      revng_assert(Br->isConditional());
-      llvm::Value *CondValue = Br->getCondition();
-      clang::Expr *CondExpr = ASTBuilder.getExprForValue(CondValue);
-
-      // Invert loop condition when negated.
-      if (LoopCondition->conditionNegated())
-        CondExpr = negateExpr(ASTCtx, CondExpr);
-
+      for (clang::Stmt * S : AdditionalStmts)
+        Stmts.push_back(S);
       Stmts.push_back(new (ASTCtx) DoStmt(Body, CondExpr, {}, {}, {}));
     } else if (LoopBody->isWhile()) {
-
-      SmallVector<clang::Stmt*, 32> AdditionalStmts;
 
       // This shold retrieve the if which generates the condition of the loop
       // by accesing a dedicated field in the ScsNode.
       IfNode *LoopCondition = LoopBody->getRelatedCondition();
-      llvm::BasicBlock *CondBlock = LoopCondition->getUniqueCondBlock();
-
-      // Emission of the code that computes the condition.
-      // TODO: Where do this go in a while loop??? before the loop and as
-      //       additional statements at the end of each iteration..
-      auto End = ASTBuilder.InstrStmts.end();
-      for (llvm::Instruction &Instr : *CondBlock) {
-        auto It = ASTBuilder.InstrStmts.find(&Instr);
-        if (It != End) {
-          revng_assert(It->second != nullptr);
-          Stmts.push_back(It->second);
-          AdditionalStmts.push_back(It->second);
-        }
-      }
-
+      clang::Expr *CondExpr = createCondExpr(LoopCondition->getCondExpr(),
+                                             ASTCtx, Stmts, ASTBuilder);
       clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(), ASTCtx,
-                                             ASTBuilder, AdditionalStmts);
-
-      llvm::Instruction *CondTerminator = CondBlock->getTerminator();
-      llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
-      revng_assert(Br->isConditional());
-      llvm::Value *CondValue = Br->getCondition();
-      clang::Expr *CondExpr = ASTBuilder.getExprForValue(CondValue);
-
-      // Invert loop condition when negated.
-      if (LoopCondition->conditionNegated())
-        CondExpr = negateExpr(ASTCtx, CondExpr);
-
+                                             ASTBuilder, {});
       Stmts.push_back(new (ASTCtx)
                         WhileStmt(ASTCtx, nullptr, CondExpr, Body, {}));
     } else {
@@ -229,7 +251,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                                      {});
 
       Stmts.push_back(new (ASTCtx)
-                        WhileStmt(ASTCtx, nullptr, TrueCond, Body, {}));
+                      WhileStmt(ASTCtx, nullptr, TrueCond, Body, {}));
     }
     break;
   }
@@ -239,6 +261,28 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       buildAndAppendSmts(Stmts, Child, ASTCtx, ASTBuilder);
     break;
   }
+  case ASTNode::NodeKind::NK_Switch: {
+    SwitchNode *Switch = cast<SwitchNode>(N);
+    llvm::Value *CondVal = Switch->getCondition();
+    clang::Expr *CondExpr = ASTBuilder.getExprForValue(CondVal);
+    clang::SwitchStmt *SwitchStatement = new (ASTCtx) SwitchStmt(ASTCtx,
+                                                                 nullptr,
+                                                                 nullptr,
+                                                                 CondExpr);
+    for (auto &Pair : Switch->cases()) {
+      llvm::ConstantInt *CaseVal = Pair.first;
+      ASTNode *CaseNode = Pair.second;
+      clang::Expr *CaseExpr = ASTBuilder.getExprForValue(CaseVal);
+      clang::CaseStmt *Case = new (ASTCtx) CaseStmt(CaseExpr, nullptr,
+                                                    {}, {}, {});
+      clang::Stmt *CaseBody = buildCompoundScope(CaseNode, ASTCtx, ASTBuilder);
+      Case->setSubStmt(CaseBody);
+      SwitchStatement->addSwitchCase(Case);
+    }
+    Stmts.push_back(SwitchStatement);
+  } break;
+  case ASTNode::NodeKind::NK_Set:
+  case ASTNode::NodeKind::NK_IfCheck:
   default:
     revng_abort();
   }

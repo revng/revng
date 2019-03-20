@@ -65,31 +65,30 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
   }
 }
 
-static bool requireNoStatement(IfNode *If,
-                               MarkForSerialization::Analysis &Mark) {
+using Marker = MarkForSerialization::Analysis;
 
+static bool requiresNoStatement(IfNode *If, Marker &Mark) {
   // Compute how many statement we need to serialize for the basicblock
   // associated with the internal `IfNode`.
   ExprNode *ExprBB = If->getCondExpr();
   if (auto *Atomic = llvm::dyn_cast<AtomicNode>(ExprBB)) {
-    llvm::BasicBlock *BB = Atomic->getConditionBasicBlock();
+    llvm::BasicBlock *BB = Atomic->getConditionalBasicBlock();
     if (Mark.getToSerialize(BB).size() == 0) {
       return true;
     }
   }
-
   return false;
 }
 
 // Helper function to simplify short-circuit IFs
-static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
+static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
 
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
-      simplifyShortCircuit(Node, AST);
+      simplifyShortCircuit(Node, AST, Mark);
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    simplifyShortCircuit(Scs->getBody(), AST);
+    simplifyShortCircuit(Scs->getBody(), AST, Mark);
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (If->hasBothBranches()) {
 
@@ -99,7 +98,7 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
         if (InternalIf->getThen() != nullptr) {
 
           if (If->getElse()->isEqual(InternalIf->getThen())
-              and requireNoStatement(InternalIf, Mark)) {
+              and requiresNoStatement(InternalIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -109,7 +108,6 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
               BeautifyLogger << If->getElse()->getName() << " and ";
               BeautifyLogger << InternalIf->getThen()->getName() << "\n";
             }
-
             If->setThen(InternalIf->getElse());
             If->setElse(InternalIf->getThen());
 
@@ -125,13 +123,13 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
             If->replaceCondExpr(AAndNotBNode);
 
             // Recursive call.
-            simplifyShortCircuit(If, AST);
+            simplifyShortCircuit(If, AST, Mark);
           }
         }
 
         if (InternalIf->getElse() != nullptr) {
-          if (If->getElse()->isEqual(InternalIf->getElse()),
-              and requireNoStatement(InternalIf, Mark)) {
+          if (If->getElse()->isEqual(InternalIf->getElse())
+              and requiresNoStatement(InternalIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -141,7 +139,6 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
               BeautifyLogger << If->getElse()->getName() << " and ";
               BeautifyLogger << InternalIf->getElse()->getName() << "\n";
             }
-
             If->setThen(InternalIf->getThen());
             If->setElse(InternalIf->getElse());
 
@@ -153,8 +150,7 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
 
             If->replaceCondExpr(AAndBNode);
 
-            // Recursive call.
-            simplifyShortCircuit(If, AST);
+            simplifyShortCircuit(If, AST, Mark);
           }
         }
       }
@@ -164,7 +160,7 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
         // TODO: Refactor this with some kind of iterator
         if (InternalIf->getThen() != nullptr) {
           if (If->getThen()->isEqual(InternalIf->getThen())
-              and requireNoStatement(InternalIf, Mark)) {
+              and requiresNoStatement(InternalIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -174,7 +170,6 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
               BeautifyLogger << If->getThen()->getName() << " and ";
               BeautifyLogger << InternalIf->getThen()->getName() << "\n";
             }
-
             If->setElse(InternalIf->getElse());
             If->setThen(InternalIf->getThen());
 
@@ -191,14 +186,13 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
               std::make_unique<AndNode>(NotANode, NotBNode);
             ExprNode *NotAAndNotBNode = AST.addCondExpr(std::move(NotAAndNotB));
 
-            // Recursive call.
-            simplifyShortCircuit(If, AST);
+            simplifyShortCircuit(If, AST, Mark);
           }
         }
 
         if (InternalIf->getElse() != nullptr) {
-          if (If->getThen()->isEqual(InternalIf->getElse()),
-              and requireNoStatement(InternalIf, Mark)) {
+          if (If->getThen()->isEqual(InternalIf->getElse())
+              and requiresNoStatement(InternalIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -208,7 +202,6 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
               BeautifyLogger << If->getThen()->getName() << " and ";
               BeautifyLogger << InternalIf->getElse()->getName() << "\n";
             }
-
             If->setElse(InternalIf->getThen());
             If->setThen(InternalIf->getElse());
 
@@ -220,8 +213,7 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
               std::make_unique<AndNode>(NotANode, InternalIf->getCondExpr());
             ExprNode *NotAAndBNode = AST.addCondExpr(std::move(NotAAndB));
 
-            // Recursive call.
-            simplifyShortCircuit(If, AST);
+            simplifyShortCircuit(If, AST, Mark);
           }
         }
       }
@@ -229,17 +221,18 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
   }
 }
 
-static void simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST) {
+static void
+simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
-      simplifyTrivialShortCircuit(Node, AST);
+      simplifyTrivialShortCircuit(Node, AST, Mark);
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    simplifyTrivialShortCircuit(Scs->getBody(), AST);
+    simplifyTrivialShortCircuit(Scs->getBody(), AST, Mark);
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (!If->hasElse()) {
       if (auto *InternalIf = llvm::dyn_cast<IfNode>(If->getThen())) {
-        if (!InternalIf->hasElse() and requireNoStatement(InternalIf, Mark)) {
+        if (!InternalIf->hasElse() and requiresNoStatement(InternalIf, Mark)) {
           if (BeautifyLogger.isEnabled()) {
             BeautifyLogger << "Candidate for trivial short-circuit reduction";
             BeautifyLogger << "found:\n";
@@ -249,7 +242,6 @@ static void simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST) {
             BeautifyLogger << If->getThen()->getName() << " and ";
             BeautifyLogger << InternalIf->getThen()->getName() << "\n";
           }
-
           If->setThen(InternalIf->getThen());
 
           // `if A and B` situation.
@@ -259,21 +251,19 @@ static void simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST) {
 
           If->replaceCondExpr(AAndBNode);
 
-          simplifyTrivialShortCircuit(RootNode, AST);
+          simplifyTrivialShortCircuit(RootNode, AST, Mark);
         }
       }
     }
 
-    if (If->hasThen()) {
-      simplifyTrivialShortCircuit(If->getThen(), AST);
-    }
-    if (If->hasElse()) {
-      simplifyTrivialShortCircuit(If->getElse(), AST);
-    }
+    if (If->hasThen())
+      simplifyTrivialShortCircuit(If->getThen(), AST, Mark);
+    if (If->hasElse())
+      simplifyTrivialShortCircuit(If->getElse(), AST, Mark);
   }
 }
 
-static unsigned getCaseConstant(ASTNode *Node) {
+static ConstantInt *getCaseConstant(ASTNode *Node) {
   llvm::BasicBlock *BB = Node->getOriginalBB();
   revng_assert(BB->size() == 2);
 
@@ -287,9 +277,7 @@ static unsigned getCaseConstant(ASTNode *Node) {
   revng_assert(Compare->getNumOperands() == 2);
 
   llvm::ConstantInt *CI = llvm::cast<llvm::ConstantInt>(Compare->getOperand(1));
-  unsigned Constant = CI->getZExtValue();
-
-  return Constant;
+  return CI;
 }
 
 static llvm::Value *getCaseValue(ASTNode *Node) {
@@ -333,17 +321,17 @@ static bool isSwitchCheck(ASTNode *Candidate) {
   return false;
 }
 
-static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
+static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
 
   // Inspect all the nodes composing a sequence node.
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *&Node : Sequence->nodes()) {
-      Node = matchSwitch(AST, Node);
+      Node = matchSwitch(AST, Node, Mark);
     }
 
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     // Inspect the body of a SCS region.
-    Scs->setBody(matchSwitch(AST, Scs->getBody()));
+    Scs->setBody(matchSwitch(AST, Scs->getBody(), Mark));
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
 
@@ -364,23 +352,25 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
         Candidates.push_back(If);
       }
 
-      std::vector<std::pair<unsigned, ASTNode *>> CandidatesCases;
+      std::vector<std::pair<ConstantInt *, ASTNode *>> CandidatesCases;
       for (IfNode *Candidate : Candidates) {
-        unsigned CaseConstant = getCaseConstant(Candidate);
+        ConstantInt *CaseConstant = getCaseConstant(Candidate);
         CandidatesCases.push_back(std::make_pair(CaseConstant,
                                                  Candidate->getThen()));
       }
 
       // Collect the last else (which will become the default case).
+      llvm::Type *SwitchType = SwitchValue->getType();
+      auto *Zero = cast<ConstantInt>(llvm::Constant::getNullValue(SwitchType));
       ASTNode *DefaultCase = Candidates.back()->getElse();
-      CandidatesCases.push_back(std::make_pair(0, DefaultCase));
+      CandidatesCases.push_back(std::make_pair(Zero, DefaultCase));
 
       // Create the switch node.
       unique_ptr<SwitchNode> Switch(new SwitchNode(SwitchValue,
                                                    CandidatesCases));
 
       // Invoke the switch matching on the switch just reconstructed.
-      matchSwitch(AST, Switch.get());
+      matchSwitch(AST, Switch.get(), Mark);
 
       // Return the new object.
       return AST.addSwitch(std::move(Switch));
@@ -389,16 +379,16 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
 
       // Analyze a standard IfNode.
       if (If->hasThen()) {
-        If->setThen(matchSwitch(AST, If->getThen()));
+        If->setThen(matchSwitch(AST, If->getThen(), Mark));
       }
       if (If->hasElse()) {
-        If->setElse(matchSwitch(AST, If->getElse()));
+        If->setElse(matchSwitch(AST, If->getElse(), Mark));
       }
     }
 
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
     for (auto &Case : Switch->cases()) {
-      Case.second = matchSwitch(AST, Case.second);
+      Case.second = matchSwitch(AST, Case.second, Mark);
     }
   }
 
@@ -668,9 +658,7 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
   }
 }
 
-void beautifyAST(Function &F,
-                 ASTTree &CombedAST,
-                 MarkForSerialization::Analysis &Mark) {
+void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
 
   ASTNode *RootNode = CombedAST.getRoot();
 
@@ -681,17 +669,17 @@ void beautifyAST(Function &F,
 
   // Simplify short-circuit nodes.
   BeautifyLogger << "Performing short-circuit simplification\n";
-  simplifyShortCircuit(RootNode, CombedAST);
+  simplifyShortCircuit(RootNode, CombedAST, Mark);
   CombedAST.dumpOnFile("ast", F.getName(), "After-short-circuit");
 
   // Simplify trivial short-circuit nodes.
   BeautifyLogger << "Performing trivial short-circuit simplification\n";
-  simplifyTrivialShortCircuit(RootNode, CombedAST);
+  simplifyTrivialShortCircuit(RootNode, CombedAST, Mark);
   CombedAST.dumpOnFile("ast", F.getName(), "After-trivial-short-circuit");
 
   // Match switch node.
   BeautifyLogger << "Performing switch nodes matching\n";
-  RootNode = matchSwitch(CombedAST, RootNode);
+  RootNode = matchSwitch(CombedAST, RootNode, Mark);
   CombedAST.dumpOnFile("ast", F.getName(), "After-switch-match");
 
   // From this point on, the beautify passes were applied on the flattened AST.
