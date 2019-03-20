@@ -51,6 +51,10 @@ public:
     return E->getKind() == NK_Not;
   }
 
+  ExprNode *getInternalNode() {
+    return Child;
+  }
+
 };
 
 class AndNode : public ExprNode {
@@ -64,6 +68,10 @@ public:
   static bool classof(const ExprNode *E) {
     return E->getKind() == NK_And;
   }
+
+  std::pair<ExprNode *, ExprNode *> getInternalNodes() {
+    return std::make_pair(LeftChild, RightChild);
+  }
 };
 
 class OrNode : public ExprNode {
@@ -76,6 +84,10 @@ public:
 
   static bool classof(const ExprNode *E) {
     return E->getKind() == NK_Or;
+  }
+
+  std::pair<ExprNode *, ExprNode *> getInternalNodes() {
+    return std::make_pair(LeftChild, RightChild);
   }
 };
 
