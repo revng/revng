@@ -65,6 +65,22 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
   }
 }
 
+static bool requireNoStatement(IfNode *If,
+                               MarkForSerialization::Analysis &Mark) {
+
+  // Compute how many statement we need to serialize for the basicblock
+  // associated with the internal `IfNode`.
+  ExprNode *ExprBB = If->getCondExpr();
+  if (auto *Atomic = llvm::dyn_cast<AtomicNode>(ExprBB)) {
+    llvm::BasicBlock *BB = Atomic->getConditionBasicBlock();
+    if (Mark.getToSerialize(BB).size() == 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // Helper function to simplify short-circuit IFs
 static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
 
@@ -81,7 +97,9 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
 
         // TODO: Refactor this with some kind of iterator
         if (InternalIf->getThen() != nullptr) {
-          if (If->getElse()->isEqual(InternalIf->getThen())) {
+
+          if (If->getElse()->isEqual(InternalIf->getThen())
+              and requireNoStatement(InternalIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -112,7 +130,8 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
         }
 
         if (InternalIf->getElse() != nullptr) {
-          if (If->getElse()->isEqual(InternalIf->getElse())) {
+          if (If->getElse()->isEqual(InternalIf->getElse()),
+              and requireNoStatement(InternalIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -144,7 +163,8 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
 
         // TODO: Refactor this with some kind of iterator
         if (InternalIf->getThen() != nullptr) {
-          if (If->getThen()->isEqual(InternalIf->getThen())) {
+          if (If->getThen()->isEqual(InternalIf->getThen())
+              and requireNoStatement(InternalIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -177,7 +197,8 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
         }
 
         if (InternalIf->getElse() != nullptr) {
-          if (If->getThen()->isEqual(InternalIf->getElse())) {
+          if (If->getThen()->isEqual(InternalIf->getElse()),
+              and requireNoStatement(InternalIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -218,7 +239,7 @@ static void simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST) {
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (!If->hasElse()) {
       if (auto *InternalIf = llvm::dyn_cast<IfNode>(If->getThen())) {
-        if (!InternalIf->hasElse()) {
+        if (!InternalIf->hasElse() and requireNoStatement(InternalIf, Mark)) {
           if (BeautifyLogger.isEnabled()) {
             BeautifyLogger << "Candidate for trivial short-circuit reduction";
             BeautifyLogger << "found:\n";
