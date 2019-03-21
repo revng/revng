@@ -81,14 +81,27 @@ static bool requiresNoStatement(IfNode *If, Marker &Mark) {
 }
 
 // Helper function to simplify short-circuit IFs
-static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
+static void simplifyShortCircuit(ASTNode *RootNode,
+                                 ASTTree &AST,
+                                 Marker &Mark) {
 
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
       simplifyShortCircuit(Node, AST, Mark);
     }
+
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     simplifyShortCircuit(Scs->getBody(), AST, Mark);
+  } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
+    for (auto &Case : Switch->cases()) {
+      simplifyShortCircuit(Case.second, AST, Mark);
+    }
+
+  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
+    for (auto &Case : SwitchCheck->cases()) {
+      simplifyShortCircuit(Case.second, AST, Mark);
+    }
+
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (If->hasBothBranches()) {
 
@@ -206,7 +219,8 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) 
             If->setThen(InternalIf->getElse());
 
             // `if not A and B` situation.
-            unique_ptr<ExprNode> NotA = std::make_unique<NotNode>(If->getCondExpr());
+            unique_ptr<ExprNode> NotA =
+              std::make_unique<NotNode>(If->getCondExpr());
             ExprNode *NotANode = AST.addCondExpr(std::move(NotA));
 
             unique_ptr<ExprNode> NotAAndB =
@@ -229,6 +243,17 @@ simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     simplifyTrivialShortCircuit(Scs->getBody(), AST, Mark);
+
+  } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
+    for (auto &Case : Switch->cases()) {
+      simplifyTrivialShortCircuit(Case.second, AST, Mark);
+    }
+
+  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
+    for (auto &Case : SwitchCheck->cases()) {
+      simplifyTrivialShortCircuit(Case.second, AST, Mark);
+    }
+
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (!If->hasElse()) {
       if (auto *InternalIf = llvm::dyn_cast<IfNode>(If->getThen())) {
@@ -246,7 +271,8 @@ simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
 
           // `if A and B` situation.
           unique_ptr<ExprNode> AAndB =
-            std::make_unique<AndNode>(If->getCondExpr(), InternalIf->getCondExpr());
+            std::make_unique<AndNode>(If->getCondExpr(),
+                                      InternalIf->getCondExpr());
           ExprNode *AAndBNode = AST.addCondExpr(std::move(AAndB));
 
           If->replaceCondExpr(AAndBNode);
@@ -390,6 +416,78 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
     for (auto &Case : Switch->cases()) {
       Case.second = matchSwitch(AST, Case.second, Mark);
     }
+  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
+    for (auto &Case : SwitchCheck->cases()) {
+      Case.second = matchSwitch(AST, Case.second, Mark);
+    }
+  }
+
+  return RootNode;
+}
+
+static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
+  // Inspect all the nodes composing a sequence node.
+  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
+    for (ASTNode *&Node : Sequence->nodes()) {
+      Node = matchDispatcher(AST, Node, Mark);
+    }
+
+  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
+    //Inspect the body of a SCS region.
+    Scs->setBody(matchDispatcher(AST, Scs->getBody(), Mark));
+
+  } else if (auto *IfCheck = llvm::dyn_cast<IfCheckNode>(RootNode)) {
+
+    // An `IfCheckNode` represents the start of a dispatcher, which we want to
+    // represent using a `SwitchCheckNode`.
+    std::vector<IfCheckNode *> Candidates;
+    Candidates.push_back(IfCheck);
+
+    // Continue to accumulate the `IfCheck` nodes until it is possible.
+    while (auto *SuccIfCheck = dyn_cast<IfCheckNode>(IfCheck->getElse())) {
+      Candidates.push_back(SuccIfCheck);
+    }
+
+    std::vector<std::pair<unsigned, ASTNode *>> CandidatesCases;
+    for (IfCheckNode *Candidate : Candidates) {
+      unsigned CaseConstant = Candidate->getCaseValue();
+      CandidatesCases.push_back(std::make_pair(CaseConstant,
+                                               Candidate->getThen()));
+    }
+
+    // Collect the last else (which will become the default case).
+    unsigned Zero = 0;
+    ASTNode *DefaultCase = Candidates.back()->getElse();
+    CandidatesCases.push_back(std::make_pair(Zero, DefaultCase));
+
+    // Create the `SwitchCheckNode`.
+    unique_ptr<SwitchCheckNode> Switch(new SwitchCheckNode(CandidatesCases));
+
+    // Invoke the dispatcher matching on the switch just reconstructed.
+    matchDispatcher(AST, Switch.get(), Mark);
+
+    // Return the new object.
+    return AST.addSwitchCheck(std::move(Switch));
+
+  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
+
+    // Analyze a standard `IfNode`.
+    if (If->hasThen()) {
+      If->setThen(matchDispatcher(AST, If->getThen(), Mark));
+    }
+    if (If->hasElse()) {
+      If->setElse(matchDispatcher(AST, If->getElse(), Mark));
+    }
+
+  } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
+    for (auto &Case : Switch->cases()) {
+      Case.second = matchDispatcher(AST, Case.second, Mark);
+    }
+
+  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
+    for (auto &Case : SwitchCheck->cases()) {
+      Case.second = matchDispatcher(AST, Case.second, Mark);
+    }
   }
 
   return RootNode;
@@ -497,6 +595,17 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
     if (If->hasElse()) {
       matchDoWhile(If->getElse(), AST);
     }
+
+  } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
+    for (auto &Case : Switch->cases()) {
+      matchDoWhile(Case.second, AST);
+    }
+
+  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
+    for (auto &Case : SwitchCheck->cases()) {
+      matchDoWhile(Case.second, AST);
+    }
+
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     ASTNode *Body = Scs->getBody();
 
@@ -529,7 +638,8 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
           Scs->setDoWhile(If);
 
           // Invert the conditional expression of the current `IfNode`.
-          unique_ptr<ExprNode> Not = std::make_unique<NotNode>(If->getCondExpr());
+          unique_ptr<ExprNode> Not =
+            std::make_unique<NotNode>(If->getCondExpr());
           ExprNode *NotNode = AST.addCondExpr(std::move(Not));
           If->replaceCondExpr(NotNode);
 
@@ -570,6 +680,15 @@ static void addComputationToContinue(ASTNode *RootNode, IfNode *ConditionIf) {
     if (If->hasElse()) {
       addComputationToContinue(If->getElse(), ConditionIf);
     }
+  } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
+    for (auto &Case : Switch->cases()) {
+      addComputationToContinue(Case.second, ConditionIf);
+    }
+
+  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
+    for (auto &Case : SwitchCheck->cases()) {
+      addComputationToContinue(Case.second, ConditionIf);
+    }
   } else if (auto *Continue = llvm::dyn_cast<ContinueNode>(RootNode)) {
     Continue->addComputationIfNode(ConditionIf);
   }
@@ -589,6 +708,17 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
     if (If->hasElse()) {
       matchWhile(If->getElse(), AST);
     }
+
+  } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
+    for (auto &Case : Switch->cases()) {
+      matchWhile(Case.second, AST);
+    }
+
+  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
+    for (auto &Case : SwitchCheck->cases()) {
+      matchWhile(Case.second, AST);
+    }
+
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     ASTNode *Body = Scs->getBody();
 
@@ -625,7 +755,8 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
           Scs->setWhile(If);
 
           // Invert the conditional expression of the current `IfNode`.
-          unique_ptr<ExprNode> Not = std::make_unique<NotNode>(If->getCondExpr());
+          unique_ptr<ExprNode> Not =
+            std::make_unique<NotNode>(If->getCondExpr());
           ExprNode *NotNode = AST.addCondExpr(std::move(Not));
           If->replaceCondExpr(NotNode);
 
@@ -666,6 +797,11 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
   BeautifyLogger << "Performing IFs with empty then branches flipping\n";
   flipEmptyThen(RootNode, CombedAST);
   CombedAST.dumpOnFile("ast", F.getName(), "After-if-flip");
+
+  // Match switch node.
+  BeautifyLogger << "Performing dispatcher nodes matching\n";
+  RootNode = matchDispatcher(CombedAST, RootNode, Mark);
+  CombedAST.dumpOnFile("ast", F.getName(), "After-dispatcher-match");
 
   // Simplify short-circuit nodes.
   BeautifyLogger << "Performing short-circuit simplification\n";

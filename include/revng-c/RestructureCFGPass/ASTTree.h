@@ -67,6 +67,8 @@ public:
 
   SwitchNode *addSwitch(std::unique_ptr<ASTNode> ASTObject);
 
+  SwitchCheckNode *addSwitchCheck(std::unique_ptr<ASTNode> ASTObject);
+
   ASTNode *findASTNode(BasicBlockNode *BlockNode);
 
   BasicBlockNode *findCFGNode(ASTNode *Node);

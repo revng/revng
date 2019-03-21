@@ -13,6 +13,7 @@
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 
+using namespace llvm;
 using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
 using ExprNodeMap = std::map<ExprNode *, ExprNode *>;
 
@@ -46,6 +47,15 @@ void ASTTree::addASTNode(BasicBlockNode *Node,
   ASTNode->setID(getNewID());
 
   auto InsertResult = NodeASTMap.insert(std::make_pair(Node, ASTNode));
+}
+
+SwitchCheckNode *ASTTree::addSwitchCheck(std::unique_ptr<ASTNode> ASTObject) {
+  ASTNodeList.emplace_back(std::move(ASTObject));
+
+  // Set the Node ID
+  ASTNodeList.back()->setID(getNewID());
+
+  return llvm::cast<SwitchCheckNode>(ASTNodeList.back().get());
 }
 
 SwitchNode *ASTTree::addSwitch(std::unique_ptr<ASTNode> ASTObject) {
@@ -110,7 +120,7 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
 
   // Clone the conditional expression nodes.
   for (std::unique_ptr<ExprNode> &OldExpr : OldAST.expressions()) {
-    CondExprList.emplace_back(new AtomicNode(*llvm::cast<AtomicNode>(OldExpr.get())));
+    CondExprList.emplace_back(new AtomicNode(*cast<AtomicNode>(OldExpr.get())));
     ExprNode *NewExpr = CondExprList.back().get();
     CondExprMap[OldExpr.get()] = NewExpr;
 

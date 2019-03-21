@@ -323,3 +323,58 @@ void IfCheckNode::dump(std::ofstream &ASTFile) {
     this->getElse()->dump(ASTFile);
   }
 }
+
+void SwitchCheckNode::dump(std::ofstream &ASTFile) {
+  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "label=\"" << this->getName();
+  ASTFile << "\"";
+  ASTFile << ",shape=\"hexagon\",color=\"black\"];\n";
+
+  int CaseIndex = 0;
+  for (auto Case : this->cases()) {
+    uint64_t CaseVal = Case.first;
+    ASTFile << "\"" << this->getName() << "\""
+            << " -> \"" << Case.second->getName() << "\""
+            << " [color=green,label=\"case " << CaseVal << "\"];\n";
+    Case.second->dump(ASTFile);
+    CaseIndex += 1;
+  }
+}
+
+bool SwitchCheckNode::isEqual(ASTNode *Node) {
+  if (auto *OtherSwitch = dyn_cast<SwitchCheckNode>(Node)) {
+    bool ComparisonState = true;
+    int FirstDimension = CaseList.size();
+    int SecondDimension = OtherSwitch->CaseSize();
+    if (FirstDimension != SecondDimension) {
+      ComparisonState = false;
+    }
+
+    // Continue the comparison only if the sequence node size are the same
+    if (ComparisonState) {
+      revng_assert(FirstDimension == SecondDimension);
+      for (int I = 0; I < FirstDimension; I++) {
+        ASTNode *FirstNode = getCaseN(I);
+        ASTNode *SecondNode = OtherSwitch->getCaseN(I);
+
+        // As soon as two nodes does not match, exit and make the comparison
+        // fail
+        if (!FirstNode->isEqual(SecondNode)) {
+          ComparisonState = false;
+          break;
+        }
+      }
+    }
+
+    return ComparisonState;
+  } else {
+    return false;
+  }
+}
+
+void SwitchCheckNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
+  // Update all the case pointers.
+  for (auto &Case : CaseList) {
+    Case.second = SubstitutionMap.at(Case.second);
+  }
+}

@@ -37,6 +37,7 @@ public:
                   NK_Scs,
                   NK_List,
                   NK_Switch,
+                  NK_SwitchCheck,
                   NK_Set };
 
   using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
@@ -353,7 +354,8 @@ public:
 class SwitchNode : public ASTNode {
 
 public:
-  using links_container = std::vector<std::pair<llvm::ConstantInt *, ASTNode *>>;
+  using links_container = std::vector<std::pair<llvm::ConstantInt *,
+                                                ASTNode *>>;
   using links_iterator = typename links_container::iterator;
   using links_range = llvm::iterator_range<links_iterator>;
 
@@ -363,7 +365,8 @@ private:
 
 public:
   SwitchNode(llvm::Value *Condition,
-             std::vector<std::pair<llvm::ConstantInt *, ASTNode *>> &Cases) :
+             std::vector<std::pair<llvm::ConstantInt *, ASTNode *>> &Cases,
+             NodeKind Kind = NK_Switch) :
     ASTNode(NK_Switch, "SwitchNode"), SwitchCondition(Condition) {
       for(auto &Case : Cases) {
         CaseList.push_back(Case);
@@ -371,7 +374,9 @@ public:
     }
 
 public:
-  static bool classof(const ASTNode *N) { return N->getKind() == NK_Switch; }
+  static bool classof(const ASTNode *N) {
+    return N->getKind() == NK_Switch;
+  }
 
   links_range cases() {
     return llvm::make_range(CaseList.begin(), CaseList.end());
@@ -443,6 +448,47 @@ public:
 
   unsigned getCaseValue() { return StateVariableValue; }
 
+};
+
+class SwitchCheckNode : public ASTNode {
+
+public:
+  using links_container = std::vector<std::pair<unsigned, ASTNode *>>;
+  using links_iterator = typename links_container::iterator;
+  using links_range = llvm::iterator_range<links_iterator>;
+
+private:
+  links_container CaseList;
+
+public:
+  SwitchCheckNode(std::vector<std::pair<unsigned,
+                                        ASTNode  *>> &Cases) :
+    ASTNode(NK_SwitchCheck, "SwitchCheckNode") {
+      for (auto &Case : Cases) {
+        CaseList.push_back(Case);
+      }
+    }
+
+public:
+  static bool classof(const ASTNode *N) {
+   return N->getKind() == NK_SwitchCheck;
+  }
+
+  links_range cases() {
+    return llvm::make_range(CaseList.begin(), CaseList.end());
+  }
+
+  int CaseSize() { return CaseList.size(); }
+
+  ASTNode *getCaseN(int N) { return CaseList[N].second; }
+
+  bool isEqual(ASTNode *Node);
+
+  void dump(std::ofstream &ASTFile);
+
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+
+  ASTNode *Clone() { return new SwitchCheckNode(*this); }
 };
 
 #endif // define REVNGC_RESTRUCTURE_CFG_ASTNODE_H
