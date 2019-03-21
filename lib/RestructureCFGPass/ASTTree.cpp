@@ -110,7 +110,7 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
 
   // Clone the conditional expression nodes.
   for (std::unique_ptr<ExprNode> &OldExpr : OldAST.expressions()) {
-    CondExprList.emplace_back(std::move(llvm::cast<AtomicNode>(OldExpr.get())));
+    CondExprList.emplace_back(new AtomicNode(*llvm::cast<AtomicNode>(OldExpr.get())));
     ExprNode *NewExpr = CondExprList.back().get();
     CondExprMap[OldExpr.get()] = NewExpr;
 
