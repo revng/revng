@@ -1,13 +1,22 @@
+// LLVM includes
 #include <llvm/ADT/SmallSet.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/Module.h>
 
+// clang includes
+#include <clang/AST/ASTContext.h>
+#include <clang/AST/Expr.h>
+#include <clang/AST/Stmt.h>
+
+// revng includes
 #include <revng/Support/IRHelpers.h>
 
+// local includes
 #include "DecompilationHelpers.h"
 
 using namespace llvm;
+using namespace clang;
 
 static bool isInAnyFunction(Instruction *I, const std::set<Function *> &Funcs) {
   return Funcs.count(I->getFunction()) != 0;
@@ -43,7 +52,7 @@ isUsedInFunction(ConstantExpr *CE, const Function &F) {
 
 std::set<GlobalVariable *> getDirectlyUsedGlobals(Function &F) {
   std::set<GlobalVariable *> Results;
-  Module *M =  F.getParent();
+  llvm::Module *M =  F.getParent();
   for (GlobalVariable &G : M->globals()) {
     for (User *U : G.users()) {
       if (auto *I = dyn_cast<Instruction>(U)) {
@@ -72,4 +81,49 @@ std::set<Function *> getDirectlyCalledFunctions(Function &F) {
         if (Function *Callee = getCallee(Call))
           Results.insert(Callee);
   return Results;
+}
+
+clang::CStyleCastExpr *
+createCast(QualType LHSQualTy, Expr *RHS, ASTContext &ASTCtx) {
+  QualType RHSQualTy = RHS->getType();
+  const clang::Type *LHSTy = LHSQualTy.getTypePtr();
+  const clang::Type *RHSTy = RHSQualTy.getTypePtr();
+
+  CastKind CK;
+  if (LHSTy->isIntegerType()) {
+    if (RHSTy->isIntegerType()) {
+      CK = CastKind::CK_IntegralCast;
+    } else if (RHSTy->isPointerType()) {
+      CK = CastKind::CK_PointerToIntegral;
+    } else {
+      revng_abort();
+    }
+  } else if (LHSTy->isPointerType()) {
+    if (RHSTy->isIntegerType()) {
+
+      uint64_t PtrSize = ASTCtx.getTypeSize(LHSQualTy);
+      uint64_t IntegerSize = ASTCtx.getTypeSize(RHSQualTy);
+      revng_assert(PtrSize >= IntegerSize);
+      if (PtrSize > IntegerSize)
+        RHS = createCast(ASTCtx.getUIntPtrType(), RHS, ASTCtx);
+
+      CK = CastKind::CK_IntegralToPointer;
+    } else if (RHSTy->isPointerType()) {
+      CK = CastKind::CK_BitCast;
+    } else {
+      revng_abort();
+    }
+  } else {
+    revng_abort();
+  }
+  TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(LHSQualTy);
+  return CStyleCastExpr::Create(ASTCtx,
+                                LHSQualTy,
+                                VK_RValue,
+                                CK,
+                                RHS,
+                                nullptr,
+                                TI,
+                                {},
+                                {});
 }

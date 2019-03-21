@@ -18,10 +18,12 @@
 // revng includes
 #include <revng/Support/IRHelpers.h>
 
-#include "ASTBuildAnalysis.h"
-
+// local includes
+#include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
 #include "Mangling.h"
+
+#include "ASTBuildAnalysis.h"
 
 static Logger<> ASTBuildLog("ast-builder");
 
@@ -43,51 +45,6 @@ Expr *StmtBuilder::getParenthesizedExprForValue(Value *V) {
   if (isa<clang::BinaryOperator>(Res) or isa<ConditionalOperator>(Res))
     Res = new (ASTCtx) ParenExpr({}, {}, Res);
   return Res;
-}
-
-static CStyleCastExpr *
-createCast(QualType LHSQualTy, Expr *RHS, ASTContext &ASTCtx) {
-  QualType RHSQualTy = RHS->getType();
-  const ClangType *LHSTy = LHSQualTy.getTypePtr();
-  const ClangType *RHSTy = RHSQualTy.getTypePtr();
-
-  CastKind CK;
-  if (LHSTy->isIntegerType()) {
-    if (RHSTy->isIntegerType()) {
-      CK = CastKind::CK_IntegralCast;
-    } else if (RHSTy->isPointerType()) {
-      CK = CastKind::CK_PointerToIntegral;
-    } else {
-      revng_abort();
-    }
-  } else if (LHSTy->isPointerType()) {
-    if (RHSTy->isIntegerType()) {
-
-      uint64_t PtrSize = ASTCtx.getTypeSize(LHSQualTy);
-      uint64_t IntegerSize = ASTCtx.getTypeSize(RHSQualTy);
-      revng_assert(PtrSize >= IntegerSize);
-      if (PtrSize > IntegerSize)
-        RHS = createCast(ASTCtx.getUIntPtrType(), RHS, ASTCtx);
-
-      CK = CastKind::CK_IntegralToPointer;
-    } else if (RHSTy->isPointerType()) {
-      CK = CastKind::CK_BitCast;
-    } else {
-      revng_abort();
-    }
-  } else {
-    revng_abort();
-  }
-  TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(LHSQualTy);
-  return CStyleCastExpr::Create(ASTCtx,
-                                LHSQualTy,
-                                VK_RValue,
-                                CK,
-                                RHS,
-                                nullptr,
-                                TI,
-                                {},
-                                {});
 }
 
 Stmt *StmtBuilder::buildStmt(Instruction &I) {

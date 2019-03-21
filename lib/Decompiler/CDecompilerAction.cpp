@@ -23,6 +23,7 @@
 // local includes
 #include "ASTBuildAnalysis.h"
 #include "CDecompilerBeautify.h"
+#include "DecompilationHelpers.h"
 #include "FuncDeclCreationAction.h"
 #include "GlobalDeclCreationAction.h"
 #include "IRASTTypeTranslation.h"
@@ -39,15 +40,17 @@ using FunctionsMap = FuncDeclCreationAction::FunctionsMap;
 static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                ASTNode *N,
                                clang::ASTContext &ASTCtx,
-                               IR2AST::StmtBuilder &ASTBuilder);
+                               IR2AST::StmtBuilder &ASTBuilder,
+                               MarkForSerialization::Analysis &Mark);
 
 static clang::CompoundStmt *
 buildCompoundScope(ASTNode *N,
                    clang::ASTContext &ASTCtx,
                    IR2AST::StmtBuilder &ASTBuilder,
+                   MarkForSerialization::Analysis &Mark,
                    SmallVector<clang::Stmt*, 32> AdditionalStmts = {}) {
   SmallVector<clang::Stmt *, 32> Stmts;
-  buildAndAppendSmts(Stmts, N, ASTCtx, ASTBuilder);
+  buildAndAppendSmts(Stmts, N, ASTCtx, ASTBuilder, Mark);
 
   // Add additional statement to handle while e dowhile condition computation.
   Stmts.append(AdditionalStmts.begin(), AdditionalStmts.end());
@@ -71,7 +74,8 @@ static clang::Expr *negateExpr(clang::ASTContext &ASTCtx, clang::Expr *E) {
 static clang::Expr *createCondExpr(ExprNode *E,
                                    clang::ASTContext &ASTCtx,
                                    SmallVectorImpl<clang::Stmt *> &Stmts,
-                                   IR2AST::StmtBuilder &ASTBuilder) {
+                                   IR2AST::StmtBuilder &ASTBuilder,
+                                   MarkForSerialization::Analysis &Mark) {
   struct StackElement {
     ExprNode *Node;
     llvm::SmallVector<clang::Expr *, 2> ResolvedOperands;
@@ -90,12 +94,37 @@ static clang::Expr *createCondExpr(ExprNode *E,
       AtomicNode *Atomic = cast<AtomicNode>(Current.Node);
       llvm::BasicBlock *BB = Atomic->getConditionalBasicBlock();
 
-      auto End = ASTBuilder.InstrStmts.end();
+      auto StmtEnd = ASTBuilder.InstrStmts.end();
+      auto VDeclEnd = ASTBuilder.VarDecls.end();
+      const std::set<llvm::Instruction *> &Serialized = Mark.getToSerialize(BB);
       for (llvm::Instruction &Instr : *BB) {
-        auto It = ASTBuilder.InstrStmts.find(&Instr);
-        if (It != End) {
+        if (Serialized.count(&Instr) == 0)
+          continue;
+        auto StmtIt = ASTBuilder.InstrStmts.find(&Instr);
+        if (StmtIt != StmtEnd) {
           revng_assert(not FoundBasicBlock);
-          Stmts.push_back(It->second);
+          clang::Stmt *EmittedStmt = nullptr;
+          auto VarDeclIt = ASTBuilder.VarDecls.find(&Instr);
+          if (VarDeclIt != VDeclEnd) {
+            clang::VarDecl *VDecl = VarDeclIt->second;
+            QualType VarType = VDecl->getType();
+            clang::Expr *LHS = new (ASTCtx) DeclRefExpr(VDecl, false, VarType, VK_LValue, {});
+            clang::Expr *RHS = cast<clang::Expr>(StmtIt->second);
+            if (RHS->getType() != VarType) {
+              if (isa<clang::BinaryOperator>(RHS))
+                RHS = new (ASTCtx) ParenExpr({}, {}, RHS);
+              RHS = createCast(VarType, RHS, ASTCtx);
+            }
+            BinaryOperatorKind AssignKind = BinaryOperatorKind::BO_Assign;
+            EmittedStmt = new (ASTCtx) clang::BinaryOperator(LHS, RHS,
+                                                             BO_Assign, VarType,
+                                                             VK_RValue,
+                                                             OK_Ordinary, {},
+                                                             FPOptions());
+          } else {
+            EmittedStmt = StmtIt->second;
+          }
+          Stmts.push_back(EmittedStmt);
         }
       }
       FoundBasicBlock = true;
@@ -137,13 +166,9 @@ static clang::Expr *createCondExpr(ExprNode *E,
         clang::Expr *LHS = Current.ResolvedOperands[0];
         clang::Expr *RHS = Current.ResolvedOperands[1];
         clang::Expr *BinExpr = new (ASTCtx)
-                               clang::BinaryOperator(LHS,
-                                                     RHS,
-                                                     BinOpKind,
-                                                     LHS->getType(),
-                                                     VK_RValue,
-                                                     OK_Ordinary,
-                                                     {},
+                               clang::BinaryOperator(LHS, RHS, BinOpKind,
+                                                     LHS->getType(), VK_RValue,
+                                                     OK_Ordinary, {},
                                                      FPOptions());
         VisitStack.pop_back();
         VisitStack.back().ResolvedOperands.push_back(BinExpr);
@@ -161,7 +186,8 @@ static clang::Expr *createCondExpr(ExprNode *E,
 static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                ASTNode *N,
                                clang::ASTContext &ASTCtx,
-                               IR2AST::StmtBuilder &ASTBuilder) {
+                               IR2AST::StmtBuilder &ASTBuilder,
+                               MarkForSerialization::Analysis &Mark) {
 
   if (N == nullptr)
     return;
@@ -175,7 +201,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     // Print the condition computation code of the if statement.
     if (Continue->hasComputation()) {
       IfNode *ComputationIfNode = Continue->getComputationIfNode();
-      createCondExpr(ComputationIfNode->getCondExpr(), ASTCtx, Stmts, ASTBuilder);
+      createCondExpr(ComputationIfNode->getCondExpr(), ASTCtx, Stmts, ASTBuilder, Mark);
     }
     Stmts.push_back(new (ASTCtx) clang::ContinueStmt(SourceLocation{}));
     break;
@@ -184,20 +210,45 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     CodeNode *Code = cast<CodeNode>(N);
     llvm::BasicBlock *BB = Code->getOriginalBB();
     revng_assert(BB != nullptr);
-    auto End = ASTBuilder.InstrStmts.end();
+    auto StmtEnd = ASTBuilder.InstrStmts.end();
+    auto VDeclEnd = ASTBuilder.VarDecls.end();
+    const std::set<llvm::Instruction *> &Serialized = Mark.getToSerialize(BB);
     for (llvm::Instruction &Instr : *BB) {
-      auto It = ASTBuilder.InstrStmts.find(&Instr);
-      if (It != End)
-        Stmts.push_back(It->second);
+      if (Serialized.count(&Instr) == 0)
+        continue;
+      auto StmtIt = ASTBuilder.InstrStmts.find(&Instr);
+      if (StmtIt != StmtEnd) {
+        clang::Stmt *EmittedStmt = nullptr;
+        auto VarDeclIt = ASTBuilder.VarDecls.find(&Instr);
+        if (VarDeclIt != VDeclEnd) {
+          clang::VarDecl *VDecl = VarDeclIt->second;
+          QualType VarType = VDecl->getType();
+          clang::Expr *LHS = new (ASTCtx) DeclRefExpr(VDecl, false, VarType, VK_LValue, {});
+          clang::Expr *RHS = cast<clang::Expr>(StmtIt->second);
+          if (RHS->getType() != VarType) {
+            if (isa<clang::BinaryOperator>(RHS))
+              RHS = new (ASTCtx) ParenExpr({}, {}, RHS);
+            RHS = createCast(VarType, RHS, ASTCtx);
+          }
+          BinaryOperatorKind AssignKind = BinaryOperatorKind::BO_Assign;
+          EmittedStmt = new (ASTCtx) clang::BinaryOperator(LHS, RHS, BO_Assign,
+                                                           VarType, VK_RValue,
+                                                           OK_Ordinary, {},
+                                                           FPOptions());
+        } else {
+          EmittedStmt = StmtIt->second;
+        }
+        Stmts.push_back(EmittedStmt);
+      }
     }
     break;
   }
   case ASTNode::NodeKind::NK_If: {
     IfNode *If = cast<IfNode>(N);
-    clang::Expr *CondExpr = createCondExpr(If->getCondExpr(), ASTCtx, Stmts, ASTBuilder);
+    clang::Expr *CondExpr = createCondExpr(If->getCondExpr(), ASTCtx, Stmts, ASTBuilder, Mark);
     revng_assert(CondExpr != nullptr);
-    clang::Stmt *ThenScope = buildCompoundScope(If->getThen(), ASTCtx, ASTBuilder);
-    clang::Stmt *ElseScope = buildCompoundScope(If->getElse(), ASTCtx, ASTBuilder);
+    clang::Stmt *ThenScope = buildCompoundScope(If->getThen(), ASTCtx, ASTBuilder, Mark);
+    clang::Stmt *ElseScope = buildCompoundScope(If->getElse(), ASTCtx, ASTBuilder, Mark);
     Stmts.push_back(new (ASTCtx) IfStmt(ASTCtx,
                                         {},
                                         false,
@@ -219,10 +270,10 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       // by accesing a dedicated field in the ScsNode.
       IfNode *LoopCondition = LoopBody->getRelatedCondition();
       clang::Expr *CondExpr = createCondExpr(LoopCondition->getCondExpr(),
-                                             ASTCtx, AdditionalStmts, ASTBuilder);
+                                             ASTCtx, AdditionalStmts, ASTBuilder, Mark);
 
       clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(), ASTCtx,
-                                             ASTBuilder, AdditionalStmts);
+                                             ASTBuilder, Mark, AdditionalStmts);
 
       for (clang::Stmt * S : AdditionalStmts)
         Stmts.push_back(S);
@@ -233,16 +284,16 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       // by accesing a dedicated field in the ScsNode.
       IfNode *LoopCondition = LoopBody->getRelatedCondition();
       clang::Expr *CondExpr = createCondExpr(LoopCondition->getCondExpr(),
-                                             ASTCtx, Stmts, ASTBuilder);
+                                             ASTCtx, Stmts, ASTBuilder, Mark);
       clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(), ASTCtx,
-                                             ASTBuilder, {});
+                                             ASTBuilder, Mark, {});
       Stmts.push_back(new (ASTCtx)
                         WhileStmt(ASTCtx, nullptr, CondExpr, Body, {}));
     } else {
 
       // Standard case.
-      clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(),
-                                             ASTCtx, ASTBuilder);
+      clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(), ASTCtx,
+                                             ASTBuilder, Mark);
       QualType UInt = ASTCtx.UnsignedIntTy;
       uint64_t UIntSize = ASTCtx.getTypeSize(UInt);
       clang::Expr *TrueCond = IntegerLiteral::Create(ASTCtx,
@@ -258,7 +309,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
   case ASTNode::NodeKind::NK_List: {
     SequenceNode *Seq = cast<SequenceNode>(N);
     for (ASTNode *Child : Seq->nodes())
-      buildAndAppendSmts(Stmts, Child, ASTCtx, ASTBuilder);
+      buildAndAppendSmts(Stmts, Child, ASTCtx, ASTBuilder, Mark);
     break;
   }
   case ASTNode::NodeKind::NK_Switch: {
@@ -276,7 +327,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       clang::Expr *CaseExpr = ASTBuilder.getExprForValue(CaseVal);
       clang::CaseStmt *Case = new (ASTCtx) CaseStmt(CaseExpr, nullptr,
                                                     {}, {}, {});
-      clang::Stmt *CaseBody = buildCompoundScope(CaseNode, ASTCtx, ASTBuilder);
+      clang::Stmt *CaseBody = buildCompoundScope(CaseNode, ASTCtx, ASTBuilder,
+                                                 Mark);
       Case->setSubStmt(CaseBody);
       BodyStmts.push_back(Case);
       BodyStmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
@@ -295,7 +347,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
 
 static void buildFunctionBody(FunctionsMap::value_type &FPair,
                               ASTTree &CombedAST,
-                              IR2AST::StmtBuilder &ASTBuilder) {
+                              IR2AST::StmtBuilder &ASTBuilder,
+                              MarkForSerialization::Analysis &Mark) {
   llvm::Function &F = *FPair.first;
   clang::FunctionDecl *FDecl = FPair.second;
   ASTContext &ASTCtx = FDecl->getASTContext();
@@ -306,7 +359,7 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
     LocalVarDecls.push_back(DeclPair.second);
 
   SmallVector<clang::Stmt *, 32> BodyStmts;
-  buildAndAppendSmts(BodyStmts, CombedAST.getRoot(), ASTCtx, ASTBuilder);
+  buildAndAppendSmts(BodyStmts, CombedAST.getRoot(), ASTCtx, ASTBuilder, Mark);
 
   unsigned NumLocalVars = LocalVarDecls.size();
   unsigned NumStmtsInBody = BodyStmts.size() + NumLocalVars;
@@ -395,7 +448,7 @@ public:
     ASTBuilder.createAST();
     // auto &&ASTInfo = IR2ASTBuildAnalysis.extractASTInfo();
 
-    buildFunctionBody(*It, CombedAST, ASTBuilder);
+    buildFunctionBody(*It, CombedAST, ASTBuilder, Mark);
 
     // ConsumerPtr Dumper = CreateASTDumper(nullptr, "", true, false, false);
     // Dumper->HandleTranslationUnit(Context);
