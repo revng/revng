@@ -269,6 +269,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                                                  nullptr,
                                                                  nullptr,
                                                                  CondExpr);
+    SmallVector<clang::Stmt *, 8> BodyStmts;
     for (auto &Pair : Switch->cases()) {
       llvm::ConstantInt *CaseVal = Pair.first;
       ASTNode *CaseNode = Pair.second;
@@ -277,8 +278,12 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                                     {}, {}, {});
       clang::Stmt *CaseBody = buildCompoundScope(CaseNode, ASTCtx, ASTBuilder);
       Case->setSubStmt(CaseBody);
+      BodyStmts.push_back(Case);
+      BodyStmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
       SwitchStatement->addSwitchCase(Case);
     }
+    clang::Stmt *SwitchBody = CompoundStmt::Create(ASTCtx, BodyStmts, {}, {});
+    SwitchStatement->setBody(SwitchBody);
     Stmts.push_back(SwitchStatement);
   } break;
   case ASTNode::NodeKind::NK_Set:
