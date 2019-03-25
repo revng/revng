@@ -18,7 +18,7 @@
 
 using namespace llvm;
 
-bool CodeNode::isEqual(ASTNode *Node) {
+bool CodeNode::isEqual(ASTNode *Node) const {
   if (auto *OtherCode = dyn_cast<CodeNode>(Node)) {
     if ((getOriginalBB() != nullptr)
         and (getOriginalBB() == OtherCode->getOriginalBB())) {
@@ -36,7 +36,7 @@ void CodeNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // need to apply updates.
 }
 
-bool IfNode::isEqual(ASTNode *Node) {
+bool IfNode::isEqual(ASTNode *Node) const {
   if (auto *OtherIf = dyn_cast<IfNode>(Node)) {
     if ((getOriginalBB() != nullptr)
         and (getOriginalBB() == OtherIf->getOriginalBB())) {
@@ -79,7 +79,7 @@ void IfNode::updateCondExprPtr(ExprNodeMap &Map) {
   }
 }
 
-bool ScsNode::isEqual(ASTNode *Node) {
+bool ScsNode::isEqual(ASTNode *Node) const {
   if (auto *OtherScs = dyn_cast<ScsNode>(Node)) {
     if (Body->isEqual(OtherScs->getBody())) {
       return true;
@@ -96,7 +96,7 @@ void ScsNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // flattening.
 }
 
-bool SequenceNode::isEqual(ASTNode *Node) {
+bool SequenceNode::isEqual(ASTNode *Node) const {
   if (auto *OtherSequence = dyn_cast<SequenceNode>(Node)) {
     bool ComparisonState = true;
     int FirstDimension = NodeList.size();
@@ -240,7 +240,7 @@ void SwitchNode::dump(std::ofstream &ASTFile) {
   }
 }
 
-bool SwitchNode::isEqual(ASTNode *Node) {
+bool SwitchNode::isEqual(ASTNode *Node) const {
   if (auto *OtherSwitch = dyn_cast<SwitchNode>(Node)) {
     bool ComparisonState = true;
     int FirstDimension = CaseList.size();
@@ -278,7 +278,7 @@ void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   }
 }
 
-bool SetNode::isEqual(ASTNode *Node) {
+bool SetNode::isEqual(ASTNode *Node) const {
   if (auto *OtherSet = dyn_cast<SetNode>(Node)) {
     if (StateVariableValue == OtherSet->getStateVariableValue()) {
       return true;
@@ -341,7 +341,7 @@ void SwitchCheckNode::dump(std::ofstream &ASTFile) {
   }
 }
 
-bool SwitchCheckNode::isEqual(ASTNode *Node) {
+bool SwitchCheckNode::isEqual(ASTNode *Node) const {
   if (auto *OtherSwitch = dyn_cast<SwitchCheckNode>(Node)) {
     bool ComparisonState = true;
     int FirstDimension = CaseList.size();

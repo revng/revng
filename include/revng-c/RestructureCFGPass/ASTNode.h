@@ -99,11 +99,11 @@ public:
     return IsEmpty;
   }
 
-  llvm::BasicBlock *getOriginalBB() {
+  llvm::BasicBlock *getOriginalBB() const {
     return BB;
   }
 
-  virtual bool isEqual(ASTNode *Node) = 0;
+  virtual bool isEqual(ASTNode *Node) const = 0;
 
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) = 0;
 };
@@ -117,13 +117,13 @@ public:
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Code; }
 
-  bool isEqual(ASTNode *Node);
+  virtual bool isEqual(ASTNode *Node) const override;
 
-  void dump(std::ofstream &ASTFile);
+  virtual void dump(std::ofstream &ASTFile) override;
 
-  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
 
-  ASTNode *Clone() { return new CodeNode(*this); }
+  virtual ASTNode *Clone() override { return new CodeNode(*this); }
 };
 
 class IfNode : public ASTNode {
@@ -155,22 +155,22 @@ public:
   static bool classof(const ASTNode *N) { return N->getKind() >= NK_If &&
                                                  N->getKind() <= NK_IfCheck; }
 
-  ASTNode *getThen() { return Then; }
+  ASTNode *getThen() const { return Then; }
 
-  ASTNode *getElse() { return Else; }
+  ASTNode *getElse() const { return Else; }
 
   void setThen(ASTNode *Node) { Then = Node; }
 
   void setElse(ASTNode *Node) { Else = Node; }
 
-  bool hasThen() {
+  bool hasThen() const {
     if (Then != nullptr) {
       return true;
     }
     return false;
   }
 
-  bool hasElse() {
+  bool hasElse() const {
     if (Else != nullptr) {
       return true;
     }
@@ -185,13 +185,13 @@ public:
     }
   }
 
-  bool isEqual(ASTNode *Node);
+  virtual bool isEqual(ASTNode *Node) const override;
 
-  virtual void dump(std::ofstream &ASTFile);
+  virtual void dump(std::ofstream &ASTFile) override;
 
-  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
 
-  virtual ASTNode *Clone() { return new IfNode(*this); }
+  virtual ASTNode *Clone() override { return new IfNode(*this); }
 
   ExprNode *getCondExpr() {
     return ConditionExpression;
@@ -233,13 +233,13 @@ public:
 
   void setBody(ASTNode *Node) { Body = Node; }
 
-  bool isEqual(ASTNode *Node);
+  virtual bool isEqual(ASTNode *Node) const override;
 
-  void dump(std::ofstream &ASTFile);
+  virtual void dump(std::ofstream &ASTFile) override;
 
-  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
 
-  ASTNode *Clone() { return new ScsNode(*this); }
+  virtual ASTNode *Clone() override { return new ScsNode(*this); }
 
   bool isStandard() { return LoopType == Type::Standard; }
 
@@ -300,15 +300,15 @@ public:
 
   int listSize() { return NodeList.size(); }
 
-  ASTNode *getNodeN(int N) { return NodeList[N]; }
+  ASTNode *getNodeN(int N) const { return NodeList[N]; }
 
-  bool isEqual(ASTNode *Node);
+  virtual bool isEqual(ASTNode *Node) const override;
 
-  void dump(std::ofstream &ASTFile);
+  virtual void dump(std::ofstream &ASTFile) override;
 
-  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
 
-  ASTNode *Clone() { return new SequenceNode(*this); }
+  virtual ASTNode *Clone() override { return new SequenceNode(*this); }
 };
 
 class ContinueNode : public ASTNode {
@@ -320,13 +320,15 @@ public:
 
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Continue; }
 
-  ASTNode *Clone() { return new ContinueNode(*this); }
+  virtual ASTNode *Clone() override { return new ContinueNode(*this); }
 
-  void dump(std::ofstream &ASTFile);
+  virtual void dump(std::ofstream &ASTFile) override;
 
-  bool isEqual(ASTNode *Node) { return llvm::isa<ContinueNode>(Node); }
+  virtual bool isEqual(ASTNode *Node) const override {
+    return llvm::isa<ContinueNode>(Node);
+  }
 
-  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {}
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override {}
 
   bool hasComputation() { return ComputationIf != nullptr; };
 
@@ -342,13 +344,15 @@ public:
 
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Break; }
 
-  ASTNode *Clone() { return new BreakNode(*this); }
+  virtual ASTNode *Clone() override { return new BreakNode(*this); }
 
-  void dump(std::ofstream &ASTFile);
+  virtual void dump(std::ofstream &ASTFile) override;
 
-  bool isEqual(ASTNode *Node) { return llvm::isa<BreakNode>(Node); }
+  virtual bool isEqual(ASTNode *Node) const override {
+    return llvm::isa<BreakNode>(Node);
+  }
 
-  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {}
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override {}
 };
 
 class SwitchNode : public ASTNode {
@@ -384,17 +388,18 @@ public:
 
   int CaseSize() { return CaseList.size(); }
 
-  ASTNode *getCaseN(int N) { return CaseList[N].second; }
+  virtual bool isEqual(ASTNode *Node) const override;
 
-  bool isEqual(ASTNode *Node);
+  virtual void dump(std::ofstream &ASTFile) override;
 
-  void dump(std::ofstream &ASTFile);
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
 
-  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
-
-  ASTNode *Clone() { return new SwitchNode(*this); }
+  virtual ASTNode *Clone() override { return new SwitchNode(*this); }
 
   llvm::Value *getCondition() { return SwitchCondition; }
+
+protected:
+  ASTNode *getCaseN(int N) const { return CaseList[N].second; }
 };
 
 class SetNode : public ASTNode {
@@ -414,13 +419,13 @@ public:
 public:
   static bool classof(const ASTNode *N) {return N->getKind() == NK_Set; }
 
-  bool isEqual(ASTNode *Node);
+  virtual bool isEqual(ASTNode *Node) const override;
 
-  void dump(std::ofstream &ASTFile);
+  virtual void dump(std::ofstream &ASTFile) override;
 
-  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
 
-  ASTNode *Clone() {return new SetNode(*this); }
+  virtual ASTNode *Clone() override {return new SetNode(*this); }
 
   unsigned getStateVariableValue() { return StateVariableValue; }
 };
@@ -442,9 +447,9 @@ public:
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_IfCheck; }
 
-  void dump(std::ofstream &ASTFile);
+  virtual void dump(std::ofstream &ASTFile) override;
 
-  ASTNode *Clone() { return new IfCheckNode(*this); }
+  virtual ASTNode *Clone() override { return new IfCheckNode(*this); }
 
   unsigned getCaseValue() { return StateVariableValue; }
 
@@ -480,15 +485,16 @@ public:
 
   int CaseSize() { return CaseList.size(); }
 
-  ASTNode *getCaseN(int N) { return CaseList[N].second; }
+  virtual bool isEqual(ASTNode *Node) const override;
 
-  bool isEqual(ASTNode *Node);
+  virtual void dump(std::ofstream &ASTFile) override;
 
-  void dump(std::ofstream &ASTFile);
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
 
-  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+  virtual ASTNode *Clone() override { return new SwitchCheckNode(*this); }
 
-  ASTNode *Clone() { return new SwitchCheckNode(*this); }
+protected:
+  ASTNode *getCaseN(int N) const { return CaseList[N].second; }
 };
 
 #endif // define REVNGC_RESTRUCTURE_CFG_ASTNODE_H
