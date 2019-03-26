@@ -67,6 +67,7 @@ public:
   GlobalsMap &GlobalDecls;
   StmtMap InstrStmts;
   BBPHIMap &BlockToPHIIncoming;
+  clang::VarDecl *LoopStateVarDecl;
 
 public:
 
@@ -88,13 +89,13 @@ public:
     FunctionDecls(FMap),
     GlobalDecls(GMap),
     InstrStmts(),
-    BlockToPHIIncoming(BlockToPHIIncoming) {}
-
-  // SerializationInfo &&extractASTInfo() { return std::move(ASTInfo); }
+    BlockToPHIIncoming(BlockToPHIIncoming),
+    LoopStateVarDecl(nullptr) {}
 
   void createAST();
 
   clang::Expr *getExprForValue(llvm::Value *V);
+  clang::Expr *getUIntLiteral(uint64_t U);
 private:
   clang::VarDecl *createVarDecl(llvm::Instruction *I);
   clang::Stmt *buildStmt(llvm::Instruction &I);

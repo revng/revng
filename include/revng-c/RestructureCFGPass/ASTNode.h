@@ -427,7 +427,7 @@ public:
 
   virtual ASTNode *Clone() override {return new SetNode(*this); }
 
-  unsigned getStateVariableValue() { return StateVariableValue; }
+  unsigned getStateVariableValue() const { return StateVariableValue; }
 };
 
 class IfCheckNode : public IfNode {

@@ -444,8 +444,9 @@ static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
     Candidates.push_back(IfCheck);
 
     // Continue to accumulate the `IfCheck` nodes until it is possible.
-    while (auto *SuccIfCheck = dyn_cast<IfCheckNode>(IfCheck->getElse())) {
+    while (auto *SuccIfCheck = dyn_cast_or_null<IfCheckNode>(IfCheck->getElse())) {
       Candidates.push_back(SuccIfCheck);
+      IfCheck = SuccIfCheck;
     }
 
     std::vector<std::pair<unsigned, ASTNode *>> CandidatesCases;
@@ -457,8 +458,8 @@ static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
 
     // Collect the last else (which will become the default case).
     unsigned Zero = 0;
-    ASTNode *DefaultCase = Candidates.back()->getElse();
-    CandidatesCases.push_back(std::make_pair(Zero, DefaultCase));
+    if (ASTNode *DefaultCase = Candidates.back()->getElse())
+      CandidatesCases.push_back(std::make_pair(Zero, DefaultCase));
 
     // Create the `SwitchCheckNode`.
     unique_ptr<SwitchCheckNode> Switch(new SwitchCheckNode(CandidatesCases));

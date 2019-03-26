@@ -406,6 +406,18 @@ void StmtBuilder::createAST() {
             "Building AST for Instructions in Function " << F.getName());
 
   uint64_t BBId = 0;
+  {
+    IdentifierInfo &Id = ASTCtx.Idents.get("loop_state_var");
+    LoopStateVarDecl = VarDecl::Create(ASTCtx,
+                                       &FDecl,
+                                       {},
+                                       {},
+                                       &Id,
+                                       ASTCtx.UnsignedIntTy,
+                                       nullptr,
+                                       StorageClass::SC_None);
+    FDecl.addDecl(LoopStateVarDecl);
+  }
 
   ReversePostOrderTraversal<Function *> RPOT(&F);
   for (BasicBlock *BB : RPOT) {
@@ -693,6 +705,12 @@ Expr *StmtBuilder::createRValueExprForBinaryOperator(Instruction &I) {
     break;
   }
   return Res;
+}
+
+Expr *StmtBuilder::getUIntLiteral(uint64_t U) {
+  QualType UIntT = ASTCtx.UnsignedIntTy;
+  APInt Const = APInt(ASTCtx.getIntWidth(UIntT), U);
+  return IntegerLiteral::Create(ASTCtx, Const, UIntT, {});
 }
 
 Expr *StmtBuilder::getExprForValue(Value *V) {

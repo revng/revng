@@ -115,7 +115,6 @@ static clang::Expr *createCondExpr(ExprNode *E,
                 RHS = new (ASTCtx) ParenExpr({}, {}, RHS);
               RHS = createCast(VarType, RHS, ASTCtx);
             }
-            BinaryOperatorKind AssignKind = BinaryOperatorKind::BO_Assign;
             EmittedStmt = new (ASTCtx) clang::BinaryOperator(LHS, RHS,
                                                              BO_Assign, VarType,
                                                              VK_RValue,
@@ -230,7 +229,6 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
               RHS = new (ASTCtx) ParenExpr({}, {}, RHS);
             RHS = createCast(VarType, RHS, ASTCtx);
           }
-          BinaryOperatorKind AssignKind = BinaryOperatorKind::BO_Assign;
           EmittedStmt = new (ASTCtx) clang::BinaryOperator(LHS, RHS, BO_Assign,
                                                            VarType, VK_RValue,
                                                            OK_Ordinary, {},
@@ -338,7 +336,59 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     SwitchStatement->setBody(SwitchBody);
     Stmts.push_back(SwitchStatement);
   } break;
-  case ASTNode::NodeKind::NK_Set:
+  case ASTNode::NodeKind::NK_SwitchCheck: {
+    SwitchCheckNode *Switch = cast<SwitchCheckNode>(N);
+    clang::VarDecl *StateVarDecl = ASTBuilder.LoopStateVarDecl;
+    QualType Type = StateVarDecl->getType();
+    clang::DeclRefExpr *CondExpr = new (ASTCtx) DeclRefExpr(StateVarDecl,
+                                                            false,
+                                                            Type,
+                                                            VK_LValue,
+                                                            {});
+    clang::SwitchStmt *SwitchStatement = new (ASTCtx) SwitchStmt(ASTCtx,
+                                                                 nullptr,
+                                                                 nullptr,
+                                                                 CondExpr);
+    SmallVector<clang::Stmt *, 8> BodyStmts;
+    for (auto &Pair : Switch->cases()) {
+      unsigned CaseConst = Pair.first;
+      ASTNode *CaseNode = Pair.second;
+      clang::Expr *CaseExpr = ASTBuilder.getUIntLiteral(CaseConst);
+      clang::CaseStmt *Case = new (ASTCtx) CaseStmt(CaseExpr, nullptr,
+                                                    {}, {}, {});
+      clang::Stmt *CaseBody = buildCompoundScope(CaseNode, ASTCtx, ASTBuilder,
+                                                 Mark);
+      Case->setSubStmt(CaseBody);
+      BodyStmts.push_back(Case);
+      BodyStmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
+      SwitchStatement->addSwitchCase(Case);
+    }
+    clang::Stmt *SwitchBody = CompoundStmt::Create(ASTCtx, BodyStmts, {}, {});
+    SwitchStatement->setBody(SwitchBody);
+    Stmts.push_back(SwitchStatement);
+  } break;
+  case ASTNode::NodeKind::NK_Set: {
+    SetNode *Set = cast<SetNode>(N);
+    clang::VarDecl *StateVarDecl = ASTBuilder.LoopStateVarDecl;
+    QualType Type = StateVarDecl->getType();
+    clang::DeclRefExpr *StateVar = new (ASTCtx) DeclRefExpr(StateVarDecl,
+                                                            false,
+                                                            Type,
+                                                            VK_LValue,
+                                                            {});
+    unsigned StateValue = Set->getStateVariableValue();
+    clang::Expr *StateValueUInt = ASTBuilder.getUIntLiteral(StateValue);
+    QualType UIntType = StateValueUInt->getType();
+    clang::Stmt *AssignStmt = new (ASTCtx) clang::BinaryOperator(StateVar,
+                                                                 StateValueUInt,
+                                                                 BO_Assign,
+                                                                 UIntType,
+                                                                 VK_RValue,
+                                                                 OK_Ordinary,
+                                                                 {},
+                                                                 FPOptions());
+    Stmts.push_back(AssignStmt);
+  } break;
   case ASTNode::NodeKind::NK_IfCheck:
   default:
     revng_abort();
@@ -357,6 +407,7 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
     LocalVarDecls.push_back(DeclPair.second);
   for (auto &DeclPair : ASTBuilder.VarDecls)
     LocalVarDecls.push_back(DeclPair.second);
+  LocalVarDecls.push_back(ASTBuilder.LoopStateVarDecl);
 
   SmallVector<clang::Stmt *, 32> BodyStmts;
   buildAndAppendSmts(BodyStmts, CombedAST.getRoot(), ASTCtx, ASTBuilder, Mark);
