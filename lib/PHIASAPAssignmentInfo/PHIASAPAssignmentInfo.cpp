@@ -224,6 +224,8 @@ static void computePHIVarAssignments(PHINode *ThePHI,
 }
 
 bool PHIASAPAssignmentInfo::runOnFunction(llvm::Function &F) {
+  if (not F.getName().startswith("bb."))
+    return false;
 
   DomTree DT;
   DT.recalculate(F);
