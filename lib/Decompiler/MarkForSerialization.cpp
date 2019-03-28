@@ -109,9 +109,7 @@ Analysis::InterruptType Analysis::transfer(BasicBlock *BB) {
           continue;
         }
         Instruction *UserI = cast<Instruction>(U);
-        if (isa<BranchInst>(UserI)) {
-          markValueToSerialize(&I);
-        } else if (NumDuplicatesOfBB != NDuplicates.at(UserI->getParent())) {
+        if (NumDuplicatesOfBB != NDuplicates.at(UserI->getParent())) {
           revng_assert(NumDuplicatesOfBB < NDuplicates.at(UserI->getParent()));
           markValueToSerialize(&I);
         } else {
