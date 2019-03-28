@@ -234,6 +234,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
   case Instruction::Store: {
     auto *Store = cast<StoreInst>(&I);
     Value *Stored = Store->getValueOperand();
+    if (isa<UndefValue>(Stored))
+      return nullptr;
     Expr *LHS = getParenthesizedExprForValue(Store);
     QualType LHSQualTy = LHS->getType();
     revng_log(ASTBuildLog, "GOT!");
@@ -486,7 +488,8 @@ void StmtBuilder::createAST() {
       }
 
       Stmt *NewStmt = buildStmt(I);
-      revng_assert(NewStmt != nullptr);
+      if (NewStmt == nullptr)
+        continue;
       InstrStmts[&I] = NewStmt;
       if (I.getNumUses() > 0 and ToSerialize.count(&I)) {
         revng_assert(VarDecls.count(&I) == 0);
