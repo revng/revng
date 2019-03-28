@@ -71,7 +71,7 @@ public:
     Successor(Successor),
     IsEmpty(CFGNode->isEmpty()) {}
 
-  virtual ~ASTNode() {}
+  virtual ~ASTNode() = default;
 
   virtual ASTNode *Clone() = 0;
 
@@ -124,6 +124,8 @@ public:
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
 
   virtual ASTNode *Clone() override { return new CodeNode(*this); }
+
+  virtual ~CodeNode() override = default;
 };
 
 class IfNode : public ASTNode {
@@ -193,6 +195,8 @@ public:
 
   virtual ASTNode *Clone() override { return new IfNode(*this); }
 
+  virtual ~IfNode() override = default;
+
   ExprNode *getCondExpr() {
     return ConditionExpression;
   }
@@ -240,6 +244,8 @@ public:
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
 
   virtual ASTNode *Clone() override { return new ScsNode(*this); }
+
+  virtual ~ScsNode() override = default;
 
   bool isStandard() { return LoopType == Type::Standard; }
 
@@ -309,6 +315,8 @@ public:
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
 
   virtual ASTNode *Clone() override { return new SequenceNode(*this); }
+
+  virtual ~SequenceNode() override = default;
 };
 
 class ContinueNode : public ASTNode {
@@ -329,6 +337,8 @@ public:
   }
 
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override {}
+
+  virtual ~ContinueNode() override = default;
 
   bool hasComputation() { return ComputationIf != nullptr; };
 
@@ -353,6 +363,8 @@ public:
   }
 
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override {}
+
+  virtual ~BreakNode() override = default;
 };
 
 class SwitchNode : public ASTNode {
@@ -396,6 +408,8 @@ public:
 
   virtual ASTNode *Clone() override { return new SwitchNode(*this); }
 
+  virtual ~SwitchNode() override = default;
+
   llvm::Value *getCondition() { return SwitchCondition; }
 
 protected:
@@ -426,6 +440,8 @@ public:
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
 
   virtual ASTNode *Clone() override {return new SetNode(*this); }
+
+  virtual ~SetNode() override = default;
 
   unsigned getStateVariableValue() const { return StateVariableValue; }
 };
@@ -492,6 +508,8 @@ public:
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
 
   virtual ASTNode *Clone() override { return new SwitchCheckNode(*this); }
+
+  virtual ~SwitchCheckNode() override = default;
 
 protected:
   ASTNode *getCaseN(int N) const { return CaseList[N].second; }
