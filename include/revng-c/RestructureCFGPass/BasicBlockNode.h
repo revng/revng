@@ -56,7 +56,7 @@ protected:
   Type NodeType;
 
   /// Name of the basic block.
-  std::string Name;
+  llvm::StringRef Name;
 
   unsigned StateVariableValue;
 
@@ -68,7 +68,7 @@ protected:
 
   explicit BasicBlockNode(RegionCFG *Parent,
                           RegionCFG *Collapsed,
-                          const std::string &Name,
+                          llvm::StringRef Name,
                           Type T,
                           unsigned Value = 0);
 
@@ -88,7 +88,7 @@ public:
 
   /// \brief Constructor for nodes pointing to LLVM IR BasicBlock
   explicit BasicBlockNode(RegionCFG *Parent,
-                          const std::string &Name = "") :
+                          llvm::StringRef Name = "") :
     BasicBlockNode(Parent,
                    nullptr,
                    Name,
@@ -97,7 +97,7 @@ public:
   /// \brief Constructor for nodes representing collapsed subgraphs
   explicit BasicBlockNode(RegionCFG *Parent,
                           RegionCFG *Collapsed,
-                          const std::string &Name = "") :
+                          llvm::StringRef Name = "") :
     BasicBlockNode(Parent, Collapsed, Name, Type::Collapsed) {}
 
   /// \brief Constructor for empty dummy nodes
@@ -112,7 +112,7 @@ public:
   explicit BasicBlockNode(RegionCFG *Parent,
                           Type T,
                           unsigned Value,
-                          const std::string &Name = "") :
+                          llvm::StringRef Name = "") :
     BasicBlockNode(Parent, nullptr, Name, T, Value) {
     revng_assert(T == Type::Set or T == Type::Check);
   }
@@ -263,7 +263,7 @@ public:
 
   llvm::StringRef getName() const { return Name; }
   std::string getNameStr() const {
-    return "ID:" + std::to_string(getID()) + " " + Name;
+    return "ID:" + std::to_string(getID()) + " " + Name.str();
   }
   void setName(const std::string &N) { Name = N; }
 

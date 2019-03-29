@@ -88,7 +88,7 @@ public:
   size_t size() const { return BlockNodes.size(); }
   void setSize(int Size) { BlockNodes.reserve(Size); }
 
-  BasicBlockNode *addNode(const std::string &Name);
+  BasicBlockNode *addNode(llvm::StringRef Name);
 
   BasicBlockNode *createCollapsedNode(RegionCFG *Collapsed,
                                       const std::string &Name = "collapsed") {
@@ -99,7 +99,7 @@ public:
   }
 
   BasicBlockNode *
-  addArtificialNode(const std::string &Name = "",
+  addArtificialNode(llvm::StringRef Name = "",
                     BasicBlockNode::Type T = BasicBlockNode::Type::Empty) {
     BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, T, Name));
     return BlockNodes.back().get();

@@ -19,7 +19,7 @@ using namespace llvm;
 
 BasicBlockNode::BasicBlockNode(RegionCFG *Parent,
                                RegionCFG *Collapsed,
-                               const std::string &Name,
+                               StringRef Name,
                                Type T,
                                unsigned Value) :
   ID(Parent->getNewID()),

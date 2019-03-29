@@ -169,7 +169,7 @@ std::string RegionCFG::getRegionName() {
   return RegionName;
 }
 
-BasicBlockNode *RegionCFG::addNode(const std::string &Name) {
+BasicBlockNode *RegionCFG::addNode(llvm::StringRef Name) {
   BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, Name));
   BasicBlockNode *Result = BlockNodes.back().get();
   revng_log(CombLogger,
@@ -180,7 +180,9 @@ BasicBlockNode *RegionCFG::addNode(const std::string &Name) {
 BasicBlockNode *RegionCFG::cloneNode(const BasicBlockNode &OriginalNode) {
   BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(OriginalNode, this));
   BasicBlockNode *New = BlockNodes.back().get();
-  New->setName(std::string(OriginalNode.getName()) + " cloned");
+  // TODO: find a way to append to the original name the "cloned" suffix. Simply
+  //       concatenating with as below causes memory corruption (StringRef).
+  //New->setName(OriginalNode.getName() + " cloned");
   return New;
 }
 
