@@ -66,9 +66,12 @@ public:
     Name(Name),
     Successor(Successor) {}
 
-  ASTNode(NodeKind K, BasicBlockNode *CFGNode, ASTNode *Successor = nullptr) :
+  ASTNode(NodeKind K,
+          BasicBlockNode *CFGNode,
+          llvm::BasicBlock *BB,
+          ASTNode *Successor = nullptr) :
     Kind(K),
-    BB(CFGNode->getBasicBlock()),
+    BB(BB),
     Name(CFGNode->getNameStr()),
     Successor(Successor),
     IsEmpty(CFGNode->isEmpty()) {}
@@ -111,8 +114,8 @@ public:
 class CodeNode : public ASTNode {
 
 public:
-  CodeNode(BasicBlockNode *CFGNode, ASTNode *Successor) :
-    ASTNode(NK_Code, CFGNode, Successor) {}
+  CodeNode(BasicBlockNode *CFGNode, llvm::BasicBlock *BB, ASTNode *Successor) :
+    ASTNode(NK_Code, CFGNode, BB, Successor) {}
 
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Code; }
@@ -142,12 +145,13 @@ protected:
 
 public:
   IfNode(BasicBlockNode *CFGNode,
+         llvm::BasicBlock *BB,
          ExprNode *CondExpr,
          ASTNode *Then,
          ASTNode *Else,
          ASTNode *PostDom,
          NodeKind Kind = NK_If) :
-    ASTNode(Kind, CFGNode, PostDom),
+    ASTNode(Kind, CFGNode, BB, PostDom),
     Then(Then),
     Else(Else),
     ConditionExpression(CondExpr) {}
@@ -220,10 +224,12 @@ private:
 
 public:
   ScsNode(BasicBlockNode *CFGNode, ASTNode *Body) :
-    ASTNode(NK_Scs, CFGNode),
+    ASTNode(NK_Scs, CFGNode, nullptr),
     Body(Body) {}
-  ScsNode(BasicBlockNode *CFGNode, ASTNode *Body, ASTNode *Successor) :
-    ASTNode(NK_Scs, CFGNode, Successor),
+  ScsNode(BasicBlockNode *CFGNode,
+          ASTNode *Body,
+          ASTNode *Successor) :
+    ASTNode(NK_Scs, CFGNode, nullptr, Successor),
     Body(Body) {}
 
 public:
@@ -279,7 +285,8 @@ private:
 
 public:
   SequenceNode(std::string Name) : ASTNode(NK_List, Name) {}
-  SequenceNode(BasicBlockNode *CFGNode) : ASTNode(NK_List, CFGNode) {}
+  SequenceNode(BasicBlockNode *CFGNode, llvm::BasicBlock *BB) :
+    ASTNode(NK_List, CFGNode, BB) {}
 
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_List; }
@@ -417,12 +424,12 @@ private:
   unsigned StateVariableValue;
 
 public:
-  SetNode(BasicBlockNode *CFGNode, ASTNode *Successor) :
-    ASTNode(NK_Set, CFGNode, Successor),
+  SetNode(BasicBlockNode *CFGNode, llvm::BasicBlock *BB, ASTNode *Successor) :
+    ASTNode(NK_Set, CFGNode, BB, Successor),
     StateVariableValue(CFGNode->getStateVariableValue()) {}
 
-  SetNode(BasicBlockNode *CFGNode) :
-    ASTNode(NK_Set, CFGNode),
+  SetNode(BasicBlockNode *CFGNode, llvm::BasicBlock *BB) :
+    ASTNode(NK_Set, CFGNode, BB),
     StateVariableValue(CFGNode->getStateVariableValue()) {}
 
 public:

@@ -18,14 +18,12 @@
 using namespace llvm;
 
 BasicBlockNode::BasicBlockNode(RegionCFG *Parent,
-                               llvm::BasicBlock *BB,
                                RegionCFG *Collapsed,
                                const std::string &Name,
                                Type T,
                                unsigned Value) :
   ID(Parent->getNewID()),
   Parent(Parent),
-  BB(BB),
   CollapsedRegion(Collapsed),
   NodeType(T),
   Name(Name),

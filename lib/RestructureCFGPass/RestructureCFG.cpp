@@ -47,6 +47,10 @@ Logger<> CombLogger("restructure");
 using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
 using BackedgeMetaRegionMap =  std::map<EdgeDescriptor, MetaRegion *>;
 
+// BBNodeToBBMap is a map that contains the original link to the LLVM basic
+// block.
+using BBNodeToBBMap = std::map<BasicBlockNode *, BasicBlock *>;
+
 static std::set<EdgeDescriptor> getBackedges(RegionCFG &Graph) {
 
   // Some helper data structures.
@@ -368,6 +372,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Initialize the RegionCFG object
   RootCFG.initialize(F);
 
+  // TODO: we should obtain here the following map.
+  BBNodeToBBMap OriginalBB;
+
   // Dump the function name.
   if (CombLogger.isEnabled()) {
     CombLogger << "Analyzing function: " << F.getName() << "\n";
@@ -379,20 +386,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Identify SCS regions.
-  if (CombLogger.isEnabled()) {
-    BasicBlockNode &FirstRandom = RootCFG.getRandomNode();
-    BasicBlockNode &SecondRandom = RootCFG.getRandomNode();
-    CombLogger << "Source: ";
-    CombLogger << FirstRandom.getNameStr() << "\n";
-    CombLogger << "Target: ";
-    CombLogger << SecondRandom.getNameStr() << "\n";
-    CombLogger << "Nodes Reachable:\n";
-    std::set<BasicBlockNode *> Reachables = findReachableNodes(FirstRandom,
-                                                               SecondRandom);
-    for (BasicBlockNode *Element : Reachables) {
-      CombLogger << Element->getNameStr() << "\n";
-    }
-  }
 
   std::set<EdgeDescriptor> Backedges = getBackedges(RootCFG);
   CombLogger << "Backedges in the graph:\n";
@@ -518,23 +511,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   DominatorTreeBase<BasicBlockNode, true> PDT;
   PDT.recalculate(RootCFG);
-
-  // Some debug information on dominator and postdominator tree.
-  if (CombLogger.isEnabled()) {
-    CombLogger << DT.isPostDominator() << "\n";
-    CombLogger << "The root node of the dominator tree is:\n";
-    CombLogger << DT.getRoot()->getNameStr() << "\n";
-    CombLogger << "Between these two nodes:\n";
-    BasicBlockNode *Random = &RootCFG.getRandomNode();
-    BasicBlockNode *Random2 = &RootCFG.getRandomNode();
-    CombLogger << Random->getNameStr() << "\n";
-    CombLogger << Random2->getNameStr() << "\n";
-    CombLogger << "Dominance:\n";
-    CombLogger << DT.dominates(Random, Random2) << "\n";
-    CombLogger << "PostDominance:\n";
-    CombLogger << PDT.dominates(Random, Random2) << "\n";
-    CombLogger << PDT.isPostDominator() << "\n";
-  }
 
   // Reserve enough space for all the OrderedMetaRegions.
   // The following algorithms stores pointers to the elements of this vector, so
@@ -1109,7 +1085,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Invoke the AST generation for the root region.
   CombLogger.emit();
-  RootCFG.generateAst();
+  RootCFG.generateAst(OriginalBB);
 
   // Serialize final AST on file
   RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final");

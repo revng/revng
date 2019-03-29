@@ -47,11 +47,6 @@ protected:
   /// Pointer to the parent RegionCFG
   RegionCFG *Parent;
 
-  /// Reference to the corresponding basic block
-  //
-  // This is nullptr unless the BasicBlockNode represents a BasicBlock
-  llvm::BasicBlock *BB;
-
   /// Reference to the corresponding collapsed region
   //
   // This is nullptr unless the BasicBlockNode represents a collapsed RegionCFG
@@ -72,7 +67,6 @@ protected:
   links_container Predecessors;
 
   explicit BasicBlockNode(RegionCFG *Parent,
-                          llvm::BasicBlock *BB,
                           RegionCFG *Collapsed,
                           const std::string &Name,
                           Type T,
@@ -87,7 +81,6 @@ public:
   /// Copy ctor: clone the node in the same Parent with new ID and without edges
   explicit BasicBlockNode(const BasicBlockNode &BBN, RegionCFG *Parent) :
     BasicBlockNode(Parent,
-                   BBN.BB,
                    BBN.CollapsedRegion,
                    BBN.Name,
                    BBN.NodeType,
@@ -95,25 +88,23 @@ public:
 
   /// \brief Constructor for nodes pointing to LLVM IR BasicBlock
   explicit BasicBlockNode(RegionCFG *Parent,
-                          llvm::BasicBlock *BB,
                           const std::string &Name = "") :
     BasicBlockNode(Parent,
-                   BB,
                    nullptr,
-                   Name.size() ? Name : std::string(BB->getName()),
+                   Name,
                    Type::Code) {}
 
   /// \brief Constructor for nodes representing collapsed subgraphs
   explicit BasicBlockNode(RegionCFG *Parent,
                           RegionCFG *Collapsed,
                           const std::string &Name = "") :
-    BasicBlockNode(Parent, nullptr, Collapsed, Name, Type::Collapsed) {}
+    BasicBlockNode(Parent, Collapsed, Name, Type::Collapsed) {}
 
   /// \brief Constructor for empty dummy nodes
   explicit BasicBlockNode(RegionCFG *Parent,
-                          const std::string &Name = "",
-                          Type T = Type::Empty) :
-    BasicBlockNode(Parent, nullptr, nullptr, Name, T) {
+                          Type T,
+                          llvm::StringRef Name = "") :
+    BasicBlockNode(Parent, nullptr, Name, T) {
     revng_assert(T == Type::Empty or T == Type::Break or T == Type::Continue);
   }
 
@@ -122,7 +113,7 @@ public:
                           Type T,
                           unsigned Value,
                           const std::string &Name = "") :
-    BasicBlockNode(Parent, nullptr, nullptr, Name, T, Value) {
+    BasicBlockNode(Parent, nullptr, Name, T, Value) {
     revng_assert(T == Type::Set or T == Type::Check);
   }
 
@@ -269,8 +260,6 @@ public:
 
   unsigned getID() const { return ID; }
   bool isBasicBlock() const { return NodeType == Type::Code; }
-  llvm::BasicBlock *getBasicBlock() { return BB; }
-  void setBasicBlock(llvm::BasicBlock *B) { BB = B; }
 
   llvm::StringRef getName() const { return Name; }
   std::string getNameStr() const {

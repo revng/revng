@@ -27,6 +27,10 @@ inline BasicBlockNode *getPointer(std::unique_ptr<BasicBlockNode> &Original) {
   return Original.get();
 }
 
+// BBNodeToBBMap is a map that contains the original link to the LLVM basic
+// block.
+using BBNodeToBBMap = std::map<BasicBlockNode *, llvm::BasicBlock *>;
+
 /// \brief The RegionCFG, a container for BasicBlockNodes
 class RegionCFG {
 
@@ -43,10 +47,8 @@ private:
   /// Storage for basic block nodes, associated to their original counterpart
   ///
   links_container BlockNodes;
-  std::map<llvm::BasicBlock *, BasicBlockNode *> BBMap;
 
   /// Pointer to the entry basic block of this function
-  llvm::BasicBlock *Entry;
   BasicBlockNode *EntryNode;
   ASTTree AST;
   unsigned IDCounter = 0;
@@ -86,7 +88,7 @@ public:
   size_t size() const { return BlockNodes.size(); }
   void setSize(int Size) { BlockNodes.reserve(Size); }
 
-  BasicBlockNode *addNode(llvm::BasicBlock *BB);
+  BasicBlockNode *addNode(const std::string &Name);
 
   BasicBlockNode *createCollapsedNode(RegionCFG *Collapsed,
                                       const std::string &Name = "collapsed") {
@@ -99,7 +101,7 @@ public:
   BasicBlockNode *
   addArtificialNode(const std::string &Name = "",
                     BasicBlockNode::Type T = BasicBlockNode::Type::Empty) {
-    BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, Name, T));
+    BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, T, Name));
     return BlockNodes.back().get();
   }
 
@@ -159,8 +161,6 @@ public:
 
   void connectContinueNode();
 
-  BasicBlockNode &get(llvm::BasicBlock *BB);
-
   BasicBlockNode &getEntryNode() { return *EntryNode; }
 
   BasicBlockNode &front() { return *EntryNode; }
@@ -168,8 +168,6 @@ public:
   std::vector<std::unique_ptr<BasicBlockNode>> &getNodes() {
     return BlockNodes;
   }
-
-  BasicBlockNode &getRandomNode();
 
   std::vector<BasicBlockNode *>
   orderNodes(std::vector<BasicBlockNode *> &List, bool DoReverse);
@@ -192,7 +190,7 @@ public:
 
   void inflate();
 
-  void generateAst();
+  void generateAst(BBNodeToBBMap &OriginalBB);
 
   // Get reference to the AST object which is inside the RegionCFG object
   ASTTree &getAST();

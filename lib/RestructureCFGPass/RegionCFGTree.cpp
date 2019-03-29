@@ -33,6 +33,10 @@
 // RegionCFG.
 using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
 
+// BBNodeToBBMap is a map that contains the original link to the LLVM basic
+// block.
+using BBNodeToBBMap = std::map<BasicBlockNode *, llvm::BasicBlock *>;
+
 // Helper function that visit an AST tree and creates the sequence nodes
 static ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
   SequenceNode *RootSequenceNode = Tree.addSequenceNode();
@@ -165,14 +169,11 @@ std::string RegionCFG::getRegionName() {
   return RegionName;
 }
 
-BasicBlockNode *RegionCFG::addNode(llvm::BasicBlock *BB) {
-  BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, BB));
+BasicBlockNode *RegionCFG::addNode(const std::string &Name) {
+  BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, Name));
   BasicBlockNode *Result = BlockNodes.back().get();
-  BBMap[BB] = Result;
-  ;
   revng_log(CombLogger,
-            "Building " << BB->getName() << " at address: " << BBMap[BB]
-                        << "\n");
+            "Building " << Name << " at address: " << Result << "\n");
   return Result;
 }
 
@@ -288,18 +289,6 @@ void RegionCFG::connectContinueNode() {
     BasicBlockNode *Continue = addContinue();
     moveEdgeTarget(EdgeDescriptor(Source, EntryNode), Continue);
   }
-}
-
-BasicBlockNode &RegionCFG::get(llvm::BasicBlock *BB) {
-  auto It = BBMap.find(BB);
-  revng_assert(It != BBMap.end());
-  return *(It->second);
-}
-
-BasicBlockNode &RegionCFG::getRandomNode() {
-  int randNum = rand() % (BBMap.size());
-  auto randomIt = std::next(std::begin(BBMap), randNum);
-  return *(randomIt->second);
 }
 
 std::vector<BasicBlockNode *>
@@ -774,7 +763,7 @@ void RegionCFG::inflate() {
   //}
 }
 
-void RegionCFG::generateAst() {
+void RegionCFG::generateAst(BBNodeToBBMap &OriginalBB) {
 
   RegionCFG &Graph = *this;
 
@@ -836,7 +825,7 @@ void RegionCFG::generateAst() {
         CombLogger << "Inspecting collapsed node: " << Node->getNameStr()
                    << "\n";
         CombLogger.emit();
-        BodyGraph->generateAst();
+        BodyGraph->generateAst(OriginalBB);
         ASTNode *Body = BodyGraph->getAST().getRoot();
         std::unique_ptr<ASTNode> ASTObject(new ScsNode(Node,
                                                        Body,
@@ -847,7 +836,7 @@ void RegionCFG::generateAst() {
         CombLogger << "Inspecting collapsed node: " << Node->getNameStr()
                    << "\n";
         CombLogger.emit();
-        BodyGraph->generateAst();
+        BodyGraph->generateAst(OriginalBB);
         ASTNode *Body = BodyGraph->getAST().getRoot();
         std::unique_ptr<ASTNode> ASTObject(new ScsNode(Node, Body));
         AST.addASTNode(Node, std::move(ASTObject));
@@ -884,6 +873,7 @@ void RegionCFG::generateAst() {
           }
         } else {
           ASTObject.reset(new IfNode(Node,
+                                     OriginalBB.at(Node),
                                      CondExprNode,
                                      ASTChildren[0],
                                      ASTChildren[2],
@@ -917,6 +907,7 @@ void RegionCFG::generateAst() {
           }
         } else {
           ASTObject.reset(new IfNode(Node,
+                                     OriginalBB.at(Node),
                                      CondExprNode,
                                      ASTChildren[0],
                                      ASTChildren[1],
@@ -943,7 +934,7 @@ void RegionCFG::generateAst() {
                                             nullptr));
           }
         } else {
-          ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
+          ASTObject.reset(new CodeNode(Node, OriginalBB[Node], ASTChildren[0]));
         }
       } else if (Children.size() == 0) {
         if (Node->isBreak())
@@ -951,9 +942,9 @@ void RegionCFG::generateAst() {
         else if (Node->isContinue())
           ASTObject.reset(new ContinueNode());
         else if (Node->isSet())
-          ASTObject.reset(new SetNode(Node));
+          ASTObject.reset(new SetNode(Node, OriginalBB.at(Node)));
         else if (Node->isEmpty() or Node->isCode())
-          ASTObject.reset(new CodeNode(Node, nullptr));
+          ASTObject.reset(new CodeNode(Node, OriginalBB.at(Node), nullptr));
         else
           revng_abort();
       }
