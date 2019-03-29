@@ -98,7 +98,6 @@ public:
     for (Function *F : Called) {
       const llvm::StringRef FName = F->getName();
       revng_assert(not FName.empty());
-      bool IsIsolated = FName.startswith("bb.");
       FunctionDecl *NewFDecl = createFunDecl(Context, TUDecl, F, false);
       FunctionDecls[F] = NewFDecl;
     }
