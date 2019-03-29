@@ -65,7 +65,8 @@ public:
   RegionCFG &operator=(const RegionCFG &) = default;
   RegionCFG &operator=(RegionCFG &&) = default;
 
-  void initialize(llvm::Function &F);
+  template<class GraphT>
+  void initialize(GraphT Graph);
 
   unsigned getNewID() { return IDCounter++; }
 
@@ -234,5 +235,48 @@ struct GraphTraits<Inverse<RegionCFG *>>
 };
 
 } // namespace llvm
+
+/// Initialize member function template definition.
+template<class GraphT>
+inline void RegionCFG::initialize(GraphT Graph) {
+
+  using GT = llvm::GraphTraits<GraphT>;
+  using NodeRef = typename GT::NodeRef;
+
+  // Map to keep the link between the original nodes and the BBNode created
+  // from it.
+  std::map<NodeRef, BasicBlockNode *> NodeToBBNodeMap;
+
+  // Map to keep the link between the BBNode just created and the orignal
+  // node.
+  std::map<BasicBlockNode *, NodeRef> BBNodeToNodeMap;
+
+  for (NodeRef N : make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
+    BasicBlockNode *BBNode = addNode(N->getName());
+    NodeToBBNodeMap[N] = BBNode;
+    BBNodeToNodeMap[BBNode] = N;
+  }
+
+  // Set the `EntryNode` BasicBlockNode reference.
+  EntryNode = NodeToBBNodeMap[GT::getEntryNode(Graph)];
+
+  for (NodeRef N : make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
+    BasicBlockNode *BBNode = NodeToBBNodeMap[N];
+
+    // Iterate over all the successors of a graph node.
+    unsigned ChildCounter = 0;
+    for (NodeRef C : make_range(GT::child_begin(N), GT::child_end(N))) {
+
+      // Check that no switches are present in the graph.
+      revng_assert(ChildCounter < 2);
+      ChildCounter++;
+
+      // Create the edge in the RegionCFG.
+      BasicBlockNode *Successor = NodeToBBNodeMap[C];
+      BBNode->addSuccessor(Successor);
+      Successor->addPredecessor(BBNode);
+    }
+  }
+}
 
 #endif // REVNGC_RESTRUCTURE_CFG_REGIONCFGTREE_H

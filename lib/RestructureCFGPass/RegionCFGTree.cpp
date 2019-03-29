@@ -12,6 +12,7 @@
 
 // LLVM includes
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/IR/Dominators.h"
@@ -119,38 +120,6 @@ ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
   }
 
   return RootNode;
-}
-
-void RegionCFG::initialize(llvm::Function &F) {
-
-  // Create a new node for each basic block in the module.
-  for (llvm::BasicBlock &BB : F) {
-    addNode(&BB);
-  }
-
-  // Set entry node references.
-  Entry = &(F.getEntryBlock());
-  EntryNode = &(get(Entry));
-
-  // Connect each node to its successors.
-  for (llvm::BasicBlock &BB : F) {
-    BasicBlockNode &Node = get(&BB);
-
-    llvm::TerminatorInst *Terminator = BB.getTerminator();
-    int SuccessorNumber = Terminator->getNumSuccessors();
-
-    BasicBlockNode *CodeSwitch = &get(&BB);
-
-    // All switch should have been preprocessed.
-    revng_assert(SuccessorNumber < 3);
-
-    // Add the successors to the node.
-    for (llvm::BasicBlock *Successor : Terminator->successors()) {
-      BasicBlockNode &SuccessorNode = get(Successor);
-      Node.addSuccessor(&SuccessorNode);
-      SuccessorNode.addPredecessor(&Node);
-    }
-  }
 }
 
 void RegionCFG::setFunctionName(std::string Name) {

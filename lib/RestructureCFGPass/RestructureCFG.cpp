@@ -366,11 +366,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
   RootCFG.setFunctionName(F.getName());
   RootCFG.setRegionName("root");
 
-  // Random seed initialization
-  srand(time(NULL));
-
   // Initialize the RegionCFG object
-  RootCFG.initialize(F);
+  RootCFG.initialize(&F);
 
   // TODO: we should obtain here the following map.
   BBNodeToBBMap OriginalBB;
