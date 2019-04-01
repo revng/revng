@@ -42,8 +42,11 @@ public:
 
   bool isDone() { return Done; }
 
+  std::map<llvm::BasicBlock*, size_t> &getNDuplicates() { return NDuplicates; }
+
 private:
   RegionCFG RootCFG;
+  std::map<llvm::BasicBlock *, size_t> NDuplicates;
 };
 
 #endif // REVNGC_RESTRUCTURE_CFG_RESTRUCTURECFG_H

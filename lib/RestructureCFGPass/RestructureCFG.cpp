@@ -1115,6 +1115,19 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   flattenRegionCFGTree(RootCFG, OriginalBB);
 
+  // Collect the number of cloned nodes introduced by the comb for a single
+  // `llvm::BasicBlock`, information which is needed later in the
+  // `MarkForSerialization` pass.
+  for (BasicBlockNode *BBNode : RootCFG.nodes()) {
+    BasicBlock *BB = OriginalBB[BBNode];
+    if (BBNode->isCode()) {
+      revng_assert(BB != nullptr);
+      NDuplicates[BB] += 1;
+    } else {
+      revng_assert(BB == nullptr);
+    }
+  }
+
   // Serialize final AST after flattening on file
   RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final-after-flattening");
 
