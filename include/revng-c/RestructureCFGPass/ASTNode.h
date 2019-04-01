@@ -424,12 +424,12 @@ private:
   unsigned StateVariableValue;
 
 public:
-  SetNode(BasicBlockNode *CFGNode, llvm::BasicBlock *BB, ASTNode *Successor) :
-    ASTNode(NK_Set, CFGNode, BB, Successor),
+  SetNode(BasicBlockNode *CFGNode, ASTNode *Successor) :
+    ASTNode(NK_Set, CFGNode, nullptr, Successor),
     StateVariableValue(CFGNode->getStateVariableValue()) {}
 
-  SetNode(BasicBlockNode *CFGNode, llvm::BasicBlock *BB) :
-    ASTNode(NK_Set, CFGNode, BB),
+  SetNode(BasicBlockNode *CFGNode) :
+    ASTNode(NK_Set, CFGNode, nullptr),
     StateVariableValue(CFGNode->getStateVariableValue()) {}
 
 public:

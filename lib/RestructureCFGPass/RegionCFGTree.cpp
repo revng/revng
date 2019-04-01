@@ -913,9 +913,9 @@ void RegionCFG::generateAst(BBNodeToBBMap &OriginalBB) {
         else if (Node->isContinue())
           ASTObject.reset(new ContinueNode());
         else if (Node->isSet())
-          ASTObject.reset(new SetNode(Node, OriginalBB.at(Node)));
+          ASTObject.reset(new SetNode(Node));
         else if (Node->isEmpty() or Node->isCode())
-          ASTObject.reset(new CodeNode(Node, OriginalBB.at(Node), nullptr));
+          ASTObject.reset(new CodeNode(Node, OriginalBB[Node], nullptr));
         else
           revng_abort();
       }
