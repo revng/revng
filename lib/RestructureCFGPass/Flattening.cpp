@@ -20,7 +20,11 @@
 
 Logger<> FlattenLog("flattening");
 
-void flattenRegionCFGTree(RegionCFG &Root) {
+// BBNodeToBBMap is a map that contains the original link to the LLVM basic
+// block.
+using BBNodeToBBMap = std::map<BasicBlockNode *, llvm::BasicBlock *>;
+
+void flattenRegionCFGTree(RegionCFG &Root, BBNodeToBBMap &OriginalBB) {
 
   std::set<BasicBlockNode *> CollapsedNodes;
   std::set<BasicBlockNode *> NodesToRemove;
@@ -41,6 +45,20 @@ void flattenRegionCFGTree(RegionCFG &Root) {
       using MovedIterRange = llvm::iterator_range<IterT>;
       MovedIterRange MovedRange = Root.copyNodesAndEdgesFrom(CollapsedRegion,
                                                              SubstitutionMap);
+
+      // Insert in the `OriginalBB` map a new entry for the flattened nodes.
+      for (auto SubstitutionMapIt : SubstitutionMap) {
+        BasicBlockNode *OldKey = SubstitutionMapIt.first;
+        BasicBlockNode *NewKey = SubstitutionMapIt.second;
+
+        if (OriginalBB.count(OldKey) != 0) {
+          OriginalBB[NewKey] = OriginalBB[OldKey];
+        }
+
+      // TODO: remove from `OriginalBB` map the entries. We cannot remove the
+      //       old entry from the map immediately since a region may be
+      //       duplicayed multiple times.
+      }
 
       // Obtain a reference to the root AST node.
       ASTTree &RootAST = Root.getAST();

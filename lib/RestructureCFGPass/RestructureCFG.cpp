@@ -366,11 +366,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
   RootCFG.setFunctionName(F.getName());
   RootCFG.setRegionName("root");
 
-  // Initialize the RegionCFG object
-  RootCFG.initialize(&F);
-
   // TODO: we should obtain here the following map.
   BBNodeToBBMap OriginalBB;
+
+  // Initialize the RegionCFG object
+  RootCFG.initialize(&F, OriginalBB);
 
   // Dump the function name.
   if (CombLogger.isEnabled()) {
@@ -757,7 +757,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     std::map<BasicBlockNode *, BasicBlockNode *> ClonedMap;
     for (BasicBlockNode *Node : Meta->nodes()) {
       if (Node != Head) {
-        BasicBlockNode *Clone = RootCFG.cloneNode(*Node);
+        BasicBlockNode *Clone = RootCFG.cloneNode(*Node, OriginalBB);
         ClonedMap[Node] = Clone;
       }
     }
@@ -1024,6 +1024,17 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // Remove useless nodes inside the SCS (like dandling break/continue)
     CollapsedGraph.removeNotReachables(OrderedMetaRegions);
 
+    // Keep updated the `OriginalBB` map.
+    for (auto SubstitutionMapIt : SubstitutionMap) {
+      BasicBlockNode *OldKey = SubstitutionMapIt.first;
+      BasicBlockNode *NewKey = SubstitutionMapIt.second;
+
+      auto OriginalBBIt = OriginalBB.find(OldKey);
+      revng_assert(OriginalBBIt != OriginalBB.end());
+      std::swap(OriginalBB[NewKey], OriginalBBIt->second);
+      OriginalBB.erase(OriginalBBIt);
+    }
+
     // Serialize the newly collapsed SCS region.
     if (CombLogger.isEnabled()) {
       CombLogger << "Dumping CFG of metaregion " << Meta->getIndex() << "\n";
@@ -1102,7 +1113,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     RootCFG.dumpDotOnFile("dots", F.getName(), "final-before-flattening");
   }
 
-  flattenRegionCFGTree(RootCFG);
+  flattenRegionCFGTree(RootCFG, OriginalBB);
 
   // Serialize final AST after flattening on file
   RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final-after-flattening");

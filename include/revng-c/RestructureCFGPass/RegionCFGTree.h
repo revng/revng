@@ -65,8 +65,9 @@ public:
   RegionCFG &operator=(const RegionCFG &) = default;
   RegionCFG &operator=(RegionCFG &&) = default;
 
-  template<class GraphT>
-  void initialize(GraphT Graph);
+  template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
+  void initialize(GraphT Graph,
+                  std::map<BasicBlockNode *, typename GT::NodeRef> &OriginalBB);
 
   unsigned getNewID() { return IDCounter++; }
 
@@ -145,7 +146,8 @@ public:
     return BlockNodes.back().get();
   }
 
-  BasicBlockNode *cloneNode(const BasicBlockNode &OriginalNode);
+  BasicBlockNode *cloneNode(BasicBlockNode &OriginalNode,
+                            BBNodeToBBMap &OriginalBB);
 
   void removeNode(BasicBlockNode *Node);
 
@@ -189,7 +191,7 @@ public:
 
   std::vector<BasicBlockNode *> getInterestingNodes(BasicBlockNode *Condition);
 
-  void inflate();
+  void inflate(BBNodeToBBMap &OriginalBB);
 
   void generateAst(BBNodeToBBMap &OriginalBB);
 
@@ -237,29 +239,28 @@ struct GraphTraits<Inverse<RegionCFG *>>
 } // namespace llvm
 
 /// Initialize member function template definition.
-template<class GraphT>
-inline void RegionCFG::initialize(GraphT Graph) {
+template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
+inline void RegionCFG::initialize(GraphT Graph,
+                                  std::map<BasicBlockNode *,
+                                           typename GT::NodeRef> &OriginalBB) {
 
-  using GT = llvm::GraphTraits<GraphT>;
   using NodeRef = typename GT::NodeRef;
 
   // Map to keep the link between the original nodes and the BBNode created
   // from it.
   std::map<NodeRef, BasicBlockNode *> NodeToBBNodeMap;
 
-  // Map to keep the link between the BBNode just created and the orignal
-  // node.
-  std::map<BasicBlockNode *, NodeRef> BBNodeToNodeMap;
-
   for (NodeRef N : make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
     BasicBlockNode *BBNode = addNode(N->getName());
     NodeToBBNodeMap[N] = BBNode;
-    BBNodeToNodeMap[BBNode] = N;
+    OriginalBB[BBNode] = N;
   }
 
   // Set the `EntryNode` BasicBlockNode reference.
   EntryNode = NodeToBBNodeMap[GT::getEntryNode(Graph)];
 
+  // Do another iteration over all the nodes in the graph to create the edges
+  // in the graph.
   for (NodeRef N : make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
     BasicBlockNode *BBNode = NodeToBBNodeMap[N];
 

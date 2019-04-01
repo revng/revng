@@ -146,9 +146,17 @@ BasicBlockNode *RegionCFG::addNode(llvm::StringRef Name) {
   return Result;
 }
 
-BasicBlockNode *RegionCFG::cloneNode(const BasicBlockNode &OriginalNode) {
+BasicBlockNode *RegionCFG::cloneNode(BasicBlockNode &OriginalNode,
+                                     BBNodeToBBMap &OriginalBB) {
   BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(OriginalNode, this));
   BasicBlockNode *New = BlockNodes.back().get();
+
+  // Update the information in the `OriginalBB` map, which contains the
+  // link to the original BB.
+  if (OriginalBB.count(&OriginalNode) != 0) {
+    OriginalBB[New] = OriginalBB[&OriginalNode];
+  }
+
   // TODO: find a way to append to the original name the "cloned" suffix. Simply
   //       concatenating with as below causes memory corruption (StringRef).
   //New->setName(OriginalNode.getName() + " cloned");
@@ -414,7 +422,7 @@ RegionCFG::getInterestingNodes(BasicBlockNode *Cond) {
   return NotDominatedCandidates;
 }
 
-void RegionCFG::inflate() {
+void RegionCFG::inflate(BBNodeToBBMap &OriginalBB) {
 
    revng_assert(isDAG());
 
@@ -653,7 +661,7 @@ void RegionCFG::inflate() {
           CombLogger << Candidate->getNameStr() << "\n";
         }
 
-        BasicBlockNode *Duplicated = Graph.cloneNode(*Candidate);
+        BasicBlockNode *Duplicated = Graph.cloneNode(*Candidate, OriginalBB);
         revng_assert(Duplicated != nullptr);
 
         // If the node we are duplicating is a conditional node, add it to the
@@ -742,7 +750,7 @@ void RegionCFG::generateAst(BBNodeToBBMap &OriginalBB) {
   dumpDotOnFile("dots", FunctionName, "PRECOMB");
   if (ToInflate) {
     CombLogger << "Inflating region " + RegionName + "\n";
-    Graph.inflate();
+    Graph.inflate(OriginalBB);
     ToInflate = false;
   }
   dumpDotOnFile("dots", FunctionName, "POSTCOMB");

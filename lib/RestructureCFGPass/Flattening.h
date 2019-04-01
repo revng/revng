@@ -7,9 +7,16 @@
 #ifndef REVNGC_RESTRUCTURE_CFG_FLATTENING_H
 #define REVNGC_RESTRUCTURE_CFG_FLATTENING_H
 
+// LLVM includes
+#include "llvm/IR/BasicBlock.h"
+
 // forward declarations
 class RegionCFG;
 
-void flattenRegionCFGTree(RegionCFG &Root);
+// BBNodeToBBMap is a map that contains the original link to the LLVM basic
+// block.
+using BBNodeToBBMap = std::map<BasicBlockNode *, llvm::BasicBlock *>;
+
+void flattenRegionCFGTree(RegionCFG &Root, BBNodeToBBMap &OriginalBB);
 
 #endif // REVNGC_RESTRUCTURE_CFG_FLATTENING_H
