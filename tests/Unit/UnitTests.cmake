@@ -25,3 +25,20 @@ target_link_libraries(test_reachabilitypass
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_reachabilitypass COMMAND test_reachabilitypass)
+
+#
+# test_combingpass
+#
+
+add_executable(test_combingpass "${SRC}/CombingPass.cpp")
+target_include_directories(test_combingpass
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+          "${Boost_INCLUDE_DIRS}")
+target_compile_definitions(test_combingpass
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_link_libraries(test_combingpass
+  RestructureCFGPass
+  revng::revngSupport
+  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+  ${LLVM_LIBRARIES})
+add_test(NAME test_combingpass COMMAND test_combingpass -- "${SRC}/TestGraphs/")
