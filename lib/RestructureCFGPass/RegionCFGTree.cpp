@@ -335,6 +335,12 @@ void RegionCFG::dumpDotOnFile(std::string FolderName,
   dumpDot(DotFile);
 }
 
+void RegionCFG::dumpDotOnFile(std::string FileName) const {
+  std::ofstream DotFile;
+  DotFile.open(FileName);
+  dumpDot(DotFile);
+}
+
 void RegionCFG::purgeDummies() {
   RegionCFG &Graph = *this;
   bool AnotherIteration = true;
@@ -740,6 +746,13 @@ void RegionCFG::inflate(BBNodeToBBMap &OriginalBB) {
                       FunctionName,
                       "Region-" + RegionName + "-after-combing");
   //}
+}
+
+void RegionCFG::inflateForTest() {
+
+  // This map will be discarded.
+  BBNodeToBBMap OriginalBB;
+  inflate(OriginalBB);
 }
 
 void RegionCFG::generateAst(BBNodeToBBMap &OriginalBB) {

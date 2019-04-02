@@ -185,13 +185,20 @@ public:
                      std::string FunctionName,
                      std::string FileName) const;
 
+  /// \brief Dump a GraphViz file on a file using an absolute path
+  void dumpDotOnFile(std::string FileName) const;
+
   void purgeDummies();
 
   void purgeVirtualSink(BasicBlockNode *Sink);
 
   std::vector<BasicBlockNode *> getInterestingNodes(BasicBlockNode *Condition);
 
+  /// \brief Apply comb to the region.
   void inflate(BBNodeToBBMap &OriginalBB);
+
+  /// \brief Wrapper call to inflate for use in tests.
+  void inflateForTest();
 
   void generateAst(BBNodeToBBMap &OriginalBB);
 
