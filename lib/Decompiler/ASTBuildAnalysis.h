@@ -24,6 +24,7 @@ class FunctionDecl;
 class LabelDecl;
 class VarDecl;
 class Stmt;
+class TypeDecl;
 } // namespace clang
 
 namespace llvm {
@@ -32,6 +33,7 @@ class BasicBlock;
 class Constant;
 class Function;
 class PHINode;
+class Type;
 } // namespace llvm
 
 namespace IR2AST {
@@ -42,13 +44,15 @@ using DeclMap = std::map<llvm::Instruction *, clang::VarDecl *>;
 using FunctionsMap = std::map<llvm::Function *, clang::FunctionDecl *>;
 using GlobalsMap = std::map<const llvm::GlobalVariable *, clang::VarDecl *>;
 using StmtMap = std::map<llvm::Instruction *, clang::Stmt *>;
-
-using LatticeElement = IntersectionMonotoneSet<llvm::Instruction *>;
+using StmtMultiMap = std::map<llvm::Instruction *,
+                              llvm::SmallVector<clang::Stmt *, 2>>;
+using TypeDeclMap = std::map<const llvm::Type *, clang::TypeDecl *>;
+using FieldDeclMap = std::map<clang::TypeDecl *,
+                              llvm::SmallVector<clang::FieldDecl *, 8>>;
 
 class StmtBuilder {
 
 private:
-
   using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
   using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
 
@@ -59,25 +63,28 @@ private:
   uint64_t NVar;
 
 public:
-
   AllocaVarDeclMap AllocaDecls;
   BBLabelsMap BBLabelDecls;
   DeclMap VarDecls;
   FunctionsMap &FunctionDecls;
   GlobalsMap &GlobalDecls;
   StmtMap InstrStmts;
+  StmtMultiMap AdditionalStmts;
+  TypeDeclMap TypeDecls;
+  FieldDeclMap FieldDecls;
   BBPHIMap &BlockToPHIIncoming;
   clang::VarDecl *LoopStateVarDecl;
 
 public:
-
   StmtBuilder(llvm::Function &F,
               const std::set<llvm::Instruction *> &ToSerialize,
               clang::ASTContext &Ctx,
               clang::FunctionDecl &FD,
               GlobalsMap &GMap,
               FunctionsMap &FMap,
-              BBPHIMap &BlockToPHIIncoming) :
+              BBPHIMap &BlockToPHIIncoming,
+              TypeDeclMap &TypeDecls,
+              FieldDeclMap &FieldDecls) :
     F(F),
     ToSerialize(ToSerialize),
     FDecl(FD),
@@ -90,12 +97,15 @@ public:
     GlobalDecls(GMap),
     InstrStmts(),
     BlockToPHIIncoming(BlockToPHIIncoming),
+    TypeDecls(TypeDecls),
+    FieldDecls(FieldDecls),
     LoopStateVarDecl(nullptr) {}
 
   void createAST();
 
   clang::Expr *getExprForValue(llvm::Value *V);
   clang::Expr *getUIntLiteral(uint64_t U);
+
 private:
   clang::VarDecl *createVarDecl(llvm::Instruction *I);
   clang::Stmt *buildStmt(llvm::Instruction &I);

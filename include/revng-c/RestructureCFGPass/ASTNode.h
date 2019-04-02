@@ -19,7 +19,7 @@
 namespace llvm {
 class BasicBlock;
 class ConstantInt;
-}
+} // namespace llvm
 
 class BasicBlockNode;
 
@@ -29,16 +29,18 @@ using ExprNodeMap = std::map<ExprNode *, ExprNode *>;
 class ASTNode {
 
 public:
-  enum NodeKind { NK_Code,
-                  NK_Break,
-                  NK_Continue,
-                  NK_If,
-                  NK_IfCheck,
-                  NK_Scs,
-                  NK_List,
-                  NK_Switch,
-                  NK_SwitchCheck,
-                  NK_Set };
+  enum NodeKind {
+    NK_Code,
+    NK_Break,
+    NK_Continue,
+    NK_If,
+    NK_IfCheck,
+    NK_Scs,
+    NK_List,
+    NK_Switch,
+    NK_SwitchCheck,
+    NK_Set
+  };
 
   using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
 
@@ -99,9 +101,7 @@ public:
     return IsEmpty;
   }
 
-  llvm::BasicBlock *getOriginalBB() const {
-    return BB;
-  }
+  llvm::BasicBlock *getOriginalBB() const { return BB; }
 
   virtual bool isEqual(ASTNode *Node) const = 0;
 
@@ -150,12 +150,12 @@ public:
     ASTNode(Kind, CFGNode, PostDom),
     Then(Then),
     Else(Else),
-    ConditionExpression(CondExpr) {
-  }
+    ConditionExpression(CondExpr) {}
 
 public:
-  static bool classof(const ASTNode *N) { return N->getKind() >= NK_If &&
-                                                 N->getKind() <= NK_IfCheck; }
+  static bool classof(const ASTNode *N) {
+    return N->getKind() >= NK_If && N->getKind() <= NK_IfCheck;
+  }
 
   ASTNode *getThen() const { return Then; }
 
@@ -197,13 +197,9 @@ public:
 
   virtual ~IfNode() override = default;
 
-  ExprNode *getCondExpr() {
-    return ConditionExpression;
-  }
+  ExprNode *getCondExpr() { return ConditionExpression; }
 
-  void replaceCondExpr(ExprNode *NewExpr) {
-    ConditionExpression = NewExpr;
-  }
+  void replaceCondExpr(ExprNode *NewExpr) { ConditionExpression = NewExpr; }
 
   void updateCondExprPtr(ExprNodeMap &Map);
 };
@@ -383,16 +379,15 @@ public:
   SwitchNode(llvm::Value *Condition,
              std::vector<std::pair<llvm::ConstantInt *, ASTNode *>> &Cases,
              NodeKind Kind = NK_Switch) :
-    ASTNode(NK_Switch, "SwitchNode"), SwitchCondition(Condition) {
-      for(auto &Case : Cases) {
-        CaseList.push_back(Case);
-      }
+    ASTNode(NK_Switch, "SwitchNode"),
+    SwitchCondition(Condition) {
+    for (auto &Case : Cases) {
+      CaseList.push_back(Case);
     }
+  }
 
 public:
-  static bool classof(const ASTNode *N) {
-    return N->getKind() == NK_Switch;
-  }
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_Switch; }
 
   links_range cases() {
     return llvm::make_range(CaseList.begin(), CaseList.end());
@@ -431,7 +426,7 @@ public:
     StateVariableValue(CFGNode->getStateVariableValue()) {}
 
 public:
-  static bool classof(const ASTNode *N) {return N->getKind() == NK_Set; }
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_Set; }
 
   virtual bool isEqual(ASTNode *Node) const override;
 
@@ -439,7 +434,7 @@ public:
 
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
 
-  virtual ASTNode *Clone() override {return new SetNode(*this); }
+  virtual ASTNode *Clone() override { return new SetNode(*this); }
 
   virtual ~SetNode() override = default;
 
@@ -457,8 +452,7 @@ public:
               ASTNode *Else,
               ASTNode *PostDom) :
     IfNode(CFGNode, nullptr, Then, Else, PostDom, NK_IfCheck),
-    StateVariableValue(CFGNode->getStateVariableValue()) {
-  }
+    StateVariableValue(CFGNode->getStateVariableValue()) {}
 
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_IfCheck; }
@@ -468,7 +462,6 @@ public:
   virtual ASTNode *Clone() override { return new IfCheckNode(*this); }
 
   unsigned getCaseValue() { return StateVariableValue; }
-
 };
 
 class SwitchCheckNode : public ASTNode {
@@ -482,17 +475,16 @@ private:
   links_container CaseList;
 
 public:
-  SwitchCheckNode(std::vector<std::pair<unsigned,
-                                        ASTNode  *>> &Cases) :
+  SwitchCheckNode(std::vector<std::pair<unsigned, ASTNode *>> &Cases) :
     ASTNode(NK_SwitchCheck, "SwitchCheckNode") {
-      for (auto &Case : Cases) {
-        CaseList.push_back(Case);
-      }
+    for (auto &Case : Cases) {
+      CaseList.push_back(Case);
     }
+  }
 
 public:
   static bool classof(const ASTNode *N) {
-   return N->getKind() == NK_SwitchCheck;
+    return N->getKind() == NK_SwitchCheck;
   }
 
   links_range cases() {

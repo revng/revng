@@ -22,8 +22,7 @@ static bool isInAnyFunction(Instruction *I, const std::set<Function *> &Funcs) {
   return Funcs.count(I->getFunction()) != 0;
 }
 
-static bool
-isUsedInFunction(ConstantExpr *CE, const Function &F) {
+static bool isUsedInFunction(ConstantExpr *CE, const Function &F) {
   SmallSet<Constant *, 16> UnexploredCEUsers;
   UnexploredCEUsers.insert(CE);
   SmallSet<Constant *, 16> NextUnexploredCEUsers;
@@ -52,7 +51,7 @@ isUsedInFunction(ConstantExpr *CE, const Function &F) {
 
 std::set<GlobalVariable *> getDirectlyUsedGlobals(Function &F) {
   std::set<GlobalVariable *> Results;
-  llvm::Module *M =  F.getParent();
+  llvm::Module *M = F.getParent();
   for (GlobalVariable &G : M->globals()) {
     for (User *U : G.users()) {
       if (auto *I = dyn_cast<Instruction>(U)) {

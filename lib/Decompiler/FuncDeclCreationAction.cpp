@@ -1,10 +1,13 @@
+// LLVM includes
+#include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/Module.h>
 
+// revng includes
 #include <revng/Support/Assert.h>
 
-#include "FuncDeclCreationAction.h"
-
+// local includes
 #include "DecompilationHelpers.h"
+#include "FuncDeclCreationAction.h"
 #include "IRASTTypeTranslation.h"
 #include "Mangling.h"
 
@@ -14,16 +17,25 @@ namespace clang {
 namespace tooling {
 
 using FunctionsMap = FuncDeclCreationAction::FunctionsMap;
+using TypeDeclMap = std::map<const llvm::Type *, clang::TypeDecl *>;
+using FieldDeclMap = std::map<clang::TypeDecl *,
+                              llvm::SmallVector<clang::FieldDecl *, 8>>;
 
 static FunctionDecl *createFunDecl(ASTContext &Context,
                                    TranslationUnitDecl *TUDecl,
+                                   TypeDeclMap &TypeDecls,
+                                   FieldDeclMap &FieldDecls,
                                    Function *F,
                                    bool hasBody) {
 
   const llvm::FunctionType *FType = F->getFunctionType();
 
   llvm::Type *RetTy = FType->getReturnType();
-  QualType RetType = IRASTTypeTranslation::getQualType(RetTy, Context);
+  QualType RetType = IRASTTypeTranslation::getOrCreateQualType(RetTy,
+                                                               Context,
+                                                               *TUDecl,
+                                                               TypeDecls,
+                                                               FieldDecls);
 
   SmallVector<QualType, 4> VoidArgsTy(1, Context.VoidTy);
   SmallVector<QualType, 4> ArgTypes = {};
@@ -32,7 +44,11 @@ static FunctionDecl *createFunDecl(ASTContext &Context,
     // This is a temporary workaround to reduce warnings
     QualType ArgType = Context.VoidPtrTy;
     if (not isa<llvm::PointerType>(T))
-      ArgType = IRASTTypeTranslation::getQualType(T, Context);
+      ArgType = IRASTTypeTranslation::getOrCreateQualType(T,
+                                                          Context,
+                                                          *TUDecl,
+                                                          TypeDecls,
+                                                          FieldDecls);
     ArgTypes.push_back(ArgType);
   }
   const bool HasNoParams = ArgTypes.empty();
@@ -84,8 +100,14 @@ static FunctionDecl *createFunDecl(ASTContext &Context,
 
 class FuncDeclCreator : public ASTConsumer {
 public:
-  explicit FuncDeclCreator(llvm::Function &F, FunctionsMap &Decls) :
-    TheF(F), FunctionDecls(Decls) {}
+  explicit FuncDeclCreator(llvm::Function &F,
+                           FunctionsMap &FDecls,
+                           TypeDeclMap &TDecls,
+                           FieldDeclMap &FieldDecls) :
+    TheF(F),
+    FunctionDecls(FDecls),
+    TypeDecls(TDecls),
+    FieldDecls(FieldDecls) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override {
     llvm::Module &M = *TheF.getParent();
@@ -98,7 +120,12 @@ public:
     for (Function *F : Called) {
       const llvm::StringRef FName = F->getName();
       revng_assert(not FName.empty());
-      FunctionDecl *NewFDecl = createFunDecl(Context, TUDecl, F, false);
+      FunctionDecl *NewFDecl = createFunDecl(Context,
+                                             TUDecl,
+                                             TypeDecls,
+                                             FieldDecls,
+                                             F,
+                                             false);
       FunctionDecls[F] = NewFDecl;
     }
 
@@ -109,17 +136,27 @@ public:
     // be fully decompiled and it needs a body.
     // This definition starts as a declaration that is than inflated by the
     // ASTBuildAnalysis.
-    FunctionDecl *NewFDecl = createFunDecl(Context, TUDecl, &TheF, true);
+    FunctionDecl *NewFDecl = createFunDecl(Context,
+                                           TUDecl,
+                                           TypeDecls,
+                                           FieldDecls,
+                                           &TheF,
+                                           true);
     FunctionDecls[&TheF] = NewFDecl;
   }
 
 private:
   llvm::Function &TheF;
   FunctionsMap &FunctionDecls;
+  TypeDeclMap &TypeDecls;
+  FieldDeclMap &FieldDecls;
 };
 
 std::unique_ptr<ASTConsumer> FuncDeclCreationAction::newASTConsumer() {
-  return std::make_unique<FuncDeclCreator>(F, FunctionDecls);
+  return std::make_unique<FuncDeclCreator>(F,
+                                           FunctionDecls,
+                                           TypeDecls,
+                                           FieldDecls);
 }
 
 } // end namespace tooling

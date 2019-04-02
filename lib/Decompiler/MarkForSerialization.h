@@ -56,7 +56,7 @@ public:
     ToSerializeInBB(),
     BBToIdMap(),
     NDuplicates() {
-      Base::registerExtremal(&F.getEntryBlock());
+    Base::registerExtremal(&F.getEntryBlock());
   }
 
   void dumpFinalState() const { revng_abort(); }

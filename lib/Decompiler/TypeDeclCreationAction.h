@@ -1,7 +1,7 @@
-#ifndef REVNGC_FUNCTIONDECLCREATIONACTION_H
-#define REVNGC_FUNCTIONDECLCREATIONACTION_H
+#ifndef REVNGC_TYPEDECLCREATIONACTION_H
+#define REVNGC_TYPEDECLCREATIONACTION_H
 
-// clang includes
+// LLVM includes
 #include <llvm/ADT/SmallVector.h>
 
 // clang includes
@@ -10,32 +10,26 @@
 
 namespace llvm {
 class Function;
-class Type;
 } // namespace llvm
 
 namespace clang {
 
 class CompilerInstance;
-class FieldDecl;
-class TypeDecl;
 
 namespace tooling {
 
-class FuncDeclCreationAction : public ASTFrontendAction {
+class TypeDeclCreationAction : public ASTFrontendAction {
 
 public:
-  using FunctionsMap = std::map<llvm::Function *, clang::FunctionDecl *>;
   using TypeDeclMap = std::map<const llvm::Type *, clang::TypeDecl *>;
   using FieldDeclMap = std::map<clang::TypeDecl *,
-                                llvm::SmallVector<clang::FieldDecl *, 8>>;
+                                SmallVector<clang::FieldDecl *, 8>>;
 
 public:
-  FuncDeclCreationAction(llvm::Function &F,
-                         FunctionsMap &FDecls,
+  TypeDeclCreationAction(llvm::Function &F,
                          TypeDeclMap &TDecls,
                          FieldDeclMap &FieldDecls) :
     F(F),
-    FunctionDecls(FDecls),
     TypeDecls(TDecls),
     FieldDecls(FieldDecls) {}
 
@@ -49,7 +43,6 @@ public:
 
 private:
   llvm::Function &F;
-  FunctionsMap &FunctionDecls;
   TypeDeclMap &TypeDecls;
   FieldDeclMap &FieldDecls;
 };
@@ -57,14 +50,13 @@ private:
 } // end namespace tooling
 
 inline std::unique_ptr<ASTConsumer>
-CreateFuncDeclCreator(llvm::Function &F,
-                      tooling::FuncDeclCreationAction::FunctionsMap &FunDecls,
-                      tooling::FuncDeclCreationAction::TypeDeclMap &TDecls,
-                      tooling::FuncDeclCreationAction::FieldDeclMap &FldDecls) {
+CreateTypeDeclCreator(llvm::Function &F,
+                      tooling::TypeDeclCreationAction::TypeDeclMap &TypeDecls,
+                      tooling::TypeDeclCreationAction::FieldDeclMap &FldDecls) {
   using namespace tooling;
-  return FuncDeclCreationAction(F, FunDecls, TDecls, FldDecls).newASTConsumer();
+  return TypeDeclCreationAction(F, TypeDecls, FldDecls).newASTConsumer();
 }
 
 } // end namespace clang
 
-#endif // REVNGC_FUNCTIONDECLCREATIONACTION_H
+#endif // REVNGC_TYPEDECLCREATIONACTION_H

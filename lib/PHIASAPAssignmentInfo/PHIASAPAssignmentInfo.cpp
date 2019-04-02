@@ -35,9 +35,8 @@ struct IncomingCandidatesInfoTy {
   BlockToIncomingMap BlocksToIncoming;
 };
 
-static bool
-smallerSizeOneToSetIncomingPair(const OneToSetIncomingPair &P,
-                                const OneToSetIncomingPair &Q) {
+static bool smallerSizeOneToSetIncomingPair(const OneToSetIncomingPair &P,
+                                            const OneToSetIncomingPair &Q) {
   return P.second.size() < Q.second.size();
 }
 

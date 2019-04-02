@@ -123,7 +123,6 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
     CondExprList.emplace_back(new AtomicNode(*cast<AtomicNode>(OldExpr.get())));
     ExprNode *NewExpr = CondExprList.back().get();
     CondExprMap[OldExpr.get()] = NewExpr;
-
   }
 
   // Update the AST and BBNode pointers inside the newly created AST nodes,

@@ -19,11 +19,10 @@
 #include <revng/Support/IRHelpers.h>
 
 // local includes
+#include "ASTBuildAnalysis.h"
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
 #include "Mangling.h"
-
-#include "ASTBuildAnalysis.h"
 
 static Logger<> ASTBuildLog("ast-builder");
 
@@ -33,6 +32,7 @@ using ClangType = clang::Type;
 using ClangPointerType = clang::PointerType;
 using LLVMType = llvm::Type;
 using LLVMPointerType = llvm::PointerType;
+using namespace IRASTTypeTranslation;
 
 namespace IR2AST {
 
@@ -50,8 +50,13 @@ Expr *StmtBuilder::getParenthesizedExprForValue(Value *V) {
 Stmt *StmtBuilder::buildStmt(Instruction &I) {
   revng_log(ASTBuildLog, "Build AST for" << dumpToString(&I));
   switch (I.getOpcode()) {
+  //
   // ---- SUPPORTED INSTRUCTIONS ----
-  // Terminators
+  //
+
+  //
+  // ---- Terminators ----
+  //
   case Instruction::Br: {
     revng_abort("branch instructions are not supported yet");
     auto *Branch = cast<BranchInst>(&I);
@@ -131,27 +136,37 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     S->setBody(Body);
     return S;
   }
-  // Standard binary operators
+  //
+  // ---- Standard binary operators ----
+  //
   case Instruction::Add:
   case Instruction::Sub:
   case Instruction::Mul:
-  // Standard division operators (with signedness)
+  //
+  // ---- Standard division operators (with signedness) ----
+  //
   case Instruction::UDiv:
   case Instruction::SDiv:
   case Instruction::URem:
   case Instruction::SRem:
-  // Logical operators
+  //
+  // ---- Logical operators ----
+  //
   case Instruction::And:
   case Instruction::Or:
   case Instruction::Xor:
-  // Other instructions
+  //
+  // ---- Other instructions ----
+  //
   case Instruction::ICmp:
   case Instruction::Shl:
   case Instruction::LShr:
   case Instruction::AShr: {
     return createRValueExprForBinaryOperator(I);
   }
-  // Memory instructions
+  //
+  // ---- Memory instructions ----
+  //
   case Instruction::Alloca: {
     VarDecl *ArrayDecl = AllocaDecls.at(cast<AllocaInst>(&I));
     QualType ArrayTy = ArrayDecl->getType();
@@ -193,7 +208,12 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     if (ASTBuildLog.isEnabled() and AddrExpr)
       AddrExpr->dump();
     if (not isa<GlobalVariable>(Addr)) {
-      QualType PointeeType = IRASTTypeTranslation::getQualType(Load, ASTCtx);
+      clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+      QualType PointeeType = getOrCreateQualType(Load,
+                                                 ASTCtx,
+                                                 TUDecl,
+                                                 TypeDecls,
+                                                 FieldDecls);
 
       QualType QualAddrType = AddrExpr->getType();
       const ClangType *AddrTy = QualAddrType.getTypePtr();
@@ -262,7 +282,9 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                               {},
                                               FPOptions());
   }
-  // Convert instructions
+  //
+  // ---- Convert instructions ----
+  //
   case Instruction::Trunc:
   case Instruction::ZExt:
   case Instruction::SExt:
@@ -271,7 +293,12 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
   case Instruction::BitCast: {
     revng_assert(I.getNumOperands() == 1);
     Expr *Res = getParenthesizedExprForValue(I.getOperand(0));
-    QualType LHSQualType = IRASTTypeTranslation::getQualType(&I, ASTCtx);
+    clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+    QualType LHSQualType = getOrCreateQualType(&I,
+                                               ASTCtx,
+                                               TUDecl,
+                                               TypeDecls,
+                                               FieldDecls);
     if (LHSQualType != Res->getType())
       Res = createCast(LHSQualType, Res, ASTCtx);
     revng_log(ASTBuildLog, "GOT!");
@@ -279,7 +306,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       Res->dump();
     return Res;
   }
-  // Other instructions
+  // ---- Other instructions ----
   case Instruction::Select: {
     Expr *Cond = getParenthesizedExprForValue(I.getOperand(0));
     revng_log(ASTBuildLog, "GOT!");
@@ -293,7 +320,12 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and FalseExpr)
       FalseExpr->dump();
-    QualType ASTType = IRASTTypeTranslation::getQualType(&I, ASTCtx);
+    clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+    QualType ASTType = getOrCreateQualType(&I,
+                                           ASTCtx,
+                                           TUDecl,
+                                           TypeDecls,
+                                           FieldDecls);
     return new (ASTCtx) ConditionalOperator(Cond,
                                             {},
                                             TrueExpr,
@@ -341,7 +373,12 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       }
     }
 
-    QualType ReturnType = IRASTTypeTranslation::getQualType(TheCall, ASTCtx);
+    clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+    QualType ReturnType = getOrCreateQualType(TheCall,
+                                              ASTCtx,
+                                              TUDecl,
+                                              TypeDecls,
+                                              FieldDecls);
     return new (ASTCtx)
       CallExpr(ASTCtx, CalleeExpr, Args, ReturnType, VK_RValue, {});
   }
@@ -352,6 +389,80 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     QualType ReturnType = ASTCtx.VoidTy;
     return new (ASTCtx)
       CallExpr(ASTCtx, CalleeExpr, Args, ReturnType, VK_RValue, {});
+  }
+  //
+  // ---- Instructions for struct manipulation ----
+  //
+  case Instruction::InsertValue: {
+    InsertValueInst *Insert = cast<InsertValueInst>(&I);
+    revng_assert(Insert->getNumIndices() == 1);
+    Value *AggregateOp = Insert->getAggregateOperand();
+    revng_assert(isa<UndefValue>(AggregateOp)
+                 or isa<InsertValueInst>(AggregateOp));
+    llvm::Type *AggregateTy = AggregateOp->getType();
+    clang::TypeDecl *StructTypeDecl = TypeDecls.at(AggregateTy);
+    Expr *StructExpr = getExprForValue(Insert);
+    clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+    QualType InsertedTy = getOrCreateQualType(Insert,
+                                              ASTCtx,
+                                              TUDecl,
+                                              TypeDecls,
+                                              FieldDecls);
+    unsigned Idx = *Insert->idx_begin();
+    FieldDecl *InsertedFieldDecl = FieldDecls.at(StructTypeDecl)[Idx];
+    clang::DeclarationName FieldDeclName = InsertedFieldDecl->getIdentifier();
+    clang::DeclarationNameInfo FieldDeclNameInfo(FieldDeclName, {});
+    clang::Expr *LHS = new (ASTCtx) MemberExpr(StructExpr,
+                                               /*isarrow*/ false,
+                                               {},
+                                               InsertedFieldDecl,
+                                               FieldDeclNameInfo,
+                                               InsertedTy,
+                                               VK_LValue,
+                                               OK_Ordinary);
+    clang::Expr *RHS = getExprForValue(Insert->getInsertedValueOperand());
+    BinaryOperatorKind BinOpKind = BinaryOperatorKind::BO_Assign;
+    AdditionalStmts[&I].push_back(new (ASTCtx)
+                                    clang::BinaryOperator(LHS,
+                                                          RHS,
+                                                          BinOpKind,
+                                                          LHS->getType(),
+                                                          VK_RValue,
+                                                          OK_Ordinary,
+                                                          {},
+                                                          FPOptions()));
+    if (isa<UndefValue>(AggregateOp))
+      return nullptr;
+    return getExprForValue(AggregateOp);
+  }
+  case Instruction::ExtractValue: {
+    ExtractValueInst *Extract = cast<ExtractValueInst>(&I);
+    revng_assert(Extract->getNumIndices() == 1);
+    Value *AggregateOp = Extract->getAggregateOperand();
+    if (isa<UndefValue>(AggregateOp))
+      return nullptr;
+    revng_assert(isa<CallInst>(AggregateOp));
+    llvm::Type *AggregateTy = AggregateOp->getType();
+    clang::TypeDecl *StructTypeDecl = TypeDecls.at(AggregateTy);
+    Expr *StructExpr = getExprForValue(AggregateOp);
+    clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+    QualType ExtractedTy = getOrCreateQualType(Extract,
+                                               ASTCtx,
+                                               TUDecl,
+                                               TypeDecls,
+                                               FieldDecls);
+    unsigned Idx = *Extract->idx_begin();
+    FieldDecl *ExtractedFieldDecl = FieldDecls.at(StructTypeDecl)[Idx];
+    clang::DeclarationName FieldDeclName = ExtractedFieldDecl->getIdentifier();
+    clang::DeclarationNameInfo FieldDeclNameInfo(FieldDeclName, {});
+    return new (ASTCtx) MemberExpr(StructExpr,
+                                   /*isarrow*/ false,
+                                   {},
+                                   ExtractedFieldDecl,
+                                   FieldDeclNameInfo,
+                                   ExtractedTy,
+                                   VK_RValue,
+                                   OK_Ordinary);
   }
 
   // ---- UNSUPPORTED INSTRUCTIONS ----
@@ -389,8 +500,6 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
   case Instruction::ExtractElement:
   case Instruction::InsertElement:
   case Instruction::ShuffleVector:
-  case Instruction::ExtractValue:
-  case Instruction::InsertValue:
   case Instruction::LandingPad:
   case Instruction::CleanupPad:
   default:
@@ -487,11 +596,19 @@ void StmtBuilder::createAST() {
         AllocaDecls[Alloca] = ArrayDecl;
       }
 
+      if (isa<InsertValueInst>(&I) or isa<ExtractValueInst>(&I)) {
+        revng_assert(VarDecls.count(&I) == 0);
+        VarDecl *NewVarDecl = createVarDecl(&I);
+        VarDecls[&I] = NewVarDecl;
+      }
+
       Stmt *NewStmt = buildStmt(I);
       if (NewStmt == nullptr)
         continue;
       InstrStmts[&I] = NewStmt;
-      if (I.getNumUses() > 0 and ToSerialize.count(&I)) {
+
+      if (not isa<InsertValueInst>(&I) and not isa<ExtractValueInst>(&I)
+          and I.getNumUses() > 0 and ToSerialize.count(&I)) {
         revng_assert(VarDecls.count(&I) == 0);
         VarDecl *NewVarDecl = createVarDecl(&I);
         VarDecls[&I] = NewVarDecl;
@@ -501,7 +618,12 @@ void StmtBuilder::createAST() {
 }
 
 VarDecl *StmtBuilder::createVarDecl(Instruction *I) {
-  QualType ASTType = IRASTTypeTranslation::getQualType(I, ASTCtx);
+  clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+  QualType ASTType = getOrCreateQualType(I,
+                                         ASTCtx,
+                                         TUDecl,
+                                         TypeDecls,
+                                         FieldDecls);
   revng_assert(not ASTType.isNull());
   const std::string VarName = "var_" + std::to_string(NVar++);
   IdentifierInfo &Id = ASTCtx.Idents.get(VarName);
@@ -700,7 +822,12 @@ Expr *StmtBuilder::createRValueExprForBinaryOperator(Instruction &I) {
   case Instruction::SRem:
   case Instruction::AShr:
   case Instruction::ICmp: {
-    QualType ResType = IRASTTypeTranslation::getQualType(&I, ASTCtx);
+    clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+    QualType ResType = getOrCreateQualType(&I,
+                                           ASTCtx,
+                                           TUDecl,
+                                           TypeDecls,
+                                           FieldDecls);
     Res = new (ASTCtx) ParenExpr({}, {}, Res);
     Res = createCast(ResType, Res, ASTCtx);
   } break;
@@ -788,12 +915,21 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
                                           nullptr,
                                           VK_RValue);
 
+      clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
       QualType PointeeType;
       if (Load) {
-        PointeeType = IRASTTypeTranslation::getQualType(Load, ASTCtx);
+        PointeeType = getOrCreateQualType(Load,
+                                          ASTCtx,
+                                          TUDecl,
+                                          TypeDecls,
+                                          FieldDecls);
       } else {
         Value *Stored = Store->getValueOperand();
-        PointeeType = IRASTTypeTranslation::getQualType(Stored, ASTCtx);
+        PointeeType = getOrCreateQualType(Stored,
+                                          ASTCtx,
+                                          TUDecl,
+                                          TypeDecls,
+                                          FieldDecls);
       }
 
       QualAddrType = AddrExpr->getType();
@@ -837,7 +973,12 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
       LLVMType *LHSTy = Cast->getDestTy();
       if (RHSTy != LHSTy) {
         revng_assert(RHSTy->isIntOrPtrTy() and LHSTy->isIntOrPtrTy());
-        QualType DestTy = IRASTTypeTranslation::getQualType(LHSTy, ASTCtx);
+        clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+        QualType DestTy = getOrCreateQualType(LHSTy,
+                                              ASTCtx,
+                                              TUDecl,
+                                              TypeDecls,
+                                              FieldDecls);
         CastKind CK;
         switch (Cast->getOpcode()) {
         case Instruction::Trunc:
@@ -947,7 +1088,12 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
 Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
   if (auto *CD = dyn_cast<ConstantData>(C)) {
     if (auto *CInt = dyn_cast<ConstantInt>(CD)) {
-      QualType LiteralTy = IRASTTypeTranslation::getQualType(CInt, ASTCtx);
+      clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+      QualType LiteralTy = getOrCreateQualType(CInt,
+                                               ASTCtx,
+                                               TUDecl,
+                                               TypeDecls,
+                                               FieldDecls);
       const clang::Type *UnderlyingTy = LiteralTy.getTypePtrOrNull();
       revng_assert(UnderlyingTy != nullptr);
       const BuiltinType *BuiltinTy = cast<BuiltinType>(UnderlyingTy);

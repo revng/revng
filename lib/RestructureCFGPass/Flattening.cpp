@@ -103,84 +103,82 @@ void flattenRegionCFGTree(RegionCFG &Root) {
   // performed on the LLVM IR after the combing.
   for (BasicBlockNode *Node : Root) {
     switch (Node->getNodeType()) {
-      case BasicBlockNode::Type::Set: {
-        SetNodes.push_back(Node);
-      } break;
-      case BasicBlockNode::Type::Check: {
-        revng_assert(Node->predecessor_size() != 0);
-        BasicBlockNode *Pred = Node->getPredecessorI(0);
-        if (Pred->isCheck()) {
-          revng_assert(Node->predecessor_size() == 1);
-          continue;
-        }
+    case BasicBlockNode::Type::Set: {
+      SetNodes.push_back(Node);
+    } break;
+    case BasicBlockNode::Type::Check: {
+      revng_assert(Node->predecessor_size() != 0);
+      BasicBlockNode *Pred = Node->getPredecessorI(0);
+      if (Pred->isCheck()) {
+        revng_assert(Node->predecessor_size() == 1);
+        continue;
+      }
 
-        // Here Node is the head of a chain of Check nodes, and all its
-        // predecessors are Set nodes, or they are dummy nodes, the predecessor
-        // of which must in turn be Check nodes or dummy nodes.
-        std::multimap<unsigned, BasicBlockNode *> VarToSet;
-        std::vector<BasicBlockNode *> Candidates;
+      // Here Node is the head of a chain of Check nodes, and all its
+      // predecessors are Set nodes, or they are dummy nodes, the predecessor
+      // of which must in turn be Check nodes or dummy nodes.
+      std::multimap<unsigned, BasicBlockNode *> VarToSet;
+      std::vector<BasicBlockNode *> Candidates;
 
-        // Iterative exploration going upwards from the check node searching for
-        // the set nodes.
-        for (BasicBlockNode *Pred : Node->predecessors()) {
-          Candidates.push_back(Pred);
-        }
-        while (Candidates.size() > 0) {
-          BasicBlockNode *Candidate = Candidates.back();
-          Candidates.pop_back();
-          if (Candidate->isSet()) {
+      // Iterative exploration going upwards from the check node searching for
+      // the set nodes.
+      for (BasicBlockNode *Pred : Node->predecessors()) {
+        Candidates.push_back(Pred);
+      }
+      while (Candidates.size() > 0) {
+        BasicBlockNode *Candidate = Candidates.back();
+        Candidates.pop_back();
+        if (Candidate->isSet()) {
 
-            // If the predecessor is a set node add it for later processing.
-            unsigned SetID = Candidate->getStateVariableValue();
-            VarToSet.insert({SetID, Candidate});
-          } else if (Candidate->isEmpty()) {
+          // If the predecessor is a set node add it for later processing.
+          unsigned SetID = Candidate->getStateVariableValue();
+          VarToSet.insert({ SetID, Candidate });
+        } else if (Candidate->isEmpty()) {
 
-            // If the predecessor is a dummy node, enqueue all its predecessor
-            // for processing, after verifying that they are in turn either set
-            // or dummy nodes.
-            std::vector<EdgeDescriptor> EdgesToRemove;
-            for (BasicBlockNode *Pred : Candidate->predecessors()) {
-              revng_assert(Pred->isSet() or Pred->isEmpty());
-              Candidates.push_back(Pred);
-              EdgesToRemove.push_back({Pred, Candidate});
-            }
-
-            // Remove the dummy node when we have finished.
-            NodesToRemove.insert(Candidate);
-
-            // Remove the edges between the set nodes to the dummy node.
-            for (EdgeDescriptor &Edge : EdgesToRemove) {
-              removeEdge(Edge);
-            }
-          } else {
-            revng_abort("Wrong ascending path towards set nodes");
+          // If the predecessor is a dummy node, enqueue all its predecessor
+          // for processing, after verifying that they are in turn either set
+          // or dummy nodes.
+          std::vector<EdgeDescriptor> EdgesToRemove;
+          for (BasicBlockNode *Pred : Candidate->predecessors()) {
+            revng_assert(Pred->isSet() or Pred->isEmpty());
+            Candidates.push_back(Pred);
+            EdgesToRemove.push_back({ Pred, Candidate });
           }
-        }
 
-        BasicBlockNode *Check = Node;
-        BasicBlockNode *False = nullptr;
-        while (1) {
-          NodesToRemove.insert(Check);
-          unsigned CheckId = Check->getStateVariableValue();
-          BasicBlockNode *True = Check->getTrue();
-          auto Range = VarToSet.equal_range(CheckId);
-          for (auto &Pair: llvm::make_range(Range.first, Range.second)) {
-            BasicBlockNode *SetNode = Pair.second;
-            moveEdgeTarget({SetNode, Node}, True);
+          // Remove the dummy node when we have finished.
+          NodesToRemove.insert(Candidate);
+
+          // Remove the edges between the set nodes to the dummy node.
+          for (EdgeDescriptor &Edge : EdgesToRemove) {
+            removeEdge(Edge);
           }
-          False = Check->getFalse();
-          if (not False->isCheck())
-            break;
-          Check = False;
+        } else {
+          revng_abort("Wrong ascending path towards set nodes");
         }
-        auto Range = VarToSet.equal_range(0);
-        for (auto &Pair: llvm::make_range(Range.first, Range.second)) {
+      }
+
+      BasicBlockNode *Check = Node;
+      BasicBlockNode *False = nullptr;
+      while (1) {
+        NodesToRemove.insert(Check);
+        unsigned CheckId = Check->getStateVariableValue();
+        BasicBlockNode *True = Check->getTrue();
+        auto Range = VarToSet.equal_range(CheckId);
+        for (auto &Pair : llvm::make_range(Range.first, Range.second)) {
           BasicBlockNode *SetNode = Pair.second;
-          moveEdgeTarget({SetNode, Node}, False);
+          moveEdgeTarget({ SetNode, Node }, True);
         }
-      } break;
-      default: {
-      } break;
+        False = Check->getFalse();
+        if (not False->isCheck())
+          break;
+        Check = False;
+      }
+      auto Range = VarToSet.equal_range(0);
+      for (auto &Pair : llvm::make_range(Range.first, Range.second)) {
+        BasicBlockNode *SetNode = Pair.second;
+        moveEdgeTarget({ SetNode, Node }, False);
+      }
+    } break;
     }
   }
 
@@ -190,7 +188,7 @@ void flattenRegionCFGTree(RegionCFG &Root) {
     revng_assert(SetNode->successor_size() == 1);
     BasicBlockNode *Succ = SetNode->getSuccessorI(0);
     for (BasicBlockNode *Pred : SetNode->predecessors())
-      moveEdgeTarget({Pred, SetNode}, Succ);
+      moveEdgeTarget({ Pred, SetNode }, Succ);
     NodesToRemove.insert(SetNode);
   }
   for (BasicBlockNode *BBNode : NodesToRemove)

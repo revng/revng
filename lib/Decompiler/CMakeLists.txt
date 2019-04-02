@@ -7,7 +7,8 @@ revng_add_analyses_library(Decompiler revngc
                            FuncDeclCreationAction.cpp
                            GlobalDeclCreationAction.cpp
                            IRASTTypeTranslation.cpp
-                           MarkForSerialization.cpp)
+                           MarkForSerialization.cpp
+                           TypeDeclCreationAction.cpp)
 
 target_link_libraries(Decompiler
                       PHIASAPAssignmentInfo

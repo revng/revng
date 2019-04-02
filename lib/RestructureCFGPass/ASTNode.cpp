@@ -74,8 +74,8 @@ void IfNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
 
 void IfNode::updateCondExprPtr(ExprNodeMap &Map) {
   if (not llvm::isa<IfCheckNode>(this)) {
-      revng_assert(ConditionExpression != nullptr);
-      ConditionExpression = Map[ConditionExpression];
+    revng_assert(ConditionExpression != nullptr);
+    ConditionExpression = Map[ConditionExpression];
   }
 }
 
@@ -198,7 +198,7 @@ void ScsNode::dump(std::ofstream &ASTFile) {
   ASTFile << ",shape=\"circle\",color=\"black\"];\n";
 
   // After do-while and while match loop nodes could be empty
-  //revng_assert(this->getBody() != nullptr);
+  // revng_assert(this->getBody() != nullptr);
   if (this->getBody() != nullptr) {
     ASTFile << "\"" << this->getName() << "\""
             << " -> \"" << this->getBody()->getName() << "\""

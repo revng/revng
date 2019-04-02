@@ -14,10 +14,10 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/IR/Dominators.h"
-#include <llvm/IR/Instructions.h>
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include <llvm/IR/Instructions.h>
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
@@ -886,8 +886,7 @@ void RegionCFG::generateAst() {
                                      nullptr));
         }
       } else if (Children.size() == 1) {
-        revng_assert(not Node->isBreak()
-                     and not Node->isContinue());
+        revng_assert(not Node->isBreak() and not Node->isContinue());
         if (Node->isSet()) {
           ASTObject.reset(new SetNode(Node, ASTChildren[0]));
         } else {

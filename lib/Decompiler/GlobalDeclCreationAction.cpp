@@ -1,11 +1,14 @@
+// LLVM includes
+#include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Module.h>
 
+// revng includes
 #include <revng/Support/Assert.h>
 
-#include "GlobalDeclCreationAction.h"
-
+// local includes
 #include "DecompilationHelpers.h"
+#include "GlobalDeclCreationAction.h"
 #include "IRASTTypeTranslation.h"
 #include "Mangling.h"
 
@@ -15,18 +18,30 @@ namespace clang {
 namespace tooling {
 
 using GlobalsMap = GlobalDeclCreationAction::GlobalsMap;
+using TypeDeclMap = std::map<const llvm::Type *, clang::TypeDecl *>;
+using FieldDeclMap = std::map<clang::TypeDecl *,
+                              llvm::SmallVector<clang::FieldDecl *, 8>>;
 
 class GlobalDeclsCreator : public ASTConsumer {
 public:
-  explicit GlobalDeclsCreator(llvm::Function &F, GlobalsMap &Map) :
+  explicit GlobalDeclsCreator(llvm::Function &F,
+                              GlobalsMap &GMap,
+                              TypeDeclMap &TDecls,
+                              FieldDeclMap &FieldDecls) :
     TheF(F),
-    GlobalVarAST(Map) {}
+    GlobalVarAST(GMap),
+    TypeDecls(TDecls),
+    FieldDecls(FieldDecls) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override {
     uint64_t UnnamedNum = 0;
     TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
     for (const GlobalVariable *G : getDirectlyUsedGlobals(TheF)) {
-      QualType ASTTy = IRASTTypeTranslation::getQualType(G, Context);
+      QualType ASTTy = IRASTTypeTranslation::getOrCreateQualType(G,
+                                                                 Context,
+                                                                 *TUDecl,
+                                                                 TypeDecls,
+                                                                 FieldDecls);
 
       std::string VarName = G->getName();
       if (VarName.empty()) {
@@ -76,10 +91,15 @@ public:
 private:
   llvm::Function &TheF;
   GlobalsMap &GlobalVarAST;
+  TypeDeclMap &TypeDecls;
+  FieldDeclMap &FieldDecls;
 };
 
 std::unique_ptr<ASTConsumer> GlobalDeclCreationAction::newASTConsumer() {
-  return std::make_unique<GlobalDeclsCreator>(TheF, GlobalVarAST);
+  return std::make_unique<GlobalDeclsCreator>(TheF,
+                                              GlobalVarAST,
+                                              TypeDecls,
+                                              FieldDecls);
 }
 
 } // end namespace tooling

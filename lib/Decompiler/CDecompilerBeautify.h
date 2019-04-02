@@ -10,7 +10,7 @@
 
 // Forward declarations
 namespace MarkForSerialization {
-  class Analysis;
+class Analysis;
 }
 
 void beautifyAST(llvm::Function &F,

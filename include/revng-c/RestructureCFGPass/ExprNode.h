@@ -13,10 +13,7 @@
 
 class ExprNode {
 public:
-  enum NodeKind { NK_Atomic,
-                  NK_Not,
-                  NK_And,
-                  NK_Or };
+  enum NodeKind { NK_Atomic, NK_Not, NK_And, NK_Or };
 
 private:
   const NodeKind Kind;
@@ -28,7 +25,6 @@ public:
 
 protected:
   ExprNode(NodeKind K) : Kind(K) {}
-
 };
 
 class AtomicNode : public ExprNode {
@@ -40,13 +36,9 @@ public:
 
   virtual ~AtomicNode() override = default;
 
-  static bool classof(const ExprNode *E) {
-    return E->getKind() == NK_Atomic;
-  }
+  static bool classof(const ExprNode *E) { return E->getKind() == NK_Atomic; }
 
-  llvm::BasicBlock *getConditionalBasicBlock() const {
-    return ConditionBB;
-  }
+  llvm::BasicBlock *getConditionalBasicBlock() const { return ConditionBB; }
 };
 
 class NotNode : public ExprNode {
@@ -58,14 +50,9 @@ public:
 
   virtual ~NotNode() override = default;
 
-  static bool classof(const ExprNode *E) {
-    return E->getKind() == NK_Not;
-  }
+  static bool classof(const ExprNode *E) { return E->getKind() == NK_Not; }
 
-  ExprNode *getNegatedNode() const {
-    return Child;
-  }
-
+  ExprNode *getNegatedNode() const { return Child; }
 };
 
 class BinaryNode : public ExprNode {
@@ -86,7 +73,9 @@ public:
 
 protected:
   BinaryNode(NodeKind K, ExprNode *Left, ExprNode *Right) :
-    ExprNode(K), LeftChild(Left), RightChild(Right) {}
+    ExprNode(K),
+    LeftChild(Left),
+    RightChild(Right) {}
 };
 
 class AndNode : public BinaryNode {
@@ -96,9 +85,7 @@ public:
 
   virtual ~AndNode() override = default;
 
-  static bool classof(const ExprNode *E) {
-    return E->getKind() == NK_And;
-  }
+  static bool classof(const ExprNode *E) { return E->getKind() == NK_And; }
 };
 
 class OrNode : public BinaryNode {
@@ -108,9 +95,7 @@ public:
 
   virtual ~OrNode() override = default;
 
-  static bool classof(const ExprNode *E) {
-    return E->getKind() == NK_Or;
-  }
+  static bool classof(const ExprNode *E) { return E->getKind() == NK_Or; }
 };
 
 #endif // define REVNGC_RESTRUCTURE_CFG_EXPRNODE_H

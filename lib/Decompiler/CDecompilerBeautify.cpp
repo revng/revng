@@ -7,12 +7,12 @@
 //
 
 // LLVM includes
-#include <llvm/IR/Instructions.h>
 #include "llvm/Support/Casting.h"
+#include <llvm/IR/Instructions.h>
 
 // revng includes
-#include <revng/Support/Assert.h>
 #include "revng/Support/Debug.h"
+#include <revng/Support/Assert.h>
 //#include "revng/Support/MonotoneFramework.h"
 
 // local libraries includes
@@ -20,14 +20,14 @@
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 
 // local includes
-#include "MarkForSerialization.h"
 #include "CDecompilerBeautify.h"
+#include "MarkForSerialization.h"
 
 Logger<> BeautifyLogger("beautify");
 
 using namespace llvm;
-using std::unique_ptr;
 using std::make_unique;
+using std::unique_ptr;
 
 static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
@@ -81,9 +81,8 @@ static bool requiresNoStatement(IfNode *If, Marker &Mark) {
 }
 
 // Helper function to simplify short-circuit IFs
-static void simplifyShortCircuit(ASTNode *RootNode,
-                                 ASTTree &AST,
-                                 Marker &Mark) {
+static void
+simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
 
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
@@ -433,7 +432,7 @@ static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
     }
 
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    //Inspect the body of a SCS region.
+    // Inspect the body of a SCS region.
     Scs->setBody(matchDispatcher(AST, Scs->getBody(), Mark));
 
   } else if (auto *IfCheck = llvm::dyn_cast<IfCheckNode>(RootNode)) {
@@ -584,7 +583,8 @@ static void simplifyLastContinue(ASTNode *RootNode) {
 
 static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
 
-  BeautifyLogger << "Matching do whiles" << "\n";
+  BeautifyLogger << "Matching do whiles"
+                 << "\n";
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
       matchDoWhile(Node, AST);
@@ -613,7 +613,7 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
     // Recursive scs nesting handling
     matchDoWhile(Body, AST);
 
-    //ASTNode *LastNode = getLastOfSequenceOrSelf(Scs->getBody());
+    // ASTNode *LastNode = getLastOfSequenceOrSelf(Scs->getBody());
     ASTNode *LastNode = nullptr;
     bool InsideSequence = false;
     if (auto *Sequence = llvm::dyn_cast<SequenceNode>(Body)) {
@@ -669,7 +669,8 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
 }
 
 static void addComputationToContinue(ASTNode *RootNode, IfNode *ConditionIf) {
-  BeautifyLogger << "Adding computation code to continue node" << "\n";
+  BeautifyLogger << "Adding computation code to continue node"
+                 << "\n";
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
       addComputationToContinue(Node, ConditionIf);
@@ -697,7 +698,8 @@ static void addComputationToContinue(ASTNode *RootNode, IfNode *ConditionIf) {
 
 static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
 
-  BeautifyLogger << "Matching whiles" << "\n";
+  BeautifyLogger << "Matching whiles"
+                 << "\n";
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
       matchWhile(Node, AST);
@@ -731,7 +733,7 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
     // Recursive scs nesting handling
     matchWhile(Body, AST);
 
-    //ASTNode *FirstNode = getLastOfSequenceOrSelf(Scs->getBody());
+    // ASTNode *FirstNode = getLastOfSequenceOrSelf(Scs->getBody());
     ASTNode *FirstNode = nullptr;
     bool InsideSequence = false;
     if (auto *Sequence = llvm::dyn_cast<SequenceNode>(Body)) {
@@ -836,5 +838,4 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
   BeautifyLogger << "Removing useless continue nodes\n";
   simplifyLastContinue(RootNode);
   CombedAST.dumpOnFile("ast", F.getName(), "After-continue-removal");
-
 }
