@@ -106,3 +106,32 @@ void BasicBlockNode::updatePointers(const BBNodeMap &SubstitutionMap) {
       setFalse(nullptr);
   }
 }
+
+bool BasicBlockNode::isEquivalentTo(BasicBlockNode *Other) {
+
+  // TODO: this algorithm fails if there are nodes in the graph not reachable
+  //       from the entry node (even if the number of nodes in the two
+  //       `RegionCFG` is equal).
+
+  // Early failure if the IDs of the nodes are different.
+  if (getID() != Other->getID()) {
+    return false;
+  }
+
+  // Early failure if the number of successors for a node is node equal.
+  size_t SuccessorNumber = successor_size();
+  size_t OtherSuccessorNumber = Other->successor_size();
+  if (SuccessorNumber != OtherSuccessorNumber) {
+    return false;
+  }
+
+  bool ComparisonState = true;
+  for (size_t I = 0; I < SuccessorNumber; I++) {
+    BasicBlockNode *SuccessorI = getSuccessorI(I);
+    BasicBlockNode *OtherSuccessorI = Other->getSuccessorI(I);
+    ComparisonState &= SuccessorI->isEquivalentTo(OtherSuccessorI);
+  }
+
+  return ComparisonState;
+
+}

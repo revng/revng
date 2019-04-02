@@ -1027,5 +1027,21 @@ bool RegionCFG::isDAG() {
     }
   }
 
-return not FoundSCC;
+  return not FoundSCC;
+}
+
+bool RegionCFG::isTopologicallyEquivalent(RegionCFG &Other) {
+
+  // Early failure if the number of nodes composing the two CFG is different.
+  if (size() != Other.size()) {
+    return false;
+  }
+
+  // Retrieve the entry nodes of the two `RegionCFG` under analysis.
+  BasicBlockNode &Entry = getEntryNode();
+  BasicBlockNode &OtherEntry = Other.getEntryNode();
+
+  // Call to a `BasicBlockNode` method which does a deep and recursive
+  // comparison of a node and its successors.
+  return Entry.isEquivalentTo(&OtherEntry);
 }

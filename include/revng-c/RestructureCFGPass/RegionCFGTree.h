@@ -204,6 +204,8 @@ public:
 
   bool isDAG();
 
+  bool isTopologicallyEquivalent(RegionCFG &Other);
+
 protected:
   template<typename StreamT>
   void streamNode(StreamT &S, const BasicBlockNode *) const;

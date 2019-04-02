@@ -269,6 +269,8 @@ public:
 
   bool isCollapsed() const { return NodeType == Type::Collapsed; }
   RegionCFG *getCollapsedCFG() { return CollapsedRegion; }
+
+  bool isEquivalentTo(BasicBlockNode *);
 };
 
 // Provide graph traits for usage with, e.g., llvm::ReversePostOrderTraversal
