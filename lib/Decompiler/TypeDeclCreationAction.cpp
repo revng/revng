@@ -60,6 +60,8 @@ public:
     TranslationUnitDecl *TUDecl = C.getTranslationUnitDecl();
 
     std::set<Function *> Called = getDirectlyCalledFunctions(TheF);
+    // we need TheF to properly declare its return type if needed
+    Called.insert(&TheF);
     // we need abort for decompiling UnreachableInst
     Called.insert(M.getFunction("abort"));
     for (Function *F : Called) {

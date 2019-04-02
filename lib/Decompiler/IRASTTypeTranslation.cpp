@@ -70,14 +70,14 @@ clang::QualType getOrCreateQualType(const llvm::Type *Ty,
     auto *Struct = clang::RecordDecl::Create(ASTCtx,
                                              clang::TTK_Struct,
                                              &DeclCtx,
-                                             {},
-                                             {},
+                                             clang::SourceLocation{},
+                                             clang::SourceLocation{},
                                              &TypeId,
                                              nullptr);
     TypeDecls[Ty] = Struct;
-    Result = clang::QualType(Struct->getTypeForDecl(), 0);
     unsigned N = 0;
     FieldDecls[Struct].resize(StructTy->getNumElements(), nullptr);
+    Struct->startDefinition();
     for (llvm::Type *FieldTy : StructTy->elements()) {
       clang::QualType QFieldTy = getOrCreateQualType(FieldTy,
                                                      ASTCtx,
@@ -98,9 +98,11 @@ clang::QualType getOrCreateQualType(const llvm::Type *Ty,
                                              /*Mutable*/ false,
                                              clang::ICIS_NoInit);
       FieldDecls[Struct][N] = Field;
+      Struct->addDecl(Field);
       N++;
     }
-
+    Struct->completeDefinition();
+    Result = clang::QualType(Struct->getTypeForDecl(), 0);
   } break;
   case llvm::Type::TypeID::ArrayTyID:
   case llvm::Type::TypeID::FunctionTyID:
