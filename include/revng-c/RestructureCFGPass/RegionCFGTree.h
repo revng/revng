@@ -252,7 +252,8 @@ inline void RegionCFG::initialize(GraphT Graph,
   // from it.
   std::map<NodeRef, BasicBlockNode *> NodeToBBNodeMap;
 
-  for (NodeRef N : make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
+  for (NodeRef N : llvm::make_range(GT::nodes_begin(Graph),
+                                    GT::nodes_end(Graph))) {
     BasicBlockNode *BBNode = addNode(N->getName());
     NodeToBBNodeMap[N] = BBNode;
     OriginalBB[BBNode] = N;
@@ -263,12 +264,13 @@ inline void RegionCFG::initialize(GraphT Graph,
 
   // Do another iteration over all the nodes in the graph to create the edges
   // in the graph.
-  for (NodeRef N : make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
+  for (NodeRef N : llvm::make_range(GT::nodes_begin(Graph),
+                                    GT::nodes_end(Graph))) {
     BasicBlockNode *BBNode = NodeToBBNodeMap[N];
 
     // Iterate over all the successors of a graph node.
     unsigned ChildCounter = 0;
-    for (NodeRef C : make_range(GT::child_begin(N), GT::child_end(N))) {
+    for (NodeRef C : llvm::make_range(GT::child_begin(N), GT::child_end(N))) {
 
       // Check that no switches are present in the graph.
       revng_assert(ChildCounter < 2);
