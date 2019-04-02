@@ -5,6 +5,7 @@ revng_add_analyses_library(RestructureCFGPass revngc
                            DotGraphObject.cpp
                            Flattening.cpp
                            MetaRegion.cpp
+                           ReachabilityPass.cpp
                            RegionCFGTree.cpp
                            RestructureCFG.cpp)
 
