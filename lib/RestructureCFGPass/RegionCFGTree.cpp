@@ -864,6 +864,10 @@ void RegionCFG::generateAst(BBNodeToBBMap &OriginalBB) {
             revng_abort("Then and else branches cannot be matched");
           }
         } else {
+          // Create the conditional expression associated with the if node.
+          std::unique_ptr<ExprNode> CondExpr =
+            std::make_unique<AtomicNode>(OriginalBB.at(Node));
+          ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
           ASTObject.reset(new IfNode(Node,
                                      OriginalBB.at(Node),
                                      CondExprNode,
@@ -898,6 +902,10 @@ void RegionCFG::generateAst(BBNodeToBBMap &OriginalBB) {
             revng_abort("Then and else branches cannot be matched");
           }
         } else {
+          // Create the conditional expression associated with the if node.
+          std::unique_ptr<ExprNode> CondExpr =
+            std::make_unique<AtomicNode>(OriginalBB.at(Node));
+          ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
           ASTObject.reset(new IfNode(Node,
                                      OriginalBB.at(Node),
                                      CondExprNode,
@@ -973,7 +981,7 @@ void RegionCFG::generateAst(BBNodeToBBMap &OriginalBB) {
   // Remove danling nodes (possibly created by the de-optimization pass, after
   // disconnecting the first CFG node corresponding to the simplified AST node),
   // and superfluos dummy nodes
-  removeNotReachables();
+  removeNotReachables(OriginalBB);
   purgeDummies();
 }
 
@@ -982,7 +990,7 @@ ASTTree &RegionCFG::getAST() {
   return AST;
 }
 
-void RegionCFG::removeNotReachables() {
+void RegionCFG::removeNotReachables(BBNodeToBBMap &OriginalBB) {
 
   // Remove nodes that have no predecessors (nodes that are the result of node
   // cloning and that remains dandling around).
@@ -992,6 +1000,9 @@ void RegionCFG::removeNotReachables() {
     BasicBlockNode *EntryNode = &getEntryNode();
     for (auto It = begin(); It != end(); It++) {
       if ((EntryNode != *It and (*It)->predecessor_size() == 0)) {
+        //Remove from the OriginalBB map the node we are removing.
+        OriginalBB.erase(*It);
+
         removeNode(*It);
         Difference = true;
         break;

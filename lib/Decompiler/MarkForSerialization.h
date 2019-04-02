@@ -28,13 +28,16 @@ class Analysis
                              LatticeElement,
                              VisitType::ReversePostOrder,
                              llvm::SmallVector<llvm::BasicBlock *, 2>> {
+private:
+ using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
+
 protected:
   llvm::Function &F;
   RegionCFG &RCFG;
   std::set<llvm::Instruction *> ToSerialize;
   std::vector<std::set<llvm::Instruction *>> ToSerializeInBB;
   std::map<llvm::BasicBlock *, size_t> BBToIdMap;
-  std::map<llvm::BasicBlock *, size_t> NDuplicates;
+  DuplicationMap &NDuplicates;
 
 public:
   using Base = MonotoneFramework<Analysis,
@@ -48,7 +51,7 @@ public:
     revng_assert(A.lowerThanOrEqual(B));
   }
 
-  Analysis(llvm::Function &F, RegionCFG &RCFG) :
+  Analysis(llvm::Function &F, RegionCFG &RCFG, DuplicationMap &NDuplicates) :
     Base(&F.getEntryBlock()),
     F(F),
     RCFG(RCFG),

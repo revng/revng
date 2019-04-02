@@ -1030,9 +1030,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
       BasicBlockNode *NewKey = SubstitutionMapIt.second;
 
       auto OriginalBBIt = OriginalBB.find(OldKey);
-      revng_assert(OriginalBBIt != OriginalBB.end());
-      std::swap(OriginalBB[NewKey], OriginalBBIt->second);
-      OriginalBB.erase(OriginalBBIt);
+      if (OriginalBBIt != OriginalBB.end()) {
+        std::swap(OriginalBB[NewKey], OriginalBBIt->second);
+        OriginalBB.erase(OriginalBBIt);
+      }
     }
 
     // Serialize the newly collapsed SCS region.

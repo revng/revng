@@ -205,7 +205,7 @@ public:
   // Get reference to the AST object which is inside the RegionCFG object
   ASTTree &getAST();
 
-  void removeNotReachables();
+  void removeNotReachables(BBNodeToBBMap &OriginalBB);
 
   void removeNotReachables(std::vector<MetaRegion *> &MS);
 
@@ -267,13 +267,13 @@ inline void RegionCFG::initialize(GraphT Graph,
   }
 
   // Set the `EntryNode` BasicBlockNode reference.
-  EntryNode = NodeToBBNodeMap[GT::getEntryNode(Graph)];
+  EntryNode = NodeToBBNodeMap.at(GT::getEntryNode(Graph));
 
   // Do another iteration over all the nodes in the graph to create the edges
   // in the graph.
   for (NodeRef N : llvm::make_range(GT::nodes_begin(Graph),
                                     GT::nodes_end(Graph))) {
-    BasicBlockNode *BBNode = NodeToBBNodeMap[N];
+    BasicBlockNode *BBNode = NodeToBBNodeMap.at(N);
 
     // Iterate over all the successors of a graph node.
     unsigned ChildCounter = 0;
@@ -284,7 +284,7 @@ inline void RegionCFG::initialize(GraphT Graph,
       ChildCounter++;
 
       // Create the edge in the RegionCFG.
-      BasicBlockNode *Successor = NodeToBBNodeMap[C];
+      BasicBlockNode *Successor = NodeToBBNodeMap.at(C);
       BBNode->addSuccessor(Successor);
       Successor->addPredecessor(BBNode);
     }
