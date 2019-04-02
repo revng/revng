@@ -559,12 +559,9 @@ public:
                                    TypeDecls,
                                    FieldDecls);
     ASTBuilder.createAST();
-    // auto &&ASTInfo = IR2ASTBuildAnalysis.extractASTInfo();
 
     buildFunctionBody(*It, CombedAST, ASTBuilder, Mark);
 
-    // ConsumerPtr Dumper = CreateASTDumper(nullptr, "", true, false, false);
-    // Dumper->HandleTranslationUnit(Context);
     ConsumerPtr Printer = CreateASTPrinter(std::move(Out), "");
     Printer->HandleTranslationUnit(Context);
   }

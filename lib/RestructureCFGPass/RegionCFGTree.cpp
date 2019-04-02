@@ -800,7 +800,8 @@ void RegionCFG::generateAst() {
         CombLogger.emit();
         BodyGraph->generateAst();
         ASTNode *Body = BodyGraph->getAST().getRoot();
-        std::unique_ptr<ASTNode> ASTObject(new ScsNode(Node, Body,
+        std::unique_ptr<ASTNode> ASTObject(new ScsNode(Node,
+                                                       Body,
                                                        ASTChildren[0]));
         AST.addASTNode(Node, std::move(ASTObject));
       } else {
@@ -821,8 +822,7 @@ void RegionCFG::generateAst() {
                      and not Node->isSet());
 
         // Create the conditional expression associated with the if node.
-        std::unique_ptr<ExprNode> CondExpr =
-          std::make_unique<AtomicNode>(Node->getBasicBlock());
+        auto CondExpr = std::make_unique<AtomicNode>(Node->getBasicBlock());
         ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
 
         // If we are creating the AST for the check node, create the adequate
@@ -856,8 +856,7 @@ void RegionCFG::generateAst() {
                      and not Node->isSet());
 
         // Create the conditional expression associated with the if node.
-        std::unique_ptr<ExprNode> CondExpr =
-          std::make_unique<AtomicNode>(Node->getBasicBlock());
+        auto CondExpr = std::make_unique<AtomicNode>(Node->getBasicBlock());
         ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
 
         // If we are creating the AST for the switch tree, create the adequate,

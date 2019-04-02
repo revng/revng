@@ -44,7 +44,7 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
       If->setElse(nullptr);
 
       // Invert the conditional expression of the current `IfNode`.
-      unique_ptr<ExprNode> Not = std::make_unique<NotNode>(If->getCondExpr());
+      auto Not = std::make_unique<NotNode>(If->getCondExpr());
       ExprNode *NotNode = AST.addCondExpr(std::move(Not));
       If->replaceCondExpr(NotNode);
 
@@ -104,32 +104,31 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (If->hasBothBranches()) {
 
-      if (auto InternalIf = llvm::dyn_cast<IfNode>(If->getThen())) {
+      if (auto NestedIf = llvm::dyn_cast<IfNode>(If->getThen())) {
 
         // TODO: Refactor this with some kind of iterator
-        if (InternalIf->getThen() != nullptr) {
+        if (NestedIf->getThen() != nullptr) {
 
-          if (If->getElse()->isEqual(InternalIf->getThen())
-              and requiresNoStatement(InternalIf, Mark)) {
+          if (If->getElse()->isEqual(NestedIf->getThen())
+              and requiresNoStatement(NestedIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
               BeautifyLogger << "IF " << If->getName() << " and ";
-              BeautifyLogger << "IF " << InternalIf->getName() << "\n";
+              BeautifyLogger << "IF " << NestedIf->getName() << "\n";
               BeautifyLogger << "Nodes being simplified:\n";
               BeautifyLogger << If->getElse()->getName() << " and ";
-              BeautifyLogger << InternalIf->getThen()->getName() << "\n";
+              BeautifyLogger << NestedIf->getThen()->getName() << "\n";
             }
-            If->setThen(InternalIf->getElse());
-            If->setElse(InternalIf->getThen());
+            If->setThen(NestedIf->getElse());
+            If->setElse(NestedIf->getThen());
 
             // `if A and not B` situation.
-            unique_ptr<ExprNode> NotB =
-              std::make_unique<NotNode>(InternalIf->getCondExpr());
+            auto NotB = std::make_unique<NotNode>(NestedIf->getCondExpr());
             ExprNode *NotBNode = AST.addCondExpr(std::move(NotB));
 
-            unique_ptr<ExprNode> AAndNotB =
-              std::make_unique<AndNode>(If->getCondExpr(), NotBNode);
+            auto AAndNotB = std::make_unique<AndNode>(If->getCondExpr(),
+                                                      NotBNode);
             ExprNode *AAndNotBNode = AST.addCondExpr(std::move(AAndNotB));
 
             If->replaceCondExpr(AAndNotBNode);
@@ -139,25 +138,24 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
           }
         }
 
-        if (InternalIf->getElse() != nullptr) {
-          if (If->getElse()->isEqual(InternalIf->getElse())
-              and requiresNoStatement(InternalIf, Mark)) {
+        if (NestedIf->getElse() != nullptr) {
+          if (If->getElse()->isEqual(NestedIf->getElse())
+              and requiresNoStatement(NestedIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
               BeautifyLogger << "IF " << If->getName() << " and ";
-              BeautifyLogger << "IF " << InternalIf->getName() << "\n";
+              BeautifyLogger << "IF " << NestedIf->getName() << "\n";
               BeautifyLogger << "Nodes being simplified:\n";
               BeautifyLogger << If->getElse()->getName() << " and ";
-              BeautifyLogger << InternalIf->getElse()->getName() << "\n";
+              BeautifyLogger << NestedIf->getElse()->getName() << "\n";
             }
-            If->setThen(InternalIf->getThen());
-            If->setElse(InternalIf->getElse());
+            If->setThen(NestedIf->getThen());
+            If->setElse(NestedIf->getElse());
 
             // `if A and B` situation.
-            unique_ptr<ExprNode> AAndB =
-              std::make_unique<AndNode>(If->getCondExpr(),
-                                   InternalIf->getCondExpr());
+            auto AAndB = std::make_unique<AndNode>(If->getCondExpr(),
+                                                   NestedIf->getCondExpr());
             ExprNode *AAndBNode = AST.addCondExpr(std::move(AAndB));
 
             If->replaceCondExpr(AAndBNode);
@@ -167,63 +165,59 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
         }
       }
 
-      if (auto InternalIf = llvm::dyn_cast<IfNode>(If->getElse())) {
+      if (auto NestedIf = llvm::dyn_cast<IfNode>(If->getElse())) {
 
         // TODO: Refactor this with some kind of iterator
-        if (InternalIf->getThen() != nullptr) {
-          if (If->getThen()->isEqual(InternalIf->getThen())
-              and requiresNoStatement(InternalIf, Mark)) {
+        if (NestedIf->getThen() != nullptr) {
+          if (If->getThen()->isEqual(NestedIf->getThen())
+              and requiresNoStatement(NestedIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
               BeautifyLogger << "IF " << If->getName() << " and ";
-              BeautifyLogger << "IF " << InternalIf->getName() << "\n";
+              BeautifyLogger << "IF " << NestedIf->getName() << "\n";
               BeautifyLogger << "Nodes being simplified:\n";
               BeautifyLogger << If->getThen()->getName() << " and ";
-              BeautifyLogger << InternalIf->getThen()->getName() << "\n";
+              BeautifyLogger << NestedIf->getThen()->getName() << "\n";
             }
-            If->setElse(InternalIf->getElse());
-            If->setThen(InternalIf->getThen());
+            If->setElse(NestedIf->getElse());
+            If->setThen(NestedIf->getThen());
 
             // `if not A and not B` situation.
-            unique_ptr<ExprNode> NotA =
-              std::make_unique<NotNode>(If->getCondExpr());
+            auto NotA = std::make_unique<NotNode>(If->getCondExpr());
             ExprNode *NotANode = AST.addCondExpr(std::move(NotA));
 
-            unique_ptr<ExprNode> NotB =
-              std::make_unique<NotNode>(InternalIf->getCondExpr());
+            auto NotB = std::make_unique<NotNode>(NestedIf->getCondExpr());
             ExprNode *NotBNode = AST.addCondExpr(std::move(NotB));
 
-            unique_ptr<ExprNode> NotAAndNotB =
-              std::make_unique<AndNode>(NotANode, NotBNode);
+            auto NotAAndNotB = std::make_unique<AndNode>(NotANode, NotBNode);
             ExprNode *NotAAndNotBNode = AST.addCondExpr(std::move(NotAAndNotB));
 
             simplifyShortCircuit(If, AST, Mark);
           }
         }
 
-        if (InternalIf->getElse() != nullptr) {
-          if (If->getThen()->isEqual(InternalIf->getElse())
-              and requiresNoStatement(InternalIf, Mark)) {
+        if (NestedIf->getElse() != nullptr) {
+          if (If->getThen()->isEqual(NestedIf->getElse())
+              and requiresNoStatement(NestedIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
               BeautifyLogger << "IF " << If->getName() << " and ";
-              BeautifyLogger << "IF " << InternalIf->getName() << "\n";
+              BeautifyLogger << "IF " << NestedIf->getName() << "\n";
               BeautifyLogger << "Nodes being simplified:\n";
               BeautifyLogger << If->getThen()->getName() << " and ";
-              BeautifyLogger << InternalIf->getElse()->getName() << "\n";
+              BeautifyLogger << NestedIf->getElse()->getName() << "\n";
             }
-            If->setElse(InternalIf->getThen());
-            If->setThen(InternalIf->getElse());
+            If->setElse(NestedIf->getThen());
+            If->setThen(NestedIf->getElse());
 
             // `if not A and B` situation.
-            unique_ptr<ExprNode> NotA =
-              std::make_unique<NotNode>(If->getCondExpr());
+            auto NotA = std::make_unique<NotNode>(If->getCondExpr());
             ExprNode *NotANode = AST.addCondExpr(std::move(NotA));
 
-            unique_ptr<ExprNode> NotAAndB =
-              std::make_unique<AndNode>(NotANode, InternalIf->getCondExpr());
+            auto NotAAndB = std::make_unique<AndNode>(NotANode,
+                                                      NestedIf->getCondExpr());
             ExprNode *NotAAndBNode = AST.addCondExpr(std::move(NotAAndB));
 
             simplifyShortCircuit(If, AST, Mark);
@@ -269,9 +263,8 @@ simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
           If->setThen(InternalIf->getThen());
 
           // `if A and B` situation.
-          unique_ptr<ExprNode> AAndB =
-            std::make_unique<AndNode>(If->getCondExpr(),
-                                      InternalIf->getCondExpr());
+          auto AAndB = std::make_unique<AndNode>(If->getCondExpr(),
+                                                 InternalIf->getCondExpr());
           ExprNode *AAndBNode = AST.addCondExpr(std::move(AAndB));
 
           If->replaceCondExpr(AAndBNode);
@@ -380,8 +373,7 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
       std::vector<std::pair<ConstantInt *, ASTNode *>> CandidatesCases;
       for (IfNode *Candidate : Candidates) {
         ConstantInt *CaseConstant = getCaseConstant(Candidate);
-        CandidatesCases.push_back(std::make_pair(CaseConstant,
-                                                 Candidate->getThen()));
+        CandidatesCases.push_back({CaseConstant, Candidate->getThen()});
       }
 
       // Collect the last else (which will become the default case).
@@ -391,8 +383,7 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
       CandidatesCases.push_back(std::make_pair(Zero, DefaultCase));
 
       // Create the switch node.
-      unique_ptr<SwitchNode> Switch(new SwitchNode(SwitchValue,
-                                                   CandidatesCases));
+      auto Switch = std::make_unique<SwitchNode>(SwitchValue, CandidatesCases);
 
       // Invoke the switch matching on the switch just reconstructed.
       matchSwitch(AST, Switch.get(), Mark);
@@ -443,16 +434,15 @@ static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
     Candidates.push_back(IfCheck);
 
     // Continue to accumulate the `IfCheck` nodes until it is possible.
-    while (auto *SuccIfCheck = dyn_cast_or_null<IfCheckNode>(IfCheck->getElse())) {
-      Candidates.push_back(SuccIfCheck);
-      IfCheck = SuccIfCheck;
+    while (auto *SuccChk = dyn_cast_or_null<IfCheckNode>(IfCheck->getElse())) {
+      Candidates.push_back(SuccChk);
+      IfCheck = SuccChk;
     }
 
     std::vector<std::pair<unsigned, ASTNode *>> CandidatesCases;
     for (IfCheckNode *Candidate : Candidates) {
       unsigned CaseConstant = Candidate->getCaseValue();
-      CandidatesCases.push_back(std::make_pair(CaseConstant,
-                                               Candidate->getThen()));
+      CandidatesCases.push_back({CaseConstant, Candidate->getThen()});
     }
 
     // Collect the last else (which will become the default case).
@@ -635,12 +625,9 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
 
         if (llvm::isa<BreakNode>(Then) and llvm::isa<ContinueNode>(Else)) {
 
-          // The condition in the while should be negated.
           Scs->setDoWhile(If);
-
           // Invert the conditional expression of the current `IfNode`.
-          unique_ptr<ExprNode> Not =
-            std::make_unique<NotNode>(If->getCondExpr());
+          auto Not = std::make_unique<NotNode>(If->getCondExpr());
           ExprNode *NotNode = AST.addCondExpr(std::move(Not));
           If->replaceCondExpr(NotNode);
 
@@ -754,12 +741,9 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
 
         if (llvm::isa<BreakNode>(Then)) {
 
-          // The condition in the while should be negated.
           Scs->setWhile(If);
-
           // Invert the conditional expression of the current `IfNode`.
-          unique_ptr<ExprNode> Not =
-            std::make_unique<NotNode>(If->getCondExpr());
+          auto Not = std::make_unique<NotNode>(If->getCondExpr());
           ExprNode *NotNode = AST.addCondExpr(std::move(Not));
           If->replaceCondExpr(NotNode);
 

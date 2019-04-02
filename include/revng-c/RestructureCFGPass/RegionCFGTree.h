@@ -132,8 +132,10 @@ public:
     using BBNode = BasicBlockNode;
     std::string IdStr = std::to_string(StateVariableValue);
     std::string Name = "set idx " + IdStr + " (desired target) " + TargetName;
-    BlockNodes.emplace_back(std::make_unique<BBNode>(this, Type::Set,
-                                                     StateVariableValue, Name));
+    BlockNodes.emplace_back(std::make_unique<BBNode>(this,
+                                                     Type::Set,
+                                                     StateVariableValue,
+                                                     Name));
     return BlockNodes.back().get();
   }
 
