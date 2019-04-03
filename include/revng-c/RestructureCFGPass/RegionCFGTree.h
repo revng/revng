@@ -92,26 +92,23 @@ public:
 
   BasicBlockNode *addNode(llvm::StringRef Name);
 
-  BasicBlockNode *createCollapsedNode(RegionCFG *Collapsed,
-                                      const std::string &Name = "collapsed") {
+  BasicBlockNode *createCollapsedNode(RegionCFG *Collapsed) {
     BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this,
-                                                             Collapsed,
-                                                             Name));
+                                                             Collapsed));
     return BlockNodes.back().get();
   }
 
   BasicBlockNode *
-  addArtificialNode(llvm::StringRef Name = "",
-                    BasicBlockNode::Type T = BasicBlockNode::Type::Empty) {
-    BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, T, Name));
+  addArtificialNode(BasicBlockNode::Type T = BasicBlockNode::Type::Empty) {
+    BlockNodes.emplace_back(std::make_unique<BasicBlockNode>(this, T));
     return BlockNodes.back().get();
   }
 
-  BasicBlockNode *addContinue(const std::string &Name = "continue") {
-    return addArtificialNode(Name, BasicBlockNode::Type::Continue);
+  BasicBlockNode *addContinue() {
+    return addArtificialNode(BasicBlockNode::Type::Continue);
   }
-  BasicBlockNode *addBreak(const std::string &Name = "break") {
-    return addArtificialNode(Name, BasicBlockNode::Type::Break);
+  BasicBlockNode *addBreak() {
+    return addArtificialNode(BasicBlockNode::Type::Break);
   }
 
   BasicBlockNode *addDispatcher(unsigned StateVariableValue,
@@ -119,14 +116,9 @@ public:
                                 BasicBlockNode *False) {
     using Type = BasicBlockNode::Type;
     using BBNode = BasicBlockNode;
-    std::string IdStr = std::to_string(StateVariableValue);
-    std::string NodeName = "check idx " + IdStr + " (true) "
-                           + True->getNameStr() + " (false) "
-                           + False->getNameStr();
     BlockNodes.emplace_back(std::make_unique<BBNode>(this,
                                                      Type::Check,
-                                                     StateVariableValue,
-                                                     NodeName));
+                                                     StateVariableValue));
     BBNode *Dispatcher = BlockNodes.back().get();
     Dispatcher->setTrue(True);
     Dispatcher->setFalse(False);
@@ -134,15 +126,11 @@ public:
   }
 
   BasicBlockNode *
-  addSetStateNode(unsigned StateVariableValue, const std::string &TargetName) {
+  addSetStateNode(unsigned StateVariableValue) {
     using Type = BasicBlockNode::Type;
     using BBNode = BasicBlockNode;
-    std::string IdStr = std::to_string(StateVariableValue);
-    std::string Name = "set idx " + IdStr + " (desired target) " + TargetName;
-    BlockNodes.emplace_back(std::make_unique<BBNode>(this,
-                                                     Type::Set,
-                                                     StateVariableValue,
-                                                     Name));
+    BlockNodes.emplace_back(std::make_unique<BBNode>(this, Type::Set,
+                                                     StateVariableValue));
     return BlockNodes.back().get();
   }
 

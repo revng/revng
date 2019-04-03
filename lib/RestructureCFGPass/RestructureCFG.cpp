@@ -666,7 +666,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
       for (EdgeDescriptor R : Retreatings) {
         Idx = RetreatingIdxMap[R.second];
-        auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
+        auto *SetNode = RootCFG.addSetStateNode(Idx);
         Meta->insertNode(SetNode);
         moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
         addEdge(EdgeDescriptor(SetNode, Head));
@@ -712,7 +712,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
         EdgeExtremal;
 
       for (EdgeDescriptor Edge : OutgoingEdges) {
-        BasicBlockNode *Frontier = RootCFG.addArtificialNode("frontier");
+        BasicBlockNode *Frontier = RootCFG.addArtificialNode();
         BasicBlockNode *OldSource = Edge.first;
         BasicBlockNode *OldTarget = Edge.second;
         EdgeExtremal[Frontier] = make_pair(OldSource, OldTarget);
@@ -838,7 +838,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
       unsigned Value = RetreatingTargets.size() - 1;
       for (BasicBlockNode *Pred : SetCandidates) {
-        BasicBlockNode *Set = RootCFG.addSetStateNode(Value, Head->getName());
+        BasicBlockNode *Set = RootCFG.addSetStateNode(Value);
         DefaultEntrySet.push_back(Set);
         moveEdgeTarget(EdgeDescriptor(Pred, Head), Set);
         addEdge(EdgeDescriptor(Set, Head));
@@ -910,7 +910,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
       for (EdgeDescriptor Edge : OutEdges) {
         Idx = SuccessorsIdxMap.at(Edge.second);
-        auto *IdxSetNode = RootCFG.addSetStateNode(Idx, Edge.second->getName());
+        auto *IdxSetNode = RootCFG.addSetStateNode(Idx);
         Meta->insertNode(IdxSetNode);
         moveEdgeTarget(EdgeDescriptor(Edge.first, Edge.second), IdxSetNode);
         addEdge(EdgeDescriptor(IdxSetNode, Edge.second));

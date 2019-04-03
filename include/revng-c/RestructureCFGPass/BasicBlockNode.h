@@ -88,7 +88,7 @@ public:
 
   /// \brief Constructor for nodes pointing to LLVM IR BasicBlock
   explicit BasicBlockNode(RegionCFG *Parent,
-                          llvm::StringRef Name = "") :
+                          llvm::StringRef Name) :
     BasicBlockNode(Parent,
                    nullptr,
                    Name,
@@ -96,24 +96,21 @@ public:
 
   /// \brief Constructor for nodes representing collapsed subgraphs
   explicit BasicBlockNode(RegionCFG *Parent,
-                          RegionCFG *Collapsed,
-                          llvm::StringRef Name = "") :
-    BasicBlockNode(Parent, Collapsed, Name, Type::Collapsed) {}
+                          RegionCFG *Collapsed) :
+    BasicBlockNode(Parent, Collapsed, "", Type::Collapsed) {}
 
   /// \brief Constructor for empty dummy nodes
   explicit BasicBlockNode(RegionCFG *Parent,
-                          Type T,
-                          llvm::StringRef Name = "") :
-    BasicBlockNode(Parent, nullptr, Name, T) {
+                          Type T) :
+    BasicBlockNode(Parent, nullptr, "", T) {
     revng_assert(T == Type::Empty or T == Type::Break or T == Type::Continue);
   }
 
   /// \brief Constructor for dummy nodes that handle the state variable
   explicit BasicBlockNode(RegionCFG *Parent,
                           Type T,
-                          unsigned Value,
-                          llvm::StringRef Name = "") :
-    BasicBlockNode(Parent, nullptr, Name, T, Value) {
+                          unsigned Value) :
+    BasicBlockNode(Parent, nullptr, "", T, Value) {
     revng_assert(T == Type::Set or T == Type::Check);
   }
 
@@ -261,11 +258,10 @@ public:
   unsigned getID() const { return ID; }
   bool isBasicBlock() const { return NodeType == Type::Code; }
 
-  llvm::StringRef getName() const { return Name; }
+  llvm::StringRef getName() const;
   std::string getNameStr() const {
-    return "ID:" + std::to_string(getID()) + " " + Name.str();
+    return "ID:" + std::to_string(getID()) + " " + getName().str();
   }
-  void setName(const std::string &N) { Name = N; }
 
   bool isCollapsed() const { return NodeType == Type::Collapsed; }
   RegionCFG *getCollapsedCFG() { return CollapsedRegion; }

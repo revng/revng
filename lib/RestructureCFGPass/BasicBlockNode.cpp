@@ -107,6 +107,27 @@ void BasicBlockNode::updatePointers(const BBNodeMap &SubstitutionMap) {
   }
 }
 
+StringRef BasicBlockNode::getName() const {
+  switch (NodeType) {
+    case Type::Code:
+      return Name;
+    case Type::Empty:
+      return "dummy";
+    case Type::Break:
+      return "break";
+    case Type::Continue:
+      return "continue";
+    case Type::Set:
+      return "set " + getStateVariableValue();
+    case Type::Check:
+      return "check " + getStateVariableValue();
+    case Type::Collapsed:
+      return "collapsed";
+    default:
+      revng_abort("Artificial node not expected");
+  }
+}
+
 bool BasicBlockNode::isEquivalentTo(BasicBlockNode *Other) {
 
   // TODO: this algorithm fails if there are nodes in the graph not reachable

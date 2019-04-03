@@ -297,7 +297,7 @@ void RegionCFG::streamNode(StreamT &S, const BasicBlockNode *BB) const {
   unsigned NodeID = BB->getID();
   S << "\"" << NodeID << "\"";
   S << " ["
-    << "label=\"ID: " << NodeID << " Name: " << BB->getName().str() << "\"";
+    << "label=\"ID: " << NodeID << " Name: " << BB->getNameStr() << "\"";
   if (BB == EntryNode)
     S << ",fillcolor=green,style=filled";
   S << "];\n";
@@ -481,7 +481,7 @@ void RegionCFG::inflate(BBNodeToBBMap &OriginalBB) {
   }
 
   // Add a new virtual sink node to which all the exit nodes are connected.
-  BasicBlockNode *Sink = Graph.addArtificialNode("Virtual sink");
+  BasicBlockNode *Sink = Graph.addArtificialNode();
   for (BasicBlockNode *Exit : ExitNodes) {
     addEdge(EdgeDescriptor(Exit, Sink));
   }
@@ -614,7 +614,7 @@ void RegionCFG::inflate(BBNodeToBBMap &OriginalBB) {
         std::map<Side, BasicBlockNode *> Dummies;
 
         for (Side S : Sides) {
-          BasicBlockNode *Dummy = Graph.addArtificialNode("dummy");
+          BasicBlockNode *Dummy = Graph.addArtificialNode();
           Dummies[S] = Dummy;
         }
 
