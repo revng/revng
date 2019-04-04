@@ -2,23 +2,30 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+// LLVM includes
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IRReader/IRReader.h>
+#include <llvm/Support/FileSystem.h>
 #include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/Scalar.h>
 
+// clang includes
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Tooling/Tooling.h>
 
+// revng includes
 #include <revng/Support/IRHelpers.h>
 
+// local libraries includes
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 
 #include "revng-c/Decompiler/CDecompilerPass.h"
 
+// local includes
 #include "CDecompilerAction.h"
 
 using namespace llvm;
@@ -63,6 +70,23 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
     return false;
   }
 
+  std::string FNameModel = "revng-c-" + F.getName().str() + "-%%%%%%%%%%%%.c";
+  SmallVector<char, 64> ActualFName;
+  {
+    int FD;
+    using namespace llvm::sys::fs;
+    unsigned Perm = static_cast<unsigned>(perms::owner_write)
+                    | static_cast<unsigned>(perms::owner_read);
+    std::error_code Err = createUniqueFile(FNameModel, FD, ActualFName, Perm);
+    revng_assert(not Err);
+    if (Err)
+      return false;
+
+    llvm::raw_fd_ostream FDStream(FD, /* ShouldClose */ true);
+    FDStream << "#include <stdint.h>\n";
+  }
+
+
   // This is a hack to prevent clashes between LLVM's `opt` arguments and
   // clangTooling's CommonOptionParser arguments.
   // At this point opt's arguments have already been parsed, so there should
@@ -99,7 +123,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   // Here we build the artificial command line for clang tooling
   static std::array<const char *, 5> ArgV = {
     "revng-c",
-    "/dev/null", // use /dev/null as input file to start from empty AST
+    ActualFName.data(),
     "--", // separator between tool arguments and clang arguments
     "-xc", // tell clang to compile C language
     "-std=c11", // tell clang to compile C11

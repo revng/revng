@@ -1096,6 +1096,8 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
                                                FieldDecls);
       const clang::Type *UnderlyingTy = LiteralTy.getTypePtrOrNull();
       revng_assert(UnderlyingTy != nullptr);
+      // Desugar stdint.h typedefs
+      UnderlyingTy = UnderlyingTy->getUnqualifiedDesugaredType();
       const BuiltinType *BuiltinTy = cast<BuiltinType>(UnderlyingTy);
       uint64_t ConstValue = CInt->getValue().getZExtValue();
       switch (BuiltinTy->getKind()) {
