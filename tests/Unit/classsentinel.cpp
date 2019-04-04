@@ -36,5 +36,10 @@ BOOST_AUTO_TEST_CASE(Sentinel) {
     DanglingPointer = &Instance;
   }
 
+#if !(defined(__OPTIMIZE__) || defined(__SANITIZE_ADDRESS__) \
+      || (defined(__has_feature) && __has_feature(address_sanitizer)))
   BOOST_TEST(DanglingPointer->Sentinel.isDestroyed());
+#else
+  (void) DanglingPointer;
+#endif
 }
