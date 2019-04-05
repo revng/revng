@@ -37,11 +37,12 @@ public:
     uint64_t UnnamedNum = 0;
     TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
     for (const GlobalVariable *G : getDirectlyUsedGlobals(TheF)) {
-      QualType ASTTy = IRASTTypeTranslation::getOrCreateQualType(G,
-                                                                 Context,
-                                                                 *TUDecl,
-                                                                 TypeDecls,
-                                                                 FieldDecls);
+      using namespace IRASTTypeTranslation;
+      QualType ASTTy = getOrCreateQualType(G,
+                                           Context,
+                                           *TUDecl,
+                                           TypeDecls,
+                                           FieldDecls);
 
       std::string VarName = G->getName();
       if (VarName.empty()) {
@@ -70,6 +71,17 @@ public:
                                CharacterLiteral::CharacterKind::Ascii,
                                Context.CharTy,
                                {});
+          } else if (UnderlyingTy->isBooleanType()) {
+            const llvm::ConstantInt *CInt = cast<llvm::ConstantInt>(LLVMInit);
+            uint64_t InitValue = CInt->getValue().getZExtValue();
+            APInt InitVal = LLVMInit->getUniqueInteger();
+            QualType BoolTy = getOrCreateBoolQualType(G->getType(),
+                                                      Context,
+                                                      TypeDecls);
+            QualType IntT = Context.IntTy;
+            APInt Const = APInt(Context.getIntWidth(IntT), InitValue, true);
+            Expr *IntLiteral = IntegerLiteral::Create(Context, Const, IntT, {});
+            Init = createCast(BoolTy, IntLiteral, Context);
           } else if (UnderlyingTy->isIntegerType()
                      and not UnderlyingTy->isPointerType()
                      and not UnderlyingTy->isAnyCharacterType()) {

@@ -82,13 +82,31 @@ std::set<Function *> getDirectlyCalledFunctions(Function &F) {
   return Results;
 }
 
-clang::CStyleCastExpr *
+clang::CastExpr *
 createCast(QualType LHSQualTy, Expr *RHS, ASTContext &ASTCtx) {
   QualType RHSQualTy = RHS->getType();
   const clang::Type *LHSTy = LHSQualTy.getTypePtr();
   const clang::Type *RHSTy = RHSQualTy.getTypePtr();
 
   CastKind CK;
+  if (LHSTy->isBooleanType() and RHSTy->isIntegerType()) {
+    // casting integer to boolean
+    return ImplicitCastExpr::Create(ASTCtx,
+                                    LHSQualTy,
+                                    CastKind::CK_IntegralToBoolean,
+                                    RHS,
+                                    nullptr,
+                                    VK_RValue);
+  }
+  if (RHSTy->isBooleanType() and LHSTy->isIntegerType()) {
+    // casting boolean to inteeger
+    return ImplicitCastExpr::Create(ASTCtx,
+                                    LHSQualTy,
+                                    CastKind::CK_IntegralCast,
+                                    RHS,
+                                    nullptr,
+                                    VK_RValue);
+  }
   if (LHSTy->isIntegerType()) {
     if (RHSTy->isIntegerType()) {
       CK = CastKind::CK_IntegralCast;

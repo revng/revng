@@ -19,6 +19,50 @@
 
 namespace IRASTTypeTranslation {
 
+clang::QualType getOrCreateBoolQualType(const llvm::Type *Ty,
+                                        clang::ASTContext &ASTCtx,
+                                        TypeDeclMap &TypeDecls) {
+  clang::QualType Result;
+  clang::TranslationUnitDecl *TUDecl = ASTCtx.getTranslationUnitDecl();
+  const std::string BoolName = "bool";
+  clang::IdentifierInfo &BoolId = ASTCtx.Idents.get(BoolName);
+  clang::DeclarationName TypeName(&BoolId);
+  bool Found = false;
+  for (clang::Decl *D : TUDecl->lookup(TypeName)) {
+    if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D)) {
+      const std::string Name = Typedef->getNameAsString();
+      if (Name == "bool") {
+        Result = ASTCtx.getTypedefType(Typedef);
+        return Result;
+      }
+    }
+  }
+  if (not Found) {
+    // C99 actually defines '_Bool', while 'bool' is a MACRO, which expands
+    // to '_Bool'. We cheat by injecting a 'typedef _Bool bool;' in the
+    // translation unit we're handling, that has already been preprocessed
+    clang::CanQualType BoolQType = ASTCtx.BoolTy;
+    using TSInfo = clang::TypeSourceInfo;
+    TSInfo *BoolTypeInfo = ASTCtx.getTrivialTypeSourceInfo(BoolQType);
+    auto *BoolTypedefDecl = clang::TypedefDecl::Create(ASTCtx,
+                                                       TUDecl,
+                                                       {}, {},
+                                                       &BoolId,
+                                                       BoolTypeInfo);
+    TypeDecls[Ty] = BoolTypedefDecl;
+    TUDecl->addDecl(BoolTypedefDecl);
+    Result = ASTCtx.getTypedefType(BoolTypedefDecl);
+    return Result;
+    revng_abort("'_Bool' type not found!\n"
+                "This should not happen since we '#include <stdbool.h>'\n"
+                "Please make sure you have installed the header\n");
+  }
+  revng_abort("'bool' type not found!\n"
+              "This should not happen since we '#include <stdbool.h>'\n"
+              "Please make sure you have installed the header\n");
+  return Result;
+}
+
 clang::QualType getOrCreateQualType(const llvm::Type *Ty,
                                     clang::ASTContext &ASTCtx,
                                     clang::DeclContext &DeclCtx,
@@ -38,74 +82,51 @@ clang::QualType getOrCreateQualType(const llvm::Type *Ty,
 
     switch (BitWidth) {
     case 1: {
-      const std::string BoolName = "bool";
-      clang::IdentifierInfo &Id = ASTCtx.Idents.get(BoolName);
-      clang::DeclarationName TypeName(&Id);
-      for (clang::Decl *D : TUDecl->lookup(TypeName)) {
-        if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D)) {
-          const std::string Name = Typedef->getNameAsString();
-          if (Name == "bool") {
-            Result = ASTCtx.getTypedefType(Typedef);
-            return Result;
-          }
-        }
-      }
-      revng_abort("'bool' type not found!\n"
-                  "this should not happen since we '#include <stdbool.h>'\n"
-                  "please make sure you have installed the header\n");
+      Result = getOrCreateBoolQualType(Ty, ASTCtx, TypeDecls);
     } break;
     case 16: {
       const std::string UInt16Name = "uint16_t";
       clang::IdentifierInfo &Id = ASTCtx.Idents.get(UInt16Name);
       clang::DeclarationName TypeName(&Id);
-      for (clang::Decl *D : TUDecl->lookup(TypeName)) {
-        if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D)) {
-          Result = ASTCtx.getTypedefType(Typedef);
-          return Result;
-        }
-      }
+      for (clang::Decl *D : TUDecl->lookup(TypeName))
+        if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D))
+          return ASTCtx.getTypedefType(Typedef);
       revng_abort("'uint16_t' type not found!\n"
-                  "this should not happen since we '#include <stdint.h>'\n"
-                  "please make sure you have installed the header\n");
+                  "This should not happen since we '#include <stdint.h>'\n"
+                  "Please make sure you have installed the header\n");
     } break;
     case 32: {
       const std::string UInt32Name = "uint32_t";
       clang::IdentifierInfo &Id = ASTCtx.Idents.get(UInt32Name);
       clang::DeclarationName TypeName(&Id);
-      for (clang::Decl *D : TUDecl->lookup(TypeName)) {
-        if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D)) {
-          Result = ASTCtx.getTypedefType(Typedef);
-          return Result;
-        }
-      }
+      for (clang::Decl *D : TUDecl->lookup(TypeName))
+        if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D))
+          return ASTCtx.getTypedefType(Typedef);
       revng_abort("'uint32_t' type not found!\n"
-                  "this should not happen since we '#include <stdint.h>'\n"
-                  "please make sure you have installed the header\n");
+                  "This should not happen since we '#include <stdint.h>'\n"
+                  "Please make sure you have installed the header\n");
     } break;
     case 64: {
       const std::string UInt64Name = "uint64_t";
       clang::IdentifierInfo &Id = ASTCtx.Idents.get(UInt64Name);
       clang::DeclarationName TypeName(&Id);
-      for (clang::Decl *D : TUDecl->lookup(TypeName)) {
-        if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D)) {
-          Result = ASTCtx.getTypedefType(Typedef);
-          return Result;
-        }
-      }
+      for (clang::Decl *D : TUDecl->lookup(TypeName))
+        if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D))
+          return ASTCtx.getTypedefType(Typedef);
       revng_abort("'uint64_t' type not found!\n"
-                  "this should not happen since we '#include <stdint.h>'\n"
-                  "please make sure you have installed the header\n");
+                  "This should not happen since we '#include <stdint.h>'\n"
+                  "Please make sure you have installed the header\n");
     } break;
     case 8:
       // use char for strict aliasing reasons
     case 128:
       // use builtin clang types (__int128_t and __uint128_t), because C99 does
       // not require to have 128 bit integer types
+      Result = ASTCtx.getIntTypeForBitwidth(BitWidth, /* Signed */ false);
       break;
     default:
       revng_abort("unexpected integer size");
     }
-    Result = ASTCtx.getIntTypeForBitwidth(BitWidth, /* Signed */ false);
   } break;
 
   case llvm::Type::TypeID::PointerTyID: {

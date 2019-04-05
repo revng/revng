@@ -219,12 +219,11 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       const ClangType *AddrTy = QualAddrType.getTypePtr();
       if (not AddrTy->isPointerType()) {
         revng_assert(AddrTy->isBuiltinType());
-        const BuiltinType *AddrExprTy = cast<BuiltinType>(AddrTy);
-        revng_assert(AddrExprTy->isInteger());
+        revng_assert(AddrTy->isIntegerType());
 
         QualType PtrTy = ASTCtx.getPointerType(PointeeType);
         uint64_t PtrSize = ASTCtx.getTypeSize(PtrTy);
-        uint64_t IntegerSize = ASTCtx.getTypeSize(AddrExprTy);
+        uint64_t IntegerSize = ASTCtx.getTypeSize(AddrTy);
         revng_assert(PtrSize >= IntegerSize);
         if (PtrSize > IntegerSize)
           AddrExpr = createCast(ASTCtx.getUIntPtrType(), AddrExpr, ASTCtx);
@@ -936,12 +935,11 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
       const ClangType *AddrTy = QualAddrType.getTypePtr();
       if (not AddrTy->isPointerType()) {
         revng_assert(AddrTy->isBuiltinType());
-        const BuiltinType *AddrExprTy = cast<BuiltinType>(AddrTy);
-        revng_assert(AddrExprTy->isInteger());
+        revng_assert(AddrTy->isIntegerType());
 
         QualType PtrTy = ASTCtx.getPointerType(PointeeType);
         uint64_t PtrSize = ASTCtx.getTypeSize(PtrTy);
-        uint64_t IntegerSize = ASTCtx.getTypeSize(AddrExprTy);
+        uint64_t IntegerSize = ASTCtx.getTypeSize(AddrTy);
         revng_assert(PtrSize >= IntegerSize);
         if (PtrSize > IntegerSize)
           AddrExpr = createCast(ASTCtx.getUIntPtrType(), AddrExpr, ASTCtx);
@@ -1101,6 +1099,13 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
       const BuiltinType *BuiltinTy = cast<BuiltinType>(UnderlyingTy);
       uint64_t ConstValue = CInt->getValue().getZExtValue();
       switch (BuiltinTy->getKind()) {
+      case BuiltinType::Bool: {
+        QualType IntT = ASTCtx.IntTy;
+        QualType BoolTy = getOrCreateBoolQualType(C->getType(), ASTCtx, TypeDecls);
+        APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue, true);
+        Expr *IntLiteral = IntegerLiteral::Create(ASTCtx, Const, IntT, {});
+        return createCast(BoolTy, IntLiteral, ASTCtx);
+      }
       case BuiltinType::Char_U:
       case BuiltinType::Char_S:
       case BuiltinType::UChar:

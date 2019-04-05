@@ -83,7 +83,8 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
       return false;
 
     llvm::raw_fd_ostream FDStream(FD, /* ShouldClose */ true);
-    FDStream << "#include <stdint.h>\n";
+    FDStream << "#include <stdint.h>\n"
+             << "#include <stdbool.h>\n";
   }
 
 

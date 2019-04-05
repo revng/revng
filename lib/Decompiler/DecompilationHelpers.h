@@ -14,7 +14,7 @@ class GlobalVariable;
 
 namespace clang {
 class ASTContext;
-class CStyleCastExpr;
+class CastExpr;
 class Expr;
 } // end namespace clang
 
@@ -22,8 +22,8 @@ std::set<llvm::GlobalVariable *> getDirectlyUsedGlobals(llvm::Function &F);
 
 std::set<llvm::Function *> getDirectlyCalledFunctions(llvm::Function &F);
 
-clang::CStyleCastExpr *createCast(clang::QualType LHSQualTy,
-                                  clang::Expr *RHS,
-                                  clang::ASTContext &ASTCtx);
+clang::CastExpr *createCast(clang::QualType LHSQualTy,
+                            clang::Expr *RHS,
+                            clang::ASTContext &ASTCtx);
 
 #endif // REVNGC_DECOMPILATION_HELPERS_H
