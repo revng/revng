@@ -118,7 +118,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
 
   auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
   ASTTree &GHAST = RestructureCFGAnalysis.getAST();
-  RegionCFG &RCFG = RestructureCFGAnalysis.getRCT();
+  RegionCFG<llvm::BasicBlock *> &RCFG = RestructureCFGAnalysis.getRCT();
   DuplicationMap &NDuplicates = RestructureCFGAnalysis.getNDuplicates();
   auto &PHIASAPAssignments = getAnalysis<PHIASAPAssignmentInfo>();
   BBPHIMap PHIMap = PHIASAPAssignments.extractBBToPHIIncomingMap();

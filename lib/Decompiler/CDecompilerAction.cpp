@@ -501,7 +501,7 @@ private:
 
 public:
   explicit Decompiler(llvm::Function &F,
-                      RegionCFG &RCFG,
+                      RegionCFG<llvm::BasicBlock *> &RCFG,
                       ASTTree &CombedAST,
                       BBPHIMap &BlockToPHIIncoming,
                       std::unique_ptr<llvm::raw_ostream> Out,
@@ -571,7 +571,7 @@ public:
 
 private:
   llvm::Function &TheF;
-  RegionCFG &RCFG;
+  RegionCFG<llvm::BasicBlock *> &RCFG;
   ASTTree &CombedAST;
   std::unique_ptr<llvm::raw_ostream> Out;
   BBPHIMap &BlockToPHIIncoming;
@@ -583,7 +583,8 @@ std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
                                       RCFG,
                                       CombedAST,
                                       BlockToPHIIncoming,
-                                      std::move(O));
+                                      std::move(O),
+                                      NDuplicates);
 }
 
 } // end namespace tooling

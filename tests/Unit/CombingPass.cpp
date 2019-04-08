@@ -25,14 +25,12 @@ bool init_unit_test();
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
+#include "revng-c/RestructureCFGPass/BasicBlockNodeImpl.h"
 #include "revng-c/RestructureCFGPass/DotGraphObject.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/RestructureCFGPass/RegionCFGTreeImpl.h"
 
 using namespace llvm;
-
-// BBNodeToBBMap is a map that contains the original link to the LLVM basic
-// block.
-using BBNodeToDotNodeMap = std::map<BasicBlockNode *, DotNode *>;
 
 struct ArgsFixture {
   int argc;
@@ -54,21 +52,19 @@ static void runTest(TestType Type,
   // Load the input graph and populate a new `RegionCFG` starting from it.
   DotGraph InputDot = DotGraph();
   InputDot.parseDotFromFile(InputFileName);
-  RegionCFG Input = RegionCFG();
+  RegionCFG<DotNode *> Input = RegionCFG<DotNode *>();
 
-  BBNodeToDotNodeMap OriginalBB1;
-  Input.initialize(&InputDot, OriginalBB1);
+  Input.initialize(&InputDot);
 
   // Load the reference graph and populate a `RegionCFG` starting from it.
   DotGraph ReferenceDot = DotGraph();
   ReferenceDot.parseDotFromFile(ReferenceFileName);
-  RegionCFG Reference = RegionCFG();
+  RegionCFG<DotNode *> Reference = RegionCFG<DotNode *>();
 
-  BBNodeToDotNodeMap OriginalBB2;
-  Reference.initialize(&ReferenceDot, OriginalBB2);
+  Reference.initialize(&ReferenceDot);
 
   // Apply the combing pass to the input `RegionCFG`.
-  Input.inflateForTest();
+  Input.inflate();
 
   // Save the result of the comb pass.
   //Input.dumpDotOnFile(DotPath + "output.dot");

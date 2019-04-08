@@ -13,7 +13,6 @@
 #include <clang/Frontend/FrontendAction.h>
 
 class ASTTree;
-class RegionCFG;
 
 namespace clang {
 
@@ -30,7 +29,7 @@ private:
 
 public:
   CDecompilerAction(llvm::Function &F,
-                    RegionCFG &RCFG,
+                    RegionCFG<llvm::BasicBlock *> &RCFG,
                     ASTTree &CombedAST,
                     BBPHIMap &BlockToPHIIncoming,
                     std::unique_ptr<llvm::raw_ostream> O,
@@ -52,7 +51,7 @@ public:
 
 private:
   llvm::Function &F;
-  RegionCFG &RCFG;
+  RegionCFG<llvm::BasicBlock *> &RCFG;
   ASTTree &CombedAST;
   BBPHIMap &BlockToPHIIncoming;
   std::unique_ptr<llvm::raw_ostream> O;

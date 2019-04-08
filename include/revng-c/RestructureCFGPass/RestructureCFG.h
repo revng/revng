@@ -42,14 +42,14 @@ public:
 
   ASTTree &getAST() { return RootCFG.getAST(); }
 
-  RegionCFG &getRCT() { return RootCFG; }
+  RegionCFG<llvm::BasicBlock *> &getRCT() { return RootCFG; }
 
   bool isDone() { return Done; }
 
-  std::map<llvm::BasicBlock*, size_t> &getNDuplicates() { return NDuplicates; }
+  std::map<llvm::BasicBlock *, size_t> &getNDuplicates() { return NDuplicates; }
 
 private:
-  RegionCFG RootCFG;
+  RegionCFG<llvm::BasicBlock *> RootCFG;
   DuplicationMap NDuplicates;
 };
 

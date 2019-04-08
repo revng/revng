@@ -21,10 +21,8 @@ class BasicBlock;
 class ConstantInt;
 } // namespace llvm
 
+template<class NodeT>
 class BasicBlockNode;
-
-using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
-using ExprNodeMap = std::map<ExprNode *, ExprNode *>;
 
 class ASTNode {
 
@@ -43,6 +41,9 @@ public:
   };
 
   using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
+  using BasicBlockNodeBB = BasicBlockNode<llvm::BasicBlock *>;
+  using BBNodeMap = std::map<BasicBlockNodeBB *, BasicBlockNodeBB *>;
+  using ExprNodeMap = std::map<ExprNode *, ExprNode *>;
 
 private:
   const NodeKind Kind;
@@ -67,11 +68,10 @@ public:
     Successor(Successor) {}
 
   ASTNode(NodeKind K,
-          BasicBlockNode *CFGNode,
-          llvm::BasicBlock *BB,
+          BasicBlockNodeBB *CFGNode,
           ASTNode *Successor = nullptr) :
     Kind(K),
-    BB(BB),
+    BB(CFGNode->getOriginalNode()),
     Name(CFGNode->getNameStr()),
     Successor(Successor),
     IsEmpty(CFGNode->isEmpty()) {}
@@ -114,8 +114,8 @@ public:
 class CodeNode : public ASTNode {
 
 public:
-  CodeNode(BasicBlockNode *CFGNode, llvm::BasicBlock *BB, ASTNode *Successor) :
-    ASTNode(NK_Code, CFGNode, BB, Successor) {}
+  CodeNode(BasicBlockNodeBB *CFGNode, ASTNode *Successor) :
+    ASTNode(NK_Code, CFGNode, Successor) {}
 
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Code; }
@@ -144,14 +144,13 @@ protected:
   ExprNode *ConditionExpression;
 
 public:
-  IfNode(BasicBlockNode *CFGNode,
-         llvm::BasicBlock *BB,
+  IfNode(BasicBlockNodeBB *CFGNode,
          ExprNode *CondExpr,
          ASTNode *Then,
          ASTNode *Else,
          ASTNode *PostDom,
          NodeKind Kind = NK_If) :
-    ASTNode(Kind, CFGNode, BB, PostDom),
+    ASTNode(Kind, CFGNode, PostDom),
     Then(Then),
     Else(Else),
     ConditionExpression(CondExpr) {}
@@ -223,17 +222,19 @@ private:
   IfNode *RelatedCondition = nullptr;
 
 public:
-  ScsNode(BasicBlockNode *CFGNode, ASTNode *Body) :
+  ScsNode(BasicBlockNodeBB *CFGNode, ASTNode *Body) :
     ASTNode(NK_Scs, CFGNode, nullptr),
     Body(Body) {}
-  ScsNode(BasicBlockNode *CFGNode,
+  ScsNode(BasicBlockNodeBB *CFGNode,
           ASTNode *Body,
           ASTNode *Successor) :
-    ASTNode(NK_Scs, CFGNode, nullptr, Successor),
+    ASTNode(NK_Scs, CFGNode, Successor),
     Body(Body) {}
 
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Scs; }
+
+  bool hasBody() { return Body != nullptr; }
 
   ASTNode *getBody() { return Body; }
 
@@ -285,8 +286,8 @@ private:
 
 public:
   SequenceNode(std::string Name) : ASTNode(NK_List, Name) {}
-  SequenceNode(BasicBlockNode *CFGNode, llvm::BasicBlock *BB) :
-    ASTNode(NK_List, CFGNode, BB) {}
+  SequenceNode(BasicBlockNodeBB *CFGNode) :
+    ASTNode(NK_List, CFGNode) {}
 
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_List; }
@@ -424,11 +425,11 @@ private:
   unsigned StateVariableValue;
 
 public:
-  SetNode(BasicBlockNode *CFGNode, ASTNode *Successor) :
-    ASTNode(NK_Set, CFGNode, nullptr, Successor),
+  SetNode(BasicBlockNodeBB *CFGNode, ASTNode *Successor) :
+    ASTNode(NK_Set, CFGNode, Successor),
     StateVariableValue(CFGNode->getStateVariableValue()) {}
 
-  SetNode(BasicBlockNode *CFGNode) :
+  SetNode(BasicBlockNodeBB *CFGNode) :
     ASTNode(NK_Set, CFGNode, nullptr),
     StateVariableValue(CFGNode->getStateVariableValue()) {}
 
@@ -454,7 +455,7 @@ private:
   unsigned StateVariableValue;
 
 public:
-  IfCheckNode(BasicBlockNode *CFGNode,
+  IfCheckNode(BasicBlockNodeBB *CFGNode,
               ASTNode *Then,
               ASTNode *Else,
               ASTNode *PostDom) :

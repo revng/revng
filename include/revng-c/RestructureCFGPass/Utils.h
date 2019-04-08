@@ -20,23 +20,28 @@
 // an extern declaration
 extern Logger<> CombLogger;
 
-// EdgeDescriptor is a handy way to create and manipulate edges on the
-// RegionCFG.
-using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
+template<class NodeT>
+using Edge = typename BasicBlockNode<NodeT>::EdgeDescriptor;
 
-inline void addEdge(EdgeDescriptor NewEdge) {
+template<class NodeT>
+inline void addEdge(std::pair<BasicBlockNode<NodeT> *,
+                    BasicBlockNode<NodeT> *> NewEdge) {
   revng_assert(not NewEdge.first->isCheck());
   NewEdge.first->addSuccessor(NewEdge.second);
   NewEdge.second->addPredecessor(NewEdge.first);
 }
 
-inline void removeEdge(EdgeDescriptor Edge) {
+template<class NodeT>
+inline void removeEdge(std::pair<BasicBlockNode<NodeT> *,
+                       BasicBlockNode<NodeT> *> Edge) {
   revng_assert(not Edge.first->isCheck());
   Edge.first->removeSuccessor(Edge.second);
   Edge.second->removePredecessor(Edge.first);
 }
 
-inline void moveEdgeTarget(EdgeDescriptor Edge, BasicBlockNode *NewTarget) {
+template<class NodeT>
+inline void moveEdgeTarget(Edge<NodeT> Edge,
+                           BasicBlockNode<NodeT> *NewTarget) {
   Edge.second->removePredecessor(Edge.first);
 
   // Special handle for dispatcher check nodes.
@@ -62,27 +67,29 @@ inline void moveEdgeTarget(EdgeDescriptor Edge, BasicBlockNode *NewTarget) {
   }
 }
 
+template<class NodeT>
 // Helper function to find all nodes on paths between a source and a target
 // node
-inline std::set<BasicBlockNode *>
-findReachableNodes(BasicBlockNode &Source, BasicBlockNode &Target) {
+inline std::set<BasicBlockNode<NodeT> *>
+findReachableNodes(BasicBlockNode<NodeT> &Source,
+                   BasicBlockNode<NodeT> &Target) {
 
   // Add to the Targets set the original target node.
-  std::set<BasicBlockNode *> Targets;
+  std::set<BasicBlockNode<NodeT> *> Targets;
   Targets.insert(&Target);
 
   // Exploration stack initialization.
-  std::vector<std::pair<BasicBlockNode *, size_t>> Stack;
+  std::vector<std::pair<BasicBlockNode<NodeT> *, size_t>> Stack;
   Stack.push_back(std::make_pair(&Source, 0));
 
   // Visited nodes to avoid entering in a loop.
-  std::set<EdgeDescriptor> VisitedEdges;
+  std::set<Edge<NodeT>> VisitedEdges;
 
   // Exploration.
   while (!Stack.empty()) {
     auto StackElem = Stack.back();
     Stack.pop_back();
-    BasicBlockNode *Vertex = StackElem.first;
+    BasicBlockNode<NodeT> *Vertex = StackElem.first;
     if (StackElem.second == 0) {
       if (Targets.count(Vertex) != 0) {
         for (auto StackElem : Stack) {
@@ -93,7 +100,7 @@ findReachableNodes(BasicBlockNode &Source, BasicBlockNode &Target) {
     }
     size_t Index = StackElem.second;
     if (Index < StackElem.first->successor_size()) {
-      BasicBlockNode *NextSuccessor = Vertex->getSuccessorI(Index);
+      BasicBlockNode<NodeT> *NextSuccessor = Vertex->getSuccessorI(Index);
       Index++;
       Stack.push_back(std::make_pair(Vertex, Index));
       if (VisitedEdges.count(std::make_pair(Vertex, NextSuccessor)) == 0

@@ -8,11 +8,15 @@
 // Standard includes
 #include <cstdlib>
 
-// Local includes
-#include "ASTNode.h"
+// local libraries includes
+#include "revng-c/RestructureCFGPass/ASTNode.h"
 
+// Forward declarations.
 class ASTNode;
+
+template<class NodeT>
 class BasicBlockNode;
+
 class SequenceNode;
 
 class ASTTree {
@@ -27,9 +31,9 @@ public:
   using links_range_expr = llvm::iterator_range<links_iterator_expr>;
 
   // TODO: consider including BasicBlockNode header file.
-  using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
-
-  using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
+  using ASTNodeMap = ASTNode::ASTNodeMap;
+  using BasicBlockNodeBB = ASTNode::BasicBlockNodeBB;
+  using BBNodeMap = ASTNode::BBNodeMap;
 
   links_iterator begin() { return links_iterator(ASTNodeList.begin()); };
   links_iterator end() { return links_iterator(ASTNodeList.end()); };
@@ -43,7 +47,7 @@ public:
 
 private:
   links_container ASTNodeList;
-  std::map<BasicBlockNode *, ASTNode *> NodeASTMap;
+  std::map<BasicBlockNodeBB *, ASTNode *> NodeASTMap;
   ASTNode *RootNode;
   unsigned IDCounter = 0;
   links_container_expr CondExprList;
@@ -63,15 +67,15 @@ public:
 
   size_t size();
 
-  void addASTNode(BasicBlockNode *Node, std::unique_ptr<ASTNode> &&ASTObject);
+  void addASTNode(BasicBlockNodeBB *Node, std::unique_ptr<ASTNode> &&ASTObject);
 
   SwitchNode *addSwitch(std::unique_ptr<ASTNode> ASTObject);
 
   SwitchCheckNode *addSwitchCheck(std::unique_ptr<ASTNode> ASTObject);
 
-  ASTNode *findASTNode(BasicBlockNode *BlockNode);
+  ASTNode *findASTNode(BasicBlockNodeBB *BlockNode);
 
-  BasicBlockNode *findCFGNode(ASTNode *Node);
+  BasicBlockNodeBB *findCFGNode(ASTNode *Node);
 
   void setRoot(ASTNode *Root);
 

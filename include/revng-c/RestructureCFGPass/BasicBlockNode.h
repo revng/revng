@@ -18,9 +18,11 @@
 #include "revng/Support/Debug.h"
 
 // forward declarations
+template<class NodeT>
 class RegionCFG;
 
 /// \brief Graph Node, representing a basic block
+template<class NodeT>
 class BasicBlockNode {
 
 public:
@@ -34,23 +36,32 @@ public:
     Collapsed,
   };
 
-  using links_container = llvm::SmallVector<BasicBlockNode *, 2>;
+  using BasicBlockNodeT = BasicBlockNode<NodeT>;
+  using BBNodeMap = std::map<BasicBlockNodeT *, BasicBlockNodeT *>;
+  using RegionCFGT = RegionCFG<NodeT>;
+
+  // EdgeDescriptor is a handy way to create and manipulate edges on the
+  // RegionCFG.
+  using EdgeDescriptor = std::pair<BasicBlockNodeT *, BasicBlockNodeT *>;
+
+  using links_container = llvm::SmallVector<BasicBlockNodeT *, 2>;
   using links_iterator = typename links_container::iterator;
   using links_const_iterator = typename links_container::const_iterator;
   using links_range = llvm::iterator_range<links_iterator>;
   using links_const_range = llvm::iterator_range<links_const_iterator>;
 
 protected:
-  /// Unique Node Id inside a RegionCFG, useful for printing to graphviz
+  /// Unique Node Id inside a RegionCFG<NodeT>, useful for printing to graphviz
   unsigned ID;
 
-  /// Pointer to the parent RegionCFG
-  RegionCFG *Parent;
+  /// Pointer to the parent RegionCFG<NodeT>
+  RegionCFGT *Parent;
 
   /// Reference to the corresponding collapsed region
   //
-  // This is nullptr unless the BasicBlockNode represents a collapsed RegionCFG
-  RegionCFG *CollapsedRegion;
+  // This is nullptr unless the BasicBlockNode represents a collapsed
+  // RegionCFG<NodeT>
+  RegionCFGT *CollapsedRegion;
 
   /// Flag to identify the exit type of a block
   Type NodeType;
@@ -66,8 +77,12 @@ protected:
   /// List of predecessors
   links_container Predecessors;
 
-  explicit BasicBlockNode(RegionCFG *Parent,
-                          RegionCFG *Collapsed,
+  // Original object pointer
+  NodeT OriginalNode;
+
+  explicit BasicBlockNode(RegionCFGT *Parent,
+                          NodeT OriginalNode,
+                          RegionCFGT *Collapsed,
                           llvm::StringRef Name,
                           Type T,
                           unsigned Value = 0);
@@ -79,38 +94,37 @@ public:
   BasicBlockNode &operator=(BasicBlockNode &&BBN) = delete;
 
   /// Copy ctor: clone the node in the same Parent with new ID and without edges
-  explicit BasicBlockNode(const BasicBlockNode &BBN, RegionCFG *Parent) :
+  explicit BasicBlockNode(const BasicBlockNode &BBN, RegionCFGT *Parent) :
     BasicBlockNode(Parent,
+                   BBN.OriginalNode,
                    BBN.CollapsedRegion,
                    BBN.Name,
                    BBN.NodeType,
                    BBN.StateVariableValue) {}
 
   /// \brief Constructor for nodes pointing to LLVM IR BasicBlock
-  explicit BasicBlockNode(RegionCFG *Parent,
+  explicit BasicBlockNode(RegionCFGT *Parent,
+                          NodeT OriginalNode,
                           llvm::StringRef Name) :
     BasicBlockNode(Parent,
+                   OriginalNode,
                    nullptr,
                    Name,
                    Type::Code) {}
 
   /// \brief Constructor for nodes representing collapsed subgraphs
-  explicit BasicBlockNode(RegionCFG *Parent,
-                          RegionCFG *Collapsed) :
-    BasicBlockNode(Parent, Collapsed, "", Type::Collapsed) {}
+  explicit BasicBlockNode(RegionCFGT *Parent, RegionCFGT *Collapsed) :
+    BasicBlockNode(Parent, nullptr, Collapsed, "", Type::Collapsed) {}
 
   /// \brief Constructor for empty dummy nodes
-  explicit BasicBlockNode(RegionCFG *Parent,
-                          Type T) :
-    BasicBlockNode(Parent, nullptr, "", T) {
+  explicit BasicBlockNode(RegionCFG<NodeT> *Parent, Type T) :
+    BasicBlockNode(Parent, nullptr, nullptr, "", T) {
     revng_assert(T == Type::Empty or T == Type::Break or T == Type::Continue);
   }
 
   /// \brief Constructor for dummy nodes that handle the state variable
-  explicit BasicBlockNode(RegionCFG *Parent,
-                          Type T,
-                          unsigned Value) :
-    BasicBlockNode(Parent, nullptr, "", T, Value) {
+  explicit BasicBlockNode(RegionCFGT *Parent, Type T, unsigned Value) :
+    BasicBlockNode(Parent, nullptr, nullptr, "", T, Value) {
     revng_assert(T == Type::Set or T == Type::Check);
   }
 
@@ -172,8 +186,8 @@ public:
     return StateVariableValue;
   }
 
-  RegionCFG *getParent() { return Parent; }
-  void setParent(RegionCFG *P) { Parent = P; }
+  RegionCFGT *getParent() { return Parent; }
+  void setParent(RegionCFGT*P) { Parent = P; }
 
   void removeNode();
 
@@ -258,13 +272,15 @@ public:
   unsigned getID() const { return ID; }
   bool isBasicBlock() const { return NodeType == Type::Code; }
 
+  NodeT getOriginalNode() { return OriginalNode; }
+
   llvm::StringRef getName() const;
   std::string getNameStr() const {
     return "ID:" + std::to_string(getID()) + " " + getName().str();
   }
 
   bool isCollapsed() const { return NodeType == Type::Collapsed; }
-  RegionCFG *getCollapsedCFG() { return CollapsedRegion; }
+  RegionCFGT *getCollapsedCFG() { return CollapsedRegion; }
 
   bool isEquivalentTo(BasicBlockNode *);
 };
@@ -272,12 +288,12 @@ public:
 // Provide graph traits for usage with, e.g., llvm::ReversePostOrderTraversal
 namespace llvm {
 
-template<>
-struct GraphTraits<BasicBlockNode *> {
-  using NodeRef = BasicBlockNode *;
-  using ChildIteratorType = BasicBlockNode::links_iterator;
+template<class NodeT>
+struct GraphTraits<BasicBlockNode<NodeT> *> {
+  using NodeRef = BasicBlockNode<NodeT> *;
+  using ChildIteratorType = typename BasicBlockNode<NodeT>::links_iterator;
 
-  static NodeRef getEntryNode(BasicBlockNode *N) { return N; }
+  static NodeRef getEntryNode(NodeRef N) { return N; }
 
   static inline ChildIteratorType child_begin(NodeRef N) {
     return N->successors().begin();
@@ -288,12 +304,12 @@ struct GraphTraits<BasicBlockNode *> {
   }
 };
 
-template<>
-struct GraphTraits<Inverse<BasicBlockNode *>> {
-  using NodeRef = BasicBlockNode *;
-  using ChildIteratorType = BasicBlockNode::links_iterator;
+template<class NodeT>
+struct GraphTraits<Inverse<BasicBlockNode<NodeT> *>> {
+  using NodeRef = BasicBlockNode<NodeT> *;
+  using ChildIteratorType = typename BasicBlockNode<NodeT>::links_iterator;
 
-  static NodeRef getEntryNode(Inverse<BasicBlockNode *> G) { return G.Graph; }
+  static NodeRef getEntryNode(Inverse<NodeRef> G) { return G.Graph; }
 
   static inline ChildIteratorType child_begin(NodeRef N) {
     return N->predecessors().begin();

@@ -1,14 +1,9 @@
-/// \file Flattening.h
-/// \brief Helper functions for flattening the RegionCFGTree after combing
+#ifndef REVNGC_RESTRUCTURE_CFG_FLATTENING_H
+#define REVNGC_RESTRUCTURE_CFG_FLATTENING_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
-#ifndef REVNGC_RESTRUCTURE_CFG_FLATTENING_H
-#define REVNGC_RESTRUCTURE_CFG_FLATTENING_H
-
-// LLVM includes
-#include "llvm/IR/BasicBlock.h"
 
 // forward declarations
 template<class NodeT>
