@@ -44,12 +44,18 @@ void BasicBlockNode::printAsOperand(raw_ostream &O, bool PrintType) {
 void BasicBlockNode::removeSuccessor(BasicBlockNode *Successor) {
   // TODO: maybe add removeTrue and removeFalse?
   // revng_assert(not isCheck());
-  for (auto It = Successors.begin(); It != Successors.end(); It++) {
-    if (*It == Successor) {
-      Successors.erase(It);
-      break;
-    }
-  }
+  size_t Removed = 0;
+  Successors.erase(std::remove_if(Successors.begin(),
+                                  Successors.end(),
+                                  [&Removed, Successor](BasicBlockNode *B) {
+                                    if (B == Successor) {
+                                      Removed++;
+                                      return true;
+                                    }
+                                    return false;
+                                  }),
+                    Successors.end());
+  revng_assert(Removed == 1); // needs to remove exactly one successor
 }
 
 void BasicBlockNode::removePredecessor(BasicBlockNode *Predecessor) {

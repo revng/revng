@@ -138,19 +138,19 @@ void flattenRegionCFGTree(RegionCFG &Root) {
           // If the predecessor is a dummy node, enqueue all its predecessor
           // for processing, after verifying that they are in turn either set
           // or dummy nodes.
-          std::vector<EdgeDescriptor> EdgesToRemove;
+          std::vector<EdgeDescriptor> EdgesToMove;
           for (BasicBlockNode *Pred : Candidate->predecessors()) {
             revng_assert(Pred->isSet() or Pred->isEmpty());
             Candidates.push_back(Pred);
-            EdgesToRemove.push_back({ Pred, Candidate });
+            EdgesToMove.push_back({ Pred, Candidate });
           }
 
           // Remove the dummy node when we have finished.
           NodesToRemove.insert(Candidate);
 
           // Remove the edges between the set nodes to the dummy node.
-          for (EdgeDescriptor &Edge : EdgesToRemove) {
-            removeEdge(Edge);
+          for (EdgeDescriptor &Edge : EdgesToMove) {
+            moveEdgeTarget(Edge, Node);
           }
         } else {
           revng_abort("Wrong ascending path towards set nodes");
