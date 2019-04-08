@@ -450,6 +450,10 @@ void RegionCFG::inflate() {
   // TODO: handle all the collapsed regions.
   RegionCFG &Graph = *this;
 
+  // Refresh information of dominator and postdominator trees.
+  DT.recalculate(Graph);
+  PDT.recalculate(Graph);
+
   // Collect entry and exit nodes.
   BasicBlockNode *EntryNode = &Graph.getEntryNode();
   std::vector<BasicBlockNode *> ExitNodes;
@@ -517,7 +521,7 @@ void RegionCFG::inflate() {
     if ((*It)->successor_size() == 2) {
 
       // Check that the intersection of exits nodes reachable from the then and
-      // else branches are not disjoint
+      // else branches are disjoint.
       std::set<BasicBlockNode *>
         ThenExits = ReachableExits[(*It)->getSuccessorI(0)];
       std::set<BasicBlockNode *>
@@ -528,7 +532,29 @@ void RegionCFG::inflate() {
                             ElseExits.begin(),
                             ElseExits.end(),
                             std::back_inserter(Intersection));
-      if (Intersection.size() != 0) {
+
+      // Check that we do not dominate at maximum on of the two sets of
+      // reachable exits.
+      bool ThenIsDominated = true;
+      bool ElseIsDominated = true;
+      for (BasicBlockNode *Exit : ThenExits) {
+        if (not DT.dominates(*It, Exit)) {
+          ThenIsDominated = false;
+        }
+      }
+      for (BasicBlockNode *Exit : ElseExits) {
+        if (not DT.dominates(*It, Exit)) {
+          ElseIsDominated = false;
+        }
+      }
+
+      // This check adds a conditional nodes if the sets of reachable exits are
+      // not disjoint or if we do not dominate both the reachable exit sets
+      // (note that we may not dominate one of the two reachable sets, meaning
+      // the fallthrough branch, but we need to dominate the other in such a way
+      // that we can completely absorb it).
+      if (Intersection.size() != 0
+          or (not (ThenIsDominated or ElseIsDominated))) {
         ConditionalNodes.push_back(*It);
         ConditionalNodesComplete.insert(*It);
       } else {
