@@ -59,12 +59,18 @@ void BasicBlockNode::removeSuccessor(BasicBlockNode *Successor) {
 }
 
 void BasicBlockNode::removePredecessor(BasicBlockNode *Predecessor) {
-  for (auto It = Predecessors.begin(); It != Predecessors.end(); It++) {
-    if (*It == Predecessor) {
-      Predecessors.erase(It);
-      break;
-    }
-  }
+  size_t Removed = 0;
+  Predecessors.erase(std::remove_if(Predecessors.begin(),
+                                   Predecessors.end(),
+                                   [&Removed, Predecessor](BasicBlockNode *B) {
+                                     if (B == Predecessor) {
+                                       Removed++;
+                                       return true;
+                                     }
+                                     return false;
+                                   }),
+                     Predecessors.end());
+  revng_assert(Removed == 1); // needs to remove exactly one predecessor
 }
 
 using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
