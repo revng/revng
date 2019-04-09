@@ -182,13 +182,24 @@ void flattenRegionCFGTree(RegionCFG &Root) {
     }
   }
 
+  Root.dumpDotOnFile("dots",
+                     Root.getFunctionName(),
+                     "Flattening-wip");
+
   // Connect all the predecessors of the set nodes directly to the original
   // successor, ignoring the set and check nodes.
   for (BasicBlockNode *SetNode : SetNodes) {
     revng_assert(SetNode->successor_size() == 1);
     BasicBlockNode *Succ = SetNode->getSuccessorI(0);
-    for (BasicBlockNode *Pred : SetNode->predecessors())
+
+    // Temporary vector needed to avoid iterator invalidation.
+    std::vector<BasicBlockNode *> Predecessors;
+    for (BasicBlockNode *Pred : SetNode->predecessors()) {
+      Predecessors.push_back(Pred);
+    }
+    for (BasicBlockNode *Pred : Predecessors) {
       moveEdgeTarget({ Pred, SetNode }, Succ);
+    }
     NodesToRemove.insert(SetNode);
   }
   for (BasicBlockNode *BBNode : NodesToRemove)
