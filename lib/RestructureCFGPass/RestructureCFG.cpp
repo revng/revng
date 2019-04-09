@@ -694,16 +694,29 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
         // Handle outgoing edges from SCS nodes.
         if (Node->isCheck()) {
+          BasicBlockNode *TrueSucc = Node->getTrue();
+          if (Meta->containsNode(TrueSucc)) {
+            if ((TrueSucc == Head) or (TrueSucc == FirstCandidate)) {
+              ClonedMap.at(Node)->setTrue(Head);
+            } else {
+              ClonedMap.at(Node)->setTrue(ClonedMap.at(TrueSucc));
+            }
+          }
+          else {
+            ClonedMap.at(Node)->setTrue(TrueSucc);
+          }
 
-          if (Meta->containsNode(Node->getTrue()))
-            ClonedMap.at(Node)->setTrue(ClonedMap.at(Node->getTrue()));
-          else
-            ClonedMap.at(Node)->setTrue(Node->getTrue());
-
-          if (Meta->containsNode(Node->getFalse()))
-            ClonedMap.at(Node)->setFalse(ClonedMap.at(Node->getFalse()));
-          else
-            ClonedMap.at(Node)->setFalse(Node->getFalse());
+          BasicBlockNode *FalseSucc = Node->getFalse();
+          if (Meta->containsNode(FalseSucc)) {
+            if ((FalseSucc == Head) or (FalseSucc == FirstCandidate)) {
+              ClonedMap.at(Node)->setFalse(Head);
+            } else {
+              ClonedMap.at(Node)->setFalse(ClonedMap.at(FalseSucc));
+            }
+          }
+          else{
+            ClonedMap.at(Node)->setFalse(FalseSucc);
+          }
 
         } else {
           for (BasicBlockNode *Successor : Node->successors()) {
