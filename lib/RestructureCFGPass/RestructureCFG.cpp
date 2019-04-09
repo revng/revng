@@ -603,7 +603,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
 
       // Move the incoming edge from the old head to new one.
-      for (BasicBlockNode *Predecessor : FirstCandidate->predecessors()) {
+      std::vector<BasicBlockNode *>Predecessors;
+      for (BasicBlockNode *Predecessor : FirstCandidate->predecessors())
+        Predecessors.push_back(Predecessor);
+
+      for (BasicBlockNode *Predecessor : Predecessors) {
         if (!Meta->containsNode(Predecessor)) {
           moveEdgeTarget(EdgeDescriptor(Predecessor, FirstCandidate), Head);
         }
@@ -696,7 +700,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
         if (Node->isCheck()) {
           BasicBlockNode *TrueSucc = Node->getTrue();
           if (Meta->containsNode(TrueSucc)) {
-            if ((TrueSucc == Head) or (TrueSucc == FirstCandidate)) {
+            if (TrueSucc == Head) {
               ClonedMap.at(Node)->setTrue(Head);
             } else {
               ClonedMap.at(Node)->setTrue(ClonedMap.at(TrueSucc));
@@ -708,7 +712,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
           BasicBlockNode *FalseSucc = Node->getFalse();
           if (Meta->containsNode(FalseSucc)) {
-            if ((FalseSucc == Head) or (FalseSucc == FirstCandidate)) {
+            if (FalseSucc == Head) {
               ClonedMap.at(Node)->setFalse(Head);
             } else {
               ClonedMap.at(Node)->setFalse(ClonedMap.at(FalseSucc));
@@ -722,16 +726,16 @@ bool RestructureCFG::runOnFunction(Function &F) {
           for (BasicBlockNode *Successor : Node->successors()) {
             if (Meta->containsNode(Successor)) {
               // Handle edges pointing inside the SCS.
-              if ((Successor == Head) or (Successor == FirstCandidate)) {
+              if (Successor == Head) {
                 // Retreating edges should point to the new head.
-                addEdge(EdgeDescriptor(ClonedMap[Node], Head));
+                addEdge(EdgeDescriptor(ClonedMap.at(Node), Head));
               } else {
                 // Other edges should be restored between cloned nodes.
-                addEdge(EdgeDescriptor(ClonedMap[Node], ClonedMap[Successor]));
+                addEdge(EdgeDescriptor(ClonedMap.at(Node), ClonedMap.at(Successor)));
               }
             } else {
               // Edges exiting from the SCS should go to the right target.
-              addEdge(EdgeDescriptor(ClonedMap[Node], Successor));
+              addEdge(EdgeDescriptor(ClonedMap.at(Node), Successor));
             }
           }
         }
@@ -743,12 +747,13 @@ bool RestructureCFG::runOnFunction(Function &F) {
         }
         for (BasicBlockNode *Predecessor : Predecessors) {
           if (!Meta->containsNode(Predecessor)) {
-            moveEdgeTarget(EdgeDescriptor(Predecessor, Node), ClonedMap[Node]);
+            moveEdgeTarget(EdgeDescriptor(Predecessor, Node), ClonedMap.at(Node));
           }
         }
       }
     }
 
+    // Default set node for entry dispatcher.
     if (NewHeadNeeded) {
       revng_assert(Head->isCheck());
       std::set<BasicBlockNode *> SetCandidates;
