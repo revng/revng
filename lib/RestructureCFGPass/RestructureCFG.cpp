@@ -598,9 +598,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
         Idx = RetreatingIdxMap[R.second];
         auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
         Meta->insertNode(SetNode);
-        addEdge(EdgeDescriptor(R.first, SetNode));
+        moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
         addEdge(EdgeDescriptor(SetNode, Head));
-        removeEdge(EdgeDescriptor(R.first, R.second));
       }
 
       // Move the incoming edge from the old head to new one.
@@ -880,6 +879,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
                             F.getName(),
                             "Out-post-" + std::to_string(Meta->getIndex()));
     }
+
+    // Remove not reachables nodes from the graph at each iteration.
+    RootCFG.removeNotReachables();
   }
 
   // Serialize the newly collapsed SCS region.
