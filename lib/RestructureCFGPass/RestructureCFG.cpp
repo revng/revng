@@ -747,9 +747,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
       unsigned Value = RetreatingTargets.size() - 1;
       for (BasicBlockNode *Pred : SetCandidates) {
         BasicBlockNode *Set = RootCFG.addSetStateNode(Value, Head->getName());
-        addEdge(EdgeDescriptor(Pred, Set));
+        moveEdgeTarget(EdgeDescriptor(Pred, Head), Set);
         addEdge(EdgeDescriptor(Set, Head));
-        removeEdge(EdgeDescriptor(Pred, Head));
       }
     }
 
