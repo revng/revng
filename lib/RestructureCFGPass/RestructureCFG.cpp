@@ -723,10 +723,16 @@ bool RestructureCFG::runOnFunction(Function &F) {
           }
         }
 
-        // Handle incoming edges in SCS nodes.
-        for (BasicBlockNode *Predecessor : Node->predecessors())
-          if (!Meta->containsNode(Predecessor))
+        // We need this temporary vector to avoid invalidating iterators.
+        std::vector<BasicBlockNode *> Predecessors;
+        for (BasicBlockNode *Predecessor : Node->predecessors()) {
+          Predecessors.push_back(Predecessor);
+        }
+        for (BasicBlockNode *Predecessor : Predecessors) {
+          if (!Meta->containsNode(Predecessor)) {
             moveEdgeTarget(EdgeDescriptor(Predecessor, Node), ClonedMap[Node]);
+          }
+        }
       }
     }
 
