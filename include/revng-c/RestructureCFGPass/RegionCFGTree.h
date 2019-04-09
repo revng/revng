@@ -20,6 +20,9 @@
 #include "ASTTree.h"
 #include "BasicBlockNode.h"
 
+// Forward declaration
+class MetaRegion;
+
 inline BasicBlockNode *getPointer(std::unique_ptr<BasicBlockNode> &Original) {
   return Original.get();
 }
@@ -196,6 +199,8 @@ public:
   ASTTree &getAST();
 
   void removeNotReachables();
+
+  void removeNotReachables(std::vector<MetaRegion *> &MS);
 
   bool isDAG();
 

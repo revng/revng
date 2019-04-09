@@ -13,6 +13,7 @@
 // LLVM includes
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SCCIterator.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
@@ -24,6 +25,9 @@
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
+
+// Local includes
+#include "MetaRegion.h"
 
 // EdgeDescriptor is a handy way to create and manipulate edges on the
 // RegionCFG.
@@ -983,6 +987,27 @@ void RegionCFG::removeNotReachables() {
     BasicBlockNode *EntryNode = &getEntryNode();
     for (auto It = begin(); It != end(); It++) {
       if ((EntryNode != *It and (*It)->predecessor_size() == 0)) {
+        removeNode(*It);
+        Difference = true;
+        break;
+      }
+    }
+  }
+}
+
+void RegionCFG::removeNotReachables(std::vector<MetaRegion *> &MS) {
+
+  // Remove nodes that have no predecessors (nodes that are the result of node
+  // cloning and that remains dandling around).
+  bool Difference = true;
+  while (Difference) {
+    Difference = false;
+    BasicBlockNode *EntryNode = &getEntryNode();
+    for (auto It = begin(); It != end(); It++) {
+      if ((EntryNode != *It and (*It)->predecessor_size() == 0)) {
+        for (MetaRegion *M : MS) {
+          M->removeNode(*It);
+        }
         removeNode(*It);
         Difference = true;
         break;

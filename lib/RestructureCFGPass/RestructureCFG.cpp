@@ -889,7 +889,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     Meta->replaceNodes(CollapsedGraph.getNodes());
 
     // Remove useless nodes inside the SCS (like dandling break/continue)
-    CollapsedGraph.removeNotReachables();
+    CollapsedGraph.removeNotReachables(OrderedMetaRegions);
 
     // Serialize the newly collapsed SCS region.
     if (CombLogger.isEnabled()) {
@@ -904,7 +904,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
 
     // Remove not reachables nodes from the graph at each iteration.
-    RootCFG.removeNotReachables();
+    RootCFG.removeNotReachables(OrderedMetaRegions);
   }
 
   // Serialize the newly collapsed SCS region.
@@ -914,7 +914,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Remove not reachables nodes from the main final graph.
-  RootCFG.removeNotReachables();
+  RootCFG.removeNotReachables(OrderedMetaRegions);
 
   // Serialize the newly collapsed SCS region.
   if (CombLogger.isEnabled()) {
