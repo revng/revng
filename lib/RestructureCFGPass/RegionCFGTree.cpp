@@ -446,6 +446,8 @@ RegionCFG::getInterestingNodes(BasicBlockNode *Cond) {
 
 void RegionCFG::inflate() {
 
+   revng_assert(isDAG());
+
   // Apply the comb to a RegionCFG object.
   // TODO: handle all the collapsed regions.
   RegionCFG &Graph = *this;
@@ -987,4 +989,26 @@ void RegionCFG::removeNotReachables() {
       }
     }
   }
+}
+
+bool RegionCFG::isDAG() {
+  bool FoundSCC = false;
+
+  for (llvm::scc_iterator<RegionCFG *> I = llvm::scc_begin(this),
+                                       IE = llvm::scc_end(this);
+                                       I != IE; ++I) {
+    const std::vector<BasicBlockNode *> &SCC = *I;
+    if (SCC.size() != 1) {
+      FoundSCC = true;
+    } else {
+      BasicBlockNode *Node = SCC[0];
+      for (BasicBlockNode *Successor : Node->successors()) {
+        if (Successor == Node) {
+          FoundSCC = true;
+        }
+      }
+    }
+  }
+
+return not FoundSCC;
 }

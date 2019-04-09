@@ -197,6 +197,8 @@ public:
 
   void removeNotReachables();
 
+  bool isDAG();
+
 protected:
   template<typename StreamT>
   void streamNode(StreamT &S, const BasicBlockNode *) const;
