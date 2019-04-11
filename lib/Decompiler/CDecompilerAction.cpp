@@ -163,7 +163,7 @@ static clang::Expr *createCondExpr(ExprNode *E,
     case ExprNode::NodeKind::NK_And:
     case ExprNode::NodeKind::NK_Or: {
       unsigned NumOperands = Current.ResolvedOperands.size();
-      revng_assert(NumOperands <= 1);
+      revng_assert(NumOperands <= 2);
       using ExprPair = std::pair<ExprNode *, ExprNode *>;
       BinaryNode *Binary = cast<BinaryNode>(Current.Node);
       if (NumOperands != 2) {
