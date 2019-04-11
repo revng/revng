@@ -544,6 +544,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
     std::set<BasicBlockNode *> RetreatingTargets;
     for (EdgeDescriptor Backedge : Backedges) {
       if (Meta->containsNode(Backedge.first)) {
+
+        // Check that the target of the retreating edge falls inside the current
+        // SCS.
+        revng_assert(Meta->containsNode(Backedge.second));
+
         Retreatings.insert(Backedge);
         RetreatingTargets.insert(Backedge.second);
       }
@@ -905,6 +910,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     // Remove not reachables nodes from the graph at each iteration.
     RootCFG.removeNotReachables(OrderedMetaRegions);
+
+    // Check that the newly created collapsed region is acyclic.
+    revng_assert(CollapsedGraph.isDAG());
   }
 
   // Serialize the newly collapsed SCS region.
@@ -940,6 +948,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
       CombLogger << "Is SCS: " << Meta->isSCS() << "\n";
     }
   }
+
+  // Check that the root region is acyclic at this point.
+  revng_assert(RootCFG.isDAG());
 
   // Invoke the AST generation for the root region.
   CombLogger.emit();
