@@ -47,7 +47,7 @@ void FBDP::serialize(std::ostream &Output, Module &M) {
   for (BasicBlock &BB : F) {
     if (!BB.empty()) {
       TerminatorInst *Terminator = BB.getTerminator();
-      if (MDNode *Node = Terminator->getMetadata("func.member.of")) {
+      if (MDNode *Node = Terminator->getMetadata("revng.func.member.of")) {
         auto *Tuple = cast<MDTuple>(Node);
         for (const MDOperand &Op : Tuple->operands()) {
           auto *FunctionMD = cast<MDTuple>(Op);

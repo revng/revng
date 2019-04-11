@@ -214,8 +214,8 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
   LLVMContext &Context = getContext(&F);
   QuickMetadata QMD(Context);
 
-  // Temporary data structure so we can set all the `func.member.of` in a single
-  // shot at the end
+  // Temporary data structure so we can set all the `revng.func.member.of` in a
+  // single shot at the end
   std::map<TerminatorInst *, std::vector<Metadata *>> MemberOf;
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
@@ -231,7 +231,7 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
     uint64_t EntryPC = getBasicBlockPC(Entry);
 
     //
-    // Add `func.entry`:
+    // Add `revng.func.entry`:
     // {
     //   name,
     //   address,
@@ -263,13 +263,13 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
       }
     }
 
-    // Create func.entry metadata
+    // Create revng.func.entry metadata
     MDTuple *FunctionMD = QMD.tuple({ QMD.get(getName(Entry)),
                                       QMD.get(EntryPC),
                                       TypeMD,
                                       QMD.tuple(ClobberedMDs),
                                       QMD.tuple(SlotMDs) });
-    Entry->getTerminator()->setMetadata("func.entry", FunctionMD);
+    Entry->getTerminator()->setMetadata("revng.func.entry", FunctionMD);
 
     if (AnalyzeABI) {
       //
@@ -296,7 +296,7 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
     }
 
     //
-    // Create func.member.of
+    // Create revng.func.member.of
     //
 
     // Loop over all the basic blocks composing the function
@@ -311,9 +311,9 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
     }
   }
 
-  // Apply `func.member.of`
+  // Apply `revng.func.member.of`
   for (auto &P : MemberOf)
-    P.first->setMetadata("func.member.of", QMD.tuple(P.second));
+    P.first->setMetadata("revng.func.member.of", QMD.tuple(P.second));
 }
 
 template void StackAnalysis<true>::serializeMetadata(Function &F);

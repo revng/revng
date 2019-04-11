@@ -2,9 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-set(MAN_PAGES RevambDumpUsage.rst RevambUsage.rst TranslateUsage.rst)
-set(DOC_HTML BuildSystem.rst FromIRToExecutable.rst GeneratedIRReference.rst
-  PythonExample.rst)
+set(MAN_PAGES)
+set(DOC_HTML FromIRToExecutable.rst GeneratedIRReference.rst PythonExample.rst)
 set(DOC_COPY instrument.py)
 
 set(DOC_DEPS)

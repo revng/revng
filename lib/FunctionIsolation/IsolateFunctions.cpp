@@ -323,7 +323,7 @@ bool IFI::replaceFunctionCall(BasicBlock *NewBB,
   } else {
     BasicBlock *CalleeEntry = Callee->getBasicBlock();
     TerminatorInst *Terminator = CalleeEntry->getTerminator();
-    auto *Node = cast<MDTuple>(Terminator->getMetadata("func.entry"));
+    auto *Node = cast<MDTuple>(Terminator->getMetadata("revng.func.entry"));
 
     // The callee is not a real function, it must be part of us then.
     if (Node == nullptr) {
@@ -460,7 +460,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
     auto GetTrampoline = [this, &Descriptor, PCReg](BasicBlock *BB) {
       Instruction *T = BB->getTerminator();
 
-      auto *Node = cast_or_null<MDTuple>(T->getMetadata("func.entry"));
+      auto *Node = cast_or_null<MDTuple>(T->getMetadata("revng.func.entry"));
       auto FunctionsIt = Functions.end();
       if (Node != nullptr) {
         auto *NameMD = cast<MDString>(&*Node->getOperand(0));
@@ -760,7 +760,7 @@ void IFI::run() {
     revng_assert(!BB.empty());
 
     TerminatorInst *Terminator = BB.getTerminator();
-    if (MDNode *Node = Terminator->getMetadata("func.entry")) {
+    if (MDNode *Node = Terminator->getMetadata("revng.func.entry")) {
       auto *FunctionNameMD = cast<MDString>(&*Node->getOperand(0));
 
       StringRef FunctionNameString = getFunctionNameString(Node);
@@ -776,7 +776,7 @@ void IFI::run() {
                                             Function::InternalLinkage,
                                             FunctionNameString,
                                             TheModule);
-      Function->setMetadata("func.entry", Node);
+      Function->setMetadata("revng.func.entry", Node);
 
       IsolatedFunctionDescriptor &Descriptor = Functions[FunctionNameMD];
       Descriptor.PC = getBasicBlockPC(&BB);
@@ -798,7 +798,7 @@ void IFI::run() {
     // We iterate over all the metadata that represent the functions a basic
     // block belongs to, and add the basic block in each function
     TerminatorInst *Terminator = BB.getTerminator();
-    if (MDNode *Node = Terminator->getMetadata("func.member.of")) {
+    if (MDNode *Node = Terminator->getMetadata("revng.func.member.of")) {
       auto *Tuple = cast<MDTuple>(Node);
       for (const MDOperand &Op : Tuple->operands()) {
         auto *FunctionMD = cast<MDTuple>(Op);
@@ -815,7 +815,7 @@ void IFI::run() {
         // that is the entry point of a function we need to place it in the as
         // the first block of the function.
         BasicBlock *NewBB;
-        MDNode *FuncEntry = Terminator->getMetadata("func.entry");
+        MDNode *FuncEntry = Terminator->getMetadata("revng.func.entry");
         if (FuncEntry != nullptr
             and cast<MDString>(&*FuncEntry->getOperand(0)) == FunctionNameMD
             and not ParentFunction->empty()) {
@@ -1157,7 +1157,7 @@ void IFI::run() {
     revng_assert(!BB.empty());
 
     TerminatorInst *Terminator = BB.getTerminator();
-    if (MDNode *Node = Terminator->getMetadata("func.entry")) {
+    if (MDNode *Node = Terminator->getMetadata("revng.func.entry")) {
       StringRef FunctionNameString = getFunctionNameString(Node);
       Function *TargetFunc = TheModule->getFunction(FunctionNameString);
 

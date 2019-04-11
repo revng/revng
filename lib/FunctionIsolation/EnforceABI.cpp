@@ -413,7 +413,7 @@ FunctionsSummary::FunctionDescription
 EnforceABIImpl::handleFunction(Function &F) {
   QuickMetadata QMD(Context);
 
-  auto *Tuple = cast<MDTuple>(F.getMetadata("func.entry"));
+  auto *Tuple = cast<MDTuple>(F.getMetadata("revng.func.entry"));
 
   FunctionDescription Description;
   SmallVector<Type *, 8> ArgumentsTypes;
@@ -466,7 +466,7 @@ EnforceABIImpl::handleFunction(Function &F) {
                                        F.getParent());
   NewFunction->takeName(&F);
   NewFunction->copyAttributesFrom(&F);
-  NewFunction->setMetadata("func.entry", F.getMetadata("func.entry"));
+  NewFunction->setMetadata("revng.func.entry", F.getMetadata("func.entry"));
   Description.Function = NewFunction;
 
   {
@@ -689,7 +689,7 @@ void EnforceABIImpl::handleRegularFunctionCall(Instruction *I) {
         EnforceABILog << "[Yes]";
         Count++;
 
-        auto *Tuple = cast<MDTuple>(F->getMetadata("func.entry"));
+        auto *Tuple = cast<MDTuple>(F->getMetadata("revng.func.entry"));
         revng_assert(Tuple != nullptr);
         uint64_t PC = QMD.extract<uint64_t>(Tuple, 1);
 
