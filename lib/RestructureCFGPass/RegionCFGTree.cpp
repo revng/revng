@@ -925,6 +925,22 @@ void RegionCFG::generateAst() {
         revng_assert(not Node->isBreak() and not Node->isContinue());
         if (Node->isSet()) {
           ASTObject.reset(new SetNode(Node, ASTChildren[0]));
+        } else if (Node->isCheck()) {
+
+          // We may have a check node with a single then/else branch due to
+          // condition blacklisting (the other branch is the fallthrough
+          // branch).
+          if (BBChildren[0] == Node->getTrue()) {
+            ASTObject.reset(new IfCheckNode(Node,
+                                            ASTChildren[0],
+                                            nullptr,
+                                            nullptr));
+          } else if (BBChildren[0] == Node->getFalse()) {
+            ASTObject.reset(new IfCheckNode(Node,
+                                            nullptr,
+                                            ASTChildren[0],
+                                            nullptr));
+          }
         } else {
           ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
         }
