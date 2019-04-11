@@ -45,6 +45,7 @@ Logger<> CombLogger("restructure");
 // EdgeDescriptor is a handy way to create and manipulate edges on the
 // RegionCFG.
 using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
+using BackedgeMetaRegionMap =  std::map<EdgeDescriptor, MetaRegion *>;
 
 static std::set<EdgeDescriptor> getBackedges(RegionCFG &Graph) {
 
@@ -129,6 +130,78 @@ static void simplifySCS(std::vector<MetaRegion> &MetaRegions) {
   while (Changes) {
     Changes = mergeSCSStep(MetaRegions);
   }
+}
+
+static bool
+mergeSCSAbnormalRetreating(std::vector<MetaRegion> &MetaRegions,
+                           const std::set<EdgeDescriptor> &Backedges,
+                           BackedgeMetaRegionMap &BackedgeMetaRegionMap,
+                           std::set<MetaRegion *> &BlacklistedMetaregions) {
+  for (auto RegionIt = MetaRegions.begin();
+       RegionIt != MetaRegions.end();
+       RegionIt++) {
+    MetaRegion &Region = *RegionIt;
+
+    // Do not re-analyze blacklisted metaregions.
+    if (BlacklistedMetaregions.count(&Region) == 0) {
+
+      // Iterate over all the backedges present in the graph, if the current
+      // region contains the source of a backedge, it should contain also the
+      // the target of that backedge. If not, merge thw two SCSs.
+      for (EdgeDescriptor Backedge : Backedges) {
+        if (Region.containsNode(Backedge.first)) {
+          if (!Region.containsNode(Backedge.second)) {
+
+            // Retrieve the Metaregion identified by the backedge with goes
+            // goes outside the scope of the current Metaregion.
+            MetaRegion *OtherRegion = BackedgeMetaRegionMap.at(Backedge);
+            Region.mergeWith(*OtherRegion);
+
+            // Find the iterator to the `OtherRegion`
+            for (auto OtherRegionIt = MetaRegions.begin();
+                 OtherRegionIt != MetaRegions.end();
+                 OtherRegionIt++) {
+              if (&*OtherRegionIt == OtherRegion) {
+
+                // Blacklist the region which we have merged.
+                BackedgeMetaRegionMap[Backedge] = &Region;
+                BlacklistedMetaregions.insert(OtherRegion);
+                return true;
+              }
+            }
+
+            // Abort if we didn't find the metaregion to remove.
+            revng_abort("Not found the region to merge with.");
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+static void
+simplifySCSAbnormalRetreating(std::vector<MetaRegion> &MetaRegions,
+                              const std::set<EdgeDescriptor> &Backedges,
+                              BackedgeMetaRegionMap &BackedgeMetaRegionMap) {
+  std::set<MetaRegion *> BlacklistedMetaregions;
+  bool Changes = true;
+  while (Changes) {
+    Changes = mergeSCSAbnormalRetreating(MetaRegions,
+                                         Backedges,
+                                         BackedgeMetaRegionMap,
+                                         BlacklistedMetaregions);
+  }
+
+  // Remove all the metaregion that have been merged with others, using the
+  // erase/remove idiom.
+  MetaRegions.erase(remove_if(MetaRegions.begin(),
+                              MetaRegions.end(),
+                              [&BlacklistedMetaregions](MetaRegion &M) {
+                                return BlacklistedMetaregions.count(&M) == 1;
+                              }),
+                    MetaRegions.end());
 }
 
 static void sortMetaRegions(std::vector<MetaRegion> &MetaRegions) {
@@ -331,7 +404,22 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Create meta regions
   std::vector<MetaRegion> MetaRegions = createMetaRegions(Backedges);
 
+  // Temporary map where to store the corrispondence between the backedge and
+  // the SCS it gives origin to.
+  // HACK: this should be done at the same time of the metaregion creation.
+  unsigned MetaRegionIndex = 0;
+  std::map<EdgeDescriptor, MetaRegion *> BackedgeMetaRegionMap;
+  for (EdgeDescriptor Backedge : Backedges) {
+    BackedgeMetaRegionMap[Backedge] = &MetaRegions[MetaRegionIndex];
+    MetaRegionIndex++;
+  }
+
+  // Simplify SCS if they contain an edge which goes outside the scope of the
+  // current region.
+  simplifySCSAbnormalRetreating(MetaRegions, Backedges, BackedgeMetaRegionMap);
+
   // Simplify SCS in a fixed-point fashion.
+  sortMetaRegions(MetaRegions);
   simplifySCS(MetaRegions);
 
   // Print SCS after simplification.
