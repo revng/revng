@@ -81,7 +81,12 @@ def build_opt_args(args):
   # Path to libraries representing the roots in the dependency tree
   roots = [os.path.join(analyses_path, name) for name in all - provided]
 
-  return ([get_command("opt")]
+  prefix = []
+  libasan = [name for name in provided if "libasan." in name]
+  if libasan:
+    prefix = [get_command("env"), "LD_PRELOAD=" + libasan[0]]
+
+  return (prefix + [get_command("opt")]
           + interleave(roots, "-load")
           + args)
 
@@ -208,7 +213,8 @@ def wrap(args):
   return args
 
 def run_translate(args):
-  parser = argparse.ArgumentParser(description="The rev.ng translator.")
+  parser = argparse.ArgumentParser(description="The rev.ng translator.",
+                                   prog=sys.argv[0] + " translate")
   parser.add_argument("-O0", action="store_true", help="Do no optimize.")
   parser.add_argument("-O1", action="store_true", help="Use llc -O2.")
   parser.add_argument("-O2",
@@ -283,17 +289,13 @@ def run_translate(args):
     if args.base:
       lift_options += ["--base", args.base]
 
-    lift_log = "{}.log".format(output)
-    with open(lift_log, "w") as log_file:
-      subprocess.check_call(wrap([get_command("revng"), "lift",
-                                  "-g", "ll",
-                                  "--debug-log", "jtcount",
-                                  "--debug-log", "new-edges",
-                                  "--use-debug-symbols"]
-                                 + lift_options
-                                 + [input, output]),
-                            stdout=log_file,
-                            stderr=log_file)
+    subprocess.check_call(wrap([get_command("revng"), "lift",
+                                "-g", "ll",
+                                "--debug-log", "jtcount",
+                                "--debug-log", "new-edges",
+                                "--use-debug-symbols"]
+                               + lift_options
+                               + [input, output]))
 
   # Perform function isolation
   if args.isolate:
@@ -411,8 +413,9 @@ def run_cc(args):
 
   return res
 
-def print_version():
-  sys.stdout.write("""The following built-in commands are available:
+def print_help():
+  sys.stdout.write("""
+The following built-in commands are available:
 
   help      - print help for the revng driver.
   translate - translated a program from an architecture to another.
@@ -426,9 +429,10 @@ def print_version():
   programs = set()
   prefix = "revng-"
   for path in search_path.split(":"):
-    for program in os.listdir(path):
-      if program.startswith(prefix) and which(program, path=search_path):
-        programs.add(program[len(prefix):])
+    if os.path.isdir(path):
+      for program in os.listdir(path):
+        if program.startswith(prefix) and which(program, path=search_path):
+          programs.add(program[len(prefix):])
 
   programs = list(programs)
   max_length = reduce(lambda old, new: max(old, len(new)), programs, 0)
@@ -460,7 +464,8 @@ def print_version():
   sys.stdout.buffer.write(b"\n".join(extra) + b"\n")
 
 def main():
-  parser = argparse.ArgumentParser(description="The rev.ng driver.")
+  parser = argparse.ArgumentParser(description="The rev.ng driver.",
+                                   add_help=False)
   parser.add_argument("--version",
                       action="store_true",
                       help="Display version information.")
@@ -469,7 +474,7 @@ def main():
                       help="Log all executed commands.")
   parser.add_argument("--perf",
                       action="store_true",
-                      help="Run programs under perf.")
+                      help="Run programs under perf (for use with hotspot).")
   parser.add_argument("--heaptrack",
                       action="store_true",
                       help="Run programs under heaptrack.")
@@ -481,7 +486,10 @@ def main():
                       help="Run programs under valgrind.")
   parser.add_argument("--callgrind",
                       action="store_true",
-                      help="Run programs under valgrind.")
+                      help="Run programs under callgrind.")
+  parser.add_argument("--help",
+                      action="store_true",
+                      help="Print the help.")
   parser.add_argument("command",
                       nargs="?",
                       default="help",
@@ -542,12 +550,13 @@ def main():
     search_path = script_path
 
   if args.version:
-    print_version()
+    sys.stdout.write("rev.ng version @VERSION@\n")
     return 0
 
   # First consider the hardcoded commands
   if command == "help":
     parser.print_help()
+    print_help()
   elif command == "opt":
     execv(wrap(build_opt_args(command_args)))
   elif command == "cc":
