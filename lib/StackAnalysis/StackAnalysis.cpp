@@ -1,4 +1,4 @@
-/// \file stackanalysis.cpp
+/// \file StackAnalysis.cpp
 /// \brief Implementation of the stack analysis, which provides information
 ///        about function boundaries, basic block types, arguments and return
 ///        values.

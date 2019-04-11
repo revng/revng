@@ -1,5 +1,5 @@
-#ifndef REVAMB_H
-#define REVAMB_H
+#ifndef REVNG_H
+#define REVNG_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -375,4 +375,4 @@ inline llvm::BasicBlock *getFunctionCallCallee(llvm::BasicBlock *BB) {
   return nullptr;
 }
 
-#endif // REVAMB_H
+#endif // REVNG_H

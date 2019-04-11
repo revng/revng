@@ -270,17 +270,17 @@ void flush_trace_buffer(void);
 void flush_trace_buffer_signal_handler(int signal);
 
 void init_tracing(void) {
-  // If REVAMB_TRACE_PATH contains a path, enable tracing
-  char *trace_path = getenv("REVAMB_TRACE_PATH");
+  // If REVNG_TRACE_PATH contains a path, enable tracing
+  char *trace_path = getenv("REVNG_TRACE_PATH");
   if (trace_path != NULL && strlen(trace_path) > 0) {
     trace_fd = open(trace_path,
                     O_WRONLY | O_CREAT | O_TRUNC,
                     S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     assert(trace_fd != -1);
 
-    // Set REVAMB_TRACE_BUFFER_SIZE to customimze buffer size, default is 1024
+    // Set REVNG_TRACE_BUFFER_SIZE to customimze buffer size, default is 1024
     // * 1024 instructions
-    char *trace_buffer_size_string = getenv("REVAMB_TRACE_BUFFER_SIZE");
+    char *trace_buffer_size_string = getenv("REVNG_TRACE_BUFFER_SIZE");
     if (trace_buffer_size_string != NULL
         && strlen(trace_buffer_size_string) > 0) {
       char **first_invalid = NULL;

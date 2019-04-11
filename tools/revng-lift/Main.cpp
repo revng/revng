@@ -199,10 +199,10 @@ int main(int argc, const char *argv[]) {
 
   // Translate everything
   Architecture TargetArchitecture;
-  llvm::LLVMContext RevambGlobalContext;
+  llvm::LLVMContext Context;
   CodeGenerator Generator(TheBinary,
                           TargetArchitecture,
-                          RevambGlobalContext,
+                          Context,
                           std::string(OutputPath),
                           LibHelpersPath,
                           EarlyLinkedPath);

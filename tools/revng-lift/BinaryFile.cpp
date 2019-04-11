@@ -1,4 +1,4 @@
-/// \file binaryfile.cpp
+/// \file BinaryFile.cpp
 /// \brief
 
 //
