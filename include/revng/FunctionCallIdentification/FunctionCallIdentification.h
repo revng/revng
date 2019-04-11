@@ -49,6 +49,22 @@ public:
     return getCall(BB->getTerminator());
   }
 
+  llvm::CallInst *findPostDominatedCall(llvm::BasicBlock *BB) {
+    using namespace llvm;
+
+    do {
+      for (Instruction &I : make_range(BB->rbegin(), BB->rend())) {
+        if (getCallee(&I) == FunctionCall) {
+          return cast<CallInst>(&I);
+        }
+      }
+
+      BB = BB->getSinglePredecessor();
+    } while (BB != nullptr);
+
+    return nullptr;
+  }
+
   /// \brief Return true if \p T is a function call in the input assembly
   llvm::CallInst *getCall(llvm::TerminatorInst *T) const {
     revng_assert(T != nullptr);

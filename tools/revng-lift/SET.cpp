@@ -449,15 +449,13 @@ void OperationsStack::explore(Constant *NewOperand) {
 
   if (SymbolicValue.hasSymbol()) {
     if (IsPCStore and SymbolicValue.value() == 0) {
-      if (CallInst *Call = FCI->getCall(Target->getParent())) {
+      if (CallInst *Call = FCI->findPostDominatedCall(Target->getParent())) {
 
         if (MultipleTargetsCalls.count(Call) != 0)
           return;
 
         LLVMContext &Context = getContext(Call);
         QuickMetadata QMD(Context);
-        auto *Callee = cast<Constant>(Call->getOperand(0));
-        revng_assert(Callee->isNullValue(), "Direct call to external symbol");
 
         StringRef Name = SymbolicValue.symbolName();
 
