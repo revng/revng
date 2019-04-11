@@ -72,10 +72,16 @@ public:
   }
 
   void cleanup() {
+    using namespace llvm;
+
     // Cleanup all the calls to "nodce"
     if (NoDCE != nullptr) {
-      for (llvm::User *NoDCEUser : NoDCE->users())
-        llvm::cast<llvm::CallInst>(NoDCEUser)->eraseFromParent();
+      SmallVector<CallInst *, 16> ToDelete;
+      for (User *NoDCEUser : NoDCE->users())
+        ToDelete.push_back(cast<CallInst>(NoDCEUser));
+
+      for (CallInst *Call : ToDelete)
+        Call->eraseFromParent();
 
       NoDCE->eraseFromParent();
     }
