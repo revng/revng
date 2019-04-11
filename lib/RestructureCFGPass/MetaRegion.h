@@ -55,7 +55,8 @@ public:
 
   void updateNodes(std::set<BasicBlockNode *> &Removal,
                    BasicBlockNode *Collapsed,
-                   std::vector<BasicBlockNode *> Dispatcher);
+                   std::vector<BasicBlockNode *> &Dispatcher,
+                   std::vector<BasicBlockNode *> &DefaultEntrySet);
 
   void setParent(MetaRegion *Parent) { ParentRegion = Parent; }
 

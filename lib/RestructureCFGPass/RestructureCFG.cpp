@@ -758,6 +758,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
     }
 
+    // Vector which contains the additional set nodes that set the default value
+    // for the entry dispatcher.
+    std::vector<BasicBlockNode *> DefaultEntrySet;
+
     // Default set node for entry dispatcher.
     if (NewHeadNeeded) {
       revng_assert(Head->isCheck());
@@ -770,6 +774,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       unsigned Value = RetreatingTargets.size() - 1;
       for (BasicBlockNode *Pred : SetCandidates) {
         BasicBlockNode *Set = RootCFG.addSetStateNode(Value, Head->getName());
+        DefaultEntrySet.push_back(Set);
         moveEdgeTarget(EdgeDescriptor(Pred, Head), Set);
         addEdge(EdgeDescriptor(Set, Head));
       }
@@ -883,7 +888,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
       if (OtherMeta != Meta) {
         OtherMeta->updateNodes(Meta->getNodes(),
                                Collapsed,
-                               ExitDispatcherNodes);
+                               ExitDispatcherNodes,
+                               DefaultEntrySet);
       }
     }
 
