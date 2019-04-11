@@ -155,10 +155,9 @@ public:
 
   void connectBreakNode(std::set<std::pair<BasicBlockNode *,
                                            BasicBlockNode *>> &Outgoing,
-                        BasicBlockNode *Break,
                         const BBNodeMap &SubstitutionMap);
 
-  void connectContinueNode(BasicBlockNode *Continue);
+  void connectContinueNode();
 
   BasicBlockNode &get(llvm::BasicBlock *BB);
 

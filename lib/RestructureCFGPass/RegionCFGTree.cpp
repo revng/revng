@@ -256,9 +256,11 @@ RegionCFG::copyNodesAndEdgesFrom(RegionCFG *O, BBNodeMap &SubstitutionMap) {
 }
 
 void RegionCFG::connectBreakNode(std::set<EdgeDescriptor> &Outgoing,
-                                 BasicBlockNode *Break,
                                  const BBNodeMap &SubstitutionMap) {
   for (EdgeDescriptor Edge : Outgoing) {
+
+    // Create a new break for each outgoing edge.
+    BasicBlockNode *Break = addBreak();
     if (not Edge.first->isCheck()) {
       addEdge(EdgeDescriptor(SubstitutionMap.at(Edge.first), Break));
     } else {
@@ -272,7 +274,7 @@ void RegionCFG::connectBreakNode(std::set<EdgeDescriptor> &Outgoing,
   }
 }
 
-void RegionCFG::connectContinueNode(BasicBlockNode *Continue) {
+void RegionCFG::connectContinueNode() {
   std::vector<BasicBlockNode *> ContinueNodes;
 
   // We need to pre-save the edges to avoid breaking the predecessor iterator
@@ -280,6 +282,9 @@ void RegionCFG::connectContinueNode(BasicBlockNode *Continue) {
     ContinueNodes.push_back(Source);
   }
   for (BasicBlockNode *Source : ContinueNodes) {
+
+    // Create a new continue node for each retreating edge.
+    BasicBlockNode *Continue = addContinue();
     moveEdgeTarget(EdgeDescriptor(Source, EntryNode), Continue);
   }
 }

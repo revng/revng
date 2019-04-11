@@ -838,14 +838,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
     revng_assert(Head != nullptr);
     CollapsedGraph.insertBulkNodes(Meta->getNodes(), Head, SubstitutionMap);
 
-    // Create the break and continue node.
-    BasicBlockNode *Continue = CollapsedGraph.addContinue();
-    BasicBlockNode *Break = CollapsedGraph.addBreak();
-
-    // Connect the break and continue nodes with the necessary edges.
-    CollapsedGraph.connectContinueNode(Continue);
+    // Connect the break and continue nodes with the necessary edges (we create
+    // a new break/continue node for each outgoing or retreating edge).
+    CollapsedGraph.connectContinueNode();
     std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
-    CollapsedGraph.connectBreakNode(OutgoingEdges, Break, SubstitutionMap);
+    CollapsedGraph.connectBreakNode(OutgoingEdges, SubstitutionMap);
 
     // Create the collapsed node in the outer region.
     BasicBlockNode *Collapsed = RootCFG.createCollapsedNode(&CollapsedGraph);
