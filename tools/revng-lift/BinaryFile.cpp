@@ -19,6 +19,7 @@
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/ELF.h"
+#include "llvm/Object/MachO.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Endian.h"
@@ -44,10 +45,154 @@ static Logger<> LabelsLog("labels");
 
 const unsigned char R_MIPS_IMPLICIT_RELATIVE = 255;
 
+namespace nooverflow {
+
+template<typename T, typename U>
+auto add(T LHS, U RHS) -> Optional<decltype(LHS + RHS)> {
+  using V = decltype(LHS + RHS);
+  V Result = LHS + RHS;
+
+  if (Result < LHS)
+    return {};
+
+  return Result;
+}
+
+} // namespace nooverflow
+
+template<typename T>
+bool contains(const ArrayRef<T> &Container, const ArrayRef<T> &Contained) {
+  return (Container.begin() <= Contained.begin()
+          and Container.end() >= Contained.end());
+}
+
+template<typename R>
+static void swapBytes(R &Value) {
+  swapStruct(Value);
+}
+
+template<>
+void swapBytes<uint32_t>(uint32_t &Value) {
+  sys::swapByteOrder(Value);
+}
+
+template<typename T>
+class ArrayRefReader {
+private:
+  ArrayRef<T> Array;
+  const T *Cursor;
+  bool Swap;
+
+public:
+  ArrayRefReader(ArrayRef<T> Array, bool Swap) :
+    Array(Array),
+    Cursor(Array.begin()),
+    Swap(Swap) {}
+
+  bool eof() const { return Cursor == Array.end(); }
+
+  template<typename R>
+  R read() {
+    revng_check(Cursor + sizeof(R) > Cursor);
+    revng_check(Cursor + sizeof(R) <= Array.end());
+
+    R Result;
+    memcpy(&Result, Cursor, sizeof(R));
+
+    if (Swap)
+      swapBytes<R>(Result);
+
+    Cursor += sizeof(R);
+
+    return Result;
+  }
+};
+
+static uint64_t
+getInitialPC(Triple::ArchType Arch, bool Swap, ArrayRef<uint8_t> Command) {
+  using namespace llvm::MachO;
+
+  ArrayRefReader<uint8_t> Reader(Command, Swap);
+  uint32_t Flavor = Reader.read<uint32_t>();
+  uint32_t Count = Reader.read<uint32_t>();
+
+  switch (Arch) {
+  case Triple::x86: {
+
+    switch (Flavor) {
+    case MachO::x86_THREAD_STATE32:
+      revng_check(Count == MachO::x86_THREAD_STATE32_COUNT);
+      return Reader.read<x86_thread_state32_t>().eip;
+
+    case MachO::x86_THREAD_STATE:
+      revng_check(Count == MachO::x86_THREAD_STATE_COUNT);
+      return Reader.read<x86_thread_state_t>().uts.ts32.eip;
+
+    default:
+      revng_abort();
+    }
+
+    revng_check(Reader.eof());
+
+  } break;
+
+  case Triple::x86_64: {
+
+    switch (Flavor) {
+    case MachO::x86_THREAD_STATE64:
+      revng_check(Count == MachO::x86_THREAD_STATE64_COUNT);
+      return Reader.read<x86_thread_state64_t>().rip;
+
+    case MachO::x86_THREAD_STATE:
+      revng_check(Count == MachO::x86_THREAD_STATE_COUNT);
+      return Reader.read<x86_thread_state_t>().uts.ts64.rip;
+
+    default:
+      revng_abort();
+    }
+
+  } break;
+
+  case Triple::arm: {
+
+    switch (Flavor) {
+    case MachO::ARM_THREAD_STATE:
+      revng_check(Count == MachO::ARM_THREAD_STATE_COUNT);
+      return Reader.read<arm_thread_state_t>().uts.ts32.pc;
+
+    default:
+      revng_abort();
+    }
+
+  } break;
+
+  case Triple::aarch64: {
+
+    switch (Flavor) {
+    case MachO::ARM_THREAD_STATE64:
+      revng_check(Count == MachO::ARM_THREAD_STATE64_COUNT);
+      return Reader.read<arm_thread_state64_t>().pc;
+
+    default:
+      revng_abort();
+    }
+
+  } break;
+
+  default:
+    revng_abort("Unexpected architecture for Mach-O");
+    break;
+  }
+
+  revng_check(Reader.eof());
+
+  return 0;
+}
+
 BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
   BaseAddress(0) {
   auto BinaryOrErr = object::createBinary(FilePath);
-  revng_assert(BinaryOrErr, "Couldn't open the input file");
+  revng_check(BinaryOrErr, "Couldn't open the input file");
 
   BinaryHandle = std::move(BinaryOrErr.get());
 
@@ -296,9 +441,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
                                  HasRelocationAddend,
                                  std::move(RelocationTypes));
 
-  const StringRef FileFormat = TheBinary->getFileFormatName();
-
-  if (FileFormat.startswith("ELF")) {
+  if (TheBinary->isELF()) {
     if (TheArchitecture.pointerSize() == 32) {
       if (TheArchitecture.isLittleEndian()) {
         if (TheArchitecture.hasRelocationAddend()) {
@@ -330,7 +473,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
     } else {
       revng_assert("Unexpect address size");
     }
-  } else if (FileFormat.startswith("COFF")) {
+  } else if (TheBinary->isCOFF()) {
     revng_assert(TheArchitecture.pointerSize() == 32
                    || TheArchitecture.pointerSize() == 64,
                  "Only 32/64-bit COFF files are supported");
@@ -338,11 +481,118 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
                  "Only Little-Endian COFF files are supported");
     // TODO handle relocations
     parseCOFF(TheBinary, BaseAddress);
+  } else if (auto *MachO = dyn_cast<object::MachOObjectFile>(TheBinary)) {
+    using namespace llvm::MachO;
+    using namespace llvm::object;
+    using LoadCommandInfo = MachOObjectFile::LoadCommandInfo;
+
+    StringRef StringDataRef = TheBinary->getData();
+    auto RawDataRef = ArrayRef<uint8_t>(StringDataRef.bytes_begin(),
+                                        StringDataRef.size());
+    bool MustSwap = TheArchitecture.isLittleEndian() != sys::IsLittleEndianHost;
+
+    bool EntryPointFound = false;
+    Optional<uint64_t> EntryPointOffset;
+    for (const LoadCommandInfo &LCI : MachO->load_commands()) {
+      switch (LCI.C.cmd) {
+
+      case LC_SEGMENT:
+        parseMachOSegment(RawDataRef, MachO->getSegmentLoadCommand(LCI));
+        break;
+
+      case LC_SEGMENT_64:
+        parseMachOSegment(RawDataRef, MachO->getSegment64LoadCommand(LCI));
+        break;
+
+      case LC_UNIXTHREAD: {
+        revng_check(not EntryPointFound);
+        EntryPointFound = true;
+        const uint8_t *Pointer = reinterpret_cast<const uint8_t *>(LCI.Ptr);
+        ArrayRef<uint8_t> CommandBuffer(Pointer + sizeof(thread_command),
+                                        LCI.C.cmdsize);
+        revng_check(contains(RawDataRef, CommandBuffer));
+
+        EntryPoint = getInitialPC(TheBinary->getArch(),
+                                  MustSwap,
+                                  CommandBuffer);
+      } break;
+
+      case LC_MAIN:
+        revng_check(not EntryPointFound);
+        EntryPointFound = true;
+
+        // This is an offset, delay translation to code for later
+        EntryPointOffset = MachO->getEntryPointCommand(LCI).entryoff;
+        break;
+
+      case LC_FUNCTION_STARTS:
+      case LC_DATA_IN_CODE:
+      case LC_SYMTAB:
+      case LC_DYSYMTAB:
+        // TODO: very interesting
+        break;
+      }
+    }
+
+    if (EntryPointOffset)
+      EntryPoint = *virtualAddressFromOffset(*EntryPointOffset);
+
+    const uint64_t PointerSize = TheArchitecture.pointerSize() / 8;
+
+    Error TheError = Error::success();
+
+    for (const MachOBindEntry &U : MachO->bindTable(TheError))
+      registerBindEntry(&U, PointerSize);
+    revng_check(not TheError);
+
+    for (const MachOBindEntry &U : MachO->lazyBindTable(TheError))
+      registerBindEntry(&U, PointerSize);
+    revng_check(not TheError);
+
+    // TODO: we should handle weak symbols
+    for (const MachOBindEntry &U : MachO->weakBindTable(TheError))
+      registerBindEntry(&U, PointerSize);
+    revng_check(not TheError);
+
   } else {
-    revng_assert("Invalid file format.");
+    revng_assert("Unsupported file format.");
   }
 
   rebuildLabelsMap();
+}
+
+void BinaryFile::registerBindEntry(const object::MachOBindEntry *Entry,
+                                   uint64_t PointerSize) {
+  using namespace llvm::MachO;
+  using namespace llvm::object;
+
+  const auto Origin = LabelOrigin::DynamicRelocation;
+  uint64_t Target = Entry->address();
+  uint64_t Addend = static_cast<uint64_t>(Entry->addend());
+  uint64_t Size = 0;
+
+  switch (Entry->type()) {
+  case REBASE_TYPE_INVALID:
+  case REBASE_TYPE_POINTER:
+    Size = PointerSize;
+    break;
+  case REBASE_TYPE_TEXT_ABSOLUTE32:
+    Size = 32 / 8;
+    break;
+  case REBASE_TYPE_TEXT_PCREL32:
+    Size = 32 / 8;
+    Addend -= Target;
+    break;
+  default:
+    revng_abort();
+  }
+
+  registerLabel(Label::createSymbolRelativeValue(Origin,
+                                                 Target,
+                                                 Size,
+                                                 Entry->symbolName(),
+                                                 SymbolType::Unknown,
+                                                 Addend));
 }
 
 class FilePortion {
@@ -488,26 +738,60 @@ void BinaryFile::parseCOFF(object::ObjectFile *TheBinary,
     const object::coff_section *CoffRef = nullptr;
     TheCOFF.getSection(Id, CoffRef);
 
+    // VirtualSize might be larger than SizeOfRawData (extra data at the end of
+    // the section) or viceversa (data mapped in memory but not present in
+    // memory, e.g., .bss)
+    uint64_t SegmentSize = std::min(CoffRef->VirtualSize,
+                                    CoffRef->SizeOfRawData);
+
+    using namespace nooverflow;
     SegmentInfo Segment;
-    Segment.StartVirtualAddress = ImageBase + CoffRef->VirtualAddress;
-    Segment.EndVirtualAddress = Segment.StartVirtualAddress
-                                + CoffRef->VirtualSize;
+    Segment.StartVirtualAddress = *add(ImageBase, CoffRef->VirtualAddress);
+    Segment.EndVirtualAddress = *add(Segment.StartVirtualAddress,
+                                     CoffRef->VirtualSize);
+    Segment.StartFileOffset = CoffRef->PointerToRawData;
+    Segment.EndFileOffset = *add(CoffRef->PointerToRawData, SegmentSize);
     Segment.IsExecutable = CoffRef->Characteristics
                            & COFF::IMAGE_SCN_MEM_EXECUTE;
     Segment.IsReadable = CoffRef->Characteristics & COFF::IMAGE_SCN_MEM_READ;
     Segment.IsWriteable = CoffRef->Characteristics & COFF::IMAGE_SCN_MEM_WRITE;
 
-    const uint8_t *AddrOfRawData = nullptr;
-    AddrOfRawData = (const uint8_t *) Section.getObject()->getData().data()
-                    + CoffRef->PointerToRawData;
+    StringRef StringDataRef = Section.getObject()->getData();
+    auto RawDataRef = ArrayRef<uint8_t>(StringDataRef.bytes_begin(),
+                                        StringDataRef.size());
 
-    uint64_t SegmentSize = std::min(CoffRef->VirtualSize,
-                                    CoffRef->SizeOfRawData);
-    Segment.Data = ArrayRef<uint8_t>(AddrOfRawData, SegmentSize);
+    Segment.Data = ArrayRef<uint8_t>(*add(RawDataRef.begin(),
+                                          CoffRef->PointerToRawData),
+                                     SegmentSize);
 
-    if (Segment.IsExecutable)
-      Segments.push_back(Segment);
+    revng_assert(contains(RawDataRef, Segment.Data));
+
+    Segments.push_back(Segment);
   }
+}
+
+template<typename T>
+void BinaryFile::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
+                                   const T &SegmentCommand) {
+  using namespace llvm::MachO;
+  using namespace llvm::object;
+  using namespace nooverflow;
+
+  SegmentInfo Segment;
+  Segment.StartVirtualAddress = SegmentCommand.vmaddr;
+  Segment.EndVirtualAddress = *add(SegmentCommand.vmaddr,
+                                   SegmentCommand.vmsize);
+  Segment.StartFileOffset = SegmentCommand.fileoff;
+  Segment.EndFileOffset = *add(SegmentCommand.fileoff, SegmentCommand.filesize);
+  Segment.IsExecutable = SegmentCommand.initprot & VM_PROT_EXECUTE;
+  Segment.IsReadable = SegmentCommand.initprot & VM_PROT_READ;
+  Segment.IsWriteable = SegmentCommand.initprot & VM_PROT_WRITE;
+  Segment.Data = ArrayRef<uint8_t>(*add(RawDataRef.begin(),
+                                        SegmentCommand.fileoff),
+                                   SegmentCommand.filesize);
+  revng_assert(contains(RawDataRef, Segment.Data));
+
+  Segments.push_back(Segment);
 }
 
 template<typename T, bool HasAddend>
@@ -518,7 +802,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
     logAllUnhandledErrors(std::move(TheELFOrErr.takeError()), errs(), "");
     revng_abort();
   }
-  object::ELFFile<T> TheELF = *TheELFOrErr;
+  object::ELFFile<T> &TheELF = *TheELFOrErr;
 
   // BaseAddress makes sense only for shared (relocatable, PIC) objects
   if (TheELF.getHeader()->e_type == ELF::ET_DYN)
@@ -616,19 +900,28 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
     logAllUnhandledErrors(std::move(ProgHeaders.takeError()), errs(), "");
     revng_abort();
   }
+
+  auto RawDataRef = ArrayRef<uint8_t>(TheELF.base(), TheELF.getBufSize());
+
   for (Elf_Phdr &ProgramHeader : *ProgHeaders) {
     switch (ProgramHeader.p_type) {
     case ELF::PT_LOAD: {
+      using namespace nooverflow;
       SegmentInfo Segment;
       auto Start = relocate(ProgramHeader.p_vaddr);
       Segment.StartVirtualAddress = Start;
-      Segment.EndVirtualAddress = Start + ProgramHeader.p_memsz;
+      Segment.EndVirtualAddress = *add(Start, ProgramHeader.p_memsz);
+      Segment.StartFileOffset = ProgramHeader.p_offset;
+      Segment.EndFileOffset = *add(ProgramHeader.p_offset,
+                                   ProgramHeader.p_filesz);
       Segment.IsReadable = ProgramHeader.p_flags & ELF::PF_R;
       Segment.IsWriteable = ProgramHeader.p_flags & ELF::PF_W;
       Segment.IsExecutable = ProgramHeader.p_flags & ELF::PF_X;
+      Segment.Data = ArrayRef<uint8_t>(*add(RawDataRef.begin(),
+                                            ProgramHeader.p_offset),
+                                       ProgramHeader.p_filesz);
 
-      auto ActualAddress = TheELF.base() + ProgramHeader.p_offset;
-      Segment.Data = ArrayRef<uint8_t>(ActualAddress, ProgramHeader.p_filesz);
+      revng_assert(contains(RawDataRef, Segment.Data));
 
       // If it's an executable segment, and we've been asked so, register
       // which sections actually contain code
