@@ -15,6 +15,10 @@ from shutil import which
 from elftools.elf.dynamic import DynamicSegment
 from elftools.elf.elffile import ELFFile
 
+def is_executable(path):
+  with open(path, "rb") as program:
+    return program.read(4) == b"\x7fELF"
+
 def interleave(base, repeat):
   return list(sum(zip([repeat] * len(base), base), ()))
 
@@ -571,7 +575,10 @@ def main():
 
     in_path = get_command(executable)
     if in_path:
-      execv([os.path.abspath(in_path)] + command_args)
+      arguments = [os.path.abspath(in_path)] + command_args
+      if is_executable(in_path):
+        arguments = wrap(arguments)
+      execv(arguments)
     else:
       log_error("\"revng-{}\" is not a valid command".format(command))
       return -1
