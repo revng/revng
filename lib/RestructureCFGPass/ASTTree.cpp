@@ -193,32 +193,6 @@ ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
   return RootSequenceNode;
 }
 
-// Helper function which simplifies sequence nodes composed by a single AST
-// node.
-ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
-
-  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
-    if (Sequence->listSize() == 0) {
-      RootNode = nullptr;
-    } else if (Sequence->listSize() == 1) {
-      RootNode = Sequence->getNodeN(0);
-      RootNode = simplifyAtomicSequence(RootNode);
-    } else {
-      for (ASTNode *&Node : Sequence->nodes()) {
-        Node = simplifyAtomicSequence(Node);
-      }
-    }
-  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
-    If->setThen(simplifyAtomicSequence(If->getThen()));
-    If->setElse(simplifyAtomicSequence(If->getElse()));
-  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    // TODO: check if this is not needed as the simplification is done for
-    //       each SCS region.
-  }
-
-  return RootNode;
-}
-
 ExprNode *ASTTree::addCondExpr(std::unique_ptr<ExprNode> &&Expr) {
   CondExprList.emplace_back(std::move(Expr));
   return CondExprList.back().get();

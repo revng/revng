@@ -18,6 +18,7 @@
 // local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/ExprNode.h"
+#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 
 // local includes
 #include "CDecompilerBeautify.h"
@@ -360,11 +361,11 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
       llvm::Value *SwitchValue = getCaseValue(If);
 
       // An IfEqualNode represents the start of a switch statement.
-      std::vector<IfNode *> Candidates;
+      llvm::SmallVector<IfNode *, 8> Candidates;
       Candidates.push_back(If);
 
       // Continue to accumulate the IfEqual nodes until it is possible.
-      while (isSwitchCheck(If->getElse())
+      while (If->getElse() and isSwitchCheck(If->getElse())
              and (SwitchValue == getCaseValue(If->getElse()))) {
         If = llvm::cast<IfNode>(If->getElse());
         Candidates.push_back(If);
@@ -380,6 +381,8 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
       llvm::Type *SwitchType = SwitchValue->getType();
       auto *Zero = cast<ConstantInt>(llvm::Constant::getNullValue(SwitchType));
       ASTNode *DefaultCase = Candidates.back()->getElse();
+      if (DefaultCase == nullptr)
+        DefaultCase = AST.addSequenceNode();
       CandidatesCases.push_back(std::make_pair(Zero, DefaultCase));
 
       // Create the switch node.
@@ -822,4 +825,9 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
   BeautifyLogger << "Removing useless continue nodes\n";
   simplifyLastContinue(RootNode);
   CombedAST.dumpOnFile("ast", F.getName(), "After-continue-removal");
+
+  // Remove empty sequences.
+  BeautifyLogger << "Removing emtpy sequence nodes\n";
+  simplifyAtomicSequence(RootNode);
+  CombedAST.dumpOnFile("ast", F.getName(), "After-removal-empty-sequences");
 }

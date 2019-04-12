@@ -506,5 +506,4 @@ public:
 protected:
   ASTNode *getCaseN(int N) const { return CaseList[N].second; }
 };
-
 #endif // define REVNGC_RESTRUCTURE_CFG_ASTNODE_H

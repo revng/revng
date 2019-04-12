@@ -87,7 +87,7 @@ static void simplifyDummies(ASTNode *RootNode) {
 
 // Helper function which simplifies sequence nodes composed by a single AST
 // node.
-static ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
+ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     if (Sequence->listSize() == 0) {
       RootNode = nullptr;
@@ -110,7 +110,8 @@ static ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
     // TODO: check if this is not needed as the simplification is done for each
     //       SCS region.
     // After flattening this situation may arise again.
-    Scs->setBody(simplifyAtomicSequence(Scs->getBody()));
+    if (Scs->getBody())
+      Scs->setBody(simplifyAtomicSequence(Scs->getBody()));
   }
 
   return RootNode;
