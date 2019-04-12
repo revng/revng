@@ -649,6 +649,13 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
     }
 
+    // We need to update the backedges list removing the edges which have been
+    // considered as retreatings of the SCS under analysis.
+    for (EdgeDescriptor Retreating : Retreatings) {
+      revng_assert(Backedges.count(Retreating) == 1);
+      Backedges.erase(Retreating);
+    }
+
     bool NewHeadNeeded = false;
     for (BasicBlockNode *Node : RetreatingTargets) {
       if (Node != FirstCandidate) {
@@ -865,6 +872,29 @@ bool RestructureCFG::runOnFunction(Function &F) {
         DefaultEntrySet.push_back(Set);
         moveEdgeTarget(EdgeDescriptor(Pred, Head), Set);
         addEdge(EdgeDescriptor(Set, Head));
+
+        // HACK: Consider using a multimap.
+        //
+        // Update the backedges set. Basically, when we place the default set
+        // node in case of an entry dispatcher, we need to take care to verify
+        // if the edge we are "moving" (inserting the set node before it) is a
+        // backedge, and in case update the information regarding the backedges
+        // present in the graph accordingly (the backedge becomes the edge
+        // departing from the set node).
+        bool UpdatedBackedges = true;
+        while (UpdatedBackedges) {
+          UpdatedBackedges = false;
+          for (EdgeDescriptor Backedge : Backedges) {
+            BasicBlockNode *Source = Backedge.first;
+            BasicBlockNode *Target = Backedge.second;
+            if (Source == Pred) {
+              Backedges.erase(Backedge);
+              Backedges.insert(EdgeDescriptor(Set, Head));
+              UpdatedBackedges = true;
+              break;
+            }
+          }
+        }
       }
     }
 
@@ -914,6 +944,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
         Meta->insertNode(IdxSetNode);
         moveEdgeTarget(EdgeDescriptor(Edge.first, Edge.second), IdxSetNode);
         addEdge(EdgeDescriptor(IdxSetNode, Edge.second));
+
+        // We should not be adding new backedges.
+        revng_assert(Backedges.count(Edge) == 0);
       }
       if (CombLogger.isEnabled()) {
         CombLogger << "New exit name is: " << Exit->getNameStr() << "\n";
@@ -929,6 +962,34 @@ bool RestructureCFG::runOnFunction(Function &F) {
     CollapsedGraph.setFunctionName(F.getName());
     CollapsedGraph.setRegionName(std::to_string(Meta->getIndex()));
     revng_assert(Head != nullptr);
+
+    // Create the collapsed node in the outer region.
+    BasicBlockNode *Collapsed = RootCFG.createCollapsedNode(&CollapsedGraph);
+
+    // Hack: we should use a std::multimap here, so that we can update the
+    // target of the edgedescriptor in place without having to remove and insert
+    // from the set and invalidating iterators.
+    //
+    // Update the backedges set, checking that if a backedge of an outer region
+    // pointed to a node that now has been collapsed, now should point to the
+    // collapsed node, and that does not exists at this point a backedge which
+    // has as source a node that will be collapsed.
+    bool UpdatedBackedges = true;
+    while (UpdatedBackedges) {
+      UpdatedBackedges = false;
+      for (EdgeDescriptor Backedge : Backedges) {
+        BasicBlockNode *Source = Backedge.first;
+        BasicBlockNode *Target = Backedge.second;
+        revng_assert(!Meta->containsNode(Source));
+        if (Meta->containsNode(Target)) {
+          Backedges.erase(Backedge);
+          Backedges.insert(EdgeDescriptor(Source, Collapsed));
+          UpdatedBackedges = true;
+          break;
+        }
+      }
+    }
+
     CollapsedGraph.insertBulkNodes(Meta->getNodes(), Head, SubstitutionMap);
 
     // Connect the break and continue nodes with the necessary edges (we create
@@ -937,13 +998,19 @@ bool RestructureCFG::runOnFunction(Function &F) {
     std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
     CollapsedGraph.connectBreakNode(OutgoingEdges, SubstitutionMap);
 
-    // Create the collapsed node in the outer region.
-    BasicBlockNode *Collapsed = RootCFG.createCollapsedNode(&CollapsedGraph);
-
     // Connect the old incoming edges to the collapsed node.
     std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
-    for (EdgeDescriptor Edge : IncomingEdges)
+    for (EdgeDescriptor Edge : IncomingEdges) {
+      BasicBlockNode *OldSource = Edge.first;
       moveEdgeTarget(Edge, Collapsed);
+
+      // Check if the old edge was a backedge edge, and in case update the
+      // information about backedges accordingly.
+      if (Backedges.count(Edge) == 1) {
+        Backedges.erase(Edge);
+        Backedges.insert(EdgeDescriptor(OldSource, Collapsed));
+      }
+    }
 
     // Connect the outgoing edges to the collapsed node.
     if (NewExitNeeded) {
