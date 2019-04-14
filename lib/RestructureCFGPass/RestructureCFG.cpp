@@ -546,9 +546,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
       CombLogger << "\nAnalyzing region: " << Meta->getIndex() << "\n";
     }
 
-    // Refresh backedges, since some of them may have been modified during
-    // the transformations
-    Backedges = getBackedges(RootCFG);
 
     if (CombLogger.isEnabled()) {
 
