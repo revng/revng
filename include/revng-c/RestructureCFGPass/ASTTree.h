@@ -53,8 +53,6 @@ private:
   links_container_expr CondExprList;
 
 public:
-  void addCFGNode() {}
-
   SequenceNode *addSequenceNode();
 
   unsigned getNewID() { return IDCounter++; }
