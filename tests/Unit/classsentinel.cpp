@@ -12,9 +12,7 @@ bool init_unit_test();
 
 // Local libraries includes
 #include "revng/Support/ClassSentinel.h"
-
-// Local includes
-#include "UnitTestsHelpers.h"
+#include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
 struct TestClass {
   ClassSentinel Sentinel;

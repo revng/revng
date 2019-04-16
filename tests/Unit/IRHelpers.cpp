@@ -12,10 +12,8 @@ bool init_unit_test();
 
 // Local libraries includes
 #include "revng/Support/IRHelpers.h"
-
-// Local includes
-#include "LLVMTestHelpers.h"
-#include "UnitTestsHelpers.h"
+#include "revng/UnitTestHelpers/LLVMTestHelpers.h"
+#include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
 using namespace llvm;
 

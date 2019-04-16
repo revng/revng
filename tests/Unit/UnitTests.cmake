@@ -21,6 +21,7 @@ target_compile_definitions(test_lazysmallbitvector
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_lazysmallbitvector
   revngSupport
+  revngUnitTestHelpers
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_lazysmallbitvector COMMAND test_lazysmallbitvector)
@@ -40,6 +41,7 @@ target_compile_definitions(test_stackanalysis
 target_link_libraries(test_stackanalysis
   revngStackAnalysis
   revngSupport
+  revngUnitTestHelpers
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_stackanalysis COMMAND test_stackanalysis)
@@ -56,6 +58,7 @@ target_compile_definitions(test_classsentinel
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_classsentinel
   revngSupport
+  revngUnitTestHelpers
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_classsentinel COMMAND test_classsentinel)
@@ -73,6 +76,7 @@ target_compile_definitions(test_reachingdefinitionspass
 target_link_libraries(test_reachingdefinitionspass
   revngReachingDefinitions
   revngSupport
+  revngUnitTestHelpers
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_reachingdefinitionspass COMMAND test_reachingdefinitionspass)
@@ -89,6 +93,7 @@ target_compile_definitions(test_irhelpers
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_irhelpers
   revngSupport
+  revngUnitTestHelpers
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_irhelpers COMMAND test_irhelpers)
@@ -105,6 +110,7 @@ target_compile_definitions(test_zipmapiterator
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_zipmapiterator
   revngSupport
+  revngUnitTestHelpers
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_zipmapiterator COMMAND test_zipmapiterator)

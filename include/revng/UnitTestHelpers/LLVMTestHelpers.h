@@ -1,13 +1,18 @@
-#ifndef LLVMTESTHELPERS_H
-#define LLVMTESTHELPERS_H
+#ifndef REVNG_LLVMTESTHELPERS_H
+#define REVNG_LLVMTESTHELPERS_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
 // LLVM includes
+#include "llvm/IR/Instructions.h"
 #include "llvm/IRReader/IRReader.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/SourceMgr.h"
+
+// Local libraries includes
+#include "revng/Support/Assert.h"
 
 static const char *ModuleBegin = R"LLVM(
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -85,4 +90,4 @@ loadModule(llvm::LLVMContext &C, const char *Body) {
   return M;
 }
 
-#endif // LLVMTESTHELPERS_H
+#endif // REVNG_LLVMTESTHELPERS_H
