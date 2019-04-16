@@ -21,6 +21,7 @@ target_compile_definitions(test_reachabilitypass
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_reachabilitypass
   RestructureCFGPass
+  CombingTest
   revng::revngSupport
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
@@ -38,6 +39,7 @@ target_compile_definitions(test_combingpass
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_combingpass
   RestructureCFGPass
+  CombingTest
   revng::revngSupport
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})

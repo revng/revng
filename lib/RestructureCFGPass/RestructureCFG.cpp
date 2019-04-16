@@ -1105,7 +1105,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   flattenRegionCFGTree(RootCFG);
 
-  // TODO: Change this to not use
   // Collect the number of cloned nodes introduced by the comb for a single
   // `llvm::BasicBlock`, information which is needed later in the
   // `MarkForSerialization` pass.

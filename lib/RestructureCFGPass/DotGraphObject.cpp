@@ -8,6 +8,7 @@
 // Standard includes
 #include <fstream>
 #include <map>
+#include <set>
 
 // revng includes
 #include "revng/Support/Debug.h"
@@ -102,18 +103,20 @@ void DotGraph::parseDot(StreamT &S) {
 
       // Lazily creates the nodes that have not been created before and retrieve
       // all the necessary pointers to the nodes.
-      if (DotNodeMap.count(SourceID) == 0) {
+      auto It = DotNodeMap.find(SourceID);
+      if (It == DotNodeMap.end()) {
         Source = addNode(SourceID);
         DotNodeMap[SourceID] = Source;
       } else {
-        Source = DotNodeMap[SourceID];
+        Source = It->second;
       }
 
-      if (DotNodeMap.count(TargetID) == 0) {
+      It = DotNodeMap.find(TargetID);
+      if (It == DotNodeMap.end()) {
         Target = addNode(TargetID);
         DotNodeMap[TargetID] = Target;
       } else {
-        Target = DotNodeMap[TargetID];
+        Target = It->second;
       }
 
       revng_assert(Source != nullptr and Target != nullptr);
@@ -123,35 +126,15 @@ void DotGraph::parseDot(StreamT &S) {
     }
   }
 
-  // Set the entry node of the DotGraph (the only node without predecessors).
-  std::map<DotNode *, size_t> IncomingEdges;
-
-  // Initialize all the incoming counters to `0`.
-  for (DotNode *Node : nodes()) {
-    IncomingEdges[Node] = 0;
-  }
-
-  // Increment the counter of incoming edges each time we find an edge.
-  for (DotNode *Node : nodes()) {
-    for (DotNode *Successor : Node->successors()) {
-      IncomingEdges[Successor] += 1;
-    }
-  }
-
-  // Collect all the nodes which have no incoming edges.
-  std::vector<DotNode *> EntryCandidates;
-  for (std::pair<DotNode *, size_t> MapIt : IncomingEdges) {
-    DotNode *Node = MapIt.first;
-    size_t IncomingDegree = MapIt.second;
-
-    if (IncomingDegree == 0) {
-      EntryCandidates.push_back(Node);
-    }
-  }
+  std::set<DotNode *> EntryCandidates;
+  EntryCandidates.insert(nodes().begin(), nodes().end());
+  for (DotNode *N: nodes())
+    for (DotNode *Succ : N->successors())
+      EntryCandidates.erase(Succ);
 
   // Check that we have a single entry candidate and enforce it.
   revng_assert(EntryCandidates.size() == 1);
-  EntryNode = EntryCandidates[0];
+  EntryNode = *EntryCandidates.begin();
 }
 
 void DotGraph::parseDotFromFile(std::string FileName) {

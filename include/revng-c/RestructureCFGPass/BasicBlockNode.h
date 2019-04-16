@@ -105,7 +105,7 @@ public:
   /// \brief Constructor for nodes pointing to LLVM IR BasicBlock
   explicit BasicBlockNode(RegionCFGT *Parent,
                           NodeT OriginalNode,
-                          llvm::StringRef Name) :
+                          llvm::StringRef Name = "") :
     BasicBlockNode(Parent,
                    OriginalNode,
                    nullptr,
