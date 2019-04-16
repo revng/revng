@@ -779,6 +779,9 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
   }
 }
 
+static void fixSwitchBreaks(ASTNode *RootNode, ASTTree &CombedAST) {
+}
+
 void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
 
   ASTNode *RootNode = CombedAST.getRoot();
@@ -843,6 +846,12 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpOnFile("ast", F.getName(), "After-continue-removal");
   }
+
+  // Fix loop breaks from within switches
+  BeautifyLogger << "Fixing loop breaks inside switches\n";
+  fixSwitchBreaks(RootNode, CombedAST);
+  if (BeautifyLogger.isEnabled())
+    CombedAST.dumpOnFile("ast", F.getName(), "After-fix-switch-breaks");
 
   // Remove empty sequences.
   revng_log(BeautifyLogger, "Removing emtpy sequence nodes\n");
