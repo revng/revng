@@ -83,7 +83,7 @@ public:
 public:
   NodeKind getKind() const { return Kind; }
 
-  std::string getName() {
+  std::string getName() const {
     return "ID:" + std::to_string(getID()) + " Name:" + Name;
   }
 
@@ -93,9 +93,9 @@ public:
 
   virtual void dump(std::ofstream &ASTFile) = 0;
 
-  llvm::BasicBlock *getBB() { return BB; }
+  llvm::BasicBlock *getBB() const { return BB; }
 
-  ASTNode *getSuccessor() { return Successor; }
+  ASTNode *getSuccessor() const { return Successor; }
 
   bool isEmpty() {
 
@@ -200,7 +200,7 @@ public:
 
   virtual ~IfNode() override = default;
 
-  ExprNode *getCondExpr() { return ConditionExpression; }
+  ExprNode *getCondExpr() const { return ConditionExpression; }
 
   void replaceCondExpr(ExprNode *NewExpr) { ConditionExpression = NewExpr; }
 
@@ -234,7 +234,7 @@ public:
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Scs; }
 
-  bool hasBody() { return Body != nullptr; }
+  bool hasBody() const { return Body != nullptr; }
 
   ASTNode *getBody() { return Body; }
 
@@ -250,11 +250,11 @@ public:
 
   virtual ~ScsNode() override = default;
 
-  bool isStandard() { return LoopType == Type::Standard; }
+  bool isStandard() const { return LoopType == Type::Standard; }
 
-  bool isWhile() { return LoopType == Type::While; }
+  bool isWhile() const { return LoopType == Type::While; }
 
-  bool isDoWhile() { return LoopType == Type::DoWhile; }
+  bool isDoWhile() const { return LoopType == Type::DoWhile; }
 
   void setWhile(IfNode *Condition) {
     LoopType = Type::While;
@@ -308,7 +308,7 @@ public:
                    NodeList.end());
   }
 
-  int listSize() { return NodeList.size(); }
+  int listSize() const { return NodeList.size(); }
 
   ASTNode *getNodeN(int N) const { return NodeList[N]; }
 
@@ -344,11 +344,11 @@ public:
 
   virtual ~ContinueNode() override = default;
 
-  bool hasComputation() { return ComputationIf != nullptr; };
+  bool hasComputation() const { return ComputationIf != nullptr; };
 
   void addComputationIfNode(IfNode *ComputationIfNode);
 
-  IfNode *getComputationIfNode();
+  IfNode *getComputationIfNode() const;
 };
 
 class BreakNode : public ASTNode {
@@ -413,7 +413,7 @@ public:
 
   virtual ~SwitchNode() override = default;
 
-  llvm::Value *getCondition() { return SwitchCondition; }
+  llvm::Value *getCondition() const { return SwitchCondition; }
 
 protected:
   ASTNode *getCaseN(int N) const { return CaseList[N].second; }
@@ -469,7 +469,7 @@ public:
 
   virtual ASTNode *Clone() override { return new IfCheckNode(*this); }
 
-  unsigned getCaseValue() { return StateVariableValue; }
+  unsigned getCaseValue() const { return StateVariableValue; }
 };
 
 class SwitchCheckNode : public ASTNode {

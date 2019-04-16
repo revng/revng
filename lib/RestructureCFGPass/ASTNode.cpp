@@ -154,7 +154,7 @@ void ContinueNode::addComputationIfNode(IfNode *ComputationIfNode) {
   ComputationIf = ComputationIfNode;
 }
 
-IfNode *ContinueNode::getComputationIfNode() {
+IfNode *ContinueNode::getComputationIfNode() const {
   revng_assert(ComputationIf != nullptr);
   return ComputationIf;
 }

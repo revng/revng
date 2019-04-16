@@ -33,7 +33,7 @@ SequenceNode *ASTTree::addSequenceNode() {
   return llvm::cast<SequenceNode>(ASTNodeList.back().get());
 }
 
-size_t ASTTree::size() {
+size_t ASTTree::size() const {
   return ASTNodeList.size();
 }
 
@@ -93,7 +93,7 @@ void ASTTree::setRoot(ASTNode *Root) {
   RootNode = Root;
 }
 
-ASTNode *ASTTree::getRoot() {
+ASTNode *ASTTree::getRoot() const {
   return RootNode;
 }
 

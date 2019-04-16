@@ -124,12 +124,12 @@ inline void RegionCFG<NodeT>::setRegionName(std::string Name) {
 }
 
 template<class NodeT>
-inline std::string RegionCFG<NodeT>::getFunctionName() {
+inline std::string RegionCFG<NodeT>::getFunctionName() const {
   return FunctionName;
 }
 
 template<class NodeT>
-inline std::string RegionCFG<NodeT>::getRegionName() {
+inline std::string RegionCFG<NodeT>::getRegionName() const {
   return RegionName;
 }
 
@@ -1054,7 +1054,8 @@ inline bool RegionCFG<NodeT>::isDAG() {
 }
 
 template<class NodeT>
-inline bool RegionCFG<NodeT>::isTopologicallyEquivalent(RegionCFG &Other) {
+inline bool
+RegionCFG<NodeT>::isTopologicallyEquivalent(RegionCFG &Other) const {
 
   // Early failure if the number of nodes composing the two CFG is different.
   if (size() != Other.size()) {

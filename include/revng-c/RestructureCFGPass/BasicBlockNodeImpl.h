@@ -39,7 +39,7 @@ inline void BasicBlockNode<NodeT>::removeNode() {
 template<class NodeT>
 // TODO: Check why this implementation is really necessary.
 inline void BasicBlockNode<NodeT>::printAsOperand(llvm::raw_ostream &O,
-                                                  bool PrintType) {
+                                                  bool PrintType) const {
   O << Name;
 }
 
@@ -142,7 +142,8 @@ inline llvm::StringRef BasicBlockNode<NodeT>::getName() const {
 }
 
 template<class NodeT>
-inline bool BasicBlockNode<NodeT>::isEquivalentTo(BasicBlockNodeT *Other) {
+inline bool
+BasicBlockNode<NodeT>::isEquivalentTo(BasicBlockNodeT *Other) const {
 
   // TODO: this algorithm fails if there are nodes in the graph not reachable
   //       from the entry node (even if the number of nodes in the two

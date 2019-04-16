@@ -65,7 +65,7 @@ public:
     return llvm::make_range(beginExpr(), endExpr());
   }
 
-  size_t size();
+  size_t size() const;
 
   void addASTNode(BasicBlockNodeBB *Node, std::unique_ptr<ASTNode> &&ASTObject);
 
@@ -79,7 +79,7 @@ public:
 
   void setRoot(ASTNode *Root);
 
-  ASTNode *getRoot();
+  ASTNode *getRoot() const;
 
   ASTNode *copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap2);
 

@@ -116,9 +116,9 @@ public:
 
   void setRegionName(std::string Name);
 
-  std::string getFunctionName();
+  std::string getFunctionName() const;
 
-  std::string getRegionName();
+  std::string getRegionName() const;
 
   static inline BasicBlockNode<NodeT> *getPointer(BasicBlockNodeTUP &Original) {
     return Original.get();
@@ -194,9 +194,9 @@ public:
 
   void connectContinueNode();
 
-  BasicBlockNode<NodeT> &getEntryNode() { return *EntryNode; }
+  BasicBlockNode<NodeT> &getEntryNode() const { return *EntryNode; }
 
-  BasicBlockNode<NodeT> &front() { return *EntryNode; }
+  BasicBlockNode<NodeT> &front() const { return *EntryNode; }
 
   std::vector<std::unique_ptr<BasicBlockNode<NodeT>>> &getNodes() {
     return BlockNodes;
@@ -239,7 +239,7 @@ public:
 
   bool isDAG();
 
-  bool isTopologicallyEquivalent(RegionCFG &Other);
+  bool isTopologicallyEquivalent(RegionCFG &Other) const;
 
 protected:
   template<typename StreamT>

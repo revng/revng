@@ -192,7 +192,7 @@ public:
   void removeNode();
 
   // TODO: Check why this implementation is really necessary.
-  void printAsOperand(llvm::raw_ostream &O, bool PrintType);
+  void printAsOperand(llvm::raw_ostream &O, bool PrintType) const;
 
   void addSuccessor(BasicBlockNode *Successor) {
     // TODO: Disabled this, since even for set node if we copy the successors
@@ -256,8 +256,8 @@ public:
     return llvm::make_range(Successors.begin(), Successors.end());
   }
 
-  BasicBlockNode *getPredecessorI(size_t i) { return Predecessors[i]; }
-  BasicBlockNode *getSuccessorI(size_t i) { return Successors[i]; }
+  BasicBlockNode *getPredecessorI(size_t i) const { return Predecessors[i]; }
+  BasicBlockNode *getSuccessorI(size_t i) const { return Successors[i]; }
 
   size_t predecessor_size() const { return Predecessors.size(); }
 
@@ -272,7 +272,7 @@ public:
   unsigned getID() const { return ID; }
   bool isBasicBlock() const { return NodeType == Type::Code; }
 
-  NodeT getOriginalNode() { return OriginalNode; }
+  NodeT getOriginalNode() const { return OriginalNode; }
 
   llvm::StringRef getName() const;
   std::string getNameStr() const {
@@ -282,7 +282,7 @@ public:
   bool isCollapsed() const { return NodeType == Type::Collapsed; }
   RegionCFGT *getCollapsedCFG() { return CollapsedRegion; }
 
-  bool isEquivalentTo(BasicBlockNode *);
+  bool isEquivalentTo(BasicBlockNode *) const;
 };
 
 // Provide graph traits for usage with, e.g., llvm::ReversePostOrderTraversal

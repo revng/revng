@@ -127,7 +127,7 @@ struct GraphTraits<DotGraph *> {
 
   static nodes_iterator nodes_end(DotGraph *G) { return G->end(); }
 
-  static size_t size(DotGraph *G) { return G->size(); }
+  static size_t size(const DotGraph *G) { return G->size(); }
 };
 
 } // namespace llvm
