@@ -687,9 +687,6 @@ static void addComputationToContinue(ASTNode *RootNode, IfNode *ConditionIf) {
 }
 
 static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
-
-  BeautifyLogger << "Matching whiles"
-                 << "\n";
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
       matchWhile(Node, AST);
@@ -779,7 +776,53 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
   }
 }
 
-static void fixSwitchBreaks(ASTNode *RootNode, ASTTree &CombedAST) {
+static void fixSwitchBreaks(ASTNode *RootNode, ASTTree &AST) {
+  if (RootNode == nullptr)
+    return;
+  switch (RootNode->getKind()) {
+  case ASTNode::NK_If: {
+    IfNode *If = llvm::cast<IfNode>(RootNode);
+    fixSwitchBreaks(If->getThen(), AST);
+    fixSwitchBreaks(If->getElse(), AST);
+  } break;
+  case ASTNode::NK_Scs: {
+    ScsNode *Loop = llvm::cast<ScsNode>(RootNode);
+    fixSwitchBreaks(Loop->getBody(), AST);
+  } break;
+  case ASTNode::NK_List: {
+    SequenceNode *Seq = llvm::cast<SequenceNode>(RootNode);
+    for (ASTNode *N : Seq->nodes())
+      fixSwitchBreaks(N, AST);
+  } break;
+  case ASTNode::NK_Switch: {
+    SwitchNode *Switch = llvm::cast<SwitchNode>(RootNode);
+    for (auto &Pair : Switch->cases()) {
+      SwitchBreakNode *Break = AST.addSwitchBreak();
+      if (SequenceNode *Seq = llvm::dyn_cast<SequenceNode>(Pair.second)) {
+        Seq->addNode(Break);
+      } else {
+        SequenceNode *Case = AST.addSequenceNode();
+        Case->addNode(Pair.second);
+        Case->addNode(Break);
+      }
+    }
+  } break;
+  case ASTNode::NK_SwitchCheck: {
+    SwitchCheckNode *Check = llvm::cast<SwitchCheckNode>(RootNode);
+    for (auto &Pair : Check->cases())
+      fixSwitchBreaks(Pair.second, AST);
+  } break;
+  case ASTNode::NK_Set:
+  case ASTNode::NK_Code:
+  case ASTNode::NK_Break:
+  case ASTNode::NK_Continue:
+  case ASTNode::NK_SwitchBreak:
+    break; // do nothing
+  case ASTNode::NK_IfCheck:
+    BeautifyLogger << "Unexpected: IfCheck\n";
+  default:
+    revng_unreachable("unexpected node kind");
+  }
 }
 
 void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
@@ -823,8 +866,6 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
     CombedAST.dumpOnFile("ast", F.getName(), "After-switch-match");
   }
 
-  // From this point on, the beautify passes were applied on the flattened AST.
-
   // Match dowhile.
   revng_log(BeautifyLogger, "Matching do-while\n");
   matchDoWhile(RootNode, CombedAST);
@@ -833,8 +874,7 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
   }
 
   // Match while.
-  revng_log(BeautifyLogger, "Matching do-while\n");
-  // Disabled for now
+  revng_log(BeautifyLogger, "Matching while\n");
   matchWhile(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpOnFile("ast", F.getName(), "After-match-while");
@@ -848,7 +888,7 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
   }
 
   // Fix loop breaks from within switches
-  BeautifyLogger << "Fixing loop breaks inside switches\n";
+  revng_log(BeautifyLogger, "Fixing loop breaks inside switches\n");
   fixSwitchBreaks(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled())
     CombedAST.dumpOnFile("ast", F.getName(), "After-fix-switch-breaks");

@@ -46,7 +46,7 @@ void ASTTree::addASTNode(BasicBlockNode<BasicBlock *> *Node,
   // Set the Node ID
   ASTNode->setID(getNewID());
 
-  auto InsertResult = NodeASTMap.insert(std::make_pair(Node, ASTNode));
+  NodeASTMap.insert(std::make_pair(Node, ASTNode));
 }
 
 SwitchCheckNode *ASTTree::addSwitchCheck(std::unique_ptr<ASTNode> ASTObject) {
@@ -78,12 +78,9 @@ ASTNode *ASTTree::findASTNode(BasicBlockNode<BasicBlock *> *BlockNode) {
 //       it).
 BasicBlockNode<BasicBlock *> *ASTTree::findCFGNode(ASTNode *Node) {
   BasicBlockNode<BasicBlock *> *Result = nullptr;
-  for (auto MapIt = NodeASTMap.begin(); MapIt != NodeASTMap.end(); MapIt++) {
-    if (MapIt->second == Node) {
-      Result = MapIt->first;
-    }
-  }
-
+  for (auto &Pair : NodeASTMap)
+    if (Pair.second == Node)
+      Result = Pair.first;
   // We may return nullptr, since for example continue and break nodes do not
   // have a corresponding CFGNode.
   return Result;

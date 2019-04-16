@@ -55,6 +55,12 @@ private:
 public:
   SequenceNode *addSequenceNode();
 
+  SwitchBreakNode *addSwitchBreak() {
+    ASTNodeList.emplace_back(new SwitchBreakNode());
+    ASTNodeList.back()->setID(getNewID());
+    return llvm::cast<SwitchBreakNode>(ASTNodeList.back().get());
+  }
+
   unsigned getNewID() { return IDCounter++; }
 
   links_range nodes() { return llvm::make_range(begin(), end()); }
