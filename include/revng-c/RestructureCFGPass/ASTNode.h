@@ -36,6 +36,7 @@ public:
     NK_Scs,
     NK_List,
     NK_Switch,
+    NK_SwitchBreak,
     NK_SwitchCheck,
     NK_Set
   };
@@ -354,7 +355,7 @@ public:
 class BreakNode : public ASTNode {
 
 public:
-  BreakNode() : ASTNode(NK_Break, "break"){};
+  BreakNode() : ASTNode(NK_Break, "loop break"){};
 
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Break; }
 
@@ -369,6 +370,28 @@ public:
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override {}
 
   virtual ~BreakNode() override = default;
+};
+
+class SwitchBreakNode : public ASTNode {
+
+public:
+  SwitchBreakNode() : ASTNode(NK_SwitchBreak, "switch break"){};
+
+  static bool classof(const ASTNode *N) {
+    return N->getKind() == NK_SwitchBreak;
+  }
+
+  virtual ASTNode *Clone() override { return new SwitchBreakNode(*this); }
+
+  virtual void dump(std::ofstream &ASTFile) override;
+
+  virtual bool isEqual(ASTNode *Node) const override {
+    return llvm::isa<SwitchBreakNode>(Node);
+  }
+
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override {}
+
+  virtual ~SwitchBreakNode() override = default;
 };
 
 class SwitchNode : public ASTNode {

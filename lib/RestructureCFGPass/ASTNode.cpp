@@ -139,7 +139,13 @@ void SequenceNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
 
 void BreakNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"" << this->getName() << "\" [";
-  ASTFile << "label=\"break\"";
+  ASTFile << "label=\"loop break\"";
+  ASTFile << ",shape=\"box\",color=\"red\"];\n";
+}
+
+void SwitchBreakNode::dump(std::ofstream &ASTFile) {
+  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "label=\"switch break\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
