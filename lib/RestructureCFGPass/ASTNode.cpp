@@ -18,7 +18,7 @@
 
 using namespace llvm;
 
-bool CodeNode::isEqual(ASTNode *Node) const {
+bool CodeNode::isEqual(const ASTNode *Node) const {
   if (auto *OtherCode = dyn_cast<CodeNode>(Node)) {
     if ((getOriginalBB() != nullptr)
         and (getOriginalBB() == OtherCode->getOriginalBB())) {
@@ -36,7 +36,7 @@ void CodeNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // need to apply updates.
 }
 
-bool IfNode::isEqual(ASTNode *Node) const {
+bool IfNode::isEqual(const ASTNode *Node) const {
   if (auto *OtherIf = dyn_cast<IfNode>(Node)) {
     if ((getOriginalBB() != nullptr)
         and (getOriginalBB() == OtherIf->getOriginalBB())) {
@@ -79,7 +79,7 @@ void IfNode::updateCondExprPtr(ExprNodeMap &Map) {
   }
 }
 
-bool ScsNode::isEqual(ASTNode *Node) const {
+bool ScsNode::isEqual(const ASTNode *Node) const {
   if (auto *OtherScs = dyn_cast<ScsNode>(Node)) {
     if (Body->isEqual(OtherScs->getBody())) {
       return true;
@@ -96,7 +96,7 @@ void ScsNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // flattening.
 }
 
-bool SequenceNode::isEqual(ASTNode *Node) const {
+bool SequenceNode::isEqual(const ASTNode *Node) const {
   if (auto *OtherSequence = dyn_cast<SequenceNode>(Node)) {
     bool ComparisonState = true;
     int FirstDimension = NodeList.size();
@@ -229,27 +229,27 @@ void SequenceNode::dump(std::ofstream &ASTFile) {
   }
 }
 
-void SwitchNode::dump(std::ofstream &ASTFile) {
+void RegularSwitchNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"" << this->getName() << "\" [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"hexagon\",color=\"black\"];\n";
 
   int CaseIndex = 0;
-  for (auto Case : this->cases()) {
-    uint64_t CaseVal = Case.first->getZExtValue();
+  for (ASTNode *Case: this->cases()) {
+    uint64_t CaseVal = CaseValueVec[CaseIndex]->getZExtValue();
     ASTFile << "\"" << this->getName() << "\""
-            << " -> \"" << Case.second->getName() << "\""
+            << " -> \"" << Case->getName() << "\""
             << " [color=green,label=\"case " << CaseVal << "\"];\n";
-    Case.second->dump(ASTFile);
-    CaseIndex += 1;
+    Case->dump(ASTFile);
+    ++CaseIndex;
   }
 }
 
-bool SwitchNode::isEqual(ASTNode *Node) const {
-  if (auto *OtherSwitch = dyn_cast<SwitchNode>(Node)) {
+bool RegularSwitchNode::isEqual(const ASTNode *Node) const {
+  if (auto *OtherSwitch = dyn_cast<RegularSwitchNode>(Node)) {
     bool ComparisonState = true;
-    int FirstDimension = CaseList.size();
+    int FirstDimension = CaseSize();
     int SecondDimension = OtherSwitch->CaseSize();
     if (FirstDimension != SecondDimension) {
       ComparisonState = false;
@@ -278,13 +278,11 @@ bool SwitchNode::isEqual(ASTNode *Node) const {
 }
 
 void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
-  // Update all the case pointers.
-  for (auto &Case : CaseList) {
-    Case.second = SubstitutionMap.at(Case.second);
-  }
+  for (auto &Case : CaseVec)
+    Case = SubstitutionMap.at(Case);
 }
 
-bool SetNode::isEqual(ASTNode *Node) const {
+bool SetNode::isEqual(const ASTNode *Node) const {
   if (auto *OtherSet = dyn_cast<SetNode>(Node)) {
     if (StateVariableValue == OtherSet->getStateVariableValue()) {
       return true;
@@ -337,20 +335,20 @@ void SwitchCheckNode::dump(std::ofstream &ASTFile) {
   ASTFile << ",shape=\"hexagon\",color=\"black\"];\n";
 
   int CaseIndex = 0;
-  for (auto Case : this->cases()) {
-    uint64_t CaseVal = Case.first;
+  for (ASTNode *Case : this->cases()) {
+    uint64_t CaseVal = CaseValueVec[CaseIndex];
     ASTFile << "\"" << this->getName() << "\""
-            << " -> \"" << Case.second->getName() << "\""
+            << " -> \"" << Case->getName() << "\""
             << " [color=green,label=\"case " << CaseVal << "\"];\n";
-    Case.second->dump(ASTFile);
-    CaseIndex += 1;
+    Case->dump(ASTFile);
+    ++CaseIndex;
   }
 }
 
-bool SwitchCheckNode::isEqual(ASTNode *Node) const {
+bool SwitchCheckNode::isEqual(const ASTNode *Node) const {
   if (auto *OtherSwitch = dyn_cast<SwitchCheckNode>(Node)) {
     bool ComparisonState = true;
-    int FirstDimension = CaseList.size();
+    int FirstDimension = CaseSize();
     int SecondDimension = OtherSwitch->CaseSize();
     if (FirstDimension != SecondDimension) {
       ComparisonState = false;
@@ -375,12 +373,5 @@ bool SwitchCheckNode::isEqual(ASTNode *Node) const {
     return ComparisonState;
   } else {
     return false;
-  }
-}
-
-void SwitchCheckNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
-  // Update all the case pointers.
-  for (auto &Case : CaseList) {
-    Case.second = SubstitutionMap.at(Case.second);
   }
 }

@@ -28,9 +28,9 @@ using TypeDeclMap = std::map<const llvm::Type *, clang::TypeDecl *>;
 using FieldDeclMap = std::map<clang::TypeDecl *,
                               llvm::SmallVector<clang::FieldDecl *, 8>>;
 
-clang::QualType getOrCreateBoolQualType(const llvm::Type *Ty,
-                                        clang::ASTContext &ASTCtx,
-                                        TypeDeclMap &TypeDecls);
+clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
+                                        TypeDeclMap &TypeDecls,
+                                        const llvm::Type *Ty = nullptr);
 
 clang::QualType getOrCreateQualType(const llvm::Value *I,
                                     clang::ASTContext &ASTCtx,

@@ -9,6 +9,7 @@
 #include <cstdlib>
 
 // LLVM includes
+#include <llvm/ADT/SmallVector.h>
 #include <llvm/Support/Casting.h>
 
 // local libraries includes
@@ -31,13 +32,17 @@ public:
     NK_Code,
     NK_Break,
     NK_Continue,
+    // ---- IfNode kinds
     NK_If,
     NK_IfCheck,
+    // ---- end IfNode kinds
     NK_Scs,
     NK_List,
-    NK_Switch,
-    NK_SwitchBreak,
+    // ---- SwitchNode kinds
+    NK_SwitchRegular,
     NK_SwitchCheck,
+    // ---- end SwitchNode kinds
+    NK_SwitchBreak,
     NK_Set
   };
 
@@ -107,7 +112,7 @@ public:
 
   llvm::BasicBlock *getOriginalBB() const { return BB; }
 
-  virtual bool isEqual(ASTNode *Node) const = 0;
+  virtual bool isEqual(const ASTNode *Node) const = 0;
 
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) = 0;
 };
@@ -121,7 +126,7 @@ public:
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Code; }
 
-  virtual bool isEqual(ASTNode *Node) const override;
+  virtual bool isEqual(const ASTNode *Node) const override;
 
   virtual void dump(std::ofstream &ASTFile) override;
 
@@ -191,7 +196,7 @@ public:
     }
   }
 
-  virtual bool isEqual(ASTNode *Node) const override;
+  virtual bool isEqual(const ASTNode *Node) const override;
 
   virtual void dump(std::ofstream &ASTFile) override;
 
@@ -226,6 +231,7 @@ public:
   ScsNode(BasicBlockNodeBB *CFGNode, ASTNode *Body) :
     ASTNode(NK_Scs, CFGNode, nullptr),
     Body(Body) {}
+
   ScsNode(BasicBlockNodeBB *CFGNode,
           ASTNode *Body,
           ASTNode *Successor) :
@@ -237,11 +243,11 @@ public:
 
   bool hasBody() const { return Body != nullptr; }
 
-  ASTNode *getBody() { return Body; }
+  ASTNode *getBody() const { return Body; }
 
   void setBody(ASTNode *Node) { Body = Node; }
 
-  virtual bool isEqual(ASTNode *Node) const override;
+  virtual bool isEqual(const ASTNode *Node) const override;
 
   virtual void dump(std::ofstream &ASTFile) override;
 
@@ -313,7 +319,7 @@ public:
 
   ASTNode *getNodeN(int N) const { return NodeList[N]; }
 
-  virtual bool isEqual(ASTNode *Node) const override;
+  virtual bool isEqual(const ASTNode *Node) const override;
 
   virtual void dump(std::ofstream &ASTFile) override;
 
@@ -337,7 +343,7 @@ public:
 
   virtual void dump(std::ofstream &ASTFile) override;
 
-  virtual bool isEqual(ASTNode *Node) const override {
+  virtual bool isEqual(const ASTNode *Node) const override {
     return llvm::isa<ContinueNode>(Node);
   }
 
@@ -363,13 +369,22 @@ public:
 
   virtual void dump(std::ofstream &ASTFile) override;
 
-  virtual bool isEqual(ASTNode *Node) const override {
+  virtual bool isEqual(const ASTNode *Node) const override {
     return llvm::isa<BreakNode>(Node);
   }
 
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override {}
 
   virtual ~BreakNode() override = default;
+
+  bool breaksFromWithinSwitch() const { return BreakFromWithinSwitch; }
+
+  void setBreakFromWithinSwitch(bool B = true) {
+    BreakFromWithinSwitch = B;
+  }
+
+protected:
+  bool BreakFromWithinSwitch = false;
 };
 
 class SwitchBreakNode : public ASTNode {
@@ -385,61 +400,13 @@ public:
 
   virtual void dump(std::ofstream &ASTFile) override;
 
-  virtual bool isEqual(ASTNode *Node) const override {
+  virtual bool isEqual(const ASTNode *Node) const override {
     return llvm::isa<SwitchBreakNode>(Node);
   }
 
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override {}
 
   virtual ~SwitchBreakNode() override = default;
-};
-
-class SwitchNode : public ASTNode {
-
-public:
-  using links_container = std::vector<std::pair<llvm::ConstantInt *,
-                                                ASTNode *>>;
-  using links_iterator = typename links_container::iterator;
-  using links_range = llvm::iterator_range<links_iterator>;
-
-private:
-  links_container CaseList;
-  llvm::Value *SwitchCondition;
-
-public:
-  SwitchNode(llvm::Value *Condition,
-             std::vector<std::pair<llvm::ConstantInt *, ASTNode *>> &Cases,
-             NodeKind Kind = NK_Switch) :
-    ASTNode(NK_Switch, "SwitchNode"),
-    SwitchCondition(Condition) {
-    for (auto &Case : Cases) {
-      CaseList.push_back(Case);
-    }
-  }
-
-public:
-  static bool classof(const ASTNode *N) { return N->getKind() == NK_Switch; }
-
-  links_range cases() {
-    return llvm::make_range(CaseList.begin(), CaseList.end());
-  }
-
-  int CaseSize() { return CaseList.size(); }
-
-  virtual bool isEqual(ASTNode *Node) const override;
-
-  virtual void dump(std::ofstream &ASTFile) override;
-
-  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
-
-  virtual ASTNode *Clone() override { return new SwitchNode(*this); }
-
-  virtual ~SwitchNode() override = default;
-
-  llvm::Value *getCondition() const { return SwitchCondition; }
-
-protected:
-  ASTNode *getCaseN(int N) const { return CaseList[N].second; }
 };
 
 class SetNode : public ASTNode {
@@ -459,7 +426,7 @@ public:
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Set; }
 
-  virtual bool isEqual(ASTNode *Node) const override;
+  virtual bool isEqual(const ASTNode *Node) const override;
 
   virtual void dump(std::ofstream &ASTFile) override;
 
@@ -495,46 +462,164 @@ public:
   unsigned getCaseValue() const { return StateVariableValue; }
 };
 
-class SwitchCheckNode : public ASTNode {
+// Abstract SwitchNode. It has the concept of cases (other ASTNodes) but no
+// concept of values for which those cases are activated.
+class SwitchNode : public ASTNode {
+protected:
+  static const constexpr int SwitchNumCases = 16;
 
 public:
-  using links_container = std::vector<std::pair<unsigned, ASTNode *>>;
-  using links_iterator = typename links_container::iterator;
-  using links_range = llvm::iterator_range<links_iterator>;
+  using case_container = llvm::SmallVector<ASTNode *, SwitchNumCases>;
+  using case_iterator = typename case_container::iterator;
+  using case_range = llvm::iterator_range<case_iterator>;
 
-private:
-  links_container CaseList;
+protected:
+  SwitchNode(NodeKind K, const case_container &Cases, const std::string &Name) :
+    ASTNode(K, Name), CaseVec(Cases) {
+  }
 
-public:
-  SwitchCheckNode(std::vector<std::pair<unsigned, ASTNode *>> &Cases) :
-    ASTNode(NK_SwitchCheck, "SwitchCheckNode") {
-    for (auto &Case : Cases) {
-      CaseList.push_back(Case);
-    }
+  SwitchNode(NodeKind K, case_container &&Cases, const std::string &Name) :
+    ASTNode(K, Name), CaseVec(Cases) {
   }
 
 public:
+  ~SwitchNode() override = default;
+
+  static bool classof(const ASTNode *N) {
+    return N->getKind() >= NK_SwitchRegular and N->getKind() <= NK_SwitchCheck;
+  }
+
+  case_range cases() {
+    return llvm::make_range(CaseVec.begin(), CaseVec.end());
+  }
+
+  size_t CaseSize() const { return CaseVec.size(); }
+
+  ASTNode *getCaseN(int N) const { return CaseVec[N]; }
+
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
+
+  bool needsStateVariable() const { return NeedStateVariable; }
+
+  void setNeedsStateVariable(bool N = true) { NeedStateVariable = N; }
+
+  bool needsLoopBreakDispatcher() const { return NeedLoopBreakDispatcher; }
+
+  void setNeedsLoopBreakDispatcher(bool N = true) {
+    NeedLoopBreakDispatcher = N ;
+  }
+
+protected:
+  case_container CaseVec;
+  bool NeedStateVariable = false; // for breaking directly out of a loop
+  bool NeedLoopBreakDispatcher = false; // to dispatchg breaks out of a loop
+};
+
+class RegularSwitchNode : public SwitchNode {
+
+public:
+  using case_value = llvm::ConstantInt *;
+  using case_value_container = llvm::SmallVector<case_value, SwitchNumCases>;
+  using case_value_iterator = typename case_value_container::iterator;
+  using case_value_range = llvm::iterator_range<case_value_iterator>;
+
+public:
+  RegularSwitchNode(llvm::Value *Cond,
+                    const case_container &Cases,
+                    const case_value_container &V) :
+    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode"),
+    Condition(Cond),
+    CaseValueVec(V) {
+  }
+
+  RegularSwitchNode(llvm::Value *Cond,
+                    case_container &&Cases,
+                    const case_value_container &V) :
+    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode"),
+    Condition(Cond),
+    CaseValueVec(V) {
+  }
+
+  RegularSwitchNode(llvm::Value *Cond,
+                    const case_container &Cases,
+                    case_value_container &&V) :
+    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode"),
+    Condition(Cond),
+    CaseValueVec(V) {
+  }
+
+  RegularSwitchNode(llvm::Value *Cond,
+                    case_container &&Cases,
+                    case_value_container &&V) :
+    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode"),
+    Condition(Cond),
+    CaseValueVec(V) {
+  }
+
+  virtual ~RegularSwitchNode() override = default;
+
+  static bool classof(const ASTNode *N) {
+    return N->getKind() == NK_SwitchRegular;
+  }
+
+  virtual bool isEqual(const ASTNode *Node) const override;
+
+  virtual void dump(std::ofstream &ASTFile) override;
+
+  virtual ASTNode *Clone() override { return new RegularSwitchNode(*this); }
+
+  llvm::Value *getCondition() const { return Condition; }
+
+  case_value getCaseValueN(int N) const { return CaseValueVec[N]; }
+
+protected:
+  case_value_container CaseValueVec;
+  llvm::Value *Condition;
+};
+
+class SwitchCheckNode : public SwitchNode {
+public:
+  using case_value = uint64_t;
+  using case_value_container = llvm::SmallVector<case_value, SwitchNumCases>;
+  using case_value_iterator = typename case_value_container::iterator;
+  using case_value_range = llvm::iterator_range<case_value_iterator>;
+
+public:
+  SwitchCheckNode(const case_container &Cases, const case_value_container &V) :
+    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode"),
+    CaseValueVec(V) {
+  }
+
+  SwitchCheckNode(const case_container &Cases, case_value_container &V) :
+    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode"),
+    CaseValueVec(V) {
+  }
+
+  SwitchCheckNode(case_container &&Cases, const case_value_container &&V) :
+    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode"),
+    CaseValueVec(V) {
+  }
+
+  SwitchCheckNode(case_container &&Cases, case_value_container &&V) :
+    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode"),
+    CaseValueVec(V) {
+  }
+
+  virtual ~SwitchCheckNode() override = default;
+
   static bool classof(const ASTNode *N) {
     return N->getKind() == NK_SwitchCheck;
   }
 
-  links_range cases() {
-    return llvm::make_range(CaseList.begin(), CaseList.end());
-  }
-
-  int CaseSize() { return CaseList.size(); }
-
-  virtual bool isEqual(ASTNode *Node) const override;
+  virtual bool isEqual(const ASTNode *Node) const override;
 
   virtual void dump(std::ofstream &ASTFile) override;
 
-  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override;
-
   virtual ASTNode *Clone() override { return new SwitchCheckNode(*this); }
 
-  virtual ~SwitchCheckNode() override = default;
+  case_value getCaseValueN(int N) const { return CaseValueVec[N]; }
 
 protected:
-  ASTNode *getCaseN(int N) const { return CaseList[N].second; }
+  case_value_container CaseValueVec;
 };
 #endif // define REVNGC_RESTRUCTURE_CFG_ASTNODE_H

@@ -511,12 +511,8 @@ static bool isPure(const Instruction & /*Call*/) {
   return false;
 }
 
-void StmtBuilder::createAST() {
-  revng_log(ASTBuildLog,
-            "Building AST for Instructions in Function " << F.getName());
-
-  uint64_t BBId = 0;
-  {
+clang::VarDecl *StmtBuilder::getOrCreateLoopStateVarDecl() {
+  if (not LoopStateVarDecl) {
     IdentifierInfo &Id = ASTCtx.Idents.get("loop_state_var");
     LoopStateVarDecl = VarDecl::Create(ASTCtx,
                                        &FDecl,
@@ -528,7 +524,33 @@ void StmtBuilder::createAST() {
                                        StorageClass::SC_None);
     FDecl.addDecl(LoopStateVarDecl);
   }
+  revng_assert(LoopStateVarDecl != nullptr);
+  return LoopStateVarDecl;
+}
 
+clang::VarDecl *StmtBuilder::getOrCreateSwitchStateVarDecl() {
+  if (not SwitchStateVarDecl) {
+    IdentifierInfo &Id = ASTCtx.Idents.get("switch_state_var");
+    QualType BoolTy = getOrCreateBoolQualType(ASTCtx, TypeDecls);
+    SwitchStateVarDecl = VarDecl::Create(ASTCtx,
+                                       &FDecl,
+                                       {},
+                                       {},
+                                       &Id,
+                                       BoolTy,
+                                       nullptr,
+                                       StorageClass::SC_None);
+    FDecl.addDecl(SwitchStateVarDecl);
+  }
+  revng_assert(SwitchStateVarDecl != nullptr);
+  return SwitchStateVarDecl;
+}
+
+void StmtBuilder::createAST() {
+  revng_log(ASTBuildLog,
+            "Building AST for Instructions in Function " << F.getName());
+
+  uint64_t BBId = 0;
   ReversePostOrderTraversal<Function *> RPOT(&F);
   for (BasicBlock *BB : RPOT) {
     revng_log(ASTBuildLog, "BB: " << BB->getName());
@@ -836,6 +858,14 @@ Expr *StmtBuilder::createRValueExprForBinaryOperator(Instruction &I) {
   return Res;
 }
 
+Expr *StmtBuilder::getBoolLiteral(bool V) {
+  QualType IntT = ASTCtx.IntTy;
+  QualType BoolTy = getOrCreateBoolQualType(ASTCtx, TypeDecls);
+  APInt Const = APInt(ASTCtx.getIntWidth(IntT), V ? 1 : 0, true);
+  Expr *IntLiteral = IntegerLiteral::Create(ASTCtx, Const, IntT, {});
+  return createCast(BoolTy, IntLiteral, ASTCtx);
+}
+
 Expr *StmtBuilder::getUIntLiteral(uint64_t U) {
   QualType UIntT = ASTCtx.UnsignedIntTy;
   APInt Const = APInt(ASTCtx.getIntWidth(UIntT), U);
@@ -1101,7 +1131,9 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
       switch (BuiltinTy->getKind()) {
       case BuiltinType::Bool: {
         QualType IntT = ASTCtx.IntTy;
-        QualType BoolTy = getOrCreateBoolQualType(C->getType(), ASTCtx, TypeDecls);
+        QualType BoolTy = getOrCreateBoolQualType(ASTCtx,
+                                                  TypeDecls,
+                                                  C->getType());
         APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue, true);
         Expr *IntLiteral = IntegerLiteral::Create(ASTCtx, Const, IntT, {});
         return createCast(BoolTy, IntLiteral, ASTCtx);

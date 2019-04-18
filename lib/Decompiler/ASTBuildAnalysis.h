@@ -73,7 +73,6 @@ public:
   TypeDeclMap TypeDecls;
   FieldDeclMap FieldDecls;
   BBPHIMap &BlockToPHIIncoming;
-  clang::VarDecl *LoopStateVarDecl;
 
 public:
   StmtBuilder(llvm::Function &F,
@@ -98,13 +97,19 @@ public:
     InstrStmts(),
     BlockToPHIIncoming(BlockToPHIIncoming),
     TypeDecls(TypeDecls),
-    FieldDecls(FieldDecls),
-    LoopStateVarDecl(nullptr) {}
+    FieldDecls(FieldDecls) {}
 
   void createAST();
 
   clang::Expr *getExprForValue(llvm::Value *V);
   clang::Expr *getUIntLiteral(uint64_t U);
+  clang::Expr *getBoolLiteral(bool V);
+
+  clang::VarDecl *getOrCreateLoopStateVarDecl();
+  clang::VarDecl *getOrCreateSwitchStateVarDecl();
+
+  clang::VarDecl *getLoopStateVarDecl() const { return LoopStateVarDecl; }
+  clang::VarDecl *getSwitchStateVarDecl() const { return SwitchStateVarDecl; }
 
 private:
   clang::VarDecl *createVarDecl(llvm::Instruction *I);
@@ -112,6 +117,10 @@ private:
   clang::Expr *createRValueExprForBinaryOperator(llvm::Instruction &I);
   clang::Expr *getParenthesizedExprForValue(llvm::Value *V);
   clang::Expr *getLiteralFromConstant(llvm::Constant *C);
+
+private:
+  clang::VarDecl *LoopStateVarDecl = nullptr;
+  clang::VarDecl *SwitchStateVarDecl = nullptr;
 };
 } // namespace IR2AST
 #endif // REVNGC_ASTBUILDANALYSIS_H
