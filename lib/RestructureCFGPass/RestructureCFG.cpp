@@ -296,7 +296,7 @@ static bool alreadyInMetaregion(MetaRegionBBVect &V,
 }
 
 static MetaRegionBBVect
-createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
+createMetaRegions(const std::vector<EdgeDescriptor> &Backedges) {
   std::map<BasicBlockNodeBB *, std::set<BasicBlockNodeBB *>> AdditionalSCSNodes;
   std::vector<std::pair<BasicBlockNodeBB *,
                         std::set<BasicBlockNodeBB *>>> Regions;
@@ -394,6 +394,12 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
   }
 
+  // Fill a vector with the backedges, to ensure order of inspection.
+  std::vector<EdgeDescriptor> BackedgesVect;
+  for (EdgeDescriptor Backedge : Backedges) {
+    BackedgesVect.push_back(Backedge);
+  }
+
   // Create meta regions
   MetaRegionBBVect MetaRegions = createMetaRegions(Backedges);
 
@@ -446,7 +452,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Simplify SCS in a fixed-point fashion.
-  sortMetaRegions(MetaRegions);
   simplifySCS(MetaRegions);
 
   // Print SCS after second simplification.
