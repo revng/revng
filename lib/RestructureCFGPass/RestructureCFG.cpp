@@ -323,16 +323,23 @@ createMetaRegions(const std::vector<EdgeDescriptor> &Backedges) {
   for (auto &Region : Regions) {
     BasicBlockNodeBB *Head = Region.first;
     std::set<BasicBlockNodeBB *> &Nodes = Region.second;
-    for (BasicBlockNodeBB *Node : Nodes) {
-      if ((Node != Head) and (AdditionalSCSNodes.count(Node) != 0)) {
-        CombLogger << "Adding additional nodes for region with head: ";
-        CombLogger << Head->getNameStr();
-        CombLogger << " and relative to node: ";
-        CombLogger << Node->getNameStr() << "\n";
-        Nodes.insert(AdditionalSCSNodes[Node].begin(),
-                     AdditionalSCSNodes[Node].end());
+    std::set<BasicBlockNodeBB *> AdditionalNodes;
+    std::set<BasicBlockNodeBB *> OldNodes;
+    do {
+      OldNodes = Nodes;
+      for (BasicBlockNodeBB *Node : Nodes) {
+        if ((Node != Head) and (AdditionalSCSNodes.count(Node) != 0)) {
+          CombLogger << "Adding additional nodes for region with head: ";
+          CombLogger << Head->getNameStr();
+          CombLogger << " and relative to node: ";
+          CombLogger << Node->getNameStr() << "\n";
+          AdditionalNodes.insert(AdditionalSCSNodes[Node].begin(),
+                       AdditionalSCSNodes[Node].end());
+        }
       }
-    }
+      Nodes.insert(AdditionalNodes.begin(), AdditionalNodes.end());
+    } while (Nodes != OldNodes);
+
   }
 
   MetaRegionBBVect MetaRegions;
