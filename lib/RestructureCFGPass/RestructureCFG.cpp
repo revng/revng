@@ -516,6 +516,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
   std::vector<RegionCFG<BasicBlock *>> Regions(OrderedMetaRegions.size());
 
   for (MetaRegionBB *Meta : OrderedMetaRegions) {
+
+    ReversePostOrderTraversal<BasicBlockNodeBB *> RPOT(&RootCFG.getEntryNode());
+
     if (CombLogger.isEnabled()) {
       CombLogger << "\nAnalyzing region: " << Meta->getIndex() << "\n";
     }
