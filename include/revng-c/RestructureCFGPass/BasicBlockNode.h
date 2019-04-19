@@ -107,11 +107,7 @@ public:
   explicit BasicBlockNode(RegionCFGT *Parent,
                           NodeT OriginalNode,
                           llvm::StringRef Name = "") :
-    BasicBlockNode(Parent,
-                   OriginalNode,
-                   nullptr,
-                   Name,
-                   Type::Code) {}
+    BasicBlockNode(Parent, OriginalNode, nullptr, Name, Type::Code) {}
 
   /// \brief Constructor for nodes representing collapsed subgraphs
   explicit BasicBlockNode(RegionCFGT *Parent, RegionCFGT *Collapsed) :
@@ -193,7 +189,7 @@ public:
   }
 
   RegionCFGT *getParent() { return Parent; }
-  void setParent(RegionCFGT*P) { Parent = P; }
+  void setParent(RegionCFGT *P) { Parent = P; }
 
   void removeNode();
 
@@ -251,8 +247,8 @@ public:
 
   void removePredecessor(BasicBlockNode *Predecessor);
 
-  void updatePointers(const std::map<BasicBlockNode *,
-                                     BasicBlockNode *> &SubstitutionMap);
+  void updatePointers(
+    const std::map<BasicBlockNode *, BasicBlockNode *> &SubstitutionMap);
 
   size_t successor_size() const { return Successors.size(); }
   links_const_range successors() const {

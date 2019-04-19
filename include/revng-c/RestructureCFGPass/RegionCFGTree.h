@@ -26,7 +26,7 @@ template<class NodeT = llvm::BasicBlock *>
 class RegionCFG {
 
 public:
-  using BasicBlockNodeT = typename BasicBlockNode<NodeT>::BasicBlockNodeT;\
+  using BasicBlockNodeT = typename BasicBlockNode<NodeT>::BasicBlockNodeT;
   using BasicBlockNodeType = typename BasicBlockNodeT::Type;
   using BasicBlockNodeTUP = typename std::unique_ptr<BasicBlockNode<NodeT>>;
   using BasicBlockNodeTSet = std::set<BasicBlockNodeT *>;
@@ -136,8 +136,7 @@ public:
   BasicBlockNode<NodeT> *addNode(NodeT Name);
 
   BasicBlockNode<NodeT> *createCollapsedNode(RegionCFG *Collapsed) {
-    BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(this,
-                                                              Collapsed));
+    BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(this, Collapsed));
     return BlockNodes.back().get();
   }
 

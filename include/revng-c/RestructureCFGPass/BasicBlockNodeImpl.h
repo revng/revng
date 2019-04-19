@@ -57,7 +57,7 @@ inline void BasicBlockNode<NodeT>::removeSuccessor(BasicBlockNodeT *Successor) {
                                     }
                                     return false;
                                   }),
-                    Successors.end());
+                   Successors.end());
   revng_assert(Removed == 1); // needs to remove exactly one successor
 }
 
@@ -65,14 +65,14 @@ template<class NodeT>
 inline void BasicBlockNode<NodeT>::removePredecessor(BasicBlockNodeT *Pred) {
   size_t Removed = 0;
   Predecessors.erase(std::remove_if(Predecessors.begin(),
-                                   Predecessors.end(),
-                                   [&Removed, Pred](BasicBlockNodeT *B) {
-                                     if (B == Pred) {
-                                       Removed++;
-                                       return true;
-                                     }
-                                     return false;
-                                   }),
+                                    Predecessors.end(),
+                                    [&Removed, Pred](BasicBlockNodeT *B) {
+                                      if (B == Pred) {
+                                        Removed++;
+                                        return true;
+                                      }
+                                      return false;
+                                    }),
                      Predecessors.end());
   revng_assert(Removed == 1); // needs to remove exactly one predecessor
 }
@@ -152,7 +152,6 @@ BasicBlockNode<NodeT>::isEquivalentTo(BasicBlockNodeT *Other) const {
   }
 
   return ComparisonState;
-
 }
 
 #endif // REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODEIMPL_H

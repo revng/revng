@@ -297,8 +297,8 @@ RegionCFG<NodeT>::orderNodes(BasicBlockNodeTVect &L, bool DoReverse) {
 
 template<class NodeT>
 template<typename StreamT>
-inline void RegionCFG<NodeT>::streamNode(StreamT &S,
-                                         const BasicBlockNodeT *BB) const {
+inline void
+RegionCFG<NodeT>::streamNode(StreamT &S, const BasicBlockNodeT *BB) const {
   unsigned NodeID = BB->getID();
   S << "\"" << NodeID << "\"";
   S << " ["
@@ -341,7 +341,7 @@ inline void RegionCFG<NodeT>::dumpDotOnFile(std::string FolderName,
   DotFile.open(PathName + "/" + FileName + ".dot");
   if (DotFile.is_open()) {
     dumpDot(DotFile);
-  DotFile.close();
+    DotFile.close();
   } else {
     revng_abort("Could not open file for dumping dot file.");
   }
@@ -559,7 +559,7 @@ inline void RegionCFG<NodeT>::inflate() {
       // the fallthrough branch, but we need to dominate the other in such a way
       // that we can completely absorb it).
       if (Intersection.size() != 0
-          or (not (ThenIsDominated or ElseIsDominated))) {
+          or (not(ThenIsDominated or ElseIsDominated))) {
         ConditionalNodes.push_back(*It);
         ConditionalNodesComplete.insert(*It);
       } else {
@@ -891,16 +891,12 @@ inline void RegionCFG<NodeT>::generateAst() {
         if (Node->isCheck()) {
           if (BBChildren[0] == Node->getTrue()
               and BBChildren[1] == Node->getFalse()) {
-            ASTObject.reset(new IfCheckNode(Node,
-                                            ASTChildren[0],
-                                            ASTChildren[1],
-                                            nullptr));
+            ASTObject.reset(
+              new IfCheckNode(Node, ASTChildren[0], ASTChildren[1], nullptr));
           } else if (BBChildren[1] == Node->getTrue()
                      and BBChildren[0] == Node->getFalse()) {
-            ASTObject.reset(new IfCheckNode(Node,
-                                            ASTChildren[1],
-                                            ASTChildren[0],
-                                            nullptr));
+            ASTObject.reset(
+              new IfCheckNode(Node, ASTChildren[1], ASTChildren[0], nullptr));
           } else {
             revng_abort("Then and else branches cannot be matched");
           }
@@ -916,8 +912,7 @@ inline void RegionCFG<NodeT>::generateAst() {
                                      nullptr));
         }
       } else if (Children.size() == 1) {
-        revng_assert(not Node->isBreak()
-                     and not Node->isContinue());
+        revng_assert(not Node->isBreak() and not Node->isContinue());
         if (Node->isSet()) {
           ASTObject.reset(new SetNode(Node, ASTChildren[0]));
         } else if (Node->isCheck()) {
@@ -926,15 +921,11 @@ inline void RegionCFG<NodeT>::generateAst() {
           // condition blacklisting (the other branch is the fallthrough
           // branch).
           if (BBChildren[0] == Node->getTrue()) {
-            ASTObject.reset(new IfCheckNode(Node,
-                                            ASTChildren[0],
-                                            nullptr,
-                                            nullptr));
+            ASTObject.reset(
+              new IfCheckNode(Node, ASTChildren[0], nullptr, nullptr));
           } else if (BBChildren[0] == Node->getFalse()) {
-            ASTObject.reset(new IfCheckNode(Node,
-                                            nullptr,
-                                            ASTChildren[0],
-                                            nullptr));
+            ASTObject.reset(
+              new IfCheckNode(Node, nullptr, ASTChildren[0], nullptr));
           }
         } else {
           ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
@@ -1037,13 +1028,14 @@ RegionCFG<NodeT>::removeNotReachables(std::vector<MetaRegion<NodeT> *> &MS) {
   }
 }
 
-template <class NodeT>
+template<class NodeT>
 inline bool RegionCFG<NodeT>::isDAG() {
   bool FoundSCC = false;
 
   for (llvm::scc_iterator<RegionCFG<NodeT> *> I = llvm::scc_begin(this),
                                               IE = llvm::scc_end(this);
-                                              I != IE; ++I) {
+       I != IE;
+       ++I) {
     const std::vector<BasicBlockNode<NodeT> *> &SCC = *I;
     if (SCC.size() != 1) {
       FoundSCC = true;

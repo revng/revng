@@ -884,8 +884,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
                 addEdge(EdgeDescriptor(ClonedMap.at(Node), Head));
               } else {
                 // Other edges should be restored between cloned nodes.
-                addEdge(
-                  EdgeDescriptor(ClonedMap.at(Node), ClonedMap.at(Successor)));
+                addEdge(EdgeDescriptor(ClonedMap.at(Node),
+                                       ClonedMap.at(Successor)));
               }
             } else {
               // Edges exiting from the SCS should go to the right target.
