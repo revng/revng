@@ -747,7 +747,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
       for (EdgeDescriptor R : Retreatings) {
         Idx = RetreatingIdxMap[R.second];
-        auto *SetNode = RootCFG.addSetStateNode(Idx);
+        auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
         Meta->insertNode(SetNode);
         moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
         addEdge(EdgeDescriptor(SetNode, Head));
@@ -839,6 +839,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     for (BasicBlockNodeBB *Node : Meta->nodes()) {
       if (Node != Head) {
         BasicBlockNodeBB *Clone = RootCFG.cloneNode(*Node);
+        Clone->setName(Node->getName().str() + " outlined");
         ClonedMap[Node] = Clone;
       }
     }
@@ -933,7 +934,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
       unsigned Value = RetreatingTargets.size() - 1;
       for (BasicBlockNodeBB *Pred : SetCandidates) {
-        BasicBlockNodeBB *Set = RootCFG.addSetStateNode(Value);
+        BasicBlockNodeBB *Set = RootCFG.addSetStateNode(Value, Head->getName());
         DefaultEntrySet.push_back(Set);
         moveEdgeTarget(EdgeDescriptor(Pred, Head), Set);
         addEdge(EdgeDescriptor(Set, Head));
@@ -1005,7 +1006,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
       for (EdgeDescriptor Edge : OutEdges) {
         Idx = SuccessorsIdxMap.at(Edge.second);
-        auto *IdxSetNode = RootCFG.addSetStateNode(Idx);
+        auto *IdxSetNode = RootCFG.addSetStateNode(Idx, Edge.second->getName());
         Meta->insertNode(IdxSetNode);
         moveEdgeTarget(EdgeDescriptor(Edge.first, Edge.second), IdxSetNode);
         addEdge(EdgeDescriptor(IdxSetNode, Edge.second));

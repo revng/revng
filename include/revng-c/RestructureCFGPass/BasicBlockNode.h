@@ -11,6 +11,7 @@
 
 // LLVM includes
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/BasicBlock.h"
 
@@ -67,7 +68,7 @@ protected:
   Type NodeType;
 
   /// Name of the basic block.
-  llvm::StringRef Name;
+  llvm::SmallString<32> Name;
 
   unsigned StateVariableValue;
 
@@ -114,17 +115,22 @@ public:
 
   /// \brief Constructor for nodes representing collapsed subgraphs
   explicit BasicBlockNode(RegionCFGT *Parent, RegionCFGT *Collapsed) :
-    BasicBlockNode(Parent, nullptr, Collapsed, "", Type::Collapsed) {}
+    BasicBlockNode(Parent, nullptr, Collapsed, "collapsed", Type::Collapsed) {}
 
   /// \brief Constructor for empty dummy nodes
-  explicit BasicBlockNode(RegionCFG<NodeT> *Parent, Type T) :
-    BasicBlockNode(Parent, nullptr, nullptr, "", T) {
+  explicit BasicBlockNode(RegionCFG<NodeT> *Parent,
+                          llvm::StringRef Name,
+                          Type T) :
+    BasicBlockNode(Parent, nullptr, nullptr, Name, T) {
     revng_assert(T == Type::Empty or T == Type::Break or T == Type::Continue);
   }
 
   /// \brief Constructor for dummy nodes that handle the state variable
-  explicit BasicBlockNode(RegionCFGT *Parent, Type T, unsigned Value) :
-    BasicBlockNode(Parent, nullptr, nullptr, "", T, Value) {
+  explicit BasicBlockNode(RegionCFGT *Parent,
+                          llvm::StringRef Name,
+                          Type T,
+                          unsigned Value) :
+    BasicBlockNode(Parent, nullptr, nullptr, Name, T, Value) {
     revng_assert(T == Type::Set or T == Type::Check);
   }
 
@@ -278,6 +284,8 @@ public:
   std::string getNameStr() const {
     return "ID:" + std::to_string(getID()) + " " + getName().str();
   }
+
+  void setName(llvm::StringRef N) { Name = N; }
 
   bool isCollapsed() const { return NodeType == Type::Collapsed; }
   RegionCFGT *getCollapsedCFG() { return CollapsedRegion; }

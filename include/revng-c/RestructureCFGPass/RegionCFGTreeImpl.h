@@ -149,17 +149,14 @@ RegionCFG<NodeT>::cloneNode(BasicBlockNodeT &OriginalNode) {
   BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(OriginalNode,
                                                             this));
   BasicBlockNodeT *New = BlockNodes.back().get();
-
-  // TODO: find a way to append to the original name the "cloned" suffix. Simply
-  //       concatenating with as below causes memory corruption (StringRef).
-  //New->setName(OriginalNode.getName() + " cloned");
+  New->setName(OriginalNode.getName().str() + " cloned");
   return New;
 }
 
 template<class NodeT>
 inline void RegionCFG<NodeT>::removeNode(BasicBlockNodeT *Node) {
 
-  CombLogger << "Removing node named: " << Node->getNameStr() << "\n";
+  revng_log(CombLogger, "Removing node named: " << Node->getNameStr() << "\n");
 
   for (BasicBlockNodeT *Predecessor : Node->predecessors()) {
     Predecessor->removeSuccessor(Node);

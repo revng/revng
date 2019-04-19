@@ -121,24 +121,7 @@ inline void BasicBlockNode<NodeT>::updatePointers(const BBNodeMap &SubMap) {
 
 template<class NodeT>
 inline llvm::StringRef BasicBlockNode<NodeT>::getName() const {
-  switch (NodeType) {
-    case Type::Code:
-      return Name;
-    case Type::Empty:
-      return "dummy";
-    case Type::Break:
-      return "break";
-    case Type::Continue:
-      return "continue";
-    case Type::Set:
-      return "set " + std::to_string(getStateVariableValue());
-    case Type::Check:
-      return "check " + std::to_string(getStateVariableValue());
-    case Type::Collapsed:
-      return "collapsed";
-    default:
-      revng_abort("Artificial node not expected");
-  }
+  return llvm::StringRef(Name);
 }
 
 template<class NodeT>

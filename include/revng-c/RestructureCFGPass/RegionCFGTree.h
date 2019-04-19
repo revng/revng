@@ -142,16 +142,17 @@ public:
   }
 
   BasicBlockNode<NodeT> *
-  addArtificialNode(BasicBlockNodeType T = BasicBlockNodeType::Empty) {
-    BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(this, T));
+  addArtificialNode(llvm::StringRef Name = "dummy",
+                    BasicBlockNodeType T = BasicBlockNodeType::Empty) {
+    BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(this, Name, T));
     return BlockNodes.back().get();
   }
 
   BasicBlockNode<NodeT> *addContinue() {
-    return addArtificialNode(BasicBlockNodeT::Type::Continue);
+    return addArtificialNode("continue", BasicBlockNodeT::Type::Continue);
   }
   BasicBlockNode<NodeT> *addBreak() {
-    return addArtificialNode(BasicBlockNodeT::Type::Break);
+    return addArtificialNode("break", BasicBlockNodeT::Type::Break);
   }
 
   BasicBlockNode<NodeT> *addDispatcher(unsigned StateVariableValue,
@@ -159,7 +160,10 @@ public:
                                        BasicBlockNodeT *False) {
     using Type = typename BasicBlockNodeT::Type;
     using BBNode = BasicBlockNodeT;
+    std::string IdStr = std::to_string(StateVariableValue);
+    std::string Name = "check idx " + IdStr;
     BlockNodes.emplace_back(std::make_unique<BBNode>(this,
+                                                     Name,
                                                      Type::Check,
                                                      StateVariableValue));
     BBNode *Dispatcher = BlockNodes.back().get();
@@ -169,10 +173,13 @@ public:
   }
 
   BasicBlockNode<NodeT> *
-  addSetStateNode(unsigned StateVariableValue) {
+  addSetStateNode(unsigned StateVariableValue, llvm::StringRef TargetName) {
     using Type = typename BasicBlockNodeT::Type;
     using BBNode = BasicBlockNodeT;
+    std::string IdStr = std::to_string(StateVariableValue);
+    std::string Name = "set idx " + IdStr;
     BlockNodes.emplace_back(std::make_unique<BBNode>(this,
+                                                     Name,
                                                      Type::Set,
                                                      StateVariableValue));
     return BlockNodes.back().get();
