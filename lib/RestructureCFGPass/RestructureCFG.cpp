@@ -218,6 +218,29 @@ static void sortMetaRegions(MetaRegionBBVect &MetaRegions) {
             });
 }
 
+static bool
+checkMetaregionConsistency(const MetaRegionBBVect &MetaRegions,
+                           const std::set<EdgeDescriptor> &Backedges) {
+  bool ComparisonState = true;
+  for (const MetaRegionBB &MetaRegion : MetaRegions) {
+    for (EdgeDescriptor Backedge : Backedges) {
+      BasicBlockNodeBB *Source = Backedge.first;
+      BasicBlockNodeBB *Target = Backedge.second;
+      if (MetaRegion.containsNode(Source)) {
+          //or MetaRegion.containsNode(Target)) {
+        if ((not MetaRegion.containsNode(Source)) or
+            (not MetaRegion.containsNode(Source))) {
+          ComparisonState = false;
+        }
+        revng_assert(MetaRegion.containsNode(Source));
+        revng_assert(MetaRegion.containsNode(Target));
+      }
+    }
+  }
+
+  return ComparisonState;
+}
+
 static void computeParents(MetaRegionBBVect &MetaRegions,
                            MetaRegionBB *RootMetaRegion) {
   for (MetaRegionBB &MetaRegion1 : MetaRegions) {
@@ -397,7 +420,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     CombLogger << "Backedges in the graph:\n";
     for (auto &Backedge : Backedges) {
       CombLogger << Backedge.first->getNameStr() << " -> "
-                << Backedge.second->getNameStr() << "\n";
+                 << Backedge.second->getNameStr() << "\n";
     }
   }
 
@@ -408,7 +431,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Create meta regions
-  MetaRegionBBVect MetaRegions = createMetaRegions(Backedges);
+  MetaRegionBBVect MetaRegions = createMetaRegions(BackedgesVect);
 
   // Temporary map where to store the corrispondence between the backedge and
   // the SCS it gives origin to.
@@ -416,7 +439,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   unsigned MetaRegionIndex = 0;
   std::map<EdgeDescriptor, MetaRegionBB *> BackedgeMetaRegionMap;
   for (EdgeDescriptor Backedge : Backedges) {
-    BackedgeMetaRegionMap[Backedge] = &MetaRegions[MetaRegionIndex];
+    BackedgeMetaRegionMap[Backedge] = &MetaRegions.at(MetaRegionIndex);
     MetaRegionIndex++;
   }
 
@@ -441,6 +464,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // current region.
   simplifySCSAbnormalRetreating(MetaRegions, Backedges, BackedgeMetaRegionMap);
 
+  // Check consitency of metaregions simplified above.
+  revng_assert(checkMetaregionConsistency(MetaRegions, Backedges));
+
   // Print SCS after first simplification.
   if (CombLogger.isEnabled()) {
     CombLogger << "\n";
@@ -460,6 +486,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Simplify SCS in a fixed-point fashion.
   simplifySCS(MetaRegions);
+
+  // Check consitency of metaregions simplified above
+  revng_assert(checkMetaregionConsistency(MetaRegions, Backedges));
 
   // Print SCS after second simplification.
   if (CombLogger.isEnabled()) {
@@ -827,6 +856,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
         // Handle outgoing edges from SCS nodes.
         if (Node->isCheck()) {
           BasicBlockNodeBB *TrueSucc = Node->getTrue();
+          revng_assert(!Backedges.count(EdgeDescriptor(Node, TrueSucc)));
           if (Meta->containsNode(TrueSucc)) {
             if (TrueSucc == Head) {
               ClonedMap.at(Node)->setTrue(Head);
@@ -839,19 +869,20 @@ bool RestructureCFG::runOnFunction(Function &F) {
           }
 
           BasicBlockNodeBB *FalseSucc = Node->getFalse();
+          revng_assert(!Backedges.count(EdgeDescriptor(Node, FalseSucc)));
           if (Meta->containsNode(FalseSucc)) {
             if (FalseSucc == Head) {
               ClonedMap.at(Node)->setFalse(Head);
             } else {
               ClonedMap.at(Node)->setFalse(ClonedMap.at(FalseSucc));
             }
-          }
-          else{
+          } else {
             ClonedMap.at(Node)->setFalse(FalseSucc);
           }
 
         } else {
           for (BasicBlockNodeBB *Successor : Node->successors()) {
+            revng_assert(!Backedges.count(EdgeDescriptor(Node, Successor)));
             if (Meta->containsNode(Successor)) {
               // Handle edges pointing inside the SCS.
               if (Successor == Head) {
@@ -859,7 +890,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
                 addEdge(EdgeDescriptor(ClonedMap.at(Node), Head));
               } else {
                 // Other edges should be restored between cloned nodes.
-                addEdge(EdgeDescriptor(ClonedMap.at(Node), ClonedMap.at(Successor)));
+                addEdge(EdgeDescriptor(ClonedMap.at(Node),
+                        ClonedMap.at(Successor)));
               }
             } else {
               // Edges exiting from the SCS should go to the right target.
@@ -875,7 +907,19 @@ bool RestructureCFG::runOnFunction(Function &F) {
         }
         for (BasicBlockNodeBB *Predecessor : Predecessors) {
           if (!Meta->containsNode(Predecessor)) {
-            moveEdgeTarget(EdgeDescriptor(Predecessor, Node), ClonedMap.at(Node));
+            // Is the edge we are moving a backedge ?.
+            if (CombLogger.isEnabled()) {
+              CombLogger << "Index region: " << Meta->getIndex() << "\n";
+              CombLogger << "Backedge that we would insert: "
+                         << Predecessor->getNameStr() << " -> "
+                         << Node->getNameStr() << "\n";
+            }
+
+            // Are we moving a backedge with the first iteration outlining?
+            revng_assert(!Backedges.count(EdgeDescriptor(Predecessor, Node)));
+
+            moveEdgeTarget(EdgeDescriptor(Predecessor, Node),
+                           ClonedMap.at(Node));
           }
         }
       }
@@ -1010,6 +1054,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
         BasicBlockNodeBB *Target = Backedge.second;
         revng_assert(!Meta->containsNode(Source));
         if (Meta->containsNode(Target)) {
+          revng_assert(Target == Head);
           Backedges.erase(Backedge);
           Backedges.insert(EdgeDescriptor(Source, Collapsed));
           UpdatedBackedges = true;
@@ -1030,7 +1075,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
     for (EdgeDescriptor Edge : IncomingEdges) {
       BasicBlockNodeBB *OldSource = Edge.first;
-      moveEdgeTarget(Edge, Collapsed);
+      revng_assert(Edge.second == Head);
 
       // Check if the old edge was a backedge edge, and in case update the
       // information about backedges accordingly.
@@ -1038,6 +1083,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
         Backedges.erase(Edge);
         Backedges.insert(EdgeDescriptor(OldSource, Collapsed));
       }
+
+      moveEdgeTarget(Edge, Collapsed);
     }
 
     // Connect the outgoing edges to the collapsed node.
