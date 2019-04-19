@@ -43,15 +43,14 @@ Logger<> CombLogger("restructure");
 // EdgeDescriptor is a handy way to create and manipulate edges on the
 // RegionCFG.
 using BasicBlockNodeBB = BasicBlockNode<BasicBlock *>;
-using EdgeDescriptor = std::pair<BasicBlockNodeBB *,
-                                 BasicBlockNodeBB *>;
+using EdgeDescriptor = std::pair<BasicBlockNodeBB *, BasicBlockNodeBB *>;
 
 // Explicit instantation of template classes `Metaregion`.
 template class MetaRegion<BasicBlock *>;
 using MetaRegionBB = MetaRegion<BasicBlock *>;
 using MetaRegionBBVect = std::vector<MetaRegionBB>;
 using MetaRegionBBPtrVect = std::vector<MetaRegionBB *>;
-using BackedgeMetaRegionMap =  std::map<EdgeDescriptor, MetaRegionBB *>;
+using BackedgeMetaRegionMap = std::map<EdgeDescriptor, MetaRegionBB *>;
 
 static std::set<EdgeDescriptor> getBackedges(RegionCFG<BasicBlock *> &Graph) {
 
@@ -143,8 +142,7 @@ mergeSCSAbnormalRetreating(MetaRegionBBVect &MetaRegions,
                            const std::set<EdgeDescriptor> &Backedges,
                            BackedgeMetaRegionMap &BackedgeMetaRegionMap,
                            std::set<MetaRegionBB *> &BlacklistedMetaregions) {
-  for (auto RegionIt = MetaRegions.begin();
-       RegionIt != MetaRegions.end();
+  for (auto RegionIt = MetaRegions.begin(); RegionIt != MetaRegions.end();
        RegionIt++) {
     MetaRegionBB &Region = *RegionIt;
 
@@ -227,9 +225,8 @@ checkMetaregionConsistency(const MetaRegionBBVect &MetaRegions,
       BasicBlockNodeBB *Source = Backedge.first;
       BasicBlockNodeBB *Target = Backedge.second;
       if (MetaRegion.containsNode(Source)) {
-          //or MetaRegion.containsNode(Target)) {
-        if ((not MetaRegion.containsNode(Source)) or
-            (not MetaRegion.containsNode(Source))) {
+        if ((not MetaRegion.containsNode(Source))
+            or (not MetaRegion.containsNode(Source))) {
           ComparisonState = false;
         }
         revng_assert(MetaRegion.containsNode(Source));
@@ -241,8 +238,8 @@ checkMetaregionConsistency(const MetaRegionBBVect &MetaRegions,
   return ComparisonState;
 }
 
-static void computeParents(MetaRegionBBVect &MetaRegions,
-                           MetaRegionBB *RootMetaRegion) {
+static void
+computeParents(MetaRegionBBVect &MetaRegions, MetaRegionBB *RootMetaRegion) {
   for (MetaRegionBB &MetaRegion1 : MetaRegions) {
     bool ParentFound = false;
     for (MetaRegionBB &MetaRegion2 : MetaRegions) {
@@ -304,8 +301,7 @@ static MetaRegionBBPtrVect applyPartialOrder(MetaRegionBBVect &V) {
   return OrderedVector;
 }
 
-static bool alreadyInMetaregion(MetaRegionBBVect &V,
-                                BasicBlockNodeBB *N) {
+static bool alreadyInMetaregion(MetaRegionBBVect &V, BasicBlockNodeBB *N) {
 
   // Scan all the metaregions and check if a node is already contained in one of
   // them
@@ -321,8 +317,8 @@ static bool alreadyInMetaregion(MetaRegionBBVect &V,
 static MetaRegionBBVect
 createMetaRegions(const std::vector<EdgeDescriptor> &Backedges) {
   std::map<BasicBlockNodeBB *, std::set<BasicBlockNodeBB *>> AdditionalSCSNodes;
-  std::vector<std::pair<BasicBlockNodeBB *,
-                        std::set<BasicBlockNodeBB *>>> Regions;
+  std::vector<std::pair<BasicBlockNodeBB *, std::set<BasicBlockNodeBB *>>>
+    Regions;
   for (auto &Backedge : Backedges) {
     auto SCSNodes = findReachableNodes(*Backedge.second, *Backedge.first);
     AdditionalSCSNodes[Backedge.second].insert(SCSNodes.begin(),
@@ -357,12 +353,11 @@ createMetaRegions(const std::vector<EdgeDescriptor> &Backedges) {
           CombLogger << " and relative to node: ";
           CombLogger << Node->getNameStr() << "\n";
           AdditionalNodes.insert(AdditionalSCSNodes[Node].begin(),
-                       AdditionalSCSNodes[Node].end());
+                                 AdditionalSCSNodes[Node].end());
         }
       }
       Nodes.insert(AdditionalNodes.begin(), AdditionalNodes.end());
     } while (Nodes != OldNodes);
-
   }
 
   MetaRegionBBVect MetaRegions;
@@ -605,7 +600,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
     if (CombLogger.isEnabled()) {
       CombLogger << "\nAnalyzing region: " << Meta->getIndex() << "\n";
     }
-
 
     if (CombLogger.isEnabled()) {
 
@@ -863,8 +857,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
             } else {
               ClonedMap.at(Node)->setTrue(ClonedMap.at(TrueSucc));
             }
-          }
-          else {
+          } else {
             ClonedMap.at(Node)->setTrue(TrueSucc);
           }
 
@@ -890,8 +883,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
                 addEdge(EdgeDescriptor(ClonedMap.at(Node), Head));
               } else {
                 // Other edges should be restored between cloned nodes.
-                addEdge(EdgeDescriptor(ClonedMap.at(Node),
-                        ClonedMap.at(Successor)));
+                addEdge(
+                  EdgeDescriptor(ClonedMap.at(Node), ClonedMap.at(Successor)));
               }
             } else {
               // Edges exiting from the SCS should go to the right target.
