@@ -93,14 +93,11 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     simplifyShortCircuit(Scs->getBody(), AST, Mark);
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
-    for (auto &Case : Switch->cases()) {
-      simplifyShortCircuit(Case, AST, Mark);
-    }
 
-  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
-    for (auto &Case : SwitchCheck->cases()) {
+    for (auto &Case : Switch->unordered_cases())
       simplifyShortCircuit(Case, AST, Mark);
-    }
+    if (ASTNode *Default = Switch->getDefault())
+      simplifyShortCircuit(Default, AST, Mark);
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (If->hasBothBranches()) {
@@ -239,14 +236,11 @@ simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
     simplifyTrivialShortCircuit(Scs->getBody(), AST, Mark);
 
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
-    for (auto &Case : Switch->cases()) {
-      simplifyTrivialShortCircuit(Case, AST, Mark);
-    }
 
-  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
-    for (auto &Case : SwitchCheck->cases()) {
+    for (auto &Case : Switch->unordered_cases())
       simplifyTrivialShortCircuit(Case, AST, Mark);
-    }
+    if (ASTNode *Default = Switch->getDefault())
+      simplifyTrivialShortCircuit(Default, AST, Mark);
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (!If->hasElse()) {
@@ -315,7 +309,7 @@ static llvm::Value *getCaseValue(ASTNode *Node) {
   return Compare->getOperand(0);
 }
 
-static bool isSwitchCheck(ASTNode *Candidate) {
+static bool wasOriginalSwitch(ASTNode *Candidate) {
   llvm::BasicBlock *BB = Candidate->getOriginalBB();
 
   // Check that the if corresponds to an original basic block.
@@ -355,7 +349,7 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
 
     // Switch matching routine.
-    if (isSwitchCheck(If)) {
+    if (wasOriginalSwitch(If)) {
 
       // Get the Value of the condition.
       llvm::Value *SwitchValue = getCaseValue(If);
@@ -365,7 +359,7 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
       Candidates.push_back(If);
 
       // Continue to accumulate the IfEqual nodes until it is possible.
-      while (If->getElse() and isSwitchCheck(If->getElse())
+      while (If->getElse() and wasOriginalSwitch(If->getElse())
              and (SwitchValue == getCaseValue(If->getElse()))) {
         If = llvm::cast<IfNode>(If->getElse());
         Candidates.push_back(If);
@@ -384,13 +378,12 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
       ASTNode *DefaultCase = Candidates.back()->getElse();
       if (DefaultCase == nullptr)
         DefaultCase = AST.addSequenceNode();
-      Cases.push_back(DefaultCase);
-      CaseValues.push_back(Zero);
 
       // Create the switch node.
       auto Switch = std::make_unique<RegularSwitchNode>(SwitchValue,
                                                         Cases,
-                                                        CaseValues);
+                                                        CaseValues,
+                                                        DefaultCase);
 
       // Invoke the switch matching on the switch just reconstructed.
       matchSwitch(AST, Switch.get(), Mark);
@@ -410,13 +403,10 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
     }
 
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
-    for (auto &Case : Switch->cases()) {
+    for (auto &Case : Switch->unordered_cases())
       Case = matchSwitch(AST, Case, Mark);
-    }
-  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
-    for (auto &Case : SwitchCheck->cases()) {
-      Case = matchSwitch(AST, Case, Mark);
-    }
+    if (ASTNode *Default = Switch->getDefault())
+      Default = matchSwitch(AST, Default, Mark);
   }
 
   return RootNode;
@@ -453,7 +443,7 @@ static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
       CaseValues.push_back(Candidate->getCaseValue());
     }
 
-    // Collect the last else (which will become the default case).
+    // Collect the last else which always corresponds to case 0
     unsigned Zero = 0;
     if (ASTNode *DefaultCase = Candidates.back()->getElse()) {
       Cases.push_back(DefaultCase);
@@ -480,16 +470,11 @@ static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
     }
 
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
-    for (auto &Case : Switch->cases()) {
+    for (auto &Case : Switch->unordered_cases())
       Case = matchDispatcher(AST, Case, Mark);
-    }
-
-  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
-    for (auto &Case : SwitchCheck->cases()) {
-      Case = matchDispatcher(AST, Case, Mark);
-    }
+    if (ASTNode *Default = Switch->getDefault())
+      Default = matchDispatcher(AST, Default, Mark);
   }
-
   return RootNode;
 }
 
@@ -598,14 +583,11 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
     }
 
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
-    for (auto &Case : Switch->cases()) {
-      matchDoWhile(Case, AST);
-    }
 
-  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
-    for (auto &Case : SwitchCheck->cases()) {
+    for (auto &Case : Switch->unordered_cases())
       matchDoWhile(Case, AST);
-    }
+    if (ASTNode *Default = Switch->getDefault())
+      matchDoWhile(Default, AST);
 
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     ASTNode *Body = Scs->getBody();
@@ -680,14 +662,12 @@ static void addComputationToContinue(ASTNode *RootNode, IfNode *ConditionIf) {
       addComputationToContinue(If->getElse(), ConditionIf);
     }
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
-    for (auto &Case : Switch->cases()) {
-      addComputationToContinue(Case, ConditionIf);
-    }
 
-  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
-    for (auto &Case : SwitchCheck->cases()) {
+    for (auto &Case : Switch->unordered_cases())
       addComputationToContinue(Case, ConditionIf);
-    }
+    if (ASTNode *Default = Switch->getDefault())
+      addComputationToContinue(Default, ConditionIf);
+
   } else if (auto *Continue = llvm::dyn_cast<ContinueNode>(RootNode)) {
     Continue->addComputationIfNode(ConditionIf);
   }
@@ -707,14 +687,11 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
     }
 
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
-    for (auto &Case : Switch->cases()) {
-      matchWhile(Case, AST);
-    }
 
-  } else if (auto *SwitchCheck = llvm::dyn_cast<SwitchCheckNode>(RootNode)) {
-    for (auto &Case : SwitchCheck->cases()) {
+    for (auto &Case : Switch->unordered_cases())
       matchWhile(Case, AST);
-    }
+    if (ASTNode *Default = Switch->getDefault())
+      matchWhile(Default, AST);
 
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     ASTNode *Body = Scs->getBody();
@@ -826,8 +803,10 @@ protected:
       SwitchNode *Switch = llvm::cast<SwitchNode>(Node);
       if (not LoopStack.empty())
         LoopStack.back().second.push_back(Switch);
-      for (auto &Pair : Switch->cases())
-        exec(Pair, AST);
+      for (ASTNode *Case : Switch->unordered_cases())
+        exec(Case, AST);
+      if (ASTNode *Default = Switch->getDefault())
+        exec(Default, AST);
       if (not LoopStack.empty())
         LoopStack.back().second.pop_back();
     } break;

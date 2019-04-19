@@ -18,46 +18,25 @@
 
 using namespace llvm;
 
-bool CodeNode::isEqual(const ASTNode *Node) const {
-  if (auto *OtherCode = dyn_cast<CodeNode>(Node)) {
-    if ((getOriginalBB() != nullptr)
-        and (getOriginalBB() == OtherCode->getOriginalBB())) {
-      return true;
-    } else {
-      return false;
-    }
-  } else {
-    return false;
+void IfNode::updateCondExprPtr(ExprNodeMap &Map) {
+  if (not llvm::isa<IfCheckNode>(this)) {
+    revng_assert(ConditionExpression != nullptr);
+    ConditionExpression = Map[ConditionExpression];
   }
 }
 
-void CodeNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
-  // A CodeNode should not contain any reference to other AST nodes, we do not
-  // need to apply updates.
+void ContinueNode::addComputationIfNode(IfNode *ComputationIfNode) {
+  revng_assert(ComputationIf == nullptr);
+  ComputationIf = ComputationIfNode;
 }
 
-bool IfNode::isEqual(const ASTNode *Node) const {
-  if (auto *OtherIf = dyn_cast<IfNode>(Node)) {
-    if ((getOriginalBB() != nullptr)
-        and (getOriginalBB() == OtherIf->getOriginalBB())) {
-
-      // TODO: this is necessary since we may not have one between `then` or
-      //       `else` branches, refactor in a more elegant way
-      bool ComparisonState = true;
-      if (hasThen()) {
-        ComparisonState = Then->isEqual(OtherIf->getThen());
-      }
-      if (hasElse()) {
-        ComparisonState = Else->isEqual(OtherIf->getElse());
-      }
-      return ComparisonState;
-    } else {
-      return false;
-    }
-  } else {
-    return false;
-  }
+IfNode *ContinueNode::getComputationIfNode() const {
+  revng_assert(ComputationIf != nullptr);
+  return ComputationIf;
 }
+
+
+// #### updateASTNodesPointers methods ####
 
 void IfNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // Update the pointers to the `then` and `else` branches.
@@ -72,61 +51,6 @@ void IfNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   }
 }
 
-void IfNode::updateCondExprPtr(ExprNodeMap &Map) {
-  if (not llvm::isa<IfCheckNode>(this)) {
-    revng_assert(ConditionExpression != nullptr);
-    ConditionExpression = Map[ConditionExpression];
-  }
-}
-
-bool ScsNode::isEqual(const ASTNode *Node) const {
-  if (auto *OtherScs = dyn_cast<ScsNode>(Node)) {
-    if (Body->isEqual(OtherScs->getBody())) {
-      return true;
-    } else {
-      return false;
-    }
-  } else {
-    return false;
-  }
-}
-
-void ScsNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
-  // The link to the body AST node should be fixed explicitly during the
-  // flattening.
-}
-
-bool SequenceNode::isEqual(const ASTNode *Node) const {
-  if (auto *OtherSequence = dyn_cast<SequenceNode>(Node)) {
-    bool ComparisonState = true;
-    int FirstDimension = NodeList.size();
-    int SecondDimension = OtherSequence->listSize();
-    if (FirstDimension != SecondDimension) {
-      ComparisonState = false;
-    }
-
-    // Continue the comparison only if the sequence node size are the same
-    if (ComparisonState) {
-      revng_assert(FirstDimension == SecondDimension);
-      for (int I = 0; I < FirstDimension; I++) {
-        ASTNode *FirstNode = getNodeN(I);
-        ASTNode *SecondNode = OtherSequence->getNodeN(I);
-
-        // As soon as two nodes does not match, exit and make the comparison
-        // fail
-        if (!FirstNode->isEqual(SecondNode)) {
-          ComparisonState = false;
-          break;
-        }
-      }
-    }
-
-    return ComparisonState;
-  } else {
-    return false;
-  }
-}
-
 void SequenceNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // Update all the pointers of the sequence node.
   for (auto NodeIt = NodeList.begin(); NodeIt != NodeList.end(); NodeIt++) {
@@ -137,33 +61,152 @@ void SequenceNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   }
 }
 
-void BreakNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
-  ASTFile << "label=\"loop break\"";
-  ASTFile << ",shape=\"box\",color=\"red\"];\n";
+void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
+  for (auto &Case : CaseVec)
+    Case = SubstitutionMap.at(Case);
 }
 
-void SwitchBreakNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
-  ASTFile << "label=\"switch break\"";
-  ASTFile << ",shape=\"box\",color=\"red\"];\n";
+
+// #### isEqual methods ####
+
+template<typename SwitchNodeType>
+typename SwitchNodeType::case_value
+getCaseValueN(const SwitchNodeType *S, int N) {
+  return cast<SwitchNodeType>(S)->getCaseValueN(N);
 }
 
-void ContinueNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
-  ASTFile << "label=\"continue\"";
-  ASTFile << ",shape=\"box\",color=\"red\"];\n";
+bool SwitchNode::hasEqualCaseValues(const SwitchNode *Node) const {
+  if (this->getKind() != Node->getKind())
+    return false;
+  revng_assert(CaseSize() == Node->CaseSize());
+
+  auto *SwitchCheckThis = dyn_cast<SwitchCheckNode>(this);
+  auto *RegSwitchThis = dyn_cast<RegularSwitchNode>(this);
+  auto *SwitchCheckOther = dyn_cast<SwitchCheckNode>(Node);
+  auto *RegSwitchOther = dyn_cast<RegularSwitchNode>(Node);
+  for (int I = 0; I < CaseSize(); I++) {
+    if (SwitchCheckThis != nullptr) {
+      uint64_t ThisCase = getCaseValueN(SwitchCheckThis, I);
+      uint64_t OtherCase = getCaseValueN(SwitchCheckOther, I);
+      if (ThisCase != OtherCase)
+        return false;
+    } else {
+      revng_assert(RegSwitchThis != nullptr);
+      llvm::ConstantInt *ThisCase = getCaseValueN(RegSwitchThis, I);
+      llvm::ConstantInt *OtherCase = getCaseValueN(RegSwitchOther, I);
+      if (ThisCase->getSExtValue() != OtherCase->getSExtValue())
+        return false;
+    }
+  }
+
+  return true;
 }
 
-void ContinueNode::addComputationIfNode(IfNode *ComputationIfNode) {
-  revng_assert(ComputationIf == nullptr);
-  ComputationIf = ComputationIfNode;
+bool SwitchNode::isEqual(const ASTNode *Node) const {
+  auto *OtherSwitch = dyn_cast_or_null<RegularSwitchNode>(Node);
+  if (OtherSwitch == nullptr)
+    return false;
+
+  ASTNode *OtherDefault = OtherSwitch->getDefault();
+  ASTNode *ThisDefault = this->getDefault();
+  if ((OtherDefault == nullptr) != (ThisDefault == nullptr))
+    return false;
+  if (ThisDefault and not ThisDefault->isEqual(OtherDefault))
+    return false;
+
+  int FirstDimension = CaseSize();
+  int SecondDimension = OtherSwitch->CaseSize();
+  // Continue the comparison only if the sequence node size are the same
+  if (FirstDimension != SecondDimension)
+    return false;
+
+  // TODO: here we assume that the cases are in the same order, which has been
+  // true until now but it's not guaranteed. We should enforce that this
+  // equality check is performed on cases with the same values.
+  if (not hasEqualCaseValues(OtherSwitch))
+    return false;
+
+  for (int I = 0; I < FirstDimension; I++) {
+    ASTNode *FirstNode = getCaseN(I);
+    ASTNode *SecondNode = OtherSwitch->getCaseN(I);
+
+    // As soon as two nodes does not match, exit and make the comparison fail
+    if (!FirstNode->isEqual(SecondNode))
+      return false;
+  }
+
+  return true;
 }
 
-IfNode *ContinueNode::getComputationIfNode() const {
-  revng_assert(ComputationIf != nullptr);
-  return ComputationIf;
+bool CodeNode::isEqual(const ASTNode *Node) const {
+  auto *OtherCode = dyn_cast_or_null<CodeNode>(Node);
+  if (OtherCode == nullptr)
+  return false;
+
+  return (getOriginalBB() != nullptr)
+         and (getOriginalBB() == OtherCode->getOriginalBB());
 }
+
+bool IfNode::isEqual(const ASTNode *Node) const {
+  auto *OtherIf = dyn_cast_or_null<IfNode>(Node);
+  if (OtherIf == nullptr)
+    return false;
+
+  if ((getOriginalBB() != nullptr)
+      and (getOriginalBB() == OtherIf->getOriginalBB())) {
+
+    // TODO: this is necessary since we may not have one between `then` or
+    //       `else` branches, refactor in a more elegant way
+    bool ComparisonState = true;
+    if (hasThen())
+      ComparisonState = Then->isEqual(OtherIf->getThen());
+    if (hasElse())
+      ComparisonState = Else->isEqual(OtherIf->getElse());
+    return ComparisonState;
+  }
+  return false;
+}
+
+bool ScsNode::isEqual(const ASTNode *Node) const {
+  auto *OtherScs = dyn_cast_or_null<ScsNode>(Node);
+  if (OtherScs == nullptr)
+    return false;
+
+  return Body->isEqual(OtherScs->getBody());
+}
+
+bool SetNode::isEqual(const ASTNode *Node) const {
+  auto *OtherSet = dyn_cast_or_null<SetNode>(Node);
+  if (OtherSet == nullptr)
+    return false;
+  return StateVariableValue == OtherSet->getStateVariableValue();
+}
+
+bool SequenceNode::isEqual(const ASTNode *Node) const {
+  auto *OtherSequence = dyn_cast_or_null<SequenceNode>(Node);
+  if (OtherSequence == nullptr)
+    return false;
+
+  int FirstDimension = NodeList.size();
+  int SecondDimension = OtherSequence->listSize();
+  // Continue the comparison only if the sequence node size are the same
+  if (FirstDimension != SecondDimension)
+    return false;
+
+  revng_assert(FirstDimension == SecondDimension);
+  for (int I = 0; I < FirstDimension; I++) {
+    ASTNode *FirstNode = getNodeN(I);
+    ASTNode *SecondNode = OtherSequence->getNodeN(I);
+
+    // As soon as two nodes does not match, exit and make the comparison fail
+    if (!FirstNode->isEqual(SecondNode))
+      return false;
+  }
+  return true;
+}
+
+
+// #### Dump methods ####
 
 void CodeNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"" << this->getName() << "\" [";
@@ -236,7 +279,7 @@ void RegularSwitchNode::dump(std::ofstream &ASTFile) {
   ASTFile << ",shape=\"hexagon\",color=\"black\"];\n";
 
   int CaseIndex = 0;
-  for (ASTNode *Case: this->cases()) {
+  for (ASTNode *Case : this->unordered_cases()) {
     uint64_t CaseVal = CaseValueVec[CaseIndex]->getZExtValue();
     ASTFile << "\"" << this->getName() << "\""
             << " -> \"" << Case->getName() << "\""
@@ -244,54 +287,30 @@ void RegularSwitchNode::dump(std::ofstream &ASTFile) {
     Case->dump(ASTFile);
     ++CaseIndex;
   }
-}
-
-bool RegularSwitchNode::isEqual(const ASTNode *Node) const {
-  if (auto *OtherSwitch = dyn_cast<RegularSwitchNode>(Node)) {
-    bool ComparisonState = true;
-    int FirstDimension = CaseSize();
-    int SecondDimension = OtherSwitch->CaseSize();
-    if (FirstDimension != SecondDimension) {
-      ComparisonState = false;
-    }
-
-    // Continue the comparison only if the sequence node size are the same
-    if (ComparisonState) {
-      revng_assert(FirstDimension == SecondDimension);
-      for (int I = 0; I < FirstDimension; I++) {
-        ASTNode *FirstNode = getCaseN(I);
-        ASTNode *SecondNode = OtherSwitch->getCaseN(I);
-
-        // As soon as two nodes does not match, exit and make the comparison
-        // fail
-        if (!FirstNode->isEqual(SecondNode)) {
-          ComparisonState = false;
-          break;
-        }
-      }
-    }
-
-    return ComparisonState;
-  } else {
-    return false;
+  if (ASTNode *Default = this->getDefault()) {
+    ASTFile << "\"" << this->getName() << "\""
+            << " -> \"" << Default->getName() << "\""
+            << " [color=green,label=\"default\"];\n";
+    Default->dump(ASTFile);
   }
 }
 
-void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
-  for (auto &Case : CaseVec)
-    Case = SubstitutionMap.at(Case);
+void BreakNode::dump(std::ofstream &ASTFile) {
+  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "label=\"loop break\"";
+  ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
-bool SetNode::isEqual(const ASTNode *Node) const {
-  if (auto *OtherSet = dyn_cast<SetNode>(Node)) {
-    if (StateVariableValue == OtherSet->getStateVariableValue()) {
-      return true;
-    } else {
-      return false;
-    }
-  } else {
-    return false;
-  }
+void SwitchBreakNode::dump(std::ofstream &ASTFile) {
+  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "label=\"switch break\"";
+  ASTFile << ",shape=\"box\",color=\"red\"];\n";
+}
+
+void ContinueNode::dump(std::ofstream &ASTFile) {
+  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "label=\"continue\"";
+  ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
 void SetNode::dump(std::ofstream &ASTFile) {
@@ -299,10 +318,6 @@ void SetNode::dump(std::ofstream &ASTFile) {
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
-}
-
-void SetNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
-  // A SetNode should not contain any reference to other AST nodes.
 }
 
 void IfCheckNode::dump(std::ofstream &ASTFile) {
@@ -335,7 +350,7 @@ void SwitchCheckNode::dump(std::ofstream &ASTFile) {
   ASTFile << ",shape=\"hexagon\",color=\"black\"];\n";
 
   int CaseIndex = 0;
-  for (ASTNode *Case : this->cases()) {
+  for (ASTNode *Case : this->unordered_cases()) {
     uint64_t CaseVal = CaseValueVec[CaseIndex];
     ASTFile << "\"" << this->getName() << "\""
             << " -> \"" << Case->getName() << "\""
@@ -343,35 +358,10 @@ void SwitchCheckNode::dump(std::ofstream &ASTFile) {
     Case->dump(ASTFile);
     ++CaseIndex;
   }
-}
-
-bool SwitchCheckNode::isEqual(const ASTNode *Node) const {
-  if (auto *OtherSwitch = dyn_cast<SwitchCheckNode>(Node)) {
-    bool ComparisonState = true;
-    int FirstDimension = CaseSize();
-    int SecondDimension = OtherSwitch->CaseSize();
-    if (FirstDimension != SecondDimension) {
-      ComparisonState = false;
-    }
-
-    // Continue the comparison only if the sequence node size are the same
-    if (ComparisonState) {
-      revng_assert(FirstDimension == SecondDimension);
-      for (int I = 0; I < FirstDimension; I++) {
-        ASTNode *FirstNode = getCaseN(I);
-        ASTNode *SecondNode = OtherSwitch->getCaseN(I);
-
-        // As soon as two nodes does not match, exit and make the comparison
-        // fail
-        if (!FirstNode->isEqual(SecondNode)) {
-          ComparisonState = false;
-          break;
-        }
-      }
-    }
-
-    return ComparisonState;
-  } else {
-    return false;
+  if (ASTNode *Default = this->getDefault()) {
+    ASTFile << "\"" << this->getName() << "\""
+            << " -> \"" << Default->getName() << "\""
+            << " [color=green,label=\"default\"];\n";
+    Default->dump(ASTFile);
   }
 }

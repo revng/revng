@@ -415,7 +415,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     SmallVector<clang::Stmt *, 8> BodyStmts;
     int CaseIndex = 0;
     // Generate all the cases ony by one
-    for (ASTNode *CaseNode : Switch->cases()) {
+    for (ASTNode *CaseNode : Switch->unordered_cases()) {
       clang::Expr *CaseExpr = nullptr;
       // Retrieve the value for each case
       if (Kind == ASTNode::NodeKind::NK_SwitchCheck) {
@@ -441,6 +441,21 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       BodyStmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
       SwitchStatement->addSwitchCase(Case);
       ++CaseIndex;
+    }
+    if (ASTNode *Default = Switch->getDefault()) {
+      // Build the case
+      auto *Def = new (ASTCtx) clang::DefaultStmt({}, {}, nullptr);
+      // Build the body of the case
+      clang::Stmt *DefBody = buildCompoundScope(Default,
+                                                ASTCtx,
+                                                ASTBuilder,
+                                                Mark);
+      Def->setSubStmt(DefBody);
+      BodyStmts.push_back(Def);
+      BodyStmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
+      SwitchStatement->addSwitchCase(Def);
+    } else if (Kind == ASTNode::NodeKind::NK_SwitchCheck) {
+      // TODO: the default of the SwitchCheck should be an abort
     }
     clang::Stmt *SwitchBody = CompoundStmt::Create(ASTCtx, BodyStmts, {}, {});
     SwitchStatement->setBody(SwitchBody);

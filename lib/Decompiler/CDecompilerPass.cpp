@@ -6,6 +6,7 @@
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IRReader/IRReader.h>
+#include <llvm/Support/Error.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
@@ -73,22 +74,18 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   }
 
   std::string FNameModel = "revng-c-" + F.getName().str() + "-%%%%%%%%%%%%.c";
-  SmallVector<char, 64> ActualFName;
+  using namespace llvm::sys::fs;
+  unsigned Perm = static_cast<unsigned>(perms::owner_write)
+                  | static_cast<unsigned>(perms::owner_read);
+  llvm::Expected<TempFile> Tmp = TempFile::create(FNameModel, Perm);
+  revng_assert(Tmp);
+  if (not Tmp)
+    return false;
+
   {
-    int FD;
-    using namespace llvm::sys::fs;
-    unsigned Perm = static_cast<unsigned>(perms::owner_write)
-                    | static_cast<unsigned>(perms::owner_read);
-    std::error_code Err = createUniqueFile(FNameModel, FD, ActualFName, Perm);
-    revng_assert(not Err);
-    if (Err)
-      return false;
-
-    llvm::raw_fd_ostream FDStream(FD, /* ShouldClose */ true);
-    FDStream << "#include <stdint.h>\n"
-             << "#include <stdbool.h>\n";
+    llvm::raw_fd_ostream FDStream(Tmp->FD, /* ShouldClose */ true);
+    FDStream << "#include <stdint.h>\n";
   }
-
 
   // This is a hack to prevent clashes between LLVM's `opt` arguments and
   // clangTooling's CommonOptionParser arguments.
@@ -127,7 +124,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   // Here we build the artificial command line for clang tooling
   static std::array<const char *, 5> ArgV = {
     "revng-c",
-    ActualFName.data(),
+    Tmp->TmpName.data(),
     "--", // separator between tool arguments and clang arguments
     "-xc", // tell clang to compile C language
     "-std=c11", // tell clang to compile C11
@@ -147,6 +144,10 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   using FactoryUniquePtr = std::unique_ptr<FrontendActionFactory>;
   FactoryUniquePtr Factory = newFrontendActionFactory(&Decompilation);
   RevNg.run(Factory.get());
-
+  llvm::Error E = Tmp->keep();
+  if (E) {
+    // Do nothing, but check the error which otherwise throws if unchecked
+    llvm::consumeError(std::move(E));
+  }
   return true;
 }
