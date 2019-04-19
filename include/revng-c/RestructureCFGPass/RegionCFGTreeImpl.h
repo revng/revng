@@ -335,21 +335,31 @@ inline void RegionCFG<NodeT>::dumpDot(StreamT &S) const {
 
 template<class NodeT>
 inline void RegionCFG<NodeT>::dumpDotOnFile(std::string FolderName,
-                              std::string FunctionName,
-                              std::string FileName) const {
+                                            std::string FunctionName,
+                                            std::string FileName) const {
   std::ofstream DotFile;
   std::string PathName = FolderName + "/" + FunctionName;
   mkdir(FolderName.c_str(), 0775);
   mkdir(PathName.c_str(), 0775);
   DotFile.open(PathName + "/" + FileName + ".dot");
-  dumpDot(DotFile);
+  if (DotFile.is_open()) {
+    dumpDot(DotFile);
+  DotFile.close();
+  } else {
+    revng_abort("Could not open file for dumping dot file.");
+  }
 }
 
 template<class NodeT>
 inline void RegionCFG<NodeT>::dumpDotOnFile(std::string FileName) const {
   std::ofstream DotFile;
   DotFile.open(FileName);
-  dumpDot(DotFile);
+  if (DotFile.is_open()) {
+    dumpDot(DotFile);
+    DotFile.close();
+  } else {
+    revng_abort("Could not open file for dumping dot.");
+  }
 }
 
 template<class NodeT>

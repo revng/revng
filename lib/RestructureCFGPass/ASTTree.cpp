@@ -167,10 +167,15 @@ void ASTTree::dumpOnFile(std::string FolderName,
   mkdir(FolderName.c_str(), 0775);
   mkdir(PathName.c_str(), 0775);
   ASTFile.open(PathName + "/" + FileName + ".dot");
-  ASTFile << "digraph CFGFunction {\n";
-  RootNode->dump(ASTFile);
-  ASTFile << "}\n";
-  ASTFile.close();
+  if (ASTFile.is_open()) {
+    ASTFile << "digraph CFGFunction {\n";
+    RootNode->dump(ASTFile);
+    ASTFile << "}\n";
+    ASTFile.close();
+  } else {
+    revng_abort("Could not open file for dumping AST.");
+  }
+
 }
 
 ExprNode *ASTTree::addCondExpr(std::unique_ptr<ExprNode> &&Expr) {

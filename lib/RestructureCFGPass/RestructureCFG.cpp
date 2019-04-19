@@ -153,7 +153,7 @@ mergeSCSAbnormalRetreating(MetaRegionBBVect &MetaRegions,
 
       // Iterate over all the backedges present in the graph, if the current
       // region contains the source of a backedge, it should contain also the
-      // the target of that backedge. If not, merge thw two SCSs.
+      // the target of that backedge. If not, merge the two SCSs.
       for (EdgeDescriptor Backedge : Backedges) {
         if (Region.containsNode(Backedge.first)) {
           if (!Region.containsNode(Backedge.second)) {
