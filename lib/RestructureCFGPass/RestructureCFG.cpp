@@ -357,8 +357,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Analyze only isolated functions.
   if (!F.getName().startswith("bb.")
       or F.getName().startswith("bb.quotearg_buffer_restyled")
-      or F.getName().startswith("bb._getopt_internal_r")
       or F.getName().startswith("bb.printf_parse")
+      or F.getName().startswith("bb.printf_core")
+      or F.getName().startswith("bb._Unwind_VRS_Pop")
       or F.getName().startswith("bb.vasnprintf")) {
     return false;
   }
@@ -384,12 +385,13 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Identify SCS regions.
-
   std::set<EdgeDescriptor> Backedges = getBackedges(RootCFG);
-  CombLogger << "Backedges in the graph:\n";
-  for (auto &Backedge : Backedges) {
-    CombLogger << Backedge.first->getNameStr() << " -> "
-               << Backedge.second->getNameStr() << "\n";
+  if (CombLogger.isEnabled()) {
+    CombLogger << "Backedges in the graph:\n";
+    for (auto &Backedge : Backedges) {
+      CombLogger << Backedge.first->getNameStr() << " -> "
+                << Backedge.second->getNameStr() << "\n";
+    }
   }
 
   // Create meta regions
@@ -405,23 +407,59 @@ bool RestructureCFG::runOnFunction(Function &F) {
     MetaRegionIndex++;
   }
 
+  // Print gross metaregions.
+  if (CombLogger.isEnabled()) {
+    CombLogger << "\n";
+    CombLogger << "Metaregions after nothing:\n";
+    for (auto &Meta : MetaRegions) {
+      CombLogger << "\n";
+      CombLogger << &Meta << "\n";
+      CombLogger << "With index " << Meta.getIndex() << "\n";
+      CombLogger << "With size " << Meta.nodes_size() << "\n";
+      CombLogger << "Is composed of nodes:\n";
+      auto &Nodes = Meta.getNodes();
+      for (auto *Node : Nodes) {
+        CombLogger << Node->getNameStr() << "\n";
+      }
+    }
+  }
+
   // Simplify SCS if they contain an edge which goes outside the scope of the
   // current region.
   simplifySCSAbnormalRetreating(MetaRegions, Backedges, BackedgeMetaRegionMap);
+
+  // Print SCS after first simplification.
+  if (CombLogger.isEnabled()) {
+    CombLogger << "\n";
+    CombLogger << "Metaregions after first simplification:\n";
+    for (auto &Meta : MetaRegions) {
+      CombLogger << "\n";
+      CombLogger << &Meta << "\n";
+      CombLogger << "With index " << Meta.getIndex() << "\n";
+      CombLogger << "With size " << Meta.nodes_size() << "\n";
+      CombLogger << "Is composed of nodes:\n";
+      auto &Nodes = Meta.getNodes();
+      for (auto *Node : Nodes) {
+        CombLogger << Node->getNameStr() << "\n";
+      }
+    }
+  }
 
   // Simplify SCS in a fixed-point fashion.
   sortMetaRegions(MetaRegions);
   simplifySCS(MetaRegions);
 
-  // Print SCS after simplification.
+  // Print SCS after second simplification.
   if (CombLogger.isEnabled()) {
     CombLogger << "\n";
-    CombLogger << "Metaregions after simplification:\n";
+    CombLogger << "Metaregions after second simplification:\n";
     for (auto &Meta : MetaRegions) {
       CombLogger << "\n";
       CombLogger << &Meta << "\n";
-      auto &Nodes = Meta.getNodes();
+      CombLogger << "With index " << Meta.getIndex() << "\n";
+      CombLogger << "With size " << Meta.nodes_size() << "\n";
       CombLogger << "Is composed of nodes:\n";
+      auto &Nodes = Meta.getNodes();
       for (auto *Node : Nodes) {
         CombLogger << Node->getNameStr() << "\n";
       }
@@ -438,6 +476,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     for (auto &Meta : MetaRegions) {
       CombLogger << "\n";
       CombLogger << &Meta << "\n";
+      CombLogger << "With index " << Meta.getIndex() << "\n";
+      CombLogger << "With size " << Meta.nodes_size() << "\n";
       CombLogger << "Is composed of nodes:\n";
       auto &Nodes = Meta.getNodes();
       for (auto *Node : Nodes) {
@@ -458,8 +498,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
     for (auto &Meta : MetaRegions) {
       CombLogger << "\n";
       CombLogger << &Meta << "\n";
-      auto &Nodes = Meta.getNodes();
+      CombLogger << "With index " << Meta.getIndex() << "\n";
+      CombLogger << "With size " << Meta.nodes_size() << "\n";
       CombLogger << "Is composed of nodes:\n";
+      auto &Nodes = Meta.getNodes();
       for (auto *Node : Nodes) {
         CombLogger << Node->getNameStr() << "\n";
       }
@@ -475,14 +517,14 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Print metaregions after ordering.
   if (CombLogger.isEnabled()) {
     CombLogger << "\n";
-    CombLogger << "Metaregions after ordering:\n";
+    CombLogger << "Metaregions after partial ordering:\n";
     for (auto *Meta : OrderedMetaRegions) {
       CombLogger << "\n";
       CombLogger << Meta << "\n";
       CombLogger << "With index " << Meta->getIndex() << "\n";
       CombLogger << "With size " << Meta->nodes_size() << "\n";
-      auto &Nodes = Meta->getNodes();
       CombLogger << "Is composed of nodes:\n";
+      auto &Nodes = Meta->getNodes();
       for (auto *Node : Nodes) {
         CombLogger << Node->getNameStr() << "\n";
       }

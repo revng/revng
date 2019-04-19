@@ -65,8 +65,9 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
     return false;
   // HACK!!!
   if (F.getName().startswith("bb.quotearg_buffer_restyled")
-      or F.getName().startswith("bb._getopt_internal_r")
       or F.getName().startswith("bb.printf_parse")
+      or F.getName().startswith("bb.printf_core")
+      or F.getName().startswith("bb._Unwind_VRS_Pop")
       or F.getName().startswith("bb.vasnprintf")) {
     return false;
   }
