@@ -311,7 +311,7 @@ use `revng lift` if you're just interested in lifting.
     if args.base:
       lift_options += ["--base", args.base]
 
-    subprocess.check_call(wrap([get_command("revng"), "lift",
+    subprocess.check_call(wrap([get_command("revng-lift"),
                                 "-g", "ll",
                                 "--debug-log", "jtcount",
                                 "--debug-log", "new-edges",
