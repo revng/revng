@@ -19,6 +19,14 @@ def is_executable(path):
   with open(path, "rb") as program:
     return program.read(4) == b"\x7fELF"
 
+def is_dynamic(path):
+  with open(path, "rb") as input_file:
+    return len([segment
+                for segment
+                in ELFFile(input_file).iter_segments()
+                if segment.header.p_type == "PT_DYNAMIC"]) != 0
+
+
 def interleave(base, repeat):
   return list(sum(zip([repeat] * len(base), base), ()))
 
@@ -268,6 +276,14 @@ def run_translate(args):
 
   # Extracted the architecture name
   architecture = get_architecture(input)
+
+  if is_dynamic(input) and architecture != "x86_64":
+    log_error("""
+rev.ng, currently, can only translate x86-64 dynamic binaries while the provided
+while the provided program targets {}.  Try with a statically linked program or
+use `revng lift` if you're just interested in lifting.
+    """.format(architecture).strip())
+    return -1
 
   # Check if tracing is enabled
   if args.trace:
