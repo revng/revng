@@ -129,6 +129,8 @@ def get_architecture(path):
     return "i386"
   elif arch_id == "020016":
     return "s390x"
+  elif arch_id == "01b700":
+    return "aarch64"
   else:
     log_error("Unknown architecture ID: {}".format(arch_id))
     assert False
