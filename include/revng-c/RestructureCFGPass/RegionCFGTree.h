@@ -160,6 +160,7 @@ public:
     using Type = typename BasicBlockNodeT::Type;
     using BBNode = BasicBlockNodeT;
     std::string IdStr = std::to_string(StateVariableValue);
+    // TODO: explicit in the check node the original destination nodes.
     std::string Name = "check idx " + IdStr;
     BlockNodes.emplace_back(std::make_unique<BBNode>(this,
                                                      Name,
@@ -176,7 +177,8 @@ public:
     using Type = typename BasicBlockNodeT::Type;
     using BBNode = BasicBlockNodeT;
     std::string IdStr = std::to_string(StateVariableValue);
-    std::string Name = "set idx " + IdStr;
+    std::string Name = "set idx " + IdStr
+                       + " (desired target) " + TargetName.str();
     BlockNodes.emplace_back(std::make_unique<BBNode>(this,
                                                      Name,
                                                      Type::Set,

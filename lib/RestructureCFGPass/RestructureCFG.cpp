@@ -370,6 +370,20 @@ createMetaRegions(const std::vector<EdgeDescriptor> &Backedges) {
   return MetaRegions;
 }
 
+static BasicBlockNodeBB *getCheckPredecessor(BasicBlockNodeBB *Node) {
+  bool CheckFound = false;
+  BasicBlockNodeBB *CheckPredecessor;
+  for (BasicBlockNodeBB *Predecessor : Node->predecessors()) {
+    if (Predecessor->isCheck()) {
+      revng_assert(not CheckFound);
+      CheckPredecessor = Predecessor;
+      CheckFound = true;
+    }
+  }
+
+  return CheckPredecessor;
+}
+
 char RestructureCFG::ID = 0;
 static RegisterPass<RestructureCFG> X("restructure-cfg",
                                       "Apply RegionCFG restructuring "
@@ -746,11 +760,34 @@ bool RestructureCFG::runOnFunction(Function &F) {
       revng_assert(Idx == RetreatingTargets.size());
 
       for (EdgeDescriptor R : Retreatings) {
-        Idx = RetreatingIdxMap[R.second];
-        auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
-        Meta->insertNode(SetNode);
-        moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
-        addEdge(EdgeDescriptor(SetNode, Head));
+        BasicBlockNodeBB *OriginalSource = R.first;
+
+        // If the original source is a set node, move it after the entry
+        // dispatcher.
+        if (OriginalSource->isSet()) {
+          BasicBlockNodeBB *OldSetNode = OriginalSource;
+          BasicBlockNodeBB *OldTarget = R.second;
+          Idx = RetreatingIdxMap[R.second];
+          revng_assert(OldSetNode->predecessor_size() == 1);
+          BasicBlockNodeBB *Predecessor = OldSetNode->getPredecessorI(0);
+          auto *SetNode = RootCFG.addSetStateNode(Idx, OldSetNode->getName());
+          Meta->insertNode(SetNode);
+          moveEdgeTarget(EdgeDescriptor(Predecessor, OldSetNode), Head);
+
+          // Search for the corresponding check node and move it.
+          // TODO: If we have more than one set node for the same target
+          //       that need to move the set node, the behavior may not be
+          //       legal.
+          BasicBlockNodeBB *CheckNode = getCheckPredecessor(OldTarget);
+          revng_assert(CheckNode->isCheck());
+          moveEdgeTarget(EdgeDescriptor(CheckNode, OldTarget), OldSetNode);
+        } else {
+          Idx = RetreatingIdxMap[R.second];
+          auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
+          Meta->insertNode(SetNode);
+          moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
+          addEdge(EdgeDescriptor(SetNode, Head));
+        }
       }
 
       // Move the incoming edge from the old head to new one.
