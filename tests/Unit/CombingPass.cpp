@@ -22,11 +22,11 @@ bool init_unit_test();
 
 // revng includes
 #include "revng/Support/Debug.h"
+#include "revng/UnitTestHelpers/DotGraphObject.h"
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNodeImpl.h"
-#include "revng-c/RestructureCFGPass/DotGraphObject.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTreeImpl.h"
 
@@ -51,14 +51,14 @@ static void runTest(TestType Type,
 
   // Load the input graph and populate a new `RegionCFG` starting from it.
   DotGraph InputDot = DotGraph();
-  InputDot.parseDotFromFile(InputFileName);
+  InputDot.parseDotFromFile(InputFileName, "entry");
   RegionCFG<DotNode *> Input = RegionCFG<DotNode *>();
 
   Input.initialize(&InputDot);
 
   // Load the reference graph and populate a `RegionCFG` starting from it.
   DotGraph ReferenceDot = DotGraph();
-  ReferenceDot.parseDotFromFile(ReferenceFileName);
+  ReferenceDot.parseDotFromFile(ReferenceFileName, "entry");
   RegionCFG<DotNode *> Reference = RegionCFG<DotNode *>();
 
   Reference.initialize(&ReferenceDot);

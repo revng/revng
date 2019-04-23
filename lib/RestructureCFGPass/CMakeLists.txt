@@ -11,5 +11,12 @@ target_link_libraries(RestructureCFGPass
                       revng::revngSupport
                       ${LLVM_LIBRARIES})
 
-add_library(CombingTest SHARED DotGraphObject.cpp ReachabilityPass.cpp)
-target_link_libraries(CombingTest RestructureCFGPass ${LLVM_LIBRARIES})
+add_library(ReachabilityTest
+  STATIC
+  ReachabilityPass.cpp)
+target_link_libraries(ReachabilityTest
+  RestructureCFGPass
+  ${LLVM_LIBRARIES})
+install(TARGETS ReachabilityTest
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib)

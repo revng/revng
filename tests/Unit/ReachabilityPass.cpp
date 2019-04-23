@@ -17,9 +17,11 @@ bool init_unit_test();
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/SourceMgr.h"
 
+// revng includes
+#include "revng/Support/Debug.h"
+
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ReachabilityPass.h"
-#include "revng/Support/Debug.h"
 
 using namespace llvm;
 
