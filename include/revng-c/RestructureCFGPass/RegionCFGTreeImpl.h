@@ -591,12 +591,12 @@ inline void RegionCFG<NodeT>::inflate() {
     if (CombLogger.isEnabled()) {
       CombLogger << "Analyzing conditional node " << Conditional->getNameStr()
                  << "\n";
-    }
-    Graph.dumpDotOnFile("inflates",
-                        FunctionName,
-                        "Region-" + RegionName + "-conditional-"
+      Graph.dumpDotOnFile("inflates",
+                          FunctionName,
+                          "Region-" + RegionName + "-conditional-"
                           + Conditional->getNameStr() + "-begin");
-    CombLogger.emit();
+    }
+
 
     // Get all the nodes reachable from the current conditional node (stopping
     // at the immediate postdominator) and that we want to duplicate/split.
@@ -747,24 +747,24 @@ inline void RegionCFG<NodeT>::inflate() {
       }
       Iteration++;
 
-      CombLogger << "Finished looking at: ";
-      CombLogger << Conditional->getNameStr() << "\n";
-
       // Refresh the info on candidates.
       NotDominatedCandidates = getInterestingNodes(Conditional);
     }
+
+    revng_log(CombLogger, "Finished looking at: ");
+    revng_log(CombLogger, Conditional->getNameStr() << "\n");
   }
 
   // Purge extra dummy nodes introduced.
   purgeDummies();
   purgeVirtualSink(Sink);
 
-  // if (CombLogger.isEnabled()) {
-  CombLogger << "Graph after combing is:\n";
-  Graph.dumpDotOnFile("inflates",
-                      FunctionName,
-                      "Region-" + RegionName + "-after-combing");
-  //}
+  if (CombLogger.isEnabled()) {
+    CombLogger << "Graph after combing is:\n";
+    Graph.dumpDotOnFile("inflates",
+                        FunctionName,
+                        "Region-" + RegionName + "-after-combing");
+  }
 }
 
 template<class NodeT>
@@ -773,13 +773,19 @@ inline void RegionCFG<NodeT>::generateAst() {
   RegionCFG<NodeT> &Graph = *this;
 
   // Apply combing to the current RegionCFG.
-  dumpDotOnFile("dots", FunctionName, "PRECOMB");
+
   if (ToInflate) {
-    CombLogger << "Inflating region " + RegionName + "\n";
+    if (CombLogger.isEnabled()) {
+      CombLogger << "Inflating region " + RegionName + "\n";
+      dumpDotOnFile("dots", FunctionName, "PRECOMB");
+    }
+
     Graph.inflate();
     ToInflate = false;
+    if (CombLogger.isEnabled()) {
+      dumpDotOnFile("dots", FunctionName, "POSTCOMB");
+    }
   }
-  dumpDotOnFile("dots", FunctionName, "POSTCOMB");
 
   // TODO: factorize out the AST generation phase.
   llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> ASTDT;
@@ -953,24 +959,32 @@ inline void RegionCFG<NodeT>::generateAst() {
   // Serialize the graph starting from the root node.
   CombLogger << "Serializing first AST draft:\n";
   AST.setRoot(RootNode);
-  AST.dumpOnFile("ast", FunctionName, "First-draft");
+  if (CombLogger.isEnabled()) {
+     AST.dumpOnFile("ast", FunctionName, "First-draft");
+  }
 
   // Create sequence nodes.
   CombLogger << "Performing sequence insertion:\n";
   RootNode = createSequence(AST, RootNode);
   AST.setRoot(RootNode);
-  AST.dumpOnFile("ast", FunctionName, "After-sequence");
+  if (CombLogger.isEnabled()) {
+    AST.dumpOnFile("ast", FunctionName, "After-sequence");
+  }
 
   // Simplify useless sequence nodes.
   CombLogger << "Performing useless dummies simplification:\n";
   simplifyDummies(RootNode);
-  AST.dumpOnFile("ast", FunctionName, "After-dummies-removal");
+  if (CombLogger.isEnabled()) {
+    AST.dumpOnFile("ast", FunctionName, "After-dummies-removal");
+  }
 
   // Simplify useless sequence nodes.
   CombLogger << "Performing useless sequence simplification:\n";
   RootNode = simplifyAtomicSequence(RootNode);
   AST.setRoot(RootNode);
-  AST.dumpOnFile("ast", FunctionName, "After-sequence-simplification");
+  if (CombLogger.isEnabled()) {
+    AST.dumpOnFile("ast", FunctionName, "After-sequence-simplification");
+  }
 
   // Remove danling nodes (possibly created by the de-optimization pass, after
   // disconnecting the first CFG node corresponding to the simplified AST node),

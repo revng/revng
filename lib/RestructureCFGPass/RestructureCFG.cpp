@@ -1217,14 +1217,12 @@ bool RestructureCFG::runOnFunction(Function &F) {
   revng_assert(RootCFG.isDAG());
 
   // Invoke the AST generation for the root region.
-  CombLogger.emit();
   RootCFG.generateAst();
 
   // Serialize final AST on file
-  RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final");
-
-  // Sync Logger.
-  CombLogger.emit();
+  if (CombLogger.isEnabled()) {
+      RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final");
+  }
 
   // Early exit if the AST generation produced a version of the AST which is
   // identical to the cached version.
@@ -1254,7 +1252,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Serialize final AST after flattening on file
-  RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final-after-flattening");
+  if (CombLogger.isEnabled()) {
+    RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final-after-flattening");
+  }
 
   // Serialize the newly collapsed SCS region.
   if (CombLogger.isEnabled()) {
