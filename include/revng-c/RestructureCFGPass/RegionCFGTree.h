@@ -245,7 +245,7 @@ public:
   /// \brief Dump a GraphViz file on a file using an absolute path
   void dumpDotOnFile(std::string FileName) const;
 
-  void purgeDummies();
+  std::vector<BasicBlockNode<NodeT> *> purgeDummies();
 
   void purgeVirtualSink(BasicBlockNode<NodeT> *Sink);
 

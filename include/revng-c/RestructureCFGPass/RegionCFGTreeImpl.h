@@ -15,6 +15,7 @@
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
@@ -27,6 +28,12 @@
 #include "revng-c/RestructureCFGPass/MetaRegion.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
+
+unsigned const SmallSetSize = 16;
+
+// llvm::SmallPtrSet is a handy way to store set of BasicBlockNode pointers.
+template<class NodeT>
+using SmallPtrSet = llvm::SmallPtrSet<BasicBlockNode<NodeT> *, SmallSetSize>;
 
 // Helper function that visit an AST tree and creates the sequence nodes
 inline ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
@@ -111,6 +118,34 @@ inline ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
   }
 
   return RootNode;
+}
+
+template<class NodeT>
+inline bool predecessorsVisited(BasicBlockNode<NodeT> *Node,
+                                SmallPtrSet<NodeT> &Visited) {
+
+  bool State = true;
+
+  // Cycles through all the predecessor, as soon as we find a predecessor not
+  // already visited, set the state to false and break.
+  for (BasicBlockNode<NodeT> *Predecessor : Node->predecessors()) {
+    if (Visited.count(Predecessor) == 0) {
+      State = false;
+      break;
+    }
+  }
+
+  return State;
+}
+
+template<class NodeT>
+inline bool nodeVisited(BasicBlockNode<NodeT> *Node,
+                        SmallPtrSet<NodeT> &Visited) {
+  if (Visited.count(Node) != 0) {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 template<class NodeT>
@@ -360,9 +395,10 @@ inline void RegionCFG<NodeT>::dumpDotOnFile(std::string FileName) const {
 }
 
 template<class NodeT>
-inline void RegionCFG<NodeT>::purgeDummies() {
+inline std::vector<BasicBlockNode<NodeT> *> RegionCFG<NodeT>::purgeDummies() {
   RegionCFG<NodeT> &Graph = *this;
   bool AnotherIteration = true;
+  BasicBlockNodeTVect RemovedNodes;
 
   while (AnotherIteration) {
     AnotherIteration = false;
@@ -378,14 +414,15 @@ inline void RegionCFG<NodeT>::purgeDummies() {
         BasicBlockNode<NodeT> *Predecessor = (*It)->getPredecessorI(0);
         BasicBlockNode<NodeT> *Successor = (*It)->getSuccessorI(0);
 
+        BasicBlockNode<NodeT> *RemovedNode = *It;
+
+        // Connect directly predecessor and successor, and remove the dummy node
+        // under analysis
+        RemovedNodes.push_back(RemovedNode);
+
         // Connect directly predecessor and successor, and remove the dummy node
         // under analysis
         moveEdgeTarget({ Predecessor, *It }, Successor);
-        DT.insertEdge(Predecessor, Successor);
-        PDT.insertEdge(Predecessor, Successor);
-
-        DT.eraseNode(*It);
-        PDT.eraseNode(*It);
         Graph.removeNode(*It);
 
         AnotherIteration = true;
@@ -393,6 +430,8 @@ inline void RegionCFG<NodeT>::purgeDummies() {
       }
     }
   }
+
+  return RemovedNodes;
 }
 
 template<class NodeT>
@@ -457,10 +496,6 @@ inline void RegionCFG<NodeT>::inflate() {
   // TODO: handle all the collapsed regions.
   RegionCFG<NodeT> &Graph = *this;
 
-  // Refresh information of dominator and postdominator trees.
-  DT.recalculate(Graph);
-  PDT.recalculate(Graph);
-
   // Collect entry and exit nodes.
   BasicBlockNode<NodeT> *EntryNode = &Graph.getEntryNode();
   BasicBlockNodeTVect ExitNodes;
@@ -514,6 +549,9 @@ inline void RegionCFG<NodeT>::inflate() {
                         FunctionName,
                         "Region-" + RegionName + "-after-sink");
   }
+
+  // Refresh information of dominator tree.
+  DT.recalculate(Graph);
 
   // Collect all the conditional nodes in the graph.
   // This is the working list of conditional nodes on which we will operate and
@@ -579,11 +617,43 @@ inline void RegionCFG<NodeT>::inflate() {
     }
   }
 
+  // Map to retrieve the post dominator for each conditional node.
+  BBNodeMap PostDominatorMap;
+
+  // Equivalence-class like set to keep track of all the cloned nodes created
+  // starting from an original node.
+  std::map<BasicBlockNode<NodeT> *, SmallPtrSet<NodeT>> NodesEquivalenceClass;
+
+  // Map to keep track of the cloning relationship.
+  BBNodeMap CloneToOriginalMap;
+
+  // Initialize a list containing the reverse post order of the nodes of the
+  // graph.
+  std::list<BasicBlockNode<NodeT> *> RevPostOrderList;
+  llvm::ReversePostOrderTraversal<BasicBlockNode<NodeT> *> RPOT(EntryNode);
+  for (BasicBlockNode<NodeT> *RPOTBB : RPOT) {
+    RevPostOrderList.push_back(RPOTBB);
+    NodesEquivalenceClass[RPOTBB].insert(RPOTBB);
+    CloneToOriginalMap[RPOTBB] = RPOTBB;
+  }
+
   // Refresh information of dominator and postdominator trees.
   DT.recalculate(Graph);
   PDT.recalculate(Graph);
 
+  #if 1
+  // Compute the immediate post-dominator for each conditional node.
+  for (BasicBlockNode<NodeT> *Conditional : ConditionalNodes) {
+    BasicBlockNode<NodeT> *PostDom = PDT[Conditional]->getIDom()->getBlock();
+    revng_assert(PostDom != nullptr);
+    PostDominatorMap[Conditional] = PostDom;
+  }
+  #endif
+
   while (!ConditionalNodes.empty()) {
+
+    // List to keep track of the nodes that we still need to analyze.
+    SmallPtrSet<NodeT> WorkList;
 
     // Process each conditional node after ordering it.
     BasicBlockNode<NodeT> *Conditional = ConditionalNodes.back();
@@ -597,28 +667,93 @@ inline void RegionCFG<NodeT>::inflate() {
                             + Conditional->getNameStr() + "-begin");
     }
 
-    // Get all the nodes reachable from the current conditional node (stopping
-    // at the immediate postdominator) and that we want to duplicate/split.
-    BasicBlockNodeTVect NotDominatedCandidates;
-    NotDominatedCandidates = getInterestingNodes(Conditional);
+    // Enqueue in the worklist the successors of the contional node.
+    for (BasicBlockNode<NodeT> *Successor : Conditional->successors()) {
+      WorkList.insert(Successor);
+    }
+
+    // Keep a set of the visited nodes for the current conditional node.
+    SmallPtrSet<NodeT> Visited;
+    Visited.insert(Conditional);
+
+    // Get an iterator from the reverse post order list in the position of the
+    // conditional node.
+    typename std::list<BasicBlockNode<NodeT> *>::iterator ListIt = RevPostOrderList.begin();
+    while (&**ListIt != Conditional and ListIt != RevPostOrderList.end()) {
+      ListIt++;
+    }
+
+    revng_assert(ListIt != RevPostOrderList.end());
 
     int Iteration = 0;
-    while (!NotDominatedCandidates.empty()) {
+    while (!WorkList.empty()) {
 
-      // TODO: Remove this
-      // NotDominatedCandidates = getInterestingNodes(Conditional);
+      // Retrieve a reference to the set of postdominators.
+      // TODO:: verify that this is safe in case of insertions.
+      BasicBlockNode<NodeT> *PostDom = PostDominatorMap[Conditional];
+      SmallPtrSet<NodeT> &PostDomSet = NodesEquivalenceClass[PostDom];
+
+      // Postdom flag, which is useful to understand if the dummies we will
+      // insert will need to substitute the current postdominator.
+      bool IsPostDom = false;
+      ListIt++;
+
+      // Scan the working list and the reverse post order in a parallel manner.
+      BasicBlockNode<NodeT> *Candidate = nullptr;
+      BasicBlockNode<NodeT> *NextInList = *ListIt;
+
+      // If the next node is in the worklist analyze it.
+      if (WorkList.count(NextInList) != 0) {
+        Candidate = NextInList;
+
+        // We reached a post dominator node of the region.
+        if (PostDomSet.count(Candidate) != 0) {
+          if (!predecessorsVisited(Candidate, Visited)) {
+            // The post dominator has some edges incoming from node we have not
+            // already visited.
+            IsPostDom = true;
+            Visited.insert(Candidate);
+            WorkList.erase(Candidate);
+          } else {
+            // We can analyze the next conditional node.
+            break;
+          }
+
+        } else {
+          // We have not reached a post dominator.
+          if (!predecessorsVisited(Candidate, Visited)) {
+            // We have not visited all the node incoming in the node
+            Visited.insert(Candidate);
+            WorkList.erase(Candidate);
+            for (BasicBlockNode<NodeT> *Successor : Candidate->successors()) {
+              WorkList.insert(Successor);
+            }
+          } else {
+            Visited.insert(Candidate);
+            WorkList.erase(Candidate);
+            for (BasicBlockNode<NodeT> *Successor : Candidate->successors()) {
+              WorkList.insert(Successor);
+            }
+            continue;
+          }
+        }
+      } else {
+
+        // Go to the next node in reverse postorder.
+        continue;
+      }
+
+      revng_assert(Candidate != nullptr);
 
       if (CombLogger.isEnabled()) {
         CombLogger << "Analyzing candidate nodes\n ";
       }
-      BasicBlockNode<NodeT> *Candidate = NotDominatedCandidates.back();
-      NotDominatedCandidates.pop_back();
       if (CombLogger.isEnabled()) {
         CombLogger << "Analyzing candidate " << Candidate->getNameStr() << "\n";
       }
 
       // Decide wether to insert a dummy or to duplicate.
-      if (Candidate->predecessor_size() > 2) {
+      if (Candidate->predecessor_size() > 2 and IsPostDom) {
 
         // Insert a dummy node.
         if (CombLogger.isEnabled()) {
@@ -626,15 +761,39 @@ inline void RegionCFG<NodeT>::inflate() {
           CombLogger << Candidate->getNameStr() << "\n";
         }
 
-        typedef enum { Left, Right } Side;
+        BasicBlockNode<NodeT> *Dummy = Graph.addArtificialNode();
 
-        std::vector<Side> Sides{ Left, Right };
-        std::map<Side, BasicBlockNode<NodeT> *> Dummies;
+        // Insert the dummy nodes in the reverse post order list. The insertion
+        // order is particularly relevant, since the re-exploration of the dummy
+        // which we dominate depends on this.
+        RevPostOrderList.insert(ListIt, Dummy);
 
-        for (Side S : Sides) {
-          BasicBlockNode<NodeT> *Dummy = Graph.addArtificialNode();
-          Dummies[S] = Dummy;
+        // Remove from the visited set the node which triggered the creation of
+        // of the dummy nodes.
+        Visited.erase(Candidate);
+        WorkList.insert(Candidate);
+
+        // Move back the iterator on the reverse post order (we want it to point
+        // to the left dummy). We need to move it two position back, since at
+        // each iteration the iteration is moved one position forward.
+        ListIt--;
+        ListIt--;
+
+        // Initialize the equivalence class of the dummy node.
+        NodesEquivalenceClass[Dummy] = { Dummy };
+
+        // If the candidate node we are analyzing is a postdominator, substitute
+        // the postdominator with the right dummy.
+        if (IsPostDom and (!Candidate->isEmpty() or Candidate == Sink)) {
+          PostDominatorMap[Conditional] = Dummy;
         }
+
+        // The new dummy node does not lead back to any original node, for this
+        // reason we need to insert a new entry in the `CloneToOriginalMap`.
+        CloneToOriginalMap[Dummy] = Dummy;
+
+        // Mark the dummy to explore.
+        WorkList.insert(Dummy);
 
         BasicBlockNodeTVect Predecessors;
 
@@ -649,34 +808,14 @@ inline void RegionCFG<NodeT>::inflate() {
             CombLogger << "Moving edge from predecessor ";
             CombLogger << Predecessor->getNameStr() << "\n";
           }
-          if (DT.dominates(Conditional, Predecessor)) {
+          if (nodeVisited(Predecessor, Visited)) {
             moveEdgeTarget(EdgeDescriptor(Predecessor, Candidate),
-                           Dummies[Left]);
-
-            // Inform the dominator and postdominator tree about the update
-            DT.insertEdge(Predecessor, Dummies[Left]);
-            PDT.insertEdge(Predecessor, Dummies[Left]);
-            DT.deleteEdge(Predecessor, Candidate);
-            PDT.deleteEdge(Predecessor, Candidate);
-          } else {
-            moveEdgeTarget(EdgeDescriptor(Predecessor, Candidate),
-                           Dummies[Right]);
-
-            // Inform the dominator and postdominator tree about the update
-            DT.insertEdge(Predecessor, Dummies[Right]);
-            PDT.insertEdge(Predecessor, Dummies[Right]);
-            DT.deleteEdge(Predecessor, Candidate);
-            PDT.deleteEdge(Predecessor, Candidate);
+                           Dummy);
           }
         }
 
-        for (Side S : Sides) {
-          addEdge(EdgeDescriptor(Dummies[S], Candidate));
+        addEdge(EdgeDescriptor(Dummy, Candidate));
 
-          // Inform the dominator and postdominator tree about the update
-          DT.insertEdge(Dummies[S], Candidate);
-          PDT.insertEdge(Dummies[S], Candidate);
-        }
       } else {
 
         // Duplicate node.
@@ -688,11 +827,21 @@ inline void RegionCFG<NodeT>::inflate() {
         BasicBlockNode<NodeT> *Duplicated = Graph.cloneNode(*Candidate);
         revng_assert(Duplicated != nullptr);
 
+        // Insert the cloned node in the reverse post order list.
+        RevPostOrderList.insert(ListIt, Duplicated);
+
+        // Add the cloned node in the equivalence class of the original node.
+        revng_assert(CloneToOriginalMap.count(Candidate) != 0);
+        BasicBlockNode<NodeT> *OriginalNode = CloneToOriginalMap[Candidate];
+        CloneToOriginalMap[Duplicated] = OriginalNode;
+        NodesEquivalenceClass[OriginalNode].insert(Duplicated);
+
         // If the node we are duplicating is a conditional node, add it to the
         // working list of the conditional nodes.
         if (ConditionalNodesComplete.count(Candidate) != 0) {
           ConditionalNodes.push_back(Duplicated);
           ConditionalNodesComplete.insert(Duplicated);
+          PostDominatorMap[Duplicated] = PostDominatorMap[Candidate];
         }
 
         // Specifically handle the check idx node situation.
@@ -702,17 +851,11 @@ inline void RegionCFG<NodeT>::inflate() {
           BasicBlockNode<NodeT> *TrueSuccessor = Candidate->getTrue();
           BasicBlockNode<NodeT> *FalseSuccessor = Candidate->getFalse();
           Duplicated->setTrue(TrueSuccessor);
-          DT.insertEdge(Duplicated, TrueSuccessor);
           Duplicated->setFalse(FalseSuccessor);
-          DT.insertEdge(Duplicated, FalseSuccessor);
 
         } else {
           for (BasicBlockNode<NodeT> *Successor : Candidate->successors()) {
             addEdge(EdgeDescriptor(Duplicated, Successor));
-
-            // Inform the dominator and postdominator tree about the update
-            DT.insertEdge(Duplicated, Successor);
-            PDT.insertEdge(Duplicated, Successor);
           }
         }
         BasicBlockNodeTVect Predecessors;
@@ -722,20 +865,32 @@ inline void RegionCFG<NodeT>::inflate() {
         }
 
         for (BasicBlockNode<NodeT> *Predecessor : Predecessors) {
-          if (!DT.dominates(Conditional, Predecessor)) {
+          if (!nodeVisited(Predecessor, Visited)) {
             moveEdgeTarget(EdgeDescriptor(Predecessor, Candidate), Duplicated);
-
-            // Inform the dominator and postdominator tree about the update
-            DT.insertEdge(Predecessor, Duplicated);
-            PDT.insertEdge(Predecessor, Duplicated);
-            DT.deleteEdge(Predecessor, Candidate);
-            PDT.deleteEdge(Predecessor, Candidate);
           }
         }
       }
 
+      if (CombLogger.isEnabled()) {
+        Graph.dumpDotOnFile("inflates",
+                            FunctionName,
+                            "Region-" + RegionName + "-conditional-"
+                              + Conditional->getNameStr() + "-"
+                              + std::to_string(Iteration) + "-before-purge");
+      }
+
       // Purge extra dummies at each iteration
-      purgeDummies();
+      BasicBlockNodeTVect RemovedNodes = purgeDummies();
+      for (BasicBlockNode<NodeT> *ToRemove : RemovedNodes) {
+        Visited.erase(ToRemove);
+        WorkList.erase(ToRemove);
+
+        // Update iterator if we are removing it.
+        if (ToRemove == *ListIt) {
+          ListIt--;
+        }
+        RevPostOrderList.remove(ToRemove);
+      }
 
       if (CombLogger.isEnabled()) {
         Graph.dumpDotOnFile("inflates",
@@ -745,9 +900,6 @@ inline void RegionCFG<NodeT>::inflate() {
                               + std::to_string(Iteration));
       }
       Iteration++;
-
-      // Refresh the info on candidates.
-      NotDominatedCandidates = getInterestingNodes(Conditional);
     }
 
     revng_log(CombLogger, "Finished looking at: ");

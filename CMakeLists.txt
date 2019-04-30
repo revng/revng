@@ -5,6 +5,7 @@ find_package(LLVM REQUIRED CONFIG)
 find_package(Clang REQUIRED CONFIG)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -fsanitize=address")
 
 install(FILES cmake/revngcConfig.cmake DESTINATION share/revngc/cmake)
 install(EXPORT revngc NAMESPACE revngc:: DESTINATION share/revngc/cmake)
