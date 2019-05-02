@@ -487,8 +487,359 @@ RegionCFG<NodeT>::getInterestingNodes(BasicBlockNodeT *Cond) {
   return NotDominatedCandidates;
 }
 
+inline bool isGreater(unsigned Op1, unsigned Op2) {
+  unsigned MultiplicativeFactor = 1;
+  if (Op1 > (MultiplicativeFactor * Op2)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+template<class NodeT>
+inline BasicBlockNode<NodeT>
+*RegionCFG<NodeT>::cloneUntilExit(BasicBlockNode<NodeT> *Node,
+                                  BasicBlockNode<NodeT> *Sink) {
+
+  // Clone the postdominator node.
+  BBNodeMap CloneMap;
+  BasicBlockNode<NodeT> *Clone = cloneNode(*Node);
+
+  // Insert the postdominator clone in the map.
+  CloneMap[Node] = Clone;
+
+  BasicBlockNodeTVect WorkList;
+  WorkList.push_back(Node);
+
+  // Set of nodes which have been already processed.
+  BasicBlockNodeTSet AlreadyProcessed;
+
+  while (!WorkList.empty()) {
+    BasicBlockNode<NodeT> *CurrentNode = WorkList.back();
+    WorkList.pop_back();
+
+    // Ensure that we are not processing the sink node.
+    revng_assert(CurrentNode != Sink);
+
+    if (AlreadyProcessed.count(CurrentNode) == 0) {
+      AlreadyProcessed.insert(CurrentNode);
+    } else {
+      continue;
+    }
+
+    // Get the clone of the `CurrentNode`.
+    BasicBlockNode<NodeT> *CurrentClone = CloneMap.at(CurrentNode);
+
+    bool ConnectSink = false;
+    for (BasicBlockNode<NodeT> *Successor : CurrentNode->successors()) {
+
+      // If our successor is the sink, create and edge that directly connects
+      // it.
+      if (Successor == Sink) {
+        ConnectSink = true;
+      } else {
+        BasicBlockNode<NodeT> *SuccessorClone = nullptr;
+
+        // The clone of the successor node already exists.
+        if (CloneMap.count(Successor)) {
+          SuccessorClone = CloneMap.at(Successor);
+        } else {
+
+          // The clone of the successor does not exist, create it in place.
+          SuccessorClone = cloneNode(*Successor);
+          CloneMap[Successor] = SuccessorClone;
+        }
+
+        // Create the edge to the clone of the successor.
+        revng_assert(SuccessorClone != nullptr);
+        addEdge(EdgeDescriptor(CurrentClone, SuccessorClone));
+
+        // Add the successor to the worklist.
+        WorkList.push_back(Successor);
+      }
+    }
+
+    if (ConnectSink) {
+      addEdge(EdgeDescriptor(CurrentClone, Sink));
+    }
+  }
+
+  return Clone;
+}
+
+template<class NodeT>
+inline void RegionCFG<NodeT>::untangle() {
+
+  revng_assert(isDAG());
+
+  RegionCFG<NodeT> &Graph = *this;
+
+  DT.recalculate(Graph);
+  PDT.recalculate(Graph);
+
+  // Collect all the conditional nodes in the graph.
+  BasicBlockNodeTVect ConditionalNodes;
+  for (auto It = Graph.begin(); It != Graph.end(); It++) {
+    if ((*It)->successor_size() == 2) {
+      ConditionalNodes.push_back(*It);
+    }
+  }
+
+  // Map to retrieve the post dominator for each conditional node.
+  BBNodeMap PostDominatorMap;
+
+  // Collect entry and exit nodes.
+  BasicBlockNode<NodeT> *EntryNode = &Graph.getEntryNode();
+  BasicBlockNodeTVect ExitNodes;
+  for (auto It = Graph.begin(); It != Graph.end(); It++) {
+    if ((*It)->successor_size() == 0) {
+      ExitNodes.push_back(*It);
+    }
+  }
+
+  // Add a new virtual sink node to computer the postdominator.
+  BasicBlockNode<NodeT> *Sink = Graph.addArtificialNode();
+  for (BasicBlockNode<NodeT> *Exit : ExitNodes) {
+    addEdge(EdgeDescriptor(Exit, Sink));
+  }
+
+  if (CombLogger.isEnabled()) {
+    Graph.dumpDotOnFile("untangle",
+                        FunctionName,
+                        "Region-" + RegionName + "-initial-state");
+  }
+
+  DT.recalculate(Graph);
+  PDT.recalculate(Graph);
+
+  // Compute the immediate post-dominator for each conditional node.
+  for (BasicBlockNode<NodeT> *Conditional : ConditionalNodes) {
+    BasicBlockNode<NodeT> *PostDom = PDT[Conditional]->getIDom()->getBlock();
+    revng_assert(PostDom != nullptr);
+    PostDominatorMap[Conditional] = PostDom;
+  }
+
+  // Map which contains the wheight for each node in the graph. At the beginning
+  // it will be initialized to the value 1 for each node.
+  std::map<BasicBlockNode<NodeT> *, unsigned> WeightMap;
+  for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
+    WeightMap[Node] = 1;
+  }
+
+  // Cumulative weight
+  std::map<BasicBlockNode<NodeT> *, unsigned> CumulativeWeightMap;
+  for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
+    CumulativeWeightMap[Node] = 1;
+  }
+
+  // Backpropagate the cumulative weight of each node. This will be used to
+  // compute the weight of the nodes following a postdominator node.
+  for (BasicBlockNode<NodeT> *Exit : ExitNodes) {
+    unsigned WeightAccumulator = 0;
+    revng_log(CombLogger, "From exit node: " << Exit->getNameStr() << "\n");
+    revng_log(CombLogger, "We can reach:\n");
+    for (BasicBlockNode<NodeT> *Node : llvm::inverse_depth_first(Exit)) {
+      WeightAccumulator = WeightAccumulator + CumulativeWeightMap[Node];
+
+      revng_log(CombLogger, Node->getNameStr() << "\n");
+      CumulativeWeightMap[Node] = WeightAccumulator;
+    }
+  }
+
+  // Order the conditional nodes in postorder.
+  ConditionalNodes = Graph.orderNodes(ConditionalNodes, false);
+
+  while (!ConditionalNodes.empty()) {
+    if (CombLogger.isEnabled()) {
+      Graph.dumpDotOnFile("untangle",
+                          FunctionName,
+                          "Region-" + RegionName + "-debug");
+    }
+    BasicBlockNode<NodeT> *Conditional = ConditionalNodes.back();
+    ConditionalNodes.pop_back();
+
+    // Update the information of the dominator and postdominator trees.
+    DT.recalculate(Graph);
+    PDT.recalculate(Graph);
+
+    // Get the immediate postdominator.
+    BasicBlockNode<NodeT> *PostDominator = PostDominatorMap[Conditional];
+
+    // Ensure that we have both the successors.
+    revng_assert(Conditional->successor_size() == 2);
+
+    // Get the first node of the then and else branches respectively.
+    // TODO: Check that this is the right way to do this. At this point we
+    //       cannot assume that we have the `getThen()` and `getFalse()`
+    //       methods.
+    BasicBlockNode<NodeT> *ThenChild = Conditional->getSuccessorI(0);
+    BasicBlockNode<NodeT> *ElseChild = Conditional->getSuccessorI(1);
+
+    // Collect all the nodes laying between the branches
+    BasicBlockNodeTSet ThenNodes = findReachableNodes(*ThenChild,
+                                                      *PostDominator);
+
+    BasicBlockNodeTSet ElseNodes = findReachableNodes(*ElseChild,
+                                                      *PostDominator);
+
+    // Remove the postdominator from both the sets.
+    ThenNodes.erase(PostDominator);
+    ElseNodes.erase(PostDominator);
+
+    BasicBlockNodeTVect NotDominatedThenNodes;
+    for (BasicBlockNode<NodeT> *Node : ThenNodes) {
+      if (!DT.dominates(Conditional, Node)) {
+        NotDominatedThenNodes.push_back(Node);
+      }
+    }
+
+    BasicBlockNodeTVect NotDominatedElseNodes;
+    for (BasicBlockNode<NodeT> *Node : ElseNodes) {
+      if (!DT.dominates(Conditional, Node)) {
+        NotDominatedElseNodes.push_back(Node);
+      }
+    }
+
+    // Check that we fully dominate at least one of the two branches (this may
+    // be a conservative assumption).
+    if (NotDominatedThenNodes.size() > 0 and NotDominatedElseNodes.size() > 0) {
+      continue;
+    }
+
+    // Check that the set of nodes reachable from the `then` and `else` child
+    // nodes are disjointed (this may be a conservative assumption).
+    BasicBlockNodeTVect Intersection;
+    std::set_intersection(ThenNodes.begin(),
+                          ThenNodes.end(),
+                          ElseNodes.begin(),
+                          ElseNodes.end(),
+                          std::back_inserter(Intersection));
+
+
+    if (Intersection.size() > 0) {
+      continue;
+    }
+
+    // Compute the weight of the `then` and `else` branches.
+    unsigned ThenWeight = 0;
+    unsigned ElseWeight = 0;
+
+    for (BasicBlockNode<NodeT> *Node : NotDominatedThenNodes) {
+      ThenWeight += WeightMap[Node];
+    }
+
+    for (BasicBlockNode<NodeT> *Node : NotDominatedElseNodes) {
+      ElseWeight += WeightMap[Node];
+    }
+
+    unsigned PostDominatorWeight = CumulativeWeightMap[PostDominator];
+
+    // Criterion which decides if we can apply the untangle optimization to the
+    // conditional under analysis.
+    // We define 3 weights:
+    // - 1) weight(then) + weight(else)
+    // - 2) weight(then) + weight(postdom)
+    // - 3) weight(else) + weight(postdom)
+    //
+    // We need to operate the split if:
+    // 2 >> 3
+    // 1 >> 3
+    // and specifically we need to split the `else` branch.
+    //
+    // We need to operate the split if:
+    // 3 >> 2
+    // 1 >> 2
+    // and specifically we need to split the `then` branch.
+    //
+    // We can also define in a dynamic way the >> operator, so we can change the
+    // threshold that triggers the split.
+    unsigned OneWeight = ThenWeight + ElseWeight;
+    unsigned TwoWeight = ThenWeight + PostDominatorWeight;
+    unsigned ThreeWeight = ElseWeight + PostDominatorWeight;
+
+    if (isGreater(TwoWeight, ThreeWeight)
+        and isGreater(OneWeight, ThreeWeight)
+        and PostDominator != Sink) {
+      revng_log(CombLogger, FunctionName << ":");
+      revng_log(CombLogger, RegionName << ":");
+      revng_log(CombLogger,
+                "Found untangle candidate then " << Conditional->getNameStr());
+      revng_log(CombLogger, "Weight 1:" << OneWeight);
+      revng_log(CombLogger, "Weight 2:" << TwoWeight);
+      revng_log(CombLogger, "Weight 3:" << ThreeWeight);
+
+      revng_log(CombLogger, "Actually splitting node");
+      BasicBlockNode<NodeT> *PostDominatorClone = cloneUntilExit(PostDominator,
+                                                                 Sink);
+      BasicBlockNodeTVect Predecessors;
+      for (BasicBlockNode<NodeT> *Predecessor : PostDominator->predecessors()) {
+        Predecessors.push_back(Predecessor);
+      }
+
+      for (BasicBlockNode<NodeT> *Predecessor : Predecessors) {
+        if (DT.dominates(ElseChild, Predecessor)) {
+          moveEdgeTarget(EdgeDescriptor(Predecessor, PostDominator),
+                         PostDominatorClone);
+        }
+      }
+
+      // Check that we actually moved some edges.
+      revng_assert(PostDominatorClone->predecessor_size() > 0);
+    }
+
+    if (isGreater(ThreeWeight, TwoWeight)
+        and isGreater(OneWeight, TwoWeight)
+        and PostDominator != Sink) {
+      revng_log(CombLogger, FunctionName << ":");
+      revng_log(CombLogger, RegionName << ":");
+      revng_log(CombLogger,
+                "Found untangle candidate else " << Conditional->getNameStr());
+      revng_log(CombLogger, "Weight 1:" << OneWeight);
+      revng_log(CombLogger, "Weight 2:" << TwoWeight);
+      revng_log(CombLogger, "Weight 3:" << ThreeWeight);
+
+      revng_log(CombLogger, "Actually splitting node");
+      BasicBlockNode<NodeT> *PostDominatorClone = cloneUntilExit(PostDominator,
+                                                                 Sink);
+
+      BasicBlockNodeTVect Predecessors;
+      for (BasicBlockNode<NodeT> *Predecessor : PostDominator->predecessors()) {
+        Predecessors.push_back(Predecessor);
+      }
+
+      for (BasicBlockNode<NodeT> *Predecessor : Predecessors) {
+        if (DT.dominates(ThenChild, Predecessor)) {
+          moveEdgeTarget(EdgeDescriptor(Predecessor, PostDominator),
+                         PostDominatorClone);
+        }
+      }
+
+      // Check that we actually moved some edges.
+      revng_assert(PostDominatorClone->predecessor_size() > 0);
+    }
+  }
+
+  if (CombLogger.isEnabled()) {
+    Graph.dumpDotOnFile("untangle",
+                        FunctionName,
+                        "Region-" + RegionName + "-after-processing");
+  }
+
+  // Remove the sink node.
+  purgeVirtualSink(Sink);
+
+  if (CombLogger.isEnabled()) {
+    Graph.dumpDotOnFile("untangle",
+                        FunctionName,
+                        "Region-" + RegionName + "-after-sink-removal");
+  }
+}
+
 template<class NodeT>
 inline void RegionCFG<NodeT>::inflate() {
+
+  // Call the untangle preprocessing.
+  untangle();
 
   revng_assert(isDAG());
 

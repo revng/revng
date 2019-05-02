@@ -252,6 +252,12 @@ public:
   std::vector<BasicBlockNode<NodeT> *>
   getInterestingNodes(BasicBlockNodeT *Condition);
 
+  BasicBlockNode<NodeT> *cloneUntilExit(BasicBlockNode<NodeT> *Node,
+                                        BasicBlockNode<NodeT> *Sink);
+
+  /// \brief Apply the untangle preprocessing pass.
+  void untangle();
+
   /// \brief Apply comb to the region.
   void inflate();
 
