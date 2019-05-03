@@ -38,10 +38,14 @@ public:
   using EdgeDescriptor = typename BasicBlockNode<NodeT>::EdgeDescriptor;
 
   using links_container = std::vector<std::unique_ptr<BasicBlockNode<NodeT>>>;
-  using links_underlying_iterator = typename links_container::iterator;
+  using internal_iterator = typename links_container::iterator;
+  using internal_const_iterator = typename links_container::const_iterator;
   using links_iterator = TransformIterator<BasicBlockNode<NodeT> *,
-                                           links_underlying_iterator>;
+                                           internal_iterator>;
+  using links_const_iterator = TransformIterator<const BasicBlockNode<NodeT> *,
+                                                 internal_const_iterator>;
   using links_range = llvm::iterator_range<links_iterator>;
+  using links_const_range = llvm::iterator_range<links_const_iterator>;
 
   using ExprNodeMap = std::map<ExprNode *, ExprNode *>;
 
@@ -112,6 +116,8 @@ public:
 
   links_range nodes() { return llvm::make_range(begin(), end()); }
 
+  links_const_range nodes() const { return llvm::make_range(begin(), end()); }
+
   void setFunctionName(std::string Name);
 
   void setRegionName(std::string Name);
@@ -124,11 +130,24 @@ public:
     return Original.get();
   }
 
+  static inline const BasicBlockNode<NodeT> *
+  getConstPointer(const BasicBlockNodeTUP &Original) {
+    return Original.get();
+  }
+
   links_iterator begin() {
     return links_iterator(BlockNodes.begin(), getPointer);
   }
 
+  links_const_iterator begin() const {
+    return links_const_iterator(BlockNodes.begin(), getConstPointer);
+  }
+
   links_iterator end() { return links_iterator(BlockNodes.end(), getPointer); }
+
+  links_const_iterator end() const {
+    return links_const_iterator(BlockNodes.end(), getConstPointer);
+  }
 
   size_t size() const { return BlockNodes.size(); }
   void setSize(int Size) { BlockNodes.reserve(Size); }

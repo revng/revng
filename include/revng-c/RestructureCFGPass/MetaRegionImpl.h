@@ -1,4 +1,5 @@
-/// \file MetaRegion.h
+#ifndef REVNGC_RESTRUCTURE_CFG_METAREGIONIMPL_H
+#define REVNGC_RESTRUCTURE_CFG_METAREGIONIMPL_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -93,16 +94,26 @@ std::set<EdgeDescriptor<NodeT>> MetaRegion<NodeT>::getInEdges() {
 
 template<class NodeT>
 bool MetaRegion<NodeT>::intersectsWith(MetaRegion<NodeT> &Other) const {
-  BasicBlockNodeTVect Intersection;
   BasicBlockNodeTSet &OtherNodes = Other.getNodes();
 
-  std::set_intersection(Nodes.begin(),
-                        Nodes.end(),
-                        OtherNodes.begin(),
-                        OtherNodes.end(),
-                        std::back_inserter(Intersection));
+  auto NodesIt = Nodes.begin();
+  auto NodesEnd = Nodes.end();
+  auto OtherIt = OtherNodes.begin();
+  auto OtherEnd = OtherNodes.end();
+  while (NodesIt != NodesEnd and OtherIt != OtherEnd) {
+    if (*NodesIt < *OtherIt) {
+      ++NodesIt;
+    } else {
+      if (not(*OtherIt < *NodesIt)) {
+        return true; // This is equal, hence intersection is not empty,
+                     // hence return true.
+      }
+      ++OtherIt;
+    }
+  }
 
-  return (Intersection.size() != 0);
+  // if we reach this point no element was in common, return false
+  return false;
 }
 
 template<class NodeT>
@@ -128,3 +139,5 @@ bool MetaRegion<NodeT>::nodesEquality(MetaRegion<NodeT> &Other) const {
   BasicBlockNodeTSet &OtherNodes = Other.getNodes();
   return Nodes == OtherNodes;
 }
+
+#endif // REVNGC_RESTRUCTURE_CFG_METAREGIONIMPL_H

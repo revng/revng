@@ -227,9 +227,9 @@ RegionCFG<NodeT>::copyNodesAndEdgesFrom(RegionCFGT *O, BBNodeMap &SubMap) {
     copyNeighbors<NodeT>(New, Node);
   }
 
-  links_underlying_iterator BeginInserted = BlockNodes.begin() + NumCurrNodes;
-  links_underlying_iterator EndInserted = BlockNodes.end();
-  using MovedIteratorRange = llvm::iterator_range<links_underlying_iterator>;
+  internal_iterator BeginInserted = BlockNodes.begin() + NumCurrNodes;
+  internal_iterator EndInserted = BlockNodes.end();
+  using MovedIteratorRange = llvm::iterator_range<internal_iterator>;
   MovedIteratorRange Result = llvm::make_range(BeginInserted, EndInserted);
   for (std::unique_ptr<BasicBlockNode<NodeT>> &NewNode : Result)
     NewNode->updatePointers(SubMap);
@@ -597,7 +597,6 @@ inline void RegionCFG<NodeT>::inflate() {
                           + Conditional->getNameStr() + "-begin");
     }
 
-
     // Get all the nodes reachable from the current conditional node (stopping
     // at the immediate postdominator) and that we want to duplicate/split.
     BasicBlockNodeTVect NotDominatedCandidates;
@@ -960,7 +959,7 @@ inline void RegionCFG<NodeT>::generateAst() {
   CombLogger << "Serializing first AST draft:\n";
   AST.setRoot(RootNode);
   if (CombLogger.isEnabled()) {
-     AST.dumpOnFile("ast", FunctionName, "First-draft");
+    AST.dumpOnFile("ast", FunctionName, "First-draft");
   }
 
   // Create sequence nodes.
@@ -1070,6 +1069,10 @@ template<class NodeT>
 inline bool
 RegionCFG<NodeT>::isTopologicallyEquivalent(RegionCFG &Other) const {
 
+  // The algorithm inspects in a depth first fashion the two graphs, and check
+  // that they are topologically equivalent. Take care that this function may
+  // return true if there are nodes not reachable from the entry node.
+
   // Early failure if the number of nodes composing the two CFG is different.
   if (size() != Other.size()) {
     return false;
@@ -1078,6 +1081,20 @@ RegionCFG<NodeT>::isTopologicallyEquivalent(RegionCFG &Other) const {
   // Retrieve the entry nodes of the two `RegionCFG` under analysis.
   BasicBlockNode<NodeT> &Entry = getEntryNode();
   BasicBlockNode<NodeT> &OtherEntry = Other.getEntryNode();
+
+  // Check that the only node without predecessors is the entry node.
+  for (const BasicBlockNode<NodeT> *Node : nodes()) {
+    if (Node != &Entry and Node->predecessor_size() == 0) {
+      return false;
+    }
+  }
+
+  // Check that the only node without predecessors is the entry node.
+  for (const BasicBlockNode<NodeT> *Node : Other.nodes()) {
+    if (Node != &OtherEntry and Node->predecessor_size() == 0) {
+      return false;
+    }
+  }
 
   // Call to a `BasicBlockNode` method which does a deep and recursive
   // comparison of a node and its successors.

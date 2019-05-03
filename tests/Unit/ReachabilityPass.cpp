@@ -12,8 +12,8 @@ bool init_unit_test();
 
 // LLVM includes
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/SourceMgr.h"
 

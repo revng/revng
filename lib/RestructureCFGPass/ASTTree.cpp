@@ -175,7 +175,6 @@ void ASTTree::dumpOnFile(std::string FolderName,
   } else {
     revng_abort("Could not open file for dumping AST.");
   }
-
 }
 
 ExprNode *ASTTree::addCondExpr(std::unique_ptr<ExprNode> &&Expr) {

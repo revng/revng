@@ -21,5 +21,4 @@ llvm_map_components_to_libnames(LLVM_LIBRARIES core support irreader ScalarOpts
 add_subdirectory(include)
 add_subdirectory(lib)
 
-# TODO: Don't copy cmake test files but directly use the one of the `revng` project.
 include(tests/Tests.cmake)

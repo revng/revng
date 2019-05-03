@@ -17,6 +17,3 @@ add_library(ReachabilityTest
 target_link_libraries(ReachabilityTest
   RestructureCFGPass
   ${LLVM_LIBRARIES})
-install(TARGETS ReachabilityTest
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib)

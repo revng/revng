@@ -96,13 +96,14 @@ inline void flattenRegionCFGTree(RegionCFG<NodeT> &Root) {
 
   NodesToRemove.clear();
   std::vector<BasicBlockNodeT *> SetNodes;
+
   // After we've finished the flattening, remove all the Set nodes and all the
   // chains of Switch nodes. This is beneficial, because Set and Check nodes
   // added by the combing do actually introduce new control flow that was not
   // present in the original LLVM IR. We want to avoid this because adding
   // non-existing control flow may hamper the results of future analyses
   // performed on the LLVM IR after the combing.
-    for (BasicBlockNodeT *Node : Root) {
+  for (BasicBlockNodeT *Node : Root) {
     switch (Node->getNodeType()) {
     case BasicBlockNodeT::Type::Set: {
       SetNodes.push_back(Node);

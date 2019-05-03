@@ -40,8 +40,7 @@ inline void removeEdge(std::pair<BasicBlockNode<NodeT> *,
 }
 
 template<class NodeT>
-inline void moveEdgeTarget(Edge<NodeT> Edge,
-                           BasicBlockNode<NodeT> *NewTarget) {
+inline void moveEdgeTarget(Edge<NodeT> Edge, BasicBlockNode<NodeT> *NewTarget) {
   Edge.second->removePredecessor(Edge.first);
 
   // Special handle for dispatcher check nodes.

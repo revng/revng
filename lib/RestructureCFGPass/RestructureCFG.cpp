@@ -372,7 +372,7 @@ createMetaRegions(const std::vector<EdgeDescriptor> &Backedges) {
 
 static BasicBlockNodeBB *getCheckPredecessor(BasicBlockNodeBB *Node) {
   bool CheckFound = false;
-  BasicBlockNodeBB *CheckPredecessor;
+  BasicBlockNodeBB *CheckPredecessor = nullptr;
   for (BasicBlockNodeBB *Predecessor : Node->predecessors()) {
     if (Predecessor->isCheck()) {
       revng_assert(not CheckFound);
@@ -380,6 +380,8 @@ static BasicBlockNodeBB *getCheckPredecessor(BasicBlockNodeBB *Node) {
       CheckFound = true;
     }
   }
+
+  revng_assert(CheckPredecessor != nullptr);
 
   return CheckPredecessor;
 }
@@ -775,9 +777,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
           moveEdgeTarget(EdgeDescriptor(Predecessor, OldSetNode), Head);
 
           // Search for the corresponding check node and move it.
-          // TODO: If we have more than one set node for the same target
-          //       that need to move the set node, the behavior may not be
-          //       legal.
           BasicBlockNodeBB *CheckNode = getCheckPredecessor(OldTarget);
           revng_assert(CheckNode->isCheck());
           moveEdgeTarget(EdgeDescriptor(CheckNode, OldTarget), OldSetNode);
@@ -1221,7 +1220,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Serialize final AST on file
   if (CombLogger.isEnabled()) {
-      RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final");
+    RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final");
   }
 
   // Early exit if the AST generation produced a version of the AST which is

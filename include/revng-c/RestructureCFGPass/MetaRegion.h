@@ -1,5 +1,5 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_METAREGIONS_H
-#define REVNGC_RESTRUCTURE_CFG_METAREGIONS_H
+#ifndef REVNGC_RESTRUCTURE_CFG_METAREGION_H
+#define REVNGC_RESTRUCTURE_CFG_METAREGION_H
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -105,4 +105,4 @@ public:
   void removeNode(BasicBlockNodeT *Node) { Nodes.erase(Node); }
 };
 
-#endif // REVNGC_RESTRUCTURE_CFG_METAREGIONS_H
+#endif // REVNGC_RESTRUCTURE_CFG_METAREGION_H

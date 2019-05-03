@@ -1,4 +1,4 @@
-/// \file Restructure.cpp
+/// \file RegionCFGTree.cpp
 /// \brief FunctionPass that applies the comb to the RegionCFG of a function
 
 //

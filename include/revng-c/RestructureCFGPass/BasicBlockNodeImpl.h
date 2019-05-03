@@ -36,8 +36,8 @@ inline void BasicBlockNode<NodeT>::removeNode() {
   Parent->removeNode(this);
 }
 
+// Needed by `DomTreeBuilder`.
 template<class NodeT>
-// TODO: Check why this implementation is really necessary.
 inline void BasicBlockNode<NodeT>::printAsOperand(llvm::raw_ostream &O,
                                                   bool PrintType) const {
   O << Name;
@@ -128,30 +128,27 @@ template<class NodeT>
 inline bool
 BasicBlockNode<NodeT>::isEquivalentTo(BasicBlockNodeT *Other) const {
 
-  // TODO: this algorithm fails if there are nodes in the graph not reachable
-  //       from the entry node (even if the number of nodes in the two
-  //       `RegionCFG` is equal).
-
   // Early failure if the IDs of the nodes are different.
   if (getID() != Other->getID()) {
     return false;
   }
 
-  // Early failure if the number of successors for a node is node equal.
+  // Early failure if the number of successors for a node is not equal.
   size_t SuccessorNumber = successor_size();
   size_t OtherSuccessorNumber = Other->successor_size();
   if (SuccessorNumber != OtherSuccessorNumber) {
     return false;
   }
 
-  bool ComparisonState = true;
   for (size_t I = 0; I < SuccessorNumber; I++) {
     BasicBlockNode *SuccessorI = getSuccessorI(I);
     BasicBlockNode *OtherSuccessorI = Other->getSuccessorI(I);
-    ComparisonState &= SuccessorI->isEquivalentTo(OtherSuccessorI);
+    if (not SuccessorI->isEquivalentTo(OtherSuccessorI)) {
+      return false;
+    }
   }
 
-  return ComparisonState;
+  return true;
 }
 
 #endif // REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODEIMPL_H
