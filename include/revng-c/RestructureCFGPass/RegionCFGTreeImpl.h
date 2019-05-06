@@ -639,26 +639,6 @@ inline void RegionCFG<NodeT>::untangle() {
     WeightMap[Node] = 1;
   }
 
-  // Cumulative weight
-  std::map<BasicBlockNode<NodeT> *, unsigned> CumulativeWeightMap;
-  for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
-    CumulativeWeightMap[Node] = 1;
-  }
-
-  // Backpropagate the cumulative weight of each node. This will be used to
-  // compute the weight of the nodes following a postdominator node.
-  for (BasicBlockNode<NodeT> *Exit : ExitNodes) {
-    unsigned WeightAccumulator = 0;
-    revng_log(CombLogger, "From exit node: " << Exit->getNameStr() << "\n");
-    revng_log(CombLogger, "We can reach:\n");
-    for (BasicBlockNode<NodeT> *Node : llvm::inverse_depth_first(Exit)) {
-      WeightAccumulator = WeightAccumulator + CumulativeWeightMap[Node];
-
-      revng_log(CombLogger, Node->getNameStr() << "\n");
-      CumulativeWeightMap[Node] = WeightAccumulator;
-    }
-  }
-
   // Order the conditional nodes in postorder.
   ConditionalNodes = Graph.orderNodes(ConditionalNodes, false);
 
@@ -745,7 +725,17 @@ inline void RegionCFG<NodeT>::untangle() {
       ElseWeight += WeightMap[Node];
     }
 
-    unsigned PostDominatorWeight = CumulativeWeightMap[PostDominator];
+    // The weight of the nodes placed after the immediate postdominator is the
+    // sum of all the weights of the nodes which are reachable starting from the
+    // immediate post dominator and the sink node (to which all the exits have
+    // been connected).
+    unsigned PostDominatorWeight = 0;
+    BasicBlockNodeTSet PostDominatorToExit = findReachableNodes(*PostDominator,
+                                                                *Sink);
+
+    for (BasicBlockNode<NodeT> *Node : PostDominatorToExit) {
+      PostDominatorWeight += WeightMap[Node];
+    }
 
     // Criterion which decides if we can apply the untangle optimization to the
     // conditional under analysis.
