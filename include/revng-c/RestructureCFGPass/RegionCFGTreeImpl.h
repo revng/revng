@@ -552,7 +552,20 @@ inline BasicBlockNode<NodeT>
 
         // Create the edge to the clone of the successor.
         revng_assert(SuccessorClone != nullptr);
-        addEdge(EdgeDescriptor(CurrentClone, SuccessorClone));
+        if (CurrentClone->isCheck()) {
+          revng_assert(CurrentNode->isCheck());
+
+          // Check if we need to connect the `then` or `else` branch.
+          if (CurrentNode->getTrue() == Successor) {
+            CurrentClone->setTrue(SuccessorClone);
+          } else if (CurrentNode->getFalse() == Successor) {
+            CurrentClone->setFalse(SuccessorClone);
+          } else {
+            revng_abort("Succesor is not then neither else.");
+          }
+        } else {
+          addEdge(EdgeDescriptor(CurrentClone, SuccessorClone));
+        }
 
         // Add the successor to the worklist.
         WorkList.push_back(Successor);
