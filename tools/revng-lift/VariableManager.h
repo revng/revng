@@ -33,7 +33,6 @@ class Value;
 } // namespace llvm
 
 class VariableManager;
-class CPUStateAccessAnalysisPass;
 
 // TODO: rename
 extern llvm::cl::opt<bool> External;

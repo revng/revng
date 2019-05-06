@@ -4,8 +4,9 @@
 
 add_executable(revng-lift
   BinaryFile.cpp
-  CPUStateAccessAnalysisPass.cpp
   CodeGenerator.cpp
+  CPUStateAccessAnalysisPass.cpp
+  CSVOffsets.cpp
   ExternalJumpsHandler.cpp
   InstructionTranslator.cpp
   JumpTargetManager.cpp

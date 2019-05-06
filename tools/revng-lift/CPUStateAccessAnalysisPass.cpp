@@ -1,4 +1,4 @@
-/// \file cpustateaccessanalysis.cpp
+/// \file CPUStateAccessAnalysisPass.cpp
 /// \brief This file performs an analysis for reconstructing the access
 ///        patterns to the CPU State Variables (CSV).
 
@@ -35,6 +35,7 @@ class DataLayout;
 }
 
 using namespace llvm;
+
 using ConstFunctionPtrSet = std::set<const Function *>;
 using InstrPtrSet = std::set<Instruction *>;
 using CallPtrSet = std::set<CallInst *>;
@@ -44,6 +45,7 @@ using ConstValuePtrSet = std::set<const Value *>;
 static auto TaintLog = Logger<>("cpustate-taint-analysis");
 /// \brief Logger for the creation of WorkItem
 static auto CSVAccessLog = Logger<>("cpustate-access-analysis");
+
 /// \brief Logger for fixing the accesses to CPUState
 static auto FixAccessLog = Logger<>("cpustate-fix-access");
 
@@ -51,19 +53,16 @@ static uint64_t NumUnknown = 0;
 static std::map<std::string, uint64_t> FunToNumUnknown;
 static std::map<std::string, std::set<std::string>> FunToUnknowns;
 
-void writeToLog(Logger<true> &L, const CSVOffsets &O, int /*Ignore*/) {
-  L << "Kind: " << CSVOffsets::toString(O.OffsetKind);
-  L << " Offsets = { ";
-  for (const auto &Offset : O)
-    L << Offset << ' ';
-  L << "}";
-}
-
 /// \brief Computes the set of Functions reachable from a given Function through
 ///        direct calls.
 ///
 /// \param RootFunction is a pointer to the Function from which is the
 ///        starting point for computing reachability.
+/// \param LoadMDKind is the metadata kind used for decorating call sites that
+///        access CPU State to load data
+/// \param StoreMDKind is the metadata kind used for decorating call sites that
+///        access CPU State to store data
+/// \param Lazy tells if the analysis is running in Lazy mode
 /// \return set of pointers to the reachable Functions
 ///
 /// This function can probably be implemented using the call graph utilities
@@ -71,7 +70,10 @@ void writeToLog(Logger<true> &L, const CSVOffsets &O, int /*Ignore*/) {
 /// gave up because of bugs in the functions coming from LLVM. Then I
 /// implemented my own version, i.e. this function
 static ConstFunctionPtrSet
-computeDirectlyReachableFunctions(const Function *RootFunction) {
+computeDirectlyReachableFunctions(const Function *RootFunction,
+                                  const unsigned LoadMDKind,
+                                  const unsigned StoreMDKind,
+                                  const bool Lazy) {
   std::map<const Function *, ConstFunctionPtrSet> CallGraph;
   const Module &M = *RootFunction->getParent();
 
@@ -83,6 +85,17 @@ computeDirectlyReachableFunctions(const Function *RootFunction) {
     for (const Use &U : F.uses()) {
       const User *TheUser = U.getUser();
       if (const auto *TheCall = dyn_cast<const CallInst>(TheUser)) {
+        // If this call has already been decorated with LoadMDKind or
+        // StoreMDKind metadata it means that it has already been processed by
+        // a previous run of CPUStateAccessAnalysis.
+        // If we're running in lazy mode, we can skip calls that have already
+        // been decorated.
+        if (Lazy) {
+          if (TheCall->getMetadata(LoadMDKind) != nullptr
+              or TheCall->getMetadata(StoreMDKind) != nullptr) {
+            continue;
+          }
+        }
         const Function *Caller = TheCall->getParent()->getParent();
         const Function *Callee = getCallee(TheCall);
         if (Callee == &F) {
@@ -100,6 +113,17 @@ computeDirectlyReachableFunctions(const Function *RootFunction) {
               const auto *TheCall = dyn_cast<const CallInst>(BitCastUser);
               const auto *NewCExpr = dyn_cast<const ConstantExpr>(BitCastUser);
               if (TheCall) {
+                // If this call has already been decorated with LoadMDKind or
+                // StoreMDKind metadata it means that it has already been
+                // processed by a previous run of CPUStateAccessAnalysis.
+                // If we're running in lazy mode, we can skip calls that have
+                // already been decorated.
+                if (Lazy) {
+                  if (TheCall->getMetadata(LoadMDKind) != nullptr
+                      or TheCall->getMetadata(StoreMDKind) != nullptr) {
+                    continue;
+                  }
+                }
                 const Function *Caller = TheCall->getParent()->getParent();
                 const Function *Callee = getCallee(TheCall);
                 if (Callee == &F) {
@@ -166,6 +190,11 @@ struct TaintResults {
 ///        variable. This variable is the Value that taints all the others.
 /// \param ReachableFunctions is a set of functions that are reachable from
 ///        the root function. The analysis is restricted to those functions.
+/// \param LoadMDKind is the metadata kind used for decorating call sites that
+///        access CPU State to load data
+/// \param StoreMDKind is the metadata kind used for decorating call sites that
+///        access CPU State to store data
+/// \param Lazy tells if the analysis is running in Lazy mode
 /// \return a TaintResults containing information on:
 ///         1) a set of instructions that access the CSV to load data;
 ///         2) a set of instructions that access the CSV to store data;
@@ -173,7 +202,10 @@ struct TaintResults {
 ///            if and how they will access the CSV.
 static TaintResults
 forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
-                     const ConstFunctionPtrSet &ReachableFunctions) {
+                     const ConstFunctionPtrSet &ReachableFunctions,
+                     const unsigned LoadMDKind,
+                     const unsigned StoreMDKind,
+                     const bool Lazy) {
   //
   // Interprocedural Forward Taint Analysis
   //
@@ -341,12 +373,25 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
         }
       } break;
       case Instruction::Call: {
+        TaintLog << "CALL" << DoLog;
+        auto *TheCall = cast<CallInst>(TheUser);
+
+        // If this call has already been decorated with LoadMDKind or
+        // StoreMDKind metadata it means that it has already been processed by
+        // a previous run of CPUStateAccessAnalysis.
+        // If we're running in lazy mode, we can skip calls that have already
+        // been decorated.
+        if (Lazy) {
+          if (TheCall->getMetadata(LoadMDKind) != nullptr
+              or TheCall->getMetadata(StoreMDKind) != nullptr) {
+            TaintLog << "Decorated in a previous run" << DoLog;
+            break;
+          }
+        }
 
         // 3(a) If the next `Use` to explore is a `CallInst` the taint is
         // propagated interprocedurally to the callee, through the arguments
         // (propagation from caller to callee)
-        TaintLog << "CALL" << DoLog;
-        auto *TheCall = cast<CallInst>(TheUser);
         Function *Callee = getCallee(TheCall);
 
         // Indirect calls, calls to functions without body, and calls to
@@ -429,7 +474,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
         } else if (FunctionArgTaintsReturn.count({ Callee, FormalArgument })) {
           // It means that a previous exploration of the graph has reached this
           // argument, and propagated a taint until a return value. This means
-          // that this we must taint the call and start explorint its unexplored
+          // that this we must taint the call and start exploring its unexplored
           // users if any.
           bool JustTainted = Results.TaintedValues.insert(TheUser).second;
           if (TaintLog.isEnabled()) {
@@ -592,11 +637,13 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
     }
   }
 
-  QuickMetadata QMD(M->getContext());
-  for (CallInst *Call : Results.IllegalCalls) {
-    CallInst *Abort = CallInst::Create(M->getFunction("abort"), {}, Call);
-    auto IllegalCallsMDKind = M->getContext().getMDKindID("IllegalCalls");
-    Abort->setMetadata(IllegalCallsMDKind, QMD.tuple((uint32_t) 0));
+  if (not Lazy) {
+    QuickMetadata QMD(M->getContext());
+    for (CallInst *Call : Results.IllegalCalls) {
+      CallInst *Abort = CallInst::Create(M->getFunction("abort"), {}, Call);
+      auto IllegalCallsMDKind = M->getContext().getMDKindID("IllegalCalls");
+      Abort->setMetadata(IllegalCallsMDKind, QMD.tuple((uint32_t) 0));
+    }
   }
   return Results;
 }
@@ -637,7 +684,10 @@ public:
   }
 
   explicit WorkItem(Argument *A,
-                    const ConstFunctionPtrSet &ReachableFunctions) :
+                    const ConstFunctionPtrSet &ReachableFunctions,
+                    const bool IsLazy,
+                    const unsigned LoadMDKind,
+                    const unsigned StoreMDKind) :
     CurrentValue(A),
     Sources(),
     SourceIndex(0) {
@@ -653,6 +703,19 @@ public:
         CSVAccessLog << "Is a Call" << DoLog;
         const Function *Caller = FCall->getParent()->getParent();
         CSVAccessLog << "Caller: " << Caller << DoLog;
+
+        // If this call has already been decorated with LoadMDKind or
+        // StoreMDKind metadata it means that it has already been processed by
+        // a previous run of CPUStateAccessAnalysis.
+        // If we're running in lazy mode, we can skip calls that have already
+        // been decorated.
+        if (IsLazy) {
+          if (FCall->getMetadata(LoadMDKind) != nullptr
+              or FCall->getMetadata(StoreMDKind) != nullptr) {
+            continue;
+          }
+        }
+
         if (ReachableFunctions.find(Caller) != ReachableFunctions.end()) {
           CSVAccessLog << "Is Reachable" << DoLog;
           CSVAccessLog << "CallInst:" << FCall << DoLog;
@@ -670,6 +733,19 @@ public:
           CSVAccessLog << "RealCall:" << RealCall << DoLog;
           const auto *FCall = dyn_cast<const CallInst>(RealCall);
           CSVAccessLog << "CallInst:" << FCall << DoLog;
+
+          // If this call has already been decorated with LoadMDKind or
+          // StoreMDKind metadata it means that it has already been processed by
+          // a previous run of CPUStateAccessAnalysis.
+          // If we're running in lazy mode, we can skip calls that have already
+          // been decorated.
+          if (IsLazy) {
+            if (FCall->getMetadata(LoadMDKind) != nullptr
+                or FCall->getMetadata(StoreMDKind) != nullptr) {
+              continue;
+            }
+          }
+
           if (FCall) {
             const Function *Caller = FCall->getParent()->getParent();
             CSVAccessLog << "Caller: " << Caller << DoLog;
@@ -687,10 +763,19 @@ public:
     revng_assert(not Sources.empty());
   }
 
-  explicit WorkItem(CallInst *C, bool IsLoad) :
+  explicit WorkItem(CallInst *C,
+                    const bool IsLoad,
+                    const bool IsLazy,
+                    const unsigned LoadMDKind,
+                    const unsigned StoreMDKind) :
     CurrentValue(C),
     Sources(),
     SourceIndex(0) {
+
+    revng_assert(not IsLazy
+                 or (C->getMetadata(LoadMDKind) == nullptr
+                     and C->getMetadata(StoreMDKind) == nullptr));
+
     const Function *F = getCallee(C);
     revng_assert(F != nullptr); // Assume no indirect calls
     if (F->getIntrinsicID() == Intrinsic::memcpy) {
@@ -832,9 +917,10 @@ protected:
 
 public:
   CRTPOffsetFolder(const Module &M) :
-    Int64Ty(IntegerType::get(M.getContext(), 64)),
-    Int32Ty(IntegerType::get(M.getContext(), 32)),
+    Int64Ty(IntegerType::getInt64Ty(M.getContext())),
+    Int32Ty(IntegerType::getInt32Ty(M.getContext())),
     DL(M.getDataLayout()) {}
+
   static void insertOrCombine(Value *V,
                               CallInst *C,
                               CSVOffsets &&O,
@@ -854,7 +940,7 @@ public:
   /// \param [in, out] is the Map used to retrieve the values of the offsets of
   ///                  the sources of `Item`, and also to store the result of
   ///                  the folded offsets for `Item`.
-  void fold(const WorkItem &Item, ValueCallSiteOffsetMap &OffsetMap) {
+  inline void fold(const WorkItem &Item, ValueCallSiteOffsetMap &OffsetMap) {
     WorkItem::size_type NumSrcs = Item.getNumSources();
     revng_assert(NumSrcs);
     SmallVector<Constant *, 4> Operands(NumSrcs, nullptr);
@@ -1031,10 +1117,11 @@ public:
   }
 
 private:
-  CSVOffsets foldOffsets(CSVOffsets::Kind ResKind,
-                         WorkItem::size_type NumSrcs,
-                         Instruction *I,
-                         const SmallVector<offset_iterator, 4> &OffsetsIt) {
+  inline CSVOffsets
+  foldOffsets(CSVOffsets::Kind ResKind,
+              WorkItem::size_type NumSrcs,
+              Instruction *I,
+              const SmallVector<offset_iterator, 4> &OffsetsIt) {
     return static_cast<T *>(this)->foldOffsets(ResKind, NumSrcs, I, OffsetsIt);
   }
 };
@@ -1319,11 +1406,14 @@ private:
   }
 };
 
-using AccessOffsetMap = std::map<llvm::Instruction *, CSVOffsets>;
+using AccessOffsetMap = CPUStateAccessAnalysisPass::AccessOffsetMap;
 
 class CPUStateAccessOffsetAnalysis {
 
 private:
+  const bool Lazy;
+  const unsigned LoadMDKind;
+  const unsigned StoreMDKind;
   const Module &M;
   const Value *CPUStatePtr;
   const Function *RootFunction;
@@ -1356,6 +1446,8 @@ private:
   CallPtrSet CrossedCallSites;
   std::vector<WorkItem> WorkList;
   ConstValuePtrSet InExploration;
+
+  // Helper folders
   AddSubOffsetFolder AddSubFolder;
   NumericOffsetFolder NumericFolder;
   GEPOffsetFolder GEPFolder;
@@ -1366,11 +1458,17 @@ public:
                                const Function *Root,
                                const ConstFunctionPtrSet &Reachable,
                                const TaintResults &Tainted,
+                               const bool IsLazy,
+                               const unsigned LoadKind,
+                               const unsigned StoreKind,
                                VariableManager *Vars,
                                AccessOffsetMap &LoadOff,
                                AccessOffsetMap &StoreOff,
                                CallSiteOffsetMap &CallSiteLoadOff,
                                CallSiteOffsetMap &CallSiteStoreOff) :
+    Lazy(IsLazy),
+    LoadMDKind(LoadKind),
+    StoreMDKind(StoreKind),
     M(Mod),
     CPUStatePtr(EnvPtr),
     RootFunction(Root),
@@ -1392,10 +1490,10 @@ public:
     GEPFolder(M) {}
 
 public:
-  bool run();
+  inline bool run();
 
 private:
-  void cleanup() {
+  inline void cleanup() {
     ValueCallSiteOffsets = {};
     LoadCallSiteOffsets = {};
     StoreCallSiteOffsets = {};
@@ -1412,7 +1510,7 @@ private:
   /// update the correct ValueCallSiteOffsetMap (either LoadCallSiteOffsets or
   /// StoreCallSiteOffsets) if during the exploration the analysis ends because
   /// all the immediate sources are already resolved.
-  void analyzeAccess(Instruction *I, bool IsLoad);
+  inline void analyzeAccess(Instruction *I, bool IsLoad);
 
   /// \brief Explores the sources of `V` and pushes a `WorkItem` on `WorkList`
   ///        if something new is found
@@ -1422,7 +1520,7 @@ private:
   /// update the correct ValueCallSiteOffsetMap (either LoadCallSiteOffsets or
   /// StoreCallSiteOffsets) if during the exploration the analysis ends because
   /// all the immediate sources are already resolved.
-  void exploreImmediateSources(Value *V, bool IsLoad);
+  inline void exploreImmediateSources(Value *V, bool IsLoad);
 
   /// \brief Returns an emtpy Optional and fill W if there are unexplored
   ///        sources, otherwise return the offsets
@@ -1431,15 +1529,15 @@ private:
   /// \param [out] W a `WorkItem` that will be initialized with the unexplored
   ///                sources of `V` if any.
   /// \param IsLoad true if we're exploring from a load
-  OptCSVOffsets
+  inline OptCSVOffsets
   getOffsetsOrExploreSrc(Value *V, WorkItem &W, bool IsLoad) const;
 
-  void insertCallSiteOffset(Value *V, CSVOffsets &&Offset);
+  inline void insertCallSiteOffset(Value *V, CSVOffsets &&Offset);
 
   /// \brief Removes the root call site associated with `Item` (if any) from
   ///        `CrossedCallSites`
   /// \return `true` if it was removed, `false` otherwise
-  bool removeCurCrossedCallSite(const WorkItem &Item) {
+  inline bool removeCurCrossedCallSite(const WorkItem &Item) {
     CallInst *RootCallSite = getCurSourceRootCall(Item, RootFunction);
     if (RootCallSite) {
       auto NumErased = CrossedCallSites.erase(RootCallSite);
@@ -1457,7 +1555,7 @@ private:
   ///        particular call site
   ///
   /// This function returns `true` if this is the first visit, `false` otherwise
-  bool isNewVisitWithCallSite(Value *V, CallInst *NewCallSite) const {
+  inline bool isNewVisitWithCallSite(Value *V, CallInst *NewCallSite) const {
 
     // Handle constants in a special way. Constants are kind of global values
     // that can be used across different functions without properly propagating
@@ -1540,7 +1638,8 @@ private:
   /// If this is the first visit, `RootCall` is inserted in `CrossedCallSites`
   /// and the function returns `true`.
   /// If this is not the first visit or `RootCall` it returns `false`
-  bool checkNewVisitAndInsertCrossedCallSite(CallInst *RootCall, const Use *U) {
+  inline bool
+  checkNewVisitAndInsertCrossedCallSite(CallInst *RootCall, const Use *U) {
     if (isNewVisitWithCallSite(U->get(), RootCall)) {
       if (RootCall) {
         bool New = CrossedCallSites.insert(RootCall).second;
@@ -1551,13 +1650,13 @@ private:
     return false;
   }
 
-  bool checkNewVisitAndInsertCurCrossedCallSite(const WorkItem &Item) {
+  inline bool checkNewVisitAndInsertCurCrossedCallSite(const WorkItem &Item) {
     CallInst *RootCallSite = getCurSourceRootCall(Item, RootFunction);
     return checkNewVisitAndInsertCrossedCallSite(RootCallSite,
                                                  Item.currentSourceUse());
   }
 
-  bool checkNewVisitAndInsertNextCrossedCallSite(const WorkItem &Item) {
+  inline bool checkNewVisitAndInsertNextCrossedCallSite(const WorkItem &Item) {
     CallInst *RootCallSite = getNextSourceRootCall(Item, RootFunction);
     return checkNewVisitAndInsertCrossedCallSite(RootCallSite,
                                                  Item.nextSourceUse());
@@ -1565,7 +1664,7 @@ private:
 
   /// \brief Selects the next source of `Item`, if possible, returning true on
   ///        success.
-  bool selectNextSource(WorkItem &Item) {
+  inline bool selectNextSource(WorkItem &Item) {
     const Use *NextSrcUse = Item.nextSourceUse();
     if (NextSrcUse != nullptr) {
       removeCurCrossedCallSite(Item);
@@ -1576,31 +1675,32 @@ private:
     return false;
   }
 
-  void push(WorkItem &&Item) {
+  inline void push(WorkItem &&Item) {
     InExploration.insert(Item.Val());
     WorkList.push_back(Item);
     CSVAccessLog.indent(2);
   }
 
-  void pop() {
+  inline void pop() {
     InExploration.erase(WorkList.back().Val());
     WorkList.pop_back();
     CSVAccessLog.unindent(2);
   }
 
-  bool isInExploration(const Value *V) {
+  inline bool isInExploration(const Value *V) {
     return InExploration.find(V) != InExploration.end();
   }
 
-  void computeOffsetsFromSources(const WorkItem &Item, bool IsLoad);
+  inline void computeOffsetsFromSources(const WorkItem &Item, bool IsLoad);
 
   template<bool IsLoad>
-  void computeAggregatedOffsets();
+  inline void computeAggregatedOffsets();
 };
 
 using CPUSAOA = CPUStateAccessOffsetAnalysis;
 
-void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
+inline void
+CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
   Value *ItemVal = Item.Val();
   if (isa<PHINode>(ItemVal) or isa<Argument>(ItemVal)
       or isa<CallInst>(ItemVal)) {
@@ -1809,7 +1909,7 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
   }
 }
 
-void CPUSAOA::insertCallSiteOffset(Value *V, CSVOffsets &&Offset) {
+inline void CPUSAOA::insertCallSiteOffset(Value *V, CSVOffsets &&Offset) {
   CSVAccessLog << "MAP INSERT: " << V << DoLog;
   // If CrossedCallSites is empty we haven't reached the root function during
   // the backward exploration, so the only active call site is nullptr.
@@ -1838,17 +1938,17 @@ void CPUSAOA::insertCallSiteOffset(Value *V, CSVOffsets &&Offset) {
   }
 }
 
-OptCSVOffsets
+inline OptCSVOffsets
 CPUSAOA::getOffsetsOrExploreSrc(Value *V, WorkItem &Item, bool IsLoad) const {
   if (auto *Call = dyn_cast<CallInst>(V)) {
     if (CSVAccessLog.isEnabled()) {
       CSVAccessLog << "CALL" << DoLog;
       CSVAccessLog << dumpToString(Call) << DoLog;
     }
-    Item = WorkItem(Call, IsLoad);
+    Item = WorkItem(Call, IsLoad, Lazy, LoadMDKind, StoreMDKind);
   } else if (auto *Arg = dyn_cast<Argument>(V)) {
     CSVAccessLog << "ARG" << DoLog;
-    Item = WorkItem(Arg, ReachableFunctions);
+    Item = WorkItem(Arg, ReachableFunctions, Lazy, LoadMDKind, StoreMDKind);
   } else if (auto *Instr = dyn_cast<Instruction>(V)) {
     CSVAccessLog << "INST" << DoLog;
     const auto OpCode = Instr->getOpcode();
@@ -1896,7 +1996,7 @@ CPUSAOA::getOffsetsOrExploreSrc(Value *V, WorkItem &Item, bool IsLoad) const {
   return OptCSVOffsets();
 }
 
-void CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
+inline void CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
   // Try to get new unexplored sources for V.
   WorkItem NewItem;
   {
@@ -1972,7 +2072,11 @@ void CPUSAOA::analyzeAccess(Instruction *LoadOrStore, bool IsLoad) {
   if (not callsBuiltinMemcpy(LoadOrStore))
     push(WorkItem(LoadOrStore));
   else
-    push(WorkItem(cast<CallInst>(LoadOrStore), IsLoad));
+    push(WorkItem(cast<CallInst>(LoadOrStore),
+                  IsLoad,
+                  Lazy,
+                  LoadMDKind,
+                  StoreMDKind));
 
   while (not WorkList.empty()) {
     const auto size = WorkList.size();
@@ -2026,7 +2130,7 @@ void CPUSAOA::analyzeAccess(Instruction *LoadOrStore, bool IsLoad) {
 }
 
 template<bool IsLoad>
-void CPUSAOA::computeAggregatedOffsets() {
+inline void CPUSAOA::computeAggregatedOffsets() {
   const InstrPtrSet &Tainted = IsLoad ? TaintedAccesses.TaintedLoads :
                                         TaintedAccesses.TaintedStores;
   ValueCallSiteOffsetMap &AccessCSOffsets = IsLoad ? LoadCallSiteOffsets :
@@ -2134,7 +2238,7 @@ void CPUSAOA::computeAggregatedOffsets() {
   }
 }
 
-bool CPUSAOA::run() {
+inline bool CPUSAOA::run() {
 
   // Analyze load and store
   for (Instruction *I : TaintedAccesses.TaintedLoads)
@@ -2185,14 +2289,18 @@ bool CPUSAOA::run() {
   // Aggregate the results:
   // - from LoadCallSiteOffsets to CallSiteLoadOffsets and LoadOffsets
   // - from StoreCallSiteOffsets to CallSiteStoreOffsets and StoreOffsets
-  computeAggregatedOffsets<true>();
-  computeAggregatedOffsets<false>();
+  computeAggregatedOffsets</* IsLoad = */ true>();
+  computeAggregatedOffsets</* IsLoad = */ false>();
 
   cleanup();
+
   return not TaintedAccesses.empty();
 }
 
-class CPUStateAccessAnalysis {
+class CPUStateAccessFixer {
+
+private:
+  using Pair = AccessOffsetMap::value_type;
 
 private:
   // A reference to the analyzed Module
@@ -2200,52 +2308,60 @@ private:
 
   VariableManager *Variables;
 
-  // References to the maps that will be filled by this analysis.
+  // References to the maps that were filled by CPUStateAccessAnalysis.
   // Every map maps an Instruction to the CSVOffset representing all the
   // possible offsets that are accessed by that Instruction, being it either a
   // load, a store or a call to Intrinsic::memcpy.
   // We hold two separate maps, one for loads and one for stores, so that calls
   // to memcpy can be in both maps, with different associated offsets.
-  AccessOffsetMap CSVLoadOffsetMap;
-  AccessOffsetMap CSVStoreOffsetMap;
+  const AccessOffsetMap &CSVLoadOffsetMap;
+  const AccessOffsetMap &CSVStoreOffsetMap;
+
+  std::vector<Instruction *> InstructionsToRemove;
 
 public:
-  CPUStateAccessAnalysis(const Module &Mod, VariableManager *V) :
+  CPUStateAccessFixer(const Module &Mod,
+                      VariableManager *V,
+                      const AccessOffsetMap &L,
+                      const AccessOffsetMap &S) :
     M(Mod),
     Variables(V),
-    EnvStructType(V->getCPUStateType()),
+    CSVLoadOffsetMap(L),
+    CSVStoreOffsetMap(S),
     DL(Mod.getDataLayout()),
-    EnvStructSize(DL.getTypeAllocSize(EnvStructType)),
+    EnvStructSize(DL.getTypeAllocSize(V->getCPUStateType())),
     Builder(Mod.getContext()),
-    Int64Ty(Builder.getInt64Ty()),
+    Int64Ty(IntegerType::getInt64Ty(M.getContext())),
     SizeOfEnv(ConstantInt::get(Int64Ty, APInt(64, EnvStructSize, true))),
     Zero(ConstantInt::get(Int64Ty, APInt(64, 0, true))),
     CPUStatePtr(Mod.getGlobalVariable("env")) {}
 
 public:
-  bool run();
+  inline bool run();
 
 private:
   template<bool IsLoad>
-  std::tuple<Instruction *, Type *, Value *>
+  inline std::tuple<Instruction *, Type *, Value *>
   setupOutEnvAccess(Instruction *AccessToFix);
 
   template<bool IsLoad>
-  void correctCPUStateAccesses();
+  inline void correctCPUStateAccesses();
 
-  void setupLoadInEnv(Instruction *LoadToFix,
-                      int64_t EnvOffset,
-                      SwitchInst *Switch,
-                      BasicBlock *NextBB,
-                      PHINode *Phi);
+  inline void setupLoadInEnv(Instruction *LoadToFix,
+                             int64_t EnvOffset,
+                             SwitchInst *Switch,
+                             BasicBlock *NextBB,
+                             PHINode *Phi);
 
-  void setupStoreInEnv(Instruction *LoadToFix,
-                       int64_t EnvOffset,
-                       SwitchInst *Switch,
-                       BasicBlock *NextBB);
+  inline void setupStoreInEnv(Instruction *LoadToFix,
+                              int64_t EnvOffset,
+                              SwitchInst *Switch,
+                              BasicBlock *NextBB);
+
+  template<bool IsLoad>
+  inline void fixAccess(const Pair &IOff);
 
 private:
-  Type *EnvStructType;
   const DataLayout &DL;
   int64_t EnvStructSize;
   IRBuilder<> Builder;
@@ -2254,48 +2370,6 @@ private:
   Constant *Zero;
   GlobalVariable *CPUStatePtr;
 };
-
-static void addAccessMetadata(const CallSiteOffsetMap &OffsetMap,
-                              VariableManager *Variables,
-                              QuickMetadata &QMD,
-                              unsigned MDKind) {
-  for (auto &AccessOffsets : OffsetMap) {
-    const CSVOffsets &Offsets = AccessOffsets.second;
-    CallInst *const CallSite = AccessOffsets.first;
-    if (CallSite == nullptr)
-      continue;
-    revng_assert(Offsets.isPtr());
-
-    ConstantAsMetadata *UnknownAccess = nullptr;
-    MDTuple *AccessedVariablesTuple = nullptr;
-    SmallVector<Metadata *, 10> OffsetMetadata;
-    OffsetMetadata.reserve(Offsets.size());
-    std::set<GlobalVariable *> AccessedVars;
-    if (Offsets.isUnknownInPtr()) {
-      CSVAccessLog << "Unknown access to CSV" << DoLog;
-      UnknownAccess = QMD.get((uint32_t) 1);
-      AccessedVariablesTuple = QMD.tuple(OffsetMetadata);
-    } else {
-      UnknownAccess = QMD.get((uint32_t) 0);
-      for (const int64_t O : Offsets) {
-        CSVAccessLog << "CallSite: " << CallSite << DoLog;
-        CSVAccessLog << "Refined: " << O << DoLog;
-        GlobalVariable *AccessedVar = Variables->getByEnvOffset(O).first;
-        bool NewlyInserted = AccessedVars.insert(AccessedVar).second;
-        if (NewlyInserted) {
-          OffsetMetadata.push_back(QMD.get(AccessedVar));
-        }
-        CSVAccessLog << "Accessed Var: " << AccessedVar
-                     << " Offset: " << Variables->getByEnvOffset(O).second
-                     << DoLog;
-      }
-      AccessedVariablesTuple = QMD.tuple(OffsetMetadata);
-    }
-    SmallVector<Metadata *, 2> AccessMetadata = { UnknownAccess,
-                                                  AccessedVariablesTuple };
-    CallSite->setMetadata(MDKind, QMD.tuple(AccessMetadata));
-  }
-}
 
 static Value *getLoadAddressValue(Instruction *I) {
   auto OpCode = I->getOpcode();
@@ -2357,63 +2431,6 @@ static Type *getStoredType(Instruction *I) {
   return nullptr;
 }
 
-static void fixEnv2EnvMemCopies(const Module &M,
-                                AccessOffsetMap &CSVLoadOffsetMap,
-                                AccessOffsetMap &CSVStoreOffsetMap) {
-  QuickMetadata QMD(M.getContext());
-  IRBuilder<> Builder(M.getContext());
-  Type *CharTy = Builder.getInt8Ty();
-
-  std::set<Instruction *> AccessToRemove;
-  AccessOffsetMap NewLoadCSOffsets;
-  AccessOffsetMap NewStoreCSOffsets;
-
-  for (auto &InstCSOffset : CSVLoadOffsetMap) {
-    Instruction *Instr = InstCSOffset.first;
-    auto It = CSVStoreOffsetMap.find(Instr);
-    if (It != CSVStoreOffsetMap.end()) {
-      auto *Call = cast<CallInst>(Instr);
-      Function *Memcpy = getCallee(Call);
-      revng_assert(Memcpy != nullptr
-                   and (Memcpy->getIntrinsicID() == Intrinsic::memcpy
-                        and isa<ConstantInt>(Call->getArgOperand(2))));
-
-      Value *MemcpySize = Call->getArgOperand(2);
-      Value *MemcpySrc = Call->getArgOperand(1);
-      Value *MemcpyDst = Call->getArgOperand(0);
-
-      Function *F = Instr->getParent()->getParent();
-      Builder.SetInsertPoint(&*F->getEntryBlock().begin());
-      AllocaInst *TmpBuffer = Builder.CreateAlloca(CharTy, MemcpySize);
-
-      Builder.SetInsertPoint(Instr);
-      CallInst *MemcpyLoad = Builder.CreateMemCpy(TmpBuffer,
-                                                  TmpBuffer->getAlignment(),
-                                                  MemcpySrc,
-                                                  1,
-                                                  MemcpySize);
-      NewLoadCSOffsets.insert({ MemcpyLoad, InstCSOffset.second });
-
-      CallInst *MemcpyStore = Builder.CreateMemCpy(MemcpyDst,
-                                                   1,
-                                                   TmpBuffer,
-                                                   TmpBuffer->getAlignment(),
-                                                   MemcpySize);
-      NewStoreCSOffsets.insert({ MemcpyStore, It->second });
-
-      AccessToRemove.insert(Instr);
-    }
-  }
-
-  for (Instruction *Instr : AccessToRemove) {
-    CSVLoadOffsetMap.erase(Instr);
-    CSVStoreOffsetMap.erase(Instr);
-    Instr->eraseFromParent();
-  }
-  CSVLoadOffsetMap.insert(NewLoadCSOffsets.begin(), NewLoadCSOffsets.end());
-  CSVStoreOffsetMap.insert(NewStoreCSOffsets.begin(), NewStoreCSOffsets.end());
-}
-
 static ConstantInt *getConstantOffset(Type *Int64Ty, int64_t O) {
   auto *EnvOffsetConst = ConstantInt::get(Int64Ty, APInt(64, O, true));
   return cast<ConstantInt>(EnvOffsetConst);
@@ -2430,8 +2447,8 @@ static Value *buildEnvOffsetValue(IRBuilder<> Builder,
 }
 
 template<bool IsLoad>
-std::tuple<Instruction *, Type *, Value *>
-CPUStateAccessAnalysis::setupOutEnvAccess(Instruction *AccessToFix) {
+inline std::tuple<Instruction *, Type *, Value *>
+CPUStateAccessFixer::setupOutEnvAccess(Instruction *AccessToFix) {
   LLVMContext &Context = M.getContext();
   BasicBlock *AccessToFixBB = AccessToFix->getParent();
   Function *F = AccessToFixBB->getParent();
@@ -2497,11 +2514,11 @@ CPUStateAccessAnalysis::setupOutEnvAccess(Instruction *AccessToFix) {
   return std::make_tuple(InAccessToFix, nullptr, OffsetValue);
 }
 
-void CPUStateAccessAnalysis::setupLoadInEnv(Instruction *LoadToFix,
-                                            int64_t EnvOffset,
-                                            SwitchInst *Switch,
-                                            BasicBlock *NextBB,
-                                            PHINode *Phi) {
+inline void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
+                                                int64_t EnvOffset,
+                                                SwitchInst *Switch,
+                                                BasicBlock *NextBB,
+                                                PHINode *Phi) {
   LLVMContext &Context = M.getContext();
   Function *F = LoadToFix->getParent()->getParent();
   auto *OffsetConstInt = getConstantOffset(Int64Ty, EnvOffset);
@@ -2517,7 +2534,6 @@ void CPUStateAccessAnalysis::setupLoadInEnv(Instruction *LoadToFix,
   switch (LoadToFix->getOpcode()) {
 
   case Instruction::Load: {
-
     Type *OriginalLoadedType = Clone->getType();
     unsigned Size = DL.getTypeAllocSize(OriginalLoadedType);
     revng_assert(Size != 0);
@@ -2536,26 +2552,24 @@ void CPUStateAccessAnalysis::setupLoadInEnv(Instruction *LoadToFix,
       if (Phi != nullptr)
         Phi->addIncoming(Loaded, CaseBlock);
       Clone->replaceAllUsesWith(Loaded);
-      Clone->eraseFromParent();
+      InstructionsToRemove.push_back(Clone);
     } else {
       delete CaseBlock;
       CaseBlock = nullptr; // Prevent this from being used
     }
-
   } break;
 
   case Instruction::Call: {
     CallInst *Call = cast<CallInst>(Clone);
     Ok = Variables->memcpyAtEnvOffset(Builder, Call, EnvOffset, true);
-    Clone->eraseFromParent();
     if (Ok) {
+      InstructionsToRemove.push_back(Clone);
       CaseBlock->insertInto(F);
       Switch->addCase(OffsetConstInt, CaseBlock);
     } else {
       delete CaseBlock;
       CaseBlock = nullptr; // Prevent this from being used
     }
-
   } break;
 
   default:
@@ -2563,10 +2577,10 @@ void CPUStateAccessAnalysis::setupLoadInEnv(Instruction *LoadToFix,
   }
 }
 
-void CPUStateAccessAnalysis::setupStoreInEnv(Instruction *StoreToFix,
-                                             int64_t EnvOffset,
-                                             SwitchInst *Switch,
-                                             BasicBlock *NextBB) {
+inline void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
+                                                 int64_t EnvOffset,
+                                                 SwitchInst *Switch,
+                                                 BasicBlock *NextBB) {
   LLVMContext &Context = M.getContext();
   Function *F = StoreToFix->getParent()->getParent();
   auto *OffsetConstInt = getConstantOffset(Int64Ty, EnvOffset);
@@ -2598,8 +2612,8 @@ void CPUStateAccessAnalysis::setupStoreInEnv(Instruction *StoreToFix,
     revng_abort();
   }
 
-  Clone->eraseFromParent();
   if (Ok) {
+    InstructionsToRemove.push_back(Clone);
     CaseBlock->insertInto(F);
     Switch->addCase(OffsetConstInt, CaseBlock);
   } else {
@@ -2608,259 +2622,417 @@ void CPUStateAccessAnalysis::setupStoreInEnv(Instruction *StoreToFix,
 }
 
 template<bool IsLoad>
-void CPUStateAccessAnalysis::correctCPUStateAccesses() {
-  AccessOffsetMap &CSVAccessOffsetMap = IsLoad ? CSVLoadOffsetMap :
-                                                 CSVStoreOffsetMap;
+inline void CPUStateAccessFixer::correctCPUStateAccesses() {
+  auto &CSVAccessOffsetMap = IsLoad ? CSVLoadOffsetMap : CSVStoreOffsetMap;
+  auto &OtherCSVAccessOffsetMap = IsLoad ? CSVStoreOffsetMap : CSVLoadOffsetMap;
 
   if (IsLoad)
     FixAccessLog << "######## Fixing Loads ########" << DoLog;
   else
     FixAccessLog << "######## Fixing Stores ########" << DoLog;
 
-  for (std::pair<Instruction *const, CSVOffsets> &IOff : CSVAccessOffsetMap) {
-    Instruction *const I = IOff.first;
-    CSVOffsets &Offsets = IOff.second;
-    CSVOffsets::Kind OKind = Offsets.getKind();
-    FixAccessLog << "Fixing access: " << I
-                 << "\nCSVOffsets Kind: " << CSVOffsets::toString(OKind)
-                 << DoLog;
-    revng_assert(CSVOffsets::isPtr(OKind));
-    Function *F = I->getParent()->getParent();
-    Instruction *AccessToFix = I;
-
-    switch (OKind) {
-    case CSVOffsets::Kind::Unknown:
-    case CSVOffsets::Kind::Numeric:
-      revng_abort();
-    case CSVOffsets::Kind::OutAndKnownInPtr:
-    case CSVOffsets::Kind::UnknownInPtr:
-    case CSVOffsets::Kind::OutAndUnknownInPtr:
-    case CSVOffsets::Kind::KnownInPtr: {
-
-      revng_log(FixAccessLog, "Before: " << dumpToString(F));
-
-      // This is necessary to get the correct debug info.
-      // Setting the insert point to an Instruction also updates the Builder
-      // to use its debug info until the insert point is set to a new
-      // instruction.
-      // Given that in the rest of the code we mostly use
-      // SetInsertPoint(BasicBlock *), which does not reset the debug info, we
-      // want to do it now, otherwise we might end up using the wrong debug
-      // info from an instruction of a previous iteration of this loop.
-      Builder.SetInsertPoint(I);
-
-      Value *Address = nullptr;
-      Type *LoadedType = nullptr; // This is not used if IsLoad is false
-      Type *StoredType = nullptr; // This is not used if IsLoad is true
+  Type *CharTy = IntegerType::getInt8Ty(M.getContext());
+  for (const Pair &IOff : CSVAccessOffsetMap) {
+    Instruction *const Instr = IOff.first;
+    auto It = OtherCSVAccessOffsetMap.find(Instr);
+    if (It != OtherCSVAccessOffsetMap.end()) {
       if (IsLoad) {
-        Address = getLoadAddressValue(I);
-        LoadedType = getLoadedType(I);
-      } else {
-        Address = getStoreAddressValue(I);
-        StoredType = getStoredType(I);
+        // Decompose memcpy from env to env into two separate memcpy, the fisrt
+        // to do the load, the second to do the store
+        auto *Call = cast<CallInst>(Instr);
+        Function *Memcpy = getCallee(Call);
+        revng_assert(Memcpy != nullptr
+                     and (Memcpy->getIntrinsicID() == Intrinsic::memcpy
+                          and isa<ConstantInt>(Call->getArgOperand(2))));
+
+        Value *MemcpySize = Call->getArgOperand(2);
+        Value *MemcpySrc = Call->getArgOperand(1);
+        Value *MemcpyDst = Call->getArgOperand(0);
+
+        Function *F = Instr->getParent()->getParent();
+        Builder.SetInsertPoint(&*F->getEntryBlock().begin());
+        AllocaInst *TmpBuffer = Builder.CreateAlloca(CharTy, MemcpySize);
+
+        Builder.SetInsertPoint(Instr);
+        CallInst *MemcpyLoad = Builder.CreateMemCpy(TmpBuffer,
+                                                    TmpBuffer->getAlignment(),
+                                                    MemcpySrc,
+                                                    1,
+                                                    MemcpySize);
+
+        CallInst *MemcpyStore = Builder.CreateMemCpy(MemcpyDst,
+                                                     1,
+                                                     TmpBuffer,
+                                                     TmpBuffer->getAlignment(),
+                                                     MemcpySize);
+
+        fixAccess</* IsLoad = */ true>({ MemcpyLoad, IOff.second });
+        fixAccess</* IsLoad = */ false>({ MemcpyStore, It->second });
+
+        InstructionsToRemove.push_back(Instr);
+      } // else do nothing because we fix it only once with loads
+      continue;
+    }
+    fixAccess<IsLoad>(IOff);
+  }
+}
+
+template<bool IsLoad>
+inline void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
+  Instruction *const Instr = IOff.first;
+  const CSVOffsets &Offsets = IOff.second;
+  CSVOffsets::Kind OKind = Offsets.getKind();
+  FixAccessLog << "Fixing access: " << Instr
+               << "\nCSVOffsets Kind: " << CSVOffsets::toString(OKind) << DoLog;
+  revng_assert(CSVOffsets::isPtr(OKind));
+  Function *F = Instr->getParent()->getParent();
+  Instruction *AccessToFix = Instr;
+
+  switch (OKind) {
+  case CSVOffsets::Kind::Unknown:
+  case CSVOffsets::Kind::Numeric:
+    revng_abort();
+  case CSVOffsets::Kind::OutAndKnownInPtr:
+  case CSVOffsets::Kind::UnknownInPtr:
+  case CSVOffsets::Kind::OutAndUnknownInPtr:
+  case CSVOffsets::Kind::KnownInPtr: {
+
+    revng_log(FixAccessLog, "Before: " << dumpToString(F));
+
+    // This is necessary to get the correct debug info.
+    // Setting the insert point to an Instruction also updates the Builder
+    // to use its debug info until the insert point is set to a new
+    // instruction.
+    // Given that in the rest of the code we mostly use
+    // SetInsertPoint(BasicBlock *), which does not reset the debug info, we
+    // want to do it now, otherwise we might end up using the wrong debug
+    // info from an instruction of a previous iteration of this loop.
+    Builder.SetInsertPoint(Instr);
+
+    Value *Address = nullptr;
+    Type *LoadedType = nullptr; // This is not used if IsLoad is false
+    Type *StoredType = nullptr; // This is not used if IsLoad is true
+    if (IsLoad) {
+      Address = getLoadAddressValue(Instr);
+      LoadedType = getLoadedType(Instr);
+    } else {
+      Address = getStoreAddressValue(Instr);
+      StoredType = getStoredType(Instr);
+    }
+
+    Value *OffsetValue = nullptr;
+    if (CSVOffsets::isInOutPtr(OKind))
+      std::tie(AccessToFix,
+               LoadedType,
+               OffsetValue) = setupOutEnvAccess<IsLoad>(Instr);
+
+    revng_assert(AccessToFix != nullptr);
+    LLVMContext &Context = M.getContext();
+    QuickMetadata QMD(Context);
+
+    if (IsLoad) {
+      if (LoadedType != nullptr and LoadedType->isPointerTy()) {
+        FixAccessLog << "REPLACE!" << DoLog;
+        Constant *NullPtr = Constant::getNullValue(LoadedType);
+        AccessToFix->replaceAllUsesWith(NullPtr);
+        break; // out from the big switch to the verify and cleanup code
       }
-
-      Value *OffsetValue = nullptr;
-      if (CSVOffsets::isInOutPtr(OKind))
-        std::tie(AccessToFix,
-                 LoadedType,
-                 OffsetValue) = setupOutEnvAccess<IsLoad>(I);
-
-      revng_assert(AccessToFix != nullptr);
-      LLVMContext &Context = M.getContext();
-      QuickMetadata QMD(Context);
-
-      if (IsLoad) {
-        if (LoadedType != nullptr and LoadedType->isPointerTy()) {
-          FixAccessLog << "REPLACE!" << DoLog;
-          Constant *NullPtr = Constant::getNullValue(LoadedType);
-          AccessToFix->replaceAllUsesWith(NullPtr);
-          break; // out from the big switch to the verify and cleanup code
-        }
-        // TODO: Handle memcpy, not necessary for now
-      } else {
-        if (StoredType != nullptr and StoredType->isPointerTy()) {
-          FixAccessLog << "REPLACE!" << DoLog;
-          break; // out from the big switch to the verify and cleanup code
-        }
-        // TODO: Handle memcpy, not necessary for now
+      // TODO: Handle memcpy, not necessary for now
+    } else {
+      if (StoredType != nullptr and StoredType->isPointerTy()) {
+        FixAccessLog << "REPLACE!" << DoLog;
+        break; // out from the big switch to the verify and cleanup code
       }
+      // TODO: Handle memcpy, not necessary for now
+    }
 
-      // filter out cases where a switch is not necessary
-      if (Offsets.size() == 1) {
-        int64_t Offset = *Offsets.begin();
+    // filter out cases where a switch is not necessary
+    if (Offsets.size() == 1) {
+      int64_t Offset = *Offsets.begin();
 
-        Instruction *Clone = AccessToFix->clone();
-        Clone->insertAfter(AccessToFix);
-        AccessToFix->replaceAllUsesWith(Clone);
+      Instruction *Clone = AccessToFix->clone();
+      Clone->insertAfter(AccessToFix);
+      AccessToFix->replaceAllUsesWith(Clone);
 
-        Builder.SetInsertPoint(Clone);
-        bool Ok = false;
-        switch (AccessToFix->getOpcode()) {
+      Builder.SetInsertPoint(Clone);
+      bool Ok = false;
+      switch (AccessToFix->getOpcode()) {
 
-        case Instruction::Load: {
-          if (IsLoad) {
-            Type *OriginalLoadedType = Clone->getType();
-            unsigned Size = DL.getTypeAllocSize(OriginalLoadedType);
-            revng_assert(Size != 0);
-            auto *Loaded = Variables->loadFromEnvOffset(Builder, Size, Offset);
-            Ok = Loaded != nullptr;
-            if (Ok) {
-              Type *LoadedType = Loaded->getType();
-              if (LoadedType != OriginalLoadedType) {
-                unsigned LoadedSize = DL.getTypeAllocSize(LoadedType);
-                revng_assert(LoadedSize == Size);
-                Loaded = Builder.CreateIntToPtr(Loaded, OriginalLoadedType);
-              }
-              Clone->replaceAllUsesWith(Loaded);
+      case Instruction::Load: {
+        if (IsLoad) {
+          Type *OriginalLoadedType = Clone->getType();
+          unsigned Size = DL.getTypeAllocSize(OriginalLoadedType);
+          revng_assert(Size != 0);
+          auto *Loaded = Variables->loadFromEnvOffset(Builder, Size, Offset);
+          Ok = Loaded != nullptr;
+          if (Ok) {
+            Type *LoadedType = Loaded->getType();
+            if (LoadedType != OriginalLoadedType) {
+              unsigned LoadedSize = DL.getTypeAllocSize(LoadedType);
+              revng_assert(LoadedSize == Size);
+              Loaded = Builder.CreateIntToPtr(Loaded, OriginalLoadedType);
             }
-          } else {
-            revng_abort();
+            Clone->replaceAllUsesWith(Loaded);
           }
-        } break;
-
-        case Instruction::Store: {
-          if (not IsLoad) {
-            auto *Store = cast<StoreInst>(Clone);
-            auto *ToStore = Store->getValueOperand();
-            unsigned Size = DL.getTypeAllocSize(ToStore->getType());
-            revng_assert(Size != 0);
-            Ok = Variables->storeToEnvOffset(Builder, Size, Offset, ToStore);
-          } else {
-            revng_abort();
-          }
-        } break;
-
-        case Instruction::Call: {
-          CallInst *Call = cast<CallInst>(Clone);
-          Ok = Variables->memcpyAtEnvOffset(Builder, Call, Offset, IsLoad);
-        } break;
-
-        default:
+        } else {
           revng_abort();
         }
+      } break;
 
-        if (not Ok) {
-          Builder.SetInsertPoint(Clone);
-          CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
-          auto InvalidMDKind = Context.getMDKindID("InvalidUniqueInAccess");
-          CallAbort->setMetadata(InvalidMDKind, QMD.tuple((uint32_t) 0));
+      case Instruction::Store: {
+        if (not IsLoad) {
+          auto *Store = cast<StoreInst>(Clone);
+          auto *ToStore = Store->getValueOperand();
+          unsigned Size = DL.getTypeAllocSize(ToStore->getType());
+          revng_assert(Size != 0);
+          Ok = Variables->storeToEnvOffset(Builder, Size, Offset, ToStore);
         } else {
-          Clone->eraseFromParent();
+          revng_abort();
         }
+      } break;
 
-        break; // out of the big switch to the verify and cleanup code
+      case Instruction::Call: {
+        CallInst *Call = cast<CallInst>(Clone);
+        Ok = Variables->memcpyAtEnvOffset(Builder, Call, Offset, IsLoad);
+      } break;
+
+      default:
+        revng_abort();
       }
 
-      // Create a new block NextBB, after the Switch, and move there all the
-      // instructions after the access
-      BasicBlock *AccessToFixBB = AccessToFix->getParent();
-      auto InstrIt = AccessToFix->getIterator();
-      revng_assert(InstrIt != AccessToFixBB->end());
-      revng_assert(std::next(InstrIt) != AccessToFixBB->end());
-      BasicBlock *NextBB = BasicBlock::Create(Context, "AfterInAccess", F);
-      AccessToFixBB->replaceSuccessorsPhiUsesWith(NextBB);
-      NextBB->getInstList().splice(NextBB->end(),
-                                   AccessToFixBB->getInstList(),
-                                   std::next(InstrIt),
-                                   AccessToFixBB->getInstList().end());
-      revng_assert(not NextBB->empty());
-      revng_assert(std::next(InstrIt) == AccessToFixBB->end());
-      // If we're processing loads, add a PHI in NextBB if necessary
-      PHINode *Phi = nullptr;
-      if (IsLoad) {
-        if (LoadedType != nullptr) {
-          Builder.SetInsertPoint(&NextBB->front());
-          Phi = Builder.CreatePHI(LoadedType, Offsets.size());
-          AccessToFix->replaceAllUsesWith(Phi);
-        }
+      if (not Ok) {
+        Builder.SetInsertPoint(Clone);
+        CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
+        auto InvalidMDKind = Context.getMDKindID("InvalidUniqueInAccess");
+        CallAbort->setMetadata(InvalidMDKind, QMD.tuple((uint32_t) 0));
+      } else {
+        InstructionsToRemove.push_back(Clone);
       }
 
-      // Create the default BB for the switch, calling revng_abort()
-      BasicBlock *Default = BasicBlock::Create(Context, "DefaultInAccess", F);
-      Builder.SetInsertPoint(Default);
-      CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
-      auto UnexpectedInMDKind = Context.getMDKindID("UnexpectedInAccess");
-      CallAbort->setMetadata(UnexpectedInMDKind, QMD.tuple((uint32_t) 0));
-      Builder.CreateUnreachable();
+      break; // out of the big switch to the verify and cleanup code
+    }
 
-      // Create the offset value to use as a variable for the switch if
-      // necessary
-      Builder.SetInsertPoint(AccessToFixBB);
-      if (OffsetValue == nullptr)
-        OffsetValue = buildEnvOffsetValue(Builder,
-                                          CPUStatePtr,
-                                          Address,
-                                          Int64Ty);
-      revng_assert(OffsetValue != nullptr);
+    // Create a new block NextBB, after the Switch, and move there all the
+    // instructions after the access
+    BasicBlock *AccessToFixBB = AccessToFix->getParent();
+    auto InstrIt = AccessToFix->getIterator();
+    revng_assert(InstrIt != AccessToFixBB->end());
+    revng_assert(std::next(InstrIt) != AccessToFixBB->end());
+    BasicBlock *NextBB = BasicBlock::Create(Context, "AfterInAccess", F);
+    AccessToFixBB->replaceSuccessorsPhiUsesWith(NextBB);
+    NextBB->getInstList().splice(NextBB->end(),
+                                 AccessToFixBB->getInstList(),
+                                 std::next(InstrIt),
+                                 AccessToFixBB->getInstList().end());
+    revng_assert(not NextBB->empty());
+    revng_assert(std::next(InstrIt) == AccessToFixBB->end());
+    // If we're processing loads, add a PHI in NextBB if necessary
+    PHINode *Phi = nullptr;
+    if (IsLoad) {
+      if (LoadedType != nullptr) {
+        Builder.SetInsertPoint(&NextBB->front());
+        Phi = Builder.CreatePHI(LoadedType, Offsets.size());
+        AccessToFix->replaceAllUsesWith(Phi);
+      }
+    }
 
-      if (CSVOffsets::isUnknownInPtr(OKind)) {
+    // Create the default BB for the switch, calling revng_abort()
+    BasicBlock *Default = BasicBlock::Create(Context, "DefaultInAccess", F);
+    Builder.SetInsertPoint(Default);
+    CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
+    auto UnexpectedInMDKind = Context.getMDKindID("UnexpectedInAccess");
+    CallAbort->setMetadata(UnexpectedInMDKind, QMD.tuple((uint32_t) 0));
+    Builder.CreateUnreachable();
 
-        if (FixAccessLog.isEnabled()) {
-          ++NumUnknown;
-          FunToNumUnknown[F->getName()]++;
-          FunToUnknowns[F->getName()].insert(dumpToString(AccessToFix));
-        }
+    // Create the offset value to use as a variable for the switch if
+    // necessary
+    Builder.SetInsertPoint(AccessToFixBB);
+    if (OffsetValue == nullptr)
+      OffsetValue = buildEnvOffsetValue(Builder, CPUStatePtr, Address, Int64Ty);
+    revng_assert(OffsetValue != nullptr);
 
-        SwitchInst *SwitchOffset = Builder.CreateSwitch(OffsetValue,
-                                                        Default,
-                                                        EnvStructSize);
-        for (int64_t CurrEnvOff = 0; CurrEnvOff < EnvStructSize; ++CurrEnvOff) {
-          if (IsLoad)
-            setupLoadInEnv(AccessToFix, CurrEnvOff, SwitchOffset, NextBB, Phi);
-          else
-            setupStoreInEnv(AccessToFix, CurrEnvOff, SwitchOffset, NextBB);
-        }
-        revng_assert(SwitchOffset->getNumCases() > 0);
-        break; // out from the switch, to the verify and cleanup code
+    if (CSVOffsets::isUnknownInPtr(OKind)) {
+
+      if (FixAccessLog.isEnabled()) {
+        ++NumUnknown;
+        FunToNumUnknown[F->getName()]++;
+        FunToUnknowns[F->getName()].insert(dumpToString(AccessToFix));
       }
 
-      revng_assert(Offsets.size() > 0);
       SwitchInst *SwitchOffset = Builder.CreateSwitch(OffsetValue,
                                                       Default,
-                                                      Offsets.size());
-      for (const int64_t CurrEnvOff : Offsets) {
+                                                      EnvStructSize);
+      for (int64_t CurrEnvOff = 0; CurrEnvOff < EnvStructSize; ++CurrEnvOff) {
         if (IsLoad)
           setupLoadInEnv(AccessToFix, CurrEnvOff, SwitchOffset, NextBB, Phi);
         else
           setupStoreInEnv(AccessToFix, CurrEnvOff, SwitchOffset, NextBB);
       }
-
-      if (IsLoad) {
-        if (Phi != nullptr and Phi->getNumIncomingValues() == 0) {
-          Builder.SetInsertPoint(Phi);
-
-          CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
-          auto NeverValidInMDKind = Context.getMDKindID("NeverValidInLoad");
-          CallAbort->setMetadata(NeverValidInMDKind, QMD.tuple((uint32_t) 0));
-
-          Instruction *DisabledInLoad = AccessToFix->clone();
-          DisabledInLoad->insertBefore(Phi);
-          Phi->replaceAllUsesWith(DisabledInLoad);
-          Phi->eraseFromParent();
-        }
-      }
-    } break;
+      revng_assert(SwitchOffset->getNumCases() > 0);
+      break; // out from the switch, to the verify and cleanup code
     }
 
-    // Verify the transformation and cleanup the access to fix
-    revng_log(FixAccessLog, "After: " << dumpToString(F));
-    if (I != AccessToFix) {
-      if (FixAccessLog.isEnabled()) {
-        FixAccessLog << "Erasing AccessToFix: " << AccessToFix << DoLog;
-        FixAccessLog << dumpToString(AccessToFix) << DoLog;
-      }
-      AccessToFix->eraseFromParent();
+    revng_assert(Offsets.size() > 0);
+    SwitchInst *SwitchOffset = Builder.CreateSwitch(OffsetValue,
+                                                    Default,
+                                                    Offsets.size());
+    for (const int64_t CurrEnvOff : Offsets) {
+      if (IsLoad)
+        setupLoadInEnv(AccessToFix, CurrEnvOff, SwitchOffset, NextBB, Phi);
+      else
+        setupStoreInEnv(AccessToFix, CurrEnvOff, SwitchOffset, NextBB);
     }
+
+    if (IsLoad) {
+      if (Phi != nullptr and Phi->getNumIncomingValues() == 0) {
+        Builder.SetInsertPoint(Phi);
+
+        CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
+        auto NeverValidInMDKind = Context.getMDKindID("NeverValidInLoad");
+        CallAbort->setMetadata(NeverValidInMDKind, QMD.tuple((uint32_t) 0));
+
+        Instruction *DisabledInLoad = AccessToFix->clone();
+        DisabledInLoad->insertBefore(Phi);
+        Phi->replaceAllUsesWith(DisabledInLoad);
+        InstructionsToRemove.push_back(Phi);
+      }
+    }
+  } break;
+  }
+
+  // Verify the transformation and cleanup the access to fix
+  revng_log(FixAccessLog, "After: " << dumpToString(F));
+  if (Instr != AccessToFix) {
     if (FixAccessLog.isEnabled()) {
-      FixAccessLog << "Erasing I: " << I << DoLog;
-      FixAccessLog << dumpToString(I) << DoLog;
+      FixAccessLog << "Erasing AccessToFix: " << AccessToFix << DoLog;
+      FixAccessLog << dumpToString(AccessToFix) << DoLog;
     }
-    I->eraseFromParent();
+    InstructionsToRemove.push_back(AccessToFix);
+  }
+  if (FixAccessLog.isEnabled()) {
+    FixAccessLog << "Erasing Instr: " << Instr << DoLog;
+    FixAccessLog << dumpToString(Instr) << DoLog;
+  }
+  InstructionsToRemove.push_back(Instr);
+}
+
+inline bool CPUStateAccessFixer::run() {
+  if (CPUStatePtr == nullptr)
+    return false;
+
+  // Fix loads
+  correctCPUStateAccesses</* IsLoad = */ true>();
+  revng_assert(not verifyModule(M, &dbgs()));
+  // Fix stores
+  correctCPUStateAccesses</* IsLoad = */ false>();
+  revng_assert(not verifyModule(M, &dbgs()));
+  // Remove fixed accesses
+  for (Instruction *Instr : InstructionsToRemove)
+    Instr->eraseFromParent();
+  InstructionsToRemove.clear();
+
+  if (FixAccessLog.isEnabled()) {
+    FixAccessLog << "Num Unknowns: " << NumUnknown << DoLog;
+
+    for (const auto &Fun2Num : FunToNumUnknown)
+      FixAccessLog << Fun2Num.first << ": " << Fun2Num.second << DoLog;
+
+    for (const auto &Fun2Unknowns : FunToUnknowns)
+      for (const auto &U : Fun2Unknowns.second)
+        FixAccessLog << Fun2Unknowns.first << ": " << U << DoLog;
+  }
+  return true;
+}
+
+class CPUStateAccessAnalysis {
+
+private:
+  const bool Lazy;
+  // A reference to the analyzed Module
+  const Module &M;
+
+  // A reference to the associated VariableManager
+  VariableManager *Variables;
+
+  // References to the maps that will be filled by this analysis.
+  // Every map maps an Instruction to the CSVOffset representing all the
+  // possible offsets that are accessed by that Instruction, being it either a
+  // load, a store or a call to Intrinsic::memcpy.
+  // We hold two separate maps, one for loads and one for stores, so that calls
+  // to memcpy can be in both maps, with different associated offsets.
+  AccessOffsetMap CSVLoadOffsetMap;
+  AccessOffsetMap CSVStoreOffsetMap;
+
+  const unsigned LoadMDKind;
+  const unsigned StoreMDKind;
+
+  // Helpers
+  const DataLayout &DL;
+  Type *Int64Ty;
+  GlobalVariable *CPUStatePtr;
+
+public:
+  CPUStateAccessAnalysis(const Module &Mod,
+                         VariableManager *V,
+                         const bool IsLazy) :
+    Lazy(IsLazy),
+    M(Mod),
+    Variables(V),
+    CSVLoadOffsetMap(),
+    CSVStoreOffsetMap(),
+    LoadMDKind(Mod.getContext().getMDKindID("revng.csvaccess.offsets.load")),
+    StoreMDKind(Mod.getContext().getMDKindID("revng.csvaccess.offsets.store")),
+    DL(Mod.getDataLayout()),
+    Int64Ty(llvm::IntegerType::getInt64Ty(Mod.getContext())),
+    CPUStatePtr(Mod.getGlobalVariable("env")) {}
+
+public:
+  inline bool run();
+};
+
+static void addAccessMetadata(const CallSiteOffsetMap &OffsetMap,
+                              VariableManager *Variables,
+                              QuickMetadata &QMD,
+                              unsigned MDKind) {
+  for (auto &AccessOffsets : OffsetMap) {
+    const CSVOffsets &Offsets = AccessOffsets.second;
+    CallInst *const CallSite = AccessOffsets.first;
+    if (CallSite == nullptr)
+      continue;
+    revng_assert(Offsets.isPtr());
+
+    ConstantAsMetadata *UnknownAccess = nullptr;
+    MDTuple *AccessedVariablesTuple = nullptr;
+    SmallVector<Metadata *, 10> OffsetMetadata;
+    OffsetMetadata.reserve(Offsets.size());
+    std::set<GlobalVariable *> AccessedVars;
+    if (Offsets.isUnknownInPtr()) {
+      CSVAccessLog << "Unknown access to CSV" << DoLog;
+      UnknownAccess = QMD.get((uint32_t) 1);
+      AccessedVariablesTuple = QMD.tuple(OffsetMetadata);
+    } else {
+      UnknownAccess = QMD.get((uint32_t) 0);
+      for (const int64_t O : Offsets) {
+        CSVAccessLog << "CallSite: " << CallSite << DoLog;
+        CSVAccessLog << "Refined: " << O << DoLog;
+        GlobalVariable *AccessedVar = Variables->getByEnvOffset(O).first;
+        bool NewlyInserted = AccessedVars.insert(AccessedVar).second;
+        if (NewlyInserted) {
+          OffsetMetadata.push_back(QMD.get(AccessedVar));
+        }
+        CSVAccessLog << "Accessed Var: " << AccessedVar
+                     << " Offset: " << Variables->getByEnvOffset(O).second
+                     << DoLog;
+      }
+      AccessedVariablesTuple = QMD.tuple(OffsetMetadata);
+    }
+    SmallVector<Metadata *, 2> AccessMetadata = { UnknownAccess,
+                                                  AccessedVariablesTuple };
+    CallSite->setMetadata(MDKind, QMD.tuple(AccessMetadata));
   }
 }
 
-bool CPUStateAccessAnalysis::run() {
+inline bool CPUStateAccessAnalysis::run() {
 
   if (CPUStatePtr == nullptr)
     return false;
@@ -2871,12 +3043,19 @@ bool CPUStateAccessAnalysis::run() {
 
   // Preprocessing: detect all the functions that are directly reachable from
   // the RootFunction
-  auto ReachedFunctions = computeDirectlyReachableFunctions(RootFunction);
+  auto ReachedFunctions = computeDirectlyReachableFunctions(RootFunction,
+                                                            LoadMDKind,
+                                                            StoreMDKind,
+                                                            Lazy);
 
   // Start with a forward taint analysis, to detect all the tainted Values,
   // and all the tainted loads and stores.
   CSVAccessLog << "Before Taint Analysis" << DoLog;
-  const auto TaintResults = forwardTaintAnalysis(CPUStatePtr, ReachedFunctions);
+  const auto TaintResults = forwardTaintAnalysis(CPUStatePtr,
+                                                 ReachedFunctions,
+                                                 LoadMDKind,
+                                                 StoreMDKind,
+                                                 Lazy);
   CSVAccessLog << "After Taint Analysis" << DoLog;
 
   // If there are no tainted loads and stores we don't need to run the CPUSAOA.
@@ -2915,53 +3094,36 @@ bool CPUStateAccessAnalysis::run() {
                                       RootFunction,
                                       ReachedFunctions,
                                       TaintResults,
+                                      Lazy,
+                                      LoadMDKind,
+                                      StoreMDKind,
                                       Variables,
                                       CSVLoadOffsetMap,
                                       CSVStoreOffsetMap,
                                       CallSiteLoadOffset,
                                       CallSiteStoreOffset);
   bool Found = AccessOffsetAnalysis.run();
-  LLVMContext &Context = M.getContext();
-  QuickMetadata QMD(Context);
+
+  QuickMetadata QMD(M.getContext());
   if (Found) {
-    auto LoadMDKind = Context.getMDKindID("revng.csvaccess.offsets."
-                                          "load");
     addAccessMetadata(CallSiteLoadOffset, Variables, QMD, LoadMDKind);
-    auto StoreMDKind = Context.getMDKindID("revng.csvaccess.offsets."
-                                           "store");
     addAccessMetadata(CallSiteStoreOffset, Variables, QMD, StoreMDKind);
   }
 
-  // CallSiteLoadOffset and CallSiteStoreOffset are not used anymore
-  CallSiteLoadOffset = {};
-  CallSiteStoreOffset = {};
-
-  // Decompose memcpy from env to env into two separate memcpy, the fisrt to do
-  // the load, the second to do the store
-  fixEnv2EnvMemCopies(M, CSVLoadOffsetMap, CSVStoreOffsetMap);
-  // Fix loads
-  correctCPUStateAccesses<true>();
-  // Fix stores
-  correctCPUStateAccesses<false>();
-  revng_assert(not verifyModule(M, &dbgs()));
-
-  if (FixAccessLog.isEnabled()) {
-    FixAccessLog << "Num Unknowns: " << NumUnknown << DoLog;
-
-    for (const auto &Fun2Num : FunToNumUnknown)
-      FixAccessLog << Fun2Num.first << ": " << Fun2Num.second << DoLog;
-
-    for (const auto &Fun2Unknowns : FunToUnknowns)
-      for (const auto &U : Fun2Unknowns.second)
-        FixAccessLog << Fun2Unknowns.first << ": " << U << DoLog;
+  if (not Lazy) {
+    CPUStateAccessFixer CSVAccessFixer(M,
+                                       Variables,
+                                       CSVLoadOffsetMap,
+                                       CSVStoreOffsetMap);
+    CSVAccessFixer.run();
   }
 
   return Found;
 }
 
 bool CPUStateAccessAnalysisPass::runOnModule(Module &Mod) {
-  CPUStateAccessAnalysis CSVAccessAnalysis(Mod, Variables);
-  return CSVAccessAnalysis.run();
+  CPUStateAccessAnalysis AccessAnalysis(Mod, Variables, Lazy);
+  return AccessAnalysis.run();
 }
 
 char CPUStateAccessAnalysisPass::ID = 0;
