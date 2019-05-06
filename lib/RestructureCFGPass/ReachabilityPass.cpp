@@ -17,10 +17,12 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
-// Local libraries includes
-#include "ReachabilityPass.h"
+// revng includes
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
+
+// Local libraries includes
+#include "revng-c/RestructureCFGPass/ReachabilityPass.h"
 
 using namespace llvm;
 

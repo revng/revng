@@ -5,9 +5,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include "llvm/IR/BasicBlock.h"
-
 // forward declarations
 template<class NodeT>
 class RegionCFG;

@@ -784,50 +784,70 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
   ASTNode *RootNode = CombedAST.getRoot();
 
   // Flip IFs with empty then branches.
-  BeautifyLogger << "Performing IFs with empty then branches flipping\n";
+  revng_log(BeautifyLogger,
+            "Performing IFs with empty then branches flipping\n");
   flipEmptyThen(RootNode, CombedAST);
-  CombedAST.dumpOnFile("ast", F.getName(), "After-if-flip");
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpOnFile("ast", F.getName(), "After-if-flip");
+  }
 
   // Match switch node.
-  BeautifyLogger << "Performing dispatcher nodes matching\n";
+  revng_log(BeautifyLogger, "Performing dispatcher nodes matching\n");
   RootNode = matchDispatcher(CombedAST, RootNode, Mark);
-  CombedAST.dumpOnFile("ast", F.getName(), "After-dispatcher-match");
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpOnFile("ast", F.getName(), "After-dispatcher-match");
+  }
 
   // Simplify short-circuit nodes.
-  BeautifyLogger << "Performing short-circuit simplification\n";
+  revng_log(BeautifyLogger, "Performing short-circuit simplification\n");
   simplifyShortCircuit(RootNode, CombedAST, Mark);
-  CombedAST.dumpOnFile("ast", F.getName(), "After-short-circuit");
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpOnFile("ast", F.getName(), "After-short-circuit");
+  }
 
   // Simplify trivial short-circuit nodes.
-  BeautifyLogger << "Performing trivial short-circuit simplification\n";
+  revng_log(BeautifyLogger,
+            "Performing trivial short-circuit simplification\n");
   simplifyTrivialShortCircuit(RootNode, CombedAST, Mark);
-  CombedAST.dumpOnFile("ast", F.getName(), "After-trivial-short-circuit");
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpOnFile("ast", F.getName(), "After-trivial-short-circuit");
+  }
 
   // Match switch node.
-  BeautifyLogger << "Performing switch nodes matching\n";
+  revng_log(BeautifyLogger, "Performing switch nodes matching\n");
   RootNode = matchSwitch(CombedAST, RootNode, Mark);
-  CombedAST.dumpOnFile("ast", F.getName(), "After-switch-match");
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpOnFile("ast", F.getName(), "After-switch-match");
+  }
 
   // From this point on, the beautify passes were applied on the flattened AST.
 
   // Match dowhile.
-  BeautifyLogger << "Matching do-while\n";
+  revng_log(BeautifyLogger, "Matching do-while\n");
   matchDoWhile(RootNode, CombedAST);
-  CombedAST.dumpOnFile("ast", F.getName(), "After-match-do-while");
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpOnFile("ast", F.getName(), "After-match-do-while");
+  }
 
   // Match while.
-  BeautifyLogger << "Matching do-while\n";
+  revng_log(BeautifyLogger, "Matching do-while\n");
   // Disabled for now
   matchWhile(RootNode, CombedAST);
-  CombedAST.dumpOnFile("ast", F.getName(), "After-match-while");
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpOnFile("ast", F.getName(), "After-match-while");
+  }
 
   // Remove useless continues.
-  BeautifyLogger << "Removing useless continue nodes\n";
+  revng_log(BeautifyLogger, "Removing useless continue nodes\n");
   simplifyLastContinue(RootNode);
-  CombedAST.dumpOnFile("ast", F.getName(), "After-continue-removal");
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpOnFile("ast", F.getName(), "After-continue-removal");
+  }
 
   // Remove empty sequences.
-  BeautifyLogger << "Removing emtpy sequence nodes\n";
+  revng_log(BeautifyLogger, "Removing emtpy sequence nodes\n");
   simplifyAtomicSequence(RootNode);
-  CombedAST.dumpOnFile("ast", F.getName(), "After-removal-empty-sequences");
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpOnFile("ast", F.getName(), "After-removal-empty-sequences");
+  }
 }

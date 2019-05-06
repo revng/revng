@@ -21,6 +21,10 @@
 class ASTTree;
 
 class RestructureCFG : public llvm::FunctionPass {
+
+private:
+  using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
+
 protected:
   bool Done;
 
@@ -38,12 +42,15 @@ public:
 
   ASTTree &getAST() { return RootCFG.getAST(); }
 
-  RegionCFG &getRCT() { return RootCFG; }
+  RegionCFG<llvm::BasicBlock *> &getRCT() { return RootCFG; }
 
   bool isDone() { return Done; }
 
+  std::map<llvm::BasicBlock *, size_t> &getNDuplicates() { return NDuplicates; }
+
 private:
-  RegionCFG RootCFG;
+  RegionCFG<llvm::BasicBlock *> RootCFG;
+  DuplicationMap NDuplicates;
 };
 
 #endif // REVNGC_RESTRUCTURE_CFG_RESTRUCTURECFG_H

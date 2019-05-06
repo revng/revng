@@ -10,3 +10,10 @@ revng_add_analyses_library(RestructureCFGPass revngc
 target_link_libraries(RestructureCFGPass
                       revng::revngSupport
                       ${LLVM_LIBRARIES})
+
+add_library(ReachabilityTest
+  STATIC
+  ReachabilityPass.cpp)
+target_link_libraries(ReachabilityTest
+  RestructureCFGPass
+  ${LLVM_LIBRARIES})

@@ -28,7 +28,6 @@ static bool isPure(const Instruction & /*Call*/) {
 void Analysis::initialize() {
   Base::initialize();
   ToSerialize.clear();
-  NDuplicates.clear();
 
   {
     // one empty set for each BB
@@ -40,15 +39,6 @@ void Analysis::initialize() {
   for (BasicBlock &BB : F) {
     // map BasicBlock pointer to the position in ToSerializeInBB
     BBToIdMap[&BB] = I++;
-  }
-  for (BasicBlockNode *BBNode : RCFG.nodes()) {
-    BasicBlock *BB = BBNode->getBasicBlock();
-    if (BBNode->isCode()) {
-      revng_assert(BB != nullptr);
-      NDuplicates[BB] += 1;
-    } else {
-      revng_assert(BB == nullptr);
-    }
   }
 }
 

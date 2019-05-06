@@ -21,10 +21,8 @@ class BasicBlock;
 class ConstantInt;
 } // namespace llvm
 
+template<class NodeT>
 class BasicBlockNode;
-
-using BBNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
-using ExprNodeMap = std::map<ExprNode *, ExprNode *>;
 
 class ASTNode {
 
@@ -43,6 +41,9 @@ public:
   };
 
   using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
+  using BasicBlockNodeBB = BasicBlockNode<llvm::BasicBlock *>;
+  using BBNodeMap = std::map<BasicBlockNodeBB *, BasicBlockNodeBB *>;
+  using ExprNodeMap = std::map<ExprNode *, ExprNode *>;
 
 private:
   const NodeKind Kind;
@@ -66,9 +67,11 @@ public:
     Name(Name),
     Successor(Successor) {}
 
-  ASTNode(NodeKind K, BasicBlockNode *CFGNode, ASTNode *Successor = nullptr) :
+  ASTNode(NodeKind K,
+          BasicBlockNodeBB *CFGNode,
+          ASTNode *Successor = nullptr) :
     Kind(K),
-    BB(CFGNode->getBasicBlock()),
+    BB(CFGNode->getOriginalNode()),
     Name(CFGNode->getNameStr()),
     Successor(Successor),
     IsEmpty(CFGNode->isEmpty()) {}
@@ -80,7 +83,7 @@ public:
 public:
   NodeKind getKind() const { return Kind; }
 
-  std::string getName() {
+  std::string getName() const {
     return "ID:" + std::to_string(getID()) + " Name:" + Name;
   }
 
@@ -90,9 +93,9 @@ public:
 
   virtual void dump(std::ofstream &ASTFile) = 0;
 
-  llvm::BasicBlock *getBB() { return BB; }
+  llvm::BasicBlock *getBB() const { return BB; }
 
-  ASTNode *getSuccessor() { return Successor; }
+  ASTNode *getSuccessor() const { return Successor; }
 
   bool isEmpty() {
 
@@ -111,7 +114,7 @@ public:
 class CodeNode : public ASTNode {
 
 public:
-  CodeNode(BasicBlockNode *CFGNode, ASTNode *Successor) :
+  CodeNode(BasicBlockNodeBB *CFGNode, ASTNode *Successor) :
     ASTNode(NK_Code, CFGNode, Successor) {}
 
 public:
@@ -141,7 +144,7 @@ protected:
   ExprNode *ConditionExpression;
 
 public:
-  IfNode(BasicBlockNode *CFGNode,
+  IfNode(BasicBlockNodeBB *CFGNode,
          ExprNode *CondExpr,
          ASTNode *Then,
          ASTNode *Else,
@@ -197,7 +200,7 @@ public:
 
   virtual ~IfNode() override = default;
 
-  ExprNode *getCondExpr() { return ConditionExpression; }
+  ExprNode *getCondExpr() const { return ConditionExpression; }
 
   void replaceCondExpr(ExprNode *NewExpr) { ConditionExpression = NewExpr; }
 
@@ -219,15 +222,19 @@ private:
   IfNode *RelatedCondition = nullptr;
 
 public:
-  ScsNode(BasicBlockNode *CFGNode, ASTNode *Body) :
-    ASTNode(NK_Scs, CFGNode),
+  ScsNode(BasicBlockNodeBB *CFGNode, ASTNode *Body) :
+    ASTNode(NK_Scs, CFGNode, nullptr),
     Body(Body) {}
-  ScsNode(BasicBlockNode *CFGNode, ASTNode *Body, ASTNode *Successor) :
+  ScsNode(BasicBlockNodeBB *CFGNode,
+          ASTNode *Body,
+          ASTNode *Successor) :
     ASTNode(NK_Scs, CFGNode, Successor),
     Body(Body) {}
 
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Scs; }
+
+  bool hasBody() const { return Body != nullptr; }
 
   ASTNode *getBody() { return Body; }
 
@@ -243,11 +250,11 @@ public:
 
   virtual ~ScsNode() override = default;
 
-  bool isStandard() { return LoopType == Type::Standard; }
+  bool isStandard() const { return LoopType == Type::Standard; }
 
-  bool isWhile() { return LoopType == Type::While; }
+  bool isWhile() const { return LoopType == Type::While; }
 
-  bool isDoWhile() { return LoopType == Type::DoWhile; }
+  bool isDoWhile() const { return LoopType == Type::DoWhile; }
 
   void setWhile(IfNode *Condition) {
     LoopType = Type::While;
@@ -279,7 +286,8 @@ private:
 
 public:
   SequenceNode(std::string Name) : ASTNode(NK_List, Name) {}
-  SequenceNode(BasicBlockNode *CFGNode) : ASTNode(NK_List, CFGNode) {}
+  SequenceNode(BasicBlockNodeBB *CFGNode) :
+    ASTNode(NK_List, CFGNode) {}
 
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_List; }
@@ -300,7 +308,7 @@ public:
                    NodeList.end());
   }
 
-  int listSize() { return NodeList.size(); }
+  int listSize() const { return NodeList.size(); }
 
   ASTNode *getNodeN(int N) const { return NodeList[N]; }
 
@@ -336,11 +344,11 @@ public:
 
   virtual ~ContinueNode() override = default;
 
-  bool hasComputation() { return ComputationIf != nullptr; };
+  bool hasComputation() const { return ComputationIf != nullptr; };
 
   void addComputationIfNode(IfNode *ComputationIfNode);
 
-  IfNode *getComputationIfNode();
+  IfNode *getComputationIfNode() const;
 };
 
 class BreakNode : public ASTNode {
@@ -405,7 +413,7 @@ public:
 
   virtual ~SwitchNode() override = default;
 
-  llvm::Value *getCondition() { return SwitchCondition; }
+  llvm::Value *getCondition() const { return SwitchCondition; }
 
 protected:
   ASTNode *getCaseN(int N) const { return CaseList[N].second; }
@@ -417,12 +425,12 @@ private:
   unsigned StateVariableValue;
 
 public:
-  SetNode(BasicBlockNode *CFGNode, ASTNode *Successor) :
+  SetNode(BasicBlockNodeBB *CFGNode, ASTNode *Successor) :
     ASTNode(NK_Set, CFGNode, Successor),
     StateVariableValue(CFGNode->getStateVariableValue()) {}
 
-  SetNode(BasicBlockNode *CFGNode) :
-    ASTNode(NK_Set, CFGNode),
+  SetNode(BasicBlockNodeBB *CFGNode) :
+    ASTNode(NK_Set, CFGNode, nullptr),
     StateVariableValue(CFGNode->getStateVariableValue()) {}
 
 public:
@@ -447,7 +455,7 @@ private:
   unsigned StateVariableValue;
 
 public:
-  IfCheckNode(BasicBlockNode *CFGNode,
+  IfCheckNode(BasicBlockNodeBB *CFGNode,
               ASTNode *Then,
               ASTNode *Else,
               ASTNode *PostDom) :
@@ -461,7 +469,7 @@ public:
 
   virtual ASTNode *Clone() override { return new IfCheckNode(*this); }
 
-  unsigned getCaseValue() { return StateVariableValue; }
+  unsigned getCaseValue() const { return StateVariableValue; }
 };
 
 class SwitchCheckNode : public ASTNode {

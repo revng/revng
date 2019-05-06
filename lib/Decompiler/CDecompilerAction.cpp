@@ -497,22 +497,25 @@ class Decompiler : public ASTConsumer {
 private:
   using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
   using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
+  using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
 
 public:
   explicit Decompiler(llvm::Function &F,
-                      RegionCFG &RCFG,
+                      RegionCFG<llvm::BasicBlock *> &RCFG,
                       ASTTree &CombedAST,
                       BBPHIMap &BlockToPHIIncoming,
-                      std::unique_ptr<llvm::raw_ostream> Out) :
+                      std::unique_ptr<llvm::raw_ostream> Out,
+                      DuplicationMap &NDuplicates) :
     TheF(F),
     RCFG(RCFG),
     CombedAST(CombedAST),
     BlockToPHIIncoming(BlockToPHIIncoming),
-    Out(std::move(Out)) {}
+    Out(std::move(Out)),
+    NDuplicates(NDuplicates) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override {
 
-    MarkForSerialization::Analysis Mark(TheF, RCFG);
+    MarkForSerialization::Analysis Mark(TheF, RCFG, NDuplicates);
     Mark.initialize();
     Mark.run();
 
@@ -568,10 +571,11 @@ public:
 
 private:
   llvm::Function &TheF;
-  RegionCFG &RCFG;
+  RegionCFG<llvm::BasicBlock *> &RCFG;
   ASTTree &CombedAST;
   std::unique_ptr<llvm::raw_ostream> Out;
   BBPHIMap &BlockToPHIIncoming;
+  DuplicationMap &NDuplicates;
 };
 
 std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
@@ -579,7 +583,8 @@ std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
                                       RCFG,
                                       CombedAST,
                                       BlockToPHIIncoming,
-                                      std::move(O));
+                                      std::move(O),
+                                      NDuplicates);
 }
 
 } // end namespace tooling

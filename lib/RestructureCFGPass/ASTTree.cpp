@@ -33,11 +33,11 @@ SequenceNode *ASTTree::addSequenceNode() {
   return llvm::cast<SequenceNode>(ASTNodeList.back().get());
 }
 
-size_t ASTTree::size() {
+size_t ASTTree::size() const {
   return ASTNodeList.size();
 }
 
-void ASTTree::addASTNode(BasicBlockNode *Node,
+void ASTTree::addASTNode(BasicBlockNode<BasicBlock *> *Node,
                          std::unique_ptr<ASTNode> &&ASTObject) {
   ASTNodeList.emplace_back(std::move(ASTObject));
 
@@ -67,7 +67,7 @@ SwitchNode *ASTTree::addSwitch(std::unique_ptr<ASTNode> ASTObject) {
   return llvm::cast<SwitchNode>(ASTNodeList.back().get());
 }
 
-ASTNode *ASTTree::findASTNode(BasicBlockNode *BlockNode) {
+ASTNode *ASTTree::findASTNode(BasicBlockNode<BasicBlock *> *BlockNode) {
   revng_assert(NodeASTMap.count(BlockNode) != 0);
   ASTNode *ASTPointer = NodeASTMap[BlockNode];
   return ASTPointer;
@@ -76,8 +76,8 @@ ASTNode *ASTTree::findASTNode(BasicBlockNode *BlockNode) {
 // TODO: This is higly inefficient (it is a linear scan over a std::map).
 //       Consider keeping another map for the inverse direction (and updating
 //       it).
-BasicBlockNode *ASTTree::findCFGNode(ASTNode *Node) {
-  BasicBlockNode *Result = nullptr;
+BasicBlockNode<BasicBlock *> *ASTTree::findCFGNode(ASTNode *Node) {
+  BasicBlockNode<BasicBlock *> *Result = nullptr;
   for (auto MapIt = NodeASTMap.begin(); MapIt != NodeASTMap.end(); MapIt++) {
     if (MapIt->second == Node) {
       Result = MapIt->first;
@@ -93,7 +93,7 @@ void ASTTree::setRoot(ASTNode *Root) {
   RootNode = Root;
 }
 
-ASTNode *ASTTree::getRoot() {
+ASTNode *ASTTree::getRoot() const {
   return RootNode;
 }
 
@@ -110,7 +110,7 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
     // Set the Node ID
     ASTNodeList.back()->setID(getNewID());
 
-    BasicBlockNode *OldCFGNode = OldAST.findCFGNode(Old.get());
+    BasicBlockNode<BasicBlock *> *OldCFGNode = OldAST.findCFGNode(Old.get());
     if (OldCFGNode != nullptr) {
       NodeASTMap.insert(std::make_pair(OldCFGNode, ASTNodeList.back().get()));
     }
@@ -141,8 +141,8 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
 
   // Update the map between `BasicBlockNode` and `ASTNode`.
   for (auto SubIt : SubstitutionMap) {
-    BasicBlockNode *OldBB = SubIt.first;
-    BasicBlockNode *NewBB = SubIt.second;
+    BasicBlockNode<BasicBlock *> *OldBB = SubIt.first;
+    BasicBlockNode<BasicBlock *> *NewBB = SubIt.second;
     auto MapIt = NodeASTMap.find(OldBB);
 
     // HACK:: update the key of the NodeASTMap
@@ -167,30 +167,14 @@ void ASTTree::dumpOnFile(std::string FolderName,
   mkdir(FolderName.c_str(), 0775);
   mkdir(PathName.c_str(), 0775);
   ASTFile.open(PathName + "/" + FileName + ".dot");
-  ASTFile << "digraph CFGFunction {\n";
-  RootNode->dump(ASTFile);
-  ASTFile << "}\n";
-  ASTFile.close();
-}
-
-// Helper function that visit an AST tree and creates the sequence nodes
-ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
-  SequenceNode *RootSequenceNode = Tree.addSequenceNode();
-  RootSequenceNode->addNode(RootNode);
-
-  for (ASTNode *Node : RootSequenceNode->nodes()) {
-    if (auto *If = llvm::dyn_cast<IfNode>(Node)) {
-      If->setThen(createSequence(Tree, If->getThen()));
-      If->setElse(createSequence(Tree, If->getElse()));
-    } else if (auto *Code = llvm::dyn_cast<CodeNode>(Node)) {
-      // TODO: confirm that doesn't make sense to process a code node.
-    } else if (auto *Scs = llvm::dyn_cast<ScsNode>(Node)) {
-      // TODO: confirm that this phase is not needed since the processing is
-      //       done inside the processing of each SCS region.
-    }
+  if (ASTFile.is_open()) {
+    ASTFile << "digraph CFGFunction {\n";
+    RootNode->dump(ASTFile);
+    ASTFile << "}\n";
+    ASTFile.close();
+  } else {
+    revng_abort("Could not open file for dumping AST.");
   }
-
-  return RootSequenceNode;
 }
 
 ExprNode *ASTTree::addCondExpr(std::unique_ptr<ExprNode> &&Expr) {

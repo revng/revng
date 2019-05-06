@@ -23,13 +23,11 @@
 #include "revng/Support/IRHelpers.h"
 
 // Local libraries includes
+#include "revng-c/RestructureCFGPass/Flattening.h"
+#include "revng-c/RestructureCFGPass/MetaRegion.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
-
-// Local includes
-#include "Flattening.h"
-#include "MetaRegion.h"
 
 using namespace llvm;
 
@@ -44,29 +42,36 @@ Logger<> CombLogger("restructure");
 
 // EdgeDescriptor is a handy way to create and manipulate edges on the
 // RegionCFG.
-using EdgeDescriptor = std::pair<BasicBlockNode *, BasicBlockNode *>;
-using BackedgeMetaRegionMap =  std::map<EdgeDescriptor, MetaRegion *>;
+using BasicBlockNodeBB = BasicBlockNode<BasicBlock *>;
+using EdgeDescriptor = std::pair<BasicBlockNodeBB *, BasicBlockNodeBB *>;
 
-static std::set<EdgeDescriptor> getBackedges(RegionCFG &Graph) {
+// Explicit instantation of template classes `Metaregion`.
+template class MetaRegion<BasicBlock *>;
+using MetaRegionBB = MetaRegion<BasicBlock *>;
+using MetaRegionBBVect = std::vector<MetaRegionBB>;
+using MetaRegionBBPtrVect = std::vector<MetaRegionBB *>;
+using BackedgeMetaRegionMap = std::map<EdgeDescriptor, MetaRegionBB *>;
+
+static std::set<EdgeDescriptor> getBackedges(RegionCFG<BasicBlock *> &Graph) {
 
   // Some helper data structures.
   int Time = 0;
-  std::map<BasicBlockNode *, int> StartTime;
-  std::map<BasicBlockNode *, int> FinishTime;
-  std::vector<std::pair<BasicBlockNode *, size_t>> Stack;
+  std::map<BasicBlockNodeBB *, int> StartTime;
+  std::map<BasicBlockNodeBB *, int> FinishTime;
+  std::vector<std::pair<BasicBlockNodeBB *, size_t>> Stack;
 
   // Set of backedges.
   std::set<EdgeDescriptor> Backedges;
 
   // Push the entry node in the exploration stack.
-  BasicBlockNode &EntryNode = Graph.getEntryNode();
+  BasicBlockNodeBB &EntryNode = Graph.getEntryNode();
   Stack.push_back(make_pair(&EntryNode, 0));
 
   // Go through the exploration stack.
   while (!Stack.empty()) {
     auto StackElem = Stack.back();
     Stack.pop_back();
-    BasicBlockNode *Vertex = StackElem.first;
+    BasicBlockNodeBB *Vertex = StackElem.first;
     Time++;
 
     // Check if we are inspecting a vertex for the first time, and in case mark
@@ -80,7 +85,7 @@ static std::set<EdgeDescriptor> getBackedges(RegionCFG &Graph) {
 
     // If we are still successors to explore.
     if (Index < StackElem.first->successor_size()) {
-      BasicBlockNode *Successor = Vertex->getSuccessorI(Index);
+      BasicBlockNodeBB *Successor = Vertex->getSuccessorI(Index);
       Index++;
       Stack.push_back(make_pair(Vertex, Index));
 
@@ -104,7 +109,7 @@ static std::set<EdgeDescriptor> getBackedges(RegionCFG &Graph) {
   return Backedges;
 }
 
-static bool mergeSCSStep(std::vector<MetaRegion> &MetaRegions) {
+static bool mergeSCSStep(MetaRegionBBVect &MetaRegions) {
   for (auto RegionIt1 = MetaRegions.begin(); RegionIt1 != MetaRegions.end();
        RegionIt1++) {
     for (auto RegionIt2 = std::next(RegionIt1); RegionIt2 != MetaRegions.end();
@@ -125,7 +130,7 @@ static bool mergeSCSStep(std::vector<MetaRegion> &MetaRegions) {
   return false;
 }
 
-static void simplifySCS(std::vector<MetaRegion> &MetaRegions) {
+static void simplifySCS(MetaRegionBBVect &MetaRegions) {
   bool Changes = true;
   while (Changes) {
     Changes = mergeSCSStep(MetaRegions);
@@ -133,28 +138,27 @@ static void simplifySCS(std::vector<MetaRegion> &MetaRegions) {
 }
 
 static bool
-mergeSCSAbnormalRetreating(std::vector<MetaRegion> &MetaRegions,
+mergeSCSAbnormalRetreating(MetaRegionBBVect &MetaRegions,
                            const std::set<EdgeDescriptor> &Backedges,
                            BackedgeMetaRegionMap &BackedgeMetaRegionMap,
-                           std::set<MetaRegion *> &BlacklistedMetaregions) {
-  for (auto RegionIt = MetaRegions.begin();
-       RegionIt != MetaRegions.end();
+                           std::set<MetaRegionBB *> &BlacklistedMetaregions) {
+  for (auto RegionIt = MetaRegions.begin(); RegionIt != MetaRegions.end();
        RegionIt++) {
-    MetaRegion &Region = *RegionIt;
+    MetaRegionBB &Region = *RegionIt;
 
     // Do not re-analyze blacklisted metaregions.
     if (BlacklistedMetaregions.count(&Region) == 0) {
 
       // Iterate over all the backedges present in the graph, if the current
       // region contains the source of a backedge, it should contain also the
-      // the target of that backedge. If not, merge thw two SCSs.
+      // the target of that backedge. If not, merge the two SCSs.
       for (EdgeDescriptor Backedge : Backedges) {
         if (Region.containsNode(Backedge.first)) {
           if (!Region.containsNode(Backedge.second)) {
 
             // Retrieve the Metaregion identified by the backedge with goes
             // goes outside the scope of the current Metaregion.
-            MetaRegion *OtherRegion = BackedgeMetaRegionMap.at(Backedge);
+            MetaRegionBB *OtherRegion = BackedgeMetaRegionMap.at(Backedge);
             Region.mergeWith(*OtherRegion);
 
             // Find the iterator to the `OtherRegion`
@@ -182,10 +186,10 @@ mergeSCSAbnormalRetreating(std::vector<MetaRegion> &MetaRegions,
 }
 
 static void
-simplifySCSAbnormalRetreating(std::vector<MetaRegion> &MetaRegions,
+simplifySCSAbnormalRetreating(MetaRegionBBVect &MetaRegions,
                               const std::set<EdgeDescriptor> &Backedges,
                               BackedgeMetaRegionMap &BackedgeMetaRegionMap) {
-  std::set<MetaRegion *> BlacklistedMetaregions;
+  std::set<MetaRegionBB *> BlacklistedMetaregions;
   bool Changes = true;
   while (Changes) {
     Changes = mergeSCSAbnormalRetreating(MetaRegions,
@@ -198,25 +202,47 @@ simplifySCSAbnormalRetreating(std::vector<MetaRegion> &MetaRegions,
   // erase/remove idiom.
   MetaRegions.erase(remove_if(MetaRegions.begin(),
                               MetaRegions.end(),
-                              [&BlacklistedMetaregions](MetaRegion &M) {
+                              [&BlacklistedMetaregions](MetaRegionBB &M) {
                                 return BlacklistedMetaregions.count(&M) == 1;
                               }),
                     MetaRegions.end());
 }
 
-static void sortMetaRegions(std::vector<MetaRegion> &MetaRegions) {
+static void sortMetaRegions(MetaRegionBBVect &MetaRegions) {
   std::sort(MetaRegions.begin(),
             MetaRegions.end(),
-            [](MetaRegion &First, MetaRegion &Second) {
+            [](MetaRegionBB &First, MetaRegionBB &Second) {
               return First.getNodes().size() < Second.getNodes().size();
             });
 }
 
-static void computeParents(std::vector<MetaRegion> &MetaRegions,
-                           MetaRegion *RootMetaRegion) {
-  for (MetaRegion &MetaRegion1 : MetaRegions) {
+static bool
+checkMetaregionConsistency(const MetaRegionBBVect &MetaRegions,
+                           const std::set<EdgeDescriptor> &Backedges) {
+  bool ComparisonState = true;
+  for (const MetaRegionBB &MetaRegion : MetaRegions) {
+    for (EdgeDescriptor Backedge : Backedges) {
+      BasicBlockNodeBB *Source = Backedge.first;
+      BasicBlockNodeBB *Target = Backedge.second;
+      if (MetaRegion.containsNode(Source)) {
+        if ((not MetaRegion.containsNode(Source))
+            or (not MetaRegion.containsNode(Source))) {
+          ComparisonState = false;
+        }
+        revng_assert(MetaRegion.containsNode(Source));
+        revng_assert(MetaRegion.containsNode(Target));
+      }
+    }
+  }
+
+  return ComparisonState;
+}
+
+static void
+computeParents(MetaRegionBBVect &MetaRegions, MetaRegionBB *RootMetaRegion) {
+  for (MetaRegionBB &MetaRegion1 : MetaRegions) {
     bool ParentFound = false;
-    for (MetaRegion &MetaRegion2 : MetaRegions) {
+    for (MetaRegionBB &MetaRegion2 : MetaRegions) {
       if (&MetaRegion1 != &MetaRegion2) {
         if (MetaRegion1.isSubSet(MetaRegion2)) {
 
@@ -245,9 +271,9 @@ static void computeParents(std::vector<MetaRegion> &MetaRegions,
   }
 }
 
-static std::vector<MetaRegion *> applyPartialOrder(std::vector<MetaRegion> &V) {
-  std::vector<MetaRegion *> OrderedVector;
-  std::set<MetaRegion *> Processed;
+static MetaRegionBBPtrVect applyPartialOrder(MetaRegionBBVect &V) {
+  MetaRegionBBPtrVect OrderedVector;
+  std::set<MetaRegionBB *> Processed;
 
   while (V.size() != Processed.size()) {
     for (auto RegionIt1 = V.begin(); RegionIt1 != V.end(); RegionIt1++) {
@@ -275,11 +301,11 @@ static std::vector<MetaRegion *> applyPartialOrder(std::vector<MetaRegion> &V) {
   return OrderedVector;
 }
 
-static bool alreadyInMetaregion(std::vector<MetaRegion> &V, BasicBlockNode *N) {
+static bool alreadyInMetaregion(MetaRegionBBVect &V, BasicBlockNodeBB *N) {
 
   // Scan all the metaregions and check if a node is already contained in one of
   // them
-  for (MetaRegion &Region : V) {
+  for (MetaRegionBB &Region : V) {
     if (Region.containsNode(N)) {
       return true;
     }
@@ -288,10 +314,11 @@ static bool alreadyInMetaregion(std::vector<MetaRegion> &V, BasicBlockNode *N) {
   return false;
 }
 
-static std::vector<MetaRegion>
-createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
-  std::map<BasicBlockNode *, std::set<BasicBlockNode *>> AdditionalSCSNodes;
-  std::vector<std::pair<BasicBlockNode *, std::set<BasicBlockNode *>>> Regions;
+static MetaRegionBBVect
+createMetaRegions(const std::vector<EdgeDescriptor> &Backedges) {
+  std::map<BasicBlockNodeBB *, std::set<BasicBlockNodeBB *>> AdditionalSCSNodes;
+  std::vector<std::pair<BasicBlockNodeBB *, std::set<BasicBlockNodeBB *>>>
+    Regions;
   for (auto &Backedge : Backedges) {
     auto SCSNodes = findReachableNodes(*Backedge.second, *Backedge.first);
     AdditionalSCSNodes[Backedge.second].insert(SCSNodes.begin(),
@@ -313,28 +340,50 @@ createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
   // Include in the regions found before other possible sub-regions, if an edge
   // which is the target of a backedge is included in an outer region.
   for (auto &Region : Regions) {
-    BasicBlockNode *Head = Region.first;
-    std::set<BasicBlockNode *> &Nodes = Region.second;
-    for (BasicBlockNode *Node : Nodes) {
-      if ((Node != Head) and (AdditionalSCSNodes.count(Node) != 0)) {
-        CombLogger << "Adding additional nodes for region with head: ";
-        CombLogger << Head->getNameStr();
-        CombLogger << " and relative to node: ";
-        CombLogger << Node->getNameStr() << "\n";
-        Nodes.insert(AdditionalSCSNodes[Node].begin(),
-                     AdditionalSCSNodes[Node].end());
+    BasicBlockNodeBB *Head = Region.first;
+    std::set<BasicBlockNodeBB *> &Nodes = Region.second;
+    std::set<BasicBlockNodeBB *> AdditionalNodes;
+    std::set<BasicBlockNodeBB *> OldNodes;
+    do {
+      OldNodes = Nodes;
+      for (BasicBlockNodeBB *Node : Nodes) {
+        if ((Node != Head) and (AdditionalSCSNodes.count(Node) != 0)) {
+          CombLogger << "Adding additional nodes for region with head: ";
+          CombLogger << Head->getNameStr();
+          CombLogger << " and relative to node: ";
+          CombLogger << Node->getNameStr() << "\n";
+          AdditionalNodes.insert(AdditionalSCSNodes[Node].begin(),
+                                 AdditionalSCSNodes[Node].end());
+        }
       }
-    }
+      Nodes.insert(AdditionalNodes.begin(), AdditionalNodes.end());
+    } while (Nodes != OldNodes);
   }
 
-  std::vector<MetaRegion> MetaRegions;
+  MetaRegionBBVect MetaRegions;
   int SCSIndex = 1;
   for (size_t I = 0; I < Regions.size(); ++I) {
     auto &SCS = Regions[I].second;
-    MetaRegions.push_back(MetaRegion(SCSIndex, SCS, true));
+    MetaRegions.push_back(MetaRegionBB(SCSIndex, SCS, true));
     SCSIndex++;
   }
   return MetaRegions;
+}
+
+static BasicBlockNodeBB *getCheckPredecessor(BasicBlockNodeBB *Node) {
+  bool CheckFound = false;
+  BasicBlockNodeBB *CheckPredecessor = nullptr;
+  for (BasicBlockNodeBB *Predecessor : Node->predecessors()) {
+    if (Predecessor->isCheck()) {
+      revng_assert(not CheckFound);
+      CheckPredecessor = Predecessor;
+      CheckFound = true;
+    }
+  }
+
+  revng_assert(CheckPredecessor != nullptr);
+
+  return CheckPredecessor;
 }
 
 char RestructureCFG::ID = 0;
@@ -349,24 +398,22 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Analyze only isolated functions.
   if (!F.getName().startswith("bb.")
       or F.getName().startswith("bb.quotearg_buffer_restyled")
-      or F.getName().startswith("bb._getopt_internal_r")
       or F.getName().startswith("bb.printf_parse")
+      or F.getName().startswith("bb.printf_core")
+      or F.getName().startswith("bb._Unwind_VRS_Pop")
       or F.getName().startswith("bb.vasnprintf")) {
     return false;
   }
 
   // Clear graph object from the previous pass.
-  RootCFG = RegionCFG();
+  RootCFG = RegionCFG<BasicBlock *>();
 
   // Set names of the CFG region
   RootCFG.setFunctionName(F.getName());
   RootCFG.setRegionName("root");
 
-  // Random seed initialization
-  srand(time(NULL));
-
   // Initialize the RegionCFG object
-  RootCFG.initialize(F);
+  RootCFG.initialize(&F);
 
   // Dump the function name.
   if (CombLogger.isEnabled()) {
@@ -379,58 +426,92 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Identify SCS regions.
+  std::set<EdgeDescriptor> Backedges = getBackedges(RootCFG);
   if (CombLogger.isEnabled()) {
-    BasicBlockNode &FirstRandom = RootCFG.getRandomNode();
-    BasicBlockNode &SecondRandom = RootCFG.getRandomNode();
-    CombLogger << "Source: ";
-    CombLogger << FirstRandom.getNameStr() << "\n";
-    CombLogger << "Target: ";
-    CombLogger << SecondRandom.getNameStr() << "\n";
-    CombLogger << "Nodes Reachable:\n";
-    std::set<BasicBlockNode *> Reachables = findReachableNodes(FirstRandom,
-                                                               SecondRandom);
-    for (BasicBlockNode *Element : Reachables) {
-      CombLogger << Element->getNameStr() << "\n";
+    CombLogger << "Backedges in the graph:\n";
+    for (auto &Backedge : Backedges) {
+      CombLogger << Backedge.first->getNameStr() << " -> "
+                 << Backedge.second->getNameStr() << "\n";
     }
   }
 
-  std::set<EdgeDescriptor> Backedges = getBackedges(RootCFG);
-  CombLogger << "Backedges in the graph:\n";
-  for (auto &Backedge : Backedges) {
-    CombLogger << Backedge.first->getNameStr() << " -> "
-               << Backedge.second->getNameStr() << "\n";
+  // Fill a vector with the backedges, to ensure order of inspection.
+  std::vector<EdgeDescriptor> BackedgesVect;
+  for (EdgeDescriptor Backedge : Backedges) {
+    BackedgesVect.push_back(Backedge);
   }
 
   // Create meta regions
-  std::vector<MetaRegion> MetaRegions = createMetaRegions(Backedges);
+  MetaRegionBBVect MetaRegions = createMetaRegions(BackedgesVect);
 
   // Temporary map where to store the corrispondence between the backedge and
   // the SCS it gives origin to.
   // HACK: this should be done at the same time of the metaregion creation.
   unsigned MetaRegionIndex = 0;
-  std::map<EdgeDescriptor, MetaRegion *> BackedgeMetaRegionMap;
+  std::map<EdgeDescriptor, MetaRegionBB *> BackedgeMetaRegionMap;
   for (EdgeDescriptor Backedge : Backedges) {
-    BackedgeMetaRegionMap[Backedge] = &MetaRegions[MetaRegionIndex];
+    BackedgeMetaRegionMap[Backedge] = &MetaRegions.at(MetaRegionIndex);
     MetaRegionIndex++;
+  }
+
+  // Print gross metaregions.
+  if (CombLogger.isEnabled()) {
+    CombLogger << "\n";
+    CombLogger << "Metaregions after nothing:\n";
+    for (auto &Meta : MetaRegions) {
+      CombLogger << "\n";
+      CombLogger << &Meta << "\n";
+      CombLogger << "With index " << Meta.getIndex() << "\n";
+      CombLogger << "With size " << Meta.nodes_size() << "\n";
+      CombLogger << "Is composed of nodes:\n";
+      auto &Nodes = Meta.getNodes();
+      for (auto *Node : Nodes) {
+        CombLogger << Node->getNameStr() << "\n";
+      }
+    }
   }
 
   // Simplify SCS if they contain an edge which goes outside the scope of the
   // current region.
   simplifySCSAbnormalRetreating(MetaRegions, Backedges, BackedgeMetaRegionMap);
 
-  // Simplify SCS in a fixed-point fashion.
-  sortMetaRegions(MetaRegions);
-  simplifySCS(MetaRegions);
+  // Check consitency of metaregions simplified above.
+  revng_assert(checkMetaregionConsistency(MetaRegions, Backedges));
 
-  // Print SCS after simplification.
+  // Print SCS after first simplification.
   if (CombLogger.isEnabled()) {
     CombLogger << "\n";
-    CombLogger << "Metaregions after simplification:\n";
+    CombLogger << "Metaregions after first simplification:\n";
     for (auto &Meta : MetaRegions) {
       CombLogger << "\n";
       CombLogger << &Meta << "\n";
-      auto &Nodes = Meta.getNodes();
+      CombLogger << "With index " << Meta.getIndex() << "\n";
+      CombLogger << "With size " << Meta.nodes_size() << "\n";
       CombLogger << "Is composed of nodes:\n";
+      auto &Nodes = Meta.getNodes();
+      for (auto *Node : Nodes) {
+        CombLogger << Node->getNameStr() << "\n";
+      }
+    }
+  }
+
+  // Simplify SCS in a fixed-point fashion.
+  simplifySCS(MetaRegions);
+
+  // Check consitency of metaregions simplified above
+  revng_assert(checkMetaregionConsistency(MetaRegions, Backedges));
+
+  // Print SCS after second simplification.
+  if (CombLogger.isEnabled()) {
+    CombLogger << "\n";
+    CombLogger << "Metaregions after second simplification:\n";
+    for (auto &Meta : MetaRegions) {
+      CombLogger << "\n";
+      CombLogger << &Meta << "\n";
+      CombLogger << "With index " << Meta.getIndex() << "\n";
+      CombLogger << "With size " << Meta.nodes_size() << "\n";
+      CombLogger << "Is composed of nodes:\n";
+      auto &Nodes = Meta.getNodes();
       for (auto *Node : Nodes) {
         CombLogger << Node->getNameStr() << "\n";
       }
@@ -447,6 +528,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     for (auto &Meta : MetaRegions) {
       CombLogger << "\n";
       CombLogger << &Meta << "\n";
+      CombLogger << "With index " << Meta.getIndex() << "\n";
+      CombLogger << "With size " << Meta.nodes_size() << "\n";
       CombLogger << "Is composed of nodes:\n";
       auto &Nodes = Meta.getNodes();
       for (auto *Node : Nodes) {
@@ -456,8 +539,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Compute parent relations for the identified SCSs.
-  std::set<BasicBlockNode *> Empty;
-  MetaRegion RootMetaRegion(0, Empty);
+  std::set<BasicBlockNodeBB *> Empty;
+  MetaRegionBB RootMetaRegion(0, Empty);
   computeParents(MetaRegions, &RootMetaRegion);
 
   // Print metaregions after ordering.
@@ -467,8 +550,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
     for (auto &Meta : MetaRegions) {
       CombLogger << "\n";
       CombLogger << &Meta << "\n";
-      auto &Nodes = Meta.getNodes();
+      CombLogger << "With index " << Meta.getIndex() << "\n";
+      CombLogger << "With size " << Meta.nodes_size() << "\n";
       CombLogger << "Is composed of nodes:\n";
+      auto &Nodes = Meta.getNodes();
       for (auto *Node : Nodes) {
         CombLogger << Node->getNameStr() << "\n";
       }
@@ -479,19 +564,19 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Find an ordering for the metaregions that satisfies the inclusion
   // relationship. We create a new "shadow" vector containing only pointers to
   // the "real" metaregions.
-  std::vector<MetaRegion *> OrderedMetaRegions = applyPartialOrder(MetaRegions);
+  MetaRegionBBPtrVect OrderedMetaRegions = applyPartialOrder(MetaRegions);
 
   // Print metaregions after ordering.
   if (CombLogger.isEnabled()) {
     CombLogger << "\n";
-    CombLogger << "Metaregions after ordering:\n";
+    CombLogger << "Metaregions after partial ordering:\n";
     for (auto *Meta : OrderedMetaRegions) {
       CombLogger << "\n";
       CombLogger << Meta << "\n";
       CombLogger << "With index " << Meta->getIndex() << "\n";
       CombLogger << "With size " << Meta->nodes_size() << "\n";
-      auto &Nodes = Meta->getNodes();
       CombLogger << "Is composed of nodes:\n";
+      auto &Nodes = Meta->getNodes();
       for (auto *Node : Nodes) {
         CombLogger << Node->getNameStr() << "\n";
       }
@@ -500,10 +585,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
   }
 
-  ReversePostOrderTraversal<BasicBlockNode *> RPOT(&RootCFG.getEntryNode());
+  ReversePostOrderTraversal<BasicBlockNodeBB *> RPOT(&RootCFG.getEntryNode());
   if (CombLogger.isEnabled()) {
     CombLogger << "Reverse post order is:\n";
-    for (BasicBlockNode *BN : RPOT) {
+    for (BasicBlockNodeBB *BN : RPOT) {
       CombLogger << BN->getNameStr() << "\n";
     }
     CombLogger << "Reverse post order end\n";
@@ -513,39 +598,24 @@ bool RestructureCFG::runOnFunction(Function &F) {
              << "\n";
   CombLogger << F.getName().equals("bb._start_c") << "\n";
 
-  DominatorTreeBase<BasicBlockNode, false> DT;
+  DominatorTreeBase<BasicBlockNodeBB, false> DT;
   DT.recalculate(RootCFG);
 
-  DominatorTreeBase<BasicBlockNode, true> PDT;
+  DominatorTreeBase<BasicBlockNodeBB, true> PDT;
   PDT.recalculate(RootCFG);
-
-  // Some debug information on dominator and postdominator tree.
-  if (CombLogger.isEnabled()) {
-    CombLogger << DT.isPostDominator() << "\n";
-    CombLogger << "The root node of the dominator tree is:\n";
-    CombLogger << DT.getRoot()->getNameStr() << "\n";
-    CombLogger << "Between these two nodes:\n";
-    BasicBlockNode *Random = &RootCFG.getRandomNode();
-    BasicBlockNode *Random2 = &RootCFG.getRandomNode();
-    CombLogger << Random->getNameStr() << "\n";
-    CombLogger << Random2->getNameStr() << "\n";
-    CombLogger << "Dominance:\n";
-    CombLogger << DT.dominates(Random, Random2) << "\n";
-    CombLogger << "PostDominance:\n";
-    CombLogger << PDT.dominates(Random, Random2) << "\n";
-    CombLogger << PDT.isPostDominator() << "\n";
-  }
 
   // Reserve enough space for all the OrderedMetaRegions.
   // The following algorithms stores pointers to the elements of this vector, so
   // we need to make sure that no reallocation happens.
-  std::vector<RegionCFG> Regions(OrderedMetaRegions.size());
+  std::vector<RegionCFG<BasicBlock *>> Regions(OrderedMetaRegions.size());
 
-  for (MetaRegion *Meta : OrderedMetaRegions) {
+  for (MetaRegionBB *Meta : OrderedMetaRegions) {
+
+    ReversePostOrderTraversal<BasicBlockNodeBB *> RPOT(&RootCFG.getEntryNode());
+
     if (CombLogger.isEnabled()) {
       CombLogger << "\nAnalyzing region: " << Meta->getIndex() << "\n";
     }
-
 
     if (CombLogger.isEnabled()) {
 
@@ -561,10 +631,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
                             "Out-pre-" + std::to_string(Meta->getIndex()));
     }
 
-    std::map<BasicBlockNode *, int> IncomingDegree;
-    for (BasicBlockNode *Node : Meta->nodes()) {
+    std::map<BasicBlockNodeBB *, int> IncomingDegree;
+    for (BasicBlockNodeBB *Node : Meta->nodes()) {
       int IncomingCounter = 0;
-      for (BasicBlockNode *Predecessor : Node->predecessors()) {
+      for (BasicBlockNodeBB *Predecessor : Node->predecessors()) {
         EdgeDescriptor Edge = make_pair(Predecessor, Node);
         if ((Meta->containsNode(Predecessor)) and (Backedges.count(Edge))) {
           IncomingCounter++;
@@ -583,8 +653,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     auto MaxDegreeIt = max_element(IncomingDegree.begin(),
                                    IncomingDegree.end(),
-                                   [](const pair<BasicBlockNode *, int> &p1,
-                                      const pair<BasicBlockNode *, int> &p2) {
+                                   [](const pair<BasicBlockNodeBB *, int> &p1,
+                                      const pair<BasicBlockNodeBB *, int> &p2) {
                                      return p1.second < p2.second;
                                    });
     int MaxDegree = (*MaxDegreeIt).second;
@@ -594,19 +664,19 @@ bool RestructureCFG::runOnFunction(Function &F) {
       CombLogger << MaxDegree << "\n";
     }
 
-    std::set<BasicBlockNode *> MaximuxEdgesNodes;
+    std::set<BasicBlockNodeBB *> MaximuxEdgesNodes;
     copy_if(Meta->begin(),
             Meta->end(),
             std::inserter(MaximuxEdgesNodes, MaximuxEdgesNodes.begin()),
-            [&IncomingDegree, &MaxDegree](BasicBlockNode *Node) {
+            [&IncomingDegree, &MaxDegree](BasicBlockNodeBB *Node) {
               return IncomingDegree[Node] == MaxDegree;
             });
 
     revng_assert(MaxDegree > 0);
 
-    BasicBlockNode *FirstCandidate;
+    BasicBlockNodeBB *FirstCandidate;
     if (MaximuxEdgesNodes.size() > 1) {
-      for (BasicBlockNode *BN : RPOT) {
+      for (BasicBlockNodeBB *BN : RPOT) {
         if (MaximuxEdgesNodes.count(BN) != 0) {
           FirstCandidate = BN;
           break;
@@ -626,7 +696,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     // Identify all the abnormal retreating edges in a SCS.
     std::set<EdgeDescriptor> Retreatings;
-    std::set<BasicBlockNode *> RetreatingTargets;
+    std::set<BasicBlockNodeBB *> RetreatingTargets;
     for (EdgeDescriptor Backedge : Backedges) {
       if (Meta->containsNode(Backedge.first)) {
 
@@ -654,7 +724,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
 
     bool NewHeadNeeded = false;
-    for (BasicBlockNode *Node : RetreatingTargets) {
+    for (BasicBlockNodeBB *Node : RetreatingTargets) {
       if (Node != FirstCandidate) {
         NewHeadNeeded = true;
       }
@@ -663,15 +733,15 @@ bool RestructureCFG::runOnFunction(Function &F) {
       CombLogger << "New head needed: " << NewHeadNeeded << "\n";
     }
 
-    BasicBlockNode *Head;
+    BasicBlockNodeBB *Head;
     if (NewHeadNeeded) {
       revng_assert(RetreatingTargets.size() > 1);
-      std::map<BasicBlockNode *, int> RetreatingIdxMap;
+      std::map<BasicBlockNodeBB *, int> RetreatingIdxMap;
 
-      BasicBlockNode *const False = *RetreatingTargets.begin();
+      BasicBlockNodeBB *const False = *RetreatingTargets.begin();
       RetreatingIdxMap[False] = 0;
 
-      BasicBlockNode *const True = *std::next(RetreatingTargets.begin());
+      BasicBlockNodeBB *const True = *std::next(RetreatingTargets.begin());
       RetreatingIdxMap[True] = 1;
 
       unsigned Idx = 1;
@@ -679,11 +749,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
       Meta->insertNode(Head);
 
       Idx = 2;
-      using TargetIterator = std::set<BasicBlockNode *>::iterator;
+      using TargetIterator = std::set<BasicBlockNodeBB *>::iterator;
       TargetIterator TgtIt = std::next(std::next(RetreatingTargets.begin()));
       TargetIterator TgtEnd = RetreatingTargets.end();
       for (; TgtIt != TgtEnd; ++TgtIt) {
-        BasicBlockNode *New = RootCFG.addDispatcher(Idx, *TgtIt, Head);
+        BasicBlockNodeBB *New = RootCFG.addDispatcher(Idx, *TgtIt, Head);
         Meta->insertNode(New);
         RetreatingIdxMap[*TgtIt] = Idx;
         Idx++;
@@ -692,19 +762,39 @@ bool RestructureCFG::runOnFunction(Function &F) {
       revng_assert(Idx == RetreatingTargets.size());
 
       for (EdgeDescriptor R : Retreatings) {
-        Idx = RetreatingIdxMap[R.second];
-        auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
-        Meta->insertNode(SetNode);
-        moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
-        addEdge(EdgeDescriptor(SetNode, Head));
+        BasicBlockNodeBB *OriginalSource = R.first;
+
+        // If the original source is a set node, move it after the entry
+        // dispatcher.
+        if (OriginalSource->isSet()) {
+          BasicBlockNodeBB *OldSetNode = OriginalSource;
+          BasicBlockNodeBB *OldTarget = R.second;
+          Idx = RetreatingIdxMap[R.second];
+          revng_assert(OldSetNode->predecessor_size() == 1);
+          BasicBlockNodeBB *Predecessor = OldSetNode->getPredecessorI(0);
+          auto *SetNode = RootCFG.addSetStateNode(Idx, OldSetNode->getName());
+          Meta->insertNode(SetNode);
+          moveEdgeTarget(EdgeDescriptor(Predecessor, OldSetNode), Head);
+
+          // Search for the corresponding check node and move it.
+          BasicBlockNodeBB *CheckNode = getCheckPredecessor(OldTarget);
+          revng_assert(CheckNode->isCheck());
+          moveEdgeTarget(EdgeDescriptor(CheckNode, OldTarget), OldSetNode);
+        } else {
+          Idx = RetreatingIdxMap[R.second];
+          auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
+          Meta->insertNode(SetNode);
+          moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
+          addEdge(EdgeDescriptor(SetNode, Head));
+        }
       }
 
       // Move the incoming edge from the old head to new one.
-      std::vector<BasicBlockNode *>Predecessors;
-      for (BasicBlockNode *Predecessor : FirstCandidate->predecessors())
+      std::vector<BasicBlockNodeBB *> Predecessors;
+      for (BasicBlockNodeBB *Predecessor : FirstCandidate->predecessors())
         Predecessors.push_back(Predecessor);
 
-      for (BasicBlockNode *Predecessor : Predecessors) {
+      for (BasicBlockNodeBB *Predecessor : Predecessors) {
         if (!Meta->containsNode(Predecessor)) {
           moveEdgeTarget(EdgeDescriptor(Predecessor, FirstCandidate), Head);
         }
@@ -720,11 +810,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
 
     // Successor refinement step.
-    std::set<BasicBlockNode *> Successors = Meta->getSuccessors();
+    std::set<BasicBlockNodeBB *> Successors = Meta->getSuccessors();
 
     if (CombLogger.isEnabled()) {
       CombLogger << "Region successors are:\n";
-      for (BasicBlockNode *Node : Successors) {
+      for (BasicBlockNodeBB *Node : Successors) {
         CombLogger << Node->getNameStr() << "\n";
       }
     }
@@ -734,14 +824,14 @@ bool RestructureCFG::runOnFunction(Function &F) {
       AnotherIteration = false;
       std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
 
-      std::vector<BasicBlockNode *> Frontiers;
-      std::map<BasicBlockNode *, pair<BasicBlockNode *, BasicBlockNode *>>
+      std::vector<BasicBlockNodeBB *> Frontiers;
+      std::map<BasicBlockNodeBB *, pair<BasicBlockNodeBB *, BasicBlockNodeBB *>>
         EdgeExtremal;
 
       for (EdgeDescriptor Edge : OutgoingEdges) {
-        BasicBlockNode *Frontier = RootCFG.addArtificialNode("frontier");
-        BasicBlockNode *OldSource = Edge.first;
-        BasicBlockNode *OldTarget = Edge.second;
+        BasicBlockNodeBB *Frontier = RootCFG.addArtificialNode();
+        BasicBlockNodeBB *OldSource = Edge.first;
+        BasicBlockNodeBB *OldTarget = Edge.second;
         EdgeExtremal[Frontier] = make_pair(OldSource, OldTarget);
         moveEdgeTarget(Edge, Frontier);
         addEdge(EdgeDescriptor(Frontier, OldTarget));
@@ -750,8 +840,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
 
       DT.recalculate(RootCFG);
-      for (BasicBlockNode *Frontier : Frontiers) {
-        for (BasicBlockNode *Successor : Successors) {
+      for (BasicBlockNodeBB *Frontier : Frontiers) {
+        for (BasicBlockNodeBB *Successor : Successors) {
           if ((DT.dominates(Head, Successor))
               and (DT.dominates(Frontier, Successor))
               and !alreadyInMetaregion(MetaRegions, Successor)) {
@@ -767,10 +857,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
 
       // Remove the frontier nodes since we do not need them anymore.
-      for (BasicBlockNode *Frontier : Frontiers) {
+      for (BasicBlockNodeBB *Frontier : Frontiers) {
         EdgeDescriptor Extremal = EdgeExtremal[Frontier];
-        BasicBlockNode *OriginalSource = EdgeExtremal[Frontier].first;
-        BasicBlockNode *OriginalTarget = EdgeExtremal[Frontier].second;
+        BasicBlockNodeBB *OriginalSource = EdgeExtremal[Frontier].first;
+        BasicBlockNodeBB *OriginalTarget = EdgeExtremal[Frontier].second;
         moveEdgeTarget({ OriginalSource, Frontier }, OriginalTarget);
         RootCFG.removeNode(Frontier);
         Meta->removeNode(Frontier);
@@ -781,46 +871,48 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     // First Iteration outlining.
     // Clone all the nodes of the SCS except for the head.
-    std::map<BasicBlockNode *, BasicBlockNode *> ClonedMap;
-    for (BasicBlockNode *Node : Meta->nodes()) {
+    std::map<BasicBlockNodeBB *, BasicBlockNodeBB *> ClonedMap;
+    for (BasicBlockNodeBB *Node : Meta->nodes()) {
       if (Node != Head) {
-        BasicBlockNode *Clone = RootCFG.cloneNode(*Node);
+        BasicBlockNodeBB *Clone = RootCFG.cloneNode(*Node);
+        Clone->setName(Node->getName().str() + " outlined");
         ClonedMap[Node] = Clone;
       }
     }
 
     // Restore edges between cloned nodes.
-    for (BasicBlockNode *Node : Meta->nodes()) {
+    for (BasicBlockNodeBB *Node : Meta->nodes()) {
       if (Node != Head) {
 
         // Handle outgoing edges from SCS nodes.
         if (Node->isCheck()) {
-          BasicBlockNode *TrueSucc = Node->getTrue();
+          BasicBlockNodeBB *TrueSucc = Node->getTrue();
+          revng_assert(!Backedges.count(EdgeDescriptor(Node, TrueSucc)));
           if (Meta->containsNode(TrueSucc)) {
             if (TrueSucc == Head) {
               ClonedMap.at(Node)->setTrue(Head);
             } else {
               ClonedMap.at(Node)->setTrue(ClonedMap.at(TrueSucc));
             }
-          }
-          else {
+          } else {
             ClonedMap.at(Node)->setTrue(TrueSucc);
           }
 
-          BasicBlockNode *FalseSucc = Node->getFalse();
+          BasicBlockNodeBB *FalseSucc = Node->getFalse();
+          revng_assert(!Backedges.count(EdgeDescriptor(Node, FalseSucc)));
           if (Meta->containsNode(FalseSucc)) {
             if (FalseSucc == Head) {
               ClonedMap.at(Node)->setFalse(Head);
             } else {
               ClonedMap.at(Node)->setFalse(ClonedMap.at(FalseSucc));
             }
-          }
-          else{
+          } else {
             ClonedMap.at(Node)->setFalse(FalseSucc);
           }
 
         } else {
-          for (BasicBlockNode *Successor : Node->successors()) {
+          for (BasicBlockNodeBB *Successor : Node->successors()) {
+            revng_assert(!Backedges.count(EdgeDescriptor(Node, Successor)));
             if (Meta->containsNode(Successor)) {
               // Handle edges pointing inside the SCS.
               if (Successor == Head) {
@@ -828,7 +920,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
                 addEdge(EdgeDescriptor(ClonedMap.at(Node), Head));
               } else {
                 // Other edges should be restored between cloned nodes.
-                addEdge(EdgeDescriptor(ClonedMap.at(Node), ClonedMap.at(Successor)));
+                addEdge(EdgeDescriptor(ClonedMap.at(Node),
+                                       ClonedMap.at(Successor)));
               }
             } else {
               // Edges exiting from the SCS should go to the right target.
@@ -838,13 +931,25 @@ bool RestructureCFG::runOnFunction(Function &F) {
         }
 
         // We need this temporary vector to avoid invalidating iterators.
-        std::vector<BasicBlockNode *> Predecessors;
-        for (BasicBlockNode *Predecessor : Node->predecessors()) {
+        std::vector<BasicBlockNodeBB *> Predecessors;
+        for (BasicBlockNodeBB *Predecessor : Node->predecessors()) {
           Predecessors.push_back(Predecessor);
         }
-        for (BasicBlockNode *Predecessor : Predecessors) {
+        for (BasicBlockNodeBB *Predecessor : Predecessors) {
           if (!Meta->containsNode(Predecessor)) {
-            moveEdgeTarget(EdgeDescriptor(Predecessor, Node), ClonedMap.at(Node));
+            // Is the edge we are moving a backedge ?.
+            if (CombLogger.isEnabled()) {
+              CombLogger << "Index region: " << Meta->getIndex() << "\n";
+              CombLogger << "Backedge that we would insert: "
+                         << Predecessor->getNameStr() << " -> "
+                         << Node->getNameStr() << "\n";
+            }
+
+            // Are we moving a backedge with the first iteration outlining?
+            revng_assert(!Backedges.count(EdgeDescriptor(Predecessor, Node)));
+
+            moveEdgeTarget(EdgeDescriptor(Predecessor, Node),
+                           ClonedMap.at(Node));
           }
         }
       }
@@ -852,20 +957,20 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     // Vector which contains the additional set nodes that set the default value
     // for the entry dispatcher.
-    std::vector<BasicBlockNode *> DefaultEntrySet;
+    std::vector<BasicBlockNodeBB *> DefaultEntrySet;
 
     // Default set node for entry dispatcher.
     if (NewHeadNeeded) {
       revng_assert(Head->isCheck());
-      std::set<BasicBlockNode *> SetCandidates;
-      for (BasicBlockNode *Pred : Head->predecessors()) {
+      std::set<BasicBlockNodeBB *> SetCandidates;
+      for (BasicBlockNodeBB *Pred : Head->predecessors()) {
         if (not Pred->isSet()) {
           SetCandidates.insert(Pred);
         }
       }
       unsigned Value = RetreatingTargets.size() - 1;
-      for (BasicBlockNode *Pred : SetCandidates) {
-        BasicBlockNode *Set = RootCFG.addSetStateNode(Value, Head->getName());
+      for (BasicBlockNodeBB *Pred : SetCandidates) {
+        BasicBlockNodeBB *Set = RootCFG.addSetStateNode(Value, Head->getName());
         DefaultEntrySet.push_back(Set);
         moveEdgeTarget(EdgeDescriptor(Pred, Head), Set);
         addEdge(EdgeDescriptor(Set, Head));
@@ -882,8 +987,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
         while (UpdatedBackedges) {
           UpdatedBackedges = false;
           for (EdgeDescriptor Backedge : Backedges) {
-            BasicBlockNode *Source = Backedge.first;
-            BasicBlockNode *Target = Backedge.second;
+            BasicBlockNodeBB *Source = Backedge.first;
+            BasicBlockNodeBB *Target = Backedge.second;
             if (Source == Pred) {
               Backedges.erase(Backedge);
               Backedges.insert(EdgeDescriptor(Set, Head));
@@ -898,8 +1003,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // Exit dispatcher creation.
     // TODO: Factorize this out together with the head dispatcher creation.
     bool NewExitNeeded = false;
-    BasicBlockNode *Exit;
-    std::vector<BasicBlockNode *> ExitDispatcherNodes;
+    BasicBlockNodeBB *Exit;
+    std::vector<BasicBlockNodeBB *> ExitDispatcherNodes;
     if (Successors.size() > 1) {
       NewExitNeeded = true;
     }
@@ -909,12 +1014,12 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     if (NewExitNeeded) {
       revng_assert(Successors.size() > 1);
-      std::map<BasicBlockNode *, int> SuccessorsIdxMap;
+      std::map<BasicBlockNodeBB *, int> SuccessorsIdxMap;
 
-      BasicBlockNode *const False = *Successors.begin();
+      BasicBlockNodeBB *const False = *Successors.begin();
       SuccessorsIdxMap[False] = 0;
 
-      BasicBlockNode *const True = *std::next(Successors.begin());
+      BasicBlockNodeBB *const True = *std::next(Successors.begin());
       SuccessorsIdxMap[True] = 1;
 
       unsigned Idx = 1;
@@ -922,11 +1027,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
       ExitDispatcherNodes.push_back(Exit);
 
       Idx = 2;
-      using SuccessorIterator = std::set<BasicBlockNode *>::iterator;
+      using SuccessorIterator = std::set<BasicBlockNodeBB *>::iterator;
       SuccessorIterator SuccIt = std::next(std::next(Successors.begin()));
       SuccessorIterator SuccEnd = Successors.end();
       for (; SuccIt != SuccEnd; ++SuccIt) {
-        BasicBlockNode *New = RootCFG.addDispatcher(Idx, *SuccIt, Exit);
+        BasicBlockNodeBB *New = RootCFG.addDispatcher(Idx, *SuccIt, Exit);
         ExitDispatcherNodes.push_back(New);
         SuccessorsIdxMap[*SuccIt] = Idx;
         Idx++;
@@ -953,15 +1058,15 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // Collapse Region.
     // Create a new RegionCFG object for representing the collapsed region and
     // populate it with the internal nodes.
-    Regions.push_back(RegionCFG());
-    RegionCFG &CollapsedGraph = Regions.back();
-    RegionCFG::BBNodeMap SubstitutionMap{};
+    Regions.push_back(RegionCFG<BasicBlock *>());
+    RegionCFG<BasicBlock *> &CollapsedGraph = Regions.back();
+    RegionCFG<BasicBlock *>::BBNodeMap SubstitutionMap{};
     CollapsedGraph.setFunctionName(F.getName());
     CollapsedGraph.setRegionName(std::to_string(Meta->getIndex()));
     revng_assert(Head != nullptr);
 
     // Create the collapsed node in the outer region.
-    BasicBlockNode *Collapsed = RootCFG.createCollapsedNode(&CollapsedGraph);
+    BasicBlockNodeBB *Collapsed = RootCFG.createCollapsedNode(&CollapsedGraph);
 
     // Hack: we should use a std::multimap here, so that we can update the
     // target of the edgedescriptor in place without having to remove and insert
@@ -975,10 +1080,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
     while (UpdatedBackedges) {
       UpdatedBackedges = false;
       for (EdgeDescriptor Backedge : Backedges) {
-        BasicBlockNode *Source = Backedge.first;
-        BasicBlockNode *Target = Backedge.second;
+        BasicBlockNodeBB *Source = Backedge.first;
+        BasicBlockNodeBB *Target = Backedge.second;
         revng_assert(!Meta->containsNode(Source));
         if (Meta->containsNode(Target)) {
+          revng_assert(Target == Head);
           Backedges.erase(Backedge);
           Backedges.insert(EdgeDescriptor(Source, Collapsed));
           UpdatedBackedges = true;
@@ -998,8 +1104,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // Connect the old incoming edges to the collapsed node.
     std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
     for (EdgeDescriptor Edge : IncomingEdges) {
-      BasicBlockNode *OldSource = Edge.first;
-      moveEdgeTarget(Edge, Collapsed);
+      BasicBlockNodeBB *OldSource = Edge.first;
+      revng_assert(Edge.second == Head);
 
       // Check if the old edge was a backedge edge, and in case update the
       // information about backedges accordingly.
@@ -1007,6 +1113,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
         Backedges.erase(Edge);
         Backedges.insert(EdgeDescriptor(OldSource, Collapsed));
       }
+
+      moveEdgeTarget(Edge, Collapsed);
     }
 
     // Connect the outgoing edges to the collapsed node.
@@ -1020,13 +1128,13 @@ bool RestructureCFG::runOnFunction(Function &F) {
       if (Successors.size() == 1) {
 
         // Connect the collapsed node to the unique successor
-        BasicBlockNode *Successor = *Successors.begin();
+        BasicBlockNodeBB *Successor = *Successors.begin();
         addEdge(EdgeDescriptor(Collapsed, Successor));
       }
     }
 
     // Remove collapsed nodes from the outer region.
-    for (BasicBlockNode *Node : Meta->nodes()) {
+    for (BasicBlockNodeBB *Node : Meta->nodes()) {
       if (CombLogger.isEnabled()) {
         CombLogger << "Removing from main graph node :" << Node->getNameStr()
                    << "\n";
@@ -1036,7 +1144,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     // Substitute in the other SCSs the nodes of the current SCS with the
     // collapsed node and the exit dispatcher structure.
-    for (MetaRegion *OtherMeta : OrderedMetaRegions) {
+    for (MetaRegionBB *OtherMeta : OrderedMetaRegions) {
       if (OtherMeta != Meta) {
         OtherMeta->updateNodes(Meta->getNodes(),
                                Collapsed,
@@ -1108,14 +1216,12 @@ bool RestructureCFG::runOnFunction(Function &F) {
   revng_assert(RootCFG.isDAG());
 
   // Invoke the AST generation for the root region.
-  CombLogger.emit();
   RootCFG.generateAst();
 
   // Serialize final AST on file
-  RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final");
-
-  // Sync Logger.
-  CombLogger.emit();
+  if (CombLogger.isEnabled()) {
+    RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final");
+  }
 
   // Early exit if the AST generation produced a version of the AST which is
   // identical to the cached version.
@@ -1131,8 +1237,23 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   flattenRegionCFGTree(RootCFG);
 
+  // Collect the number of cloned nodes introduced by the comb for a single
+  // `llvm::BasicBlock`, information which is needed later in the
+  // `MarkForSerialization` pass.
+  for (BasicBlockNodeBB *BBNode : RootCFG.nodes()) {
+    BasicBlock *BB = BBNode->getOriginalNode();
+    if (BBNode->isCode()) {
+      revng_assert(BB != nullptr);
+      NDuplicates[BB] += 1;
+    } else {
+      revng_assert(BB == nullptr);
+    }
+  }
+
   // Serialize final AST after flattening on file
-  RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final-after-flattening");
+  if (CombLogger.isEnabled()) {
+    RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final-after-flattening");
+  }
 
   // Serialize the newly collapsed SCS region.
   if (CombLogger.isEnabled()) {

@@ -20,3 +20,5 @@ llvm_map_components_to_libnames(LLVM_LIBRARIES core support irreader ScalarOpts
 
 add_subdirectory(include)
 add_subdirectory(lib)
+
+include(tests/Tests.cmake)
