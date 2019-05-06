@@ -75,9 +75,9 @@ public:
             const llvm::ConstantInt *CInt = cast<llvm::ConstantInt>(LLVMInit);
             uint64_t InitValue = CInt->getValue().getZExtValue();
             APInt InitVal = LLVMInit->getUniqueInteger();
-            QualType BoolTy = getOrCreateBoolQualType(G->getType(),
-                                                      Context,
-                                                      TypeDecls);
+            QualType BoolTy = getOrCreateBoolQualType(Context,
+                                                      TypeDecls,
+                                                      G->getType());
             QualType IntT = Context.IntTy;
             APInt Const = APInt(Context.getIntWidth(IntT), InitValue, true);
             Expr *IntLiteral = IntegerLiteral::Create(Context, Const, IntT, {});

@@ -19,9 +19,9 @@
 
 namespace IRASTTypeTranslation {
 
-clang::QualType getOrCreateBoolQualType(const llvm::Type *Ty,
-                                        clang::ASTContext &ASTCtx,
-                                        TypeDeclMap &TypeDecls) {
+clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
+                                        TypeDeclMap &TypeDecls,
+                                        const llvm::Type *Ty) {
   clang::QualType Result;
   clang::TranslationUnitDecl *TUDecl = ASTCtx.getTranslationUnitDecl();
   const std::string BoolName = "bool";
@@ -32,8 +32,15 @@ clang::QualType getOrCreateBoolQualType(const llvm::Type *Ty,
     if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D)) {
       const std::string Name = Typedef->getNameAsString();
       if (Name == "bool") {
+        revng_assert(not Found);
+        if (Ty != nullptr) {
+          auto It = TypeDecls.begin();
+          bool NewInsert = false;
+          std::tie(It, NewInsert) = TypeDecls.insert({Ty, Typedef});
+          revng_assert(NewInsert or It->second == Typedef);
+        }
         Result = ASTCtx.getTypedefType(Typedef);
-        return Result;
+        Found = true;
       }
     }
   }
@@ -49,7 +56,8 @@ clang::QualType getOrCreateBoolQualType(const llvm::Type *Ty,
                                                        {}, {},
                                                        &BoolId,
                                                        BoolTypeInfo);
-    TypeDecls[Ty] = BoolTypedefDecl;
+    if (Ty != nullptr)
+      TypeDecls[Ty] = BoolTypedefDecl;
     TUDecl->addDecl(BoolTypedefDecl);
     Result = ASTCtx.getTypedefType(BoolTypedefDecl);
     return Result;
@@ -57,9 +65,6 @@ clang::QualType getOrCreateBoolQualType(const llvm::Type *Ty,
                 "This should not happen since we '#include <stdbool.h>'\n"
                 "Please make sure you have installed the header\n");
   }
-  revng_abort("'bool' type not found!\n"
-              "This should not happen since we '#include <stdbool.h>'\n"
-              "Please make sure you have installed the header\n");
   return Result;
 }
 
@@ -82,7 +87,7 @@ clang::QualType getOrCreateQualType(const llvm::Type *Ty,
 
     switch (BitWidth) {
     case 1: {
-      Result = getOrCreateBoolQualType(Ty, ASTCtx, TypeDecls);
+      Result = getOrCreateBoolQualType(ASTCtx, TypeDecls, Ty);
     } break;
     case 16: {
       const std::string UInt16Name = "uint16_t";
