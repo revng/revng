@@ -790,7 +790,14 @@ inline void RegionCFG<NodeT>::untangle() {
       }
 
       for (BasicBlockNode<NodeT> *Predecessor : Predecessors) {
-        if (DT.dominates(ElseChild, Predecessor)) {
+
+        // We need to move the edge so that it points to the new clone if the
+        // `ElseChild` dominates the edge (meaning we are inlining the `else`
+        // side) or if the source of the edge is the conditional node itself
+        // (meaning that the conditional node is connected to the postdominator
+        // itself, so we don't actually have the `ElseChild`)
+        if (DT.dominates(ElseChild, Predecessor)
+            or Predecessor == Conditional) {
           moveEdgeTarget(EdgeDescriptor(Predecessor, PostDominator),
                          PostDominatorClone);
         }
@@ -821,7 +828,14 @@ inline void RegionCFG<NodeT>::untangle() {
       }
 
       for (BasicBlockNode<NodeT> *Predecessor : Predecessors) {
-        if (DT.dominates(ThenChild, Predecessor)) {
+
+        // We need to move the edge so that it points to the new clone if the
+        // `ThenChild` dominates the edge (meaning we are inlining the `then`
+        // side) or if the source of the edge is the conditional node itself
+        // (meaning that the conditional node is connected to the postdominator
+        // itself, so we don't actually have the `ThenChild`)
+        if (DT.dominates(ThenChild, Predecessor)
+            or Predecessor == Conditional) {
           moveEdgeTarget(EdgeDescriptor(Predecessor, PostDominator),
                          PostDominatorClone);
         }
