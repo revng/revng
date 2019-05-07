@@ -32,6 +32,7 @@ struct CDecompilerPass : public llvm::FunctionPass {
 
 private:
   std::unique_ptr<llvm::raw_ostream> Out;
+  std::string SourceCode;
 };
 
 #endif /* ifndef REVNGC_CDECOMPILERPASS_H */

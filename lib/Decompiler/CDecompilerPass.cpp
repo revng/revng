@@ -2,6 +2,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+// Standard includes
+#include <sys/stat.h>
+
 // LLVM includes
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
@@ -37,14 +40,20 @@ using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
 using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
 using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
 
+static cl::OptionCategory RevNgCategory("revng options");
+
+// Prefix for the decompiled output filename.
+static cl::opt<string> DecompiledDir("decompiled-dir",
+                                     cl::desc("decompiled code dir"),
+                                     cl::value_desc("decompiled-dir"),
+                                     cl::cat(RevNgCategory));
+
 char CDecompilerPass::ID = 0;
 
 static RegisterPass<CDecompilerPass> X("decompilation",
                                        "Decompilation Pass",
                                        false,
                                        false);
-
-static cl::OptionCategory RevNgCategory("revng options");
 
 CDecompilerPass::CDecompilerPass(std::unique_ptr<llvm::raw_ostream> Out) :
   llvm::FunctionPass(ID),
@@ -73,6 +82,13 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
       or F.getName().startswith("bb._Unwind_VRS_Pop")
       or F.getName().startswith("bb.vasnprintf")) {
     return false;
+  }
+
+  // If we passed the `-decompiled-prefix` option to the command line, we take
+  // care of serializing the decompiled source code on file.
+  if (DecompiledDir.size() != 0) {
+    SourceCode.clear();
+    Out = std::make_unique<llvm::raw_string_ostream>(SourceCode);
   }
 
   std::string FNameModel = "revng-c-" + F.getName().str() + "-%%%%%%%%%%%%.c";
@@ -150,5 +166,22 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
     // Do nothing, but check the error which otherwise throws if unchecked
     llvm::consumeError(std::move(E));
   }
+
+  // Decompiled code serialization on file.
+  if (DecompiledDir.size() != 0) {
+    int MkdirRetValue = mkdir(DecompiledDir.c_str(), 0775);
+    if (MkdirRetValue != 0 && errno != EEXIST) {
+      revng_abort("Could not create revng-c-decompiled-source directory");
+    }
+    std::ofstream CFile;
+    std::string FileName = F.getName().str();
+    CFile.open(DecompiledDir + "/" + FileName + ".c");
+    if (not CFile.is_open()) {
+      revng_abort("Could not open file for dumping C source file.");
+    }
+    CFile << SourceCode;
+    CFile.close();
+  }
+
   return true;
 }
