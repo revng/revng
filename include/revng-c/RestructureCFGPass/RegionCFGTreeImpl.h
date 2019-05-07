@@ -632,11 +632,13 @@ inline void RegionCFG<NodeT>::untangle() {
     PostDominatorMap[Conditional] = PostDom;
   }
 
-  // Map which contains the wheight for each node in the graph. At the beginning
-  // it will be initialized to the value 1 for each node.
+  // Map which contains the precomputed wheight for each node in the graph. In
+  // case of a code node the weight will be equal to the number of instruction
+  // in the original basic block; in case of a collapsed node the weight will be
+  // the sum of the weights of all the nodes contained in the collapsed graph.
   std::map<BasicBlockNode<NodeT> *, unsigned> WeightMap;
   for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
-    WeightMap[Node] = 1;
+    WeightMap[Node] = Node->getWeight();
   }
 
   // Order the conditional nodes in postorder.

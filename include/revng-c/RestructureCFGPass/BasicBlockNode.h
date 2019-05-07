@@ -288,6 +288,10 @@ public:
   RegionCFGT *getCollapsedCFG() { return CollapsedRegion; }
 
   bool isEquivalentTo(BasicBlockNode *) const;
+
+  /// \brief Obtain a estimate of the weight of a BasicBlockNode in terms of
+  ///        original instructions.
+  size_t getWeight() const;
 };
 
 // Provide graph traits for usage with, e.g., llvm::ReversePostOrderTraversal

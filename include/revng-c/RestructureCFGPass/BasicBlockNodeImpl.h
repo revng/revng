@@ -151,4 +151,31 @@ BasicBlockNode<NodeT>::isEquivalentTo(BasicBlockNodeT *Other) const {
   return true;
 }
 
+template<class NodeT>
+inline size_t BasicBlockNode<NodeT>::getWeight() const {
+  if (NodeType == Type::Code) {
+    revng_assert(OriginalNode != nullptr);
+    return OriginalNode->size();
+  } else if (NodeType == Type::Empty) {
+    return 0;
+  } else if (NodeType == Type::Break) {
+    return 0;
+  } else if (NodeType == Type::Continue) {
+    return 0;
+  } else if (NodeType == Type::Set) {
+    return 1;
+  } else if (NodeType == Type::Check) {
+    return 2;
+  } else if (NodeType == Type::Collapsed) {
+    revng_assert(CollapsedRegion != nullptr);
+    size_t WeightAccumulator = 0;
+    for (BasicBlockNode<NodeT> *CollapsedNode : CollapsedRegion->nodes()) {
+      WeightAccumulator += CollapsedNode->getWeight();
+    }
+    return WeightAccumulator;
+  } else {
+    revng_abort("getWeight() still not implemented.");
+  }
+}
+
 #endif // REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODEIMPL_H
