@@ -635,6 +635,8 @@ void StmtBuilder::createAST() {
         VarDecls[&I] = NewVarDecl;
       }
     }
+
+    // FIXME: remember to print assignments of PHI variables where needed
   }
 }
 

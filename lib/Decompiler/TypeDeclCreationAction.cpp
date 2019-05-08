@@ -72,10 +72,8 @@ public:
                                                            TypeDecls,
                                                            FieldDecls,
                                                            F);
-      for (TypePair &TD : NewTypeDecls) {
+      for (TypePair &TD : NewTypeDecls)
         TypeDecls.insert(TD);
-        TUDecl->addDecl(TD.second);
-      }
     }
   }
 

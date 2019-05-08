@@ -62,8 +62,7 @@ clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
     Result = ASTCtx.getTypedefType(BoolTypedefDecl);
     return Result;
     revng_abort("'_Bool' type not found!\n"
-                "This should not happen since we '#include <stdbool.h>'\n"
-                "Please make sure you have installed the header\n");
+                "This should not happen since we compile as c99\n");
   }
   return Result;
 }

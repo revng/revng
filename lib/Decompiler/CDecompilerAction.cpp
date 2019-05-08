@@ -659,6 +659,43 @@ public:
                                    FieldDecls);
     ASTBuilder.createAST();
 
+    clang::TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
+    // TODO: sooner or later, whenever we start emitting complex type
+    // declarations, we will need to enforce proper ordering between dependent
+    // types, and inject forward type declarations when needed.
+    for (auto &TypeDecl : TypeDecls) {
+      // Double check that the typedef decl for bool is not inserted twice
+      clang::DeclarationName TypeName = TypeDecl.second->getDeclName();
+      if (TypeName.getAsString() == "bool") {
+        bool Found = false;
+        revng_assert(isa<clang::TypedefDecl>(TypeDecl.second));
+        for (clang::Decl *D : TUDecl->lookup(TypeName)) {
+          if (D == TypeDecl.second) {
+            // the TypedefDecl `typedef _Bool bool` has already been inserted
+            // in the translation unit `DeclContext`
+            Found = true;
+            break;
+          }
+        }
+
+        // if the TypedefDecl `typedef _Bool bool` has already been inserted
+        // we don't insert it twice and we jump to the next TypeDecl
+        if (Found)
+          continue;
+      }
+      TUDecl->addDecl(TypeDecl.second);
+    }
+
+    for (auto &GlobalDecl : GlobalVarAST)
+      TUDecl->addDecl(GlobalDecl.second);
+
+    for (auto &FDecl : FunctionDecls) {
+      if (FunctionDecl == FDecl.second)
+        continue;
+      TUDecl->addDecl(FDecl.second);
+    }
+    TUDecl->addDecl(FunctionDecl);
+
     buildFunctionBody(*It, CombedAST, ASTBuilder, Mark);
 
     ConsumerPtr Printer = CreateASTPrinter(std::move(Out), "");

@@ -95,7 +95,6 @@ public:
             NewVar->setInit(Init);
         }
       }
-      TUDecl->addDecl(NewVar);
       GlobalVarAST[G] = NewVar;
     }
   }

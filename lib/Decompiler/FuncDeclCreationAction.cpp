@@ -74,7 +74,6 @@ static FunctionDecl *createFunDecl(ASTContext &Context,
                                                 FDeclType,
                                                 nullptr,
                                                 FunStorage);
-  TUDecl->addDecl(NewFDecl);
   int N = 0;
   auto ParmDecls = SmallVector<ParmVarDecl *, 4>(ArgTypes.size(), nullptr);
   for (QualType ArgTy : ArgTypes) {
