@@ -120,8 +120,8 @@ BOOST_AUTO_TEST_CASE(SelfReachable) {
   ret void
 )LLVM";
 
-  X.test(Body, { { "bb.main", { "bb.main" } },
-                 { "bb.main2", { "bb.main2" } } });
+  X.test(Body,
+         { { "bb.main", { "bb.main" } }, { "bb.main2", { "bb.main2" } } });
 }
 
 BOOST_AUTO_TEST_CASE(SimpleSuccessor) {
@@ -175,8 +175,8 @@ BOOST_AUTO_TEST_CASE(SimpleConditional) {
   ret void
 )LLVM";
 
-  X.test(Body, { { "bb.main", { "bb.main2" } },
-                 { "bb.main", { "bb.main3" } } });
+  X.test(Body,
+         { { "bb.main", { "bb.main2" } }, { "bb.main", { "bb.main3" } } });
 }
 
 BOOST_AUTO_TEST_CASE(CyclicConditional) {
@@ -197,7 +197,8 @@ BOOST_AUTO_TEST_CASE(CyclicConditional) {
   ret void
 )LLVM";
 
-  X.test(Body, { { "bb.main", { "bb.main2" } },
-                 { "bb.main", { "bb.main3" } },
-                 { "bb.main2", { "bb.main3" } } });
+  X.test(Body,
+         { { "bb.main", { "bb.main2" } },
+           { "bb.main", { "bb.main3" } },
+           { "bb.main2", { "bb.main3" } } });
 }

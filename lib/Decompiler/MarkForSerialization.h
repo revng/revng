@@ -30,7 +30,7 @@ class Analysis
                              VisitType::ReversePostOrder,
                              llvm::SmallVector<llvm::BasicBlock *, 2>> {
 private:
- using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
+  using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
 
 protected:
   llvm::Function &F;

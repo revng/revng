@@ -24,16 +24,16 @@ template<class NodeT>
 using Edge = typename BasicBlockNode<NodeT>::EdgeDescriptor;
 
 template<class NodeT>
-inline void addEdge(std::pair<BasicBlockNode<NodeT> *,
-                    BasicBlockNode<NodeT> *> NewEdge) {
+inline void
+addEdge(std::pair<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> NewEdge) {
   revng_assert(not NewEdge.first->isCheck());
   NewEdge.first->addSuccessor(NewEdge.second);
   NewEdge.second->addPredecessor(NewEdge.first);
 }
 
 template<class NodeT>
-inline void removeEdge(std::pair<BasicBlockNode<NodeT> *,
-                       BasicBlockNode<NodeT> *> Edge) {
+inline void
+removeEdge(std::pair<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> Edge) {
   revng_assert(not Edge.first->isCheck());
   Edge.first->removeSuccessor(Edge.second);
   Edge.second->removePredecessor(Edge.first);

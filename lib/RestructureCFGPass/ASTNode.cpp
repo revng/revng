@@ -35,7 +35,6 @@ IfNode *ContinueNode::getComputationIfNode() const {
   return ComputationIf;
 }
 
-
 // #### updateASTNodesPointers methods ####
 
 void IfNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
@@ -65,7 +64,6 @@ void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   for (auto &Case : CaseVec)
     Case = SubstitutionMap.at(Case);
 }
-
 
 // #### isEqual methods ####
 
@@ -141,7 +139,7 @@ bool SwitchNode::isEqual(const ASTNode *Node) const {
 bool CodeNode::isEqual(const ASTNode *Node) const {
   auto *OtherCode = dyn_cast_or_null<CodeNode>(Node);
   if (OtherCode == nullptr)
-  return false;
+    return false;
 
   return (getOriginalBB() != nullptr)
          and (getOriginalBB() == OtherCode->getOriginalBB());
@@ -204,7 +202,6 @@ bool SequenceNode::isEqual(const ASTNode *Node) const {
   }
   return true;
 }
-
 
 // #### Dump methods ####
 

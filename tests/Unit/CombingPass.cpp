@@ -36,11 +36,12 @@ struct ArgsFixture {
   int argc;
   char **argv;
 
-  ArgsFixture() : argc(boost::unit_test::framework::master_test_suite().argc),
-                  argv(boost::unit_test::framework::master_test_suite().argv) {}
+  ArgsFixture() :
+    argc(boost::unit_test::framework::master_test_suite().argc),
+    argv(boost::unit_test::framework::master_test_suite().argv) {}
 };
 
-enum TestType {Equal, NotEqual};
+enum TestType { Equal, NotEqual };
 
 static void runTest(TestType Type,
                     std::string &InputFileName,

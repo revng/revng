@@ -73,9 +73,7 @@ public:
     Name(Name),
     Successor(Successor) {}
 
-  ASTNode(NodeKind K,
-          BasicBlockNodeBB *CFGNode,
-          ASTNode *Successor = nullptr) :
+  ASTNode(NodeKind K, BasicBlockNodeBB *CFGNode, ASTNode *Successor = nullptr) :
     Kind(K),
     BB(CFGNode->getOriginalNode()),
     Name(CFGNode->getNameStr()),
@@ -117,8 +115,6 @@ public:
   virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) = 0;
 };
 
-
-
 class CodeNode : public ASTNode {
 
 public:
@@ -132,14 +128,12 @@ public:
 
   virtual void dump(std::ofstream &ASTFile) override;
 
-  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override { };
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override{};
 
   virtual ASTNode *Clone() override { return new CodeNode(*this); }
 
   virtual ~CodeNode() override = default;
 };
-
-
 
 class IfNode : public ASTNode {
 
@@ -217,8 +211,6 @@ public:
   void updateCondExprPtr(ExprNodeMap &Map);
 };
 
-
-
 class ScsNode : public ASTNode {
 
 public:
@@ -238,9 +230,7 @@ public:
     ASTNode(NK_Scs, CFGNode, nullptr),
     Body(Body) {}
 
-  ScsNode(BasicBlockNodeBB *CFGNode,
-          ASTNode *Body,
-          ASTNode *Successor) :
+  ScsNode(BasicBlockNodeBB *CFGNode, ASTNode *Body, ASTNode *Successor) :
     ASTNode(NK_Scs, CFGNode, Successor),
     Body(Body) {}
 
@@ -257,7 +247,7 @@ public:
 
   virtual void dump(std::ofstream &ASTFile) override;
 
-  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override { };
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override{};
 
   virtual ASTNode *Clone() override { return new ScsNode(*this); }
 
@@ -287,8 +277,6 @@ public:
   }
 };
 
-
-
 class SequenceNode : public ASTNode {
 
 public:
@@ -301,8 +289,7 @@ private:
 
 public:
   SequenceNode(std::string Name) : ASTNode(NK_List, Name) {}
-  SequenceNode(BasicBlockNodeBB *CFGNode) :
-    ASTNode(NK_List, CFGNode) {}
+  SequenceNode(BasicBlockNodeBB *CFGNode) : ASTNode(NK_List, CFGNode) {}
 
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_List; }
@@ -338,8 +325,6 @@ public:
   virtual ~SequenceNode() override = default;
 };
 
-
-
 class ContinueNode : public ASTNode {
 private:
   IfNode *ComputationIf = nullptr;
@@ -368,8 +353,6 @@ public:
   IfNode *getComputationIfNode() const;
 };
 
-
-
 class BreakNode : public ASTNode {
 
 public:
@@ -391,15 +374,11 @@ public:
 
   bool breaksFromWithinSwitch() const { return BreakFromWithinSwitch; }
 
-  void setBreakFromWithinSwitch(bool B = true) {
-    BreakFromWithinSwitch = B;
-  }
+  void setBreakFromWithinSwitch(bool B = true) { BreakFromWithinSwitch = B; }
 
 protected:
   bool BreakFromWithinSwitch = false;
 };
-
-
 
 class SwitchBreakNode : public ASTNode {
 
@@ -423,8 +402,6 @@ public:
   virtual ~SwitchBreakNode() override = default;
 };
 
-
-
 class SetNode : public ASTNode {
 
 private:
@@ -446,7 +423,7 @@ public:
 
   virtual void dump(std::ofstream &ASTFile) override;
 
-  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override { };
+  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override{};
 
   virtual ASTNode *Clone() override { return new SetNode(*this); }
 
@@ -454,8 +431,6 @@ public:
 
   unsigned getStateVariableValue() const { return StateVariableValue; }
 };
-
-
 
 class IfCheckNode : public IfNode {
 
@@ -480,8 +455,6 @@ public:
   unsigned getCaseValue() const { return StateVariableValue; }
 };
 
-
-
 // Abstract SwitchNode. It has the concept of cases (other ASTNodes) but no
 // concept of values for which those cases are activated.
 class SwitchNode : public ASTNode {
@@ -498,15 +471,17 @@ protected:
              const case_container &Cases,
              const std::string &Name,
              ASTNode *Def = nullptr) :
-    ASTNode(K, Name), CaseVec(Cases), Default(Def) {
-  }
+    ASTNode(K, Name),
+    CaseVec(Cases),
+    Default(Def) {}
 
   SwitchNode(NodeKind K,
              case_container &&Cases,
              const std::string &Name,
              ASTNode *Def = nullptr) :
-    ASTNode(K, Name), CaseVec(Cases), Default(Def) {
-  }
+    ASTNode(K, Name),
+    CaseVec(Cases),
+    Default(Def) {}
 
 public:
   ~SwitchNode() override = default;
@@ -535,7 +510,7 @@ public:
   bool needsLoopBreakDispatcher() const { return NeedLoopBreakDispatcher; }
 
   void setNeedsLoopBreakDispatcher(bool N = true) {
-    NeedLoopBreakDispatcher = N ;
+    NeedLoopBreakDispatcher = N;
   }
 
   ASTNode *getDefault() const { return Default; }
@@ -563,9 +538,9 @@ public:
                     const case_container &Cases,
                     const case_value_container &V,
                     ASTNode *Def = nullptr) :
-      SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def),
-      Condition(Cond),
-      CaseValueVec(V) {
+    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def),
+    Condition(Cond),
+    CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
@@ -573,9 +548,9 @@ public:
                     case_container &&Cases,
                     const case_value_container &V,
                     ASTNode *Def = nullptr) :
-      SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def),
-      Condition(Cond),
-      CaseValueVec(V) {
+    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def),
+    Condition(Cond),
+    CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
@@ -583,9 +558,9 @@ public:
                     const case_container &Cases,
                     case_value_container &&V,
                     ASTNode *Def = nullptr) :
-      SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def),
-      Condition(Cond),
-      CaseValueVec(V) {
+    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def),
+    Condition(Cond),
+    CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
@@ -593,9 +568,9 @@ public:
                     case_container &&Cases,
                     case_value_container &&V,
                     ASTNode *Def = nullptr) :
-      SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def),
-      Condition(Cond),
-      CaseValueVec(V) {
+    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def),
+    Condition(Cond),
+    CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
@@ -621,8 +596,6 @@ protected:
   llvm::Value *const Condition;
 };
 
-
-
 class SwitchCheckNode : public SwitchNode {
 public:
   using case_value = uint64_t;
@@ -634,32 +607,32 @@ public:
   SwitchCheckNode(const case_container &Cases,
                   const case_value_container &V,
                   ASTNode *Def = nullptr) :
-      SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def),
-      CaseValueVec(V) {
+    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def),
+    CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
   SwitchCheckNode(const case_container &Cases,
                   case_value_container &V,
                   ASTNode *Def = nullptr) :
-      SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def),
-      CaseValueVec(V) {
+    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def),
+    CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
   SwitchCheckNode(case_container &&Cases,
                   const case_value_container &&V,
                   ASTNode *Def = nullptr) :
-      SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def),
-      CaseValueVec(V) {
+    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def),
+    CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
   SwitchCheckNode(case_container &&Cases,
                   case_value_container &&V,
                   ASTNode *Def = nullptr) :
-      SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def),
-      CaseValueVec(V) {
+    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def),
+    CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 

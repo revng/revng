@@ -594,7 +594,7 @@ inline void RegionCFG<NodeT>::inflate() {
       Graph.dumpDotOnFile("inflates",
                           FunctionName,
                           "Region-" + RegionName + "-conditional-"
-                          + Conditional->getNameStr() + "-begin");
+                            + Conditional->getNameStr() + "-begin");
     }
 
     // Get all the nodes reachable from the current conditional node (stopping
@@ -837,7 +837,8 @@ inline void RegionCFG<NodeT>::generateAst() {
         CombLogger.emit();
         BodyGraph->generateAst();
         ASTNode *Body = BodyGraph->getAST().getRoot();
-        std::unique_ptr<ASTNode> ASTObject(new ScsNode(Node, Body,
+        std::unique_ptr<ASTNode> ASTObject(new ScsNode(Node,
+                                                       Body,
                                                        ASTChildren[0]));
         AST.addASTNode(Node, std::move(ASTObject));
       } else {
@@ -878,8 +879,9 @@ inline void RegionCFG<NodeT>::generateAst() {
           }
         } else {
           // Create the conditional expression associated with the if node.
-          std::unique_ptr<ExprNode> CondExpr =
-            std::make_unique<AtomicNode>(Node->getOriginalNode());
+          using UniqueExpr = std::unique_ptr<ExprNode>;
+          auto *OriginalNode = Node->getOriginalNode();
+          UniqueExpr CondExpr = std::make_unique<AtomicNode>(OriginalNode);
           ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
           ASTObject.reset(new IfNode(Node,
                                      CondExprNode,
@@ -896,19 +898,24 @@ inline void RegionCFG<NodeT>::generateAst() {
         if (Node->isCheck()) {
           if (BBChildren[0] == Node->getTrue()
               and BBChildren[1] == Node->getFalse()) {
-            ASTObject.reset(
-              new IfCheckNode(Node, ASTChildren[0], ASTChildren[1], nullptr));
+            ASTObject.reset(new IfCheckNode(Node,
+                                            ASTChildren[0],
+                                            ASTChildren[1],
+                                            nullptr));
           } else if (BBChildren[1] == Node->getTrue()
                      and BBChildren[0] == Node->getFalse()) {
-            ASTObject.reset(
-              new IfCheckNode(Node, ASTChildren[1], ASTChildren[0], nullptr));
+            ASTObject.reset(new IfCheckNode(Node,
+                                            ASTChildren[1],
+                                            ASTChildren[0],
+                                            nullptr));
           } else {
             revng_abort("Then and else branches cannot be matched");
           }
         } else {
           // Create the conditional expression associated with the if node.
-          std::unique_ptr<ExprNode> CondExpr =
-            std::make_unique<AtomicNode>(Node->getOriginalNode());
+          using UniqueExpr = std::unique_ptr<ExprNode>;
+          auto *OriginalNode = Node->getOriginalNode();
+          UniqueExpr CondExpr = std::make_unique<AtomicNode>(OriginalNode);
           ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
           ASTObject.reset(new IfNode(Node,
                                      CondExprNode,
@@ -926,11 +933,15 @@ inline void RegionCFG<NodeT>::generateAst() {
           // condition blacklisting (the other branch is the fallthrough
           // branch).
           if (BBChildren[0] == Node->getTrue()) {
-            ASTObject.reset(
-              new IfCheckNode(Node, ASTChildren[0], nullptr, nullptr));
+            ASTObject.reset(new IfCheckNode(Node,
+                                            ASTChildren[0],
+                                            nullptr,
+                                            nullptr));
           } else if (BBChildren[0] == Node->getFalse()) {
-            ASTObject.reset(
-              new IfCheckNode(Node, nullptr, ASTChildren[0], nullptr));
+            ASTObject.reset(new IfCheckNode(Node,
+                                            nullptr,
+                                            ASTChildren[0],
+                                            nullptr));
           }
         } else {
           ASTObject.reset(new CodeNode(Node, ASTChildren[0]));

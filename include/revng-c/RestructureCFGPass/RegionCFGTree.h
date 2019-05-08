@@ -81,8 +81,8 @@ public:
     // from it.
     std::map<NodeRef, BasicBlockNode<NodeT> *> NodeToBBNodeMap;
 
-    for (NodeRef N : llvm::make_range(GT::nodes_begin(Graph),
-                                      GT::nodes_end(Graph))) {
+    for (NodeRef N :
+         llvm::make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
       BasicBlockNode<NodeT> *BBNode = addNode(N);
       NodeToBBNodeMap[N] = BBNode;
     }
@@ -92,8 +92,8 @@ public:
 
     // Do another iteration over all the nodes in the graph to create the edges
     // in the graph.
-    for (NodeRef N : llvm::make_range(GT::nodes_begin(Graph),
-                                      GT::nodes_end(Graph))) {
+    for (NodeRef N :
+         llvm::make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
       BasicBlockNode<NodeT> *BBNode = NodeToBBNodeMap.at(N);
 
       // Iterate over all the successors of a graph node.
@@ -196,8 +196,8 @@ public:
     using Type = typename BasicBlockNodeT::Type;
     using BBNode = BasicBlockNodeT;
     std::string IdStr = std::to_string(StateVariableValue);
-    std::string Name = "set idx " + IdStr
-                       + " (desired target) " + TargetName.str();
+    std::string Name = "set idx " + IdStr + " (desired target) "
+                       + TargetName.str();
     BlockNodes.emplace_back(std::make_unique<BBNode>(this,
                                                      Name,
                                                      Type::Set,

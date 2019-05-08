@@ -27,8 +27,10 @@
 using namespace llvm;
 
 char ReachabilityPass::ID = 0;
-static RegisterPass<ReachabilityPass>
-  X("reachability", "Compute reachability information", true, true);
+static RegisterPass<ReachabilityPass> X("reachability",
+                                        "Compute reachability information",
+                                        true,
+                                        true);
 
 bool ReachabilityPass::runOnFunction(Function &F) {
 

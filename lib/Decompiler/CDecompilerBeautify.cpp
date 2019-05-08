@@ -845,9 +845,8 @@ protected:
   }
 
 protected:
-  LoopStackT LoopStack {};
+  LoopStackT LoopStack{};
 };
-
 
 void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
 

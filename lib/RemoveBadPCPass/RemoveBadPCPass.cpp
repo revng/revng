@@ -26,8 +26,10 @@
 using namespace llvm;
 
 char RemoveBadPC::ID = 0;
-static RegisterPass<RemoveBadPC>
-  X("remove-bad-pc", "Remove bad return pc check", false, false);
+static RegisterPass<RemoveBadPC> X("remove-bad-pc",
+                                   "Remove bad return pc check",
+                                   false,
+                                   false);
 
 bool RemoveBadPC::runOnFunction(Function &F) {
   if (!F.getName().startswith("bb.")) {

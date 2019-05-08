@@ -239,6 +239,8 @@ bool PHIASAPAssignmentInfo::runOnFunction(llvm::Function &F) {
 
 char PHIASAPAssignmentInfo::ID = 0;
 
-static RegisterPass<PHIASAPAssignmentInfo>
-X("phi-asap-assignment-info",
-  "PHI ASAP Assignment Info Analysis Pass", false, false);
+static RegisterPass<PHIASAPAssignmentInfo> X("phi-asap-assignment-info",
+                                             "PHI ASAP Assignment Info "
+                                             "Analysis Pass",
+                                             false,
+                                             false);

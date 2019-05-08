@@ -36,7 +36,7 @@ clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
         if (Ty != nullptr) {
           auto It = TypeDecls.begin();
           bool NewInsert = false;
-          std::tie(It, NewInsert) = TypeDecls.insert({Ty, Typedef});
+          std::tie(It, NewInsert) = TypeDecls.insert({ Ty, Typedef });
           revng_assert(NewInsert or It->second == Typedef);
         }
         Result = ASTCtx.getTypedefType(Typedef);
@@ -53,7 +53,8 @@ clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
     TSInfo *BoolTypeInfo = ASTCtx.getTrivialTypeSourceInfo(BoolQType);
     auto *BoolTypedefDecl = clang::TypedefDecl::Create(ASTCtx,
                                                        TUDecl,
-                                                       {}, {},
+                                                       {},
+                                                       {},
                                                        &BoolId,
                                                        BoolTypeInfo);
     if (Ty != nullptr)

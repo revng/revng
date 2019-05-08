@@ -214,8 +214,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     if (Break->breaksFromWithinSwitch()) {
       clang::VarDecl *StateVarD = ASTBuilder.getOrCreateSwitchStateVarDecl();
       QualType T = StateVarD->getType();
-      clang::Expr *State = new (ASTCtx) DeclRefExpr(StateVarD, false, T,
-                                                    VK_LValue, {});
+      clang::Expr *State = new (ASTCtx)
+        DeclRefExpr(StateVarD, false, T, VK_LValue, {});
 
       clang::Expr *TrueVal = ASTBuilder.getBoolLiteral(true);
       QualType BoolTy = TrueVal->getType();
@@ -465,8 +465,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     if (Switch->needsLoopBreakDispatcher()) {
       clang::VarDecl *StateVarD = ASTBuilder.getOrCreateSwitchStateVarDecl();
       QualType T = StateVarD->getType();
-      clang::Expr *State = new (ASTCtx) DeclRefExpr(StateVarD, false, T,
-                                                    VK_LValue, {});
+      clang::Expr *State = new (ASTCtx)
+        DeclRefExpr(StateVarD, false, T, VK_LValue, {});
 
       clang::Expr *FalseInit = ASTBuilder.getBoolLiteral(false);
       QualType BoolTy = FalseInit->getType();
@@ -479,7 +479,6 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                                                    {},
                                                                    FPOptions());
       Stmts.push_back(AssignStmt);
-
     }
 
     Stmts.push_back(SwitchStatement);

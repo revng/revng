@@ -25,6 +25,8 @@ class RegionCFG;
 /// \brief Graph Node, representing a basic block
 template<class NodeT>
 class BasicBlockNode {
+protected: 
+  using BasicBlockNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
 
 public:
   enum class Type {
@@ -247,8 +249,7 @@ public:
 
   void removePredecessor(BasicBlockNode *Predecessor);
 
-  void updatePointers(
-    const std::map<BasicBlockNode *, BasicBlockNode *> &SubstitutionMap);
+  void updatePointers(const BasicBlockNodeMap &SubstitutionMap);
 
   size_t successor_size() const { return Successors.size(); }
   links_const_range successors() const {

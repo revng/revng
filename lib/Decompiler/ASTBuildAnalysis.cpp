@@ -533,13 +533,13 @@ clang::VarDecl *StmtBuilder::getOrCreateSwitchStateVarDecl() {
     IdentifierInfo &Id = ASTCtx.Idents.get("switch_state_var");
     QualType BoolTy = getOrCreateBoolQualType(ASTCtx, TypeDecls);
     SwitchStateVarDecl = VarDecl::Create(ASTCtx,
-                                       &FDecl,
-                                       {},
-                                       {},
-                                       &Id,
-                                       BoolTy,
-                                       nullptr,
-                                       StorageClass::SC_None);
+                                         &FDecl,
+                                         {},
+                                         {},
+                                         &Id,
+                                         BoolTy,
+                                         nullptr,
+                                         StorageClass::SC_None);
     FDecl.addDecl(SwitchStateVarDecl);
   }
   revng_assert(SwitchStateVarDecl != nullptr);

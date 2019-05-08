@@ -82,8 +82,7 @@ std::set<Function *> getDirectlyCalledFunctions(Function &F) {
   return Results;
 }
 
-clang::CastExpr *
-createCast(QualType LHSQualTy, Expr *RHS, ASTContext &ASTCtx) {
+clang::CastExpr *createCast(QualType LHSQualTy, Expr *RHS, ASTContext &ASTCtx) {
   QualType RHSQualTy = RHS->getType();
   const clang::Type *LHSTy = LHSQualTy.getTypePtr();
   const clang::Type *RHSTy = RHSQualTy.getTypePtr();

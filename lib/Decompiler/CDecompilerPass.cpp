@@ -39,8 +39,10 @@ using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
 
 char CDecompilerPass::ID = 0;
 
-static RegisterPass<CDecompilerPass>
-  X("decompilation", "Decompilation Pass", false, false);
+static RegisterPass<CDecompilerPass> X("decompilation",
+                                       "Decompilation Pass",
+                                       false,
+                                       false);
 
 static cl::OptionCategory RevNgCategory("revng options");
 
@@ -123,8 +125,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
 
   // Here we build the artificial command line for clang tooling
   static std::array<const char *, 5> ArgV = {
-    "revng-c",
-    Tmp->TmpName.data(),
+    "revng-c",  Tmp->TmpName.data(),
     "--", // separator between tool arguments and clang arguments
     "-xc", // tell clang to compile C language
     "-std=c11", // tell clang to compile C11

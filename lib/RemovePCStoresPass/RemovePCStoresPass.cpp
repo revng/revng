@@ -29,8 +29,10 @@
 using namespace llvm;
 
 char RemovePCStores::ID = 0;
-static RegisterPass<RemovePCStores>
-  X("remove-pc-stores", "Remove PC store basic block", false, false);
+static RegisterPass<RemovePCStores> X("remove-pc-stores",
+                                      "Remove PC store basic block",
+                                      false,
+                                      false);
 
 bool RemovePCStores::runOnFunction(Function &F) {
   if (!F.getName().startswith("bb.")) {
