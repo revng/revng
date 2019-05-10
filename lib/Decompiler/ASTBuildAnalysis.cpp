@@ -636,7 +636,6 @@ void StmtBuilder::createAST() {
       }
     }
 
-    // FIXME: remember to print assignments of PHI variables where needed
   }
 }
 

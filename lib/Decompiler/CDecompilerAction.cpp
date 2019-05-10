@@ -74,6 +74,68 @@ static clang::Expr *negateExpr(clang::ASTContext &ASTCtx, clang::Expr *E) {
   return E;
 }
 
+static void buildStmtsForBasicBlock(llvm::BasicBlock *BB,
+                                   clang::ASTContext &ASTCtx,
+                                   SmallVectorImpl<clang::Stmt *> &Stmts,
+                                   IR2AST::StmtBuilder &ASTBuilder,
+                                   MarkForSerialization::Analysis &Mark) {
+  revng_assert(BB != nullptr);
+  auto StmtEnd = ASTBuilder.InstrStmts.end();
+  auto VDeclEnd = ASTBuilder.VarDecls.end();
+  auto AdditionalStmtsEnd = ASTBuilder.AdditionalStmts.end();
+  const std::set<llvm::Instruction *> &Serialized = Mark.getToSerialize(BB);
+  for (llvm::Instruction &Instr : *BB) {
+    if (Serialized.count(&Instr) == 0)
+      continue;
+    auto StmtIt = ASTBuilder.InstrStmts.find(&Instr);
+    if (StmtIt != StmtEnd and StmtIt->second != nullptr) {
+      clang::Stmt *EmittedStmt = nullptr;
+      auto VarDeclIt = ASTBuilder.VarDecls.find(&Instr);
+      if (VarDeclIt != VDeclEnd) {
+        clang::VarDecl *VDecl = VarDeclIt->second;
+        QualType VarType = VDecl->getType();
+        clang::Expr *LHS = new (ASTCtx)
+          DeclRefExpr(VDecl, false, VarType, VK_LValue, {});
+        clang::Expr *RHS = cast<clang::Expr>(StmtIt->second);
+        if (RHS->getType() != VarType) {
+          if (isa<clang::BinaryOperator>(RHS))
+            RHS = new (ASTCtx) ParenExpr({}, {}, RHS);
+          RHS = createCast(VarType, RHS, ASTCtx);
+        }
+        EmittedStmt = new (ASTCtx) clang::BinaryOperator(LHS,
+                                                         RHS,
+                                                         BO_Assign,
+                                                         VarType,
+                                                         VK_RValue,
+                                                         OK_Ordinary,
+                                                         {},
+                                                         FPOptions());
+      } else {
+        EmittedStmt = StmtIt->second;
+      }
+      Stmts.push_back(EmittedStmt);
+    }
+    auto AdditionalStmtsIt = ASTBuilder.AdditionalStmts.find(&Instr);
+    if (AdditionalStmtsIt != AdditionalStmtsEnd)
+      for (clang::Stmt *S : AdditionalStmtsIt->second)
+        Stmts.push_back(S);
+  }
+
+#if 0
+    // FIXME: remember to print assignments of PHI variables where needed
+    auto PHIMapIt = BlockToPHIIncoming.find(BB);
+    if (PHIMapIt != BlockToPHIIncoming.end()) {
+      using Pair = PHIIncomingMap::value_type;
+      for (Pair &P : PHIMapIt->second) {
+        PHINode *ThePHI = P.first;
+        unsigned IncomingIdx = P.second;
+        revng_assert(ThePHI != nullptr);
+        Value *IncomingV = ThePHI->getIncomingValue(IncomingIdx);
+      }
+    }
+#endif
+}
+
 static clang::Expr *createCondExpr(ExprNode *E,
                                    clang::ASTContext &ASTCtx,
                                    SmallVectorImpl<clang::Stmt *> &Stmts,
@@ -87,7 +149,6 @@ static clang::Expr *createCondExpr(ExprNode *E,
   clang::Expr *Result = nullptr;
   VisitStack.push_back({ nullptr, {} });
   VisitStack.push_back({ E, {} });
-  bool FoundBasicBlock = false;
 
   revng_assert(VisitStack.size() == 2);
   while (VisitStack.size() > 1) {
@@ -96,50 +157,7 @@ static clang::Expr *createCondExpr(ExprNode *E,
     case ExprNode::NodeKind::NK_Atomic: {
       AtomicNode *Atomic = cast<AtomicNode>(Current.Node);
       llvm::BasicBlock *BB = Atomic->getConditionalBasicBlock();
-
-      auto StmtEnd = ASTBuilder.InstrStmts.end();
-      auto VDeclEnd = ASTBuilder.VarDecls.end();
-      auto AdditionalStmtsEnd = ASTBuilder.AdditionalStmts.end();
-      const std::set<llvm::Instruction *> &Serialized = Mark.getToSerialize(BB);
-      for (llvm::Instruction &Instr : *BB) {
-        if (Serialized.count(&Instr) == 0)
-          continue;
-        auto StmtIt = ASTBuilder.InstrStmts.find(&Instr);
-        if (StmtIt != StmtEnd and StmtIt->second != nullptr) {
-          revng_assert(not FoundBasicBlock);
-          clang::Stmt *EmittedStmt = nullptr;
-          auto VarDeclIt = ASTBuilder.VarDecls.find(&Instr);
-          if (VarDeclIt != VDeclEnd) {
-            clang::VarDecl *VDecl = VarDeclIt->second;
-            QualType VarType = VDecl->getType();
-            clang::Expr *LHS = new (ASTCtx)
-              DeclRefExpr(VDecl, false, VarType, VK_LValue, {});
-            clang::Expr *RHS = cast<clang::Expr>(StmtIt->second);
-            if (RHS->getType() != VarType) {
-              if (isa<clang::BinaryOperator>(RHS))
-                RHS = new (ASTCtx) ParenExpr({}, {}, RHS);
-              RHS = createCast(VarType, RHS, ASTCtx);
-            }
-            EmittedStmt = new (ASTCtx) clang::BinaryOperator(LHS,
-                                                             RHS,
-                                                             BO_Assign,
-                                                             VarType,
-                                                             VK_RValue,
-                                                             OK_Ordinary,
-                                                             {},
-                                                             FPOptions());
-          } else {
-            EmittedStmt = StmtIt->second;
-          }
-          Stmts.push_back(EmittedStmt);
-        }
-        auto AdditionalStmtsIt = ASTBuilder.AdditionalStmts.find(&Instr);
-        if (AdditionalStmtsIt != AdditionalStmtsEnd)
-          for (clang::Stmt *S : AdditionalStmtsIt->second)
-            Stmts.push_back(S);
-      }
-      FoundBasicBlock = true;
-
+      buildStmtsForBasicBlock(BB, ASTCtx, Stmts, ASTBuilder, Mark);
       llvm::Instruction *CondTerminator = BB->getTerminator();
       llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
       revng_assert(Br->isConditional());
@@ -253,46 +271,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     CodeNode *Code = cast<CodeNode>(N);
     llvm::BasicBlock *BB = Code->getOriginalBB();
     revng_assert(BB != nullptr);
-    auto StmtEnd = ASTBuilder.InstrStmts.end();
-    auto VDeclEnd = ASTBuilder.VarDecls.end();
-    auto AdditionalStmtsEnd = ASTBuilder.AdditionalStmts.end();
-    const std::set<llvm::Instruction *> &Serialized = Mark.getToSerialize(BB);
-    for (llvm::Instruction &Instr : *BB) {
-      if (Serialized.count(&Instr) == 0)
-        continue;
-      auto StmtIt = ASTBuilder.InstrStmts.find(&Instr);
-      if (StmtIt != StmtEnd) {
-        clang::Stmt *EmittedStmt = nullptr;
-        auto VarDeclIt = ASTBuilder.VarDecls.find(&Instr);
-        if (VarDeclIt != VDeclEnd) {
-          clang::VarDecl *VDecl = VarDeclIt->second;
-          QualType VarType = VDecl->getType();
-          clang::Expr *LHS = new (ASTCtx)
-            DeclRefExpr(VDecl, false, VarType, VK_LValue, {});
-          clang::Expr *RHS = cast<clang::Expr>(StmtIt->second);
-          if (RHS->getType() != VarType) {
-            if (isa<clang::BinaryOperator>(RHS))
-              RHS = new (ASTCtx) ParenExpr({}, {}, RHS);
-            RHS = createCast(VarType, RHS, ASTCtx);
-          }
-          EmittedStmt = new (ASTCtx) clang::BinaryOperator(LHS,
-                                                           RHS,
-                                                           BO_Assign,
-                                                           VarType,
-                                                           VK_RValue,
-                                                           OK_Ordinary,
-                                                           {},
-                                                           FPOptions());
-        } else {
-          EmittedStmt = StmtIt->second;
-        }
-        Stmts.push_back(EmittedStmt);
-      }
-      auto AdditionalStmtsIt = ASTBuilder.AdditionalStmts.find(&Instr);
-      if (AdditionalStmtsIt != AdditionalStmtsEnd)
-        for (clang::Stmt *S : AdditionalStmtsIt->second)
-          Stmts.push_back(S);
-    }
+    buildStmtsForBasicBlock(BB, ASTCtx, Stmts, ASTBuilder, Mark);
   } break;
 
   case ASTNode::NodeKind::NK_If: {
