@@ -19,3 +19,5 @@ target_link_libraries(Decompiler
                       clangBasic
                       clangFrontend
                       ${LLVM_LIBRARIES})
+
+install(FILES revng-c-include.c DESTINATION share/revngc/)

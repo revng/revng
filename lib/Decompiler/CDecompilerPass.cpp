@@ -91,20 +91,6 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
     Out = std::make_unique<llvm::raw_string_ostream>(SourceCode);
   }
 
-  std::string FNameModel = "revng-c-" + F.getName().str() + "-%%%%%%%%%%%%.c";
-  using namespace llvm::sys::fs;
-  unsigned Perm = static_cast<unsigned>(perms::owner_write)
-                  | static_cast<unsigned>(perms::owner_read);
-  llvm::Expected<TempFile> Tmp = TempFile::create(FNameModel, Perm);
-  revng_assert(Tmp);
-  if (not Tmp)
-    return false;
-
-  {
-    llvm::raw_fd_ostream FDStream(Tmp->FD, /* ShouldClose */ true);
-    FDStream << "#include <stdint.h>\n";
-  }
-
   // This is a hack to prevent clashes between LLVM's `opt` arguments and
   // clangTooling's CommonOptionParser arguments.
   // At this point opt's arguments have already been parsed, so there should
@@ -139,9 +125,32 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   auto &PHIASAPAssignments = getAnalysis<PHIASAPAssignmentInfo>();
   BBPHIMap PHIMap = PHIASAPAssignments.extractBBToPHIIncomingMap();
 
+  // Construct the path of the include (hack copied from revng-lift). Even if
+  // the include path is unique for now, we have anyway set up the search in
+  // multiple paths.
+  static std::string RevNgCIncludePath;
+  std::vector<std::string> SearchPaths;
+#ifdef INSTALL_PATH
+  SearchPaths.push_back(std::string(INSTALL_PATH) + "/share/revngc");
+#endif
+
+  bool IncludeFound = false;
+  for (auto &Path : SearchPaths) {
+    if (not IncludeFound) {
+      std::stringstream IncludePath;
+      IncludePath << Path << "/revng-c-include.c";
+      if (access(IncludePath.str().c_str(), F_OK) != -1) {
+        RevNgCIncludePath = IncludePath.str();
+        IncludeFound = true;
+      }
+    }
+  }
+
+  revng_assert(IncludeFound, "Couldn't find revng-c-include.c");
+
   // Here we build the artificial command line for clang tooling
   static std::array<const char *, 5> ArgV = {
-    "revng-c",  Tmp->TmpName.data(),
+    "revng-c",  RevNgCIncludePath.data(),
     "--", // separator between tool arguments and clang arguments
     "-xc", // tell clang to compile C language
     "-std=c11", // tell clang to compile C11
@@ -161,11 +170,6 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   using FactoryUniquePtr = std::unique_ptr<FrontendActionFactory>;
   FactoryUniquePtr Factory = newFrontendActionFactory(&Decompilation);
   RevNg.run(Factory.get());
-  llvm::Error E = Tmp->keep();
-  if (E) {
-    // Do nothing, but check the error which otherwise throws if unchecked
-    llvm::consumeError(std::move(E));
-  }
 
   // Decompiled code serialization on file.
   if (DecompiledDir.size() != 0) {
@@ -179,6 +183,13 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
     if (not CFile.is_open()) {
       revng_abort("Could not open file for dumping C source file.");
     }
+    std::ifstream IncludeFile;
+    IncludeFile.open(RevNgCIncludePath);
+    if (not IncludeFile.is_open()) {
+      revng_abort("Could not open revng-c include file.");
+    }
+    CFile << IncludeFile.rdbuf();
+    IncludeFile.close();
     CFile << SourceCode;
     CFile.close();
   }
