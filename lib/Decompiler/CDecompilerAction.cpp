@@ -40,6 +40,8 @@ using FunctionsMap = FuncDeclCreationAction::FunctionsMap;
 using TypeDeclMap = TypeDeclCreationAction::TypeDeclMap;
 using FieldDeclMap = IRASTTypeTranslation::FieldDeclMap;
 
+using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
+
 static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                ASTNode *N,
                                clang::ASTContext &ASTCtx,
@@ -121,19 +123,39 @@ static void buildStmtsForBasicBlock(llvm::BasicBlock *BB,
         Stmts.push_back(S);
   }
 
-#if 0
-    // FIXME: remember to print assignments of PHI variables where needed
-    auto PHIMapIt = BlockToPHIIncoming.find(BB);
-    if (PHIMapIt != BlockToPHIIncoming.end()) {
-      using Pair = PHIIncomingMap::value_type;
-      for (Pair &P : PHIMapIt->second) {
-        PHINode *ThePHI = P.first;
-        unsigned IncomingIdx = P.second;
-        revng_assert(ThePHI != nullptr);
-        Value *IncomingV = ThePHI->getIncomingValue(IncomingIdx);
+  // Print assignments of PHI variables where needed
+  auto PHIMapIt = ASTBuilder.BlockToPHIIncoming.find(BB);
+  if (PHIMapIt != ASTBuilder.BlockToPHIIncoming.end()) {
+    using Pair = PHIIncomingMap::value_type;
+    for (Pair &P : PHIMapIt->second) {
+      llvm::PHINode *ThePHI = P.first;
+      unsigned IncomingIdx = P.second;
+      revng_assert(ThePHI != nullptr);
+
+      clang::VarDecl *PHIVarDecl = ASTBuilder.VarDecls.at(ThePHI);
+      QualType VarType = PHIVarDecl->getType();
+      clang::Expr *LHS = new (ASTCtx)
+        DeclRefExpr(PHIVarDecl, false, VarType, VK_LValue, {});
+
+      llvm::Value *IncomingV = ThePHI->getIncomingValue(IncomingIdx);
+      clang::Expr *RHS = ASTBuilder.getExprForValue(IncomingV);
+      if (RHS->getType() != VarType) {
+        if (isa<clang::BinaryOperator>(RHS))
+          RHS = new (ASTCtx) ParenExpr({}, {}, RHS);
+        RHS = createCast(VarType, RHS, ASTCtx);
       }
+      clang::Stmt *EmittedStmt = nullptr;
+      EmittedStmt = new (ASTCtx) clang::BinaryOperator(LHS,
+                                                       RHS,
+                                                       BO_Assign,
+                                                       VarType,
+                                                       VK_RValue,
+                                                       OK_Ordinary,
+                                                       {},
+                                                       FPOptions());
+      Stmts.push_back(EmittedStmt);
     }
-#endif
+  }
 }
 
 static clang::Expr *createCondExpr(ExprNode *E,
@@ -569,7 +591,6 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
 class Decompiler : public ASTConsumer {
 
 private:
-  using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
   using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
   using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
 
