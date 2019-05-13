@@ -20,6 +20,16 @@
 #include "revng/ADT/Queue.h"
 #include "revng/Support/Debug.h"
 
+/// \brief Backport of std::map::insert_or_assign
+template<typename K, typename V>
+inline void insert_or_assign(std::map<K, V> &Map, K Key, V &&Value) {
+  auto It = Map.find(Key);
+  if (It != Map.end())
+    It->second = std::forward<V>(Value);
+  else
+    Map.emplace(Key, std::forward<V>(Value));
+}
+
 enum VisitType {
   /// Breadth first visit, useful if the function body is unknown
   BreadthFirst,
@@ -92,23 +102,22 @@ private:
   const static size_t InvalidIndex = std::numeric_limits<size_t>::max();
 
 public:
-  MonotoneFrameworkWorkList(Iterated Entry) {
-    // Populate PostOrderList
-    llvm::ReversePostOrderTraversal<Iterated> RPOT(Entry);
+  MonotoneFrameworkWorkList(const std::vector<Iterated> &RPOT) {
     for (Iterated Entry : RPOT)
       PostOrderList.push_back(PostOrderEntry(Entry));
 
-    // Reverse the list in case we don't want the reverse post order
-    if (Visit == PostOrder)
-      std::reverse(PostOrderList.begin(), PostOrderList.end());
-
-    // Populate the index, used for faster lookups
-    for (unsigned I = 0; I < PostOrderList.size(); I++)
-      PostOrderListIndex[PostOrderList[I].entry()] = I;
-
-    // Initialize the next index
-    Next = (PostOrderList.size() > 0) ? 0 : InvalidIndex;
+    initialize();
   }
+
+  MonotoneFrameworkWorkList(const llvm::SmallVectorImpl<Iterated> &RPOT) {
+    for (Iterated Entry : RPOT)
+      PostOrderList.push_back(PostOrderEntry(Entry));
+
+    initialize();
+  }
+
+  MonotoneFrameworkWorkList(Iterated Entry) :
+    MonotoneFrameworkWorkList(buildRPOT(Entry)) {}
 
   size_t size() const {
     revng_assert(verify());
@@ -171,6 +180,29 @@ public:
   }
 
 private:
+  static std::vector<Iterated> buildRPOT(Iterated Entry) {
+    // Populate PostOrderList
+    std::vector<Iterated> RPOT;
+    for (Iterated I : llvm::ReversePostOrderTraversal<Iterated>(Entry))
+      RPOT.push_back(I);
+
+    return RPOT;
+  }
+
+private:
+  void initialize() {
+    // Reverse the list in case we don't want the reverse post order
+    if (Visit == PostOrder)
+      std::reverse(PostOrderList.begin(), PostOrderList.end());
+
+    // Populate the index, used for faster lookups
+    for (unsigned I = 0; I < PostOrderList.size(); I++)
+      PostOrderListIndex[PostOrderList[I].entry()] = I;
+
+    // Initialize the next index
+    Next = (PostOrderList.size() > 0) ? 0 : InvalidIndex;
+  }
+
   bool verify() const {
     if (PostOrderList.size() == 0 and not empty())
       return false;
@@ -380,6 +412,14 @@ public:
     FinalResult(LatticeElement::bottom()),
     WorkList(Entry) {}
 
+  MonotoneFramework(const std::vector<Label> &RPOT) :
+    FinalResult(LatticeElement::bottom()),
+    WorkList(RPOT) {}
+
+  MonotoneFramework(const llvm::SmallVectorImpl<Label> &RPOT) :
+    FinalResult(LatticeElement::bottom()),
+    WorkList(RPOT) {}
+
 private:
   const D &derived() const { return *static_cast<const D *>(this); }
   D &derived() { return *static_cast<D *>(this); }
@@ -454,9 +494,8 @@ public:
   ///
   /// \return Empty optional value if \p Original is fine, a new LatticeElement
   ///         otherwise.
-  llvm::Optional<LatticeElement> handleEdge(const LatticeElement &Original,
-                                            Label Source,
-                                            Label Destination) const {
+  llvm::Optional<LatticeElement>
+  handleEdge(const LatticeElement &Original, Label Source, Label Destination) {
     return derived().handleEdge(Original, Source, Destination);
   }
 
@@ -602,8 +641,8 @@ public:
       // In case of dynamic graph, register successors of this label
       if (DynamicGraph) {
         // The successors must match, unless the current label has become a
-        // return label
-        if (Successors->size() != 0)
+        // return label or we intiially had no successors
+        if (Successors->size() != 0 and NewSuccessors.size() != 0)
           revng_assert(NewSuccessors == *Successors);
 
         *Successors = std::move(NewSuccessors);
@@ -621,7 +660,7 @@ public:
       // We haven't find any return label
       return createNoReturnInterrupt();
     } else {
-      // OK, we have at least a return label
+      // OK, we already have at least a return label
 
       if (DynamicGraph) {
         // We have dynamic graph, we need to compute the set of labels reachable
@@ -654,7 +693,22 @@ public:
         // TODO: if this assert never triggers, all the SuccessorsMaps thingy is
         //       only for debugging purposes and the DynamicGraph template
         //       argument should be replaced with an `#ifndef NDEBUG`.
-        revng_assert(Reachable.size() == State.size());
+        if (Reachable.size() != State.size()) {
+          for (const Label &L : Reachable) {
+            if (State.count(L) == 0) {
+              revng_abort("A label is Reachable but not present in State");
+            }
+          }
+
+          for (const auto &P : State) {
+            const Label &L = P.first;
+            if (Reachable.count(L) == 0) {
+              revng_abort("A label is in State but not Reachable");
+            }
+          }
+
+          revng_abort();
+        }
 
         // Merge all the final states, if they are reachable
         bool First = true;
@@ -675,17 +729,6 @@ public:
 
       return createSummaryInterrupt();
     }
-  }
-
-private:
-  /// \brief Backport of std::map::insert_or_assign
-  template<typename K, typename V>
-  static void insert_or_assign(std::map<K, V> &Map, K Key, V &&Value) {
-    auto It = Map.find(Key);
-    if (It != Map.end())
-      It->second = std::forward<V>(Value);
-    else
-      Map.emplace(Key, std::forward<V>(Value));
   }
 };
 
@@ -742,8 +785,8 @@ protected:
   bool contains(const T &Key) const { return Set.count(Key); }
 };
 
-/// \brief Lattice for a MonotoneFramework over a set,
-///        where combine is set union
+/// \brief Lattice for a MonotoneFramework over a set, where combine is set
+///        union
 template<typename T>
 class UnionMonotoneSet : public MonotoneSet<T> {
 private:
