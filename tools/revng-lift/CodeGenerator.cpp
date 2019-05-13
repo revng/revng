@@ -1,4 +1,4 @@
-/// \file codegenerator.cpp
+/// \file CodeGenerator.cpp
 /// \brief This file handles the whole translation process from the input
 ///        assembly to LLVM IR.
 
@@ -170,7 +170,7 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              std::string EarlyLinked) :
   TargetArchitecture(Target),
   Context(TheContext),
-  TheModule((new Module("top", Context))),
+  TheModule(new Module("top", Context)),
   OutputPath(Output),
   Debug(new DebugHelper(Output, TheModule.get(), DebugInfo, DebugPath)),
   Binary(Binary) {
@@ -707,6 +707,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     CanonicalValuesMD->addOperand(QMD.tuple(Entry));
   }
 
+  //
   // Currently revng.input.architecture is composed as follows:
   //
   // revng.input.architecture = {

@@ -13,7 +13,7 @@ find_package(Boost 1.63.0 REQUIRED COMPONENTS unit_test_framework)
 # test_lazysmallbitvector
 #
 
-add_executable(test_lazysmallbitvector "${SRC}/lazysmallbitvector.cpp")
+add_executable(test_lazysmallbitvector "${SRC}/LazySmallBitVector.cpp")
 target_include_directories(test_lazysmallbitvector
   PRIVATE "${CMAKE_SOURCE_DIR}"
           "${Boost_INCLUDE_DIRS}")
@@ -30,7 +30,7 @@ add_test(NAME test_lazysmallbitvector COMMAND test_lazysmallbitvector)
 # test_stackanalysis
 #
 
-add_executable(test_stackanalysis "${SRC}/stackanalysis.cpp")
+add_executable(test_stackanalysis "${SRC}/StackAnalysis.cpp")
 target_include_directories(test_stackanalysis
   PRIVATE "${CMAKE_SOURCE_DIR}"
           "${CMAKE_SOURCE_DIR}/lib/StackAnalysis"
@@ -50,7 +50,7 @@ add_test(NAME test_stackanalysis COMMAND test_stackanalysis)
 # test_classsentinel
 #
 
-add_executable(test_classsentinel "${SRC}/classsentinel.cpp")
+add_executable(test_classsentinel "${SRC}/ClassSentinel.cpp")
 target_include_directories(test_classsentinel
   PRIVATE "${CMAKE_SOURCE_DIR}"
           "${Boost_INCLUDE_DIRS}")

@@ -1,4 +1,4 @@
-/// \file jumptargetmanager.cpp
+/// \file JumpTargetManager.cpp
 /// \brief This file handles the possible jump targets encountered during
 ///        translation and the creation and management of the respective
 ///        BasicBlock.

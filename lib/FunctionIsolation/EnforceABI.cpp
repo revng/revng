@@ -138,6 +138,7 @@ bool EnforceABI::runOnModule(Module &M) {
   return false;
 }
 
+// TODO: assign alias information
 static Function *
 createHelperWrapper(Function *Helper,
                     const std::vector<GlobalVariable *> &Read,

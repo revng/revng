@@ -265,10 +265,10 @@ static Predicate getEquivalentPredicate(SimplifyComparisonsPass *SCP,
     if (Start.getOperand(0)->evaluate(Assignment))
       TruthTable |= 1 << Assignment;
 
+  std::bitset<8 * sizeof(unsigned)> TruthTableBitset(TruthTable);
   revng_log(SCLog,
-            "Found truth table 0b"
-              << std::bitset<8 * sizeof(unsigned)>(TruthTable) << " at "
-              << Cmp->getParent()->getName().data());
+            "Found truth table 0b" << TruthTableBitset << " at "
+                                   << Cmp->getParent()->getName().data());
 
   // Compare with known truth tables
   for (auto &P : KnownTruthTables)

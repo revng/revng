@@ -1,4 +1,4 @@
-/// \file lazysmallbitvector.cpp
+/// \file LazySmallBitVector.cpp
 /// \brief Tests for LazySmallBitVector
 
 //

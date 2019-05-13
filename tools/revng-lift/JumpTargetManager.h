@@ -115,13 +115,16 @@ namespace CFGForm {
 enum Values {
   /// The CFG is an unknown state
   UnknownFormCFG,
+
   /// The dispatcher jumps to all the jump targets, and all the indirect jumps
   /// go to the dispatcher
   SemanticPreservingCFG,
+
   /// The dispatcher only jumps to jump targets without other predecessors and
   /// indirect jumps do not go to the dispatcher, but to an unreachable
   /// instruction
   RecoveredOnlyCFG,
+
   /// Similar to RecoveredOnlyCFG, but all jumps forming a function call are
   /// converted to jumps to the return address
   NoFunctionCallsCFG

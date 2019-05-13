@@ -1,4 +1,4 @@
-/// \file functionabi.cpp
+/// \file FunctionABI.cpp
 /// \brief Implementation of the ABI analysis
 
 //

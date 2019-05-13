@@ -403,6 +403,16 @@ inline std::string getName(const llvm::Function *F) {
   return F->getName();
 }
 
+inline llvm::BasicBlock *blockByName(llvm::Function *F, const char *Name) {
+  using namespace llvm;
+
+  for (BasicBlock &BB : *F)
+    if (BB.hasName() and BB.getName() == StringRef(Name))
+      return &BB;
+
+  return nullptr;
+}
+
 template<typename T>
 using rc_t = typename std::remove_const<T>::type;
 template<typename T>
@@ -771,5 +781,18 @@ llvm::Constant *getUniqueString(llvm::Module *M,
                                 llvm::StringRef Namespace,
                                 llvm::StringRef String,
                                 const llvm::Twine &Name = llvm::Twine());
+
+inline llvm::User *getUniqueUser(llvm::Value *V) {
+  llvm::User *Result = nullptr;
+
+  for (llvm::User *U : V->users()) {
+    if (Result != nullptr)
+      return nullptr;
+    else
+      Result = U;
+  }
+
+  return Result;
+}
 
 #endif // IRHELPERS_H
