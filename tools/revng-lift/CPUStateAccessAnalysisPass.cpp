@@ -663,7 +663,8 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
     QuickMetadata QMD(M->getContext());
     for (CallInst *Call : Results.IllegalCalls) {
       CallInst *Abort = CallInst::Create(M->getFunction("abort"), {}, Call);
-      auto IllegalCallsMDKind = M->getContext().getMDKindID("IllegalCalls");
+      auto IllegalCallsMDKind = M->getContext().getMDKindID("revng.csaa."
+                                                            "illegal.calls");
       Abort->setMetadata(IllegalCallsMDKind, QMD.tuple((uint32_t) 0));
     }
   }
@@ -2929,7 +2930,8 @@ inline void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
       if (not Ok) {
         Builder.SetInsertPoint(Clone);
         CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
-        auto InvalidMDKind = Context.getMDKindID("InvalidUniqueInAccess");
+        auto InvalidMDKind = Context.getMDKindID("revng.csaa.invalid.unique.in."
+                                                 "access");
         CallAbort->setMetadata(InvalidMDKind, QMD.tuple((uint32_t) 0));
       } else {
         InstructionsToRemove.push_back(Clone);
@@ -2966,7 +2968,8 @@ inline void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
     BasicBlock *Default = BasicBlock::Create(Context, "DefaultInAccess", F);
     Builder.SetInsertPoint(Default);
     CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
-    auto UnexpectedInMDKind = Context.getMDKindID("UnexpectedInAccess");
+    auto UnexpectedInMDKind = Context.getMDKindID("revng.csaa.unexpected.in."
+                                                  "access");
     CallAbort->setMetadata(UnexpectedInMDKind, QMD.tuple((uint32_t) 0));
     Builder.CreateUnreachable();
 
@@ -3014,7 +3017,8 @@ inline void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
         Builder.SetInsertPoint(Phi);
 
         CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
-        auto NeverValidInMDKind = Context.getMDKindID("NeverValidInLoad");
+        auto NeverValidInMDKind = Context.getMDKindID("revng.csaa.never.valid."
+                                                      "in.load");
         CallAbort->setMetadata(NeverValidInMDKind, QMD.tuple((uint32_t) 0));
 
         Instruction *DisabledInLoad = AccessToFix->clone();
