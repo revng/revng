@@ -67,25 +67,6 @@ add_test(NAME test_classsentinel COMMAND test_classsentinel)
 set_tests_properties(test_classsentinel PROPERTIES LABELS "unit")
 
 #
-# test_reachingdefinitionspass
-#
-
-add_executable(test_reachingdefinitionspass "${SRC}/ReachingDefinitionsPass.cpp")
-target_include_directories(test_reachingdefinitionspass
-  PRIVATE "${CMAKE_SOURCE_DIR}"
-          "${Boost_INCLUDE_DIRS}")
-target_compile_definitions(test_reachingdefinitionspass
-  PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_link_libraries(test_reachingdefinitionspass
-  revngReachingDefinitions
-  revngSupport
-  revngUnitTestHelpers
-  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
-  ${LLVM_LIBRARIES})
-add_test(NAME test_reachingdefinitionspass COMMAND test_reachingdefinitionspass)
-set_tests_properties(test_reachingdefinitionspass PROPERTIES LABELS "unit")
-
-#
 # test_irhelpers
 #
 
@@ -102,6 +83,24 @@ target_link_libraries(test_irhelpers
   ${LLVM_LIBRARIES})
 add_test(NAME test_irhelpers COMMAND test_irhelpers)
 set_tests_properties(test_irhelpers PROPERTIES LABELS "unit")
+
+#
+# test_irhelpers
+#
+
+add_executable(test_advancedvalueinfo "${SRC}/AdvancedValueInfo.cpp")
+target_include_directories(test_advancedvalueinfo
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+          "${Boost_INCLUDE_DIRS}")
+target_compile_definitions(test_advancedvalueinfo
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_link_libraries(test_advancedvalueinfo
+  revngSupport
+  revngBasicAnalyses
+  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+  ${LLVM_LIBRARIES})
+add_test(NAME test_advancedvalueinfo COMMAND test_advancedvalueinfo)
+set_tests_properties(test_advancedvalueinfo PROPERTIES LABELS "unit")
 
 #
 # test_zipmapiterator
@@ -122,3 +121,38 @@ add_test(NAME test_zipmapiterator COMMAND test_zipmapiterator)
 set_tests_properties(test_zipmapiterator PROPERTIES LABELS "unit")
 
 #
+# test_constantrangeset
+#
+
+add_executable(test_constantrangeset "${SRC}/ConstantRangeSet.cpp")
+target_include_directories(test_constantrangeset
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+          "${Boost_INCLUDE_DIRS}")
+target_compile_definitions(test_constantrangeset
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_link_libraries(test_constantrangeset
+  revngSupport
+  revngUnitTestHelpers
+  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+  ${LLVM_LIBRARIES})
+add_test(NAME test_constantrangeset COMMAND test_constantrangeset)
+set_tests_properties(test_constantrangeset PROPERTIES LABELS "unit")
+
+#
+#
+# test_shrinkinstructionoperands
+#
+
+add_executable(test_shrinkinstructionoperands "${SRC}/ShrinkInstructionOperandsPass.cpp")
+target_include_directories(test_shrinkinstructionoperands
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+          "${Boost_INCLUDE_DIRS}")
+target_compile_definitions(test_shrinkinstructionoperands
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_link_libraries(test_shrinkinstructionoperands
+  revngSupport
+  revngUnitTestHelpers
+  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+  ${LLVM_LIBRARIES})
+add_test(NAME test_shrinkinstructionoperands COMMAND test_shrinkinstructionoperands)
+set_tests_properties(test_shrinkinstructionoperands PROPERTIES LABELS "unit")

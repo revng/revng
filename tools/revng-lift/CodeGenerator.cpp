@@ -44,6 +44,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 
 // Local libraries includes
+#include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"
@@ -97,14 +98,6 @@ static cl::opt<string> BBSummaryPath("bb-summary",
 static cl::alias A3("b",
                     cl::desc("Alias for -bb-summary"),
                     cl::aliasopt(BBSummaryPath),
-                    cl::cat(MainCategory));
-
-static cl::opt<bool> NoLink("no-link",
-                            cl::desc("do not link the output to QEMU helpers"),
-                            cl::cat(MainCategory));
-static cl::alias A4("L",
-                    cl::desc("Alias for -no-link"),
-                    cl::aliasopt(NoLink),
                     cl::cat(MainCategory));
 
 // Enable Debug Options to be specified on the command line
@@ -176,6 +169,8 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   Binary(Binary) {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
+
+  TheModule->setDataLayout("e-m:e-i64:64-f80:128-n8:16:32:64-S128");
 
   HelpersModule = parseIR(Helpers, Context);
   for (auto &F : HelpersModule->functions()) {
@@ -286,16 +281,6 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   std::ofstream NeededLibsStream(NeededLibs);
   for (const std::string &Library : Binary.neededLibraryNames())
     NeededLibsStream << Library << "\n";
-}
-
-Function *CodeGenerator::importHelperFunctionDeclaration(StringRef Name) {
-  // Don't copy the FunctionType from the HelpersModule. Simply add the function
-  // declaration with the correct name, and this will trigger the Linker.
-  // The Linker will then overwrite the stub declaration with the real imported
-  // definition, fixing it up with the correct FunctionType.
-  FunctionType *StubType = FunctionType::get(Type::getVoidTy(Context), false);
-  Constant *Inserted = TheModule->getOrInsertFunction(Name, StubType);
-  return cast<Function>(Inserted);
 }
 
 std::string SegmentInfo::generateName() {
@@ -512,10 +497,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
   if (CpuLoopExit == nullptr)
     return false;
 
-  if (not VM->hasEnv()) {
-    ReturnInst::Create(Context, BasicBlock::Create(Context, "", CpuLoopExit));
-    return true;
-  }
+  revng_assert(VM->hasEnv());
 
   purgeNoReturn(CpuLoopExit);
 
@@ -542,12 +524,11 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
     revng_assert(Call->getCalledFunction() == CpuLoopExit);
 
     // Call cpu_loop
-    auto *EnvType = CpuLoop->getFunctionType()->getParamType(0);
-    auto *AddressComputation = VM->computeEnvAddress(EnvType, Call);
-    auto *CallCpuLoop = CallInst::Create(CpuLoop,
-                                         { AddressComputation },
-                                         "",
-                                         Call);
+    auto *FirstArgTy = CpuLoop->getFunctionType()->getParamType(0);
+    auto *EnvPtr = VM->CPUStateToEnv(Call->getArgOperand(0), FirstArgTy, Call);
+
+    auto *CallCpuLoop = CallInst::Create(CpuLoop, { EnvPtr }, "", Call);
+
     // In recent versions of LLVM you can no longer inject a CallInst in a
     // Function with debug location if the call itself has not a debug location
     // as well, otherwise verifyModule() will fail.
@@ -589,48 +570,40 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
           Function *RecCaller = RecCall->getParent()->getParent();
 
           // TODO: make this more reliable than using function name
-          if (RecCaller->getName() == "root") {
-            // If we got to the translated function, just reset cpu_loop_exiting
-            // to false
-            new StoreInst(ConstantInt::getFalse(BoolType),
-                          CpuLoopExitingVariable,
-                          &*++RecCall->getIterator());
-          } else {
-            // If the caller is a QEMU helper function make it check
-            // cpu_loop_exiting and if it's true, make it return
+          // If the caller is a QEMU helper function make it check
+          // cpu_loop_exiting and if it's true, make it return
 
-            // Split BB
-            BasicBlock *OldBB = RecCall->getParent();
-            BasicBlock::iterator SplitPoint = ++RecCall->getIterator();
-            revng_assert(SplitPoint != OldBB->end());
-            BasicBlock *NewBB = OldBB->splitBasicBlock(SplitPoint);
+          // Split BB
+          BasicBlock *OldBB = RecCall->getParent();
+          BasicBlock::iterator SplitPoint = ++RecCall->getIterator();
+          revng_assert(SplitPoint != OldBB->end());
+          BasicBlock *NewBB = OldBB->splitBasicBlock(SplitPoint);
 
-            // Add a BB with a ret
-            BasicBlock *QuitBB = BasicBlock::Create(Context,
-                                                    "cpu_loop_exit_return",
-                                                    RecCaller,
-                                                    NewBB);
-            UnreachableInst *Temp = new UnreachableInst(Context, QuitBB);
-            createRet(Temp);
-            Temp->eraseFromParent();
+          // Add a BB with a ret
+          BasicBlock *QuitBB = BasicBlock::Create(Context,
+                                                  "cpu_loop_exit_return",
+                                                  RecCaller,
+                                                  NewBB);
+          UnreachableInst *Temp = new UnreachableInst(Context, QuitBB);
+          createRet(Temp);
+          Temp->eraseFromParent();
 
-            // Check value of cpu_loop_exiting
-            auto *Branch = cast<BranchInst>(&*++(RecCall->getIterator()));
-            auto *Compare = new ICmpInst(Branch,
-                                         CmpInst::ICMP_EQ,
-                                         new LoadInst(CpuLoopExitingVariable,
-                                                      "",
-                                                      Branch),
-                                         ConstantInt::getTrue(BoolType));
+          // Check value of cpu_loop_exiting
+          auto *Branch = cast<BranchInst>(&*++(RecCall->getIterator()));
+          auto *Compare = new ICmpInst(Branch,
+                                       CmpInst::ICMP_EQ,
+                                       new LoadInst(CpuLoopExitingVariable,
+                                                    "",
+                                                    Branch),
+                                       ConstantInt::getTrue(BoolType));
 
-            BranchInst::Create(QuitBB, NewBB, Compare, Branch);
-            Branch->eraseFromParent();
+          BranchInst::Create(QuitBB, NewBB, Compare, Branch);
+          Branch->eraseFromParent();
 
-            // Add to the work list only if it hasn't been fixed already
-            if (FixedCallers.find(RecCaller) == FixedCallers.end()) {
-              FixedCallers.insert(RecCaller);
-              WorkList.push(RecCaller);
-            }
+          // Add to the work list only if it hasn't been fixed already
+          if (FixedCallers.find(RecCaller) == FixedCallers.end()) {
+            FixedCallers.insert(RecCaller);
+            WorkList.push(RecCaller);
           }
         }
       }
@@ -660,16 +633,150 @@ static void purgeDeadBlocks(Function *F) {
 void CodeGenerator::translate(uint64_t VirtualAddress) {
   using FT = FunctionType;
 
-  // Declare useful functions
+  // Declare the abort function
   auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
   auto *AbortFunction = TheModule->getOrInsertFunction("abort", AbortTy);
 
-  importHelperFunctionDeclaration("target_set_brk");
-  TheModule->getOrInsertFunction("syscall_init",
-                                 FT::get(Type::getVoidTy(Context), {}, false));
+  // Prepare the helper modules by transforming the cpu_loop function and
+  // running SROA
+  legacy::PassManager CpuLoopPM;
+  CpuLoopPM.add(new LoopInfoWrapperPass());
+  CpuLoopPM.add(new CpuLoopFunctionPass());
+  CpuLoopPM.add(createSROAPass());
+  CpuLoopPM.run(*HelpersModule);
 
-  // Instantiate helpers
-  VariableManager Variables(*TheModule, *HelpersModule, TargetArchitecture);
+  // Drop the main
+  HelpersModule->getFunction("main")->eraseFromParent();
+
+  // From syscall.c
+  new GlobalVariable(*TheModule,
+                     Type::getInt32Ty(Context),
+                     false,
+                     GlobalValue::CommonLinkage,
+                     ConstantInt::get(Type::getInt32Ty(Context), 0),
+                     StringRef("do_strace"));
+
+  //
+  // Handle some specific QEMU functions as no-ops or abort
+  //
+
+  // Transform in no op
+  auto NoOpFunctionNames = make_array<const char *>("cpu_dump_state",
+                                                    "cpu_exit",
+                                                    "end_exclusive"
+                                                    "fprintf",
+                                                    "mmap_lock",
+                                                    "mmap_unlock",
+                                                    "pthread_cond_broadcast",
+                                                    "pthread_mutex_unlock",
+                                                    "pthread_mutex_lock",
+                                                    "pthread_cond_wait",
+                                                    "pthread_cond_signal",
+                                                    "process_pending_signals",
+                                                    "qemu_log_mask",
+                                                    "qemu_thread_atexit_init",
+                                                    "start_exclusive");
+  for (auto Name : NoOpFunctionNames)
+    replaceFunctionWithRet(HelpersModule->getFunction(Name), 0);
+
+  // Transform in abort
+
+  // do_arm_semihosting: we don't care about semihosting
+  // EmulateAll: requires access to the opcode
+  auto AbortFunctionNames = make_array<const char *>("cpu_restore_state",
+                                                     "cpu_mips_exec",
+                                                     "gdb_handlesig",
+                                                     "queue_signal",
+                                                     // syscall.c
+                                                     "do_ioctl_dm",
+                                                     "print_syscall",
+                                                     "print_syscall_ret",
+                                                     // ARM cpu_loop
+                                                     "cpu_abort",
+                                                     "do_arm_semihosting",
+                                                     "EmulateAll");
+  for (auto Name : AbortFunctionNames) {
+    Function *TheFunction = HelpersModule->getFunction(Name);
+    if (TheFunction != nullptr) {
+      revng_assert(HelpersModule->getFunction("abort") != nullptr);
+      BasicBlock *NewBody = replaceFunction(TheFunction);
+      CallInst::Create(HelpersModule->getFunction("abort"), {}, NewBody);
+      new UnreachableInst(Context, NewBody);
+    }
+  }
+
+  replaceFunctionWithRet(HelpersModule->getFunction("page_check_range"), 1);
+  replaceFunctionWithRet(HelpersModule->getFunction("page_get_flags"),
+                         0xffffffff);
+
+  //
+  // Record globals for marking them as internal after linking
+  //
+  std::vector<std::string> HelperGlobals;
+  for (GlobalVariable &GV : HelpersModule->globals())
+    if (GV.hasName())
+      HelperGlobals.push_back(GV.getName().str());
+
+  std::vector<std::string> HelperFunctions;
+  for (Function &F : HelpersModule->functions())
+    if (F.hasName() and F.getName() != "target_set_brk"
+        and F.getName() != "syscall_init")
+      HelperFunctions.push_back(F.getName().str());
+
+  //
+  // Link helpers module into the main module
+  //
+  Linker TheLinker(*TheModule);
+  bool Result = TheLinker.linkInModule(std::move(HelpersModule));
+  revng_assert(not Result, "Linking failed");
+
+  //
+  // Mark as internal all the imported globals
+  //
+  for (StringRef GlobalName : HelperGlobals)
+    if (not GlobalName.startswith("llvm."))
+      if (auto *GV = TheModule->getGlobalVariable(GlobalName))
+        if (not GV->isDeclaration())
+          GV->setLinkage(GlobalValue::InternalLinkage);
+
+  for (StringRef FunctionName : HelperFunctions)
+    if (auto *F = TheModule->getFunction(FunctionName))
+      if (not F->isDeclaration() and not F->isIntrinsic())
+        F->setLinkage(GlobalValue::InternalLinkage);
+
+  //
+  // Create the VariableManager
+  //
+  VariableManager Variables(*TheModule, TargetArchitecture);
+  auto createCPUStateAccessAnalysisPass = [&Variables]() {
+    return new CPUStateAccessAnalysisPass(&Variables, true);
+  };
+
+  {
+    legacy::PassManager PM;
+    PM.add(new CpuLoopExitPass(&Variables));
+    PM.run(*TheModule);
+  }
+
+  // CpuLoopFunctionPass expects a variable name exception_index to exist
+  auto P = Variables.getByEnvOffset(ptc.exception_index, "exception_index");
+  GlobalVariable *EI = P.first;
+  if (auto *OLDEI = TheModule->getGlobalVariable("exception_index")) {
+    revng_assert(EI->getType() == OLDEI->getType());
+    OLDEI->replaceAllUsesWith(EI);
+    OLDEI->eraseFromParent();
+    EI->setName("exception_index");
+  }
+  Type *T = EI->getType()->getPointerElementType();
+  EI->setInitializer(ConstantInt::getNullValue(T));
+
+  std::set<Function *> CpuLoopExitingUsers;
+  Value *CpuLoopExiting = TheModule->getGlobalVariable("cpu_loop_exiting");
+  revng_assert(CpuLoopExiting != nullptr);
+  for (User *U : CpuLoopExiting->users())
+    if (auto *I = dyn_cast<Instruction>(U))
+      CpuLoopExitingUsers.insert(I->getParent()->getParent());
+
   const Architecture &Arch = Binary.architecture();
   StringRef SPName = Arch.stackPointerRegister();
   GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
@@ -736,7 +843,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   InputArchMD->addOperand(Tuple);
 
   // Create an instance of JumpTargetManager
-  JumpTargetManager JumpTargets(MainFunction, PCReg, Binary);
+  JumpTargetManager JumpTargets(MainFunction,
+                                PCReg,
+                                Binary,
+                                createCPUStateAccessAnalysisPass);
 
   if (VirtualAddress == 0) {
     JumpTargets.harvestGlobalData();
@@ -942,108 +1052,31 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
   } // End translations loop
 
-  importHelperFunctionDeclaration("cpu_loop");
+  //
+  // At this point we have all the code, add store false to cpu_loop_exiting in
+  // root
+  //
+  auto *BoolType = CpuLoopExiting->getType()->getPointerElementType();
+  std::queue<User *> WorkList;
+  for (Function *Helper : CpuLoopExitingUsers)
+    for (User *U : Helper->users())
+      WorkList.push(U);
 
-  legacy::PassManager CpuLoopPM;
-  CpuLoopPM.add(new LoopInfoWrapperPass());
-  CpuLoopPM.add(new CpuLoopFunctionPass());
-  CpuLoopPM.run(*HelpersModule);
+  while (not WorkList.empty()) {
+    User *U = WorkList.front();
+    WorkList.pop();
 
-  // CpuLoopFunctionPass expects a variable name exception_index to exist
-  Variables.getByEnvOffset(ptc.exception_index, "exception_index");
-
-  // Handle some specific QEMU functions as no-ops or abort
-  auto NoOpFunctionNames = make_array<const char *>("cpu_dump_state",
-                                                    "cpu_exit",
-                                                    "end_exclusive"
-                                                    "fprintf",
-                                                    "mmap_lock",
-                                                    "mmap_unlock",
-                                                    "pthread_cond_broadcast",
-                                                    "pthread_mutex_unlock",
-                                                    "pthread_mutex_lock",
-                                                    "pthread_cond_wait",
-                                                    "pthread_cond_signal",
-                                                    "process_pending_signals",
-                                                    "qemu_log_mask",
-                                                    "qemu_thread_atexit_init",
-                                                    "start_exclusive");
-  auto AbortFunctionNames = make_array<const char *>("cpu_restore_state",
-                                                     "cpu_mips_exec",
-                                                     "gdb_handlesig",
-                                                     "queue_signal",
-                                                     // syscall.c
-                                                     "do_ioctl_dm",
-                                                     "print_syscall",
-                                                     "print_syscall_ret",
-                                                     // ARM cpu_loop
-                                                     "cpu_abort",
-                                                     "do_arm_semihosting",
-                                                     "EmulateAll");
-
-  // do_arm_semihosting: we don't care about semihosting
-  // EmulateAll: requires access to the opcode
-
-  // Import the function to initialize the CPUState, if present.
-  // This is important on x86 architecture.
-  if (HelpersModule->getFunction("initialize_env") != nullptr)
-    importHelperFunctionDeclaration("initialize_env");
-
-  // From syscall.c
-  new GlobalVariable(*TheModule,
-                     Type::getInt32Ty(Context),
-                     false,
-                     GlobalValue::CommonLinkage,
-                     ConstantInt::get(Type::getInt32Ty(Context), 0),
-                     StringRef("do_strace"));
-
-  for (auto Name : NoOpFunctionNames)
-    replaceFunctionWithRet(HelpersModule->getFunction(Name), 0);
-
-  for (auto Name : AbortFunctionNames) {
-    Function *TheFunction = HelpersModule->getFunction(Name);
-    if (TheFunction != nullptr) {
-      revng_assert(HelpersModule->getFunction("abort") != nullptr);
-      BasicBlock *NewBody = replaceFunction(TheFunction);
-      CallInst::Create(HelpersModule->getFunction("abort"), {}, NewBody);
-      new UnreachableInst(Context, NewBody);
+    if (auto *CE = dyn_cast<ConstantExpr>(U)) {
+      if (CE->isCast())
+        for (User *UCE : CE->users())
+          WorkList.push(UCE);
+    } else if (auto *Call = dyn_cast<CallInst>(U)) {
+      if (Call->getParent()->getParent() == MainFunction) {
+        new StoreInst(ConstantInt::getFalse(BoolType),
+                      CpuLoopExiting,
+                      Call->getNextNode());
+      }
     }
-  }
-
-  replaceFunctionWithRet(HelpersModule->getFunction("page_check_range"), 1);
-  replaceFunctionWithRet(HelpersModule->getFunction("page_get_flags"),
-                         0xffffffff);
-
-  // HACK: the LLVM linker does not import non-static functions anymore if
-  //       LinkOnlyNeeded is specified. We don't want this so mark all the
-  //       non-static symbols not directly imported as static.
-  {
-    std::set<StringRef> Declarations;
-    for (auto &F : TheModule->functions())
-      if (F.isDeclaration())
-        Declarations.insert(F.getName());
-
-    for (auto &F : HelpersModule->functions())
-      if (not F.isDeclaration() and Declarations.count(F.getName()) == 0
-          and F.hasExternalLinkage())
-        F.setLinkage(GlobalValue::InternalLinkage);
-
-    Declarations.clear();
-    for (auto &GV : TheModule->globals())
-      if (GV.isDeclaration())
-        Declarations.insert(GV.getName());
-
-    for (auto &GV : HelpersModule->globals())
-      if (not GV.isDeclaration() and Declarations.count(GV.getName()) == 0
-          and GV.hasExternalLinkage())
-        GV.setLinkage(GlobalValue::InternalLinkage);
-  }
-
-  if (not NoLink) {
-    Linker TheLinker(*TheModule);
-    bool Result = TheLinker.linkInModule(std::move(HelpersModule),
-                                         Linker::LinkOnlyNeeded);
-    revng_assert(!Result, "Linking failed");
   }
 
   // Add a call to the function to initialize the CPUState, if present.
@@ -1066,16 +1099,15 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   legacy::PassManager PM;
   PM.add(createSROAPass());
-  PM.add(new CpuLoopExitPass(&Variables));
-  PM.add(Variables.createCPUStateAccessAnalysisPass());
+  PM.add(new CPUStateAccessAnalysisPass(&Variables, false));
   PM.add(createDeadCodeEliminationPass());
+  // TODO: drop me once we integrate stack analysis with AVI
+  PM.add(new FunctionCallIdentification);
   PM.run(*TheModule);
 
   JumpTargets.finalizeJumpTargets();
 
   purgeDeadBlocks(MainFunction);
-
-  JumpTargets.runNoreturnAnalysis();
 
   JumpTargets.createJTReasonMD();
 
@@ -1090,8 +1122,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   ExternalJumpsHandler JumpOutHandler(Binary, JumpTargets, *MainFunction);
   JumpOutHandler.createExternalJumpsHandler();
-
-  JumpTargets.noReturn().cleanup();
 
   Translator.finalizeNewPCMarkers(CoveragePath);
 

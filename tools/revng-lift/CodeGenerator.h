@@ -81,13 +81,6 @@ private:
   template<typename T>
   void parseELF(llvm::object::ObjectFile *TheBinary, bool UseSections);
 
-  /// \brief Import a helper function definition
-  ///
-  /// Queries the HelpersModule for a function and adds it to TheModule.
-  ///
-  /// \param Name name of the imported function
-  llvm::Function *importHelperFunctionDeclaration(llvm::StringRef Name);
-
 private:
   Architecture TargetArchitecture;
   llvm::LLVMContext &Context;

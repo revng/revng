@@ -11,19 +11,15 @@ add_executable(revng-lift
   InstructionTranslator.cpp
   JumpTargetManager.cpp
   Main.cpp
-  NoReturnAnalysis.cpp
-  OSRA.cpp
   PTCDump.cpp
-  SET.cpp
-  SimplifyComparisonsPass.cpp
   VariableManager.cpp)
 
 target_link_libraries(revng-lift
   dl
   m
   revngBasicAnalyses
-  revngReachingDefinitions
   revngSupport
+  revngFunctionCallIdentification
   ${LLVM_LIBRARIES})
 
 add_custom_command(TARGET revng-lift POST_BUILD VERBATIM

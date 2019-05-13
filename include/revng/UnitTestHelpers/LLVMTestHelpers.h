@@ -23,12 +23,18 @@ target triple = "x86_64-pc-linux-gnu"
 @rsi = internal global i64 0
 @rbx = internal global i64 0
 @rcx = internal global i64 0
+@pc = internal global i64 0
+
+declare i64 @llvm.bswap.i64(i64)
 
 define void @main() {
 initial_block:
 )LLVM";
 
-static const char *ModuleEnd = "\n}\n";
+static const char *ModuleEnd = R"LLVM(
+}
+
+)LLVM";
 
 inline std::string buildModule(const char *Body) {
   std::string Result;

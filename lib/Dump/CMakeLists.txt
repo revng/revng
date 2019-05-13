@@ -3,8 +3,7 @@
 #
 
 revng_add_analyses_library_internal(revngDump
-  CollectCFG.cpp
-  CollectNoreturn.cpp)
+  CollectCFG.cpp)
 
 target_link_libraries(revngDump
   revngSupport)

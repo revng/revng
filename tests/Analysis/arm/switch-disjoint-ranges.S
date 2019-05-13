@@ -18,13 +18,13 @@
     .syntax unified
     .global _start
 _start:
-    sub     r3, r0, #20
-    sub     r2, r0, #10
-    cmp     r2, #4
-    cmphi   r3, #4
+    sub     r3, r0, #20 @ x - 20
+    sub     r2, r0, #10 @ x - 10
+    cmp     r2, #4      @ a = (x - 10) cmp 4
+    cmphi   r3, #4      @ if ((x - 10) > 4) a = (x - 20) cmp 4
     movls   r3, #1
     movhi   r3, #0
-    bhi     end
+    bhi     end         @ if (((x - 10) > 4 && ((x - 20) <= 4) || ((x - 20) > 4)
 indirect_jump:
     add     pc, pc, r0, lsl #2
 no1:

@@ -5,16 +5,12 @@
 set(SRC ${CMAKE_SOURCE_DIR}/tests/Analysis)
 
 # List of analyses
-set(OUTPUT_NAMES "cfg" "noreturn" "functionsboundaries" "stack-analysis")
+set(OUTPUT_NAMES "cfg" "functionsboundaries" "stack-analysis")
 
 # For each analysis, choose a file suffix and a tool to perform the diff
 set(OUTPUT_OPT_cfg "collect-cfg")
 set(OUTPUT_SUFFIX_cfg ".cfg.csv")
 set(OUTPUT_DIFF_cfg "${DIFF}")
-
-set(OUTPUT_OPT_noreturn "collect-noreturn")
-set(OUTPUT_SUFFIX_noreturn ".noreturn.csv")
-set(OUTPUT_DIFF_noreturn "${DIFF}")
 
 set(OUTPUT_OPT_functionsboundaries "detect-function-boundaries")
 set(OUTPUT_SUFFIX_functionsboundaries ".functions-boundaries.csv")

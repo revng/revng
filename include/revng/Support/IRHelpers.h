@@ -516,6 +516,8 @@ public:
     return llvm::MDTuple::get(C, MDs);
   }
 
+  llvm::MDTuple *tuple() { return llvm::MDTuple::get(C, {}); }
+
   template<typename T>
   T extract(const llvm::MDTuple *Tuple, unsigned Index) {
     return extract<T>(Tuple->getOperand(Index).get());

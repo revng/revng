@@ -157,24 +157,27 @@ getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
 }
 
 VariableManager::VariableManager(Module &TheModule,
-                                 Module &HelpersModule,
                                  Architecture &TargetArchitecture) :
   TheModule(TheModule),
   Builder(TheModule.getContext()),
   CPUStateType(nullptr),
-  ModuleLayout(&HelpersModule.getDataLayout()),
+  ModuleLayout(&TheModule.getDataLayout()),
   EnvOffset(0),
   Env(nullptr),
   TargetArchitecture(TargetArchitecture) {
 
   revng_assert(ptc.initialized_env != nullptr);
 
+  IntegerType *IntPtrTy = Builder.getIntPtrTy(*ModuleLayout);
+  Env = cast<GlobalVariable>(TheModule.getOrInsertGlobal("env", IntPtrTy));
+  Env->setInitializer(ConstantInt::getNullValue(IntPtrTy));
+
   using ElectionMap = std::map<StructType *, unsigned>;
   using ElectionMapElement = std::pair<StructType *const, unsigned>;
   ElectionMap EnvElection;
   const std::string HelperPrefix = "helper_";
   std::set<StructType *> Structs;
-  for (Function &HelperFunction : HelpersModule) {
+  for (Function &HelperFunction : TheModule) {
     FunctionType *HelperType = HelperFunction.getFunctionType();
     Type *ReturnType = HelperType->getReturnType();
     if (ReturnType->isPointerTy())
@@ -418,86 +421,20 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
   return Offset == TotalSize;
 }
 
-void VariableManager::aliasAnalysis() {
-  unsigned AliasScopeMDKindID = TheModule.getMDKindID("alias.scope");
-  unsigned NoAliasMDKindID = TheModule.getMDKindID("noalias");
-
-  LLVMContext &Context = TheModule.getContext();
-  MDBuilder MDB(Context);
-  MDNode *CSVDomain = MDB.createAliasScopeDomain("CSVAliasDomain");
-
-  struct CSVAliasInfo {
-    MDNode *AliasScope;
-    MDNode *AliasSet;
-    MDNode *NoAliasSet;
-  };
-  std::map<const GlobalVariable *, CSVAliasInfo> CSVAliasInfoMap;
-
-  // Build alias scopes
-  std::vector<Metadata *> AllCSVScopes;
-  for (auto &P : CPUStateGlobals) {
-    const GlobalVariable *GV = P.second;
-    CSVAliasInfo &AliasInfo = CSVAliasInfoMap[GV];
-
-    std::string Name = GV->getName();
-    MDNode *CSVScope = MDB.createAliasScope(Name, CSVDomain);
-    AliasInfo.AliasScope = CSVScope;
-    AllCSVScopes.push_back(CSVScope);
-    MDNode *CSVAliasSet = MDNode::get(Context,
-                                      ArrayRef<Metadata *>({ CSVScope }));
-    AliasInfo.AliasSet = CSVAliasSet;
-  }
-  MDNode *MemoryAliasSet = MDNode::get(Context, AllCSVScopes);
-
-  // Build noalias sets
-  for (auto &P : CPUStateGlobals) {
-    const GlobalVariable *GV = P.second;
-    CSVAliasInfo &AliasInfo = CSVAliasInfoMap[GV];
-    std::vector<Metadata *> OtherCSVScopes;
-    for (const auto &Q : CSVAliasInfoMap)
-      if (Q.first != GV)
-        OtherCSVScopes.push_back(Q.second.AliasScope);
-
-    MDNode *CSVNoAliasSet = MDNode::get(Context, OtherCSVScopes);
-    AliasInfo.NoAliasSet = CSVNoAliasSet;
-  }
-
-  // Decorate the IR with alias information
-  for (Function &F : TheModule) {
-    for (BasicBlock &BB : F) {
-      for (Instruction &I : BB) {
-        Value *Ptr = nullptr;
-
-        if (auto *L = dyn_cast<LoadInst>(&I))
-          Ptr = L->getPointerOperand();
-        else if (auto *S = dyn_cast<StoreInst>(&I))
-          Ptr = S->getPointerOperand();
-        else
-          continue;
-
-        // Check if the pointer is a CSV
-        if (auto *GV = dyn_cast<GlobalVariable>(Ptr)) {
-          auto It = CSVAliasInfoMap.find(GV);
-          if (It != CSVAliasInfoMap.end()) {
-            // Set alias.scope and noalias metadata
-            I.setMetadata(AliasScopeMDKindID, It->second.AliasSet);
-            I.setMetadata(NoAliasMDKindID, It->second.NoAliasSet);
-            continue;
-          }
-        }
-
-        // It's not a CSV memory access, set noalias info
-        I.setMetadata(NoAliasMDKindID, MemoryAliasSet);
-      }
-    }
-  }
+void VariableManager::rebuildCSVList() {
+  // Register the list of CSVs
+  LLVMContext &Context = getContext(&TheModule);
+  QuickMetadata QMD(Context);
+  NamedMDNode *NamedMD = TheModule.getOrInsertNamedMetadata("revng.csv");
+  std::vector<Metadata *> CSVsMD;
+  for (auto &P : CPUStateGlobals)
+    CSVsMD.push_back(QMD.get(P.second));
+  NamedMD->clearOperands();
+  NamedMD->addOperand(QMD.tuple(CSVsMD));
 }
 
 void VariableManager::finalize() {
   LLVMContext &Context = getContext(&TheModule);
-
-  // Decorate memory accesses with information about CSV aliasing
-  aliasAnalysis();
 
   if (not External) {
     for (auto &P : CPUStateGlobals)
@@ -505,14 +442,6 @@ void VariableManager::finalize() {
     for (auto &P : OtherGlobals)
       P.second->setLinkage(GlobalValue::InternalLinkage);
   }
-
-  // Register the list of CSVs
-  QuickMetadata QMD(Context);
-  NamedMDNode *NamedMD = TheModule.getOrInsertNamedMetadata("revng.csv");
-  std::vector<Metadata *> CSVsMD;
-  for (auto &P : CPUStateGlobals)
-    CSVsMD.push_back(QMD.get(P.second));
-  NamedMD->addOperand(QMD.tuple(CSVsMD));
 
   IRBuilder<> Builder(Context);
 
@@ -688,6 +617,8 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
 
     CPUStateGlobals[Offset] = NewVariable;
 
+    rebuildCSVList();
+
     return { NewVariable, Remaining };
   } else {
     return { it->second, 0 };
@@ -715,15 +646,20 @@ Value *VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
       } else {
         // TODO: what do we have here, apart from env?
         auto InitialValue = ConstantInt::get(VariableType, 0);
-        GlobalVariable *Result = new GlobalVariable(TheModule,
-                                                    VariableType,
-                                                    false,
-                                                    GlobalValue::CommonLinkage,
-                                                    InitialValue,
-                                                    StringRef(Temporary->name));
+        StringRef Name(Temporary->name);
+        GlobalVariable *Result = nullptr;
 
-        if (Result->getName() == "env")
-          Env = Result;
+        if (Name == "env") {
+          revng_assert(Env != nullptr);
+          Result = Env;
+        } else {
+          Result = new GlobalVariable(TheModule,
+                                      VariableType,
+                                      false,
+                                      GlobalValue::CommonLinkage,
+                                      InitialValue,
+                                      Name);
+        }
 
         OtherGlobals[TemporaryId] = Result;
         return Result;
@@ -768,4 +704,19 @@ Value *VariableManager::computeEnvAddress(Type *TargetType,
                                      "",
                                      InsertBefore);
   return new IntToPtrInst(Integer, TargetType, "", InsertBefore);
+}
+
+Value *VariableManager::CPUStateToEnv(Value *CPUState,
+                                      Type *TargetType,
+                                      Instruction *InsertBefore) const {
+  using CI = ConstantInt;
+
+  Type *InputType = CPUState->getType()->getPointerElementType();
+  revng_assert(InputType == CPUStateType
+               or InputType == CPUStateType->getTypeAtIndex(0U));
+  IRBuilder<> Builder(InsertBefore);
+  Type *IntPtrTy = Builder.getIntPtrTy(*ModuleLayout);
+  Value *CPUIntPtr = Builder.CreatePtrToInt(CPUState, IntPtrTy);
+  Value *EnvIntPtr = Builder.CreateAdd(CPUIntPtr, CI::get(IntPtrTy, EnvOffset));
+  return Builder.CreateIntToPtr(EnvIntPtr, TargetType);
 }

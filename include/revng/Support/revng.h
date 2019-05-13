@@ -65,21 +65,31 @@ namespace JTReason {
 // TODO: move me to another header file
 /// \brief Reason for registering a jump target
 enum Values {
-  PostHelper = 1, ///< PC after an helper (e.g., a syscall)
-  DirectJump = 2, ///< Obtained from a direct store to the PC
-  GlobalData = 4, ///< Obtained digging in global data
-  AmbigousInstruction = 8, ///< Fallthrough of multiple instructions in the
-                           ///  immediately preceeding bytes
-  SETToPC = 16, ///< Obtained from SET on a store to the PC
-  SETNotToPC = 32, ///< Obtained from SET (but not from a PC-store)
-  UnusedGlobalData = 64, ///< Obtained digging in global data, buf never used
-                         ///  by SET. Likely a function pointer.
-  Callee = 128, ///< This JT is the target of a call instruction.
-  SumJump = 256, ///< Obtained from the "sumjump" heuristic
-  LoadAddress = 512, ///< A load has been performed from this address
-  ReturnAddress = 1024, ///< Obtained as the fallthrough of a function call
-  FunctionSymbol = 2048, ///< Obtained from a function symbol
-  SimpleLiteral = 4096, ///< Immediate value found before SET
+  /// PC after an helper (e.g., a syscall)
+  PostHelper = 1,
+  /// Obtained from a direct store to the PC
+  DirectJump = 2,
+  /// Obtained digging in global data
+  GlobalData = 4,
+  /// Fallthrough of multiple instructions in the immediately preceeding bytes
+  AmbigousInstruction = 8,
+  /// Stored in the PC
+  PCStore = 16,
+  /// Stored in memory
+  MemoryStore = 32,
+  /// Obtained digging in global data, but never used. Likely a function
+  /// pointer
+  UnusedGlobalData = 64,
+  /// This JT is the target of a call instruction.
+  Callee = 128,
+  /// A load has been performed from this address
+  LoadAddress = 256,
+  /// Obtained as the fallthrough of a function call
+  ReturnAddress = 512,
+  /// Obtained from a function symbol
+  FunctionSymbol = 1024,
+  /// Immediate value in the IR, usually a return address
+  SimpleLiteral = 2048,
   LastReason = SimpleLiteral
 };
 
@@ -93,16 +103,14 @@ inline const char *getName(Values Reason) {
     return "GlobalData";
   case AmbigousInstruction:
     return "AmbigousInstruction";
-  case SETToPC:
-    return "SETToPC";
-  case SETNotToPC:
-    return "SETNotToPC";
+  case PCStore:
+    return "PCStore";
+  case MemoryStore:
+    return "MemoryStore";
   case UnusedGlobalData:
     return "UnusedGlobalData";
   case Callee:
     return "Callee";
-  case SumJump:
-    return "SumJump";
   case LoadAddress:
     return "LoadAddress";
   case ReturnAddress:
@@ -125,16 +133,14 @@ inline Values fromName(llvm::StringRef ReasonName) {
     return GlobalData;
   else if (ReasonName == "AmbigousInstruction")
     return AmbigousInstruction;
-  else if (ReasonName == "SETToPC")
-    return SETToPC;
-  else if (ReasonName == "SETNotToPC")
-    return SETNotToPC;
+  else if (ReasonName == "PCStore")
+    return PCStore;
+  else if (ReasonName == "MemoryStore")
+    return MemoryStore;
   else if (ReasonName == "UnusedGlobalData")
     return UnusedGlobalData;
   else if (ReasonName == "Callee")
     return Callee;
-  else if (ReasonName == "SumJump")
-    return SumJump;
   else if (ReasonName == "LoadAddress")
     return LoadAddress;
   else if (ReasonName == "ReturnAddress")
