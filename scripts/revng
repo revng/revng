@@ -3,6 +3,7 @@
 import argparse
 import glob
 import os
+import signal
 import subprocess
 import sys
 
@@ -14,6 +15,12 @@ from shutil import which
 
 from elftools.elf.dynamic import DynamicSegment
 from elftools.elf.elffile import ELFFile
+
+def run(command):
+  if is_executable(command[0]):
+    command = wrap(command)
+  signal.signal(signal.SIGINT, signal.SIG_IGN)
+  subprocess.check_call(command, preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
 
 def is_executable(path):
   with open(path, "rb") as program:
@@ -44,11 +51,6 @@ def get_elf_needed(path):
               if tag.entry.d_tag == "DT_NEEDED"]
     else:
       return []
-
-def execv(args):
-  sys.stdout.flush()
-  sys.stderr.flush()
-  os.execv(which(args[0]), args)
 
 def log_error(msg):
   sys.stderr.write(msg + "\n")
@@ -222,7 +224,12 @@ def wrap(args):
 
   global log_commands
   if log_commands:
-    sys.stderr.write("{}\n\n".format(" \\\n  ".join(args)))
+    cwd = os.getcwd().rstrip("/")
+    if args[0].startswith(cwd):
+      program_path = "." + args[0][len(cwd):]
+    else:
+      program_path = args[0]
+    sys.stderr.write("{}\n\n".format(" \\\n  ".join([program_path] + args[1:])))
 
   return args
 
@@ -311,13 +318,12 @@ use `revng lift` if you're just interested in lifting.
     if args.base:
       lift_options += ["--base", args.base]
 
-    subprocess.check_call(wrap([get_command("revng-lift"),
-                                "-g", "ll",
-                                "--debug-log", "jtcount",
-                                "--debug-log", "new-edges",
-                                "--use-debug-symbols"]
-                               + lift_options
-                               + [input, output]))
+    run([get_command("revng-lift"),
+         "-g", "ll",
+         "--debug-log", "jtcount",
+         "--use-debug-symbols"]
+        + lift_options
+        + [input, output])
 
   # Perform function isolation
   if args.isolate:
@@ -327,16 +333,16 @@ use `revng lift` if you're just interested in lifting.
                                      "-isolate",
                                      output,
                                      "-o", isolated])
-    subprocess.check_call(wrap(opt_invocation))
+    run(opt_invocation)
     output = isolated
 
   # Link with support
   linked = "{}.linked.ll".format(output)
-  subprocess.check_call(wrap([get_command("llvm-link"),
-                              "-S",
-                              output,
-                              support_path,
-                              "-o", linked]))
+  run([get_command("llvm-link"),
+       "-S",
+       output,
+       support_path,
+       "-o", linked])
   output = linked
 
   # Compile
@@ -345,31 +351,31 @@ use `revng lift` if you're just interested in lifting.
   common_llc_options = ["-disable-machine-licm", "-filetype=obj"]
   llc = get_command("llc")
   if optimization_level == 0:
-    subprocess.check_call(wrap([llc,
-                                "-O0",
-                                output,
-                                "-o", object_file]
-                               + common_llc_options))
+    run([llc,
+         "-O0",
+         output,
+         "-o", object_file]
+        + common_llc_options)
   elif optimization_level == 1:
-    subprocess.check_call(wrap([llc,
-                                "-O2",
-                                output,
-                                "-o", object_file]
-                               + common_llc_options))
+    run([llc,
+         "-O2",
+         output,
+         "-o", object_file]
+        + common_llc_options)
   elif optimization_level == 2:
     optimized = "{}.opt.ll".format(output)
-    subprocess.check_call(wrap([get_command("opt"),
-                                "-O2",
-                                "-S",
-                                "-enable-pre=false",
-                                "-enable-load-pre=false",
-                                output,
-                                "-o", optimized]))
-    subprocess.check_call(wrap([llc,
-                                "-O2",
-                                optimized,
-                                "-o", object_file]
-                               + common_llc_options))
+    run([get_command("opt"),
+         "-O2",
+         "-S",
+         "-enable-pre=false",
+         "-enable-load-pre=false",
+         output,
+         "-o", optimized])
+    run([llc,
+         "-O2",
+         optimized,
+         "-o", object_file]
+        + common_llc_options)
 
   # Parse .li.csv and .need.csv files
   linking_options = build_linking_options(li_csv_path, need_csv_path)
@@ -381,25 +387,27 @@ use `revng lift` if you're just interested in lifting.
     no_pie.append("-no-pie")
 
   executable = "{}.translated".format(input)
-  subprocess.check_call(wrap([compiler,
-                              object_file,
-                              "-lz", "-lm", "-lrt", "-lpthread",
-                              "-L", "./",
-                              "-o", executable]
-                             + no_pie
-                             + linking_options))
+  run([compiler,
+       object_file,
+       "-lz", "-lm", "-lrt", "-lpthread",
+       "-L", "./",
+       "-o", executable]
+      + no_pie
+      + linking_options)
 
   # Invoke revng-merge-dynamic
   unpatched_output = "{}.tmp".format(executable)
   os.rename(executable, unpatched_output)
   base_args = ["--base", args.base] if args.base else []
-  subprocess.check_call(wrap([get_command("revng"),
-                              "merge-dynamic",
-                              unpatched_output,
-                              input,
-                              executable]
-                             + base_args))
+  run([get_command("revng"),
+       "merge-dynamic",
+       unpatched_output,
+       input,
+       executable]
+      + base_args)
   os.unlink(unpatched_output)
+
+  return 0
 
 def run_cc(args):
   # Collect translate options
@@ -436,6 +444,9 @@ def run_cc(args):
   return res
 
 def print_help():
+  global revng_parser
+  revng_parser.print_help()
+
   sys.stdout.write("""
 The following built-in commands are available:
 
@@ -517,6 +528,9 @@ def main():
                       default="help",
                       help="Command to execute.")
 
+  global revng_parser
+  revng_parser = parser
+
   command_i = None
   for i, argument in enumerate(sys.argv[1:]):
     if not argument.startswith("-"):
@@ -575,31 +589,37 @@ def main():
     sys.stdout.write("rev.ng version @VERSION@\n")
     return 0
 
+  if args.help:
+    print_help()
+    return 0
+
+  run_command(command, command_args)
+
+def run_command(command, command_args):
   # First consider the hardcoded commands
   if command == "help":
-    parser.print_help()
     print_help()
   elif command == "opt":
-    execv(wrap(build_opt_args(command_args)))
+    run(build_opt_args(command_args))
   elif command == "cc":
-    return run_cc(command_args)
+    result = run_cc(command_args)
+    assert result == 0
   elif command == "translate":
-    return run_translate(command_args)
+    result = run_translate(command_args)
+    assert result == 0
   else:
     executable = "revng-" + command
     if not which(executable, path=search_path):
       log_error("Can't find the following command: {}".format(executable))
-      return -1
+      assert False
 
     in_path = get_command(executable)
     if in_path:
       arguments = [os.path.abspath(in_path)] + command_args
-      if is_executable(in_path):
-        arguments = wrap(arguments)
-      execv(arguments)
+      run(arguments)
     else:
       log_error("\"revng-{}\" is not a valid command".format(command))
-      return -1
+      assert False
 
 if __name__ == "__main__":
   sys.exit(main())
