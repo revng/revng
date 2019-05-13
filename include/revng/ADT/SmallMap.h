@@ -366,8 +366,13 @@ struct KeyContainer<T, typename std::enable_if_t<isSmallMap<T>::value>> {
                                                 const typename T::mapped_type,
                                                 typename T::mapped_type>::type;
 
-  static const typename T::key_type &getKey(value_type &Value) {
-    return Value.first;
+  static int compare(value_type &LHS, value_type &RHS) {
+    if (LHS.first == RHS.first)
+      return 0;
+    if (std::less<key_type>()(LHS.first, RHS.first))
+      return -1;
+    else
+      return 1;
   }
 
   static void insert(T &Container, key_type Key) {

@@ -29,8 +29,13 @@ struct KeyContainer {
                                         const typename T::value_type,
                                         typename T::value_type>;
 
-  static const typename T::key_type &getKey(value_type &Value) {
-    return Value.first;
+  static int compare(value_type &LHS, value_type &RHS) {
+    if (LHS.first == RHS.first)
+      return 0;
+    if (std::less<key_type>()(LHS.first, RHS.first))
+      return -1;
+    else
+      return 1;
   }
 
   static void insert(T &Container, typename T::key_type Key) {
@@ -58,10 +63,17 @@ static_assert(isSet<const std::set<int>>::value, "");
 
 template<typename T>
 struct KeyContainer<T, typename std::enable_if_t<isSet<T>::value>> {
-  using key_type = typename T::key_type;
+  using key_type = const typename T::key_type;
   using pointer = const key_type *;
 
-  static const key_type &getKey(const key_type &Value) { return Value; }
+  static int compare(key_type &LHS, key_type &RHS) {
+    if (LHS == RHS)
+      return 0;
+    if (std::less<key_type>()(LHS, RHS))
+      return -1;
+    else
+      return 1;
+  }
 
   static void insert(T &Container, key_type Key) { Container.insert(Key); }
 
@@ -103,7 +115,14 @@ struct KeyContainer<T, typename std::enable_if_t<isVectorOfPairs<T>::value>> {
                                      typename T::pointer>;
   using mapped_type = typename value_type::second_type;
 
-  static const key_type &getKey(value_type &Value) { return Value.first; }
+  static int compare(value_type &LHS, value_type &RHS) {
+    if (LHS.first == RHS.first)
+      return 0;
+    if (std::less<key_type>()(LHS.first, RHS.first))
+      return -1;
+    else
+      return 1;
+  }
 
   static void insert(T &Container, key_type Key) {
     Container.push_back({ Key, mapped_type() });
@@ -130,15 +149,14 @@ struct KeyContainer<T, typename std::enable_if_t<isVectorOfPairs<T>::value>> {
   }
 };
 
-template<typename Map>
-using zipmap_pair = std::pair<typename KeyContainer<Map>::pointer,
-                              typename KeyContainer<Map>::pointer>;
+template<typename Map, typename KC = KeyContainer<Map>>
+using zipmap_pair = std::pair<typename KC::pointer, typename KC::pointer>;
 
-template<typename Map>
+template<typename Map, typename KC = KeyContainer<Map>>
 class ZipMapIterator
-  : public llvm::iterator_facade_base<ZipMapIterator<Map>,
+  : public llvm::iterator_facade_base<ZipMapIterator<Map, KC>,
                                       std::forward_iterator_tag,
-                                      const zipmap_pair<Map>> {
+                                      const zipmap_pair<Map, KC>> {
 public:
   template<bool C, typename A, typename B>
   using conditional_t = typename std::conditional<C, A, B>::type;
@@ -146,7 +164,7 @@ public:
                                        typename Map::const_iterator,
                                        typename Map::iterator>;
   using inner_range = llvm::iterator_range<inner_iterator>;
-  using value_type = zipmap_pair<Map>;
+  using value_type = zipmap_pair<Map, KC>;
   using reference = typename ZipMapIterator::reference;
 
 private:
@@ -186,25 +204,30 @@ public:
   reference operator*() const { return Current; }
 
 private:
-  static const typename KeyContainer<Map>::key_type &getKey(inner_iterator It) {
-    return KeyContainer<Map>::getKey(*It);
-  }
-
   bool leftIsValid() const { return LeftIt != EndLeftIt; }
   bool rightIsValid() const { return RightIt != EndRightIt; }
 
   void next() {
     if (leftIsValid() and rightIsValid()) {
-      if (getKey(LeftIt) == getKey(RightIt)) {
+      switch (KC::compare(*LeftIt, *RightIt)) {
+      case 0:
         Current = std::make_pair(&*LeftIt, &*RightIt);
         LeftIt++;
         RightIt++;
-      } else if (getKey(LeftIt) < getKey(RightIt)) {
+        break;
+
+      case -1:
         Current = std::make_pair(&*LeftIt, nullptr);
         LeftIt++;
-      } else {
+        break;
+
+      case 1:
         Current = std::make_pair(nullptr, &*RightIt);
         RightIt++;
+        break;
+
+      default:
+        revng_abort();
       }
     } else if (leftIsValid()) {
       Current = std::make_pair(&*LeftIt, nullptr);
@@ -218,21 +241,23 @@ private:
   }
 };
 
-template<typename T>
-inline ZipMapIterator<T> zipmap_begin(T &Left, T &Right) {
-  return ZipMapIterator<T>(llvm::make_range(Left.begin(), Left.end()),
-                           llvm::make_range(Right.begin(), Right.end()));
+template<typename T, typename KC = KeyContainer<T>>
+inline ZipMapIterator<T, KC> zipmap_begin(T &Left, T &Right) {
+  return ZipMapIterator<T, KC>(llvm::make_range(Left.begin(), Left.end()),
+                               llvm::make_range(Right.begin(), Right.end()));
 }
 
-template<typename T>
-inline ZipMapIterator<T> zipmap_end(T &Left, T &Right) {
-  return ZipMapIterator<T>(llvm::make_range(Left.end(), Left.end()),
-                           llvm::make_range(Right.end(), Right.end()));
+template<typename T, typename KC = KeyContainer<T>>
+inline ZipMapIterator<T, KC> zipmap_end(T &Left, T &Right) {
+  return ZipMapIterator<T, KC>(llvm::make_range(Left.end(), Left.end()),
+                               llvm::make_range(Right.end(), Right.end()));
 }
 
-template<typename T>
-inline llvm::iterator_range<ZipMapIterator<T>> zipmap_range(T &Left, T &Right) {
-  return llvm::make_range(zipmap_begin(Left, Right), zipmap_end(Left, Right));
+template<typename T, typename KC = KeyContainer<T>>
+inline llvm::iterator_range<ZipMapIterator<T, KC>>
+zipmap_range(T &Left, T &Right) {
+  return llvm::make_range(zipmap_begin<T, KC>(Left, Right),
+                          zipmap_end<T, KC>(Left, Right));
 }
 
 #endif // ZIPMAPITERATOR_H
