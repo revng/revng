@@ -263,7 +263,31 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
   }
 
   // 1. Iterate on the users of `CPUStatePtr`
-  for (const User *U : CPUStatePtr->users()) {
+  std::set<const LoadInst *> Loads;
+  {
+    std::queue<const User *> WorkList;
+    for (const User *U : CPUStatePtr->users())
+      WorkList.push(U);
+
+    while (not WorkList.empty()) {
+      const User *U = WorkList.front();
+      WorkList.pop();
+
+      if (auto *CE = dyn_cast<ConstantExpr>(U)) {
+        if (CE->isCast()) {
+          for (const User *UCE : CE->users()) {
+            WorkList.push(UCE);
+          }
+        }
+      } else if (auto *Load = dyn_cast<LoadInst>(U)) {
+        Loads.insert(Load);
+      } else {
+        revng_abort("Unexpected user");
+      }
+    }
+  }
+
+  for (const LoadInst *Load : Loads) {
 
     // During the analysis we keep two stacks.
     // ToTaintWorkList is a stack representing the Values currently enqued that
@@ -275,7 +299,6 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
 
     // Sanity check for the uses of CPUStatePtr.
     // They must all be direct Loads from CPUStatePtr.
-    const auto *Load = cast<const LoadInst>(U);
     revng_assert(Load->getPointerOperand() == CPUStatePtr);
 
     // Push the first use on the WorkList
