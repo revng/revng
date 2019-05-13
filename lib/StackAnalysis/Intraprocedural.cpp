@@ -39,6 +39,8 @@ using llvm::User;
 using AI = StackAnalysis::Intraprocedural::Interrupt;
 using IFS = StackAnalysis::IntraproceduralFunctionSummary;
 
+const IFS EmptyCallSummary = IFS::bottom();
+
 // Loggers
 static Logger<> SaFake("sa-fake");
 static Logger<> SaTerminator("sa-terminator");
@@ -816,7 +818,6 @@ Interrupt Analysis::handleCall(Instruction *Caller,
     SaTerminator << " UnknownStackSize";
   }
 
-  IFS EmptyCallSummary = IFS::bottom();
   const IFS *CallSummary = &EmptyCallSummary;
 
   revng_assert(not(IsRecursive && IsIndirect));
