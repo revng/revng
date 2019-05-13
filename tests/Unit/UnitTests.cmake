@@ -25,6 +25,7 @@ target_link_libraries(test_lazysmallbitvector
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_lazysmallbitvector COMMAND test_lazysmallbitvector)
+set_tests_properties(test_lazysmallbitvector PROPERTIES LABELS "unit")
 
 #
 # test_stackanalysis
@@ -45,6 +46,7 @@ target_link_libraries(test_stackanalysis
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_stackanalysis COMMAND test_stackanalysis)
+set_tests_properties(test_stackanalysis PROPERTIES LABELS "unit")
 
 #
 # test_classsentinel
@@ -62,6 +64,7 @@ target_link_libraries(test_classsentinel
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_classsentinel COMMAND test_classsentinel)
+set_tests_properties(test_classsentinel PROPERTIES LABELS "unit")
 
 #
 # test_reachingdefinitionspass
@@ -80,6 +83,7 @@ target_link_libraries(test_reachingdefinitionspass
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_reachingdefinitionspass COMMAND test_reachingdefinitionspass)
+set_tests_properties(test_reachingdefinitionspass PROPERTIES LABELS "unit")
 
 #
 # test_irhelpers
@@ -97,6 +101,7 @@ target_link_libraries(test_irhelpers
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_irhelpers COMMAND test_irhelpers)
+set_tests_properties(test_irhelpers PROPERTIES LABELS "unit")
 
 #
 # test_zipmapiterator
@@ -114,3 +119,4 @@ target_link_libraries(test_zipmapiterator
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_zipmapiterator COMMAND test_zipmapiterator)
+set_tests_properties(test_zipmapiterator PROPERTIES LABELS "unit")
