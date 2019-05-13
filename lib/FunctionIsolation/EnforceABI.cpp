@@ -785,7 +785,8 @@ void EnforceABIImpl::replaceCSVsWithAlloca() {
           Pointer = Store->getPointerOperand();
 
         if (auto *CSV = dyn_cast_or_null<GlobalVariable>(Pointer))
-          CSVs.insert(CSV);
+          if (not GCBI.isSPReg(CSV))
+            CSVs.insert(CSV);
       }
     }
 
@@ -795,10 +796,6 @@ void EnforceABIImpl::replaceCSVsWithAlloca() {
     IRBuilder<> AllocaBuilder(&Entry, Entry.begin());
 
     for (GlobalVariable *CSV : CSVs) {
-
-      // Keep the stack pointer a global variable
-      if (GCBI.isSPReg(CSV))
-        continue;
 
       Type *CSVType = CSV->getType()->getPointerElementType();
 
