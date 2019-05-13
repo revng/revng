@@ -441,19 +441,9 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
         // Compute the stack size for the call to the helper
         Optional<int32_t> CallerStackSize = stackSize(Result);
 
-        if (CallerStackSize and *CallerStackSize < 0) {
-          // We have a call with a stack lower than the initial one, there's
-          // definitely something wrong going on here.
-          return Interrupt::create(std::move(Result), BranchType::FakeFunction);
-        }
-
         // Register the call site (as an indirect call) along with the current
         // stack size
-        if (not registerStackSizeAtCallSite(Indirect, CallerStackSize)) {
-          revng_log(SaTerminator,
-                    "Warning: unknown stack size while calling "
-                      << getName(Callee));
-        }
+        registerStackSizeAtCallSite(Indirect, CallerStackSize);
 
         // Create in the ABIIR a load for each read register and a store for
         // each written register
@@ -527,7 +517,8 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
 
   Value StackPointer = Value::fromSlot(ASID::cpuID(), SPIndex);
 
-  if (not Result.load(StackPointer).hasDirectContent())
+  bool HasUnknownStackSize = not Result.load(StackPointer).hasDirectContent();
+  if (HasUnknownStackSize)
     SaTerminator << " UnknownStackSize";
 
   // 0. Check if it's a direct killer basic block
@@ -633,9 +624,9 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
   const ASSlot *StackPointerSlot = StackPointerValue.directContent();
 
   auto SP0 = ASID::stackID();
-  bool IsReadyToReturn = not(StackPointerSlot != nullptr
-                             and StackPointerSlot->addressSpace() == SP0
-                             and StackPointerSlot->offset() < 0);
+  bool IsReadyToReturn = (StackPointerSlot != nullptr
+                          and StackPointerSlot->addressSpace() == SP0
+                          and StackPointerSlot->offset() >= 0);
 
   if (IsReadyToReturn)
     SaTerminator << " IsReadyToReturn";
@@ -656,13 +647,15 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
 
     // It's a return if the PC has a value with a name matching the name of the
     // initial value of the link register
-    IsReturn = PCTag != nullptr and *PCTag == ReturnAddressSlot;
+    IsReturn = (PCTag != nullptr) and (*PCTag == ReturnAddressSlot);
 
     if (SaTerminator.isEnabled()) {
+
       if (IsReturn) {
         SaTerminator << " ReturnsToLinkRegister";
       } else {
         SaTerminator << " (";
+
         ReturnAddressSlot.dump(M, SaTerminator);
         SaTerminator << " != ";
         if (PCTag == nullptr)
@@ -692,21 +685,9 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
 
   // Are we returning to the return address?
   if (IsReturn) {
-
-    // Is the stack in the position it should be?
-    if (IsReadyToReturn) {
-      // This looks like an actual return
-      ABIBB.setReturn();
-      return AI::create(std::move(Result), BT::Return);
-    } else {
-      // We have a return instruction, but the stack is not in the position we'd
-      // expect, mark this function as a fake function.
-      revng_log(SaFake,
-                "A return instruction has been found, but the stack"
-                " pointer is not in the expected position, marking "
-                  << Entry << " as fake.");
-      return AI::create(std::move(Result), BT::FakeFunction);
-    }
+    // This looks like an actual return
+    insert_or_assign(ReturnCandidates, T->getParent(), Result.copy());
+    return AI::create(std::move(Result), BT::Return);
   }
 
   if (IsFunctionCall)
@@ -732,7 +713,7 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
         // tail call
         return handleCall(T, nullptr, 0, nullptr, Result, ABIBB);
       } else {
-        // We have an indirect jump with a stack not ready to return, It'a a
+        // We have an indirect jump with a stack not ready to return: it's a
         // longjmp
         return AI::create(std::move(Result), BT::LongJmp);
       }
@@ -753,6 +734,108 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
   return AI::createWithSuccessors(std::move(Result),
                                   BT::FunctionLocalCFG,
                                   Successors);
+}
+
+std::pair<FunctionType::Values, Element> Analysis::finalize() {
+  uint64_t EntryPC = GCBI->getPC(Entry->getTerminator()).first;
+
+#ifndef NDEBUG
+  // Compute the set of reachable basic blocks
+  llvm::ReversePostOrderTraversal<ABIIRBasicBlock *> RPOT(TheABIIR.entry());
+  std::set<BasicBlock *> Reachable;
+  for (ABIIRBasicBlock *Block : RPOT)
+    Reachable.insert(Block->basicBlock());
+#endif
+
+  //
+  // Return SP election
+  //
+
+  // Combine the value of the stack pointer of each candidate return to see if
+  // they agree.  Meanwhile find the return that is closest (but after) the
+  // entry point and that has a valid stack size
+  Value BestSP;
+  uint64_t ClosestPC = EntryPC - 1;
+  bool First = true;
+  Value Combined;
+  for (auto &P : ReturnCandidates) {
+    BasicBlock *BB = P.first;
+    const Element &Result = P.second;
+    uint64_t PC = GCBI->getPC(BB->getTerminator()).first;
+
+#ifndef NDEBUG
+    revng_assert(Reachable.count(BB) != 0);
+#endif
+
+    Value StackPointer = Value::fromSlot(ASID::cpuID(), SPIndex);
+    Value StackPointerValue = Result.load(StackPointer);
+
+    if (First) {
+      Combined = StackPointerValue;
+      First = false;
+    } else {
+      Combined.combine(StackPointerValue);
+    }
+
+    if (const ASSlot *Slot = StackPointerValue.directContent()) {
+      if (PC >= EntryPC and PC < ClosestPC
+          and Slot->addressSpace() == ASID::stackID() and Slot->offset() >= 0) {
+
+        ClosestPC = PC;
+        BestSP = StackPointerValue;
+      }
+    }
+  }
+
+  // Do they all agree on a fixed stack pointer?
+  if (const ASSlot *Slot = Combined.directContent()) {
+    if (Slot->addressSpace() == ASID::stackID()) {
+      if (Slot->offset() >= 0) {
+        BestSP = Combined;
+      } else {
+        // Every return agrees the stack has grown: it's a fake function, let's
+        // inline it
+        return { FunctionType::Fake, std::move(Element::bottom()) };
+      }
+    }
+  }
+
+  if (not BestSP.hasDirectContent())
+    return { FunctionType::NoReturn, std::move(Element::bottom()) };
+
+  // Combine all the values of the non-broken returns, mark as broken all the
+  // others
+  First = true;
+  Element GrandResult = Element::bottom();
+  for (auto &P : ReturnCandidates) {
+    BasicBlock *BB = P.first;
+    Element &ReturnResult = P.second;
+
+    Value StackPointer = Value::fromSlot(ASID::cpuID(), SPIndex);
+    Value StackPointerValue = ReturnResult.load(StackPointer);
+
+    if (BestSP.hasDirectContent() and StackPointerValue == BestSP) {
+      // Mark as return basic block in the ABI IR
+      TheABIIR.get(BB).setReturn();
+
+      // OK, we're compatible, make ReturnResult part of the final result
+      if (First) {
+        GrandResult = std::move(ReturnResult);
+        First = false;
+      } else {
+        GrandResult.combine(std::move(ReturnResult));
+      }
+    } else {
+      // Mark as broken
+      auto &Type = BranchesType[BB];
+      if (Type == BranchType::Return)
+        Type = BranchType::BrokenReturn;
+      else if (Type == BranchType::IndirectTailCall)
+        Type = BranchType::LongJmp;
+    }
+  }
+
+  return { FunctionType::Regular, std::move(GrandResult) };
 }
 
 Interrupt Analysis::handleCall(Instruction *Caller,
@@ -778,7 +861,7 @@ Interrupt Analysis::handleCall(Instruction *Caller,
 
   // Handle special function types:
   //
-  // 1. Calls to Fake functions will be inlineed.
+  // 1. Calls to Fake functions will be inlined.
   // 2. Calls to NoReturn functions will make the current basic block a Killer
   // 3. Calls to IndirectTailCall functions are considered as indirect function
   //    calls
@@ -797,26 +880,11 @@ Interrupt Analysis::handleCall(Instruction *Caller,
       SaTerminator << " IsNoReturnFunction";
       IsKiller = true;
       ABIOnly = true;
-    } else if (TheCache->isIndirectTailCall(Callee)) {
-      SaTerminator << " IsIndirectTailCall";
-      ABIOnly = true;
     }
   }
 
   // If we know the current stack frame size, copy the arguments
   Optional<int32_t> CallerStackSize = stackSize(Result);
-  if (CallerStackSize) {
-    // We have a call with a stack lower than the initial one, there's
-    // definitely something wrong going on here. Mark it as a fake function.
-    if (*CallerStackSize < 0) {
-      revng_log(SaFake,
-                "Final stack is lower than initial one, marking"
-                  << Entry << " as fake.");
-      return AI::create(std::move(Result), BT::FakeFunction);
-    }
-  } else {
-    SaTerminator << " UnknownStackSize";
-  }
 
   const IFS *CallSummary = &EmptyCallSummary;
 
@@ -896,7 +964,7 @@ Interrupt Analysis::handleCall(Instruction *Caller,
     ABIBB.append(ABIIRInstruction::createIndirectCall(TheFunctionCall));
   } else {
     std::set<int32_t> StackArguments;
-    if (CallerStackSize)
+    if (CallerStackSize and *CallerStackSize >= 0)
       StackArguments = CallSummary->FinalState.stackArguments(*CallerStackSize);
     ABIBB.append(ABIIRInstruction::createDirectCall(TheFunctionCall,
                                                     CallSummary->ABI.copy(),
@@ -904,12 +972,7 @@ Interrupt Analysis::handleCall(Instruction *Caller,
   }
 
   // Record frame size
-  if (not registerStackSizeAtCallSite(TheFunctionCall, CallerStackSize)) {
-    revng_log(SaTerminator,
-              "Warning: unknown stack size while calling "
-                << getName(Callee) << DoLog << " (return address: " << std::hex
-                << ReturnAddress << std::dec << ")");
-  }
+  registerStackSizeAtCallSite(TheFunctionCall, CallerStackSize);
 
   // Resume the analysis from where we left off
 
@@ -928,6 +991,8 @@ Interrupt Analysis::handleCall(Instruction *Caller,
 
   revng_assert(not(IsIndirectTailCall and IsKiller));
   if (IsIndirectTailCall) {
+    // We consider indirect tail calls as returns
+    insert_or_assign(ReturnCandidates, Caller->getParent(), Result.copy());
     return AI::create(std::move(Result), BT::IndirectTailCall);
   } else if (IsKiller) {
     return AI::create(std::move(Result), BT::Killer);
@@ -943,6 +1008,14 @@ ASSlot Analysis::slotFromCSV(llvm::User *U) const {
 }
 
 IFS Analysis::createSummary() {
+  auto P = finalize();
+  FunctionType::Values Type = P.first;
+  Element GrandResult = std::move(P.second);
+
+  // Fake functions need no further analysis (NoReturn functions do)
+  if (Type == FunctionType::Fake)
+    return IFS::createFake();
+
   // Finalize the ABI IR (e.g., fill-in reverse links)
   TheABIIR.finalize();
 
@@ -967,11 +1040,19 @@ IFS Analysis::createSummary() {
 
   std::set<int32_t> WrittenRegisters = TheABIIR.writtenRegisters();
 
-  IFS Summary(FinalResult.copy(),
-              std::move(ABI),
-              std::move(FrameSizeAtCallSite),
-              std::move(BranchesType),
-              std::move(WrittenRegisters));
+  IFS Summary;
+  if (Type == FunctionType::Regular) {
+    Summary = IFS::createRegular(std::move(GrandResult),
+                                 std::move(ABI),
+                                 std::move(FrameSizeAtCallSite),
+                                 std::move(BranchesType),
+                                 std::move(WrittenRegisters));
+  } else {
+    Summary = IFS::createNoReturn(std::move(ABI),
+                                  std::move(FrameSizeAtCallSite),
+                                  std::move(BranchesType),
+                                  std::move(WrittenRegisters));
+  }
   findIncoherentFunctions(Summary);
 
   if (SaABI.isEnabled()) {

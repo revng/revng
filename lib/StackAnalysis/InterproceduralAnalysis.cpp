@@ -155,9 +155,8 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
       break;
     }
 
-    case BranchType::IndirectTailCallFunction:
     case BranchType::NoReturnFunction:
-    case BranchType::FunctionSummary: {
+    case BranchType::RegularFunction: {
       const IFS &Summary = Result.getFunctionSummary();
 
       revng_log(SaInterpLog, "We have a summary for " << Current.entry());
@@ -213,20 +212,13 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
                   "No improvement over the last analysis, we're OK");
 
         switch (Result.type()) {
-        case BranchType::IndirectTailCallFunction:
-          revng_log(SaInterpLog,
-                    Current.entry() << " ends with an indirect tail call");
-          TheCache.markAsIndirectTailCall(Current.entry());
-          Type = FunctionType::IndirectTailCall;
-          break;
-
         case BranchType::NoReturnFunction:
           revng_log(SaInterpLog, Current.entry() << " doesn't return");
           TheCache.markAsNoReturn(Current.entry());
           Type = FunctionType::NoReturn;
           break;
 
-        case BranchType::FunctionSummary:
+        case BranchType::RegularFunction:
           Type = FunctionType::Regular;
           break;
 
@@ -247,6 +239,7 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
     case BranchType::HandledCall:
     case BranchType::IndirectCall:
     case BranchType::Return:
+    case BranchType::BrokenReturn:
     case BranchType::IndirectTailCall:
     case BranchType::LongJmp:
     case BranchType::Killer:

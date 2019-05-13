@@ -51,6 +51,7 @@ public:
   using BranchesTypeMap = std::map<llvm::BasicBlock *, BranchType::Values>;
 
 public:
+  FunctionType::Values Type;
   Intraprocedural::Element FinalState;
   FunctionABI ABI;
   LocalSlotVector LocalSlots;
@@ -58,16 +59,23 @@ public:
   BranchesTypeMap BranchesType;
   std::set<int32_t> WrittenRegisters;
 
-private:
+public:
   IntraproceduralFunctionSummary() :
+    Type(FunctionType::Invalid),
     FinalState(Intraprocedural::Element::bottom()) {}
 
-public:
-  explicit IntraproceduralFunctionSummary(Intraprocedural::Element FinalState,
-                                          FunctionABI ABI,
-                                          CallSiteStackSizeMap FrameSizes,
-                                          BranchesTypeMap BranchesType,
-                                          std::set<int32_t> WrittenRegisters) :
+private:
+  IntraproceduralFunctionSummary(FunctionType::Values Type) :
+    Type(Type),
+    FinalState(Intraprocedural::Element::bottom()) {}
+
+  IntraproceduralFunctionSummary(FunctionType::Values Type,
+                                 Intraprocedural::Element FinalState,
+                                 FunctionABI ABI,
+                                 CallSiteStackSizeMap FrameSizes,
+                                 BranchesTypeMap BranchesType,
+                                 std::set<int32_t> WrittenRegisters) :
+    Type(Type),
     FinalState(std::move(FinalState)),
     ABI(std::move(ABI)),
     FrameSizeAtCallSite(std::move(FrameSizes)),
@@ -75,6 +83,38 @@ public:
     WrittenRegisters(std::move(WrittenRegisters)) {
 
     process();
+  }
+
+public:
+  static IntraproceduralFunctionSummary createFake() {
+    return IntraproceduralFunctionSummary(FunctionType::Fake);
+  }
+
+  static IntraproceduralFunctionSummary
+  createNoReturn(FunctionABI ABI,
+                 CallSiteStackSizeMap FrameSizes,
+                 BranchesTypeMap BranchesType,
+                 std::set<int32_t> WrittenRegisters) {
+    return IntraproceduralFunctionSummary(FunctionType::NoReturn,
+                                          Intraprocedural::Element::bottom(),
+                                          std::move(ABI),
+                                          std::move(FrameSizes),
+                                          std::move(BranchesType),
+                                          std::move(WrittenRegisters));
+  }
+
+  static IntraproceduralFunctionSummary
+  createRegular(Intraprocedural::Element FinalState,
+                FunctionABI ABI,
+                CallSiteStackSizeMap FrameSizes,
+                BranchesTypeMap BranchesType,
+                std::set<int32_t> WrittenRegisters) {
+    return IntraproceduralFunctionSummary(FunctionType::Regular,
+                                          std::move(FinalState),
+                                          std::move(ABI),
+                                          std::move(FrameSizes),
+                                          std::move(BranchesType),
+                                          std::move(WrittenRegisters));
   }
 
   static IntraproceduralFunctionSummary bottom() {
@@ -102,6 +142,8 @@ public:
 
   template<typename T>
   void dump(const llvm::Module *M, T &Output) const {
+    Output << "Type: " << FunctionType::getName(Type) << "\n";
+
     Output << "FinalState:\n";
     FinalState.dump(M, Output);
     Output << "\n";

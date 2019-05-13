@@ -94,8 +94,7 @@ public:
     if (Summary != nullptr) {
       mergeCallSites(Entry, Summary->FrameSizeAtCallSite);
       mergeBranches(Entry, Summary->BranchesType);
-      if (Type == FunctionType::Regular or Type == FunctionType::NoReturn
-          or Type == FunctionType::IndirectTailCall)
+      if (Type == FunctionType::Regular or Type == FunctionType::NoReturn)
         mergeFunction(Entry, *Summary);
     }
   }

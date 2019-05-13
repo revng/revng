@@ -425,6 +425,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
 
     case StackAnalysis::BranchType::IndirectTailCall:
     case StackAnalysis::BranchType::LongJmp:
+    case StackAnalysis::BranchType::BrokenReturn:
       break;
 
     case StackAnalysis::BranchType::Return:
@@ -436,8 +437,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
       return false;
 
     case StackAnalysis::BranchType::FakeFunction:
-    case StackAnalysis::BranchType::FunctionSummary:
-    case StackAnalysis::BranchType::IndirectTailCallFunction:
+    case StackAnalysis::BranchType::RegularFunction:
     case StackAnalysis::BranchType::Invalid:
     case StackAnalysis::BranchType::NoReturnFunction:
     case StackAnalysis::BranchType::UnhandledCall:

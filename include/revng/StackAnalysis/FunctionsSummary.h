@@ -31,8 +31,6 @@ enum Values {
   Invalid, ///< An invalid entry
   Regular, ///< A normal function
   NoReturn, ///< A noreturn function
-  IndirectTailCall, ///< A function with no returns but at least an indirect
-                    ///  tail call
   Fake ///< A fake function
 };
 
@@ -44,8 +42,6 @@ inline const char *getName(Values Type) {
     return "Regular";
   case NoReturn:
     return "NoReturn";
-  case IndirectTailCall:
-    return "IndirectTailCall";
   case Fake:
     return "Fake";
   }
@@ -77,6 +73,9 @@ enum Values {
   UnhandledCall,
   /// A proper function return
   Return,
+  /// A branch returning to the return address, but leaving the stack
+  /// in an unexpected situation
+  BrokenReturn,
   /// A branch representing an indirect tail call
   IndirectTailCall,
   /// A branch representing a longjmp or similar constructs
@@ -89,12 +88,9 @@ enum Values {
   /// This function is fake, inform the interprocedural part of the analysis
   FakeFunction,
   /// The analysis of the function is finished and a summary is available
-  FunctionSummary,
+  RegularFunction,
   /// This is a function for which we couldn't find any return statement
   NoReturnFunction,
-  /// This is a function for which there are no proper return statements, but
-  /// not all exit points are killer/noreturns
-  IndirectTailCallFunction
 };
 
 inline const char *getName(Values Type) {
@@ -117,6 +113,8 @@ inline const char *getName(Values Type) {
     return "UnhandledCall";
   case Return:
     return "Return";
+  case BrokenReturn:
+    return "BrokenReturn";
   case IndirectTailCall:
     return "IndirectTailCall";
   case FakeFunction:
@@ -125,14 +123,12 @@ inline const char *getName(Values Type) {
     return "LongJmp";
   case Killer:
     return "Killer";
-  case FunctionSummary:
-    return "FunctionSummary";
+  case RegularFunction:
+    return "RegularFunction";
   case NoReturnFunction:
     return "NoReturnFunction";
   case Unreachable:
     return "Unreachable";
-  case IndirectTailCallFunction:
-    return "IndirectTailCallFunction";
   }
 
   revng_abort();
@@ -157,6 +153,8 @@ inline Values fromName(llvm::StringRef Name) {
     return UnhandledCall;
   else if (Name == "Return")
     return Return;
+  else if (Name == "BrokenReturn")
+    return BrokenReturn;
   else if (Name == "IndirectTailCall")
     return IndirectTailCall;
   else if (Name == "FakeFunction")
@@ -165,14 +163,12 @@ inline Values fromName(llvm::StringRef Name) {
     return LongJmp;
   else if (Name == "Killer")
     return Killer;
-  else if (Name == "FunctionSummary")
-    return FunctionSummary;
+  else if (Name == "RegularFunction")
+    return RegularFunction;
   else if (Name == "NoReturnFunction")
     return NoReturnFunction;
   else if (Name == "Unreachable")
     return Unreachable;
-  else if (Name == "IndirectTailCallFunction")
-    return IndirectTailCallFunction;
   else
     revng_abort();
 }

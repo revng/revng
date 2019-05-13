@@ -156,8 +156,6 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
     FunctionType::Values Type;
     if (TheCache.isFakeFunction(Entry))
       Type = FunctionType::Fake;
-    else if (TheCache.isIndirectTailCall(Entry))
-      Type = FunctionType::IndirectTailCall;
     else if (TheCache.isNoReturnFunction(Entry))
       Type = FunctionType::NoReturn;
     else

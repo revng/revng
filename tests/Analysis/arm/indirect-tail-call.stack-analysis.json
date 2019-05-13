@@ -5,7 +5,7 @@
   },
   {
     "entry_point": "bb.tailcall",
-    "type": "IndirectTailCall",
+    "type": "Regular",
     "basic_blocks": [{"name": "bb.tailcall", "type": "IndirectTailCall"}]
   }
 ]
