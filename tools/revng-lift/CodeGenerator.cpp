@@ -324,10 +324,17 @@ static void replaceFunctionWithRet(Function *ToReplace, uint64_t Result) {
 }
 
 class CpuLoopFunctionPass : public llvm::ModulePass {
+private:
+  intptr_t ExceptionIndexOffset;
+
 public:
   static char ID;
 
-  CpuLoopFunctionPass() : llvm::ModulePass(ID) {}
+  CpuLoopFunctionPass() : llvm::ModulePass(ID), ExceptionIndexOffset(0) {}
+
+  CpuLoopFunctionPass(intptr_t ExceptionIndexOffset) :
+    llvm::ModulePass(ID),
+    ExceptionIndexOffset(ExceptionIndexOffset) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
@@ -417,10 +424,19 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
 
   auto *Call = cast<CallInst>(CallUser);
   revng_assert(Call->getCalledFunction() == &CpuExec);
-  Value *ExceptionIndex = TheModule->getOrInsertGlobal("exception_index",
-                                                       CpuExec.getReturnType());
-  Value *LoadExceptionIndex = new LoadInst(ExceptionIndex, "", Call);
-  Call->replaceAllUsesWith(LoadExceptionIndex);
+  Value *CPUState = Call->getArgOperand(0);
+  Type *TargetType = CpuExec.getReturnType()->getPointerTo();
+
+  IRBuilder<> Builder(Call);
+  Type *IntPtrTy = Builder.getIntPtrTy(TheModule->getDataLayout());
+  Value *CPUIntPtr = Builder.CreatePtrToInt(CPUState, IntPtrTy);
+  using CI = ConstantInt;
+  auto Offset = CI::get(IntPtrTy, ExceptionIndexOffset);
+  Value *ExceptionIndexIntPtr = Builder.CreateAdd(CPUIntPtr, Offset);
+  Value *ExceptionIndexPtr = Builder.CreateIntToPtr(ExceptionIndexIntPtr,
+                                                    TargetType);
+  Value *ExceptionIndex = Builder.CreateLoad(ExceptionIndexPtr);
+  Call->replaceAllUsesWith(ExceptionIndex);
   Call->eraseFromParent();
 
   return true;
@@ -641,7 +657,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   // running SROA
   legacy::PassManager CpuLoopPM;
   CpuLoopPM.add(new LoopInfoWrapperPass());
-  CpuLoopPM.add(new CpuLoopFunctionPass());
+  CpuLoopPM.add(new CpuLoopFunctionPass(ptc.exception_index));
   CpuLoopPM.add(createSROAPass());
   CpuLoopPM.run(*HelpersModule);
 
@@ -757,18 +773,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     PM.add(new CpuLoopExitPass(&Variables));
     PM.run(*TheModule);
   }
-
-  // CpuLoopFunctionPass expects a variable name exception_index to exist
-  auto P = Variables.getByEnvOffset(ptc.exception_index, "exception_index");
-  GlobalVariable *EI = P.first;
-  if (auto *OLDEI = TheModule->getGlobalVariable("exception_index")) {
-    revng_assert(EI->getType() == OLDEI->getType());
-    OLDEI->replaceAllUsesWith(EI);
-    OLDEI->eraseFromParent();
-    EI->setName("exception_index");
-  }
-  Type *T = EI->getType()->getPointerElementType();
-  EI->setInitializer(ConstantInt::getNullValue(T));
 
   std::set<Function *> CpuLoopExitingUsers;
   Value *CpuLoopExiting = TheModule->getGlobalVariable("cpu_loop_exiting");
