@@ -754,9 +754,13 @@ inline void erase_if(Container &C, UnaryPredicate P) {
 
 inline std::string dumpToString(const llvm::Value *V) {
   std::string Result;
-  llvm::raw_string_ostream Stream(Result);
-  V->print(Stream, true);
-  Stream.str();
+  if (V != nullptr) {
+    llvm::raw_string_ostream Stream(Result);
+    V->print(Stream, true);
+    Stream.str();
+  } else {
+    Result = "nullptr";
+  }
   return Result;
 }
 
