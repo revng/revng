@@ -386,6 +386,21 @@ static BasicBlockNodeBB *getCheckPredecessor(BasicBlockNodeBB *Node) {
   return CheckPredecessor;
 }
 
+static void removeFromRPOT(std::vector<BasicBlockNodeBB *> &RPOT,
+                           BasicBlockNodeBB *Node) {
+
+  RPOT.erase(std::remove_if(RPOT.begin(),
+                            RPOT.end(),
+                            [Node](BasicBlockNodeBB *N) {
+                              if (N == Node) {
+                                return true;
+                              }
+                              return false;
+                            }),
+             RPOT.end());
+
+}
+
 char RestructureCFG::ID = 0;
 static RegisterPass<RestructureCFG> X("restructure-cfg",
                                       "Apply RegionCFG restructuring "
@@ -585,8 +600,17 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
   }
 
-  ReversePostOrderTraversal<BasicBlockNodeBB *> RPOT(&RootCFG.getEntryNode());
+  ReversePostOrderTraversal<BasicBlockNodeBB *> ORPOT(&RootCFG.getEntryNode());
+
+  // Create a std::vector from the reverse post order (we will later need
+  // the removal operation)
+  std::vector<BasicBlockNodeBB *> RPOT;
+  for (BasicBlockNodeBB *BN : ORPOT) {
+    RPOT.push_back(BN);
+  }
+
   if (CombLogger.isEnabled()) {
+    CombLogger << "\n";
     CombLogger << "Reverse post order is:\n";
     for (BasicBlockNodeBB *BN : RPOT) {
       CombLogger << BN->getNameStr() << "\n";
@@ -610,9 +634,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
   std::vector<RegionCFG<BasicBlock *>> Regions(OrderedMetaRegions.size());
 
   for (MetaRegionBB *Meta : OrderedMetaRegions) {
-
-    ReversePostOrderTraversal<BasicBlockNodeBB *> RPOT(&RootCFG.getEntryNode());
-
     if (CombLogger.isEnabled()) {
       CombLogger << "\nAnalyzing region: " << Meta->getIndex() << "\n";
     }
@@ -1140,6 +1161,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
                    << "\n";
       }
       RootCFG.removeNode(Node);
+      removeFromRPOT(RPOT, Node);
     }
 
     // Substitute in the other SCSs the nodes of the current SCS with the
