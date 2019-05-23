@@ -69,7 +69,8 @@ void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
 
 template<typename SwitchNodeType>
 typename SwitchNodeType::case_value
-getCaseValueN(const SwitchNodeType *S, int N) {
+getCaseValueN(const SwitchNodeType *S,
+              typename SwitchNodeType::case_container::size_type N) {
   return cast<SwitchNodeType>(S)->getCaseValueN(N);
 }
 
@@ -82,7 +83,7 @@ bool SwitchNode::hasEqualCaseValues(const SwitchNode *Node) const {
   auto *RegSwitchThis = dyn_cast<RegularSwitchNode>(this);
   auto *SwitchCheckOther = dyn_cast<SwitchCheckNode>(Node);
   auto *RegSwitchOther = dyn_cast<RegularSwitchNode>(Node);
-  for (size_t I = 0; I < CaseSize(); I++) {
+  for (case_container::size_type I = 0; I < CaseSize(); I++) {
     if (SwitchCheckThis != nullptr) {
       uint64_t ThisCase = getCaseValueN(SwitchCheckThis, I);
       uint64_t OtherCase = getCaseValueN(SwitchCheckOther, I);
@@ -112,8 +113,8 @@ bool SwitchNode::isEqual(const ASTNode *Node) const {
   if (ThisDefault and not ThisDefault->isEqual(OtherDefault))
     return false;
 
-  int FirstDimension = CaseSize();
-  int SecondDimension = OtherSwitch->CaseSize();
+  case_container::size_type FirstDimension = CaseSize();
+  case_container::size_type SecondDimension = OtherSwitch->CaseSize();
   // Continue the comparison only if the sequence node size are the same
   if (FirstDimension != SecondDimension)
     return false;
@@ -124,7 +125,7 @@ bool SwitchNode::isEqual(const ASTNode *Node) const {
   if (not hasEqualCaseValues(OtherSwitch))
     return false;
 
-  for (int I = 0; I < FirstDimension; I++) {
+  for (case_container::size_type I = 0; I < FirstDimension; I++) {
     ASTNode *FirstNode = getCaseN(I);
     ASTNode *SecondNode = OtherSwitch->getCaseN(I);
 
@@ -185,14 +186,14 @@ bool SequenceNode::isEqual(const ASTNode *Node) const {
   if (OtherSequence == nullptr)
     return false;
 
-  int FirstDimension = NodeList.size();
-  int SecondDimension = OtherSequence->listSize();
+  links_container::size_type FirstDimension = NodeList.size();
+  links_container::size_type SecondDimension = OtherSequence->listSize();
   // Continue the comparison only if the sequence node size are the same
   if (FirstDimension != SecondDimension)
     return false;
 
   revng_assert(FirstDimension == SecondDimension);
-  for (int I = 0; I < FirstDimension; I++) {
+  for (links_container::size_type I = 0; I < FirstDimension; I++) {
     ASTNode *FirstNode = getNodeN(I);
     ASTNode *SecondNode = OtherSequence->getNodeN(I);
 
@@ -275,7 +276,7 @@ void RegularSwitchNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"";
   ASTFile << ",shape=\"hexagon\",color=\"black\"];\n";
 
-  int CaseIndex = 0;
+  case_container::size_type CaseIndex = 0;
   for (ASTNode *Case : this->unordered_cases()) {
     uint64_t CaseVal = CaseValueVec[CaseIndex]->getZExtValue();
     ASTFile << "\"" << this->getName() << "\""
@@ -346,7 +347,7 @@ void SwitchCheckNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"";
   ASTFile << ",shape=\"hexagon\",color=\"black\"];\n";
 
-  int CaseIndex = 0;
+  case_container::size_type CaseIndex = 0;
   for (ASTNode *Case : this->unordered_cases()) {
     uint64_t CaseVal = CaseValueVec[CaseIndex];
     ASTFile << "\"" << this->getName() << "\""
