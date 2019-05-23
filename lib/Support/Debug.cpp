@@ -12,6 +12,7 @@
 #include <vector>
 
 // LLVM includes
+#include "llvm/ADT/Twine.h"
 #include "llvm/IR/Value.h"
 
 // Local libraries includes
@@ -19,9 +20,17 @@
 #include "revng/Support/revng.h"
 
 namespace cl = llvm::cl;
+using llvm::Twine;
+
+static cl::opt<unsigned> MaxLocationLength("debug-location-max-length",
+                                           cl::desc("emit file and line number "
+                                                    "for log "
+                                                    "messages of at most this "
+                                                    "size."),
+                                           cl::cat(MainCategory),
+                                           cl::init(0));
 
 size_t MaxLoggerNameLength = 0;
-LogTerminator DoLog;
 llvm::ManagedStatic<LoggersRegistry> Loggers;
 
 std::ostream &dbg(std::cerr);
@@ -30,10 +39,29 @@ Logger<> PassesLog("passes");
 Logger<> ReleaseLog("release");
 
 template<bool X>
-void Logger<X>::emit() {
+void Logger<X>::emit(const LogTerminator &LineInfo) {
   if (X && Enabled) {
-    std::string Pad = std::string(MaxLoggerNameLength - Name.size(), ' ');
-    dbg << "[" << Name.data() << Pad << "] ";
+    std::string Pad;
+
+    if (MaxLocationLength != 0) {
+      std::string Suffix = (Twine(":") + Twine(LineInfo.Line)).str();
+      revng_assert(Suffix.size() < MaxLocationLength);
+      std::string Location(LineInfo.File);
+      size_t LastSlash = Location.rfind("/");
+      if (LastSlash != std::string::npos)
+        Location.erase(0, LastSlash + 1);
+
+      if (Location.size() > MaxLocationLength - Suffix.size()) {
+        Location.erase(MaxLocationLength - Suffix.size(), std::string::npos);
+      }
+
+      Pad = std::string(MaxLocationLength - Location.size() - Suffix.size(),
+                        ' ');
+      dbg << "[" << Location << Suffix << "] " << Pad;
+    }
+
+    Pad = std::string(MaxLoggerNameLength - Name.size(), ' ');
+    dbg << "[" << Name.data() << "] " << Pad;
     for (unsigned I = 0; I < IndentLevel; I++)
       dbg << "  ";
     dbg << Buffer.str() << "\n";
