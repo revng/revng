@@ -77,10 +77,10 @@ static clang::Expr *negateExpr(clang::ASTContext &ASTCtx, clang::Expr *E) {
 }
 
 static void buildStmtsForBasicBlock(llvm::BasicBlock *BB,
-                                   clang::ASTContext &ASTCtx,
-                                   SmallVectorImpl<clang::Stmt *> &Stmts,
-                                   IR2AST::StmtBuilder &ASTBuilder,
-                                   MarkForSerialization::Analysis &Mark) {
+                                    clang::ASTContext &ASTCtx,
+                                    SmallVectorImpl<clang::Stmt *> &Stmts,
+                                    IR2AST::StmtBuilder &ASTBuilder,
+                                    MarkForSerialization::Analysis &Mark) {
   revng_assert(BB != nullptr);
   auto StmtEnd = ASTBuilder.InstrStmts.end();
   auto VDeclEnd = ASTBuilder.VarDecls.end();

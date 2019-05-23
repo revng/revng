@@ -26,7 +26,7 @@ class RegionCFG;
 /// \brief Graph Node, representing a basic block
 template<class NodeT>
 class BasicBlockNode {
-protected: 
+protected:
   using BasicBlockNodeMap = std::map<BasicBlockNode *, BasicBlockNode *>;
 
 public:
@@ -198,7 +198,7 @@ public:
   void removeNode();
 
   // TODO: Check why this implementation is really necessary.
-  void printAsOperand(llvm::raw_ostream &O, bool PrintType) const;
+  void printAsOperand(llvm::raw_ostream &O, bool /* PrintType */) const;
 
   void addSuccessor(BasicBlockNode *Successor) {
     // TODO: Disabled this, since even for set node if we copy the successors

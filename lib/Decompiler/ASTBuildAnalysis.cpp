@@ -668,7 +668,6 @@ void StmtBuilder::createAST() {
         VarDecls[&I] = NewVarDecl;
       }
     }
-
   }
 }
 
@@ -705,7 +704,7 @@ static clang::BinaryOperatorKind getClangBinaryOpKind(const Instruction &I) {
   } break;
   case Instruction::Mul: {
     Res = clang::BinaryOperatorKind::BO_Mul;
-  }
+  } break;
   case Instruction::And: {
     Res = clang::BinaryOperatorKind::BO_And;
   } break;

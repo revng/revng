@@ -25,7 +25,6 @@ class Analysis
                              VisitType::PostOrder,
                              llvm::SmallVector<llvm::BasicBlock *, 2>> {
 private:
-  llvm::Function &F;
   LivenessMap LiveOut;
   using BBEdge = std::pair<llvm::BasicBlock *, llvm::BasicBlock *>;
   using UseSet = llvm::SmallPtrSet<llvm::Use *, 8>;
@@ -38,7 +37,7 @@ public:
                                  VisitType::PostOrder,
                                  llvm::SmallVector<llvm::BasicBlock *, 2>>;
 
-  Analysis(llvm::Function &F) : Base(&F.getEntryBlock()), F(F) {
+  Analysis(llvm::Function &F) : Base(&F.getEntryBlock()) {
     for (llvm::BasicBlock &BB : F) {
       auto NextSucc = llvm::succ_begin(&BB);
       auto EndSucc = llvm::succ_end(&BB);
@@ -75,9 +74,7 @@ public:
     return pred_size(BB);
   }
 
-  static LiveSet extremalValue(llvm::BasicBlock *BB) {
-    return LiveSet::bottom();
-  }
+  static LiveSet extremalValue(llvm::BasicBlock *) { return LiveSet::bottom(); }
 
   /// \brief Gets the final results of the analysis
   ///

@@ -51,7 +51,7 @@ inline void BasicBlockNode<NodeT>::removeNode() {
 // Needed by `DomTreeBuilder`.
 template<class NodeT>
 inline void BasicBlockNode<NodeT>::printAsOperand(llvm::raw_ostream &O,
-                                                  bool PrintType) const {
+                                                  bool /* PrintType */) const {
   O << Name;
 }
 

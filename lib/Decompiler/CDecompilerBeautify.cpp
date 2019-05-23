@@ -873,6 +873,7 @@ protected:
       break; // do nothing
     case ASTNode::NK_IfCheck:
       BeautifyLogger << "Unexpected: IfCheck\n";
+      // fallthrough
     default:
       revng_unreachable("unexpected node kind");
     }

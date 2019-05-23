@@ -127,7 +127,8 @@ public:
 
   virtual void dump(std::ofstream &ASTFile) override;
 
-  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override{};
+  virtual void
+  updateASTNodesPointers(ASTNodeMap & /* SubstitutionMap */) override{};
 
   virtual ASTNode *Clone() override { return new CodeNode(*this); }
 
@@ -246,7 +247,8 @@ public:
 
   virtual void dump(std::ofstream &ASTFile) override;
 
-  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override{};
+  virtual void
+  updateASTNodesPointers(ASTNodeMap & /* SubstitutionMap */) override{};
 
   virtual ASTNode *Clone() override { return new ScsNode(*this); }
 
@@ -342,7 +344,8 @@ public:
     return nullptr != llvm::dyn_cast_or_null<ContinueNode>(Node);
   }
 
-  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override {}
+  virtual void
+  updateASTNodesPointers(ASTNodeMap & /* SubstitutionMap */) override {}
 
   virtual ~ContinueNode() override = default;
 
@@ -372,7 +375,8 @@ public:
     return nullptr != llvm::dyn_cast_or_null<BreakNode>(Node);
   }
 
-  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override {}
+  virtual void
+  updateASTNodesPointers(ASTNodeMap & /* SubstitutionMap */) override {}
 
   virtual ~BreakNode() override = default;
 
@@ -401,7 +405,8 @@ public:
     return nullptr != llvm::dyn_cast_or_null<SwitchBreakNode>(Node);
   }
 
-  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override {}
+  virtual void
+  updateASTNodesPointers(ASTNodeMap & /* SubstitutionMap */) override {}
 
   virtual ~SwitchBreakNode() override = default;
 };
@@ -427,7 +432,8 @@ public:
 
   virtual void dump(std::ofstream &ASTFile) override;
 
-  virtual void updateASTNodesPointers(ASTNodeMap &SubstitutionMap) override{};
+  virtual void
+  updateASTNodesPointers(ASTNodeMap & /* SubstitutionMap */) override{};
 
   virtual ASTNode *Clone() override { return new SetNode(*this); }
 
