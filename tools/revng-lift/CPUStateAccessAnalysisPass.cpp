@@ -2129,7 +2129,6 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
       CSVOffsets NewOffsets = CSVOffsets(CSVOffsets::Kind::KnownInPtr, 0);
       insertCallSiteOffset(CurSrcVal, std::move(NewOffsets));
 
-
       Value *NextSrcVal = WLIt->nextSourceValue();
       if (nullptr == NextSrcVal)
         break;
