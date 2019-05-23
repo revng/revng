@@ -53,7 +53,7 @@ bool RemoveBadPC::runOnFunction(Function &F) {
       // The `_bad_return_pc` basic block is the one corresponding to the else
       // branch, so we need to keep only the `then` branch.
       BasicBlock *Then = Branch->getSuccessor(0);
-      BasicBlock *Else = Branch->getSuccessor(1);
+      Branch->getSuccessor(1);
 
       // Print the name of the block being removed.
       // dbg << "Removing successor: " << Else->getName().str() << "\n";

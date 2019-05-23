@@ -50,9 +50,9 @@ inline ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
       if (If->hasElse()) {
         If->setElse(createSequence(Tree, If->getElse()));
       }
-    } else if (auto *Code = llvm::dyn_cast<CodeNode>(Node)) {
+    } else if (llvm::isa<CodeNode>(Node)) {
       // TODO: confirm that doesn't make sense to process a code node.
-    } else if (auto *Scs = llvm::dyn_cast<ScsNode>(Node)) {
+    } else if (llvm::isa<ScsNode>(Node)) {
       // TODO: confirm that this phase is not needed since the processing is
       //       done inside the processing of each SCS region.
     }
@@ -604,7 +604,6 @@ inline void RegionCFG<NodeT>::untangle() {
   BBNodeMap PostDominatorMap;
 
   // Collect entry and exit nodes.
-  BasicBlockNode<NodeT> *EntryNode = &Graph.getEntryNode();
   BasicBlockNodeTVect ExitNodes;
   for (auto It = Graph.begin(); It != Graph.end(); It++) {
     if ((*It)->successor_size() == 0) {

@@ -28,11 +28,11 @@ static std::vector<TypePair> createTypeDecls(ASTContext &Context,
 
   if (llvm::Type *RetTy = dyn_cast<llvm::StructType>(FType->getReturnType())) {
 
-    QualType RetType = IRASTTypeTranslation::getOrCreateQualType(RetTy,
-                                                                 Context,
-                                                                 *TUDecl,
-                                                                 TypeDecls,
-                                                                 FieldDecls);
+    IRASTTypeTranslation::getOrCreateQualType(RetTy,
+                                              Context,
+                                              *TUDecl,
+                                              TypeDecls,
+                                              FieldDecls);
 
     revng_assert(TypeDecls.count(RetTy));
     Result.push_back(*TypeDecls.find(RetTy));

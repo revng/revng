@@ -168,7 +168,6 @@ static clang::Expr *createCondExpr(ExprNode *E,
     llvm::SmallVector<clang::Expr *, 2> ResolvedOperands;
   };
   llvm::SmallVector<StackElement, 4> VisitStack;
-  clang::Expr *Result = nullptr;
   VisitStack.push_back({ nullptr, {} });
   VisitStack.push_back({ E, {} });
 
@@ -561,7 +560,6 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
                               ASTTree &CombedAST,
                               IR2AST::StmtBuilder &ASTBuilder,
                               MarkForSerialization::Analysis &Mark) {
-  llvm::Function &F = *FPair.first;
   clang::FunctionDecl *FDecl = FPair.second;
   ASTContext &ASTCtx = FDecl->getASTContext();
 
@@ -597,6 +595,7 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
     Body->body_begin()[I] = BodyStmts[I - NumLocalVars];
 
 #if 0
+  llvm::Function &F = *FPair.first;
   int I = NumLocalVars;
   auto End = ASTInfo.InstrStmts.end();
   for (llvm::BasicBlock &BB : F) {
@@ -630,8 +629,8 @@ public:
     TheF(F),
     RCFG(RCFG),
     CombedAST(CombedAST),
-    BlockToPHIIncoming(BlockToPHIIncoming),
     Out(std::move(Out)),
+    BlockToPHIIncoming(BlockToPHIIncoming),
     NDuplicates(NDuplicates) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override {

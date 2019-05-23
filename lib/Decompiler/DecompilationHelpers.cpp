@@ -18,10 +18,6 @@
 using namespace llvm;
 using namespace clang;
 
-static bool isInAnyFunction(Instruction *I, const std::set<Function *> &Funcs) {
-  return Funcs.count(I->getFunction()) != 0;
-}
-
 static bool isUsedInFunction(ConstantExpr *CE, const Function &F) {
   SmallSet<Constant *, 16> UnexploredCEUsers;
   UnexploredCEUsers.insert(CE);

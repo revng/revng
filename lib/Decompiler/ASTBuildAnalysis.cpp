@@ -36,10 +36,6 @@ using namespace IRASTTypeTranslation;
 
 namespace IR2AST {
 
-static bool needsLabel(const BasicBlock &) {
-  return false;
-}
-
 Expr *StmtBuilder::getParenthesizedExprForValue(Value *V) {
   Expr *Res = getExprForValue(V);
   if (isa<clang::BinaryOperator>(Res) or isa<ConditionalOperator>(Res))
@@ -379,7 +375,6 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       for (unsigned OpId = 0; OpId < NumOps; ++OpId) {
         Value *Operand = TheCall->getOperand(OpId);
         Expr *ArgExpr = getExprForValue(Operand);
-        QualType ArgQualTy = ArgExpr->getType();
 
         Args[OpId] = ArgExpr;
       }
@@ -521,10 +516,6 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     revng_abort("Unexpected operation");
   }
   revng_abort("Unexpected operation");
-}
-
-static bool isPure(const Instruction & /*Call*/) {
-  return false;
 }
 
 clang::VarDecl *StmtBuilder::getOrCreateLoopStateVarDecl() {
@@ -1244,7 +1235,7 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
                                     APInt::getNullValue(UIntPtrSize),
                                     UIntPtr,
                                     {});
-    } else if (auto *CU = dyn_cast<UndefValue>(CD)) {
+    } else if (isa<UndefValue>(CD)) {
       uint64_t ConstValue = 0;
       APInt Const = APInt(64, ConstValue);
       QualType IntT = ASTCtx.LongTy;

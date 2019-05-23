@@ -745,7 +745,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     revng_assert(MaxDegree > 0);
 
-    BasicBlockNodeBB *FirstCandidate;
+    BasicBlockNodeBB *FirstCandidate = nullptr;
     if (MaximuxEdgesNodes.size() > 1) {
       for (BasicBlockNodeBB *BN : RPOT) {
         if (MaximuxEdgesNodes.count(BN) != 0) {
@@ -915,7 +915,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
       // Remove the frontier nodes since we do not need them anymore.
       for (BasicBlockNodeBB *Frontier : Frontiers) {
-        EdgeDescriptor Extremal = EdgeExtremal[Frontier];
         BasicBlockNodeBB *OriginalSource = EdgeExtremal[Frontier].first;
         BasicBlockNodeBB *OriginalTarget = EdgeExtremal[Frontier].second;
         moveEdgeTarget({ OriginalSource, Frontier }, OriginalTarget);
@@ -1049,7 +1048,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
           UpdatedBackedges = false;
           for (EdgeDescriptor Backedge : Backedges) {
             BasicBlockNodeBB *Source = Backedge.first;
-            BasicBlockNodeBB *Target = Backedge.second;
             if (Source == Pred) {
               Backedges.erase(Backedge);
               Backedges.insert(EdgeDescriptor(Set, Head));

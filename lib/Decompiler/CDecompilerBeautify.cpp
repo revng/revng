@@ -205,7 +205,7 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
             ExprNode *NotBNode = AST.addCondExpr(std::move(NotB));
 
             auto NotAAndNotB = std::make_unique<AndNode>(NotANode, NotBNode);
-            ExprNode *NotAAndNotBNode = AST.addCondExpr(std::move(NotAAndNotB));
+            AST.addCondExpr(std::move(NotAAndNotB));
 
             // Increment counter
             ShortCircuitCounter += 1;
@@ -235,7 +235,7 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
 
             auto NotAAndB = std::make_unique<AndNode>(NotANode,
                                                       NestedIf->getCondExpr());
-            ExprNode *NotAAndBNode = AST.addCondExpr(std::move(NotAAndB));
+            AST.addCondExpr(std::move(NotAAndB));
 
             // Increment counter
             ShortCircuitCounter += 1;
@@ -343,7 +343,6 @@ static bool wasOriginalSwitch(ASTNode *Candidate) {
     // Check that the body contains an `icmp` instruction over the condition
     // of the switch and a constant, and then a conditional branch.
     if (BB->size() == 2 and BB->getName().startswith("switch check")) {
-      auto &InstList = BB->getInstList();
       llvm::Instruction &First = BB->front();
       llvm::Instruction &Second = BB->back();
 
@@ -398,8 +397,6 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
       }
 
       // Collect the last else (which will become the default case).
-      llvm::Type *SwitchType = SwitchValue->getType();
-      auto *Zero = cast<ConstantInt>(llvm::Constant::getNullValue(SwitchType));
       ASTNode *DefaultCase = Candidates.back()->getElse();
       if (DefaultCase == nullptr)
         DefaultCase = AST.addSequenceNode();

@@ -56,7 +56,7 @@ private:
   bool IsEmpty = false;
 
 protected:
-  llvm::BasicBlock *BB;
+  llvm::BasicBlock *BB = nullptr;
   bool Processed = false;
   std::string Name;
   ASTNode *Successor = nullptr;
@@ -69,16 +69,15 @@ protected:
 public:
   ASTNode(NodeKind K, const std::string &Name, ASTNode *Successor = nullptr) :
     Kind(K),
-    BB(nullptr),
     Name(Name),
     Successor(Successor) {}
 
   ASTNode(NodeKind K, BasicBlockNodeBB *CFGNode, ASTNode *Successor = nullptr) :
     Kind(K),
+    IsEmpty(CFGNode->isEmpty()),
     BB(CFGNode->getOriginalNode()),
     Name(CFGNode->getNameStr()),
-    Successor(Successor),
-    IsEmpty(CFGNode->isEmpty()) {}
+    Successor(Successor) {}
 
   virtual ~ASTNode() = default;
 
@@ -499,8 +498,8 @@ public:
     return llvm::make_range(CaseVec.begin(), CaseVec.end());
   }
 
-  virtual ASTNode *getCaseN(int N) const {
-    revng_assert((-1 < N) and (N < CaseSize()));
+  virtual ASTNode *getCaseN(size_t N) const {
+    revng_assert(N < CaseSize());
     return CaseVec[N];
   }
 
@@ -591,14 +590,14 @@ public:
 
   llvm::Value *getCondition() const { return Condition; }
 
-  case_value getCaseValueN(int N) const {
-    revng_assert((-1 < N) and (N < CaseSize()));
+  case_value getCaseValueN(size_t N) const {
+    revng_assert(N < CaseSize());
     return CaseValueVec[N];
   }
 
 protected:
-  const case_value_container CaseValueVec;
   llvm::Value *const Condition;
+  const case_value_container CaseValueVec;
 };
 
 class SwitchCheckNode : public SwitchNode {
@@ -651,8 +650,8 @@ public:
 
   virtual ASTNode *Clone() override { return new SwitchCheckNode(*this); }
 
-  case_value getCaseValueN(int N) const {
-    revng_assert((-1 < N) and (N < CaseSize()));
+  case_value getCaseValueN(size_t N) const {
+    revng_assert(N < CaseSize());
     return CaseValueVec[N];
   }
 

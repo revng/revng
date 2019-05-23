@@ -22,7 +22,6 @@ inline void flattenRegionCFGTree(RegionCFG<NodeT> &Root) {
 
   using BasicBlockNodeT = typename BasicBlockNode<NodeT>::BasicBlockNodeT;
   using EdgeDescriptor = typename BasicBlockNode<NodeT>::EdgeDescriptor;
-  using RegionCFGT = typename BasicBlockNode<NodeT>::RegionCFGT;
 
   std::set<BasicBlockNodeT *> CollapsedNodes;
   std::set<BasicBlockNodeT *> NodesToRemove;
@@ -105,6 +104,9 @@ inline void flattenRegionCFGTree(RegionCFG<NodeT> &Root) {
   // performed on the LLVM IR after the combing.
   for (BasicBlockNodeT *Node : Root) {
     switch (Node->getNodeType()) {
+    default:
+      // do nothing
+      break;
     case BasicBlockNodeT::Type::Set: {
       SetNodes.push_back(Node);
     } break;

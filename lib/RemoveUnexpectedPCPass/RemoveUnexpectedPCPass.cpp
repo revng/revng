@@ -41,8 +41,6 @@ bool RemoveUnexpectedPC::runOnFunction(Function &F) {
   ReversePostOrderTraversal<llvm::Function *> RPOT(&F);
 
   for (BasicBlock *BB : RPOT) {
-    LLVMContext &Context = getContext(&F);
-
     TerminatorInst *Terminator = BB->getTerminator();
     if (auto *Switch = dyn_cast<SwitchInst>(Terminator)) {
 

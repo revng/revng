@@ -95,9 +95,9 @@ public:
     FunctionDecls(FMap),
     GlobalDecls(GMap),
     InstrStmts(),
-    BlockToPHIIncoming(BlockToPHIIncoming),
     TypeDecls(TypeDecls),
-    FieldDecls(FieldDecls) {}
+    FieldDecls(FieldDecls),
+    BlockToPHIIncoming(BlockToPHIIncoming) {}
 
   void createAST();
 

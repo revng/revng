@@ -36,11 +36,11 @@ inline BasicBlockNode<NodeT>::BasicBlockNode(RegionCFGT *Parent,
                                              unsigned Value) :
   ID(Parent->getNewID()),
   Parent(Parent),
-  OriginalNode(OriginalNode),
   CollapsedRegion(Collapsed),
   NodeType(T),
   Name(Name),
-  StateVariableValue(Value) {
+  StateVariableValue(Value),
+  OriginalNode(OriginalNode) {
 }
 
 template<class NodeT>

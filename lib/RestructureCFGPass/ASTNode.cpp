@@ -82,7 +82,7 @@ bool SwitchNode::hasEqualCaseValues(const SwitchNode *Node) const {
   auto *RegSwitchThis = dyn_cast<RegularSwitchNode>(this);
   auto *SwitchCheckOther = dyn_cast<SwitchCheckNode>(Node);
   auto *RegSwitchOther = dyn_cast<RegularSwitchNode>(Node);
-  for (int I = 0; I < CaseSize(); I++) {
+  for (size_t I = 0; I < CaseSize(); I++) {
     if (SwitchCheckThis != nullptr) {
       uint64_t ThisCase = getCaseValueN(SwitchCheckThis, I);
       uint64_t OtherCase = getCaseValueN(SwitchCheckOther, I);
