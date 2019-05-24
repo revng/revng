@@ -611,6 +611,7 @@ void EnforceABIImpl::handleRegularFunctionCall(Instruction *I) {
     case BranchType::HandledCall:
     case BranchType::IndirectTailCall:
     case BranchType::LongJmp:
+    case BranchType::Killer:
       IsNoReturn = true;
       break;
     default:
