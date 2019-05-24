@@ -724,35 +724,47 @@ CallInst *JumpTargetManager::findNextExitTB(Instruction *Start) {
 }
 
 StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
-  // Look for the last write to the PC
-  BasicBlock::iterator I(TheInstruction);
-  BasicBlock::iterator Begin(TheInstruction->getParent()->begin());
+  class Visitor : public BackwardBFSVisitor<Visitor> {
+  private:
+    Value *PCReg;
+    Instruction *Skip;
+    StoreInst *Result;
 
-  while (I != Begin) {
-    I--;
-    Instruction *Current = &*I;
+  public:
+    Visitor(Value *PCReg, Instruction *Skip) :
+      PCReg(PCReg),
+      Skip(Skip),
+      Result(nullptr) {}
 
-    auto *Store = dyn_cast<StoreInst>(Current);
-    if (Store != nullptr && Store->getPointerOperand() == PCReg)
-      return Store;
+    VisitAction visit(instruction_range Range) {
+      for (Instruction &I : Range) {
+        // Stop at helpers/newpc
+        if (isa<CallInst>(&I) and &I != Skip)
+          return NoSuccessors;
 
-    // If we meet a call to an helper, return nullptr
-    // TODO: for now we just make calls to helpers, is this is OK even if we
-    //       split the translated function in multiple functions?
-    if (isa<CallInst>(Current))
-      return nullptr;
-  }
+        auto *Store = dyn_cast<StoreInst>(&I);
+        if (Store != nullptr && Store->getPointerOperand() == PCReg) {
 
-  // TODO: handle the following case:
-  //          pc = x
-  //          brcond ?, a, b
-  //       a:
-  //          pc = y
-  //          br b
-  //       b:
-  //          exitTB
-  // TODO: emit warning
-  return nullptr;
+          // If Result is not null, it's the second store to pc we find
+          if (Result != nullptr) {
+            Result = nullptr;
+            return StopNow;
+          }
+
+          Result = Store;
+          return NoSuccessors;
+        }
+      }
+
+      return Continue;
+    }
+
+    StoreInst *getResult() const { return Result; }
+  };
+
+  Visitor V(PCReg, TheInstruction);
+  V.run(TheInstruction);
+  return V.getResult();
 }
 
 std::pair<uint64_t, uint64_t>
@@ -1464,23 +1476,14 @@ void JumpTargetManager::harvestWithAVI() {
       BasicBlock *BB = Call->getParent();
       if (BB->getParent() == TheFunction) {
         // Find the last PC write
-        BasicBlock::reverse_iterator It(Call);
-        BasicBlock::reverse_iterator End(BB->rend());
-        StoreInst *Store = nullptr;
-        for (; It != End; It++) {
-          if ((Store = dyn_cast<StoreInst>(&*It))) {
-            if (Store->getPointerOperand() == PCReg) {
-              break;
-            }
+        StoreInst *Store = getPrevPCWrite(Call);
+        if (Store != nullptr) {
+          auto *NewStore = cast<StoreInst>(OldToNew[Store]);
+          if (NewStore->getMetadata("revng.avi") == nullptr) {
+            NewStore->setMetadata("revng.avi.mark", QMD.tuple(AVIID));
+            AVIIDToOld[AVIID] = Store;
+            ++AVIID;
           }
-        }
-
-        revng_assert(Store != nullptr);
-        auto *NewStore = cast<StoreInst>(OldToNew[Store]);
-        if (NewStore->getMetadata("revng.avi") == nullptr) {
-          NewStore->setMetadata("revng.avi.mark", QMD.tuple(AVIID));
-          AVIIDToOld[AVIID] = Store;
-          ++AVIID;
         }
       }
     }
