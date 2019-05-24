@@ -8,6 +8,7 @@
 // Standard includes
 #include <cstdlib>
 #include <map>
+#include <set>
 
 // LLVM includes
 #include "llvm/ADT/GraphTraits.h"
@@ -40,6 +41,7 @@ public:
   };
 
   using BasicBlockNodeT = BasicBlockNode<NodeT>;
+  using BBNodeSet = std::set<BasicBlockNode<NodeT> *>;
   using BBNodeMap = std::map<BasicBlockNodeT *, BasicBlockNodeT *>;
   using RegionCFGT = RegionCFG<NodeT>;
 

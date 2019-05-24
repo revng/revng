@@ -24,6 +24,12 @@ template<class NodeT>
 using Edge = typename BasicBlockNode<NodeT>::EdgeDescriptor;
 
 template<class NodeT>
+using Stack = std::vector<std::pair<BasicBlockNode<NodeT> *, size_t>>;
+
+template<class NodeT>
+using BasicBlockNodeTSet = typename BasicBlockNode<NodeT>::BBNodeSet;
+
+template<class NodeT>
 inline void
 addEdge(std::pair<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> NewEdge) {
   revng_assert(not NewEdge.first->isCheck());
@@ -67,6 +73,28 @@ inline void moveEdgeTarget(Edge<NodeT> Edge, BasicBlockNode<NodeT> *NewTarget) {
 }
 
 template<class NodeT>
+inline bool alreadyOnStack(Stack<NodeT> &Stack,
+                           BasicBlockNode<NodeT> *Node) {
+  for (auto &StackElem : Stack) {
+    if (StackElem.first == Node) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+template<class NodeT>
+inline bool alreadyOnStackQuick(BasicBlockNodeTSet<NodeT> &StackSet,
+                                BasicBlockNode<NodeT> *Node) {
+  if (StackSet.count(Node)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+template<class NodeT>
 // Helper function to find all nodes on paths between a source and a target
 // node
 inline std::set<BasicBlockNode<NodeT> *>
@@ -78,11 +106,16 @@ findReachableNodes(BasicBlockNode<NodeT> &Source,
   Targets.insert(&Target);
 
   // Exploration stack initialization.
-  std::vector<std::pair<BasicBlockNode<NodeT> *, size_t>> Stack;
+  Stack<NodeT> Stack;
+  std::set<BasicBlockNode<NodeT> *> StackSet;
   Stack.push_back(std::make_pair(&Source, 0));
 
   // Visited nodes to avoid entering in a loop.
   std::set<Edge<NodeT>> VisitedEdges;
+
+  // Additional data structure to keep nodes that need to be added only if a
+  // certain node will be added to the set of reachable nodes.
+  std::map<BasicBlockNode<NodeT> *, BasicBlockNodeTSet<NodeT>> AdditionalNodes;
 
   // Exploration.
   while (!Stack.empty()) {
@@ -95,20 +128,56 @@ findReachableNodes(BasicBlockNode<NodeT> &Source,
           Targets.insert(StackElem.first);
         }
         continue;
+      } else if (alreadyOnStackQuick(StackSet, Vertex)) {
+        // Add all the nodes on the stack to the set of additional nodes.
+        BasicBlockNodeTSet<NodeT> &AdditionalSet = AdditionalNodes[Vertex];
+        for (auto StackElem : Stack) {
+          AdditionalSet.insert(StackElem.first);
+        }
+        continue;
       }
     }
+    StackSet.insert(Vertex);
+
     size_t Index = StackElem.second;
     if (Index < StackElem.first->successor_size()) {
       BasicBlockNode<NodeT> *NextSuccessor = Vertex->getSuccessorI(Index);
       Index++;
       Stack.push_back(std::make_pair(Vertex, Index));
       if (VisitedEdges.count(std::make_pair(Vertex, NextSuccessor)) == 0
-          and NextSuccessor != &Source) {
+          and NextSuccessor != &Source
+          and !alreadyOnStackQuick(StackSet, NextSuccessor)) {
         Stack.push_back(std::make_pair(NextSuccessor, 0));
         VisitedEdges.insert(std::make_pair(Vertex, NextSuccessor));
       }
+    } else {
+      StackSet.erase(Vertex);
     }
   }
+
+  // Add additional nodes.
+  std::set<BasicBlockNode<NodeT> *> OldTargets;
+
+  do {
+    // At each iteration obtain a copy of the old set, so that we are able to
+    // exit from the loop as soon no change is made to the `Targets` set.
+
+    OldTargets = Targets;
+
+    // Temporary storage for the nodes to add at each iteration, to avoid
+    // invalidation on the `Targets` set.
+    std::set<BasicBlockNode<NodeT> *> NodesToAdd;
+
+    for (BasicBlockNode<NodeT> *Node : Targets) {
+      std::set<BasicBlockNode<NodeT> *> &AdditionalSet = AdditionalNodes[Node];
+      NodesToAdd.insert(AdditionalSet.begin(), AdditionalSet.end());
+    }
+
+    // Add all the additional nodes found in this step.
+    Targets.insert(NodesToAdd.begin(), NodesToAdd.end());
+    NodesToAdd.clear();
+
+  } while (Targets != OldTargets);
 
   return Targets;
 }

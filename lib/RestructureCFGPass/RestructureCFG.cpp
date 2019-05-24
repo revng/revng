@@ -359,6 +359,7 @@ createMetaRegions(const std::vector<EdgeDescriptor> &Backedges) {
         }
       }
       Nodes.insert(AdditionalNodes.begin(), AdditionalNodes.end());
+      AdditionalNodes.clear();
     } while (Nodes != OldNodes);
   }
 
