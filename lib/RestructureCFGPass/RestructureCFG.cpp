@@ -153,30 +153,32 @@ mergeSCSAbnormalRetreating(MetaRegionBBVect &MetaRegions,
       // region contains the source of a backedge, it should contain also the
       // the target of that backedge. If not, merge the two SCSs.
       for (EdgeDescriptor Backedge : Backedges) {
-        if (Region.containsNode(Backedge.first)) {
-          if (!Region.containsNode(Backedge.second)) {
+        bool AbnormalIncoming = Region.containsNode(Backedge.first)
+                                and !Region.containsNode(Backedge.second);
+        bool AbnormalOutgoing = Region.containsNode(Backedge.second)
+                                and !Region.containsNode(Backedge.first);
+        if (AbnormalIncoming or AbnormalOutgoing) {
 
-            // Retrieve the Metaregion identified by the backedge with goes
-            // goes outside the scope of the current Metaregion.
-            MetaRegionBB *OtherRegion = BackedgeMetaRegionMap.at(Backedge);
-            Region.mergeWith(*OtherRegion);
+          // Retrieve the Metaregion identified by the backedge with goes
+          // goes outside the scope of the current Metaregion.
+          MetaRegionBB *OtherRegion = BackedgeMetaRegionMap.at(Backedge);
+          Region.mergeWith(*OtherRegion);
 
-            // Find the iterator to the `OtherRegion`
-            for (auto OtherRegionIt = MetaRegions.begin();
-                 OtherRegionIt != MetaRegions.end();
-                 OtherRegionIt++) {
-              if (&*OtherRegionIt == OtherRegion) {
+          // Find the iterator to the `OtherRegion`
+          for (auto OtherRegionIt = MetaRegions.begin();
+               OtherRegionIt != MetaRegions.end();
+               OtherRegionIt++) {
+            if (&*OtherRegionIt == OtherRegion) {
 
-                // Blacklist the region which we have merged.
-                BackedgeMetaRegionMap[Backedge] = &Region;
-                BlacklistedMetaregions.insert(OtherRegion);
-                return true;
-              }
+              // Blacklist the region which we have merged.
+              BackedgeMetaRegionMap[Backedge] = &Region;
+              BlacklistedMetaregions.insert(OtherRegion);
+              return true;
             }
-
-            // Abort if we didn't find the metaregion to remove.
-            revng_abort("Not found the region to merge with.");
           }
+
+          // Abort if we didn't find the metaregion to remove.
+          revng_abort("Not found the region to merge with.");
         }
       }
     }

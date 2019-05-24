@@ -13,6 +13,7 @@
 
 // LLVM includes
 #include <llvm/ADT/iterator_range.h>
+#include "llvm/ADT/PostOrderIterator.h"
 
 // local libraries include
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
@@ -41,6 +42,8 @@ public:
   inline links_const_iterator cbegin() const { return Nodes.cbegin(); };
   inline links_iterator end() { return Nodes.end(); };
   inline links_const_iterator cend() const { return Nodes.cend(); };
+
+  using BasicBlockNodeRPOT = llvm::ReversePostOrderTraversal<BasicBlockNodeT *>;
 
 private:
   int Index;
@@ -104,6 +107,8 @@ public:
   void insertNode(BasicBlockNodeT *NewNode) { Nodes.insert(NewNode); }
 
   void removeNode(BasicBlockNodeT *Node) { Nodes.erase(Node); }
+
+  BasicBlockNode<NodeT> *getProbableEntry(BasicBlockNodeRPOT &R) const;
 };
 
 #endif // REVNGC_RESTRUCTURE_CFG_METAREGION_H

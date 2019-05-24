@@ -142,4 +142,15 @@ bool MetaRegion<NodeT>::nodesEquality(MetaRegion<NodeT> &Other) const {
   return Nodes == OtherNodes;
 }
 
+template<class NodeT>
+BasicBlockNode<NodeT> *
+MetaRegion<NodeT>::getProbableEntry(BasicBlockNodeRPOT &RPOT) const {
+  for (BasicBlockNodeT *Node : RPOT) {
+    if (containsNode(Node)) {
+      return Node;
+    }
+  }
+
+  revng_abort("No candidate entry node found");
+}
 #endif // REVNGC_RESTRUCTURE_CFG_METAREGIONIMPL_H
