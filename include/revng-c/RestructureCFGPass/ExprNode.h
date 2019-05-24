@@ -22,11 +22,11 @@ public:
   NodeKind getKind() const { return Kind; }
 
   ExprNode() = default;
+
   ExprNode(const ExprNode &) = default;
   ExprNode &operator=(const ExprNode &) = default;
   ExprNode(ExprNode &&) = default;
   ExprNode &operator=(ExprNode &&) = default;
-  inline ~ExprNode();
 
 protected:
   ExprNode(NodeKind K) : Kind(K) {}
@@ -39,6 +39,11 @@ private:
 public:
   AtomicNode(llvm::BasicBlock *BB) : ExprNode(NK_Atomic), ConditionBB(BB) {}
 
+  AtomicNode(const AtomicNode &) = default;
+  AtomicNode &operator=(const AtomicNode &) = default;
+  AtomicNode(AtomicNode &&) = default;
+  AtomicNode &operator=(AtomicNode &&) = default;
+
   static bool classof(const ExprNode *E) { return E->getKind() == NK_Atomic; }
 
   llvm::BasicBlock *getConditionalBasicBlock() const { return ConditionBB; }
@@ -50,6 +55,11 @@ private:
 
 public:
   NotNode(ExprNode *N) : ExprNode(NK_Not), Child(N) {}
+
+  NotNode(const NotNode &) = default;
+  NotNode &operator=(const NotNode &) = default;
+  NotNode(NotNode &&) = default;
+  NotNode &operator=(NotNode &&) = default;
 
   static bool classof(const ExprNode *E) { return E->getKind() == NK_Not; }
 
@@ -75,12 +85,22 @@ protected:
     ExprNode(K),
     LeftChild(Left),
     RightChild(Right) {}
+
+  BinaryNode(const BinaryNode &) = default;
+  BinaryNode &operator=(const BinaryNode &) = default;
+  BinaryNode(BinaryNode &&) = default;
+  BinaryNode &operator=(BinaryNode &&) = default;
 };
 
 class AndNode : public BinaryNode {
 
 public:
   AndNode(ExprNode *Left, ExprNode *Right) : BinaryNode(NK_And, Left, Right) {}
+
+  AndNode(const AndNode &) = default;
+  AndNode &operator=(const AndNode &) = default;
+  AndNode(AndNode &&) = default;
+  AndNode &operator=(AndNode &&) = default;
 
   static bool classof(const ExprNode *E) { return E->getKind() == NK_And; }
 };
@@ -90,24 +110,12 @@ class OrNode : public BinaryNode {
 public:
   OrNode(ExprNode *Left, ExprNode *Right) : BinaryNode(NK_Or, Left, Right) {}
 
+  OrNode(const OrNode &) = default;
+  OrNode &operator=(const OrNode &) = default;
+  OrNode(OrNode &&) = default;
+  OrNode &operator=(OrNode &&) = default;
+
   static bool classof(const ExprNode *E) { return E->getKind() == NK_Or; }
+
 };
-
-inline ExprNode::~ExprNode() {
-  switch (getKind()) {
-  case NK_Atomic: {
-    llvm::cast<AtomicNode>(this)->~AtomicNode();
-  } break;
-  case NK_Not: {
-    llvm::cast<NotNode>(this)->~NotNode();
-  } break;
-  case NK_And: {
-    llvm::cast<AndNode>(this)->~AndNode();
-  } break;
-  case NK_Or: {
-    llvm::cast<OrNode>(this)->~OrNode();
-  } break;
-  }
-}
-
 #endif // define REVNGC_RESTRUCTURE_CFG_EXPRNODE_H
