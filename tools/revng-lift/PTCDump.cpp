@@ -280,7 +280,7 @@ int dumpTranslation(std::ostream &Result, PTCInstructionList *Instructions) {
       if (is64)
         PC |= Instruction.args[1] << 32;
 
-      disassemble(Result, PC);
+      disassemble(Result, PC, 4096, 1);
     }
 
     Result << std::dec << Index << ": ";
