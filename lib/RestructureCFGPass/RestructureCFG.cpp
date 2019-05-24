@@ -452,6 +452,20 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
   }
 
+  // Insert a dummy node for each retrating node.
+  for (EdgeDescriptor Backedge : Backedges) {
+    BasicBlockNodeBB *OriginalTarget = Backedge.second;
+    BasicBlockNodeBB *Dummy = RootCFG.addArtificialNode();
+    moveEdgeTarget(Backedge, Dummy);
+    addEdge(EdgeDescriptor(Dummy, OriginalTarget));
+  }
+  Backedges = getBackedges(RootCFG);
+
+  // Check that the source node of each retreating edge is a dummy node.
+  for (EdgeDescriptor Backedge : Backedges) {
+    revng_assert(Backedge.first->isEmpty());
+  }
+
   // Fill a vector with the backedges, to ensure order of inspection.
   std::vector<EdgeDescriptor> BackedgesVect;
   for (EdgeDescriptor Backedge : Backedges) {
