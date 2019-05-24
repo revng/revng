@@ -654,6 +654,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
                             "Out-pre-" + std::to_string(Meta->getIndex()));
     }
 
+    #if 0
     std::map<BasicBlockNodeBB *, int> IncomingDegree;
     for (BasicBlockNodeBB *Node : Meta->nodes()) {
       int IncomingCounter = 0;
@@ -708,6 +709,17 @@ bool RestructureCFG::runOnFunction(Function &F) {
     } else {
       FirstCandidate = *MaximuxEdgesNodes.begin();
     }
+    #endif
+
+    #if 1
+    BasicBlockNodeBB *FirstCandidate = nullptr;
+    for (BasicBlockNodeBB *BN : RPOT) {
+      if (Meta->containsNode(BN) == true) {
+        FirstCandidate = BN;
+        break;
+      }
+    }
+    #endif
 
     revng_assert(FirstCandidate != nullptr);
 
