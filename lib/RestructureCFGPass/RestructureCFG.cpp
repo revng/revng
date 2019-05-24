@@ -893,11 +893,15 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // First Iteration outlining.
     // Clone all the nodes of the SCS except for the head.
     std::map<BasicBlockNodeBB *, BasicBlockNodeBB *> ClonedMap;
+    std::vector<BasicBlockNodeBB *> OutlinedNodes;
     for (BasicBlockNodeBB *Node : Meta->nodes()) {
       if (Node != Head) {
         BasicBlockNodeBB *Clone = RootCFG.cloneNode(*Node);
         Clone->setName(Node->getName().str() + " outlined");
         ClonedMap[Node] = Clone;
+
+        // Add the nodes to the additional vector
+        OutlinedNodes.push_back(Clone);
       }
     }
 
@@ -1171,7 +1175,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
         OtherMeta->updateNodes(Meta->getNodes(),
                                Collapsed,
                                ExitDispatcherNodes,
-                               DefaultEntrySet);
+                               DefaultEntrySet,
+                               OutlinedNodes);
       }
     }
 

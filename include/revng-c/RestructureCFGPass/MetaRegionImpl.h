@@ -26,7 +26,8 @@ template<class NodeT>
 void MetaRegion<NodeT>::updateNodes(BasicBlockNodeTSet &Removal,
                                     BasicBlockNodeT *Collapsed,
                                     BasicBlockNodeTVect &Dispatcher,
-                                    BasicBlockNodeTVect &DefaultEntrySet) {
+                                    BasicBlockNodeTVect &DefaultEntrySet,
+                                    BasicBlockNodeTVect &OutlinedNodes) {
   // Remove the old SCS nodes
   bool NeedSubstitution = false;
   for (BasicBlockNodeT *Node : Removal) {
@@ -41,6 +42,7 @@ void MetaRegion<NodeT>::updateNodes(BasicBlockNodeTSet &Removal,
     Nodes.insert(Collapsed);
     Nodes.insert(Dispatcher.begin(), Dispatcher.end());
     Nodes.insert(DefaultEntrySet.begin(), DefaultEntrySet.end());
+    Nodes.insert(OutlinedNodes.begin(), OutlinedNodes.end());
   }
 }
 
