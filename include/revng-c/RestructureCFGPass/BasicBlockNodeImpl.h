@@ -15,6 +15,18 @@
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 
+// Trait exposing the weight of a generic object wrapped by `BasicBlockNode`.
+template<class T>
+struct WeightTraits {
+};
+
+// Specialization of the WeightTraits for the the `BasicBlock` class, which
+// simply returns the number of instruction composing it.
+template<>
+struct WeightTraits<llvm::BasicBlock *> {
+  static size_t getWeight(llvm::BasicBlock *BB) { return BB->size(); }
+};
+
 template<class NodeT>
 inline BasicBlockNode<NodeT>::BasicBlockNode(RegionCFGT *Parent,
                                              NodeT OriginalNode,
@@ -155,7 +167,7 @@ template<class NodeT>
 inline size_t BasicBlockNode<NodeT>::getWeight() const {
   if (NodeType == Type::Code) {
     revng_assert(OriginalNode != nullptr);
-    return OriginalNode->size();
+    return WeightTraits<NodeT>::getWeight(OriginalNode);
   } else if (NodeType == Type::Empty) {
     return 0;
   } else if (NodeType == Type::Break) {

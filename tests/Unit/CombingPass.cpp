@@ -32,6 +32,13 @@ bool init_unit_test();
 
 using namespace llvm;
 
+// Specialization of the `WeightTraits` for the `DotNode` class. In this
+// situation we simply use 1 as default weight.
+template<>
+struct WeightTraits<DotNode *> {
+  static inline size_t getWeight(DotNode *N) { return 1; }
+};
+
 struct ArgsFixture {
   int argc;
   char **argv;
