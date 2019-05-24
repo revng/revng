@@ -301,6 +301,7 @@ public:
     PhiIsSmallest = false;
     Materialized = false;
     OperationsStack.clear();
+    Values.clear();
   }
 
   void dump(unsigned Indent) const debug_function {
