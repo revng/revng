@@ -309,7 +309,7 @@ void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
       auto SuccessorsRange = make_range(succ_begin(&BB), succ_end(&BB));
       for (llvm::BasicBlock *Successor : SuccessorsRange) {
 
-        if (Successor->empty())
+        if (Successor->empty() or not GCBI.isTranslated(Successor))
           continue;
 
         uint64_t Address = getBasicBlockPC(Successor);
