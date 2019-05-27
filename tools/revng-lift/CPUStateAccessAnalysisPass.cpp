@@ -2105,46 +2105,51 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
   Value *NewItemV = NewItem.Val();
   if (isInExploration(NewItemV)) {
     revng_log(CSVAccessLog, "IS RECURSIVE");
-    revng_assert(isa<Argument>(NewItemV));
-    const Argument *Arg = cast<Argument>(NewItemV);
+
     const ConstValuePtrSet &Tainted = TaintedAccesses.TaintedValues;
-    revng_assert(Tainted.find(Arg) != Tainted.end());
-    revng_assert(Arg->getArgNo() == 0);
-    const Function *Fun = Arg->getParent();
-    revng_assert(CpuLoop != nullptr);
-    revng_assert(CpuLoop == Fun);
 
-    auto WLIt = WorkList.cbegin();
-    auto WLEnd = WorkList.cend();
-    bool FoundRecursion = false;
-    for (; WLIt != WLEnd; ++WLIt) {
-      if (Arg != WLIt->Val())
-        continue;
+    if (const Argument *Arg = dyn_cast<Argument>(NewItemV)) {
+      revng_assert(Tainted.find(Arg) != Tainted.end());
+      revng_assert(Arg->getArgNo() == 0);
+      const Function *Fun = Arg->getParent();
+      revng_assert(CpuLoop != nullptr);
+      revng_assert(CpuLoop == Fun);
 
-      FoundRecursion = true;
-      revng_log(CSVAccessLog, "Close recursion");
+      auto WLIt = WorkList.cbegin();
+      auto WLEnd = WorkList.cend();
+      bool FoundRecursion = false;
+      for (; WLIt != WLEnd; ++WLIt) {
+        if (Arg != WLIt->Val())
+          continue;
 
-      Value *CurSrcVal = WLIt->currentSourceValue();
-      revng_assert(CurSrcVal != Arg);
-      CSVOffsets NewOffsets = CSVOffsets(CSVOffsets::Kind::KnownInPtr, 0);
-      insertCallSiteOffset(CurSrcVal, std::move(NewOffsets));
+        FoundRecursion = true;
+        revng_log(CSVAccessLog, "Close recursion");
 
+        Value *CurSrcVal = WLIt->currentSourceValue();
+        revng_assert(CurSrcVal != Arg);
+        CSVOffsets NewOffsets = CSVOffsets(CSVOffsets::Kind::KnownInPtr, 0);
+        insertCallSiteOffset(CurSrcVal, std::move(NewOffsets));
 
-      Value *NextSrcVal = WLIt->nextSourceValue();
-      if (nullptr == NextSrcVal)
-        break;
+        Value *NextSrcVal = WLIt->nextSourceValue();
+        if (nullptr == NextSrcVal)
+          break;
 
-      revng_log(CSVAccessLog,
-                "Has unresolved source: " << dumpToString(NextSrcVal));
-      revng_assert(NextSrcVal != Arg);
+        revng_log(CSVAccessLog,
+                  "Has unresolved source: " << dumpToString(NextSrcVal));
+        revng_assert(NextSrcVal != Arg);
 
-      WorkItem::size_type SrcId = WLIt->getSourceIndex();
-      NewItem.setSourceIndex(SrcId + 1);
-      bool Pushed = tryPush(std::move(NewItem));
-      revng_assert(Pushed);
-      return true;
+        WorkItem::size_type SrcId = WLIt->getSourceIndex();
+        NewItem.setSourceIndex(SrcId + 1);
+        bool Pushed = tryPush(std::move(NewItem));
+        revng_assert(Pushed);
+        return true;
+      }
+      revng_assert(FoundRecursion);
+    } else {
+      revng_assert(Tainted.count(NewItemV) == 0);
+      for (const Use *U : NewItem.sources())
+        insertCallSiteOffset(U->get(), CSVOffsets(CSVOffsets::Kind::Unknown));
     }
-    revng_assert(FoundRecursion);
   } else {
     for (const Use *U : NewItem.sources()) {
       revng_log(CSVAccessLog, "Src: " << dumpToString(U->get()));

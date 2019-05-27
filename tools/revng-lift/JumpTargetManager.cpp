@@ -362,9 +362,9 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
 
 MaterializedValue
 JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
-  auto *Type = cast<IntegerType>(Pointer->getType()->getPointerElementType());
-  unsigned LoadSize = Type->getPrimitiveSizeInBits() / 8;
+  Type *LoadedType = Pointer->getType()->getPointerElementType();
   const DataLayout &DL = TheModule.getDataLayout();
+  unsigned LoadSize = DL.getTypeSizeInBits(LoadedType) / 8;
   uint64_t LoadAddress = getZExtValue(cast<ConstantInt>(skipCasts(Pointer)),
                                       DL);
   UnusedCodePointers.erase(LoadAddress);
@@ -724,35 +724,47 @@ CallInst *JumpTargetManager::findNextExitTB(Instruction *Start) {
 }
 
 StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
-  // Look for the last write to the PC
-  BasicBlock::iterator I(TheInstruction);
-  BasicBlock::iterator Begin(TheInstruction->getParent()->begin());
+  class Visitor : public BackwardBFSVisitor<Visitor> {
+  private:
+    Value *PCReg;
+    Instruction *Skip;
+    StoreInst *Result;
 
-  while (I != Begin) {
-    I--;
-    Instruction *Current = &*I;
+  public:
+    Visitor(Value *PCReg, Instruction *Skip) :
+      PCReg(PCReg),
+      Skip(Skip),
+      Result(nullptr) {}
 
-    auto *Store = dyn_cast<StoreInst>(Current);
-    if (Store != nullptr && Store->getPointerOperand() == PCReg)
-      return Store;
+    VisitAction visit(instruction_range Range) {
+      for (Instruction &I : Range) {
+        // Stop at helpers/newpc
+        if (isa<CallInst>(&I) and &I != Skip)
+          return NoSuccessors;
 
-    // If we meet a call to an helper, return nullptr
-    // TODO: for now we just make calls to helpers, is this is OK even if we
-    //       split the translated function in multiple functions?
-    if (isa<CallInst>(Current))
-      return nullptr;
-  }
+        auto *Store = dyn_cast<StoreInst>(&I);
+        if (Store != nullptr && Store->getPointerOperand() == PCReg) {
 
-  // TODO: handle the following case:
-  //          pc = x
-  //          brcond ?, a, b
-  //       a:
-  //          pc = y
-  //          br b
-  //       b:
-  //          exitTB
-  // TODO: emit warning
-  return nullptr;
+          // If Result is not null, it's the second store to pc we find
+          if (Result != nullptr) {
+            Result = nullptr;
+            return StopNow;
+          }
+
+          Result = Store;
+          return NoSuccessors;
+        }
+      }
+
+      return Continue;
+    }
+
+    StoreInst *getResult() const { return Result; }
+  };
+
+  Visitor V(PCReg, TheInstruction);
+  V.run(TheInstruction);
+  return V.getResult();
 }
 
 std::pair<uint64_t, uint64_t>
@@ -1286,10 +1298,11 @@ public:
 /// \brief Drop all the call to marker functions
 class DropMarkerCalls : public PassInfoMixin<DropMarkerCalls> {
 private:
-  ArrayRef<StringRef> ToPreserve;
+  SmallVector<StringRef, 4> ToPreserve;
 
 public:
-  DropMarkerCalls(ArrayRef<StringRef> ToPreserve) : ToPreserve(ToPreserve) {}
+  DropMarkerCalls(SmallVector<StringRef, 4> ToPreserve) :
+    ToPreserve(ToPreserve) {}
 
 public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
@@ -1464,23 +1477,14 @@ void JumpTargetManager::harvestWithAVI() {
       BasicBlock *BB = Call->getParent();
       if (BB->getParent() == TheFunction) {
         // Find the last PC write
-        BasicBlock::reverse_iterator It(Call);
-        BasicBlock::reverse_iterator End(BB->rend());
-        StoreInst *Store = nullptr;
-        for (; It != End; It++) {
-          if ((Store = dyn_cast<StoreInst>(&*It))) {
-            if (Store->getPointerOperand() == PCReg) {
-              break;
-            }
+        StoreInst *Store = getPrevPCWrite(Call);
+        if (Store != nullptr) {
+          auto *NewStore = cast<StoreInst>(OldToNew[Store]);
+          if (NewStore->getMetadata("revng.avi") == nullptr) {
+            NewStore->setMetadata("revng.avi.mark", QMD.tuple(AVIID));
+            AVIIDToOld[AVIID] = Store;
+            ++AVIID;
           }
-        }
-
-        revng_assert(Store != nullptr);
-        auto *NewStore = cast<StoreInst>(OldToNew[Store]);
-        if (NewStore->getMetadata("revng.avi") == nullptr) {
-          NewStore->setMetadata("revng.avi.mark", QMD.tuple(AVIID));
-          AVIIDToOld[AVIID] = Store;
-          ++AVIID;
         }
       }
     }

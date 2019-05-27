@@ -298,7 +298,7 @@ bool VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
   // Re-extend
   ToStore = Builder.CreateZExt(Truncated, FieldTy);
 
-  if (BitMask != 0) {
+  if (BitMask != 0 and StoreSize != FieldSize) {
     // Load the value
     auto *LoadEnvField = Builder.CreateLoad(Target);
 

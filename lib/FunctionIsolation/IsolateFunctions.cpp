@@ -109,7 +109,6 @@ private:
   GeneratedCodeBasicInfo &GCBI;
   LLVMContext &Context;
   Function *RaiseException;
-  Function *DebugException;
   Function *FunctionDispatcher;
   std::map<MDString *, IsolatedFunctionDescriptor> Functions;
   std::map<BasicBlock *, BasicBlock *> IsolatedToRootBB;
@@ -121,7 +120,6 @@ private:
 void IFI::throwException(Reason Code, BasicBlock *BB, uint64_t AdditionalPC) {
   revng_assert(PC != nullptr);
   revng_assert(RaiseException != nullptr);
-  revng_assert(DebugException != nullptr);
 
   // Create a builder object
   IRBuilder<> Builder(Context);
@@ -155,16 +153,13 @@ void IFI::throwException(Reason Code, BasicBlock *BB, uint64_t AdditionalPC) {
   ConstantInt *ConstantLastPC = Builder.getIntN(PCBitSize, LastPC);
   ConstantInt *ConstantAdditionalPC = Builder.getIntN(PCBitSize, AdditionalPC);
 
-  // Emit the call to exception_warning
-  Builder.CreateCall(DebugException,
+  // Emit the call to the exception helper in support.c, which in turn calls the
+  // exception_warning function and then the _Unwind_RaiseException
+  Builder.CreateCall(RaiseException,
                      { ReasonValue,
                        ConstantLastPC,
                        ProgramCounter,
-                       ConstantAdditionalPC },
-                     "");
-
-  // Emit the call to _Unwind_RaiseException
-  Builder.CreateCall(RaiseException);
+                       ConstantAdditionalPC });
   Builder.CreateUnreachable();
 }
 
@@ -565,49 +560,41 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
     // cases handled by the if before
     Instruction *NewInstruction = OldInstruction->clone();
 
+    // Handle PHINodes
+    if (auto *PHI = dyn_cast<PHINode>(NewInstruction)) {
+      for (unsigned I = 0; I < PHI->getNumIncomingValues(); ++I) {
+        auto *OldBB = PHI->getIncomingBlock(I);
+        PHI->setIncomingBlock(I, cast<BasicBlock>(RootToIsolated[OldBB]));
+      }
+    }
+
     // Queue initialization with the base operand, the instruction
     // herself
-    std::queue<User *> UserQueue;
-    UserQueue.push(NewInstruction);
+    std::queue<Use *> UseQueue;
+    for (Use &CurrentUse : NewInstruction->operands())
+      UseQueue.push(&CurrentUse);
 
     // "Recursive" visit of the queue
-    while (!UserQueue.empty()) {
-      User *CurrentUser = UserQueue.front();
-      UserQueue.pop();
+    while (not UseQueue.empty()) {
+      Use *CurrentUse = UseQueue.front();
+      UseQueue.pop();
 
-      for (Use &CurrentUse : CurrentUser->operands()) {
-        auto *CurrentOperand = CurrentUse.get();
+      auto *CurrentOperand = CurrentUse->get();
 
-        // Manage a standard value for which we find replacement in the
-        // ValueToValueMap
-        auto ReplacementIt = RootToIsolated.find(CurrentOperand);
-        if (ReplacementIt != RootToIsolated.end()) {
-          CurrentUse.set(ReplacementIt->second);
-
-        } else if (auto *Address = dyn_cast<BlockAddress>(CurrentOperand)) {
-          // Manage a BlockAddress
-          Function *OldFunction = Address->getFunction();
-          BasicBlock *OldBlock = Address->getBasicBlock();
-          Function *NewFunction = cast<Function>(RootToIsolated[OldFunction]);
-          BasicBlock *NewBlock = cast<BasicBlock>(RootToIsolated[OldBlock]);
-          BlockAddress *B = BlockAddress::get(NewFunction, NewBlock);
-
-          CurrentUse.set(B);
-
-        } else if (isa<BasicBlock>(CurrentOperand)) {
-          // Assert if we encounter a basic block and we don't find a
-          // reference in the ValueToValueMap
-          revng_assert(RootToIsolated.count(CurrentOperand) != 0);
-        } else if (!isa<Constant>(CurrentOperand)
-                   and !isa<MetadataAsValue>(CurrentOperand)) {
-          // Manage values that are themself users (recursive exploration
-          // of the operands) taking care of avoiding to add operands of
-          // constants
-          auto *CurrentSubUser = cast<User>(CurrentOperand);
-          if (CurrentSubUser->getNumOperands() >= 1) {
-            UserQueue.push(CurrentSubUser);
-          }
-        }
+      // Manage a standard value for which we find replacement in the
+      // ValueToValueMap
+      auto ReplacementIt = RootToIsolated.find(CurrentOperand);
+      if (ReplacementIt != RootToIsolated.end()) {
+        revng_assert(not isa<Constant>(CurrentOperand));
+        CurrentUse->set(ReplacementIt->second);
+      } else if (isa<ConstantInt>(CurrentOperand)
+                 or isa<GlobalObject>(CurrentOperand)) {
+        // Do nothing
+      } else if (auto *CE = dyn_cast<ConstantExpr>(CurrentOperand)) {
+        for (Use &U : CE->operands())
+          UseQueue.push(&U);
+      } else {
+        revng_abort();
       }
     }
 
@@ -675,28 +662,20 @@ void IFI::run() {
                      "ExceptionFlag");
   ExceptionFlag = TheModule->getGlobalVariable("ExceptionFlag");
 
-  // Declare the _Unwind_RaiseException function that we will use as a throw
-  auto *RaiseExceptionFT = FunctionType::get(Type::getVoidTy(Context), false);
-
-  RaiseException = Function::Create(RaiseExceptionFT,
-                                    Function::ExternalLinkage,
-                                    "raise_exception_helper",
-                                    TheModule);
-
-  // Create the Arrayref necessary for the arguments of exception_warning
+  // Create the Arrayref necessary for the arguments of raise_exception_helper
   auto *IntegerType = IntegerType::get(Context, PCBitSize);
   std::vector<Type *> ArgsType{
     Type::getInt32Ty(Context), IntegerType, IntegerType, IntegerType
   };
 
-  // Declare the exception_warning function
-  auto *DebugExceptionFT = FunctionType::get(Type::getVoidTy(Context),
+  // Declare the _Unwind_RaiseException function that we will use as a throw
+  auto *RaiseExceptionFT = FunctionType::get(Type::getVoidTy(Context),
                                              ArgsType,
                                              false);
 
-  DebugException = Function::Create(DebugExceptionFT,
+  RaiseException = Function::Create(RaiseExceptionFT,
                                     Function::ExternalLinkage,
-                                    "exception_warning",
+                                    "raise_exception_helper",
                                     TheModule);
 
   // Instantiate the dispatcher function, that is called in occurence of an
@@ -1181,16 +1160,9 @@ void IFI::run() {
     }
   }
 
-  // Remove all the orphan basic blocks from the root function (e.g., the
-  // blocks that have been substitued by the trampoline), and from the isolated
-  // functions (basically just anypc and unexpected pc if they were inserted but
-  // not used
+  // Remove all the orphan basic blocks from the root function (e.g., the blocks
+  // that have been substitued by the trampoline)
   removeUnreachableBlocks(*Root);
-  for (auto &Pair : Functions) {
-    IsolatedFunctionDescriptor &Descriptor = Pair.second;
-    Function *IsolatedF = Descriptor.IsolatedFunction;
-    removeUnreachableBlocks(*IsolatedF);
-  }
 
   // 15. Before emitting it in output we check that the module in passes the
   //     verifyModule pass

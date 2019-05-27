@@ -22,9 +22,12 @@
 #include "revng/Support/revng.h"
 
 namespace llvm {
+
 namespace object {
 class ObjectFile;
-}
+class MachOBindEntry;
+} // namespace object
+
 } // namespace llvm
 
 /// \brief Simple data structure to describe an ELF segment
@@ -37,6 +40,8 @@ struct SegmentInfo {
                                   ///  segment's data
   uint64_t StartVirtualAddress;
   uint64_t EndVirtualAddress;
+  uint64_t StartFileOffset;
+  uint64_t EndFileOffset;
   bool IsWriteable;
   bool IsExecutable;
   bool IsReadable;
@@ -468,6 +473,13 @@ public:
     }
   }
 
+  llvm::Optional<uint64_t> virtualAddressFromOffset(uint64_t Offset) const {
+    for (const SegmentInfo &Segment : Segments)
+      if (Segment.StartFileOffset <= Offset and Segment.EndFileOffset < Offset)
+        return (Offset - Segment.StartFileOffset) + Segment.StartVirtualAddress;
+    return {};
+  }
+
   //
   // Accessor methods
   //
@@ -529,6 +541,10 @@ private:
   /// \brief Parse a COFF file
   void parseCOFF(llvm::object::ObjectFile *TheBinary, uint64_t BaseAddress);
 
+  template<typename T>
+  void parseMachOSegment(llvm::ArrayRef<uint8_t> RawDataRef,
+                         const T &SegmentCommand);
+
   /// \brief Parse the .eh_frame_hdr section to obtain the address and the
   ///        number of FDEs in .eh_frame
   ///
@@ -582,6 +598,9 @@ private:
   void registerRelocations(Elf_Rel_Array<T, HasAddend> Relocations,
                            const FilePortion &Dynsym,
                            const FilePortion &Dynstr);
+
+  void registerBindEntry(const llvm::object::MachOBindEntry *Entry,
+                         uint64_t PointerSize);
 
   void registerLabel(const Label &NewLabel) {
     if (NewLabel.isInvalid())

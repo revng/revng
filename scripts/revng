@@ -98,7 +98,12 @@ def build_opt_args(args):
   prefix = []
   libasan = [name for name in provided if "libasan." in name]
   if libasan:
-    prefix = [get_command("env"), "LD_PRELOAD=" + libasan[0]]
+    # Use `sh` instead of `env` since `env` sometimes is not a real executable
+    # but a shebang script spawning /usr/bin/coreutils, which makes gdb unhappy
+    prefix = [get_command("sh"),
+              "-c",
+              'LD_PRELOAD={} ASAN_OPTIONS=abort_on_error=1 '
+              'exec "$0" "$@"'.format(libasan[0])]
 
   return (prefix + [get_command("opt")]
           + interleave(roots, "-load")
@@ -129,6 +134,8 @@ def get_architecture(path):
 
   if arch_id == "012800":
     return "arm"
+  elif arch_id == "01b700":
+    return "aarch64"
   elif arch_id == "010800":
     return "mipsel"
   elif arch_id == "020008":

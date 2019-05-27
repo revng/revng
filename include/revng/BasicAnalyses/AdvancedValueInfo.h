@@ -301,6 +301,7 @@ public:
     PhiIsSmallest = false;
     Materialized = false;
     OperationsStack.clear();
+    Values.clear();
   }
 
   void dump(unsigned Indent) const debug_function {
@@ -516,6 +517,7 @@ public:
     // Process one value at a time
     for (MaterializedValue &Entry : Values) {
       using CI = ConstantInt;
+      using CE = ConstantExpr;
 
       llvm::Optional<llvm::StringRef> SymbolName;
       auto *Current = CI::get(SmallestOperation.V->getType(), Entry.value());
@@ -556,8 +558,16 @@ public:
             if (Loaded.hasSymbol())
               SymbolName = Loaded.symbolName();
 
-            Current = CI::get(cast<IntegerType>(Load->getType()),
-                              Loaded.value());
+            Type *LoadedType = Load->getType();
+            if (LoadedType->isPointerTy()) {
+              auto *M = Load->getParent()->getParent()->getParent();
+              const DataLayout &DL = M->getDataLayout();
+              LLVMContext &C = M->getContext();
+              Current = CI::get(DL.getIntPtrType(C), Loaded.value());
+              Current = CE::getIntToPtr(Current, LoadedType);
+            } else {
+              Current = CI::get(cast<IntegerType>(LoadedType), Loaded.value());
+            }
 
           } else if (auto *Call = dyn_cast<CallInst>(Op.V)) {
             Function *Callee = Call->getCalledFunction();

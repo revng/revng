@@ -467,7 +467,8 @@ EnforceABIImpl::handleFunction(Function &F) {
                                        F.getParent());
   NewFunction->takeName(&F);
   NewFunction->copyAttributesFrom(&F);
-  NewFunction->setMetadata("revng.func.entry", F.getMetadata("func.entry"));
+  NewFunction->setMetadata("revng.func.entry",
+                           F.getMetadata("revng.func.entry"));
   Description.Function = NewFunction;
 
   {
@@ -610,6 +611,7 @@ void EnforceABIImpl::handleRegularFunctionCall(Instruction *I) {
     case BranchType::HandledCall:
     case BranchType::IndirectTailCall:
     case BranchType::LongJmp:
+    case BranchType::Killer:
       IsNoReturn = true;
       break;
     default:

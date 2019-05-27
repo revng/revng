@@ -28,8 +28,11 @@ extern size_t MaxLoggerNameLength;
 #define debug_function __attribute__((used, noinline))
 
 /// \brief Stream an instance of this class to call Logger::emit()
-struct LogTerminator {};
-extern LogTerminator DoLog;
+struct LogTerminator {
+  const char *File;
+  uint64_t Line;
+};
+#define DoLog (LogTerminator{ __FILE__, __LINE__ })
 
 /// \brief Logger that self-registers itself, can be disable, has a name and
 ///        follows the global indentation level
@@ -64,7 +67,7 @@ public:
   ///
   /// To call this method using the stream syntax, see LogTerminator, or simply
   /// MyLogger << DoLog;
-  void emit();
+  void emit(const LogTerminator &Asd = LogTerminator{ "", 0 });
 
   template<typename T>
   inline Logger &operator<<(const T Other) {
@@ -73,7 +76,7 @@ public:
   }
 
   template<bool X>
-  friend void writeToLog(Logger<X> &This, const LogTerminator T, int Ignore);
+  friend void writeToLog(Logger<X> &This, const LogTerminator &T, int Ignore);
 
   template<bool X, typename T, typename LowPrio>
   friend void writeToLog(Logger<X> &This, const T Other, LowPrio Ignore);
@@ -136,8 +139,8 @@ inline void writeToLog(Logger<X> &This, const T Other, LowPrio) {
 
 /// \brief Specialization of writeToLog to emit a message
 template<bool X>
-inline void writeToLog(Logger<X> &This, const LogTerminator, int) {
-  This.emit();
+inline void writeToLog(Logger<X> &This, const LogTerminator &LineInfo, int) {
+  This.emit(LineInfo);
 }
 
 /// \brief Specialization for llvm::StringRef
