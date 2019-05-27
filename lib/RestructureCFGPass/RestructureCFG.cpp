@@ -662,6 +662,35 @@ bool RestructureCFG::runOnFunction(Function &F) {
                             "Out-pre-" + std::to_string(Meta->getIndex()));
     }
 
+    // Identify all the abnormal retreating edges in a SCS.
+    std::set<EdgeDescriptor> Retreatings;
+    std::set<BasicBlockNodeBB *> RetreatingTargets;
+    for (EdgeDescriptor Backedge : Backedges) {
+      if (Meta->containsNode(Backedge.first)) {
+
+        // Check that the target of the retreating edge falls inside the current
+        // SCS.
+        revng_assert(Meta->containsNode(Backedge.second));
+
+        Retreatings.insert(Backedge);
+        RetreatingTargets.insert(Backedge.second);
+      }
+    }
+    if (CombLogger.isEnabled()) {
+      CombLogger << "Retreatings found:\n";
+      for (EdgeDescriptor Retreating : Retreatings) {
+        CombLogger << Retreating.first->getNameStr() << " -> ";
+        CombLogger << Retreating.second->getNameStr() << "\n";
+      }
+    }
+
+    // We need to update the backedges list removing the edges which have been
+    // considered as retreatings of the SCS under analysis.
+    for (EdgeDescriptor Retreating : Retreatings) {
+      revng_assert(Backedges.count(Retreating) == 1);
+      Backedges.erase(Retreating);
+    }
+
     #if 0
     std::map<BasicBlockNodeBB *, int> IncomingDegree;
     for (BasicBlockNodeBB *Node : Meta->nodes()) {
@@ -720,9 +749,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
     #endif
 
     #if 1
+    // Always take the fist node in RPOT which is a retreating target as entry,
+    // candidate.
     BasicBlockNodeBB *FirstCandidate = nullptr;
     for (BasicBlockNodeBB *BN : RPOT) {
-      if (Meta->containsNode(BN) == true) {
+      if (Meta->containsNode(BN) == true and RetreatingTargets.count(BN) == 1) {
         FirstCandidate = BN;
         break;
       }
@@ -737,34 +768,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       CombLogger << "Elected head is: " << FirstCandidate->getNameStr() << "\n";
     }
 
-    // Identify all the abnormal retreating edges in a SCS.
-    std::set<EdgeDescriptor> Retreatings;
-    std::set<BasicBlockNodeBB *> RetreatingTargets;
-    for (EdgeDescriptor Backedge : Backedges) {
-      if (Meta->containsNode(Backedge.first)) {
 
-        // Check that the target of the retreating edge falls inside the current
-        // SCS.
-        revng_assert(Meta->containsNode(Backedge.second));
-
-        Retreatings.insert(Backedge);
-        RetreatingTargets.insert(Backedge.second);
-      }
-    }
-    if (CombLogger.isEnabled()) {
-      CombLogger << "Retreatings found:\n";
-      for (EdgeDescriptor Retreating : Retreatings) {
-        CombLogger << Retreating.first->getNameStr() << " -> ";
-        CombLogger << Retreating.second->getNameStr() << "\n";
-      }
-    }
-
-    // We need to update the backedges list removing the edges which have been
-    // considered as retreatings of the SCS under analysis.
-    for (EdgeDescriptor Retreating : Retreatings) {
-      revng_assert(Backedges.count(Retreating) == 1);
-      Backedges.erase(Retreating);
-    }
 
     bool NewHeadNeeded = false;
     for (BasicBlockNodeBB *Node : RetreatingTargets) {
