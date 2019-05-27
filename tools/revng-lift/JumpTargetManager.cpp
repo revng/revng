@@ -1298,10 +1298,11 @@ public:
 /// \brief Drop all the call to marker functions
 class DropMarkerCalls : public PassInfoMixin<DropMarkerCalls> {
 private:
-  ArrayRef<StringRef> ToPreserve;
+  SmallVector<StringRef, 4> ToPreserve;
 
 public:
-  DropMarkerCalls(ArrayRef<StringRef> ToPreserve) : ToPreserve(ToPreserve) {}
+  DropMarkerCalls(SmallVector<StringRef, 4> ToPreserve) :
+    ToPreserve(ToPreserve) {}
 
 public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
