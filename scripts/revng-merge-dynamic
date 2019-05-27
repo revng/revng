@@ -117,8 +117,8 @@ class ParsedElf:
                                         scale=self.symbols_count * 2)
     self.gnuversion_indices = self.parse_ints(self.gnuversion, 2)
 
+    self.verneeds = []
     if self.has_tag("DT_VERNEED"):
-      self.verneeds = []
       verneed_count = self.tag("DT_VERNEEDNUM")
       self.seek_address(self.tag("DT_VERNEED"))
       verneed_position = self.current_position()
