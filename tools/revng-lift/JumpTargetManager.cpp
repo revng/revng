@@ -362,9 +362,9 @@ uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
 
 MaterializedValue
 JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
-  auto *Type = cast<IntegerType>(Pointer->getType()->getPointerElementType());
-  unsigned LoadSize = Type->getPrimitiveSizeInBits() / 8;
+  Type *LoadedType = Pointer->getType()->getPointerElementType();
   const DataLayout &DL = TheModule.getDataLayout();
+  unsigned LoadSize = DL.getTypeSizeInBits(LoadedType) / 8;
   uint64_t LoadAddress = getZExtValue(cast<ConstantInt>(skipCasts(Pointer)),
                                       DL);
   UnusedCodePointers.erase(LoadAddress);
