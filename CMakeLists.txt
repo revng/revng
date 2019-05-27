@@ -122,6 +122,7 @@ endmacro()
 # Disable some warnings
 add_flag_if_available("-Wno-maybe-uninitialized")
 add_flag_if_available("-Wno-unused-local-typedefs")
+add_flag_if_available("-Wno-init-list-lifetime")
 
 # Add some extra warnings
 add_flag_if_available("-Wstrict-aliasing")
