@@ -560,49 +560,41 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
     // cases handled by the if before
     Instruction *NewInstruction = OldInstruction->clone();
 
+    // Handle PHINodes
+    if (auto *PHI = dyn_cast<PHINode>(NewInstruction)) {
+      for (unsigned I = 0; I < PHI->getNumIncomingValues(); ++I) {
+        auto *OldBB = PHI->getIncomingBlock(I);
+        PHI->setIncomingBlock(I, cast<BasicBlock>(RootToIsolated[OldBB]));
+      }
+    }
+
     // Queue initialization with the base operand, the instruction
     // herself
-    std::queue<User *> UserQueue;
-    UserQueue.push(NewInstruction);
+    std::queue<Use *> UseQueue;
+    for (Use &CurrentUse : NewInstruction->operands())
+      UseQueue.push(&CurrentUse);
 
     // "Recursive" visit of the queue
-    while (!UserQueue.empty()) {
-      User *CurrentUser = UserQueue.front();
-      UserQueue.pop();
+    while (not UseQueue.empty()) {
+      Use *CurrentUse = UseQueue.front();
+      UseQueue.pop();
 
-      for (Use &CurrentUse : CurrentUser->operands()) {
-        auto *CurrentOperand = CurrentUse.get();
+      auto *CurrentOperand = CurrentUse->get();
 
-        // Manage a standard value for which we find replacement in the
-        // ValueToValueMap
-        auto ReplacementIt = RootToIsolated.find(CurrentOperand);
-        if (ReplacementIt != RootToIsolated.end()) {
-          CurrentUse.set(ReplacementIt->second);
-
-        } else if (auto *Address = dyn_cast<BlockAddress>(CurrentOperand)) {
-          // Manage a BlockAddress
-          Function *OldFunction = Address->getFunction();
-          BasicBlock *OldBlock = Address->getBasicBlock();
-          Function *NewFunction = cast<Function>(RootToIsolated[OldFunction]);
-          BasicBlock *NewBlock = cast<BasicBlock>(RootToIsolated[OldBlock]);
-          BlockAddress *B = BlockAddress::get(NewFunction, NewBlock);
-
-          CurrentUse.set(B);
-
-        } else if (isa<BasicBlock>(CurrentOperand)) {
-          // Assert if we encounter a basic block and we don't find a
-          // reference in the ValueToValueMap
-          revng_assert(RootToIsolated.count(CurrentOperand) != 0);
-        } else if (!isa<Constant>(CurrentOperand)
-                   and !isa<MetadataAsValue>(CurrentOperand)) {
-          // Manage values that are themself users (recursive exploration
-          // of the operands) taking care of avoiding to add operands of
-          // constants
-          auto *CurrentSubUser = cast<User>(CurrentOperand);
-          if (CurrentSubUser->getNumOperands() >= 1) {
-            UserQueue.push(CurrentSubUser);
-          }
-        }
+      // Manage a standard value for which we find replacement in the
+      // ValueToValueMap
+      auto ReplacementIt = RootToIsolated.find(CurrentOperand);
+      if (ReplacementIt != RootToIsolated.end()) {
+        revng_assert(not isa<Constant>(CurrentOperand));
+        CurrentUse->set(ReplacementIt->second);
+      } else if (isa<ConstantInt>(CurrentOperand)
+                 or isa<GlobalObject>(CurrentOperand)) {
+        // Do nothing
+      } else if (auto *CE = dyn_cast<ConstantExpr>(CurrentOperand)) {
+        for (Use &U : CE->operands())
+          UseQueue.push(&U);
+      } else {
+        revng_abort();
       }
     }
 
