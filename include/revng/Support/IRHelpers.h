@@ -403,6 +403,16 @@ inline std::string getName(const llvm::Function *F) {
   return F->getName();
 }
 
+inline llvm::BasicBlock *blockByName(llvm::Function *F, const char *Name) {
+  using namespace llvm;
+
+  for (BasicBlock &BB : *F)
+    if (BB.hasName() and BB.getName() == StringRef(Name))
+      return &BB;
+
+  return nullptr;
+}
+
 template<typename T>
 using rc_t = typename std::remove_const<T>::type;
 template<typename T>
@@ -505,6 +515,8 @@ public:
   llvm::MDTuple *tuple(llvm::ArrayRef<llvm::Metadata *> MDs) {
     return llvm::MDTuple::get(C, MDs);
   }
+
+  llvm::MDTuple *tuple() { return llvm::MDTuple::get(C, {}); }
 
   template<typename T>
   T extract(const llvm::MDTuple *Tuple, unsigned Index) {
@@ -744,9 +756,13 @@ inline void erase_if(Container &C, UnaryPredicate P) {
 
 inline std::string dumpToString(const llvm::Value *V) {
   std::string Result;
-  llvm::raw_string_ostream Stream(Result);
-  V->print(Stream, true);
-  Stream.str();
+  if (V != nullptr) {
+    llvm::raw_string_ostream Stream(Result);
+    V->print(Stream, true);
+    Stream.str();
+  } else {
+    Result = "nullptr";
+  }
   return Result;
 }
 
@@ -771,5 +787,18 @@ llvm::Constant *getUniqueString(llvm::Module *M,
                                 llvm::StringRef Namespace,
                                 llvm::StringRef String,
                                 const llvm::Twine &Name = llvm::Twine());
+
+inline llvm::User *getUniqueUser(llvm::Value *V) {
+  llvm::User *Result = nullptr;
+
+  for (llvm::User *U : V->users()) {
+    if (Result != nullptr)
+      return nullptr;
+    else
+      Result = U;
+  }
+
+  return Result;
+}
 
 #endif // IRHELPERS_H

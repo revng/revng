@@ -19,6 +19,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 // Local libraries includes
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/Debug.h"
 
 // Local includes

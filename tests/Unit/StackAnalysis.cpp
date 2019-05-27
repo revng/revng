@@ -1,4 +1,4 @@
-/// \file stackanalysis.cpp
+/// \file StackAnalysis.cpp
 /// \brief Tests for StackAnalysis data structures
 
 //

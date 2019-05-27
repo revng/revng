@@ -33,7 +33,6 @@ class Value;
 } // namespace llvm
 
 class VariableManager;
-class CPUStateAccessAnalysisPass;
 
 // TODO: rename
 extern llvm::cl::opt<bool> External;
@@ -44,9 +43,7 @@ extern llvm::cl::opt<bool> External;
 /// created on the fly.
 class VariableManager {
 public:
-  VariableManager(llvm::Module &TheModule,
-                  llvm::Module &HelpersModule,
-                  Architecture &TargetArchitecture);
+  VariableManager(llvm::Module &TheModule, Architecture &TargetArchitecture);
 
   /// \brief Get or create the LLVM value associated to a PTC temporary
   ///
@@ -104,10 +101,6 @@ public:
   /// Returns true if the given variable is the env variable
   bool isEnv(llvm::Value *TheValue);
 
-  CPUStateAccessAnalysisPass *createCPUStateAccessAnalysisPass() {
-    return new CPUStateAccessAnalysisPass(this);
-  }
-
   llvm::Value *computeEnvAddress(llvm::Type *TargetType,
                                  llvm::Instruction *InsertBefore,
                                  unsigned Offset = 0);
@@ -145,14 +138,18 @@ public:
   /// \brief Perform finalization steps on variables
   void finalize();
 
+  void rebuildCSVList();
+
   /// \brief Gets the CPUStateType
   llvm::StructType *getCPUStateType() const { return CPUStateType; }
 
   bool hasEnv() const { return Env != nullptr; }
 
-private:
-  void aliasAnalysis();
+  llvm::Value *CPUStateToEnv(llvm::Value *CPUState,
+                             llvm::Type *TargetType,
+                             llvm::Instruction *InsertBefore) const;
 
+private:
   llvm::Value *loadFromCPUStateOffset(llvm::IRBuilder<> &Builder,
                                       unsigned LoadSize,
                                       unsigned Offset);
@@ -183,7 +180,7 @@ private:
   const llvm::DataLayout *ModuleLayout;
   unsigned EnvOffset;
 
-  llvm::Value *Env;
+  llvm::GlobalVariable *Env;
   Architecture &TargetArchitecture;
 };
 

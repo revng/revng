@@ -21,12 +21,12 @@
 #include "llvm/IR/Instructions.h"
 
 // Local libraries includes
+#include "revng/BasicAnalyses/MaterializedValue.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/revng.h"
 
 // Local includes
 #include "BinaryFile.h"
-#include "NoReturnAnalysis.h"
 
 // Forward declarations
 namespace llvm {
@@ -82,12 +82,12 @@ public:
 
   bool runOnModule(llvm::Module &M) override;
 
+private:
   /// \brief Remove all the constant writes to the PC
   bool pinConstantStore(llvm::Function &F);
 
-  /// \brief Remove all the PC-writes for which a set of (approximate) targets
-  ///        is known
-  bool pinJTs(llvm::Function &F);
+  /// \brief Pin PC-stores for which AVI provided useful results
+  bool pinAVIResults(llvm::Function &F);
 
   /// Introduces a fallthrough branch if there's no store to PC before the last
   /// call to an helper
@@ -96,10 +96,15 @@ public:
   ///         been inserted.
   bool forceFallthroughAfterHelper(llvm::CallInst *Call);
 
-private:
   /// Obtains the absolute address of the PC corresponding to the original
   /// assembly instruction coming after the specified LLVM instruction
   uint64_t getNextPC(llvm::Instruction *TheInstruction);
+
+  /// \brief Replace the code after a call to ExitTB with a jump to the
+  ///        addresses in \p Destination
+  void pinPCStore(llvm::StoreInst *PCWrite,
+                  bool Approximate,
+                  const std::vector<uint64_t> &Destinations);
 
 private:
   JumpTargetManager *JTM;
@@ -115,13 +120,16 @@ namespace CFGForm {
 enum Values {
   /// The CFG is an unknown state
   UnknownFormCFG,
+
   /// The dispatcher jumps to all the jump targets, and all the indirect jumps
   /// go to the dispatcher
   SemanticPreservingCFG,
+
   /// The dispatcher only jumps to jump targets without other predecessors and
   /// indirect jumps do not go to the dispatcher, but to an unreachable
   /// instruction
   RecoveredOnlyCFG,
+
   /// Similar to RecoveredOnlyCFG, but all jumps forming a function call are
   /// converted to jumps to the return address
   NoFunctionCallsCFG
@@ -143,6 +151,8 @@ inline const char *getName(Values V) {
 }
 
 } // namespace CFGForm
+
+class CPUStateAccessAnalysisPass;
 
 class JumpTargetManager {
 private:
@@ -205,14 +215,17 @@ public:
 
 public:
   using RangesVector = std::vector<std::pair<uint64_t, uint64_t>>;
+  using CSAAFactory = std::function<CPUStateAccessAnalysisPass *(void)>;
 
+public:
   /// \param TheFunction the translated function.
   /// \param PCReg the global variable representing the program counter.
   /// \param Binary reference to the information about a given binary, such as
   ///        segments and symbols.
   JumpTargetManager(llvm::Function *TheFunction,
                     llvm::Value *PCReg,
-                    const BinaryFile &Binary);
+                    const BinaryFile &Binary,
+                    CSAAFactory createCSAA);
 
   /// \brief Transform the IR to represent the request form of CFG
   void setCFGForm(CFGForm::Values NewForm);
@@ -356,9 +369,6 @@ public:
       registerJT(PC, Reason);
   }
 
-  /// \brief Removes a `BasicBlock` from the SET's visited list
-  void unvisit(llvm::BasicBlock *BB);
-
   /// \brief Checks if \p BB is a basic block generated during translation
   bool isTranslatedBB(llvm::BasicBlock *BB) const {
     return BB != anyPC() && BB != unexpectedPC() && BB != dispatcher()
@@ -399,43 +409,18 @@ public:
     return Pair.first + Pair.second;
   }
 
-  /// \brief Read an integer number from a segment
-  ///
-  /// \param Address the address from which to read.
-  /// \param Size the size of the read in bytes.
-  ///
-  /// \return a `ConstantInt` with the read value or `nullptr` in case it wasn't
-  ///         possible to read the value (e.g., \p Address is not inside any of
-  ///         the segments).
-  llvm::ConstantInt *
-  readConstantInt(llvm::Constant *Address,
-                  unsigned Size,
-                  BinaryFile::Endianess E = BinaryFile::OriginalEndianess);
-
-  /// \brief Reads a pointer-sized value from a segment
-  /// \see readConstantInt
-  llvm::Constant *
-  readConstantPointer(llvm::Constant *Address,
-                      llvm::Type *PointerTy,
-                      BinaryFile::Endianess E = BinaryFile::OriginalEndianess);
+  MaterializedValue
+  readFromPointer(llvm::Constant *Pointer, BinaryFile::Endianess E);
 
   /// \brief Increment the counter of emitted branches since the last reset
   void newBranch() { NewBranches++; }
-
-  NoReturnAnalysis &noReturn() { return NoReturn; }
-
-  void runNoreturnAnalysis() {
-    setCFGForm(CFGForm::NoFunctionCallsCFG);
-    NoReturn.computeKillerSet();
-    setCFGForm(CFGForm::SemanticPreservingCFG);
-  }
 
   /// \brief Finalizes information about the jump targets
   ///
   /// Call this function once no more jump targets can be discovered.  It will
   /// fix all the pending information. In particular, those pointers to code
-  /// that have never been touched by SET will be considered and their pointee
-  /// will be marked with UnusedGlobalData.
+  /// that have never been touched will be considered and their pointee will be
+  /// marked with UnusedGlobalData.
   ///
   /// This function also fixes the "anypc" and "unexpectedpc" basic blocks to
   /// their proper behavior.
@@ -528,11 +513,12 @@ public:
   ///        harvesting
   ///
   /// A simple literal is a literal value found in the input program that is
-  /// simple enough not to require SET. The typcal example is the return address
-  /// of a function call, that is provided to use by libtinycode in full.
+  /// simple enough not to require more sophisticated analyses. The typcal
+  /// example is the return address of a function call, that is provided to use
+  /// by libtinycode in full.
   ///
   /// Simple literals are registered as possible jump targets before attempting
-  /// more expensive techniques such as SET.
+  /// more expensive techniques.
   void registerSimpleLiteral(uint64_t Address) {
     SimpleLiterals.insert(Address);
   }
@@ -592,9 +578,12 @@ private:
                         const unsigned char *Start,
                         const unsigned char *End);
 
+  void harvestWithAVI();
+
   void harvest();
 
-  void handleSumJump(llvm::Instruction *SumJump);
+  /// \brief Decorate memory accesses with information about CSV aliasing
+  void aliasAnalysis();
 
 private:
   using BlockMap = std::map<uint64_t, JumpTarget>;
@@ -618,7 +607,6 @@ private:
   llvm::BasicBlock *DispatcherFail;
   llvm::BasicBlock *AnyPC;
   llvm::BasicBlock *UnexpectedPC;
-  std::set<llvm::BasicBlock *> Visited;
 
   const BinaryFile &Binary;
 
@@ -626,11 +614,11 @@ private:
 
   std::set<uint64_t> UnusedCodePointers;
   interval_set ReadIntervalSet;
-  NoReturnAnalysis NoReturn;
 
   CFGForm::Values CurrentCFGForm;
   std::set<llvm::BasicBlock *> ToPurge;
   std::set<uint64_t> SimpleLiterals;
+  CSAAFactory createCSAA;
 };
 
 template<>

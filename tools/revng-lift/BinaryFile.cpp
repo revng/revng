@@ -999,6 +999,8 @@ Label BinaryFile::parseRelocation(unsigned char RelocationType,
     revng_abort("Invalid relocation type");
     break;
   }
+
+  revng_abort();
 }
 
 template<typename T, bool HasAddend>

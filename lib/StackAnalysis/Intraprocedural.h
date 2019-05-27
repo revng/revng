@@ -139,17 +139,17 @@ public:
   }
 
   static Interrupt createSummary(IntraproceduralFunctionSummary Summary) {
-    return Interrupt(BranchType::FunctionSummary, std::move(Summary));
-  }
-
-  static Interrupt
-  createNoReturnFunction(IntraproceduralFunctionSummary Summary) {
-    return Interrupt(BranchType::NoReturnFunction, std::move(Summary));
-  }
-
-  static Interrupt
-  createIndirectTailCallFunction(IntraproceduralFunctionSummary Summary) {
-    return Interrupt(BranchType::IndirectTailCallFunction, std::move(Summary));
+    switch (Summary.Type) {
+    case FunctionType::Regular:
+      return Interrupt(BranchType::RegularFunction, std::move(Summary));
+    case FunctionType::NoReturn:
+      return Interrupt(BranchType::NoReturnFunction, std::move(Summary));
+    case FunctionType::Fake:
+      return Interrupt(BranchType::FakeFunction, std::move(Summary));
+    default:
+      revng_abort();
+    }
+    return Interrupt(BranchType::RegularFunction, std::move(Summary));
   }
 
 public:
@@ -165,6 +165,7 @@ public:
       return true;
     case BranchType::UnhandledCall:
     case BranchType::Return:
+    case BranchType::BrokenReturn:
     case BranchType::IndirectTailCall:
     case BranchType::FakeFunction:
     case BranchType::LongJmp:
@@ -172,46 +173,8 @@ public:
     case BranchType::Unreachable:
       return false;
     case BranchType::Invalid:
-    case BranchType::FunctionSummary:
+    case BranchType::RegularFunction:
     case BranchType::NoReturnFunction:
-    case BranchType::IndirectTailCallFunction:
-      revng_abort();
-    }
-
-    revng_abort();
-  }
-
-  /// \brief Is this a regular function terminator?
-  ///
-  /// \note This function doesn't tell you if this basic block has no
-  ///       successors, but if this is a proper return whose final result should
-  ///       be considered in the computation of the final result of the function
-  ///       as a whole. Abnormal exits (such as `noreturn` function calls)
-  ///       return false.
-  bool isFinalState() const {
-    switch (Type) {
-    case BranchType::Return:
-    case BranchType::IndirectTailCall:
-      // TODO: an IndirectTailCall, *can be* an IndirectTail call, but it might
-      //       also just be a longjmp. So it's an assumption that this is a
-      //       final state.
-      return true;
-    case BranchType::InstructionLocalCFG:
-    case BranchType::FunctionLocalCFG:
-    case BranchType::FakeFunctionCall:
-    case BranchType::FakeFunctionReturn:
-    case BranchType::HandledCall:
-    case BranchType::IndirectCall:
-    case BranchType::UnhandledCall:
-    case BranchType::FakeFunction:
-    case BranchType::LongJmp:
-    case BranchType::Killer:
-    case BranchType::Unreachable:
-      return false;
-    case BranchType::Invalid:
-    case BranchType::FunctionSummary:
-    case BranchType::NoReturnFunction:
-    case BranchType::IndirectTailCallFunction:
       revng_abort();
     }
 
@@ -220,15 +183,19 @@ public:
 
   BranchType::Values type() const { return Type; }
 
-  bool isPartOfFinalResults() const { return Type == BranchType::Return; }
+  bool isPartOfFinalResults() const {
+    // We bypass MonotoneFramework's collection of final results, since we're
+    // already collecting them in `Analysis::Returns` and we need to
+    // post-process them
+    return false;
+  }
 
   bool requiresInterproceduralHandling() const {
     switch (Type) {
     case BranchType::FakeFunction:
     case BranchType::UnhandledCall:
-    case BranchType::FunctionSummary:
+    case BranchType::RegularFunction:
     case BranchType::NoReturnFunction:
-    case BranchType::IndirectTailCallFunction:
       return true;
     case BranchType::InstructionLocalCFG:
     case BranchType::FunctionLocalCFG:
@@ -237,6 +204,7 @@ public:
     case BranchType::HandledCall:
     case BranchType::IndirectCall:
     case BranchType::Return:
+    case BranchType::BrokenReturn:
     case BranchType::IndirectTailCall:
     case BranchType::LongJmp:
     case BranchType::Killer:
@@ -250,7 +218,7 @@ public:
   }
 
   Element &&extractResult() {
-    revng_assert(Type != BranchType::FunctionSummary
+    revng_assert(Type != BranchType::RegularFunction
                  and Type != BranchType::UnhandledCall);
 
     revng_assert(not ResultExtracted);
@@ -266,10 +234,9 @@ public:
 
   const IntraproceduralFunctionSummary &getFunctionSummary() {
     // TODO: is it OK for fake functions to have summaries?
-    revng_assert(Type == BranchType::FunctionSummary
+    revng_assert(Type == BranchType::RegularFunction
                  || Type == BranchType::FakeFunction
-                 || Type == BranchType::NoReturnFunction
-                 || Type == BranchType::IndirectTailCallFunction);
+                 || Type == BranchType::NoReturnFunction);
     return Summary;
   }
 
@@ -302,12 +269,13 @@ public:
     case BranchType::UnhandledCall:
       Output << "Unhandled call to " << getName(RelatedBasicBlocks[0]) << "\n";
       break;
-    case BranchType::FunctionSummary:
+    case BranchType::RegularFunction:
       Output << "Summary:\n";
       Summary.dump(M);
 
       break;
     case BranchType::Return:
+    case BranchType::BrokenReturn:
     case BranchType::NoReturnFunction:
     case BranchType::IndirectTailCall:
     case BranchType::FakeFunction:
@@ -317,7 +285,6 @@ public:
       Result.dump(M);
       break;
     case BranchType::Invalid:
-    case BranchType::IndirectTailCallFunction:
     case BranchType::Unreachable:
       revng_abort();
     }
@@ -382,6 +349,8 @@ private:
   std::set<llvm::BasicBlock *> IncoherentFunctions;
 
   bool AnalyzeABI;
+
+  std::map<llvm::BasicBlock *, Element> ReturnCandidates;
 
 public:
   Analysis(llvm::BasicBlock *Entry,
@@ -502,15 +471,10 @@ public:
       return 0;
   }
 
-  Interrupt createSummaryInterrupt() {
-    return Interrupt::createSummary(createSummary());
-  }
+  Interrupt createSummaryInterrupt() { revng_abort(); }
 
   Interrupt createNoReturnInterrupt() {
-    if (hasIndirectTailCall())
-      return Interrupt::createIndirectTailCallFunction(createSummary());
-    else
-      return Interrupt::createNoReturnFunction(createSummary());
+    return Interrupt::createSummary(std::move(createSummary()));
   }
 
   /// \brief Return the set of functions called by this function in an
@@ -525,6 +489,8 @@ public:
   }
 
 private:
+  std::pair<FunctionType::Values, Element> finalize();
+
   /// \brief Creates a summary for the current analysis ready to be wrapped in
   ///        an Interrupt
   IntraproceduralFunctionSummary createSummary();

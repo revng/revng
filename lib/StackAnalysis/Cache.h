@@ -71,14 +71,6 @@ public:
     NoReturnFunctions.insert(Function);
   }
 
-  bool isIndirectTailCall(llvm::BasicBlock *Function) const {
-    return IndirectTailCallFunctions.count(Function) != 0;
-  }
-
-  void markAsIndirectTailCall(llvm::BasicBlock *Function) {
-    IndirectTailCallFunctions.insert(Function);
-  }
-
   /// \brief Query the cache for the result of the analysis for a specific
   ///        function
   ///

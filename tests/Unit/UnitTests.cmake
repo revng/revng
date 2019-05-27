@@ -13,7 +13,7 @@ find_package(Boost 1.63.0 REQUIRED COMPONENTS unit_test_framework)
 # test_lazysmallbitvector
 #
 
-add_executable(test_lazysmallbitvector "${SRC}/lazysmallbitvector.cpp")
+add_executable(test_lazysmallbitvector "${SRC}/LazySmallBitVector.cpp")
 target_include_directories(test_lazysmallbitvector
   PRIVATE "${CMAKE_SOURCE_DIR}"
           "${Boost_INCLUDE_DIRS}")
@@ -25,12 +25,13 @@ target_link_libraries(test_lazysmallbitvector
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_lazysmallbitvector COMMAND test_lazysmallbitvector)
+set_tests_properties(test_lazysmallbitvector PROPERTIES LABELS "unit")
 
 #
 # test_stackanalysis
 #
 
-add_executable(test_stackanalysis "${SRC}/stackanalysis.cpp")
+add_executable(test_stackanalysis "${SRC}/StackAnalysis.cpp")
 target_include_directories(test_stackanalysis
   PRIVATE "${CMAKE_SOURCE_DIR}"
           "${CMAKE_SOURCE_DIR}/lib/StackAnalysis"
@@ -45,12 +46,13 @@ target_link_libraries(test_stackanalysis
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_stackanalysis COMMAND test_stackanalysis)
+set_tests_properties(test_stackanalysis PROPERTIES LABELS "unit")
 
 #
 # test_classsentinel
 #
 
-add_executable(test_classsentinel "${SRC}/classsentinel.cpp")
+add_executable(test_classsentinel "${SRC}/ClassSentinel.cpp")
 target_include_directories(test_classsentinel
   PRIVATE "${CMAKE_SOURCE_DIR}"
           "${Boost_INCLUDE_DIRS}")
@@ -62,24 +64,7 @@ target_link_libraries(test_classsentinel
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_classsentinel COMMAND test_classsentinel)
-
-#
-# test_reachingdefinitionspass
-#
-
-add_executable(test_reachingdefinitionspass "${SRC}/ReachingDefinitionsPass.cpp")
-target_include_directories(test_reachingdefinitionspass
-  PRIVATE "${CMAKE_SOURCE_DIR}"
-          "${Boost_INCLUDE_DIRS}")
-target_compile_definitions(test_reachingdefinitionspass
-  PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_link_libraries(test_reachingdefinitionspass
-  revngReachingDefinitions
-  revngSupport
-  revngUnitTestHelpers
-  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
-  ${LLVM_LIBRARIES})
-add_test(NAME test_reachingdefinitionspass COMMAND test_reachingdefinitionspass)
+set_tests_properties(test_classsentinel PROPERTIES LABELS "unit")
 
 #
 # test_irhelpers
@@ -97,6 +82,25 @@ target_link_libraries(test_irhelpers
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_irhelpers COMMAND test_irhelpers)
+set_tests_properties(test_irhelpers PROPERTIES LABELS "unit")
+
+#
+# test_irhelpers
+#
+
+add_executable(test_advancedvalueinfo "${SRC}/AdvancedValueInfo.cpp")
+target_include_directories(test_advancedvalueinfo
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+          "${Boost_INCLUDE_DIRS}")
+target_compile_definitions(test_advancedvalueinfo
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_link_libraries(test_advancedvalueinfo
+  revngSupport
+  revngBasicAnalyses
+  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+  ${LLVM_LIBRARIES})
+add_test(NAME test_advancedvalueinfo COMMAND test_advancedvalueinfo)
+set_tests_properties(test_advancedvalueinfo PROPERTIES LABELS "unit")
 
 #
 # test_zipmapiterator
@@ -114,3 +118,41 @@ target_link_libraries(test_zipmapiterator
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
   ${LLVM_LIBRARIES})
 add_test(NAME test_zipmapiterator COMMAND test_zipmapiterator)
+set_tests_properties(test_zipmapiterator PROPERTIES LABELS "unit")
+
+#
+# test_constantrangeset
+#
+
+add_executable(test_constantrangeset "${SRC}/ConstantRangeSet.cpp")
+target_include_directories(test_constantrangeset
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+          "${Boost_INCLUDE_DIRS}")
+target_compile_definitions(test_constantrangeset
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_link_libraries(test_constantrangeset
+  revngSupport
+  revngUnitTestHelpers
+  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+  ${LLVM_LIBRARIES})
+add_test(NAME test_constantrangeset COMMAND test_constantrangeset)
+set_tests_properties(test_constantrangeset PROPERTIES LABELS "unit")
+
+#
+#
+# test_shrinkinstructionoperands
+#
+
+add_executable(test_shrinkinstructionoperands "${SRC}/ShrinkInstructionOperandsPass.cpp")
+target_include_directories(test_shrinkinstructionoperands
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+          "${Boost_INCLUDE_DIRS}")
+target_compile_definitions(test_shrinkinstructionoperands
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_link_libraries(test_shrinkinstructionoperands
+  revngSupport
+  revngUnitTestHelpers
+  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+  ${LLVM_LIBRARIES})
+add_test(NAME test_shrinkinstructionoperands COMMAND test_shrinkinstructionoperands)
+set_tests_properties(test_shrinkinstructionoperands PROPERTIES LABELS "unit")

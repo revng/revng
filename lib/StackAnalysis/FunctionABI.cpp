@@ -1,4 +1,4 @@
-/// \file functionabi.cpp
+/// \file FunctionABI.cpp
 /// \brief Implementation of the ABI analysis
 
 //
@@ -13,6 +13,7 @@
 
 // Local libraries includes
 #include "revng/ADT/ZipMapIterator.h"
+#include "revng/Support/GraphAlgorithms.h"
 #include "revng/Support/MonotoneFramework.h"
 
 // Local includes
@@ -24,12 +25,20 @@ using std::tuple;
 using std::tuple_element;
 using std::tuple_size;
 
+using llvm::GraphTraits;
 using llvm::make_range;
 using llvm::Module;
-using llvm::scc_begin;
-using llvm::scc_end;
+using llvm::scc_iterator;
+
+using StackAnalysis::ABIIRBasicBlock;
 
 Logger<> SaABI("sa-abi");
+
+namespace std {
+template<>
+struct iterator_traits<scc_iterator<ABIIRBasicBlock *>>
+  : public scc_iterator_traits<ABIIRBasicBlock *> {};
+} // namespace std
 
 namespace StackAnalysis {
 
@@ -1097,103 +1106,82 @@ std::set<NodeTy> findMaximalSimplePathTerminatorsOfExitlessSCCs(NodeTy Entry) {
   std::set<NodeTy> Result;
 
   using NodesVector = std::vector<NodeTy>;
-  auto Range = make_range(scc_begin(Entry), scc_end(Entry));
-  std::set<NodeTy> SCCNodes;
-  for (const NodesVector &SCC : Range) {
+  for (const NodesVector &SCC : exitless_scc_range(Entry)) {
+    std::set<NodeTy> SCCNodes;
     SCCNodes.clear();
     for (NodeTy BB : SCC)
       SCCNodes.insert(BB);
 
-    bool HasExit = false;
-    bool AtLeastOneEdge = false;
+    // Identify all the entry points
+    llvm::SmallVector<NodeTy, 2> EntryPoints;
     for (NodeTy BB : SCC) {
-      auto Successors = make_range(GT::child_begin(BB), GT::child_end(BB));
-      for (NodeTy Successor : Successors) {
-        AtLeastOneEdge = true;
-        if (SCCNodes.count(Successor) == 0) {
-          HasExit = true;
+      auto Predecessors = make_range(InverseGT::child_begin(BB),
+                                     InverseGT::child_end(BB));
+      for (NodeTy Predecessor : Predecessors) {
+        if (SCCNodes.count(Predecessor) == 0) {
+          EntryPoints.push_back(BB);
           break;
         }
       }
-
-      if (HasExit)
-        break;
     }
 
-    if ((not HasExit) and AtLeastOneEdge) {
-      // We have find a exitless SCC (e.g., an infinite loop)
+    std::set<NodeTy> OnStack;
+    auto IsOnStack = [&OnStack](NodeTy Successor) {
+      return OnStack.count(Successor) != 0;
+    };
 
-      // Identify all the entry points
-      llvm::SmallVector<NodeTy, 2> EntryPoints;
-      for (NodeTy BB : SCC) {
-        auto Predecessors = make_range(InverseGT::child_begin(BB),
-                                       InverseGT::child_end(BB));
-        for (NodeTy Predecessor : Predecessors) {
-          if (SCCNodes.count(Predecessor) == 0) {
-            EntryPoints.push_back(BB);
-            break;
+    struct StackElement {
+      StackElement(NodeTy Node) :
+        Node(Node),
+        Next(GT::child_begin(Node)),
+        End(GT::child_end(Node)) {}
+
+      NodeTy Node;
+      typename GT::ChildIteratorType Next;
+      const typename GT::ChildIteratorType End;
+    };
+    std::stack<StackElement> Stack;
+
+    for (NodeTy EntryPoint : EntryPoints) {
+      revng_assert(Stack.empty());
+      Stack.emplace(EntryPoint);
+
+      OnStack.clear();
+      OnStack.insert(EntryPoint);
+
+      while (not Stack.empty()) {
+        StackElement &Current = Stack.top();
+
+        if (Current.Next == Current.End) {
+
+          // Check if all the successors are on the stack
+          auto Begin = GT::child_begin(Current.Node);
+          auto End = GT::child_end(Current.Node);
+          if (std::all_of(Begin, End, IsOnStack)) {
+            // OK, this is the terminator of a maximal simple path
+            Result.insert(Current.Node);
+          }
+
+          // We're done with this node pop it
+          Stack.pop();
+          OnStack.erase(Current.Node);
+
+        } else {
+
+          // We still have a successor to process
+          NodeTy Successor = *Current.Next;
+          Current.Next++;
+
+          // Push the successor on the stack, unless it's already there
+          if (not IsOnStack(Successor)) {
+            Stack.emplace(Successor);
+            OnStack.insert(Successor);
           }
         }
       }
-
-      std::set<NodeTy> OnStack;
-      auto IsOnStack = [&OnStack](NodeTy Successor) {
-        return OnStack.count(Successor) != 0;
-      };
-
-      struct StackElement {
-        StackElement(NodeTy Node) :
-          Node(Node),
-          Next(GT::child_begin(Node)),
-          End(GT::child_end(Node)) {}
-
-        NodeTy Node;
-        typename GT::ChildIteratorType Next;
-        const typename GT::ChildIteratorType End;
-      };
-      std::stack<StackElement> Stack;
-
-      for (NodeTy EntryPoint : EntryPoints) {
-        revng_assert(Stack.empty());
-        Stack.emplace(EntryPoint);
-
-        OnStack.clear();
-        OnStack.insert(EntryPoint);
-
-        while (not Stack.empty()) {
-          StackElement &Current = Stack.top();
-
-          if (Current.Next == Current.End) {
-
-            // Check if all the successors are on the stack
-            auto Begin = GT::child_begin(Current.Node);
-            auto End = GT::child_end(Current.Node);
-            if (std::all_of(Begin, End, IsOnStack)) {
-              // OK, this is the terminator of a maximal simple path
-              Result.insert(Current.Node);
-            }
-
-            // We're done with this node pop it
-            Stack.pop();
-            OnStack.erase(Current.Node);
-
-          } else {
-
-            // We still have a successor to process
-            NodeTy Successor = *Current.Next;
-            Current.Next++;
-
-            // Push the successor on the stack, unless it's already there
-            if (not IsOnStack(Successor)) {
-              Stack.emplace(Successor);
-              OnStack.insert(Successor);
-            }
-          }
-        }
-      }
-
-      revng_assert(Result.size() > 0);
     }
+
+    revng_assert(Result.size() > 0);
   }
 
   return Result;

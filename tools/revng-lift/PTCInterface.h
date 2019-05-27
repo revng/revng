@@ -19,7 +19,12 @@
 template<void (*T)(PTCInstructionList *)>
 using PTCDestructorWrapper = std::integral_constant<decltype(T), T>;
 
-using PTCDestructor = PTCDestructorWrapper<&ptc_instruction_list_free>;
+inline void PTCInstructionListDestructor(PTCInstructionList *This) {
+  ptc_instruction_list_free(This);
+  delete This;
+}
+
+using PTCDestructor = PTCDestructorWrapper<&PTCInstructionListDestructor>;
 
 using PTCInstructionListPtr = std::unique_ptr<PTCInstructionList,
                                               PTCDestructor>;

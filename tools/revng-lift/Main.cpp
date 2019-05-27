@@ -155,7 +155,7 @@ static int loadPTCLibrary(LibraryPointer &PTCLibrary) {
   void *LibraryHandle = nullptr;
 
   // Look for the library in the system's paths
-  LibraryHandle = dlopen(LibTinycodePath.c_str(), RTLD_LAZY);
+  LibraryHandle = dlopen(LibTinycodePath.c_str(), RTLD_LAZY | RTLD_NODELETE);
 
   if (LibraryHandle == nullptr) {
     fprintf(stderr, "Couldn't load the PTC library: %s\n", dlerror());

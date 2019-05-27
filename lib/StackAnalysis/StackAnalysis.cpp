@@ -92,14 +92,15 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
 
   // Register all the Candidate Function Entry Points
   for (BasicBlock &BB : F) {
+
     if (GCBI.getType(&BB) != BlockType::JumpTargetBlock)
       continue;
 
     uint32_t Reasons = GCBI.getJTReasons(&BB);
     bool IsCallee = hasReason(Reasons, JTReason::Callee);
     bool IsUnusedGlobalData = hasReason(Reasons, JTReason::UnusedGlobalData);
-    bool IsSETNotToPC = hasReason(Reasons, JTReason::SETNotToPC);
-    bool IsSETToPC = hasReason(Reasons, JTReason::SETToPC);
+    bool IsMemoryStore = hasReason(Reasons, JTReason::MemoryStore);
+    bool IsPCStore = hasReason(Reasons, JTReason::PCStore);
     bool IsReturnAddress = hasReason(Reasons, JTReason::ReturnAddress);
     bool IsLoadAddress = hasReason(Reasons, JTReason::LoadAddress);
 
@@ -108,12 +109,12 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
       Functions.emplace_back(&BB, true);
     } else if (not IsLoadAddress
                and (IsUnusedGlobalData
-                    || (IsSETNotToPC and not IsSETToPC
+                    || (IsMemoryStore and not IsPCStore
                         and not IsReturnAddress))) {
       // TODO: keep IsReturnAddress?
-      // Consider addresses found in global data that have not been used in SET
-      // or addresses coming from SET that are not return addresses and do not
-      // end up in the PC directly.
+      // Consider addresses found in global data that have not been used or
+      // addresses that are not return addresses and do not end up in the PC
+      // directly.
       Functions.emplace_back(&BB, false);
     }
   }
@@ -156,8 +157,6 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
     FunctionType::Values Type;
     if (TheCache.isFakeFunction(Entry))
       Type = FunctionType::Fake;
-    else if (TheCache.isIndirectTailCall(Entry))
-      Type = FunctionType::IndirectTailCall;
     else if (TheCache.isNoReturnFunction(Entry))
       Type = FunctionType::NoReturn;
     else

@@ -6,7 +6,8 @@ add_library(revngFunctionCallIdentification
   STATIC
   FunctionCallIdentification.cpp)
 target_link_libraries(revngFunctionCallIdentification
-  revngSupport)
+  revngSupport
+  revngBasicAnalyses)
 install(TARGETS revngFunctionCallIdentification
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)

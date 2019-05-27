@@ -77,9 +77,6 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
     // * a call to "newpc"
     // * a store of the next PC
     // * a store to the PC
-    //
-    // TODO: the function call detection criteria in reachingdefinitions.cpp
-    //       is probably more elegant, import it.
     struct Visitor
       : public BFSVisitorBase<false, Visitor, SmallVector<BasicBlock *, 4>> {
     public:

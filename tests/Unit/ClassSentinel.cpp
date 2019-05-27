@@ -1,4 +1,4 @@
-/// \file sentinel.cpp
+/// \file ClassSentinel.cpp
 /// \brief Tests for ClassSentinel
 
 //

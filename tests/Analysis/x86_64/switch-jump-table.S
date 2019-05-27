@@ -5,7 +5,7 @@
     .intel_syntax noprefix
 	.globl	_start
 _start:
-    cmp    eax,0x3
+    cmp    rax,0x3
     ja     end
     jmp    QWORD PTR [rax*8+jumptable]
 one:

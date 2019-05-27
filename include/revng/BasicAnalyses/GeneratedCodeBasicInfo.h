@@ -376,7 +376,7 @@ public:
     std::vector<llvm::GlobalVariable *> Written;
   };
 
-  static CSVsUsedByHelperCall getCSVUsedByHelperCall(llvm::CallInst *Call) {
+  static CSVsUsedByHelperCall getCSVUsedByHelperCall(llvm::Instruction *Call) {
     revng_assert(isCallToHelper(Call));
     CSVsUsedByHelperCall Result;
     Result.Read = extractCSVs(Call, "revng.csvaccess.offsets.load");
@@ -390,7 +390,7 @@ public:
 
 private:
   static std::vector<llvm::GlobalVariable *>
-  extractCSVs(llvm::CallInst *Call, const char *MetadataKind) {
+  extractCSVs(llvm::Instruction *Call, const char *MetadataKind) {
     using namespace llvm;
 
     std::vector<GlobalVariable *> Result;
