@@ -732,35 +732,9 @@ inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::StringRef Name) {
 inline uint64_t getBasicBlockPC(llvm::BasicBlock *BB) {
   using namespace llvm;
 
-  class Visitor : public BackwardBFSVisitor<Visitor> {
-  private:
-    CallInst *Result;
-
-  public:
-    Visitor() : Result(nullptr) {}
-
-    VisitAction visit(instruction_range Range) {
-      for (Instruction &I : Range) {
-        if (CallInst *Call = getCallTo(&I, "newpc")) {
-          revng_assert(Result == nullptr);
-          Result = Call;
-#ifndef NDEBUG
-          return NoSuccessors;
-#else
-          return StopNow;
-#endif
-        }
-      }
-
-      return Continue;
-    }
-
-    CallInst *getResult() const { return Result; }
-  };
-
-  Visitor V;
-  V.run(BB->getTerminator());
-  if (CallInst *Call = V.getResult())
+  auto It = BB->begin();
+  revng_assert(It != BB->end());
+  if (llvm::CallInst *Call = getCallTo(&*It, "newpc"))
     return getLimitedValue(Call->getOperand(0));
 
   return 0;

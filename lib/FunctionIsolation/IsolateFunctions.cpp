@@ -472,6 +472,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
                                               Descriptor.IsolatedFunction);
 
         BlockType::Values Type = GCBI.getType(BB);
+        uint64_t PC = getBasicBlockPC(BB);
         if (Type == BlockType::AnyPCBlock
             or Type == BlockType::UnexpectedPCBlock
             or Type == BlockType::DispatcherBlock) {
@@ -487,9 +488,13 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
                            "",
                            Trampoline);
           ReturnInst::Create(Context, Trampoline);
+        } else if (PC == 0) {
+          // We're trying to jump to a basic block not starting with newpc, emit
+          // an unreachable
+          // TODO: emit a warning
+          Module *M = Trampoline->getParent()->getParent();
+          new UnreachableInst(M->getContext(), Trampoline);
         } else {
-          uint64_t PC = getBasicBlockPC(BB);
-          revng_assert(PC != 0);
           auto *PCType = PCReg->getType()->getPointerElementType();
           new StoreInst(ConstantInt::get(PCType, PC), PCReg, Trampoline);
           throwException(StandardNonTranslatedBlock, Trampoline, 0);
