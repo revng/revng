@@ -49,7 +49,7 @@ int dumpInstruction(std::ostream &Result,
 
   PTCOpcode Opcode = Instruction.opc;
   PTCOpcodeDef *Definition = ptc_instruction_opcode_def(&ptc, &Instruction);
-  char TemporaryName[MAX_TEMP_NAME_LENGTH];
+  char TemporaryName[MAX_TEMP_NAME_LENGTH + 1] = { '\0' };
 
   if (Opcode == PTC_INSTRUCTION_op_debug_insn_start) {
     // TODO: create accessors for PTC_INSTRUCTION_op_debug_insn_start
