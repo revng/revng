@@ -365,8 +365,13 @@ JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
   Type *LoadedType = Pointer->getType()->getPointerElementType();
   const DataLayout &DL = TheModule.getDataLayout();
   unsigned LoadSize = DL.getTypeSizeInBits(LoadedType) / 8;
-  uint64_t LoadAddress = getZExtValue(cast<ConstantInt>(skipCasts(Pointer)),
-                                      DL);
+
+  Value *RealPointer = skipCasts(Pointer);
+  uint64_t LoadAddress = 0;
+  if (not isa<ConstantPointerNull>(RealPointer)) {
+    LoadAddress = getZExtValue(cast<ConstantInt>(RealPointer), DL);
+  }
+
   UnusedCodePointers.erase(LoadAddress);
   registerReadRange(LoadAddress, LoadSize);
 
