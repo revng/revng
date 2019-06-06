@@ -1,5 +1,4 @@
 add_subdirectory(Decompiler)
-add_subdirectory(Liveness)
 add_subdirectory(PHIASAPAssignmentInfo)
 add_subdirectory(RestructureCFGPass)
 add_subdirectory(RemovePCStoresPass)
