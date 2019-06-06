@@ -37,6 +37,13 @@ def is_dynamic(path):
 def interleave(base, repeat):
   return list(sum(zip([repeat] * len(base), base), ()))
 
+# Use in case different version of pyelftools might give str or bytes
+def to_string(obj):
+  if type(obj) is str:
+    return obj
+  elif type(obj) is bytes:
+    return obj.decode("utf-8")
+
 def get_elf_needed(path):
   with open(path, "rb") as elf_file:
     segments = [segment
@@ -45,7 +52,7 @@ def get_elf_needed(path):
                 if type(segment) is DynamicSegment]
 
     if len(segments) == 1:
-      return [tag.needed
+      return [to_string(tag.needed)
               for tag
               in segments[0].iter_tags()
               if tag.entry.d_tag == "DT_NEEDED"]
