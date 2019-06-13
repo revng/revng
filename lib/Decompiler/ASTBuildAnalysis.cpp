@@ -410,7 +410,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     revng_assert(Insert->getNumIndices() == 1);
     Value *AggregateOp = Insert->getAggregateOperand();
     revng_assert(isa<UndefValue>(AggregateOp)
-                 or isa<InsertValueInst>(AggregateOp));
+                 or isa<InsertValueInst>(AggregateOp)
+                 or isa<ConstantStruct>(AggregateOp));
     llvm::Type *AggregateTy = AggregateOp->getType();
     clang::TypeDecl *StructTypeDecl = TypeDecls.at(AggregateTy);
     Expr *StructExpr = getExprForValue(Insert);
@@ -444,6 +445,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                                           {},
                                                           FPOptions()));
     if (isa<UndefValue>(AggregateOp))
+      return nullptr;
+    if (isa<ConstantStruct>(AggregateOp))
       return nullptr;
     return getExprForValue(AggregateOp);
   }
@@ -634,6 +637,32 @@ void StmtBuilder::createAST() {
         revng_assert(VarDecls.count(&I) == 0);
         VarDecl *NewVarDecl = createVarDecl(&I);
         VarDecls[&I] = NewVarDecl;
+
+        if (auto *Insert = dyn_cast<InsertValueInst>(&I)) {
+          Value *AggregateOp = Insert->getAggregateOperand();
+          if (auto *CS = dyn_cast<ConstantStruct>(AggregateOp)) {
+            std::vector<Expr *> StructOpExpr;
+            for (auto &OperandUse : CS->operands()) {
+              Value *Operand = OperandUse.get();
+              Constant *OperandConst = cast<Constant>(Operand);
+              clang::Expr *OperandExpr = nullptr;
+              if (isa<UndefValue>(OperandConst)) {
+                QualType IntT = ASTCtx.IntTy;
+                OperandExpr = new (ASTCtx) ImplicitValueInitExpr(IntT);
+              } else {
+                OperandExpr = getLiteralFromConstant(OperandConst);
+              }
+              revng_assert(OperandExpr != nullptr);
+              StructOpExpr.push_back(OperandExpr);
+            }
+
+            clang::Expr *ILE = new (ASTCtx) InitListExpr(ASTCtx,
+                                                         {},
+                                                         StructOpExpr,
+                                                         {});
+            NewVarDecl->setInit(ILE);
+          }
+        }
       }
 
       Stmt *NewStmt = buildStmt(I);
