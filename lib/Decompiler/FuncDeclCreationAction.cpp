@@ -52,13 +52,22 @@ static FunctionDecl *createFunDecl(ASTContext &Context,
     ArgTypes.push_back(ArgType);
   }
   const bool HasNoParams = ArgTypes.empty();
-  if (HasNoParams)
+  const bool IsVariadic = FType->isVarArg();
+  if (HasNoParams and not IsVariadic)
     ArgTypes.push_back(Context.VoidTy);
 
+  // Check if the declaration we are tring to emit corresponds to a variadic
+  // function, and in that case emit the correct corresponding clang function
+  // declaration
   using ExtProtoInfo = FunctionProtoType::ExtProtoInfo;
+  ExtProtoInfo ProtoInfo = ExtProtoInfo();
+  if (IsVariadic) {
+    ProtoInfo.Variadic = true;
+  }
+
   QualType FDeclType = Context.getFunctionType(RetType,
                                                ArgTypes,
-                                               ExtProtoInfo());
+                                               ProtoInfo);
 
   const llvm::StringRef FName = F->getName();
   revng_assert(not FName.empty());

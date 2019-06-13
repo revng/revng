@@ -351,9 +351,12 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                       or (NumParms == 1
                           and FD->getParamDecl(0)->getType() == ASTCtx.VoidTy);
     revng_assert(HasNoParms or NumArgs == NumParms);
-    revng_assert(NumArgs == NumOps);
+    const bool IsVariadic = FD->isVariadic();
+    if (not FD->isVariadic())
+      revng_assert(NumArgs == NumOps);
 
     auto Args = SmallVector<Expr *, 8>(NumOps, nullptr);
+    revng_assert(not (not HasNoParms and IsVariadic));
     if (not HasNoParms) {
       for (unsigned OpId = 0; OpId < NumOps; ++OpId) {
         Value *Operand = TheCall->getOperand(OpId);
@@ -367,6 +370,16 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
           ArgExpr = new (ASTCtx) ParenExpr({}, {}, ArgExpr);
           ArgExpr = createCast(ParmQualTy, ArgExpr, ASTCtx);
         }
+
+        Args[OpId] = ArgExpr;
+      }
+    }
+
+    if (IsVariadic) {
+      for (unsigned OpId = 0; OpId < NumOps; ++OpId) {
+        Value *Operand = TheCall->getOperand(OpId);
+        Expr *ArgExpr = getExprForValue(Operand);
+        QualType ArgQualTy = ArgExpr->getType();
 
         Args[OpId] = ArgExpr;
       }
@@ -1201,7 +1214,13 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
                                     APInt::getNullValue(UIntPtrSize),
                                     UIntPtr,
                                     {});
+    } else if (auto *CU = dyn_cast<UndefValue>(CD)) {
+      uint64_t ConstValue = 0;
+      APInt Const = APInt(64, ConstValue);
+      QualType IntT = ASTCtx.LongTy;
+      return IntegerLiteral::Create(ASTCtx, Const, IntT, {});
     }
+
     revng_abort();
   }
   if (auto *CE = dyn_cast<ConstantExpr>(C)) {

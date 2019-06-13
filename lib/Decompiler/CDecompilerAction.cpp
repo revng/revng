@@ -543,6 +543,10 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
   clang::FunctionDecl *FDecl = FPair.second;
   ASTContext &ASTCtx = FDecl->getASTContext();
 
+  // Check that the function we are attempting to decompile is not a variadic
+  // function
+  revng_assert(not FDecl->isVariadic());
+
   SmallVector<clang::Stmt *, 32> BodyStmts;
   buildAndAppendSmts(BodyStmts, CombedAST.getRoot(), ASTCtx, ASTBuilder, Mark);
 
