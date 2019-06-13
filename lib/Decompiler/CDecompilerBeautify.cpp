@@ -317,7 +317,7 @@ static bool wasOriginalSwitch(ASTNode *Candidate) {
 
     // Check that the body contains an `icmp` instruction over the condition
     // of the switch and a constant, and then a conditional branch.
-    if (BB->size() == 2) {
+    if (BB->size() == 2 and BB->getName().startswith("switch check")) {
       auto &InstList = BB->getInstList();
       llvm::Instruction &First = BB->front();
       llvm::Instruction &Second = BB->back();
