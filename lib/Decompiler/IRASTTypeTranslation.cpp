@@ -176,6 +176,13 @@ clang::QualType getOrCreateQualType(const llvm::Type *Ty,
     FieldDecls[Struct].resize(StructTy->getNumElements(), nullptr);
     Struct->startDefinition();
     for (llvm::Type *FieldTy : StructTy->elements()) {
+
+      // HACK: Handle the type of the `@env` global variable, which we simply
+      //       cast to a `void` `nullptr` type.
+      if (FieldTy->getTypeID() == llvm::Type::TypeID::ArrayTyID) {
+        Result = ASTCtx.VoidTy;
+        break;
+      }
       clang::QualType QFieldTy = getOrCreateQualType(FieldTy,
                                                      ASTCtx,
                                                      DeclCtx,
