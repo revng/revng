@@ -117,8 +117,9 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
   }
 
   // Clone the conditional expression nodes.
-  for (std::unique_ptr<ExprNode> &OldExpr : OldAST.expressions()) {
-    CondExprList.emplace_back(new AtomicNode(*cast<AtomicNode>(OldExpr.get())));
+  for (expr_unique_ptr &OldExpr : OldAST.expressions()) {
+    CondExprList.emplace_back(new AtomicNode(*cast<AtomicNode>(OldExpr.get())),
+                              expr_destructor());
     ExprNode *NewExpr = CondExprList.back().get();
     CondExprMap[OldExpr.get()] = NewExpr;
   }
@@ -175,7 +176,7 @@ void ASTTree::dumpOnFile(std::string FolderName,
   }
 }
 
-ExprNode *ASTTree::addCondExpr(std::unique_ptr<ExprNode> &&Expr) {
+ExprNode *ASTTree::addCondExpr(expr_unique_ptr &&Expr) {
   CondExprList.emplace_back(std::move(Expr));
   return CondExprList.back().get();
 }

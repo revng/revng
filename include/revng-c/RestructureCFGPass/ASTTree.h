@@ -7,6 +7,7 @@
 
 // Standard includes
 #include <cstdlib>
+#include <type_traits>
 
 // local libraries includes
 #include "revng-c/RestructureCFGPass/ASTNode.h"
@@ -26,7 +27,12 @@ public:
   using links_iterator = typename links_container::iterator;
   using links_range = llvm::iterator_range<links_iterator>;
 
-  using links_container_expr = std::vector<std::unique_ptr<ExprNode>>;
+  using expr_deleter_t = decltype(&ExprNode::deleteExprNode);
+  using expr_destructor = std::integral_constant<expr_deleter_t,
+                                                 &ExprNode::deleteExprNode>;
+  using expr_unique_ptr = std::unique_ptr<ExprNode, expr_destructor>;
+
+  using links_container_expr = std::vector<expr_unique_ptr>;
   using links_iterator_expr = typename links_container_expr::iterator;
   using links_range_expr = llvm::iterator_range<links_iterator_expr>;
 
@@ -91,7 +97,7 @@ public:
                   std::string FunctionName,
                   std::string FileName);
 
-  ExprNode *addCondExpr(std::unique_ptr<ExprNode> &&Expr);
+  ExprNode *addCondExpr(expr_unique_ptr &&Expr);
 
   void copyASTNodesFrom(ASTTree &OldAST);
 };

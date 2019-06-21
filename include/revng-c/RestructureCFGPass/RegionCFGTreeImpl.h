@@ -1396,9 +1396,10 @@ inline void RegionCFG<NodeT>::generateAst() {
           ASTObject.swap(Tmp);
         } else {
           // Create the conditional expression associated with the if node.
-          using UniqueExpr = std::unique_ptr<ExprNode>;
+          using UniqueExpr = ASTTree::expr_unique_ptr;
+          using ExprDestruct = ASTTree::expr_destructor;
           auto *OriginalNode = Node->getOriginalNode();
-          UniqueExpr CondExpr = std::make_unique<AtomicNode>(OriginalNode);
+          UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
           ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
           ASTObject.reset(new IfNode(Node,
                                      CondExprNode,
@@ -1432,9 +1433,10 @@ inline void RegionCFG<NodeT>::generateAst() {
           ASTObject.swap(Tmp);
         } else {
           // Create the conditional expression associated with the if node.
-          using UniqueExpr = std::unique_ptr<ExprNode>;
+          using UniqueExpr = ASTTree::expr_unique_ptr;
+          using ExprDestruct = ASTTree::expr_destructor;
           auto *OriginalNode = Node->getOriginalNode();
-          UniqueExpr CondExpr = std::make_unique<AtomicNode>(OriginalNode);
+          UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
           ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
           ASTObject.reset(new IfNode(Node,
                                      CondExprNode,

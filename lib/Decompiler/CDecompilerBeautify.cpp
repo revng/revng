@@ -34,6 +34,8 @@ using std::unique_ptr;
 extern unsigned ShortCircuitCounter;
 extern unsigned TrivialShortCircuitCounter;
 
+using UniqueExpr = ASTTree::expr_unique_ptr;
+
 static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
@@ -49,7 +51,8 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
       If->setElse(nullptr);
 
       // Invert the conditional expression of the current `IfNode`.
-      auto Not = std::make_unique<NotNode>(If->getCondExpr());
+      UniqueExpr Not;
+      Not.reset(new NotNode(If->getCondExpr()));
       ExprNode *NotNode = AST.addCondExpr(std::move(Not));
       If->replaceCondExpr(NotNode);
 
@@ -132,11 +135,13 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
             If->setElse(NestedIf->getThen());
 
             // `if A and not B` situation.
-            auto NotB = std::make_unique<NotNode>(NestedIf->getCondExpr());
+            UniqueExpr NotB;
+            NotB.reset(new NotNode(NestedIf->getCondExpr()));
             ExprNode *NotBNode = AST.addCondExpr(std::move(NotB));
 
-            auto AAndNotB = std::make_unique<AndNode>(If->getCondExpr(),
-                                                      NotBNode);
+            UniqueExpr AAndNotB;
+            AAndNotB.reset(new AndNode(If->getCondExpr(), NotBNode));
+
             ExprNode *AAndNotBNode = AST.addCondExpr(std::move(AAndNotB));
 
             If->replaceCondExpr(AAndNotBNode);
@@ -165,8 +170,13 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
             If->setElse(NestedIf->getElse());
 
             // `if A and B` situation.
-            auto AAndB = std::make_unique<AndNode>(If->getCondExpr(),
-                                                   NestedIf->getCondExpr());
+            UniqueExpr AAndB;
+            {
+              ExprNode *E = new AndNode(If->getCondExpr(),
+                                        NestedIf->getCondExpr());
+              AAndB.reset(E);
+            }
+
             ExprNode *AAndBNode = AST.addCondExpr(std::move(AAndB));
 
             If->replaceCondExpr(AAndBNode);
@@ -198,13 +208,16 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
             If->setThen(NestedIf->getThen());
 
             // `if not A and not B` situation.
-            auto NotA = std::make_unique<NotNode>(If->getCondExpr());
+            UniqueExpr NotA;
+            NotA.reset(new NotNode(If->getCondExpr()));
             ExprNode *NotANode = AST.addCondExpr(std::move(NotA));
 
-            auto NotB = std::make_unique<NotNode>(NestedIf->getCondExpr());
+            UniqueExpr NotB;
+            NotB.reset(new NotNode(NestedIf->getCondExpr()));
             ExprNode *NotBNode = AST.addCondExpr(std::move(NotB));
 
-            auto NotAAndNotB = std::make_unique<AndNode>(NotANode, NotBNode);
+            UniqueExpr NotAAndNotB;
+            NotAAndNotB.reset(new AndNode(NotANode, NotBNode));
             AST.addCondExpr(std::move(NotAAndNotB));
 
             // Increment counter
@@ -230,11 +243,12 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
             If->setThen(NestedIf->getElse());
 
             // `if not A and B` situation.
-            auto NotA = std::make_unique<NotNode>(If->getCondExpr());
+            UniqueExpr NotA;
+            NotA.reset(new NotNode(If->getCondExpr()));
             ExprNode *NotANode = AST.addCondExpr(std::move(NotA));
 
-            auto NotAAndB = std::make_unique<AndNode>(NotANode,
-                                                      NestedIf->getCondExpr());
+            UniqueExpr NotAAndB;
+            NotAAndB.reset(new AndNode(NotANode, NestedIf->getCondExpr()));
             AST.addCondExpr(std::move(NotAAndB));
 
             // Increment counter
@@ -280,8 +294,12 @@ simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
           If->setThen(InternalIf->getThen());
 
           // `if A and B` situation.
-          auto AAndB = std::make_unique<AndNode>(If->getCondExpr(),
-                                                 InternalIf->getCondExpr());
+          UniqueExpr AAndB;
+          {
+            ExprNode *E = new AndNode(If->getCondExpr(),
+                                      InternalIf->getCondExpr());
+            AAndB.reset(E);
+          }
           ExprNode *AAndBNode = AST.addCondExpr(std::move(AAndB));
 
           If->replaceCondExpr(AAndBNode);
@@ -655,7 +673,8 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
 
           Scs->setDoWhile(NestedIf);
           // Invert the conditional expression of the current `IfNode`.
-          auto Not = std::make_unique<NotNode>(NestedIf->getCondExpr());
+          UniqueExpr Not;
+          Not.reset(new NotNode(NestedIf->getCondExpr()));
           ExprNode *NotNode = AST.addCondExpr(std::move(Not));
           NestedIf->replaceCondExpr(NotNode);
 
@@ -763,7 +782,8 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
 
           Scs->setWhile(NestedIf);
           // Invert the conditional expression of the current `IfNode`.
-          auto Not = std::make_unique<NotNode>(NestedIf->getCondExpr());
+          UniqueExpr Not;
+          Not.reset(new NotNode(NestedIf->getCondExpr()));
           ExprNode *NotNode = AST.addCondExpr(std::move(Not));
           NestedIf->replaceCondExpr(NotNode);
 

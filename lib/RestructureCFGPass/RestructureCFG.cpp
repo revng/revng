@@ -166,7 +166,6 @@ mergeSCSAbnormalRetreating(MetaRegionBBVect &MetaRegions,
           MetaRegionBB *OtherRegion = BackedgeMetaRegionMap.at(Backedge);
           Region.mergeWith(*OtherRegion);
 
-
           // Blacklist the region which we have merged.
           BackedgeMetaRegionMap[Backedge] = &Region;
           BlacklistedMetaregions.insert(OtherRegion);
