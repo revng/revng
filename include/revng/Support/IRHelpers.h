@@ -745,24 +745,74 @@ inline void erase_if(Container &C, UnaryPredicate P) {
   C.erase(std::remove_if(C.begin(), C.end(), P), C.end());
 }
 
-inline std::string dumpToString(const llvm::Value *V) {
+template<typename T>
+using RemoveRef = std::remove_reference<T>;
+
+template<typename T>
+using IsPtr = std::is_pointer<T>;
+
+template<typename T>
+using IsRefToBaseValue = std::is_base_of<llvm::Value,
+                                         typename RemoveRef<T>::type>;
+
+template<typename T>
+using IsRefToBaseFunction = std::is_base_of<llvm::Function,
+                                            typename RemoveRef<T>::type>;
+
+// This is enabled only for references to types that inherit from llvm::Value
+// but not from llvm::Function, since llvm::Function has a different prototype
+// for the print() method
+template<typename ValueRef>
+inline std::enable_if_t<!IsPtr<ValueRef>::value
+                          && IsRefToBaseValue<ValueRef>::value
+                          && !IsRefToBaseFunction<ValueRef>::value,
+                        std::string>
+dumpToString(ValueRef &V) {
   std::string Result;
-  if (V != nullptr) {
-    llvm::raw_string_ostream Stream(Result);
-    V->print(Stream, true);
-    Stream.str();
-  } else {
-    Result = "nullptr";
-  }
+  llvm::raw_string_ostream Stream(Result);
+  V.print(Stream, true);
+  Stream.str();
   return Result;
 }
 
-inline std::string dumpToString(const llvm::Module *M) {
+template<typename T>
+using IsRefToBaseModule = std::is_base_of<llvm::Module,
+                                          typename RemoveRef<T>::type>;
+
+// This is enabled only for references to types that inherit from llvm::Module
+// or from llvm::Function, which share the same prototype for the print() method
+template<typename ModOrFunRef>
+inline std::enable_if_t<!IsPtr<ModOrFunRef>::value
+                          && (IsRefToBaseModule<ModOrFunRef>::value
+                              || IsRefToBaseFunction<ModOrFunRef>::value),
+                        std::string>
+dumpToString(ModOrFunRef &M) {
   std::string Result;
   llvm::raw_string_ostream Stream(Result);
-  M->print(Stream, nullptr, false, true);
+  M.print(Stream, nullptr, false, true);
   Stream.str();
   return Result;
+}
+
+// This is enabled for all types with a print() method that prints to an
+// llvm::raw_ostream
+template<typename T>
+inline std::enable_if_t<!IsPtr<T>::value && !IsRefToBaseValue<T>::value
+                          && !IsRefToBaseModule<T>::value,
+                        std::string>
+dumpToString(const T &TheT) {
+  std::string Result;
+  llvm::raw_string_ostream Stream(Result);
+  TheT.print(Stream);
+  Stream.flush();
+  return Result;
+}
+
+template<typename T>
+inline std::enable_if_t<IsPtr<T>::value, std::string> dumpToString(T TheT) {
+  if (TheT == nullptr)
+    return "nullptr";
+  return dumpToString(*TheT);
 }
 
 void dumpModule(const llvm::Module *M, const char *Path) debug_function;
