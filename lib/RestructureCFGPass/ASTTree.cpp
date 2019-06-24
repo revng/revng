@@ -38,7 +38,7 @@ size_t ASTTree::size() const {
 }
 
 void ASTTree::addASTNode(BasicBlockNode<BasicBlock *> *Node,
-                         std::unique_ptr<ASTNode> &&ASTObject) {
+                         ast_unique_ptr &&ASTObject) {
   ASTNodeList.emplace_back(std::move(ASTObject));
 
   ASTNode *ASTNode = ASTNodeList.back().get();
@@ -49,7 +49,7 @@ void ASTTree::addASTNode(BasicBlockNode<BasicBlock *> *Node,
   NodeASTMap.insert(std::make_pair(Node, ASTNode));
 }
 
-SwitchCheckNode *ASTTree::addSwitchCheck(std::unique_ptr<ASTNode> ASTObject) {
+SwitchCheckNode *ASTTree::addSwitchCheck(ast_unique_ptr &&ASTObject) {
   ASTNodeList.emplace_back(std::move(ASTObject));
 
   // Set the Node ID
@@ -58,7 +58,7 @@ SwitchCheckNode *ASTTree::addSwitchCheck(std::unique_ptr<ASTNode> ASTObject) {
   return llvm::cast<SwitchCheckNode>(ASTNodeList.back().get());
 }
 
-SwitchNode *ASTTree::addSwitch(std::unique_ptr<ASTNode> ASTObject) {
+SwitchNode *ASTTree::addSwitch(ast_unique_ptr &&ASTObject) {
   ASTNodeList.emplace_back(std::move(ASTObject));
 
   // Set the Node ID
@@ -101,7 +101,7 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
 
   // Clone each ASTNode in the current AST.
   links_container::difference_type NewNodes = 0;
-  for (std::unique_ptr<ASTNode> &Old : OldAST.nodes()) {
+  for (ast_unique_ptr &Old : OldAST.nodes()) {
     ASTNodeList.emplace_back(std::move(Old->Clone()));
     ++NewNodes;
 
@@ -131,7 +131,7 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
   links_iterator EndInserted = ASTNodeList.end();
   using MovedIteratorRange = llvm::iterator_range<links_container::iterator>;
   MovedIteratorRange Result = llvm::make_range(BeginInserted, EndInserted);
-  for (std::unique_ptr<ASTNode> &NewNode : Result) {
+  for (ast_unique_ptr &NewNode : Result) {
     NewNode->updateASTNodesPointers(ASTSubstitutionMap);
     if (auto *If = llvm::dyn_cast<IfNode>(NewNode.get())) {
       If->updateCondExprPtr(CondExprMap);

@@ -23,7 +23,12 @@ class SequenceNode;
 class ASTTree {
 
 public:
-  using links_container = std::vector<std::unique_ptr<ASTNode>>;
+  using ast_deleter_t = decltype(&ASTNode::deleteASTNode);
+  using ast_destructor = std::integral_constant<ast_deleter_t,
+                                                &ASTNode::deleteASTNode>;
+  using ast_unique_ptr = std::unique_ptr<ASTNode, ast_destructor>;
+
+  using links_container = std::vector<ast_unique_ptr>;
   using links_iterator = typename links_container::iterator;
   using links_range = llvm::iterator_range<links_iterator>;
 
@@ -77,11 +82,11 @@ public:
 
   links_container::size_type size() const;
 
-  void addASTNode(BasicBlockNodeBB *Node, std::unique_ptr<ASTNode> &&ASTObject);
+  void addASTNode(BasicBlockNodeBB *Node, ast_unique_ptr &&ASTObject);
 
-  SwitchNode *addSwitch(std::unique_ptr<ASTNode> ASTObject);
+  SwitchNode *addSwitch(ast_unique_ptr &&ASTObject);
 
-  SwitchCheckNode *addSwitchCheck(std::unique_ptr<ASTNode> ASTObject);
+  SwitchCheckNode *addSwitchCheck(ast_unique_ptr &&ASTObject);
 
   ASTNode *findASTNode(BasicBlockNodeBB *BlockNode);
 

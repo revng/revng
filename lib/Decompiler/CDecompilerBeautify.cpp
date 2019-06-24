@@ -420,10 +420,14 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
         DefaultCase = AST.addSequenceNode();
 
       // Create the switch node.
-      auto Switch = std::make_unique<RegularSwitchNode>(SwitchValue,
-                                                        Cases,
-                                                        CaseValues,
-                                                        DefaultCase);
+      ASTTree::ast_unique_ptr Switch;
+      {
+        ASTNode *Tmp = new RegularSwitchNode(SwitchValue,
+                                             Cases,
+                                             CaseValues,
+                                             DefaultCase);
+        Switch.reset(Tmp);
+      }
 
       // Invoke the switch matching on the switch just reconstructed.
       matchSwitch(AST, Switch.get(), Mark);
@@ -491,7 +495,11 @@ static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
     }
 
     // Create the `SwitchCheckNode`.
-    unique_ptr<SwitchCheckNode> Switch(new SwitchCheckNode(Cases, CaseValues));
+    ASTTree::ast_unique_ptr Switch;
+    {
+      ASTNode *Tmp = new SwitchCheckNode(Cases, CaseValues);
+      Switch.reset(Tmp);
+    }
 
     // Invoke the dispatcher matching on the switch just reconstructed.
     matchDispatcher(AST, Switch.get(), Mark);
@@ -551,7 +559,8 @@ static void removeLastContinue(ASTNode *RootNode, ASTTree &AST) {
           // Manual flip when removing then.
           // TODO: handle this in the flipIfEmpty phase.
           // Invert the conditional expression of the current `IfNode`.
-          auto Not = std::make_unique<NotNode>(LastIf->getCondExpr());
+          UniqueExpr Not;
+          Not.reset(new NotNode(LastIf->getCondExpr()));
           ExprNode *NotNode = AST.addCondExpr(std::move(Not));
           LastIf->replaceCondExpr(NotNode);
         }

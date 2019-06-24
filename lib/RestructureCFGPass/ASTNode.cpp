@@ -363,3 +363,47 @@ void SwitchCheckNode::dump(std::ofstream &ASTFile) {
     Default->dump(ASTFile);
   }
 }
+
+void ASTNode::deleteASTNode(ASTNode *A) {
+  switch (A->getKind()) {
+  case NodeKind::NK_Code:
+    delete static_cast<CodeNode *>(A);
+    break;
+  case NodeKind::NK_Break:
+    delete static_cast<BreakNode *>(A);
+    break;
+  case NodeKind::NK_Continue:
+    delete static_cast<ContinueNode *>(A);
+    break;
+  // ---- IfNode kinds
+  case NodeKind::NK_If:
+    delete static_cast<IfNode *>(A);
+    break;
+  case NodeKind::NK_IfCheck:
+    delete static_cast<IfCheckNode *>(A);
+    break;
+  // ---- end IfNode kinds
+  case NodeKind::NK_Scs:
+    delete static_cast<ScsNode *>(A);
+    break;
+  case NodeKind::NK_List:
+    delete static_cast<SequenceNode *>(A);
+    break;
+  // ---- SwitchNode kinds
+  case NodeKind::NK_SwitchRegular:
+    delete static_cast<RegularSwitchNode *>(A);
+    break;
+  case NodeKind::NK_SwitchCheck:
+    delete static_cast<SwitchCheckNode *>(A);
+    break;
+  // ---- end SwitchNode kinds
+  case NodeKind::NK_SwitchBreak:
+    delete static_cast<SwitchBreakNode *>(A);
+    break;
+  case NodeKind::NK_Set:
+    delete static_cast<SetNode *>(A);
+    break;
+  default:
+    revng_unreachable("Deleting unexpecte ASTNode");
+  }
+}

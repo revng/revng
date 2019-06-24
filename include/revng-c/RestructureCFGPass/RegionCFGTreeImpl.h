@@ -1341,34 +1341,26 @@ inline void RegionCFG<NodeT>::generateAst() {
     // Check that the two vector have the same size.
     revng_assert(Children.size() == ASTChildren.size());
 
+    using UniqueASTNode = ASTTree::ast_unique_ptr;
     // Handle collapsded node.
+    UniqueASTNode ASTObject;
     if (Node->isCollapsed()) {
       revng_assert(ASTChildren.size() <= 1);
+      RegionCFG<NodeT> *BodyGraph = Node->getCollapsedCFG();
+      revng_assert(BodyGraph != nullptr);
+      CombLogger << "Inspecting collapsed node: " << Node->getNameStr()
+                 << "\n";
+      CombLogger.emit();
+      BodyGraph->generateAst();
       if (ASTChildren.size() == 1) {
-        RegionCFG<NodeT> *BodyGraph = Node->getCollapsedCFG();
-        revng_assert(BodyGraph != nullptr);
-        CombLogger << "Inspecting collapsed node: " << Node->getNameStr()
-                   << "\n";
-        CombLogger.emit();
-        BodyGraph->generateAst();
         ASTNode *Body = BodyGraph->getAST().getRoot();
-        std::unique_ptr<ASTNode> ASTObject(new ScsNode(Node,
-                                                       Body,
-                                                       ASTChildren[0]));
-        AST.addASTNode(Node, std::move(ASTObject));
+        ASTObject.reset(new ScsNode(Node, Body, ASTChildren[0]));
       } else {
-        RegionCFG<NodeT> *BodyGraph = Node->getCollapsedCFG();
-        CombLogger << "Inspecting collapsed node: " << Node->getNameStr()
-                   << "\n";
-        CombLogger.emit();
-        BodyGraph->generateAst();
         ASTNode *Body = BodyGraph->getAST().getRoot();
-        auto Scs = std::make_unique<ScsNode>(Node, Body, ASTChildren[0]);
-        AST.addASTNode(Node, std::move(Scs));
+        ASTObject.reset(new ScsNode(Node, Body));
       }
     } else {
       revng_assert(Children.size() < 4);
-      std::unique_ptr<ASTNode> ASTObject;
       if (Children.size() == 3) {
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
@@ -1377,23 +1369,21 @@ inline void RegionCFG<NodeT>::generateAst() {
         // AST node preserving the then and else branches, otherwise create a
         // classical node.
         if (Node->isCheck()) {
-          std::unique_ptr<ASTNode> Tmp;
           if (BBChildren[0] == Node->getTrue()
               and BBChildren[2] == Node->getFalse()) {
-            Tmp = std::make_unique<IfCheckNode>(Node,
-                                                ASTChildren[0],
-                                                ASTChildren[2],
-                                                ASTChildren[1]);
+            ASTObject.reset(new IfCheckNode(Node,
+                                            ASTChildren[0],
+                                            ASTChildren[2],
+                                            ASTChildren[1]));
           } else if (BBChildren[2] == Node->getTrue()
                      and BBChildren[0] == Node->getFalse()) {
-            Tmp = std::make_unique<IfCheckNode>(Node,
-                                                ASTChildren[2],
-                                                ASTChildren[0],
-                                                ASTChildren[1]);
+            ASTObject.reset(new IfCheckNode(Node,
+                                            ASTChildren[2],
+                                            ASTChildren[0],
+                                            ASTChildren[1]));
           } else {
             revng_abort("Then and else branches cannot be matched");
           }
-          ASTObject.swap(Tmp);
         } else {
           // Create the conditional expression associated with the if node.
           using UniqueExpr = ASTTree::expr_unique_ptr;
@@ -1414,23 +1404,23 @@ inline void RegionCFG<NodeT>::generateAst() {
         // If we are creating the AST for the switch tree, create the adequate,
         // AST node, otherwise create a classical node.
         if (Node->isCheck()) {
-          std::unique_ptr<ASTNode> Tmp;
+          ASTNode *Tmp = nullptr;
           if (BBChildren[0] == Node->getTrue()
               and BBChildren[1] == Node->getFalse()) {
-            Tmp = std::make_unique<IfCheckNode>(Node,
-                                                ASTChildren[0],
-                                                ASTChildren[1],
-                                                nullptr);
+            Tmp = new IfCheckNode(Node,
+                                  ASTChildren[0],
+                                  ASTChildren[1],
+                                  nullptr);
           } else if (BBChildren[1] == Node->getTrue()
                      and BBChildren[0] == Node->getFalse()) {
-            Tmp = std::make_unique<IfCheckNode>(Node,
-                                                ASTChildren[1],
-                                                ASTChildren[0],
-                                                nullptr);
+            Tmp = new IfCheckNode(Node,
+                                  ASTChildren[1],
+                                  ASTChildren[0],
+                                  nullptr);
           } else {
             revng_abort("Then and else branches cannot be matched");
           }
-          ASTObject.swap(Tmp);
+          ASTObject.reset(Tmp);
         } else {
           // Create the conditional expression associated with the if node.
           using UniqueExpr = ASTTree::expr_unique_ptr;
@@ -1453,19 +1443,12 @@ inline void RegionCFG<NodeT>::generateAst() {
           // We may have a check node with a single then/else branch due to
           // condition blacklisting (the other branch is the fallthrough
           // branch).
-          std::unique_ptr<ASTNode> Tmp;
-          if (BBChildren[0] == Node->getTrue()) {
-            Tmp = std::make_unique<IfCheckNode>(Node,
-                                                ASTChildren[0],
-                                                nullptr,
-                                                nullptr);
-          } else if (BBChildren[0] == Node->getFalse()) {
-            Tmp = std::make_unique<IfCheckNode>(Node,
-                                                nullptr,
-                                                ASTChildren[0],
-                                                nullptr);
-          }
-          ASTObject.swap(Tmp);
+          ASTNode *Tmp = nullptr;
+          if (BBChildren[0] == Node->getTrue())
+            Tmp = new IfCheckNode(Node, ASTChildren[0], nullptr, nullptr);
+          else if (BBChildren[0] == Node->getFalse())
+            Tmp = new IfCheckNode(Node, nullptr, ASTChildren[0], nullptr);
+          ASTObject.reset(Tmp);
         } else {
           ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
         }
@@ -1481,8 +1464,8 @@ inline void RegionCFG<NodeT>::generateAst() {
         else
           revng_abort();
       }
-      AST.addASTNode(Node, std::move(ASTObject));
     }
+    AST.addASTNode(Node, std::move(ASTObject));
   }
 
   // Set in the ASTTree object the root node.

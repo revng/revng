@@ -85,9 +85,14 @@ public:
   ASTNode &operator=(ASTNode &&) = delete;
   ASTNode &operator=(const ASTNode &) = delete;
   ASTNode(ASTNode &&) = delete;
+  ASTNode() = delete;
+
+public:
+  static void deleteASTNode(ASTNode *A);
 
 protected:
   ASTNode(const ASTNode &) = default;
+  ~ASTNode() = default;
 
 public:
   NodeKind getKind() const { return Kind; }
@@ -127,6 +132,16 @@ public:
   CodeNode(BasicBlockNodeBB *CFGNode, ASTNode *Successor) :
     ASTNode(NK_Code, CFGNode, Successor) {}
 
+protected:
+  CodeNode(const CodeNode &) = default;
+  CodeNode &operator=(const CodeNode &) = default;
+
+  CodeNode(CodeNode &&) = delete;
+  CodeNode &operator=(CodeNode &&) = delete;
+
+  CodeNode() = delete;
+  ~CodeNode() = default;
+
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Code; }
 
@@ -161,6 +176,16 @@ public:
     Then(Then),
     Else(Else),
     ConditionExpression(CondExpr) {}
+
+protected:
+  IfNode(const IfNode &) = default;
+  IfNode &operator=(const IfNode &) = default;
+
+  IfNode(IfNode &&) = delete;
+  IfNode &operator=(IfNode &&) = delete;
+
+  IfNode() = delete;
+  ~IfNode() = default;
 
 public:
   static bool classof(const ASTNode *N) {
@@ -236,6 +261,16 @@ public:
     ASTNode(NK_Scs, CFGNode, Successor),
     Body(Body) {}
 
+protected:
+  ScsNode(const ScsNode &) = default;
+  ScsNode &operator=(const ScsNode &) = default;
+
+  ScsNode(ScsNode &&) = delete;
+  ScsNode &operator=(ScsNode &&) = delete;
+
+  ScsNode() = delete;
+  ~ScsNode() = default;
+
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Scs; }
 
@@ -290,6 +325,15 @@ public:
   SequenceNode(std::string Name) : ASTNode(NK_List, Name) {}
   SequenceNode(BasicBlockNodeBB *CFGNode) : ASTNode(NK_List, CFGNode) {}
 
+protected:
+  SequenceNode(const SequenceNode &) = default;
+  SequenceNode &operator=(const SequenceNode &) = default;
+
+  SequenceNode(SequenceNode &&) = delete;
+  SequenceNode &operator=(SequenceNode &&) = delete;
+
+  ~SequenceNode() = default;
+
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_List; }
 
@@ -334,6 +378,16 @@ private:
 public:
   ContinueNode() : ASTNode(NK_Continue, "continue") {}
 
+protected:
+  ContinueNode(const ContinueNode &) = default;
+  ContinueNode &operator=(const ContinueNode &) = default;
+
+  ContinueNode(ContinueNode &&) = delete;
+  ContinueNode &operator=(ContinueNode &&) = delete;
+
+  ~ContinueNode() = default;
+
+public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Continue; }
 
   ASTNode *Clone() { return new ContinueNode(*this); }
@@ -363,6 +417,16 @@ public:
 
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Break; }
 
+protected:
+  BreakNode(const BreakNode &) = default;
+  BreakNode &operator=(const BreakNode &) = default;
+
+  BreakNode(BreakNode &&) = delete;
+  BreakNode &operator=(BreakNode &&) = delete;
+
+  ~BreakNode() = default;
+
+public:
   ASTNode *Clone() { return new BreakNode(*this); }
 
   void dump(std::ofstream &ASTFile);
@@ -385,6 +449,16 @@ class SwitchBreakNode : public ASTNode {
 public:
   SwitchBreakNode() : ASTNode(NK_SwitchBreak, "switch break") {}
 
+protected:
+  SwitchBreakNode(const SwitchBreakNode &) = default;
+  SwitchBreakNode &operator=(const SwitchBreakNode &) = default;
+
+  SwitchBreakNode(SwitchBreakNode &&) = delete;
+  SwitchBreakNode &operator=(SwitchBreakNode &&) = delete;
+
+  ~SwitchBreakNode() = default;
+
+public:
   static bool classof(const ASTNode *N) {
     return N->getKind() == NK_SwitchBreak;
   }
@@ -413,6 +487,16 @@ public:
     ASTNode(NK_Set, CFGNode, nullptr),
     StateVariableValue(CFGNode->getStateVariableValue()) {}
 
+protected:
+  SetNode(const SetNode &) = default;
+  SetNode &operator=(const SetNode &) = default;
+
+  SetNode(SetNode &&) = delete;
+  SetNode &operator=(SetNode &&) = delete;
+
+  SetNode() = delete;
+  ~SetNode() = default;
+
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Set; }
 
@@ -438,6 +522,16 @@ public:
               ASTNode *PostDom) :
     IfNode(CFGNode, nullptr, Then, Else, PostDom, NK_IfCheck),
     StateVariableValue(CFGNode->getStateVariableValue()) {}
+
+protected:
+  IfCheckNode(const IfCheckNode &) = default;
+  IfCheckNode &operator=(const IfCheckNode &) = default;
+
+  IfCheckNode(IfCheckNode &&) = delete;
+  IfCheckNode &operator=(IfCheckNode &&) = delete;
+
+  IfCheckNode() = delete;
+  ~IfCheckNode() = default;
 
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_IfCheck; }
@@ -478,6 +572,15 @@ protected:
     ASTNode(K, Name),
     CaseVec(Cases),
     Default(Def) {}
+
+  SwitchNode(const SwitchNode &) = default;
+  SwitchNode &operator=(const SwitchNode &) = default;
+
+  SwitchNode(SwitchNode &&) = delete;
+  SwitchNode &operator=(SwitchNode &&) = delete;
+
+  SwitchNode() = delete;
+  ~SwitchNode() = default;
 
 public:
   static bool classof(const ASTNode *N) {
@@ -569,10 +672,22 @@ public:
     revng_assert(Cases.size() == V.size());
   }
 
+protected:
+  RegularSwitchNode(const RegularSwitchNode &) = default;
+  RegularSwitchNode &operator=(const RegularSwitchNode &) = default;
+
+  RegularSwitchNode(RegularSwitchNode &&) = delete;
+  RegularSwitchNode &operator=(RegularSwitchNode &&) = delete;
+
+  RegularSwitchNode() = delete;
+  ~RegularSwitchNode() = default;
+
+public:
   static bool classof(const ASTNode *N) {
     return N->getKind() == NK_SwitchRegular;
   }
 
+public:
   void dump(std::ofstream &ASTFile);
 
   ASTNode *Clone() { return new RegularSwitchNode(*this); }
@@ -631,10 +746,22 @@ public:
     revng_assert(Cases.size() == V.size());
   }
 
+protected:
+  SwitchCheckNode(const SwitchCheckNode &) = default;
+  SwitchCheckNode &operator=(const SwitchCheckNode &) = default;
+
+  SwitchCheckNode(SwitchCheckNode &&) = delete;
+  SwitchCheckNode &operator=(SwitchCheckNode &&) = delete;
+
+  SwitchCheckNode() = delete;
+  ~SwitchCheckNode() = default;
+
+public:
   static bool classof(const ASTNode *N) {
     return N->getKind() == NK_SwitchCheck;
   }
 
+public:
   void dump(std::ofstream &ASTFile);
 
   case_value getCaseValueN(size_t N) const {
