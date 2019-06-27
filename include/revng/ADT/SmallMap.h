@@ -72,6 +72,20 @@ private:
     }
   };
 
+  struct PostdecrementVisitor : public boost::static_visitor<Iteratall> {
+    template<typename T>
+    Iteratall operator()(T &It) const {
+      return Iteratall(It--);
+    }
+  };
+
+  struct PredecrementVisitor : public boost::static_visitor<Iteratall> {
+    template<typename T>
+    Iteratall operator()(T &It) const {
+      return Iteratall(--It);
+    }
+  };
+
   struct DereferenceVisitor : public boost::static_visitor<reference> {
     template<typename T>
     reference operator()(T &It) const {
@@ -100,11 +114,35 @@ public:
   Iteratall &operator=(Iteratall &&) = default;
 
   Iteratall operator++(int) {
-    return boost::apply_visitor(PostincrementVisitor(), Iterator);
+    Iteratall Res(*this);
+    boost::apply_visitor(PostincrementVisitor(), Iterator);
+    return Res;
   }
 
-  Iteratall operator++() {
-    return boost::apply_visitor(PreincrementVisitor(), Iterator);
+  Iteratall &operator++() {
+    return *this = boost::apply_visitor(PreincrementVisitor(), Iterator);
+  }
+
+  Iteratall &operator+=(int N) {
+    for (int I = 0; I < N; ++I)
+      *this = boost::apply_visitor(PreincrementVisitor(), Iterator);
+    return *this;
+  }
+
+  Iteratall operator--(int) {
+    Iteratall Res(*this);
+    boost::apply_visitor(PostdecrementVisitor(), Iterator);
+    return Res;
+  }
+
+  Iteratall &operator--() {
+    return *this = boost::apply_visitor(PredecrementVisitor(), Iterator);
+  }
+
+  Iteratall &operator-=(int N) {
+    for (int I = 0; I < N; ++I)
+      *this = boost::apply_visitor(PredecrementVisitor(), Iterator);
+    return *this;
   }
 
   bool operator==(const Iteratall &Other) const {
