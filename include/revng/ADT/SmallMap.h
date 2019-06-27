@@ -230,7 +230,7 @@ public:
       return;
 
     auto Compare = [](const Pair &A, const Pair &B) {
-      return std::less<K>()(A.first, B.first);
+      return C()(A.first, B.first);
     };
     std::sort(Vector.begin(), Vector.begin() + Size, Compare);
     IsSorted = true;
@@ -293,7 +293,7 @@ public:
 
       // Check if we're preserving the ordering
       if (Size > 1 && IsSorted)
-        IsSorted = !std::less<K>()(P.first, Vector[Size - 2].first);
+        IsSorted = !C()(P.first, Vector[Size - 2].first);
 
       return { iterator(smallBegin() + Size - 1), true };
     }
