@@ -181,3 +181,20 @@ target_link_libraries(test_filtered_graph_traits
   ${LLVM_LIBRARIES})
 add_test(NAME test_filtered_graph_traits COMMAND ./bin/test_filtered_graph_traits -- "${SRC}/test_graphs/")
 set_tests_properties(test_filtered_graph_traits PROPERTIES LABELS "unit")
+
+#
+# test_smallmap
+#
+
+revng_add_private_executable(test_smallmap "${SRC}/SmallMap.cpp")
+target_compile_definitions(test_smallmap
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_smallmap
+  PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_smallmap
+  revngSupport
+  revngUnitTestHelpers
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME test_smallmap COMMAND ./bin/test_smallmap)
+set_tests_properties(test_smallmap PROPERTIES LABELS "unit")

@@ -22,9 +22,6 @@
 template<typename... Ts>
 class Iteratall {
 private:
-  template<typename T>
-  using it = std::iterator_traits<T>;
-
   // Define some helpers
   template<typename... Ps>
   struct are_same : std::false_type {};
@@ -40,17 +37,23 @@ private:
     using type = P;
   };
 
+  template<typename T>
+  using it = std::iterator_traits<T>;
+  using itfirst = it<typename first<Ts...>::type>;
+
   // Assert correct usage
   static_assert(are_same<typename it<Ts>::value_type...>::value,
                 "The iterators have different value_type");
   static_assert(are_same<typename it<Ts>::reference...>::value,
                 "The iterators have different reference");
 
-  using value_type = typename it<typename first<Ts...>::type>::value_type;
-  using reference = typename it<typename first<Ts...>::type>::reference;
-  using pointer = typename it<typename first<Ts...>::type>::pointer;
-
 public:
+  using value_type = typename itfirst::value_type;
+  using reference = typename itfirst::reference;
+  using pointer = typename itfirst::pointer;
+  using difference_type = typename itfirst::difference_type;
+  using iterator_category = typename itfirst::iterator_category;
+
   template<typename T>
   Iteratall(T I) : Iterator(I) {}
 
@@ -90,6 +93,12 @@ private:
   };
 
 public:
+  Iteratall() = default;
+  Iteratall(const Iteratall &) = default;
+  Iteratall(Iteratall &&) = default;
+  Iteratall &operator=(const Iteratall &) = default;
+  Iteratall &operator=(Iteratall &&) = default;
+
   Iteratall operator++(int) {
     return boost::apply_visitor(PostincrementVisitor(), Iterator);
   }
@@ -297,6 +306,20 @@ public:
       return const_iterator(Map.find(Key));
   }
 
+  iterator lower_bound(const K &Key) {
+    if (isSmall())
+      return iterator(vlower_bound(Key));
+    else
+      return iterator(Map.lower_bound(Key));
+  }
+
+  const_iterator lower_bound(const K &Key) const {
+    if (isSmall())
+      return const_iterator(vlower_bound(Key));
+    else
+      return const_iterator(Map.lower_bound(Key));
+  }
+
   void clear() {
     // TODO: we should invoke some destructors at a certain point
     Size = 0;
@@ -336,6 +359,22 @@ private:
   VIterator vfind(const K &Key) {
     for (VIterator I = smallBegin(), E = smallBegin() + Size; I != E; ++I)
       if (I->first == Key)
+        return I;
+    return smallBegin() + Size;
+  }
+
+  ConstVIterator vlower_bound(const K &Key) const {
+    sort();
+    for (ConstVIterator I = smallBegin(), E = smallBegin() + Size; I != E; ++I)
+      if (!C()(I->first, Key))
+        return I;
+    return smallBegin() + Size;
+  }
+
+  VIterator vlower_bound(const K &Key) {
+    sort();
+    for (VIterator I = smallBegin(), E = smallBegin() + Size; I != E; ++I)
+      if (!C()(I->first, Key))
         return I;
     return smallBegin() + Size;
   }
