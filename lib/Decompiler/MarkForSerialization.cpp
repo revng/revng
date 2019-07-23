@@ -102,7 +102,7 @@ Analysis::InterruptType Analysis::transfer(BasicBlock *BB) {
         }
         Instruction *UserI = cast<Instruction>(U);
         if (NumDuplicatesOfBB != NDuplicates.at(UserI->getParent())) {
-          revng_assert(NumDuplicatesOfBB < NDuplicates.at(UserI->getParent()));
+          //revng_assert(NumDuplicatesOfBB < NDuplicates.at(UserI->getParent()));
           markValueToSerialize(&I);
         } else {
           Pending.insert(&I);
