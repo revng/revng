@@ -900,7 +900,7 @@ protected:
       // assert that we're either not in a loop, or, if we're in a loop we're
       // also inside a switch which is nested in the loop
       revng_assert(LoopStack.empty() or not LoopStack.back().second.empty());
-      [[clang::fallthrough]];
+      break;
     case ASTNode::NK_Set:
     case ASTNode::NK_Code:
     case ASTNode::NK_Continue:
