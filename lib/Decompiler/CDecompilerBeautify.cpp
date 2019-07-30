@@ -68,6 +68,7 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
 
 using Marker = MarkForSerialization::Analysis;
 
+#if 0
 static bool requiresNoStatement(IfNode *If, Marker &Mark) {
   // Compute how many statement we need to serialize for the basicblock
   // associated with the internal `IfNode`.
@@ -79,6 +80,11 @@ static bool requiresNoStatement(IfNode *If, Marker &Mark) {
     }
   }
   return false;
+}
+#endif
+
+static bool requiresNoStatement(IfNode *If, Marker &Mark) {
+  return true;
 }
 
 // Helper function to simplify short-circuit IFs
