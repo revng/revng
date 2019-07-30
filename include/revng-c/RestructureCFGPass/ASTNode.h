@@ -328,6 +328,7 @@ public:
 class ContinueNode : public ASTNode {
 private:
   IfNode *ComputationIf = nullptr;
+  bool IsImplicit = false;
 
 public:
   ContinueNode() : ASTNode(NK_Continue, "continue"){};
@@ -351,6 +352,10 @@ public:
   void addComputationIfNode(IfNode *ComputationIfNode);
 
   IfNode *getComputationIfNode() const;
+
+  bool isImplicit() const { return IsImplicit; };
+
+  void setImplicit() { IsImplicit = true; };
 };
 
 class BreakNode : public ASTNode {

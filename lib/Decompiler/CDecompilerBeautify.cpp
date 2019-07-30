@@ -491,41 +491,53 @@ static ASTNode *getLastOfSequenceOrSelf(ASTNode *RootNode) {
 }
 
 // HACK: districate this mutual calling tree.
-static void simplifyLastContinue(ASTNode *RootNode);
+static void simplifyLastContinue(ASTNode *RootNode, ASTTree &AST);
 
-static void removeLastContinue(ASTNode *RootNode) {
+static void removeLastContinue(ASTNode *RootNode, ASTTree &AST) {
   if (auto *LastIf = llvm::dyn_cast<IfNode>(RootNode)) {
 
     // TODO: unify this
     // Handle then
     if (LastIf->hasThen()) {
       ASTNode *Then = LastIf->getThen();
-      if (llvm::isa<ContinueNode>(Then)) {
+      if (ContinueNode *ThenContinue = llvm::dyn_cast<ContinueNode>(Then)) {
+        if (ThenContinue->hasComputation()) {
+          ThenContinue->setImplicit();
+        } else {
+          LastIf->setThen(LastIf->getElse());
+          LastIf->setElse(nullptr);
 
-        // Manual flip when removing then.
-        // TODO: handle this in the flipIfEmpty phase.
-        LastIf->setThen(LastIf->getElse());
-        LastIf->setElse(nullptr);
+          // Manual flip when removing then.
+          // TODO: handle this in the flipIfEmpty phase.
+          // Invert the conditional expression of the current `IfNode`.
+          auto Not = std::make_unique<NotNode>(LastIf->getCondExpr());
+          ExprNode *NotNode = AST.addCondExpr(std::move(Not));
+          LastIf->replaceCondExpr(NotNode);
+        }
       } else {
-        removeLastContinue(Then);
+        removeLastContinue(Then, AST);
       }
     }
 
     // Handle else
     if (LastIf->hasElse()) {
       ASTNode *Else = LastIf->getElse();
-      if (llvm::isa<ContinueNode>(Else)) {
-        LastIf->setElse(nullptr);
+      if (ContinueNode *ElseContinue = llvm::dyn_cast<ContinueNode>(Else)) {
+        if (ElseContinue->hasComputation()) {
+          ElseContinue->setImplicit();
+        } else {
+          LastIf->setElse(nullptr);
+        }
       } else {
-        removeLastContinue(Else);
+        removeLastContinue(Else, AST);
       }
     }
   } else if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     ASTNode *LastNode = getLastOfSequenceOrSelf(Sequence);
-    if (llvm::isa<ContinueNode>(LastNode)) {
-      Sequence->removeNode(LastNode);
+    if (ContinueNode *LastContinue = llvm::dyn_cast<ContinueNode>(LastNode)) {
+      LastContinue->setImplicit();
     } else {
-      removeLastContinue(LastNode);
+      removeLastContinue(LastNode, AST);
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
 
@@ -534,22 +546,22 @@ static void removeLastContinue(ASTNode *RootNode) {
       return;
     }
 
-    simplifyLastContinue(Scs->getBody());
+    simplifyLastContinue(Scs->getBody(), AST);
   }
 }
 
-static void simplifyLastContinue(ASTNode *RootNode) {
+static void simplifyLastContinue(ASTNode *RootNode, ASTTree &AST) {
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
-      simplifyLastContinue(Node);
+      simplifyLastContinue(Node, AST);
     }
-    removeLastContinue(Sequence);
+    removeLastContinue(Sequence, AST);
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (If->hasThen()) {
-      simplifyLastContinue(If->getThen());
+      simplifyLastContinue(If->getThen(), AST);
     }
     if (If->hasElse()) {
-      simplifyLastContinue(If->getElse());
+      simplifyLastContinue(If->getElse(), AST);
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
 
@@ -559,10 +571,10 @@ static void simplifyLastContinue(ASTNode *RootNode) {
     }
 
     // Recursive invocation on the body
-    simplifyLastContinue(Scs->getBody());
+    simplifyLastContinue(Scs->getBody(), AST);
 
     ASTNode *LastNode = getLastOfSequenceOrSelf(Scs->getBody());
-    removeLastContinue(LastNode);
+    removeLastContinue(LastNode, AST);
   }
 }
 
@@ -905,7 +917,7 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
 
   // Remove useless continues.
   revng_log(BeautifyLogger, "Removing useless continue nodes\n");
-  simplifyLastContinue(RootNode);
+  simplifyLastContinue(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpOnFile("ast", F.getName(), "After-continue-removal");
   }

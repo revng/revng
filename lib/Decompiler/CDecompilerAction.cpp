@@ -286,7 +286,12 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                      ASTBuilder,
                      Mark);
     }
-    Stmts.push_back(new (ASTCtx) clang::ContinueStmt(SourceLocation{}));
+
+    // Actually print the continue statement only if the continue is not
+    // implicit (i.e. it is not the last statement of the loop).
+    if (not Continue->isImplicit()) {
+      Stmts.push_back(new (ASTCtx) clang::ContinueStmt(SourceLocation{}));
+    }
   } break;
 
   case ASTNode::NodeKind::NK_Code: {
