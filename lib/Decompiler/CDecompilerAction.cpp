@@ -313,15 +313,32 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                                 ASTBuilder,
                                                 Mark);
 
-    Stmts.push_back(new (ASTCtx) IfStmt(ASTCtx,
-                                        {},
-                                        false,
-                                        nullptr,
-                                        nullptr,
-                                        CondExpr,
-                                        ThenScope,
-                                        {},
-                                        ElseScope));
+    // Handle the situation in which we do have a nullptr in the place of the
+    // else node of the if statement, which may result in a non empty
+    // `ElseScope` and therefore an empty compound statement.
+    if (If->getElse() == nullptr) {
+      Stmts.push_back(new (ASTCtx) IfStmt(ASTCtx,
+                                          {},
+                                          false,
+                                          nullptr,
+                                          nullptr,
+                                          CondExpr,
+                                          ThenScope,
+                                          {},
+                                          nullptr));
+    } else {
+      Stmts.push_back(new (ASTCtx) IfStmt(ASTCtx,
+                                          {},
+                                          false,
+                                          nullptr,
+                                          nullptr,
+                                          CondExpr,
+                                          ThenScope,
+                                          {},
+                                          ElseScope));
+    }
+
+
     break;
   }
 
