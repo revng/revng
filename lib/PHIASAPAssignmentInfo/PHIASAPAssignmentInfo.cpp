@@ -27,18 +27,10 @@ using BlockToIncomingMap = SmallMap<BasicBlock *, IncomingIDSet, 8>;
 using BlockPtrVec = SmallVector<BasicBlock *, 8>;
 using IncomingCandidatesVec = SmallVector<BlockPtrVec, 8>;
 
-using OneToSetIncomingPair = std::pair<unsigned, IncomingIDSet>;
-using OneToSetIncomingMap = SmallVector<OneToSetIncomingPair, 8>;
-
 struct IncomingCandidatesInfoTy {
   IncomingCandidatesVec IncomingCandidates;
   BlockToIncomingMap BlocksToIncoming;
 };
-
-static bool smallerSizeOneToSetIncomingPair(const OneToSetIncomingPair &P,
-                                            const OneToSetIncomingPair &Q) {
-  return P.second.size() < Q.second.size();
-}
 
 static IncomingCandidatesInfoTy
 getCandidatesInfo(const PHINode *ThePHI, const DomTree &DT) {
@@ -53,11 +45,14 @@ getCandidatesInfo(const PHINode *ThePHI, const DomTree &DT) {
 
   for (unsigned K = 0; K < NPred; ++K) {
     Value *V = ThePHI->getIncomingValue(K);
+    if (V == ThePHI)
+      continue;
     if (not isa<Instruction>(V) and not isa<Argument>(V)
         and not isa<Constant>(V))
       continue;
 
     BasicBlock *CandidateB = ThePHI->getIncomingBlock(K);
+    revng_assert(CandidateB != nullptr);
 
     BasicBlock *DefBlock = nullptr;
     if (auto *Inst = dyn_cast<Instruction>(V)) {
@@ -71,8 +66,8 @@ getCandidatesInfo(const PHINode *ThePHI, const DomTree &DT) {
       }
       DefBlock = ParentEntryBlock;
     }
-    revng_assert(CandidateB != nullptr);
     revng_assert(DefBlock != nullptr);
+
     auto *DefBlockNode = DT.getNode(DefBlock);
     revng_assert(DefBlockNode != nullptr);
 
@@ -88,26 +83,37 @@ getCandidatesInfo(const PHINode *ThePHI, const DomTree &DT) {
   }
 
   for (unsigned K = 0; K < NPred; ++K) {
-    auto &KCandidates = Res.IncomingCandidates[K];
+    BlockPtrVec &KCandidates = Res.IncomingCandidates[K];
+    if (KCandidates.empty()) {
+      revng_assert(ThePHI == ThePHI->getIncomingValue(K));
+      continue;
+    }
+
     BasicBlock *CurrCandidate = KCandidates[0];
     for (unsigned H = 0; H < NPred; ++H) {
       if (K == H or ThePHI->getIncomingValue(K) == ThePHI->getIncomingValue(H))
         continue;
-      BlockPtrVec &OtherCandidates = Res.IncomingCandidates[H];
-      auto CandidateMatch = std::find(OtherCandidates.begin(),
-                                      OtherCandidates.end(),
-                                      CurrCandidate);
+      BlockPtrVec &HCandidates = Res.IncomingCandidates[H];
+      auto HCandidateMatch = std::find(HCandidates.begin(),
+                                       HCandidates.end(),
+                                       CurrCandidate);
 
-      auto CandidateIt = CandidateMatch;
-      auto CandidateEnd = OtherCandidates.end();
-      for (; CandidateIt != CandidateEnd; ++CandidateIt)
-        Res.BlocksToIncoming.at(*CandidateIt).erase(K);
-      if (CandidateMatch != OtherCandidates.end())
-        OtherCandidates.erase(CandidateMatch, OtherCandidates.end());
+      auto HCandidateIt = HCandidateMatch;
+      auto HCandidateEnd = HCandidates.end();
+      for (; HCandidateIt != HCandidateEnd; ++HCandidateIt)
+        Res.BlocksToIncoming.at(*HCandidateIt).erase(H);
+      if (HCandidateMatch != HCandidateEnd)
+        HCandidates.erase(HCandidateMatch, HCandidateEnd);
     }
   }
 
   return Res;
+}
+
+
+static bool largerBrokenCount(const std::pair<unsigned, unsigned> &P,
+                              const std::pair<unsigned, unsigned> &Q) {
+  return P.second > Q.second;
 }
 
 static void computePHIVarAssignments(PHINode *ThePHI,
@@ -126,12 +132,11 @@ static void computePHIVarAssignments(PHINode *ThePHI,
   size_t MaxNumCandidates = 0;
   for (unsigned K = 0; K < NPred; ++K) {
     Value *V = ThePHI->getIncomingValue(K);
-    if (not isa<Instruction>(V) and not isa<Argument>(V))
+    if (not isa<Instruction>(V) and not isa<Argument>(V)
+        and not isa<Constant>(V))
       continue;
     MaxNumCandidates = std::max(MaxNumCandidates, IncomingCandidates[K].size());
   }
-  ++MaxNumCandidates;
-  revng_assert(MaxNumCandidates != 0);
 
   unsigned NumAssigned = 0;
   SmallVector<size_t, 8> NumDiscarded(NPred, 0);
@@ -139,84 +144,99 @@ static void computePHIVarAssignments(PHINode *ThePHI,
   // Independently of all the other results, we can already assign all the
   // incomings that are not Instructions nor Arguments
   for (unsigned K = 0; K < NPred; ++K) {
-    Value *V = ThePHI->getIncomingValue(K);
-    if (not isa<Instruction>(V) and not isa<Argument>(V)) {
+    auto &KCandidates = IncomingCandidates[K];
+    auto NCandidates = KCandidates.size();
+    if (NCandidates <= 1) {
       NumDiscarded[K] = MaxNumCandidates; // this incoming is complete
-      AssignmentBlocks[ThePHI->getIncomingBlock(K)][ThePHI] = K;
       ++NumAssigned;
-    } else {
-      auto &KCandidates = IncomingCandidates[K];
-      if (KCandidates.size() == 1) {
-        NumDiscarded[K] = MaxNumCandidates; // this incoming is complete
+      if (NCandidates != 0)
         AssignmentBlocks[KCandidates.back()][ThePHI] = K;
-        ++NumAssigned;
-      }
+      else
+        revng_assert(ThePHI == ThePHI->getIncomingValue(K));
+      KCandidates.clear();
     }
   }
 
   for (size_t NDisc = 0; NDisc < MaxNumCandidates; ++NDisc) {
 
-    OneToSetIncomingMap Broken;
+
+    SmallVector<std::pair<unsigned, unsigned>, 8> BrokenCount;
 
     for (unsigned K = 0; K < NPred; ++K) {
       if (NumDiscarded[K] != NDisc)
         continue;
 
-      Broken.push_back({ K, {} });
+      BrokenCount.push_back({K, 0});
 
       auto &KCandidates = IncomingCandidates[K];
 
       for (unsigned H = 0; H < NPred; ++H) {
-        if (H == K or NumDiscarded[H] != NDisc
+        if (NumDiscarded[H] != NDisc or H == K
             or ThePHI->getIncomingValue(K) == ThePHI->getIncomingValue(H))
           continue;
 
         // Assigning K breaks H if any of the valid Candidates for K is also a
         // valid candidate for H
-        bool KBreaksH = true;
         for (BasicBlock *Candidate : KCandidates)
           if (BlocksToIncoming.at(Candidate).count(H))
-            KBreaksH = true;
-
-        if (KBreaksH) {
-          Broken.back().second.insert(H);
-        }
+            BrokenCount.back().second++;
       }
     }
 
-    std::sort(Broken.begin(), Broken.end(), smallerSizeOneToSetIncomingPair);
+    std::sort(BrokenCount.begin(), BrokenCount.end(), largerBrokenCount);
 
-    for (const auto &P : Broken) {
-      unsigned IncomingIdx = P.first;
-      size_t &NDiscardedP = NumDiscarded[IncomingIdx];
-      if (NDiscardedP != NDisc)
-        continue;
+    for (const auto &P : BrokenCount) {
+      auto IncomingIdx = P.first;
+
+      // update it, marking as completed
+      NumDiscarded[IncomingIdx] = MaxNumCandidates;
+
       BlockPtrVec &PCandidates = IncomingCandidates[IncomingIdx];
-      NDiscardedP = MaxNumCandidates; // this incoming is complete
+      Value *NewVal = ThePHI->getIncomingValue(IncomingIdx);
+      if (PCandidates.empty()) {
+        revng_assert(isa<PHINode>(NewVal) and NewVal == ThePHI);
+        ++NumAssigned;
+        continue;
+      }
       auto &BlockAssignments = AssignmentBlocks[PCandidates.back()];
-      bool New = BlockAssignments.insert({ ThePHI, IncomingIdx }).second;
-      revng_assert(not New);
+      bool New = false;
+      auto It = BlockAssignments.end();
+      std::tie(It, New) = BlockAssignments.insert({ ThePHI, IncomingIdx });
+      bool SameIdx = It->second == IncomingIdx;
+      Value *OldVal = ThePHI->getIncomingValue(It->second);
+      bool ExpectedDuplicate = SameIdx or (OldVal == NewVal);
+      revng_assert(New or ExpectedDuplicate);
       ++NumAssigned;
+      if (not New and ExpectedDuplicate) {
+        PCandidates.clear();
+        continue;
+      }
+
       // Remove all the candidates in PCandidates from all the other lists of
       // candidates for all the other incomings related to a different Value
-      for (auto &Other : P.second) {
+      for (unsigned Other = 0; Other < NPred; ++Other) {
+        if (Other == IncomingIdx or NewVal == ThePHI->getIncomingValue(Other))
+          continue; // don't touch the incoming with the same value
         BlockPtrVec &OtherCandidates = IncomingCandidates[Other];
         size_t OtherCandidatesPrevSize = OtherCandidates.size();
         for (BasicBlock *PCand : PCandidates) {
-          auto It = std::find(OtherCandidates.begin(),
-                              OtherCandidates.end(),
-                              PCand);
-          if (It != OtherCandidates.end()) {
-            OtherCandidates.erase(It);
+          auto OtherIt = std::find(OtherCandidates.begin(),
+                                   OtherCandidates.end(),
+                                   PCand);
+          auto OtherEnd = OtherCandidates.end();
+          if (OtherIt != OtherEnd) {
+            OtherCandidates.erase(OtherIt, OtherEnd);
             break;
           }
         }
         size_t NewDiscarded = OtherCandidatesPrevSize - OtherCandidates.size();
         if (NewDiscarded != 0) {
           NumDiscarded[Other] += NewDiscarded;
-          revng_assert(NumDiscarded[Other] < MaxNumCandidates);
+          revng_assert(NumDiscarded[Other] <= MaxNumCandidates);
         }
       }
+
+      PCandidates.clear();
     }
   }
   revng_assert(NumAssigned == NPred);
