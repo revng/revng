@@ -30,6 +30,10 @@ using namespace llvm;
 using std::make_unique;
 using std::unique_ptr;
 
+// Metrics counter variables
+extern unsigned ShortCircuitCounter;
+extern unsigned TrivialShortCircuitCounter;
+
 static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
@@ -137,6 +141,9 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
 
             If->replaceCondExpr(AAndNotBNode);
 
+            // Increment counter
+            ShortCircuitCounter += 1;
+
             // Recursive call.
             simplifyShortCircuit(If, AST, Mark);
           }
@@ -163,6 +170,9 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
             ExprNode *AAndBNode = AST.addCondExpr(std::move(AAndB));
 
             If->replaceCondExpr(AAndBNode);
+
+            // Increment counter
+            ShortCircuitCounter += 1;
 
             simplifyShortCircuit(If, AST, Mark);
           }
@@ -197,6 +207,9 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
             auto NotAAndNotB = std::make_unique<AndNode>(NotANode, NotBNode);
             ExprNode *NotAAndNotBNode = AST.addCondExpr(std::move(NotAAndNotB));
 
+            // Increment counter
+            ShortCircuitCounter += 1;
+
             simplifyShortCircuit(If, AST, Mark);
           }
         }
@@ -223,6 +236,9 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
             auto NotAAndB = std::make_unique<AndNode>(NotANode,
                                                       NestedIf->getCondExpr());
             ExprNode *NotAAndBNode = AST.addCondExpr(std::move(NotAAndB));
+
+            // Increment counter
+            ShortCircuitCounter += 1;
 
             simplifyShortCircuit(If, AST, Mark);
           }
@@ -269,6 +285,9 @@ simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
           ExprNode *AAndBNode = AST.addCondExpr(std::move(AAndB));
 
           If->replaceCondExpr(AAndBNode);
+
+          // Increment counter
+          TrivialShortCircuitCounter += 1;
 
           simplifyTrivialShortCircuit(RootNode, AST, Mark);
         }

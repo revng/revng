@@ -48,6 +48,16 @@ static cl::opt<string> DecompiledDir("decompiled-dir",
                                      cl::value_desc("decompiled-dir"),
                                      cl::cat(RevNgCategory));
 
+// Prefix for the short circuit metrics dir.
+static cl::opt<string> OutputPath("short-circuit-metrics-output-dir",
+                                  cl::desc("Short circuit metrics dir"),
+                                  cl::value_desc("short-circuit-dir"),
+                                  cl::cat(RevNgCategory));
+
+// Metrics counter variables
+unsigned ShortCircuitCounter = 0;
+unsigned TrivialShortCircuitCounter = 0;
+
 char CDecompilerPass::ID = 0;
 
 static RegisterPass<CDecompilerPass> X("decompilation",
@@ -73,6 +83,10 @@ static void processFunction(llvm::Function &F) {
 }
 
 bool CDecompilerPass::runOnFunction(llvm::Function &F) {
+
+  ShortCircuitCounter = 0;
+  TrivialShortCircuitCounter = 0;
+
   if (not F.getName().startswith("bb."))
     return false;
   // HACK!!!
@@ -193,6 +207,16 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
     IncludeFile.close();
     CFile << SourceCode;
     CFile.close();
+  }
+
+  // Serialize the collected metrics in the outputfile.
+  if (OutputPath.getNumOccurrences() == 1) {
+    std::ofstream Output;
+    std::ostream &OutputStream = pathToStream(OutputPath + "/"
+                                              + F.getName().data(), Output);
+    OutputStream << "function,short-circuit,trivial-short-circuit\n";
+    OutputStream << F.getName().data() << "," << ShortCircuitCounter
+                 << "," << TrivialShortCircuitCounter << "\n";
   }
 
   return true;
