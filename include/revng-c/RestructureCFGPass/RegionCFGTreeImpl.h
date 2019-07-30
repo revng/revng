@@ -29,6 +29,8 @@
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 
+extern unsigned DuplicationCounter;
+
 unsigned const SmallSetSize = 16;
 
 // llvm::SmallPtrSet is a handy way to store set of BasicBlockNode pointers.
@@ -1193,6 +1195,7 @@ inline void RegionCFG<NodeT>::inflate() {
           CombLogger << "Duplicating node for ";
           CombLogger << Candidate->getNameStr() << "\n";
         }
+        DuplicationCounter++;
 
         BasicBlockNode<NodeT> *Duplicated = Graph.cloneNode(*Candidate);
         revng_assert(Duplicated != nullptr);

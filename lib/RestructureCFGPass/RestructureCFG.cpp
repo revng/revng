@@ -30,6 +30,7 @@
 #include "revng-c/RestructureCFGPass/Utils.h"
 
 using namespace llvm;
+using namespace llvm::cl;
 
 using std::make_pair;
 using std::pair;
@@ -404,7 +405,15 @@ static RegisterPass<RestructureCFG> X("restructure-cfg",
                                       true,
                                       true);
 
+static opt<std::string> OutputPath("restructure-metrics-output-dir",
+                                   desc("Restructure metrics dir"),
+                                   value_desc("restructure-dir"),
+                                   cat(MainCategory));
+unsigned DuplicationCounter = 0;
+
 bool RestructureCFG::runOnFunction(Function &F) {
+
+  DuplicationCounter = 0;
 
   // Analyze only isolated functions.
   if (!F.getName().startswith("bb.")
@@ -1299,6 +1308,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     if (BBNode->isCode()) {
       revng_assert(BB != nullptr);
       NDuplicates[BB] += 1;
+      //if (NDuplicates[BB] > 1)
+        //DuplicationCounter += 1;
     } else {
       revng_assert(BB == nullptr);
     }
@@ -1313,6 +1324,15 @@ bool RestructureCFG::runOnFunction(Function &F) {
   if (CombLogger.isEnabled()) {
     CombLogger << "Dumping main graph after Flattening\n";
     RootCFG.dumpDotOnFile("dots", F.getName(), "final-after-flattening");
+  }
+
+  // Serialize the collected metrics in the outputfile.
+  if (OutputPath.getNumOccurrences() == 1) {
+    std::ofstream Output;
+    std::ostream &OutputStream = pathToStream(OutputPath + "/"
+                                              + F.getName().data(), Output);
+    OutputStream << "function,duplications\n";
+    OutputStream << F.getName().data() << "," << DuplicationCounter << "\n";
   }
 
   return false;
