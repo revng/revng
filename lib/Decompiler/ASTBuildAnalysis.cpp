@@ -917,9 +917,7 @@ Expr *StmtBuilder::getUIntLiteral(uint64_t U) {
 
 Expr *StmtBuilder::getExprForValue(Value *V) {
   revng_log(ASTBuildLog, "getExprForValue: " << dumpToString(V));
-  if (isa<ConstantData>(V) or isa<ConstantExpr>(V)) {
-    return getLiteralFromConstant(cast<Constant>(V));
-  } else if (auto *F = dyn_cast<Function>(V)) {
+  if (auto *F = dyn_cast<Function>(V)) {
     FunctionDecl *FDecl = FunctionDecls.at(F);
     QualType Type = FDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
@@ -931,6 +929,9 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
     DeclRefExpr *Res = new (ASTCtx)
       DeclRefExpr(GlobalVarDecl, false, Type, VK_LValue, {});
     return Res;
+  } else if (isa<ConstantData>(V) or isa<ConstantExpr>(V)) {
+    return getLiteralFromConstant(cast<Constant>(V));
+
   } else if (auto *I = dyn_cast<Instruction>(V)) {
 
     // For all the other instructions that have already been marked for
@@ -1261,7 +1262,7 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
     case Instruction::IntToPtr:
     case Instruction::PtrToInt:
     case Instruction::BitCast: {
-      Result = getExprForValue(cast<ConstantInt>(CE->getOperand(0)));
+      Result = getExprForValue(CE->getOperand(0));
       revng_log(ASTBuildLog, "GOT!");
       revng_assert(Result);
       if (ASTBuildLog.isEnabled())
