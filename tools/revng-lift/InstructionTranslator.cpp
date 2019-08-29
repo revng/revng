@@ -472,7 +472,9 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
   TheFunction(Builder.GetInsertBlock()->getParent()),
   SourceArchitecture(SourceArchitecture),
   TargetArchitecture(TargetArchitecture),
-  NewPCMarker(nullptr) {
+  NewPCMarker(nullptr),
+  LastPC(MetaAddress::invalid()),
+  MetaAddressStruct(MetaAddress::getStruct(&TheModule)) {
 
   auto &Context = TheModule.getContext();
   using FT = FunctionType;
@@ -484,7 +486,7 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
   // * pointer to the disassembled instruction
   // * all the local variables used by this instruction
   auto *NewPCMarkerTy = FT::get(Type::getVoidTy(Context),
-                                { Type::getInt64Ty(Context),
+                                { MetaAddressStruct,
                                   Type::getInt64Ty(Context),
                                   Type::getInt32Ty(Context),
                                   Type::getInt8PtrTy(Context) },
@@ -504,11 +506,11 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
     if (Call->getParent() != nullptr) {
       // Report the instruction on the coverage CSV
       using CI = ConstantInt;
-      uint64_t PC = (cast<CI>(Call->getArgOperand(0)))->getLimitedValue();
+      auto PC = MetaAddress::fromConstant(Call->getArgOperand(0));
       uint64_t Size = (cast<CI>(Call->getArgOperand(1)))->getLimitedValue();
       bool IsJT = JumpTargets.isJumpTarget(PC);
-      Output << "0x" << PC << ",0x" << Size << "," << (IsJT ? "1" : "0")
-             << std::endl;
+      PC.dump(Output);
+      Output << ",0x" << Size << "," << (IsJT ? "1" : "0") << "\n";
 
       unsigned ArgCount = Call->getNumArgOperands();
       Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
@@ -558,12 +560,13 @@ SmallSet<unsigned, 1> IT::preprocess(PTCInstructionList *InstructionList) {
   return Result;
 }
 
-std::tuple<IT::TranslationResult, MDNode *, uint64_t, uint64_t>
+std::tuple<IT::TranslationResult, MDNode *, MetaAddress, MetaAddress>
 IT::newInstruction(PTCInstruction *Instr,
                    PTCInstruction *Next,
-                   uint64_t EndPC,
+                   MetaAddress StartPC,
+                   MetaAddress EndPC,
                    bool IsFirst) {
-  using R = std::tuple<TranslationResult, MDNode *, uint64_t, uint64_t>;
+  using R = std::tuple<TranslationResult, MDNode *, MetaAddress, MetaAddress>;
   revng_assert(Instr != nullptr);
 
   LLVMContext &Context = TheModule.getContext();
@@ -571,8 +574,13 @@ IT::newInstruction(PTCInstruction *Instr,
   const PTC::Instruction TheInstruction(Instr);
   // A new original instruction, let's create a new metadata node
   // referencing it for all the next instructions to come
-  uint64_t PC = TheInstruction.pc();
-  uint64_t NextPC = Next != nullptr ? PTC::Instruction(Next).pc() : EndPC;
+  MetaAddress PC = StartPC.replaceAddress(TheInstruction.pc());
+  MetaAddress NextPC = MetaAddress::invalid();
+
+  if (Next != nullptr)
+    NextPC = StartPC.replaceAddress(PTC::Instruction(Next).pc());
+  else
+    NextPC = EndPC;
 
   std::stringstream OriginalStringStream;
   disassemble(OriginalStringStream, PC, NextPC - PC);
@@ -586,7 +594,7 @@ IT::newInstruction(PTCInstruction *Instr,
                                     Twine("disam_") + AddressName);
 
   auto *MDOriginalString = ConstantAsMetadata::get(String);
-  auto *MDPC = ConstantAsMetadata::get(Builder.getInt64(PC));
+  auto *MDPC = ConstantAsMetadata::get(PC.toConstant(MetaAddressStruct));
   MDNode *MDOriginalInstr = MDNode::get(Context, { MDOriginalString, MDPC });
 
   if (!IsFirst) {
@@ -612,7 +620,8 @@ IT::newInstruction(PTCInstruction *Instr,
   // Insert a call to NewPCMarker capturing all the local temporaries
   // This prevents SROA from transforming them in SSA values, which is bad
   // in case we have to split a basic block
-  std::vector<Value *> Args = { Builder.getInt64(PC),
+  revng_assert(MetaAddressStruct != nullptr);
+  std::vector<Value *> Args = { PC.toConstant(MetaAddressStruct),
                                 Builder.getInt64(NextPC - PC),
                                 Builder.getInt32(-1),
                                 String };
@@ -681,7 +690,7 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
 }
 
 IT::TranslationResult
-IT::translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC) {
+IT::translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC) {
   const PTC::Instruction TheInstruction(Instr);
 
   std::vector<Value *> InArgs;
@@ -720,7 +729,7 @@ IT::translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC) {
     auto *Constant = dyn_cast<ConstantInt>(Value);
     if (Constant != nullptr) {
 
-      uint64_t Address = Constant->getLimitedValue();
+      MetaAddress Address = JumpTargets.fromPC(Constant->getLimitedValue());
       if (PC != Address and JumpTargets.isPC(Address)
           and not JumpTargets.hasJT(Address)) {
 

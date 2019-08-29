@@ -26,6 +26,10 @@ static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
 
 bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
   Function &F = *M.getFunction("root");
+  NewPC = M.getFunction("newpc");
+  if (NewPC != nullptr) {
+    MetaAddressStruct = cast<StructType>(NewPC->arg_begin()->getType());
+  }
 
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 
@@ -83,7 +87,7 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
       case BlockType::JumpTargetBlock: {
         auto *Call = cast<CallInst>(&*BB.begin());
         revng_assert(Call->getCalledFunction()->getName() == "newpc");
-        JumpTargets[getLimitedValue(Call->getArgOperand(0))] = &BB;
+        JumpTargets[MetaAddress::fromConstant(Call->getArgOperand(0))] = &BB;
         break;
       }
       case BlockType::EntryPoint:

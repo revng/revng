@@ -63,7 +63,7 @@ public:
   /// create in this phase.
   ///
   /// \param VirtualAddress the address from where the translation should start.
-  void translate(uint64_t RawVirtualAddress);
+  void translate(llvm::Optional<uint64_t> RawVirtualAddress);
 
   /// Serialize the generated LLVM IR to the specified output path.
   void serialize();

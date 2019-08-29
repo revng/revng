@@ -34,10 +34,9 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   LLVMContext &C = M.getContext();
   PointerType *Int8PtrTy = Type::getInt8PtrTy(C);
   auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
-  auto *PCTy = IntegerType::get(C, GCBI.pcRegSize() * 8);
   auto *PCPtrTy = cast<PointerType>(GCBI.pcReg()->getType());
   std::initializer_list<Type *> FunctionArgsTy = {
-    Int8PtrTy, Int8PtrTy, PCTy, PCPtrTy, Int8PtrTy
+    Int8PtrTy, Int8PtrTy, MetaAddress::getStruct(&M), PCPtrTy, Int8PtrTy
   };
   using FT = FunctionType;
   auto *Ty = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
@@ -64,7 +63,8 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
 
     if (Terminator != nullptr) {
       if (CallInst *Call = getCall(Terminator)) {
-        FallthroughAddresses.insert(getLimitedValue(Call->getOperand(2)));
+        auto Address = MetaAddress::fromConstant(Call->getOperand(2));
+        FallthroughAddresses.insert(Address);
         continue;
       }
     }
@@ -88,8 +88,8 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
       bool SaveRAFound;
       bool StorePCFound;
       Constant *LinkRegister;
-      const uint64_t ReturnPC;
-      uint64_t LastPC;
+      const MetaAddress ReturnPC;
+      MetaAddress LastPC;
 
       // We can meet calls up to newpc up to (1 + "size of the delay slot")
       // times
@@ -99,7 +99,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
     public:
       Visitor(BasicBlock *BB,
               const GeneratedCodeBasicInfo &GCBI,
-              uint64_t ReturnPC,
+              MetaAddress ReturnPC,
               PointerType *PCPtrTy) :
         BB(BB),
         GCBI(GCBI),
@@ -122,8 +122,10 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
               if (TargetCSV != nullptr)
                 StorePCFound = true;
             } else if (auto *Constant = dyn_cast<ConstantInt>(V)) {
+              revng_assert(LastPC.isValid());
+
               // Note that we willingly ignore stores to the PC here
-              if (Constant->getLimitedValue() == ReturnPC) {
+              if (LastPC.replacePC(Constant->getLimitedValue()) == ReturnPC) {
                 if (SaveRAFound) {
                   SaveRAFound = false;
                   return StopNow;
@@ -177,7 +179,8 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
             if (Callee != nullptr && Callee->getName() == "newpc") {
               revng_assert(NewPCLeft > 0);
 
-              uint64_t ProgramCounter = getLimitedValue(Call->getOperand(0));
+              Value *PCOperand = Call->getOperand(0);
+              auto ProgramCounter = MetaAddress::fromConstant(PCOperand);
               uint64_t InstructionSize = getLimitedValue(Call->getOperand(1));
 
               // Check that, w.r.t. to the last newpc, we're looking at the
@@ -207,7 +210,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
       }
     };
 
-    uint64_t ReturnPC = GCBI.getNextPC(Terminator);
+    MetaAddress ReturnPC = GCBI.getNextPC(Terminator);
     Visitor V(&BB, GCBI, ReturnPC, PCPtrTy);
     V.run(Terminator);
 
@@ -252,8 +255,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
 
       const std::initializer_list<Value *> Args{ Callee,
                                                  BlockAddress::get(ReturnBB),
-                                                 ConstantInt::get(PCTy,
-                                                                  ReturnPC),
+                                                 GCBI.toConstant(ReturnPC),
                                                  V.LinkRegister,
                                                  Int8NullPtr };
 
@@ -312,9 +314,9 @@ void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
         if (Successor->empty() or not GCBI.isTranslated(Successor))
           continue;
 
-        uint64_t Address = getBasicBlockPC(Successor);
-        AllZero = AllZero and (Address == 0);
-        IsReturn = IsReturn and (Address == 0 or isFallthrough(Address));
+        MetaAddress Address = getBasicBlockPC(Successor);
+        AllZero = AllZero and (not Address.isInvalid());
+        IsReturn = IsReturn and (Address.isInvalid() or isFallthrough(Address));
       }
       IsReturn = IsReturn and not AllZero;
 

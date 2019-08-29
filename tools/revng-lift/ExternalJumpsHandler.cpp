@@ -183,8 +183,8 @@ void ExternalJumpsHandler::buildExecutableSegmentsList() {
   auto Int = [this](uint64_t V) { return ConstantInt::get(RegisterType, V); };
   for (auto &Segment : TheBinary.segments()) {
     if (Segment.IsExecutable) {
-      ExecutableSegments.push_back(Int(Segment.StartVirtualAddress));
-      ExecutableSegments.push_back(Int(Segment.EndVirtualAddress));
+      ExecutableSegments.push_back(Int(Segment.StartVirtualAddress.address()));
+      ExecutableSegments.push_back(Int(Segment.EndVirtualAddress.address()));
     }
   }
 

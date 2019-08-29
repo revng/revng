@@ -40,7 +40,7 @@ static RegisterPass<IF> X("isolate", "Isolate Functions Pass", true, true);
 class IsolateFunctionsImpl {
 private:
   struct IsolatedFunctionDescriptor {
-    uint64_t PC;
+    MetaAddress PC;
     Function *IsolatedFunction;
     ValueToValueMap ValueMap;
     std::map<BasicBlock *, BasicBlock *> Trampolines;
@@ -62,7 +62,7 @@ public:
 
 private:
   /// \brief Creates the call that simulates the throw of an exception
-  void throwException(Reason Code, BasicBlock *BB, uint64_t AdditionalPC);
+  void throwException(Reason Code, BasicBlock *BB, MetaAddress AdditionalPC);
 
   /// \brief Instantiate a basic block that consists only of an exception throw
   BasicBlock *createUnreachableBlock(StringRef Name, Function *CurrentFunction);
@@ -117,7 +117,9 @@ private:
   const unsigned PCBitSize;
 };
 
-void IFI::throwException(Reason Code, BasicBlock *BB, uint64_t AdditionalPC) {
+void IFI::throwException(Reason Code,
+                         BasicBlock *BB,
+                         MetaAddress AdditionalPC) {
   revng_assert(PC != nullptr);
   revng_assert(RaiseException != nullptr);
 
@@ -132,26 +134,27 @@ void IFI::throwException(Reason Code, BasicBlock *BB, uint64_t AdditionalPC) {
   // Call the _debug_exception function to print usefull stuff
   LoadInst *ProgramCounter = Builder.CreateLoad(PC, "");
 
-  uint64_t LastPC;
+  MetaAddress LastPC;
 
   if (Code == StandardTranslatedBlock) {
     // Retrieve the value of the PC in the basic block where the exception has
     // been raised, this is possible since BB should be a translated block
     LastPC = getPC(&*BB->rbegin()).first;
-    revng_assert(LastPC != 0);
+    revng_assert(LastPC.isValid());
   } else {
 
     // The current basic block has not been translated from the original binary
     // (e.g. unexpectedpc or anypc), therefore we can't retrieve the
     // corresponding PC.
-    LastPC = 0;
+    LastPC = MetaAddress::invalid();
   }
 
   // Get the PC register dimension and use it to instantiate the arguments of
   // the call to exception_warning
-  ConstantInt *ReasonValue = Builder.getInt32(Code);
-  ConstantInt *ConstantLastPC = Builder.getIntN(PCBitSize, LastPC);
-  ConstantInt *ConstantAdditionalPC = Builder.getIntN(PCBitSize, AdditionalPC);
+  auto *ReasonValue = Builder.getInt32(Code);
+  auto *ConstantLastPC = Builder.getIntN(PCBitSize, LastPC.asPCOrZero());
+  auto *ConstantAdditionalPC = Builder.getIntN(PCBitSize,
+                                               AdditionalPC.asPCOrZero());
 
   // Emit the call to the exception helper in support.c, which in turn calls the
   // exception_warning function and then the _Unwind_RaiseException
@@ -172,7 +175,7 @@ IFI::createUnreachableBlock(StringRef Name, Function *CurrentFunction) {
                                          CurrentFunction,
                                          nullptr);
 
-  throwException(StandardNonTranslatedBlock, NewBB, 0);
+  throwException(StandardNonTranslatedBlock, NewBB, MetaAddress::invalid());
   return NewBB;
 }
 
@@ -187,7 +190,9 @@ void IFI::populateFunctionDispatcher() {
                                                 "unexpectedpc",
                                                 FunctionDispatcher,
                                                 nullptr);
-  throwException(FunctionDispatcherFallBack, UnexpectedPC, 0);
+  throwException(FunctionDispatcherFallBack,
+                 UnexpectedPC,
+                 MetaAddress::invalid());
   setBlockType(UnexpectedPC->getTerminator(), BlockType::UnexpectedPCBlock);
 
   // Create a builder object for the DispatcherBB basic block
@@ -213,7 +218,7 @@ void IFI::populateFunctionDispatcher() {
     CallInst::Create(Function, "", TrampolineBB);
     ReturnInst::Create(Context, TrampolineBB);
 
-    auto *Label = Builder.getIntN(PCBitSize, Descriptor.PC);
+    auto *Label = Builder.getIntN(PCBitSize, Descriptor.PC.asPC());
     Switch->addCase(Label, TrampolineBB);
   }
 }
@@ -307,7 +312,9 @@ bool IFI::replaceFunctionCall(BasicBlock *NewBB,
   BlockAddress *Callee = dyn_cast<BlockAddress>(Call->getOperand(0));
   BlockAddress *FallThroughAddress = cast<BlockAddress>(Call->getOperand(1));
   BasicBlock *FallthroughOld = FallThroughAddress->getBasicBlock();
-  ConstantInt *ReturnPC = cast<ConstantInt>(Call->getOperand(2));
+  auto ReturnPC = MetaAddress::fromConstant(Call->getOperand(2));
+  Type *PCType = PC->getType()->getPointerElementType();
+  Constant *ReturnPCCI = ConstantInt::get(PCType, ReturnPC.asPC());
   Value *ExternalFunctionName = Call->getOperand(4);
 
   bool IsIndirect = (Callee == nullptr);
@@ -355,14 +362,14 @@ bool IFI::replaceFunctionCall(BasicBlock *NewBB,
 
     // Additional check for the return address PC
     LoadInst *ProgramCounter = Builder.CreateLoad(PC, "");
-    Value *Result = Builder.CreateICmpEQ(ProgramCounter, ReturnPC);
+    Value *Result = Builder.CreateICmpEQ(ProgramCounter, ReturnPCCI);
 
     // Create a basic block that we hit if the current PC is not the one
     // expected after the function call
     auto *PCMismatch = BasicBlock::Create(Context,
                                           NewBB->getName() + "_bad_return_pc",
                                           NewBB->getParent());
-    throwException(BadReturnAddress, PCMismatch, ReturnPC->getZExtValue());
+    throwException(BadReturnAddress, PCMismatch, ReturnPC);
 
     // Conditional branch to jump to the right block
     Builder.CreateCondBr(Result, FallthroughNew, PCMismatch);
@@ -370,7 +377,7 @@ bool IFI::replaceFunctionCall(BasicBlock *NewBB,
 
     // If the fallthrough basic block is not in the current function raise an
     // exception
-    throwException(StandardTranslatedBlock, NewBB, 0);
+    throwException(StandardTranslatedBlock, NewBB, MetaAddress::invalid());
   }
 
   return true;
@@ -396,6 +403,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
   Value *PCReg = getModule(NewBB)->getGlobalVariable(GCBI.pcReg()->getName(),
                                                      true);
   revng_assert(PCReg != nullptr);
+
   ValueToValueMap &RootToIsolated = Descriptor.ValueMap;
 
   // Create a builder object
@@ -470,7 +478,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
                                               Descriptor.IsolatedFunction);
 
         BlockType::Values Type = GCBI.getType(BB);
-        uint64_t PC = getBasicBlockPC(BB);
+        MetaAddress PC = getBasicBlockPC(BB);
         if (Type == BlockType::AnyPCBlock
             or Type == BlockType::UnexpectedPCBlock
             or Type == BlockType::DispatcherBlock) {
@@ -486,7 +494,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
                            "",
                            Trampoline);
           ReturnInst::Create(Context, Trampoline);
-        } else if (PC == 0) {
+        } else if (PC.isInvalid()) {
           // We're trying to jump to a basic block not starting with newpc, emit
           // an unreachable
           // TODO: emit a warning
@@ -494,8 +502,10 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
           new UnreachableInst(M->getContext(), Trampoline);
         } else {
           auto *PCType = PCReg->getType()->getPointerElementType();
-          new StoreInst(ConstantInt::get(PCType, PC), PCReg, Trampoline);
-          throwException(StandardNonTranslatedBlock, Trampoline, 0);
+          new StoreInst(ConstantInt::get(PCType, PC.asPC()), PCReg, Trampoline);
+          throwException(StandardNonTranslatedBlock,
+                         Trampoline,
+                         MetaAddress::invalid());
         }
 
         Descriptor.Trampolines[BB] = Trampoline;

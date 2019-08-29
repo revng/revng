@@ -78,13 +78,14 @@ public:
   /// \return a tuple with 4 entries: the
   ///         InstructionTranslator::TranslationResult, an `MDNode` containing
   ///         the disassembled instruction and the value of the PC and two
-  ///         `uint64_t` representing the current and next PC.
+  ///         `MetaAddress` representing the current and next PC.
   // TODO: rename to newPC
   // TODO: the signature of this function is ugly
-  std::tuple<TranslationResult, llvm::MDNode *, uint64_t, uint64_t>
+  std::tuple<TranslationResult, llvm::MDNode *, MetaAddress, MetaAddress>
   newInstruction(PTCInstruction *Instr,
                  PTCInstruction *Next,
-                 uint64_t EndPC,
+                 MetaAddress StartPC,
+                 MetaAddress EndPC,
                  bool IsFirst);
 
   /// \brief Translate an ordinary instruction
@@ -95,7 +96,7 @@ public:
   ///
   /// \return see InstructionTranslator::TranslationResult.
   TranslationResult
-  translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC);
+  translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC);
 
   /// \brief Translate a call to an helper
   ///
@@ -140,7 +141,8 @@ private:
 
   llvm::Function *NewPCMarker;
 
-  uint64_t LastPC;
+  MetaAddress LastPC;
+  llvm::Type *MetaAddressStruct;
 };
 
 #endif // INSTRUCTIONTRANSLATOR_H

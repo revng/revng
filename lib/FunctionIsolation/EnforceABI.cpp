@@ -694,14 +694,14 @@ void EnforceABIImpl::handleRegularFunctionCall(Instruction *I) {
 
         auto *Tuple = cast<MDTuple>(F->getMetadata("revng.func.entry"));
         revng_assert(Tuple != nullptr);
-        uint64_t PC = QMD.extract<uint64_t>(Tuple, 1);
+        auto PC = MetaAddress::fromConstant(QMD.extract<Constant *>(Tuple, 1));
 
         auto *Case = BasicBlock::Create(Context,
                                         "",
                                         BeforeSplit->getParent(),
                                         AfterSplit);
         auto *Ty = cast<IntegerType>(PCCSV->getType()->getPointerElementType());
-        Switch->addCase(ConstantInt::get(Ty, PC), Case);
+        Switch->addCase(ConstantInt::get(Ty, PC.asPC()), Case);
 
         Builder.SetInsertPoint(Case);
         generateCall(Builder, F, CallSite);

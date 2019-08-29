@@ -244,7 +244,7 @@ int dumpInstruction(std::ostream &Result,
 }
 
 void disassemble(std::ostream &Result,
-                 uint64_t PC,
+                 MetaAddress PC,
                  uint32_t MaxBytes,
                  uint32_t InstructionCount) {
   char *BufferPtr = nullptr;
@@ -255,7 +255,7 @@ void disassemble(std::ostream &Result,
 
   // Using SIZE_MAX is not very nice but the code should disassemble only a
   // single instruction nonetheless.
-  ptc.disassemble(MemoryStream, PC, MaxBytes, InstructionCount);
+  ptc.disassemble(MemoryStream, PC.asPC(), MaxBytes, InstructionCount);
   fflush(MemoryStream);
 
   revng_assert(BufferPtr != nullptr);
@@ -266,7 +266,9 @@ void disassemble(std::ostream &Result,
   free(BufferPtr);
 }
 
-int dumpTranslation(std::ostream &Result, PTCInstructionList *Instructions) {
+int dumpTranslation(MetaAddress VirtualAddress,
+                    std::ostream &Result,
+                    PTCInstructionList *Instructions) {
   // TODO: this should stay in Architecture
   int is64 = 0;
 
@@ -280,7 +282,7 @@ int dumpTranslation(std::ostream &Result, PTCInstructionList *Instructions) {
       if (is64)
         PC |= Instruction.args[1] << 32;
 
-      disassemble(Result, PC, 4096, 1);
+      disassemble(Result, VirtualAddress.replaceAddress(PC), 4096, 1);
     }
 
     Result << std::dec << Index << ": ";

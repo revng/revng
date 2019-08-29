@@ -596,7 +596,7 @@ Interrupt Analysis::handleTerminator(Instruction *T,
   bool IsFunctionCall = false;
   BasicBlock *Callee = nullptr;
   BasicBlock *ReturnFromCall = nullptr;
-  uint64_t ReturnAddress = 0;
+  MetaAddress ReturnAddress = MetaAddress::invalid();
 
   if (CallInst *Call = GCBI->getFunctionCall(T->getParent())) {
     IsFunctionCall = true;
@@ -610,7 +610,7 @@ Interrupt Analysis::handleTerminator(Instruction *T,
     auto *ReturnBlockAddress = cast<BlockAddress>(Arg1);
     ReturnFromCall = ReturnBlockAddress->getBasicBlock();
 
-    ReturnAddress = getLimitedValue(Arg2);
+    ReturnAddress = MetaAddress::fromConstant(Arg2);
 
     SaTerminator << " IsFunctionCall (callee " << Callee << ", return "
                  << ReturnFromCall << ")";
@@ -701,7 +701,8 @@ Interrupt Analysis::handleTerminator(Instruction *T,
     // function call?
     if (IsReturnFromFake) {
       // Continue from there
-      BasicBlock *ReturnBB = GCBI->getBlockAt(FakeFunctionReturnAddress);
+      MetaAddress MA = GCBI->fromPC(FakeFunctionReturnAddress);
+      BasicBlock *ReturnBB = GCBI->getBlockAt(MA);
       return AI::createWithSuccessor(std::move(Result),
                                      BT::FakeFunctionReturn,
                                      ReturnBB);
@@ -712,7 +713,12 @@ Interrupt Analysis::handleTerminator(Instruction *T,
       if (IsReadyToReturn) {
         // If the stack is not in a valid position, we consider it an indirect
         // tail call
-        return handleCall(T, nullptr, 0, nullptr, Result, ABIBB);
+        return handleCall(T,
+                          nullptr,
+                          MetaAddress::invalid(),
+                          nullptr,
+                          Result,
+                          ABIBB);
       } else {
         // We have an indirect jump with a stack not ready to return: it's a
         // longjmp
@@ -738,7 +744,7 @@ Interrupt Analysis::handleTerminator(Instruction *T,
 }
 
 std::pair<FunctionType::Values, Element> Analysis::finalize() {
-  uint64_t EntryPC = getPC(Entry->getTerminator()).first;
+  MetaAddress EntryPC = getPC(Entry->getTerminator()).first;
 
 #ifndef NDEBUG
   // Compute the set of reachable basic blocks
@@ -756,13 +762,14 @@ std::pair<FunctionType::Values, Element> Analysis::finalize() {
   // they agree.  Meanwhile find the return that is closest (but after) the
   // entry point and that has a valid stack size
   Value BestSP;
-  uint64_t ClosestPC = EntryPC - 1;
+  uint64_t ClosestPC = EntryPC.address() - 1;
   bool First = true;
   Value Combined;
   for (auto &P : ReturnCandidates) {
     BasicBlock *BB = P.first;
     const Element &Result = P.second;
-    uint64_t PC = getPC(BB->getTerminator()).first;
+    MetaAddress PC = getPC(BB->getTerminator()).first;
+    uint64_t PCAddress = PC.address();
 
 #ifndef NDEBUG
     revng_assert(Reachable.count(BB) != 0);
@@ -779,10 +786,10 @@ std::pair<FunctionType::Values, Element> Analysis::finalize() {
     }
 
     if (const ASSlot *Slot = StackPointerValue.directContent()) {
-      if (PC >= EntryPC and PC < ClosestPC
+      if (PC >= EntryPC and PCAddress < ClosestPC
           and Slot->addressSpace() == ASID::stackID() and Slot->offset() >= 0) {
 
-        ClosestPC = PC;
+        ClosestPC = PCAddress;
         BestSP = StackPointerValue;
       }
     }
@@ -841,7 +848,7 @@ std::pair<FunctionType::Values, Element> Analysis::finalize() {
 
 Interrupt Analysis::handleCall(Instruction *Caller,
                                BasicBlock *Callee,
-                               uint64_t ReturnAddress,
+                               MetaAddress ReturnAddress,
                                BasicBlock *ReturnFromCall,
                                Element &Result,
                                ABIIRBasicBlock &ABIBB) {
@@ -873,7 +880,7 @@ Interrupt Analysis::handleCall(Instruction *Caller,
 
       SaTerminator << " IsFakeFunctionCall";
       // Assume normal control flow (i.e., inline)
-      FakeReturnAddresses.insert(ReturnAddress);
+      FakeReturnAddresses.insert(ReturnAddress.asPC());
       return AI::createWithSuccessor(std::move(Result),
                                      BT::FakeFunctionCall,
                                      Callee);
@@ -987,7 +994,8 @@ Interrupt Analysis::handleCall(Instruction *Caller,
 
   // Restore the PC
   // TODO: handle return address from indirect tail calls
-  ASSlot ReturnAddressSlot = ASSlot::create(ASID::globalID(), ReturnAddress);
+  ASSlot ReturnAddressSlot = ASSlot::create(ASID::globalID(),
+                                            ReturnAddress.asPCOrZero());
   Result.store(PC, Value::fromSlot(ReturnAddressSlot));
 
   revng_assert(not(IsIndirectTailCall and IsKiller));

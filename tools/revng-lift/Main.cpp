@@ -25,6 +25,7 @@ extern "C" {
 
 // LLVM includes
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ELF.h"
@@ -185,7 +186,11 @@ int main(int argc, const char *argv[]) {
   ParseCommandLineOptions(argc, argv);
   installStatistics();
 
-  BinaryFile TheBinary(InputPath, BaseAddress);
+  auto BaseMA = MetaAddress::invalid();
+  if (EntryPointAddress.getNumOccurrences() != 0)
+    BaseMA = MetaAddress::fromAbsolute(BaseAddress);
+
+  BinaryFile TheBinary(InputPath, BaseMA);
 
   findFiles(TheBinary.architecture().name());
 
@@ -204,7 +209,10 @@ int main(int argc, const char *argv[]) {
                           LibHelpersPath,
                           EarlyLinkedPath);
 
-  Generator.translate(EntryPointAddress);
+  llvm::Optional<uint64_t> EntryPointAddressOptional;
+  if (EntryPointAddress.getNumOccurrences() != 0)
+    EntryPointAddressOptional = EntryPointAddress;
+  Generator.translate(EntryPointAddressOptional);
   Generator.serialize();
 
   return EXIT_SUCCESS;

@@ -229,14 +229,14 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   // These values will be used to populate the auxiliary vectors
   createConstGlobal("e_phentsize", Binary.programHeaderSize());
   createConstGlobal("e_phnum", Binary.programHeadersCount());
-  createConstGlobal("phdr_address", Binary.programHeadersAddress());
+  createConstGlobal("phdr_address", Binary.programHeadersAddress().address());
 
   for (SegmentInfo &Segment : Binary.segments()) {
     // If it's executable register it as a valid code area
     if (Segment.IsExecutable) {
       // We ignore possible p_filesz-p_memsz mismatches, zeros wouldn't be
       // useful code anyway
-      ptc.mmap(Segment.StartVirtualAddress,
+      ptc.mmap(Segment.StartVirtualAddress.address(),
                static_cast<const void *>(Segment.Data.data()),
                static_cast<size_t>(Segment.Data.size()));
     }
@@ -278,8 +278,9 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
 
     // Write the linking info CSV
     LinkingInfoStream << "." << Name << ",0x" << std::hex
-                      << Segment.StartVirtualAddress << ",0x" << std::hex
-                      << Segment.EndVirtualAddress << "\n";
+                      << Segment.StartVirtualAddress.address() << ",0x"
+                      << std::hex << Segment.EndVirtualAddress.address()
+                      << "\n";
   }
 
   // Write needed libraries CSV
@@ -294,7 +295,7 @@ std::string SegmentInfo::generateName() {
   std::stringstream NameStream;
   NameStream << "o_" << (IsReadable ? "r" : "") << (IsWriteable ? "w" : "")
              << (IsExecutable ? "x" : "") << "_0x" << std::hex
-             << StartVirtualAddress;
+             << StartVirtualAddress.address();
 
   return NameStream.str();
 }
@@ -651,8 +652,10 @@ static void purgeDeadBlocks(Function *F) {
   } while (!Kill.empty());
 }
 
-void CodeGenerator::translate(uint64_t VirtualAddress) {
+void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   using FT = FunctionType;
+
+  MetaAddress::createStructVariable(TheModule.get());
 
   // Declare the abort function
   auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
@@ -860,7 +863,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                                 Binary,
                                 createCPUStateAccessAnalysisPass);
 
-  if (VirtualAddress == 0) {
+  MetaAddress VirtualAddress = MetaAddress::invalid();
+  if (RawVirtualAddress) {
+    VirtualAddress = JumpTargets.fromPC(*RawVirtualAddress);
+  } else {
     JumpTargets.harvestGlobalData();
     VirtualAddress = Binary.entryPoint();
   }
@@ -868,7 +874,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   // Initialize the program counter
   auto *StartPC = ConstantInt::get(PCReg->getType()->getPointerElementType(),
-                                   VirtualAddress);
+                                   VirtualAddress.asPC());
   // Use this instruction as the delimiter for local variables
   auto *Delimiter = Builder.CreateStore(StartPC, PCReg);
 
@@ -909,13 +915,30 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     PTCInstructionListPtr InstructionList(new PTCInstructionList);
     size_t ConsumedSize = 0;
 
-    ConsumedSize = ptc.translate(VirtualAddress, InstructionList.get());
+    PTCCodeType Type = PTC_CODE_REGULAR;
+
+    switch (VirtualAddress.type()) {
+    case MetaAddressType::Invalid:
+      revng_abort();
+
+    case MetaAddressType::Regular:
+      Type = PTC_CODE_REGULAR;
+      break;
+
+    case MetaAddressType::ARMThumb:
+      Type = PTC_CODE_ARM_THUMB;
+      break;
+    }
+
+    ConsumedSize = ptc.translate(VirtualAddress.address(),
+                                 Type,
+                                 InstructionList.get());
     SmallSet<unsigned, 1> ToIgnore;
     ToIgnore = Translator.preprocess(InstructionList.get());
 
     if (PTCLog.isEnabled()) {
       std::stringstream Stream;
-      dumpTranslation(Stream, InstructionList.get());
+      dumpTranslation(VirtualAddress, Stream, InstructionList.get());
       PTCLog << Stream.str() << DoLog;
     }
 
@@ -923,9 +946,11 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     unsigned j = 0;
     MDNode *MDOriginalInstr = nullptr;
     bool StopTranslation = false;
-    uint64_t PC = VirtualAddress;
-    uint64_t NextPC = 0;
-    uint64_t EndPC = VirtualAddress + ConsumedSize;
+
+    MetaAddress PC = VirtualAddress;
+    MetaAddress NextPC = MetaAddress::invalid();
+    MetaAddress EndPC = VirtualAddress + ConsumedSize;
+
     const auto InstructionCount = InstructionList->instruction_count;
     using IT = InstructionTranslator;
     IT::TranslationResult Result;
@@ -947,6 +972,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                PC,
                NextPC) = Translator.newInstruction(Instruction,
                                                    NextInstruction,
+                                                   VirtualAddress,
                                                    EndPC,
                                                    true);
       j++;
@@ -984,6 +1010,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                  PC,
                  NextPC) = Translator.newInstruction(&Instruction,
                                                      NextInstruction,
+                                                     VirtualAddress,
                                                      EndPC,
                                                      false);
       } break;

@@ -26,6 +26,7 @@
 
 // Local libraries includes
 #include "revng/Support/Debug.h"
+#include "revng/Support/MetaAddress.h"
 
 template<typename T>
 inline bool contains(T Range, typename T::value_type V) {
@@ -715,16 +716,15 @@ inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::StringRef Name) {
     return nullptr;
 }
 
-// TODO: this function assumes 0 is not a valid PC
-inline uint64_t getBasicBlockPC(llvm::BasicBlock *BB) {
+inline MetaAddress getBasicBlockPC(llvm::BasicBlock *BB) {
   using namespace llvm;
 
   auto It = BB->begin();
   revng_assert(It != BB->end());
   if (llvm::CallInst *Call = getCallTo(&*It, "newpc"))
-    return getLimitedValue(Call->getOperand(0));
+    return MetaAddress::fromConstant(Call->getOperand(0));
 
-  return 0;
+  return MetaAddress::invalid();
 }
 
 template<typename C>
@@ -843,6 +843,6 @@ inline llvm::User *getUniqueUser(llvm::Value *V) {
 ///
 /// \return a pair of integers: the first element represents the PC and the
 ///         second the size of the instruction.
-std::pair<uint64_t, uint64_t> getPC(llvm::Instruction *TheInstruction);
+std::pair<MetaAddress, uint64_t> getPC(llvm::Instruction *TheInstruction);
 
 #endif // IRHELPERS_H

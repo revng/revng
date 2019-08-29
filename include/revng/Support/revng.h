@@ -19,6 +19,7 @@
 
 // Local libraries includes
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/MetaAddress.h"
 
 namespace llvm {
 class GlobalVariable;

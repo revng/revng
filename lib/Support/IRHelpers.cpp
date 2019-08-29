@@ -72,7 +72,7 @@ Constant *getUniqueString(Module *M,
   return ConstantExpr::getBitCast(NewVariable, Int8PtrTy);
 }
 
-std::pair<uint64_t, uint64_t> getPC(Instruction *TheInstruction) {
+std::pair<MetaAddress, uint64_t> getPC(Instruction *TheInstruction) {
   BasicBlock *Dispatcher = nullptr;
   CallInst *NewPCCall = nullptr;
   std::set<BasicBlock *> Visited;
@@ -97,7 +97,7 @@ std::pair<uint64_t, uint64_t> getPC(Instruction *TheInstruction) {
 
           // We found two distinct newpc leading to the requested instruction
           if (NewPCCall != nullptr)
-            return { 0, 0 };
+            return { MetaAddress::invalid(), 0 };
 
           NewPCCall = Marker;
           break;
@@ -136,9 +136,9 @@ std::pair<uint64_t, uint64_t> getPC(Instruction *TheInstruction) {
 
   // Couldn't find the current PC
   if (NewPCCall == nullptr)
-    return { 0, 0 };
+    return { MetaAddress::invalid(), 0 };
 
-  auto PC = getLimitedValue(NewPCCall->getArgOperand(0));
+  auto PC = MetaAddress::fromConstant(NewPCCall->getArgOperand(0));
   uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(1));
   revng_assert(Size != 0);
   return { PC, Size };

@@ -85,6 +85,8 @@ private:
   /// \brief Remove all the constant writes to the PC
   bool pinConstantStore(llvm::Function &F);
 
+  void pinConstantStoreInternal(llvm::StoreInst *PCWrite, llvm::CallInst *Call);
+
   /// \brief Pin PC-stores for which AVI provided useful results
   bool pinAVIResults(llvm::Function &F);
 
@@ -97,13 +99,13 @@ private:
 
   /// Obtains the absolute address of the PC corresponding to the original
   /// assembly instruction coming after the specified LLVM instruction
-  uint64_t getNextPC(llvm::Instruction *TheInstruction);
+  MetaAddress getNextPC(llvm::Instruction *TheInstruction);
 
   /// \brief Replace the code after a call to ExitTB with a jump to the
   ///        addresses in \p Destination
   void pinPCStore(llvm::StoreInst *PCWrite,
                   bool Approximate,
-                  const std::vector<uint64_t> &Destinations);
+                  const std::vector<MetaAddress> &Destinations);
 
 private:
   JumpTargetManager *JTM;
@@ -155,11 +157,11 @@ class CPUStateAccessAnalysisPass;
 
 class JumpTargetManager {
 private:
-  using interval_set = boost::icl::interval_set<uint64_t>;
-  using interval = boost::icl::interval<uint64_t>;
+  using interval_set = boost::icl::interval_set<MetaAddress>;
+  using interval = boost::icl::interval<MetaAddress>;
 
 public:
-  using BlockWithAddress = std::pair<uint64_t, llvm::BasicBlock *>;
+  using BlockWithAddress = std::pair<MetaAddress, llvm::BasicBlock *>;
   static const BlockWithAddress NoMoreTargets;
 
   class JumpTarget {
@@ -212,7 +214,8 @@ public:
   };
 
 public:
-  using RangesVector = std::vector<std::pair<uint64_t, uint64_t>>;
+  using BlockMap = std::map<MetaAddress, JumpTarget>;
+  using RangesVector = std::vector<std::pair<MetaAddress, MetaAddress>>;
   using CSAAFactory = std::function<CPUStateAccessAnalysisPass *(void)>;
 
 public:
@@ -245,10 +248,10 @@ public:
   /// \return the basic block to use from now on, or `nullptr` if the program
   ///         counter is not associated to a basic block.
   // TODO: return pair
-  llvm::BasicBlock *newPC(uint64_t PC, bool &ShouldContinue);
+  llvm::BasicBlock *newPC(MetaAddress PC, bool &ShouldContinue);
 
   /// \brief Save the PC-Instruction association for future use
-  void registerInstruction(uint64_t PC, llvm::Instruction *Instruction);
+  void registerInstruction(MetaAddress PC, llvm::Instruction *Instruction);
 
   /// \brief Return the most recent instruction writing the program counter
   ///
@@ -277,8 +280,8 @@ public:
 
   /// \brief Return true if the whole [\p Start,\p End) range is in an
   ///        executable segment
-  bool isExecutableRange(uint64_t Start, uint64_t End) const {
-    for (std::pair<uint64_t, uint64_t> Range : ExecutableRanges)
+  bool isExecutableRange(MetaAddress Start, MetaAddress End) const {
+    for (const std::pair<MetaAddress, MetaAddress> &Range : ExecutableRanges)
       if (Range.first <= Start && Start < Range.second && Range.first <= End
           && End < Range.second)
         return true;
@@ -287,34 +290,32 @@ public:
 
   /// \brief Return true if the given PC respects the input architecture's
   ///        instruction alignment constraints
-  bool isInstructionAligned(uint64_t PC) const {
-    return PC % Binary.architecture().instructionAlignment() == 0;
-  }
+  bool isInstructionAligned(MetaAddress PC) const { return PC.isValid(); }
 
   /// \brief Return true if the given PC can be executed by the current
   ///        architecture
-  bool isPC(uint64_t PC) const {
+  bool isPC(MetaAddress PC) const {
     return isExecutableAddress(PC) && isInstructionAligned(PC);
   }
 
   /// \brief Return true if the given PC is a jump target
-  bool isJumpTarget(uint64_t PC) const { return JumpTargets.count(PC); }
+  bool isJumpTarget(MetaAddress PC) const { return JumpTargets.count(PC); }
 
   /// \brief Return true if the given basic block corresponds to a jump target
   bool isJumpTarget(llvm::BasicBlock *BB) {
     if (BB->empty())
       return false;
 
-    uint64_t PC = getPCFromNewPCCall(&*BB->begin());
-    if (PC != 0)
+    MetaAddress PC = getPCFromNewPCCall(&*BB->begin());
+    if (PC.isValid())
       return isJumpTarget(PC);
 
     return false;
   }
 
   /// \brief Return true if \p PC is in an executable segment
-  bool isExecutableAddress(uint64_t PC) const {
-    for (std::pair<uint64_t, uint64_t> Range : ExecutableRanges)
+  bool isExecutableAddress(MetaAddress PC) const {
+    for (std::pair<MetaAddress, MetaAddress> Range : ExecutableRanges)
       if (Range.first <= PC && PC < Range.second)
         return true;
     return false;
@@ -325,7 +326,7 @@ public:
   /// If the given address has never been met, assert.
   ///
   /// \param PC the PC for which a `BasicBlock` is requested.
-  llvm::BasicBlock *getBlockAt(uint64_t PC);
+  llvm::BasicBlock *getBlockAt(MetaAddress PC);
 
   /// \brief Return, and, if necessary, register the basic block associated to
   ///        \p PC
@@ -338,17 +339,13 @@ public:
   ///         created in the past or even a `BasicBlock` already containing the
   ///         translated code.  It might also return `nullptr` if the PC is not
   ///         valid or another error occurred.
-  llvm::BasicBlock *registerJT(uint64_t PC, JTReason::Values Reason);
+  llvm::BasicBlock *registerJT(MetaAddress PC, JTReason::Values Reason);
 
-  bool hasJT(uint64_t PC) { return JumpTargets.count(PC) != 0; }
+  bool hasJT(MetaAddress PC) { return JumpTargets.count(PC) != 0; }
 
-  std::map<uint64_t, JumpTarget>::const_iterator begin() const {
-    return JumpTargets.begin();
-  }
+  BlockMap::const_iterator begin() const { return JumpTargets.begin(); }
 
-  std::map<uint64_t, JumpTarget>::const_iterator end() const {
-    return JumpTargets.end();
-  }
+  BlockMap::const_iterator end() const { return JumpTargets.end(); }
 
   void registerJT(llvm::BasicBlock *BB, JTReason::Values Reason) {
     revng_assert(!BB->empty());
@@ -356,11 +353,11 @@ public:
     revng_assert(CallNewPC != nullptr);
     llvm::Function *Callee = CallNewPC->getCalledFunction();
     revng_assert(Callee != nullptr && Callee->getName() == "newpc");
-    registerJT(getLimitedValue(CallNewPC->getArgOperand(0)), Reason);
+    registerJT(MetaAddress::fromConstant(CallNewPC->getArgOperand(0)), Reason);
   }
 
   /// \brief As registerJT, but only if the JT has already been registered
-  void markJT(uint64_t PC, JTReason::Values Reason) {
+  void markJT(MetaAddress PC, JTReason::Values Reason) {
     if (isJumpTarget(PC))
       registerJT(PC, Reason);
   }
@@ -396,11 +393,12 @@ public:
   ///
   /// \return a pair containing the PC associated to \p TheInstruction and the
   ///         next one.
-  std::pair<uint64_t, uint64_t> getPC(llvm::Instruction *TheInstruction) const;
+  std::pair<MetaAddress, uint64_t>
+  getPC(llvm::Instruction *TheInstruction) const;
 
   // TODO: can this be replaced by the corresponding method in
   // GeneratedCodeBasicInfo?
-  uint64_t getNextPC(llvm::Instruction *TheInstruction) const {
+  MetaAddress getNextPC(llvm::Instruction *TheInstruction) const {
     auto Pair = getPC(TheInstruction);
     return Pair.first + Pair.second;
   }
@@ -424,9 +422,10 @@ public:
     translateIndirectJumps();
 
     unsigned ReadSize = Binary.architecture().pointerSize() / 8;
-    for (uint64_t MemoryAddress : UnusedCodePointers) {
+    for (MetaAddress MemoryAddress : UnusedCodePointers) {
       // Read using the original endianess, we want the correct address
-      uint64_t PC = *Binary.readRawValue(MemoryAddress, ReadSize);
+      uint64_t RawPC = *Binary.readRawValue(MemoryAddress, ReadSize);
+      auto PC = fromPC(RawPC);
 
       // Set as reason UnusedGlobalData and ensure it's not empty
       llvm::BasicBlock *BB = registerJT(PC, JTReason::UnusedGlobalData);
@@ -439,6 +438,13 @@ public:
 
     // We no longer need this information
     freeContainer(UnusedCodePointers);
+  }
+
+  MetaAddress fromPC(uint64_t PC) const { return Binary.fromPC(PC); }
+
+  MetaAddress fromPCStore(llvm::StoreInst *Store) {
+    auto *Constant = llvm::cast<llvm::ConstantInt>(Store->getValueOperand());
+    return fromPC(Constant->getLimitedValue());
   }
 
   void createJTReasonMD() {
@@ -482,7 +488,7 @@ public:
   ///        one
   llvm::CallInst *findNextExitTB(llvm::Instruction *I);
 
-  void registerReadRange(uint64_t Address, uint64_t Size);
+  void registerReadRange(MetaAddress Address, uint64_t Size);
 
   const interval_set &readRange() const { return ReadIntervalSet; }
 
@@ -492,7 +498,7 @@ public:
   ///
   /// \return a string containing the symbol name and, if necessary an offset,
   ///         or if no symbol can be found, just the address.
-  std::string nameForAddress(uint64_t Address, uint64_t Size = 1) const;
+  std::string nameForAddress(MetaAddress Address, uint64_t Size = 1) const;
 
   /// \brief Register a simple literal collected during translation for
   ///        harvesting
@@ -504,7 +510,7 @@ public:
   ///
   /// Simple literals are registered as possible jump targets before attempting
   /// more expensive techniques.
-  void registerSimpleLiteral(uint64_t Address) {
+  void registerSimpleLiteral(MetaAddress Address) {
     SimpleLiterals.insert(Address);
   }
 
@@ -518,24 +524,24 @@ private:
   ///
   /// \return 0 if \p I is not a call to `newpc`, otherwise the PC address of
   ///         associated to the call to `newpc`
-  uint64_t getPCFromNewPCCall(llvm::Instruction *I) {
+  MetaAddress getPCFromNewPCCall(llvm::Instruction *I) {
     if (auto *CallNewPC = llvm::dyn_cast<llvm::CallInst>(I)) {
       if (CallNewPC->getCalledFunction() == nullptr
           || CallNewPC->getCalledFunction()->getName() != "newpc")
-        return 0;
+        return MetaAddress::invalid();
 
-      return getLimitedValue(CallNewPC->getArgOperand(0));
+      return MetaAddress::fromConstant(CallNewPC->getArgOperand(0));
     }
 
-    return 0;
+    return MetaAddress::invalid();
   }
 
   /// \brief Erase \p I, and deregister it in case it's a call to `newpc`
   void eraseInstruction(llvm::Instruction *I) {
     revng_assert(I->use_empty());
 
-    uint64_t PC = getPCFromNewPCCall(I);
-    if (PC != 0)
+    MetaAddress PC = getPCFromNewPCCall(I);
+    if (PC.isValid())
       OriginalInstructionAddresses.erase(PC);
     I->eraseFromParent();
   }
@@ -559,7 +565,7 @@ private:
   createDispatcher(llvm::Function *OutputFunction, llvm::Value *SwitchOnPtr);
 
   template<typename value_type, unsigned endian>
-  void findCodePointers(uint64_t StartVirtualAddress,
+  void findCodePointers(MetaAddress StartVirtualAddress,
                         const unsigned char *Start,
                         const unsigned char *End);
 
@@ -571,8 +577,7 @@ private:
   void aliasAnalysis();
 
 private:
-  using BlockMap = std::map<uint64_t, JumpTarget>;
-  using InstructionMap = std::map<uint64_t, llvm::Instruction *>;
+  using InstructionMap = std::map<MetaAddress, llvm::Instruction *>;
 
   llvm::Module &TheModule;
   llvm::LLVMContext &Context;
@@ -597,12 +602,12 @@ private:
 
   unsigned NewBranches = 0;
 
-  std::set<uint64_t> UnusedCodePointers;
+  std::set<MetaAddress> UnusedCodePointers;
   interval_set ReadIntervalSet;
 
   CFGForm::Values CurrentCFGForm;
   std::set<llvm::BasicBlock *> ToPurge;
-  std::set<uint64_t> SimpleLiterals;
+  std::set<MetaAddress> SimpleLiterals;
   CSAAFactory createCSAA;
 };
 

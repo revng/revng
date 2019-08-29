@@ -33,26 +33,36 @@ class MachOBindEntry;
 /// \brief Simple data structure to describe an ELF segment
 // TODO: information hiding
 struct SegmentInfo {
-  /// Produce a name for this segment suitable for human understanding
-  std::string generateName();
-
   llvm::GlobalVariable *Variable; ///< \brief LLVM variable containing this
                                   ///  segment's data
-  uint64_t StartVirtualAddress;
-  uint64_t EndVirtualAddress;
+  MetaAddress StartVirtualAddress;
+  MetaAddress EndVirtualAddress;
   uint64_t StartFileOffset;
   uint64_t EndFileOffset;
   bool IsWriteable;
   bool IsExecutable;
   bool IsReadable;
-  std::vector<std::pair<uint64_t, uint64_t>> ExecutableSections;
+  std::vector<std::pair<MetaAddress, MetaAddress>> ExecutableSections;
   llvm::ArrayRef<uint8_t> Data;
 
-  bool contains(uint64_t Address) const {
+  SegmentInfo() :
+    Variable(nullptr),
+    StartVirtualAddress(MetaAddress::invalid()),
+    EndVirtualAddress(MetaAddress::invalid()),
+    StartFileOffset(0),
+    EndFileOffset(0),
+    IsWriteable(false),
+    IsExecutable(false),
+    IsReadable(false) {}
+
+  /// Produce a name for this segment suitable for human understanding
+  std::string generateName();
+
+  bool contains(MetaAddress Address) const {
     return StartVirtualAddress <= Address && Address < EndVirtualAddress;
   }
 
-  bool contains(uint64_t Start, uint64_t Size) const {
+  bool contains(MetaAddress Start, uint64_t Size) const {
     return contains(Start) && contains(Start + Size - 1);
   }
 
@@ -171,7 +181,7 @@ inline const char *getName(Values V) {
 class Label {
 private:
   LabelType::Values Type;
-  uint64_t Address;
+  MetaAddress Address;
   uint64_t Size;
 
   /// Name of the symbol, if any
@@ -185,7 +195,7 @@ private:
   bool SizeIsVirtual;
 
 private:
-  Label(LabelOrigin::Values Origin, uint64_t Address, uint64_t Size) :
+  Label(LabelOrigin::Values Origin, MetaAddress Address, uint64_t Size) :
     Type(LabelType::Invalid),
     Address(Address),
     Size(Size),
@@ -196,10 +206,12 @@ private:
     SizeIsVirtual(false) {}
 
 public:
-  static Label createInvalid() { return Label(LabelOrigin::Unknown, 0, 0); }
+  static Label createInvalid() {
+    return Label(LabelOrigin::Unknown, MetaAddress::invalid(), 0);
+  }
 
   static Label createAbsoluteValue(LabelOrigin::Values Origin,
-                                   uint64_t Address,
+                                   MetaAddress Address,
                                    uint64_t Size,
                                    uint64_t Value) {
     Label Result(Origin, Address, Size);
@@ -209,7 +221,7 @@ public:
   }
 
   static Label createBaseRelativeValue(LabelOrigin::Values Origin,
-                                       uint64_t Address,
+                                       MetaAddress Address,
                                        uint64_t Size,
                                        uint64_t Value) {
     Label Result(Origin, Address, Size);
@@ -219,7 +231,7 @@ public:
   }
 
   static Label createSymbolRelativeValue(LabelOrigin::Values Origin,
-                                         uint64_t Address,
+                                         MetaAddress Address,
                                          uint64_t Size,
                                          llvm::StringRef SymbolName,
                                          SymbolType::Values SymbolType,
@@ -233,7 +245,7 @@ public:
   }
 
   static Label createSymbol(LabelOrigin::Values Origin,
-                            uint64_t Address,
+                            MetaAddress Address,
                             uint64_t Size,
                             llvm::StringRef SymbolName,
                             SymbolType::Values SymbolType) {
@@ -296,9 +308,9 @@ public:
 
   bool isCode() const { return SymbolType == SymbolType::Code; }
 
-  uint64_t address() const { return Address; }
-
   bool hasValue() const { return isAbsoluteValue() or isBaseRelativeValue(); }
+
+  MetaAddress address() const { return Address; }
 
   uint64_t size() const { return Size; }
 
@@ -324,13 +336,15 @@ public:
 
   bool isSizeVirtual() const { return SizeIsVirtual; }
 
-  bool matches(uint64_t Address, uint64_t Size) const {
+  bool matches(MetaAddress Address, uint64_t Size) const {
     return this->Address == Address and this->Size == Size;
   }
 
-  bool contains(uint64_t Address, uint64_t Size) const {
-    return (this->Address <= Address
-            and (Address + Size) <= (this->Address + this->Size));
+  bool contains(MetaAddress Address, uint64_t Size) const {
+    auto End = MetaAddress::fromAbsolute(Address.address() + Size);
+    auto ThisEnd = MetaAddress::fromAbsolute(this->Address.address()
+                                             + this->Size);
+    return (this->Address <= Address and End <= ThisEnd);
   }
 
   void dump() const debug_function {
@@ -340,8 +354,9 @@ public:
 
   template<typename T>
   void dump(T &Output) const {
-    Output << LabelType::getName(Type) << " @ (0x" << std::hex << Address << ","
-           << Size << ") ";
+    Output << LabelType::getName(Type) << " @ (";
+    Address.dump(Output);
+    Output << "," << Size << ") ";
 
     if (isSymbolRelativeValue() or isSymbol())
       Output << SymbolName.data();
@@ -432,17 +447,17 @@ inline uint64_t readPointer<llvm::object::ELF64BE>(const uint8_t *Buf) {
 /// \brief A pair on steroids to wrap a value or a pointer to a value
 class Pointer {
 public:
-  Pointer() {}
+  Pointer() : IsIndirect(false), Value(MetaAddress::invalid()) {}
 
-  Pointer(bool IsIndirect, uint64_t Value) :
+  Pointer(bool IsIndirect, MetaAddress Value) :
     IsIndirect(IsIndirect), Value(Value) {}
 
   bool isIndirect() const { return IsIndirect; }
-  uint64_t value() const { return Value; }
+  MetaAddress value() const { return Value; }
 
 private:
   bool IsIndirect;
-  uint64_t Value;
+  MetaAddress Value;
 };
 
 class FilePortion;
@@ -452,7 +467,7 @@ class FilePortion;
 class BinaryFile {
 public:
   using LabelList = llvm::SmallVector<Label *, 6u>;
-  using LabelIntervalMap = boost::icl::interval_map<uint64_t, LabelList>;
+  using LabelIntervalMap = boost::icl::interval_map<MetaAddress, LabelList>;
 
   enum Endianess { OriginalEndianess, BigEndian, LittleEndian };
 
@@ -461,7 +476,7 @@ public:
   /// \param UseSections whether information in sections, if available, should
   ///        be employed or not. This is useful to precisely identify exeutable
   ///        code.
-  BinaryFile(std::string FilePath, uint64_t BaseAddress);
+  BinaryFile(std::string FilePath, MetaAddress BaseAddress);
 
   BinaryFile(const BinaryFile &) = delete;
   BinaryFile &operator=(BinaryFile &&) = default;
@@ -469,7 +484,7 @@ public:
   BinaryFile &operator=(const BinaryFile &) = delete;
 
   llvm::Optional<llvm::ArrayRef<uint8_t>>
-  getAddressData(uint64_t Address) const {
+  getAddressData(MetaAddress Address) const {
     const SegmentInfo *Segment = findSegment(Address);
     if (Segment != nullptr) {
       uint64_t Offset = Address - Segment->StartVirtualAddress;
@@ -480,10 +495,10 @@ public:
     }
   }
 
-  llvm::Optional<uint64_t> virtualAddressFromOffset(uint64_t Offset) const {
+  llvm::Optional<MetaAddress> virtualAddressFromOffset(uint64_t Offset) const {
     for (const SegmentInfo &Segment : Segments)
       if (Segment.StartFileOffset <= Offset and Segment.EndFileOffset < Offset)
-        return (Offset - Segment.StartFileOffset) + Segment.StartVirtualAddress;
+        return Segment.StartVirtualAddress + (Offset - Segment.StartFileOffset);
     return {};
   }
 
@@ -495,9 +510,9 @@ public:
   std::vector<SegmentInfo> &segments() { return Segments; }
   const std::vector<SegmentInfo> &segments() const { return Segments; }
   const LabelIntervalMap &labels() const { return LabelsMap; }
-  const std::set<uint64_t> &landingPads() const { return LandingPads; }
-  const std::set<uint64_t> &codePointers() const { return CodePointers; }
-  uint64_t entryPoint() const { return EntryPoint; }
+  const std::set<MetaAddress> &landingPads() const { return LandingPads; }
+  const std::set<MetaAddress> &codePointers() const { return CodePointers; }
+  MetaAddress entryPoint() const { return EntryPoint; }
 
   const std::vector<std::string> &neededLibraryNames() const {
     return NeededLibraryNames;
@@ -511,7 +526,7 @@ public:
   // ELF specific accessors
   //
 
-  uint64_t programHeadersAddress() const { return ProgramHeaders.Address; }
+  MetaAddress programHeadersAddress() const { return ProgramHeaders.Address; }
   unsigned programHeaderSize() const { return ProgramHeaders.Size; }
   unsigned programHeadersCount() const { return ProgramHeaders.Count; }
 
@@ -520,7 +535,7 @@ public:
   template<typename T>
   uint64_t getPointer(Pointer Ptr) const {
     if (!Ptr.isIndirect())
-      return Ptr.value();
+      return Ptr.value().asPC();
 
     auto R = getAddressData(Ptr.value());
     revng_assert(R, "Pointer not available in any segment");
@@ -530,11 +545,24 @@ public:
   }
 
   /// \brief Try to read an integer from the binary
-  llvm::Optional<uint64_t> readRawValue(uint64_t Address,
+  llvm::Optional<uint64_t> readRawValue(MetaAddress Address,
                                         unsigned Size,
                                         Endianess E = OriginalEndianess) const;
 
-  uint64_t relocate(uint64_t Address) const { return BaseAddress + Address; }
+  MetaAddress relocate(MetaAddress Address) const {
+    if (BaseAddress.isValid())
+      return Address.relocate(BaseAddress);
+    else
+      return Address;
+  }
+
+  MetaAddress fromPC(uint64_t PC) const {
+    return MetaAddress::fromPC(TheArchitecture.type(), PC);
+  }
+
+  MetaAddress fromAbsolute(uint64_t Address) const {
+    return MetaAddress::fromAbsolute(Address);
+  }
 
 private:
   //
@@ -543,10 +571,10 @@ private:
 
   /// \brief Parse an ELF file to load all the required information
   template<typename T, bool HasAddend>
-  void parseELF(llvm::object::ObjectFile *TheBinary, uint64_t BaseAddress);
+  void parseELF(llvm::object::ObjectFile *TheBinary, MetaAddress BaseAddress);
 
   /// \brief Parse a COFF file
-  void parseCOFF(llvm::object::ObjectFile *TheBinary, uint64_t BaseAddress);
+  void parseCOFF(llvm::object::ObjectFile *TheBinary, MetaAddress BaseAddress);
 
   template<typename T>
   void parseMachOSegment(llvm::ArrayRef<uint8_t> RawDataRef,
@@ -559,8 +587,8 @@ private:
   ///         count of FDEs in the .eh_frame_hdr section (which should match the
   ///         number of FDEs in .eh_frame)
   template<typename T>
-  std::pair<uint64_t, uint64_t>
-  ehFrameFromEhFrameHdr(uint64_t EHFrameHdrAddress);
+  std::pair<MetaAddress, uint64_t>
+  ehFrameFromEhFrameHdr(MetaAddress EHFrameHdrAddress);
 
   /// \brief Parse the .eh_frame section to collect all the landing pads
   ///
@@ -570,7 +598,7 @@ private:
   ///
   /// \note Either \p FDEsCount or \p EHFrameSize have to be specified
   template<typename T>
-  void parseEHFrame(uint64_t EHFrameAddress,
+  void parseEHFrame(MetaAddress EHFrameAddress,
                     llvm::Optional<uint64_t> FDEsCount,
                     llvm::Optional<uint64_t> EHFrameSize);
 
@@ -580,7 +608,7 @@ private:
   ///        associated
   /// \param LSDAAddress the address of the target LSDA
   template<typename T>
-  void parseLSDA(uint64_t FDEStart, uint64_t LSDAAddress);
+  void parseLSDA(MetaAddress FDEStart, MetaAddress LSDAAddress);
 
   /// \brief Compute the symbol count according to the given relocation table
   ///
@@ -591,7 +619,7 @@ private:
 
   /// \brief Process a relocation and produce a Label
   Label parseRelocation(unsigned char RelocationType,
-                        uint64_t Target,
+                        MetaAddress Target,
                         uint64_t Addend,
                         llvm::StringRef SymbolName,
                         uint64_t SymbolSize,
@@ -618,14 +646,14 @@ private:
 
   void rebuildLabelsMap();
 
-  SegmentInfo *findSegment(uint64_t Address) {
+  SegmentInfo *findSegment(MetaAddress Address) {
     for (SegmentInfo &Segment : Segments)
       if (Segment.contains(Address))
         return &Segment;
     return nullptr;
   }
 
-  const SegmentInfo *findSegment(uint64_t Address) const {
+  const SegmentInfo *findSegment(MetaAddress Address) const {
     for (const SegmentInfo &Segment : Segments)
       if (Segment.contains(Address))
         return &Segment;
@@ -637,23 +665,24 @@ private:
   Architecture TheArchitecture;
   std::vector<SegmentInfo> Segments;
   std::vector<std::string> NeededLibraryNames;
-  std::set<uint64_t> LandingPads; ///< the set of the landing pad addresses
-                                  ///  collected from .eh_frame
-  std::set<uint64_t> CodePointers; ///< These are taken from dynamic
-                                   ///  symbols/relocations.
+  /// The set of the landing pad addresses collected from .eh_frame
+  std::set<MetaAddress> LandingPads;
+  /// These are taken from dynamic symbols/relocations
+  std::set<MetaAddress> CodePointers;
   std::map<llvm::StringRef, uint64_t> CanonicalValues;
   std::vector<Label> Labels;
   LabelIntervalMap LabelsMap;
 
-  uint64_t EntryPoint; ///< the program's entry point
-  uint64_t BaseAddress;
+  /// The program's entry point
+  MetaAddress EntryPoint;
+  MetaAddress BaseAddress;
 
   //
   // ELF specific fields
   //
 
-  struct {
-    uint64_t Address;
+  struct ProgramHeadersInfo {
+    MetaAddress Address = MetaAddress::invalid();
     unsigned Count;
     unsigned Size;
   } ProgramHeaders;

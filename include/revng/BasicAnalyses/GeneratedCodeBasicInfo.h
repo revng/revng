@@ -153,7 +153,8 @@ public:
     AnyPC(nullptr),
     UnexpectedPC(nullptr),
     PCRegSize(0),
-    RootFunction(nullptr) {}
+    RootFunction(nullptr),
+    MetaAddressStruct(nullptr) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
@@ -283,7 +284,7 @@ public:
   /// \brief Return the basic block associated to \p PC
   ///
   /// Returns nullptr if the PC doesn't have a basic block (yet)
-  llvm::BasicBlock *getBlockAt(uint64_t PC) const {
+  llvm::BasicBlock *getBlockAt(MetaAddress PC) const {
     auto It = JumpTargets.find(PC);
     if (It == JumpTargets.end())
       return nullptr;
@@ -329,7 +330,7 @@ public:
 
   /// \brief Return the program counter of the next (i.e., fallthrough)
   ///        instruction of \p TheInstruction
-  uint64_t getNextPC(llvm::Instruction *TheInstruction) const {
+  MetaAddress getNextPC(llvm::Instruction *TheInstruction) const {
     auto Pair = getPC(TheInstruction);
     return Pair.first + Pair.second;
   }
@@ -393,6 +394,15 @@ public:
     return ABIRegisters;
   }
 
+  llvm::Constant *toConstant(const MetaAddress &Address) {
+    revng_assert(MetaAddressStruct != nullptr);
+    return Address.toConstant(MetaAddressStruct);
+  }
+
+  MetaAddress fromPC(uint64_t PC) const {
+    return MetaAddress::fromPC(ArchType, PC);
+  }
+
 private:
   static std::vector<llvm::GlobalVariable *>
   extractCSVs(llvm::Instruction *Call, const char *MetadataKind) {
@@ -424,11 +434,13 @@ private:
   llvm::BasicBlock *DispatcherFail;
   llvm::BasicBlock *AnyPC;
   llvm::BasicBlock *UnexpectedPC;
-  std::map<uint64_t, llvm::BasicBlock *> JumpTargets;
+  std::map<MetaAddress, llvm::BasicBlock *> JumpTargets;
   unsigned PCRegSize;
   llvm::Function *RootFunction;
   std::vector<llvm::GlobalVariable *> CSVs;
   std::vector<llvm::GlobalVariable *> ABIRegisters;
+  llvm::StructType *MetaAddressStruct;
+  llvm::Function *NewPC;
 };
 
 template<>

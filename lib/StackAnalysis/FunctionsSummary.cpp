@@ -213,8 +213,8 @@ void FunctionsSummary::dumpInternal(const Module *M,
   std::stringstream Output;
 
   // Register the range of addresses covered by each basic block
-  using interval_set = boost::icl::interval_set<uint64_t>;
-  using interval = boost::icl::interval<uint64_t>;
+  using interval_set = boost::icl::interval_set<MetaAddress>;
+  using interval = boost::icl::interval<MetaAddress>;
   std::map<BasicBlock *, interval_set> Coverage;
   for (User *U : M->getFunction("newpc")->users()) {
     auto *Call = dyn_cast<CallInst>(U);
@@ -222,9 +222,9 @@ void FunctionsSummary::dumpInternal(const Module *M,
       continue;
 
     BasicBlock *BB = Call->getParent();
-    uint64_t Address = getLimitedValue(Call->getOperand(0));
+    auto Address = MetaAddress::fromConstant(Call->getOperand(0));
     uint64_t Size = getLimitedValue(Call->getOperand(1));
-    revng_assert(Address > 0 && Size > 0);
+    revng_assert(Address.isValid() && Size > 0);
 
     Coverage[BB] += interval::right_open(Address, Address + Size);
   }
@@ -252,7 +252,7 @@ void FunctionsSummary::dumpInternal(const Module *M,
     Output << "\",\n";
     Output << "    \"entry_point_address\": \"";
     if (Entry != nullptr)
-      Output << "0x" << std::hex << getBasicBlockPC(Entry);
+      Output << std::hex << "0x" << getBasicBlockPC(Entry).address();
     Output << "\",\n";
 
     Output << "    \"jt-reasons\": [";
@@ -309,8 +309,11 @@ void FunctionsSummary::dumpInternal(const Module *M,
         FunctionCoverage += IntervalSet;
         revng_assert(IntervalSet.iterative_size() == 1);
         const auto &Range = *(IntervalSet.begin());
-        Output << "\"start\": \"0x" << std::hex << Range.lower() << "\", ";
-        Output << "\"end\": \"0x" << std::hex << Range.upper() << "\"";
+        Output << "\"start\": \"";
+        Output << std::hex << "0x" << Range.lower().address();
+        Output << "\", \"end\": \"";
+        Output << std::hex << "0x" << Range.upper().address();
+        Output << "\"";
       } else {
         Output << "\"start\": \"\", \"end\": \"\"";
       }
@@ -349,9 +352,10 @@ void FunctionsSummary::dumpInternal(const Module *M,
     for (const auto &Range : FunctionCoverage) {
       Output << CoverageDelimiter;
       Output << "{";
-      Output << "\"start\": \"0x" << std::hex << Range.lower() << "\", ";
-      Output << "\"end\": \"0x" << std::hex << Range.upper() << "\"";
-      Output << "}";
+      Output << "\"start\": \"" << std::hex << "0x" << Range.lower().address();
+      Output << "\", ";
+      Output << "\"end\": \"" << std::hex << "0x" << Range.upper().address();
+      Output << "\"}";
       CoverageDelimiter = ", ";
     }
     Output << "],\n";

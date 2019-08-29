@@ -137,7 +137,8 @@ AdvancedValueInfoPass::run(llvm::Function &F,
           // relative) possible values have to be valid program counters
           if (TIT == TrackedInstructionType::PCStore) {
             for (const MaterializedValue &V : Values) {
-              if (not V.hasSymbol() and not JTM->isPC(V.value())) {
+              MetaAddress MA = JTM->fromPC(V.value());
+              if (not V.hasSymbol() and not JTM->isPC(MA)) {
                 Values.clear();
                 break;
               }
