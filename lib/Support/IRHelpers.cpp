@@ -12,7 +12,10 @@
 #include "llvm/Support/raw_os_ostream.h"
 
 // Local libraries includes
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/IRHelpers.h"
+
+// TODO: including GeneratedCodeBasicInfo.h is not very nice
 
 using namespace llvm;
 
@@ -67,4 +70,76 @@ Constant *getUniqueString(Module *M,
   auto *CAM = ConstantAsMetadata::get(NewVariable);
   StringsList->addOperand(MDTuple::get(C, { CAM }));
   return ConstantExpr::getBitCast(NewVariable, Int8PtrTy);
+}
+
+std::pair<uint64_t, uint64_t> getPC(Instruction *TheInstruction) {
+  BasicBlock *Dispatcher = nullptr;
+  CallInst *NewPCCall = nullptr;
+  std::set<BasicBlock *> Visited;
+  std::queue<BasicBlock::reverse_iterator> WorkList;
+  if (TheInstruction->getIterator() == TheInstruction->getParent()->begin())
+    WorkList.push(--TheInstruction->getParent()->rend());
+  else
+    WorkList.push(++TheInstruction->getReverseIterator());
+
+  while (!WorkList.empty()) {
+    auto I = WorkList.front();
+    WorkList.pop();
+    auto *BB = I->getParent();
+    auto End = BB->rend();
+
+    // Go through the instructions looking for calls to newpc
+    for (; I != End; I++) {
+      if (auto Marker = dyn_cast<CallInst>(&*I)) {
+        // TODO: comparing strings is not very elegant
+        auto *Callee = Marker->getCalledFunction();
+        if (Callee != nullptr && Callee->getName() == "newpc") {
+
+          // We found two distinct newpc leading to the requested instruction
+          if (NewPCCall != nullptr)
+            return { 0, 0 };
+
+          NewPCCall = Marker;
+          break;
+        }
+      }
+    }
+
+    // If we haven't find a newpc call yet, continue exploration backward
+    if (NewPCCall == nullptr) {
+      // If one of the predecessors is the dispatcher, don't explore any further
+      for (BasicBlock *Predecessor : predecessors(BB)) {
+
+        // Lazily detect dispatcher
+        using GCBI = GeneratedCodeBasicInfo;
+        if (Dispatcher == nullptr
+            and GCBI::getType(Predecessor) == BlockType::DispatcherBlock) {
+          Dispatcher = Predecessor;
+        }
+
+        // Assert we didn't reach the almighty dispatcher
+        revng_assert(!(NewPCCall == nullptr && Predecessor == Dispatcher));
+        if (Predecessor == Dispatcher)
+          continue;
+      }
+
+      for (BasicBlock *Predecessor : predecessors(BB)) {
+        // Ignore already visited or empty BBs
+        if (!Predecessor->empty()
+            && Visited.find(Predecessor) == Visited.end()) {
+          WorkList.push(Predecessor->rbegin());
+          Visited.insert(Predecessor);
+        }
+      }
+    }
+  }
+
+  // Couldn't find the current PC
+  if (NewPCCall == nullptr)
+    return { 0, 0 };
+
+  auto PC = getLimitedValue(NewPCCall->getArgOperand(0));
+  uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(1));
+  revng_assert(Size != 0);
+  return { PC, Size };
 }

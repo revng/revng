@@ -327,12 +327,6 @@ public:
             or Type == BlockType::JumpTargetBlock);
   }
 
-  /// \brief Find the PC which lead to generated \p TheInstruction
-  ///
-  /// \return a pair of integers: the first element represents the PC and the
-  ///         second the size of the instruction.
-  std::pair<uint64_t, uint64_t> getPC(llvm::Instruction *TheInstruction) const;
-
   /// \brief Return the program counter of the next (i.e., fallthrough)
   ///        instruction of \p TheInstruction
   uint64_t getNextPC(llvm::Instruction *TheInstruction) const {

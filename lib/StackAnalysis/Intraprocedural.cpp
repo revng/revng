@@ -738,7 +738,7 @@ Interrupt Analysis::handleTerminator(Instruction *T,
 }
 
 std::pair<FunctionType::Values, Element> Analysis::finalize() {
-  uint64_t EntryPC = GCBI->getPC(Entry->getTerminator()).first;
+  uint64_t EntryPC = getPC(Entry->getTerminator()).first;
 
 #ifndef NDEBUG
   // Compute the set of reachable basic blocks
@@ -762,7 +762,7 @@ std::pair<FunctionType::Values, Element> Analysis::finalize() {
   for (auto &P : ReturnCandidates) {
     BasicBlock *BB = P.first;
     const Element &Result = P.second;
-    uint64_t PC = GCBI->getPC(BB->getTerminator()).first;
+    uint64_t PC = getPC(BB->getTerminator()).first;
 
 #ifndef NDEBUG
     revng_assert(Reachable.count(BB) != 0);

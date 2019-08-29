@@ -137,7 +137,7 @@ void IFI::throwException(Reason Code, BasicBlock *BB, uint64_t AdditionalPC) {
   if (Code == StandardTranslatedBlock) {
     // Retrieve the value of the PC in the basic block where the exception has
     // been raised, this is possible since BB should be a translated block
-    LastPC = GCBI.getPC(&*BB->rbegin()).first;
+    LastPC = getPC(&*BB->rbegin()).first;
     revng_assert(LastPC != 0);
   } else {
 
