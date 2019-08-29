@@ -144,6 +144,7 @@ public:
 public:
   GeneratedCodeBasicInfo() :
     llvm::ModulePass(ID),
+    ArchType(llvm::Triple::ArchType::UnknownArch),
     InstructionAlignment(0),
     DelaySlotSize(0),
     PC(nullptr),
@@ -420,6 +421,7 @@ private:
   }
 
 private:
+  llvm::Triple::ArchType ArchType;
   uint32_t InstructionAlignment;
   uint32_t DelaySlotSize;
   llvm::GlobalVariable *PC;

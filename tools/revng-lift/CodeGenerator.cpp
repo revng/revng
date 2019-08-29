@@ -827,6 +827,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   // Currently revng.input.architecture is composed as follows:
   //
   // revng.input.architecture = {
+  //   ArchitectureName,
   //   InstructionAlignment,
   //   DelaySlotSize,
   //   PCRegisterName,
@@ -841,6 +842,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   auto *Tuple = MDTuple::get(Context,
                              {
+                               QMD.get(Arch.name()),
                                QMD.get(Arch.instructionAlignment()),
                                QMD.get(Arch.delaySlotSize()),
                                QMD.get("pc"),

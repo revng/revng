@@ -36,14 +36,22 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
   auto *Tuple = dyn_cast<MDTuple>(InputArchMD->getOperand(0));
 
   QuickMetadata QMD(M.getContext());
-  InstructionAlignment = QMD.extract<uint32_t>(Tuple, 0);
-  DelaySlotSize = QMD.extract<uint32_t>(Tuple, 1);
-  PC = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, 2), true);
-  SP = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, 3), true);
-  auto Operands = QMD.extract<MDTuple *>(Tuple, 4)->operands();
-  for (const MDOperand &Operand : Operands) {
-    StringRef Name = QMD.extract<StringRef>(Operand.get());
-    ABIRegisters.push_back(M.getGlobalVariable(Name, true));
+
+  {
+    unsigned Index = 0;
+    StringRef ArchTypeName = QMD.extract<StringRef>(Tuple, Index++);
+    ArchType = Triple::getArchTypeForLLVMName(ArchTypeName);
+    InstructionAlignment = QMD.extract<uint32_t>(Tuple, Index++);
+    DelaySlotSize = QMD.extract<uint32_t>(Tuple, Index++);
+    PC = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, Index++), true);
+    SP = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, Index++), true);
+    auto Operands = QMD.extract<MDTuple *>(Tuple, Index++)->operands();
+    for (const MDOperand &Operand : Operands) {
+      StringRef Name = QMD.extract<StringRef>(Operand.get());
+      revng_assert(Name != "pc", "PC should not be considered an ABI register");
+      GlobalVariable *CSV = M.getGlobalVariable(Name, true);
+      ABIRegisters.push_back(CSV);
+    }
   }
 
   Type *PCType = PC->getType()->getPointerElementType();
