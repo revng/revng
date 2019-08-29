@@ -118,9 +118,13 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
             Value *V = Store->getValueOperand();
             Value *Pointer = skipCasts(Store->getPointerOperand());
             auto *TargetCSV = dyn_cast<GlobalVariable>(Pointer);
+
             if (GCBI.isPCReg(TargetCSV)) {
               if (TargetCSV != nullptr)
                 StorePCFound = true;
+            } else if (TargetCSV != nullptr
+                       and not GCBI.isABIRegister(TargetCSV)) {
+              // Ignore writes to non-ABI registers
             } else if (auto *Constant = dyn_cast<ConstantInt>(V)) {
               revng_assert(LastPC.isValid());
 

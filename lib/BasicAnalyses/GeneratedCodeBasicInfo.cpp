@@ -55,6 +55,7 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
       revng_assert(Name != "pc", "PC should not be considered an ABI register");
       GlobalVariable *CSV = M.getGlobalVariable(Name, true);
       ABIRegisters.push_back(CSV);
+      ABIRegistersSet.insert(CSV);
     }
   }
 

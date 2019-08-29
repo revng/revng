@@ -394,6 +394,9 @@ public:
     return ABIRegisters;
   }
 
+  bool isABIRegister(llvm::GlobalVariable *CSV) const {
+    return ABIRegistersSet.count(CSV) != 0;
+  }
   llvm::Constant *toConstant(const MetaAddress &Address) {
     revng_assert(MetaAddressStruct != nullptr);
     return Address.toConstant(MetaAddressStruct);
@@ -439,6 +442,7 @@ private:
   llvm::Function *RootFunction;
   std::vector<llvm::GlobalVariable *> CSVs;
   std::vector<llvm::GlobalVariable *> ABIRegisters;
+  std::set<llvm::GlobalVariable *> ABIRegistersSet;
   llvm::StructType *MetaAddressStruct;
   llvm::Function *NewPC;
 };
