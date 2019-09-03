@@ -38,6 +38,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -1152,13 +1153,24 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   Variables.setDataLayout(&TheModule->getDataLayout());
 
-  legacy::PassManager PM;
-  PM.add(createSROAPass());
-  PM.add(new CPUStateAccessAnalysisPass(&Variables, false));
-  PM.add(createDeadCodeEliminationPass());
+  // SROA must run before InstCombine because in this way InstCombine has many
+  // more elementary operations to combine
+  legacy::PassManager PreInstCombinePM;
+  PreInstCombinePM.add(createSROAPass());
+  PreInstCombinePM.run(*TheModule);
+
+  // InstCombine must run before CPUStateAccessAnalysis (CSAA) because, if it
+  // runs after it, it removes all the useful metadata attached by CSAA.
+  legacy::FunctionPassManager InstCombinePM(&*TheModule);
+  InstCombinePM.add(createInstructionCombiningPass());
+  InstCombinePM.run(*MainFunction);
+
+  legacy::PassManager PostInstCombinePM;
+  PostInstCombinePM.add(new CPUStateAccessAnalysisPass(&Variables, false));
+  PostInstCombinePM.add(createDeadCodeEliminationPass());
   // TODO: drop me once we integrate stack analysis with AVI
-  PM.add(new FunctionCallIdentification);
-  PM.run(*TheModule);
+  PostInstCombinePM.add(new FunctionCallIdentification);
+  PostInstCombinePM.run(*TheModule);
 
   JumpTargets.finalizeJumpTargets();
 
