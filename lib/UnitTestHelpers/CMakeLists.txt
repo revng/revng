@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-add_library(revngUnitTestHelpers
+revng_add_library_internal(revngUnitTestHelpers
   STATIC
   DotGraphObject.cpp)
 
@@ -11,8 +11,3 @@ target_link_libraries(revngUnitTestHelpers
 
 target_include_directories(revngUnitTestHelpers
   INTERFACE $<INSTALL_INTERFACE:include/>)
-
-install(TARGETS revngUnitTestHelpers
-  EXPORT revng
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib)

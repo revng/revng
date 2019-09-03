@@ -101,15 +101,12 @@ static void findFiles(const char *Architecture) {
   std::string Directory(dirname(FullPath));
   free(FullPath);
 
-  // TODO: add other search paths?
   std::vector<std::string> SearchPaths;
+  SearchPaths.push_back(Directory + "/../lib");
+  SearchPaths.push_back(Directory + "/../share/revng");
 #ifdef INSTALL_PATH
   SearchPaths.push_back(std::string(INSTALL_PATH) + "/lib");
   SearchPaths.push_back(std::string(INSTALL_PATH) + "/share/revng");
-#endif
-  SearchPaths.push_back(Directory);
-#ifdef QEMU_INSTALL_PATH
-  SearchPaths.push_back(std::string(QEMU_INSTALL_PATH) + "/lib");
 #endif
 
   bool LibtinycodeFound = false;

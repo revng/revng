@@ -77,7 +77,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
 
     # Translate the compiled binary
     add_test(NAME translate-${TEST_NAME}-${ARCH}
-    COMMAND "${CMAKE_CURRENT_BINARY_DIR}/revng" lift --use-debug-symbols -g ll "${BINARY}" "${BINARY}.ll")
+    COMMAND "${CMAKE_CURRENT_BINARY_DIR}/bin/revng" lift --use-debug-symbols -g ll "${BINARY}" "${BINARY}.ll")
     set_tests_properties(translate-${TEST_NAME}-${ARCH}
       PROPERTIES LABELS "analysis;translate;${TEST_NAME}-${ARCH}")
 
@@ -91,7 +91,7 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
     foreach(OUTPUT_NAME ${OUTPUT_NAMES})
 
       add_test(NAME extract-info-${TEST_NAME}-${ARCH}-${OUTPUT_NAME}
-        COMMAND "${CMAKE_CURRENT_BINARY_DIR}/revng"
+        COMMAND "${CMAKE_CURRENT_BINARY_DIR}/bin/revng"
                 opt
                 -o /dev/null
                 --${OUTPUT_OPT_${OUTPUT_NAME}}

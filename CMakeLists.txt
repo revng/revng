@@ -31,10 +31,10 @@ if(DOXYGEN_FOUND)
       set(DOXYGEN_INPUTS "${DOXYGEN_INPUTS} ${CMAKE_SOURCE_DIR}/${FILE}")
     endforeach(FILE)
     configure_file(${CMAKE_SOURCE_DIR}/Doxyfile.in
-      ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
+      ${CMAKE_BINARY_DIR}/Doxyfile @ONLY)
     add_custom_target(doc
-      ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+      ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
       COMMENT "Generating API documentation with Doxygen" VERBATIM)
   else()
     message(WARNING "Source directory is not a git repository, disabling Doxygen. Error was: ${GIT_LS_OUTPUT_STDERR}")
@@ -56,47 +56,46 @@ set(SUPPORT_MODULES_CONFIGS "normal;trace")
 set(SUPPORT_MODULES_CONFIG_normal "")
 set(SUPPORT_MODULES_CONFIG_trace "-DTRACE")
 
+make_directory("${CMAKE_BINARY_DIR}/share/revng/")
+
 foreach(ARCH aarch64 arm mips mipsel x86_64 i386 s390x)
   set(OUTPUT "early-linked-${ARCH}.ll")
-  add_custom_command(OUTPUT "${OUTPUT}"
+  add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/early-linked.c"
     COMMAND "${CLANG}"
     ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/early-linked.c"
-         -o "${OUTPUT}"
+         -o "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
          -S -emit-llvm -g
          -DTARGET_${ARCH}
          -I"${CMAKE_CURRENT_SOURCE_DIR}/runtime"
          -I"${CMAKE_CURRENT_SOURCE_DIR}/include")
-  add_custom_target("early-linked-module-${OUTPUT}" ALL DEPENDS "${OUTPUT}")
-  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT}"
+  add_custom_target("early-linked-module-${OUTPUT}" ALL DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
+  install(FILES "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
     DESTINATION share/revng)
 
   # Enable the support for C exceptions to avoid optimizations that break
   # exception support when linking a module with isolated functions
   foreach(CONFIG ${SUPPORT_MODULES_CONFIGS})
     set(OUTPUT "support-${ARCH}-${CONFIG}.ll")
-    add_custom_command(OUTPUT "${OUTPUT}"
+    add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
       DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
       COMMAND "${CLANG}"
       ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
            -O2
            -fexceptions
-           -o "${OUTPUT}"
+           -o "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
            -S -emit-llvm -g
            -DTARGET_${ARCH}
            -I"${CMAKE_CURRENT_SOURCE_DIR}/runtime"
            -I"${CMAKE_CURRENT_SOURCE_DIR}/include"
            ${SUPPORT_MODULES_CONFIG_${CONFIG}})
-    add_custom_target("support-module-${OUTPUT}" ALL DEPENDS "${OUTPUT}")
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT}"
+    add_custom_target("support-module-${OUTPUT}" ALL DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
+    install(FILES "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
       DESTINATION share/revng)
   endforeach()
 endforeach()
 
-set(QEMU_INSTALL_PATH "/usr" CACHE PATH "Path to the QEMU installation.")
-add_definitions("-DQEMU_INSTALL_PATH=\"${QEMU_INSTALL_PATH}\"")
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
-include_directories("${QEMU_INSTALL_PATH}/include/")
 
 #
 # Compiler options
@@ -156,12 +155,12 @@ add_subdirectory(tools)
 
 set(VERSION 1.0.0)
 
-configure_file(runtime/support.c "${CMAKE_BINARY_DIR}/support.c" COPYONLY)
-configure_file(runtime/support.h "${CMAKE_BINARY_DIR}/support.h" COPYONLY)
-configure_file(include/revng/Runtime/commonconstants.h "${CMAKE_BINARY_DIR}/commonconstants.h" COPYONLY)
-configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/early-linked.c" COPYONLY)
-configure_file(scripts/revng "${CMAKE_BINARY_DIR}/revng")
-configure_file(scripts/revng-merge-dynamic "${CMAKE_BINARY_DIR}/revng-merge-dynamic" COPYONLY)
+configure_file(runtime/support.c "${CMAKE_BINARY_DIR}/share/revng/support.c" COPYONLY)
+configure_file(runtime/support.h "${CMAKE_BINARY_DIR}/share/revng/support.h" COPYONLY)
+configure_file(include/revng/Runtime/commonconstants.h "${CMAKE_BINARY_DIR}/share/revng/commonconstants.h" COPYONLY)
+configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/share/revng/early-linked.c" COPYONLY)
+configure_file(scripts/revng "${CMAKE_BINARY_DIR}/bin/revng")
+configure_file(scripts/revng-merge-dynamic "${CMAKE_BINARY_DIR}/bin/revng-merge-dynamic" COPYONLY)
 install(PROGRAMS scripts/revng scripts/revng-merge-dynamic DESTINATION bin)
 install(FILES runtime/support.c DESTINATION share/revng)
 install(FILES runtime/support.h DESTINATION share/revng)

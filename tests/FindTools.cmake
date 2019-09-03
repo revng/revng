@@ -13,8 +13,8 @@ find_program(DIFF diff)
 # * libtinycode-${ARCH}.so, which must be in the search path
 
 set(SUPPORTED_ARCHITECTURES "arm;i386;mips;mipsel;s390x;x86_64")
-set(QEMU_BIN_PATH "${QEMU_INSTALL_PATH}/bin")
-set(QEMU_LIB_PATH "${QEMU_INSTALL_PATH}/lib")
+set(QEMU_BIN_PATH "${CMAKE_INSTALL_PREFIX}/bin")
+set(QEMU_LIB_PATH "${CMAKE_INSTALL_PREFIX}/lib")
 
 # We can test an architecture if we have a compiler and a libtinycode-*.so
 foreach(ARCH ${SUPPORTED_ARCHITECTURES})

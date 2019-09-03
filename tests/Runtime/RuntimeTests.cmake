@@ -67,7 +67,7 @@ foreach(TEST_NAME ${TESTS})
 
   # Translate the dynamic native version
   add_test(NAME translate-native-dynamic-${TEST_NAME}
-    COMMAND "${CMAKE_BINARY_DIR}/revng" --verbose translate $<TARGET_FILE:test-native-dynamic-${TEST_NAME}>)
+    COMMAND "${CMAKE_BINARY_DIR}/bin/revng" --verbose translate $<TARGET_FILE:test-native-dynamic-${TEST_NAME}>)
   set_tests_properties(translate-native-dynamic-${TEST_NAME}
     PROPERTIES LABELS "runtime;translate-native-dynamic;${TEST_NAME}")
 
@@ -127,13 +127,13 @@ foreach(ARCH ${SUPPORTED_ARCHITECTURES})
 
     # Translate the compiled binary
     add_test(NAME translate-${TEST_NAME}-${ARCH}
-      COMMAND "${CMAKE_BINARY_DIR}/revng" --verbose translate ${BINARY})
+      COMMAND "${CMAKE_BINARY_DIR}/bin/revng" --verbose translate ${BINARY})
     set_tests_properties(translate-${TEST_NAME}-${ARCH}
       PROPERTIES LABELS "runtime;translate;${TEST_NAME};${ARCH}")
 
     # Translate the compiled binary with function isolation
     add_test(NAME translate-with-isolation-${TEST_NAME}-${ARCH}
-      COMMAND sh -c "cp ${BINARY} ${BINARY}.isolated-functions && ${CMAKE_BINARY_DIR}/revng translate -i ${BINARY}.isolated-functions")
+      COMMAND sh -c "cp ${BINARY} ${BINARY}.isolated-functions && ${CMAKE_BINARY_DIR}/bin/revng translate -i ${BINARY}.isolated-functions")
     set_tests_properties(translate-with-isolation-${TEST_NAME}-${ARCH}
       PROPERTIES LABELS "runtime;translate-with-isolation;${TEST_NAME};${ARCH}")
 
