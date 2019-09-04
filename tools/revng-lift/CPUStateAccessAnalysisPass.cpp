@@ -200,7 +200,8 @@ struct TaintResults {
 ///         3) a set of illegal calls, for which it is impossible to understand
 ///            if and how they will access the CSV.
 static TaintResults
-forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
+forwardTaintAnalysis(const Module *M,
+                     Value *CPUStatePtr,
                      const ConstFunctionPtrSet &ReachableFunctions,
                      const unsigned LoadMDKind,
                      const unsigned StoreMDKind,
@@ -254,7 +255,6 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
       CallSite(C), Arg(A), ArgNo(N) {}
   };
 
-  Module *M = CPUStatePtr->getParent();
   if (TaintLog.isEnabled()) {
     TaintLog << "MODULE:" << DoLog;
     TaintLog << dumpToString(M) << DoLog;
@@ -297,7 +297,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
 
     // Sanity check for the uses of CPUStatePtr.
     // They must all be direct Loads from CPUStatePtr.
-    revng_assert(Load->getPointerOperand() == CPUStatePtr);
+    revng_assert(Load->getPointerOperand()->stripPointerCasts() == CPUStatePtr);
 
     // Push the first use on the WorkList
     const Function *F = Load->getFunction();
@@ -2037,7 +2037,7 @@ CPUSAOA::getOffsetsOrExploreSrc(Value *V, WorkItem &Item, bool IsLoad) const {
     case Instruction::Load: {
       revng_log(CSVAccessLog, "LOAD");
       const auto *Load = cast<const LoadInst>(Instr);
-      const Value *Ptr = Load->getPointerOperand();
+      const Value *Ptr = Load->getPointerOperand()->stripPointerCasts();
       if (const auto *CSV = dyn_cast<const GlobalVariable>(Ptr)) {
         revng_log(CSVAccessLog, "GLOBAL");
         if (CSV == CPUStatePtr) {
@@ -2490,7 +2490,7 @@ private:
   Type *Int64Ty;
   Constant *SizeOfEnv;
   Constant *Zero;
-  GlobalVariable *CPUStatePtr;
+  Value *CPUStatePtr;
 };
 
 static Value *getLoadAddressValue(Instruction *I) {
@@ -2706,10 +2706,10 @@ inline void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
 
   case Instruction::Store: {
     auto *Store = cast<StoreInst>(Clone);
-    auto *ToStore = Store->getValueOperand();
-    unsigned Size = DL.getTypeAllocSize(ToStore->getType());
+    auto *V = Store->getValueOperand();
+    unsigned Size = DL.getTypeAllocSize(V->getType());
     revng_assert(Size != 0);
-    Ok = Variables->storeToEnvOffset(Builder, Size, EnvOffset, ToStore);
+    Ok = Variables->storeToEnvOffset(Builder, Size, EnvOffset, V);
   } break;
 
   case Instruction::Call: {
@@ -2906,10 +2906,10 @@ inline void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
       case Instruction::Store: {
         if (not IsLoad) {
           auto *Store = cast<StoreInst>(Clone);
-          auto *ToStore = Store->getValueOperand();
-          unsigned Size = DL.getTypeAllocSize(ToStore->getType());
+          auto *V = Store->getValueOperand();
+          unsigned Size = DL.getTypeAllocSize(V->getType());
           revng_assert(Size != 0);
-          Ok = Variables->storeToEnvOffset(Builder, Size, Offset, ToStore);
+          Ok = Variables->storeToEnvOffset(Builder, Size, Offset, V);
         } else {
           revng_abort();
         }
@@ -3097,7 +3097,7 @@ private:
   // Helpers
   const DataLayout &DL;
   Type *Int64Ty;
-  GlobalVariable *CPUStatePtr;
+  Value *CPUStatePtr;
 
 public:
   CPUStateAccessAnalysis(const Module &Mod,
@@ -3185,7 +3185,8 @@ inline bool CPUStateAccessAnalysis::run() {
   // Start with a forward taint analysis, to detect all the tainted Values,
   // and all the tainted loads and stores.
   CSVAccessLog << "Before Taint Analysis" << DoLog;
-  const auto TaintResults = forwardTaintAnalysis(CPUStatePtr,
+  const auto TaintResults = forwardTaintAnalysis(&M,
+                                                 CPUStatePtr,
                                                  ReachedFunctions,
                                                  LoadMDKind,
                                                  StoreMDKind,
