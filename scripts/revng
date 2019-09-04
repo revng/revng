@@ -65,7 +65,9 @@ def log_error(msg):
 def get_command(command):
   global search_path
   path = which(command, path=search_path)
-  assert path
+  if not path:
+    log("""Couldn't find "{}" in "{}".""".format(command, search_path))
+    assert False
   return os.path.abspath(path)
 
 def build_opt_args(args):
