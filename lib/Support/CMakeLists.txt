@@ -11,5 +11,9 @@ revng_add_library_internal(revngSupport SHARED
   IRHelpers.cpp
   Statistics.cpp)
 
+llvm_map_components_to_libnames(LLVM_SUPPORT Support)
+
+target_link_libraries(revngSupport ${LLVM_SUPPORT})
+
 target_include_directories(revngSupport
   INTERFACE $<INSTALL_INTERFACE:include/>)
