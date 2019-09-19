@@ -596,6 +596,9 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
       } else if (auto *CE = dyn_cast<ConstantExpr>(CurrentOperand)) {
         for (Use &U : CE->operands())
           UseQueue.push(&U);
+      } else if (auto *CA = dyn_cast<ConstantAggregate>(CurrentOperand)) {
+        for (Use &U : CA->operands())
+          UseQueue.push(&U);
       } else {
         revng_abort();
       }
