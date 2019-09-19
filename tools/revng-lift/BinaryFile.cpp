@@ -1435,19 +1435,10 @@ public:
     Cursor(Buffer.data()),
     End(Buffer.data() + Buffer.size()) {}
 
-  template<typename T>
-  T readNext() {
-    revng_assert(Cursor + sizeof(T) <= End);
-    auto Result = static_cast<T>(Endianess<T, E>::read(Cursor));
-    Cursor += sizeof(T);
-    return Result;
-  }
-
   uint8_t readNextU8() { return readNext<uint8_t>(); }
   uint16_t readNextU16() { return readNext<uint16_t>(); }
   uint32_t readNextU32() { return readNext<uint32_t>(); }
   uint64_t readNextU64() { return readNext<uint64_t>(); }
-
   uint64_t readNextU() {
     if (is64())
       return readNextU64();
@@ -1471,42 +1462,28 @@ public:
     return Result;
   }
 
+  int64_t readSignedValue(unsigned Encoding) {
+    return static_cast<int64_t>(readValue(Encoding));
+  }
+
+  uint64_t readUnsignedValue(unsigned Encoding) {
+    return static_cast<uint64_t>(readValue(Encoding));
+  }
+
   Pointer readPointer(unsigned Encoding, uint64_t Base = 0) {
     revng_assert((Encoding & ~(0x70 | 0x0F | dwarf::DW_EH_PE_indirect)) == 0);
 
-    if ((Encoding & 0x70) == dwarf::DW_EH_PE_pcrel)
+    // Handle PC-relative values
+    revng_assert(Cursor >= Start);
+    if ((Encoding & 0x70) == dwarf::DW_EH_PE_pcrel) {
+      revng_assert(Base == 0);
       Base = Address + (Cursor - Start);
+    }
 
-    unsigned Format = Encoding & 0x0F;
-    switch (Format) {
-    case dwarf::DW_EH_PE_uleb128:
-      return readPointerInternal(readULEB128(), Encoding, Base);
-    case dwarf::DW_EH_PE_sleb128:
-      return readPointerInternal(readSLEB128(), Encoding, Base);
-    case dwarf::DW_EH_PE_absptr:
-      if (is64())
-        return readPointerInternal(readNext<uint64_t>(), Encoding, Base);
-      else
-        return readPointerInternal(readNext<uint32_t>(), Encoding, Base);
-    case dwarf::DW_EH_PE_signed:
-      if (is64())
-        return readPointerInternal(readNext<int64_t>(), Encoding, Base);
-      else
-        return readPointerInternal(readNext<int32_t>(), Encoding, Base);
-    case dwarf::DW_EH_PE_udata2:
-      return readPointerInternal(readNext<uint16_t>(), Encoding, Base);
-    case dwarf::DW_EH_PE_sdata2:
-      return readPointerInternal(readNext<int16_t>(), Encoding, Base);
-    case dwarf::DW_EH_PE_udata4:
-      return readPointerInternal(readNext<uint32_t>(), Encoding, Base);
-    case dwarf::DW_EH_PE_sdata4:
-      return readPointerInternal(readNext<int32_t>(), Encoding, Base);
-    case dwarf::DW_EH_PE_udata8:
-      return readPointerInternal(readNext<uint64_t>(), Encoding, Base);
-    case dwarf::DW_EH_PE_sdata8:
-      return readPointerInternal(readNext<int64_t>(), Encoding, Base);
-    default:
-      revng_unreachable("Unknown Encoding");
+    if (isSigned(Encoding & 0x0F)) {
+      return readPointerInternal(readSignedValue(Encoding), Encoding, Base);
+    } else {
+      return readPointerInternal(readUnsignedValue(Encoding), Encoding, Base);
     }
   }
 
@@ -1521,21 +1498,83 @@ public:
 
 private:
   template<typename T>
-  Pointer readPointerInternal(T Value, unsigned Encoding, uint64_t Base) {
-    uint64_t Result = Value;
+  std::conditional_t<std::numeric_limits<T>::is_signed, int64_t, uint64_t>
+  readNext() {
+    constexpr bool IsSigned = std::numeric_limits<T>::is_signed;
+    using ReturnType = std::conditional_t<IsSigned, int64_t, uint64_t>;
+    revng_assert(Cursor + sizeof(T) <= End);
+    auto Result = static_cast<T>(Endianess<T, E>::read(Cursor));
+    Cursor += sizeof(T);
+    return static_cast<ReturnType>(Result);
+  }
 
-    if (Value != 0) {
-      int EncodingRelative = Encoding & 0x70;
-      revng_assert(EncodingRelative == 0 || EncodingRelative == 0x10);
-
-      Result = Base;
-      if (std::numeric_limits<T>::is_signed)
-        Result += static_cast<int64_t>(Value);
-      else
-        Result += static_cast<uint64_t>(Value);
+  static bool isSigned(unsigned Format) {
+    switch (Format) {
+    case dwarf::DW_EH_PE_sleb128:
+    case dwarf::DW_EH_PE_signed:
+    case dwarf::DW_EH_PE_sdata2:
+    case dwarf::DW_EH_PE_sdata4:
+    case dwarf::DW_EH_PE_sdata8:
+      return true;
+    case dwarf::DW_EH_PE_absptr:
+    case dwarf::DW_EH_PE_uleb128:
+    case dwarf::DW_EH_PE_udata2:
+    case dwarf::DW_EH_PE_udata4:
+    case dwarf::DW_EH_PE_udata8:
+      return false;
+    default:
+      revng_abort("Unknown Encoding");
     }
+  }
 
-    return Pointer(Encoding & dwarf::DW_EH_PE_indirect, Result);
+  uint64_t readValue(unsigned Encoding) {
+    revng_assert((Encoding & ~(0x70 | 0x0F | dwarf::DW_EH_PE_indirect)) == 0);
+
+    // Extract the format
+    unsigned Format = Encoding & 0x0F;
+    switch (Format) {
+    case dwarf::DW_EH_PE_uleb128:
+      return readULEB128();
+    case dwarf::DW_EH_PE_sleb128:
+      return readSLEB128();
+    case dwarf::DW_EH_PE_absptr:
+      if (is64())
+        return readNext<uint64_t>();
+      else
+        return readNext<uint32_t>();
+    case dwarf::DW_EH_PE_signed:
+      if (is64())
+        return readNext<int64_t>();
+      else
+        return readNext<int32_t>();
+    case dwarf::DW_EH_PE_udata2:
+      return readNext<uint16_t>();
+    case dwarf::DW_EH_PE_sdata2:
+      return readNext<int16_t>();
+    case dwarf::DW_EH_PE_udata4:
+      return readNext<uint32_t>();
+    case dwarf::DW_EH_PE_sdata4:
+      return readNext<int32_t>();
+    case dwarf::DW_EH_PE_udata8:
+      return readNext<uint64_t>();
+    case dwarf::DW_EH_PE_sdata8:
+      return readNext<int64_t>();
+    default:
+      revng_unreachable("Unknown Encoding");
+    }
+  }
+
+  template<typename T>
+  Pointer readPointerInternal(T Value, unsigned Encoding, uint64_t Base) {
+    bool IsIndirect = Encoding & dwarf::DW_EH_PE_indirect;
+
+    if (Base == 0) {
+      return Pointer(IsIndirect, Value);
+    } else {
+      unsigned EncodingRelative = Encoding & 0x70;
+      revng_assert(EncodingRelative == 0 || EncodingRelative == 0x10);
+      return Pointer(IsIndirect, Base + Value);
+    }
   }
 
   bool is64() const;
