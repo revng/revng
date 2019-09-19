@@ -147,6 +147,8 @@ public:
   /// * Instruction: represents the result of a (previously analyzed)
   ///   Instruction. It can be any Value.
   Value get(llvm::Value *V) const {
+    V = skipCasts(V);
+
     if (auto *CSV = dyn_cast<AllocaInst>(V)) {
 
       return Value::fromSlot(ASID::cpuID(), TheCache->getCPUIndex(CSV));
@@ -669,7 +671,7 @@ Interrupt Analysis::handleTerminator(Instruction *T,
       // Check if it's a return from fake
       if (!IsReturn) {
         if (PCContent->addressSpace() == ASID::globalID()) {
-          uint32_t Offset = PCContent->offset();
+          uint64_t Offset = PCContent->offset();
           FakeFunctionReturnAddress = Offset;
           IsReturnFromFake = FakeReturnAddresses.count(Offset) != 0;
         }
