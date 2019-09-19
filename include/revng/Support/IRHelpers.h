@@ -63,8 +63,7 @@ getConstValue(llvm::Constant *C, const llvm::DataLayout &DL) {
   while (auto *Expr = llvm::dyn_cast<llvm::ConstantExpr>(C)) {
     C = ConstantFoldConstant(Expr, DL);
 
-    if (Expr->getOpcode() == llvm::Instruction::IntToPtr
-        || Expr->getOpcode() == llvm::Instruction::PtrToInt)
+    if (Expr->isCast())
       C = Expr->getOperand(0);
   }
 
