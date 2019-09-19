@@ -23,6 +23,7 @@
 #include <boost/type_traits/is_same.hpp>
 
 // LLVM includes
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/ExecutionEngine/RuntimeDyld.h"
 #include "llvm/IR/CFG.h"
@@ -1051,6 +1052,33 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     // Obtain a new program counter to translate
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
   } // End translations loop
+
+  // Reorder basic blocks in RPOT
+  {
+    BasicBlock *Entry = &MainFunction->getEntryBlock();
+    ReversePostOrderTraversal<BasicBlock *> RPOT(Entry);
+    std::set<BasicBlock *> SortedBasicBlocksSet;
+    std::vector<BasicBlock *> SortedBasicBlocks;
+    for (BasicBlock *BB : RPOT) {
+      SortedBasicBlocksSet.insert(BB);
+      SortedBasicBlocks.push_back(BB);
+    }
+
+    auto &BasicBlockList = MainFunction->getBasicBlockList();
+    std::vector<BasicBlock *> Unreachable;
+    for (BasicBlock &BB : BasicBlockList) {
+      if (SortedBasicBlocksSet.count(&BB) == 0) {
+        Unreachable.push_back(&BB);
+      }
+    }
+
+    while (BasicBlockList.size() != 0)
+      BasicBlockList.begin()->removeFromParent();
+    for (BasicBlock *BB : SortedBasicBlocks)
+      BasicBlockList.push_back(BB);
+    for (BasicBlock *BB : Unreachable)
+      BasicBlockList.push_back(BB);
+  }
 
   //
   // At this point we have all the code, add store false to cpu_loop_exiting in
