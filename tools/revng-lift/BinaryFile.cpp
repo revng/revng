@@ -1169,14 +1169,14 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary, uint64_t BaseAddress) {
                                           DynsymPortion,
                                           DynstrPortion);
       }
-
-      for (Label &L : Labels) {
-        if (L.isSymbol() and L.isCode())
-          CodePointers.insert(relocate(L.address()));
-        else if (L.isBaseRelativeValue())
-          CodePointers.insert(relocate(L.value()));
-      }
     }
+  }
+
+  for (Label &L : Labels) {
+    if (L.isSymbol() and L.isCode())
+      CodePointers.insert(relocate(L.address()));
+    else if (L.isBaseRelativeValue())
+      CodePointers.insert(relocate(L.value()));
   }
 }
 
