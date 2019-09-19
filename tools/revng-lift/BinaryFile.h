@@ -297,10 +297,13 @@ public:
   bool isCode() const { return SymbolType == SymbolType::Code; }
 
   uint64_t address() const { return Address; }
+
+  bool hasValue() const { return isAbsoluteValue() or isBaseRelativeValue(); }
+
   uint64_t size() const { return Size; }
 
   uint64_t value() const {
-    revng_assert(isAbsoluteValue() or isBaseRelativeValue());
+    revng_assert(hasValue());
     return Value;
   }
 
