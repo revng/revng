@@ -1,4 +1,4 @@
-/// \file instructiontranslator.cpp
+/// \file InstructionTranslator.cpp
 /// \brief This file implements the logic to translate a PTC instruction in to
 ///        LLVM IR.
 
@@ -63,17 +63,14 @@ public:
   }
 
   InstructionArgumentsIterator(const InstructionArgumentsIterator &r) :
-    base(r),
-    TheInstruction(r.TheInstruction) {}
+    base(r), TheInstruction(r.TheInstruction) {}
 
   InstructionArgumentsIterator(const InstructionArgumentsIterator &r,
                                unsigned Index) :
-    base(Index),
-    TheInstruction(r.TheInstruction) {}
+    base(Index), TheInstruction(r.TheInstruction) {}
 
   InstructionArgumentsIterator(PTCInstruction *TheInstruction, unsigned Index) :
-    base(Index),
-    TheInstruction(TheInstruction) {}
+    base(Index), TheInstruction(TheInstruction) {}
 
   bool isCompatible(const InstructionArgumentsIterator &r) const {
     return TheInstruction == r.TheInstruction;

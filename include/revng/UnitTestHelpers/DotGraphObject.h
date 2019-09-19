@@ -12,10 +12,10 @@
 
 // LLVM includes
 #include <llvm/ADT/GraphTraits.h>
+#include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallString.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
-#include <llvm/ADT/STLExtras.h>
 
 class DotNode {
 
@@ -53,11 +53,12 @@ public:
 class DotGraph {
   static DotNode *ptrFromRef(std::unique_ptr<DotNode> &P) { return P.get(); }
 
-  static const DotNode *
-  constPtrFromRef(const std::unique_ptr<DotNode> &P) { return P.get(); }
+  static const DotNode *constPtrFromRef(const std::unique_ptr<DotNode> &P) {
+    return P.get();
+  }
 
-  using PtrFromRefT = DotNode *(*)(std::unique_ptr<DotNode> &P);
-  using CPtrFromRefT = const DotNode *(*)(const std::unique_ptr<DotNode> &P);
+  using PtrFromRefT = DotNode *(*) (std::unique_ptr<DotNode> &P);
+  using CPtrFromRefT = const DotNode *(*) (const std::unique_ptr<DotNode> &P);
 
 public:
   using child_container = std::vector<std::unique_ptr<DotNode>>;
@@ -93,9 +94,7 @@ public:
     return llvm::map_iterator(Nodes.begin(), constPtrFromRef);
   }
 
-  child_iterator end() {
-    return llvm::map_iterator(Nodes.begin(), ptrFromRef);
-  }
+  child_iterator end() { return llvm::map_iterator(Nodes.begin(), ptrFromRef); }
 
   child_const_iterator end() const {
     return llvm::map_iterator(Nodes.begin(), constPtrFromRef);
@@ -110,7 +109,6 @@ public:
   DotNode *getNodeByName(llvm::StringRef Name);
 
 private:
-
   /// \brief Actual implementation of the parser.
   void parseDotImpl(std::ifstream &F, llvm::StringRef EntryName);
 };

@@ -101,18 +101,23 @@ static cl::alias A3("b",
 
 // Enable Debug Options to be specified on the command line
 namespace DIT = DebugInfoType;
-auto X = cl::values(clEnumValN(DIT::None, "none", "no debug information"),
-                    clEnumValN(DIT::OriginalAssembly,
-                               "asm",
-                               "debug information referred to the assembly "
-                               "of the input file"),
-                    clEnumValN(DIT::PTC,
-                               "ptc",
-                               "debug information referred to the Portable "
-                               "Tiny Code"),
-                    clEnumValN(DIT::LLVMIR,
-                               "ll",
-                               "debug information referred to the LLVM IR"));
+static auto X = cl::values(clEnumValN(DIT::None,
+                                      "none",
+                                      "no debug information"),
+                           clEnumValN(DIT::OriginalAssembly,
+                                      "asm",
+                                      "debug information referred to the "
+                                      "assembly "
+                                      "of the input file"),
+                           clEnumValN(DIT::PTC,
+                                      "ptc",
+                                      "debug information referred to the "
+                                      "Portable "
+                                      "Tiny Code"),
+                           clEnumValN(DIT::LLVMIR,
+                                      "ll",
+                                      "debug information referred to the LLVM "
+                                      "IR"));
 static cl::opt<DIT::Values> DebugInfo("debug-info",
                                       cl::desc("emit debug information"),
                                       X,
@@ -160,12 +165,13 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              std::string Output,
                              std::string Helpers,
                              std::string EarlyLinked) :
-  TargetArchitecture(Target),
+  TargetArchitecture(std::move(Target)),
   Context(TheContext),
   TheModule(new Module("top", Context)),
   OutputPath(Output),
   Debug(new DebugHelper(Output, TheModule.get(), DebugInfo, DebugPath)),
   Binary(Binary) {
+
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
 
@@ -332,8 +338,7 @@ public:
   CpuLoopFunctionPass() : llvm::ModulePass(ID), ExceptionIndexOffset(0) {}
 
   CpuLoopFunctionPass(intptr_t ExceptionIndexOffset) :
-    llvm::ModulePass(ID),
-    ExceptionIndexOffset(ExceptionIndexOffset) {}
+    llvm::ModulePass(ID), ExceptionIndexOffset(ExceptionIndexOffset) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
@@ -445,7 +450,7 @@ class CpuLoopExitPass : public llvm::ModulePass {
 public:
   static char ID;
 
-  CpuLoopExitPass() : llvm::ModulePass(ID), VM(0) {}
+  CpuLoopExitPass() : llvm::ModulePass(ID), VM(nullptr) {}
   CpuLoopExitPass(VariableManager *VM) : llvm::ModulePass(ID), VM(VM) {}
 
   bool runOnModule(llvm::Module &M) override;

@@ -110,10 +110,7 @@ public:
            const llvm::DominatorTree &DT,
            const std::vector<llvm::Instruction *> &TargetInstructions,
            const std::vector<Edge> &TargetEdges) :
-    Base(RPOT),
-    Entry(RPOT[0]),
-    LVI(LVI),
-    DT(DT) {
+    Base(RPOT), Entry(RPOT[0]), LVI(LVI), DT(DT) {
     using namespace llvm;
 
     registerExtremal(Entry);
@@ -134,7 +131,7 @@ public:
     }
   }
 
-  Element extremalValue(llvm::BasicBlock *BB) const { return Element(); }
+  Element extremalValue(llvm::BasicBlock *) const { return Element(); }
 
   void assertLowerThanOrEqual(const Element &A, const Element &B) const {
     revng_assert(A.lowerThanOrEqual(B));
@@ -714,10 +711,7 @@ public:
                     const llvm::DominatorTree &DT,
                     MemoryOracle &MO,
                     const std::vector<llvm::BasicBlock *> &RPOT) :
-    LVI(LVI),
-    DT(DT),
-    MO(MO),
-    RPOT(RPOT) {}
+    LVI(LVI), DT(DT), MO(MO), RPOT(RPOT) {}
 
   MaterializedValues explore(llvm::BasicBlock *BB, llvm::Value *V);
 };

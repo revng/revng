@@ -21,8 +21,7 @@ class BasicBlockInstructionPair {
 public:
   BasicBlockInstructionPair() : BB(nullptr), I(nullptr) {}
   BasicBlockInstructionPair(llvm::BasicBlock *BB, llvm::Instruction *I) :
-    BB(BB),
-    I(I) {}
+    BB(BB), I(I) {}
 
   bool isNull() const { return I == nullptr || BB == nullptr; }
 

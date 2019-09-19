@@ -725,8 +725,7 @@ inline void LazySmallBitVectorIterator<LSBV>::increment() {
 
 template<typename LSBV>
 inline LSBVI<LSBV>::LSBVI(LSBV *BitVector) :
-  BitVector(BitVector),
-  NextBitIndex(0) {
+  BitVector(BitVector), NextBitIndex(0) {
 
   revng_assert(BitVector != nullptr);
   if (!BitVector->isZero())
@@ -735,8 +734,7 @@ inline LSBVI<LSBV>::LSBVI(LSBV *BitVector) :
 
 template<typename LSBV>
 inline LSBVI<LSBV>::LSBVI(LSBV *BitVector, unsigned Index) :
-  BitVector(BitVector),
-  NextBitIndex(Index) {
+  BitVector(BitVector), NextBitIndex(Index) {
   revng_assert(BitVector != nullptr);
 }
 

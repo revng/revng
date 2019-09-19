@@ -272,12 +272,10 @@ public:
 
     struct WorkItem {
       WorkItem(BasicBlock *BB, instruction_iterator Start) :
-        BB(BB),
-        Range(make_range(Start, ID::end(BB))) {}
+        BB(BB), Range(make_range(Start, ID::end(BB))) {}
 
       WorkItem(BasicBlock *BB) :
-        BB(BB),
-        Range(make_range(ID::begin(BB), ID::end(BB))) {}
+        BB(BB), Range(make_range(ID::begin(BB), ID::end(BB))) {}
 
       BasicBlock *BB;
       instruction_range Range;

@@ -85,9 +85,7 @@ private:
 
 public:
   ArrayRefReader(ArrayRef<T> Array, bool Swap) :
-    Array(Array),
-    Cursor(Array.begin()),
-    Swap(Swap) {}
+    Array(Array), Cursor(Array.begin()), Swap(Swap) {}
 
   bool eof() const { return Cursor == Array.end(); }
 
@@ -345,6 +343,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
     break;
 
   case Triple::aarch64:
+    HasRelocationAddend = false;
     InstructionAlignment = 4;
     SyscallHelper = "helper_exception_with_syndrome";
     SyscallNumberRegister = "x8";
@@ -689,9 +688,7 @@ struct RelocationHelper<T, true> {
 
 template<typename T>
 struct RelocationHelper<T, false> {
-  static uint64_t getAddend(llvm::object::Elf_Rel_Impl<T, false> Relocation) {
-    return 0;
-  }
+  static uint64_t getAddend(llvm::object::Elf_Rel_Impl<T, false>) { return 0; }
 };
 
 static bool shouldIgnoreSymbol(StringRef Name) {
@@ -730,7 +727,7 @@ void BinaryFile::parseCOFF(object::ObjectFile *TheBinary,
   }
 
   // Read sections
-  for (const llvm::object::SectionRef Section : TheCOFF.sections()) {
+  for (const llvm::object::SectionRef &Section : TheCOFF.sections()) {
     llvm::StringRef Name;
     Section.getName(Name);
 
@@ -1254,8 +1251,8 @@ Label BinaryFile::parseRelocation(unsigned char RelocationType,
   const auto &RelocationTypes = TheArchitecture.relocationTypes();
   auto It = RelocationTypes.find(RelocationType);
   if (It == RelocationTypes.end()) {
-    dbg << "Warning: unhandled relocation type " << (int) RelocationType
-        << "\n";
+    dbg << "Warning: unhandled relocation type "
+        << static_cast<int>(RelocationType) << "\n";
     return Label::createInvalid();
   }
 
@@ -1307,7 +1304,6 @@ Label BinaryFile::parseRelocation(unsigned char RelocationType,
                                             Offset);
 
   case RD::Invalid:
-  default:
     revng_abort("Invalid relocation type");
     break;
   }
@@ -1327,7 +1323,7 @@ void BinaryFile::registerRelocations(Elf_Rel_Array<T, HasAddend> Relocations,
     Symbols = Dynsym.extractAs<Elf_Sym>(Segments);
 
   for (Elf_Rel Relocation : Relocations) {
-    unsigned char Type = Relocation.getType(false);
+    auto Type = static_cast<unsigned char>(Relocation.getType(false));
     uint64_t Addend = RelocationHelper<T, HasAddend>::getAddend(Relocation);
     uint64_t Address = relocate(Relocation.r_offset);
 
@@ -1442,7 +1438,7 @@ public:
   template<typename T>
   T readNext() {
     revng_assert(Cursor + sizeof(T) <= End);
-    T Result = Endianess<T, E>::read(Cursor);
+    auto Result = static_cast<T>(Endianess<T, E>::read(Cursor));
     Cursor += sizeof(T);
     return Result;
   }

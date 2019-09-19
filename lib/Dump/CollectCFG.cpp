@@ -1,4 +1,4 @@
-/// \file collectcfg.cpp
+/// \file CollectCFG.cpp
 /// \brief Implementation of the pass to collect the CFG in a readable format.
 
 //

@@ -693,9 +693,7 @@ CallInst *JumpTargetManager::findNextExitTB(Instruction *Start) {
 
   public:
     Visitor(Function *ExitTB, JumpTargetManager *JTM) :
-      Result(nullptr),
-      ExitTB(ExitTB),
-      JTM(JTM) {}
+      Result(nullptr), ExitTB(ExitTB), JTM(JTM) {}
 
   public:
     VisitAction visit(BasicBlockRange Range) {
@@ -738,9 +736,7 @@ StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
 
   public:
     Visitor(Value *PCReg, Instruction *Skip) :
-      PCReg(PCReg),
-      Skip(Skip),
-      Result(nullptr) {}
+      PCReg(PCReg), Skip(Skip), Result(nullptr) {}
 
     VisitAction visit(instruction_range Range) {
       for (Instruction &I : Range) {

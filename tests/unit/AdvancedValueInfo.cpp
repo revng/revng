@@ -52,8 +52,7 @@ public:
 public:
   TestAdvancedValueInfoPass() : ModulePass(ID), Results(nullptr) {}
   TestAdvancedValueInfoPass(ResultsMap &Results) :
-    ModulePass(ID),
-    Results(&Results) {}
+    ModulePass(ID), Results(&Results) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();

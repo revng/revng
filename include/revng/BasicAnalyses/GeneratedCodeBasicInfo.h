@@ -161,11 +161,11 @@ public:
   bool runOnModule(llvm::Module &M) override;
 
   /// \brief Return the type of basic block, see BlockType.
-  BlockType::Values getType(llvm::BasicBlock *BB) const {
+  static BlockType::Values getType(llvm::BasicBlock *BB) {
     return getType(BB->getTerminator());
   }
 
-  BlockType::Values getType(llvm::Instruction *T) const {
+  static BlockType::Values getType(llvm::Instruction *T) {
     using namespace llvm;
 
     revng_assert(T != nullptr);

@@ -39,14 +39,10 @@ public:
 
 public:
   CPUStateAccessAnalysisPass() :
-    llvm::ModulePass(ID),
-    Lazy(false),
-    Variables(nullptr){};
+    llvm::ModulePass(ID), Lazy(false), Variables(nullptr){};
 
   CPUStateAccessAnalysisPass(VariableManager *VM, bool IsLazy = false) :
-    llvm::ModulePass(ID),
-    Lazy(IsLazy),
-    Variables(VM){};
+    llvm::ModulePass(ID), Lazy(IsLazy), Variables(VM){};
 
 public:
   virtual bool runOnModule(llvm::Module &TheModule) override;

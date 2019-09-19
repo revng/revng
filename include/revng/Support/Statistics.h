@@ -117,8 +117,7 @@ public:
   /// \arg Register whether this object should be registered for being printed
   ///      upon program termination or not.
   RunningStatistics(const llvm::Twine &Name, bool Register) :
-    Name(Name.str()),
-    N(0) {
+    Name(Name.str()), N(0) {
 
     if (Register)
       init();

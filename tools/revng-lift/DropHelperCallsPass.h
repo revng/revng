@@ -114,9 +114,7 @@ public:
   DropHelperCallsPass(llvm::Function *SyscallHelper,
                       llvm::GlobalVariable *SyscallIDCSV,
                       SummaryCallsBuilder &SCB) :
-    SCB(SCB),
-    SyscallHelper(SyscallHelper),
-    SyscallIDCSV(SyscallIDCSV) {}
+    SCB(SCB), SyscallHelper(SyscallHelper), SyscallIDCSV(SyscallIDCSV) {}
 
   llvm::PreservedAnalyses
   run(llvm::Function &F, llvm::FunctionAnalysisManager &);

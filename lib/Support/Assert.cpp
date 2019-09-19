@@ -1,4 +1,4 @@
-/// \file revng-assert.cpp
+/// \file Assert.cpp
 /// \brief Implementation of the various functions to assert and abort.
 
 // Standard includes

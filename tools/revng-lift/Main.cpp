@@ -1,4 +1,4 @@
-/// \file main.cpp
+/// \file Main.cpp
 /// \brief This file takes care of handling command-line parameters and loading
 /// the appropriate flavour of libtinycode-*.so
 

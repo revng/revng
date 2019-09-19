@@ -1,4 +1,4 @@
-/// \file intraprocedural.cpp
+/// \file Intraprocedural.cpp
 /// \brief Implementation of the intraprocedural portion of the stack analysis
 
 //

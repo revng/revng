@@ -1,4 +1,4 @@
-/// \file debughelper.cpp
+/// \file DebugHelper.cpp
 /// \brief This file handles debugging information generation.
 
 //
@@ -109,8 +109,7 @@ static void addModuleFlag(Module *TheModule, StringRef Flag, uint32_t Value) {
 using DAW = DebugAnnotationWriter;
 
 DAW::DebugAnnotationWriter(LLVMContext &Context, bool DebugInfo) :
-  Context(Context),
-  DebugInfo(DebugInfo) {
+  Context(Context), DebugInfo(DebugInfo) {
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
   DbgMDKind = Context.getMDKindID("dbg");

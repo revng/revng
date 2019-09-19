@@ -208,9 +208,7 @@ public:
   InterproceduralAnalysis(Cache &TheCache,
                           GeneratedCodeBasicInfo &GCBI,
                           bool AnalyzeABI) :
-    TheCache(TheCache),
-    GCBI(GCBI),
-    AnalyzeABI(AnalyzeABI) {}
+    TheCache(TheCache), GCBI(GCBI), AnalyzeABI(AnalyzeABI) {}
 
   void run(llvm::BasicBlock *Entry, ResultsPool &Results);
 

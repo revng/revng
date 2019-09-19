@@ -251,9 +251,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
     const Argument *Arg;
     const unsigned ArgNo;
     CallSiteInfo(const CallInst *C, const Argument *A, const unsigned N) :
-      CallSite(C),
-      Arg(A),
-      ArgNo(N) {}
+      CallSite(C), Arg(A), ArgNo(N) {}
   };
 
   Module *M = CPUStatePtr->getParent();
@@ -694,9 +692,7 @@ public:
   WorkItem() : CurrentValue(nullptr), Sources(), SourceIndex(0) {}
 
   explicit WorkItem(Instruction *I) :
-    CurrentValue(I),
-    Sources(),
-    SourceIndex(0) {
+    CurrentValue(I), Sources(), SourceIndex(0) {
     if (not isa<StoreInst>(I)) {
       for (const Use &OpUse : I->operands()) {
         Sources.push_back(&OpUse);
@@ -713,9 +709,7 @@ public:
                     const bool IsLazy,
                     const unsigned LoadMDKind,
                     const unsigned StoreMDKind) :
-    CurrentValue(A),
-    Sources(),
-    SourceIndex(0) {
+    CurrentValue(A), Sources(), SourceIndex(0) {
     const Function *F = A->getParent();
     revng_assert(not F->empty());
     revng_log(CSVAccessLog, "Function: " << F);
@@ -803,9 +797,7 @@ public:
                     const bool IsLazy,
                     const unsigned LoadMDKind,
                     const unsigned StoreMDKind) :
-    CurrentValue(C),
-    Sources(),
-    SourceIndex(0) {
+    CurrentValue(C), Sources(), SourceIndex(0) {
 
     revng_assert(not IsLazy
                  or (C->getMetadata(LoadMDKind) == nullptr

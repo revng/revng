@@ -46,10 +46,7 @@ private:
 
 public:
   ConstantRangeSetIterator(const llvm::APInt *Start, const llvm::APInt *End) :
-    NextBound(Start),
-    End(End),
-    ToLast(false),
-    Done(false) {
+    NextBound(Start), End(End), ToLast(false), Done(false) {
     if (Start != End) {
       Current = *NextBound;
       ++NextBound;

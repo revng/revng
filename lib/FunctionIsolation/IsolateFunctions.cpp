@@ -77,7 +77,7 @@ private:
 
   /// \brief Create the basic blocks that represent the catch of the invoke
   ///        instruction
-  BasicBlock *createCatchBlock(Function *Root, BasicBlock *UnexpectedPC);
+  BasicBlock *createCatchBlock(Function *Root);
 
   /// \brief Replace the call to the @function_call marker with the actual call
   ///
@@ -261,7 +261,7 @@ IFI::createInvokeReturnBlock(Function *Root, BasicBlock *UnexpectedPC) {
   return InvokeReturnBlock;
 }
 
-BasicBlock *IFI::createCatchBlock(Function *Root, BasicBlock *UnexpectedPC) {
+BasicBlock *IFI::createCatchBlock(Function *Root) {
 
   // Create a basic block that represents the catch part of the exception
   BasicBlock *CatchBB = BasicBlock::Create(Context,
@@ -923,7 +923,7 @@ void IFI::run() {
         // Handle all the eventual successors except for the one already used
         // in the default case
         for (unsigned I = 1; I < Successors.size(); I++) {
-          ConstantInt *Label = Builder.getInt8(I);
+          ConstantInt *Label = Builder.getInt8(static_cast<uint8_t>(I));
           DummySwitch->addCase(Label, Successors[I]);
         }
       }
@@ -946,8 +946,7 @@ void IFI::run() {
       class FakeCallFinder : public BackwardBFSVisitor<FakeCallFinder> {
       public:
         FakeCallFinder(const IsolatedFunctionDescriptor &Descriptor) :
-          Descriptor(Descriptor),
-          FakeCall(nullptr) {}
+          Descriptor(Descriptor), FakeCall(nullptr) {}
 
         VisitAction visit(instruction_range Range) {
           revng_assert(Range.begin() != Range.end());
@@ -1119,7 +1118,7 @@ void IFI::run() {
   // Instantiate the basic block structure that represents the catch of the
   // invoke, please remember that this is not used at the moment (exceptions
   // are handled in a customary way from the standard exit control flow path)
-  BasicBlock *CatchBB = createCatchBlock(Root, UnexpectedPC);
+  BasicBlock *CatchBB = createCatchBlock(Root);
 
   // Declaration of an ad-hoc personality function that is implemented in the
   // support.c source file

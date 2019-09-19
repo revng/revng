@@ -1,4 +1,4 @@
-/// \file incoherentcallsanalysis.cpp
+/// \file IncoherentCallsAnalysis.cpp
 /// \brief Implementation of a simple analysis to identify incoherence among the
 ///        ABI analysis of a call site and of a callee
 
@@ -43,8 +43,7 @@ private:
 
 private:
   explicit Interrupt(Reason TheReason, Element Result) :
-    TheReason(TheReason),
-    Result(std::move(Result)) {}
+    TheReason(TheReason), Result(std::move(Result)) {}
 
   explicit Interrupt(Reason TheReason) : TheReason(TheReason), Result() {}
 
@@ -113,8 +112,7 @@ private:
 
 public:
   Analysis(ABIIRBasicBlock *FunctionEntry) :
-    Base(FunctionEntry),
-    FunctionEntry(FunctionEntry) {}
+    Base(FunctionEntry), FunctionEntry(FunctionEntry) {}
 
 public:
   void assertLowerThanOrEqual(const Element &A, const Element &B) const {

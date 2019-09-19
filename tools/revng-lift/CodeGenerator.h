@@ -63,13 +63,14 @@ public:
   /// create in this phase.
   ///
   /// \param VirtualAddress the address from where the translation should start.
-  void translate(uint64_t VirtualAddress);
+  void translate(uint64_t RawVirtualAddress);
 
   /// Serialize the generated LLVM IR to the specified output path.
   void serialize();
 
 private:
   /// \brief Parse the ELF headers.
+  ///
   /// Collect useful information such as the segments' boundaries, their
   /// permissions, the address of program headers and the like.
   /// From this information it produces the .li.csv file containing information

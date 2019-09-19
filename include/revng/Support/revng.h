@@ -35,19 +35,13 @@ public:
 
 public:
   ABIRegister(llvm::StringRef Name, unsigned MContextIndex) :
-    Name(Name),
-    QemuName(Name),
-    MContextIndex(MContextIndex) {}
+    Name(Name), QemuName(Name), MContextIndex(MContextIndex) {}
 
   ABIRegister(llvm::StringRef Name) :
-    Name(Name),
-    QemuName(Name),
-    MContextIndex(NotInMContext) {}
+    Name(Name), QemuName(Name), MContextIndex(NotInMContext) {}
 
   ABIRegister(llvm::StringRef Name, llvm::StringRef QemuName) :
-    Name(Name),
-    QemuName(QemuName),
-    MContextIndex(NotInMContext) {}
+    Name(Name), QemuName(QemuName), MContextIndex(NotInMContext) {}
 
   llvm::StringRef name() const { return Name; }
 
@@ -207,8 +201,7 @@ public:
   RelocationDescription() : Type(Invalid), Offset(None) {}
   RelocationDescription(RelocationType Type) : Type(Type), Offset(None) {}
   RelocationDescription(RelocationType Type, OffsetType Offset) :
-    Type(Type),
-    Offset(Offset) {}
+    Type(Type), Offset(Offset) {}
 };
 
 /// \brief Basic information about an input/output architecture
@@ -259,6 +252,10 @@ public:
     JumpAsm(JumpAsm),
     HasRelocationAddend(HasRelocationAddend),
     RelocationTypes(RelocationTypes) {}
+  Architecture(const Architecture &) = default;
+  Architecture &operator=(Architecture &&) = default;
+  Architecture(Architecture &&) = default;
+  Architecture &operator=(const Architecture &&) = delete;
 
   uint32_t instructionAlignment() const { return InstructionAlignment; }
   uint32_t defaultAlignment() const { return DefaultAlignment; }

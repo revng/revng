@@ -1,4 +1,4 @@
-/// \file monotoneframeworkexample.cpp
+/// \file ExampleAnalysis.cpp
 /// \brief Example of minimal data-flow analysis using the MonotoneFramework
 ///        class
 

@@ -28,9 +28,7 @@ public:
   MaterializedValue() : IsValid(false), Value(0) {}
   MaterializedValue(uint64_t Value) : IsValid(true), Value(Value) {}
   MaterializedValue(llvm::StringRef Name, uint64_t Offset) :
-    IsValid(true),
-    SymbolName(Name),
-    Value(Offset) {}
+    IsValid(true), SymbolName(Name), Value(Offset) {}
 
 public:
   static MaterializedValue invalid() { return MaterializedValue(); }

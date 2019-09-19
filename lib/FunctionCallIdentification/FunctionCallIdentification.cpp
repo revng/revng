@@ -1,4 +1,4 @@
-/// \file functioncallidentification.cpp
+/// \file FunctionCallIdentification.cpp
 /// \brief Implementation of the FunctionCallIdentification pass, which
 ///        identifies function calls.
 

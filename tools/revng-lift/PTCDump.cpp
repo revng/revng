@@ -1,4 +1,4 @@
-/// \file ptcdump.cpp
+/// \file PTCDump.cpp
 /// \brief This file handles dumping PTC to text
 
 //

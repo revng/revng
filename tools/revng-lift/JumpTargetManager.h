@@ -75,8 +75,7 @@ public:
   TranslateDirectBranchesPass() : llvm::ModulePass(ID), JTM(nullptr) {}
 
   TranslateDirectBranchesPass(JumpTargetManager *JTM) :
-    ModulePass(ID),
-    JTM(JTM) {}
+    ModulePass(ID), JTM(JTM) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
@@ -168,8 +167,7 @@ public:
     JumpTarget() : BB(nullptr), Reasons(0) {}
     JumpTarget(llvm::BasicBlock *BB) : BB(BB), Reasons(0) {}
     JumpTarget(llvm::BasicBlock *BB, JTReason::Values Reason) :
-      BB(BB),
-      Reasons(static_cast<uint32_t>(Reason)) {}
+      BB(BB), Reasons(static_cast<uint32_t>(Reason)) {}
 
     llvm::BasicBlock *head() const { return BB; }
     bool hasReason(JTReason::Values Reason) const {
@@ -483,17 +481,6 @@ public:
   /// \brief Return the next call to exitTB after I, or nullptr if it can't find
   ///        one
   llvm::CallInst *findNextExitTB(llvm::Instruction *I);
-
-  // TODO: can we drop this in favor of GeneratedCodeBasicInfo::isJump?
-  bool isJump(llvm::Instruction *T) const {
-    for (llvm::BasicBlock *Successor : successors(T)) {
-      if (!(Successor == Dispatcher || Successor == DispatcherFail
-            || isJumpTarget(getBasicBlockPC(Successor))))
-        return false;
-    }
-
-    return true;
-  }
 
   void registerReadRange(uint64_t Address, uint64_t Size);
 

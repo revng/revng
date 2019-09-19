@@ -432,8 +432,7 @@ public:
   Pointer() {}
 
   Pointer(bool IsIndirect, uint64_t Value) :
-    IsIndirect(IsIndirect),
-    Value(Value) {}
+    IsIndirect(IsIndirect), Value(Value) {}
 
   bool isIndirect() const { return IsIndirect; }
   uint64_t value() const { return Value; }
@@ -460,6 +459,11 @@ public:
   ///        be employed or not. This is useful to precisely identify exeutable
   ///        code.
   BinaryFile(std::string FilePath, uint64_t BaseAddress);
+
+  BinaryFile(const BinaryFile &) = delete;
+  BinaryFile &operator=(BinaryFile &&) = default;
+  BinaryFile(BinaryFile &&) = default;
+  BinaryFile &operator=(const BinaryFile &) = delete;
 
   llvm::Optional<llvm::ArrayRef<uint8_t>>
   getAddressData(uint64_t Address) const {
