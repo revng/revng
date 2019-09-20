@@ -979,8 +979,15 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
   SubGraph<BasicBlock *> TranslatedBBs(Start, Visited);
   for (auto *Node : post_order(TranslatedBBs)) {
     BasicBlock *BB = Node->get();
-    while (!BB->empty())
-      eraseInstruction(&*(--BB->end()));
+    while (!BB->empty()) {
+      Instruction *I = &*(--BB->end());
+
+      if (CallInst *Call = getCallTo(I, "newpc")) {
+        auto *Address = Call->getArgOperand(0);
+        OriginalInstructionAddresses.erase(getLimitedValue(Address));
+      }
+      eraseInstruction(I);
+    }
   }
 
   // Remove Start, since we want to keep it (even if empty)
