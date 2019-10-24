@@ -67,7 +67,7 @@ public:
   ///
   /// To call this method using the stream syntax, see LogTerminator, or simply
   /// MyLogger << DoLog;
-  void emit(const LogTerminator &Asd = LogTerminator{ "", 0 });
+  void flush(const LogTerminator& LineInfo = LogTerminator{ "", 0 });
 
   template<typename T>
   inline Logger &operator<<(const T Other) {
@@ -110,7 +110,7 @@ template<bool StaticEnabled = true>
 class LogOnReturn {
 public:
   LogOnReturn(Logger<StaticEnabled> &L) : L(L) {}
-  ~LogOnReturn() { L.emit(); }
+  ~LogOnReturn() { L.flush(); }
 
 private:
   Logger<StaticEnabled> &L;
@@ -140,7 +140,7 @@ inline void writeToLog(Logger<X> &This, const T Other, LowPrio) {
 /// \brief Specialization of writeToLog to emit a message
 template<bool X>
 inline void writeToLog(Logger<X> &This, const LogTerminator &LineInfo, int) {
-  This.emit(LineInfo);
+  This.flush(LineInfo);
 }
 
 /// \brief Specialization for llvm::StringRef

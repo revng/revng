@@ -39,7 +39,7 @@ Logger<> PassesLog("passes");
 Logger<> ReleaseLog("release");
 
 template<bool X>
-void Logger<X>::emit(const LogTerminator &LineInfo) {
+void Logger<X>::flush(const LogTerminator &LineInfo) {
   if (X && Enabled) {
     std::string Pad;
 
