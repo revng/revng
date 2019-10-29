@@ -28,10 +28,9 @@
 using namespace llvm;
 
 char RemoveUnexpectedPC::ID = 0;
-static RegisterPass<RemoveUnexpectedPC> X("remove-unexpected-pc",
-                                          "Remove unexpectedpc from switches",
-                                          false,
-                                          false);
+using Register = RegisterPass<RemoveUnexpectedPC>;
+static Register
+  X("remove-unexpected-pc", "Remove unexpectedpc from switches", false, false);
 
 bool RemoveUnexpectedPC::runOnFunction(Function &F) {
   if (!F.getName().startswith("bb.")) {

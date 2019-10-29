@@ -974,19 +974,19 @@ bool RestructureCFG::runOnFunction(Function &F) {
         } else {
           for (BasicBlockNodeBB *Successor : Node->successors()) {
             revng_assert(!Backedges.count(EdgeDescriptor(Node, Successor)));
+            using ED = EdgeDescriptor;
             if (Meta->containsNode(Successor)) {
               // Handle edges pointing inside the SCS.
               if (Successor == Head) {
                 // Retreating edges should point to the new head.
-                addEdge(EdgeDescriptor(ClonedMap.at(Node), Head));
+                addEdge(ED(ClonedMap.at(Node), Head));
               } else {
                 // Other edges should be restored between cloned nodes.
-                addEdge(EdgeDescriptor(ClonedMap.at(Node),
-                                       ClonedMap.at(Successor)));
+                addEdge(ED(ClonedMap.at(Node), ClonedMap.at(Successor)));
               }
             } else {
               // Edges exiting from the SCS should go to the right target.
-              addEdge(EdgeDescriptor(ClonedMap.at(Node), Successor));
+              addEdge(ED(ClonedMap.at(Node), Successor));
             }
           }
         }

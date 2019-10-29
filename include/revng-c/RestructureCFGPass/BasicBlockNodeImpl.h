@@ -40,8 +40,7 @@ inline BasicBlockNode<NodeT>::BasicBlockNode(RegionCFGT *Parent,
   NodeType(T),
   Name(Name),
   StateVariableValue(Value),
-  OriginalNode(OriginalNode) {
-}
+  OriginalNode(OriginalNode) {}
 
 template<class NodeT>
 inline void BasicBlockNode<NodeT>::removeNode() {

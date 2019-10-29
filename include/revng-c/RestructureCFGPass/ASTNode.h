@@ -319,11 +319,14 @@ public:
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
-  ASTNode *Clone() { return reinterpret_cast<ASTNode *>(new SequenceNode(*this)); }
+  ASTNode *Clone() {
+    return reinterpret_cast<ASTNode *>(new SequenceNode(*this));
+  }
 };
 
 class ContinueNode : public ASTNode {
   friend class ASTNode;
+
 private:
   IfNode *ComputationIf = nullptr;
   bool IsImplicit = false;
@@ -450,6 +453,7 @@ public:
 // concept of values for which those cases are activated.
 class SwitchNode : public ASTNode {
   friend class ASTNode;
+
 protected:
   static const constexpr int SwitchNumCases = 16;
 
@@ -587,6 +591,7 @@ protected:
 
 class SwitchCheckNode : public SwitchNode {
   friend class ASTNode;
+
 public:
   using case_value = uint64_t;
   using case_value_container = llvm::SmallVector<case_value, SwitchNumCases>;
@@ -717,7 +722,6 @@ inline void ASTNode::dump(std::ofstream &ASTFile) {
     return llvm::cast<SetNode>(this)->dump(ASTFile);
   }
 }
-
 
 inline bool ASTNode::isEqual(const ASTNode *Node) {
   switch (getKind()) {

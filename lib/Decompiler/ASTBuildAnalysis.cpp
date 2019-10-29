@@ -1177,11 +1177,10 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
       case BuiltinType::UChar:
       case BuiltinType::SChar: {
         using CharKind = CharacterLiteral::CharacterKind;
-        return new (ASTCtx)
-          CharacterLiteral(static_cast<unsigned>(ConstValue),
-                           CharKind::Ascii,
-                           ASTCtx.CharTy,
-                           {});
+        return new (ASTCtx) CharacterLiteral(static_cast<unsigned>(ConstValue),
+                                             CharKind::Ascii,
+                                             ASTCtx.CharTy,
+                                             {});
       }
       case BuiltinType::UShort: {
         QualType IntT = ASTCtx.UnsignedIntTy;

@@ -180,32 +180,33 @@ public:
                                        BasicBlockNodeT *True,
                                        BasicBlockNodeT *False) {
     using Type = typename BasicBlockNodeT::Type;
-    using BBNode = BasicBlockNodeT;
+    using BBNodeT = BasicBlockNodeT;
     std::string IdStr = std::to_string(StateVariableValue);
     // TODO: explicit in the check node the original destination nodes.
     std::string Name = "check idx " + IdStr;
-    BlockNodes.emplace_back(std::make_unique<BBNode>(this,
-                                                     Name,
-                                                     Type::Check,
-                                                     StateVariableValue));
-    BBNode *Dispatcher = BlockNodes.back().get();
+    auto Tmp = std::make_unique<BBNodeT>(this,
+                                         Name,
+                                         Type::Check,
+                                         StateVariableValue);
+    BlockNodes.emplace_back(std::move(Tmp));
+    BBNodeT *Dispatcher = BlockNodes.back().get();
     Dispatcher->setTrue(True);
     Dispatcher->setFalse(False);
     return Dispatcher;
   }
 
-  BasicBlockNode<NodeT> *
-  addSetStateNode(unsigned long StateVariableValue,
-                  llvm::StringRef TargetName) {
+  BasicBlockNode<NodeT> *addSetStateNode(unsigned long StateVariableValue,
+                                         llvm::StringRef TargetName) {
     using Type = typename BasicBlockNodeT::Type;
-    using BBNode = BasicBlockNodeT;
+    using BBNodeT = BasicBlockNodeT;
     std::string IdStr = std::to_string(StateVariableValue);
     std::string Name = "set idx " + IdStr + " (desired target) "
                        + TargetName.str();
-    BlockNodes.emplace_back(std::make_unique<BBNode>(this,
-                                                     Name,
-                                                     Type::Set,
-                                                     StateVariableValue));
+    auto Tmp = std::make_unique<BBNodeT>(this,
+                                         Name,
+                                         Type::Set,
+                                         StateVariableValue);
+    BlockNodes.emplace_back(std::move(Tmp));
     return BlockNodes.back().get();
   }
 
