@@ -38,10 +38,10 @@ public:
   using links_range = llvm::iterator_range<links_iterator>;
   using links_const_range = llvm::iterator_range<links_const_iterator>;
 
-  inline links_iterator begin() { return Nodes.begin(); };
-  inline links_const_iterator cbegin() const { return Nodes.cbegin(); };
-  inline links_iterator end() { return Nodes.end(); };
-  inline links_const_iterator cend() const { return Nodes.cend(); };
+  inline links_iterator begin() { return Nodes.begin(); }
+  inline links_const_iterator cbegin() const { return Nodes.cbegin(); }
+  inline links_iterator end() { return Nodes.end(); }
+  inline links_const_iterator cend() const { return Nodes.cend(); }
 
   using BasicBlockNodeRPOT = llvm::ReversePostOrderTraversal<BasicBlockNodeT *>;
 

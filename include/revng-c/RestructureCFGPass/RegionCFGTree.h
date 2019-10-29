@@ -11,6 +11,7 @@
 
 // LLVM includes
 #include "llvm/IR/Dominators.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 
 // revng libraries includes
@@ -194,7 +195,8 @@ public:
   }
 
   BasicBlockNode<NodeT> *
-  addSetStateNode(unsigned StateVariableValue, llvm::StringRef TargetName) {
+  addSetStateNode(unsigned long StateVariableValue,
+                  llvm::StringRef TargetName) {
     using Type = typename BasicBlockNodeT::Type;
     using BBNode = BasicBlockNodeT;
     std::string IdStr = std::to_string(StateVariableValue);
@@ -239,13 +241,13 @@ public:
   template<typename StreamT>
   void dumpDot(StreamT &) const;
 
-  /// \brief Dump a GraphViz file on a file representing this function
-  void dumpDotOnFile(std::string FolderName,
-                     std::string FunctionName,
-                     std::string FileName) const;
-
   /// \brief Dump a GraphViz file on a file using an absolute path
-  void dumpDotOnFile(std::string FileName) const;
+  void dumpDotOnFile(const std::string &FileName) const;
+
+  /// \brief Dump a GraphViz file on a file representing this function
+  void dumpDotOnFile(const std::string &FolderName,
+                     const std::string &FunctionName,
+                     const std::string &FileName) const;
 
   std::vector<BasicBlockNode<NodeT> *> purgeDummies();
 

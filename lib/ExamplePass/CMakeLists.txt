@@ -1,2 +1,0 @@
-revng_add_analyses_library(revngcExamplePass revngc Pass.cpp)
-target_link_libraries(revngcExamplePass revng::revngSupport)

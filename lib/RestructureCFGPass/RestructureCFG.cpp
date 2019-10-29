@@ -46,8 +46,9 @@ Logger<> CombLogger("restructure");
 using BasicBlockNodeBB = BasicBlockNode<BasicBlock *>;
 using EdgeDescriptor = std::pair<BasicBlockNodeBB *, BasicBlockNodeBB *>;
 
-// Explicit instantation of template classes `Metaregion`.
+// Explicit instantation of template classes `Metaregion` and `RegionCFG`.
 template class MetaRegion<BasicBlock *>;
+template class RegionCFG<BasicBlock *>;
 using MetaRegionBB = MetaRegion<BasicBlock *>;
 using MetaRegionBBVect = std::vector<MetaRegionBB>;
 using MetaRegionBBPtrVect = std::vector<MetaRegionBB *>;
@@ -411,6 +412,10 @@ static opt<std::string> OutputPath("restructure-metrics-output-dir",
                                    cat(MainCategory));
 unsigned DuplicationCounter = 0;
 
+ASTTree &RestructureCFG::getAST() {
+  return RootCFG.getAST();
+}
+
 bool RestructureCFG::runOnFunction(Function &F) {
 
   DuplicationCounter = 0;
@@ -638,10 +643,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
     CombLogger << "Reverse post order end\n";
   }
 
-  CombLogger << "Debugged function"
-             << "\n";
-  CombLogger << F.getName().equals("bb._start_c") << "\n";
-
   DominatorTreeBase<BasicBlockNodeBB, false> DT;
   DT.recalculate(RootCFG);
 
@@ -793,7 +794,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     BasicBlockNodeBB *Head;
     if (NewHeadNeeded) {
       revng_assert(RetreatingTargets.size() > 1);
-      std::map<BasicBlockNodeBB *, int> RetreatingIdxMap;
+      std::map<BasicBlockNodeBB *, unsigned> RetreatingIdxMap;
 
       BasicBlockNodeBB *const False = *RetreatingTargets.begin();
       RetreatingIdxMap[False] = 0;
@@ -1028,7 +1029,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
           SetCandidates.insert(Pred);
         }
       }
-      unsigned Value = RetreatingTargets.size() - 1;
+      unsigned long Value = RetreatingTargets.size() - 1;
       for (BasicBlockNodeBB *Pred : SetCandidates) {
         BasicBlockNodeBB *Set = RootCFG.addSetStateNode(Value, Head->getName());
         DefaultEntrySet.push_back(Set);
@@ -1062,7 +1063,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // Exit dispatcher creation.
     // TODO: Factorize this out together with the head dispatcher creation.
     bool NewExitNeeded = false;
-    BasicBlockNodeBB *Exit;
+    BasicBlockNodeBB *Exit = nullptr;
     std::vector<BasicBlockNodeBB *> ExitDispatcherNodes;
     if (Successors.size() > 1) {
       NewExitNeeded = true;
@@ -1073,7 +1074,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     if (NewExitNeeded) {
       revng_assert(Successors.size() > 1);
-      std::map<BasicBlockNodeBB *, int> SuccessorsIdxMap;
+      std::map<BasicBlockNodeBB *, unsigned> SuccessorsIdxMap;
 
       BasicBlockNodeBB *const False = *Successors.begin();
       SuccessorsIdxMap[False] = 0;

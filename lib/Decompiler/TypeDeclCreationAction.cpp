@@ -55,27 +55,7 @@ public:
     TypeDecls(TDecls),
     FieldDecls(FieldDecls) {}
 
-  virtual void HandleTranslationUnit(ASTContext &C) override {
-    llvm::Module &M = *TheF.getParent();
-    TranslationUnitDecl *TUDecl = C.getTranslationUnitDecl();
-
-    std::set<Function *> Called = getDirectlyCalledFunctions(TheF);
-    // we need TheF to properly declare its return type if needed
-    Called.insert(&TheF);
-    // we need abort for decompiling UnreachableInst
-    Called.insert(M.getFunction("abort"));
-    for (Function *F : Called) {
-      const llvm::StringRef FName = F->getName();
-      revng_assert(not FName.empty());
-      std::vector<TypePair> NewTypeDecls = createTypeDecls(C,
-                                                           TUDecl,
-                                                           TypeDecls,
-                                                           FieldDecls,
-                                                           F);
-      for (TypePair &TD : NewTypeDecls)
-        TypeDecls.insert(TD);
-    }
-  }
+virtual void HandleTranslationUnit(ASTContext &C) override;
 
 private:
   llvm::Function &TheF;
@@ -83,8 +63,35 @@ private:
   FieldDeclMap &FieldDecls;
 };
 
+void TypeDeclCreator::HandleTranslationUnit(ASTContext &C) {
+  llvm::Module &M = *TheF.getParent();
+  TranslationUnitDecl *TUDecl = C.getTranslationUnitDecl();
+
+  std::set<Function *> Called = getDirectlyCalledFunctions(TheF);
+  // we need TheF to properly declare its return type if needed
+  Called.insert(&TheF);
+  // we need abort for decompiling UnreachableInst
+  Called.insert(M.getFunction("abort"));
+  for (Function *F : Called) {
+    const llvm::StringRef FName = F->getName();
+    revng_assert(not FName.empty());
+    std::vector<TypePair> NewTypeDecls = createTypeDecls(C,
+                                                         TUDecl,
+                                                         TypeDecls,
+                                                         FieldDecls,
+                                                         F);
+    for (TypePair &TD : NewTypeDecls)
+      TypeDecls.insert(TD);
+  }
+}
+
 std::unique_ptr<ASTConsumer> TypeDeclCreationAction::newASTConsumer() {
   return std::make_unique<TypeDeclCreator>(F, TypeDecls, FieldDecls);
+}
+
+std::unique_ptr<ASTConsumer>
+TypeDeclCreationAction::CreateASTConsumer(CompilerInstance &, llvm::StringRef) {
+  return newASTConsumer();
 }
 
 } // end namespace tooling

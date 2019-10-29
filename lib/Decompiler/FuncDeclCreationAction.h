@@ -43,9 +43,7 @@ public:
   std::unique_ptr<ASTConsumer> newASTConsumer();
 
   virtual std::unique_ptr<ASTConsumer>
-  CreateASTConsumer(CompilerInstance &, llvm::StringRef) override {
-    return newASTConsumer();
-  }
+  CreateASTConsumer(CompilerInstance &, llvm::StringRef) override;
 
 private:
   llvm::Function &F;

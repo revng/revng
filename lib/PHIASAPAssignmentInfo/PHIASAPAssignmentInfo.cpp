@@ -124,7 +124,7 @@ static void computePHIVarAssignments(PHINode *ThePHI,
   IncomingCandidatesVec &IncomingCandidates = CandidatesInfo.IncomingCandidates;
   BlockToIncomingMap &BlocksToIncoming = CandidatesInfo.BlocksToIncoming;
 
-  unsigned NPred = IncomingCandidates.size();
+ IncomingCandidatesVec::size_type NPred = IncomingCandidates.size();
 
   // Compute maximum number of valid candidates across all the incomings.
   // Its value is also used later to disable further processing whenever an

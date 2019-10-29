@@ -65,7 +65,7 @@ public:
     Base::registerExtremal(&F.getEntryBlock());
   }
 
-  void dumpFinalState() const { revng_abort(); }
+  [[noreturn]] void dumpFinalState() const { revng_abort(); }
 
   llvm::SmallVector<llvm::BasicBlock *, 2>
   successors(llvm::BasicBlock *BB, InterruptType &) const {
@@ -83,7 +83,7 @@ public:
   }
 
   size_t successor_size(llvm::BasicBlock *BB, InterruptType &) const {
-    return succ_end(BB) - succ_begin(BB);
+    return succ_size(BB);
   }
 
   static LatticeElement extremalValue(llvm::BasicBlock *) {

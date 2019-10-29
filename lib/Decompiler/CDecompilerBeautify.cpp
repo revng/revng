@@ -24,7 +24,7 @@
 #include "CDecompilerBeautify.h"
 #include "MarkForSerialization.h"
 
-Logger<> BeautifyLogger("beautify");
+static Logger<> BeautifyLogger("beautify");
 
 using namespace llvm;
 using std::make_unique;
@@ -503,7 +503,8 @@ static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
 static ASTNode *getLastOfSequenceOrSelf(ASTNode *RootNode) {
   ASTNode *LastNode = nullptr;
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
-    int SequenceSize = Sequence->listSize();
+    using SeqSizeType = SequenceNode::links_container::size_type;
+    SeqSizeType SequenceSize = Sequence->listSize();
     LastNode = Sequence->getNodeN(SequenceSize - 1);
   } else {
     LastNode = RootNode;
@@ -632,9 +633,10 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
     // ASTNode *LastNode = getLastOfSequenceOrSelf(Scs->getBody());
     ASTNode *LastNode = nullptr;
     bool InsideSequence = false;
-    if (auto *Sequence = llvm::dyn_cast<SequenceNode>(Body)) {
-      int SequenceSize = Sequence->listSize();
-      LastNode = Sequence->getNodeN(SequenceSize - 1);
+    if (auto *Seq = llvm::dyn_cast<SequenceNode>(Body)) {
+      using SeqSizeType = SequenceNode::links_container::size_type;
+      SeqSizeType SequenceSize = Seq->listSize();
+      LastNode = Seq->getNodeN(SequenceSize - 1);
       InsideSequence = true;
     } else {
       LastNode = Body;
@@ -642,34 +644,34 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
 
     revng_assert(LastNode != nullptr);
 
-    if (auto *If = llvm::dyn_cast<IfNode>(LastNode)) {
+    if (auto *NestedIf = llvm::dyn_cast<IfNode>(LastNode)) {
 
       // Only if nodes with both branches are candidates.
-      if (If->hasBothBranches()) {
-        ASTNode *Then = If->getThen();
-        ASTNode *Else = If->getElse();
+      if (NestedIf->hasBothBranches()) {
+        ASTNode *Then = NestedIf->getThen();
+        ASTNode *Else = NestedIf->getElse();
 
         if (llvm::isa<BreakNode>(Then) and llvm::isa<ContinueNode>(Else)) {
 
-          Scs->setDoWhile(If);
+          Scs->setDoWhile(NestedIf);
           // Invert the conditional expression of the current `IfNode`.
-          auto Not = std::make_unique<NotNode>(If->getCondExpr());
+          auto Not = std::make_unique<NotNode>(NestedIf->getCondExpr());
           ExprNode *NotNode = AST.addCondExpr(std::move(Not));
-          If->replaceCondExpr(NotNode);
+          NestedIf->replaceCondExpr(NotNode);
 
           // Remove the if node
           if (InsideSequence) {
-            cast<SequenceNode>(Body)->removeNode(If);
+            cast<SequenceNode>(Body)->removeNode(NestedIf);
           } else {
             Scs->setBody(nullptr);
           }
         } else if (llvm::isa<BreakNode>(Else)
                    and llvm::isa<ContinueNode>(Then)) {
-          Scs->setDoWhile(If);
+          Scs->setDoWhile(NestedIf);
 
           // Remove the if node
           if (InsideSequence) {
-            cast<SequenceNode>(Body)->removeNode(If);
+            cast<SequenceNode>(Body)->removeNode(NestedIf);
           } else {
             Scs->setBody(nullptr);
           }
@@ -750,41 +752,41 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
 
     revng_assert(FirstNode != nullptr);
 
-    if (auto *If = llvm::dyn_cast<IfNode>(FirstNode)) {
+    if (auto *NestedIf = llvm::dyn_cast<IfNode>(FirstNode)) {
 
       // Only if nodes with both branches are candidates.
-      if (If->hasBothBranches()) {
-        ASTNode *Then = If->getThen();
-        ASTNode *Else = If->getElse();
+      if (NestedIf->hasBothBranches()) {
+        ASTNode *Then = NestedIf->getThen();
+        ASTNode *Else = NestedIf->getElse();
 
         if (llvm::isa<BreakNode>(Then)) {
 
-          Scs->setWhile(If);
+          Scs->setWhile(NestedIf);
           // Invert the conditional expression of the current `IfNode`.
-          auto Not = std::make_unique<NotNode>(If->getCondExpr());
+          auto Not = std::make_unique<NotNode>(NestedIf->getCondExpr());
           ExprNode *NotNode = AST.addCondExpr(std::move(Not));
-          If->replaceCondExpr(NotNode);
+          NestedIf->replaceCondExpr(NotNode);
 
           // Remove the if node
           if (InsideSequence) {
-            cast<SequenceNode>(Body)->removeNode(If);
+            cast<SequenceNode>(Body)->removeNode(NestedIf);
           } else {
-            Scs->setBody(If->getElse());
+            Scs->setBody(NestedIf->getElse());
 
             // Add computation before the continue nodes
-            addComputationToContinue(Scs->getBody(), If);
+            addComputationToContinue(Scs->getBody(), NestedIf);
           }
         } else if (llvm::isa<BreakNode>(Else)) {
-          Scs->setWhile(If);
+          Scs->setWhile(NestedIf);
 
           // Remove the if node
           if (InsideSequence) {
-            cast<SequenceNode>(Body)->removeNode(If);
+            cast<SequenceNode>(Body)->removeNode(NestedIf);
           } else {
-            Scs->setBody(If->getThen());
+            Scs->setBody(NestedIf->getThen());
 
             // Add computation before the continue nodes
-            addComputationToContinue(Scs->getBody(), If);
+            addComputationToContinue(Scs->getBody(), NestedIf);
           }
         }
       }
@@ -866,14 +868,14 @@ protected:
       // assert that we're either not in a loop, or, if we're in a loop we're
       // also inside a switch which is nested in the loop
       revng_assert(LoopStack.empty() or not LoopStack.back().second.empty());
-      // fallthrough
+      [[clang::fallthrough]];
     case ASTNode::NK_Set:
     case ASTNode::NK_Code:
     case ASTNode::NK_Continue:
       break; // do nothing
     case ASTNode::NK_IfCheck:
       BeautifyLogger << "Unexpected: IfCheck\n";
-      // fallthrough
+      [[clang::fallthrough]];
     default:
       revng_unreachable("unexpected node kind");
     }

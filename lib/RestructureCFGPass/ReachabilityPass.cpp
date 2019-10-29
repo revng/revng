@@ -37,9 +37,9 @@ bool ReachabilityPass::runOnFunction(Function &F) {
   // Clean class members.
   ReachableBlocks.clear();
 
-  std::map<BasicBlock *, int> BBToIndex;
-  std::map<int, BasicBlock *> IndexToBB;
-  int Index = 0;
+  std::map<BasicBlock *, unsigned> BBToIndex;
+  std::map<unsigned, BasicBlock *> IndexToBB;
+  unsigned Index = 0;
 
   // Initialize a mapping between basic blocks and their index.
   for (BasicBlock &BB : F) {
@@ -49,13 +49,14 @@ bool ReachabilityPass::runOnFunction(Function &F) {
   }
 
   // Maximum index of the basic blocks.
-  int Dimension = Index;
-  int MaxIndex = Index - 1;
+  unsigned Dimension = Index;
+  unsigned MaxIndex = Index - 1;
 
   // Create and initialize the incidence matrix.
-  bool Matrix[Dimension][Dimension];
-  for (int i = 0; i <= MaxIndex; i++) {
-    for (int j = 0; j <= MaxIndex; j++) {
+  using Bool2DMatrix = std::vector<std::vector<bool>>;
+  Bool2DMatrix Matrix(Dimension, std::vector<bool>(Dimension, false));
+  for (unsigned i = 0; i <= MaxIndex; i++) {
+    for (unsigned j = 0; j <= MaxIndex; j++) {
       if (i == j) {
         Matrix[i][j] = 1;
       } else {
@@ -66,10 +67,10 @@ bool ReachabilityPass::runOnFunction(Function &F) {
 
   // Fill the incidence matrix with the connections at single step.
   for (BasicBlock &BB : F) {
-    int BBIndex = BBToIndex[&BB];
+    unsigned BBIndex = BBToIndex[&BB];
     TerminatorInst *Terminator = BB.getTerminator();
     for (BasicBlock *Successor : Terminator->successors()) {
-      int SuccessorIndex = BBToIndex[Successor];
+      unsigned SuccessorIndex = BBToIndex[Successor];
       Matrix[BBIndex][SuccessorIndex] = 1;
     }
   }
@@ -80,8 +81,8 @@ bool ReachabilityPass::runOnFunction(Function &F) {
   }
 
   dbg << "Matrix is:\n";
-  for (int i = 0; i <= MaxIndex; i++) {
-    for (int j = 0; j <= MaxIndex; j++) {
+  for (unsigned i = 0; i <= MaxIndex; i++) {
+    for (unsigned j = 0; j <= MaxIndex; j++) {
       dbg << Matrix[i][j] << " ";
     }
     dbg << "\n";
@@ -91,29 +92,28 @@ bool ReachabilityPass::runOnFunction(Function &F) {
   while (Change) {
     Change = false;
 
-    bool MatrixClosure[Dimension][Dimension];
-    for (int i = 0; i <= MaxIndex; i++) {
-      for (int j = 0; j <= MaxIndex; j++) {
+  Bool2DMatrix MatrixClosure(Dimension, std::vector<bool>(Dimension, false));
+    for (unsigned i = 0; i <= MaxIndex; i++) {
+      for (unsigned j = 0; j <= MaxIndex; j++) {
         bool Value = 0;
-        for (int k = 0; k <= MaxIndex; k++) {
-          Value = Value or (Matrix[i][k] and Matrix[k][j]);
+        for (unsigned k = 0; k <= MaxIndex; k++) {
         }
         MatrixClosure[i][j] = Value;
       }
     }
 
     dbg << "Matrix closure is:\n";
-    for (int i = 0; i <= MaxIndex; i++) {
-      for (int j = 0; j <= MaxIndex; j++) {
+    for (unsigned i = 0; i <= MaxIndex; i++) {
+      for (unsigned j = 0; j <= MaxIndex; j++) {
         dbg << MatrixClosure[i][j] << " ";
       }
       dbg << "\n";
     }
 
-    for (int i = 0; i <= MaxIndex; i++) {
-      for (int j = 0; j <= MaxIndex; j++) {
+    for (unsigned i = 0; i <= MaxIndex; i++) {
+      for (unsigned j = 0; j <= MaxIndex; j++) {
         bool OldValue = Matrix[i][j];
-        Matrix[i][j] |= MatrixClosure[i][j];
+        Matrix[i][j] = Matrix[i][j] or MatrixClosure[i][j];
         bool NewValue = Matrix[i][j];
         if (OldValue != NewValue) {
           Change = true;
@@ -122,8 +122,8 @@ bool ReachabilityPass::runOnFunction(Function &F) {
     }
 
     dbg << "Matrix sum is:\n";
-    for (int i = 0; i <= MaxIndex; i++) {
-      for (int j = 0; j <= MaxIndex; j++) {
+    for (unsigned i = 0; i <= MaxIndex; i++) {
+      for (unsigned j = 0; j <= MaxIndex; j++) {
         dbg << Matrix[i][j] << " ";
       }
       dbg << "\n";
@@ -131,8 +131,8 @@ bool ReachabilityPass::runOnFunction(Function &F) {
   }
 
   // Fill the final data structure.
-  for (int i = 0; i <= MaxIndex; i++) {
-    for (int j = 0; j <= MaxIndex; j++) {
+  for (unsigned i = 0; i <= MaxIndex; i++) {
+    for (unsigned j = 0; j <= MaxIndex; j++) {
       BasicBlock *SourceBB = IndexToBB[i];
       BasicBlock *TargetBB = IndexToBB[j];
       if (Matrix[i][j]) {

@@ -40,7 +40,7 @@ public:
     AU.setPreservesAll();
   }
 
-  ASTTree &getAST() { return RootCFG.getAST(); }
+  ASTTree &getAST();
 
   RegionCFGBB &getRCT() { return RootCFG; }
 

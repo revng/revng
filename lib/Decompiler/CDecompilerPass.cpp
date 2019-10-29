@@ -114,9 +114,9 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   cl::getRegisteredOptions().clear();
 
   // Remove calls to newpc
-  for (Function &F : *F.getParent()) {
-    for (BasicBlock &BB : F) {
-      if (!F.getName().startswith("bb."))
+  for (Function &ParentF : *F.getParent()) {
+    for (BasicBlock &BB :ParentF) {
+      if (!ParentF.getName().startswith("bb."))
         continue;
 
       std::vector<Instruction *> ToErase;

@@ -96,13 +96,14 @@ ASTNode *ASTTree::getRoot() const {
 
 ASTNode *
 ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
-  size_t NumCurrNodes = size();
   ASTNodeMap ASTSubstitutionMap{};
   ExprNodeMap CondExprMap{};
 
   // Clone each ASTNode in the current AST.
+  links_container::difference_type NewNodes = 0;
   for (std::unique_ptr<ASTNode> &Old : OldAST.nodes()) {
     ASTNodeList.emplace_back(std::move(Old->Clone()));
+    ++NewNodes;
 
     // Set the Node ID
     ASTNodeList.back()->setID(getNewID());
@@ -125,8 +126,8 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
   // Update the AST and BBNode pointers inside the newly created AST nodes,
   // to reflect the changes made. Update also the pointer to the conditional
   // expressions just cloned.
-  links_container::iterator BeginInserted = ASTNodeList.begin() + NumCurrNodes;
-  links_container::iterator EndInserted = ASTNodeList.end();
+  links_iterator BeginInserted = ASTNodeList.end() - NewNodes;
+  links_iterator EndInserted = ASTNodeList.end();
   using MovedIteratorRange = llvm::iterator_range<links_container::iterator>;
   MovedIteratorRange Result = llvm::make_range(BeginInserted, EndInserted);
   for (std::unique_ptr<ASTNode> &NewNode : Result) {

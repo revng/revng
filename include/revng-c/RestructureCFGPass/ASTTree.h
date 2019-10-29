@@ -35,15 +35,15 @@ public:
   using BasicBlockNodeBB = ASTNode::BasicBlockNodeBB;
   using BBNodeMap = ASTNode::BBNodeMap;
 
-  links_iterator begin() { return links_iterator(ASTNodeList.begin()); };
-  links_iterator end() { return links_iterator(ASTNodeList.end()); };
+  links_iterator begin() { return links_iterator(ASTNodeList.begin()); }
+  links_iterator end() { return links_iterator(ASTNodeList.end()); }
 
   links_iterator_expr beginExpr() {
     return links_iterator_expr(CondExprList.begin());
-  };
+  }
   links_iterator_expr endExpr() {
     return links_iterator_expr(CondExprList.end());
-  };
+  }
 
 private:
   links_container ASTNodeList;
@@ -69,7 +69,7 @@ public:
     return llvm::make_range(beginExpr(), endExpr());
   }
 
-  size_t size() const;
+  links_container::size_type size() const;
 
   void addASTNode(BasicBlockNodeBB *Node, std::unique_ptr<ASTNode> &&ASTObject);
 

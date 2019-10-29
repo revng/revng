@@ -1,4 +1,3 @@
-add_subdirectory(ExamplePass)
 add_subdirectory(Decompiler)
 add_subdirectory(Liveness)
 add_subdirectory(PHIASAPAssignmentInfo)

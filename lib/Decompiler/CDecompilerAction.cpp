@@ -201,7 +201,7 @@ static clang::Expr *createCondExpr(ExprNode *E,
     } break;
     case ExprNode::NodeKind::NK_And:
     case ExprNode::NodeKind::NK_Or: {
-      unsigned NumOperands = Current.ResolvedOperands.size();
+      size_t NumOperands = Current.ResolvedOperands.size();
       revng_assert(NumOperands <= 2);
       using ExprPair = std::pair<ExprNode *, ExprNode *>;
       BinaryNode *Binary = cast<BinaryNode>(Current.Node);
@@ -268,7 +268,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                                                    FPOptions());
       Stmts.push_back(AssignStmt);
     }
-  } // fallthrough
+  };
+  [[clang::fallthrough]];
   case ASTNode::NodeKind::NK_SwitchBreak:
     Stmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
     break;
@@ -395,7 +396,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                              ASTBuilder,
                                              Mark);
       QualType UInt = ASTCtx.UnsignedIntTy;
-      uint64_t UIntSize = ASTCtx.getTypeSize(UInt);
+      unsigned UIntSize = static_cast<unsigned>(ASTCtx.getTypeSize(UInt));
       clang::Expr *TrueCond = IntegerLiteral::Create(ASTCtx,
                                                      llvm::APInt(UIntSize, 1),
                                                      UInt,
@@ -435,7 +436,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
 
     // Generate the body of the switch
     SmallVector<clang::Stmt *, 8> BodyStmts;
-    int CaseIndex = 0;
+    size_t CaseIndex = 0;
     // Generate all the cases ony by one
     for (ASTNode *CaseNode : Switch->unordered_cases()) {
       clang::Expr *CaseExpr = nullptr;
@@ -580,23 +581,29 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
   if (clang::VarDecl *V = ASTBuilder.getSwitchStateVarDecl())
     LocalVarDecls.push_back(V);
 
-  unsigned NumLocalVars = LocalVarDecls.size();
-  unsigned NumStmtsInBody = BodyStmts.size() + NumLocalVars;
-  CompoundStmt *Body = CompoundStmt::CreateEmpty(ASTCtx, NumStmtsInBody);
+  auto NumLocalVars = LocalVarDecls.size();
+  auto NumStmtsInBody = BodyStmts.size() + NumLocalVars;
+  revng_check(static_cast<unsigned>(NumLocalVars) == NumLocalVars,
+              "error: the function you are trying to decompile is too big!");
+  unsigned BodySize = static_cast<unsigned>(NumStmtsInBody);
+  unsigned VarSize = static_cast<unsigned>(NumLocalVars);
+  revng_check(static_cast<unsigned>(NumStmtsInBody) == NumStmtsInBody,
+              "error: the function you are trying to decompile is too big!");
+  CompoundStmt *Body = CompoundStmt::CreateEmpty(ASTCtx, BodySize);
   FDecl->setBody(Body);
 
-  for (unsigned I = 0; I < NumLocalVars; ++I) {
+  for (unsigned I = 0; I < VarSize; ++I) {
     Decl *VDecl = LocalVarDecls[I];
     auto *LocalVarDeclStmt = new (ASTCtx) DeclStmt(DeclGroupRef(VDecl), {}, {});
     Body->body_begin()[I] = LocalVarDeclStmt;
   }
 
-  for (unsigned I = NumLocalVars; I < NumStmtsInBody; ++I)
-    Body->body_begin()[I] = BodyStmts[I - NumLocalVars];
+  for (unsigned I = VarSize; I < BodySize; ++I)
+    Body->body_begin()[I] = BodyStmts[I - VarSize];
 
 #if 0
   llvm::Function &F = *FPair.first;
-  int I = NumLocalVars;
+  int I = VarSize;
   auto End = ASTInfo.InstrStmts.end();
   for (llvm::BasicBlock &BB : F) {
     SmallVector<clang::Stmt *, 16> BBStmts;
@@ -633,98 +640,7 @@ public:
     BlockToPHIIncoming(BlockToPHIIncoming),
     NDuplicates(NDuplicates) {}
 
-  virtual void HandleTranslationUnit(ASTContext &Context) override {
-
-    MarkForSerialization::Analysis Mark(TheF, RCFG, NDuplicates);
-    Mark.initialize();
-    Mark.run();
-
-    beautifyAST(TheF, CombedAST, Mark);
-
-    using ConsumerPtr = std::unique_ptr<ASTConsumer>;
-    FunctionsMap FunctionDecls;
-    GlobalsMap GlobalVarAST;
-    TypeDeclMap TypeDecls;
-    FieldDeclMap FieldDecls;
-    {
-      // Build declaration of global types
-      ConsumerPtr TypeDeclCreate = CreateTypeDeclCreator(TheF,
-                                                         TypeDecls,
-                                                         FieldDecls);
-      TypeDeclCreate->HandleTranslationUnit(Context);
-      // Build declaration of global variables
-      ConsumerPtr GlobalDecls = CreateGlobalDeclCreator(TheF,
-                                                        GlobalVarAST,
-                                                        TypeDecls,
-                                                        FieldDecls);
-      GlobalDecls->HandleTranslationUnit(Context);
-      // Build function declaration
-      ConsumerPtr FunDecls = CreateFuncDeclCreator(TheF,
-                                                   FunctionDecls,
-                                                   TypeDecls,
-                                                   FieldDecls);
-      FunDecls->HandleTranslationUnit(Context);
-    }
-
-    revng_assert(not TheF.isDeclaration());
-    revng_assert(TheF.getName().startswith("bb."));
-    auto It = FunctionDecls.find(&TheF);
-    revng_assert(It != FunctionDecls.end());
-    clang::FunctionDecl *FunctionDecl = It->second;
-
-    IR2AST::StmtBuilder ASTBuilder(TheF,
-                                   Mark.getToSerialize(),
-                                   Context,
-                                   *FunctionDecl,
-                                   GlobalVarAST,
-                                   FunctionDecls,
-                                   BlockToPHIIncoming,
-                                   TypeDecls,
-                                   FieldDecls);
-    ASTBuilder.createAST();
-
-    clang::TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
-    // TODO: sooner or later, whenever we start emitting complex type
-    // declarations, we will need to enforce proper ordering between dependent
-    // types, and inject forward type declarations when needed.
-    for (auto &TypeDecl : TypeDecls) {
-      // Double check that the typedef decl for bool is not inserted twice
-      clang::DeclarationName TypeName = TypeDecl.second->getDeclName();
-      if (TypeName.getAsString() == "bool") {
-        bool Found = false;
-        revng_assert(isa<clang::TypedefDecl>(TypeDecl.second));
-        for (clang::Decl *D : TUDecl->lookup(TypeName)) {
-          if (D == TypeDecl.second) {
-            // the TypedefDecl `typedef _Bool bool` has already been inserted
-            // in the translation unit `DeclContext`
-            Found = true;
-            break;
-          }
-        }
-
-        // if the TypedefDecl `typedef _Bool bool` has already been inserted
-        // we don't insert it twice and we jump to the next TypeDecl
-        if (Found)
-          continue;
-      }
-      TUDecl->addDecl(TypeDecl.second);
-    }
-
-    for (auto &GlobalDecl : GlobalVarAST)
-      TUDecl->addDecl(GlobalDecl.second);
-
-    for (auto &FDecl : FunctionDecls) {
-      if (FunctionDecl == FDecl.second)
-        continue;
-      TUDecl->addDecl(FDecl.second);
-    }
-    TUDecl->addDecl(FunctionDecl);
-
-    buildFunctionBody(*It, CombedAST, ASTBuilder, Mark);
-
-    ConsumerPtr Printer = CreateASTPrinter(std::move(Out), "");
-    Printer->HandleTranslationUnit(Context);
-  }
+virtual void HandleTranslationUnit(ASTContext &Context) override;
 
 private:
   llvm::Function &TheF;
@@ -735,6 +651,99 @@ private:
   DuplicationMap &NDuplicates;
 };
 
+void Decompiler::HandleTranslationUnit(ASTContext &Context) {
+
+  MarkForSerialization::Analysis Mark(TheF, RCFG, NDuplicates);
+  Mark.initialize();
+  Mark.run();
+
+  beautifyAST(TheF, CombedAST, Mark);
+
+  using ConsumerPtr = std::unique_ptr<ASTConsumer>;
+  FunctionsMap FunctionDecls;
+  GlobalsMap GlobalVarAST;
+  TypeDeclMap TypeDecls;
+  FieldDeclMap FieldDecls;
+  {
+    // Build declaration of global types
+    ConsumerPtr TypeDeclCreate = CreateTypeDeclCreator(TheF,
+                                                       TypeDecls,
+                                                       FieldDecls);
+    TypeDeclCreate->HandleTranslationUnit(Context);
+    // Build declaration of global variables
+    ConsumerPtr GlobalDecls = CreateGlobalDeclCreator(TheF,
+                                                      GlobalVarAST,
+                                                      TypeDecls,
+                                                      FieldDecls);
+    GlobalDecls->HandleTranslationUnit(Context);
+    // Build function declaration
+    ConsumerPtr FunDecls = CreateFuncDeclCreator(TheF,
+                                                 FunctionDecls,
+                                                 TypeDecls,
+                                                 FieldDecls);
+    FunDecls->HandleTranslationUnit(Context);
+  }
+
+  revng_assert(not TheF.isDeclaration());
+  revng_assert(TheF.getName().startswith("bb."));
+  auto It = FunctionDecls.find(&TheF);
+  revng_assert(It != FunctionDecls.end());
+  clang::FunctionDecl *FunctionDecl = It->second;
+
+  IR2AST::StmtBuilder ASTBuilder(TheF,
+                                 Mark.getToSerialize(),
+                                 Context,
+                                 *FunctionDecl,
+                                 GlobalVarAST,
+                                 FunctionDecls,
+                                 BlockToPHIIncoming,
+                                 TypeDecls,
+                                 FieldDecls);
+  ASTBuilder.createAST();
+
+  clang::TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
+  // TODO: sooner or later, whenever we start emitting complex type
+  // declarations, we will need to enforce proper ordering between dependent
+  // types, and inject forward type declarations when needed.
+  for (auto &TypeDecl : TypeDecls) {
+    // Double check that the typedef decl for bool is not inserted twice
+    clang::DeclarationName TypeName = TypeDecl.second->getDeclName();
+    if (TypeName.getAsString() == "bool") {
+      bool Found = false;
+      revng_assert(isa<clang::TypedefDecl>(TypeDecl.second));
+      for (clang::Decl *D : TUDecl->lookup(TypeName)) {
+        if (D == TypeDecl.second) {
+          // the TypedefDecl `typedef _Bool bool` has already been inserted
+          // in the translation unit `DeclContext`
+          Found = true;
+          break;
+        }
+      }
+
+      // if the TypedefDecl `typedef _Bool bool` has already been inserted
+      // we don't insert it twice and we jump to the next TypeDecl
+      if (Found)
+        continue;
+    }
+    TUDecl->addDecl(TypeDecl.second);
+  }
+
+  for (auto &GlobalDecl : GlobalVarAST)
+    TUDecl->addDecl(GlobalDecl.second);
+
+  for (auto &FDecl : FunctionDecls) {
+    if (FunctionDecl == FDecl.second)
+      continue;
+    TUDecl->addDecl(FDecl.second);
+  }
+  TUDecl->addDecl(FunctionDecl);
+
+  buildFunctionBody(*It, CombedAST, ASTBuilder, Mark);
+
+  ConsumerPtr Printer = CreateASTPrinter(std::move(Out), "");
+  Printer->HandleTranslationUnit(Context);
+}
+
 std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
   return std::make_unique<Decompiler>(F,
                                       RCFG,
@@ -742,6 +751,11 @@ std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
                                       BlockToPHIIncoming,
                                       std::move(O),
                                       NDuplicates);
+}
+
+std::unique_ptr<ASTConsumer>
+CDecompilerAction::CreateASTConsumer(CompilerInstance &, llvm::StringRef) {
+  return newASTConsumer();
 }
 
 } // end namespace tooling

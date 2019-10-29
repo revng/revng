@@ -790,7 +790,7 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
   revng_assert(LHSSize == RHSSize or OpCode == Instruction::Shl
                or OpCode == Instruction::LShr or OpCode == Instruction::AShr
                or is128Int(ASTCtx, RHS) or is128Int(ASTCtx, LHS));
-  uint64_t Size = std::max(LHSSize, RHSSize);
+  unsigned Size = static_cast<unsigned>(std::max(LHSSize, RHSSize));
   QualType SignedTy = ASTCtx.getIntTypeForBitwidth(Size, /* Signed */ true);
 
   switch (OpCode) {
@@ -907,11 +907,11 @@ Expr *StmtBuilder::getUIntLiteral(uint64_t U) {
 
 Expr *StmtBuilder::getExprForValue(Value *V) {
   revng_log(ASTBuildLog, "getExprForValue: " << dumpToString(V));
-  if (auto *F = dyn_cast<Function>(V)) {
-    FunctionDecl *FDecl = FunctionDecls.at(F);
-    QualType Type = FDecl->getType();
+  if (auto *Fun = dyn_cast<Function>(V)) {
+    FunctionDecl *FunDecl = FunctionDecls.at(Fun);
+    QualType Type = FunDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
-      DeclRefExpr(FDecl, false, Type, VK_LValue, {});
+      DeclRefExpr(FunDecl, false, Type, VK_LValue, {});
     return Res;
   } else if (auto *G = dyn_cast<GlobalVariable>(V)) {
     VarDecl *GlobalVarDecl = GlobalDecls.at(G);
@@ -1129,15 +1129,15 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
     }
     revng_abort();
   } else if (auto *Arg = dyn_cast<Argument>(V)) {
-    llvm::Function *F = Arg->getParent();
-    llvm::FunctionType *FType = F->getFunctionType();
+    llvm::Function *ArgFun = Arg->getParent();
+    llvm::FunctionType *FType = ArgFun->getFunctionType();
     revng_assert(not FType->isVarArg());
     unsigned NumLLVMParams = FType->getNumParams();
     unsigned ArgNo = Arg->getArgNo();
-    clang::FunctionDecl *FDecl = FunctionDecls.at(F);
-    unsigned DeclNumParams = FDecl->getNumParams();
+    clang::FunctionDecl *FunDecl = FunctionDecls.at(ArgFun);
+    unsigned DeclNumParams = FunDecl->getNumParams();
     revng_assert(NumLLVMParams == DeclNumParams);
-    clang::ParmVarDecl *ParamVDecl = FDecl->getParamDecl(ArgNo);
+    clang::ParmVarDecl *ParamVDecl = FunDecl->getParamDecl(ArgNo);
     QualType Type = ParamVDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
       DeclRefExpr(ParamVDecl, false, Type, VK_LValue, {});
@@ -1178,7 +1178,10 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
       case BuiltinType::SChar: {
         using CharKind = CharacterLiteral::CharacterKind;
         return new (ASTCtx)
-          CharacterLiteral(ConstValue, CharKind::Ascii, ASTCtx.CharTy, {});
+          CharacterLiteral(static_cast<unsigned>(ConstValue),
+                           CharKind::Ascii,
+                           ASTCtx.CharTy,
+                           {});
       }
       case BuiltinType::UShort: {
         QualType IntT = ASTCtx.UnsignedIntTy;
@@ -1229,7 +1232,7 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
       }
     } else if (isa<ConstantPointerNull>(CD)) {
       QualType UIntPtr = ASTCtx.getUIntPtrType();
-      uint64_t UIntPtrSize = ASTCtx.getTypeSize(UIntPtr);
+      unsigned UIntPtrSize = static_cast<unsigned>(ASTCtx.getTypeSize(UIntPtr));
       return IntegerLiteral::Create(ASTCtx,
                                     APInt::getNullValue(UIntPtrSize),
                                     UIntPtr,

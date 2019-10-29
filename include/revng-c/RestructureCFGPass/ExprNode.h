@@ -21,7 +21,12 @@ private:
 public:
   NodeKind getKind() const { return Kind; }
 
-  virtual ~ExprNode() = default;
+  ExprNode() = default;
+  ExprNode(const ExprNode &) = default;
+  ExprNode &operator=(const ExprNode &) = default;
+  ExprNode(ExprNode &&) = default;
+  ExprNode &operator=(ExprNode &&) = default;
+  inline ~ExprNode();
 
 protected:
   ExprNode(NodeKind K) : Kind(K) {}
@@ -34,8 +39,6 @@ private:
 public:
   AtomicNode(llvm::BasicBlock *BB) : ExprNode(NK_Atomic), ConditionBB(BB) {}
 
-  virtual ~AtomicNode() override = default;
-
   static bool classof(const ExprNode *E) { return E->getKind() == NK_Atomic; }
 
   llvm::BasicBlock *getConditionalBasicBlock() const { return ConditionBB; }
@@ -47,8 +50,6 @@ private:
 
 public:
   NotNode(ExprNode *N) : ExprNode(NK_Not), Child(N) {}
-
-  virtual ~NotNode() override = default;
 
   static bool classof(const ExprNode *E) { return E->getKind() == NK_Not; }
 
@@ -69,8 +70,6 @@ public:
     return E->getKind() <= NK_Or and E->getKind() >= NK_And;
   }
 
-  virtual ~BinaryNode() override = default;
-
 protected:
   BinaryNode(NodeKind K, ExprNode *Left, ExprNode *Right) :
     ExprNode(K),
@@ -83,8 +82,6 @@ class AndNode : public BinaryNode {
 public:
   AndNode(ExprNode *Left, ExprNode *Right) : BinaryNode(NK_And, Left, Right) {}
 
-  virtual ~AndNode() override = default;
-
   static bool classof(const ExprNode *E) { return E->getKind() == NK_And; }
 };
 
@@ -93,9 +90,24 @@ class OrNode : public BinaryNode {
 public:
   OrNode(ExprNode *Left, ExprNode *Right) : BinaryNode(NK_Or, Left, Right) {}
 
-  virtual ~OrNode() override = default;
-
   static bool classof(const ExprNode *E) { return E->getKind() == NK_Or; }
 };
+
+inline ExprNode::~ExprNode() {
+  switch (getKind()) {
+  case NK_Atomic: {
+    llvm::cast<AtomicNode>(this)->~AtomicNode();
+  } break;
+  case NK_Not: {
+    llvm::cast<NotNode>(this)->~NotNode();
+  } break;
+  case NK_And: {
+    llvm::cast<AndNode>(this)->~AndNode();
+  } break;
+  case NK_Or: {
+    llvm::cast<OrNode>(this)->~OrNode();
+  } break;
+  }
+}
 
 #endif // define REVNGC_RESTRUCTURE_CFG_EXPRNODE_H

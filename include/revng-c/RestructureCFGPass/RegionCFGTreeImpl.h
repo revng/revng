@@ -255,16 +255,17 @@ using lk_iterator = typename RegionCFG<NodeT>::links_container::iterator;
 template<class NodeT>
 inline llvm::iterator_range<lk_iterator<NodeT>>
 RegionCFG<NodeT>::copyNodesAndEdgesFrom(RegionCFGT *O, BBNodeMap &SubMap) {
-  size_t NumCurrNodes = size();
+  typename links_container::difference_type NumNewNodes = 0;
 
   for (BasicBlockNode<NodeT> *Node : *O) {
     BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(*Node, this));
-    BasicBlockNode<NodeT> *New = BlockNodes.back().get();
+    ++NumNewNodes;
+    BasicBlockNodeT *New = BlockNodes.back().get();
     SubMap[Node] = New;
     copyNeighbors<NodeT>(New, Node);
   }
 
-  internal_iterator BeginInserted = BlockNodes.begin() + NumCurrNodes;
+  internal_iterator BeginInserted = BlockNodes.end() - NumNewNodes;
   internal_iterator EndInserted = BlockNodes.end();
   using MovedIteratorRange = llvm::iterator_range<internal_iterator>;
   MovedIteratorRange Result = llvm::make_range(BeginInserted, EndInserted);
@@ -368,32 +369,21 @@ inline void RegionCFG<NodeT>::dumpDot(StreamT &S) const {
 }
 
 template<class NodeT>
-inline void RegionCFG<NodeT>::dumpDotOnFile(std::string FolderName,
-                                            std::string FunctionName,
-                                            std::string FileName) const {
-  std::ofstream DotFile;
-  std::string PathName = FolderName + "/" + FunctionName;
-  mkdir(FolderName.c_str(), 0775);
-  mkdir(PathName.c_str(), 0775);
-  DotFile.open(PathName + "/" + FileName + ".dot");
-  if (DotFile.is_open()) {
-    dumpDot(DotFile);
-    DotFile.close();
-  } else {
-    revng_abort("Could not open file for dumping dot file.");
-  }
+inline void RegionCFG<NodeT>::dumpDotOnFile(const std::string &FileName) const {
+  std::error_code EC;
+  llvm::raw_fd_ostream DotFile(FileName, EC);
+  revng_check(not EC, "Could not open file for printing RegionCFG dot");
+  dumpDot(DotFile);
 }
 
 template<class NodeT>
-inline void RegionCFG<NodeT>::dumpDotOnFile(std::string FileName) const {
-  std::ofstream DotFile;
-  DotFile.open(FileName);
-  if (DotFile.is_open()) {
-    dumpDot(DotFile);
-    DotFile.close();
-  } else {
-    revng_abort("Could not open file for dumping dot.");
-  }
+inline void RegionCFG<NodeT>::dumpDotOnFile(const std::string &FolderName,
+                                            const std::string &FunctionName,
+                                            const std::string &FileName) const {
+  const std::string PathName = FolderName + "/" + FunctionName;
+  std::error_code EC = llvm::sys::fs::create_directory(PathName);
+  revng_check(not EC, "Could not create directory to print RegionCFG dot");
+  dumpDotOnFile(FileName);
 }
 
 template<class NodeT>
@@ -1578,26 +1568,24 @@ RegionCFG<NodeT>::removeNotReachables(std::vector<MetaRegion<NodeT> *> &MS) {
 
 template<class NodeT>
 inline bool RegionCFG<NodeT>::isDAG() {
-  bool FoundSCC = false;
-
   for (llvm::scc_iterator<RegionCFG<NodeT> *> I = llvm::scc_begin(this),
                                               IE = llvm::scc_end(this);
        I != IE;
        ++I) {
     const std::vector<BasicBlockNode<NodeT> *> &SCC = *I;
     if (SCC.size() != 1) {
-      FoundSCC = true;
+      return false;
     } else {
       BasicBlockNode<NodeT> *Node = SCC[0];
       for (BasicBlockNode<NodeT> *Successor : Node->successors()) {
         if (Successor == Node) {
-          FoundSCC = true;
+          return false;
         }
       }
     }
   }
 
-  return not FoundSCC;
+  return true;
 }
 
 template<class NodeT>

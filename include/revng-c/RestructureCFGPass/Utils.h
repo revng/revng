@@ -124,8 +124,8 @@ findReachableNodes(BasicBlockNode<NodeT> &Source,
     BasicBlockNode<NodeT> *Vertex = StackElem.first;
     if (StackElem.second == 0) {
       if (Targets.count(Vertex) != 0) {
-        for (auto StackElem : Stack) {
-          Targets.insert(StackElem.first);
+        for (auto StackE : Stack) {
+          Targets.insert(StackE.first);
         }
         continue;
       } else if (alreadyOnStackQuick(StackSet, Vertex)) {

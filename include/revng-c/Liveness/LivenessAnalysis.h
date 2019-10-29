@@ -58,7 +58,7 @@ public:
 
   /// This Analysis uses DefaultInterrupt, hence it is never supposed to dump
   /// the final state.
-  void dumpFinalState() const { revng_abort(); }
+  [[noreturn]] void dumpFinalState() const { revng_abort(); }
 
   /// Gets the predecessor BasicBlock in the CFG. Being a backward analysis the
   /// 'successors' in analysis order are the 'predecessor' in CFG order.
@@ -83,7 +83,7 @@ public:
   ///
   /// NOTE: we only track Instructions, because anything that is not an
   /// Instruction is always live.
-  const LivenessMap &getLiveOut() const { return State; };
+  const LivenessMap &getLiveOut() const { return State; }
 
   /// \brief Extracts the final results of the analysis.
   ///
@@ -92,7 +92,7 @@ public:
   ///
   /// NOTE: The LiveOut is moved from, so it's left is undetermined state
   ///       after a call to this method.
-  LivenessMap &&extractLiveOut() { return std::move(LiveOut); };
+  LivenessMap &&extractLiveOut() { return std::move(LiveOut); }
 
   // ---- Transfer function and handleEdge, to propagate the analysis ----
 

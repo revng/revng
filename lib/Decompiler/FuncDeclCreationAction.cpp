@@ -83,10 +83,10 @@ static FunctionDecl *createFunDecl(ASTContext &Context,
                                                 FDeclType,
                                                 nullptr,
                                                 FunStorage);
-  int N = 0;
+  unsigned N = 0;
   auto ParmDecls = SmallVector<ParmVarDecl *, 4>(ArgTypes.size(), nullptr);
   for (QualType ArgTy : ArgTypes) {
-    int ParamIdx = N++;
+    unsigned ParamIdx = N++;
     IdentifierInfo *ParmId = nullptr;
     if (not HasNoParams)
       ParmId = &Context.Idents.get("param_" + std::to_string(ParamIdx));
@@ -117,41 +117,7 @@ public:
     TypeDecls(TDecls),
     FieldDecls(FieldDecls) {}
 
-  virtual void HandleTranslationUnit(ASTContext &Context) override {
-    llvm::Module &M = *TheF.getParent();
-    TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
-
-    std::set<Function *> Called = getDirectlyCalledFunctions(TheF);
-    Called.erase(&TheF);
-    // we need abort for decompiling UnreachableInst
-    Called.insert(M.getFunction("abort"));
-    for (Function *F : Called) {
-      const llvm::StringRef FName = F->getName();
-      revng_assert(not FName.empty());
-      FunctionDecl *NewFDecl = createFunDecl(Context,
-                                             TUDecl,
-                                             TypeDecls,
-                                             FieldDecls,
-                                             F,
-                                             false);
-      FunctionDecls[F] = NewFDecl;
-    }
-
-    const llvm::StringRef FName = TheF.getName();
-    revng_assert(not FName.empty());
-    revng_assert(FName.startswith("bb."));
-    // This is actually a definition, because the isolated function need will
-    // be fully decompiled and it needs a body.
-    // This definition starts as a declaration that is than inflated by the
-    // ASTBuildAnalysis.
-    FunctionDecl *NewFDecl = createFunDecl(Context,
-                                           TUDecl,
-                                           TypeDecls,
-                                           FieldDecls,
-                                           &TheF,
-                                           true);
-    FunctionDecls[&TheF] = NewFDecl;
-  }
+virtual void HandleTranslationUnit(ASTContext &Context) override;
 
 private:
   llvm::Function &TheF;
@@ -160,11 +126,52 @@ private:
   FieldDeclMap &FieldDecls;
 };
 
+void FuncDeclCreator::HandleTranslationUnit(ASTContext &Context) {
+  llvm::Module &M = *TheF.getParent();
+  TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
+
+  std::set<Function *> Called = getDirectlyCalledFunctions(TheF);
+  Called.erase(&TheF);
+  // we need abort for decompiling UnreachableInst
+  Called.insert(M.getFunction("abort"));
+  for (Function *F : Called) {
+    const llvm::StringRef FName = F->getName();
+    revng_assert(not FName.empty());
+    FunctionDecl *NewFDecl = createFunDecl(Context,
+                                           TUDecl,
+                                           TypeDecls,
+                                           FieldDecls,
+                                           F,
+                                           false);
+    FunctionDecls[F] = NewFDecl;
+  }
+
+  const llvm::StringRef FName = TheF.getName();
+  revng_assert(not FName.empty());
+  revng_assert(FName.startswith("bb."));
+  // This is actually a definition, because the isolated function need will
+  // be fully decompiled and it needs a body.
+  // This definition starts as a declaration that is than inflated by the
+  // ASTBuildAnalysis.
+  FunctionDecl *NewFDecl = createFunDecl(Context,
+                                         TUDecl,
+                                         TypeDecls,
+                                         FieldDecls,
+                                         &TheF,
+                                         true);
+  FunctionDecls[&TheF] = NewFDecl;
+}
+
 std::unique_ptr<ASTConsumer> FuncDeclCreationAction::newASTConsumer() {
   return std::make_unique<FuncDeclCreator>(F,
                                            FunctionDecls,
                                            TypeDecls,
                                            FieldDecls);
+}
+
+std::unique_ptr<ASTConsumer>
+FuncDeclCreationAction::CreateASTConsumer(CompilerInstance &, llvm::StringRef) {
+  return newASTConsumer();
 }
 
 } // end namespace tooling

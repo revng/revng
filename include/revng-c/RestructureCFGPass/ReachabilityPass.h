@@ -16,7 +16,7 @@ public:
   static char ID;
 
 public:
-  ReachabilityPass() : llvm::FunctionPass(ID){};
+  ReachabilityPass() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
 
