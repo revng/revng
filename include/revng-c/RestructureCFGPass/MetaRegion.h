@@ -15,8 +15,8 @@
 #include <llvm/ADT/iterator_range.h>
 #include "llvm/ADT/PostOrderIterator.h"
 
-// local libraries include
-#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+// Local libraries include
+#include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
 
 template<class NodeT>
 class BasicBlockNode;

@@ -23,9 +23,9 @@
 #include "revng/Support/IRHelpers.h"
 
 // Local libraries includes
-#include "revng-c/RestructureCFGPass/Flattening.h"
-#include "revng-c/RestructureCFGPass/MetaRegion.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/RestructureCFGPass/FlatteningBB.h"
+#include "revng-c/RestructureCFGPass/MetaRegionBB.h"
+#include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 

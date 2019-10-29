@@ -5,7 +5,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// forward declarations
+// Forward declarations
 template<class NodeT>
 class RegionCFG;
 

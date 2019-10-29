@@ -11,8 +11,8 @@
 #include <utility>
 #include <vector>
 
-// local libraries includes
-#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
+// Local libraries includes
+#include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
 #include "revng-c/RestructureCFGPass/MetaRegion.h"
 
 template<class NodeT>

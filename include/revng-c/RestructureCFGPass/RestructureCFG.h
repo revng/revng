@@ -12,12 +12,12 @@
 #include "llvm/Pass.h"
 
 // Local libraries includes
-#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
 
 // Local includes
 #include "ReachabilityPass.h"
 
-// Forward reference to object types
+// Forward declarations
 class ASTTree;
 
 class RestructureCFG : public llvm::FunctionPass {
@@ -42,14 +42,14 @@ public:
 
   ASTTree &getAST() { return RootCFG.getAST(); }
 
-  RegionCFG<llvm::BasicBlock *> &getRCT() { return RootCFG; }
+  RegionCFGBB &getRCT() { return RootCFG; }
 
   bool isDone() { return Done; }
 
   std::map<llvm::BasicBlock *, size_t> &getNDuplicates() { return NDuplicates; }
 
 private:
-  RegionCFG<llvm::BasicBlock *> RootCFG;
+  RegionCFGBB RootCFG;
   DuplicationMap NDuplicates;
 };
 

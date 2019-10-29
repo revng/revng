@@ -10,9 +10,9 @@
 // revng libraries includes
 #include "revng/Support/Debug.h"
 
-// local libraries includes
+// Local libraries includes
 #include "revng-c/RestructureCFGPass/Flattening.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 
 Logger<> FlattenLog("flattening");

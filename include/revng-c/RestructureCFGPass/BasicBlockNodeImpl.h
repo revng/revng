@@ -12,7 +12,7 @@
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 
 // Trait exposing the weight of a generic object wrapped by `BasicBlockNode`.

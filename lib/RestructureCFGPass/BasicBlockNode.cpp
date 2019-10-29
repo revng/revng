@@ -8,7 +8,5 @@
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNodeImpl.h"
 
-using namespace llvm;
-
 // Explicit instantation for the `RegionCFG` template class.
 template class BasicBlockNode<llvm::BasicBlock *>;

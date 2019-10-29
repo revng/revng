@@ -11,14 +11,14 @@
 // LLVM includes
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/Support/Casting.h>
+#include <llvm/IR/BasicBlock.h>
 
-// local libraries includes
-#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
+// Local libraries includes
+#include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 
-// forward declarations
+// Forward declarations
 namespace llvm {
-class BasicBlock;
 class ConstantInt;
 } // namespace llvm
 
@@ -47,7 +47,8 @@ public:
   };
 
   using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
-  using BasicBlockNodeBB = BasicBlockNode<llvm::BasicBlock *>;
+  // Steal the `BasicBlockNodeBB` definition from the external namespace
+  using BasicBlockNodeBB = BasicBlockNodeBB;
   using BBNodeMap = std::map<BasicBlockNodeBB *, BasicBlockNodeBB *>;
   using ExprNodeMap = std::map<ExprNode *, ExprNode *>;
 

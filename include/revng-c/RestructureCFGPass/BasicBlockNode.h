@@ -19,7 +19,7 @@
 // revng includes
 #include "revng/Support/Debug.h"
 
-// forward declarations
+// Forward declarations
 template<class NodeT>
 class RegionCFG;
 

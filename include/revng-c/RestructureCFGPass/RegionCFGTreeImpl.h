@@ -24,8 +24,8 @@
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
-#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
-#include "revng-c/RestructureCFGPass/MetaRegion.h"
+#include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
+#include "revng-c/RestructureCFGPass/MetaRegionBB.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 

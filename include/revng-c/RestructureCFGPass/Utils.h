@@ -14,7 +14,7 @@
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTNode.h"
-#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
+#include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
 
 // TODO: move the definition of this object in an unique place, to avoid using
 // an extern declaration

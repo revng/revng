@@ -8,8 +8,6 @@
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/MetaRegionImpl.h"
 
-using namespace llvm;
-
 // Explicit instantation for the `Metaregion` template class for
 // llvm::BasicBlock type.
 template class MetaRegion<llvm::BasicBlock *>;

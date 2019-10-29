@@ -8,7 +8,5 @@
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/RegionCFGTreeImpl.h"
 
-using namespace llvm;
-
 // Explicit instantation for the `RegionCFG` template class.
-template class RegionCFG<BasicBlock *>;
+template class RegionCFG<llvm::BasicBlock *>;

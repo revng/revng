@@ -13,10 +13,12 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 
+// revng libraries includes
+#include "revng/Support/Transform.h"
+
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
-#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
-#include "revng/Support/Transform.h"
+#include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
 
 template<class NodeT>
 class MetaRegion;
