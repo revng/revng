@@ -104,7 +104,11 @@ inline void flattenRegionCFGTree(RegionCFG<NodeT> &Root) {
   // performed on the LLVM IR after the combing.
   for (BasicBlockNodeT *Node : Root) {
     switch (Node->getNodeType()) {
-    default:
+    case BasicBlockNodeT::Type::Break:
+    case BasicBlockNodeT::Type::Code:
+    case BasicBlockNodeT::Type::Collapsed:
+    case BasicBlockNodeT::Type::Continue:
+    case BasicBlockNodeT::Type::Empty:
       // do nothing
       break;
     case BasicBlockNodeT::Type::Set: {

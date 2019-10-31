@@ -54,10 +54,6 @@ static cl::opt<string> OutputPath("short-circuit-metrics-output-dir",
                                   cl::value_desc("short-circuit-dir"),
                                   cl::cat(RevNgCategory));
 
-// Metrics counter variables
-unsigned ShortCircuitCounter = 0;
-unsigned TrivialShortCircuitCounter = 0;
-
 char CDecompilerPass::ID = 0;
 
 using Register = RegisterPass<CDecompilerPass>;

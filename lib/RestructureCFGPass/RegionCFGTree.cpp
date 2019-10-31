@@ -10,3 +10,5 @@
 
 // Explicit instantation for the `RegionCFG` template class.
 template class RegionCFG<llvm::BasicBlock *>;
+
+unsigned DuplicationCounter = 0;

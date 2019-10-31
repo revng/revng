@@ -403,7 +403,5 @@ void ASTNode::deleteASTNode(ASTNode *A) {
   case NodeKind::NK_Set:
     delete static_cast<SetNode *>(A);
     break;
-  default:
-    revng_unreachable("Deleting unexpecte ASTNode");
   }
 }

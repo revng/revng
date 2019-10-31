@@ -75,8 +75,10 @@ void GlobalDeclsCreator::HandleTranslationUnit(ASTContext &Context) {
       if (UnderlyingTy != nullptr and not isa<llvm::ConstantExpr>(LLVMInit)) {
         clang::Expr *Init = nullptr;
         if (UnderlyingTy->isCharType()) {
+          uint64_t UniqueInteger = LLVMInit->getUniqueInteger().getZExtValue();
+          revng_assert(UniqueInteger < 256);
           Init = new (Context)
-            CharacterLiteral(LLVMInit->getUniqueInteger().getZExtValue(),
+            CharacterLiteral(static_cast<unsigned>(UniqueInteger),
                              CharacterLiteral::CharacterKind::Ascii,
                              Context.CharTy,
                              {});

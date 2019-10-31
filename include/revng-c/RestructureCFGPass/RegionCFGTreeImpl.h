@@ -29,8 +29,6 @@
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 
-extern unsigned DuplicationCounter;
-
 unsigned const SmallSetSize = 16;
 
 // llvm::SmallPtrSet is a handy way to store set of BasicBlockNode pointers.
@@ -630,7 +628,7 @@ inline void RegionCFG<NodeT>::untangle() {
   // case of a code node the weight will be equal to the number of instruction
   // in the original basic block; in case of a collapsed node the weight will be
   // the sum of the weights of all the nodes contained in the collapsed graph.
-  std::map<BasicBlockNode<NodeT> *, unsigned> WeightMap;
+  std::map<BasicBlockNode<NodeT> *, size_t> WeightMap;
   for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
     WeightMap[Node] = Node->getWeight();
   }
@@ -861,6 +859,7 @@ inline void RegionCFG<NodeT>::inflate() {
   RegionCFG<NodeT> &Graph = *this;
 
   // Collect entry and exit nodes.
+  BasicBlockNode<NodeT> *Entry = &Graph.getEntryNode();
   BasicBlockNodeTVect ExitNodes;
   for (auto It = Graph.begin(); It != Graph.end(); It++) {
     if ((*It)->successor_size() == 0) {
@@ -870,7 +869,7 @@ inline void RegionCFG<NodeT>::inflate() {
 
   if (CombLogger.isEnabled()) {
     CombLogger << "The entry node is:\n";
-    CombLogger << EntryNode->getNameStr() << "\n";
+    CombLogger << Entry->getNameStr() << "\n";
     CombLogger << "In the graph the exit nodes are:\n";
     for (BasicBlockNode<NodeT> *Node : ExitNodes) {
       CombLogger << Node->getNameStr() << "\n";
@@ -993,7 +992,7 @@ inline void RegionCFG<NodeT>::inflate() {
   // Initialize a list containing the reverse post order of the nodes of the
   // graph.
   std::list<BasicBlockNode<NodeT> *> RevPostOrderList;
-  llvm::ReversePostOrderTraversal<BasicBlockNode<NodeT> *> RPOT(EntryNode);
+  llvm::ReversePostOrderTraversal<BasicBlockNode<NodeT> *> RPOT(Entry);
   for (BasicBlockNode<NodeT> *RPOTBB : RPOT) {
     RevPostOrderList.push_back(RPOTBB);
     NodesEquivalenceClass[RPOTBB].insert(RPOTBB);
@@ -1309,7 +1308,7 @@ inline void RegionCFG<NodeT>::generateAst() {
 
   CombLogger.emit();
 
-  std::map<int, BasicBlockNode<NodeT> *> DFSNodeMap;
+  std::map<unsigned, BasicBlockNode<NodeT> *> DFSNodeMap;
 
   // Compute the ideal order of visit for creating AST nodes.
   for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
@@ -1524,8 +1523,9 @@ inline void RegionCFG<NodeT>::removeNotReachables() {
   bool Difference = true;
   while (Difference) {
     Difference = false;
+    BasicBlockNode<NodeT> *Entry = &getEntryNode();
     for (auto It = begin(); It != end(); It++) {
-      if ((EntryNode != *It and (*It)->predecessor_size() == 0)) {
+      if ((Entry != *It and (*It)->predecessor_size() == 0)) {
 
         removeNode(*It);
         Difference = true;
@@ -1544,8 +1544,9 @@ RegionCFG<NodeT>::removeNotReachables(std::vector<MetaRegion<NodeT> *> &MS) {
   bool Difference = true;
   while (Difference) {
     Difference = false;
+    BasicBlockNode<NodeT> *Entry = &getEntryNode();
     for (auto It = begin(); It != end(); It++) {
-      if ((EntryNode != *It and (*It)->predecessor_size() == 0)) {
+      if ((Entry != *It and (*It)->predecessor_size() == 0)) {
         for (MetaRegion<NodeT> *M : MS) {
           M->removeNode(*It);
         }

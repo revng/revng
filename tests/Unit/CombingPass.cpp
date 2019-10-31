@@ -36,7 +36,7 @@ using namespace llvm;
 // situation we simply use 1 as default weight.
 template<>
 struct WeightTraits<DotNode *> {
-  static inline size_t getWeight(DotNode *N) { return 1; }
+  static inline size_t getWeight(DotNode *) { return 1; }
 };
 
 struct ArgsFixture {

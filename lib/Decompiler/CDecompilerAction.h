@@ -12,7 +12,11 @@
 #include <clang/Frontend/ASTConsumers.h>
 #include <clang/Frontend/FrontendAction.h>
 
+// Local directory includes
+#include "CDecompilerBeautify.h"
+
 class ASTTree;
+
 
 namespace clang {
 

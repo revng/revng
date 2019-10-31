@@ -31,8 +31,8 @@ using std::make_unique;
 using std::unique_ptr;
 
 // Metrics counter variables
-extern unsigned ShortCircuitCounter;
-extern unsigned TrivialShortCircuitCounter;
+unsigned ShortCircuitCounter = 0;
+unsigned TrivialShortCircuitCounter = 0;
 
 using UniqueExpr = ASTTree::expr_unique_ptr;
 
@@ -90,7 +90,10 @@ static bool requiresNoStatement(IfNode *If, Marker &Mark) {
 }
 #endif
 
-static bool requiresNoStatement(IfNode *If, Marker &Mark) {
+static bool requiresNoStatement(IfNode *, Marker &) {
+  // HACK: this is not correct, because it enables short-circuit even in cases
+  // where the IfNode really does require some statements, hence producing
+  // code that is not semantically equivalent
   return true;
 }
 
@@ -904,9 +907,7 @@ protected:
       break; // do nothing
     case ASTNode::NK_IfCheck:
       BeautifyLogger << "Unexpected: IfCheck\n";
-      [[clang::fallthrough]];
-    default:
-      revng_unreachable("unexpected node kind");
+      break;
     }
   }
 

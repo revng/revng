@@ -153,7 +153,7 @@ public:
   }
 
   size_t size() const { return BlockNodes.size(); }
-  void setSize(int Size) { BlockNodes.reserve(Size); }
+  void setSize(size_t Size) { BlockNodes.reserve(Size); }
 
   BasicBlockNode<NodeT> *addNode(NodeT Name);
 
@@ -318,5 +318,7 @@ struct GraphTraits<Inverse<RegionCFG<NodeT> *>>
 };
 
 } // namespace llvm
+
+extern unsigned DuplicationCounter;
 
 #endif // REVNGC_RESTRUCTURE_CFG_REGIONCFGTREE_H

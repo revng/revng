@@ -8,6 +8,9 @@
 // local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 
+extern unsigned ShortCircuitCounter;
+extern unsigned TrivialShortCircuitCounter;
+
 // Forward declarations
 namespace MarkForSerialization {
 class Analysis;

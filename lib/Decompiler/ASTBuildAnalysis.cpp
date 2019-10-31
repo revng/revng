@@ -746,7 +746,24 @@ static clang::BinaryOperatorKind getClangBinaryOpKind(const Instruction &I) {
     case CmpInst::ICMP_SLE: {
       Res = clang::BinaryOperatorKind::BO_LE;
     } break;
-    default:
+    case CmpInst::BAD_ICMP_PREDICATE:
+    case CmpInst::BAD_FCMP_PREDICATE:
+    case CmpInst::FCMP_TRUE:
+    case CmpInst::FCMP_FALSE:
+    case CmpInst::FCMP_OEQ:
+    case CmpInst::FCMP_ONE:
+    case CmpInst::FCMP_OGE:
+    case CmpInst::FCMP_OGT:
+    case CmpInst::FCMP_OLE:
+    case CmpInst::FCMP_OLT:
+    case CmpInst::FCMP_ORD:
+    case CmpInst::FCMP_UNO:
+    case CmpInst::FCMP_UEQ:
+    case CmpInst::FCMP_UNE:
+    case CmpInst::FCMP_UGT:
+    case CmpInst::FCMP_UGE:
+    case CmpInst::FCMP_ULT:
+    case CmpInst::FCMP_ULE:
       revng_abort("Unsupported comparison operator");
     }
   } break;
@@ -1113,7 +1130,7 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
         case Instruction::UIToFP:
         case Instruction::SIToFP:
         case Instruction::AddrSpaceCast:
-        default:
+        case Instruction::CastOpsEnd:
           revng_abort();
         }
 
@@ -1233,7 +1250,95 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
         QualType T = ASTCtx.LongLongTy;
         return IntegerLiteral::Create(ASTCtx, Const, T, {});
       }
-      default:
+      case BuiltinType::Dependent:
+      case BuiltinType::Overload:
+      case BuiltinType::BoundMember:
+      case BuiltinType::PseudoObject:
+      case BuiltinType::UnknownAny:
+      case BuiltinType::BuiltinFn:
+      case BuiltinType::ARCUnbridgedCast:
+      case BuiltinType::OMPArraySection:
+      case BuiltinType::Void:
+      case BuiltinType::WChar_U:
+      case BuiltinType::WChar_S:
+      case BuiltinType::Char8:
+      case BuiltinType::Char16:
+      case BuiltinType::Char32:
+      case BuiltinType::Accum:
+      case BuiltinType::ShortAccum:
+      case BuiltinType::LongAccum:
+      case BuiltinType::UAccum:
+      case BuiltinType::UShortAccum:
+      case BuiltinType::ULongAccum:
+      case BuiltinType::SatAccum:
+      case BuiltinType::SatShortAccum:
+      case BuiltinType::SatLongAccum:
+      case BuiltinType::SatUAccum:
+      case BuiltinType::SatUShortAccum:
+      case BuiltinType::SatULongAccum:
+      case BuiltinType::Fract:
+      case BuiltinType::ShortFract:
+      case BuiltinType::LongFract:
+      case BuiltinType::UFract:
+      case BuiltinType::UShortFract:
+      case BuiltinType::ULongFract:
+      case BuiltinType::SatFract:
+      case BuiltinType::SatShortFract:
+      case BuiltinType::SatLongFract:
+      case BuiltinType::SatUFract:
+      case BuiltinType::SatUShortFract:
+      case BuiltinType::SatULongFract:
+      case BuiltinType::Half:
+      case BuiltinType::Float:
+      case BuiltinType::Double:
+      case BuiltinType::LongDouble:
+      case BuiltinType::Float16:
+      case BuiltinType::Float128:
+      case BuiltinType::NullPtr:
+      case BuiltinType::ObjCId:
+      case BuiltinType::ObjCClass:
+      case BuiltinType::ObjCSel:
+      case BuiltinType::OCLSampler:
+      case BuiltinType::OCLEvent:
+      case BuiltinType::OCLClkEvent:
+      case BuiltinType::OCLQueue:
+      case BuiltinType::OCLReserveID:
+      case BuiltinType::OCLImage1dRO:
+      case BuiltinType::OCLImage1dWO:
+      case BuiltinType::OCLImage1dRW:
+      case BuiltinType::OCLImage1dArrayRO:
+      case BuiltinType::OCLImage1dArrayWO:
+      case BuiltinType::OCLImage1dArrayRW:
+      case BuiltinType::OCLImage1dBufferRO:
+      case BuiltinType::OCLImage1dBufferWO:
+      case BuiltinType::OCLImage1dBufferRW:
+      case BuiltinType::OCLImage2dRO:
+      case BuiltinType::OCLImage2dWO:
+      case BuiltinType::OCLImage2dRW:
+      case BuiltinType::OCLImage2dArrayRO:
+      case BuiltinType::OCLImage2dArrayWO:
+      case BuiltinType::OCLImage2dArrayRW:
+      case BuiltinType::OCLImage2dDepthRO:
+      case BuiltinType::OCLImage2dDepthWO:
+      case BuiltinType::OCLImage2dDepthRW:
+      case BuiltinType::OCLImage2dArrayDepthRO:
+      case BuiltinType::OCLImage2dArrayDepthWO:
+      case BuiltinType::OCLImage2dArrayDepthRW:
+      case BuiltinType::OCLImage2dMSAARO:
+      case BuiltinType::OCLImage2dMSAAWO:
+      case BuiltinType::OCLImage2dMSAARW:
+      case BuiltinType::OCLImage2dArrayMSAARO:
+      case BuiltinType::OCLImage2dArrayMSAAWO:
+      case BuiltinType::OCLImage2dArrayMSAARW:
+      case BuiltinType::OCLImage2dMSAADepthRO:
+      case BuiltinType::OCLImage2dMSAADepthWO:
+      case BuiltinType::OCLImage2dMSAADepthRW:
+      case BuiltinType::OCLImage2dArrayMSAADepthRO:
+      case BuiltinType::OCLImage2dArrayMSAADepthWO:
+      case BuiltinType::OCLImage2dArrayMSAADepthRW:
+      case BuiltinType::OCLImage3dRO:
+      case BuiltinType::OCLImage3dWO:
+      case BuiltinType::OCLImage3dRW:
         revng_abort();
       }
     } else if (isa<ConstantPointerNull>(CD)) {

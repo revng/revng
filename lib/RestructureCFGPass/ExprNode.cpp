@@ -22,7 +22,5 @@ void ExprNode::deleteExprNode(ExprNode *E) {
   case NodeKind::NK_Or:
     delete static_cast<OrNode *>(E);
     break;
-  default:
-    revng_unreachable("Deleting unexpected ExprNode");
   }
 }

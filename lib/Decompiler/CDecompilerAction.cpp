@@ -22,7 +22,6 @@
 
 // local includes
 #include "ASTBuildAnalysis.h"
-#include "CDecompilerBeautify.h"
 #include "DecompilationHelpers.h"
 #include "FuncDeclCreationAction.h"
 #include "GlobalDeclCreationAction.h"
@@ -228,8 +227,6 @@ static clang::Expr *createCondExpr(ExprNode *E,
         VisitStack.back().ResolvedOperands.push_back(BinExpr);
       }
     } break;
-    default:
-      revng_abort();
     }
   }
   revng_assert(VisitStack.size() == 1);
@@ -552,7 +549,6 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
   } break;
 
   case ASTNode::NodeKind::NK_IfCheck:
-  default:
     revng_abort();
   }
 }

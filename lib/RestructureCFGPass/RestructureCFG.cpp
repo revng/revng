@@ -409,7 +409,6 @@ static opt<std::string> OutputPath("restructure-metrics-output-dir",
                                    desc("Restructure metrics dir"),
                                    value_desc("restructure-dir"),
                                    cat(MainCategory));
-unsigned DuplicationCounter = 0;
 
 ASTTree &RestructureCFG::getAST() {
   return RootCFG.getAST();
