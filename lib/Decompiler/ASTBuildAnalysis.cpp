@@ -91,6 +91,13 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     // FIXME: handle returned values properly
     ReturnInst *Ret = cast<ReturnInst>(&I);
     Value *RetVal = Ret->getReturnValue();
+
+    // HACK: handle return instructions containing a `ConstantStruct` by
+    //       emitting a `return void`
+    if (RetVal && isa<ConstantStruct>(RetVal)) {
+      return new (ASTCtx) ReturnStmt({}, nullptr, nullptr);
+    }
+
     Expr *ReturnedExpr = RetVal ? getExprForValue(RetVal) : nullptr;
     return new (ASTCtx) ReturnStmt({}, ReturnedExpr, nullptr);
   }
