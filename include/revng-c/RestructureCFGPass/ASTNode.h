@@ -404,9 +404,9 @@ public:
 
   IfNode *getComputationIfNode() const;
 
-  bool isImplicit() const { return IsImplicit; };
+  bool isImplicit() const { return IsImplicit; }
 
-  void setImplicit() { IsImplicit = true; };
+  void setImplicit() { IsImplicit = true; }
 };
 
 class BreakNode : public ASTNode {

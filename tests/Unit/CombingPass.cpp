@@ -90,7 +90,7 @@ static void runTest(TestType Type,
   }
 }
 
-BOOST_FIXTURE_TEST_SUITE(FixtureTestSuite, ArgsFixture);
+BOOST_FIXTURE_TEST_SUITE(FixtureTestSuite, ArgsFixture)
 
 BOOST_AUTO_TEST_CASE(TrivialGraphEqual) {
   std::string DotPath = argv[1];
@@ -117,4 +117,4 @@ BOOST_AUTO_TEST_CASE(SimpleGraphNotEqual) {
 }
 
 // End tag of test suite
-BOOST_AUTO_TEST_SUITE_END();
+BOOST_AUTO_TEST_SUITE_END()
