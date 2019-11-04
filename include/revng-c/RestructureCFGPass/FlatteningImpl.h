@@ -126,8 +126,8 @@ inline void flattenRegionCFGTree(RegionCFG<NodeT> &Root) {
 
       // Iterative exploration going upwards from the check node searching for
       // the set nodes.
-      for (BasicBlockNodeT *Pred : Node->predecessors()) {
-        Candidates.push_back(Pred);
+      for (BasicBlockNodeT *P : Node->predecessors()) {
+        Candidates.push_back(P);
       }
       while (Candidates.size() > 0) {
         BasicBlockNodeT *Candidate = Candidates.back();
@@ -143,10 +143,10 @@ inline void flattenRegionCFGTree(RegionCFG<NodeT> &Root) {
           // for processing, after verifying that they are in turn either set
           // or dummy nodes.
           std::vector<EdgeDescriptor> EdgesToMove;
-          for (BasicBlockNodeT *Pred : Candidate->predecessors()) {
-            revng_assert(Pred->isSet() or Pred->isEmpty());
-            Candidates.push_back(Pred);
-            EdgesToMove.push_back({ Pred, Candidate });
+          for (BasicBlockNodeT *P : Candidate->predecessors()) {
+            revng_assert(P->isSet() or P->isEmpty());
+            Candidates.push_back(P);
+            EdgesToMove.push_back({ P, Candidate });
           }
 
           // Remove the dummy node when we have finished.

@@ -131,8 +131,8 @@ findReachableNodes(BasicBlockNode<NodeT> &Source,
       } else if (alreadyOnStackQuick(StackSet, Vertex)) {
         // Add all the nodes on the stack to the set of additional nodes.
         BasicBlockNodeTSet<NodeT> &AdditionalSet = AdditionalNodes[Vertex];
-        for (auto StackElem : Stack) {
-          AdditionalSet.insert(StackElem.first);
+        for (auto StackE : Stack) {
+          AdditionalSet.insert(StackE.first);
         }
         continue;
       }

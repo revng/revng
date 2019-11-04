@@ -379,9 +379,9 @@ inline void RegionCFG<NodeT>::dumpDotOnFile(const std::string &FileName) const {
 
 template<class NodeT>
 inline void RegionCFG<NodeT>::dumpDotOnFile(const std::string &FolderName,
-                                            const std::string &FunctionName,
+                                            const std::string &FuncName,
                                             const std::string &FileName) const {
-  const std::string PathName = FolderName + "/" + FunctionName;
+  const std::string PathName = FolderName + "/" + FuncName;
   std::error_code EC = llvm::sys::fs::create_directory(PathName);
   revng_check(not EC, "Could not create directory to print RegionCFG dot");
   dumpDotOnFile(PathName + "/" + FileName);
@@ -859,7 +859,6 @@ inline void RegionCFG<NodeT>::inflate() {
   RegionCFG<NodeT> &Graph = *this;
 
   // Collect entry and exit nodes.
-  BasicBlockNode<NodeT> *EntryNode = &Graph.getEntryNode();
   BasicBlockNodeTVect ExitNodes;
   for (auto It = Graph.begin(); It != Graph.end(); It++) {
     if ((*It)->successor_size() == 0) {
@@ -1523,7 +1522,6 @@ inline void RegionCFG<NodeT>::removeNotReachables() {
   bool Difference = true;
   while (Difference) {
     Difference = false;
-    BasicBlockNode<NodeT> *EntryNode = &getEntryNode();
     for (auto It = begin(); It != end(); It++) {
       if ((EntryNode != *It and (*It)->predecessor_size() == 0)) {
 
@@ -1544,7 +1542,6 @@ RegionCFG<NodeT>::removeNotReachables(std::vector<MetaRegion<NodeT> *> &MS) {
   bool Difference = true;
   while (Difference) {
     Difference = false;
-    BasicBlockNode<NodeT> *EntryNode = &getEntryNode();
     for (auto It = begin(); It != end(); It++) {
       if ((EntryNode != *It and (*It)->predecessor_size() == 0)) {
         for (MetaRegion<NodeT> *M : MS) {

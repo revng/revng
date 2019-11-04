@@ -771,8 +771,8 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
     // ASTNode *FirstNode = getLastOfSequenceOrSelf(Scs->getBody());
     ASTNode *FirstNode = nullptr;
     bool InsideSequence = false;
-    if (auto *Sequence = llvm::dyn_cast<SequenceNode>(Body)) {
-      FirstNode = Sequence->getNodeN(0);
+    if (auto *Seq = llvm::dyn_cast<SequenceNode>(Body)) {
+      FirstNode = Seq->getNodeN(0);
       InsideSequence = true;
     } else {
       FirstNode = Body;
