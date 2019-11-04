@@ -381,8 +381,10 @@ template<class NodeT>
 inline void RegionCFG<NodeT>::dumpDotOnFile(const std::string &FolderName,
                                             const std::string &FuncName,
                                             const std::string &FileName) const {
+  std::error_code EC = llvm::sys::fs::create_directory(FolderName);
+  revng_check(not EC, "Could not create directory to print RegionCFG dot");
   const std::string PathName = FolderName + "/" + FuncName;
-  std::error_code EC = llvm::sys::fs::create_directory(PathName);
+  EC = llvm::sys::fs::create_directory(PathName);
   revng_check(not EC, "Could not create directory to print RegionCFG dot");
   dumpDotOnFile(PathName + "/" + FileName);
 }
