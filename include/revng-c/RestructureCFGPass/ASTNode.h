@@ -48,7 +48,7 @@ public:
 
   using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
   // Steal the `BasicBlockNodeBB` definition from the external namespace
-  using BasicBlockNodeBB = BasicBlockNodeBB;
+  using BasicBlockNodeBB = ::BasicBlockNodeBB;
   using BBNodeMap = std::map<BasicBlockNodeBB *, BasicBlockNodeBB *>;
   using ExprNodeMap = std::map<ExprNode *, ExprNode *>;
 
