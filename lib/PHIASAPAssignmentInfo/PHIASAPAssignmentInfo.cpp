@@ -110,7 +110,6 @@ getCandidatesInfo(const PHINode *ThePHI, const DomTree &DT) {
   return Res;
 }
 
-
 static bool smallerBrokenCount(const std::pair<unsigned, unsigned> &P,
                                const std::pair<unsigned, unsigned> &Q) {
   return P.second < Q.second;
@@ -124,7 +123,7 @@ static void computePHIVarAssignments(PHINode *ThePHI,
   IncomingCandidatesVec &IncomingCandidates = CandidatesInfo.IncomingCandidates;
   BlockToIncomingMap &BlocksToIncoming = CandidatesInfo.BlocksToIncoming;
 
- IncomingCandidatesVec::size_type NPred = IncomingCandidates.size();
+  IncomingCandidatesVec::size_type NPred = IncomingCandidates.size();
 
   // Compute maximum number of valid candidates across all the incomings.
   // Its value is also used later to disable further processing whenever an
@@ -159,14 +158,13 @@ static void computePHIVarAssignments(PHINode *ThePHI,
 
   for (size_t NDisc = 0; NDisc < MaxNumCandidates; ++NDisc) {
 
-
     SmallVector<std::pair<unsigned, unsigned>, 8> BrokenCount;
 
     for (unsigned K = 0; K < NPred; ++K) {
       if (NumDiscarded[K] != NDisc)
         continue;
 
-      BrokenCount.push_back({K, 0});
+      BrokenCount.push_back({ K, 0 });
 
       auto &KCandidates = IncomingCandidates[K];
 

@@ -65,9 +65,7 @@ static FunctionDecl *createFunDecl(ASTContext &Context,
     ProtoInfo.Variadic = true;
   }
 
-  QualType FDeclType = Context.getFunctionType(RetType,
-                                               ArgTypes,
-                                               ProtoInfo);
+  QualType FDeclType = Context.getFunctionType(RetType, ArgTypes, ProtoInfo);
 
   const llvm::StringRef FName = F->getName();
   revng_assert(not FName.empty());
@@ -117,7 +115,7 @@ public:
     TypeDecls(TDecls),
     FieldDecls(FieldDecls) {}
 
-virtual void HandleTranslationUnit(ASTContext &Context) override;
+  virtual void HandleTranslationUnit(ASTContext &Context) override;
 
 private:
   llvm::Function &TheF;

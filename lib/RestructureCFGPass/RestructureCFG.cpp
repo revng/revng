@@ -383,8 +383,8 @@ static BasicBlockNodeBB *getCheckPredecessor(BasicBlockNodeBB *Node) {
   return CheckPredecessor;
 }
 
-static void removeFromRPOT(std::vector<BasicBlockNodeBB *> &RPOT,
-                           BasicBlockNodeBB *Node) {
+static void
+removeFromRPOT(std::vector<BasicBlockNodeBB *> &RPOT, BasicBlockNodeBB *Node) {
 
   RPOT.erase(std::remove_if(RPOT.begin(),
                             RPOT.end(),
@@ -395,7 +395,6 @@ static void removeFromRPOT(std::vector<BasicBlockNodeBB *> &RPOT,
                               return false;
                             }),
              RPOT.end());
-
 }
 
 char RestructureCFG::ID = 0;
@@ -700,7 +699,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       Backedges.erase(Retreating);
     }
 
-    #if 0
+#if 0
     std::map<BasicBlockNodeBB *, int> IncomingDegree;
     for (BasicBlockNodeBB *Node : Meta->nodes()) {
       int IncomingCounter = 0;
@@ -755,9 +754,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
     } else {
       FirstCandidate = *MaximuxEdgesNodes.begin();
     }
-    #endif
+#endif
 
-    #if 1
+#if 1
     // Always take the fist node in RPOT which is a retreating target as entry,
     // candidate.
     BasicBlockNodeBB *FirstCandidate = nullptr;
@@ -767,7 +766,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
         break;
       }
     }
-    #endif
+#endif
 
     revng_assert(FirstCandidate != nullptr);
 
@@ -776,8 +775,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
     if (CombLogger.isEnabled()) {
       CombLogger << "Elected head is: " << FirstCandidate->getNameStr() << "\n";
     }
-
-
 
     bool NewHeadNeeded = false;
     for (BasicBlockNodeBB *Node : RetreatingTargets) {
@@ -1305,8 +1302,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     if (BBNode->isCode()) {
       revng_assert(BB != nullptr);
       NDuplicates[BB] += 1;
-      //if (NDuplicates[BB] > 1)
-        //DuplicationCounter += 1;
+      // if (NDuplicates[BB] > 1)
+      // DuplicationCounter += 1;
     } else {
       revng_assert(BB == nullptr);
     }
@@ -1327,7 +1324,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
   if (OutputPath.getNumOccurrences() == 1) {
     std::ofstream Output;
     std::ostream &OutputStream = pathToStream(OutputPath + "/"
-                                              + F.getName().data(), Output);
+                                                + F.getName().data(),
+                                              Output);
     OutputStream << "function,duplications\n";
     OutputStream << F.getName().data() << "," << DuplicationCounter << "\n";
   }

@@ -33,7 +33,7 @@ public:
     TypeDecls(TDecls),
     FieldDecls(FieldDecls) {}
 
-virtual void HandleTranslationUnit(ASTContext &Context) override;
+  virtual void HandleTranslationUnit(ASTContext &Context) override;
 
 private:
   llvm::Function &TheF;

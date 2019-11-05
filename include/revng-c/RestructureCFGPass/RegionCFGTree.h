@@ -257,8 +257,8 @@ public:
   std::vector<BasicBlockNode<NodeT> *>
   getInterestingNodes(BasicBlockNodeT *Condition);
 
-  BasicBlockNode<NodeT> *cloneUntilExit(BasicBlockNode<NodeT> *Node,
-                                        BasicBlockNode<NodeT> *Sink);
+  BasicBlockNode<NodeT> *
+  cloneUntilExit(BasicBlockNode<NodeT> *Node, BasicBlockNode<NodeT> *Sink);
 
   /// \brief Apply the untangle preprocessing pass.
   void untangle();

@@ -17,7 +17,6 @@
 
 class ASTTree;
 
-
 namespace clang {
 
 class CompilerInstance;

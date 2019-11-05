@@ -121,8 +121,8 @@ inline ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
 }
 
 template<class NodeT>
-inline bool predecessorsVisited(BasicBlockNode<NodeT> *Node,
-                                SmallPtrSet<NodeT> &Visited) {
+inline bool
+predecessorsVisited(BasicBlockNode<NodeT> *Node, SmallPtrSet<NodeT> &Visited) {
 
   bool State = true;
 
@@ -139,8 +139,8 @@ inline bool predecessorsVisited(BasicBlockNode<NodeT> *Node,
 }
 
 template<class NodeT>
-inline bool nodeVisited(BasicBlockNode<NodeT> *Node,
-                        SmallPtrSet<NodeT> &Visited) {
+inline bool
+nodeVisited(BasicBlockNode<NodeT> *Node, SmallPtrSet<NodeT> &Visited) {
   if (Visited.count(Node) != 0) {
     return true;
   } else {
@@ -490,9 +490,9 @@ inline bool isGreater(unsigned Op1, unsigned Op2) {
 }
 
 template<class NodeT>
-inline BasicBlockNode<NodeT>
-*RegionCFG<NodeT>::cloneUntilExit(BasicBlockNode<NodeT> *Node,
-                                  BasicBlockNode<NodeT> *Sink) {
+inline BasicBlockNode<NodeT> *
+RegionCFG<NodeT>::cloneUntilExit(BasicBlockNode<NodeT> *Node,
+                                 BasicBlockNode<NodeT> *Sink) {
 
   // Clone the postdominator node.
   BBNodeMap CloneMap;
@@ -702,7 +702,6 @@ inline void RegionCFG<NodeT>::untangle() {
                           ElseNodes.end(),
                           std::back_inserter(Intersection));
 
-
     if (Intersection.size() > 0) {
       continue;
     }
@@ -754,8 +753,7 @@ inline void RegionCFG<NodeT>::untangle() {
     unsigned TwoWeight = ThenWeight + PostDominatorWeight;
     unsigned ThreeWeight = ElseWeight + PostDominatorWeight;
 
-    if (isGreater(TwoWeight, ThreeWeight)
-        and isGreater(OneWeight, ThreeWeight)
+    if (isGreater(TwoWeight, ThreeWeight) and isGreater(OneWeight, ThreeWeight)
         and PostDominator != Sink) {
       revng_log(CombLogger, FunctionName << ":");
       revng_log(CombLogger, RegionName << ":");
@@ -791,8 +789,7 @@ inline void RegionCFG<NodeT>::untangle() {
       revng_assert(PostDominatorClone->predecessor_size() > 0);
     }
 
-    if (isGreater(ThreeWeight, TwoWeight)
-        and isGreater(OneWeight, TwoWeight)
+    if (isGreater(ThreeWeight, TwoWeight) and isGreater(OneWeight, TwoWeight)
         and PostDominator != Sink) {
       revng_log(CombLogger, FunctionName << ":");
       revng_log(CombLogger, RegionName << ":");
@@ -1003,14 +1000,14 @@ inline void RegionCFG<NodeT>::inflate() {
   DT.recalculate(Graph);
   PDT.recalculate(Graph);
 
-  #if 1
+#if 1
   // Compute the immediate post-dominator for each conditional node.
   for (BasicBlockNode<NodeT> *Conditional : ConditionalNodes) {
     BasicBlockNode<NodeT> *PostDom = PDT[Conditional]->getIDom()->getBlock();
     revng_assert(PostDom != nullptr);
     PostDominatorMap[Conditional] = PostDom;
   }
-  #endif
+#endif
 
   while (!ConditionalNodes.empty()) {
 
@@ -1040,7 +1037,8 @@ inline void RegionCFG<NodeT>::inflate() {
 
     // Get an iterator from the reverse post order list in the position of the
     // conditional node.
-    typename std::list<BasicBlockNode<NodeT> *>::iterator ListIt = RevPostOrderList.begin();
+    typename std::list<BasicBlockNode<NodeT> *>::iterator
+      ListIt = RevPostOrderList.begin();
     while (&**ListIt != Conditional and ListIt != RevPostOrderList.end()) {
       ListIt++;
     }
@@ -1171,8 +1169,7 @@ inline void RegionCFG<NodeT>::inflate() {
             CombLogger << Predecessor->getNameStr() << "\n";
           }
           if (nodeVisited(Predecessor, Visited)) {
-            moveEdgeTarget(EdgeDescriptor(Predecessor, Candidate),
-                           Dummy);
+            moveEdgeTarget(EdgeDescriptor(Predecessor, Candidate), Dummy);
           }
         }
 
@@ -1348,8 +1345,7 @@ inline void RegionCFG<NodeT>::generateAst() {
       revng_assert(ASTChildren.size() <= 1);
       RegionCFG<NodeT> *BodyGraph = Node->getCollapsedCFG();
       revng_assert(BodyGraph != nullptr);
-      CombLogger << "Inspecting collapsed node: " << Node->getNameStr()
-                 << "\n";
+      CombLogger << "Inspecting collapsed node: " << Node->getNameStr() << "\n";
       CombLogger.emit();
       BodyGraph->generateAst();
       if (ASTChildren.size() == 1) {

@@ -359,7 +359,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       revng_assert(NumArgs == NumOps);
 
     auto Args = SmallVector<Expr *, 8>(NumOps, nullptr);
-    revng_assert(not (not HasNoParms and IsVariadic));
+    revng_assert(not(not HasNoParms and IsVariadic));
     if (not HasNoParms) {
       for (unsigned OpId = 0; OpId < NumOps; ++OpId) {
         Value *Operand = TheCall->getOperand(OpId);
@@ -654,10 +654,8 @@ void StmtBuilder::createAST() {
               StructOpExpr.push_back(OperandExpr);
             }
 
-            clang::Expr *ILE = new (ASTCtx) InitListExpr(ASTCtx,
-                                                         {},
-                                                         StructOpExpr,
-                                                         {});
+            clang::Expr *ILE = new (ASTCtx)
+              InitListExpr(ASTCtx, {}, StructOpExpr, {});
             NewVarDecl->setInit(ILE);
           }
         }

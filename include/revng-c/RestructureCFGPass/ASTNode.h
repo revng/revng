@@ -10,8 +10,8 @@
 
 // LLVM includes
 #include <llvm/ADT/SmallVector.h>
-#include <llvm/Support/Casting.h>
 #include <llvm/IR/BasicBlock.h>
+#include <llvm/Support/Casting.h>
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"

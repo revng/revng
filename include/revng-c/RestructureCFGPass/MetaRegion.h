@@ -12,8 +12,8 @@
 #include <vector>
 
 // LLVM includes
-#include <llvm/ADT/iterator_range.h>
 #include "llvm/ADT/PostOrderIterator.h"
+#include <llvm/ADT/iterator_range.h>
 
 // Local libraries include
 #include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"

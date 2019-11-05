@@ -73,8 +73,7 @@ inline void moveEdgeTarget(Edge<NodeT> Edge, BasicBlockNode<NodeT> *NewTarget) {
 }
 
 template<class NodeT>
-inline bool alreadyOnStack(Stack<NodeT> &Stack,
-                           BasicBlockNode<NodeT> *Node) {
+inline bool alreadyOnStack(Stack<NodeT> &Stack, BasicBlockNode<NodeT> *Node) {
   for (auto &StackElem : Stack) {
     if (StackElem.first == Node) {
       return true;

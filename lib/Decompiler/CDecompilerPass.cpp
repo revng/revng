@@ -111,7 +111,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
 
   // Remove calls to newpc
   for (Function &ParentF : *F.getParent()) {
-    for (BasicBlock &BB :ParentF) {
+    for (BasicBlock &BB : ParentF) {
       if (!ParentF.getName().startswith("bb."))
         continue;
 
@@ -216,10 +216,11 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   if (OutputPath.getNumOccurrences() == 1) {
     std::ofstream Output;
     std::ostream &OutputStream = pathToStream(OutputPath + "/"
-                                              + F.getName().data(), Output);
+                                                + F.getName().data(),
+                                              Output);
     OutputStream << "function,short-circuit,trivial-short-circuit\n";
-    OutputStream << F.getName().data() << "," << ShortCircuitCounter
-                 << "," << TrivialShortCircuitCounter << "\n";
+    OutputStream << F.getName().data() << "," << ShortCircuitCounter << ","
+                 << TrivialShortCircuitCounter << "\n";
   }
 
   return true;

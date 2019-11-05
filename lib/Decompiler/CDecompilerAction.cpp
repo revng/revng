@@ -340,7 +340,6 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                           ElseScope));
     }
 
-
     break;
   }
 
@@ -636,7 +635,7 @@ public:
     BlockToPHIIncoming(BlockToPHIIncoming),
     NDuplicates(NDuplicates) {}
 
-virtual void HandleTranslationUnit(ASTContext &Context) override;
+  virtual void HandleTranslationUnit(ASTContext &Context) override;
 
 private:
   llvm::Function &TheF;

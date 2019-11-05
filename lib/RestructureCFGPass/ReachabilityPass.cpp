@@ -90,7 +90,7 @@ bool ReachabilityPass::runOnFunction(Function &F) {
   while (Change) {
     Change = false;
 
-  Bool2DMatrix MatrixClosure(Dimension, std::vector<bool>(Dimension, false));
+    Bool2DMatrix MatrixClosure(Dimension, std::vector<bool>(Dimension, false));
     for (unsigned i = 0; i <= MaxIndex; i++) {
       for (unsigned j = 0; j <= MaxIndex; j++) {
         bool Value = 0;

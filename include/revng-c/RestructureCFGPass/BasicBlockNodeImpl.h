@@ -17,8 +17,7 @@
 
 // Trait exposing the weight of a generic object wrapped by `BasicBlockNode`.
 template<class T>
-struct WeightTraits {
-};
+struct WeightTraits {};
 
 // Specialization of the WeightTraits for the the `BasicBlock` class, which
 // simply returns the number of instruction composing it.
@@ -40,7 +39,8 @@ inline BasicBlockNode<NodeT>::BasicBlockNode(RegionCFGT *Parent,
   NodeType(T),
   Name(Name),
   StateVariableValue(Value),
-  OriginalNode(OriginalNode) {}
+  OriginalNode(OriginalNode) {
+}
 
 template<class NodeT>
 inline void BasicBlockNode<NodeT>::removeNode() {
