@@ -111,9 +111,9 @@ getCandidatesInfo(const PHINode *ThePHI, const DomTree &DT) {
 }
 
 
-static bool largerBrokenCount(const std::pair<unsigned, unsigned> &P,
-                              const std::pair<unsigned, unsigned> &Q) {
-  return P.second > Q.second;
+static bool smallerBrokenCount(const std::pair<unsigned, unsigned> &P,
+                               const std::pair<unsigned, unsigned> &Q) {
+  return P.second < Q.second;
 }
 
 static void computePHIVarAssignments(PHINode *ThePHI,
@@ -147,12 +147,12 @@ static void computePHIVarAssignments(PHINode *ThePHI,
     auto &KCandidates = IncomingCandidates[K];
     auto NCandidates = KCandidates.size();
     if (NCandidates <= 1) {
-      NumDiscarded[K] = MaxNumCandidates; // this incoming is complete
       ++NumAssigned;
       if (NCandidates != 0)
         AssignmentBlocks[KCandidates.back()][ThePHI] = K;
       else
         revng_assert(ThePHI == ThePHI->getIncomingValue(K));
+      NumDiscarded[K] = MaxNumCandidates; // this incoming is complete
       KCandidates.clear();
     }
   }
@@ -183,7 +183,7 @@ static void computePHIVarAssignments(PHINode *ThePHI,
       }
     }
 
-    std::sort(BrokenCount.begin(), BrokenCount.end(), largerBrokenCount);
+    std::sort(BrokenCount.begin(), BrokenCount.end(), smallerBrokenCount);
 
     for (const auto &P : BrokenCount) {
       auto IncomingIdx = P.first;
@@ -193,9 +193,9 @@ static void computePHIVarAssignments(PHINode *ThePHI,
 
       BlockPtrVec &PCandidates = IncomingCandidates[IncomingIdx];
       Value *NewVal = ThePHI->getIncomingValue(IncomingIdx);
+      ++NumAssigned;
       if (PCandidates.empty()) {
         revng_assert(isa<PHINode>(NewVal) and NewVal == ThePHI);
-        ++NumAssigned;
         continue;
       }
       auto &BlockAssignments = AssignmentBlocks[PCandidates.back()];
@@ -206,7 +206,6 @@ static void computePHIVarAssignments(PHINode *ThePHI,
       Value *OldVal = ThePHI->getIncomingValue(It->second);
       bool ExpectedDuplicate = SameIdx or (OldVal == NewVal);
       revng_assert(New or ExpectedDuplicate);
-      ++NumAssigned;
       if (not New and ExpectedDuplicate) {
         PCandidates.clear();
         continue;
