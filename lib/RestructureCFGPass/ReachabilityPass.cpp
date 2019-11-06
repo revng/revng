@@ -95,6 +95,7 @@ bool ReachabilityPass::runOnFunction(Function &F) {
       for (unsigned j = 0; j <= MaxIndex; j++) {
         bool Value = 0;
         for (unsigned k = 0; k <= MaxIndex; k++) {
+          Value = Value or (Matrix[i][k] and Matrix[k][j]);
         }
         MatrixClosure[i][j] = Value;
       }
