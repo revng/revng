@@ -27,6 +27,7 @@
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
+#include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 // local includes
 #include "CDecompilerAction.h"
@@ -92,6 +93,14 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
       or F.getName().startswith("bb.main")
       or F.getName().startswith("bb.vasnprintf")) {
     return false;
+  }
+
+  // If we passed the `-single-decompilation` option to the command line, skip
+  // decompilation for all the functions that are not the selected one.
+  if (TargetFunction.size() != 0) {
+    if (!F.getName().equals(TargetFunction.c_str())) {
+      return false;
+    }
   }
 
   // If we passed the `-decompiled-prefix` option to the command line, we take

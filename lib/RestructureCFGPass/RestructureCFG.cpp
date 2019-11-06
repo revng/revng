@@ -22,6 +22,9 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
+// revng-c includes
+#include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
+
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/FlatteningBB.h"
 #include "revng-c/RestructureCFGPass/MetaRegionBB.h"
@@ -426,6 +429,14 @@ bool RestructureCFG::runOnFunction(Function &F) {
       or F.getName().startswith("bb.main")
       or F.getName().startswith("bb.vasnprintf")) {
     return false;
+  }
+
+  // If we passed the `-single-decompilation` option to the command line, skip
+  // decompilation for all the functions that are not the selected one.
+  if (TargetFunction.size() != 0) {
+    if (!F.getName().equals(TargetFunction.c_str())) {
+      return false;
+    }
   }
 
   // Clear graph object from the previous pass.
@@ -1323,8 +1334,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Serialize the collected metrics in the outputfile.
   if (OutputPath.getNumOccurrences() == 1) {
     std::ofstream Output;
-    std::ostream &OutputStream = pathToStream(OutputPath + "/"
-                                              + F.getName().data(),
+    const char *FunctionName = F.getName().data();
+    std::ostream &OutputStream = pathToStream(OutputPath + "/" + FunctionName,
                                               Output);
     OutputStream << "function,duplications\n";
     OutputStream << F.getName().data() << "," << DuplicationCounter << "\n";

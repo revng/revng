@@ -9,6 +9,7 @@ revng_add_analyses_library(RestructureCFGPass revngc
                            RestructureCFG.cpp)
 
 target_link_libraries(RestructureCFGPass
+                      TargetFunctionOption
                       revng::revngSupport
                       ${LLVM_LIBRARIES})
 
