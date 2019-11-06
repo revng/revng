@@ -1129,6 +1129,7 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
         case Instruction::SIToFP:
         case Instruction::AddrSpaceCast:
         case Instruction::CastOpsEnd:
+        default:
           revng_abort();
         }
 

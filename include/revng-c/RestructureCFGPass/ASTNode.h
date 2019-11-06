@@ -876,6 +876,8 @@ inline bool ASTNode::isEqual(const ASTNode *Node) {
     return llvm::cast<SwitchBreakNode>(this)->isEqual(Node);
   case NK_Set:
     return llvm::cast<SetNode>(this)->isEqual(Node);
+  default:
+    revng_abort();
   }
 }
 #endif // define REVNGC_RESTRUCTURE_CFG_ASTNODE_H
