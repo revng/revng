@@ -1324,7 +1324,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   if (OutputPath.getNumOccurrences() == 1) {
     std::ofstream Output;
     std::ostream &OutputStream = pathToStream(OutputPath + "/"
-                                                + F.getName().data(),
+                                              + F.getName().data(),
                                               Output);
     OutputStream << "function,duplications\n";
     OutputStream << F.getName().data() << "," << DuplicationCounter << "\n";
