@@ -16,5 +16,4 @@ add_library(ReachabilityTest
   STATIC
   ReachabilityPass.cpp)
 target_link_libraries(ReachabilityTest
-  RestructureCFGPass
   ${LLVM_LIBRARIES})

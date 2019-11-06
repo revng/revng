@@ -404,10 +404,10 @@ static RegisterPass<RestructureCFG> X("restructure-cfg",
                                       true,
                                       true);
 
-static opt<std::string> OutputPath("restructure-metrics-output-dir",
-                                   desc("Restructure metrics dir"),
-                                   value_desc("restructure-dir"),
-                                   cat(MainCategory));
+static cl::opt<std::string> OutputPath("restructure-metrics-output-dir",
+                                       desc("Restructure metrics dir"),
+                                       value_desc("restructure-dir"),
+                                       cat(MainCategory));
 
 ASTTree &RestructureCFG::getAST() {
   return RootCFG.getAST();

@@ -23,11 +23,10 @@
 #include <revng/Support/IRHelpers.h>
 
 // local libraries includes
+#include "revng-c/Decompiler/CDecompilerPass.h"
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
-
-#include "revng-c/Decompiler/CDecompilerPass.h"
 
 // local includes
 #include "CDecompilerAction.h"
