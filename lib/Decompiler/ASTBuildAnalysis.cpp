@@ -1184,13 +1184,13 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
       // Desugar stdint.h typedefs
       UnderlyingTy = UnderlyingTy->getUnqualifiedDesugaredType();
       const BuiltinType *BuiltinTy = cast<BuiltinType>(UnderlyingTy);
-      uint64_t ConstValue = CInt->getValue().getZExtValue();
       switch (BuiltinTy->getKind()) {
       case BuiltinType::Bool: {
         QualType IntT = ASTCtx.IntTy;
         QualType BoolTy = getOrCreateBoolQualType(ASTCtx,
                                                   TypeDecls,
                                                   C->getType());
+        uint64_t ConstValue = CInt->getValue().getZExtValue();
         APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue, true);
         Expr *IntLiteral = IntegerLiteral::Create(ASTCtx, Const, IntT, {});
         return createCast(BoolTy, IntLiteral, ASTCtx);
@@ -1200,6 +1200,7 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
       case BuiltinType::UChar:
       case BuiltinType::SChar: {
         using CharKind = CharacterLiteral::CharacterKind;
+        uint64_t ConstValue = CInt->getValue().getZExtValue();
         return new (ASTCtx) CharacterLiteral(static_cast<unsigned>(ConstValue),
                                              CharKind::Ascii,
                                              ASTCtx.CharTy,
@@ -1208,6 +1209,7 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
       case BuiltinType::UShort: {
         QualType IntT = ASTCtx.UnsignedIntTy;
         QualType ShortT = ASTCtx.UnsignedShortTy;
+        uint64_t ConstValue = CInt->getValue().getZExtValue();
         APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue);
         Expr *Literal = IntegerLiteral::Create(ASTCtx, Const, IntT, {});
         return createCast(ShortT, Literal, ASTCtx);
@@ -1215,6 +1217,7 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
       case BuiltinType::Short: {
         QualType IntT = ASTCtx.IntTy;
         QualType ShortT = ASTCtx.ShortTy;
+        uint64_t ConstValue = CInt->getValue().getZExtValue();
         APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue, true);
         Expr *Literal = IntegerLiteral::Create(ASTCtx, Const, IntT, {});
         return createCast(ShortT, Literal, ASTCtx);
@@ -1222,12 +1225,14 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
       case BuiltinType::UInt:
       case BuiltinType::ULong:
       case BuiltinType::ULongLong: {
+        uint64_t ConstValue = CInt->getValue().getZExtValue();
         APInt Const = APInt(ASTCtx.getIntWidth(LiteralTy), ConstValue);
         return IntegerLiteral::Create(ASTCtx, Const, LiteralTy, {});
       }
       case BuiltinType::Int:
       case BuiltinType::Long:
       case BuiltinType::LongLong: {
+        uint64_t ConstValue = CInt->getValue().getZExtValue();
         APInt Const = APInt(ASTCtx.getIntWidth(LiteralTy), ConstValue, true);
         return IntegerLiteral::Create(ASTCtx, Const, LiteralTy, {});
       }
@@ -1236,18 +1241,53 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
         // larger than 64 bits.
         // We don't use 128 instead of 64 because C hasn't 128 bits integer
         // literals.
-        APInt Const = APInt(64, ConstValue);
-        QualType T = ASTCtx.UnsignedLongLongTy;
-        return IntegerLiteral::Create(ASTCtx, Const, T, {});
+        const APInt &OldConst = CInt->getValue();
+        unsigned Width = OldConst.getBitWidth();
+
+        // Check that we are not at the boundaries of the representable
+        // integers with 64 bit, and in case enforce a full check.
+        if (Width <= 64) {
+          uint64_t ConstValue = OldConst.getZExtValue();
+          APInt Const = APInt(64, ConstValue);
+          QualType T = ASTCtx.UnsignedLongLongTy;
+          return IntegerLiteral::Create(ASTCtx, Const, T, {});
+        } else {
+          uint64_t ConstValue = OldConst.getLimitedValue();
+          APInt Const = APInt(64, ConstValue);
+
+          // HACK: We actually have values which need 128 bits to be
+          // represented, so we disable temporarly the check and simply
+          // truncate the value to 64 bit.
+#if 0
+          revng_assert(not Const.isMaxValue());
+#endif
+          QualType T = ASTCtx.UnsignedLongLongTy;
+          return IntegerLiteral::Create(ASTCtx, Const, T, {});
+        }
       }
       case BuiltinType::Int128: {
         // With LLVM compiled in debug this asserts whenever ConstValue is
         // larger than 64 bits.
         // We don't use 128 instead of 64 because C hasn't 128 bits integer
         // literals.
-        APInt Const = APInt(64, ConstValue, true);
-        QualType T = ASTCtx.LongLongTy;
-        return IntegerLiteral::Create(ASTCtx, Const, T, {});
+        const APInt &OldConst = CInt->getValue();
+        unsigned Width = OldConst.getBitWidth();
+
+        // Check that we are not at the boundaries of the representable
+        // integers with 64 bit, and in case enforce a full check.
+        if (Width <= 64) {
+          uint64_t ConstValue = OldConst.getZExtValue();
+          APInt Const = APInt(64, ConstValue);
+          QualType T = ASTCtx.UnsignedLongLongTy;
+          return IntegerLiteral::Create(ASTCtx, Const, T, {});
+        } else {
+          uint64_t ConstValue = OldConst.getLimitedValue();
+          APInt Const = APInt(64, ConstValue, true);
+          revng_assert(not Const.isMaxSignedValue()
+                       and not Const.isMinSignedValue());
+          QualType T = ASTCtx.LongLongTy;
+          return IntegerLiteral::Create(ASTCtx, Const, T, {});
+        }
       }
       case BuiltinType::Dependent:
       case BuiltinType::Overload:
