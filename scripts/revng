@@ -304,9 +304,10 @@ def run_translate(args):
 
   if is_dynamic(input) and architecture != "x86_64":
     log_error("""
-rev.ng, currently, can only translate x86-64 dynamic binaries while the provided
-while the provided program targets {}.  Try with a statically linked program or
-use `revng lift` if you're just interested in lifting.
+Currently, rev.ng can translate dynamically linked binaries only for x86-64.
+The provided program is dynamically linked but targets {}.
+Try with an input program that is compiled for x86-64, or statically linked.
+If you're just interested in lifting to LLVM IR, simply use `revng lift`.
     """.format(architecture).strip())
     return -1
 
