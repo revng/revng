@@ -449,6 +449,12 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Initialize the RegionCFG object
   RootCFG.initialize(&F);
 
+  // COmpute the initial weight of the CFG.
+  unsigned InitialWeight = 0;
+  for (BasicBlockNodeBB *BBNode : RootCFG.nodes()) {
+    InitialWeight += BBNode->getWeight();
+  }
+
   // Dump the function name.
   if (CombLogger.isEnabled()) {
     CombLogger << "Analyzing function: " << F.getName() << "\n";
@@ -1308,6 +1314,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Collect the number of cloned nodes introduced by the comb for a single
   // `llvm::BasicBlock`, information which is needed later in the
   // `MarkForSerialization` pass.
+  //
+  // Collect also the final weight of the CFG.
+  unsigned FinalWeight = 0;
   for (BasicBlockNodeBB *BBNode : RootCFG.nodes()) {
     BasicBlock *BB = BBNode->getOriginalNode();
     if (BBNode->isCode()) {
@@ -1318,6 +1327,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
     } else {
       revng_assert(BB == nullptr);
     }
+
+    // Collect the weight of the node.
+    FinalWeight += BBNode->getWeight();
   }
 
   // Serialize final AST after flattening on file
@@ -1330,6 +1342,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
     CombLogger << "Dumping main graph after Flattening\n";
     RootCFG.dumpDotOnFile("dots", F.getName(), "final-after-flattening");
   }
+
+  // Compute the increase in weight.
+  float Increase = float(FinalWeight) / float(InitialWeight);
 
   // Serialize the collected metrics in the outputfile.
   if (OutputPath.getNumOccurrences() == 1) {

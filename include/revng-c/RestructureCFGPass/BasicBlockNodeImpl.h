@@ -23,7 +23,11 @@ struct WeightTraits {};
 // simply returns the number of instruction composing it.
 template<>
 struct WeightTraits<llvm::BasicBlock *> {
-  static size_t getWeight(llvm::BasicBlock *BB) { return BB->size(); }
+
+  // The `-1` is added to discard the dimension of blocks composed only by a
+  // branching instruction (which we may insert, but virtually add no extra
+  // weight.
+  static size_t getWeight(llvm::BasicBlock *BB) { return BB->size() - 1; }
 };
 
 template<class NodeT>
@@ -174,9 +178,9 @@ inline size_t BasicBlockNode<NodeT>::getWeight() const {
   } else if (NodeType == Type::Continue) {
     return 0;
   } else if (NodeType == Type::Set) {
-    return 1;
+    return 0;
   } else if (NodeType == Type::Check) {
-    return 2;
+    return 0;
   } else if (NodeType == Type::Collapsed) {
     revng_assert(CollapsedRegion != nullptr);
     size_t WeightAccumulator = 0;
