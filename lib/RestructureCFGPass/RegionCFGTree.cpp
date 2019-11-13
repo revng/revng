@@ -12,3 +12,6 @@
 template class RegionCFG<llvm::BasicBlock *>;
 
 unsigned DuplicationCounter = 0;
+
+unsigned UntangleTentativeCounter = 0;
+unsigned UntanglePerformedCounter = 0;

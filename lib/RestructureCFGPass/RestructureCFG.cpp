@@ -419,6 +419,8 @@ ASTTree &RestructureCFG::getAST() {
 bool RestructureCFG::runOnFunction(Function &F) {
 
   DuplicationCounter = 0;
+  UntangleTentativeCounter = 0;
+  UntanglePerformedCounter = 0;
 
   // Analyze only isolated functions.
   if (!F.getName().startswith("bb.")
@@ -448,12 +450,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Initialize the RegionCFG object
   RootCFG.initialize(&F);
-
-  // COmpute the initial weight of the CFG.
-  unsigned InitialWeight = 0;
-  for (BasicBlockNodeBB *BBNode : RootCFG.nodes()) {
-    InitialWeight += BBNode->getWeight();
-  }
 
   // Dump the function name.
   if (CombLogger.isEnabled()) {
@@ -1289,6 +1285,15 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Check that the root region is acyclic at this point.
   revng_assert(RootCFG.isDAG());
 
+  // Invoke the untangle procedure on the root region.
+  RootCFG.untangle();
+
+  // Compute the initial weight of the CFG.
+  unsigned InitialWeight = 0;
+  for (BasicBlockNodeBB *BBNode : RootCFG.nodes()) {
+    InitialWeight += BBNode->getWeight();
+  }
+
   // Invoke the AST generation for the root region.
   RootCFG.generateAst();
 
@@ -1352,8 +1357,14 @@ bool RestructureCFG::runOnFunction(Function &F) {
     const char *FunctionName = F.getName().data();
     std::ostream &OutputStream = pathToStream(OutputPath + "/" + FunctionName,
                                               Output);
-    OutputStream << "function,duplications\n";
-    OutputStream << F.getName().data() << "," << DuplicationCounter << "\n";
+    OutputStream << "function,"
+                    "duplications,percentage,tuntangle,puntangle,iweight\n";
+    OutputStream << F.getName().data() << ","
+                 << DuplicationCounter << ","
+                 << Increase << ","
+                 << UntangleTentativeCounter << ","
+                 << UntanglePerformedCounter << ","
+                 << InitialWeight << "\n";
   }
 
   return false;

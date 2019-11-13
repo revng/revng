@@ -492,7 +492,8 @@ inline bool isGreater(unsigned Op1, unsigned Op2) {
 template<class NodeT>
 inline BasicBlockNode<NodeT> *
 RegionCFG<NodeT>::cloneUntilExit(BasicBlockNode<NodeT> *Node,
-                                 BasicBlockNode<NodeT> *Sink) {
+                                 BasicBlockNode<NodeT> *Sink,
+                                 bool AvoidSinking) {
 
   // Clone the postdominator node.
   BBNodeMap CloneMap;
@@ -565,7 +566,7 @@ RegionCFG<NodeT>::cloneUntilExit(BasicBlockNode<NodeT> *Node,
       }
     }
 
-    if (ConnectSink) {
+    if (ConnectSink and not AvoidSinking) {
       addEdge(EdgeDescriptor(CurrentClone, Sink));
     }
   }
@@ -617,6 +618,9 @@ inline void RegionCFG<NodeT>::untangle() {
   DT.recalculate(Graph);
   PDT.recalculate(Graph);
 
+  // Postdominator computation by disconnecting all the exit which are due
+  // to inlining.
+
   // Compute the immediate post-dominator for each conditional node.
   for (BasicBlockNode<NodeT> *Conditional : ConditionalNodes) {
     BasicBlockNode<NodeT> *PostDom = PDT[Conditional]->getIDom()->getBlock();
@@ -633,6 +637,8 @@ inline void RegionCFG<NodeT>::untangle() {
     WeightMap[Node] = Node->getWeight();
   }
 
+  std::set<EdgeDescriptor> InlinedEdges;
+
   // Order the conditional nodes in postorder.
   ConditionalNodes = Graph.orderNodes(ConditionalNodes, false);
 
@@ -647,10 +653,60 @@ inline void RegionCFG<NodeT>::untangle() {
 
     // Update the information of the dominator and postdominator trees.
     DT.recalculate(Graph);
+
+    // Compute the reverse postorder traversal on the inverse graph (starting
+    // from the sink node).
+    std::set<EdgeDescriptor> BlackListedEdges;
+    std::set<BasicBlockNodeT *> ReachableNodes;
+    std::map<BasicBlockNodeT *, BasicBlockNodeT *> CheckSuccMap;
+    for (BasicBlockNode<NodeT> *Node : llvm::inverse_depth_first(Sink)) {
+      ReachableNodes.insert(Node);
+    }
+
+    for (BasicBlockNodeT *Node : ReachableNodes) {
+      for (BasicBlockNodeT *Successor: Node->successors()) {
+        if (ReachableNodes.count(Successor) == 0 ) {
+          BlackListedEdges.insert(EdgeDescriptor(Node, Successor));
+        }
+      }
+    }
+
+    for (EdgeDescriptor Edge : BlackListedEdges) {
+
+      // For the check nodes keep a data structure with the nodes to which we
+      // have to reattach the edges. This ad-hoc handling is caused by the
+      // check nodes design.
+      if (not Edge.first->isCheck()) {
+        removeEdge(Edge);
+      } else {
+        revng_assert(Edge.second == Edge.first->getTrue()
+                     or Edge.second == Edge.first->getFalse());
+        CheckSuccMap[Edge.first] = Edge.second;
+        if (Edge.second == Edge.first->getTrue())
+          Edge.first->setTrue(nullptr);
+        else
+          Edge.first->setFalse(nullptr);
+      }
+    }
+
     PDT.recalculate(Graph);
 
-    // Get the immediate postdominator.
-    BasicBlockNode<NodeT> *PostDominator = PostDominatorMap[Conditional];
+    // Reattach the edges disconnected for the PDT computation.
+    for (EdgeDescriptor Edge : BlackListedEdges) {
+      if (not Edge.first->isCheck()) {
+        addEdge(Edge);
+      } else {
+        BasicBlockNodeT *OrigSucc = CheckSuccMap.at(Edge.first);
+        if (Edge.first->getTrue() == nullptr)
+          Edge.first->setTrue(OrigSucc);
+        else
+          Edge.first->setFalse(OrigSucc);
+      }
+    }
+
+    // Update the postdominator
+    BasicBlockNodeT *PostDominator = PDT[Conditional]->getIDom()->getBlock();
+    revng_assert(PostDominator != nullptr);
 
     // Ensure that we have both the successors.
     revng_assert(Conditional->successor_size() == 2);
@@ -673,37 +729,20 @@ inline void RegionCFG<NodeT>::untangle() {
     ThenNodes.erase(PostDominator);
     ElseNodes.erase(PostDominator);
 
+    // New implementation of the dominance criterion which uses the then and
+    // else edges to compute thedominance.
     BasicBlockNodeTVect NotDominatedThenNodes;
     for (BasicBlockNode<NodeT> *Node : ThenNodes) {
-      if (!DT.dominates(Conditional, Node)) {
+      if (!DT.dominates(ThenChild, Node)) {
         NotDominatedThenNodes.push_back(Node);
       }
     }
 
     BasicBlockNodeTVect NotDominatedElseNodes;
     for (BasicBlockNode<NodeT> *Node : ElseNodes) {
-      if (!DT.dominates(Conditional, Node)) {
+      if (!DT.dominates(ElseChild, Node)) {
         NotDominatedElseNodes.push_back(Node);
       }
-    }
-
-    // Check that we fully dominate at least one of the two branches (this may
-    // be a conservative assumption).
-    if (NotDominatedThenNodes.size() > 0 and NotDominatedElseNodes.size() > 0) {
-      continue;
-    }
-
-    // Check that the set of nodes reachable from the `then` and `else` child
-    // nodes are disjointed (this may be a conservative assumption).
-    BasicBlockNodeTVect Intersection;
-    std::set_intersection(ThenNodes.begin(),
-                          ThenNodes.end(),
-                          ElseNodes.begin(),
-                          ElseNodes.end(),
-                          std::back_inserter(Intersection));
-
-    if (Intersection.size() > 0) {
-      continue;
     }
 
     // Compute the weight of the `then` and `else` branches.
@@ -753,8 +792,8 @@ inline void RegionCFG<NodeT>::untangle() {
     unsigned TwoWeight = ThenWeight + PostDominatorWeight;
     unsigned ThreeWeight = ElseWeight + PostDominatorWeight;
 
-    if (isGreater(TwoWeight, ThreeWeight) and isGreater(OneWeight, ThreeWeight)
-        and PostDominator != Sink) {
+    if (isGreater(TwoWeight, ThreeWeight)
+        and isGreater(OneWeight, ThreeWeight)) {
       revng_log(CombLogger, FunctionName << ":");
       revng_log(CombLogger, RegionName << ":");
       revng_log(CombLogger,
@@ -763,34 +802,31 @@ inline void RegionCFG<NodeT>::untangle() {
       revng_log(CombLogger, "Weight 2:" << TwoWeight);
       revng_log(CombLogger, "Weight 3:" << ThreeWeight);
 
+      // Register a tentative untangle in the dedicated counter.
+      UntangleTentativeCounter++;
+
+      // Register an actual untangle in the dedicated counter.
+      UntanglePerformedCounter++;
       revng_log(CombLogger, "Actually splitting node");
-      BasicBlockNode<NodeT> *PostDominatorClone = cloneUntilExit(PostDominator,
-                                                                 Sink);
-      BasicBlockNodeTVect Predecessors;
-      for (BasicBlockNode<NodeT> *Predecessor : PostDominator->predecessors()) {
-        Predecessors.push_back(Predecessor);
-      }
 
-      for (BasicBlockNode<NodeT> *Predecessor : Predecessors) {
+      // Perform the split from the first node of the then/else branches.
+      // We fully inline all the nodes belonging to the branch we are untangling
+      // till the exit node.
+      BasicBlockNode<NodeT> *NewElseChild = cloneUntilExit(ElseChild,
+                                                           Sink,
+                                                           true);
 
-        // We need to move the edge so that it points to the new clone if the
-        // `ElseChild` dominates the edge (meaning we are inlining the `else`
-        // side) or if the source of the edge is the conditional node itself
-        // (meaning that the conditional node is connected to the postdominator
-        // itself, so we don't actually have the `ElseChild`)
-        if (DT.dominates(ElseChild, Predecessor)
-            or Predecessor == Conditional) {
-          moveEdgeTarget(EdgeDescriptor(Predecessor, PostDominator),
-                         PostDominatorClone);
-        }
-      }
+      // Move the edge coming out of the conditional node to the new clone of
+      // the node.
+      moveEdgeTarget(EdgeDescriptor(Conditional, ElseChild), NewElseChild);
+      removeNotReachables();
 
-      // Check that we actually moved some edges.
-      revng_assert(PostDominatorClone->predecessor_size() > 0);
+      // Save the information about the inlining edge.
+      InlinedEdges.insert(EdgeDescriptor(Conditional, NewElseChild));
     }
 
-    if (isGreater(ThreeWeight, TwoWeight) and isGreater(OneWeight, TwoWeight)
-        and PostDominator != Sink) {
+    if (isGreater(ThreeWeight, TwoWeight)
+        and isGreater(OneWeight, TwoWeight)) {
       revng_log(CombLogger, FunctionName << ":");
       revng_log(CombLogger, RegionName << ":");
       revng_log(CombLogger,
@@ -799,31 +835,27 @@ inline void RegionCFG<NodeT>::untangle() {
       revng_log(CombLogger, "Weight 2:" << TwoWeight);
       revng_log(CombLogger, "Weight 3:" << ThreeWeight);
 
+      // Register a tentative untangle in the dedicated counter.
+      UntangleTentativeCounter++;
+
+      // Register an actual untangle in the dedicated counter.
+      UntanglePerformedCounter++;
       revng_log(CombLogger, "Actually splitting node");
-      BasicBlockNode<NodeT> *PostDominatorClone = cloneUntilExit(PostDominator,
-                                                                 Sink);
 
-      BasicBlockNodeTVect Predecessors;
-      for (BasicBlockNode<NodeT> *Predecessor : PostDominator->predecessors()) {
-        Predecessors.push_back(Predecessor);
-      }
+      // Perform the split from the first node of the then/else branches.
+      // We fully inline all the nodes belonging to the branch we are untangling
+      // till the exit node.
+      BasicBlockNode<NodeT> *NewThenChild = cloneUntilExit(ThenChild,
+                                                           Sink,
+                                                           true);
 
-      for (BasicBlockNode<NodeT> *Predecessor : Predecessors) {
+      // Move the edge coming out of the conditional node to the new clone of
+      // the node.
+      moveEdgeTarget(EdgeDescriptor(Conditional, ThenChild), NewThenChild);
+      removeNotReachables();
 
-        // We need to move the edge so that it points to the new clone if the
-        // `ThenChild` dominates the edge (meaning we are inlining the `then`
-        // side) or if the source of the edge is the conditional node itself
-        // (meaning that the conditional node is connected to the postdominator
-        // itself, so we don't actually have the `ThenChild`)
-        if (DT.dominates(ThenChild, Predecessor)
-            or Predecessor == Conditional) {
-          moveEdgeTarget(EdgeDescriptor(Predecessor, PostDominator),
-                         PostDominatorClone);
-        }
-      }
-
-      // Check that we actually moved some edges.
-      revng_assert(PostDominatorClone->predecessor_size() > 0);
+      // Save the information about the inlining edge.
+      InlinedEdges.insert(EdgeDescriptor(Conditional, NewThenChild));
     }
   }
 
@@ -1000,14 +1032,12 @@ inline void RegionCFG<NodeT>::inflate() {
   DT.recalculate(Graph);
   PDT.recalculate(Graph);
 
-#if 1
   // Compute the immediate post-dominator for each conditional node.
   for (BasicBlockNode<NodeT> *Conditional : ConditionalNodes) {
     BasicBlockNode<NodeT> *PostDom = PDT[Conditional]->getIDom()->getBlock();
     revng_assert(PostDom != nullptr);
     PostDominatorMap[Conditional] = PostDom;
   }
-#endif
 
   while (!ConditionalNodes.empty()) {
 

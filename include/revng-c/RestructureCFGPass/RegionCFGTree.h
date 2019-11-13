@@ -258,7 +258,9 @@ public:
   getInterestingNodes(BasicBlockNodeT *Condition);
 
   BasicBlockNode<NodeT> *
-  cloneUntilExit(BasicBlockNode<NodeT> *Node, BasicBlockNode<NodeT> *Sink);
+  cloneUntilExit(BasicBlockNode<NodeT> *Node,
+                 BasicBlockNode<NodeT> *Sink,
+                 bool AvoidSinking);
 
   /// \brief Apply the untangle preprocessing pass.
   void untangle();
@@ -320,5 +322,8 @@ struct GraphTraits<Inverse<RegionCFG<NodeT> *>>
 } // namespace llvm
 
 extern unsigned DuplicationCounter;
+
+extern unsigned UntangleTentativeCounter;
+extern unsigned UntanglePerformedCounter;
 
 #endif // REVNGC_RESTRUCTURE_CFG_REGIONCFGTREE_H
