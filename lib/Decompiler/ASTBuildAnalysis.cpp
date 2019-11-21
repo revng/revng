@@ -76,15 +76,15 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                         Cond,
                                         nullptr,
                                         VK_RValue);
-      return new (ASTCtx) IfStmt(ASTCtx,
-                                 {},
-                                 false,
-                                 nullptr,
-                                 nullptr,
-                                 Cond,
-                                 GoToThen,
-                                 {},
-                                 GoToElse);
+      return IfStmt::Create(ASTCtx,
+                            {},
+                            false,
+                            nullptr,
+                            nullptr,
+                            Cond,
+                            GoToThen,
+                            {},
+                            GoToElse);
     }
   }
   case Instruction::Ret: {
@@ -95,11 +95,11 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     // HACK: handle return instructions containing a `ConstantStruct` by
     //       emitting a `return void`
     if (RetVal && isa<ConstantStruct>(RetVal)) {
-      return new (ASTCtx) ReturnStmt({}, nullptr, nullptr);
+      return ReturnStmt::Create(ASTCtx, {}, nullptr, nullptr);
     }
 
     Expr *ReturnedExpr = RetVal ? getExprForValue(RetVal) : nullptr;
-    return new (ASTCtx) ReturnStmt({}, ReturnedExpr, nullptr);
+    return ReturnStmt::Create(ASTCtx, {}, ReturnedExpr, nullptr);
   }
   case Instruction::Switch: {
     revng_abort("switch instructions are not supported yet");
@@ -108,7 +108,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     Value *Cond = Switch->getCondition();
     Expr *CondE = getExprForValue(Cond);
 
-    SwitchStmt *S = new (ASTCtx) SwitchStmt(ASTCtx, nullptr, nullptr, CondE);
+    SwitchStmt *S = SwitchStmt::Create(ASTCtx, nullptr, nullptr, CondE);
 
     unsigned NumCases = Switch->getNumCases() + 1; // +1 is for the default
     CompoundStmt *Body = CompoundStmt::CreateEmpty(ASTCtx, NumCases);
@@ -129,7 +129,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       Expr *CaseCond = getExprForValue(CaseVal);
       LabelDecl *CaseLabel = BBLabelDecls.at(CaseBlock);
       GotoStmt *GoToCase = new (ASTCtx) GotoStmt(CaseLabel, {}, {});
-      CaseStmt *Case = new (ASTCtx) CaseStmt(CaseCond, nullptr, {}, {}, {});
+      CaseStmt *Case = CaseStmt::Create(ASTCtx, CaseCond, nullptr, {}, {}, {});
       Case->setSubStmt(GoToCase);
       S->addSwitchCase(Case);
       Body->body_begin()[K++] = Case;
@@ -175,8 +175,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     QualType ArrayTy = ArrayDecl->getType();
     // Create an Expr for the address of the first element of the array.
     QualType CharPtrTy = ASTCtx.getPointerType(ASTCtx.CharTy);
-    Expr *ArrayDeclRef = new (ASTCtx)
-      DeclRefExpr(ArrayDecl, false, ArrayTy, VK_LValue, {});
+    Expr *ArrayDeclRef = new (ASTCtx) DeclRefExpr(ASTCtx, ArrayDecl, false, ArrayTy, VK_LValue, {});
     CastKind Kind = CastKind::CK_ArrayToPointerDecay;
     Expr *ArrayPtrDecay = ImplicitCastExpr::Create(ASTCtx,
                                                    CharPtrTy,
@@ -393,16 +392,14 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                               TUDecl,
                                               TypeDecls,
                                               FieldDecls);
-    return new (ASTCtx)
-      CallExpr(ASTCtx, CalleeExpr, Args, ReturnType, VK_RValue, {});
+    return CallExpr::Create(ASTCtx, CalleeExpr, Args, ReturnType, VK_RValue, {});
   }
   case Instruction::Unreachable: {
     Function *AbortFun = F.getParent()->getFunction("abort");
     Expr *CalleeExpr = getExprForValue(AbortFun);
     SmallVector<Expr *, 8> Args;
     QualType ReturnType = ASTCtx.VoidTy;
-    return new (ASTCtx)
-      CallExpr(ASTCtx, CalleeExpr, Args, ReturnType, VK_RValue, {});
+    return CallExpr::Create(ASTCtx, CalleeExpr, Args, ReturnType, VK_RValue, {});
   }
   //
   // ---- Instructions for struct manipulation ----
@@ -424,17 +421,22 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                               TypeDecls,
                                               FieldDecls);
     unsigned Idx = *Insert->idx_begin();
-    FieldDecl *InsertedFieldDecl = FieldDecls.at(StructTypeDecl)[Idx];
-    clang::DeclarationName FieldDeclName = InsertedFieldDecl->getIdentifier();
+    FieldDecl *FieldDecl = FieldDecls.at(StructTypeDecl)[Idx];
+    clang::DeclarationName FieldDeclName = FieldDecl->getIdentifier();
     clang::DeclarationNameInfo FieldDeclNameInfo(FieldDeclName, {});
-    clang::Expr *LHS = new (ASTCtx) MemberExpr(StructExpr,
-                                               /*isarrow*/ false,
-                                               {},
-                                               InsertedFieldDecl,
-                                               FieldDeclNameInfo,
-                                               InsertedTy,
-                                               VK_LValue,
-                                               OK_Ordinary);
+    auto DAP = DeclAccessPair::make(FieldDecl, FieldDecl->getAccess());
+    clang::Expr *LHS = MemberExpr::Create(ASTCtx,
+                                          StructExpr,
+                                          /*isarrow*/ false,
+                                          {}, {}, {},
+                                          FieldDecl,
+                                          DAP,
+                                          FieldDeclNameInfo,
+                                          /*TemplateArgs*/ nullptr,
+                                          InsertedTy,
+                                          VK_LValue,
+                                          OK_Ordinary,
+                                          NOUR_None);
     clang::Expr *RHS = getExprForValue(Insert->getInsertedValueOperand());
     BinaryOperatorKind BinOpKind = BinaryOperatorKind::BO_Assign;
     AdditionalStmts[&I].push_back(new (ASTCtx)
@@ -469,17 +471,22 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                                TypeDecls,
                                                FieldDecls);
     unsigned Idx = *Extract->idx_begin();
-    FieldDecl *ExtractedFieldDecl = FieldDecls.at(StructTypeDecl)[Idx];
-    clang::DeclarationName FieldDeclName = ExtractedFieldDecl->getIdentifier();
+    FieldDecl *ExtractedFDecl = FieldDecls.at(StructTypeDecl)[Idx];
+    clang::DeclarationName FieldDeclName = ExtractedFDecl->getIdentifier();
     clang::DeclarationNameInfo FieldDeclNameInfo(FieldDeclName, {});
-    return new (ASTCtx) MemberExpr(StructExpr,
-                                   /*isarrow*/ false,
-                                   {},
-                                   ExtractedFieldDecl,
-                                   FieldDeclNameInfo,
-                                   ExtractedTy,
-                                   VK_RValue,
-                                   OK_Ordinary);
+    return MemberExpr::Create(ASTCtx,
+                              StructExpr,
+                              /*isarrow*/ false,
+                              {}, {}, {},
+                              ExtractedFDecl,
+                              DeclAccessPair::make(ExtractedFDecl,
+                                                   ExtractedFDecl->getAccess()),
+                              FieldDeclNameInfo,
+                              /*TemplateArgs*/ nullptr,
+                              ExtractedTy,
+                              VK_RValue,
+                              OK_Ordinary,
+                              NOUR_None);
   }
 
   // ---- UNSUPPORTED INSTRUCTIONS ----
@@ -933,16 +940,16 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
     FunctionDecl *FunDecl = FunctionDecls.at(Fun);
     QualType Type = FunDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
-      DeclRefExpr(FunDecl, false, Type, VK_LValue, {});
+      DeclRefExpr(ASTCtx, FunDecl, false, Type, VK_LValue, {});
     return Res;
   } else if (auto *G = dyn_cast<GlobalVariable>(V)) {
     VarDecl *GlobalVarDecl = GlobalDecls.at(G);
     QualType Type = GlobalVarDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
-      DeclRefExpr(GlobalVarDecl, false, Type, VK_LValue, {});
+      DeclRefExpr(ASTCtx, GlobalVarDecl, false, Type, VK_LValue, {});
     return Res;
-  } else if (isa<ConstantData>(V) or isa<ConstantExpr>(V)) {
-    return getLiteralFromConstant(cast<Constant>(V));
+  } else if (isa<llvm::ConstantData>(V) or isa<llvm::ConstantExpr>(V)) {
+    return getLiteralFromConstant(cast<llvm::Constant>(V));
 
   } else if (auto *I = dyn_cast<Instruction>(V)) {
 
@@ -955,7 +962,7 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
       VarDecl *VDecl = VarDeclIt->second;
       QualType Type = VDecl->getType();
       DeclRefExpr *Res = new (ASTCtx)
-        DeclRefExpr(VDecl, false, Type, VK_LValue, {});
+        DeclRefExpr(ASTCtx, VDecl, false, Type, VK_LValue, {});
       return Res;
     }
 
@@ -1163,14 +1170,14 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
     clang::ParmVarDecl *ParamVDecl = FunDecl->getParamDecl(ArgNo);
     QualType Type = ParamVDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
-      DeclRefExpr(ParamVDecl, false, Type, VK_LValue, {});
+      DeclRefExpr(ASTCtx, ParamVDecl, false, Type, VK_LValue, {});
     return Res;
   } else {
     revng_abort();
   }
 }
 
-Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
+Expr *StmtBuilder::getLiteralFromConstant(llvm::Constant *C) {
   if (auto *CD = dyn_cast<ConstantData>(C)) {
     if (auto *CInt = dyn_cast<ConstantInt>(CD)) {
       clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
@@ -1378,6 +1385,18 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
       case BuiltinType::OCLImage3dRO:
       case BuiltinType::OCLImage3dWO:
       case BuiltinType::OCLImage3dRW:
+      case BuiltinType::OCLIntelSubgroupAVCImePayload:
+      case BuiltinType::OCLIntelSubgroupAVCMcePayload:
+      case BuiltinType::OCLIntelSubgroupAVCRefPayload:
+      case BuiltinType::OCLIntelSubgroupAVCSicPayload:
+      case BuiltinType::OCLIntelSubgroupAVCImeResult:
+      case BuiltinType::OCLIntelSubgroupAVCMceResult:
+      case BuiltinType::OCLIntelSubgroupAVCRefResult:
+      case BuiltinType::OCLIntelSubgroupAVCSicResult:
+      case BuiltinType::OCLIntelSubgroupAVCImeSingleRefStreamin:
+      case BuiltinType::OCLIntelSubgroupAVCImeDualRefStreamin:
+      case BuiltinType::OCLIntelSubgroupAVCImeResultSingleRefStreamout:
+      case BuiltinType::OCLIntelSubgroupAVCImeResultDualRefStreamout:
         revng_abort();
       }
     } else if (isa<ConstantPointerNull>(CD)) {
@@ -1396,7 +1415,7 @@ Expr *StmtBuilder::getLiteralFromConstant(Constant *C) {
 
     revng_abort();
   }
-  if (auto *CE = dyn_cast<ConstantExpr>(C)) {
+  if (auto *CE = dyn_cast<llvm::ConstantExpr>(C)) {
     Expr *Result = nullptr;
     switch (CE->getOpcode()) {
     case Instruction::Trunc:

@@ -96,7 +96,7 @@ static void buildStmtsForBasicBlock(llvm::BasicBlock *BB,
         clang::VarDecl *VDecl = VarDeclIt->second;
         QualType VarType = VDecl->getType();
         clang::Expr *LHS = new (ASTCtx)
-          DeclRefExpr(VDecl, false, VarType, VK_LValue, {});
+          DeclRefExpr(ASTCtx, VDecl, false, VarType, VK_LValue, {});
         clang::Expr *RHS = cast<clang::Expr>(StmtIt->second);
         if (RHS->getType() != VarType) {
           if (isa<clang::BinaryOperator>(RHS))
@@ -134,7 +134,7 @@ static void buildStmtsForBasicBlock(llvm::BasicBlock *BB,
       clang::VarDecl *PHIVarDecl = ASTBuilder.VarDecls.at(ThePHI);
       QualType VarType = PHIVarDecl->getType();
       clang::Expr *LHS = new (ASTCtx)
-        DeclRefExpr(PHIVarDecl, false, VarType, VK_LValue, {});
+        DeclRefExpr(ASTCtx, PHIVarDecl, false, VarType, VK_LValue, {});
 
       llvm::Value *IncomingV = ThePHI->getIncomingValue(IncomingIdx);
       clang::Expr *RHS = ASTBuilder.getExprForValue(IncomingV);
@@ -251,7 +251,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       clang::VarDecl *StateVarD = ASTBuilder.getOrCreateSwitchStateVarDecl();
       QualType T = StateVarD->getType();
       clang::Expr *State = new (ASTCtx)
-        DeclRefExpr(StateVarD, false, T, VK_LValue, {});
+        DeclRefExpr(ASTCtx, StateVarD, false, T, VK_LValue, {});
 
       clang::Expr *TrueVal = ASTBuilder.getBoolLiteral(true);
       QualType BoolTy = TrueVal->getType();
@@ -319,7 +319,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     // else node of the if statement, which may result in a non empty
     // `ElseScope` and therefore an empty compound statement.
     if (If->getElse() == nullptr) {
-      Stmts.push_back(new (ASTCtx) IfStmt(ASTCtx,
+      Stmts.push_back(IfStmt::Create(ASTCtx,
                                           {},
                                           false,
                                           nullptr,
@@ -329,7 +329,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                           {},
                                           nullptr));
     } else {
-      Stmts.push_back(new (ASTCtx) IfStmt(ASTCtx,
+      Stmts.push_back(IfStmt::Create(ASTCtx,
                                           {},
                                           false,
                                           nullptr,
@@ -382,8 +382,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                              ASTBuilder,
                                              Mark,
                                              {});
-      Stmts.push_back(new (ASTCtx)
-                        WhileStmt(ASTCtx, nullptr, CondExpr, Body, {}));
+      Stmts.push_back(WhileStmt::Create(ASTCtx, nullptr, CondExpr, Body, {}));
     } else {
 
       // Standard case.
@@ -398,8 +397,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                                      UInt,
                                                      {});
 
-      Stmts.push_back(new (ASTCtx)
-                        WhileStmt(ASTCtx, nullptr, TrueCond, Body, {}));
+      Stmts.push_back(WhileStmt::Create(ASTCtx, nullptr, TrueCond, Body, {}));
     }
   } break;
 
@@ -418,7 +416,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     if (Kind == ASTNode::NodeKind::NK_SwitchCheck) {
       clang::VarDecl *StateVarD = ASTBuilder.getOrCreateLoopStateVarDecl();
       QualType T = StateVarD->getType();
-      CondExpr = new (ASTCtx) DeclRefExpr(StateVarD, false, T, VK_LValue, {});
+      CondExpr = new (ASTCtx) DeclRefExpr(ASTCtx, StateVarD, false, T, VK_LValue, {});
     } else {
       auto *S = llvm::cast<RegularSwitchNode>(Switch);
       llvm::Value *CondVal = S->getCondition();
@@ -427,8 +425,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     revng_assert(CondExpr != nullptr);
 
     // Generate the switch statement
-    clang::SwitchStmt *SwitchStatement = new (ASTCtx)
-      SwitchStmt(ASTCtx, nullptr, nullptr, CondExpr);
+    clang::SwitchStmt *SwitchStatement = SwitchStmt::Create(ASTCtx, nullptr, nullptr, CondExpr);
 
     // Generate the body of the switch
     SmallVector<clang::Stmt *, 8> BodyStmts;
@@ -448,8 +445,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       }
       revng_assert(CaseExpr != nullptr);
       // Build the case
-      clang::CaseStmt *Case = new (ASTCtx)
-        CaseStmt(CaseExpr, nullptr, {}, {}, {});
+      clang::CaseStmt *Case = CaseStmt::Create(ASTCtx, CaseExpr, nullptr, {}, {}, {});
       // Build the body of the case
       clang::Stmt *CaseBody = buildCompoundScope(CaseNode,
                                                  ASTCtx,
@@ -485,7 +481,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       clang::VarDecl *StateVarD = ASTBuilder.getOrCreateSwitchStateVarDecl();
       QualType T = StateVarD->getType();
       clang::Expr *State = new (ASTCtx)
-        DeclRefExpr(StateVarD, false, T, VK_LValue, {});
+        DeclRefExpr(ASTCtx, StateVarD, false, T, VK_LValue, {});
 
       clang::Expr *FalseInit = ASTBuilder.getBoolLiteral(false);
       QualType BoolTy = FalseInit->getType();
@@ -511,9 +507,9 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       //   break;
       clang::VarDecl *StateVarD = ASTBuilder.getOrCreateSwitchStateVarDecl();
       QualType T = StateVarD->getType();
-      CondExpr = new (ASTCtx) DeclRefExpr(StateVarD, false, T, VK_LValue, {});
+      CondExpr = new (ASTCtx) DeclRefExpr(ASTCtx, StateVarD, false, T, VK_LValue, {});
       clang::BreakStmt *Break = new (ASTCtx) clang::BreakStmt(SourceLocation{});
-      Stmts.push_back(new (ASTCtx) IfStmt(ASTCtx,
+      Stmts.push_back(IfStmt::Create(ASTCtx,
                                           {},
                                           false,
                                           nullptr,
@@ -530,7 +526,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     clang::VarDecl *StateVarDecl = ASTBuilder.getOrCreateLoopStateVarDecl();
     QualType Type = StateVarDecl->getType();
     clang::DeclRefExpr *StateVar = new (ASTCtx)
-      DeclRefExpr(StateVarDecl, false, Type, VK_LValue, {});
+      DeclRefExpr(ASTCtx, StateVarDecl, false, Type, VK_LValue, {});
 
     unsigned StateValue = Set->getStateVariableValue();
     clang::Expr *StateValueUInt = ASTBuilder.getUIntLiteral(StateValue);

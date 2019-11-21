@@ -66,8 +66,7 @@ bool ReachabilityPass::runOnFunction(Function &F) {
   // Fill the incidence matrix with the connections at single step.
   for (BasicBlock &BB : F) {
     unsigned BBIndex = BBToIndex[&BB];
-    TerminatorInst *Terminator = BB.getTerminator();
-    for (BasicBlock *Successor : Terminator->successors()) {
+    for (BasicBlock *Successor : make_range(succ_begin(&BB), succ_end(&BB))) {
       unsigned SuccessorIndex = BBToIndex[Successor];
       Matrix[BBIndex][SuccessorIndex] = 1;
     }

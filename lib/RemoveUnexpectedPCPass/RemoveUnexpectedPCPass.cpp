@@ -40,8 +40,7 @@ bool RemoveUnexpectedPC::runOnFunction(Function &F) {
   ReversePostOrderTraversal<llvm::Function *> RPOT(&F);
 
   for (BasicBlock *BB : RPOT) {
-    TerminatorInst *Terminator = BB->getTerminator();
-    if (auto *Switch = dyn_cast<SwitchInst>(Terminator)) {
+    if (auto *Switch = dyn_cast<SwitchInst>(BB->getTerminator())) {
 
       // Get a pointer to the last successor basic block.
       revng_assert(Switch->getNumCases() > 0);

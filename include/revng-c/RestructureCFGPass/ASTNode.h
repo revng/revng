@@ -134,12 +134,7 @@ public:
 
 protected:
   CodeNode(const CodeNode &) = default;
-  CodeNode &operator=(const CodeNode &) = default;
-
   CodeNode(CodeNode &&) = delete;
-  CodeNode &operator=(CodeNode &&) = delete;
-
-  CodeNode() = delete;
   ~CodeNode() = default;
 
 public:
@@ -179,12 +174,7 @@ public:
 
 protected:
   IfNode(const IfNode &) = default;
-  IfNode &operator=(const IfNode &) = default;
-
   IfNode(IfNode &&) = delete;
-  IfNode &operator=(IfNode &&) = delete;
-
-  IfNode() = delete;
   ~IfNode() = default;
 
 public:
@@ -263,12 +253,7 @@ public:
 
 protected:
   ScsNode(const ScsNode &) = default;
-  ScsNode &operator=(const ScsNode &) = default;
-
   ScsNode(ScsNode &&) = delete;
-  ScsNode &operator=(ScsNode &&) = delete;
-
-  ScsNode() = delete;
   ~ScsNode() = default;
 
 public:
@@ -327,11 +312,7 @@ public:
 
 protected:
   SequenceNode(const SequenceNode &) = default;
-  SequenceNode &operator=(const SequenceNode &) = default;
-
   SequenceNode(SequenceNode &&) = delete;
-  SequenceNode &operator=(SequenceNode &&) = delete;
-
   ~SequenceNode() = default;
 
 public:
@@ -380,11 +361,7 @@ public:
 
 protected:
   ContinueNode(const ContinueNode &) = default;
-  ContinueNode &operator=(const ContinueNode &) = default;
-
   ContinueNode(ContinueNode &&) = delete;
-  ContinueNode &operator=(ContinueNode &&) = delete;
-
   ~ContinueNode() = default;
 
 public:
@@ -419,11 +396,7 @@ public:
 
 protected:
   BreakNode(const BreakNode &) = default;
-  BreakNode &operator=(const BreakNode &) = default;
-
   BreakNode(BreakNode &&) = delete;
-  BreakNode &operator=(BreakNode &&) = delete;
-
   ~BreakNode() = default;
 
 public:
@@ -451,11 +424,7 @@ public:
 
 protected:
   SwitchBreakNode(const SwitchBreakNode &) = default;
-  SwitchBreakNode &operator=(const SwitchBreakNode &) = default;
-
   SwitchBreakNode(SwitchBreakNode &&) = delete;
-  SwitchBreakNode &operator=(SwitchBreakNode &&) = delete;
-
   ~SwitchBreakNode() = default;
 
 public:
@@ -489,12 +458,7 @@ public:
 
 protected:
   SetNode(const SetNode &) = default;
-  SetNode &operator=(const SetNode &) = default;
-
   SetNode(SetNode &&) = delete;
-  SetNode &operator=(SetNode &&) = delete;
-
-  SetNode() = delete;
   ~SetNode() = default;
 
 public:
@@ -525,12 +489,7 @@ public:
 
 protected:
   IfCheckNode(const IfCheckNode &) = default;
-  IfCheckNode &operator=(const IfCheckNode &) = default;
-
   IfCheckNode(IfCheckNode &&) = delete;
-  IfCheckNode &operator=(IfCheckNode &&) = delete;
-
-  IfCheckNode() = delete;
   ~IfCheckNode() = default;
 
 public:
@@ -574,12 +533,7 @@ protected:
     Default(Def) {}
 
   SwitchNode(const SwitchNode &) = default;
-  SwitchNode &operator=(const SwitchNode &) = default;
-
   SwitchNode(SwitchNode &&) = delete;
-  SwitchNode &operator=(SwitchNode &&) = delete;
-
-  SwitchNode() = delete;
   ~SwitchNode() = default;
 
 public:
@@ -674,12 +628,7 @@ public:
 
 protected:
   RegularSwitchNode(const RegularSwitchNode &) = default;
-  RegularSwitchNode &operator=(const RegularSwitchNode &) = default;
-
   RegularSwitchNode(RegularSwitchNode &&) = delete;
-  RegularSwitchNode &operator=(RegularSwitchNode &&) = delete;
-
-  RegularSwitchNode() = delete;
   ~RegularSwitchNode() = default;
 
 public:
@@ -748,12 +697,7 @@ public:
 
 protected:
   SwitchCheckNode(const SwitchCheckNode &) = default;
-  SwitchCheckNode &operator=(const SwitchCheckNode &) = default;
-
   SwitchCheckNode(SwitchCheckNode &&) = delete;
-  SwitchCheckNode &operator=(SwitchCheckNode &&) = delete;
-
-  SwitchCheckNode() = delete;
   ~SwitchCheckNode() = default;
 
 public:

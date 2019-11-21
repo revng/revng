@@ -44,8 +44,7 @@ bool RemoveBadPC::runOnFunction(Function &F) {
 
       // Get the basic block that performs the pc check.
       BasicBlock *Predecessor = BB->getUniquePredecessor();
-      TerminatorInst *Terminator = Predecessor->getTerminator();
-      BranchInst *Branch = cast<BranchInst>(Terminator);
+      BranchInst *Branch = cast<BranchInst>(Predecessor->getTerminator());
       revng_assert(Branch->isConditional());
 
       // The `_bad_return_pc` basic block is the one corresponding to the else

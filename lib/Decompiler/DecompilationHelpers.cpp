@@ -16,7 +16,6 @@
 #include "DecompilationHelpers.h"
 
 using namespace llvm;
-using namespace clang;
 
 static bool isUsedInFunction(ConstantExpr *CE, const Function &F) {
   SmallSet<Constant *, 16> UnexploredCEUsers;
@@ -78,7 +77,10 @@ std::set<Function *> getDirectlyCalledFunctions(Function &F) {
   return Results;
 }
 
-clang::CastExpr *createCast(QualType LHSQualTy, Expr *RHS, ASTContext &ASTCtx) {
+clang::CastExpr *createCast(clang::QualType LHSQualTy,
+                            clang::Expr *RHS,
+                            clang::ASTContext &ASTCtx) {
+  using namespace clang;
   QualType RHSQualTy = RHS->getType();
   const clang::Type *LHSTy = LHSQualTy.getTypePtr();
   const clang::Type *RHSTy = RHSQualTy.getTypePtr();

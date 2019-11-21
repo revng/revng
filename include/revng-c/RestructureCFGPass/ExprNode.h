@@ -30,12 +30,8 @@ protected:
 public:
   NodeKind getKind() const { return Kind; }
 
-  ExprNode() = default;
-
   ExprNode(const ExprNode &) = default;
-  ExprNode &operator=(const ExprNode &) = default;
   ExprNode(ExprNode &&) = default;
-  ExprNode &operator=(ExprNode &&) = default;
 
   static void deleteExprNode(ExprNode *E);
 
@@ -55,9 +51,7 @@ public:
   AtomicNode(llvm::BasicBlock *BB) : ExprNode(NK_Atomic), ConditionBB(BB) {}
 
   AtomicNode(const AtomicNode &) = default;
-  AtomicNode &operator=(const AtomicNode &) = default;
   AtomicNode(AtomicNode &&) = default;
-  AtomicNode &operator=(AtomicNode &&) = default;
 
   AtomicNode() = delete;
 
@@ -79,9 +73,7 @@ public:
   NotNode(ExprNode *N) : ExprNode(NK_Not), Child(N) {}
 
   NotNode(const NotNode &) = default;
-  NotNode &operator=(const NotNode &) = default;
   NotNode(NotNode &&) = default;
-  NotNode &operator=(NotNode &&) = default;
 
   NotNode() = delete;
 
@@ -110,9 +102,7 @@ protected:
     RightChild(Right) {}
 
   BinaryNode(const BinaryNode &) = default;
-  BinaryNode &operator=(const BinaryNode &) = default;
   BinaryNode(BinaryNode &&) = default;
-  BinaryNode &operator=(BinaryNode &&) = default;
 
   BinaryNode() = delete;
   ~BinaryNode() = default;
@@ -131,9 +121,7 @@ public:
   AndNode(ExprNode *Left, ExprNode *Right) : BinaryNode(NK_And, Left, Right) {}
 
   AndNode(const AndNode &) = default;
-  AndNode &operator=(const AndNode &) = default;
   AndNode(AndNode &&) = default;
-  AndNode &operator=(AndNode &&) = default;
 
   AndNode() = delete;
 
@@ -150,9 +138,7 @@ public:
   OrNode(ExprNode *Left, ExprNode *Right) : BinaryNode(NK_Or, Left, Right) {}
 
   OrNode(const OrNode &) = default;
-  OrNode &operator=(const OrNode &) = default;
   OrNode(OrNode &&) = default;
-  OrNode &operator=(OrNode &&) = default;
 
   OrNode() = delete;
 

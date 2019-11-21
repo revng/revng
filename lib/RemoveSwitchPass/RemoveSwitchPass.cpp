@@ -41,8 +41,7 @@ bool RemoveSwitch::runOnFunction(Function &F) {
   for (BasicBlock *BB : RPOT) {
     LLVMContext &Context = getContext(&F);
 
-    TerminatorInst *Terminator = BB->getTerminator();
-    if (auto *Switch = dyn_cast<SwitchInst>(Terminator)) {
+    if (auto *Switch = dyn_cast<SwitchInst>(BB->getTerminator())) {
       std::vector<std::pair<ConstantInt *, BasicBlock *>> SuccVect;
 
       Value *Condition = Switch->getCondition();
