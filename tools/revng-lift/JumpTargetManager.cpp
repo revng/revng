@@ -1623,9 +1623,12 @@ void JumpTargetManager::harvestWithAVI() {
     AA.registerFunctionAnalysis<ScopedNoAliasAA>();
     return AA;
   });
+  ModuleAnalysisManager MAM;
+  FAM.registerPass([&MAM] { return ModuleAnalysisManagerFunctionProxy(MAM); });
 
   PassBuilder PB;
   PB.registerFunctionAnalyses(FAM);
+  PB.registerModuleAnalyses(MAM);
 
   FPM.run(*OptimizedFunction, FAM);
 
