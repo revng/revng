@@ -714,12 +714,11 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
                                        false);
 
   std::string HelperName = "helper_" + TheCall.helperName();
-  Constant *FunctionDeclaration = TheModule.getOrInsertFunction(HelperName,
-                                                                CalleeType);
+  FunctionCallee FDecl = TheModule.getOrInsertFunction(HelperName, CalleeType);
 
   StoreInst *PCSaver = getLastUniqueWrite(Builder.GetInsertBlock(),
                                           JumpTargets.pcReg());
-  CallInst *Result = Builder.CreateCall(FunctionDeclaration, InArgs);
+  CallInst *Result = Builder.CreateCall(FDecl, InArgs);
 
   if (TheCall.OutArguments.size() != 0)
     Builder.CreateStore(Result, ResultDestination);

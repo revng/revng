@@ -443,7 +443,8 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { Type::getInt32Ty(Context) },
                                              false);
-  ExitTB = cast<Function>(TheModule.getOrInsertFunction("exitTB", ExitTBTy));
+  FunctionCallee ExitCallee = TheModule.getOrInsertFunction("exitTB", ExitTBTy);
+  ExitTB = cast<Function>(ExitCallee.getCallee());
   createDispatcher(TheFunction, PCReg);
 
   for (auto &Segment : Binary.segments())
@@ -1088,9 +1089,9 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
 
   Module *TheModule = TheFunction->getParent();
   auto *UnknownPCTy = FunctionType::get(Type::getVoidTy(Context), {}, false);
-  Constant *UnknownPC = TheModule->getOrInsertFunction("unknownPC",
-                                                       UnknownPCTy);
-  Builder.CreateCall(cast<Function>(UnknownPC));
+  FunctionCallee UnknownPC = TheModule->getOrInsertFunction("unknownPC",
+                                                            UnknownPCTy);
+  Builder.CreateCall(UnknownPC);
   auto *FailUnreachable = Builder.CreateUnreachable();
   setBlockType(FailUnreachable, BlockType::DispatcherFailureBlock);
 

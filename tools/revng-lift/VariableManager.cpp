@@ -450,8 +450,9 @@ void VariableManager::finalize() {
                                           { Builder.getInt32Ty(),
                                             Builder.getInt64Ty() },
                                           false);
-  auto *Temp = TheModule.getOrInsertFunction("set_register", SetRegisterTy);
-  auto *SetRegister = cast<Function>(Temp);
+  FunctionCallee SetRegisterC = TheModule.getOrInsertFunction("set_register",
+                                                              SetRegisterTy);
+  auto *SetRegister = cast<Function>(SetRegisterC.getCallee());
   SetRegister->setLinkage(GlobalValue::ExternalLinkage);
 
   // Collect arguments

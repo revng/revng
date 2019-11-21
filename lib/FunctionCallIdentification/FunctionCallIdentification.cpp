@@ -41,8 +41,8 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   };
   using FT = FunctionType;
   auto *Ty = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
-  Constant *FunctionCallC = M.getOrInsertFunction("function_call", Ty);
-  FunctionCall = cast<Function>(FunctionCallC);
+  FunctionCallee CalleeObject = M.getOrInsertFunction("function_call", Ty);
+  FunctionCall = cast<Function>(CalleeObject.getCallee());
 
   // Initialize the function, if necessary
   if (FunctionCall->empty()) {

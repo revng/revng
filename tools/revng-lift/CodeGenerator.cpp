@@ -651,7 +651,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   // Declare the abort function
   auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
-  auto *AbortFunction = TheModule->getOrInsertFunction("abort", AbortTy);
+  FunctionCallee AbortFunction = TheModule->getOrInsertFunction("abort",
+                                                                AbortTy);
 
   // Prepare the helper modules by transforming the cpu_loop function and
   // running SROA
