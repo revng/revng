@@ -201,17 +201,18 @@ void DebugHelper::generateDebugInfo() {
 
         revng_assert(CompileUnit != nullptr);
         DISubprogram *Subprogram = nullptr;
+        auto SPFlags = DISubprogram::toSPFlags(false, /* isLocalToUnit */
+                                               true, /* isDefinition */
+                                               false /* isOptimized */);
         Subprogram = Builder.createFunction(CompileUnit->getFile(), // Scope
-                                            F.getName(),
-                                            StringRef(), // Linkage name
-                                            CompileUnit->getFile(),
-                                            1, // Line
-                                            EmptyType, // Subroutine type
-                                            false, // isLocalToUnit
-                                            true, // isDefinition
+                                            F.getName(), // Name
+                                            StringRef(), // LinkageName
+                                            CompileUnit->getFile(), // File
+                                            1, // LineNo
+                                            EmptyType, // Ty (subroutine type)
                                             1, // ScopeLine
-                                            DINode::FlagPrototyped,
-                                            false /* isOptimized */);
+                                            DINode::FlagPrototyped, // Flags
+                                            SPFlags);
         F.setSubprogram(Subprogram);
       }
     }
