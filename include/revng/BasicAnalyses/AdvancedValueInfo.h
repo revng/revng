@@ -199,7 +199,7 @@ private:
       unsigned BitWidth = I->getType()->getIntegerBitWidth();
       InstructionRangeSet.setWidth(BitWidth);
 
-      llvm::ConstantRange NewRange(BitWidth);
+      auto NewRange = llvm::ConstantRange::getFull(BitWidth);
       if (Destination == nullptr)
         NewRange = LVI.getConstantRange(I, Source);
       else
@@ -367,7 +367,7 @@ public:
       unsigned NextIndex = 0;
       Value *Next = nullptr;
 
-      ConstantRange Range(64);
+      auto Range = ConstantRange::getFull(64);
       uint64_t RangeSize = std::numeric_limits<uint64_t>::max();
       auto *I = dyn_cast<Instruction>(U);
 
