@@ -20,6 +20,8 @@ BOOST_AUTO_TEST_CASE(TestEnumerate) {
     return CRS({ { 32, Start }, { 32, End } });
   };
 
+  llvm::ConstantRange ZeroFive({ 4, 0 }, { 4, 5 });
+
   std::pair<CRS, std::vector<uint64_t>> Ranges[] = {
     { CRS(), {} },
     { CRS(4, true), { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 } },
@@ -32,7 +34,11 @@ BOOST_AUTO_TEST_CASE(TestEnumerate) {
       { 0, 1, 2, 3, 4, 250, 251, 252, 253, 254, 255 } },
     { Range(10, 20).unionWith(Range(30, 40)).unionWith(Range(15, 35)),
       { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-        25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39 } }
+        25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39 } },
+    { CRS(ZeroFive), { 0, 1, 2, 3, 4 } },
+    { CRS(ZeroFive.inverse()), { 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 } },
+    { CRS(ZeroFive.inverse()).intersectWith(CRS({ { 4, 10 }, { 4, 13 } })),
+      { 10, 11, 12 } }
   };
 
   for (auto &P : Ranges) {
@@ -52,6 +58,9 @@ BOOST_AUTO_TEST_CASE(TestEnumerate) {
       ++It;
       I++;
     }
+
+    revng_check(I == Expected.size());
+
     dbg << "\n";
   }
 }

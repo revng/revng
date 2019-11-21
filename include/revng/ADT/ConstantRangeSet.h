@@ -136,7 +136,8 @@ public:
       Bounds.push_back(Range.getLower());
     } else {
       Bounds.push_back(Range.getLower());
-      Bounds.push_back(Range.getUpper());
+      if (Range.getUpper() != llvm::APInt{ BitWidth, 0 })
+        Bounds.push_back(Range.getUpper());
     }
   }
 
