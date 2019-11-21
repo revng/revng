@@ -463,7 +463,7 @@ public:
     // Tag each jump target with its reasons
     for (auto &P : JumpTargets) {
       JumpTarget &JT = P.second;
-      TerminatorInst *T = JT.head()->getTerminator();
+      Instruction *T = JT.head()->getTerminator();
       revng_assert(T != nullptr);
 
       std::vector<Metadata *> Reasons;
@@ -485,8 +485,8 @@ public:
   llvm::CallInst *findNextExitTB(llvm::Instruction *I);
 
   // TODO: can we drop this in favor of GeneratedCodeBasicInfo::isJump?
-  bool isJump(llvm::TerminatorInst *T) const {
-    for (llvm::BasicBlock *Successor : T->successors()) {
+  bool isJump(llvm::Instruction *T) const {
+    for (llvm::BasicBlock *Successor : successors(T)) {
       if (!(Successor == Dispatcher || Successor == DispatcherFail
             || isJumpTarget(getBasicBlockPC(Successor))))
         return false;

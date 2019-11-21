@@ -105,7 +105,8 @@ inline Values fromName(llvm::StringRef ReasonName) {
 
 } // namespace BlockType
 
-inline void setBlockType(llvm::TerminatorInst *T, BlockType::Values Value) {
+inline void setBlockType(llvm::Instruction *T, BlockType::Values Value) {
+  revng_assert(T->isTerminator());
   QuickMetadata QMD(getContext(T));
   T->setMetadata(BlockTypeMDName, QMD.tuple(BlockType::getName(Value)));
 }
@@ -164,10 +165,11 @@ public:
     return getType(BB->getTerminator());
   }
 
-  BlockType::Values getType(llvm::TerminatorInst *T) const {
+  BlockType::Values getType(llvm::Instruction *T) const {
     using namespace llvm;
 
     revng_assert(T != nullptr);
+    revng_assert(T->isTerminator());
     MDNode *MD = T->getMetadata(BlockTypeMDName);
 
     BasicBlock *BB = T->getParent();
@@ -193,8 +195,11 @@ public:
     return getJTReasons(BB->getTerminator());
   }
 
-  uint32_t getJTReasons(llvm::TerminatorInst *T) const {
+  uint32_t getJTReasons(llvm::Instruction *T) const {
     using namespace llvm;
+
+    revng_assert(T->isTerminator());
+
     uint32_t Result = 0;
 
     MDNode *Node = T->getMetadata(JTReasonMDName);
@@ -213,8 +218,10 @@ public:
     return getKillReason(BB->getTerminator());
   }
 
-  KillReason::Values getKillReason(llvm::TerminatorInst *T) const {
+  KillReason::Values getKillReason(llvm::Instruction *T) const {
     using namespace llvm;
+
+    revng_assert(T->isTerminator());
 
     auto *NoReturnMD = T->getMetadata("noreturn");
     if (auto *NoreturnTuple = dyn_cast_or_null<MDTuple>(NoReturnMD)) {
@@ -229,7 +236,8 @@ public:
     return isKiller(BB->getTerminator());
   }
 
-  bool isKiller(llvm::TerminatorInst *T) const {
+  bool isKiller(llvm::Instruction *T) const {
+    revng_assert(T->isTerminator());
     return getKillReason(T) != KillReason::NonKiller;
   }
 
@@ -295,10 +303,11 @@ public:
   ///
   /// Return true if \p T targets include only dispatcher-related basic blocks
   /// and jump targets.
-  bool isJump(llvm::TerminatorInst *T) const {
+  bool isJump(llvm::Instruction *T) const {
     revng_assert(T != nullptr);
+    revng_assert(T->isTerminator());
 
-    for (llvm::BasicBlock *Successor : T->successors()) {
+    for (llvm::BasicBlock *Successor : successors(T)) {
       if (not(Successor->empty() or Successor == Dispatcher
               or Successor == DispatcherFail or Successor == AnyPC
               or Successor == UnexpectedPC or isJumpTarget(Successor)))
@@ -336,7 +345,8 @@ public:
 
   // TODO: is this a duplication of FunctionCallIdentification::isCall?
   // TODO: we could unpack the information too
-  llvm::CallInst *getFunctionCall(llvm::TerminatorInst *T) const {
+  llvm::CallInst *getFunctionCall(llvm::Instruction *T) const {
+    revng_assert(T->isTerminator());
     auto It = T->getIterator();
     auto End = T->getParent()->begin();
     while (It != End) {
@@ -355,7 +365,7 @@ public:
     return isFunctionCall(BB->getTerminator());
   }
 
-  bool isFunctionCall(llvm::TerminatorInst *T) const {
+  bool isFunctionCall(llvm::Instruction *T) const {
     return getFunctionCall(T) != nullptr;
   }
 

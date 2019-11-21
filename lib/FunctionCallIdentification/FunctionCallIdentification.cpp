@@ -60,7 +60,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
 
     // Consider the basic block only if it's terminator is an actual jump and it
     // hasn't been already marked as a function call
-    TerminatorInst *Terminator = BB.getTerminator();
+    Instruction *Terminator = BB.getTerminator();
 
     if (Terminator != nullptr) {
       if (CallInst *Call = getCall(Terminator)) {

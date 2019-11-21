@@ -102,16 +102,6 @@ inline uint64_t getSignedLimitedValue(const llvm::Value *V) {
   return llvm::cast<llvm::ConstantInt>(V)->getSExtValue();
 }
 
-inline llvm::iterator_range<llvm::Interval::pred_iterator>
-predecessors(llvm::Interval *BB) {
-  return make_range(pred_begin(BB), pred_end(BB));
-}
-
-inline llvm::iterator_range<llvm::Interval::succ_iterator>
-successors(llvm::Interval *BB) {
-  return make_range(succ_begin(BB), succ_end(BB));
-}
-
 template<typename T, unsigned I>
 inline bool findOperand(llvm::Value *Op, T &Result) {
   return false;

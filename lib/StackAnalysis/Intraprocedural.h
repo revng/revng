@@ -507,7 +507,7 @@ private:
   findIncoherentFunctions(const IntraproceduralFunctionSummary &ABISummary);
 
   /// \brief Part of the transfer function handling terminator instructions
-  Interrupt handleTerminator(llvm::TerminatorInst *T,
+  Interrupt handleTerminator(llvm::Instruction *T,
                              Element &Result,
                              ABIIRBasicBlock &ABIBB);
 

@@ -302,7 +302,7 @@ bool IFI::replaceFunctionCall(BasicBlock *NewBB,
                               const ValueToValueMap &RootToIsolated) {
 
   // Extract relevant information from the call to function_call
-  TerminatorInst *T = Call->getParent()->getTerminator();
+  Instruction *T = Call->getParent()->getTerminator();
   MDNode *FuncCall = T->getMetadata("func.call");
   BlockAddress *Callee = dyn_cast<BlockAddress>(Call->getOperand(0));
   BlockAddress *FallThroughAddress = cast<BlockAddress>(Call->getOperand(1));
@@ -317,7 +317,7 @@ bool IFI::replaceFunctionCall(BasicBlock *NewBB,
     TargetFunction = FunctionDispatcher;
   } else {
     BasicBlock *CalleeEntry = Callee->getBasicBlock();
-    TerminatorInst *Terminator = CalleeEntry->getTerminator();
+    Instruction *Terminator = CalleeEntry->getTerminator();
     auto *Node = cast<MDTuple>(Terminator->getMetadata("revng.func.entry"));
 
     // The callee is not a real function, it must be part of us then.
@@ -378,15 +378,13 @@ bool IFI::replaceFunctionCall(BasicBlock *NewBB,
 
 bool IFI::isTerminatorWithInvalidTarget(Instruction *I,
                                         const ValueToValueMap &RootToIsolated) {
-  if (auto *Terminator = dyn_cast<TerminatorInst>(I)) {
+  if (I->isTerminator()) {
 
     // Here we check if among the successors of a terminator instruction
     // there is one that doesn't belong to the current function.
-    for (BasicBlock *Target : Terminator->successors()) {
-      if (RootToIsolated.count(Target) == 0) {
+    for (BasicBlock *Target : successors(I))
+      if (RootToIsolated.count(Target) == 0)
         return true;
-      }
-    }
   }
 
   return false;
@@ -404,7 +402,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
   IRBuilder<> Builder(Context);
   Builder.SetInsertPoint(NewBB);
 
-  if (isa<TerminatorInst>(OldInstruction)) {
+  if (OldInstruction->isTerminator()) {
 
     auto Type = Descriptor.Members.at(NewBB);
     switch (Type) {
@@ -506,7 +504,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
     };
 
     // TODO: maybe cloning and patching would have been more effective
-    TerminatorInst *NewT = nullptr;
+    Instruction *NewT = nullptr;
     switch (OldInstruction->getOpcode()) {
     case Instruction::Br: {
       auto *Branch = cast<BranchInst>(OldInstruction);
@@ -547,7 +545,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
   } else if (isCallTo(OldInstruction, "function_call")) {
 
     // TODO: drop me in favor of checking func.call metadata
-    TerminatorInst *Terminator = OldInstruction->getParent()->getTerminator();
+    Instruction *Terminator = OldInstruction->getParent()->getTerminator();
     if (isTerminatorWithInvalidTarget(Terminator, RootToIsolated)) {
       // Function call handling
       CallInst *Call = cast<CallInst>(OldInstruction);
@@ -743,7 +741,7 @@ void IFI::run() {
   for (BasicBlock &BB : *RootFunction) {
     revng_assert(!BB.empty());
 
-    TerminatorInst *Terminator = BB.getTerminator();
+    Instruction *Terminator = BB.getTerminator();
     if (MDNode *Node = Terminator->getMetadata("revng.func.entry")) {
       auto *FunctionNameMD = cast<MDString>(&*Node->getOperand(0));
 
@@ -781,7 +779,7 @@ void IFI::run() {
 
     // We iterate over all the metadata that represent the functions a basic
     // block belongs to, and add the basic block in each function
-    TerminatorInst *Terminator = BB.getTerminator();
+    Instruction *Terminator = BB.getTerminator();
     if (MDNode *Node = Terminator->getMetadata("revng.func.member.of")) {
       auto *Tuple = cast<MDTuple>(Node);
       for (const MDOperand &Op : Tuple->operands()) {
@@ -872,12 +870,12 @@ void IFI::run() {
 
       BasicBlock *BB = IsolatedToRootBB[&NewBB];
       revng_assert(BB != nullptr);
-      TerminatorInst *Terminator = BB->getTerminator();
+      Instruction *Terminator = BB->getTerminator();
 
       // Collect all the successors of a basic block and add them in a proper
       // data structure
       std::vector<BasicBlock *> Successors;
-      for (BasicBlock *Successor : Terminator->successors()) {
+      for (BasicBlock *Successor : successors(Terminator)) {
 
         revng_assert(GCBI.isTranslated(Successor)
                      || GCBI.getType(Successor) == BlockType::AnyPCBlock
@@ -953,12 +951,12 @@ void IFI::run() {
 
         VisitAction visit(instruction_range Range) {
           revng_assert(Range.begin() != Range.end());
-          auto *T = cast<TerminatorInst>(&*Range.begin());
+          Instruction *Term = &*Range.begin();
           using namespace StackAnalysis::BranchType;
-          if (Descriptor.Members.at(T->getParent()) == FakeFunctionCall) {
-            revng_assert(FakeCall == nullptr or FakeCall == T->getParent(),
+          if (Descriptor.Members.at(Term->getParent()) == FakeFunctionCall) {
+            revng_assert(FakeCall == nullptr or FakeCall == Term->getParent(),
                          "Multiple fake function call sharing a fake return");
-            FakeCall = T->getParent();
+            FakeCall = Term->getParent();
             return NoSuccessors;
           }
 
@@ -984,7 +982,7 @@ void IFI::run() {
       auto *FakeFallthrough = cast<BasicBlock>(RootToIsolated[RootFallthrough]);
 
       // Replace unreachable with single-successor dummy switch
-      TerminatorInst *T = P.first->getTerminator();
+      Instruction *T = P.first->getTerminator();
       revng_assert(isa<UnreachableInst>(T));
       T->eraseFromParent();
       SwitchInst::Create(ZeroValue, FakeFallthrough, 0, P.first);
@@ -1077,14 +1075,14 @@ void IFI::run() {
         {
           using namespace StackAnalysis::BranchType;
           Values Type = Descriptor.Members.at(NewBB);
-          TerminatorInst *T = NewBB->getTerminator();
+          Instruction *T = NewBB->getTerminator();
           T->setMetadata("member.type", QMD.tuple(getName(Type)));
         }
       }
 
       unsigned Terminators = 0;
       for (Instruction &I : *NewBB)
-        if (isa<TerminatorInst>(&I))
+        if (I.isTerminator())
           Terminators++;
       revng_assert(Terminators == 1);
     }
@@ -1140,7 +1138,7 @@ void IFI::run() {
   for (BasicBlock &BB : *Root) {
     revng_assert(!BB.empty());
 
-    TerminatorInst *Terminator = BB.getTerminator();
+    Instruction *Terminator = BB.getTerminator();
     if (MDNode *Node = Terminator->getMetadata("revng.func.entry")) {
       StringRef FunctionNameString = getFunctionNameString(Node);
       Function *TargetFunc = TheModule->getFunction(FunctionNameString);
