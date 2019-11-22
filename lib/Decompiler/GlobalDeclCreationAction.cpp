@@ -28,10 +28,7 @@ public:
                               GlobalsMap &GMap,
                               TypeDeclMap &TDecls,
                               FieldDeclMap &FieldDecls) :
-    TheF(F),
-    GlobalVarAST(GMap),
-    TypeDecls(TDecls),
-    FieldDecls(FieldDecls) {}
+    TheF(F), GlobalVarAST(GMap), TypeDecls(TDecls), FieldDecls(FieldDecls) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override;
 

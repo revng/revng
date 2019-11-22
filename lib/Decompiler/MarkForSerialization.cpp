@@ -49,7 +49,7 @@ Analysis::InterruptType Analysis::transfer(BasicBlock *BB) {
 
   LatticeElement Pending = this->State[BB].copy();
 
-  size_t NumDuplicatesOfBB = NDuplicates.at(BB);
+  size_t NBBDuplicates = NDuplicates.at(BB);
   for (Instruction &I : *BB) {
     revng_log(MarkLog, "Analyzing: '" << &I << "': " << dumpToString(&I));
     // PHINodes are never serialized
@@ -101,9 +101,8 @@ Analysis::InterruptType Analysis::transfer(BasicBlock *BB) {
           continue;
         }
         Instruction *UserI = cast<Instruction>(U);
-        if (NumDuplicatesOfBB != NDuplicates.at(UserI->getParent())) {
-          // revng_assert(NumDuplicatesOfBB <
-          // NDuplicates.at(UserI->getParent()));
+        if (NBBDuplicates != NDuplicates.at(UserI->getParent())) {
+          // revng_assert(NBBDuplicates < NDuplicates.at(UserI->getParent()));
           markValueToSerialize(&I);
         } else {
           Pending.insert(&I);

@@ -60,8 +60,7 @@ using Register = RegisterPass<CDecompilerPass>;
 static Register X("decompilation", "Decompilation Pass", false, false);
 
 CDecompilerPass::CDecompilerPass(std::unique_ptr<llvm::raw_ostream> Out) :
-  llvm::FunctionPass(ID),
-  Out(std::move(Out)) {
+  llvm::FunctionPass(ID), Out(std::move(Out)) {
 }
 
 CDecompilerPass::CDecompilerPass() : CDecompilerPass(nullptr) {

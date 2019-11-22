@@ -34,10 +34,7 @@ public:
                            GlobalsMap &GMap,
                            TypeDeclMap &TDecls,
                            FieldDeclMap &FieldDecls) :
-    TheF(F),
-    GlobalVarAST(GMap),
-    TypeDecls(TDecls),
-    FieldDecls(FieldDecls) {}
+    TheF(F), GlobalVarAST(GMap), TypeDecls(TDecls), FieldDecls(FieldDecls) {}
 
 public:
   std::unique_ptr<ASTConsumer> newASTConsumer();

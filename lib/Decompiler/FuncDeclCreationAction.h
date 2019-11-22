@@ -34,10 +34,7 @@ public:
                          FunctionsMap &FDecls,
                          TypeDeclMap &TDecls,
                          FieldDeclMap &FieldDecls) :
-    F(F),
-    FunctionDecls(FDecls),
-    TypeDecls(TDecls),
-    FieldDecls(FieldDecls) {}
+    F(F), FunctionDecls(FDecls), TypeDecls(TDecls), FieldDecls(FieldDecls) {}
 
 public:
   std::unique_ptr<ASTConsumer> newASTConsumer();

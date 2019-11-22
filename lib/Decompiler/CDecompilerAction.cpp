@@ -320,24 +320,24 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     // `ElseScope` and therefore an empty compound statement.
     if (If->getElse() == nullptr) {
       Stmts.push_back(IfStmt::Create(ASTCtx,
-                                          {},
-                                          false,
-                                          nullptr,
-                                          nullptr,
-                                          CondExpr,
-                                          ThenScope,
-                                          {},
-                                          nullptr));
+                                     {},
+                                     false,
+                                     nullptr,
+                                     nullptr,
+                                     CondExpr,
+                                     ThenScope,
+                                     {},
+                                     nullptr));
     } else {
       Stmts.push_back(IfStmt::Create(ASTCtx,
-                                          {},
-                                          false,
-                                          nullptr,
-                                          nullptr,
-                                          CondExpr,
-                                          ThenScope,
-                                          {},
-                                          ElseScope));
+                                     {},
+                                     false,
+                                     nullptr,
+                                     nullptr,
+                                     CondExpr,
+                                     ThenScope,
+                                     {},
+                                     ElseScope));
     }
 
     break;
@@ -416,7 +416,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     if (Kind == ASTNode::NodeKind::NK_SwitchCheck) {
       clang::VarDecl *StateVarD = ASTBuilder.getOrCreateLoopStateVarDecl();
       QualType T = StateVarD->getType();
-      CondExpr = new (ASTCtx) DeclRefExpr(ASTCtx, StateVarD, false, T, VK_LValue, {});
+      CondExpr = new (ASTCtx)
+        DeclRefExpr(ASTCtx, StateVarD, false, T, VK_LValue, {});
     } else {
       auto *S = llvm::cast<RegularSwitchNode>(Switch);
       llvm::Value *CondVal = S->getCondition();
@@ -425,7 +426,10 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     revng_assert(CondExpr != nullptr);
 
     // Generate the switch statement
-    clang::SwitchStmt *SwitchStatement = SwitchStmt::Create(ASTCtx, nullptr, nullptr, CondExpr);
+    clang::SwitchStmt *SwitchStatement = SwitchStmt::Create(ASTCtx,
+                                                            nullptr,
+                                                            nullptr,
+                                                            CondExpr);
 
     // Generate the body of the switch
     SmallVector<clang::Stmt *, 8> BodyStmts;
@@ -445,7 +449,12 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       }
       revng_assert(CaseExpr != nullptr);
       // Build the case
-      clang::CaseStmt *Case = CaseStmt::Create(ASTCtx, CaseExpr, nullptr, {}, {}, {});
+      clang::CaseStmt *Case = CaseStmt::Create(ASTCtx,
+                                               CaseExpr,
+                                               nullptr,
+                                               {},
+                                               {},
+                                               {});
       // Build the body of the case
       clang::Stmt *CaseBody = buildCompoundScope(CaseNode,
                                                  ASTCtx,
@@ -507,17 +516,18 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       //   break;
       clang::VarDecl *StateVarD = ASTBuilder.getOrCreateSwitchStateVarDecl();
       QualType T = StateVarD->getType();
-      CondExpr = new (ASTCtx) DeclRefExpr(ASTCtx, StateVarD, false, T, VK_LValue, {});
+      CondExpr = new (ASTCtx)
+        DeclRefExpr(ASTCtx, StateVarD, false, T, VK_LValue, {});
       clang::BreakStmt *Break = new (ASTCtx) clang::BreakStmt(SourceLocation{});
       Stmts.push_back(IfStmt::Create(ASTCtx,
-                                          {},
-                                          false,
-                                          nullptr,
-                                          nullptr,
-                                          CondExpr,
-                                          Break,
-                                          {},
-                                          nullptr));
+                                     {},
+                                     false,
+                                     nullptr,
+                                     nullptr,
+                                     CondExpr,
+                                     Break,
+                                     {},
+                                     nullptr));
     }
   } break;
 

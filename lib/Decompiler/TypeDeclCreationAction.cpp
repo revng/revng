@@ -51,9 +51,7 @@ public:
   explicit TypeDeclCreator(llvm::Function &F,
                            TypeDeclMap &TDecls,
                            FieldDeclMap &FieldDecls) :
-    TheF(F),
-    TypeDecls(TDecls),
-    FieldDecls(FieldDecls) {}
+    TheF(F), TypeDecls(TDecls), FieldDecls(FieldDecls) {}
 
   virtual void HandleTranslationUnit(ASTContext &C) override;
 

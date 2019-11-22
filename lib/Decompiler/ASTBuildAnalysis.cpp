@@ -175,7 +175,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     QualType ArrayTy = ArrayDecl->getType();
     // Create an Expr for the address of the first element of the array.
     QualType CharPtrTy = ASTCtx.getPointerType(ASTCtx.CharTy);
-    Expr *ArrayDeclRef = new (ASTCtx) DeclRefExpr(ASTCtx, ArrayDecl, false, ArrayTy, VK_LValue, {});
+    Expr *ArrayDeclRef = new (ASTCtx)
+      DeclRefExpr(ASTCtx, ArrayDecl, false, ArrayTy, VK_LValue, {});
     CastKind Kind = CastKind::CK_ArrayToPointerDecay;
     Expr *ArrayPtrDecay = ImplicitCastExpr::Create(ASTCtx,
                                                    CharPtrTy,
@@ -392,14 +393,24 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                               TUDecl,
                                               TypeDecls,
                                               FieldDecls);
-    return CallExpr::Create(ASTCtx, CalleeExpr, Args, ReturnType, VK_RValue, {});
+    return CallExpr::Create(ASTCtx,
+                            CalleeExpr,
+                            Args,
+                            ReturnType,
+                            VK_RValue,
+                            {});
   }
   case Instruction::Unreachable: {
     Function *AbortFun = F.getParent()->getFunction("abort");
     Expr *CalleeExpr = getExprForValue(AbortFun);
     SmallVector<Expr *, 8> Args;
     QualType ReturnType = ASTCtx.VoidTy;
-    return CallExpr::Create(ASTCtx, CalleeExpr, Args, ReturnType, VK_RValue, {});
+    return CallExpr::Create(ASTCtx,
+                            CalleeExpr,
+                            Args,
+                            ReturnType,
+                            VK_RValue,
+                            {});
   }
   //
   // ---- Instructions for struct manipulation ----
@@ -428,7 +439,9 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     clang::Expr *LHS = MemberExpr::Create(ASTCtx,
                                           StructExpr,
                                           /*isarrow*/ false,
-                                          {}, {}, {},
+                                          {},
+                                          {},
+                                          {},
                                           FieldDecl,
                                           DAP,
                                           FieldDeclNameInfo,
@@ -477,7 +490,9 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     return MemberExpr::Create(ASTCtx,
                               StructExpr,
                               /*isarrow*/ false,
-                              {}, {}, {},
+                              {},
+                              {},
+                              {},
                               ExtractedFDecl,
                               DeclAccessPair::make(ExtractedFDecl,
                                                    ExtractedFDecl->getAccess()),

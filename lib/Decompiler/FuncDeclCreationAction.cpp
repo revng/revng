@@ -110,10 +110,7 @@ public:
                            FunctionsMap &FDecls,
                            TypeDeclMap &TDecls,
                            FieldDeclMap &FieldDecls) :
-    TheF(F),
-    FunctionDecls(FDecls),
-    TypeDecls(TDecls),
-    FieldDecls(FieldDecls) {}
+    TheF(F), FunctionDecls(FDecls), TypeDecls(TDecls), FieldDecls(FieldDecls) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override;
 

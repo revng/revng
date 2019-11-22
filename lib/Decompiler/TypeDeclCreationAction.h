@@ -29,9 +29,7 @@ public:
   TypeDeclCreationAction(llvm::Function &F,
                          TypeDeclMap &TDecls,
                          FieldDeclMap &FieldDecls) :
-    F(F),
-    TypeDecls(TDecls),
-    FieldDecls(FieldDecls) {}
+    F(F), TypeDecls(TDecls), FieldDecls(FieldDecls) {}
 
 public:
   std::unique_ptr<ASTConsumer> newASTConsumer();
