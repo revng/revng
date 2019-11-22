@@ -275,6 +275,7 @@ public:
       case RegisterArgument<false>::Contradiction:
         return false;
       }
+      break;
     case Maybe:
       switch (Other.Value) {
       case RegisterArgument<false>::Maybe:
@@ -286,6 +287,7 @@ public:
       case RegisterArgument<false>::Contradiction:
         return false;
       }
+      break;
     case Yes:
       switch (Other.Value) {
       case RegisterArgument<false>::Yes:
@@ -297,6 +299,7 @@ public:
       case RegisterArgument<false>::Contradiction:
         return false;
       }
+      break;
     case Dead:
       switch (Other.Value) {
       case RegisterArgument<false>::Dead:
@@ -308,6 +311,7 @@ public:
       case RegisterArgument<false>::Contradiction:
         return false;
       }
+      break;
     case Contradiction:
       return false;
     case No:
@@ -321,6 +325,7 @@ public:
       case RegisterArgument<false>::Contradiction:
         return false;
       }
+      break;
     }
 
     revng_abort();
@@ -548,6 +553,7 @@ public:
       case FunctionReturnValue::Contradiction:
         return false;
       }
+      break;
     case NoOrDead:
       switch (Other.Value) {
       case FunctionReturnValue::NoOrDead:
@@ -558,6 +564,7 @@ public:
       case FunctionReturnValue::Contradiction:
         return false;
       }
+      break;
     case Maybe:
       switch (Other.Value) {
       case FunctionReturnValue::Maybe:
@@ -568,6 +575,7 @@ public:
       case FunctionReturnValue::Contradiction:
         return false;
       }
+      break;
     case Yes:
       switch (Other.Value) {
       case FunctionReturnValue::YesOrDead:
@@ -578,6 +586,7 @@ public:
       case FunctionReturnValue::Contradiction:
         return false;
       }
+      break;
     case Dead:
       switch (Other.Value) {
       case FunctionReturnValue::NoOrDead:
@@ -588,6 +597,7 @@ public:
       case FunctionReturnValue::Contradiction:
         return false;
       }
+      break;
     case Contradiction:
       return false;
     case No:
@@ -600,6 +610,7 @@ public:
       case FunctionReturnValue::Contradiction:
         return false;
       }
+      break;
     }
 
     revng_abort();
