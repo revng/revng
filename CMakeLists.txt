@@ -102,9 +102,13 @@ add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 #
 
 # Basic compiler options
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a -Wall -Werror")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
 
 # Disable some warnings
+add_flag_if_available("-Wno-unused-parameter")
 add_flag_if_available("-Wno-maybe-uninitialized")
 add_flag_if_available("-Wno-unused-local-typedefs")
 add_flag_if_available("-Wno-init-list-lifetime")
