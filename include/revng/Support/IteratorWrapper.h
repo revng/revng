@@ -26,11 +26,6 @@ public:
 public:
   IteratorWrapper(W Iterator) : Iterator(Iterator) {}
 
-  type &operator=(const type &r) {
-    Iterator = r.Iterator;
-    return *this;
-  }
-
   type &operator++() {
     ++Iterator;
     return *this;
