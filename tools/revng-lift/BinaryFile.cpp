@@ -361,6 +361,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t BaseAddress) :
                      { "x20" }, { "x21" }, { "x22" }, { "x23" }, { "x24" },
                      { "x25" }, { "x26" }, { "x27" }, { "x28" }, { "x29" },
                      { "lr" },  { "sp" } };
+    HasRelocationAddend = false;
     break;
 
   case Triple::mips:
@@ -572,14 +573,13 @@ void BinaryFile::registerBindEntry(const object::MachOBindEntry *Entry,
   uint64_t Size = 0;
 
   switch (Entry->type()) {
-  case REBASE_TYPE_INVALID:
-  case REBASE_TYPE_POINTER:
+  case BIND_TYPE_POINTER:
     Size = PointerSize;
     break;
-  case REBASE_TYPE_TEXT_ABSOLUTE32:
+  case BIND_TYPE_TEXT_ABSOLUTE32:
     Size = 32 / 8;
     break;
-  case REBASE_TYPE_TEXT_PCREL32:
+  case BIND_TYPE_TEXT_PCREL32:
     Size = 32 / 8;
     Addend -= Target;
     break;

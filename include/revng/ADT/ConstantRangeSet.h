@@ -78,7 +78,7 @@ public:
       return *this;
     }
 
-    Current++;
+    ++Current;
     if (not ToLast and Current == *NextBound) {
       ++NextBound;
       if (NextBound != End) {

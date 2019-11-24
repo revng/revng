@@ -474,7 +474,7 @@ public:
   Interrupt createSummaryInterrupt() { revng_abort(); }
 
   Interrupt createNoReturnInterrupt() {
-    return Interrupt::createSummary(std::move(createSummary()));
+    return Interrupt::createSummary(createSummary());
   }
 
   /// \brief Return the set of functions called by this function in an

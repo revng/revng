@@ -794,13 +794,13 @@ std::pair<FunctionType::Values, Element> Analysis::finalize() {
       } else {
         // Every return agrees the stack has grown: it's a fake function, let's
         // inline it
-        return { FunctionType::Fake, std::move(Element::bottom()) };
+        return { FunctionType::Fake, Element::bottom() };
       }
     }
   }
 
   if (not BestSP.hasDirectContent())
-    return { FunctionType::NoReturn, std::move(Element::bottom()) };
+    return { FunctionType::NoReturn, Element::bottom() };
 
   // Combine all the values of the non-broken returns, mark as broken all the
   // others

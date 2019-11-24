@@ -183,6 +183,8 @@ public:
     }
   }
 
+  void dumpFinalState() const { revng_abort(); }
+
 private:
   llvm::Optional<Element> compute(const Element &Original,
                                   llvm::BasicBlock *Source,
