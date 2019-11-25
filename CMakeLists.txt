@@ -4,6 +4,7 @@ find_package(revng REQUIRED)
 find_package(LLVM REQUIRED CONFIG)
 find_package(Clang REQUIRED CONFIG)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror ")

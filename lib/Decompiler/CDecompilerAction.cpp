@@ -266,7 +266,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       Stmts.push_back(AssignStmt);
     }
   };
-    [[clang::fallthrough]];
+    [[fallthrough]];
   case ASTNode::NodeKind::NK_SwitchBreak:
     Stmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
     break;
