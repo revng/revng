@@ -6,8 +6,14 @@ find_package(Clang REQUIRED CONFIG)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra ")
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstrict-aliasing ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wstrict-aliasing ")
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
 
 install(FILES cmake/revngcConfig.cmake DESTINATION share/revngc/cmake)
