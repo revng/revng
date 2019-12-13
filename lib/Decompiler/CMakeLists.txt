@@ -4,6 +4,7 @@
 
 revng_add_analyses_library(Decompiler revngc
   ASTBuildAnalysis.cpp
+  DLAStep.cpp
   CDecompiler.cpp
   CDecompilerAction.cpp
   CDecompilerBeautify.cpp

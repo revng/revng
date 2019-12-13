@@ -74,3 +74,22 @@ register_derived_artifact("abi-enforced-for-decompilation-torture" # FROM_ARTIFA
   ""                               # SUFFIX: extension of output file
   "FILE"                           # TYPE: "FILE" or "DIRECTORY"
   )
+
+#
+# dla_step_manager
+#
+
+add_executable(dla_step_manager "${SRC}/DLAStepManager.cpp")
+target_include_directories(dla_step_manager
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+          "${Boost_INCLUDE_DIRS}")
+target_compile_definitions(dla_step_manager
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_link_libraries(dla_step_manager
+  Decompiler
+  clangSerialization
+  revng::revngSupport
+  revng::revngUnitTestHelpers
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME dla_step_manager COMMAND dla_step_manager)
