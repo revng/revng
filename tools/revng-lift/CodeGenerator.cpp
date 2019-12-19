@@ -25,7 +25,6 @@
 // LLVM includes
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/ExecutionEngine/RuntimeDyld.h"
-#include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/IRBuilder.h"

@@ -12,6 +12,7 @@
 
 // LLVM includes
 #include "llvm/IR/DIBuilder.h"
+#include "llvm/IR/AssemblyAnnotationWriter.h"
 
 // Local libraries includes
 #include "revng/Support/revng.h"
