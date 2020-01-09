@@ -1303,7 +1303,7 @@ inline void RegionCFG<NodeT>::generateAst() {
   ASTDT.recalculate(Graph);
   ASTDT.updateDFSNumbers();
 
-  CombLogger.emit();
+  CombLogger << DoLog;
 
   std::map<unsigned, BasicBlockNode<NodeT> *> DFSNodeMap;
 
@@ -1345,8 +1345,8 @@ inline void RegionCFG<NodeT>::generateAst() {
       revng_assert(ASTChildren.size() <= 1);
       RegionCFG<NodeT> *BodyGraph = Node->getCollapsedCFG();
       revng_assert(BodyGraph != nullptr);
-      CombLogger << "Inspecting collapsed node: " << Node->getNameStr() << "\n";
-      CombLogger.emit();
+      revng_log(CombLogger,
+                "Inspecting collapsed node: " << Node->getNameStr());
       BodyGraph->generateAst();
       if (ASTChildren.size() == 1) {
         ASTNode *Body = BodyGraph->getAST().getRoot();
