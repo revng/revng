@@ -400,6 +400,9 @@ public:
       } else if (auto *C = dyn_cast<ConstantInt>(U)) {
         RangeSize = 1;
         Range = ConstantRange(APInt(64, getLimitedValue(C)));
+      } else if (isa<ConstantPointerNull>(U) or isa<UndefValue>(U)) {
+        RangeSize = 0;
+        Range = ConstantRange(64, false);
       } else {
         revng_assert(isa<Constant>(U));
         Next = U->getOperand(0);
