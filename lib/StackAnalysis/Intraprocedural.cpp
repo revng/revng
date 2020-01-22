@@ -31,7 +31,6 @@ using llvm::Module;
 using llvm::Optional;
 using llvm::SmallVector;
 using llvm::StoreInst;
-using llvm::TerminatorInst;
 using llvm::Type;
 using llvm::UnreachableInst;
 using llvm::User;
@@ -70,7 +69,7 @@ void Analysis::initialize() {
 
   revng_log(SaLog, "Creating Analysis for " << getName(Entry));
 
-  TerminatorInst *T = Entry->getTerminator();
+  Instruction *T = Entry->getTerminator();
   revng_assert(T != nullptr);
 
   // Obtain the link register used to call this function
@@ -462,11 +461,10 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
 
     case Instruction::Br:
     case Instruction::Switch: {
-      auto *T = cast<TerminatorInst>(&I);
 
       // We're at the end of the basic block, handleTerminator will provide us
       // an Interrupt to forward back
-      Interrupt BBResult = handleTerminator(T, Result, ABIBB);
+      Interrupt BBResult = handleTerminator(&I, Result, ABIBB);
 
       // Register all the successors in the ABI IR too
       if (BBResult.hasSuccessors())
@@ -505,11 +503,12 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
   revng_abort();
 }
 
-Interrupt Analysis::handleTerminator(TerminatorInst *T,
+Interrupt Analysis::handleTerminator(Instruction *T,
                                      Element &Result,
                                      ABIIRBasicBlock &ABIBB) {
   namespace BT = BranchType;
 
+  revng_assert(T->isTerminator());
   revng_assert(not isa<UnreachableInst>(T));
 
   LogOnReturn<> X(SaTerminator);
@@ -539,7 +538,7 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
   bool IsIndirect = false;
   bool IsUnresolvedIndirect = false;
 
-  for (BasicBlock *Successor : T->successors()) {
+  for (BasicBlock *Successor : llvm::successors(T)) {
     BlockType::Values SuccessorType = GCBI->getType(Successor->getTerminator());
 
     // TODO: this is not very clean
@@ -582,7 +581,7 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
   if (IsInstructionLocal) {
     SaTerminator << " IsInstructionLocal";
     SmallVector<BasicBlock *, 2> Successors;
-    for (BasicBlock *Successor : T->successors())
+    for (BasicBlock *Successor : llvm::successors(T))
       Successors.push_back(Successor);
 
     return AI::createWithSuccessors(std::move(Result),
@@ -723,7 +722,7 @@ Interrupt Analysis::handleTerminator(TerminatorInst *T,
   // The branch is direct and has nothing else special, consider it
   // function-local
   SmallVector<BasicBlock *, 2> Successors;
-  for (BasicBlock *Successor : T->successors()) {
+  for (BasicBlock *Successor : llvm::successors(T)) {
     BlockType::Values SuccessorType = GCBI->getType(Successor);
     if (SuccessorType != BlockType::UnexpectedPCBlock
         and SuccessorType != BlockType::AnyPCBlock)
@@ -795,13 +794,13 @@ std::pair<FunctionType::Values, Element> Analysis::finalize() {
       } else {
         // Every return agrees the stack has grown: it's a fake function, let's
         // inline it
-        return { FunctionType::Fake, std::move(Element::bottom()) };
+        return { FunctionType::Fake, Element::bottom() };
       }
     }
   }
 
   if (not BestSP.hasDirectContent())
-    return { FunctionType::NoReturn, std::move(Element::bottom()) };
+    return { FunctionType::NoReturn, Element::bottom() };
 
   // Combine all the values of the non-broken returns, mark as broken all the
   // others

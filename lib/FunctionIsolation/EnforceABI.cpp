@@ -603,7 +603,7 @@ void EnforceABIImpl::handleRegularFunctionCall(Instruction *I) {
   BranchType::Values BranchType = BranchType::Invalid;
 
   bool IsNoReturn = false;
-  if (isa<TerminatorInst>(I)) {
+  if (I->isTerminator()) {
     auto *Tuple = cast<MDTuple>(I->getMetadata("member.type"));
     BranchType = BranchType::fromName(QMD.extract<StringRef>(Tuple, 0));
 

@@ -474,7 +474,7 @@ public:
   Interrupt createSummaryInterrupt() { revng_abort(); }
 
   Interrupt createNoReturnInterrupt() {
-    return Interrupt::createSummary(std::move(createSummary()));
+    return Interrupt::createSummary(createSummary());
   }
 
   /// \brief Return the set of functions called by this function in an
@@ -507,7 +507,7 @@ private:
   findIncoherentFunctions(const IntraproceduralFunctionSummary &ABISummary);
 
   /// \brief Part of the transfer function handling terminator instructions
-  Interrupt handleTerminator(llvm::TerminatorInst *T,
+  Interrupt handleTerminator(llvm::Instruction *T,
                              Element &Result,
                              ABIIRBasicBlock &ABIBB);
 

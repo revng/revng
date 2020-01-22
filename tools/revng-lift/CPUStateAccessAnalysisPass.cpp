@@ -820,7 +820,7 @@ public:
       Sources.push_back(&SizeOp);
     } else {
       for (const BasicBlock &BB : *F) {
-        const TerminatorInst *I = BB.getTerminator();
+        const Instruction *I = BB.getTerminator();
         if (I and isa<ReturnInst>(I) and I->getNumOperands() != 0) {
           revng_assert(I->getNumOperands() == 1);
           const Use &RetValUse = I->getOperandUse(0);

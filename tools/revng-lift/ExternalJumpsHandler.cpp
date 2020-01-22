@@ -87,7 +87,7 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
     }
   }
 
-  TerminatorInst *T = Builder.CreateBr(JumpTargets.dispatcher());
+  Instruction *T = Builder.CreateBr(JumpTargets.dispatcher());
   setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
 
   return ReturnFromExternal;
@@ -147,7 +147,7 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
   Value *PCReg = JumpTargets.pcReg();
   Builder.CreateCall(Asm, PCReg);
 
-  TerminatorInst *T = Builder.CreateUnreachable();
+  Instruction *T = Builder.CreateUnreachable();
   setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
 
   return Result;
@@ -172,7 +172,7 @@ llvm::BasicBlock *ExternalJumpsHandler::createSetjmp(BasicBlock *FirstReturn,
   auto *Zero = CI::get(cast<FunctionType>(SetJmpTy)->getReturnType(), 0);
   Value *BrCond = Builder.CreateICmpNE(SetjmpRes, Zero);
 
-  TerminatorInst *T = Builder.CreateCondBr(BrCond, SecondReturn, FirstReturn);
+  Instruction *T = Builder.CreateCondBr(BrCond, SecondReturn, FirstReturn);
   setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
 
   return SetjmpBB;
@@ -231,9 +231,9 @@ ExternalJumpsHandler::createExternalDispatcher(BasicBlock *IsExecutable,
   Value *IsExecutableResult = Builder.CreateCall(IsExecutableFunction, { PC });
 
   // If is_executable returns true go to default, otherwise setjmp
-  TerminatorInst *T = Builder.CreateCondBr(IsExecutableResult,
-                                           IsNotExecutable,
-                                           IsExecutable);
+  Instruction *T = Builder.CreateCondBr(IsExecutableResult,
+                                        IsNotExecutable,
+                                        IsExecutable);
   setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
 
   return ExternalJumpHandler;

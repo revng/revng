@@ -215,7 +215,7 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
 
   // Temporary data structure so we can set all the `revng.func.member.of` in a
   // single shot at the end
-  std::map<TerminatorInst *, std::vector<Metadata *>> MemberOf;
+  std::map<Instruction *, std::vector<Metadata *>> MemberOf;
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
 

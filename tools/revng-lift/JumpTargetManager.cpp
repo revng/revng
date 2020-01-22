@@ -443,7 +443,8 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { Type::getInt32Ty(Context) },
                                              false);
-  ExitTB = cast<Function>(TheModule.getOrInsertFunction("exitTB", ExitTBTy));
+  FunctionCallee ExitCallee = TheModule.getOrInsertFunction("exitTB", ExitTBTy);
+  ExitTB = cast<Function>(ExitCallee.getCallee());
   createDispatcher(TheFunction, PCReg);
 
   for (auto &Segment : Binary.segments())
@@ -960,7 +961,8 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
   // Collect all the descendats, except if we meet a jump target
   while (!Queue.empty()) {
     BasicBlock *BB = Queue.pop();
-    for (BasicBlock *Successor : successors(BB)) {
+    Instruction *Terminator = BB->getTerminator();
+    for (BasicBlock *Successor : successors(Terminator)) {
       if (isTranslatedBB(Successor) && !isJumpTarget(Successor)
           && !hasPredecessor(Successor, Dispatcher)) {
         Queue.insert(Successor);
@@ -1087,9 +1089,9 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
 
   Module *TheModule = TheFunction->getParent();
   auto *UnknownPCTy = FunctionType::get(Type::getVoidTy(Context), {}, false);
-  Constant *UnknownPC = TheModule->getOrInsertFunction("unknownPC",
-                                                       UnknownPCTy);
-  Builder.CreateCall(cast<Function>(UnknownPC));
+  FunctionCallee UnknownPC = TheModule->getOrInsertFunction("unknownPC",
+                                                            UnknownPCTy);
+  Builder.CreateCall(UnknownPC);
   auto *FailUnreachable = Builder.CreateUnreachable();
   setBlockType(FailUnreachable, BlockType::DispatcherFailureBlock);
 
@@ -1167,7 +1169,7 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
 
   setBlockType(AnyPC->getTerminator(), BlockType::AnyPCBlock);
 
-  TerminatorInst *UnexpectedPCJump = UnexpectedPC->getTerminator();
+  Instruction *UnexpectedPCJump = UnexpectedPC->getTerminator();
   setBlockType(UnexpectedPCJump, BlockType::UnexpectedPCBlock);
 
   // If we're entering or leaving the NoFunctionCallsCFG form, update all the
@@ -1183,7 +1185,7 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
         if (isa<ConstantPointerNull>(Call->getArgOperand(0)))
           continue;
 
-        auto *Terminator = cast<TerminatorInst>(nextNonMarker(Call));
+        Instruction *Terminator = nextNonMarker(Call);
         revng_assert(Terminator->getNumSuccessors() == 1);
 
         // Get the correct argument, the first is the callee, the second the
@@ -1249,8 +1251,8 @@ void JumpTargetManager::rebuildDispatcher() {
   if (CurrentCFGForm != CFGForm::SemanticPreservingCFG) {
     // Compute the set of reachable jump targets
     OnceQueue<BasicBlock *> WorkList;
-    for (BasicBlock *BB : DispatcherSwitch->successors())
-      WorkList.insert(BB);
+    for (BasicBlock *Successor : successors(DispatcherSwitch))
+      WorkList.insert(Successor);
 
     while (not WorkList.empty()) {
       BasicBlock *BB = WorkList.pop();
@@ -1621,9 +1623,12 @@ void JumpTargetManager::harvestWithAVI() {
     AA.registerFunctionAnalysis<ScopedNoAliasAA>();
     return AA;
   });
+  ModuleAnalysisManager MAM;
+  FAM.registerPass([&MAM] { return ModuleAnalysisManagerFunctionProxy(MAM); });
 
   PassBuilder PB;
   PB.registerFunctionAnalyses(FAM);
+  PB.registerModuleAnalyses(MAM);
 
   FPM.run(*OptimizedFunction, FAM);
 

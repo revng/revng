@@ -13,6 +13,7 @@ bool init_unit_test();
 // LLVM includes
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Passes/PassBuilder.h"
 
 // Local libraries includes
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
@@ -27,7 +28,16 @@ static Function *run(Module *M, const char *Body) {
 
   FunctionPassManager FPM;
   FPM.addPass(ShrinkInstructionOperandsPass());
+
   FunctionAnalysisManager FAM;
+
+  ModuleAnalysisManager MAM;
+  FAM.registerPass([&MAM] { return ModuleAnalysisManagerFunctionProxy(MAM); });
+
+  PassBuilder PB;
+  PB.registerFunctionAnalyses(FAM);
+  PB.registerModuleAnalyses(MAM);
+
   FPM.run(*F, FAM);
 
   return F;

@@ -24,6 +24,7 @@ using llvm::cast_or_null;
 using llvm::dyn_cast;
 using llvm::dyn_cast_or_null;
 using llvm::GlobalVariable;
+using llvm::Instruction;
 using llvm::MDNode;
 using llvm::MDString;
 using llvm::MDTuple;
@@ -31,7 +32,6 @@ using llvm::Metadata;
 using llvm::Module;
 using llvm::SmallVector;
 using llvm::StringRef;
-using llvm::TerminatorInst;
 using llvm::User;
 
 namespace StackAnalysis {
@@ -258,7 +258,7 @@ void FunctionsSummary::dumpInternal(const Module *M,
     Output << "    \"jt-reasons\": [";
     if (Entry != nullptr) {
       const char *JTReasonsDelimiter = "";
-      TerminatorInst *T = Entry->getTerminator();
+      Instruction *T = Entry->getTerminator();
       revng_assert(T != nullptr);
       MDNode *Node = T->getMetadata("revng.jt.reasons");
       SmallVector<StringRef, 4> Reasons;

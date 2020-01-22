@@ -41,8 +41,8 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   };
   using FT = FunctionType;
   auto *Ty = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
-  Constant *FunctionCallC = M.getOrInsertFunction("function_call", Ty);
-  FunctionCall = cast<Function>(FunctionCallC);
+  FunctionCallee CalleeObject = M.getOrInsertFunction("function_call", Ty);
+  FunctionCall = cast<Function>(CalleeObject.getCallee());
 
   // Initialize the function, if necessary
   if (FunctionCall->empty()) {
@@ -60,7 +60,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
 
     // Consider the basic block only if it's terminator is an actual jump and it
     // hasn't been already marked as a function call
-    TerminatorInst *Terminator = BB.getTerminator();
+    Instruction *Terminator = BB.getTerminator();
 
     if (Terminator != nullptr) {
       if (CallInst *Call = getCall(Terminator)) {

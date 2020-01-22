@@ -102,21 +102,7 @@ add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 #
 
 # Basic compiler options
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -Werror")
-
-# Additional compiler options
-include(CheckCXXCompilerFlag)
-macro(add_flag_if_available flag)
-  string(REPLACE "-" "_" NAME "${flag}")
-  string(REPLACE "+" "_" NAME "${NAME}")
-  string(REPLACE "=" "_" NAME "${NAME}")
-  string(REPLACE "__" "_" NAME "${NAME}")
-  string(TOUPPER "${NAME}" NAME)
-  CHECK_CXX_COMPILER_FLAG("${flag}" IS_SUPPORTED_${NAME})
-  if (IS_SUPPORTED_${NAME})
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flag}")
-  endif()
-endmacro()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a -Wall -Werror")
 
 # Disable some warnings
 add_flag_if_available("-Wno-maybe-uninitialized")
@@ -146,8 +132,6 @@ CHECK_INCLUDE_FILES(valgrind/callgrind.h HAVE_VALGRIND_CALLGRIND_H)
 if(HAVE_VALGRIND_CALLGRIND_H)
 add_definitions("-DHAVE_VALGRIND_CALLGRIND_H")
 endif()
-
-set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}:\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}/revng/analyses")
 
 add_subdirectory(include)
 add_subdirectory(lib)
