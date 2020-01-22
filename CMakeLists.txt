@@ -133,8 +133,6 @@ if(HAVE_VALGRIND_CALLGRIND_H)
 add_definitions("-DHAVE_VALGRIND_CALLGRIND_H")
 endif()
 
-set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}:\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}/revng/analyses")
-
 add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)

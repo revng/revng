@@ -1,5 +1,8 @@
 macro(prepend_target_property TARGET PROPERTY VALUE SEPARATOR)
   get_target_property(TMP "${TARGET}" "${PROPERTY}")
+  if("${TMP}" STREQUAL "TMP-NOTFOUND")
+    set(TMP "")
+  endif()
   if(NOT "${TMP}" STREQUAL "")
     set(TMP "${SEPARATOR}${TMP}")
   endif()
@@ -8,6 +11,9 @@ endmacro()
 
 macro(append_target_property TARGET PROPERTY VALUE SEPARATOR)
   get_target_property(TMP "${TARGET}" "${PROPERTY}")
+  if("${TMP}" STREQUAL "TMP-NOTFOUND")
+    set(TMP "")
+  endif()
   if(NOT "${TMP}" STREQUAL "")
     set(TMP "${TMP}${SEPARATOR}")
   endif()
@@ -18,8 +24,10 @@ macro(revng_add_library NAME TYPE EXPORT_NAME)
 
   add_library("${NAME}" "${TYPE}" ${ARGN})
   target_include_directories("${NAME}" INTERFACE $<INSTALL_INTERFACE:include/>)
-  prepend_target_property("${NAME}" BUILD_RPATH "\$ORIGIN" ":")
-  prepend_target_property("${NAME}" INSTALL_RPATH "\$ORIGIN" ":")
+  prepend_target_property("${NAME}" BUILD_RPATH "\$ORIGIN:\$ORIGIN/revng/analyses" ":")
+  if(NOT "${CMAKE_INSTALL_RPATH}" STREQUAL "")
+    append_target_property("${NAME}" BUILD_RPATH "${CMAKE_INSTALL_RPATH}" ":")
+  endif()
 
   make_directory("${CMAKE_BINARY_DIR}/lib/")
   add_custom_command(TARGET "${NAME}" POST_BUILD VERBATIM
@@ -39,7 +47,9 @@ macro(revng_add_analyses_library NAME EXPORT_NAME)
   add_library("${NAME}" SHARED ${ARGN})
   target_include_directories("${NAME}" INTERFACE $<INSTALL_INTERFACE:include/>)
   prepend_target_property("${NAME}" BUILD_RPATH "\$ORIGIN/../../:\$ORIGIN" ":")
-  prepend_target_property("${NAME}" INSTALL_RPATH "\$ORIGIN/../../:\$ORIGIN" ":")
+  if(NOT "${CMAKE_INSTALL_RPATH}" STREQUAL "")
+    append_target_property("${NAME}" BUILD_RPATH "${CMAKE_INSTALL_RPATH}" ":")
+  endif()
 
   make_directory("${CMAKE_BINARY_DIR}/lib/revng/analyses/")
   add_custom_command(TARGET "${NAME}" POST_BUILD VERBATIM
@@ -53,7 +63,9 @@ macro(revng_add_executable NAME)
 
   add_executable("${NAME}" ${ARGN})
   prepend_target_property("${NAME}" BUILD_RPATH "\$ORIGIN/../lib/:\$ORIGIN/../lib/revng/analyses/" ":")
-  prepend_target_property("${NAME}" INSTALL_RPATH "\$ORIGIN/../lib/:\$ORIGIN/../lib/revng/analyses/" ":")
+  if(NOT "${CMAKE_INSTALL_RPATH}" STREQUAL "")
+    append_target_property("${NAME}" BUILD_RPATH "${CMAKE_INSTALL_RPATH}" ":")
+  endif()
 
   make_directory("${CMAKE_BINARY_DIR}/bin/")
   add_custom_command(TARGET "${NAME}" POST_BUILD VERBATIM
