@@ -95,3 +95,17 @@ macro(install_pattern)
   endforeach(FILE)
 
 endmacro(install_pattern)
+
+# Additional compiler options
+include(CheckCXXCompilerFlag)
+macro(add_flag_if_available flag)
+  string(REPLACE "-" "_" NAME "${flag}")
+  string(REPLACE "+" "_" NAME "${NAME}")
+  string(REPLACE "=" "_" NAME "${NAME}")
+  string(REPLACE "__" "_" NAME "${NAME}")
+  string(TOUPPER "${NAME}" NAME)
+  CHECK_CXX_COMPILER_FLAG("${flag}" IS_SUPPORTED_${NAME})
+  if (IS_SUPPORTED_${NAME})
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flag}")
+  endif()
+endmacro()
