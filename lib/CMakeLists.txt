@@ -1,6 +1,7 @@
 add_subdirectory(Decompiler)
 add_subdirectory(PHIASAPAssignmentInfo)
 add_subdirectory(RestructureCFGPass)
+add_subdirectory(RemoveNewPCCalls)
 add_subdirectory(RemovePCStoresPass)
 add_subdirectory(RemoveBadPCPass)
 add_subdirectory(RemoveSwitchPass)
