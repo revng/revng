@@ -6,7 +6,8 @@
 //
 
 // Standard includes
-#include <fstream>
+#include <map>
+#include <set>
 
 // LLVM includes
 #include "llvm/Pass.h"
