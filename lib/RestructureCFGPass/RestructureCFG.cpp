@@ -1286,7 +1286,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   revng_assert(RootCFG.isDAG());
 
   // Invoke the untangle procedure on the root region.
-  RootCFG.untangle();
+  //RootCFG.untangle();
 
   // Compute the initial weight of the CFG.
   unsigned InitialWeight = 0;

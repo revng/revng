@@ -879,7 +879,7 @@ template<class NodeT>
 inline void RegionCFG<NodeT>::inflate() {
 
   // Call the untangle preprocessing.
-  untangle();
+  //untangle();
 
   revng_assert(isDAG());
 
