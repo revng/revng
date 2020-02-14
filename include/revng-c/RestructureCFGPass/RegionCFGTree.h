@@ -118,13 +118,31 @@ public:
       for (NodeRef C : llvm::make_range(GT::child_begin(N), GT::child_end(N))) {
 
         // Check that no switches are present in the graph.
-        revng_assert(ChildCounter < 2);
+        //revng_assert(ChildCounter < 2);
         ChildCounter++;
 
         // Create the edge in the RegionCFG<NodeT>.
-        BBNodeT *Successor = NodeToBBNodeMap.at(C);
-        BBNode->addSuccessor(Successor);
-        Successor->addPredecessor(BBNode);
+        BasicBlockNode<NodeT> *Successor = NodeToBBNodeMap.at(C);
+
+        // Check if the TerminatorInst of the node under analysis is a switch
+        // instruction.
+        /*
+        llvm::Instruction *Terminator = BBNode->getTerminator();
+        bool HasSwitch = false;
+        if (Terminator->isTerminator()) {
+          HasSwitch = true;
+        }
+        */
+
+        // Do not connect the `unexpectedpc` successor in presence of a switch
+        // node.
+        if (!(Successor->getName() == "unexpectedpc")) {
+
+          BBNode->addSuccessor(Successor);
+          Successor->addPredecessor(BBNode);
+
+          dbg << Successor->getName().str() << "\n";
+        }
       }
     }
   }
