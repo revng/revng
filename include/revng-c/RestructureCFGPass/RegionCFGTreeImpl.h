@@ -953,8 +953,10 @@ inline void RegionCFG<NodeT>::inflate() {
   BasicBlockNodeTSet ConditionalNodesComplete;
 
   for (auto It = Graph.begin(); It != Graph.end(); It++) {
-    revng_assert((*It)->successor_size() < 3);
-    if ((*It)->successor_size() == 2) {
+    //revng_assert((*It)->successor_size() < 3);
+    if ((*It)->successor_size() == 0 or (*It)->successor_size() == 1) {
+      // We don't need to add it to the conditional nodes vector.
+    } else if ((*It)->successor_size() == 2) {
 
       // Check that the intersection of exits nodes reachable from the then and
       // else branches are not disjoint
@@ -995,6 +997,16 @@ inline void RegionCFG<NodeT>::inflate() {
         CombLogger << "Blacklisted conditional: " << (*It)->getNameStr()
                    << "\n";
       }
+    } else if  ((*It)->successor_size() > 2) {
+
+      // We are in presence of a switch node, which should be considered as a
+      // conditional node for what concerns the combing stage.
+      ConditionalNodes.push_back(*It);
+      ConditionalNodesComplete.insert(*It);
+    } else {
+
+      // We should have covered all the cases with the previous handling.
+      revng_abort("Case not contemplated");
     }
   }
 
