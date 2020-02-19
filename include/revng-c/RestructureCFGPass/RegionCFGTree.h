@@ -136,8 +136,13 @@ public:
 
         // Do not connect the `unexpectedpc` successor in presence of a switch
         // node.
+        // TODO: handle separately the default node in switches.
         if (!(Successor->getName() == "unexpectedpc")) {
+          BBNode->addSuccessor(Successor);
+          Successor->addPredecessor(BBNode);
 
+          dbg << Successor->getName().str() << "\n";
+        } else {
           BBNode->addSuccessor(Successor);
           Successor->addPredecessor(BBNode);
 
