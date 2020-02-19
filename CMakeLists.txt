@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.15.0)
 
 project(revng)
 
@@ -158,8 +158,10 @@ install(FILES include/revng/Runtime/commonconstants.h DESTINATION share/revng)
 # Remove -rdynamic
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 
-include(tests/Tests.cmake)
-
 install(EXPORT revng NAMESPACE revng:: DESTINATION share/revng/cmake)
 
 add_subdirectory(docs/)
+
+include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
+
+include(tests/Tests.cmake)
