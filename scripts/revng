@@ -131,7 +131,7 @@ def split_dash_dash(args):
   if len(args) != 0:
     del args[0]
 
-  return list(reversed(extra_args)), args
+  return list(extra_args), args
 
 def get_architecture(path):
   with open(path, "rb") as file:
