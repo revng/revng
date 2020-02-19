@@ -269,7 +269,8 @@ def run_translate(args):
                       action="store_true",
                       help="Enable function isolation.")
   parser.add_argument("--base", help="Load address to employ in lifting.")
-  parser.add_argument("input", help="The input binary.")
+  parser.add_argument("-o", "--output", metavar="OUTPUT", help="Output path.")
+  parser.add_argument("input", metavar="INPUT", help="The input binary.")
 
   # Strip away arguments -- so we can forward them to revng-lift
   args, extra_args = split_dash_dash(args)
@@ -290,7 +291,8 @@ def run_translate(args):
     optimization_level = 2
 
   input = args.input
-  output = "{}.ll".format(input)
+  executable = args.output if args.output else "{}.translated".format(input)
+  output = "{}.ll".format(executable)
   need_csv_path = "{}.need.csv".format(output)
   li_csv_path = "{}.li.csv".format(output)
 
@@ -343,7 +345,7 @@ use `revng lift` if you're just interested in lifting.
 
   # Perform function isolation
   if args.isolate:
-    isolated = "{}.isolated".format(input)
+    isolated = "{}.isolated".format(executable)
     opt_invocation = build_opt_args(["-S",
                                      "-detect-function-boundaries",
                                      "-isolate",
@@ -402,7 +404,6 @@ use `revng lift` if you're just interested in lifting.
   if b"unrecognized command line" not in get_stderr([compiler, "-no-pie"]):
     no_pie.append("-no-pie")
 
-  executable = "{}.translated".format(input)
   run([compiler,
        object_file,
        "-lz", "-lm", "-lrt", "-lpthread",
