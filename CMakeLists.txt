@@ -109,6 +109,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
 
 # Disable some warnings
 add_flag_if_available("-Wno-unused-parameter")
+add_flag_if_available("-Wno-unused-variable")
 add_flag_if_available("-Wno-maybe-uninitialized")
 add_flag_if_available("-Wno-unused-local-typedefs")
 add_flag_if_available("-Wno-init-list-lifetime")
