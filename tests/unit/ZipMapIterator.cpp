@@ -34,7 +34,7 @@ compare(T &Left,
             zipmap_end(Left, Right),
             std::back_inserter(Result));
 
-  revng_assert(Result.size() == Expected.size());
+  revng_check(Result.size() == Expected.size());
 
   auto FindLeft = [&Expected, &Left](unsigned I) {
     return Expected[I].first ? KE::find(Left, *Expected[I].first) : nullptr;
@@ -45,7 +45,7 @@ compare(T &Left,
   };
 
   for (unsigned I = 0; I < Result.size(); I++) {
-    revng_assert(Result[I] == std::make_pair(FindLeft(I), FindRight(I)));
+    revng_check(Result[I] == std::make_pair(FindLeft(I), FindRight(I)));
   }
 }
 

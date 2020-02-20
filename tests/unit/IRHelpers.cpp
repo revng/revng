@@ -70,7 +70,7 @@ BOOST_AUTO_TEST_CASE(TestBackwardBFSVisitor) {
                                                  "first_if_false:2", "c",
                                                  "first_if_true:2",  "b",
                                                  "initial_block:2",  "a" };
-  revng_assert(V.VisitLog == GroundTruth);
+  revng_check(V.VisitLog == GroundTruth);
 }
 
 BOOST_AUTO_TEST_CASE(TestForwardBFSVisitor) {
@@ -95,5 +95,5 @@ BOOST_AUTO_TEST_CASE(TestForwardBFSVisitor) {
   const std::vector<std::string> GroundTruth = {
     "center:3", "e", "second_if_true:2", "f", "second_if_false:2", "g", "end:2"
   };
-  revng_assert(V.VisitLog == GroundTruth);
+  revng_check(V.VisitLog == GroundTruth);
 }

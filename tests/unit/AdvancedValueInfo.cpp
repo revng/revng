@@ -108,7 +108,7 @@ static void checkAdvancedValueInfo(const char *Body, const CheckMap &Map) {
 
   LLVMContext C;
   std::unique_ptr<llvm::Module> M = loadModule(C, Body);
-  revng_assert(not verifyModule(*M, &dbgs()));
+  revng_check(not verifyModule(*M, &dbgs()));
 
   Function *F = M->getFunction("main");
 
