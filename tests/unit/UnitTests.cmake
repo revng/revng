@@ -4,7 +4,7 @@
 
 cmake_policy(SET CMP0060 NEW)
 
-set(SRC "${CMAKE_SOURCE_DIR}/tests/Unit")
+set(SRC "${CMAKE_SOURCE_DIR}/tests/unit")
 
 find_package(Boost REQUIRED COMPONENTS unit_test_framework)
 
