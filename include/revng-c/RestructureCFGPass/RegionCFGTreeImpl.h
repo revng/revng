@@ -23,6 +23,9 @@
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include "llvm/Support/raw_os_ostream.h"
 
+// revng includes
+#include "revng/Support/IRHelpers.h"
+
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
@@ -1431,7 +1434,7 @@ inline void RegionCFG<NodeT>::generateAst() {
 
         // Fill the cases values with increasing integers computed as
         // ConstantInt.
-        llvm::LLVMContext Context;
+        llvm::LLVMContext &Context = getContext(OriginalNode);
         llvm::IRBuilder<> Builder(Context);
         for (uint64_t Index = 0; Index < Cases.size(); Index++) {
           llvm::ConstantInt *IndexConstant = Builder.getInt64(Index);
