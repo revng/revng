@@ -219,6 +219,19 @@ public:
     Successors.push_back(Successor);
   }
 
+  bool hasSuccessor(BasicBlockNode *Candidate) {
+
+    // HACK to avoid double insertion due to `setFalse`, remove this.
+    bool Found = false;
+    for (BasicBlockNode *Successor : Successors) {
+      if (Successor == Candidate) {
+        Found = true;
+        break;
+      }
+    }
+    return Found;
+  }
+
   void removeSuccessor(BasicBlockNode *Successor);
 
   void addPredecessor(BasicBlockNode *Predecessor) {

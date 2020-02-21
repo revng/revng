@@ -1442,6 +1442,25 @@ inline void RegionCFG<NodeT>::generateAst() {
         // We should have at maximum a single node which is directly dominated
         // by the head of the switch, but which is not reachable from the
         // switch head.
+        BasicBlockNode<NodeT> *PostDomBBNode = nullptr;
+        ASTNode *PostDomASTNode = nullptr;
+        unsigned NodeI = 0;
+        for (BasicBlockNode<NodeT> *Dominated : BBChildren) {
+          if (not Node->hasSuccessor(Dominated)) {
+            revng_assert(PostDomBBNode == nullptr);
+            revng_assert(PostDomASTNode == nullptr);
+            PostDomBBNode = Dominated;
+
+            // Retrieve the corresponding ASTNode using the index we computed.
+            PostDomASTNode = ASTChildren.at(NodeI);
+          }
+
+          // Increment the index.
+          NodeI++;
+        }
+
+        revng_assert(PostDomBBNode != nullptr);
+
         // TODO: This could be not true if for example the switch head node is
         //       directly connected to the postdominator.
         // TODO: Elect the real immediate postdominator.
@@ -1449,7 +1468,7 @@ inline void RegionCFG<NodeT>::generateAst() {
                                               Cases,
                                               CaseValues,
                                               nullptr,
-                                              nullptr));
+                                              PostDomASTNode));
       } else if (Children.size() == 3) {
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
