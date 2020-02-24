@@ -601,13 +601,18 @@ void StmtBuilder::createAST() {
 
     for (Instruction &I : *BB) {
       // We don't build clang's AST expressions for PHINodes nor for
-      // BranchInsts.
+      // BranchInsts and SwitchInsts.
       // PHINodes are not expanded into expressions because they expand in a
       // local variable, that is assigned multiple times for all the incoming
       // Values of the PHINode.
       // For BranchInsts, we don't create AST right now, because the emission of
       // control flow statements in C is driven by the ASTTree
       if (isa<BranchInst>(&I))
+        continue;
+
+      // For SwitchInsts, we don't create AST right now, because the emission of
+      // control flow statements in C is driven by the ASTTree
+      if (isa<SwitchInst>(&I))
         continue;
 
       // Each PHINode has an associated VarDecl
