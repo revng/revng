@@ -164,3 +164,20 @@ target_link_libraries(test_metaaddress
   ${LLVM_LIBRARIES})
 add_test(NAME test_metaaddress COMMAND ./bin/test_metaaddress)
 set_tests_properties(test_metaaddress PROPERTIES LABELS "unit")
+
+#
+# test_filtered_graph_traits
+#
+
+revng_add_private_executable(test_filtered_graph_traits "${SRC}/FilteredGraphTraits.cpp")
+target_compile_definitions(test_filtered_graph_traits
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_filtered_graph_traits
+  PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_filtered_graph_traits
+  revngSupport
+  revngUnitTestHelpers
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME test_filtered_graph_traits COMMAND ./bin/test_filtered_graph_traits -- "${SRC}/test_graphs/")
+set_tests_properties(test_filtered_graph_traits PROPERTIES LABELS "unit")
