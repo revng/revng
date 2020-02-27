@@ -11,39 +11,37 @@
 #include <vector>
 
 // LLVM includes
-#include "llvm/ADT/GraphTraits.h"
-#include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
-
-// Local libraries includes
-#include "revng/Support/Transform.h"
+#include <llvm/ADT/GraphTraits.h>
+#include <llvm/ADT/SmallString.h>
+#include <llvm/ADT/SmallVector.h>
+#include <llvm/ADT/StringRef.h>
+#include <llvm/ADT/STLExtras.h>
 
 class DotNode {
 
   // Define the container for the successors and some useful helpers.
 public:
-  using links_container = llvm::SmallVector<DotNode *, 2>;
-  using links_iterator = typename links_container::iterator;
-  using links_const_iterator = typename links_container::const_iterator;
-  using links_range = llvm::iterator_range<links_iterator>;
-  using links_const_range = llvm::iterator_range<links_const_iterator>;
+  using child_container = llvm::SmallVector<DotNode *, 2>;
+  using child_iterator = typename child_container::iterator;
+  using child_const_iterator = typename child_container::const_iterator;
+  using child_range = llvm::iterator_range<child_iterator>;
+  using child_const_range = llvm::iterator_range<child_const_iterator>;
 
 private:
   llvm::SmallString<8> Name;
 
   // Actual container for the pointers to the successors nodes.
-  links_container Successors;
+  child_container Successors;
 
 public:
   DotNode(llvm::StringRef Name) : Name(Name) {}
 
 public:
-  links_range successors() {
+  child_range successors() {
     return llvm::make_range(Successors.begin(), Successors.end());
   }
 
-  links_const_range successors() const {
+  child_const_range successors() const {
     return llvm::make_range(Successors.begin(), Successors.end());
   }
 
@@ -53,19 +51,26 @@ public:
 };
 
 class DotGraph {
+  static DotNode *ptrFromRef(std::unique_ptr<DotNode> &P) { return P.get(); }
+
+  static const DotNode *
+  constPtrFromRef(const std::unique_ptr<DotNode> &P) { return P.get(); }
+
+  using PtrFromRefT = DotNode *(*)(std::unique_ptr<DotNode> &P);
+  using CPtrFromRefT = const DotNode *(*)(const std::unique_ptr<DotNode> &P);
 
 public:
-  using links_container = std::vector<std::unique_ptr<DotNode>>;
-  using internal_iterator = typename links_container::iterator;
-  using internal_const_iterator = typename links_container::const_iterator;
-  using links_iterator = TransformIterator<DotNode *, internal_iterator>;
-  using links_const_iterator = TransformIterator<const DotNode *,
-                                                 internal_const_iterator>;
-  using links_range = llvm::iterator_range<links_iterator>;
-  using links_const_range = llvm::iterator_range<links_const_iterator>;
+  using child_container = std::vector<std::unique_ptr<DotNode>>;
+  using internal_iterator = typename child_container::iterator;
+  using internal_const_iterator = typename child_container::const_iterator;
+  using child_iterator = llvm::mapped_iterator<internal_iterator, PtrFromRefT>;
+  using child_const_iterator = llvm::mapped_iterator<internal_const_iterator,
+                                                     CPtrFromRefT>;
+  using child_range = llvm::iterator_range<child_iterator>;
+  using child_const_range = llvm::iterator_range<child_const_iterator>;
 
 private:
-  links_container Nodes;
+  child_container Nodes;
   DotNode *EntryNode;
 
 public:
@@ -76,24 +81,24 @@ public:
   void
   parseDotFromFile(llvm::StringRef FileName, llvm::StringRef EntryName = "");
 
-  links_range nodes() { return llvm::make_range(begin(), end()); }
+  child_range nodes() { return llvm::make_range(begin(), end()); }
 
-  links_const_range nodes() const { return llvm::make_range(begin(), end()); }
+  child_const_range nodes() const { return llvm::make_range(begin(), end()); }
 
-  links_iterator begin() {
-    return links_iterator(Nodes.begin(), pointerFromReference);
+  child_iterator begin() {
+    return llvm::map_iterator(Nodes.begin(), ptrFromRef);
   }
 
-  links_const_iterator begin() const {
-    return links_const_iterator(Nodes.begin(), constPointerFromReference);
+  child_const_iterator begin() const {
+    return llvm::map_iterator(Nodes.begin(), constPtrFromRef);
   }
 
-  links_iterator end() {
-    return links_iterator(Nodes.end(), pointerFromReference);
+  child_iterator end() {
+    return llvm::map_iterator(Nodes.begin(), ptrFromRef);
   }
 
-  links_const_iterator end() const {
-    return links_const_iterator(Nodes.end(), constPointerFromReference);
+  child_const_iterator end() const {
+    return llvm::map_iterator(Nodes.begin(), constPtrFromRef);
   }
 
   size_t size() const { return Nodes.size(); }
@@ -105,14 +110,6 @@ public:
   DotNode *getNodeByName(llvm::StringRef Name);
 
 private:
-  static DotNode *pointerFromReference(std::unique_ptr<DotNode> &P) {
-    return P.get();
-  }
-
-  static const DotNode *
-  constPointerFromReference(const std::unique_ptr<DotNode> &P) {
-    return P.get();
-  }
 
   /// \brief Actual implementation of the parser.
   void parseDotImpl(std::ifstream &F, llvm::StringRef EntryName);
@@ -123,7 +120,7 @@ namespace llvm {
 template<>
 struct GraphTraits<DotNode *> {
   using NodeRef = DotNode *;
-  using ChildIteratorType = DotNode::links_iterator;
+  using ChildIteratorType = DotNode::child_iterator;
 
   static inline ChildIteratorType child_begin(NodeRef N) {
     return N->successors().begin();
@@ -137,7 +134,7 @@ struct GraphTraits<DotNode *> {
 template<>
 struct GraphTraits<const DotNode *> {
   using NodeRef = const DotNode *;
-  using ChildIteratorType = DotNode::links_const_iterator;
+  using ChildIteratorType = DotNode::child_const_iterator;
 
   static inline ChildIteratorType child_begin(NodeRef N) {
     return N->successors().begin();
@@ -150,7 +147,7 @@ struct GraphTraits<const DotNode *> {
 
 template<>
 struct GraphTraits<DotGraph *> : public GraphTraits<DotNode *> {
-  using nodes_iterator = DotGraph::links_iterator;
+  using nodes_iterator = DotGraph::child_iterator;
 
   static NodeRef getEntryNode(DotGraph *G) { return G->getEntryNode(); }
 
@@ -163,7 +160,7 @@ struct GraphTraits<DotGraph *> : public GraphTraits<DotNode *> {
 
 template<>
 struct GraphTraits<const DotGraph *> : public GraphTraits<const DotNode *> {
-  using nodes_iterator = DotGraph::links_const_iterator;
+  using nodes_iterator = DotGraph::child_const_iterator;
 
   static NodeRef getEntryNode(const DotGraph *G) { return G->getEntryNode(); }
 

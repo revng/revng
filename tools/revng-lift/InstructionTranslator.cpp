@@ -15,6 +15,7 @@
 #include <sstream>
 
 // LLVM includes
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Intrinsics.h"
@@ -25,7 +26,6 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/RandomAccessIterator.h"
 #include "revng/Support/Range.h"
-#include "revng/Support/Transform.h"
 
 // Local includes
 #include "InstructionTranslator.h"
@@ -691,8 +691,9 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
     InArgs.push_back(Load);
   }
 
-  auto GetValueType = [](Value *Argument) { return Argument->getType(); };
-  std::vector<Type *> InArgsType = (InArgs | GetValueType).toVector();
+  const auto GetValueType = [](Value *Argument) { return Argument->getType(); };
+  auto ValueTypes = llvm::map_range(InArgs, GetValueType);
+  std::vector<Type *> InArgsType(ValueTypes.begin(), ValueTypes.end());
 
   // TODO: handle multiple return arguments
   revng_assert(TheCall.OutArguments.size() <= 1);
