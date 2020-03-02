@@ -40,6 +40,8 @@ private:
   // Actual container for the pointers to the successors nodes.
   child_container Successors;
   edge_container SuccEdges;
+  child_container Predecessors;
+  edge_container PredEdges;
 
 public:
   DotNode(llvm::StringRef Name) : Name(Name) {}
@@ -61,9 +63,26 @@ public:
     return llvm::make_range(SuccEdges.begin(), SuccEdges.end());
   }
 
+  child_range predecessors() {
+    return llvm::make_range(Predecessors.begin(), Predecessors.end());
+  }
+
+  child_const_range predecessors() const {
+    return llvm::make_range(Predecessors.begin(), Predecessors.end());
+  }
+
+  edge_range edge_predecessors() {
+    return llvm::make_range(PredEdges.begin(), PredEdges.end());
+  }
+
+  edge_const_range edge_predecessors() const {
+    return llvm::make_range(PredEdges.begin(), PredEdges.end());
+  }
+
   llvm::StringRef getName() const { return Name; }
 
   void addSuccessor(DotNode *Successor);
+  void addPredecessor(DotNode *Predecessor);
 };
 
 class DotGraph {
@@ -154,11 +173,11 @@ protected:
   static_assert(std::is_same_v<EdgeRef, ChildEdgeT>);
 
 public:
-  static inline ChildIteratorType child_begin(NodeRef N) {
+  static ChildIteratorType child_begin(NodeRef N) {
     return N->successors().begin();
   }
 
-  static inline ChildIteratorType child_end(NodeRef N) {
+  static ChildIteratorType child_end(NodeRef N) {
     return N->successors().end();
   }
 
@@ -172,6 +191,36 @@ public:
   }
 
   static NodeRef edge_dest(EdgeRef E) { return E.second; };
+
+  static NodeRef getEntryNode(NodeRef N) { return N; };
+};
+
+template<>
+struct GraphTraits<llvm::Inverse<DotNode *>> {
+  using NodeRef = GraphTraits<DotNode *>::NodeRef;
+  using EdgeRef = GraphTraits<DotNode *>::EdgeRef;
+  using ChildIteratorType = GraphTraits<DotNode *>::ChildIteratorType;
+  using ChildEdgeIteratorType = GraphTraits<DotNode *>::ChildEdgeIteratorType;
+
+  static ChildIteratorType child_begin(NodeRef N) {
+    return N->predecessors().begin();
+  }
+
+  static ChildIteratorType child_end(NodeRef N) {
+    return N->predecessors().end();
+  }
+
+  static ChildEdgeIteratorType child_edge_begin(NodeRef N) {
+    return N->edge_predecessors().begin();
+  }
+
+  static ChildEdgeIteratorType child_edge_end(NodeRef N) {
+    return N->edge_predecessors().end();
+  }
+
+  static NodeRef edge_dest(EdgeRef E) { return E.first; };
+
+  static NodeRef getEntryNode(NodeRef N) { return N; };
 };
 
 template<>
@@ -210,15 +259,14 @@ protected:
   static_assert(std::is_same_v<EdgeRef, ChildEdgeT>);
 
 public:
-  static inline ChildIteratorType child_begin(NodeRef N) {
+  static ChildIteratorType child_begin(NodeRef N) {
     return llvm::map_iterator(N->successors().begin(), toConstNode);
   }
 
-  static inline ChildIteratorType child_end(NodeRef N) {
+  static ChildIteratorType child_end(NodeRef N) {
     return llvm::map_iterator(N->successors().end(), toConstNode);
   }
 
-public:
   static ChildEdgeIteratorType child_edge_begin(NodeRef N) {
     return llvm::map_iterator(N->edge_successors().begin(), toConstEdge);
   }
@@ -228,31 +276,77 @@ public:
   }
 
   static NodeRef edge_dest(EdgeRef E) { return E.second; };
+
+  static NodeRef getEntryNode(NodeRef N) { return N; };
+};
+
+template<>
+struct GraphTraits<llvm::Inverse<const DotNode *>> {
+  using Node = const DotNode *;
+  using NodeRef = GraphTraits<Node>::NodeRef;
+  using EdgeRef = GraphTraits<Node>::EdgeRef;
+  using ChildIteratorType = GraphTraits<Node>::ChildIteratorType;
+  using ChildEdgeIteratorType = GraphTraits<Node>::ChildEdgeIteratorType;
+
+protected:
+  static const DotNode *toConstNode(const NodeRef P) { return P; }
+  static std::pair<const NodeRef, const NodeRef> toConstEdge(const EdgeRef E) {
+    return E;
+  }
+
+public:
+  static ChildIteratorType child_begin(NodeRef N) {
+    return llvm::map_iterator(N->predecessors().begin(), toConstNode);
+  }
+  static ChildIteratorType child_end(NodeRef N) {
+    return llvm::map_iterator(N->predecessors().end(), toConstNode);
+  }
+  static ChildEdgeIteratorType child_edge_begin(NodeRef N) {
+    return llvm::map_iterator(N->edge_predecessors().begin(), toConstEdge);
+  }
+  static ChildEdgeIteratorType child_edge_end(NodeRef N) {
+    return llvm::map_iterator(N->edge_predecessors().end(), toConstEdge);
+  }
+  static NodeRef edge_dest(EdgeRef E) { return E.first; };
+
+  static NodeRef getEntryNode(NodeRef N) { return N; };
 };
 
 template<>
 struct GraphTraits<DotGraph *> : public GraphTraits<DotNode *> {
   using nodes_iterator = DotGraph::node_iterator;
-
   static NodeRef getEntryNode(DotGraph *G) { return G->getEntryNode(); }
-
   static nodes_iterator nodes_begin(DotGraph *G) { return G->begin(); }
-
   static nodes_iterator nodes_end(DotGraph *G) { return G->end(); }
+  static size_t size(DotGraph *G) { return G->size(); }
+};
 
+template<>
+struct GraphTraits<llvm::Inverse<DotGraph *>>
+  : public GraphTraits<llvm::Inverse<DotNode *>> {
+  using nodes_iterator = DotGraph::node_iterator;
+  static NodeRef getEntryNode(DotGraph *G) { return G->getEntryNode(); }
+  static nodes_iterator nodes_begin(DotGraph *G) { return G->begin(); }
+  static nodes_iterator nodes_end(DotGraph *G) { return G->end(); }
   static size_t size(DotGraph *G) { return G->size(); }
 };
 
 template<>
 struct GraphTraits<const DotGraph *> : public GraphTraits<const DotNode *> {
   using nodes_iterator = DotGraph::node_const_iterator;
-
   static NodeRef getEntryNode(const DotGraph *G) { return G->getEntryNode(); }
-
   static nodes_iterator nodes_begin(const DotGraph *G) { return G->begin(); }
-
   static nodes_iterator nodes_end(const DotGraph *G) { return G->end(); }
+  static size_t size(const DotGraph *G) { return G->size(); }
+};
 
+template<>
+struct GraphTraits<llvm::Inverse<const DotGraph *>>
+  : public GraphTraits<llvm::Inverse<const DotNode *>> {
+  using nodes_iterator = DotGraph::node_const_iterator;
+  static NodeRef getEntryNode(const DotGraph *G) { return G->getEntryNode(); }
+  static nodes_iterator nodes_begin(const DotGraph *G) { return G->begin(); }
+  static nodes_iterator nodes_end(const DotGraph *G) { return G->end(); }
   static size_t size(const DotGraph *G) { return G->size(); }
 };
 

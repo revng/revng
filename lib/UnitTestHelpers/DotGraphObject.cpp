@@ -36,6 +36,22 @@ void DotNode::addSuccessor(DotNode *NewSuccessor) {
   SuccEdges.push_back(std::make_pair(this, NewSuccessor));
 }
 
+void DotNode::addPredecessor(DotNode *NewPredecessor) {
+
+  // Assert that we are not double inserting.
+  bool Found = false;
+  for (DotNode *Predecessor : Predecessors) {
+    if (NewPredecessor == Predecessor) {
+      Found = true;
+      break;
+    }
+  }
+  revng_assert(not Found);
+
+  Predecessors.push_back(NewPredecessor);
+  PredEdges.push_back(std::make_pair(NewPredecessor, this));
+}
+
 void DotGraph::parseDotImpl(std::ifstream &F, llvm::StringRef EntryName) {
 
   // Keep a map between the node identifiers of the nodes defined in the dot
@@ -131,6 +147,7 @@ void DotGraph::parseDotImpl(std::ifstream &F, llvm::StringRef EntryName) {
 
         // Add to the successors of `Source` the node `Target`.
         Source->addSuccessor(Target);
+        Target->addPredecessor(Source);
       } else {
         revng_abort("Content after the footer.");
       }
