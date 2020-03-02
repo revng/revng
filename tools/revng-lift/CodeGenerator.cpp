@@ -921,7 +921,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     const auto InstructionCount = InstructionList->instruction_count;
     using IT = InstructionTranslator;
     IT::TranslationResult Result;
-    bool ForceNewBlock = false;
 
     // Handle the first PTC_INSTRUCTION_op_debug_insn_start
     {
@@ -941,8 +940,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                NextPC) = Translator.newInstruction(Instruction,
                                                    NextInstruction,
                                                    EndPC,
-                                                   true,
-                                                   false);
+                                                   true);
       j++;
     }
 
@@ -979,10 +977,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                  NextPC) = Translator.newInstruction(&Instruction,
                                                      NextInstruction,
                                                      EndPC,
-                                                     false,
-                                                     ForceNewBlock);
-
-        ForceNewBlock = false;
+                                                     false);
       } break;
       case PTC_INSTRUCTION_op_call: {
         Result = Translator.translateCall(&Instruction);
@@ -1015,9 +1010,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       case IT::Stop:
         StopTranslation = true;
         break;
-      case IT::ForceNewPC:
-        ForceNewBlock = true;
-        break;
       }
 
       // Create a new metadata referencing the PTC instruction we have just
@@ -1038,9 +1030,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       }
 
     } // End loop over instructions
-
-    if (ForceNewBlock)
-      JumpTargets.registerJT(EndPC, JTReason::PostHelper);
 
     // We might have a leftover block, probably due to the block created after
     // the last call to exit_tb

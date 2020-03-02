@@ -565,8 +565,7 @@ std::tuple<IT::TranslationResult, MDNode *, uint64_t, uint64_t>
 IT::newInstruction(PTCInstruction *Instr,
                    PTCInstruction *Next,
                    uint64_t EndPC,
-                   bool IsFirst,
-                   bool ForceNew) {
+                   bool IsFirst) {
   using R = std::tuple<TranslationResult, MDNode *, uint64_t, uint64_t>;
   revng_assert(Instr != nullptr);
 
@@ -592,9 +591,6 @@ IT::newInstruction(PTCInstruction *Instr,
   auto *MDOriginalString = ConstantAsMetadata::get(String);
   auto *MDPC = ConstantAsMetadata::get(Builder.getInt64(PC));
   MDNode *MDOriginalInstr = MDNode::get(Context, { MDOriginalString, MDPC });
-
-  if (ForceNew)
-    JumpTargets.registerJT(PC, JTReason::PostHelper);
 
   if (!IsFirst) {
     // Check if this PC already has a block and use it
@@ -640,44 +636,6 @@ IT::newInstruction(PTCInstruction *Instr,
   return R{ Success, MDOriginalInstr, PC, NextPC };
 }
 
-static StoreInst *getLastUniqueWrite(BasicBlock *BB, const Value *Register) {
-  StoreInst *Result = nullptr;
-  std::set<BasicBlock *> Visited;
-  std::queue<BasicBlock *> WorkList;
-  Visited.insert(BB);
-  WorkList.push(BB);
-  while (!WorkList.empty()) {
-    BasicBlock *BB = WorkList.front();
-    WorkList.pop();
-
-    bool Stop = false;
-    for (auto I = BB->rbegin(); I != BB->rend(); I++) {
-      if (auto *Store = dyn_cast<StoreInst>(&*I)) {
-        if (Store->getPointerOperand() == Register
-            && isa<ConstantInt>(Store->getValueOperand())) {
-          revng_assert(Result == nullptr);
-          Result = Store;
-          Stop = true;
-          break;
-        }
-      } else if (isa<CallInst>(&*I)) {
-        Stop = true;
-        break;
-      }
-    }
-
-    if (!Stop) {
-      for (BasicBlock *Prev : predecessors(BB)) {
-        if (Visited.find(Prev) == Visited.end()) {
-          WorkList.push(Prev);
-          Visited.insert(BB);
-        }
-      }
-    }
-  }
-  return Result;
-}
-
 IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
   const PTC::CallInstruction TheCall(Instr);
 
@@ -717,15 +675,10 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
   std::string HelperName = "helper_" + TheCall.helperName();
   FunctionCallee FDecl = TheModule.getOrInsertFunction(HelperName, CalleeType);
 
-  StoreInst *PCSaver = getLastUniqueWrite(Builder.GetInsertBlock(),
-                                          JumpTargets.pcReg());
   CallInst *Result = Builder.CreateCall(FDecl, InArgs);
 
   if (TheCall.OutArguments.size() != 0)
     Builder.CreateStore(Result, ResultDestination);
-
-  if (PCSaver != nullptr)
-    return ForceNewPC;
 
   return Success;
 }

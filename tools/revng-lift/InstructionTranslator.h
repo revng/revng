@@ -60,8 +60,7 @@ public:
   enum TranslationResult {
     Abort, ///< An error occurred during translation, call abort and stop
     Stop, ///< Do not proceed with translation
-    Success, ///< The translation was successful
-    ForceNewPC ///< Successful, but force a new basic block for the next PC
+    Success ///< The translation was successful
   };
 
   /// \brief Handle a new instruction from the input code
@@ -75,9 +74,6 @@ public:
   ///              libtinycode.
   /// \param IsFirst true, if \p Instr is the first instruction
   ///                translated by libtinycode.
-  /// \param ForceNew true if a new jump target (and therefore basic
-  ///                 block should be created from the PC associate to
-  ///                 \p Instr.
   ///
   /// \return a tuple with 4 entries: the
   ///         InstructionTranslator::TranslationResult, an `MDNode` containing
@@ -89,8 +85,7 @@ public:
   newInstruction(PTCInstruction *Instr,
                  PTCInstruction *Next,
                  uint64_t EndPC,
-                 bool IsFirst,
-                 bool ForceNew);
+                 bool IsFirst);
 
   /// \brief Translate an ordinary instruction
   ///
