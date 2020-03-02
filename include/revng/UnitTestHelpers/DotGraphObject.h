@@ -18,6 +18,12 @@
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
 
+namespace llvm {
+class raw_ostream;
+} // end namespace llvm
+
+class DotGraph;
+
 class DotNode {
 
   // Define the container for the successors and some useful helpers.
@@ -36,6 +42,7 @@ public:
 
 private:
   llvm::SmallString<8> Name;
+  DotGraph *Parent;
 
   // Actual container for the pointers to the successors nodes.
   child_container Successors;
@@ -44,9 +51,11 @@ private:
   edge_container PredEdges;
 
 public:
-  DotNode(llvm::StringRef Name) : Name(Name) {}
+  DotNode(llvm::StringRef N, DotGraph *P) : Name(N), Parent(P) {}
 
-public:
+  void printAsOperand(llvm::raw_ostream &O, bool /* PrintType */) const;
+
+  DotGraph *getParent() { return Parent; }
   child_range successors() {
     return llvm::make_range(Successors.begin(), Successors.end());
   }

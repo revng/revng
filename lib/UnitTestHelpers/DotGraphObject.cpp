@@ -10,6 +10,9 @@
 #include <map>
 #include <set>
 
+// LLVM includes
+#include <llvm/Support/raw_ostream.h>
+
 // revng includes
 #include "revng/Support/Debug.h"
 
@@ -50,6 +53,10 @@ void DotNode::addPredecessor(DotNode *NewPredecessor) {
 
   Predecessors.push_back(NewPredecessor);
   PredEdges.push_back(std::make_pair(NewPredecessor, this));
+}
+
+void DotNode::printAsOperand(llvm::raw_ostream &O, bool /* PrintType */) const {
+  O << Name;
 }
 
 void DotGraph::parseDotImpl(std::ifstream &F, llvm::StringRef EntryName) {
@@ -179,7 +186,7 @@ void DotGraph::parseDotFromFile(llvm::StringRef FileName,
 }
 
 DotNode *DotGraph::addNode(llvm::StringRef Name) {
-  Nodes.emplace_back(std::make_unique<DotNode>(Name));
+  Nodes.emplace_back(std::make_unique<DotNode>(Name, this));
   DotNode *NewNode = Nodes.back().get();
   return NewNode;
 }
