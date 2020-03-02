@@ -94,10 +94,10 @@ public:
     return llvm::map_iterator(Nodes.begin(), constPtrFromRef);
   }
 
-  child_iterator end() { return llvm::map_iterator(Nodes.begin(), ptrFromRef); }
+  child_iterator end() { return llvm::map_iterator(Nodes.end(), ptrFromRef); }
 
   child_const_iterator end() const {
-    return llvm::map_iterator(Nodes.begin(), constPtrFromRef);
+    return llvm::map_iterator(Nodes.end(), constPtrFromRef);
   }
 
   size_t size() const { return Nodes.size(); }
