@@ -33,6 +33,7 @@ void DotNode::addSuccessor(DotNode *NewSuccessor) {
   revng_assert(not Found);
 
   Successors.push_back(NewSuccessor);
+  SuccEdges.push_back(std::make_pair(this, NewSuccessor));
 }
 
 void DotGraph::parseDotImpl(std::ifstream &F, llvm::StringRef EntryName) {
