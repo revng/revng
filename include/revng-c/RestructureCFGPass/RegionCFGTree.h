@@ -7,15 +7,13 @@
 
 // Standard includes
 #include <cstdlib>
+#include <llvm/ADT/STLExtras.h>
 #include <set>
 
 // LLVM includes
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
-
-// revng libraries includes
-#include "revng/Support/Transform.h"
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
@@ -28,25 +26,41 @@ class MetaRegion;
 template<class NodeT = llvm::BasicBlock *>
 class RegionCFG {
 
+  using BBNodeT = BasicBlockNode<NodeT>;
+  using BBNodeTUniquePtr = typename std::unique_ptr<BBNodeT>;
+  using getPointerT = BBNodeT *(*)(BBNodeTUniquePtr &);
+  using getConstPointerT = const BBNodeT *(*)(const BBNodeTUniquePtr &);
+
+  static BBNodeT *getPointer(BBNodeTUniquePtr &Original) {
+    return Original.get();
+  }
+
+  static_assert(std::is_same_v<decltype(&getPointer), getPointerT>);
+
+  static const BBNodeT *
+  getConstPointer(const BBNodeTUniquePtr &Original) {
+    return Original.get();
+  }
+
+  static_assert(std::is_same_v<decltype(&getConstPointer), getConstPointerT>);
+
 public:
-  using BasicBlockNodeT = typename BasicBlockNode<NodeT>::BasicBlockNodeT;
+  using BasicBlockNodeT = typename BBNodeT::BasicBlockNodeT;
   using BasicBlockNodeType = typename BasicBlockNodeT::Type;
-  using BasicBlockNodeTUP = typename std::unique_ptr<BasicBlockNode<NodeT>>;
   using BasicBlockNodeTSet = std::set<BasicBlockNodeT *>;
   using BasicBlockNodeTVect = std::vector<BasicBlockNodeT *>;
   using BasicBlockNodeTUPVect = std::vector<std::unique_ptr<BasicBlockNodeT>>;
-  using BBNodeMap = typename BasicBlockNode<NodeT>::BBNodeMap;
-  using RegionCFGT = typename BasicBlockNode<NodeT>::RegionCFGT;
+  using BBNodeMap = typename BBNodeT::BBNodeMap;
+  using RegionCFGT = typename BBNodeT::RegionCFGT;
 
-  using EdgeDescriptor = typename BasicBlockNode<NodeT>::EdgeDescriptor;
+  using EdgeDescriptor = typename BBNodeT::EdgeDescriptor;
 
-  using links_container = std::vector<std::unique_ptr<BasicBlockNode<NodeT>>>;
+  using links_container = std::vector<BBNodeTUniquePtr>;
   using internal_iterator = typename links_container::iterator;
   using internal_const_iterator = typename links_container::const_iterator;
-  using links_iterator = TransformIterator<BasicBlockNode<NodeT> *,
-                                           internal_iterator>;
-  using links_const_iterator = TransformIterator<const BasicBlockNode<NodeT> *,
-                                                 internal_const_iterator>;
+  using links_iterator = llvm::mapped_iterator<internal_iterator, getPointerT>;
+  using links_const_iterator = llvm::mapped_iterator<internal_const_iterator,
+                                                     getConstPointerT>;
   using links_range = llvm::iterator_range<links_iterator>;
   using links_const_range = llvm::iterator_range<links_const_iterator>;
 
@@ -82,11 +96,11 @@ public:
 
     // Map to keep the link between the original nodes and the BBNode created
     // from it.
-    std::map<NodeRef, BasicBlockNode<NodeT> *> NodeToBBNodeMap;
+    std::map<NodeRef, BBNodeT *> NodeToBBNodeMap;
 
     for (NodeRef N :
          llvm::make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
-      BasicBlockNode<NodeT> *BBNode = addNode(N);
+      BBNodeT *BBNode = addNode(N);
       NodeToBBNodeMap[N] = BBNode;
     }
 
@@ -97,7 +111,7 @@ public:
     // in the graph.
     for (NodeRef N :
          llvm::make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
-      BasicBlockNode<NodeT> *BBNode = NodeToBBNodeMap.at(N);
+      BBNodeT *BBNode = NodeToBBNodeMap.at(N);
 
       // Iterate over all the successors of a graph node.
       unsigned ChildCounter = 0;
@@ -108,7 +122,7 @@ public:
         ChildCounter++;
 
         // Create the edge in the RegionCFG<NodeT>.
-        BasicBlockNode<NodeT> *Successor = NodeToBBNodeMap.at(C);
+        BBNodeT *Successor = NodeToBBNodeMap.at(C);
         BBNode->addSuccessor(Successor);
         Successor->addPredecessor(BBNode);
       }
@@ -129,54 +143,45 @@ public:
 
   std::string getRegionName() const;
 
-  static inline BasicBlockNode<NodeT> *getPointer(BasicBlockNodeTUP &Original) {
-    return Original.get();
-  }
-
-  static inline const BasicBlockNode<NodeT> *
-  getConstPointer(const BasicBlockNodeTUP &Original) {
-    return Original.get();
-  }
-
   links_iterator begin() {
-    return links_iterator(BlockNodes.begin(), getPointer);
+    return llvm::map_iterator(BlockNodes.begin(), getPointer);
   }
 
   links_const_iterator begin() const {
-    return links_const_iterator(BlockNodes.begin(), getConstPointer);
+    return llvm::map_iterator(BlockNodes.begin(), getConstPointer);
   }
 
-  links_iterator end() { return links_iterator(BlockNodes.end(), getPointer); }
+  links_iterator end() { return llvm::map_iterator(BlockNodes.end(), getPointer); }
 
   links_const_iterator end() const {
-    return links_const_iterator(BlockNodes.end(), getConstPointer);
+    return llvm::map_iterator(BlockNodes.end(), getConstPointer);
   }
 
   size_t size() const { return BlockNodes.size(); }
   void setSize(size_t Size) { BlockNodes.reserve(Size); }
 
-  BasicBlockNode<NodeT> *addNode(NodeT Name);
+  BBNodeT *addNode(NodeT Name);
 
-  BasicBlockNode<NodeT> *createCollapsedNode(RegionCFG *Collapsed) {
+  BBNodeT *createCollapsedNode(RegionCFG *Collapsed) {
     BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(this, Collapsed));
     return BlockNodes.back().get();
   }
 
-  BasicBlockNode<NodeT> *
+  BBNodeT *
   addArtificialNode(llvm::StringRef Name = "dummy",
                     BasicBlockNodeType T = BasicBlockNodeType::Empty) {
     BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(this, Name, T));
     return BlockNodes.back().get();
   }
 
-  BasicBlockNode<NodeT> *addContinue() {
+  BBNodeT *addContinue() {
     return addArtificialNode("continue", BasicBlockNodeT::Type::Continue);
   }
-  BasicBlockNode<NodeT> *addBreak() {
+  BBNodeT *addBreak() {
     return addArtificialNode("break", BasicBlockNodeT::Type::Break);
   }
 
-  BasicBlockNode<NodeT> *addDispatcher(unsigned StateVariableValue,
+  BBNodeT *addDispatcher(unsigned StateVariableValue,
                                        BasicBlockNodeT *True,
                                        BasicBlockNodeT *False) {
     using Type = typename BasicBlockNodeT::Type;
@@ -195,7 +200,7 @@ public:
     return Dispatcher;
   }
 
-  BasicBlockNode<NodeT> *addSetStateNode(unsigned long StateVariableValue,
+  BBNodeT *addSetStateNode(unsigned long StateVariableValue,
                                          llvm::StringRef TargetName) {
     using Type = typename BasicBlockNodeT::Type;
     using BBNodeT = BasicBlockNodeT;
@@ -210,7 +215,7 @@ public:
     return BlockNodes.back().get();
   }
 
-  BasicBlockNode<NodeT> *cloneNode(BasicBlockNodeT &OriginalNode);
+  BBNodeT *cloneNode(BasicBlockNodeT &OriginalNode);
 
   void removeNode(BasicBlockNodeT *Node);
 
@@ -226,15 +231,15 @@ public:
 
   void connectContinueNode();
 
-  BasicBlockNode<NodeT> &getEntryNode() const { return *EntryNode; }
+  BBNodeT &getEntryNode() const { return *EntryNode; }
 
-  BasicBlockNode<NodeT> &front() const { return *EntryNode; }
+  BBNodeT &front() const { return *EntryNode; }
 
-  std::vector<std::unique_ptr<BasicBlockNode<NodeT>>> &getNodes() {
+  std::vector<BBNodeTUniquePtr> &getNodes() {
     return BlockNodes;
   }
 
-  std::vector<BasicBlockNode<NodeT> *>
+  std::vector<BBNodeT *>
   orderNodes(BasicBlockNodeTVect &List, bool DoReverse);
 
 public:
@@ -250,17 +255,14 @@ public:
                      const std::string &FunctionName,
                      const std::string &FileName) const;
 
-  std::vector<BasicBlockNode<NodeT> *> purgeDummies();
+  std::vector<BBNodeT *> purgeDummies();
 
-  void purgeVirtualSink(BasicBlockNode<NodeT> *Sink);
+  void purgeVirtualSink(BBNodeT *Sink);
 
-  std::vector<BasicBlockNode<NodeT> *>
+  std::vector<BBNodeT *>
   getInterestingNodes(BasicBlockNodeT *Condition);
 
-  BasicBlockNode<NodeT> *
-  cloneUntilExit(BasicBlockNode<NodeT> *Node,
-                 BasicBlockNode<NodeT> *Sink,
-                 bool AvoidSinking);
+  BBNodeT * cloneUntilExit(BBNodeT *Node, BBNodeT *Sink, bool AvoidSinking);
 
   /// \brief Apply the untangle preprocessing pass.
   void untangle();

@@ -244,7 +244,7 @@ inline void RegionCFG<NodeT>::insertBulkNodes(BasicBlockNodeTSet &Nodes,
   EntryNode = SubMap[Head];
   revng_assert(EntryNode != nullptr);
   // Fix the hack above
-  for (BasicBlockNodeTUP &Node : BlockNodes)
+  for (BBNodeTUniquePtr &Node : BlockNodes)
     Node->updatePointers(SubMap);
 }
 
