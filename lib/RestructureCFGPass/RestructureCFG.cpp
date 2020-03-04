@@ -811,19 +811,26 @@ bool RestructureCFG::runOnFunction(Function &F) {
       RetreatingIdxMap[True] = 1;
 
       unsigned Idx = 1;
-      Head = RootCFG.addDispatcher(Idx, True, False);
+      Head = RootCFG.addDispatcherNew();
       Meta->insertNode(Head);
+
+      // Add manually the first two successors to the dispatcher node.
+      Head->addSuccessor(False);
+      False->addPredecessor(Head);
+      Head->addSuccessor(True);
+      True->addPredecessor(Head);
 
       Idx = 2;
       using TargetIterator = std::set<BasicBlockNodeBB *>::iterator;
       TargetIterator TgtIt = std::next(std::next(RetreatingTargets.begin()));
       TargetIterator TgtEnd = RetreatingTargets.end();
       for (; TgtIt != TgtEnd; ++TgtIt) {
-        BasicBlockNodeBB *New = RootCFG.addDispatcher(Idx, *TgtIt, Head);
-        Meta->insertNode(New);
         RetreatingIdxMap[*TgtIt] = Idx;
         Idx++;
-        Head = New;
+
+        // Connect the successor to the dispatcher.
+        Head->addSuccessor(*TgtIt);
+        (*TgtIt)->addPredecessor(Head);
       }
       revng_assert(Idx == RetreatingTargets.size());
 
@@ -1091,19 +1098,26 @@ bool RestructureCFG::runOnFunction(Function &F) {
       SuccessorsIdxMap[True] = 1;
 
       unsigned Idx = 1;
-      Exit = RootCFG.addDispatcher(Idx, True, False);
+      Exit = RootCFG.addDispatcherNew();
       ExitDispatcherNodes.push_back(Exit);
+
+      // Add manually the first two successors to the dispatcher.
+      Exit->addSuccessor(False);
+      False->addPredecessor(Exit);
+      Exit->addSuccessor(True);
+      True->addPredecessor(Exit);
 
       Idx = 2;
       using SuccessorIterator = std::set<BasicBlockNodeBB *>::iterator;
       SuccessorIterator SuccIt = std::next(std::next(Successors.begin()));
       SuccessorIterator SuccEnd = Successors.end();
       for (; SuccIt != SuccEnd; ++SuccIt) {
-        BasicBlockNodeBB *New = RootCFG.addDispatcher(Idx, *SuccIt, Exit);
-        ExitDispatcherNodes.push_back(New);
         SuccessorsIdxMap[*SuccIt] = Idx;
         Idx++;
-        Exit = New;
+
+        // Connect the successor to the dispatcher.
+        Exit->addSuccessor(*SuccIt);
+        (*SuccIt)->addPredecessor(Exit);
       }
       revng_assert(Idx == Successors.size());
 
