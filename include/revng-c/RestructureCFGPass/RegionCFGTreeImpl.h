@@ -1418,21 +1418,30 @@ inline void RegionCFG<NodeT>::generateAst() {
       }
     } else {
       //revng_assert(Children.size() < 4);
-      if (Children.size() >= 4) {
+      if (Children.size() >= 4 or Node->isDispatcher()) {
         // This should be dedicated to handle switch node. Unfortunately not all
         // the switch nodes are guaranteed to have more than 3 dominated nodes.
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
 
         // Assert that in this case we are in presence of a switch instruction.
-        revng_assert(Node->isCode());
-        llvm::BasicBlock *OriginalNode = Node->getOriginalNode();
-        llvm::Instruction *Terminator = OriginalNode->getTerminator();
-        llvm::SwitchInst *Switch = llvm::cast<llvm::SwitchInst>(Terminator);
+        revng_assert(Node->isCode() or Node->isDispatcher());
 
-        llvm::Value *SwitchValue = Switch->getCondition();
+        // If we are in presence of a dispatcher, we do not have a corresponding
+        // switch instruction in the LLVM ir.
+        llvm::Value *SwitchValue = nullptr;
+        if (!Node->isDispatcher()) {
+
+          llvm::BasicBlock *OriginalNode = Node->getOriginalNode();
+          llvm::Instruction *Terminator = OriginalNode->getTerminator();
+          llvm::SwitchInst *Switch = llvm::cast<llvm::SwitchInst>(Terminator);
+
+          SwitchValue = Switch->getCondition();
+        }
+
         RegularSwitchNode::case_container Cases;
-        RegularSwitchNode::case_value_container CaseValues;
+        RegularSwitchNode::case_value_container CaseValuesRegular;
+        SwitchCheckNode::case_value_container CaseValuesCheck;
 
         // Fill the cases container with the ASTNodes pointing to the cases
         // nodes.
@@ -1442,11 +1451,16 @@ inline void RegionCFG<NodeT>::generateAst() {
 
         // Fill the cases values with increasing integers computed as
         // ConstantInt.
-        llvm::LLVMContext &Context = getContext(OriginalNode);
+        llvm::BasicBlock *EntryBB = Graph.EntryNode->getOriginalNode();
+        llvm::LLVMContext &Context = getContext(EntryBB);
         llvm::IRBuilder<> Builder(Context);
         for (uint64_t Index = 0; Index < Cases.size(); Index++) {
-          llvm::ConstantInt *IndexConstant = Builder.getInt64(Index);
-          CaseValues.push_back(IndexConstant);
+          if (!Node->isDispatcher()) {
+            llvm::ConstantInt *IndexConstant = Builder.getInt64(Index);
+            CaseValuesRegular.push_back(IndexConstant);
+          } else {
+            CaseValuesCheck.push_back(Index);
+          }
         }
 
         // Collect the successor, if present at all.
@@ -1470,16 +1484,25 @@ inline void RegionCFG<NodeT>::generateAst() {
           NodeI++;
         }
 
-        revng_assert(PostDomBBNode != nullptr);
-
         // TODO: This could be not true if for example the switch head node is
         //       directly connected to the postdominator.
         // TODO: Elect the real immediate postdominator.
-        ASTObject.reset(new RegularSwitchNode(SwitchValue,
-                                              Cases,
-                                              CaseValues,
+
+        // Construct a regular or check switch node depending on the fact that
+        // we actually have the condition value.
+        if (!Node->isDispatcher()) {
+          ASTObject.reset(new RegularSwitchNode(SwitchValue,
+                                                Cases,
+                                                CaseValuesRegular,
+                                                nullptr,
+                                                PostDomASTNode));
+        } else {
+          // Build a SwitchCheckNode starting from nodes dispatcher nodes.
+          ASTObject.reset(new SwitchCheckNode(Cases,
+                                              CaseValuesCheck,
                                               nullptr,
                                               PostDomASTNode));
+        }
       } else if (Children.size() == 3) {
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
