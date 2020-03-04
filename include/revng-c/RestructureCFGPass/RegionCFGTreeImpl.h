@@ -57,11 +57,19 @@ inline ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
     } else if (llvm::isa<ScsNode>(Node)) {
       // TODO: confirm that this phase is not needed since the processing is
       //       done inside the processing of each SCS region.
-    } else if (auto *Switch = llvm::dyn_cast<RegularSwitchNode>(Node)) {
+    } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(Node)) {
       for (auto *Case : Switch->unordered_cases())
         createSequence(Tree, Case);
       if (ASTNode *Default = Switch->getDefault())
         createSequence(Tree, Default);
+    } else if (llvm::isa<BreakNode>(Node)) {
+      // Stop here during the analysis.
+    } else if (llvm::isa<ContinueNode>(Node)) {
+      // Stop here during the analysis.
+    } else if (llvm::isa<SequenceNode>(Node)) {
+      // Stop here during the analysis.
+    } else if (llvm::isa<SetNode>(Node)) {
+      // Stop here during the analysis.
     } else {
       revng_abort("AST node type not expected");
     }
