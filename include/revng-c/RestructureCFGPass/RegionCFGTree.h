@@ -224,7 +224,7 @@ public:
   }
 
   BBNodeT *addSetStateNode(unsigned long StateVariableValue,
-                                         llvm::StringRef TargetName) {
+                           llvm::StringRef TargetName) {
     using Type = typename BasicBlockNodeT::Type;
     using BBNodeT = BasicBlockNodeT;
     std::string IdStr = std::to_string(StateVariableValue);
