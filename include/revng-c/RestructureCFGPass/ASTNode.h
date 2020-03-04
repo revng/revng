@@ -781,7 +781,7 @@ inline void ASTNode::dump(std::ofstream &ASTFile) {
     return llvm::cast<SequenceNode>(this)->dump(ASTFile);
   // ---- SwitchNode kinds
   case NK_SwitchRegular:
-    return llvm::cast<SwitchNode>(this)->dump(ASTFile);
+    return llvm::cast<RegularSwitchNode>(this)->dump(ASTFile);
   case NK_SwitchCheck:
     return llvm::cast<SwitchCheckNode>(this)->dump(ASTFile);
   // ---- end SwitchNode kinds
