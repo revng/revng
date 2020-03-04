@@ -760,7 +760,7 @@ inline ASTNode *ASTNode::Clone() {
     return llvm::cast<SequenceNode>(this)->Clone();
   // ---- SwitchNode kinds
   case NK_SwitchRegular:
-    return llvm::cast<SwitchNode>(this)->Clone();
+    return llvm::cast<RegularSwitchNode>(this)->Clone();
   case NK_SwitchCheck:
     return llvm::cast<SwitchCheckNode>(this)->Clone();
   // ---- end SwitchNode kinds
