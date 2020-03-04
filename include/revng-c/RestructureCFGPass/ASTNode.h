@@ -532,6 +532,15 @@ protected:
     CaseVec(Cases),
     Default(Def) {}
 
+  SwitchNode(NodeKind K,
+             case_container &Cases,
+             const std::string &Name,
+             ASTNode *Def = nullptr,
+             ASTNode *Successor = nullptr) :
+    ASTNode(K, Name, Successor),
+    CaseVec(Cases),
+    Default(Def) {}
+
   SwitchNode(const SwitchNode &) = default;
   SwitchNode(SwitchNode &&) = delete;
   ~SwitchNode() = default;
@@ -621,6 +630,18 @@ public:
                     case_value_container &&V,
                     ASTNode *Def = nullptr) :
     SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def),
+    Condition(Cond),
+    CaseValueVec(V) {
+    revng_assert(Cases.size() == V.size());
+  }
+
+  // Constructor for switch construction during AST generation phase.
+  RegularSwitchNode(llvm::Value *Cond,
+                    case_container &Cases,
+                    case_value_container &V,
+                    ASTNode *Def = nullptr,
+                    ASTNode *Successor = nullptr) :
+    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def, Successor),
     Condition(Cond),
     CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());

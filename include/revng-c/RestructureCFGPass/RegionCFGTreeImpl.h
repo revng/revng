@@ -18,6 +18,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -1398,8 +1399,51 @@ inline void RegionCFG<NodeT>::generateAst() {
         ASTObject.reset(new ScsNode(Node, Body));
       }
     } else {
-      revng_assert(Children.size() < 4);
-      if (Children.size() == 3) {
+      //revng_assert(Children.size() < 4);
+      if (Children.size() >= 4) {
+        // This should be dedicated to handle switch node. Unfortunately not all
+        // the switch nodes are guaranteed to have more than 3 dominated nodes.
+        revng_assert(not Node->isBreak() and not Node->isContinue()
+                     and not Node->isSet());
+
+        // Assert that in this case we are in presence of a switch instruction.
+        revng_assert(Node->isCode());
+        llvm::BasicBlock *OriginalNode = Node->getOriginalNode();
+        llvm::Instruction *Terminator = OriginalNode->getTerminator();
+        llvm::SwitchInst *Switch = llvm::cast<llvm::SwitchInst>(Terminator);
+
+        llvm::Value *SwitchValue = Switch->getCondition();
+        RegularSwitchNode::case_container Cases;
+        RegularSwitchNode::case_value_container CaseValues;
+
+        // Fill the cases container with the ASTNodes pointing to the cases
+        // nodes.
+        for (ASTNode *N : ASTChildren) {
+          Cases.push_back(N);
+        }
+
+        // Fill the cases values with increasing integers computed as
+        // ConstantInt.
+        llvm::LLVMContext Context;
+        llvm::IRBuilder<> Builder(Context);
+        for (uint64_t Index = 0; Index < Cases.size(); Index++) {
+          llvm::ConstantInt *IndexConstant = Builder.getInt64(Index);
+          CaseValues.push_back(IndexConstant);
+        }
+
+        // Collect the successor, if present at all.
+        // We should have at maximum a single node which is directly dominated
+        // by the head of the switch, but which is not reachable from the
+        // switch head.
+        // TODO: This could be not true if for example the switch head node is
+        //       directly connected to the postdominator.
+        // TODO: Elect the real immediate postdominator.
+        ASTObject.reset(new RegularSwitchNode(SwitchValue,
+                                              Cases,
+                                              CaseValues,
+                                              nullptr,
+                                              nullptr));
+      } else if (Children.size() == 3) {
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
 
