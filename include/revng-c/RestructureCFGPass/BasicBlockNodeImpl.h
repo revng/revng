@@ -36,14 +36,16 @@ inline BasicBlockNode<NodeT>::BasicBlockNode(RegionCFGT *Parent,
                                              RegionCFGT *Collapsed,
                                              llvm::StringRef Name,
                                              Type T,
-                                             unsigned Value) :
+                                             unsigned Value,
+                                             DispatcherKind DispKind) :
   ID(Parent->getNewID()),
   Parent(Parent),
   CollapsedRegion(Collapsed),
   NodeType(T),
   Name(Name),
   StateVariableValue(Value),
-  OriginalNode(OriginalNode) {
+  OriginalNode(OriginalNode),
+  DispKind(DispKind) {
 }
 
 template<class NodeT>
@@ -180,6 +182,8 @@ inline size_t BasicBlockNode<NodeT>::getWeight() const {
   } else if (NodeType == Type::Set) {
     return 0;
   } else if (NodeType == Type::Check) {
+    return 0;
+  } else if (NodeType == Type::Dispatcher) {
     return 0;
   } else if (NodeType == Type::Collapsed) {
     revng_assert(CollapsedRegion != nullptr);

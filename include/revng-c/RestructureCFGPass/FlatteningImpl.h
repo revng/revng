@@ -185,6 +185,8 @@ inline void flattenRegionCFGTree(RegionCFG<NodeT> &Root) {
         moveEdgeTarget({ SetNode, Node }, False);
       }
     } break;
+    case BasicBlockNodeT::Type::Dispatcher: {
+    } break;
     }
   }
 

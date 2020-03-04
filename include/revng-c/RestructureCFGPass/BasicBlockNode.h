@@ -38,6 +38,12 @@ public:
     Set,
     Check,
     Collapsed,
+    Dispatcher,
+  };
+
+  enum class DispatcherKind {
+    Entry,
+    Exit,
   };
 
   using BasicBlockNodeT = BasicBlockNode<NodeT>;
@@ -85,12 +91,16 @@ protected:
   // Original object pointer
   NodeT OriginalNode;
 
+  // Type of dispatcher node
+  DispatcherKind DispKind;
+
   explicit BasicBlockNode(RegionCFGT *Parent,
                           NodeT OriginalNode,
                           RegionCFGT *Collapsed,
                           llvm::StringRef Name,
                           Type T,
-                          unsigned Value = 0);
+                          unsigned Value = 0,
+                          DispatcherKind DispKind = DispatcherKind::Entry);
 
 public:
   BasicBlockNode() = delete;
@@ -105,7 +115,8 @@ public:
                    BBN.CollapsedRegion,
                    BBN.Name,
                    BBN.NodeType,
-                   BBN.StateVariableValue) {}
+                   BBN.StateVariableValue,
+                   BBN.DispKind) {}
 
   /// \brief Constructor for nodes pointing to LLVM IR BasicBlock
   explicit BasicBlockNode(RegionCFGT *Parent,
@@ -134,6 +145,15 @@ public:
     revng_assert(T == Type::Set or T == Type::Check);
   }
 
+  /// \brief Constructor for dispatcher of new types
+  explicit BasicBlockNode(RegionCFGT *Parent,
+                          llvm::StringRef Name,
+                          Type T,
+                          DispatcherKind Kind) :
+    BasicBlockNode(Parent, nullptr, nullptr, Name, T, 0, Kind) {
+    revng_assert(T == Type::Dispatcher);
+  }
+
 public:
   bool isBreak() const { return NodeType == Type::Break; }
   bool isContinue() const { return NodeType == Type::Continue; }
@@ -144,6 +164,7 @@ public:
   bool isArtificial() const {
     return NodeType != Type::Code and NodeType != Type::Collapsed;
   }
+  bool isDispatcher() const { return NodeType == Type::Dispatcher; }
   Type getNodeType() const { return NodeType; }
 
   void setTrue(BasicBlockNode *Succ) {

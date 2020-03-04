@@ -223,6 +223,20 @@ public:
     return Dispatcher;
   }
 
+  BBNodeT *addDispatcherNew() {
+    using Type = typename BasicBlockNodeT::Type;
+    using Kind = typename BasicBlockNodeT::DispatcherKind;
+    using BBNodeT = BasicBlockNodeT;
+    std::string Name = "dispatcher node";
+    auto Tmp = std::make_unique<BBNodeT>(this,
+                                         Name,
+                                         Type::Dispatcher,
+                                         Kind::Entry);
+    BlockNodes.emplace_back(std::move(Tmp));
+    BBNodeT *Dispatcher = BlockNodes.back().get();
+    return Dispatcher;
+  }
+
   BBNodeT *addSetStateNode(unsigned long StateVariableValue,
                            llvm::StringRef TargetName) {
     using Type = typename BasicBlockNodeT::Type;
