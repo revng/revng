@@ -716,6 +716,15 @@ public:
     revng_assert(Cases.size() == V.size());
   }
 
+  SwitchCheckNode(case_container &Cases,
+                  case_value_container &V,
+                  ASTNode *Def = nullptr,
+                  ASTNode *Successor = nullptr) :
+    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def, Successor),
+    CaseValueVec(V) {
+    revng_assert(Cases.size() == V.size());
+  }
+
 protected:
   SwitchCheckNode(const SwitchCheckNode &) = default;
   SwitchCheckNode(SwitchCheckNode &&) = delete;
