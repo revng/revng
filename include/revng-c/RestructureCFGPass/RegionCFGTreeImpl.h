@@ -1443,30 +1443,14 @@ inline void RegionCFG<NodeT>::generateAst() {
         RegularSwitchNode::case_value_container CaseValuesRegular;
         SwitchCheckNode::case_value_container CaseValuesCheck;
 
-        // Fill the cases container with the ASTNodes pointing to the cases
-        // nodes.
-        for (ASTNode *N : ASTChildren) {
-          Cases.push_back(N);
-        }
-
-        // Fill the cases values with increasing integers computed as
-        // ConstantInt.
-        llvm::BasicBlock *EntryBB = Graph.EntryNode->getOriginalNode();
-        llvm::LLVMContext &Context = getContext(EntryBB);
-        llvm::IRBuilder<> Builder(Context);
-        for (uint64_t Index = 0; Index < Cases.size(); Index++) {
-          if (!Node->isDispatcher()) {
-            llvm::ConstantInt *IndexConstant = Builder.getInt64(Index);
-            CaseValuesRegular.push_back(IndexConstant);
-          } else {
-            CaseValuesCheck.push_back(Index);
-          }
-        }
-
         // Collect the successor, if present at all.
         // We should have at maximum a single node which is directly dominated
         // by the head of the switch, but which is not reachable from the
         // switch head.
+        // TODO: This could be not true if for example the switch head node is
+        //       directly connected to the postdominator.
+        // TODO: Elect the real immediate postdominator.
+        // Fill the cases container with the ASTNodes pointing to the cases
         BasicBlockNode<NodeT> *PostDomBBNode = nullptr;
         ASTNode *PostDomASTNode = nullptr;
         unsigned NodeI = 0;
@@ -1484,9 +1468,26 @@ inline void RegionCFG<NodeT>::generateAst() {
           NodeI++;
         }
 
-        // TODO: This could be not true if for example the switch head node is
-        //       directly connected to the postdominator.
-        // TODO: Elect the real immediate postdominator.
+        // nodes.
+        for (ASTNode *N : ASTChildren) {
+          if (N != PostDomASTNode) {
+            Cases.push_back(N);
+          }
+        }
+
+        // Fill the cases values with increasing integers computed as
+        // ConstantInt.
+        llvm::BasicBlock *EntryBB = Graph.EntryNode->getOriginalNode();
+        llvm::LLVMContext &Context = getContext(EntryBB);
+        llvm::IRBuilder<> Builder(Context);
+        for (uint64_t Index = 0; Index < Cases.size(); Index++) {
+          if (!Node->isDispatcher()) {
+            llvm::ConstantInt *IndexConstant = Builder.getInt64(Index);
+            CaseValuesRegular.push_back(IndexConstant);
+          } else {
+            CaseValuesCheck.push_back(Index);
+          }
+        }
 
         // Construct a regular or check switch node depending on the fact that
         // we actually have the condition value.
