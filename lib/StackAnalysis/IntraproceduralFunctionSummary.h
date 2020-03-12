@@ -122,6 +122,7 @@ public:
 
   IFS copy() const {
     IFS Result;
+    Result.Type = Type;
     Result.FinalState = FinalState.copy();
     Result.ABI = ABI.copy();
     Result.LocalSlots = LocalSlots;
