@@ -2765,19 +2765,21 @@ void CPUStateAccessFixer::correctCPUStateAccesses() {
                                      << dumpToString(TmpBuffer));
 
         Builder.SetInsertPoint(Instr);
+        auto TmpAlign = MaybeAlign(TmpBuffer->getAlignment());
+        auto AlignOne = MaybeAlign(1);
         CallInst *MemcpyLoad = Builder.CreateMemCpy(TmpBuffer,
-                                                    TmpBuffer->getAlignment(),
+                                                    TmpAlign,
                                                     MemcpySrc,
-                                                    1,
+                                                    AlignOne,
                                                     MemcpySize);
         revng_log(FixAccessLog,
                   "Created LOAD: " << MemcpyLoad << " : "
                                    << dumpToString(MemcpyLoad));
 
         CallInst *MemcpyStore = Builder.CreateMemCpy(MemcpyDst,
-                                                     1,
+                                                     AlignOne,
                                                      TmpBuffer,
-                                                     TmpBuffer->getAlignment(),
+                                                     TmpAlign,
                                                      MemcpySize);
         revng_log(FixAccessLog,
                   "Created STORE: " << MemcpyStore << " : "

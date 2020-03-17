@@ -14,6 +14,7 @@ bool init_unit_test();
 #include "llvm/Analysis/Passes.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Transforms/Scalar.h"
 
 // Local libraries includes

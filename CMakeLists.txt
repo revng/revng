@@ -113,6 +113,8 @@ add_flag_if_available("-Wno-unused-variable")
 add_flag_if_available("-Wno-maybe-uninitialized")
 add_flag_if_available("-Wno-unused-local-typedefs")
 add_flag_if_available("-Wno-init-list-lifetime")
+add_flag_if_available("-Wno-ambiguous-reversed-operator")
+add_flag_if_available("-Wno-deprecated-enum-enum-conversion")
 
 # Add some extra warnings
 add_flag_if_available("-Wstrict-aliasing")

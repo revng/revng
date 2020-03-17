@@ -262,7 +262,7 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                                              GlobalValue::ExternalLinkage,
                                              ConstantInt::get(Uint8Ty, 0),
                                              "elfheaderhelper");
-  ElfHeaderHelper->setAlignment(1);
+  ElfHeaderHelper->setAlignment(MaybeAlign(1));
   ElfHeaderHelper->setSection(".elfheaderhelper");
 
   auto *RegisterType = Type::getIntNTy(Context,
@@ -326,7 +326,7 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
     } else {
       // If we have extra data at the end we need to create a copy of the
       // segment and append the NULL bytes
-      auto FullData = make_unique<uint8_t[]>(Segment.size());
+      auto FullData = std::make_unique<uint8_t[]>(Segment.size());
 
       size_t MinSize = std::min(Segment.size(), Segment.Data.size());
       ::memcpy(FullData.get(), Segment.Data.data(), MinSize);
@@ -346,7 +346,7 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                                           Name);
 
     // Force alignment to 1 and assign the variable to a specific section
-    Segment.Variable->setAlignment(1);
+    Segment.Variable->setAlignment(MaybeAlign(1));
     Segment.Variable->setSection("." + Name);
 
     // Write the linking info CSV

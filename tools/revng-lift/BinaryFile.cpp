@@ -752,8 +752,7 @@ void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, Optional<uint64_t>) {
   std::error_code EC;
   object::COFFObjectFile TheCOFF(TheBinary->getMemoryBufferRef(), EC);
 
-  const object::pe32_header *PE32Header = nullptr;
-  TheCOFF.getPE32Header(PE32Header);
+  const object::pe32_header *PE32Header = TheCOFF.getPE32Header();
 
   MetaAddress ImageBase = MetaAddress::invalid();
   if (PE32Header) {
@@ -764,8 +763,7 @@ void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, Optional<uint64_t>) {
     ProgramHeaders.Count = PE32Header->NumberOfRvaAndSize;
     ProgramHeaders.Size = PE32Header->SizeOfHeaders;
   } else {
-    const object::pe32plus_header *PE32PlusHeader = nullptr;
-    TheCOFF.getPE32PlusHeader(PE32PlusHeader);
+    const object::pe32plus_header *PE32PlusHeader = TheCOFF.getPE32PlusHeader();
     if (!PE32PlusHeader) {
       revng_assert("Invalid PE Header.\n");
       return;
@@ -780,9 +778,6 @@ void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, Optional<uint64_t>) {
 
   // Read sections
   for (const llvm::object::SectionRef &Section : TheCOFF.sections()) {
-    llvm::StringRef Name;
-    Section.getName(Name);
-
     unsigned Id = TheCOFF.getSectionID(Section);
     const object::coff_section *CoffRef = nullptr;
     TheCOFF.getSection(Id, CoffRef);
