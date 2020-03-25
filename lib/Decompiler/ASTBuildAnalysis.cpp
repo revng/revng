@@ -637,6 +637,7 @@ void StmtBuilder::createAST() {
         QualType CharTy = ASTCtx.CharTy;
         QualType ArrayTy = ASTCtx.getConstantArrayType(CharTy,
                                                        ArraySize,
+                                                       nullptr,
                                                        SizeMod,
                                                        0);
         const std::string VarName = "var_" + std::to_string(NVar++);
@@ -1412,6 +1413,18 @@ Expr *StmtBuilder::getLiteralFromConstant(llvm::Constant *C) {
       case BuiltinType::OCLIntelSubgroupAVCImeDualRefStreamin:
       case BuiltinType::OCLIntelSubgroupAVCImeResultSingleRefStreamout:
       case BuiltinType::OCLIntelSubgroupAVCImeResultDualRefStreamout:
+      case BuiltinType::SveBool:
+      case BuiltinType::SveFloat16:
+      case BuiltinType::SveFloat32:
+      case BuiltinType::SveFloat64:
+      case BuiltinType::SveInt8:
+      case BuiltinType::SveInt16:
+      case BuiltinType::SveInt32:
+      case BuiltinType::SveInt64:
+      case BuiltinType::SveUint8:
+      case BuiltinType::SveUint16:
+      case BuiltinType::SveUint32:
+      case BuiltinType::SveUint64:
         revng_abort();
       }
     } else if (isa<ConstantPointerNull>(CD)) {
