@@ -1349,8 +1349,23 @@ inline void RegionCFG<NodeT>::generateAst() {
   RegionCFG<NodeT> &Graph = *this;
 
   // Apply combing to the current RegionCFG.
-
   if (ToInflate) {
+
+    if (CombLogger.isEnabled()) {
+      CombLogger << "Waveing region " + RegionName + "\n";
+      dumpDotOnFile("waves", FunctionName, "PREWAVE");
+    }
+
+    // TODO: check this position, during our discussions we stated that doing
+    //       the waveing after the combing should not have affected our
+    //       assumptions.
+    // Invoke the throttle function.
+    Graph.throttle();
+
+    if (CombLogger.isEnabled()) {
+      dumpDotOnFile("waves", FunctionName, "POSTWAVE");
+    }
+
     if (CombLogger.isEnabled()) {
       CombLogger << "Inflating region " + RegionName + "\n";
       dumpDotOnFile("dots", FunctionName, "PRECOMB");

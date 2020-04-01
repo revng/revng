@@ -334,6 +334,8 @@ public:
 
   bool isTopologicallyEquivalent(RegionCFG &Other) const;
 
+  void throttle();
+
 protected:
   template<typename StreamT>
   void streamNode(StreamT &S, const BasicBlockNodeT *) const;
