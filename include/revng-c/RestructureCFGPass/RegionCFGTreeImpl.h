@@ -1778,4 +1778,161 @@ RegionCFG<NodeT>::isTopologicallyEquivalent(RegionCFG &Other) const {
   return Entry.isEquivalentTo(&OtherEntry);
 }
 
+template<class NodeT>
+inline void RegionCFG<NodeT>::throttle() {
+
+  // Check that we are in a valid state of the graph.
+  revng_assert(isDAG());
+
+  // Collect useful objects.
+  RegionCFG<NodeT> &Graph = *this;
+  BasicBlockNode<NodeT> &Entry = getEntryNode();
+
+  DT.recalculate(Graph);
+  PDT.recalculate(Graph);
+
+  BasicBlockNodeTVect ExitNodes;
+  for (auto It = Graph.begin(); It != Graph.end(); It++) {
+    if ((*It)->successor_size() == 0) {
+      ExitNodes.push_back(*It);
+    }
+  }
+
+  Entry.getName();
+
+  // Add a new virtual sink node to compute the postdominator.
+  BasicBlockNode<NodeT> *Sink = Graph.addArtificialNode();
+  for (BasicBlockNode<NodeT> *Exit : ExitNodes) {
+    addEdge(EdgeDescriptor(Exit, Sink));
+  }
+
+  DT.recalculate(Graph);
+  PDT.recalculate(Graph);
+
+  BasicBlockNodeTVect GraphNodes;
+  for (auto It = Graph.begin(); It != Graph.end(); It++) {
+    if (*It != Sink)
+      GraphNodes.push_back(*It);
+  }
+
+  BasicBlockNodeTVect PostOrder = Graph.orderNodes(GraphNodes, false);
+
+  dbg << "TOPOLINO\n";
+  for (BasicBlockNode<NodeT> *Node : PostOrder) {
+    dbg << Node->getNameStr() << "\n";
+  }
+
+  // Let's walk over the postdominator tree.
+  PDT.updateDFSNumbers();
+  DT.updateDFSNumbers();
+
+  CombLogger << DoLog;
+
+  std::map<unsigned, BasicBlockNode<NodeT> *> DFSNodeMap;
+  std::map<unsigned, BasicBlockNode<NodeT> *> DFSNodeMap2;
+
+  // Compute the ideal order of visit for creating AST nodes.
+  for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
+    //DFSNodeMap[PDT[Node]->getDFSNumIn()] = Node;
+    //DFSNodeMap2[DT[Node]->getDFSNumIn()] = Node;
+    DFSNodeMap[PDT[Node]->getDFSNumOut()] = Node;
+    DFSNodeMap2[DT[Node]->getDFSNumOut()] = Node;
+  }
+
+  CombLogger << "Dumping waveing info of function: " << FunctionName << "\n";
+  CombLogger << "Dumping DT visiting order again with also the DF number\n";
+  for (auto &Pair : DFSNodeMap2) {
+    unsigned Index = Pair.first;
+    BasicBlockNode<NodeT> *Node = Pair.second;
+    CombLogger << Index << "   " << Node->getNameStr() << "\n";
+  }
+
+  CombLogger << "Dumping PDT visiting order again with also the DF number\n";
+  for (auto &Pair : DFSNodeMap) {
+    unsigned Index = Pair.first;
+    BasicBlockNode<NodeT> *Node = Pair.second;
+    CombLogger << Index << "   " << Node->getNameStr() << "\n";
+  }
+
+  // Build a data structure that collects all the case nodes presente in the
+  // graph.
+  // Build a data structure that collects for all the case nodes the switch
+  // node to which they belong.
+  BasicBlockNodeTVect SwitchVector;
+  std::map<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> CaseToSwitchMap;
+  for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
+    if (Node->successor_size() > 2) {
+      SwitchVector.push_back(Node);
+      for (BasicBlockNode<NodeT> *Successor : Node->successors()) {
+        CaseToSwitchMap[Successor] = Node;
+      }
+    }
+  }
+
+  // Code that actually performs the waveing
+  for (auto &Pair : DFSNodeMap) {
+    BasicBlockNode<NodeT> *PostDom = Pair.second;
+    CombLogger << "Node " << PostDom->getNameStr() << " imm. postdominates:"
+               << "\n";
+
+    // Collect the children nodes in the dominator tree.
+    std::vector<llvm::DomTreeNodeBase<BasicBlockNode<NodeT>> *>
+      Children = PDT[PostDom]->getChildren();
+
+    // Vector where to store the children that are case nodes.
+    BasicBlockNodeTVect CasesVector;
+    bool CandidateForWeaving = true;
+    for (llvm::DomTreeNodeBase<BasicBlockNode<NodeT>> *TreeNode : Children) {
+      BasicBlockNode<NodeT> *BlockNode = TreeNode->getBlock();
+      CasesVector.push_back(BlockNode);
+      CombLogger << BlockNode->getNameStr() << "\n";
+
+      if (CaseToSwitchMap.count(BlockNode) == 1) {
+        CombLogger << "Found a case node, called " << BlockNode->getNameStr()
+                   << " which is related to switch node "
+                   << CaseToSwitchMap[BlockNode]->getNameStr() << "\n";
+      } else {
+        CandidateForWeaving = false;
+      }
+    }
+
+    // Perform the actual waveing procedure.
+    if (CandidateForWeaving && CasesVector.size() != 0) {
+
+      CombLogger << "I'm performing a waveing operation";
+
+      // Create the new sub-switch node.
+      BasicBlockNodeT *NewSwitch = addWeavingSwitch();
+
+      // Get the switch node from the first case. We will later check for all
+      // the other cases that the case is actually the same.
+      BasicBlockNodeT *OldSwitch = CaseToSwitchMap[CasesVector[0]];
+
+      // Connect the old dispatcher to the new one.
+      addEdge(EdgeDescriptor(OldSwitch, NewSwitch));
+
+      // Iterate over all the case nodes that we found.
+      for (BasicBlockNodeT *Case : CasesVector) {
+
+        // Get the original switch node.
+        BasicBlockNodeT *OldSwitch2 = CaseToSwitchMap[Case];
+        revng_assert(OldSwitch == OldSwitch2);
+
+        // Move all the necessary edges.
+        //moveEdgeTarget(EdgeDescriptor(OldSwitch, Case), NewSwitch);
+        //moveEdgeSource(EdgeDescriptor(OldSwitch, Case), NewSwitch);
+        removeEdge(EdgeDescriptor(OldSwitch, Case));
+        addEdge(EdgeDescriptor(NewSwitch, Case));
+      }
+
+    }
+
+    CombLogger << "next\n\n";
+  }
+
+  // Purge the final sink used for computing the postdominator tree.
+  purgeVirtualSink(Sink);
+
+}
+
 #endif // REVNGC_RESTRUCTURE_CFG_REGIONCFGTREEIMPL_H
