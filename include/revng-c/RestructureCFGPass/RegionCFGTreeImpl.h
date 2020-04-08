@@ -604,6 +604,10 @@ inline void RegionCFG<NodeT>::untangle() {
   PDT.recalculate(Graph);
 
   // Collect all the conditional nodes in the graph.
+  //
+  // TODO: Here we handle only conditional nodes with two successors. We should
+  //       consider extending the untangle procedure also to conditional nodes
+  //       with more than two successors (switch nodes).
   BasicBlockNodeTVect ConditionalNodes;
   for (auto It = Graph.begin(); It != Graph.end(); It++) {
     if ((*It)->successor_size() == 2) {
