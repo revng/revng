@@ -1418,6 +1418,14 @@ inline void RegionCFG<NodeT>::generateAst() {
     // Check that the two vector have the same size.
     revng_assert(Children.size() == ASTChildren.size());
 
+    // TODO: remove this workaround for searching for switch nodes
+    bool IsASwitch = false;
+    if (Node->getOriginalNode()) {
+      llvm::BasicBlock *OriginalBB = Node->getOriginalNode();
+      llvm::Instruction *TerminatorBB = OriginalBB->getTerminator();
+      IsASwitch = llvm::isa<llvm::SwitchInst>(TerminatorBB);
+    }
+
     using UniqueASTNode = ASTTree::ast_unique_ptr;
     // Handle collapsded node.
     UniqueASTNode ASTObject;
@@ -1437,7 +1445,7 @@ inline void RegionCFG<NodeT>::generateAst() {
       }
     } else {
       //revng_assert(Children.size() < 4);
-      if (Children.size() >= 4 or Node->isDispatcher()) {
+      if (Children.size() >= 4 or Node->isDispatcher() or IsASwitch) {
         // This should be dedicated to handle switch node. Unfortunately not all
         // the switch nodes are guaranteed to have more than 3 dominated nodes.
         revng_assert(not Node->isBreak() and not Node->isContinue()
