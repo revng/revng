@@ -1037,7 +1037,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     // Default set node for entry dispatcher.
     if (NewHeadNeeded) {
-      revng_assert(Head->isCheck());
+      //revng_assert(Head->isCheck());
       std::set<BasicBlockNodeBB *> SetCandidates;
       for (BasicBlockNodeBB *Pred : Head->predecessors()) {
         if (not Pred->isSet()) {
