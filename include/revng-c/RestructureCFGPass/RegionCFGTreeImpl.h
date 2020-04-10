@@ -1074,6 +1074,18 @@ inline void RegionCFG<NodeT>::inflate() {
     PostDominatorMap[Conditional] = PostDom;
   }
 
+  // Compute the immediate post-dominator for the cases nodes. In this case, the
+  // post-dominator will be the postdominator of the switch corresponding to it.
+  BBNodeMap CasesToSwitchMap;
+  for (auto It = Graph.begin(); It != Graph.end(); It++) {
+    BasicBlockNodeT *Node = *It;
+    if (Node->successor_size() > 2) {
+      for (BasicBlockNodeT *Successor : Node->successors()) {
+        PostDominatorMap[Successor] = Node;
+      }
+    }
+  }
+
   while (!ConditionalNodes.empty()) {
 
     // List to keep track of the nodes that we still need to analyze.
