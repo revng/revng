@@ -188,7 +188,7 @@ private:
   llvm::StringRef SymbolName;
   SymbolType::Values SymbolType;
 
-  /// Label value. It has differente meanings depending on the label type
+  /// Label value. It has different meanings depending on the label type
   uint64_t Value;
 
   LabelOrigin::Values Origin;

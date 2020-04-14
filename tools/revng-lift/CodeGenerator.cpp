@@ -17,11 +17,6 @@
 #include <utility>
 #include <vector>
 
-// Boost includes
-#include <boost/icl/interval_map.hpp>
-#include <boost/icl/right_open_interval.hpp>
-#include <boost/type_traits/is_same.hpp>
-
 // LLVM includes
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Analysis/LoopInfo.h"
