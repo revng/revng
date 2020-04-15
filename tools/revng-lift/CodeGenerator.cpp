@@ -292,6 +292,26 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
       ptc.mmap(Segment.StartVirtualAddress.address(),
                static_cast<const void *>(Segment.Data.data()),
                static_cast<size_t>(Segment.Data.size()));
+
+      bool Found = false;
+      MetaAddress End = Segment.pagesRange().second;
+      for (SegmentInfo &Segment : Binary.segments()) {
+        if (Segment.IsExecutable and Segment.containsInPages(End)) {
+          Found = true;
+          break;
+        }
+      }
+
+      // The next page is not mapped
+      if (not Found) {
+        revng_check(Segment.EndVirtualAddress.address() != 0);
+        NoMoreCodeBoundaries.insert(Segment.EndVirtualAddress);
+        const auto &Architecture = Binary.architecture();
+        auto BasicBlockEndingPattern = Architecture.basicBlockEndingPattern();
+        ptc.mmap(End.address(),
+                 BasicBlockEndingPattern.data(),
+                 BasicBlockEndingPattern.size());
+      }
     }
 
     std::string Name = Segment.generateName();
@@ -1004,6 +1024,16 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     ConsumedSize = ptc.translate(VirtualAddress.address(),
                                  Type,
                                  InstructionList.get());
+
+    // Check whether we ended up in an unmapped page
+    MetaAddress AbortAt = MetaAddress::invalid();
+    MetaAddress LastByte = VirtualAddress.toGeneric() + (ConsumedSize - 1);
+    if (VirtualAddress.pageStart() != LastByte.pageStart()) {
+      MetaAddress NextPage = VirtualAddress.nextPageStart();
+      if (NoMoreCodeBoundaries.count(NextPage) != 0)
+        AbortAt = NextPage;
+    }
+
     SmallSet<unsigned, 1> ToIgnore;
     ToIgnore = Translator.preprocess(InstructionList.get());
 
@@ -1045,7 +1075,8 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
                                                    NextInstruction,
                                                    VirtualAddress,
                                                    EndPC,
-                                                   true);
+                                                   true,
+                                                   AbortAt);
       j++;
     }
 
@@ -1083,7 +1114,8 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
                                                      NextInstruction,
                                                      VirtualAddress,
                                                      EndPC,
-                                                     false);
+                                                     false,
+                                                     AbortAt);
       } break;
       case PTC_INSTRUCTION_op_call: {
         Result = Translator.translateCall(&Instruction);

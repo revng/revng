@@ -97,6 +97,8 @@ private:
   unsigned DbgMDKind;
 
   std::string FunctionListPath;
+
+  std::set<MetaAddress> NoMoreCodeBoundaries;
 };
 
 #endif // CODEGENERATOR_H

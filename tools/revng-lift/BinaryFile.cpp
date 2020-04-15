@@ -228,12 +228,14 @@ BinaryFile::BinaryFile(std::string FilePath, Optional<uint64_t> BaseAddress) :
   llvm::StringRef ReadRegisterAsm = "";
   llvm::StringRef JumpAsm = "";
   bool HasRelocationAddend;
+  llvm::ArrayRef<const char> BasicBlockEndingPattern;
 
   using RD = RelocationDescription;
   using namespace llvm::ELF;
   Architecture::RelocationTypesMap RelocationTypes;
 
-  switch (TheBinary->getArch()) {
+  auto Arch = TheBinary->getArch();
+  switch (Arch) {
   case Triple::x86:
     InstructionAlignment = 1;
     SyscallHelper = "helper_raise_interrupt";
@@ -254,6 +256,8 @@ BinaryFile::BinaryFile(std::string FilePath, Optional<uint64_t> BaseAddress) :
 
     ABIRegisters = { { "eax" }, { "ebx" }, { "ecx" }, { "edx" },
                      { "esi" }, { "edi" }, { "ebp" }, { "esp" } };
+
+    BasicBlockEndingPattern = "\xcc";
 
     break;
 
@@ -337,6 +341,9 @@ BinaryFile::BinaryFile(std::string FilePath, Optional<uint64_t> BaseAddress) :
     RelocationTypes[R_X86_64_JUMP_SLOT] = RD(RD::SymbolRelative);
     RelocationTypes[R_X86_64_GLOB_DAT] = RD(RD::SymbolRelative);
     RelocationTypes[R_X86_64_COPY] = RD(RD::LabelOnly, RD::TargetValue);
+
+    BasicBlockEndingPattern = "\xcc";
+
     break;
 
   case Triple::arm:
@@ -360,6 +367,10 @@ BinaryFile::BinaryFile(std::string FilePath, Optional<uint64_t> BaseAddress) :
     RelocationTypes[R_ARM_JUMP_SLOT] = RD(RD::SymbolRelative);
     RelocationTypes[R_ARM_GLOB_DAT] = RD(RD::SymbolRelative);
     RelocationTypes[R_ARM_COPY] = RD(RD::LabelOnly, RD::TargetValue);
+
+    // bx lr
+    BasicBlockEndingPattern = "\x1e\xff\x2f\xe1";
+
     break;
 
   case Triple::aarch64:
@@ -381,6 +392,10 @@ BinaryFile::BinaryFile(std::string FilePath, Optional<uint64_t> BaseAddress) :
                      { "x25" }, { "x26" }, { "x27" }, { "x28" }, { "x29" },
                      { "lr" },  { "sp" } };
     HasRelocationAddend = false;
+
+    // ret
+    BasicBlockEndingPattern = "\xc0\x03\x5f\xd6";
+
     break;
 
   case Triple::mips:
@@ -410,6 +425,11 @@ BinaryFile::BinaryFile(std::string FilePath, Optional<uint64_t> BaseAddress) :
     RelocationTypes[R_MIPS_JUMP_SLOT] = RD(RD::SymbolRelative);
     RelocationTypes[R_MIPS_GLOB_DAT] = RD(RD::SymbolRelative);
     RelocationTypes[R_MIPS_COPY] = RD(RD::LabelOnly, RD::TargetValue);
+
+    // jr ra
+    BasicBlockEndingPattern = ((Arch == Triple::mips) ? "\x08\x00\xe0\x03" :
+                                                        "\x03\xe0\x00\x08");
+
     break;
 
   case Triple::systemz:
@@ -459,7 +479,8 @@ BinaryFile::BinaryFile(std::string FilePath, Optional<uint64_t> BaseAddress) :
                                  ReadRegisterAsm,
                                  JumpAsm,
                                  HasRelocationAddend,
-                                 std::move(RelocationTypes));
+                                 std::move(RelocationTypes),
+                                 BasicBlockEndingPattern);
 
   if (TheBinary->isELF()) {
     if (TheArchitecture.pointerSize() == 32) {

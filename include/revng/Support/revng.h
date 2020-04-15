@@ -235,7 +235,8 @@ public:
                llvm::StringRef ReadRegisterAsm,
                llvm::StringRef JumpAsm,
                bool HasRelocationAddend,
-               RelocationTypesMap RelocationTypes) :
+               RelocationTypesMap RelocationTypes,
+               llvm::ArrayRef<const char> BasicBlockEndingPattern) :
     Type(static_cast<llvm::Triple::ArchType>(Type)),
     InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
@@ -252,9 +253,9 @@ public:
     ReadRegisterAsm(ReadRegisterAsm),
     JumpAsm(JumpAsm),
     HasRelocationAddend(HasRelocationAddend),
-    RelocationTypes(RelocationTypes) {}
-  Architecture(const Architecture &) = delete;
-  Architecture &operator=(Architecture &) = delete;
+    RelocationTypes(std::move(RelocationTypes)),
+    BasicBlockEndingPattern(BasicBlockEndingPattern) {}
+
   Architecture(Architecture &&) = default;
   Architecture &operator=(Architecture &&) = default;
 
@@ -290,6 +291,9 @@ public:
   }
   bool hasRelocationAddend() const { return HasRelocationAddend; }
   const RelocationTypesMap &relocationTypes() const { return RelocationTypes; }
+  llvm::ArrayRef<const char> basicBlockEndingPattern() const {
+    return BasicBlockEndingPattern;
+  }
 
 private:
   llvm::Triple::ArchType Type;
@@ -311,6 +315,7 @@ private:
   llvm::StringRef JumpAsm;
   bool HasRelocationAddend;
   RelocationTypesMap RelocationTypes;
+  llvm::ArrayRef<const char> BasicBlockEndingPattern;
 };
 
 // TODO: move me somewhere more appropriate

@@ -88,7 +88,8 @@ public:
                  PTCInstruction *Next,
                  MetaAddress StartPC,
                  MetaAddress EndPC,
-                 bool IsFirst);
+                 bool IsFirst,
+                 MetaAddress AbortAt);
 
   /// \brief Translate an ordinary instruction
   ///

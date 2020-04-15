@@ -567,7 +567,8 @@ IT::newInstruction(PTCInstruction *Instr,
                    PTCInstruction *Next,
                    MetaAddress StartPC,
                    MetaAddress EndPC,
-                   bool IsFirst) {
+                   bool IsFirst,
+                   MetaAddress AbortAt) {
   using R = std::tuple<TranslationResult, MDNode *, MetaAddress, MetaAddress>;
   revng_assert(Instr != nullptr);
 
@@ -583,6 +584,9 @@ IT::newInstruction(PTCInstruction *Instr,
     NextPC = StartPC.replaceAddress(PTC::Instruction(Next).pc());
   else
     NextPC = EndPC;
+
+  if (AbortAt.isValid() and NextPC.addressGreaterThan(AbortAt))
+    return R{ Abort, nullptr, MetaAddress::invalid(), MetaAddress::invalid() };
 
   std::stringstream OriginalStringStream;
   disassemble(OriginalStringStream, PC, NextPC - PC);
