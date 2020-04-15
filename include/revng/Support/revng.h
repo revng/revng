@@ -253,10 +253,10 @@ public:
     JumpAsm(JumpAsm),
     HasRelocationAddend(HasRelocationAddend),
     RelocationTypes(RelocationTypes) {}
-  Architecture(const Architecture &) = default;
-  Architecture &operator=(Architecture &&) = default;
+  Architecture(const Architecture &) = delete;
+  Architecture &operator=(Architecture &) = delete;
   Architecture(Architecture &&) = default;
-  Architecture &operator=(const Architecture &&) = delete;
+  Architecture &operator=(Architecture &&) = default;
 
   uint32_t instructionAlignment() const { return InstructionAlignment; }
   uint32_t defaultAlignment() const { return DefaultAlignment; }
