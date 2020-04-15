@@ -479,6 +479,10 @@ public:
     return llvm::MDString::get(C, String);
   }
 
+  llvm::ConstantAsMetadata *get(const llvm::APInt &N) {
+    return llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(C, N));
+  }
+
   llvm::ConstantAsMetadata *get(llvm::Constant *C) {
     return llvm::ConstantAsMetadata::get(C);
   }
@@ -548,6 +552,20 @@ inline llvm::Constant *
 QuickMetadata::extract<llvm::Constant *>(llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return C->getValue();
+}
+
+template<>
+inline llvm::ConstantInt *
+QuickMetadata::extract<llvm::ConstantInt *>(const llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return llvm::cast<llvm::ConstantInt>(C->getValue());
+}
+
+template<>
+inline llvm::ConstantInt *
+QuickMetadata::extract<llvm::ConstantInt *>(llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return llvm::cast<llvm::ConstantInt>(C->getValue());
 }
 
 template<>
