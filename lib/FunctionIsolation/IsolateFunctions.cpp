@@ -601,7 +601,9 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
         revng_assert(not isa<Constant>(CurrentOperand));
         CurrentUse->set(ReplacementIt->second);
       } else if (isa<ConstantInt>(CurrentOperand)
-                 or isa<GlobalObject>(CurrentOperand)) {
+                 or isa<GlobalObject>(CurrentOperand)
+                 or isa<UndefValue>(CurrentOperand)
+                 or isa<ConstantPointerNull>(CurrentOperand)) {
         // Do nothing
       } else if (auto *CE = dyn_cast<ConstantExpr>(CurrentOperand)) {
         for (Use &U : CE->operands())
