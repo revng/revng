@@ -361,11 +361,14 @@ inline std::string getName(const llvm::Instruction *I) {
   llvm::StringRef Result = I->getName();
   if (!Result.empty()) {
     return Result.str();
-  } else {
-    const llvm::BasicBlock *Parent = I->getParent();
+  } else if (const llvm::BasicBlock *Parent = I->getParent()) {
     return getName(Parent) + ":"
            + std::to_string(1
                             + std::distance(Parent->begin(), I->getIterator()));
+  } else {
+    std::stringstream SS;
+    SS << "0x" << std::hex << intptr_t(I);
+    return SS.str();
   }
 }
 
