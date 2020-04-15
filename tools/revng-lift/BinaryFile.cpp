@@ -528,7 +528,7 @@ BinaryFile::BinaryFile(std::string FilePath, MetaAddress BaseAddress) :
         EntryPointFound = true;
         const uint8_t *Pointer = reinterpret_cast<const uint8_t *>(LCI.Ptr);
         ArrayRef<uint8_t> CommandBuffer(Pointer + sizeof(thread_command),
-                                        LCI.C.cmdsize);
+                                        LCI.C.cmdsize - sizeof(thread_command));
         revng_check(contains(RawDataRef, CommandBuffer));
 
         EntryPoint = getInitialPC(TheBinary->getArch(),
