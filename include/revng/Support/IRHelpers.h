@@ -741,7 +741,9 @@ inline MetaAddress getBasicBlockPC(llvm::BasicBlock *BB) {
   using namespace llvm;
 
   auto It = BB->begin();
-  revng_assert(It != BB->end());
+  if (It == BB->end())
+    return MetaAddress::invalid();
+
   if (llvm::CallInst *Call = getCallTo(&*It, "newpc"))
     return MetaAddress::fromConstant(Call->getOperand(0));
 
