@@ -32,6 +32,7 @@ using llvm::Optional;
 using llvm::SmallVector;
 using llvm::StoreInst;
 using llvm::Type;
+using llvm::UndefValue;
 using llvm::UnreachableInst;
 using llvm::User;
 
@@ -159,6 +160,10 @@ public:
         return Value::fromSlot(ASID::cpuID(), TheCache->getCPUIndex(CSV));
       else
         return Value();
+
+    } else if (isa<UndefValue>(V)) {
+
+      return Value();
 
     } else if (auto *C = dyn_cast<Constant>(V)) {
 
