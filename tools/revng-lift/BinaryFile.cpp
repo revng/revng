@@ -1262,26 +1262,31 @@ Optional<uint64_t> BinaryFile::readRawValue(MetaAddress Address,
 
       const unsigned char *Start = Segment.Data.data() + Offset;
 
+      char Buffer[8] = { 0 };
+      memcpy(&Buffer,
+             Start,
+             std::min(static_cast<size_t>(Size), Segment.Data.size() - Offset));
+
       using support::endianness;
       using support::endian::read;
       switch (Size) {
       case 1:
-        return read<uint8_t, endianness::little, 1>(Start);
+        return read<uint8_t, endianness::little, 1>(&Buffer);
       case 2:
         if (IsLittleEndian)
-          return read<uint16_t, endianness::little, 1>(Start);
+          return read<uint16_t, endianness::little, 1>(&Buffer);
         else
-          return read<uint16_t, endianness::big, 1>(Start);
+          return read<uint16_t, endianness::big, 1>(&Buffer);
       case 4:
         if (IsLittleEndian)
-          return read<uint32_t, endianness::little, 1>(Start);
+          return read<uint32_t, endianness::little, 1>(&Buffer);
         else
-          return read<uint32_t, endianness::big, 1>(Start);
+          return read<uint32_t, endianness::big, 1>(&Buffer);
       case 8:
         if (IsLittleEndian)
-          return read<uint64_t, endianness::little, 1>(Start);
+          return read<uint64_t, endianness::little, 1>(&Buffer);
         else
-          return read<uint64_t, endianness::big, 1>(Start);
+          return read<uint64_t, endianness::big, 1>(&Buffer);
       default:
         revng_abort("Unexpected read size");
       }
