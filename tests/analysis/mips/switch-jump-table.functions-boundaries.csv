@@ -5,6 +5,9 @@ bb.__start,bb.__start.0x18_L0_ft
 bb.__start,bb.__start.0x24_L1
 bb.__start,bb.__start.0x24_L1_ft
 bb.__start,bb.__start.0x2c
+bb.__start,bb.__start.0x2c_epoch_0
+bb.__start,bb.__start.0x2c_epoch_0_address_space_0
+bb.__start,bb.__start.0x2c_epoch_0_address_space_0_type_Code_mips
 bb.__start,bb.__start.0x4_L0
 bb.__start,bb.__start.0x4_L0_ft
 bb.__start,bb.__start.0xc

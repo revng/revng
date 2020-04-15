@@ -3,6 +3,9 @@ bb._start,bb._start
 bb._start,bb._start.0x4_L0
 bb._start,bb._start.0x4_L0_ft
 bb._start,bb._start.0x6
+bb._start,bb._start.0x6_epoch_0
+bb._start,bb._start.0x6_epoch_0_address_space_0
+bb._start,bb._start.0x6_epoch_0_address_space_0_type_Code_x86_64
 bb._start,bb.end
 bb._start,bb.one
 bb._start,bb.three

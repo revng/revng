@@ -3,6 +3,9 @@ bb._start,bb._start
 bb._start,bb._start.0x4_L0
 bb._start,bb._start.0x4_L0_ft
 bb._start,bb._start.0x4_L1
+bb._start,bb._start.0x4_L1_epoch_0
+bb._start,bb._start.0x4_L1_epoch_0_address_space_0
+bb._start,bb._start.0x4_L1_epoch_0_address_space_0_type_Code_arm
 bb._start,bb._start.0x4_L1_ft
 bb._start,bb._start.0x8
 bb._start,bb.end
