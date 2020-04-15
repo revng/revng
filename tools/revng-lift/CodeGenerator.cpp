@@ -228,9 +228,11 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   };
 
   // These values will be used to populate the auxiliary vectors
-  createConstGlobal("e_phentsize", Binary.programHeaderSize());
-  createConstGlobal("e_phnum", Binary.programHeadersCount());
-  createConstGlobal("phdr_address", Binary.programHeadersAddress().address());
+  if (Binary.programHeadersAddress().isValid()) {
+    createConstGlobal("e_phentsize", Binary.programHeaderSize());
+    createConstGlobal("e_phnum", Binary.programHeadersCount());
+    createConstGlobal("phdr_address", Binary.programHeadersAddress().address());
+  }
 
   for (SegmentInfo &Segment : Binary.segments()) {
     // If it's executable register it as a valid code area
