@@ -811,7 +811,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       RetreatingIdxMap[True] = 1;
 
       unsigned Idx = 1;
-      Head = RootCFG.addDispatcherNew();
+      Head = RootCFG.addDispatcherNew(BasicBlockNodeBB::DispatcherKind::Exit);
       Meta->insertNode(Head);
 
       // Add manually the first two successors to the dispatcher node.
@@ -1098,7 +1098,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       SuccessorsIdxMap[True] = 1;
 
       unsigned Idx = 1;
-      Exit = RootCFG.addDispatcherNew();
+      Exit = RootCFG.addDispatcherNew(BasicBlockNodeBB::DispatcherKind::Entry);
       ExitDispatcherNodes.push_back(Exit);
 
       // Add manually the first two successors to the dispatcher.

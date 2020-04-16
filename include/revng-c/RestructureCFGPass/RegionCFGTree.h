@@ -223,15 +223,19 @@ public:
     return Dispatcher;
   }
 
-  BBNodeT *addDispatcherNew() {
+  BBNodeT *addDispatcherNew(typename BasicBlockNodeT::DispatcherKind Kind) {
     using Type = typename BasicBlockNodeT::Type;
-    using Kind = typename BasicBlockNodeT::DispatcherKind;
     using BBNodeT = BasicBlockNodeT;
-    std::string Name = "dispatcher node";
+    std::string Name;
+    if (Kind == BasicBlockNodeT::DispatcherKind::Entry) {
+      Name = "entry dispatcher node";
+    } else {
+      Name = "exit dispatcher node";
+    }
     auto Tmp = std::make_unique<BBNodeT>(this,
                                          Name,
                                          Type::Dispatcher,
-                                         Kind::Entry);
+                                         Kind);
     BlockNodes.emplace_back(std::move(Tmp));
     BBNodeT *Dispatcher = BlockNodes.back().get();
     return Dispatcher;
