@@ -334,7 +334,7 @@ public:
 
   bool isTopologicallyEquivalent(RegionCFG &Other) const;
 
-  void throttle();
+  void wave();
 
 protected:
   template<typename StreamT>

@@ -1371,8 +1371,8 @@ inline void RegionCFG<NodeT>::generateAst() {
     // TODO: check this position, during our discussions we stated that doing
     //       the waveing after the combing should not have affected our
     //       assumptions.
-    // Invoke the throttle function.
-    Graph.throttle();
+    // Invoke the wave function.
+    Graph.wave();
 
     if (CombLogger.isEnabled()) {
       dumpDotOnFile("waves", FunctionName, "POSTWAVE");
@@ -1799,7 +1799,7 @@ RegionCFG<NodeT>::isTopologicallyEquivalent(RegionCFG &Other) const {
 }
 
 template<class NodeT>
-inline void RegionCFG<NodeT>::throttle() {
+inline void RegionCFG<NodeT>::wave() {
 
   // Check that we are in a valid state of the graph.
   revng_assert(isDAG());
