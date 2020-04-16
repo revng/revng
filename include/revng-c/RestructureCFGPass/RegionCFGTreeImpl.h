@@ -1948,6 +1948,11 @@ inline void RegionCFG<NodeT>::wave() {
     }
 
     CombLogger << "next\n\n";
+
+    // Update the dominator and postdominator trees at each step of the waveing
+    // pass.
+    DT.recalculate(Graph);
+    PDT.recalculate(Graph);
   }
 
   // Purge the final sink used for computing the postdominator tree.
