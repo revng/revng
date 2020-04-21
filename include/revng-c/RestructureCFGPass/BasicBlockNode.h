@@ -242,7 +242,6 @@ public:
 
   bool hasSuccessor(BasicBlockNode *Candidate) {
 
-    // HACK to avoid double insertion due to `setFalse`, remove this.
     bool Found = false;
     for (BasicBlockNode *Successor : Successors) {
       if (Successor == Candidate) {
@@ -272,7 +271,6 @@ public:
 
   bool hasPredecessor(BasicBlockNode *Candidate) {
 
-    // HACK to avoid double insertion due to `setFalse`, remove this.
     bool Found = false;
     for (BasicBlockNode *Predecessor : Predecessors) {
       if (Predecessor == Candidate) {
