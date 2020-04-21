@@ -107,6 +107,7 @@ inline void flattenRegionCFGTree(RegionCFG<NodeT> &Root) {
     case BasicBlockNodeT::Type::Collapsed:
     case BasicBlockNodeT::Type::Continue:
     case BasicBlockNodeT::Type::Empty:
+    case BasicBlockNodeT::Type::Dispatcher:
       // do nothing
       break;
     case BasicBlockNodeT::Type::Set: {
@@ -184,8 +185,6 @@ inline void flattenRegionCFGTree(RegionCFG<NodeT> &Root) {
         BasicBlockNodeT *SetNode = Pair.second;
         moveEdgeTarget({ SetNode, Node }, False);
       }
-    } break;
-    case BasicBlockNodeT::Type::Dispatcher: {
     } break;
     }
   }
