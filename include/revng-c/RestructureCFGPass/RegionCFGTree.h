@@ -122,32 +122,9 @@ public:
         ChildCounter++;
 
         // Create the edge in the RegionCFG<NodeT>.
-        BasicBlockNode<NodeT> *Successor = NodeToBBNodeMap.at(C);
-
-        // Check if the TerminatorInst of the node under analysis is a switch
-        // instruction.
-        /*
-        llvm::Instruction *Terminator = BBNode->getTerminator();
-        bool HasSwitch = false;
-        if (Terminator->isTerminator()) {
-          HasSwitch = true;
-        }
-        */
-
-        // Do not connect the `unexpectedpc` successor in presence of a switch
-        // node.
-        // TODO: handle separately the default node in switches.
-        if (!(Successor->getName() == "unexpectedpc")) {
-          BBNode->addSuccessor(Successor);
-          Successor->addPredecessor(BBNode);
-
-          dbg << Successor->getName().str() << "\n";
-        } else {
-          BBNode->addSuccessor(Successor);
-          Successor->addPredecessor(BBNode);
-
-          dbg << Successor->getName().str() << "\n";
-        }
+        BBNodeT *Successor = NodeToBBNodeMap.at(C);
+        BBNode->addSuccessor(Successor);
+        Successor->addPredecessor(BBNode);
       }
     }
   }
