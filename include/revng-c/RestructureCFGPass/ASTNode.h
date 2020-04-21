@@ -519,21 +519,14 @@ protected:
   SwitchNode(NodeKind K,
              const case_container &Cases,
              const std::string &Name,
-             ASTNode *Def = nullptr) :
-    ASTNode(K, Name),
+             ASTNode *Def = nullptr,
+             ASTNode *Successor = nullptr) :
+    ASTNode(K, Name, Successor),
     CaseVec(Cases),
     Default(Def) {}
 
   SwitchNode(NodeKind K,
              case_container &&Cases,
-             const std::string &Name,
-             ASTNode *Def = nullptr) :
-    ASTNode(K, Name),
-    CaseVec(Cases),
-    Default(Def) {}
-
-  SwitchNode(NodeKind K,
-             case_container &Cases,
              const std::string &Name,
              ASTNode *Def = nullptr,
              ASTNode *Successor = nullptr) :
@@ -598,8 +591,9 @@ public:
   RegularSwitchNode(llvm::Value *Cond,
                     const case_container &Cases,
                     const case_value_container &V,
-                    ASTNode *Def = nullptr) :
-    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def),
+                    ASTNode *Def = nullptr,
+                    ASTNode *Successor = nullptr) :
+    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def, Successor),
     Condition(Cond),
     CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
@@ -608,8 +602,9 @@ public:
   RegularSwitchNode(llvm::Value *Cond,
                     case_container &&Cases,
                     const case_value_container &V,
-                    ASTNode *Def = nullptr) :
-    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def),
+                    ASTNode *Def = nullptr,
+                    ASTNode *Successor = nullptr) :
+    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def, Successor),
     Condition(Cond),
     CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
@@ -618,8 +613,9 @@ public:
   RegularSwitchNode(llvm::Value *Cond,
                     const case_container &Cases,
                     case_value_container &&V,
-                    ASTNode *Def = nullptr) :
-    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def),
+                    ASTNode *Def = nullptr,
+                    ASTNode *Successor = nullptr) :
+    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def, Successor),
     Condition(Cond),
     CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
@@ -628,17 +624,6 @@ public:
   RegularSwitchNode(llvm::Value *Cond,
                     case_container &&Cases,
                     case_value_container &&V,
-                    ASTNode *Def = nullptr) :
-    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def),
-    Condition(Cond),
-    CaseValueVec(V) {
-    revng_assert(Cases.size() == V.size());
-  }
-
-  // Constructor for switch construction during AST generation phase.
-  RegularSwitchNode(llvm::Value *Cond,
-                    case_container &Cases,
-                    case_value_container &V,
                     ASTNode *Def = nullptr,
                     ASTNode *Successor = nullptr) :
     SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def, Successor),
@@ -686,38 +671,33 @@ public:
 public:
   SwitchCheckNode(const case_container &Cases,
                   const case_value_container &V,
-                  ASTNode *Def = nullptr) :
-    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def),
+                  ASTNode *Def = nullptr,
+                  ASTNode *Successor = nullptr) :
+    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def, Successor),
     CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
   SwitchCheckNode(const case_container &Cases,
                   case_value_container &V,
-                  ASTNode *Def = nullptr) :
-    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def),
+                  ASTNode *Def = nullptr,
+                  ASTNode *Successor = nullptr) :
+    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def, Successor),
     CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
   SwitchCheckNode(case_container &&Cases,
                   const case_value_container &&V,
-                  ASTNode *Def = nullptr) :
-    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def),
+                  ASTNode *Def = nullptr,
+                  ASTNode *Successor = nullptr) :
+    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def, Successor),
     CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
   SwitchCheckNode(case_container &&Cases,
                   case_value_container &&V,
-                  ASTNode *Def = nullptr) :
-    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def),
-    CaseValueVec(V) {
-    revng_assert(Cases.size() == V.size());
-  }
-
-  SwitchCheckNode(case_container &Cases,
-                  case_value_container &V,
                   ASTNode *Def = nullptr,
                   ASTNode *Successor = nullptr) :
     SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def, Successor),
