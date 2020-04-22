@@ -118,7 +118,6 @@ public:
       for (NodeRef C : llvm::make_range(GT::child_begin(N), GT::child_end(N))) {
 
         // Check that no switches are present in the graph.
-        //revng_assert(ChildCounter < 2);
         ChildCounter++;
 
         // Create the edge in the RegionCFG<NodeT>.
