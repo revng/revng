@@ -316,7 +316,7 @@ public:
 
   bool isTopologicallyEquivalent(RegionCFG &Other) const;
 
-  void wave();
+  void weave();
 
 protected:
   template<typename StreamT>

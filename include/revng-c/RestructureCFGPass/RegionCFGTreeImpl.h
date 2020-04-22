@@ -1364,18 +1364,18 @@ inline void RegionCFG<NodeT>::generateAst() {
   if (ToInflate) {
 
     if (CombLogger.isEnabled()) {
-      CombLogger << "Waveing region " + RegionName + "\n";
-      dumpDotOnFile("waves", FunctionName, "PREWAVE");
+      CombLogger << "Weaveing region " + RegionName + "\n";
+      dumpDotOnFile("weaves", FunctionName, "PREWEAVE");
     }
 
     // TODO: check this position, during our discussions we stated that doing
-    //       the waveing after the combing should not have affected our
+    //       the weaveing after the combing should not have affected our
     //       assumptions.
-    // Invoke the wave function.
-    Graph.wave();
+    // Invoke the weave function.
+    Graph.weave();
 
     if (CombLogger.isEnabled()) {
-      dumpDotOnFile("waves", FunctionName, "POSTWAVE");
+      dumpDotOnFile("weaves", FunctionName, "POSTWEAVE");
     }
 
     if (CombLogger.isEnabled()) {
@@ -1799,7 +1799,7 @@ RegionCFG<NodeT>::isTopologicallyEquivalent(RegionCFG &Other) const {
 }
 
 template<class NodeT>
-inline void RegionCFG<NodeT>::wave() {
+inline void RegionCFG<NodeT>::weave() {
 
   // Check that we are in a valid state of the graph.
   revng_assert(isDAG());
@@ -1859,7 +1859,7 @@ inline void RegionCFG<NodeT>::wave() {
     DFSNodeMap2[DT[Node]->getDFSNumOut()] = Node;
   }
 
-  CombLogger << "Dumping waveing info of function: " << FunctionName << "\n";
+  CombLogger << "Dumping weaveing info of function: " << FunctionName << "\n";
   CombLogger << "Dumping DT visiting order again with also the DF number\n";
   for (auto &Pair : DFSNodeMap2) {
     unsigned Index = Pair.first;
@@ -1889,7 +1889,7 @@ inline void RegionCFG<NodeT>::wave() {
     }
   }
 
-  // Code that actually performs the waveing
+  // Code that actually performs the weaveing
   for (auto &Pair : DFSNodeMap) {
     BasicBlockNode<NodeT> *PostDom = Pair.second;
     CombLogger << "Node " << PostDom->getNameStr() << " imm. postdominates:"
@@ -1916,10 +1916,10 @@ inline void RegionCFG<NodeT>::wave() {
       }
     }
 
-    // Perform the actual waveing procedure.
+    // Perform the actual weaveing procedure.
     if (CandidateForWeaving && CasesVector.size() != 0) {
 
-      CombLogger << "I'm performing a waveing operation";
+      CombLogger << "I'm performing a weaveing operation";
 
       // Create the new sub-switch node.
       BasicBlockNodeT *NewSwitch = addWeavingSwitch();
@@ -1949,7 +1949,7 @@ inline void RegionCFG<NodeT>::wave() {
 
     CombLogger << "next\n\n";
 
-    // Update the dominator and postdominator trees at each step of the waveing
+    // Update the dominator and postdominator trees at each step of the weaveing
     // pass.
     DT.recalculate(Graph);
     PDT.recalculate(Graph);
