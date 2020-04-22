@@ -200,19 +200,23 @@ public:
     return Dispatcher;
   }
 
-  BBNodeT *addDispatcherNew(typename BasicBlockNodeT::DispatcherKind Kind) {
+  BBNodeT *addEntryDispatcher() {
     using Type = typename BasicBlockNodeT::Type;
     using BBNodeT = BasicBlockNodeT;
-    std::string Name;
-    if (Kind == BasicBlockNodeT::DispatcherKind::Entry) {
-      Name = "entry dispatcher node";
-    } else {
-      Name = "exit dispatcher node";
-    }
     auto Tmp = std::make_unique<BBNodeT>(this,
-                                         Name,
-                                         Type::Dispatcher,
-                                         Kind);
+                                         "entry dispatcher node",
+                                         Type::EntryDispatcher);
+    BlockNodes.emplace_back(std::move(Tmp));
+    BBNodeT *Dispatcher = BlockNodes.back().get();
+    return Dispatcher;
+  }
+
+  BBNodeT *addExitDispatcher() {
+    using Type = typename BasicBlockNodeT::Type;
+    using BBNodeT = BasicBlockNodeT;
+    auto Tmp = std::make_unique<BBNodeT>(this,
+                                         "exit dispatcher node",
+                                         Type::ExitDispatcher);
     BlockNodes.emplace_back(std::move(Tmp));
     BBNodeT *Dispatcher = BlockNodes.back().get();
     return Dispatcher;
@@ -220,13 +224,10 @@ public:
 
   BBNodeT *addWeavingSwitch() {
     using Type = typename BasicBlockNodeT::Type;
-    using Kind = typename BasicBlockNodeT::DispatcherKind;
     using BBNodeT = BasicBlockNodeT;
-    std::string Name = "weaving switch";
     auto Tmp = std::make_unique<BBNodeT>(this,
-                                         Name,
-                                         Type::Dispatcher,
-                                         Kind::Entry);
+                                         "weaving switch",
+                                         Type::EntryDispatcher);
     BlockNodes.emplace_back(std::move(Tmp));
     BBNodeT *Dispatcher = BlockNodes.back().get();
     return Dispatcher;

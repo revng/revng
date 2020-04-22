@@ -38,12 +38,8 @@ public:
     Set,
     Check,
     Collapsed,
-    Dispatcher,
-  };
-
-  enum class DispatcherKind {
-    Entry,
-    Exit,
+    EntryDispatcher,
+    ExitDispatcher,
   };
 
   using BasicBlockNodeT = BasicBlockNode<NodeT>;
@@ -91,16 +87,12 @@ protected:
   // Original object pointer
   NodeT OriginalNode;
 
-  // Type of dispatcher node
-  DispatcherKind DispKind;
-
   explicit BasicBlockNode(RegionCFGT *Parent,
                           NodeT OriginalNode,
                           RegionCFGT *Collapsed,
                           llvm::StringRef Name,
                           Type T,
-                          unsigned Value = 0,
-                          DispatcherKind DispKind = DispatcherKind::Entry);
+                          unsigned Value = 0);
 
 public:
   BasicBlockNode() = delete;
@@ -115,8 +107,7 @@ public:
                    BBN.CollapsedRegion,
                    BBN.Name,
                    BBN.NodeType,
-                   BBN.StateVariableValue,
-                   BBN.DispKind) {}
+                   BBN.StateVariableValue) {}
 
   /// \brief Constructor for nodes pointing to LLVM IR BasicBlock
   explicit BasicBlockNode(RegionCFGT *Parent,
@@ -128,12 +119,16 @@ public:
   explicit BasicBlockNode(RegionCFGT *Parent, RegionCFGT *Collapsed) :
     BasicBlockNode(Parent, nullptr, Collapsed, "collapsed", Type::Collapsed) {}
 
-  /// \brief Constructor for empty dummy nodes
+  /// \brief Constructor for empty dummy nodes and for entry/exit dispatcher
   explicit BasicBlockNode(RegionCFG<NodeT> *Parent,
                           llvm::StringRef Name,
                           Type T) :
     BasicBlockNode(Parent, nullptr, nullptr, Name, T) {
-    revng_assert(T == Type::Empty or T == Type::Break or T == Type::Continue);
+    revng_assert(T == Type::Empty
+                 or T == Type::Break
+                 or T == Type::Continue
+                 or T == Type::EntryDispatcher
+                 or T == Type::ExitDispatcher);
   }
 
   /// \brief Constructor for dummy nodes that handle the state variable
@@ -143,15 +138,6 @@ public:
                           unsigned Value) :
     BasicBlockNode(Parent, nullptr, nullptr, Name, T, Value) {
     revng_assert(T == Type::Set or T == Type::Check);
-  }
-
-  /// \brief Constructor for dispatcher of new types
-  explicit BasicBlockNode(RegionCFGT *Parent,
-                          llvm::StringRef Name,
-                          Type T,
-                          DispatcherKind Kind) :
-    BasicBlockNode(Parent, nullptr, nullptr, Name, T, 0, Kind) {
-    revng_assert(T == Type::Dispatcher);
   }
 
 public:
@@ -164,7 +150,8 @@ public:
   bool isArtificial() const {
     return NodeType != Type::Code and NodeType != Type::Collapsed;
   }
-  bool isDispatcher() const { return NodeType == Type::Dispatcher; }
+  bool isDispatcher() const { return NodeType == Type::EntryDispatcher
+                                     or NodeType == Type::ExitDispatcher; }
   Type getNodeType() const { return NodeType; }
 
   void setTrue(BasicBlockNode *Succ) {

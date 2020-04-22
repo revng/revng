@@ -107,7 +107,8 @@ inline void flattenRegionCFGTree(RegionCFG<NodeT> &Root) {
     case BasicBlockNodeT::Type::Collapsed:
     case BasicBlockNodeT::Type::Continue:
     case BasicBlockNodeT::Type::Empty:
-    case BasicBlockNodeT::Type::Dispatcher:
+    case BasicBlockNodeT::Type::EntryDispatcher:
+    case BasicBlockNodeT::Type::ExitDispatcher:
       // do nothing
       break;
     case BasicBlockNodeT::Type::Set: {
