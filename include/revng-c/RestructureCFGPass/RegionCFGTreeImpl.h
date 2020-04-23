@@ -1801,10 +1801,7 @@ inline void RegionCFG<NodeT>::weave() {
 
   // Collect useful objects.
   RegionCFG<NodeT> &Graph = *this;
-  BasicBlockNode<NodeT> &Entry = getEntryNode();
-
-  DT.recalculate(Graph);
-  PDT.recalculate(Graph);
+  BBNodeT &Entry = getEntryNode();
 
   BasicBlockNodeTVect ExitNodes;
   for (BBNodeT *Node : Graph) {
@@ -1830,54 +1827,24 @@ inline void RegionCFG<NodeT>::weave() {
       GraphNodes.push_back(Node);
   }
 
-  BasicBlockNodeTVect PostOrder = Graph.orderNodes(GraphNodes, false);
-
-  dbg << "TOPOLINO\n";
-  for (BasicBlockNode<NodeT> *Node : PostOrder) {
-    dbg << Node->getNameStr() << "\n";
-  }
-
   // Let's walk over the postdominator tree.
   PDT.updateDFSNumbers();
   DT.updateDFSNumbers();
 
-  CombLogger << DoLog;
-
   std::map<unsigned, BasicBlockNode<NodeT> *> DFSNodeMap;
-  std::map<unsigned, BasicBlockNode<NodeT> *> DFSNodeMap2;
 
   // Compute the ideal order of visit for creating AST nodes.
   for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
-    //DFSNodeMap[PDT[Node]->getDFSNumIn()] = Node;
-    //DFSNodeMap2[DT[Node]->getDFSNumIn()] = Node;
     DFSNodeMap[PDT[Node]->getDFSNumOut()] = Node;
-    DFSNodeMap2[DT[Node]->getDFSNumOut()] = Node;
-  }
-
-  CombLogger << "Dumping weaveing info of function: " << FunctionName << "\n";
-  CombLogger << "Dumping DT visiting order again with also the DF number\n";
-  for (auto &Pair : DFSNodeMap2) {
-    unsigned Index = Pair.first;
-    BasicBlockNode<NodeT> *Node = Pair.second;
-    CombLogger << Index << "   " << Node->getNameStr() << "\n";
-  }
-
-  CombLogger << "Dumping PDT visiting order again with also the DF number\n";
-  for (auto &Pair : DFSNodeMap) {
-    unsigned Index = Pair.first;
-    BasicBlockNode<NodeT> *Node = Pair.second;
-    CombLogger << Index << "   " << Node->getNameStr() << "\n";
   }
 
   // Build a data structure that collects all the case nodes presente in the
   // graph.
   // Build a data structure that collects for all the case nodes the switch
   // node to which they belong.
-  BasicBlockNodeTVect SwitchVector;
   std::map<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> CaseToSwitchMap;
   for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
     if (Node->successor_size() > 2) {
-      SwitchVector.push_back(Node);
       for (BasicBlockNode<NodeT> *Successor : Node->successors()) {
         CaseToSwitchMap[Successor] = Node;
       }
@@ -1887,8 +1854,10 @@ inline void RegionCFG<NodeT>::weave() {
   // Code that actually performs the weaveing
   for (auto &Pair : DFSNodeMap) {
     BasicBlockNode<NodeT> *PostDom = Pair.second;
-    CombLogger << "Node " << PostDom->getNameStr() << " imm. postdominates:"
-               << "\n";
+    if (CombLogger.isEnabled()) {
+      CombLogger << "Node " << PostDom->getNameStr() << " imm. postdominates:"
+                 << "\n";
+    }
 
     // Collect the children nodes in the dominator tree.
     std::vector<llvm::DomTreeNodeBase<BasicBlockNode<NodeT>> *>
@@ -1900,12 +1869,16 @@ inline void RegionCFG<NodeT>::weave() {
     for (llvm::DomTreeNodeBase<BasicBlockNode<NodeT>> *TreeNode : Children) {
       BasicBlockNode<NodeT> *BlockNode = TreeNode->getBlock();
       CasesVector.push_back(BlockNode);
-      CombLogger << BlockNode->getNameStr() << "\n";
+      if (CombLogger.isEnabled()) {
+        CombLogger << BlockNode->getNameStr() << "\n";
+      }
 
       if (CaseToSwitchMap.count(BlockNode) == 1) {
-        CombLogger << "Found a case node, called " << BlockNode->getNameStr()
-                   << " which is related to switch node "
-                   << CaseToSwitchMap[BlockNode]->getNameStr() << "\n";
+        if (CombLogger.isEnabled()) {
+          CombLogger << "Found a case node, called " << BlockNode->getNameStr()
+                     << " which is related to switch node "
+                     << CaseToSwitchMap[BlockNode]->getNameStr() << "\n";
+        }
       } else {
         CandidateForWeaving = false;
       }
@@ -1914,7 +1887,9 @@ inline void RegionCFG<NodeT>::weave() {
     // Perform the actual weaveing procedure.
     if (CandidateForWeaving && CasesVector.size() != 0) {
 
-      CombLogger << "I'm performing a weaveing operation";
+      if (CombLogger.isEnabled()) {
+        CombLogger << "I'm performing a weaveing operation";
+      }
 
       // Create the new sub-switch node.
       BasicBlockNodeT *NewSwitch = addWeavingSwitch();
@@ -1934,15 +1909,10 @@ inline void RegionCFG<NodeT>::weave() {
         revng_assert(OldSwitch == OldSwitch2);
 
         // Move all the necessary edges.
-        //moveEdgeTarget(EdgeDescriptor(OldSwitch, Case), NewSwitch);
-        //moveEdgeSource(EdgeDescriptor(OldSwitch, Case), NewSwitch);
         removeEdge(EdgeDescriptor(OldSwitch, Case));
         addEdge(EdgeDescriptor(NewSwitch, Case));
       }
-
     }
-
-    CombLogger << "next\n\n";
 
     // Update the dominator and postdominator trees at each step of the weaveing
     // pass.
