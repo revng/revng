@@ -1395,7 +1395,7 @@ inline void RegionCFG<NodeT>::generateAst() {
 
   std::map<unsigned, BasicBlockNode<NodeT> *> DFSNodeMap;
 
-  // Compute the ideal order of visit for creating AST nodes.
+  // Compute the ideal order of visit for performing the weaving.
   for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
     DFSNodeMap[ASTDT[Node]->getDFSNumOut()] = Node;
   }
@@ -1838,7 +1838,7 @@ inline void RegionCFG<NodeT>::weave() {
     DFSNodeMap[PDT[Node]->getDFSNumOut()] = Node;
   }
 
-  // Build a data structure that collects all the case nodes presente in the
+  // Build a data structure that collects all the case nodes present in the
   // graph.
   // Build a data structure that collects for all the case nodes the switch
   // node to which they belong.
