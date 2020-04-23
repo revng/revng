@@ -975,15 +975,15 @@ inline void RegionCFG<NodeT>::inflate() {
   // This set contains all the conditional nodes present in the graph
   BasicBlockNodeTSet ConditionalNodesComplete;
 
-  for (auto It = Graph.begin(); It != Graph.end(); It++) {
-    if ((*It)->successor_size() == 0 or (*It)->successor_size() == 1) {
+  for (BBNodeT *Node : Graph) {
+    if (Node->successor_size() == 0 or Node->successor_size() == 1) {
       // We don't need to add it to the conditional nodes vector.
-    } else if ((*It)->successor_size() == 2) {
+    } else if (Node->successor_size() == 2) {
 
       // Check that the intersection of exits nodes reachable from the then and
       // else branches are not disjoint
-      BasicBlockNodeTSet ThenExits = ReachableExits[(*It)->getSuccessorI(0)];
-      BasicBlockNodeTSet ElseExits = ReachableExits[(*It)->getSuccessorI(1)];
+      BasicBlockNodeTSet ThenExits = ReachableExits[Node->getSuccessorI(0)];
+      BasicBlockNodeTSet ElseExits = ReachableExits[Node->getSuccessorI(1)];
       BasicBlockNodeTVect Intersection;
       std::set_intersection(ThenExits.begin(),
                             ThenExits.end(),
@@ -996,12 +996,12 @@ inline void RegionCFG<NodeT>::inflate() {
       bool ThenIsDominated = true;
       bool ElseIsDominated = true;
       for (BasicBlockNode<NodeT> *Exit : ThenExits) {
-        if (not DT.dominates(*It, Exit)) {
+        if (not DT.dominates(Node, Exit)) {
           ThenIsDominated = false;
         }
       }
       for (BasicBlockNode<NodeT> *Exit : ElseExits) {
-        if (not DT.dominates(*It, Exit)) {
+        if (not DT.dominates(Node, Exit)) {
           ElseIsDominated = false;
         }
       }
@@ -1013,18 +1013,20 @@ inline void RegionCFG<NodeT>::inflate() {
       // that we can completely absorb it).
       if (Intersection.size() != 0
           or (not(ThenIsDominated or ElseIsDominated))) {
-        ConditionalNodes.push_back(*It);
-        ConditionalNodesComplete.insert(*It);
+        ConditionalNodes.push_back(Node);
+        ConditionalNodesComplete.insert(Node);
       } else {
-        CombLogger << "Blacklisted conditional: " << (*It)->getNameStr()
-                   << "\n";
+        if (CombLogger.isEnabled()) {
+          CombLogger << "Blacklisted conditional: " << Node->getNameStr()
+                     << "\n";
+        }
       }
-    } else if  ((*It)->successor_size() > 2) {
+    } else if  (Node->successor_size() > 2) {
 
       // We are in presence of a switch node, which should be considered as a
       // conditional node for what concerns the combing stage.
-      ConditionalNodes.push_back(*It);
-      ConditionalNodesComplete.insert(*It);
+      ConditionalNodes.push_back(Node);
+      ConditionalNodesComplete.insert(Node);
     }
   }
 
@@ -1072,8 +1074,7 @@ inline void RegionCFG<NodeT>::inflate() {
   // Compute the immediate post-dominator for the cases nodes. In this case, the
   // post-dominator will be the postdominator of the switch corresponding to it.
   BBNodeMap CasesToSwitchMap;
-  for (auto It = Graph.begin(); It != Graph.end(); It++) {
-    BasicBlockNodeT *Node = *It;
+  for (BasicBlockNodeT *Node : Graph) {
     if (Node->successor_size() > 2) {
       for (BasicBlockNodeT *Successor : Node->successors()) {
         PostDominatorMap[Successor] = Node;
@@ -1806,9 +1807,9 @@ inline void RegionCFG<NodeT>::weave() {
   PDT.recalculate(Graph);
 
   BasicBlockNodeTVect ExitNodes;
-  for (auto It = Graph.begin(); It != Graph.end(); It++) {
-    if ((*It)->successor_size() == 0) {
-      ExitNodes.push_back(*It);
+  for (BBNodeT *Node : Graph) {
+    if (Node->successor_size() == 0) {
+      ExitNodes.push_back(Node);
     }
   }
 
@@ -1824,9 +1825,9 @@ inline void RegionCFG<NodeT>::weave() {
   PDT.recalculate(Graph);
 
   BasicBlockNodeTVect GraphNodes;
-  for (auto It = Graph.begin(); It != Graph.end(); It++) {
-    if (*It != Sink)
-      GraphNodes.push_back(*It);
+  for (BBNodeT *Node : Graph) {
+    if (Node != Sink)
+      GraphNodes.push_back(Node);
   }
 
   BasicBlockNodeTVect PostOrder = Graph.orderNodes(GraphNodes, false);
