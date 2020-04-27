@@ -1793,6 +1793,36 @@ RegionCFG<NodeT>::isTopologicallyEquivalent(RegionCFG &Other) const {
   return Entry.isEquivalentTo(&OtherEntry);
 }
 
+template<class GraphT, class GT = llvm::GraphTraits<GraphT>,
+         class SetType =
+          llvm::SmallPtrSet<typename llvm::GraphTraits<GraphT>::NodeRef, 1>>
+class ReversePostOrderTraversalExt {
+  using NodeRef = typename GT::NodeRef;
+
+  std::vector<NodeRef> Blocks; // Block list in normal RPO order
+
+  void Initialize(NodeRef BB, SetType &WhiteList) {
+    std::copy(po_ext_begin(BB, WhiteList),
+              po_ext_end(BB, WhiteList),
+              std::back_inserter(Blocks));
+  }
+
+public:
+  using rpo_iterator = typename std::vector<NodeRef>::reverse_iterator;
+  using const_rpo_iterator =
+    typename std::vector<NodeRef>::const_reverse_iterator;
+
+  ReversePostOrderTraversalExt(GraphT G, SetType &WhiteList) {
+    Initialize(GT::getEntryNode(G), WhiteList);
+  }
+
+  // Because we want a reverse post order, use reverse iterators from the vector
+  rpo_iterator begin() { return Blocks.rbegin(); }
+  const_rpo_iterator begin() const { return Blocks.crbegin(); }
+  rpo_iterator end() { return Blocks.rend(); }
+  const_rpo_iterator end() const { return Blocks.crend(); }
+};
+
 template<class NodeT>
 inline void RegionCFG<NodeT>::weave() {
 
@@ -1801,7 +1831,7 @@ inline void RegionCFG<NodeT>::weave() {
 
   // Collect useful objects.
   RegionCFG<NodeT> &Graph = *this;
-  BBNodeT &Entry = getEntryNode();
+  BBNodeT *Entry = &getEntryNode();
 
   BasicBlockNodeTVect ExitNodes;
   for (BBNodeT *Node : Graph) {
@@ -1809,8 +1839,6 @@ inline void RegionCFG<NodeT>::weave() {
       ExitNodes.push_back(Node);
     }
   }
-
-  Entry.getName();
 
   // Add a new virtual sink node to compute the postdominator.
   BasicBlockNode<NodeT> *Sink = Graph.addArtificialNode();
@@ -1821,103 +1849,89 @@ inline void RegionCFG<NodeT>::weave() {
   DT.recalculate(Graph);
   PDT.recalculate(Graph);
 
-  BasicBlockNodeTVect GraphNodes;
-  for (BBNodeT *Node : Graph) {
-    if (Node != Sink)
-      GraphNodes.push_back(Node);
-  }
+  // Iterate over all the nodes in post order.
+  for (BBNodeT *POTBB : post_order(Entry)) {
 
-  // Let's walk over the postdominator tree.
-  PDT.updateDFSNumbers();
-  DT.updateDFSNumbers();
-
-  std::map<unsigned, BasicBlockNode<NodeT> *> DFSNodeMap;
-
-  // Compute the ideal order of visit for creating AST nodes.
-  for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
-    DFSNodeMap[PDT[Node]->getDFSNumOut()] = Node;
-  }
-
-  // Build a data structure that collects all the case nodes present in the
-  // graph.
-  // Build a data structure that collects for all the case nodes the switch
-  // node to which they belong.
-  std::map<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> CaseToSwitchMap;
-  for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
-    if (Node->successor_size() > 2) {
-      for (BasicBlockNode<NodeT> *Successor : Node->successors()) {
-        CaseToSwitchMap[Successor] = Node;
-      }
-    }
-  }
-
-  // Code that actually performs the weaveing
-  for (auto &Pair : DFSNodeMap) {
-    BasicBlockNode<NodeT> *PostDom = Pair.second;
-    if (CombLogger.isEnabled()) {
-      CombLogger << "Node " << PostDom->getNameStr() << " imm. postdominates:"
-                 << "\n";
-    }
-
-    // Collect the children nodes in the dominator tree.
-    std::vector<llvm::DomTreeNodeBase<BasicBlockNode<NodeT>> *>
-      Children = PDT[PostDom]->getChildren();
-
-    // Vector where to store the children that are case nodes.
-    BasicBlockNodeTVect CasesVector;
-    bool CandidateForWeaving = true;
-    for (llvm::DomTreeNodeBase<BasicBlockNode<NodeT>> *TreeNode : Children) {
-      BasicBlockNode<NodeT> *BlockNode = TreeNode->getBlock();
-      CasesVector.push_back(BlockNode);
+    // If we find a switch node we can start the weaving analysis.
+    if (POTBB->successor_size() > 3) {
+      BBNodeT *Switch = POTBB;
       if (CombLogger.isEnabled()) {
-        CombLogger << BlockNode->getNameStr() << "\n";
+        CombLogger << "Looking at switch node: " << Switch->getName() << "\n";
       }
 
-      if (CaseToSwitchMap.count(BlockNode) == 1) {
+      // Collect the case nodes of the switch.
+      BasicBlockNodeTSet CaseSet;
+      for (BBNodeT *Successor : Switch->successors()) {
+        CaseSet.insert(Successor);
+      }
+
+      // Find the postdominator of the switch.
+      BBNodeT *PostDom = PDT[Switch]->getIDom()->getBlock();
+      revng_assert(PostDom != nullptr);
+
+      // Iterate over all the nodes "in the body" of the switch in reverse post
+      // order.
+      llvm::SmallPtrSet<BBNodeT *, 1> PostDomSet;
+      PostDomSet.insert(PostDom);
+      ReversePostOrderTraversalExt<BBNodeT *> RPOT(Switch, PostDomSet);
+
+      if (CombLogger.isEnabled()) {
+        CombLogger << "Dumping the candidates that may initiate weaving:\n";
+      }
+
+      for (BBNodeT *RPOTBB : RPOT) {
+
+        // Do not attempt combing for case nodes.
+        if (CaseSet.count(RPOTBB) != 0)
+          continue;
+
         if (CombLogger.isEnabled()) {
-          CombLogger << "Found a case node, called " << BlockNode->getNameStr()
-                     << " which is related to switch node "
-                     << CaseToSwitchMap[BlockNode]->getNameStr() << "\n";
+          CombLogger << RPOTBB->getName() << "\n";
         }
-      } else {
-        CandidateForWeaving = false;
+
+        // Collect interesting metrics for deciding on the weaving.
+        unsigned NotDominatedCasesNumber = 0;
+        unsigned DominatedCasesNumber = 0;
+        unsigned TotalCases = CaseSet.size();
+        BasicBlockNodeTVect NotDominatedCases;
+        BasicBlockNodeTVect DominatedCases;
+        for (BBNodeT *Case : CaseSet) {
+          if (not PDT.dominates(RPOTBB, Case)) {
+            NotDominatedCasesNumber++;
+            NotDominatedCases.push_back(Case);
+          } else {
+            DominatedCasesNumber++;
+            DominatedCases.push_back(Case);
+          }
+        }
+
+        // Criterion to check if we need to perform the weaving. Specifically,
+        // we need to perform a weaving if we find a node (between the switch
+        // and its postdominator) that postdominates more than 1 of the cases,
+        // but not all of them, we can introduce a weaving switch.
+        if (DominatedCasesNumber > 1 and NotDominatedCasesNumber < TotalCases) {
+
+          // Create the new sub-switch node.
+          BasicBlockNodeT *NewSwitch = addWeavingSwitch();
+
+          // Connect the old dispatcher to the new one.
+          addEdge(EdgeDescriptor(Switch, NewSwitch));
+
+          // Iterate over all the case nodes that we found.
+          for (BasicBlockNodeT *Case : DominatedCases) {
+
+            // Move all the necessary edges.
+            removeEdge(EdgeDescriptor(Switch, Case));
+            addEdge(EdgeDescriptor(NewSwitch, Case));
+          }
+
+          // Update the dominator and postdominator trees
+          // TODO: Use the incremental update to handle this.
+          DT.recalculate(Graph);
+          PDT.recalculate(Graph);
+        }
       }
     }
-
-    // Perform the actual weaveing procedure.
-    if (CandidateForWeaving && CasesVector.size() != 0) {
-
-      if (CombLogger.isEnabled()) {
-        CombLogger << "I'm performing a weaveing operation";
-      }
-
-      // Create the new sub-switch node.
-      BasicBlockNodeT *NewSwitch = addWeavingSwitch();
-
-      // Get the switch node from the first case. We will later check for all
-      // the other cases that the case is actually the same.
-      BasicBlockNodeT *OldSwitch = CaseToSwitchMap[CasesVector[0]];
-
-      // Connect the old dispatcher to the new one.
-      addEdge(EdgeDescriptor(OldSwitch, NewSwitch));
-
-      // Iterate over all the case nodes that we found.
-      for (BasicBlockNodeT *Case : CasesVector) {
-
-        // Get the original switch node.
-        BasicBlockNodeT *OldSwitch2 = CaseToSwitchMap[Case];
-        revng_assert(OldSwitch == OldSwitch2);
-
-        // Move all the necessary edges.
-        removeEdge(EdgeDescriptor(OldSwitch, Case));
-        addEdge(EdgeDescriptor(NewSwitch, Case));
-      }
-    }
-
-    // Update the dominator and postdominator trees at each step of the weaveing
-    // pass.
-    DT.recalculate(Graph);
-    PDT.recalculate(Graph);
   }
 
   // Purge the final sink used for computing the postdominator tree.
