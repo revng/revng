@@ -209,34 +209,16 @@ public:
   void printAsOperand(llvm::raw_ostream &O, bool /* PrintType */) const;
 
   void addSuccessor(BasicBlockNode *Successor) {
-    // TODO: Disabled this, since even for set node if we copy the successors
-    //       in order we should be fine.
-    // revng_assert(not isCheck()); // you should use setFalse() and
-    // setTrue()
 
     // Assert that we are not double inserting.
-    bool Found = false;
-    for (BasicBlockNode *Candidate : Successors) {
-      if (Successor == Candidate) {
-        Found = true;
-        break;
-      }
-    }
-    revng_assert(not Found);
+    revng_assert(not hasSuccessor(Successor));
 
     Successors.push_back(Successor);
   }
 
-  bool hasSuccessor(BasicBlockNode *Candidate) {
-
-    bool Found = false;
-    for (BasicBlockNode *Successor : Successors) {
-      if (Successor == Candidate) {
-        Found = true;
-        break;
-      }
-    }
-    return Found;
+  bool hasSuccessor(BasicBlockNode *Candidate) const {
+    return (std::find(Successors.begin(), Successors.end(), Candidate)
+            != Successors.end());
   }
 
   void removeSuccessor(BasicBlockNode *Successor);
@@ -244,28 +226,14 @@ public:
   void addPredecessor(BasicBlockNode *Predecessor) {
 
     // Assert that we are not double inserting.
-    bool Found = false;
-    for (BasicBlockNode *Candidate : Predecessors) {
-      if (Predecessor == Candidate) {
-        Found = true;
-        break;
-      }
-    }
-    revng_assert(not Found);
+    revng_assert(not hasPredecessor(Predecessor));
 
     Predecessors.push_back(Predecessor);
   }
 
-  bool hasPredecessor(BasicBlockNode *Candidate) {
-
-    bool Found = false;
-    for (BasicBlockNode *Predecessor : Predecessors) {
-      if (Predecessor == Candidate) {
-        Found = true;
-        break;
-      }
-    }
-    return Found;
+  bool hasPredecessor(BasicBlockNode *Candidate) const {
+    return (std::find(Predecessors.begin(), Predecessors.end(), Candidate)
+            != Predecessors.end());
   }
 
   void removePredecessor(BasicBlockNode *Predecessor);
