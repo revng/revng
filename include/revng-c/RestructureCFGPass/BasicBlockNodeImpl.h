@@ -181,8 +181,7 @@ inline size_t BasicBlockNode<NodeT>::getWeight() const {
     return 0;
   } else if (NodeType == Type::Check) {
     return 0;
-  } else if (NodeType == Type::EntryDispatcher
-             or NodeType == Type::ExitDispatcher) {
+  } else if (NodeType == Type::Dispatcher) {
     return 0;
   } else if (NodeType == Type::Collapsed) {
     revng_assert(CollapsedRegion != nullptr);

@@ -38,8 +38,7 @@ public:
     Set,
     Check,
     Collapsed,
-    EntryDispatcher,
-    ExitDispatcher,
+    Dispatcher,
   };
 
   using BasicBlockNodeT = BasicBlockNode<NodeT>;
@@ -127,8 +126,7 @@ public:
     revng_assert(T == Type::Empty
                  or T == Type::Break
                  or T == Type::Continue
-                 or T == Type::EntryDispatcher
-                 or T == Type::ExitDispatcher);
+                 or T == Type::Dispatcher);
   }
 
   /// \brief Constructor for dummy nodes that handle the state variable
@@ -150,8 +148,7 @@ public:
   bool isArtificial() const {
     return NodeType != Type::Code and NodeType != Type::Collapsed;
   }
-  bool isDispatcher() const { return NodeType == Type::EntryDispatcher
-                                     or NodeType == Type::ExitDispatcher; }
+  bool isDispatcher() const { return NodeType == Type::Dispatcher; }
   Type getNodeType() const { return NodeType; }
 
   void setTrue(BasicBlockNode *Succ) {

@@ -204,7 +204,7 @@ public:
     using BBNodeT = BasicBlockNodeT;
     auto Tmp = std::make_unique<BBNodeT>(this,
                                          "entry dispatcher node",
-                                         Type::EntryDispatcher);
+                                         Type::Dispatcher);
     BlockNodes.emplace_back(std::move(Tmp));
     BBNodeT *Dispatcher = BlockNodes.back().get();
     return Dispatcher;
@@ -215,7 +215,7 @@ public:
     using BBNodeT = BasicBlockNodeT;
     auto Tmp = std::make_unique<BBNodeT>(this,
                                          "exit dispatcher node",
-                                         Type::ExitDispatcher);
+                                         Type::Dispatcher);
     BlockNodes.emplace_back(std::move(Tmp));
     BBNodeT *Dispatcher = BlockNodes.back().get();
     return Dispatcher;
@@ -226,7 +226,7 @@ public:
     using BBNodeT = BasicBlockNodeT;
     auto Tmp = std::make_unique<BBNodeT>(this,
                                          "weaving switch",
-                                         Type::EntryDispatcher);
+                                         Type::Dispatcher);
     BlockNodes.emplace_back(std::move(Tmp));
     BBNodeT *Dispatcher = BlockNodes.back().get();
     return Dispatcher;
