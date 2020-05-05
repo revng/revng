@@ -1364,17 +1364,12 @@ inline void RegionCFG<NodeT>::generateAst() {
       dumpDotOnFile("weaves", FunctionName, "PREWEAVE");
     }
 
-    // TODO: check this position, during our discussions we stated that doing
-    //       the weaveing after the combing should not have affected our
-    //       assumptions.
     // Invoke the weave function.
     Graph.weave();
 
     if (CombLogger.isEnabled()) {
       dumpDotOnFile("weaves", FunctionName, "POSTWEAVE");
-    }
 
-    if (CombLogger.isEnabled()) {
       CombLogger << "Inflating region " + RegionName + "\n";
       dumpDotOnFile("dots", FunctionName, "PRECOMB");
     }
