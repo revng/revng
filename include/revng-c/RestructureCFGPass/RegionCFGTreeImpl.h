@@ -1912,18 +1912,23 @@ inline void RegionCFG<NodeT>::weave() {
           // Connect the old dispatcher to the new one.
           addEdge(EdgeDescriptor(Switch, NewSwitch));
 
+          // Incremental update of DT and PDT.
+          DT.insertEdge(Switch, NewSwitch);
+          PDT.insertEdge(Switch, NewSwitch);
+
           // Iterate over all the case nodes that we found.
           for (BasicBlockNodeT *Case : DominatedCases) {
 
             // Move all the necessary edges.
             removeEdge(EdgeDescriptor(Switch, Case));
             addEdge(EdgeDescriptor(NewSwitch, Case));
-          }
 
-          // Update the dominator and postdominator trees
-          // TODO: Use the incremental update to handle this.
-          DT.recalculate(Graph);
-          PDT.recalculate(Graph);
+            // Incremental update of DT and PDT.
+            DT.deleteEdge(Switch, Case);
+            DT.insertEdge(NewSwitch, Case);
+            PDT.deleteEdge(Switch, Case);
+            PDT.insertEdge(NewSwitch, Case);
+          }
         }
       }
     }
