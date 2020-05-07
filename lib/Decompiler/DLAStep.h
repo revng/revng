@@ -105,7 +105,7 @@ public:
 
   virtual ~CollapseIdentityAndInheritanceCC() override = default;
 
-  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override { return true; }
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
 /// dla::Step that removes transitive inheritance edges

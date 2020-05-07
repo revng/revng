@@ -15,12 +15,6 @@ class Value;
 
 } // end namespace llvm
 
-namespace dla {
-
-class LayoutTypeSystem;
-
-} // end namespace dla
-
 extern llvm::SmallVector<llvm::Value *, 2>
 getInsertValueLeafOperands(llvm::InsertValueInst *);
 
@@ -32,6 +26,14 @@ getExtractedValuesFromCall(llvm::CallInst *);
 
 extern llvm::SmallVector<const llvm::Value *, 2>
 getExtractedValuesFromCall(const llvm::CallInst *);
+
+namespace dla {
+
+class LayoutTypeSystem;
+
+bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS);
+
+} // end namespace dla
 
 uint64_t getLoadStoreSizeFromPtrOpUse(const dla::LayoutTypeSystem &TS,
                                       const llvm::Use *U);
