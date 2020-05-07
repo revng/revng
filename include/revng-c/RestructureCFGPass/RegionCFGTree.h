@@ -199,37 +199,28 @@ public:
     return Dispatcher;
   }
 
-  BBNodeT *addEntryDispatcher() {
+
+  BBNodeT *addDispatcher(const llvm::StringRef Name) {
     using Type = typename BasicBlockNodeT::Type;
     using BBNodeT = BasicBlockNodeT;
     auto Tmp = std::make_unique<BBNodeT>(this,
-                                         "entry dispatcher node",
+                                         Name,
                                          Type::Dispatcher);
     BlockNodes.emplace_back(std::move(Tmp));
     BBNodeT *Dispatcher = BlockNodes.back().get();
     return Dispatcher;
+  }
+
+  BBNodeT *addEntryDispatcher() {
+    return addDispatcher("entry dispatcher node");
   }
 
   BBNodeT *addExitDispatcher() {
-    using Type = typename BasicBlockNodeT::Type;
-    using BBNodeT = BasicBlockNodeT;
-    auto Tmp = std::make_unique<BBNodeT>(this,
-                                         "exit dispatcher node",
-                                         Type::Dispatcher);
-    BlockNodes.emplace_back(std::move(Tmp));
-    BBNodeT *Dispatcher = BlockNodes.back().get();
-    return Dispatcher;
+    return addDispatcher("exit dispatcher node");
   }
 
   BBNodeT *addWeavingSwitch() {
-    using Type = typename BasicBlockNodeT::Type;
-    using BBNodeT = BasicBlockNodeT;
-    auto Tmp = std::make_unique<BBNodeT>(this,
-                                         "weaving switch",
-                                         Type::Dispatcher);
-    BlockNodes.emplace_back(std::move(Tmp));
-    BBNodeT *Dispatcher = BlockNodes.back().get();
-    return Dispatcher;
+    return addDispatcher("weaving switch");
   }
 
   BBNodeT *addSetStateNode(unsigned long StateVariableValue,
