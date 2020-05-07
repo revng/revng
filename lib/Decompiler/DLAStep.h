@@ -179,7 +179,7 @@ public:
 
   virtual ~ComputeUpperMemberAccesses() override = default;
 
-  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override { return true; }
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
 /// dla::Step that tries to aggregate compatible arrays into a single array
