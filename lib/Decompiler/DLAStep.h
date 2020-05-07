@@ -257,7 +257,7 @@ public:
 
   virtual ~MakeLayouts() override = default;
 
-  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override { return true; }
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
 template<typename IterT>
