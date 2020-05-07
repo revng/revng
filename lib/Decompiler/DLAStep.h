@@ -124,7 +124,7 @@ public:
 
   virtual ~RemoveTransitiveInheritanceEdges() override = default;
 
-  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override { return true; }
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
 /// dla::Step that computes and propagates informations on accesses and type

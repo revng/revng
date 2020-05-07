@@ -9,6 +9,7 @@ revng_add_analyses_library(Decompiler revngc
   DLACreateIntraProceduralTypes.cpp
   DLAHelpers.cpp
   DLAPass.cpp
+  DLARemoveTransitiveInheritanceEdges.cpp
   DLAStep.cpp
   DLATypeSystem.cpp
   CDecompiler.cpp
