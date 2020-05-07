@@ -12,6 +12,12 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
+namespace llvm {
+
+class ModulePass;
+
+} // end namespace llvm
+
 namespace dla {
 
 // Forward declaration for dla::LayoutTypeSystem, that will be defined later.
@@ -71,15 +77,17 @@ public:
 /// between them.
 class CreateIntraproceduralTypes : public Step {
   static const char ID;
+  llvm::ModulePass *ModPass;
 
 public:
   static const constexpr void *getID() { return &ID; }
 
-  CreateIntraproceduralTypes() : Step(ID){};
+  CreateIntraproceduralTypes(llvm::ModulePass *MPass) :
+    Step(ID), ModPass(MPass){};
 
   virtual ~CreateIntraproceduralTypes() override = default;
 
-  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override { return true; }
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
 /// dla::Step that collapses loops in the type system with equality or

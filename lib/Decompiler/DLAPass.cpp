@@ -17,7 +17,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
 
   // Front-end Steps, that create initial nodes and edges
   revng_check(SM.addStep<dla::CreateInterproceduralTypes>());
-  revng_check(SM.addStep<dla::CreateIntraproceduralTypes>());
+  revng_check(SM.addStep<dla::CreateIntraproceduralTypes>(this));
   // Middle-end Steps, that manipulate nodes and edges
   revng_check(SM.addStep<dla::CollapseIdentityAndInheritanceCC>());
   revng_check(SM.addStep<dla::PropagateInheritanceToAccessors>());
