@@ -4,7 +4,6 @@
 
 #include "revng-c/Decompiler/DLAPass.h"
 
-// Local includes
 #include "DLAStep.h"
 #include "DLATypeSystem.h"
 

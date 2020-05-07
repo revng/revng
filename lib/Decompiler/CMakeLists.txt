@@ -4,6 +4,7 @@
 
 revng_add_analyses_library(Decompiler revngc
   ASTBuildAnalysis.cpp
+  DLACreateInterProceduralTypes.cpp
   DLAHelpers.cpp
   DLAPass.cpp
   DLAStep.cpp
