@@ -27,6 +27,7 @@
 #include "revng/Support/IRHelpers.h"
 
 // Local libraries includes
+#include "revng-c/ADT/ReversePostOrderTraversal.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
 #include "revng-c/RestructureCFGPass/MetaRegionBB.h"
@@ -1787,36 +1788,6 @@ RegionCFG<NodeT>::isTopologicallyEquivalent(RegionCFG &Other) const {
   // comparison of a node and its successors.
   return Entry.isEquivalentTo(&OtherEntry);
 }
-
-template<class GraphT, class GT = llvm::GraphTraits<GraphT>,
-         class SetType =
-          llvm::SmallPtrSet<typename llvm::GraphTraits<GraphT>::NodeRef, 1>>
-class ReversePostOrderTraversalExt {
-  using NodeRef = typename GT::NodeRef;
-
-  std::vector<NodeRef> Blocks; // Block list in normal RPO order
-
-  void Initialize(NodeRef BB, SetType &WhiteList) {
-    std::copy(po_ext_begin(BB, WhiteList),
-              po_ext_end(BB, WhiteList),
-              std::back_inserter(Blocks));
-  }
-
-public:
-  using rpo_iterator = typename std::vector<NodeRef>::reverse_iterator;
-  using const_rpo_iterator =
-    typename std::vector<NodeRef>::const_reverse_iterator;
-
-  ReversePostOrderTraversalExt(GraphT G, SetType &WhiteList) {
-    Initialize(GT::getEntryNode(G), WhiteList);
-  }
-
-  // Because we want a reverse post order, use reverse iterators from the vector
-  rpo_iterator begin() { return Blocks.rbegin(); }
-  const_rpo_iterator begin() const { return Blocks.crbegin(); }
-  rpo_iterator end() { return Blocks.rend(); }
-  const_rpo_iterator end() const { return Blocks.crend(); }
-};
 
 template<class NodeT>
 inline void RegionCFG<NodeT>::weave() {
