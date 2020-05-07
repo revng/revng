@@ -127,6 +127,23 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
+/// dla::Step that enforces that inheritance edges form a tree-shaped graph
+//
+// After the execution of this step, the LayoutTypeSystem graph, filtered on
+// inheritance edges, should be a tree.
+class MakeInheritanceTree : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  MakeInheritanceTree() : Step(ID){};
+
+  virtual ~MakeInheritanceTree() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 /// dla::Step that computes and propagates informations on accesses and type
 /// sizes.
 class ComputeUpperMemberAccesses : public Step {
