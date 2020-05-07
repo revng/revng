@@ -14,6 +14,7 @@ const char CreateIntraproceduralTypes::ID = 0;
 const char CollapseIdentityAndInheritanceCC::ID = 0;
 const char RemoveTransitiveInheritanceEdges::ID = 0;
 const char MakeInheritanceTree::ID = 0;
+const char PruneLayoutNodesWithoutLayout::ID = 0;
 const char ComputeUpperMemberAccesses::ID = 0;
 const char CollapseCompatibleArrays::ID = 0;
 const char PropagateInheritanceToAccessors::ID = 0;

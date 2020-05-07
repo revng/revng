@@ -1,0 +1,77 @@
+//
+// Copyright (c) rev.ng Srls. See LICENSE.md for details.
+//
+
+#include <algorithm>
+#include <set>
+
+#include "llvm/ADT/PostOrderIterator.h"
+
+#include "revng/ADT/FilteredGraphTraits.h"
+#include "revng/Support/Debug.h"
+
+#include "DLAStep.h"
+#include "DLATypeSystem.h"
+
+using namespace llvm;
+
+static Logger<> Log("dla-prune");
+
+namespace dla {
+
+bool PruneLayoutNodesWithoutLayout::runOnTypeSystem(LayoutTypeSystem &TS) {
+  bool Changed = false;
+  using LTSN = LayoutTypeSystemNode;
+  if (Log.isEnabled())
+    TS.dumpDotOnFile("before-prune.dot");
+  revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
+
+  std::set<const LTSN *> Visited;
+  std::set<LTSN *> ToRemove;
+
+  for (LTSN *Root : llvm::nodes(&TS)) {
+    revng_assert(Root != nullptr);
+    if (not isRoot(Root))
+      continue;
+
+    revng_log(Log, "# Starting from Root: " << Root->ID);
+    for (LTSN *N : post_order_ext(Root, Visited)) {
+      revng_log(Log, "## Visiting N: " << N->ID);
+      revng_log(Log, "## Is Leaf: " << isLeaf(N));
+
+      if (hasValidLayout(N)) {
+        revng_log(Log, "### hasValidLayout(N)!");
+        continue;
+      }
+
+      using GT = GraphTraits<LTSN *>;
+      if (std::any_of(GT::child_begin(N),
+                      GT::child_end(N),
+                      [&ToRemove](LTSN *Chld) {
+                        return ToRemove.count(Chld) == 0;
+                      })) {
+        revng_log(Log, "### ChildHasLayout(N)!");
+        continue;
+      }
+
+      // Here N does not have valid layout, nor any of its child has.
+      revng_log(Log, "#### Queuing for removal: " << N->ID);
+      ToRemove.insert(N);
+    }
+  }
+
+  Changed = not ToRemove.empty();
+
+  for (LTSN *N : ToRemove) {
+    revng_log(Log, "# Removing: " << N->ID);
+    TS.removeNode(N);
+  }
+
+  revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree()
+               and TS.verifyLeafs());
+  if (Log.isEnabled())
+    TS.dumpDotOnFile("after-prune.dot");
+  return Changed;
+}
+
+} // end namespace dla

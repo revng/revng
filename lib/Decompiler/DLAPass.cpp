@@ -23,6 +23,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   revng_check(SM.addStep<dla::PropagateInheritanceToAccessors>());
   revng_check(SM.addStep<dla::RemoveTransitiveInheritanceEdges>());
   revng_check(SM.addStep<dla::MakeInheritanceTree>());
+  revng_check(SM.addStep<dla::PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<dla::ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<dla::CollapseCompatibleArrays>());
   // Back-end Steps, that build Layouts from LayoutTypeSystem nodes

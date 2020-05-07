@@ -10,6 +10,7 @@ revng_add_analyses_library(Decompiler revngc
   DLAHelpers.cpp
   DLAMakeInheritanceTree.cpp
   DLAPass.cpp
+  DLAPruneLayoutNodesWithoutLayout.cpp
   DLARemoveTransitiveInheritanceEdges.cpp
   DLAStep.cpp
   DLATypeSystem.cpp

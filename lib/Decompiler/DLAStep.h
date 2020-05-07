@@ -144,6 +144,24 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
+/// dla::Step that removes leaf nodes without valid layout information
+//
+// Initially valid layout information is simply represented by accesses, but we
+// expect this to be possibly user provded for leafs that otherwise had no valid
+// layout information, such as calls to external library functions.
+class PruneLayoutNodesWithoutLayout : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  PruneLayoutNodesWithoutLayout() : Step(ID){};
+
+  virtual ~PruneLayoutNodesWithoutLayout() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 /// dla::Step that computes and propagates informations on accesses and type
 /// sizes.
 class ComputeUpperMemberAccesses : public Step {
