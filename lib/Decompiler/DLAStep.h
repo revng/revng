@@ -258,6 +258,11 @@ public:
   /// Adds a Step to the StepManager, moving ownership into it.
   [[nodiscard]] bool addStep(std::unique_ptr<Step> S);
 
+  template<typename StepT, typename... ArgsT>
+  [[nodiscard]] bool addStep(ArgsT... Args) {
+    return addStep(std::make_unique<StepT>(Args...));
+  }
+
   /// Runs the added steps
   void run(LayoutTypeSystem &TS);
 
