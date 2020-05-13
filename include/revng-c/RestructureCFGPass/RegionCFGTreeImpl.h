@@ -1353,6 +1353,20 @@ inline void RegionCFG<NodeT>::inflate() {
 }
 
 template<class NodeT>
+static bool isASwitch(BasicBlockNode<NodeT> *Node) {
+
+  // TODO: remove this workaround for searching for switch nodes.
+  if (Node->getOriginalNode()) {
+    llvm::BasicBlock *OriginalBB = Node->getOriginalNode();
+    llvm::Instruction *TerminatorBB = OriginalBB->getTerminator();
+    return llvm::isa<llvm::SwitchInst>(TerminatorBB);
+  }
+
+  // The node may be an artifical node, therefore not an original switch.
+  return false;
+}
+
+template<class NodeT>
 inline void RegionCFG<NodeT>::generateAst() {
 
   RegionCFG<NodeT> &Graph = *this;
@@ -1421,16 +1435,8 @@ inline void RegionCFG<NodeT>::generateAst() {
 
     // Check that the two vector have the same size.
     revng_assert(Children.size() == ASTChildren.size());
-
-    // TODO: remove this workaround for searching for switch nodes
-    bool IsASwitch = false;
-    if (Node->getOriginalNode()) {
-      llvm::BasicBlock *OriginalBB = Node->getOriginalNode();
-      llvm::Instruction *TerminatorBB = OriginalBB->getTerminator();
-      IsASwitch = llvm::isa<llvm::SwitchInst>(TerminatorBB);
-    }
-
     using UniqueASTNode = ASTTree::ast_unique_ptr;
+
     // Handle collapsded node.
     UniqueASTNode ASTObject;
     if (Node->isCollapsed()) {
@@ -1447,7 +1453,7 @@ inline void RegionCFG<NodeT>::generateAst() {
         ASTNode *Body = BodyGraph->getAST().getRoot();
         ASTObject.reset(new ScsNode(Node, Body));
       }
-    } else if (Node->isDispatcher() or IsASwitch) {
+    } else if (Node->isDispatcher() or isASwitch(Node)) {
         // This should be dedicated to handle switch node. Unfortunately not all
         // the switch nodes are guaranteed to have more than 3 dominated nodes.
         revng_assert(not Node->isBreak() and not Node->isContinue()
