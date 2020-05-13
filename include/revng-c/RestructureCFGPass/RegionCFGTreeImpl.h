@@ -1447,8 +1447,7 @@ inline void RegionCFG<NodeT>::generateAst() {
         ASTNode *Body = BodyGraph->getAST().getRoot();
         ASTObject.reset(new ScsNode(Node, Body));
       }
-    } else {
-      if (Children.size() >= 4 or Node->isDispatcher() or IsASwitch) {
+    } else if (Node->isDispatcher() or IsASwitch) {
         // This should be dedicated to handle switch node. Unfortunately not all
         // the switch nodes are guaranteed to have more than 3 dominated nodes.
         revng_assert(not Node->isBreak() and not Node->isContinue()
@@ -1498,7 +1497,7 @@ inline void RegionCFG<NodeT>::generateAst() {
           NodeI++;
         }
 
-        // nodes.
+        // Fill the vector of nodes.
         for (ASTNode *N : ASTChildren) {
           if (N != PostDomASTNode) {
             Cases.push_back(N);
@@ -1534,108 +1533,114 @@ inline void RegionCFG<NodeT>::generateAst() {
                                               nullptr,
                                               PostDomASTNode));
         }
-      } else if (Children.size() == 3) {
-        revng_assert(not Node->isBreak() and not Node->isContinue()
-                     and not Node->isSet());
+      } else {
+        switch (Children.size()) {
+        case 3: {
+          revng_assert(not Node->isBreak() and not Node->isContinue()
+                       and not Node->isSet());
 
-        // If we are creating the AST for the check node, create the adequate
-        // AST node preserving the then and else branches, otherwise create a
-        // classical node.
-        if (Node->isCheck()) {
-          if (BBChildren[0] == Node->getTrue()
-              and BBChildren[2] == Node->getFalse()) {
-            ASTObject.reset(new IfCheckNode(Node,
-                                            ASTChildren[0],
-                                            ASTChildren[2],
-                                            ASTChildren[1]));
-          } else if (BBChildren[2] == Node->getTrue()
-                     and BBChildren[0] == Node->getFalse()) {
-            ASTObject.reset(new IfCheckNode(Node,
-                                            ASTChildren[2],
-                                            ASTChildren[0],
-                                            ASTChildren[1]));
+          // If we are creating the AST for the check node, create the adequate
+          // AST node preserving the then and else branches, otherwise create a
+          // classical node.
+          if (Node->isCheck()) {
+            if (BBChildren[0] == Node->getTrue()
+                and BBChildren[2] == Node->getFalse()) {
+              ASTObject.reset(new IfCheckNode(Node,
+                                              ASTChildren[0],
+                                              ASTChildren[2],
+                                              ASTChildren[1]));
+            } else if (BBChildren[2] == Node->getTrue()
+                       and BBChildren[0] == Node->getFalse()) {
+              ASTObject.reset(new IfCheckNode(Node,
+                                              ASTChildren[2],
+                                              ASTChildren[0],
+                                              ASTChildren[1]));
+            } else {
+              revng_abort("Then and else branches cannot be matched");
+            }
           } else {
-            revng_abort("Then and else branches cannot be matched");
+            // Create the conditional expression associated with the if node.
+            using UniqueExpr = ASTTree::expr_unique_ptr;
+            using ExprDestruct = ASTTree::expr_destructor;
+            auto *OriginalNode = Node->getOriginalNode();
+            UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
+            ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
+            ASTObject.reset(new IfNode(Node,
+                                       CondExprNode,
+                                       ASTChildren[0],
+                                       ASTChildren[2],
+                                       ASTChildren[1]));
           }
-        } else {
-          // Create the conditional expression associated with the if node.
-          using UniqueExpr = ASTTree::expr_unique_ptr;
-          using ExprDestruct = ASTTree::expr_destructor;
-          auto *OriginalNode = Node->getOriginalNode();
-          UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
-          ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
-          ASTObject.reset(new IfNode(Node,
-                                     CondExprNode,
-                                     ASTChildren[0],
-                                     ASTChildren[2],
-                                     ASTChildren[1]));
-        }
-      } else if (Children.size() == 2) {
-        revng_assert(not Node->isBreak() and not Node->isContinue()
-                     and not Node->isSet());
+        } break;
+        case 2: {
+          revng_assert(not Node->isBreak() and not Node->isContinue()
+                       and not Node->isSet());
 
-        // If we are creating the AST for the switch tree, create the adequate,
-        // AST node, otherwise create a classical node.
-        if (Node->isCheck()) {
-          ASTNode *Tmp = nullptr;
-          if (BBChildren[0] == Node->getTrue()
-              and BBChildren[1] == Node->getFalse()) {
-            Tmp = new IfCheckNode(Node,
-                                  ASTChildren[0],
-                                  ASTChildren[1],
-                                  nullptr);
-          } else if (BBChildren[1] == Node->getTrue()
-                     and BBChildren[0] == Node->getFalse()) {
-            Tmp = new IfCheckNode(Node,
-                                  ASTChildren[1],
-                                  ASTChildren[0],
-                                  nullptr);
+          // If we are creating the AST for the switch tree, create the adequate,
+          // AST node, otherwise create a classical node.
+          if (Node->isCheck()) {
+            ASTNode *Tmp = nullptr;
+            if (BBChildren[0] == Node->getTrue()
+                and BBChildren[1] == Node->getFalse()) {
+              Tmp = new IfCheckNode(Node,
+                                    ASTChildren[0],
+                                    ASTChildren[1],
+                                    nullptr);
+            } else if (BBChildren[1] == Node->getTrue()
+                       and BBChildren[0] == Node->getFalse()) {
+              Tmp = new IfCheckNode(Node,
+                                    ASTChildren[1],
+                                    ASTChildren[0],
+                                    nullptr);
+            } else {
+              revng_abort("Then and else branches cannot be matched");
+            }
+            ASTObject.reset(Tmp);
           } else {
-            revng_abort("Then and else branches cannot be matched");
+            // Create the conditional expression associated with the if node.
+            using UniqueExpr = ASTTree::expr_unique_ptr;
+            using ExprDestruct = ASTTree::expr_destructor;
+            auto *OriginalNode = Node->getOriginalNode();
+            UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
+            ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
+            ASTObject.reset(new IfNode(Node,
+                                       CondExprNode,
+                                       ASTChildren[0],
+                                       ASTChildren[1],
+                                       nullptr));
           }
-          ASTObject.reset(Tmp);
-        } else {
-          // Create the conditional expression associated with the if node.
-          using UniqueExpr = ASTTree::expr_unique_ptr;
-          using ExprDestruct = ASTTree::expr_destructor;
-          auto *OriginalNode = Node->getOriginalNode();
-          UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
-          ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
-          ASTObject.reset(new IfNode(Node,
-                                     CondExprNode,
-                                     ASTChildren[0],
-                                     ASTChildren[1],
-                                     nullptr));
-        }
-      } else if (Children.size() == 1) {
-        revng_assert(not Node->isBreak() and not Node->isContinue());
-        if (Node->isSet()) {
-          ASTObject.reset(new SetNode(Node, ASTChildren[0]));
-        } else if (Node->isCheck()) {
+        } break;
+        case 1: {
+          revng_assert(not Node->isBreak() and not Node->isContinue());
+          if (Node->isSet()) {
+            ASTObject.reset(new SetNode(Node, ASTChildren[0]));
+          } else if (Node->isCheck()) {
 
-          // We may have a check node with a single then/else branch due to
-          // condition blacklisting (the other branch is the fallthrough
-          // branch).
-          ASTNode *Tmp = nullptr;
-          if (BBChildren[0] == Node->getTrue())
-            Tmp = new IfCheckNode(Node, ASTChildren[0], nullptr, nullptr);
-          else if (BBChildren[0] == Node->getFalse())
-            Tmp = new IfCheckNode(Node, nullptr, ASTChildren[0], nullptr);
-          ASTObject.reset(Tmp);
-        } else {
-          ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
-        }
-      } else if (Children.size() == 0) {
-        if (Node->isBreak())
-          ASTObject.reset(new BreakNode());
-        else if (Node->isContinue())
-          ASTObject.reset(new ContinueNode());
-        else if (Node->isSet())
-          ASTObject.reset(new SetNode(Node));
-        else if (Node->isEmpty() or Node->isCode())
-          ASTObject.reset(new CodeNode(Node, nullptr));
-        else
-          revng_abort();
+            // We may have a check node with a single then/else branch due to
+            // condition blacklisting (the other branch is the fallthrough
+            // branch).
+            ASTNode *Tmp = nullptr;
+            if (BBChildren[0] == Node->getTrue())
+              Tmp = new IfCheckNode(Node, ASTChildren[0], nullptr, nullptr);
+            else if (BBChildren[0] == Node->getFalse())
+              Tmp = new IfCheckNode(Node, nullptr, ASTChildren[0], nullptr);
+            ASTObject.reset(Tmp);
+          } else {
+            ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
+          }
+        } break;
+        case 0: {
+          if (Node->isBreak())
+            ASTObject.reset(new BreakNode());
+          else if (Node->isContinue())
+            ASTObject.reset(new ContinueNode());
+          else if (Node->isSet())
+            ASTObject.reset(new SetNode(Node));
+          else if (Node->isEmpty() or Node->isCode())
+            ASTObject.reset(new CodeNode(Node, nullptr));
+          else
+            revng_abort();
+        } break;
       }
     }
     AST.addASTNode(Node, std::move(ASTObject));
