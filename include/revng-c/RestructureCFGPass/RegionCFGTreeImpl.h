@@ -1421,10 +1421,6 @@ inline void RegionCFG<NodeT>::generateAst() {
           SwitchValue = Switch->getCondition();
         }
 
-        RegularSwitchNode::case_container Cases;
-        RegularSwitchNode::case_value_container CaseValuesRegular;
-        SwitchCheckNode::case_value_container CaseValuesCheck;
-
         // Collect the successor, if present at all.
         // We should have at maximum a single node which is directly dominated
         // by the head of the switch, but which is not reachable from the
@@ -1451,6 +1447,7 @@ inline void RegionCFG<NodeT>::generateAst() {
         }
 
         // Fill the vector of nodes.
+        RegularSwitchNode::case_container Cases;
         for (ASTNode *N : ASTChildren) {
           if (N != PostDomASTNode) {
             Cases.push_back(N);
@@ -1462,6 +1459,8 @@ inline void RegionCFG<NodeT>::generateAst() {
         llvm::BasicBlock *EntryBB = Graph.EntryNode->getOriginalNode();
         llvm::LLVMContext &Context = getContext(EntryBB);
         llvm::IRBuilder<> Builder(Context);
+        RegularSwitchNode::case_value_container CaseValuesRegular;
+        SwitchCheckNode::case_value_container CaseValuesCheck;
         for (uint64_t Index = 0; Index < Cases.size(); Index++) {
           if (!Node->isDispatcher()) {
             llvm::ConstantInt *IndexConstant = Builder.getInt64(Index);
