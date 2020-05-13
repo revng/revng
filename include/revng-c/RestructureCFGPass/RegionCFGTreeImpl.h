@@ -1475,14 +1475,14 @@ inline void RegionCFG<NodeT>::generateAst() {
         // we actually have the condition value.
         if (!Node->isDispatcher()) {
           ASTObject.reset(new RegularSwitchNode(SwitchValue,
-                                                Cases,
-                                                CaseValuesRegular,
+                                                std::move(Cases),
+                                                std::move(CaseValuesRegular),
                                                 nullptr,
                                                 PostDomASTNode));
         } else {
           // Build a SwitchCheckNode starting from nodes dispatcher nodes.
-          ASTObject.reset(new SwitchCheckNode(Cases,
-                                              CaseValuesCheck,
+          ASTObject.reset(new SwitchCheckNode(std::move(Cases),
+                                              std::move(CaseValuesCheck),
                                               nullptr,
                                               PostDomASTNode));
         }
