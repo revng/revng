@@ -32,7 +32,6 @@ using BasicBlockNodeTSet = typename BasicBlockNode<NodeT>::BBNodeSet;
 template<class NodeT>
 inline void
 addEdge(std::pair<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> NewEdge) {
-  revng_assert(not NewEdge.first->isCheck());
   NewEdge.first->addSuccessor(NewEdge.second);
   NewEdge.second->addPredecessor(NewEdge.first);
 }
@@ -40,7 +39,6 @@ addEdge(std::pair<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> NewEdge) {
 template<class NodeT>
 inline void
 removeEdge(std::pair<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> Edge) {
-  revng_assert(not Edge.first->isCheck());
   Edge.first->removeSuccessor(Edge.second);
   Edge.second->removePredecessor(Edge.first);
 }
@@ -50,26 +48,9 @@ inline void moveEdgeTarget(Edge<NodeT> Edge, BasicBlockNode<NodeT> *NewTarget) {
   Edge.second->removePredecessor(Edge.first);
 
   // Special handle for dispatcher check nodes.
-  if (Edge.first->isCheck()) {
-
-    // Confirm that the old target of the edge was one of the two branches.
-    revng_assert((Edge.first->getTrue() == Edge.second)
-                 or (Edge.first->getFalse() == Edge.second));
-
-    // Set the appropriate successor.
-    if (Edge.first->getTrue() == Edge.second) {
-      Edge.first->setTrue(NewTarget);
-    } else if (Edge.first->getFalse() == Edge.second) {
-      Edge.first->setFalse(NewTarget);
-    } else {
-      revng_abort("Wrong successor for check node");
-    }
-  } else {
-    // General case when we are not handling a dispatcher check node.
-    Edge.first->removeSuccessor(Edge.second);
-    Edge.first->addSuccessor(NewTarget);
-    NewTarget->addPredecessor(Edge.first);
-  }
+  Edge.first->removeSuccessor(Edge.second);
+  Edge.first->addSuccessor(NewTarget);
+  NewTarget->addPredecessor(Edge.first);
 }
 
 template<class NodeT>

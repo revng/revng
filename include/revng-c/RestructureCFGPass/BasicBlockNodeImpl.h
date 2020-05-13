@@ -60,8 +60,6 @@ inline void BasicBlockNode<NodeT>::printAsOperand(llvm::raw_ostream &O,
 
 template<class NodeT>
 inline void BasicBlockNode<NodeT>::removeSuccessor(BasicBlockNodeT *Successor) {
-  // TODO: maybe add removeTrue and removeFalse?
-  // revng_assert(not isCheck());
   size_t Removed = 0;
   Successors.erase(std::remove_if(Successors.begin(),
                                   Successors.end(),
@@ -116,22 +114,7 @@ inline void handleNeighbors(const BBNodeMap<NodeT> &SubMap,
 template<class NodeT>
 inline void BasicBlockNode<NodeT>::updatePointers(const BBNodeMap &SubMap) {
   handleNeighbors<NodeT>(SubMap, Predecessors);
-  if (not isCheck()) {
-    handleNeighbors<NodeT>(SubMap, Successors);
-  } else { // don't screw up the if/then/else of check nodes
-
-    auto It = SubMap.find(getTrue());
-    if (It != SubMap.end())
-      setTrue(It->second);
-    else
-      setTrue(nullptr);
-
-    It = SubMap.find(getFalse());
-    if (It != SubMap.end())
-      setFalse(It->second);
-    else
-      setFalse(nullptr);
-  }
+  handleNeighbors<NodeT>(SubMap, Successors);
 }
 
 template<class NodeT>
@@ -178,8 +161,6 @@ inline size_t BasicBlockNode<NodeT>::getWeight() const {
   } else if (NodeType == Type::Continue) {
     return 0;
   } else if (NodeType == Type::Set) {
-    return 0;
-  } else if (NodeType == Type::Check) {
     return 0;
   } else if (NodeType == Type::Dispatcher) {
     return 0;

@@ -180,26 +180,6 @@ public:
     return addArtificialNode("break", BasicBlockNodeT::Type::Break);
   }
 
-  BBNodeT *addDispatcher(unsigned StateVariableValue,
-                                       BasicBlockNodeT *True,
-                                       BasicBlockNodeT *False) {
-    using Type = typename BasicBlockNodeT::Type;
-    using BBNodeT = BasicBlockNodeT;
-    std::string IdStr = std::to_string(StateVariableValue);
-    // TODO: explicit in the check node the original destination nodes.
-    std::string Name = "check idx " + IdStr;
-    auto Tmp = std::make_unique<BBNodeT>(this,
-                                         Name,
-                                         Type::Check,
-                                         StateVariableValue);
-    BlockNodes.emplace_back(std::move(Tmp));
-    BBNodeT *Dispatcher = BlockNodes.back().get();
-    Dispatcher->setTrue(True);
-    Dispatcher->setFalse(False);
-    return Dispatcher;
-  }
-
-
   BBNodeT *addDispatcher(const llvm::StringRef Name) {
     using Type = typename BasicBlockNodeT::Type;
     using BBNodeT = BasicBlockNodeT;

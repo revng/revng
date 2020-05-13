@@ -370,22 +370,6 @@ createMetaRegions(const std::vector<EdgeDescriptor> &Backedges) {
   return MetaRegions;
 }
 
-static BasicBlockNodeBB *getCheckPredecessor(BasicBlockNodeBB *Node) {
-  bool CheckFound = false;
-  BasicBlockNodeBB *CheckPredecessor = nullptr;
-  for (BasicBlockNodeBB *Predecessor : Node->predecessors()) {
-    if (Predecessor->isCheck()) {
-      revng_assert(not CheckFound);
-      CheckPredecessor = Predecessor;
-      CheckFound = true;
-    }
-  }
-
-  revng_assert(CheckPredecessor != nullptr);
-
-  return CheckPredecessor;
-}
-
 static void
 removeFromRPOT(std::vector<BasicBlockNodeBB *> &RPOT, BasicBlockNodeBB *Node) {
 
@@ -841,18 +825,12 @@ bool RestructureCFG::runOnFunction(Function &F) {
         // dispatcher.
         if (OriginalSource->isSet()) {
           BasicBlockNodeBB *OldSetNode = OriginalSource;
-          BasicBlockNodeBB *OldTarget = R.second;
           Idx = RetreatingIdxMap[R.second];
           revng_assert(OldSetNode->predecessor_size() == 1);
           BasicBlockNodeBB *Predecessor = OldSetNode->getPredecessorI(0);
           auto *SetNode = RootCFG.addSetStateNode(Idx, OldSetNode->getName());
           Meta->insertNode(SetNode);
           moveEdgeTarget(EdgeDescriptor(Predecessor, OldSetNode), Head);
-
-          // Search for the corresponding check node and move it.
-          BasicBlockNodeBB *CheckNode = getCheckPredecessor(OldTarget);
-          revng_assert(CheckNode->isCheck());
-          moveEdgeTarget(EdgeDescriptor(CheckNode, OldTarget), OldSetNode);
         } else {
           Idx = RetreatingIdxMap[R.second];
           auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
@@ -961,48 +939,21 @@ bool RestructureCFG::runOnFunction(Function &F) {
       if (Node != Head) {
 
         // Handle outgoing edges from SCS nodes.
-        if (Node->isCheck()) {
-          BasicBlockNodeBB *TrueSucc = Node->getTrue();
-          revng_assert(!Backedges.count(EdgeDescriptor(Node, TrueSucc)));
-          if (Meta->containsNode(TrueSucc)) {
-            if (TrueSucc == Head) {
-              ClonedMap.at(Node)->setTrue(Head);
+        for (BasicBlockNodeBB *Successor : Node->successors()) {
+          revng_assert(!Backedges.count(EdgeDescriptor(Node, Successor)));
+          using ED = EdgeDescriptor;
+          if (Meta->containsNode(Successor)) {
+            // Handle edges pointing inside the SCS.
+            if (Successor == Head) {
+              // Retreating edges should point to the new head.
+              addEdge(ED(ClonedMap.at(Node), Head));
             } else {
-              ClonedMap.at(Node)->setTrue(ClonedMap.at(TrueSucc));
+              // Other edges should be restored between cloned nodes.
+              addEdge(ED(ClonedMap.at(Node), ClonedMap.at(Successor)));
             }
           } else {
-            ClonedMap.at(Node)->setTrue(TrueSucc);
-          }
-
-          BasicBlockNodeBB *FalseSucc = Node->getFalse();
-          revng_assert(!Backedges.count(EdgeDescriptor(Node, FalseSucc)));
-          if (Meta->containsNode(FalseSucc)) {
-            if (FalseSucc == Head) {
-              ClonedMap.at(Node)->setFalse(Head);
-            } else {
-              ClonedMap.at(Node)->setFalse(ClonedMap.at(FalseSucc));
-            }
-          } else {
-            ClonedMap.at(Node)->setFalse(FalseSucc);
-          }
-
-        } else {
-          for (BasicBlockNodeBB *Successor : Node->successors()) {
-            revng_assert(!Backedges.count(EdgeDescriptor(Node, Successor)));
-            using ED = EdgeDescriptor;
-            if (Meta->containsNode(Successor)) {
-              // Handle edges pointing inside the SCS.
-              if (Successor == Head) {
-                // Retreating edges should point to the new head.
-                addEdge(ED(ClonedMap.at(Node), Head));
-              } else {
-                // Other edges should be restored between cloned nodes.
-                addEdge(ED(ClonedMap.at(Node), ClonedMap.at(Successor)));
-              }
-            } else {
-              // Edges exiting from the SCS should go to the right target.
-              addEdge(ED(ClonedMap.at(Node), Successor));
-            }
+            // Edges exiting from the SCS should go to the right target.
+            addEdge(ED(ClonedMap.at(Node), Successor));
           }
         }
 

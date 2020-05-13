@@ -300,16 +300,7 @@ inline void RegionCFG<NodeT>::connectBreakNode(std::set<EdgeDescriptor> &Out,
 
     // Create a new break for each outgoing edge.
     BasicBlockNode<NodeT> *Break = addBreak();
-    if (not Edge.first->isCheck()) {
-      addEdge(EdgeDescriptor(SubMap.at(Edge.first), Break));
-    } else {
-      revng_assert(Edge.second == Edge.first->getTrue()
-                   or Edge.second == Edge.first->getFalse());
-      if (Edge.second == Edge.first->getTrue())
-        SubMap.at(Edge.first)->setTrue(Break);
-      else
-        SubMap.at(Edge.first)->setFalse(Break);
-    }
+    addEdge(EdgeDescriptor(SubMap.at(Edge.first), Break));
   }
 }
 
@@ -378,9 +369,6 @@ inline void RegionCFG<NodeT>::dumpDot(StreamT &S) const {
       unsigned SuccID = Successor->getID();
       S << "\"" << PredID << "\""
         << " -> \"" << SuccID << "\"";
-      if (BB->isCheck() and BB->getFalse() == Successor)
-        S << " [color=red];\n";
-      else
         S << " [color=green];\n";
     }
   }
@@ -566,20 +554,7 @@ RegionCFG<NodeT>::cloneUntilExit(BasicBlockNode<NodeT> *Node,
 
         // Create the edge to the clone of the successor.
         revng_assert(SuccessorClone != nullptr);
-        if (CurrentClone->isCheck()) {
-          revng_assert(CurrentNode->isCheck());
-
-          // Check if we need to connect the `then` or `else` branch.
-          if (CurrentNode->getTrue() == Successor) {
-            CurrentClone->setTrue(SuccessorClone);
-          } else if (CurrentNode->getFalse() == Successor) {
-            CurrentClone->setFalse(SuccessorClone);
-          } else {
-            revng_abort("Succesor is not then neither else.");
-          }
-        } else {
-          addEdge(EdgeDescriptor(CurrentClone, SuccessorClone));
-        }
+        addEdge(EdgeDescriptor(CurrentClone, SuccessorClone));
 
         // Add the successor to the worklist.
         WorkList.push_back(Successor);
@@ -700,32 +675,14 @@ inline void RegionCFG<NodeT>::untangle() {
       // For the check nodes keep a data structure with the nodes to which we
       // have to reattach the edges. This ad-hoc handling is caused by the
       // check nodes design.
-      if (not Edge.first->isCheck()) {
-        removeEdge(Edge);
-      } else {
-        revng_assert(Edge.second == Edge.first->getTrue()
-                     or Edge.second == Edge.first->getFalse());
-        CheckSuccMap[Edge.first] = Edge.second;
-        if (Edge.second == Edge.first->getTrue())
-          Edge.first->setTrue(nullptr);
-        else
-          Edge.first->setFalse(nullptr);
-      }
+      removeEdge(Edge);
     }
 
     PDT.recalculate(Graph);
 
     // Reattach the edges disconnected for the PDT computation.
     for (EdgeDescriptor Edge : BlackListedEdges) {
-      if (not Edge.first->isCheck()) {
         addEdge(Edge);
-      } else {
-        BasicBlockNodeT *OrigSucc = CheckSuccMap.at(Edge.first);
-        if (Edge.first->getTrue() == nullptr)
-          Edge.first->setTrue(OrigSucc);
-        else
-          Edge.first->setFalse(OrigSucc);
-      }
     }
 
     // Update the postdominator
@@ -1279,18 +1236,8 @@ inline void RegionCFG<NodeT>::inflate() {
         }
 
         // Specifically handle the check idx node situation.
-        if (Candidate->isCheck()) {
-          revng_assert(Candidate->getTrue() != nullptr
-                       and Candidate->getFalse() != nullptr);
-          BasicBlockNode<NodeT> *TrueSuccessor = Candidate->getTrue();
-          BasicBlockNode<NodeT> *FalseSuccessor = Candidate->getFalse();
-          Duplicated->setTrue(TrueSuccessor);
-          Duplicated->setFalse(FalseSuccessor);
-
-        } else {
-          for (BasicBlockNode<NodeT> *Successor : Candidate->successors()) {
-            addEdge(EdgeDescriptor(Duplicated, Successor));
-          }
+        for (BasicBlockNode<NodeT> *Successor : Candidate->successors()) {
+          addEdge(EdgeDescriptor(Duplicated, Successor));
         }
         BasicBlockNodeTVect Predecessors;
 
@@ -1548,35 +1495,17 @@ inline void RegionCFG<NodeT>::generateAst() {
           // If we are creating the AST for the check node, create the adequate
           // AST node preserving the then and else branches, otherwise create a
           // classical node.
-          if (Node->isCheck()) {
-            if (BBChildren[0] == Node->getTrue()
-                and BBChildren[2] == Node->getFalse()) {
-              ASTObject.reset(new IfCheckNode(Node,
-                                              ASTChildren[0],
-                                              ASTChildren[2],
-                                              ASTChildren[1]));
-            } else if (BBChildren[2] == Node->getTrue()
-                       and BBChildren[0] == Node->getFalse()) {
-              ASTObject.reset(new IfCheckNode(Node,
-                                              ASTChildren[2],
-                                              ASTChildren[0],
-                                              ASTChildren[1]));
-            } else {
-              revng_abort("Then and else branches cannot be matched");
-            }
-          } else {
-            // Create the conditional expression associated with the if node.
-            using UniqueExpr = ASTTree::expr_unique_ptr;
-            using ExprDestruct = ASTTree::expr_destructor;
-            auto *OriginalNode = Node->getOriginalNode();
-            UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
-            ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
-            ASTObject.reset(new IfNode(Node,
-                                       CondExprNode,
-                                       ASTChildren[0],
-                                       ASTChildren[2],
-                                       ASTChildren[1]));
-          }
+          // Create the conditional expression associated with the if node.
+          using UniqueExpr = ASTTree::expr_unique_ptr;
+          using ExprDestruct = ASTTree::expr_destructor;
+          auto *OriginalNode = Node->getOriginalNode();
+          UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
+          ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
+          ASTObject.reset(new IfNode(Node,
+                                     CondExprNode,
+                                     ASTChildren[0],
+                                     ASTChildren[2],
+                                     ASTChildren[1]));
         } break;
         case 2: {
           revng_assert(not Node->isBreak() and not Node->isContinue()
@@ -1584,53 +1513,22 @@ inline void RegionCFG<NodeT>::generateAst() {
 
           // If we are creating the AST for the switch tree, create the adequate,
           // AST node, otherwise create a classical node.
-          if (Node->isCheck()) {
-            ASTNode *Tmp = nullptr;
-            if (BBChildren[0] == Node->getTrue()
-                and BBChildren[1] == Node->getFalse()) {
-              Tmp = new IfCheckNode(Node,
-                                    ASTChildren[0],
-                                    ASTChildren[1],
-                                    nullptr);
-            } else if (BBChildren[1] == Node->getTrue()
-                       and BBChildren[0] == Node->getFalse()) {
-              Tmp = new IfCheckNode(Node,
-                                    ASTChildren[1],
-                                    ASTChildren[0],
-                                    nullptr);
-            } else {
-              revng_abort("Then and else branches cannot be matched");
-            }
-            ASTObject.reset(Tmp);
-          } else {
-            // Create the conditional expression associated with the if node.
-            using UniqueExpr = ASTTree::expr_unique_ptr;
-            using ExprDestruct = ASTTree::expr_destructor;
-            auto *OriginalNode = Node->getOriginalNode();
-            UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
-            ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
-            ASTObject.reset(new IfNode(Node,
-                                       CondExprNode,
-                                       ASTChildren[0],
-                                       ASTChildren[1],
-                                       nullptr));
-          }
+          // Create the conditional expression associated with the if node.
+          using UniqueExpr = ASTTree::expr_unique_ptr;
+          using ExprDestruct = ASTTree::expr_destructor;
+          auto *OriginalNode = Node->getOriginalNode();
+          UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
+          ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
+          ASTObject.reset(new IfNode(Node,
+                                     CondExprNode,
+                                     ASTChildren[0],
+                                     ASTChildren[1],
+                                     nullptr));
         } break;
         case 1: {
           revng_assert(not Node->isBreak() and not Node->isContinue());
           if (Node->isSet()) {
             ASTObject.reset(new SetNode(Node, ASTChildren[0]));
-          } else if (Node->isCheck()) {
-
-            // We may have a check node with a single then/else branch due to
-            // condition blacklisting (the other branch is the fallthrough
-            // branch).
-            ASTNode *Tmp = nullptr;
-            if (BBChildren[0] == Node->getTrue())
-              Tmp = new IfCheckNode(Node, ASTChildren[0], nullptr, nullptr);
-            else if (BBChildren[0] == Node->getFalse())
-              Tmp = new IfCheckNode(Node, nullptr, ASTChildren[0], nullptr);
-            ASTObject.reset(Tmp);
           } else {
             ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
           }

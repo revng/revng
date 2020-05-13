@@ -36,7 +36,6 @@ public:
     Break,
     Continue,
     Set,
-    Check,
     Collapsed,
     Dispatcher,
   };
@@ -135,14 +134,13 @@ public:
                           Type T,
                           unsigned Value) :
     BasicBlockNode(Parent, nullptr, nullptr, Name, T, Value) {
-    revng_assert(T == Type::Set or T == Type::Check);
+    revng_assert(T == Type::Set);
   }
 
 public:
   bool isBreak() const { return NodeType == Type::Break; }
   bool isContinue() const { return NodeType == Type::Continue; }
   bool isSet() const { return NodeType == Type::Set; }
-  bool isCheck() const { return NodeType == Type::Check; }
   bool isCode() const { return NodeType == Type::Code; }
   bool isEmpty() const { return NodeType == Type::Empty; }
   bool isArtificial() const {
@@ -151,49 +149,8 @@ public:
   bool isDispatcher() const { return NodeType == Type::Dispatcher; }
   Type getNodeType() const { return NodeType; }
 
-  void setTrue(BasicBlockNode *Succ) {
-    revng_assert(isCheck());
-    Successors.resize(2, nullptr);
-    if (Successors[1] and Successors[1]->hasPredecessor(this))
-      Successors[1]->removePredecessor(this);
-    Successors[1] = Succ;
-
-    // We may not have a succesor (nullptr) or it may be already inserted
-    // (insertBulkNodes on with check nodes around).
-    // TODO: remove this check and handle this explicitly.
-    if (Succ and (not Succ->hasPredecessor(this))) {
-      Succ->addPredecessor(this);
-    }
-  }
-
-  BasicBlockNode *getTrue() const {
-    revng_assert(isCheck());
-    revng_assert(successor_size() == 2);
-    return Successors[1];
-  }
-
-  void setFalse(BasicBlockNode *Succ) {
-    revng_assert(isCheck());
-    Successors.resize(2, nullptr);
-    if (Successors[0] and Successors[0]->hasPredecessor(this))
-      Successors[0]->removePredecessor(this);
-    Successors[0] = Succ;
-
-    // We may not have a succesor (nullptr) or it may be already inserted
-    // (insertBulkNodes on with check nodes around).
-    // TODO: remove this check and handle this explicitly.
-    if (Succ and (not Succ->hasPredecessor(this)))
-      Succ->addPredecessor(this);
-  }
-
-  BasicBlockNode *getFalse() const {
-    revng_assert(isCheck());
-    revng_assert(successor_size() == 2);
-    return Successors[0];
-  }
-
   unsigned getStateVariableValue() const {
-    revng_assert(isCheck() or isSet());
+    revng_assert(isSet());
     return StateVariableValue;
   }
 
