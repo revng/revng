@@ -786,36 +786,22 @@ bool RestructureCFG::runOnFunction(Function &F) {
     BasicBlockNodeBB *Head;
     if (NewHeadNeeded) {
       revng_assert(RetreatingTargets.size() > 1);
-      std::map<BasicBlockNodeBB *, unsigned> RetreatingIdxMap;
 
-      BasicBlockNodeBB *const False = *RetreatingTargets.begin();
-      RetreatingIdxMap[False] = 0;
-
-      BasicBlockNodeBB *const True = *std::next(RetreatingTargets.begin());
-      RetreatingIdxMap[True] = 1;
-
-      unsigned Idx = 1;
+      // Create the dispatcher.
       Head = RootCFG.addEntryDispatcher();
       Meta->insertNode(Head);
 
-      // Add manually the first two successors to the dispatcher node.
-      Head->addSuccessor(False);
-      False->addPredecessor(Head);
-      Head->addSuccessor(True);
-      True->addPredecessor(Head);
-
-      Idx = 2;
-      using TargetIterator = std::set<BasicBlockNodeBB *>::iterator;
-      TargetIterator TgtIt = std::next(std::next(RetreatingTargets.begin()));
-      TargetIterator TgtEnd = RetreatingTargets.end();
-      for (; TgtIt != TgtEnd; ++TgtIt) {
-        RetreatingIdxMap[*TgtIt] = Idx;
+      // For each target of the dispatcher add the edge and add it in the map.
+      std::map<BasicBlockNodeBB *, unsigned> RetreatingIdxMap;
+      unsigned Idx = 0;
+      for (BasicBlockNodeBB *Target : RetreatingTargets) {
+        RetreatingIdxMap[Target] = Idx;
         Idx++;
-
-        // Connect the successor to the dispatcher.
-        Head->addSuccessor(*TgtIt);
-        (*TgtIt)->addPredecessor(Head);
+        Head->addSuccessor(Target);
+        Target->addPredecessor(Head);
       }
+
+      // Check that we inserted the correct number of edges.
       revng_assert(Idx == RetreatingTargets.size());
 
       for (EdgeDescriptor R : Retreatings) {
@@ -1040,36 +1026,23 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
     if (NewExitNeeded) {
       revng_assert(Successors.size() > 1);
-      std::map<BasicBlockNodeBB *, unsigned> SuccessorsIdxMap;
 
-      BasicBlockNodeBB *const False = *Successors.begin();
-      SuccessorsIdxMap[False] = 0;
-
-      BasicBlockNodeBB *const True = *std::next(Successors.begin());
-      SuccessorsIdxMap[True] = 1;
-
-      unsigned Idx = 1;
+      // Create the dispatcher.
       Exit = RootCFG.addExitDispatcher();
       ExitDispatcherNodes.push_back(Exit);
 
-      // Add manually the first two successors to the dispatcher.
-      Exit->addSuccessor(False);
-      False->addPredecessor(Exit);
-      Exit->addSuccessor(True);
-      True->addPredecessor(Exit);
-
-      Idx = 2;
-      using SuccessorIterator = std::set<BasicBlockNodeBB *>::iterator;
-      SuccessorIterator SuccIt = std::next(std::next(Successors.begin()));
-      SuccessorIterator SuccEnd = Successors.end();
-      for (; SuccIt != SuccEnd; ++SuccIt) {
-        SuccessorsIdxMap[*SuccIt] = Idx;
+      // For each target of the dispatcher add the edge and add it in the map.
+      std::map<BasicBlockNodeBB *, unsigned> SuccessorsIdxMap;
+      unsigned Idx = 0;
+      for (BasicBlockNodeBB *Successor : Successors) {
+        SuccessorsIdxMap[Successor] = Idx;
         Idx++;
 
-        // Connect the successor to the dispatcher.
-        Exit->addSuccessor(*SuccIt);
-        (*SuccIt)->addPredecessor(Exit);
+        Exit->addSuccessor(Successor);
+        Successor->addPredecessor(Exit);
       }
+
+      // Check that we inserted the correct number of edges.
       revng_assert(Idx == Successors.size());
 
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
