@@ -18,7 +18,8 @@
 
 // Local includes
 #include "BinaryFile.h"
-#include "JumpTargetManager.h"
+
+class ProgramCounterHandler;
 
 /// \brief Inject code to support jumping in non-translated code and handling
 ///        the comeback.
@@ -44,16 +45,15 @@ private:
 
   BinaryFile &TheBinary;
   const Architecture &Arch;
-  JumpTargetManager &JumpTargets;
-
-  llvm::Type *RegisterType;
-  llvm::FunctionType *AsmFunctionType;
+  llvm::BasicBlock *Dispatcher;
+  ProgramCounterHandler *PCH;
 
 public:
   /// \param TheFunction the root function.
   ExternalJumpsHandler(BinaryFile &TheBinary,
-                       JumpTargetManager &JumpTargets,
-                       llvm::Function &TheFunction);
+                       llvm::BasicBlock *Dispatcher,
+                       llvm::Function &TheFunction,
+                       ProgramCounterHandler *PCH);
 
 public:
   /// \brief Creates the jump out and jump back in handling infrastructure.

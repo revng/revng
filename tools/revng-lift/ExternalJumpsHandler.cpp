@@ -16,6 +16,8 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 // Local libraries includes
@@ -25,8 +27,7 @@
 // Local includes
 #include "BinaryFile.h"
 #include "ExternalJumpsHandler.h"
-#include "JumpTargetManager.h"
-#include "revng/Support/Debug.h"
+#include "ProgramCounterHandler.h"
 
 using namespace llvm;
 using std::string;
@@ -50,13 +51,10 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
   Constant *SavedRegistersPtr = TheModule.getGlobalVariable("saved_registers");
   LoadInst *SavedRegisters = Builder.CreateLoad(SavedRegistersPtr);
 
-  {
-    // Deserialize the PC
-    Value *GEP = Builder.CreateGEP(SavedRegisters,
-                                   Builder.getInt32(Arch.pcMContextIndex()));
-    LoadInst *RegisterValue = Builder.CreateLoad(GEP);
-    Builder.CreateStore(RegisterValue, JumpTargets.pcReg());
-  }
+  Value *GEP = Builder.CreateGEP(SavedRegisters,
+                                 Builder.getInt32(Arch.pcMContextIndex()));
+  LoadInst *PCAddress = Builder.CreateLoad(GEP);
+  PCH->deserializePCFromSignalContext(Builder, PCAddress, SavedRegisters);
 
   // Deserialize the ABI registers
   for (const ABIRegister &Register : Arch.abiRegisters()) {
@@ -77,7 +75,10 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
         replace(AsmString, "REGISTER", Register.name());
         std::stringstream ConstraintStringStream;
         ConstraintStringStream << "*m,~{},~{dirflag},~{fpsr},~{flags}";
-        InlineAsm *Asm = InlineAsm::get(AsmFunctionType,
+        auto *FT = FunctionType::get(Type::getVoidTy(Context),
+                                     { CSV->getType() },
+                                     false);
+        InlineAsm *Asm = InlineAsm::get(FT,
                                         AsmString,
                                         ConstraintStringStream.str(),
                                         true,
@@ -87,27 +88,24 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
     }
   }
 
-  Instruction *T = Builder.CreateBr(JumpTargets.dispatcher());
+  Instruction *T = Builder.CreateBr(Dispatcher);
   setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
 
   return ReturnFromExternal;
 }
 
 ExternalJumpsHandler::ExternalJumpsHandler(BinaryFile &TheBinary,
-                                           JumpTargetManager &JumpTargets,
-                                           Function &TheFunction) :
+                                           BasicBlock *Dispatcher,
+                                           Function &TheFunction,
+                                           ProgramCounterHandler *PCH) :
   Context(getContext(&TheFunction)),
   QMD(Context),
   TheModule(*TheFunction.getParent()),
   TheFunction(TheFunction),
   TheBinary(TheBinary),
   Arch(TheBinary.architecture()),
-  JumpTargets(JumpTargets),
-  RegisterType(JumpTargets.pcReg()->getType()->getPointerElementType()) {
-
-  AsmFunctionType = FunctionType::get(Type::getVoidTy(Context),
-                                      { RegisterType->getPointerTo() },
-                                      false);
+  Dispatcher(Dispatcher),
+  PCH(PCH) {
 }
 
 BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
@@ -116,6 +114,14 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
                                           "serialize_and_jump_out",
                                           &TheFunction);
   IRBuilder<> Builder(Result);
+  auto *PC = PCH->loadJumpablePC(Builder);
+  auto *JumpablePC = new GlobalVariable(TheModule,
+                                        PC->getType(),
+                                        false,
+                                        GlobalValue::InternalLinkage,
+                                        ConstantInt::get(PC->getType(), 0),
+                                        "jumpablepc");
+  Builder.CreateStore(PC, JumpablePC);
 
   // Serialize ABI CSVs
   for (const ABIRegister &Register : Arch.abiRegisters()) {
@@ -130,7 +136,10 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
     std::stringstream ConstraintStringStream;
     ConstraintStringStream << "*m,~{" << Register.name().data()
                            << "},~{dirflag},~{fpsr},~{flags}";
-    InlineAsm *Asm = InlineAsm::get(AsmFunctionType,
+    auto *FT = FunctionType::get(Type::getVoidTy(Context),
+                                 { CSV->getType() },
+                                 false);
+    InlineAsm *Asm = InlineAsm::get(FT,
                                     AsmString,
                                     ConstraintStringStream.str(),
                                     true,
@@ -139,13 +148,15 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
   }
 
   // Branch to the Program Counter address
-  InlineAsm *Asm = InlineAsm::get(AsmFunctionType,
+  auto *FT = FunctionType::get(Type::getVoidTy(Context),
+                               { JumpablePC->getType() },
+                               false);
+  InlineAsm *Asm = InlineAsm::get(FT,
                                   Arch.jumpAsm(),
                                   "*m,~{dirflag},~{fpsr},~{flags}",
                                   true,
                                   InlineAsm::AsmDialect::AD_ATT);
-  Value *PCReg = JumpTargets.pcReg();
-  Builder.CreateCall(Asm, PCReg);
+  Builder.CreateCall(Asm, JumpablePC);
 
   Instruction *T = Builder.CreateUnreachable();
   setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
@@ -179,8 +190,10 @@ llvm::BasicBlock *ExternalJumpsHandler::createSetjmp(BasicBlock *FirstReturn,
 }
 
 void ExternalJumpsHandler::buildExecutableSegmentsList() {
+  IRBuilder<> Builder(Context);
+  IntegerType *Int64 = Builder.getInt64Ty();
   SmallVector<Constant *, 10> ExecutableSegments;
-  auto Int = [this](uint64_t V) { return ConstantInt::get(RegisterType, V); };
+  auto Int = [Int64](uint64_t V) { return ConstantInt::get(Int64, V); };
   for (auto &Segment : TheBinary.segments()) {
     if (Segment.IsExecutable) {
       ExecutableSegments.push_back(Int(Segment.StartVirtualAddress.address()));
@@ -188,7 +201,7 @@ void ExternalJumpsHandler::buildExecutableSegmentsList() {
     }
   }
 
-  auto *SegmentsType = ArrayType::get(RegisterType, ExecutableSegments.size());
+  auto *SegmentsType = ArrayType::get(Int64, ExecutableSegments.size());
   auto *SegmentsArray = ConstantArray::get(SegmentsType, ExecutableSegments);
 
   // Create the array (unnamed)
@@ -201,16 +214,16 @@ void ExternalJumpsHandler::buildExecutableSegmentsList() {
   // Create a pointer to the array (segment_boundaries) for support.c
   // consumption
   new GlobalVariable(TheModule,
-                     RegisterType->getPointerTo(),
+                     Int64->getPointerTo(),
                      true,
                      GlobalValue::ExternalLinkage,
                      ConstantExpr::getPointerCast(SegmentBoundaries,
-                                                  RegisterType->getPointerTo()),
+                                                  Int64->getPointerTo()),
                      "segment_boundaries");
 
   // Create a variable to hold the number of segments (segments_count)
   new GlobalVariable(TheModule,
-                     RegisterType,
+                     Int64,
                      true,
                      GlobalValue::ExternalLinkage,
                      Int(ExecutableSegments.size() / 2),
@@ -227,7 +240,7 @@ ExternalJumpsHandler::createExternalDispatcher(BasicBlock *IsExecutable,
                                                        "dispatcher.external",
                                                        &TheFunction);
   IRBuilder<> Builder(ExternalJumpHandler);
-  Value *PC = Builder.CreateLoad(JumpTargets.pcReg());
+  Value *PC = PCH->loadJumpablePC(Builder);
   Value *IsExecutableResult = Builder.CreateCall(IsExecutableFunction, { PC });
 
   // If is_executable returns true go to default, otherwise setjmp
@@ -251,7 +264,6 @@ void ExternalJumpsHandler::createExternalJumpsHandler() {
   BasicBlock *SetjmpBB = createSetjmp(SerializeAndBranch, ReturnFromExternal);
 
   // Insert our BasicBlock as the default case of the dispatcher switch
-  BasicBlock *Dispatcher = JumpTargets.dispatcher();
   auto *Switch = cast<SwitchInst>(Dispatcher->getTerminator());
   BasicBlock *DispatcherFail = Switch->getDefaultDest();
 
@@ -260,6 +272,5 @@ void ExternalJumpsHandler::createExternalJumpsHandler() {
   // executable segment of the current module.
   BasicBlock *ExternalJumpHandler = createExternalDispatcher(SetjmpBB,
                                                              DispatcherFail);
-
-  Switch->setDefaultDest(ExternalJumpHandler);
+  DispatcherFail->replaceAllUsesWith(ExternalJumpHandler);
 }

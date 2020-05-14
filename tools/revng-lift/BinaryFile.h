@@ -59,11 +59,12 @@ struct SegmentInfo {
   std::string generateName();
 
   bool contains(MetaAddress Address) const {
-    return StartVirtualAddress <= Address && Address < EndVirtualAddress;
+    return (StartVirtualAddress.addressLowerThanOrEqual(Address)
+            and Address.addressLowerThan(EndVirtualAddress));
   }
 
   bool contains(MetaAddress Start, uint64_t Size) const {
-    return contains(Start) && contains(Start + Size - 1);
+    return contains(Start) and contains(Start + Size - 1);
   }
 
   uint64_t size() const { return EndVirtualAddress - StartVirtualAddress; }
@@ -78,6 +79,22 @@ struct SegmentInfo {
     } else {
       Inserter = std::make_pair(StartVirtualAddress, EndVirtualAddress);
     }
+  }
+
+  std::pair<MetaAddress, MetaAddress> pagesRange() const {
+    MetaAddress Start = StartVirtualAddress;
+    Start = Start - (Start.address() % 4096);
+
+    MetaAddress End = EndVirtualAddress;
+    End = End + (((End.address() + (4096 - 1)) / 4096) * 4096 - End.address());
+
+    return { Start, End };
+  }
+
+  bool containsInPages(MetaAddress Address) const {
+    auto Pair = pagesRange();
+    return (Pair.first.addressLowerThanOrEqual(Address)
+            and Address.addressLowerThan(Pair.second));
   }
 };
 
@@ -257,43 +274,6 @@ public:
   }
 
 public:
-  bool operator==(const Label &Other) const {
-    const auto &LHS = std::tie(Origin,
-                               Type,
-                               Address,
-                               Size,
-                               SymbolName,
-                               Value,
-                               SymbolType);
-    const auto &RHS = std::tie(Other.Origin,
-                               Other.Type,
-                               Other.Address,
-                               Other.Size,
-                               Other.SymbolName,
-                               Other.Value,
-                               Other.SymbolType);
-    return LHS == RHS;
-  }
-
-  bool operator<(const Label &Other) const {
-    const auto &LHS = std::tie(Origin,
-                               Type,
-                               Address,
-                               Size,
-                               SymbolName,
-                               Value,
-                               SymbolType);
-    const auto &RHS = std::tie(Other.Origin,
-                               Other.Type,
-                               Other.Address,
-                               Other.Size,
-                               Other.SymbolName,
-                               Other.Value,
-                               Other.SymbolType);
-    return LHS < RHS;
-  }
-
-public:
   LabelType::Values type() const { return Type; }
 
   bool isInvalid() const { return Type == LabelType::Invalid; }
@@ -336,15 +316,17 @@ public:
 
   bool isSizeVirtual() const { return SizeIsVirtual; }
 
-  bool matches(MetaAddress Address, uint64_t Size) const {
-    return this->Address == Address and this->Size == Size;
+  bool matches(MetaAddress OtherAddress, uint64_t OtherSize) const {
+    return Address == OtherAddress and Size == OtherSize;
   }
 
-  bool contains(MetaAddress Address, uint64_t Size) const {
-    auto End = MetaAddress::fromAbsolute(Address.address() + Size);
-    auto ThisEnd = MetaAddress::fromAbsolute(this->Address.address()
-                                             + this->Size);
-    return (this->Address <= Address and End <= ThisEnd);
+  bool contains(MetaAddress OtherAddress, uint64_t OtherSize) const {
+    auto ThisBegin = Address.toGeneric();
+    auto OtherBegin = OtherAddress.toGeneric();
+    auto ThisEnd = ThisBegin + Size;
+    auto OtherEnd = OtherBegin + OtherSize;
+    return (ThisBegin.addressLowerThanOrEqual(OtherBegin)
+            and OtherEnd.addressLowerThan(ThisEnd));
   }
 
   void dump() const debug_function {
@@ -462,21 +444,24 @@ private:
 
 class FilePortion;
 
+using boost::icl::partial_absorber;
+
+template<typename A, typename B, ICL_COMPARE C>
+using interval_map = boost::icl::interval_map<A, B, partial_absorber, C>;
+
 /// \brief BinaryFile describes an input image file in a semi-architecture
 ///        independent way
 class BinaryFile {
 public:
   using LabelList = llvm::SmallVector<Label *, 6u>;
-  using LabelIntervalMap = boost::icl::interval_map<MetaAddress, LabelList>;
+
+  using LabelIntervalMap = interval_map<MetaAddress, LabelList, compareAddress>;
 
   enum Endianess { OriginalEndianess, BigEndian, LittleEndian };
 
 public:
   /// \param FilePath the path to the input file.
-  /// \param UseSections whether information in sections, if available, should
-  ///        be employed or not. This is useful to precisely identify exeutable
-  ///        code.
-  BinaryFile(std::string FilePath, MetaAddress BaseAddress);
+  BinaryFile(std::string FilePath, llvm::Optional<uint64_t> BaseAddress);
 
   BinaryFile(const BinaryFile &) = delete;
   BinaryFile &operator=(BinaryFile &&) = default;
@@ -530,18 +515,22 @@ public:
   unsigned programHeaderSize() const { return ProgramHeaders.Size; }
   unsigned programHeadersCount() const { return ProgramHeaders.Count; }
 
-  /// \brief Gets the actual value of a Pointer object, possibly reading it from
-  ///        memory
+  /// Gets the actual value of a Pointer object, possibly reading it from memory
   template<typename T>
-  uint64_t getPointer(Pointer Ptr) const {
-    if (!Ptr.isIndirect())
-      return Ptr.value().asPC();
+  MetaAddress getGenericPointer(Pointer Ptr) const {
+    if (not Ptr.isIndirect())
+      return Ptr.value();
 
     auto R = getAddressData(Ptr.value());
     revng_assert(R, "Pointer not available in any segment");
     llvm::ArrayRef<uint8_t> Pointer = *R;
 
-    return ::readPointer<T>(Pointer.data());
+    return fromGeneric(::readPointer<T>(Pointer.data()));
+  }
+
+  template<typename T>
+  MetaAddress getCodePointer(Pointer Ptr) const {
+    return getGenericPointer<T>(Ptr).toPC(TheArchitecture.type());
   }
 
   /// \brief Try to read an integer from the binary
@@ -550,18 +539,23 @@ public:
                                         Endianess E = OriginalEndianess) const;
 
   MetaAddress relocate(MetaAddress Address) const {
-    if (BaseAddress.isValid())
-      return Address.relocate(BaseAddress);
-    else
+    if (BaseAddress) {
+      return Address + *BaseAddress;
+    } else {
       return Address;
+    }
+  }
+
+  MetaAddress relocate(uint64_t Address) const {
+    return relocate(fromGeneric(Address));
   }
 
   MetaAddress fromPC(uint64_t PC) const {
     return MetaAddress::fromPC(TheArchitecture.type(), PC);
   }
 
-  MetaAddress fromAbsolute(uint64_t Address) const {
-    return MetaAddress::fromAbsolute(Address);
+  MetaAddress fromGeneric(uint64_t Address) const {
+    return MetaAddress::fromGeneric(TheArchitecture.type(), Address);
   }
 
 private:
@@ -571,10 +565,12 @@ private:
 
   /// \brief Parse an ELF file to load all the required information
   template<typename T, bool HasAddend>
-  void parseELF(llvm::object::ObjectFile *TheBinary, MetaAddress BaseAddress);
+  void parseELF(llvm::object::ObjectFile *TheBinary,
+                llvm::Optional<uint64_t> BaseAddress);
 
   /// \brief Parse a COFF file
-  void parseCOFF(llvm::object::ObjectFile *TheBinary, MetaAddress BaseAddress);
+  void parseCOFF(llvm::object::ObjectFile *TheBinary,
+                 llvm::Optional<uint64_t> BaseAddress);
 
   template<typename T>
   void parseMachOSegment(llvm::ArrayRef<uint8_t> RawDataRef,
@@ -641,6 +637,7 @@ private:
     if (NewLabel.isInvalid())
       return;
 
+    revng_assert(NewLabel.address().isValid());
     Labels.push_back(NewLabel);
   }
 
@@ -675,7 +672,7 @@ private:
 
   /// The program's entry point
   MetaAddress EntryPoint;
-  MetaAddress BaseAddress;
+  llvm::Optional<uint64_t> BaseAddress;
 
   //
   // ELF specific fields
@@ -683,8 +680,8 @@ private:
 
   struct ProgramHeadersInfo {
     MetaAddress Address = MetaAddress::invalid();
-    unsigned Count;
-    unsigned Size;
+    unsigned Count = 0;
+    unsigned Size = 0;
   } ProgramHeaders;
 };
 

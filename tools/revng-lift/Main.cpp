@@ -67,7 +67,7 @@ opt<unsigned long long> BaseAddress("base",
                                     DESCRIPTION,
                                     value_desc("address"),
                                     cat(MainCategory),
-                                    init(0x50000000));
+                                    init(0));
 #undef DESCRIPTION
 
 #define DESCRIPTION desc("Alias for -base")
@@ -186,11 +186,13 @@ int main(int argc, const char *argv[]) {
   ParseCommandLineOptions(argc, argv);
   installStatistics();
 
-  auto BaseMA = MetaAddress::invalid();
-  if (EntryPointAddress.getNumOccurrences() != 0)
-    BaseMA = MetaAddress::fromAbsolute(BaseAddress);
+  llvm::Optional<uint64_t> OptionalBaseAddress;
+  if (BaseAddress.getNumOccurrences() != 0) {
+    revng_check(BaseAddress % 4096 == 0, "Base address is not page aligned");
+    OptionalBaseAddress = BaseAddress;
+  }
 
-  BinaryFile TheBinary(InputPath, BaseMA);
+  BinaryFile TheBinary(InputPath, OptionalBaseAddress);
 
   findFiles(TheBinary.architecture().name());
 

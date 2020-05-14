@@ -485,7 +485,8 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
       // the current one
       std::set<BasicBlock *> ToReanalyze = BBState.computeAffected();
       for (BasicBlock *BB : ToReanalyze)
-        registerToVisit(BB);
+        if (GCBI->getType(BB) != BlockType::IndirectBranchDispatcherHelperBlock)
+          registerToVisit(BB);
 
       if (SaLog.isEnabled()) {
         SaLog << "Basic block terminated: " << getName(BB) << "\n";
@@ -567,16 +568,18 @@ Interrupt Analysis::handleTerminator(Instruction *T,
 
     // If at least one successor is not a jump target, the branch is instruction
     // local
+    namespace BT = BlockType;
     IsInstructionLocal = (IsInstructionLocal
-                          or SuccessorType == BlockType::UntypedBlock);
+                          or SuccessorType == BT::TranslatedBlock);
 
-    IsIndirect = (IsIndirect or SuccessorType == BlockType::AnyPCBlock
-                  or SuccessorType == BlockType::UnexpectedPCBlock
-                  or SuccessorType == BlockType::DispatcherBlock);
+    IsIndirect = (IsIndirect or SuccessorType == BT::AnyPCBlock
+                  or SuccessorType == BT::UnexpectedPCBlock
+                  or SuccessorType == BT::RootDispatcherBlock
+                  or SuccessorType == BT::IndirectBranchDispatcherHelperBlock);
 
     IsUnresolvedIndirect = (IsUnresolvedIndirect
-                            or SuccessorType == BlockType::AnyPCBlock
-                            or SuccessorType == BlockType::DispatcherBlock);
+                            or SuccessorType == BT::AnyPCBlock
+                            or SuccessorType == BT::RootDispatcherBlock);
   }
 
   if (IsIndirect)
@@ -791,9 +794,8 @@ std::pair<FunctionType::Values, Element> Analysis::finalize() {
     }
 
     if (const ASSlot *Slot = StackPointerValue.directContent()) {
-      if (PC >= EntryPC and PCAddress < ClosestPC
+      if (PC.addressGreaterThanOrEqual(EntryPC) and PCAddress < ClosestPC
           and Slot->addressSpace() == ASID::stackID() and Slot->offset() >= 0) {
-
         ClosestPC = PCAddress;
         BestSP = StackPointerValue;
       }

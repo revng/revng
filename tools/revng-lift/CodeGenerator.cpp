@@ -52,6 +52,7 @@
 #include "InstructionTranslator.h"
 #include "JumpTargetManager.h"
 #include "PTCInterface.h"
+#include "ProgramCounterHandler.h"
 #include "VariableManager.h"
 
 using namespace llvm;
@@ -139,6 +140,60 @@ template<typename T, typename... Args>
 inline std::array<T, sizeof...(Args)> make_array(Args &&... args) {
   return { { std::forward<Args>(args)... } };
 }
+
+/// Wrap a value around a temporary opaque function
+///
+/// Useful to prevent undesired optimizations
+class OpaqueIdentity {
+private:
+  std::map<Type *, Function *> Map;
+  Module *M;
+
+public:
+  OpaqueIdentity(Module *M) : M(M) {}
+
+  ~OpaqueIdentity() { revng_assert(Map.size() == 0); }
+
+  void drop() {
+    SmallVector<CallInst *, 16> ToErase;
+    for (auto [T, F] : Map) {
+      for (User *U : F->users()) {
+        auto *Call = cast<CallInst>(U);
+        Call->replaceAllUsesWith(Call->getArgOperand(0));
+        ToErase.push_back(Call);
+      }
+    }
+
+    for (CallInst *Call : ToErase)
+      Call->eraseFromParent();
+
+    for (auto [T, F] : Map)
+      F->eraseFromParent();
+
+    Map.clear();
+  }
+
+  Instruction *wrap(IRBuilder<> &Builder, Value *V) {
+    Type *ResultType = V->getType();
+    Function *F = nullptr;
+    auto It = Map.find(ResultType);
+    if (It == Map.end()) {
+      auto *FT = FunctionType::get(ResultType, { ResultType }, false);
+      F = Function::Create(FT, GlobalValue::ExternalLinkage, "id", *M);
+      F->addFnAttr(Attribute::ReadOnly);
+      Map[ResultType] = F;
+    } else {
+      F = It->second;
+    }
+
+    return Builder.CreateCall(F, { V });
+  }
+
+  Instruction *wrap(Instruction *I) {
+    IRBuilder<> Builder(I->getParent(), ++I->getIterator());
+    return wrap(Builder, I);
+  }
+};
 
 // Outline the destructor for the sake of privacy in the header
 CodeGenerator::~CodeGenerator() = default;
@@ -788,10 +843,22 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     if (auto *I = dyn_cast<Instruction>(U))
       CpuLoopExitingUsers.insert(I->getParent()->getParent());
 
+  //
+  // Create well-known CSVs
+  //
   const Architecture &Arch = Binary.architecture();
   StringRef SPName = Arch.stackPointerRegister();
-  GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
   GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, SPName).first;
+
+  using PCHOwner = std::unique_ptr<ProgramCounterHandler>;
+  auto Factory = [&Variables](intptr_t Offset,
+                              llvm::StringRef Name) -> GlobalVariable * {
+    return Variables.getByEnvOffset(Offset, Name).first;
+  };
+  PCHOwner PCH = ProgramCounterHandler::create(Arch.type(),
+                                               TheModule.get(),
+                                               &ptc,
+                                               Factory);
 
   IRBuilder<> Builder(Context);
 
@@ -808,6 +875,15 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   // allocations
   BasicBlock *Entry = BasicBlock::Create(Context, "entrypoint", MainFunction);
   Builder.SetInsertPoint(Entry);
+
+  // We need to remember this instruction so we can later insert a call here.
+  // The problem is that up until now we don't know where our CPUState structure
+  // is.
+  // After the translation we will and use this information to create a call to
+  // a helper function.
+  // TODO: we need a more elegant solution here
+  auto *Delimiter = Builder.CreateStore(&*MainFunction->arg_begin(), SPReg);
+  auto *InitEnvInsertPoint = Delimiter;
 
   QuickMetadata QMD(Context);
 
@@ -857,7 +933,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   // Create an instance of JumpTargetManager
   JumpTargetManager JumpTargets(MainFunction,
-                                PCReg,
+                                PCH.get(),
                                 Binary,
                                 createCPUStateAccessAnalysisPass);
 
@@ -867,30 +943,26 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   } else {
     JumpTargets.harvestGlobalData();
     VirtualAddress = Binary.entryPoint();
+    revng_assert(VirtualAddress.isCode());
   }
-  JumpTargets.registerJT(VirtualAddress, JTReason::GlobalData);
 
-  // Initialize the program counter
-  auto *StartPC = ConstantInt::get(PCReg->getType()->getPointerElementType(),
-                                   VirtualAddress.asPC());
-  // Use this instruction as the delimiter for local variables
-  auto *Delimiter = Builder.CreateStore(StartPC, PCReg);
+  if (VirtualAddress.isValid()) {
+    JumpTargets.registerJT(VirtualAddress, JTReason::GlobalData);
 
-  // We need to remember this instruction so we can later insert a call here.
-  // The problem is that up until now we don't know where our CPUState structure
-  // is.
-  // After the translation we will and use this information to create a call to
-  // a helper function.
-  // TODO: we need a more elegant solution here
-  auto *InitEnvInsertPoint = Delimiter;
-  Builder.CreateStore(&*MainFunction->arg_begin(), SPReg);
+    // Initialize the program counter
+    PCH->initializePC(Builder, VirtualAddress);
+  }
+
+  OpaqueIdentity OI(TheModule.get());
 
   // Fake jumps to the dispatcher-related basic blocks. This way all the blocks
   // are always reachable.
-  auto *ReachSwitch = Builder.CreateSwitch(Builder.getInt8(0),
+  auto *ReachSwitch = Builder.CreateSwitch(OI.wrap(Builder, Builder.getInt8(0)),
                                            JumpTargets.dispatcher());
   ReachSwitch->addCase(Builder.getInt8(1), JumpTargets.anyPC());
   ReachSwitch->addCase(Builder.getInt8(2), JumpTargets.unexpectedPC());
+
+  JumpTargets.setCFGForm(CFGForm::SemanticPreservingCFG);
 
   std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
@@ -901,7 +973,8 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
                                    JumpTargets,
                                    Blocks,
                                    Binary.architecture(),
-                                   TargetArchitecture);
+                                   TargetArchitecture,
+                                   PCH.get());
 
   while (Entry != nullptr) {
     Builder.SetInsertPoint(Entry);
@@ -919,12 +992,12 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     case MetaAddressType::Invalid:
       revng_abort();
 
-    case MetaAddressType::Regular:
-      Type = PTC_CODE_REGULAR;
+    case MetaAddressType::Code_arm_thumb:
+      Type = PTC_CODE_ARM_THUMB;
       break;
 
-    case MetaAddressType::ARMThumb:
-      Type = PTC_CODE_ARM_THUMB;
+    default:
+      Type = PTC_CODE_REGULAR;
       break;
     }
 
@@ -1074,9 +1147,13 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       Builder.CreateUnreachable();
     }
 
+    Translator.registerDirectJumps();
+
     // Obtain a new program counter to translate
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
   } // End translations loop
+
+  OI.drop();
 
   // Reorder basic blocks in RPOT
   {
@@ -1184,7 +1261,10 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     revng_assert(!Result, "Linking failed");
   }
 
-  ExternalJumpsHandler JumpOutHandler(Binary, JumpTargets, *MainFunction);
+  ExternalJumpsHandler JumpOutHandler(Binary,
+                                      JumpTargets.dispatcher(),
+                                      *MainFunction,
+                                      PCH.get());
   JumpOutHandler.createExternalJumpsHandler();
 
   Translator.finalizeNewPCMarkers(CoveragePath);

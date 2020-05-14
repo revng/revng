@@ -146,3 +146,21 @@ target_link_libraries(test_shrinkinstructionoperands
   ${LLVM_LIBRARIES})
 add_test(NAME test_shrinkinstructionoperands COMMAND ./bin/test_shrinkinstructionoperands)
 set_tests_properties(test_shrinkinstructionoperands PROPERTIES LABELS "unit")
+
+#
+# test_metaaddress
+#
+
+revng_add_private_executable(test_metaaddress "${SRC}/MetaAddress.cpp")
+target_include_directories(test_metaaddress
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+          "${Boost_INCLUDE_DIRS}")
+target_compile_definitions(test_metaaddress
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_link_libraries(test_metaaddress
+  revngSupport
+  revngUnitTestHelpers
+  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+  ${LLVM_LIBRARIES})
+add_test(NAME test_metaaddress COMMAND ./bin/test_metaaddress)
+set_tests_properties(test_metaaddress PROPERTIES LABELS "unit")

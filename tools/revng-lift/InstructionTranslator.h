@@ -22,6 +22,7 @@
 // Local includes
 #include "JumpTargetManager.h"
 #include "PTCDump.h"
+#include "ProgramCounterHandler.h"
 
 // Forward declarations
 namespace llvm {
@@ -54,7 +55,8 @@ public:
                         JumpTargetManager &JumpTargets,
                         std::vector<llvm::BasicBlock *> Blocks,
                         const Architecture &SourceArchitecture,
-                        const Architecture &TargetArchitecture);
+                        const Architecture &TargetArchitecture,
+                        ProgramCounterHandler *PCH);
 
   /// \brief Result status of the translation of a PTC opcode
   enum TranslationResult {
@@ -120,6 +122,8 @@ public:
   /// ignored to merge the delay slot into the branch instruction.
   llvm::SmallSet<unsigned, 1> preprocess(PTCInstructionList *Instructions);
 
+  void registerDirectJumps();
+
 private:
   llvm::ErrorOr<std::vector<llvm::Value *>>
   translateOpcode(PTCOpcode Opcode,
@@ -143,6 +147,9 @@ private:
 
   MetaAddress LastPC;
   llvm::Type *MetaAddressStruct;
+
+  ProgramCounterHandler *PCH;
+  llvm::SmallVector<llvm::BasicBlock *, 4> ExitBlocks;
 };
 
 #endif // INSTRUCTIONTRANSLATOR_H

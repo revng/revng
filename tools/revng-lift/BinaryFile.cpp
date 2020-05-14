@@ -206,7 +206,7 @@ getInitialPC(Triple::ArchType Arch, bool Swap, ArrayRef<uint8_t> Command) {
     return MetaAddress::invalid();
 }
 
-BinaryFile::BinaryFile(std::string FilePath, MetaAddress BaseAddress) :
+BinaryFile::BinaryFile(std::string FilePath, Optional<uint64_t> BaseAddress) :
   EntryPoint(MetaAddress::invalid()), BaseAddress(BaseAddress) {
   auto BinaryOrErr = object::createBinary(FilePath);
   revng_check(BinaryOrErr, "Couldn't open the input file");
@@ -329,7 +329,7 @@ BinaryFile::BinaryFile(std::string FilePath, MetaAddress BaseAddress) :
                      { "xmm7", "state_0x8718" } };
     WriteRegisterAsm = "movq $0, %REGISTER";
     ReadRegisterAsm = "movq %REGISTER, $0";
-    JumpAsm = "movq $0, %r11; jmpq *%r11";
+    JumpAsm = "jmpq *$0";
 
     HasRelocationAddend = true;
 
@@ -594,7 +594,7 @@ void BinaryFile::registerBindEntry(const object::MachOBindEntry *Entry,
   switch (Entry->type()) {
   case BIND_TYPE_INVALID:
   case BIND_TYPE_POINTER:
-    Target = MetaAddress::fromAbsolute(Entry->address());
+    Target = fromGeneric(Entry->address());
     Size = PointerSize;
     break;
   case BIND_TYPE_TEXT_ABSOLUTE32:
@@ -727,7 +727,7 @@ static uint64_t u64(uint64_t Value) {
   return Value;
 }
 
-void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, MetaAddress) {
+void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, Optional<uint64_t>) {
   std::error_code EC;
   object::COFFObjectFile TheCOFF(TheBinary->getMemoryBufferRef(), EC);
 
@@ -737,7 +737,7 @@ void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, MetaAddress) {
   MetaAddress ImageBase = MetaAddress::invalid();
   if (PE32Header) {
     // TODO: ImageBase should aligned to 4kb pages, should we check that?
-    ImageBase = fromAbsolute(PE32Header->ImageBase);
+    ImageBase = fromGeneric(PE32Header->ImageBase);
 
     EntryPoint = ImageBase + u64(PE32Header->AddressOfEntryPoint);
     ProgramHeaders.Count = PE32Header->NumberOfRvaAndSize;
@@ -751,7 +751,7 @@ void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, MetaAddress) {
     }
 
     // PE32+ Header
-    ImageBase = fromAbsolute(PE32PlusHeader->ImageBase);
+    ImageBase = fromGeneric(PE32PlusHeader->ImageBase);
     EntryPoint = ImageBase + u64(PE32PlusHeader->AddressOfEntryPoint);
     ProgramHeaders.Count = PE32PlusHeader->NumberOfRvaAndSize;
     ProgramHeaders.Size = PE32PlusHeader->SizeOfHeaders;
@@ -806,8 +806,8 @@ void BinaryFile::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
   using namespace nooverflow;
 
   SegmentInfo Segment;
-  Segment.StartVirtualAddress = fromAbsolute(SegmentCommand.vmaddr);
-  Segment.EndVirtualAddress = fromAbsolute(SegmentCommand.vmaddr)
+  Segment.StartVirtualAddress = fromGeneric(SegmentCommand.vmaddr);
+  Segment.EndVirtualAddress = fromGeneric(SegmentCommand.vmaddr)
                               + SegmentCommand.vmsize;
   Segment.StartFileOffset = SegmentCommand.fileoff;
   Segment.EndFileOffset = *add(SegmentCommand.fileoff, SegmentCommand.filesize);
@@ -824,7 +824,7 @@ void BinaryFile::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
 
 template<typename T, bool HasAddend>
 void BinaryFile::parseELF(object::ObjectFile *TheBinary,
-                          MetaAddress BaseAddress) {
+                          Optional<uint64_t> BaseAddress) {
   // Parse the ELF file
   auto TheELFOrErr = object::ELFFile<T>::create(TheBinary->getData());
   if (not TheELFOrErr) {
@@ -861,11 +861,11 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
           SymtabShdr = &Section;
         } else if (Name == ".eh_frame") {
           revng_assert(not EHFrameAddress, "Duplicate .eh_frame");
-          EHFrameAddress = relocate(fromAbsolute(Section.sh_addr));
+          EHFrameAddress = relocate(fromGeneric(Section.sh_addr));
           EHFrameSize = static_cast<uint64_t>(Section.sh_size);
         } else if (Name == ".dynamic") {
           revng_assert(not DynamicAddress, "Duplicate .dynamic");
-          DynamicAddress = relocate(fromAbsolute(Section.sh_addr));
+          DynamicAddress = relocate(fromGeneric(Section.sh_addr));
         }
       }
     }
@@ -909,7 +909,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
       if (SymbolType == SymbolType::Code)
         Address = fromPC(Symbol.st_value);
       else
-        Address = MetaAddress::fromAbsolute(Symbol.st_value);
+        Address = fromGeneric(Symbol.st_value);
 
       registerLabel(Label::createSymbol(LabelOrigin::StaticSymbol,
                                         Address,
@@ -945,7 +945,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
     case ELF::PT_LOAD: {
       using namespace nooverflow;
       SegmentInfo Segment;
-      auto Start = relocate(fromAbsolute(ProgramHeader.p_vaddr));
+      auto Start = relocate(fromGeneric(ProgramHeader.p_vaddr));
       Segment.StartVirtualAddress = Start;
       Segment.EndVirtualAddress = Start + u64(ProgramHeader.p_memsz);
       Segment.StartFileOffset = ProgramHeader.p_offset;
@@ -967,7 +967,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
         auto Inserter = std::back_inserter(Segment.ExecutableSections);
         for (Elf_Shdr &SectionHeader : *Sections) {
           if (SectionHeader.sh_flags & ELF::SHF_EXECINSTR) {
-            auto SectionStart = relocate(fromAbsolute(SectionHeader.sh_addr));
+            auto SectionStart = relocate(fromGeneric(SectionHeader.sh_addr));
             auto SectionEnd = SectionStart + u64(SectionHeader.sh_size);
             Inserter = make_pair(SectionStart, SectionEnd);
           }
@@ -982,7 +982,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
                               + u64(ProgramHeader.p_filesz);
       if (ProgramHeaderStart <= ElfHeader->e_phoff
           && ElfHeader->e_phoff < ProgramHeaderEnd) {
-        MetaAddress PhdrAddress = (relocate(fromAbsolute(ProgramHeader.p_vaddr))
+        MetaAddress PhdrAddress = (relocate(fromGeneric(ProgramHeader.p_vaddr))
                                    + u64(ElfHeader->e_phoff)
                                    - u64(ProgramHeader.p_offset));
         ProgramHeaders.Address = PhdrAddress;
@@ -991,13 +991,13 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
 
     case ELF::PT_GNU_EH_FRAME:
       revng_assert(!EHFrameHdrAddress);
-      EHFrameHdrAddress = relocate(fromAbsolute(ProgramHeader.p_vaddr));
+      EHFrameHdrAddress = relocate(fromGeneric(ProgramHeader.p_vaddr));
       break;
 
     case ELF::PT_DYNAMIC:
       revng_assert(DynamicPhdr == nullptr, "Duplicate .dynamic program header");
       DynamicPhdr = &ProgramHeader;
-      MetaAddress DynamicPhdrMA = relocate(fromAbsolute(DynamicPhdr->p_vaddr));
+      MetaAddress DynamicPhdrMA = relocate(fromGeneric(DynamicPhdr->p_vaddr));
       revng_assert(not DynamicAddress or DynamicPhdrMA == *DynamicAddress,
                    ".dynamic and PT_DYNAMIC have different addresses");
       DynamicAddress = relocate(DynamicPhdrMA);
@@ -1045,7 +1045,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
     for (Elf_Dyn &DynamicTag : *DynamicEntries) {
 
       auto TheTag = DynamicTag.getTag();
-      MetaAddress Relocated = relocate(fromAbsolute(DynamicTag.getPtr()));
+      MetaAddress Relocated = relocate(fromGeneric(DynamicTag.getPtr()));
       switch (TheTag) {
       case ELF::DT_NEEDED:
         NeededLibraryNameOffsets.push_back(DynamicTag.getVal());
@@ -1158,7 +1158,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
         if (SymbolType == SymbolType::Code)
           Address = fromPC(Symbol.st_value);
         else
-          Address = MetaAddress::fromAbsolute(Symbol.st_value);
+          Address = fromGeneric(Symbol.st_value);
 
         registerLabel(Label::createSymbol(LabelOrigin::DynamicSymbol,
                                           Address,
@@ -1381,7 +1381,7 @@ void BinaryFile::registerRelocations(Elf_Rel_Array<T, HasAddend> Relocations,
   for (Elf_Rel Relocation : Relocations) {
     auto Type = static_cast<unsigned char>(Relocation.getType(false));
     uint64_t Addend = RelocationHelper<T, HasAddend>::getAddend(Relocation);
-    MetaAddress Address = relocate(fromAbsolute(Relocation.r_offset));
+    MetaAddress Address = relocate(fromGeneric(Relocation.r_offset));
 
     StringRef SymbolName;
     uint64_t SymbolSize = 0;
@@ -1412,7 +1412,7 @@ static LabelList &operator+=(LabelList &This, const LabelList &Other) {
 }
 
 void BinaryFile::rebuildLabelsMap() {
-  using Interval = boost::icl::interval<MetaAddress>;
+  using Interval = boost::icl::interval<MetaAddress, compareAddress>;
 
   // Clear the map
   LabelsMap.clear();
@@ -1425,14 +1425,17 @@ void BinaryFile::rebuildLabelsMap() {
 
   // Sort the 0-sized labels
   auto Compare = [](Label *This, Label *Other) {
-    return This->address() < Other->address();
+    return This->address().addressLowerThan(Other->address());
   };
   std::sort(ZeroSizedLabels.begin(), ZeroSizedLabels.end(), Compare);
 
   // Create virtual terminator label
-  MetaAddress HighestAddress = MetaAddress::invalid();
-  for (const SegmentInfo &Segment : Segments)
-    HighestAddress = std::max(HighestAddress, Segment.EndVirtualAddress);
+  revng_assert(Segments.size() > 0);
+  MetaAddress HighestAddress = Segments[0].EndVirtualAddress;
+  for (const SegmentInfo &Segment : skip(1, Segments))
+    if (Segment.EndVirtualAddress.addressGreaterThan(HighestAddress))
+      HighestAddress = Segment.EndVirtualAddress;
+
   Label EndLabel = Label::createSymbol(LabelOrigin::Unknown,
                                        HighestAddress,
                                        0,
@@ -1449,9 +1452,16 @@ void BinaryFile::rebuildLabelsMap() {
       continue;
 
     // Limit the symbol to the end of the segment containing it
-    MetaAddress End = std::min(ZeroSizedLabels[I + 1]->address(),
-                               Segment->EndVirtualAddress);
-    revng_assert(Start <= End);
+    MetaAddress End;
+    MetaAddress NextAddress = ZeroSizedLabels[I + 1]->address();
+    MetaAddress LastAddress = Segment->EndVirtualAddress;
+    if (NextAddress.addressLowerThan(LastAddress)) {
+      End = NextAddress;
+    } else {
+      End = LastAddress;
+    }
+
+    revng_assert(Start.addressLowerThanOrEqual(End));
 
     // Register virtual size
     ZeroSizedLabels[I]->setVirtualSize(End - Start);
@@ -1485,11 +1495,13 @@ void BinaryFile::rebuildLabelsMap() {
 //
 // .eh_frame-related functions
 //
-
 template<typename E>
 class DwarfReader {
 public:
-  DwarfReader(ArrayRef<uint8_t> Buffer, MetaAddress Address) :
+  DwarfReader(Triple::ArchType Architecture,
+              ArrayRef<uint8_t> Buffer,
+              MetaAddress Address) :
+    Architecture(Architecture),
     Address(Address),
     Start(Buffer.data()),
     Cursor(Buffer.data()),
@@ -1630,7 +1642,7 @@ private:
     bool IsIndirect = Encoding & dwarf::DW_EH_PE_indirect;
 
     if (Base.isInvalid()) {
-      return Pointer(IsIndirect, MetaAddress::fromAbsolute(Value));
+      return Pointer(IsIndirect, MetaAddress::fromGeneric(Architecture, Value));
     } else {
       unsigned EncodingRelative = Encoding & 0x70;
       revng_assert(EncodingRelative == 0 || EncodingRelative == 0x10);
@@ -1641,6 +1653,7 @@ private:
   bool is64() const;
 
 private:
+  Triple::ArchType Architecture;
   MetaAddress Address;
   const uint8_t *Start;
   const uint8_t *Cursor;
@@ -1671,7 +1684,9 @@ BinaryFile::ehFrameFromEhFrameHdr(MetaAddress EHFrameHdrAddress) {
   revng_assert(R, ".eh_frame_hdr section not available in any segment");
   llvm::ArrayRef<uint8_t> EHFrameHdr = *R;
 
-  DwarfReader<T> EHFrameHdrReader(EHFrameHdr, EHFrameHdrAddress);
+  DwarfReader<T> EHFrameHdrReader(TheArchitecture.type(),
+                                  EHFrameHdr,
+                                  EHFrameHdrAddress);
 
   uint64_t VersionNumber = EHFrameHdrReader.readNextU8();
   revng_assert(VersionNumber == 1);
@@ -1686,10 +1701,9 @@ BinaryFile::ehFrameFromEhFrameHdr(MetaAddress EHFrameHdrAddress) {
   EHFrameHdrReader.readNextU8();
 
   Pointer EHFramePointer = EHFrameHdrReader.readPointer(ExceptionFrameEncoding);
-  Pointer FDEsCountPointer = EHFrameHdrReader.readPointer(FDEsCountEncoding);
+  uint64_t FDEsCount = EHFrameHdrReader.readUnsignedValue(FDEsCountEncoding);
 
-  return { MetaAddress::fromAbsolute(getPointer<T>(EHFramePointer)),
-           getPointer<T>(FDEsCountPointer) };
+  return { getGenericPointer<T>(EHFramePointer), FDEsCount };
 }
 
 template<typename T>
@@ -1706,7 +1720,7 @@ void BinaryFile::parseEHFrame(MetaAddress EHFrameAddress,
     return;
   llvm::ArrayRef<uint8_t> EHFrame = *R;
 
-  DwarfReader<T> EHFrameReader(EHFrame, EHFrameAddress);
+  DwarfReader<T> EHFrameReader(TheArchitecture.type(), EHFrame, EHFrameAddress);
 
   // A few fields of the CIE are used when decoding the FDE's.  This struct
   // will cache those fields we need so that we don't have to decode it
@@ -1799,8 +1813,7 @@ void BinaryFile::parseEHFrame(MetaAddress EHFrameAddress,
             // Personality
             Pointer Personality;
             Personality = EHFrameReader.readPointer(*PersonalityEncoding);
-            uint64_t RawPersonalityPtr = getPointer<T>(Personality);
-            auto PersonalityPtr = fromPC(RawPersonalityPtr);
+            auto PersonalityPtr = getCodePointer<T>(Personality);
             logAddress(EhFrameLog, "Personality function: ", PersonalityPtr);
 
             // TODO: technically this is not a landing pad
@@ -1842,7 +1855,7 @@ void BinaryFile::parseEHFrame(MetaAddress EHFrameAddress,
 
       // PCBegin
       auto PCBeginPointer = EHFrameReader.readPointer(*CIE.FDEPointerEncoding);
-      MetaAddress PCBegin = fromPC(getPointer<T>(PCBeginPointer));
+      MetaAddress PCBegin = getGenericPointer<T>(PCBeginPointer);
       logAddress(EhFrameLog, "PCBegin: ", PCBegin);
 
       // PCRange
@@ -1854,8 +1867,7 @@ void BinaryFile::parseEHFrame(MetaAddress EHFrameAddress,
       // Decode the LSDA if the CIE augmentation string said we should.
       if (CIE.LSDAPointerEncoding) {
         auto LSDAPointer = EHFrameReader.readPointer(*CIE.LSDAPointerEncoding);
-        parseLSDA<T>(PCBegin,
-                     MetaAddress::fromAbsolute(getPointer<T>(LSDAPointer)));
+        parseLSDA<T>(PCBegin, getGenericPointer<T>(LSDAPointer));
       }
     }
 
@@ -1872,14 +1884,13 @@ void BinaryFile::parseLSDA(MetaAddress FDEStart, MetaAddress LSDAAddress) {
   revng_assert(R, "LSDA not available in any segment");
   llvm::ArrayRef<uint8_t> LSDA = *R;
 
-  DwarfReader<T> LSDAReader(LSDA, LSDAAddress);
+  DwarfReader<T> LSDAReader(TheArchitecture.type(), LSDA, LSDAAddress);
 
   uint32_t LandingPadBaseEncoding = LSDAReader.readNextU8();
   MetaAddress LandingPadBase = MetaAddress::invalid();
   if (LandingPadBaseEncoding != dwarf::DW_EH_PE_omit) {
     auto LandingPadBasePointer = LSDAReader.readPointer(LandingPadBaseEncoding);
-    uint64_t RawLandingPadBase = getPointer<T>(LandingPadBasePointer);
-    LandingPadBase = MetaAddress::fromAbsolute(RawLandingPadBase);
+    LandingPadBase = getGenericPointer<T>(LandingPadBasePointer);
   } else {
     LandingPadBase = FDEStart;
   }
@@ -1904,8 +1915,7 @@ void BinaryFile::parseLSDA(MetaAddress FDEStart, MetaAddress LSDAAddress) {
     // LandingPad
     Pointer LandingPadPointer = LSDAReader.readPointer(CallSiteTableEncoding,
                                                        LandingPadBase);
-    uint64_t RawLandingPadPointer = getPointer<T>(LandingPadPointer);
-    MetaAddress LandingPad = fromPC(RawLandingPadPointer);
+    MetaAddress LandingPad = getCodePointer<T>(LandingPadPointer);
 
     // Action
     LSDAReader.readULEB128();

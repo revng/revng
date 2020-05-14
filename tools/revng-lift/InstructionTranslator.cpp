@@ -463,7 +463,8 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
                           JumpTargetManager &JumpTargets,
                           std::vector<BasicBlock *> Blocks,
                           const Architecture &SourceArchitecture,
-                          const Architecture &TargetArchitecture) :
+                          const Architecture &TargetArchitecture,
+                          ProgramCounterHandler *PCH) :
   Builder(Builder),
   Variables(Variables),
   JumpTargets(JumpTargets),
@@ -474,7 +475,8 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
   TargetArchitecture(TargetArchitecture),
   NewPCMarker(nullptr),
   LastPC(MetaAddress::invalid()),
-  MetaAddressStruct(MetaAddress::getStruct(&TheModule)) {
+  MetaAddressStruct(MetaAddress::getStruct(&TheModule)),
+  PCH(PCH) {
 
   auto &Context = TheModule.getContext();
   using FT = FunctionType;
@@ -713,7 +715,8 @@ IT::translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC) {
   if (!Result)
     return Abort;
 
-  revng_assert(Result->size() == (size_t) TheInstruction.OutArguments.size());
+  size_t OutSize = TheInstruction.OutArguments.size();
+  revng_assert(Result->size() == OutSize);
   // TODO: use ZipIterator here
   for (unsigned I = 0; I < Result->size(); I++) {
     auto *Destination = Variables.getOrCreate(TheInstruction.OutArguments[I],
@@ -721,21 +724,17 @@ IT::translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC) {
     if (Destination == nullptr)
       return Abort;
 
-    auto *Value = Result.get()[I];
-    Builder.CreateStore(Value, Destination);
+    auto *Store = Builder.CreateStore(Result.get()[I], Destination);
 
-    // If we're writing somewhere an immediate, register it for exploration
-    // immediately
-    auto *Constant = dyn_cast<ConstantInt>(Value);
-    if (Constant != nullptr) {
-
-      MetaAddress Address = JumpTargets.fromPC(Constant->getLimitedValue());
-      if (PC != Address and JumpTargets.isPC(Address)
-          and not JumpTargets.hasJT(Address)) {
-
-        if (JumpTargets.isPCReg(Destination)) {
-          JumpTargets.registerJT(Address, JTReason::DirectJump);
-        } else {
+    if (PCH->affectsPC(Store)) {
+      // This is a PC-related store
+      PCH->handleStore(Builder, Store);
+    } else {
+      // If we're writing somewhere an immediate, register it for exploration
+      if (auto *Constant = dyn_cast<ConstantInt>(Store->getValueOperand())) {
+        MetaAddress Address = JumpTargets.fromPC(Constant->getLimitedValue());
+        if (Address.isValid() and PC != Address and JumpTargets.isPC(Address)
+            and not JumpTargets.hasJT(Address)) {
           JumpTargets.registerSimpleLiteral(Address);
         }
       }
@@ -743,6 +742,19 @@ IT::translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC) {
   }
 
   return Success;
+}
+
+void IT::registerDirectJumps() {
+
+  for (BasicBlock *ExitBB : ExitBlocks) {
+    auto [Result, NextPC] = PCH->getUniqueJumpTarget(ExitBB);
+    if (Result == NextJumpTarget::Unique and JumpTargets.isPC(NextPC)
+        and not JumpTargets.hasJT(NextPC)) {
+      JumpTargets.registerJT(NextPC, JTReason::DirectJump);
+    }
+  }
+
+  ExitBlocks.clear();
 }
 
 ErrorOr<std::vector<Value *>>
@@ -983,11 +995,11 @@ IT::translateOpcode(PTCOpcode Opcode,
       return std::errc::invalid_argument;
     }
 
-    bool Result = Variables.storeToEnvOffset(Builder,
+    auto Result = Variables.storeToEnvOffset(Builder,
                                              StoreSize,
                                              ConstArguments[0],
                                              InArguments[0]);
-    revng_assert(Result);
+    PCH->handleStore(Builder, *Result);
 
     return v{};
   }
@@ -1325,6 +1337,8 @@ IT::translateOpcode(PTCOpcode Opcode,
     auto *Zero = ConstantInt::get(Type::getInt32Ty(Context), 0);
     Builder.CreateCall(JumpTargets.exitTB(), { Zero });
     Builder.CreateUnreachable();
+
+    ExitBlocks.push_back(Builder.GetInsertBlock());
 
     auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
     Blocks.push_back(NextBB);

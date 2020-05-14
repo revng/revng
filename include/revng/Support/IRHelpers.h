@@ -645,14 +645,6 @@ inline bool isFirst(T *I) {
   return I == &*I->getParent()->begin();
 }
 
-/// \brief Check if among \p BB's predecessors there's \p Target
-inline bool hasPredecessor(llvm::BasicBlock *BB, llvm::BasicBlock *Target) {
-  for (llvm::BasicBlock *Predecessor : predecessors(BB))
-    if (Predecessor == Target)
-      return true;
-  return false;
-}
-
 static std::array<unsigned, 3> CastOpcodes = {
   llvm::Instruction::BitCast,
   llvm::Instruction::PtrToInt,
@@ -867,5 +859,22 @@ inline llvm::User *getUniqueUser(llvm::Value *V) {
 /// \return a pair of integers: the first element represents the PC and the
 ///         second the size of the instruction.
 std::pair<MetaAddress, uint64_t> getPC(llvm::Instruction *TheInstruction);
+
+inline void replaceAllUsesInFunctionWith(llvm::Function *F,
+                                         llvm::Value *Old,
+                                         llvm::Value *New) {
+  using namespace llvm;
+
+  auto UI = Old->use_begin();
+  auto E = Old->use_end();
+  while (UI != E) {
+    Use &U = *UI;
+    ++UI;
+
+    if (auto *I = dyn_cast<Instruction>(U.getUser()))
+      if (I->getParent()->getParent() == F)
+        U.set(New);
+  }
+}
 
 #endif // IRHELPERS_H

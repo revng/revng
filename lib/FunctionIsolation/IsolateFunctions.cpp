@@ -481,7 +481,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
         MetaAddress PC = getBasicBlockPC(BB);
         if (Type == BlockType::AnyPCBlock
             or Type == BlockType::UnexpectedPCBlock
-            or Type == BlockType::DispatcherBlock) {
+            or Type == BlockType::RootDispatcherBlock) {
           // The target is not a translated block, let's try to go through the
           // function dispatcher and let it throw the exception if necessary
           auto *Null = ConstantPointerNull::get(Type::getInt8PtrTy(Context));
@@ -892,10 +892,11 @@ void IFI::run() {
       std::vector<BasicBlock *> Successors;
       for (BasicBlock *Successor : successors(Terminator)) {
 
+        auto SuccessorType = GCBI.getType(Successor);
         revng_assert(GCBI.isTranslated(Successor)
-                     || GCBI.getType(Successor) == BlockType::AnyPCBlock
-                     || GCBI.getType(Successor) == BlockType::UnexpectedPCBlock
-                     || GCBI.getType(Successor) == BlockType::DispatcherBlock);
+                     or SuccessorType == BlockType::AnyPCBlock
+                     or SuccessorType == BlockType::UnexpectedPCBlock
+                     or SuccessorType == BlockType::RootDispatcherBlock);
         auto SuccessorIt = RootToIsolated.find(Successor);
 
         // We add a successor if it is not a revng block type and it is present

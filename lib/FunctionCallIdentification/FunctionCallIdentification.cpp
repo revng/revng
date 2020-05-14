@@ -129,7 +129,9 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
               revng_assert(LastPC.isValid());
 
               // Note that we willingly ignore stores to the PC here
-              if (LastPC.replacePC(Constant->getLimitedValue()) == ReturnPC) {
+              uint64_t StoredValue = Constant->getLimitedValue();
+              auto StoredMA = MetaAddress::fromPC(LastPC, StoredValue);
+              if (StoredMA == ReturnPC) {
                 if (SaveRAFound) {
                   SaveRAFound = false;
                   return StopNow;

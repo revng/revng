@@ -65,7 +65,7 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
   for (BasicBlock &BB : F) {
     if (!BB.empty()) {
       switch (getType(&BB)) {
-      case BlockType::DispatcherBlock:
+      case BlockType::RootDispatcherBlock:
         revng_assert(Dispatcher == nullptr);
         Dispatcher = &BB;
         break;
@@ -91,9 +91,11 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
         JumpTargets[MetaAddress::fromConstant(Call->getArgOperand(0))] = &BB;
         break;
       }
+      case BlockType::RootDispatcherHelperBlock:
+      case BlockType::IndirectBranchDispatcherHelperBlock:
       case BlockType::EntryPoint:
       case BlockType::ExternalJumpsHandlerBlock:
-      case BlockType::UntypedBlock:
+      case BlockType::TranslatedBlock:
         // Nothing to do here
         break;
       }

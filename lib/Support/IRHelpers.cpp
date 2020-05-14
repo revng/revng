@@ -73,53 +73,46 @@ Constant *getUniqueString(Module *M,
 }
 
 std::pair<MetaAddress, uint64_t> getPC(Instruction *TheInstruction) {
-  BasicBlock *Dispatcher = nullptr;
   CallInst *NewPCCall = nullptr;
   std::set<BasicBlock *> Visited;
   std::queue<BasicBlock::reverse_iterator> WorkList;
+
+  // Initialize WorkList with an iterator pointing at the given instruction
   if (TheInstruction->getIterator() == TheInstruction->getParent()->begin())
     WorkList.push(--TheInstruction->getParent()->rend());
   else
     WorkList.push(++TheInstruction->getReverseIterator());
 
-  while (!WorkList.empty()) {
+  // Process the worklist
+  while (not WorkList.empty()) {
     auto I = WorkList.front();
     WorkList.pop();
     auto *BB = I->getParent();
     auto End = BB->rend();
 
     // Go through the instructions looking for calls to newpc
-    for (; I != End; I++) {
-      if (auto Marker = dyn_cast<CallInst>(&*I)) {
-        // TODO: comparing strings is not very elegant
-        auto *Callee = Marker->getCalledFunction();
-        if (Callee != nullptr && Callee->getName() == "newpc") {
+    for (; I != End and NewPCCall == nullptr; I++) {
+      if (CallInst *Marker = getCallTo(&*I, "newpc")) {
+        // We found two distinct newpc leading to the requested instruction
+        if (NewPCCall != nullptr)
+          return { MetaAddress::invalid(), 0 };
 
-          // We found two distinct newpc leading to the requested instruction
-          if (NewPCCall != nullptr)
-            return { MetaAddress::invalid(), 0 };
-
-          NewPCCall = Marker;
-          break;
-        }
+        NewPCCall = Marker;
       }
     }
 
-    // If we haven't find a newpc call yet, continue exploration backward
+    // If we didn't find a newpc call yet, continue exploration backward
     if (NewPCCall == nullptr) {
       // If one of the predecessors is the dispatcher, don't explore any further
       for (BasicBlock *Predecessor : predecessors(BB)) {
 
         // Lazily detect dispatcher
         using GCBI = GeneratedCodeBasicInfo;
-        if (Dispatcher == nullptr
-            and GCBI::getType(Predecessor) == BlockType::DispatcherBlock) {
-          Dispatcher = Predecessor;
-        }
+        bool PartOfDispatcher = GCBI::isPartOfRootDispatcher(Predecessor);
 
         // Assert we didn't reach the almighty dispatcher
-        revng_assert(!(NewPCCall == nullptr && Predecessor == Dispatcher));
-        if (Predecessor == Dispatcher)
+        revng_assert(not(NewPCCall == nullptr and PartOfDispatcher));
+        if (PartOfDispatcher)
           continue;
       }
 

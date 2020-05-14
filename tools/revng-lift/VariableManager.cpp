@@ -248,16 +248,17 @@ VariableManager::VariableManager(Module &TheModule,
   }
 }
 
-bool VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
-                                            unsigned StoreSize,
-                                            unsigned Offset,
-                                            Value *ToStore) {
+Optional<StoreInst *>
+VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
+                                       unsigned StoreSize,
+                                       unsigned Offset,
+                                       Value *ToStore) {
   Value *Target;
   unsigned Remaining;
   std::tie(Target, Remaining) = getByCPUStateOffsetInternal(Offset);
 
   if (Target == nullptr)
-    return false;
+    return {};
 
   unsigned ShiftAmount = 0;
   if (TargetArchitecture.isLittleEndian())
@@ -287,7 +288,7 @@ bool VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
     // If we're storing more than it fits and the following memory is not
     // padding the store is not valid.
     if (getByCPUStateOffsetInternal(Offset + FieldSize).first != nullptr)
-      return false;
+      return {};
   }
 
   // Truncate value to store
@@ -311,9 +312,7 @@ bool VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
     ToStore = Builder.CreateOr(ToStore, Blanked);
   }
 
-  Builder.CreateStore(ToStore, Target);
-
-  return true;
+  return { Builder.CreateStore(ToStore, Target) };
 }
 
 Value *VariableManager::loadFromCPUStateOffset(IRBuilder<> &Builder,
