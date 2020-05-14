@@ -470,22 +470,22 @@ static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
     // Inspect the body of a SCS region.
     Scs->setBody(matchDispatcher(AST, Scs->getBody(), Mark));
 
-  } else if (auto *IfCheck = llvm::dyn_cast<IfCheckNode>(RootNode)) {
+  } else if (auto *IfDispatcher = llvm::dyn_cast<IfDispatcherNode>(RootNode)) {
 
-    // An `IfCheckNode` represents the start of a dispatcher, which we want to
+    // An `IfDispatcherNode` represents the start of a dispatcher, which we want to
     // represent using a `SwitchDispatcherNode`.
-    std::vector<IfCheckNode *> Candidates;
-    Candidates.push_back(IfCheck);
+    std::vector<IfDispatcherNode *> Candidates;
+    Candidates.push_back(IfDispatcher);
 
-    // Continue to accumulate the `IfCheck` nodes until it is possible.
-    while (auto *SuccChk = dyn_cast_or_null<IfCheckNode>(IfCheck->getElse())) {
+    // Continue to accumulate the `IfDispatcher` nodes until it is possible.
+    while (auto *SuccChk = dyn_cast_or_null<IfDispatcherNode>(IfDispatcher->getElse())) {
       Candidates.push_back(SuccChk);
-      IfCheck = SuccChk;
+      IfDispatcher = SuccChk;
     }
 
     SwitchDispatcherNode::case_container Cases;
     SwitchDispatcherNode::case_value_container CaseValues;
-    for (IfCheckNode *Candidate : Candidates) {
+    for (IfDispatcherNode *Candidate : Candidates) {
       Cases.push_back(Candidate->getThen());
       CaseValues.push_back(Candidate->getCaseValue());
     }
@@ -905,8 +905,8 @@ protected:
     case ASTNode::NK_Code:
     case ASTNode::NK_Continue:
       break; // do nothing
-    case ASTNode::NK_IfCheck:
-      BeautifyLogger << "Unexpected: IfCheck\n";
+    case ASTNode::NK_IfDispatcher:
+      BeautifyLogger << "Unexpected: IfDispatcher\n";
       revng_unreachable("unexpected node kind");
       break;
     }

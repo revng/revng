@@ -553,7 +553,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
 
   } break;
 
-  case ASTNode::NodeKind::NK_IfCheck:
+  case ASTNode::NodeKind::NK_IfDispatcher:
     revng_abort();
   }
 }

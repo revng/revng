@@ -19,7 +19,7 @@
 using namespace llvm;
 
 void IfNode::updateCondExprPtr(ExprNodeMap &Map) {
-  if (not llvm::isa<IfCheckNode>(this)) {
+  if (not llvm::isa<IfDispatcherNode>(this)) {
     revng_assert(ConditionExpression != nullptr);
     ConditionExpression = Map[ConditionExpression];
   }
@@ -318,7 +318,7 @@ void SetNode::dump(std::ofstream &ASTFile) {
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
-void IfCheckNode::dump(std::ofstream &ASTFile) {
+void IfDispatcherNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"" << this->getName() << "\" [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
@@ -379,8 +379,8 @@ void ASTNode::deleteASTNode(ASTNode *A) {
   case NodeKind::NK_If:
     delete static_cast<IfNode *>(A);
     break;
-  case NodeKind::NK_IfCheck:
-    delete static_cast<IfCheckNode *>(A);
+  case NodeKind::NK_IfDispatcher:
+    delete static_cast<IfDispatcherNode *>(A);
     break;
   // ---- end IfNode kinds
   case NodeKind::NK_Scs:
