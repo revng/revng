@@ -473,7 +473,7 @@ static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
   } else if (auto *IfCheck = llvm::dyn_cast<IfCheckNode>(RootNode)) {
 
     // An `IfCheckNode` represents the start of a dispatcher, which we want to
-    // represent using a `SwitchCheckNode`.
+    // represent using a `SwitchDispatcherNode`.
     std::vector<IfCheckNode *> Candidates;
     Candidates.push_back(IfCheck);
 
@@ -483,8 +483,8 @@ static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
       IfCheck = SuccChk;
     }
 
-    SwitchCheckNode::case_container Cases;
-    SwitchCheckNode::case_value_container CaseValues;
+    SwitchDispatcherNode::case_container Cases;
+    SwitchDispatcherNode::case_value_container CaseValues;
     for (IfCheckNode *Candidate : Candidates) {
       Cases.push_back(Candidate->getThen());
       CaseValues.push_back(Candidate->getCaseValue());
@@ -497,10 +497,10 @@ static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
       CaseValues.push_back(Zero);
     }
 
-    // Create the `SwitchCheckNode`.
+    // Create the `SwitchDispatcherNode`.
     ASTTree::ast_unique_ptr Switch;
     {
-      ASTNode *Tmp = new SwitchCheckNode(Cases, CaseValues);
+      ASTNode *Tmp = new SwitchDispatcherNode(Cases, CaseValues);
       Switch.reset(Tmp);
     }
 
@@ -508,7 +508,7 @@ static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
     matchDispatcher(AST, Switch.get(), Mark);
 
     // Return the new object.
-    return AST.addSwitchCheck(std::move(Switch));
+    return AST.addSwitchDispatcher(std::move(Switch));
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
 
@@ -866,7 +866,7 @@ protected:
       for (ASTNode *N : Seq->nodes())
         exec(N, AST);
     } break;
-    case ASTNode::NK_SwitchCheck:
+    case ASTNode::NK_SwitchDispatcher:
     case ASTNode::NK_SwitchRegular: {
       SwitchNode *Switch = llvm::cast<SwitchNode>(Node);
       if (not LoopStack.empty())

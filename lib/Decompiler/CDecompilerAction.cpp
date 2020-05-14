@@ -408,12 +408,12 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
   } break;
 
   case ASTNode::NodeKind::NK_SwitchRegular:
-  case ASTNode::NodeKind::NK_SwitchCheck: {
+  case ASTNode::NodeKind::NK_SwitchDispatcher: {
     SwitchNode *Switch = cast<SwitchNode>(N);
 
     // Generate the condition of the switch.
     clang::Expr *CondExpr = nullptr;
-    if (Kind == ASTNode::NodeKind::NK_SwitchCheck) {
+    if (Kind == ASTNode::NodeKind::NK_SwitchDispatcher) {
       clang::VarDecl *StateVarD = ASTBuilder.getOrCreateLoopStateVarDecl();
       QualType T = StateVarD->getType();
       CondExpr = new (ASTCtx)
@@ -438,8 +438,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     for (ASTNode *CaseNode : Switch->unordered_cases()) {
       clang::Expr *CaseExpr = nullptr;
       // Retrieve the value for each case
-      if (Kind == ASTNode::NodeKind::NK_SwitchCheck) {
-        auto *S = llvm::cast<SwitchCheckNode>(Switch);
+      if (Kind == ASTNode::NodeKind::NK_SwitchDispatcher) {
+        auto *S = llvm::cast<SwitchDispatcherNode>(Switch);
         uint64_t CaseConst = S->getCaseValueN(CaseIndex);
         CaseExpr = ASTBuilder.getUIntLiteral(CaseConst);
       } else {
@@ -478,8 +478,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       BodyStmts.push_back(Def);
       BodyStmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
       SwitchStatement->addSwitchCase(Def);
-    } else if (Kind == ASTNode::NodeKind::NK_SwitchCheck) {
-      // TODO: the default of the SwitchCheck should be an abort
+    } else if (Kind == ASTNode::NodeKind::NK_SwitchDispatcher) {
+      // TODO: the default of the SwitchDispatcher should be an abort
     }
     clang::Stmt *SwitchBody = CompoundStmt::Create(ASTCtx, BodyStmts, {}, {});
     SwitchStatement->setBody(SwitchBody);

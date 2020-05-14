@@ -1460,7 +1460,7 @@ inline void RegionCFG<NodeT>::generateAst() {
         llvm::LLVMContext &Context = getContext(EntryBB);
         llvm::IRBuilder<> Builder(Context);
         RegularSwitchNode::case_value_container CaseValuesRegular;
-        SwitchCheckNode::case_value_container CaseValuesCheck;
+        SwitchDispatcherNode::case_value_container CaseValuesCheck;
         for (uint64_t Index = 0; Index < Cases.size(); Index++) {
           if (!Node->isDispatcher()) {
             llvm::ConstantInt *IndexConstant = Builder.getInt64(Index);
@@ -1479,11 +1479,11 @@ inline void RegionCFG<NodeT>::generateAst() {
                                                 nullptr,
                                                 PostDomASTNode));
         } else {
-          // Build a SwitchCheckNode starting from nodes dispatcher nodes.
-          ASTObject.reset(new SwitchCheckNode(std::move(Cases),
-                                              std::move(CaseValuesCheck),
-                                              nullptr,
-                                              PostDomASTNode));
+          // Build a SwitchDispatcherNode starting from nodes dispatcher nodes.
+          ASTObject.reset(new SwitchDispatcherNode(std::move(Cases),
+                                                   std::move(CaseValuesCheck),
+                                                   nullptr,
+                                                   PostDomASTNode));
         }
       } else {
         switch (Children.size()) {

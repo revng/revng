@@ -79,14 +79,14 @@ bool SwitchNode::hasEqualCaseValues(const SwitchNode *Node) const {
     return false;
   revng_assert(CaseSize() == Node->CaseSize());
 
-  auto *SwitchCheckThis = dyn_cast<SwitchCheckNode>(this);
+  auto *SwitchDispatcherThis = dyn_cast<SwitchDispatcherNode>(this);
   auto *RegSwitchThis = dyn_cast<RegularSwitchNode>(this);
-  auto *SwitchCheckOther = dyn_cast<SwitchCheckNode>(Node);
+  auto *SwitchDispatcherOther = dyn_cast<SwitchDispatcherNode>(Node);
   auto *RegSwitchOther = dyn_cast<RegularSwitchNode>(Node);
   for (case_container::size_type I = 0; I < CaseSize(); I++) {
-    if (SwitchCheckThis != nullptr) {
-      uint64_t ThisCase = getCaseValueN(SwitchCheckThis, I);
-      uint64_t OtherCase = getCaseValueN(SwitchCheckOther, I);
+    if (SwitchDispatcherThis != nullptr) {
+      uint64_t ThisCase = getCaseValueN(SwitchDispatcherThis, I);
+      uint64_t OtherCase = getCaseValueN(SwitchDispatcherOther, I);
       if (ThisCase != OtherCase)
         return false;
     } else {
@@ -341,7 +341,7 @@ void IfCheckNode::dump(std::ofstream &ASTFile) {
   }
 }
 
-void SwitchCheckNode::dump(std::ofstream &ASTFile) {
+void SwitchDispatcherNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"" << this->getName() << "\" [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
@@ -393,8 +393,8 @@ void ASTNode::deleteASTNode(ASTNode *A) {
   case NodeKind::NK_SwitchRegular:
     delete static_cast<RegularSwitchNode *>(A);
     break;
-  case NodeKind::NK_SwitchCheck:
-    delete static_cast<SwitchCheckNode *>(A);
+  case NodeKind::NK_SwitchDispatcher:
+    delete static_cast<SwitchDispatcherNode *>(A);
     break;
   // ---- end SwitchNode kinds
   case NodeKind::NK_SwitchBreak:

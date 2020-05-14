@@ -49,13 +49,13 @@ void ASTTree::addASTNode(BasicBlockNode<BasicBlock *> *Node,
   NodeASTMap.insert(std::make_pair(Node, ASTNode));
 }
 
-SwitchCheckNode *ASTTree::addSwitchCheck(ast_unique_ptr &&ASTObject) {
+SwitchDispatcherNode *ASTTree::addSwitchDispatcher(ast_unique_ptr &&ASTObject) {
   ASTNodeList.emplace_back(std::move(ASTObject));
 
   // Set the Node ID
   ASTNodeList.back()->setID(getNewID());
 
-  return llvm::cast<SwitchCheckNode>(ASTNodeList.back().get());
+  return llvm::cast<SwitchDispatcherNode>(ASTNodeList.back().get());
 }
 
 SwitchNode *ASTTree::addSwitch(ast_unique_ptr &&ASTObject) {

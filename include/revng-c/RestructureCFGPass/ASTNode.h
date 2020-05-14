@@ -40,7 +40,7 @@ public:
     NK_List,
     // ---- SwitchNode kinds
     NK_SwitchRegular,
-    NK_SwitchCheck,
+    NK_SwitchDispatcher,
     // ---- end SwitchNode kinds
     NK_SwitchBreak,
     NK_Set
@@ -540,7 +540,8 @@ protected:
 
 public:
   static bool classof(const ASTNode *N) {
-    return N->getKind() >= NK_SwitchRegular and N->getKind() <= NK_SwitchCheck;
+    return N->getKind() >= NK_SwitchRegular
+           and N->getKind() <= NK_SwitchDispatcher;
   }
 
   case_range unordered_cases() {
@@ -659,7 +660,7 @@ protected:
   const case_value_container CaseValueVec;
 };
 
-class SwitchCheckNode : public SwitchNode {
+class SwitchDispatcherNode : public SwitchNode {
   friend class ASTNode;
 
 public:
@@ -669,50 +670,66 @@ public:
   using case_value_range = llvm::iterator_range<case_value_iterator>;
 
 public:
-  SwitchCheckNode(const case_container &Cases,
-                  const case_value_container &V,
-                  ASTNode *Def = nullptr,
-                  ASTNode *Successor = nullptr) :
-    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def, Successor),
+  SwitchDispatcherNode(const case_container &Cases,
+                       const case_value_container &V,
+                       ASTNode *Def = nullptr,
+                       ASTNode *Successor = nullptr) :
+    SwitchNode(NK_SwitchDispatcher,
+               Cases,
+               "SwitchDispatcherNode",
+               Def,
+               Successor),
     CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
-  SwitchCheckNode(const case_container &Cases,
-                  case_value_container &V,
-                  ASTNode *Def = nullptr,
-                  ASTNode *Successor = nullptr) :
-    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def, Successor),
+  SwitchDispatcherNode(const case_container &Cases,
+                       case_value_container &V,
+                       ASTNode *Def = nullptr,
+                       ASTNode *Successor = nullptr) :
+    SwitchNode(NK_SwitchDispatcher,
+               Cases,
+               "SwitchDispatcherNode",
+               Def,
+               Successor),
     CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
-  SwitchCheckNode(case_container &&Cases,
-                  const case_value_container &&V,
-                  ASTNode *Def = nullptr,
-                  ASTNode *Successor = nullptr) :
-    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def, Successor),
+  SwitchDispatcherNode(case_container &&Cases,
+                       const case_value_container &&V,
+                       ASTNode *Def = nullptr,
+                       ASTNode *Successor = nullptr) :
+    SwitchNode(NK_SwitchDispatcher,
+               Cases,
+               "SwitchDispatcherNode",
+               Def,
+               Successor),
     CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
-  SwitchCheckNode(case_container &&Cases,
-                  case_value_container &&V,
-                  ASTNode *Def = nullptr,
-                  ASTNode *Successor = nullptr) :
-    SwitchNode(NK_SwitchCheck, Cases, "SwitchCheckNode", Def, Successor),
+  SwitchDispatcherNode(case_container &&Cases,
+                       case_value_container &&V,
+                       ASTNode *Def = nullptr,
+                       ASTNode *Successor = nullptr) :
+    SwitchNode(NK_SwitchDispatcher,
+               Cases,
+               "SwitchDispatcherNode",
+               Def,
+               Successor),
     CaseValueVec(V) {
     revng_assert(Cases.size() == V.size());
   }
 
 protected:
-  SwitchCheckNode(const SwitchCheckNode &) = default;
-  SwitchCheckNode(SwitchCheckNode &&) = delete;
-  ~SwitchCheckNode() = default;
+  SwitchDispatcherNode(const SwitchDispatcherNode &) = default;
+  SwitchDispatcherNode(SwitchDispatcherNode &&) = delete;
+  ~SwitchDispatcherNode() = default;
 
 public:
   static bool classof(const ASTNode *N) {
-    return N->getKind() == NK_SwitchCheck;
+    return N->getKind() == NK_SwitchDispatcher;
   }
 
 public:
@@ -723,7 +740,7 @@ public:
     return CaseValueVec[N];
   }
 
-  ASTNode *Clone() { return new SwitchCheckNode(*this); }
+  ASTNode *Clone() { return new SwitchDispatcherNode(*this); }
 
 protected:
   const case_value_container CaseValueVec;
@@ -750,8 +767,8 @@ inline ASTNode *ASTNode::Clone() {
   // ---- SwitchNode kinds
   case NK_SwitchRegular:
     return llvm::cast<RegularSwitchNode>(this)->Clone();
-  case NK_SwitchCheck:
-    return llvm::cast<SwitchCheckNode>(this)->Clone();
+  case NK_SwitchDispatcher:
+    return llvm::cast<SwitchDispatcherNode>(this)->Clone();
   // ---- end SwitchNode kinds
   case NK_SwitchBreak:
     return llvm::cast<SwitchBreakNode>(this)->Clone();
@@ -792,8 +809,8 @@ inline void ASTNode::dump(std::ofstream &ASTFile) {
   // ---- SwitchNode kinds
   case NK_SwitchRegular:
     return llvm::cast<RegularSwitchNode>(this)->dump(ASTFile);
-  case NK_SwitchCheck:
-    return llvm::cast<SwitchCheckNode>(this)->dump(ASTFile);
+  case NK_SwitchDispatcher:
+    return llvm::cast<SwitchDispatcherNode>(this)->dump(ASTFile);
   // ---- end SwitchNode kinds
   case NK_SwitchBreak:
     return llvm::cast<SwitchBreakNode>(this)->dump(ASTFile);
@@ -823,8 +840,8 @@ inline bool ASTNode::isEqual(const ASTNode *Node) {
   // ---- SwitchNode kinds
   case NK_SwitchRegular:
     return llvm::cast<SwitchNode>(this)->isEqual(Node);
-  case NK_SwitchCheck:
-    return llvm::cast<SwitchCheckNode>(this)->isEqual(Node);
+  case NK_SwitchDispatcher:
+    return llvm::cast<SwitchDispatcherNode>(this)->isEqual(Node);
   // ---- end SwitchNode kinds
   case NK_SwitchBreak:
     return llvm::cast<SwitchBreakNode>(this)->isEqual(Node);

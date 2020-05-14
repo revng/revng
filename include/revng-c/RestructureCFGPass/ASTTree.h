@@ -86,7 +86,7 @@ public:
 
   SwitchNode *addSwitch(ast_unique_ptr &&ASTObject);
 
-  SwitchCheckNode *addSwitchCheck(ast_unique_ptr &&ASTObject);
+  SwitchDispatcherNode *addSwitchDispatcher(ast_unique_ptr &&ASTObject);
 
   ASTNode *findASTNode(BasicBlockNodeBB *BlockNode);
 
