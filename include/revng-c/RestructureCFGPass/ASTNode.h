@@ -34,7 +34,6 @@ public:
     NK_Continue,
     // ---- IfNode kinds
     NK_If,
-    NK_IfDispatcher,
     // ---- end IfNode kinds
     NK_Scs,
     NK_List,
@@ -178,9 +177,7 @@ protected:
   ~IfNode() = default;
 
 public:
-  static bool classof(const ASTNode *N) {
-    return N->getKind() >= NK_If && N->getKind() <= NK_IfDispatcher;
-  }
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_If; }
 
   ASTNode *getThen() const { return Then; }
 
@@ -473,37 +470,6 @@ public:
   unsigned getStateVariableValue() const { return StateVariableValue; }
 };
 
-class IfDispatcherNode : public IfNode {
-  friend class ASTNode;
-
-private:
-  unsigned StateVariableValue;
-
-public:
-  IfDispatcherNode(BasicBlockNodeBB *CFGNode,
-                   ASTNode *Then,
-                   ASTNode *Else,
-                   ASTNode *PostDom) :
-    IfNode(CFGNode, nullptr, Then, Else, PostDom, NK_IfDispatcher),
-    StateVariableValue(CFGNode->getStateVariableValue()) {}
-
-protected:
-  IfDispatcherNode(const IfDispatcherNode &) = default;
-  IfDispatcherNode(IfDispatcherNode &&) = delete;
-  ~IfDispatcherNode() = default;
-
-public:
-  static bool classof(const ASTNode *N) {
-    return N->getKind() == NK_IfDispatcher;
-  }
-
-  void dump(std::ofstream &ASTFile);
-
-  ASTNode *Clone() { return new IfDispatcherNode(*this); }
-
-  unsigned getCaseValue() const { return StateVariableValue; }
-};
-
 // Abstract SwitchNode. It has the concept of cases (other ASTNodes) but no
 // concept of values for which those cases are activated.
 class SwitchNode : public ASTNode {
@@ -759,8 +725,6 @@ inline ASTNode *ASTNode::Clone() {
   // ---- IfNode kinds
   case NK_If:
     return llvm::cast<IfNode>(this)->Clone();
-  case NK_IfDispatcher:
-    return llvm::cast<IfDispatcherNode>(this)->Clone();
   // ---- end IfNode kinds
   case NK_Scs:
     return llvm::cast<ScsNode>(this)->Clone();
@@ -801,8 +765,6 @@ inline void ASTNode::dump(std::ofstream &ASTFile) {
   // ---- IfNode kinds
   case NK_If:
     return llvm::cast<IfNode>(this)->dump(ASTFile);
-  case NK_IfDispatcher:
-    return llvm::cast<IfDispatcherNode>(this)->dump(ASTFile);
   // ---- end IfNode kinds
   case NK_Scs:
     return llvm::cast<ScsNode>(this)->dump(ASTFile);
@@ -832,8 +794,6 @@ inline bool ASTNode::isEqual(const ASTNode *Node) {
   // ---- IfNode kinds
   case NK_If:
     return llvm::cast<IfNode>(this)->isEqual(Node);
-  case NK_IfDispatcher:
-    return llvm::cast<IfDispatcherNode>(this)->isEqual(Node);
   // ---- end IfNode kinds
   case NK_Scs:
     return llvm::cast<ScsNode>(this)->isEqual(Node);

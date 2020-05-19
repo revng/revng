@@ -19,10 +19,8 @@
 using namespace llvm;
 
 void IfNode::updateCondExprPtr(ExprNodeMap &Map) {
-  if (not llvm::isa<IfDispatcherNode>(this)) {
-    revng_assert(ConditionExpression != nullptr);
-    ConditionExpression = Map[ConditionExpression];
-  }
+  revng_assert(ConditionExpression != nullptr);
+  ConditionExpression = Map[ConditionExpression];
 }
 
 void ContinueNode::addComputationIfNode(IfNode *ComputationIfNode) {
@@ -318,29 +316,6 @@ void SetNode::dump(std::ofstream &ASTFile) {
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
-void IfDispatcherNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
-  ASTFile << "label=\"" << this->getName();
-  ASTFile << "\"";
-  ASTFile << ",shape=\"invtrapezium\",color=\"red\"];\n";
-
-  // We may not have one between the `then` and `else` branches, since its
-  // function could be replaced by the fallthrough AST node.
-  if (this->getThen() != nullptr) {
-    ASTFile << "\"" << this->getName() << "\""
-            << " -> \"" << this->getThen()->getName() << "\""
-            << " [color=green,label=\"then\"];\n";
-    this->getThen()->dump(ASTFile);
-  }
-
-  if (this->getElse() != nullptr) {
-    ASTFile << "\"" << this->getName() << "\""
-            << " -> \"" << this->getElse()->getName() << "\""
-            << " [color=red,label=\"else\"];\n";
-    this->getElse()->dump(ASTFile);
-  }
-}
-
 void SwitchDispatcherNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"" << this->getName() << "\" [";
   ASTFile << "label=\"" << this->getName();
@@ -378,9 +353,6 @@ void ASTNode::deleteASTNode(ASTNode *A) {
   // ---- IfNode kinds
   case NodeKind::NK_If:
     delete static_cast<IfNode *>(A);
-    break;
-  case NodeKind::NK_IfDispatcher:
-    delete static_cast<IfDispatcherNode *>(A);
     break;
   // ---- end IfNode kinds
   case NodeKind::NK_Scs:

@@ -322,63 +322,6 @@ simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
   }
 }
 
-static ConstantInt *getCaseConstant(ASTNode *Node) {
-  llvm::BasicBlock *BB = Node->getOriginalBB();
-  revng_assert(BB->size() == 2);
-
-  llvm::Instruction &CompareInst = BB->front();
-  llvm::Instruction &BranchInst = BB->back();
-  revng_assert(llvm::isa<llvm::ICmpInst>(CompareInst));
-  revng_assert(llvm::isa<llvm::BranchInst>(BranchInst));
-  revng_assert(llvm::cast<llvm::BranchInst>(BranchInst).isConditional());
-
-  auto *Compare = llvm::cast<llvm::ICmpInst>(&CompareInst);
-  revng_assert(Compare->getNumOperands() == 2);
-
-  llvm::ConstantInt *CI = llvm::cast<llvm::ConstantInt>(Compare->getOperand(1));
-  return CI;
-}
-
-static llvm::Value *getCaseValue(ASTNode *Node) {
-  llvm::BasicBlock *BB = Node->getOriginalBB();
-  revng_assert(BB->size() == 2);
-
-  llvm::Instruction &CompareInst = BB->front();
-  llvm::Instruction &BranchInst = BB->back();
-  revng_assert(llvm::isa<llvm::ICmpInst>(CompareInst));
-  revng_assert(llvm::isa<llvm::BranchInst>(BranchInst));
-  revng_assert(llvm::cast<llvm::BranchInst>(BranchInst).isConditional());
-
-  auto *Compare = llvm::cast<llvm::ICmpInst>(&CompareInst);
-  revng_assert(Compare->getNumOperands() == 2);
-
-  return Compare->getOperand(0);
-}
-
-static bool wasOriginalSwitch(ASTNode *Candidate) {
-  llvm::BasicBlock *BB = Candidate->getOriginalBB();
-
-  // Check that the if corresponds to an original basic block.
-  if (BB != nullptr) {
-
-    // Check that the body contains an `icmp` instruction over the condition
-    // of the switch and a constant, and then a conditional branch.
-    if (BB->size() == 2 and BB->getName().startswith("switch check")) {
-      llvm::Instruction &First = BB->front();
-      llvm::Instruction &Second = BB->back();
-
-      if (llvm::isa<llvm::ICmpInst>(First)) {
-        if (auto *Branch = llvm::dyn_cast<llvm::BranchInst>(&Second)) {
-          if (Branch->isConditional()) {
-            return true;
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-
 static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
 
   // Inspect all the nodes composing a sequence node.
@@ -386,145 +329,27 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
     for (ASTNode *&Node : Sequence->nodes()) {
       Node = matchSwitch(AST, Node, Mark);
     }
-
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     // Inspect the body of a SCS region.
     Scs->setBody(matchSwitch(AST, Scs->getBody(), Mark));
-
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
 
-    // Switch matching routine.
-    if (wasOriginalSwitch(If)) {
-
-      // Get the Value of the condition.
-      llvm::Value *SwitchValue = getCaseValue(If);
-
-      // An IfEqualNode represents the start of a switch statement.
-      llvm::SmallVector<IfNode *, 8> Candidates;
-      Candidates.push_back(If);
-
-      // Continue to accumulate the IfEqual nodes until it is possible.
-      while (If->getElse() and wasOriginalSwitch(If->getElse())
-             and (SwitchValue == getCaseValue(If->getElse()))) {
-        If = llvm::cast<IfNode>(If->getElse());
-        Candidates.push_back(If);
-      }
-
-      RegularSwitchNode::case_container Cases;
-      RegularSwitchNode::case_value_container CaseValues;
-      for (IfNode *Candidate : Candidates) {
-        Cases.push_back(Candidate->getThen());
-        CaseValues.push_back(getCaseConstant(Candidate));
-      }
-
-      // Collect the last else (which will become the default case).
-      ASTNode *DefaultCase = Candidates.back()->getElse();
-      if (DefaultCase == nullptr)
-        DefaultCase = AST.addSequenceNode();
-
-      // Create the switch node.
-      ASTTree::ast_unique_ptr Switch;
-      {
-        ASTNode *Tmp = new RegularSwitchNode(SwitchValue,
-                                             Cases,
-                                             CaseValues,
-                                             DefaultCase);
-        Switch.reset(Tmp);
-      }
-
-      // Invoke the switch matching on the switch just reconstructed.
-      matchSwitch(AST, Switch.get(), Mark);
-
-      // Return the new object.
-      return AST.addSwitch(std::move(Switch));
-
-    } else {
-
-      // Analyze a standard IfNode.
-      if (If->hasThen()) {
-        If->setThen(matchSwitch(AST, If->getThen(), Mark));
-      }
-      if (If->hasElse()) {
-        If->setElse(matchSwitch(AST, If->getElse(), Mark));
-      }
+    // Inspect the body of an if construct.
+    if (If->hasThen()) {
+      If->setThen(matchSwitch(AST, If->getThen(), Mark));
     }
-
-  } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
+    if (If->hasElse()) {
+      If->setElse(matchSwitch(AST, If->getElse(), Mark));
+    }
+  } else if (auto *Switch = llvm::dyn_cast<RegularSwitchNode>(RootNode)) {
+    // TODO: in the current situation, we should not find any switch node
+    //       composed by only two case nodes. This check is only a safeguard,
+    //       consider removing it altogether.
+    //revng_assert(Switch->CaseSize() >= 2);
     for (auto &Case : Switch->unordered_cases())
       Case = matchSwitch(AST, Case, Mark);
     if (ASTNode *Default = Switch->getDefault())
       Default = matchSwitch(AST, Default, Mark);
-  }
-
-  return RootNode;
-}
-
-static ASTNode *matchDispatcher(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
-  // Inspect all the nodes composing a sequence node.
-  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
-    for (ASTNode *&Node : Sequence->nodes()) {
-      Node = matchDispatcher(AST, Node, Mark);
-    }
-
-  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    // Inspect the body of a SCS region.
-    Scs->setBody(matchDispatcher(AST, Scs->getBody(), Mark));
-
-  } else if (auto *IfDispatcher = llvm::dyn_cast<IfDispatcherNode>(RootNode)) {
-
-    // An `IfDispatcherNode` represents the start of a dispatcher, which we want to
-    // represent using a `SwitchDispatcherNode`.
-    std::vector<IfDispatcherNode *> Candidates;
-    Candidates.push_back(IfDispatcher);
-
-    // Continue to accumulate the `IfDispatcher` nodes until it is possible.
-    while (auto *SuccChk = dyn_cast_or_null<IfDispatcherNode>(IfDispatcher->getElse())) {
-      Candidates.push_back(SuccChk);
-      IfDispatcher = SuccChk;
-    }
-
-    SwitchDispatcherNode::case_container Cases;
-    SwitchDispatcherNode::case_value_container CaseValues;
-    for (IfDispatcherNode *Candidate : Candidates) {
-      Cases.push_back(Candidate->getThen());
-      CaseValues.push_back(Candidate->getCaseValue());
-    }
-
-    // Collect the last else which always corresponds to case 0
-    unsigned Zero = 0;
-    if (ASTNode *DefaultCase = Candidates.back()->getElse()) {
-      Cases.push_back(DefaultCase);
-      CaseValues.push_back(Zero);
-    }
-
-    // Create the `SwitchDispatcherNode`.
-    ASTTree::ast_unique_ptr Switch;
-    {
-      ASTNode *Tmp = new SwitchDispatcherNode(Cases, CaseValues);
-      Switch.reset(Tmp);
-    }
-
-    // Invoke the dispatcher matching on the switch just reconstructed.
-    matchDispatcher(AST, Switch.get(), Mark);
-
-    // Return the new object.
-    return AST.addSwitchDispatcher(std::move(Switch));
-
-  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
-
-    // Analyze a standard `IfNode`.
-    if (If->hasThen()) {
-      If->setThen(matchDispatcher(AST, If->getThen(), Mark));
-    }
-    if (If->hasElse()) {
-      If->setElse(matchDispatcher(AST, If->getElse(), Mark));
-    }
-
-  } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
-    for (auto &Case : Switch->unordered_cases())
-      Case = matchDispatcher(AST, Case, Mark);
-    if (ASTNode *Default = Switch->getDefault())
-      Default = matchDispatcher(AST, Default, Mark);
   }
   return RootNode;
 }
@@ -905,10 +730,6 @@ protected:
     case ASTNode::NK_Code:
     case ASTNode::NK_Continue:
       break; // do nothing
-    case ASTNode::NK_IfDispatcher:
-      BeautifyLogger << "Unexpected: IfDispatcher\n";
-      revng_unreachable("unexpected node kind");
-      break;
     }
   }
 
@@ -926,13 +747,6 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
   flipEmptyThen(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpOnFile("ast", F.getName(), "After-if-flip");
-  }
-
-  // Match switch node.
-  revng_log(BeautifyLogger, "Performing dispatcher nodes matching\n");
-  RootNode = matchDispatcher(CombedAST, RootNode, Mark);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpOnFile("ast", F.getName(), "After-dispatcher-match");
   }
 
   // Simplify short-circuit nodes.
