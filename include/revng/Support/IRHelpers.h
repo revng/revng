@@ -337,6 +337,13 @@ struct ForwardBFSVisitor
   }
 };
 
+inline std::string getName(const llvm::Value *V);
+
+/// \brief Return a string with the value of a given integer constant.
+inline std::string getName(const llvm::ConstantInt *I) {
+  return std::to_string(I->getValue().getZExtValue());
+}
+
 /// \brief Return a sensible name for the given basic block
 /// \return the name of the basic block, if available, its pointer value
 ///         otherwise.
@@ -372,26 +379,60 @@ inline std::string getName(const llvm::Instruction *I) {
   }
 }
 
-/// \brief Return a sensible name for the given Value
-/// \return if \p V is an Instruction, call the appropriate getName function,
-///         otherwise return a pointer to \p V.
-inline std::string getName(const llvm::Value *V) {
-  if (V != nullptr)
-    if (auto *I = llvm::dyn_cast<llvm::Instruction>(V))
-      return getName(I);
-  std::stringstream SS;
-  SS << "0x" << std::hex << intptr_t(V);
-  return SS.str();
-}
-
+/// \brief Return a sensible name for the given function
+/// \return the name of the function, if available, its pointer value otherwise.
 inline std::string getName(const llvm::Function *F) {
   if (F == nullptr)
     return "(nullptr)";
 
-  if (not F->hasName())
-    return getName(static_cast<const llvm::Value *>(F));
+  if (F->hasName())
+    return F->getName();
 
-  return F->getName();
+  std::stringstream SS;
+  SS << "0x" << std::hex << intptr_t(F);
+  return SS.str();
+}
+
+/// \brief Return a sensible name for the given argument
+/// \return the name of the argument, if available, a
+///         [function name]:[argument index] string otherwise.
+inline std::string getName(const llvm::Argument *A) {
+  if (nullptr == A)
+    return "(nullptr)";
+
+  llvm::StringRef Result = A->getName();
+  if (not Result.empty()) {
+    return Result.str();
+  } else {
+    const llvm::Function *F = A->getParent();
+    return getName(F) + ":" + std::to_string(A->getArgNo());
+  }
+}
+
+/// \brief Return a sensible name for the given Value
+/// \return if \p V is an Instruction, call the appropriate getName function,
+///         otherwise return a pointer to \p V.
+inline std::string getName(const llvm::Value *V) {
+  if (V != nullptr) {
+    if (auto *I = llvm::dyn_cast<llvm::Instruction>(V))
+      return getName(I);
+    if (auto *F = llvm::dyn_cast<llvm::Function>(V))
+      return getName(F);
+    if (auto *B = llvm::dyn_cast<llvm::BasicBlock>(V))
+      return getName(B);
+    if (auto *C = llvm::dyn_cast<llvm::ConstantInt>(V)) {
+      std::string Result;
+      llvm::raw_string_ostream S(Result);
+      C->print(S);
+      S.flush();
+      return Result;
+    }
+    if (auto *A = llvm::dyn_cast<llvm::Argument>(V))
+      return getName(A);
+  }
+  std::stringstream SS;
+  SS << "0x" << std::hex << intptr_t(V);
+  return SS.str();
 }
 
 inline llvm::BasicBlock *blockByName(llvm::Function *F, const char *Name) {
