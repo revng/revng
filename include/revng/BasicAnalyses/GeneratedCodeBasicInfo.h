@@ -395,6 +395,11 @@ public:
     return UnexpectedPC;
   }
 
+  llvm::BasicBlock *dispatcher() const {
+    revng_assert(nullptr != Dispatcher);
+    return Dispatcher;
+  }
+
   const llvm::ArrayRef<llvm::GlobalVariable *> csvs() const { return CSVs; }
 
   class CSVsUsedByHelperCall {

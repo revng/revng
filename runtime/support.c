@@ -450,23 +450,6 @@ int main(int argc, char *argv[]) {
   root((target_reg) stack);
 }
 
-// Personality function
-int exception_personality(int version,
-                          _Unwind_Action actions,
-                          uint64_t exceptionClass,
-                          struct _Unwind_Exception *unwind_exception,
-                          struct _Unwind_Context *context) {
-
-  // Check the action parameter and match the correct expected return code, the
-  // other paramters are not used in our implementation
-  if (actions == _UA_SEARCH_PHASE) {
-    return _URC_HANDLER_FOUND;
-  } else if (actions == (_UA_CLEANUP_PHASE | _UA_HANDLER_FRAME)) {
-    return _URC_INSTALL_CONTEXT;
-  }
-  return _URC_NO_REASON;
-}
-
 // Helper function to debug informations when an exception is about to be
 // raised
 void exception_warning(Reason Code,

@@ -73,11 +73,11 @@ private:
 
   /// \brief Create the basic blocks that are hit on exit after an invoke
   ///        instruction
-  BasicBlock *createInvokeReturnBlock(Function *Root, BasicBlock *UnexpectedPC);
+  BasicBlock *createInvokeReturnBlock(Function *Root, BasicBlock *Dispatcher);
 
   /// \brief Create the basic blocks that represent the catch of the invoke
   ///        instruction
-  BasicBlock *createCatchBlock(Function *Root);
+  BasicBlock *createCatchBlock(Function *Root, BasicBlock *UnexpectedPC);
 
   /// \brief Replace the call to the @function_call marker with the actual call
   ///
@@ -112,7 +112,6 @@ private:
   Function *FunctionDispatcher;
   std::map<MDString *, IsolatedFunctionDescriptor> Functions;
   std::map<BasicBlock *, BasicBlock *> IsolatedToRootBB;
-  GlobalVariable *ExceptionFlag;
   GlobalVariable *PC;
   const unsigned PCBitSize;
 };
@@ -126,10 +125,6 @@ void IFI::throwException(Reason Code,
   // Create a builder object
   IRBuilder<> Builder(Context);
   Builder.SetInsertPoint(BB);
-
-  // Set the exception flag to value one
-  ConstantInt *ConstantTrue = Builder.getTrue();
-  Builder.CreateStore(ConstantTrue, ExceptionFlag);
 
   // Call the _debug_exception function to print usefull stuff
   LoadInst *ProgramCounter = Builder.CreateLoad(PC, "");
@@ -224,7 +219,7 @@ void IFI::populateFunctionDispatcher() {
 }
 
 BasicBlock *
-IFI::createInvokeReturnBlock(Function *Root, BasicBlock *UnexpectedPC) {
+IFI::createInvokeReturnBlock(Function *Root, BasicBlock *Dispatcher) {
 
   // Create the first block
   BasicBlock *InvokeReturnBlock = BasicBlock::Create(Context,
@@ -232,41 +227,12 @@ IFI::createInvokeReturnBlock(Function *Root, BasicBlock *UnexpectedPC) {
                                                      Root,
                                                      nullptr);
 
-  // Create two basic blocks, one that we will hit if we have a normal exit
-  // from the invoke call and another for signaling the creation of an
-  // exception, and connect both of them to the unexpectedpc block
-  BasicBlock *NormalInvoke = BasicBlock::Create(Context,
-                                                "normal_invoke",
-                                                Root,
-                                                nullptr);
-  BranchInst::Create(UnexpectedPC, NormalInvoke);
-
-  BasicBlock *AbnormalInvoke = BasicBlock::Create(Context,
-                                                  "abnormal_invoke",
-                                                  Root,
-                                                  nullptr);
-
-  // Create a builder object for the AbnormalInvokeReturn basic block
-  IRBuilder<> BuilderAbnormalBB(Context);
-  BuilderAbnormalBB.SetInsertPoint(AbnormalInvoke);
-
-  ConstantInt *ConstantFalse = BuilderAbnormalBB.getFalse();
-  BuilderAbnormalBB.CreateStore(ConstantFalse, ExceptionFlag);
-  BuilderAbnormalBB.CreateBr(UnexpectedPC);
-
-  // Create a builder object for the InvokeReturnBlock basic block
-  IRBuilder<> BuilderReturnBB(Context);
-  BuilderReturnBB.SetInsertPoint(InvokeReturnBlock);
-
-  // Add a conditional branch at the end of the invoke exit block that jumps to
-  // the right basic block on the basis of the flag.
-  LoadInst *Flag = BuilderReturnBB.CreateLoad(ExceptionFlag, "");
-  BuilderReturnBB.CreateCondBr(Flag, AbnormalInvoke, NormalInvoke);
+  BranchInst::Create(Dispatcher, InvokeReturnBlock);
 
   return InvokeReturnBlock;
 }
 
-BasicBlock *IFI::createCatchBlock(Function *Root) {
+BasicBlock *IFI::createCatchBlock(Function *Root, BasicBlock *UnexpectedPC) {
 
   // Create a basic block that represents the catch part of the exception
   BasicBlock *CatchBB = BasicBlock::Create(Context,
@@ -293,11 +259,7 @@ BasicBlock *IFI::createCatchBlock(Function *Root) {
   // Add a catch all (constructed with the null value as clause)
   LandingPad->addClause(ConstantPointerNull::get(Type::getInt8PtrTy(Context)));
 
-  // This should be an unreachable (we should never reach the catch block), but
-  // to avoid optimizations that purge this basic block (and also the
-  // correlated invoke instructions) we need a fake ret here
-  Builder.CreateCall(TheModule->getFunction("abort"));
-  Builder.CreateRetVoid();
+  Builder.CreateBr(UnexpectedPC);
 
   return CatchBB;
 }
@@ -667,18 +629,6 @@ void IFI::run() {
 
   // Retrieve the global variable corresponding to the program counter
   PC = TheModule->getGlobalVariable("pc", true);
-
-  // Create a new global variable used as a flag for signaling the raise of an
-  // exception
-  auto *BoolTy = IntegerType::get(Context, 1);
-  auto *ConstantFalse = ConstantInt::get(BoolTy, 0);
-  new GlobalVariable(*TheModule,
-                     Type::getInt1Ty(Context),
-                     false,
-                     GlobalValue::ExternalLinkage,
-                     ConstantFalse,
-                     "ExceptionFlag");
-  ExceptionFlag = TheModule->getGlobalVariable("ExceptionFlag");
 
   // Create the Arrayref necessary for the arguments of raise_exception_helper
   auto *IntegerType = IntegerType::get(Context, PCBitSize);
@@ -1118,26 +1068,19 @@ void IFI::run() {
   Function *Root = TheModule->getFunction("root");
 
   // Get the unexpectedpc block of the root function
-  // TODO: do this in a more elegant way (see if we have some helper)
-  BasicBlock *UnexpectedPC = nullptr;
-  for (BasicBlock &BB : *Root) {
-    if (BB.getName() == "unexpectedpc")
-      revng_assert(GCBI.getType(&BB) == BlockType::UnexpectedPCBlock);
-    if (GCBI.getType(&BB) == BlockType::UnexpectedPCBlock) {
-      UnexpectedPC = &BB;
-      break;
-    }
-  }
+  BasicBlock *UnexpectedPC = GCBI.unexpectedPC();
+  BasicBlock *Dispatcher = GCBI.dispatcher();
   revng_assert(UnexpectedPC != nullptr);
+  revng_assert(Dispatcher != nullptr);
 
   // Instantiate the basic block structure that handles the control flow after
   // an invoke
-  BasicBlock *InvokeReturnBlock = createInvokeReturnBlock(Root, UnexpectedPC);
+  BasicBlock *InvokeReturnBlock = createInvokeReturnBlock(Root, Dispatcher);
 
   // Instantiate the basic block structure that represents the catch of the
   // invoke, please remember that this is not used at the moment (exceptions
   // are handled in a customary way from the standard exit control flow path)
-  BasicBlock *CatchBB = createCatchBlock(Root);
+  BasicBlock *CatchBB = createCatchBlock(Root, UnexpectedPC);
 
   // Declaration of an ad-hoc personality function that is implemented in the
   // support.c source file
@@ -1145,7 +1088,7 @@ void IFI::run() {
 
   Function *PersonalityFunction = Function::Create(PersonalityFT,
                                                    Function::ExternalLinkage,
-                                                   "exception_personality",
+                                                   "__gxx_personality_v0",
                                                    TheModule);
 
   // Add the personality to the root function
