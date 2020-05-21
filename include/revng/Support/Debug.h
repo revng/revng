@@ -285,5 +285,6 @@ private:
 extern Logger<> NRALog;
 extern Logger<> PassesLog;
 extern Logger<> ReleaseLog;
+extern Logger<> VerifyLog;
 
 #endif // DEBUG_H

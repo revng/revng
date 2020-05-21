@@ -63,7 +63,6 @@ namespace {
 
 Logger<> JTCountLog("jtcount");
 Logger<> NewEdgesLog("new-edges");
-Logger<> Verify("verify");
 Logger<> RegisterJTLog("registerjt");
 
 CounterMap<std::string> HarvestingStats("harvesting");
@@ -87,25 +86,25 @@ void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
 void JumpTargetManager::assertNoUnreachable() const {
   std::set<BasicBlock *> Unreachable = computeUnreachable();
   if (Unreachable.size() != 0) {
-    Verify << "The following basic blocks are unreachable:\n";
+    VerifyLog << "The following basic blocks are unreachable:\n";
     for (BasicBlock *BB : Unreachable) {
-      Verify << "  " << getName(BB) << " (predecessors:";
+      VerifyLog << "  " << getName(BB) << " (predecessors:";
       for (BasicBlock *Predecessor : make_range(pred_begin(BB), pred_end(BB)))
-        Verify << " " << getName(Predecessor);
+        VerifyLog << " " << getName(Predecessor);
 
       MetaAddress PC = getBasicBlockPC(BB);
       if (PC.isValid()) {
         auto It = JumpTargets.find(PC);
         if (It != JumpTargets.end()) {
-          Verify << ", reasons:";
+          VerifyLog << ", reasons:";
           for (const char *Reason : It->second.getReasonNames())
-            Verify << " " << Reason;
+            VerifyLog << " " << Reason;
         }
       }
 
-      Verify << ")\n";
+      VerifyLog << ")\n";
     }
-    Verify << DoLog;
+    VerifyLog << DoLog;
     revng_abort();
   }
 }
@@ -1010,7 +1009,7 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
 
   std::set<BasicBlock *> Unreachable;
   static bool First = true;
-  if (not First and Verify.isEnabled()) {
+  if (not First and VerifyLog.isEnabled()) {
     assertNoUnreachable();
   }
   First = false;
@@ -1077,7 +1076,7 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
 
   rebuildDispatcher();
 
-  if (Verify.isEnabled()) {
+  if (VerifyLog.isEnabled()) {
     assertNoUnreachable();
   }
 }
@@ -1693,7 +1692,7 @@ void JumpTargetManager::harvestWithAVI() {
 
   FPM.run(*OptimizedFunction, FAM);
 
-  if (Verify.isEnabled())
+  if (VerifyLog.isEnabled())
     revng_check(not verifyModule(*OptimizedFunction->getParent(), &dbgs()));
 
   //
@@ -1855,7 +1854,7 @@ void JumpTargetManager::harvest() {
       }
     }
 
-    if (Verify.isEnabled())
+    if (VerifyLog.isEnabled())
       revng_assert(not verifyModule(TheModule, &dbgs()));
 
     revng_log(JTCountLog, "Preliminary harvesting");

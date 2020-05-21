@@ -37,6 +37,7 @@ std::ostream &dbg(std::cerr);
 
 Logger<> PassesLog("passes");
 Logger<> ReleaseLog("release");
+Logger<> VerifyLog("verify");
 
 template<bool X>
 void Logger<X>::flush(const LogTerminator &LineInfo) {
