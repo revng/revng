@@ -18,6 +18,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
+#include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "DLAHelpers.h"
@@ -844,7 +845,9 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
       }
     }
   }
-  revng_assert(TS.verifyConsistency());
-  revng_assert(TS.verifyInstanceDAG());
+  if (VerifyLog.isEnabled()) {
+    revng_assert(TS.verifyConsistency());
+    revng_assert(TS.verifyInstanceDAG());
+  }
   return Changed;
 }

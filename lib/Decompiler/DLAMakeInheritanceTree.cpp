@@ -48,7 +48,8 @@ using CollapseSetIterCmp = std::integral_constant<decltype(IterCmp) &, IterCmp>;
 
 bool MakeInheritanceTree::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
-  revng_assert(TS.verifyDAG());
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyDAG());
 
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-make-inheritance-tree.dot");
@@ -150,8 +151,10 @@ bool MakeInheritanceTree::runOnTypeSystem(LayoutTypeSystem &TS) {
 
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-make-inheritance-tree.dot");
-  revng_assert(TS.verifyInheritanceTree());
-  revng_assert(TS.verifyInheritanceDAG());
+  if (VerifyLog.isEnabled()) {
+    revng_assert(TS.verifyInheritanceTree());
+    revng_assert(TS.verifyInheritanceDAG());
+  }
 
   if (Changed) {
     // Whenever we collapse nodes, we might end up creating loops of inheritance
@@ -161,8 +164,10 @@ bool MakeInheritanceTree::runOnTypeSystem(LayoutTypeSystem &TS) {
 
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-final-inheritance-tree.dot");
-  revng_assert(TS.verifyInheritanceTree());
-  revng_assert(TS.verifyDAG());
+  if (VerifyLog.isEnabled()) {
+    revng_assert(TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG());
+  }
 
   return Changed;
 }

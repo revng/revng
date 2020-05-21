@@ -7,6 +7,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 
+#include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "DLAStep.h"
@@ -99,6 +100,7 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
       }
     }
   }
-  revng_assert(TS.verifyConsistency());
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyConsistency());
   return TS.getNumLayouts() != 0;
 }

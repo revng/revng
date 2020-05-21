@@ -498,7 +498,7 @@ void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *N) {
   Layouts.erase(LayoutIt);
 }
 
-static Logger<> VerifyDLALog("dla-verify");
+static Logger<> VerifyDLALog("dla-verify-strict");
 
 bool LayoutTypeSystem::verifyConsistency() const {
   for (auto &NodeUPtr : Layouts) {

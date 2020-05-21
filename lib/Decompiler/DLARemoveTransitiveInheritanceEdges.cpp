@@ -98,7 +98,8 @@ bool RemoveTransitiveInheritanceEdges::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-remove-transitive-edges.dot");
 
-  revng_assert(TS.verifyDAG());
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyDAG());
   bool Changed = false;
 
   for (LTSN *Root : llvm::nodes(&TS)) {
@@ -196,7 +197,8 @@ bool RemoveTransitiveInheritanceEdges::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-remove-transitive-edges.dot");
 
-  revng_assert(TS.verifyDAG());
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyDAG());
 
   return Changed;
 } // namespace dla

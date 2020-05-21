@@ -140,7 +140,8 @@ using MixedGT = llvm::GraphTraits<MixedNodeT>;
 
 bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
   bool Changed = false;
-  revng_assert(TS.verifyInheritanceDAG());
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyInheritanceDAG());
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-remove-instance-inheritance-loops.dot");
 

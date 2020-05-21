@@ -648,7 +648,8 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 }
 
 static bool makeLayouts(const LayoutTypeSystem &TS) {
-  revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
 
   std::map<const LTSN *, Layout *> LayoutCTypes;
   LayoutSet Layouts;

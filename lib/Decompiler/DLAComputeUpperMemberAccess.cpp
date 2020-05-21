@@ -23,7 +23,8 @@ static Logger<> Log("dla-compute-upper-member-access");
 namespace dla {
 
 bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
-  revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
   bool Changed = false;
 
   using LTSN = LayoutTypeSystemNode;

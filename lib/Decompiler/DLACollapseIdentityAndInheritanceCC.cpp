@@ -99,7 +99,8 @@ bool CollapseIdentityAndInheritanceCC::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-collapse-equality.dot");
 
-  revng_assert(TS.verifyNoEquality());
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyNoEquality());
 
   revng_log(LogVerbose, "#### Merging Inheritance SCC: ... ");
   bool CollapsedInheritance = collapseInheritanceSCC(TS);
@@ -108,13 +109,15 @@ bool CollapseIdentityAndInheritanceCC::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-collapse-inheritance.dot");
 
-  revng_assert(TS.verifyInheritanceDAG());
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyInheritanceDAG());
 
   // The following assertion is not really necessary.
   // In principle all the rest of the pipeline should work fine without it, but
   // I think that if it's triggered something might be wrong in how we emit
   // instance edges earlier. If it's ever triggered, please double check.
-  revng_assert(TS.verifyInstanceDAG());
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyInstanceDAG());
 
   revng_log(LogVerbose, "#### Merging Mixed SCC: ... ");
   bool Removed = false;
@@ -124,7 +127,8 @@ bool CollapseIdentityAndInheritanceCC::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-collapse.dot");
 
-  revng_assert(TS.verifyDAG());
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyDAG());
 
   return CollapsedEqual or CollapsedInheritance or Removed;
 }
