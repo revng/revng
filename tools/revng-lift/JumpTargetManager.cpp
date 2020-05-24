@@ -45,6 +45,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/Statistics.h"
 #include "revng/Support/revng.h"
 
 // Local includes
@@ -63,6 +64,8 @@ Logger<> JTCountLog("jtcount");
 Logger<> NewEdgesLog("new-edges");
 Logger<> Verify("verify");
 Logger<> RegisterJTLog("registerjt");
+
+CounterMap<std::string> HarvestingStats("harvesting");
 
 RegisterPass<TranslateDirectBranchesPass> X("translate-db",
                                             "Translate Direct Branches"
@@ -1804,7 +1807,10 @@ void JumpTargetManager::harvestWithAVI() {
 // (not considering the dispatcher).
 void JumpTargetManager::harvest() {
 
+  HarvestingStats.push("harvest 0");
+
   if (empty()) {
+    HarvestingStats.push("harvest 1: SimpleLiterals");
     revng_log(JTCountLog, "Collecting simple literals");
     for (MetaAddress PC : SimpleLiterals)
       registerJT(PC, JTReason::SimpleLiteral);
@@ -1812,7 +1818,7 @@ void JumpTargetManager::harvest() {
   }
 
   if (empty()) {
-    revng_log(JTCountLog, "Collecting simple literals");
+    HarvestingStats.push("harvest 2: SROA + InstCombine + TBDP");
 
     // Safely erase all unreachable blocks
     std::set<BasicBlock *> Unreachable = computeUnreachable();
@@ -1846,6 +1852,7 @@ void JumpTargetManager::harvest() {
 
     revng_log(JTCountLog, "Preliminary harvesting");
 
+    HarvestingStats.push("InstCombine");
     legacy::FunctionPassManager OptimizingPM(&TheModule);
     OptimizingPM.add(createSROAPass());
     OptimizingPM.add(createInstructionCombiningPass());
@@ -1856,6 +1863,7 @@ void JumpTargetManager::harvest() {
     PreliminaryBranchesPM.run(TheModule);
 
     if (empty()) {
+      HarvestingStats.push("harvest 3: harvestWithAVI");
       revng_log(JTCountLog, "Harvesting with Advanced Value Info");
       harvestWithAVI();
     }
