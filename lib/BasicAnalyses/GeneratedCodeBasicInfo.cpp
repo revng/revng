@@ -102,8 +102,7 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
     }
   }
 
-  revng_assert(Dispatcher != nullptr && AnyPC != nullptr
-               && UnexpectedPC != nullptr);
+  revng_assert(Dispatcher != nullptr);
 
   if (auto *NamedMD = M.getNamedMetadata("revng.csv")) {
     auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));

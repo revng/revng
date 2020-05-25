@@ -385,8 +385,15 @@ public:
     return getFunctionCall(T) != nullptr;
   }
 
-  llvm::BasicBlock *anyPC() { return AnyPC; }
-  llvm::BasicBlock *unexpectedPC() { return UnexpectedPC; }
+  llvm::BasicBlock *anyPC() const {
+    revng_assert(nullptr != AnyPC);
+    return AnyPC;
+  }
+
+  llvm::BasicBlock *unexpectedPC() const {
+    revng_assert(nullptr != UnexpectedPC);
+    return UnexpectedPC;
+  }
 
   const llvm::ArrayRef<llvm::GlobalVariable *> csvs() const { return CSVs; }
 
