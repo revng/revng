@@ -1949,3 +1949,85 @@ void BinaryFile::parseLSDA(MetaAddress FDEStart, MetaAddress LSDAAddress) {
     }
   }
 }
+
+static bool isBetterThan(const Label *NewCandidate, const Label *OldCandidate) {
+  if (OldCandidate == nullptr)
+    return true;
+
+  if (NewCandidate->address().addressGreaterThan(OldCandidate->address()))
+    return true;
+
+  if (NewCandidate->address() == OldCandidate->address()) {
+    StringRef OldName = OldCandidate->symbolName();
+    if (OldName.size() == 0)
+      return true;
+  }
+
+  return false;
+}
+
+std::string
+BinaryFile::nameForAddress(MetaAddress Address, uint64_t Size) const {
+  using interval = boost::icl::interval<MetaAddress, compareAddress>;
+  std::stringstream Result;
+  const auto &SymbolMap = labels();
+
+  auto End = Address.toGeneric() + Size;
+  revng_assert(Address.isValid() and End.isValid());
+  auto It = SymbolMap.find(interval::right_open(Address, End));
+  if (It != SymbolMap.end()) {
+    // We have to look for (in order):
+    //
+    // * Exact match
+    // * Contained (non 0-sized)
+    // * Contained (0-sized)
+    const Label *ExactMatch = nullptr;
+    const Label *ContainedNonZeroSized = nullptr;
+    const Label *ContainedZeroSized = nullptr;
+
+    for (const Label *L : It->second) {
+      // Consider symbols only
+      if (not L->isSymbol())
+        continue;
+
+      if (L->matches(Address, Size)) {
+
+        // It's an exact match
+        ExactMatch = L;
+        break;
+
+      } else if (not L->isSizeVirtual() and L->contains(Address, Size)) {
+
+        // It's contained in a not 0-sized symbol
+        if (isBetterThan(L, ContainedNonZeroSized))
+          ContainedNonZeroSized = L;
+
+      } else if (L->isSizeVirtual() and L->contains(Address, 0)) {
+
+        // It's contained in a 0-sized symbol
+        if (isBetterThan(L, ContainedZeroSized))
+          ContainedZeroSized = L;
+      }
+    }
+
+    const Label *Chosen = nullptr;
+    if (ExactMatch != nullptr)
+      Chosen = ExactMatch;
+    else if (ContainedNonZeroSized != nullptr)
+      Chosen = ContainedNonZeroSized;
+    else if (ContainedZeroSized != nullptr)
+      Chosen = ContainedZeroSized;
+
+    if (Chosen != nullptr and Chosen->symbolName().size() != 0) {
+      auto Arch = architecture().type();
+      Address.dumpRelativeTo(Result,
+                             Chosen->address().toPC(Arch),
+                             Chosen->symbolName());
+      return Result.str();
+    }
+  }
+
+  // We don't have a symbol to use, just return the address
+  Address.dump(Result);
+  return Result.str();
+}

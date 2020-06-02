@@ -558,6 +558,14 @@ public:
     return MetaAddress::fromGeneric(TheArchitecture.type(), Address);
   }
 
+  /// \brief Return a proper name for the given address, possibly using symbols
+  ///
+  /// \param Address the address for which a name should be produced.
+  ///
+  /// \return a string containing the symbol name and, if necessary an offset,
+  ///         or if no symbol can be found, just the address.
+  std::string nameForAddress(MetaAddress Address, uint64_t Size) const;
+
 private:
   //
   // ELF-specific methods
