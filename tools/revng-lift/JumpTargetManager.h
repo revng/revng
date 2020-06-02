@@ -112,37 +112,37 @@ namespace CFGForm {
 
 /// \brief Possible forms the CFG we're building can assume.
 ///
-/// Generally the CFG should stay in the SemanticPreservingCFG state, but it
+/// Generally the CFG should stay in the SemanticPreserving state, but it
 /// can be temporarily changed to make certain analysis (e.g., computation of
 /// the dominator tree) more effective for certain purposes.
 enum Values {
   /// The CFG is an unknown state
-  UnknownFormCFG,
+  UnknownForm,
 
   /// The dispatcher jumps to all the jump targets, and all the indirect jumps
   /// go to the dispatcher
-  SemanticPreservingCFG,
+  SemanticPreserving,
 
   /// The dispatcher only jumps to jump targets without other predecessors and
   /// indirect jumps do not go to the dispatcher, but to an unreachable
   /// instruction
-  RecoveredOnlyCFG,
+  RecoveredOnly,
 
-  /// Similar to RecoveredOnlyCFG, but all jumps forming a function call are
+  /// Similar to RecoveredOnly, but all jumps forming a function call are
   /// converted to jumps to the return address
-  NoFunctionCallsCFG
+  NoFunctionCalls
 };
 
 inline const char *getName(Values V) {
   switch (V) {
-  case UnknownFormCFG:
-    return "UnknownFormCFG";
-  case SemanticPreservingCFG:
-    return "SemanticPreservingCFG";
-  case RecoveredOnlyCFG:
-    return "RecoveredOnlyCFG";
-  case NoFunctionCallsCFG:
-    return "NoFunctionCallsCFG";
+  case UnknownForm:
+    return "UnknownForm";
+  case SemanticPreserving:
+    return "SemanticPreserving";
+  case RecoveredOnly:
+    return "RecoveredOnly";
+  case NoFunctionCalls:
+    return "NoFunctionCalls";
   }
 
   revng_abort();

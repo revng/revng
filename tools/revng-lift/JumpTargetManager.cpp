@@ -443,7 +443,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   Dispatcher(nullptr),
   DispatcherSwitch(nullptr),
   Binary(Binary),
-  CurrentCFGForm(CFGForm::UnknownFormCFG),
+  CurrentCFGForm(CFGForm::UnknownForm),
   createCSAA(createCSAA),
   PCH(PCH),
   JumpTargetsWhitelist(nullptr) {
@@ -1088,7 +1088,7 @@ std::set<BasicBlock *> JumpTargetManager::computeUnreachable() const {
 
 void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
   revng_assert(CurrentCFGForm != NewForm);
-  revng_assert(NewForm != CFGForm::UnknownFormCFG);
+  revng_assert(NewForm != CFGForm::UnknownForm);
 
   std::set<BasicBlock *> Unreachable;
   static bool First = true;
@@ -1104,7 +1104,7 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
   // Recreate AnyPC and UnexpectedPC
   //
   switch (NewForm) {
-  case CFGForm::SemanticPreservingCFG:
+  case CFGForm::SemanticPreserving:
     purge(AnyPC);
     BranchInst::Create(dispatcher(), AnyPC);
     // TODO: Here we should have an hard fail, since it's the situation in
@@ -1114,8 +1114,8 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
     BranchInst::Create(dispatcher(), UnexpectedPC);
     break;
 
-  case CFGForm::RecoveredOnlyCFG:
-  case CFGForm::NoFunctionCallsCFG:
+  case CFGForm::RecoveredOnly:
+  case CFGForm::NoFunctionCalls:
     purge(AnyPC);
     new UnreachableInst(Context, AnyPC);
     purge(UnexpectedPC);
@@ -1133,8 +1133,8 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
   //
   // * NoFunctionsCallsCFG: the successor is the fallthrough
   // * otherwise: the successor is the callee
-  if (NewForm == CFGForm::NoFunctionCallsCFG
-      || OldForm == CFGForm::NoFunctionCallsCFG) {
+  if (NewForm == CFGForm::NoFunctionCalls
+      || OldForm == CFGForm::NoFunctionCalls) {
     if (auto *FunctionCall = TheModule.getFunction("function_call")) {
       for (User *U : FunctionCall->users()) {
         auto *Call = cast<CallInst>(U);
@@ -1149,7 +1149,7 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
 
         // Get the correct argument, the first is the callee, the second the
         // return basic block
-        int OperandIndex = NewForm == CFGForm::NoFunctionCallsCFG ? 1 : 0;
+        int OperandIndex = NewForm == CFGForm::NoFunctionCalls ? 1 : 0;
         Value *Op = Call->getArgOperand(OperandIndex);
         BasicBlock *NewSuccessor = cast<BlockAddress>(Op)->getBasicBlock();
         Terminator->setSuccessor(0, NewSuccessor);
@@ -1176,13 +1176,13 @@ void JumpTargetManager::rebuildDispatcher() {
   ProgramCounterHandler::DispatcherTargets Targets;
 
   // Add all the (whitelisted) jump targets if we're using the
-  // SemanticPreservingCFG, or only those with no predecessors.
+  // SemanticPreserving, or only those with no predecessors.
   bool IsWhitelistActive = (JumpTargetsWhitelist != nullptr);
   for (auto &[PC, JumpTarget] : JumpTargets) {
     BasicBlock *BB = JumpTarget.head();
     bool IsWhitelisted = (not IsWhitelistActive
                           or JumpTargetsWhitelist->count(PC) != 0);
-    if ((CurrentCFGForm == CFGForm::SemanticPreservingCFG
+    if ((CurrentCFGForm == CFGForm::SemanticPreserving
          or not hasPredecessors(BB))
         and IsWhitelisted) {
       Targets.emplace_back(PC, BB);
@@ -1200,7 +1200,7 @@ void JumpTargetManager::rebuildDispatcher() {
   //
   // Make sure every generated basic block is reachable
   //
-  if (CurrentCFGForm != CFGForm::SemanticPreservingCFG) {
+  if (CurrentCFGForm != CFGForm::SemanticPreserving) {
     // Compute the set of reachable jump targets
     OnceQueue<BasicBlock *> WorkList;
     for (BasicBlock *Successor : successors(DispatcherSwitch))
@@ -1566,7 +1566,7 @@ void JumpTargetManager::harvestWithAVI() {
 
     // Prune the dispatcher
     JumpTargetsWhitelist = &AVIJumpTargetsWhitelist;
-    setCFGForm(CFGForm::RecoveredOnlyCFG);
+    setCFGForm(CFGForm::RecoveredOnly);
 
     // Detach all the unreachable basic blocks, so they don't get copied
     std::set<BasicBlock *> UnreachableBBs = computeUnreachable();
@@ -1586,7 +1586,7 @@ void JumpTargetManager::harvestWithAVI() {
 
     // Restore the dispatcher in the original function
     JumpTargetsWhitelist = nullptr;
-    setCFGForm(CFGForm::SemanticPreservingCFG);
+    setCFGForm(CFGForm::SemanticPreserving);
     revng_assert(computeUnreachable().size() == 0);
 
     // Clear the whitelist
@@ -1961,7 +1961,7 @@ void JumpTargetManager::harvest() {
     // TODO: eventually, `setCFGForm` should be replaced by using a CustomCFG
     // To improve the quality of our analysis, keep in the CFG only the edges we
     // where able to recover (e.g., no jumps to the dispatcher)
-    setCFGForm(CFGForm::RecoveredOnlyCFG);
+    setCFGForm(CFGForm::RecoveredOnly);
 
     NewBranches = 0;
     legacy::PassManager AnalysisPM;
@@ -1969,7 +1969,7 @@ void JumpTargetManager::harvest() {
     AnalysisPM.run(TheModule);
 
     // Restore the CFG
-    setCFGForm(CFGForm::SemanticPreservingCFG);
+    setCFGForm(CFGForm::SemanticPreserving);
 
     if (JTCountLog.isEnabled()) {
       JTCountLog << std::dec << Unexplored.size() << " new jump targets and "

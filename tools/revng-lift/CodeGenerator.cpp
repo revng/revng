@@ -982,7 +982,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   ReachSwitch->addCase(Builder.getInt8(1), JumpTargets.anyPC());
   ReachSwitch->addCase(Builder.getInt8(2), JumpTargets.unexpectedPC());
 
-  JumpTargets.setCFGForm(CFGForm::SemanticPreservingCFG);
+  JumpTargets.setCFGForm(CFGForm::SemanticPreserving);
 
   std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
