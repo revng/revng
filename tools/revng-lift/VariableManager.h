@@ -122,10 +122,10 @@ public:
     return loadFromCPUStateOffset(Builder, LoadSize, EnvOffset + Offset);
   }
 
-  bool storeToEnvOffset(llvm::IRBuilder<> &Builder,
-                        unsigned StoreSize,
-                        unsigned Offset,
-                        llvm::Value *ToStore) {
+  llvm::Optional<llvm::StoreInst *> storeToEnvOffset(llvm::IRBuilder<> &Builder,
+                                                     unsigned StoreSize,
+                                                     unsigned Offset,
+                                                     llvm::Value *ToStore) {
     unsigned ActualOffset = EnvOffset + Offset;
     return storeToCPUStateOffset(Builder, StoreSize, ActualOffset, ToStore);
   }
@@ -154,10 +154,11 @@ private:
                                       unsigned LoadSize,
                                       unsigned Offset);
 
-  bool storeToCPUStateOffset(llvm::IRBuilder<> &Builder,
-                             unsigned StoreSize,
-                             unsigned Offset,
-                             llvm::Value *ToStore);
+  llvm::Optional<llvm::StoreInst *>
+  storeToCPUStateOffset(llvm::IRBuilder<> &Builder,
+                        unsigned StoreSize,
+                        unsigned Offset,
+                        llvm::Value *ToStore);
 
   llvm::GlobalVariable *
   getByCPUStateOffset(intptr_t Offset, std::string Name = "");

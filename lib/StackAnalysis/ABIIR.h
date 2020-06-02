@@ -59,19 +59,12 @@ private:
   }
 
   ABIIRInstruction(Opcode O, ASSlot Target) :
-    O(O),
-    Target(Target),
-    ABI(),
-    WrittenStackSlots() {
+    O(O), Target(Target), ABI(), WrittenStackSlots() {
     revng_assert(O == Load || O == Store);
   }
 
   ABIIRInstruction(Opcode O, FunctionCall Call) :
-    O(O),
-    Target(ASSlot::invalid()),
-    Call(Call),
-    ABI(),
-    WrittenStackSlots() {
+    O(O), Target(ASSlot::invalid()), Call(Call), ABI(), WrittenStackSlots() {
     revng_assert(O == IndirectCall);
   }
 

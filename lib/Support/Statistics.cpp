@@ -1,4 +1,4 @@
-/// \file statistics.cpp
+/// \file Statistics.cpp
 /// \brief Implementation of the statistics collection framework
 
 //

@@ -66,8 +66,7 @@ public:
 
 private:
   IntraproceduralFunctionSummary(FunctionType::Values Type) :
-    Type(Type),
-    FinalState(Intraprocedural::Element::bottom()) {}
+    Type(Type), FinalState(Intraprocedural::Element::bottom()) {}
 
   IntraproceduralFunctionSummary(FunctionType::Values Type,
                                  Intraprocedural::Element FinalState,

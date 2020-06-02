@@ -1,4 +1,4 @@
-/// \file main.cpp
+/// \file Main.cpp
 /// \brief This file takes care of handling command-line parameters and loading
 /// the appropriate flavour of libtinycode-*.so
 
@@ -25,6 +25,7 @@ extern "C" {
 
 // LLVM includes
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ELF.h"
@@ -66,7 +67,7 @@ opt<unsigned long long> BaseAddress("base",
                                     DESCRIPTION,
                                     value_desc("address"),
                                     cat(MainCategory),
-                                    init(0x50000000));
+                                    init(0));
 #undef DESCRIPTION
 
 #define DESCRIPTION desc("Alias for -base")
@@ -185,7 +186,13 @@ int main(int argc, const char *argv[]) {
   ParseCommandLineOptions(argc, argv);
   installStatistics();
 
-  BinaryFile TheBinary(InputPath, BaseAddress);
+  llvm::Optional<uint64_t> OptionalBaseAddress;
+  if (BaseAddress.getNumOccurrences() != 0) {
+    revng_check(BaseAddress % 4096 == 0, "Base address is not page aligned");
+    OptionalBaseAddress = BaseAddress;
+  }
+
+  BinaryFile TheBinary(InputPath, OptionalBaseAddress);
 
   findFiles(TheBinary.architecture().name());
 
@@ -204,7 +211,10 @@ int main(int argc, const char *argv[]) {
                           LibHelpersPath,
                           EarlyLinkedPath);
 
-  Generator.translate(EntryPointAddress);
+  llvm::Optional<uint64_t> EntryPointAddressOptional;
+  if (EntryPointAddress.getNumOccurrences() != 0)
+    EntryPointAddressOptional = EntryPointAddress;
+  Generator.translate(EntryPointAddressOptional);
   Generator.serialize();
 
   return EXIT_SUCCESS;

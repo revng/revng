@@ -1,5 +1,4 @@
 source,destination
-bb.__gxx_personality_v0,bb._start.0xe
 bb._start,bb.__gxx_personality_v0
 bb._start.0x13,bb._start.0x3e
 bb._start.0x17,bb._start.0x1d

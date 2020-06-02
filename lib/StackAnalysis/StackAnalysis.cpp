@@ -227,7 +227,7 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
     if (Entry == nullptr or Function.BasicBlocks.size() == 0)
       continue;
 
-    uint64_t EntryPC = getBasicBlockPC(Entry);
+    MetaAddress EntryPC = getBasicBlockPC(Entry);
 
     //
     // Add `revng.func.entry`:
@@ -264,7 +264,7 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
 
     // Create revng.func.entry metadata
     MDTuple *FunctionMD = QMD.tuple({ QMD.get(getName(Entry)),
-                                      QMD.get(EntryPC),
+                                      QMD.get(GCBI.toConstant(EntryPC)),
                                       TypeMD,
                                       QMD.tuple(ClobberedMDs),
                                       QMD.tuple(SlotMDs) });

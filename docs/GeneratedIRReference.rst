@@ -149,6 +149,7 @@ The generated module also contains a *named metadata node*:
 ``revng.input.architecture``. Currently it's composed by a metadata tuple with
 two values:
 
+:``string ArchitectureName``: the name of the input architecture.
 :``u32 InstructionAlignment``: alignment of instructions, for example in ARM
                                instructions have an alignment of 4 bytes, while
                                the alignment for x86 architectures is 1 byte.
@@ -166,7 +167,7 @@ Here's how this information appears in our example:
 .. code-block:: llvm
 
     !revng.input.architecture = !{!0}
-    !1 = !{i32 1, i32 0, !"pc", !"rsp", !2}
+    !1 = !{!"x86_64", i32 1, i32 0, !"pc", !"rsp", !2}
     !2 = !{!"rax", !"rbx", !"rcx", !"rdx", !"rbp", ... }
 
 x86-64 has no instruction alignment requirements, no delay slot and the CSV

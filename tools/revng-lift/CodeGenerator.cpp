@@ -17,12 +17,8 @@
 #include <utility>
 #include <vector>
 
-// Boost includes
-#include <boost/icl/interval_map.hpp>
-#include <boost/icl/right_open_interval.hpp>
-#include <boost/type_traits/is_same.hpp>
-
 // LLVM includes
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/ExecutionEngine/RuntimeDyld.h"
 #include "llvm/IR/CFG.h"
@@ -37,6 +33,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -55,6 +52,7 @@
 #include "InstructionTranslator.h"
 #include "JumpTargetManager.h"
 #include "PTCInterface.h"
+#include "ProgramCounterHandler.h"
 #include "VariableManager.h"
 
 using namespace llvm;
@@ -101,18 +99,23 @@ static cl::alias A3("b",
 
 // Enable Debug Options to be specified on the command line
 namespace DIT = DebugInfoType;
-auto X = cl::values(clEnumValN(DIT::None, "none", "no debug information"),
-                    clEnumValN(DIT::OriginalAssembly,
-                               "asm",
-                               "debug information referred to the assembly "
-                               "of the input file"),
-                    clEnumValN(DIT::PTC,
-                               "ptc",
-                               "debug information referred to the Portable "
-                               "Tiny Code"),
-                    clEnumValN(DIT::LLVMIR,
-                               "ll",
-                               "debug information referred to the LLVM IR"));
+static auto X = cl::values(clEnumValN(DIT::None,
+                                      "none",
+                                      "no debug information"),
+                           clEnumValN(DIT::OriginalAssembly,
+                                      "asm",
+                                      "debug information referred to the "
+                                      "assembly "
+                                      "of the input file"),
+                           clEnumValN(DIT::PTC,
+                                      "ptc",
+                                      "debug information referred to the "
+                                      "Portable "
+                                      "Tiny Code"),
+                           clEnumValN(DIT::LLVMIR,
+                                      "ll",
+                                      "debug information referred to the LLVM "
+                                      "IR"));
 static cl::opt<DIT::Values> DebugInfo("debug-info",
                                       cl::desc("emit debug information"),
                                       X,
@@ -138,6 +141,60 @@ inline std::array<T, sizeof...(Args)> make_array(Args &&... args) {
   return { { std::forward<Args>(args)... } };
 }
 
+/// Wrap a value around a temporary opaque function
+///
+/// Useful to prevent undesired optimizations
+class OpaqueIdentity {
+private:
+  std::map<Type *, Function *> Map;
+  Module *M;
+
+public:
+  OpaqueIdentity(Module *M) : M(M) {}
+
+  ~OpaqueIdentity() { revng_assert(Map.size() == 0); }
+
+  void drop() {
+    SmallVector<CallInst *, 16> ToErase;
+    for (auto [T, F] : Map) {
+      for (User *U : F->users()) {
+        auto *Call = cast<CallInst>(U);
+        Call->replaceAllUsesWith(Call->getArgOperand(0));
+        ToErase.push_back(Call);
+      }
+    }
+
+    for (CallInst *Call : ToErase)
+      Call->eraseFromParent();
+
+    for (auto [T, F] : Map)
+      F->eraseFromParent();
+
+    Map.clear();
+  }
+
+  Instruction *wrap(IRBuilder<> &Builder, Value *V) {
+    Type *ResultType = V->getType();
+    Function *F = nullptr;
+    auto It = Map.find(ResultType);
+    if (It == Map.end()) {
+      auto *FT = FunctionType::get(ResultType, { ResultType }, false);
+      F = Function::Create(FT, GlobalValue::ExternalLinkage, "id", *M);
+      F->addFnAttr(Attribute::ReadOnly);
+      Map[ResultType] = F;
+    } else {
+      F = It->second;
+    }
+
+    return Builder.CreateCall(F, { V });
+  }
+
+  Instruction *wrap(Instruction *I) {
+    IRBuilder<> Builder(I->getParent(), ++I->getIterator());
+    return wrap(Builder, I);
+  }
+};
+
 // Outline the destructor for the sake of privacy in the header
 CodeGenerator::~CodeGenerator() = default;
 
@@ -160,12 +217,13 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              std::string Output,
                              std::string Helpers,
                              std::string EarlyLinked) :
-  TargetArchitecture(Target),
+  TargetArchitecture(std::move(Target)),
   Context(TheContext),
   TheModule(new Module("top", Context)),
   OutputPath(Output),
   Debug(new DebugHelper(Output, TheModule.get(), DebugInfo, DebugPath)),
   Binary(Binary) {
+
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
 
@@ -220,18 +278,40 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   };
 
   // These values will be used to populate the auxiliary vectors
-  createConstGlobal("e_phentsize", Binary.programHeaderSize());
-  createConstGlobal("e_phnum", Binary.programHeadersCount());
-  createConstGlobal("phdr_address", Binary.programHeadersAddress());
+  if (Binary.programHeadersAddress().isValid()) {
+    createConstGlobal("e_phentsize", Binary.programHeaderSize());
+    createConstGlobal("e_phnum", Binary.programHeadersCount());
+    createConstGlobal("phdr_address", Binary.programHeadersAddress().address());
+  }
 
   for (SegmentInfo &Segment : Binary.segments()) {
     // If it's executable register it as a valid code area
     if (Segment.IsExecutable) {
       // We ignore possible p_filesz-p_memsz mismatches, zeros wouldn't be
       // useful code anyway
-      ptc.mmap(Segment.StartVirtualAddress,
+      ptc.mmap(Segment.StartVirtualAddress.address(),
                static_cast<const void *>(Segment.Data.data()),
                static_cast<size_t>(Segment.Data.size()));
+
+      bool Found = false;
+      MetaAddress End = Segment.pagesRange().second;
+      for (SegmentInfo &Segment : Binary.segments()) {
+        if (Segment.IsExecutable and Segment.containsInPages(End)) {
+          Found = true;
+          break;
+        }
+      }
+
+      // The next page is not mapped
+      if (not Found) {
+        revng_check(Segment.EndVirtualAddress.address() != 0);
+        NoMoreCodeBoundaries.insert(Segment.EndVirtualAddress);
+        const auto &Architecture = Binary.architecture();
+        auto BasicBlockEndingPattern = Architecture.basicBlockEndingPattern();
+        ptc.mmap(End.address(),
+                 BasicBlockEndingPattern.data(),
+                 BasicBlockEndingPattern.size());
+      }
     }
 
     std::string Name = Segment.generateName();
@@ -271,8 +351,9 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
 
     // Write the linking info CSV
     LinkingInfoStream << "." << Name << ",0x" << std::hex
-                      << Segment.StartVirtualAddress << ",0x" << std::hex
-                      << Segment.EndVirtualAddress << "\n";
+                      << Segment.StartVirtualAddress.address() << ",0x"
+                      << std::hex << Segment.EndVirtualAddress.address()
+                      << "\n";
   }
 
   // Write needed libraries CSV
@@ -287,7 +368,7 @@ std::string SegmentInfo::generateName() {
   std::stringstream NameStream;
   NameStream << "o_" << (IsReadable ? "r" : "") << (IsWriteable ? "w" : "")
              << (IsExecutable ? "x" : "") << "_0x" << std::hex
-             << StartVirtualAddress;
+             << StartVirtualAddress.address();
 
   return NameStream.str();
 }
@@ -332,8 +413,7 @@ public:
   CpuLoopFunctionPass() : llvm::ModulePass(ID), ExceptionIndexOffset(0) {}
 
   CpuLoopFunctionPass(intptr_t ExceptionIndexOffset) :
-    llvm::ModulePass(ID),
-    ExceptionIndexOffset(ExceptionIndexOffset) {}
+    llvm::ModulePass(ID), ExceptionIndexOffset(ExceptionIndexOffset) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
@@ -445,7 +525,7 @@ class CpuLoopExitPass : public llvm::ModulePass {
 public:
   static char ID;
 
-  CpuLoopExitPass() : llvm::ModulePass(ID), VM(0) {}
+  CpuLoopExitPass() : llvm::ModulePass(ID), VM(nullptr) {}
   CpuLoopExitPass(VariableManager *VM) : llvm::ModulePass(ID), VM(VM) {}
 
   bool runOnModule(llvm::Module &M) override;
@@ -645,8 +725,10 @@ static void purgeDeadBlocks(Function *F) {
   } while (!Kill.empty());
 }
 
-void CodeGenerator::translate(uint64_t VirtualAddress) {
+void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   using FT = FunctionType;
+
+  MetaAddress::createStructVariable(TheModule.get());
 
   // Declare the abort function
   auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
@@ -781,10 +863,22 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     if (auto *I = dyn_cast<Instruction>(U))
       CpuLoopExitingUsers.insert(I->getParent()->getParent());
 
+  //
+  // Create well-known CSVs
+  //
   const Architecture &Arch = Binary.architecture();
   StringRef SPName = Arch.stackPointerRegister();
-  GlobalVariable *PCReg = Variables.getByEnvOffset(ptc.pc, "pc").first;
   GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, SPName).first;
+
+  using PCHOwner = std::unique_ptr<ProgramCounterHandler>;
+  auto Factory = [&Variables](intptr_t Offset,
+                              llvm::StringRef Name) -> GlobalVariable * {
+    return Variables.getByEnvOffset(Offset, Name).first;
+  };
+  PCHOwner PCH = ProgramCounterHandler::create(Arch.type(),
+                                               TheModule.get(),
+                                               &ptc,
+                                               Factory);
 
   IRBuilder<> Builder(Context);
 
@@ -801,6 +895,15 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   // allocations
   BasicBlock *Entry = BasicBlock::Create(Context, "entrypoint", MainFunction);
   Builder.SetInsertPoint(Entry);
+
+  // We need to remember this instruction so we can later insert a call here.
+  // The problem is that up until now we don't know where our CPUState structure
+  // is.
+  // After the translation we will and use this information to create a call to
+  // a helper function.
+  // TODO: we need a more elegant solution here
+  auto *Delimiter = Builder.CreateStore(&*MainFunction->arg_begin(), SPReg);
+  auto *InitEnvInsertPoint = Delimiter;
 
   QuickMetadata QMD(Context);
 
@@ -822,6 +925,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   // Currently revng.input.architecture is composed as follows:
   //
   // revng.input.architecture = {
+  //   ArchitectureName,
   //   InstructionAlignment,
   //   DelaySlotSize,
   //   PCRegisterName,
@@ -836,6 +940,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   auto *Tuple = MDTuple::get(Context,
                              {
+                               QMD.get(Arch.name()),
                                QMD.get(Arch.instructionAlignment()),
                                QMD.get(Arch.delaySlotSize()),
                                QMD.get("pc"),
@@ -848,37 +953,36 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   // Create an instance of JumpTargetManager
   JumpTargetManager JumpTargets(MainFunction,
-                                PCReg,
+                                PCH.get(),
                                 Binary,
                                 createCPUStateAccessAnalysisPass);
 
-  if (VirtualAddress == 0) {
+  MetaAddress VirtualAddress = MetaAddress::invalid();
+  if (RawVirtualAddress) {
+    VirtualAddress = JumpTargets.fromPC(*RawVirtualAddress);
+  } else {
     JumpTargets.harvestGlobalData();
     VirtualAddress = Binary.entryPoint();
+    revng_assert(VirtualAddress.isCode());
   }
-  JumpTargets.registerJT(VirtualAddress, JTReason::GlobalData);
 
-  // Initialize the program counter
-  auto *StartPC = ConstantInt::get(PCReg->getType()->getPointerElementType(),
-                                   VirtualAddress);
-  // Use this instruction as the delimiter for local variables
-  auto *Delimiter = Builder.CreateStore(StartPC, PCReg);
+  if (VirtualAddress.isValid()) {
+    JumpTargets.registerJT(VirtualAddress, JTReason::GlobalData);
 
-  // We need to remember this instruction so we can later insert a call here.
-  // The problem is that up until now we don't know where our CPUState structure
-  // is.
-  // After the translation we will and use this information to create a call to
-  // a helper function.
-  // TODO: we need a more elegant solution here
-  auto *InitEnvInsertPoint = Delimiter;
-  Builder.CreateStore(&*MainFunction->arg_begin(), SPReg);
+    // Initialize the program counter
+    PCH->initializePC(Builder, VirtualAddress);
+  }
+
+  OpaqueIdentity OI(TheModule.get());
 
   // Fake jumps to the dispatcher-related basic blocks. This way all the blocks
   // are always reachable.
-  auto *ReachSwitch = Builder.CreateSwitch(Builder.getInt8(0),
+  auto *ReachSwitch = Builder.CreateSwitch(OI.wrap(Builder, Builder.getInt8(0)),
                                            JumpTargets.dispatcher());
   ReachSwitch->addCase(Builder.getInt8(1), JumpTargets.anyPC());
   ReachSwitch->addCase(Builder.getInt8(2), JumpTargets.unexpectedPC());
+
+  JumpTargets.setCFGForm(CFGForm::SemanticPreserving);
 
   std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
@@ -889,7 +993,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                                    JumpTargets,
                                    Blocks,
                                    Binary.architecture(),
-                                   TargetArchitecture);
+                                   TargetArchitecture,
+                                   PCH.get());
 
   while (Entry != nullptr) {
     Builder.SetInsertPoint(Entry);
@@ -901,13 +1006,40 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     PTCInstructionListPtr InstructionList(new PTCInstructionList);
     size_t ConsumedSize = 0;
 
-    ConsumedSize = ptc.translate(VirtualAddress, InstructionList.get());
+    PTCCodeType Type = PTC_CODE_REGULAR;
+
+    switch (VirtualAddress.type()) {
+    case MetaAddressType::Invalid:
+      revng_abort();
+
+    case MetaAddressType::Code_arm_thumb:
+      Type = PTC_CODE_ARM_THUMB;
+      break;
+
+    default:
+      Type = PTC_CODE_REGULAR;
+      break;
+    }
+
+    ConsumedSize = ptc.translate(VirtualAddress.address(),
+                                 Type,
+                                 InstructionList.get());
+
+    // Check whether we ended up in an unmapped page
+    MetaAddress AbortAt = MetaAddress::invalid();
+    MetaAddress LastByte = VirtualAddress.toGeneric() + (ConsumedSize - 1);
+    if (VirtualAddress.pageStart() != LastByte.pageStart()) {
+      MetaAddress NextPage = VirtualAddress.nextPageStart();
+      if (NoMoreCodeBoundaries.count(NextPage) != 0)
+        AbortAt = NextPage;
+    }
+
     SmallSet<unsigned, 1> ToIgnore;
     ToIgnore = Translator.preprocess(InstructionList.get());
 
     if (PTCLog.isEnabled()) {
       std::stringstream Stream;
-      dumpTranslation(Stream, InstructionList.get());
+      dumpTranslation(VirtualAddress, Stream, InstructionList.get());
       PTCLog << Stream.str() << DoLog;
     }
 
@@ -915,9 +1047,11 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     unsigned j = 0;
     MDNode *MDOriginalInstr = nullptr;
     bool StopTranslation = false;
-    uint64_t PC = VirtualAddress;
-    uint64_t NextPC = 0;
-    uint64_t EndPC = VirtualAddress + ConsumedSize;
+
+    MetaAddress PC = VirtualAddress;
+    MetaAddress NextPC = MetaAddress::invalid();
+    MetaAddress EndPC = VirtualAddress + ConsumedSize;
+
     const auto InstructionCount = InstructionList->instruction_count;
     using IT = InstructionTranslator;
     IT::TranslationResult Result;
@@ -939,8 +1073,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                PC,
                NextPC) = Translator.newInstruction(Instruction,
                                                    NextInstruction,
+                                                   VirtualAddress,
                                                    EndPC,
-                                                   true);
+                                                   true,
+                                                   AbortAt);
       j++;
     }
 
@@ -976,8 +1112,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
                  PC,
                  NextPC) = Translator.newInstruction(&Instruction,
                                                      NextInstruction,
+                                                     VirtualAddress,
                                                      EndPC,
-                                                     false);
+                                                     false,
+                                                     AbortAt);
       } break;
       case PTC_INSTRUCTION_op_call: {
         Result = Translator.translateCall(&Instruction);
@@ -1041,9 +1179,40 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       Builder.CreateUnreachable();
     }
 
+    Translator.registerDirectJumps();
+
     // Obtain a new program counter to translate
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
   } // End translations loop
+
+  OI.drop();
+
+  // Reorder basic blocks in RPOT
+  {
+    BasicBlock *Entry = &MainFunction->getEntryBlock();
+    ReversePostOrderTraversal<BasicBlock *> RPOT(Entry);
+    std::set<BasicBlock *> SortedBasicBlocksSet;
+    std::vector<BasicBlock *> SortedBasicBlocks;
+    for (BasicBlock *BB : RPOT) {
+      SortedBasicBlocksSet.insert(BB);
+      SortedBasicBlocks.push_back(BB);
+    }
+
+    auto &BasicBlockList = MainFunction->getBasicBlockList();
+    std::vector<BasicBlock *> Unreachable;
+    for (BasicBlock &BB : BasicBlockList) {
+      if (SortedBasicBlocksSet.count(&BB) == 0) {
+        Unreachable.push_back(&BB);
+      }
+    }
+
+    while (BasicBlockList.size() != 0)
+      BasicBlockList.begin()->removeFromParent();
+    for (BasicBlock *BB : SortedBasicBlocks)
+      BasicBlockList.push_back(BB);
+    for (BasicBlock *BB : Unreachable)
+      BasicBlockList.push_back(BB);
+  }
 
   //
   // At this point we have all the code, add store false to cpu_loop_exiting in
@@ -1090,13 +1259,24 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
   Variables.setDataLayout(&TheModule->getDataLayout());
 
-  legacy::PassManager PM;
-  PM.add(createSROAPass());
-  PM.add(new CPUStateAccessAnalysisPass(&Variables, false));
-  PM.add(createDeadCodeEliminationPass());
+  // SROA must run before InstCombine because in this way InstCombine has many
+  // more elementary operations to combine
+  legacy::PassManager PreInstCombinePM;
+  PreInstCombinePM.add(createSROAPass());
+  PreInstCombinePM.run(*TheModule);
+
+  // InstCombine must run before CPUStateAccessAnalysis (CSAA) because, if it
+  // runs after it, it removes all the useful metadata attached by CSAA.
+  legacy::FunctionPassManager InstCombinePM(&*TheModule);
+  InstCombinePM.add(createInstructionCombiningPass());
+  InstCombinePM.run(*MainFunction);
+
+  legacy::PassManager PostInstCombinePM;
+  PostInstCombinePM.add(new CPUStateAccessAnalysisPass(&Variables, false));
+  PostInstCombinePM.add(createDeadCodeEliminationPass());
   // TODO: drop me once we integrate stack analysis with AVI
-  PM.add(new FunctionCallIdentification);
-  PM.run(*TheModule);
+  PostInstCombinePM.add(new FunctionCallIdentification);
+  PostInstCombinePM.run(*TheModule);
 
   JumpTargets.finalizeJumpTargets();
 
@@ -1113,7 +1293,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     revng_assert(!Result, "Linking failed");
   }
 
-  ExternalJumpsHandler JumpOutHandler(Binary, JumpTargets, *MainFunction);
+  ExternalJumpsHandler JumpOutHandler(Binary,
+                                      JumpTargets.dispatcher(),
+                                      *MainFunction,
+                                      PCH.get());
   JumpOutHandler.createExternalJumpsHandler();
 
   Translator.finalizeNewPCMarkers(CoveragePath);

@@ -59,7 +59,7 @@ macro(revng_add_analyses_library NAME EXPORT_NAME)
 
 endmacro()
 
-macro(revng_add_executable NAME)
+macro(revng_add_private_executable NAME)
 
   add_executable("${NAME}" ${ARGN})
   prepend_target_property("${NAME}" BUILD_RPATH "\$ORIGIN/../lib/:\$ORIGIN/../lib/revng/analyses/" ":")
@@ -71,8 +71,11 @@ macro(revng_add_executable NAME)
   add_custom_command(TARGET "${NAME}" POST_BUILD VERBATIM
     COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${NAME}>" "${CMAKE_BINARY_DIR}/bin/$<TARGET_FILE_NAME:${NAME}>")
 
-  install(TARGETS "${NAME}" RUNTIME DESTINATION bin)
+endmacro()
 
+macro(revng_add_executable NAME)
+  revng_add_private_executable("${NAME}" ${ARGN})
+  install(TARGETS "${NAME}" RUNTIME DESTINATION bin)
 endmacro()
 
 # This macro returns in ${RESULT} a list of files matching the pattern in the

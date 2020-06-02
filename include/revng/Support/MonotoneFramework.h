@@ -409,16 +409,13 @@ public:
   using InterruptType = Interrupt;
 
   MonotoneFramework(Label Entry) :
-    FinalResult(LatticeElement::bottom()),
-    WorkList(Entry) {}
+    FinalResult(LatticeElement::bottom()), WorkList(Entry) {}
 
   MonotoneFramework(const std::vector<Label> &RPOT) :
-    FinalResult(LatticeElement::bottom()),
-    WorkList(RPOT) {}
+    FinalResult(LatticeElement::bottom()), WorkList(RPOT) {}
 
   MonotoneFramework(const llvm::SmallVectorImpl<Label> &RPOT) :
-    FinalResult(LatticeElement::bottom()),
-    WorkList(RPOT) {}
+    FinalResult(LatticeElement::bottom()), WorkList(RPOT) {}
 
 private:
   const D &derived() const { return *static_cast<const D *>(this); }

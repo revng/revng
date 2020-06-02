@@ -11,6 +11,8 @@
 // LLVM includes
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/LazyValueInfo.h"
+#include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instruction.h"
@@ -25,6 +27,108 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MonotoneFramework.h"
 
+inline Logger<> AVILogger("avi");
+
+using range_size_t = uint64_t;
+const range_size_t MaxMaterializedValues = (1 << 16);
+
+inline unsigned getTypeSize(const llvm::DataLayout &DL, llvm::Type *T) {
+  using namespace llvm;
+  if (auto *IntegerTy = dyn_cast<IntegerType>(T))
+    return IntegerTy->getBitWidth();
+  else if (auto *PtrTy = dyn_cast<PointerType>(T))
+    return DL.getPointerSize() * 8;
+  else
+    revng_abort();
+}
+
+/// Return the only Unknown value in the SCEV (if no AddRec/CouldNotCompute)
+inline llvm::Value *
+getUniqueUnknown(llvm::ScalarEvolution &SE, const llvm::SCEV *SC) {
+  using namespace llvm;
+
+  class FindSingleUnknown {
+  private:
+    bool Stop = false;
+
+  public:
+    Value *UniqueUnknown = nullptr;
+
+  public:
+    bool follow(const SCEV *S) {
+      if (Stop)
+        return false;
+
+      switch (S->getSCEVType()) {
+      case scConstant:
+      case scTruncate:
+      case scZeroExtend:
+      case scSignExtend:
+      case scMulExpr:
+      case scSMaxExpr:
+      case scUMaxExpr:
+      case scSMinExpr:
+      case scUMinExpr:
+      case scUDivExpr:
+      case scAddExpr:
+        break;
+
+      case scUnknown:
+        if (UniqueUnknown == nullptr) {
+          UniqueUnknown = cast<SCEVUnknown>(S)->getValue();
+        } else {
+          UniqueUnknown = nullptr;
+          Stop = true;
+        }
+
+        break;
+
+      case scAddRecExpr:
+      case scCouldNotCompute:
+        UniqueUnknown = nullptr;
+        Stop = true;
+        break;
+      }
+
+      return not Stop;
+    }
+
+    bool isDone() const { return Stop; }
+  };
+
+  FindSingleUnknown FSU;
+  visitAll(SC, FSU);
+
+  if (FSU.UniqueUnknown != nullptr)
+    revng_assert(not SE.containsAddRecurrence(SC));
+
+  return FSU.UniqueUnknown;
+}
+
+inline llvm::ConstantInt *replaceAllUnknownsWith(llvm::ScalarEvolution &SE,
+                                                 const llvm::SCEV *SC,
+                                                 llvm::ConstantInt *C) {
+  using namespace llvm;
+
+  revng_assert(not SE.containsAddRecurrence(SC));
+
+  class Rewriter : public SCEVRewriteVisitor<Rewriter> {
+  private:
+    ConstantInt *NewConstant;
+
+  public:
+    Rewriter(ScalarEvolution &SE, ConstantInt *NewConstant) :
+      SCEVRewriteVisitor(SE), NewConstant(NewConstant) {}
+
+    const SCEV *visitUnknown(const SCEVUnknown *) {
+      return SE.getConstant(NewConstant);
+    }
+  };
+
+  Rewriter RW(SE, C);
+  return cast<SCEVConstant>(RW.visit(SC))->getValue();
+}
+
 struct Edge {
   llvm::BasicBlock *Start;
   llvm::BasicBlock *End;
@@ -33,8 +137,11 @@ struct Edge {
     return std::tie(Start, End) < std::tie(Other.Start, Other.End);
   }
 
-  void dump() const debug_function {
-    dbg << getName(Start) << "->" << getName(End);
+  void dump() const debug_function { dump(dbg); }
+
+  template<typename T>
+  void dump(T &Output) const {
+    Output << getName(Start) << "->" << getName(End);
   }
 };
 
@@ -110,10 +217,7 @@ public:
            const llvm::DominatorTree &DT,
            const std::vector<llvm::Instruction *> &TargetInstructions,
            const std::vector<Edge> &TargetEdges) :
-    Base(RPOT),
-    Entry(RPOT[0]),
-    LVI(LVI),
-    DT(DT) {
+    Base(RPOT), Entry(RPOT[0]), LVI(LVI), DT(DT) {
     using namespace llvm;
 
     registerExtremal(Entry);
@@ -134,7 +238,7 @@ public:
     }
   }
 
-  Element extremalValue(llvm::BasicBlock *BB) const { return Element(); }
+  Element extremalValue(llvm::BasicBlock *) const { return Element(); }
 
   void assertLowerThanOrEqual(const Element &A, const Element &B) const {
     revng_assert(A.lowerThanOrEqual(B));
@@ -175,11 +279,14 @@ public:
     return InstructionRanges.at(I);
   }
 
-  void dump() const {
+  void dump() const debug_function { dump(dbg); }
+
+  template<typename T>
+  void dump(T &Output) const {
     for (auto &P : InstructionRanges) {
-      dbg << getName(P.first) << ": ";
-      P.second.dump();
-      dbg << "\n";
+      Output << getName(P.first) << ": ";
+      P.second.dump(Output);
+      Output << "\n";
     }
   }
 
@@ -226,39 +333,30 @@ private:
 
 } // namespace DisjointRanges
 
-inline bool isInterestingRange(uint64_t Size, llvm::IntegerType *T) {
-  return Size <= MaxMaterializedValues and Size < T->getBitMask();
-}
-
-inline bool isInterestingRange(uint64_t Size, llvm::Type *T) {
-  return isInterestingRange(Size, llvm::cast<llvm::IntegerType>(T));
-}
-
-inline bool isInterestingRange(uint64_t Size, llvm::Value *V) {
-  return isInterestingRange(Size, V->getType());
-}
-
 inline bool isPhiLike(llvm::Value *V) {
   return (llvm::isa<llvm::PHINode>(V) or llvm::isa<llvm::SelectInst>(V));
 }
 
 inline bool isMemory(llvm::Value *V) {
   using namespace llvm;
+  V = skipCasts(V);
   return not(isa<GlobalVariable>(V) or isa<AllocaInst>(V));
 }
 
 /// \brief An operation producing a result and having a single free operand
 struct Operation {
+  static const unsigned UseSCEV = std::numeric_limits<unsigned>::max();
+
   llvm::User *V;
   unsigned FreeOperandIndex;
   ConstantRangeSet Range;
-  uint64_t RangeSize;
+  range_size_t RangeSize;
 
   Operation() : V(nullptr), FreeOperandIndex(0), Range(), RangeSize(0) {}
   Operation(llvm::User *V,
             unsigned FreeOperandIndex,
             llvm::ConstantRange Range,
-            uint64_t RangeSize) :
+            range_size_t RangeSize) :
     V(V),
     FreeOperandIndex(FreeOperandIndex),
     Range(Range),
@@ -269,23 +367,44 @@ struct Operation {
     return cast<IntegerType>(V->getType())->getBitWidth();
   }
 
-  void dump(unsigned Indent) const debug_function {
+  bool usesSCEV() const { return FreeOperandIndex == UseSCEV; }
+
+  void dump(unsigned Indent = 0,
+            llvm::ScalarEvolution *SCEV = nullptr) const debug_function {
+    dump(dbg, Indent, SCEV);
+  }
+
+  template<typename T>
+  void dump(T &Output,
+            unsigned Indent = 0,
+            llvm::ScalarEvolution *SCEV = nullptr) const {
     std::string Prefix(Indent, ' ');
-    dbg << Prefix;
-    V->dump();
-    dbg << Prefix << "FreeOperandIndex: " << FreeOperandIndex << "\n";
+    Output << Prefix << V << "\n";
 
-    dbg << Prefix;
-    Range.dump();
-    dbg << "\n";
+    Output << Prefix;
+    if (usesSCEV()) {
+      if (SCEV != nullptr) {
+        Output << dumpToString(SCEV->getSCEV(V)) << "\n";
+      } else {
+        Output << "UsesSCEV\n";
+      }
+    } else {
+      Output << "FreeOperandIndex: " << FreeOperandIndex << "\n";
+    }
 
-    dbg << Prefix << "RangeSize: " << RangeSize << "\n";
+    Output << Prefix;
+    Range.dump(Output);
+    Output << "\n";
+
+    Output << Prefix << "RangeSize: " << RangeSize << "\n";
   }
 };
 
 /// \brief Class representing an expression on the IR
 class Expression {
 private:
+  const llvm::DataLayout &DL;
+  llvm::ScalarEvolution &SE;
   std::vector<Operation> OperationsStack;
   unsigned SmallestRangeIndex;
   bool PhiIsSmallest;
@@ -296,7 +415,10 @@ public:
   using PhiEdges = std::vector<Edge>;
 
 public:
-  Expression() { reset(); }
+  Expression(const llvm::DataLayout &DL, llvm::ScalarEvolution &SE) :
+    DL(DL), SE(SE) {
+    reset();
+  }
 
   void reset() {
     SmallestRangeIndex = 0;
@@ -306,34 +428,37 @@ public:
     Values.clear();
   }
 
-  void dump(unsigned Indent) const debug_function {
+  void dump(unsigned Indent = 0) const debug_function { dump(dbg, Indent); }
+
+  template<typename T>
+  void dump(T &Output, unsigned Indent = 0) const {
     std::string Prefix(Indent, ' ');
 
-    dbg << Prefix << "OperationStack: \n";
+    Output << Prefix << "OperationStack: \n";
     unsigned I = 0;
     for (const Operation &Op : OperationsStack) {
-      dbg << Prefix << "  " << I;
+      Output << Prefix << "  " << I;
       if (I == SmallestRangeIndex)
-        dbg << " [smallest]";
-      dbg << ":\n";
-      Op.dump(Indent + 4);
+        Output << " [smallest]";
+      Output << ":\n";
+      Op.dump(Output, Indent + 4);
       ++I;
     }
-    dbg << "\n";
+    Output << "\n";
 
-    dbg << Prefix << "PhiIsSmallest: " << PhiIsSmallest << "\n";
-    dbg << Prefix << "Values: {";
+    Output << Prefix << "PhiIsSmallest: " << PhiIsSmallest << "\n";
+    Output << Prefix << "Values: {";
     for (const MaterializedValue &Value : Values) {
-      dbg << " ";
-      Value.dump();
+      Output << " ";
+      Value.dump(Output);
     }
-    dbg << " }\n";
-    dbg << Prefix << "Materialized: " << Materialized << "\n";
+    Output << " }\n";
+    Output << Prefix << "Materialized: " << Materialized << "\n";
   }
 
   bool lastIsPhi() const { return isPhiLike(OperationsStack.back().V); }
 
-  uint64_t smallestRangeSize() const {
+  range_size_t smallestRangeSize() const {
     return OperationsStack.at(SmallestRangeIndex).RangeSize;
   }
 
@@ -356,12 +481,18 @@ public:
                   llvm::Value *V,
                   const std::vector<llvm::BasicBlock *> &RPOT) {
     using namespace llvm;
+
+    revng_log(AVILogger, "Building expression for " << V);
+
     Instruction *Result = nullptr;
 
     reset();
 
     User *U = cast<User>(V);
     do {
+
+      revng_log(AVILogger, "  Considering " << U);
+
       //
       // Identify the free operand
       //
@@ -369,20 +500,22 @@ public:
       unsigned NextIndex = 0;
       Value *Next = nullptr;
 
-      auto Range = ConstantRange::getFull(64);
-      uint64_t RangeSize = std::numeric_limits<uint64_t>::max();
+      unsigned BitWidth = getTypeSize(DL, U->getType());
+      auto Range = ConstantRange::getFull(BitWidth);
+      range_size_t RangeSize = MaxMaterializedValues;
       auto *I = dyn_cast<Instruction>(U);
 
       if (auto *Call = dyn_cast<CallInst>(U)) {
         if (Function *Callee = Call->getCalledFunction()) {
           if (Callee->getIntrinsicID() == Intrinsic::bswap) {
+            // Handle bswap intrinsic
             Use &FirstArg = Call->getArgOperandUse(0);
             Next = FirstArg.get();
             NextIndex = FirstArg.getOperandNo();
           }
         }
       } else if (I != nullptr) {
-
+        // We found an instruction
         for (Value *Operand : U->operands()) {
           if (not isa<Constant>(Operand)) {
             if (Next != nullptr) {
@@ -397,12 +530,21 @@ public:
           Index++;
         }
 
+        if (Next == nullptr and I->getNumOperands() > 1) {
+          // The instruction has more than one free operand, let's give SCEV a
+          // shot
+          Next = getUniqueUnknown(SE, SE.getSCEV(I));
+          if (Next == I)
+            Next = nullptr;
+          NextIndex = Operation::UseSCEV;
+        }
+
       } else if (auto *C = dyn_cast<ConstantInt>(U)) {
         RangeSize = 1;
-        Range = ConstantRange(APInt(64, getLimitedValue(C)));
+        Range = ConstantRange(C->getValue());
       } else if (isa<ConstantPointerNull>(U) or isa<UndefValue>(U)) {
         RangeSize = 0;
-        Range = ConstantRange(64, false);
+        Range = ConstantRange(BitWidth, false);
       } else {
         revng_assert(isa<Constant>(U));
         Next = U->getOperand(0);
@@ -458,6 +600,9 @@ public:
       for (Operation &O : OperationsStack) {
         if (auto *I = IsInteresting(O)) {
           O.Range = DR.get(I);
+          AVILogger << I << ": ";
+          O.Range.dump(AVILogger);
+          AVILogger << DoLog;
           O.RangeSize = O.Range.size().getLimitedValue();
         }
       }
@@ -491,7 +636,7 @@ public:
       }
     }
 
-    uint64_t WorstCase = MaxMaterializedValues;
+    range_size_t WorstCase = MaxMaterializedValues;
     if (SmallestType != nullptr)
       WorstCase = std::min(SmallestType->getBitMask(), WorstCase);
 
@@ -508,7 +653,7 @@ public:
       const auto End = SmallestOperation.Range.end();
       for (MaterializedValue &Entry : Values) {
         revng_assert(It != End);
-        Entry = { It->getLimitedValue() };
+        Entry = { *It };
         ++It;
       }
 
@@ -524,6 +669,12 @@ public:
       using CI = ConstantInt;
       using CE = ConstantExpr;
 
+      if (AVILogger.isEnabled()) {
+        AVILogger << "Now materializing ";
+        Entry.dump(AVILogger);
+        AVILogger << DoLog;
+      }
+
       llvm::Optional<llvm::StringRef> SymbolName;
       auto *Current = CI::get(SmallestOperation.V->getType(), Entry.value());
 
@@ -534,11 +685,28 @@ public:
       auto End = OperationsStack.rend();
       if (It != End) {
         auto Range = make_range(It, End);
+
         for (const Operation &Op : Range) {
+
+          if (AVILogger.isEnabled()) {
+            AVILogger << "  Processing:";
+            Op.dump(AVILogger, 4);
+            AVILogger << DoLog;
+          }
 
           // After we get a symbol name we only track casts, additions and
           // subtractions
           auto *I = dyn_cast<Instruction>(Op.V);
+
+          Module *M = nullptr;
+          LLVMContext *Context = nullptr;
+          const DataLayout *DL = nullptr;
+          if (I != nullptr) {
+            M = I->getParent()->getParent()->getParent();
+            Context = &M->getContext();
+            DL = &M->getDataLayout();
+          }
+
           if (SymbolName
               and not(I != nullptr
                       and (I->isCast() or I->getOpcode() == Instruction::Add
@@ -555,6 +723,13 @@ public:
             revng_assert(isMemory(skipCasts(Load->getPointerOperand())));
 
             MaterializedValue Loaded = MO.load(Current);
+
+            if (AVILogger.isEnabled()) {
+              AVILogger << "  MemoryOracle says its ";
+              Loaded.dump(AVILogger);
+              AVILogger << DoLog;
+            }
+
             if (not Loaded.isValid()) {
               // Couldn't read memory, bail out
               return {};
@@ -565,10 +740,7 @@ public:
 
             Type *LoadedType = Load->getType();
             if (LoadedType->isPointerTy()) {
-              auto *M = Load->getParent()->getParent()->getParent();
-              const DataLayout &DL = M->getDataLayout();
-              LLVMContext &C = M->getContext();
-              Current = CI::get(DL.getIntPtrType(C), Loaded.value());
+              Current = CI::get(DL->getIntPtrType(*Context), Loaded.value());
               Current = CE::getIntToPtr(Current, LoadedType);
             } else {
               Current = CI::get(cast<IntegerType>(LoadedType), Loaded.value());
@@ -579,35 +751,35 @@ public:
             revng_assert(Callee != nullptr
                          && Callee->getIntrinsicID() == Intrinsic::bswap);
 
-            uint64_t Value = getLimitedValue(cast<ConstantInt>(Current));
+            using CI = ConstantInt;
+            Current = CI::get(*Context,
+                              cast<CI>(Current)->getValue().byteSwap());
 
-            Type *T = Call->getType();
-            if (T->isIntegerTy(16))
-              Value = ByteSwap_16(Value);
-            else if (T->isIntegerTy(32))
-              Value = ByteSwap_32(Value);
-            else if (T->isIntegerTy(64))
-              Value = ByteSwap_64(Value);
-            else
-              revng_unreachable("Unexpected type");
-
-            Current = ConstantInt::get(T, Value);
           } else if (I != nullptr) {
 
-            // Build operands list patching the free operand
-            SmallVector<Constant *, 4> Operands;
-            unsigned Index = 0;
-            for (Value *Operand : Op.V->operands()) {
-              if (auto *ConstantOperand = dyn_cast<Constant>(Operand)) {
-                Operands.push_back(ConstantOperand);
-              } else {
-                revng_assert(Index == Op.FreeOperandIndex);
-                Operands.push_back(Current);
+            if (Op.usesSCEV()) {
+              Current = replaceAllUnknownsWith(SE,
+                                               SE.getSCEV(I),
+                                               cast<ConstantInt>(Current));
+            } else {
+              // Build operands list patching the free operand
+              SmallVector<Constant *, 4> Operands;
+              unsigned Index = 0;
+              for (Value *Operand : Op.V->operands()) {
+                if (auto *ConstantOperand = dyn_cast<Constant>(Operand)) {
+                  Operands.push_back(ConstantOperand);
+                } else {
+                  revng_assert(Index == Op.FreeOperandIndex);
+                  Operands.push_back(Current);
+                }
+                Index++;
               }
-              Index++;
+
+              Current = ConstantFoldInstOperands(I,
+                                                 Operands,
+                                                 MO.getDataLayout());
             }
 
-            Current = ConstantFoldInstOperands(I, Operands, MO.getDataLayout());
             revng_assert(Current != nullptr);
 
           } else {
@@ -616,9 +788,9 @@ public:
         }
       }
 
-      uint64_t Value = 0;
+      APInt Value(getTypeSize(DL, Current->getType()), 0);
       if (not Current->isNullValue())
-        Value = getLimitedValue(skipCasts(Current));
+        Value = cast<ConstantInt>(skipCasts(Current))->getValue();
 
       if (SymbolName)
         Entry = { *SymbolName, Value };
@@ -658,15 +830,19 @@ public:
   bool Unfinished;
 
   /// Size of the smallest range at the previous level
-  uint64_t UpperBound;
+  range_size_t UpperBound;
 
   /// Did we exceed MaxMaterializedValues?
   bool TooLarge;
 
 public:
-  PhiProcess(llvm::Instruction *Phi, uint64_t UpperBound) :
+  PhiProcess(const llvm::DataLayout &DL,
+             llvm::ScalarEvolution &SE,
+             llvm::Instruction *Phi,
+             range_size_t UpperBound) :
     Phi(Phi),
     NextIncomingIndex(0),
+    Expr(DL, SE),
     Unfinished(false),
     UpperBound(UpperBound),
     TooLarge(false) {
@@ -674,25 +850,26 @@ public:
     revng_assert(isPhiLike(Phi));
   }
 
-  void dump() const debug_function {
-    dbg << "Phi: ";
-    Phi->dump();
+  void dump() const debug_function { dump(dbg); }
 
-    dbg << "NextIncomingIndex: " << NextIncomingIndex << "\n";
+  template<typename T>
+  void dump(T &Output) const {
+    Output << "Phi: " << Phi << "\n";
+    Output << "NextIncomingIndex: " << NextIncomingIndex << "\n";
 
-    dbg << "Values: {";
+    Output << "Values: {";
     for (const MaterializedValue &Value : Values) {
-      dbg << " ";
-      Value.dump();
+      Output << " ";
+      Value.dump(Output);
     }
-    dbg << " }\n";
+    Output << " }\n";
 
-    dbg << "Expr:\n";
-    Expr.dump(2);
+    Output << "Expr:\n";
+    Expr.dump(Output, 2);
 
-    dbg << "Unfinished: " << Unfinished << "\n";
-    dbg << "UpperBound: " << UpperBound << "\n";
-    dbg << "TooLarge: " << TooLarge << "\n";
+    Output << "Unfinished: " << Unfinished << "\n";
+    Output << "UpperBound: " << UpperBound << "\n";
+    Output << "TooLarge: " << TooLarge << "\n";
   }
 };
 
@@ -705,19 +882,18 @@ template<typename MemoryOracle>
 class AdvancedValueInfo {
 private:
   llvm::LazyValueInfo &LVI;
+  llvm::ScalarEvolution &SE;
   const llvm::DominatorTree &DT;
   MemoryOracle &MO;
   const std::vector<llvm::BasicBlock *> &RPOT;
 
 public:
   AdvancedValueInfo(llvm::LazyValueInfo &LVI,
+                    llvm::ScalarEvolution &SE,
                     const llvm::DominatorTree &DT,
                     MemoryOracle &MO,
                     const std::vector<llvm::BasicBlock *> &RPOT) :
-    LVI(LVI),
-    DT(DT),
-    MO(MO),
-    RPOT(RPOT) {}
+    LVI(LVI), SE(SE), DT(DT), MO(MO), RPOT(RPOT) {}
 
   MaterializedValues explore(llvm::BasicBlock *BB, llvm::Value *V);
 };
@@ -726,6 +902,9 @@ template<class MemoryOracle>
 MaterializedValues
 AdvancedValueInfo<MemoryOracle>::explore(llvm::BasicBlock *BB, llvm::Value *V) {
   using namespace llvm;
+  const llvm::DataLayout &DL = getModule(BB)->getDataLayout();
+
+  revng_log(AVILogger, "Exploring " << V << " in " << BB);
 
   // Create a fake Phi for the initial entry
   PHINode *FakePhi = PHINode::Create(V->getType(), 1);
@@ -744,18 +923,24 @@ AdvancedValueInfo<MemoryOracle>::explore(llvm::BasicBlock *BB, llvm::Value *V) {
 
   std::set<Instruction *> VisitedPhis;
   std::vector<PhiProcess> PendingPhis{
-    { FakePhi, std::numeric_limits<uint64_t>::max() }
+    { DL, SE, FakePhi, MaxMaterializedValues }
   };
   Expression::PhiEdges Edges;
 
   while (true) {
     PhiProcess &Current = PendingPhis.back();
 
+    if (AVILogger.isEnabled()) {
+      AVILogger << "Processing ";
+      Current.dump(AVILogger);
+      AVILogger << DoLog;
+    }
+
     Instruction *NextPhi = nullptr;
 
     if (not Current.Unfinished) {
       // No processing in progress, proceed
-      uint64_t NextIndex = Current.NextIncomingIndex;
+      unsigned NextIndex = Current.NextIncomingIndex;
       Value *NextValue = nullptr;
       Edge NewEdge;
 
@@ -786,7 +971,10 @@ AdvancedValueInfo<MemoryOracle>::explore(llvm::BasicBlock *BB, llvm::Value *V) {
 
       // The last node of the Expression we just build is a phi node,
       // we have to suspend processing and proceed towards it
-      PendingPhis.emplace_back(NextPhi, Current.Expr.smallestRangeSize());
+      PendingPhis.emplace_back(DL,
+                               SE,
+                               NextPhi,
+                               Current.Expr.smallestRangeSize());
     } else {
       // The last node is not a phi, we're done on this incoming value of
       // the phi
@@ -805,7 +993,7 @@ AdvancedValueInfo<MemoryOracle>::explore(llvm::BasicBlock *BB, llvm::Value *V) {
         // Reset the unfinished flag
         Current.Unfinished = false;
 
-        uint64_t NewSize = Current.Values.size() + Result.size();
+        range_size_t NewSize = Current.Values.size() + Result.size();
         if (Current.TooLarge or NewSize > MaxMaterializedValues) {
           Current.TooLarge = true;
           Current.Values.clear();
@@ -820,7 +1008,7 @@ AdvancedValueInfo<MemoryOracle>::explore(llvm::BasicBlock *BB, llvm::Value *V) {
         unsigned IncomingCount = 0;
         if (auto *Phi = dyn_cast<PHINode>(Current.Phi)) {
           IncomingCount = Phi->getNumIncomingValues();
-        } else if (auto *Select = dyn_cast<SelectInst>(Current.Phi)) {
+        } else if (isa<SelectInst>(Current.Phi)) {
           IncomingCount = 2;
         } else {
           revng_abort();

@@ -441,8 +441,7 @@ public:
   Inhibitor() : S(), Enabled(false) {}
   explicit Inhibitor(typename S::Values V) : S(V), Enabled(false) {}
   explicit Inhibitor(typename S::Values V, bool Enabled) :
-    S(V),
-    Enabled(Enabled) {}
+    S(V), Enabled(Enabled) {}
 
   bool isEnabled() const { return Enabled; }
 
@@ -889,8 +888,7 @@ private:
 
 private:
   explicit Interrupt(Reason TheReason, Element<E> Result) :
-    TheReason(TheReason),
-    Result(std::move(Result)) {}
+    TheReason(TheReason), Result(std::move(Result)) {}
 
   explicit Interrupt(Reason TheReason) : TheReason(TheReason), Result() {}
 
@@ -1132,9 +1130,7 @@ std::set<NodeTy> findMaximalSimplePathTerminatorsOfExitlessSCCs(NodeTy Entry) {
 
     struct StackElement {
       StackElement(NodeTy Node) :
-        Node(Node),
-        Next(GT::child_begin(Node)),
-        End(GT::child_end(Node)) {}
+        Node(Node), Next(GT::child_begin(Node)), End(GT::child_end(Node)) {}
 
       NodeTy Node;
       typename GT::ChildIteratorType Next;

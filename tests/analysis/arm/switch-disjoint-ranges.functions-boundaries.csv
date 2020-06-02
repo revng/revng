@@ -15,6 +15,9 @@ bb._start,bb._start.0xc_L0_ft
 bb._start,bb._start.0xc_L0_ft1
 bb._start,bb.end
 bb._start,bb.indirect_jump
+bb._start,bb.indirect_jump_epoch_0
+bb._start,bb.indirect_jump_epoch_0_address_space_0
+bb._start,bb.indirect_jump_epoch_0_address_space_0_type_Code_arm
 bb._start,bb.yes1
 bb._start,bb.yes1.0x10
 bb._start,bb.yes1.0x4

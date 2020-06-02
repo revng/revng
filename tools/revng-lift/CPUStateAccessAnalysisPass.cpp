@@ -200,7 +200,8 @@ struct TaintResults {
 ///         3) a set of illegal calls, for which it is impossible to understand
 ///            if and how they will access the CSV.
 static TaintResults
-forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
+forwardTaintAnalysis(const Module *M,
+                     Value *CPUStatePtr,
                      const ConstFunctionPtrSet &ReachableFunctions,
                      const unsigned LoadMDKind,
                      const unsigned StoreMDKind,
@@ -251,12 +252,9 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
     const Argument *Arg;
     const unsigned ArgNo;
     CallSiteInfo(const CallInst *C, const Argument *A, const unsigned N) :
-      CallSite(C),
-      Arg(A),
-      ArgNo(N) {}
+      CallSite(C), Arg(A), ArgNo(N) {}
   };
 
-  Module *M = CPUStatePtr->getParent();
   if (TaintLog.isEnabled()) {
     TaintLog << "MODULE:" << DoLog;
     TaintLog << dumpToString(M) << DoLog;
@@ -299,7 +297,7 @@ forwardTaintAnalysis(GlobalVariable *CPUStatePtr,
 
     // Sanity check for the uses of CPUStatePtr.
     // They must all be direct Loads from CPUStatePtr.
-    revng_assert(Load->getPointerOperand() == CPUStatePtr);
+    revng_assert(Load->getPointerOperand()->stripPointerCasts() == CPUStatePtr);
 
     // Push the first use on the WorkList
     const Function *F = Load->getFunction();
@@ -694,9 +692,7 @@ public:
   WorkItem() : CurrentValue(nullptr), Sources(), SourceIndex(0) {}
 
   explicit WorkItem(Instruction *I) :
-    CurrentValue(I),
-    Sources(),
-    SourceIndex(0) {
+    CurrentValue(I), Sources(), SourceIndex(0) {
     if (not isa<StoreInst>(I)) {
       for (const Use &OpUse : I->operands()) {
         Sources.push_back(&OpUse);
@@ -713,9 +709,7 @@ public:
                     const bool IsLazy,
                     const unsigned LoadMDKind,
                     const unsigned StoreMDKind) :
-    CurrentValue(A),
-    Sources(),
-    SourceIndex(0) {
+    CurrentValue(A), Sources(), SourceIndex(0) {
     const Function *F = A->getParent();
     revng_assert(not F->empty());
     revng_log(CSVAccessLog, "Function: " << F);
@@ -803,9 +797,7 @@ public:
                     const bool IsLazy,
                     const unsigned LoadMDKind,
                     const unsigned StoreMDKind) :
-    CurrentValue(C),
-    Sources(),
-    SourceIndex(0) {
+    CurrentValue(C), Sources(), SourceIndex(0) {
 
     revng_assert(not IsLazy
                  or (C->getMetadata(LoadMDKind) == nullptr
@@ -993,7 +985,7 @@ public:
   /// \param [in, out] is the Map used to retrieve the values of the offsets of
   ///                  the sources of `Item`, and also to store the result of
   ///                  the folded offsets for `Item`.
-  inline void fold(const WorkItem &Item, ValueCallSiteOffsetMap &OffsetMap) {
+  void fold(const WorkItem &Item, ValueCallSiteOffsetMap &OffsetMap) {
     WorkItem::size_type NumSrcs = Item.getNumSources();
     revng_assert(NumSrcs);
     SmallVector<Constant *, 4> Operands(NumSrcs, nullptr);
@@ -1171,11 +1163,10 @@ public:
   }
 
 private:
-  inline CSVOffsets
-  foldOffsets(CSVOffsets::Kind ResKind,
-              WorkItem::size_type NumSrcs,
-              Instruction *I,
-              const SmallVector<offset_iterator, 4> &OffsetsIt) {
+  CSVOffsets foldOffsets(CSVOffsets::Kind ResKind,
+                         WorkItem::size_type NumSrcs,
+                         Instruction *I,
+                         const SmallVector<offset_iterator, 4> &OffsetsIt) {
     return static_cast<T *>(this)->foldOffsets(ResKind, NumSrcs, I, OffsetsIt);
   }
 };
@@ -1548,10 +1539,10 @@ public:
     CpuLoop(M.getFunction("cpu_loop")) {}
 
 public:
-  inline bool run();
+  bool run();
 
 private:
-  inline void cleanup() {
+  void cleanup() {
     ValueCallSiteOffsets = {};
     LoadCallSiteOffsets = {};
     StoreCallSiteOffsets = {};
@@ -1568,7 +1559,7 @@ private:
   /// update the correct ValueCallSiteOffsetMap (either LoadCallSiteOffsets or
   /// StoreCallSiteOffsets) if during the exploration the analysis ends because
   /// all the immediate sources are already resolved.
-  inline void analyzeAccess(Instruction *I, bool IsLoad);
+  void analyzeAccess(Instruction *I, bool IsLoad);
 
   /// \brief Explores the sources of `V` and pushes a `WorkItem` on `WorkList`
   ///        if something new is found
@@ -1587,15 +1578,15 @@ private:
   /// \param [out] W a `WorkItem` that will be initialized with the unexplored
   ///                sources of `V` if any.
   /// \param IsLoad true if we're exploring from a load
-  inline OptCSVOffsets
+  OptCSVOffsets
   getOffsetsOrExploreSrc(Value *V, WorkItem &W, bool IsLoad) const;
 
-  inline void insertCallSiteOffset(Value *V, CSVOffsets &&Offset);
+  void insertCallSiteOffset(Value *V, CSVOffsets &&Offset);
 
   /// \brief Removes the root call site associated with `Item` (if any) from
   ///        `CrossedCallSites`
   /// \return `true` if it was removed, `false` otherwise
-  inline bool removeCurCrossedCallSite(const WorkItem &Item) {
+  bool removeCurCrossedCallSite(const WorkItem &Item) {
     CallInst *RootCallSite = getCurSourceRootCall(Item, RootFunction);
     if (RootCallSite) {
       auto NumErased = CrossedCallSites.erase(RootCallSite);
@@ -1613,7 +1604,7 @@ private:
   ///        particular call site
   ///
   /// This function returns `true` if this is the first visit, `false` otherwise
-  inline bool isNewVisitWithCallSite(Value *V, CallInst *NewCallSite) const {
+  bool isNewVisitWithCallSite(Value *V, CallInst *NewCallSite) const {
 
     if (NewCallSite != nullptr)
       revng_log(CSVAccessLog,
@@ -1701,8 +1692,7 @@ private:
   /// If this is the first visit, `RootCall` is inserted in `CrossedCallSites`
   /// and the function returns `true`.
   /// If this is not the first visit or `RootCall` it returns `false`
-  inline bool
-  checkNewVisitAndInsertCrossedCallSite(CallInst *RootCall, const Use *U) {
+  bool checkNewVisitAndInsertCrossedCallSite(CallInst *RootCall, const Use *U) {
     revng_log(CSVAccessLog, "isNewVisitWithCallSite?");
     if (isNewVisitWithCallSite(U->get(), RootCall)) {
       if (RootCall) {
@@ -1717,19 +1707,19 @@ private:
     return false;
   }
 
-  inline bool checkNewVisitAndInsertCurCrossedCallSite(const WorkItem &Item) {
+  bool checkNewVisitAndInsertCurCrossedCallSite(const WorkItem &Item) {
     CallInst *RootCallSite = getCurSourceRootCall(Item, RootFunction);
     return checkNewVisitAndInsertCrossedCallSite(RootCallSite,
                                                  Item.currentSourceUse());
   }
 
-  inline bool checkNewVisitAndInsertNextCrossedCallSite(const WorkItem &Item) {
+  bool checkNewVisitAndInsertNextCrossedCallSite(const WorkItem &Item) {
     CallInst *RootCallSite = getNextSourceRootCall(Item, RootFunction);
     return checkNewVisitAndInsertCrossedCallSite(RootCallSite,
                                                  Item.nextSourceUse());
   }
 
-  inline bool tryPush(WorkItem &&N) {
+  bool tryPush(WorkItem &&N) {
     // If we're visiting the sources of an argument we are crossing a
     // new call site, which might lead us into the root function.
     // If it does, we want to register it in the CrossedCallSites
@@ -1744,7 +1734,7 @@ private:
 
   /// \brief Selects the next source of `Item`, if possible, returning true on
   ///        success.
-  inline bool selectNextSource(WorkItem &Item) {
+  bool selectNextSource(WorkItem &Item) {
     const Use *NextSrcUse = Item.nextSourceUse();
     if (NextSrcUse != nullptr) {
       removeCurCrossedCallSite(Item);
@@ -1755,32 +1745,31 @@ private:
     return false;
   }
 
-  inline void push(WorkItem &&Item) {
+  void push(WorkItem &&Item) {
     InExploration.insert(Item.Val());
     WorkList.push_back(Item);
     CSVAccessLog.indent(2);
   }
 
-  inline void pop() {
+  void pop() {
     InExploration.erase(WorkList.back().Val());
     WorkList.pop_back();
     CSVAccessLog.unindent(2);
   }
 
-  inline bool isInExploration(const Value *V) const {
+  bool isInExploration(const Value *V) const {
     return InExploration.count(V) != 0;
   }
 
-  inline void computeOffsetsFromSources(const WorkItem &Item, bool IsLoad);
+  void computeOffsetsFromSources(const WorkItem &Item, bool IsLoad);
 
   template<bool IsLoad>
-  inline void computeAggregatedOffsets();
+  void computeAggregatedOffsets();
 };
 
 using CPUSAOA = CPUStateAccessOffsetAnalysis;
 
-inline void
-CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
+void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
   Value *ItemVal = Item.Val();
   if (isa<PHINode>(ItemVal) or isa<Argument>(ItemVal)
       or isa<CallInst>(ItemVal)) {
@@ -2003,7 +1992,7 @@ CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
   }
 }
 
-inline void CPUSAOA::insertCallSiteOffset(Value *V, CSVOffsets &&Offset) {
+void CPUSAOA::insertCallSiteOffset(Value *V, CSVOffsets &&Offset) {
   revng_log(CSVAccessLog, "MAP INSERT: " << V);
   // If CrossedCallSites is empty we haven't reached the root function during
   // the backward exploration, so the only active call site is nullptr.
@@ -2030,7 +2019,7 @@ inline void CPUSAOA::insertCallSiteOffset(Value *V, CSVOffsets &&Offset) {
   }
 }
 
-inline OptCSVOffsets
+OptCSVOffsets
 CPUSAOA::getOffsetsOrExploreSrc(Value *V, WorkItem &Item, bool IsLoad) const {
   if (auto *Call = dyn_cast<CallInst>(V)) {
     revng_log(CSVAccessLog, "CALL: " << dumpToString(Call));
@@ -2045,7 +2034,7 @@ CPUSAOA::getOffsetsOrExploreSrc(Value *V, WorkItem &Item, bool IsLoad) const {
     case Instruction::Load: {
       revng_log(CSVAccessLog, "LOAD");
       const auto *Load = cast<const LoadInst>(Instr);
-      const Value *Ptr = Load->getPointerOperand();
+      const Value *Ptr = Load->getPointerOperand()->stripPointerCasts();
       if (const auto *CSV = dyn_cast<const GlobalVariable>(Ptr)) {
         revng_log(CSVAccessLog, "GLOBAL");
         if (CSV == CPUStatePtr) {
@@ -2259,7 +2248,7 @@ void CPUSAOA::analyzeAccess(Instruction *LoadOrStore, bool IsLoad) {
 }
 
 template<bool IsLoad>
-inline void CPUSAOA::computeAggregatedOffsets() {
+void CPUSAOA::computeAggregatedOffsets() {
   const InstrPtrSet &Tainted = IsLoad ? TaintedAccesses.TaintedLoads :
                                         TaintedAccesses.TaintedStores;
   ValueCallSiteOffsetMap &AccessCSOffsets = IsLoad ? LoadCallSiteOffsets :
@@ -2368,7 +2357,7 @@ inline void CPUSAOA::computeAggregatedOffsets() {
   }
 }
 
-inline bool CPUSAOA::run() {
+bool CPUSAOA::run() {
 
   // Analyze load and store
   for (Instruction *I : TaintedAccesses.TaintedLoads)
@@ -2467,29 +2456,29 @@ public:
     CPUStatePtr(Mod.getGlobalVariable("env")) {}
 
 public:
-  inline bool run();
+  bool run();
 
 private:
   template<bool IsLoad>
-  inline std::tuple<Instruction *, Type *, Value *>
+  std::tuple<Instruction *, Type *, Value *>
   setupOutEnvAccess(Instruction *AccessToFix);
 
   template<bool IsLoad>
-  inline void correctCPUStateAccesses();
+  void correctCPUStateAccesses();
 
-  inline void setupLoadInEnv(Instruction *LoadToFix,
-                             int64_t EnvOffset,
-                             SwitchInst *Switch,
-                             BasicBlock *NextBB,
-                             PHINode *Phi);
+  void setupLoadInEnv(Instruction *LoadToFix,
+                      int64_t EnvOffset,
+                      SwitchInst *Switch,
+                      BasicBlock *NextBB,
+                      PHINode *Phi);
 
-  inline void setupStoreInEnv(Instruction *LoadToFix,
-                              int64_t EnvOffset,
-                              SwitchInst *Switch,
-                              BasicBlock *NextBB);
+  void setupStoreInEnv(Instruction *LoadToFix,
+                       int64_t EnvOffset,
+                       SwitchInst *Switch,
+                       BasicBlock *NextBB);
 
   template<bool IsLoad>
-  inline void fixAccess(const Pair &IOff);
+  void fixAccess(const Pair &IOff);
 
 private:
   const DataLayout &DL;
@@ -2498,7 +2487,7 @@ private:
   Type *Int64Ty;
   Constant *SizeOfEnv;
   Constant *Zero;
-  GlobalVariable *CPUStatePtr;
+  Value *CPUStatePtr;
 };
 
 static Value *getLoadAddressValue(Instruction *I) {
@@ -2567,7 +2556,7 @@ static ConstantInt *getConstantOffset(Type *Int64Ty, int64_t O) {
 }
 
 template<bool IsLoad>
-inline std::tuple<Instruction *, Type *, Value *>
+std::tuple<Instruction *, Type *, Value *>
 CPUStateAccessFixer::setupOutEnvAccess(Instruction *AccessToFix) {
   LLVMContext &Context = M.getContext();
   BasicBlock *AccessToFixBB = AccessToFix->getParent();
@@ -2631,11 +2620,11 @@ CPUStateAccessFixer::setupOutEnvAccess(Instruction *AccessToFix) {
   return std::make_tuple(InAccessToFix, nullptr, OffsetValue);
 }
 
-inline void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
-                                                int64_t EnvOffset,
-                                                SwitchInst *Switch,
-                                                BasicBlock *NextBB,
-                                                PHINode *Phi) {
+void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
+                                         int64_t EnvOffset,
+                                         SwitchInst *Switch,
+                                         BasicBlock *NextBB,
+                                         PHINode *Phi) {
   LLVMContext &Context = M.getContext();
   Function *F = LoadToFix->getFunction();
   auto *OffsetConstInt = getConstantOffset(Int64Ty, EnvOffset);
@@ -2694,10 +2683,10 @@ inline void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
   }
 }
 
-inline void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
-                                                 int64_t EnvOffset,
-                                                 SwitchInst *Switch,
-                                                 BasicBlock *NextBB) {
+void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
+                                          int64_t EnvOffset,
+                                          SwitchInst *Switch,
+                                          BasicBlock *NextBB) {
   LLVMContext &Context = M.getContext();
   Function *F = StoreToFix->getFunction();
   auto *OffsetConstInt = getConstantOffset(Int64Ty, EnvOffset);
@@ -2714,10 +2703,10 @@ inline void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
 
   case Instruction::Store: {
     auto *Store = cast<StoreInst>(Clone);
-    auto *ToStore = Store->getValueOperand();
-    unsigned Size = DL.getTypeAllocSize(ToStore->getType());
+    auto *V = Store->getValueOperand();
+    unsigned Size = DL.getTypeAllocSize(V->getType());
     revng_assert(Size != 0);
-    Ok = Variables->storeToEnvOffset(Builder, Size, EnvOffset, ToStore);
+    Ok = Variables->storeToEnvOffset(Builder, Size, EnvOffset, V).hasValue();
   } break;
 
   case Instruction::Call: {
@@ -2739,7 +2728,7 @@ inline void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
 }
 
 template<bool IsLoad>
-inline void CPUStateAccessFixer::correctCPUStateAccesses() {
+void CPUStateAccessFixer::correctCPUStateAccesses() {
   auto &CSVAccessOffsetMap = IsLoad ? CSVLoadOffsetMap : CSVStoreOffsetMap;
   auto &OtherCSVAccessOffsetMap = IsLoad ? CSVStoreOffsetMap : CSVLoadOffsetMap;
 
@@ -2809,7 +2798,7 @@ inline void CPUStateAccessFixer::correctCPUStateAccesses() {
 }
 
 template<bool IsLoad>
-inline void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
+void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
   Instruction *const Instr = IOff.first;
   const CSVOffsets &Offsets = IOff.second;
   CSVOffsets::Kind OKind = Offsets.getKind();
@@ -2914,10 +2903,10 @@ inline void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
       case Instruction::Store: {
         if (not IsLoad) {
           auto *Store = cast<StoreInst>(Clone);
-          auto *ToStore = Store->getValueOperand();
-          unsigned Size = DL.getTypeAllocSize(ToStore->getType());
+          auto *V = Store->getValueOperand();
+          unsigned Size = DL.getTypeAllocSize(V->getType());
           revng_assert(Size != 0);
-          Ok = Variables->storeToEnvOffset(Builder, Size, Offset, ToStore);
+          Ok = Variables->storeToEnvOffset(Builder, Size, Offset, V).hasValue();
         } else {
           revng_abort();
         }
@@ -3052,7 +3041,7 @@ inline void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
   InstructionsToRemove.push_back(Instr);
 }
 
-inline bool CPUStateAccessFixer::run() {
+bool CPUStateAccessFixer::run() {
   if (CPUStatePtr == nullptr)
     return false;
 
@@ -3105,7 +3094,7 @@ private:
   // Helpers
   const DataLayout &DL;
   Type *Int64Ty;
-  GlobalVariable *CPUStatePtr;
+  Value *CPUStatePtr;
 
 public:
   CPUStateAccessAnalysis(const Module &Mod,
@@ -3123,7 +3112,10 @@ public:
     CPUStatePtr(Mod.getGlobalVariable("env")) {}
 
 public:
-  inline bool run();
+  bool run();
+
+private:
+  void forceEmptyMetadata(Function *RootFunction) const;
 };
 
 static void addAccessMetadata(const CallSiteOffsetMap &OffsetMap,
@@ -3168,13 +3160,34 @@ static void addAccessMetadata(const CallSiteOffsetMap &OffsetMap,
   }
 }
 
-inline bool CPUStateAccessAnalysis::run() {
+void CPUStateAccessAnalysis::forceEmptyMetadata(Function *RootFunction) const {
+  LLVMContext &Context = M.getContext();
+  QuickMetadata QMD(Context);
+  for (BasicBlock &BB : *RootFunction) {
+    for (Instruction &I : BB) {
+      if (isCallToHelper(&I)) {
+        if (I.getMetadata(LoadMDKind) == nullptr)
+          I.setMetadata(LoadMDKind,
+                        MDTuple::get(Context,
+                                     { QMD.get((uint32_t) 0),
+                                       MDTuple::get(Context, {}) }));
+        if (I.getMetadata(StoreMDKind) == nullptr)
+          I.setMetadata(StoreMDKind,
+                        MDTuple::get(Context,
+                                     { QMD.get((uint32_t) 0),
+                                       MDTuple::get(Context, {}) }));
+      }
+    }
+  }
+}
+
+bool CPUStateAccessAnalysis::run() {
 
   if (CPUStatePtr == nullptr)
     return false;
 
   // Get the root Function
-  const Function *RootFunction = M.getFunction("root");
+  Function *RootFunction = M.getFunction("root");
   revng_assert(RootFunction);
 
   // Preprocessing: detect all the functions that are directly reachable from
@@ -3193,7 +3206,8 @@ inline bool CPUStateAccessAnalysis::run() {
   // Start with a forward taint analysis, to detect all the tainted Values,
   // and all the tainted loads and stores.
   CSVAccessLog << "Before Taint Analysis" << DoLog;
-  const auto TaintResults = forwardTaintAnalysis(CPUStatePtr,
+  const auto TaintResults = forwardTaintAnalysis(&M,
+                                                 CPUStatePtr,
                                                  ReachedFunctions,
                                                  LoadMDKind,
                                                  StoreMDKind,
@@ -3201,8 +3215,11 @@ inline bool CPUStateAccessAnalysis::run() {
   CSVAccessLog << "After Taint Analysis" << DoLog;
 
   // If there are no tainted loads and stores we don't need to run the CPUSAOA.
-  if (TaintResults.TaintedLoads.empty() and TaintResults.TaintedStores.empty())
+  if (TaintResults.TaintedLoads.empty()
+      and TaintResults.TaintedStores.empty()) {
+    forceEmptyMetadata(RootFunction);
     return TaintResults.IllegalCalls.size();
+  }
 
   if (TaintLog.isEnabled()) {
     revng_log(TaintLog, "==== Tainted Loads ====");
@@ -3240,8 +3257,8 @@ inline bool CPUStateAccessAnalysis::run() {
                                       CallSiteStoreOffset);
   bool Found = AccessOffsetAnalysis.run();
 
-  QuickMetadata QMD(M.getContext());
   if (Found) {
+    QuickMetadata QMD(M.getContext());
     addAccessMetadata(CallSiteLoadOffset, Variables, QMD, LoadMDKind);
     addAccessMetadata(CallSiteStoreOffset, Variables, QMD, StoreMDKind);
   }
@@ -3254,6 +3271,7 @@ inline bool CPUStateAccessAnalysis::run() {
     CSVAccessFixer.run();
   }
 
+  forceEmptyMetadata(RootFunction);
   return Found;
 }
 

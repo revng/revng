@@ -514,7 +514,7 @@ private:
   /// \brief Part of the transfer function handling function calls
   Interrupt handleCall(llvm::Instruction *Caller,
                        llvm::BasicBlock *Callee,
-                       uint64_t ReturnAddress,
+                       MetaAddress ReturnAddress,
                        llvm::BasicBlock *ReturnFromCall,
                        Element &Result,
                        ABIIRBasicBlock &ABIBB);

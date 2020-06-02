@@ -5,42 +5,22 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+// LLVM includes
+#include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/Analysis/LazyValueInfo.h"
+#include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/ValueTracking.h"
+#include "llvm/IR/Dominators.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Support/KnownBits.h"
+
+// Local libraries includes
+#include "revng/BasicAnalyses/AdvancedValueInfo.h"
+
 // Local includes
 #include "JumpTargetManager.h"
 
-namespace TrackedInstructionType {
-
-enum Values { Invalid, PCStore, MemoryStore, MemoryLoad };
-
-inline const char *getName(Values V) {
-  switch (V) {
-  case Invalid:
-    return "Invalid";
-  case PCStore:
-    return "PCStore";
-  case MemoryStore:
-    return "MemoryStore";
-  case MemoryLoad:
-    return "MemoryLoad";
-  default:
-    revng_abort();
-  }
-}
-
-inline Values fromName(llvm::StringRef Name) {
-  if (Name == "Invalid")
-    return Invalid;
-  else if (Name == "PCStore")
-    return PCStore;
-  else if (Name == "MemoryStore")
-    return MemoryStore;
-  else if (Name == "MemoryLoad")
-    return MemoryLoad;
-  else
-    revng_abort();
-}
-
-} // namespace TrackedInstructionType
+inline Logger<> AVIPassLogger("avipass");
 
 class StaticDataMemoryOracle {
 private:
@@ -50,8 +30,7 @@ private:
 
 public:
   StaticDataMemoryOracle(const llvm::DataLayout &DL, JumpTargetManager &JTM) :
-    DL(DL),
-    JTM(JTM) {
+    DL(DL), JTM(JTM) {
     // Read the value using the endianess of the destination architecture,
     // since, if there's a mismatch, in the stack we will also have a byteswap
     // instruction
@@ -68,6 +47,9 @@ public:
 
 class AdvancedValueInfoPass
   : public llvm::PassInfoMixin<AdvancedValueInfoPass> {
+private:
+  JumpTargetManager *JTM;
+  static constexpr const char *MarkerName = "revng_avi";
 
 public:
   AdvancedValueInfoPass(JumpTargetManager *JTM) : JTM(JTM) {}
@@ -75,93 +57,115 @@ public:
   llvm::PreservedAnalyses
   run(llvm::Function &F, llvm::FunctionAnalysisManager &);
 
-private:
-  JumpTargetManager *JTM;
+  static llvm::Function *createMarker(llvm::Module *M) {
+    using namespace llvm;
+    using FT = FunctionType;
+    LLVMContext &C = getContext(M);
+    FT *Type = FT::get(FT::getVoidTy(C), {}, true);
+    FunctionCallee Callee = M->getOrInsertFunction(MarkerName, Type);
+    auto *Marker = cast<Function>(Callee.getCallee());
+    Marker->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
+    return Marker;
+  }
 };
 
-llvm::PreservedAnalyses
+inline llvm::PreservedAnalyses
 AdvancedValueInfoPass::run(llvm::Function &F,
                            llvm::FunctionAnalysisManager &FAM) {
   using namespace llvm;
 
-  auto &LVI = FAM.getResult<LazyValueAnalysis>(F);
-  auto &DT = FAM.getResult<DominatorTreeAnalysis>(F);
+  std::set<Instruction *> ToReplace;
+  for (BasicBlock &BB : F) {
+    for (Instruction &I : BB) {
+      if (I.getOpcode() == Instruction::Or) {
+        auto &DL = F.getParent()->getDataLayout();
+
+        Value *LHS = I.getOperand(0);
+        Value *RHS = I.getOperand(1);
+        const APInt &LHSZeros = computeKnownBits(LHS, DL).Zero;
+        const APInt &RHSZeros = computeKnownBits(RHS, DL).Zero;
+
+        if ((~RHSZeros & ~LHSZeros).isNullValue()) {
+          ToReplace.insert(&I);
+        }
+      }
+    }
+  }
+
+  for (Instruction *I : ToReplace) {
+    I->replaceAllUsesWith(BinaryOperator::Create(Instruction::Add,
+                                                 I->getOperand(0),
+                                                 I->getOperand(1),
+                                                 Twine(),
+                                                 I));
+    I->eraseFromParent();
+  }
+
+  Function *Marker = F.getParent()->getFunction(MarkerName);
+  if (Marker == nullptr)
+    return llvm::PreservedAnalyses::all();
+
+  // The StaticDataMemoryOracle provide the contents of memory areas that are
+  // mapped statically (i.e., in segments). This is critical to capture, e.g.,
+  // virtual tables
   StaticDataMemoryOracle MO(F.getParent()->getDataLayout(), *JTM);
+
+  // Prepare visit order
   ReversePostOrderTraversal<Function *> RPOT(&F);
   std::vector<BasicBlock *> RPOTVector;
   std::copy(RPOT.begin(), RPOT.end(), std::back_inserter(RPOTVector));
-  AdvancedValueInfo<StaticDataMemoryOracle> AVI(LVI, DT, MO, RPOTVector);
-  Value *PCReg = JTM->pcReg();
 
-  for (BasicBlock &BB : F) {
-    for (Instruction &I : BB) {
-      for (Value *V : I.operands()) {
+  auto &LVI = FAM.getResult<LazyValueAnalysis>(F);
+  auto &DT = FAM.getResult<DominatorTreeAnalysis>(F);
+  auto &SCEV = FAM.getResult<ScalarEvolutionAnalysis>(F);
+  AdvancedValueInfo<StaticDataMemoryOracle> AVI(LVI, SCEV, DT, MO, RPOTVector);
+
+  // Ensure that no instruction has itself as operand, except for phis
+  for (BasicBlock &BB : F)
+    for (Instruction &I : BB)
+      for (Value *V : I.operands())
         revng_assert(isa<PHINode>(V) or V != &I);
+
+  for (User *U : Marker->users()) {
+    auto *Call = dyn_cast<CallInst>(U);
+    if (Call == nullptr or skipCasts(Call->getCalledValue()) != Marker
+        or Call->getParent()->getParent() != &F)
+      continue;
+
+    revng_assert(Call->getNumArgOperands() >= 1);
+    Value *ToTrack = Call->getArgOperand(0);
+
+    AVIPassLogger << "Tracking " << ToTrack << ":";
+
+    // Let AVI provide a series of possible values
+    MaterializedValues Values = AVI.explore(Call->getParent(), ToTrack);
+
+    //
+    // Create a revng.avi metadata containing the type of instruction and
+    // all the possible values we identified
+    //
+    QuickMetadata QMD(getContext(&F));
+    std::vector<Metadata *> ValuesMD;
+    ValuesMD.reserve(Values.size());
+    for (const MaterializedValue &V : Values) {
+      // TODO: we are we ignoring those with symbols
+      if (not V.hasSymbol()) {
+        ValuesMD.push_back(QMD.get(V.value()));
       }
+    }
+
+    Call->setMetadata("revng.avi", QMD.tuple(ValuesMD));
+
+    if (AVIPassLogger.isEnabled()) {
+      for (const MaterializedValue &V : Values) {
+        AVIPassLogger << " ";
+        V.dump(AVIPassLogger);
+      }
+      AVIPassLogger << DoLog;
     }
   }
 
-  for (BasicBlock &BB : F) {
-    for (Instruction &I : BB) {
-      if (auto *T = dyn_cast_or_null<MDTuple>(I.getMetadata("revng.avi."
-                                                            "mark"))) {
-        revng_assert(T->getNumOperands() == 1);
-
-        auto TIT = TrackedInstructionType::Invalid;
-        Value *V = nullptr;
-        if (auto *Load = dyn_cast<LoadInst>(&I)) {
-          if (not isa<GlobalVariable>(skipCasts(Load->getPointerOperand()))) {
-            V = Load->getPointerOperand();
-            TIT = TrackedInstructionType::MemoryLoad;
-          }
-        } else if (auto *Store = dyn_cast<StoreInst>(&I)) {
-          Value *Address = Store->getPointerOperand();
-          Value *ValueOperand = Store->getValueOperand();
-
-          if (auto *CSV = dyn_cast<GlobalVariable>(skipCasts(Address))) {
-            if (CSV == PCReg) {
-              V = ValueOperand;
-              TIT = TrackedInstructionType::PCStore;
-            }
-          } else if (Address->getType() == PCReg->getType()) {
-            V = ValueOperand;
-            TIT = TrackedInstructionType::MemoryStore;
-          }
-        } else {
-          revng_abort("Unexpected instruction marked with revng.avi.mark");
-        }
-
-        if (V != nullptr) {
-          MaterializedValues Values = AVI.explore(I.getParent(), V);
-
-          // If we're tracking the values of a store to pc all the (non-symbol
-          // relative) possible values have to be valid program counters
-          if (TIT == TrackedInstructionType::PCStore) {
-            for (const MaterializedValue &V : Values) {
-              if (not V.hasSymbol() and not JTM->isPC(V.value())) {
-                Values.clear();
-                break;
-              }
-            }
-          }
-
-          QuickMetadata QMD(getContext(&F));
-          std::vector<Metadata *> ValuesMD;
-          ValuesMD.reserve(Values.size());
-          for (const MaterializedValue &V : Values) {
-            if (not V.hasSymbol()) {
-              ValuesMD.push_back(QMD.get(V.value()));
-            }
-          }
-
-          auto TITMD = QMD.get(TrackedInstructionType::getName(TIT));
-          I.setMetadata("revng.avi", QMD.tuple({ TITMD, QMD.tuple(ValuesMD) }));
-        }
-      }
-    }
-  }
-
-  return PreservedAnalyses::none();
+  return PreservedAnalyses::all();
 }
 
 #endif // ADVANCEDVALUEINFOPASS_H

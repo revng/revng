@@ -9,6 +9,9 @@
 #include <cstdint>
 #include <iostream>
 
+// Local libraries includes
+#include "revng/Support/MetaAddress.h"
+
 // Local includes
 #include "ptc.h"
 
@@ -30,7 +33,9 @@ int dumpInstruction(std::ostream &Result,
 /// \param Instructions the instruction list.
 ///
 /// \return EXIT_SUCCESS in case of success, EXIT_FAILURE otherwise.
-int dumpTranslation(std::ostream &Result, PTCInstructionList *Instructions);
+int dumpTranslation(MetaAddress VirtualAddress,
+                    std::ostream &Result,
+                    PTCInstructionList *Instructions);
 
 /// Write to a stream the dissasembled version of the instruction at the
 /// specified program counter.
@@ -40,7 +45,7 @@ int dumpTranslation(std::ostream &Result, PTCInstructionList *Instructions);
 /// \param MaxSize the maximum number of bytes to disassemble.
 /// \param InstructionCount the maximum number of instructions to disassemble.
 void disassemble(std::ostream &Result,
-                 uint64_t PC,
+                 MetaAddress PC,
                  uint32_t MaxBytes = 4096,
                  uint32_t InstructionCount = 4096);
 

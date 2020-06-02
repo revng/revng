@@ -19,6 +19,7 @@
 #include <boost/type_traits/is_same.hpp>
 
 // LLVM includes
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/CodeGen/UnreachableBlockElim.h"
 #include "llvm/IR/IRBuilder.h"
@@ -29,8 +30,10 @@
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
+#include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/JumpThreading.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
 // Local libraries includes
@@ -42,6 +45,8 @@
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/MetaAddress.h"
+#include "revng/Support/Statistics.h"
 #include "revng/Support/revng.h"
 
 // Local includes
@@ -49,6 +54,7 @@
 #include "CPUStateAccessAnalysisPass.h"
 #include "DropHelperCallsPass.h"
 #include "JumpTargetManager.h"
+#include "ProgramCounterHandler.h"
 #include "SubGraph.h"
 
 using namespace llvm;
@@ -59,6 +65,9 @@ Logger<> JTCountLog("jtcount");
 Logger<> NewEdgesLog("new-edges");
 Logger<> Verify("verify");
 Logger<> RegisterJTLog("registerjt");
+
+CounterMap<std::string> HarvestingStats("harvesting");
+RunningStatistics BlocksAnalyzedByAVI("blocks-analyzed-by-avi");
 
 RegisterPass<TranslateDirectBranchesPass> X("translate-db",
                                             "Translate Direct Branches"
@@ -73,6 +82,32 @@ char TranslateDirectBranchesPass::ID = 0;
 void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<DominatorTreeWrapperPass>();
   AU.setPreservesAll();
+}
+
+void JumpTargetManager::assertNoUnreachable() const {
+  std::set<BasicBlock *> Unreachable = computeUnreachable();
+  if (Unreachable.size() != 0) {
+    Verify << "The following basic blocks are unreachable:\n";
+    for (BasicBlock *BB : Unreachable) {
+      Verify << "  " << getName(BB) << " (predecessors:";
+      for (BasicBlock *Predecessor : make_range(pred_begin(BB), pred_end(BB)))
+        Verify << " " << getName(Predecessor);
+
+      MetaAddress PC = getBasicBlockPC(BB);
+      if (PC.isValid()) {
+        auto It = JumpTargets.find(PC);
+        if (It != JumpTargets.end()) {
+          Verify << ", reasons:";
+          for (const char *Reason : It->second.getReasonNames())
+            Verify << " " << Reason;
+        }
+      }
+
+      Verify << ")\n";
+    }
+    Verify << DoLog;
+    revng_abort();
+  }
 }
 
 /// \brief Purges everything is after a call to exitTB (except the call itself)
@@ -92,57 +127,46 @@ static void exitTBCleanup(Instruction *ExitTBCall) {
 }
 
 using TDBP = TranslateDirectBranchesPass;
-void TDBP::pinPCStore(StoreInst *PCWrite,
-                      bool Approximate,
-                      const std::vector<uint64_t> &Destinations) {
-  Function &F = *PCWrite->getParent()->getParent();
-  LLVMContext &Context = getContext(&F);
-  Value *PCReg = JTM->pcReg();
-  auto *RegType = cast<IntegerType>(PCReg->getType()->getPointerElementType());
-  auto C = [RegType](uint64_t A) { return ConstantInt::get(RegType, A); };
+
+TDBP::TranslateDirectBranchesPass(JumpTargetManager *J) :
+  ModulePass(ID), JTM(J), PCH(J->programCounterHandler()) {
+}
+
+using DispatcherTargets = ProgramCounterHandler::DispatcherTargets;
+void TDBP::pinExitTB(CallInst *ExitTBCall, DispatcherTargets &Destinations) {
+  revng_assert(ExitTBCall != nullptr);
+  revng_assert(Destinations.size() != 0);
+
+  LLVMContext &Context = getContext(ExitTBCall);
   BasicBlock *AnyPC = JTM->anyPC();
   BasicBlock *UnexpectedPC = JTM->unexpectedPC();
 
-  // We don't care if we already handled this call too exitTB in the past,
-  // information should become progressively more precise, so let's just remove
-  // everything after this call and put a new handler
-  CallInst *CallExitTB = JTM->findNextExitTB(PCWrite);
-
-  revng_assert(CallExitTB != nullptr);
-  revng_assert(PCWrite->getParent()->getParent() == &F);
-  revng_assert(JTM->isPCReg(PCWrite->getPointerOperand()));
-  revng_assert(Destinations.size() != 0);
-
-  auto *ExitTBArg = ConstantInt::get(Type::getInt32Ty(Context),
-                                     Destinations.size());
-  uint64_t OldTargetsCount = getLimitedValue(CallExitTB->getArgOperand(0));
+  using CI = ConstantInt;
+  auto *ExitTBArg = CI::get(Type::getInt32Ty(Context), Destinations.size());
+  uint64_t OldTargetsCount = getLimitedValue(ExitTBCall->getArgOperand(0));
 
   // TODO: we should check Destinations.size() >= OldTargetsCount
   // TODO: we should also check the destinations are actually the same
 
-  BasicBlock *FailBB = Approximate ? AnyPC : UnexpectedPC;
-  BasicBlock *BB = CallExitTB->getParent();
+  BasicBlock *BB = ExitTBCall->getParent();
+
+  if (auto *Dispatcher = dyn_cast<SwitchInst>(BB->getTerminator()))
+    PCH->destroyDispatcher(Dispatcher);
 
   // Kill everything is after the call to exitTB
-  exitTBCleanup(CallExitTB);
+  exitTBCleanup(ExitTBCall);
 
   // Mark this call to exitTB as handled
-  CallExitTB->setArgOperand(0, ExitTBArg);
+  ExitTBCall->setArgOperand(0, ExitTBArg);
 
-  IRBuilder<> Builder(BB);
-  auto PCLoad = Builder.CreateLoad(PCReg);
-  if (Destinations.size() == 1) {
-    auto *Comparison = Builder.CreateICmpEQ(C(Destinations[0]), PCLoad);
-    Builder.CreateCondBr(Comparison, JTM->getBlockAt(Destinations[0]), FailBB);
-  } else {
-    auto *Switch = Builder.CreateSwitch(PCLoad, FailBB, Destinations.size());
-    for (uint64_t Destination : Destinations)
-      Switch->addCase(C(Destination), JTM->getBlockAt(Destination));
-  }
+  PCH->buildDispatcher(Destinations,
+                       BB,
+                       UnexpectedPC,
+                       BlockType::IndirectBranchDispatcherHelperBlock);
 
   // Move all the markers right before the branch instruction
   Instruction *Last = BB->getTerminator();
-  auto It = CallExitTB->getIterator();
+  auto It = ExitTBCall->getIterator();
   while (isMarker(&*It)) {
     // Get the marker instructions
     Instruction *I = &*It;
@@ -159,25 +183,31 @@ void TDBP::pinPCStore(StoreInst *PCWrite,
   // Notify new branches only if the amount of possible targets actually
   // increased
   if (Destinations.size() > OldTargetsCount)
-    JTM->newBranch();
+    JTM->recordNewBranches(Destinations.size() - OldTargetsCount);
 }
 
-bool TranslateDirectBranchesPass::pinAVIResults(Function &F) {
+bool TDBP::pinAVIResults(Function &F) {
   QuickMetadata QMD(getContext(&F));
 
-  for (BasicBlock &BB : F) {
-    for (Instruction &I : BB) {
-      if (auto *T = dyn_cast_or_null<MDTuple>(I.getMetadata("revng.avi"))) {
-        StringRef TITMD = QMD.extract<StringRef>(T, 0);
-        auto TIT = TrackedInstructionType::fromName(TITMD);
-        auto *ValuesTuple = QMD.extract<MDTuple *>(T, 1);
-        if (TIT == TrackedInstructionType::PCStore
-            and ValuesTuple->getNumOperands() > 0) {
-          std::vector<uint64_t> Values;
-          Values.reserve(ValuesTuple->getNumOperands());
-          for (const MDOperand &Operand : ValuesTuple->operands())
-            Values.push_back(QMD.extract<uint64_t>(Operand.get()));
-          pinPCStore(cast<StoreInst>(&I), false, Values);
+  Function *ExitTB = JTM->exitTB();
+  for (User *U : ExitTB->users()) {
+    if (auto *Call = dyn_cast<CallInst>(U)) {
+      if (Call->getParent()->getParent() != &F)
+        continue;
+
+      auto *MD = Call->getMetadata("revng.targets");
+      if (auto *T = dyn_cast_or_null<MDTuple>(MD)) {
+        if (T->getNumOperands() > 0) {
+          // We have at least a value, prepare a list of jump targets
+          ProgramCounterHandler::DispatcherTargets Values;
+          Values.reserve(T->getNumOperands());
+          for (const MDOperand &Operand : T->operands()) {
+            auto *CMA = QMD.extract<Constant *>(Operand.get());
+            auto MA = MetaAddress::fromConstant(CMA);
+            Values.emplace_back(MA, JTM->getBlockAt(MA));
+          }
+
+          pinExitTB(Call, Values);
         }
       }
     }
@@ -186,75 +216,83 @@ bool TranslateDirectBranchesPass::pinAVIResults(Function &F) {
   return true;
 }
 
-bool TranslateDirectBranchesPass::pinConstantStore(Function &F) {
-  auto &Context = F.getParent()->getContext();
+void TDBP::pinConstantStoreInternal(MetaAddress Address, CallInst *ExitTBCall) {
+  revng_assert(Address.isValid());
 
-  Function *ExitTB = JTM->exitTB();
+  BasicBlock *TargetBlock = JTM->registerJT(Address, JTReason::DirectJump);
+
+  const Module *M = getModule(ExitTBCall);
+  LLVMContext &Context = getContext(M);
+
+  // Remove unreachable right after the exit_tb
+  BasicBlock::iterator CallIt(ExitTBCall);
+  BasicBlock::iterator BlockEnd = ExitTBCall->getParent()->end();
+  CallIt++;
+  revng_assert(CallIt != BlockEnd and isa<UnreachableInst>(&*CallIt));
+  CallIt->eraseFromParent();
+
+  // Cleanup of what's afterwards (only a unconditional jump is
+  // allowed)
+  CallIt = BasicBlock::iterator(ExitTBCall);
+  BlockEnd = ExitTBCall->getParent()->end();
+  if (++CallIt != BlockEnd)
+    purgeBranch(CallIt);
+
+  if (TargetBlock != nullptr) {
+    // A target was found, jump there
+    BranchInst::Create(TargetBlock, ExitTBCall);
+    JTM->recordNewBranches();
+  } else {
+    // We're jumping to an invalid location, abort everything
+    // TODO: emit a warning
+    CallInst::Create(M->getFunction("abort"), {}, ExitTBCall);
+    new UnreachableInst(Context, ExitTBCall);
+  }
+
+  ExitTBCall->eraseFromParent();
+}
+
+bool TDBP::pinConstantStore(Function &F) {
+  auto ExitTB = JTM->exitTB();
   auto ExitTBIt = ExitTB->use_begin();
   while (ExitTBIt != ExitTB->use_end()) {
     // Take note of the use and increment the iterator immediately: this allows
     // us to erase the call to exit_tb without unexpected behaviors
     Use &ExitTBUse = *ExitTBIt++;
-    if (auto Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
-      if (Call->getCalledFunction() == ExitTB) {
-        // Look for the last write to the PC
-        StoreInst *PCWrite = JTM->getPrevPCWrite(Call);
+    auto *Call = cast<CallInst>(ExitTBUse.getUser());
+    revng_assert(Call->getCalledFunction() == ExitTB);
 
-        // Is destination a constant?
-        if (PCWrite == nullptr) {
-          forceFallthroughAfterHelper(Call);
-        } else {
-          auto *Address = dyn_cast<ConstantInt>(PCWrite->getValueOperand());
-          if (Address != nullptr) {
-            // Compute the actual PC and get the associated BasicBlock
-            uint64_t TargetPC = Address->getSExtValue();
-            auto *TargetBlock = JTM->registerJT(TargetPC, JTReason::DirectJump);
+    // Look for the last write to the PC
+    auto [Result, NextPC] = PCH->getUniqueJumpTarget(Call->getParent());
 
-            // Remove unreachable right after the exit_tb
-            BasicBlock::iterator CallIt(Call);
-            BasicBlock::iterator BlockEnd = Call->getParent()->end();
-            CallIt++;
-            revng_assert(CallIt != BlockEnd && isa<UnreachableInst>(&*CallIt));
-            CallIt->eraseFromParent();
+    switch (Result) {
+    case NextJumpTarget::Unique:
+      // A constant store was born
+      revng_assert(NextPC.isValid());
+      pinConstantStoreInternal(NextPC, Call);
+      break;
 
-            // Cleanup of what's afterwards (only a unconditional jump is
-            // allowed)
-            CallIt = BasicBlock::iterator(Call);
-            BlockEnd = Call->getParent()->end();
-            if (++CallIt != BlockEnd)
-              purgeBranch(CallIt);
+    case NextJumpTarget::Multiple:
+      // Nothing to do, it's an indirect jump
+      break;
 
-            if (TargetBlock != nullptr) {
-              // A target was found, jump there
-              BranchInst::Create(TargetBlock, Call);
-              JTM->newBranch();
-            } else {
-              // We're jumping to an invalid location, abort everything
-              // TODO: emit a warning
-              CallInst::Create(F.getParent()->getFunction("abort"), {}, Call);
-              new UnreachableInst(Context, Call);
-            }
-            Call->eraseFromParent();
-          }
-        }
-      } else {
-        revng_unreachable("Unexpected instruction using the PC");
-      }
-    } else {
-      revng_unreachable("Unhandled usage of the PC");
+    case NextJumpTarget::Helper:
+      forceFallthroughAfterHelper(Call);
+      break;
+
+    default:
+      revng_abort();
     }
   }
 
   return true;
 }
 
-bool TranslateDirectBranchesPass::forceFallthroughAfterHelper(CallInst *Call) {
+bool TDBP::forceFallthroughAfterHelper(CallInst *Call) {
   // If someone else already took care of the situation, quit
   if (getLimitedValue(Call->getArgOperand(0)) > 0)
     return false;
 
-  auto *PCReg = JTM->pcReg();
-  auto PCRegTy = PCReg->getType()->getPointerElementType();
   bool ForceFallthrough = false;
 
   BasicBlock::reverse_iterator It(++Call->getReverseIterator());
@@ -264,18 +302,14 @@ bool TranslateDirectBranchesPass::forceFallthroughAfterHelper(CallInst *Call) {
     while (It != EndIt) {
       Instruction *I = &*It;
       if (auto *Store = dyn_cast<StoreInst>(I)) {
-        if (Store->getPointerOperand() == PCReg) {
+        if (PCH->affectsPC(Store)) {
           // We found a PC-store, give up
           return false;
         }
-      } else if (auto *Call = dyn_cast<CallInst>(I)) {
-        if (auto *Callee = cast<Function>(skipCasts(Call->getCalledValue()))) {
-          if (Callee->getName().startswith("helper_")) {
-            // We found a call to an helper
-            ForceFallthrough = true;
-            break;
-          }
-        }
+      } else if (isCallToHelper(I)) {
+        // We found a call to an helper
+        ForceFallthrough = true;
+        break;
       }
       It++;
     }
@@ -294,70 +328,31 @@ bool TranslateDirectBranchesPass::forceFallthroughAfterHelper(CallInst *Call) {
   }
 
   exitTBCleanup(Call);
-  JTM->newBranch();
+  JTM->recordNewBranches();
 
   IRBuilder<> Builder(Call->getParent());
   Call->setArgOperand(0, Builder.getInt32(1));
 
   // Create the fallthrough jump
-  uint64_t NextPC = JTM->getNextPC(Call);
-  Value *NextPCConst = Builder.getIntN(PCRegTy->getIntegerBitWidth(), NextPC);
+  MetaAddress NextPC = JTM->getNextPC(Call);
 
   // Get the fallthrough basic block and emit a conditional branch, if not
   // possible simply jump to anyPC
-  BasicBlock *NextPCBB = JTM->registerJT(NextPC, JTReason::PostHelper);
-  if (NextPCBB != nullptr) {
-    Builder.CreateCondBr(Builder.CreateICmpEQ(Builder.CreateLoad(PCReg),
-                                              NextPCConst),
-                         NextPCBB,
-                         JTM->anyPC());
+  BasicBlock *AnyPC = JTM->anyPC();
+  if (BasicBlock *NextPCBB = JTM->registerJT(NextPC, JTReason::PostHelper)) {
+    PCH->buildHotPath(Builder, { NextPC, NextPCBB }, AnyPC);
   } else {
-    Builder.CreateBr(JTM->anyPC());
+    Builder.CreateBr(AnyPC);
   }
 
   return true;
 }
 
-bool TranslateDirectBranchesPass::runOnModule(Module &M) {
+bool TDBP::runOnModule(Module &M) {
   Function &F = *M.getFunction("root");
   pinConstantStore(F);
   pinAVIResults(F);
   return true;
-}
-
-uint64_t TranslateDirectBranchesPass::getNextPC(Instruction *TheInstruction) {
-  DominatorTree &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-
-  BasicBlock *Block = TheInstruction->getParent();
-  BasicBlock::reverse_iterator It(++TheInstruction->getReverseIterator());
-
-  while (true) {
-    BasicBlock::reverse_iterator Begin(Block->rend());
-
-    // Go back towards the beginning of the basic block looking for a call to
-    // newpc
-    CallInst *Marker = nullptr;
-    for (; It != Begin; It++) {
-      if ((Marker = dyn_cast<CallInst>(&*It))) {
-        // TODO: comparing strings is not very elegant
-        if (Marker->getCalledFunction()->getName() == "newpc") {
-          uint64_t PC = getLimitedValue(Marker->getArgOperand(0));
-          uint64_t Size = getLimitedValue(Marker->getArgOperand(1));
-          revng_assert(Size != 0);
-          return PC + Size;
-        }
-      }
-    }
-
-    auto *Node = DT.getNode(Block);
-    revng_assert(Node != nullptr,
-                 "BasicBlock not in the dominator tree, is it reachable?");
-
-    Block = Node->getIDom()->getBlock();
-    It = Block->rbegin();
-  }
-
-  revng_unreachable("Can't find the PC marker");
 }
 
 MaterializedValue
@@ -365,23 +360,25 @@ JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
   Type *LoadedType = Pointer->getType()->getPointerElementType();
   const DataLayout &DL = TheModule.getDataLayout();
   unsigned LoadSize = DL.getTypeSizeInBits(LoadedType) / 8;
+  auto NewAPInt = [LoadSize](uint64_t V) { return APInt(LoadSize * 8, V); };
 
   Value *RealPointer = skipCasts(Pointer);
-  uint64_t LoadAddress = 0;
+  uint64_t RawLoadAddress = 0;
   if (not isa<ConstantPointerNull>(RealPointer)) {
-    LoadAddress = getZExtValue(cast<ConstantInt>(RealPointer), DL);
+    RawLoadAddress = getZExtValue(cast<ConstantInt>(RealPointer), DL);
   }
+  auto LoadAddress = fromAbsolute(RawLoadAddress);
 
   UnusedCodePointers.erase(LoadAddress);
   registerReadRange(LoadAddress, LoadSize);
 
   // Prevent overflow when computing the label interval
-  if (LoadAddress + LoadSize < LoadAddress) {
+  if ((LoadAddress + LoadSize).addressLowerThan(LoadAddress)) {
     return MaterializedValue::invalid();
   }
 
   const auto &Labels = binary().labels();
-  using interval = boost::icl::interval<uint64_t>;
+  using interval = boost::icl::interval<MetaAddress, compareAddress>;
   auto Interval = interval::right_open(LoadAddress, LoadAddress + LoadSize);
   auto It = Labels.find(Interval);
   if (It != Labels.end()) {
@@ -390,8 +387,13 @@ JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
       if (Candidate->size() == LoadSize
           and (Candidate->isAbsoluteValue() or Candidate->isBaseRelativeValue()
                or Candidate->isSymbolRelativeValue())) {
-        revng_assert(Match == nullptr,
-                     "Multiple value labels at the same location");
+
+        if (Match != nullptr
+            and (Match->symbolName() != Candidate->symbolName()
+                 or Match->offset() != Candidate->offset())) {
+          revng_abort("Multiple value labels at the same location");
+        }
+
         Match = Candidate;
       }
     }
@@ -399,13 +401,13 @@ JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
     if (Match != nullptr) {
       switch (Match->type()) {
       case LabelType::AbsoluteValue:
-        return { Match->value() };
+        return { NewAPInt(Match->value()) };
 
       case LabelType::BaseRelativeValue:
-        return { binary().relocate(Match->value()) };
+        return { NewAPInt(binary().relocate(Match->value()).address()) };
 
       case LabelType::SymbolRelativeValue:
-        return { Match->symbolName(), Match->offset() };
+        return { Match->symbolName(), NewAPInt(Match->offset()) };
 
       default:
         revng_abort();
@@ -417,7 +419,7 @@ JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
   Optional<uint64_t> Value = Binary.readRawValue(LoadAddress, LoadSize, E);
 
   if (Value)
-    return { *Value };
+    return { NewAPInt(*Value) };
   else
     return {};
 }
@@ -429,7 +431,7 @@ getOption(StringMap<cl::Option *> &Options, const char *Name) {
 }
 
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
-                                     Value *PCReg,
+                                     ProgramCounterHandler *PCH,
                                      const BinaryFile &Binary,
                                      CSAAFactory createCSAA) :
   TheModule(*TheFunction->getParent()),
@@ -437,20 +439,22 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   TheFunction(TheFunction),
   OriginalInstructionAddresses(),
   JumpTargets(),
-  PCReg(PCReg),
   ExitTB(nullptr),
   Dispatcher(nullptr),
   DispatcherSwitch(nullptr),
   Binary(Binary),
-  CurrentCFGForm(CFGForm::UnknownFormCFG),
-  createCSAA(createCSAA) {
+  CurrentCFGForm(CFGForm::UnknownForm),
+  createCSAA(createCSAA),
+  PCH(PCH),
+  JumpTargetsWhitelist(nullptr) {
 
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { Type::getInt32Ty(Context) },
                                              false);
   FunctionCallee ExitCallee = TheModule.getOrInsertFunction("exitTB", ExitTBTy);
   ExitTB = cast<Function>(ExitCallee.getCallee());
-  createDispatcher(TheFunction, PCReg);
+
+  prepareDispatcher();
 
   for (auto &Segment : Binary.segments())
     Segment.insertExecutableRanges(std::back_inserter(ExecutableRanges));
@@ -463,89 +467,6 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   // getOption<uint32_t>(Options, "max-recurse-depth")->setInitialValue(10);
 }
 
-static bool isBetterThan(const Label *NewCandidate, const Label *OldCandidate) {
-  if (OldCandidate == nullptr)
-    return true;
-
-  if (NewCandidate->address() > OldCandidate->address())
-    return true;
-
-  if (NewCandidate->address() == OldCandidate->address()) {
-    StringRef OldName = OldCandidate->symbolName();
-    if (OldName.size() == 0)
-      return true;
-  }
-
-  return false;
-}
-
-// TODO: move this in BinaryFile?
-std::string
-JumpTargetManager::nameForAddress(uint64_t Address, uint64_t Size) const {
-  std::stringstream Result;
-  const auto &SymbolMap = Binary.labels();
-
-  auto It = SymbolMap.find(interval::right_open(Address, Address + Size));
-  if (It != SymbolMap.end()) {
-    // We have to look for (in order):
-    //
-    // * Exact match
-    // * Contained (non 0-sized)
-    // * Contained (0-sized)
-    const Label *ExactMatch = nullptr;
-    const Label *ContainedNonZeroSized = nullptr;
-    const Label *ContainedZeroSized = nullptr;
-
-    for (const Label *L : It->second) {
-      // Consider symbols only
-      if (not L->isSymbol())
-        continue;
-
-      if (L->matches(Address, Size)) {
-
-        // It's an exact match
-        ExactMatch = L;
-        break;
-
-      } else if (not L->isSizeVirtual() and L->contains(Address, Size)) {
-
-        // It's contained in a not 0-sized symbol
-        if (isBetterThan(L, ContainedNonZeroSized))
-          ContainedNonZeroSized = L;
-
-      } else if (L->isSizeVirtual() and L->contains(Address, 0)) {
-
-        // It's contained in a 0-sized symbol
-        if (isBetterThan(L, ContainedZeroSized))
-          ContainedZeroSized = L;
-      }
-    }
-
-    const Label *Chosen = nullptr;
-    if (ExactMatch != nullptr)
-      Chosen = ExactMatch;
-    else if (ContainedNonZeroSized != nullptr)
-      Chosen = ContainedNonZeroSized;
-    else if (ContainedZeroSized != nullptr)
-      Chosen = ContainedZeroSized;
-
-    if (Chosen != nullptr and Chosen->symbolName().size() != 0) {
-      // Use the symbol name
-      Result << Chosen->symbolName().str();
-
-      // And, if necessary, an offset
-      if (Address != Chosen->address())
-        Result << ".0x" << std::hex << (Address - Chosen->address());
-
-      return Result.str();
-    }
-  }
-
-  // We don't have a symbol to use, just return the address
-  Result << "0x" << std::hex << Address;
-  return Result.str();
-}
-
 void JumpTargetManager::harvestGlobalData() {
   // Register symbols
   for (auto &P : Binary.labels())
@@ -555,10 +476,10 @@ void JumpTargetManager::harvestGlobalData() {
 
   // Register landing pads, if available
   // TODO: should register them in UnusedCodePointers?
-  for (uint64_t LandingPad : Binary.landingPads())
+  for (MetaAddress LandingPad : Binary.landingPads())
     registerJT(LandingPad, JTReason::GlobalData);
 
-  for (uint64_t CodePointer : Binary.codePointers())
+  for (MetaAddress CodePointer : Binary.codePointers())
     registerJT(CodePointer, JTReason::GlobalData);
 
   for (auto &Segment : Binary.segments()) {
@@ -567,7 +488,7 @@ void JumpTargetManager::harvestGlobalData() {
       continue;
 
     auto *Data = cast<ConstantDataArray>(Initializer);
-    uint64_t StartVirtualAddress = Segment.StartVirtualAddress;
+    MetaAddress StartVirtualAddress = Segment.StartVirtualAddress;
     const unsigned char *DataStart = Data->getRawDataValues().bytes_begin();
     const unsigned char *DataEnd = Data->getRawDataValues().bytes_end();
 
@@ -599,13 +520,18 @@ void JumpTargetManager::harvestGlobalData() {
 }
 
 template<typename value_type, unsigned endian>
-void JumpTargetManager::findCodePointers(uint64_t StartVirtualAddress,
+void JumpTargetManager::findCodePointers(MetaAddress StartVirtualAddress,
                                          const unsigned char *Start,
                                          const unsigned char *End) {
   using support::endianness;
   using support::endian::read;
   for (auto Pos = Start; Pos < End - sizeof(value_type); Pos++) {
-    uint64_t Value = read<value_type, static_cast<endianness>(endian), 1>(Pos);
+    auto Read = read<value_type, static_cast<endianness>(endian), 1>;
+    uint64_t RawValue = Read(Pos);
+    MetaAddress Value = fromPC(RawValue);
+    if (Value.isInvalid())
+      continue;
+
     BasicBlock *Result = registerJT(Value, JTReason::GlobalData);
 
     if (Result != nullptr)
@@ -625,7 +551,9 @@ void JumpTargetManager::findCodePointers(uint64_t StartVirtualAddress,
 /// \return the basic block to use from now on, or null if the program counter
 ///         is not associated to a basic block.
 // TODO: make this return a pair
-BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool &ShouldContinue) {
+BasicBlock *JumpTargetManager::newPC(MetaAddress PC, bool &ShouldContinue) {
+  revng_assert(PC.isValid());
+
   // Did we already meet this PC?
   auto JTIt = JumpTargets.find(PC);
   if (JTIt != JumpTargets.end()) {
@@ -672,108 +600,17 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool &ShouldContinue) {
 }
 
 /// Save the PC-Instruction association for future use (jump target)
-void JumpTargetManager::registerInstruction(uint64_t PC,
+void JumpTargetManager::registerInstruction(MetaAddress PC,
                                             Instruction *Instruction) {
+  revng_assert(PC.isValid());
+
   // Never save twice a PC
   revng_assert(!OriginalInstructionAddresses.count(PC));
   OriginalInstructionAddresses[PC] = Instruction;
 }
 
-CallInst *JumpTargetManager::findNextExitTB(Instruction *Start) {
-
-  struct Visitor
-    : public BFSVisitorBase<true, Visitor, SmallVector<BasicBlock *, 4>> {
-  public:
-    using SuccessorsType = SmallVector<BasicBlock *, 4>;
-
-  public:
-    CallInst *Result;
-    Function *ExitTB;
-    JumpTargetManager *JTM;
-
-  public:
-    Visitor(Function *ExitTB, JumpTargetManager *JTM) :
-      Result(nullptr),
-      ExitTB(ExitTB),
-      JTM(JTM) {}
-
-  public:
-    VisitAction visit(BasicBlockRange Range) {
-      for (Instruction &I : Range) {
-        if (auto *Call = dyn_cast<CallInst>(&I)) {
-          auto *Callee = cast<Function>(skipCasts(Call->getCalledValue()));
-          revng_assert(Callee->getName() != "newpc");
-          if (Callee == ExitTB) {
-            revng_assert(Result == nullptr);
-            Result = Call;
-            return ExhaustQueueAndStop;
-          }
-        }
-      }
-
-      return Continue;
-    }
-
-    SuccessorsType successors(BasicBlock *BB) {
-      SuccessorsType Successors;
-      for (BasicBlock *Successor : make_range(succ_begin(BB), succ_end(BB)))
-        if (JTM->isTranslatedBB(Successor))
-          Successors.push_back(Successor);
-      return Successors;
-    }
-  };
-
-  Visitor V(ExitTB, this);
-  V.run(Start);
-
-  return V.Result;
-}
-
-StoreInst *JumpTargetManager::getPrevPCWrite(Instruction *TheInstruction) {
-  class Visitor : public BackwardBFSVisitor<Visitor> {
-  private:
-    Value *PCReg;
-    Instruction *Skip;
-    StoreInst *Result;
-
-  public:
-    Visitor(Value *PCReg, Instruction *Skip) :
-      PCReg(PCReg),
-      Skip(Skip),
-      Result(nullptr) {}
-
-    VisitAction visit(instruction_range Range) {
-      for (Instruction &I : Range) {
-        // Stop at helpers/newpc
-        if (isa<CallInst>(&I) and &I != Skip)
-          return NoSuccessors;
-
-        auto *Store = dyn_cast<StoreInst>(&I);
-        if (Store != nullptr && Store->getPointerOperand() == PCReg) {
-
-          // If Result is not null, it's the second store to pc we find
-          if (Result != nullptr) {
-            Result = nullptr;
-            return StopNow;
-          }
-
-          Result = Store;
-          return NoSuccessors;
-        }
-      }
-
-      return Continue;
-    }
-
-    StoreInst *getResult() const { return Result; }
-  };
-
-  Visitor V(PCReg, TheInstruction);
-  V.run(TheInstruction);
-  return V.getResult();
-}
-
-std::pair<uint64_t, uint64_t>
+// TODO: this is a candidate for BFSVisit
+std::pair<MetaAddress, uint64_t>
 JumpTargetManager::getPC(Instruction *TheInstruction) const {
   CallInst *NewPCCall = nullptr;
   std::set<BasicBlock *> Visited;
@@ -798,7 +635,7 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
 
           // We found two distinct newpc leading to the requested instruction
           if (NewPCCall != nullptr)
-            return { 0, 0 };
+            return { MetaAddress::invalid(), 0 };
 
           NewPCCall = Marker;
           break;
@@ -811,8 +648,10 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
       // If one of the predecessors is the dispatcher, don't explore any further
       for (BasicBlock *Predecessor : predecessors(BB)) {
         // Assert we didn't reach the almighty dispatcher
-        revng_assert(!(NewPCCall == nullptr && Predecessor == Dispatcher));
-        if (Predecessor == Dispatcher)
+        using GCBI = GeneratedCodeBasicInfo;
+        revng_assert(not(NewPCCall == nullptr
+                         and GCBI::isPartOfRootDispatcher(Predecessor)));
+        if (GCBI::isPartOfRootDispatcher(Predecessor))
           continue;
       }
 
@@ -829,9 +668,9 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
 
   // Couldn't find the current PC
   if (NewPCCall == nullptr)
-    return { 0, 0 };
+    return { MetaAddress::invalid(), 0 };
 
-  uint64_t PC = getLimitedValue(NewPCCall->getArgOperand(0));
+  auto PC = MetaAddress::fromConstant(NewPCCall->getArgOperand(0));
   uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(1));
   revng_assert(Size != 0);
   return { PC, Size };
@@ -851,19 +690,18 @@ public:
       return;
     Visited.insert(BB);
 
-    uint64_t PC = getPC(BB);
-    if (PC == 0)
+    MetaAddress PC = getPC(BB);
+    if (PC.isInvalid())
       SamePC.push(BB);
     else
       NewPC.push({ BB, PC });
   }
 
-  // TODO: this function assumes 0 is not a valid PC
-  std::pair<BasicBlock *, uint64_t> pop() {
+  std::pair<BasicBlock *, MetaAddress> pop() {
     if (!SamePC.empty()) {
       auto Result = SamePC.front();
       SamePC.pop();
-      return { Result, 0 };
+      return { Result, MetaAddress::invalid() };
     } else if (!NewPC.empty()) {
       auto Result = NewPC.front();
       NewPC.pop();
@@ -873,25 +711,23 @@ public:
       JumpTargetIndex++;
       return { BB, getPC(BB) };
     } else {
-      return { nullptr, 0 };
+      return { nullptr, MetaAddress::invalid() };
     }
   }
 
 private:
-  // TODO: this function assumes 0 is not a valid PC
-  uint64_t getPC(BasicBlock *BB) {
+  MetaAddress getPC(BasicBlock *BB) {
     if (!BB->empty()) {
       if (auto *Call = dyn_cast<CallInst>(&*BB->begin())) {
         Function *Callee = Call->getCalledFunction();
         // TODO: comparing with "newpc" string is sad
         if (Callee != nullptr && Callee->getName() == "newpc") {
-          Constant *PCOperand = cast<Constant>(Call->getArgOperand(0));
-          return getZExtValue(PCOperand, DL);
+          return MetaAddress::fromConstant(Call->getArgOperand(0));
         }
       }
     }
 
-    return 0;
+    return MetaAddress::invalid();
   }
 
 private:
@@ -901,8 +737,27 @@ private:
   const DataLayout &DL;
   std::set<BasicBlock *> Visited;
   std::queue<BasicBlock *> SamePC;
-  std::queue<std::pair<BasicBlock *, uint64_t>> NewPC;
+  std::queue<std::pair<BasicBlock *, MetaAddress>> NewPC;
 };
+
+void JumpTargetManager::fixPostHelperPC() {
+  for (BasicBlock &BB : *TheFunction) {
+    for (Instruction &I : BB) {
+      if (auto *Call = getCallToHelper(&I)) {
+        using GCBI = GeneratedCodeBasicInfo;
+        auto Written = std::move(GCBI::getCSVUsedByHelperCall(Call).Written);
+        auto WritesPC = [this](GlobalVariable *CSV) {
+          return PCH->affectsPC(CSV);
+        };
+        auto End = Written.end();
+        if (std::find_if(Written.begin(), End, WritesPC) != End) {
+          IRBuilder<> Builder(Call->getParent(), ++Call->getIterator());
+          PCH->deserializePC(Builder);
+        }
+      }
+    }
+  }
+}
 
 void JumpTargetManager::translateIndirectJumps() {
   if (ExitTB->use_empty())
@@ -915,11 +770,10 @@ void JumpTargetManager::translateIndirectJumps() {
       if (Call->getCalledFunction() == ExitTB) {
 
         // Look for the last write to the PC
-        StoreInst *PCWrite = getPrevPCWrite(Call);
-        if (PCWrite != nullptr) {
-          revng_assert(!isa<ConstantInt>(PCWrite->getValueOperand()),
-                       "Direct jumps should not be handled here");
-        }
+        BasicBlock *CallBB = Call->getParent();
+        auto [Result, NextPC] = PCH->getUniqueJumpTarget(CallBB);
+        revng_check(Result != NextJumpTarget::Unique
+                    and "Direct jumps should not be handled here");
 
         if (getLimitedValue(Call->getArgOperand(0)) == 0) {
           exitTBCleanup(Call);
@@ -953,23 +807,34 @@ JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
   }
 }
 
-BasicBlock *JumpTargetManager::getBlockAt(uint64_t PC) {
+BasicBlock *JumpTargetManager::getBlockAt(MetaAddress PC) {
+  revng_assert(PC.isValid());
+
   auto TargetIt = JumpTargets.find(PC);
   revng_assert(TargetIt != JumpTargets.end());
   return TargetIt->second.head();
+}
+
+/// \brief Check if among \p BB's predecessors there's \p Target
+inline bool hasRootDispatcherPredecessor(llvm::BasicBlock *BB) {
+  using GCBI = GeneratedCodeBasicInfo;
+  for (llvm::BasicBlock *Predecessor : predecessors(BB))
+    if (GCBI::isPartOfRootDispatcher(Predecessor))
+      return true;
+  return false;
 }
 
 void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
   OnceQueue<BasicBlock *> Queue;
   Queue.insert(Start);
 
-  // Collect all the descendats, except if we meet a jump target
+  // Collect all the descendants, except if we meet a jump target
   while (!Queue.empty()) {
     BasicBlock *BB = Queue.pop();
     Instruction *Terminator = BB->getTerminator();
     for (BasicBlock *Successor : successors(Terminator)) {
-      if (isTranslatedBB(Successor) && !isJumpTarget(Successor)
-          && !hasPredecessor(Successor, Dispatcher)) {
+      if (isTranslatedBB(Successor) and not isJumpTarget(Successor)
+          and not hasRootDispatcherPredecessor(Successor)) {
         Queue.insert(Successor);
       }
     }
@@ -983,8 +848,15 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
   SubGraph<BasicBlock *> TranslatedBBs(Start, Visited);
   for (auto *Node : post_order(TranslatedBBs)) {
     BasicBlock *BB = Node->get();
-    while (!BB->empty())
-      eraseInstruction(&*(--BB->end()));
+    while (!BB->empty()) {
+      Instruction *I = &*(--BB->end());
+
+      if (CallInst *Call = getCallTo(I, "newpc")) {
+        auto *Address = Call->getArgOperand(0);
+        OriginalInstructionAddresses.erase(MetaAddress::fromConstant(Address));
+      }
+      eraseInstruction(I);
+    }
   }
 
   // Remove Start, since we want to keep it (even if empty)
@@ -1006,8 +878,10 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
 
 // TODO: register Reason
 BasicBlock *
-JumpTargetManager::registerJT(uint64_t PC, JTReason::Values Reason) {
-  if (!isExecutableAddress(PC) || !isInstructionAligned(PC))
+JumpTargetManager::registerJT(MetaAddress PC, JTReason::Values Reason) {
+  revng_check(PC.isValid());
+
+  if (not isPC(PC))
     return nullptr;
 
   revng_log(RegisterJTLog,
@@ -1022,6 +896,9 @@ JumpTargetManager::registerJT(uint64_t PC, JTReason::Values Reason) {
     TargetIt->second.setReason(Reason);
     return BB;
   }
+
+  // PC was not a jump target, record it as new
+  AVIJumpTargetsWhitelist.insert(PC);
 
   // Did we already meet this PC (i.e. do we know what's the associated
   // instruction)?
@@ -1057,39 +934,37 @@ JumpTargetManager::registerJT(uint64_t PC, JTReason::Values Reason) {
   Name << "bb." << nameForAddress(PC);
   NewBlock->setName(Name.str());
 
-  // Create a case for the address associated to the new block
-  auto *PCRegType = PCReg->getType();
-  auto *SwitchType = cast<IntegerType>(PCRegType->getPointerElementType());
-  DispatcherSwitch->addCase(ConstantInt::get(SwitchType, PC), NewBlock);
+  // Create a case for the address associated to the new block, if the
+  // dispatcher has alredy been emitted
+  if (DispatcherSwitch != nullptr) {
+    PCH->addCaseToDispatcher(DispatcherSwitch,
+                             { PC, NewBlock },
+                             BlockType::RootDispatcherHelperBlock);
+  }
 
   // Associate the PC with the chosen basic block
   JumpTargets[PC] = JumpTarget(NewBlock, Reason);
   return NewBlock;
 }
 
-void JumpTargetManager::registerReadRange(uint64_t Address, uint64_t Size) {
-  using interval = boost::icl::interval<uint64_t>;
+void JumpTargetManager::registerReadRange(MetaAddress Address, uint64_t Size) {
+  using interval = boost::icl::interval<MetaAddress, compareAddress>;
   ReadIntervalSet += interval::right_open(Address, Address + Size);
 }
 
-// TODO: instead of a gigantic switch case we could map the original memory area
-//       and write the address of the translated basic block at the jump target
-// If this function looks weird it's because it has been designed to be able
-// to create the dispatcher in the "root" function or in a standalone function
-void JumpTargetManager::createDispatcher(Function *OutputFunction,
-                                         Value *SwitchOnPtr) {
+void JumpTargetManager::prepareDispatcher() {
   IRBuilder<> Builder(Context);
   QuickMetadata QMD(Context);
 
   // Create the first block of the dispatcher
   BasicBlock *Entry = BasicBlock::Create(Context,
                                          "dispatcher.entry",
-                                         OutputFunction);
+                                         TheFunction);
 
   // The default case of the switch statement it's an unhandled cases
   DispatcherFail = BasicBlock::Create(Context,
                                       "dispatcher.default",
-                                      OutputFunction);
+                                      TheFunction);
   Builder.SetInsertPoint(DispatcherFail);
 
   Module *TheModule = TheFunction->getParent();
@@ -1100,22 +975,11 @@ void JumpTargetManager::createDispatcher(Function *OutputFunction,
   auto *FailUnreachable = Builder.CreateUnreachable();
   setBlockType(FailUnreachable, BlockType::DispatcherFailureBlock);
 
-  // Switch on the first argument of the function
-  Builder.SetInsertPoint(Entry);
-  Value *SwitchOn = Builder.CreateLoad(SwitchOnPtr);
-  SwitchInst *Switch = Builder.CreateSwitch(SwitchOn, DispatcherFail);
-
-  // The switch is the terminator of the dispatcher basic block
-  setBlockType(Switch, BlockType::DispatcherBlock);
-
   Dispatcher = Entry;
-  DispatcherSwitch = Switch;
 
   // Create basic blocks to handle jumps to any PC and to a PC we didn't expect
-  AnyPC = BasicBlock::Create(Context, "anypc", OutputFunction);
-  UnexpectedPC = BasicBlock::Create(Context, "unexpectedpc", OutputFunction);
-
-  setCFGForm(CFGForm::SemanticPreservingCFG);
+  AnyPC = BasicBlock::Create(Context, "anypc", TheFunction);
+  UnexpectedPC = BasicBlock::Create(Context, "unexpectedpc", TheFunction);
 }
 
 static void purge(BasicBlock *BB) {
@@ -1125,7 +989,7 @@ static void purge(BasicBlock *BB) {
   revng_assert(BB->empty());
 }
 
-std::set<BasicBlock *> JumpTargetManager::computeUnreachable() {
+std::set<BasicBlock *> JumpTargetManager::computeUnreachable() const {
   ReversePostOrderTraversal<BasicBlock *> RPOT(&TheFunction->getEntryBlock());
   std::set<BasicBlock *> Reachable;
   for (BasicBlock *BB : RPOT)
@@ -1142,15 +1006,23 @@ std::set<BasicBlock *> JumpTargetManager::computeUnreachable() {
 
 void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
   revng_assert(CurrentCFGForm != NewForm);
-  revng_assert(NewForm != CFGForm::UnknownFormCFG);
+  revng_assert(NewForm != CFGForm::UnknownForm);
 
   std::set<BasicBlock *> Unreachable;
+  static bool First = true;
+  if (not First and Verify.isEnabled()) {
+    assertNoUnreachable();
+  }
+  First = false;
 
   CFGForm::Values OldForm = CurrentCFGForm;
   CurrentCFGForm = NewForm;
 
+  //
+  // Recreate AnyPC and UnexpectedPC
+  //
   switch (NewForm) {
-  case CFGForm::SemanticPreservingCFG:
+  case CFGForm::SemanticPreserving:
     purge(AnyPC);
     BranchInst::Create(dispatcher(), AnyPC);
     // TODO: Here we should have an hard fail, since it's the situation in
@@ -1160,8 +1032,8 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
     BranchInst::Create(dispatcher(), UnexpectedPC);
     break;
 
-  case CFGForm::RecoveredOnlyCFG:
-  case CFGForm::NoFunctionCallsCFG:
+  case CFGForm::RecoveredOnly:
+  case CFGForm::NoFunctionCalls:
     purge(AnyPC);
     new UnreachableInst(Context, AnyPC);
     purge(UnexpectedPC);
@@ -1173,14 +1045,14 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
   }
 
   setBlockType(AnyPC->getTerminator(), BlockType::AnyPCBlock);
+  setBlockType(UnexpectedPC->getTerminator(), BlockType::UnexpectedPCBlock);
 
-  Instruction *UnexpectedPCJump = UnexpectedPC->getTerminator();
-  setBlockType(UnexpectedPCJump, BlockType::UnexpectedPCBlock);
-
-  // If we're entering or leaving the NoFunctionCallsCFG form, update all the
-  // branch instruction forming a function call
-  if (NewForm == CFGForm::NoFunctionCallsCFG
-      || OldForm == CFGForm::NoFunctionCallsCFG) {
+  // Adjust successors of jump instructions tagged as function calls:
+  //
+  // * NoFunctionsCallsCFG: the successor is the fallthrough
+  // * otherwise: the successor is the callee
+  if (NewForm == CFGForm::NoFunctionCalls
+      || OldForm == CFGForm::NoFunctionCalls) {
     if (auto *FunctionCall = TheModule.getFunction("function_call")) {
       for (User *U : FunctionCall->users()) {
         auto *Call = cast<CallInst>(U);
@@ -1195,7 +1067,7 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
 
         // Get the correct argument, the first is the callee, the second the
         // return basic block
-        int OperandIndex = NewForm == CFGForm::NoFunctionCallsCFG ? 1 : 0;
+        int OperandIndex = NewForm == CFGForm::NoFunctionCalls ? 1 : 0;
         Value *Op = Call->getArgOperand(OperandIndex);
         BasicBlock *NewSuccessor = cast<BlockAddress>(Op)->getBasicBlock();
         Terminator->setSuccessor(0, NewSuccessor);
@@ -1206,54 +1078,47 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
   rebuildDispatcher();
 
   if (Verify.isEnabled()) {
-    Unreachable = computeUnreachable();
-    if (Unreachable.size() != 0) {
-      Verify << "The following basic blocks are unreachable after setCFGForm("
-             << CFGForm::getName(NewForm) << "):\n";
-      for (BasicBlock *BB : Unreachable) {
-        Verify << "  " << getName(BB) << " (predecessors:";
-        for (BasicBlock *Predecessor : make_range(pred_begin(BB), pred_end(BB)))
-          Verify << " " << getName(Predecessor);
-
-        if (uint64_t PC = getBasicBlockPC(BB)) {
-          auto It = JumpTargets.find(PC);
-          if (It != JumpTargets.end()) {
-            Verify << ", reasons:";
-            for (const char *Reason : It->second.getReasonNames())
-              Verify << " " << Reason;
-          }
-        }
-
-        Verify << ")\n";
-      }
-      revng_abort();
-    }
+    assertNoUnreachable();
   }
 }
 
 void JumpTargetManager::rebuildDispatcher() {
-  // Remove all cases
-  unsigned NumCases = DispatcherSwitch->getNumCases();
-  while (NumCases-- > 0)
-    DispatcherSwitch->removeCase(DispatcherSwitch->case_begin());
 
-  auto *PCRegType = PCReg->getType()->getPointerElementType();
-  auto *SwitchType = cast<IntegerType>(PCRegType);
+  if (DispatcherSwitch != nullptr) {
+    revng_assert(DispatcherSwitch->getParent() == Dispatcher);
 
-  // Add all the jump targets if we're using the SemanticPreservingCFG, or
-  // only those with no predecessors otherwise
-  for (auto &P : JumpTargets) {
-    uint64_t PC = P.first;
-    BasicBlock *BB = P.second.head();
-    if (CurrentCFGForm == CFGForm::SemanticPreservingCFG
-        || !hasPredecessors(BB))
-      DispatcherSwitch->addCase(ConstantInt::get(SwitchType, PC), BB);
+    // Purge the old dispatcher
+    PCH->destroyDispatcher(DispatcherSwitch);
   }
+
+  ProgramCounterHandler::DispatcherTargets Targets;
+
+  // Add all the (whitelisted) jump targets if we're using the
+  // SemanticPreserving, or only those with no predecessors.
+  bool IsWhitelistActive = (JumpTargetsWhitelist != nullptr);
+  for (auto &[PC, JumpTarget] : JumpTargets) {
+    BasicBlock *BB = JumpTarget.head();
+    bool IsWhitelisted = (not IsWhitelistActive
+                          or JumpTargetsWhitelist->count(PC) != 0);
+    if ((CurrentCFGForm == CFGForm::SemanticPreserving
+         or not hasPredecessors(BB))
+        and IsWhitelisted) {
+      Targets.emplace_back(PC, BB);
+    }
+  }
+
+  DispatcherSwitch = PCH->buildDispatcher(Targets,
+                                          Dispatcher,
+                                          DispatcherFail,
+                                          BlockType::RootDispatcherHelperBlock);
+
+  // The switch is the terminator of the dispatcher basic block
+  setBlockType(DispatcherSwitch, BlockType::RootDispatcherBlock);
 
   //
   // Make sure every generated basic block is reachable
   //
-  if (CurrentCFGForm != CFGForm::SemanticPreservingCFG) {
+  if (CurrentCFGForm != CFGForm::SemanticPreserving) {
     // Compute the set of reachable jump targets
     OnceQueue<BasicBlock *> WorkList;
     for (BasicBlock *Successor : successors(DispatcherSwitch))
@@ -1268,16 +1133,18 @@ void JumpTargetManager::rebuildDispatcher() {
     std::set<BasicBlock *> Reachable = WorkList.visited();
 
     // Identify all the unreachable jump targets
-    for (auto &P : JumpTargets) {
-      uint64_t PC = P.first;
-      const JumpTarget &JT = P.second;
+    for (const auto &[PC, JT] : JumpTargets) {
       BasicBlock *BB = JT.head();
+      bool IsWhitelisted = (not IsWhitelistActive
+                            or JumpTargetsWhitelist->count(PC) != 0);
 
       // Add to the switch all the unreachable jump targets whose reason is not
       // just direct jump
-      if (Reachable.count(BB) == 0
+      if (Reachable.count(BB) == 0 and IsWhitelisted
           and not JT.isOnlyReason(JTReason::DirectJump)) {
-        DispatcherSwitch->addCase(ConstantInt::get(SwitchType, PC), BB);
+        PCH->addCaseToDispatcher(DispatcherSwitch,
+                                 { PC, BB },
+                                 BlockType::RootDispatcherHelperBlock);
       }
     }
   }
@@ -1365,13 +1232,16 @@ void JumpTargetManager::aliasAnalysis() {
   };
   std::map<const GlobalVariable *, CSVAliasInfo> CSVAliasInfoMap;
 
-  std::vector<GlobalVariable *> CSVs;
+  std::set<GlobalVariable *> CSVs;
   NamedMDNode *NamedMD = TheModule.getOrInsertNamedMetadata("revng.csv");
   auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
   for (const MDOperand &Operand : Tuple->operands()) {
     auto *CSV = cast<GlobalVariable>(QMD.extract<Constant *>(Operand.get()));
-    CSVs.push_back(CSV);
+    CSVs.insert(CSV);
   }
+
+  for (GlobalVariable *PCCSV : PCH->pcCSVs())
+    CSVs.insert(PCCSV);
 
   // Build alias scopes
   std::vector<Metadata *> AllCSVScopes;
@@ -1431,13 +1301,157 @@ void JumpTargetManager::aliasAnalysis() {
   }
 }
 
+namespace TrackedInstructionType {
+
+enum Values { Invalid, WrittenInPC, StoredInMemory, StoreTarget, LoadTarget };
+
+inline const char *getName(Values V) {
+  switch (V) {
+  case Invalid:
+    return "Invalid";
+  case WrittenInPC:
+    return "WrittenInPC";
+  case StoredInMemory:
+    return "StoredInMemory";
+  case StoreTarget:
+    return "StoreTarget";
+  case LoadTarget:
+    return "LoadTarget";
+  default:
+    revng_abort();
+  }
+}
+
+inline Values fromName(llvm::StringRef Name) {
+  if (Name == "Invalid")
+    return Invalid;
+  else if (Name == "WrittenInPC")
+    return WrittenInPC;
+  else if (Name == "StoredInMemory")
+    return StoredInMemory;
+  else if (Name == "StoreTarget")
+    return StoreTarget;
+  else if (Name == "LoadTarget")
+    return LoadTarget;
+  else
+    revng_abort();
+}
+
+} // namespace TrackedInstructionType
+
+class AnalysisRegistry {
+public:
+  using TrackedValueType = TrackedInstructionType::Values;
+
+  struct TrackedValue {
+    MetaAddress Address;
+    TrackedValueType Type;
+    Instruction *I;
+  };
+
+private:
+  std::vector<TrackedValue> TrackedValues;
+  QuickMetadata QMD;
+  llvm::Function *AVIMarker;
+  IRBuilder<> Builder;
+
+public:
+  AnalysisRegistry(Module *M) : QMD(getContext(M)), Builder(getContext(M)) {
+    AVIMarker = AdvancedValueInfoPass::createMarker(M);
+  }
+
+  llvm::Function *aviMarker() const { return AVIMarker; }
+
+  void registerValue(MetaAddress Address,
+                     Value *OriginalValue,
+                     Value *ValueToTrack,
+                     TrackedValueType Type) {
+    revng_assert(Address.isValid());
+
+    Instruction *InstructionToTrack = dyn_cast<Instruction>(ValueToTrack);
+    if (InstructionToTrack == nullptr)
+      return;
+
+    revng_assert(InstructionToTrack != nullptr);
+
+    // Create the marker call and attach as second argument a unique
+    // identifier. This is necessary since the instruction itself could be
+    // deleted, duplicated and what not. Later on, we will use TrackedValues
+    // to now the values that have been identified to which value in the
+    // original function did they belong to
+    uint32_t AVIID = TrackedValues.size();
+    using AVI = AdvancedValueInfoPass;
+    Builder.SetInsertPoint(InstructionToTrack->getNextNode());
+    Builder.CreateCall(AVIMarker,
+                       { InstructionToTrack, Builder.getInt32(AVIID) });
+    TrackedValue NewTV{ Address,
+                        Type,
+                        cast_or_null<Instruction>(OriginalValue) };
+    TrackedValues.push_back(NewTV);
+  }
+
+  const TrackedValue &rootInstructionById(uint32_t ID) const {
+    return TrackedValues.at(ID);
+  }
+};
+
+void JumpTargetManager::inflateAVIWhitelist() {
+  // We start from all the new basic blocks (i.e., those in
+  // AVIJumpTargetsWhitelist) and proceed backward in the CFG in order to
+  // whitelist all the jump targets we meet. We stop when we meet the dispatcher
+  // or a function call.
+
+  // Prepare the backward visit
+  std::set<MetaAddress> ToPreserve;
+  df_iterator_default_set<BasicBlock *> VisitSet;
+
+  // Stop at the dispatcher
+  VisitSet.insert(DispatcherSwitch->getParent());
+
+  // Stop at each function call
+  // TODO: the following piece of code currently does nothing since we don't
+  //       detect function calls during harvesting
+  if (Function *FunctionCall = TheModule.getFunction("function_call")) {
+    for (User *U : FunctionCall->users()) {
+      if (auto *Call = dyn_cast<CallInst>(U)) {
+        auto *BB = Call->getParent();
+
+        if (BB->getParent() != TheFunction)
+          continue;
+
+        if (const CallInst *Call = getCallTo(&*BB->begin(), "newpc")) {
+          auto MA = MetaAddress::fromConstant(Call->getOperand(0));
+          if (AVIJumpTargetsWhitelist.count(MA) != 0) {
+            continue;
+          }
+        }
+
+        VisitSet.insert(BB);
+      }
+    }
+  }
+
+  // Perform a inverse dfs looking for jump targets
+  for (MetaAddress MA : AVIJumpTargetsWhitelist) {
+    auto VisitRange = inverse_depth_first_ext(getBlockAt(MA), VisitSet);
+    for (const BasicBlock *Reachable : VisitRange) {
+      if (const CallInst *Call = getCallTo(&*Reachable->begin(), "newpc")) {
+        auto MA = MetaAddress::fromConstant(Call->getOperand(0));
+        if (MA.isValid() and isJumpTarget(MA)) {
+          ToPreserve.insert(MA);
+        }
+      }
+    }
+  }
+
+  // Extend AVIJumpTargetsWhitelist with the jump targets we met in the visit
+  for (const MetaAddress &MA : ToPreserve) {
+    AVIJumpTargetsWhitelist.insert(MA);
+  }
+}
+
 void JumpTargetManager::harvestWithAVI() {
   Module *M = TheFunction->getParent();
-
-  //
-  // Update alias analysis
-  //
-  aliasAnalysis();
 
   //
   // Update CPUStateAccessAnalysisPass
@@ -1447,121 +1461,140 @@ void JumpTargetManager::harvestWithAVI() {
   PM.run(TheModule);
 
   //
-  // Collect all the CSVs
+  // Collect all the non-PC affectign CSVs
   //
-  std::set<GlobalVariable *> CSVs;
+  std::set<GlobalVariable *> NonPCCSVs;
   QuickMetadata QMD(Context);
   NamedMDNode *NamedMD = TheModule.getOrInsertNamedMetadata("revng.csv");
   auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
   for (const MDOperand &Operand : Tuple->operands()) {
     auto *CSV = cast<GlobalVariable>(QMD.extract<Constant *>(Operand.get()));
-    CSVs.insert(CSV);
+    if (not PCH->affectsPC(CSV))
+      NonPCCSVs.insert(CSV);
   }
 
   //
   // Clone the root function
   //
-
-  // Prune the dispatcher
-  setCFGForm(CFGForm::RecoveredOnlyCFG);
-
-  revng_assert(computeUnreachable().size() == 0);
-
-  // Clone the function
   Function *OptimizedFunction = nullptr;
   ValueToValueMapTy OldToNew;
-  OptimizedFunction = CloneFunction(TheFunction, OldToNew);
+  {
+    // Augment AVIJumpTargetsWhitelist
+    inflateAVIWhitelist();
+
+    // Prune the dispatcher
+    JumpTargetsWhitelist = &AVIJumpTargetsWhitelist;
+    setCFGForm(CFGForm::RecoveredOnly);
+
+    // Detach all the unreachable basic blocks, so they don't get copied
+    std::set<BasicBlock *> UnreachableBBs = computeUnreachable();
+    for (BasicBlock *UnreachableBB : UnreachableBBs)
+      UnreachableBB->removeFromParent();
+
+    // Clone the function
+    OptimizedFunction = CloneFunction(TheFunction, OldToNew);
+
+    // Record the size of OptimizedFunction
+    size_t BlocksCount = OptimizedFunction->getBasicBlockList().size();
+    BlocksAnalyzedByAVI.push(BlocksCount);
+
+    // Reattach the unreachable basic blocks to the original root function
+    for (BasicBlock *UnreachableBB : UnreachableBBs)
+      UnreachableBB->insertInto(TheFunction);
+
+    // Restore the dispatcher in the original function
+    JumpTargetsWhitelist = nullptr;
+    setCFGForm(CFGForm::SemanticPreserving);
+    revng_assert(computeUnreachable().size() == 0);
+
+    // Clear the whitelist
+    AVIJumpTargetsWhitelist.clear();
+  }
 
   //
-  // Identify all the calls to exitTB
+  // Register for analysis the value written in the PC before each exit_tb call
   //
-  std::map<uint32_t, Instruction *> AVIIDToOld;
-  uint32_t AVIID = 0;
-
-  Function *ExitTB = M->getFunction("exitTB");
+  AnalysisRegistry AR(M);
+  IRBuilder<> Builder(Context);
   for (User *U : ExitTB->users()) {
     if (auto *Call = dyn_cast<CallInst>(U)) {
       BasicBlock *BB = Call->getParent();
       if (BB->getParent() == TheFunction) {
-        // Find the last PC write
-        StoreInst *Store = getPrevPCWrite(Call);
-        if (Store != nullptr) {
-          auto *NewStore = cast<StoreInst>(OldToNew[Store]);
-          if (NewStore->getMetadata("revng.avi") == nullptr) {
-            NewStore->setMetadata("revng.avi.mark", QMD.tuple(AVIID));
-            AVIIDToOld[AVIID] = Store;
-            ++AVIID;
-          }
-        }
+        auto It = OldToNew.find(Call);
+        if (It == OldToNew.end())
+          continue;
+        Builder.SetInsertPoint(cast<CallInst>(&*It->second));
+        Instruction *ComposedIntegerPC = PCH->composeIntegerPC(Builder);
+        AR.registerValue(getPC(Call).first,
+                         Call,
+                         ComposedIntegerPC,
+                         TrackedInstructionType::WrittenInPC);
       }
     }
   }
 
-  // Register instructions reading memory
-  for (BasicBlock &BB : *TheFunction) {
+  //
+  // Register load/store addresses and PC-sized stored value
+  //
+  for (BasicBlock &BB : *OptimizedFunction) {
     for (Instruction &I : BB) {
+      namespace TIT = TrackedInstructionType;
 
+      auto AddressType = TIT::Invalid;
       Value *Pointer = nullptr;
-      if (auto *Load = dyn_cast<LoadInst>(&I))
+      Instruction *StoredInstruction = nullptr;
+      if (auto *Load = dyn_cast<LoadInst>(&I)) {
+        // It's a load: record the load address
         Pointer = Load->getPointerOperand();
-      else if (auto *Store = dyn_cast<StoreInst>(&I))
+        AddressType = TIT::LoadTarget;
+      } else if (auto *Store = dyn_cast<StoreInst>(&I)) {
+        // It's a store: record the store address and the stored value
         Pointer = Store->getPointerOperand();
+        StoredInstruction = dyn_cast<Instruction>(Store->getValueOperand());
+        AddressType = TIT::StoreTarget;
+      }
 
+      // Exclude memory accesses targeting CSVs
       if (Pointer != nullptr and isMemory(Pointer)) {
-        auto *NewI = cast<Instruction>(OldToNew[&I]);
-        if (NewI->getMetadata("revng.avi") == nullptr) {
-          NewI->setMetadata("revng.avi.mark", QMD.tuple(AVIID));
-          AVIIDToOld[AVIID] = &I;
-          ++AVIID;
-        }
+        MetaAddress Address = getPC(&I).first;
+        // Register the load/store address
+        if (Instruction *PointerI = dyn_cast_or_null<Instruction>(Pointer))
+          AR.registerValue(Address, nullptr, PointerI, AddressType);
+
+        // Register the stored value, if pc-sized
+        Type *PointeeType = Pointer->getType()->getPointerElementType();
+        if (StoredInstruction != nullptr and PCH->isPCSizedType(PointeeType))
+          AR.registerValue(Address,
+                           nullptr,
+                           StoredInstruction,
+                           TIT::StoredInMemory);
       }
     }
   }
 
-  // Restore the dispatcher
-  setCFGForm(CFGForm::SemanticPreservingCFG);
-
-  revng_assert(computeUnreachable().size() == 0);
-
   //
-  // Create an alloca per CSV (except for the PC)
+  // Create and initialized an alloca per CSV (except for the PC-affecting ones)
   //
-  IRBuilder<> AllocaBuilder(&*OptimizedFunction->getEntryBlock().begin());
-  auto *Marker = AllocaBuilder.CreateLoad(PCReg);
-  Instruction *T = OptimizedFunction->getEntryBlock().getTerminator();
-  IRBuilder<> InitializeBuilder(T);
+  BasicBlock *EntryBB = &OptimizedFunction->getEntryBlock();
+  IRBuilder<> AllocaBuilder(&*EntryBB->begin());
+  IRBuilder<> InitializeBuilder(EntryBB->getTerminator());
   std::map<GlobalVariable *, AllocaInst *> CSVMap;
 
-  for (GlobalVariable *CSV : CSVs) {
-
-    if (CSV == PCReg)
-      continue;
-
+  for (GlobalVariable *CSV : NonPCCSVs) {
     Type *CSVType = CSV->getType()->getPointerElementType();
     auto *Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
     CSVMap[CSV] = Alloca;
 
     // Replace all uses of the CSV within OptimizedFunction with the alloca
-    auto UI = CSV->use_begin();
-    auto E = CSV->use_end();
-    while (UI != E) {
-      Use &U = *UI;
-      ++UI;
+    replaceAllUsesInFunctionWith(OptimizedFunction, CSV, Alloca);
 
-      if (auto *I = dyn_cast<Instruction>(U.getUser()))
-        if (I->getParent()->getParent() == OptimizedFunction)
-          U.set(Alloca);
-    }
-
+    // Initialize the alloca
     InitializeBuilder.CreateStore(InitializeBuilder.CreateLoad(CSV), Alloca);
   }
-
-  Marker->eraseFromParent();
 
   //
   // Helper to intrinsic promotion
   //
-  IRBuilder<> Builder(Context);
   using MapperFunction = std::function<Instruction *(CallInst *)>;
   std::pair<const char *, MapperFunction> Mapping[] = {
     { "helper_clz",
@@ -1597,6 +1630,28 @@ void JumpTargetManager::harvestWithAVI() {
     }
   }
 
+  SmallVector<CallInst *, 16> ToErase;
+  for (User *U : M->getFunction("newpc")->users()) {
+    Instruction *I = dyn_cast<Instruction>(U);
+    if (I == nullptr or I->getParent()->getParent() != OptimizedFunction)
+      continue;
+
+    auto *Call = getCallTo(I, "newpc");
+    if (Call == nullptr)
+      continue;
+
+    PCH->expandNewPC(Call);
+    ToErase.push_back(Call);
+  }
+
+  for (CallInst *Call : ToErase)
+    Call->eraseFromParent();
+
+  //
+  // Update alias analysis
+  //
+  aliasAnalysis();
+
   //
   // Optimize the hell out of it and collect the possible values of indirect
   // branches
@@ -1614,10 +1669,9 @@ void JumpTargetManager::harvestWithAVI() {
   FPM.addPass(DropHelperCallsPass(SyscallHelper, SyscallIDCSV, SCB));
   FPM.addPass(ShrinkInstructionOperandsPass());
   FPM.addPass(PromotePass());
-  FPM.addPass(InstCombinePass());
   FPM.addPass(JumpThreadingPass());
   FPM.addPass(UnreachableBlockElimPass());
-  FPM.addPass(InstCombinePass());
+  FPM.addPass(InstCombinePass(false));
   FPM.addPass(EarlyCSEPass(true));
   FPM.addPass(DropRangeMetadataPass());
   FPM.addPass(AdvancedValueInfoPass(this));
@@ -1625,7 +1679,9 @@ void JumpTargetManager::harvestWithAVI() {
   FunctionAnalysisManager FAM;
   FAM.registerPass([] {
     AAManager AA;
+    AA.registerFunctionAnalysis<BasicAA>();
     AA.registerFunctionAnalysis<ScopedNoAliasAA>();
+
     return AA;
   });
   ModuleAnalysisManager MAM;
@@ -1637,84 +1693,107 @@ void JumpTargetManager::harvestWithAVI() {
 
   FPM.run(*OptimizedFunction, FAM);
 
-  revng_assert(not verifyModule(*OptimizedFunction->getParent(), &dbgs()));
+  if (Verify.isEnabled())
+    revng_check(not verifyModule(*OptimizedFunction->getParent(), &dbgs()));
 
   //
   // Collect the results
   //
-  for (BasicBlock &BB : *OptimizedFunction) {
-    for (Instruction &I : BB) {
-      auto *T = dyn_cast_or_null<MDTuple>(I.getMetadata("revng.avi"));
-      auto *Marker = dyn_cast_or_null<MDTuple>(I.getMetadata("revng.avi.mark"));
-      if (T != nullptr and Marker != nullptr) {
-        revng_assert(T->getNumOperands() == 2);
-        revng_assert(Marker->getNumOperands() == 1);
 
-        uint32_t AVIID = QMD.extract<uint32_t>(Marker, 0);
+  // Iterate over all the AVI markers
+  Function *AVIMarker = AR.aviMarker();
+  StructType *MetaAddressStruct = MetaAddress::getStruct(M);
+  for (User *U : AVIMarker->users()) {
+    auto *Call = dyn_cast<CallInst>(U);
+    if (Call == nullptr or skipCasts(Call->getCalledValue()) != AVIMarker)
+      continue;
 
-        StringRef TITMD = QMD.extract<StringRef>(T, 0);
-        auto TIT = TrackedInstructionType::fromName(TITMD);
-        Instruction *InstructionInRoot = AVIIDToOld[AVIID];
-        auto *NewValuesMD = QMD.extract<MDTuple *>(T, 1);
+    // Get the ID from the marker, and then the original instruction and marker
+    // type
+    uint32_t AVIID = getLimitedValue(cast<ConstantInt>(Call->getArgOperand(1)));
+    auto TV = AR.rootInstructionById(AVIID);
+    auto TIT = TV.Type;
 
-        bool AllGood = true;
-        for (const MDOperand &Operand : NewValuesMD->operands()) {
-          uint64_t Value = QMD.extract<uint64_t>(Operand.get());
-          if (not isPC(Value)) {
-            AllGood = false;
-            break;
-          }
-        }
+    // Did AVI produce any info?
+    auto *T = dyn_cast_or_null<MDTuple>(Call->getMetadata("revng.avi"));
+    if (T == nullptr)
+      continue;
 
-        if (not AllGood)
-          continue;
+    // Is this a direct write to PC?
+    bool IsComposedIntegerPC = (TIT == TrackedInstructionType::WrittenInPC);
 
-        auto OperandsCount = NewValuesMD->getNumOperands();
-        if (OperandsCount != 0 and NewEdgesLog.isEnabled()) {
-          NewEdgesLog << OperandsCount << " targets from " << getName(&I)
-                      << "\n"
-                      << DoLog;
-        }
+    // We want to register the results only if *all* of them are good
+    bool AllValid = true;
+    bool AllPCs = true;
 
-        auto *AVIMD = InstructionInRoot->getMetadata("revng.avi");
-        if (auto *Old = dyn_cast_or_null<MDTuple>(AVIMD)) {
-          // Merge the already present values with the new ones
-          std::set<uint64_t> Values;
-          for (const MDOperand &Operand :
-               QMD.extract<MDTuple *>(Old, 1)->operands())
-            Values.insert(QMD.extract<uint64_t>(Operand.get()));
-          for (const MDOperand &Operand : NewValuesMD->operands())
-            Values.insert(QMD.extract<uint64_t>(Operand.get()));
-          std::vector<Metadata *> ValuesMD;
-          ValuesMD.reserve(Values.size());
-          for (uint64_t V : Values)
-            ValuesMD.push_back(QMD.get(V));
-          T = QMD.tuple({ QMD.get(TrackedInstructionType::getName(TIT)),
-                          QMD.tuple(ValuesMD) });
-        } else {
-          T = QMD.tuple({ QMD.get(TrackedInstructionType::getName(TIT)),
-                          QMD.extract<MDTuple *>(T, 1) });
-        }
+    SmallVector<MetaAddress, 16> Targets;
 
-        InstructionInRoot->setMetadata("revng.avi", T);
+    // Iterate over all the generated values
+    for (const MDOperand &Operand : cast<MDTuple>(T)->operands()) {
+      // Extract the value
+      auto *Value = QMD.extract<ConstantInt *>(Operand.get());
 
-        auto *Values = QMD.extract<llvm::MDTuple *>(T, 1);
-        if (TIT == TrackedInstructionType::PCStore
-            or TIT == TrackedInstructionType::MemoryStore) {
-          bool IsMemoryStore = TIT == TrackedInstructionType::MemoryStore;
-          JTReason::Values Reason = (IsMemoryStore ? JTReason::MemoryStore :
-                                                     JTReason::PCStore);
-          for (const MDOperand &Operand : Values->operands()) {
-            uint64_t Address = QMD.extract<uint64_t>(Operand.get());
-            registerJT(Address, Reason);
-          }
-        } else if (TIT == TrackedInstructionType::MemoryLoad) {
-          for (const MDOperand &Operand : Values->operands()) {
-            uint64_t Address = QMD.extract<uint64_t>(Operand.get());
-            markJT(Address, JTReason::LoadAddress);
-          }
-        }
+      // Deserialize value into a MetaAddress, depending on the tracked
+      // instruction type
+      auto MA = (IsComposedIntegerPC ?
+                   MetaAddress::decomposeIntegerPC(Value) :
+                   MetaAddress::fromPC(TV.Address, getLimitedValue(Value)));
+
+      if (MA.isInvalid()) {
+        AllValid = false;
+        break;
       }
+
+      if (not isPC(MA))
+        AllPCs = false;
+
+      Targets.push_back(MA);
+    }
+
+    // Proceed only if all the results are valid
+    if (not AllValid)
+      continue;
+
+    // If it's supposed to be a PC, all of them have to be a PC
+    bool ShouldBePC = (TIT == TrackedInstructionType::WrittenInPC
+                       or TIT == TrackedInstructionType::StoredInMemory);
+    if (ShouldBePC and not AllPCs)
+      continue;
+
+    // Register the resulting addresses
+    SmallVector<Metadata *, 16> TargetsMD;
+    for (const MetaAddress &MA : Targets) {
+      switch (TIT) {
+      case TrackedInstructionType::WrittenInPC:
+        registerJT(MA, JTReason::PCStore);
+        break;
+
+      case TrackedInstructionType::StoredInMemory:
+        registerJT(MA, JTReason::MemoryStore);
+        break;
+
+      case TrackedInstructionType::StoreTarget:
+      case TrackedInstructionType::LoadTarget:
+        markJT(MA, JTReason::LoadAddress);
+        break;
+
+      case TrackedInstructionType::Invalid:
+        revng_abort();
+      }
+
+      // Turn the MetaAddress in a Constant(AsMetadata)
+      TargetsMD.push_back(QMD.get(MA.toConstant(MetaAddressStruct)));
+    }
+
+    // Save the results in root too for pinAVIResults to use
+    if (TIT == TrackedInstructionType::WrittenInPC) {
+      TV.I->setMetadata("revng.targets", QMD.tuple(TargetsMD));
+    }
+
+    auto OperandsCount = Targets.size();
+    if (OperandsCount != 0 and NewEdgesLog.isEnabled()) {
+      revng_log(NewEdgesLog,
+                OperandsCount << " targets from " << getName(Call));
     }
   }
 
@@ -1736,29 +1815,28 @@ void JumpTargetManager::harvestWithAVI() {
 // (not considering the dispatcher).
 void JumpTargetManager::harvest() {
 
+  HarvestingStats.push("harvest 0");
+
   if (empty()) {
+    HarvestingStats.push("harvest 1: SimpleLiterals");
     revng_log(JTCountLog, "Collecting simple literals");
-    for (uint64_t PC : SimpleLiterals)
+    for (MetaAddress PC : SimpleLiterals)
       registerJT(PC, JTReason::SimpleLiteral);
     SimpleLiterals.clear();
   }
 
   if (empty()) {
-    revng_log(JTCountLog, "Collecting simple literals");
+    HarvestingStats.push("harvest 2: SROA + InstCombine + TBDP");
 
-    // Purge all the generated basic blocks without predecessors
-    std::vector<BasicBlock *> ToDelete;
-    for (BasicBlock &BB : *TheFunction) {
-      if (isTranslatedBB(&BB) and &BB != &TheFunction->getEntryBlock()
-          and pred_begin(&BB) == pred_end(&BB)) {
-        revng_assert(getBasicBlockPC(&BB) == 0);
-        ToDelete.push_back(&BB);
-      }
-    }
-    for (BasicBlock *BB : ToDelete)
+    // Safely erase all unreachable blocks
+    std::set<BasicBlock *> Unreachable = computeUnreachable();
+    for (BasicBlock *BB : Unreachable)
+      BB->dropAllReferences();
+    for (BasicBlock *BB : Unreachable)
       BB->eraseFromParent();
 
     // TODO: move me to a commit function
+
     // Update the third argument of newpc calls (isJT, i.e., is this instruction
     // a jump target?)
     IRBuilder<> Builder(Context);
@@ -1769,7 +1847,7 @@ void JumpTargetManager::harvest() {
         if (Call->getParent() != nullptr) {
           // Report the instruction on the coverage CSV
           using CI = ConstantInt;
-          uint64_t PC = (cast<CI>(Call->getArgOperand(0)))->getLimitedValue();
+          auto PC = MetaAddress::fromConstant(Call->getArgOperand(0));
 
           bool IsJT = isJumpTarget(PC);
           Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
@@ -1782,8 +1860,10 @@ void JumpTargetManager::harvest() {
 
     revng_log(JTCountLog, "Preliminary harvesting");
 
+    HarvestingStats.push("InstCombine");
     legacy::FunctionPassManager OptimizingPM(&TheModule);
     OptimizingPM.add(createSROAPass());
+    OptimizingPM.add(createConstantPropagationPass());
     OptimizingPM.run(*TheFunction);
 
     legacy::PassManager PreliminaryBranchesPM;
@@ -1791,6 +1871,7 @@ void JumpTargetManager::harvest() {
     PreliminaryBranchesPM.run(TheModule);
 
     if (empty()) {
+      HarvestingStats.push("harvest 3: harvestWithAVI");
       revng_log(JTCountLog, "Harvesting with Advanced Value Info");
       harvestWithAVI();
     }
@@ -1798,7 +1879,7 @@ void JumpTargetManager::harvest() {
     // TODO: eventually, `setCFGForm` should be replaced by using a CustomCFG
     // To improve the quality of our analysis, keep in the CFG only the edges we
     // where able to recover (e.g., no jumps to the dispatcher)
-    setCFGForm(CFGForm::RecoveredOnlyCFG);
+    setCFGForm(CFGForm::RecoveredOnly);
 
     NewBranches = 0;
     legacy::PassManager AnalysisPM;
@@ -1806,7 +1887,7 @@ void JumpTargetManager::harvest() {
     AnalysisPM.run(TheModule);
 
     // Restore the CFG
-    setCFGForm(CFGForm::SemanticPreservingCFG);
+    setCFGForm(CFGForm::SemanticPreserving);
 
     if (JTCountLog.isEnabled()) {
       JTCountLog << std::dec << Unexplored.size() << " new jump targets and "
@@ -1819,6 +1900,6 @@ void JumpTargetManager::harvest() {
   }
 }
 
-using BlockWithAddress = JumpTargetManager::BlockWithAddress;
+using BWA = JumpTargetManager::BlockWithAddress;
 using JTM = JumpTargetManager;
-const BlockWithAddress JTM::NoMoreTargets = BlockWithAddress(0, nullptr);
+const BWA JTM::NoMoreTargets = BWA(MetaAddress::invalid(), nullptr);

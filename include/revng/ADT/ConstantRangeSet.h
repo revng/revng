@@ -46,10 +46,7 @@ private:
 
 public:
   ConstantRangeSetIterator(const llvm::APInt *Start, const llvm::APInt *End) :
-    NextBound(Start),
-    End(End),
-    ToLast(false),
-    Done(false) {
+    NextBound(Start), End(End), ToLast(false), Done(false) {
     if (Start != End) {
       Current = *NextBound;
       ++NextBound;
@@ -201,32 +198,36 @@ public:
     return Size;
   }
 
-  void dump() const {
+  void dump() const debug_function { dump(dbg); }
+
+  template<typename T>
+  void dump(T &Output) const {
     if (BitWidth == 0) {
-      dbg << "[)";
+      Output << "[)";
       return;
     }
 
     bool Open = true;
     for (const llvm::APInt &N : Bounds) {
       if (Open)
-        dbg << "[";
+        Output << "[";
       else
-        dbg << ",";
+        Output << ",";
 
-      dbg << N.getLimitedValue();
+      Output << N.getLimitedValue();
 
       if (not Open)
-        dbg << ") ";
+        Output << ") ";
 
       Open = not Open;
     }
 
     if (Bounds.size() == 0) {
-      dbg << "[)";
+      Output << "[)";
     }
     if (not Open) {
-      dbg << "," << llvm::APInt::getMaxValue(BitWidth).getLimitedValue() << ")";
+      Output << "," << llvm::APInt::getMaxValue(BitWidth).getLimitedValue()
+             << ")";
     }
   }
 

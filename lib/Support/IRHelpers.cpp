@@ -12,7 +12,10 @@
 #include "llvm/Support/raw_os_ostream.h"
 
 // Local libraries includes
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/IRHelpers.h"
+
+// TODO: including GeneratedCodeBasicInfo.h is not very nice
 
 using namespace llvm;
 
@@ -67,4 +70,69 @@ Constant *getUniqueString(Module *M,
   auto *CAM = ConstantAsMetadata::get(NewVariable);
   StringsList->addOperand(MDTuple::get(C, { CAM }));
   return ConstantExpr::getBitCast(NewVariable, Int8PtrTy);
+}
+
+std::pair<MetaAddress, uint64_t> getPC(Instruction *TheInstruction) {
+  CallInst *NewPCCall = nullptr;
+  std::set<BasicBlock *> Visited;
+  std::queue<BasicBlock::reverse_iterator> WorkList;
+
+  // Initialize WorkList with an iterator pointing at the given instruction
+  if (TheInstruction->getIterator() == TheInstruction->getParent()->begin())
+    WorkList.push(--TheInstruction->getParent()->rend());
+  else
+    WorkList.push(++TheInstruction->getReverseIterator());
+
+  // Process the worklist
+  while (not WorkList.empty()) {
+    auto I = WorkList.front();
+    WorkList.pop();
+    auto *BB = I->getParent();
+    auto End = BB->rend();
+
+    // Go through the instructions looking for calls to newpc
+    for (; I != End and NewPCCall == nullptr; I++) {
+      if (CallInst *Marker = getCallTo(&*I, "newpc")) {
+        // We found two distinct newpc leading to the requested instruction
+        if (NewPCCall != nullptr)
+          return { MetaAddress::invalid(), 0 };
+
+        NewPCCall = Marker;
+      }
+    }
+
+    // If we didn't find a newpc call yet, continue exploration backward
+    if (NewPCCall == nullptr) {
+      // If one of the predecessors is the dispatcher, don't explore any further
+      for (BasicBlock *Predecessor : predecessors(BB)) {
+
+        // Lazily detect dispatcher
+        using GCBI = GeneratedCodeBasicInfo;
+        bool PartOfDispatcher = GCBI::isPartOfRootDispatcher(Predecessor);
+
+        // Assert we didn't reach the almighty dispatcher
+        revng_assert(not(NewPCCall == nullptr and PartOfDispatcher));
+        if (PartOfDispatcher)
+          continue;
+      }
+
+      for (BasicBlock *Predecessor : predecessors(BB)) {
+        // Ignore already visited or empty BBs
+        if (!Predecessor->empty()
+            && Visited.find(Predecessor) == Visited.end()) {
+          WorkList.push(Predecessor->rbegin());
+          Visited.insert(Predecessor);
+        }
+      }
+    }
+  }
+
+  // Couldn't find the current PC
+  if (NewPCCall == nullptr)
+    return { MetaAddress::invalid(), 0 };
+
+  auto PC = MetaAddress::fromConstant(NewPCCall->getArgOperand(0));
+  uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(1));
+  revng_assert(Size != 0);
+  return { PC, Size };
 }

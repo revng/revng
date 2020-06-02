@@ -19,10 +19,18 @@ set(ANALYSIS_DIFF_stack_analysis "${CMAKE_SOURCE_DIR}/scripts/compare-json.py --
 
 set(USED_REFERENCE_FILES "")
 
-# Temporarily broken tests
-list(APPEND BROKEN_TESTS_tests_analysis memset)
-list(APPEND BROKEN_TESTS_tests_analysis fibonacci)
+#
+# Broken tests
+#
+
+# To handle this situation we need to turn the CFG into NoFunctionCalls and make
+# sure consider registers that are preserved/clobbered across each function
+# call. However, this means we need to integrated the StackAnalysis in
+# harvesting.
 list(APPEND BROKEN_TESTS_tests_analysis jump-table-base-before-function-call)
+
+# The following tests are broken since ABI-analysis now produces results only
+# for arguments/return values in registers (not on the stack)
 list(APPEND BROKEN_TESTS_tests_analysis_StackAnalysis dsaof)
 list(APPEND BROKEN_TESTS_tests_analysis_StackAnalysis saofc)
 list(APPEND BROKEN_TESTS_tests_analysis_StackAnalysis usaof)

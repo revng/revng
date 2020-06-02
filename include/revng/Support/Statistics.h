@@ -117,8 +117,7 @@ public:
   /// \arg Register whether this object should be registered for being printed
   ///      upon program termination or not.
   RunningStatistics(const llvm::Twine &Name, bool Register) :
-    Name(Name.str()),
-    N(0) {
+    Name(Name.str()), N(0) {
 
     if (Register)
       init();
@@ -128,9 +127,11 @@ public:
 
   void clear() { N = 0; }
 
+  // TODO: make a template
   /// \brief Record a new value
   void push(double X) {
     N++;
+    Sum += X;
 
     // See Knuth TAOCP vol 2, 3rd edition, page 232
     if (N == 1) {
@@ -155,12 +156,16 @@ public:
 
   double standardDeviation() const { return sqrt(variance()); }
 
+  double sum() const { return Sum; }
+
   template<typename T>
   void dump(T &Output) {
     if (not Name.empty())
       Output << Name << ": ";
-    Output << "{ n: " << size() << " u: " << mean() << " o: " << variance()
-           << " }";
+    Output << "{ s: " << sum() << " "
+           << "n: " << size() << " "
+           << "u: " << mean() << " "
+           << "o: " << variance() << " }";
   }
 
   void dump() { dump(dbg); }
@@ -174,6 +179,7 @@ private:
   std::string Name;
   int N;
   double OldM, NewM, OldS, NewS;
+  double Sum;
 };
 
 // TODO: this is duplicated

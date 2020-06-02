@@ -26,6 +26,7 @@
 
 // Local libraries includes
 #include "revng/Support/Debug.h"
+#include "revng/Support/MetaAddress.h"
 
 template<typename T>
 inline bool contains(T Range, typename T::value_type V) {
@@ -63,8 +64,7 @@ getConstValue(llvm::Constant *C, const llvm::DataLayout &DL) {
   while (auto *Expr = llvm::dyn_cast<llvm::ConstantExpr>(C)) {
     C = ConstantFoldConstant(Expr, DL);
 
-    if (Expr->getOpcode() == llvm::Instruction::IntToPtr
-        || Expr->getOpcode() == llvm::Instruction::PtrToInt)
+    if (Expr->isCast())
       C = Expr->getOperand(0);
   }
 
@@ -272,12 +272,10 @@ public:
 
     struct WorkItem {
       WorkItem(BasicBlock *BB, instruction_iterator Start) :
-        BB(BB),
-        Range(make_range(Start, ID::end(BB))) {}
+        BB(BB), Range(make_range(Start, ID::end(BB))) {}
 
       WorkItem(BasicBlock *BB) :
-        BB(BB),
-        Range(make_range(ID::begin(BB), ID::end(BB))) {}
+        BB(BB), Range(make_range(ID::begin(BB), ID::end(BB))) {}
 
       BasicBlock *BB;
       instruction_range Range;
@@ -363,11 +361,14 @@ inline std::string getName(const llvm::Instruction *I) {
   llvm::StringRef Result = I->getName();
   if (!Result.empty()) {
     return Result.str();
-  } else {
-    const llvm::BasicBlock *Parent = I->getParent();
+  } else if (const llvm::BasicBlock *Parent = I->getParent()) {
     return getName(Parent) + ":"
            + std::to_string(1
                             + std::distance(Parent->begin(), I->getIterator()));
+  } else {
+    std::stringstream SS;
+    SS << "0x" << std::hex << intptr_t(I);
+    return SS.str();
   }
 }
 
@@ -478,6 +479,10 @@ public:
     return llvm::MDString::get(C, String);
   }
 
+  llvm::ConstantAsMetadata *get(const llvm::APInt &N) {
+    return llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(C, N));
+  }
+
   llvm::ConstantAsMetadata *get(llvm::Constant *C) {
     return llvm::ConstantAsMetadata::get(C);
   }
@@ -547,6 +552,20 @@ inline llvm::Constant *
 QuickMetadata::extract<llvm::Constant *>(llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return C->getValue();
+}
+
+template<>
+inline llvm::ConstantInt *
+QuickMetadata::extract<llvm::ConstantInt *>(const llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return llvm::cast<llvm::ConstantInt>(C->getValue());
+}
+
+template<>
+inline llvm::ConstantInt *
+QuickMetadata::extract<llvm::ConstantInt *>(llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return llvm::cast<llvm::ConstantInt>(C->getValue());
 }
 
 template<>
@@ -624,14 +643,6 @@ template<typename T>
 inline bool isFirst(T *I) {
   revng_assert(I != nullptr);
   return I == &*I->getParent()->begin();
-}
-
-/// \brief Check if among \p BB's predecessors there's \p Target
-inline bool hasPredecessor(llvm::BasicBlock *BB, llvm::BasicBlock *Target) {
-  for (llvm::BasicBlock *Predecessor : predecessors(BB))
-    if (Predecessor == Target)
-      return true;
-  return false;
 }
 
 static std::array<unsigned, 3> CastOpcodes = {
@@ -718,16 +729,25 @@ inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::StringRef Name) {
     return nullptr;
 }
 
-// TODO: this function assumes 0 is not a valid PC
-inline uint64_t getBasicBlockPC(llvm::BasicBlock *BB) {
+inline const llvm::CallInst *
+getCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
+  if (isCallTo(I, Name))
+    return llvm::cast<llvm::CallInst>(I);
+  else
+    return nullptr;
+}
+
+inline MetaAddress getBasicBlockPC(llvm::BasicBlock *BB) {
   using namespace llvm;
 
   auto It = BB->begin();
-  revng_assert(It != BB->end());
-  if (llvm::CallInst *Call = getCallTo(&*It, "newpc"))
-    return getLimitedValue(Call->getOperand(0));
+  if (It == BB->end())
+    return MetaAddress::invalid();
 
-  return 0;
+  if (llvm::CallInst *Call = getCallTo(&*It, "newpc"))
+    return MetaAddress::fromConstant(Call->getOperand(0));
+
+  return MetaAddress::invalid();
 }
 
 template<typename C>
@@ -840,6 +860,29 @@ inline llvm::User *getUniqueUser(llvm::Value *V) {
   }
 
   return Result;
+}
+
+/// \brief Find the PC which lead to generated \p TheInstruction
+///
+/// \return a pair of integers: the first element represents the PC and the
+///         second the size of the instruction.
+std::pair<MetaAddress, uint64_t> getPC(llvm::Instruction *TheInstruction);
+
+inline void replaceAllUsesInFunctionWith(llvm::Function *F,
+                                         llvm::Value *Old,
+                                         llvm::Value *New) {
+  using namespace llvm;
+
+  auto UI = Old->use_begin();
+  auto E = Old->use_end();
+  while (UI != E) {
+    Use &U = *UI;
+    ++UI;
+
+    if (auto *I = dyn_cast<Instruction>(U.getUser()))
+      if (I->getParent()->getParent() == F)
+        U.set(New);
+  }
 }
 
 #endif // IRHELPERS_H

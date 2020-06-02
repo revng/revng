@@ -19,8 +19,7 @@ public:
   Range(Iterator Begin, Iterator End) : Begin(Begin), End(End) {}
   template<typename ContainerT>
   Range(ContainerT &&Container) :
-    Begin(Container.begin()),
-    End(Container.end()) {}
+    Begin(Container.begin()), End(Container.end()) {}
 
   Iterator begin() const { return Begin; }
   Iterator end() const { return End; }

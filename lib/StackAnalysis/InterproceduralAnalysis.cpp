@@ -1,4 +1,4 @@
-/// \file interprocedural.cpp
+/// \file InterproceduralAnalysis.cpp
 /// \brief Implementation of the interprocedural portion of the stack analysis
 
 //
@@ -435,9 +435,7 @@ struct ClobberedRegistersAnalysis {
 
       public:
         State(BasicBlock *Function, iterator CallIt, iterator EndCallIt) :
-          Function(Function),
-          CallIt(CallIt),
-          EndCallIt(EndCallIt) {}
+          Function(Function), CallIt(CallIt), EndCallIt(EndCallIt) {}
       };
 
       // Worklist

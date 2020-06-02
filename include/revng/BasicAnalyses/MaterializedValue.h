@@ -9,28 +9,26 @@
 #include <set>
 
 // LLVM includes
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 
 // Local libraries includes
 #include "revng/Support/Debug.h"
-
-const uint64_t MaxMaterializedValues = (1 << 16);
 
 /// \brief Class representing either a constant value or an offset from a symbol
 class MaterializedValue {
 private:
   bool IsValid;
   llvm::Optional<llvm::StringRef> SymbolName;
-  uint64_t Value;
+  llvm::APInt Value;
 
 public:
-  MaterializedValue() : IsValid(false), Value(0) {}
-  MaterializedValue(uint64_t Value) : IsValid(true), Value(Value) {}
-  MaterializedValue(llvm::StringRef Name, uint64_t Offset) :
-    IsValid(true),
-    SymbolName(Name),
-    Value(Offset) {}
+  MaterializedValue() : IsValid(false), Value() {}
+  MaterializedValue(const llvm::APInt &Value) : IsValid(true), Value(Value) {}
+  MaterializedValue(llvm::StringRef Name, const llvm::APInt &Offset) :
+    IsValid(true), SymbolName(Name), Value(Offset) {}
 
 public:
   static MaterializedValue invalid() { return MaterializedValue(); }
@@ -43,15 +41,18 @@ public:
   }
 
   bool operator<(const MaterializedValue &Other) const {
-    auto This = std::tie(IsValid, SymbolName, Value);
-    auto That = std::tie(Other.IsValid, Other.SymbolName, Other.Value);
+    if (Value.ult(Other.Value))
+      return true;
+    auto This = std::tie(IsValid, SymbolName);
+    auto That = std::tie(Other.IsValid, Other.SymbolName);
     return This < That;
   }
 
-  uint64_t value() const {
+  const llvm::APInt &value() const {
     revng_assert(isValid());
     return Value;
   }
+
   bool isValid() const { return IsValid; }
   bool hasSymbol() const { return SymbolName.hasValue(); }
   llvm::StringRef symbolName() const {
@@ -60,13 +61,18 @@ public:
     return *SymbolName;
   }
 
-  void dump() const debug_function {
+  void dump() const debug_function { dump(dbg); }
+
+  template<typename T>
+  void dump(T &Output) const {
     if (not isValid()) {
-      dbg << "(invalid)";
+      Output << "(invalid)";
     } else {
       if (hasSymbol())
-        dbg << symbolName().data() << "+";
-      dbg << "0x" << std::hex << value();
+        Output << symbolName().data() << "+";
+      llvm::SmallString<40> String;
+      value().toStringUnsigned(String, 16);
+      Output << "0x" << String.c_str();
     }
   }
 };

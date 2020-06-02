@@ -19,6 +19,7 @@
 
 // Local libraries includes
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/MetaAddress.h"
 
 namespace llvm {
 class GlobalVariable;
@@ -35,19 +36,13 @@ public:
 
 public:
   ABIRegister(llvm::StringRef Name, unsigned MContextIndex) :
-    Name(Name),
-    QemuName(Name),
-    MContextIndex(MContextIndex) {}
+    Name(Name), QemuName(Name), MContextIndex(MContextIndex) {}
 
   ABIRegister(llvm::StringRef Name) :
-    Name(Name),
-    QemuName(Name),
-    MContextIndex(NotInMContext) {}
+    Name(Name), QemuName(Name), MContextIndex(NotInMContext) {}
 
   ABIRegister(llvm::StringRef Name, llvm::StringRef QemuName) :
-    Name(Name),
-    QemuName(QemuName),
-    MContextIndex(NotInMContext) {}
+    Name(Name), QemuName(QemuName), MContextIndex(NotInMContext) {}
 
   llvm::StringRef name() const { return Name; }
 
@@ -207,8 +202,7 @@ public:
   RelocationDescription() : Type(Invalid), Offset(None) {}
   RelocationDescription(RelocationType Type) : Type(Type), Offset(None) {}
   RelocationDescription(RelocationType Type, OffsetType Offset) :
-    Type(Type),
-    Offset(Offset) {}
+    Type(Type), Offset(Offset) {}
 };
 
 /// \brief Basic information about an input/output architecture
@@ -241,7 +235,8 @@ public:
                llvm::StringRef ReadRegisterAsm,
                llvm::StringRef JumpAsm,
                bool HasRelocationAddend,
-               RelocationTypesMap RelocationTypes) :
+               RelocationTypesMap RelocationTypes,
+               llvm::ArrayRef<const char> BasicBlockEndingPattern) :
     Type(static_cast<llvm::Triple::ArchType>(Type)),
     InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
@@ -258,7 +253,11 @@ public:
     ReadRegisterAsm(ReadRegisterAsm),
     JumpAsm(JumpAsm),
     HasRelocationAddend(HasRelocationAddend),
-    RelocationTypes(RelocationTypes) {}
+    RelocationTypes(std::move(RelocationTypes)),
+    BasicBlockEndingPattern(BasicBlockEndingPattern) {}
+
+  Architecture(Architecture &&) = default;
+  Architecture &operator=(Architecture &&) = default;
 
   uint32_t instructionAlignment() const { return InstructionAlignment; }
   uint32_t defaultAlignment() const { return DefaultAlignment; }
@@ -292,6 +291,9 @@ public:
   }
   bool hasRelocationAddend() const { return HasRelocationAddend; }
   const RelocationTypesMap &relocationTypes() const { return RelocationTypes; }
+  llvm::ArrayRef<const char> basicBlockEndingPattern() const {
+    return BasicBlockEndingPattern;
+  }
 
 private:
   llvm::Triple::ArchType Type;
@@ -313,6 +315,7 @@ private:
   llvm::StringRef JumpAsm;
   bool HasRelocationAddend;
   RelocationTypesMap RelocationTypes;
+  llvm::ArrayRef<const char> BasicBlockEndingPattern;
 };
 
 // TODO: move me somewhere more appropriate

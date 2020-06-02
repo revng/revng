@@ -1,4 +1,4 @@
-/// \file instructiontranslator.cpp
+/// \file InstructionTranslator.cpp
 /// \brief This file implements the logic to translate a PTC instruction in to
 ///        LLVM IR.
 
@@ -63,17 +63,14 @@ public:
   }
 
   InstructionArgumentsIterator(const InstructionArgumentsIterator &r) :
-    base(r),
-    TheInstruction(r.TheInstruction) {}
+    base(r), TheInstruction(r.TheInstruction) {}
 
   InstructionArgumentsIterator(const InstructionArgumentsIterator &r,
                                unsigned Index) :
-    base(Index),
-    TheInstruction(r.TheInstruction) {}
+    base(Index), TheInstruction(r.TheInstruction) {}
 
   InstructionArgumentsIterator(PTCInstruction *TheInstruction, unsigned Index) :
-    base(Index),
-    TheInstruction(TheInstruction) {}
+    base(Index), TheInstruction(TheInstruction) {}
 
   bool isCompatible(const InstructionArgumentsIterator &r) const {
     return TheInstruction == r.TheInstruction;
@@ -466,7 +463,8 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
                           JumpTargetManager &JumpTargets,
                           std::vector<BasicBlock *> Blocks,
                           const Architecture &SourceArchitecture,
-                          const Architecture &TargetArchitecture) :
+                          const Architecture &TargetArchitecture,
+                          ProgramCounterHandler *PCH) :
   Builder(Builder),
   Variables(Variables),
   JumpTargets(JumpTargets),
@@ -475,7 +473,10 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
   TheFunction(Builder.GetInsertBlock()->getParent()),
   SourceArchitecture(SourceArchitecture),
   TargetArchitecture(TargetArchitecture),
-  NewPCMarker(nullptr) {
+  NewPCMarker(nullptr),
+  LastPC(MetaAddress::invalid()),
+  MetaAddressStruct(MetaAddress::getStruct(&TheModule)),
+  PCH(PCH) {
 
   auto &Context = TheModule.getContext();
   using FT = FunctionType;
@@ -487,7 +488,7 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
   // * pointer to the disassembled instruction
   // * all the local variables used by this instruction
   auto *NewPCMarkerTy = FT::get(Type::getVoidTy(Context),
-                                { Type::getInt64Ty(Context),
+                                { MetaAddressStruct,
                                   Type::getInt64Ty(Context),
                                   Type::getInt32Ty(Context),
                                   Type::getInt8PtrTy(Context) },
@@ -507,11 +508,11 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
     if (Call->getParent() != nullptr) {
       // Report the instruction on the coverage CSV
       using CI = ConstantInt;
-      uint64_t PC = (cast<CI>(Call->getArgOperand(0)))->getLimitedValue();
+      auto PC = MetaAddress::fromConstant(Call->getArgOperand(0));
       uint64_t Size = (cast<CI>(Call->getArgOperand(1)))->getLimitedValue();
       bool IsJT = JumpTargets.isJumpTarget(PC);
-      Output << "0x" << PC << ",0x" << Size << "," << (IsJT ? "1" : "0")
-             << std::endl;
+      PC.dump(Output);
+      Output << ",0x" << Size << "," << (IsJT ? "1" : "0") << "\n";
 
       unsigned ArgCount = Call->getNumArgOperands();
       Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
@@ -561,12 +562,14 @@ SmallSet<unsigned, 1> IT::preprocess(PTCInstructionList *InstructionList) {
   return Result;
 }
 
-std::tuple<IT::TranslationResult, MDNode *, uint64_t, uint64_t>
+std::tuple<IT::TranslationResult, MDNode *, MetaAddress, MetaAddress>
 IT::newInstruction(PTCInstruction *Instr,
                    PTCInstruction *Next,
-                   uint64_t EndPC,
-                   bool IsFirst) {
-  using R = std::tuple<TranslationResult, MDNode *, uint64_t, uint64_t>;
+                   MetaAddress StartPC,
+                   MetaAddress EndPC,
+                   bool IsFirst,
+                   MetaAddress AbortAt) {
+  using R = std::tuple<TranslationResult, MDNode *, MetaAddress, MetaAddress>;
   revng_assert(Instr != nullptr);
 
   LLVMContext &Context = TheModule.getContext();
@@ -574,8 +577,16 @@ IT::newInstruction(PTCInstruction *Instr,
   const PTC::Instruction TheInstruction(Instr);
   // A new original instruction, let's create a new metadata node
   // referencing it for all the next instructions to come
-  uint64_t PC = TheInstruction.pc();
-  uint64_t NextPC = Next != nullptr ? PTC::Instruction(Next).pc() : EndPC;
+  MetaAddress PC = StartPC.replaceAddress(TheInstruction.pc());
+  MetaAddress NextPC = MetaAddress::invalid();
+
+  if (Next != nullptr)
+    NextPC = StartPC.replaceAddress(PTC::Instruction(Next).pc());
+  else
+    NextPC = EndPC;
+
+  if (AbortAt.isValid() and NextPC.addressGreaterThan(AbortAt))
+    return R{ Abort, nullptr, MetaAddress::invalid(), MetaAddress::invalid() };
 
   std::stringstream OriginalStringStream;
   disassemble(OriginalStringStream, PC, NextPC - PC);
@@ -589,7 +600,7 @@ IT::newInstruction(PTCInstruction *Instr,
                                     Twine("disam_") + AddressName);
 
   auto *MDOriginalString = ConstantAsMetadata::get(String);
-  auto *MDPC = ConstantAsMetadata::get(Builder.getInt64(PC));
+  auto *MDPC = ConstantAsMetadata::get(PC.toConstant(MetaAddressStruct));
   MDNode *MDOriginalInstr = MDNode::get(Context, { MDOriginalString, MDPC });
 
   if (!IsFirst) {
@@ -615,7 +626,8 @@ IT::newInstruction(PTCInstruction *Instr,
   // Insert a call to NewPCMarker capturing all the local temporaries
   // This prevents SROA from transforming them in SSA values, which is bad
   // in case we have to split a basic block
-  std::vector<Value *> Args = { Builder.getInt64(PC),
+  revng_assert(MetaAddressStruct != nullptr);
+  std::vector<Value *> Args = { PC.toConstant(MetaAddressStruct),
                                 Builder.getInt64(NextPC - PC),
                                 Builder.getInt32(-1),
                                 String };
@@ -684,7 +696,7 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
 }
 
 IT::TranslationResult
-IT::translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC) {
+IT::translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC) {
   const PTC::Instruction TheInstruction(Instr);
 
   std::vector<Value *> InArgs;
@@ -707,7 +719,8 @@ IT::translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC) {
   if (!Result)
     return Abort;
 
-  revng_assert(Result->size() == (size_t) TheInstruction.OutArguments.size());
+  size_t OutSize = TheInstruction.OutArguments.size();
+  revng_assert(Result->size() == OutSize);
   // TODO: use ZipIterator here
   for (unsigned I = 0; I < Result->size(); I++) {
     auto *Destination = Variables.getOrCreate(TheInstruction.OutArguments[I],
@@ -715,21 +728,17 @@ IT::translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC) {
     if (Destination == nullptr)
       return Abort;
 
-    auto *Value = Result.get()[I];
-    Builder.CreateStore(Value, Destination);
+    auto *Store = Builder.CreateStore(Result.get()[I], Destination);
 
-    // If we're writing somewhere an immediate, register it for exploration
-    // immediately
-    auto *Constant = dyn_cast<ConstantInt>(Value);
-    if (Constant != nullptr) {
-
-      uint64_t Address = Constant->getLimitedValue();
-      if (PC != Address and JumpTargets.isPC(Address)
-          and not JumpTargets.hasJT(Address)) {
-
-        if (JumpTargets.isPCReg(Destination)) {
-          JumpTargets.registerJT(Address, JTReason::DirectJump);
-        } else {
+    if (PCH->affectsPC(Store)) {
+      // This is a PC-related store
+      PCH->handleStore(Builder, Store);
+    } else {
+      // If we're writing somewhere an immediate, register it for exploration
+      if (auto *Constant = dyn_cast<ConstantInt>(Store->getValueOperand())) {
+        MetaAddress Address = JumpTargets.fromPC(Constant->getLimitedValue());
+        if (Address.isValid() and PC != Address and JumpTargets.isPC(Address)
+            and not JumpTargets.hasJT(Address)) {
           JumpTargets.registerSimpleLiteral(Address);
         }
       }
@@ -737,6 +746,19 @@ IT::translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC) {
   }
 
   return Success;
+}
+
+void IT::registerDirectJumps() {
+
+  for (BasicBlock *ExitBB : ExitBlocks) {
+    auto [Result, NextPC] = PCH->getUniqueJumpTarget(ExitBB);
+    if (Result == NextJumpTarget::Unique and JumpTargets.isPC(NextPC)
+        and not JumpTargets.hasJT(NextPC)) {
+      JumpTargets.registerJT(NextPC, JTReason::DirectJump);
+    }
+  }
+
+  ExitBlocks.clear();
 }
 
 ErrorOr<std::vector<Value *>>
@@ -977,11 +999,11 @@ IT::translateOpcode(PTCOpcode Opcode,
       return std::errc::invalid_argument;
     }
 
-    bool Result = Variables.storeToEnvOffset(Builder,
+    auto Result = Variables.storeToEnvOffset(Builder,
                                              StoreSize,
                                              ConstArguments[0],
                                              InArguments[0]);
-    revng_assert(Result);
+    PCH->handleStore(Builder, *Result);
 
     return v{};
   }
@@ -1319,6 +1341,8 @@ IT::translateOpcode(PTCOpcode Opcode,
     auto *Zero = ConstantInt::get(Type::getInt32Ty(Context), 0);
     Builder.CreateCall(JumpTargets.exitTB(), { Zero });
     Builder.CreateUnreachable();
+
+    ExitBlocks.push_back(Builder.GetInsertBlock());
 
     auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
     Blocks.push_back(NextBB);

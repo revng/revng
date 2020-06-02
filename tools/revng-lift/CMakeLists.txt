@@ -12,6 +12,7 @@ revng_add_executable(revng-lift
   JumpTargetManager.cpp
   Main.cpp
   PTCDump.cpp
+  ProgramCounterHandler.cpp
   VariableManager.cpp)
 
 target_link_libraries(revng-lift

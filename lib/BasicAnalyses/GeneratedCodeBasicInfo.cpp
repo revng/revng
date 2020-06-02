@@ -1,4 +1,4 @@
-/// \file generatedcodebasicinfo.cpp
+/// \file GeneratedCodeBasicInfo.cpp
 /// \brief Implements the GeneratedCodeBasicInfo pass which provides basic
 ///        information about the translated code (e.g., which CSV is the PC).
 
@@ -26,6 +26,10 @@ static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
 
 bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
   Function &F = *M.getFunction("root");
+  NewPC = M.getFunction("newpc");
+  if (NewPC != nullptr) {
+    MetaAddressStruct = cast<StructType>(NewPC->arg_begin()->getType());
+  }
 
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 
@@ -36,14 +40,23 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
   auto *Tuple = dyn_cast<MDTuple>(InputArchMD->getOperand(0));
 
   QuickMetadata QMD(M.getContext());
-  InstructionAlignment = QMD.extract<uint32_t>(Tuple, 0);
-  DelaySlotSize = QMD.extract<uint32_t>(Tuple, 1);
-  PC = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, 2), true);
-  SP = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, 3), true);
-  auto Operands = QMD.extract<MDTuple *>(Tuple, 4)->operands();
-  for (const MDOperand &Operand : Operands) {
-    StringRef Name = QMD.extract<StringRef>(Operand.get());
-    ABIRegisters.push_back(M.getGlobalVariable(Name, true));
+
+  {
+    unsigned Index = 0;
+    StringRef ArchTypeName = QMD.extract<StringRef>(Tuple, Index++);
+    ArchType = Triple::getArchTypeForLLVMName(ArchTypeName);
+    InstructionAlignment = QMD.extract<uint32_t>(Tuple, Index++);
+    DelaySlotSize = QMD.extract<uint32_t>(Tuple, Index++);
+    PC = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, Index++), true);
+    SP = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, Index++), true);
+    auto Operands = QMD.extract<MDTuple *>(Tuple, Index++)->operands();
+    for (const MDOperand &Operand : Operands) {
+      StringRef Name = QMD.extract<StringRef>(Operand.get());
+      revng_assert(Name != "pc", "PC should not be considered an ABI register");
+      GlobalVariable *CSV = M.getGlobalVariable(Name, true);
+      ABIRegisters.push_back(CSV);
+      ABIRegistersSet.insert(CSV);
+    }
   }
 
   Type *PCType = PC->getType()->getPointerElementType();
@@ -52,7 +65,7 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
   for (BasicBlock &BB : F) {
     if (!BB.empty()) {
       switch (getType(&BB)) {
-      case BlockType::DispatcherBlock:
+      case BlockType::RootDispatcherBlock:
         revng_assert(Dispatcher == nullptr);
         Dispatcher = &BB;
         break;
@@ -75,12 +88,14 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
       case BlockType::JumpTargetBlock: {
         auto *Call = cast<CallInst>(&*BB.begin());
         revng_assert(Call->getCalledFunction()->getName() == "newpc");
-        JumpTargets[getLimitedValue(Call->getArgOperand(0))] = &BB;
+        JumpTargets[MetaAddress::fromConstant(Call->getArgOperand(0))] = &BB;
         break;
       }
+      case BlockType::RootDispatcherHelperBlock:
+      case BlockType::IndirectBranchDispatcherHelperBlock:
       case BlockType::EntryPoint:
       case BlockType::ExternalJumpsHandlerBlock:
-      case BlockType::UntypedBlock:
+      case BlockType::TranslatedBlock:
         // Nothing to do here
         break;
       }
@@ -101,68 +116,4 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
   revng_log(PassesLog, "Ending GeneratedCodeBasicInfo");
 
   return false;
-}
-
-std::pair<uint64_t, uint64_t>
-GeneratedCodeBasicInfo::getPC(Instruction *TheInstruction) const {
-  CallInst *NewPCCall = nullptr;
-  std::set<BasicBlock *> Visited;
-  std::queue<BasicBlock::reverse_iterator> WorkList;
-  if (TheInstruction->getIterator() == TheInstruction->getParent()->begin())
-    WorkList.push(--TheInstruction->getParent()->rend());
-  else
-    WorkList.push(++TheInstruction->getReverseIterator());
-
-  while (!WorkList.empty()) {
-    auto I = WorkList.front();
-    WorkList.pop();
-    auto *BB = I->getParent();
-    auto End = BB->rend();
-
-    // Go through the instructions looking for calls to newpc
-    for (; I != End; I++) {
-      if (auto Marker = dyn_cast<CallInst>(&*I)) {
-        // TODO: comparing strings is not very elegant
-        auto *Callee = Marker->getCalledFunction();
-        if (Callee != nullptr && Callee->getName() == "newpc") {
-
-          // We found two distinct newpc leading to the requested instruction
-          if (NewPCCall != nullptr)
-            return { 0, 0 };
-
-          NewPCCall = Marker;
-          break;
-        }
-      }
-    }
-
-    // If we haven't find a newpc call yet, continue exploration backward
-    if (NewPCCall == nullptr) {
-      // If one of the predecessors is the dispatcher, don't explore any further
-      for (BasicBlock *Predecessor : predecessors(BB)) {
-        // Assert we didn't reach the almighty dispatcher
-        revng_assert(!(NewPCCall == nullptr && Predecessor == Dispatcher));
-        if (Predecessor == Dispatcher)
-          continue;
-      }
-
-      for (BasicBlock *Predecessor : predecessors(BB)) {
-        // Ignore already visited or empty BBs
-        if (!Predecessor->empty()
-            && Visited.find(Predecessor) == Visited.end()) {
-          WorkList.push(Predecessor->rbegin());
-          Visited.insert(Predecessor);
-        }
-      }
-    }
-  }
-
-  // Couldn't find the current PC
-  if (NewPCCall == nullptr)
-    return { 0, 0 };
-
-  uint64_t PC = getLimitedValue(NewPCCall->getArgOperand(0));
-  uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(1));
-  revng_assert(Size != 0);
-  return { PC, Size };
 }

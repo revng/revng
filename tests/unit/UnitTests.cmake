@@ -12,7 +12,7 @@ find_package(Boost REQUIRED COMPONENTS unit_test_framework)
 # test_lazysmallbitvector
 #
 
-add_executable(test_lazysmallbitvector "${SRC}/LazySmallBitVector.cpp")
+revng_add_private_executable(test_lazysmallbitvector "${SRC}/LazySmallBitVector.cpp")
 target_compile_definitions(test_lazysmallbitvector
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_lazysmallbitvector
@@ -22,14 +22,14 @@ target_link_libraries(test_lazysmallbitvector
   revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_lazysmallbitvector COMMAND test_lazysmallbitvector)
+add_test(NAME test_lazysmallbitvector COMMAND ./bin/test_lazysmallbitvector)
 set_tests_properties(test_lazysmallbitvector PROPERTIES LABELS "unit")
 
 #
 # test_stackanalysis
 #
 
-add_executable(test_stackanalysis "${SRC}/StackAnalysis.cpp")
+revng_add_private_executable(test_stackanalysis "${SRC}/StackAnalysis.cpp")
 target_compile_definitions(test_stackanalysis
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_stackanalysis
@@ -42,14 +42,14 @@ target_link_libraries(test_stackanalysis
   revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_stackanalysis COMMAND test_stackanalysis)
+add_test(NAME test_stackanalysis COMMAND ./bin/test_stackanalysis)
 set_tests_properties(test_stackanalysis PROPERTIES LABELS "unit")
 
 #
 # test_classsentinel
 #
 
-add_executable(test_classsentinel "${SRC}/ClassSentinel.cpp")
+revng_add_private_executable(test_classsentinel "${SRC}/ClassSentinel.cpp")
 target_compile_definitions(test_classsentinel
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_classsentinel
@@ -59,14 +59,14 @@ target_link_libraries(test_classsentinel
   revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_classsentinel COMMAND test_classsentinel)
+add_test(NAME test_classsentinel COMMAND ./bin/test_classsentinel)
 set_tests_properties(test_classsentinel PROPERTIES LABELS "unit")
 
 #
 # test_irhelpers
 #
 
-add_executable(test_irhelpers "${SRC}/IRHelpers.cpp")
+revng_add_private_executable(test_irhelpers "${SRC}/IRHelpers.cpp")
 target_compile_definitions(test_irhelpers
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_irhelpers
@@ -76,14 +76,14 @@ target_link_libraries(test_irhelpers
   revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_irhelpers COMMAND test_irhelpers)
+add_test(NAME test_irhelpers COMMAND ./bin/test_irhelpers)
 set_tests_properties(test_irhelpers PROPERTIES LABELS "unit")
 
 #
 # test_irhelpers
 #
 
-add_executable(test_advancedvalueinfo "${SRC}/AdvancedValueInfo.cpp")
+revng_add_private_executable(test_advancedvalueinfo "${SRC}/AdvancedValueInfo.cpp")
 target_compile_definitions(test_advancedvalueinfo
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_advancedvalueinfo
@@ -93,14 +93,14 @@ target_link_libraries(test_advancedvalueinfo
   revngBasicAnalyses
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_advancedvalueinfo COMMAND test_advancedvalueinfo)
+add_test(NAME test_advancedvalueinfo COMMAND ./bin/test_advancedvalueinfo)
 set_tests_properties(test_advancedvalueinfo PROPERTIES LABELS "unit")
 
 #
 # test_zipmapiterator
 #
 
-add_executable(test_zipmapiterator "${SRC}/ZipMapIterator.cpp")
+revng_add_private_executable(test_zipmapiterator "${SRC}/ZipMapIterator.cpp")
 target_compile_definitions(test_zipmapiterator
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_zipmapiterator
@@ -110,14 +110,14 @@ target_link_libraries(test_zipmapiterator
   revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_zipmapiterator COMMAND test_zipmapiterator)
+add_test(NAME test_zipmapiterator COMMAND ./bin/test_zipmapiterator)
 set_tests_properties(test_zipmapiterator PROPERTIES LABELS "unit")
 
 #
 # test_constantrangeset
 #
 
-add_executable(test_constantrangeset "${SRC}/ConstantRangeSet.cpp")
+revng_add_private_executable(test_constantrangeset "${SRC}/ConstantRangeSet.cpp")
 target_compile_definitions(test_constantrangeset
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_constantrangeset
@@ -127,14 +127,14 @@ target_link_libraries(test_constantrangeset
   revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_constantrangeset COMMAND test_constantrangeset)
+add_test(NAME test_constantrangeset COMMAND ./bin/test_constantrangeset)
 set_tests_properties(test_constantrangeset PROPERTIES LABELS "unit")
 
 #
 # test_shrinkinstructionoperands
 #
 
-add_executable(test_shrinkinstructionoperands "${SRC}/ShrinkInstructionOperandsPass.cpp")
+revng_add_private_executable(test_shrinkinstructionoperands "${SRC}/ShrinkInstructionOperandsPass.cpp")
 target_compile_definitions(test_shrinkinstructionoperands
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_shrinkinstructionoperands
@@ -144,5 +144,23 @@ target_link_libraries(test_shrinkinstructionoperands
   revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_shrinkinstructionoperands COMMAND test_shrinkinstructionoperands)
+add_test(NAME test_shrinkinstructionoperands COMMAND ./bin/test_shrinkinstructionoperands)
 set_tests_properties(test_shrinkinstructionoperands PROPERTIES LABELS "unit")
+
+#
+# test_metaaddress
+#
+
+revng_add_private_executable(test_metaaddress "${SRC}/MetaAddress.cpp")
+target_include_directories(test_metaaddress
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+          "${Boost_INCLUDE_DIRS}")
+target_compile_definitions(test_metaaddress
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_link_libraries(test_metaaddress
+  revngSupport
+  revngUnitTestHelpers
+  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+  ${LLVM_LIBRARIES})
+add_test(NAME test_metaaddress COMMAND ./bin/test_metaaddress)
+set_tests_properties(test_metaaddress PROPERTIES LABELS "unit")

@@ -52,10 +52,40 @@ def get_elf_needed(path):
                 if type(segment) is DynamicSegment]
 
     if len(segments) == 1:
-      return [to_string(tag.needed)
-              for tag
-              in segments[0].iter_tags()
-              if tag.entry.d_tag == "DT_NEEDED"]
+      needed = [to_string(tag.needed)
+                for tag
+                in segments[0].iter_tags()
+                if tag.entry.d_tag == "DT_NEEDED"]
+
+      runpath = [tag.runpath
+                 for tag
+                 in segments[0].iter_tags()
+                 if tag.entry.d_tag == "DT_RUNPATH"]
+
+      assert len(runpath) < 2
+
+      if not runpath:
+        return needed
+      else:
+        runpaths = [path.replace("$ORIGIN",
+                                 os.path.dirname(path))
+                    for path
+                    in runpath[0].split(":")]
+        absolute_needed = []
+        for lib in needed:
+          found = False
+          for runpath in runpaths:
+            full_path = os.path.join(runpath, lib)
+            if os.path.isfile(full_path):
+              absolute_needed.append(full_path)
+              found = True
+              break
+
+          if not found:
+            absolute_needed.append(lib)
+
+        return absolute_needed
+
     else:
       return []
 
@@ -105,14 +135,27 @@ def build_opt_args(args):
   roots = [os.path.join(analyses_path, name) for name in all - provided]
 
   prefix = []
-  libasan = [name for name in provided if "libasan." in name]
+  libasan = [name
+             for name
+             in provided
+             if ("libasan." in name
+                 or "libclang_rt.asan" in name)]
   if libasan:
+    original_asan_options = os.environ.get("ASAN_OPTIONS", "")
+    asan_options = dict([option.split("=")
+                         for option
+                         in original_asan_options.split(":")])
+    asan_options["abort_on_error"] = "1"
+    new_asan_options = ":".join(["=".join(option)
+                                 for option
+                                 in asan_options.items()])
+
     # Use `sh` instead of `env` since `env` sometimes is not a real executable
     # but a shebang script spawning /usr/bin/coreutils, which makes gdb unhappy
     prefix = [get_command("sh"),
               "-c",
-              'LD_PRELOAD={} ASAN_OPTIONS=abort_on_error=1 '
-              'exec "$0" "$@"'.format(libasan[0])]
+              'LD_PRELOAD={} ASAN_OPTIONS={} '
+              'exec "$0" "$@"'.format(libasan[0], new_asan_options)]
 
   return (prefix + [get_command("opt")]
           + interleave(roots, "-load")

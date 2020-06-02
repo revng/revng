@@ -22,6 +22,7 @@
 // Local includes
 #include "JumpTargetManager.h"
 #include "PTCDump.h"
+#include "ProgramCounterHandler.h"
 
 // Forward declarations
 namespace llvm {
@@ -54,7 +55,8 @@ public:
                         JumpTargetManager &JumpTargets,
                         std::vector<llvm::BasicBlock *> Blocks,
                         const Architecture &SourceArchitecture,
-                        const Architecture &TargetArchitecture);
+                        const Architecture &TargetArchitecture,
+                        ProgramCounterHandler *PCH);
 
   /// \brief Result status of the translation of a PTC opcode
   enum TranslationResult {
@@ -78,14 +80,16 @@ public:
   /// \return a tuple with 4 entries: the
   ///         InstructionTranslator::TranslationResult, an `MDNode` containing
   ///         the disassembled instruction and the value of the PC and two
-  ///         `uint64_t` representing the current and next PC.
+  ///         `MetaAddress` representing the current and next PC.
   // TODO: rename to newPC
   // TODO: the signature of this function is ugly
-  std::tuple<TranslationResult, llvm::MDNode *, uint64_t, uint64_t>
+  std::tuple<TranslationResult, llvm::MDNode *, MetaAddress, MetaAddress>
   newInstruction(PTCInstruction *Instr,
                  PTCInstruction *Next,
-                 uint64_t EndPC,
-                 bool IsFirst);
+                 MetaAddress StartPC,
+                 MetaAddress EndPC,
+                 bool IsFirst,
+                 MetaAddress AbortAt);
 
   /// \brief Translate an ordinary instruction
   ///
@@ -95,7 +99,7 @@ public:
   ///
   /// \return see InstructionTranslator::TranslationResult.
   TranslationResult
-  translate(PTCInstruction *Instr, uint64_t PC, uint64_t NextPC);
+  translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC);
 
   /// \brief Translate a call to an helper
   ///
@@ -119,6 +123,8 @@ public:
   /// ignored to merge the delay slot into the branch instruction.
   llvm::SmallSet<unsigned, 1> preprocess(PTCInstructionList *Instructions);
 
+  void registerDirectJumps();
+
 private:
   llvm::ErrorOr<std::vector<llvm::Value *>>
   translateOpcode(PTCOpcode Opcode,
@@ -140,7 +146,11 @@ private:
 
   llvm::Function *NewPCMarker;
 
-  uint64_t LastPC;
+  MetaAddress LastPC;
+  llvm::Type *MetaAddressStruct;
+
+  ProgramCounterHandler *PCH;
+  llvm::SmallVector<llvm::BasicBlock *, 4> ExitBlocks;
 };
 
 #endif // INSTRUCTIONTRANSLATOR_H

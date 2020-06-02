@@ -680,8 +680,7 @@ public:
   //       maps?
   struct CallSiteDescription {
     CallSiteDescription(llvm::Instruction *Call, llvm::Value *Callee) :
-      Call(Call),
-      Callee(Callee) {}
+      Call(Call), Callee(Callee) {}
 
     llvm::Instruction *Call;
     llvm::Value *Callee;

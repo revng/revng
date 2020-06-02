@@ -105,7 +105,7 @@ public:
     revng_abort();
   }
 
-  bool isFallthrough(uint64_t Address) const {
+  bool isFallthrough(MetaAddress Address) const {
     return FallthroughAddresses.count(Address) != 0;
   }
 
@@ -125,7 +125,7 @@ private:
 
 private:
   llvm::Function *FunctionCall;
-  std::set<uint64_t> FallthroughAddresses;
+  std::set<MetaAddress> FallthroughAddresses;
   CustomCFG FilteredCFG;
 };
 

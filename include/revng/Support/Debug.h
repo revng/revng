@@ -67,7 +67,7 @@ public:
   ///
   /// To call this method using the stream syntax, see LogTerminator, or simply
   /// MyLogger << DoLog;
-  void flush(const LogTerminator& LineInfo = LogTerminator{ "", 0 });
+  void flush(const LogTerminator &LineInfo = LogTerminator{ "", 0 });
 
   template<typename T>
   inline Logger &operator<<(const T Other) {
@@ -260,8 +260,7 @@ public:
   /// \param Name the name of the debugging feature
   /// \param Enable whether to actually enable it or not
   ScopedDebugFeature(std::string Name, bool Enable) :
-    Name(Name),
-    Enabled(Enable) {
+    Name(Name), Enabled(Enable) {
     if (Enabled)
       Loggers->enable(Name);
   }
