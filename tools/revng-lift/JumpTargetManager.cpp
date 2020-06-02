@@ -19,6 +19,7 @@
 #include <boost/type_traits/is_same.hpp>
 
 // LLVM includes
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/CodeGen/UnreachableBlockElim.h"
 #include "llvm/IR/IRBuilder.h"
@@ -66,6 +67,7 @@ Logger<> Verify("verify");
 Logger<> RegisterJTLog("registerjt");
 
 CounterMap<std::string> HarvestingStats("harvesting");
+RunningStatistics BlocksAnalyzedByAVI("blocks-analyzed-by-avi");
 
 RegisterPass<TranslateDirectBranchesPass> X("translate-db",
                                             "Translate Direct Branches"
@@ -443,7 +445,8 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   Binary(Binary),
   CurrentCFGForm(CFGForm::UnknownFormCFG),
   createCSAA(createCSAA),
-  PCH(PCH) {
+  PCH(PCH),
+  JumpTargetsWhitelist(nullptr) {
 
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { Type::getInt32Ty(Context) },
@@ -976,6 +979,9 @@ JumpTargetManager::registerJT(MetaAddress PC, JTReason::Values Reason) {
     return BB;
   }
 
+  // PC was not a jump target, record it as new
+  AVIJumpTargetsWhitelist.insert(PC);
+
   // Did we already meet this PC (i.e. do we know what's the associated
   // instruction)?
   BasicBlock *NewBlock = nullptr;
@@ -1169,12 +1175,16 @@ void JumpTargetManager::rebuildDispatcher() {
 
   ProgramCounterHandler::DispatcherTargets Targets;
 
-  // Add all the jump targets if we're using the SemanticPreservingCFG, or
-  // only those with no predecessors otherwise
+  // Add all the (whitelisted) jump targets if we're using the
+  // SemanticPreservingCFG, or only those with no predecessors.
+  bool IsWhitelistActive = (JumpTargetsWhitelist != nullptr);
   for (auto &[PC, JumpTarget] : JumpTargets) {
     BasicBlock *BB = JumpTarget.head();
-    if (CurrentCFGForm == CFGForm::SemanticPreservingCFG
-        or not hasPredecessors(BB)) {
+    bool IsWhitelisted = (not IsWhitelistActive
+                          or JumpTargetsWhitelist->count(PC) != 0);
+    if ((CurrentCFGForm == CFGForm::SemanticPreservingCFG
+         or not hasPredecessors(BB))
+        and IsWhitelisted) {
       Targets.emplace_back(PC, BB);
     }
   }
@@ -1207,10 +1217,12 @@ void JumpTargetManager::rebuildDispatcher() {
     // Identify all the unreachable jump targets
     for (const auto &[PC, JT] : JumpTargets) {
       BasicBlock *BB = JT.head();
+      bool IsWhitelisted = (not IsWhitelistActive
+                            or JumpTargetsWhitelist->count(PC) != 0);
 
       // Add to the switch all the unreachable jump targets whose reason is not
       // just direct jump
-      if (Reachable.count(BB) == 0
+      if (Reachable.count(BB) == 0 and IsWhitelisted
           and not JT.isOnlyReason(JTReason::DirectJump)) {
         PCH->addCaseToDispatcher(DispatcherSwitch,
                                  { PC, BB },
@@ -1465,6 +1477,61 @@ public:
   }
 };
 
+void JumpTargetManager::inflateAVIWhitelist() {
+  // We start from all the new basic blocks (i.e., those in
+  // AVIJumpTargetsWhitelist) and proceed backward in the CFG in order to
+  // whitelist all the jump targets we meet. We stop when we meet the dispatcher
+  // or a function call.
+
+  // Prepare the backward visit
+  std::set<MetaAddress> ToPreserve;
+  df_iterator_default_set<BasicBlock *> VisitSet;
+
+  // Stop at the dispatcher
+  VisitSet.insert(DispatcherSwitch->getParent());
+
+  // Stop at each function call
+  // TODO: the following piece of code currently does nothing since we don't
+  //       detect function calls during harvesting
+  if (Function *FunctionCall = TheModule.getFunction("function_call")) {
+    for (User *U : FunctionCall->users()) {
+      if (auto *Call = dyn_cast<CallInst>(U)) {
+        auto *BB = Call->getParent();
+
+        if (BB->getParent() != TheFunction)
+          continue;
+
+        if (const CallInst *Call = getCallTo(&*BB->begin(), "newpc")) {
+          auto MA = MetaAddress::fromConstant(Call->getOperand(0));
+          if (AVIJumpTargetsWhitelist.count(MA) != 0) {
+            continue;
+          }
+        }
+
+        VisitSet.insert(BB);
+      }
+    }
+  }
+
+  // Perform a inverse dfs looking for jump targets
+  for (MetaAddress MA : AVIJumpTargetsWhitelist) {
+    auto VisitRange = inverse_depth_first_ext(getBlockAt(MA), VisitSet);
+    for (const BasicBlock *Reachable : VisitRange) {
+      if (const CallInst *Call = getCallTo(&*Reachable->begin(), "newpc")) {
+        auto MA = MetaAddress::fromConstant(Call->getOperand(0));
+        if (MA.isValid() and isJumpTarget(MA)) {
+          ToPreserve.insert(MA);
+        }
+      }
+    }
+  }
+
+  // Extend AVIJumpTargetsWhitelist with the jump targets we met in the visit
+  for (const MetaAddress &MA : ToPreserve) {
+    AVIJumpTargetsWhitelist.insert(MA);
+  }
+}
+
 void JumpTargetManager::harvestWithAVI() {
   Module *M = TheFunction->getParent();
 
@@ -1491,25 +1558,54 @@ void JumpTargetManager::harvestWithAVI() {
   //
   // Clone the root function
   //
-
-  // Prune the dispatcher
-  setCFGForm(CFGForm::RecoveredOnlyCFG);
-
-  // Clone the function
+  Function *OptimizedFunction = nullptr;
   ValueToValueMapTy OldToNew;
-  Function *OptimizedFunction = CloneFunction(TheFunction, OldToNew);
+  {
+    // Augment AVIJumpTargetsWhitelist
+    inflateAVIWhitelist();
 
-  AnalysisRegistry AR(M);
+    // Prune the dispatcher
+    JumpTargetsWhitelist = &AVIJumpTargetsWhitelist;
+    setCFGForm(CFGForm::RecoveredOnlyCFG);
+
+    // Detach all the unreachable basic blocks, so they don't get copied
+    std::set<BasicBlock *> UnreachableBBs = computeUnreachable();
+    for (BasicBlock *UnreachableBB : UnreachableBBs)
+      UnreachableBB->removeFromParent();
+
+    // Clone the function
+    OptimizedFunction = CloneFunction(TheFunction, OldToNew);
+
+    // Record the size of OptimizedFunction
+    size_t BlocksCount = OptimizedFunction->getBasicBlockList().size();
+    BlocksAnalyzedByAVI.push(BlocksCount);
+
+    // Reattach the unreachable basic blocks to the original root function
+    for (BasicBlock *UnreachableBB : UnreachableBBs)
+      UnreachableBB->insertInto(TheFunction);
+
+    // Restore the dispatcher in the original function
+    JumpTargetsWhitelist = nullptr;
+    setCFGForm(CFGForm::SemanticPreservingCFG);
+    revng_assert(computeUnreachable().size() == 0);
+
+    // Clear the whitelist
+    AVIJumpTargetsWhitelist.clear();
+  }
 
   //
   // Register for analysis the value written in the PC before each exit_tb call
   //
+  AnalysisRegistry AR(M);
   IRBuilder<> Builder(Context);
   for (User *U : ExitTB->users()) {
     if (auto *Call = dyn_cast<CallInst>(U)) {
       BasicBlock *BB = Call->getParent();
       if (BB->getParent() == TheFunction) {
-        Builder.SetInsertPoint(cast<CallInst>(&*OldToNew[Call]));
+        auto It = OldToNew.find(Call);
+        if (It == OldToNew.end())
+          continue;
+        Builder.SetInsertPoint(cast<CallInst>(&*It->second));
         Instruction *ComposedIntegerPC = PCH->composeIntegerPC(Builder);
         AR.registerValue(getPC(Call).first,
                          Call,
@@ -1557,11 +1653,6 @@ void JumpTargetManager::harvestWithAVI() {
       }
     }
   }
-
-  // Restore the dispatcher in the original function
-  setCFGForm(CFGForm::SemanticPreservingCFG);
-
-  revng_assert(computeUnreachable().size() == 0);
 
   //
   // Create and initialized an alloca per CSV (except for the PC-affecting ones)

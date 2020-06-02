@@ -578,6 +578,8 @@ private:
   /// \brief Decorate memory accesses with information about CSV aliasing
   void aliasAnalysis();
 
+  void inflateAVIWhitelist();
+
 private:
   using InstructionMap = std::map<MetaAddress, llvm::Instruction *>;
 
@@ -614,6 +616,10 @@ private:
   CSAAFactory createCSAA;
 
   ProgramCounterHandler *PCH;
+
+  using MetaAddressSet = std::set<MetaAddress>;
+  MetaAddressSet AVIJumpTargetsWhitelist;
+  MetaAddressSet *JumpTargetsWhitelist;
 };
 
 template<>

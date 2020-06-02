@@ -729,6 +729,14 @@ inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::StringRef Name) {
     return nullptr;
 }
 
+inline const llvm::CallInst *
+getCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
+  if (isCallTo(I, Name))
+    return llvm::cast<llvm::CallInst>(I);
+  else
+    return nullptr;
+}
+
 inline MetaAddress getBasicBlockPC(llvm::BasicBlock *BB) {
   using namespace llvm;
 
