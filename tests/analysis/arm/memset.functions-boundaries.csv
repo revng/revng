@@ -27,10 +27,12 @@ bb._start,bb.final.0x20
 bb._start,bb.final.0x24
 bb._start,bb.final.0x28
 bb._start,bb.final.0x2c
-bb._start,bb.final.0x30
 bb._start,bb.final.0x4_L0
 bb._start,bb.final.0x4_L0_ft
 bb._start,bb.final.0x8
+bb._start,bb.final.0x8_epoch_0
+bb._start,bb.final.0x8_epoch_0_address_space_0
+bb._start,bb.final.0x8_epoch_0_address_space_0_type_Code_arm
 bb._start,bb.loop
 bb._start,bb.loop.0x10
 bb._start,bb.loop.0x4_L0
