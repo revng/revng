@@ -551,7 +551,7 @@ class RegularSwitchNode : public SwitchNode {
   friend class ASTNode;
 
 public:
-  using case_value = llvm::ConstantInt *;
+  using case_value = llvm::SmallPtrSet<llvm::ConstantInt *, 1>;
   using case_value_container = llvm::SmallVector<case_value, SwitchNumCases>;
   using case_value_iterator = typename case_value_container::iterator;
   using case_value_range = llvm::iterator_range<case_value_iterator>;

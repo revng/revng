@@ -444,8 +444,29 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
         CaseExpr = ASTBuilder.getUIntLiteral(CaseConst);
       } else {
         auto *S = llvm::cast<RegularSwitchNode>(Switch);
-        llvm::ConstantInt *CaseVal = S->getCaseValueN(CaseIndex);
+
+        // We extract all the case values from the CaseSet. If more than one
+        // case is present, we put the in `or` for the emission in C.
+        llvm::SmallPtrSet<llvm::ConstantInt *, 1> CaseSet =
+          S->getCaseValueN(CaseIndex);
+        auto CaseSetIt = CaseSet.begin();
+        llvm::ConstantInt *CaseVal = *CaseSetIt;
         CaseExpr = ASTBuilder.getExprForValue(CaseVal);
+        for (;CaseSetIt != CaseSet.end(); CaseSetIt++) {
+          clang::Expr *LHS = CaseExpr;
+          clang::Expr *RHS = ASTBuilder.getExprForValue(*CaseSetIt);
+          BinaryOperatorKind BinOpOrKind = clang::BinaryOperatorKind::BO_Or;
+          CaseExpr = new (ASTCtx)
+            clang::BinaryOperator(LHS,
+                                  RHS,
+                                  BinOpOrKind,
+                                  LHS->getType(),
+                                  VK_RValue,
+                                  OK_Ordinary,
+                                  {},
+                                  FPOptions());
+
+        }
       }
       revng_assert(CaseExpr != nullptr);
       // Build the case

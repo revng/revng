@@ -16,6 +16,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IRBuilder.h"
@@ -1454,18 +1455,66 @@ inline void RegionCFG<NodeT>::generateAst() {
           }
         }
 
-        // Fill the cases values with increasing integers computed as
-        // ConstantInt.
+        // Build the case vector depending on the fact that we are building a
+        // regular or dispatcher switch.
         llvm::BasicBlock *EntryBB = Graph.EntryNode->getOriginalNode();
         llvm::LLVMContext &Context = getContext(EntryBB);
         llvm::IRBuilder<> Builder(Context);
         RegularSwitchNode::case_value_container CaseValuesRegular;
         SwitchDispatcherNode::case_value_container CaseValuesCheck;
-        for (uint64_t Index = 0; Index < Cases.size(); Index++) {
-          if (!Node->isDispatcher()) {
-            llvm::ConstantInt *IndexConstant = Builder.getInt64(Index);
-            CaseValuesRegular.push_back(IndexConstant);
-          } else {
+        if (!Node->isDispatcher()) {
+          llvm::BasicBlock *OriginalNode = Node->getOriginalNode();
+          llvm::Instruction *Terminator = OriginalNode->getTerminator();
+          llvm::SwitchInst *Switch = llvm::cast<llvm::SwitchInst>(Terminator);
+          unsigned Index = 0;
+          for (ASTNode *A : ASTChildren) {
+            if (A != PostDomASTNode) {
+              BBNodeT *N = BBChildren[Index];
+              llvm::BasicBlock *B = N->getOriginalNode();
+              revng_assert(N->isCode() or N->isDispatcher());
+
+              // In presence of a dispatcher node (which can be a symptom of a
+              // weaving pass) we need to collect all the cases from the
+              // underlying nodes.
+              llvm::SmallPtrSet<llvm::ConstantInt *, 1> CaseSet;
+              if (N->isDispatcher()) {
+
+                // The dispatcher node has no correspondence in terms of
+                // original IR. But if we find a dispatcher, these means that a
+                // weaving process has took place, and therefore we need to go
+                // over the children of the dispatcher node in order to find the
+                // original nodes which gave origin to the dispatcher node.
+                // We then iterate over them to collect the case values, and we
+                // put them in the `CaseSet`, which will be expanded to an `or`
+                // of all the values during the emission of C.
+                revng_assert(B == nullptr);
+                for (BBNodeT *SubChild : N->successors()) {
+                  llvm::BasicBlock *SubB = SubChild->getOriginalNode();
+                  llvm::ConstantInt *IndexConstant = Switch->findCaseDest(SubB);
+                  CaseSet.insert(IndexConstant);
+                  revng_assert(IndexConstant != nullptr);
+                }
+              } else {
+                revng_assert(B != nullptr);
+
+                // We may be in presence of the default case. In this situation
+                // place arbitarily the 0 case value.
+                llvm::ConstantInt *IndexConstant;
+                if (Switch->getDefaultDest() != B) {
+                  IndexConstant = Switch->findCaseDest(B);
+                } else {
+                  IndexConstant = llvm::ConstantInt::get(Context,
+                                                         llvm::APInt(32, 0));
+                }
+                revng_assert(IndexConstant != nullptr);
+                CaseSet.insert(IndexConstant);
+              }
+              CaseValuesRegular.push_back(CaseSet);
+            }
+            Index++;
+          }
+        } else {
+          for (uint64_t Index = 0; Index < Cases.size(); Index++) {
             CaseValuesCheck.push_back(Index);
           }
         }

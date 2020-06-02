@@ -89,9 +89,11 @@ bool SwitchNode::hasEqualCaseValues(const SwitchNode *Node) const {
         return false;
     } else {
       revng_assert(RegSwitchThis != nullptr);
-      llvm::ConstantInt *ThisCase = getCaseValueN(RegSwitchThis, I);
-      llvm::ConstantInt *OtherCase = getCaseValueN(RegSwitchOther, I);
-      if (ThisCase->getSExtValue() != OtherCase->getSExtValue())
+      SmallPtrSet<ConstantInt *, 1> ThisCaseSet = getCaseValueN(RegSwitchThis,
+                                                                I);
+      SmallPtrSet<ConstantInt *, 1> OtherCaseSet = getCaseValueN(RegSwitchOther,
+                                                                 I);
+      if (ThisCaseSet != OtherCaseSet)
         return false;
     }
   }
@@ -276,10 +278,20 @@ void RegularSwitchNode::dump(std::ofstream &ASTFile) {
 
   case_container::size_type CaseIndex = 0;
   for (ASTNode *Case : this->unordered_cases()) {
-    uint64_t CaseVal = CaseValueVec[CaseIndex]->getZExtValue();
     ASTFile << "\"" << this->getName() << "\""
             << " -> \"" << Case->getName() << "\""
-            << " [color=green,label=\"case " << CaseVal << "\"];\n";
+            << " [color=green,label=\"case ";
+
+    // Cases can now be sets of cases, we need to print all of them on a edge.
+    for (auto *CaseConstantInt : CaseValueVec[CaseIndex]) {
+      uint64_t CaseVal = CaseConstantInt->getZExtValue();
+      ASTFile << CaseVal << ",";
+    }
+
+    // Close the line.
+    ASTFile<< "\"];\n";
+
+    // Continue dumping the children of the switch node.
     Case->dump(ASTFile);
     ++CaseIndex;
   }
