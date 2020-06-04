@@ -1447,14 +1447,6 @@ inline void RegionCFG<NodeT>::generateAst() {
           NodeI++;
         }
 
-        // Fill the vector of nodes.
-        RegularSwitchNode::case_container Cases;
-        for (ASTNode *N : ASTChildren) {
-          if (N != PostDomASTNode) {
-            Cases.push_back(N);
-          }
-        }
-
         // Build the case vector depending on the fact that we are building a
         // regular or dispatcher switch.
         llvm::BasicBlock *EntryBB = Graph.EntryNode->getOriginalNode();
@@ -1462,6 +1454,7 @@ inline void RegionCFG<NodeT>::generateAst() {
         llvm::IRBuilder<> Builder(Context);
         RegularSwitchNode::case_value_container CaseValuesRegular;
         SwitchDispatcherNode::case_value_container CaseValuesCheck;
+        ASTNode *DefaultASTNode = nullptr;
         if (!Node->isDispatcher()) {
           llvm::BasicBlock *OriginalNode = Node->getOriginalNode();
           llvm::Instruction *Terminator = OriginalNode->getTerminator();
@@ -1491,9 +1484,10 @@ inline void RegionCFG<NodeT>::generateAst() {
                 for (BBNodeT *SubChild : N->successors()) {
                   llvm::BasicBlock *SubB = SubChild->getOriginalNode();
                   llvm::ConstantInt *IndexConstant = Switch->findCaseDest(SubB);
-                  CaseSet.insert(IndexConstant);
                   revng_assert(IndexConstant != nullptr);
+                  CaseSet.insert(IndexConstant);
                 }
+                CaseValuesRegular.push_back(CaseSet);
               } else {
                 revng_assert(B != nullptr);
 
@@ -1502,18 +1496,28 @@ inline void RegionCFG<NodeT>::generateAst() {
                 llvm::ConstantInt *IndexConstant;
                 if (Switch->getDefaultDest() != B) {
                   IndexConstant = Switch->findCaseDest(B);
+                  revng_assert(IndexConstant != nullptr);
+                  CaseSet.insert(IndexConstant);
+                  CaseValuesRegular.push_back(CaseSet);
                 } else {
-                  IndexConstant = llvm::ConstantInt::get(Context,
-                                                         llvm::APInt(32, 0));
+                  DefaultASTNode = A;
                 }
-                revng_assert(IndexConstant != nullptr);
-                CaseSet.insert(IndexConstant);
               }
-              CaseValuesRegular.push_back(CaseSet);
+
             }
             Index++;
           }
-        } else {
+        }
+
+        // Fill the vector of nodes.
+        RegularSwitchNode::case_container Cases;
+        for (ASTNode *N : ASTChildren) {
+          if (N != PostDomASTNode and N != DefaultASTNode) {
+            Cases.push_back(N);
+          }
+        }
+
+        if (Node->isDispatcher()) {
           for (uint64_t Index = 0; Index < Cases.size(); Index++) {
             CaseValuesCheck.push_back(Index);
           }
@@ -1525,7 +1529,7 @@ inline void RegionCFG<NodeT>::generateAst() {
           ASTObject.reset(new RegularSwitchNode(SwitchValue,
                                                 std::move(Cases),
                                                 std::move(CaseValuesRegular),
-                                                nullptr,
+                                                DefaultASTNode,
                                                 PostDomASTNode));
         } else {
           // Build a SwitchDispatcherNode starting from nodes dispatcher nodes.
