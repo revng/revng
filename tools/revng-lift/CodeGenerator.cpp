@@ -1269,7 +1269,9 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   // runs after it, it removes all the useful metadata attached by CSAA.
   legacy::FunctionPassManager InstCombinePM(&*TheModule);
   InstCombinePM.add(createInstructionCombiningPass());
+  InstCombinePM.doInitialization();
   InstCombinePM.run(*MainFunction);
+  InstCombinePM.doFinalization();
 
   legacy::PassManager PostInstCombinePM;
   PostInstCombinePM.add(new CPUStateAccessAnalysisPass(&Variables, false));

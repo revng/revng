@@ -1864,7 +1864,9 @@ void JumpTargetManager::harvest() {
     legacy::FunctionPassManager OptimizingPM(&TheModule);
     OptimizingPM.add(createSROAPass());
     OptimizingPM.add(createConstantPropagationPass());
+    OptimizingPM.doInitialization();
     OptimizingPM.run(*TheFunction);
+    OptimizingPM.doFinalization();
 
     legacy::PassManager PreliminaryBranchesPM;
     PreliminaryBranchesPM.add(new TranslateDirectBranchesPass(this));
