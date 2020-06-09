@@ -8,14 +8,19 @@
 
 // LLVM includes
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
 
 // Local libraries includes
 #include "revng/ADT/LazySmallBitVector.h"
+#include "revng/ADT/SmallMap.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/StackAnalysis/FunctionsSummary.h"
+#include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
 
@@ -773,10 +778,21 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
 }
 
 void EnforceABIImpl::replaceCSVsWithAlloca() {
-  DenseMap<std::pair<GlobalVariable *, Function *>, AllocaInst *> Map;
+
+  // Each CSV has a map. The key of the map is a Funciton, and the mapped value
+  // is an AllocaInst used to locally represent that CSV.
+  using MapsVector = std::vector<ValueMap<Function *, Value *>>;
+  MapsVector CSVMaps(GCBI.csvs().size(), {});
+
+  // Map CSV GlobalVariable * to a position in CSVMaps
+  ValueMap<llvm::GlobalVariable *, MapsVector::size_type> CSVPosition;
+  for (auto &Group : llvm::enumerate(GCBI.csvs()))
+    CSVPosition[Group.value()] = Group.index();
+
   for (auto &P : FunctionsMap) {
     Function &F = *P.first;
 
+    // Identifies the GlobalVariables representing CSVs used in F.
     std::set<GlobalVariable *> CSVs;
     for (BasicBlock &BB : F) {
       for (Instruction &I : BB) {
@@ -785,6 +801,10 @@ void EnforceABIImpl::replaceCSVsWithAlloca() {
           Pointer = Load->getPointerOperand();
         else if (auto *Store = dyn_cast<StoreInst>(&I))
           Pointer = Store->getPointerOperand();
+        else
+          continue;
+
+        Pointer = skipCasts(Pointer);
 
         if (auto *CSV = dyn_cast_or_null<GlobalVariable>(Pointer))
           if (not GCBI.isSPReg(CSV))
@@ -797,6 +817,8 @@ void EnforceABIImpl::replaceCSVsWithAlloca() {
     BasicBlock &Entry = F.getEntryBlock();
     IRBuilder<> AllocaBuilder(&Entry, Entry.begin());
 
+    // For each GlobalVariable representing a CSV used in F, create a dedicated
+    // alloca and save it in CSVMaps.
     for (GlobalVariable *CSV : CSVs) {
 
       Type *CSVType = CSV->getType()->getPointerElementType();
@@ -806,26 +828,23 @@ void EnforceABIImpl::replaceCSVsWithAlloca() {
                                                 nullptr,
                                                 CSV->getName());
 
-      Map[std::make_pair(CSV, &F)] = Alloca;
+      // Ignore it if it's not a CSV.
+      auto CSVPosIt = CSVPosition.find(CSV);
+      if (CSVPosIt == CSVPosition.end())
+        continue;
+
+      auto CSVPos = CSVPosIt->second;
+      CSVMaps[CSVPos][&F] = Alloca;
     }
   }
 
+  // Substitute the uses of the GlobalVariables representing the CSVs with the
+  // dedicate AllocaInst that were created in each Function.
   for (GlobalVariable *CSV : GCBI.csvs()) {
-    auto UI = CSV->use_begin();
-    auto E = CSV->use_end();
-    for (; UI != E;) {
-      Use &U = *UI;
-      ++UI;
-      auto *I = dyn_cast<Instruction>(U.getUser());
-
-      if (I != nullptr and I->getParent() != nullptr) {
-        Function *F = I->getParent()->getParent();
-        auto It = Map.find(std::make_pair(CSV, F));
-        if (It != Map.end()) {
-          revng_assert(It->second != nullptr);
-          U.set(It->second);
-        }
-      }
-    }
+    auto CSVPosIt = CSVPosition.find(CSV);
+    auto CSVPos = CSVPosIt->second;
+    const auto &FunctionAllocas = CSVMaps.at(CSVPos);
+    if (not FunctionAllocas.empty())
+      replaceAllUsesInFunctionsWith(CSV, FunctionAllocas);
   }
 }
