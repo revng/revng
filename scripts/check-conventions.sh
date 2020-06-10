@@ -48,6 +48,8 @@ if test "$FORMAT" -gt 0; then
         exit 1
     fi
     clang-format -style=file -i $FILES
+else
+    clang-format --dry-run -style=file -i $FILES
 fi
 
 (
