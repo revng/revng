@@ -2,6 +2,7 @@
 # Copyright rev.ng Srls. See LICENSE.md for details.
 #
 
+add_subdirectory(AdjustStackPointer)
 add_subdirectory(Decompiler)
 add_subdirectory(DecompilerResourceFinder)
 add_subdirectory(MakeEnvNull)
