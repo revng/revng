@@ -47,7 +47,9 @@ if test "$FORMAT" -gt 0; then
         echo 'Run `git reset --hard` or use --force-format to run it anyway.' > /dev/stderr
         exit 1
     fi
-    clang-format -verbose -style=file -i $FILES
+    clang-format -style=file -i $FILES
+else
+    clang-format --dry-run -style=file -i $FILES
 fi
 
 (
