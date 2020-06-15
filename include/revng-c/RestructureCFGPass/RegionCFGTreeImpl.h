@@ -1800,7 +1800,7 @@ inline void RegionCFG<NodeT>::weave() {
       // order.
       llvm::SmallPtrSet<BBNodeT *, 1> PostDomSet;
       PostDomSet.insert(PostDom);
-      ReversePostOrderTraversalExt<BBNodeT *> RPOT(Switch, PostDomSet);
+      ReversePostOrderTraversalExt RPOT(Switch, PostDomSet);
 
       if (CombLogger.isEnabled()) {
         CombLogger << "Dumping the candidates that may initiate weaving:\n";
