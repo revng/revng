@@ -2,6 +2,7 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <compare>
 #include <limits>
 #include <tuple>
 #include <type_traits>
@@ -253,14 +254,7 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
       LTSN *Tgt;
       const TypeLinkTag *Tag;
       // Comparison operators to use in set
-      bool operator<(const EdgeInfo &O) const {
-        using std::make_tuple;
-        return make_tuple(Src, Tgt, Tag) < make_tuple(O.Src, O.Tgt, O.Tag);
-      }
-      bool operator==(const EdgeInfo &O) const {
-        using std::make_tuple;
-        return make_tuple(Src, Tgt, Tag) == make_tuple(O.Src, O.Tgt, O.Tag);
-      }
+      std::strong_ordering operator<=>(const EdgeInfo &) const = default;
     };
 
     llvm::SmallPtrSet<const LayoutTypeSystemNode *, 16> Visited;

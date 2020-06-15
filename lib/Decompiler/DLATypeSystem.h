@@ -75,19 +75,7 @@ public:
   LayoutTypePtr &operator=(const LayoutTypePtr &) = default;
   LayoutTypePtr &operator=(LayoutTypePtr &&) = default;
 
-  std::strong_ordering operator<=>(const LayoutTypePtr &Other) const {
-    if (auto Cmp = V <=> Other.V; Cmp != 0)
-      return Cmp;
-    return FieldIdx <=> Other.FieldIdx;
-  }
-
-  bool operator<(const LayoutTypePtr &Other) const {
-    return (*this <=> Other) < 0;
-  }
-
-  bool operator==(const LayoutTypePtr &Other) const {
-    return operator<=>(Other) == 0;
-  }
+  std::strong_ordering operator<=>(const LayoutTypePtr &Other) const = default;
 
   void print(llvm::raw_ostream &Out) const;
   friend struct std::less<dla::LayoutTypePtr>;
@@ -95,35 +83,16 @@ public:
 
 /// Class used to mark InstanceLinkTags between LayoutTypes
 struct OffsetExpression {
-  llvm::SmallVector<std::optional<int64_t>, 4> TripCounts;
-  llvm::SmallVector<int64_t, 4> Strides;
   int64_t Offset;
+  llvm::SmallVector<int64_t, 4> Strides;
+  llvm::SmallVector<std::optional<int64_t>, 4> TripCounts;
 
-  explicit OffsetExpression(int64_t Off) :
-    TripCounts(), Strides(), Offset(Off) {}
   explicit OffsetExpression() : OffsetExpression(0LL){};
+  explicit OffsetExpression(int64_t Off) :
+    Offset(Off), Strides(), TripCounts() {}
 
-  std::strong_ordering operator<=>(const OffsetExpression &Other) const {
-    auto OffsetCompare = Offset <=> Other.Offset;
-    if (OffsetCompare != 0)
-      return OffsetCompare;
-
-    if (Strides < Other.Strides)
-      return std::strong_ordering::less;
-    else if (Other.Strides < Strides)
-      return std::strong_ordering::greater;
-
-    if (TripCounts < Other.TripCounts)
-      return std::strong_ordering::less;
-    else if (Other.TripCounts < TripCounts)
-      return std::strong_ordering::greater;
-
-    return std::strong_ordering::equal;
-  }
-
-  bool operator<(const OffsetExpression &Other) const {
-    return (*this <=> Other) < 0;
-  }
+  std::strong_ordering
+  operator<=>(const OffsetExpression &Other) const = default;
 }; // end class OffsetExpression
 
 class TypeLinkTag {
@@ -184,15 +153,7 @@ public:
     return TypeLinkTag(LK_Instance, std::forward<OffsetExpressionT>(O));
   }
 
-  std::strong_ordering operator<=>(const TypeLinkTag &Other) const {
-    if (auto Cmp = (Kind <=> Other.Kind); Cmp != 0)
-      return Cmp;
-    return OE <=> Other.OE;
-  }
-
-  bool operator<(const TypeLinkTag &Other) const {
-    return (*this <=> Other) < 0;
-  }
+  std::strong_ordering operator<=>(const TypeLinkTag &Other) const = default;
 }; // end class TypeLinkTag
 
 struct LayoutType {
