@@ -15,8 +15,6 @@
 #include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
 
-static Logger<> FlattenLog("flattening");
-
 template<class NodeT>
 inline void flattenRegionCFGTree(RegionCFG<NodeT> &Root) {
 
