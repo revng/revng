@@ -38,13 +38,17 @@ fi
 
 GREP="git grep -n --color=always"
 
-if test "$FORMAT" -gt 0; then
-    clang-format -style=file -i $FILES
-else
-    clang-format --dry-run -style=file -i $FILES
-fi
+# Run clang-format on FILES
+function run_clang_format() {
+    if test "$FORMAT" -gt 0; then
+        clang-format -style=file -i $FILES
+    else
+        clang-format --dry-run -style=file -i $FILES
+    fi
+}
 
-(
+# Run revng-specific checks on files
+function run_revng_checks() {
     # Check for lines longer than 80 columns
     $GREP -E '^.{81,}$' $FILES | cat
 
@@ -79,4 +83,10 @@ fi
             $GREP -HE '#ifndef\s*_.*_H\s*$' "$FILE" | cat
         fi
     done
-) | sort -u
+
+
+}
+
+# Run checks
+run_clang_format
+run_revng_checks | sort -u
