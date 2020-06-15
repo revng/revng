@@ -433,39 +433,37 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
 
     // Generate the body of the switch
     SmallVector<clang::Stmt *, 8> BodyStmts;
-    size_t CaseIndex = 0;
+    size_t CaseID = 0;
     // Generate all the cases ony by one
     for (ASTNode *CaseNode : Switch->unordered_cases()) {
       clang::Expr *CaseExpr = nullptr;
       // Retrieve the value for each case
       if (Kind == ASTNode::NodeKind::NK_SwitchDispatcher) {
         auto *S = llvm::cast<SwitchDispatcherNode>(Switch);
-        uint64_t CaseConst = S->getCaseValueN(CaseIndex);
+        uint64_t CaseConst = S->getCaseValueN(CaseID);
         CaseExpr = ASTBuilder.getUIntLiteral(CaseConst);
       } else {
         auto *S = llvm::cast<RegularSwitchNode>(Switch);
 
         // We extract all the case values from the CaseSet. If more than one
         // case is present, we put the in `or` for the emission in C.
-        llvm::SmallPtrSet<llvm::ConstantInt *, 1> CaseSet =
-          S->getCaseValueN(CaseIndex);
+        using llvm::SmallPtrSet;
+        SmallPtrSet<llvm::ConstantInt *, 1> CaseSet = S->getCaseValueN(CaseID);
         auto CaseSetIt = CaseSet.begin();
         llvm::ConstantInt *CaseVal = *CaseSetIt;
         CaseExpr = ASTBuilder.getExprForValue(CaseVal);
-        for (;CaseSetIt != CaseSet.end(); CaseSetIt++) {
+        for (; CaseSetIt != CaseSet.end(); CaseSetIt++) {
           clang::Expr *LHS = CaseExpr;
           clang::Expr *RHS = ASTBuilder.getExprForValue(*CaseSetIt);
           BinaryOperatorKind BinOpOrKind = clang::BinaryOperatorKind::BO_Or;
-          CaseExpr = new (ASTCtx)
-            clang::BinaryOperator(LHS,
-                                  RHS,
-                                  BinOpOrKind,
-                                  LHS->getType(),
-                                  VK_RValue,
-                                  OK_Ordinary,
-                                  {},
-                                  FPOptions());
-
+          CaseExpr = new (ASTCtx) clang::BinaryOperator(LHS,
+                                                        RHS,
+                                                        BinOpOrKind,
+                                                        LHS->getType(),
+                                                        VK_RValue,
+                                                        OK_Ordinary,
+                                                        {},
+                                                        FPOptions());
         }
       }
       revng_assert(CaseExpr != nullptr);
@@ -485,7 +483,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       BodyStmts.push_back(Case);
       BodyStmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
       SwitchStatement->addSwitchCase(Case);
-      ++CaseIndex;
+      ++CaseID;
     }
     if (ASTNode *Default = Switch->getDefault()) {
       // Build the case
@@ -620,7 +618,13 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
   for (unsigned I = VarSize; I < BodySize; ++I)
     Body->body_begin()[I] = BodyStmts[I - VarSize];
 
-#if 0
+  /*
+   * This is a leftover from when we used to print all the labels of the
+   * basicblocks and put gotos all over the places.
+   * I left it here as a reference, for when we plan to revive part on the work
+   * on the gotos.
+   */
+  /*
   llvm::Function &F = *FPair.first;
   int I = VarSize;
   auto End = ASTInfo.InstrStmts.end();
@@ -636,7 +640,7 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
       LabelStmt({}, ASTInfo.LabelDecls.at(&BB), BBCompoundStmt);
     ++I;
   }
-#endif
+  */
 }
 
 class Decompiler : public ASTConsumer {

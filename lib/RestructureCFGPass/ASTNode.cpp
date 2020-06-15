@@ -289,7 +289,7 @@ void RegularSwitchNode::dump(std::ofstream &ASTFile) {
     }
 
     // Close the line.
-    ASTFile<< "\"];\n";
+    ASTFile << "\"];\n";
 
     // Continue dumping the children of the switch node.
     Case->dump(ASTFile);

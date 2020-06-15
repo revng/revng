@@ -1286,9 +1286,7 @@ Expr *StmtBuilder::getLiteralFromConstant(llvm::Constant *C) {
           // HACK: We actually have values which need 128 bits to be
           // represented, so we disable temporarly the check and simply
           // truncate the value to 64 bit.
-#if 0
-          revng_assert(not Const.isMaxValue());
-#endif
+          // revng_assert(not Const.isMaxValue());
           QualType T = ASTCtx.UnsignedLongLongTy;
           return IntegerLiteral::Create(ASTCtx, Const, T, {});
         }

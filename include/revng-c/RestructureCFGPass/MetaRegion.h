@@ -53,9 +53,7 @@ private:
 
 public:
   MetaRegion(int Index, BasicBlockNodeTSet &Nodes, bool IsSCS = false) :
-    Index(Index),
-    Nodes(Nodes),
-    IsSCS(IsSCS) {}
+    Index(Index), Nodes(Nodes), IsSCS(IsSCS) {}
 
   int getIndex() const { return Index; }
 

@@ -68,9 +68,7 @@ protected:
 
 public:
   ASTNode(NodeKind K, const std::string &Name, ASTNode *Successor = nullptr) :
-    Kind(K),
-    Name(Name),
-    Successor(Successor) {}
+    Kind(K), Name(Name), Successor(Successor) {}
 
   ASTNode(NodeKind K, BasicBlockNodeBB *CFGNode, ASTNode *Successor = nullptr) :
     Kind(K),
@@ -241,12 +239,10 @@ private:
 
 public:
   ScsNode(BasicBlockNodeBB *CFGNode, ASTNode *Body) :
-    ASTNode(NK_Scs, CFGNode, nullptr),
-    Body(Body) {}
+    ASTNode(NK_Scs, CFGNode, nullptr), Body(Body) {}
 
   ScsNode(BasicBlockNodeBB *CFGNode, ASTNode *Body, ASTNode *Successor) :
-    ASTNode(NK_Scs, CFGNode, Successor),
-    Body(Body) {}
+    ASTNode(NK_Scs, CFGNode, Successor), Body(Body) {}
 
 protected:
   ScsNode(const ScsNode &) = default;
@@ -489,18 +485,14 @@ protected:
              const std::string &Name,
              ASTNode *Def = nullptr,
              ASTNode *Successor = nullptr) :
-    ASTNode(K, Name, Successor),
-    CaseVec(Cases),
-    Default(Def) {}
+    ASTNode(K, Name, Successor), CaseVec(Cases), Default(Def) {}
 
   SwitchNode(NodeKind K,
              case_container &&Cases,
              const std::string &Name,
              ASTNode *Def = nullptr,
              ASTNode *Successor = nullptr) :
-    ASTNode(K, Name, Successor),
-    CaseVec(Cases),
-    Default(Def) {}
+    ASTNode(K, Name, Successor), CaseVec(Cases), Default(Def) {}
 
   SwitchNode(const SwitchNode &) = default;
   SwitchNode(SwitchNode &&) = delete;

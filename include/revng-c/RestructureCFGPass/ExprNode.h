@@ -97,9 +97,7 @@ public:
 
 protected:
   BinaryNode(NodeKind K, ExprNode *Left, ExprNode *Right) :
-    ExprNode(K),
-    LeftChild(Left),
-    RightChild(Right) {}
+    ExprNode(K), LeftChild(Left), RightChild(Right) {}
 
   BinaryNode(const BinaryNode &) = default;
   BinaryNode(BinaryNode &&) = default;

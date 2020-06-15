@@ -28,8 +28,8 @@ class RegionCFG {
 
   using BBNodeT = BasicBlockNode<NodeT>;
   using BBNodeTUniquePtr = typename std::unique_ptr<BBNodeT>;
-  using getPointerT = BBNodeT *(*)(BBNodeTUniquePtr &);
-  using getConstPointerT = const BBNodeT *(*)(const BBNodeTUniquePtr &);
+  using getPointerT = BBNodeT *(*) (BBNodeTUniquePtr &);
+  using getConstPointerT = const BBNodeT *(*) (const BBNodeTUniquePtr &);
 
   static BBNodeT *getPointer(BBNodeTUniquePtr &Original) {
     return Original.get();
@@ -37,8 +37,7 @@ class RegionCFG {
 
   static_assert(std::is_same_v<decltype(&getPointer), getPointerT>);
 
-  static const BBNodeT *
-  getConstPointer(const BBNodeTUniquePtr &Original) {
+  static const BBNodeT *getConstPointer(const BBNodeTUniquePtr &Original) {
     return Original.get();
   }
 
@@ -150,7 +149,9 @@ public:
     return llvm::map_iterator(BlockNodes.begin(), getConstPointer);
   }
 
-  links_iterator end() { return llvm::map_iterator(BlockNodes.end(), getPointer); }
+  links_iterator end() {
+    return llvm::map_iterator(BlockNodes.end(), getPointer);
+  }
 
   links_const_iterator end() const {
     return llvm::map_iterator(BlockNodes.end(), getConstPointer);
@@ -166,9 +167,8 @@ public:
     return BlockNodes.back().get();
   }
 
-  BBNodeT *
-  addArtificialNode(llvm::StringRef Name = "dummy",
-                    BasicBlockNodeType T = BasicBlockNodeType::Empty) {
+  BBNodeT *addArtificialNode(llvm::StringRef Name = "dummy",
+                             BasicBlockNodeType T = BasicBlockNodeType::Empty) {
     BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(this, Name, T));
     return BlockNodes.back().get();
   }
@@ -183,9 +183,7 @@ public:
   BBNodeT *addDispatcher(const llvm::StringRef Name) {
     using Type = typename BasicBlockNodeT::Type;
     using BBNodeT = BasicBlockNodeT;
-    auto Tmp = std::make_unique<BBNodeT>(this,
-                                         Name,
-                                         Type::Dispatcher);
+    auto Tmp = std::make_unique<BBNodeT>(this, Name, Type::Dispatcher);
     BlockNodes.emplace_back(std::move(Tmp));
     BBNodeT *Dispatcher = BlockNodes.back().get();
     return Dispatcher;
@@ -195,13 +193,9 @@ public:
     return addDispatcher("entry dispatcher node");
   }
 
-  BBNodeT *addExitDispatcher() {
-    return addDispatcher("exit dispatcher node");
-  }
+  BBNodeT *addExitDispatcher() { return addDispatcher("exit dispatcher node"); }
 
-  BBNodeT *addWeavingSwitch() {
-    return addDispatcher("weaving switch");
-  }
+  BBNodeT *addWeavingSwitch() { return addDispatcher("weaving switch"); }
 
   BBNodeT *addSetStateNode(unsigned long StateVariableValue,
                            llvm::StringRef TargetName) {
@@ -238,12 +232,9 @@ public:
 
   BBNodeT &front() const { return *EntryNode; }
 
-  std::vector<BBNodeTUniquePtr> &getNodes() {
-    return BlockNodes;
-  }
+  std::vector<BBNodeTUniquePtr> &getNodes() { return BlockNodes; }
 
-  std::vector<BBNodeT *>
-  orderNodes(BasicBlockNodeTVect &List, bool DoReverse);
+  std::vector<BBNodeT *> orderNodes(BasicBlockNodeTVect &List, bool DoReverse);
 
 public:
   /// \brief Dump a GraphViz representing this function on any stream
@@ -262,10 +253,9 @@ public:
 
   void purgeVirtualSink(BBNodeT *Sink);
 
-  std::vector<BBNodeT *>
-  getInterestingNodes(BasicBlockNodeT *Condition);
+  std::vector<BBNodeT *> getInterestingNodes(BasicBlockNodeT *Condition);
 
-  BBNodeT * cloneUntilExit(BBNodeT *Node, BBNodeT *Sink, bool AvoidSinking);
+  BBNodeT *cloneUntilExit(BBNodeT *Node, BBNodeT *Sink, bool AvoidSinking);
 
   /// \brief Apply the untangle preprocessing pass.
   void untangle();

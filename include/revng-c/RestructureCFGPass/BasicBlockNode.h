@@ -122,9 +122,7 @@ public:
                           llvm::StringRef Name,
                           Type T) :
     BasicBlockNode(Parent, nullptr, nullptr, Name, T) {
-    revng_assert(T == Type::Empty
-                 or T == Type::Break
-                 or T == Type::Continue
+    revng_assert(T == Type::Empty or T == Type::Break or T == Type::Continue
                  or T == Type::Dispatcher);
   }
 
@@ -170,9 +168,11 @@ public:
     Successors.push_back(Successor);
   }
 
-  bool hasSuccessor(BasicBlockNode *Candidate) const {
-    return (std::find(Successors.begin(), Successors.end(), Candidate)
-            != Successors.end());
+  bool hasSuccessor(const BasicBlockNode *Candidate) const {
+    const auto Find = [](const auto &Range, const auto *C) {
+      return std::find(Range.begin(), Range.end(), C) != Range.end();
+    };
+    return Find(Successors, Candidate);
   }
 
   void removeSuccessor(BasicBlockNode *Successor);
@@ -186,8 +186,10 @@ public:
   }
 
   bool hasPredecessor(BasicBlockNode *Candidate) const {
-    return (std::find(Predecessors.begin(), Predecessors.end(), Candidate)
-            != Predecessors.end());
+    const auto Find = [](const auto &Range, const auto *C) {
+      return std::find(Range.begin(), Range.end(), C) != Range.end();
+    };
+    return Find(Predecessors, Candidate);
   }
 
   void removePredecessor(BasicBlockNode *Predecessor);

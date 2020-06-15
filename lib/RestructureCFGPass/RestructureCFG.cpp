@@ -696,64 +696,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
       Backedges.erase(Retreating);
     }
 
-#if 0
-    std::map<BasicBlockNodeBB *, int> IncomingDegree;
-    for (BasicBlockNodeBB *Node : Meta->nodes()) {
-      int IncomingCounter = 0;
-      for (BasicBlockNodeBB *Predecessor : Node->predecessors()) {
-        EdgeDescriptor Edge = make_pair(Predecessor, Node);
-        if ((Meta->containsNode(Predecessor)) and (Backedges.count(Edge))) {
-          IncomingCounter++;
-        }
-      }
-      IncomingDegree[Node] = IncomingCounter;
-    }
-
-    // Print information about incoming edge degrees.
-    if (CombLogger.isEnabled()) {
-      CombLogger << "Incoming degree:\n";
-      for (auto &it : IncomingDegree) {
-        CombLogger << it.first->getNameStr() << " " << it.second << "\n";
-      }
-    }
-
-    auto MaxDegreeIt = max_element(IncomingDegree.begin(),
-                                   IncomingDegree.end(),
-                                   [](const pair<BasicBlockNodeBB *, int> &p1,
-                                      const pair<BasicBlockNodeBB *, int> &p2) {
-                                     return p1.second < p2.second;
-                                   });
-    int MaxDegree = (*MaxDegreeIt).second;
-
-    if (CombLogger.isEnabled()) {
-      CombLogger << "Maximum incoming degree found: ";
-      CombLogger << MaxDegree << "\n";
-    }
-
-    std::set<BasicBlockNodeBB *> MaximuxEdgesNodes;
-    copy_if(Meta->begin(),
-            Meta->end(),
-            std::inserter(MaximuxEdgesNodes, MaximuxEdgesNodes.begin()),
-            [&IncomingDegree, &MaxDegree](BasicBlockNodeBB *Node) {
-              return IncomingDegree[Node] == MaxDegree;
-            });
-
-    revng_assert(MaxDegree > 0);
-
-    BasicBlockNodeBB *FirstCandidate = nullptr;
-    if (MaximuxEdgesNodes.size() > 1) {
-      for (BasicBlockNodeBB *BN : RPOT) {
-        if (MaximuxEdgesNodes.count(BN) != 0) {
-          FirstCandidate = BN;
-          break;
-        }
-      }
-    } else {
-      FirstCandidate = *MaximuxEdgesNodes.begin();
-    }
-#endif
-
-#if 1
     // Always take the fist node in RPOT which is a retreating target as entry,
     // candidate.
     BasicBlockNodeBB *FirstCandidate = nullptr;
@@ -763,7 +705,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
         break;
       }
     }
-#endif
 
     revng_assert(FirstCandidate != nullptr);
 
@@ -1297,12 +1238,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
                                               Output);
     OutputStream << "function,"
                     "duplications,percentage,tuntangle,puntangle,iweight\n";
-    OutputStream << F.getName().data() << ","
-                 << DuplicationCounter << ","
-                 << Increase << ","
-                 << UntangleTentativeCounter << ","
-                 << UntanglePerformedCounter << ","
-                 << InitialWeight << "\n";
+    OutputStream << F.getName().data() << "," << DuplicationCounter << ","
+                 << Increase << "," << UntangleTentativeCounter << ","
+                 << UntanglePerformedCounter << "," << InitialWeight << "\n";
   }
 
   return false;

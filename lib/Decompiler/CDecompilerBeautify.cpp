@@ -75,8 +75,12 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
 
 using Marker = MarkForSerialization::Analysis;
 
-#if 0
 static bool requiresNoStatement(IfNode *If, Marker &Mark) {
+  // HACK: this is not correct, because it enables short-circuit even in cases
+  // where the IfNode really does require some statements, hence producing
+  // code that is not semantically equivalent
+  return true;
+
   // Compute how many statement we need to serialize for the basicblock
   // associated with the internal `IfNode`.
   ExprNode *ExprBB = If->getCondExpr();
@@ -87,14 +91,6 @@ static bool requiresNoStatement(IfNode *If, Marker &Mark) {
     }
   }
   return false;
-}
-#endif
-
-static bool requiresNoStatement(IfNode *, Marker &) {
-  // HACK: this is not correct, because it enables short-circuit even in cases
-  // where the IfNode really does require some statements, hence producing
-  // code that is not semantically equivalent
-  return true;
 }
 
 // Helper function to simplify short-circuit IFs
@@ -345,7 +341,7 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
     // TODO: in the current situation, we should not find any switch node
     //       composed by only two case nodes. This check is only a safeguard,
     //       consider removing it altogether.
-    //revng_assert(Switch->CaseSize() >= 2);
+    // revng_assert(Switch->CaseSize() >= 2);
     for (auto &Case : Switch->unordered_cases())
       Case = matchSwitch(AST, Case, Mark);
     if (ASTNode *Default = Switch->getDefault())
