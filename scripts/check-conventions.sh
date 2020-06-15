@@ -13,18 +13,14 @@ set -e
 while [[ $# > 0 ]]; do
     key="$1"
     case $key in
-        --format)
-            FORMAT="1"
-            shift
-            ;;
         --force-format)
-            FORMAT="2"
+            FORMAT="1"
             shift # past argument
             ;;
         --*)
             echo "Unexpected option $key" > /dev/stderr
             echo > /dev/stderr
-            echo "Usage: $0 [--format] [--force-format] [FILE...]" > /dev/stderr
+            echo "Usage: $0 [--force-format] [FILE...]" > /dev/stderr
             exit 1
             shift
             ;;
@@ -39,14 +35,10 @@ if [[ $# -eq 0 ]]; then
 else
     FILES="$@"
 fi
+
 GREP="git grep -n --color=always"
 
 if test "$FORMAT" -gt 0; then
-    if test "$FORMAT" -eq 1 && ! git diff --exit-code > /dev/null; then
-        echo "Can't run clang-format -i: there are unstaged changes!" > /dev/stderr
-        echo 'Run `git reset --hard` or use --force-format to run it anyway.' > /dev/stderr
-        exit 1
-    fi
     clang-format -style=file -i $FILES
 else
     clang-format --dry-run -style=file -i $FILES
