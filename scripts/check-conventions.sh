@@ -87,6 +87,17 @@ function run_revng_checks() {
 
 }
 
-# Run checks
+# First, run the checks and output warnings in a human readable format.
 run_clang_format
 run_revng_checks | sort -u
+
+# Second, re-run the check commands, and fail if any of them prints anything.
+# This ensures that that user sees all the errors on the command line, while at
+# the same time setting a proper exit value that can be checked by other scripts
+# or by git hooks.
+if [[ $( run_clang_format 2>&1 | head -c 1 | wc -c ) -ne 0 ]]; then
+  exit 1
+fi
+if [[ $( run_revng_checks 2>&1 | head -c 1 | wc -c ) -ne 0 ]]; then
+  exit 1
+fi
