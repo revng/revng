@@ -1301,7 +1301,7 @@ inline void RegionCFG<NodeT>::inflate() {
 }
 
 template<class NodeT>
-static bool isASwitch(BasicBlockNode<NodeT> *Node) {
+inline bool isASwitch(BasicBlockNode<NodeT> *Node) {
 
   // TODO: remove this workaround for searching for switch nodes.
   if (Node->getOriginalNode()) {
