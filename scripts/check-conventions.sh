@@ -31,7 +31,7 @@ while [[ $# > 0 ]]; do
 done
 
 if [[ $# -eq 0 ]]; then
-    FILES="$(git ls-files | grep -E '(\.cpp|\.c|\.h)$')"
+    FILES="$(git ls-files | grep -E '\.(c|cc|cpp|h|hpp)$')"
 else
     FILES="$@"
 fi
