@@ -26,12 +26,6 @@
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Support/Assert.h"
 
-namespace llvm {
-
-class SCEV;
-
-} // end namespace llvm
-
 namespace dla {
 
 /// A representation of a pointer to a type.
@@ -245,8 +239,6 @@ public:
 
   llvm::SmallVector<std::pair<LayoutTypeSystemNode *, bool>, 2>
   getOrCreateLayoutTypes(const llvm::Value &V);
-
-  LayoutTypeSystemNode *getLayoutType(const llvm::SCEV *S);
 
 protected:
   // This method is templated only to enable perfect forwarding.

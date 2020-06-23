@@ -7,7 +7,6 @@
 
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/Support/FormattedStream.h"
@@ -206,18 +205,6 @@ static void assertGetLayoutTypePreConditions(const Value *V, unsigned Id) {
   // The only case where we accept Id != max are Functions that return structs
   revng_assert(Id == std::numeric_limits<unsigned>::max()
                or cast<Function>(V)->getReturnType()->isStructTy());
-}
-
-LayoutTypeSystemNode *LayoutTypeSystem::getLayoutType(const llvm::SCEV *S) {
-  if (S == nullptr)
-    return nullptr;
-  if (auto *U = dyn_cast<llvm::SCEVUnknown>(S)) {
-    llvm::Value *V = U->getValue();
-    return getLayoutType(V);
-  }
-
-  // LayoutTypePtr Key(S, Id);
-  return nullptr; // TypePtrToLayoutMap.at(Key);
 }
 
 LayoutTypeSystemNode *
