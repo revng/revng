@@ -1183,7 +1183,23 @@ void IFI::run() {
 
   // Remove all the orphan basic blocks from the root function (e.g., the blocks
   // that have been substitued by the trampoline)
-  removeUnreachableBlocks(*Root);
+  {
+    ReversePostOrderTraversal<BasicBlock *> RPOT(&Root->getEntryBlock());
+    std::set<BasicBlock *> Reachable;
+    for (BasicBlock *BB : RPOT)
+      Reachable.insert(BB);
+
+    std::vector<BasicBlock *> ToDelete;
+    for (BasicBlock &BB : *Root)
+      if (Reachable.count(&BB) == 0)
+        ToDelete.push_back(&BB);
+
+    for (BasicBlock *BB : ToDelete)
+      BB->dropAllReferences();
+
+    for (BasicBlock *BB : ToDelete)
+      BB->eraseFromParent();
+  }
 
   // 15. Before emitting it in output we check that the module in passes the
   //     verifyModule pass
