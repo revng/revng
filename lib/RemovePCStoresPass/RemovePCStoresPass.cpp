@@ -52,8 +52,10 @@ bool RemovePCStores::runOnFunction(Function &F) {
         if (StoreInstruction->getPointerOperand()->getName() == "pc") {
           BasicBlock *Successor = BB->getSingleSuccessor();
           revng_assert(Successor != nullptr);
-          BB->replaceAllUsesWith(Successor);
-          DeleteDeadBlock(BB);
+          if (BB != Successor) {
+            BB->replaceAllUsesWith(Successor);
+            DeleteDeadBlock(BB);
+          }
         }
       }
     }
