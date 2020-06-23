@@ -896,7 +896,8 @@ void IFI::run() {
         revng_assert(GCBI.isTranslated(Successor)
                      or SuccessorType == BlockType::AnyPCBlock
                      or SuccessorType == BlockType::UnexpectedPCBlock
-                     or SuccessorType == BlockType::RootDispatcherBlock);
+                     or SuccessorType == BlockType::RootDispatcherBlock
+                     or SuccessorType == BlockType::IndirectBranchDispatcherHelperBlock);
         auto SuccessorIt = RootToIsolated.find(Successor);
 
         // We add a successor if it is not a revng block type and it is present
@@ -906,7 +907,8 @@ void IFI::run() {
         // the target block of the final branch will be the entry block of the
         // callee, that for sure will not be in the current function and
         // consequently in the RootToIsolated.
-        if (GCBI.isTranslated(Successor)
+        if ((GCBI.isTranslated(Successor)
+             or SuccessorType == BlockType::IndirectBranchDispatcherHelperBlock)
             and SuccessorIt != RootToIsolated.end()) {
           Successors.push_back(cast<BasicBlock>(SuccessorIt->second));
         }
@@ -1073,7 +1075,8 @@ void IFI::run() {
       // Do not try to populate unexpectedpc and anypc, since they have already
       // been populated in an ad-hoc manner.
       if (NewBB != UnexpectedPC && NewBB != AnyPC) {
-        BasicBlock *OldBB = IsolatedToRootBB[NewBB];
+        BasicBlock *OldBB = IsolatedToRootBB.at(NewBB);
+        revng_assert(OldBB != nullptr);
 
         // Actual copy of the instructions
         for (Instruction &OldInstruction : *OldBB) {
