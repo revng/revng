@@ -33,9 +33,8 @@ using Reg = RegisterPass<RemovePCStores>;
 static Reg X("remove-pc-stores", "Remove PC store basic block", false, false);
 
 bool RemovePCStores::runOnFunction(Function &F) {
-  if (!F.getName().startswith("bb.")) {
+  if (not F.getMetadata("revng.func.entry"))
     return false;
-  }
 
   ReversePostOrderTraversal<llvm::Function *> RPOT(&F);
 
