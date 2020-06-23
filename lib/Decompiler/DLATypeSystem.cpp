@@ -196,6 +196,16 @@ void LayoutTypeSystem::dumpDotOnFile(const char *FName) const {
   DotFile << "}\n";
 }
 
+LayoutTypeSystemNode *LayoutTypeSystem::createArtificialLayoutType() {
+  using LTSN = LayoutTypeSystemNode;
+  // Create a new layout
+  const auto &[LayoutIt, Success] = Layouts.insert(std::make_unique<LTSN>(NID));
+  revng_assert(Success);
+  if (Success)
+    ++NID;
+  return LayoutIt->get();
+}
+
 static void assertGetLayoutTypePreConditions(const Value *V, unsigned Id) {
   // We accept only integers, pointer, and function types (which are actually
   // used for representing return types of functions)
@@ -222,7 +232,6 @@ LayoutTypeSystem::getLayoutType(const Value *V, unsigned Id) {
 
 std::pair<LayoutTypeSystemNode *, bool>
 LayoutTypeSystem::getOrCreateLayoutType(const Value *V, unsigned Id) {
-  using LTSN = LayoutTypeSystemNode;
 
   if (V == nullptr)
     return std::make_pair(nullptr, false);
@@ -237,12 +246,8 @@ LayoutTypeSystem::getOrCreateLayoutType(const Value *V, unsigned Id) {
     return std::make_pair(HintIt->second, false);
   }
 
-  // Create a new layout
-  const auto &[LayoutIt, Success] = Layouts.insert(std::make_unique<LTSN>(NID));
-  revng_assert(Success);
-  if (Success)
-    ++NID;
-  LayoutTypeSystemNode *Res = LayoutIt->get();
+  LayoutTypeSystemNode *Res = createArtificialLayoutType();
+
   // Add the mapping between the new LayoutTypeSystemNode and the LayoutTypePtr
   // that is associated to V.
   const auto &[_, Ok] = LayoutToTypePtrsMap[Res].insert(Key);

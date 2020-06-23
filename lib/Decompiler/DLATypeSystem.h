@@ -240,6 +240,8 @@ public:
   llvm::SmallVector<std::pair<LayoutTypeSystemNode *, bool>, 2>
   getOrCreateLayoutTypes(const llvm::Value &V);
 
+  LayoutTypeSystemNode *createArtificialLayoutType();
+
 protected:
   // This method is templated only to enable perfect forwarding.
   template<typename TagT>
