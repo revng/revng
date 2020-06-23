@@ -38,6 +38,8 @@ bool RemovePCStores::runOnFunction(Function &F) {
 
   ReversePostOrderTraversal<llvm::Function *> RPOT(&F);
 
+  bool Changed = false;
+
   // Create a new node for each basic block in the module.
   // for (llvm::BasicBlock &BB : F) {
   for (BasicBlock *BB : RPOT) {
@@ -55,11 +57,12 @@ bool RemovePCStores::runOnFunction(Function &F) {
           if (BB != Successor) {
             BB->replaceAllUsesWith(Successor);
             DeleteDeadBlock(BB);
+            Changed = true;
           }
         }
       }
     }
   }
 
-  return true;
+  return Changed;
 }
