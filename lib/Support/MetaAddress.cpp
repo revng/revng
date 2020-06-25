@@ -7,6 +7,7 @@
 
 // LLVM includes
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
 

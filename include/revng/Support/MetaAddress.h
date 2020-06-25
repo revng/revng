@@ -7,7 +7,6 @@
 
 // LLVM includes
 #include "llvm/ADT/Triple.h"
-#include "llvm/IR/IRBuilder.h"
 
 // Local libraries includes
 #include "revng/Support/Debug.h"
@@ -15,11 +14,19 @@
 namespace llvm {
 class Type;
 class Constant;
+class ConstantInt;
 class Value;
 class LLVMContext;
 class Module;
 class StructType;
 class GlobalVariable;
+class Instruction;
+class ConstantFolder;
+class IRBuilderDefaultInserter;
+
+template<typename T /* = ConstantFolder */,
+         typename Inserter /* = IRBuilderDefaultInserter */>
+class IRBuilder;
 } // namespace llvm
 
 namespace MetaAddressType {
@@ -481,7 +488,10 @@ public:
   /// @}
 
 public:
-  static llvm::Instruction *composeIntegerPC(llvm::IRBuilder<> &B,
+  using IRBuilderType = llvm::IRBuilder<llvm::ConstantFolder,
+                                        llvm::IRBuilderDefaultInserter>;
+
+  static llvm::Instruction *composeIntegerPC(IRBuilderType &B,
                                              llvm::Value *AddressValue,
                                              llvm::Value *EpochValue,
                                              llvm::Value *AddressSpaceValue,
