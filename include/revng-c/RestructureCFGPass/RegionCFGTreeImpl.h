@@ -60,10 +60,12 @@ inline ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
       // TODO: confirm that this phase is not needed since the processing is
       //       done inside the processing of each SCS region.
     } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(Node)) {
-      for (auto *Case : Switch->unordered_cases())
-        createSequence(Tree, Case);
-      if (ASTNode *Default = Switch->getDefault())
-        createSequence(Tree, Default);
+      for (size_t I = 0; I < Switch->CaseSize(); I++) {
+        Switch->replaceCaseN(I, createSequence(Tree, Switch->getCaseN(I)));
+      }
+      if (ASTNode *Default = Switch->getDefault()) {
+        Switch->replaceDefault(createSequence(Tree, Default));
+      }
     } else if (llvm::isa<BreakNode>(Node)) {
       // Stop here during the analysis.
     } else if (llvm::isa<ContinueNode>(Node)) {
