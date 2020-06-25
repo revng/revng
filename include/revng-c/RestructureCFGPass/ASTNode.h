@@ -513,6 +513,17 @@ public:
     return CaseVec[N];
   }
 
+  // This is a very special method, it modifies only the pointer of the
+  // corresponding case but does not modify the case value corresponding to it.
+  // This is intented in its limited use scope. Indeed, this method should only
+  // be used when iterating over all the case nodes during the AST refinement
+  // phases (such as the sequence node construction phase and later beautify
+  // phases).
+  void replaceCaseN(case_container::size_type N, ASTNode *NewCase) {
+    revng_assert(N < CaseSize());
+    CaseVec[N] = NewCase;
+  }
+
   size_t CaseSize() const { return CaseVec.size(); }
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
@@ -529,12 +540,14 @@ public:
 
   ASTNode *getDefault() const { return Default; }
 
+  void replaceDefault(ASTNode *NewDefault) { Default = NewDefault; }
+
   bool isEqual(const ASTNode *Node) const;
 
 protected:
   bool hasEqualCaseValues(const SwitchNode *Node) const;
   case_container CaseVec;
-  ASTNode *const Default;
+  ASTNode *Default;
   bool NeedStateVariable = false; // for breaking directly out of a loop
   bool NeedLoopBreakDispatcher = false; // to dispatchg breaks out of a loop
 };
