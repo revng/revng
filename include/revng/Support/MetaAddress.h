@@ -796,7 +796,7 @@ private:
   }
 
 private:
-  using Tied = std::tuple<uint32_t, uint16_t, uint64_t, uint16_t>;
+  using Tied = std::tuple<uint32_t, uint16_t, uint16_t, uint64_t>;
   Tied tie() const { return std::tie(Epoch, AddressSpace, Type, Address); }
 };
 
