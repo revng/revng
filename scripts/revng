@@ -96,7 +96,7 @@ def get_command(command):
   global search_path
   path = which(command, path=search_path)
   if not path:
-    log("""Couldn't find "{}" in "{}".""".format(command, search_path))
+    log_error("""Couldn't find "{}" in "{}".""".format(command, search_path))
     assert False
   return os.path.abspath(path)
 
