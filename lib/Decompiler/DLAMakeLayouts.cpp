@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <compare>
+#include <iterator>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -12,6 +13,7 @@
 #include <type_traits>
 
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
@@ -560,13 +562,13 @@ static Layout *makeInstanceChildLayout(Layout *ChildType,
         StructFields.push_back(Padding);
         Inner = createLayout<StructLayout>(Layouts, std::move(StructFields));
       }
+
       // Create the real array of Inner elements.
       Inner = createLayout<ArrayLayout>(Layouts, Inner, S, TC);
     }
     ChildType = Inner;
   }
 
-  revng_assert(OE.Offset >= 0LL);
   if (OE.Offset > 0LL) {
     // Create padding to insert before the field, according to the
     // offset.
@@ -587,64 +589,229 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 
   revng_assert(not LayoutCTypes.count(N));
 
-  UnionLayout::elements_container_t UFlds;
-  for (const Use *U : N->L.Accesses) {
-    const auto AccessSize = getLoadStoreSizeFromPtrOpUse(TS, U);
-    revng_log(Log, "Access: " << AccessSize);
-    UFlds.insert(createLayout<BaseLayout>(Layouts, AccessSize));
-  }
+  switch (N->InterferingInfo) {
 
-  // Look at all the instance-of edges and inheritance edges all together
-  bool InheritsFromOther = false;
-  for (auto &[Child, EdgeTag] : children_edges<const LTSN *>(N)) {
+  case AllChildrenAreNonInterfering: {
 
-    revng_log(Log, "Child ID: " << Child->ID);
+    llvm::SmallSet<uint64_t, 8> AccessSizes;
+    for (const auto &A : N->L.Accesses)
+      AccessSizes.insert(getLoadStoreSizeFromPtrOpUse(TS, A));
+    auto NumAccesses = AccessSizes.size();
+    uint64_t AccessSize = NumAccesses ? *AccessSizes.begin() : 0ULL;
 
-    // Ignore children with size == 0
-    auto ChildLayoutIt = LayoutCTypes.find(Child);
-    if (ChildLayoutIt == LayoutCTypes.end())
-      continue;
+    StructLayout::fields_container_t SFlds;
 
-    Layout *ChildType = ChildLayoutIt->second;
+    struct OrderedChild {
+      int64_t Offset;
+      decltype(N->L.Size) Size;
+      LTSN *Child;
+      // Make it sortable
+      std::strong_ordering operator<=>(const OrderedChild &) const = default;
+    };
+    using ChildrenVec = llvm::SmallVector<OrderedChild, 8>;
 
-    switch (EdgeTag->getKind()) {
+    // Collect the children in a vector. Here we use the OrderedChild struct,
+    // that embeds info on the size and offset of the children, so that we can
+    // later sort the vector according to it.
+    bool InheritsFromOther = false;
+    ChildrenVec Children;
+    for (auto &[Child, EdgeTag] : llvm::children_edges<const LTSN *>(N)) {
 
-    case TypeLinkTag::LK_Instance: {
-      revng_log(Log, "Instance");
-      const OffsetExpression &OE = EdgeTag->getOffsetExpr();
-      revng_log(Log, "Has Offset: " << OE.Offset);
-      ChildType = makeInstanceChildLayout(ChildType, OE, Layouts);
-    } break;
+      auto OrdChild = OrderedChild{
+        /* .Offset */ 0LL,
+        /* .Size   */ Child->L.Size,
+        /* .Child  */ Child,
+      };
 
-    case TypeLinkTag::LK_Inheritance: {
-      revng_log(Log, "Inheritance");
-      // Treated as instance at offset 0, but can only have one
-      revng_assert(not InheritsFromOther);
-      InheritsFromOther = true;
-    } break;
+      switch (EdgeTag->getKind()) {
 
-    default:
-      revng_unreachable("unexpected edge");
+      case TypeLinkTag::LK_Instance: {
+        const OffsetExpression &OE = EdgeTag->getOffsetExpr();
+        revng_assert(OE.Strides.size() == OE.TripCounts.size());
+
+        // Ignore stuff at negative offsets.
+        if (OE.Offset < 0LL)
+          continue;
+
+        OrdChild.Offset = OE.Offset;
+        for (const auto &[TripCount, Stride] :
+             llvm::reverse(llvm::zip(OE.TripCounts, OE.Strides))) {
+
+          // Strides should be positive. If they are not, we don't know
+          // anything about how the children is layed out, so we assume the
+          // children doesn't even exist.
+          if (Stride <= 0LL) {
+            OrdChild.Size = 0ULL;
+            break;
+          }
+
+          auto StrideSize = static_cast<uint64_t>(Stride);
+
+          // If we have a TripCount, we expect it to be strictly positive.
+          revng_assert(not TripCount.has_value() or TripCount.value() > 0LL);
+
+          // Arrays with unknown numbers of elements are considered as if
+          // they had a single element
+          auto NumElems = TripCount.has_value() ? TripCount.value() : 1;
+          revng_assert(NumElems);
+
+          // Here we are computing the larger size that is known to be
+          // accessed. So if we have an array, we consider it to be one
+          // element shorter than expected, and we add ChildSize only once
+          // at the end.
+          // This is equivalent to:
+          // ChildSize = (NumElems * StrideSize) - (StrideSize - ChildSize);
+          OrdChild.Size = ((NumElems - 1) * StrideSize) + OrdChild.Size;
+        }
+      } break;
+
+      case TypeLinkTag::LK_Inheritance: {
+        revng_assert(not InheritsFromOther);
+        // We can't have accesses, if we have inheritance, otherwise we'd have
+        // that the inherited layout and the accesses do interfere with each
+        // other, and we should have created a union, not a struct.
+        revng_assert(not NumAccesses);
+        InheritsFromOther = true;
+      } break;
+
+      default:
+        revng_unreachable("unexpected edge tag");
+      }
+
+      if (OrdChild.Offset >= 0LL and OrdChild.Size > 0ULL) {
+        Children.push_back(std::move(OrdChild));
+        revng_assert(EdgeTag->getKind() != TypeLinkTag::LK_Instance
+                     or not AccessSize
+                     or static_cast<int64_t>(AccessSize) <= OrdChild.Offset);
+      }
     }
 
-    // Bail out if we have not constructed a union field, because it means
-    // that this is not a supported case yet.
-    if (nullptr != ChildType)
-      UFlds.insert(ChildType);
+    std::sort(Children.begin(), Children.end());
+
+    if (true or VerifyLog.isEnabled()) {
+      auto It = Children.begin();
+      for (; It != Children.end() and std::next(It) != Children.end(); ++It) {
+        int64_t ThisEndByte = It->Offset + static_cast<int64_t>(It->Size);
+        revng_assert(ThisEndByte <= std::next(It)->Offset);
+      }
+    }
+
+    revng_assert(not NumAccesses or NumAccesses == 1ULL);
+    Layout *AccessLayout = nullptr;
+    if (AccessSize)
+      AccessLayout = createLayout<BaseLayout>(Layouts, AccessSize);
+
+    bool First = true;
+
+    for (const auto &OrdChild : Children) {
+      const auto &[StartByte, Size, Child] = OrdChild;
+      First = false;
+      revng_assert(StartByte >= 0LL and Size > 0ULL);
+      uint64_t Start = static_cast<uint64_t>(StartByte);
+      revng_assert(Start >= AccessSize);
+      auto PadSize = Start - AccessSize; // always >= 0;
+      revng_assert(PadSize >= 0);
+      if (PadSize) {
+        Layout *Padding = createLayout<PaddingLayout>(Layouts, PadSize);
+        SFlds.push_back(Padding);
+      }
+      AccessSize = Start + Size;
+
+      revng_assert(LayoutCTypes.find(Child) != LayoutCTypes.end());
+      Layout *ChildType = LayoutCTypes.at(Child);
+
+      // Bail out if we have not constructed a union field, because it means
+      // that this is not a supported case yet.
+      revng_assert(nullptr != ChildType);
+      SFlds.push_back(ChildType);
+    }
+
+    // This layout has no useful access or outgoing edges that can build the
+    // type. Just skip it for now until we support handling richer edges and
+    // emitting richer types
+    if (SFlds.empty())
+      return nullptr;
+
+    Layout *CreatedLayout = (SFlds.size() > 1ULL) ?
+                              createLayout<StructLayout>(Layouts, SFlds) :
+                              *SFlds.begin();
+
+    LayoutCTypes[N] = CreatedLayout;
+    return CreatedLayout;
+  } break;
+
+  case AllChildrenAreInterfering: {
+
+    UnionLayout::elements_container_t UFlds;
+    for (const Use *U : N->L.Accesses) {
+      const auto AccessSize = getLoadStoreSizeFromPtrOpUse(TS, U);
+      revng_log(Log, "Access: " << AccessSize);
+      UFlds.insert(createLayout<BaseLayout>(Layouts, AccessSize));
+    }
+
+    // Look at all the instance-of edges and inheritance edges all together
+    bool InheritsFromOther = false;
+    for (auto &[Child, EdgeTag] : children_edges<const LTSN *>(N)) {
+
+      revng_log(Log, "Child ID: " << Child->ID);
+      // Ignore children with size == 0
+      if (not Child->L.Size)
+        continue;
+
+      // Ignore children for which we haven't created a layout, because they
+      // only have children from which it was not possible to create valid
+      // layouts.
+      auto ChildLayoutIt = LayoutCTypes.find(Child);
+      if (ChildLayoutIt == LayoutCTypes.end())
+        continue;
+
+      Layout *ChildType = ChildLayoutIt->second;
+
+      switch (EdgeTag->getKind()) {
+
+      case TypeLinkTag::LK_Instance: {
+        revng_log(Log, "Instance");
+        const OffsetExpression &OE = EdgeTag->getOffsetExpr();
+        revng_log(Log, "Has Offset: " << OE.Offset);
+        ChildType = makeInstanceChildLayout(ChildType, OE, Layouts);
+      } break;
+
+      case TypeLinkTag::LK_Inheritance: {
+        revng_log(Log, "Inheritance");
+        // Treated as instance at offset 0, but can only have one
+        revng_assert(not InheritsFromOther);
+        InheritsFromOther = true;
+      } break;
+
+      default:
+        revng_unreachable("unexpected edge");
+      }
+
+      // Bail out if we have not constructed a union field, because it means
+      // that this is not a supported case yet.
+      if (nullptr != ChildType)
+        UFlds.insert(ChildType);
+    }
+
+    // This layout has no useful access or outgoing edges that can build the
+    // type. Just skip it for now until we support handling richer edges and
+    // emitting richer types
+    if (UFlds.empty())
+      return nullptr;
+
+    Layout *CreatedLayout = (UFlds.size() > 1ULL) ?
+                              createLayout<UnionLayout>(Layouts, UFlds) :
+                              *UFlds.begin();
+
+    LayoutCTypes[N] = CreatedLayout;
+    return CreatedLayout;
+  } break;
+
+  case Unknown:
+  default:
+    revng_unreachable();
   }
-
-  // This layout has no useful access or outgoing edges that can build the
-  // type. Just skip it for now until we support handling richer edges and
-  // emitting richer types
-  if (UFlds.empty())
-    return nullptr;
-
-  Layout *CreatedLayout = (UFlds.size() > 1ULL) ?
-                            createLayout<UnionLayout>(Layouts, UFlds) :
-                            *UFlds.begin();
-
-  LayoutCTypes[N] = CreatedLayout;
-  return CreatedLayout;
+  return nullptr;
 }
 
 static bool makeLayouts(const LayoutTypeSystem &TS) {

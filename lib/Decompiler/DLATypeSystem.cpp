@@ -505,6 +505,130 @@ void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *N) {
   Layouts.erase(LayoutIt);
 }
 
+static void moveEdgesWithoutSumming(LayoutTypeSystemNode *OldSrc,
+                                    LayoutTypeSystemNode *NewSrc,
+                                    LayoutTypeSystemNode *Tgt) {
+  // First, move successor edges from OldSrc to NewSrc
+  {
+    const auto IsTgt = [Tgt](const LayoutTypeSystemNode::Link &L) {
+      return L.first == Tgt;
+    };
+
+    auto &OldSucc = OldSrc->Successors;
+    auto &NewSucc = NewSrc->Successors;
+
+    auto OldSuccEnd = OldSucc.end();
+    auto OldToTgtIt = std::find_if(OldSucc.begin(), OldSuccEnd, IsTgt);
+    auto OldToTgtEnd = std::find_if_not(OldToTgtIt, OldSuccEnd, IsTgt);
+
+    // Here we can move the edge descriptors directly to NewSucc, because we
+    // don't need to update the offset.
+    while (OldToTgtIt != OldToTgtEnd) {
+      auto Next = std::next(OldToTgtIt);
+      NewSucc.insert(OldSucc.extract(OldToTgtIt));
+      OldToTgtIt = Next;
+    }
+  }
+
+  // Then, move predecessor edges from OldSrc to NewSrc
+  {
+    const auto IsOldSrc = [OldSrc](const LayoutTypeSystemNode::Link &L) {
+      return L.first == OldSrc;
+    };
+
+    auto &TgtPred = Tgt->Predecessors;
+
+    auto TgtPredEnd = TgtPred.end();
+    auto TgtToOldIt = std::find_if(TgtPred.begin(), TgtPredEnd, IsOldSrc);
+    auto TgtToOldEnd = std::find_if_not(TgtToOldIt, TgtPredEnd, IsOldSrc);
+
+    // Here we can extract, the edge descriptors, update they key (representing
+    // the predecessor) and re-insert them, becasue we don't need to change the
+    // offset.
+    while (TgtToOldIt != TgtToOldEnd) {
+      auto Next = std::next(TgtToOldIt);
+      auto OldPredEdge = TgtPred.extract(TgtToOldIt);
+
+      OldPredEdge.value().first = NewSrc;
+      TgtPred.insert(std::move(OldPredEdge));
+
+      TgtToOldIt = Next;
+    }
+  }
+}
+
+void LayoutTypeSystem::moveEdges(LayoutTypeSystemNode *OldSrc,
+                                 LayoutTypeSystemNode *NewSrc,
+                                 LayoutTypeSystemNode *Tgt,
+                                 int64_t OffsetToSum) {
+
+  if (not OldSrc or not NewSrc or not Tgt)
+    return;
+
+  if (not OffsetToSum)
+    return moveEdgesWithoutSumming(OldSrc, NewSrc, Tgt);
+
+  // First, move successor edges from OldSrc to NewSrc
+  {
+    const auto IsTgt = [Tgt](const LayoutTypeSystemNode::Link &L) {
+      return L.first == Tgt;
+    };
+
+    auto &OldSucc = OldSrc->Successors;
+
+    auto OldSuccEnd = OldSucc.end();
+    auto OldToTgtIt = std::find_if(OldSucc.begin(), OldSuccEnd, IsTgt);
+    auto OldToTgtEnd = std::find_if_not(OldToTgtIt, OldSuccEnd, IsTgt);
+
+    // Add new instance links with adjusted offsets from NewSrc to Tgt.
+    // Using the addInstanceLink methods already marks injects NewSrc among the
+    // predecessors of Tgt, so after this we only need to remove OldSrc from
+    // Tgt's predecessors and we're done.
+    while (OldToTgtIt != OldToTgtEnd) {
+      auto Next = std::next(OldToTgtIt);
+      auto OldSuccEdge = OldSucc.extract(OldToTgtIt);
+
+      const TypeLinkTag *EdgeTag = OldSuccEdge.value().second;
+      switch (EdgeTag->getKind()) {
+
+      case TypeLinkTag::LK_Inheritance: {
+        revng_assert(OffsetToSum > 0LL);
+        addInstanceLink(NewSrc, Tgt, OffsetExpression(OffsetToSum));
+      } break;
+
+      case TypeLinkTag::LK_Instance: {
+        OffsetExpression NewOE = EdgeTag->getOffsetExpr();
+        NewOE.Offset += OffsetToSum;
+        revng_assert(NewOE.Offset >= 0LL);
+        addInstanceLink(NewSrc, Tgt, std::move(NewOE));
+      } break;
+
+      case TypeLinkTag::LK_Equality:
+      default:
+        revng_unreachable("unexpected edge kind");
+      }
+
+      OldToTgtIt = Next;
+    }
+  }
+
+  // Then, remove all the remaining info in Tgt that represent the fact that
+  // OldSrc was a predecessor.
+  {
+    const auto IsOldSrc = [OldSrc](const LayoutTypeSystemNode::Link &L) {
+      return L.first == OldSrc;
+    };
+
+    auto &TgtPred = Tgt->Predecessors;
+
+    auto TgtPredEnd = TgtPred.end();
+    auto TgtToOldIt = std::find_if(TgtPred.begin(), TgtPredEnd, IsOldSrc);
+    auto TgtToOldEnd = std::find_if_not(TgtToOldIt, TgtPredEnd, IsOldSrc);
+
+    TgtPred.erase(TgtToOldIt, TgtToOldEnd);
+  }
+}
+
 static Logger<> VerifyDLALog("dla-verify-strict");
 
 bool LayoutTypeSystem::verifyConsistency() const {

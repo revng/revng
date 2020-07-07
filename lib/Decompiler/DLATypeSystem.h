@@ -328,6 +328,11 @@ public:
 
   void removeNode(LayoutTypeSystemNode *N);
 
+  void moveEdges(LayoutTypeSystemNode *OldSrc,
+                 LayoutTypeSystemNode *NewSrc,
+                 LayoutTypeSystemNode *Tgt,
+                 int64_t OffsetToSum);
+
 private:
   // A reference to the associated Module
   llvm::Module &M;

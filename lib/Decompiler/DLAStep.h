@@ -237,7 +237,7 @@ public:
 
   virtual ~ComputeNonInterferingComponents() override = default;
 
-  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override { return true; }
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
 /// Final dla::Step, which flattens out the types into memory layouts
