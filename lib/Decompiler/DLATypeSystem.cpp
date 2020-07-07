@@ -108,7 +108,21 @@ void LayoutTypeSystem::dumpDotOnFile(const char *FName) const {
   for (const LayoutTypeSystemNode *L : getLayoutsRange()) {
 
     DotFile << "  node_" << L->ID << " [shape=rect,label=\"NODE ID: " << L->ID
-            << " Size: " << L->L.Size << ' ';
+            << " Size: " << L->L.Size << " InterferingChild: ";
+
+    switch (L->InterferingInfo) {
+    case Unknown:
+      DotFile << 'U';
+      break;
+    case AllChildrenAreInterfering:
+      DotFile << 'A';
+      break;
+    case AllChildrenAreNonInterfering:
+      DotFile << 'N';
+      break;
+    default:
+      revng_unreachable();
+    }
 
     const auto LayoutToTypePtrsIt = LayoutToTypePtrsMap.find(L);
     if (LayoutToTypePtrsIt != LayoutToTypePtrsMap.end()) {
@@ -440,6 +454,7 @@ LayoutTypeSystem::mergeNodes(LayoutTypeSystemNode *From,
   }
 
   fixPredSucc(From, Into);
+  Into->InterferingInfo = Unknown;
 
   // Clear stuff in LayoutTypeToPtrsMap, because now From must be removed.
   LayoutToTypePtrsMap.erase(ToMergeLayoutToTypePtrsIt);

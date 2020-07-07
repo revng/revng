@@ -158,6 +158,12 @@ struct LayoutType {
 
 class LayoutTypeSystem;
 
+enum InterferingChildrenInfo {
+  Unknown = 0,
+  AllChildrenAreInterfering,
+  AllChildrenAreNonInterfering,
+};
+
 struct LayoutTypeSystemNode {
   const uint64_t ID = 0ULL;
   using Link = std::pair<LayoutTypeSystemNode *, const TypeLinkTag *>;
@@ -165,6 +171,7 @@ struct LayoutTypeSystemNode {
   NeighborsSet Successors{};
   NeighborsSet Predecessors{};
   LayoutType L{};
+  InterferingChildrenInfo InterferingInfo{ Unknown };
   LayoutTypeSystemNode(uint64_t I) : ID(I) {}
 
 public:
