@@ -529,9 +529,7 @@ using LTSN = LayoutTypeSystemNode;
 static Layout *makeInstanceChildLayout(Layout *ChildType,
                                        const OffsetExpression &OE,
                                        LayoutSet &Layouts) {
-  // We ignore all the layouts at negative offsets for now.
-  if (OE.Offset < 0LL)
-    return nullptr;
+  revng_assert(OE.Offset >= 0LL);
 
   // If we have trip counts we have an array of children of type ChildType,
   // otherwise ChildType already points to the right child type.
@@ -540,10 +538,7 @@ static Layout *makeInstanceChildLayout(Layout *ChildType,
     Layout *Inner = ChildType;
     for (const auto &[TC, S] : llvm::zip(OE.TripCounts, OE.Strides)) {
 
-      // Don't handle non-positive strides for now.
-      if (S <= 0LL)
-        return nullptr;
-
+      revng_assert(S > 0LL);
       Layout::layout_size_t StrideSize = (Layout::layout_size_t)(S);
 
       // For now, we don't handle stuff that for which the size of the element
@@ -688,7 +683,7 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 
     std::sort(Children.begin(), Children.end());
 
-    if (true or VerifyLog.isEnabled()) {
+    if (VerifyLog.isEnabled()) {
       auto It = Children.begin();
       for (; It != Children.end() and std::next(It) != Children.end(); ++It) {
         int64_t ThisEndByte = It->Offset + static_cast<int64_t>(It->Size);
@@ -754,16 +749,13 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
     for (auto &[Child, EdgeTag] : children_edges<const LTSN *>(N)) {
 
       revng_log(Log, "Child ID: " << Child->ID);
-      // Ignore children with size == 0
-      if (not Child->L.Size)
-        continue;
+      revng_assert(Child->L.Size);
 
       // Ignore children for which we haven't created a layout, because they
       // only have children from which it was not possible to create valid
       // layouts.
       auto ChildLayoutIt = LayoutCTypes.find(Child);
-      if (ChildLayoutIt == LayoutCTypes.end())
-        continue;
+      revng_assert(ChildLayoutIt != LayoutCTypes.end());
 
       Layout *ChildType = ChildLayoutIt->second;
 

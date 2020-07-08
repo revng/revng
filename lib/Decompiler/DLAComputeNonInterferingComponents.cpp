@@ -38,21 +38,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
 
     for (LTSN *N : llvm::post_order_ext(Root, Visited)) {
       revng_assert(not isLeaf(N) or hasValidLayout(N));
-      if (not N->L.Size) {
-        N->InterferingInfo = AllChildrenAreInterfering;
-        continue;
-      }
-
-      auto ChildEdgeRange = llvm::children_edges<LTSN *>(N);
-      // If there are no children, there's nothing to do. There might be some
-      // accesses performed directly from N, but they always interfere with each
-      // other (because they start at the same base address), so they always
-      // constitute a single non-interfering component and we can leave them
-      // alone.
-      if (ChildEdgeRange.empty()) {
-        N->InterferingInfo = AllChildrenAreInterfering;
-        continue;
-      }
+      revng_assert(N->L.Size);
 
       struct OrderedChild {
         int64_t Offset;
@@ -69,7 +55,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
       // later sort the vector according to it.
       ChildrenVec Children;
       bool InheritsFromOther = false;
-      for (auto &[Child, EdgeTag] : ChildEdgeRange) {
+      for (auto &[Child, EdgeTag] : llvm::children_edges<LTSN *>(N)) {
 
         auto OrdChild = OrderedChild{
           /* .Offset */ 0LL,
@@ -81,24 +67,15 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
 
         case TypeLinkTag::LK_Instance: {
           const OffsetExpression &OE = EdgeTag->getOffsetExpr();
+          revng_assert(OE.Offset >= 0LL);
           revng_assert(OE.Strides.size() == OE.TripCounts.size());
 
-          // Ignore stuff at negative offsets.
-          if (OE.Offset < 0LL)
-            continue;
-
           OrdChild.Offset = OE.Offset;
+
           for (const auto &[TripCount, Stride] :
                llvm::reverse(llvm::zip(OE.TripCounts, OE.Strides))) {
 
-            // Strides should be positive. If they are not, we don't know
-            // anything about how the children is layed out, so we assume the
-            // children doesn't even exist.
-            if (Stride <= 0LL) {
-              OrdChild.Size = 0ULL;
-              break;
-            }
-
+            revng_assert(Stride > 0LL);
             auto StrideSize = static_cast<uint64_t>(Stride);
 
             // If we have a TripCount, we expect it to be strictly positive.
@@ -128,12 +105,15 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
           revng_unreachable("unexpected edge tag");
         }
 
-        if (OrdChild.Offset >= 0LL and OrdChild.Size > 0ULL)
-          Children.push_back(std::move(OrdChild));
+        revng_assert(OrdChild.Offset >= 0LL and OrdChild.Size > 0ULL);
+        Children.push_back(std::move(OrdChild));
       }
 
-      // Without children we're done, because even if we have accesses they are
-      // a non-interfering component all together.
+      // If there are no children, there's nothing to do. There might be some
+      // accesses performed directly from N, but they always interfere with each
+      // other (because they start at the same base address), so they always
+      // constitute a single non-interfering component and we can leave them
+      // alone.
       if (Children.empty()) {
         N->InterferingInfo = AllChildrenAreInterfering;
         continue;

@@ -56,9 +56,7 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
       for (auto &[Child, EdgeTag] : children_edges<const LTSN *>(N)) {
 
         auto ChildSize = Child->L.Size;
-
-        if (ChildSize <= 0LL)
-          continue;
+        revng_assert(ChildSize > 0LL);
 
         switch (EdgeTag->getKind()) {
 
@@ -75,22 +73,14 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
           revng_assert(OE.Strides.size() == OE.TripCounts.size());
 
           // Ignore stuff at negative offsets.
-          if (OE.Offset < 0LL)
-            continue;
+          revng_assert(OE.Offset >= 0LL);
 
           // If we have an array, we have to compute its size, taking into
           // account the strides and the trip counts.
           for (const auto &[TripCount, Stride] :
                llvm::reverse(llvm::zip(OE.TripCounts, OE.Strides))) {
 
-            // Strides should be positive. If they are not, we don't know
-            // anything about how the children is layed out, so we assume the
-            // children doesn't even exist.
-            if (Stride <= 0LL) {
-              ChildSize = 0ULL;
-              break;
-            }
-
+            revng_assert(Stride > 0LL);
             auto StrideSize = static_cast<uint64_t>(Stride);
 
             // If we have a TripCount, we expect it to be strictly positive.
@@ -110,8 +100,7 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
             ChildSize = ((NumElems - 1) * StrideSize) + ChildSize;
           }
 
-          if (not ChildSize)
-            break;
+          revng_assert(ChildSize);
 
           int64_t ChildOffset = std::max<int64_t>(OE.Offset, 0LL);
           uint64_t ChildUpperOffset = ChildOffset + ChildSize;

@@ -352,7 +352,13 @@ protected:
     while (isa<SCEVAddRecExpr>(OffsetSCEV)) {
       const auto *Rec = cast<SCEVAddRecExpr>(OffsetSCEV);
       const SCEV *StrideExpr = Rec->getStepRecurrence(*SE);
-      OE.Strides.push_back(getSCEVConstantSExtVal(StrideExpr));
+      auto StrideValue = getSCEVConstantSExtVal(StrideExpr);
+
+      // Don't add links for recurring expressions with non-positive strides.
+      if (StrideValue <= 0LL)
+        return Created;
+
+      OE.Strides.push_back(StrideValue);
       const Loop *L = Rec->getLoop();
       revng_assert(L != nullptr);
       std::optional<int64_t> TripCount;
@@ -388,6 +394,11 @@ protected:
         // results, but not enough to reliably infer the trip count.
         // Just set it as missing and keep going.
       }
+
+      // Don't add links for recurring expressions with negative trip counts.
+      if (TripCount.has_value() and TripCount.value() < 0LL)
+        return Created;
+
       OE.TripCounts.push_back(std::move(TripCount));
       OffsetSCEV = Rec->getStart();
     }
@@ -396,7 +407,11 @@ protected:
     if (not isa<SCEVConstant>(OffsetSCEV))
       return Created;
 
+    // Don't add links for instances at negative offsets.
     OE.Offset = getSCEVConstantSExtVal(OffsetSCEV);
+    if (OE.Offset < 0LL)
+      return Created;
+
     Created |= TS.addInstanceLink(Src, Tgt, std::move(OE)).second;
     return Created;
   }
