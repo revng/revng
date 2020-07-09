@@ -503,8 +503,7 @@ inline bool isGreater(unsigned Op1, unsigned Op2) {
 template<class NodeT>
 inline BasicBlockNode<NodeT> *
 RegionCFG<NodeT>::cloneUntilExit(BasicBlockNode<NodeT> *Node,
-                                 BasicBlockNode<NodeT> *Sink,
-                                 bool AvoidSinking) {
+                                 BasicBlockNode<NodeT> *Sink) {
 
   // Clone the postdominator node.
   BBNodeMap CloneMap;
@@ -535,14 +534,10 @@ RegionCFG<NodeT>::cloneUntilExit(BasicBlockNode<NodeT> *Node,
     // Get the clone of the `CurrentNode`.
     BasicBlockNode<NodeT> *CurrentClone = CloneMap.at(CurrentNode);
 
-    bool ConnectSink = false;
     for (BasicBlockNode<NodeT> *Successor : CurrentNode->successors()) {
-
-      // If our successor is the sink, create and edge that directly connects
-      // it.
-      if (Successor == Sink) {
-        ConnectSink = true;
-      } else {
+      // If the successor is not the sink, create and edge that directly
+      // connects it.
+      if (Successor != Sink) {
         BasicBlockNode<NodeT> *SuccessorClone = nullptr;
 
         // The clone of the successor node already exists.
@@ -563,10 +558,6 @@ RegionCFG<NodeT>::cloneUntilExit(BasicBlockNode<NodeT> *Node,
         WorkList.push_back(Successor);
       }
     }
-
-    if (ConnectSink and not AvoidSinking) {
-      addEdge(EdgeDescriptor(CurrentClone, Sink));
-    }
   }
 
   return Clone;
@@ -574,28 +565,21 @@ RegionCFG<NodeT>::cloneUntilExit(BasicBlockNode<NodeT> *Node,
 
 template<class NodeT>
 inline void RegionCFG<NodeT>::untangle() {
+  // TODO: Here we handle only conditional nodes with two successors. We should
+  //       consider extending the untangle procedure also to conditional nodes
+  //       with more than two successors (switch nodes).
 
   revng_assert(isDAG());
 
   RegionCFG<NodeT> &Graph = *this;
 
-  DT.recalculate(Graph);
-  PDT.recalculate(Graph);
-
   // Collect all the conditional nodes in the graph.
-  //
-  // TODO: Here we handle only conditional nodes with two successors. We should
-  //       consider extending the untangle procedure also to conditional nodes
-  //       with more than two successors (switch nodes).
   BasicBlockNodeTVect ConditionalNodes;
   for (auto It = Graph.begin(); It != Graph.end(); It++) {
     if ((*It)->successor_size() == 2) {
       ConditionalNodes.push_back(*It);
     }
   }
-
-  // Map to retrieve the post dominator for each conditional node.
-  BBNodeMap PostDominatorMap;
 
   // Collect entry and exit nodes.
   BasicBlockNodeTVect ExitNodes;
@@ -615,19 +599,6 @@ inline void RegionCFG<NodeT>::untangle() {
     Graph.dumpDotOnFile("untangle",
                         FunctionName,
                         "Region-" + RegionName + "-initial-state");
-  }
-
-  DT.recalculate(Graph);
-  PDT.recalculate(Graph);
-
-  // Postdominator computation by disconnecting all the exit which are due
-  // to inlining.
-
-  // Compute the immediate post-dominator for each conditional node.
-  for (BasicBlockNode<NodeT> *Conditional : ConditionalNodes) {
-    BasicBlockNode<NodeT> *PostDom = PDT[Conditional]->getIDom()->getBlock();
-    revng_assert(PostDom != nullptr);
-    PostDominatorMap[Conditional] = PostDom;
   }
 
   // Map which contains the precomputed wheight for each node in the graph. In
@@ -656,37 +627,14 @@ inline void RegionCFG<NodeT>::untangle() {
     // Update the information of the dominator and postdominator trees.
     DT.recalculate(Graph);
 
-    // Compute the reverse postorder traversal on the inverse graph (starting
-    // from the sink node).
-    std::set<EdgeDescriptor> BlackListedEdges;
-    std::set<BasicBlockNodeT *> ReachableNodes;
-    std::map<BasicBlockNodeT *, BasicBlockNodeT *> CheckSuccMap;
-    for (BasicBlockNode<NodeT> *Node : llvm::inverse_depth_first(Sink)) {
-      ReachableNodes.insert(Node);
-    }
-
-    for (BasicBlockNodeT *Node : ReachableNodes) {
-      for (BasicBlockNodeT *Successor : Node->successors()) {
-        if (ReachableNodes.count(Successor) == 0) {
-          BlackListedEdges.insert(EdgeDescriptor(Node, Successor));
-        }
-      }
-    }
-
-    for (EdgeDescriptor Edge : BlackListedEdges) {
-
-      // For the check nodes keep a data structure with the nodes to which we
-      // have to reattach the edges. This ad-hoc handling is caused by the
-      // check nodes design.
+    for (EdgeDescriptor Edge : InlinedEdges)
       removeEdge(Edge);
-    }
 
     PDT.recalculate(Graph);
 
     // Reattach the edges disconnected for the PDT computation.
-    for (EdgeDescriptor Edge : BlackListedEdges) {
+    for (EdgeDescriptor Edge : InlinedEdges)
       addEdge(Edge);
-    }
 
     // Update the postdominator
     BasicBlockNodeT *PostDominator = PDT[Conditional]->getIDom()->getBlock();
@@ -796,9 +744,7 @@ inline void RegionCFG<NodeT>::untangle() {
       // Perform the split from the first node of the then/else branches.
       // We fully inline all the nodes belonging to the branch we are untangling
       // till the exit node.
-      BasicBlockNode<NodeT> *NewElseChild = cloneUntilExit(ElseChild,
-                                                           Sink,
-                                                           true);
+      BasicBlockNode<NodeT> *NewElseChild = cloneUntilExit(ElseChild, Sink);
 
       // Move the edge coming out of the conditional node to the new clone of
       // the node.
@@ -828,9 +774,7 @@ inline void RegionCFG<NodeT>::untangle() {
       // Perform the split from the first node of the then/else branches.
       // We fully inline all the nodes belonging to the branch we are untangling
       // till the exit node.
-      BasicBlockNode<NodeT> *NewThenChild = cloneUntilExit(ThenChild,
-                                                           Sink,
-                                                           true);
+      BasicBlockNode<NodeT> *NewThenChild = cloneUntilExit(ThenChild, Sink);
 
       // Move the edge coming out of the conditional node to the new clone of
       // the node.
