@@ -1164,9 +1164,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Check that the root region is acyclic at this point.
   revng_assert(RootCFG.isDAG());
 
-  // Invoke the untangle procedure on the root region.
-  RootCFG.untangle();
-
   // Compute the initial weight of the CFG.
   unsigned InitialWeight = 0;
   for (BasicBlockNodeBB *BBNode : RootCFG.nodes()) {
