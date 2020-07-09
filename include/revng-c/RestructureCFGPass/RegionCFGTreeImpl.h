@@ -661,19 +661,58 @@ inline void RegionCFG<NodeT>::untangle() {
     ThenNodes.erase(PostDominator);
     ElseNodes.erase(PostDominator);
 
+    const auto EdgeDominates = [DT = &DT](const EdgeDescriptor &E,
+                                          BasicBlockNodeT *N) {
+      const auto &[Src, Dst] = E;
+
+      if (not DT->dominates(Dst, N))
+        return false;
+
+      if (Dst->predecessor_size() < 2)
+        return true;
+
+      bool DuplicateEdge = false;
+      for (BasicBlockNodeT *Pred : Dst->predecessors()) {
+        if (Pred == Src) {
+          if (DuplicateEdge)
+            return false;
+          DuplicateEdge = true;
+          continue;
+        }
+
+        if (not DT->dominates(Dst, Pred))
+          return false;
+      }
+      return true;
+    };
+
     // New implementation of the dominance criterion which uses the then and
-    // else edges to compute thedominance.
-    BasicBlockNodeTVect NotDominatedThenNodes;
-    for (BasicBlockNode<NodeT> *Node : ThenNodes) {
-      if (!DT.dominates(ThenChild, Node)) {
-        NotDominatedThenNodes.push_back(Node);
+    // else edges to compute the dominance.
+    if (EdgeDominates({ Conditional, ElseChild }, ElseChild)) {
+      const auto DominatedByElse = [DT = &DT, ElseChild](auto *Node) {
+        return DT->dominates(ElseChild, Node);
+      };
+      // TODO: substitute the following loop with std::set::erase_if when it
+      // becomes available.
+      for (auto I = ElseNodes.begin(), E = ElseNodes.end(); I != E;) {
+        if (DominatedByElse(*I))
+          I = ElseNodes.erase(I);
+        else
+          ++I;
       }
     }
 
-    BasicBlockNodeTVect NotDominatedElseNodes;
-    for (BasicBlockNode<NodeT> *Node : ElseNodes) {
-      if (!DT.dominates(ElseChild, Node)) {
-        NotDominatedElseNodes.push_back(Node);
+    if (EdgeDominates({ Conditional, ThenChild }, ThenChild)) {
+      const auto DominatedByThen = [DT = &DT, ThenChild](auto *Node) {
+        return DT->dominates(ThenChild, Node);
+      };
+      // TODO: substitute the following loop with std::set::erase_if when it
+      // becomes available.
+      for (auto I = ThenNodes.begin(), E = ThenNodes.end(); I != E;) {
+        if (DominatedByThen(*I))
+          I = ThenNodes.erase(I);
+        else
+          ++I;
       }
     }
 
@@ -681,11 +720,11 @@ inline void RegionCFG<NodeT>::untangle() {
     unsigned ThenWeight = 0;
     unsigned ElseWeight = 0;
 
-    for (BasicBlockNode<NodeT> *Node : NotDominatedThenNodes) {
+    for (BasicBlockNode<NodeT> *Node : ThenNodes) {
       ThenWeight += WeightMap[Node];
     }
 
-    for (BasicBlockNode<NodeT> *Node : NotDominatedElseNodes) {
+    for (BasicBlockNode<NodeT> *Node : ElseNodes) {
       ElseWeight += WeightMap[Node];
     }
 
@@ -720,19 +759,20 @@ inline void RegionCFG<NodeT>::untangle() {
     //
     // We can also define in a dynamic way the >> operator, so we can change the
     // threshold that triggers the split.
-    unsigned OneWeight = ThenWeight + ElseWeight;
-    unsigned TwoWeight = ThenWeight + PostDominatorWeight;
-    unsigned ThreeWeight = ElseWeight + PostDominatorWeight;
 
-    if (isGreater(TwoWeight, ThreeWeight)
-        and isGreater(OneWeight, ThreeWeight)) {
+    unsigned CombingCost = ThenWeight + ElseWeight;
+    unsigned UntangleThenCost = ThenWeight + PostDominatorWeight;
+    unsigned UntangleElseCost = ElseWeight + PostDominatorWeight;
+    unsigned UntanglingCost = std::min(UntangleThenCost, UntangleElseCost);
+
+    if (isGreater(CombingCost, UntanglingCost)) {
       revng_log(CombLogger, FunctionName << ":");
       revng_log(CombLogger, RegionName << ":");
       revng_log(CombLogger,
-                "Found untangle candidate then " << Conditional->getNameStr());
-      revng_log(CombLogger, "Weight 1:" << OneWeight);
-      revng_log(CombLogger, "Weight 2:" << TwoWeight);
-      revng_log(CombLogger, "Weight 3:" << ThreeWeight);
+                "Found untangle candidate " << Conditional->getNameStr());
+      revng_log(CombLogger, "CombingCost:" << CombingCost);
+      revng_log(CombLogger, "UntangleThenCost:" << UntangleThenCost);
+      revng_log(CombLogger, "UntangleElseCost:" << UntangleElseCost);
 
       // Register a tentative untangle in the dedicated counter.
       UntangleTentativeCounter++;
@@ -741,48 +781,20 @@ inline void RegionCFG<NodeT>::untangle() {
       UntanglePerformedCounter++;
       revng_log(CombLogger, "Actually splitting node");
 
+      auto *ToUntangle = (UntangleThenCost > UntangleElseCost) ? ElseChild :
+                                                                 ThenChild;
       // Perform the split from the first node of the then/else branches.
       // We fully inline all the nodes belonging to the branch we are untangling
       // till the exit node.
-      BasicBlockNode<NodeT> *NewElseChild = cloneUntilExit(ElseChild, Sink);
+      BasicBlockNode<NodeT> *UntangledChild = cloneUntilExit(ToUntangle, Sink);
 
       // Move the edge coming out of the conditional node to the new clone of
       // the node.
-      moveEdgeTarget(EdgeDescriptor(Conditional, ElseChild), NewElseChild);
+      moveEdgeTarget(EdgeDescriptor(Conditional, ToUntangle), UntangledChild);
       removeNotReachables();
 
       // Save the information about the inlining edge.
-      InlinedEdges.insert(EdgeDescriptor(Conditional, NewElseChild));
-    }
-
-    if (isGreater(ThreeWeight, TwoWeight) and isGreater(OneWeight, TwoWeight)) {
-      revng_log(CombLogger, FunctionName << ":");
-      revng_log(CombLogger, RegionName << ":");
-      revng_log(CombLogger,
-                "Found untangle candidate else " << Conditional->getNameStr());
-      revng_log(CombLogger, "Weight 1:" << OneWeight);
-      revng_log(CombLogger, "Weight 2:" << TwoWeight);
-      revng_log(CombLogger, "Weight 3:" << ThreeWeight);
-
-      // Register a tentative untangle in the dedicated counter.
-      UntangleTentativeCounter++;
-
-      // Register an actual untangle in the dedicated counter.
-      UntanglePerformedCounter++;
-      revng_log(CombLogger, "Actually splitting node");
-
-      // Perform the split from the first node of the then/else branches.
-      // We fully inline all the nodes belonging to the branch we are untangling
-      // till the exit node.
-      BasicBlockNode<NodeT> *NewThenChild = cloneUntilExit(ThenChild, Sink);
-
-      // Move the edge coming out of the conditional node to the new clone of
-      // the node.
-      moveEdgeTarget(EdgeDescriptor(Conditional, ThenChild), NewThenChild);
-      removeNotReachables();
-
-      // Save the information about the inlining edge.
-      InlinedEdges.insert(EdgeDescriptor(Conditional, NewThenChild));
+      InlinedEdges.insert(EdgeDescriptor(Conditional, UntangledChild));
     }
   }
 
