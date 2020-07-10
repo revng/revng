@@ -1406,9 +1406,6 @@ inline void RegionCFG<NodeT>::generateAst() {
 
       // Build the case vector depending on the fact that we are building a
       // regular or dispatcher switch.
-      llvm::BasicBlock *EntryBB = Graph.EntryNode->getOriginalNode();
-      llvm::LLVMContext &Context = getContext(EntryBB);
-      llvm::IRBuilder<> Builder(Context);
       RegularSwitchNode::case_value_container CaseValuesRegular;
       SwitchDispatcherNode::case_value_container CaseValuesCheck;
       ASTNode *DefaultASTNode = nullptr;
