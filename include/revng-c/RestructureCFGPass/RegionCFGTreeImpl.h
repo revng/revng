@@ -85,9 +85,11 @@ inline ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
 // Helper function that simplifies useless dummy nodes
 inline void simplifyDummies(ASTNode *RootNode) {
 
-  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
-    std::vector<ASTNode *> UselessDummies;
+  switch (RootNode->getKind()) {
 
+  case ASTNode::NK_List: {
+    auto *Sequence = llvm::cast<SequenceNode>(RootNode);
+    std::vector<ASTNode *> UselessDummies;
     for (ASTNode *Node : Sequence->nodes()) {
       if (Node->isEmpty()) {
         UselessDummies.push_back(Node);
@@ -95,49 +97,126 @@ inline void simplifyDummies(ASTNode *RootNode) {
         simplifyDummies(Node);
       }
     }
-
     for (ASTNode *Node : UselessDummies) {
       Sequence->removeNode(Node);
     }
+  } break;
 
-  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
+  case ASTNode::NK_If: {
+    auto *If = llvm::cast<IfNode>(RootNode);
     if (If->hasThen()) {
       simplifyDummies(If->getThen());
     }
     if (If->hasElse()) {
       simplifyDummies(If->getElse());
     }
+  } break;
+
+  case ASTNode::NK_SwitchRegular:
+  case ASTNode::NK_SwitchDispatcher: {
+
+    auto *Switch = llvm::cast<SwitchNode>(RootNode);
+
+    for (ASTNode *CaseNode : Switch->unordered_cases())
+      simplifyDummies(CaseNode);
+
+    if (auto *Default = Switch->getDefault())
+      simplifyDummies(Default);
+
+  } break;
+
+  case ASTNode::NK_Scs:
+  case ASTNode::NK_Code:
+  case ASTNode::NK_Continue:
+  case ASTNode::NK_Break:
+  case ASTNode::NK_SwitchBreak:
+  case ASTNode::NK_Set:
+    // Do nothing
+    break;
+
+  default:
+    revng_unreachable();
   }
 }
 
 // Helper function which simplifies sequence nodes composed by a single AST
 // node.
 inline ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
-  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
-    if (Sequence->listSize() == 0) {
+  switch (RootNode->getKind()) {
+
+  case ASTNode::NK_List: {
+    auto *Sequence = llvm::cast<SequenceNode>(RootNode);
+    switch (Sequence->listSize()) {
+
+    case 0:
       RootNode = nullptr;
-    } else if (Sequence->listSize() == 1) {
-      RootNode = Sequence->getNodeN(0);
-      RootNode = simplifyAtomicSequence(RootNode);
-    } else {
-      for (ASTNode *Node : Sequence->nodes()) {
+      break;
+
+    case 1:
+      RootNode = simplifyAtomicSequence(Sequence->getNodeN(0));
+      break;
+
+    default:
+      bool Empty = true;
+      for (ASTNode *&Node : Sequence->nodes()) {
         Node = simplifyAtomicSequence(Node);
+        if (nullptr != Node)
+          Empty = false;
       }
+      revng_assert(not Empty);
     }
-  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
-    if (If->hasThen()) {
+  } break;
+
+  case ASTNode::NK_If: {
+    auto *If = llvm::cast<IfNode>(RootNode);
+
+    if (If->hasThen())
       If->setThen(simplifyAtomicSequence(If->getThen()));
-    }
-    if (If->hasElse()) {
+
+    if (If->hasElse())
       If->setElse(simplifyAtomicSequence(If->getElse()));
+
+  } break;
+
+  case ASTNode::NK_SwitchRegular:
+  case ASTNode::NK_SwitchDispatcher: {
+
+    auto *Switch = llvm::cast<SwitchNode>(RootNode);
+
+    // unsigned I = 0;
+    for (ASTNode *&CaseNode : Switch->unordered_cases()) {
+      auto *NewCaseNode = simplifyAtomicSequence(CaseNode);
+      revng_assert(NewCaseNode);
+      CaseNode = NewCaseNode;
     }
-  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
+
+    if (ASTNode *Default = Switch->getDefault()) {
+      auto *NewDefault = simplifyAtomicSequence(Default);
+      if (NewDefault != Default)
+        Switch->replaceDefault(NewDefault);
+    }
+
+  } break;
+
+  case ASTNode::NK_Scs: {
     // TODO: check if this is not needed as the simplification is done for each
     //       SCS region.
     // After flattening this situation may arise again.
-    if (Scs->hasBody()) {
+    auto *Scs = llvm::cast<ScsNode>(RootNode);
+    if (Scs->hasBody())
       Scs->setBody(simplifyAtomicSequence(Scs->getBody()));
-    }
+  } break;
+
+  case ASTNode::NK_Code:
+  case ASTNode::NK_Continue:
+  case ASTNode::NK_Break:
+  case ASTNode::NK_SwitchBreak:
+  case ASTNode::NK_Set:
+    // Do nothing
+    break;
+
+  default:
+    revng_unreachable();
   }
 
   return RootNode;
