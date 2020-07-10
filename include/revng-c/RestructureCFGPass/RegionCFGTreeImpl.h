@@ -1758,7 +1758,7 @@ inline void RegionCFG<NodeT>::weave() {
   for (BBNodeT *POTBB : post_order(Entry)) {
 
     // If we find a switch node we can start the weaving analysis.
-    if (POTBB->successor_size() > 3) {
+    if (POTBB->successor_size() > 2) {
       BBNodeT *Switch = POTBB;
       if (CombLogger.isEnabled()) {
         CombLogger << "Looking at switch node: " << Switch->getName() << "\n";
