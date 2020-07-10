@@ -1762,6 +1762,9 @@ inline void RegionCFG<NodeT>::weave() {
       BBNodeT *Switch = POTBB;
       if (CombLogger.isEnabled()) {
         CombLogger << "Looking at switch node: " << Switch->getName() << "\n";
+        dumpDotOnFile("weaves",
+                      FunctionName,
+                      "Weaving-region-" + RegionName + "-debug");
       }
 
       // Collect the case nodes of the switch.
@@ -1785,8 +1788,11 @@ inline void RegionCFG<NodeT>::weave() {
       }
 
       for (BBNodeT *RPOTBB : RPOT) {
+        // Skip the switch and its post-dominator
+        if (RPOTBB == Switch or RPOTBB == PostDom)
+          continue;
 
-        // Do not attempt combing for case nodes.
+        // Do not attempt weaving for case nodes.
         if (CaseSet.count(RPOTBB) != 0)
           continue;
 
@@ -1794,27 +1800,20 @@ inline void RegionCFG<NodeT>::weave() {
           CombLogger << RPOTBB->getName() << "\n";
         }
 
-        // Collect interesting metrics for deciding on the weaving.
-        unsigned NotDominatedCasesNumber = 0;
-        unsigned DominatedCasesNumber = 0;
-        unsigned TotalCases = CaseSet.size();
-        BasicBlockNodeTVect NotDominatedCases;
-        BasicBlockNodeTVect DominatedCases;
-        for (BBNodeT *Case : CaseSet) {
-          if (not PDT.dominates(RPOTBB, Case)) {
-            NotDominatedCasesNumber++;
-            NotDominatedCases.push_back(Case);
-          } else {
-            DominatedCasesNumber++;
-            DominatedCases.push_back(Case);
-          }
-        }
+        BasicBlockNodeTVect PostDominatedCases;
+        for (BBNodeT *Case : CaseSet)
+          if (PDT.dominates(RPOTBB, Case))
+            PostDominatedCases.push_back(Case);
 
         // Criterion to check if we need to perform the weaving. Specifically,
         // we need to perform a weaving if we find a node (between the switch
-        // and its postdominator) that postdominates more than 1 of the cases,
-        // but not all of them, we can introduce a weaving switch.
-        if (DominatedCasesNumber > 1 and NotDominatedCasesNumber < TotalCases) {
+        // and its postdominator) that postdominates more than 1 of the cases.
+        // Note: it cannot postdominate not all of them, otherwise it would be
+        // the immediate postdominator of the switch, that we have explicitly
+        // excluded.
+        auto NumPostDominatedCases = PostDominatedCases.size();
+        revng_assert(NumPostDominatedCases != CaseSet.size());
+        if (NumPostDominatedCases > 1U) {
 
           // Create the new sub-switch node.
           BasicBlockNodeT *NewSwitch = addWeavingSwitch();
@@ -1826,19 +1825,22 @@ inline void RegionCFG<NodeT>::weave() {
           DT.insertEdge(Switch, NewSwitch);
           PDT.insertEdge(Switch, NewSwitch);
 
-          // Iterate over all the case nodes that we found.
-          for (BasicBlockNodeT *Case : DominatedCases) {
+          // Iterate over all the case nodes that we found, moving all the
+          // necessary edges and update of DT and PDT.
+          for (BasicBlockNodeT *Case : PostDominatedCases) {
 
-            // Move all the necessary edges.
             removeEdge(EdgeDescriptor(Switch, Case));
-            addEdge(EdgeDescriptor(NewSwitch, Case));
-
-            // Incremental update of DT and PDT.
             DT.deleteEdge(Switch, Case);
-            DT.insertEdge(NewSwitch, Case);
             PDT.deleteEdge(Switch, Case);
+
+            addEdge(EdgeDescriptor(NewSwitch, Case));
+            DT.insertEdge(NewSwitch, Case);
             PDT.insertEdge(NewSwitch, Case);
           }
+
+          for (BBNodeT *N : PostDominatedCases)
+            CaseSet.erase(N);
+          CaseSet.insert(NewSwitch);
         }
       }
     }
