@@ -791,10 +791,35 @@ inline void RegionCFG<NodeT>::untangle() {
       // Move the edge coming out of the conditional node to the new clone of
       // the node.
       moveEdgeTarget(EdgeDescriptor(Conditional, ToUntangle), UntangledChild);
-      removeNotReachables();
 
-      // Save the information about the inlining edge.
+      // Updated the information about the inlining edge.
+      InlinedEdges.erase(EdgeDescriptor(Conditional, ToUntangle));
       InlinedEdges.insert(EdgeDescriptor(Conditional, UntangledChild));
+
+      // Remove nodes that have no predecessors (nodes that are the result of
+      // node cloning and that remains dandling around).
+      // While doing this, update InlineEdges.
+      bool Removed = true;
+      while (Removed) {
+        Removed = false;
+        BasicBlockNode<NodeT> *Entry = &getEntryNode();
+        for (auto It = begin(); It != end(); ++It) {
+          if ((Entry != *It and (*It)->predecessor_size() == 0)) {
+            // TODO: substitute the following loop with std::set::erase_if when
+            // it becomes available.
+            for (auto I = InlinedEdges.begin(), E = InlinedEdges.end();
+                 I != E;) {
+              if (I->first == *It or I->second == *It)
+                I = InlinedEdges.erase(I);
+              else
+                ++I;
+            }
+            removeNode(*It);
+            Removed = true;
+            break;
+          }
+        }
+      }
     }
   }
 
