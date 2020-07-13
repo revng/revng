@@ -183,13 +183,31 @@ inline ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
 
     auto *Switch = llvm::cast<SwitchNode>(RootNode);
 
-    // unsigned I = 0;
-    for (ASTNode *&CaseNode : Switch->unordered_cases()) {
+    // Simplify any possible case node which is constituted only by a sequence
+    // of dummy nodes.
+    for (unsigned I = 0; I < Switch->CaseSize(); I++) {
+      auto *CaseNode = Switch->getCaseN(I);
       auto *NewCaseNode = simplifyAtomicSequence(CaseNode);
-      revng_assert(NewCaseNode);
-      CaseNode = NewCaseNode;
+
+      // If the recursive call of `simplifyAtomicSequence` returned a `nullptr`
+      // (meaning we simplified the body to an empty sequence), remove the case
+      // from the switch.
+      if (NewCaseNode == nullptr) {
+
+        // Invoke the removal case method of the parent `SwitchNode` class. This
+        // method will take care of also invoking the method on the two
+        // subclasses.
+        Switch->removeCaseN(I);
+      } else if (NewCaseNode != CaseNode) {
+        Switch->replaceCaseN(I, NewCaseNode);
+      }
     }
 
+    // In case the recursive call to `simplifyAtomicSequence` gives origin to a
+    // complete simplification of the default node of the switch, setting its
+    // corresponding `ASTNode` to `nullptr` already does the job, since having
+    // the corresponding `Default` field set to `nullptr` means that the switch
+    // node has no default.
     if (ASTNode *Default = Switch->getDefault()) {
       auto *NewDefault = simplifyAtomicSequence(Default);
       if (NewDefault != Default)

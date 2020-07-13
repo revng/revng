@@ -389,3 +389,25 @@ void ASTNode::deleteASTNode(ASTNode *A) {
     break;
   }
 }
+
+void SwitchNode::removeCaseN(case_container::size_type N) {
+  revng_assert(N < CaseSize());
+  CaseVec.erase(CaseVec.begin() + N);
+
+  // Remove also the counterpart of the N-th case node even in the
+  // `CaseValueVec` field of the subclass.
+  switch(this->getKind()) {
+  case NodeKind::NK_SwitchRegular: {
+    RegularSwitchNode *SwitchR = static_cast<RegularSwitchNode *>(this);
+    auto &CaseValueVec = SwitchR->CaseValueVec;
+    CaseValueVec.erase(CaseValueVec.begin() + N);
+  } break;
+  case NodeKind::NK_SwitchDispatcher: {
+    SwitchDispatcherNode *SwitchD = static_cast<SwitchDispatcherNode *>(this);
+    auto &CaseValueVec = SwitchD->CaseValueVec;
+    CaseValueVec.erase(CaseValueVec.begin() + N);
+  } break;
+  default:
+    revng_unreachable();
+  }
+}

@@ -524,6 +524,11 @@ public:
     CaseVec[N] = NewCase;
   }
 
+  // Method to remove a case. This method is mainly ideated in order to use it
+  // during the `simplifyAtomicSequence` to remove the content of a case of a
+  // `SwitchNode`.
+  void removeCaseN(case_container::size_type N);
+
   size_t CaseSize() const { return CaseVec.size(); }
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
@@ -554,6 +559,7 @@ protected:
 
 class RegularSwitchNode : public SwitchNode {
   friend class ASTNode;
+  friend class SwitchNode;
 
 public:
   using case_value = llvm::SmallPtrSet<llvm::ConstantInt *, 1>;
@@ -628,13 +634,22 @@ public:
     return CaseValueVec[N];
   }
 
+  void removeCaseValueN(case_container::size_type N) {
+    revng_assert(N < CaseSize());
+    CaseValueVec.erase(CaseValueVec.begin() + N);
+
+    // Call the method to remove the case in the parent class.
+    removeCaseN(N);
+  }
+
 protected:
   llvm::Value *const Condition;
-  const case_value_container CaseValueVec;
+  case_value_container CaseValueVec;
 };
 
 class SwitchDispatcherNode : public SwitchNode {
   friend class ASTNode;
+  friend class SwitchNode;
 
 public:
   using case_value = uint64_t;
@@ -713,10 +728,18 @@ public:
     return CaseValueVec[N];
   }
 
+  void removeCaseValueN(case_container::size_type N) {
+    revng_assert(N < CaseSize());
+    CaseValueVec.erase(CaseValueVec.begin() + N);
+
+    // Call the method to remove the case in the parent class.
+    removeCaseN(N);
+  }
+
   ASTNode *Clone() { return new SwitchDispatcherNode(*this); }
 
 protected:
-  const case_value_container CaseValueVec;
+  case_value_container CaseValueVec;
 };
 
 inline ASTNode *ASTNode::Clone() {
