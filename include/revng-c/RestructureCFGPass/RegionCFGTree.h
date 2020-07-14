@@ -254,7 +254,9 @@ public:
                      const std::string &FunctionName,
                      const std::string &FileName) const;
 
-  std::vector<BBNodeT *> purgeDummies();
+  bool purgeTrivialDummies();
+
+  bool purgeIfTrivialDummy(BBNodeT *Dummy);
 
   void purgeVirtualSink(BBNodeT *Sink);
 

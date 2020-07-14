@@ -396,7 +396,7 @@ void SwitchNode::removeCaseN(case_container::size_type N) {
 
   // Remove also the counterpart of the N-th case node even in the
   // `CaseValueVec` field of the subclass.
-  switch(this->getKind()) {
+  switch (this->getKind()) {
   case NodeKind::NK_SwitchRegular: {
     RegularSwitchNode *SwitchR = static_cast<RegularSwitchNode *>(this);
     auto &CaseValueVec = SwitchR->CaseValueVec;

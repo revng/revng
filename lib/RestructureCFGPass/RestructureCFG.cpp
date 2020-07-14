@@ -314,10 +314,11 @@ static bool alreadyInMetaregion(MetaRegionBBVect &V, BasicBlockNodeBB *N) {
 }
 
 static MetaRegionBBVect
-createMetaRegions(const std::vector<EdgeDescriptor> &Backedges) {
+createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
   std::map<BasicBlockNodeBB *, std::set<BasicBlockNodeBB *>> AdditionalSCSNodes;
   std::vector<std::pair<BasicBlockNodeBB *, std::set<BasicBlockNodeBB *>>>
     Regions;
+
   for (auto &Backedge : Backedges) {
     auto SCSNodes = findReachableNodes(*Backedge.second, *Backedge.first);
     AdditionalSCSNodes[Backedge.second].insert(SCSNodes.begin(),
@@ -469,14 +470,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
     revng_assert(Backedge.first->isEmpty());
   }
 
-  // Fill a vector with the backedges, to ensure order of inspection.
-  std::vector<EdgeDescriptor> BackedgesVect;
-  for (EdgeDescriptor Backedge : Backedges) {
-    BackedgesVect.push_back(Backedge);
-  }
-
   // Create meta regions
-  MetaRegionBBVect MetaRegions = createMetaRegions(BackedgesVect);
+  MetaRegionBBVect MetaRegions = createMetaRegions(Backedges);
 
   // Temporary map where to store the corrispondence between the backedge and
   // the SCS it gives origin to.
