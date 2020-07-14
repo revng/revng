@@ -244,6 +244,11 @@ public:
   /// \brief Dump a GraphViz file on a file using an absolute path
   void dumpDotOnFile(const std::string &FileName) const;
 
+  /// \brief Dump a GraphViz file on a file using an absolute path
+  void dumpDotOnFile(const char *FName) const {
+    return dumpDotOnFile(std::string(FName));
+  }
+
   /// \brief Dump a GraphViz file on a file representing this function
   void dumpDotOnFile(const std::string &FolderName,
                      const std::string &FunctionName,
