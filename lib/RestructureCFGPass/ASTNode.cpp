@@ -11,6 +11,7 @@
 #include <iostream>
 
 // LLVM includes
+#include <llvm/ADT/STLExtras.h>
 #include <llvm/IR/Constants.h>
 
 // Local libraries includes
@@ -72,36 +73,7 @@ getCaseValueN(const SwitchNodeType *S,
   return cast<SwitchNodeType>(S)->getCaseValueN(N);
 }
 
-bool SwitchNode::hasEqualCaseValues(const SwitchNode *Node) const {
-  if (this->getKind() != Node->getKind())
-    return false;
-  revng_assert(CaseSize() == Node->CaseSize());
-
-  auto *SwitchDispatcherThis = dyn_cast<SwitchDispatcherNode>(this);
-  auto *RegSwitchThis = dyn_cast<RegularSwitchNode>(this);
-  auto *SwitchDispatcherOther = dyn_cast<SwitchDispatcherNode>(Node);
-  auto *RegSwitchOther = dyn_cast<RegularSwitchNode>(Node);
-  for (case_container::size_type I = 0; I < CaseSize(); I++) {
-    if (SwitchDispatcherThis != nullptr) {
-      uint64_t ThisCase = getCaseValueN(SwitchDispatcherThis, I);
-      uint64_t OtherCase = getCaseValueN(SwitchDispatcherOther, I);
-      if (ThisCase != OtherCase)
-        return false;
-    } else {
-      revng_assert(RegSwitchThis != nullptr);
-      SmallPtrSet<ConstantInt *, 1> ThisCaseSet = getCaseValueN(RegSwitchThis,
-                                                                I);
-      SmallPtrSet<ConstantInt *, 1> OtherCaseSet = getCaseValueN(RegSwitchOther,
-                                                                 I);
-      if (ThisCaseSet != OtherCaseSet)
-        return false;
-    }
-  }
-
-  return true;
-}
-
-bool SwitchNode::isEqual(const ASTNode *Node) const {
+bool RegularSwitchNode::nodeIsEqual(const ASTNode *Node) const {
   auto *OtherSwitch = dyn_cast_or_null<RegularSwitchNode>(Node);
   if (OtherSwitch == nullptr)
     return false;
@@ -110,34 +82,64 @@ bool SwitchNode::isEqual(const ASTNode *Node) const {
   ASTNode *ThisDefault = this->getDefault();
   if ((OtherDefault == nullptr) != (ThisDefault == nullptr))
     return false;
+
   if (ThisDefault and not ThisDefault->isEqual(OtherDefault))
     return false;
 
-  case_container::size_type FirstDimension = CaseSize();
-  case_container::size_type SecondDimension = OtherSwitch->CaseSize();
   // Continue the comparison only if the sequence node size are the same
-  if (FirstDimension != SecondDimension)
+  if (CaseSize() != OtherSwitch->CaseSize())
     return false;
 
-  // TODO: here we assume that the cases are in the same order, which has been
-  // true until now but it's not guaranteed. We should enforce that this
-  // equality check is performed on cases with the same values.
-  if (not hasEqualCaseValues(OtherSwitch))
-    return false;
+  for (const auto &PairOfPairs :
+       llvm::zip_first(labeled_cases(), OtherSwitch->labeled_cases())) {
+    const auto &[ThisCase, OtherCase] = PairOfPairs;
+    const auto &[ThisCaseChild, ThisCaseLabel] = ThisCase;
+    const auto &[OtherCaseChild, OtherCaseLabel] = OtherCase;
 
-  for (case_container::size_type I = 0; I < FirstDimension; I++) {
-    ASTNode *FirstNode = getCaseN(I);
-    ASTNode *SecondNode = OtherSwitch->getCaseN(I);
+    if (ThisCaseLabel != OtherCaseLabel)
+      return false;
 
-    // As soon as two nodes does not match, exit and make the comparison fail
-    if (!FirstNode->isEqual(SecondNode))
+    if (not ThisCaseChild->isEqual(OtherCaseChild))
       return false;
   }
 
   return true;
 }
 
-bool CodeNode::isEqual(const ASTNode *Node) const {
+bool SwitchDispatcherNode::nodeIsEqual(const ASTNode *Node) const {
+  auto *OtherSwitch = dyn_cast_or_null<SwitchDispatcherNode>(Node);
+  if (OtherSwitch == nullptr)
+    return false;
+
+  ASTNode *OtherDefault = OtherSwitch->getDefault();
+  ASTNode *ThisDefault = this->getDefault();
+  if ((OtherDefault == nullptr) != (ThisDefault == nullptr))
+    return false;
+
+  if (ThisDefault and not ThisDefault->isEqual(OtherDefault))
+    return false;
+
+  // Continue the comparison only if the sequence node size are the same
+  if (CaseSize() != OtherSwitch->CaseSize())
+    return false;
+
+  for (const auto &PairOfPairs :
+       llvm::zip_first(labeled_cases(), OtherSwitch->labeled_cases())) {
+    const auto &[ThisCase, OtherCase] = PairOfPairs;
+    const auto &[ThisCaseChild, ThisCaseLabel] = ThisCase;
+    const auto &[OtherCaseChild, OtherCaseLabel] = OtherCase;
+
+    if (ThisCaseLabel != OtherCaseLabel)
+      return false;
+
+    if (not ThisCaseChild->isEqual(OtherCaseChild))
+      return false;
+  }
+
+  return true;
+}
+
+bool CodeNode::nodeIsEqual(const ASTNode *Node) const {
   auto *OtherCode = dyn_cast_or_null<CodeNode>(Node);
   if (OtherCode == nullptr)
     return false;
@@ -146,7 +148,7 @@ bool CodeNode::isEqual(const ASTNode *Node) const {
          and (getOriginalBB() == OtherCode->getOriginalBB());
 }
 
-bool IfNode::isEqual(const ASTNode *Node) const {
+bool IfNode::nodeIsEqual(const ASTNode *Node) const {
   auto *OtherIf = dyn_cast_or_null<IfNode>(Node);
   if (OtherIf == nullptr)
     return false;
@@ -166,7 +168,7 @@ bool IfNode::isEqual(const ASTNode *Node) const {
   return false;
 }
 
-bool ScsNode::isEqual(const ASTNode *Node) const {
+bool ScsNode::nodeIsEqual(const ASTNode *Node) const {
   auto *OtherScs = dyn_cast_or_null<ScsNode>(Node);
   if (OtherScs == nullptr)
     return false;
@@ -174,14 +176,14 @@ bool ScsNode::isEqual(const ASTNode *Node) const {
   return Body->isEqual(OtherScs->getBody());
 }
 
-bool SetNode::isEqual(const ASTNode *Node) const {
+bool SetNode::nodeIsEqual(const ASTNode *Node) const {
   auto *OtherSet = dyn_cast_or_null<SetNode>(Node);
   if (OtherSet == nullptr)
     return false;
   return StateVariableValue == OtherSet->getStateVariableValue();
 }
 
-bool SequenceNode::isEqual(const ASTNode *Node) const {
+bool SequenceNode::nodeIsEqual(const ASTNode *Node) const {
   auto *OtherSequence = dyn_cast_or_null<SequenceNode>(Node);
   if (OtherSequence == nullptr)
     return false;

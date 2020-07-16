@@ -9,6 +9,7 @@
 #include <cstdlib>
 
 // LLVM includes
+#include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/Support/Casting.h>
@@ -94,6 +95,8 @@ protected:
 public:
   NodeKind getKind() const { return Kind; }
 
+  inline bool isEqual(const ASTNode *Node) const;
+
   std::string getName() const {
     return "ID:" + std::to_string(getID()) + " Name:" + Name;
   }
@@ -117,8 +120,6 @@ public:
 
   inline void dump(std::ofstream &ASTFile);
 
-  inline bool isEqual(const ASTNode *Node);
-
   inline void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 };
 
@@ -134,10 +135,10 @@ protected:
   CodeNode(CodeNode &&) = delete;
   ~CodeNode() = default;
 
+  bool nodeIsEqual(const ASTNode *Node) const;
+
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Code; }
-
-  bool isEqual(const ASTNode *Node) const;
 
   void dump(std::ofstream &ASTFile);
 
@@ -174,6 +175,8 @@ protected:
   IfNode(IfNode &&) = delete;
   ~IfNode() = default;
 
+  bool nodeIsEqual(const ASTNode *Node) const;
+
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_If; }
 
@@ -206,8 +209,6 @@ public:
       return false;
     }
   }
-
-  bool isEqual(const ASTNode *Node) const;
 
   void dump(std::ofstream &ASTFile);
 
@@ -249,6 +250,8 @@ protected:
   ScsNode(ScsNode &&) = delete;
   ~ScsNode() = default;
 
+  bool nodeIsEqual(const ASTNode *Node) const;
+
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Scs; }
 
@@ -257,8 +260,6 @@ public:
   ASTNode *getBody() const { return Body; }
 
   void setBody(ASTNode *Node) { Body = Node; }
-
-  bool isEqual(const ASTNode *Node) const;
 
   void dump(std::ofstream &ASTFile);
 
@@ -308,6 +309,8 @@ protected:
   SequenceNode(SequenceNode &&) = delete;
   ~SequenceNode() = default;
 
+  bool nodeIsEqual(const ASTNode *Node) const;
+
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_List; }
 
@@ -330,8 +333,6 @@ public:
   links_container::size_type listSize() const { return NodeList.size(); }
 
   ASTNode *getNodeN(links_container::size_type N) const { return NodeList[N]; }
-
-  bool isEqual(const ASTNode *Node) const;
 
   void dump(std::ofstream &ASTFile);
 
@@ -357,16 +358,16 @@ protected:
   ContinueNode(ContinueNode &&) = delete;
   ~ContinueNode() = default;
 
+  bool nodeIsEqual(const ASTNode *Node) const {
+    return nullptr != llvm::dyn_cast_or_null<ContinueNode>(Node);
+  }
+
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Continue; }
 
   ASTNode *Clone() { return new ContinueNode(*this); }
 
   void dump(std::ofstream &ASTFile);
-
-  bool isEqual(const ASTNode *Node) const {
-    return nullptr != llvm::dyn_cast_or_null<ContinueNode>(Node);
-  }
 
   bool hasComputation() const { return ComputationIf != nullptr; }
 
@@ -392,14 +393,14 @@ protected:
   BreakNode(BreakNode &&) = delete;
   ~BreakNode() = default;
 
+  bool nodeIsEqual(const ASTNode *Node) const {
+    return nullptr != llvm::dyn_cast_or_null<BreakNode>(Node);
+  }
+
 public:
   ASTNode *Clone() { return new BreakNode(*this); }
 
   void dump(std::ofstream &ASTFile);
-
-  bool isEqual(const ASTNode *Node) const {
-    return nullptr != llvm::dyn_cast_or_null<BreakNode>(Node);
-  }
 
   bool breaksFromWithinSwitch() const { return BreakFromWithinSwitch; }
 
@@ -420,6 +421,10 @@ protected:
   SwitchBreakNode(SwitchBreakNode &&) = delete;
   ~SwitchBreakNode() = default;
 
+  bool nodeIsEqual(const ASTNode *Node) const {
+    return nullptr != llvm::dyn_cast_or_null<SwitchBreakNode>(Node);
+  }
+
 public:
   static bool classof(const ASTNode *N) {
     return N->getKind() == NK_SwitchBreak;
@@ -428,10 +433,6 @@ public:
   ASTNode *Clone() { return new SwitchBreakNode(*this); }
 
   void dump(std::ofstream &ASTFile);
-
-  bool isEqual(const ASTNode *Node) const {
-    return nullptr != llvm::dyn_cast_or_null<SwitchBreakNode>(Node);
-  }
 };
 
 class SetNode : public ASTNode {
@@ -454,10 +455,10 @@ protected:
   SetNode(SetNode &&) = delete;
   ~SetNode() = default;
 
+  bool nodeIsEqual(const ASTNode *Node) const;
+
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Set; }
-
-  bool isEqual(const ASTNode *Node) const;
 
   void dump(std::ofstream &ASTFile);
 
@@ -547,10 +548,7 @@ public:
 
   void replaceDefault(ASTNode *NewDefault) { Default = NewDefault; }
 
-  bool isEqual(const ASTNode *Node) const;
-
 protected:
-  bool hasEqualCaseValues(const SwitchNode *Node) const;
   case_container CaseVec;
   ASTNode *Default;
   bool NeedStateVariable = false; // for breaking directly out of a loop
@@ -617,6 +615,8 @@ protected:
   RegularSwitchNode(RegularSwitchNode &&) = delete;
   ~RegularSwitchNode() = default;
 
+  bool nodeIsEqual(const ASTNode *Node) const;
+
 public:
   static bool classof(const ASTNode *N) {
     return N->getKind() == NK_SwitchRegular;
@@ -634,12 +634,9 @@ public:
     return CaseValueVec[N];
   }
 
-  void removeCaseValueN(case_container::size_type N) {
-    revng_assert(N < CaseSize());
-    CaseValueVec.erase(CaseValueVec.begin() + N);
-
-    // Call the method to remove the case in the parent class.
-    removeCaseN(N);
+  auto labeled_cases() const {
+    revng_assert(CaseVec.size() == CaseValueVec.size());
+    return llvm::zip_first(CaseVec, CaseValueVec);
   }
 
 protected:
@@ -715,6 +712,8 @@ protected:
   SwitchDispatcherNode(SwitchDispatcherNode &&) = delete;
   ~SwitchDispatcherNode() = default;
 
+  bool nodeIsEqual(const ASTNode *Node) const;
+
 public:
   static bool classof(const ASTNode *N) {
     return N->getKind() == NK_SwitchDispatcher;
@@ -728,15 +727,12 @@ public:
     return CaseValueVec[N];
   }
 
-  void removeCaseValueN(case_container::size_type N) {
-    revng_assert(N < CaseSize());
-    CaseValueVec.erase(CaseValueVec.begin() + N);
-
-    // Call the method to remove the case in the parent class.
-    removeCaseN(N);
-  }
-
   ASTNode *Clone() { return new SwitchDispatcherNode(*this); }
+
+  auto labeled_cases() const {
+    revng_assert(CaseVec.size() == CaseValueVec.size());
+    return llvm::zip_first(CaseVec, CaseValueVec);
+  }
 
 protected:
   case_value_container CaseValueVec;
@@ -811,32 +807,32 @@ inline void ASTNode::dump(std::ofstream &ASTFile) {
   }
 }
 
-inline bool ASTNode::isEqual(const ASTNode *Node) {
+inline bool ASTNode::isEqual(const ASTNode *Node) const {
   switch (getKind()) {
   case NK_Code:
-    return llvm::cast<CodeNode>(this)->isEqual(Node);
+    return llvm::cast<CodeNode>(this)->nodeIsEqual(Node);
   case NK_Break:
-    return llvm::cast<BreakNode>(this)->isEqual(Node);
+    return llvm::cast<BreakNode>(this)->nodeIsEqual(Node);
   case NK_Continue:
-    return llvm::cast<ContinueNode>(this)->isEqual(Node);
+    return llvm::cast<ContinueNode>(this)->nodeIsEqual(Node);
   // ---- IfNode kinds
   case NK_If:
-    return llvm::cast<IfNode>(this)->isEqual(Node);
+    return llvm::cast<IfNode>(this)->nodeIsEqual(Node);
   // ---- end IfNode kinds
   case NK_Scs:
-    return llvm::cast<ScsNode>(this)->isEqual(Node);
+    return llvm::cast<ScsNode>(this)->nodeIsEqual(Node);
   case NK_List:
-    return llvm::cast<SequenceNode>(this)->isEqual(Node);
+    return llvm::cast<SequenceNode>(this)->nodeIsEqual(Node);
   // ---- SwitchNode kinds
   case NK_SwitchRegular:
-    return llvm::cast<SwitchNode>(this)->isEqual(Node);
+    return llvm::cast<RegularSwitchNode>(this)->nodeIsEqual(Node);
   case NK_SwitchDispatcher:
-    return llvm::cast<SwitchDispatcherNode>(this)->isEqual(Node);
+    return llvm::cast<SwitchDispatcherNode>(this)->nodeIsEqual(Node);
   // ---- end SwitchNode kinds
   case NK_SwitchBreak:
-    return llvm::cast<SwitchBreakNode>(this)->isEqual(Node);
+    return llvm::cast<SwitchBreakNode>(this)->nodeIsEqual(Node);
   case NK_Set:
-    return llvm::cast<SetNode>(this)->isEqual(Node);
+    return llvm::cast<SetNode>(this)->nodeIsEqual(Node);
   default:
     revng_abort();
   }
