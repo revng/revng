@@ -43,7 +43,8 @@ inline BasicBlockNode<NodeT>::BasicBlockNode(RegionCFGT *Parent,
   NodeType(T),
   Name(Name),
   StateVariableValue(Value),
-  OriginalNode(OriginalNode) {
+  OriginalNode(OriginalNode),
+  Weaved(false) {
 }
 
 template<class NodeT>

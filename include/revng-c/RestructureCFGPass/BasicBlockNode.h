@@ -85,12 +85,15 @@ protected:
   // Original object pointer
   NodeT OriginalNode;
 
+  // Flag for nodes that were created by weaving switches
+  bool Weaved;
+
   explicit BasicBlockNode(RegionCFGT *Parent,
                           NodeT OriginalNode,
                           RegionCFGT *Collapsed,
                           llvm::StringRef Name,
                           Type T,
-                          unsigned Value = 0);
+                          unsigned StateVariableVal = 0);
 
 public:
   BasicBlockNode() = delete;
@@ -237,6 +240,9 @@ public:
   /// \brief Obtain a estimate of the weight of a BasicBlockNode in terms of
   ///        original instructions.
   size_t getWeight() const;
+
+  bool isWeaved() const { return Weaved; }
+  void setWeaved(bool Val) { Weaved = Val; }
 };
 
 // Provide graph traits for usage with, e.g., llvm::ReversePostOrderTraversal
