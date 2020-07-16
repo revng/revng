@@ -169,10 +169,12 @@ public:
 
   BBNodeT *addArtificialNode(llvm::StringRef Name = "dummy",
                              BasicBlockNodeType T = BasicBlockNodeType::Empty) {
+    revng_assert(T == BasicBlockNodeType::Empty
+                 or T == BasicBlockNodeType::Break
+                 or T == BasicBlockNodeType::Continue);
     BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(this, Name, T));
     return BlockNodes.back().get();
   }
-
   BBNodeT *addContinue() {
     return addArtificialNode("continue", BasicBlockNodeT::Type::Continue);
   }
@@ -188,12 +190,8 @@ public:
     BBNodeT *Dispatcher = BlockNodes.back().get();
     return Dispatcher;
   }
-
-  BBNodeT *addEntryDispatcher() {
-    return addDispatcher("entry dispatcher node");
-  }
-
-  BBNodeT *addExitDispatcher() { return addDispatcher("exit dispatcher node"); }
+  BBNodeT *addEntryDispatcher() { return addDispatcher("entry dispatcher"); }
+  BBNodeT *addExitDispatcher() { return addDispatcher("exit dispatcher"); }
 
   BBNodeT *addWeavingSwitch() { return addDispatcher("weaving switch"); }
 
