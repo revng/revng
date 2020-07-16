@@ -160,7 +160,8 @@ public:
   size_t size() const { return BlockNodes.size(); }
   void setSize(size_t Size) { BlockNodes.reserve(Size); }
 
-  BBNodeT *addNode(NodeT Name);
+  BBNodeT *addNode(NodeT Node, llvm::StringRef Name);
+  BBNodeT *addNode(NodeT Node) { return addNode(Node, Node->getName()); }
 
   BBNodeT *createCollapsedNode(RegionCFG *Collapsed) {
     BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(this, Collapsed));
@@ -192,8 +193,6 @@ public:
   }
   BBNodeT *addEntryDispatcher() { return addDispatcher("entry dispatcher"); }
   BBNodeT *addExitDispatcher() { return addDispatcher("exit dispatcher"); }
-
-  BBNodeT *addWeavingSwitch() { return addDispatcher("weaving switch"); }
 
   BBNodeT *addSetStateNode(unsigned long StateVariableValue,
                            llvm::StringRef TargetName) {

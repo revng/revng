@@ -291,8 +291,8 @@ inline std::string RegionCFG<NodeT>::getRegionName() const {
 }
 
 template<class NodeT>
-inline BasicBlockNode<NodeT> *RegionCFG<NodeT>::addNode(NodeT Node) {
-  llvm::StringRef Name = Node->getName();
+inline BasicBlockNode<NodeT> *
+RegionCFG<NodeT>::addNode(NodeT Node, llvm::StringRef Name) {
   using BBNodeT = BasicBlockNodeT;
   BlockNodes.emplace_back(std::make_unique<BBNodeT>(this, Node, Name));
   BasicBlockNodeT *Result = BlockNodes.back().get();
@@ -1939,9 +1939,20 @@ inline void RegionCFG<NodeT>::weave() {
         if (NumPostDominatedCases > 1U) {
 
           // Create the new sub-switch node.
-          BasicBlockNodeT *NewSwitch = addWeavingSwitch();
+          BasicBlockNodeT *NewSwitch = nullptr;
+          if (Switch->isDispatcher()) {
+            NewSwitch = addDispatcher(Switch->getNameStr() + " weaved");
+          } else if (Switch->isCode()) {
+            NewSwitch = addNode(Switch->getOriginalNode(),
+                                Switch->getNameStr() + " weaved");
+          } else {
+            revng_unreachable("unexpected switch");
+          }
+          revng_assert(not NewSwitch);
+          revng_assert(not NewSwitch->successor_size());
+          NewSwitch->setWeaved(true);
 
-          // Connect the old dispatcher to the new one.
+          // Connect the old switch to the new one.
           addEdge(EdgeDescriptor(Switch, NewSwitch));
 
           // Incremental update of DT and PDT.
