@@ -60,8 +60,11 @@ void SequenceNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
 }
 
 void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
-  for (auto &Case : CaseVec)
-    Case = SubstitutionMap.at(Case);
+  for (auto &LabelCasePair : LabelCaseVec)
+    LabelCasePair.second = SubstitutionMap.at(LabelCasePair.second);
+
+  if (Default != nullptr)
+    Default = SubstitutionMap.at(Default);
 }
 
 // #### isEqual methods ####
@@ -73,8 +76,8 @@ getCaseValueN(const SwitchNodeType *S,
   return cast<SwitchNodeType>(S)->getCaseValueN(N);
 }
 
-bool RegularSwitchNode::nodeIsEqual(const ASTNode *Node) const {
-  auto *OtherSwitch = dyn_cast_or_null<RegularSwitchNode>(Node);
+bool SwitchNode::nodeIsEqual(const ASTNode *Node) const {
+  auto *OtherSwitch = dyn_cast_or_null<SwitchNode>(Node);
   if (OtherSwitch == nullptr)
     return false;
 
@@ -87,47 +90,14 @@ bool RegularSwitchNode::nodeIsEqual(const ASTNode *Node) const {
     return false;
 
   // Continue the comparison only if the sequence node size are the same
-  if (CaseSize() != OtherSwitch->CaseSize())
+  if (LabelCaseVec.size() != OtherSwitch->LabelCaseVec.size())
     return false;
 
   for (const auto &PairOfPairs :
-       llvm::zip_first(labeled_cases(), OtherSwitch->labeled_cases())) {
+       llvm::zip_first(cases_const_range(), OtherSwitch->cases_const_range())) {
     const auto &[ThisCase, OtherCase] = PairOfPairs;
-    const auto &[ThisCaseChild, ThisCaseLabel] = ThisCase;
-    const auto &[OtherCaseChild, OtherCaseLabel] = OtherCase;
-
-    if (ThisCaseLabel != OtherCaseLabel)
-      return false;
-
-    if (not ThisCaseChild->isEqual(OtherCaseChild))
-      return false;
-  }
-
-  return true;
-}
-
-bool SwitchDispatcherNode::nodeIsEqual(const ASTNode *Node) const {
-  auto *OtherSwitch = dyn_cast_or_null<SwitchDispatcherNode>(Node);
-  if (OtherSwitch == nullptr)
-    return false;
-
-  ASTNode *OtherDefault = OtherSwitch->getDefault();
-  ASTNode *ThisDefault = this->getDefault();
-  if ((OtherDefault == nullptr) != (ThisDefault == nullptr))
-    return false;
-
-  if (ThisDefault and not ThisDefault->isEqual(OtherDefault))
-    return false;
-
-  // Continue the comparison only if the sequence node size are the same
-  if (CaseSize() != OtherSwitch->CaseSize())
-    return false;
-
-  for (const auto &PairOfPairs :
-       llvm::zip_first(labeled_cases(), OtherSwitch->labeled_cases())) {
-    const auto &[ThisCase, OtherCase] = PairOfPairs;
-    const auto &[ThisCaseChild, ThisCaseLabel] = ThisCase;
-    const auto &[OtherCaseChild, OtherCaseLabel] = OtherCase;
+    const auto &[ThisCaseLabel, ThisCaseChild] = ThisCase;
+    const auto &[OtherCaseLabel, OtherCaseChild] = OtherCase;
 
     if (ThisCaseLabel != OtherCaseLabel)
       return false;
@@ -272,22 +242,20 @@ void SequenceNode::dump(std::ofstream &ASTFile) {
   }
 }
 
-void RegularSwitchNode::dump(std::ofstream &ASTFile) {
+void SwitchNode::dump(std::ofstream &ASTFile) {
   ASTFile << "\"" << this->getName() << "\" [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"hexagon\",color=\"black\"];\n";
 
-  case_container::size_type CaseIndex = 0;
-  for (ASTNode *Case : this->unordered_cases()) {
+  for (const auto &[LabelSet, Case] : cases()) {
     ASTFile << "\"" << this->getName() << "\""
             << " -> \"" << Case->getName() << "\""
             << " [color=green,label=\"case ";
 
     // Cases can now be sets of cases, we need to print all of them on a edge.
-    for (auto *CaseConstantInt : CaseValueVec[CaseIndex]) {
-      uint64_t CaseVal = CaseConstantInt->getZExtValue();
-      ASTFile << CaseVal << ",";
+    for (uint64_t Label : LabelSet) {
+      ASTFile << Label << ',';
     }
 
     // Close the line.
@@ -295,8 +263,8 @@ void RegularSwitchNode::dump(std::ofstream &ASTFile) {
 
     // Continue dumping the children of the switch node.
     Case->dump(ASTFile);
-    ++CaseIndex;
   }
+
   if (ASTNode *Default = this->getDefault()) {
     ASTFile << "\"" << this->getName() << "\""
             << " -> \"" << Default->getName() << "\""
@@ -330,29 +298,6 @@ void SetNode::dump(std::ofstream &ASTFile) {
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
-void SwitchDispatcherNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
-  ASTFile << "label=\"" << this->getName();
-  ASTFile << "\"";
-  ASTFile << ",shape=\"hexagon\",color=\"black\"];\n";
-
-  case_container::size_type CaseIndex = 0;
-  for (ASTNode *Case : this->unordered_cases()) {
-    uint64_t CaseVal = CaseValueVec[CaseIndex];
-    ASTFile << "\"" << this->getName() << "\""
-            << " -> \"" << Case->getName() << "\""
-            << " [color=green,label=\"case " << CaseVal << "\"];\n";
-    Case->dump(ASTFile);
-    ++CaseIndex;
-  }
-  if (ASTNode *Default = this->getDefault()) {
-    ASTFile << "\"" << this->getName() << "\""
-            << " -> \"" << Default->getName() << "\""
-            << " [color=green,label=\"default\"];\n";
-    Default->dump(ASTFile);
-  }
-}
-
 void ASTNode::deleteASTNode(ASTNode *A) {
   switch (A->getKind()) {
   case NodeKind::NK_Code:
@@ -364,52 +309,23 @@ void ASTNode::deleteASTNode(ASTNode *A) {
   case NodeKind::NK_Continue:
     delete static_cast<ContinueNode *>(A);
     break;
-  // ---- IfNode kinds
   case NodeKind::NK_If:
     delete static_cast<IfNode *>(A);
     break;
-  // ---- end IfNode kinds
   case NodeKind::NK_Scs:
     delete static_cast<ScsNode *>(A);
     break;
   case NodeKind::NK_List:
     delete static_cast<SequenceNode *>(A);
     break;
-  // ---- SwitchNode kinds
-  case NodeKind::NK_SwitchRegular:
-    delete static_cast<RegularSwitchNode *>(A);
+  case NodeKind::NK_Switch:
+    delete static_cast<SwitchNode *>(A);
     break;
-  case NodeKind::NK_SwitchDispatcher:
-    delete static_cast<SwitchDispatcherNode *>(A);
-    break;
-  // ---- end SwitchNode kinds
   case NodeKind::NK_SwitchBreak:
     delete static_cast<SwitchBreakNode *>(A);
     break;
   case NodeKind::NK_Set:
     delete static_cast<SetNode *>(A);
     break;
-  }
-}
-
-void SwitchNode::removeCaseN(case_container::size_type N) {
-  revng_assert(N < CaseSize());
-  CaseVec.erase(CaseVec.begin() + N);
-
-  // Remove also the counterpart of the N-th case node even in the
-  // `CaseValueVec` field of the subclass.
-  switch (this->getKind()) {
-  case NodeKind::NK_SwitchRegular: {
-    RegularSwitchNode *SwitchR = static_cast<RegularSwitchNode *>(this);
-    auto &CaseValueVec = SwitchR->CaseValueVec;
-    CaseValueVec.erase(CaseValueVec.begin() + N);
-  } break;
-  case NodeKind::NK_SwitchDispatcher: {
-    SwitchDispatcherNode *SwitchD = static_cast<SwitchDispatcherNode *>(this);
-    auto &CaseValueVec = SwitchD->CaseValueVec;
-    CaseValueVec.erase(CaseValueVec.begin() + N);
-  } break;
-  default:
-    revng_unreachable();
   }
 }

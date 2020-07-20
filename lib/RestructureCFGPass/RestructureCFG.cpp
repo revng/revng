@@ -10,17 +10,17 @@
 #include <stdlib.h>
 
 // LLVM includes
-#include "llvm/ADT/PostOrderIterator.h"
-#include "llvm/IR/Dominators.h"
-#include "llvm/IR/Function.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/GenericDomTreeConstruction.h"
-#include "llvm/Support/raw_os_ostream.h"
+#include <llvm/ADT/PostOrderIterator.h>
+#include <llvm/IR/Dominators.h>
+#include <llvm/IR/Function.h>
+#include <llvm/Support/Casting.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/GenericDomTreeConstruction.h>
+#include <llvm/Support/raw_os_ostream.h>
 
 // revng includes
-#include "revng/Support/Debug.h"
-#include "revng/Support/IRHelpers.h"
+#include <revng/Support/Debug.h>
+#include <revng/Support/IRHelpers.h>
 
 // revng-c includes
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
@@ -461,7 +461,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     BasicBlockNodeBB *OriginalTarget = Backedge.second;
     BasicBlockNodeBB *Dummy = RootCFG.addArtificialNode();
     moveEdgeTarget(Backedge, Dummy);
-    addEdge(EdgeDescriptor(Dummy, OriginalTarget));
+    addPlainEdge(EdgeDescriptor(Dummy, OriginalTarget));
   }
   Backedges = getBackedges(RootCFG);
 
@@ -729,36 +729,36 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
       // For each target of the dispatcher add the edge and add it in the map.
       std::map<BasicBlockNodeBB *, unsigned> RetreatingIdxMap;
-      unsigned Idx = 0;
-      for (BasicBlockNodeBB *Target : RetreatingTargets) {
-        RetreatingIdxMap[Target] = Idx;
-        Idx++;
-        Head->addSuccessor(Target);
-        Target->addPredecessor(Head);
-      }
+      for (auto &Group : llvm::enumerate(RetreatingTargets)) {
+        BasicBlockNodeBB *Target = Group.value();
+        unsigned Idx = Group.index();
 
-      // Check that we inserted the correct number of edges.
-      revng_assert(Idx == RetreatingTargets.size());
+        RetreatingIdxMap[Target] = Idx;
+
+        using edge_label_t = typename BasicBlockNodeBB::edge_label_t;
+        edge_label_t Labels;
+        Labels.insert(Idx);
+        addEdge(EdgeDescriptor(Head, Target), Labels);
+      }
 
       for (EdgeDescriptor R : Retreatings) {
         BasicBlockNodeBB *OriginalSource = R.first;
 
         // If the original source is a set node, move it after the entry
         // dispatcher.
+        unsigned Idx = RetreatingIdxMap.at(R.second);
         if (OriginalSource->isSet()) {
           BasicBlockNodeBB *OldSetNode = OriginalSource;
-          Idx = RetreatingIdxMap[R.second];
           revng_assert(OldSetNode->predecessor_size() == 1);
-          BasicBlockNodeBB *Predecessor = OldSetNode->getPredecessorI(0);
+          BasicBlockNodeBB *Predecessor = *OldSetNode->predecessors().begin();
           auto *SetNode = RootCFG.addSetStateNode(Idx, OldSetNode->getName());
           Meta->insertNode(SetNode);
           moveEdgeTarget(EdgeDescriptor(Predecessor, OldSetNode), Head);
         } else {
-          Idx = RetreatingIdxMap[R.second];
           auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
           Meta->insertNode(SetNode);
           moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
-          addEdge(EdgeDescriptor(SetNode, Head));
+          addPlainEdge(EdgeDescriptor(SetNode, Head));
         }
       }
 
@@ -807,7 +807,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
         BasicBlockNodeBB *OldTarget = Edge.second;
         EdgeExtremal[Frontier] = make_pair(OldSource, OldTarget);
         moveEdgeTarget(Edge, Frontier);
-        addEdge(EdgeDescriptor(Frontier, OldTarget));
+        addPlainEdge(EdgeDescriptor(Frontier, OldTarget));
         Meta->insertNode(Frontier);
         Frontiers.push_back(Frontier);
       }
@@ -861,22 +861,22 @@ bool RestructureCFG::runOnFunction(Function &F) {
       if (Node != Head) {
 
         // Handle outgoing edges from SCS nodes.
-        for (BasicBlockNodeBB *Successor : Node->successors()) {
-          revng_assert(!Backedges.count(EdgeDescriptor(Node, Successor)));
+        for (const auto &[Successor, Labels] : Node->labeled_successors()) {
+          revng_assert(not Backedges.count(EdgeDescriptor(Node, Successor)));
           using ED = EdgeDescriptor;
+          auto *NewEdgeSrc = ClonedMap.at(Node);
+          auto *NewEdgeTgt = Successor;
           if (Meta->containsNode(Successor)) {
             // Handle edges pointing inside the SCS.
             if (Successor == Head) {
               // Retreating edges should point to the new head.
-              addEdge(ED(ClonedMap.at(Node), Head));
+              NewEdgeTgt = Head;
             } else {
               // Other edges should be restored between cloned nodes.
-              addEdge(ED(ClonedMap.at(Node), ClonedMap.at(Successor)));
+              NewEdgeTgt = ClonedMap.at(Successor);
             }
-          } else {
-            // Edges exiting from the SCS should go to the right target.
-            addEdge(ED(ClonedMap.at(Node), Successor));
           }
+          addEdge(ED(NewEdgeSrc, NewEdgeTgt), Labels);
         }
 
         // We need this temporary vector to avoid invalidating iterators.
@@ -922,7 +922,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
         BasicBlockNodeBB *Set = RootCFG.addSetStateNode(Value, Head->getName());
         DefaultEntrySet.push_back(Set);
         moveEdgeTarget(EdgeDescriptor(Pred, Head), Set);
-        addEdge(EdgeDescriptor(Set, Head));
+        addPlainEdge(EdgeDescriptor(Set, Head));
 
         // HACK: Consider using a multimap.
         //
@@ -969,32 +969,30 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
       // For each target of the dispatcher add the edge and add it in the map.
       std::map<BasicBlockNodeBB *, unsigned> SuccessorsIdxMap;
-      unsigned Idx = 0;
-      for (BasicBlockNodeBB *Successor : Successors) {
+      for (auto &Group : llvm::enumerate(Successors)) {
+        BasicBlockNodeBB *Successor = Group.value();
+        unsigned Idx = Group.index();
+
         SuccessorsIdxMap[Successor] = Idx;
-        Idx++;
 
-        Exit->addSuccessor(Successor);
-        Successor->addPredecessor(Exit);
+        using edge_label_t = typename BasicBlockNodeBB::edge_label_t;
+        edge_label_t Labels;
+        Labels.insert(Idx);
+        addEdge(EdgeDescriptor(Exit, Successor), Labels);
       }
-
-      // Check that we inserted the correct number of edges.
-      revng_assert(Idx == Successors.size());
 
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
       for (EdgeDescriptor Edge : OutEdges) {
-        Idx = SuccessorsIdxMap.at(Edge.second);
+        unsigned Idx = SuccessorsIdxMap.at(Edge.second);
         auto *IdxSetNode = RootCFG.addSetStateNode(Idx, Edge.second->getName());
         Meta->insertNode(IdxSetNode);
         moveEdgeTarget(EdgeDescriptor(Edge.first, Edge.second), IdxSetNode);
-        addEdge(EdgeDescriptor(IdxSetNode, Edge.second));
+        addPlainEdge(EdgeDescriptor(IdxSetNode, Edge.second));
 
         // We should not be adding new backedges.
         revng_assert(Backedges.count(Edge) == 0);
       }
-      if (CombLogger.isEnabled()) {
-        CombLogger << "New exit name is: " << Exit->getNameStr() << "\n";
-      }
+      revng_log(CombLogger, "New exit name is: " << Exit->getNameStr());
     }
 
     // Collapse Region.
@@ -1062,7 +1060,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // Connect the outgoing edges to the collapsed node.
     if (NewExitNeeded) {
       revng_assert(Exit != nullptr);
-      addEdge(EdgeDescriptor(Collapsed, Exit));
+      addPlainEdge(EdgeDescriptor(Collapsed, Exit));
     } else {
 
       // Double check that we have at most a single successor
@@ -1071,7 +1069,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
         // Connect the collapsed node to the unique successor
         BasicBlockNodeBB *Successor = *Successors.begin();
-        addEdge(EdgeDescriptor(Collapsed, Successor));
+        addPlainEdge(EdgeDescriptor(Collapsed, Successor));
       }
     }
 
@@ -1194,14 +1192,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Collect also the final weight of the CFG.
   unsigned FinalWeight = 0;
   for (BasicBlockNodeBB *BBNode : RootCFG.nodes()) {
-    BasicBlock *BB = BBNode->getOriginalNode();
     if (BBNode->isCode()) {
-      revng_assert(BB != nullptr);
+      BasicBlock *BB = BBNode->getOriginalNode();
       NDuplicates[BB] += 1;
       // if (NDuplicates[BB] > 1)
       // DuplicationCounter += 1;
-    } else {
-      revng_assert(BB == nullptr);
     }
 
     // Collect the weight of the node.

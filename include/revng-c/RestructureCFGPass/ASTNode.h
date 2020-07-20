@@ -10,6 +10,7 @@
 
 // LLVM includes
 #include <llvm/ADT/STLExtras.h>
+#include <llvm/ADT/SmallSet.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/Support/Casting.h>
@@ -33,15 +34,10 @@ public:
     NK_Code,
     NK_Break,
     NK_Continue,
-    // ---- IfNode kinds
     NK_If,
-    // ---- end IfNode kinds
     NK_Scs,
     NK_List,
-    // ---- SwitchNode kinds
-    NK_SwitchRegular,
-    NK_SwitchDispatcher,
-    // ---- end SwitchNode kinds
+    NK_Switch,
     NK_SwitchBreak,
     NK_Set
   };
@@ -74,7 +70,7 @@ public:
   ASTNode(NodeKind K, BasicBlockNodeBB *CFGNode, ASTNode *Successor = nullptr) :
     Kind(K),
     IsEmpty(CFGNode->isEmpty()),
-    BB(CFGNode->getOriginalNode()),
+    BB(CFGNode->isCode() ? CFGNode->getOriginalNode() : nullptr),
     Name(CFGNode->getNameStr()),
     Successor(Successor) {}
 
@@ -476,61 +472,57 @@ protected:
   static const constexpr int SwitchNumCases = 16;
 
 public:
-  using case_container = llvm::SmallVector<ASTNode *, SwitchNumCases>;
+  using label_set_t = llvm::SmallSet<uint64_t, 1>;
+  using labeled_case_t = std::pair<label_set_t, ASTNode *>;
+  using case_container = llvm::SmallVector<labeled_case_t, SwitchNumCases>;
   using case_iterator = typename case_container::iterator;
   using case_range = llvm::iterator_range<case_iterator>;
+  using case_const_iterator = typename case_container::const_iterator;
+  using case_const_range = llvm::iterator_range<case_const_iterator>;
 
-protected:
-  SwitchNode(NodeKind K,
-             const case_container &Cases,
-             const std::string &Name,
-             ASTNode *Def = nullptr,
-             ASTNode *Successor = nullptr) :
-    ASTNode(K, Name, Successor), CaseVec(Cases), Default(Def) {}
+public:
+  SwitchNode(llvm::StringRef Name,
+             llvm::Value *Cond,
+             const case_container &LabeledCases,
+             ASTNode *Def,
+             ASTNode *Successor,
+             bool Weaved) :
+    ASTNode(NK_Switch, Name, Successor),
+    Condition(Cond),
+    LabelCaseVec(LabeledCases),
+    Default(Def),
+    IsWeaved(Weaved) {}
 
-  SwitchNode(NodeKind K,
-             case_container &&Cases,
-             const std::string &Name,
-             ASTNode *Def = nullptr,
-             ASTNode *Successor = nullptr) :
-    ASTNode(K, Name, Successor), CaseVec(Cases), Default(Def) {}
+  SwitchNode(llvm::StringRef Name,
+             llvm::Value *Cond,
+             case_container &&LabeledCases,
+             ASTNode *Def,
+             ASTNode *Successor,
+             bool Weaved) :
+    ASTNode(NK_Switch, Name, Successor),
+    Condition(Cond),
+    LabelCaseVec(std::move(LabeledCases)),
+    Default(Def),
+    IsWeaved(Weaved) {}
 
   SwitchNode(const SwitchNode &) = default;
   SwitchNode(SwitchNode &&) = delete;
   ~SwitchNode() = default;
 
+  bool nodeIsEqual(const ASTNode *Node) const;
+
 public:
-  static bool classof(const ASTNode *N) {
-    return N->getKind() >= NK_SwitchRegular
-           and N->getKind() <= NK_SwitchDispatcher;
+  static bool classof(const ASTNode *N) { return N->getKind() == NK_Switch; }
+
+  void dump(std::ofstream &ASTFile);
+
+  ASTNode *Clone() { return new SwitchNode(*this); }
+
+  case_container &cases() { return LabelCaseVec; }
+
+  case_const_range cases_const_range() const {
+    return llvm::iterator_range(LabelCaseVec.begin(), LabelCaseVec.end());
   }
-
-  case_range unordered_cases() {
-    return llvm::make_range(CaseVec.begin(), CaseVec.end());
-  }
-
-  ASTNode *getCaseN(case_container::size_type N) const {
-    revng_assert(N < CaseSize());
-    return CaseVec[N];
-  }
-
-  // This is a very special method, it modifies only the pointer of the
-  // corresponding case but does not modify the case value corresponding to it.
-  // This is intented in its limited use scope. Indeed, this method should only
-  // be used when iterating over all the case nodes during the AST refinement
-  // phases (such as the sequence node construction phase and later beautify
-  // phases).
-  void replaceCaseN(case_container::size_type N, ASTNode *NewCase) {
-    revng_assert(N < CaseSize());
-    CaseVec[N] = NewCase;
-  }
-
-  // Method to remove a case. This method is mainly ideated in order to use it
-  // during the `simplifyAtomicSequence` to remove the content of a case of a
-  // `SwitchNode`.
-  void removeCaseN(case_container::size_type N);
-
-  size_t CaseSize() const { return CaseVec.size(); }
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
@@ -548,194 +540,15 @@ public:
 
   void replaceDefault(ASTNode *NewDefault) { Default = NewDefault; }
 
-protected:
-  case_container CaseVec;
-  ASTNode *Default;
-  bool NeedStateVariable = false; // for breaking directly out of a loop
-  bool NeedLoopBreakDispatcher = false; // to dispatchg breaks out of a loop
-};
-
-class RegularSwitchNode : public SwitchNode {
-  friend class ASTNode;
-  friend class SwitchNode;
-
-public:
-  using case_value = llvm::SmallPtrSet<llvm::ConstantInt *, 1>;
-  using case_value_container = llvm::SmallVector<case_value, SwitchNumCases>;
-  using case_value_iterator = typename case_value_container::iterator;
-  using case_value_range = llvm::iterator_range<case_value_iterator>;
-
-public:
-  RegularSwitchNode(llvm::Value *Cond,
-                    const case_container &Cases,
-                    const case_value_container &V,
-                    ASTNode *Def = nullptr,
-                    ASTNode *Successor = nullptr) :
-    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def, Successor),
-    Condition(Cond),
-    CaseValueVec(V) {
-    revng_assert(Cases.size() == V.size());
-  }
-
-  RegularSwitchNode(llvm::Value *Cond,
-                    case_container &&Cases,
-                    const case_value_container &V,
-                    ASTNode *Def = nullptr,
-                    ASTNode *Successor = nullptr) :
-    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def, Successor),
-    Condition(Cond),
-    CaseValueVec(V) {
-    revng_assert(Cases.size() == V.size());
-  }
-
-  RegularSwitchNode(llvm::Value *Cond,
-                    const case_container &Cases,
-                    case_value_container &&V,
-                    ASTNode *Def = nullptr,
-                    ASTNode *Successor = nullptr) :
-    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def, Successor),
-    Condition(Cond),
-    CaseValueVec(V) {
-    revng_assert(Cases.size() == V.size());
-  }
-
-  RegularSwitchNode(llvm::Value *Cond,
-                    case_container &&Cases,
-                    case_value_container &&V,
-                    ASTNode *Def = nullptr,
-                    ASTNode *Successor = nullptr) :
-    SwitchNode(NK_SwitchRegular, Cases, "SwitchNode", Def, Successor),
-    Condition(Cond),
-    CaseValueVec(V) {
-    revng_assert(Cases.size() == V.size());
-  }
-
-protected:
-  RegularSwitchNode(const RegularSwitchNode &) = default;
-  RegularSwitchNode(RegularSwitchNode &&) = delete;
-  ~RegularSwitchNode() = default;
-
-  bool nodeIsEqual(const ASTNode *Node) const;
-
-public:
-  static bool classof(const ASTNode *N) {
-    return N->getKind() == NK_SwitchRegular;
-  }
-
-public:
-  void dump(std::ofstream &ASTFile);
-
-  ASTNode *Clone() { return new RegularSwitchNode(*this); }
-
   llvm::Value *getCondition() const { return Condition; }
 
-  case_value getCaseValueN(case_container::size_type N) const {
-    revng_assert(N < CaseSize());
-    return CaseValueVec[N];
-  }
-
-  auto labeled_cases() const {
-    revng_assert(CaseVec.size() == CaseValueVec.size());
-    return llvm::zip_first(CaseVec, CaseValueVec);
-  }
-
 protected:
-  llvm::Value *const Condition;
-  case_value_container CaseValueVec;
-};
-
-class SwitchDispatcherNode : public SwitchNode {
-  friend class ASTNode;
-  friend class SwitchNode;
-
-public:
-  using case_value = uint64_t;
-  using case_value_container = llvm::SmallVector<case_value, SwitchNumCases>;
-  using case_value_iterator = typename case_value_container::iterator;
-  using case_value_range = llvm::iterator_range<case_value_iterator>;
-
-public:
-  SwitchDispatcherNode(const case_container &Cases,
-                       const case_value_container &V,
-                       ASTNode *Def = nullptr,
-                       ASTNode *Successor = nullptr) :
-    SwitchNode(NK_SwitchDispatcher,
-               Cases,
-               "SwitchDispatcherNode",
-               Def,
-               Successor),
-    CaseValueVec(V) {
-    revng_assert(Cases.size() == V.size());
-  }
-
-  SwitchDispatcherNode(const case_container &Cases,
-                       case_value_container &V,
-                       ASTNode *Def = nullptr,
-                       ASTNode *Successor = nullptr) :
-    SwitchNode(NK_SwitchDispatcher,
-               Cases,
-               "SwitchDispatcherNode",
-               Def,
-               Successor),
-    CaseValueVec(V) {
-    revng_assert(Cases.size() == V.size());
-  }
-
-  SwitchDispatcherNode(case_container &&Cases,
-                       const case_value_container &&V,
-                       ASTNode *Def = nullptr,
-                       ASTNode *Successor = nullptr) :
-    SwitchNode(NK_SwitchDispatcher,
-               Cases,
-               "SwitchDispatcherNode",
-               Def,
-               Successor),
-    CaseValueVec(V) {
-    revng_assert(Cases.size() == V.size());
-  }
-
-  SwitchDispatcherNode(case_container &&Cases,
-                       case_value_container &&V,
-                       ASTNode *Def = nullptr,
-                       ASTNode *Successor = nullptr) :
-    SwitchNode(NK_SwitchDispatcher,
-               Cases,
-               "SwitchDispatcherNode",
-               Def,
-               Successor),
-    CaseValueVec(V) {
-    revng_assert(Cases.size() == V.size());
-  }
-
-protected:
-  SwitchDispatcherNode(const SwitchDispatcherNode &) = default;
-  SwitchDispatcherNode(SwitchDispatcherNode &&) = delete;
-  ~SwitchDispatcherNode() = default;
-
-  bool nodeIsEqual(const ASTNode *Node) const;
-
-public:
-  static bool classof(const ASTNode *N) {
-    return N->getKind() == NK_SwitchDispatcher;
-  }
-
-public:
-  void dump(std::ofstream &ASTFile);
-
-  case_value getCaseValueN(size_t N) const {
-    revng_assert(N < CaseSize());
-    return CaseValueVec[N];
-  }
-
-  ASTNode *Clone() { return new SwitchDispatcherNode(*this); }
-
-  auto labeled_cases() const {
-    revng_assert(CaseVec.size() == CaseValueVec.size());
-    return llvm::zip_first(CaseVec, CaseValueVec);
-  }
-
-protected:
-  case_value_container CaseValueVec;
+  llvm::Value *Condition;
+  case_container LabelCaseVec;
+  ASTNode *Default;
+  bool IsWeaved;
+  bool NeedStateVariable = false; // for breaking directly out of a loop
+  bool NeedLoopBreakDispatcher = false; // to dispatchg breaks out of a loop
 };
 
 inline ASTNode *ASTNode::Clone() {
@@ -746,20 +559,14 @@ inline ASTNode *ASTNode::Clone() {
     return llvm::cast<BreakNode>(this)->Clone();
   case NK_Continue:
     return llvm::cast<ContinueNode>(this)->Clone();
-  // ---- IfNode kinds
   case NK_If:
     return llvm::cast<IfNode>(this)->Clone();
-  // ---- end IfNode kinds
   case NK_Scs:
     return llvm::cast<ScsNode>(this)->Clone();
   case NK_List:
     return llvm::cast<SequenceNode>(this)->Clone();
-  // ---- SwitchNode kinds
-  case NK_SwitchRegular:
-    return llvm::cast<RegularSwitchNode>(this)->Clone();
-  case NK_SwitchDispatcher:
-    return llvm::cast<SwitchDispatcherNode>(this)->Clone();
-  // ---- end SwitchNode kinds
+  case NK_Switch:
+    return llvm::cast<SwitchNode>(this)->Clone();
   case NK_SwitchBreak:
     return llvm::cast<SwitchBreakNode>(this)->Clone();
   case NK_Set:
@@ -794,12 +601,8 @@ inline void ASTNode::dump(std::ofstream &ASTFile) {
     return llvm::cast<ScsNode>(this)->dump(ASTFile);
   case NK_List:
     return llvm::cast<SequenceNode>(this)->dump(ASTFile);
-  // ---- SwitchNode kinds
-  case NK_SwitchRegular:
-    return llvm::cast<RegularSwitchNode>(this)->dump(ASTFile);
-  case NK_SwitchDispatcher:
-    return llvm::cast<SwitchDispatcherNode>(this)->dump(ASTFile);
-  // ---- end SwitchNode kinds
+  case NK_Switch:
+    return llvm::cast<SwitchNode>(this)->dump(ASTFile);
   case NK_SwitchBreak:
     return llvm::cast<SwitchBreakNode>(this)->dump(ASTFile);
   case NK_Set:
@@ -823,12 +626,8 @@ inline bool ASTNode::isEqual(const ASTNode *Node) const {
     return llvm::cast<ScsNode>(this)->nodeIsEqual(Node);
   case NK_List:
     return llvm::cast<SequenceNode>(this)->nodeIsEqual(Node);
-  // ---- SwitchNode kinds
-  case NK_SwitchRegular:
-    return llvm::cast<RegularSwitchNode>(this)->nodeIsEqual(Node);
-  case NK_SwitchDispatcher:
-    return llvm::cast<SwitchDispatcherNode>(this)->nodeIsEqual(Node);
-  // ---- end SwitchNode kinds
+  case NK_Switch:
+    return llvm::cast<SwitchNode>(this)->nodeIsEqual(Node);
   case NK_SwitchBreak:
     return llvm::cast<SwitchBreakNode>(this)->nodeIsEqual(Node);
   case NK_Set:

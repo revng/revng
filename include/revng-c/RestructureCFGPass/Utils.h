@@ -24,34 +24,37 @@ template<class NodeT>
 using Edge = typename BasicBlockNode<NodeT>::EdgeDescriptor;
 
 template<class NodeT>
-using Stack = std::vector<std::pair<BasicBlockNode<NodeT> *, size_t>>;
-
-template<class NodeT>
-using BasicBlockNodeTSet = typename BasicBlockNode<NodeT>::BBNodeSet;
-
-template<class NodeT>
-inline void
-addEdge(std::pair<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> NewEdge) {
-  NewEdge.first->addSuccessor(NewEdge.second);
-  NewEdge.second->addPredecessor(NewEdge.first);
-}
-
-template<class NodeT>
-inline void
-removeEdge(std::pair<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> Edge) {
-  Edge.first->removeSuccessor(Edge.second);
-  Edge.second->removePredecessor(Edge.first);
-}
-
-template<class NodeT>
 inline void moveEdgeTarget(Edge<NodeT> Edge, BasicBlockNode<NodeT> *NewTarget) {
-  Edge.second->removePredecessor(Edge.first);
+  auto SuccEdgeWithLabels = Edge.first->extractSuccessorEdge(Edge.second);
+  SuccEdgeWithLabels.first = NewTarget;
+  Edge.first->addLabeledSuccessor(SuccEdgeWithLabels);
 
-  // Special handle for dispatcher check nodes.
-  Edge.first->removeSuccessor(Edge.second);
-  Edge.first->addSuccessor(NewTarget);
-  NewTarget->addPredecessor(Edge.first);
+  auto PredEdgeWithLabels = Edge.second->extractPredecessorEdge(Edge.first);
+  NewTarget->addLabeledPredecessor(PredEdgeWithLabels);
 }
+
+template<class BBNodeT>
+inline void addEdge(std::pair<BBNodeT *, BBNodeT *> New,
+                    const typename BBNodeT::edge_label_t &Lbls) {
+
+  New.first->addLabeledSuccessor(std::make_pair(New.second, Lbls));
+  New.second->addLabeledPredecessor(std::make_pair(New.first, Lbls));
+}
+
+template<class BBNodeT>
+inline void addPlainEdge(std::pair<BBNodeT *, BBNodeT *> New) {
+  addEdge(New, typename BBNodeT::edge_label_t());
+}
+
+template<class BBNodeT>
+inline typename BBNodeT::node_label_pair
+extractLabeledEdge(std::pair<BBNodeT *, BBNodeT *> Edge) {
+  Edge.second->removePredecessor(Edge.first);
+  return Edge.first->extractSuccessorEdge(Edge.second);
+}
+
+template<class NodeT>
+using Stack = std::vector<std::pair<BasicBlockNode<NodeT> *, size_t>>;
 
 template<class NodeT>
 inline bool alreadyOnStack(Stack<NodeT> &Stack, BasicBlockNode<NodeT> *Node) {
@@ -63,6 +66,9 @@ inline bool alreadyOnStack(Stack<NodeT> &Stack, BasicBlockNode<NodeT> *Node) {
 
   return false;
 }
+
+template<class NodeT>
+using BasicBlockNodeTSet = typename BasicBlockNode<NodeT>::BBNodeSet;
 
 template<class NodeT>
 inline bool alreadyOnStackQuick(BasicBlockNodeTSet<NodeT> &StackSet,

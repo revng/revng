@@ -49,24 +49,6 @@ void ASTTree::addASTNode(BasicBlockNode<BasicBlock *> *Node,
   NodeASTMap.insert(std::make_pair(Node, ASTNode));
 }
 
-SwitchDispatcherNode *ASTTree::addSwitchDispatcher(ast_unique_ptr &&ASTObject) {
-  ASTNodeList.emplace_back(std::move(ASTObject));
-
-  // Set the Node ID
-  ASTNodeList.back()->setID(getNewID());
-
-  return llvm::cast<SwitchDispatcherNode>(ASTNodeList.back().get());
-}
-
-SwitchNode *ASTTree::addSwitch(ast_unique_ptr &&ASTObject) {
-  ASTNodeList.emplace_back(std::move(ASTObject));
-
-  // Set the Node ID
-  ASTNodeList.back()->setID(getNewID());
-
-  return llvm::cast<SwitchNode>(ASTNodeList.back().get());
-}
-
 ASTNode *ASTTree::findASTNode(BasicBlockNode<BasicBlock *> *BlockNode) {
   revng_assert(NodeASTMap.count(BlockNode) != 0);
   ASTNode *ASTPointer = NodeASTMap[BlockNode];

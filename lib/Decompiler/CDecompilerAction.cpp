@@ -407,21 +407,20 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       buildAndAppendSmts(Stmts, Child, ASTCtx, ASTBuilder, Mark);
   } break;
 
-  case ASTNode::NodeKind::NK_SwitchRegular:
-  case ASTNode::NodeKind::NK_SwitchDispatcher: {
+  case ASTNode::NodeKind::NK_Switch: {
     SwitchNode *Switch = cast<SwitchNode>(N);
 
     // Generate the condition of the switch.
     clang::Expr *CondExpr = nullptr;
-    if (Kind == ASTNode::NodeKind::NK_SwitchDispatcher) {
+    llvm::Value *SwitchVar = Switch->getCondition();
+    if (SwitchVar) {
+      CondExpr = ASTBuilder.getExprForValue(SwitchVar);
+    } else {
+      // This is a dispatcher switch, check the loop state variable
       clang::VarDecl *StateVarD = ASTBuilder.getOrCreateLoopStateVarDecl();
       QualType T = StateVarD->getType();
       CondExpr = new (ASTCtx)
         DeclRefExpr(ASTCtx, StateVarD, false, T, VK_LValue, {});
-    } else {
-      auto *S = llvm::cast<RegularSwitchNode>(Switch);
-      llvm::Value *CondVal = S->getCondition();
-      CondExpr = ASTBuilder.getExprForValue(CondVal);
     }
     revng_assert(CondExpr != nullptr);
 
@@ -433,59 +432,89 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
 
     // Generate the body of the switch
     SmallVector<clang::Stmt *, 8> BodyStmts;
-    size_t CaseID = 0;
-    // Generate all the cases ony by one
-    for (ASTNode *CaseNode : Switch->unordered_cases()) {
-      clang::Expr *CaseExpr = nullptr;
-      // Retrieve the value for each case
-      if (Kind == ASTNode::NodeKind::NK_SwitchDispatcher) {
-        auto *S = llvm::cast<SwitchDispatcherNode>(Switch);
-        uint64_t CaseConst = S->getCaseValueN(CaseID);
-        CaseExpr = ASTBuilder.getUIntLiteral(CaseConst);
-      } else {
-        auto *S = llvm::cast<RegularSwitchNode>(Switch);
+    ASTNode *Default = nullptr;
+    for (const auto &[Labels, CaseNode] : Switch->cases()) {
 
-        // We extract all the case values from the CaseSet. If more than one
-        // case is present, we put the in `or` for the emission in C.
-        using llvm::SmallPtrSet;
-        SmallPtrSet<llvm::ConstantInt *, 1> CaseSet = S->getCaseValueN(CaseID);
-        auto CaseSetIt = CaseSet.begin();
-        llvm::ConstantInt *CaseVal = *CaseSetIt;
-        CaseExpr = ASTBuilder.getExprForValue(CaseVal);
-        for (; CaseSetIt != CaseSet.end(); CaseSetIt++) {
-          clang::Expr *LHS = CaseExpr;
-          clang::Expr *RHS = ASTBuilder.getExprForValue(*CaseSetIt);
-          BinaryOperatorKind BinOpOrKind = clang::BinaryOperatorKind::BO_Or;
-          CaseExpr = new (ASTCtx) clang::BinaryOperator(LHS,
-                                                        RHS,
-                                                        BinOpOrKind,
-                                                        LHS->getType(),
-                                                        VK_RValue,
-                                                        OK_Ordinary,
-                                                        {},
-                                                        FPOptions());
-        }
+      if (Labels.empty()) {
+        // Default. Save it for later. So that the default label is always the
+        // last emitted in C.
+        revng_assert(nullptr == Default);
+        Default = CaseNode;
+        continue;
       }
-      revng_assert(CaseExpr != nullptr);
-      // Build the case
-      clang::CaseStmt *Case = CaseStmt::Create(ASTCtx,
-                                               CaseExpr,
-                                               nullptr,
-                                               {},
-                                               {},
-                                               {});
-      // Build the body of the case
+
+      // Build the body of the case. We build it before iterating on the case
+      // labels, because we may have more than one case label with the same
+      // body, such as in:
+      // switch (x) {
+      //     case 0:
+      //     case 1:
+      //     case 2:
+      //       return 5;
+      // }
+      // So, first we build here the compound statement representing the scope
+      // with return 5;
       clang::Stmt *CaseBody = buildCompoundScope(CaseNode,
                                                  ASTCtx,
                                                  ASTBuilder,
                                                  Mark);
-      Case->setSubStmt(CaseBody);
-      BodyStmts.push_back(Case);
+
+      // Now we iterate on the case labels and we build them as clang produces
+      // them, i. e. in the following shape
+      //
+      //  |-SwitchStmt
+      //  | `-DeclRefExpr 'int' 'x'
+      //  `-CompoundStmt
+      //    |-CaseStmt
+      //    | |-ConstantExpr 'int'
+      //    | | `-IntegerLiteral 'int' 0
+      //    | `-CaseStmt
+      //    |   |-ConstantExpr 'int'
+      //    |   | `-IntegerLiteral 'int' 1
+      //    |   `-CaseStmt
+      //    |     |-ConstantExpr 'int'
+      //    |     | `-IntegerLiteral 'int' 2
+      //    |     `-ReturnStmt
+      //    |       `-IntegerLiteral 'int' 5
+      llvm::SmallVector<clang::CaseStmt *, 8> Cases;
+      for (uint64_t CaseVal : Labels) {
+
+        clang::Expr *CaseExpr = nullptr;
+        if (SwitchVar) {
+          llvm::Type *SwitchVarT = SwitchVar->getType();
+          auto *IntType = cast<llvm::IntegerType>(SwitchVarT);
+          auto *CaseConst = llvm::ConstantInt::get(IntType, CaseVal);
+          CaseExpr = ASTBuilder.getExprForValue(CaseConst);
+        } else {
+          CaseExpr = ASTBuilder.getUIntLiteral(CaseVal);
+        }
+
+        revng_assert(CaseExpr != nullptr);
+        // Build the case
+        clang::CaseStmt *Case = CaseStmt::Create(ASTCtx,
+                                                 CaseExpr,
+                                                 nullptr,
+                                                 {},
+                                                 {},
+                                                 {});
+        Case->setSubStmt(CaseBody);
+        Cases.push_back(Case);
+        // Set CaseBody to point to the last added Case, because this Case will
+        // be the body of the next CaseStmt.
+        CaseBody = Case;
+      }
+      revng_assert(llvm::isa<clang::CaseStmt>(CaseBody));
+      BodyStmts.push_back(CaseBody);
       BodyStmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
-      SwitchStatement->addSwitchCase(Case);
-      ++CaseID;
+
+      // Do it in reverse order, so that cases are inserted in the same order
+      // that you can see them in the emitted code. Not sure if this is
+      // necessary, but just want to avoid problems.
+      for (clang::CaseStmt *Case : llvm::reverse(Cases))
+        SwitchStatement->addSwitchCase(Case);
     }
-    if (ASTNode *Default = Switch->getDefault()) {
+
+    if (nullptr != Default) {
       // Build the case
       auto *Def = new (ASTCtx) clang::DefaultStmt({}, {}, nullptr);
       // Build the body of the case
@@ -497,9 +526,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       BodyStmts.push_back(Def);
       BodyStmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
       SwitchStatement->addSwitchCase(Def);
-    } else if (Kind == ASTNode::NodeKind::NK_SwitchDispatcher) {
-      // TODO: the default of the SwitchDispatcher should be an abort
     }
+
     clang::Stmt *SwitchBody = CompoundStmt::Create(ASTCtx, BodyStmts, {}, {});
     SwitchStatement->setBody(SwitchBody);
 

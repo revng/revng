@@ -7,18 +7,17 @@
 //
 
 // LLVM includes
-#include "llvm/Support/Casting.h"
 #include <llvm/IR/Instructions.h>
+#include <llvm/Support/Casting.h>
 
 // revng includes
-#include "revng/Support/Debug.h"
 #include <revng/Support/Assert.h>
-//#include "revng/Support/MonotoneFramework.h"
+#include <revng/Support/Debug.h>
 
 // local libraries includes
-#include "revng-c/RestructureCFGPass/ASTTree.h"
-#include "revng-c/RestructureCFGPass/ExprNode.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include <revng-c/RestructureCFGPass/ASTTree.h>
+#include <revng-c/RestructureCFGPass/ExprNode.h>
+#include <revng-c/RestructureCFGPass/RegionCFGTree.h>
 
 // local includes
 #include "CDecompilerBeautify.h"
@@ -106,8 +105,8 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
     simplifyShortCircuit(Scs->getBody(), AST, Mark);
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
 
-    for (auto &Case : Switch->unordered_cases())
-      simplifyShortCircuit(Case, AST, Mark);
+    for (auto &LabelCasePair : Switch->cases())
+      simplifyShortCircuit(LabelCasePair.second, AST, Mark);
     if (ASTNode *Default = Switch->getDefault())
       simplifyShortCircuit(Default, AST, Mark);
 
@@ -272,8 +271,8 @@ simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
 
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
 
-    for (auto &Case : Switch->unordered_cases())
-      simplifyTrivialShortCircuit(Case, AST, Mark);
+    for (auto &LabelCasePair : Switch->cases())
+      simplifyTrivialShortCircuit(LabelCasePair.second, AST, Mark);
     if (ASTNode *Default = Switch->getDefault())
       simplifyTrivialShortCircuit(Default, AST, Mark);
 
@@ -337,13 +336,14 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
     if (If->hasElse()) {
       If->setElse(matchSwitch(AST, If->getElse(), Mark));
     }
-  } else if (auto *Switch = llvm::dyn_cast<RegularSwitchNode>(RootNode)) {
+  } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
     // TODO: in the current situation, we should not find any switch node
     //       composed by only two case nodes. This check is only a safeguard,
     //       consider removing it altogether.
     // revng_assert(Switch->CaseSize() >= 2);
-    for (auto &Case : Switch->unordered_cases())
-      Case = matchSwitch(AST, Case, Mark);
+    for (auto &LabelCasePair : Switch->cases())
+      LabelCasePair.second = matchSwitch(AST, LabelCasePair.second, Mark);
+
     if (ASTNode *Default = Switch->getDefault())
       Default = matchSwitch(AST, Default, Mark);
   }
@@ -470,8 +470,9 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
 
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
 
-    for (auto &Case : Switch->unordered_cases())
-      matchDoWhile(Case, AST);
+    for (auto &LabelCasePair : Switch->cases())
+      matchDoWhile(LabelCasePair.second, AST);
+
     if (ASTNode *Default = Switch->getDefault())
       matchDoWhile(Default, AST);
 
@@ -551,8 +552,8 @@ static void addComputationToContinue(ASTNode *RootNode, IfNode *ConditionIf) {
     }
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
 
-    for (auto &Case : Switch->unordered_cases())
-      addComputationToContinue(Case, ConditionIf);
+    for (auto &LabelCasePair : Switch->cases())
+      addComputationToContinue(LabelCasePair.second, ConditionIf);
     if (ASTNode *Default = Switch->getDefault())
       addComputationToContinue(Default, ConditionIf);
 
@@ -576,8 +577,8 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
 
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
 
-    for (auto &Case : Switch->unordered_cases())
-      matchWhile(Case, AST);
+    for (auto &LabelCasePair : Switch->cases())
+      matchWhile(LabelCasePair.second, AST);
     if (ASTNode *Default = Switch->getDefault())
       matchWhile(Default, AST);
 
@@ -687,13 +688,12 @@ protected:
       for (ASTNode *N : Seq->nodes())
         exec(N, AST);
     } break;
-    case ASTNode::NK_SwitchDispatcher:
-    case ASTNode::NK_SwitchRegular: {
+    case ASTNode::NK_Switch: {
       SwitchNode *Switch = llvm::cast<SwitchNode>(Node);
       if (not LoopStack.empty())
         LoopStack.back().second.push_back(Switch);
-      for (ASTNode *Case : Switch->unordered_cases())
-        exec(Case, AST);
+      for (auto &LabelCasePair : Switch->cases())
+        exec(LabelCasePair.second, AST);
       if (ASTNode *Default = Switch->getDefault())
         exec(Default, AST);
       if (not LoopStack.empty())

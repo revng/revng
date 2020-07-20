@@ -11,13 +11,14 @@
 #include <set>
 
 // LLVM includes
-#include "llvm/ADT/GraphTraits.h"
-#include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/IR/BasicBlock.h"
+#include <llvm/ADT/GraphTraits.h>
+#include <llvm/ADT/SmallSet.h>
+#include <llvm/ADT/SmallString.h>
+#include <llvm/ADT/SmallVector.h>
+#include <llvm/IR/BasicBlock.h>
 
 // revng includes
-#include "revng/Support/Debug.h"
+#include <revng/Support/Debug.h>
 
 // Forward declarations
 template<class NodeT>
@@ -48,12 +49,25 @@ public:
   // EdgeDescriptor is a handy way to create and manipulate edges on the
   // RegionCFG.
   using EdgeDescriptor = std::pair<BasicBlockNodeT *, BasicBlockNodeT *>;
+  using edge_label_t = llvm::SmallSet<uint64_t, 1>;
+  using node_label_pair = std::pair<BasicBlockNodeT *, edge_label_t>;
 
-  using links_container = llvm::SmallVector<BasicBlockNodeT *, 2>;
+  using links_container = llvm::SmallVector<node_label_pair, 2>;
   using links_iterator = typename links_container::iterator;
   using links_const_iterator = typename links_container::const_iterator;
   using links_range = llvm::iterator_range<links_iterator>;
   using links_const_range = llvm::iterator_range<links_const_iterator>;
+
+protected:
+  static BasicBlockNodeT *getChild(const node_label_pair &P) { return P.first; }
+
+public:
+  using child_iterator = llvm::mapped_iterator<links_iterator,
+                                               decltype(&getChild)>;
+  using child_const_iterator = llvm::mapped_iterator<links_const_iterator,
+                                                     decltype(&getChild)>;
+  using child_range = llvm::iterator_range<child_iterator>;
+  using child_const_range = llvm::iterator_range<child_const_iterator>;
 
 protected:
   /// Unique Node Id inside a RegionCFG<NodeT>, useful for printing to graphviz
@@ -158,72 +172,110 @@ public:
   RegionCFGT *getParent() { return Parent; }
   void setParent(RegionCFGT *P) { Parent = P; }
 
-  void removeNode();
+  // void removeNode();
 
   // TODO: Check why this implementation is really necessary.
   void printAsOperand(llvm::raw_ostream &O, bool /* PrintType */) const;
 
-  void addSuccessor(BasicBlockNode *Successor) {
+  void addLabeledSuccessor(const node_label_pair &P) {
+    revng_assert(not hasSuccessor(P.first));
+    Successors.push_back(P);
+  }
 
-    // Assert that we are not double inserting.
-    revng_assert(not hasSuccessor(Successor));
+  void addLabeledSuccessor(node_label_pair &&P) {
+    revng_assert(not hasSuccessor(P.first));
+    Successors.push_back(std::move(P));
+  }
 
-    Successors.push_back(Successor);
+  void addUnlabeledSuccessor(BasicBlockNode *Successor) {
+    addLabeledSuccessor(std::make_pair(Successor, edge_label_t()));
   }
 
   bool hasSuccessor(const BasicBlockNode *Candidate) const {
+    const auto First = [](const auto &Pair) { return Pair.first; };
+    auto BBRange = llvm::map_range(Successors, First);
+
     const auto Find = [](const auto &Range, const auto *C) {
       return std::find(Range.begin(), Range.end(), C) != Range.end();
     };
-    return Find(Successors, Candidate);
+
+    return Find(BBRange, Candidate);
   }
 
   void removeSuccessor(BasicBlockNode *Successor);
+  node_label_pair extractSuccessorEdge(BasicBlockNode *Successor);
 
-  void addPredecessor(BasicBlockNode *Predecessor) {
+  void addLabeledPredecessor(const node_label_pair &P) {
+    revng_assert(not hasPredecessor(P.first));
+    Predecessors.push_back(P);
+  }
 
-    // Assert that we are not double inserting.
-    revng_assert(not hasPredecessor(Predecessor));
-
-    Predecessors.push_back(Predecessor);
+  void addUnlabeledPredecessor(BasicBlockNode *Predecessor) {
+    addLabeledPredecessor(std::make_pair(Predecessor, edge_label_t()));
   }
 
   bool hasPredecessor(BasicBlockNode *Candidate) const {
+
+    const auto First = [](const auto &Pair) { return Pair.first; };
+    auto BBRange = llvm::map_range(Predecessors, First);
+
     const auto Find = [](const auto &Range, const auto *C) {
       return std::find(Range.begin(), Range.end(), C) != Range.end();
     };
-    return Find(Predecessors, Candidate);
+
+    return Find(BBRange, Candidate);
   }
 
-  void removePredecessor(BasicBlockNode *Predecessor);
+  void removePredecessor(BasicBlockNode *Successor);
+  node_label_pair extractPredecessorEdge(BasicBlockNode *Predecessor);
 
   void updatePointers(const BasicBlockNodeMap &SubstitutionMap);
 
   size_t successor_size() const { return Successors.size(); }
-  links_const_range successors() const {
-    return llvm::make_range(Successors.begin(), Successors.end());
-  }
-  links_range successors() {
+
+  links_const_range labeled_successors() const {
     return llvm::make_range(Successors.begin(), Successors.end());
   }
 
-  BasicBlockNode *getPredecessorI(size_t i) const { return Predecessors[i]; }
-  BasicBlockNode *getSuccessorI(size_t i) const { return Successors[i]; }
+  links_range labeled_successors() {
+    return llvm::make_range(Successors.begin(), Successors.end());
+  }
+
+  child_const_range successors() const {
+    return llvm::map_range(labeled_successors(), &getChild);
+  }
+
+  child_range successors() {
+    return llvm::map_range(labeled_successors(), &getChild);
+  }
+
+  BasicBlockNode *getSuccessorI(size_t i) const { return Successors[i].first; }
 
   size_t predecessor_size() const { return Predecessors.size(); }
 
-  links_const_range predecessors() const {
+  links_const_range labeled_predecessors() const {
     return llvm::make_range(Predecessors.begin(), Predecessors.end());
   }
 
-  links_range predecessors() {
+  links_range labeled_predecessors() {
     return llvm::make_range(Predecessors.begin(), Predecessors.end());
+  }
+
+  child_const_range predecessors() const {
+    return llvm::map_range(labeled_predecessors(), &getChild);
+  }
+
+  child_range predecessors() {
+    return llvm::map_range(labeled_predecessors(), &getChild);
   }
 
   unsigned getID() const { return ID; }
   bool isBasicBlock() const { return NodeType == Type::Code; }
 
-  NodeT getOriginalNode() const { return OriginalNode; }
+  NodeT getOriginalNode() const {
+    revng_assert(isCode() and nullptr != OriginalNode);
+    return OriginalNode;
+  }
 
   llvm::StringRef getName() const;
   std::string getNameStr() const {
@@ -251,7 +303,7 @@ namespace llvm {
 template<class NodeT>
 struct GraphTraits<BasicBlockNode<NodeT> *> {
   using NodeRef = BasicBlockNode<NodeT> *;
-  using ChildIteratorType = typename BasicBlockNode<NodeT>::links_iterator;
+  using ChildIteratorType = typename BasicBlockNode<NodeT>::child_iterator;
 
   static NodeRef getEntryNode(NodeRef N) { return N; }
 
@@ -267,7 +319,7 @@ struct GraphTraits<BasicBlockNode<NodeT> *> {
 template<class NodeT>
 struct GraphTraits<Inverse<BasicBlockNode<NodeT> *>> {
   using NodeRef = BasicBlockNode<NodeT> *;
-  using ChildIteratorType = typename BasicBlockNode<NodeT>::links_iterator;
+  using ChildIteratorType = typename BasicBlockNode<NodeT>::child_iterator;
 
   static NodeRef getEntryNode(Inverse<NodeRef> G) { return G.Graph; }
 

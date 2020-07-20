@@ -13,21 +13,21 @@
 #include <sys/stat.h>
 
 // LLVM includes
-#include "llvm/ADT/DepthFirstIterator.h"
-#include "llvm/ADT/GraphTraits.h"
-#include "llvm/ADT/PostOrderIterator.h"
-#include "llvm/ADT/SCCIterator.h"
-#include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/SmallSet.h"
-#include "llvm/IR/Dominators.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/GenericDomTreeConstruction.h"
-#include "llvm/Support/raw_os_ostream.h"
+#include <llvm/ADT/DepthFirstIterator.h>
+#include <llvm/ADT/GraphTraits.h>
+#include <llvm/ADT/PostOrderIterator.h>
+#include <llvm/ADT/SCCIterator.h>
+#include <llvm/ADT/SmallPtrSet.h>
+#include <llvm/ADT/SmallSet.h>
+#include <llvm/IR/Dominators.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/Support/Casting.h>
+#include <llvm/Support/GenericDomTreeConstruction.h>
+#include <llvm/Support/raw_os_ostream.h>
 
 // revng includes
-#include "revng/Support/IRHelpers.h"
+#include <revng/Support/IRHelpers.h>
 
 // Local libraries includes
 #include "revng-c/ADT/ReversePostOrderTraversal.h"
@@ -90,12 +90,13 @@ inline ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
       // TODO: confirm that this phase is not needed since the processing is
       //       done inside the processing of each SCS region.
     } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(Node)) {
-      for (size_t I = 0; I < Switch->CaseSize(); I++) {
-        Switch->replaceCaseN(I, createSequence(Tree, Switch->getCaseN(I)));
-      }
-      if (ASTNode *Default = Switch->getDefault()) {
+
+      for (auto &LabelCasePair : Switch->cases())
+        LabelCasePair.second = createSequence(Tree, LabelCasePair.second);
+
+      if (ASTNode *Default = Switch->getDefault())
         Switch->replaceDefault(createSequence(Tree, Default));
-      }
+
     } else if (llvm::isa<BreakNode>(Node)) {
       // Stop here during the analysis.
     } else if (llvm::isa<ContinueNode>(Node)) {
@@ -142,13 +143,12 @@ inline void simplifyDummies(ASTNode *RootNode) {
     }
   } break;
 
-  case ASTNode::NK_SwitchRegular:
-  case ASTNode::NK_SwitchDispatcher: {
+  case ASTNode::NK_Switch: {
 
     auto *Switch = llvm::cast<SwitchNode>(RootNode);
 
-    for (ASTNode *CaseNode : Switch->unordered_cases())
-      simplifyDummies(CaseNode);
+    for (auto &LabelCaseNodePair : Switch->cases())
+      simplifyDummies(LabelCaseNodePair.second);
 
     if (auto *Default = Switch->getDefault())
       simplifyDummies(Default);
@@ -208,30 +208,9 @@ inline ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
 
   } break;
 
-  case ASTNode::NK_SwitchRegular:
-  case ASTNode::NK_SwitchDispatcher: {
+  case ASTNode::NK_Switch: {
 
     auto *Switch = llvm::cast<SwitchNode>(RootNode);
-
-    // Simplify any possible case node which is constituted only by a sequence
-    // of dummy nodes.
-    for (unsigned I = 0; I < Switch->CaseSize(); I++) {
-      auto *CaseNode = Switch->getCaseN(I);
-      auto *NewCaseNode = simplifyAtomicSequence(CaseNode);
-
-      // If the recursive call of `simplifyAtomicSequence` returned a `nullptr`
-      // (meaning we simplified the body to an empty sequence), remove the case
-      // from the switch.
-      if (NewCaseNode == nullptr) {
-
-        // Invoke the removal case method of the parent `SwitchNode` class. This
-        // method will take care of also invoking the method on the two
-        // subclasses.
-        Switch->removeCaseN(I);
-      } else if (NewCaseNode != CaseNode) {
-        Switch->replaceCaseN(I, NewCaseNode);
-      }
-    }
 
     // In case the recursive call to `simplifyAtomicSequence` gives origin to a
     // complete simplification of the default node of the switch, setting its
@@ -242,6 +221,20 @@ inline ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
       auto *NewDefault = simplifyAtomicSequence(Default);
       if (NewDefault != Default)
         Switch->replaceDefault(NewDefault);
+    }
+
+    auto LabelCasePairIt = Switch->cases().begin();
+    auto LabelCasePairEnd = Switch->cases().end();
+    while (LabelCasePairIt != LabelCasePairEnd) {
+      auto *NewCaseNode = simplifyAtomicSequence(LabelCasePairIt->second);
+      if (nullptr == NewCaseNode) {
+        revng_assert(nullptr == Switch->getDefault());
+        LabelCasePairIt = Switch->cases().erase(LabelCasePairIt);
+        LabelCasePairEnd = Switch->cases().end();
+      } else {
+        LabelCasePairIt->second = NewCaseNode;
+        ++LabelCasePairIt;
+      }
     }
 
   } break;
@@ -308,6 +301,7 @@ RegionCFG<NodeT>::cloneNode(BasicBlockNodeT &OriginalNode) {
   BlockNodes.emplace_back(std::make_unique<BBNodeT>(OriginalNode, this));
   BasicBlockNodeT *New = BlockNodes.back().get();
   New->setName(OriginalNode.getName().str() + " cloned");
+  New->setWeaved(OriginalNode.isWeaved());
   return New;
 }
 
@@ -316,13 +310,11 @@ inline void RegionCFG<NodeT>::removeNode(BasicBlockNodeT *Node) {
 
   revng_log(CombLogger, "Removing node named: " << Node->getNameStr() << "\n");
 
-  for (BasicBlockNodeT *Predecessor : Node->predecessors()) {
+  for (BasicBlockNodeT *Predecessor : Node->predecessors())
     Predecessor->removeSuccessor(Node);
-  }
 
-  for (BasicBlockNodeT *Successor : Node->successors()) {
+  for (BasicBlockNodeT *Successor : Node->successors())
     Successor->removePredecessor(Node);
-  }
 
   for (auto It = BlockNodes.begin(); It != BlockNodes.end(); It++) {
     if ((*It).get() == Node) {
@@ -337,10 +329,10 @@ using BBNodeT = typename RegionCFG<NodeT>::BasicBlockNodeT;
 
 template<class NodeT>
 inline void copyNeighbors(BBNodeT<NodeT> *Dst, BBNodeT<NodeT> *Src) {
-  for (BBNodeT<NodeT> *Succ : Src->successors())
-    Dst->addSuccessor(Succ);
-  for (BBNodeT<NodeT> *Pred : Src->predecessors())
-    Dst->addPredecessor(Pred);
+  for (const auto &P : Src->labeled_successors())
+    Dst->addLabeledSuccessor(P);
+  for (const auto &P : Src->labeled_predecessors())
+    Dst->addLabeledPredecessor(P);
 }
 
 template<class NodeT>
@@ -402,7 +394,7 @@ inline void RegionCFG<NodeT>::connectBreakNode(std::set<EdgeDescriptor> &Out,
 
     // Create a new break for each outgoing edge.
     BasicBlockNode<NodeT> *Break = addBreak();
-    addEdge(EdgeDescriptor(SubMap.at(Edge.first), Break));
+    addPlainEdge(EdgeDescriptor(SubMap.at(Edge.first), Break));
   }
 }
 
@@ -466,7 +458,7 @@ inline void RegionCFG<NodeT>::dumpDot(StreamT &S) const {
 
   for (const std::unique_ptr<BasicBlockNode<NodeT>> &BB : BlockNodes) {
     streamNode(S, BB.get());
-    for (auto &Successor : BB->successors()) {
+    for (const auto &Successor : BB->successors()) {
       unsigned PredID = BB->getID();
       unsigned SuccID = Successor->getID();
       S << "\"" << PredID << "\""
@@ -508,8 +500,8 @@ inline bool RegionCFG<NodeT>::purgeIfTrivialDummy(BBNodeT *Dummy) {
 
     revng_log(CombLogger, "Purging dummy node " << Dummy->getNameStr());
 
-    BasicBlockNode<NodeT> *Predecessor = Dummy->getPredecessorI(0);
-    BasicBlockNode<NodeT> *Successor = Dummy->getSuccessorI(0);
+    BasicBlockNode<NodeT> *Predecessor = *Dummy->predecessors().begin();
+    BasicBlockNode<NodeT> *Successor = *Dummy->successors().begin();
 
     // Connect directly predecessor and successor, and remove the dummy node
     // under analysis
@@ -637,28 +629,28 @@ RegionCFG<NodeT>::cloneUntilExit(BasicBlockNode<NodeT> *Node,
     // Get the clone of the `CurrentNode`.
     BasicBlockNode<NodeT> *CurrentClone = CloneMap.at(CurrentNode);
 
-    for (BasicBlockNode<NodeT> *Successor : CurrentNode->successors()) {
+    for (const auto &[Succ, Labels] : CurrentNode->labeled_successors()) {
       // If the successor is not the sink, create and edge that directly
       // connects it.
-      if (Successor != Sink) {
+      if (Succ != Sink) {
         BasicBlockNode<NodeT> *SuccessorClone = nullptr;
 
         // The clone of the successor node already exists.
-        if (CloneMap.count(Successor)) {
-          SuccessorClone = CloneMap.at(Successor);
+        auto CloneIt = CloneMap.find(Succ);
+        if (CloneIt != CloneMap.end()) {
+          SuccessorClone = CloneIt->second;
         } else {
-
           // The clone of the successor does not exist, create it in place.
-          SuccessorClone = cloneNode(*Successor);
-          CloneMap[Successor] = SuccessorClone;
+          SuccessorClone = cloneNode(*Succ);
+          CloneMap[Succ] = SuccessorClone;
         }
 
         // Create the edge to the clone of the successor.
         revng_assert(SuccessorClone != nullptr);
-        addEdge(EdgeDescriptor(CurrentClone, SuccessorClone));
+        addEdge(EdgeDescriptor(CurrentClone, SuccessorClone), Labels);
 
         // Add the successor to the worklist.
-        WorkList.push_back(Successor);
+        WorkList.push_back(Succ);
       }
     }
   }
@@ -678,25 +670,15 @@ inline void RegionCFG<NodeT>::untangle() {
 
   // Collect all the conditional nodes in the graph.
   BasicBlockNodeTVect ConditionalNodes;
-  for (auto It = Graph.begin(); It != Graph.end(); It++) {
-    if ((*It)->successor_size() == 2) {
-      ConditionalNodes.push_back(*It);
-    }
-  }
-
-  // Collect entry and exit nodes.
-  BasicBlockNodeTVect ExitNodes;
-  for (auto It = Graph.begin(); It != Graph.end(); It++) {
-    if ((*It)->successor_size() == 0) {
-      ExitNodes.push_back(*It);
-    }
-  }
+  for (auto *Node : Graph)
+    if (Node->successor_size() == 2)
+      ConditionalNodes.push_back(Node);
 
   // Add a new virtual sink node to computer the postdominator.
   BasicBlockNode<NodeT> *Sink = Graph.addArtificialNode("Sink");
-  for (BasicBlockNode<NodeT> *Exit : ExitNodes) {
-    addEdge(EdgeDescriptor(Exit, Sink));
-  }
+  for (auto *Node : Graph)
+    if (Node != Sink and Node->successor_size() == 0)
+      addPlainEdge(EdgeDescriptor(Node, Sink));
 
   if (CombLogger.isEnabled()) {
     Graph.dumpDotOnFile("untangle",
@@ -730,14 +712,21 @@ inline void RegionCFG<NodeT>::untangle() {
     // Update the information of the dominator and postdominator trees.
     DT.recalculate(Graph);
 
-    for (EdgeDescriptor Edge : InlinedEdges)
-      removeEdge(Edge);
+    using edge_label_t = typename BasicBlockNodeT::edge_label_t;
+    llvm::SmallVector<edge_label_t, 16> InlinedEdgesLabels;
+    for (EdgeDescriptor Edge : InlinedEdges) {
+      auto Label = extractLabeledEdge(Edge).second;
+      InlinedEdgesLabels.push_back(Label);
+    }
 
     PDT.recalculate(Graph);
 
     // Reattach the edges disconnected for the PDT computation.
-    for (EdgeDescriptor Edge : InlinedEdges)
-      addEdge(Edge);
+    revng_assert(InlinedEdges.size() == InlinedEdgesLabels.size());
+    for (const auto &[Edge, Label] :
+         llvm::zip_first(InlinedEdges, InlinedEdgesLabels)) {
+      addEdge(Edge, Label);
+    }
 
     // Update the postdominator
     BasicBlockNodeT *PostDominator = PDT[Conditional]->getIDom()->getBlock();
@@ -954,48 +943,31 @@ inline void RegionCFG<NodeT>::inflate() {
   // TODO: handle all the collapsed regions.
   RegionCFG<NodeT> &Graph = *this;
 
-  // Collect entry and exit nodes.
-  BasicBlockNodeTVect ExitNodes;
-  for (auto *Node : Graph) {
-    if (Node->successor_size() == 0) {
-      ExitNodes.push_back(Node);
-    }
-  }
-
   BasicBlockNode<NodeT> *Entry = &Graph.getEntryNode();
+
   if (CombLogger.isEnabled()) {
-    CombLogger << "The entry node is:\n";
-    CombLogger << Entry->getNameStr() << "\n";
-    CombLogger << "In the graph the exit nodes are:\n";
-    for (BasicBlockNode<NodeT> *Node : ExitNodes) {
-      CombLogger << Node->getNameStr() << "\n";
-    }
-  }
-
-  // Helper data structure for exit reachability computation.
-  std::map<BasicBlockNode<NodeT> *, BasicBlockNodeTSet> ReachableExits;
-
-  // Collect nodes reachable from each exit node in the graph.
-  for (BasicBlockNode<NodeT> *Exit : ExitNodes) {
-    revng_log(CombLogger, "From exit node: " << Exit->getNameStr());
-    revng_log(CombLogger, "We can reach:");
-    for (BasicBlockNode<NodeT> *Node : llvm::inverse_depth_first(Exit)) {
-      revng_log(CombLogger, Node->getNameStr());
-      ReachableExits[Node].insert(Exit);
-    }
-  }
-
-  // Dump graph before virtual sink add.
-  if (CombLogger.isEnabled()) {
+    revng_log(CombLogger, "Entry node is: " << Entry->getNameStr());
     Graph.dumpDotOnFile("inflates",
                         FunctionName,
                         "Region-" + RegionName + "-before-sink");
   }
 
-  // Add a new virtual sink node to which all the exit nodes are connected.
+  // Add a new virtual sink node to which all the reachable exit nodes are
+  // connected. Also collect the sets of reachable exits from each node that is
+  // a successor of a node that induces duplication.
   BasicBlockNode<NodeT> *Sink = Graph.addArtificialNode("Sink");
-  for (BasicBlockNode<NodeT> *Exit : ExitNodes) {
-    addEdge(EdgeDescriptor(Exit, Sink));
+  std::map<BasicBlockNode<NodeT> *, BasicBlockNodeTSet> ReachableExits;
+  BasicBlockNodeTVect ExitNodes;
+  for (auto *Exit : Graph) {
+    if (Sink != Exit and Exit->successor_size() == 0) {
+      revng_log(CombLogger, "From exit node: " << Exit->getNameStr());
+      revng_log(CombLogger, "We can reach:");
+      for (BasicBlockNode<NodeT> *Node : llvm::inverse_depth_first(Exit)) {
+        revng_log(CombLogger, Node->getNameStr());
+        ReachableExits[Node].insert(Exit);
+      }
+      addPlainEdge(EdgeDescriptor(Exit, Sink));
+    }
   }
 
   // Dump graph after virtual sink add.
@@ -1021,8 +993,8 @@ inline void RegionCFG<NodeT>::inflate() {
       break;
     case 2: {
 
-      BasicBlockNodeTSet ThenExits = ReachableExits[Node->getSuccessorI(0)];
-      BasicBlockNodeTSet ElseExits = ReachableExits[Node->getSuccessorI(1)];
+      BasicBlockNodeTSet ThenExits = ReachableExits.at(Node->getSuccessorI(0));
+      BasicBlockNodeTSet ElseExits = ReachableExits.at(Node->getSuccessorI(1));
 
       // If the exit nodes reachable from the Then and from the Else are not
       // disjoint, then we add Node to ConditionalNodes because it can induce
@@ -1217,7 +1189,7 @@ inline void RegionCFG<NodeT>::inflate() {
           moveEdgeTarget(EdgeDescriptor(Predecessor, Candidate), Dummy);
         }
 
-        addEdge(EdgeDescriptor(Dummy, Candidate));
+        addPlainEdge(EdgeDescriptor(Dummy, Candidate));
 
         // Remove from the visited set the node which triggered the creation of
         // the dummy nodes, because we're not really analyzing it now, since
@@ -1265,8 +1237,8 @@ inline void RegionCFG<NodeT>::inflate() {
 
         // Initialize the successors of the Duplicated node with the same
         // successors of Candidate node
-        for (BasicBlockNode<NodeT> *Successor : Candidate->successors())
-          addEdge(EdgeDescriptor(Duplicated, Successor));
+        for (const auto &[Succ, Label] : Candidate->labeled_successors())
+          addEdge(EdgeDescriptor(Duplicated, Succ), Label);
 
         bool Same = Candidate->successor_size() == Duplicated->successor_size();
         revng_assert(Same);
@@ -1410,7 +1382,7 @@ template<class NodeT>
 inline bool isASwitch(BasicBlockNode<NodeT> *Node) {
 
   // TODO: remove this workaround for searching for switch nodes.
-  if (Node->getOriginalNode()) {
+  if (Node->isCode() and Node->getOriginalNode()) {
     llvm::BasicBlock *OriginalBB = Node->getOriginalNode();
     llvm::Instruction *TerminatorBB = OriginalBB->getTerminator();
     return llvm::isa<llvm::SwitchInst>(TerminatorBB);
@@ -1475,173 +1447,107 @@ inline void RegionCFG<NodeT>::generateAst() {
     BasicBlockNode<NodeT> *Node = Pair.second;
 
     // Collect the children nodes in the dominator tree.
-    std::vector<llvm::DomTreeNodeBase<BasicBlockNode<NodeT>> *>
-      Children = ASTDT[Node]->getChildren();
-
-    std::vector<ASTNode *> ASTChildren;
-    BasicBlockNodeTVect BBChildren;
-    for (llvm::DomTreeNodeBase<BasicBlockNode<NodeT>> *TreeNode : Children) {
-      BasicBlockNode<NodeT> *BlockNode = TreeNode->getBlock();
-      ASTNode *ASTPointer = AST.findASTNode(BlockNode);
-      ASTChildren.push_back(ASTPointer);
-      BBChildren.push_back(BlockNode);
+    llvm::SmallVector<decltype(Node), 8> Children;
+    {
+      const auto &DomTreeChildren = ASTDT[Node]->getChildren();
+      for (auto *DomTreeNode : DomTreeChildren)
+        Children.push_back(DomTreeNode->getBlock());
     }
 
-    // Check that the two vector have the same size.
-    revng_assert(Children.size() == ASTChildren.size());
-    using UniqueASTNode = ASTTree::ast_unique_ptr;
-
     // Handle collapsded node.
-    UniqueASTNode ASTObject;
+    ASTTree::ast_unique_ptr ASTObject;
     if (Node->isCollapsed()) {
-      revng_assert(ASTChildren.size() <= 1);
+
+      revng_assert(Children.size() <= 1);
       RegionCFG<NodeT> *BodyGraph = Node->getCollapsedCFG();
       revng_assert(BodyGraph != nullptr);
       revng_log(CombLogger,
                 "Inspecting collapsed node: " << Node->getNameStr());
+
       BodyGraph->generateAst();
-      if (ASTChildren.size() == 1) {
+
+      if (Children.size() == 1) {
         ASTNode *Body = BodyGraph->getAST().getRoot();
-        ASTObject.reset(new ScsNode(Node, Body, ASTChildren[0]));
+        ASTNode *ASTChild = AST.findASTNode(Children[0]);
+        ASTObject.reset(new ScsNode(Node, Body, ASTChild));
       } else {
         ASTNode *Body = BodyGraph->getAST().getRoot();
         ASTObject.reset(new ScsNode(Node, Body));
       }
-    } else if (Node->isDispatcher() or isASwitch(Node)) {
-      // This should be dedicated to handle switch node. Unfortunately not all
-      // the switch nodes are guaranteed to have more than 3 dominated nodes.
-      revng_assert(not Node->isBreak() and not Node->isContinue()
-                   and not Node->isSet());
 
-      // Assert that in this case we are in presence of a switch instruction.
+    } else if (Node->isDispatcher() or isASwitch(Node)) {
+
       revng_assert(Node->isCode() or Node->isDispatcher());
 
-      // If we are in presence of a dispatcher, we do not have a corresponding
-      // switch instruction in the LLVM ir.
-      llvm::Value *SwitchValue = nullptr;
-      if (!Node->isDispatcher()) {
-
+      llvm::Value *SwitchCondition = nullptr;
+      if (not Node->isDispatcher()) {
         llvm::BasicBlock *OriginalNode = Node->getOriginalNode();
         llvm::Instruction *Terminator = OriginalNode->getTerminator();
         llvm::SwitchInst *Switch = llvm::cast<llvm::SwitchInst>(Terminator);
-
-        SwitchValue = Switch->getCondition();
+        SwitchCondition = Switch->getCondition();
       }
+      revng_assert(SwitchCondition or Node->isDispatcher());
 
-      // Collect the successor, if present at all.
-      // We should have at maximum a single node which is directly dominated
-      // by the head of the switch, but which is not reachable from the
-      // switch head.
-      // TODO: This could be not true if for example the switch head node is
-      //       directly connected to the postdominator.
-      // TODO: Elect the real immediate postdominator.
-      // Fill the cases container with the ASTNodes pointing to the cases
-      BasicBlockNode<NodeT> *PostDomBBNode = nullptr;
-      ASTNode *PostDomASTNode = nullptr;
-      unsigned NodeI = 0;
-      for (BasicBlockNode<NodeT> *Dominated : BBChildren) {
-        if (not Node->hasSuccessor(Dominated)) {
-          revng_assert(PostDomBBNode == nullptr);
-          revng_assert(PostDomASTNode == nullptr);
-          PostDomBBNode = Dominated;
-
-          // Retrieve the corresponding ASTNode using the index we computed.
-          PostDomASTNode = ASTChildren.at(NodeI);
-        }
-
-        // Increment the index.
-        NodeI++;
-      }
-
-      // Build the case vector depending on the fact that we are building a
-      // regular or dispatcher switch.
-      RegularSwitchNode::case_value_container CaseValuesRegular;
-      SwitchDispatcherNode::case_value_container CaseValuesCheck;
+      SwitchNode::case_container LabeledCases;
+      BasicBlockNode<NodeT> *DefaultNode = nullptr;
       ASTNode *DefaultASTNode = nullptr;
-      if (!Node->isDispatcher()) {
-        llvm::BasicBlock *OriginalNode = Node->getOriginalNode();
-        llvm::Instruction *Terminator = OriginalNode->getTerminator();
-        llvm::SwitchInst *Switch = llvm::cast<llvm::SwitchInst>(Terminator);
-        unsigned Index = 0;
-        for (ASTNode *A : ASTChildren) {
-          if (A != PostDomASTNode) {
-            BBNodeT *N = BBChildren[Index];
-            llvm::BasicBlock *B = N->getOriginalNode();
-            revng_assert(N->isCode() or N->isDispatcher());
 
-            // In presence of a dispatcher node (which can be a symptom of a
-            // weaving pass) we need to collect all the cases from the
-            // underlying nodes.
-            llvm::SmallPtrSet<llvm::ConstantInt *, 1> CaseSet;
-            if (N->isDispatcher()) {
+      for (const auto &[SwitchSucc, Labels] : Node->labeled_successors()) {
+        ASTNode *ASTPointer = AST.findASTNode(SwitchSucc);
+        revng_assert(nullptr != ASTPointer);
 
-              // The dispatcher node has no correspondence in terms of
-              // original IR. But if we find a dispatcher, these means that a
-              // weaving process has took place, and therefore we need to go
-              // over the children of the dispatcher node in order to find the
-              // original nodes which gave origin to the dispatcher node.
-              // We then iterate over them to collect the case values, and we
-              // put them in the `CaseSet`, which will be expanded to an `or`
-              // of all the values during the emission of C.
-              revng_assert(B == nullptr);
-              for (BBNodeT *SubChild : N->successors()) {
-                llvm::BasicBlock *SubB = SubChild->getOriginalNode();
-                llvm::ConstantInt *IndexConstant = Switch->findCaseDest(SubB);
-                revng_assert(IndexConstant != nullptr);
-                CaseSet.insert(IndexConstant);
-              }
-              CaseValuesRegular.push_back(CaseSet);
-            } else {
-              revng_assert(B != nullptr);
+        auto FindIt = std::find(Children.begin(), Children.end(), SwitchSucc);
+        revng_assert(FindIt != Children.end());
 
-              // We may be in presence of the default case. In this situation
-              // place arbitarily the 0 case value.
-              llvm::ConstantInt *IndexConstant;
-              if (Switch->getDefaultDest() != B) {
-                IndexConstant = Switch->findCaseDest(B);
-                revng_assert(IndexConstant != nullptr);
-                CaseSet.insert(IndexConstant);
-                CaseValuesRegular.push_back(CaseSet);
-              } else {
-                DefaultASTNode = A;
-              }
-            }
-          }
-          Index++;
+        if (Labels.empty()) {
+          revng_assert(nullptr == DefaultNode);
+          revng_assert(nullptr == DefaultASTNode);
+          DefaultNode = SwitchSucc;
+          DefaultASTNode = ASTPointer;
         }
+
+        LabeledCases.push_back({ Labels, ASTPointer });
+      }
+      revng_assert(DefaultASTNode or Node->isWeaved() or Node->isDispatcher());
+      revng_assert(DefaultNode or Node->isWeaved() or Node->isDispatcher());
+
+      revng_assert(Node->successor_size() == LabeledCases.size());
+      revng_assert(Children.size() >= Node->successor_size());
+      ASTNode *PostDomASTNode = nullptr;
+
+      if (Children.size() > Node->successor_size()) {
+
+        // There are some children on the dominator tree that are not successors
+        // on the graph. It should be at most one, which is the post-dominator.
+        const auto NotSuccessor = [&Node](const auto *Child) {
+          auto It = Node->successors().begin();
+          auto End = Node->successors().end();
+          return std::find(It, End, Child) == End;
+        };
+
+        auto It = std::find_if(Children.begin(), Children.end(), NotSuccessor);
+
+        // Assert that we found one.
+        revng_assert(It != Children.end());
+
+        PostDomASTNode = AST.findASTNode(*It);
+
+        // Assert that we don't find more than one.
+        It = std::find_if(std::next(It), Children.end(), NotSuccessor);
+        revng_assert(It == Children.end());
       }
 
-      // Fill the vector of nodes.
-      RegularSwitchNode::case_container Cases;
-      for (ASTNode *N : ASTChildren) {
-        if (N != PostDomASTNode and N != DefaultASTNode) {
-          Cases.push_back(N);
-        }
-      }
-
-      if (Node->isDispatcher()) {
-        for (uint64_t Index = 0; Index < Cases.size(); Index++) {
-          CaseValuesCheck.push_back(Index);
-        }
-      }
-
-      // Construct a regular or check switch node depending on the fact that
-      // we actually have the condition value.
-      if (!Node->isDispatcher()) {
-        ASTObject.reset(new RegularSwitchNode(SwitchValue,
-                                              std::move(Cases),
-                                              std::move(CaseValuesRegular),
-                                              DefaultASTNode,
-                                              PostDomASTNode));
-      } else {
-        // Build a SwitchDispatcherNode starting from nodes dispatcher nodes.
-        ASTObject.reset(new SwitchDispatcherNode(std::move(Cases),
-                                                 std::move(CaseValuesCheck),
-                                                 nullptr,
-                                                 PostDomASTNode));
-      }
+      llvm::StringRef Name = SwitchCondition ? "Switch" : "Dispatcher";
+      ASTObject.reset(new SwitchNode(Name,
+                                     SwitchCondition,
+                                     std::move(LabeledCases),
+                                     DefaultASTNode,
+                                     PostDomASTNode,
+                                     Node->isWeaved()));
     } else {
+
       switch (Children.size()) {
+
       case 3: {
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
@@ -1655,12 +1561,12 @@ inline void RegionCFG<NodeT>::generateAst() {
         auto *OriginalNode = Node->getOriginalNode();
         UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
         ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
-        ASTObject.reset(new IfNode(Node,
-                                   CondExprNode,
-                                   ASTChildren[0],
-                                   ASTChildren[2],
-                                   ASTChildren[1]));
+        ASTNode *Then = AST.findASTNode(Children[0]);
+        ASTNode *Else = AST.findASTNode(Children[2]);
+        ASTNode *PostDom = AST.findASTNode(Children[1]);
+        ASTObject.reset(new IfNode(Node, CondExprNode, Then, Else, PostDom));
       } break;
+
       case 2: {
         revng_assert(not Node->isBreak() and not Node->isContinue()
                      and not Node->isSet());
@@ -1673,20 +1579,21 @@ inline void RegionCFG<NodeT>::generateAst() {
         auto *OriginalNode = Node->getOriginalNode();
         UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
         ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
-        ASTObject.reset(new IfNode(Node,
-                                   CondExprNode,
-                                   ASTChildren[0],
-                                   ASTChildren[1],
-                                   nullptr));
+        auto *Then = AST.findASTNode(Children[0]);
+        auto *Else = AST.findASTNode(Children[1]);
+        ASTObject.reset(new IfNode(Node, CondExprNode, Then, Else, nullptr));
       } break;
+
       case 1: {
         revng_assert(not Node->isBreak() and not Node->isContinue());
+        auto *Succ = AST.findASTNode(Children[0]);
         if (Node->isSet()) {
-          ASTObject.reset(new SetNode(Node, ASTChildren[0]));
+          ASTObject.reset(new SetNode(Node, Succ));
         } else {
-          ASTObject.reset(new CodeNode(Node, ASTChildren[0]));
+          ASTObject.reset(new CodeNode(Node, Succ));
         }
       } break;
+
       case 0: {
         if (Node->isBreak())
           ASTObject.reset(new BreakNode());
@@ -1862,28 +1769,73 @@ inline void RegionCFG<NodeT>::weave() {
   RegionCFG<NodeT> &Graph = *this;
   BBNodeT *Entry = &getEntryNode();
 
-  BasicBlockNodeTVect ExitNodes;
-  for (BBNodeT *Node : Graph) {
-    if (Node->successor_size() == 0) {
-      ExitNodes.push_back(Node);
-    }
-  }
-
   // Add a new virtual sink node to compute the postdominator.
   BasicBlockNode<NodeT> *Sink = Graph.addArtificialNode("Sink");
-  for (BasicBlockNode<NodeT> *Exit : ExitNodes) {
-    addEdge(EdgeDescriptor(Exit, Sink));
-  }
+  for (BBNodeT *Exit : Graph)
+    if (Sink != Exit and Exit->successor_size() == 0)
+      addPlainEdge(EdgeDescriptor(Exit, Sink));
 
-  DT.recalculate(Graph);
   PDT.recalculate(Graph);
 
   // Iterate over all the nodes in post order.
-  for (BBNodeT *POTBB : post_order(Entry)) {
+  for (BBNodeT *Switch : post_order(Entry)) {
+
+    if (not Switch->isDispatcher() and not isASwitch(Switch))
+      continue;
+
+    // If it'a switch node coming from the original llvm IR, we need to set up
+    // the proper case labels before weaving it. Dispacther nodes are already
+    // created with labels.
+    if (Switch->isCode()) {
+      std::map<llvm::BasicBlock *, BBNodeT *> BBToNodeMap;
+      for (BBNodeT *SwitchSucc : Switch->successors()) {
+        revng_assert(SwitchSucc->isCode());
+        llvm::BasicBlock *SwitchSuccBB = SwitchSucc->getOriginalNode();
+        const auto &[_, New] = BBToNodeMap.insert({ SwitchSuccBB, SwitchSucc });
+        revng_assert(New);
+      }
+
+      for (const auto &[BB, SwitchSuccessor] : BBToNodeMap) {
+        auto L = extractLabeledEdge(EdgeDescriptor(Switch, SwitchSuccessor));
+        revng_assert(L.second.empty());
+      }
+
+      llvm::BasicBlock *SwitchBB = Switch->getOriginalNode();
+      llvm::Instruction *TermInst = SwitchBB->getTerminator();
+      auto *SwitchInstruction = llvm::cast<llvm::SwitchInst>(TermInst);
+
+      using edge_label_t = typename BasicBlockNodeT::edge_label_t;
+      std::map<llvm::BasicBlock *, edge_label_t> SwitchSuccLabels;
+      for (llvm::SwitchInst::CaseHandle &Case : SwitchInstruction->cases()) {
+        llvm::BasicBlock *CaseTarget = Case.getCaseSuccessor();
+        llvm::ConstantInt *CaseValue = Case.getCaseValue();
+        uint64_t CaseVal = CaseValue->getZExtValue();
+        SwitchSuccLabels[CaseTarget].insert(CaseVal);
+      }
+
+      llvm::BasicBlock *DefaultBB = SwitchInstruction->getDefaultDest();
+      revng_assert(nullptr != DefaultBB);
+
+      auto It = SwitchSuccLabels.find(DefaultBB);
+      if (It != SwitchSuccLabels.end()) {
+        // One of the successors is also the default. We can drop the labels.
+        It->second = {};
+      } else {
+        SwitchSuccLabels[DefaultBB] = {}; // Empty labels for the default.
+      }
+
+      revng_assert(BBToNodeMap.size() == SwitchSuccLabels.size());
+      for (const auto &Pair : llvm::zip_first(BBToNodeMap, SwitchSuccLabels)) {
+        const auto &[BB, SuccNode] = std::get<0>(Pair);
+        const auto &[OtherBB, Label] = std::get<1>(Pair);
+        revng_assert(BB == OtherBB);
+        addEdge(EdgeDescriptor(Switch, SuccNode), Label);
+      }
+    }
 
     // If we find a switch node we can start the weaving analysis.
-    if (POTBB->successor_size() > 2) {
-      BBNodeT *Switch = POTBB;
+    if (Switch->successor_size() > 2) {
+
       if (CombLogger.isEnabled()) {
         CombLogger << "Looking at switch node: " << Switch->getName() << "\n";
         dumpDotOnFile("weaves",
@@ -1893,9 +1845,8 @@ inline void RegionCFG<NodeT>::weave() {
 
       // Collect the case nodes of the switch.
       BasicBlockNodeTSet CaseSet;
-      for (BBNodeT *Successor : Switch->successors()) {
+      for (BBNodeT *Successor : Switch->successors())
         CaseSet.insert(Successor);
-      }
 
       // Find the postdominator of the switch.
       BBNodeT *PostDom = PDT[Switch]->getIDom()->getBlock();
@@ -1919,9 +1870,7 @@ inline void RegionCFG<NodeT>::weave() {
         if (CaseSet.count(RPOTBB) != 0)
           continue;
 
-        if (CombLogger.isEnabled()) {
-          CombLogger << RPOTBB->getName() << "\n";
-        }
+        revng_log(CombLogger, RPOTBB->getName());
 
         BasicBlockNodeTVect PostDominatedCases;
         for (BBNodeT *Case : CaseSet)
@@ -1948,33 +1897,49 @@ inline void RegionCFG<NodeT>::weave() {
           } else {
             revng_unreachable("unexpected switch");
           }
-          revng_assert(not NewSwitch);
+          revng_assert(nullptr != NewSwitch);
           revng_assert(not NewSwitch->successor_size());
           NewSwitch->setWeaved(true);
 
-          // Connect the old switch to the new one.
-          addEdge(EdgeDescriptor(Switch, NewSwitch));
-
-          // Incremental update of DT and PDT.
-          DT.insertEdge(Switch, NewSwitch);
-          PDT.insertEdge(Switch, NewSwitch);
+          using edge_label_t = typename BasicBlockNodeT::edge_label_t;
+          edge_label_t Labels;
+          bool WeavingDefault = false;
 
           // Iterate over all the case nodes that we found, moving all the
-          // necessary edges and update of DT and PDT.
+          // necessary edges and updating the PDT.
+          // Also, collect all the case labels of the cases we're weaving.
           for (BasicBlockNodeT *Case : PostDominatedCases) {
 
-            removeEdge(EdgeDescriptor(Switch, Case));
-            DT.deleteEdge(Switch, Case);
+            auto LabeledEdge = extractLabeledEdge(EdgeDescriptor(Switch, Case));
             PDT.deleteEdge(Switch, Case);
 
-            addEdge(EdgeDescriptor(NewSwitch, Case));
-            DT.insertEdge(NewSwitch, Case);
+            auto &CaseLabels = LabeledEdge.second;
+            // If we find an edge without case labels, that's the default.
+            if (CaseLabels.empty()) {
+              revng_assert(WeavingDefault == false);
+              WeavingDefault = true;
+              Labels = {};
+            }
+
+            // If we're weaving the default, we don't care about the exact case
+            // labels, because the weaved switch will become the default of the
+            // original switch.
+            if (not WeavingDefault)
+              Labels.insert(CaseLabels.begin(), CaseLabels.end());
+
+            addEdge(EdgeDescriptor(NewSwitch, Case), CaseLabels);
             PDT.insertEdge(NewSwitch, Case);
+
+            CaseSet.erase(Case);
           }
 
-          for (BBNodeT *N : PostDominatedCases)
-            CaseSet.erase(N);
           CaseSet.insert(NewSwitch);
+
+          // Connect the old switch to the new one and update the PDT.
+          // Use the collected labels to mark the new edge from the original
+          // switch to the weaved switch.
+          addEdge(EdgeDescriptor(Switch, NewSwitch), Labels);
+          PDT.insertEdge(Switch, NewSwitch);
         }
       }
     }
@@ -1982,6 +1947,7 @@ inline void RegionCFG<NodeT>::weave() {
 
   // Purge the final sink used for computing the postdominator tree.
   purgeVirtualSink(Sink);
+  DT.recalculate(Graph);
 }
 
 #endif // REVNGC_RESTRUCTURE_CFG_REGIONCFGTREEIMPL_H

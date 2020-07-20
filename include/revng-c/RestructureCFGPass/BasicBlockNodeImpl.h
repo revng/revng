@@ -11,9 +11,9 @@
 #include <set>
 
 // Local libraries includes
-#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
-#include "revng-c/RestructureCFGPass/Utils.h"
+#include <revng-c/RestructureCFGPass/BasicBlockNode.h>
+#include <revng-c/RestructureCFGPass/RegionCFGTreeBB.h>
+#include <revng-c/RestructureCFGPass/Utils.h>
 
 // Trait exposing the weight of a generic object wrapped by `BasicBlockNode`.
 template<class T>
@@ -47,11 +47,6 @@ inline BasicBlockNode<NodeT>::BasicBlockNode(RegionCFGT *Parent,
   Weaved(false) {
 }
 
-template<class NodeT>
-inline void BasicBlockNode<NodeT>::removeNode() {
-  Parent->removeNode(this);
-}
-
 // Needed by `DomTreeBuilder`.
 template<class NodeT>
 inline void BasicBlockNode<NodeT>::printAsOperand(llvm::raw_ostream &O,
@@ -60,35 +55,75 @@ inline void BasicBlockNode<NodeT>::printAsOperand(llvm::raw_ostream &O,
 }
 
 template<class NodeT>
-inline void BasicBlockNode<NodeT>::removeSuccessor(BasicBlockNodeT *Successor) {
+inline void BasicBlockNode<NodeT>::removeSuccessor(BasicBlockNodeT *Succ) {
   size_t Removed = 0;
-  Successors.erase(std::remove_if(Successors.begin(),
-                                  Successors.end(),
-                                  [&Removed, Successor](BasicBlockNodeT *B) {
-                                    if (B == Successor) {
-                                      Removed++;
-                                      return true;
-                                    }
-                                    return false;
-                                  }),
+  const auto IsSucc = [&Removed, Succ](const node_label_pair &P) {
+    if (P.first == Succ) {
+      ++Removed;
+      return true;
+    }
+    return false;
+  };
+  Successors.erase(std::remove_if(Successors.begin(), Successors.end(), IsSucc),
                    Successors.end());
   revng_assert(Removed == 1); // needs to remove exactly one successor
 }
 
 template<class NodeT>
+inline typename BasicBlockNode<NodeT>::node_label_pair
+BasicBlockNode<NodeT>::extractSuccessorEdge(BasicBlockNodeT *Succ) {
+  size_t Removed = 0;
+  node_label_pair Extracted;
+  const auto IsSucc = [&Removed, &Extracted, Succ](const node_label_pair &P) {
+    if (P.first == Succ) {
+      ++Removed;
+      Extracted = P;
+      return true;
+    }
+    return false;
+  };
+  Successors.erase(std::remove_if(Successors.begin(), Successors.end(), IsSucc),
+                   Successors.end());
+  revng_assert(Removed == 1); // needs to remove exactly one successor
+  return Extracted;
+}
+
+template<class NodeT>
 inline void BasicBlockNode<NodeT>::removePredecessor(BasicBlockNodeT *Pred) {
   size_t Removed = 0;
+  const auto IsPred = [&Removed, Pred](const node_label_pair &P) {
+    if (P.first == Pred) {
+      ++Removed;
+      return true;
+    }
+    return false;
+  };
   Predecessors.erase(std::remove_if(Predecessors.begin(),
                                     Predecessors.end(),
-                                    [&Removed, Pred](BasicBlockNodeT *B) {
-                                      if (B == Pred) {
-                                        Removed++;
-                                        return true;
-                                      }
-                                      return false;
-                                    }),
+                                    IsPred),
                      Predecessors.end());
   revng_assert(Removed == 1); // needs to remove exactly one predecessor
+}
+
+template<class NodeT>
+inline typename BasicBlockNode<NodeT>::node_label_pair
+BasicBlockNode<NodeT>::extractPredecessorEdge(BasicBlockNodeT *Pred) {
+  size_t Removed = 0;
+  node_label_pair Extracted;
+  const auto IsPred = [&Removed, &Extracted, Pred](const node_label_pair &P) {
+    if (P.first == Pred) {
+      ++Removed;
+      Extracted = P;
+      return true;
+    }
+    return false;
+  };
+  Predecessors.erase(std::remove_if(Predecessors.begin(),
+                                    Predecessors.end(),
+                                    IsPred),
+                     Predecessors.end());
+  revng_assert(Removed == 1); // needs to remove exactly one predecessor
+  return Extracted;
 }
 
 template<class NodeT>
@@ -100,13 +135,16 @@ using links_container = typename BasicBlockNode<NodeT>::links_container;
 template<class NodeT>
 inline void handleNeighbors(const BBNodeMap<NodeT> &SubMap,
                             links_container<NodeT> &Neighbors) {
+
   Neighbors.erase(std::remove_if(Neighbors.begin(),
                                  Neighbors.end(),
-                                 [&SubMap](BasicBlockNode<NodeT> *N) {
-                                   return SubMap.count(N) == 0;
+                                 [&SubMap](const auto &NodeWithLabels) {
+                                   return !SubMap.count(NodeWithLabels.first);
                                  }),
                   Neighbors.end());
-  for (BasicBlockNode<NodeT> *&Neighbor : Neighbors) {
+
+  for (auto &NeighborLabelPair : Neighbors) {
+    auto &Neighbor = NeighborLabelPair.first;
     revng_assert(SubMap.count(Neighbor) != 0);
     Neighbor = SubMap.at(Neighbor);
   }

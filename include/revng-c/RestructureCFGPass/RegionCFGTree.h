@@ -7,17 +7,18 @@
 
 // Standard includes
 #include <cstdlib>
-#include <llvm/ADT/STLExtras.h>
 #include <set>
 
 // LLVM includes
-#include "llvm/IR/Dominators.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/GenericDomTreeConstruction.h"
+#include <llvm/ADT/STLExtras.h>
+#include <llvm/IR/Dominators.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/GenericDomTreeConstruction.h>
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
+#include "revng-c/RestructureCFGPass/Utils.h"
 
 template<class NodeT>
 class MetaRegion;
@@ -121,8 +122,7 @@ public:
 
         // Create the edge in the RegionCFG<NodeT>.
         BBNodeT *Successor = NodeToBBNodeMap.at(C);
-        BBNode->addSuccessor(Successor);
-        Successor->addPredecessor(BBNode);
+        addPlainEdge<BBNodeT>({ BBNode, Successor });
       }
     }
   }
@@ -176,26 +176,28 @@ public:
     BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(this, Name, T));
     return BlockNodes.back().get();
   }
+
   BBNodeT *addContinue() {
     return addArtificialNode("continue", BasicBlockNodeT::Type::Continue);
   }
+
   BBNodeT *addBreak() {
     return addArtificialNode("break", BasicBlockNodeT::Type::Break);
   }
 
-  BBNodeT *addDispatcher(const llvm::StringRef Name) {
+  BBNodeT *addDispatcher(llvm::StringRef Name) {
     using Type = typename BasicBlockNodeT::Type;
     using BBNodeT = BasicBlockNodeT;
-    auto Tmp = std::make_unique<BBNodeT>(this, Name, Type::Dispatcher);
-    BlockNodes.emplace_back(std::move(Tmp));
-    BBNodeT *Dispatcher = BlockNodes.back().get();
-    return Dispatcher;
+    auto D = std::make_unique<BBNodeT>(this, Name, Type::Dispatcher);
+    return BlockNodes.emplace_back(std::move(D)).get();
   }
+
   BBNodeT *addEntryDispatcher() { return addDispatcher("entry dispatcher"); }
+
   BBNodeT *addExitDispatcher() { return addDispatcher("exit dispatcher"); }
 
-  BBNodeT *addSetStateNode(unsigned long StateVariableValue,
-                           llvm::StringRef TargetName) {
+  BBNodeT *
+  addSetStateNode(unsigned StateVariableValue, llvm::StringRef TargetName) {
     using Type = typename BasicBlockNodeT::Type;
     using BBNodeT = BasicBlockNodeT;
     std::string IdStr = std::to_string(StateVariableValue);

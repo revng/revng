@@ -8,7 +8,7 @@
 #include <llvm/ADT/SmallVector.h>
 
 // revng libraries includes
-#include "revng/Support/Debug.h"
+#include <revng/Support/Debug.h>
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/Flattening.h"
