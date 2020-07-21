@@ -906,7 +906,6 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
                                                          const Instruction &I,
                                                          Expr *LHS,
                                                          Expr *RHS) {
-  std::pair<Expr *, Expr *> Res = std::make_pair(LHS, RHS);
 
   QualType LHSQualTy = LHS->getType();
   QualType RHSQualTy = RHS->getType();
@@ -922,21 +921,70 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
   unsigned Size = static_cast<unsigned>(std::max(LHSSize, RHSSize));
   QualType SignedTy = ASTCtx.getIntTypeForBitwidth(Size, /* Signed */ true);
 
+  std::pair<Expr *, Expr *> Res = std::make_pair(LHS, RHS);
   switch (OpCode) {
-  case Instruction::Add:
-  case Instruction::Sub:
-  case Instruction::Mul:
-  case Instruction::And:
-  case Instruction::Or:
-  case Instruction::Xor:
-  case Instruction::UDiv:
-  case Instruction::URem:
-  case Instruction::Shl:
-  case Instruction::LShr: {
     // These instructions have unsigned semantics in llvm IR.
     // We emit unsigned integers by default, so these operations do not need
     // any cast to preserve the semantics in C.
-  } break;
+
+  case Instruction::Add:
+  case Instruction::Sub:
+  case Instruction::And:
+  case Instruction::Or:
+  case Instruction::Xor:
+    // This set of instructions (described in paragraphs 6.5.6 'Additive
+    // operators', paragraph 6.5.10 'Bitwise AND operator', paragraph 6.5.11
+    // 'Bitwise exclusive OR operator', and paragraph 6.5.12 'Bitwise inclusive
+    // OR operator' of the C11 standard) may have a large unsigned integer
+    // literal as one or both operands. In those cases, it is beneficial for the
+    // readability of the generate C code to substitute such large unsigned
+    // integer literal with negative signed integer literal.
+    // This enables printing idiomatic expressions such as 'X - 1' instead of
+    // 'X + 0xFFFFFFFFFFFFFFFF'.
+
+    if (auto *RHSLiteral = dyn_cast<clang::IntegerLiteral>(RHS)) {
+      llvm::APInt RHSVal = RHSLiteral->getValue();
+      revng_assert(RHSVal.getBitWidth() == RHSSize);
+      if (RHSVal.isNegative()) {
+        QualType SIntT = ASTCtx.getIntTypeForBitwidth(RHSVal.getBitWidth(),
+                                                      /*signed*/ true);
+        auto NegRHS = IntegerLiteral::Create(ASTCtx, RHSVal, SIntT, {});
+        Res.second = new (ASTCtx) ParenExpr({}, {}, NegRHS);
+      }
+    }
+
+    [[fallthrough]];
+
+  case Instruction::Shl:
+  case Instruction::LShr:
+    // Shifts are undefined behavior if the RHS is negative (see paragraph 6.5.7
+    // of the C11 standard: 'Bitwise shift operators'), so we don't try to
+    // promote big unsigned integer literals at constants RHS to negative signed
+    // integer literals.
+    //
+    if (auto *LHSLiteral = dyn_cast<clang::IntegerLiteral>(LHS)) {
+      llvm::APInt LHSVal = LHSLiteral->getValue();
+      revng_assert(LHSVal.getBitWidth() == LHSSize);
+      if (LHSVal.isNegative()) {
+        QualType SIntT = ASTCtx.getIntTypeForBitwidth(LHSVal.getBitWidth(),
+                                                      /*signed*/ true);
+        auto NegLHS = IntegerLiteral::Create(ASTCtx, LHSVal, SIntT, {});
+        Res.second = new (ASTCtx) ParenExpr({}, {}, NegLHS);
+      }
+    }
+
+    [[fallthrough]];
+
+  case Instruction::Mul:
+  case Instruction::UDiv:
+  case Instruction::URem:
+    // For multiplication, division, and reminder (paragraph 6.5.5 of the C11
+    // standard: 'Multiplicative operators'), we could in principle promote
+    // big positive unsigned integer literals to negative signed literals, but
+    // the consequence on the sign of the result are not clear to me now, so I
+    // just leave them like they are for now.
+    {}
+    break;
 
   case Instruction::SDiv:
   case Instruction::SRem:
