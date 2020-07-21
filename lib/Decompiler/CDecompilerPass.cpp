@@ -71,7 +71,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   ShortCircuitCounter = 0;
   TrivialShortCircuitCounter = 0;
 
-  if (not F.getName().startswith("bb."))
+  if (not F.getMetadata("revng.func.entry"))
     return false;
   // HACK!!!
   if (F.getName().startswith("bb.quotearg_buffer_restyled")
