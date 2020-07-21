@@ -66,17 +66,6 @@ CDecompilerPass::CDecompilerPass(std::unique_ptr<llvm::raw_ostream> Out) :
 CDecompilerPass::CDecompilerPass() : CDecompilerPass(nullptr) {
 }
 
-/*
-static void processFunction(llvm::Function &F) {
-  legacy::FunctionPassManager OptPM(F.getParent());
-  OptPM.add(createSROAPass());
-  OptPM.add(createConstantPropagationPass());
-  OptPM.add(createDeadCodeEliminationPass());
-  OptPM.add(createEarlyCSEPass());
-  OptPM.run(F);
-}
-*/
-
 bool CDecompilerPass::runOnFunction(llvm::Function &F) {
 
   ShortCircuitCounter = 0;
@@ -132,16 +121,6 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
         I->eraseFromParent();
     }
   }
-
-  /*
-  // TODO: the scheduling of the optimization passes needed later for the
-  //       PHIASAPAssignment pass cannot be enforced inside the pass itself,
-  //       but must be enforced manually before the pass. Consider finding a
-  //       solution that can be integrated here.
-  //
-  // Optimize the Function
-  processFunction(F);
-  */
 
   auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
   ASTTree &GHAST = RestructureCFGAnalysis.getAST();
