@@ -10,6 +10,7 @@ revng_add_analyses_library(Decompiler revngc
   DLACreateInterProceduralTypes.cpp
   DLACreateIntraProceduralTypes.cpp
   DLAHelpers.cpp
+  DLALayouts.cpp
   DLAMakeInheritanceTree.cpp
   DLAMakeLayouts.cpp
   DLAPass.cpp
