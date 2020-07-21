@@ -9,6 +9,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng-c/Decompiler/DLAPass.h"
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 
@@ -23,6 +24,7 @@ struct CDecompilerPass : public llvm::FunctionPass {
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<RestructureCFG>();
     AU.addRequired<PHIASAPAssignmentInfo>();
+    AU.addUsedIfAvailable<DLAPass>();
     AU.setPreservesAll();
   }
 
