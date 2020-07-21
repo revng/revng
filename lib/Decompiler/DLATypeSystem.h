@@ -14,66 +14,16 @@
 #include <utility>
 
 #include "llvm/ADT/GraphTraits.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
-#include "llvm/Support/Casting.h"
 
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Support/Assert.h"
 
+#include "revng-c/Decompiler/DLALayouts.h"
+
 namespace dla {
-
-/// A representation of a pointer to a type.
-class LayoutTypePtr {
-  const llvm::Value *V;
-  unsigned FieldIdx;
-
-public:
-  explicit LayoutTypePtr(const llvm::Value *Val,
-                         unsigned Idx = std::numeric_limits<unsigned>::max()) :
-    V(Val), FieldIdx(Idx) {
-    revng_assert(Val != nullptr);
-    using llvm::cast;
-    using llvm::dyn_cast;
-    using llvm::isa;
-    [[maybe_unused]] const llvm::Type *Ty = V->getType();
-    // We only accept Functions or Values with integer or pointer type.
-    revng_assert(isa<llvm::Function>(V) or isa<llvm::IntegerType>(Ty)
-                 or isa<llvm::PointerType>(Ty));
-
-    // FieldIdx != std::numeric_limits<unsigned>::max() if and only if V is a
-    // Function that returns a struct.
-    const auto *F = dyn_cast<llvm::Function>(V);
-    const auto *StructTy = (F == nullptr) ?
-                             nullptr :
-                             dyn_cast<llvm::StructType>(F->getReturnType());
-    [[maybe_unused]] bool VIsFunctionAndReturnsStruct = StructTy != nullptr;
-    revng_assert(VIsFunctionAndReturnsStruct
-                 xor (FieldIdx == std::numeric_limits<unsigned>::max()));
-
-    // If V is a Function that returns a struct then FieldIdx < number of
-    // elements of the returned struct.
-    revng_assert(not VIsFunctionAndReturnsStruct
-                 or FieldIdx < StructTy->getNumElements());
-  }
-
-  LayoutTypePtr() = delete;
-  ~LayoutTypePtr() = default;
-  LayoutTypePtr(const LayoutTypePtr &) = default;
-  LayoutTypePtr(LayoutTypePtr &&) = default;
-  LayoutTypePtr &operator=(const LayoutTypePtr &) = default;
-  LayoutTypePtr &operator=(LayoutTypePtr &&) = default;
-
-  std::strong_ordering operator<=>(const LayoutTypePtr &Other) const = default;
-
-  void print(llvm::raw_ostream &Out) const;
-  friend struct std::less<dla::LayoutTypePtr>;
-}; // end class LayoutTypePtr
 
 /// Class used to mark InstanceLinkTags between LayoutTypes
 struct OffsetExpression {
@@ -317,13 +267,12 @@ public:
 
   void mergeNodes(const std::vector<LayoutTypeSystemNode *> &ToMerge);
 
-  const llvm::SmallSet<LayoutTypePtr, 2> &
+  const llvm::SmallSet<LayoutTypePtr, 2> *
   getLayoutTypePtrs(const LayoutTypeSystemNode *N) const {
-    return LayoutToTypePtrsMap.at(N);
-  }
-
-  bool hasLayoutTypePtrs(const LayoutTypeSystemNode *N) const {
-    return LayoutToTypePtrsMap.count(N);
+    auto It = LayoutToTypePtrsMap.find(N);
+    if (It != LayoutToTypePtrsMap.end())
+      return &It->second;
+    return nullptr;
   }
 
   void removeNode(LayoutTypeSystemNode *N);

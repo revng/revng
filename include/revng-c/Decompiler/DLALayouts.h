@@ -7,13 +7,22 @@
 #include <algorithm>
 #include <compare>
 #include <cstdint>
+#include <map>
 #include <numeric>
 #include <optional>
 #include <set>
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Type.h"
+#include "llvm/Support/Casting.h"
 
 #include "revng/Support/Debug.h"
+
+namespace llvm {
+class Value;
+} // end namespace llvm
 
 namespace dla {
 
@@ -233,5 +242,75 @@ public:
   const fields_container_t &fields() const { return Fields; }
   fields_num_t numFields() const { return Fields.size(); }
 };
+
+using DeleteLayout = std::integral_constant<decltype(Layout::deleteLayout) &,
+                                            Layout::deleteLayout>;
+
+using UniqueLayout = std::unique_ptr<Layout, DeleteLayout>;
+
+inline bool uniqueStructLess(const UniqueLayout &A, const UniqueLayout &B) {
+  auto *APtr = A.get();
+  auto *BPtr = B.get();
+  if (nullptr == APtr or nullptr == BPtr) {
+    if (APtr == BPtr)
+      return false;
+    return nullptr == APtr;
+  }
+  return Layout::structuralLess(APtr, BPtr);
+}
+
+using uniqueStructLessT = std::integral_constant<decltype(uniqueStructLess) &,
+                                                 uniqueStructLess>;
+
+using UniqueLayoutSet = std::set<UniqueLayout, uniqueStructLessT>;
+
+/// A representation of a pointer to a type.
+class LayoutTypePtr {
+  const llvm::Value *V;
+  unsigned FieldIdx;
+
+public:
+  explicit LayoutTypePtr(const llvm::Value *Val,
+                         unsigned Idx = std::numeric_limits<unsigned>::max()) :
+    V(Val), FieldIdx(Idx) {
+    revng_assert(Val != nullptr);
+    using llvm::cast;
+    using llvm::dyn_cast;
+    using llvm::isa;
+    [[maybe_unused]] const llvm::Type *Ty = V->getType();
+    // We only accept Functions or Values with integer or pointer type.
+    revng_assert(isa<llvm::Function>(V) or isa<llvm::IntegerType>(Ty)
+                 or isa<llvm::PointerType>(Ty));
+
+    // FieldIdx != std::numeric_limits<unsigned>::max() if and only if V is a
+    // Function that returns a struct.
+    const auto *F = dyn_cast<llvm::Function>(V);
+    const auto *StructTy = (F == nullptr) ?
+                             nullptr :
+                             dyn_cast<llvm::StructType>(F->getReturnType());
+    [[maybe_unused]] bool VIsFunctionAndReturnsStruct = StructTy != nullptr;
+    revng_assert(VIsFunctionAndReturnsStruct
+                 xor (FieldIdx == std::numeric_limits<unsigned>::max()));
+
+    // If V is a Function that returns a struct then FieldIdx < number of
+    // elements of the returned struct.
+    revng_assert(not VIsFunctionAndReturnsStruct
+                 or FieldIdx < StructTy->getNumElements());
+  }
+
+  LayoutTypePtr() = delete;
+  ~LayoutTypePtr() = default;
+  LayoutTypePtr(const LayoutTypePtr &) = default;
+  LayoutTypePtr(LayoutTypePtr &&) = default;
+  LayoutTypePtr &operator=(const LayoutTypePtr &) = default;
+  LayoutTypePtr &operator=(LayoutTypePtr &&) = default;
+
+  std::strong_ordering operator<=>(const LayoutTypePtr &Other) const = default;
+
+  void print(llvm::raw_ostream &Out) const;
+  friend struct std::less<dla::LayoutTypePtr>;
+}; // end class LayoutTypePtr
+
+using ValueLayoutMap = std::map<LayoutTypePtr, Layout *>;
 
 } // end namespace dla

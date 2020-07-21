@@ -12,6 +12,8 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
+#include "revng-c/Decompiler/DLALayouts.h"
+
 namespace llvm {
 
 class ModulePass;
@@ -247,17 +249,23 @@ class MakeLayouts : public Step {
 public:
   static const constexpr void *getID() { return &ID; }
 
-  MakeLayouts() :
+  MakeLayouts(UniqueLayoutSet &L, ValueLayoutMap &M) :
     Step(ID,
          // Dependencies
          { CollapseIdentityAndInheritanceCC::getID(),
            RemoveTransitiveInheritanceEdges::getID() },
          // Invalidated
-         {}) {}
+         {}),
+    Layouts(L),
+    ValueLayouts(M) {}
 
   virtual ~MakeLayouts() override = default;
 
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+
+private:
+  UniqueLayoutSet &Layouts;
+  ValueLayoutMap &ValueLayouts;
 };
 
 template<typename IterT>
@@ -302,8 +310,8 @@ public:
   [[nodiscard]] bool addStep(std::unique_ptr<Step> S);
 
   template<typename StepT, typename... ArgsT>
-  [[nodiscard]] bool addStep(ArgsT... Args) {
-    return addStep(std::make_unique<StepT>(Args...));
+  [[nodiscard]] bool addStep(ArgsT &&... Args) {
+    return addStep(std::make_unique<StepT>(std::forward<ArgsT &&>(Args)...));
   }
 
   /// Runs the added steps

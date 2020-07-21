@@ -11,10 +11,12 @@
 #include "llvm/Pass.h"
 #include "llvm/PassAnalysisSupport.h"
 
+#include "revng-c/Decompiler/DLALayouts.h"
+
 struct DLAPass : public llvm::ModulePass {
   static char ID;
 
-  DLAPass() : llvm::ModulePass(ID) {}
+  DLAPass() : llvm::ModulePass(ID), Layouts(), ValueLayouts() {}
 
   bool runOnModule(llvm::Module &M) override;
 
@@ -23,4 +25,8 @@ struct DLAPass : public llvm::ModulePass {
     AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
     AU.setPreservesAll();
   }
+
+private:
+  dla::UniqueLayoutSet Layouts;
+  dla::ValueLayoutMap ValueLayouts;
 };

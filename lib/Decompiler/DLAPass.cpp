@@ -28,7 +28,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   revng_check(SM.addStep<dla::CollapseCompatibleArrays>());
   // Back-end Steps, that build Layouts from LayoutTypeSystem nodes
   revng_check(SM.addStep<dla::ComputeNonInterferingComponents>());
-  revng_check(SM.addStep<dla::MakeLayouts>());
+  revng_check(SM.addStep<dla::MakeLayouts>(Layouts, ValueLayouts));
 
   dla::LayoutTypeSystem TS(M);
 

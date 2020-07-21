@@ -21,8 +21,9 @@
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Support/Debug.h"
 
+#include "revng-c/Decompiler/DLALayouts.h"
+
 #include "DLAHelpers.h"
-#include "DLALayouts.h"
 #include "DLAStep.h"
 #include "DLATypeSystem.h"
 
@@ -32,34 +33,13 @@ static Logger<> Log("dla-make-layouts");
 
 namespace dla {
 
-using DeleteLayout = std::integral_constant<decltype(Layout::deleteLayout) &,
-                                            Layout::deleteLayout>;
-
-using UniqueLayout = std::unique_ptr<Layout, DeleteLayout>;
-
-static bool uniqueStructLess(const UniqueLayout &A, const UniqueLayout &B) {
-  auto *APtr = A.get();
-  auto *BPtr = B.get();
-  if (nullptr == APtr or nullptr == BPtr) {
-    if (APtr == BPtr)
-      return false;
-    return nullptr == APtr;
-  }
-  return Layout::structuralLess(APtr, BPtr);
-}
-
-using uniqueStructLessT = std::integral_constant<decltype(uniqueStructLess) &,
-                                                 uniqueStructLess>;
-
-using LayoutSet = std::set<UniqueLayout, uniqueStructLessT>;
-
 template<typename T, typename... Args>
 UniqueLayout makeUniqueLayout(Args &&... A) {
   return UniqueLayout(new T(std::forward<Args &&>(A)...), DeleteLayout());
 }
 
 template<typename T, typename... Args>
-Layout *createLayout(LayoutSet &S, Args &&... A) {
+Layout *createLayout(UniqueLayoutSet &S, Args &&... A) {
   auto U = makeUniqueLayout<T>(std::forward<Args &&>(A)...);
   return S.insert(std::move(U)).first->get();
 }
@@ -68,7 +48,7 @@ using LTSN = LayoutTypeSystemNode;
 
 static Layout *makeInstanceChildLayout(Layout *ChildType,
                                        const OffsetExpression &OE,
-                                       LayoutSet &Layouts) {
+                                       UniqueLayoutSet &Layouts) {
   revng_assert(OE.Offset >= 0LL);
 
   // If we have trip counts we have an array of children of type ChildType,
@@ -120,7 +100,7 @@ static Layout *makeInstanceChildLayout(Layout *ChildType,
 static Layout *makeLayout(const LayoutTypeSystem &TS,
                           const LTSN *N,
                           std::map<const LTSN *, Layout *> &LayoutCTypes,
-                          LayoutSet &Layouts) {
+                          UniqueLayoutSet &Layouts) {
 
   revng_assert(not LayoutCTypes.count(N));
 
@@ -346,13 +326,13 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
   return nullptr;
 }
 
-static bool makeLayouts(const LayoutTypeSystem &TS) {
+static bool makeLayouts(const LayoutTypeSystem &TS,
+                        UniqueLayoutSet &Layouts,
+                        ValueLayoutMap &ValueLayouts) {
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
 
   std::map<const LTSN *, Layout *> LayoutCTypes;
-  LayoutSet Layouts;
-
   std::set<const LTSN *> Visited;
   for (LTSN *Root : llvm::nodes(&TS)) {
     revng_assert(Root != nullptr);
@@ -365,14 +345,20 @@ static bool makeLayouts(const LayoutTypeSystem &TS) {
       revng_assert(not isLeaf(N) or hasValidLayout(N));
       Layout *LN = makeLayout(TS, N, LayoutCTypes, Layouts);
       if (nullptr == LN) {
-        llvm::dbgs() << "\nNode ID: " << N->ID << " Type: Empty\n";
+        revng_log(Log, "Node ID: " << N->ID << " Type: Empty");
         continue;
       }
-      llvm::dbgs() << "\nNode ID: " << N->ID << " Type: ";
-      Layout::printText(llvm::dbgs(), LN);
-      llvm::dbgs() << ";\n";
-      Layout::printGraphic(llvm::dbgs(), LN);
-      llvm::dbgs() << '\n';
+      if (Log.isEnabled()) {
+        llvm::dbgs() << "\nNode ID: " << N->ID << " Type: ";
+        Layout::printText(llvm::dbgs(), LN);
+        llvm::dbgs() << ";\n";
+        Layout::printGraphic(llvm::dbgs(), LN);
+        llvm::dbgs() << '\n';
+      }
+      if (auto *TypePtrs = TS.getLayoutTypePtrs(N)) {
+        for (const auto &Value : *TypePtrs)
+          ValueLayouts[Value] = LN;
+      }
     }
   }
   return true;
@@ -381,7 +367,7 @@ static bool makeLayouts(const LayoutTypeSystem &TS) {
 bool MakeLayouts::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("final.dot");
-  return makeLayouts(TS);
+  return makeLayouts(TS, Layouts, ValueLayouts);
 }
 
 } // end namespace dla

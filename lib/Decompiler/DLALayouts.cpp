@@ -2,9 +2,10 @@
 // Copyright (c) rev.ng Srls. See LICENSE.md for details.
 //
 
-#include "DLALayouts.h"
+#include "revng-c/Decompiler/DLALayouts.h"
 
 namespace dla {
+
 void Layout::deleteLayout(Layout *L) {
   switch (getKind(L)) {
   case LayoutKind::Struct:
