@@ -272,31 +272,7 @@ class LayoutTypePtr {
 public:
   explicit LayoutTypePtr(const llvm::Value *Val,
                          unsigned Idx = std::numeric_limits<unsigned>::max()) :
-    V(Val), FieldIdx(Idx) {
-    revng_assert(Val != nullptr);
-    using llvm::cast;
-    using llvm::dyn_cast;
-    using llvm::isa;
-    [[maybe_unused]] const llvm::Type *Ty = V->getType();
-    // We only accept Functions or Values with integer or pointer type.
-    revng_assert(isa<llvm::Function>(V) or isa<llvm::IntegerType>(Ty)
-                 or isa<llvm::PointerType>(Ty));
-
-    // FieldIdx != std::numeric_limits<unsigned>::max() if and only if V is a
-    // Function that returns a struct.
-    const auto *F = dyn_cast<llvm::Function>(V);
-    const auto *StructTy = (F == nullptr) ?
-                             nullptr :
-                             dyn_cast<llvm::StructType>(F->getReturnType());
-    [[maybe_unused]] bool VIsFunctionAndReturnsStruct = StructTy != nullptr;
-    revng_assert(VIsFunctionAndReturnsStruct
-                 xor (FieldIdx == std::numeric_limits<unsigned>::max()));
-
-    // If V is a Function that returns a struct then FieldIdx < number of
-    // elements of the returned struct.
-    revng_assert(not VIsFunctionAndReturnsStruct
-                 or FieldIdx < StructTy->getNumElements());
-  }
+    V(Val), FieldIdx(Idx) {}
 
   LayoutTypePtr() = delete;
   ~LayoutTypePtr() = default;

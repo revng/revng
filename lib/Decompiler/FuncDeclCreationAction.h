@@ -9,6 +9,8 @@
 #include "clang/Frontend/ASTConsumers.h"
 #include "clang/Frontend/FrontendAction.h"
 
+#include "revng-c/Decompiler/DLALayouts.h"
+
 namespace llvm {
 class Function;
 class Type;
@@ -34,8 +36,13 @@ public:
   FuncDeclCreationAction(llvm::Function &F,
                          FunctionsMap &FDecls,
                          TypeDeclMap &TDecls,
-                         FieldDeclMap &FieldDecls) :
-    F(F), FunctionDecls(FDecls), TypeDecls(TDecls), FieldDecls(FieldDecls) {}
+                         FieldDeclMap &FieldDecls,
+                         const dla::ValueLayoutMap *VL) :
+    F(F),
+    FunctionDecls(FDecls),
+    TypeDecls(TDecls),
+    FieldDecls(FieldDecls),
+    ValueLayouts(VL) {}
 
 public:
   std::unique_ptr<ASTConsumer> newASTConsumer();
@@ -48,6 +55,7 @@ private:
   FunctionsMap &FunctionDecls;
   TypeDeclMap &TypeDecls;
   FieldDeclMap &FieldDecls;
+  const dla::ValueLayoutMap *ValueLayouts;
 };
 
 } // end namespace tooling
@@ -56,9 +64,11 @@ inline std::unique_ptr<ASTConsumer>
 CreateFuncDeclCreator(llvm::Function &F,
                       tooling::FuncDeclCreationAction::FunctionsMap &FunDecls,
                       tooling::FuncDeclCreationAction::TypeDeclMap &TDecls,
-                      tooling::FuncDeclCreationAction::FieldDeclMap &FldDecls) {
+                      tooling::FuncDeclCreationAction::FieldDeclMap &FldDecls,
+                      const dla::ValueLayoutMap *VL) {
   using namespace tooling;
-  return FuncDeclCreationAction(F, FunDecls, TDecls, FldDecls).newASTConsumer();
+  auto FDeclCreator = FuncDeclCreationAction(F, FunDecls, TDecls, FldDecls, VL);
+  return FDeclCreator.newASTConsumer();
 }
 
 } // end namespace clang

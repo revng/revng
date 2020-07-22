@@ -9,6 +9,8 @@
 #include "clang/Frontend/ASTConsumers.h"
 #include "clang/Frontend/FrontendAction.h"
 
+#include "revng-c/Decompiler/DLALayouts.h"
+
 #include "CDecompilerBeautify.h"
 
 class ASTTree;
@@ -30,11 +32,13 @@ public:
   CDecompilerAction(llvm::Function &F,
                     ASTTree &CombedAST,
                     BBPHIMap &BlockToPHIIncoming,
+                    const dla::ValueLayoutMap *LM,
                     std::unique_ptr<llvm::raw_ostream> O,
                     DuplicationMap &NDuplicates) :
     F(F),
     CombedAST(CombedAST),
     BlockToPHIIncoming(BlockToPHIIncoming),
+    LayoutMap(LM),
     O(std::move(O)),
     NDuplicates(NDuplicates) {}
 
@@ -48,6 +52,7 @@ private:
   llvm::Function &F;
   ASTTree &CombedAST;
   BBPHIMap &BlockToPHIIncoming;
+  const dla::ValueLayoutMap *LayoutMap;
   std::unique_ptr<llvm::raw_ostream> O;
   DuplicationMap &NDuplicates;
 };

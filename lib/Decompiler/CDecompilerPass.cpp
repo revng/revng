@@ -19,6 +19,7 @@
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Decompiler/CDecompilerPass.h"
+#include "revng-c/Decompiler/DLALayouts.h"
 #include "revng-c/DecompilerResourceFinder/ResourceFinder.h"
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
@@ -108,12 +109,6 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
     }
   }
 
-  auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
-  ASTTree &GHAST = RestructureCFGAnalysis.getAST();
-  DuplicationMap &NDuplicates = RestructureCFGAnalysis.getNDuplicates();
-  auto &PHIASAPAssignments = getAnalysis<PHIASAPAssignmentInfo>();
-  BBPHIMap PHIMap = PHIASAPAssignments.extractBBToPHIIncomingMap();
-
   // Construct the path of the include (hack copied from revng-lift). Even if
   // the include path is unique for now, we have anyway set up the search in
   // multiple paths.
@@ -136,9 +131,18 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   ClangTool RevNg = ClangTool(OptionParser.getCompilations(),
                               OptionParser.getSourcePathList());
 
+  auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
+  ASTTree &GHAST = RestructureCFGAnalysis.getAST();
+  DuplicationMap &NDuplicates = RestructureCFGAnalysis.getNDuplicates();
+  auto &PHIASAPAssignments = getAnalysis<PHIASAPAssignmentInfo>();
+  BBPHIMap PHIMap = PHIASAPAssignments.extractBBToPHIIncomingMap();
+  auto *DLA = getAnalysisIfAvailable<DLAPass>();
+  auto *LayoutMap = DLA ? DLA->getLayoutMap() : nullptr;
+
   CDecompilerAction Decompilation(F,
                                   GHAST,
                                   PHIMap,
+                                  LayoutMap,
                                   std::move(Out),
                                   NDuplicates);
 

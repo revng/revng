@@ -24,14 +24,56 @@ using TypeDeclMap = std::map<const llvm::Type *, clang::TypeDecl *>;
 using FieldDeclMap = std::map<clang::TypeDecl *,
                               llvm::SmallVector<clang::FieldDecl *, 8>>;
 
-static FunctionDecl *createFunDecl(ASTContext &Context,
-                                   TranslationUnitDecl *TUDecl,
-                                   TypeDeclMap &TypeDecls,
-                                   FieldDeclMap &FieldDecls,
-                                   Function *F,
-                                   bool hasBody) {
+class FuncDeclCreator : public ASTConsumer {
+public:
+  explicit FuncDeclCreator(llvm::Function &F,
+                           FunctionsMap &FDecls,
+                           TypeDeclMap &TDecls,
+                           FieldDeclMap &FieldDecls,
+                           const dla::ValueLayoutMap *VL) :
+    TheF(F),
+    FunctionDecls(FDecls),
+    TypeDecls(TDecls),
+    FieldDecls(FieldDecls),
+    ValueLayouts(VL) {}
+
+  virtual void HandleTranslationUnit(ASTContext &Context) override;
+
+protected:
+  FunctionDecl *createFunDecl(ASTContext &Context, Function *F);
+
+private:
+  llvm::Function &TheF;
+  FunctionsMap &FunctionDecls;
+  TypeDeclMap &TypeDecls;
+  FieldDeclMap &FieldDecls;
+  const dla::ValueLayoutMap *ValueLayouts;
+};
+
+FunctionDecl *FuncDeclCreator::createFunDecl(ASTContext &Context, Function *F) {
+
+  TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
 
   const llvm::FunctionType *FType = F->getFunctionType();
+
+  if (ValueLayouts) {
+    auto FItBegin = ValueLayouts->lower_bound(dla::LayoutTypePtr(F, 0));
+    auto FItEnd = ValueLayouts->upper_bound(dla::LayoutTypePtr(F));
+    // If there is a range of ValueLayots that are indexed by F, they represent
+    // the return value of F.
+    if (FItBegin != FItEnd) {
+      if (std::next(FItBegin) == FItEnd) {
+        // F returns a scalar type
+        dla::Layout *PointedLayout = FItBegin->second;
+        revng_assert(PointedLayout);
+      } else {
+        // F returns a struct
+        for (auto &[_, PointedLayout] : llvm::make_range(FItBegin, FItEnd)) {
+          revng_assert(PointedLayout);
+        }
+      }
+    }
+  }
 
   llvm::Type *RetTy = FType->getReturnType();
   QualType RetType = IRASTTypeTranslation::getOrCreateQualType(RetTy,
@@ -77,8 +119,8 @@ static FunctionDecl *createFunDecl(ASTContext &Context,
   const llvm::StringRef FName = F->getName();
   revng_assert(not FName.empty());
   IdentifierInfo &FunId = Context.Idents.get(makeCIdentifier(FName));
-  StorageClass FunStorage = hasBody ? StorageClass::SC_Static :
-                                      StorageClass::SC_Extern;
+  StorageClass FunStorage = (F != &TheF) ? StorageClass::SC_Static :
+                                           StorageClass::SC_Extern;
 
   FunctionDecl *NewFDecl = FunctionDecl::Create(Context,
                                                 TUDecl,
@@ -131,26 +173,8 @@ static FunctionDecl *createFunDecl(ASTContext &Context,
   return NewFDecl;
 }
 
-class FuncDeclCreator : public ASTConsumer {
-public:
-  explicit FuncDeclCreator(llvm::Function &F,
-                           FunctionsMap &FDecls,
-                           TypeDeclMap &TDecls,
-                           FieldDeclMap &FieldDecls) :
-    TheF(F), FunctionDecls(FDecls), TypeDecls(TDecls), FieldDecls(FieldDecls) {}
-
-  virtual void HandleTranslationUnit(ASTContext &Context) override;
-
-private:
-  llvm::Function &TheF;
-  FunctionsMap &FunctionDecls;
-  TypeDeclMap &TypeDecls;
-  FieldDeclMap &FieldDecls;
-};
-
 void FuncDeclCreator::HandleTranslationUnit(ASTContext &Context) {
   llvm::Module &M = *TheF.getParent();
-  TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
 
   std::set<Function *> Called = getDirectlyCalledFunctions(TheF);
   Called.erase(&TheF);
@@ -159,12 +183,7 @@ void FuncDeclCreator::HandleTranslationUnit(ASTContext &Context) {
   for (Function *F : Called) {
     const llvm::StringRef FName = F->getName();
     revng_assert(not FName.empty());
-    FunctionDecl *NewFDecl = createFunDecl(Context,
-                                           TUDecl,
-                                           TypeDecls,
-                                           FieldDecls,
-                                           F,
-                                           false);
+    FunctionDecl *NewFDecl = createFunDecl(Context, F);
     FunctionDecls[F] = NewFDecl;
   }
 
@@ -175,12 +194,7 @@ void FuncDeclCreator::HandleTranslationUnit(ASTContext &Context) {
   // be fully decompiled and it needs a body.
   // This definition starts as a declaration that is than inflated by the
   // ASTBuildAnalysis.
-  FunctionDecl *NewFDecl = createFunDecl(Context,
-                                         TUDecl,
-                                         TypeDecls,
-                                         FieldDecls,
-                                         &TheF,
-                                         true);
+  FunctionDecl *NewFDecl = createFunDecl(Context, &TheF);
   FunctionDecls[&TheF] = NewFDecl;
 }
 
@@ -188,7 +202,8 @@ std::unique_ptr<ASTConsumer> FuncDeclCreationAction::newASTConsumer() {
   return std::make_unique<FuncDeclCreator>(F,
                                            FunctionDecls,
                                            TypeDecls,
-                                           FieldDecls);
+                                           FieldDecls,
+                                           ValueLayouts);
 }
 
 std::unique_ptr<ASTConsumer>

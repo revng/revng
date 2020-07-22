@@ -702,12 +702,14 @@ public:
   explicit Decompiler(llvm::Function &F,
                       ASTTree &CombedAST,
                       BBPHIMap &BlockToPHIIncoming,
+                      const dla::ValueLayoutMap *VL,
                       std::unique_ptr<llvm::raw_ostream> Out,
                       DuplicationMap &NDuplicates) :
     TheF(F),
     CombedAST(CombedAST),
     Out(std::move(Out)),
     BlockToPHIIncoming(BlockToPHIIncoming),
+    ValueLayouts(VL),
     NDuplicates(NDuplicates) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override;
@@ -717,6 +719,7 @@ private:
   ASTTree &CombedAST;
   std::unique_ptr<llvm::raw_ostream> Out;
   BBPHIMap &BlockToPHIIncoming;
+  const dla::ValueLayoutMap *ValueLayouts;
   DuplicationMap &NDuplicates;
 };
 
@@ -762,7 +765,8 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
     ConsumerPtr FunDecls = CreateFuncDeclCreator(TheF,
                                                  FunctionDecls,
                                                  TypeDecls,
-                                                 FieldDecls);
+                                                 FieldDecls,
+                                                 ValueLayouts);
     FunDecls->HandleTranslationUnit(Context);
   }
 
@@ -818,6 +822,7 @@ std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
   return std::make_unique<Decompiler>(F,
                                       CombedAST,
                                       BlockToPHIIncoming,
+                                      LayoutMap,
                                       std::move(O),
                                       NDuplicates);
 }
