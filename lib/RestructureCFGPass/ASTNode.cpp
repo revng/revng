@@ -81,6 +81,9 @@ bool SwitchNode::nodeIsEqual(const ASTNode *Node) const {
   if (OtherSwitch == nullptr)
     return false;
 
+  if (getOriginalBB() != Node->getOriginalBB())
+    return false;
+
   ASTNode *OtherDefault = OtherSwitch->getDefault();
   ASTNode *ThisDefault = this->getDefault();
   if ((OtherDefault == nullptr) != (ThisDefault == nullptr))

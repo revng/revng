@@ -53,16 +53,17 @@ Analysis::InterruptType Analysis::transfer(BasicBlock *BB) {
   for (Instruction &I : *BB) {
     revng_log(MarkLog, "Analyzing: '" << &I << "': " << dumpToString(&I));
     // PHINodes are never serialized
-    if (isa<PHINode>(&I))
+    if (isa<PHINode>(I))
       continue;
-    // Skip this for now. We'll need to change it if we ever want to emit code
-    // with goto statements
+
+    // Skip branching instructions.
     // Branch instructions are never serialized directly, because it's only
     // after building an AST and matching ifs, loops, switches and others that
     // we really know what kind of C statement we want to emit for a given
     // branch.
-    if (isa<BranchInst>(&I))
+    if (isa<BranchInst>(I) or isa<SwitchInst>(I))
       continue;
+
     Pending.insert(&I);
     revng_log(MarkLog, "Add to pending: '" << &I << "': " << dumpToString(&I));
     revng_log(MarkLog, "Operands:");

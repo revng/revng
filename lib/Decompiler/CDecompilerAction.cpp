@@ -300,20 +300,24 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
 
   case ASTNode::NodeKind::NK_If: {
     IfNode *If = cast<IfNode>(N);
+
+    llvm::BasicBlock *BB = If->getOriginalBB();
+    revng_assert(BB != nullptr);
+    buildStmtsForBasicBlock(BB, ASTCtx, Stmts, ASTBuilder, Mark);
+
     clang::Expr *CondExpr = createCondExpr(If->getCondExpr(),
                                            ASTCtx,
                                            Stmts,
                                            ASTBuilder,
                                            Mark);
     revng_assert(CondExpr != nullptr);
+
+    revng_assert(nullptr != If->getThen());
     clang::Stmt *ThenScope = buildCompoundScope(If->getThen(),
                                                 ASTCtx,
                                                 ASTBuilder,
                                                 Mark);
-    clang::Stmt *ElseScope = buildCompoundScope(If->getElse(),
-                                                ASTCtx,
-                                                ASTBuilder,
-                                                Mark);
+    revng_assert(nullptr != ThenScope);
 
     // Handle the situation in which we do have a nullptr in the place of the
     // else node of the if statement, which may result in a non empty
@@ -329,6 +333,12 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                      {},
                                      nullptr));
     } else {
+
+      clang::Stmt *ElseScope = buildCompoundScope(If->getElse(),
+                                                  ASTCtx,
+                                                  ASTBuilder,
+                                                  Mark);
+      revng_assert(nullptr != ElseScope);
       Stmts.push_back(IfStmt::Create(ASTCtx,
                                      {},
                                      false,
@@ -377,11 +387,12 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                              Stmts,
                                              ASTBuilder,
                                              Mark);
+
       clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(),
                                              ASTCtx,
                                              ASTBuilder,
-                                             Mark,
-                                             {});
+                                             Mark);
+
       Stmts.push_back(WhileStmt::Create(ASTCtx, nullptr, CondExpr, Body, {}));
     } else {
 
@@ -409,6 +420,10 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
 
   case ASTNode::NodeKind::NK_Switch: {
     SwitchNode *Switch = cast<SwitchNode>(N);
+
+    llvm::BasicBlock *BB = Switch->getOriginalBB();
+    revng_assert(BB != nullptr);
+    buildStmtsForBasicBlock(BB, ASTCtx, Stmts, ASTBuilder, Mark);
 
     // Generate the condition of the switch.
     clang::Expr *CondExpr = nullptr;
