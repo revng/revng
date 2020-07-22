@@ -736,7 +736,7 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   }
 
   revng_assert(not TheF.isDeclaration());
-  revng_assert(TheF.getName().startswith("bb."));
+  revng_assert(TheF.getMetadata("revng.func.entry"));
   auto It = FunctionDecls.find(&TheF);
   revng_assert(It != FunctionDecls.end());
   clang::FunctionDecl *FunctionDecl = It->second;

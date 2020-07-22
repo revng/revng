@@ -108,7 +108,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   // Remove calls to newpc
   for (Function &ParentF : *F.getParent()) {
     for (BasicBlock &BB : ParentF) {
-      if (!ParentF.getName().startswith("bb."))
+      if (not ParentF.getMetadata("revng.func.entry"))
         continue;
 
       std::vector<Instruction *> ToErase;

@@ -33,9 +33,8 @@ static Register
   X("remove-unexpected-pc", "Remove unexpectedpc from switches", false, false);
 
 bool RemoveUnexpectedPC::runOnFunction(Function &F) {
-  if (!F.getName().startswith("bb.")) {
+  if (not F.hasMetadata("revng.func.entry"))
     return false;
-  }
 
   ReversePostOrderTraversal<llvm::Function *> RPOT(&F);
 

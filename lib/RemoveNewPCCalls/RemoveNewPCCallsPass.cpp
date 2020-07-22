@@ -24,7 +24,7 @@ bool RemoveNewPCCallsPass::runOnFunction(Function &F) {
   // Remove calls to newpc in isolated functions
   for (Function &ParentF : *F.getParent()) {
     for (BasicBlock &BB : ParentF) {
-      if (not ParentF.getName().startswith("bb."))
+      if (not ParentF.hasMetadata("revng.func.entry"))
         continue;
 
       SmallVector<Instruction *, 8> ToErase;

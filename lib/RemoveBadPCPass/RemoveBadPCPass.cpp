@@ -30,9 +30,8 @@ using Register = RegisterPass<RemoveBadPC>;
 static Register X("remove-bad-pc", "Remove bad return pc check", false, false);
 
 bool RemoveBadPC::runOnFunction(Function &F) {
-  if (!F.getName().startswith("bb.")) {
+  if (not F.hasMetadata("revng.func.entry"))
     return false;
-  }
 
   ReversePostOrderTraversal<llvm::Function *> RPOT(&F);
 

@@ -143,7 +143,7 @@ void FuncDeclCreator::HandleTranslationUnit(ASTContext &Context) {
 
   const llvm::StringRef FName = TheF.getName();
   revng_assert(not FName.empty());
-  revng_assert(FName.startswith("bb."));
+  revng_assert(TheF.getMetadata("revng.func.entry"));
   // This is actually a definition, because the isolated function need will
   // be fully decompiled and it needs a body.
   // This definition starts as a declaration that is than inflated by the

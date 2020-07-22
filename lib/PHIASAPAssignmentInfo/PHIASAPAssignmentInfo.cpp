@@ -240,7 +240,7 @@ static void computePHIVarAssignments(PHINode *ThePHI,
 }
 
 bool PHIASAPAssignmentInfo::runOnFunction(llvm::Function &F) {
-  if (not F.getName().startswith("bb."))
+  if (not F.hasMetadata("revng.func.entry"))
     return false;
 
   DomTree DT;

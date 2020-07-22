@@ -32,9 +32,8 @@ using Register = RegisterPass<RemoveSwitch>;
 static Register X("remove-switch", "Remove switch instructions", false, false);
 
 bool RemoveSwitch::runOnFunction(Function &F) {
-  if (!F.getName().startswith("bb.")) {
+  if (not F.hasMetadata("revng.func.entry"))
     return false;
-  }
 
   ReversePostOrderTraversal<llvm::Function *> RPOT(&F);
 
