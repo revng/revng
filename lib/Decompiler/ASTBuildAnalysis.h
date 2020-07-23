@@ -19,12 +19,10 @@
 namespace clang {
 class ASTContext;
 class Expr;
-class FieldDecl;
 class FunctionDecl;
 class LabelDecl;
 class VarDecl;
 class Stmt;
-class TypeDecl;
 } // namespace clang
 
 namespace llvm {
@@ -33,22 +31,18 @@ class BasicBlock;
 class Constant;
 class Function;
 class PHINode;
-class Type;
 } // namespace llvm
+
+class IRASTTypeTranslator;
 
 namespace IR2AST {
 
 using AllocaVarDeclMap = std::map<llvm::AllocaInst *, clang::VarDecl *>;
 using BBLabelsMap = std::map<llvm::BasicBlock *, clang::LabelDecl *>;
 using DeclMap = std::map<llvm::Value *, clang::VarDecl *>;
-using FunctionsMap = std::map<llvm::Function *, clang::FunctionDecl *>;
-using GlobalsMap = std::map<const llvm::GlobalVariable *, clang::VarDecl *>;
 using StmtMap = std::map<llvm::Instruction *, clang::Stmt *>;
 using StmtMultiMap = std::map<llvm::Instruction *,
                               llvm::SmallVector<clang::Stmt *, 2>>;
-using TypeDeclMap = std::map<const llvm::Type *, clang::TypeDecl *>;
-using FieldDeclMap = std::map<clang::TypeDecl *,
-                              llvm::SmallVector<clang::FieldDecl *, 8>>;
 
 class StmtBuilder {
 
@@ -64,34 +58,24 @@ public:
   AllocaVarDeclMap AllocaDecls;
   BBLabelsMap BBLabelDecls;
   DeclMap VarDecls;
-  FunctionsMap &FunctionDecls;
-  GlobalsMap &GlobalDecls;
   StmtMap InstrStmts;
   StmtMultiMap AdditionalStmts;
-  TypeDeclMap TypeDecls;
-  FieldDeclMap FieldDecls;
   BBPHIMap &BlockToPHIIncoming;
 
 public:
   StmtBuilder(const std::set<llvm::Instruction *> &ToSerialize,
               clang::ASTContext &Ctx,
-              GlobalsMap &GMap,
-              FunctionsMap &FMap,
               BBPHIMap &BlockToPHIIncoming,
-              TypeDeclMap &TypeDecls,
-              FieldDeclMap &FieldDecls) :
+              IRASTTypeTranslator &TT) :
     ToSerialize(ToSerialize),
     ASTCtx(Ctx),
     NVar(0),
     AllocaDecls(),
     BBLabelDecls(),
     VarDecls(),
-    FunctionDecls(FMap),
-    GlobalDecls(GMap),
     InstrStmts(),
-    TypeDecls(TypeDecls),
-    FieldDecls(FieldDecls),
-    BlockToPHIIncoming(BlockToPHIIncoming) {}
+    BlockToPHIIncoming(BlockToPHIIncoming),
+    TypeTranslator(TT) {}
 
   void createAST(llvm::Function &F, clang::FunctionDecl &FD);
 
@@ -118,5 +102,7 @@ private:
 private:
   clang::VarDecl *LoopStateVarDecl = nullptr;
   clang::VarDecl *SwitchStateVarDecl = nullptr;
+
+  IRASTTypeTranslator &TypeTranslator;
 };
 } // namespace IR2AST

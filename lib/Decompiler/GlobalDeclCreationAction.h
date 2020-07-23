@@ -13,11 +13,14 @@ namespace llvm {
 class Function;
 class GlobalVariable;
 class Type;
+class Function;
 } // namespace llvm
 
 namespace IR2AST {
 class StmtBuilder;
 } // namespace IR2AST
+
+class IRASTTypeTranslator;
 
 namespace clang {
 
@@ -30,22 +33,10 @@ namespace tooling {
 class GlobalDeclCreationAction : public ASTFrontendAction {
 
 public:
-  using GlobalsMap = std::map<const llvm::GlobalVariable *, clang::VarDecl *>;
-  using TypeDeclMap = std::map<const llvm::Type *, clang::TypeDecl *>;
-  using FieldDeclMap = std::map<clang::TypeDecl *,
-                                llvm::SmallVector<clang::FieldDecl *, 8>>;
-
-public:
   GlobalDeclCreationAction(llvm::Function &F,
-                           IR2AST::StmtBuilder &ASTBldr,
-                           GlobalsMap &GMap,
-                           TypeDeclMap &TDecls,
-                           FieldDeclMap &FieldDecls) :
-    TheF(F),
-    ASTBuilder(ASTBldr),
-    GlobalVarAST(GMap),
-    TypeDecls(TDecls),
-    FieldDecls(FieldDecls) {}
+                           IRASTTypeTranslator &TT,
+                           IR2AST::StmtBuilder &ASTBldr) :
+    TheF(F), TypeTranslator(TT), ASTBuilder(ASTBldr) {}
 
 public:
   std::unique_ptr<ASTConsumer> newASTConsumer();
@@ -55,22 +46,17 @@ public:
 
 private:
   llvm::Function &TheF;
+  IRASTTypeTranslator &TypeTranslator;
   IR2AST::StmtBuilder &ASTBuilder;
-  GlobalsMap &GlobalVarAST;
-  TypeDeclMap &TypeDecls;
-  FieldDeclMap &FieldDecls;
 };
 
 } // end namespace tooling
 
 inline std::unique_ptr<ASTConsumer>
 CreateGlobalDeclCreator(llvm::Function &F,
-                        IR2AST::StmtBuilder &Bldr,
-                        tooling::GlobalDeclCreationAction::GlobalsMap &Map,
-                        tooling::GlobalDeclCreationAction::TypeDeclMap &TDecl,
-                        tooling::GlobalDeclCreationAction::FieldDeclMap &FldD) {
-  using namespace tooling;
-  return GlobalDeclCreationAction(F, Bldr, Map, TDecl, FldD).newASTConsumer();
+                        IRASTTypeTranslator &TT,
+                        IR2AST::StmtBuilder &Bldr) {
+  return tooling::GlobalDeclCreationAction(F, TT, Bldr).newASTConsumer();
 }
 
 } // end namespace clang

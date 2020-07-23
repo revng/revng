@@ -19,23 +19,12 @@ using namespace llvm;
 namespace clang {
 namespace tooling {
 
-using FunctionsMap = FuncDeclCreationAction::FunctionsMap;
-using TypeDeclMap = std::map<const llvm::Type *, clang::TypeDecl *>;
-using FieldDeclMap = std::map<clang::TypeDecl *,
-                              llvm::SmallVector<clang::FieldDecl *, 8>>;
-
 class FuncDeclCreator : public ASTConsumer {
 public:
   explicit FuncDeclCreator(llvm::Function &F,
-                           FunctionsMap &FDecls,
-                           TypeDeclMap &TDecls,
-                           FieldDeclMap &FieldDecls,
+                           IRASTTypeTranslator &TT,
                            const dla::ValueLayoutMap *VL) :
-    TheF(F),
-    FunctionDecls(FDecls),
-    TypeDecls(TDecls),
-    FieldDecls(FieldDecls),
-    ValueLayouts(VL) {}
+    TheF(F), TypeTranslator(TT), ValueLayouts(VL) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override;
 
@@ -44,9 +33,7 @@ protected:
 
 private:
   llvm::Function &TheF;
-  FunctionsMap &FunctionDecls;
-  TypeDeclMap &TypeDecls;
-  FieldDeclMap &FieldDecls;
+  IRASTTypeTranslator &TypeTranslator;
   const dla::ValueLayoutMap *ValueLayouts;
 };
 
@@ -76,12 +63,10 @@ FunctionDecl *FuncDeclCreator::createFunDecl(ASTContext &Context, Function *F) {
   }
 
   llvm::Type *RetTy = FType->getReturnType();
-  QualType RetType = IRASTTypeTranslation::getOrCreateQualType(RetTy,
-                                                               F,
-                                                               Context,
-                                                               *TUDecl,
-                                                               TypeDecls,
-                                                               FieldDecls);
+  QualType RetType = TypeTranslator.getOrCreateQualType(RetTy,
+                                                        F,
+                                                        Context,
+                                                        *TUDecl);
 
   SmallVector<QualType, 4> ArgTypes = {};
   revng_assert(FType->getNumParams() == F->arg_size());
@@ -90,14 +75,8 @@ FunctionDecl *FuncDeclCreator::createFunDecl(ASTContext &Context, Function *F) {
     // In function declarations all pointers parameters are void *.
     // This is a temporary workaround to reduce warnings
     QualType ArgType = Context.VoidPtrTy;
-    if (not isa<llvm::PointerType>(T)) {
-      ArgType = IRASTTypeTranslation::getOrCreateQualType(T,
-                                                          &Arg,
-                                                          Context,
-                                                          *TUDecl,
-                                                          TypeDecls,
-                                                          FieldDecls);
-    }
+    if (not isa<llvm::PointerType>(T))
+      ArgType = TypeTranslator.getOrCreateQualType(T, &Arg, Context, *TUDecl);
     ArgTypes.push_back(ArgType);
   }
   const bool HasNoParams = ArgTypes.empty();
@@ -184,7 +163,7 @@ void FuncDeclCreator::HandleTranslationUnit(ASTContext &Context) {
     const llvm::StringRef FName = F->getName();
     revng_assert(not FName.empty());
     FunctionDecl *NewFDecl = createFunDecl(Context, F);
-    FunctionDecls[F] = NewFDecl;
+    TypeTranslator.FunctionDecls[F] = NewFDecl;
   }
 
   const llvm::StringRef FName = TheF.getName();
@@ -195,15 +174,11 @@ void FuncDeclCreator::HandleTranslationUnit(ASTContext &Context) {
   // This definition starts as a declaration that is than inflated by the
   // ASTBuildAnalysis.
   FunctionDecl *NewFDecl = createFunDecl(Context, &TheF);
-  FunctionDecls[&TheF] = NewFDecl;
+  TypeTranslator.FunctionDecls[&TheF] = NewFDecl;
 }
 
 std::unique_ptr<ASTConsumer> FuncDeclCreationAction::newASTConsumer() {
-  return std::make_unique<FuncDeclCreator>(F,
-                                           FunctionDecls,
-                                           TypeDecls,
-                                           FieldDecls,
-                                           ValueLayouts);
+  return std::make_unique<FuncDeclCreator>(F, TypeTranslator, ValueLayouts);
 }
 
 std::unique_ptr<ASTConsumer>

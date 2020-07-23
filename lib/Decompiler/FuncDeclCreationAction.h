@@ -13,36 +13,23 @@
 
 namespace llvm {
 class Function;
-class Type;
 } // namespace llvm
+
+class IRASTTypeTranslator;
 
 namespace clang {
 
 class CompilerInstance;
-class FieldDecl;
-class TypeDecl;
 
 namespace tooling {
 
 class FuncDeclCreationAction : public ASTFrontendAction {
 
 public:
-  using FunctionsMap = std::map<llvm::Function *, clang::FunctionDecl *>;
-  using TypeDeclMap = std::map<const llvm::Type *, clang::TypeDecl *>;
-  using FieldDeclMap = std::map<clang::TypeDecl *,
-                                llvm::SmallVector<clang::FieldDecl *, 8>>;
-
-public:
   FuncDeclCreationAction(llvm::Function &F,
-                         FunctionsMap &FDecls,
-                         TypeDeclMap &TDecls,
-                         FieldDeclMap &FieldDecls,
+                         IRASTTypeTranslator &TT,
                          const dla::ValueLayoutMap *VL) :
-    F(F),
-    FunctionDecls(FDecls),
-    TypeDecls(TDecls),
-    FieldDecls(FieldDecls),
-    ValueLayouts(VL) {}
+    F(F), TypeTranslator(TT), ValueLayouts(VL) {}
 
 public:
   std::unique_ptr<ASTConsumer> newASTConsumer();
@@ -52,9 +39,7 @@ public:
 
 private:
   llvm::Function &F;
-  FunctionsMap &FunctionDecls;
-  TypeDeclMap &TypeDecls;
-  FieldDeclMap &FieldDecls;
+  IRASTTypeTranslator &TypeTranslator;
   const dla::ValueLayoutMap *ValueLayouts;
 };
 
@@ -62,12 +47,9 @@ private:
 
 inline std::unique_ptr<ASTConsumer>
 CreateFuncDeclCreator(llvm::Function &F,
-                      tooling::FuncDeclCreationAction::FunctionsMap &FunDecls,
-                      tooling::FuncDeclCreationAction::TypeDeclMap &TDecls,
-                      tooling::FuncDeclCreationAction::FieldDeclMap &FldDecls,
+                      IRASTTypeTranslator &TT,
                       const dla::ValueLayoutMap *VL) {
-  using namespace tooling;
-  auto FDeclCreator = FuncDeclCreationAction(F, FunDecls, TDecls, FldDecls, VL);
+  auto FDeclCreator = tooling::FuncDeclCreationAction(F, TT, VL);
   return FDeclCreator.newASTConsumer();
 }
 

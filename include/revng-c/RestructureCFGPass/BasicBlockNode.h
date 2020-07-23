@@ -75,7 +75,8 @@ public:
   using links_const_range = llvm::iterator_range<links_const_iterator>;
 
 protected:
-  static BasicBlockNodeT *getChild(const node_edgeinfo_pair &P) {
+  static BasicBlockNodeT *&getChild(node_edgeinfo_pair &P) { return P.first; }
+  static BasicBlockNodeT *const &getCChild(const node_edgeinfo_pair &P) {
     return P.first;
   }
 
@@ -83,7 +84,7 @@ public:
   using child_iterator = llvm::mapped_iterator<links_iterator,
                                                decltype(&getChild)>;
   using child_const_iterator = llvm::mapped_iterator<links_const_iterator,
-                                                     decltype(&getChild)>;
+                                                     decltype(&getCChild)>;
   using child_range = llvm::iterator_range<child_iterator>;
   using child_const_range = llvm::iterator_range<child_const_iterator>;
 
@@ -273,7 +274,7 @@ public:
   }
 
   child_const_range successors() const {
-    return llvm::map_range(labeled_successors(), &getChild);
+    return llvm::map_range(labeled_successors(), &getCChild);
   }
 
   child_range successors() {
@@ -293,7 +294,7 @@ public:
   }
 
   child_const_range predecessors() const {
-    return llvm::map_range(labeled_predecessors(), &getChild);
+    return llvm::map_range(labeled_predecessors(), &getCChild);
   }
 
   child_range predecessors() {

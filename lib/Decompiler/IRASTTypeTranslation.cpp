@@ -20,11 +20,9 @@
 
 #include "Mangling.h"
 
-namespace IRASTTypeTranslation {
-
-clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
-                                        TypeDeclMap &TypeDecls,
-                                        const llvm::Type *Ty) {
+clang::QualType
+IRASTTypeTranslator::getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
+                                             const llvm::Type *Ty) {
   clang::QualType Result;
   clang::TranslationUnitDecl *TUDecl = ASTCtx.getTranslationUnitDecl();
   const std::string BoolName = "bool";
@@ -71,12 +69,11 @@ clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
   return Result;
 }
 
-clang::QualType getOrCreateQualType(const llvm::Type *Ty,
-                                    const llvm::Value *NamingValue,
-                                    clang::ASTContext &ASTCtx,
-                                    clang::DeclContext &DeclCtx,
-                                    TypeDeclMap &TypeDecls,
-                                    FieldDeclMap &FieldDecls) {
+clang::QualType
+IRASTTypeTranslator::getOrCreateQualType(const llvm::Type *Ty,
+                                         const llvm::Value *NamingValue,
+                                         clang::ASTContext &ASTCtx,
+                                         clang::DeclContext &DeclCtx) {
   clang::QualType Result;
   switch (Ty->getTypeID()) {
 
@@ -91,7 +88,7 @@ clang::QualType getOrCreateQualType(const llvm::Type *Ty,
 
     switch (BitWidth) {
     case 1: {
-      Result = getOrCreateBoolQualType(ASTCtx, TypeDecls, Ty);
+      Result = getOrCreateBoolQualType(ASTCtx, Ty);
     } break;
     case 16: {
       const std::string UInt16Name = "uint16_t";
@@ -144,9 +141,7 @@ clang::QualType getOrCreateQualType(const llvm::Type *Ty,
     clang::QualType PointeeType = getOrCreateQualType(PointeeTy,
                                                       nullptr,
                                                       ASTCtx,
-                                                      DeclCtx,
-                                                      TypeDecls,
-                                                      FieldDecls);
+                                                      DeclCtx);
     Result = ASTCtx.getPointerType(PointeeType);
   } break;
 
@@ -199,9 +194,7 @@ clang::QualType getOrCreateQualType(const llvm::Type *Ty,
       clang::QualType QFieldTy = getOrCreateQualType(FieldTy,
                                                      nullptr,
                                                      ASTCtx,
-                                                     DeclCtx,
-                                                     TypeDecls,
-                                                     FieldDecls);
+                                                     DeclCtx);
       clang::TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(QFieldTy);
       const std::string FieldName = std::string("field_") + std::to_string(N);
       clang::IdentifierInfo &FieldId = ASTCtx.Idents.get(FieldName);
@@ -240,23 +233,19 @@ clang::QualType getOrCreateQualType(const llvm::Type *Ty,
   return Result;
 }
 
-clang::QualType getOrCreateQualType(const llvm::GlobalVariable *G,
-                                    clang::ASTContext &ASTCtx,
-                                    clang::DeclContext &DeclCtx,
-                                    TypeDeclMap &TypeDecls,
-                                    FieldDeclMap &FieldDecls) {
+clang::QualType
+IRASTTypeTranslator::getOrCreateQualType(const llvm::GlobalVariable *G,
+                                         clang::ASTContext &ASTCtx,
+                                         clang::DeclContext &DeclCtx) {
   llvm::PointerType *GlobalPtrTy = llvm::cast<llvm::PointerType>(G->getType());
   llvm::Type *Ty = GlobalPtrTy->getElementType();
-  return getOrCreateQualType(Ty, G, ASTCtx, DeclCtx, TypeDecls, FieldDecls);
+  return getOrCreateQualType(Ty, G, ASTCtx, DeclCtx);
 }
 
-clang::QualType getOrCreateQualType(const llvm::Value *I,
-                                    clang::ASTContext &ASTCtx,
-                                    clang::DeclContext &DeclCtx,
-                                    TypeDeclMap &TypeDecls,
-                                    FieldDeclMap &FieldDecls) {
+clang::QualType
+IRASTTypeTranslator::getOrCreateQualType(const llvm::Value *I,
+                                         clang::ASTContext &ASTCtx,
+                                         clang::DeclContext &DeclCtx) {
   llvm::Type *Ty = I->getType();
-  return getOrCreateQualType(Ty, I, ASTCtx, DeclCtx, TypeDecls, FieldDecls);
+  return getOrCreateQualType(Ty, I, ASTCtx, DeclCtx);
 }
-
-} // end namespace IRASTTypeTranslation

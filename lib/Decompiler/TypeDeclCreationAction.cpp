@@ -16,29 +16,22 @@ using namespace llvm;
 namespace clang {
 namespace tooling {
 
-using TypeDeclMap = TypeDeclCreationAction::TypeDeclMap;
-using FieldDeclMap = TypeDeclCreationAction::FieldDeclMap;
-using TypePair = std::pair<const llvm::Type *const, clang::TypeDecl *>;
+using TypePair = IRASTTypeTranslator::TypeDeclMap::value_type;
 
-static std::vector<TypePair> createTypeDecls(ASTContext &Context,
-                                             TranslationUnitDecl *TUDecl,
-                                             TypeDeclMap &TypeDecls,
-                                             FieldDeclMap &FieldDecls,
-                                             Function *F) {
+static std::vector<TypePair>
+createTypeDecls(ASTContext &Context,
+                TranslationUnitDecl *TUDecl,
+                IRASTTypeTranslator &TypeTranslator,
+                Function *F) {
   std::vector<TypePair> Result;
   const llvm::FunctionType *FType = F->getFunctionType();
 
   if (llvm::Type *RetTy = dyn_cast<llvm::StructType>(FType->getReturnType())) {
 
-    IRASTTypeTranslation::getOrCreateQualType(RetTy,
-                                              F,
-                                              Context,
-                                              *TUDecl,
-                                              TypeDecls,
-                                              FieldDecls);
+    TypeTranslator.getOrCreateQualType(RetTy, F, Context, *TUDecl);
 
-    revng_assert(TypeDecls.count(RetTy));
-    Result.push_back(*TypeDecls.find(RetTy));
+    revng_assert(TypeTranslator.TypeDecls.count(RetTy));
+    Result.push_back(*TypeTranslator.TypeDecls.find(RetTy));
   }
 
   for (const llvm::Type *T : FType->params()) {
@@ -51,17 +44,14 @@ static std::vector<TypePair> createTypeDecls(ASTContext &Context,
 
 class TypeDeclCreator : public ASTConsumer {
 public:
-  explicit TypeDeclCreator(llvm::Function &F,
-                           TypeDeclMap &TDecls,
-                           FieldDeclMap &FieldDecls) :
-    TheF(F), TypeDecls(TDecls), FieldDecls(FieldDecls) {}
+  explicit TypeDeclCreator(llvm::Function &F, IRASTTypeTranslator &TT) :
+    TheF(F), TypeTranslator(TT) {}
 
   virtual void HandleTranslationUnit(ASTContext &C) override;
 
 private:
   llvm::Function &TheF;
-  TypeDeclMap &TypeDecls;
-  FieldDeclMap &FieldDecls;
+  IRASTTypeTranslator &TypeTranslator;
 };
 
 void TypeDeclCreator::HandleTranslationUnit(ASTContext &C) {
@@ -78,16 +68,15 @@ void TypeDeclCreator::HandleTranslationUnit(ASTContext &C) {
     revng_assert(not FName.empty());
     std::vector<TypePair> NewTypeDecls = createTypeDecls(C,
                                                          TUDecl,
-                                                         TypeDecls,
-                                                         FieldDecls,
+                                                         TypeTranslator,
                                                          F);
     for (TypePair &TD : NewTypeDecls)
-      TypeDecls.insert(TD);
+      TypeTranslator.TypeDecls.insert(TD);
   }
 }
 
 std::unique_ptr<ASTConsumer> TypeDeclCreationAction::newASTConsumer() {
-  return std::make_unique<TypeDeclCreator>(F, TypeDecls, FieldDecls);
+  return std::make_unique<TypeDeclCreator>(F, TypeTranslator);
 }
 
 std::unique_ptr<ASTConsumer>

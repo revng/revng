@@ -12,6 +12,7 @@
 #include "clang/AST/Type.h"
 
 namespace llvm {
+class Function;
 class GlobalVariable;
 class Type;
 class Value;
@@ -19,36 +20,44 @@ class Value;
 
 namespace clang {
 class FieldDecl;
+class FunctionDecl;
 class TypeDecl;
+class VarDecl;
 } // end namespace clang
 
-namespace IRASTTypeTranslation {
+class IRASTTypeTranslator {
 
-using TypeDeclMap = std::map<const llvm::Type *, clang::TypeDecl *>;
-using FieldDeclMap = std::map<clang::TypeDecl *,
-                              llvm::SmallVector<clang::FieldDecl *, 8>>;
+public:
+  using ValueTypeDeclMap = std::map<const llvm::Value *, clang::TypeDecl *>;
+  using GlobalsMap = std::map<const llvm::GlobalVariable *, clang::VarDecl *>;
+  using FunctionsMap = std::map<llvm::Function *, clang::FunctionDecl *>;
+  using TypeDeclMap = std::map<const llvm::Type *, clang::TypeDecl *>;
+  using FieldDeclMap = std::map<clang::TypeDecl *,
+                                llvm::SmallVector<clang::FieldDecl *, 8>>;
 
-clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
-                                        TypeDeclMap &TypeDecls,
-                                        const llvm::Type *Ty = nullptr);
+public:
+  IRASTTypeTranslator() = default;
 
-clang::QualType getOrCreateQualType(const llvm::Value *I,
-                                    clang::ASTContext &ASTCtx,
-                                    clang::DeclContext &DeclCtx,
-                                    TypeDeclMap &TypeDecls,
-                                    FieldDeclMap &FieldDecls);
+  clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
+                                          const llvm::Type *Ty = nullptr);
 
-clang::QualType getOrCreateQualType(const llvm::GlobalVariable *G,
-                                    clang::ASTContext &ASTCtx,
-                                    clang::DeclContext &DeclCtx,
-                                    TypeDeclMap &TypeDecls,
-                                    FieldDeclMap &FieldDecls);
+  clang::QualType getOrCreateQualType(const llvm::Value *I,
+                                      clang::ASTContext &ASTCtx,
+                                      clang::DeclContext &DeclCtx);
 
-clang::QualType getOrCreateQualType(const llvm::Type *T,
-                                    const llvm::Value *NamingValue,
-                                    clang::ASTContext &ASTCtx,
-                                    clang::DeclContext &DeclCtx,
-                                    TypeDeclMap &TypeDecls,
-                                    FieldDeclMap &FieldDecls);
+  clang::QualType getOrCreateQualType(const llvm::GlobalVariable *G,
+                                      clang::ASTContext &ASTCtx,
+                                      clang::DeclContext &DeclCtx);
 
-} // end namespace IRASTTypeTranslation
+  clang::QualType getOrCreateQualType(const llvm::Type *T,
+                                      const llvm::Value *NamingValue,
+                                      clang::ASTContext &ASTCtx,
+                                      clang::DeclContext &DeclCtx);
+
+public:
+  ValueTypeDeclMap ValueTypeDecls;
+  TypeDeclMap TypeDecls;
+  FieldDeclMap FieldDecls;
+  GlobalsMap GlobalDecls;
+  FunctionsMap FunctionDecls;
+}; // end class IRASTTypeTranslation

@@ -30,11 +30,6 @@
 namespace clang {
 namespace tooling {
 
-using GlobalsMap = GlobalDeclCreationAction::GlobalsMap;
-using FunctionsMap = FuncDeclCreationAction::FunctionsMap;
-using TypeDeclMap = TypeDeclCreationAction::TypeDeclMap;
-using FieldDeclMap = IRASTTypeTranslation::FieldDeclMap;
-
 using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
 
 static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
@@ -84,8 +79,10 @@ static void buildStmtsForBasicBlock(llvm::BasicBlock *BB,
   auto AdditionalStmtsEnd = ASTBuilder.AdditionalStmts.end();
   const std::set<llvm::Instruction *> &Serialized = Mark.getToSerialize(BB);
   for (llvm::Instruction &Instr : *BB) {
+
     if (Serialized.count(&Instr) == 0)
       continue;
+
     auto StmtIt = ASTBuilder.InstrStmts.find(&Instr);
     if (StmtIt != StmtEnd and StmtIt->second != nullptr) {
       clang::Stmt *EmittedStmt = nullptr;
@@ -268,6 +265,7 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
     }
   };
     [[fallthrough]];
+
   case ASTNode::NodeKind::NK_SwitchBreak:
     Stmts.push_back(new (ASTCtx) clang::BreakStmt(SourceLocation{}));
     break;
@@ -618,10 +616,11 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
   }
 }
 
-static void buildFunctionBody(FunctionsMap::value_type &FPair,
-                              ASTTree &CombedAST,
-                              IR2AST::StmtBuilder &ASTBuilder,
-                              MarkForSerialization::Analysis &Mark) {
+static void
+buildFunctionBody(IRASTTypeTranslator::FunctionsMap::value_type &FPair,
+                  ASTTree &CombedAST,
+                  IR2AST::StmtBuilder &ASTBuilder,
+                  MarkForSerialization::Analysis &Mark) {
   clang::FunctionDecl *FDecl = FPair.second;
   ASTContext &ASTCtx = FDecl->getASTContext();
 
@@ -735,43 +734,33 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   beautifyAST(TheF, CombedAST, Mark);
 
   using ConsumerPtr = std::unique_ptr<ASTConsumer>;
-  FunctionsMap FunctionDecls;
-  GlobalsMap GlobalVarAST;
-  TypeDeclMap TypeDecls;
-  FieldDeclMap FieldDecls;
 
+  IRASTTypeTranslator TypeTranslator;
   IR2AST::StmtBuilder ASTBuilder(Mark.getToSerialize(),
                                  Context,
-                                 GlobalVarAST,
-                                 FunctionDecls,
                                  BlockToPHIIncoming,
-                                 TypeDecls,
-                                 FieldDecls);
+                                 TypeTranslator);
 
   {
     // Build declaration of global types
-    ConsumerPtr TypeDeclCreate = CreateTypeDeclCreator(TheF,
-                                                       TypeDecls,
-                                                       FieldDecls);
+    ConsumerPtr TypeDeclCreate = CreateTypeDeclCreator(TheF, TypeTranslator);
     TypeDeclCreate->HandleTranslationUnit(Context);
+
     // Build declaration of global variables
     ConsumerPtr GlobalDecls = CreateGlobalDeclCreator(TheF,
-                                                      ASTBuilder,
-                                                      GlobalVarAST,
-                                                      TypeDecls,
-                                                      FieldDecls);
+                                                      TypeTranslator,
+                                                      ASTBuilder);
     GlobalDecls->HandleTranslationUnit(Context);
+
     // Build function declaration
     ConsumerPtr FunDecls = CreateFuncDeclCreator(TheF,
-                                                 FunctionDecls,
-                                                 TypeDecls,
-                                                 FieldDecls,
+                                                 TypeTranslator,
                                                  ValueLayouts);
     FunDecls->HandleTranslationUnit(Context);
   }
 
-  auto It = FunctionDecls.find(&TheF);
-  revng_assert(It != FunctionDecls.end());
+  auto It = TypeTranslator.FunctionDecls.find(&TheF);
+  revng_assert(It != TypeTranslator.FunctionDecls.end());
   clang::FunctionDecl *FunctionDecl = It->second;
   ASTBuilder.createAST(TheF, *FunctionDecl);
 
@@ -779,7 +768,7 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   // TODO: sooner or later, whenever we start emitting complex type
   // declarations, we will need to enforce proper ordering between dependent
   // types, and inject forward type declarations when needed.
-  for (auto &TypeDecl : TypeDecls) {
+  for (auto &TypeDecl : TypeTranslator.TypeDecls) {
     // Double check that the typedef decl for bool is not inserted twice
     clang::DeclarationName TypeName = TypeDecl.second->getDeclName();
     if (TypeName.getAsString() == "bool") {
@@ -802,10 +791,10 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
     TUDecl->addDecl(TypeDecl.second);
   }
 
-  for (auto &GlobalDecl : GlobalVarAST)
+  for (auto &GlobalDecl : TypeTranslator.GlobalDecls)
     TUDecl->addDecl(GlobalDecl.second);
 
-  for (auto &FDecl : FunctionDecls) {
+  for (auto &FDecl : TypeTranslator.FunctionDecls) {
     if (FunctionDecl == FDecl.second)
       continue;
     TUDecl->addDecl(FDecl.second);

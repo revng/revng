@@ -15,53 +15,33 @@
 #include "IRASTTypeTranslation.h"
 #include "Mangling.h"
 
-using namespace llvm;
-
 namespace clang {
 namespace tooling {
-
-using GlobalsMap = GlobalDeclCreationAction::GlobalsMap;
-using TypeDeclMap = std::map<const llvm::Type *, clang::TypeDecl *>;
-using FieldDeclMap = std::map<clang::TypeDecl *,
-                              llvm::SmallVector<clang::FieldDecl *, 8>>;
 
 class GlobalDeclsCreator : public ASTConsumer {
 public:
   explicit GlobalDeclsCreator(llvm::Function &F,
-                              IR2AST::StmtBuilder &ASTBldr,
-                              GlobalsMap &GMap,
-                              TypeDeclMap &TDecls,
-                              FieldDeclMap &FieldDecls) :
-    TheF(F),
-    ASTBuilder(ASTBldr),
-    GlobalVarAST(GMap),
-    TypeDecls(TDecls),
-    FieldDecls(FieldDecls) {}
+                              IRASTTypeTranslator &TT,
+                              IR2AST::StmtBuilder &ASTBldr) :
+    TheF(F), TypeTranslator(TT), ASTBuilder(ASTBldr) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override;
 
 private:
   llvm::Function &TheF;
+  IRASTTypeTranslator &TypeTranslator;
   IR2AST::StmtBuilder &ASTBuilder;
-  GlobalsMap &GlobalVarAST;
-  TypeDeclMap &TypeDecls;
-  FieldDeclMap &FieldDecls;
 };
 
 void GlobalDeclsCreator::HandleTranslationUnit(ASTContext &Context) {
   uint64_t UnnamedNum = 0;
   TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
-  for (GlobalVariable *G : getDirectlyUsedGlobals(TheF)) {
-    using namespace IRASTTypeTranslation;
-    QualType ASTTy = getOrCreateQualType(G,
-                                         Context,
-                                         *TUDecl,
-                                         TypeDecls,
-                                         FieldDecls);
+  for (llvm::GlobalVariable *G : getDirectlyUsedGlobals(TheF)) {
+    QualType ASTTy = TypeTranslator.getOrCreateQualType(G, Context, *TUDecl);
 
     std::string VarName = G->getName();
     if (VarName.empty()) {
-      raw_string_ostream Stream(VarName);
+      llvm::raw_string_ostream Stream(VarName);
       Stream << "global_" << UnnamedNum++;
     }
     IdentifierInfo &Id = Context.Idents.get(makeCIdentifier(VarName));
@@ -91,12 +71,11 @@ void GlobalDeclsCreator::HandleTranslationUnit(ASTContext &Context) {
         } else if (UnderlyingTy->isBooleanType()) {
           const llvm::ConstantInt *CInt = cast<llvm::ConstantInt>(LLVMInit);
           uint64_t InitValue = CInt->getValue().getZExtValue();
-          APInt InitVal = LLVMInit->getUniqueInteger();
-          QualType BoolTy = getOrCreateBoolQualType(Context,
-                                                    TypeDecls,
-                                                    G->getType());
+          llvm::APInt InitVal = LLVMInit->getUniqueInteger();
+          auto BoolTy = TypeTranslator.getOrCreateBoolQualType(Context,
+                                                               G->getType());
           QualType IntT = Context.IntTy;
-          APInt Const = APInt(Context.getIntWidth(IntT), InitValue, true);
+          auto Const = llvm::APInt(Context.getIntWidth(IntT), InitValue, true);
           Expr *IntLiteral = IntegerLiteral::Create(Context, Const, IntT, {});
           Init = createCast(BoolTy, IntLiteral, Context);
         } else if (UnderlyingTy->isIntegerType()
@@ -110,16 +89,12 @@ void GlobalDeclsCreator::HandleTranslationUnit(ASTContext &Context) {
           NewVar->setInit(Init);
       }
     }
-    GlobalVarAST[G] = NewVar;
+    TypeTranslator.GlobalDecls[G] = NewVar;
   }
 }
 
 std::unique_ptr<ASTConsumer> GlobalDeclCreationAction::newASTConsumer() {
-  return std::make_unique<GlobalDeclsCreator>(TheF,
-                                              ASTBuilder,
-                                              GlobalVarAST,
-                                              TypeDecls,
-                                              FieldDecls);
+  return std::make_unique<GlobalDeclsCreator>(TheF, TypeTranslator, ASTBuilder);
 }
 
 std::unique_ptr<ASTConsumer>
