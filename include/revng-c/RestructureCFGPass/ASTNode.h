@@ -63,10 +63,10 @@ protected:
   /// will be inserted in an ASTTree.
   unsigned ID = 0;
 
-public:
   ASTNode(NodeKind K, const std::string &Name, ASTNode *Successor = nullptr) :
     Kind(K), Name(Name), Successor(Successor) {}
 
+public:
   ASTNode(NodeKind K, BasicBlockNodeBB *CFGNode, ASTNode *Successor = nullptr) :
     Kind(K),
     IsEmpty(CFGNode->isEmpty()),
@@ -159,9 +159,8 @@ public:
          ExprNode *CondExpr,
          ASTNode *Then,
          ASTNode *Else,
-         ASTNode *PostDom,
-         NodeKind Kind = NK_If) :
-    ASTNode(Kind, CFGNode, PostDom),
+         ASTNode *PostDom) :
+    ASTNode(NK_If, CFGNode, PostDom),
     Then(Then),
     Else(Else),
     ConditionExpression(CondExpr) {}
@@ -296,9 +295,14 @@ public:
 private:
   links_container NodeList;
 
+  SequenceNode(const std::string &Name) : ASTNode(NK_List, Name) {}
+
 public:
-  SequenceNode(std::string Name) : ASTNode(NK_List, Name) {}
   SequenceNode(BasicBlockNodeBB *CFGNode) : ASTNode(NK_List, CFGNode) {}
+
+  static SequenceNode *createEmpty(const std::string &Name) {
+    return new SequenceNode(Name);
+  }
 
 protected:
   SequenceNode(const SequenceNode &) = default;
@@ -481,29 +485,28 @@ public:
   using case_const_range = llvm::iterator_range<case_const_iterator>;
 
 public:
-  SwitchNode(llvm::StringRef Name,
+  SwitchNode(BasicBlockNodeBB *CFGNode,
              llvm::Value *Cond,
              const case_container &LabeledCases,
              ASTNode *Def,
-             ASTNode *Successor,
-             bool Weaved) :
-    ASTNode(NK_Switch, Name, Successor),
+             ASTNode *Successor) :
+
+    ASTNode(NK_Switch, CFGNode, Successor),
     Condition(Cond),
     LabelCaseVec(LabeledCases),
     Default(Def),
-    IsWeaved(Weaved) {}
+    IsWeaved(CFGNode->isWeaved()) {}
 
-  SwitchNode(llvm::StringRef Name,
+  SwitchNode(BasicBlockNodeBB *CFGNode,
              llvm::Value *Cond,
              case_container &&LabeledCases,
              ASTNode *Def,
-             ASTNode *Successor,
-             bool Weaved) :
-    ASTNode(NK_Switch, Name, Successor),
+             ASTNode *Successor) :
+    ASTNode(NK_Switch, CFGNode, Successor),
     Condition(Cond),
     LabelCaseVec(std::move(LabeledCases)),
     Default(Def),
-    IsWeaved(Weaved) {}
+    IsWeaved(CFGNode->isWeaved()) {}
 
   SwitchNode(const SwitchNode &) = default;
   SwitchNode(SwitchNode &&) = delete;
@@ -541,6 +544,8 @@ public:
   void replaceDefault(ASTNode *NewDefault) { Default = NewDefault; }
 
   llvm::Value *getCondition() const { return Condition; }
+
+  bool isWeaved() const { return IsWeaved; }
 
 protected:
   llvm::Value *Condition;

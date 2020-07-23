@@ -1537,13 +1537,11 @@ inline void RegionCFG<NodeT>::generateAst() {
         revng_assert(It == Children.end());
       }
 
-      llvm::StringRef Name = SwitchCondition ? "Switch" : "Dispatcher";
-      ASTObject.reset(new SwitchNode(Name,
+      ASTObject.reset(new SwitchNode(Node,
                                      SwitchCondition,
                                      std::move(LabeledCases),
                                      DefaultASTNode,
-                                     PostDomASTNode,
-                                     Node->isWeaved()));
+                                     PostDomASTNode));
     } else {
 
       switch (Children.size()) {

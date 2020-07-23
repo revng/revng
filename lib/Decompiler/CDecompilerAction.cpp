@@ -421,16 +421,21 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
   case ASTNode::NodeKind::NK_Switch: {
     SwitchNode *Switch = cast<SwitchNode>(N);
 
-    llvm::BasicBlock *BB = Switch->getOriginalBB();
-    revng_assert(BB != nullptr);
-    buildStmtsForBasicBlock(BB, ASTCtx, Stmts, ASTBuilder, Mark);
-
     // Generate the condition of the switch.
     clang::Expr *CondExpr = nullptr;
     llvm::Value *SwitchVar = Switch->getCondition();
     if (SwitchVar) {
+      // If the switch is not weaved we need to print the instructions in the
+      // basic block before it.
+      if (not Switch->isWeaved()) {
+        llvm::BasicBlock *BB = Switch->getOriginalBB();
+        revng_assert(BB != nullptr); // This is not a switch dispatcher.
+        buildStmtsForBasicBlock(BB, ASTCtx, Stmts, ASTBuilder, Mark);
+      }
+
       CondExpr = ASTBuilder.getExprForValue(SwitchVar);
     } else {
+      revng_assert(Switch->getOriginalBB() == nullptr);
       // This is a dispatcher switch, check the loop state variable
       clang::VarDecl *StateVarD = ASTBuilder.getOrCreateLoopStateVarDecl();
       QualType T = StateVarD->getType();

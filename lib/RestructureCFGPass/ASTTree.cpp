@@ -25,7 +25,7 @@ static std::string getID() {
 }
 
 SequenceNode *ASTTree::addSequenceNode() {
-  ASTNodeList.emplace_back(new SequenceNode("sequence " + getID()));
+  ASTNodeList.emplace_back(SequenceNode::createEmpty("sequence " + getID()));
 
   // Set the Node ID
   ASTNodeList.back()->setID(getNewID());
