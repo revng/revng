@@ -33,7 +33,7 @@ class Function;
 class PHINode;
 } // namespace llvm
 
-class IRASTTypeTranslator;
+class DeclCreator;
 
 namespace IR2AST {
 
@@ -66,7 +66,7 @@ public:
   StmtBuilder(const std::set<llvm::Instruction *> &ToSerialize,
               clang::ASTContext &Ctx,
               BBPHIMap &BlockToPHIIncoming,
-              IRASTTypeTranslator &TT) :
+              DeclCreator &TT) :
     ToSerialize(ToSerialize),
     ASTCtx(Ctx),
     NVar(0),
@@ -75,7 +75,7 @@ public:
     VarDecls(),
     InstrStmts(),
     BlockToPHIIncoming(BlockToPHIIncoming),
-    TypeTranslator(TT) {}
+    Declarator(TT) {}
 
   void createAST(llvm::Function &F, clang::FunctionDecl &FD);
 
@@ -103,6 +103,7 @@ private:
   clang::VarDecl *LoopStateVarDecl = nullptr;
   clang::VarDecl *SwitchStateVarDecl = nullptr;
 
-  IRASTTypeTranslator &TypeTranslator;
+  DeclCreator &Declarator;
 };
+
 } // namespace IR2AST

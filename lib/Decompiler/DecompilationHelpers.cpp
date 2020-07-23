@@ -69,11 +69,22 @@ std::set<GlobalVariable *> getDirectlyUsedGlobals(Function &F) {
 
 std::set<Function *> getDirectlyCalledFunctions(Function &F) {
   std::set<Function *> Results;
-  for (BasicBlock &BB : F)
-    for (Instruction &I : BB)
-      if (auto *Call = dyn_cast<CallInst>(&I))
+  for (BasicBlock &BB : F) {
+    for (Instruction &I : BB) {
+      if (auto *Call = dyn_cast<CallInst>(&I)) {
         if (Function *Callee = getCallee(Call))
           Results.insert(Callee);
+      } else if (isa<UnreachableInst>(&I)) {
+        // UnreachableInst are decompiled as calls to abort, so if F has an
+        // unreachable instruction we need to add "abort" to the called
+        // functions.
+        auto *Abort = F.getParent()->getFunction("abort");
+        revng_assert(nullptr != Abort);
+        if (Abort)
+          Results.insert(Abort);
+      }
+    }
+  }
   return Results;
 }
 

@@ -2,44 +2,30 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <set>
+
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/IR/Module.h"
+#include "llvm/IR/Function.h"
+
+#include "clang/AST/ASTContext.h"
 
 #include "revng/Support/Assert.h"
-
-#include "FuncDeclCreationAction.h"
 
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
 #include "Mangling.h"
 
-using namespace llvm;
-
 namespace clang {
-namespace tooling {
+class TranslationUnitDecl;
+} // end namespace clang
 
-class FuncDeclCreator : public ASTConsumer {
-public:
-  explicit FuncDeclCreator(llvm::Function &F,
-                           IRASTTypeTranslator &TT,
-                           const dla::ValueLayoutMap *VL) :
-    TheF(F), TypeTranslator(TT), ValueLayouts(VL) {}
+using ExtProtoInfo = clang::FunctionProtoType::ExtProtoInfo;
+using clang::StorageClass;
 
-  virtual void HandleTranslationUnit(ASTContext &Context) override;
-
-protected:
-  FunctionDecl *createFunDecl(ASTContext &Context, Function *F);
-
-private:
-  llvm::Function &TheF;
-  IRASTTypeTranslator &TypeTranslator;
-  const dla::ValueLayoutMap *ValueLayouts;
-};
-
-FunctionDecl *FuncDeclCreator::createFunDecl(ASTContext &Context, Function *F) {
-
-  TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
+clang::FunctionDecl *DeclCreator::createFunDecl(clang::ASTContext &Context,
+                                                llvm::Function *F,
+                                                bool IsDefinition) {
 
   const llvm::FunctionType *FType = F->getFunctionType();
 
@@ -62,13 +48,13 @@ FunctionDecl *FuncDeclCreator::createFunDecl(ASTContext &Context, Function *F) {
     }
   }
 
-  llvm::Type *RetTy = FType->getReturnType();
-  QualType RetType = TypeTranslator.getOrCreateQualType(RetTy,
-                                                        F,
-                                                        Context,
-                                                        *TUDecl);
+  using clang::QualType;
 
-  SmallVector<QualType, 4> ArgTypes = {};
+  clang::TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
+  llvm::Type *RetTy = FType->getReturnType();
+  QualType RetType = getOrCreateQualType(RetTy, F, Context, *TUDecl);
+
+  llvm::SmallVector<QualType, 4> ArgTypes = {};
   revng_assert(FType->getNumParams() == F->arg_size());
   for (const auto &[T, Arg] : llvm::zip_first(FType->params(), F->args())) {
     revng_assert(T == Arg.getType());
@@ -76,7 +62,7 @@ FunctionDecl *FuncDeclCreator::createFunDecl(ASTContext &Context, Function *F) {
     // This is a temporary workaround to reduce warnings
     QualType ArgType = Context.VoidPtrTy;
     if (not isa<llvm::PointerType>(T))
-      ArgType = TypeTranslator.getOrCreateQualType(T, &Arg, Context, *TUDecl);
+      ArgType = getOrCreateQualType(T, &Arg, Context, *TUDecl);
     ArgTypes.push_back(ArgType);
   }
   const bool HasNoParams = ArgTypes.empty();
@@ -87,7 +73,6 @@ FunctionDecl *FuncDeclCreator::createFunDecl(ASTContext &Context, Function *F) {
   // Check if the declaration we are tring to emit corresponds to a variadic
   // function, and in that case emit the correct corresponding clang function
   // declaration
-  using ExtProtoInfo = FunctionProtoType::ExtProtoInfo;
   ExtProtoInfo ProtoInfo = ExtProtoInfo();
   if (IsVariadic) {
     ProtoInfo.Variadic = true;
@@ -97,10 +82,13 @@ FunctionDecl *FuncDeclCreator::createFunDecl(ASTContext &Context, Function *F) {
 
   const llvm::StringRef FName = F->getName();
   revng_assert(not FName.empty());
+
+  using clang::IdentifierInfo;
   IdentifierInfo &FunId = Context.Idents.get(makeCIdentifier(FName));
-  StorageClass FunStorage = (F != &TheF) ? StorageClass::SC_Static :
+  StorageClass FunStorage = IsDefinition ? StorageClass::SC_Static :
                                            StorageClass::SC_Extern;
 
+  using clang::FunctionDecl;
   FunctionDecl *NewFDecl = FunctionDecl::Create(Context,
                                                 TUDecl,
                                                 {},
@@ -110,7 +98,10 @@ FunctionDecl *FuncDeclCreator::createFunDecl(ASTContext &Context, Function *F) {
                                                 nullptr,
                                                 FunStorage);
 
-  auto ParmDecls = SmallVector<ParmVarDecl *, 4>(ArgTypes.size(), nullptr);
+  using clang::ParmVarDecl;
+  using ParmVarDeclV = llvm::SmallVector<ParmVarDecl *, 4>;
+  ParmVarDeclV ParmDecls(ArgTypes.size(), nullptr);
+
   if (HasNoParams) {
     revng_assert(ArgTypes.size() == 1 and ArgTypes[0] == Context.VoidTy);
     ParmVarDecl *P = ParmVarDecl::Create(Context,
@@ -152,39 +143,35 @@ FunctionDecl *FuncDeclCreator::createFunDecl(ASTContext &Context, Function *F) {
   return NewFDecl;
 }
 
-void FuncDeclCreator::HandleTranslationUnit(ASTContext &Context) {
-  llvm::Module &M = *TheF.getParent();
+void DeclCreator::createFunctionAndCalleesDecl(clang::ASTContext &Ctx,
+                                               llvm::Function *TheF) {
 
-  std::set<Function *> Called = getDirectlyCalledFunctions(TheF);
-  Called.erase(&TheF);
-  // we need abort for decompiling UnreachableInst
-  Called.insert(M.getFunction("abort"));
-  for (Function *F : Called) {
-    const llvm::StringRef FName = F->getName();
-    revng_assert(not FName.empty());
-    FunctionDecl *NewFDecl = createFunDecl(Context, F);
-    TypeTranslator.FunctionDecls[F] = NewFDecl;
+  revng_assert(TheF->getMetadata("revng.func.entry"));
+
+  std::set<llvm::Function *> Called = getDirectlyCalledFunctions(*TheF);
+
+  // Create the forward declaration of all the functions called by TheF
+  for (llvm::Function *F : Called) {
+    // Avoid forward declaring TheF
+    if (F == TheF)
+      continue;
+
+    // Create the type decl necessary for declaring F.
+    createTypeDeclsForFunctionPrototype(Ctx, F);
+
+    // Create the FunctionDecl for F
+    clang::FunctionDecl *NewFDecl = createFunDecl(Ctx,
+                                                  F,
+                                                  /* IsDefinition */ false);
+    FunctionDecls[F] = NewFDecl;
   }
 
-  const llvm::StringRef FName = TheF.getName();
-  revng_assert(not FName.empty());
-  revng_assert(TheF.getMetadata("revng.func.entry"));
-  // This is actually a definition, because the isolated function need will
+  // This is actually a definition, because the isolated function will
   // be fully decompiled and it needs a body.
   // This definition starts as a declaration that is than inflated by the
   // ASTBuildAnalysis.
-  FunctionDecl *NewFDecl = createFunDecl(Context, &TheF);
-  TypeTranslator.FunctionDecls[&TheF] = NewFDecl;
+  clang::FunctionDecl *NewFDecl = createFunDecl(Ctx,
+                                                TheF,
+                                                /* IsDefinition */ true);
+  FunctionDecls[TheF] = NewFDecl;
 }
-
-std::unique_ptr<ASTConsumer> FuncDeclCreationAction::newASTConsumer() {
-  return std::make_unique<FuncDeclCreator>(F, TypeTranslator, ValueLayouts);
-}
-
-std::unique_ptr<ASTConsumer>
-FuncDeclCreationAction::CreateASTConsumer(CompilerInstance &, llvm::StringRef) {
-  return newASTConsumer();
-}
-
-} // end namespace tooling
-} // end namespace clang

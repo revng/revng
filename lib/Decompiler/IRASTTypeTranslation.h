@@ -11,6 +11,8 @@
 
 #include "clang/AST/Type.h"
 
+#include "revng-c/Decompiler/DLALayouts.h"
+
 namespace llvm {
 class Function;
 class GlobalVariable;
@@ -19,13 +21,19 @@ class Value;
 } // end namespace llvm
 
 namespace clang {
+class ASTContext;
+class DeclCtx;
 class FieldDecl;
 class FunctionDecl;
 class TypeDecl;
 class VarDecl;
 } // end namespace clang
 
-class IRASTTypeTranslator {
+namespace IR2AST {
+class StmtBuilder;
+} // end namespace IR2AST
+
+class DeclCreator {
 
 public:
   using ValueTypeDeclMap = std::map<const llvm::Value *, clang::TypeDecl *>;
@@ -36,7 +44,13 @@ public:
                                 llvm::SmallVector<clang::FieldDecl *, 8>>;
 
 public:
-  IRASTTypeTranslator() = default;
+  DeclCreator(const dla::ValueLayoutMap *LM) :
+    ValueTypeDecls(),
+    TypeDecls(),
+    FieldDecls(),
+    GlobalDecls(),
+    FunctionDecls(),
+    ValueLayouts(LM) {}
 
   clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
                                           const llvm::Type *Ty = nullptr);
@@ -54,10 +68,32 @@ public:
                                       clang::ASTContext &ASTCtx,
                                       clang::DeclContext &DeclCtx);
 
+  void createTypeDeclsForFunctionPrototype(clang::ASTContext &C,
+                                           llvm::Function *TheF);
+
+  void createFunctionAndCalleesDecl(clang::ASTContext &C, llvm::Function *TheF);
+
+  void createGlobalVarDeclUsedByFunction(clang::ASTContext &Context,
+                                         llvm::Function *TheF,
+                                         IR2AST::StmtBuilder &ASTBuilder);
+
 public:
   ValueTypeDeclMap ValueTypeDecls;
   TypeDeclMap TypeDecls;
   FieldDeclMap FieldDecls;
   GlobalsMap GlobalDecls;
   FunctionsMap FunctionDecls;
-}; // end class IRASTTypeTranslation
+  const dla::ValueLayoutMap *ValueLayouts;
+
+protected:
+  clang::QualType getOrCreateFunctionRetType(llvm::Function *F,
+                                             clang::ASTContext &ASTCtx,
+                                             clang::DeclContext &DeclCtx) {
+    const llvm::FunctionType *FType = F->getFunctionType();
+    return getOrCreateQualType(FType->getReturnType(), F, ASTCtx, DeclCtx);
+  }
+
+  clang::FunctionDecl *createFunDecl(clang::ASTContext &Context,
+                                     llvm::Function *F,
+                                     bool IsDefinition);
+}; // end class DeclCreator

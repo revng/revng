@@ -20,9 +20,8 @@
 
 #include "Mangling.h"
 
-clang::QualType
-IRASTTypeTranslator::getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
-                                             const llvm::Type *Ty) {
+clang::QualType DeclCreator::getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
+                                                     const llvm::Type *Ty) {
   clang::QualType Result;
   clang::TranslationUnitDecl *TUDecl = ASTCtx.getTranslationUnitDecl();
   const std::string BoolName = "bool";
@@ -69,11 +68,10 @@ IRASTTypeTranslator::getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
   return Result;
 }
 
-clang::QualType
-IRASTTypeTranslator::getOrCreateQualType(const llvm::Type *Ty,
-                                         const llvm::Value *NamingValue,
-                                         clang::ASTContext &ASTCtx,
-                                         clang::DeclContext &DeclCtx) {
+clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
+                                                 const llvm::Value *NamingValue,
+                                                 clang::ASTContext &ASTCtx,
+                                                 clang::DeclContext &DeclCtx) {
   clang::QualType Result;
   switch (Ty->getTypeID()) {
 
@@ -162,14 +160,17 @@ IRASTTypeTranslator::getOrCreateQualType(const llvm::Type *Ty,
     if (StructTy->hasName()) {
       TypeName = makeCIdentifier(StructTy->getName());
     } else if (NamingValue and NamingValue->hasName()) {
-      if (auto *F = llvm::dyn_cast_or_null<llvm::Function>(NamingValue))
+      if (auto *F = llvm::dyn_cast<llvm::Function>(NamingValue)) {
         TypeName = makeCIdentifier(F->getName().str())
                    + std::string("_ret_type");
-      else
-        TypeName = makeCIdentifier(NamingValue->getName().str())
+      } else if (auto *Arg = llvm::dyn_cast<llvm::Argument>(NamingValue)) {
+        const llvm::Function *F = Arg->getParent();
+        TypeName = makeCIdentifier(F->getName().str()) + "_arg_"
+                   + makeCIdentifier(NamingValue->getName().str())
                    + std::string("_type");
-    } else {
-      TypeName = "type_" + std::to_string(TypeDecls.size());
+      } else {
+        TypeName = "type_" + std::to_string(TypeDecls.size());
+      }
     }
     clang::IdentifierInfo &TypeId = ASTCtx.Idents.get(TypeName);
     auto *Struct = clang::RecordDecl::Create(ASTCtx,
@@ -184,7 +185,6 @@ IRASTTypeTranslator::getOrCreateQualType(const llvm::Type *Ty,
     FieldDecls[Struct].resize(StructTy->getNumElements(), nullptr);
     Struct->startDefinition();
     for (llvm::Type *FieldTy : StructTy->elements()) {
-
       // HACK: Handle the type of the `@env` global variable, which we simply
       //       cast to a `void` `nullptr` type.
       if (FieldTy->getTypeID() == llvm::Type::TypeID::ArrayTyID) {
@@ -233,19 +233,17 @@ IRASTTypeTranslator::getOrCreateQualType(const llvm::Type *Ty,
   return Result;
 }
 
-clang::QualType
-IRASTTypeTranslator::getOrCreateQualType(const llvm::GlobalVariable *G,
-                                         clang::ASTContext &ASTCtx,
-                                         clang::DeclContext &DeclCtx) {
+clang::QualType DeclCreator::getOrCreateQualType(const llvm::GlobalVariable *G,
+                                                 clang::ASTContext &ASTCtx,
+                                                 clang::DeclContext &DeclCtx) {
   llvm::PointerType *GlobalPtrTy = llvm::cast<llvm::PointerType>(G->getType());
   llvm::Type *Ty = GlobalPtrTy->getElementType();
   return getOrCreateQualType(Ty, G, ASTCtx, DeclCtx);
 }
 
-clang::QualType
-IRASTTypeTranslator::getOrCreateQualType(const llvm::Value *I,
-                                         clang::ASTContext &ASTCtx,
-                                         clang::DeclContext &DeclCtx) {
+clang::QualType DeclCreator::getOrCreateQualType(const llvm::Value *I,
+                                                 clang::ASTContext &ASTCtx,
+                                                 clang::DeclContext &DeclCtx) {
   llvm::Type *Ty = I->getType();
   return getOrCreateQualType(Ty, I, ASTCtx, DeclCtx);
 }
