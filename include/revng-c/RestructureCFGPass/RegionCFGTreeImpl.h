@@ -561,31 +561,6 @@ inline void RegionCFG<NodeT>::purgeVirtualSink(BasicBlockNode<NodeT> *Sink) {
   }
 }
 
-template<class NodeT>
-inline std::vector<BasicBlockNode<NodeT> *>
-RegionCFG<NodeT>::getInterestingNodes(BasicBlockNodeT *Cond) {
-
-  RegionCFG<NodeT> &Graph = *this;
-
-  // Retrieve the immediate postdominator.
-  llvm::DomTreeNodeBase<BasicBlockNode<NodeT>> *PostBase = PDT[Cond]->getIDom();
-  BasicBlockNode<NodeT> *PostDominator = PostBase->getBlock();
-
-  BasicBlockNodeTSet Candidates = findReachableNodes(*Cond, *PostDominator);
-
-  BasicBlockNodeTVect NotDominatedCandidates;
-  for (BasicBlockNode<NodeT> *Node : Candidates) {
-    if (!DT.dominates(Cond, Node)) {
-      NotDominatedCandidates.push_back(Node);
-    }
-  }
-
-  // TODO: Check that this is the order that we want.
-  NotDominatedCandidates = Graph.orderNodes(NotDominatedCandidates, true);
-
-  return NotDominatedCandidates;
-}
-
 inline bool isGreater(unsigned Op1, unsigned Op2) {
   unsigned MultiplicativeFactor = 1;
   if (Op1 > (MultiplicativeFactor * Op2)) {

@@ -259,8 +259,6 @@ public:
 
   void purgeVirtualSink(BBNodeT *Sink);
 
-  std::vector<BBNodeT *> getInterestingNodes(BasicBlockNodeT *Condition);
-
   BBNodeT *cloneUntilExit(BBNodeT *Node, BBNodeT *Sink);
 
   /// \brief Apply the untangle preprocessing pass.
