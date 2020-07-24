@@ -1017,10 +1017,9 @@ inline void RegionCFG<NodeT>::inflate() {
   ConditionalNodes = Graph.orderNodes(ConditionalNodes, false);
 
   if (CombLogger.isEnabled()) {
-    CombLogger << "Conditional nodes present in the graph are:\n";
-    for (BasicBlockNode<NodeT> *Node : ConditionalNodes) {
-      CombLogger << Node->getNameStr() << "\n";
-    }
+    revng_log(CombLogger, "Conditional nodes present in the graph are:");
+    for (BasicBlockNode<NodeT> *Node : ConditionalNodes)
+      revng_log(CombLogger, Node->getNameStr());
   }
 
   // Equivalence-class like set to keep track of all the cloned nodes created
@@ -1577,6 +1576,13 @@ inline void RegionCFG<NodeT>::generateAst() {
           ASTObject.reset(new CodeNode(Node, nullptr));
         else
           revng_abort();
+      } break;
+
+      default: {
+        revng_log(CombLogger,
+                  "Node: " << Node->getNameStr() << " dominates "
+                           << Children.size() << " nodes");
+        revng_unreachable("Node directly dominates more than 3 other nodes");
       } break;
       }
     }
