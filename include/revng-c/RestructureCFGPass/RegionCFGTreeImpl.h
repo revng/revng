@@ -932,7 +932,6 @@ inline void RegionCFG<NodeT>::inflate() {
   // a successor of a node that induces duplication.
   BasicBlockNode<NodeT> *Sink = Graph.addArtificialNode("Sink");
   std::map<BasicBlockNode<NodeT> *, BasicBlockNodeTSet> ReachableExits;
-  BasicBlockNodeTVect ExitNodes;
   for (auto *Exit : Graph) {
     if (Sink != Exit and Exit->successor_size() == 0) {
       revng_log(CombLogger, "From exit node: " << Exit->getNameStr());
