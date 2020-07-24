@@ -1040,7 +1040,6 @@ inline void RegionCFG<NodeT>::inflate() {
   }
 
   // Refresh information of dominator and postdominator trees.
-  DT.recalculate(Graph);
   PDT.recalculate(Graph);
 
   // Map to retrieve the post dominator for each conditional node.
