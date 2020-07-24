@@ -415,29 +415,6 @@ inline void RegionCFG<NodeT>::connectContinueNode() {
 }
 
 template<class NodeT>
-inline std::vector<BasicBlockNode<NodeT> *>
-RegionCFG<NodeT>::orderNodes(BasicBlockNodeTVect &L, bool DoReverse) {
-  BasicBlockNodeTSet ToOrder;
-  ToOrder.insert(L.begin(), L.end());
-  llvm::ReversePostOrderTraversal<BasicBlockNode<NodeT> *> RPOT(EntryNode);
-  BasicBlockNodeTVect Result;
-
-  if (DoReverse) {
-    std::reverse(RPOT.begin(), RPOT.end());
-  }
-
-  for (BasicBlockNode<NodeT> *RPOTBB : RPOT) {
-    if (ToOrder.count(RPOTBB) != 0) {
-      Result.push_back(RPOTBB);
-    }
-  }
-
-  revng_assert(L.size() == Result.size());
-
-  return Result;
-}
-
-template<class NodeT>
 template<typename StreamT>
 inline void
 RegionCFG<NodeT>::streamNode(StreamT &S, const BasicBlockNodeT *BB) const {
@@ -643,12 +620,6 @@ inline void RegionCFG<NodeT>::untangle() {
 
   RegionCFG<NodeT> &Graph = *this;
 
-  // Collect all the conditional nodes in the graph.
-  BasicBlockNodeTVect ConditionalNodes;
-  for (auto *Node : Graph)
-    if (Node->successor_size() == 2)
-      ConditionalNodes.push_back(Node);
-
   // Add a new virtual sink node to computer the postdominator.
   BasicBlockNode<NodeT> *Sink = Graph.addArtificialNode("Sink");
   for (auto *Node : Graph)
@@ -672,15 +643,32 @@ inline void RegionCFG<NodeT>::untangle() {
 
   std::set<EdgeDescriptor> InlinedEdges;
 
-  // Order the conditional nodes in postorder.
-  ConditionalNodes = Graph.orderNodes(ConditionalNodes, false);
+  // Collect all the conditional nodes in the graph into a vector sorted in
+  // Reverse Post-Order.
+  BasicBlockNodeTVect ConditionalNodes;
+  {
+    BasicBlockNodeTSet ConditionalNodesSet;
+    for (auto *Node : Graph)
+      if (Node->successor_size() == 2)
+        ConditionalNodesSet.insert(Node);
 
-  while (!ConditionalNodes.empty()) {
+    llvm::ReversePostOrderTraversal<BasicBlockNode<NodeT> *> RPOT(EntryNode);
+
+    for (BasicBlockNode<NodeT> *RPOTBB : RPOT) {
+      if (ConditionalNodesSet.count(RPOTBB) != 0) {
+        ConditionalNodes.push_back(RPOTBB);
+      }
+    }
+  }
+
+  while (not ConditionalNodes.empty()) {
+
     if (CombLogger.isEnabled()) {
       Graph.dumpDotOnFile("untangle",
                           FunctionName,
                           "Region-" + RegionName + "-debug");
     }
+
     BasicBlockNode<NodeT> *Conditional = ConditionalNodes.back();
     ConditionalNodes.pop_back();
 
@@ -951,30 +939,31 @@ inline void RegionCFG<NodeT>::inflate() {
                         "Region-" + RegionName + "-after-sink");
   }
 
-  // Refresh information of dominator tree.
+  // Refresh information of dominator and postdominator trees.
   DT.recalculate(Graph);
 
   // Collect all the conditional nodes in the graph.
   // This is the working list of conditional nodes on which we will operate and
   // will contain only the filtered conditionals.
-  BasicBlockNodeTVect ConditionalNodes;
+  BasicBlockNodeTSet ConditionalNodesSet;
 
   for (BBNodeT *Node : Graph) {
     switch (Node->successor_size()) {
+
     case 0:
     case 1:
       // We don't need to add it to the conditional nodes vector.
       break;
-    case 2: {
 
+    case 2: {
       BasicBlockNodeTSet ThenExits = ReachableExits.at(Node->getSuccessorI(0));
       BasicBlockNodeTSet ElseExits = ReachableExits.at(Node->getSuccessorI(1));
 
       // If the exit nodes reachable from the Then and from the Else are not
-      // disjoint, then we add Node to ConditionalNodes because it can induce
+      // disjoint, then we add Node to ConditionalNodesSet because it can induce
       // duplication.
       if (not disjoint(ThenExits, ElseExits)) {
-        ConditionalNodes.push_back(Node);
+        ConditionalNodesSet.insert(Node);
         break;
       }
 
@@ -1003,22 +992,21 @@ inline void RegionCFG<NodeT>::inflate() {
         revng_log(CombLogger,
                   "Blacklisted conditional: " << Node->getNameStr());
       } else {
-        ConditionalNodes.push_back(Node);
+        ConditionalNodesSet.insert(Node);
       }
     } break;
+
     default: {
       // We are in presence of a switch node, which should be considered as a
       // conditional node for what concerns the combing stage.
-      ConditionalNodes.push_back(Node);
-    }
+      ConditionalNodesSet.insert(Node);
+    } break;
     }
   }
 
-  ConditionalNodes = Graph.orderNodes(ConditionalNodes, false);
-
   if (CombLogger.isEnabled()) {
     revng_log(CombLogger, "Conditional nodes present in the graph are:");
-    for (BasicBlockNode<NodeT> *Node : ConditionalNodes)
+    for (BasicBlockNode<NodeT> *Node : ConditionalNodesSet)
       revng_log(CombLogger, Node->getNameStr());
   }
 
@@ -1032,11 +1020,17 @@ inline void RegionCFG<NodeT>::inflate() {
   // Initialize a list containing the reverse post order of the nodes of the
   // graph.
   std::list<BasicBlockNode<NodeT> *> RevPostOrderList;
+
+  // Vector of conditional nodes, to be filled in reverse post order.
+  BasicBlockNodeTVect ConditionalNodes;
+
   llvm::ReversePostOrderTraversal<BasicBlockNode<NodeT> *> RPOT(Entry);
   for (BasicBlockNode<NodeT> *RPOTBB : RPOT) {
     RevPostOrderList.push_back(RPOTBB);
     NodesEquivalenceClass[RPOTBB].insert(RPOTBB);
     CloneToOriginalMap[RPOTBB] = RPOTBB;
+    if (ConditionalNodesSet.count(RPOTBB))
+      ConditionalNodes.push_back(RPOTBB);
   }
 
   // Refresh information of dominator and postdominator trees.
@@ -1295,11 +1289,10 @@ inline void RegionCFG<NodeT>::inflate() {
           NodesEquivalenceClass.at(OriginalNode).insert(Duplicated);
 
           // If the node we are duplicating is a conditional node, add it to the
-          // vector of ConditionalNodes. Remember, that vector is ordered in
-          // post-order, and here we're iterating in reverse-post-order (thanks
-          // to RevPostOrderList) so pushing back into ConditionalNodes always
-          // preserves the property that ConditionalNodes is sorted in
-          // post-order.
+          // vector of ConditionalNodes. Remember, that the ConditionalNodes
+          // vector is ordered in reverse-post-order.
+          // Pushing back into ConditionalNodes always preserves the property
+          // that ConditionalNodes is sorted in reverse post-order.
           if (auto It = CondToPostDomMap.find(Candidate);
               It != CondToPostDomMap.end()) {
             CondToPostDomMap[Duplicated] = It->second;

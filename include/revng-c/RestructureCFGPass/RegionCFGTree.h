@@ -233,8 +233,6 @@ public:
 
   std::vector<BBNodeTUniquePtr> &getNodes() { return BlockNodes; }
 
-  std::vector<BBNodeT *> orderNodes(BasicBlockNodeTVect &List, bool DoReverse);
-
 public:
   /// \brief Dump a GraphViz representing this function on any stream
   template<typename StreamT>
