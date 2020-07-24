@@ -1843,10 +1843,6 @@ inline void RegionCFG<NodeT>::weave() {
         if (RPOTBB == Switch or RPOTBB == PostDom)
           continue;
 
-        // Do not attempt weaving for case nodes.
-        if (CaseSet.count(RPOTBB) != 0)
-          continue;
-
         revng_log(CombLogger, RPOTBB->getName());
 
         BasicBlockNodeTVect PostDominatedCases;
