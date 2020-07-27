@@ -954,6 +954,8 @@ inline void RegionCFG<NodeT>::inflate() {
   // will contain only the filtered conditionals.
   BasicBlockNodeTSet ConditionalNodesSet;
 
+  std::vector<BasicBlockNode<NodeT> *> Switches;
+
   for (BBNodeT *Node : Graph) {
     switch (Node->successor_size()) {
 
@@ -1012,27 +1014,29 @@ inline void RegionCFG<NodeT>::inflate() {
     } break;
 
     default: {
-      llvm::SmallPtrSet<BasicBlockNode<NodeT> *, 8> CaseNodes;
-
-      for (auto *SwitchCase : Node->successors())
-        CaseNodes.insert(SwitchCase);
-
-      for (auto *CondCase : CaseNodes) {
-        auto *DummyCase = addArtificialNode();
-        moveEdgeTarget(EdgeDescriptor(Node, CondCase), DummyCase);
-        addPlainEdge(EdgeDescriptor(DummyCase, CondCase));
-      }
-
-      for (auto *SwitchCase : Node->successors()) {
-        ConditionalNodesSet.insert(SwitchCase);
-        BasicBlockNode<NodeT> *PostDom = PDT[Node]->getIDom()->getBlock();
-        revng_assert(PostDom != nullptr);
-        // Combing of switch cases continues until the post dominator of the
-        // switch, not until the post dominator of the case.
-        bool New = ConditionalToCombEnd.insert({ SwitchCase, PostDom }).second;
-        revng_assert(New);
-      }
+      Switches.push_back(Node);
     } break;
+    }
+  }
+
+  for (auto *Switch : Switches) {
+    llvm::SmallPtrSet<BasicBlockNode<NodeT> *, 8> CaseNodes;
+
+    for (auto *SwitchCase : Switch->successors())
+      CaseNodes.insert(SwitchCase);
+
+    for (auto *Case : CaseNodes) {
+      auto *DummyCase = addArtificialNode();
+      moveEdgeTarget(EdgeDescriptor(Switch, Case), DummyCase);
+      addPlainEdge(EdgeDescriptor(DummyCase, Case));
+
+      ConditionalNodesSet.insert(DummyCase);
+      BasicBlockNode<NodeT> *PostDom = PDT[Switch]->getIDom()->getBlock();
+      revng_assert(PostDom != nullptr);
+      // Combing of switch cases continues until the post dominator of the
+      // switch, not until the post dominator of the case.
+      bool New = ConditionalToCombEnd.insert({ DummyCase, PostDom }).second;
+      revng_assert(New);
     }
   }
 
