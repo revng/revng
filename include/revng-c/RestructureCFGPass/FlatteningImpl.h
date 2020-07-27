@@ -90,50 +90,6 @@ inline void flattenRegionCFGTree(RegionCFG<NodeT> &Root) {
       if (CollapsedNode->isCollapsed())
         CollapsedNodes.insert(CollapsedNode);
   }
-
-  NodesToRemove.clear();
-  std::vector<BasicBlockNodeT *> SetNodes;
-
-  // After we've finished the flattening, remove all the Set nodes and all the
-  // chains of Switch nodes. This is beneficial, because Set and Check nodes
-  // added by the combing do actually introduce new control flow that was not
-  // present in the original LLVM IR. We want to avoid this because adding
-  // non-existing control flow may hamper the results of future analyses
-  // performed on the LLVM IR after the combing.
-  for (BasicBlockNodeT *Node : Root) {
-    switch (Node->getNodeType()) {
-    case BasicBlockNodeT::Type::Break:
-    case BasicBlockNodeT::Type::Code:
-    case BasicBlockNodeT::Type::Collapsed:
-    case BasicBlockNodeT::Type::Continue:
-    case BasicBlockNodeT::Type::Empty:
-    case BasicBlockNodeT::Type::Dispatcher:
-      // do nothing
-      break;
-    case BasicBlockNodeT::Type::Set: {
-      SetNodes.push_back(Node);
-    } break;
-    }
-  }
-
-  // Connect all the predecessors of the set nodes directly to the original
-  // successor, ignoring the set and check nodes.
-  for (BasicBlockNodeT *SetNode : SetNodes) {
-    revng_assert(SetNode->successor_size() == 1);
-    BasicBlockNodeT *Succ = SetNode->getSuccessorI(0);
-
-    // Temporary vector needed to avoid iterator invalidation.
-    std::vector<BasicBlockNodeT *> Predecessors;
-    for (BasicBlockNodeT *Pred : SetNode->predecessors()) {
-      Predecessors.push_back(Pred);
-    }
-    for (BasicBlockNodeT *Pred : Predecessors) {
-      moveEdgeTarget({ Pred, SetNode }, Succ);
-    }
-    NodesToRemove.insert(SetNode);
-  }
-  for (BasicBlockNodeT *BBNode : NodesToRemove)
-    Root.removeNode(BBNode);
 }
 
 #endif // REVNGC_RESTRUCTURE_CFG_FLATTENINGIMPL_H
