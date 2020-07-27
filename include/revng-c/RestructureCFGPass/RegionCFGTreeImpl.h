@@ -941,6 +941,13 @@ inline void RegionCFG<NodeT>::inflate() {
 
   // Refresh information of dominator and postdominator trees.
   DT.recalculate(Graph);
+  PDT.recalculate(Graph);
+
+  // Map to hold, for each conditional node that initiates combing, the node
+  // that will be used to detect the point where combing needs to stop
+  // duplicating node. This is the immediate post dominator for most nodes, but
+  // we have a special case for the case nodes of switches.
+  BBNodeMap ConditionalToCombEnd;
 
   // Collect all the conditional nodes in the graph.
   // This is the working list of conditional nodes on which we will operate and
@@ -964,6 +971,10 @@ inline void RegionCFG<NodeT>::inflate() {
       // duplication.
       if (not disjoint(ThenExits, ElseExits)) {
         ConditionalNodesSet.insert(Node);
+        BasicBlockNode<NodeT> *PostDom = PDT[Node]->getIDom()->getBlock();
+        revng_assert(PostDom != nullptr);
+        bool New = ConditionalToCombEnd.insert({ Node, PostDom }).second;
+        revng_assert(New);
         break;
       }
 
@@ -993,13 +1004,34 @@ inline void RegionCFG<NodeT>::inflate() {
                   "Blacklisted conditional: " << Node->getNameStr());
       } else {
         ConditionalNodesSet.insert(Node);
+        BasicBlockNode<NodeT> *PostDom = PDT[Node]->getIDom()->getBlock();
+        revng_assert(PostDom != nullptr);
+        bool New = ConditionalToCombEnd.insert({ Node, PostDom }).second;
+        revng_assert(New);
       }
     } break;
 
     default: {
-      // We are in presence of a switch node, which should be considered as a
-      // conditional node for what concerns the combing stage.
-      ConditionalNodesSet.insert(Node);
+      llvm::SmallPtrSet<BasicBlockNode<NodeT> *, 8> CaseNodes;
+
+      for (auto *SwitchCase : Node->successors())
+        CaseNodes.insert(SwitchCase);
+
+      for (auto *CondCase : CaseNodes) {
+        auto *DummyCase = addArtificialNode();
+        moveEdgeTarget(EdgeDescriptor(Node, CondCase), DummyCase);
+        addPlainEdge(EdgeDescriptor(DummyCase, CondCase));
+      }
+
+      for (auto *SwitchCase : Node->successors()) {
+        ConditionalNodesSet.insert(SwitchCase);
+        BasicBlockNode<NodeT> *PostDom = PDT[Node]->getIDom()->getBlock();
+        revng_assert(PostDom != nullptr);
+        // Combing of switch cases continues until the post dominator of the
+        // switch, not until the post dominator of the case.
+        bool New = ConditionalToCombEnd.insert({ SwitchCase, PostDom }).second;
+        revng_assert(New);
+      }
     } break;
     }
   }
@@ -1033,19 +1065,8 @@ inline void RegionCFG<NodeT>::inflate() {
       ConditionalNodes.push_back(RPOTBB);
   }
 
-  // Refresh information of dominator and postdominator trees.
-  PDT.recalculate(Graph);
-
-  // Map to retrieve the post dominator for each conditional node.
-  BBNodeMap CondToPostDomMap;
-
-  // Compute the immediate post-dominator for each conditional node.
-  for (BasicBlockNode<NodeT> *Conditional : ConditionalNodes) {
-    BasicBlockNode<NodeT> *PostDom = PDT[Conditional]->getIDom()->getBlock();
-    revng_assert(PostDom != nullptr);
-    CondToPostDomMap[Conditional] = PostDom;
-  }
-
+  // Iterate on ConditionalNodes from the back. Given that they are inserted
+  // into ConditionalNodes in RPOT, this iteration is in post-order.
   while (not ConditionalNodes.empty()) {
 
     // Process each conditional node after ordering it.
@@ -1054,10 +1075,10 @@ inline void RegionCFG<NodeT>::inflate() {
     ConditionalNodes.pop_back();
 
     // Retrieve a reference to the set of postdominators.
-    auto PostDomIt = CondToPostDomMap.find(Conditional);
-    revng_assert(PostDomIt != CondToPostDomMap.end());
-    auto PostDomSetIt = NodesEquivalenceClass.find(PostDomIt->second);
-    revng_assert(PostDomSetIt != NodesEquivalenceClass.end());
+    auto CombEndIt = ConditionalToCombEnd.find(Conditional);
+    revng_assert(CombEndIt != ConditionalToCombEnd.end());
+    auto CombEndSetIt = NodesEquivalenceClass.find(CombEndIt->second);
+    revng_assert(CombEndSetIt != NodesEquivalenceClass.end());
 
     if (CombLogger.isEnabled()) {
       revng_log(CombLogger,
@@ -1092,7 +1113,6 @@ inline void RegionCFG<NodeT>::inflate() {
         continue;
       }
 
-      // Scan the working list and the reverse post order in a parallel manner.
       if (not WorkList.count(*ListIt))
         continue; // Go to the next node in reverse postorder.
 
@@ -1110,11 +1130,11 @@ inline void RegionCFG<NodeT>::inflate() {
       WorkList.erase(Candidate);
       Visited.insert(Candidate);
 
-      // Postdom flag, which is useful to understand if the dummies we will
+      // Comb end flag, which is useful to understand if the dummies we will
       // insert will need to substitute the current postdominator.
-      bool IsPostDom = PostDomSetIt->second.count(Candidate);
+      bool IsCombEnd = CombEndSetIt->second.count(Candidate);
 
-      if (not IsPostDom) {
+      if (not IsCombEnd) {
         for (BasicBlockNode<NodeT> *Successor : Candidate->successors())
           WorkList.insert(Successor);
       } else {
@@ -1126,18 +1146,19 @@ inline void RegionCFG<NodeT>::inflate() {
       if (AllPredAreVisited)
         continue; // Go to the next node in reverse postorder.
 
-      // Decide wether to insert a dummy or to duplicate.
-      if (IsPostDom and Candidate->predecessor_size() > 2) {
+      if (IsCombEnd) {
+        revng_assert(Candidate->predecessor_size() > 1);
 
-        BasicBlockNodeTVect NewDummyPredecessors;
+        llvm::SmallVector<BasicBlockNode<NodeT> *, 8> NewDummyPredecessors;
         revng_log(CombLogger, "Current predecessors are:");
         for (BasicBlockNode<NodeT> *Predecessor : Candidate->predecessors()) {
           revng_log(CombLogger, Predecessor->getNameStr());
           if (Visited.count(Predecessor))
             NewDummyPredecessors.push_back(Predecessor);
         }
-        // We don't insert the dummy, because it would be a dummy with a single
-        // predecessor and a single successor, which is pointless.
+
+        // We don't insert the dummy, because it would be a dummy with a
+        // single predecessor and a single successor, which is pointless.
         if (NewDummyPredecessors.size() < 2)
           continue;
 
@@ -1157,37 +1178,38 @@ inline void RegionCFG<NodeT>::inflate() {
 
         addPlainEdge(EdgeDescriptor(Dummy, Candidate));
 
-        // Remove from the visited set the node which triggered the creation of
-        // the dummy nodes, because we're not really analyzing it now, since
-        // we're just inserting the dummy.
-        // For the same reason we re-insert it in the WorkList, otherwise it
-        // will be skipped at the next iteration.
+        // Remove from the visited set the node which triggered the creation
+        // of the dummy nodes, because we're not really analyzing it now,
+        // since we're just inserting the dummy. For the same reason we
+        // re-insert it in the WorkList, otherwise it will be skipped at the
+        // next iteration.
         Visited.erase(Candidate);
         WorkList.insert(Candidate);
 
-        // The new dummy node does not lead back to any original node, for this
-        // reason we need to insert a new entry in the `CloneToOriginalMap`.
+        // The new dummy node does not lead back to any original node, for
+        // this reason we need to insert a new entry in the
+        // `CloneToOriginalMap`.
         CloneToOriginalMap[Dummy] = Dummy;
 
         revng_log(CombLogger,
                   "Update conditional post-dominator. Old: "
-                    << PostDomIt->second->getNameStr()
+                    << CombEndIt->second->getNameStr()
                     << " New: " << Dummy->getNameStr());
 
-        // The dummy is now the post dominator of conditional
-        PostDomIt->second = Dummy;
-        PostDomSetIt = NodesEquivalenceClass.insert({ Dummy, { Dummy } }).first;
+        // The dummy is now the node that ends the combing for Conditional.
+        CombEndIt->second = Dummy;
+        CombEndSetIt = NodesEquivalenceClass.insert({ Dummy, { Dummy } }).first;
 
         // Mark the dummy to explore.
         WorkList.insert(Dummy);
 
-        // Insert the dummy nodes in the reverse post order list. The insertion
-        // order is particularly relevant, because we have added a dummy that
-        // now post-dominates the region starting from Conditional, while
-        // Candidate (which is the post-dominator of Conditional here), is a
-        // successor of Dummy. Hence Dummy must come first in reverse post
-        // order, otherwise future RPOT visits based on RevPostOrderList might
-        // be disrupted.
+        // Insert the dummy nodes in the reverse post order list. The
+        // insertion order is particularly relevant, because we have added a
+        // dummy that now post-dominates the region starting from Conditional,
+        // while Candidate (which is the post-dominator of Conditional here),
+        // is a successor of Dummy. Hence Dummy must come first in reverse
+        // post order, otherwise future RPOT visits based on RevPostOrderList
+        // might be disrupted.
         auto PrevListIt = std::prev(ListIt);
         RevPostOrderList.insert(ListIt, Dummy);
         ListIt = PrevListIt;
@@ -1293,9 +1315,9 @@ inline void RegionCFG<NodeT>::inflate() {
           // vector is ordered in reverse-post-order.
           // Pushing back into ConditionalNodes always preserves the property
           // that ConditionalNodes is sorted in reverse post-order.
-          if (auto It = CondToPostDomMap.find(Candidate);
-              It != CondToPostDomMap.end()) {
-            CondToPostDomMap[Duplicated] = It->second;
+          if (auto It = ConditionalToCombEnd.find(Candidate);
+              It != ConditionalToCombEnd.end()) {
+            ConditionalToCombEnd[Duplicated] = It->second;
             ConditionalNodes.push_back(Duplicated);
           }
 
