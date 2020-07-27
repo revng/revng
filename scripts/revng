@@ -340,7 +340,7 @@ def run_translate(args):
   li_csv_path = "{}.li.csv".format(output)
 
   # Find a compiler (used for linking)
-  compiler = get_command(os.environ.get("CC", "cc"))
+  compiler = get_command(os.environ.get("CXX", "c++"))
 
   # Extracted the architecture name
   architecture = get_architecture(input)
