@@ -29,6 +29,6 @@ struct DLAPass : public llvm::ModulePass {
   const dla::ValueLayoutMap *getLayoutMap() const { return &ValueLayouts; }
 
 private:
-  dla::UniqueLayoutSet Layouts;
+  dla::LayoutVector Layouts;
   dla::ValueLayoutMap ValueLayouts;
 };

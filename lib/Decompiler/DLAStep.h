@@ -249,7 +249,7 @@ class MakeLayouts : public Step {
 public:
   static const constexpr void *getID() { return &ID; }
 
-  MakeLayouts(UniqueLayoutSet &L, ValueLayoutMap &M) :
+  MakeLayouts(LayoutVector &L, ValueLayoutMap &M) :
     Step(ID,
          // Dependencies
          { CollapseIdentityAndInheritanceCC::getID(),
@@ -264,7 +264,7 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 
 private:
-  UniqueLayoutSet &Layouts;
+  LayoutVector &Layouts;
   ValueLayoutMap &ValueLayouts;
 };
 

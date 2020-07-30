@@ -251,21 +251,18 @@ using DeleteLayout = std::integral_constant<decltype(Layout::deleteLayout) &,
 
 using UniqueLayout = std::unique_ptr<Layout, DeleteLayout>;
 
-inline bool uniqueStructLess(const UniqueLayout &A, const UniqueLayout &B) {
-  auto *APtr = A.get();
-  auto *BPtr = B.get();
-  if (nullptr == APtr or nullptr == BPtr) {
-    if (APtr == BPtr)
-      return false;
-    return nullptr == APtr;
-  }
-  return Layout::structuralLess(APtr, BPtr);
+template<typename T, typename... Args>
+UniqueLayout makeUniqueLayout(Args &&... A) {
+  return UniqueLayout(new T(std::forward<Args &&>(A)...), DeleteLayout());
 }
 
-using uniqueStructLessT = std::integral_constant<decltype(uniqueStructLess) &,
-                                                 uniqueStructLess>;
+using LayoutVector = std::vector<UniqueLayout>;
 
-using UniqueLayoutSet = std::set<UniqueLayout, uniqueStructLessT>;
+template<typename T, typename... Args>
+Layout *createLayout(LayoutVector &S, Args &&... A) {
+  auto U = makeUniqueLayout<T>(std::forward<Args &&>(A)...);
+  return S.emplace_back(std::move(U)).get();
+}
 
 /// A representation of a pointer to a type.
 class LayoutTypePtr {

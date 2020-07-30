@@ -33,23 +33,13 @@ static Logger<> Log("dla-make-layouts");
 
 namespace dla {
 
-template<typename T, typename... Args>
-UniqueLayout makeUniqueLayout(Args &&... A) {
-  return UniqueLayout(new T(std::forward<Args &&>(A)...), DeleteLayout());
-}
-
-template<typename T, typename... Args>
-Layout *createLayout(UniqueLayoutSet &S, Args &&... A) {
-  auto U = makeUniqueLayout<T>(std::forward<Args &&>(A)...);
-  return S.insert(std::move(U)).first->get();
-}
-
 using LTSN = LayoutTypeSystemNode;
 
 static Layout *makeInstanceChildLayout(Layout *ChildType,
                                        const OffsetExpression &OE,
-                                       UniqueLayoutSet &Layouts) {
+                                       LayoutVector &Layouts) {
   revng_assert(OE.Offset >= 0LL);
+  LayoutVector NewLayouts;
 
   // If we have trip counts we have an array of children of type ChildType,
   // otherwise ChildType already points to the right child type.
@@ -57,7 +47,6 @@ static Layout *makeInstanceChildLayout(Layout *ChildType,
   if (not OE.TripCounts.empty()) {
     Layout *Inner = ChildType;
     for (const auto &[TC, S] : llvm::zip(OE.TripCounts, OE.Strides)) {
-
       revng_assert(S > 0LL);
       Layout::layout_size_t StrideSize = (Layout::layout_size_t)(S);
 
@@ -73,16 +62,17 @@ static Layout *makeInstanceChildLayout(Layout *ChildType,
         StructLayout::fields_container_t StructFields;
         StructFields.push_back(Inner);
         Layout::layout_size_t PadSize = StrideSize - Inner->size();
-        Layout *Padding = createLayout<PaddingLayout>(Layouts, PadSize);
+        Layout *Padding = createLayout<PaddingLayout>(NewLayouts, PadSize);
         StructFields.push_back(Padding);
-        Inner = createLayout<StructLayout>(Layouts, std::move(StructFields));
+        Inner = createLayout<StructLayout>(NewLayouts, std::move(StructFields));
       }
 
       // Create the real array of Inner elements.
-      Inner = createLayout<ArrayLayout>(Layouts, Inner, S, TC);
+      Inner = createLayout<ArrayLayout>(NewLayouts, Inner, S, TC);
     }
     ChildType = Inner;
   }
+  revng_assert(nullptr != ChildType);
 
   if (OE.Offset > 0LL) {
     // Create padding to insert before the field, according to the
@@ -90,19 +80,26 @@ static Layout *makeInstanceChildLayout(Layout *ChildType,
     ArrayLayout::length_t Len = OE.Offset;
     // Create the struct with the padding prepended to the field.
     StructLayout::fields_container_t StructFields;
-    StructFields.push_back(createLayout<PaddingLayout>(Layouts, Len));
+    StructFields.push_back(createLayout<PaddingLayout>(NewLayouts, Len));
     StructFields.push_back(ChildType);
-    ChildType = createLayout<StructLayout>(Layouts, std::move(StructFields));
+    ChildType = createLayout<StructLayout>(NewLayouts, std::move(StructFields));
   }
+  revng_assert(nullptr != ChildType);
+
+  Layouts.reserve(Layouts.size() + NewLayouts.size());
+  for (auto &U : NewLayouts)
+    Layouts.push_back(std::move(U));
+
   return ChildType;
 }
 
 static Layout *makeLayout(const LayoutTypeSystem &TS,
                           const LTSN *N,
                           std::map<const LTSN *, Layout *> &LayoutCTypes,
-                          UniqueLayoutSet &Layouts) {
+                          LayoutVector &Layouts) {
 
   revng_assert(not LayoutCTypes.count(N));
+  LayoutVector NewLayouts;
 
   switch (N->InterferingInfo) {
 
@@ -214,7 +211,7 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
     revng_assert(not NumAccesses or NumAccesses == 1ULL);
     Layout *AccessLayout = nullptr;
     if (AccessSize)
-      AccessLayout = createLayout<BaseLayout>(Layouts, AccessSize);
+      AccessLayout = createLayout<BaseLayout>(NewLayouts, AccessSize);
 
     bool First = true;
 
@@ -227,7 +224,7 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
       auto PadSize = Start - AccessSize; // always >= 0;
       revng_assert(PadSize >= 0);
       if (PadSize) {
-        Layout *Padding = createLayout<PaddingLayout>(Layouts, PadSize);
+        Layout *Padding = createLayout<PaddingLayout>(NewLayouts, PadSize);
         SFlds.push_back(Padding);
       }
       AccessSize = Start + Size;
@@ -248,10 +245,15 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
       return nullptr;
 
     Layout *CreatedLayout = (SFlds.size() > 1ULL) ?
-                              createLayout<StructLayout>(Layouts, SFlds) :
+                              createLayout<StructLayout>(NewLayouts, SFlds) :
                               *SFlds.begin();
 
     LayoutCTypes[N] = CreatedLayout;
+
+    Layouts.reserve(Layouts.size() + NewLayouts.size());
+    for (auto &U : NewLayouts)
+      Layouts.push_back(std::move(U));
+
     return CreatedLayout;
   } break;
 
@@ -285,7 +287,7 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
         revng_log(Log, "Instance");
         const OffsetExpression &OE = EdgeTag->getOffsetExpr();
         revng_log(Log, "Has Offset: " << OE.Offset);
-        ChildType = makeInstanceChildLayout(ChildType, OE, Layouts);
+        ChildType = makeInstanceChildLayout(ChildType, OE, NewLayouts);
       } break;
 
       case TypeLinkTag::LK_Inheritance: {
@@ -312,10 +314,14 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
       return nullptr;
 
     Layout *CreatedLayout = (UFlds.size() > 1ULL) ?
-                              createLayout<UnionLayout>(Layouts, UFlds) :
+                              createLayout<UnionLayout>(NewLayouts, UFlds) :
                               *UFlds.begin();
 
     LayoutCTypes[N] = CreatedLayout;
+
+    Layouts.reserve(Layouts.size() + NewLayouts.size());
+    for (auto &U : NewLayouts)
+      Layouts.push_back(std::move(U));
     return CreatedLayout;
   } break;
 
@@ -327,7 +333,7 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 }
 
 static bool makeLayouts(const LayoutTypeSystem &TS,
-                        UniqueLayoutSet &Layouts,
+                        LayoutVector &Layouts,
                         ValueLayoutMap &ValueLayouts) {
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
@@ -356,8 +362,10 @@ static bool makeLayouts(const LayoutTypeSystem &TS,
         llvm::dbgs() << '\n';
       }
       if (auto *TypePtrs = TS.getLayoutTypePtrs(N)) {
-        for (const auto &Value : *TypePtrs)
-          ValueLayouts[Value] = LN;
+        for (const auto &Value : *TypePtrs) {
+          bool New = ValueLayouts.insert(std::make_pair(Value, LN)).second;
+          revng_assert(New);
+        }
       }
     }
   }
