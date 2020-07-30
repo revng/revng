@@ -6,6 +6,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
@@ -38,17 +39,21 @@ using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
 
 static cl::OptionCategory RevNgCategory("revng options");
 
+using llvm::cl::NumOccurrencesFlag;
+
 // Prefix for the decompiled output filename.
-static cl::opt<string> DecompiledDir("decompiled-dir",
-                                     cl::desc("decompiled code dir"),
-                                     cl::value_desc("decompiled-dir"),
-                                     cl::cat(RevNgCategory));
+static cl::opt<std::string> DecompiledDir("decompiled-dir",
+                                          cl::desc("decompiled code dir"),
+                                          cl::value_desc("decompiled-dir"),
+                                          cl::cat(RevNgCategory),
+                                          NumOccurrencesFlag::Optional);
 
 // Prefix for the short circuit metrics dir.
-static cl::opt<string> OutputPath("short-circuit-metrics-output-dir",
-                                  cl::desc("Short circuit metrics dir"),
-                                  cl::value_desc("short-circuit-dir"),
-                                  cl::cat(RevNgCategory));
+static cl::opt<std::string> OutputPath("short-circuit-metrics-output-dir",
+                                       cl::desc("Short circuit metrics dir"),
+                                       cl::value_desc("short-circuit-dir"),
+                                       cl::cat(RevNgCategory),
+                                       NumOccurrencesFlag::Optional);
 
 char CDecompilerPass::ID = 0;
 

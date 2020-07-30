@@ -11,5 +11,7 @@
 using namespace llvm;
 
 cl::opt<std::string> TargetFunction("single-decompilation",
-                                    cl::desc("Function name to decompile"),
-                                    cl::value_desc("function-name"));
+                                    cl::desc("Name of the function to "
+                                             "decompile"),
+                                    cl::value_desc("function name"),
+                                    cl::NumOccurrencesFlag::Optional);
