@@ -2,6 +2,8 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <system_error>
+
 #include "llvm/ADT/SmallString.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
@@ -75,19 +77,62 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   if (not F.getMetadata("revng.func.entry"))
     return false;
 
-  // If we passed the `-single-decompilation` option to the command line, skip
+  // If the `-single-decompilation` option was passed from command line, skip
   // decompilation for all the functions that are not the selected one.
-  if (TargetFunction.size() != 0) {
-    if (!F.getName().equals(TargetFunction.c_str())) {
+  if (not TargetFunction.empty())
+    if (not F.getName().equals(TargetFunction.c_str()))
       return false;
+
+  // If the -decompiled-dir flag was passed, the decompiled function needs to be
+  // written to file, in the specified directory.
+  // We initialize Out with a proper file descriptor to make it happen.
+  if (not DecompiledDir.empty()) {
+
+    // We only support the -decompiled-dir flag when the pass is
+    // default-constructed. If it's not, Out already contains a raw_ostream that
+    // should be used to emit the decompiled C code, so using the
+    // -decompiled-dir flag would overwrite it, with surprising results.
+    // For now we don't need it. If we ever happen to need it, we will figure
+    // out what's the best thing to do depending on the real scenario.
+    revng_assert(not Out);
+
+    if (auto Error = llvm::sys::fs::create_directories(DecompiledDir))
+      revng_abort(Error.message().c_str());
+
+    std::string FileName = DecompiledDir + '/' + F.getName().data() + ".c";
+    std::error_code Error;
+    auto WriteOnlyFlag = llvm::sys::fs::FileAccess::FA_Write;
+    Out = std::make_unique<llvm::raw_fd_ostream>(FileName,
+                                                 Error,
+                                                 WriteOnlyFlag);
+    if (Error) {
+      Out.reset();
+      revng_abort(Error.message().c_str());
     }
   }
 
-  // If we passed the `-decompiled-prefix` option to the command line, we take
-  // care of serializing the decompiled source code on file.
-  if (DecompiledDir.size() != 0) {
-    SourceCode.clear();
-    Out = std::make_unique<llvm::raw_string_ostream>(SourceCode);
+  // If the --short-circuit-metrics-output-dir=dir argument was passed from
+  // command line, we need to print the statistics for the short circuit metrics
+  // into a file with the function name, inside the directory 'dir'.
+
+  std::unique_ptr<llvm::raw_fd_ostream> StatsFileStream;
+  if (auto NumOutPaths = OutputPath.getNumOccurrences()) {
+    revng_assert(NumOutPaths < 2);
+
+    if (auto Error = llvm::sys::fs::create_directories(OutputPath))
+      revng_abort(Error.message().c_str());
+
+    std::string FileName = OutputPath + '/' + F.getName().data();
+    std::error_code Error;
+    auto WriteOnlyFlag = llvm::sys::fs::FileAccess::FA_Write;
+    StatsFileStream = std::make_unique<llvm::raw_fd_ostream>(FileName,
+                                                             Error,
+                                                             WriteOnlyFlag);
+
+    if (Error) {
+      StatsFileStream.reset();
+      revng_abort(Error.message().c_str());
+    }
   }
 
   // This is a hack to prevent clashes between LLVM's `opt` arguments and
@@ -138,37 +183,11 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   FactoryUniquePtr Factory = newFrontendActionFactory(&Decompilation);
   RevNg.run(Factory.get());
 
-  // Decompiled code serialization on file.
-  if (DecompiledDir.size() != 0) {
-    if (auto Err = llvm::sys::fs::create_directory(DecompiledDir)) {
-      revng_abort("Could not create revng-c-decompiled-source directory");
-    }
-    std::ofstream CFile;
-    std::string FileName = F.getName().str();
-    CFile.open(DecompiledDir + "/" + FileName + ".c");
-    if (not CFile.is_open()) {
-      revng_abort("Could not open file for dumping C source file.");
-    }
-    std::ifstream IncludeFile;
-    IncludeFile.open(RevNgCIncludeFile);
-    if (not IncludeFile.is_open()) {
-      revng_abort("Could not open revng-c include file.");
-    }
-    CFile << IncludeFile.rdbuf();
-    IncludeFile.close();
-    CFile << SourceCode;
-    CFile.close();
-  }
-
-  // Serialize the collected metrics in the outputfile.
-  if (OutputPath.getNumOccurrences() == 1) {
-    std::ofstream Output;
-    std::ostream &OutputStream = pathToStream(OutputPath + "/"
-                                                + F.getName().data(),
-                                              Output);
-    OutputStream << "function,short-circuit,trivial-short-circuit\n";
-    OutputStream << F.getName().data() << "," << ShortCircuitCounter << ","
-                 << TrivialShortCircuitCounter << "\n";
+  // Serialize the collected metrics in the statistics file if necessary
+  if (StatsFileStream) {
+    *StatsFileStream << "function,short-circuit,trivial-short-circuit\n"
+                     << F.getName().data() << "," << ShortCircuitCounter << ","
+                     << TrivialShortCircuitCounter << "\n";
   }
 
   return true;
