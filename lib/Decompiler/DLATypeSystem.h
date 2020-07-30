@@ -21,6 +21,7 @@
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Support/Assert.h"
 
+#include "revng-c/ADT/HeterogeneousPtrCompare.h"
 #include "revng-c/Decompiler/DLALayouts.h"
 
 namespace dla {
@@ -140,26 +141,6 @@ inline bool hasValidLayout(const LayoutTypeSystemNode *N) {
     return false;
   return not N->L.Accesses.empty();
 }
-
-struct LayoutTypeSystemNodePtrCompare {
-  using is_transparent = std::true_type;
-
-private:
-  struct Helper {
-    const LayoutTypeSystemNode *P;
-    Helper() = default;
-    ~Helper() = default;
-    Helper(const Helper &) = default;
-    Helper(Helper &&) = default;
-    Helper &operator=(const Helper &) = default;
-    Helper &operator=(Helper &&) = default;
-    Helper(const LayoutTypeSystemNode *Ptr) : P(Ptr) {}
-    Helper(const std::unique_ptr<LayoutTypeSystemNode> &Ptr) : P(Ptr.get()) {}
-  };
-
-public:
-  bool operator()(const Helper A, const Helper B) const { return A.P < B.P; }
-};
 
 class LayoutTypeSystem {
 public:
@@ -290,7 +271,7 @@ private:
 
   // Holds all the LayoutTypeSystemNode
   std::set<std::unique_ptr<LayoutTypeSystemNode>,
-           LayoutTypeSystemNodePtrCompare>
+           HeterogeneousPtrCompare<LayoutTypeSystemNode>>
     Layouts;
 
   // Maps llvm::Value to layout types.

@@ -47,10 +47,13 @@ public:
                    const Layout *L,
                    unsigned Indent = 0,
                    unsigned Offset = 0);
+
   static std::strong_ordering structuralOrder(const Layout *A, const Layout *B);
+
   static bool structuralLess(const Layout *A, const Layout *B) {
     return structuralOrder(A, B) < 0;
   }
+
   using structLessT = std::integral_constant<decltype(structuralLess) &,
                                              structuralLess>;
 
