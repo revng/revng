@@ -92,23 +92,6 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   // with its own stuff.
   cl::getRegisteredOptions().clear();
 
-  // Remove calls to newpc
-  for (Function &ParentF : *F.getParent()) {
-    for (BasicBlock &BB : ParentF) {
-      if (not ParentF.getMetadata("revng.func.entry"))
-        continue;
-
-      std::vector<Instruction *> ToErase;
-      for (Instruction &I : BB)
-        if (auto *C = dyn_cast<CallInst>(&I))
-          if (getCallee(C)->getName() == "newpc")
-            ToErase.push_back(C);
-
-      for (Instruction *I : ToErase)
-        I->eraseFromParent();
-    }
-  }
-
   // Construct the path of the include (hack copied from revng-lift). Even if
   // the include path is unique for now, we have anyway set up the search in
   // multiple paths.
