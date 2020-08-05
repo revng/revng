@@ -280,6 +280,8 @@ public:
 
   void weave();
 
+  void tagCaseEdges();
+
 protected:
   template<typename StreamT>
   void streamNode(StreamT &S, const BasicBlockNodeT *) const;

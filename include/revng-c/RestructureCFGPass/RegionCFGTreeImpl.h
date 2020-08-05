@@ -1391,6 +1391,9 @@ inline void RegionCFG<NodeT>::generateAst() {
   // Apply combing to the current RegionCFG.
   if (ToInflate) {
 
+    // Initialize the EdgeInfo struct on switch edges.
+    Graph.tagCaseEdges();
+
     if (CombLogger.isEnabled()) {
       CombLogger << "Weaveing region " + RegionName + "\n";
       dumpDotOnFile("weaves", FunctionName, "PREWEAVE");
@@ -1779,61 +1782,6 @@ inline void RegionCFG<NodeT>::weave() {
     if (not Switch->isDispatcher() and not isASwitch(Switch))
       continue;
 
-    // If it'a switch node coming from the original llvm IR, we need to set up
-    // the proper case labels before weaving it. Dispacther nodes are already
-    // created with labels.
-    if (Switch->isCode()) {
-      std::map<llvm::BasicBlock *, BBNodeT *> BBToNodeMap;
-      for (BBNodeT *SwitchSucc : Switch->successors()) {
-        revng_assert(SwitchSucc->isCode());
-        llvm::BasicBlock *SwitchSuccBB = SwitchSucc->getOriginalNode();
-        const auto &[_, New] = BBToNodeMap.insert({ SwitchSuccBB, SwitchSucc });
-        revng_assert(New);
-      }
-
-      for (const auto &[BB, SwitchSuccessor] : BBToNodeMap) {
-        auto NEIP = extractLabeledEdge(EdgeDescriptor(Switch, SwitchSuccessor));
-        revng_assert(NEIP.second.Labels.empty());
-      }
-
-      llvm::BasicBlock *SwitchBB = Switch->getOriginalNode();
-      llvm::Instruction *TermInst = SwitchBB->getTerminator();
-      auto *SwitchInstruction = llvm::cast<llvm::SwitchInst>(TermInst);
-
-      using edge_label_t = typename BasicBlockNodeT::edge_label_t;
-      std::map<llvm::BasicBlock *, edge_label_t> SwitchSuccLabels;
-      for (llvm::SwitchInst::CaseHandle &Case : SwitchInstruction->cases()) {
-        llvm::BasicBlock *CaseTarget = Case.getCaseSuccessor();
-        llvm::ConstantInt *CaseValue = Case.getCaseValue();
-        uint64_t CaseVal = CaseValue->getZExtValue();
-        SwitchSuccLabels[CaseTarget].insert(CaseVal);
-      }
-
-      llvm::BasicBlock *DefaultBB = SwitchInstruction->getDefaultDest();
-      revng_assert(nullptr != DefaultBB);
-
-      auto It = SwitchSuccLabels.find(DefaultBB);
-      if (It != SwitchSuccLabels.end()) {
-        // One of the successors is also the default. We can drop the labels.
-        It->second = {};
-      } else {
-        SwitchSuccLabels[DefaultBB] = {}; // Empty labels for the default.
-      }
-
-      revng_assert(BBToNodeMap.size() == SwitchSuccLabels.size());
-      for (const auto &Pair : llvm::zip_first(BBToNodeMap, SwitchSuccLabels)) {
-        const auto &[BB, SuccNode] = std::get<0>(Pair);
-        const auto &[OtherBB, Label] = std::get<1>(Pair);
-        revng_assert(BB == OtherBB);
-
-        // Build the EdgeInfo object.
-        using EdgeInfo = typename BasicBlockNodeT::EdgeInfo;
-        EdgeInfo EI = { Label, false };
-
-        addEdge(EdgeDescriptor(Switch, SuccNode), EI);
-      }
-    }
-
     // If we find a switch node we can start the weaving analysis.
     if (Switch->successor_size() > 2) {
 
@@ -1948,6 +1896,77 @@ inline void RegionCFG<NodeT>::weave() {
   // Purge the final sink used for computing the postdominator tree.
   purgeVirtualSink(Sink);
   DT.recalculate(Graph);
+}
+
+template<class NodeT>
+inline void RegionCFG<NodeT>::tagCaseEdges() {
+
+  // Check that we are in a valid state of the graph.
+  revng_assert(isDAG());
+
+  // Collect useful objects.
+  BBNodeT *Entry = &getEntryNode();
+
+  for (BBNodeT *Switch : post_order(Entry)) {
+
+    if (not isASwitch(Switch))
+      continue;
+
+    // If it'a switch node coming from the original llvm IR, we need to set up
+    // the proper case labels before weaving it. Dispatcher nodes are already
+    // created with labels.
+    if (Switch->isCode()) {
+      std::map<llvm::BasicBlock *, BBNodeT *> BBToNodeMap;
+      for (BBNodeT *SwitchSucc : Switch->successors()) {
+        revng_assert(SwitchSucc->isCode());
+        llvm::BasicBlock *SwitchSuccBB = SwitchSucc->getOriginalNode();
+        const auto &[_, New] = BBToNodeMap.insert({ SwitchSuccBB, SwitchSucc });
+        revng_assert(New);
+      }
+
+      for (const auto &[BB, SwitchSuccessor] : BBToNodeMap) {
+        auto NEIP = extractLabeledEdge(EdgeDescriptor(Switch, SwitchSuccessor));
+        revng_assert(NEIP.second.Labels.empty());
+      }
+
+      llvm::BasicBlock *SwitchBB = Switch->getOriginalNode();
+      llvm::Instruction *TermInst = SwitchBB->getTerminator();
+      auto *SwitchInstruction = llvm::cast<llvm::SwitchInst>(TermInst);
+
+      using edge_label_t = typename BasicBlockNodeT::edge_label_t;
+      std::map<llvm::BasicBlock *, edge_label_t> SwitchSuccLabels;
+      for (llvm::SwitchInst::CaseHandle &Case : SwitchInstruction->cases()) {
+        llvm::BasicBlock *CaseTarget = Case.getCaseSuccessor();
+        llvm::ConstantInt *CaseValue = Case.getCaseValue();
+        uint64_t CaseVal = CaseValue->getZExtValue();
+        SwitchSuccLabels[CaseTarget].insert(CaseVal);
+      }
+
+      llvm::BasicBlock *DefaultBB = SwitchInstruction->getDefaultDest();
+      revng_assert(nullptr != DefaultBB);
+
+      auto It = SwitchSuccLabels.find(DefaultBB);
+      if (It != SwitchSuccLabels.end()) {
+        // One of the successors is also the default. We can drop the labels.
+        It->second = {};
+      } else {
+        SwitchSuccLabels[DefaultBB] = {}; // Empty labels for the default.
+      }
+
+      revng_assert(BBToNodeMap.size() == SwitchSuccLabels.size());
+      for (const auto &Pair : llvm::zip_first(BBToNodeMap, SwitchSuccLabels)) {
+        const auto &[BB, SuccNode] = std::get<0>(Pair);
+        const auto &[OtherBB, Label] = std::get<1>(Pair);
+        revng_assert(BB == OtherBB);
+
+        // Build the EdgeInfo object.
+        using EdgeInfo = typename BasicBlockNodeT::EdgeInfo;
+        EdgeInfo EI = { Label, false };
+
+        addEdge(EdgeDescriptor(Switch, SuccNode), EI);
+      }
+    }
+  }
 }
 
 #endif // REVNGC_RESTRUCTURE_CFG_REGIONCFGTREEIMPL_H
