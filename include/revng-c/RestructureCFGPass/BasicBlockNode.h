@@ -50,16 +50,22 @@ public:
   // RegionCFG.
   using EdgeDescriptor = std::pair<BasicBlockNodeT *, BasicBlockNodeT *>;
   using edge_label_t = llvm::SmallSet<uint64_t, 1>;
-  using node_label_pair = std::pair<BasicBlockNodeT *, edge_label_t>;
+  struct EdgeInfo {
+    edge_label_t Labels;
+    bool Inlined = false;
+  };
+  using node_edgeinfo_pair = std::pair<BasicBlockNodeT *, EdgeInfo>;
 
-  using links_container = llvm::SmallVector<node_label_pair, 2>;
+  using links_container = llvm::SmallVector<node_edgeinfo_pair, 2>;
   using links_iterator = typename links_container::iterator;
   using links_const_iterator = typename links_container::const_iterator;
   using links_range = llvm::iterator_range<links_iterator>;
   using links_const_range = llvm::iterator_range<links_const_iterator>;
 
 protected:
-  static BasicBlockNodeT *getChild(const node_label_pair &P) { return P.first; }
+  static BasicBlockNodeT *getChild(const node_edgeinfo_pair &P) {
+    return P.first;
+  }
 
 public:
   using child_iterator = llvm::mapped_iterator<links_iterator,
@@ -177,18 +183,18 @@ public:
   // TODO: Check why this implementation is really necessary.
   void printAsOperand(llvm::raw_ostream &O, bool /* PrintType */) const;
 
-  void addLabeledSuccessor(const node_label_pair &P) {
+  void addLabeledSuccessor(const node_edgeinfo_pair &P) {
     revng_assert(not hasSuccessor(P.first));
     Successors.push_back(P);
   }
 
-  void addLabeledSuccessor(node_label_pair &&P) {
+  void addLabeledSuccessor(node_edgeinfo_pair &&P) {
     revng_assert(not hasSuccessor(P.first));
     Successors.push_back(std::move(P));
   }
 
   void addUnlabeledSuccessor(BasicBlockNode *Successor) {
-    addLabeledSuccessor(std::make_pair(Successor, edge_label_t()));
+    addLabeledSuccessor(std::make_pair(Successor, EdgeInfo()));
   }
 
   bool hasSuccessor(const BasicBlockNode *Candidate) const {
@@ -203,15 +209,15 @@ public:
   }
 
   void removeSuccessor(BasicBlockNode *Successor);
-  node_label_pair extractSuccessorEdge(BasicBlockNode *Successor);
+  node_edgeinfo_pair extractSuccessorEdge(BasicBlockNode *Successor);
 
-  void addLabeledPredecessor(const node_label_pair &P) {
+  void addLabeledPredecessor(const node_edgeinfo_pair &P) {
     revng_assert(not hasPredecessor(P.first));
     Predecessors.push_back(P);
   }
 
   void addUnlabeledPredecessor(BasicBlockNode *Predecessor) {
-    addLabeledPredecessor(std::make_pair(Predecessor, edge_label_t()));
+    addLabeledPredecessor(std::make_pair(Predecessor, EdgeInfo()));
   }
 
   bool hasPredecessor(BasicBlockNode *Candidate) const {
@@ -227,7 +233,7 @@ public:
   }
 
   void removePredecessor(BasicBlockNode *Successor);
-  node_label_pair extractPredecessorEdge(BasicBlockNode *Predecessor);
+  node_edgeinfo_pair extractPredecessorEdge(BasicBlockNode *Predecessor);
 
   void updatePointers(const BasicBlockNodeMap &SubstitutionMap);
 

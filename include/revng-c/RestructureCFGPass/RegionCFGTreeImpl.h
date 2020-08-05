@@ -675,20 +675,20 @@ inline void RegionCFG<NodeT>::untangle() {
     // Update the information of the dominator and postdominator trees.
     DT.recalculate(Graph);
 
-    using edge_label_t = typename BasicBlockNodeT::edge_label_t;
-    llvm::SmallVector<edge_label_t, 16> InlinedEdgesLabels;
+    using EdgeInfo = typename BasicBlockNodeT::EdgeInfo;
+    llvm::SmallVector<EdgeInfo, 8> InlinedEdgesInfo;
     for (EdgeDescriptor Edge : InlinedEdges) {
-      auto Label = extractLabeledEdge(Edge).second;
-      InlinedEdgesLabels.push_back(Label);
+      auto EdgeInfo = extractLabeledEdge(Edge).second;
+      InlinedEdgesInfo.push_back(EdgeInfo);
     }
 
     PDT.recalculate(Graph);
 
     // Reattach the edges disconnected for the PDT computation.
-    revng_assert(InlinedEdges.size() == InlinedEdgesLabels.size());
-    for (const auto &[Edge, Label] :
-         llvm::zip_first(InlinedEdges, InlinedEdgesLabels)) {
-      addEdge(Edge, Label);
+    revng_assert(InlinedEdges.size() == InlinedEdgesInfo.size());
+    for (const auto &[Edge, EdgeInfo] :
+         llvm::zip_first(InlinedEdges, InlinedEdgesInfo)) {
+      addEdge(Edge, EdgeInfo);
     }
 
     // Update the postdominator
@@ -1483,21 +1483,21 @@ inline void RegionCFG<NodeT>::generateAst() {
       BasicBlockNode<NodeT> *DefaultNode = nullptr;
       ASTNode *DefaultASTNode = nullptr;
 
-      for (const auto &[SwitchSucc, Labels] : Node->labeled_successors()) {
+      for (const auto &[SwitchSucc, EdgeInfos] : Node->labeled_successors()) {
         ASTNode *ASTPointer = AST.findASTNode(SwitchSucc);
         revng_assert(nullptr != ASTPointer);
 
         auto FindIt = std::find(Children.begin(), Children.end(), SwitchSucc);
         revng_assert(FindIt != Children.end());
 
-        if (Labels.empty()) {
+        if (EdgeInfos.Labels.empty()) {
           revng_assert(nullptr == DefaultNode);
           revng_assert(nullptr == DefaultASTNode);
           DefaultNode = SwitchSucc;
           DefaultASTNode = ASTPointer;
         }
 
-        LabeledCases.push_back({ Labels, ASTPointer });
+        LabeledCases.push_back({ EdgeInfos.Labels, ASTPointer });
       }
       revng_assert(DefaultASTNode or Node->isWeaved() or Node->isDispatcher());
       revng_assert(DefaultNode or Node->isWeaved() or Node->isDispatcher());
@@ -1792,8 +1792,8 @@ inline void RegionCFG<NodeT>::weave() {
       }
 
       for (const auto &[BB, SwitchSuccessor] : BBToNodeMap) {
-        auto L = extractLabeledEdge(EdgeDescriptor(Switch, SwitchSuccessor));
-        revng_assert(L.second.empty());
+        auto NEIP = extractLabeledEdge(EdgeDescriptor(Switch, SwitchSuccessor));
+        revng_assert(NEIP.second.Labels.empty());
       }
 
       llvm::BasicBlock *SwitchBB = Switch->getOriginalNode();
@@ -1825,7 +1825,12 @@ inline void RegionCFG<NodeT>::weave() {
         const auto &[BB, SuccNode] = std::get<0>(Pair);
         const auto &[OtherBB, Label] = std::get<1>(Pair);
         revng_assert(BB == OtherBB);
-        addEdge(EdgeDescriptor(Switch, SuccNode), Label);
+
+        // Build the EdgeInfo object.
+        using EdgeInfo = typename BasicBlockNodeT::EdgeInfo;
+        EdgeInfo EI = { Label, false };
+
+        addEdge(EdgeDescriptor(Switch, SuccNode), EI);
       }
     }
 
@@ -1905,9 +1910,9 @@ inline void RegionCFG<NodeT>::weave() {
             auto LabeledEdge = extractLabeledEdge(EdgeDescriptor(Switch, Case));
             PDT.deleteEdge(Switch, Case);
 
-            auto &CaseLabels = LabeledEdge.second;
+            auto &EdgeInfo = LabeledEdge.second;
             // If we find an edge without case labels, that's the default.
-            if (CaseLabels.empty()) {
+            if (EdgeInfo.Labels.empty()) {
               revng_assert(WeavingDefault == false);
               WeavingDefault = true;
               Labels = {};
@@ -1917,9 +1922,9 @@ inline void RegionCFG<NodeT>::weave() {
             // labels, because the weaved switch will become the default of the
             // original switch.
             if (not WeavingDefault)
-              Labels.insert(CaseLabels.begin(), CaseLabels.end());
+              Labels.insert(EdgeInfo.Labels.begin(), EdgeInfo.Labels.end());
 
-            addEdge(EdgeDescriptor(NewSwitch, Case), CaseLabels);
+            addEdge(EdgeDescriptor(NewSwitch, Case), EdgeInfo);
             PDT.insertEdge(NewSwitch, Case);
 
             CaseSet.erase(Case);
@@ -1930,7 +1935,10 @@ inline void RegionCFG<NodeT>::weave() {
           // Connect the old switch to the new one and update the PDT.
           // Use the collected labels to mark the new edge from the original
           // switch to the weaved switch.
-          addEdge(EdgeDescriptor(Switch, NewSwitch), Labels);
+          using EdgeInfo = typename BasicBlockNodeT::EdgeInfo;
+          EdgeInfo EI = { Labels, false };
+
+          addEdge(EdgeDescriptor(Switch, NewSwitch), EI);
           PDT.insertEdge(Switch, NewSwitch);
         }
       }

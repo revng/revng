@@ -57,7 +57,7 @@ inline void BasicBlockNode<NodeT>::printAsOperand(llvm::raw_ostream &O,
 template<class NodeT>
 inline void BasicBlockNode<NodeT>::removeSuccessor(BasicBlockNodeT *Succ) {
   size_t Removed = 0;
-  const auto IsSucc = [&Removed, Succ](const node_label_pair &P) {
+  const auto IsSucc = [&Removed, Succ](const node_edgeinfo_pair &P) {
     if (P.first == Succ) {
       ++Removed;
       return true;
@@ -70,18 +70,19 @@ inline void BasicBlockNode<NodeT>::removeSuccessor(BasicBlockNodeT *Succ) {
 }
 
 template<class NodeT>
-inline typename BasicBlockNode<NodeT>::node_label_pair
+inline typename BasicBlockNode<NodeT>::node_edgeinfo_pair
 BasicBlockNode<NodeT>::extractSuccessorEdge(BasicBlockNodeT *Succ) {
   size_t Removed = 0;
-  node_label_pair Extracted;
-  const auto IsSucc = [&Removed, &Extracted, Succ](const node_label_pair &P) {
-    if (P.first == Succ) {
-      ++Removed;
-      Extracted = P;
-      return true;
-    }
-    return false;
-  };
+  node_edgeinfo_pair Extracted;
+  const auto IsSucc =
+    [&Removed, &Extracted, Succ](const node_edgeinfo_pair &P) {
+      if (P.first == Succ) {
+        ++Removed;
+        Extracted = P;
+        return true;
+      }
+      return false;
+    };
   Successors.erase(std::remove_if(Successors.begin(), Successors.end(), IsSucc),
                    Successors.end());
   revng_assert(Removed == 1); // needs to remove exactly one successor
@@ -91,7 +92,7 @@ BasicBlockNode<NodeT>::extractSuccessorEdge(BasicBlockNodeT *Succ) {
 template<class NodeT>
 inline void BasicBlockNode<NodeT>::removePredecessor(BasicBlockNodeT *Pred) {
   size_t Removed = 0;
-  const auto IsPred = [&Removed, Pred](const node_label_pair &P) {
+  const auto IsPred = [&Removed, Pred](const node_edgeinfo_pair &P) {
     if (P.first == Pred) {
       ++Removed;
       return true;
@@ -106,18 +107,19 @@ inline void BasicBlockNode<NodeT>::removePredecessor(BasicBlockNodeT *Pred) {
 }
 
 template<class NodeT>
-inline typename BasicBlockNode<NodeT>::node_label_pair
+inline typename BasicBlockNode<NodeT>::node_edgeinfo_pair
 BasicBlockNode<NodeT>::extractPredecessorEdge(BasicBlockNodeT *Pred) {
   size_t Removed = 0;
-  node_label_pair Extracted;
-  const auto IsPred = [&Removed, &Extracted, Pred](const node_label_pair &P) {
-    if (P.first == Pred) {
-      ++Removed;
-      Extracted = P;
-      return true;
-    }
-    return false;
-  };
+  node_edgeinfo_pair Extracted;
+  const auto IsPred =
+    [&Removed, &Extracted, Pred](const node_edgeinfo_pair &P) {
+      if (P.first == Pred) {
+        ++Removed;
+        Extracted = P;
+        return true;
+      }
+      return false;
+    };
   Predecessors.erase(std::remove_if(Predecessors.begin(),
                                     Predecessors.end(),
                                     IsPred),

@@ -737,7 +737,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
         using edge_label_t = typename BasicBlockNodeBB::edge_label_t;
         edge_label_t Labels;
         Labels.insert(Idx);
-        addEdge(EdgeDescriptor(Head, Target), Labels);
+        using EdgeInfo = BasicBlockNodeBB::EdgeInfo;
+        EdgeInfo EI = { Labels, false };
+        addEdge(EdgeDescriptor(Head, Target), EI);
       }
 
       for (EdgeDescriptor R : Retreatings) {
@@ -977,7 +979,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
         using edge_label_t = typename BasicBlockNodeBB::edge_label_t;
         edge_label_t Labels;
         Labels.insert(Idx);
-        addEdge(EdgeDescriptor(Exit, Successor), Labels);
+        using EdgeInfo = typename BasicBlockNodeBB::EdgeInfo;
+        EdgeInfo EI = { Labels, false };
+        addEdge(EdgeDescriptor(Exit, Successor), EI);
       }
 
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();

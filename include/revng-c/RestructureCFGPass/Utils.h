@@ -35,19 +35,19 @@ inline void moveEdgeTarget(Edge<NodeT> Edge, BasicBlockNode<NodeT> *NewTarget) {
 
 template<class BBNodeT>
 inline void addEdge(std::pair<BBNodeT *, BBNodeT *> New,
-                    const typename BBNodeT::edge_label_t &Lbls) {
+                    const typename BBNodeT::EdgeInfo &EdgeInfos) {
 
-  New.first->addLabeledSuccessor(std::make_pair(New.second, Lbls));
-  New.second->addLabeledPredecessor(std::make_pair(New.first, Lbls));
+  New.first->addLabeledSuccessor(std::make_pair(New.second, EdgeInfos));
+  New.second->addLabeledPredecessor(std::make_pair(New.first, EdgeInfos));
 }
 
 template<class BBNodeT>
 inline void addPlainEdge(std::pair<BBNodeT *, BBNodeT *> New) {
-  addEdge(New, typename BBNodeT::edge_label_t());
+  addEdge(New, typename BBNodeT::EdgeInfo());
 }
 
 template<class BBNodeT>
-inline typename BBNodeT::node_label_pair
+inline typename BBNodeT::node_edgeinfo_pair
 extractLabeledEdge(std::pair<BBNodeT *, BBNodeT *> Edge) {
   Edge.second->removePredecessor(Edge.first);
   return Edge.first->extractSuccessorEdge(Edge.second);
