@@ -52,16 +52,31 @@ buildCompoundScope(clang::FunctionDecl &FDecl,
 }
 
 static clang::Expr *negateExpr(clang::ASTContext &ASTCtx, clang::Expr *E) {
+  if (auto *BinOp = dyn_cast<clang::BinaryOperator>(E->IgnoreParenImpCasts())) {
+    auto OpCode = BinOp->getOpcode();
+    if (clang::BinaryOperator::isComparisonOp(OpCode)) {
+      // For binary comparison operators, we can just invert the comparison and
+      // return.
+      auto NegatedOpCode = clang::BinaryOperator::negateComparisonOp(OpCode);
+      return new (ASTCtx) clang::BinaryOperator(BinOp->getLHS(),
+                                                BinOp->getRHS(),
+                                                NegatedOpCode,
+                                                BinOp->getLHS()->getType(),
+                                                VK_RValue,
+                                                OK_Ordinary,
+                                                {},
+                                                FPOptions());
+    }
+  }
+
   if (isa<clang::BinaryOperator>(E) or isa<clang::ConditionalOperator>(E))
     E = new (ASTCtx) ParenExpr({}, {}, E);
+
+  QualType ExprTy = E->getType();
+  bool IsBool = ExprTy.getTypePtr()->isBooleanType();
+  auto OpCode = IsBool ? UnaryOperatorKind::UO_LNot : UnaryOperatorKind::UO_Not;
   using Unary = clang::UnaryOperator;
-  E = new (ASTCtx) Unary(E,
-                         UnaryOperatorKind::UO_LNot,
-                         E->getType(),
-                         VK_RValue,
-                         OK_Ordinary,
-                         {},
-                         false);
+  E = new (ASTCtx) Unary(E, OpCode, ExprTy, VK_RValue, OK_Ordinary, {}, false);
   return E;
 }
 
@@ -166,6 +181,7 @@ static clang::Expr *createCondExpr(ExprNode *E,
   while (VisitStack.size() > 1) {
     StackElement &Current = VisitStack.back();
     switch (Current.Node->getKind()) {
+
     case ExprNode::NodeKind::NK_Atomic: {
       AtomicNode *Atomic = cast<AtomicNode>(Current.Node);
       llvm::BasicBlock *BB = Atomic->getConditionalBasicBlock();
@@ -180,6 +196,7 @@ static clang::Expr *createCondExpr(ExprNode *E,
       VisitStack.pop_back();
       VisitStack.back().ResolvedOperands.push_back(CondExpr);
     } break;
+
     case ExprNode::NodeKind::NK_Not: {
       NotNode *N = cast<NotNode>(Current.Node);
       revng_assert(Current.ResolvedOperands.size() <= 1);
@@ -192,22 +209,28 @@ static clang::Expr *createCondExpr(ExprNode *E,
         VisitStack.back().ResolvedOperands.push_back(NotExpr);
       }
     } break;
+
     case ExprNode::NodeKind::NK_And:
     case ExprNode::NodeKind::NK_Or: {
       size_t NumOperands = Current.ResolvedOperands.size();
       revng_assert(NumOperands <= 2);
       using ExprPair = std::pair<ExprNode *, ExprNode *>;
       BinaryNode *Binary = cast<BinaryNode>(Current.Node);
+
       if (NumOperands != 2) {
         ExprPair Childs = Binary->getInternalNodes();
         ExprNode *Op = (NumOperands == 0) ? Childs.first : Childs.second;
         VisitStack.push_back({ Op, {} });
       } else {
-        BinaryOperatorKind BinOpKind = isa<AndNode>(Binary) ?
-                                         clang::BinaryOperatorKind::BO_And :
-                                         clang::BinaryOperatorKind::BO_Or;
         clang::Expr *LHS = Current.ResolvedOperands[0];
         clang::Expr *RHS = Current.ResolvedOperands[1];
+        bool BothBool = LHS->getType().getTypePtr()->isBooleanType()
+                        and RHS->getType().getTypePtr()->isBooleanType();
+        auto BinOpKind = isa<AndNode>(Binary) ?
+                           (BothBool ? clang::BinaryOperatorKind::BO_LAnd :
+                                       clang::BinaryOperatorKind::BO_And) :
+                           (BothBool ? clang::BinaryOperatorKind::BO_LOr :
+                                       clang::BinaryOperatorKind::BO_Or);
         clang::Expr *BinExpr = new (ASTCtx)
           clang::BinaryOperator(LHS,
                                 RHS,
@@ -220,6 +243,7 @@ static clang::Expr *createCondExpr(ExprNode *E,
         VisitStack.pop_back();
         VisitStack.back().ResolvedOperands.push_back(BinExpr);
       }
+
     } break;
     }
   }

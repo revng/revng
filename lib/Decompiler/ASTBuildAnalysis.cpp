@@ -783,7 +783,10 @@ VarDecl *StmtBuilder::createVarDecl(Constant *C,
   return NewVarDecl;
 }
 
-static clang::BinaryOperatorKind getClangBinaryOpKind(const Instruction &I) {
+static clang::BinaryOperatorKind
+getClangBinaryOpKind(const Instruction &I,
+                     const clang::Type *LHSTy,
+                     const clang::Type *RHSTy) {
   clang::BinaryOperatorKind Res;
   switch (I.getOpcode()) {
   case Instruction::Add: {
@@ -796,10 +799,16 @@ static clang::BinaryOperatorKind getClangBinaryOpKind(const Instruction &I) {
     Res = clang::BinaryOperatorKind::BO_Mul;
   } break;
   case Instruction::And: {
-    Res = clang::BinaryOperatorKind::BO_And;
+    if (LHSTy->isBooleanType() and RHSTy->isBooleanType())
+      Res = clang::BinaryOperatorKind::BO_LAnd;
+    else
+      Res = clang::BinaryOperatorKind::BO_And;
   } break;
   case Instruction::Or: {
-    Res = clang::BinaryOperatorKind::BO_Or;
+    if (LHSTy->isBooleanType() and RHSTy->isBooleanType())
+      Res = clang::BinaryOperatorKind::BO_LOr;
+    else
+      Res = clang::BinaryOperatorKind::BO_Or;
   } break;
   case Instruction::Xor: {
     Res = clang::BinaryOperatorKind::BO_Xor;
@@ -986,7 +995,6 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
 
 Expr *StmtBuilder::createRValueExprForBinaryOperator(Instruction &I) {
   revng_assert(I.getNumOperands() == 2);
-  BinaryOperatorKind BinOpKind = getClangBinaryOpKind(I);
 
   Value *LHSVal = I.getOperand(0);
   Expr *LHS = getParenthesizedExprForValue(LHSVal);
@@ -1016,6 +1024,9 @@ Expr *StmtBuilder::createRValueExprForBinaryOperator(Instruction &I) {
 
   std::tie(LHS, RHS) = getCastedBinaryOperands(ASTCtx, I, LHS, RHS);
 
+  auto BinOpKind = getClangBinaryOpKind(I,
+                                        LHS->getType().getTypePtr(),
+                                        RHS->getType().getTypePtr());
   Expr *Res = new (ASTCtx) clang::BinaryOperator(LHS,
                                                  RHS,
                                                  BinOpKind,
