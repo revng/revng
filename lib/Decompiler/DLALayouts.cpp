@@ -162,6 +162,7 @@ void Layout::printText(llvm::raw_ostream &O, const Layout *L, unsigned Indent) {
     revng_assert(Size);
     bool IsPowerOf2 = (Size & (Size - 1)) == 0;
     revng_assert(IsPowerOf2);
+    revng_assert(Size <= 16);
     O << IndentStr << "uint" << (8 * Size) << "_t";
   } break;
   default:

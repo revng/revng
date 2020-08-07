@@ -33,12 +33,7 @@ clang::QualType DeclCreator::getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
       const std::string Name = Typedef->getNameAsString();
       if (Name == "bool") {
         revng_assert(not Found);
-        if (Ty != nullptr) {
-          auto It = TypeDecls.begin();
-          bool NewInsert = false;
-          std::tie(It, NewInsert) = TypeDecls.insert({ Ty, Typedef });
-          revng_assert(NewInsert or It->second == Typedef);
-        }
+        insertTypeMapping(Ty, Typedef);
         Result = ASTCtx.getTypedefType(Typedef);
         Found = true;
       }
@@ -57,8 +52,7 @@ clang::QualType DeclCreator::getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
                                                        {},
                                                        &BoolId,
                                                        BoolTypeInfo);
-    if (Ty != nullptr)
-      TypeDecls[Ty] = BoolTypedefDecl;
+    insertTypeMapping(Ty, BoolTypedefDecl);
     TUDecl->addDecl(BoolTypedefDecl);
     Result = ASTCtx.getTypedefType(BoolTypedefDecl);
     return Result;
@@ -149,9 +143,8 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
   } break;
 
   case llvm::Type::TypeID::StructTyID: {
-    auto It = TypeDecls.find(Ty);
-    if (It != TypeDecls.end()) {
-      Result = clang::QualType(It->second->getTypeForDecl(), 0);
+    if (auto *TDecl = getTypeDeclOrNull(Ty)) {
+      Result = clang::QualType(TDecl->getTypeForDecl(), 0);
       break;
     }
 
@@ -169,8 +162,10 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
                    + makeCIdentifier(NamingValue->getName().str())
                    + std::string("_type");
       } else {
-        TypeName = "type_" + std::to_string(TypeDecls.size());
+        TypeName = getUniqueTypeNameForDecl();
       }
+    } else {
+      TypeName = getUniqueTypeNameForDecl();
     }
     clang::IdentifierInfo &TypeId = ASTCtx.Idents.get(TypeName);
     auto *Struct = clang::RecordDecl::Create(ASTCtx,
@@ -180,7 +175,7 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
                                              clang::SourceLocation{},
                                              &TypeId,
                                              nullptr);
-    TypeDecls[Ty] = Struct;
+    insertTypeMapping(Ty, Struct);
     unsigned N = 0;
     FieldDecls[Struct].resize(StructTy->getNumElements(), nullptr);
     Struct->startDefinition();

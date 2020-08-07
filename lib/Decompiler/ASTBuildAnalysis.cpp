@@ -432,7 +432,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                  or isa<InsertValueInst>(AggregateOp)
                  or isa<ConstantStruct>(AggregateOp));
     llvm::Type *AggregateTy = AggregateOp->getType();
-    clang::TypeDecl *StructTypeDecl = Declarator.TypeDecls.at(AggregateTy);
+    clang::TypeDecl *StructTypeDecl = Declarator.getTypeDeclOrNull(AggregateTy);
+    revng_assert(StructTypeDecl);
     Expr *StructExpr = getExprForValue(Insert);
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
     QualType InsertedTy = Declarator.getOrCreateQualType(Insert->getType(),
@@ -483,7 +484,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       return nullptr;
     revng_assert(isa<CallInst>(AggregateOp));
     llvm::Type *AggregateTy = AggregateOp->getType();
-    clang::TypeDecl *StructTypeDecl = Declarator.TypeDecls.at(AggregateTy);
+    clang::TypeDecl *StructTypeDecl = Declarator.getTypeDeclOrNull(AggregateTy);
+    revng_assert(StructTypeDecl);
     Expr *StructExpr = getExprForValue(AggregateOp);
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
     QualType ExtractedTy = Declarator.getOrCreateQualType(Extract,

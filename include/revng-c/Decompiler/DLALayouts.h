@@ -37,11 +37,16 @@ private:
 
 public:
   static LayoutKind getKind(const Layout *L) { return L->Kind; }
+  LayoutKind getKind() const { return Kind; }
+
   static void deleteLayout(Layout *L);
+
   static void
   printText(llvm::raw_ostream &O, const Layout *L, unsigned Indent = 0);
+
   static void
   printGraphic(llvm::raw_ostream &O, const Layout *L, unsigned Indent = 0);
+
   static llvm::SmallVector<std::pair<const Layout *, unsigned>, 8>
   printGraphicElem(llvm::raw_ostream &O,
                    const Layout *L,
@@ -270,8 +275,9 @@ class LayoutTypePtr {
   unsigned FieldIdx;
 
 public:
-  explicit LayoutTypePtr(const llvm::Value *Val,
-                         unsigned Idx = std::numeric_limits<unsigned>::max()) :
+  static constexpr unsigned fieldNumNone = std::numeric_limits<unsigned>::max();
+
+  explicit LayoutTypePtr(const llvm::Value *Val, unsigned Idx = fieldNumNone) :
     V(Val), FieldIdx(Idx) {}
 
   LayoutTypePtr() = delete;
@@ -282,6 +288,8 @@ public:
   LayoutTypePtr &operator=(LayoutTypePtr &&) = default;
 
   std::strong_ordering operator<=>(const LayoutTypePtr &Other) const = default;
+
+  unsigned fieldNum() const { return FieldIdx; }
 
   void print(llvm::raw_ostream &Out) const;
   friend struct std::less<dla::LayoutTypePtr>;

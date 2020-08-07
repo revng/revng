@@ -769,17 +769,47 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   ASTBuilder.createAST(TheF, *FunctionDecl);
 
   clang::TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
+
   // TODO: sooner or later, whenever we start emitting complex type
   // declarations, we will need to enforce proper ordering between dependent
   // types, and inject forward type declarations when needed.
-  for (auto &TypeDecl : Declarator.TypeDecls) {
+  //
+
+  // Create and add forward-declare all the structs, so that we other structs
+  // that have pointer-to-struct fields are always well-formed.
+  // This does not solve all the problems. For instance, if a struct A has a
+  // field of type struct B (not struct B *) B must be fully declared before the
+  // declaration of A. Just a forward declaration will not cut it.
+  for (const auto &TypeDecl : Declarator.typeDecls()) {
+    if (auto *StructDecl = llvm::dyn_cast<clang::RecordDecl>(TypeDecl)) {
+
+      auto *FwdDecl = clang::RecordDecl::Create(Context,
+                                                StructDecl->getTagKind(),
+                                                TUDecl,
+                                                clang::SourceLocation{},
+                                                clang::SourceLocation{},
+                                                StructDecl->getIdentifier(),
+                                                nullptr);
+      TUDecl->addDecl(FwdDecl);
+    }
+  }
+
+  // The ordering of definitions for full struct type is now handled by ensuring
+  // that type declarations are pushed into the typeDecls vector in correct
+  // order.
+  // TypeDecls are printed in C in the same order they are inserted into TUDecl.
+  // Here, we iterate in reverse order when inserting them into the TUDecl, so
+  // that the types that were created first are printed first. This, for now,
+  // ensures that, when we emit the full definition of a struct A with a field
+  // with type struct B, we have already emitted the full definition of struct B
+  for (const auto &TypeDecl : llvm::reverse(Declarator.typeDecls())) {
     // Double check that the typedef decl for bool is not inserted twice
-    clang::DeclarationName TypeName = TypeDecl.second->getDeclName();
+    clang::DeclarationName TypeName = TypeDecl->getDeclName();
     if (TypeName.getAsString() == "bool") {
       bool Found = false;
-      revng_assert(isa<clang::TypedefDecl>(TypeDecl.second));
+      revng_assert(isa<clang::TypedefDecl>(TypeDecl));
       for (clang::Decl *D : TUDecl->lookup(TypeName)) {
-        if (D == TypeDecl.second) {
+        if (D == TypeDecl) {
           // the TypedefDecl `typedef _Bool bool` has already been inserted
           // in the translation unit `DeclContext`
           Found = true;
@@ -792,7 +822,7 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
       if (Found)
         continue;
     }
-    TUDecl->addDecl(TypeDecl.second);
+    TUDecl->addDecl(TypeDecl);
   }
 
   for (auto &GlobalDecl : Declarator.GlobalDecls)
