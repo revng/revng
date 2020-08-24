@@ -320,8 +320,11 @@ namespace llvm {
 
 template<class NodeT>
 struct GraphTraits<BasicBlockNode<NodeT> *> {
-  using NodeRef = BasicBlockNode<NodeT> *;
-  using ChildIteratorType = typename BasicBlockNode<NodeT>::child_iterator;
+  using BBNodeT = BasicBlockNode<NodeT>;
+  using NodeRef = BBNodeT *;
+  using EdgeRef = typename BBNodeT::node_edgeinfo_pair;
+  using ChildIteratorType = typename BBNodeT::child_iterator;
+  using ChildEdgeIteratorType = typename BBNodeT::links_iterator;
 
   static NodeRef getEntryNode(NodeRef N) { return N; }
 
@@ -332,12 +335,25 @@ struct GraphTraits<BasicBlockNode<NodeT> *> {
   static inline ChildIteratorType child_end(NodeRef N) {
     return N->successors().end();
   }
+
+  static inline ChildEdgeIteratorType child_edge_begin(NodeRef N) {
+    return N->labeled_successors().begin();
+  }
+
+  static inline ChildEdgeIteratorType child_edge_end(NodeRef N) {
+    return N->labeled_successors().end();
+  }
+
+  static inline NodeRef edge_dest(EdgeRef E) { return E.first; };
 };
 
 template<class NodeT>
 struct GraphTraits<Inverse<BasicBlockNode<NodeT> *>> {
-  using NodeRef = BasicBlockNode<NodeT> *;
-  using ChildIteratorType = typename BasicBlockNode<NodeT>::child_iterator;
+  using BBNodeT = BasicBlockNode<NodeT>;
+  using NodeRef = BBNodeT *;
+  using EdgeRef = typename BBNodeT::node_edgeinfo_pair;
+  using ChildIteratorType = typename BBNodeT::child_iterator;
+  using ChildEdgeIteratorType = typename BBNodeT::links_iterator;
 
   static NodeRef getEntryNode(Inverse<NodeRef> G) { return G.Graph; }
 
@@ -348,6 +364,16 @@ struct GraphTraits<Inverse<BasicBlockNode<NodeT> *>> {
   static inline ChildIteratorType child_end(NodeRef N) {
     return N->predecessors().end();
   }
+
+  static inline ChildEdgeIteratorType child_edge_begin(NodeRef N) {
+    return N->labeled_predecessors().begin();
+  }
+
+  static inline ChildEdgeIteratorType child_edge_end(NodeRef N) {
+    return N->labeled_predecessors().end();
+  }
+
+  static inline NodeRef edge_dest(EdgeRef E) { return E.first; };
 };
 
 } // namespace llvm

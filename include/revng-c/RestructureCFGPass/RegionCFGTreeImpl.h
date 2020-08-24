@@ -942,6 +942,7 @@ inline void RegionCFG<NodeT>::inflate() {
   // Refresh information of dominator and postdominator trees.
   DT.recalculate(Graph);
   PDT.recalculate(Graph);
+  IFDT.recalculate(Graph);
 
   // Map to hold, for each conditional node that initiates combing, the node
   // that will be used to detect the point where combing needs to stop

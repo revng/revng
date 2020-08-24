@@ -15,6 +15,9 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/GenericDomTreeConstruction.h>
 
+// revng includes
+#include <revng/ADT/FilteredGraphTraits.h>
+
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
@@ -22,6 +25,11 @@
 
 template<class NodeT>
 class MetaRegion;
+
+template<typename NodeT>
+inline bool InlineFilter(const typename llvm::GraphTraits<NodeT>::EdgeRef &E) {
+  return !E.second.Inlined;
+}
 
 /// \brief The RegionCFG, a container for BasicBlockNodes
 template<class NodeT = llvm::BasicBlock *>
@@ -66,6 +74,14 @@ public:
 
   using ExprNodeMap = std::map<ExprNode *, ExprNode *>;
 
+  // Template type for the `NodePairFilteredGraph`. This must be template
+  // because `llvm::DominatorTreeOnView` expects a template type as first
+  // template parameter, so it must not be resolved beforehand.
+  template<typename NodeRefT>
+  using EFGT = EdgeFilteredGraph<NodeRefT, InlineFilter<NodeRefT>>;
+  using FDomTree = llvm::DominatorTreeOnView<BasicBlockNodeT, false, EFGT>;
+  using FPostDomTree = llvm::DominatorTreeOnView<BasicBlockNodeT, true, EFGT>;
+
 private:
   /// Storage for basic block nodes, associated to their original counterpart
   ///
@@ -80,6 +96,8 @@ private:
   bool ToInflate = true;
   llvm::DominatorTreeBase<BasicBlockNodeT, false> DT;
   llvm::DominatorTreeBase<BasicBlockNodeT, true> PDT;
+
+  FDomTree IFDT;
 
 public:
   RegionCFG() = default;
