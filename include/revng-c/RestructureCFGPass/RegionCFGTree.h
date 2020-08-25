@@ -98,6 +98,7 @@ private:
   llvm::DominatorTreeBase<BasicBlockNodeT, true> PDT;
 
   FDomTree IFDT;
+  FPostDomTree IFPDT;
 
 public:
   RegionCFG() = default;
