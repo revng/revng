@@ -65,6 +65,9 @@ public:
     // computation of the postdominator tree, since they can be emitted
     // completely as body of the `then`/`else` branches.
     bool Inlined = false;
+
+    // Spaceship operator for struct comparison.
+    auto operator<=>(const EdgeInfo &) const = default;
   };
   using node_edgeinfo_pair = std::pair<BasicBlockNodeT *, EdgeInfo>;
 

@@ -53,6 +53,32 @@ extractLabeledEdge(std::pair<BBNodeT *, BBNodeT *> Edge) {
   return Edge.first->extractSuccessorEdge(Edge.second);
 }
 
+template<class BBNodeT>
+inline void markEdgeInlined(std::pair<BBNodeT *, BBNodeT *> Edge) {
+
+  // TODO: Marking the edge as inlined by temporarily removing it from the graph
+  //       and re-inserting it could cause problems in reordering true/false
+  //       branches for conditional nodes. Consider adding a primitive for
+  //       getting a reference to the `EdgeInfo` struct of an edge without
+  //       having to remove it.
+
+  // Take care of the predecessor edge.
+  auto EdgePairBack = Edge.second->extractPredecessorEdge(Edge.first);
+  EdgePairBack.second.Inlined = true;
+
+  // Take care of the successor edge.
+  auto EdgePairForw = Edge.first->extractSuccessorEdge(Edge.second);
+  EdgePairForw.second.Inlined = true;
+
+  // Ensure that the forward and backward edgeinfos carry the same information.
+  // For this to work, we default the spaceship operator for having the equality
+  // between EdgeInfo structs.
+  revng_assert(EdgePairBack.second == EdgePairForw.second);
+
+  // Re-add the removed edge.
+  addEdge(Edge, EdgePairBack.second);
+}
+
 template<class NodeT>
 using Stack = std::vector<std::pair<BasicBlockNode<NodeT> *, size_t>>;
 
