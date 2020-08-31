@@ -851,6 +851,11 @@ inline void RegionCFG<NodeT>::untangle() {
       InlinedEdges.erase(EdgeDescriptor(Conditional, ToUntangle));
       InlinedEdges.insert(EdgeDescriptor(Conditional, UntangledChild));
 
+      // We mark the edge going into the `UntangleChild` as an inlined edge.
+      // In this way, in all the next phases, these edges will be ignored by the
+      // dominator and postdominator trees.
+      markEdgeInlined(EdgeDescriptor(Conditional, UntangledChild));
+
       // Remove nodes that have no predecessors (nodes that are the result of
       // node cloning and that remains dandling around).
       // While doing this, update InlineEdges.
