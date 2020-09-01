@@ -641,8 +641,6 @@ inline void RegionCFG<NodeT>::untangle() {
     WeightMap[Node] = Node->getWeight();
   }
 
-  std::set<EdgeDescriptor> InlinedEdges;
-
   // Collect all the conditional nodes in the graph into a vector sorted in
   // Reverse Post-Order.
   BasicBlockNodeTVect ConditionalNodes;
@@ -674,25 +672,10 @@ inline void RegionCFG<NodeT>::untangle() {
 
     // Update the information of the dominator and postdominator trees.
     DT.recalculate(Graph);
-
-    using EdgeInfo = typename BasicBlockNodeT::EdgeInfo;
-    llvm::SmallVector<EdgeInfo, 8> InlinedEdgesInfo;
-    for (EdgeDescriptor Edge : InlinedEdges) {
-      auto EdgeInfo = extractLabeledEdge(Edge).second;
-      InlinedEdgesInfo.push_back(EdgeInfo);
-    }
-
-    PDT.recalculate(Graph);
-
-    // Reattach the edges disconnected for the PDT computation.
-    revng_assert(InlinedEdges.size() == InlinedEdgesInfo.size());
-    for (const auto &[Edge, EdgeInfo] :
-         llvm::zip_first(InlinedEdges, InlinedEdgesInfo)) {
-      addEdge(Edge, EdgeInfo);
-    }
+    IFPDT.recalculate(Graph);
 
     // Update the postdominator
-    BasicBlockNodeT *PostDominator = PDT[Conditional]->getIDom()->getBlock();
+    BasicBlockNodeT *PostDominator = IFPDT[Conditional]->getIDom()->getBlock();
     revng_assert(PostDominator != nullptr);
 
     // Ensure that we have both the successors.
@@ -847,10 +830,6 @@ inline void RegionCFG<NodeT>::untangle() {
       // the node.
       moveEdgeTarget(EdgeDescriptor(Conditional, ToUntangle), UntangledChild);
 
-      // Updated the information about the inlining edge.
-      InlinedEdges.erase(EdgeDescriptor(Conditional, ToUntangle));
-      InlinedEdges.insert(EdgeDescriptor(Conditional, UntangledChild));
-
       // We mark the edge going into the `UntangleChild` as an inlined edge.
       // In this way, in all the next phases, these edges will be ignored by the
       // dominator and postdominator trees.
@@ -865,15 +844,6 @@ inline void RegionCFG<NodeT>::untangle() {
         BasicBlockNode<NodeT> *Entry = &getEntryNode();
         for (auto It = begin(); It != end(); ++It) {
           if ((Entry != *It and (*It)->predecessor_size() == 0)) {
-            // TODO: substitute the following loop with std::set::erase_if when
-            // it becomes available.
-            for (auto I = InlinedEdges.begin(), E = InlinedEdges.end();
-                 I != E;) {
-              if (I->first == *It or I->second == *It)
-                I = InlinedEdges.erase(I);
-              else
-                ++I;
-            }
             removeNode(*It);
             Removed = true;
             break;
