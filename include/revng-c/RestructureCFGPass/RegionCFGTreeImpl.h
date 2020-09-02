@@ -916,8 +916,6 @@ inline void RegionCFG<NodeT>::inflate() {
 
   // Refresh information of dominator and postdominator trees.
   DT.recalculate(Graph);
-  PDT.recalculate(Graph);
-  IFDT.recalculate(Graph);
   IFPDT.recalculate(Graph);
 
   // Map to hold, for each conditional node that initiates combing, the node
@@ -950,7 +948,7 @@ inline void RegionCFG<NodeT>::inflate() {
       // duplication.
       if (not disjoint(ThenExits, ElseExits)) {
         ConditionalNodesSet.insert(Node);
-        BasicBlockNode<NodeT> *PostDom = PDT[Node]->getIDom()->getBlock();
+        BasicBlockNode<NodeT> *PostDom = IFPDT[Node]->getIDom()->getBlock();
         revng_assert(PostDom != nullptr);
         bool New = ConditionalToCombEnd.insert({ Node, PostDom }).second;
         revng_assert(New);
@@ -983,7 +981,7 @@ inline void RegionCFG<NodeT>::inflate() {
                   "Blacklisted conditional: " << Node->getNameStr());
       } else {
         ConditionalNodesSet.insert(Node);
-        BasicBlockNode<NodeT> *PostDom = PDT[Node]->getIDom()->getBlock();
+        BasicBlockNode<NodeT> *PostDom = IFPDT[Node]->getIDom()->getBlock();
         revng_assert(PostDom != nullptr);
         bool New = ConditionalToCombEnd.insert({ Node, PostDom }).second;
         revng_assert(New);
@@ -1008,7 +1006,7 @@ inline void RegionCFG<NodeT>::inflate() {
       addPlainEdge(EdgeDescriptor(DummyCase, Case));
 
       ConditionalNodesSet.insert(DummyCase);
-      BasicBlockNode<NodeT> *PostDom = PDT[Switch]->getIDom()->getBlock();
+      BasicBlockNode<NodeT> *PostDom = IFPDT[Switch]->getIDom()->getBlock();
       revng_assert(PostDom != nullptr);
       // Combing of switch cases continues until the post dominator of the
       // switch, not until the post dominator of the case.
