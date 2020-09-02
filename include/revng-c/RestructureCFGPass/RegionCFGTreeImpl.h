@@ -979,6 +979,23 @@ inline void RegionCFG<NodeT>::inflate() {
       if (ThenIsDominated or ElseIsDominated) {
         revng_log(CombLogger,
                   "Blacklisted conditional: " << Node->getNameStr());
+
+        // Mark then or else edges as inlined during the conditional
+        // blacklisting. In case both the `then` and `else` branches are
+        // completely dominated, we mark both as inlineable.
+        BasicBlockNodeT *Then = Node->getSuccessorI(0);
+        BasicBlockNodeT *Else = Node->getSuccessorI(1);
+
+        if (ThenIsDominated and ElseIsDominated) {
+          markEdgeInlined(EdgeDescriptor(Node, Then));
+          markEdgeInlined(EdgeDescriptor(Node, Else));
+        } else if (ThenIsDominated) {
+          markEdgeInlined(EdgeDescriptor(Node, Then));
+        } else if (ElseIsDominated) {
+          markEdgeInlined(EdgeDescriptor(Node, Else));
+        } else {
+          revng_abort();
+        }
       } else {
         ConditionalNodesSet.insert(Node);
         BasicBlockNode<NodeT> *PostDom = IFPDT[Node]->getIDom()->getBlock();
