@@ -522,6 +522,11 @@ public:
   bool operator!=(const MetaAddress &Other) const {
     return not(*this == Other);
   }
+
+  bool operator<(const MetaAddress &Other) const { return tie() < Other.tie(); }
+  bool operator<=(const MetaAddress &Other) const { return tie() <= Other.tie(); }
+  bool operator>(const MetaAddress &Other) const { return tie() > Other.tie(); }
+  bool operator>=(const MetaAddress &Other) const { return tie() >= Other.tie(); }
   /// @}
 
   /// The std::less method is required since operator< does not define a strict
