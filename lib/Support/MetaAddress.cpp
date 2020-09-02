@@ -10,6 +10,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/raw_ostream.h"
 
 // Local libraries includes
 #include "revng/Support/MetaAddress.h"
@@ -106,6 +107,68 @@ MetaAddress MetaAddress::decomposeIntegerPC(ConstantInt *Value) {
   Result.Epoch = Upper & 0xFFFFFFFF;
   Result.AddressSpace = (Upper >> 32) & 0xFFFF;
   Result.Type = static_cast<MetaAddressType::Values>(Upper >> (32 + 16));
+  Result.validate();
+
+  return Result;
+}
+
+#define SEP ":"
+
+std::string MetaAddress::toString() const {
+  if (isInvalid())
+    return SEP "Invalid";
+
+  std::string Result;
+  {
+    raw_string_ostream Stream(Result);
+    Stream << "0x" << Twine::utohexstr(Address) << SEP
+           << MetaAddressType::toString(Type);
+    if (not isDefaultEpoch())
+      Stream << SEP << Epoch;
+    if (not isDefaultAddressSpace())
+      Stream << SEP << AddressSpace;
+  }
+
+  return Result;
+}
+
+MetaAddress MetaAddress::fromString(StringRef Text) {
+  if (Text == SEP "Invalid")
+    return MetaAddress::invalid();
+
+  MetaAddress Result;
+
+  SmallVector<StringRef, 4> Parts;
+  Text.split(Parts, SEP);
+
+  if (Parts.size() < 2 or Parts.size() > 4)
+    return MetaAddress::invalid();
+
+  bool Success;
+  uint64_t Value;
+
+  Success = Parts[0].getAsInteger(0, Result.Address);
+  if (not Success)
+    return MetaAddress::invalid();
+
+  Result.Type = MetaAddressType::fromString(Parts[1]);
+  if (Result.Type == MetaAddressType::Invalid)
+    return MetaAddress::invalid();
+
+  Result.Epoch = 0;
+  if (Parts.size() >= 3 and Parts[2].size() > 0) {
+    Success = Parts[2].getAsInteger(0, Result.Epoch);
+    if (not Success)
+      return MetaAddress::invalid();
+  }
+
+  Result.AddressSpace = 0;
+  if (Parts.size() == 4 and Parts[3].size() > 0) {
+    Success = Parts[3].getAsInteger(0, Result.AddressSpace);
+    if (not Success)
+      return MetaAddress::invalid();
+  }
+
   Result.validate();
 
   return Result;

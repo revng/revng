@@ -115,6 +115,34 @@ inline const char *toString(Values V) {
   revng_abort();
 }
 
+inline Values fromString(llvm::StringRef String) {
+  if (String == "Generic32") {
+    return Generic32;
+  } else if (String == "Generic64") {
+    return Generic64;
+  } else if (String == "Code_x86") {
+    return Code_x86;
+  } else if (String == "Code_x86_64") {
+    return Code_x86_64;
+  } else if (String == "Code_mips") {
+    return Code_mips;
+  } else if (String == "Code_mipsel") {
+    return Code_mipsel;
+  } else if (String == "Code_arm") {
+    return Code_arm;
+  } else if (String == "Code_arm_thumb") {
+    return Code_arm_thumb;
+  } else if (String == "Code_aarch64") {
+    return Code_aarch64;
+  } else if (String == "Code_systemz") {
+    return Code_systemz;
+  } else {
+    return Invalid;
+  }
+
+  revng_abort();
+}
+
 inline const llvm::Optional<llvm::Triple::ArchType> arch(Values V) {
   switch (V) {
   case Code_x86:
@@ -800,6 +828,10 @@ private:
     }
   }
 
+public:
+  std::string toString() const;
+  static MetaAddress fromString(llvm::StringRef Text);
+  
 private:
   using Tied = std::tuple<uint32_t, uint16_t, uint16_t, uint64_t>;
   Tied tie() const { return std::tie(Epoch, AddressSpace, Type, Address); }
