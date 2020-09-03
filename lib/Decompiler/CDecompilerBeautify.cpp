@@ -321,24 +321,24 @@ simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
   }
 }
 
-static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
+static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
 
   // Inspect all the nodes composing a sequence node.
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *&Node : Sequence->nodes()) {
-      Node = matchSwitch(AST, Node, Mark);
+      Node = matchSwitch(AST, Node);
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     // Inspect the body of a SCS region.
-    Scs->setBody(matchSwitch(AST, Scs->getBody(), Mark));
+    Scs->setBody(matchSwitch(AST, Scs->getBody()));
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
 
     // Inspect the body of an if construct.
     if (If->hasThen()) {
-      If->setThen(matchSwitch(AST, If->getThen(), Mark));
+      If->setThen(matchSwitch(AST, If->getThen()));
     }
     if (If->hasElse()) {
-      If->setElse(matchSwitch(AST, If->getElse(), Mark));
+      If->setElse(matchSwitch(AST, If->getElse()));
     }
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
     // TODO: in the current situation, we should not find any switch node
@@ -346,10 +346,10 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
     //       consider removing it altogether.
     // revng_assert(Switch->CaseSize() >= 2);
     for (auto &LabelCasePair : Switch->cases())
-      LabelCasePair.second = matchSwitch(AST, LabelCasePair.second, Mark);
+      LabelCasePair.second = matchSwitch(AST, LabelCasePair.second);
 
     if (ASTNode *Default = Switch->getDefault())
-      Default = matchSwitch(AST, Default, Mark);
+      Default = matchSwitch(AST, Default);
   }
   return RootNode;
 }
@@ -699,7 +699,7 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
 
   // Match switch node.
   revng_log(BeautifyLogger, "Performing switch nodes matching\n");
-  RootNode = matchSwitch(CombedAST, RootNode, Mark);
+  RootNode = matchSwitch(CombedAST, RootNode);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName(), "ast", "After-switch-match");
   }
