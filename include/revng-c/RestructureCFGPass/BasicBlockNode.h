@@ -50,8 +50,20 @@ public:
   // RegionCFG.
   using EdgeDescriptor = std::pair<BasicBlockNodeT *, BasicBlockNodeT *>;
   using edge_label_t = llvm::SmallSet<uint64_t, 1>;
+
+  // The `EdgeInfo` struct is devoted to contain additional info for the edges,
+  // that may come handy during the control flow processing.
   struct EdgeInfo {
+
+    // In this field, the labels associated to an edge are stored.
     edge_label_t Labels;
+
+    // This field of the struct represent the fact that on this edge, we have an
+    // inlinable path. This means that, the edge dominates all nodes reachable
+    // from the edge on all the possible paths going towards all the exit nodes
+    // reachable from the edge. Therefore, this edges can be excluded from the
+    // computation of the postdominator tree, since they can be emitted
+    // completely as body of the `then`/`else` branches.
     bool Inlined = false;
   };
   using node_edgeinfo_pair = std::pair<BasicBlockNodeT *, EdgeInfo>;
