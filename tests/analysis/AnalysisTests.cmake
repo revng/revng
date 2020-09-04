@@ -40,7 +40,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   if("${CATEGORY}" MATCHES "^tests_analysis.*" AND NOT "${CONFIGURATION}" STREQUAL "aarch64")
     category_to_path("${CATEGORY_PATH}" CATEGORY_PATH)
     set(COMMAND_TO_RUN "${CMAKE_CURRENT_BINARY_DIR}/bin/revng" lift --use-debug-symbols -g ll ${INPUT_FILE} "${OUTPUT}")
-    set(DEPEND_ON revng-lift)
+    set(DEPEND_ON revng-all-binaries)
 
     foreach(ANALYSIS ${ANALYSES})
       set(ANALYSIS_OUTPUT "${OUTPUT}${ANALYSIS_SUFFIX_${ANALYSIS}}")
