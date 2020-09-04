@@ -21,8 +21,8 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
-// Local libraries includes
-#include "revng-c/RestructureCFGPass/ReachabilityPass.h"
+// Local includes
+#include "ReachabilityPass.h"
 
 using namespace llvm;
 

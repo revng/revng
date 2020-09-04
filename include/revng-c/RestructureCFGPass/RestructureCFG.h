@@ -14,9 +14,6 @@
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
 
-// Local includes
-#include "ReachabilityPass.h"
-
 // Forward declarations
 class ASTTree;
 

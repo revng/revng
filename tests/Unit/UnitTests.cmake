@@ -9,6 +9,11 @@ set(SRC "${CMAKE_SOURCE_DIR}/tests/Unit")
 find_package(Boost REQUIRED COMPONENTS unit_test_framework)
 
 #
+# reachability_library
+#
+include(${SRC}/Reachability/Reachability.cmake)
+
+#
 # test_reachabilitypass
 #
 
@@ -19,7 +24,7 @@ target_include_directories(test_reachabilitypass
 target_compile_definitions(test_reachabilitypass
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_reachabilitypass
-  ReachabilityTest
+  Reachability
   revng::revngSupport
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})

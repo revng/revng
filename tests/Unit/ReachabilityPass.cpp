@@ -21,7 +21,7 @@ bool init_unit_test();
 #include "revng/Support/Debug.h"
 
 // Local libraries includes
-#include "revng-c/RestructureCFGPass/ReachabilityPass.h"
+#include "Reachability/ReachabilityPass.h"
 
 using namespace llvm;
 

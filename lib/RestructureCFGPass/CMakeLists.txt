@@ -12,9 +12,3 @@ target_link_libraries(RestructureCFGPass
                       TargetFunctionOption
                       revng::revngSupport
                       ${LLVM_LIBRARIES})
-
-add_library(ReachabilityTest
-  STATIC
-  ReachabilityPass.cpp)
-target_link_libraries(ReachabilityTest
-  ${LLVM_LIBRARIES})
