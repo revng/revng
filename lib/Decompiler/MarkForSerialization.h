@@ -34,7 +34,7 @@ protected:
   std::set<llvm::Instruction *> ToSerialize;
   std::vector<std::set<llvm::Instruction *>> ToSerializeInBB;
   std::map<llvm::BasicBlock *, size_t> BBToIdMap;
-  DuplicationMap &NDuplicates;
+  const DuplicationMap &NDuplicates;
 
 public:
   using Base = MonotoneFramework<Analysis,
@@ -48,7 +48,7 @@ public:
     revng_assert(A.lowerThanOrEqual(B));
   }
 
-  Analysis(llvm::Function &F, DuplicationMap &NDuplicates) :
+  Analysis(llvm::Function &F, const DuplicationMap &NDuplicates) :
     Base(&F.getEntryBlock()),
     F(F),
     ToSerialize(),
