@@ -354,10 +354,11 @@ public:
       switch(Value) {{
 """.format(tf))
     for edge in transfer_functions[tf]:
+      source, destination = edge
       out += ("""      case {}:
         Value = {};
         break;
-""".format(edge[0].name, edge[1].name))
+""".format(source, destination))
     out += ("""      default:
         break;
       }
@@ -379,10 +380,11 @@ public:
       switch(Value) {{
 """.format(tf))
     for edge in transfer_functions[tf]:
+      source, destination = edge
       out += ("""      case {}:
         Value = {};
         break;
-""".format(edge[0].name, edge[1].name))
+""".format(source, destination))
     out += ("""      default:
         break;
       }
