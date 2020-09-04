@@ -37,6 +37,12 @@ using IFI = IsolateFunctionsImpl;
 char IF::ID = 0;
 static RegisterPass<IF> X("isolate", "Isolate Functions Pass", true, true);
 
+cl::opt<bool> DisableSafetyChecks("isolate-no-safety-checks",
+                                  cl::desc("Disable safety checks in function "
+                                           "isolation"),
+                                  cl::cat(MainCategory),
+                                  cl::init(false));
+
 class IsolateFunctionsImpl {
 private:
   struct IsolatedFunctionDescriptor {
@@ -322,19 +328,24 @@ bool IFI::replaceFunctionCall(BasicBlock *NewBB,
   if (FallthroughOldIt != RootToIsolated.end()) {
     BasicBlock *FallthroughNew = cast<BasicBlock>(FallthroughOldIt->second);
 
-    // Additional check for the return address PC
-    LoadInst *ProgramCounter = Builder.CreateLoad(PC, "");
-    Value *Result = Builder.CreateICmpEQ(ProgramCounter, ReturnPCCI);
+    if (DisableSafetyChecks) {
+      // Assume no bad return PCs
+      Builder.CreateBr(FallthroughNew);
+    } else {
+      // Additional check for the return address PC
+      LoadInst *ProgramCounter = Builder.CreateLoad(PC, "");
+      Value *Result = Builder.CreateICmpEQ(ProgramCounter, ReturnPCCI);
 
-    // Create a basic block that we hit if the current PC is not the one
-    // expected after the function call
-    auto *PCMismatch = BasicBlock::Create(Context,
-                                          NewBB->getName() + "_bad_return_pc",
-                                          NewBB->getParent());
-    throwException(BadReturnAddress, PCMismatch, ReturnPC);
+      // Create a basic block that we hit if the current PC is not the one
+      // expected after the function call
+      auto *PCMismatch = BasicBlock::Create(Context,
+                                            NewBB->getName() + "_bad_return_pc",
+                                            NewBB->getParent());
+      throwException(BadReturnAddress, PCMismatch, ReturnPC);
 
-    // Conditional branch to jump to the right block
-    Builder.CreateCondBr(Result, FallthroughNew, PCMismatch);
+      // Conditional branch to jump to the right block
+      Builder.CreateCondBr(Result, FallthroughNew, PCMismatch);
+    }
   } else {
 
     // If the fallthrough basic block is not in the current function raise an
