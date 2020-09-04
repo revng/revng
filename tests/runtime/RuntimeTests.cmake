@@ -27,3 +27,38 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   endif()
 endmacro()
 register_derived_artifact("compiled;compiled-run" "translated" "" "FILE")
+
+macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
+  set(INPUT_FILE "${INPUT_FILE}")
+  list(GET INPUT_FILE 0 COMPILED_INPUT)
+  list(GET INPUT_FILE 1 COMPILED_RUN_INPUT)
+
+  if("${CATEGORY}" STREQUAL "tests_runtime" AND NOT "${CONFIGURATION}" STREQUAL "static_native")
+    set(COMMAND_TO_RUN
+      "${CMAKE_CURRENT_BINARY_DIR}/bin/revng"
+      lift
+      --use-debug-symbols
+      -g ll
+      ${COMPILED_INPUT}
+      "${OUTPUT}")
+    set(DEPEND_ON revng-all-binaries)
+  endif()
+endmacro()
+register_derived_artifact("compiled;compiled-run" "lifted" ".ll" "FILE")
+
+macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
+  if("${CATEGORY}" STREQUAL "tests_runtime" AND NOT "${CONFIGURATION}" STREQUAL "static_native")
+    set(COMMAND_TO_RUN
+      "${CMAKE_CURRENT_BINARY_DIR}/bin/revng"
+      opt
+      -S
+      "${INPUT_FILE}"
+      --detect-abi
+      --isolate-no-safety-checks
+      --isolate
+      --enforce-abi
+      -o "${OUTPUT}")
+    set(DEPEND_ON revng-all-binaries)
+  endif()
+endmacro()
+register_derived_artifact("lifted" "abi-enforced-for-decompilation" ".ll" "FILE")

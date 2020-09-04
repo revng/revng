@@ -64,6 +64,22 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
 endmacro()
 register_derived_artifact("compiled" "lifted" ".ll" "FILE")
 
+macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
+  if("${CATEGORY}" MATCHES "^tests_analysis.*" AND NOT "${CONFIGURATION}" STREQUAL "aarch64")
+    set(COMMAND_TO_RUN
+      "${CMAKE_CURRENT_BINARY_DIR}/bin/revng"
+      opt
+      -S
+      "${INPUT_FILE}"
+      --detect-abi
+      --isolate
+      --enforce-abi
+      -o "${OUTPUT}")
+    set(DEPEND_ON revng-all-binaries)
+  endif()
+endmacro()
+register_derived_artifact("lifted" "abi-enforced-for-decompilation" ".ll" "FILE")
+
 # Ensure all the reference files have been used
 foreach(ANALYSIS ${ANALYSES})
   file(GLOB_RECURSE REFERENCE_FILES LIST_DIRECTORIES false "${CMAKE_SOURCE_DIR}/tests/analysis/**/*${ANALYSIS_SUFFIX_${ANALYSIS}}")
