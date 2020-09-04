@@ -722,7 +722,7 @@ public:
                       BBPHIMap &BlockToPHIIncoming,
                       const dla::ValueLayoutMap *VL,
                       std::unique_ptr<llvm::raw_ostream> Out,
-                      DuplicationMap &NDuplicates) :
+                      const DuplicationMap &NDuplicates) :
     TheF(F),
     CombedAST(CombedAST),
     Out(std::move(Out)),
@@ -738,7 +738,7 @@ private:
   std::unique_ptr<llvm::raw_ostream> Out;
   BBPHIMap &BlockToPHIIncoming;
   const dla::ValueLayoutMap *ValueLayouts;
-  DuplicationMap &NDuplicates;
+  const DuplicationMap &NDuplicates;
 };
 
 void Decompiler::HandleTranslationUnit(ASTContext &Context) {
