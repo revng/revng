@@ -943,17 +943,12 @@ inline void RegionCFG<NodeT>::inflate() {
       BasicBlockNodeTSet ThenExits = ReachableExits.at(Node->getSuccessorI(0));
       BasicBlockNodeTSet ElseExits = ReachableExits.at(Node->getSuccessorI(1));
 
-      // If the exit nodes reachable from the Then and from the Else are not
-      // disjoint, then we add Node to ConditionalNodesSet because it can induce
-      // duplication.
-      if (not disjoint(ThenExits, ElseExits)) {
-        ConditionalNodesSet.insert(Node);
-        BasicBlockNode<NodeT> *PostDom = IFPDT[Node]->getIDom()->getBlock();
-        revng_assert(PostDom != nullptr);
-        bool New = ConditionalToCombEnd.insert({ Node, PostDom }).second;
-        revng_assert(New);
-        break;
-      }
+      // Add the conditional node to the set of nodes processed by the inflate.
+      ConditionalNodesSet.insert(Node);
+      BasicBlockNode<NodeT> *PostDom = IFPDT[Node]->getIDom()->getBlock();
+      revng_assert(PostDom != nullptr);
+      bool New = ConditionalToCombEnd.insert({ Node, PostDom }).second;
+      revng_assert(New);
 
       // Check that we do not dominate at maximum on of the two sets of
       // reachable exits.
@@ -986,6 +981,11 @@ inline void RegionCFG<NodeT>::inflate() {
         BasicBlockNodeT *Then = Node->getSuccessorI(0);
         BasicBlockNodeT *Else = Node->getSuccessorI(1);
 
+        // TODO: Verify that, for nodes where the inling is applied to both the
+        //       branches, the immediate post-dominator on the filtered postdom
+        //       is the conditional node itself. Verify also that, if this is
+        //       the situation, the inflating procedure does not go in a loop
+        //       (it should stop immediately if conditional == postdom).
         if (ThenIsDominated and ElseIsDominated) {
           markEdgeInlined(EdgeDescriptor(Node, Then));
           markEdgeInlined(EdgeDescriptor(Node, Else));
@@ -996,27 +996,6 @@ inline void RegionCFG<NodeT>::inflate() {
         } else {
           revng_abort();
         }
-
-        // Even in this situation, we can nonetheless add the conditional node
-        // to the `ConditionalNodeSet`, since the immediate post dominator will
-        // become one of its successors.
-        ConditionalNodesSet.insert(Node);
-        BasicBlockNode<NodeT> *PostDom = IFPDT[Node]->getIDom()->getBlock();
-
-        // TODO: Verify that, for nodes where the inling is applied to both the
-        //       branches, the immediate post-dominator on the filtered postdom
-        //       is the conditional node itself. Verify also that, if this is
-        //       the situation, the inflating procedure does not go in a loop
-        //       (it should stop immediately if conditional == postdom).
-        revng_assert(PostDom != nullptr);
-        bool New = ConditionalToCombEnd.insert({ Node, PostDom }).second;
-        revng_assert(New);
-      } else {
-        ConditionalNodesSet.insert(Node);
-        BasicBlockNode<NodeT> *PostDom = IFPDT[Node]->getIDom()->getBlock();
-        revng_assert(PostDom != nullptr);
-        bool New = ConditionalToCombEnd.insert({ Node, PostDom }).second;
-        revng_assert(New);
       }
     } break;
 
