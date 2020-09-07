@@ -10,6 +10,7 @@
 #include "clang/Frontend/FrontendAction.h"
 
 #include "revng-c/Decompiler/DLALayouts.h"
+#include "revng-c/Decompiler/MarkForSerialization.h"
 
 #include "CDecompilerBeautify.h"
 
@@ -26,21 +27,21 @@ class CDecompilerAction : public ASTFrontendAction {
 private:
   using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
   using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
-  using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
+  using DuplicationMap = std::map<const llvm::BasicBlock *, size_t>;
 
 public:
   CDecompilerAction(llvm::Function &F,
                     ASTTree &CombedAST,
                     BBPHIMap &BlockToPHIIncoming,
                     const dla::ValueLayoutMap *LM,
-                    std::unique_ptr<llvm::raw_ostream> O,
-                    DuplicationMap &NDuplicates) :
+                    const SerializationMap &M,
+                    std::unique_ptr<llvm::raw_ostream> O) :
     F(F),
     CombedAST(CombedAST),
     BlockToPHIIncoming(BlockToPHIIncoming),
     LayoutMap(LM),
-    O(std::move(O)),
-    NDuplicates(NDuplicates) {}
+    Mark(M),
+    O(std::move(O)) {}
 
 public:
   std::unique_ptr<ASTConsumer> newASTConsumer();
@@ -53,8 +54,8 @@ private:
   ASTTree &CombedAST;
   BBPHIMap &BlockToPHIIncoming;
   const dla::ValueLayoutMap *LayoutMap;
+  const SerializationMap &Mark;
   std::unique_ptr<llvm::raw_ostream> O;
-  DuplicationMap &NDuplicates;
 };
 
 } // end namespace tooling

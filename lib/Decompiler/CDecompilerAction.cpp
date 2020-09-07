@@ -3,7 +3,6 @@
 //
 
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 
 #include "clang/AST/Decl.h"
@@ -13,6 +12,7 @@
 
 #include "revng/Support/Assert.h"
 
+#include "revng-c/Decompiler/MarkForSerialization.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
@@ -22,7 +22,6 @@
 #include "ASTBuildAnalysis.h"
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
-#include "MarkForSerialization.h"
 
 namespace clang {
 namespace tooling {
@@ -34,14 +33,14 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
                                ASTNode *N,
                                clang::ASTContext &ASTCtx,
                                IR2AST::StmtBuilder &ASTBuilder,
-                               MarkForSerialization::Analysis &Mark);
+                               const SerializationMap &Mark);
 
 static clang::CompoundStmt *
 buildCompoundScope(clang::FunctionDecl &FDecl,
                    ASTNode *N,
                    clang::ASTContext &ASTCtx,
                    IR2AST::StmtBuilder &ASTBuilder,
-                   MarkForSerialization::Analysis &Mark,
+                   const SerializationMap &Mark,
                    SmallVector<clang::Stmt *, 32> AdditionalStmts = {}) {
   SmallVector<clang::Stmt *, 32> Stmts;
   buildAndAppendSmts(FDecl, Stmts, N, ASTCtx, ASTBuilder, Mark);
@@ -84,15 +83,17 @@ static void buildStmtsForBasicBlock(llvm::BasicBlock *BB,
                                     clang::ASTContext &ASTCtx,
                                     SmallVectorImpl<clang::Stmt *> &Stmts,
                                     IR2AST::StmtBuilder &ASTBuilder,
-                                    MarkForSerialization::Analysis &Mark) {
+                                    const SerializationMap &Mark) {
   revng_assert(BB != nullptr);
   auto StmtEnd = ASTBuilder.InstrStmts.end();
   auto VDeclEnd = ASTBuilder.VarDecls.end();
   auto AdditionalStmtsEnd = ASTBuilder.AdditionalStmts.end();
-  const std::set<llvm::Instruction *> &Serialized = Mark.getToSerialize(BB);
   for (llvm::Instruction &Instr : *BB) {
 
-    if (Serialized.count(&Instr) == 0)
+    // Skip instructions that do not need to be serialized.
+    if (auto MarkIt = Mark.find(&Instr);
+        MarkIt == Mark.end()
+        or not SerializationFlags::mustBeSerialized(MarkIt->second))
       continue;
 
     auto StmtIt = ASTBuilder.InstrStmts.find(&Instr);
@@ -168,7 +169,7 @@ static clang::Expr *createCondExpr(ExprNode *E,
                                    clang::ASTContext &ASTCtx,
                                    SmallVectorImpl<clang::Stmt *> &Stmts,
                                    IR2AST::StmtBuilder &ASTBuilder,
-                                   MarkForSerialization::Analysis &Mark) {
+                                   const SerializationMap &Mark) {
   struct StackElement {
     ExprNode *Node;
     llvm::SmallVector<clang::Expr *, 2> ResolvedOperands;
@@ -257,7 +258,7 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
                                ASTNode *N,
                                clang::ASTContext &ASTCtx,
                                IR2AST::StmtBuilder &ASTBuilder,
-                               MarkForSerialization::Analysis &Mark) {
+                               const SerializationMap &Mark) {
   if (N == nullptr)
     return;
 
@@ -641,7 +642,7 @@ static void buildFunctionBody(llvm::Function *F,
                               clang::FunctionDecl *FDecl,
                               ASTTree &CombedAST,
                               IR2AST::StmtBuilder &ASTBuilder,
-                              MarkForSerialization::Analysis &Mark) {
+                              const SerializationMap &Mark) {
   ASTContext &ASTCtx = FDecl->getASTContext();
 
   // Check that the function we are attempting to decompile is not a variadic
@@ -657,12 +658,27 @@ static void buildFunctionBody(llvm::Function *F,
                      Mark);
 
   SmallVector<clang::Decl *, 16> LocalVarDecls;
+  // Allocas always go at the beginning of the function body.
   for (auto &DeclPair : ASTBuilder.AllocaDecls)
     LocalVarDecls.push_back(DeclPair.second);
+
+  // Other VAriable declarations are emitted int the entry block for now.
+  // In the future, we should emit local variable declarations
+  // as-late-as-possible, right before they are assigned.
   for (auto &DeclPair : ASTBuilder.VarDecls)
     LocalVarDecls.push_back(DeclPair.second);
+
+  // If we have a loop state variable, declare it in the entry block.
+  // For now all the loops share the same state variable.
+  // In the future we might decide that we want a separate loop state variable
+  // for each loop, but this is not strictly necessary.
   if (clang::VarDecl *V = ASTBuilder.getLoopStateVarDecl())
     LocalVarDecls.push_back(V);
+
+  // If we have a switch state variable, declare it in the entry block
+  // For now all the switches share the same state variable.
+  // In the future we might decide that we want a separate switch state variable
+  // for each switch, but this is not strictly necessary.
   if (clang::VarDecl *V = ASTBuilder.getSwitchStateVarDecl())
     LocalVarDecls.push_back(V);
 
@@ -714,21 +730,21 @@ class Decompiler : public ASTConsumer {
 
 private:
   using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
-  using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
+  using DuplicationMap = std::map<const llvm::BasicBlock *, size_t>;
 
 public:
   explicit Decompiler(llvm::Function &F,
                       ASTTree &CombedAST,
                       BBPHIMap &BlockToPHIIncoming,
                       const dla::ValueLayoutMap *VL,
-                      std::unique_ptr<llvm::raw_ostream> Out,
-                      const DuplicationMap &NDuplicates) :
+                      const SerializationMap &M,
+                      std::unique_ptr<llvm::raw_ostream> Out) :
     TheF(F),
     CombedAST(CombedAST),
     Out(std::move(Out)),
     BlockToPHIIncoming(BlockToPHIIncoming),
     ValueLayouts(VL),
-    NDuplicates(NDuplicates) {}
+    Mark(M) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override;
 
@@ -738,28 +754,18 @@ private:
   std::unique_ptr<llvm::raw_ostream> Out;
   BBPHIMap &BlockToPHIIncoming;
   const dla::ValueLayoutMap *ValueLayouts;
-  const DuplicationMap &NDuplicates;
+  const SerializationMap &Mark;
 };
 
 void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   revng_assert(not TheF.isDeclaration());
   revng_assert(TheF.getMetadata("revng.func.entry"));
 
-  revng_assert(not TheF.isDeclaration());
-  revng_assert(TheF.getMetadata("revng.func.entry"));
-
-  MarkForSerialization::Analysis Mark(TheF, NDuplicates);
-  Mark.initialize();
-  Mark.run();
-
   beautifyAST(TheF, CombedAST, Mark);
 
   DeclCreator Declarator(ValueLayouts);
 
-  IR2AST::StmtBuilder ASTBuilder(Mark.getToSerialize(),
-                                 Context,
-                                 BlockToPHIIncoming,
-                                 Declarator);
+  IR2AST::StmtBuilder ASTBuilder(Mark, Context, BlockToPHIIncoming, Declarator);
 
   Declarator.createTypeDeclsForFunctionPrototype(Context, &TheF);
   Declarator.createGlobalVarDeclUsedByFunction(Context, &TheF, ASTBuilder);
@@ -847,8 +853,8 @@ std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
                                       CombedAST,
                                       BlockToPHIIncoming,
                                       LayoutMap,
-                                      std::move(O),
-                                      NDuplicates);
+                                      Mark,
+                                      std::move(O));
 }
 
 std::unique_ptr<ASTConsumer>

@@ -377,6 +377,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
   }
 
   Region.inflate();
+
   if (CombLogger.isEnabled()) {
     Region.dumpCFGOnFile(FunctionName, "dots", "Postcomb-" + RegionName);
   }

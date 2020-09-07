@@ -24,7 +24,7 @@ target_compile_definitions(test_reachabilitypass
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_reachabilitypass
   PRIVATE "${CMAKE_SOURCE_DIR}"
-          "${Boost_INCLUDE_DIRS}")
+  "${Boost_INCLUDE_DIRS}")
 target_link_libraries(test_reachabilitypass
   Reachability
   revng::revngSupport
@@ -41,7 +41,7 @@ target_compile_definitions(test_combingpass
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_combingpass
   PRIVATE "${CMAKE_SOURCE_DIR}"
-          "${Boost_INCLUDE_DIRS}")
+  "${Boost_INCLUDE_DIRS}")
 target_link_libraries(test_combingpass
   RestructureCFGPass
   revng::revngSupport
@@ -84,7 +84,7 @@ target_compile_definitions(dla_step_manager
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(dla_step_manager
   PRIVATE "${CMAKE_SOURCE_DIR}"
-          "${Boost_INCLUDE_DIRS}")
+  "${Boost_INCLUDE_DIRS}")
 target_link_libraries(dla_step_manager
   Decompiler
   clangSerialization
@@ -93,3 +93,23 @@ target_link_libraries(dla_step_manager
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
 add_test(NAME dla_step_manager COMMAND ./bin/dla_step_manager)
+
+#
+# MarkForSerializationTest
+#
+
+revng_add_private_executable(MarkForSerializationTest
+  "${SRC}/MarkForSerializationTest.cpp")
+target_compile_definitions(MarkForSerializationTest
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(MarkForSerializationTest
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+  "${Boost_INCLUDE_DIRS}")
+target_link_libraries(MarkForSerializationTest
+  Decompiler
+  clangSerialization
+  revng::revngSupport
+  revng::revngUnitTestHelpers
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME MarkForSerializationTest COMMAND ./bin/MarkForSerializationTest)

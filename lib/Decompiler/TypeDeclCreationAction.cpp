@@ -34,11 +34,10 @@ DeclCreator::getOrCreateQualTypeFromLayout(const dla::Layout *L,
 
   QualType Result = ClangCtx.VoidTy;
 
-  // FIXME: here, build the type decl for the C type associated to
-  // layout.
   using LayoutKind = dla::Layout::LayoutKind;
   revng_assert(L->size());
 
+  // Build the type decl for the C type associated to layout.
   switch (L->getKind()) {
 
   case LayoutKind::Padding: {

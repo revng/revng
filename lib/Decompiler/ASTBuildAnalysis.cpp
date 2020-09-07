@@ -88,12 +88,12 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     }
   }
   case Instruction::Ret: {
-    // FIXME: handle returned values properly
     ReturnInst *Ret = cast<ReturnInst>(&I);
     Value *RetVal = Ret->getReturnValue();
 
-    // HACK: handle return instructions containing a `ConstantStruct` by
-    //       emitting a `return void`
+    // TODO: for now we handle return instructions containing a `ConstantStruct`
+    // by emitting a `return void`. This should eventually be fixed, properly
+    // handling structs (both constants and not).
     if (RetVal && isa<ConstantStruct>(RetVal)) {
       return ReturnStmt::Create(ASTCtx, {}, nullptr, nullptr);
     }
@@ -191,6 +191,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
   // ---- Memory instructions ----
   //
   case Instruction::Alloca: {
+    revng_assert(I.getParent() == &I.getFunction()->getEntryBlock());
     VarDecl *ArrayDecl = AllocaDecls.at(cast<AllocaInst>(&I));
     QualType ArrayTy = ArrayDecl->getType();
     // Create an Expr for the address of the first element of the array.
@@ -460,11 +461,11 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                           OK_Ordinary,
                                           NOUR_None);
     clang::Expr *RHS = getExprForValue(Insert->getInsertedValueOperand());
-    BinaryOperatorKind BinOpKind = BinaryOperatorKind::BO_Assign;
+    BinaryOperatorKind AssignOpKind = BinaryOperatorKind::BO_Assign;
     AdditionalStmts[&I].push_back(new (ASTCtx)
                                     clang::BinaryOperator(LHS,
                                                           RHS,
-                                                          BinOpKind,
+                                                          AssignOpKind,
                                                           LHS->getType(),
                                                           VK_RValue,
                                                           OK_Ordinary,
@@ -612,9 +613,7 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
     for (Instruction &I : *BB) {
       // We don't build clang's AST expressions for PHINodes nor for
       // BranchInsts and SwitchInsts.
-      // PHINodes are not expanded into expressions because they expand in a
-      // local variable, that is assigned multiple times for all the incoming
-      // Values of the PHINode.
+
       // For BranchInsts, we don't create AST right now, because the emission of
       // control flow statements in C is driven by the ASTTree
       if (isa<BranchInst>(&I))
@@ -625,6 +624,9 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
       if (isa<SwitchInst>(&I))
         continue;
 
+      // PHINodes are not expanded into expressions because they expand in a
+      // local variable, that is assigned multiple times for all the incoming
+      // Values of the PHINode.
       // Each PHINode has an associated VarDecl
       if (isa<PHINode>(&I)) {
         revng_assert(VarDecls.count(&I) == 0);
@@ -633,86 +635,96 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
         continue;
       }
 
-      if (isa<AllocaInst>(&I)) {
-        // TODO: for now we ignore the alignment of the alloca. This might turn
-        // out not to be safe later, because it does not take into account the
-        // alignment of future accesses in the `Alloca`ted space. If the code is
-        // then recompiled for an architecture that does not support unaligned
-        // access this may cause crashes.
-        AllocaInst *Alloca = cast<AllocaInst>(&I);
-        revng_assert(Alloca->isStaticAlloca());
-        // First, create a VarDecl, for an array of char to place in the
-        // BasicBlock where the AllocaInst is
-        const DataLayout &DL = F.getParent()->getDataLayout();
-        auto *AllocatedTy = Alloca->getAllocatedType();
-        uint64_t AllocaSize = DL.getTypeAllocSize(AllocatedTy);
+      // Declare a special local variable for those instructions that need it to
+      // build the expression.
+      // Examples are AllocaInst and InsertValueInst.
+      auto ToSerializeIt = ToSerialize.find(&I);
+      auto ToSerializeEnd = ToSerialize.end();
+      if (ToSerializeIt != ToSerializeEnd
+          and ToSerializeIt->second.isSet(NeedsLocalVarToComputeExpr)) {
+        if (auto *Alloca = dyn_cast<AllocaInst>(&I)) {
+          // TODO: for now we ignore the alignment of the alloca. This might
+          // turn out not to be safe later, because it does not take into
+          // account the alignment of future accesses in the `Alloca`ted space.
+          // If the code is then recompiled for an architecture that does not
+          // support unaligned access this may cause crashes.
+          revng_assert(Alloca->isStaticAlloca());
+          // First, create a VarDecl, for an array of char to place in the
+          // BasicBlock where the AllocaInst is
+          const DataLayout &DL = F.getParent()->getDataLayout();
+          uint64_t AllocaSize = *Alloca->getAllocationSizeInBits(DL);
+          revng_assert(AllocaSize <= std::numeric_limits<unsigned>::max());
+          APInt ArraySize = APInt(32, static_cast<unsigned>(AllocaSize));
+          using ArraySizeMod = clang::ArrayType::ArraySizeModifier;
+          ArraySizeMod SizeMod = ArraySizeMod::Normal;
+          QualType CharTy = ASTCtx.CharTy;
+          QualType ArrayTy = ASTCtx.getConstantArrayType(CharTy,
+                                                         ArraySize,
+                                                         nullptr,
+                                                         SizeMod,
+                                                         0);
+          const std::string VarName = "var_" + std::to_string(NVar++);
+          IdentifierInfo &Id = ASTCtx.Idents.get(VarName);
+          VarDecl *ArrayDecl = VarDecl::Create(ASTCtx,
+                                               &FDecl,
+                                               {},
+                                               {},
+                                               &Id,
+                                               ArrayTy,
+                                               nullptr,
+                                               StorageClass::SC_None);
+          FDecl.addDecl(ArrayDecl);
+          AllocaDecls[Alloca] = ArrayDecl;
+        } else if (auto *Insert = dyn_cast<InsertValueInst>(&I)) {
+          revng_assert(VarDecls.count(Insert) == 0);
+          VarDecl *NewVarDecl = createVarDecl(Insert, FDecl);
+          VarDecls[Insert] = NewVarDecl;
 
-        revng_assert(AllocaSize <= std::numeric_limits<unsigned>::max());
-        APInt ArraySize = APInt(32, static_cast<unsigned>(AllocaSize));
-        using ArraySizeMod = clang::ArrayType::ArraySizeModifier;
-        ArraySizeMod SizeMod = ArraySizeMod::Normal;
-        QualType CharTy = ASTCtx.CharTy;
-        QualType ArrayTy = ASTCtx.getConstantArrayType(CharTy,
-                                                       ArraySize,
-                                                       nullptr,
-                                                       SizeMod,
-                                                       0);
-        const std::string VarName = std::string("local_")
-                                    + (I.hasName() ?
-                                         I.getName().str() :
-                                         (std::string("var_")
-                                          + std::to_string(NVar++)));
-        IdentifierInfo &Id = ASTCtx.Idents.get(makeCIdentifier(VarName));
-        VarDecl *ArrayDecl = VarDecl::Create(ASTCtx,
-                                             &FDecl,
-                                             {},
-                                             {},
-                                             &Id,
-                                             ArrayTy,
-                                             nullptr,
-                                             StorageClass::SC_None);
-        FDecl.addDecl(ArrayDecl);
-        AllocaDecls[Alloca] = ArrayDecl;
-      }
-
-      if (auto *Insert = dyn_cast<InsertValueInst>(&I)) {
-        revng_assert(VarDecls.count(&I) == 0);
-        VarDecl *NewVarDecl = createVarDecl(&I, FDecl);
-        VarDecls[&I] = NewVarDecl;
-
-        Value *AggregateOp = Insert->getAggregateOperand();
-        if (auto *CS = dyn_cast<ConstantStruct>(AggregateOp)) {
-          std::vector<Expr *> StructOpExpr;
-          for (auto &OperandUse : CS->operands()) {
-            Value *Operand = OperandUse.get();
-            Constant *OperandConst = cast<Constant>(Operand);
-            clang::Expr *OperandExpr = nullptr;
-            if (isa<UndefValue>(OperandConst)) {
-              QualType IntT = ASTCtx.IntTy;
-              OperandExpr = new (ASTCtx) ImplicitValueInitExpr(IntT);
-            } else {
-              OperandExpr = getLiteralFromConstant(OperandConst);
+          Value *AggregateOp = Insert->getAggregateOperand();
+          if (auto *CS = dyn_cast<ConstantStruct>(AggregateOp)) {
+            std::vector<Expr *> StructOpExpr;
+            for (auto &OperandUse : CS->operands()) {
+              Value *Operand = OperandUse.get();
+              Constant *OperandConst = cast<Constant>(Operand);
+              clang::Expr *OperandExpr = nullptr;
+              if (isa<UndefValue>(OperandConst)) {
+                QualType IntT = ASTCtx.IntTy;
+                OperandExpr = new (ASTCtx) ImplicitValueInitExpr(IntT);
+              } else {
+                OperandExpr = getLiteralFromConstant(OperandConst);
+              }
+              revng_assert(OperandExpr != nullptr);
+              StructOpExpr.push_back(OperandExpr);
             }
-            revng_assert(OperandExpr != nullptr);
-            StructOpExpr.push_back(OperandExpr);
-          }
 
-          clang::Expr *ILE = new (ASTCtx)
-            InitListExpr(ASTCtx, {}, StructOpExpr, {});
-          NewVarDecl->setInit(ILE);
+            clang::Expr *ILE = new (ASTCtx)
+              InitListExpr(ASTCtx, {}, StructOpExpr, {});
+            NewVarDecl->setInit(ILE);
+          } else {
+            revng_unreachable();
+          }
+        } else {
+          revng_unreachable();
         }
       }
 
       Stmt *NewStmt = buildStmt(I);
       if (NewStmt == nullptr)
         continue;
+
       InstrStmts[&I] = NewStmt;
 
-      if (not isa<InsertValueInst>(&I) and I.getNumUses() > 0
-          and ToSerialize.count(&I)) {
-        revng_assert(VarDecls.count(&I) == 0);
-        VarDecl *NewVarDecl = createVarDecl(&I, FDecl);
-        VarDecls[&I] = NewVarDecl;
+      // Build the local variable for all the other instructions that need it.
+      if (ToSerializeIt != ToSerializeEnd) {
+        const SerializationFlags Flags = ToSerializeIt->second;
+        revng_assert(not Flags.isSet(NeedsManyStatements)
+                     or Flags.isSet(NeedsLocalVarToComputeExpr));
+        if (SerializationFlags::needsVarDecl(Flags)
+            and not Flags.isSet(NeedsLocalVarToComputeExpr)) {
+          revng_assert(VarDecls.count(&I) == 0);
+          VarDecl *NewVarDecl = createVarDecl(&I, FDecl);
+          VarDecls[&I] = NewVarDecl;
+        }
       }
     }
   }
@@ -923,13 +935,13 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
   case Instruction::Xor:
     // This set of instructions (described in paragraphs 6.5.6 'Additive
     // operators', paragraph 6.5.10 'Bitwise AND operator', paragraph 6.5.11
-    // 'Bitwise exclusive OR operator', and paragraph 6.5.12 'Bitwise inclusive
-    // OR operator' of the C11 standard) may have a large unsigned integer
-    // literal as one or both operands. In those cases, it is beneficial for the
-    // readability of the generate C code to substitute such large unsigned
-    // integer literal with negative signed integer literal.
-    // This enables printing idiomatic expressions such as 'X - 1' instead of
-    // 'X + 0xFFFFFFFFFFFFFFFF'.
+    // 'Bitwise exclusive OR operator', and paragraph 6.5.12 'Bitwise
+    // inclusive OR operator' of the C11 standard) may have a large unsigned
+    // integer literal as one or both operands. In those cases, it is
+    // beneficial for the readability of the generate C code to substitute
+    // such large unsigned integer literal with negative signed integer
+    // literal. This enables printing idiomatic expressions such as 'X - 1'
+    // instead of 'X + 0xFFFFFFFFFFFFFFFF'.
 
     if (auto *RHSLiteral = dyn_cast<clang::IntegerLiteral>(RHS)) {
       llvm::APInt RHSVal = RHSLiteral->getValue();
@@ -946,10 +958,10 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
 
   case Instruction::Shl:
   case Instruction::LShr:
-    // Shifts are undefined behavior if the RHS is negative (see paragraph 6.5.7
-    // of the C11 standard: 'Bitwise shift operators'), so we don't try to
-    // promote big unsigned integer literals at constants RHS to negative signed
-    // integer literals.
+    // Shifts are undefined behavior if the RHS is negative (see
+    // paragraph 6.5.7 of the C11 standard: 'Bitwise shift operators'), so we
+    // don't try to promote big unsigned integer literals at constants RHS to
+    // negative signed integer literals.
     //
     if (auto *LHSLiteral = dyn_cast<clang::IntegerLiteral>(LHS)) {
       llvm::APInt LHSVal = LHSLiteral->getValue();

@@ -12,14 +12,13 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
+#include "revng-c/Decompiler/MarkForSerialization.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 #include "revng-c/RestructureCFGPass/GenerateAst.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 
 #include "CDecompilerBeautify.h"
-
-#include "MarkForSerialization.h"
 
 static Logger<> BeautifyLogger("beautify");
 
@@ -77,9 +76,7 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
   }
 }
 
-using Marker = MarkForSerialization::Analysis;
-
-static bool requiresNoStatement(IfNode *If, Marker &Mark) {
+static bool hasNoSideEffects(IfNode *If, const SerializationMap &Mark) {
   // HACK: this is not correct, because it enables short-circuit even in cases
   // where the IfNode really does require some statements, hence producing
   // code that is not semantically equivalent
@@ -90,16 +87,24 @@ static bool requiresNoStatement(IfNode *If, Marker &Mark) {
   ExprNode *ExprBB = If->getCondExpr();
   if (auto *Atomic = llvm::dyn_cast<AtomicNode>(ExprBB)) {
     llvm::BasicBlock *BB = Atomic->getConditionalBasicBlock();
-    if (Mark.getToSerialize(BB).size() == 0) {
-      return true;
+    for (llvm::Instruction &I : *BB) {
+
+      if (auto It = Mark.find(&I); It != Mark.end()) {
+
+        const SerializationFlags &Flags = It->second;
+        if (Flags.isSet(HasSideEffects)
+            or Flags.isSet(HasInterferingSideEffects))
+          return false;
+      }
     }
   }
-  return false;
+  return true;
 }
 
 // Helper function to simplify short-circuit IFs
-static void
-simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
+static void simplifyShortCircuit(ASTNode *RootNode,
+                                 ASTTree &AST,
+                                 const SerializationMap &Mark) {
 
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
@@ -123,7 +128,7 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
         if (NestedIf->getThen() != nullptr) {
 
           if (If->getElse()->isEqual(NestedIf->getThen())
-              and requiresNoStatement(NestedIf, Mark)) {
+              and hasNoSideEffects(NestedIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -158,7 +163,7 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
 
         if (NestedIf->getElse() != nullptr) {
           if (If->getElse()->isEqual(NestedIf->getElse())
-              and requiresNoStatement(NestedIf, Mark)) {
+              and hasNoSideEffects(NestedIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -196,7 +201,7 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
         // TODO: Refactor this with some kind of iterator
         if (NestedIf->getThen() != nullptr) {
           if (If->getThen()->isEqual(NestedIf->getThen())
-              and requiresNoStatement(NestedIf, Mark)) {
+              and hasNoSideEffects(NestedIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -231,7 +236,7 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
 
         if (NestedIf->getElse() != nullptr) {
           if (If->getThen()->isEqual(NestedIf->getElse())
-              and requiresNoStatement(NestedIf, Mark)) {
+              and hasNoSideEffects(NestedIf, Mark)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -264,8 +269,9 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
   }
 }
 
-static void
-simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
+static void simplifyTrivialShortCircuit(ASTNode *RootNode,
+                                        ASTTree &AST,
+                                        const SerializationMap &Mark) {
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
       simplifyTrivialShortCircuit(Node, AST, Mark);
@@ -283,7 +289,7 @@ simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (!If->hasElse()) {
       if (auto *InternalIf = llvm::dyn_cast<IfNode>(If->getThen())) {
-        if (!InternalIf->hasElse() and requiresNoStatement(InternalIf, Mark)) {
+        if (!InternalIf->hasElse() and hasNoSideEffects(InternalIf, Mark)) {
           if (BeautifyLogger.isEnabled()) {
             BeautifyLogger << "Candidate for trivial short-circuit reduction";
             BeautifyLogger << "found:\n";
@@ -652,7 +658,9 @@ protected:
   LoopStackT LoopStack{};
 };
 
-void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
+void beautifyAST(Function &F,
+                 ASTTree &CombedAST,
+                 const SerializationMap &Mark) {
 
   ASTNode *RootNode = CombedAST.getRoot();
 

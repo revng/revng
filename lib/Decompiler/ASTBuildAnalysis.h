@@ -16,6 +16,8 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/MonotoneFramework.h"
 
+#include "revng-c/Decompiler/MarkForSerialization.h"
+
 namespace clang {
 class ASTContext;
 class Expr;
@@ -50,7 +52,7 @@ private:
   using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
   using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
 
-  const std::set<llvm::Instruction *> &ToSerialize;
+  const SerializationMap &ToSerialize;
   clang::ASTContext &ASTCtx;
   uint64_t NVar;
 
@@ -63,7 +65,7 @@ public:
   BBPHIMap &BlockToPHIIncoming;
 
 public:
-  StmtBuilder(const std::set<llvm::Instruction *> &ToSerialize,
+  StmtBuilder(const SerializationMap &ToSerialize,
               clang::ASTContext &Ctx,
               BBPHIMap &BlockToPHIIncoming,
               DeclCreator &TT) :

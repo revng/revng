@@ -37,7 +37,7 @@ using namespace clang::tooling;
 
 using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
 using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
-using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
+using DuplicationMap = std::map<const llvm::BasicBlock *, size_t>;
 
 static cl::OptionCategory RevNgCategory("revng options");
 
@@ -166,7 +166,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
 
   auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
   ASTTree &GHAST = RestructureCFGAnalysis.getAST();
-  DuplicationMap &NDuplicates = RestructureCFGAnalysis.getNDuplicates();
+  const auto &Mark = getAnalysis<MarkForSerializationPass>().getMap();
   auto &PHIASAPAssignments = getAnalysis<PHIASAPAssignmentInfo>();
   BBPHIMap PHIMap = PHIASAPAssignments.extractBBToPHIIncomingMap();
   auto *DLA = getAnalysisIfAvailable<DLAPass>();
@@ -176,8 +176,8 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
                                   GHAST,
                                   PHIMap,
                                   LayoutMap,
-                                  std::move(Out),
-                                  NDuplicates);
+                                  Mark,
+                                  std::move(Out));
 
   using FactoryUniquePtr = std::unique_ptr<FrontendActionFactory>;
   FactoryUniquePtr Factory = newFrontendActionFactory(&Decompilation);

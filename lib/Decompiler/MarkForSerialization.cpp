@@ -5,41 +5,34 @@
 /// \brief Dataflow analysis to identify which Instructions must be serialized
 
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Support/Casting.h"
 
+#include "revng/Support/IRHelpers.h"
+
+#include "revng-c/Decompiler/MarkForSerialization.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 
-#include "MarkForSerialization.h"
+#include "MarkAnalysis.h"
 
-static Logger<> MarkLog("mark-serialization");
+Logger<> MarkLog("mark-serialization");
 
-using namespace llvm;
+namespace MarkAnalysis {
 
-namespace MarkForSerialization {
-
-static bool isPure(const Instruction & /*Call*/) {
+static bool isPure(const llvm::Instruction & /*Call*/) {
   return false;
 }
 
-void Analysis::initialize() {
-  Base::initialize();
-  ToSerialize.clear();
-
-  {
-    // one empty set for each BB
-    using InstrSet = std::set<Instruction *>;
-    ToSerializeInBB = std::vector<InstrSet>(F.size(), InstrSet{});
-  }
-
-  size_t I = 0;
-  for (BasicBlock &BB : F) {
-    // map BasicBlock pointer to the position in ToSerializeInBB
-    BBToIdMap[&BB] = I++;
-  }
+static bool
+haveInterferingSideEffects(const llvm::Instruction & /*InstrWithSideEffects*/,
+                           const llvm::Instruction & /*Other*/) {
+  return true;
 }
 
-Analysis::InterruptType Analysis::transfer(BasicBlock *BB) {
+Analysis::InterruptType Analysis::transfer(const llvm::BasicBlock *BB) {
+  using namespace llvm;
   revng_log(MarkLog,
             "transfer: BB in Function: " << BB->getParent()->getName() << '\n'
                                          << BB);
@@ -47,9 +40,32 @@ Analysis::InterruptType Analysis::transfer(BasicBlock *BB) {
   LatticeElement Pending = this->State[BB].copy();
 
   size_t NBBDuplicates = NDuplicates.at(BB);
-  for (Instruction &I : *BB) {
-    revng_log(MarkLog, "Analyzing: '" << &I << "': " << dumpToString(&I));
-    // PHINodes are never serialized
+  for (const Instruction &I : *BB) {
+    revng_log(MarkLog, "Analyzing Instr: '" << &I << "': " << dumpToString(&I));
+
+    // Operands are removed from pending
+    revng_log(MarkLog, "Remove operands from pending.");
+
+    MarkLog.indent();
+    revng_log(MarkLog, "Operands:");
+    for (auto &TheUse : I.operands()) {
+      Value *V = TheUse.get();
+      revng_log(MarkLog, "Op: '" << V << "': " << dumpToString(V));
+
+      MarkLog.indent();
+      if (auto *UsedInstr = dyn_cast<Instruction>(V)) {
+        revng_log(MarkLog, "Op is Instruction: erase it from pending");
+        Pending.erase(UsedInstr);
+      } else {
+        revng_log(MarkLog, "Op is NOT Instruction: leave it in pending");
+        revng_assert(isa<Argument>(V) or isa<Constant>(V) or isa<BasicBlock>(V)
+                     or isa<MetadataAsValue>(V));
+      }
+      MarkLog.unindent();
+    }
+    MarkLog.unindent();
+
+    // PHINodes are never serialized directly in the BB they are.
     if (isa<PHINode>(I))
       continue;
 
@@ -61,61 +77,141 @@ Analysis::InterruptType Analysis::transfer(BasicBlock *BB) {
     if (isa<BranchInst>(I) or isa<SwitchInst>(I))
       continue;
 
-    Pending.insert(&I);
-    revng_log(MarkLog, "Add to pending: '" << &I << "': " << dumpToString(&I));
-    revng_log(MarkLog, "Operands:");
-    MarkLog.indent();
-    for (auto &TheUse : I.operands()) {
-      Value *V = TheUse.get();
-      revng_log(MarkLog, "Op: '" << V << "': " << dumpToString(V));
-      MarkLog.indent();
-      if (auto *UseInstr = dyn_cast<Instruction>(V)) {
-        revng_log(MarkLog, "Op is Instruction");
-        Pending.erase(UseInstr);
-      } else {
-        revng_log(MarkLog, "Op is NOT Instruction");
-        revng_assert(isa<Argument>(V) or isa<Constant>(V) or isa<BasicBlock>(V)
-                     or isa<MetadataAsValue>(V));
-      }
-      MarkLog.unindent();
+    if (isa<InsertValueInst>(I)) {
+      // InsertValueInst are serialized in C as:
+      //   struct x = { .designated = 0xDEAD, .initializers = 0xBEEF };
+      //   x.designated = value_that_overrides_0xDEAD;
+      // The second statement is always necessary.
+      ToSerialize[&I].set(NeedsManyStatements);
+      revng_log(MarkLog, "Instr NeedsManyStatements");
     }
-    MarkLog.unindent();
 
-    bool HasSideEffects = isa<AllocaInst>(&I) or isa<StoreInst>(&I)
-                          or isa<InsertValueInst>(&I)
-                          or (isa<CallInst>(&I) and not isPure(I));
-    if (HasSideEffects) {
-      revng_log(MarkLog, "Serialize Pending");
-      markSetToSerialize(Pending);
-      Pending = LatticeElement::top(); // empty set
-      markValueToSerialize(&I);
-    } else {
-      switch (I.getNumUses()) {
-      case 1: {
-        User *U = I.uses().begin()->getUser();
-        if (not isa<Instruction>(U)) {
-          Pending.insert(&I);
-          continue;
-        }
-        Instruction *UserI = cast<Instruction>(U);
-        auto *UserBB = UserI->getParent();
-        auto NUserDuplicates = NDuplicates.at(UserBB);
-        if (NBBDuplicates < NUserDuplicates) {
-          markValueToSerialize(&I);
-        } else {
-          Pending.insert(&I);
-        }
+    if (isa<InsertValueInst>(I) or isa<AllocaInst>(I)) {
+      // As noted in the comment above, InsertValueInst always need a local
+      // variable (x in the example above) for the computation of the expression
+      // that represents the result of Instruction itself.
+      // This is the local variable in C that will be used by x's users.
+      // Also AllocaInst always need a local variable, which is the variable
+      // allocated by the alloca.
+      ToSerialize[&I].set(NeedsLocalVarToComputeExpr);
+      revng_log(MarkLog, "Instr NeedsLocalVarToComputeExpr");
+    }
 
-      } break;
-      default:
-        revng_log(MarkLog, "Mark this to serialize");
-        markValueToSerialize(&I);
-        break;
+    if (isa<StoreInst>(&I) or (isa<CallInst>(&I) and not isPure(I))) {
+      // StoreInst and CallInst that are not pure always have side effects.
+      ToSerialize[&I].set(HasSideEffects);
+      revng_log(MarkLog, "Instr HasSideEffects");
+    }
+
+    switch (I.getNumUses()) {
+    case 1: {
+      User *U = I.uses().begin()->getUser();
+      Instruction *UserI = cast<Instruction>(U);
+      BasicBlock *UserBB = UserI->getParent();
+      auto UserNDuplicates = NDuplicates.at(UserBB);
+      if (NBBDuplicates < UserNDuplicates) {
+        ToSerialize[&I].set(HasDuplicatedUses);
+        revng_log(MarkLog, "Instr HasDuplicatedUses");
+      } else {
+        Pending.insert(&I);
       }
+    } break;
+
+    case 0: {
+      // Do nothing
+      ToSerialize[&I].set(AlwaysSerialize);
+      revng_log(MarkLog, "Instr AlwaysSerialize");
+    } break;
+
+    default: {
+      // Instructions with more than one use are always serialized.
+      ToSerialize[&I].set(HasManyUses);
+      revng_log(MarkLog, "Instr HasManyUses");
+    } break;
+    }
+
+    if (ToSerialize.count(&I)) {
+      revng_log(MarkLog, "Serialize Pending");
+      // We also have to serialize all the instructions that are still pending
+      // and have interfering side effects.
+      for (auto PendingIt = Pending.begin(); PendingIt != Pending.end();) {
+        const auto *PendingInstr = *PendingIt;
+        revng_log(MarkLog,
+                  "Pending: '" << PendingInstr
+                               << "': " << dumpToString(PendingInstr));
+        if (haveInterferingSideEffects(I, *PendingInstr)) {
+          ToSerialize[PendingInstr].set(HasInterferingSideEffects);
+          revng_log(MarkLog, "HasInterferingSideEffects");
+
+          PendingIt = Pending.erase(PendingIt);
+        } else {
+          ++PendingIt;
+        }
+      }
+    } else {
+      Pending.insert(&I);
+      revng_log(MarkLog,
+                "Add to pending: '" << &I << "': " << dumpToString(&I));
     }
   }
 
   return InterruptType::createInterrupt(std::move(Pending));
 }
 
-} // namespace MarkForSerialization
+} // namespace MarkAnalysis
+
+/// \brief Compute the number of duplicates for each BasicBlock.
+///
+// This is now based on the RegionCFG, but it could be made more precise using
+// the GHAST after beautification.
+MarkAnalysis::DuplicationMap
+computeDuplicationMap(const RegionCFGBB &RegionCFG) {
+  MarkAnalysis::DuplicationMap Result;
+  const llvm::Function *F = nullptr;
+  for (const auto *BBNode : RegionCFG.nodes()) {
+    if (BBNode->isCode()) {
+      const llvm::BasicBlock *BB = BBNode->getOriginalNode();
+      revng_assert(not F or BB->getParent() == F);
+      F = BB->getParent();
+      Result[BB] += 1;
+    }
+  }
+
+  if (nullptr == F) {
+    revng_assert(Result.empty());
+    return Result;
+  }
+
+  revng_assert(Result.size() == F->size());
+  for (const auto &BB : *F)
+    revng_assert(Result.count(&BB));
+
+  return Result;
+}
+
+bool MarkForSerializationPass::runOnFunction(llvm::Function &F) {
+  // Skip non-isolated functions
+  if (not F.getMetadata("revng.func.entry"))
+    return false;
+
+  // Compute the number of duplicates for each BasicBlock.
+  const auto &RestructurePass = getAnalysis<RestructureCFG>();
+  using MarkAnalysis::DuplicationMap;
+  const DuplicationMap &NDuplicates = RestructurePass.getNDuplicates();
+
+  // Mark instructions for serialization, and write the results in ToSerialize
+  ToSerialize = {};
+  MarkAnalysis::Analysis Mark(F, NDuplicates, ToSerialize);
+  Mark.initialize();
+  Mark.run();
+
+  return true;
+}
+
+char MarkForSerializationPass::ID = 0;
+
+using Register = llvm::RegisterPass<MarkForSerializationPass>;
+static Register X("mark-for-serialization",
+                  "Pass that marks Instructions for serialization in C",
+                  false,
+                  false);

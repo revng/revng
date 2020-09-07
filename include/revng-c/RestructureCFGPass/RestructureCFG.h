@@ -14,7 +14,7 @@
 class RestructureCFG : public llvm::FunctionPass {
 
 private:
-  using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
+  using DuplicationMap = std::map<const llvm::BasicBlock *, size_t>;
 
 public:
   static char ID;
@@ -30,7 +30,7 @@ public:
 
   ASTTree &getAST() { return AST; }
 
-  std::map<llvm::BasicBlock *, size_t> &getNDuplicates() { return NDuplicates; }
+  const DuplicationMap &getNDuplicates() const { return NDuplicates; }
 
 private:
   ASTTree AST;

@@ -63,7 +63,6 @@ class RegionCFG {
   static_assert(std::is_same_v<decltype(&getConstPointer), getConstPointerT>);
 
 public:
-  using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
   using BasicBlockNodeT = typename BBNodeT::BasicBlockNodeT;
   using BasicBlockNodeType = typename BasicBlockNodeT::Type;
   using BasicBlockNodeTSet = std::set<BasicBlockNodeT *>;

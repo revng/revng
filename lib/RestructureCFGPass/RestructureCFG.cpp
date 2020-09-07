@@ -392,10 +392,9 @@ static cl::opt<std::string> MetricsOutputPath("restructure-metrics-output-dir",
                                               desc("Restructure metrics dir"),
                                               value_desc("restructure-dir"),
                                               cat(MainCategory));
-
 inline void
 accumulateDuplicates(RegionCFG<llvm::BasicBlock *> &Region,
-                     std::map<llvm::BasicBlock *, size_t> &NDuplicates) {
+                     std::map<const llvm::BasicBlock *, size_t> &NDuplicates) {
   // Compute the NDuplicates, which will be used later.
   for (BasicBlockNodeBB *BBNode : Region.nodes()) {
     if (BBNode->isCode()) {
