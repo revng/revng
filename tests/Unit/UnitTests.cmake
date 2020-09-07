@@ -20,11 +20,11 @@ include(${SRC}/Reachability/Reachability.cmake)
 #
 
 revng_add_private_executable(test_reachabilitypass "${SRC}/ReachabilityPass.cpp")
+target_compile_definitions(test_reachabilitypass
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_reachabilitypass
   PRIVATE "${CMAKE_SOURCE_DIR}"
           "${Boost_INCLUDE_DIRS}")
-target_compile_definitions(test_reachabilitypass
-  PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_reachabilitypass
   Reachability
   revng::revngSupport
@@ -37,11 +37,11 @@ add_test(NAME test_reachabilitypass COMMAND ./bin/test_reachabilitypass)
 #
 
 revng_add_private_executable(test_combingpass "${SRC}/CombingPass.cpp")
+target_compile_definitions(test_combingpass
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_combingpass
   PRIVATE "${CMAKE_SOURCE_DIR}"
           "${Boost_INCLUDE_DIRS}")
-target_compile_definitions(test_combingpass
-  PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_combingpass
   RestructureCFGPass
   revng::revngSupport
@@ -79,12 +79,12 @@ register_derived_artifact("abi-enforced-for-decompilation-torture" # FROM_ARTIFA
 # dla_step_manager
 #
 
-add_executable(dla_step_manager "${SRC}/DLAStepManager.cpp")
+revng_add_private_executable(dla_step_manager "${SRC}/DLAStepManager.cpp")
+target_compile_definitions(dla_step_manager
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(dla_step_manager
   PRIVATE "${CMAKE_SOURCE_DIR}"
           "${Boost_INCLUDE_DIRS}")
-target_compile_definitions(dla_step_manager
-  PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(dla_step_manager
   Decompiler
   clangSerialization
@@ -92,4 +92,4 @@ target_link_libraries(dla_step_manager
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME dla_step_manager COMMAND dla_step_manager)
+add_test(NAME dla_step_manager COMMAND ./bin/dla_step_manager)
