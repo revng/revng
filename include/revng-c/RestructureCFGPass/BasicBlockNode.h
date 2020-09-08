@@ -39,6 +39,7 @@ public:
     Set,
     Collapsed,
     Dispatcher,
+    Tile,
   };
 
   using BasicBlockNodeT = BasicBlockNode<NodeT>;
@@ -161,7 +162,7 @@ public:
                           Type T) :
     BasicBlockNode(Parent, nullptr, nullptr, Name, T) {
     revng_assert(T == Type::Empty or T == Type::Break or T == Type::Continue
-                 or T == Type::Dispatcher);
+                 or T == Type::Dispatcher or T == Type::Tile);
   }
 
   /// \brief Constructor for dummy nodes that handle the state variable
@@ -183,6 +184,7 @@ public:
     return NodeType != Type::Code and NodeType != Type::Collapsed;
   }
   bool isDispatcher() const { return NodeType == Type::Dispatcher; }
+  bool isTile() const { return NodeType == Type::Tile; }
   Type getNodeType() const { return NodeType; }
 
   unsigned getStateVariableValue() const {
