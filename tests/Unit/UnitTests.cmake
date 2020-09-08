@@ -17,7 +17,7 @@ include(${SRC}/Reachability/Reachability.cmake)
 # test_reachabilitypass
 #
 
-add_executable(test_reachabilitypass "${SRC}/ReachabilityPass.cpp")
+revng_add_private_executable(test_reachabilitypass "${SRC}/ReachabilityPass.cpp")
 target_include_directories(test_reachabilitypass
   PRIVATE "${CMAKE_SOURCE_DIR}"
           "${Boost_INCLUDE_DIRS}")
@@ -34,7 +34,7 @@ add_test(NAME test_reachabilitypass COMMAND test_reachabilitypass)
 # test_combingpass
 #
 
-add_executable(test_combingpass "${SRC}/CombingPass.cpp")
+revng_add_private_executable(test_combingpass "${SRC}/CombingPass.cpp")
 target_include_directories(test_combingpass
   PRIVATE "${CMAKE_SOURCE_DIR}"
           "${Boost_INCLUDE_DIRS}")
