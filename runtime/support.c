@@ -226,6 +226,10 @@ const char *path(const char *name) {
   return name;
 }
 
+void *g_realloc(void *mem, size_t size) {
+  return realloc(mem, size);
+}
+
 void *g_malloc0_n(size_t n, size_t size) {
   return calloc(n, size);
 }
