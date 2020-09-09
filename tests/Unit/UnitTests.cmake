@@ -44,6 +44,6 @@ target_link_libraries(test_combingpass
   RestructureCFGPass
   revng::revngSupport
   revng::revngUnitTestHelpers
-  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+  Boost::unit_test_framework
   ${LLVM_LIBRARIES})
 add_test(NAME test_combingpass COMMAND test_combingpass -- "${SRC}/TestGraphs/")
