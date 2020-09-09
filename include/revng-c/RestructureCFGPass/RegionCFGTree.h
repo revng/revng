@@ -230,6 +230,13 @@ public:
     return BlockNodes.back().get();
   }
 
+  BBNodeT *addTile() {
+    using Type = typename BasicBlockNodeT::Type;
+    auto Tmp = std::make_unique<BBNodeT>(this, "tile", Type::Tile);
+    BlockNodes.emplace_back(std::move(Tmp));
+    return BlockNodes.back().get();
+  }
+
   BBNodeT *cloneNode(BasicBlockNodeT &OriginalNode);
 
   void removeNode(BasicBlockNodeT *Node);
