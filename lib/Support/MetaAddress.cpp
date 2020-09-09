@@ -144,11 +144,11 @@ MetaAddress MetaAddress::fromString(StringRef Text) {
   if (Parts.size() < 2 or Parts.size() > 4)
     return MetaAddress::invalid();
 
-  bool Success;
+  bool Error;
   uint64_t Value;
 
-  Success = Parts[0].getAsInteger(0, Result.Address);
-  if (not Success)
+  Error = Parts[0].getAsInteger(0, Result.Address);
+  if (Error)
     return MetaAddress::invalid();
 
   Result.Type = MetaAddressType::fromString(Parts[1]);
@@ -157,15 +157,15 @@ MetaAddress MetaAddress::fromString(StringRef Text) {
 
   Result.Epoch = 0;
   if (Parts.size() >= 3 and Parts[2].size() > 0) {
-    Success = Parts[2].getAsInteger(0, Result.Epoch);
-    if (not Success)
+    Error = Parts[2].getAsInteger(0, Result.Epoch);
+    if (Error)
       return MetaAddress::invalid();
   }
 
   Result.AddressSpace = 0;
   if (Parts.size() == 4 and Parts[3].size() > 0) {
-    Success = Parts[3].getAsInteger(0, Result.AddressSpace);
-    if (not Success)
+    Error = Parts[3].getAsInteger(0, Result.AddressSpace);
+    if (Error)
       return MetaAddress::invalid();
   }
 
