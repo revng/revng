@@ -79,6 +79,25 @@ inline void markEdgeInlined(std::pair<BBNodeT *, BBNodeT *> Edge) {
   addEdge(Edge, EdgePairBack.second);
 }
 
+template<class BBNodeT>
+inline bool isEdgeInlined(std::pair<BBNodeT *, BBNodeT *> Edge) {
+
+  // Take care of the backward edge.
+  auto EdgePairBack = Edge.second->extractPredecessorEdge(Edge.first);
+
+  // Take care of the forward edge.
+  auto EdgePairForw = Edge.first->extractSuccessorEdge(Edge.second);
+  bool InlinedForw = EdgePairForw.second.Inlined;
+
+  // Ensure that the forward and backward edgeinfos carry the same information.
+  revng_assert(EdgePairBack.second == EdgePairForw.second);
+
+  // Re-add the removed edge.
+  addEdge(Edge, EdgePairBack.second);
+
+  return InlinedForw;
+}
+
 template<class NodeT>
 using Stack = std::vector<std::pair<BasicBlockNode<NodeT> *, size_t>>;
 
