@@ -1436,6 +1436,11 @@ inline void RegionCFG<NodeT>::generateAst() {
         Children.push_back(DomTreeNode->getBlock());
     }
 
+    // Collect the successor nodes of the current analyzed node.
+    llvm::SmallVector<decltype(Node), 8> Successors;
+    for (BasicBlockNode<NodeT> *Successor : Successors)
+      Successors.push_back(Successor);
+
     // Handle collapsded node.
     ASTTree::ast_unique_ptr ASTObject;
     if (Node->isCollapsed()) {
