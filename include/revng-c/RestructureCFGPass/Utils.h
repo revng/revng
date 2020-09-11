@@ -99,6 +99,19 @@ inline bool isEdgeInlined(std::pair<BBNodeT *, BBNodeT *> Edge) {
 }
 
 template<class NodeT>
+inline bool
+containsSmallVector(llvm::SmallVectorImpl<BasicBlockNode<NodeT> *> &Vec,
+                    BasicBlockNode<NodeT> *Node) {
+  for (BasicBlockNode<NodeT> *N : Vec) {
+    if (N == Node) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+template<class NodeT>
 using Stack = std::vector<std::pair<BasicBlockNode<NodeT> *, size_t>>;
 
 template<class NodeT>
