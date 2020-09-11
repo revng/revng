@@ -78,7 +78,6 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
       or F.getName().startswith("bb.printf_parse")
       or F.getName().startswith("bb.printf_core")
       or F.getName().startswith("bb._Unwind_VRS_Pop")
-      or F.getName().startswith("bb.main")
       or F.getName().startswith("bb.vasnprintf")) {
     return false;
   }
