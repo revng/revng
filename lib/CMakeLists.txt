@@ -5,6 +5,7 @@
 add_subdirectory(AdjustStackPointer)
 add_subdirectory(Decompiler)
 add_subdirectory(DecompilerResourceFinder)
+add_subdirectory(Liveness)
 add_subdirectory(MakeEnvNull)
 add_subdirectory(FilterForDecompilation)
 add_subdirectory(PHIASAPAssignmentInfo)
