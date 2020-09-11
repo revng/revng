@@ -1538,52 +1538,125 @@ inline void RegionCFG<NodeT>::generateAst() {
                                      DefaultASTNode,
                                      PostDomASTNode));
     } else {
-
-      switch (Children.size()) {
-
-      case 3: {
-        revng_assert(not Node->isBreak() and not Node->isContinue()
-                     and not Node->isSet());
-
-        // If we are creating the AST for the check node, create the adequate
-        // AST node preserving the then and else branches, otherwise create a
-        // classical node.
-        // Create the conditional expression associated with the if node.
-        using UniqueExpr = ASTTree::expr_unique_ptr;
-        using ExprDestruct = ASTTree::expr_destructor;
-        auto *OriginalNode = Node->getOriginalNode();
-        UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
-        ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
-        ASTNode *Then = AST.findASTNode(Children[0]);
-        ASTNode *Else = AST.findASTNode(Children[2]);
-        ASTNode *PostDom = AST.findASTNode(Children[1]);
-        ASTObject.reset(new IfNode(Node, CondExprNode, Then, Else, PostDom));
-      } break;
+      switch (Successors.size()) {
 
       case 2: {
-        revng_assert(not Node->isBreak() and not Node->isContinue()
-                     and not Node->isSet());
 
-        // If we are creating the AST for the switch tree, create the adequate,
-        // AST node, otherwise create a classical node.
-        // Create the conditional expression associated with the if node.
-        using UniqueExpr = ASTTree::expr_unique_ptr;
-        using ExprDestruct = ASTTree::expr_destructor;
-        auto *OriginalNode = Node->getOriginalNode();
-        UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
-        ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
-        auto *Then = AST.findASTNode(Children[0]);
-        auto *Else = AST.findASTNode(Children[1]);
-        ASTObject.reset(new IfNode(Node, CondExprNode, Then, Else, nullptr));
+        switch (Children.size()) {
+
+        case 0: {
+
+          // TODO: Handle this case.
+          // This means that both our exiting edges have been inlined, and we do
+          // not have any immediate postdominator.
+
+        } break;
+        case 1: {
+
+          // TODO: Handle this case.
+          // This means that we have two successors, but we only dominate a
+          // further node. This may mean that we could dominate only the
+          // postdominator, or in absence of it, we may dominate only one of
+          // the inlined edges.
+
+        } break;
+        case 2: {
+
+          // TODO: Handle this case.
+          // This means that we have two successors, and we dominate both the
+          // two successors, or one successor and the postdominator.
+
+          revng_assert(not Node->isBreak() and not Node->isContinue()
+                       and not Node->isSet());
+
+        } break;
+        case 3: {
+
+          // This is the standard situation, we have two successors, we dominate
+          // both of them and we also dominate the postdominator node.
+          revng_assert(not Node->isBreak() and not Node->isContinue()
+                       and not Node->isSet());
+
+          // Check that our successor nodes are also in the dominated node
+          // vector.
+          BasicBlockNode<NodeT> *Successor1 = Successors[0];
+          BasicBlockNode<NodeT> *Successor2 = Successors[1];
+          revng_assert(containsSmallVector(Children, Successor1));
+          revng_assert(containsSmallVector(Children, Successor2));
+
+          ASTNode *Then = AST.findASTNode(Successor1);
+          ASTNode *Else = AST.findASTNode(Successor2);
+
+          // Retrieve the successors of the `then` and `else` nodes. We expect
+          // the successor to be identical due to the structure of the tile we
+          // are covering. And we expect it to be the PostDom node of the tile.
+          BasicBlockNode<NodeT> *PotPostDom1 = Successor1->getSuccessorI(0);
+          BasicBlockNode<NodeT> *PotPostDom2 = Successor2->getSuccessorI(0);
+          revng_assert(PotPostDom1 == PotPostDom2);
+
+          // Assign the postdom just found.
+          BasicBlockNode<NodeT> *PostDomBB = PotPostDom1;
+          revng_assert(PostDomBB != nullptr);
+          ASTNode *PostDom = AST.findASTNode(PostDomBB);
+
+          // Check that the postdom is between the nodes dominated by the
+          // current node.
+          revng_assert(containsSmallVector(Children, PostDomBB));
+
+          // Build the `IfNode`.
+          using UniqueExpr = ASTTree::expr_unique_ptr;
+          using ExprDestruct = ASTTree::expr_destructor;
+          auto *OriginalNode = Node->getOriginalNode();
+          UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
+          ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
+          ASTObject.reset(new IfNode(Node, CondExprNode, Then, Else, PostDom));
+        } break;
+
+        default: {
+          revng_log(CombLogger,
+                    "Node: " << Node->getNameStr() << " dominates "
+                             << Children.size() << " nodes");
+          revng_unreachable("Node directly dominates more than 3 other nodes");
+        } break;
+        }
       } break;
 
       case 1: {
-        revng_assert(not Node->isBreak() and not Node->isContinue());
-        auto *Succ = AST.findASTNode(Children[0]);
-        if (Node->isSet()) {
-          ASTObject.reset(new SetNode(Node, Succ));
-        } else {
-          ASTObject.reset(new CodeNode(Node, Succ));
+        switch (Children.size()) {
+        case 0: {
+
+          // In this situation, we don't need to actually add as a successor of
+          // the current node the single successor which is not dominated.
+          // Therefore, the successor will not be a succesor on the AST.
+          revng_assert(not Node->isBreak() and not Node->isContinue());
+          if (Node->isSet()) {
+            ASTObject.reset(new SetNode(Node));
+          } else {
+            ASTObject.reset(new CodeNode(Node, nullptr));
+          }
+        } break;
+
+        case 1: {
+
+          // In this situation, we dominate the only successor of the current
+          // node. The successor therefore will be an actual successor on the
+          // AST.
+          revng_assert(not Node->isBreak() and not Node->isContinue());
+          auto *Succ = AST.findASTNode(Children[0]);
+          if (Node->isSet()) {
+            ASTObject.reset(new SetNode(Node, Succ));
+          } else {
+            ASTObject.reset(new CodeNode(Node, Succ));
+          }
+        } break;
+
+        default: {
+          revng_log(CombLogger,
+                    "Node: " << Node->getNameStr() << " dominates "
+                             << Children.size() << "nodes");
+          revng_unreachable("Node with 1 successor dominates an incorrect "
+                            "number of nodes");
+        } break;
         }
       } break;
 
