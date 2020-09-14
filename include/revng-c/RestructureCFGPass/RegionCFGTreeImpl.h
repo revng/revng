@@ -1546,10 +1546,18 @@ inline void RegionCFG<NodeT>::generateAst() {
 
         case 0: {
 
-          // TODO: Handle this case.
           // This means that both our exiting edges have been inlined, and we do
           // not have any immediate postdominator.
-
+          // This situation should not arise, since not having at least one of
+          // the two branches dominated is a signal of an error.
+          revng_assert(not Node->isBreak() and not Node->isContinue()
+                       and not Node->isSet());
+          revng_log(CombLogger,
+                    "Node " << Node->getNameStr()
+                            << " does not dominate any "
+                               "node, but has two successors.");
+          revng_unreachable("A node does not dominate any node, but has two "
+                            "successors.");
         } break;
         case 1: {
 
@@ -1558,14 +1566,14 @@ inline void RegionCFG<NodeT>::generateAst() {
           // further node. This may mean that we could dominate only the
           // postdominator, or in absence of it, we may dominate only one of
           // the inlined edges.
-
+          revng_assert(not Node->isBreak() and not Node->isContinue()
+                       and not Node->isSet());
         } break;
         case 2: {
 
           // TODO: Handle this case.
           // This means that we have two successors, and we dominate both the
           // two successors, or one successor and the postdominator.
-
           revng_assert(not Node->isBreak() and not Node->isContinue()
                        and not Node->isSet());
 
