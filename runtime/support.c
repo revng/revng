@@ -502,7 +502,7 @@ void raise_exception_helper(Reason Code,
   exception_warning(Code, Source, Target, ExpectedDestination);
 
   // Declare the exception object
-  struct _Unwind_Exception exc;
+  static struct _Unwind_Exception exc;
 
   // Raise the exception using the function provided by the unwind library
   _Unwind_RaiseException(&exc);
