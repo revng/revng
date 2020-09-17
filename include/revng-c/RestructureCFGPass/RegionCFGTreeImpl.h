@@ -1561,13 +1561,36 @@ inline void RegionCFG<NodeT>::generateAst() {
         } break;
         case 1: {
 
-          // TODO: Handle this case.
           // This means that we have two successors, but we only dominate a
-          // further node. This may mean that we could dominate only the
-          // postdominator, or in absence of it, we may dominate only one of
-          // the inlined edges.
+          // single node. This situation is possible only if we have an inlined
+          // edge and we have nopostdominator in the tile.
           revng_assert(not Node->isBreak() and not Node->isContinue()
                        and not Node->isSet());
+          BasicBlockNode<NodeT> *Successor1 = Successors[0];
+          BasicBlockNode<NodeT> *Successor2 = Successors[1];
+
+          ASTNode *Then = AST.findASTNode(Successor1);
+          ASTNode *Else = AST.findASTNode(Successor2);
+
+          BasicBlockNode<NodeT> *PotPostDom1 = nullptr;
+          BasicBlockNode<NodeT> *PotPostDom2 = nullptr;
+          if (Successor1->successor_size() == 1
+              && Successor2->successor_size() == 1) {
+            PotPostDom1 = Successor1->getSuccessorI(0);
+            PotPostDom2 = Successor2->getSuccessorI(0);
+          }
+
+          revng_assert(PotPostDom1 == PotPostDom2 && PotPostDom1 == nullptr);
+
+          // Build the `IfNode`.
+          using UniqueExpr = ASTTree::expr_unique_ptr;
+          using ExprDestruct = ASTTree::expr_destructor;
+          auto *OriginalNode = Node->getOriginalNode();
+          UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
+          ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
+
+          // Insert the postdominator if the current tile actually has it.
+          ASTObject.reset(new IfNode(Node, CondExprNode, Then, Else, nullptr));
         } break;
         case 2: {
 
@@ -1577,7 +1600,7 @@ inline void RegionCFG<NodeT>::generateAst() {
           revng_assert(not Node->isBreak() and not Node->isContinue()
                        and not Node->isSet());
           BasicBlockNode<NodeT> *Successor1 = Successors[0];
-          BasicBlockNode<NodeT> *Successor2 = Successors[0];
+          BasicBlockNode<NodeT> *Successor2 = Successors[1];
 
           ASTNode *Then = AST.findASTNode(Successor1);
           ASTNode *Else = AST.findASTNode(Successor2);
@@ -1585,13 +1608,19 @@ inline void RegionCFG<NodeT>::generateAst() {
           // Retrieve the successors of the `then` and `else` nodes. We expect
           // the successor to be identical due to the structure of the tile we
           // are covering.
-          BasicBlockNode<NodeT> *PotPostDom1 = Successor1->getSuccessorI(0);
-          BasicBlockNode<NodeT> *PotPostDom2 = Successor2->getSuccessorI(0);
+          BasicBlockNode<NodeT> *PotPostDom1 = nullptr;
+          BasicBlockNode<NodeT> *PotPostDom2 = nullptr;
+          if (Successor1->successor_size() == 1
+              && Successor2->successor_size() == 1) {
+            PotPostDom1 = Successor1->getSuccessorI(0);
+            PotPostDom2 = Successor2->getSuccessorI(0);
+          }
 
           // TODO: It should not be possible to reach the postdominator from
           //       only one of the successor nodes. Confirm this assertion. Note
-          //       that we currently do not exclude that the `PostDom`
-          revng_assert(PotPostDom1 == PotPostDom2);
+          //       that we currently do not exclude that the `PostDom` is not
+          //       present at all.
+          // revng_assert(PotPostDom1 == PotPostDom2);
           BasicBlockNode<NodeT> *PostDomBB = PotPostDom1;
 
           // In this situation, it is not necessary that the postdominator is
@@ -1615,7 +1644,7 @@ inline void RegionCFG<NodeT>::generateAst() {
             revng_assert(containsSmallVector(Children, PostDomBB));
             revng_assert(PostDomBB != nullptr);
           } else if (DominatedSuccessor == 2) {
-            revng_assert(PostDomBB == nullptr);
+            // revng_assert(PostDomBB == nullptr);
           } else {
             revng_unreachable();
           }
