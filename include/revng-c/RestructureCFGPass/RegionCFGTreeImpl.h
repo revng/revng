@@ -1576,7 +1576,64 @@ inline void RegionCFG<NodeT>::generateAst() {
           // two successors, or one successor and the postdominator.
           revng_assert(not Node->isBreak() and not Node->isContinue()
                        and not Node->isSet());
+          BasicBlockNode<NodeT> *Successor1 = Successors[0];
+          BasicBlockNode<NodeT> *Successor2 = Successors[0];
 
+          ASTNode *Then = AST.findASTNode(Successor1);
+          ASTNode *Else = AST.findASTNode(Successor2);
+
+          // Retrieve the successors of the `then` and `else` nodes. We expect
+          // the successor to be identical due to the structure of the tile we
+          // are covering.
+          BasicBlockNode<NodeT> *PotPostDom1 = Successor1->getSuccessorI(0);
+          BasicBlockNode<NodeT> *PotPostDom2 = Successor2->getSuccessorI(0);
+
+          // TODO: It should not be possible to reach the postdominator from
+          //       only one of the successor nodes. Confirm this assertion. Note
+          //       that we currently do not exclude that the `PostDom`
+          revng_assert(PotPostDom1 == PotPostDom2);
+          BasicBlockNode<NodeT> *PostDomBB = PotPostDom1;
+
+          // In this situation, it is not necessary that the postdominator is
+          // non null, since the postdominator may not exist.
+          //
+          // What we can say instead, is that, if we dominate only one of the
+          // successors, the common postdominator must exist.
+          // If instead, we dominate both the successors, we should dominated
+          // the PostDom too, but since in this case we only dominated 2 nodes
+          // the PostDom must not exist.
+          unsigned DominatedSuccessor = 0;
+
+          if (containsSmallVector(Children, Successor1))
+            DominatedSuccessor += 1;
+          if (containsSmallVector(Children, Successor2))
+            DominatedSuccessor += 1;
+
+          if (DominatedSuccessor == 0) {
+            revng_abort();
+          } else if (DominatedSuccessor == 1) {
+            revng_assert(containsSmallVector(Children, PostDomBB));
+            revng_assert(PostDomBB != nullptr);
+          } else if (DominatedSuccessor == 2) {
+            revng_assert(PostDomBB == nullptr);
+          } else {
+            revng_unreachable();
+          }
+
+          // Build the `IfNode`.
+          using UniqueExpr = ASTTree::expr_unique_ptr;
+          using ExprDestruct = ASTTree::expr_destructor;
+          auto *OriginalNode = Node->getOriginalNode();
+          UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
+          ExprNode *Cond = AST.addCondExpr(std::move(CondExpr));
+
+          // Insert the postdominator if the current tile actually has it.
+          if (PostDomBB) {
+            ASTNode *PostDom = AST.findASTNode(PostDomBB);
+            ASTObject.reset(new IfNode(Node, Cond, Then, Else, PostDom));
+          } else {
+            ASTObject.reset(new IfNode(Node, Cond, Then, Else, nullptr));
+          }
         } break;
         case 3: {
 
