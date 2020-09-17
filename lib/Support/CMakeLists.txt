@@ -7,6 +7,7 @@ revng_add_library_internal(revngSupport SHARED
   CommandLine.cpp
   Debug.cpp
   DebugHelper.cpp
+  DebugInfo.cpp
   ExampleAnalysis.cpp
   FunctionTags.cpp
   IRHelpers.cpp
