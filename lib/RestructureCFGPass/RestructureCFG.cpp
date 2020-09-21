@@ -320,7 +320,7 @@ createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
     Regions;
 
   for (auto &Backedge : Backedges) {
-    auto SCSNodes = findReachableNodes(*Backedge.second, *Backedge.first);
+    auto SCSNodes = findReachableNodes(Backedge.second, Backedge.first);
     AdditionalSCSNodes[Backedge.second].insert(SCSNodes.begin(),
                                                SCSNodes.end());
 

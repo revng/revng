@@ -110,17 +110,21 @@ template<class NodeT>
 // Helper function to find all nodes on paths between a source and a target
 // node
 inline std::set<BasicBlockNode<NodeT> *>
-findReachableNodes(BasicBlockNode<NodeT> &Source,
-                   BasicBlockNode<NodeT> &Target) {
+findReachableNodes(BasicBlockNode<NodeT> *Source,
+                   BasicBlockNode<NodeT> *Target) {
+
+  // The node starting the exploration should always exist (the same does not
+  // hold for the target node).
+  revng_assert(Source != nullptr);
 
   // Add to the Targets set the original target node.
   std::set<BasicBlockNode<NodeT> *> Targets;
-  Targets.insert(&Target);
+  Targets.insert(Target);
 
   // Exploration stack initialization.
   Stack<NodeT> Stack;
   std::set<BasicBlockNode<NodeT> *> StackSet;
-  Stack.push_back(std::make_pair(&Source, 0));
+  Stack.push_back(std::make_pair(Source, 0));
 
   // Visited nodes to avoid entering in a loop.
   std::set<Edge<NodeT>> VisitedEdges;
@@ -157,7 +161,7 @@ findReachableNodes(BasicBlockNode<NodeT> &Source,
       Index++;
       Stack.push_back(std::make_pair(Vertex, Index));
       if (VisitedEdges.count(std::make_pair(Vertex, NextSuccessor)) == 0
-          and NextSuccessor != &Source
+          and NextSuccessor != Source
           and !alreadyOnStackQuick(StackSet, NextSuccessor)) {
         Stack.push_back(std::make_pair(NextSuccessor, 0));
         VisitedEdges.insert(std::make_pair(Vertex, NextSuccessor));

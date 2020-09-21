@@ -689,11 +689,8 @@ inline void RegionCFG<NodeT>::untangle() {
     BasicBlockNode<NodeT> *ElseChild = Conditional->getSuccessorI(1);
 
     // Collect all the nodes laying between the branches
-    BasicBlockNodeTSet ThenNodes = findReachableNodes(*ThenChild,
-                                                      *PostDominator);
-
-    BasicBlockNodeTSet ElseNodes = findReachableNodes(*ElseChild,
-                                                      *PostDominator);
+    BasicBlockNodeTSet ThenNodes = findReachableNodes(ThenChild, PostDominator);
+    BasicBlockNodeTSet ElseNodes = findReachableNodes(ElseChild, PostDominator);
 
     // Remove the postdominator from both the sets.
     ThenNodes.erase(PostDominator);
@@ -771,8 +768,8 @@ inline void RegionCFG<NodeT>::untangle() {
     // immediate post dominator and the sink node (to which all the exits have
     // been connected).
     unsigned PostDominatorWeight = 0;
-    BasicBlockNodeTSet PostDominatorToExit = findReachableNodes(*PostDominator,
-                                                                *Sink);
+    BasicBlockNodeTSet PostDominatorToExit = findReachableNodes(PostDominator,
+                                                                Sink);
 
     for (BasicBlockNode<NodeT> *Node : PostDominatorToExit) {
       PostDominatorWeight += WeightMap[Node];
