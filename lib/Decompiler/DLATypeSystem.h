@@ -102,7 +102,6 @@ public:
 }; // end class TypeLinkTag
 
 struct LayoutType {
-  // TODO: do we really need the accesses?
   llvm::SmallPtrSet<const llvm::Use *, 1> Accesses{};
   uint64_t Size{};
 }; // end class LayoutType
