@@ -104,6 +104,24 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME}
       )
 
+    # test VMA
+    add_test(NAME vma_${TARGET_NAME} COMMAND revng --prefix=.
+      opt -S
+      -vma
+      -vma-mincut-iter=50
+      ${TARGET_NAME}_prepared.ll
+      -o /dev/null
+      )
+    set_property(TEST vma_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS prepare_${TARGET_NAME}
+      )
+    set_property(TEST vma_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
+      )
+    set_property(TEST vma_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP VMA_fixture_${TARGET_NAME}
+      )
+
     # test combing and decompilation without DLA
     add_test(NAME decompilation_${TARGET_NAME} COMMAND revng --prefix=.
       opt -S

@@ -50,6 +50,24 @@ target_link_libraries(test_combingpass
   ${LLVM_LIBRARIES})
 add_test(NAME test_combingpass COMMAND ./bin/test_combingpass -- "${SRC}/TestGraphs/")
 
+#
+# test_vma
+#
+
+revng_add_private_executable(test_vma "${SRC}/ValueManipulationAnalysis.cpp")
+target_compile_definitions(test_vma
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_vma
+  PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_vma
+  ValueManipulationAnalysis
+  revng::revngSupport
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME test_vma COMMAND ./bin/test_vma)
+set_tests_properties(test_vma PROPERTIES LABELS "unit")
+
+
 revng_add_private_executable(decompile_function "${SRC}/DecompileFunction.cpp")
 target_include_directories(decompile_function
   PRIVATE "${CMAKE_SOURCE_DIR}"
@@ -60,6 +78,7 @@ target_link_libraries(decompile_function
   Decompiler
   revng::revngModel
   revng::revngSupport
+  Boost::unit_test_framework
   ${LLVM_LIBRARIES})
 
 # End-to-end tests for the decompilation pipeline public API decompileFunction
