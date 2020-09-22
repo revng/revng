@@ -117,9 +117,11 @@ findReachableNodes(BasicBlockNode<NodeT> *Source,
   // hold for the target node).
   revng_assert(Source != nullptr);
 
-  // Add to the Targets set the original target node.
+  // Add to the Targets set the original target node, if we actually have a
+  // target node as a parameter.
   std::set<BasicBlockNode<NodeT> *> Targets;
-  Targets.insert(Target);
+  if (Target != nullptr)
+    Targets.insert(Target);
 
   // Exploration stack initialization.
   Stack<NodeT> Stack;
@@ -139,7 +141,16 @@ findReachableNodes(BasicBlockNode<NodeT> *Source,
     Stack.pop_back();
     BasicBlockNode<NodeT> *Vertex = StackElem.first;
     if (StackElem.second == 0) {
-      if (Targets.count(Vertex) != 0) {
+
+      // Stop condition for the exploration. If a `Target` is provided, then we
+      // can only stop once we hit a node in `Targets`. If, instead, no `Target`
+      // is provided, we must also stop at a node that has no successors (which,
+      // usually, means that we invoked the helper function on a graph where we
+      // computed a filtered post dominator tree, and the `nullptr` passed as
+      // argument represents exactly the `VirtualRoot` node which acts as a sink
+      // needed for the tree computation.
+      if ((Targets.count(Vertex) != 0)
+          or (Target == nullptr && Vertex->successor_size() == 0)) {
         for (auto StackE : Stack) {
           Targets.insert(StackE.first);
         }

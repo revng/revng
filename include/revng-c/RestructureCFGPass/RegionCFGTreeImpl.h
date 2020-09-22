@@ -676,7 +676,6 @@ inline void RegionCFG<NodeT>::untangle() {
 
     // Update the postdominator
     BasicBlockNodeT *PostDominator = IFPDT[Conditional]->getIDom()->getBlock();
-    revng_assert(PostDominator != nullptr);
 
     // Ensure that we have both the successors.
     revng_assert(Conditional->successor_size() == 2);
@@ -767,12 +766,16 @@ inline void RegionCFG<NodeT>::untangle() {
     // sum of all the weights of the nodes which are reachable starting from the
     // immediate post dominator and the sink node (to which all the exits have
     // been connected).
+    // If the post dominator is `nullptr` (meaning that it is the `VirtualRoot`
+    // node on the filtered post dominator tree), we can skip the computation of
+    // this weight.
     unsigned PostDominatorWeight = 0;
-    BasicBlockNodeTSet PostDominatorToExit = findReachableNodes(PostDominator,
-                                                                Sink);
-
-    for (BasicBlockNode<NodeT> *Node : PostDominatorToExit) {
-      PostDominatorWeight += WeightMap[Node];
+    if (PostDominator != nullptr) {
+      BasicBlockNodeTSet PostDominatorToExit = findReachableNodes(PostDominator,
+                                                                  Sink);
+      for (BasicBlockNode<NodeT> *Node : PostDominatorToExit) {
+        PostDominatorWeight += WeightMap[Node];
+      }
     }
 
     // Criterion which decides if we can apply the untangle optimization to the
