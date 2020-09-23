@@ -3,6 +3,7 @@
 #
 
 revng_add_analyses_library(Decompiler revngc
+  AddSCEVBarrierPass.cpp
   ASTBuildAnalysis.cpp
   DLACollapseIdentityAndInheritanceCC.cpp
   DLAComputeNonInterferingComponents.cpp
