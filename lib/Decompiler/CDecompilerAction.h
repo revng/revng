@@ -6,6 +6,8 @@
 
 #include <cstdio>
 
+#include "llvm/Analysis/ScalarEvolution.h"
+
 #include "clang/Frontend/ASTConsumers.h"
 #include "clang/Frontend/FrontendAction.h"
 
@@ -13,6 +15,12 @@
 #include "revng-c/Decompiler/MarkForSerialization.h"
 
 #include "CDecompilerBeautify.h"
+
+namespace llvm {
+
+class ScalarEvolution;
+
+} // end namespace llvm
 
 class ASTTree;
 
@@ -34,12 +42,14 @@ public:
                     ASTTree &CombedAST,
                     BBPHIMap &BlockToPHIIncoming,
                     const dla::ValueLayoutMap *LM,
+                    llvm::ScalarEvolution *SCEV,
                     const SerializationMap &M,
                     std::unique_ptr<llvm::raw_ostream> O) :
     F(F),
     CombedAST(CombedAST),
     BlockToPHIIncoming(BlockToPHIIncoming),
     LayoutMap(LM),
+    SE(SCEV),
     Mark(M),
     O(std::move(O)) {}
 
@@ -54,6 +64,7 @@ private:
   ASTTree &CombedAST;
   BBPHIMap &BlockToPHIIncoming;
   const dla::ValueLayoutMap *LayoutMap;
+  llvm::ScalarEvolution *SE;
   const SerializationMap &Mark;
   std::unique_ptr<llvm::raw_ostream> O;
 };

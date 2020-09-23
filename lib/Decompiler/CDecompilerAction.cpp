@@ -2,6 +2,7 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Type.h"
 
@@ -737,24 +738,27 @@ public:
                       ASTTree &CombedAST,
                       BBPHIMap &BlockToPHIIncoming,
                       const dla::ValueLayoutMap *VL,
+                      llvm::ScalarEvolution *SCEV,
                       const SerializationMap &M,
                       std::unique_ptr<llvm::raw_ostream> Out) :
     TheF(F),
     CombedAST(CombedAST),
-    Out(std::move(Out)),
     BlockToPHIIncoming(BlockToPHIIncoming),
     ValueLayouts(VL),
-    Mark(M) {}
+    SE(SCEV),
+    Mark(M),
+    Out(std::move(Out)) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override;
 
 private:
   llvm::Function &TheF;
   ASTTree &CombedAST;
-  std::unique_ptr<llvm::raw_ostream> Out;
   BBPHIMap &BlockToPHIIncoming;
   const dla::ValueLayoutMap *ValueLayouts;
+  llvm::ScalarEvolution *SE;
   const SerializationMap &Mark;
+  std::unique_ptr<llvm::raw_ostream> Out;
 };
 
 void Decompiler::HandleTranslationUnit(ASTContext &Context) {
@@ -765,7 +769,12 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
 
   DeclCreator Declarator(ValueLayouts);
 
-  IR2AST::StmtBuilder ASTBuilder(Mark, Context, BlockToPHIIncoming, Declarator);
+  IR2AST::StmtBuilder ASTBuilder(Context,
+                                 Mark,
+                                 ValueLayouts,
+                                 SE,
+                                 BlockToPHIIncoming,
+                                 Declarator);
 
   Declarator.createTypeDeclsForFunctionPrototype(Context, &TheF);
   Declarator.createGlobalVarDeclUsedByFunction(Context, &TheF, ASTBuilder);
@@ -779,7 +788,6 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   // TODO: sooner or later, whenever we start emitting complex type
   // declarations, we will need to enforce proper ordering between dependent
   // types, and inject forward type declarations when needed.
-  //
 
   // Create and add forward-declare all the structs, so that we other structs
   // that have pointer-to-struct fields are always well-formed.
@@ -853,6 +861,7 @@ std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
                                       CombedAST,
                                       BlockToPHIIncoming,
                                       LayoutMap,
+                                      SE,
                                       Mark,
                                       std::move(O));
 }

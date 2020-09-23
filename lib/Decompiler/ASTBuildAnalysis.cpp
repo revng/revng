@@ -597,6 +597,12 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
   revng_log(ASTBuildLog,
             "Building AST for Instructions in Function " << F.getName());
 
+  // TODO: The following two casts to void are here only to prevent compiler
+  // warnings about unused private members. Drop these lines when we start to
+  // use ValueLayouts and SE.
+  (void) ValueLayouts;
+  (void) SE;
+
   uint64_t BBId = 0;
   ReversePostOrderTraversal<Function *> RPOT(&F);
   for (BasicBlock *BB : RPOT) {

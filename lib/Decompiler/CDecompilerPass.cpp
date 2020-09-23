@@ -5,6 +5,7 @@
 #include <system_error>
 
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
@@ -164,20 +165,34 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   ClangTool RevNg = ClangTool(OptionParser.getCompilations(),
                               OptionParser.getSourcePathList());
 
+  // Get the Abstract Syntax Tree of the restructured code.
   auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
   ASTTree &GHAST = RestructureCFGAnalysis.getAST();
+
+  // Get information about which instructions are marked to be serialized.
   const auto &Mark = getAnalysis<MarkForSerializationPass>().getMap();
+
+  // Get information about serialization of PHI nodes.
   auto &PHIASAPAssignments = getAnalysis<PHIASAPAssignmentInfo>();
   BBPHIMap PHIMap = PHIASAPAssignments.extractBBToPHIIncomingMap();
-  auto *DLA = getAnalysisIfAvailable<DLAPass>();
-  auto *LayoutMap = DLA ? DLA->getLayoutMap() : nullptr;
 
-  CDecompilerAction Decompilation(F,
-                                  GHAST,
-                                  PHIMap,
-                                  LayoutMap,
-                                  Mark,
-                                  std::move(Out));
+  // Get the results of the Data Layout Analysis, if present.
+  // If DLA has been executed, we also need to get the ScalarEvolution, because
+  // we will use it in decompilation to transform pointer arithmetics into
+  // access to structs' fields.
+  // Eventually, when we will integrate revng's Model, the DLA results will not
+  // be necessary anymore. We'll only need to check if the Model contains type
+  // information.
+  auto *DLA = getAnalysisIfAvailable<DLAPass>();
+  const dla::ValueLayoutMap *LayoutMap = nullptr;
+  llvm::ScalarEvolution *SE = nullptr;
+  if (DLA) {
+    LayoutMap = DLA->getLayoutMap();
+    SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
+  }
+
+  CDecompilerAction
+    Decompilation(F, GHAST, PHIMap, LayoutMap, SE, Mark, std::move(Out));
 
   using FactoryUniquePtr = std::unique_ptr<FrontendActionFactory>;
   FactoryUniquePtr Factory = newFrontendActionFactory(&Decompilation);

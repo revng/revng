@@ -7,6 +7,7 @@
 //
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
 
@@ -16,6 +17,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/MonotoneFramework.h"
 
+#include "revng-c/Decompiler/DLALayouts.h"
 #include "revng-c/Decompiler/MarkForSerialization.h"
 
 namespace clang {
@@ -52,8 +54,10 @@ private:
   using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
   using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
 
-  const SerializationMap &ToSerialize;
   clang::ASTContext &ASTCtx;
+  const SerializationMap &ToSerialize;
+  const dla::ValueLayoutMap *ValueLayouts;
+  llvm::ScalarEvolution *SE;
   uint64_t NVar;
 
 public:
@@ -65,12 +69,16 @@ public:
   BBPHIMap &BlockToPHIIncoming;
 
 public:
-  StmtBuilder(const SerializationMap &ToSerialize,
-              clang::ASTContext &Ctx,
+  StmtBuilder(clang::ASTContext &Ctx,
+              const SerializationMap &ToSerialize,
+              const dla::ValueLayoutMap *VL,
+              llvm::ScalarEvolution *SCEV,
               BBPHIMap &BlockToPHIIncoming,
               DeclCreator &TT) :
-    ToSerialize(ToSerialize),
     ASTCtx(Ctx),
+    ToSerialize(ToSerialize),
+    ValueLayouts(VL),
+    SE(SCEV),
     NVar(0),
     AllocaDecls(),
     BBLabelDecls(),

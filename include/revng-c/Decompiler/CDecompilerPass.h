@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -24,6 +25,7 @@ struct CDecompilerPass : public llvm::FunctionPass {
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<RestructureCFG>();
+    AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
     AU.addRequired<MarkForSerializationPass>();
     AU.addRequired<PHIASAPAssignmentInfo>();
     AU.addUsedIfAvailable<DLAPass>();
