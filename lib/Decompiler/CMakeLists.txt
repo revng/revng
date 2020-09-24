@@ -28,6 +28,7 @@ revng_add_analyses_library(Decompiler revngc
   GlobalDeclCreationAction.cpp
   IRASTTypeTranslation.cpp
   MarkForSerialization.cpp
+  SCEVBaseAddressExplorer.cpp
   TypeDeclCreationAction.cpp)
 
 target_link_libraries(Decompiler
