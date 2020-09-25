@@ -1,5 +1,6 @@
+cmake_minimum_required(VERSION 3.15.0)
+
 project(revng-c)
-cmake_minimum_required(VERSION 2.8)
 
 find_package(revng REQUIRED)
 find_package(LLVM REQUIRED CONFIG)
