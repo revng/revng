@@ -4,6 +4,9 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
@@ -16,14 +19,19 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/Type.h"
 
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/Decompiler/DLALayouts.h"
+
 #include "ASTBuildAnalysis.h"
 
+#include "AddSCEVBarrierPass.h"
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
 #include "Mangling.h"
+#include "SCEVBaseAddressExplorer.h"
 
 static Logger<> ASTBuildLog("ast-builder");
 
@@ -105,7 +113,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue);
 
       llvm::Function *TheFunction = Ret->getFunction();
-      clang::FunctionDecl &FDecl = *Declarator.FunctionDecls.at(TheFunction);
+      clang::FunctionDecl &FDecl = *Declarator.functionDecls().at(TheFunction);
 
       revng_assert(VarDecls.count(ZeroAggregate) == 0);
       VarDecl *NewVarDecl = createVarDecl(ZeroAggregate, TheFunction, FDecl);
@@ -192,17 +200,33 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
   //
   case Instruction::Alloca: {
     revng_assert(I.getParent() == &I.getFunction()->getEntryBlock());
-    VarDecl *ArrayDecl = AllocaDecls.at(cast<AllocaInst>(&I));
-    QualType ArrayTy = ArrayDecl->getType();
+    VarDecl *AllocatedVarDecl = AllocaDecls.at(cast<AllocaInst>(&I));
+    QualType AllocatedQualTy = AllocatedVarDecl->getType();
+    {
+      // TODO: Here we expect allocas to be arrays of bytes.
+      // Initially this was the only possibility, because we always created
+      // arrays of bytes for allocas. After the introduction of DLA this is no
+      // longer the case, so I expecte the following assertion to start failing.
+      // When that happens, we'll need to figure out what's the right thing to
+      // do here.
+
+      auto *AllocTy = AllocatedQualTy.getTypePtr();
+      using clang::ArrayType;
+      revng_assert(cast<ArrayType>(AllocTy)->getElementType() == ASTCtx.CharTy);
+    }
     // Create an Expr for the address of the first element of the array.
+    Expr *AllocatedVarDeclRef = new (ASTCtx) DeclRefExpr(ASTCtx,
+                                                         AllocatedVarDecl,
+                                                         false,
+                                                         AllocatedQualTy,
+                                                         VK_LValue,
+                                                         {});
     QualType CharPtrTy = ASTCtx.getPointerType(ASTCtx.CharTy);
-    Expr *ArrayDeclRef = new (ASTCtx)
-      DeclRefExpr(ASTCtx, ArrayDecl, false, ArrayTy, VK_LValue, {});
     CastKind Kind = CastKind::CK_ArrayToPointerDecay;
     Expr *ArrayPtrDecay = ImplicitCastExpr::Create(ASTCtx,
                                                    CharPtrTy,
                                                    Kind,
-                                                   ArrayDeclRef,
+                                                   AllocatedVarDeclRef,
                                                    nullptr,
                                                    VK_RValue);
     Expr *ArrayIdx = IntegerLiteral::Create(ASTCtx,
@@ -233,9 +257,9 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       AddrExpr->dump();
     if (not isa<GlobalVariable>(Addr)) {
       clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-      QualType PointeeType = Declarator.getOrCreateQualType(Load,
-                                                            ASTCtx,
-                                                            TUDecl);
+      QualType PointeeType = Declarator.getOrCreateValueQualType(Load,
+                                                                 ASTCtx,
+                                                                 TUDecl);
 
       QualType QualAddrType = AddrExpr->getType();
       const ClangType *AddrTy = QualAddrType.getTypePtr();
@@ -315,7 +339,9 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     revng_assert(I.getNumOperands() == 1);
     Expr *Res = getParenthesizedExprForValue(I.getOperand(0));
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    QualType LHSQualType = Declarator.getOrCreateQualType(&I, ASTCtx, TUDecl);
+    QualType LHSQualType = Declarator.getOrCreateValueQualType(&I,
+                                                               ASTCtx,
+                                                               TUDecl);
     if (LHSQualType != Res->getType())
       Res = createCast(LHSQualType, Res, ASTCtx);
     revng_log(ASTBuildLog, "GOT!");
@@ -338,7 +364,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     if (ASTBuildLog.isEnabled() and FalseExpr)
       FalseExpr->dump();
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    QualType ASTType = Declarator.getOrCreateQualType(&I, ASTCtx, TUDecl);
+    QualType ASTType = Declarator.getOrCreateValueQualType(&I, ASTCtx, TUDecl);
     return new (ASTCtx) ConditionalOperator(Cond,
                                             {},
                                             TrueExpr,
@@ -358,7 +384,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       CalleeExpr->dump();
 
     size_t NumArgs = CalleeFun->arg_size();
-    FunctionDecl *FD = Declarator.FunctionDecls.at(CalleeFun);
+    FunctionDecl *FD = Declarator.functionDecls().at(CalleeFun);
     size_t NumParms = FD->param_size();
     unsigned NumOps = TheCall->getNumArgOperands();
     bool HasNoParms = NumParms == 0
@@ -433,16 +459,18 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                  or isa<InsertValueInst>(AggregateOp)
                  or isa<ConstantStruct>(AggregateOp));
     llvm::Type *AggregateTy = AggregateOp->getType();
-    clang::TypeDecl *StructTypeDecl = Declarator.getTypeDeclOrNull(AggregateTy);
-    revng_assert(StructTypeDecl);
+    revng_assert(AggregateTy->isAggregateType());
+    auto *TypeDecl = Declarator.getTypeDeclOrNull(AggregateTy);
+    auto *StructTypeDecl = cast<clang::RecordDecl>(TypeDecl);
     Expr *StructExpr = getExprForValue(Insert);
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
     QualType InsertedTy = Declarator.getOrCreateQualType(Insert->getType(),
                                                          Insert->getFunction(),
                                                          ASTCtx,
                                                          TUDecl);
-    unsigned Idx = *Insert->idx_begin();
-    FieldDecl *FieldDecl = Declarator.FieldDecls.at(StructTypeDecl)[Idx];
+    revng_assert(not llvm::empty(Insert->indices()));
+    unsigned Idx = *Insert->indices().begin();
+    FieldDecl *FieldDecl = *std::next(StructTypeDecl->field_begin(), Idx);
     clang::DeclarationName FieldDeclName = FieldDecl->getIdentifier();
     clang::DeclarationNameInfo FieldDeclNameInfo(FieldDeclName, {});
     auto DAP = DeclAccessPair::make(FieldDecl, FieldDecl->getAccess());
@@ -485,15 +513,17 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       return nullptr;
     revng_assert(isa<CallInst>(AggregateOp));
     llvm::Type *AggregateTy = AggregateOp->getType();
-    clang::TypeDecl *StructTypeDecl = Declarator.getTypeDeclOrNull(AggregateTy);
-    revng_assert(StructTypeDecl);
+    revng_assert(AggregateTy->isAggregateType());
+    auto *TypeDecl = Declarator.getTypeDeclOrNull(AggregateTy);
+    auto *StructTypeDecl = cast<clang::RecordDecl>(TypeDecl);
     Expr *StructExpr = getExprForValue(AggregateOp);
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    QualType ExtractedTy = Declarator.getOrCreateQualType(Extract,
-                                                          ASTCtx,
-                                                          TUDecl);
-    unsigned Idx = *Extract->idx_begin();
-    auto *ExtractedFDecl = Declarator.FieldDecls.at(StructTypeDecl)[Idx];
+    QualType ExtractedTy = Declarator.getOrCreateValueQualType(Extract,
+                                                               ASTCtx,
+                                                               TUDecl);
+    revng_assert(not llvm::empty(Extract->indices()));
+    unsigned Idx = *Extract->indices().begin();
+    auto *ExtractedFDecl = *std::next(StructTypeDecl->field_begin(), Idx);
     clang::DeclarationName FieldDeclName = ExtractedFDecl->getIdentifier();
     clang::DeclarationNameInfo FieldDeclNameInfo(FieldDeclName, {});
     return MemberExpr::Create(ASTCtx,
@@ -597,11 +627,7 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
   revng_log(ASTBuildLog,
             "Building AST for Instructions in Function " << F.getName());
 
-  // TODO: The following two casts to void are here only to prevent compiler
-  // warnings about unused private members. Drop these lines when we start to
-  // use ValueLayouts and SE.
-  (void) ValueLayouts;
-  (void) SE;
+  revng_assert(not ValueLayouts or SE);
 
   uint64_t BBId = 0;
   ReversePostOrderTraversal<Function *> RPOT(&F);
@@ -617,6 +643,13 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
     }
 
     for (Instruction &I : *BB) {
+      // Skip calls to `revng_scev_barrier_*`
+      if (auto *Call = dyn_cast<CallInst>(&I)) {
+        llvm::StringRef CalleeName = Call->getCalledFunction()->getName();
+        if (CalleeName.startswith("revng_scev_barrier_"))
+          continue;
+      }
+
       // We don't build clang's AST expressions for PHINodes nor for
       // BranchInsts and SwitchInsts.
 
@@ -655,32 +688,9 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
           // If the code is then recompiled for an architecture that does not
           // support unaligned access this may cause crashes.
           revng_assert(Alloca->isStaticAlloca());
-          // First, create a VarDecl, for an array of char to place in the
-          // BasicBlock where the AllocaInst is
-          const DataLayout &DL = F.getParent()->getDataLayout();
-          uint64_t AllocaSize = *Alloca->getAllocationSizeInBits(DL);
-          revng_assert(AllocaSize <= std::numeric_limits<unsigned>::max());
-          APInt ArraySize = APInt(32, static_cast<unsigned>(AllocaSize));
-          using ArraySizeMod = clang::ArrayType::ArraySizeModifier;
-          ArraySizeMod SizeMod = ArraySizeMod::Normal;
-          QualType CharTy = ASTCtx.CharTy;
-          QualType ArrayTy = ASTCtx.getConstantArrayType(CharTy,
-                                                         ArraySize,
-                                                         nullptr,
-                                                         SizeMod,
-                                                         0);
-          const std::string VarName = "var_" + std::to_string(NVar++);
-          IdentifierInfo &Id = ASTCtx.Idents.get(VarName);
-          VarDecl *ArrayDecl = VarDecl::Create(ASTCtx,
-                                               &FDecl,
-                                               {},
-                                               {},
-                                               &Id,
-                                               ArrayTy,
-                                               nullptr,
-                                               StorageClass::SC_None);
-          FDecl.addDecl(ArrayDecl);
-          AllocaDecls[Alloca] = ArrayDecl;
+          revng_assert(AllocaDecls.count(Alloca) == 0);
+          VarDecl *NewAllocaDecl = createVarDecl(Alloca, FDecl);
+          AllocaDecls[Alloca] = NewAllocaDecl;
         } else if (auto *Insert = dyn_cast<InsertValueInst>(&I)) {
           revng_assert(VarDecls.count(Insert) == 0);
           VarDecl *NewVarDecl = createVarDecl(Insert, FDecl);
@@ -724,8 +734,205 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
         }
       }
 
-      Stmt *NewStmt = buildStmt(I);
-      if (NewStmt == nullptr)
+      Stmt *NewStmt = nullptr;
+
+      // If we have type info we try to understand if the current instruction
+      // can represents some form of pointer arithmetic that can be translated
+      // into a nice access to a field of a struct.
+      if (ValueLayouts) {
+
+        revng_assert(SE);
+
+        if (false and SE->isSCEVable(I.getType())) {
+          const SCEV *ISCEV = SE->getSCEV(&I);
+
+          // Compute the base address of the Instruction SCEV
+          auto Bases = SCEVBaseAddressExplorer().findBases(SE, ISCEV, {});
+
+          // We expect no bases or at most one base address. If we get more than
+          // one possible candidate base address for ISCEV we haven't decided
+          // which type to emit yet, so this is not handled.
+          revng_assert(Bases.empty() or Bases.size() == 1);
+
+          const SCEV *Base = nullptr;
+          if (Bases.empty()) {
+            // It was impossible to find a valid base address for ISCEV.
+            // This means that we can still try to interpret ISCEV as base
+            // address of itself.
+            Base = ISCEV;
+          } else {
+            Base = *Bases.begin();
+          }
+          revng_assert(Base);
+          const auto *BaseValue = cast<llvm::SCEVUnknown>(Base)->getValue();
+
+          // Unwrap calls to revng_scev_barrier_*
+          if (auto *Call = dyn_cast<CallInst>(BaseValue)) {
+            const llvm::Type *BarrierTy = Call->getType();
+            const llvm::Function *SCEVBarrier = Call->getCalledFunction();
+            const std::string BarrierName = makeSCEVBarrierName(BarrierTy);
+            if (SCEVBarrier->getName().str() == BarrierName) {
+              revng_assert(SCEVBarrier->arg_size() == 1);
+              BaseValue = Call->getArgOperand(0);
+            }
+          }
+          revng_assert(not isa<CallInst>(BaseValue));
+
+          // Try to obtain the DLA type of BaseValue
+          auto *TUDecl = ASTCtx.getTranslationUnitDecl();
+          auto DLAType = Declarator.getOrCreateDLAQualType(BaseValue,
+                                                           ASTCtx,
+                                                           *TUDecl);
+          clang::Stmt *PointerArithmeticStmt = nullptr;
+          if (DLAType.hasValue()) {
+
+            auto BasePointedLayouts = Declarator.getPointedLayouts(BaseValue);
+            revng_assert(BasePointedLayouts.size() == 1);
+            const dla::Layout *BasePointedLayout = BasePointedLayouts.front();
+
+            using llvm::SCEVAddRecExpr;
+            using llvm::SCEVConstant;
+
+            // Off = I - Base
+            const SCEV *Off = SE->getAddExpr(ISCEV, SE->getNegativeSCEV(Base));
+
+            if (auto *ConstOff = dyn_cast<SCEVConstant>(Off)) {
+              llvm::ConstantInt *O = ConstOff->getValue();
+              const dla::Layout *OuterLay = BasePointedLayout;
+              revng_assert(not O->isNegative());
+              uint64_t RemainingOffset = O->getZExtValue();
+
+              // FIXME: qui devo fare una funzione, che si prende il remainig
+              // offset, e poi itera dentro i tipi, segnandosi i QualType in
+              // giro, e anche i numeri dei field che attraversa, e sottraendo
+              // man mano le size delle cose che attraversa dal remaining
+              // offset.
+              //
+              // - Le struct cerca un membro allineato, se c'è ho finito, se no
+              // entro all'ultimo che contiene il coso
+              // - Le union cerca il figlio più grosso che contiene l'offset
+              // - gli array cerca il figlio che contiene l'offset
+              // - il padding è come gli array
+              // - i tipi base sono le foglie e ho finito
+              clang::Expr *MemberExpr = nullptr;
+
+              struct NestedTypeInfo {
+                uint64_t ElemId;
+                clang::QualType QTy;
+              };
+              // Vector to hold the nested QualTypes, from outer to inner.
+              llvm::SmallVector<NestedTypeInfo, 8> NestedTypes;
+
+              while (OuterLay) {
+                const dla::Layout *InnerLayout = nullptr;
+
+                revng_assert(RemainingOffset < OuterLay->size());
+
+                auto &ValCtx = BaseValue->getContext();
+                auto OutQTy = Declarator.getOrCreateQualTypeFromLayout(OuterLay,
+                                                                       ASTCtx,
+                                                                       ValCtx);
+                uint64_t RemainingOffset = 0ULL;
+                switch (OuterLay->getKind()) {
+
+                // Ignore padding for now
+                case dla::Layout::LayoutKind::Padding: {
+                  revng_unreachable();
+                } break;
+
+                case dla::Layout::LayoutKind::Base: {
+                  // If the layout points to a base type it should point to its
+                  // beginning, not in the middle.
+                  revng_assert(RemainingOffset == 0ULL);
+                  NestedTypes.push_back({ 0, OutQTy });
+                  RemainingOffset = 0ULL;
+
+                } break;
+
+                case dla::Layout::LayoutKind::Array: {
+                  const auto *Array = cast<dla::ArrayLayout>(OuterLay);
+                  const dla::Layout *ArrayElem = Array->getElem();
+                  auto ElemSize = ArrayElem->size();
+                  revng_assert(ElemSize < RemainingOffset);
+                  auto ElemId = RemainingOffset / ElemSize;
+                  NestedTypes.push_back({ ElemId, OutQTy });
+                  RemainingOffset = RemainingOffset % ElemSize;
+                  InnerLayout = ArrayElem;
+                } break;
+
+                case dla::Layout::LayoutKind::Struct: {
+                  revng_unreachable();
+                } break;
+
+                case dla::Layout::LayoutKind::Union: {
+                  const auto *Union = cast<dla::UnionLayout>(OuterLay);
+
+                  const dla::Layout *LargerElem = nullptr;
+                  for (const dla::Layout *Elem : Union->elements()) {
+                    if (LargerElem) {
+                      if (LargerElem->size() < Elem->size())
+                        LargerElem = Elem;
+                    } else {
+                      LargerElem = Elem;
+                    }
+                  }
+                  revng_assert(LargerElem);
+                  revng_assert(RemainingOffset < LargerElem->size());
+                  // Remaining offset stays the same here.
+                  InnerLayout = LargerElem;
+                } break;
+
+                default:
+                  revng_unreachable();
+                }
+
+                RemainingOffset -= InnerLayout->size();
+                OuterLay = InnerLayout;
+              }
+
+              // FIXME qui finisce la funzione di cui sopra
+              // poi ne devo fare un'altra che prende i tipi nestati e
+              // costruisce le member expr nestate
+
+              if (not RemainingOffset) {
+                // We were able to find a combination of types that is exactly
+                // at the pointed layout.
+                // So we can emit a field access expression for that.
+                // Otherwise we back off.
+                revng_assert(not NestedTypes.empty());
+
+                QualType InnerQualTy = NestedTypes.back().QTy;
+                using Unary = clang::UnaryOperator;
+                NewStmt = new (ASTCtx) Unary(MemberExpr,
+                                             UnaryOperatorKind::UO_AddrOf,
+                                             ASTCtx.getPointerType(InnerQualTy),
+                                             VK_RValue,
+                                             OK_Ordinary,
+                                             {},
+                                             false);
+              }
+
+            } else if (auto *AddRecOff = dyn_cast<SCEVAddRecExpr>(Off)) {
+            } else {
+              // We don't handle other cases. Actually we don't even expect
+              // them. If they show up, it should be fine to just ignore
+              // them and fallback to the normal `buildStmt`. But for now just
+              // leave a check here to avoid missing surprising stuff.
+              revng_unreachable();
+            }
+          }
+
+          NewStmt = PointerArithmeticStmt;
+        }
+      }
+
+      // If we were not able to emit pointer arithmetic as a nice access to a
+      // field struct fallback to normal emission.
+      if (not NewStmt)
+        NewStmt = buildStmt(I);
+
+      // If we didn't emit anything, just skip the rest.
+      if (not NewStmt)
         continue;
 
       InstrStmts[&I] = NewStmt;
@@ -737,6 +944,7 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
                      or Flags.isSet(NeedsLocalVarToComputeExpr));
         if (SerializationFlags::needsVarDecl(Flags)
             and not Flags.isSet(NeedsLocalVarToComputeExpr)) {
+
           revng_assert(VarDecls.count(&I) == 0);
           VarDecl *NewVarDecl = createVarDecl(&I, FDecl);
           VarDecls[&I] = NewVarDecl;
@@ -747,22 +955,38 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
 }
 
 VarDecl *
-StmtBuilder::createVarDecl(Instruction *I, clang::FunctionDecl &FDecl) {
+StmtBuilder::createVarDecl(const Instruction *I, clang::FunctionDecl &FDecl) {
   clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
   QualType ASTType;
-  if (auto *Call = dyn_cast<llvm::CallInst>(I)) {
+  if (const auto *Alloca = dyn_cast<AllocaInst>(I)) {
+    // First, create a VarDecl, for an array of char to place in the
+    // BasicBlock where the AllocaInst is
+    const DataLayout &DL = I->getModule()->getDataLayout();
+    uint64_t AllocaSize = *Alloca->getAllocationSizeInBits(DL);
+    revng_assert(AllocaSize <= std::numeric_limits<unsigned>::max());
+    APInt ArraySize = APInt(32, static_cast<unsigned>(AllocaSize));
+    using ArraySizeMod = clang::ArrayType::ArraySizeModifier;
+    ArraySizeMod SizeMod = ArraySizeMod::Normal;
+    QualType CharTy = ASTCtx.CharTy;
+    QualType ArrayTy = ASTCtx.getConstantArrayType(CharTy,
+                                                   ArraySize,
+                                                   nullptr,
+                                                   SizeMod,
+                                                   0);
+    ASTType = ArrayTy;
+  } else if (const auto *Call = dyn_cast<llvm::CallInst>(I)) {
     ASTType = Declarator.getOrCreateQualType(Call->getType(),
                                              Call->getCalledFunction(),
                                              ASTCtx,
                                              TUDecl);
-  } else if (auto *Insert = dyn_cast<llvm::InsertValueInst>(I)) {
+  } else if (const auto *Insert = dyn_cast<llvm::InsertValueInst>(I)) {
     ASTType = Declarator.getOrCreateQualType(Insert->getType(),
                                              Insert->getFunction(),
                                              ASTCtx,
                                              TUDecl);
   } else {
-    revng_assert(not isa<llvm::StructType>(I->getType()));
-    ASTType = Declarator.getOrCreateQualType(I, ASTCtx, TUDecl);
+    clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+    ASTType = Declarator.getOrCreateValueQualType(I, ASTCtx, TUDecl);
   }
 
   revng_assert(not ASTType.isNull());
@@ -778,6 +1002,8 @@ StmtBuilder::createVarDecl(Instruction *I, clang::FunctionDecl &FDecl) {
                                         ASTType,
                                         nullptr,
                                         StorageClass::SC_None);
+  // Add the NewVarDecl to the function declaration context, so that clang's
+  // AST printer will print the variable declaration.
   FDecl.addDecl(NewVarDecl);
   return NewVarDecl;
 }
@@ -1073,7 +1299,7 @@ Expr *StmtBuilder::createRValueExprForBinaryOperator(Instruction &I) {
   case Instruction::AShr:
   case Instruction::ICmp: {
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    QualType ResType = Declarator.getOrCreateQualType(&I, ASTCtx, TUDecl);
+    QualType ResType = Declarator.getOrCreateValueQualType(&I, ASTCtx, TUDecl);
     Res = new (ASTCtx) ParenExpr({}, {}, Res);
     Res = createCast(ResType, Res, ASTCtx);
   } break;
@@ -1099,25 +1325,33 @@ Expr *StmtBuilder::getUIntLiteral(uint64_t U) {
 
 Expr *StmtBuilder::getExprForValue(Value *V) {
   revng_log(ASTBuildLog, "getExprForValue: " << dumpToString(V));
+
   if (auto *Fun = dyn_cast<Function>(V)) {
-    FunctionDecl *FunDecl = Declarator.FunctionDecls.at(Fun);
+
+    FunctionDecl *FunDecl = Declarator.functionDecls().at(Fun);
     QualType Type = FunDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
       DeclRefExpr(ASTCtx, FunDecl, false, Type, VK_LValue, {});
     return Res;
+
   } else if (auto *G = dyn_cast<GlobalVariable>(V)) {
-    VarDecl *GlobalVarDecl = Declarator.GlobalDecls.at(G);
+
+    VarDecl *GlobalVarDecl = Declarator.globalDecls().at(G);
     QualType Type = GlobalVarDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
       DeclRefExpr(ASTCtx, GlobalVarDecl, false, Type, VK_LValue, {});
     return Res;
+
   } else if (isa<llvm::ConstantAggregateZero>(V)) {
+
     VarDecl *VDecl = VarDecls.at(V);
     QualType Type = VDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
       DeclRefExpr(ASTCtx, VDecl, false, Type, VK_LValue, {});
     return Res;
+
   } else if (isa<llvm::ConstantData>(V) or isa<llvm::ConstantExpr>(V)) {
+
     return getLiteralFromConstant(cast<llvm::Constant>(V));
 
   } else if (auto *I = dyn_cast<Instruction>(V)) {
@@ -1179,10 +1413,12 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
       clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
       QualType PointeeType;
       if (Load) {
-        PointeeType = Declarator.getOrCreateQualType(Load, ASTCtx, TUDecl);
+        PointeeType = Declarator.getOrCreateValueQualType(Load, ASTCtx, TUDecl);
       } else {
         Value *Stored = Store->getValueOperand();
-        PointeeType = Declarator.getOrCreateQualType(Stored, ASTCtx, TUDecl);
+        PointeeType = Declarator.getOrCreateValueQualType(Stored,
+                                                          ASTCtx,
+                                                          TUDecl);
       }
 
       QualAddrType = AddrExpr->getType();
@@ -1319,13 +1555,15 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
       return Result;
     }
     revng_abort();
+
   } else if (auto *Arg = dyn_cast<Argument>(V)) {
+
     llvm::Function *ArgFun = Arg->getParent();
     llvm::FunctionType *FType = ArgFun->getFunctionType();
     revng_assert(not FType->isVarArg());
     unsigned NumLLVMParams = FType->getNumParams();
     unsigned ArgNo = Arg->getArgNo();
-    clang::FunctionDecl *FunDecl = Declarator.FunctionDecls.at(ArgFun);
+    clang::FunctionDecl *FunDecl = Declarator.functionDecls().at(ArgFun);
     unsigned DeclNumParams = FunDecl->getNumParams();
     revng_assert(NumLLVMParams == DeclNumParams);
     clang::ParmVarDecl *ParamVDecl = FunDecl->getParamDecl(ArgNo);
@@ -1333,16 +1571,21 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
     DeclRefExpr *Res = new (ASTCtx)
       DeclRefExpr(ASTCtx, ParamVDecl, false, Type, VK_LValue, {});
     return Res;
+
   } else {
+
     revng_abort();
   }
 }
 
-Expr *StmtBuilder::getLiteralFromConstant(llvm::Constant *C) {
+Expr *StmtBuilder::getLiteralFromConstant(const llvm::Constant *C) {
   if (auto *CD = dyn_cast<ConstantData>(C)) {
     if (auto *CInt = dyn_cast<ConstantInt>(CD)) {
       clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-      QualType LiteralTy = Declarator.getOrCreateQualType(CInt, ASTCtx, TUDecl);
+      QualType LiteralTy = Declarator.getOrCreateQualType(CInt->getType(),
+                                                          nullptr,
+                                                          ASTCtx,
+                                                          TUDecl);
       const clang::Type *UnderlyingTy = LiteralTy.getTypePtrOrNull();
       revng_assert(UnderlyingTy != nullptr);
       // Desugar stdint.h typedefs

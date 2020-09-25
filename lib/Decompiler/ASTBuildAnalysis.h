@@ -41,9 +41,9 @@ class DeclCreator;
 
 namespace IR2AST {
 
-using AllocaVarDeclMap = std::map<llvm::AllocaInst *, clang::VarDecl *>;
+using AllocaVarDeclMap = std::map<const llvm::AllocaInst *, clang::VarDecl *>;
 using BBLabelsMap = std::map<llvm::BasicBlock *, clang::LabelDecl *>;
-using DeclMap = std::map<llvm::Value *, clang::VarDecl *>;
+using DeclMap = std::map<const llvm::Value *, clang::VarDecl *>;
 using StmtMap = std::map<llvm::Instruction *, clang::Stmt *>;
 using StmtMultiMap = std::map<llvm::Instruction *,
                               llvm::SmallVector<clang::Stmt *, 2>>;
@@ -92,7 +92,7 @@ public:
   clang::Expr *getExprForValue(llvm::Value *V);
   clang::Expr *getUIntLiteral(uint64_t U);
   clang::Expr *getBoolLiteral(bool V);
-  clang::Expr *getLiteralFromConstant(llvm::Constant *C);
+  clang::Expr *getLiteralFromConstant(const llvm::Constant *C);
 
   clang::VarDecl *getOrCreateLoopStateVarDecl(clang::FunctionDecl &FD);
   clang::VarDecl *getOrCreateSwitchStateVarDecl(clang::FunctionDecl &FD);
@@ -101,7 +101,8 @@ public:
   clang::VarDecl *getSwitchStateVarDecl() const { return SwitchStateVarDecl; }
 
 private:
-  clang::VarDecl *createVarDecl(llvm::Instruction *I, clang::FunctionDecl &FD);
+  clang::VarDecl *
+  createVarDecl(const llvm::Instruction *I, clang::FunctionDecl &FD);
   clang::VarDecl *createVarDecl(llvm::Constant *I,
                                 llvm::Value *NamingVal,
                                 clang::FunctionDecl &FD);

@@ -44,7 +44,7 @@ static std::string makeTypeName(const llvm::Type *Ty) {
   return Name;
 }
 
-static std::string makeSCEVBarrierName(const llvm::Type *Ty) {
+std::string makeSCEVBarrierName(const llvm::Type *Ty) {
   return "revng_scev_barrier_" + makeTypeName(Ty);
 }
 

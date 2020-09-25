@@ -24,47 +24,22 @@ using ExtProtoInfo = clang::FunctionProtoType::ExtProtoInfo;
 using clang::StorageClass;
 
 clang::FunctionDecl *DeclCreator::createFunDecl(clang::ASTContext &Context,
-                                                llvm::Function *F,
+                                                const llvm::Function *F,
                                                 bool IsDefinition) {
-
-  const llvm::FunctionType *FType = F->getFunctionType();
-
-  if (ValueLayouts) {
-    auto FItBegin = ValueLayouts->lower_bound(dla::LayoutTypePtr(F, 0));
-    auto FItEnd = ValueLayouts->upper_bound(dla::LayoutTypePtr(F));
-    // If there is a range of ValueLayots that are indexed by F, they represent
-    // the return value of F.
-    if (FItBegin != FItEnd) {
-      if (std::next(FItBegin) == FItEnd) {
-        // F returns a scalar type
-        dla::Layout *PointedLayout = FItBegin->second;
-        revng_assert(PointedLayout);
-      } else {
-        // F returns a struct
-        for (auto &[_, PointedLayout] : llvm::make_range(FItBegin, FItEnd)) {
-          revng_assert(PointedLayout);
-        }
-      }
-    }
-  }
-
   using clang::QualType;
 
   clang::TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
-  llvm::Type *RetTy = FType->getReturnType();
-  QualType RetType = getOrCreateQualType(RetTy, F, Context, *TUDecl);
+  QualType RetType = getOrCreateValueQualType(F, Context, *TUDecl);
+
+  const llvm::FunctionType *FType = F->getFunctionType();
+  revng_assert(FType->getNumParams() == F->arg_size());
 
   llvm::SmallVector<QualType, 4> ArgTypes = {};
-  revng_assert(FType->getNumParams() == F->arg_size());
-  for (const auto &[T, Arg] : llvm::zip_first(FType->params(), F->args())) {
-    revng_assert(T == Arg.getType());
-    // In function declarations all pointers parameters are void *.
-    // This is a temporary workaround to reduce warnings
-    QualType ArgType = Context.VoidPtrTy;
-    if (not isa<llvm::PointerType>(T))
-      ArgType = getOrCreateQualType(T, &Arg, Context, *TUDecl);
+  for (const llvm::Argument &Arg : F->args()) {
+    QualType ArgType = getOrCreateValueQualType(&Arg, Context, *TUDecl);
     ArgTypes.push_back(ArgType);
   }
+
   const bool HasNoParams = ArgTypes.empty();
   const bool IsVariadic = FType->isVarArg();
   if (HasNoParams and not IsVariadic)
@@ -118,10 +93,10 @@ clang::FunctionDecl *DeclCreator::createFunDecl(clang::ASTContext &Context,
   } else {
     revng_assert(not ArgTypes.empty());
     revng_assert(F->arg_size() == ArgTypes.size());
-    for (auto &Group : llvm::enumerate(F->args())) {
-      QualType ArgTy = ArgTypes[Group.index()];
-      const std::string ParamName = Group.value().hasName() ?
-                                      Group.value().getName().str() :
+    for (auto &Group : llvm::enumerate(llvm::zip_first(F->args(), ArgTypes))) {
+      const auto &[Arg, ArgQualTy] = Group.value();
+      const std::string ParamName = Arg.hasName() ?
+                                      Arg.getName().str() :
                                       std::string("param_")
                                         + std::to_string(Group.index());
       IdentifierInfo *ParmId = &Context.Idents.get(makeCIdentifier(ParamName));
@@ -130,7 +105,7 @@ clang::FunctionDecl *DeclCreator::createFunDecl(clang::ASTContext &Context,
                                            {},
                                            {},
                                            ParmId,
-                                           ArgTy,
+                                           ArgQualTy,
                                            nullptr,
                                            StorageClass::SC_None,
                                            nullptr);
@@ -144,14 +119,14 @@ clang::FunctionDecl *DeclCreator::createFunDecl(clang::ASTContext &Context,
 }
 
 void DeclCreator::createFunctionAndCalleesDecl(clang::ASTContext &Ctx,
-                                               llvm::Function *TheF) {
+                                               const llvm::Function *TheF) {
 
   revng_assert(TheF->getMetadata("revng.func.entry"));
 
-  std::set<llvm::Function *> Called = getDirectlyCalledFunctions(*TheF);
+  std::set<const llvm::Function *> Called = getDirectlyCalledFunctions(*TheF);
 
   // Create the forward declaration of all the functions called by TheF
-  for (llvm::Function *F : Called) {
+  for (auto *F : Called) {
     // Avoid forward declaring TheF
     if (F == TheF)
       continue;

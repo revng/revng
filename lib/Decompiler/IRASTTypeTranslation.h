@@ -15,7 +15,6 @@
 #include "revng-c/Decompiler/DLALayouts.h"
 
 namespace llvm {
-class Argument;
 class Function;
 class GlobalVariable;
 class Type;
@@ -26,10 +25,8 @@ class LLVMContext;
 namespace clang {
 class ASTContext;
 class DeclCtx;
-class FieldDecl;
 class FunctionDecl;
 class TypeDecl;
-class Type;
 class VarDecl;
 } // end namespace clang
 
@@ -40,52 +37,58 @@ class StmtBuilder;
 class DeclCreator {
 
 public:
-  using ValueTypeDeclMap = std::map<const llvm::Value *, clang::TypeDecl *>;
-  using GlobalsMap = std::map<const llvm::GlobalVariable *, clang::VarDecl *>;
-  using FunctionsMap = std::map<llvm::Function *, clang::FunctionDecl *>;
-  using FunctionRetTypeMap = std::map<llvm::Function *, clang::QualType>;
-  using ArgumentTypeMap = std::map<llvm::Argument *, clang::QualType>;
-  using FieldDeclMap = std::map<clang::TypeDecl *,
-                                llvm::SmallVector<clang::FieldDecl *, 8>>;
+  using ValueQualTypeMap = std::map<const llvm::Value *, clang::QualType>;
+  using GlobalVarDeclMap = std::map<const llvm::GlobalVariable *,
+                                    clang::VarDecl *>;
+  using FunctionDeclMap = std::map<const llvm::Function *,
+                                   clang::FunctionDecl *>;
+
+  using TypeDeclVec = std::vector<clang::TypeDecl *>;
+  using TypeDeclMap = std::map<const llvm::Type *, TypeDeclVec::size_type>;
 
 public:
   DeclCreator(const dla::ValueLayoutMap *LM) :
+    ValueLayouts(LM),
+    LayoutQualTypes(),
     TypeDecls(),
-    ValueTypeDecls(),
-    FieldDecls(),
+    TypeDeclsMap(),
+    ValueQualTypes(),
     GlobalDecls(),
-    FunctionDecls(),
-    FunctionRetTypes(),
-    ValueLayouts(LM) {}
+    FunctionDecls() {}
 
   clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
                                           const llvm::Type *Ty = nullptr);
 
-  clang::QualType getOrCreateQualType(const llvm::Value *I,
-                                      clang::ASTContext &ASTCtx,
-                                      clang::DeclContext &DeclCtx);
-
-  clang::QualType getOrCreateQualType(const llvm::GlobalVariable *G,
-                                      clang::ASTContext &ASTCtx,
-                                      clang::DeclContext &DeclCtx);
+  clang::QualType getOrCreateValueQualType(const llvm::Value *V,
+                                           clang::ASTContext &ASTCtx,
+                                           clang::DeclContext &DeclCtx);
 
   clang::QualType getOrCreateQualType(const llvm::Type *T,
                                       const llvm::Value *NamingValue,
                                       clang::ASTContext &ASTCtx,
                                       clang::DeclContext &DeclCtx);
 
-  void createTypeDeclsForFunctionPrototype(clang::ASTContext &C,
-                                           llvm::Function *TheF);
+  llvm::SmallVector<const dla::Layout *, 16>
+  getPointedLayouts(const llvm::Value *V) const;
 
-  void createFunctionAndCalleesDecl(clang::ASTContext &C, llvm::Function *TheF);
+  llvm::Optional<clang::QualType>
+  getOrCreateDLAQualType(const llvm::Value *V,
+                         clang::ASTContext &ASTCtx,
+                         clang::DeclContext &DeclCtx);
+
+  clang::QualType getOrCreateQualTypeFromLayout(const dla::Layout *L,
+                                                clang::ASTContext &ClangCtx,
+                                                llvm::LLVMContext &LLVMCtx);
+
+  void createTypeDeclsForFunctionPrototype(clang::ASTContext &C,
+                                           const llvm::Function *TheF);
+
+  void createFunctionAndCalleesDecl(clang::ASTContext &C,
+                                    const llvm::Function *TheF);
 
   void createGlobalVarDeclUsedByFunction(clang::ASTContext &Context,
-                                         llvm::Function *TheF,
+                                         const llvm::Function *TheF,
                                          IR2AST::StmtBuilder &ASTBuilder);
-
-  const auto &typeDeclMap() const { return TypeDeclsMap; }
-
-  const auto &typeDecls() const { return TypeDecls; }
 
   clang::TypeDecl *getTypeDeclOrNull(const llvm::Type *Ty) const {
 
@@ -97,9 +100,13 @@ public:
     return TypeDecls.at(It->second);
   }
 
-  std::string getUniqueTypeNameForDecl() const {
-    return std::string("type_") + std::to_string(TypeDecls.size());
-  }
+  std::string getUniqueTypeNameForDecl(const llvm::Value *NamingValue) const;
+
+public:
+  const auto &typeDeclMap() const { return TypeDeclsMap; }
+  const auto &typeDecls() const { return TypeDecls; }
+  const auto &globalDecls() const { return GlobalDecls; }
+  const auto &functionDecls() const { return FunctionDecls; }
 
 protected:
   bool insertTypeMapping(const llvm::Type *Ty, clang::TypeDecl *TDecl) {
@@ -117,36 +124,17 @@ protected:
     return NewInsert;
   }
 
-  clang::QualType getOrCreateArgumentType(llvm::Argument *A,
-                                          clang::ASTContext &ASTCtx,
-                                          clang::DeclContext &DeclCtx);
-
-  clang::QualType getOrCreateFunctionRetType(llvm::Function *F,
-                                             clang::ASTContext &ASTCtx,
-                                             clang::DeclContext &DeclCtx);
-
   clang::FunctionDecl *createFunDecl(clang::ASTContext &Context,
-                                     llvm::Function *F,
+                                     const llvm::Function *F,
                                      bool IsDefinition);
 
-  clang::QualType getOrCreateQualTypeFromLayout(const dla::Layout *L,
-                                                clang::ASTContext &ClangCtx,
-                                                llvm::LLVMContext &LLVMCtx);
-
 private:
-  using TypeDeclVec = std::vector<clang::TypeDecl *>;
-  using TypeDeclMap = std::map<const llvm::Type *, TypeDeclVec::size_type>;
+  const dla::ValueLayoutMap *ValueLayouts;
+  std::map<const dla::Layout *, clang::QualType> LayoutQualTypes;
   TypeDeclVec TypeDecls;
   TypeDeclMap TypeDeclsMap;
-  std::map<const dla::Layout *, clang::QualType> LayoutQualTypes;
-
-public:
-  ValueTypeDeclMap ValueTypeDecls;
-  FieldDeclMap FieldDecls;
-  GlobalsMap GlobalDecls;
-  FunctionsMap FunctionDecls;
-  FunctionRetTypeMap FunctionRetTypes;
-  ArgumentTypeMap ArgumentTypes;
-  const dla::ValueLayoutMap *ValueLayouts;
+  ValueQualTypeMap ValueQualTypes;
+  GlobalVarDeclMap GlobalDecls;
+  FunctionDeclMap FunctionDecls;
 
 }; // end class DeclCreator

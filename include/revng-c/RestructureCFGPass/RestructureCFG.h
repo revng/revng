@@ -20,7 +20,7 @@ public:
   static char ID;
 
 public:
-  RestructureCFG() : llvm::FunctionPass(ID) {}
+  RestructureCFG() : llvm::FunctionPass(ID), AST(), NDuplicates() {}
 
   bool runOnFunction(llvm::Function &F) override;
 

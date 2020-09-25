@@ -17,14 +17,14 @@
 
 using namespace llvm;
 
-static bool isUsedInFunction(ConstantExpr *CE, const Function &F) {
-  SmallSet<Constant *, 16> UnexploredCEUsers;
+static bool isUsedInFunction(const ConstantExpr *CE, const Function &F) {
+  SmallSet<const Constant *, 16> UnexploredCEUsers;
   UnexploredCEUsers.insert(CE);
-  SmallSet<Constant *, 16> NextUnexploredCEUsers;
+  SmallSet<const Constant *, 16> NextUnexploredCEUsers;
   do {
     NextUnexploredCEUsers.clear();
-    for (Constant *CEUser : UnexploredCEUsers) {
-      for (User *U : CEUser->users()) {
+    for (const Constant *CEUser : UnexploredCEUsers) {
+      for (const User *U : CEUser->users()) {
 
         if (auto *I = dyn_cast<Instruction>(U)) {
           if (I->getFunction() == &F)
@@ -44,11 +44,11 @@ static bool isUsedInFunction(ConstantExpr *CE, const Function &F) {
   return false;
 }
 
-std::set<GlobalVariable *> getDirectlyUsedGlobals(Function &F) {
-  std::set<GlobalVariable *> Results;
-  llvm::Module *M = F.getParent();
-  for (GlobalVariable &G : M->globals()) {
-    for (User *U : G.users()) {
+std::set<const GlobalVariable *> getDirectlyUsedGlobals(const Function &F) {
+  std::set<const GlobalVariable *> Results;
+  const llvm::Module *M = F.getParent();
+  for (const GlobalVariable &G : M->globals()) {
+    for (const User *U : G.users()) {
       if (auto *I = dyn_cast<Instruction>(U)) {
         if (I->getFunction() == &F) {
           Results.insert(&G);
@@ -67,12 +67,12 @@ std::set<GlobalVariable *> getDirectlyUsedGlobals(Function &F) {
   return Results;
 }
 
-std::set<Function *> getDirectlyCalledFunctions(Function &F) {
-  std::set<Function *> Results;
-  for (BasicBlock &BB : F) {
-    for (Instruction &I : BB) {
+std::set<const Function *> getDirectlyCalledFunctions(const Function &F) {
+  std::set<const Function *> Results;
+  for (auto &BB : F) {
+    for (auto &I : BB) {
       if (auto *Call = dyn_cast<CallInst>(&I)) {
-        if (Function *Callee = getCallee(Call))
+        if (auto *Callee = getCallee(Call))
           Results.insert(Callee);
       } else if (isa<UnreachableInst>(&I)) {
         // UnreachableInst are decompiled as calls to abort, so if F has an

@@ -4,7 +4,6 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/Module.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
@@ -20,16 +19,17 @@ using clang::CharacterLiteral;
 using clang::Expr;
 using clang::IntegerLiteral;
 using clang::QualType;
+using llvm::Function;
 
 using IR2AST::StmtBuilder;
 
 void DeclCreator::createGlobalVarDeclUsedByFunction(clang::ASTContext &Context,
-                                                    llvm::Function *TheF,
+                                                    const llvm::Function *TheF,
                                                     StmtBuilder &ASTBuilder) {
   uint64_t UnnamedNum = 0;
   clang::TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
-  for (llvm::GlobalVariable *G : getDirectlyUsedGlobals(*TheF)) {
-    QualType ASTTy = getOrCreateQualType(G, Context, *TUDecl);
+  for (const llvm::GlobalVariable *G : getDirectlyUsedGlobals(*TheF)) {
+    QualType ASTTy = getOrCreateValueQualType(G, Context, *TUDecl);
 
     std::string VarName = G->getName();
     if (VarName.empty()) {
@@ -48,7 +48,7 @@ void DeclCreator::createGlobalVarDeclUsedByFunction(clang::ASTContext &Context,
     if (G->hasInitializer()) {
       revng_assert(not G->isExternallyInitialized());
 
-      llvm::Constant *LLVMInit = G->getInitializer();
+      const llvm::Constant *LLVMInit = G->getInitializer();
       const clang::Type *UnderlyingTy = ASTTy.getTypePtrOrNull();
       if (UnderlyingTy != nullptr and not isa<llvm::ConstantExpr>(LLVMInit)) {
         Expr *Init = nullptr;

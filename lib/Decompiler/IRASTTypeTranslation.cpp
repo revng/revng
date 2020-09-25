@@ -2,6 +2,7 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -13,15 +14,48 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/Type.h"
 
 #include "revng/Support/Assert.h"
 
+#include "revng-c/Decompiler/DLALayouts.h"
+
 #include "IRASTTypeTranslation.h"
 
+#include "DLATypeSystem.h"
 #include "Mangling.h"
+
+std::string
+DeclCreator::getUniqueTypeNameForDecl(const llvm::Value *NamingValue) const {
+  std::string Result;
+
+  if (NamingValue) {
+    if (NamingValue->hasName()) {
+      if (auto *F = llvm::dyn_cast<llvm::Function>(NamingValue)) {
+        Result = makeCIdentifier(F->getName().str()) + std::string("_ret_type");
+      } else if (auto *Arg = llvm::dyn_cast<llvm::Argument>(NamingValue)) {
+        const llvm::Function *F = Arg->getParent();
+        Result = makeCIdentifier(F->getName().str()) + "_arg_"
+                 + makeCIdentifier(NamingValue->getName().str())
+                 + std::string("_type");
+      }
+    }
+    if (Result.empty()) {
+      const llvm::Type *VTy = NamingValue->getType();
+      if (const auto *StructTy = llvm::dyn_cast<llvm::StructType>(VTy))
+        Result = makeCIdentifier(StructTy->getName());
+    }
+  }
+
+  if (Result.empty())
+    Result = std::string("type_") + std::to_string(TypeDecls.size());
+
+  return Result;
+}
 
 clang::QualType DeclCreator::getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
                                                      const llvm::Type *Ty) {
+
   clang::QualType Result;
   clang::TranslationUnitDecl *TUDecl = ASTCtx.getTranslationUnitDecl();
   const std::string BoolName = "bool";
@@ -66,6 +100,7 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
                                                  const llvm::Value *NamingValue,
                                                  clang::ASTContext &ASTCtx,
                                                  clang::DeclContext &DeclCtx) {
+
   clang::QualType Result;
   switch (Ty->getTypeID()) {
 
@@ -148,25 +183,7 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
       break;
     }
 
-    const llvm::StructType *StructTy = llvm::cast<llvm::StructType>(Ty);
-    std::string TypeName;
-    if (StructTy->hasName()) {
-      TypeName = makeCIdentifier(StructTy->getName());
-    } else if (NamingValue and NamingValue->hasName()) {
-      if (auto *F = llvm::dyn_cast<llvm::Function>(NamingValue)) {
-        TypeName = makeCIdentifier(F->getName().str())
-                   + std::string("_ret_type");
-      } else if (auto *Arg = llvm::dyn_cast<llvm::Argument>(NamingValue)) {
-        const llvm::Function *F = Arg->getParent();
-        TypeName = makeCIdentifier(F->getName().str()) + "_arg_"
-                   + makeCIdentifier(NamingValue->getName().str())
-                   + std::string("_type");
-      } else {
-        TypeName = getUniqueTypeNameForDecl();
-      }
-    } else {
-      TypeName = getUniqueTypeNameForDecl();
-    }
+    std::string TypeName = getUniqueTypeNameForDecl(NamingValue);
     clang::IdentifierInfo &TypeId = ASTCtx.Idents.get(TypeName);
     auto *Struct = clang::RecordDecl::Create(ASTCtx,
                                              clang::TTK_Struct,
@@ -176,22 +193,23 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
                                              &TypeId,
                                              nullptr);
     insertTypeMapping(Ty, Struct);
-    unsigned N = 0;
-    FieldDecls[Struct].resize(StructTy->getNumElements(), nullptr);
     Struct->startDefinition();
-    for (llvm::Type *FieldTy : StructTy->elements()) {
+    const auto *StructTy = llvm::cast<llvm::StructType>(Ty);
+    for (auto &Group : llvm::enumerate(StructTy->elements())) {
+      llvm::Type *FieldTy = Group.value();
       // HACK: Handle the type of the `@env` global variable, which we simply
       //       cast to a `void` `nullptr` type.
       if (FieldTy->getTypeID() == llvm::Type::TypeID::ArrayTyID) {
         Result = ASTCtx.VoidTy;
         break;
       }
-      clang::QualType QFieldTy = getOrCreateQualType(FieldTy,
+      clang::QualType QFieldTy = getOrCreateQualType(Group.value(),
                                                      nullptr,
                                                      ASTCtx,
                                                      DeclCtx);
       clang::TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(QFieldTy);
-      const std::string FieldName = std::string("field_") + std::to_string(N);
+      const std::string FieldName = std::string("field_")
+                                    + std::to_string(Group.index());
       clang::IdentifierInfo &FieldId = ASTCtx.Idents.get(FieldName);
       auto *Field = clang::FieldDecl::Create(ASTCtx,
                                              Struct,
@@ -203,9 +221,7 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
                                              nullptr,
                                              /*Mutable*/ false,
                                              clang::ICIS_NoInit);
-      FieldDecls[Struct][N] = Field;
       Struct->addDecl(Field);
-      N++;
     }
     Struct->completeDefinition();
     Result = clang::QualType(Struct->getTypeForDecl(), 0);
@@ -228,17 +244,189 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
   return Result;
 }
 
-clang::QualType DeclCreator::getOrCreateQualType(const llvm::GlobalVariable *G,
-                                                 clang::ASTContext &ASTCtx,
-                                                 clang::DeclContext &DeclCtx) {
-  llvm::PointerType *GlobalPtrTy = llvm::cast<llvm::PointerType>(G->getType());
-  llvm::Type *Ty = GlobalPtrTy->getElementType();
-  return getOrCreateQualType(Ty, G, ASTCtx, DeclCtx);
+llvm::SmallVector<const dla::Layout *, 16>
+DeclCreator::getPointedLayouts(const llvm::Value *V) const {
+
+  revng_assert(V);
+
+  llvm::SmallVector<const dla::Layout *, 16> Result;
+
+  if (not ValueLayouts)
+    return Result;
+
+  // If we have a ValueLayouts map, it means that the DLA analysis was
+  // executed. We want to customize V's type in C according to the
+  // layouts computed by the DLA.
+  auto FItBegin = ValueLayouts->lower_bound(dla::LayoutTypePtr(V, 0));
+  auto FItEnd = ValueLayouts->upper_bound(dla::LayoutTypePtr(V));
+
+  // If there is a range of ValueLayouts that are indexed by V, we have type
+  // information coming from the DLA about where V points.
+  if (FItBegin != FItEnd) {
+
+    if (std::next(FItBegin) == FItEnd) {
+
+      // If we only find a single entry in ValueLayouts associated with V,
+      // we expect this to be a scalar type.
+      auto FieldId = FItBegin->first.fieldNum();
+      revng_assert(FieldId == dla::LayoutTypePtr::fieldNumNone);
+
+      // V has a scalar type, which is a pointer to the pointed Layout.
+      Result.push_back(FItBegin->second);
+
+    } else {
+
+      // If we find more than one entry in ValueLayouts associated with V, it
+      // means that V ha either a struct type, or it is a function that
+      // returns a struct type.
+      // Each entry in ValueLayouts corresponds to a field of a struct.
+      // The field of a struct has a pointer type and points to a Layout that
+      // is described by the mapped value in ValueLayouts.
+
+      // TODO: we might be losing fields at the end of the struct.
+      auto LastFieldId = std::prev(FItBegin)->first.fieldNum();
+      revng_assert(LastFieldId != dla::LayoutTypePtr::fieldNumNone);
+      for (decltype(LastFieldId) FieldId = 0; FieldId <= LastFieldId;
+           ++FieldId) {
+
+        auto CurrId = FItBegin->first.fieldNum();
+        if (CurrId == FieldId) {
+          Result.push_back(FItBegin->second);
+          ++FItBegin;
+        } else {
+          Result.push_back(nullptr);
+        }
+      }
+    }
+  }
+  return Result;
 }
 
-clang::QualType DeclCreator::getOrCreateQualType(const llvm::Value *I,
-                                                 clang::ASTContext &ASTCtx,
-                                                 clang::DeclContext &DeclCtx) {
-  llvm::Type *Ty = I->getType();
-  return getOrCreateQualType(Ty, I, ASTCtx, DeclCtx);
+llvm::Optional<clang::QualType>
+DeclCreator::getOrCreateDLAQualType(const llvm::Value *V,
+                                    clang::ASTContext &ASTCtx,
+                                    clang::DeclContext &DeclCtx) {
+  revng_assert(V);
+
+  llvm::Optional<clang::QualType> Result;
+
+  if (auto It = ValueQualTypes.find(V); It != ValueQualTypes.end()) {
+
+    return Result = It->second;
+
+  } else if (ValueLayouts) {
+
+    auto PointedLayouts = getPointedLayouts(V);
+
+    // If there is a range of ValueLayouts that are indexed by V, we have type
+    // information coming from the DLA about where V points.
+    if (not PointedLayouts.empty()) {
+
+      llvm::LLVMContext &LLVMCtx = V->getContext();
+
+      if (PointedLayouts.size() == 1) {
+        // V has a scalar type, which is a pointer to the PointedLayout.
+        const dla::Layout *PointedLayout = PointedLayouts.front();
+        revng_assert(PointedLayout);
+        clang::QualType LayoutTy = getOrCreateQualTypeFromLayout(PointedLayout,
+                                                                 ASTCtx,
+                                                                 LLVMCtx);
+        Result = ASTCtx.getPointerType(LayoutTy);
+
+      } else {
+
+        // If we find more than one entry in ValueLayouts associated with V, it
+        // means that V ha either a struct type, or it is a function that
+        // returns a struct type.
+        // Each entry in ValueLayouts corresponds to a field of a struct.
+        // The field of a struct has a pointer type and points to a Layout that
+        // is described by the mapped value in ValueLayouts.
+
+        // Creat the struct
+        std::string TypeName = getUniqueTypeNameForDecl(nullptr);
+        clang::IdentifierInfo &TypeId = ASTCtx.Idents.get(TypeName);
+        auto *Struct = clang::RecordDecl::Create(ASTCtx,
+                                                 clang::TTK_Struct,
+                                                 &DeclCtx,
+                                                 clang::SourceLocation{},
+                                                 clang::SourceLocation{},
+                                                 &TypeId,
+                                                 nullptr);
+        TypeDecls.push_back(Struct);
+
+        // Define the fields.
+        Struct->startDefinition();
+
+        for (const auto &Group : llvm::enumerate(PointedLayouts)) {
+          // Create the type decl for the PointerLayout.
+          clang::QualType LayoutTy;
+          if (const dla::Layout *PointedLayout = Group.value()) {
+            LayoutTy = getOrCreateQualTypeFromLayout(PointedLayout,
+                                                     ASTCtx,
+                                                     LLVMCtx);
+          } else {
+            // If we don't have information about the type of this field from
+            // the DLA we just say it's a pointer to void.
+            LayoutTy = ASTCtx.VoidTy;
+          }
+          clang::QualType FieldPtrTy = ASTCtx.getPointerType(LayoutTy);
+
+          clang::TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(FieldPtrTy);
+          const std::string FieldName = std::string("field_")
+                                        + std::to_string(Group.index());
+          clang::IdentifierInfo &FieldId = ASTCtx.Idents.get(FieldName);
+          auto *Field = clang::FieldDecl::Create(ASTCtx,
+                                                 Struct,
+                                                 clang::SourceLocation{},
+                                                 clang::SourceLocation{},
+                                                 &FieldId,
+                                                 FieldPtrTy,
+                                                 TI,
+                                                 nullptr,
+                                                 /*Mutable*/ false,
+                                                 clang::ICIS_NoInit);
+          Struct->addDecl(Field);
+        }
+
+        Struct->completeDefinition();
+
+        Result = clang::QualType(Struct->getTypeForDecl(), 0);
+      }
+    }
+  }
+
+  // If we found a DLA type add it to the map and we're done.
+  if (Result.hasValue()) {
+    const auto &[_, New] = ValueQualTypes.insert({ V, Result.getValue() });
+    revng_assert(New);
+  }
+
+  return Result;
+}
+
+clang::QualType
+DeclCreator::getOrCreateValueQualType(const llvm::Value *V,
+                                      clang::ASTContext &ASTCtx,
+                                      clang::DeclContext &DeclCtx) {
+  revng_assert(V);
+
+  llvm::Optional<clang::QualType> Result = getOrCreateDLAQualType(V,
+                                                                  ASTCtx,
+                                                                  DeclCtx);
+  if (Result.hasValue())
+    return Result.getValue();
+
+  const auto *VType = V->getType();
+  if (const auto *F = dyn_cast<llvm::Function>(V)) {
+    VType = F->getReturnType();
+  } else if (const auto *G = dyn_cast<llvm::GlobalVariable>(V)) {
+    const auto *GlobalPtrTy = llvm::cast<llvm::PointerType>(G->getType());
+    VType = GlobalPtrTy->getElementType();
+  }
+
+  Result = getOrCreateQualType(VType, V, ASTCtx, DeclCtx);
+
+  const auto &[_, New] = ValueQualTypes.insert({ V, Result.getValue() });
+  revng_assert(New);
+  return Result.getValue();
 }

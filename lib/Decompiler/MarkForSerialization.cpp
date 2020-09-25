@@ -14,6 +14,7 @@
 #include "revng-c/Decompiler/MarkForSerialization.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 #include "MarkAnalysis.h"
 
@@ -193,6 +194,12 @@ bool MarkForSerializationPass::runOnFunction(llvm::Function &F) {
   // Skip non-isolated functions
   if (not F.getMetadata("revng.func.entry"))
     return false;
+
+  // If the `-single-decompilation` option was passed from command line, skip
+  // decompilation for all the functions that are not the selected one.
+  if (not TargetFunction.empty())
+    if (not F.getName().equals(TargetFunction.c_str()))
+      return false;
 
   // Compute the number of duplicates for each BasicBlock.
   const auto &RestructurePass = getAnalysis<RestructureCFG>();

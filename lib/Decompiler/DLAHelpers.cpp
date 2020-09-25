@@ -41,9 +41,11 @@ getConstQualifiedInsertValueLeafOperands(T *Ins) {
   auto *StructTy = llvm::cast<llvm::StructType>(Ins->getType());
   unsigned NumFields = StructTy->getNumElements();
   Results.resize(NumFields, nullptr);
-  revng_assert(Ins->getNumUses() == 1
-               and (isa<llvm::InsertValueInst>(Ins->use_begin()->getUser())
-                    or isa<llvm::ReturnInst>(Ins->use_begin()->getUser())));
+  revng_assert((Ins->getNumUses() == 1
+                and isa<llvm::InsertValueInst>(Ins->use_begin()->getUser()))
+               or llvm::all_of(Ins->users(), [](const llvm::Value *V) {
+                    return isa<llvm::ReturnInst>(V);
+                  }));
   while (1) {
     revng_assert(Ins->getNumIndices() == 1);
     unsigned FieldId = Ins->getIndices()[0];

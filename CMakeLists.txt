@@ -106,6 +106,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       -instcombine
       -early-cse
       -simplifycfg
+      -gvn-hoist
       # apply type shrinking
       -type-shrinking
       --min-width 8
@@ -162,42 +163,6 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       FIXTURES_SETUP AdjustStackPointer_fixture_${TARGET_NAME}
       )
 
-    # test combing
-    add_test(NAME comb_${TARGET_NAME} COMMAND opt -S
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRestructureCFGPass.so
-      -restructure-cfg
-      ${TARGET_NAME}_adjusted_stack.ll
-      -o ${TARGET_NAME}_combed.ll
-      )
-    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS adjust_stack_pointer_${TARGET_NAME}
-      )
-    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED AdjustStackPointer_fixture_${TARGET_NAME}
-      )
-    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP Combed_fixture_${TARGET_NAME}
-      )
-
-    # test AddSCEVBarrierPass
-    add_test(NAME add_scev_barrier_${TARGET_NAME} COMMAND opt -S
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libDecompiler.so
-      -mark-for-serialization -add-scev-barrier
-      ${TARGET_NAME}_adjusted_stack.ll
-      -o /dev/null
-      )
-    set_property(TEST add_scev_barrier_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS comb_${TARGET_NAME}
-      )
-    set_property(TEST add_scev_barrier_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED Combed_fixture_${TARGET_NAME}
-      )
-    set_property(TEST add_scev_barrier_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP AddSCEVBarrier_fixture_${TARGET_NAME}
-      )
-
     # test DLA
     add_test(NAME dla_${TARGET_NAME} COMMAND opt -S
       -load
@@ -216,12 +181,50 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       FIXTURES_SETUP DLA_fixture_${TARGET_NAME}
       )
 
-    # test decompilation
-    add_test(NAME decompilation_${TARGET_NAME} COMMAND opt -S
+    # test AddSCEVBarrierPass
+    add_test(NAME add_scev_barrier_${TARGET_NAME} COMMAND opt -S
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libDecompiler.so
-      -decompilation
-      ${TARGET_NAME}_prepared.ll
+      -mark-for-serialization -add-scev-barrier
+      ${TARGET_NAME}_adjusted_stack.ll
+      -o /dev/null
+      )
+    set_property(TEST add_scev_barrier_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS adjust_stack_pointer_${TARGET_NAME}
+      )
+    set_property(TEST add_scev_barrier_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED AdjustStackPointer_fixture_${TARGET_NAME}
+      )
+    set_property(TEST add_scev_barrier_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP AddSCEVBarrier_fixture_${TARGET_NAME}
+      )
+
+    # test combing
+    add_test(NAME comb_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRestructureCFGPass.so
+      -restructure-cfg
+      ${TARGET_NAME}_adjusted_stack.ll
+      -o /dev/null
+      )
+    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS adjust_stack_pointer_${TARGET_NAME}
+      )
+    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED AdjustStackPointer_fixture_${TARGET_NAME}
+      )
+    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP Combed_fixture_${TARGET_NAME}
+      )
+
+    # test decompilation without DLA
+    add_test(NAME decompilation_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRestructureCFGPass.so
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libDecompiler.so
+      -restructure-cfg -decompilation
+      ${TARGET_NAME}_adjusted_stack.ll
       -o /dev/null
       )
     set_property(TEST decompilation_${TARGET_NAME} APPEND PROPERTY
@@ -230,6 +233,39 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
     set_property(TEST decompilation_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_REQUIRED Combed_fixture_${TARGET_NAME}
       )
+    set_property(TEST decompilation_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP Decompiled_fixture_${TARGET_NAME}
+      )
+
+#    # test full decompilation pipeline with dla
+#    add_test(NAME decompile_with_dla_${TARGET_NAME} COMMAND opt -S
+#      -load
+#      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libPHIASAPAssignmentInfo.so
+#      -load
+#      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRestructureCFGPass.so
+#      -load
+#      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libDecompiler.so
+#      -dla
+#      -phi-asap-assignment-info
+#      -mark-for-serialization
+#      -restructure-cfg
+#      -add-scev-barrier
+#      -decompilation
+#      ${TARGET_NAME}_adjusted_stack.ll
+#      -o /dev/null
+#      )
+#    set_property(TEST decompile_with_dla_${TARGET_NAME} APPEND PROPERTY
+#      DEPENDS comb_${TARGET_NAME}
+#      )
+#    set_property(TEST decompile_with_dla_${TARGET_NAME} APPEND PROPERTY
+#      FIXTURES_REQUIRED Combed_fixture_${TARGET_NAME}
+#      )
+#    set_property(TEST decompile_with_dla_${TARGET_NAME} APPEND PROPERTY
+#      FIXTURES_REQUIRED DLA_fixture_${TARGET_NAME}
+#      )
+#    set_property(TEST decompile_with_dla_${TARGET_NAME} APPEND PROPERTY
+#      FIXTURES_REQUIRED Decompiled_fixture_${TARGET_NAME}
+#      )
 
   endif()
   message(VERBOSE "----------------------------------")
