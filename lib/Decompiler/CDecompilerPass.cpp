@@ -2,15 +2,14 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
-#include <sys/stat.h>
-
 // LLVM includes
+#include <llvm/ADT/SmallString.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/Error.h>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/Path.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/Scalar.h>
@@ -24,6 +23,7 @@
 
 // local libraries includes
 #include "revng-c/Decompiler/CDecompilerPass.h"
+#include "revng-c/DecompilerResourceFinder/ResourceFinder.h"
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
@@ -131,29 +131,16 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   // Construct the path of the include (hack copied from revng-lift). Even if
   // the include path is unique for now, we have anyway set up the search in
   // multiple paths.
-  static std::string RevNgCIncludePath;
-  std::vector<std::string> SearchPaths;
-#ifdef INSTALL_PATH
-  SearchPaths.push_back(std::string(INSTALL_PATH) + "/share/revngc");
-#endif
-
-  bool IncludeFound = false;
-  for (auto &Path : SearchPaths) {
-    if (not IncludeFound) {
-      std::stringstream IncludePath;
-      IncludePath << Path << "/revng-c-include.c";
-      if (access(IncludePath.str().c_str(), F_OK) != -1) {
-        RevNgCIncludePath = IncludePath.str();
-        IncludeFound = true;
-      }
-    }
-  }
-
-  revng_assert(IncludeFound, "Couldn't find revng-c-include.c");
+  static std::string RevNgCIncludeFile;
+  auto &FileFinder = revng::c::ResourceFinder;
+  auto OptionalRevNgIncludeFile = FileFinder.findFile("share/revngc/"
+                                                      "revng-c-include.c");
+  revng_assert(OptionalRevNgIncludeFile.has_value());
+  RevNgCIncludeFile = OptionalRevNgIncludeFile.value();
 
   // Here we build the artificial command line for clang tooling
   static std::array<const char *, 5> ArgV = {
-    "revng-c",  RevNgCIncludePath.data(),
+    "revng-c",  RevNgCIncludeFile.data(),
     "--", // separator between tool arguments and clang arguments
     "-xc", // tell clang to compile C language
     "-std=c11", // tell clang to compile C11
@@ -176,8 +163,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
 
   // Decompiled code serialization on file.
   if (DecompiledDir.size() != 0) {
-    int MkdirRetValue = mkdir(DecompiledDir.c_str(), 0775);
-    if (MkdirRetValue != 0 && errno != EEXIST) {
+    if (auto Err = llvm::sys::fs::create_directory(DecompiledDir)) {
       revng_abort("Could not create revng-c-decompiled-source directory");
     }
     std::ofstream CFile;
@@ -187,7 +173,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
       revng_abort("Could not open file for dumping C source file.");
     }
     std::ifstream IncludeFile;
-    IncludeFile.open(RevNgCIncludePath);
+    IncludeFile.open(RevNgCIncludeFile);
     if (not IncludeFile.is_open()) {
       revng_abort("Could not open revng-c include file.");
     }

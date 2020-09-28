@@ -11,13 +11,12 @@ revng_add_analyses_library(Decompiler revngc
                            TypeDeclCreationAction.cpp)
 
 target_link_libraries(Decompiler
-                      PHIASAPAssignmentInfo
-                      RestructureCFGPass
-                      revng::revngSupport
-                      clangTooling
-                      clangAST
-                      clangBasic
-                      clangFrontend
-                      ${LLVM_LIBRARIES})
-
-install(FILES revng-c-include.c DESTINATION share/revngc/)
+  DecompilerResourceFinder
+  PHIASAPAssignmentInfo
+  RestructureCFGPass
+  revng::revngSupport
+  clangTooling
+  clangAST
+  clangBasic
+  clangFrontend
+  ${LLVM_LIBRARIES})
