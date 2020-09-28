@@ -27,6 +27,7 @@
 #include <llvm/Support/raw_os_ostream.h>
 
 // revng includes
+#include <revng/BasicAnalyses/GeneratedCodeBasicInfo.h>
 #include <revng/Support/IRHelpers.h>
 
 // Local libraries includes
@@ -1379,6 +1380,7 @@ inline void RegionCFG<NodeT>::generateAst() {
 
     // Initialize the EdgeInfo struct on switch edges.
     Graph.tagCaseEdges();
+    Graph.markUnexpectedPCAsInlined();
 
     if (CombLogger.isEnabled()) {
       CombLogger << "Weaveing region " + RegionName + "\n";
@@ -1913,6 +1915,7 @@ inline void RegionCFG<NodeT>::tagCaseEdges() {
       for (const auto &[BB, SwitchSuccessor] : BBToNodeMap) {
         auto NEIP = extractLabeledEdge(EdgeDescriptor(Switch, SwitchSuccessor));
         revng_assert(NEIP.second.Labels.empty());
+        revng_assert(NEIP.second.Inlined == false);
       }
 
       llvm::BasicBlock *SwitchBB = Switch->getOriginalNode();
@@ -1950,6 +1953,54 @@ inline void RegionCFG<NodeT>::tagCaseEdges() {
         EdgeInfo EI = { Label, false };
 
         addEdge(EdgeDescriptor(Switch, SuccNode), EI);
+      }
+    }
+  }
+}
+
+template<class NodeT>
+inline void RegionCFG<NodeT>::markUnexpectedPCAsInlined() {
+
+  // Check that we are in a valid state of the graph.
+  revng_assert(isDAG());
+
+  // Collect useful objectd
+  BBNodeT *Entry = &getEntryNode();
+
+  for (BBNodeT *Switch : post_order(Entry)) {
+
+    if (not isASwitch(Switch))
+      continue;
+
+    if (Switch->isCode()) {
+
+      // Build a map between the `llvm::BasicBlock` and the corresponding
+      // `BasicBlockNode`, used later to retrieve the matching node.
+      std::map<llvm::BasicBlock *, BBNodeT *> BBToNodeMap;
+      for (BBNodeT *SwitchSucc : Switch->successors()) {
+        revng_assert(SwitchSucc->isCode());
+        llvm::BasicBlock *SwitchSuccBB = SwitchSucc->getOriginalNode();
+        const auto &[_, New] = BBToNodeMap.insert({ SwitchSuccBB, SwitchSucc });
+        revng_assert(New);
+      }
+
+      // Retrieve the `BasicBlockNode` corresponding to the default case.
+      llvm::BasicBlock *SwitchBB = Switch->getOriginalNode();
+      llvm::Instruction *TermInst = SwitchBB->getTerminator();
+      auto *SwitchInstruction = llvm::cast<llvm::SwitchInst>(TermInst);
+      llvm::BasicBlock *DefaultBB = SwitchInstruction->getDefaultDest();
+      revng_assert(nullptr != DefaultBB);
+
+      // Ensure that the default case brings us to the `UnexpectedPC` BB.
+      BlockType::Values BBType = GeneratedCodeBasicInfo::getType(DefaultBB);
+
+      // If the default case brings us to the `UnexpectedPC` BB, mark it as
+      // inlined, so that it does not influence the computing of the PostDom.
+      if (BBType == BlockType::UnexpectedPCBlock) {
+        BBNodeT *Default = BBToNodeMap.at(DefaultBB);
+
+        // Mark the default edge as inlined.
+        markEdgeInlined(EdgeDescriptor(Switch, Default));
       }
     }
   }

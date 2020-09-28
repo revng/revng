@@ -301,6 +301,8 @@ public:
 
   void tagCaseEdges();
 
+  void markUnexpectedPCAsInlined();
+
 protected:
   template<typename StreamT>
   void streamNode(StreamT &S, const BasicBlockNodeT *) const;
