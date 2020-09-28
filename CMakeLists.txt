@@ -96,6 +96,7 @@ foreach(ARCH aarch64 arm mips mipsel x86_64 i386 s390x)
 endforeach()
 
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
+add_definitions("-DBUILD_PATH=\"${CMAKE_BINARY_DIR}\"")
 
 #
 # Compiler options

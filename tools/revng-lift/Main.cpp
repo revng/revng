@@ -33,6 +33,7 @@ extern "C" {
 // Local libraries includes
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/ResourceFinder.h"
 #include "revng/Support/Statistics.h"
 #include "revng/Support/revng.h"
 
@@ -96,49 +97,24 @@ using LibraryDestructor = std::integral_constant<int (*)(void *) noexcept,
 using LibraryPointer = std::unique_ptr<void, LibraryDestructor>;
 
 static void findFiles(const char *Architecture) {
-  // TODO: make this optional
-  char *FullPath = realpath("/proc/self/exe", nullptr);
-  revng_assert(FullPath != nullptr);
-  std::string Directory(dirname(FullPath));
-  free(FullPath);
+  using namespace revng;
 
-  std::vector<std::string> SearchPaths;
-  SearchPaths.push_back(Directory + "/../lib");
-  SearchPaths.push_back(Directory + "/../share/revng");
-#ifdef INSTALL_PATH
-  SearchPaths.push_back(std::string(INSTALL_PATH) + "/lib");
-  SearchPaths.push_back(std::string(INSTALL_PATH) + "/share/revng");
-#endif
+  std::string ArchName(Architecture);
 
-  bool LibtinycodeFound = false;
-  bool EarlyLinkedFound = false;
-  for (auto &Path : SearchPaths) {
+  std::string LibtinycodeName = "/lib/libtinycode-" + ArchName + ".so";
+  auto OptionalLibtinycode = ResourceFinder.findFile(LibtinycodeName);
+  revng_assert(OptionalLibtinycode.has_value(), "Cannot find libtinycode");
+  LibTinycodePath = OptionalLibtinycode.value();
 
-    if (not LibtinycodeFound) {
-      std::stringstream LibraryPath;
-      LibraryPath << Path << "/libtinycode-" << Architecture << ".so";
-      std::stringstream HelpersPath;
-      HelpersPath << Path << "/libtinycode-helpers-" << Architecture << ".bc";
-      if (access(LibraryPath.str().c_str(), F_OK) != -1
-          && access(HelpersPath.str().c_str(), F_OK) != -1) {
-        LibTinycodePath = LibraryPath.str();
-        LibHelpersPath = HelpersPath.str();
-        LibtinycodeFound = true;
-      }
-    }
+  std::string LibHelpersName = "/lib/libtinycode-helpers-" + ArchName + ".bc";
+  auto OptionalHelpers = ResourceFinder.findFile(LibHelpersName);
+  revng_assert(OptionalHelpers.has_value(), "Cannot find tinycode helpers");
+  LibHelpersPath = OptionalHelpers.value();
 
-    if (not EarlyLinkedFound) {
-      std::stringstream TestPath;
-      TestPath << Path << "/early-linked-" << Architecture << ".ll";
-      if (access(TestPath.str().c_str(), F_OK) != -1) {
-        EarlyLinkedPath = TestPath.str();
-        EarlyLinkedFound = true;
-      }
-    }
-  }
-
-  revng_assert(LibtinycodeFound, "Couldn't find libtinycode and the helpers");
-  revng_assert(EarlyLinkedFound, "Couldn't find early-linked.ll");
+  std::string EarlyLinkedName = "/share/revng/early-linked-" + ArchName + ".ll";
+  auto OptionalEarlyLinked = ResourceFinder.findFile(EarlyLinkedName);
+  revng_assert(OptionalEarlyLinked.has_value(), "Cannot find early-linked.ll");
+  EarlyLinkedPath = OptionalEarlyLinked.value();
 }
 
 /// Given an architecture name, loads the appropriate version of the PTC
