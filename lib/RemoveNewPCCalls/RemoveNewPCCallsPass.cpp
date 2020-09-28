@@ -20,6 +20,9 @@ using Reg = RegisterPass<RemoveNewPCCallsPass>;
 static Reg X("remove-newpc-calls", "Removes calls to newpc", true, true);
 
 bool RemoveNewPCCallsPass::runOnFunction(Function &F) {
+  if (not F.hasMetadata("revng.func.entry"))
+    return false;
+
   bool Changed = false;
   // Remove calls to newpc in isolated functions
   for (Function &ParentF : *F.getParent()) {
