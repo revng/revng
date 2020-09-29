@@ -1762,7 +1762,7 @@ inline void RegionCFG<NodeT>::weave() {
     if (Sink != Exit and Exit->successor_size() == 0)
       addPlainEdge(EdgeDescriptor(Exit, Sink));
 
-  PDT.recalculate(Graph);
+  IFPDT.recalculate(Graph);
 
   // Iterate over all the nodes in post order.
   for (BBNodeT *Switch : post_order(Entry)) {
@@ -1786,7 +1786,7 @@ inline void RegionCFG<NodeT>::weave() {
         CaseSet.insert(Successor);
 
       // Find the postdominator of the switch.
-      BBNodeT *PostDom = PDT[Switch]->getIDom()->getBlock();
+      BBNodeT *PostDom = IFPDT[Switch]->getIDom()->getBlock();
       revng_assert(PostDom != nullptr);
 
       // Iterate over all the nodes "in the body" of the switch in reverse post
@@ -1807,7 +1807,7 @@ inline void RegionCFG<NodeT>::weave() {
 
         BasicBlockNodeTVect PostDominatedCases;
         for (BBNodeT *Case : CaseSet)
-          if (PDT.dominates(RPOTBB, Case))
+          if (IFPDT.dominates(RPOTBB, Case))
             PostDominatedCases.push_back(Case);
 
         // Criterion to check if we need to perform the weaving. Specifically,
@@ -1839,12 +1839,12 @@ inline void RegionCFG<NodeT>::weave() {
           bool WeavingDefault = false;
 
           // Iterate over all the case nodes that we found, moving all the
-          // necessary edges and updating the PDT.
+          // necessary edges and updating the IFPDT.
           // Also, collect all the case labels of the cases we're weaving.
           for (BasicBlockNodeT *Case : PostDominatedCases) {
 
             auto LabeledEdge = extractLabeledEdge(EdgeDescriptor(Switch, Case));
-            PDT.deleteEdge(Switch, Case);
+            IFPDT.deleteEdge(Switch, Case);
 
             auto &EdgeInfo = LabeledEdge.second;
             // If we find an edge without case labels, that's the default.
@@ -1861,21 +1861,21 @@ inline void RegionCFG<NodeT>::weave() {
               Labels.insert(EdgeInfo.Labels.begin(), EdgeInfo.Labels.end());
 
             addEdge(EdgeDescriptor(NewSwitch, Case), EdgeInfo);
-            PDT.insertEdge(NewSwitch, Case);
+            IFPDT.insertEdge(NewSwitch, Case);
 
             CaseSet.erase(Case);
           }
 
           CaseSet.insert(NewSwitch);
 
-          // Connect the old switch to the new one and update the PDT.
+          // Connect the old switch to the new one and update the IFPDT.
           // Use the collected labels to mark the new edge from the original
           // switch to the weaved switch.
           using EdgeInfo = typename BasicBlockNodeT::EdgeInfo;
           EdgeInfo EI = { Labels, false };
 
           addEdge(EdgeDescriptor(Switch, NewSwitch), EI);
-          PDT.insertEdge(Switch, NewSwitch);
+          IFPDT.insertEdge(Switch, NewSwitch);
         }
       }
     }
