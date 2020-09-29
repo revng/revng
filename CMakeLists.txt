@@ -44,3 +44,95 @@ add_subdirectory(include)
 add_subdirectory(lib)
 
 include(tests/Tests.cmake)
+
+include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
+
+# End-to-end tests for standalone passes
+macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
+  message(VERBOSE "--------- Preparing test ---------")
+  message(VERBOSE "Category: ${CATEGORY}")
+  message(VERBOSE "Input file: ${INPUT_FILE}")
+  message(VERBOSE "Configuration: ${CONFIGURATION}")
+  message(VERBOSE "Output: ${OUTPUT}")
+  message(VERBOSE "Target name: ${TARGET_NAME}")
+
+  if (EXISTS ${INPUT_FILE})
+    message(VERBOSE "Input file found: ${INPUT_FILE}")
+
+    add_test(NAME remove_pc_stores_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemovePCStoresPass.so
+      -remove-pc-stores
+      ${INPUT_FILE}
+      -o /dev/null
+      )
+    set_property(TEST remove_pc_stores_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP RemovePCStores_fixture_${TARGET_NAME}
+      )
+
+    add_test(NAME remove_bad_pc_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveBadPCPass.so
+      -remove-bad-pc
+      ${INPUT_FILE}
+      -o /dev/null
+      )
+    set_property(TEST remove_bad_pc_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP RemoveBadPC_fixture_${TARGET_NAME}
+      )
+
+    add_test(NAME remove_newpc_calls_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveNewPCCalls.so
+      -remove-newpc-calls
+      ${INPUT_FILE}
+      -o /dev/null
+      )
+    set_property(TEST remove_newpc_calls_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP RemoveNewPCCalls_fixture_${TARGET_NAME}
+      )
+
+    # prepare enforced .ll for decompilation
+    add_test(NAME prepare_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemovePCStoresPass.so
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveBadPCPass.so
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveNewPCCalls.so
+      -remove-pc-stores -remove-bad-pc -remove-newpc-calls
+      ${INPUT_FILE}
+      -o ${TARGET_NAME}_prepared.ll
+      )
+    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS remove_pc_stores_${TARGET_NAME}
+      )
+    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS remove_bad_pc_${TARGET_NAME}
+      )
+    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS remove_newpc_calls_${TARGET_NAME}
+      )
+    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED RemovePCStores_fixture_${TARGET_NAME}
+      )
+    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED RemoveBadPC_fixture_${TARGET_NAME}
+      )
+    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED RemoveNewPCCalls_fixture_${TARGET_NAME}
+      )
+    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME}
+      )
+
+  endif()
+  message(VERBOSE "----------------------------------")
+endmacro()
+
+# Register a new artifact
+register_derived_artifact("abi-enforced-for-decompilation" # FROM_ARTIFACTS: input artifacts
+  "revng-c-passes"                 # NAME: name of the new aritfact
+  ""                               # SUFFIX: extension of output file
+  "FILE"                           # TYPE: "FILE" or "DIRECTORY"
+  )
