@@ -2102,7 +2102,8 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
       revng_assert(Arg->getArgNo() == 0);
       const Function *Fun = Arg->getParent();
       revng_assert(CpuLoop != nullptr);
-      revng_assert(CpuLoop == Fun);
+      revng_assert(CpuLoop->arg_size());
+      revng_assert(Arg->getType() == CpuLoop->arg_begin()->getType());
 
       auto WLIt = WorkList.cbegin();
       auto WLEnd = WorkList.cend();
@@ -2127,11 +2128,14 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
                   "Has unresolved source: " << dumpToString(NextSrcVal));
         revng_assert(NextSrcVal != Arg);
 
-        WorkItem::size_type SrcId = WLIt->getSourceIndex();
-        NewItem.setSourceIndex(SrcId + 1);
-        bool Pushed = tryPush(std::move(NewItem));
-        revng_assert(Pushed);
-        return true;
+        WorkItem::size_type SrcId = WLIt->getSourceIndex() + 1;
+        WorkItem::size_type SrcSize = WLIt->getNumSources();
+        revng_assert(SrcId <= SrcSize);
+        for (; SrcId < SrcSize; ++SrcId) {
+          NewItem.setSourceIndex(SrcId);
+          if (tryPush(std::move(NewItem)))
+            return true;
+        }
       }
       revng_assert(FoundRecursion);
     } else {
