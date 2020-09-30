@@ -640,29 +640,33 @@ public:
     if (SmallestType != nullptr)
       WorstCase = std::min(SmallestType->getBitMask(), WorstCase);
 
-    const Operation &SmallestOperation = OperationsStack.at(SmallestRangeIndex);
+    Type *SmallestOperationType = nullptr;
+    {
+      const auto &SmallestOperation = OperationsStack.at(SmallestRangeIndex);
+      SmallestOperationType = SmallestOperation.V->getType();
 
-    if (not PhiIsSmallest) {
-      // Materialize all the values, so we can process them one by one
-      revng_assert(Values.size() == 0);
-      if (SmallestOperation.RangeSize >= WorstCase)
-        return {};
-      Values.resize(SmallestOperation.RangeSize);
+      if (not PhiIsSmallest) {
+        // Materialize all the values, so we can process them one by one
+        revng_assert(Values.size() == 0);
+        if (SmallestOperation.RangeSize >= WorstCase)
+          return {};
+        Values.resize(SmallestOperation.RangeSize);
 
-      auto It = SmallestOperation.Range.begin();
-      const auto End = SmallestOperation.Range.end();
-      for (MaterializedValue &Entry : Values) {
-        revng_assert(It != End);
-        Entry = { *It };
-        ++It;
+        auto It = SmallestOperation.Range.begin();
+        const auto End = SmallestOperation.Range.end();
+        for (MaterializedValue &Entry : Values) {
+          revng_assert(It != End);
+          Entry = { *It };
+          ++It;
+        }
+
+      } else {
+        // The Values vector has already been initialized
+        revng_assert(lastIsPhi());
       }
 
-    } else {
-      // The Values vector has already been initialized
-      revng_assert(lastIsPhi());
+      OperationsStack.resize(SmallestRangeIndex);
     }
-
-    revng_assert(OperationsStack.size() != 0);
 
     // Process one value at a time
     for (MaterializedValue &Entry : Values) {
@@ -676,9 +680,7 @@ public:
       }
 
       llvm::Optional<llvm::StringRef> SymbolName;
-      auto *Current = CI::get(SmallestOperation.V->getType(), Entry.value());
-
-      OperationsStack.resize(SmallestRangeIndex);
+      auto *Current = CI::get(SmallestOperationType, Entry.value());
 
       // Materialize the value I through the operations stack
       auto It = OperationsStack.rbegin();
