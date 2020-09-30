@@ -227,9 +227,10 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
 
-  TheModule->setDataLayout("e-m:e-i64:64-f80:128-n8:16:32:64-S128");
-
   HelpersModule = parseIR(Helpers, Context);
+
+  TheModule->setDataLayout(HelpersModule->getDataLayout());
+
   for (auto &F : HelpersModule->functions()) {
     // Remove 'optnone' Function attribute from QEMU helpers.
     // QEMU helpers are compiled with -O0 in libtinycode because the LLVM IR
