@@ -118,7 +118,7 @@ static void findFiles(const char *Architecture) {
       std::stringstream LibraryPath;
       LibraryPath << Path << "/libtinycode-" << Architecture << ".so";
       std::stringstream HelpersPath;
-      HelpersPath << Path << "/libtinycode-helpers-" << Architecture << ".ll";
+      HelpersPath << Path << "/libtinycode-helpers-" << Architecture << ".bc";
       if (access(LibraryPath.str().c_str(), F_OK) != -1
           && access(HelpersPath.str().c_str(), F_OK) != -1) {
         LibTinycodePath = LibraryPath.str();
