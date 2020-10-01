@@ -854,11 +854,16 @@ void IFI::run() {
       for (BasicBlock *Successor : successors(Terminator)) {
 
         auto SuccessorType = GCBI.getType(Successor);
-        revng_assert(GCBI.isTranslated(Successor)
-                     or SuccessorType == BlockType::AnyPCBlock
-                     or SuccessorType == BlockType::UnexpectedPCBlock
-                     or SuccessorType == BlockType::RootDispatcherBlock
-                     or SuccessorType == BlockType::IndirectBranchDispatcherHelperBlock);
+        switch (SuccessorType) {
+        case BlockType::AnyPCBlock:
+        case BlockType::UnexpectedPCBlock:
+        case BlockType::RootDispatcherBlock:
+        case BlockType::IndirectBranchDispatcherHelperBlock:
+          break;
+        default:
+          revng_assert(GCBI.isTranslated(Successor));
+          break;
+        }
         auto SuccessorIt = RootToIsolated.find(Successor);
 
         // We add a successor if it is not a revng block type and it is present

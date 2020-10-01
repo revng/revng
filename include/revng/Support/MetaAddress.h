@@ -552,9 +552,13 @@ public:
   }
 
   bool operator<(const MetaAddress &Other) const { return tie() < Other.tie(); }
-  bool operator<=(const MetaAddress &Other) const { return tie() <= Other.tie(); }
+  bool operator<=(const MetaAddress &Other) const {
+    return tie() <= Other.tie();
+  }
   bool operator>(const MetaAddress &Other) const { return tie() > Other.tie(); }
-  bool operator>=(const MetaAddress &Other) const { return tie() >= Other.tie(); }
+  bool operator>=(const MetaAddress &Other) const {
+    return tie() >= Other.tie();
+  }
   /// @}
 
   /// The std::less method is required since operator< does not define a strict
@@ -831,7 +835,7 @@ private:
 public:
   std::string toString() const;
   static MetaAddress fromString(llvm::StringRef Text);
-  
+
 private:
   using Tied = std::tuple<uint32_t, uint16_t, uint16_t, uint64_t>;
   Tied tie() const { return std::tie(Epoch, AddressSpace, Type, Address); }
