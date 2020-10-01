@@ -1782,27 +1782,8 @@ inline void RegionCFG<NodeT>::weave() {
 
       // Collect the case nodes of the switch.
       BasicBlockNodeTSet CaseSet;
-      llvm::SmallPtrSet<BBNodeT *, 1> PostDomSet;
-      for (BBNodeT *Successor : Switch->successors()) {
+      for (BBNodeT *Successor : Switch->successors())
         CaseSet.insert(Successor);
-
-        // If we are processing a regular switch, blacklist the edge conducting
-        // to the `default` case from the processing, since we know that its
-        // corresponding edge has been inline.
-        // TODO: substitute this by implementing the rpot visit using the
-        // Filtered GraphTraits.
-        if (isASwitch(Switch)) {
-          llvm::BasicBlock *DefaultBB = Successor->getOriginalNode();
-          revng_assert(DefaultBB != nullptr);
-
-          // Insert in the `PostDomSet` (thus blacklisting it for the rpot
-          // subsequent visit).
-          BlockType::Values BBType = GeneratedCodeBasicInfo::getType(DefaultBB);
-          if (BBType == BlockType::UnexpectedPCBlock) {
-            PostDomSet.insert(Successor);
-          }
-        }
-      }
 
       // Find the postdominator of the switch.
       BBNodeT *PostDom = IFPDT[Switch]->getIDom()->getBlock();
@@ -1810,9 +1791,9 @@ inline void RegionCFG<NodeT>::weave() {
 
       // Iterate over all the nodes "in the body" of the switch in reverse post
       // order.
-
+      llvm::SmallPtrSet<BBNodeT *, 1> PostDomSet;
       PostDomSet.insert(PostDom);
-      ReversePostOrderTraversalExt RPOT(Switch, PostDomSet);
+      ReversePostOrderTraversalExt RPOT(EFGT<BBNodeT *>(Switch), PostDomSet);
 
       revng_log(CombLogger,
                 "Dumping the candidates that may initiate weaving:");
