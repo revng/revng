@@ -152,7 +152,11 @@ configure_file(include/revng/Runtime/commonconstants.h "${CMAKE_BINARY_DIR}/shar
 configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/share/revng/early-linked.c" COPYONLY)
 configure_file(scripts/revng "${CMAKE_BINARY_DIR}/bin/revng")
 configure_file(scripts/revng-merge-dynamic "${CMAKE_BINARY_DIR}/bin/revng-merge-dynamic" COPYONLY)
-install(PROGRAMS scripts/revng scripts/revng-merge-dynamic DESTINATION bin)
+install(PROGRAMS
+  scripts/revng
+  scripts/revng-merge-dynamic
+  scripts/check-revng-conventions
+  DESTINATION bin)
 install(FILES runtime/support.c DESTINATION share/revng)
 install(FILES runtime/support.h DESTINATION share/revng)
 install(FILES include/revng/Runtime/commonconstants.h DESTINATION share/revng)
