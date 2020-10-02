@@ -864,14 +864,8 @@ public:
   size_type getSourceIndex() const { return SourceIndex; }
 
   void setSourceIndex(size_type I) {
-    revng_assert(0 < I and I < Sources.size());
+    revng_assert(I < Sources.size());
     SourceIndex = I;
-  }
-
-  void advanceToNextSource() {
-    const auto size = Sources.size();
-    if (SourceIndex < size)
-      SourceIndex++;
   }
 
   size_type getNumSources() const { return Sources.size(); }
@@ -1586,13 +1580,9 @@ private:
   /// \brief Removes the root call site associated with `Item` (if any) from
   ///        `CrossedCallSites`
   /// \return `true` if it was removed, `false` otherwise
-  bool removeCurCrossedCallSite(const WorkItem &Item) {
-    CallInst *RootCallSite = getCurSourceRootCall(Item, RootFunction);
-    if (RootCallSite) {
-      auto NumErased = CrossedCallSites.erase(RootCallSite);
-      revng_assert(NumErased);
-      return true;
-    }
+  bool tryRemoveCurCrossedCallSite(const WorkItem &Item) {
+    if (CallInst *RootCallSite = getCurSourceRootCall(Item, RootFunction))
+      return CrossedCallSites.erase(RootCallSite);
     return false;
   }
 
@@ -1735,11 +1725,13 @@ private:
   /// \brief Selects the next source of `Item`, if possible, returning true on
   ///        success.
   bool selectNextSource(WorkItem &Item) {
-    const Use *NextSrcUse = Item.nextSourceUse();
-    if (NextSrcUse != nullptr) {
-      removeCurCrossedCallSite(Item);
+    if (Item.nextSourceUse()) {
+      tryRemoveCurCrossedCallSite(Item);
       checkNewVisitAndInsertNextCrossedCallSite(Item);
-      Item.advanceToNextSource();
+      auto NumSrcs = Item.getNumSources();
+      auto NextSrcId = Item.getSourceIndex() + 1;
+      revng_assert(NextSrcId < NumSrcs);
+      Item.setSourceIndex(NextSrcId);
       return true;
     }
     return false;
@@ -1903,7 +1895,7 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
       }
     }
 
-    removeCurCrossedCallSite(Item);
+    tryRemoveCurCrossedCallSite(Item);
 
   } else if (auto *Instr = dyn_cast<Instruction>(ItemVal)) {
 
@@ -2128,14 +2120,10 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
                   "Has unresolved source: " << dumpToString(NextSrcVal));
         revng_assert(NextSrcVal != Arg);
 
-        WorkItem::size_type SrcId = WLIt->getSourceIndex() + 1;
-        WorkItem::size_type SrcSize = WLIt->getNumSources();
-        revng_assert(SrcId <= SrcSize);
-        for (; SrcId < SrcSize; ++SrcId) {
-          NewItem.setSourceIndex(SrcId);
-          if (tryPush(std::move(NewItem)))
-            return true;
-        }
+        WorkItem::size_type NextSrcId = WLIt->getSourceIndex() + 1;
+        NewItem.setSourceIndex(NextSrcId);
+        if (tryPush(std::move(NewItem)))
+          return true;
       }
       revng_assert(FoundRecursion);
     } else {
@@ -2143,18 +2131,17 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
       for (const Use *U : NewItem.sources())
         insertCallSiteOffset(U->get(), CSVOffsets(CSVOffsets::Kind::Unknown));
     }
-  } else {
-    for (const Use *U : NewItem.sources()) {
-      revng_log(CSVAccessLog, "Src: " << dumpToString(U->get()));
 
+  } else {
+
+    for (const auto &Group : llvm::enumerate(NewItem.sources())) {
+      revng_log(CSVAccessLog, "Src: " << dumpToString(Group.value()->get()));
+      revng_log(CSVAccessLog, "SrcId: " << Group.index());
+      // Adjust the SourceIndex, to set the correct Source
+      auto SrcId = Group.index();
+      NewItem.setSourceIndex(SrcId);
       if (tryPush(std::move(NewItem)))
         return true;
-
-      // Adjust the SourceIndex, to set the correct Source
-      if (NewItem.nextSourceUse() != nullptr) {
-        NewItem.advanceToNextSource();
-        revng_log(CSVAccessLog, "NextSrc");
-      }
     }
   }
 
@@ -2245,9 +2232,8 @@ void CPUSAOA::analyzeAccess(Instruction *LoadOrStore, bool IsLoad) {
     } while (not WorkList.empty()
              and WorkList.back().nextSourceValue() == nullptr);
 
-    if (not WorkList.empty()) {
+    if (not WorkList.empty())
       selectNextSource(WorkList.back());
-    }
   }
 }
 
