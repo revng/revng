@@ -13,6 +13,7 @@
 #include <vector>
 
 // LLVM includes
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -37,7 +38,7 @@ class DataLayout;
 using namespace llvm;
 
 using ConstFunctionPtrSet = std::set<const Function *>;
-using InstrPtrSet = std::set<Instruction *>;
+using InstrPtrSet = llvm::SetVector<Instruction *>;
 using CallPtrSet = std::set<CallInst *>;
 using ConstValuePtrSet = std::set<const Value *>;
 
