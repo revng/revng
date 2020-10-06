@@ -708,9 +708,14 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
             clang::Expr *ILE = new (ASTCtx)
               InitListExpr(ASTCtx, {}, StructOpExpr, {});
             NewVarDecl->setInit(ILE);
-          } else if (auto *Undef = dyn_cast<UndefValue>(AggregateOp)) {
+          } else if (isa<InsertValueInst>(AggregateOp)
+                     or isa<UndefValue>(AggregateOp)) {
             // If the InsertValueInst is inserting something inside an undef
-            // aggregate, we simply don't initialize it.
+            // aggregate, or inside a struct coming from another InsertValue, we
+            // simply don't initialize it.
+            // Given that the initialization can be dynamic, we just leave its
+            // handling to the actual emission of the assignments that happens
+            // later, in the call to buildStmt.
           } else {
             revng_unreachable();
           }
