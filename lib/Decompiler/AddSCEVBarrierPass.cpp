@@ -45,7 +45,7 @@ static std::string makeTypeName(const llvm::Type *Ty) {
 }
 
 static std::string makeSCEVBarrierName(const llvm::Type *Ty) {
-  return "revng_scev_barrier" + makeTypeName(Ty);
+  return "revng_scev_barrier_" + makeTypeName(Ty);
 }
 
 bool AddSCEVBarrierPass::runOnFunction(llvm::Function &F) {

@@ -162,6 +162,42 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       FIXTURES_SETUP AdjustStackPointer_fixture_${TARGET_NAME}
       )
 
+    # test combing
+    add_test(NAME comb_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRestructureCFGPass.so
+      -restructure-cfg
+      ${TARGET_NAME}_adjusted_stack.ll
+      -o ${TARGET_NAME}_combed.ll
+      )
+    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS adjust_stack_pointer_${TARGET_NAME}
+      )
+    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED AdjustStackPointer_fixture_${TARGET_NAME}
+      )
+    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP Combed_fixture_${TARGET_NAME}
+      )
+
+    # test AddSCEVBarrierPass
+    add_test(NAME add_scev_barrier_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libDecompiler.so
+      -mark-for-serialization -add-scev-barrier
+      ${TARGET_NAME}_adjusted_stack.ll
+      -o /dev/null
+      )
+    set_property(TEST add_scev_barrier_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS comb_${TARGET_NAME}
+      )
+    set_property(TEST add_scev_barrier_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED Combed_fixture_${TARGET_NAME}
+      )
+    set_property(TEST add_scev_barrier_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP AddSCEVBarrier_fixture_${TARGET_NAME}
+      )
+
     # test DLA
     add_test(NAME dla_${TARGET_NAME} COMMAND opt -S
       -load
@@ -178,24 +214,6 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       )
     set_property(TEST dla_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_SETUP DLA_fixture_${TARGET_NAME}
-      )
-
-    # test combing
-    add_test(NAME comb_${TARGET_NAME} COMMAND opt -S
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRestructureCFGPass.so
-      -restructure-cfg
-      ${TARGET_NAME}_adjusted_stack.ll
-      -o /dev/null
-      )
-    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS prepare_${TARGET_NAME}
-      )
-    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED AdjustStackPointer_fixture_${TARGET_NAME}
-      )
-    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP Combed_fixture_${TARGET_NAME}
       )
 
     # test decompilation
