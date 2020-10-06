@@ -16,6 +16,8 @@ from shutil import which
 from elftools.elf.dynamic import DynamicSegment
 from elftools.elf.elffile import ELFFile
 
+real_argv0 = os.environ.get("REAL_ARGV0", sys.argv[0])
+
 def run(command):
   if is_executable(command[0]):
     command = wrap(command)
@@ -294,7 +296,7 @@ def wrap(args):
 
 def run_translate(args):
   parser = argparse.ArgumentParser(description="The rev.ng translator.",
-                                   prog=sys.argv[0] + " translate")
+                                   prog=real_argv0 + " translate")
   parser.add_argument("-O0", action="store_true", help="Do no optimize.")
   parser.add_argument("-O1", action="store_true", help="Use llc -O2.")
   parser.add_argument("-O2",
@@ -478,7 +480,7 @@ def run_cc(args):
 
   if (not args) or ("--help" in args):
     log_error("Usage: {} cc [[translate-options] --] compiler "
-              + "[compiler-options]".format(sys.argv[0]))
+              + "[compiler-options]".format(real_argv0))
     return -1
 
   res = subprocess.call(args)
@@ -531,7 +533,7 @@ The following built-in commands are available:
   programs = list(programs)
   max_length = reduce(lambda old, new: max(old, len(new)), programs, 0)
   programs = ["{} - see `{} {} --help`".format(program.ljust(max_length),
-                                               sys.argv[0], program)
+                                               real_argv0, program)
               for program in programs]
   programs = sorted(programs)
 
@@ -539,7 +541,7 @@ The following built-in commands are available:
                    + " available:\n\n  {}\n\n".format("\n  ".join(programs)))
 
   sys.stdout.write(("`{} opt` offers the following extra options compared to"
-                    + " `opt`:\n\n").format(sys.argv[0]))
+                    + " `opt`:\n\n").format(real_argv0))
 
   args = [get_command("opt"), "--help"]
   base = subprocess.check_output(wrap(args)).split(b"\n")
