@@ -154,7 +154,7 @@ configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/share/revng/early-lin
 configure_file(scripts/revng "${CMAKE_BINARY_DIR}/bin/revng")
 configure_file(scripts/revng-merge-dynamic "${CMAKE_BINARY_DIR}/bin/revng-merge-dynamic" COPYONLY)
 install(PROGRAMS
-  scripts/revng
+  "${CMAKE_BINARY_DIR}/bin/revng"
   scripts/revng-merge-dynamic
   scripts/check-revng-conventions
   DESTINATION bin)
