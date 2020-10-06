@@ -686,6 +686,8 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
           VarDecl *NewVarDecl = createVarDecl(Insert, FDecl);
           VarDecls[Insert] = NewVarDecl;
 
+          // Setup the initial value for the NewVarDecl.
+          // This value will be emitted as an intialization.
           Value *AggregateOp = Insert->getAggregateOperand();
           if (auto *CS = dyn_cast<ConstantStruct>(AggregateOp)) {
             std::vector<Expr *> StructOpExpr;
@@ -706,6 +708,9 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
             clang::Expr *ILE = new (ASTCtx)
               InitListExpr(ASTCtx, {}, StructOpExpr, {});
             NewVarDecl->setInit(ILE);
+          } else if (auto *Undef = dyn_cast<UndefValue>(AggregateOp)) {
+            // If the InsertValueInst is inserting something inside an undef
+            // aggregate, we simply don't initialize it.
           } else {
             revng_unreachable();
           }
