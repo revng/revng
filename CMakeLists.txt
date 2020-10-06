@@ -145,7 +145,7 @@ add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
 
-set(VERSION 1.0.0)
+set(VERSION 0.0.0)
 
 configure_file(runtime/support.c "${CMAKE_BINARY_DIR}/share/revng/support.c" COPYONLY)
 configure_file(runtime/support.h "${CMAKE_BINARY_DIR}/share/revng/support.h" COPYONLY)
