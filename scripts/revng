@@ -548,10 +548,11 @@ The following built-in commands are available:
   output = subprocess.check_output(wrap(build_opt_args(args)))
   extended = output.split(b"\n")
 
+  normalize = lambda data: data.replace(b" ", b"")
   extra = []
   i = 0
   for line in extended:
-    if (i >= len(base)) or (line != base[i]):
+    if (i >= len(base)) or (normalize(line) != normalize(base[i])):
       extra.append(line)
     else:
       i += 1
