@@ -126,19 +126,73 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME}
       )
 
+    # promote stack pointer in .ll for decompilation
+    add_test(NAME promote_stack_pointer_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libPromoteStackPointer.so
+      -promote-stack-pointer
+      ${TARGET_NAME}_prepared.ll
+      -o ${TARGET_NAME}_promoted_stack.ll
+      )
+    set_property(TEST promote_stack_pointer_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS prepare_${TARGET_NAME}
+      )
+    set_property(TEST promote_stack_pointer_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
+      )
+    set_property(TEST promote_stack_pointer_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP PromoteStackPointer_fixture_${TARGET_NAME}
+      )
+
+    # adjust stack pointer in .ll for decompilation
+    add_test(NAME adjust_stack_pointer_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libAdjustStackPointer.so
+      -sroa -instcombine -adjust-stack-pointer
+      ${TARGET_NAME}_promoted_stack.ll
+      -o ${TARGET_NAME}_adjusted_stack.ll
+      )
+    set_property(TEST adjust_stack_pointer_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS promote_stack_pointer_${TARGET_NAME}
+      )
+    set_property(TEST adjust_stack_pointer_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED PromoteStackPointer_fixture_${TARGET_NAME}
+      )
+    set_property(TEST adjust_stack_pointer_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP AdjustStackPointer_fixture_${TARGET_NAME}
+      )
+
+    # test DLA
+    add_test(NAME dla_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libDecompiler.so
+      -dla
+      ${TARGET_NAME}_adjusted_stack.ll
+      -o /dev/null
+      )
+    set_property(TEST dla_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS adjust_stack_pointer_${TARGET_NAME}
+      )
+    set_property(TEST dla_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED AdjustStackPointer_fixture_${TARGET_NAME}
+      )
+    set_property(TEST dla_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP DLA_fixture_${TARGET_NAME}
+      )
+
     # test combing
     add_test(NAME comb_${TARGET_NAME} COMMAND opt -S
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRestructureCFGPass.so
       -restructure-cfg
-      ${TARGET_NAME}_prepared.ll
+      ${TARGET_NAME}_adjusted_stack.ll
       -o /dev/null
       )
     set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
       DEPENDS prepare_${TARGET_NAME}
       )
     set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
+      FIXTURES_REQUIRED AdjustStackPointer_fixture_${TARGET_NAME}
       )
     set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_SETUP Combed_fixture_${TARGET_NAME}
