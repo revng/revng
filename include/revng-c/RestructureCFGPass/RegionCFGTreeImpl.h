@@ -1370,9 +1370,25 @@ inline bool isASwitch(BasicBlockNode<NodeT> *Node) {
   return false;
 }
 
+template<typename NodeT>
+using BBNodeMap = typename BasicBlockNode<NodeT>::BBNodeMap;
+
 template<class NodeT>
 inline BasicBlockNode<NodeT> *
-findCommonPostDom(BasicBlockNode<NodeT> *Succ1, BasicBlockNode<NodeT> *Succ2) {
+getDirectSuccessor(BBNodeMap<NodeT> &TileSuccMap, BasicBlockNode<NodeT> *Node) {
+  BasicBlockNode<NodeT> *Successor = nullptr;
+  if (Node->successor_size() > 0) {
+    Successor = Node->getSuccessorI(0);
+    Successor = TileSuccMap[Successor];
+  }
+
+  return Successor;
+}
+
+template<class NodeT>
+inline BasicBlockNode<NodeT> *findCommonPostDom(BBNodeMap<NodeT> &TileSuccMap,
+                                                BasicBlockNode<NodeT> *Succ1,
+                                                BasicBlockNode<NodeT> *Succ2) {
 
   // Retrieve the successor of the two successors of the `IfNode`, and check
   // that or the retrieved node is equal for both the successors, or it does
@@ -1380,9 +1396,9 @@ findCommonPostDom(BasicBlockNode<NodeT> *Succ1, BasicBlockNode<NodeT> *Succ2) {
   BasicBlockNode<NodeT> *PotPostDom1 = nullptr;
   BasicBlockNode<NodeT> *PotPostDom2 = nullptr;
   if (Succ1->successor_size() == 1)
-    PotPostDom1 = Succ1->getSuccessorI(0);
+    PotPostDom1 = getDirectSuccessor(TileSuccMap, Succ1);
   if (Succ2->successor_size() == 1)
-    PotPostDom2 = Succ2->getSuccessorI(0);
+    PotPostDom2 = getDirectSuccessor(TileSuccMap, Succ2);
   revng_assert(PotPostDom1 == PotPostDom2);
 
   return PotPostDom1;
@@ -1436,6 +1452,11 @@ inline void RegionCFG<NodeT>::generateAst() {
     DFSNodeMap[ASTDT[Node]->getDFSNumOut()] = Node;
   }
 
+  std::map<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> TileSuccMap;
+  for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
+    TileSuccMap[Node] = Node;
+  }
+
   // Visiting order of the dominator tree.
   if (CombLogger.isEnabled()) {
     for (auto &Pair : DFSNodeMap) {
@@ -1475,6 +1496,8 @@ inline void RegionCFG<NodeT>::generateAst() {
         ASTNode *Body = BodyGraph->getAST().getRoot();
         ASTNode *ASTChild = AST.findASTNode(Children[0]);
         ASTObject.reset(new ScsNode(Node, Body, ASTChild));
+
+        TileSuccMap[Node] = TileSuccMap.at(Children[0]);
       } else {
         ASTNode *Body = BodyGraph->getAST().getRoot();
         ASTObject.reset(new ScsNode(Node, Body));
@@ -1545,6 +1568,8 @@ inline void RegionCFG<NodeT>::generateAst() {
 
         PostDomASTNode = AST.findASTNode(*It);
 
+        TileSuccMap[Node] = TileSuccMap.at(*It);
+
         // Assert that we don't find more than one.
         It = std::find_if(std::next(It), Children.end(), NotSuccessor);
         revng_assert(It == Children.end());
@@ -1590,9 +1615,13 @@ inline void RegionCFG<NodeT>::generateAst() {
           ASTNode *Then = AST.findASTNode(Successor1);
           ASTNode *Else = AST.findASTNode(Successor2);
 
-          BasicBlockNode<NodeT> *PotPostDom = findCommonPostDom(Successor1,
-                                                                Successor2);
-          revng_assert(PotPostDom);
+          if (isEdgeInlined(EdgeDescriptor(Node, Successor1))) {
+            Then = nullptr;
+          } else if (isEdgeInlined(EdgeDescriptor(Node, Successor2))) {
+            Else = nullptr;
+          } else {
+            revng_abort();
+          }
 
           // Build the `IfNode`.
           using UniqueExpr = ASTTree::expr_unique_ptr;
@@ -1617,33 +1646,21 @@ inline void RegionCFG<NodeT>::generateAst() {
           ASTNode *Then = AST.findASTNode(Successor1);
           ASTNode *Else = AST.findASTNode(Successor2);
 
-          BasicBlockNode<NodeT> *PostDomBB = findCommonPostDom(Successor1,
-                                                               Successor2);
+          // First of all, check if one of the successors can also be considered
+          // as the immediate postdominator of the tile.
+          BasicBlockNode<NodeT> *PotPostDom1 = nullptr;
+          BasicBlockNode<NodeT> *PotPostDom2 = nullptr;
+          BasicBlockNode<NodeT> *PostDomBB = nullptr;
 
-          // In this situation, it is not necessary that the postdominator is
-          // non null, since the postdominator may not exist.
-          //
-          // What we can say instead, is that, if we dominate only one of the
-          // successors, the common postdominator must exist.
-          // If instead, we dominate both the successors, we should dominated
-          // the PostDom too, but since in this case we only dominated 2 nodes
-          // the PostDom must not exist.
-          unsigned DominatedSuccessor = 0;
+          PotPostDom1 = getDirectSuccessor(TileSuccMap, Successor1);
+          PotPostDom2 = getDirectSuccessor(TileSuccMap, Successor2);
 
-          if (containsSmallVector(Children, Successor1))
-            DominatedSuccessor += 1;
-          if (containsSmallVector(Children, Successor2))
-            DominatedSuccessor += 1;
-
-          if (DominatedSuccessor == 0) {
-            revng_abort();
-          } else if (DominatedSuccessor == 1) {
-            revng_assert(containsSmallVector(Children, PostDomBB));
-            revng_assert(PostDomBB != nullptr);
-          } else if (DominatedSuccessor == 2) {
-            revng_assert(PostDomBB == nullptr);
-          } else {
-            revng_unreachable();
+          if (PotPostDom1 == Successor2) {
+            PostDomBB = Successor2;
+            Else = nullptr;
+          } else if (PotPostDom2 == Successor1) {
+            PostDomBB = Successor1;
+            Then = nullptr;
           }
 
           // Build the `IfNode`.
@@ -1657,6 +1674,7 @@ inline void RegionCFG<NodeT>::generateAst() {
           if (PostDomBB) {
             ASTNode *PostDom = AST.findASTNode(PostDomBB);
             ASTObject.reset(new IfNode(Node, Cond, Then, Else, PostDom));
+            TileSuccMap[Node] = TileSuccMap.at(PostDomBB);
           } else {
             ASTObject.reset(new IfNode(Node, Cond, Then, Else, nullptr));
           }
@@ -1681,9 +1699,11 @@ inline void RegionCFG<NodeT>::generateAst() {
           // Retrieve the successors of the `then` and `else` nodes. We expect
           // the successor to be identical due to the structure of the tile we
           // are covering. And we expect it to be the PostDom node of the tile.
-          BasicBlockNode<NodeT> *PostDomBB = findCommonPostDom(Successor1,
+          BasicBlockNode<NodeT> *PostDomBB = findCommonPostDom(TileSuccMap,
+                                                               Successor1,
                                                                Successor2);
           ASTNode *PostDom = nullptr;
+          revng_assert(PostDomBB != nullptr);
           if (PostDomBB != nullptr) {
             // Check that the postdom is between the nodes dominated by the
             // current node.
@@ -1698,6 +1718,9 @@ inline void RegionCFG<NodeT>::generateAst() {
           UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
           ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
           ASTObject.reset(new IfNode(Node, CondExprNode, Then, Else, PostDom));
+
+          if (PostDomBB)
+            TileSuccMap[Node] = TileSuccMap.at(PostDomBB);
         } break;
 
         default: {
@@ -1736,6 +1759,9 @@ inline void RegionCFG<NodeT>::generateAst() {
           } else {
             ASTObject.reset(new CodeNode(Node, Succ));
           }
+
+          // Set as the successor of the newly created node tile its successor.
+          TileSuccMap[Node] = TileSuccMap.at(Children[0]);
         } break;
 
         default: {
