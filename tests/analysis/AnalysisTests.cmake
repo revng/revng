@@ -69,7 +69,6 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
     set(COMMAND_TO_RUN
       "${CMAKE_CURRENT_BINARY_DIR}/bin/revng"
       opt
-      -S
       "${INPUT_FILE}"
       --detect-abi
       --isolate
@@ -78,7 +77,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
     set(DEPEND_ON revng-all-binaries)
   endif()
 endmacro()
-register_derived_artifact("lifted" "abi-enforced-for-decompilation" ".ll" "FILE")
+register_derived_artifact("lifted" "abi-enforced-for-decompilation" ".bc" "FILE")
 
 # Ensure all the reference files have been used
 foreach(ANALYSIS ${ANALYSES})
