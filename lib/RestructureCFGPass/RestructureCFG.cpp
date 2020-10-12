@@ -634,9 +634,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
   DominatorTreeBase<BasicBlockNodeBB, false> DT;
   DT.recalculate(RootCFG);
 
-  DominatorTreeBase<BasicBlockNodeBB, true> PDT;
-  PDT.recalculate(RootCFG);
-
   // Reserve enough space for all the OrderedMetaRegions.
   // The following algorithms stores pointers to the elements of this vector, so
   // we need to make sure that no reallocation happens.
