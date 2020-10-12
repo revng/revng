@@ -1371,6 +1371,24 @@ inline bool isASwitch(BasicBlockNode<NodeT> *Node) {
 }
 
 template<class NodeT>
+inline BasicBlockNode<NodeT> *
+findCommonPostDom(BasicBlockNode<NodeT> *Succ1, BasicBlockNode<NodeT> *Succ2) {
+
+  // Retrieve the successor of the two successors of the `IfNode`, and check
+  // that or the retrieved node is equal for both the successors, or it does
+  // not exists for both of them.
+  BasicBlockNode<NodeT> *PotPostDom1 = nullptr;
+  BasicBlockNode<NodeT> *PotPostDom2 = nullptr;
+  if (Succ1->successor_size() == 1)
+    PotPostDom1 = Succ1->getSuccessorI(0);
+  if (Succ2->successor_size() == 1)
+    PotPostDom2 = Succ2->getSuccessorI(0);
+  revng_assert(PotPostDom1 == PotPostDom2);
+
+  return PotPostDom1;
+}
+
+template<class NodeT>
 inline void RegionCFG<NodeT>::generateAst() {
 
   RegionCFG<NodeT> &Graph = *this;
@@ -1438,7 +1456,7 @@ inline void RegionCFG<NodeT>::generateAst() {
 
     // Collect the successor nodes of the current analyzed node.
     llvm::SmallVector<decltype(Node), 8> Successors;
-    for (BasicBlockNode<NodeT> *Successor : Successors)
+    for (BasicBlockNode<NodeT> *Successor : Node->successors())
       Successors.push_back(Successor);
 
     // Handle collapsded node.
@@ -1572,15 +1590,9 @@ inline void RegionCFG<NodeT>::generateAst() {
           ASTNode *Then = AST.findASTNode(Successor1);
           ASTNode *Else = AST.findASTNode(Successor2);
 
-          BasicBlockNode<NodeT> *PotPostDom1 = nullptr;
-          BasicBlockNode<NodeT> *PotPostDom2 = nullptr;
-          if (Successor1->successor_size() == 1
-              && Successor2->successor_size() == 1) {
-            PotPostDom1 = Successor1->getSuccessorI(0);
-            PotPostDom2 = Successor2->getSuccessorI(0);
-          }
-
-          revng_assert(PotPostDom1 == PotPostDom2 && PotPostDom1 == nullptr);
+          BasicBlockNode<NodeT> *PotPostDom = findCommonPostDom(Successor1,
+                                                                Successor2);
+          revng_assert(PotPostDom);
 
           // Build the `IfNode`.
           using UniqueExpr = ASTTree::expr_unique_ptr;
@@ -1605,23 +1617,8 @@ inline void RegionCFG<NodeT>::generateAst() {
           ASTNode *Then = AST.findASTNode(Successor1);
           ASTNode *Else = AST.findASTNode(Successor2);
 
-          // Retrieve the successors of the `then` and `else` nodes. We expect
-          // the successor to be identical due to the structure of the tile we
-          // are covering.
-          BasicBlockNode<NodeT> *PotPostDom1 = nullptr;
-          BasicBlockNode<NodeT> *PotPostDom2 = nullptr;
-          if (Successor1->successor_size() == 1
-              && Successor2->successor_size() == 1) {
-            PotPostDom1 = Successor1->getSuccessorI(0);
-            PotPostDom2 = Successor2->getSuccessorI(0);
-          }
-
-          // TODO: It should not be possible to reach the postdominator from
-          //       only one of the successor nodes. Confirm this assertion. Note
-          //       that we currently do not exclude that the `PostDom` is not
-          //       present at all.
-          // revng_assert(PotPostDom1 == PotPostDom2);
-          BasicBlockNode<NodeT> *PostDomBB = PotPostDom1;
+          BasicBlockNode<NodeT> *PostDomBB = findCommonPostDom(Successor1,
+                                                               Successor2);
 
           // In this situation, it is not necessary that the postdominator is
           // non null, since the postdominator may not exist.
@@ -1644,7 +1641,7 @@ inline void RegionCFG<NodeT>::generateAst() {
             revng_assert(containsSmallVector(Children, PostDomBB));
             revng_assert(PostDomBB != nullptr);
           } else if (DominatedSuccessor == 2) {
-            // revng_assert(PostDomBB == nullptr);
+            revng_assert(PostDomBB == nullptr);
           } else {
             revng_unreachable();
           }
@@ -1684,18 +1681,15 @@ inline void RegionCFG<NodeT>::generateAst() {
           // Retrieve the successors of the `then` and `else` nodes. We expect
           // the successor to be identical due to the structure of the tile we
           // are covering. And we expect it to be the PostDom node of the tile.
-          BasicBlockNode<NodeT> *PotPostDom1 = Successor1->getSuccessorI(0);
-          BasicBlockNode<NodeT> *PotPostDom2 = Successor2->getSuccessorI(0);
-          revng_assert(PotPostDom1 == PotPostDom2);
-
-          // Assign the postdom just found.
-          BasicBlockNode<NodeT> *PostDomBB = PotPostDom1;
-          revng_assert(PostDomBB != nullptr);
-          ASTNode *PostDom = AST.findASTNode(PostDomBB);
-
-          // Check that the postdom is between the nodes dominated by the
-          // current node.
-          revng_assert(containsSmallVector(Children, PostDomBB));
+          BasicBlockNode<NodeT> *PostDomBB = findCommonPostDom(Successor1,
+                                                               Successor2);
+          ASTNode *PostDom = nullptr;
+          if (PostDomBB != nullptr) {
+            // Check that the postdom is between the nodes dominated by the
+            // current node.
+            revng_assert(containsSmallVector(Children, PostDomBB));
+            PostDom = AST.findASTNode(PostDomBB);
+          }
 
           // Build the `IfNode`.
           using UniqueExpr = ASTTree::expr_unique_ptr;
