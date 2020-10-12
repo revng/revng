@@ -978,7 +978,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
 
       // If it's an executable segment, and we've been asked so, register
       // which sections actually contain code
-      if (Sections and UseDebugSymbols and Segment.IsExecutable) {
+      if (Sections and not IgnoreDebugSymbols and Segment.IsExecutable) {
         using Elf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
         auto Inserter = std::back_inserter(Segment.ExecutableSections);
         for (Elf_Shdr &SectionHeader : *Sections) {

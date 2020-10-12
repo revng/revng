@@ -37,7 +37,6 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
     set(COMMAND_TO_RUN
       "${CMAKE_CURRENT_BINARY_DIR}/bin/revng"
       lift
-      --use-debug-symbols
       -g ll
       ${COMPILED_INPUT}
       "${OUTPUT}")

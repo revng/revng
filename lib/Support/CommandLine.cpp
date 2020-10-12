@@ -16,10 +16,10 @@ namespace cl = llvm::cl;
 
 cl::OptionCategory MainCategory("Options", "");
 
-cl::opt<bool> UseDebugSymbols("use-debug-symbols",
-                              cl::desc("use section and symbol function "
-                                       "informations, if available"),
-                              cl::cat(MainCategory));
+cl::opt<bool> IgnoreDebugSymbols("ignore-debug-symbols",
+                                 cl::desc("ignore section and symbol function "
+                                          "informations"),
+                                 cl::cat(MainCategory));
 
 std::ostream &pathToStream(const std::string &Path, std::ofstream &File) {
   if (Path[0] == '-' && Path[1] == '\0') {

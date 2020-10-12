@@ -55,7 +55,7 @@ And it has been translated as follows:
 
 .. code-block:: sh
 
-   revng lift --no-link --use-debug-symbols --debug-info ll example example.ll
+   revng lift --no-link --debug-info ll example example.ll
 
 Global variables
 ================

@@ -384,8 +384,7 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
 
     run([get_command("revng-lift"),
          "-g", "ll",
-         "--debug-log", "jtcount",
-         "--use-debug-symbols"]
+         "--debug-log", "jtcount"]
         + lift_options
         + [input, output])
 

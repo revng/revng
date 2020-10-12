@@ -14,7 +14,7 @@
 extern llvm::cl::OptionCategory MainCategory;
 
 // Popular option
-extern llvm::cl::opt<bool> UseDebugSymbols;
+extern llvm::cl::opt<bool> IgnoreDebugSymbols;
 
 std::ostream &pathToStream(const std::string &Path, std::ofstream &File);
 
