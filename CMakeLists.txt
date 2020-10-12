@@ -126,6 +126,39 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME}
       )
 
+    # test combing
+    add_test(NAME comb_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRestructureCFGPass.so
+      -restructure-cfg
+      ${TARGET_NAME}_prepared.ll
+      -o /dev/null
+      )
+    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS prepare_${TARGET_NAME}
+      )
+    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
+      )
+    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP Combed_fixture_${TARGET_NAME}
+      )
+
+    # test decompilation
+    add_test(NAME decompilation_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libDecompiler.so
+      -decompilation
+      ${TARGET_NAME}_prepared.ll
+      -o /dev/null
+      )
+    set_property(TEST decompilation_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS comb_${TARGET_NAME}
+      )
+    set_property(TEST decompilation_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED Combed_fixture_${TARGET_NAME}
+      )
+
   endif()
   message(VERBOSE "----------------------------------")
 endmacro()
