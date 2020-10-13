@@ -33,6 +33,16 @@ inline void moveEdgeTarget(Edge<NodeT> Edge, BasicBlockNode<NodeT> *NewTarget) {
   NewTarget->addLabeledPredecessor(PredEdgeWithLabels);
 }
 
+template<class NodeT>
+inline void moveEdgeSource(Edge<NodeT> Edge, BasicBlockNode<NodeT> *NewSource) {
+  auto SuccEdgeWithLabels = Edge.first->extractSuccessorEdge(Edge.second);
+  NewSource->addLabeledSuccessor(SuccEdgeWithLabels);
+
+  auto PredEdgeWithLabels = Edge.second->extractPredecessorEdge(Edge.first);
+  PredEdgeWithLabels.first = NewSource;
+  Edge.second->addLabeledPredecessor(PredEdgeWithLabels);
+}
+
 template<class BBNodeT>
 inline void addEdge(std::pair<BBNodeT *, BBNodeT *> New,
                     const typename BBNodeT::EdgeInfo &EdgeInfos) {

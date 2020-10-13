@@ -1194,17 +1194,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
   //
   // Collect also the final weight of the CFG.
   unsigned FinalWeight = 0;
-  for (BasicBlockNodeBB *BBNode : RootCFG.nodes()) {
-    if (BBNode->isCode()) {
-      BasicBlock *BB = BBNode->getOriginalNode();
-      NDuplicates[BB] += 1;
-      // if (NDuplicates[BB] > 1)
-      // DuplicationCounter += 1;
-    }
-
-    // Collect the weight of the node.
-    FinalWeight += BBNode->getWeight();
-  }
 
   // Serialize final AST after flattening on file
   if (CombLogger.isEnabled()) {
