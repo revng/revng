@@ -1397,8 +1397,12 @@ inline BasicBlockNode<NodeT> *findCommonPostDom(BBNodeMap<NodeT> &TileSuccMap,
   BasicBlockNode<NodeT> *PotPostDom2 = nullptr;
   if (Succ1->successor_size() == 1)
     PotPostDom1 = getDirectSuccessor(TileSuccMap, Succ1);
+  else
+    PotPostDom1 = TileSuccMap[Succ1];
   if (Succ2->successor_size() == 1)
     PotPostDom2 = getDirectSuccessor(TileSuccMap, Succ2);
+  else
+    PotPostDom2 = TileSuccMap[Succ2];
   revng_assert(PotPostDom1 == PotPostDom2);
 
   return PotPostDom1;
@@ -1445,27 +1449,18 @@ inline void RegionCFG<NodeT>::generateAst() {
 
   CombLogger << DoLog;
 
-  std::map<unsigned, BasicBlockNode<NodeT> *> DFSNodeMap;
-
-  // Compute the ideal order of visit for performing the weaving.
-  for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
-    DFSNodeMap[ASTDT[Node]->getDFSNumOut()] = Node;
-  }
-
   std::map<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> TileSuccMap;
   for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
     TileSuccMap[Node] = Node;
   }
 
-  // Visiting order of the dominator tree.
-  if (CombLogger.isEnabled()) {
-    for (auto &Pair : DFSNodeMap) {
-      CombLogger << Pair.second->getNameStr() << "\n";
-    }
+  std::map<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> PostSuccMap;
+  for (BasicBlockNode<NodeT> *Node : Graph.nodes()) {
+    PostSuccMap[Node] = Node;
   }
 
-  for (auto &Pair : DFSNodeMap) {
-    BasicBlockNode<NodeT> *Node = Pair.second;
+  for (auto POIt = po_begin(&Graph); POIt != po_end(&Graph); POIt++) {
+    BasicBlockNode<NodeT> *Node = *POIt;
 
     // Collect the children nodes in the dominator tree.
     llvm::SmallVector<decltype(Node), 8> Children;
@@ -1498,6 +1493,7 @@ inline void RegionCFG<NodeT>::generateAst() {
         ASTObject.reset(new ScsNode(Node, Body, ASTChild));
 
         TileSuccMap[Node] = TileSuccMap.at(Children[0]);
+        PostSuccMap[Node] = PostSuccMap.at(Children[0]);
       } else {
         ASTNode *Body = BodyGraph->getAST().getRoot();
         ASTObject.reset(new ScsNode(Node, Body));
@@ -1569,6 +1565,7 @@ inline void RegionCFG<NodeT>::generateAst() {
         PostDomASTNode = AST.findASTNode(*It);
 
         TileSuccMap[Node] = TileSuccMap.at(*It);
+        PostSuccMap[Node] = PostSuccMap.at(Children[0]);
 
         // Assert that we don't find more than one.
         It = std::find_if(std::next(It), Children.end(), NotSuccessor);
@@ -1617,8 +1614,12 @@ inline void RegionCFG<NodeT>::generateAst() {
 
           if (isEdgeInlined(EdgeDescriptor(Node, Successor1))) {
             Then = nullptr;
+            TileSuccMap[Node] = TileSuccMap.at(Successor2);
+            PostSuccMap[Node] = PostSuccMap.at(Successor2);
           } else if (isEdgeInlined(EdgeDescriptor(Node, Successor2))) {
             Else = nullptr;
+            TileSuccMap[Node] = TileSuccMap.at(Successor1);
+            PostSuccMap[Node] = PostSuccMap.at(Successor1);
           } else {
             revng_abort();
           }
@@ -1658,9 +1659,13 @@ inline void RegionCFG<NodeT>::generateAst() {
           if (PotPostDom1 == Successor2) {
             PostDomBB = Successor2;
             Else = nullptr;
+            TileSuccMap[Node] = TileSuccMap.at(Successor2);
+            PostSuccMap[Node] = PostSuccMap.at(Successor2);
           } else if (PotPostDom2 == Successor1) {
             PostDomBB = Successor1;
             Then = nullptr;
+            TileSuccMap[Node] = TileSuccMap.at(Successor1);
+            PostSuccMap[Node] = PostSuccMap.at(Successor1);
           }
 
           // Build the `IfNode`.
@@ -1675,6 +1680,7 @@ inline void RegionCFG<NodeT>::generateAst() {
             ASTNode *PostDom = AST.findASTNode(PostDomBB);
             ASTObject.reset(new IfNode(Node, Cond, Then, Else, PostDom));
             TileSuccMap[Node] = TileSuccMap.at(PostDomBB);
+            PostSuccMap[Node] = PostSuccMap.at(PostDomBB);
           } else {
             ASTObject.reset(new IfNode(Node, Cond, Then, Else, nullptr));
           }
@@ -1699,7 +1705,7 @@ inline void RegionCFG<NodeT>::generateAst() {
           // Retrieve the successors of the `then` and `else` nodes. We expect
           // the successor to be identical due to the structure of the tile we
           // are covering. And we expect it to be the PostDom node of the tile.
-          BasicBlockNode<NodeT> *PostDomBB = findCommonPostDom(TileSuccMap,
+          BasicBlockNode<NodeT> *PostDomBB = findCommonPostDom(PostSuccMap,
                                                                Successor1,
                                                                Successor2);
           ASTNode *PostDom = nullptr;
@@ -1707,7 +1713,7 @@ inline void RegionCFG<NodeT>::generateAst() {
           if (PostDomBB != nullptr) {
             // Check that the postdom is between the nodes dominated by the
             // current node.
-            revng_assert(containsSmallVector(Children, PostDomBB));
+            // revng_assert(containsSmallVector(Children, PostDomBB));
             PostDom = AST.findASTNode(PostDomBB);
           }
 
@@ -1719,8 +1725,10 @@ inline void RegionCFG<NodeT>::generateAst() {
           ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
           ASTObject.reset(new IfNode(Node, CondExprNode, Then, Else, PostDom));
 
-          if (PostDomBB)
+          if (PostDomBB) {
             TileSuccMap[Node] = TileSuccMap.at(PostDomBB);
+            PostSuccMap[Node] = PostSuccMap.at(PostDomBB);
+          }
         } break;
 
         default: {
@@ -1745,6 +1753,9 @@ inline void RegionCFG<NodeT>::generateAst() {
           } else {
             ASTObject.reset(new CodeNode(Node, nullptr));
           }
+
+          // Set as the successor of the newly created node tile its successor.
+          PostSuccMap[Node] = PostSuccMap.at(Successors[0]);
         } break;
 
         case 1: {
@@ -1762,6 +1773,7 @@ inline void RegionCFG<NodeT>::generateAst() {
 
           // Set as the successor of the newly created node tile its successor.
           TileSuccMap[Node] = TileSuccMap.at(Children[0]);
+          PostSuccMap[Node] = PostSuccMap.at(Children[0]);
         } break;
 
         default: {
