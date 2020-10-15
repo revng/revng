@@ -127,7 +127,8 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
     auto MapIt = NodeASTMap.find(OldBB);
 
     // HACK:: update the key of the NodeASTMap
-    bool isBreakOrContinue = OldBB->isContinue() or OldBB->isBreak();
+    bool isBreakOrContinue = OldBB->isContinue() or OldBB->isBreak()
+                             or OldBB->isTile();
     if (not isBreakOrContinue) {
       revng_assert(MapIt != NodeASTMap.end());
       std::swap(NodeASTMap[NewBB], MapIt->second);
