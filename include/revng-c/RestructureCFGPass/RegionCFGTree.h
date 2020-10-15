@@ -35,6 +35,7 @@ inline bool InlineFilter(const typename llvm::GraphTraits<NodeT>::EdgeRef &E) {
 template<class NodeT = llvm::BasicBlock *>
 class RegionCFG {
 
+  using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
   using BBNodeT = BasicBlockNode<NodeT>;
   using BBNodeTUniquePtr = typename std::unique_ptr<BBNodeT>;
   using getPointerT = BBNodeT *(*) (BBNodeTUniquePtr &);
@@ -291,7 +292,7 @@ public:
   /// \brief Apply comb to the region.
   void inflate();
 
-  void generateAst();
+  void generateAst(DuplicationMap &NDuplicates);
 
   // Get reference to the AST object which is inside the RegionCFG<NodeT> object
   ASTTree &getAST();

@@ -1167,7 +1167,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Invoke the AST generation for the root region.
-  RootCFG.generateAst();
+  RootCFG.generateAst(NDuplicates);
 
   // Serialize final AST on file
   if (CombLogger.isEnabled()) {

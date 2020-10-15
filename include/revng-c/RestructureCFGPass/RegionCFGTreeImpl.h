@@ -1455,7 +1455,7 @@ inline void createTile(RegionCFG<NodeT> &Graph,
 }
 
 template<class NodeT>
-inline void RegionCFG<NodeT>::generateAst() {
+inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
 
   RegionCFG<NodeT> &Graph = *this;
 
@@ -1485,6 +1485,14 @@ inline void RegionCFG<NodeT>::generateAst() {
     ToInflate = false;
     if (CombLogger.isEnabled()) {
       dumpDotOnFile("dots", FunctionName, "POSTCOMB");
+    }
+  }
+
+  // Compute the NDuplicates, which will be used later.
+  for (BasicBlockNodeBB *BBNode : Graph.nodes()) {
+    if (BBNode->isCode()) {
+      llvm::BasicBlock *BB = BBNode->getOriginalNode();
+      NDuplicates[BB] += 1;
     }
   }
 
@@ -1534,7 +1542,7 @@ inline void RegionCFG<NodeT>::generateAst() {
       revng_log(CombLogger,
                 "Inspecting collapsed node: " << Node->getNameStr());
 
-      BodyGraph->generateAst();
+      BodyGraph->generateAst(NDuplicates);
 
       if (Children.size() == 1) {
         ASTNode *Body = BodyGraph->getAST().getRoot();
