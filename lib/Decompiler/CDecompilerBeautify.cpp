@@ -69,6 +69,13 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     flipEmptyThen(Scs->getBody(), AST);
+  } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
+
+    for (auto &LabelCasePair : Switch->cases())
+      flipEmptyThen(LabelCasePair.second, AST);
+
+    if (ASTNode *Default = Switch->getDefault())
+      flipEmptyThen(Default, AST);
   }
 }
 
