@@ -1459,6 +1459,10 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
 
   RegionCFG<NodeT> &Graph = *this;
 
+  // TODO: Remove this temporary variable when factoring the AST generation
+  //       phase.
+  bool ToAST = ToInflate;
+
   // Apply combing to the current RegionCFG.
   if (ToInflate) {
 
@@ -1496,289 +1500,364 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
     }
   }
 
-  // TODO: factorize out the AST generation phase.
-  llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> ASTDT;
-  ASTDT.recalculate(Graph);
-  ASTDT.updateDFSNumbers();
+  if (ToAST) {
 
-  CombLogger << DoLog;
-
-  std::map<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> TileToNodeMap;
-
-  BasicBlockNodeTVect PONodes;
-  for (auto POIt = po_begin(&Graph); POIt != po_end(&Graph); POIt++) {
-    PONodes.push_back(*POIt);
-  }
-
-  unsigned Counter = 0;
-  for (BasicBlockNode<NodeT> *Node : PONodes) {
+    // TODO: factorize out the AST generation phase.
+    llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> ASTDT;
     ASTDT.recalculate(Graph);
+    ASTDT.updateDFSNumbers();
 
-    if (CombLogger.isEnabled()) {
-      dumpDotOnFile("dots", FunctionName, "AST-" + std::to_string(Counter));
-      Counter++;
+    CombLogger << DoLog;
+
+    std::map<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> TileToNodeMap;
+
+    BasicBlockNodeTVect PONodes;
+    for (auto POIt = po_begin(&Graph); POIt != po_end(&Graph); POIt++) {
+      PONodes.push_back(*POIt);
     }
 
-    // Collect the children nodes in the dominator tree.
-    llvm::SmallVector<decltype(Node), 8> Children;
-    {
-      const auto &DomTreeChildren = ASTDT[Node]->getChildren();
-      for (auto *DomTreeNode : DomTreeChildren)
-        Children.push_back(DomTreeNode->getBlock());
-    }
+    unsigned Counter = 0;
+    for (BasicBlockNode<NodeT> *Node : PONodes) {
+      ASTDT.recalculate(Graph);
 
-    // Collect the successor nodes of the current analyzed node.
-    llvm::SmallVector<decltype(Node), 8> Successors;
-    for (BasicBlockNode<NodeT> *Successor : Node->successors())
-      Successors.push_back(Successor);
-
-    // Handle collapsded node.
-    ASTTree::ast_unique_ptr ASTObject;
-    if (Node->isCollapsed()) {
-
-      revng_assert(Children.size() <= 1);
-      RegionCFG<NodeT> *BodyGraph = Node->getCollapsedCFG();
-      revng_assert(BodyGraph != nullptr);
-      revng_log(CombLogger,
-                "Inspecting collapsed node: " << Node->getNameStr());
-
-      BodyGraph->generateAst(NDuplicates);
-
-      if (Children.size() == 1) {
-        ASTNode *Body = BodyGraph->getAST().getRoot();
-        ASTNode *ASTChild = findASTNode(AST, TileToNodeMap, Children[0]);
-        ASTObject.reset(new ScsNode(Node, Body, ASTChild));
-
-      } else {
-        ASTNode *Body = BodyGraph->getAST().getRoot();
-        ASTObject.reset(new ScsNode(Node, Body));
+      if (CombLogger.isEnabled()) {
+        dumpDotOnFile("dots", FunctionName, "AST-" + std::to_string(Counter));
+        Counter++;
       }
 
-    } else if (Node->isDispatcher() or isASwitch(Node)) {
-
-      revng_assert(Node->isCode() or Node->isDispatcher());
-
-      llvm::Value *SwitchCondition = nullptr;
-      if (not Node->isDispatcher()) {
-        llvm::BasicBlock *OriginalNode = Node->getOriginalNode();
-        llvm::Instruction *Terminator = OriginalNode->getTerminator();
-        llvm::SwitchInst *Switch = llvm::cast<llvm::SwitchInst>(Terminator);
-        SwitchCondition = Switch->getCondition();
+      // Collect the children nodes in the dominator tree.
+      llvm::SmallVector<decltype(Node), 8> Children;
+      {
+        const auto &DomTreeChildren = ASTDT[Node]->getChildren();
+        for (auto *DomTreeNode : DomTreeChildren)
+          Children.push_back(DomTreeNode->getBlock());
       }
-      revng_assert(SwitchCondition or Node->isDispatcher());
 
-      SwitchNode::case_container LabeledCases;
-      BasicBlockNode<NodeT> *DefaultNode = nullptr;
-      ASTNode *DefaultASTNode = nullptr;
+      // Collect the successor nodes of the current analyzed node.
+      llvm::SmallVector<decltype(Node), 8> Successors;
+      for (BasicBlockNode<NodeT> *Successor : Node->successors())
+        Successors.push_back(Successor);
 
-      for (const auto &[SwitchSucc, EdgeInfos] : Node->labeled_successors()) {
-        ASTNode *ASTPointer = findASTNode(AST, TileToNodeMap, SwitchSucc);
-        revng_assert(nullptr != ASTPointer);
+      // Handle collapsded node.
+      ASTTree::ast_unique_ptr ASTObject;
+      if (Node->isCollapsed()) {
+
+        revng_assert(Children.size() <= 1);
+        RegionCFG<NodeT> *BodyGraph = Node->getCollapsedCFG();
+        revng_assert(BodyGraph != nullptr);
+        revng_log(CombLogger,
+                  "Inspecting collapsed node: " << Node->getNameStr());
+
+        BodyGraph->generateAst(NDuplicates);
+
+        if (Children.size() == 1) {
+          ASTNode *Body = BodyGraph->getAST().getRoot();
+          ASTNode *ASTChild = findASTNode(AST, TileToNodeMap, Children[0]);
+          ASTObject.reset(new ScsNode(Node, Body, ASTChild));
+
+        } else {
+          ASTNode *Body = BodyGraph->getAST().getRoot();
+          ASTObject.reset(new ScsNode(Node, Body));
+        }
+
+      } else if (Node->isDispatcher() or isASwitch(Node)) {
+
+        revng_assert(Node->isCode() or Node->isDispatcher());
+
+        llvm::Value *SwitchCondition = nullptr;
+        if (not Node->isDispatcher()) {
+          llvm::BasicBlock *OriginalNode = Node->getOriginalNode();
+          llvm::Instruction *Terminator = OriginalNode->getTerminator();
+          llvm::SwitchInst *Switch = llvm::cast<llvm::SwitchInst>(Terminator);
+          SwitchCondition = Switch->getCondition();
+        }
+        revng_assert(SwitchCondition or Node->isDispatcher());
+
+        SwitchNode::case_container LabeledCases;
+        BasicBlockNode<NodeT> *DefaultNode = nullptr;
+        ASTNode *DefaultASTNode = nullptr;
+
+        for (const auto &[SwitchSucc, EdgeInfos] : Node->labeled_successors()) {
+          ASTNode *ASTPointer = findASTNode(AST, TileToNodeMap, SwitchSucc);
+          revng_assert(nullptr != ASTPointer);
+
+          // TODO: verify wheter this assertion is really necessary and why.
+          // With the tiling, this criterion is not respected anymore.
+          // You are not obliged to dominate a node in order to consume it in
+          // your tile.
+          // auto FindIt = std::find(Children.begin(), Children.end(),
+          // SwitchSucc); revng_assert(FindIt != Children.end());
+
+          if (EdgeInfos.Labels.empty()) {
+            revng_assert(nullptr == DefaultNode);
+            revng_assert(nullptr == DefaultASTNode);
+            DefaultNode = SwitchSucc;
+            DefaultASTNode = ASTPointer;
+          }
+
+          LabeledCases.push_back({ EdgeInfos.Labels, ASTPointer });
+        }
+        revng_assert(DefaultASTNode or Node->isWeaved()
+                     or Node->isDispatcher());
+        revng_assert(DefaultNode or Node->isWeaved() or Node->isDispatcher());
+
+        revng_assert(Node->successor_size() == LabeledCases.size());
 
         // TODO: verify wheter this assertion is really necessary and why. With
         //       the tiling, this criterion is not respected anymore. You are
         //       not obliged to dominate a node in order to consume it in your
         //       tile.
-        // auto FindIt = std::find(Children.begin(), Children.end(),
-        // SwitchSucc); revng_assert(FindIt != Children.end());
+        // revng_assert(Children.size() >= Node->successor_size());
+        ASTNode *PostDomASTNode = nullptr;
 
-        if (EdgeInfos.Labels.empty()) {
-          revng_assert(nullptr == DefaultNode);
-          revng_assert(nullptr == DefaultASTNode);
-          DefaultNode = SwitchSucc;
-          DefaultASTNode = ASTPointer;
+        if (Children.size() > Node->successor_size()) {
+
+          // There are some children on the dominator tree that are not
+          // successors on the graph. It should be at most one, which is the
+          // post-dominator.
+          const auto NotSuccessor = [&Node](const auto *Child) {
+            auto It = Node->successors().begin();
+            auto End = Node->successors().end();
+            return std::find(It, End, Child) == End;
+          };
+
+          auto It = std::find_if(Children.begin(),
+                                 Children.end(),
+                                 NotSuccessor);
+
+          // Assert that we found one.
+          revng_assert(It != Children.end());
+
+          PostDomASTNode = findASTNode(AST, TileToNodeMap, *It);
+
+          createTile(Graph, TileToNodeMap, Node, *It);
+
+          // Assert that we don't find more than one.
+          It = std::find_if(std::next(It), Children.end(), NotSuccessor);
+          revng_assert(It == Children.end());
         }
 
-        LabeledCases.push_back({ EdgeInfos.Labels, ASTPointer });
-      }
-      revng_assert(DefaultASTNode or Node->isWeaved() or Node->isDispatcher());
-      revng_assert(DefaultNode or Node->isWeaved() or Node->isDispatcher());
+        ASTObject.reset(new SwitchNode(Node,
+                                       SwitchCondition,
+                                       std::move(LabeledCases),
+                                       DefaultASTNode,
+                                       PostDomASTNode));
+      } else {
+        switch (Successors.size()) {
 
-      revng_assert(Node->successor_size() == LabeledCases.size());
-
-      // TODO: verify wheter this assertion is really necessary and why. With
-      //       the tiling, this criterion is not respected anymore. You are not
-      //       obliged to dominate a node in order to consume it in your tile.
-      // revng_assert(Children.size() >= Node->successor_size());
-      ASTNode *PostDomASTNode = nullptr;
-
-      if (Children.size() > Node->successor_size()) {
-
-        // There are some children on the dominator tree that are not successors
-        // on the graph. It should be at most one, which is the post-dominator.
-        const auto NotSuccessor = [&Node](const auto *Child) {
-          auto It = Node->successors().begin();
-          auto End = Node->successors().end();
-          return std::find(It, End, Child) == End;
-        };
-
-        auto It = std::find_if(Children.begin(), Children.end(), NotSuccessor);
-
-        // Assert that we found one.
-        revng_assert(It != Children.end());
-
-        PostDomASTNode = findASTNode(AST, TileToNodeMap, *It);
-
-        createTile(Graph, TileToNodeMap, Node, *It);
-
-        // Assert that we don't find more than one.
-        It = std::find_if(std::next(It), Children.end(), NotSuccessor);
-        revng_assert(It == Children.end());
-      }
-
-      ASTObject.reset(new SwitchNode(Node,
-                                     SwitchCondition,
-                                     std::move(LabeledCases),
-                                     DefaultASTNode,
-                                     PostDomASTNode));
-    } else {
-      switch (Successors.size()) {
-
-      case 2: {
-
-        switch (Children.size()) {
-
-        case 0: {
-
-          // This means that both our exiting edges have been inlined, and we do
-          // not have any immediate postdominator.
-          // This situation should not arise, since not having at least one of
-          // the two branches dominated is a signal of an error.
-          revng_assert(not Node->isBreak() and not Node->isContinue()
-                       and not Node->isSet());
-          revng_log(CombLogger,
-                    "Node " << Node->getNameStr()
-                            << " does not dominate any "
-                               "node, but has two successors.");
-          revng_unreachable("A node does not dominate any node, but has two "
-                            "successors.");
-        } break;
-        case 1: {
-
-          // This means that we have two successors, but we only dominate a
-          // single node. This situation is possible only if we have an inlined
-          // edge and we have nopostdominator in the tile.
-          revng_assert(not Node->isBreak() and not Node->isContinue()
-                       and not Node->isSet());
-          BasicBlockNode<NodeT> *Successor1 = Successors[0];
-          BasicBlockNode<NodeT> *Successor2 = Successors[1];
-
-          ASTNode *Then = findASTNode(AST, TileToNodeMap, Successor1);
-          ASTNode *Else = findASTNode(AST, TileToNodeMap, Successor2);
-
-          if (isEdgeInlined(EdgeDescriptor(Node, Successor1))) {
-            Else = nullptr;
-            createTile(Graph, TileToNodeMap, Node, Successor2);
-          } else if (isEdgeInlined(EdgeDescriptor(Node, Successor2))) {
-            Then = nullptr;
-            createTile(Graph, TileToNodeMap, Node, Successor1);
-          } else {
-            revng_abort();
-          }
-
-          // Build the `IfNode`.
-          using UniqueExpr = ASTTree::expr_unique_ptr;
-          using ExprDestruct = ASTTree::expr_destructor;
-          auto *OriginalNode = Node->getOriginalNode();
-          UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
-          ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
-
-          // Insert the postdominator if the current tile actually has it.
-          ASTObject.reset(new IfNode(Node, CondExprNode, Then, Else, nullptr));
-        } break;
         case 2: {
 
-          // TODO: Handle this case.
-          // This means that we have two successors, and we dominate both the
-          // two successors, or one successor and the postdominator.
-          revng_assert(not Node->isBreak() and not Node->isContinue()
-                       and not Node->isSet());
-          BasicBlockNode<NodeT> *Successor1 = Successors[0];
-          BasicBlockNode<NodeT> *Successor2 = Successors[1];
+          switch (Children.size()) {
 
-          ASTNode *Then = findASTNode(AST, TileToNodeMap, Successor1);
-          ASTNode *Else = findASTNode(AST, TileToNodeMap, Successor2);
+          case 0: {
 
-          // First of all, check if one of the successors can also be considered
-          // as the immediate postdominator of the tile.
-          BasicBlockNode<NodeT> *PotPostDom1 = nullptr;
-          BasicBlockNode<NodeT> *PotPostDom2 = nullptr;
-          BasicBlockNode<NodeT> *PostDomBB = nullptr;
+            // This means that both our exiting edges have been inlined, and we
+            // do not have any immediate postdominator. This situation should
+            // not arise, since not having at least one of the two branches
+            // dominated is a signal of an error.
+            revng_assert(not Node->isBreak() and not Node->isContinue()
+                         and not Node->isSet());
+            revng_log(CombLogger,
+                      "Node " << Node->getNameStr()
+                              << " does not dominate any "
+                                 "node, but has two successors.");
+            revng_unreachable("A node does not dominate any node, but has two "
+                              "successors.");
+          } break;
+          case 1: {
 
-          PotPostDom1 = getDirectSuccessor(Successor1);
-          PotPostDom2 = getDirectSuccessor(Successor2);
+            // This means that we have two successors, but we only dominate a
+            // single node. This situation is possible only if we have an
+            // inlined edge and we have nopostdominator in the tile.
+            revng_assert(not Node->isBreak() and not Node->isContinue()
+                         and not Node->isSet());
+            BasicBlockNode<NodeT> *Successor1 = Successors[0];
+            BasicBlockNode<NodeT> *Successor2 = Successors[1];
 
-          if (PotPostDom1 == Successor2) {
-            PostDomBB = Successor2;
-            Else = nullptr;
-          } else if (PotPostDom2 == Successor1) {
-            PostDomBB = Successor1;
-            Then = nullptr;
-          } else if (isEdgeInlined(EdgeDescriptor(Node, Successor1))) {
-            Else = nullptr;
-            PostDomBB = Successor2;
-          } else if (isEdgeInlined(EdgeDescriptor(Node, Successor2))) {
-            Then = nullptr;
-            PostDomBB = Successor1;
-          }
+            ASTNode *Then = findASTNode(AST, TileToNodeMap, Successor1);
+            ASTNode *Else = findASTNode(AST, TileToNodeMap, Successor2);
 
-          // Build the `IfNode`.
-          using UniqueExpr = ASTTree::expr_unique_ptr;
-          using ExprDestruct = ASTTree::expr_destructor;
-          auto *OriginalNode = Node->getOriginalNode();
-          UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
-          ExprNode *Cond = AST.addCondExpr(std::move(CondExpr));
+            if (isEdgeInlined(EdgeDescriptor(Node, Successor1))) {
+              Else = nullptr;
+              createTile(Graph, TileToNodeMap, Node, Successor2);
+            } else if (isEdgeInlined(EdgeDescriptor(Node, Successor2))) {
+              Then = nullptr;
+              createTile(Graph, TileToNodeMap, Node, Successor1);
+            } else {
+              revng_abort();
+            }
 
-          // Insert the postdominator if the current tile actually has it.
-          if (PostDomBB) {
-            ASTNode *PostDom = findASTNode(AST, TileToNodeMap, PostDomBB);
-            ASTObject.reset(new IfNode(Node, Cond, Then, Else, PostDom));
-          } else {
+            // Build the `IfNode`.
+            using UniqueExpr = ASTTree::expr_unique_ptr;
+            using ExprDestruct = ASTTree::expr_destructor;
+            auto *OriginalNode = Node->getOriginalNode();
+            UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
+            ExprNode *Cond = AST.addCondExpr(std::move(CondExpr));
+
+            // Insert the postdominator if the current tile actually has it.
             ASTObject.reset(new IfNode(Node, Cond, Then, Else, nullptr));
-          }
+          } break;
+          case 2: {
 
-          createTile(Graph, TileToNodeMap, Node, PostDomBB);
+            // TODO: Handle this case.
+            // This means that we have two successors, and we dominate both the
+            // two successors, or one successor and the postdominator.
+            revng_assert(not Node->isBreak() and not Node->isContinue()
+                         and not Node->isSet());
+            BasicBlockNode<NodeT> *Successor1 = Successors[0];
+            BasicBlockNode<NodeT> *Successor2 = Successors[1];
+
+            ASTNode *Then = findASTNode(AST, TileToNodeMap, Successor1);
+            ASTNode *Else = findASTNode(AST, TileToNodeMap, Successor2);
+
+            // First of all, check if one of the successors can also be
+            // considered as the immediate postdominator of the tile.
+            BasicBlockNode<NodeT> *PotPostDom1 = nullptr;
+            BasicBlockNode<NodeT> *PotPostDom2 = nullptr;
+            BasicBlockNode<NodeT> *PostDomBB = nullptr;
+
+            PotPostDom1 = getDirectSuccessor(Successor1);
+            PotPostDom2 = getDirectSuccessor(Successor2);
+
+            if (PotPostDom1 == Successor2) {
+              PostDomBB = Successor2;
+              Else = nullptr;
+            } else if (PotPostDom2 == Successor1) {
+              PostDomBB = Successor1;
+              Then = nullptr;
+            } else if (isEdgeInlined(EdgeDescriptor(Node, Successor1))) {
+              Else = nullptr;
+              PostDomBB = Successor2;
+            } else if (isEdgeInlined(EdgeDescriptor(Node, Successor2))) {
+              Then = nullptr;
+              PostDomBB = Successor1;
+            }
+
+            // Build the `IfNode`.
+            using UniqueExpr = ASTTree::expr_unique_ptr;
+            using ExprDestruct = ASTTree::expr_destructor;
+            auto *OriginalNode = Node->getOriginalNode();
+            UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
+            ExprNode *Cond = AST.addCondExpr(std::move(CondExpr));
+
+            // Insert the postdominator if the current tile actually has it.
+            if (PostDomBB) {
+              ASTNode *PostDom = findASTNode(AST, TileToNodeMap, PostDomBB);
+              ASTObject.reset(new IfNode(Node, Cond, Then, Else, PostDom));
+
+            } else {
+              ASTObject.reset(new IfNode(Node, Cond, Then, Else, nullptr));
+            }
+
+            createTile(Graph, TileToNodeMap, Node, PostDomBB);
+          } break;
+          case 3: {
+
+            // This is the standard situation, we have two successors, we
+            // dominate both of them and we also dominate the postdominator
+            // node.
+            revng_assert(not Node->isBreak() and not Node->isContinue()
+                         and not Node->isSet());
+
+            // Check that our successor nodes are also in the dominated node
+            // vector.
+            BasicBlockNode<NodeT> *Successor1 = Successors[0];
+            BasicBlockNode<NodeT> *Successor2 = Successors[1];
+            revng_assert(containsSmallVector(Children, Successor1));
+            revng_assert(containsSmallVector(Children, Successor2));
+
+            ASTNode *Then = findASTNode(AST, TileToNodeMap, Successor2);
+            ASTNode *Else = findASTNode(AST, TileToNodeMap, Successor2);
+
+            // Retrieve the successors of the `then` and `else` nodes. We expect
+            // the successor to be identical due to the structure of the tile we
+            // are covering. And we expect it to be the PostDom node of the
+            // tile.
+            BasicBlockNode<NodeT> *PostDomBB = findCommonPostDom(Successor1,
+                                                                 Successor2);
+            ASTNode *PostDom = nullptr;
+            revng_assert(PostDomBB != nullptr);
+            if (PostDomBB != nullptr) {
+              // Check that the postdom is between the nodes dominated by the
+              // current node.
+              revng_assert(containsSmallVector(Children, PostDomBB));
+              PostDom = findASTNode(AST, TileToNodeMap, PostDomBB);
+            }
+
+            // Build the `IfNode`.
+            using UniqueExpr = ASTTree::expr_unique_ptr;
+            using ExprDestruct = ASTTree::expr_destructor;
+            auto *OriginalNode = Node->getOriginalNode();
+            UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
+            ExprNode *Cond = AST.addCondExpr(std::move(CondExpr));
+            ASTObject.reset(new IfNode(Node, Cond, Then, Else, PostDom));
+
+            createTile(Graph, TileToNodeMap, Node, PostDomBB);
+          } break;
+
+          default: {
+            revng_log(CombLogger,
+                      "Node: " << Node->getNameStr() << " dominates "
+                               << Children.size() << " nodes");
+            revng_unreachable("Node directly dominates more than 3 other "
+                              "nodes");
+          } break;
+          }
         } break;
-        case 3: {
 
-          // This is the standard situation, we have two successors, we dominate
-          // both of them and we also dominate the postdominator node.
-          revng_assert(not Node->isBreak() and not Node->isContinue()
-                       and not Node->isSet());
+        case 1: {
+          switch (Children.size()) {
+          case 0: {
 
-          // Check that our successor nodes are also in the dominated node
-          // vector.
-          BasicBlockNode<NodeT> *Successor1 = Successors[0];
-          BasicBlockNode<NodeT> *Successor2 = Successors[1];
-          revng_assert(containsSmallVector(Children, Successor1));
-          revng_assert(containsSmallVector(Children, Successor2));
+            // In this situation, we don't need to actually add as a successor
+            // of the current node the single successor which is not dominated.
+            // Therefore, the successor will not be a succesor on the AST.
+            revng_assert(not Node->isBreak() and not Node->isContinue());
+            if (Node->isSet()) {
+              ASTObject.reset(new SetNode(Node));
+            } else {
+              ASTObject.reset(new CodeNode(Node, nullptr));
+            }
+          } break;
 
-          ASTNode *Then = findASTNode(AST, TileToNodeMap, Successor2);
-          ASTNode *Else = findASTNode(AST, TileToNodeMap, Successor2);
+          case 1: {
 
-          // Retrieve the successors of the `then` and `else` nodes. We expect
-          // the successor to be identical due to the structure of the tile we
-          // are covering. And we expect it to be the PostDom node of the tile.
-          BasicBlockNode<NodeT> *PostDomBB = findCommonPostDom(Successor1,
-                                                               Successor2);
-          ASTNode *PostDom = nullptr;
-          revng_assert(PostDomBB != nullptr);
-          if (PostDomBB != nullptr) {
-            // Check that the postdom is between the nodes dominated by the
-            // current node.
-            revng_assert(containsSmallVector(Children, PostDomBB));
-            PostDom = findASTNode(AST, TileToNodeMap, PostDomBB);
+            // In this situation, we dominate the only successor of the current
+            // node. The successor therefore will be an actual successor on the
+            // AST.
+            revng_assert(not Node->isBreak() and not Node->isContinue());
+            auto *Succ = findASTNode(AST, TileToNodeMap, Children[0]);
+            BBNodeT *SuccBB = Children[0];
+            if (Node->isSet()) {
+              ASTObject.reset(new SetNode(Node, Succ));
+            } else {
+              ASTObject.reset(new CodeNode(Node, Succ));
+            }
+
+            createTile(Graph, TileToNodeMap, Node, SuccBB);
+          } break;
+
+          default: {
+            revng_log(CombLogger,
+                      "Node: " << Node->getNameStr() << " dominates "
+                               << Children.size() << "nodes");
+            revng_unreachable("Node with 1 successor dominates an incorrect "
+                              "number of nodes");
+          } break;
           }
+        } break;
 
-          // Build the `IfNode`.
-          using UniqueExpr = ASTTree::expr_unique_ptr;
-          using ExprDestruct = ASTTree::expr_destructor;
-          auto *OriginalNode = Node->getOriginalNode();
-          UniqueExpr CondExpr(new AtomicNode(OriginalNode), ExprDestruct());
-          ExprNode *CondExprNode = AST.addCondExpr(std::move(CondExpr));
-          ASTObject.reset(new IfNode(Node, CondExprNode, Then, Else, PostDom));
-
-          createTile(Graph, TileToNodeMap, Node, PostDomBB);
+        case 0: {
+          if (Node->isBreak())
+            ASTObject.reset(new BreakNode());
+          else if (Node->isContinue())
+            ASTObject.reset(new ContinueNode());
+          else if (Node->isSet())
+            ASTObject.reset(new SetNode(Node));
+          else if (Node->isEmpty() or Node->isCode())
+            ASTObject.reset(new CodeNode(Node, nullptr));
+          else
+            revng_abort();
         } break;
 
         default: {
@@ -1788,113 +1867,50 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
           revng_unreachable("Node directly dominates more than 3 other nodes");
         } break;
         }
-      } break;
-
-      case 1: {
-        switch (Children.size()) {
-        case 0: {
-
-          // In this situation, we don't need to actually add as a successor of
-          // the current node the single successor which is not dominated.
-          // Therefore, the successor will not be a succesor on the AST.
-          revng_assert(not Node->isBreak() and not Node->isContinue());
-          if (Node->isSet()) {
-            ASTObject.reset(new SetNode(Node));
-          } else {
-            ASTObject.reset(new CodeNode(Node, nullptr));
-          }
-        } break;
-
-        case 1: {
-
-          // In this situation, we dominate the only successor of the current
-          // node. The successor therefore will be an actual successor on the
-          // AST.
-          revng_assert(not Node->isBreak() and not Node->isContinue());
-          auto *Succ = findASTNode(AST, TileToNodeMap, Children[0]);
-          BBNodeT *SuccBB = Children[0];
-          if (Node->isSet()) {
-            ASTObject.reset(new SetNode(Node, Succ));
-          } else {
-            ASTObject.reset(new CodeNode(Node, Succ));
-          }
-
-          createTile(Graph, TileToNodeMap, Node, SuccBB);
-        } break;
-
-        default: {
-          revng_log(CombLogger,
-                    "Node: " << Node->getNameStr() << " dominates "
-                             << Children.size() << "nodes");
-          revng_unreachable("Node with 1 successor dominates an incorrect "
-                            "number of nodes");
-        } break;
-        }
-      } break;
-
-      case 0: {
-        if (Node->isBreak())
-          ASTObject.reset(new BreakNode());
-        else if (Node->isContinue())
-          ASTObject.reset(new ContinueNode());
-        else if (Node->isSet())
-          ASTObject.reset(new SetNode(Node));
-        else if (Node->isEmpty() or Node->isCode())
-          ASTObject.reset(new CodeNode(Node, nullptr));
-        else
-          revng_abort();
-      } break;
-
-      default: {
-        revng_log(CombLogger,
-                  "Node: " << Node->getNameStr() << " dominates "
-                           << Children.size() << " nodes");
-        revng_unreachable("Node directly dominates more than 3 other nodes");
-      } break;
       }
+      AST.addASTNode(Node, std::move(ASTObject));
     }
-    AST.addASTNode(Node, std::move(ASTObject));
+
+    // Set in the ASTTree object the root node.
+    BasicBlockNode<NodeT> *Root = ASTDT.getRootNode()->getBlock();
+    ASTNode *RootNode = AST.findASTNode(Root);
+
+    // Serialize the graph starting from the root node.
+    CombLogger << "Serializing first AST draft:\n";
+    AST.setRoot(RootNode);
+    if (CombLogger.isEnabled()) {
+      AST.dumpOnFile("ast", FunctionName, "First-draft");
+    }
+
+    // Create sequence nodes.
+    CombLogger << "Performing sequence insertion:\n";
+    RootNode = createSequence(AST, RootNode);
+    AST.setRoot(RootNode);
+    if (CombLogger.isEnabled()) {
+      AST.dumpOnFile("ast", FunctionName, "After-sequence");
+    }
+
+    // Simplify useless sequence nodes.
+    CombLogger << "Performing useless dummies simplification:\n";
+    simplifyDummies(RootNode);
+    if (CombLogger.isEnabled()) {
+      AST.dumpOnFile("ast", FunctionName, "After-dummies-removal");
+    }
+
+    // Simplify useless sequence nodes.
+    CombLogger << "Performing useless sequence simplification:\n";
+    RootNode = simplifyAtomicSequence(RootNode);
+    AST.setRoot(RootNode);
+    if (CombLogger.isEnabled()) {
+      AST.dumpOnFile("ast", FunctionName, "After-sequence-simplification");
+    }
+
+    // Remove danling nodes (possibly created by the de-optimization pass, after
+    // disconnecting the first CFG node corresponding to the simplified AST
+    // node), and superfluos dummy nodes
+    removeNotReachables();
+    purgeTrivialDummies();
   }
-
-  // Set in the ASTTree object the root node.
-  BasicBlockNode<NodeT> *Root = ASTDT.getRootNode()->getBlock();
-  ASTNode *RootNode = AST.findASTNode(Root);
-
-  // Serialize the graph starting from the root node.
-  CombLogger << "Serializing first AST draft:\n";
-  AST.setRoot(RootNode);
-  if (CombLogger.isEnabled()) {
-    AST.dumpOnFile("ast", FunctionName, "First-draft");
-  }
-
-  // Create sequence nodes.
-  CombLogger << "Performing sequence insertion:\n";
-  RootNode = createSequence(AST, RootNode);
-  AST.setRoot(RootNode);
-  if (CombLogger.isEnabled()) {
-    AST.dumpOnFile("ast", FunctionName, "After-sequence");
-  }
-
-  // Simplify useless sequence nodes.
-  CombLogger << "Performing useless dummies simplification:\n";
-  simplifyDummies(RootNode);
-  if (CombLogger.isEnabled()) {
-    AST.dumpOnFile("ast", FunctionName, "After-dummies-removal");
-  }
-
-  // Simplify useless sequence nodes.
-  CombLogger << "Performing useless sequence simplification:\n";
-  RootNode = simplifyAtomicSequence(RootNode);
-  AST.setRoot(RootNode);
-  if (CombLogger.isEnabled()) {
-    AST.dumpOnFile("ast", FunctionName, "After-sequence-simplification");
-  }
-
-  // Remove danling nodes (possibly created by the de-optimization pass, after
-  // disconnecting the first CFG node corresponding to the simplified AST node),
-  // and superfluos dummy nodes
-  removeNotReachables();
-  purgeTrivialDummies();
 }
 
 // Get reference to the AST object which is inside the RegionCFG object
