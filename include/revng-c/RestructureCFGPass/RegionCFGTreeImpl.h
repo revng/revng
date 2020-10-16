@@ -1907,9 +1907,14 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
 
     // Remove danling nodes (possibly created by the de-optimization pass, after
     // disconnecting the first CFG node corresponding to the simplified AST
-    // node), and superfluos dummy nodes
-    removeNotReachables();
-    purgeTrivialDummies();
+    // node), and superfluos dummy nodes.
+    // TODO: disabled this phase so that the flattening can correctly skip over
+    //       the tile nodes and correctly flatten the AST at least (while
+    //       leaving the `RegionCFG` in a broken state, but no user of it exists
+    //       anymore. Build the AST generation phase so that the AST is built
+    //       complete on the fly, and not flattened in a successive phase.
+    // removeNotReachables();
+    // purgeTrivialDummies();
   }
 }
 
