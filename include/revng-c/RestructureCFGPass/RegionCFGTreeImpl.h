@@ -1748,7 +1748,7 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
             revng_assert(containsSmallVector(Children, Successor1));
             revng_assert(containsSmallVector(Children, Successor2));
 
-            ASTNode *Then = findASTNode(AST, TileToNodeMap, Successor2);
+            ASTNode *Then = findASTNode(AST, TileToNodeMap, Successor1);
             ASTNode *Else = findASTNode(AST, TileToNodeMap, Successor2);
 
             // Retrieve the successors of the `then` and `else` nodes. We expect
