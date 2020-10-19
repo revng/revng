@@ -1581,13 +1581,6 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
           ASTNode *ASTPointer = findASTNode(AST, TileToNodeMap, SwitchSucc);
           revng_assert(nullptr != ASTPointer);
 
-          // TODO: verify wheter this assertion is really necessary and why.
-          // With the tiling, this criterion is not respected anymore.
-          // You are not obliged to dominate a node in order to consume it in
-          // your tile.
-          // auto FindIt = std::find(Children.begin(), Children.end(),
-          // SwitchSucc); revng_assert(FindIt != Children.end());
-
           if (EdgeInfos.Labels.empty()) {
             revng_assert(nullptr == DefaultNode);
             revng_assert(nullptr == DefaultASTNode);
