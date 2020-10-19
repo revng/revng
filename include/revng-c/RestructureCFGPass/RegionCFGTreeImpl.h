@@ -346,6 +346,7 @@ inline void RegionCFG<NodeT>::insertBulkNodes(BasicBlockNodeTSet &Nodes,
     BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(*Node, this));
     BasicBlockNodeT *New = BlockNodes.back().get();
     SubMap[Node] = New;
+
     // The copy constructor used above does not bring along the successors and
     // the predecessors, neither adjusts the parent.
     // The following lines are a hack to fix this problem, but they momentarily
@@ -392,10 +393,10 @@ template<class NodeT>
 inline void RegionCFG<NodeT>::connectBreakNode(std::set<EdgeDescriptor> &Out,
                                                const BBNodeMap &SubMap) {
   for (EdgeDescriptor Edge : Out) {
-
     // Create a new break for each outgoing edge.
-    BasicBlockNode<NodeT> *Break = addBreak();
-    addPlainEdge(EdgeDescriptor(SubMap.at(Edge.first), Break));
+    auto *Break = addBreak();
+    auto &EdgeInfo = Edge.first->getSuccessorEdge(Edge.second).second;
+    addEdge<BBNodeT>({ SubMap.at(Edge.first), Break }, EdgeInfo);
   }
 }
 
@@ -407,8 +408,8 @@ inline void RegionCFG<NodeT>::connectContinueNode() {
   for (BasicBlockNode<NodeT> *Source : EntryNode->predecessors()) {
     ContinueNodes.push_back(Source);
   }
-  for (BasicBlockNode<NodeT> *Source : ContinueNodes) {
 
+  for (BasicBlockNode<NodeT> *Source : ContinueNodes) {
     // Create a new continue node for each retreating edge.
     BasicBlockNode<NodeT> *Continue = addContinue();
     moveEdgeTarget(EdgeDescriptor(Source, EntryNode), Continue);
@@ -1357,26 +1358,11 @@ inline void RegionCFG<NodeT>::inflate() {
 }
 
 template<class NodeT>
-inline bool isASwitch(BasicBlockNode<NodeT> *Node) {
-
-  // TODO: remove this workaround for searching for switch nodes.
-  if (Node->isCode() and Node->getOriginalNode()) {
-    llvm::BasicBlock *OriginalBB = Node->getOriginalNode();
-    llvm::Instruction *TerminatorBB = OriginalBB->getTerminator();
-    return llvm::isa<llvm::SwitchInst>(TerminatorBB);
-  }
-
-  // The node may be an artifical node, therefore not an original switch.
-  return false;
-}
-
-template<class NodeT>
 inline BasicBlockNode<NodeT> *getDirectSuccessor(BasicBlockNode<NodeT> *Node) {
   BasicBlockNode<NodeT> *Successor = nullptr;
   if (Node->successor_size() == 1) {
     Successor = Node->getSuccessorI(0);
   }
-
   return Successor;
 }
 
@@ -1466,8 +1452,6 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
   // Apply combing to the current RegionCFG.
   if (ToInflate) {
 
-    // Initialize the EdgeInfo struct on switch edges.
-    Graph.tagCaseEdges();
     Graph.markUnexpectedPCAsInlined();
 
     if (CombLogger.isEnabled()) {
@@ -1602,6 +1586,7 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
         //       tile.
         // revng_assert(Children.size() >= Node->successor_size());
         ASTNode *PostDomASTNode = nullptr;
+        BasicBlockNodeT *PostDomBB = nullptr;
 
         if (Children.size() > Node->successor_size()) {
 
@@ -1622,13 +1607,14 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
           revng_assert(It != Children.end());
 
           PostDomASTNode = findASTNode(AST, TileToNodeMap, *It);
-
-          createTile(Graph, TileToNodeMap, Node, *It);
+          PostDomBB = *It;
 
           // Assert that we don't find more than one.
           It = std::find_if(std::next(It), Children.end(), NotSuccessor);
           revng_assert(It == Children.end());
         }
+
+        createTile(Graph, TileToNodeMap, Node, PostDomBB);
 
         ASTObject.reset(new SwitchNode(Node,
                                        SwitchCondition,
@@ -1670,10 +1656,12 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
             ASTNode *Then = findASTNode(AST, TileToNodeMap, Successor1);
             ASTNode *Else = findASTNode(AST, TileToNodeMap, Successor2);
 
-            if (isEdgeInlined(EdgeDescriptor(Node, Successor1))) {
+            using ConstEdge = std::pair<const BasicBlockNode<NodeT> *,
+                                        const BasicBlockNode<NodeT> *>;
+            if (isEdgeInlined(ConstEdge(Node, Successor1))) {
               Else = nullptr;
               createTile(Graph, TileToNodeMap, Node, Successor2);
-            } else if (isEdgeInlined(EdgeDescriptor(Node, Successor2))) {
+            } else if (isEdgeInlined(ConstEdge(Node, Successor2))) {
               Then = nullptr;
               createTile(Graph, TileToNodeMap, Node, Successor1);
             } else {
@@ -1712,16 +1700,18 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
             PotPostDom1 = getDirectSuccessor(Successor1);
             PotPostDom2 = getDirectSuccessor(Successor2);
 
+            using ConstEdge = std::pair<const BasicBlockNode<NodeT> *,
+                                        const BasicBlockNode<NodeT> *>;
             if (PotPostDom1 == Successor2) {
               PostDomBB = Successor2;
               Else = nullptr;
             } else if (PotPostDom2 == Successor1) {
               PostDomBB = Successor1;
               Then = nullptr;
-            } else if (isEdgeInlined(EdgeDescriptor(Node, Successor1))) {
+            } else if (isEdgeInlined(ConstEdge(Node, Successor1))) {
               Else = nullptr;
               PostDomBB = Successor2;
-            } else if (isEdgeInlined(EdgeDescriptor(Node, Successor2))) {
+            } else if (isEdgeInlined(ConstEdge(Node, Successor2))) {
               Then = nullptr;
               PostDomBB = Successor1;
             }
@@ -1737,7 +1727,6 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
             if (PostDomBB) {
               ASTNode *PostDom = findASTNode(AST, TileToNodeMap, PostDomBB);
               ASTObject.reset(new IfNode(Node, Cond, Then, Else, PostDom));
-
             } else {
               ASTObject.reset(new IfNode(Node, Cond, Then, Else, nullptr));
             }
@@ -2159,122 +2148,16 @@ inline void RegionCFG<NodeT>::weave() {
 }
 
 template<class NodeT>
-inline void RegionCFG<NodeT>::tagCaseEdges() {
-
-  // Check that we are in a valid state of the graph.
-  revng_assert(isDAG());
-
-  // Collect useful objects.
-  BBNodeT *Entry = &getEntryNode();
-
-  for (BBNodeT *Switch : post_order(Entry)) {
-
-    if (not isASwitch(Switch))
-      continue;
-
-    // If it'a switch node coming from the original llvm IR, we need to set up
-    // the proper case labels before weaving it. Dispatcher nodes are already
-    // created with labels.
-    if (Switch->isCode()) {
-      std::map<llvm::BasicBlock *, BBNodeT *> BBToNodeMap;
-      for (BBNodeT *SwitchSucc : Switch->successors()) {
-        revng_assert(SwitchSucc->isCode());
-        llvm::BasicBlock *SwitchSuccBB = SwitchSucc->getOriginalNode();
-        const auto &[_, New] = BBToNodeMap.insert({ SwitchSuccBB, SwitchSucc });
-        revng_assert(New);
-      }
-
-      for (const auto &[BB, SwitchSuccessor] : BBToNodeMap) {
-        auto NEIP = extractLabeledEdge(EdgeDescriptor(Switch, SwitchSuccessor));
-        revng_assert(NEIP.second.Labels.empty());
-        revng_assert(NEIP.second.Inlined == false);
-      }
-
-      llvm::BasicBlock *SwitchBB = Switch->getOriginalNode();
-      llvm::Instruction *TermInst = SwitchBB->getTerminator();
-      auto *SwitchInstruction = llvm::cast<llvm::SwitchInst>(TermInst);
-
-      using edge_label_t = typename BasicBlockNodeT::edge_label_t;
-      std::map<llvm::BasicBlock *, edge_label_t> SwitchSuccLabels;
-      for (llvm::SwitchInst::CaseHandle &Case : SwitchInstruction->cases()) {
-        llvm::BasicBlock *CaseTarget = Case.getCaseSuccessor();
-        llvm::ConstantInt *CaseValue = Case.getCaseValue();
-        uint64_t CaseVal = CaseValue->getZExtValue();
-        SwitchSuccLabels[CaseTarget].insert(CaseVal);
-      }
-
-      llvm::BasicBlock *DefaultBB = SwitchInstruction->getDefaultDest();
-      revng_assert(nullptr != DefaultBB);
-
-      auto It = SwitchSuccLabels.find(DefaultBB);
-      if (It != SwitchSuccLabels.end()) {
-        // One of the successors is also the default. We can drop the labels.
-        It->second = {};
-      } else {
-        SwitchSuccLabels[DefaultBB] = {}; // Empty labels for the default.
-      }
-
-      revng_assert(BBToNodeMap.size() == SwitchSuccLabels.size());
-      for (const auto &Pair : llvm::zip_first(BBToNodeMap, SwitchSuccLabels)) {
-        const auto &[BB, SuccNode] = std::get<0>(Pair);
-        const auto &[OtherBB, Label] = std::get<1>(Pair);
-        revng_assert(BB == OtherBB);
-
-        // Build the EdgeInfo object.
-        using EdgeInfo = typename BasicBlockNodeT::EdgeInfo;
-        EdgeInfo EI = { Label, false };
-
-        addEdge(EdgeDescriptor(Switch, SuccNode), EI);
-      }
-    }
-  }
-}
-
-template<class NodeT>
 inline void RegionCFG<NodeT>::markUnexpectedPCAsInlined() {
-
-  // Check that we are in a valid state of the graph.
-  revng_assert(isDAG());
-
-  // Collect useful objectd
-  BBNodeT *Entry = &getEntryNode();
-
-  for (BBNodeT *Switch : post_order(Entry)) {
-
-    if (not isASwitch(Switch))
+  for (BBNodeT *Node : *this) {
+    if (not Node->isCode())
       continue;
 
-    if (Switch->isCode()) {
-
-      // Build a map between the `llvm::BasicBlock` and the corresponding
-      // `BasicBlockNode`, used later to retrieve the matching node.
-      std::map<llvm::BasicBlock *, BBNodeT *> BBToNodeMap;
-      for (BBNodeT *SwitchSucc : Switch->successors()) {
-        revng_assert(SwitchSucc->isCode());
-        llvm::BasicBlock *SwitchSuccBB = SwitchSucc->getOriginalNode();
-        const auto &[_, New] = BBToNodeMap.insert({ SwitchSuccBB, SwitchSucc });
-        revng_assert(New);
-      }
-
-      // Retrieve the `BasicBlockNode` corresponding to the default case.
-      llvm::BasicBlock *SwitchBB = Switch->getOriginalNode();
-      llvm::Instruction *TermInst = SwitchBB->getTerminator();
-      auto *SwitchInstruction = llvm::cast<llvm::SwitchInst>(TermInst);
-      llvm::BasicBlock *DefaultBB = SwitchInstruction->getDefaultDest();
-      revng_assert(nullptr != DefaultBB);
-
-      // Ensure that the default case brings us to the `UnexpectedPC` BB.
-      BlockType::Values BBType = GeneratedCodeBasicInfo::getType(DefaultBB);
-
-      // If the default case brings us to the `UnexpectedPC` BB, mark it as
-      // inlined, so that it does not influence the computing of the PostDom.
-      if (BBType == BlockType::UnexpectedPCBlock) {
-        BBNodeT *Default = BBToNodeMap.at(DefaultBB);
-
-        // Mark the default edge as inlined.
-        markEdgeInlined(EdgeDescriptor(Switch, Default));
-      }
-    }
+    llvm::BasicBlock *BB = Node->getOriginalNode();
+    BlockType::Values BBType = GeneratedCodeBasicInfo::getType(BB);
+    if (BBType == BlockType::UnexpectedPCBlock)
+      for (BBNodeT *Pred : Node->predecessors())
+        markEdgeInlined(EdgeDescriptor(Pred, Node));
   }
 }
 

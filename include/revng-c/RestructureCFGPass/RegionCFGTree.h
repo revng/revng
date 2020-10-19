@@ -12,6 +12,7 @@
 // LLVM includes
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/IR/Dominators.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/GenericDomTreeConstruction.h>
 
@@ -29,6 +30,25 @@ class MetaRegion;
 template<typename NodeT>
 inline bool InlineFilter(const typename llvm::GraphTraits<NodeT>::EdgeRef &E) {
   return !E.second.Inlined;
+}
+
+template<class NodeT>
+inline bool isASwitch(BasicBlockNode<NodeT> *Node) {
+  return false;
+}
+
+template<>
+inline bool isASwitch(BasicBlockNode<llvm::BasicBlock *> *Node) {
+
+  // TODO: remove this workaround for searching for switch nodes.
+  if (Node->isCode() and Node->getOriginalNode()) {
+    llvm::BasicBlock *OriginalBB = Node->getOriginalNode();
+    llvm::Instruction *TerminatorBB = OriginalBB->getTerminator();
+    return llvm::isa<llvm::SwitchInst>(TerminatorBB);
+  }
+
+  // The node may be an artifical node, therefore not an original switch.
+  return false;
 }
 
 /// \brief The RegionCFG, a container for BasicBlockNodes
@@ -101,6 +121,42 @@ private:
   FDomTree IFDT;
   FPostDomTree IFPDT;
 
+private:
+  template<typename NodeRefT>
+  typename BasicBlockNodeT::EdgeInfo
+  getSwitchEdgeInfoSuccessor(NodeRefT N, uint64_t I) const {
+    typename BasicBlockNodeT::EdgeInfo Label{ { /* no labels */ }, false };
+    Label.Labels.insert(I);
+    return Label;
+  }
+
+  template<>
+  typename BasicBlockNodeT::EdgeInfo
+  getSwitchEdgeInfoSuccessor(llvm::BasicBlock *BB, uint64_t I) const {
+    revng_assert(BB);
+    revng_assert(isa<llvm::SwitchInst>(BB->getTerminator()));
+    auto *Switch = cast<llvm::SwitchInst>(BB->getTerminator());
+    revng_assert(I <= std::numeric_limits<unsigned>::max());
+
+    unsigned Idx = I;
+    auto *CaseBB = Switch->getSuccessor(Idx);
+    revng_assert(CaseBB);
+
+    typename BasicBlockNodeT::EdgeInfo Label{ { /* no labels */ }, false };
+
+    if (CaseBB == Switch->getDefaultDest()) {
+      // Return an edge info with an empty set of labels. This is interpreted as
+      // the default for switch nodes.
+      return Label;
+    }
+    llvm::ConstantInt *CaseValue = Switch->findCaseDest(CaseBB);
+    revng_assert(CaseValue,
+                 "Unexpected: basic block does not have a unique case value");
+    uint64_t LabelValue = CaseValue->getZExtValue();
+    Label.Labels.insert(LabelValue);
+    return Label;
+  }
+
 public:
   RegionCFG() = default;
   RegionCFG(const RegionCFG &) = default;
@@ -118,8 +174,9 @@ public:
     // from it.
     std::map<NodeRef, BBNodeT *> NodeToBBNodeMap;
 
-    for (NodeRef N :
-         llvm::make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
+    // Create a new node for each node in Graph.
+    using llvm::make_range;
+    for (NodeRef N : make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
       BBNodeT *BBNode = addNode(N);
       NodeToBBNodeMap[N] = BBNode;
     }
@@ -129,20 +186,21 @@ public:
 
     // Do another iteration over all the nodes in the graph to create the edges
     // in the graph.
-    for (NodeRef N :
-         llvm::make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
+    for (NodeRef N : make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
       BBNodeT *BBNode = NodeToBBNodeMap.at(N);
 
       // Iterate over all the successors of a graph node.
-      unsigned ChildCounter = 0;
-      for (NodeRef C : llvm::make_range(GT::child_begin(N), GT::child_end(N))) {
-
-        // Check that no switches are present in the graph.
-        ChildCounter++;
-
+      for (auto &Group :
+           llvm::enumerate(make_range(GT::child_begin(N), GT::child_end(N)))) {
         // Create the edge in the RegionCFG<NodeT>.
-        BBNodeT *Successor = NodeToBBNodeMap.at(C);
-        addPlainEdge<BBNodeT>({ BBNode, Successor });
+        auto OriginalSucc = Group.value();
+        BBNodeT *Successor = NodeToBBNodeMap.at(OriginalSucc);
+        if (BBNode->isCode() and isASwitch(BBNode)) {
+          auto Labels = getSwitchEdgeInfoSuccessor(N, Group.index());
+          addEdge<BBNodeT>({ BBNode, Successor }, Labels);
+        } else {
+          addPlainEdge<BBNodeT>({ BBNode, Successor });
+        }
       }
     }
   }
@@ -306,8 +364,6 @@ public:
   bool isTopologicallyEquivalent(RegionCFG &Other) const;
 
   void weave();
-
-  void tagCaseEdges();
 
   void markUnexpectedPCAsInlined();
 

@@ -73,38 +73,31 @@ inline void markEdgeInlined(std::pair<BBNodeT *, BBNodeT *> Edge) {
   //       having to remove it.
 
   // Take care of the predecessor edge.
-  auto EdgePairBack = Edge.second->extractPredecessorEdge(Edge.first);
+  auto &EdgePairBack = Edge.second->getPredecessorEdge(Edge.first);
   EdgePairBack.second.Inlined = true;
 
   // Take care of the successor edge.
-  auto EdgePairForw = Edge.first->extractSuccessorEdge(Edge.second);
+  auto &EdgePairForw = Edge.first->getSuccessorEdge(Edge.second);
   EdgePairForw.second.Inlined = true;
 
   // Ensure that the forward and backward edgeinfos carry the same information.
   // For this to work, we default the spaceship operator for having the equality
   // between EdgeInfo structs.
   revng_assert(EdgePairBack.second == EdgePairForw.second);
-
-  // Re-add the removed edge.
-  addEdge(Edge, EdgePairBack.second);
 }
 
 template<class BBNodeT>
-inline bool isEdgeInlined(std::pair<BBNodeT *, BBNodeT *> Edge) {
+inline bool isEdgeInlined(std::pair<const BBNodeT *, const BBNodeT *> Edge) {
 
   // Take care of the backward edge.
-  auto EdgePairBack = Edge.second->extractPredecessorEdge(Edge.first);
+  auto EdgePairBack = Edge.second->getPredecessorEdge(Edge.first);
 
   // Take care of the forward edge.
-  auto EdgePairForw = Edge.first->extractSuccessorEdge(Edge.second);
+  auto EdgePairForw = Edge.first->getSuccessorEdge(Edge.second);
   bool InlinedForw = EdgePairForw.second.Inlined;
 
   // Ensure that the forward and backward edgeinfos carry the same information.
   revng_assert(EdgePairBack.second == EdgePairForw.second);
-
-  // Re-add the removed edge.
-  addEdge(Edge, EdgePairBack.second);
-
   return InlinedForw;
 }
 
