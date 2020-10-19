@@ -1534,14 +1534,28 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
 
         BodyGraph->generateAst(NDuplicates);
 
-        if (Children.size() == 1) {
-          ASTNode *Body = BodyGraph->getAST().getRoot();
-          ASTNode *ASTChild = findASTNode(AST, TileToNodeMap, Children[0]);
-          ASTObject.reset(new ScsNode(Node, Body, ASTChild));
+        switch (Successors.size()) {
 
-        } else {
+        case 0: {
           ASTNode *Body = BodyGraph->getAST().getRoot();
           ASTObject.reset(new ScsNode(Node, Body));
+        } break;
+
+        case 1: {
+          auto *Succ = Successors[0];
+          if (ASTDT.dominates(Node, Succ)) {
+            ASTNode *Body = BodyGraph->getAST().getRoot();
+            ASTNode *ASTChild = findASTNode(AST, TileToNodeMap, Succ);
+            ASTObject.reset(new ScsNode(Node, Body, ASTChild));
+            createTile(Graph, TileToNodeMap, Node, Succ);
+          } else {
+            ASTNode *Body = BodyGraph->getAST().getRoot();
+            ASTObject.reset(new ScsNode(Node, Body));
+          }
+        } break;
+
+        default:
+          revng_abort();
         }
 
       } else if (Node->isDispatcher() or isASwitch(Node)) {
