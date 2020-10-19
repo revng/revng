@@ -90,6 +90,30 @@ BasicBlockNode<NodeT>::extractSuccessorEdge(BasicBlockNodeT *Succ) {
 }
 
 template<class NodeT>
+inline const typename BasicBlockNode<NodeT>::node_edgeinfo_pair &
+BasicBlockNode<NodeT>::getSuccessorEdge(const BasicBlockNodeT *Succ) const {
+  const auto IsSucc = [Succ](const node_edgeinfo_pair &P) {
+    return P.first == Succ;
+  };
+  auto SuccEnd = Successors.end();
+  auto SuccEdgeIt = std::find_if(Successors.begin(), SuccEnd, IsSucc);
+  revng_assert(SuccEdgeIt != SuccEnd);
+  revng_assert(std::find_if(std::next(SuccEdgeIt), SuccEnd, IsSucc) == SuccEnd);
+  return *SuccEdgeIt;
+}
+
+template<class NodeT>
+inline typename BasicBlockNode<NodeT>::node_edgeinfo_pair &
+BasicBlockNode<NodeT>::getSuccessorEdge(BasicBlockNodeT *Succ) {
+  const auto IsSucc = [Succ](node_edgeinfo_pair &P) { return P.first == Succ; };
+  auto SuccEnd = Successors.end();
+  auto SuccEdgeIt = std::find_if(Successors.begin(), SuccEnd, IsSucc);
+  revng_assert(SuccEdgeIt != SuccEnd);
+  revng_assert(std::find_if(std::next(SuccEdgeIt), SuccEnd, IsSucc) == SuccEnd);
+  return *SuccEdgeIt;
+}
+
+template<class NodeT>
 inline void BasicBlockNode<NodeT>::removePredecessor(BasicBlockNodeT *Pred) {
   size_t Removed = 0;
   const auto IsPred = [&Removed, Pred](const node_edgeinfo_pair &P) {
@@ -126,6 +150,30 @@ BasicBlockNode<NodeT>::extractPredecessorEdge(BasicBlockNodeT *Pred) {
                      Predecessors.end());
   revng_assert(Removed == 1); // needs to remove exactly one predecessor
   return Extracted;
+}
+
+template<class NodeT>
+inline const typename BasicBlockNode<NodeT>::node_edgeinfo_pair &
+BasicBlockNode<NodeT>::getPredecessorEdge(const BasicBlockNodeT *Pred) const {
+  const auto IsPred = [Pred](const node_edgeinfo_pair &P) {
+    return P.first == Pred;
+  };
+  auto PredEnd = Predecessors.end();
+  auto PredEdgeIt = std::find_if(Predecessors.begin(), PredEnd, IsPred);
+  revng_assert(PredEdgeIt != PredEnd);
+  revng_assert(std::find_if(std::next(PredEdgeIt), PredEnd, IsPred) == PredEnd);
+  return *PredEdgeIt;
+}
+
+template<class NodeT>
+inline typename BasicBlockNode<NodeT>::node_edgeinfo_pair &
+BasicBlockNode<NodeT>::getPredecessorEdge(BasicBlockNodeT *Pred) {
+  const auto IsPred = [Pred](node_edgeinfo_pair &P) { return P.first == Pred; };
+  auto PredEnd = Predecessors.end();
+  auto PredEdgeIt = std::find_if(Predecessors.begin(), PredEnd, IsPred);
+  revng_assert(PredEdgeIt != PredEnd);
+  revng_assert(std::find_if(std::next(PredEdgeIt), PredEnd, IsPred) == PredEnd);
+  return *PredEdgeIt;
 }
 
 template<class NodeT>

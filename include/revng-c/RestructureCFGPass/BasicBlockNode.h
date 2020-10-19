@@ -226,7 +226,13 @@ public:
   }
 
   void removeSuccessor(BasicBlockNode *Successor);
+
   node_edgeinfo_pair extractSuccessorEdge(BasicBlockNode *Successor);
+
+  const node_edgeinfo_pair &
+  getSuccessorEdge(const BasicBlockNode *Successor) const;
+
+  node_edgeinfo_pair &getSuccessorEdge(BasicBlockNode *Successor);
 
   void addLabeledPredecessor(const node_edgeinfo_pair &P) {
     revng_assert(not hasPredecessor(P.first));
@@ -250,7 +256,13 @@ public:
   }
 
   void removePredecessor(BasicBlockNode *Successor);
+
   node_edgeinfo_pair extractPredecessorEdge(BasicBlockNode *Predecessor);
+
+  const node_edgeinfo_pair &
+  getPredecessorEdge(const BasicBlockNode *Predecessor) const;
+
+  node_edgeinfo_pair &getPredecessorEdge(BasicBlockNode *Predecessor);
 
   void updatePointers(const BasicBlockNodeMap &SubstitutionMap);
 
