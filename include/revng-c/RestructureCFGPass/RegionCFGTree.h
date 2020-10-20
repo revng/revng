@@ -18,6 +18,7 @@
 
 // revng includes
 #include <revng/ADT/FilteredGraphTraits.h>
+#include <revng/ADT/SmallMap.h>
 
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
@@ -32,12 +33,6 @@ inline bool InlineFilter(const typename llvm::GraphTraits<NodeT>::EdgeRef &E) {
   return !E.second.Inlined;
 }
 
-template<class NodeT>
-inline bool isASwitch(BasicBlockNode<NodeT> *Node) {
-  return false;
-}
-
-template<>
 inline bool isASwitch(BasicBlockNode<llvm::BasicBlock *> *Node) {
 
   // TODO: remove this workaround for searching for switch nodes.
@@ -122,39 +117,57 @@ private:
   FPostDomTree IFPDT;
 
 private:
-  template<typename NodeRefT>
-  typename BasicBlockNodeT::EdgeInfo
-  getSwitchEdgeInfoSuccessor(NodeRefT N, uint64_t I) const {
-    typename BasicBlockNodeT::EdgeInfo Label{ { /* no labels */ }, false };
-    Label.Labels.insert(I);
-    return Label;
+  template<typename GraphNodeT>
+  void addSuccessorEdges(GraphNodeT N,
+                         const std::map<GraphNodeT, BBNodeT *> &NodeMap) {
+    BBNodeT *BBNode = NodeMap.at(N);
+    using llvm::make_range;
+    using GT = typename llvm::GraphTraits<GraphNodeT>;
+    for (typename GT::NodeRef OriginalSucc :
+         make_range(GT::child_begin(N), GT::child_end(N))) {
+      BBNodeT *Successor = NodeMap.at(OriginalSucc);
+      addPlainEdge<BBNodeT>({ BBNode, Successor });
+    }
   }
 
+  using CBBMap = const std::map<llvm::BasicBlock *, BBNodeT *>;
+
   template<>
-  typename BasicBlockNodeT::EdgeInfo
-  getSwitchEdgeInfoSuccessor(llvm::BasicBlock *BB, uint64_t I) const {
-    revng_assert(BB);
-    revng_assert(isa<llvm::SwitchInst>(BB->getTerminator()));
-    auto *Switch = cast<llvm::SwitchInst>(BB->getTerminator());
-    revng_assert(I <= std::numeric_limits<unsigned>::max());
+  void
+  addSuccessorEdges<llvm::BasicBlock *>(llvm::BasicBlock *BB, CBBMap &NodeMap) {
 
-    unsigned Idx = I;
-    auto *CaseBB = Switch->getSuccessor(Idx);
-    revng_assert(CaseBB);
+    BBNodeT *BBNode = NodeMap.at(BB);
 
-    typename BasicBlockNodeT::EdgeInfo Label{ { /* no labels */ }, false };
+    if (auto *Switch = dyn_cast<llvm::SwitchInst>(BB->getTerminator())) {
 
-    if (CaseBB == Switch->getDefaultDest()) {
-      // Return an edge info with an empty set of labels. This is interpreted as
-      // the default for switch nodes.
-      return Label;
+      revng_assert(BBNode->isCode() and isASwitch(BBNode));
+      using EdgeInfo = typename BasicBlockNodeT::EdgeInfo;
+
+      SmallMap<llvm::BasicBlock *, EdgeInfo, 16> LabeledEdges;
+
+      for (llvm::SwitchInst::CaseHandle &Case : Switch->cases()) {
+        llvm::BasicBlock *CaseBB = Case.getCaseSuccessor();
+        llvm::ConstantInt *CaseValue = Case.getCaseValue();
+        uint64_t LabelValue = CaseValue->getZExtValue();
+        LabeledEdges[CaseBB].Labels.insert(LabelValue);
+      }
+
+      auto *DefaultBB = Switch->getDefaultDest();
+      revng_assert(DefaultBB);
+      LabeledEdges[DefaultBB].Labels.clear();
+
+      for (const auto &[Succ, Label] : LabeledEdges)
+        addEdge<BBNodeT>({ BBNode, NodeMap.at(Succ) }, Label);
+
+    } else {
+
+      using GT = llvm::GraphTraits<llvm::BasicBlock *>;
+      for (llvm::BasicBlock *OriginalSuccBB :
+           make_range(GT::child_begin(BB), GT::child_end(BB))) {
+        BBNodeT *Successor = NodeMap.at(OriginalSuccBB);
+        addPlainEdge<BBNodeT>({ BBNode, Successor });
+      }
     }
-    llvm::ConstantInt *CaseValue = Switch->findCaseDest(CaseBB);
-    revng_assert(CaseValue,
-                 "Unexpected: basic block does not have a unique case value");
-    uint64_t LabelValue = CaseValue->getZExtValue();
-    Label.Labels.insert(LabelValue);
-    return Label;
   }
 
 public:
@@ -166,7 +179,6 @@ public:
 
   template<class GraphT>
   void initialize(GraphT Graph) {
-
     using GT = llvm::GraphTraits<GraphT>;
     using NodeRef = typename GT::NodeRef;
 
@@ -181,28 +193,14 @@ public:
       NodeToBBNodeMap[N] = BBNode;
     }
 
-    // Set the `EntryNode` BasicBlockNode reference.
-    EntryNode = NodeToBBNodeMap.at(GT::getEntryNode(Graph));
-
     // Do another iteration over all the nodes in the graph to create the edges
     // in the graph.
     for (NodeRef N : make_range(GT::nodes_begin(Graph), GT::nodes_end(Graph))) {
-      BBNodeT *BBNode = NodeToBBNodeMap.at(N);
-
-      // Iterate over all the successors of a graph node.
-      for (auto &Group :
-           llvm::enumerate(make_range(GT::child_begin(N), GT::child_end(N)))) {
-        // Create the edge in the RegionCFG<NodeT>.
-        auto OriginalSucc = Group.value();
-        BBNodeT *Successor = NodeToBBNodeMap.at(OriginalSucc);
-        if (BBNode->isCode() and isASwitch(BBNode)) {
-          auto Labels = getSwitchEdgeInfoSuccessor(N, Group.index());
-          addEdge<BBNodeT>({ BBNode, Successor }, Labels);
-        } else {
-          addPlainEdge<BBNodeT>({ BBNode, Successor });
-        }
-      }
+      addSuccessorEdges(N, NodeToBBNodeMap);
     }
+
+    // Set the `EntryNode` BasicBlockNode reference.
+    EntryNode = NodeToBBNodeMap.at(GT::getEntryNode(Graph));
   }
 
   unsigned getNewID() { return IDCounter++; }
