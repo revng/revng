@@ -11,7 +11,10 @@ from binascii import hexlify
 from ctypes.util import find_library
 from functools import reduce
 from itertools import chain
-from shutil import which
+try:
+    from shutil import which
+except ImportError:
+    from backports.shutil_which import which
 
 from elftools.elf.dynamic import DynamicSegment
 from elftools.elf.elffile import ELFFile
