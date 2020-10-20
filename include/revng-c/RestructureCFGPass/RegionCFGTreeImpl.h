@@ -1362,19 +1362,19 @@ findCommonPostDom(BasicBlockNode<NodeT> *Succ1, BasicBlockNode<NodeT> *Succ2) {
   // Retrieve the successor of the two successors of the `IfNode`, and check
   // that or the retrieved node is equal for both the successors, or it does
   // not exists for both of them.
-  BasicBlockNode<NodeT> *PotPostDom1 = nullptr;
-  BasicBlockNode<NodeT> *PotPostDom2 = nullptr;
+  BasicBlockNode<NodeT> *SuccOfSucc1 = nullptr;
+  BasicBlockNode<NodeT> *SuccOfSucc2 = nullptr;
   if (Succ1->successor_size() == 1)
-    PotPostDom1 = getDirectSuccessor(Succ1);
+    SuccOfSucc1 = getDirectSuccessor(Succ1);
   else
     revng_abort();
   if (Succ2->successor_size() == 1)
-    PotPostDom2 = getDirectSuccessor(Succ2);
+    SuccOfSucc2 = getDirectSuccessor(Succ2);
   else
     revng_abort();
-  revng_assert(PotPostDom1 == PotPostDom2);
+  revng_assert(SuccOfSucc1 == SuccOfSucc2);
 
-  return PotPostDom1;
+  return SuccOfSucc1;
 }
 
 template<class NodeT>
@@ -1659,16 +1659,29 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
             ASTNode *Then = findASTNode(AST, TileToNodeMap, Successor1);
             ASTNode *Else = findASTNode(AST, TileToNodeMap, Successor2);
 
-            using ConstEdge = std::pair<const BasicBlockNode<NodeT> *,
-                                        const BasicBlockNode<NodeT> *>;
-            if (isEdgeInlined(ConstEdge(Node, Successor1))) {
+            using ConstEdge = std::pair<const BasicBlockNodeT *,
+                                        const BasicBlockNodeT *>;
+            if (isEdgeInlined(ConstEdge{ Node, Successor1 })) {
+
               Else = nullptr;
               createTile(Graph, TileToNodeMap, Node, Successor2);
-            } else if (isEdgeInlined(ConstEdge(Node, Successor2))) {
+
+            } else if (isEdgeInlined(ConstEdge{ Node, Successor2 })) {
+
               Then = nullptr;
               createTile(Graph, TileToNodeMap, Node, Successor1);
+
             } else {
-              revng_abort();
+              auto *DominatedSucc = Children[0];
+              revng_assert(DominatedSucc == Successor1
+                           or DominatedSucc == Successor2);
+              auto *NotDominatedSucc = DominatedSucc == Successor1 ?
+                                         Successor2 :
+                                         Successor1;
+              Then = DominatedSucc == Successor1 ? Then : nullptr;
+              Else = DominatedSucc == Successor2 ? Else : nullptr;
+
+              createTile(Graph, TileToNodeMap, Node, NotDominatedSucc);
             }
 
             // Build the `IfNode`.
@@ -1696,27 +1709,31 @@ inline void RegionCFG<NodeT>::generateAst(DuplicationMap &NDuplicates) {
 
             // First of all, check if one of the successors can also be
             // considered as the immediate postdominator of the tile.
-            BasicBlockNode<NodeT> *PotPostDom1 = nullptr;
-            BasicBlockNode<NodeT> *PotPostDom2 = nullptr;
+            auto *SuccOfSucc1 = getDirectSuccessor(Successor1);
+            auto *SuccOfSucc2 = getDirectSuccessor(Successor2);
+            revng_assert(SuccOfSucc1 != SuccOfSucc2 or nullptr == SuccOfSucc1);
+
             BasicBlockNode<NodeT> *PostDomBB = nullptr;
 
-            PotPostDom1 = getDirectSuccessor(Successor1);
-            PotPostDom2 = getDirectSuccessor(Successor2);
-
-            using ConstEdge = std::pair<const BasicBlockNode<NodeT> *,
-                                        const BasicBlockNode<NodeT> *>;
-            if (PotPostDom1 == Successor2) {
-              PostDomBB = Successor2;
-              Else = nullptr;
-            } else if (PotPostDom2 == Successor1) {
-              PostDomBB = Successor1;
-              Then = nullptr;
-            } else if (isEdgeInlined(ConstEdge(Node, Successor1))) {
+            using ConstEdge = std::pair<const BasicBlockNodeT *,
+                                        const BasicBlockNodeT *>;
+            if (isEdgeInlined(ConstEdge{ Node, Successor1 })) {
               Else = nullptr;
               PostDomBB = Successor2;
-            } else if (isEdgeInlined(ConstEdge(Node, Successor2))) {
+            } else if (isEdgeInlined(ConstEdge{ Node, Successor2 })) {
               Then = nullptr;
               PostDomBB = Successor1;
+            } else if (SuccOfSucc1 == Successor2) {
+              revng_assert(SuccOfSucc2 != Successor1);
+              PostDomBB = Successor2;
+              Else = nullptr;
+            } else if (SuccOfSucc2 == Successor1) {
+              revng_assert(SuccOfSucc1 != Successor2);
+              PostDomBB = Successor1;
+              Then = nullptr;
+            } else {
+              revng_assert(ASTDT.dominates(Node, Successor1));
+              revng_assert(ASTDT.dominates(Node, Successor2));
             }
 
             // Build the `IfNode`.
