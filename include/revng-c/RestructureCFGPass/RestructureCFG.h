@@ -12,10 +12,8 @@
 #include "llvm/Pass.h"
 
 // Local libraries includes
+#include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
-
-// Forward declarations
-class ASTTree;
 
 class RestructureCFG : public llvm::FunctionPass {
 
@@ -37,16 +35,14 @@ public:
     AU.setPreservesAll();
   }
 
-  ASTTree &getAST();
-
-  RegionCFGBB &getRCT() { return RootCFG; }
+  ASTTree &getAST() { return AST; }
 
   bool isDone() { return Done; }
 
   std::map<llvm::BasicBlock *, size_t> &getNDuplicates() { return NDuplicates; }
 
 private:
-  RegionCFGBB RootCFG;
+  ASTTree AST;
   DuplicationMap NDuplicates;
 };
 

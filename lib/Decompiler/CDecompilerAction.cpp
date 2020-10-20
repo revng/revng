@@ -699,13 +699,11 @@ private:
 
 public:
   explicit Decompiler(llvm::Function &F,
-                      RegionCFG<llvm::BasicBlock *> &RCFG,
                       ASTTree &CombedAST,
                       BBPHIMap &BlockToPHIIncoming,
                       std::unique_ptr<llvm::raw_ostream> Out,
                       DuplicationMap &NDuplicates) :
     TheF(F),
-    RCFG(RCFG),
     CombedAST(CombedAST),
     Out(std::move(Out)),
     BlockToPHIIncoming(BlockToPHIIncoming),
@@ -715,7 +713,6 @@ public:
 
 private:
   llvm::Function &TheF;
-  RegionCFG<llvm::BasicBlock *> &RCFG;
   ASTTree &CombedAST;
   std::unique_ptr<llvm::raw_ostream> Out;
   BBPHIMap &BlockToPHIIncoming;
@@ -724,7 +721,7 @@ private:
 
 void Decompiler::HandleTranslationUnit(ASTContext &Context) {
 
-  MarkForSerialization::Analysis Mark(TheF, RCFG, NDuplicates);
+  MarkForSerialization::Analysis Mark(TheF, NDuplicates);
   Mark.initialize();
   Mark.run();
 
@@ -817,7 +814,6 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
 
 std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
   return std::make_unique<Decompiler>(F,
-                                      RCFG,
                                       CombedAST,
                                       BlockToPHIIncoming,
                                       std::move(O),

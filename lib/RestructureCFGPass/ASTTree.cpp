@@ -46,26 +46,23 @@ void ASTTree::addASTNode(BasicBlockNode<BasicBlock *> *Node,
   // Set the Node ID
   ASTNode->setID(getNewID());
 
-  NodeASTMap.insert(std::make_pair(Node, ASTNode));
+  bool New = BBASTMap.insert({ Node, ASTNode }).second;
+  revng_assert(New);
+  New = ASTBBMap.insert({ ASTNode, Node }).second;
+  revng_assert(New);
 }
 
 ASTNode *ASTTree::findASTNode(BasicBlockNode<BasicBlock *> *BlockNode) {
-  revng_assert(NodeASTMap.count(BlockNode) != 0);
-  ASTNode *ASTPointer = NodeASTMap[BlockNode];
-  return ASTPointer;
+  return BBASTMap.at(BlockNode);
 }
 
-// TODO: This is higly inefficient (it is a linear scan over a std::map).
-//       Consider keeping another map for the inverse direction (and updating
-//       it).
-BasicBlockNode<BasicBlock *> *ASTTree::findCFGNode(ASTNode *Node) {
-  BasicBlockNode<BasicBlock *> *Result = nullptr;
-  for (auto &Pair : NodeASTMap)
-    if (Pair.second == Node)
-      Result = Pair.first;
+BasicBlockNode<BasicBlock *> *ASTTree::findCFGNode(ASTNode *ASTNode) {
+  auto It = ASTBBMap.find(ASTNode);
+  if (It != ASTBBMap.end())
+    return It->second;
   // We may return nullptr, since for example continue and break nodes do not
   // have a corresponding CFGNode.
-  return Result;
+  return nullptr;
 }
 
 void ASTTree::setRoot(ASTNode *Root) {
@@ -76,8 +73,7 @@ ASTNode *ASTTree::getRoot() const {
   return RootNode;
 }
 
-ASTNode *
-ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
+ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST) {
   ASTNodeMap ASTSubstitutionMap{};
   ExprNodeMap CondExprMap{};
 
@@ -87,15 +83,18 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
     ASTNodeList.emplace_back(std::move(Old->Clone()));
     ++NewNodes;
 
-    // Set the Node ID
-    ASTNodeList.back()->setID(getNewID());
+    ASTNode *NewASTNode = ASTNodeList.back().get();
+    ASTNode *OldASTNode = Old.get();
 
-    BasicBlockNode<BasicBlock *> *OldCFGNode = OldAST.findCFGNode(Old.get());
+    // Set the Node ID
+    NewASTNode->setID(getNewID());
+
+    BasicBlockNode<BasicBlock *> *OldCFGNode = OldAST.findCFGNode(OldASTNode);
     if (OldCFGNode != nullptr) {
-      NodeASTMap.insert(std::make_pair(OldCFGNode, ASTNodeList.back().get()));
+      BBASTMap.insert({ OldCFGNode, NewASTNode });
+      ASTBBMap.insert({ NewASTNode, OldCFGNode });
     }
-    ASTNode *New = ASTNodeList.back().get();
-    ASTSubstitutionMap[Old.get()] = New;
+    ASTSubstitutionMap[OldASTNode] = NewASTNode;
   }
 
   // Clone the conditional expression nodes.
@@ -117,22 +116,6 @@ ASTTree::copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap) {
     NewNode->updateASTNodesPointers(ASTSubstitutionMap);
     if (auto *If = llvm::dyn_cast<IfNode>(NewNode.get())) {
       If->updateCondExprPtr(CondExprMap);
-    }
-  }
-
-  // Update the map between `BasicBlockNode` and `ASTNode`.
-  for (auto SubIt : SubstitutionMap) {
-    BasicBlockNode<BasicBlock *> *OldBB = SubIt.first;
-    BasicBlockNode<BasicBlock *> *NewBB = SubIt.second;
-    auto MapIt = NodeASTMap.find(OldBB);
-
-    // HACK:: update the key of the NodeASTMap
-    bool isBreakOrContinue = OldBB->isContinue() or OldBB->isBreak()
-                             or OldBB->isTile();
-    if (not isBreakOrContinue) {
-      revng_assert(MapIt != NodeASTMap.end());
-      std::swap(NodeASTMap[NewBB], MapIt->second);
-      NodeASTMap.erase(MapIt);
     }
   }
 

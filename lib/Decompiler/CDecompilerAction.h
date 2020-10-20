@@ -32,13 +32,11 @@ private:
 
 public:
   CDecompilerAction(llvm::Function &F,
-                    RegionCFG<llvm::BasicBlock *> &RCFG,
                     ASTTree &CombedAST,
                     BBPHIMap &BlockToPHIIncoming,
                     std::unique_ptr<llvm::raw_ostream> O,
                     DuplicationMap &NDuplicates) :
     F(F),
-    RCFG(RCFG),
     CombedAST(CombedAST),
     BlockToPHIIncoming(BlockToPHIIncoming),
     O(std::move(O)),
@@ -52,7 +50,6 @@ public:
 
 private:
   llvm::Function &F;
-  RegionCFG<llvm::BasicBlock *> &RCFG;
   ASTTree &CombedAST;
   BBPHIMap &BlockToPHIIncoming;
   std::unique_ptr<llvm::raw_ostream> O;

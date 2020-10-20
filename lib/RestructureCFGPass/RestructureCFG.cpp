@@ -26,7 +26,8 @@
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 // Local libraries includes
-#include "revng-c/RestructureCFGPass/FlatteningBB.h"
+#include "revng-c/RestructureCFGPass/ASTTree.h"
+#include "revng-c/RestructureCFGPass/GenerateAst.h"
 #include "revng-c/RestructureCFGPass/MetaRegionBB.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
@@ -397,10 +398,6 @@ static cl::opt<std::string> OutputPath("restructure-metrics-output-dir",
                                        value_desc("restructure-dir"),
                                        cat(MainCategory));
 
-ASTTree &RestructureCFG::getAST() {
-  return RootCFG.getAST();
-}
-
 bool RestructureCFG::runOnFunction(Function &F) {
 
   DuplicationCounter = 0;
@@ -426,7 +423,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Clear graph object from the previous pass.
-  RootCFG = RegionCFG<BasicBlock *>();
+  RegionCFG<BasicBlock *> RootCFG;
 
   // Set names of the CFG region
   RootCFG.setFunctionName(F.getName());
@@ -1164,11 +1161,18 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Invoke the AST generation for the root region.
-  RootCFG.generateAst(NDuplicates);
+  std::map<BasicBlockNodeBB *, ASTTree> CollapsedMap;
+  generateAst(RootCFG, AST, NDuplicates, CollapsedMap);
+
+  // Scorporated this part which was previously inside the `generateAst` to
+  // avoid having it run twice or more (it was run inside the recursive step
+  // of the `generateAst`, and then another time for the final root AST, which
+  // now is directly the entire AST (no flattening anymore)).
+  normalize(AST, F.getName());
 
   // Serialize final AST on file
   if (CombLogger.isEnabled()) {
-    RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final");
+    AST.dumpOnFile("ast", F.getName(), "Final");
   }
 
   // Early exit if the AST generation produced a version of the AST which is
@@ -1178,30 +1182,12 @@ bool RestructureCFG::runOnFunction(Function &F) {
   if (Done)
     return false;
 
-  if (CombLogger.isEnabled()) {
-    CombLogger << "Dumping main graph after Flattening\n";
-    RootCFG.dumpDotOnFile("dots", F.getName(), "final-before-flattening");
-  }
-
-  flattenRegionCFGTree(RootCFG);
-
   // Collect the number of cloned nodes introduced by the comb for a single
   // `llvm::BasicBlock`, information which is needed later in the
   // `MarkForSerialization` pass.
   //
   // Collect also the final weight of the CFG.
   unsigned FinalWeight = 0;
-
-  // Serialize final AST after flattening on file
-  if (CombLogger.isEnabled()) {
-    RootCFG.getAST().dumpOnFile("ast", F.getName(), "Final-after-flattening");
-  }
-
-  // Serialize the newly collapsed SCS region.
-  if (CombLogger.isEnabled()) {
-    CombLogger << "Dumping main graph after Flattening\n";
-    RootCFG.dumpDotOnFile("dots", F.getName(), "final-after-flattening");
-  }
 
   // Compute the increase in weight.
   float Increase = float(FinalWeight) / float(InitialWeight);

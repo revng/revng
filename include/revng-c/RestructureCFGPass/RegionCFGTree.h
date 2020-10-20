@@ -50,7 +50,6 @@ inline bool isASwitch(BasicBlockNode<llvm::BasicBlock *> *Node) {
 template<class NodeT = llvm::BasicBlock *>
 class RegionCFG {
 
-  using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
   using BBNodeT = BasicBlockNode<NodeT>;
   using BBNodeTUniquePtr = typename std::unique_ptr<BBNodeT>;
   using getPointerT = BBNodeT *(*) (BBNodeTUniquePtr &);
@@ -69,6 +68,7 @@ class RegionCFG {
   static_assert(std::is_same_v<decltype(&getConstPointer), getConstPointerT>);
 
 public:
+  using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
   using BasicBlockNodeT = typename BBNodeT::BasicBlockNodeT;
   using BasicBlockNodeType = typename BasicBlockNodeT::Type;
   using BasicBlockNodeTSet = std::set<BasicBlockNodeT *>;
@@ -105,7 +105,6 @@ private:
 
   /// Pointer to the entry basic block of this function
   BasicBlockNodeT *EntryNode;
-  ASTTree AST;
   unsigned IDCounter = 0;
   std::string FunctionName;
   std::string RegionName;
@@ -347,11 +346,6 @@ public:
 
   /// \brief Apply comb to the region.
   void inflate();
-
-  void generateAst(DuplicationMap &NDuplicates);
-
-  // Get reference to the AST object which is inside the RegionCFG<NodeT> object
-  ASTTree &getAST();
 
   void removeNotReachables();
 

@@ -41,7 +41,6 @@ public:
   using links_iterator_expr = typename links_container_expr::iterator;
   using links_range_expr = llvm::iterator_range<links_iterator_expr>;
 
-  // TODO: consider including BasicBlockNode header file.
   using ASTNodeMap = ASTNode::ASTNodeMap;
   using BasicBlockNodeBB = ASTNode::BasicBlockNodeBB;
   using BBNodeMap = ASTNode::BBNodeMap;
@@ -57,11 +56,12 @@ public:
   }
 
 private:
-  links_container ASTNodeList;
-  std::map<BasicBlockNodeBB *, ASTNode *> NodeASTMap;
-  ASTNode *RootNode;
+  links_container ASTNodeList = {};
+  std::map<BasicBlockNodeBB *, ASTNode *> BBASTMap = {};
+  std::map<ASTNode *, BasicBlockNodeBB *> ASTBBMap = {};
+  ASTNode *RootNode = {};
   unsigned IDCounter = 0;
-  links_container_expr CondExprList;
+  links_container_expr CondExprList = {};
 
 public:
   SequenceNode *addSequenceNode();
@@ -92,15 +92,13 @@ public:
 
   ASTNode *getRoot() const;
 
-  ASTNode *copyASTNodesFrom(ASTTree &OldAST, BBNodeMap &SubstitutionMap2);
+  ASTNode *copyASTNodesFrom(ASTTree &OldAST);
 
   void dumpOnFile(std::string FolderName,
                   std::string FunctionName,
                   std::string FileName);
 
   ExprNode *addCondExpr(expr_unique_ptr &&Expr);
-
-  void copyASTNodesFrom(ASTTree &OldAST);
 };
 
 #endif // REVNGC_RESTRUCTURE_CFG_ASTTREE_H

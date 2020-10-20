@@ -34,7 +34,6 @@ private:
 
 protected:
   llvm::Function &F;
-  RegionCFG<llvm::BasicBlock *> &RCFG;
   std::set<llvm::Instruction *> ToSerialize;
   std::vector<std::set<llvm::Instruction *>> ToSerializeInBB;
   std::map<llvm::BasicBlock *, size_t> BBToIdMap;
@@ -52,12 +51,9 @@ public:
     revng_assert(A.lowerThanOrEqual(B));
   }
 
-  Analysis(llvm::Function &F,
-           RegionCFG<llvm::BasicBlock *> &RCFG,
-           DuplicationMap &NDuplicates) :
+  Analysis(llvm::Function &F, DuplicationMap &NDuplicates) :
     Base(&F.getEntryBlock()),
     F(F),
-    RCFG(RCFG),
     ToSerialize(),
     ToSerializeInBB(),
     BBToIdMap(),

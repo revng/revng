@@ -123,7 +123,6 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
 
   auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
   ASTTree &GHAST = RestructureCFGAnalysis.getAST();
-  RegionCFG<llvm::BasicBlock *> &RCFG = RestructureCFGAnalysis.getRCT();
   DuplicationMap &NDuplicates = RestructureCFGAnalysis.getNDuplicates();
   auto &PHIASAPAssignments = getAnalysis<PHIASAPAssignmentInfo>();
   BBPHIMap PHIMap = PHIASAPAssignments.extractBBToPHIIncomingMap();
@@ -151,7 +150,6 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
                               OptionParser.getSourcePathList());
 
   CDecompilerAction Decompilation(F,
-                                  RCFG,
                                   GHAST,
                                   PHIMap,
                                   std::move(Out),
