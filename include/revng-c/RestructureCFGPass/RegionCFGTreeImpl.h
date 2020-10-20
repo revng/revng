@@ -889,31 +889,29 @@ inline void RegionCFG<NodeT>::inflate() {
     revng_log(CombLogger, "Entry node is: " << Entry->getNameStr());
     Graph.dumpDotOnFile("inflates",
                         FunctionName,
-                        "Region-" + RegionName + "-before-sink");
+                        "Region-" + RegionName + "-before-combing");
   }
 
   // Add a new virtual sink node to which all the reachable exit nodes are
   // connected. Also collect the sets of reachable exits from each node that is
   // a successor of a node that induces duplication.
-  BasicBlockNode<NodeT> *Sink = Graph.addArtificialNode("Sink");
   std::map<BasicBlockNode<NodeT> *, BasicBlockNodeTSet> ReachableExits;
   for (auto *Exit : Graph) {
-    if (Sink != Exit and Exit->successor_size() == 0) {
+
+    bool HasOnlyInlinedSuccessor = true;
+    for (auto &Succ : Exit->labeled_successors())
+      if (not Succ.second.Inlined)
+        HasOnlyInlinedSuccessor = false;
+
+    if (HasOnlyInlinedSuccessor) {
       revng_log(CombLogger, "From exit node: " << Exit->getNameStr());
       revng_log(CombLogger, "We can reach:");
-      for (BasicBlockNode<NodeT> *Node : llvm::inverse_depth_first(Exit)) {
+      for (BasicBlockNode<NodeT> *Node :
+           llvm::inverse_depth_first(EFGT<BBNodeT *>(Exit))) {
         revng_log(CombLogger, Node->getNameStr());
         ReachableExits[Node].insert(Exit);
       }
-      addPlainEdge(EdgeDescriptor(Exit, Sink));
     }
-  }
-
-  // Dump graph after virtual sink add.
-  if (CombLogger.isEnabled()) {
-    Graph.dumpDotOnFile("inflates",
-                        FunctionName,
-                        "Region-" + RegionName + "-after-sink");
   }
 
   // Refresh information of dominator and postdominator trees.
@@ -948,7 +946,6 @@ inline void RegionCFG<NodeT>::inflate() {
       // Add the conditional node to the set of nodes processed by the inflate.
       ConditionalNodesSet.insert(Node);
       BasicBlockNode<NodeT> *PostDom = IFPDT[Node]->getIDom()->getBlock();
-      revng_assert(PostDom != nullptr);
       bool New = ConditionalToCombEnd.insert({ Node, PostDom }).second;
       revng_assert(New);
 
@@ -1020,7 +1017,6 @@ inline void RegionCFG<NodeT>::inflate() {
 
       ConditionalNodesSet.insert(DummyCase);
       BasicBlockNode<NodeT> *PostDom = IFPDT[Switch]->getIDom()->getBlock();
-      revng_assert(PostDom != nullptr);
       // Combing of switch cases continues until the post dominator of the
       // switch, not until the post dominator of the case.
       bool New = ConditionalToCombEnd.insert({ DummyCase, PostDom }).second;
@@ -1056,6 +1052,7 @@ inline void RegionCFG<NodeT>::inflate() {
     if (ConditionalNodesSet.count(RPOTBB))
       ConditionalNodes.push_back(RPOTBB);
   }
+  NodesEquivalenceClass[nullptr] = {};
 
   // Iterate on ConditionalNodes from the back. Given that they are inserted
   // into ConditionalNodes in RPOT, this iteration is in post-order.
@@ -1063,7 +1060,6 @@ inline void RegionCFG<NodeT>::inflate() {
 
     // Process each conditional node after ordering it.
     BasicBlockNode<NodeT> *Conditional = ConditionalNodes.back();
-    revng_assert(Conditional != Sink);
     ConditionalNodes.pop_back();
 
     // Retrieve a reference to the set of postdominators.
@@ -1099,12 +1095,6 @@ inline void RegionCFG<NodeT>::inflate() {
 
     int Iteration = 0;
     while (++ListIt != RevPostOrderList.end() and not WorkList.empty()) {
-
-      if (*ListIt == Sink) {
-        revng_assert(std::next(ListIt) == RevPostOrderList.end());
-        continue;
-      }
-
       if (not WorkList.count(*ListIt))
         continue; // Go to the next node in reverse postorder.
 
@@ -1348,7 +1338,6 @@ inline void RegionCFG<NodeT>::inflate() {
 
   // Purge extra dummy nodes introduced.
   purgeTrivialDummies();
-  purgeVirtualSink(Sink);
 
   if (CombLogger.isEnabled()) {
     Graph.dumpDotOnFile("inflates",
