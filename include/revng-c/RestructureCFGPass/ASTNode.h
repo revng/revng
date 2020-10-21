@@ -74,7 +74,7 @@ public:
     Name(CFGNode->getNameStr()),
     Successor(Successor) {}
 
-  inline ASTNode *Clone();
+  inline ASTNode *Clone() const;
 
   ASTNode &operator=(ASTNode &&) = delete;
   ASTNode &operator=(const ASTNode &) = delete;
@@ -138,7 +138,7 @@ public:
 
   void dump(std::ofstream &ASTFile);
 
-  ASTNode *Clone() { return new CodeNode(*this); }
+  ASTNode *Clone() const { return new CodeNode(*this); }
 };
 
 class IfNode : public ASTNode {
@@ -209,7 +209,7 @@ public:
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
-  ASTNode *Clone() { return new IfNode(*this); }
+  ASTNode *Clone() const { return new IfNode(*this); }
 
   ExprNode *getCondExpr() const { return ConditionExpression; }
 
@@ -258,7 +258,7 @@ public:
 
   void dump(std::ofstream &ASTFile);
 
-  ASTNode *Clone() { return new ScsNode(*this); }
+  ASTNode *Clone() const { return new ScsNode(*this); }
 
   bool isStandard() const { return LoopType == Type::Standard; }
 
@@ -338,7 +338,7 @@ public:
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
-  ASTNode *Clone() {
+  ASTNode *Clone() const {
     return reinterpret_cast<ASTNode *>(new SequenceNode(*this));
   }
 };
@@ -365,7 +365,7 @@ protected:
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Continue; }
 
-  ASTNode *Clone() { return new ContinueNode(*this); }
+  ASTNode *Clone() const { return new ContinueNode(*this); }
 
   void dump(std::ofstream &ASTFile);
 
@@ -398,7 +398,7 @@ protected:
   }
 
 public:
-  ASTNode *Clone() { return new BreakNode(*this); }
+  ASTNode *Clone() const { return new BreakNode(*this); }
 
   void dump(std::ofstream &ASTFile);
 
@@ -430,7 +430,7 @@ public:
     return N->getKind() == NK_SwitchBreak;
   }
 
-  ASTNode *Clone() { return new SwitchBreakNode(*this); }
+  ASTNode *Clone() const { return new SwitchBreakNode(*this); }
 
   void dump(std::ofstream &ASTFile);
 };
@@ -462,7 +462,7 @@ public:
 
   void dump(std::ofstream &ASTFile);
 
-  ASTNode *Clone() { return new SetNode(*this); }
+  ASTNode *Clone() const { return new SetNode(*this); }
 
   unsigned getStateVariableValue() const { return StateVariableValue; }
 };
@@ -519,7 +519,7 @@ public:
 
   void dump(std::ofstream &ASTFile);
 
-  ASTNode *Clone() { return new SwitchNode(*this); }
+  ASTNode *Clone() const { return new SwitchNode(*this); }
 
   case_container &cases() { return LabelCaseVec; }
 
@@ -556,7 +556,7 @@ protected:
   bool NeedLoopBreakDispatcher = false; // to dispatchg breaks out of a loop
 };
 
-inline ASTNode *ASTNode::Clone() {
+inline ASTNode *ASTNode::Clone() const {
   switch (getKind()) {
   case NK_Code:
     return llvm::cast<CodeNode>(this)->Clone();
