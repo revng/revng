@@ -434,13 +434,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Initialize the RegionCFG object
   RootCFG.initialize(&F);
 
-  // Dump the function name.
   if (CombLogger.isEnabled()) {
     CombLogger << "Analyzing function: " << F.getName() << "\n";
-  }
-
-  // Dump the object in .dot format if debug mode is activated.
-  if (CombLogger.isEnabled()) {
     RootCFG.dumpDotOnFile("dots", F.getName(), "begin");
   }
 
