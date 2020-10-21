@@ -49,6 +49,13 @@ void IfNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   }
 }
 
+void ScsNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
+  if (RelatedCondition)
+    Body = SubstitutionMap.at(RelatedCondition);
+  revng_assert(Body);
+  Body = SubstitutionMap.at(Body);
+}
+
 void SequenceNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // Update all the pointers of the sequence node.
   for (auto NodeIt = NodeList.begin(); NodeIt != NodeList.end(); NodeIt++) {

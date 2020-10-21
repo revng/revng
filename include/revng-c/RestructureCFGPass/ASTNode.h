@@ -257,6 +257,8 @@ public:
 
   void dump(std::ofstream &ASTFile);
 
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+
   ASTNode *Clone() const { return new ScsNode(*this); }
 
   bool isStandard() const { return LoopType == Type::Standard; }
@@ -580,12 +582,43 @@ inline ASTNode *ASTNode::Clone() const {
 }
 
 inline void ASTNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
-  if (IfNode *If = llvm::dyn_cast<IfNode>(this)) {
+  if (Successor)
+    Successor = SubstitutionMap.at(Successor);
+
+  switch (getKind()) {
+  case ASTNode::NK_If: {
+    auto *If = llvm::cast<IfNode>(this);
     If->updateASTNodesPointers(SubstitutionMap);
-  } else if (SequenceNode *Seq = llvm::dyn_cast<SequenceNode>(this)) {
-    Seq->updateASTNodesPointers(SubstitutionMap);
-  } else if (SwitchNode *Switch = llvm::dyn_cast<SwitchNode>(this)) {
+  } break;
+
+  case ASTNode::NK_Switch: {
+    auto *Switch = llvm::dyn_cast<SwitchNode>(this);
     Switch->updateASTNodesPointers(SubstitutionMap);
+  } break;
+
+  case ASTNode::NK_Scs: {
+  } break;
+
+  case ASTNode::NK_Continue: {
+    auto *Continue = llvm::dyn_cast<ContinueNode>(this);
+    // If it has a computation we have to update it.
+    revng_assert(not Continue->hasComputation());
+  } break;
+
+  case ASTNode::NK_Code:
+  case ASTNode::NK_Break:
+  case ASTNode::NK_SwitchBreak:
+  case ASTNode::NK_Set: {
+    // They only have a successor
+  } break;
+
+  case ASTNode::NK_List: {
+    auto *Seq = llvm::cast<SequenceNode>(this);
+    Seq->updateASTNodesPointers(SubstitutionMap);
+  } break;
+
+  default:
+    revng_abort("AST node type not expected");
   }
 }
 

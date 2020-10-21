@@ -44,35 +44,46 @@ inline ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
   RootSequenceNode->addNode(RootNode);
 
   for (ASTNode *Node : RootSequenceNode->nodes()) {
-    if (auto *If = llvm::dyn_cast<IfNode>(Node)) {
-      if (If->hasThen()) {
-        If->setThen(createSequence(Tree, If->getThen()));
-      }
-      if (If->hasElse()) {
-        If->setElse(createSequence(Tree, If->getElse()));
-      }
-    } else if (llvm::isa<CodeNode>(Node)) {
-      // TODO: confirm that doesn't make sense to process a code node.
-    } else if (llvm::isa<ScsNode>(Node)) {
-      // TODO: confirm that this phase is not needed since the processing is
-      //       done inside the processing of each SCS region.
-    } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(Node)) {
 
+    switch (Node->getKind()) {
+
+    case ASTNode::NK_If: {
+      auto *If = llvm::cast<IfNode>(Node);
+
+      if (If->hasThen())
+        If->setThen(createSequence(Tree, If->getThen()));
+      if (If->hasElse())
+        If->setElse(createSequence(Tree, If->getElse()));
+    } break;
+
+    case ASTNode::NK_Switch: {
+      auto *Switch = llvm::cast<SwitchNode>(Node);
       for (auto &LabelCasePair : Switch->cases())
         LabelCasePair.second = createSequence(Tree, LabelCasePair.second);
 
       if (ASTNode *Default = Switch->getDefault())
         Switch->replaceDefault(createSequence(Tree, Default));
+    } break;
 
-    } else if (llvm::isa<BreakNode>(Node)) {
-      // Stop here during the analysis.
-    } else if (llvm::isa<ContinueNode>(Node)) {
-      // Stop here during the analysis.
-    } else if (llvm::isa<SequenceNode>(Node)) {
-      // Stop here during the analysis.
-    } else if (llvm::isa<SetNode>(Node)) {
-      // Stop here during the analysis.
-    } else {
+    case ASTNode::NK_Scs: {
+      auto *Scs = llvm::cast<ScsNode>(Node);
+      if (Scs->hasBody())
+        Scs->setBody(createSequence(Tree, Scs->getBody()));
+    } break;
+
+    case ASTNode::NK_Code: {
+      // TODO: confirm that doesn't make sense to process a code node.
+    } break;
+
+    case ASTNode::NK_Continue:
+    case ASTNode::NK_Break:
+    case ASTNode::NK_SwitchBreak:
+    case ASTNode::NK_Set: {
+      // Do nothing for these nodes
+    } break;
+
+    case ASTNode::NK_List:
+    default:
       revng_abort("AST node type not expected");
     }
   }
@@ -122,7 +133,12 @@ inline void simplifyDummies(ASTNode *RootNode) {
 
   } break;
 
-  case ASTNode::NK_Scs:
+  case ASTNode::NK_Scs: {
+    auto *Scs = llvm::cast<ScsNode>(RootNode);
+    if (Scs->hasBody())
+      simplifyDummies(Scs->getBody());
+  } break;
+
   case ASTNode::NK_Code:
   case ASTNode::NK_Continue:
   case ASTNode::NK_Break:
@@ -207,9 +223,6 @@ inline ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
   } break;
 
   case ASTNode::NK_Scs: {
-    // TODO: check if this is not needed as the simplification is done for each
-    //       SCS region.
-    // After flattening this situation may arise again.
     auto *Scs = llvm::cast<ScsNode>(RootNode);
     if (Scs->hasBody())
       Scs->setBody(simplifyAtomicSequence(Scs->getBody()));
