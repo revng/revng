@@ -182,14 +182,14 @@ bool SequenceNode::nodeIsEqual(const ASTNode *Node) const {
 // #### Dump methods ####
 
 void CodeNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
 void IfNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "node_" << this->getID() << " [";
 
   // TODO: Implement the printing of the conditional expression for the if.
 
@@ -199,22 +199,20 @@ void IfNode::dump(std::ofstream &ASTFile) {
   ASTFile << ",shape=\"invhouse\",color=\"blue\"];\n";
 
   if (this->getThen() != nullptr) {
-    ASTFile << "\"" << this->getName() << "\""
-            << " -> \"" << this->getThen()->getName() << "\""
-            << " [color=green,label=\"then\"];\n";
+    ASTFile << "node_" << this->getID() << " -> node_"
+            << this->getThen()->getID() << " [color=green,label=\"then\"];\n";
     this->getThen()->dump(ASTFile);
   }
 
   if (this->getElse() != nullptr) {
-    ASTFile << "\"" << this->getName() << "\""
-            << " -> \"" << this->getElse()->getName() << "\""
-            << " [color=green,label=\"else\"];\n";
+    ASTFile << "node_" << this->getID() << " -> node_"
+            << this->getElse()->getID() << " [color=green,label=\"else\"];\n";
     this->getElse()->dump(ASTFile);
   }
 }
 
 void ScsNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"circle\",color=\"black\"];\n";
@@ -222,23 +220,21 @@ void ScsNode::dump(std::ofstream &ASTFile) {
   // After do-while and while match loop nodes could be empty
   // revng_assert(this->getBody() != nullptr);
   if (this->getBody() != nullptr) {
-    ASTFile << "\"" << this->getName() << "\""
-            << " -> \"" << this->getBody()->getName() << "\""
-            << " [color=green,label=\"body\"];\n";
+    ASTFile << "node_" << this->getID() << " -> node_"
+            << this->getBody()->getID() << " [color=green,label=\"body\"];\n";
     this->getBody()->dump(ASTFile);
   }
 }
 
 void SequenceNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"box\",color=\"black\"];\n";
 
   int SuccessorIndex = 0;
   for (ASTNode *Successor : this->nodes()) {
-    ASTFile << "\"" << this->getName() << "\""
-            << " -> \"" << Successor->getName() << "\""
+    ASTFile << "node_" << this->getID() << " -> node_" << Successor->getID()
             << " [color=green,label=\"elem " << SuccessorIndex << "\"];\n";
     Successor->dump(ASTFile);
     SuccessorIndex += 1;
@@ -246,14 +242,13 @@ void SequenceNode::dump(std::ofstream &ASTFile) {
 }
 
 void SwitchNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"hexagon\",color=\"black\"];\n";
 
   for (const auto &[LabelSet, Case] : cases()) {
-    ASTFile << "\"" << this->getName() << "\""
-            << " -> \"" << Case->getName() << "\""
+    ASTFile << "node_" << this->getID() << " -> node_" << Case->getID()
             << " [color=green,label=\"case ";
 
     // Cases can now be sets of cases, we need to print all of them on a edge.
@@ -269,33 +264,32 @@ void SwitchNode::dump(std::ofstream &ASTFile) {
   }
 
   if (ASTNode *Default = this->getDefault()) {
-    ASTFile << "\"" << this->getName() << "\""
-            << " -> \"" << Default->getName() << "\""
+    ASTFile << "node_" << this->getID() << " -> node_" << Default->getID()
             << " [color=green,label=\"default\"];\n";
     Default->dump(ASTFile);
   }
 }
 
 void BreakNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"loop break\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
 void SwitchBreakNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"switch break\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
 void ContinueNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"continue\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
 void SetNode::dump(std::ofstream &ASTFile) {
-  ASTFile << "\"" << this->getName() << "\" [";
+  ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
