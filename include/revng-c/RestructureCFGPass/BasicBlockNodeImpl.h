@@ -10,6 +10,10 @@
 #include <map>
 #include <set>
 
+// LLVM includes
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Instructions.h>
+
 // Local libraries includes
 #include <revng-c/RestructureCFGPass/BasicBlockNode.h>
 #include <revng-c/RestructureCFGPass/RegionCFGTreeBB.h>
@@ -24,10 +28,17 @@ struct WeightTraits {};
 template<>
 struct WeightTraits<llvm::BasicBlock *> {
 
-  // The `-1` is added to discard the dimension of blocks composed only by a
-  // branching instruction (which we may insert, but virtually add no extra
-  // weight.
-  static size_t getWeight(llvm::BasicBlock *BB) { return BB->size() - 1; }
+  static size_t getWeight(llvm::BasicBlock *BB) {
+    // By default they weight of a BB is the number of instructions it contains.
+    size_t Weight = BB->size();
+    // If the terminator is an unconditional branch we decrease the weight by
+    // one, because unconditional branches are never emitted in C.
+    if (auto *Br = dyn_cast<llvm::BranchInst>(BB->getTerminator())) {
+      if (Br->isUnconditional())
+        --Weight;
+    }
+    return BB->size() - 1;
+  }
 };
 
 template<class NodeT>
@@ -240,29 +251,44 @@ BasicBlockNode<NodeT>::isEquivalentTo(BasicBlockNodeT *Other) const {
 
 template<class NodeT>
 inline size_t BasicBlockNode<NodeT>::getWeight() const {
-  if (NodeType == Type::Code) {
+
+  switch (NodeType) {
+  case Type::Code: {
     revng_assert(OriginalNode != nullptr);
     return WeightTraits<NodeT>::getWeight(OriginalNode);
-  } else if (NodeType == Type::Empty) {
-    return 0;
-  } else if (NodeType == Type::Break) {
-    return 0;
-  } else if (NodeType == Type::Continue) {
-    return 0;
-  } else if (NodeType == Type::Set) {
-    return 0;
-  } else if (NodeType == Type::Dispatcher) {
-    return 0;
-  } else if (NodeType == Type::Collapsed) {
+  } break;
+
+  case Type::Collapsed: {
     revng_assert(CollapsedRegion != nullptr);
     size_t WeightAccumulator = 0;
     for (BasicBlockNode<NodeT> *CollapsedNode : CollapsedRegion->nodes()) {
       WeightAccumulator += CollapsedNode->getWeight();
     }
     return WeightAccumulator;
-  } else {
+  } break;
+
+  case Type::Tile: {
+    revng_abort("getWeight() not implemented for tiles.");
+  } break;
+
+  case Type::Empty: {
+    // Empty nodes contain nothing, their weight is 0
+    return 0;
+  } break;
+
+  case Type::Dispatcher:
+  case Type::Break:
+  case Type::Continue:
+  case Type::Set: {
+    // These nodes all cost 1, because they contain a single statement.
+    return 1;
+  } break;
+
+  default:
     revng_abort("getWeight() still not implemented.");
   }
+
+  return 0;
 }
 
 #endif // REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODEIMPL_H
