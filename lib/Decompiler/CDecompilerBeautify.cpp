@@ -17,6 +17,7 @@
 // local libraries includes
 #include <revng-c/RestructureCFGPass/ASTTree.h>
 #include <revng-c/RestructureCFGPass/ExprNode.h>
+#include <revng-c/RestructureCFGPass/GenerateAst.h>
 #include <revng-c/RestructureCFGPass/RegionCFGTree.h>
 
 // local includes

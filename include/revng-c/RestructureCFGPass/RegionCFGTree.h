@@ -364,8 +364,6 @@ protected:
   void streamNode(StreamT &S, const BasicBlockNodeT *) const;
 };
 
-ASTNode *simplifyAtomicSequence(ASTNode *RootNode);
-
 // Provide graph traits for usage with, e.g., llvm::ReversePostOrderTraversal
 namespace llvm {
 
