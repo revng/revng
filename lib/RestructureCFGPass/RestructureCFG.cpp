@@ -399,6 +399,8 @@ static cl::opt<std::string> OutputPath("restructure-metrics-output-dir",
                                        cat(MainCategory));
 
 bool RestructureCFG::runOnFunction(Function &F) {
+  NDuplicates.clear();
+  AST = ASTTree();
 
   DuplicationCounter = 0;
   UntangleTentativeCounter = 0;
