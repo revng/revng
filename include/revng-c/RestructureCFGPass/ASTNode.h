@@ -597,6 +597,8 @@ inline void ASTNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   } break;
 
   case ASTNode::NK_Scs: {
+    auto *Scs = llvm::dyn_cast<ScsNode>(this);
+    Scs->updateASTNodesPointers(SubstitutionMap);
   } break;
 
   case ASTNode::NK_Continue: {
