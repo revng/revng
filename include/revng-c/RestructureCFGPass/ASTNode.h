@@ -597,10 +597,8 @@ inline void ASTNode::dump(std::ofstream &ASTFile) {
     return llvm::cast<BreakNode>(this)->dump(ASTFile);
   case NK_Continue:
     return llvm::cast<ContinueNode>(this)->dump(ASTFile);
-  // ---- IfNode kinds
   case NK_If:
     return llvm::cast<IfNode>(this)->dump(ASTFile);
-  // ---- end IfNode kinds
   case NK_Scs:
     return llvm::cast<ScsNode>(this)->dump(ASTFile);
   case NK_List:
