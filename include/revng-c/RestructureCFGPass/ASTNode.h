@@ -54,7 +54,6 @@ private:
 
 protected:
   llvm::BasicBlock *BB = nullptr;
-  bool Processed = false;
   std::string Name;
   ASTNode *Successor = nullptr;
 

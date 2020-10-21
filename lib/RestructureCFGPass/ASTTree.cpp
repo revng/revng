@@ -79,7 +79,7 @@ ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST) {
 
   // Clone each ASTNode in the current AST.
   links_container::difference_type NewNodes = 0;
-  for (ast_unique_ptr &Old : OldAST.nodes()) {
+  for (const ast_unique_ptr &Old : OldAST.nodes()) {
     ASTNodeList.emplace_back(std::move(Old->Clone()));
     ++NewNodes;
 
@@ -98,7 +98,7 @@ ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST) {
   }
 
   // Clone the conditional expression nodes.
-  for (expr_unique_ptr &OldExpr : OldAST.expressions()) {
+  for (const expr_unique_ptr &OldExpr : OldAST.expressions()) {
     CondExprList.emplace_back(new AtomicNode(*cast<AtomicNode>(OldExpr.get())),
                               expr_destructor());
     ExprNode *NewExpr = CondExprList.back().get();

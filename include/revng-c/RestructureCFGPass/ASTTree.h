@@ -45,21 +45,17 @@ public:
   using BasicBlockNodeBB = ASTNode::BasicBlockNodeBB;
   using BBNodeMap = ASTNode::BBNodeMap;
 
-  links_iterator begin() { return links_iterator(ASTNodeList.begin()); }
-  links_iterator end() { return links_iterator(ASTNodeList.end()); }
+  links_iterator begin() { return ASTNodeList.begin(); }
+  links_iterator end() { return ASTNodeList.end(); }
 
-  links_iterator_expr beginExpr() {
-    return links_iterator_expr(CondExprList.begin());
-  }
-  links_iterator_expr endExpr() {
-    return links_iterator_expr(CondExprList.end());
-  }
+  links_iterator_expr beginExpr() { return CondExprList.begin(); }
+  links_iterator_expr endExpr() { return CondExprList.end(); }
 
 private:
   links_container ASTNodeList = {};
   std::map<BasicBlockNodeBB *, ASTNode *> BBASTMap = {};
   std::map<ASTNode *, BasicBlockNodeBB *> ASTBBMap = {};
-  ASTNode *RootNode = {};
+  ASTNode *RootNode = nullptr;
   unsigned IDCounter = 0;
   links_container_expr CondExprList = {};
 
