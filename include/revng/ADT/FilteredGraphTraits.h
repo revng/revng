@@ -48,6 +48,8 @@ public:
     return BaseGraphTraits::getEntryNode(G.Graph);
   }
 
+  static const NodeRef &getEntryNode(const NodeRef &N) { return N; }
+
   // static ChildIteratorType child_begin(NodeRef)
   // static ChildIteratorType child_end  (NodeRef)
   //    Return iterators that point to the beginning and ending of the child
@@ -189,7 +191,8 @@ protected:
 
 public:
   using ChildEdgeIteratorType = llvm::filter_iterator<BaseChildEdgeIt, PredT>;
-  static_assert(std::is_same_v<EdgeRef, iterator_value<ChildEdgeIteratorType>>);
+  static_assert(std::is_same_v<std::remove_reference_t<EdgeRef>,
+                               iterator_value<ChildEdgeIteratorType>>);
 
   // static ChildEdgeIteratorType child_edge_begin(NodeRef)
   // static ChildEdgeIteratorType child_edge_end(NodeRef)
@@ -218,6 +221,7 @@ public:
   static NodeRef getEntryNode(const EdgeFilteredGraphImpl &G) {
     return BaseGraphTraits::getEntryNode(G.Graph);
   }
+  static const NodeRef &getEntryNode(const NodeRef &N) { return N; }
 
   using ChildIteratorType = llvm::mapped_iterator<ChildEdgeIteratorType,
                                                   NodeRef (*)(EdgeRef)>;
