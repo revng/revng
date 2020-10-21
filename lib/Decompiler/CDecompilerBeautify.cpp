@@ -745,6 +745,9 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
   ASTNode *RootNode = CombedAST.getRoot();
 
   // Flip IFs with empty then branches.
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpOnFile("ast", F.getName(), "Before-beautify");
+  }
   revng_log(BeautifyLogger,
             "Performing IFs with empty then branches flipping\n");
   flipEmptyThen(RootNode, CombedAST);
