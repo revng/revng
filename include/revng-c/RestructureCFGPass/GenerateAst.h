@@ -317,7 +317,7 @@ template<class NodeT>
 inline void generateAst(RegionCFG<NodeT> &Region,
                         ASTTree &AST,
                         typename RegionCFG<NodeT>::DuplicationMap &NDuplicates,
-                        std::map<BasicBlockNodeBB *, ASTTree> &CollapsedMap) {
+                        std::map<RegionCFG<NodeT> *, ASTTree> &CollapsedMap) {
   // Define some using used in all the function body.
   using BasicBlockNodeT = typename RegionCFG<NodeT>::BasicBlockNodeT;
   using BasicBlockNodeTVect = typename RegionCFG<NodeT>::BasicBlockNodeTVect;
@@ -409,7 +409,7 @@ inline void generateAst(RegionCFG<NodeT> &Region,
                 "Inspecting collapsed node: " << Node->getNameStr());
 
       // Call recursively the generation of the AST for the collapsed node.
-      const auto &[It, New] = CollapsedMap.insert({ Node, ASTTree() });
+      const auto &[It, New] = CollapsedMap.insert({ BodyGraph, ASTTree() });
       ASTTree &CollapsedAST = It->second;
       if (New)
         generateAst(*BodyGraph, CollapsedAST, NDuplicates, CollapsedMap);

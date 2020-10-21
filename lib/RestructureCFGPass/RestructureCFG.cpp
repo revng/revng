@@ -1163,7 +1163,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Invoke the AST generation for the root region.
-  std::map<BasicBlockNodeBB *, ASTTree> CollapsedMap;
+  std::map<RegionCFG<BasicBlock *> *, ASTTree> CollapsedMap;
   generateAst(RootCFG, AST, NDuplicates, CollapsedMap);
 
   // Scorporated this part which was previously inside the `generateAst` to
