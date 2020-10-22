@@ -1,6 +1,15 @@
 [
-  {
-    "entry_point": "bb.usaof",
-    "slots": [{"slot": "SP0+0x8", "argument": "Yes"}, {"slot": "SP0+0x10", "argument": "Dead"}]
-  }
+   {
+      "entry_point" : "bb.usaof",
+      "slots" : [
+         {
+            "argument" : "Yes",
+            "slot" : "SP0+0x8"
+         },
+         {
+            "argument" : "Dead",
+            "slot" : "SP0+0x10"
+         }
+      ]
+   }
 ]

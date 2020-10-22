@@ -16,7 +16,7 @@ def do_log(indent, message, *args):
   sys.stderr.write(("  " * indent) + message.format(*args) + "\n")
 
 def to_json(obj):
-  return json.dumps(obj)
+  return json.dumps(obj, indent=4)
 
 def compare(reference, input, order, exact, verbose, quiet, indent):
   def log(message, *args):

@@ -1,6 +1,15 @@
 [
-  {
-    "entry_point": "bb.push_pop",
-    "slots": [{"slot": "rax", "argument": "Maybe"}, {"slot": "rdx", "return_value": "Maybe"}]
-  }
+   {
+      "entry_point" : "bb.push_pop",
+      "slots" : [
+         {
+            "argument" : "Maybe",
+            "slot" : "rax"
+         },
+         {
+            "return_value" : "Maybe",
+            "slot" : "rdx"
+         }
+      ]
+   }
 ]

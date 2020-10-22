@@ -1,6 +1,11 @@
 [
-  {
-    "entry_point": "bb.func",
-    "slots": [{"slot": "rax", "argument": "Yes"}]
-  }
+   {
+      "entry_point" : "bb.func",
+      "slots" : [
+         {
+            "argument" : "Yes",
+            "slot" : "rax"
+         }
+      ]
+   }
 ]

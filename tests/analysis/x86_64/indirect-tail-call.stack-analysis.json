@@ -1,11 +1,25 @@
 [
-  {
-    "entry_point": "bb._start",
-    "basic_blocks": [{"name": "bb._start", "type": "HandledCall"}, {"name": "bb._start.0x5", "type": "Return"}]
-  },
-  {
-    "entry_point": "bb.tailcall",
-    "type": "Regular",
-    "basic_blocks": [{"name": "bb.tailcall", "type": "IndirectTailCall"}]
-  }
+   {
+      "basic_blocks" : [
+         {
+            "name" : "bb._start",
+            "type" : "HandledCall"
+         },
+         {
+            "name" : "bb._start.0x5",
+            "type" : "Return"
+         }
+      ],
+      "entry_point" : "bb._start"
+   },
+   {
+      "basic_blocks" : [
+         {
+            "name" : "bb.tailcall",
+            "type" : "IndirectTailCall"
+         }
+      ],
+      "entry_point" : "bb.tailcall",
+      "type" : "Regular"
+   }
 ]

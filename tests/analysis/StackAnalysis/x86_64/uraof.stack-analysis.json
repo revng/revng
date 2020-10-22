@@ -1,6 +1,11 @@
 [
-  {
-    "entry_point": "bb.uraof",
-    "slots": [{"slot": "rax", "argument": "Yes"}]
-  }
+   {
+      "entry_point" : "bb.uraof",
+      "slots" : [
+         {
+            "argument" : "Yes",
+            "slot" : "rax"
+         }
+      ]
+   }
 ]
