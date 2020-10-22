@@ -5,6 +5,6 @@
   },
   {
     "entry_point": "bb.fibonacci",
-    "basic_blocks": [{"name": "bb.fibonacci", "type": "InstructionLocalCFG"}, {"name": "bb.fibonacci.0x15", "type": "HandledCall"}, {"name": "bb.fibonacci.0x1f", "type": "FunctionLocalCFG"}, {"name": "bb.fibonacci.0x22", "type": "Return"}, {"name": "bb.fibonacci.0xb_L0", "type": "FunctionLocalCFG"}, {"name": "bb.fibonacci.0xb_L0_ft", "type": "FunctionLocalCFG"}, {"name": "bb.fibonacci.0xd", "type": "HandledCall"}]
+    "basic_blocks": [{"name": "bb.fibonacci", "type": "InstructionLocalCFG"}, {"type": "HandledCall"}, {"type": "FunctionLocalCFG"}, {"type": "Return"}, {"type": "FunctionLocalCFG"}, {"type": "FunctionLocalCFG"}, {"type": "HandledCall"}]
   }
 ]
