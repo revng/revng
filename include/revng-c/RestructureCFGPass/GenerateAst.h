@@ -462,58 +462,74 @@ inline void generateAst(RegionCFG<NodeT> &Region,
       }
       revng_assert(SwitchCondition or Node->isDispatcher());
 
-      SwitchNode::case_container LabeledCases;
-      BasicBlockNode<NodeT> *DefaultNode = nullptr;
-      ASTNode *DefaultASTNode = nullptr;
-
+      auto NumSucc = Node->successor_size();
+      revng_assert(NumSucc);
+      BasicBlockNodeT *Fallthrough = nullptr;
       for (const auto &[SwitchSucc, EdgeInfos] : Node->labeled_successors()) {
-        ASTNode *ASTPointer = findASTNode(AST, TileToNodeMap, SwitchSucc);
+        if (ASTDT.dominates(Node, SwitchSucc) or EdgeInfos.Inlined)
+          continue;
+
+        revng_assert(not Fallthrough);
+        Fallthrough = SwitchSucc;
+      }
+
+      SwitchNode::case_container LabeledCases;
+      ASTNode *DefaultASTNode = nullptr;
+      for (const auto &[SwitchSucc, EdgeInfos] : Node->labeled_successors()) {
+
+        ASTNode *ASTPointer = nullptr;
+        if (SwitchSucc == Fallthrough)
+          ASTPointer = AST.addSwitchBreak();
+        else
+          ASTPointer = findASTNode(AST, TileToNodeMap, SwitchSucc);
+
         revng_assert(nullptr != ASTPointer);
 
         if (EdgeInfos.Labels.empty()) {
-          revng_assert(nullptr == DefaultNode);
           revng_assert(nullptr == DefaultASTNode);
-          DefaultNode = SwitchSucc;
           DefaultASTNode = ASTPointer;
         }
 
         LabeledCases.push_back({ EdgeInfos.Labels, ASTPointer });
       }
-      revng_assert(DefaultASTNode or Node->isWeaved() or Node->isDispatcher());
-      revng_assert(DefaultNode or Node->isWeaved() or Node->isDispatcher());
 
+      revng_assert(DefaultASTNode or Node->isWeaved() or Node->isDispatcher());
       revng_assert(Node->successor_size() == LabeledCases.size());
 
-      // TODO: verify wheter this assertion is really necessary and why. With
-      //       the tiling, this criterion is not respected anymore. You are
-      //       not obliged to dominate a node in order to consume it in your
-      //       tile.
-      // revng_assert(Children.size() >= Node->successor_size());
+      revng_assert(not Fallthrough or Children.size() < Node->successor_size());
+      revng_assert(Fallthrough or Children.size() >= Node->successor_size());
+
       ASTNode *PostDomASTNode = nullptr;
       BasicBlockNodeT *PostDomBB = nullptr;
+      // If we have the fallthrough we should not look for the post-dominator of
+      // the switch, because the post-dominator is now the fallthrough.
+      // If we don't have the fallthrough we might have a post-dominator for the
+      // switch and need to find it to generate the correct ast.
+      if (not Fallthrough) {
+        if (Children.size() > Node->successor_size()) {
+          // There are some children on the dominator tree that are not
+          // successors on the graph. It should be at most one, which is the
+          // post-dominator.
+          const auto NotSuccessor = [&Node](const auto *Child) {
+            auto It = Node->successors().begin();
+            auto End = Node->successors().end();
+            return std::find(It, End, Child) == End;
+          };
 
-      if (Children.size() > Node->successor_size()) {
+          auto It = std::find_if(Children.begin(),
+                                 Children.end(),
+                                 NotSuccessor);
 
-        // There are some children on the dominator tree that are not
-        // successors on the graph. It should be at most one, which is the
-        // post-dominator.
-        const auto NotSuccessor = [&Node](const auto *Child) {
-          auto It = Node->successors().begin();
-          auto End = Node->successors().end();
-          return std::find(It, End, Child) == End;
-        };
+          // Assert that we found one.
+          revng_assert(It != Children.end());
 
-        auto It = std::find_if(Children.begin(), Children.end(), NotSuccessor);
+          PostDomASTNode = findASTNode(AST, TileToNodeMap, *It);
+          PostDomBB = *It;
 
-        // Assert that we found one.
-        revng_assert(It != Children.end());
-
-        PostDomASTNode = findASTNode(AST, TileToNodeMap, *It);
-        PostDomBB = *It;
-
-        // Assert that we don't find more than one.
-        It = std::find_if(std::next(It), Children.end(), NotSuccessor);
-        revng_assert(It == Children.end());
+          // Assert that we don't find more than one.
+          It = std::find_if(std::next(It), Children.end(), NotSuccessor);
+          revng_assert(It == Children.end());
+        }
       }
 
       createTile(Graph, TileToNodeMap, Node, PostDomBB);
