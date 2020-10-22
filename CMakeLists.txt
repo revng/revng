@@ -70,17 +70,6 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       FIXTURES_SETUP RemovePCStores_fixture_${TARGET_NAME}
       )
 
-    add_test(NAME remove_bad_pc_${TARGET_NAME} COMMAND opt -S
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveBadPCPass.so
-      -remove-bad-pc
-      ${INPUT_FILE}
-      -o /dev/null
-      )
-    set_property(TEST remove_bad_pc_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP RemoveBadPC_fixture_${TARGET_NAME}
-      )
-
     add_test(NAME remove_newpc_calls_${TARGET_NAME} COMMAND opt -S
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveNewPCCalls.so
@@ -97,10 +86,8 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemovePCStoresPass.so
       -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveBadPCPass.so
-      -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveNewPCCalls.so
-      -remove-pc-stores -remove-bad-pc -remove-newpc-calls
+      -remove-pc-stores -remove-newpc-calls
       ${INPUT_FILE}
       -o ${TARGET_NAME}_prepared.ll
       )
@@ -115,9 +102,6 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       )
     set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_REQUIRED RemovePCStores_fixture_${TARGET_NAME}
-      )
-    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED RemoveBadPC_fixture_${TARGET_NAME}
       )
     set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_REQUIRED RemoveNewPCCalls_fixture_${TARGET_NAME}
