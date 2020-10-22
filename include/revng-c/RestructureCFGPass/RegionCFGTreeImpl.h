@@ -1400,15 +1400,26 @@ inline void RegionCFG<NodeT>::weave() {
 
 template<class NodeT>
 inline void RegionCFG<NodeT>::markUnexpectedPCAsInlined() {
-  for (BBNodeT *Node : *this) {
-    if (not Node->isCode())
+  for (BBNodeT *UnexpectedPC : *this) {
+    if (not UnexpectedPC->isCode())
       continue;
 
-    llvm::BasicBlock *BB = Node->getOriginalNode();
+    BasicBlockNodeTVect Predecessors;
+    llvm::BasicBlock *BB = UnexpectedPC->getOriginalNode();
     BlockType::Values BBType = GeneratedCodeBasicInfo::getType(BB);
-    if (BBType == BlockType::UnexpectedPCBlock)
-      for (BBNodeT *Pred : Node->predecessors())
-        markEdgeInlined(EdgeDescriptor(Pred, Node));
+    if (BBType == BlockType::UnexpectedPCBlock) {
+      for (BBNodeT *Pred : UnexpectedPC->predecessors()) {
+        Predecessors.push_back(Pred);
+        markEdgeInlined(EdgeDescriptor(Pred, UnexpectedPC));
+      }
+    }
+
+    if (Predecessors.size() > 1) {
+      for (BBNodeT *Pred : llvm::drop_begin(Predecessors, 1)) {
+        BBNodeT *NewUnexpectedPC = cloneNode(*UnexpectedPC);
+        moveEdgeTarget({ Pred, UnexpectedPC }, NewUnexpectedPC);
+      }
+    }
   }
 }
 
