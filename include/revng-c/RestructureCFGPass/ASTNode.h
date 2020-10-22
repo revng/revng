@@ -113,7 +113,7 @@ public:
 
   llvm::BasicBlock *getOriginalBB() const { return BB; }
 
-  inline void dump(std::ofstream &ASTFile);
+  void dump(std::ofstream &ASTFile);
 
   inline void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 };
@@ -621,29 +621,6 @@ inline void ASTNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
 
   default:
     revng_abort("AST node type not expected");
-  }
-}
-
-inline void ASTNode::dump(std::ofstream &ASTFile) {
-  switch (getKind()) {
-  case NK_Code:
-    return llvm::cast<CodeNode>(this)->dump(ASTFile);
-  case NK_Break:
-    return llvm::cast<BreakNode>(this)->dump(ASTFile);
-  case NK_Continue:
-    return llvm::cast<ContinueNode>(this)->dump(ASTFile);
-  case NK_If:
-    return llvm::cast<IfNode>(this)->dump(ASTFile);
-  case NK_Scs:
-    return llvm::cast<ScsNode>(this)->dump(ASTFile);
-  case NK_List:
-    return llvm::cast<SequenceNode>(this)->dump(ASTFile);
-  case NK_Switch:
-    return llvm::cast<SwitchNode>(this)->dump(ASTFile);
-  case NK_SwitchBreak:
-    return llvm::cast<SwitchBreakNode>(this)->dump(ASTFile);
-  case NK_Set:
-    return llvm::cast<SetNode>(this)->dump(ASTFile);
   }
 }
 

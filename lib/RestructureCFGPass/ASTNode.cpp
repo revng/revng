@@ -302,6 +302,34 @@ void SetNode::dump(std::ofstream &ASTFile) {
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
+void ASTNode::dump(std::ofstream &ASTFile) {
+  if (Successor) {
+    ASTFile << "node_" << this->getID() << " -> node_" << Successor->getID()
+            << " [style=dotted];\n";
+    Successor->dump(ASTFile);
+  }
+  switch (getKind()) {
+  case NK_Code:
+    return llvm::cast<CodeNode>(this)->dump(ASTFile);
+  case NK_Break:
+    return llvm::cast<BreakNode>(this)->dump(ASTFile);
+  case NK_Continue:
+    return llvm::cast<ContinueNode>(this)->dump(ASTFile);
+  case NK_If:
+    return llvm::cast<IfNode>(this)->dump(ASTFile);
+  case NK_Scs:
+    return llvm::cast<ScsNode>(this)->dump(ASTFile);
+  case NK_List:
+    return llvm::cast<SequenceNode>(this)->dump(ASTFile);
+  case NK_Switch:
+    return llvm::cast<SwitchNode>(this)->dump(ASTFile);
+  case NK_SwitchBreak:
+    return llvm::cast<SwitchBreakNode>(this)->dump(ASTFile);
+  case NK_Set:
+    return llvm::cast<SetNode>(this)->dump(ASTFile);
+  }
+}
+
 void ASTNode::deleteASTNode(ASTNode *A) {
   switch (A->getKind()) {
   case NodeKind::NK_Code:
