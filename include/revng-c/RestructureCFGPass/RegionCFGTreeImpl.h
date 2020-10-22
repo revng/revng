@@ -905,6 +905,13 @@ inline void RegionCFG<NodeT>::inflate() {
                             Conditional);
     revng_assert(ListIt != RevPostOrderList.end());
 
+    // The `ExpectOnlyInlined` flag is used to signal that from a certain point
+    // on (once we traverse an edge which is inlined), we must find only nodes
+    // which do not require combing (i.e., the `AllPredAreVisited` flag must be
+    // always true) in a strict sense, but only require a complete cloning
+    // of the subgraph from that point on.
+    bool ExpectOnlyInlined = false;
+
     int Iteration = 0;
     while (++ListIt != RevPostOrderList.end() and not WorkList.empty()) {
       if (not WorkList.count(*ListIt))
@@ -921,6 +928,18 @@ inline void RegionCFG<NodeT>::inflate() {
                                            [&Visited](auto *Pred) {
                                              return Visited.count(Pred);
                                            });
+      auto *C = Candidate;
+      bool AllPredAreInlined = std::all_of(C->labeled_predecessors().begin(),
+                                           C->labeled_predecessors().end(),
+                                           [](auto &Pred) {
+                                             return Pred.second.Inlined;
+                                           });
+      // This assertion verifies that, if we started cloning a subgraph which
+      // is inlined, we encounter only nodes that do not require strict combing
+      // (see comment on `ExpectOnlyInlined` declaration).
+      revng_assert(not ExpectOnlyInlined or AllPredAreVisited
+                   or AllPredAreInlined);
+
       WorkList.erase(Candidate);
       Visited.insert(Candidate);
 
@@ -979,7 +998,7 @@ inline void RegionCFG<NodeT>::inflate() {
         // re-insert it in the WorkList, otherwise it will be skipped at the
         // next iteration.
         Visited.erase(Candidate);
-        WorkList.insert(Candidate);
+        ExpectOnlyInlined = true;
 
         // The new dummy node does not lead back to any original node, for
         // this reason we need to insert a new entry in the
@@ -1055,8 +1074,17 @@ inline void RegionCFG<NodeT>::inflate() {
         revng_assert(AreDummies == Duplicated->isEmpty());
         if (AreDummies) {
           revng_log(CombLogger, "Duplicated is dummy");
-          revng_assert(Candidate->successor_size() < 2
-                       and Duplicated->successor_size() < 2);
+          unsigned CandidateSuccSize = Candidate->successor_size();
+          unsigned DuplicatedSuccSize = Duplicated->successor_size();
+
+          revng_assert(CandidateSuccSize < 2 and DuplicatedSuccSize < 2);
+          revng_assert(CandidateSuccSize == DuplicatedSuccSize);
+
+          bool CInl = Candidate->labeled_successors().begin()->second.Inlined;
+          bool DInl = Duplicated->labeled_successors().begin()->second.Inlined;
+
+          revng_assert(CandidateSuccSize == 0 or CInl == false);
+          revng_assert(DuplicatedSuccSize == 0 or DInl == false);
 
           // Notice: after this call Duplicated is invalid if the call returns
           // true, meaning that dereferncing it is bad. You can still use it as
