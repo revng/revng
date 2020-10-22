@@ -891,8 +891,9 @@ inline void RegionCFG<NodeT>::inflate() {
     // List to keep track of the nodes that we still need to analyze.
     SmallPtrSet<NodeT> WorkList;
     // Enqueue in the worklist the successors of the contional node.
-    for (BasicBlockNode<NodeT> *Successor : Conditional->successors())
-      WorkList.insert(Successor);
+    for (auto &[Successor, EdgeLabel] : Conditional->labeled_successors())
+      if (not EdgeLabel.Inlined)
+        WorkList.insert(Successor);
 
     // Keep a set of the visited nodes for the current conditional node.
     SmallPtrSet<NodeT> Visited = { Conditional };
@@ -928,8 +929,9 @@ inline void RegionCFG<NodeT>::inflate() {
       bool IsCombEnd = CombEndSetIt->second.count(Candidate);
 
       if (not IsCombEnd) {
-        for (BasicBlockNode<NodeT> *Successor : Candidate->successors())
+        for (auto &[Successor, EdgeLabel] : Candidate->labeled_successors()) {
           WorkList.insert(Successor);
+        }
       } else {
         revng_log(CombLogger,
                   Candidate->getNameStr()
