@@ -1420,24 +1420,27 @@ inline void RegionCFG<NodeT>::weave() {
 }
 
 template<class NodeT>
-inline void RegionCFG<NodeT>::markUnexpectedPCAsInlined() {
+inline void RegionCFG<NodeT>::markUnexpectedAndAnyPCAsInlined() {
 
   llvm::SmallPtrSet<BBNodeT *, 8> UnexpectedPCS;
 
-  for (BBNodeT *UnexpectedPC : *this)
-    if (UnexpectedPC->isCode())
-      UnexpectedPCS.insert(UnexpectedPC);
+  for (BBNodeT *UnexpectedPC : *this) {
+    if (UnexpectedPC->isCode()) {
+      llvm::BasicBlock *BB = UnexpectedPC->getOriginalNode();
+      BlockType::Values BBType = GeneratedCodeBasicInfo::getType(BB);
+      if (BBType == BlockType::UnexpectedPCBlock
+          or BBType == BlockType::AnyPCBlock) {
+        UnexpectedPCS.insert(UnexpectedPC);
+      }
+    }
+  }
 
   for (BBNodeT *UnexpectedPC : UnexpectedPCS) {
 
     BasicBlockNodeTVect Predecessors;
-    llvm::BasicBlock *BB = UnexpectedPC->getOriginalNode();
-    BlockType::Values BBType = GeneratedCodeBasicInfo::getType(BB);
-    if (BBType == BlockType::UnexpectedPCBlock) {
-      for (BBNodeT *Pred : UnexpectedPC->predecessors()) {
-        Predecessors.push_back(Pred);
-        markEdgeInlined(EdgeDescriptor(Pred, UnexpectedPC));
-      }
+    for (BBNodeT *Pred : UnexpectedPC->predecessors()) {
+      Predecessors.push_back(Pred);
+      markEdgeInlined(EdgeDescriptor(Pred, UnexpectedPC));
     }
 
     if (Predecessors.size() > 1) {

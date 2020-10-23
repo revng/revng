@@ -342,7 +342,7 @@ inline void generateAst(RegionCFG<NodeT> &Region,
 
   RegionCFG<NodeT> &Graph = Region;
 
-  Graph.markUnexpectedPCAsInlined();
+  Graph.markUnexpectedAndAnyPCAsInlined();
 
   if (CombLogger.isEnabled()) {
     CombLogger << "Weaveing region " + RegionName + "\n";

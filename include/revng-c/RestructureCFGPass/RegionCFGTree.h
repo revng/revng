@@ -357,7 +357,7 @@ public:
 
   void weave();
 
-  void markUnexpectedPCAsInlined();
+  void markUnexpectedAndAnyPCAsInlined();
 
 protected:
   template<typename StreamT>
