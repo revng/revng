@@ -154,7 +154,7 @@ inline void simplifyDummies(ASTNode *RootNode) {
 
 // Helper function which simplifies sequence nodes composed by a single AST
 // node.
-inline ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
+inline ASTNode *simplifyAtomicSequence(ASTTree &AST, ASTNode *RootNode) {
   switch (RootNode->getKind()) {
 
   case ASTNode::NK_List: {
@@ -166,13 +166,13 @@ inline ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
       break;
 
     case 1:
-      RootNode = simplifyAtomicSequence(Sequence->getNodeN(0));
+      RootNode = simplifyAtomicSequence(AST, Sequence->getNodeN(0));
       break;
 
     default:
       bool Empty = true;
       for (ASTNode *&Node : Sequence->nodes()) {
-        Node = simplifyAtomicSequence(Node);
+        Node = simplifyAtomicSequence(AST, Node);
         if (nullptr != Node)
           Empty = false;
       }
@@ -184,10 +184,10 @@ inline ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
     auto *If = llvm::cast<IfNode>(RootNode);
 
     if (If->hasThen())
-      If->setThen(simplifyAtomicSequence(If->getThen()));
+      If->setThen(simplifyAtomicSequence(AST, If->getThen()));
 
     if (If->hasElse())
-      If->setElse(simplifyAtomicSequence(If->getElse()));
+      If->setElse(simplifyAtomicSequence(AST, If->getElse()));
 
   } break;
 
@@ -201,7 +201,7 @@ inline ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
     // the corresponding `Default` field set to `nullptr` means that the switch
     // node has no default.
     if (ASTNode *Default = Switch->getDefault()) {
-      auto *NewDefault = simplifyAtomicSequence(Default);
+      auto *NewDefault = simplifyAtomicSequence(AST, Default);
       if (NewDefault != Default)
         Switch->replaceDefault(NewDefault);
     }
@@ -209,11 +209,14 @@ inline ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
     auto LabelCasePairIt = Switch->cases().begin();
     auto LabelCasePairEnd = Switch->cases().end();
     while (LabelCasePairIt != LabelCasePairEnd) {
-      auto *NewCaseNode = simplifyAtomicSequence(LabelCasePairIt->second);
+      auto *NewCaseNode = simplifyAtomicSequence(AST, LabelCasePairIt->second);
       if (nullptr == NewCaseNode) {
-        revng_assert(nullptr == Switch->getDefault());
-        LabelCasePairIt = Switch->cases().erase(LabelCasePairIt);
-        LabelCasePairEnd = Switch->cases().end();
+        if (nullptr == Switch->getDefault()) {
+          LabelCasePairIt = Switch->cases().erase(LabelCasePairIt);
+          LabelCasePairEnd = Switch->cases().end();
+        } else {
+          LabelCasePairIt->second = AST.addSwitchBreak();
+        }
       } else {
         LabelCasePairIt->second = NewCaseNode;
         ++LabelCasePairIt;
@@ -225,7 +228,7 @@ inline ASTNode *simplifyAtomicSequence(ASTNode *RootNode) {
   case ASTNode::NK_Scs: {
     auto *Scs = llvm::cast<ScsNode>(RootNode);
     if (Scs->hasBody())
-      Scs->setBody(simplifyAtomicSequence(Scs->getBody()));
+      Scs->setBody(simplifyAtomicSequence(AST, Scs->getBody()));
   } break;
 
   case ASTNode::NK_Code:
@@ -819,7 +822,7 @@ inline void normalize(ASTTree &AST, std::string FunctionName) {
 
   // Simplify useless sequence nodes.
   CombLogger << "Performing useless sequence simplification:\n";
-  RootNode = simplifyAtomicSequence(RootNode);
+  RootNode = simplifyAtomicSequence(AST, RootNode);
   AST.setRoot(RootNode);
   if (CombLogger.isEnabled()) {
     AST.dumpOnFile("ast", FunctionName, "After-sequence-simplification");

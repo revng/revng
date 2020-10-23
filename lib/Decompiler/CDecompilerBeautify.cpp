@@ -807,7 +807,7 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
 
   // Remove empty sequences.
   revng_log(BeautifyLogger, "Removing emtpy sequence nodes\n");
-  simplifyAtomicSequence(RootNode);
+  simplifyAtomicSequence(CombedAST, RootNode);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpOnFile("ast", F.getName(), "After-removal-empty-sequences");
   }
