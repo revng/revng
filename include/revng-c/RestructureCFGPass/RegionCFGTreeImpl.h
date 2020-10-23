@@ -906,13 +906,6 @@ inline void RegionCFG<NodeT>::inflate() {
                             Conditional);
     revng_assert(ListIt != RevPostOrderList.end());
 
-    // The `ExpectOnlyInlined` flag is used to signal that from a certain point
-    // on (once we traverse an edge which is inlined), we must find only nodes
-    // which do not require combing (i.e., the `AllPredAreVisited` flag must be
-    // always true) in a strict sense, but only require a complete cloning
-    // of the subgraph from that point on.
-    bool ExpectOnlyInlined = false;
-
     int Iteration = 0;
     while (++ListIt != RevPostOrderList.end() and not WorkList.empty()) {
       if (not WorkList.count(*ListIt))
@@ -929,18 +922,6 @@ inline void RegionCFG<NodeT>::inflate() {
                                            [&Visited](auto *Pred) {
                                              return Visited.count(Pred);
                                            });
-      auto *C = Candidate;
-      bool AllPredAreInlined = std::all_of(C->labeled_predecessors().begin(),
-                                           C->labeled_predecessors().end(),
-                                           [](auto &Pred) {
-                                             return Pred.second.Inlined;
-                                           });
-      // This assertion verifies that, if we started cloning a subgraph which
-      // is inlined, we encounter only nodes that do not require strict combing
-      // (see comment on `ExpectOnlyInlined` declaration).
-      revng_assert(not ExpectOnlyInlined or AllPredAreVisited
-                   or AllPredAreInlined);
-
       WorkList.erase(Candidate);
       Visited.insert(Candidate);
 
@@ -999,7 +980,16 @@ inline void RegionCFG<NodeT>::inflate() {
         // re-insert it in the WorkList, otherwise it will be skipped at the
         // next iteration.
         Visited.erase(Candidate);
-        ExpectOnlyInlined = true;
+
+        auto WLBeg = WorkList.begin();
+        auto WLEnd = WorkList.end();
+        revng_assert(std::all_of(WLBeg, WLEnd, [](const BBNodeT *Left) {
+          auto PredsIt = Left->labeled_predecessors().begin();
+          auto PredsEnd = Left->labeled_predecessors().end();
+          return std::all_of(PredsIt, PredsEnd, [](const auto &Pred) {
+            return Pred.second.Inlined;
+          });
+        }));
 
         // The new dummy node does not lead back to any original node, for
         // this reason we need to insert a new entry in the
