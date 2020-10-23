@@ -981,16 +981,6 @@ inline void RegionCFG<NodeT>::inflate() {
         // next iteration.
         Visited.erase(Candidate);
 
-        auto WLBeg = WorkList.begin();
-        auto WLEnd = WorkList.end();
-        revng_assert(std::all_of(WLBeg, WLEnd, [](const BBNodeT *Left) {
-          auto PredsIt = Left->labeled_predecessors().begin();
-          auto PredsEnd = Left->labeled_predecessors().end();
-          return std::all_of(PredsIt, PredsEnd, [](const auto &Pred) {
-            return Pred.second.Inlined;
-          });
-        }));
-
         // The new dummy node does not lead back to any original node, for
         // this reason we need to insert a new entry in the
         // `CloneToOriginalMap`.
