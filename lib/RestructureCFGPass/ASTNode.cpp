@@ -303,11 +303,6 @@ void SetNode::dump(std::ofstream &ASTFile) {
 }
 
 void ASTNode::dump(std::ofstream &ASTFile) {
-  if (Successor) {
-    ASTFile << "node_" << this->getID() << " -> node_" << Successor->getID()
-            << " [style=dotted];\n";
-    Successor->dump(ASTFile);
-  }
   switch (getKind()) {
   case NK_Code:
     return llvm::cast<CodeNode>(this)->dump(ASTFile);
