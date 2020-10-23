@@ -73,12 +73,6 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
 
   if (not F.getMetadata("revng.func.entry"))
     return false;
-  // HACK!!!
-  if (F.getName().startswith("bb.quotearg_buffer_restyled")
-      or F.getName().startswith("bb._Unwind_VRS_Pop")
-      or F.getName().startswith("bb.vasnprintf")) {
-    return false;
-  }
 
   // If we passed the `-single-decompilation` option to the command line, skip
   // decompilation for all the functions that are not the selected one.

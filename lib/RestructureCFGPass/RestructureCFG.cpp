@@ -407,12 +407,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
   UntanglePerformedCounter = 0;
 
   // Analyze only isolated functions.
-  if (not F.hasMetadata("revng.func.entry")
-      or F.getName().startswith("bb.quotearg_buffer_restyled")
-      or F.getName().startswith("bb._Unwind_VRS_Pop")
-      or F.getName().startswith("bb.vasnprintf")) {
+  if (not F.hasMetadata("revng.func.entry"))
     return false;
-  }
 
   // If we passed the `-single-decompilation` option to the command line, skip
   // decompilation for all the functions that are not the selected one.
