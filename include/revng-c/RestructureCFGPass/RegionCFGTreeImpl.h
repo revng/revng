@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
+#include <llvm/ADT/SmallVector.h>
 #include <sys/stat.h>
 
 // LLVM includes
@@ -1430,9 +1431,14 @@ inline void RegionCFG<NodeT>::weave() {
 
 template<class NodeT>
 inline void RegionCFG<NodeT>::markUnexpectedPCAsInlined() {
-  for (BBNodeT *UnexpectedPC : *this) {
-    if (not UnexpectedPC->isCode())
-      continue;
+
+  llvm::SmallPtrSet<BBNodeT *, 8> UnexpectedPCS;
+
+  for (BBNodeT *UnexpectedPC : *this)
+    if (UnexpectedPC->isCode())
+      UnexpectedPCS.insert(UnexpectedPC);
+
+  for (BBNodeT *UnexpectedPC : UnexpectedPCS) {
 
     BasicBlockNodeTVect Predecessors;
     llvm::BasicBlock *BB = UnexpectedPC->getOriginalNode();
