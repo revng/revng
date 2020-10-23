@@ -745,15 +745,8 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
 
   ASTNode *RootNode = CombedAST.getRoot();
 
-  // Flip IFs with empty then branches.
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpOnFile("ast", F.getName(), "Before-beautify");
-  }
-  revng_log(BeautifyLogger,
-            "Performing IFs with empty then branches flipping\n");
-  flipEmptyThen(RootNode, CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpOnFile("ast", F.getName(), "After-if-flip");
   }
 
   // Simplify short-circuit nodes.
@@ -769,6 +762,14 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
   simplifyTrivialShortCircuit(RootNode, CombedAST, Mark);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpOnFile("ast", F.getName(), "After-trivial-short-circuit");
+  }
+
+  // Flip IFs with empty then branches.
+  revng_log(BeautifyLogger,
+            "Performing IFs with empty then branches flipping\n");
+  flipEmptyThen(RootNode, CombedAST);
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpOnFile("ast", F.getName(), "After-if-flip");
   }
 
   // Match switch node.
