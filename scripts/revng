@@ -3,6 +3,7 @@
 import argparse
 import glob
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -269,10 +270,9 @@ def build_linking_options(li_csv_path, need_csv_path):
       if "/" in library:
         library = library[library.rindex("/") + 1:]
 
-      prefix = "lib"
-      suffix = ".so"
-      if library.startswith(prefix) and library.endswith(suffix):
-        library = "-l" + library[len(prefix):-len(suffix)]
+      match = re.match("^lib(.*).so(\.[0-9]+)*$", library)
+      if match:
+        library = "-l" + match.group(1)
       else:
         library = "-l:" + library
 
