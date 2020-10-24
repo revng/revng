@@ -38,6 +38,33 @@ void ABIFunction::finalize() {
     IREntry->Predecessors.push_back(NewEntry);
     IREntry = NewEntry;
   }
+
+  // Prune
+  {
+    OnceQueue<ABIIRBasicBlock *> ToVisit;
+    ToVisit.insert(IREntry);
+
+    while (not ToVisit.empty()) {
+      ABIIRBasicBlock *Block = ToVisit.pop();
+      for (ABIIRBasicBlock *Successor : Block->successors()) {
+        ToVisit.insert(Successor);
+      }
+    }
+
+    std::set<ABIIRBasicBlock *> Visited = ToVisit.visited();
+    {
+      auto IsUnreachable = [&Visited](ABIIRBasicBlock *Block) {
+        return Visited.count(Block) == 0;
+      };
+      std::erase_if(FinalBBs, IsUnreachable);
+    }
+    {
+      auto IsUnreachable = [&Visited](decltype(BBMap)::value_type &Block) {
+        return Visited.count(&Block.second) == 0;
+      };
+      std::erase_if(BBMap, IsUnreachable);
+    }
+  }
 }
 
 bool ABIFunction::verify() const {

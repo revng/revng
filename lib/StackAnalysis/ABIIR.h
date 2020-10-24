@@ -12,6 +12,9 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
+// Local libraries includes
+#include "revng/ADT/Queue.h"
+
 // Local includes
 #include "ASSlot.h"
 #include "FunctionABI.h"
