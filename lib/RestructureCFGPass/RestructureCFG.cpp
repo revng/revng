@@ -1158,20 +1158,13 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Scorporated this part which was previously inside the `generateAst` to
   // avoid having it run twice or more (it was run inside the recursive step
   // of the `generateAst`, and then another time for the final root AST, which
-  // now is directly the entire AST (no flattening anymore)).
+  // now is directly the entire AST, since there's no flattening anymore).
   normalize(AST, F.getName());
 
   // Serialize final AST on file
   if (CombLogger.isEnabled()) {
     AST.dumpOnFile("ast", F.getName(), "Final");
   }
-
-  // Early exit if the AST generation produced a version of the AST which is
-  // identical to the cached version.
-  // In that case there's no need to flatten the RegionCFG.
-  // TODO: figure out how to decide when we're done
-  if (Done)
-    return false;
 
   // Collect the number of cloned nodes introduced by the comb for a single
   // `llvm::BasicBlock`, information which is needed later in the

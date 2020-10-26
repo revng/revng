@@ -20,14 +20,11 @@ class RestructureCFG : public llvm::FunctionPass {
 private:
   using DuplicationMap = std::map<llvm::BasicBlock *, size_t>;
 
-protected:
-  bool Done;
-
 public:
   static char ID;
 
 public:
-  RestructureCFG() : llvm::FunctionPass(ID), Done(false) {}
+  RestructureCFG() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
 
@@ -36,8 +33,6 @@ public:
   }
 
   ASTTree &getAST() { return AST; }
-
-  bool isDone() { return Done; }
 
   std::map<llvm::BasicBlock *, size_t> &getNDuplicates() { return NDuplicates; }
 
