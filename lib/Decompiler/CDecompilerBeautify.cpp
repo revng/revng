@@ -358,105 +358,22 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode, Marker &Mark) {
   return RootNode;
 }
 
-static ASTNode *getLastOfSequenceOrSelf(ASTNode *RootNode) {
-  ASTNode *LastNode = nullptr;
-  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
-    using SeqSizeType = SequenceNode::links_container::size_type;
-    SeqSizeType SequenceSize = Sequence->listSize();
-    LastNode = Sequence->getNodeN(SequenceSize - 1);
-  } else {
-    LastNode = RootNode;
-  }
-  revng_assert(LastNode != nullptr);
-  return LastNode;
-}
+static void simplifyLastContinue(ASTTree &AST) {
+  for (ASTNode *Node : AST.nodes()) {
+    auto *Scs = llvm::dyn_cast<ScsNode>(Node);
+    if (not Scs or not Scs->hasBody())
+      continue;
 
-// HACK: districate this mutual calling tree.
-static void simplifyLastContinue(ASTNode *RootNode, ASTTree &AST);
+    auto *Seq = dyn_cast<SequenceNode>(Scs->getBody());
+    if (not Seq)
+      continue;
 
-static void removeLastContinue(ASTNode *RootNode, ASTTree &AST) {
-  if (auto *LastIf = llvm::dyn_cast<IfNode>(RootNode)) {
-
-    // TODO: unify this
-    // Handle then
-    if (LastIf->hasThen()) {
-      ASTNode *Then = LastIf->getThen();
-      if (ContinueNode *ThenContinue = llvm::dyn_cast<ContinueNode>(Then)) {
-        if (ThenContinue->hasComputation()) {
-          ThenContinue->setImplicit();
-        } else {
-          LastIf->setThen(LastIf->getElse());
-          LastIf->setElse(nullptr);
-
-          // Manual flip when removing then.
-          // TODO: handle this in the flipIfEmpty phase.
-          // Invert the conditional expression of the current `IfNode`.
-          UniqueExpr Not;
-          Not.reset(new NotNode(LastIf->getCondExpr()));
-          ExprNode *NotNode = AST.addCondExpr(std::move(Not));
-          LastIf->replaceCondExpr(NotNode);
-        }
-      } else {
-        removeLastContinue(Then, AST);
-      }
-    }
-
-    // Handle else
-    if (LastIf->hasElse()) {
-      ASTNode *Else = LastIf->getElse();
-      if (ContinueNode *ElseContinue = llvm::dyn_cast<ContinueNode>(Else)) {
-        if (ElseContinue->hasComputation()) {
-          ElseContinue->setImplicit();
-        } else {
-          LastIf->setElse(nullptr);
-        }
-      } else {
-        removeLastContinue(Else, AST);
-      }
-    }
-  } else if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
-    ASTNode *LastNode = getLastOfSequenceOrSelf(Sequence);
-    if (ContinueNode *LastContinue = llvm::dyn_cast<ContinueNode>(LastNode)) {
-      LastContinue->setImplicit();
-    } else {
-      removeLastContinue(LastNode, AST);
-    }
-  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-
-    // Body could be nullptr (previous while/dowhile semplification)
-    if (Scs->getBody() == nullptr) {
-      return;
-    }
-
-    simplifyLastContinue(Scs->getBody(), AST);
-  }
-}
-
-static void simplifyLastContinue(ASTNode *RootNode, ASTTree &AST) {
-  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
-    for (ASTNode *Node : Sequence->nodes()) {
-      simplifyLastContinue(Node, AST);
-    }
-    removeLastContinue(Sequence, AST);
-  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
-    if (If->hasThen()) {
-      simplifyLastContinue(If->getThen(), AST);
-    }
-    if (If->hasElse()) {
-      simplifyLastContinue(If->getElse(), AST);
-    }
-  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-
-    // Body could be nullptr (previous while/dowhile semplification)
-    if (Scs->getBody() == nullptr) {
-      return;
-    }
-
-    // Recursive invocation on the body
-    simplifyLastContinue(Scs->getBody(), AST);
-
-    ASTNode *LastNode = getLastOfSequenceOrSelf(Scs->getBody());
-    removeLastContinue(LastNode, AST);
+    auto ListSize = Seq->listSize();
+    revng_assert(ListSize);
+    ASTNode *LastNode = Seq->getNodeN(ListSize - 1);
+    if (auto *Continue = llvm::dyn_cast<ContinueNode>(LastNode))
+      if (Continue->hasComputation())
+        Continue->setImplicit();
   }
 }
 
@@ -490,7 +407,6 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
     // Recursive scs nesting handling
     matchDoWhile(Body, AST);
 
-    // ASTNode *LastNode = getLastOfSequenceOrSelf(Scs->getBody());
     ASTNode *LastNode = nullptr;
     bool InsideSequence = false;
     if (auto *Seq = llvm::dyn_cast<SequenceNode>(Body)) {
@@ -601,7 +517,6 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
     // Recursive scs nesting handling
     matchWhile(Body, AST);
 
-    // ASTNode *FirstNode = getLastOfSequenceOrSelf(Scs->getBody());
     ASTNode *FirstNode = nullptr;
     bool InsideSequence = false;
     if (auto *Seq = llvm::dyn_cast<SequenceNode>(Body)) {
@@ -795,7 +710,7 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
 
   // Remove useless continues.
   revng_log(BeautifyLogger, "Removing useless continue nodes\n");
-  simplifyLastContinue(RootNode, CombedAST);
+  simplifyLastContinue(CombedAST);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpOnFile("ast", F.getName(), "After-continue-removal");
   }

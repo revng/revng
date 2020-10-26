@@ -79,22 +79,21 @@ ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST) {
 
   // Clone each ASTNode in the current AST.
   links_container::difference_type NewNodes = 0;
-  for (const ast_unique_ptr &Old : OldAST.nodes()) {
+  for (ASTNode *Old : OldAST.nodes()) {
     ASTNodeList.emplace_back(std::move(Old->Clone()));
     ++NewNodes;
 
     ASTNode *NewASTNode = ASTNodeList.back().get();
-    ASTNode *OldASTNode = Old.get();
 
     // Set the Node ID
     NewASTNode->setID(getNewID());
 
-    BasicBlockNode<BasicBlock *> *OldCFGNode = OldAST.findCFGNode(OldASTNode);
+    BasicBlockNode<BasicBlock *> *OldCFGNode = OldAST.findCFGNode(Old);
     if (OldCFGNode != nullptr) {
       BBASTMap.insert({ OldCFGNode, NewASTNode });
       ASTBBMap.insert({ NewASTNode, OldCFGNode });
     }
-    ASTSubstitutionMap[OldASTNode] = NewASTNode;
+    ASTSubstitutionMap[Old] = NewASTNode;
   }
 
   // Clone the conditional expression nodes.
@@ -108,8 +107,8 @@ ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST) {
   // Update the AST and BBNode pointers inside the newly created AST nodes,
   // to reflect the changes made. Update also the pointer to the conditional
   // expressions just cloned.
-  links_iterator BeginInserted = ASTNodeList.end() - NewNodes;
-  links_iterator EndInserted = ASTNodeList.end();
+  auto BeginInserted = ASTNodeList.end() - NewNodes;
+  auto EndInserted = ASTNodeList.end();
   using MovedIteratorRange = llvm::iterator_range<links_container::iterator>;
   MovedIteratorRange Result = llvm::make_range(BeginInserted, EndInserted);
   for (ast_unique_ptr &NewNode : Result) {

@@ -27,9 +27,17 @@ public:
   using ast_destructor = std::integral_constant<ast_deleter_t,
                                                 &ASTNode::deleteASTNode>;
   using ast_unique_ptr = std::unique_ptr<ASTNode, ast_destructor>;
+  using getPointerT = ASTNode *(*) (ast_unique_ptr &);
+
+  static ASTNode *getPointer(ast_unique_ptr &Original) {
+    return Original.get();
+  }
+
+  static_assert(std::is_same_v<decltype(&getPointer), getPointerT>);
 
   using links_container = std::vector<ast_unique_ptr>;
-  using links_iterator = typename links_container::iterator;
+  using internal_iterator = typename links_container::iterator;
+  using links_iterator = llvm::mapped_iterator<internal_iterator, getPointerT>;
   using links_range = llvm::iterator_range<links_iterator>;
 
   using expr_deleter_t = decltype(&ExprNode::deleteExprNode);
@@ -45,8 +53,12 @@ public:
   using BasicBlockNodeBB = ASTNode::BasicBlockNodeBB;
   using BBNodeMap = ASTNode::BBNodeMap;
 
-  links_iterator begin() { return ASTNodeList.begin(); }
-  links_iterator end() { return ASTNodeList.end(); }
+  links_iterator begin() {
+    return llvm::map_iterator(ASTNodeList.begin(), getPointer);
+  }
+  links_iterator end() {
+    return llvm::map_iterator(ASTNodeList.end(), getPointer);
+  }
 
   links_iterator_expr beginExpr() { return CondExprList.begin(); }
   links_iterator_expr endExpr() { return CondExprList.end(); }
