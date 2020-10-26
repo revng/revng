@@ -1277,17 +1277,11 @@ inline void RegionCFG<NodeT>::weave() {
 
   // Collect useful objects.
   RegionCFG<NodeT> &Graph = *this;
-  BBNodeT *Entry = &getEntryNode();
-
-  // Add a new virtual sink node to compute the postdominator.
-  BasicBlockNode<NodeT> *Sink = Graph.addArtificialNode("Sink");
-  for (BBNodeT *Exit : Graph)
-    if (Sink != Exit and Exit->successor_size() == 0)
-      addPlainEdge(EdgeDescriptor(Exit, Sink));
 
   IFPDT.recalculate(Graph);
 
   // Iterate over all the nodes in post order.
+  BBNodeT *Entry = &getEntryNode();
   for (BBNodeT *Switch : post_order(Entry)) {
 
     if (not Switch->isDispatcher() and not isASwitch(Switch))
@@ -1310,20 +1304,23 @@ inline void RegionCFG<NodeT>::weave() {
 
       // Find the postdominator of the switch.
       BBNodeT *PostDom = IFPDT[Switch]->getIDom()->getBlock();
-      revng_assert(PostDom != nullptr);
 
       // Iterate over all the nodes "in the body" of the switch in reverse post
       // order.
       llvm::SmallPtrSet<BBNodeT *, 1> PostDomSet;
-      PostDomSet.insert(PostDom);
+      if (nullptr != PostDom)
+        PostDomSet.insert(PostDom);
       ReversePostOrderTraversalExt RPOT(EFGT<BBNodeT *>(Switch), PostDomSet);
 
       revng_log(CombLogger,
                 "Dumping the candidates that may initiate weaving:");
 
       for (BBNodeT *RPOTBB : RPOT) {
-        // Skip the switch and its post-dominator
-        if (RPOTBB == Switch or RPOTBB == PostDom)
+        // We expect to never reach the PostDom
+        revng_assert(RPOTBB != PostDom);
+
+        // Skip the switch
+        if (RPOTBB == Switch)
           continue;
 
         revng_log(CombLogger, RPOTBB->getName());
@@ -1404,8 +1401,6 @@ inline void RegionCFG<NodeT>::weave() {
     }
   }
 
-  // Purge the final sink used for computing the postdominator tree.
-  purgeVirtualSink(Sink);
   DT.recalculate(Graph);
 }
 
