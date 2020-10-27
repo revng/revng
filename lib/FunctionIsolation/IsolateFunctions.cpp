@@ -37,11 +37,12 @@ using IFI = IsolateFunctionsImpl;
 char IF::ID = 0;
 static RegisterPass<IF> X("isolate", "Isolate Functions Pass", true, true);
 
-cl::opt<bool> DisableSafetyChecks("isolate-no-safety-checks",
-                                  cl::desc("Disable safety checks in function "
-                                           "isolation"),
-                                  cl::cat(MainCategory),
-                                  cl::init(false));
+static cl::opt<bool> DisableSafetyChecks("isolate-no-safety-checks",
+                                         cl::desc("Disable safety checks in "
+                                                  "function "
+                                                  "isolation"),
+                                         cl::cat(MainCategory),
+                                         cl::init(false));
 
 class IsolateFunctionsImpl {
 private:
@@ -529,7 +530,9 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
 
     // TODO: drop me in favor of checking func.call metadata
     Instruction *Terminator = OldInstruction->getParent()->getTerminator();
-    if (isTerminatorWithInvalidTarget(Terminator, RootToIsolated)) {
+    // TODO: This is a temporary fix: do not insert a `CallInst` unless we have
+    //       a `func.call`. We should never get here in first place.
+    if (Terminator->getMetadata("func.call") != nullptr) {
       // Function call handling
       CallInst *Call = cast<CallInst>(OldInstruction);
       bool Result = replaceFunctionCall(NewBB, Call, RootToIsolated);

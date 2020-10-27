@@ -24,6 +24,8 @@
 
 using namespace llvm;
 
+using StackAnalysis::FunctionCallRegisterArgument;
+using StackAnalysis::FunctionCallReturnValue;
 using StackAnalysis::FunctionRegisterArgument;
 using StackAnalysis::FunctionReturnValue;
 using StackAnalysis::FunctionsSummary;
@@ -40,6 +42,11 @@ using Register = RegisterPass<EnforceABI>;
 static Register X("enforce-abi", "Enforce ABI Pass", true, true);
 
 static Logger<> EnforceABILog("enforce-abi");
+static cl::opt<bool> DisableSafetyChecks("disable-enforce-abi-safety-checks",
+                                         cl::desc("Disable safety checks in "
+                                                  " ABI enforcing"),
+                                         cl::cat(MainCategory),
+                                         cl::init(false));
 
 static bool shouldEmit(FunctionRegisterArgument V) {
   switch (V.value()) {
@@ -50,9 +57,30 @@ static bool shouldEmit(FunctionRegisterArgument V) {
   }
 }
 
+static bool shouldEmit(FunctionCallRegisterArgument V) {
+  switch (V.value()) {
+  case FunctionCallRegisterArgument::Yes:
+  case FunctionCallRegisterArgument::Dead:
+    return true;
+  default:
+    return false;
+  }
+}
+
 static bool shouldEmit(FunctionReturnValue V) {
   switch (V.value()) {
   case FunctionReturnValue::YesOrDead:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static bool shouldEmit(FunctionCallReturnValue V) {
+  switch (V.value()) {
+  case FunctionCallReturnValue::YesOrDead:
+  case FunctionCallReturnValue::Yes:
+  case FunctionCallReturnValue::Dead:
     return true;
   default:
     return false;
@@ -608,13 +636,24 @@ void EnforceABIImpl::handleRegularFunctionCall(Instruction *I) {
   BranchType::Values BranchType = BranchType::Invalid;
 
   bool IsNoReturn = false;
+  bool IsIndirectTailCall = false;
   if (I->isTerminator()) {
+    // TODO: we have a "regular function call" (i.e., an instruction with a
+    //       `func.call` metadata) that *is not* a `CallInst`. This should never
+    //       happen, since it's FunctionIsolation's responsibility to take care
+    //       of this. However, currently, FunctionIsolation relies on
+    //       `function_call` to emit `CallInst`s (instead of `func.call`). Once
+    //       this is fixed in FunctionIsolation, all of this should go.
     auto *Tuple = cast<MDTuple>(I->getMetadata("member.type"));
     BranchType = BranchType::fromName(QMD.extract<StringRef>(Tuple, 0));
 
     switch (BranchType) {
     case BranchType::HandledCall:
+      revng_abort();
+      break;
     case BranchType::IndirectTailCall:
+      IsIndirectTailCall = true;
+      break;
     case BranchType::LongJmp:
     case BranchType::Killer:
       IsNoReturn = true;
@@ -626,6 +665,7 @@ void EnforceABIImpl::handleRegularFunctionCall(Instruction *I) {
   } else {
     revng_assert(isa<CallInst>(I));
     BranchType = BranchType::HandledCall;
+    IsIndirectTailCall = false;
     IsNoReturn = false;
   }
 
@@ -657,11 +697,11 @@ void EnforceABIImpl::handleRegularFunctionCall(Instruction *I) {
   if (auto *Call = dyn_cast<CallInst>(I))
     Callee = cast_or_null<Function>(skipCasts(Call->getCalledValue()));
 
-  if (Callee != nullptr
-      and (FunctionDispatcher == nullptr or Callee != FunctionDispatcher)) {
-    Callee = OldToNew.at(Callee);
-    revng_assert(Callee != nullptr);
-    revng_assert(Callee->getName().startswith("bb."));
+  if (DisableSafetyChecks
+      or (Callee != nullptr and Callee != FunctionDispatcher)) {
+
+    if (Callee != nullptr and Callee != FunctionDispatcher)
+      Callee = OldToNew.at(Callee);
 
     // The callee is a well-known callee, generate a direct call
     IRBuilder<> Builder(I);
@@ -722,7 +762,40 @@ void EnforceABIImpl::handleRegularFunctionCall(Instruction *I) {
 
   BasicBlock *BB = I->getParent();
 
-  if (IsNoReturn) {
+  if (IsIndirectTailCall) {
+    // If we find an indirect tail call, we know that our successor after the
+    // function isolation will be a single basic block which contains a call
+    // to the function dispatcher, and a return void (function isolation was
+    // easy) that we need to replace with an actual return with eventual return
+    // values here.
+    Function *CurrentF = I->getParent()->getParent();
+    I->eraseFromParent();
+    FunctionsSummary::FunctionDescription &Function = FunctionsMap.at(CurrentF);
+    llvm::SmallVector<Type *, 8> ReturnTypes;
+    llvm::SmallVector<GlobalVariable *, 8> ReturnCSVs;
+    for (auto &P : Function.RegisterSlots) {
+      GlobalVariable *CSV = P.first;
+
+      // Collect return values.
+      if (shouldEmit(P.second.ReturnValue)) {
+        ReturnTypes.push_back(CSV->getType()->getPointerElementType());
+        ReturnCSVs.push_back(CSV);
+      }
+    }
+    // Build the return value
+    IRBuilder<> Builder(BB);
+    std::vector<Value *> ReturnValues;
+    for (GlobalVariable *ReturnCSV : ReturnCSVs)
+      ReturnValues.push_back(Builder.CreateLoad(ReturnCSV));
+
+    if (ReturnTypes.size() == 0)
+      Builder.CreateRetVoid();
+    else if (ReturnTypes.size() == 1)
+      Builder.CreateRet(ReturnValues[0]);
+    else
+      Builder.CreateAggregateRet(ReturnValues.data(), ReturnValues.size());
+
+  } else if (IsNoReturn) {
     auto It = BB->rbegin();
     while (&*It != I) {
       Instruction *I = &*It;
@@ -742,30 +815,85 @@ void EnforceABIImpl::handleRegularFunctionCall(Instruction *I) {
 void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
                                   Function *Callee,
                                   CallSiteDescription &CallSite) {
-  FunctionDescription &Function = FunctionsMap.at(Callee);
-  revng_assert(Function.Function != nullptr
-               and Function.Function->getName().startswith("bb."));
-  if (GlobalVariable *CSV = CallSite.isCompatibleWith(Function)) {
-    dbg << (CallSite.Call == nullptr ? "nullptr" :
-                                       getName(CallSite.Call).data())
-        << " -> " << (Callee == nullptr ? "nullptr" : Callee->getName().data())
-        << ": " << CSV->getName().data() << "\n";
-    revng_abort();
+
+  llvm::SmallVector<Type *, 8> ArgumentsTypes;
+  llvm::SmallVector<Value *, 8> Arguments;
+  llvm::SmallVector<Type *, 8> ReturnTypes;
+  llvm::SmallVector<GlobalVariable *, 8> ReturnCSVs;
+
+  if (Callee == nullptr or Callee == FunctionDispatcher) {
+    revng_assert(DisableSafetyChecks);
+
+    // Collect arguments, returns and their type.
+    for (auto &P : CallSite.RegisterSlots) {
+      GlobalVariable *CSV = P.first;
+
+      if (shouldEmit(P.second.Argument)) {
+        ArgumentsTypes.push_back(CSV->getType()->getPointerElementType());
+        Arguments.push_back(Builder.CreateLoad(CSV));
+      }
+
+      if (shouldEmit(P.second.ReturnValue)) {
+        ReturnTypes.push_back(CSV->getType()->getPointerElementType());
+        ReturnCSVs.push_back(CSV);
+      }
+    }
+
+    // Create here on the fly the indirect function that we want to call.
+    // Create the return type
+    Type *ReturnType = Type::getVoidTy(Context);
+    if (ReturnTypes.size() == 0)
+      ReturnType = Type::getVoidTy(Context);
+    else if (ReturnTypes.size() == 1)
+      ReturnType = ReturnTypes[0];
+    else
+      ReturnType = StructType::create(ReturnTypes);
+
+    // Create new function
+    auto *NewType = FunctionType::get(ReturnType, ArgumentsTypes, false);
+    Module *CurrentM = Builder.GetInsertBlock()->getParent()->getParent();
+    auto *NewFunction = Function::Create(NewType,
+                                         GlobalValue::ExternalLinkage,
+                                         "indirect_placeholder",
+                                         CurrentM);
+    // The callee is now the newly created `indirect-placeholder`.
+    Callee = NewFunction;
+  } else {
+
+    // Additional debug checks if we are not emitting an indirect call.
+    revng_log(EnforceABILog,
+              "Emitting call to " << getName(Callee) << " from "
+                                  << getName(CallSite.Call));
+
+    FunctionDescription &Function = FunctionsMap.at(Callee);
+    revng_assert(Function.Function != nullptr
+                 and Function.Function->getName().startswith("bb."));
+    if (GlobalVariable *CSV = CallSite.isCompatibleWith(Function)) {
+      dbg << (CallSite.Call == nullptr ? "nullptr" :
+                                         getName(CallSite.Call).data())
+          << " -> "
+          << (Callee == nullptr ? "nullptr" : Callee->getName().data()) << ": "
+          << CSV->getName().data() << "\n";
+      revng_abort();
+    }
+
+    // Collect arguments, returns and their type.
+    for (auto &P : Function.RegisterSlots) {
+      GlobalVariable *CSV = P.first;
+
+      if (shouldEmit(P.second.Argument)) {
+        ArgumentsTypes.push_back(CSV->getType()->getPointerElementType());
+        Arguments.push_back(Builder.CreateLoad(CSV));
+      }
+
+      if (shouldEmit(P.second.ReturnValue)) {
+        ReturnTypes.push_back(CSV->getType()->getPointerElementType());
+        ReturnCSVs.push_back(CSV);
+      }
+    }
   }
 
-  std::vector<Value *> Arguments;
-  std::vector<GlobalVariable *> ReturnCSVs;
-  for (auto &P : Function.RegisterSlots) {
-    GlobalVariable *CSV = P.first;
-
-    if (shouldEmit(P.second.Argument))
-      Arguments.push_back(Builder.CreateLoad(CSV));
-
-    if (shouldEmit(P.second.ReturnValue))
-      ReturnCSVs.push_back(CSV);
-  }
-
-  auto *Result = Builder.CreateCall(Function.Function, Arguments);
+  auto *Result = Builder.CreateCall(Callee, Arguments);
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;
     for (GlobalVariable *ReturnCSV : ReturnCSVs) {
