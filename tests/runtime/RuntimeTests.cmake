@@ -53,6 +53,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       "${INPUT_FILE}"
       --detect-abi
       --isolate-no-safety-checks
+      --disable-enforce-abi-safety-checks
       --isolate
       --enforce-abi
       -o "${OUTPUT}")
@@ -60,3 +61,18 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   endif()
 endmacro()
 register_derived_artifact("lifted" "abi-enforced-for-decompilation" ".bc" "FILE")
+
+macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
+  if("${CATEGORY}" STREQUAL "tests_runtime" AND NOT "${CONFIGURATION}" STREQUAL "static_native" AND "${TARGET_NAME}" MATCHES "calc")
+    set(COMMAND_TO_RUN
+      "${CMAKE_CURRENT_BINARY_DIR}/bin/revng"
+      opt
+      "${INPUT_FILE}"
+      --detect-abi
+      --isolate
+      --enforce-abi
+      -o "${OUTPUT}")
+    set(DEPEND_ON revng-all-binaries)
+  endif()
+endmacro()
+register_derived_artifact("lifted" "abi-enforced-for-decompilation-torture" ".bc" "FILE")
