@@ -264,14 +264,16 @@ findCommonPostDom(BasicBlockNode<NodeT> *Succ1, BasicBlockNode<NodeT> *Succ2) {
   // not exists for both of them.
   BasicBlockNode<NodeT> *SuccOfSucc1 = nullptr;
   BasicBlockNode<NodeT> *SuccOfSucc2 = nullptr;
+
+  revng_assert(Succ1->successor_size() < 2);
+  revng_assert(Succ2->successor_size() < 2);
+
   if (Succ1->successor_size() == 1)
     SuccOfSucc1 = getDirectSuccessor(Succ1);
-  else
-    revng_abort();
+
   if (Succ2->successor_size() == 1)
     SuccOfSucc2 = getDirectSuccessor(Succ2);
-  else
-    revng_abort();
+
   revng_assert(SuccOfSucc1 == SuccOfSucc2);
 
   return SuccOfSucc1;
@@ -289,10 +291,12 @@ inline ASTNode *findASTNode(ASTTree &AST,
 }
 
 template<class NodeT>
-inline void createTile(RegionCFG<NodeT> &Graph,
-                       typename RegionCFG<NodeT>::BBNodeMap &TileToNodeMap,
-                       BasicBlockNode<NodeT> *Node,
-                       BasicBlockNode<NodeT> *End) {
+inline void
+createTile(RegionCFG<NodeT> &Graph,
+           llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> &ASTDT,
+           typename RegionCFG<NodeT>::BBNodeMap &TileToNodeMap,
+           BasicBlockNode<NodeT> *Node,
+           BasicBlockNode<NodeT> *End) {
 
   using BBNodeT = BasicBlockNode<NodeT>;
   using BasicBlockNodeTVect = std::vector<BBNodeT *>;
@@ -304,23 +308,30 @@ inline void createTile(RegionCFG<NodeT> &Graph,
   // Move all the edges incoming in the head of the collapsed region to the tile
   // node.
   BasicBlockNodeTVect Predecessors;
-  for (BBNodeT *Predecessor : Node->predecessors()) {
+  for (BBNodeT *Predecessor : Node->predecessors())
     Predecessors.push_back(Predecessor);
-  }
+
   for (BBNodeT *Predecessor : Predecessors) {
-    moveEdgeTarget(EdgeDescriptor(Predecessor, Node), Tile);
+    auto Edge = extractLabeledEdge(EdgeDescriptor{ Predecessor, Node });
+    ASTDT.deleteEdge(Predecessor, Node);
+    addEdge(EdgeDescriptor{ Predecessor, Tile }, Edge.second);
+    ASTDT.insertEdge(Predecessor, Tile);
   }
 
   // Move all the edges exiting from the postdominator node of the collapsed
   // region to the tile node, if the `End` passed as an argument is
   // `!= nullptr`.
   if (End != nullptr) {
+
     BasicBlockNodeTVect Successors;
-    for (BBNodeT *Successor : End->successors()) {
+    for (BBNodeT *Successor : End->successors())
       Successors.push_back(Successor);
-    }
+
     for (BBNodeT *Successor : Successors) {
-      moveEdgeSource(EdgeDescriptor(End, Successor), Tile);
+      auto Edge = extractLabeledEdge(EdgeDescriptor{ End, Successor });
+      ASTDT.deleteEdge(End, Successor);
+      addEdge(EdgeDescriptor{ Tile, Successor }, Edge.second);
+      ASTDT.insertEdge(Tile, Successor);
     }
   }
 
@@ -337,7 +348,6 @@ inline void generateAst(RegionCFG<NodeT> &Region,
   // Define some using used in all the function body.
   using BasicBlockNodeT = typename RegionCFG<NodeT>::BasicBlockNodeT;
   using BasicBlockNodeTVect = typename RegionCFG<NodeT>::BasicBlockNodeTVect;
-  using BBNodeT = BasicBlockNodeT;
 
   // Get some fields of `RegionCFG`.
   std::string RegionName = Region.getRegionName();
@@ -379,20 +389,17 @@ inline void generateAst(RegionCFG<NodeT> &Region,
   // TODO: factorize out the AST generation phase.
   llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> ASTDT;
   ASTDT.recalculate(Graph);
-  ASTDT.updateDFSNumbers();
 
   CombLogger << DoLog;
 
   std::map<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> TileToNodeMap;
 
   BasicBlockNodeTVect PONodes;
-  for (auto POIt = po_begin(&Graph); POIt != po_end(&Graph); POIt++) {
-    PONodes.push_back(*POIt);
-  }
+  for (auto *N : post_order(&Graph))
+    PONodes.push_back(N);
 
   unsigned Counter = 0;
   for (BasicBlockNode<NodeT> *Node : PONodes) {
-    ASTDT.recalculate(Graph);
 
     if (CombLogger.isEnabled()) {
       Counter++;
@@ -439,13 +446,12 @@ inline void generateAst(RegionCFG<NodeT> &Region,
 
       case 1: {
         auto *Succ = Successors[0];
+        ASTNode *ASTChild = nullptr;
         if (ASTDT.dominates(Node, Succ)) {
-          ASTNode *ASTChild = findASTNode(AST, TileToNodeMap, Succ);
-          ASTObject.reset(new ScsNode(Node, Body, ASTChild));
-          createTile(Graph, TileToNodeMap, Node, Succ);
-        } else {
-          ASTObject.reset(new ScsNode(Node, Body));
+          ASTChild = findASTNode(AST, TileToNodeMap, Succ);
+          createTile(Graph, ASTDT, TileToNodeMap, Node, Succ);
         }
+        ASTObject.reset(new ScsNode(Node, Body, ASTChild));
       } break;
 
       default:
@@ -535,7 +541,7 @@ inline void generateAst(RegionCFG<NodeT> &Region,
         }
       }
 
-      createTile(Graph, TileToNodeMap, Node, PostDomBB);
+      createTile(Graph, ASTDT, TileToNodeMap, Node, PostDomBB);
 
       ASTObject.reset(new SwitchNode(Node,
                                      SwitchCondition,
@@ -574,32 +580,41 @@ inline void generateAst(RegionCFG<NodeT> &Region,
           BasicBlockNode<NodeT> *Successor1 = Successors[0];
           BasicBlockNode<NodeT> *Successor2 = Successors[1];
 
-          ASTNode *Then = findASTNode(AST, TileToNodeMap, Successor1);
-          ASTNode *Else = findASTNode(AST, TileToNodeMap, Successor2);
+          ASTNode *Then = nullptr;
+          ASTNode *Else = nullptr;
+          BasicBlockNodeT *NotDominatedSucc = nullptr;
 
           using ConstEdge = std::pair<const BasicBlockNodeT *,
                                       const BasicBlockNodeT *>;
-          if (isEdgeInlined(ConstEdge{ Node, Successor1 })) {
 
-            Else = nullptr;
-            createTile(Graph, TileToNodeMap, Node, Successor2);
+          bool Inlined1 = isEdgeInlined(ConstEdge{ Node, Successor1 });
+          bool Inlined2 = isEdgeInlined(ConstEdge{ Node, Successor2 });
 
-          } else if (isEdgeInlined(ConstEdge{ Node, Successor2 })) {
-
-            Then = nullptr;
-            createTile(Graph, TileToNodeMap, Node, Successor1);
-
+          if (Inlined1 and Inlined2) {
+            revng_assert(ASTDT.dominates(Node, Successor1));
+            revng_assert(ASTDT.dominates(Node, Successor2));
+            Then = findASTNode(AST, TileToNodeMap, Successor1);
+            Else = findASTNode(AST, TileToNodeMap, Successor2);
+          } else if (Inlined1) {
+            revng_assert(ASTDT.dominates(Node, Successor1));
+            Then = findASTNode(AST, TileToNodeMap, Successor1);
+            NotDominatedSucc = Successor2;
+          } else if (Inlined2) {
+            revng_assert(ASTDT.dominates(Node, Successor2));
+            Else = findASTNode(AST, TileToNodeMap, Successor2);
+            NotDominatedSucc = Successor1;
           } else {
             auto *DominatedSucc = Children[0];
             revng_assert(DominatedSucc == Successor1
                          or DominatedSucc == Successor2);
-            auto *NotDominatedSucc = DominatedSucc == Successor1 ? Successor2 :
-                                                                   Successor1;
-            Then = DominatedSucc == Successor1 ? Then : nullptr;
-            Else = DominatedSucc == Successor2 ? Else : nullptr;
-
-            createTile(Graph, TileToNodeMap, Node, NotDominatedSucc);
+            NotDominatedSucc = DominatedSucc == Successor1 ? Successor2 :
+                                                             Successor1;
+            if (DominatedSucc == Successor1)
+              Then = findASTNode(AST, TileToNodeMap, Successor1);
+            if (DominatedSucc == Successor2)
+              Else = findASTNode(AST, TileToNodeMap, Successor2);
           }
+          createTile(Graph, ASTDT, TileToNodeMap, Node, NotDominatedSucc);
 
           // Build the `IfNode`.
           using UniqueExpr = ASTTree::expr_unique_ptr;
@@ -621,36 +636,49 @@ inline void generateAst(RegionCFG<NodeT> &Region,
           BasicBlockNode<NodeT> *Successor1 = Successors[0];
           BasicBlockNode<NodeT> *Successor2 = Successors[1];
 
-          ASTNode *Then = findASTNode(AST, TileToNodeMap, Successor1);
-          ASTNode *Else = findASTNode(AST, TileToNodeMap, Successor2);
-
           // First of all, check if one of the successors can also be
           // considered as the immediate postdominator of the tile.
           auto *SuccOfSucc1 = getDirectSuccessor(Successor1);
           auto *SuccOfSucc2 = getDirectSuccessor(Successor2);
           revng_assert(SuccOfSucc1 != SuccOfSucc2 or nullptr == SuccOfSucc1);
 
-          BasicBlockNode<NodeT> *PostDomBB = nullptr;
-
           using ConstEdge = std::pair<const BasicBlockNodeT *,
                                       const BasicBlockNodeT *>;
-          if (isEdgeInlined(ConstEdge{ Node, Successor1 })) {
-            Else = nullptr;
+          bool Inlined1 = isEdgeInlined(ConstEdge{ Node, Successor1 });
+          bool Inlined2 = isEdgeInlined(ConstEdge{ Node, Successor2 });
+
+          ASTNode *Then = nullptr;
+          ASTNode *Else = nullptr;
+          BasicBlockNode<NodeT> *PostDomBB = nullptr;
+
+          if (Inlined1 and Inlined2) {
+            revng_assert(ASTDT.dominates(Node, Successor1));
+            revng_assert(ASTDT.dominates(Node, Successor2));
+            Then = findASTNode(AST, TileToNodeMap, Successor1);
+            Else = findASTNode(AST, TileToNodeMap, Successor2);
+          } else if (Inlined1) {
+            revng_assert(ASTDT.dominates(Node, Successor1));
+            Then = findASTNode(AST, TileToNodeMap, Successor1);
             PostDomBB = Successor2;
-          } else if (isEdgeInlined(ConstEdge{ Node, Successor2 })) {
-            Then = nullptr;
+          } else if (Inlined2) {
+            revng_assert(ASTDT.dominates(Node, Successor2));
+            Else = findASTNode(AST, TileToNodeMap, Successor2);
             PostDomBB = Successor1;
           } else if (SuccOfSucc1 == Successor2) {
             revng_assert(SuccOfSucc2 != Successor1);
+            revng_assert(ASTDT.dominates(Node, Successor1));
+            Then = findASTNode(AST, TileToNodeMap, Successor1);
             PostDomBB = Successor2;
-            Else = nullptr;
           } else if (SuccOfSucc2 == Successor1) {
             revng_assert(SuccOfSucc1 != Successor2);
+            revng_assert(ASTDT.dominates(Node, Successor2));
+            Else = findASTNode(AST, TileToNodeMap, Successor2);
             PostDomBB = Successor1;
-            Then = nullptr;
           } else {
             revng_assert(ASTDT.dominates(Node, Successor1));
             revng_assert(ASTDT.dominates(Node, Successor2));
+            Then = findASTNode(AST, TileToNodeMap, Successor1);
+            Else = findASTNode(AST, TileToNodeMap, Successor2);
           }
 
           // Build the `IfNode`.
@@ -661,15 +689,13 @@ inline void generateAst(RegionCFG<NodeT> &Region,
           ExprNode *Condition = AST.addCondExpr(std::move(CondExpr));
 
           // Insert the postdominator if the current tile actually has it.
-          if (PostDomBB) {
-            ASTNode *PostDom = findASTNode(AST, TileToNodeMap, PostDomBB);
-            ASTObject.reset(new IfNode(Node, Condition, Then, Else, PostDom));
+          ASTNode *PostDom = nullptr;
+          if (PostDomBB)
+            PostDom = findASTNode(AST, TileToNodeMap, PostDomBB);
 
-          } else {
-            ASTObject.reset(new IfNode(Node, Condition, Then, Else, nullptr));
-          }
+          ASTObject.reset(new IfNode(Node, Condition, Then, Else, PostDom));
 
-          createTile(Graph, TileToNodeMap, Node, PostDomBB);
+          createTile(Graph, ASTDT, TileToNodeMap, Node, PostDomBB);
         } break;
         case 3: {
 
@@ -696,7 +722,6 @@ inline void generateAst(RegionCFG<NodeT> &Region,
           BasicBlockNode<NodeT> *PostDomBB = findCommonPostDom(Successor1,
                                                                Successor2);
           ASTNode *PostDom = nullptr;
-          revng_assert(PostDomBB != nullptr);
           if (PostDomBB != nullptr) {
             // Check that the postdom is between the nodes dominated by the
             // current node.
@@ -712,7 +737,7 @@ inline void generateAst(RegionCFG<NodeT> &Region,
           ExprNode *Condition = AST.addCondExpr(std::move(CondExpr));
           ASTObject.reset(new IfNode(Node, Condition, Then, Else, PostDom));
 
-          createTile(Graph, TileToNodeMap, Node, PostDomBB);
+          createTile(Graph, ASTDT, TileToNodeMap, Node, PostDomBB);
         } break;
 
         default: {
@@ -746,15 +771,14 @@ inline void generateAst(RegionCFG<NodeT> &Region,
           // node. The successor therefore will be an actual successor on the
           // AST.
           revng_assert(not Node->isBreak() and not Node->isContinue());
+          revng_assert(Successors[0] == Children[0]);
           auto *Succ = findASTNode(AST, TileToNodeMap, Children[0]);
-          BBNodeT *SuccBB = Children[0];
           if (Node->isSet()) {
             ASTObject.reset(new SetNode(Node, Succ));
           } else {
             ASTObject.reset(new CodeNode(Node, Succ));
           }
-
-          createTile(Graph, TileToNodeMap, Node, SuccBB);
+          createTile(Graph, ASTDT, TileToNodeMap, Node, Children[0]);
         } break;
 
         default: {
@@ -793,6 +817,7 @@ inline void generateAst(RegionCFG<NodeT> &Region,
 
   // Set in the ASTTree object the root node.
   BasicBlockNode<NodeT> *Root = ASTDT.getRootNode()->getBlock();
+  revng_assert(Root);
   ASTNode *RootNode = AST.findASTNode(Root);
   AST.setRoot(RootNode);
 }
