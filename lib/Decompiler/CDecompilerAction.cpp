@@ -3,6 +3,7 @@
 //
 
 // LLVM includes
+#include <clang/AST/Decl.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
@@ -41,20 +42,22 @@ using FieldDeclMap = IRASTTypeTranslation::FieldDeclMap;
 
 using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
 
-static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
+static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
+                               SmallVectorImpl<clang::Stmt *> &Stmts,
                                ASTNode *N,
                                clang::ASTContext &ASTCtx,
                                IR2AST::StmtBuilder &ASTBuilder,
                                MarkForSerialization::Analysis &Mark);
 
 static clang::CompoundStmt *
-buildCompoundScope(ASTNode *N,
+buildCompoundScope(clang::FunctionDecl &FDecl,
+                   ASTNode *N,
                    clang::ASTContext &ASTCtx,
                    IR2AST::StmtBuilder &ASTBuilder,
                    MarkForSerialization::Analysis &Mark,
                    SmallVector<clang::Stmt *, 32> AdditionalStmts = {}) {
   SmallVector<clang::Stmt *, 32> Stmts;
-  buildAndAppendSmts(Stmts, N, ASTCtx, ASTBuilder, Mark);
+  buildAndAppendSmts(FDecl, Stmts, N, ASTCtx, ASTBuilder, Mark);
 
   // Add additional statement to handle while e dowhile condition computation.
   Stmts.append(AdditionalStmts.begin(), AdditionalStmts.end());
@@ -234,7 +237,8 @@ static clang::Expr *createCondExpr(ExprNode *E,
   return VisitStack.back().ResolvedOperands[0];
 }
 
-static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
+static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
+                               SmallVectorImpl<clang::Stmt *> &Stmts,
                                ASTNode *N,
                                clang::ASTContext &ASTCtx,
                                IR2AST::StmtBuilder &ASTBuilder,
@@ -248,7 +252,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
   case ASTNode::NodeKind::NK_Break: {
     BreakNode *Break = llvm::cast<BreakNode>(N);
     if (Break->breaksFromWithinSwitch()) {
-      clang::VarDecl *StateVarD = ASTBuilder.getOrCreateSwitchStateVarDecl();
+      auto *StateVarD = ASTBuilder.getOrCreateSwitchStateVarDecl(FDecl);
       QualType T = StateVarD->getType();
       clang::Expr *State = new (ASTCtx)
         DeclRefExpr(ASTCtx, StateVarD, false, T, VK_LValue, {});
@@ -313,7 +317,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     revng_assert(CondExpr != nullptr);
 
     revng_assert(nullptr != If->getThen());
-    clang::Stmt *ThenScope = buildCompoundScope(If->getThen(),
+    clang::Stmt *ThenScope = buildCompoundScope(FDecl,
+                                                If->getThen(),
                                                 ASTCtx,
                                                 ASTBuilder,
                                                 Mark);
@@ -334,7 +339,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                      nullptr));
     } else {
 
-      clang::Stmt *ElseScope = buildCompoundScope(If->getElse(),
+      clang::Stmt *ElseScope = buildCompoundScope(FDecl,
+                                                  If->getElse(),
                                                   ASTCtx,
                                                   ASTBuilder,
                                                   Mark);
@@ -368,7 +374,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                              ASTBuilder,
                                              Mark);
 
-      clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(),
+      clang::Stmt *Body = buildCompoundScope(FDecl,
+                                             LoopBody->getBody(),
                                              ASTCtx,
                                              ASTBuilder,
                                              Mark,
@@ -388,7 +395,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
                                              ASTBuilder,
                                              Mark);
 
-      clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(),
+      clang::Stmt *Body = buildCompoundScope(FDecl,
+                                             LoopBody->getBody(),
                                              ASTCtx,
                                              ASTBuilder,
                                              Mark);
@@ -397,7 +405,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     } else {
 
       // Standard case.
-      clang::Stmt *Body = buildCompoundScope(LoopBody->getBody(),
+      clang::Stmt *Body = buildCompoundScope(FDecl,
+                                             LoopBody->getBody(),
                                              ASTCtx,
                                              ASTBuilder,
                                              Mark);
@@ -415,7 +424,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
   case ASTNode::NodeKind::NK_List: {
     SequenceNode *Seq = cast<SequenceNode>(N);
     for (ASTNode *Child : Seq->nodes())
-      buildAndAppendSmts(Stmts, Child, ASTCtx, ASTBuilder, Mark);
+      buildAndAppendSmts(FDecl, Stmts, Child, ASTCtx, ASTBuilder, Mark);
   } break;
 
   case ASTNode::NodeKind::NK_Switch: {
@@ -437,7 +446,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     } else {
       revng_assert(Switch->getOriginalBB() == nullptr);
       // This is a dispatcher switch, check the loop state variable
-      clang::VarDecl *StateVarD = ASTBuilder.getOrCreateLoopStateVarDecl();
+      clang::VarDecl *StateVarD = ASTBuilder.getOrCreateLoopStateVarDecl(FDecl);
       QualType T = StateVarD->getType();
       CondExpr = new (ASTCtx)
         DeclRefExpr(ASTCtx, StateVarD, false, T, VK_LValue, {});
@@ -474,7 +483,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       // }
       // So, first we build here the compound statement representing the scope
       // with return 5;
-      clang::Stmt *CaseBody = buildCompoundScope(CaseNode,
+      clang::Stmt *CaseBody = buildCompoundScope(FDecl,
+                                                 CaseNode,
                                                  ASTCtx,
                                                  ASTBuilder,
                                                  Mark);
@@ -538,7 +548,8 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       // Build the case
       auto *Def = new (ASTCtx) clang::DefaultStmt({}, {}, nullptr);
       // Build the body of the case
-      clang::Stmt *DefBody = buildCompoundScope(Default,
+      clang::Stmt *DefBody = buildCompoundScope(FDecl,
+                                                Default,
                                                 ASTCtx,
                                                 ASTBuilder,
                                                 Mark);
@@ -554,7 +565,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
     // If the switch needs a loop break dispatcher, reset the associated state
     // variable before emitting the switch statement.
     if (Switch->needsLoopBreakDispatcher()) {
-      clang::VarDecl *StateVarD = ASTBuilder.getOrCreateSwitchStateVarDecl();
+      auto *StateVarD = ASTBuilder.getOrCreateSwitchStateVarDecl(FDecl);
       QualType T = StateVarD->getType();
       clang::Expr *State = new (ASTCtx)
         DeclRefExpr(ASTCtx, StateVarD, false, T, VK_LValue, {});
@@ -581,7 +592,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
       // Build the AST for
       // if (CondExpr)
       //   break;
-      clang::VarDecl *StateVarD = ASTBuilder.getOrCreateSwitchStateVarDecl();
+      auto *StateVarD = ASTBuilder.getOrCreateSwitchStateVarDecl(FDecl);
       QualType T = StateVarD->getType();
       CondExpr = new (ASTCtx)
         DeclRefExpr(ASTCtx, StateVarD, false, T, VK_LValue, {});
@@ -600,7 +611,7 @@ static void buildAndAppendSmts(SmallVectorImpl<clang::Stmt *> &Stmts,
 
   case ASTNode::NodeKind::NK_Set: {
     SetNode *Set = cast<SetNode>(N);
-    clang::VarDecl *StateVarDecl = ASTBuilder.getOrCreateLoopStateVarDecl();
+    auto *StateVarDecl = ASTBuilder.getOrCreateLoopStateVarDecl(FDecl);
     QualType Type = StateVarDecl->getType();
     clang::DeclRefExpr *StateVar = new (ASTCtx)
       DeclRefExpr(ASTCtx, StateVarDecl, false, Type, VK_LValue, {});
@@ -634,7 +645,12 @@ static void buildFunctionBody(FunctionsMap::value_type &FPair,
   revng_assert(not FDecl->isVariadic());
 
   SmallVector<clang::Stmt *, 32> BodyStmts;
-  buildAndAppendSmts(BodyStmts, CombedAST.getRoot(), ASTCtx, ASTBuilder, Mark);
+  buildAndAppendSmts(*FDecl,
+                     BodyStmts,
+                     CombedAST.getRoot(),
+                     ASTCtx,
+                     ASTBuilder,
+                     Mark);
 
   SmallVector<clang::Decl *, 16> LocalVarDecls;
   for (auto &DeclPair : ASTBuilder.AllocaDecls)
@@ -721,6 +737,9 @@ private:
 
 void Decompiler::HandleTranslationUnit(ASTContext &Context) {
 
+  revng_assert(not TheF.isDeclaration());
+  revng_assert(TheF.getMetadata("revng.func.entry"));
+
   MarkForSerialization::Analysis Mark(TheF, NDuplicates);
   Mark.initialize();
   Mark.run();
@@ -732,6 +751,15 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   GlobalsMap GlobalVarAST;
   TypeDeclMap TypeDecls;
   FieldDeclMap FieldDecls;
+
+  IR2AST::StmtBuilder ASTBuilder(Mark.getToSerialize(),
+                                 Context,
+                                 GlobalVarAST,
+                                 FunctionDecls,
+                                 BlockToPHIIncoming,
+                                 TypeDecls,
+                                 FieldDecls);
+
   {
     // Build declaration of global types
     ConsumerPtr TypeDeclCreate = CreateTypeDeclCreator(TheF,
@@ -740,6 +768,7 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
     TypeDeclCreate->HandleTranslationUnit(Context);
     // Build declaration of global variables
     ConsumerPtr GlobalDecls = CreateGlobalDeclCreator(TheF,
+                                                      ASTBuilder,
                                                       GlobalVarAST,
                                                       TypeDecls,
                                                       FieldDecls);
@@ -752,22 +781,10 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
     FunDecls->HandleTranslationUnit(Context);
   }
 
-  revng_assert(not TheF.isDeclaration());
-  revng_assert(TheF.getMetadata("revng.func.entry"));
   auto It = FunctionDecls.find(&TheF);
   revng_assert(It != FunctionDecls.end());
   clang::FunctionDecl *FunctionDecl = It->second;
-
-  IR2AST::StmtBuilder ASTBuilder(TheF,
-                                 Mark.getToSerialize(),
-                                 Context,
-                                 *FunctionDecl,
-                                 GlobalVarAST,
-                                 FunctionDecls,
-                                 BlockToPHIIncoming,
-                                 TypeDecls,
-                                 FieldDecls);
-  ASTBuilder.createAST();
+  ASTBuilder.createAST(TheF, *FunctionDecl);
 
   clang::TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
   // TODO: sooner or later, whenever we start emitting complex type

@@ -9,9 +9,14 @@
 #include <clang/Frontend/FrontendAction.h>
 
 namespace llvm {
+class Function;
 class GlobalVariable;
 class Type;
 } // namespace llvm
+
+namespace IR2AST {
+class StmtBuilder;
+} // namespace IR2AST
 
 namespace clang {
 
@@ -31,10 +36,15 @@ public:
 
 public:
   GlobalDeclCreationAction(llvm::Function &F,
+                           IR2AST::StmtBuilder &ASTBldr,
                            GlobalsMap &GMap,
                            TypeDeclMap &TDecls,
                            FieldDeclMap &FieldDecls) :
-    TheF(F), GlobalVarAST(GMap), TypeDecls(TDecls), FieldDecls(FieldDecls) {}
+    TheF(F),
+    ASTBuilder(ASTBldr),
+    GlobalVarAST(GMap),
+    TypeDecls(TDecls),
+    FieldDecls(FieldDecls) {}
 
 public:
   std::unique_ptr<ASTConsumer> newASTConsumer();
@@ -44,6 +54,7 @@ public:
 
 private:
   llvm::Function &TheF;
+  IR2AST::StmtBuilder &ASTBuilder;
   GlobalsMap &GlobalVarAST;
   TypeDeclMap &TypeDecls;
   FieldDeclMap &FieldDecls;
@@ -53,11 +64,12 @@ private:
 
 inline std::unique_ptr<ASTConsumer>
 CreateGlobalDeclCreator(llvm::Function &F,
+                        IR2AST::StmtBuilder &Bldr,
                         tooling::GlobalDeclCreationAction::GlobalsMap &Map,
                         tooling::GlobalDeclCreationAction::TypeDeclMap &TDecl,
                         tooling::GlobalDeclCreationAction::FieldDeclMap &FldD) {
   using namespace tooling;
-  return GlobalDeclCreationAction(F, Map, TDecl, FldD).newASTConsumer();
+  return GlobalDeclCreationAction(F, Bldr, Map, TDecl, FldD).newASTConsumer();
 }
 
 } // end namespace clang

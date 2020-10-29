@@ -7,6 +7,7 @@
 #include <revng/Support/Assert.h>
 
 // local includes
+#include "ASTBuildAnalysis.h"
 #include "DecompilationHelpers.h"
 #include "GlobalDeclCreationAction.h"
 #include "IRASTTypeTranslation.h"
@@ -25,15 +26,21 @@ using FieldDeclMap = std::map<clang::TypeDecl *,
 class GlobalDeclsCreator : public ASTConsumer {
 public:
   explicit GlobalDeclsCreator(llvm::Function &F,
+                              IR2AST::StmtBuilder &ASTBldr,
                               GlobalsMap &GMap,
                               TypeDeclMap &TDecls,
                               FieldDeclMap &FieldDecls) :
-    TheF(F), GlobalVarAST(GMap), TypeDecls(TDecls), FieldDecls(FieldDecls) {}
+    TheF(F),
+    ASTBuilder(ASTBldr),
+    GlobalVarAST(GMap),
+    TypeDecls(TDecls),
+    FieldDecls(FieldDecls) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) override;
 
 private:
   llvm::Function &TheF;
+  IR2AST::StmtBuilder &ASTBuilder;
   GlobalsMap &GlobalVarAST;
   TypeDeclMap &TypeDecls;
   FieldDeclMap &FieldDecls;
@@ -42,7 +49,7 @@ private:
 void GlobalDeclsCreator::HandleTranslationUnit(ASTContext &Context) {
   uint64_t UnnamedNum = 0;
   TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
-  for (const GlobalVariable *G : getDirectlyUsedGlobals(TheF)) {
+  for (GlobalVariable *G : getDirectlyUsedGlobals(TheF)) {
     using namespace IRASTTypeTranslation;
     QualType ASTTy = getOrCreateQualType(G,
                                          Context,
@@ -67,7 +74,7 @@ void GlobalDeclsCreator::HandleTranslationUnit(ASTContext &Context) {
     if (G->hasInitializer()) {
       revng_assert(not G->isExternallyInitialized());
 
-      const llvm::Constant *LLVMInit = G->getInitializer();
+      llvm::Constant *LLVMInit = G->getInitializer();
       const clang::Type *UnderlyingTy = ASTTy.getTypePtrOrNull();
       if (UnderlyingTy != nullptr and not isa<llvm::ConstantExpr>(LLVMInit)) {
         clang::Expr *Init = nullptr;
@@ -93,10 +100,8 @@ void GlobalDeclsCreator::HandleTranslationUnit(ASTContext &Context) {
         } else if (UnderlyingTy->isIntegerType()
                    and not UnderlyingTy->isPointerType()
                    and not UnderlyingTy->isAnyCharacterType()) {
-          Init = IntegerLiteral::Create(Context,
-                                        LLVMInit->getUniqueInteger(),
-                                        ASTTy,
-                                        {});
+
+          Init = ASTBuilder.getLiteralFromConstant(LLVMInit);
         }
 
         if (Init)
@@ -109,6 +114,7 @@ void GlobalDeclsCreator::HandleTranslationUnit(ASTContext &Context) {
 
 std::unique_ptr<ASTConsumer> GlobalDeclCreationAction::newASTConsumer() {
   return std::make_unique<GlobalDeclsCreator>(TheF,
+                                              ASTBuilder,
                                               GlobalVarAST,
                                               TypeDecls,
                                               FieldDecls);

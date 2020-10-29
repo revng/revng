@@ -401,7 +401,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                             {});
   }
   case Instruction::Unreachable: {
-    Function *AbortFun = F.getParent()->getFunction("abort");
+    Function *AbortFun = I.getModule()->getFunction("abort");
     Expr *CalleeExpr = getExprForValue(AbortFun);
     SmallVector<Expr *, 8> Args;
     QualType ReturnType = ASTCtx.VoidTy;
@@ -547,7 +547,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
   revng_abort("Unexpected operation");
 }
 
-clang::VarDecl *StmtBuilder::getOrCreateLoopStateVarDecl() {
+clang::VarDecl *
+StmtBuilder::getOrCreateLoopStateVarDecl(clang::FunctionDecl &FDecl) {
   if (not LoopStateVarDecl) {
     IdentifierInfo &Id = ASTCtx.Idents.get("loop_state_var");
     LoopStateVarDecl = VarDecl::Create(ASTCtx,
@@ -564,7 +565,8 @@ clang::VarDecl *StmtBuilder::getOrCreateLoopStateVarDecl() {
   return LoopStateVarDecl;
 }
 
-clang::VarDecl *StmtBuilder::getOrCreateSwitchStateVarDecl() {
+clang::VarDecl *
+StmtBuilder::getOrCreateSwitchStateVarDecl(clang::FunctionDecl &FDecl) {
   if (not SwitchStateVarDecl) {
     IdentifierInfo &Id = ASTCtx.Idents.get("switch_state_var");
     QualType BoolTy = getOrCreateBoolQualType(ASTCtx, TypeDecls);
@@ -582,7 +584,7 @@ clang::VarDecl *StmtBuilder::getOrCreateSwitchStateVarDecl() {
   return SwitchStateVarDecl;
 }
 
-void StmtBuilder::createAST() {
+void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
   revng_log(ASTBuildLog,
             "Building AST for Instructions in Function " << F.getName());
 
@@ -618,7 +620,7 @@ void StmtBuilder::createAST() {
       // Each PHINode has an associated VarDecl
       if (isa<PHINode>(&I)) {
         revng_assert(VarDecls.count(&I) == 0);
-        VarDecl *NewVarDecl = createVarDecl(&I);
+        VarDecl *NewVarDecl = createVarDecl(&I, FDecl);
         VarDecls[&I] = NewVarDecl;
         continue;
       }
@@ -661,7 +663,7 @@ void StmtBuilder::createAST() {
 
       if (isa<InsertValueInst>(&I) or isa<ExtractValueInst>(&I)) {
         revng_assert(VarDecls.count(&I) == 0);
-        VarDecl *NewVarDecl = createVarDecl(&I);
+        VarDecl *NewVarDecl = createVarDecl(&I, FDecl);
         VarDecls[&I] = NewVarDecl;
 
         if (auto *Insert = dyn_cast<InsertValueInst>(&I)) {
@@ -697,14 +699,15 @@ void StmtBuilder::createAST() {
       if (not isa<InsertValueInst>(&I) and not isa<ExtractValueInst>(&I)
           and I.getNumUses() > 0 and ToSerialize.count(&I)) {
         revng_assert(VarDecls.count(&I) == 0);
-        VarDecl *NewVarDecl = createVarDecl(&I);
+        VarDecl *NewVarDecl = createVarDecl(&I, FDecl);
         VarDecls[&I] = NewVarDecl;
       }
     }
   }
 }
 
-VarDecl *StmtBuilder::createVarDecl(Instruction *I) {
+VarDecl *
+StmtBuilder::createVarDecl(Instruction *I, clang::FunctionDecl &FDecl) {
   clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
   QualType ASTType = getOrCreateQualType(I,
                                          ASTCtx,

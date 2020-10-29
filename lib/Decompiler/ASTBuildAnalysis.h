@@ -20,6 +20,9 @@
 #include <revng/Support/MonotoneFramework.h>
 
 namespace clang {
+class ASTContext;
+class Expr;
+class FieldDecl;
 class FunctionDecl;
 class LabelDecl;
 class VarDecl;
@@ -56,9 +59,7 @@ private:
   using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
   using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
 
-  llvm::Function &F;
   const std::set<llvm::Instruction *> &ToSerialize;
-  clang::FunctionDecl &FDecl;
   clang::ASTContext &ASTCtx;
   uint64_t NVar;
 
@@ -75,18 +76,14 @@ public:
   BBPHIMap &BlockToPHIIncoming;
 
 public:
-  StmtBuilder(llvm::Function &F,
-              const std::set<llvm::Instruction *> &ToSerialize,
+  StmtBuilder(const std::set<llvm::Instruction *> &ToSerialize,
               clang::ASTContext &Ctx,
-              clang::FunctionDecl &FD,
               GlobalsMap &GMap,
               FunctionsMap &FMap,
               BBPHIMap &BlockToPHIIncoming,
               TypeDeclMap &TypeDecls,
               FieldDeclMap &FieldDecls) :
-    F(F),
     ToSerialize(ToSerialize),
-    FDecl(FD),
     ASTCtx(Ctx),
     NVar(0),
     AllocaDecls(),
@@ -99,24 +96,24 @@ public:
     FieldDecls(FieldDecls),
     BlockToPHIIncoming(BlockToPHIIncoming) {}
 
-  void createAST();
+  void createAST(llvm::Function &F, clang::FunctionDecl &FD);
 
   clang::Expr *getExprForValue(llvm::Value *V);
   clang::Expr *getUIntLiteral(uint64_t U);
   clang::Expr *getBoolLiteral(bool V);
+  clang::Expr *getLiteralFromConstant(llvm::Constant *C);
 
-  clang::VarDecl *getOrCreateLoopStateVarDecl();
-  clang::VarDecl *getOrCreateSwitchStateVarDecl();
+  clang::VarDecl *getOrCreateLoopStateVarDecl(clang::FunctionDecl &FD);
+  clang::VarDecl *getOrCreateSwitchStateVarDecl(clang::FunctionDecl &FD);
 
   clang::VarDecl *getLoopStateVarDecl() const { return LoopStateVarDecl; }
   clang::VarDecl *getSwitchStateVarDecl() const { return SwitchStateVarDecl; }
 
 private:
-  clang::VarDecl *createVarDecl(llvm::Instruction *I);
+  clang::VarDecl *createVarDecl(llvm::Instruction *I, clang::FunctionDecl &FD);
   clang::Stmt *buildStmt(llvm::Instruction &I);
   clang::Expr *createRValueExprForBinaryOperator(llvm::Instruction &I);
   clang::Expr *getParenthesizedExprForValue(llvm::Value *V);
-  clang::Expr *getLiteralFromConstant(llvm::Constant *C);
 
 private:
   clang::VarDecl *LoopStateVarDecl = nullptr;
