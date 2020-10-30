@@ -11,6 +11,7 @@
 
 // LLVM includes
 #include <llvm/ADT/PostOrderIterator.h>
+#include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Dominators.h>
 #include <llvm/IR/Function.h>
 #include <llvm/Support/Casting.h>
@@ -23,6 +24,7 @@
 #include <revng/Support/IRHelpers.h>
 
 // revng-c includes
+#include "revng-c/RestructureCFGPass/BasicBlockNodeImpl.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 // Local libraries includes
@@ -393,10 +395,25 @@ static RegisterPass<RestructureCFG> X("restructure-cfg",
                                       true,
                                       true);
 
-static cl::opt<std::string> OutputPath("restructure-metrics-output-dir",
-                                       desc("Restructure metrics dir"),
-                                       value_desc("restructure-dir"),
-                                       cat(MainCategory));
+static cl::opt<std::string> MetricsOutputPath("restructure-metrics-output-dir",
+                                              desc("Restructure metrics dir"),
+                                              value_desc("restructure-dir"),
+                                              cat(MainCategory));
+
+inline void
+accumulateDuplicates(RegionCFG<llvm::BasicBlock *> &Region,
+                     std::map<llvm::BasicBlock *, size_t> &NDuplicates) {
+  // Compute the NDuplicates, which will be used later.
+  for (BasicBlockNodeBB *BBNode : Region.nodes()) {
+    if (BBNode->isCode()) {
+      auto *BB = BBNode->getOriginalNode();
+      ++NDuplicates[BB];
+    } else if (BBNode->isCollapsed()) {
+      auto *BodyGraph = BBNode->getCollapsedCFG();
+      accumulateDuplicates(*BodyGraph, NDuplicates);
+    }
+  }
+}
 
 bool RestructureCFG::runOnFunction(Function &F) {
   NDuplicates.clear();
@@ -1145,15 +1162,21 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Check that the root region is acyclic at this point.
   revng_assert(RootCFG.isDAG());
 
-  // Compute the initial weight of the CFG.
+  // Collect statistics
   unsigned InitialWeight = 0;
-  for (BasicBlockNodeBB *BBNode : RootCFG.nodes()) {
-    InitialWeight += BBNode->getWeight();
+  if (MetricsOutputPath.getNumOccurrences()) {
+    revng_assert(MetricsOutputPath.getNumOccurrences() == 1);
+    // Compute the initial weight of the CFG.
+    for (BasicBlockNodeBB *BBNode : RootCFG.nodes()) {
+      InitialWeight += BBNode->getWeight();
+    }
   }
 
   // Invoke the AST generation for the root region.
-  std::map<RegionCFG<BasicBlock *> *, ASTTree> CollapsedMap;
-  generateAst(RootCFG, AST, NDuplicates, CollapsedMap);
+  std::map<RegionCFG<llvm::BasicBlock *> *, ASTTree> CollapsedMap;
+  generateAst(RootCFG, AST, CollapsedMap);
+
+  accumulateDuplicates(RootCFG, NDuplicates);
 
   // Scorporated this part which was previously inside the `generateAst` to
   // avoid having it run twice or more (it was run inside the recursive step
@@ -1162,25 +1185,54 @@ bool RestructureCFG::runOnFunction(Function &F) {
   normalize(AST, F.getName());
 
   // Serialize final AST on file
-  if (CombLogger.isEnabled()) {
+  if (CombLogger.isEnabled())
     AST.dumpOnFile("ast", F.getName(), "Final");
-  }
-
-  // Collect the number of cloned nodes introduced by the comb for a single
-  // `llvm::BasicBlock`, information which is needed later in the
-  // `MarkForSerialization` pass.
-  //
-  // Collect also the final weight of the CFG.
-  unsigned FinalWeight = 0;
-
-  // Compute the increase in weight.
-  float Increase = float(FinalWeight) / float(InitialWeight);
 
   // Serialize the collected metrics in the outputfile.
-  if (OutputPath.getNumOccurrences() == 1) {
+  if (MetricsOutputPath.getNumOccurrences()) {
+    // Compute the increase in weight, on the AST
+    unsigned FinalWeight = 0;
+    for (ASTNode *N : AST.nodes()) {
+      switch (N->getKind()) {
+      case ASTNode::NK_Scs:
+      case ASTNode::NK_If:
+      case ASTNode::NK_Switch: {
+        // Control-flow nodes emit single constructs, so we just increase the
+        // weight by one.
+        // Control-flow nodes would also have nested scopes (then-else for if,
+        // cases for switch, loop body for scs). However, those nodes are visted
+        // separately, and will be accounted for later.
+        ++FinalWeight;
+      } break;
+      case ASTNode::NK_Set:
+      case ASTNode::NK_Break:
+      case ASTNode::NK_SwitchBreak:
+      case ASTNode::NK_Continue: {
+        // These AST Nodes are emitted as single instructions.
+        // Just increase the weight by one.
+        ++FinalWeight;
+      } break;
+      case ASTNode::NK_List: {
+        // Sequence nodes are just scopes, they don't have a real weight.
+        // Their weight is just sum of the weights of the nodes they contain,
+        // that will be visited nevertheless.
+      } break;
+      case ASTNode::NK_Code: {
+        auto *BB = cast<CodeNode>(N)->getOriginalBB();
+        revng_assert(BB);
+        FinalWeight += WeightTraits<llvm::BasicBlock *>::getWeight(BB);
+      } break;
+      default:
+        revng_abort("unxpected AST node");
+      }
+    }
+
+    float Increase = float(FinalWeight) / float(InitialWeight);
+
     std::ofstream Output;
     const char *FunctionName = F.getName().data();
-    std::ostream &OutputStream = pathToStream(OutputPath + "/" + FunctionName,
+    std::ostream &OutputStream = pathToStream(MetricsOutputPath + "/"
+                                                + FunctionName,
                                               Output);
     OutputStream << "function,"
                     "duplications,percentage,tuntangle,puntangle,iweight\n";

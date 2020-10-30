@@ -19,6 +19,7 @@
 #include <llvm/ADT/SCCIterator.h>
 #include <llvm/ADT/SmallPtrSet.h>
 #include <llvm/ADT/SmallSet.h>
+#include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Dominators.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
@@ -340,62 +341,57 @@ createTile(RegionCFG<NodeT> &Graph,
   TileToNodeMap[Tile] = Node;
 }
 
-template<class NodeT>
-inline void generateAst(RegionCFG<NodeT> &Region,
-                        ASTTree &AST,
-                        typename RegionCFG<NodeT>::DuplicationMap &NDuplicates,
-                        std::map<RegionCFG<NodeT> *, ASTTree> &CollapsedMap) {
+// This was a function template, but it's never instantiated anywhere else with
+// a template paramenter different from llvm::BasicBlock *, so we dropped the
+// template for now.
+// It will probably come back when we unit-test this.
+//
+// template<typename NodeT>
+inline void
+generateAst(RegionCFG<llvm::BasicBlock *> &Region,
+            ASTTree &AST,
+            std::map<RegionCFG<llvm::BasicBlock *> *, ASTTree> &CollapsedMap) {
   // Define some using used in all the function body.
+  using NodeT = llvm::BasicBlock *;
   using BasicBlockNodeT = typename RegionCFG<NodeT>::BasicBlockNodeT;
-  using BasicBlockNodeTVect = typename RegionCFG<NodeT>::BasicBlockNodeTVect;
 
   // Get some fields of `RegionCFG`.
   std::string RegionName = Region.getRegionName();
   std::string FunctionName = Region.getFunctionName();
 
-  RegionCFG<NodeT> &Graph = Region;
-
-  Graph.markUnexpectedAndAnyPCAsInlined();
+  Region.markUnexpectedAndAnyPCAsInlined();
 
   if (CombLogger.isEnabled()) {
     CombLogger << "Weaveing region " + RegionName + "\n";
-    Graph.dumpDotOnFile("weaves", FunctionName, "PREWEAVE");
+    Region.dumpDotOnFile("weaves", FunctionName, "PREWEAVE");
   }
 
   // Invoke the weave function.
-  Graph.weave();
+  Region.weave();
 
   if (CombLogger.isEnabled()) {
-    Graph.dumpDotOnFile("weaves", FunctionName, "POSTWEAVE");
+    Region.dumpDotOnFile("weaves", FunctionName, "POSTWEAVE");
 
     CombLogger << "Inflating region " + RegionName + "\n";
-    Graph.dumpDotOnFile("dots", FunctionName, "PRECOMB");
+    Region.dumpDotOnFile("dots", FunctionName, "PRECOMB");
   }
 
-  Graph.inflate();
+  Region.inflate();
   if (CombLogger.isEnabled()) {
-    Graph.dumpDotOnFile("dots", FunctionName, "POSTCOMB");
-  }
-
-  // Compute the NDuplicates, which will be used later.
-  // TODO: this now doesn't run multiple
-  for (BasicBlockNodeBB *BBNode : Graph.nodes()) {
-    if (BBNode->isCode()) {
-      llvm::BasicBlock *BB = BBNode->getOriginalNode();
-      NDuplicates[BB] += 1;
-    }
+    Region.dumpDotOnFile("dots", FunctionName, "POSTCOMB");
   }
 
   // TODO: factorize out the AST generation phase.
   llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> ASTDT;
-  ASTDT.recalculate(Graph);
+  ASTDT.recalculate(Region);
 
   CombLogger << DoLog;
 
   std::map<BasicBlockNode<NodeT> *, BasicBlockNode<NodeT> *> TileToNodeMap;
 
+  using BasicBlockNodeTVect = typename RegionCFG<NodeT>::BasicBlockNodeTVect;
   BasicBlockNodeTVect PONodes;
-  for (auto *N : post_order(&Graph))
+  for (auto *N : post_order(&Region))
     PONodes.push_back(N);
 
   unsigned Counter = 0;
@@ -403,9 +399,9 @@ inline void generateAst(RegionCFG<NodeT> &Region,
 
     if (CombLogger.isEnabled()) {
       Counter++;
-      Graph.dumpDotOnFile("dots",
-                          FunctionName,
-                          "AST-" + std::to_string(Counter));
+      Region.dumpDotOnFile("dots",
+                           FunctionName,
+                           "AST-" + std::to_string(Counter));
     }
 
     // Collect the children nodes in the dominator tree.
@@ -435,7 +431,8 @@ inline void generateAst(RegionCFG<NodeT> &Region,
       const auto &[It, New] = CollapsedMap.insert({ BodyGraph, ASTTree() });
       ASTTree &CollapsedAST = It->second;
       if (New)
-        generateAst(*BodyGraph, CollapsedAST, NDuplicates, CollapsedMap);
+        generateAst(*BodyGraph, CollapsedAST, CollapsedMap);
+
       ASTNode *Body = AST.copyASTNodesFrom(CollapsedAST);
 
       switch (Successors.size()) {
@@ -449,7 +446,7 @@ inline void generateAst(RegionCFG<NodeT> &Region,
         ASTNode *ASTChild = nullptr;
         if (ASTDT.dominates(Node, Succ)) {
           ASTChild = findASTNode(AST, TileToNodeMap, Succ);
-          createTile(Graph, ASTDT, TileToNodeMap, Node, Succ);
+          createTile(Region, ASTDT, TileToNodeMap, Node, Succ);
         }
         ASTObject.reset(new ScsNode(Node, Body, ASTChild));
       } break;
@@ -464,7 +461,7 @@ inline void generateAst(RegionCFG<NodeT> &Region,
 
       llvm::Value *SwitchCondition = nullptr;
       if (not Node->isDispatcher()) {
-        llvm::BasicBlock *OriginalNode = Node->getOriginalNode();
+        NodeT OriginalNode = Node->getOriginalNode();
         llvm::Instruction *Terminator = OriginalNode->getTerminator();
         llvm::SwitchInst *Switch = llvm::cast<llvm::SwitchInst>(Terminator);
         SwitchCondition = Switch->getCondition();
@@ -541,7 +538,7 @@ inline void generateAst(RegionCFG<NodeT> &Region,
         }
       }
 
-      createTile(Graph, ASTDT, TileToNodeMap, Node, PostDomBB);
+      createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB);
 
       ASTObject.reset(new SwitchNode(Node,
                                      SwitchCondition,
@@ -614,7 +611,7 @@ inline void generateAst(RegionCFG<NodeT> &Region,
             if (DominatedSucc == Successor2)
               Else = findASTNode(AST, TileToNodeMap, Successor2);
           }
-          createTile(Graph, ASTDT, TileToNodeMap, Node, NotDominatedSucc);
+          createTile(Region, ASTDT, TileToNodeMap, Node, NotDominatedSucc);
 
           // Build the `IfNode`.
           using UniqueExpr = ASTTree::expr_unique_ptr;
@@ -695,7 +692,7 @@ inline void generateAst(RegionCFG<NodeT> &Region,
 
           ASTObject.reset(new IfNode(Node, Condition, Then, Else, PostDom));
 
-          createTile(Graph, ASTDT, TileToNodeMap, Node, PostDomBB);
+          createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB);
         } break;
         case 3: {
 
@@ -737,7 +734,7 @@ inline void generateAst(RegionCFG<NodeT> &Region,
           ExprNode *Condition = AST.addCondExpr(std::move(CondExpr));
           ASTObject.reset(new IfNode(Node, Condition, Then, Else, PostDom));
 
-          createTile(Graph, ASTDT, TileToNodeMap, Node, PostDomBB);
+          createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB);
         } break;
 
         default: {
@@ -778,7 +775,7 @@ inline void generateAst(RegionCFG<NodeT> &Region,
           } else {
             ASTObject.reset(new CodeNode(Node, Succ));
           }
-          createTile(Graph, ASTDT, TileToNodeMap, Node, Children[0]);
+          createTile(Region, ASTDT, TileToNodeMap, Node, Children[0]);
         } break;
 
         default: {

@@ -102,8 +102,10 @@ Analysis::InterruptType Analysis::transfer(BasicBlock *BB) {
           continue;
         }
         Instruction *UserI = cast<Instruction>(U);
-        if (NBBDuplicates != NDuplicates.at(UserI->getParent())) {
-          // revng_assert(NBBDuplicates < NDuplicates.at(UserI->getParent()));
+        auto *UserBB = UserI->getParent();
+        auto NUserDuplicates = NDuplicates.at(UserBB);
+        revng_assert(isa<PHINode>(UserI) or NBBDuplicates <= NUserDuplicates);
+        if (NBBDuplicates < NUserDuplicates) {
           markValueToSerialize(&I);
         } else {
           Pending.insert(&I);
