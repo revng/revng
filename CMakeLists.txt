@@ -59,17 +59,6 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   if (EXISTS ${INPUT_FILE})
     message(VERBOSE "Input file found: ${INPUT_FILE}")
 
-    add_test(NAME remove_pc_stores_${TARGET_NAME} COMMAND opt -S
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemovePCStoresPass.so
-      -remove-pc-stores
-      ${INPUT_FILE}
-      -o /dev/null
-      )
-    set_property(TEST remove_pc_stores_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP RemovePCStores_fixture_${TARGET_NAME}
-      )
-
     add_test(NAME remove_newpc_calls_${TARGET_NAME} COMMAND opt -S
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveNewPCCalls.so
@@ -81,30 +70,85 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       FIXTURES_SETUP RemoveNewPCCalls_fixture_${TARGET_NAME}
       )
 
+    add_test(NAME remove_exception_calls_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveExceptionCalls.so
+      -remove-exception-calls
+      ${INPUT_FILE}
+      -o /dev/null
+      )
+    set_property(TEST remove_exception_calls_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP RemoveExceptionCalls_fixture_${TARGET_NAME}
+      )
+
+    add_test(NAME remove_llvmassume_calls_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveLLVMAssumeCalls.so
+      -remove-llvmassume-calls
+      ${INPUT_FILE}
+      -o /dev/null
+      )
+    set_property(TEST remove_llvmassume_calls_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP RemoveLLVMAssumeCalls_fixture_${TARGET_NAME}
+      )
+
+    add_test(NAME remove_cpuloop_calls_${TARGET_NAME} COMMAND opt -S
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveCpuLoopStore.so
+      -remove-cpu-loop-store
+      ${INPUT_FILE}
+      -o /dev/null
+      )
+    set_property(TEST remove_cpuloop_calls_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP RemoveCpuLoopCalls_fixture_${TARGET_NAME}
+      )
+
     # prepare enforced .ll for decompilation
     add_test(NAME prepare_${TARGET_NAME} COMMAND opt -S
       -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemovePCStoresPass.so
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveCpuLoopStore.so
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveExceptionCalls.so
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveLLVMAssumeCalls.so
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveNewPCCalls.so
-      -remove-pc-stores -remove-newpc-calls
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemovePCStoresPass.so
+      -remove-newpc-calls
+      -remove-exception-calls
+      -remove-cpu-loop-store
+      -dce
+      -simplifycfg
+      -remove-llvmassume-calls
+      -dce
       ${INPUT_FILE}
       -o ${TARGET_NAME}_prepared.ll
       )
-    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS remove_pc_stores_${TARGET_NAME}
-      )
-    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS remove_bad_pc_${TARGET_NAME}
-      )
+
     set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
       DEPENDS remove_newpc_calls_${TARGET_NAME}
       )
     set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED RemovePCStores_fixture_${TARGET_NAME}
+      DEPENDS remove_exception_calls_${TARGET_NAME}
+      )
+    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS remove_llvmassume_calls_${TARGET_NAME}
+      )
+    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS remove_cpuloop_calls_${TARGET_NAME}
       )
     set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_REQUIRED RemoveNewPCCalls_fixture_${TARGET_NAME}
+      )
+    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED RemoveExceptionCalls_fixture_${TARGET_NAME}
+      )
+    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED RemoveLLVMAssumeCalls_fixture_${TARGET_NAME}
+      )
+    set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED RemoveCpuLoopCalls_fixture_${TARGET_NAME}
       )
     set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME}

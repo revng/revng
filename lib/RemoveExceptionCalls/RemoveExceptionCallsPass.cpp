@@ -11,26 +11,29 @@
 #include <revng/Support/IRHelpers.h>
 
 // Local libraries includes
-#include "revng-c/RemoveNewPCCalls/RemoveNewPCCallsPass.h"
+#include "revng-c/RemoveExceptionCalls/RemoveExceptionCallsPass.h"
 
 using namespace llvm;
 
-char RemoveNewPCCallsPass::ID = 0;
-using Reg = RegisterPass<RemoveNewPCCallsPass>;
-static Reg X("remove-newpc-calls", "Removes calls to newpc", true, true);
+char RemoveExceptionCallsPass::ID = 0;
+using Reg = RegisterPass<RemoveExceptionCallsPass>;
+static Reg X("remove-exception-calls",
+             "Removes calls to raise_exception_helper",
+             true,
+             true);
 
-bool RemoveNewPCCallsPass::runOnFunction(Function &F) {
+bool RemoveExceptionCallsPass::runOnFunction(Function &F) {
 
   // Skip non translated functions.
   if (not F.hasMetadata("revng.func.entry"))
     return false;
 
-  // Remove calls to `newpc` in the current function.
+  // Remove calls to `raise_exception_helper` in the current function.
   SmallVector<Instruction *, 8> ToErase;
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB)
       if (auto *C = dyn_cast<CallInst>(&I))
-        if (getCallee(C)->getName() == "newpc")
+        if (getCallee(C)->getName() == "raise_exception_helper")
           ToErase.push_back(C);
   }
 

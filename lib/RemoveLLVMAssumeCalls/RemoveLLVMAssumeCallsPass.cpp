@@ -11,26 +11,27 @@
 #include <revng/Support/IRHelpers.h>
 
 // Local libraries includes
-#include "revng-c/RemoveNewPCCalls/RemoveNewPCCallsPass.h"
+#include "revng-c/RemoveLLVMAssumeCalls/RemoveLLVMAssumeCallsPass.h"
 
 using namespace llvm;
 
-char RemoveNewPCCallsPass::ID = 0;
-using Reg = RegisterPass<RemoveNewPCCallsPass>;
-static Reg X("remove-newpc-calls", "Removes calls to newpc", true, true);
+char RemoveLLVMAssumeCallsPass::ID = 0;
+using Reg = RegisterPass<RemoveLLVMAssumeCallsPass>;
+static Reg
+  X("remove-llvmassume-calls", "Removes calls to assume intrinsic", true, true);
 
-bool RemoveNewPCCallsPass::runOnFunction(Function &F) {
+bool RemoveLLVMAssumeCallsPass::runOnFunction(Function &F) {
 
   // Skip non translated functions.
   if (not F.hasMetadata("revng.func.entry"))
     return false;
 
-  // Remove calls to `newpc` in the current function.
+  // Remove calls to `llvm.assume` in isolated functions.
   SmallVector<Instruction *, 8> ToErase;
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB)
       if (auto *C = dyn_cast<CallInst>(&I))
-        if (getCallee(C)->getName() == "newpc")
+        if (getCallee(C)->getName() == "llvm.assume")
           ToErase.push_back(C);
   }
 
