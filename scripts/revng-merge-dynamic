@@ -1,6 +1,4 @@
-#!/usr/bin/env python2
-
-# TODO: this script works with Python 2 only due to limitations in pyelftools
+#!/usr/bin/env python3
 
 # * DR_{INIT,FINI}_ARRAY?
 
@@ -249,7 +247,7 @@ class ParsedElf:
             + len(self.sections) * self.elf.structs.Elf_Shdr.sizeof())
 
 def align(start, alignment):
-  return ((start + alignment - 1) / alignment) * alignment
+  return int((start + alignment - 1) / alignment) * alignment
 
 def main():
   parser = argparse.ArgumentParser(description=("Merge the dynamic portions of "
@@ -332,7 +330,7 @@ def main():
     # Prepare new .dynstr
     new_dynstr = to_extend_elf.dynstr
     dynstr_offset = len(new_dynstr)
-    assert new_dynstr[-1] == b"\x00"
+    assert new_dynstr[-1] == 0
     new_dynstr += source_elf.dynstr
 
     to_extend_size = file_size(to_extend_file)
@@ -455,7 +453,7 @@ def main():
     for i in range(len(defined_symbols) - 1):
       chain[defined_symbols[i]] = defined_symbols[i + 1]
     chain = [struct.pack(parse32, chain[i]) for i in range(len(chain))]
-    chain = "".join(chain)
+    chain = b"".join(chain)
 
     new_hash = (struct.pack(parse32, 1)
                 + struct.pack(parse32, symbols_count)
@@ -570,7 +568,7 @@ def main():
           + " expected:\n  Expected: {}\n  Actual: {}".format(estimated_size,
                                                               new_segment_size))
 
-    zeros = "\x00" * segment_header_size
+    zeros = b"\x00" * segment_header_size
     new_segment = source_elf.elf.structs.Elf_Phdr.parse(zeros)
     new_segment.p_type = ENUM_P_TYPE["PT_LOAD"]
     new_segment.p_memsz = new_segment_size
