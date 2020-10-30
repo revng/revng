@@ -97,6 +97,7 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
       continue;
 
     uint32_t Reasons = GCBI.getJTReasons(&BB);
+    bool IsFunctionSymbol = hasReason(Reasons, JTReason::FunctionSymbol);
     bool IsCallee = hasReason(Reasons, JTReason::Callee);
     bool IsUnusedGlobalData = hasReason(Reasons, JTReason::UnusedGlobalData);
     bool IsMemoryStore = hasReason(Reasons, JTReason::MemoryStore);
@@ -104,7 +105,7 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
     bool IsReturnAddress = hasReason(Reasons, JTReason::ReturnAddress);
     bool IsLoadAddress = hasReason(Reasons, JTReason::LoadAddress);
 
-    if (IsCallee) {
+    if (IsFunctionSymbol or IsCallee) {
       // Called addresses are a strong hint
       Functions.emplace_back(&BB, true);
     } else if (not IsLoadAddress
