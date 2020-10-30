@@ -637,7 +637,6 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
           // considered as the immediate postdominator of the tile.
           auto *SuccOfSucc1 = getDirectSuccessor(Successor1);
           auto *SuccOfSucc2 = getDirectSuccessor(Successor2);
-          revng_assert(SuccOfSucc1 != SuccOfSucc2 or nullptr == SuccOfSucc1);
 
           using ConstEdge = std::pair<const BasicBlockNodeT *,
                                       const BasicBlockNodeT *>;
@@ -648,29 +647,37 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
           ASTNode *Else = nullptr;
           BasicBlockNode<NodeT> *PostDomBB = nullptr;
 
-          if (Inlined1 and Inlined2) {
-            revng_assert(ASTDT.dominates(Node, Successor1));
-            revng_assert(ASTDT.dominates(Node, Successor2));
-            Then = findASTNode(AST, TileToNodeMap, Successor1);
-            Else = findASTNode(AST, TileToNodeMap, Successor2);
-          } else if (Inlined1) {
-            revng_assert(ASTDT.dominates(Node, Successor1));
-            Then = findASTNode(AST, TileToNodeMap, Successor1);
-            PostDomBB = Successor2;
-          } else if (Inlined2) {
-            revng_assert(ASTDT.dominates(Node, Successor2));
-            Else = findASTNode(AST, TileToNodeMap, Successor2);
-            PostDomBB = Successor1;
-          } else if (SuccOfSucc1 == Successor2) {
-            revng_assert(SuccOfSucc2 != Successor1);
-            revng_assert(ASTDT.dominates(Node, Successor1));
-            Then = findASTNode(AST, TileToNodeMap, Successor1);
-            PostDomBB = Successor2;
-          } else if (SuccOfSucc2 == Successor1) {
-            revng_assert(SuccOfSucc1 != Successor2);
-            revng_assert(ASTDT.dominates(Node, Successor2));
-            Else = findASTNode(AST, TileToNodeMap, Successor2);
-            PostDomBB = Successor1;
+          if (SuccOfSucc1 != SuccOfSucc2) {
+
+            if (Inlined1 and Inlined2) {
+              revng_assert(ASTDT.dominates(Node, Successor1));
+              revng_assert(ASTDT.dominates(Node, Successor2));
+              Then = findASTNode(AST, TileToNodeMap, Successor1);
+              Else = findASTNode(AST, TileToNodeMap, Successor2);
+            } else if (Inlined1) {
+              revng_assert(ASTDT.dominates(Node, Successor1));
+              Then = findASTNode(AST, TileToNodeMap, Successor1);
+              PostDomBB = Successor2;
+            } else if (Inlined2) {
+              revng_assert(ASTDT.dominates(Node, Successor2));
+              Else = findASTNode(AST, TileToNodeMap, Successor2);
+              PostDomBB = Successor1;
+            } else if (SuccOfSucc1 == Successor2) {
+              revng_assert(SuccOfSucc2 != Successor1);
+              revng_assert(ASTDT.dominates(Node, Successor1));
+              Then = findASTNode(AST, TileToNodeMap, Successor1);
+              PostDomBB = Successor2;
+            } else if (SuccOfSucc2 == Successor1) {
+              revng_assert(SuccOfSucc1 != Successor2);
+              revng_assert(ASTDT.dominates(Node, Successor2));
+              Else = findASTNode(AST, TileToNodeMap, Successor2);
+              PostDomBB = Successor1;
+            } else {
+              revng_assert(ASTDT.dominates(Node, Successor1));
+              revng_assert(ASTDT.dominates(Node, Successor2));
+              Then = findASTNode(AST, TileToNodeMap, Successor1);
+              Else = findASTNode(AST, TileToNodeMap, Successor2);
+            }
           } else {
             revng_assert(ASTDT.dominates(Node, Successor1));
             revng_assert(ASTDT.dominates(Node, Successor2));
