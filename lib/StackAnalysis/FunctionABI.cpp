@@ -241,8 +241,6 @@ template<typename K, typename V, typename Q, size_t N>
 static void
 combine(DefaultMap<K, V, N> &This, const DefaultMap<K, Q, N> &Other) {
 
-  combine(This.Default, Other.Default);
-
   // TODO: use zipmap_range
 
   This.sort();
@@ -290,6 +288,8 @@ combine(DefaultMap<K, V, N> &This, const DefaultMap<K, Q, N> &Other) {
   // Handle the elements we registered
   for (auto *P : Missing)
     combine(This[P->first], P->second);
+
+  combine(This.Default, Other.Default);
 }
 
 template<typename V, typename T, size_t N>
@@ -356,8 +356,6 @@ template<typename K, typename V, typename Q, size_t N>
 static void
 returnFromCall(DefaultMap<K, V, N> &This, const DefaultMap<K, Q, N> &Other) {
 
-  returnFromCall(This.Default, Other.Default);
-
   This.sort();
   Other.sort();
   llvm::SmallVector<const std::pair<const K, Q> *, N> Missing;
@@ -403,6 +401,8 @@ returnFromCall(DefaultMap<K, V, N> &This, const DefaultMap<K, Q, N> &Other) {
   // Handle the elements we registered
   for (auto *P : Missing)
     returnFromCall(This[P->first], P->second);
+
+  returnFromCall(This.Default, Other.Default);
 }
 
 template<typename K, typename T1, size_t N>
