@@ -22,7 +22,7 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
-    AU.addRequired<StackAnalysis<false>>();
+    AU.addRequired<StackAnalysis<true>>();
   }
 
   void serialize(std::ostream &Output, llvm::Module &M);
