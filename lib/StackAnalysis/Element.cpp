@@ -244,19 +244,29 @@ void Element::apply(const Element &Other) {
 std::set<ASSlot> Element::computeCalleeSavedSlots() const {
   std::set<ASSlot> Result;
 
-  unsigned I = 0;
-  for (const AddressSpace &ASS : State) {
-    for (auto &P : ASS.ASOContent) {
+  // Look in the stack leftovers
+  uint32_t CPUID = ASID::cpuID().id();
+  uint32_t StackID = ASID::stackID().id();
+  if (State.size() > StackID and State.size() > CPUID) {
+    std::set<ASSlot> StackLeftovers;
+    for (auto &P : State[StackID].ASOContent) {
       // Do we have direct content with a name?
       if (const ASSlot *T = P.second.tag()) {
-        // Is the name the same as the current slot?
-        ASSlot Slot = ASSlot::create(ASID(I), P.first);
-        if (*T == Slot)
-          Result.insert(Slot);
+        // Is the tag referreing to a CSV?
+        if (T->addressSpace() == ASID::cpuID())
+          StackLeftovers.insert(*T);
       }
     }
 
-    I++;
+    for (auto &P : State[CPUID].ASOContent) {
+      // Do we have direct content with a name?
+      if (const ASSlot *T = P.second.tag()) {
+        // Is the name the same as the current slot?
+        ASSlot Slot = ASSlot::create(ASID::cpuID(), P.first);
+        if (*T == Slot and StackLeftovers.count(Slot) != 0)
+          Result.insert(Slot);
+      }
+    }
   }
 
   return Result;
