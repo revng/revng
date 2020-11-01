@@ -367,8 +367,9 @@ void FunctionsSummary::dumpInternal(const Module *M,
       Output << "      {\n";
       Output << "        \"caller\": ";
       Output << "\"" << getName(CallSite.Call) << "\",\n";
+      Output << "        \"callee\": ";
+      Output << "\"" << getName(CallSite.Callee) << "\",\n";
       // TODO: caller address
-      // TODO: callee
       // TODO: callee address
       Output << "        \"slots\": [";
       const char *FunctionCallSlotsDelimiter = "";
