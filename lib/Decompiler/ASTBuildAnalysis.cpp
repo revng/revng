@@ -636,7 +636,9 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
         // First, create a VarDecl, for an array of char to place in the
         // BasicBlock where the AllocaInst is
         const DataLayout &DL = F.getParent()->getDataLayout();
-        uint64_t AllocaSize = *Alloca->getAllocationSizeInBits(DL);
+        auto *AllocatedTy = Alloca->getAllocatedType();
+        uint64_t AllocaSize = DL.getTypeAllocSize(AllocatedTy);
+
         revng_assert(AllocaSize <= std::numeric_limits<unsigned>::max());
         APInt ArraySize = APInt(32, static_cast<unsigned>(AllocaSize));
         using ArraySizeMod = clang::ArrayType::ArraySizeModifier;
