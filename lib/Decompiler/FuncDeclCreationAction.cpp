@@ -1,4 +1,5 @@
 // LLVM includes
+#include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/Module.h>
 
@@ -81,25 +82,45 @@ static FunctionDecl *createFunDecl(ASTContext &Context,
                                                 FDeclType,
                                                 nullptr,
                                                 FunStorage);
-  unsigned N = 0;
+
   auto ParmDecls = SmallVector<ParmVarDecl *, 4>(ArgTypes.size(), nullptr);
-  for (QualType ArgTy : ArgTypes) {
-    unsigned ParamIdx = N++;
-    IdentifierInfo *ParmId = nullptr;
-    if (not HasNoParams)
-      ParmId = &Context.Idents.get("param_" + std::to_string(ParamIdx));
+  if (HasNoParams) {
+    revng_assert(ArgTypes.size() == 1 and ArgTypes[0] == Context.VoidTy);
     ParmVarDecl *P = ParmVarDecl::Create(Context,
                                          NewFDecl,
                                          {},
                                          {},
-                                         ParmId,
-                                         ArgTy,
+                                         nullptr /* Parameter Identifier */,
+                                         ArgTypes[0],
                                          nullptr,
                                          StorageClass::SC_None,
                                          nullptr);
-    P->setScopeInfo(0, ParamIdx);
-    ParmDecls[ParamIdx] = P;
+    P->setScopeInfo(0, 0);
+    ParmDecls[0] = P;
+  } else {
+    revng_assert(not ArgTypes.empty());
+    revng_assert(F->arg_size() == ArgTypes.size());
+    for (auto &Group : llvm::enumerate(F->args())) {
+      QualType ArgTy = ArgTypes[Group.index()];
+      const std::string ParamName = Group.value().hasName() ?
+                                      Group.value().getName().str() :
+                                      std::string("param_")
+                                        + std::to_string(Group.index());
+      IdentifierInfo *ParmId = &Context.Idents.get(makeCIdentifier(ParamName));
+      ParmVarDecl *P = ParmVarDecl::Create(Context,
+                                           NewFDecl,
+                                           {},
+                                           {},
+                                           ParmId,
+                                           ArgTy,
+                                           nullptr,
+                                           StorageClass::SC_None,
+                                           nullptr);
+      P->setScopeInfo(0, Group.index());
+      ParmDecls[Group.index()] = P;
+    }
   }
+
   NewFDecl->setParams(ParmDecls);
   return NewFDecl;
 }

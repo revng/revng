@@ -649,8 +649,12 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
                                                        nullptr,
                                                        SizeMod,
                                                        0);
-        const std::string VarName = "var_" + std::to_string(NVar++);
-        IdentifierInfo &Id = ASTCtx.Idents.get(VarName);
+        const std::string VarName = std::string("local_")
+                                    + (I.hasName() ?
+                                         I.getName().str() :
+                                         (std::string("var_")
+                                          + std::to_string(NVar++)));
+        IdentifierInfo &Id = ASTCtx.Idents.get(makeCIdentifier(VarName));
         VarDecl *ArrayDecl = VarDecl::Create(ASTCtx,
                                              &FDecl,
                                              {},
@@ -717,8 +721,10 @@ StmtBuilder::createVarDecl(Instruction *I, clang::FunctionDecl &FDecl) {
                                          TypeDecls,
                                          FieldDecls);
   revng_assert(not ASTType.isNull());
-  const std::string VarName = "var_" + std::to_string(NVar++);
-  IdentifierInfo &Id = ASTCtx.Idents.get(VarName);
+  const std::string VarName = I->hasName() ?
+                                I->getName().str() :
+                                (std::string("var_") + std::to_string(NVar++));
+  IdentifierInfo &Id = ASTCtx.Idents.get(makeCIdentifier(VarName));
   VarDecl *NewVarDecl = VarDecl::Create(ASTCtx,
                                         &FDecl,
                                         {},
