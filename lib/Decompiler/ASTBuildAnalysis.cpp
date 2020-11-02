@@ -667,33 +667,31 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
         AllocaDecls[Alloca] = ArrayDecl;
       }
 
-      if (isa<InsertValueInst>(&I) or isa<ExtractValueInst>(&I)) {
+      if (auto *Insert = dyn_cast<InsertValueInst>(&I)) {
         revng_assert(VarDecls.count(&I) == 0);
         VarDecl *NewVarDecl = createVarDecl(&I, FDecl);
         VarDecls[&I] = NewVarDecl;
 
-        if (auto *Insert = dyn_cast<InsertValueInst>(&I)) {
-          Value *AggregateOp = Insert->getAggregateOperand();
-          if (auto *CS = dyn_cast<ConstantStruct>(AggregateOp)) {
-            std::vector<Expr *> StructOpExpr;
-            for (auto &OperandUse : CS->operands()) {
-              Value *Operand = OperandUse.get();
-              Constant *OperandConst = cast<Constant>(Operand);
-              clang::Expr *OperandExpr = nullptr;
-              if (isa<UndefValue>(OperandConst)) {
-                QualType IntT = ASTCtx.IntTy;
-                OperandExpr = new (ASTCtx) ImplicitValueInitExpr(IntT);
-              } else {
-                OperandExpr = getLiteralFromConstant(OperandConst);
-              }
-              revng_assert(OperandExpr != nullptr);
-              StructOpExpr.push_back(OperandExpr);
+        Value *AggregateOp = Insert->getAggregateOperand();
+        if (auto *CS = dyn_cast<ConstantStruct>(AggregateOp)) {
+          std::vector<Expr *> StructOpExpr;
+          for (auto &OperandUse : CS->operands()) {
+            Value *Operand = OperandUse.get();
+            Constant *OperandConst = cast<Constant>(Operand);
+            clang::Expr *OperandExpr = nullptr;
+            if (isa<UndefValue>(OperandConst)) {
+              QualType IntT = ASTCtx.IntTy;
+              OperandExpr = new (ASTCtx) ImplicitValueInitExpr(IntT);
+            } else {
+              OperandExpr = getLiteralFromConstant(OperandConst);
             }
-
-            clang::Expr *ILE = new (ASTCtx)
-              InitListExpr(ASTCtx, {}, StructOpExpr, {});
-            NewVarDecl->setInit(ILE);
+            revng_assert(OperandExpr != nullptr);
+            StructOpExpr.push_back(OperandExpr);
           }
+
+          clang::Expr *ILE = new (ASTCtx)
+            InitListExpr(ASTCtx, {}, StructOpExpr, {});
+          NewVarDecl->setInit(ILE);
         }
       }
 
@@ -702,8 +700,8 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
         continue;
       InstrStmts[&I] = NewStmt;
 
-      if (not isa<InsertValueInst>(&I) and not isa<ExtractValueInst>(&I)
-          and I.getNumUses() > 0 and ToSerialize.count(&I)) {
+      if (not isa<InsertValueInst>(&I) and I.getNumUses() > 0
+          and ToSerialize.count(&I)) {
         revng_assert(VarDecls.count(&I) == 0);
         VarDecl *NewVarDecl = createVarDecl(&I, FDecl);
         VarDecls[&I] = NewVarDecl;
