@@ -180,12 +180,14 @@ static clang::Expr *createCondExpr(ExprNode *E,
     case ExprNode::NodeKind::NK_Atomic: {
       AtomicNode *Atomic = cast<AtomicNode>(Current.Node);
       llvm::BasicBlock *BB = Atomic->getConditionalBasicBlock();
+      revng_assert(BB != nullptr);
       buildStmtsForBasicBlock(BB, ASTCtx, Stmts, ASTBuilder, Mark);
       llvm::Instruction *CondTerminator = BB->getTerminator();
       llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
       revng_assert(Br->isConditional());
       llvm::Value *CondValue = Br->getCondition();
       clang::Expr *CondExpr = ASTBuilder.getExprForValue(CondValue);
+      revng_assert(CondExpr);
       VisitStack.pop_back();
       VisitStack.back().ResolvedOperands.push_back(CondExpr);
     } break;
@@ -304,10 +306,6 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
 
   case ASTNode::NodeKind::NK_If: {
     IfNode *If = cast<IfNode>(N);
-
-    llvm::BasicBlock *BB = If->getOriginalBB();
-    revng_assert(BB != nullptr);
-    buildStmtsForBasicBlock(BB, ASTCtx, Stmts, ASTBuilder, Mark);
 
     clang::Expr *CondExpr = createCondExpr(If->getCondExpr(),
                                            ASTCtx,
