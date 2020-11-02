@@ -21,6 +21,7 @@
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/StackAnalysis/FunctionsSummary.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/OpaqueFunctionsPool.h"
 
 using namespace llvm;
 
@@ -137,14 +138,15 @@ public:
     M(M),
     GCBI(GCBI),
     FunctionDispatcher(M.getFunction("function_dispatcher")),
-    Context(M.getContext()) {}
+    Context(M.getContext()),
+    IndirectPlaceholderPool(&M, false) {}
 
   void run();
 
 private:
   FunctionsSummary::FunctionDescription handleFunction(Function &F);
 
-  void handleRegularFunctionCall(Instruction *Call);
+  void handleRegularFunctionCall(CallInst *Call);
   void handleHelperFunctionCall(CallInst *Call);
   void generateCall(IRBuilder<> &Builder,
                     Function *Callee,
@@ -161,6 +163,7 @@ private:
   LLVMContext &Context;
   std::map<HelperCallSite, Function *> HelperCallSites;
   std::map<GlobalVariable *, unsigned> CSVToIndex;
+  OpaqueFunctionsPool<FunctionType *> IndirectPlaceholderPool;
 };
 
 bool EnforceABI::runOnModule(Module &M) {
@@ -303,7 +306,7 @@ void EnforceABIImpl::run() {
   }
 
   // Collect the list of function calls we intend to handle
-  std::vector<Instruction *> RegularFunctionCalls;
+  std::vector<CallInst *> RegularFunctionCalls;
   std::vector<CallInst *> HelperFunctionCalls;
   for (auto &P : FunctionsMap) {
     Function &F = *cast<Function>(P.second.Function);
@@ -313,10 +316,11 @@ void EnforceABIImpl::run() {
 
         auto *FuncCall = I.getMetadata("func.call");
         if (FuncCall != nullptr) {
-          if (CallInst *HelperCall = getCallToHelper(&I)) {
-            HelperFunctionCalls.push_back(HelperCall);
+          CallInst *Call = cast<CallInst>(&I);
+          if (isCallToHelper(Call)) {
+            HelperFunctionCalls.push_back(Call);
           } else {
-            RegularFunctionCalls.push_back(&I);
+            RegularFunctionCalls.push_back(Call);
           }
         }
 
@@ -351,8 +355,8 @@ void EnforceABIImpl::run() {
   }
 
   // Handle function calls in isolated functions
-  for (Instruction *I : RegularFunctionCalls)
-    handleRegularFunctionCall(I);
+  for (CallInst *Call : RegularFunctionCalls)
+    handleRegularFunctionCall(Call);
 
   // Handle function calls to helpers in isolated functions
   for (CallInst *Call : HelperFunctionCalls)
@@ -396,8 +400,12 @@ void EnforceABIImpl::run() {
       BB->eraseFromParent();
   }
 
-  raw_os_ostream Stream(dbg);
-  revng_assert(verifyModule(M, &Stream) == false);
+  bool Invalid;
+  {
+    raw_os_ostream Stream(dbg);
+    Invalid = verifyModule(M, &Stream);
+  }
+  revng_assert(not Invalid);
 }
 
 void EnforceABIImpl::handleRoot() {
@@ -629,53 +637,23 @@ void EnforceABIImpl::handleHelperFunctionCall(CallInst *Call) {
   Call->eraseFromParent();
 }
 
-void EnforceABIImpl::handleRegularFunctionCall(Instruction *I) {
+void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
+  Function *Callee = cast<Function>(skipCasts(Call->getCalledValue()));
+  bool IsDirect = (Callee != FunctionDispatcher);
+  if (IsDirect)
+    Callee = OldToNew.at(Callee);
+
   using namespace StackAnalysis;
   QuickMetadata QMD(Context);
 
-  BranchType::Values BranchType = BranchType::Invalid;
-
-  bool IsNoReturn = false;
-  bool IsIndirectTailCall = false;
-  if (I->isTerminator()) {
-    // TODO: we have a "regular function call" (i.e., an instruction with a
-    //       `func.call` metadata) that *is not* a `CallInst`. This should never
-    //       happen, since it's FunctionIsolation's responsibility to take care
-    //       of this. However, currently, FunctionIsolation relies on
-    //       `function_call` to emit `CallInst`s (instead of `func.call`). Once
-    //       this is fixed in FunctionIsolation, all of this should go.
-    auto *Tuple = cast<MDTuple>(I->getMetadata("member.type"));
-    BranchType = BranchType::fromName(QMD.extract<StringRef>(Tuple, 0));
-
-    switch (BranchType) {
-    case BranchType::HandledCall:
-      revng_abort();
-      break;
-    case BranchType::IndirectTailCall:
-      IsIndirectTailCall = true;
-      break;
-    case BranchType::LongJmp:
-    case BranchType::Killer:
-      IsNoReturn = true;
-      break;
-    default:
-      revng_abort();
-    }
-
-  } else {
-    revng_assert(isa<CallInst>(I));
-    BranchType = BranchType::HandledCall;
-    IsIndirectTailCall = false;
-    IsNoReturn = false;
-  }
-
   // Temporary variable we're going to populate using metadata
-  CallSiteDescription CallSite(I, nullptr);
+  CallSiteDescription CallSite(Call, nullptr);
 
-  auto *FuncCall = cast<MDTuple>(I->getMetadata("func.call"));
-  revng_assert(FuncCall != nullptr);
+  auto *FuncCall = cast<MDTuple>(Call->getMetadata("func.call"));
 
-  // Iterate over all the slots
+  //
+  // Collect arguments and return values
+  //
   auto *Slots = cast<MDTuple>(QMD.extract<MDTuple *>(FuncCall, 0));
   for (const MDOperand &Operand : Slots->operands()) {
     auto *SlotTuple = cast<MDTuple>(Operand.get());
@@ -693,27 +671,18 @@ void EnforceABIImpl::handleRegularFunctionCall(Instruction *I) {
     };
   }
 
-  Function *Callee = nullptr;
-  if (auto *Call = dyn_cast<CallInst>(I))
-    Callee = cast_or_null<Function>(skipCasts(Call->getCalledValue()));
-
-  if (DisableSafetyChecks
-      or (Callee != nullptr and Callee != FunctionDispatcher)) {
-
-    if (Callee != nullptr and Callee != FunctionDispatcher)
-      Callee = OldToNew.at(Callee);
-
+  if (DisableSafetyChecks or IsDirect) {
     // The callee is a well-known callee, generate a direct call
-    IRBuilder<> Builder(I);
+    IRBuilder<> Builder(Call);
     generateCall(Builder, Callee, CallSite);
   } else {
     // If it's an indirect call, enumerate all the compatible callees and
     // generate a call for each of them
 
-    EnforceABILog << getName(I) << " is an indirect call compatible with:\n";
+    EnforceABILog << getName(Call) << " is an indirect call compatible with:\n";
 
-    BasicBlock *BeforeSplit = I->getParent();
-    BasicBlock *AfterSplit = BeforeSplit->splitBasicBlock(I);
+    BasicBlock *BeforeSplit = Call->getParent();
+    BasicBlock *AfterSplit = BeforeSplit->splitBasicBlock(Call);
     BeforeSplit->getTerminator()->eraseFromParent();
 
     IRBuilder<> Builder(BeforeSplit);
@@ -760,68 +729,21 @@ void EnforceABIImpl::handleRegularFunctionCall(Instruction *I) {
     EnforceABILog << Count << " functions" << DoLog;
   }
 
-  BasicBlock *BB = I->getParent();
-
-  if (IsIndirectTailCall) {
-    // If we find an indirect tail call, we know that our successor after the
-    // function isolation will be a single basic block which contains a call
-    // to the function dispatcher, and a return void (function isolation was
-    // easy) that we need to replace with an actual return with eventual return
-    // values here.
-    Function *CurrentF = I->getParent()->getParent();
-    I->eraseFromParent();
-    FunctionsSummary::FunctionDescription &Function = FunctionsMap.at(CurrentF);
-    llvm::SmallVector<Type *, 8> ReturnTypes;
-    llvm::SmallVector<GlobalVariable *, 8> ReturnCSVs;
-    for (auto &P : Function.RegisterSlots) {
-      GlobalVariable *CSV = P.first;
-
-      // Collect return values.
-      if (shouldEmit(P.second.ReturnValue)) {
-        ReturnTypes.push_back(CSV->getType()->getPointerElementType());
-        ReturnCSVs.push_back(CSV);
-      }
-    }
-    // Build the return value
-    IRBuilder<> Builder(BB);
-    std::vector<Value *> ReturnValues;
-    for (GlobalVariable *ReturnCSV : ReturnCSVs)
-      ReturnValues.push_back(Builder.CreateLoad(ReturnCSV));
-
-    if (ReturnTypes.size() == 0)
-      Builder.CreateRetVoid();
-    else if (ReturnTypes.size() == 1)
-      Builder.CreateRet(ReturnValues[0]);
-    else
-      Builder.CreateAggregateRet(ReturnValues.data(), ReturnValues.size());
-
-  } else if (IsNoReturn) {
-    auto It = BB->rbegin();
-    while (&*It != I) {
-      Instruction *I = &*It;
-      It++;
-      revng_assert(not isa<AllocaInst>(I));
-      I->eraseFromParent();
-    }
-    I->eraseFromParent();
-    new UnreachableInst(getContext(BB), BB);
-  } else {
-    I->eraseFromParent();
-  }
-
-  revng_assert(BB->getTerminator() != nullptr);
+  Call->eraseFromParent();
 }
 
 void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
                                   Function *Callee,
                                   CallSiteDescription &CallSite) {
+  revng_assert(Callee != nullptr);
 
   llvm::SmallVector<Type *, 8> ArgumentsTypes;
   llvm::SmallVector<Value *, 8> Arguments;
   llvm::SmallVector<Type *, 8> ReturnTypes;
   llvm::SmallVector<GlobalVariable *, 8> ReturnCSVs;
 
-  if (Callee == nullptr or Callee == FunctionDispatcher) {
+  bool IsDirect = (Callee != FunctionDispatcher);
+  if (not IsDirect) {
     revng_assert(DisableSafetyChecks);
 
     // Collect arguments, returns and their type.
@@ -849,15 +771,12 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
     else
       ReturnType = StructType::create(ReturnTypes);
 
-    // Create new function
+    // Create a new `indirect_placeholder` function with the specific function
+    // type we need
     auto *NewType = FunctionType::get(ReturnType, ArgumentsTypes, false);
-    Module *CurrentM = Builder.GetInsertBlock()->getParent()->getParent();
-    auto *NewFunction = Function::Create(NewType,
-                                         GlobalValue::ExternalLinkage,
-                                         "indirect_placeholder",
-                                         CurrentM);
-    // The callee is now the newly created `indirect-placeholder`.
-    Callee = NewFunction;
+    Callee = IndirectPlaceholderPool.get(NewType,
+                                         NewType,
+                                         "indirect_placeholder");
   } else {
 
     // Additional debug checks if we are not emitting an indirect call.
@@ -906,6 +825,9 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
 }
 
 void EnforceABIImpl::replaceCSVsWithAlloca() {
+  OpaqueFunctionsPool<StringRef> CSVInitializers(&M, false);
+  CSVInitializers.addFnAttribute(Attribute::ReadOnly);
+  CSVInitializers.addFnAttribute(Attribute::NoUnwind);
 
   // Each CSV has a map. The key of the map is a Funciton, and the mapped value
   // is an AllocaInst used to locally represent that CSV.
@@ -943,7 +865,9 @@ void EnforceABIImpl::replaceCSVsWithAlloca() {
     // Create an alloca for each CSV and replace all uses of CSVs with the
     // corresponding allocas
     BasicBlock &Entry = F.getEntryBlock();
-    IRBuilder<> AllocaBuilder(&Entry, Entry.begin());
+    IRBuilder<> InitializersBuilder(&Entry, Entry.begin());
+    auto *Separator = InitializersBuilder.CreateUnreachable();
+    IRBuilder<> AllocaBuilder(Separator);
 
     // For each GlobalVariable representing a CSV used in F, create a dedicated
     // alloca and save it in CSVMaps.
@@ -956,7 +880,17 @@ void EnforceABIImpl::replaceCSVsWithAlloca() {
                                                 nullptr,
                                                 CSV->getName());
 
-      // Ignore it if it's not a CSV.
+      // Initialize all allocas with opaque, CSV-specific values
+      auto *Initializer = CSVInitializers.get(CSV->getName(),
+                                              CSVType,
+                                              {},
+                                              Twine("init_") + CSV->getName());
+      {
+        auto &B = InitializersBuilder;
+        B.CreateStore(B.CreateCall(Initializer), Alloca);
+      }
+
+      // Ignore it if it's not a CSV
       auto CSVPosIt = CSVPosition.find(CSV);
       if (CSVPosIt == CSVPosition.end())
         continue;
@@ -964,8 +898,9 @@ void EnforceABIImpl::replaceCSVsWithAlloca() {
       auto CSVPos = CSVPosIt->second;
       CSVMaps[CSVPos][&F] = Alloca;
     }
-  }
 
+    Separator->eraseFromParent();
+  }
   // Substitute the uses of the GlobalVariables representing the CSVs with the
   // dedicate AllocaInst that were created in each Function.
   for (GlobalVariable *CSV : GCBI.csvs()) {

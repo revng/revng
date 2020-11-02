@@ -49,6 +49,19 @@ inline const char *getName(Values Type) {
   revng_abort();
 }
 
+inline Values fromName(llvm::StringRef Name) {
+  if (Name == "Invalid")
+    return Invalid;
+  else if (Name == "Regular")
+    return Regular;
+  else if (Name == "NoReturn")
+    return NoReturn;
+  else if (Name == "Fake")
+    return Fake;
+  else
+    revng_abort();
+}
+
 } // namespace FunctionType
 
 /// \brief Intraprocedural analysis interruption reasons

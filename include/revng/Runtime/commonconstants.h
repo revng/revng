@@ -17,7 +17,9 @@ typedef enum {
   BadReturnAddress,
   /// Call to the function dispatcher with a PC not corresponding to any
   /// function entry block
-  FunctionDispatcherFallBack
+  FunctionDispatcherFallBack,
+  /// Execution has reached the return address of a noreturn function call
+  ReturnFromNoReturn
 } Reason;
 
 #endif // COMMONCONSTANTS_H
