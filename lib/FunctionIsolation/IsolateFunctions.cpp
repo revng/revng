@@ -37,13 +37,6 @@ using IFI = IsolateFunctionsImpl;
 char IF::ID = 0;
 static RegisterPass<IF> X("isolate", "Isolate Functions Pass", true, true);
 
-static cl::opt<bool> DisableSafetyChecks("isolate-no-safety-checks",
-                                         cl::desc("Disable safety checks in "
-                                                  "function "
-                                                  "isolation"),
-                                         cl::cat(MainCategory),
-                                         cl::init(false));
-
 class IsolateFunctionsImpl {
 private:
   struct IsolatedFunctionDescriptor {
@@ -409,25 +402,19 @@ void IFI::replaceFunctionCall(StackAnalysis::BranchType::Values BranchType,
     if (FallthroughOldIt != RootToIsolated.end()) {
       BasicBlock *FallthroughNew = cast<BasicBlock>(FallthroughOldIt->second);
 
-      if (DisableSafetyChecks) {
-        // Assume no bad return PCs
-        Builder.CreateBr(FallthroughNew);
-      } else {
-        // Additional check for the return address PC
-        LoadInst *ProgramCounter = Builder.CreateLoad(PC, "");
-        Value *Result = Builder.CreateICmpEQ(ProgramCounter, FallthroughPCCI);
+      // Additional check for the return address PC
+      LoadInst *ProgramCounter = Builder.CreateLoad(PC, "");
+      Value *Result = Builder.CreateICmpEQ(ProgramCounter, FallthroughPCCI);
 
-        // Create a basic block that we hit if the current PC is not the one
-        // expected after the function call
-        auto *PCMismatch = BasicBlock::Create(Context,
-                                              NewBB->getName()
-                                                + "_bad_return_pc",
-                                              NewBB->getParent());
-        throwException(BadReturnAddress, PCMismatch, FallthroughPC);
+      // Create a basic block that we hit if the current PC is not the one
+      // expected after the function call
+      auto *PCMismatch = BasicBlock::Create(Context,
+                                            NewBB->getName() + "_bad_return_pc",
+                                            NewBB->getParent());
+      throwException(BadReturnAddress, PCMismatch, FallthroughPC);
 
-        // Conditional branch to jump to the right block
-        Builder.CreateCondBr(Result, FallthroughNew, PCMismatch);
-      }
+      // Conditional branch to jump to the right block
+      Builder.CreateCondBr(Result, FallthroughNew, PCMismatch);
     } else {
       // If the fallthrough basic block is not in the current function raise an
       // exception
