@@ -69,7 +69,7 @@ static clang::Expr *negateExpr(clang::ASTContext &ASTCtx, clang::Expr *E) {
     E = new (ASTCtx) ParenExpr({}, {}, E);
   using Unary = clang::UnaryOperator;
   E = new (ASTCtx) Unary(E,
-                         UnaryOperatorKind::UO_Not,
+                         UnaryOperatorKind::UO_LNot,
                          E->getType(),
                          VK_RValue,
                          OK_Ordinary,
