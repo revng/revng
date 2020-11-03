@@ -1,19 +1,24 @@
 revng_add_analyses_library(Decompiler revngc
-                           ASTBuildAnalysis.cpp
-                           CDecompilerAction.cpp
-                           CDecompilerBeautify.cpp
-                           CDecompilerPass.cpp
-                           DecompilationHelpers.cpp
-                           FuncDeclCreationAction.cpp
-                           GlobalDeclCreationAction.cpp
-                           IRASTTypeTranslation.cpp
-                           MarkForSerialization.cpp
-                           TypeDeclCreationAction.cpp)
+  ASTBuildAnalysis.cpp
+  CDecompiler.cpp
+  CDecompilerAction.cpp
+  CDecompilerBeautify.cpp
+  CDecompilerPass.cpp
+  DecompilationHelpers.cpp
+  FuncDeclCreationAction.cpp
+  GlobalDeclCreationAction.cpp
+  IRASTTypeTranslation.cpp
+  MarkForSerialization.cpp
+  TypeDeclCreationAction.cpp)
 
 target_link_libraries(Decompiler
   DecompilerResourceFinder
   PHIASAPAssignmentInfo
   RestructureCFGPass
+  RemoveNewPCCalls
+  RemoveCpuLoopStore
+  RemoveExceptionCalls
+  RemoveLLVMAssumeCalls
   revng::revngSupport
   clangTooling
   clangAST

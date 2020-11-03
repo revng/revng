@@ -37,8 +37,17 @@ add_definitions(${LLVM_DEFINITIONS})
 include_directories(${LLVM_INCLUDE_DIRS})
 
 # LLVM CMake stuff
-llvm_map_components_to_libnames(LLVM_LIBRARIES core support irreader ScalarOpts
-  linker Analysis object transformutils)
+llvm_map_components_to_libnames(LLVM_LIBRARIES
+  Analysis
+  CodeGen
+  InstCombine
+  ScalarOpts
+  core
+  irreader
+  linker
+  object
+  support
+  transformutils)
 
 add_subdirectory(include)
 add_subdirectory(lib)
