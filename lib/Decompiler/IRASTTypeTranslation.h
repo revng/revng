@@ -45,6 +45,7 @@ clang::QualType getOrCreateQualType(const llvm::GlobalVariable *G,
                                     FieldDeclMap &FieldDecls);
 
 clang::QualType getOrCreateQualType(const llvm::Type *T,
+                                    const llvm::Value *NamingValue,
                                     clang::ASTContext &ASTCtx,
                                     clang::DeclContext &DeclCtx,
                                     TypeDeclMap &TypeDecls,

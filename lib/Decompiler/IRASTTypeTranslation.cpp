@@ -1,10 +1,12 @@
 // LLVM includes
 #include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
+#include <llvm/Support/Casting.h>
 
 // clang includes
 #include <clang/AST/ASTContext.h>
@@ -69,6 +71,7 @@ clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
 }
 
 clang::QualType getOrCreateQualType(const llvm::Type *Ty,
+                                    const llvm::Value *NamingValue,
                                     clang::ASTContext &ASTCtx,
                                     clang::DeclContext &DeclCtx,
                                     TypeDeclMap &TypeDecls,
@@ -138,6 +141,7 @@ clang::QualType getOrCreateQualType(const llvm::Type *Ty,
     const llvm::PointerType *PtrTy = llvm::cast<llvm::PointerType>(Ty);
     const llvm::Type *PointeeTy = PtrTy->getElementType();
     clang::QualType PointeeType = getOrCreateQualType(PointeeTy,
+                                                      nullptr,
                                                       ASTCtx,
                                                       DeclCtx,
                                                       TypeDecls,
@@ -159,10 +163,18 @@ clang::QualType getOrCreateQualType(const llvm::Type *Ty,
 
     const llvm::StructType *StructTy = llvm::cast<llvm::StructType>(Ty);
     std::string TypeName;
-    if (StructTy->hasName())
+    if (StructTy->hasName()) {
       TypeName = makeCIdentifier(StructTy->getName());
-    else
+    } else if (NamingValue and NamingValue->hasName()) {
+      if (auto *F = llvm::dyn_cast_or_null<llvm::Function>(NamingValue))
+        TypeName = makeCIdentifier(F->getName().str())
+                   + std::string("_ret_type");
+      else
+        TypeName = makeCIdentifier(NamingValue->getName().str())
+                   + std::string("_type");
+    } else {
       TypeName = "type_" + std::to_string(TypeDecls.size());
+    }
     clang::IdentifierInfo &TypeId = ASTCtx.Idents.get(TypeName);
     auto *Struct = clang::RecordDecl::Create(ASTCtx,
                                              clang::TTK_Struct,
@@ -184,6 +196,7 @@ clang::QualType getOrCreateQualType(const llvm::Type *Ty,
         break;
       }
       clang::QualType QFieldTy = getOrCreateQualType(FieldTy,
+                                                     nullptr,
                                                      ASTCtx,
                                                      DeclCtx,
                                                      TypeDecls,
@@ -233,7 +246,7 @@ clang::QualType getOrCreateQualType(const llvm::GlobalVariable *G,
                                     FieldDeclMap &FieldDecls) {
   llvm::PointerType *GlobalPtrTy = llvm::cast<llvm::PointerType>(G->getType());
   llvm::Type *Ty = GlobalPtrTy->getElementType();
-  return getOrCreateQualType(Ty, ASTCtx, DeclCtx, TypeDecls, FieldDecls);
+  return getOrCreateQualType(Ty, G, ASTCtx, DeclCtx, TypeDecls, FieldDecls);
 }
 
 clang::QualType getOrCreateQualType(const llvm::Value *I,
@@ -242,7 +255,7 @@ clang::QualType getOrCreateQualType(const llvm::Value *I,
                                     TypeDeclMap &TypeDecls,
                                     FieldDeclMap &FieldDecls) {
   llvm::Type *Ty = I->getType();
-  return getOrCreateQualType(Ty, ASTCtx, DeclCtx, TypeDecls, FieldDecls);
+  return getOrCreateQualType(Ty, I, ASTCtx, DeclCtx, TypeDecls, FieldDecls);
 }
 
 } // end namespace IRASTTypeTranslation

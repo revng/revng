@@ -29,6 +29,7 @@ static std::vector<TypePair> createTypeDecls(ASTContext &Context,
   if (llvm::Type *RetTy = dyn_cast<llvm::StructType>(FType->getReturnType())) {
 
     IRASTTypeTranslation::getOrCreateQualType(RetTy,
+                                              F,
                                               Context,
                                               *TUDecl,
                                               TypeDecls,

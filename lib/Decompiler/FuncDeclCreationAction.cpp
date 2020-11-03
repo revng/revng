@@ -33,23 +33,27 @@ static FunctionDecl *createFunDecl(ASTContext &Context,
 
   llvm::Type *RetTy = FType->getReturnType();
   QualType RetType = IRASTTypeTranslation::getOrCreateQualType(RetTy,
+                                                               F,
                                                                Context,
                                                                *TUDecl,
                                                                TypeDecls,
                                                                FieldDecls);
 
-  SmallVector<QualType, 4> VoidArgsTy(1, Context.VoidTy);
   SmallVector<QualType, 4> ArgTypes = {};
-  for (const llvm::Type *T : FType->params()) {
+  revng_assert(FType->getNumParams() == F->arg_size());
+  for (const auto &[T, Arg] : llvm::zip_first(FType->params(), F->args())) {
+    revng_assert(T == Arg.getType());
     // In function declarations all pointers parameters are void *.
     // This is a temporary workaround to reduce warnings
     QualType ArgType = Context.VoidPtrTy;
-    if (not isa<llvm::PointerType>(T))
+    if (not isa<llvm::PointerType>(T)) {
       ArgType = IRASTTypeTranslation::getOrCreateQualType(T,
+                                                          &Arg,
                                                           Context,
                                                           *TUDecl,
                                                           TypeDecls,
                                                           FieldDecls);
+    }
     ArgTypes.push_back(ArgType);
   }
   const bool HasNoParams = ArgTypes.empty();

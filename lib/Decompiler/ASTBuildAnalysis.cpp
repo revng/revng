@@ -5,7 +5,9 @@
 //
 
 // LLVM includes
+#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Instruction.h>
+#include <llvm/IR/Instructions.h>
 
 // clang includes
 #include <clang/AST/ASTContext.h>
@@ -388,7 +390,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     }
 
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    QualType ReturnType = getOrCreateQualType(TheCall,
+    QualType ReturnType = getOrCreateQualType(TheCall->getType(),
+                                              TheCall->getCalledFunction(),
                                               ASTCtx,
                                               TUDecl,
                                               TypeDecls,
@@ -426,7 +429,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     clang::TypeDecl *StructTypeDecl = TypeDecls.at(AggregateTy);
     Expr *StructExpr = getExprForValue(Insert);
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    QualType InsertedTy = getOrCreateQualType(Insert,
+    QualType InsertedTy = getOrCreateQualType(Insert->getType(),
+                                              Insert->getFunction(),
                                               ASTCtx,
                                               TUDecl,
                                               TypeDecls,
@@ -713,11 +717,26 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
 VarDecl *
 StmtBuilder::createVarDecl(Instruction *I, clang::FunctionDecl &FDecl) {
   clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-  QualType ASTType = getOrCreateQualType(I,
-                                         ASTCtx,
-                                         TUDecl,
-                                         TypeDecls,
-                                         FieldDecls);
+  QualType ASTType;
+  if (auto *Call = dyn_cast<llvm::CallInst>(I)) {
+    ASTType = getOrCreateQualType(Call->getType(),
+                                  Call->getCalledFunction(),
+                                  ASTCtx,
+                                  TUDecl,
+                                  TypeDecls,
+                                  FieldDecls);
+  } else if (auto *Insert = dyn_cast<llvm::InsertValueInst>(I)) {
+    ASTType = getOrCreateQualType(Insert->getType(),
+                                  Insert->getFunction(),
+                                  ASTCtx,
+                                  TUDecl,
+                                  TypeDecls,
+                                  FieldDecls);
+  } else {
+    revng_assert(not isa<llvm::StructType>(I->getType()));
+    ASTType = getOrCreateQualType(I, ASTCtx, TUDecl, TypeDecls, FieldDecls);
+  }
+
   revng_assert(not ASTType.isNull());
   const std::string VarName = I->hasName() ?
                                 I->getName().str() :
@@ -1096,6 +1115,7 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
         revng_assert(RHSTy->isIntOrPtrTy() and LHSTy->isIntOrPtrTy());
         clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
         QualType DestTy = getOrCreateQualType(LHSTy,
+                                              nullptr,
                                               ASTCtx,
                                               TUDecl,
                                               TypeDecls,
