@@ -6,9 +6,36 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <set>
+#include <tuple>
+#include <unordered_map>
+#include <vector>
+
+#include "llvm/IR/InstIterator.h"
+
 #include "revng-c/TypeShrinking/DefUse.h"
+#include "revng-c/TypeShrinking/MFP.h"
 
 namespace TypeShrinking {
+
+template std::unordered_map<DataFlowNode *,
+                            std::tuple<std::set<int>, std::set<int>>>
+getMaximalFixedPoint(std::set<int> (*combineValues)(std::set<int> &,
+                                                    std::set<int> &),
+                     bool (*isLess)(std::set<int> &, std::set<int> &),
+                     bool (*areEqual)(std::set<int> &, std::set<int> &),
+                     GenericGraph<DataFlowNode> &Flow,
+                     std::set<int> ExtremalValue,
+                     std::set<int> BottomValue,
+                     std::vector<DataFlowNode *> &ExtremalLabels,
+                     // Temporarily disable clang-format here. It conflicts with
+                     // revng conventions
+                     // clang-format off
+                     std::function<std::set<int>(std::set<int> &)>
+                       (*getTransferFunction)(DataFlowNode *)
+                     // clang-format on
+);
+
 GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F) {
   GenericGraph<DataFlowNode> DataFlowGraph{};
   std::vector<DataFlowNode *> Worklist;
