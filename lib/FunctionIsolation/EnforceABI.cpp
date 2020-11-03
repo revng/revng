@@ -160,6 +160,7 @@ private:
   std::map<Function *, FunctionsSummary::FunctionDescription> FunctionsMap;
   std::map<Function *, Function *> OldToNew;
   Function *FunctionDispatcher;
+  Function *OpaquePC;
   LLVMContext &Context;
   std::map<HelperCallSite, Function *> HelperCallSites;
   std::map<GlobalVariable *, unsigned> CSVToIndex;
@@ -285,6 +286,21 @@ createHelperWrapper(Function *Helper,
 }
 
 void EnforceABIImpl::run() {
+
+  // Declare an opaque function used later to obtain a value to store in the
+  // local %pc alloca, so that we don't incur in error when removing the bad
+  // return pc checks.
+  Type *PCType = GCBI.pcReg()->getType()->getPointerElementType();
+  auto *OpaqueFT = FunctionType::get(PCType,
+                                     {},
+                                     false);
+  OpaquePC = Function::Create(OpaqueFT,
+                              Function::ExternalLinkage,
+                              "opaque_pc",
+                              M);
+  OpaquePC->addFnAttr(Attribute::NoUnwind);
+  OpaquePC->addFnAttr(Attribute::ReadOnly);
+
   // Collect functions we need to handle
   std::vector<Function *> Functions;
   for (Function &F : M)
@@ -675,6 +691,18 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
     // The callee is a well-known callee, generate a direct call
     IRBuilder<> Builder(Call);
     generateCall(Builder, Callee, CallSite);
+
+    // Create an additional store to the local %pc, so that the optimizer cannot
+    // do stuff with llvm.assume.
+    revng_assert(OpaquePC != nullptr);
+    auto *OpaqueValue = Builder.CreateCall(OpaquePC);
+
+    // The store here is done in the global CSV, since the
+    // `replaceCSVsWithAlloca` method pass after us, and place the corresponding
+    // alloca here.
+    Value *PCCSV = GCBI.pcReg();
+    Builder.CreateStore(OpaqueValue, PCCSV);
+
   } else {
     // If it's an indirect call, enumerate all the compatible callees and
     // generate a call for each of them
