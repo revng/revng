@@ -115,11 +115,24 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveNewPCCalls.so
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemovePCStoresPass.so
+      # Remove revng's artifacts from IR
       -remove-newpc-calls
       -remove-exception-calls
       -remove-cpu-loop-store
+      # Optimize IR with LLVM's passes
       -dce
       -simplifycfg
+      -dse
+      -instcombine
+      -sroa
+      -constprop
+      -jump-threading
+      -licm
+      -unreachableblockelim
+      -instcombine
+      -early-cse
+      -simplifycfg
+      # Remove LLVM's artifacts from IR
       -remove-llvmassume-calls
       -dce
       ${INPUT_FILE}
