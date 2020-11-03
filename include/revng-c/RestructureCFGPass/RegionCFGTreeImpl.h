@@ -761,6 +761,12 @@ inline void RegionCFG<NodeT>::inflate() {
       bool New = ConditionalToCombEnd.insert({ Node, PostDom }).second;
       revng_assert(New);
 
+      // If the exit nodes reachable from the Then and from the Else are not
+      // disjoint, then the conditional node is not eligible for having its
+      // successor nodes marked as inlined.
+      if (not disjoint(ThenExits, ElseExits))
+        break;
+
       // Check that we do not dominate at maximum on of the two sets of
       // reachable exits.
       bool ThenIsDominated = true;
