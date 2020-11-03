@@ -494,14 +494,11 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
         if (EdgeInfos.Labels.empty()) {
           revng_assert(nullptr == DefaultASTNode);
           DefaultASTNode = ASTPointer;
+        } else {
+          LabeledCases.push_back({ EdgeInfos.Labels, ASTPointer });
         }
-
-        LabeledCases.push_back({ EdgeInfos.Labels, ASTPointer });
       }
-
       revng_assert(DefaultASTNode or Node->isWeaved() or Node->isDispatcher());
-      revng_assert(Node->successor_size() == LabeledCases.size());
-
       revng_assert(not Fallthrough or Children.size() < Node->successor_size());
       revng_assert(Fallthrough or Children.size() >= Node->successor_size());
 

@@ -459,16 +459,8 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
 
     // Generate the body of the switch
     SmallVector<clang::Stmt *, 8> BodyStmts;
-    ASTNode *Default = nullptr;
     for (const auto &[Labels, CaseNode] : Switch->cases()) {
-
-      if (Labels.empty()) {
-        // Default. Save it for later. So that the default label is always the
-        // last emitted in C.
-        revng_assert(nullptr == Default);
-        Default = CaseNode;
-        continue;
-      }
+      revng_assert(not Labels.empty()); // The Default is handled separately
 
       // Build the body of the case. We build it before iterating on the case
       // labels, because we may have more than one case label with the same
@@ -542,7 +534,7 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
         SwitchStatement->addSwitchCase(Case);
     }
 
-    if (nullptr != Default) {
+    if (auto *Default = Switch->getDefault()) {
       // Build the case
       auto *Def = new (ASTCtx) clang::DefaultStmt({}, {}, nullptr);
       // Build the body of the case
