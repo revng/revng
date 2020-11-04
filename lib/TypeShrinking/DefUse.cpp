@@ -25,6 +25,20 @@ static RegisterDefUse X("print-def-use1", "Print DefUse edges1", true, true);
 
 namespace TypeShrinking {
 
+struct DataFlowNode : public BidirectionalNode<DataFlowNode> {
+  DataFlowNode(llvm::Instruction *Instruction) {
+    this->Instruction = Instruction;
+  }
+  llvm::Instruction *Instruction;
+};
+
+static GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F);
+
+bool DefUse::runOnFunction(llvm::Function &F) {
+  auto DataFlowGraph = buildDataFlowGraph(F);
+  return false;
+}
+
 // Temporarily disable clang-format here. It conflicts with
 // revng conventions
 // clang-format off
@@ -40,7 +54,7 @@ getMaximalFixedPoint(BitSet (*combineValues)(BitSet &, BitSet &),
 );
 // clang-format on
 
-GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F) {
+static GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F) {
   GenericGraph<DataFlowNode> DataFlowGraph{};
   std::vector<DataFlowNode *> Worklist;
   std::unordered_map<llvm::Instruction *, DataFlowNode *> InstructionNodeMap;

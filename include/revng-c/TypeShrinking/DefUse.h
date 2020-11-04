@@ -12,24 +12,12 @@
 
 namespace TypeShrinking {
 
-struct DataFlowNode : public BidirectionalNode<DataFlowNode> {
-  DataFlowNode(llvm::Instruction *Instruction) {
-    this->Instruction = Instruction;
-  }
-  llvm::Instruction *Instruction;
-};
-
-GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F);
-
 class DefUse : public llvm::FunctionPass {
 public:
   static char ID; // Pass identification, replacement for typeid
   DefUse() : FunctionPass(ID) {}
 
-  bool runOnFunction(llvm::Function &F) {
-    auto DataFlowGraph = buildDataFlowGraph(F);
-    return false;
-  }
+  bool runOnFunction(llvm::Function &F);
 };
 
 } // namespace TypeShrinking
