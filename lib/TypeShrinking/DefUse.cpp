@@ -41,7 +41,7 @@ GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F) {
   std::unordered_map<llvm::Instruction *, DataFlowNode *> InstructionNodeMap;
   for (llvm::inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
     DataFlowNode Node{ &*I };
-    auto GraphNode = DataFlowGraph.addNode(Node);
+    auto *GraphNode = DataFlowGraph.addNode(Node);
     Worklist.push_back(GraphNode);
     InstructionNodeMap[GraphNode->Instruction] = GraphNode;
   }
