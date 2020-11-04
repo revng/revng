@@ -120,8 +120,7 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (If->hasBothBranches()) {
-
-      if (auto NestedIf = llvm::dyn_cast<IfNode>(If->getThen())) {
+      if (auto NestedIf = llvm::dyn_cast_or_null<IfNode>(If->getThen())) {
 
         // TODO: Refactor this with some kind of iterator
         if (NestedIf->getThen() != nullptr) {
@@ -194,9 +193,9 @@ simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST, Marker &Mark) {
           }
         }
       }
-
-      if (auto NestedIf = llvm::dyn_cast<IfNode>(If->getElse())) {
-
+    }
+    if (If->hasBothBranches()) {
+      if (auto NestedIf = llvm::dyn_cast_or_null<IfNode>(If->getElse())) {
         // TODO: Refactor this with some kind of iterator
         if (NestedIf->getThen() != nullptr) {
           if (If->getThen()->isEqual(NestedIf->getThen())
@@ -671,6 +670,17 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
     CombedAST.dumpOnFile("ast", F.getName(), "After-short-circuit");
   }
 
+  // Flip IFs with empty then branches.
+  // We need to do it before simplifyTrivialShortCircuit, otherwise that
+  // functions will need to check every possile combination of then-else to
+  // simplify. In this way we can keep it simple.
+  revng_log(BeautifyLogger,
+            "Performing IFs with empty then branches flipping\n");
+  flipEmptyThen(RootNode, CombedAST);
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpOnFile("ast", F.getName(), "After-if-flip");
+  }
+
   // Simplify trivial short-circuit nodes.
   revng_log(BeautifyLogger,
             "Performing trivial short-circuit simplification\n");
@@ -680,6 +690,9 @@ void beautifyAST(Function &F, ASTTree &CombedAST, Marker &Mark) {
   }
 
   // Flip IFs with empty then branches.
+  // We need to do it here again, after simplifyTrivialShortCircuit, because
+  // that functions can create empty then branches in some situations, and we
+  // want to flip them as well.
   revng_log(BeautifyLogger,
             "Performing IFs with empty then branches flipping\n");
   flipEmptyThen(RootNode, CombedAST);
