@@ -16,6 +16,11 @@
 #include "revng-c/TypeShrinking/DefUse.h"
 #include "revng-c/TypeShrinking/MFP.h"
 
+char TypeShrinking::DefUse::ID = 0;
+
+using RegisterDefUse = llvm::RegisterPass<TypeShrinking::DefUse>;
+static RegisterDefUse X("print-def-use1", "Print DefUse edges1", true, true);
+
 namespace TypeShrinking {
 
 template std::unordered_map<DataFlowNode *,
@@ -58,9 +63,3 @@ GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F) {
   return DataFlowGraph;
 }
 } // namespace TypeShrinking
-
-using namespace llvm;
-
-char TypeShrinking::DefUse::ID = 0;
-using RegisterDefUse = RegisterPass<TypeShrinking::DefUse>;
-static RegisterDefUse X("print-def-use1", "Print DefUse edges1", true, true);
