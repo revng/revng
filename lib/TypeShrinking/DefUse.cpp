@@ -54,8 +54,10 @@ GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F) {
   for (auto *DefNode : Worklist) {
     auto *Ins = DefNode->Instruction;
     for (auto &Use : llvm::make_range(Ins->use_begin(), Ins->use_end())) {
-      auto *UserInstr = llvm::dyn_cast<llvm::Instruction>(Use.getUser());
-      auto *UseNode = InstructionNodeMap[UserInstr];
+      auto *UseInstruction = llvm::dyn_cast<llvm::Instruction>(Use.getUser());
+      revng_assert(UseInstruction != nullptr,
+                   "The User of a value must be a llvm::Instruction");
+      auto *UseNode = InstructionNodeMap[UseInstruction];
       llvm::errs() << "Found use " << DefNode << ' ' << UseNode << '\n';
       DefNode->addSuccessor(UseNode);
     }
