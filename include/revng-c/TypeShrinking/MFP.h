@@ -8,9 +8,7 @@
 
 namespace TypeShrinking {
 
-/**
- * Compute the maximum fixed points of an instance of monotone framework
- */
+/// Compute the maximum fixed points of an instance of monotone framework
 template<class LatticeElement, class Label>
 std::unordered_map<Label *, std::tuple<LatticeElement, LatticeElement>>
 getMaximalFixedPoint(LatticeElement (*combineValues)(LatticeElement &,
