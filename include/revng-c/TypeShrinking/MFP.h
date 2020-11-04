@@ -32,9 +32,9 @@ getMaximalFixedPoint(LatticeElement (*combineValues)(LatticeElement &,
   std::unordered_map<Label *, std::tuple<LatticeElement, LatticeElement>>
     AnalysisResult;
   std::deque<std::tuple<Label *, Label *>> Worklist;
-  for (auto Start : Flow.nodes()) {
+  for (auto *Start : Flow.nodes()) {
     PartialAnalysis[Start] = BottomValue;
-    for (auto End : Start->successors()) {
+    for (auto *End : Start->successors()) {
       Worklist.push_back({ Start, End });
     }
   }
