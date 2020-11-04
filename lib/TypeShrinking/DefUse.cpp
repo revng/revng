@@ -39,17 +39,14 @@ GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F) {
   GenericGraph<DataFlowNode> DataFlowGraph{};
   std::vector<DataFlowNode *> Worklist;
   std::unordered_map<llvm::Instruction *, DataFlowNode *> InstructionNodeMap;
-  for (llvm::inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
+  for (auto I = inst_begin(F), E = inst_end(F); I != E; ++I) {
     DataFlowNode Node{ &*I };
     auto *GraphNode = DataFlowGraph.addNode(Node);
     Worklist.push_back(GraphNode);
     InstructionNodeMap[GraphNode->Instruction] = GraphNode;
   }
 
-  /// def-use chain for llvm::Instruction
-  // it's better to use this thingie and then reverse the edges
-  for (auto I = Worklist.begin(), E = Worklist.end(); I != E; ++I) {
-    auto *DefNode = *I;
+  for (auto *DefNode : Worklist) {
     auto *Ins = DefNode->Instruction;
     for (auto &Use : llvm::make_range(Ins->use_begin(), Ins->use_end())) {
       auto *UserInstr = llvm::dyn_cast<llvm::Instruction>(Use.getUser());
