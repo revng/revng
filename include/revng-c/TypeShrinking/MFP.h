@@ -13,8 +13,7 @@ template<class LatticeElement, class Label>
 std::unordered_map<Label *, std::tuple<LatticeElement, LatticeElement>>
 getMaximalFixedPoint(LatticeElement (*combineValues)(LatticeElement &,
                                                      LatticeElement &),
-                     bool (*isLess)(LatticeElement &, LatticeElement &),
-                     bool (*areEqual)(LatticeElement &, LatticeElement &),
+                     bool (*isLessOrEqual)(LatticeElement &, LatticeElement &),
                      GenericGraph<Label> &Flow,
                      LatticeElement ExtremalValue,
                      LatticeElement BottomValue,
@@ -49,8 +48,7 @@ getMaximalFixedPoint(LatticeElement (*combineValues)(LatticeElement &,
     Worklist.pop_front();
     auto &Partial = PartialAnalysis[Start];
     auto UpdatedEndAnalysis = getTransferFunction(Start)(Partial);
-    if (!(isLess(UpdatedEndAnalysis, PartialAnalysis[End])
-          || areEqual(UpdatedEndAnalysis, PartialAnalysis[End]))) {
+    if (!isLessOrEqual(UpdatedEndAnalysis, PartialAnalysis[End])) {
       PartialAnalysis[End] = combineValues(PartialAnalysis[End],
                                            UpdatedEndAnalysis);
       for (auto Node : End->successors()) {
