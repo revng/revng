@@ -16,6 +16,8 @@
 #include "revng-c/TypeShrinking/DefUse.h"
 #include "revng-c/TypeShrinking/MFP.h"
 
+using BitSet = std::set<int>;
+
 char TypeShrinking::DefUse::ID = 0;
 
 using RegisterDefUse = llvm::RegisterPass<TypeShrinking::DefUse>;
@@ -23,22 +25,20 @@ static RegisterDefUse X("print-def-use1", "Print DefUse edges1", true, true);
 
 namespace TypeShrinking {
 
-template std::unordered_map<DataFlowNode *,
-                            std::tuple<std::set<int>, std::set<int>>>
-getMaximalFixedPoint(std::set<int> (*combineValues)(std::set<int> &,
-                                                    std::set<int> &),
-                     bool (*isLessOrEqual)(std::set<int> &, std::set<int> &),
+// Temporarily disable clang-format here. It conflicts with
+// revng conventions
+// clang-format off
+template std::unordered_map<DataFlowNode *, std::tuple<BitSet, BitSet>>
+getMaximalFixedPoint(BitSet (*combineValues)(BitSet &, BitSet &),
+                     bool (*isLessOrEqual)(BitSet &, BitSet &),
                      GenericGraph<DataFlowNode> &Flow,
-                     std::set<int> ExtremalValue,
-                     std::set<int> BottomValue,
+                     BitSet ExtremalValue,
+                     BitSet BottomValue,
                      std::vector<DataFlowNode *> &ExtremalLabels,
-                     // Temporarily disable clang-format here. It conflicts with
-                     // revng conventions
-                     // clang-format off
-                     std::function<std::set<int>(std::set<int> &)>
+                     std::function<BitSet(BitSet &)>
                        (*getTransferFunction)(DataFlowNode *)
-                     // clang-format on
 );
+// clang-format on
 
 GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F) {
   GenericGraph<DataFlowNode> DataFlowGraph{};
