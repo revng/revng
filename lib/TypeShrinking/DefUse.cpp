@@ -39,21 +39,6 @@ bool DefUse::runOnFunction(llvm::Function &F) {
   return false;
 }
 
-// Temporarily disable clang-format here. It conflicts with
-// revng conventions
-// clang-format off
-template std::unordered_map<DataFlowNode *, std::tuple<BitSet, BitSet>>
-getMaximalFixedPoint(BitSet (*combineValues)(BitSet &, BitSet &),
-                     bool (*isLessOrEqual)(BitSet &, BitSet &),
-                     GenericGraph<DataFlowNode> &Flow,
-                     BitSet ExtremalValue,
-                     BitSet BottomValue,
-                     std::vector<DataFlowNode *> &ExtremalLabels,
-                     std::function<BitSet(BitSet &)>
-                       (*getTransferFunction)(DataFlowNode *)
-);
-// clang-format on
-
 static GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F) {
   GenericGraph<DataFlowNode> DataFlowGraph{};
   std::vector<DataFlowNode *> Worklist;

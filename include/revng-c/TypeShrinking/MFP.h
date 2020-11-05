@@ -1,6 +1,8 @@
 #pragma once
 
 #include <functional>
+#include <map>
+#include <queue>
 #include <type_traits>
 #include <unordered_map>
 
@@ -8,61 +10,61 @@
 
 namespace TypeShrinking {
 
-/// Compute the maximum fixed points of an instance of monotone framework
-template<class LatticeElement, class Label>
-std::unordered_map<Label *, std::tuple<LatticeElement, LatticeElement>>
-getMaximalFixedPoint(LatticeElement (*combineValues)(LatticeElement &,
-                                                     LatticeElement &),
-                     bool (*isLessOrEqual)(LatticeElement &, LatticeElement &),
-                     GenericGraph<Label> &Flow,
-                     LatticeElement ExtremalValue,
-                     LatticeElement BottomValue,
-                     std::vector<Label *> &ExtremalLabels,
-                     // Temporarily disable clang-format here. It conflicts with
-                     // revng conventions
-                     // clang-format off
-                     std::function<LatticeElement(LatticeElement &)>
-                       (*getTransferFunction)(Label *)
-                     // clang-format on
-) {
-  static_assert(std::is_base_of_v<ForwardNode<Label>, Label>);
+template<class LatticeElement, class T>
+struct MonotoneFramework {
+  using Graph = llvm::GraphTraits<T>;
+  // by the specs of llvm::GraphTraits, NodeRef chould be cheap to copy
+  using Label = typename Graph::NodeRef;
 
-  // Step 1 initialize the worklist and the partial analysis results
-  std::unordered_map<Label *, LatticeElement> PartialAnalysis;
-  std::unordered_map<Label *, std::tuple<LatticeElement, LatticeElement>>
-    AnalysisResult;
-  std::deque<std::tuple<Label *, Label *>> Worklist;
-  for (auto *Start : Flow.nodes()) {
-    PartialAnalysis[Start] = BottomValue;
-    for (auto *End : Start->successors()) {
-      Worklist.push_back({ Start, End });
-    }
-  }
-  for (auto &ExtremalLabel : ExtremalLabels) {
-    PartialAnalysis[ExtremalLabel] = ExtremalValue;
-  }
+  using LatticeElementPair = std::pair<LatticeElement, LatticeElement>;
 
-  // Step 2 Iteration
-  while (!Worklist.empty()) {
-    auto [Start, End] = Worklist.front();
-    Worklist.pop_front();
-    auto &Partial = PartialAnalysis[Start];
-    auto UpdatedEndAnalysis = getTransferFunction(Start)(Partial);
-    if (!isLessOrEqual(UpdatedEndAnalysis, PartialAnalysis[End])) {
-      PartialAnalysis[End] = combineValues(PartialAnalysis[End],
-                                           UpdatedEndAnalysis);
-      for (auto Node : End->successors()) {
-        Worklist.push_back({ End, Node });
+  LatticeElement combineValues(const LatticeElement &, const LatticeElement);
+  LatticeElement applyTransferFunction(Label, const LatticeElement &);
+  bool isLessOrEqual(const LatticeElement &, const LatticeElement);
+
+  /// Compute the maximum fixed points of an instance of monotone framework
+  std::map<Label, LatticeElementPair>
+  getMaximalFixedPoint(const Graph &Flow,
+                       LatticeElement BottomValue,
+                       LatticeElement ExtremalValue,
+                       const std::vector<Label> &ExtremalLabels) {
+    std::map<Label, LatticeElement> PartialAnalysis;
+    std::map<Label, LatticeElementPair> AnalysisResult;
+    std::queue<std::pair<Label, Label>> Worklist;
+
+    // Step 1.1 initialize the worklist and extremal labels
+    for (auto Start : llvm::nodes(Flow)) {
+      PartialAnalysis[Start] = BottomValue;
+      for (auto End : llvm::children(Start)) {
+        Worklist.push({ Start, End });
       }
     }
-  }
+    for (auto ExtremalLabel : ExtremalLabels) {
+      PartialAnalysis[ExtremalLabel] = ExtremalValue;
+    }
 
-  // Step 3 presenting the results
-  for (auto &[Node, Analysis] : PartialAnalysis) {
-    AnalysisResult[Node] = { PartialAnalysis[Node],
-                             getTransferFunction(Node)(PartialAnalysis[Node]) };
+    // Step 2 iteration
+    while (!Worklist.empty()) {
+      auto [Start, End] = Worklist.pop();
+      auto &Partial = PartialAnalysis[Start];
+      auto UpdatedEndAnalysis = applyTransferFunction(Start, Partial);
+      if (!isLessOrEqual(UpdatedEndAnalysis, PartialAnalysis[End])) {
+        PartialAnalysis[End] = combineValues(PartialAnalysis[End],
+                                             UpdatedEndAnalysis);
+        for (auto Node : llvm::children(End)) {
+          Worklist.push({ End, Node });
+        }
+      }
+    }
+
+    // Step 3 presenting the results
+    for (auto &[Node, Analysis] : PartialAnalysis) {
+      AnalysisResult[Node] = { PartialAnalysis[Node],
+                               applyTransferFunction(Node,
+                                                     PartialAnalysis[Node]) };
+    }
+    return AnalysisResult;
   }
-  return AnalysisResult;
-}
+};
 
 } // namespace TypeShrinking
