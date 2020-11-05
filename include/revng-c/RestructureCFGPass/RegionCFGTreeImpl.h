@@ -10,7 +10,6 @@
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
-#include <llvm/ADT/SmallVector.h>
 #include <sys/stat.h>
 
 // LLVM includes
@@ -20,6 +19,7 @@
 #include <llvm/ADT/SCCIterator.h>
 #include <llvm/ADT/SmallPtrSet.h>
 #include <llvm/ADT/SmallSet.h>
+#include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/Dominators.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
