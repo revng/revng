@@ -188,14 +188,14 @@ bool SequenceNode::nodeIsEqual(const ASTNode *Node) const {
 
 // #### Dump methods ####
 
-void CodeNode::dump(std::ofstream &ASTFile) {
+void CodeNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
-void IfNode::dump(std::ofstream &ASTFile) {
+void IfNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
 
   // TODO: Implement the printing of the conditional expression for the if.
@@ -218,7 +218,7 @@ void IfNode::dump(std::ofstream &ASTFile) {
   }
 }
 
-void ScsNode::dump(std::ofstream &ASTFile) {
+void ScsNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
@@ -233,7 +233,7 @@ void ScsNode::dump(std::ofstream &ASTFile) {
   }
 }
 
-void SequenceNode::dump(std::ofstream &ASTFile) {
+void SequenceNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
@@ -248,7 +248,7 @@ void SequenceNode::dump(std::ofstream &ASTFile) {
   }
 }
 
-void SwitchNode::dump(std::ofstream &ASTFile) {
+void SwitchNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
@@ -277,32 +277,32 @@ void SwitchNode::dump(std::ofstream &ASTFile) {
   }
 }
 
-void BreakNode::dump(std::ofstream &ASTFile) {
+void BreakNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"loop break\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
-void SwitchBreakNode::dump(std::ofstream &ASTFile) {
+void SwitchBreakNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"switch break\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
-void ContinueNode::dump(std::ofstream &ASTFile) {
+void ContinueNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"continue\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
-void SetNode::dump(std::ofstream &ASTFile) {
+void SetNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
-void ASTNode::dump(std::ofstream &ASTFile) {
+void ASTNode::dump(llvm::raw_fd_ostream &ASTFile) {
   switch (getKind()) {
   case NK_Code:
     return llvm::cast<CodeNode>(this)->dump(ASTFile);

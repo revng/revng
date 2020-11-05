@@ -8,6 +8,9 @@
 // Standard includes
 #include <cstdlib>
 
+// LLVM includes
+#include <llvm/Support/raw_os_ostream.h>
+
 // Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTNode.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
@@ -122,23 +125,28 @@ ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST) {
   return ASTSubstitutionMap[OldAST.getRoot()];
 }
 
-void ASTTree::dumpASTOnFile(std::string FolderName,
-                            std::string FunctionName,
-                            std::string FileName) {
+void ASTTree::dumpASTOnFile(const std::string &FileName) const {
+  std::error_code EC;
+  llvm::raw_fd_ostream DotFile(FileName, EC);
+  revng_check(not EC, "Could not open file to print AST dot");
+  DotFile << "digraph CFGFunction {\n";
+  RootNode->dump(DotFile);
+  DotFile << "}\n";
+}
 
-  std::ofstream ASTFile;
-  std::string PathName = FolderName + "/" + FunctionName;
-  mkdir(FolderName.c_str(), 0775);
-  mkdir(PathName.c_str(), 0775);
-  ASTFile.open(PathName + "/" + FileName + ".dot");
-  if (ASTFile.is_open()) {
-    ASTFile << "digraph CFGFunction {\n";
-    RootNode->dump(ASTFile);
-    ASTFile << "}\n";
-    ASTFile.close();
-  } else {
-    revng_abort("Could not open file for dumping AST.");
-  }
+void ASTTree::dumpASTOnFile(const std::string &FunctionName,
+                            const std::string &FolderName,
+                            const std::string &FileName) const {
+
+  const std::string GraphDir = "debug-graphs";
+  std::error_code EC = llvm::sys::fs::create_directory(GraphDir);
+  revng_check(not EC, "Could not create directory to print AST dot");
+  EC = llvm::sys::fs::create_directory(GraphDir + "/" + FunctionName);
+  revng_check(not EC, "Could not create directory to print AST dot");
+  const std::string PathName = GraphDir + "/" + FunctionName + "/" + FolderName;
+  EC = llvm::sys::fs::create_directory(PathName);
+  revng_check(not EC, "Could not create directory to print AST dot");
+  dumpASTOnFile(PathName + "/" + FileName);
 }
 
 ExprNode *ASTTree::addCondExpr(expr_unique_ptr &&Expr) {

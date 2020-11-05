@@ -828,7 +828,7 @@ inline void normalize(ASTTree &AST, std::string FunctionName) {
   // Serialize the graph starting from the root node.
   CombLogger << "Serializing first AST draft:\n";
   if (CombLogger.isEnabled()) {
-    AST.dumpASTOnFile("ast", FunctionName, "First-draft");
+    AST.dumpASTOnFile(FunctionName, "ast", "First-draft");
   }
 
   // Create sequence nodes.
@@ -837,14 +837,14 @@ inline void normalize(ASTTree &AST, std::string FunctionName) {
   RootNode = createSequence(AST, RootNode);
   AST.setRoot(RootNode);
   if (CombLogger.isEnabled()) {
-    AST.dumpASTOnFile("ast", FunctionName, "After-sequence");
+    AST.dumpASTOnFile(FunctionName, "ast", "After-sequence");
   }
 
   // Simplify useless sequence nodes.
   CombLogger << "Performing useless dummies simplification:\n";
   simplifyDummies(RootNode);
   if (CombLogger.isEnabled()) {
-    AST.dumpASTOnFile("ast", FunctionName, "After-dummies-removal");
+    AST.dumpASTOnFile(FunctionName, "ast", "After-dummies-removal");
   }
 
   // Simplify useless sequence nodes.
@@ -852,7 +852,7 @@ inline void normalize(ASTTree &AST, std::string FunctionName) {
   RootNode = simplifyAtomicSequence(AST, RootNode);
   AST.setRoot(RootNode);
   if (CombLogger.isEnabled()) {
-    AST.dumpASTOnFile("ast", FunctionName, "After-sequence-simplification");
+    AST.dumpASTOnFile(FunctionName, "ast", "After-sequence-simplification");
   }
 }
 #endif // REVNGC_RESTRUCTURE_CFG_GENERATEAST_H
