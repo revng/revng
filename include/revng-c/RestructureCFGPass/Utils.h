@@ -244,20 +244,4 @@ findReachableNodes(BasicBlockNode<NodeT> *Source,
   return Targets;
 }
 
-inline void dumpASTOnFile(std::string FolderName,
-                          std::string FunctionName,
-                          std::string FileName,
-                          ASTNode *RootNode) {
-
-  std::ofstream ASTFile;
-  std::string PathName = FolderName + "/" + FunctionName;
-  mkdir(FolderName.c_str(), 0775);
-  mkdir(PathName.c_str(), 0775);
-  ASTFile.open(PathName + "/" + FileName + ".dot");
-  ASTFile << "digraph CFGFunction {\n";
-  RootNode->dump(ASTFile);
-  ASTFile << "}\n";
-  ASTFile.close();
-}
-
 #endif // REVNGC_RESTRUCTURE_CFG_UTILS_H
