@@ -122,9 +122,9 @@ ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST) {
   return ASTSubstitutionMap[OldAST.getRoot()];
 }
 
-void ASTTree::dumpOnFile(std::string FolderName,
-                         std::string FunctionName,
-                         std::string FileName) {
+void ASTTree::dumpASTOnFile(std::string FolderName,
+                            std::string FunctionName,
+                            std::string FileName) {
 
   std::ofstream ASTFile;
   std::string PathName = FolderName + "/" + FunctionName;

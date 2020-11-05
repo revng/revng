@@ -102,9 +102,9 @@ public:
 
   ASTNode *copyASTNodesFrom(ASTTree &OldAST);
 
-  void dumpOnFile(std::string FolderName,
-                  std::string FunctionName,
-                  std::string FileName);
+  void dumpASTOnFile(std::string FolderName,
+                     std::string FunctionName,
+                     std::string FileName);
 
   ExprNode *addCondExpr(expr_unique_ptr &&Expr);
 };

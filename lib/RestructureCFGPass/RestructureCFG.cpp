@@ -1186,7 +1186,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Serialize final AST on file
   if (CombLogger.isEnabled())
-    AST.dumpOnFile("ast", F.getName(), "Final");
+    AST.dumpASTOnFile("ast", F.getName(), "Final");
 
   // Serialize the collected metrics in the outputfile.
   if (MetricsOutputPath.getNumOccurrences()) {
