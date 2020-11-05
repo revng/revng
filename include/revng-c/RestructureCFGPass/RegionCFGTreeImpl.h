@@ -261,7 +261,7 @@ inline void RegionCFG<NodeT>::dumpDot(StreamT &S) const {
 }
 
 template<class NodeT>
-inline void RegionCFG<NodeT>::dumpDotOnFile(const std::string &FileName) const {
+inline void RegionCFG<NodeT>::dumpCFGOnFile(const std::string &FileName) const {
   std::error_code EC;
   llvm::raw_fd_ostream DotFile(FileName, EC);
   revng_check(not EC, "Could not open file for printing RegionCFG dot");
@@ -269,7 +269,7 @@ inline void RegionCFG<NodeT>::dumpDotOnFile(const std::string &FileName) const {
 }
 
 template<class NodeT>
-inline void RegionCFG<NodeT>::dumpDotOnFile(const std::string &FuncName,
+inline void RegionCFG<NodeT>::dumpCFGOnFile(const std::string &FuncName,
                                             const std::string &FolderName,
                                             const std::string &FileName) const {
   const std::string GraphDir = "debug-graphs";
@@ -280,7 +280,7 @@ inline void RegionCFG<NodeT>::dumpDotOnFile(const std::string &FuncName,
   const std::string PathName = GraphDir + "/" + FuncName + "/" + FolderName;
   EC = llvm::sys::fs::create_directory(PathName);
   revng_check(not EC, "Could not create directory to print RegionCFG dot");
-  dumpDotOnFile(PathName + "/" + FileName);
+  dumpCFGOnFile(PathName + "/" + FileName);
 }
 
 template<class NodeT>
@@ -444,7 +444,7 @@ inline void RegionCFG<NodeT>::untangle() {
       addPlainEdge(EdgeDescriptor(Node, Sink));
 
   if (CombLogger.isEnabled()) {
-    Graph.dumpDotOnFile(FunctionName,
+    Graph.dumpCFGOnFile(FunctionName,
                         "untangle",
                         "Region-" + RegionName + "-initial-state");
   }
@@ -479,7 +479,7 @@ inline void RegionCFG<NodeT>::untangle() {
   while (not ConditionalNodes.empty()) {
 
     if (CombLogger.isEnabled()) {
-      Graph.dumpDotOnFile(FunctionName,
+      Graph.dumpCFGOnFile(FunctionName,
                           "untangle",
                           "Region-" + RegionName + "-debug");
     }
@@ -671,7 +671,7 @@ inline void RegionCFG<NodeT>::untangle() {
   }
 
   if (CombLogger.isEnabled()) {
-    Graph.dumpDotOnFile(FunctionName,
+    Graph.dumpCFGOnFile(FunctionName,
                         "untangle",
                         "Region-" + RegionName + "-after-processing");
   }
@@ -680,7 +680,7 @@ inline void RegionCFG<NodeT>::untangle() {
   purgeVirtualSink(Sink);
 
   if (CombLogger.isEnabled()) {
-    Graph.dumpDotOnFile(FunctionName,
+    Graph.dumpCFGOnFile(FunctionName,
                         "untangle",
                         "Region-" + RegionName + "-after-sink-removal");
   }
@@ -702,7 +702,7 @@ inline void RegionCFG<NodeT>::inflate() {
 
   if (CombLogger.isEnabled()) {
     revng_log(CombLogger, "Entry node is: " << Entry->getNameStr());
-    Graph.dumpDotOnFile(FunctionName,
+    Graph.dumpCFGOnFile(FunctionName,
                         "inflates",
                         "Region-" + RegionName + "-before-combing");
   }
@@ -892,7 +892,7 @@ inline void RegionCFG<NodeT>::inflate() {
     if (CombLogger.isEnabled()) {
       revng_log(CombLogger,
                 "Analyzing conditional node " << Conditional->getNameStr());
-      Graph.dumpDotOnFile(FunctionName,
+      Graph.dumpCFGOnFile(FunctionName,
                           "inflates",
                           "Region-" + RegionName + "-conditional-"
                             + Conditional->getNameStr() + "-begin");
@@ -1051,7 +1051,7 @@ inline void RegionCFG<NodeT>::inflate() {
         }
 
         if (CombLogger.isEnabled()) {
-          Graph.dumpDotOnFile(FunctionName,
+          Graph.dumpCFGOnFile(FunctionName,
                               "inflates",
                               "Region-" + RegionName + "-before-purge-dummies-"
                                 + Conditional->getNameStr() + "-"
@@ -1147,7 +1147,7 @@ inline void RegionCFG<NodeT>::inflate() {
       }
 
       if (CombLogger.isEnabled()) {
-        Graph.dumpDotOnFile(FunctionName,
+        Graph.dumpCFGOnFile(FunctionName,
                             "inflates",
                             "Region-" + RegionName + "-conditional-"
                               + Conditional->getNameStr() + "-"
@@ -1161,7 +1161,7 @@ inline void RegionCFG<NodeT>::inflate() {
   }
 
   if (CombLogger.isEnabled()) {
-    Graph.dumpDotOnFile(FunctionName,
+    Graph.dumpCFGOnFile(FunctionName,
                         "inflates",
                         "Region-" + RegionName
                           + "-before-final-inflate-cleanup");
@@ -1171,7 +1171,7 @@ inline void RegionCFG<NodeT>::inflate() {
   purgeTrivialDummies();
 
   if (CombLogger.isEnabled()) {
-    Graph.dumpDotOnFile(FunctionName,
+    Graph.dumpCFGOnFile(FunctionName,
                         "inflates",
                         "Region-" + RegionName + "-after-combing");
   }
@@ -1301,7 +1301,7 @@ inline void RegionCFG<NodeT>::weave() {
 
       if (CombLogger.isEnabled()) {
         CombLogger << "Looking at switch node: " << Switch->getName() << "\n";
-        dumpDotOnFile(FunctionName,
+        dumpCFGOnFile(FunctionName,
                       "weaves",
                       "Weaving-region-" + RegionName + "-debug");
       }

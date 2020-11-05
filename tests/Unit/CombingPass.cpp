@@ -75,7 +75,7 @@ static void runTest(TestType Type,
   Input.inflate();
 
   // Save the result of the comb pass.
-  // Input.dumpDotOnFile(DotPath + "output.dot");
+  // Input.dumpCFGOnFile(DotPath + "output.dot");
 
   //
   // Check that the reference graph and the combed one are equivalent.

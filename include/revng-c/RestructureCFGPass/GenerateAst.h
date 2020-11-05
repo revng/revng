@@ -363,22 +363,22 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
 
   if (CombLogger.isEnabled()) {
     CombLogger << "Weaveing region " + RegionName + "\n";
-    Region.dumpDotOnFile(FunctionName, "weaves", "Preweave-" + RegionName);
+    Region.dumpCFGOnFile(FunctionName, "weaves", "Preweave-" + RegionName);
   }
 
   // Invoke the weave function.
   Region.weave();
 
   if (CombLogger.isEnabled()) {
-    Region.dumpDotOnFile(FunctionName, "weaves", "Postweave-" + RegionName);
+    Region.dumpCFGOnFile(FunctionName, "weaves", "Postweave-" + RegionName);
 
     CombLogger << "Inflating region " + RegionName + "\n";
-    Region.dumpDotOnFile(FunctionName, "dots", "Precomb-" + RegionName);
+    Region.dumpCFGOnFile(FunctionName, "dots", "Precomb-" + RegionName);
   }
 
   Region.inflate();
   if (CombLogger.isEnabled()) {
-    Region.dumpDotOnFile(FunctionName, "dots", "Postcomb-" + RegionName);
+    Region.dumpCFGOnFile(FunctionName, "dots", "Postcomb-" + RegionName);
   }
 
   // TODO: factorize out the AST generation phase.
@@ -399,7 +399,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
 
     if (CombLogger.isEnabled()) {
       Counter++;
-      Region.dumpDotOnFile(FunctionName,
+      Region.dumpCFGOnFile(FunctionName,
                            "ast",
                            "Tiling-" + RegionName + "-step-"
                              + std::to_string(Counter));

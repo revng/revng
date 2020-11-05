@@ -321,15 +321,15 @@ public:
   void dumpDot(StreamT &) const;
 
   /// \brief Dump a GraphViz file on a file using an absolute path
-  void dumpDotOnFile(const std::string &FileName) const;
+  void dumpCFGOnFile(const std::string &FileName) const;
 
   /// \brief Dump a GraphViz file on a file using an absolute path
-  void dumpDotOnFile(const char *FName) const {
-    return dumpDotOnFile(std::string(FName));
+  void dumpCFGOnFile(const char *FName) const {
+    return dumpCFGOnFile(std::string(FName));
   }
 
   /// \brief Dump a GraphViz file on a file representing this function
-  void dumpDotOnFile(const std::string &FunctionName,
+  void dumpCFGOnFile(const std::string &FunctionName,
                      const std::string &FolderName,
                      const std::string &FileName) const;
 

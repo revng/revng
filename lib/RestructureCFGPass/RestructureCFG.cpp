@@ -447,7 +447,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   if (CombLogger.isEnabled()) {
     CombLogger << "Analyzing function: " << F.getName() << "\n";
-    RootCFG.dumpDotOnFile(F.getName(), "dots", "begin");
+    RootCFG.dumpCFGOnFile(F.getName(), "dots", "begin");
   }
 
   // Identify SCS regions.
@@ -658,7 +658,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       }
 
       CombLogger << "Dumping main graph snapshot before restructuring\n";
-      RootCFG.dumpDotOnFile(F.getName(),
+      RootCFG.dumpCFGOnFile(F.getName(),
                             "dots",
                             "Out-pre-" + std::to_string(Meta->getIndex()));
     }
@@ -1109,11 +1109,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // Serialize the newly collapsed SCS region.
     if (CombLogger.isEnabled()) {
       CombLogger << "Dumping CFG of metaregion " << Meta->getIndex() << "\n";
-      CollapsedGraph.dumpDotOnFile(F.getName(),
+      CollapsedGraph.dumpCFGOnFile(F.getName(),
                                    "dots",
                                    "In-" + std::to_string(Meta->getIndex()));
       CombLogger << "Dumping main graph snapshot post restructuring\n";
-      RootCFG.dumpDotOnFile(F.getName(),
+      RootCFG.dumpCFGOnFile(F.getName(),
                             "dots",
                             "Out-post-" + std::to_string(Meta->getIndex()));
     }
@@ -1128,7 +1128,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Serialize the newly collapsed SCS region.
   if (CombLogger.isEnabled()) {
     CombLogger << "Dumping main graph before final purge\n";
-    RootCFG.dumpDotOnFile(F.getName(), "dots", "Final-before-purge");
+    RootCFG.dumpCFGOnFile(F.getName(), "dots", "Final-before-purge");
   }
 
   // Remove not reachables nodes from the main final graph.
@@ -1137,7 +1137,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Serialize the newly collapsed SCS region.
   if (CombLogger.isEnabled()) {
     CombLogger << "Dumping main graph after final purge\n";
-    RootCFG.dumpDotOnFile(F.getName(), "dots", "Final-after-purge");
+    RootCFG.dumpCFGOnFile(F.getName(), "dots", "Final-after-purge");
   }
 
   // Print metaregions after ordering.
