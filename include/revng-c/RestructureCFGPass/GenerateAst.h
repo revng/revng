@@ -363,22 +363,22 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
 
   if (CombLogger.isEnabled()) {
     CombLogger << "Weaveing region " + RegionName + "\n";
-    Region.dumpDotOnFile("weaves", FunctionName, "PREWEAVE");
+    Region.dumpDotOnFile(FunctionName, "weaves", "Preweave-" + RegionName);
   }
 
   // Invoke the weave function.
   Region.weave();
 
   if (CombLogger.isEnabled()) {
-    Region.dumpDotOnFile("weaves", FunctionName, "POSTWEAVE");
+    Region.dumpDotOnFile(FunctionName, "weaves", "Postweave-" + RegionName);
 
     CombLogger << "Inflating region " + RegionName + "\n";
-    Region.dumpDotOnFile("dots", FunctionName, "PRECOMB");
+    Region.dumpDotOnFile(FunctionName, "dots", "Precomb-" + RegionName);
   }
 
   Region.inflate();
   if (CombLogger.isEnabled()) {
-    Region.dumpDotOnFile("dots", FunctionName, "POSTCOMB");
+    Region.dumpDotOnFile(FunctionName, "dots", "Postcomb-" + RegionName);
   }
 
   // TODO: factorize out the AST generation phase.
@@ -399,9 +399,10 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
 
     if (CombLogger.isEnabled()) {
       Counter++;
-      Region.dumpDotOnFile("dots",
-                           FunctionName,
-                           "AST-" + std::to_string(Counter));
+      Region.dumpDotOnFile(FunctionName,
+                           "ast",
+                           "Tiling-" + RegionName + "-step-"
+                             + std::to_string(Counter));
     }
 
     // Collect the children nodes in the dominator tree.

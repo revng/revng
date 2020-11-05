@@ -329,8 +329,8 @@ public:
   }
 
   /// \brief Dump a GraphViz file on a file representing this function
-  void dumpDotOnFile(const std::string &FolderName,
-                     const std::string &FunctionName,
+  void dumpDotOnFile(const std::string &FunctionName,
+                     const std::string &FolderName,
                      const std::string &FileName) const;
 
   bool purgeTrivialDummies();
