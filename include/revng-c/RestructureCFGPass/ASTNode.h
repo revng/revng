@@ -115,6 +115,10 @@ public:
 
   void dump(llvm::raw_fd_ostream &ASTFile);
 
+  void dumpEdge(llvm::raw_fd_ostream &ASTFile);
+
+  void dumpSuccessor(llvm::raw_fd_ostream &ASTFile);
+
   inline void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 };
 
@@ -136,6 +140,8 @@ public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Code; }
 
   void dump(llvm::raw_fd_ostream &ASTFile);
+
+  void dumpEdge(llvm::raw_fd_ostream &ASTFile);
 
   ASTNode *Clone() const { return new CodeNode(*this); }
 };
@@ -206,6 +212,8 @@ public:
 
   void dump(llvm::raw_fd_ostream &ASTFile);
 
+  void dumpEdge(llvm::raw_fd_ostream &ASTFile);
+
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   ASTNode *Clone() const { return new IfNode(*this); }
@@ -256,6 +264,8 @@ public:
   void setBody(ASTNode *Node) { Body = Node; }
 
   void dump(llvm::raw_fd_ostream &ASTFile);
+
+  void dumpEdge(llvm::raw_fd_ostream &ASTFile);
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
@@ -337,6 +347,8 @@ public:
 
   void dump(llvm::raw_fd_ostream &ASTFile);
 
+  void dumpEdge(llvm::raw_fd_ostream &ASTFile);
+
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   ASTNode *Clone() const {
@@ -369,6 +381,8 @@ public:
   ASTNode *Clone() const { return new ContinueNode(*this); }
 
   void dump(llvm::raw_fd_ostream &ASTFile);
+
+  void dumpEdge(llvm::raw_fd_ostream &ASTFile);
 
   bool hasComputation() const { return ComputationIf != nullptr; }
 
@@ -403,6 +417,8 @@ public:
 
   void dump(llvm::raw_fd_ostream &ASTFile);
 
+  void dumpEdge(llvm::raw_fd_ostream &ASTFile);
+
   bool breaksFromWithinSwitch() const { return BreakFromWithinSwitch; }
 
   void setBreakFromWithinSwitch(bool B = true) { BreakFromWithinSwitch = B; }
@@ -434,6 +450,8 @@ public:
   ASTNode *Clone() const { return new SwitchBreakNode(*this); }
 
   void dump(llvm::raw_fd_ostream &ASTFile);
+
+  void dumpEdge(llvm::raw_fd_ostream &ASTFile);
 };
 
 class SetNode : public ASTNode {
@@ -462,6 +480,8 @@ public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Set; }
 
   void dump(llvm::raw_fd_ostream &ASTFile);
+
+  void dumpEdge(llvm::raw_fd_ostream &ASTFile);
 
   ASTNode *Clone() const { return new SetNode(*this); }
 
@@ -519,6 +539,8 @@ public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Switch; }
 
   void dump(llvm::raw_fd_ostream &ASTFile);
+
+  void dumpEdge(llvm::raw_fd_ostream &ASTFile);
 
   ASTNode *Clone() const { return new SwitchNode(*this); }
 

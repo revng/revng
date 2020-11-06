@@ -195,6 +195,10 @@ void CodeNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
+void CodeNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
+  // Do nothing, we don't have outgoing edges.
+}
+
 void IfNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
 
@@ -204,17 +208,17 @@ void IfNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"invhouse\",color=\"blue\"];\n";
+}
 
+void IfNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
   if (this->getThen() != nullptr) {
     ASTFile << "node_" << this->getID() << " -> node_"
             << this->getThen()->getID() << " [color=green,label=\"then\"];\n";
-    this->getThen()->dump(ASTFile);
   }
 
   if (this->getElse() != nullptr) {
     ASTFile << "node_" << this->getID() << " -> node_"
             << this->getElse()->getID() << " [color=green,label=\"else\"];\n";
-    this->getElse()->dump(ASTFile);
   }
 }
 
@@ -223,13 +227,14 @@ void ScsNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"circle\",color=\"black\"];\n";
+}
 
+void ScsNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
   // After do-while and while match loop nodes could be empty
   // revng_assert(this->getBody() != nullptr);
   if (this->getBody() != nullptr) {
     ASTFile << "node_" << this->getID() << " -> node_"
             << this->getBody()->getID() << " [color=green,label=\"body\"];\n";
-    this->getBody()->dump(ASTFile);
   }
 }
 
@@ -238,12 +243,13 @@ void SequenceNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"box\",color=\"black\"];\n";
+}
 
+void SequenceNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
   int SuccessorIndex = 0;
   for (ASTNode *Successor : this->nodes()) {
     ASTFile << "node_" << this->getID() << " -> node_" << Successor->getID()
             << " [color=green,label=\"elem " << SuccessorIndex << "\"];\n";
-    Successor->dump(ASTFile);
     SuccessorIndex += 1;
   }
 }
@@ -253,7 +259,9 @@ void SwitchNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"hexagon\",color=\"black\"];\n";
+}
 
+void SwitchNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
   for (const auto &[LabelSet, Case] : cases()) {
     ASTFile << "node_" << this->getID() << " -> node_" << Case->getID()
             << " [color=green,label=\"case ";
@@ -267,13 +275,11 @@ void SwitchNode::dump(llvm::raw_fd_ostream &ASTFile) {
     ASTFile << "\"];\n";
 
     // Continue dumping the children of the switch node.
-    Case->dump(ASTFile);
   }
 
   if (ASTNode *Default = this->getDefault()) {
     ASTFile << "node_" << this->getID() << " -> node_" << Default->getID()
             << " [color=green,label=\"default\"];\n";
-    Default->dump(ASTFile);
   }
 }
 
@@ -283,10 +289,16 @@ void BreakNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
+void BreakNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
+}
+
 void SwitchBreakNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"switch break\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
+}
+
+void SwitchBreakNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
 }
 
 void ContinueNode::dump(llvm::raw_fd_ostream &ASTFile) {
@@ -295,11 +307,17 @@ void ContinueNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
+void ContinueNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
+}
+
 void SetNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"" << this->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
+}
+
+void SetNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
 }
 
 void ASTNode::dump(llvm::raw_fd_ostream &ASTFile) {
@@ -322,6 +340,37 @@ void ASTNode::dump(llvm::raw_fd_ostream &ASTFile) {
     return llvm::cast<SwitchBreakNode>(this)->dump(ASTFile);
   case NK_Set:
     return llvm::cast<SetNode>(this)->dump(ASTFile);
+  }
+}
+
+void ASTNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
+  switch (getKind()) {
+  case NK_Code:
+    return llvm::cast<CodeNode>(this)->dumpEdge(ASTFile);
+  case NK_Break:
+    return llvm::cast<BreakNode>(this)->dumpEdge(ASTFile);
+  case NK_Continue:
+    return llvm::cast<ContinueNode>(this)->dumpEdge(ASTFile);
+  case NK_If:
+    return llvm::cast<IfNode>(this)->dumpEdge(ASTFile);
+  case NK_Scs:
+    return llvm::cast<ScsNode>(this)->dumpEdge(ASTFile);
+  case NK_List:
+    return llvm::cast<SequenceNode>(this)->dumpEdge(ASTFile);
+  case NK_Switch:
+    return llvm::cast<SwitchNode>(this)->dumpEdge(ASTFile);
+  case NK_SwitchBreak:
+    return llvm::cast<SwitchBreakNode>(this)->dumpEdge(ASTFile);
+  case NK_Set:
+    return llvm::cast<SetNode>(this)->dumpEdge(ASTFile);
+  }
+}
+
+void ASTNode::dumpSuccessor(llvm::raw_fd_ostream &ASTFile) {
+  if (this->Successor != nullptr) {
+    ASTFile << "node_" << this->getID() << " -> node_"
+            << this->Successor->getID()
+            << " [color=purple,label=\"successor\"];\n";
   }
 }
 

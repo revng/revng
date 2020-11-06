@@ -129,8 +129,25 @@ void ASTTree::dumpASTOnFile(const std::string &FileName) const {
   std::error_code EC;
   llvm::raw_fd_ostream DotFile(FileName, EC);
   revng_check(not EC, "Could not open file to print AST dot");
+
+  // Open the `digraph`.
   DotFile << "digraph CFGFunction {\n";
-  RootNode->dump(DotFile);
+
+  // Dump the graph in an iteratively fashion.
+  for (const auto &Node : ASTNodeList) {
+    Node->dump(DotFile);
+  }
+
+  // For each node in the graph, dump the outgoing edges.
+  for (const auto &Node : ASTNodeList) {
+    Node->dumpEdge(DotFile);
+
+    // For each node, if present, dump the edge going to the node in the
+    // `Successor` field.
+    Node->dumpSuccessor(DotFile);
+  }
+
+  // Conclude the `digraph`.
   DotFile << "}\n";
 }
 
