@@ -164,10 +164,16 @@ inline ASTNode *simplifyAtomicSequence(ASTTree &AST, ASTNode *RootNode) {
 
     case 0:
       RootNode = nullptr;
+
+      // Actually remove the sequence node from the ASTTree.
+      AST.removeASTNode(Sequence);
       break;
 
     case 1:
       RootNode = simplifyAtomicSequence(AST, Sequence->getNodeN(0));
+
+      // Actually remove the sequence node from the ASTTree.
+      AST.removeASTNode(Sequence);
       break;
 
     default:

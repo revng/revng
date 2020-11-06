@@ -55,6 +55,17 @@ void ASTTree::addASTNode(BasicBlockNode<BasicBlock *> *Node,
   revng_assert(New);
 }
 
+void ASTTree::removeASTNode(ASTNode *Node) {
+  revng_log(CombLogger, "Removing AST node named: " << Node->getName() << "\n");
+
+  for (auto It = ASTNodeList.begin(); It != ASTNodeList.end(); It++) {
+    if ((*It).get() == Node) {
+      ASTNodeList.erase(It);
+      break;
+    }
+  }
+}
+
 ASTNode *ASTTree::findASTNode(BasicBlockNode<BasicBlock *> *BlockNode) {
   return BBASTMap.at(BlockNode);
 }

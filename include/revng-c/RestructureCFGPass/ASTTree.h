@@ -92,6 +92,8 @@ public:
 
   void addASTNode(BasicBlockNodeBB *Node, ast_unique_ptr &&ASTObject);
 
+  void removeASTNode(ASTNode *Node);
+
   ASTNode *findASTNode(BasicBlockNodeBB *BlockNode);
 
   BasicBlockNodeBB *findCFGNode(ASTNode *Node);
