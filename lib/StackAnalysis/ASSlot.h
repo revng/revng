@@ -14,6 +14,8 @@
 
 extern Logger<> SaDiffLog;
 
+// #define EXPENSIVE_ASSERTIONS
+
 namespace StackAnalysis {
 
 template<typename T>
@@ -33,7 +35,7 @@ struct debug_cmp {
 template<typename T>
 inline void
 assertLowerThanOrEqual(const T &LHS, const T &RHS, const llvm::Module *M) {
-#ifndef NDEBUG
+#if defined(NDEBUG) && defined(EXPENSIVE_ASSERTIONS)
   bool Result = LHS.lowerThanOrEqual(RHS);
   if (!Result) {
     SaDiffLog.enable();
