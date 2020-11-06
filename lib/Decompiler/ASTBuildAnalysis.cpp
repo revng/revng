@@ -1,7 +1,7 @@
 /// \brief DataFlow analysis to build the AST for a Function
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// Copyright (c) rev.ng Srls 2017-2020.
 //
 
 // LLVM includes

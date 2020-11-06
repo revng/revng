@@ -1,5 +1,5 @@
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// Copyright (c) rev.ng Srls 2017-2020.
 //
 
 /// \brief Dataflow analysis to identify which Instructions must be serialized

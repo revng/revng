@@ -1,7 +1,7 @@
 #ifndef REVNGC_PHIASAPASSIGNMENTINFO_H
 #define REVNGC_PHIASAPASSIGNMENTINFO_H
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// Copyright (c) rev.ng Srls 2017-2020.
 //
 
 // LLVM includes

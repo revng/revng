@@ -3,7 +3,7 @@
 ///        by the `RestructureCFGPass`
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// Copyright (c) rev.ng Srls 2017-2020.
 //
 
 // Local libraries includes
