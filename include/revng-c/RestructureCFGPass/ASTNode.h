@@ -104,6 +104,12 @@ public:
 
   ASTNode *getSuccessor() const { return Successor; }
 
+  ASTNode *consumeSuccessor() {
+    ASTNode *SuccessorTmp = Successor;
+    Successor = nullptr;
+    return SuccessorTmp;
+  }
+
   bool isEmpty() {
 
     // Since we do not have a pointer to the CFGNode anymore, we need to save
@@ -332,7 +338,7 @@ public:
   void addNode(ASTNode *Node) {
     NodeList.push_back(Node);
     if (Node->getSuccessor() != nullptr) {
-      this->addNode(Node->getSuccessor());
+      this->addNode(Node->consumeSuccessor());
     }
   }
 
