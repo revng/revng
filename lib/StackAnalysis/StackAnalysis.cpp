@@ -34,6 +34,7 @@ using llvm::RegisterPass;
 
 static Logger<> ClobberedLog("clobbered");
 static Logger<> StackAnalysisLog("stackanalysis");
+static Logger<> CFEPLog("cfep");
 
 using namespace llvm::cl;
 
@@ -118,6 +119,11 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
       // directly.
       Functions.emplace_back(&BB, false);
     }
+  }
+
+  for (CFEP &Function : Functions) {
+    revng_log(CFEPLog,
+              getName(Function.Entry) << (Function.Force ? " (forced)" : ""));
   }
 
   // Initialize the cache where all the results will be accumulated
