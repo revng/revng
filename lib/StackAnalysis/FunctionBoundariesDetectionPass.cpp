@@ -70,7 +70,7 @@ void FBDP::serialize(std::ostream &Output, Module &M) {
 }
 
 bool FBDP::runOnModule(Module &M) {
-  auto &SA = getAnalysis<StackAnalysis<false>>();
+  auto &SA = getAnalysis<StackAnalysis<true>>();
   SA.serializeMetadata(*M.getFunction("root"));
 
   if (FBDPOutputPath.getNumOccurrences() == 1) {

@@ -188,8 +188,7 @@ private:
     revng_assert(std::all_of(SlotsPool.begin(), SlotsPool.end(), IsValid));
 
     for (ASSlot Slot : CalleeSaved)
-      if (Slot.addressSpace() == ASID::cpuID())
-        SlotsPool.insert(Slot);
+      SlotsPool.insert(Slot);
     revng_assert(std::all_of(SlotsPool.begin(), SlotsPool.end(), IsValid));
 
     set<ASSlot> ForwardedArguments;

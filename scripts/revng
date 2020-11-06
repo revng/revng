@@ -7,6 +7,7 @@ import re
 import signal
 import subprocess
 import sys
+import shlex
 
 from binascii import hexlify
 from ctypes.util import find_library
@@ -26,7 +27,10 @@ def run(command):
   if is_executable(command[0]):
     command = wrap(command)
   signal.signal(signal.SIGINT, signal.SIG_IGN)
-  subprocess.check_call(command, preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
+  p = subprocess.run(command, preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
+  if p.returncode != 0:
+      log_error("The following command exited with {}:\n{}".format(p.returncode, shlex.join(command)))
+      sys.exit(p.returncode)
 
 def is_executable(path):
   with open(path, "rb") as program:

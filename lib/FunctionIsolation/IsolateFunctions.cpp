@@ -37,13 +37,6 @@ using IFI = IsolateFunctionsImpl;
 char IF::ID = 0;
 static RegisterPass<IF> X("isolate", "Isolate Functions Pass", true, true);
 
-static cl::opt<bool> DisableSafetyChecks("isolate-no-safety-checks",
-                                         cl::desc("Disable safety checks in "
-                                                  "function "
-                                                  "isolation"),
-                                         cl::cat(MainCategory),
-                                         cl::init(false));
-
 class IsolateFunctionsImpl {
 private:
   struct IsolatedFunctionDescriptor {
@@ -86,11 +79,11 @@ private:
   ///        instruction
   BasicBlock *createCatchBlock(Function *Root, BasicBlock *UnexpectedPC);
 
-  /// \brief Replace the call to the @function_call marker with the actual call
-  ///
-  /// \return true if the function call has been emitted
-  bool replaceFunctionCall(BasicBlock *NewBB,
-                           CallInst *Call,
+  // TODO: Make a class CloneHelper holding RootToIsolated as a member
+  /// \brief Replace the calls marked by `func.call` with the actual call
+  void replaceFunctionCall(StackAnalysis::BranchType::Values BranchType,
+                           BasicBlock *NewBB,
+                           Instruction *Call,
                            const ValueToValueMap &RootToIsolated);
 
   /// \brief Checks if an instruction is a terminator with an invalid successor
@@ -271,90 +264,166 @@ BasicBlock *IFI::createCatchBlock(Function *Root, BasicBlock *UnexpectedPC) {
   return CatchBB;
 }
 
-bool IFI::replaceFunctionCall(BasicBlock *NewBB,
-                              CallInst *Call,
+void IFI::replaceFunctionCall(StackAnalysis::BranchType::Values BranchType,
+                              BasicBlock *NewBB,
+                              Instruction *Call,
                               const ValueToValueMap &RootToIsolated) {
-
-  // Extract relevant information from the call to function_call
-  Instruction *T = Call->getParent()->getTerminator();
-  MDNode *FuncCall = T->getMetadata("func.call");
-  BlockAddress *Callee = dyn_cast<BlockAddress>(Call->getOperand(0));
-  BlockAddress *FallThroughAddress = cast<BlockAddress>(Call->getOperand(1));
-  BasicBlock *FallthroughOld = FallThroughAddress->getBasicBlock();
-  auto ReturnPC = MetaAddress::fromConstant(Call->getOperand(2));
-  Type *PCType = PC->getType()->getPointerElementType();
-  Constant *ReturnPCCI = ConstantInt::get(PCType, ReturnPC.asPC());
-  Value *ExternalFunctionName = Call->getOperand(4);
+  //
+  // Identify callee
+  //
+  BasicBlock *Callee = nullptr;
+  if (auto *Branch = dyn_cast<BranchInst>(Call)) {
+    if (Branch->isUnconditional()) {
+      Callee = Branch->getSuccessor(0);
+      if (GCBI.isPartOfRootDispatcher(Callee))
+        Callee = nullptr;
+    }
+  }
 
   bool IsIndirect = (Callee == nullptr);
-  Function *TargetFunction = nullptr;
 
+  //
+  // Inspect `function_call` marker info
+  //
+  MetaAddress FallthroughPC = MetaAddress::invalid();
+  BasicBlock *FallthroughOld = nullptr;
+  Constant *FallthroughPCCI = nullptr;
+  Value *ExternalFunctionName = nullptr;
+  if (CallInst *FunctionCallMarker = GCBI.getFunctionCall(Call)) {
+    // Ensure we have the expected callee
+    BasicBlock *MarkerCallee = nullptr;
+    auto *FirstOperand = FunctionCallMarker->getArgOperand(0);
+    auto *SecondOperand = FunctionCallMarker->getArgOperand(1);
+    auto *ThirdOperand = FunctionCallMarker->getArgOperand(2);
+    if (BlockAddress *MarkerCalleeBA = dyn_cast<BlockAddress>(FirstOperand)) {
+      MarkerCallee = MarkerCalleeBA->getBasicBlock();
+    }
+    revng_assert(MarkerCallee == Callee);
+
+    // Extract information about fallthrough basic block
+    BlockAddress *FallThroughAddress = cast<BlockAddress>(SecondOperand);
+    FallthroughOld = FallThroughAddress->getBasicBlock();
+    FallthroughPC = MetaAddress::fromConstant(ThirdOperand);
+    Type *PCType = PC->getType()->getPointerElementType();
+    FallthroughPCCI = ConstantInt::get(PCType, FallthroughPC.asPC());
+
+    // Extract external function callee name
+    ExternalFunctionName = FunctionCallMarker->getOperand(4);
+  } else {
+    auto *FT = FunctionDispatcher->getType()->getPointerElementType();
+    auto *Ptr = cast<PointerType>(cast<FunctionType>(FT)->getParamType(0));
+    ExternalFunctionName = ConstantPointerNull::get(Ptr);
+  }
+
+  //
+  // Identify callee's isolated function and its type
+  //
+  Function *TargetFunction = nullptr;
+  bool IsNoReturn = false;
   if (IsIndirect) {
     TargetFunction = FunctionDispatcher;
   } else {
-    BasicBlock *CalleeEntry = Callee->getBasicBlock();
-    Instruction *Terminator = CalleeEntry->getTerminator();
+    Instruction *Terminator = Callee->getTerminator();
     auto *Node = cast<MDTuple>(Terminator->getMetadata("revng.func.entry"));
-
-    // The callee is not a real function, it must be part of us then.
-    if (Node == nullptr) {
-      revng_assert(not isTerminatorWithInvalidTarget(T, RootToIsolated));
-
-      // Do nothing, don't emit the call to `function_call` and proceed
-      return false;
-    }
-
     auto *NameMD = cast<MDString>(&*Node->getOperand(0));
-    TargetFunction = Functions.at(NameMD).IsolatedFunction;
+    IsolatedFunctionDescriptor &TargetDescriptor = Functions.at(NameMD);
+
+    // Callee's llvm::Function
+    TargetFunction = TargetDescriptor.IsolatedFunction;
+
+    // Check the type
+    auto *TypeMD = cast<MDString>(&*Node->getOperand(2));
+    using namespace StackAnalysis::FunctionType;
+    auto Type = fromName(TypeMD->getString());
+    switch (Type) {
+    case Regular:
+      // Do nothing
+      break;
+    case NoReturn:
+      IsNoReturn = true;
+      break;
+    case Invalid:
+    case Fake:
+    default:
+      revng_abort();
+    }
+  }
+  revng_assert(TargetFunction != nullptr);
+
+  //
+  // Coherency checks against the BranchType
+  //
+  switch (BranchType) {
+  case StackAnalysis::BranchType::HandledCall:
+    revng_assert(not IsIndirect);
+    break;
+  case StackAnalysis::BranchType::IndirectCall:
+    revng_assert(IsIndirect);
+    break;
+  case StackAnalysis::BranchType::IndirectTailCall:
+    revng_assert(IsIndirect);
+    break;
+  case StackAnalysis::BranchType::Killer:
+  case StackAnalysis::BranchType::LongJmp:
+    IsNoReturn = true;
+    break;
+  default:
+    revng_abort();
   }
 
-  revng_assert(TargetFunction != nullptr);
+  //
+  // Emit the code
+  //
 
   // Create a builder object
   IRBuilder<> Builder(Context);
   Builder.SetInsertPoint(NewBB);
 
+  // Emit the function call
   CallInst *NewCall = nullptr;
   if (IsIndirect)
     NewCall = Builder.CreateCall(TargetFunction, { ExternalFunctionName });
   else
     NewCall = Builder.CreateCall(TargetFunction);
 
-  // Copy the func.call metadata from the terminator of the original block
-  if (FuncCall != nullptr)
-    NewCall->setMetadata("func.call", FuncCall);
+  // Copy over the func.call metadata
+  NewCall->setMetadata("func.call", Call->getMetadata("func.call"));
 
-  // Emit the branch
-  auto FallthroughOldIt = RootToIsolated.find(FallthroughOld);
-  if (FallthroughOldIt != RootToIsolated.end()) {
-    BasicBlock *FallthroughNew = cast<BasicBlock>(FallthroughOldIt->second);
+  //
+  // Emit the branch to the return basic block, if necessary
+  //
+  if (IsNoReturn) {
+    // If we return after a function call to a noreturn function, throw an
+    // exception
+    throwException(ReturnFromNoReturn, NewBB, MetaAddress::invalid());
+  } else if (FallthroughOld) {
+    // We have a fallthrough, emit a branch the fallthrough basic block
+    auto FallthroughOldIt = RootToIsolated.find(FallthroughOld);
+    if (FallthroughOldIt != RootToIsolated.end()) {
+      BasicBlock *FallthroughNew = cast<BasicBlock>(FallthroughOldIt->second);
 
-    if (DisableSafetyChecks) {
-      // Assume no bad return PCs
-      Builder.CreateBr(FallthroughNew);
-    } else {
       // Additional check for the return address PC
       LoadInst *ProgramCounter = Builder.CreateLoad(PC, "");
-      Value *Result = Builder.CreateICmpEQ(ProgramCounter, ReturnPCCI);
+      Value *Result = Builder.CreateICmpEQ(ProgramCounter, FallthroughPCCI);
 
       // Create a basic block that we hit if the current PC is not the one
       // expected after the function call
       auto *PCMismatch = BasicBlock::Create(Context,
                                             NewBB->getName() + "_bad_return_pc",
                                             NewBB->getParent());
-      throwException(BadReturnAddress, PCMismatch, ReturnPC);
+      throwException(BadReturnAddress, PCMismatch, FallthroughPC);
 
       // Conditional branch to jump to the right block
       Builder.CreateCondBr(Result, FallthroughNew, PCMismatch);
+    } else {
+      // If the fallthrough basic block is not in the current function raise an
+      // exception
+      throwException(StandardTranslatedBlock, NewBB, MetaAddress::invalid());
     }
   } else {
-
-    // If the fallthrough basic block is not in the current function raise an
-    // exception
-    throwException(StandardTranslatedBlock, NewBB, MetaAddress::invalid());
+    // Regular function call but now fallthrough basic block, it's a tail call
+    Builder.CreateRetVoid();
   }
-
-  return true;
 }
 
 bool IFI::isTerminatorWithInvalidTarget(Instruction *I,
@@ -383,22 +452,27 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
   // Create a builder object
   IRBuilder<> Builder(Context);
   Builder.SetInsertPoint(NewBB);
+  bool IsCall = false;
+  auto BranchType = StackAnalysis::BranchType::Invalid;
 
   if (OldInstruction->isTerminator()) {
 
-    auto Type = Descriptor.Members.at(NewBB);
-    switch (Type) {
+    BranchType = Descriptor.Members.at(NewBB);
+    switch (BranchType) {
     case StackAnalysis::BranchType::InstructionLocalCFG:
     case StackAnalysis::BranchType::FunctionLocalCFG:
-    case StackAnalysis::BranchType::HandledCall:
-    case StackAnalysis::BranchType::IndirectCall:
     case StackAnalysis::BranchType::Killer:
     case StackAnalysis::BranchType::Unreachable:
     case StackAnalysis::BranchType::FakeFunctionCall:
       // These are handled later on
       break;
 
+    case StackAnalysis::BranchType::HandledCall:
+    case StackAnalysis::BranchType::IndirectCall:
     case StackAnalysis::BranchType::IndirectTailCall:
+      IsCall = true;
+      break;
+
     case StackAnalysis::BranchType::LongJmp:
     case StackAnalysis::BranchType::BrokenReturn:
       break;
@@ -419,6 +493,20 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
       revng_abort();
     }
   }
+
+  //
+  // Handle function calls
+  //
+  bool IsCallToHelper = isCallToHelper(OldInstruction);
+  if (not IsCallToHelper) {
+    if (auto *FuncCallMD = OldInstruction->getMetadata("func.call")) {
+      revng_assert(OldInstruction->isTerminator());
+      replaceFunctionCall(BranchType, NewBB, OldInstruction, RootToIsolated);
+      return true;
+    }
+  }
+
+  revng_assert(not IsCall);
 
   if (isTerminatorWithInvalidTarget(OldInstruction, RootToIsolated)) {
     // We are in presence of a terminator with a successor no more in
@@ -527,22 +615,7 @@ bool IFI::cloneInstruction(BasicBlock *NewBB,
       NewT->setMetadata("func.call", FuncCallMD);
 
   } else if (isCallTo(OldInstruction, "function_call")) {
-
-    // TODO: drop me in favor of checking func.call metadata
-    Instruction *Terminator = OldInstruction->getParent()->getTerminator();
-    // TODO: This is a temporary fix: do not insert a `CallInst` unless we have
-    //       a `func.call`. We should never get here in first place.
-    if (Terminator->getMetadata("func.call") != nullptr) {
-      // Function call handling
-      CallInst *Call = cast<CallInst>(OldInstruction);
-      bool Result = replaceFunctionCall(NewBB, Call, RootToIsolated);
-
-      // We return true if we emitted a function call to signal that we ended
-      // the inspection of the current basic block and that we should exit from
-      // the loop over the instructions
-      return Result;
-    }
-
+    // Purge
   } else {
 
     // Actual copy of the instructions if we aren't in any of the corner

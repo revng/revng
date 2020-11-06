@@ -487,6 +487,12 @@ void exception_warning(Reason Code,
             "0x%" TARGET_REG_FORMAT "\n",
             Target);
     break;
+  case ReturnFromNoReturn:
+    fprintf(stderr,
+            "Execution has return from a noreturn call: "
+            "0x%" TARGET_REG_FORMAT "\n",
+            Source);
+    break;
   default:
     assert(0 && "Reason code not supported");
   }
