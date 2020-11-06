@@ -757,7 +757,7 @@ void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, Optional<uint64_t>) {
   MetaAddress ImageBase = MetaAddress::invalid();
   if (PE32Header) {
     // TODO: ImageBase should aligned to 4kb pages, should we check that?
-    ImageBase = fromGeneric(PE32Header->ImageBase);
+    ImageBase = fromPC(PE32Header->ImageBase);
 
     EntryPoint = ImageBase + u64(PE32Header->AddressOfEntryPoint);
     ProgramHeaders.Count = PE32Header->NumberOfRvaAndSize;
@@ -770,7 +770,7 @@ void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, Optional<uint64_t>) {
     }
 
     // PE32+ Header
-    ImageBase = fromGeneric(PE32PlusHeader->ImageBase);
+    ImageBase = fromPC(PE32PlusHeader->ImageBase);
     EntryPoint = ImageBase + u64(PE32PlusHeader->AddressOfEntryPoint);
     ProgramHeaders.Count = PE32PlusHeader->NumberOfRvaAndSize;
     ProgramHeaders.Size = PE32PlusHeader->SizeOfHeaders;
