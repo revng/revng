@@ -1,5 +1,9 @@
 #pragma once
 
+//
+// Copyright rev.ng Srls. See LICENSE.md for details.
+//
+
 #include <functional>
 #include <map>
 #include <queue>
