@@ -32,10 +32,29 @@ struct DataFlowNode : public BidirectionalNode<DataFlowNode> {
   llvm::Instruction *Instruction;
 };
 
+struct EndsInStoreAnalysis
+  : MonotoneFramework<int, GenericGraph<DataFlowNode> *, EndsInStoreAnalysis> {
+  static int combineValues(const int &lh, const int &rh) { return lh | rh; }
+  static int applyTransferFunction(DataFlowNode *L, const int &E) {
+    if (L->Instruction->getOpcode() == llvm::Instruction::Store) {
+      return 1;
+    }
+    return E;
+  }
+  static bool isLessOrEqual(const int &lh, const int &rh) { return lh <= rh; }
+};
+
 static GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F);
 
 bool DefUse::runOnFunction(llvm::Function &F) {
   auto DataFlowGraph = buildDataFlowGraph(F);
+  llvm::nodes(&DataFlowGraph);
+  EndsInStoreAnalysis instance;
+  auto FixedPoints = instance.getMaximalFixedPoint(&DataFlowGraph, 0, 0, {});
+  for (auto &[Label, Result] : FixedPoints) {
+    llvm::errs() << *Label->Instruction << ' ' << Result.first << ' '
+                 << Result.second << '\n';
+  }
   return false;
 }
 
@@ -55,7 +74,6 @@ static GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F) {
     for (auto &Use : llvm::make_range(Ins->use_begin(), Ins->use_end())) {
       auto *UserInstr = llvm::cast<llvm::Instruction>(Use.getUser());
       auto *UseNode = InstructionNodeMap[UserInstr];
-      llvm::errs() << "Found use " << DefNode << ' ' << UseNode << '\n';
       DefNode->addSuccessor(UseNode);
     }
   }

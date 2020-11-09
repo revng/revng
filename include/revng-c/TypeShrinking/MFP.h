@@ -10,21 +10,34 @@
 
 namespace TypeShrinking {
 
-template<class LatticeElement, class T>
+template<typename LatticeElement,
+         typename GraphType,
+         class MonotoneFrameworkInstance>
 struct MonotoneFramework {
-  using Graph = llvm::GraphTraits<T>;
   // by the specs of llvm::GraphTraits, NodeRef chould be cheap to copy
-  using Label = typename Graph::NodeRef;
+  using GT = llvm::GraphTraits<GraphType>;
+  using Label = typename GT::NodeRef;
 
   using LatticeElementPair = std::pair<LatticeElement, LatticeElement>;
 
-  LatticeElement combineValues(const LatticeElement &, const LatticeElement);
-  LatticeElement applyTransferFunction(Label, const LatticeElement &);
-  bool isLessOrEqual(const LatticeElement &, const LatticeElement);
+  static LatticeElement
+  combineValues(const LatticeElement &lh, const LatticeElement &rh) {
+    return MonotoneFrameworkInstance::combineValues(lh, rh);
+  }
+
+  static LatticeElement
+  applyTransferFunction(Label L, const LatticeElement &E) {
+    return MonotoneFrameworkInstance::applyTransferFunction(L, E);
+  }
+
+  static bool
+  isLessOrEqual(const LatticeElement &lh, const LatticeElement &rh) {
+    return MonotoneFrameworkInstance::isLessOrEqual(lh, rh);
+  }
 
   /// Compute the maximum fixed points of an instance of monotone framework
   std::map<Label, LatticeElementPair>
-  getMaximalFixedPoint(const Graph &Flow,
+  getMaximalFixedPoint(const GraphType &Flow,
                        LatticeElement BottomValue,
                        LatticeElement ExtremalValue,
                        const std::vector<Label> &ExtremalLabels) {
@@ -33,9 +46,10 @@ struct MonotoneFramework {
     std::queue<std::pair<Label, Label>> Worklist;
 
     // Step 1.1 initialize the worklist and extremal labels
-    for (auto Start : llvm::nodes(Flow)) {
+    for (Label Start : llvm::nodes(Flow)) {
       PartialAnalysis[Start] = BottomValue;
-      for (auto End : llvm::children(Start)) {
+
+      for (auto End : successors(Start)) {
         Worklist.push({ Start, End });
       }
     }
@@ -45,13 +59,14 @@ struct MonotoneFramework {
 
     // Step 2 iteration
     while (!Worklist.empty()) {
-      auto [Start, End] = Worklist.pop();
+      auto [Start, End] = Worklist.front();
+      Worklist.pop();
       auto &Partial = PartialAnalysis[Start];
       auto UpdatedEndAnalysis = applyTransferFunction(Start, Partial);
       if (!isLessOrEqual(UpdatedEndAnalysis, PartialAnalysis[End])) {
         PartialAnalysis[End] = combineValues(PartialAnalysis[End],
                                              UpdatedEndAnalysis);
-        for (auto Node : llvm::children(End)) {
+        for (auto Node : successors(End)) {
           Worklist.push({ End, Node });
         }
       }
@@ -64,6 +79,11 @@ struct MonotoneFramework {
                                                      PartialAnalysis[Node]) };
     }
     return AnalysisResult;
+  }
+
+private:
+  static auto successors(Label From) {
+    return llvm::make_range(GT::child_begin(From), GT::child_end(From));
   }
 };
 
