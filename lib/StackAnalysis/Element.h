@@ -1,6 +1,10 @@
 #ifndef ELEMENT_H
 #define ELEMENT_H
 
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
 // Standard includes
 #include <set>
 

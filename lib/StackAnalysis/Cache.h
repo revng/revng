@@ -1,6 +1,10 @@
 #ifndef CACHE_H
 #define CACHE_H
 
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
 // Local includes
 #include "Element.h"
 #include "IntraproceduralFunctionSummary.h"

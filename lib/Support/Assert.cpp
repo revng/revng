@@ -1,6 +1,10 @@
 /// \file Assert.cpp
 /// \brief Implementation of the various functions to assert and abort.
 
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
 // Standard includes
 #include <cassert>
 #include <iostream>

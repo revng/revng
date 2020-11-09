@@ -1,6 +1,10 @@
 #ifndef VALGRINDHELPERS_H
 #define VALGRINDHELPERS_H
 
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
 #ifdef HAVE_VALGRIND_CALLGRIND_H
 
 #include "valgrind/callgrind.h"
