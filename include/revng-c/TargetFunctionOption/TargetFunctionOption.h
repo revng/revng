@@ -2,7 +2,7 @@
 #define REVNGC_TARGET_FUNCTION_OPTION_TARGETFUNCTIONOPTION_H
 
 //
-// Copyright (c) rev.ng Srls 2017-2020.
+// Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
 // LLVM includes

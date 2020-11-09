@@ -1,7 +1,7 @@
 #ifndef REVNGC_DECOMPILER_RESOURCE_FINDER_H
 #define REVNGC_DECOMPILER_RESOURCE_FINDER_H
 //
-// Copyright (c) rev.ng Srls 2017-2020.
+// Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
 // revng includes

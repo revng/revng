@@ -1,6 +1,10 @@
 #ifndef REVNGC_DECOMPILATION_HELPERS_H
 #define REVNGC_DECOMPILATION_HELPERS_H
 
+//
+// Copyright rev.ng Srls. See LICENSE.md for details.
+//
+
 // std includes
 #include <set>
 

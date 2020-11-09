@@ -1,5 +1,5 @@
 //
-// Copyright (c) rev.ng Srls 2017-2020.
+// Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
 /// \brief Dataflow analysis to identify which Instructions must be serialized

@@ -1,3 +1,7 @@
+//
+// Copyright rev.ng Srls. See LICENSE.md for details.
+//
+
 // LLVM includes
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>

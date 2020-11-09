@@ -1,6 +1,10 @@
 #ifndef REVNGC_GLOBALDECLCREATIONACTION_H
 #define REVNGC_GLOBALDECLCREATIONACTION_H
 
+//
+// Copyright rev.ng Srls. See LICENSE.md for details.
+//
+
 // LLVM includes
 #include <llvm/ADT/SmallVector.h>
 

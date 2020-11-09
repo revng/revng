@@ -1,6 +1,10 @@
 #ifndef REVNGC_IRASTTYPETRANSLATION_H
 #define REVNGC_IRASTTYPETRANSLATION_H
 
+//
+// Copyright rev.ng Srls. See LICENSE.md for details.
+//
+
 // std includes
 #include <map>
 

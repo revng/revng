@@ -2,7 +2,7 @@
 #define REVNGC_REMOVE_CPU_LOOP_STORE_H
 
 //
-// Copyright (c) rev.ng Srls 2017-2020.
+// Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
 // LLVM includes

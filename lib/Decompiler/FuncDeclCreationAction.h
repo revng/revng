@@ -1,6 +1,10 @@
 #ifndef REVNGC_FUNCTIONDECLCREATIONACTION_H
 #define REVNGC_FUNCTIONDECLCREATIONACTION_H
 
+//
+// Copyright rev.ng Srls. See LICENSE.md for details.
+//
+
 // clang includes
 #include <llvm/ADT/SmallVector.h>
 
