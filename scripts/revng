@@ -587,6 +587,9 @@ def main():
   parser.add_argument("--gdb",
                       action="store_true",
                       help="Run programs under gdb.")
+  parser.add_argument("--lldb",
+                      action="store_true",
+                      help="Run programs under lldb.")
   parser.add_argument("--valgrind",
                       action="store_true",
                       help="Run programs under valgrind.")
@@ -626,10 +629,13 @@ def main():
   global command_prefix
   command_prefix = []
 
-  assert (args.gdb + args.valgrind + args.callgrind) <= 1
+  assert (args.gdb + args.lldb + args.valgrind + args.callgrind) <= 1
 
   if args.gdb:
     command_prefix += ["gdb", "--args"]
+
+  if args.lldb:
+    command_prefix += ["lldb", "--"]
 
   if args.valgrind:
     command_prefix += ["valgrind"]
