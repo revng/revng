@@ -116,7 +116,8 @@ void InterproceduralAnalysis::run(BasicBlock *Entry, ResultsPool &Results) {
 
       // We basically evicted a function call which was supposed to hit the
       // cache. Reset the flag.
-      Current.resetCacheMustHit();
+      if (InProgress.size() > 0)
+        InProgress.back().resetCacheMustHit();
 
       break;
 
