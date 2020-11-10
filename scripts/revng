@@ -152,9 +152,12 @@ def build_opt_args(args):
                  or "libclang_rt.asan" in name)]
   if libasan:
     original_asan_options = os.environ.get("ASAN_OPTIONS", "")
-    asan_options = dict([option.split("=")
-                         for option
-                         in original_asan_options.split(":")])
+    if original_asan_options:
+        asan_options = dict([option.split("=")
+                             for option
+                             in original_asan_options.split(":")])
+    else:
+        asan_options = dict()
     asan_options["abort_on_error"] = "1"
     new_asan_options = ":".join(["=".join(option)
                                  for option
