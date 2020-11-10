@@ -29,6 +29,7 @@ extern "C" {
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ELF.h"
+#include "llvm/Support/Signals.h"
 
 // Local libraries includes
 #include "revng/Support/CommandLine.h"
@@ -158,6 +159,9 @@ static int loadPTCLibrary(LibraryPointer &PTCLibrary) {
 }
 
 int main(int argc, const char *argv[]) {
+  // Enable LLVM stack trace
+  llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
+
   HideUnrelatedOptions({ &MainCategory });
   ParseCommandLineOptions(argc, argv);
   installStatistics();
