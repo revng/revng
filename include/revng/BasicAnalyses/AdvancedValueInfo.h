@@ -797,7 +797,7 @@ public:
         }
       }
 
-      APInt Value(getTypeSize(DL, Current->getType()), 0);
+      APInt Value(Entry.value().getBitWidth(), 0);
       if (not Current->isNullValue())
         Value = cast<ConstantInt>(skipCasts(Current))->getValue();
 

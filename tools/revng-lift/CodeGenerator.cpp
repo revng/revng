@@ -691,9 +691,12 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
 
           // Check value of cpu_loop_exiting
           auto *Branch = cast<BranchInst>(&*++(RecCall->getIterator()));
+          auto *CPULoopExitVarPtrTy = CpuLoopExitingVariable->getType();
+          auto *PointeeTy = CPULoopExitVarPtrTy->getPointerElementType();
           auto *Compare = new ICmpInst(Branch,
                                        CmpInst::ICMP_EQ,
-                                       new LoadInst(CpuLoopExitingVariable,
+                                       new LoadInst(PointeeTy,
+                                                    CpuLoopExitingVariable,
                                                     "",
                                                     Branch),
                                        ConstantInt::getTrue(BoolType));
@@ -873,7 +876,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   // Create well-known CSVs
   //
   const Architecture &Arch = Binary.architecture();
-  StringRef SPName = Arch.stackPointerRegister();
+  std::string SPName = std::string(Arch.stackPointerRegister());
   GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, SPName).first;
 
   using PCHOwner = std::unique_ptr<ProgramCounterHandler>;
@@ -894,7 +897,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       revng_abort();
     }
 
-    return Variables.getByEnvOffset(Offset, Name).first;
+    return Variables.getByEnvOffset(Offset, std::string(Name)).first;
   };
   PCHOwner PCH = ProgramCounterHandler::create(Arch.type(),
                                                TheModule.get(),

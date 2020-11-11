@@ -121,7 +121,7 @@ AdvancedValueInfoPass::run(llvm::Function &F,
 
   for (User *U : Marker->users()) {
     auto *Call = dyn_cast<CallInst>(U);
-    if (Call == nullptr or skipCasts(Call->getCalledValue()) != Marker
+    if (Call == nullptr or skipCasts(Call->getCalledOperand()) != Marker
         or Call->getParent()->getParent() != &F)
       continue;
 

@@ -254,7 +254,6 @@ public:
   const_reverse_iterator rend() const { return Instructions.rend(); }
 
   llvm::BasicBlock *basicBlock() const { return BB; }
-  llvm::StringRef getName() const { return ::getName(BB); }
 
   void
   dump(const llvm::Module *M, const char *Prefix = "") const debug_function {

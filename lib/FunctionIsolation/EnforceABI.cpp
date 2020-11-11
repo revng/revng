@@ -341,7 +341,7 @@ void EnforceABIImpl::run() {
         if (Call == nullptr or isMarker(Call))
           continue;
 
-        Value *CalledValue = Call->getCalledValue();
+        Value *CalledValue = Call->getCalledOperand();
         Function *Callee = cast_or_null<Function>(skipCasts(CalledValue));
 
         if (Callee != nullptr and Callee->isIntrinsic())
@@ -576,7 +576,7 @@ EnforceABIImpl::handleFunction(Function &F) {
 
 void EnforceABIImpl::handleHelperFunctionCall(CallInst *Call) {
   using namespace StackAnalysis;
-  Function *Helper = cast<Function>(skipCasts(Call->getCalledValue()));
+  Function *Helper = cast<Function>(skipCasts(Call->getCalledOperand()));
 
   auto UsedCSVs = GeneratedCodeBasicInfo::getCSVUsedByHelperCall(Call);
   UsedCSVs.sort();
@@ -650,7 +650,7 @@ void EnforceABIImpl::handleHelperFunctionCall(CallInst *Call) {
 }
 
 void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
-  Function *Callee = cast<Function>(skipCasts(Call->getCalledValue()));
+  Function *Callee = cast<Function>(skipCasts(Call->getCalledOperand()));
   bool IsDirect = (Callee != FunctionDispatcher);
   if (IsDirect)
     Callee = OldToNew.at(Callee);

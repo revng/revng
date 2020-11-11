@@ -266,7 +266,7 @@ private:
 
 protected:
   static llvm::StoreInst *
-  store(llvm::IRBuilder<> Builder, llvm::GlobalVariable *GV, uint64_t Value) {
+  store(llvm::IRBuilder<> &Builder, llvm::GlobalVariable *GV, uint64_t Value) {
     using namespace llvm;
     auto *Type = cast<IntegerType>(GV->getType()->getPointerElementType());
     return Builder.CreateStore(ConstantInt::get(Type, Value), GV);

@@ -314,11 +314,6 @@ private:
   llvm::ArrayRef<const char> BasicBlockEndingPattern;
 };
 
-// TODO: move me somewhere more appropriate
-inline bool startsWith(std::string String, std::string Prefix) {
-  return String.substr(0, Prefix.size()) == Prefix;
-}
-
 /// \brief Simple helper function asserting a pointer is not a `nullptr`
 template<typename T>
 inline T *notNull(T *Pointer) {
