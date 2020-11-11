@@ -334,7 +334,6 @@ void Element::mergeASState(AddressSpace &ThisState,
 
   for (std::pair<int32_t, Value> &P : NewEntries)
     ThisState.ASOContent[P.first] = P.second;
-
   // Cleanup phase
   for (auto It = ThisState.ASOContent.begin(); It != ThisState.ASOContent.end();
        /**/) {

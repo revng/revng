@@ -291,9 +291,7 @@ void EnforceABIImpl::run() {
   // local %pc alloca, so that we don't incur in error when removing the bad
   // return pc checks.
   Type *PCType = GCBI.pcReg()->getType()->getPointerElementType();
-  auto *OpaqueFT = FunctionType::get(PCType,
-                                     {},
-                                     false);
+  auto *OpaqueFT = FunctionType::get(PCType, {}, false);
   OpaquePC = Function::Create(OpaqueFT,
                               Function::ExternalLinkage,
                               "opaque_pc",

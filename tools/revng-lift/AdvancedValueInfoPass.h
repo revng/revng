@@ -120,11 +120,13 @@ AdvancedValueInfoPass::run(llvm::Function &F,
   auto &SCEV = FAM.getResult<ScalarEvolutionAnalysis>(F);
   AdvancedValueInfo<StaticDataMemoryOracle> AVI(LVI, SCEV, DT, MO, RPOTVector);
 
+#ifndef NDEBUG
   // Ensure that no instruction has itself as operand, except for phis
   for (BasicBlock &BB : F)
     for (Instruction &I : BB)
       for (Value *V : I.operands())
         revng_assert(isa<PHINode>(V) or V != &I);
+#endif
 
   for (User *U : Marker->users()) {
     auto *Call = dyn_cast<CallInst>(U);
