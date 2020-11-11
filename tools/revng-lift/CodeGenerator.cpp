@@ -290,9 +290,16 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
     if (Segment.IsExecutable) {
       // We ignore possible p_filesz-p_memsz mismatches, zeros wouldn't be
       // useful code anyway
-      ptc.mmap(Segment.StartVirtualAddress.address(),
-               static_cast<const void *>(Segment.Data.data()),
-               static_cast<size_t>(Segment.Data.size()));
+      size_t Size = static_cast<size_t>(Segment.Data.size());
+      bool Success = ptc.mmap(Segment.StartVirtualAddress.address(),
+                              static_cast<const void *>(Segment.Data.data()),
+                              Size);
+      if (not Success) {
+        dbg << "Couldn't mmap segment starting at ";
+        Segment.StartVirtualAddress.dump(dbg);
+        dbg << " with size 0x" << Size << "\n";
+        revng_abort();
+      }
 
       bool Found = false;
       MetaAddress End = Segment.pagesRange().second;
