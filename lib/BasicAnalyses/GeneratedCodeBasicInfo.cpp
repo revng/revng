@@ -11,6 +11,7 @@
 #include <set>
 
 // LLVM includes
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 
@@ -24,7 +25,7 @@ char GeneratedCodeBasicInfo::ID = 0;
 using RegisterGCBI = RegisterPass<GeneratedCodeBasicInfo>;
 static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
 
-bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
+bool GeneratedCodeBasicInfo::runOnModule(Module &M) {
   Function &F = *M.getFunction("root");
   NewPC = M.getFunction("newpc");
   if (NewPC != nullptr) {
@@ -115,4 +116,33 @@ bool GeneratedCodeBasicInfo::runOnModule(llvm::Module &M) {
   revng_log(PassesLog, "Ending GeneratedCodeBasicInfo");
 
   return false;
+}
+
+GeneratedCodeBasicInfo::Successors
+GeneratedCodeBasicInfo::getSuccessors(BasicBlock *BB) const {
+  Successors Result;
+
+  df_iterator_default_set<BasicBlock *> Visited;
+  Visited.insert(AnyPC);
+  Visited.insert(UnexpectedPC);
+  for (BasicBlock *Block : depth_first_ext(BB, Visited)) {
+    for (BasicBlock *Successor : successors(Block)) {
+      MetaAddress Address = getBasicBlockPC(Successor);
+      const auto IBDHB = BlockType::IndirectBranchDispatcherHelperBlock;
+      if (Address.isValid()) {
+        Visited.insert(Successor);
+        Result.Addresses.insert(Address);
+      } else if (Successor == AnyPC) {
+        Result.AnyPC = true;
+      } else if (Successor == UnexpectedPC) {
+        Result.UnexpectedPC = true;
+      } else if (getType(Successor) == IBDHB) {
+        // Ignore
+      } else {
+        Result.Other = true;
+      }
+    }
+  }
+
+  return Result;
 }

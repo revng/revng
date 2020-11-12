@@ -4,7 +4,8 @@
 
 revng_add_library_internal(revngFunctionCallIdentification
   STATIC
-  FunctionCallIdentification.cpp)
+  FunctionCallIdentification.cpp
+  PruneRetSuccessors.cpp)
 
 target_link_libraries(revngFunctionCallIdentification
   revngSupport

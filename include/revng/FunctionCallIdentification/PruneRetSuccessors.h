@@ -1,0 +1,34 @@
+#ifndef PRUNERETSUCCESSORS_H
+#define PRUNERETSUCCESSORS_H
+
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+// LLVM includes
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/Pass.h"
+#include "llvm/Support/Casting.h"
+
+// Local libraries includes
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
+
+class PruneRetSuccessors : public llvm::ModulePass {
+public:
+  static char ID;
+
+public:
+  PruneRetSuccessors() : llvm::ModulePass(ID) {}
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.addRequired<GeneratedCodeBasicInfo>();
+    AU.addRequired<FunctionCallIdentification>();
+  }
+
+  bool runOnModule(llvm::Module &M) override;
+};
+
+#endif // PRUNERETSUCCESSORS_H

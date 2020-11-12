@@ -453,6 +453,17 @@ public:
     return MetaAddress::fromPC(ArchType, PC);
   }
 
+  struct Successors {
+    bool AnyPC = false;
+    bool UnexpectedPC = false;
+    bool Other = false;
+    std::set<MetaAddress> Addresses;
+  };
+
+  Successors getSuccessors(llvm::BasicBlock *BB) const;
+
+  llvm::Function *root() const { return RootFunction; }
+
 private:
   static std::vector<llvm::GlobalVariable *>
   extractCSVs(llvm::Instruction *Call, unsigned MDKindID) {

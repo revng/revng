@@ -41,6 +41,7 @@
 
 // Local libraries includes
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
+#include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"
@@ -1284,8 +1285,8 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   legacy::PassManager PostInstCombinePM;
   PostInstCombinePM.add(new CPUStateAccessAnalysisPass(&Variables, false));
   PostInstCombinePM.add(createDeadCodeEliminationPass());
-  // TODO: drop me once we integrate stack analysis with AVI
   PostInstCombinePM.add(new FunctionCallIdentification);
+  PostInstCombinePM.add(new PruneRetSuccessors);
   PostInstCombinePM.run(*TheModule);
 
   JumpTargets.finalizeJumpTargets();
