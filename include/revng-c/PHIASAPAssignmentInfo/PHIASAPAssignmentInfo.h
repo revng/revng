@@ -1,5 +1,5 @@
-#ifndef REVNGC_PHIASAPASSIGNMENTINFO_H
-#define REVNGC_PHIASAPASSIGNMENTINFO_H
+#pragma once
+
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
@@ -32,5 +32,3 @@ public:
 private:
   BBPHIMap PHIInfoMap;
 };
-
-#endif /* ifndef REVNGC_PHIASAPASSIGNMENTINFO_H */

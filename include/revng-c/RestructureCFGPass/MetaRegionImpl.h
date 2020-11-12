@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_METAREGIONIMPL_H
-#define REVNGC_RESTRUCTURE_CFG_METAREGIONIMPL_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -151,4 +150,3 @@ MetaRegion<NodeT>::getProbableEntry(BasicBlockNodeRPOT &RPOT) const {
 
   revng_abort("No candidate entry node found");
 }
-#endif // REVNGC_RESTRUCTURE_CFG_METAREGIONIMPL_H

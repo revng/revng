@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODEIMPL_H
-#define REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODEIMPL_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -287,5 +286,3 @@ inline size_t BasicBlockNode<NodeT>::getWeight() const {
 
   return 0;
 }
-
-#endif // REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODEIMPL_H

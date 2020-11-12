@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_REACHABILITY_H
-#define REVNGC_RESTRUCTURE_CFG_REACHABILITY_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -29,5 +28,3 @@ public:
 private:
   std::map<llvm::BasicBlock *, std::set<llvm::BasicBlock *>> ReachableBlocks;
 };
-
-#endif // REVNGC_RESTRUCTURE_CFG_REACHABILITY_H

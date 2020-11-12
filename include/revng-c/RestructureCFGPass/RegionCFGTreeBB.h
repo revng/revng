@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_REGIONCFGTREEBB_H
-#define REVNGC_RESTRUCTURE_CFG_REGIONCFGTREEBB_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -18,5 +17,3 @@ class BasicBlock;
 extern template class RegionCFG<llvm::BasicBlock *>;
 
 using RegionCFGBB = RegionCFG<llvm::BasicBlock *>;
-
-#endif // REVNGC_RESTRUCTURE_CFG_REGIONCFGTREEBB_H

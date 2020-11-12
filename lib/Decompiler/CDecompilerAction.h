@@ -1,5 +1,4 @@
-#ifndef REVNGC_CDECOMPILERACTION_H
-#define REVNGC_CDECOMPILERACTION_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -56,5 +55,3 @@ private:
 } // end namespace tooling
 
 } // namespace clang
-
-#endif // REVNGC_CDECOMPILERACTION_H

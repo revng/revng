@@ -1,5 +1,4 @@
-#ifndef REVNGC_ADT_REVERSEPOSTORDERTRAVERSAL_H
-#define REVNGC_ADT_REVERSEPOSTORDERTRAVERSAL_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -36,5 +35,3 @@ public:
   rpo_iterator end() { return Blocks.rend(); }
   const_rpo_iterator end() const { return Blocks.crend(); }
 };
-
-#endif // REVNGC_ADT_REVERSEPOSTORDERTRAVERSAL_H

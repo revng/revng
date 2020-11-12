@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_ASTTREE_H
-#define REVNGC_RESTRUCTURE_CFG_ASTTREE_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -117,5 +116,3 @@ public:
 
   ExprNode *addCondExpr(expr_unique_ptr &&Expr);
 };
-
-#endif // REVNGC_RESTRUCTURE_CFG_ASTTREE_H

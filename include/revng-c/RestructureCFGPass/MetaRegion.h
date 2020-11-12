@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_METAREGION_H
-#define REVNGC_RESTRUCTURE_CFG_METAREGION_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -105,5 +104,3 @@ public:
 
   BasicBlockNode<NodeT> *getProbableEntry(BasicBlockNodeRPOT &R) const;
 };
-
-#endif // REVNGC_RESTRUCTURE_CFG_METAREGION_H

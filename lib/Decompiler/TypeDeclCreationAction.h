@@ -1,5 +1,4 @@
-#ifndef REVNGC_TYPEDECLCREATIONACTION_H
-#define REVNGC_TYPEDECLCREATIONACTION_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -56,5 +55,3 @@ CreateTypeDeclCreator(llvm::Function &F,
 }
 
 } // end namespace clang
-
-#endif // REVNGC_TYPEDECLCREATIONACTION_H

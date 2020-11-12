@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_ASTNODE_H
-#define REVNGC_RESTRUCTURE_CFG_ASTNODE_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -675,4 +674,3 @@ inline bool ASTNode::isEqual(const ASTNode *Node) const {
     revng_abort();
   }
 }
-#endif // define REVNGC_RESTRUCTURE_CFG_ASTNODE_H

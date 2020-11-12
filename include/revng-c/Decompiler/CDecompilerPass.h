@@ -1,5 +1,4 @@
-#ifndef REVNGC_CDECOMPILERPASS_H
-#define REVNGC_CDECOMPILERPASS_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -31,5 +30,3 @@ private:
   std::unique_ptr<llvm::raw_ostream> Out;
   std::string SourceCode;
 };
-
-#endif /* ifndef REVNGC_CDECOMPILERPASS_H */

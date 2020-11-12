@@ -1,5 +1,4 @@
-#ifndef REVNGC_REMOVE_CPU_LOOP_STORE_H
-#define REVNGC_REMOVE_CPU_LOOP_STORE_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -16,5 +15,3 @@ public:
 
   bool runOnFunction(llvm::Function &F) override;
 };
-
-#endif // REVNGC_REMOVE_CPU_LOOP_STORE_H

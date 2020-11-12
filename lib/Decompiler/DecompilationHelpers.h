@@ -1,5 +1,4 @@
-#ifndef REVNGC_DECOMPILATION_HELPERS_H
-#define REVNGC_DECOMPILATION_HELPERS_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -27,5 +26,3 @@ std::set<llvm::Function *> getDirectlyCalledFunctions(llvm::Function &F);
 clang::CastExpr *createCast(clang::QualType LHSQualTy,
                             clang::Expr *RHS,
                             clang::ASTContext &ASTCtx);
-
-#endif // REVNGC_DECOMPILATION_HELPERS_H

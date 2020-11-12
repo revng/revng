@@ -1,5 +1,5 @@
-#ifndef REVNGC_DECOMPILER_RESOURCE_FINDER_H
-#define REVNGC_DECOMPILER_RESOURCE_FINDER_H
+#pragma once
+
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
@@ -17,5 +17,3 @@ extern PathList ResourceFinder;
 } // end namespace c
 
 } // end namespace revng
-
-#endif // REVNGC_DECOMPILER_RESOURCE_FINDER_H

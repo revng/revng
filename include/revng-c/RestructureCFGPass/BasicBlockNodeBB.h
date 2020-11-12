@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODEBB_H
-#define REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODEBB_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -14,5 +13,3 @@ class BasicBlock;
 extern template class BasicBlockNode<llvm::BasicBlock *>;
 
 using BasicBlockNodeBB = BasicBlockNode<llvm::BasicBlock *>;
-
-#endif // REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODEBB_H

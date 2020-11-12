@@ -1,5 +1,4 @@
-#ifndef REVNGC_GLOBALDECLCREATIONACTION_H
-#define REVNGC_GLOBALDECLCREATIONACTION_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -75,5 +74,3 @@ CreateGlobalDeclCreator(llvm::Function &F,
 }
 
 } // end namespace clang
-
-#endif // REVNGC_GLOBALDECLCREATIONACTION_H

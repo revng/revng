@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODE_H
-#define REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODE_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -391,5 +390,3 @@ struct GraphTraits<Inverse<BasicBlockNode<NodeT> *>> {
 };
 
 } // namespace llvm
-
-#endif // REVNGC_RESTRUCTURE_CFG_BASICBLOCKNODE_H

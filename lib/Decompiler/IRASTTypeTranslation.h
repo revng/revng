@@ -1,5 +1,4 @@
-#ifndef REVNGC_IRASTTYPETRANSLATION_H
-#define REVNGC_IRASTTYPETRANSLATION_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -53,5 +52,3 @@ clang::QualType getOrCreateQualType(const llvm::Type *T,
                                     FieldDeclMap &FieldDecls);
 
 } // end namespace IRASTTypeTranslation
-
-#endif // REVNGC_IRASTTYPETRANSLATION_H

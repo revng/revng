@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_REGIONCFGTREE_H
-#define REVNGC_RESTRUCTURE_CFG_REGIONCFGTREE_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -397,5 +396,3 @@ extern unsigned DuplicationCounter;
 
 extern unsigned UntangleTentativeCounter;
 extern unsigned UntanglePerformedCounter;
-
-#endif // REVNGC_RESTRUCTURE_CFG_REGIONCFGTREE_H

@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_RESTRUCTURECFG_H
-#define REVNGC_RESTRUCTURE_CFG_RESTRUCTURECFG_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -37,5 +36,3 @@ private:
   ASTTree AST;
   DuplicationMap NDuplicates;
 };
-
-#endif // REVNGC_RESTRUCTURE_CFG_RESTRUCTURECFG_H

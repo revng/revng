@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_EXPRNODE_H
-#define REVNGC_RESTRUCTURE_CFG_EXPRNODE_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -141,5 +140,3 @@ public:
 protected:
   ~OrNode() = default;
 };
-
-#endif // define REVNGC_RESTRUCTURE_CFG_EXPRNODE_H

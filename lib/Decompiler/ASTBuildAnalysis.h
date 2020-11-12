@@ -1,5 +1,5 @@
-#ifndef REVNGC_ASTBUILDANALYSIS_H
-#define REVNGC_ASTBUILDANALYSIS_H
+#pragma once
+
 /// \brief DataFlow analysis to build the AST for a Function
 
 //
@@ -117,4 +117,3 @@ private:
   clang::VarDecl *SwitchStateVarDecl = nullptr;
 };
 } // namespace IR2AST
-#endif // REVNGC_ASTBUILDANALYSIS_H

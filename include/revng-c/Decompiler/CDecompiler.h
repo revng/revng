@@ -1,5 +1,4 @@
-#ifndef REVNGC_CDECOMPILER_H
-#define REVNGC_CDECOMPILER_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -13,5 +12,3 @@ class Module;
 
 std::string
 decompileFunction(const llvm::Module *M, const std::string &FunctionName);
-
-#endif /* ifndef REVNGC_CDECOMPILER_H */

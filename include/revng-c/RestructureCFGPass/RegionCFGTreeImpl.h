@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_REGIONCFGTREEIMPL_H
-#define REVNGC_RESTRUCTURE_CFG_REGIONCFGTREEIMPL_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -1440,5 +1439,3 @@ inline void RegionCFG<NodeT>::markUnexpectedAndAnyPCAsInlined() {
     }
   }
 }
-
-#endif // REVNGC_RESTRUCTURE_CFG_REGIONCFGTREEIMPL_H

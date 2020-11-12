@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_GENERATEAST_H
-#define REVNGC_RESTRUCTURE_CFG_GENERATEAST_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -856,4 +855,3 @@ inline void normalize(ASTTree &AST, std::string FunctionName) {
     AST.dumpASTOnFile(FunctionName, "ast", "After-sequence-simplification");
   }
 }
-#endif // REVNGC_RESTRUCTURE_CFG_GENERATEAST_H

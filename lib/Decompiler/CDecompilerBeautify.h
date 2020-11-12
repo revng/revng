@@ -1,5 +1,4 @@
-#ifndef REVNGC_CDECOMPILERBEAUTIFY_H
-#define REVNGC_CDECOMPILERBEAUTIFY_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -18,5 +17,3 @@ class Analysis;
 void beautifyAST(llvm::Function &F,
                  ASTTree &CombedAST,
                  MarkForSerialization::Analysis &Mark);
-
-#endif // REVNGC_CDECOMPILERBEAUTIFY_H

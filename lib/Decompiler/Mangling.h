@@ -1,5 +1,4 @@
-#ifndef REVNGC_MANGLING_H
-#define REVNGC_MANGLING_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -20,5 +19,3 @@ inline std::string makeCIdentifier(std::string S) {
   });
   return S;
 }
-
-#endif // REVNGC_MANGLING_H

@@ -1,5 +1,4 @@
-#ifndef REVNGC_RESTRUCTURE_CFG_UTILS_H
-#define REVNGC_RESTRUCTURE_CFG_UTILS_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -240,5 +239,3 @@ findReachableNodes(BasicBlockNode<NodeT> *Source,
 
   return Targets;
 }
-
-#endif // REVNGC_RESTRUCTURE_CFG_UTILS_H

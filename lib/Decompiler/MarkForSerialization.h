@@ -1,5 +1,5 @@
-#ifndef REVNGC_MARKFORSERIALIZATION_H
-#define REVNGC_MARKFORSERIALIZATION_H
+#pragma once
+
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
@@ -109,5 +109,3 @@ protected:
 };
 
 } // end namespace MarkForSerialization
-
-#endif /* ifndef REVNGC_MARKFORSERIALIZATION_H */

@@ -1,5 +1,4 @@
-#ifndef REVNGC_FUNCTIONDECLCREATIONACTION_H
-#define REVNGC_FUNCTIONDECLCREATIONACTION_H
+#pragma once
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -63,5 +62,3 @@ CreateFuncDeclCreator(llvm::Function &F,
 }
 
 } // end namespace clang
-
-#endif // REVNGC_FUNCTIONDECLCREATIONACTION_H
