@@ -850,8 +850,13 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
   object::ELFFile<T> &TheELF = *TheELFOrErr;
 
   // BaseAddress makes sense only for shared (relocatable, PIC) objects
-  if (TheELF.getHeader()->e_type == ELF::ET_DYN)
+  auto Type = TheELF.getHeader()->e_type;
+  if (Type == ELF::ET_DYN)
     this->BaseAddress = BaseAddress;
+
+  revng_assert(Type == ELF::ET_DYN or Type == ELF::ET_EXEC,
+               "rev.ng currently handles executables and "
+               "dynamic libraries only.");
 
   // Look for static or dynamic symbols and relocations
   using ConstElf_ShdrPtr = const typename object::ELFFile<T>::Elf_Shdr *;
