@@ -7,10 +7,8 @@
 
 // This file has been automatically generated, please don't change it
 
-// Standard includes
 #include <cstdlib>
 #include <ostream>
 
-// Local libraries includes
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"

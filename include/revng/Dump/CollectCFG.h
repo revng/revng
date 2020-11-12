@@ -5,12 +5,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <fstream>
 #include <map>
 #include <set>
 
-// LLVM includes
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Pass.h"

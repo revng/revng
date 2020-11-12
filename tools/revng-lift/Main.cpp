@@ -6,7 +6,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -17,13 +16,6 @@
 #include <type_traits>
 #include <vector>
 
-extern "C" {
-#include <dlfcn.h>
-#include <libgen.h>
-#include <unistd.h>
-}
-
-// LLVM includes
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/IR/LLVMContext.h"
@@ -31,14 +23,12 @@ extern "C" {
 #include "llvm/Object/ELF.h"
 #include "llvm/Support/Signals.h"
 
-// Local libraries includes
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/ResourceFinder.h"
 #include "revng/Support/Statistics.h"
 #include "revng/Support/revng.h"
 
-// Local includes
 #include "BinaryFile.h"
 #include "CodeGenerator.h"
 #include "PTCInterface.h"

@@ -5,15 +5,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Value.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/IRHelpers.h"
 
-// Local includes
 #include "PTCInterface.h"
 
 inline llvm::IntegerType *getCSVType(llvm::GlobalVariable *CSV) {

@@ -6,7 +6,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstring>
 #include <fstream>
 #include <memory>
@@ -17,7 +16,6 @@
 #include <utility>
 #include <vector>
 
-// LLVM includes
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/ExecutionEngine/RuntimeDyld.h"
@@ -39,7 +37,6 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
-// Local libraries includes
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Support/CommandLine.h"
@@ -47,8 +44,8 @@
 #include "revng/Support/DebugHelper.h"
 #include "revng/Support/revng.h"
 
-// Local includes
 #include "CodeGenerator.h"
+
 #include "ExternalJumpsHandler.h"
 #include "InstructionTranslator.h"
 #include "JumpTargetManager.h"

@@ -5,16 +5,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <memory>
 #include <ostream>
 #include <string>
 
-// LLVM includes
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/DIBuilder.h"
 
-// Local libraries includes
 #include "revng/Support/revng.h"
 
 namespace llvm {

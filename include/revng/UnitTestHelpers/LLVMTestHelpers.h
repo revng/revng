@@ -5,13 +5,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/IR/Instructions.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/SourceMgr.h"
 
-// Local libraries includes
 #include "revng/Support/Assert.h"
 
 static const char *ModuleBegin = R"LLVM(

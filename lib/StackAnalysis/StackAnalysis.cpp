@@ -7,22 +7,18 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <fstream>
 #include <map>
 #include <sstream>
 #include <vector>
 
-// LLVM includes
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
 
-// Local libraries includes
 #include "revng/StackAnalysis/StackAnalysis.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/IRHelpers.h"
 
-// Local includes
 #include "Cache.h"
 #include "InterproceduralAnalysis.h"
 #include "Intraprocedural.h"

@@ -5,7 +5,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <optional>
 #include <string>
 #include <vector>

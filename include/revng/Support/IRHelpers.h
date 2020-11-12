@@ -5,12 +5,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <queue>
 #include <set>
 #include <sstream>
 
-// LLVM includes
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/ConstantFolding.h"
@@ -25,7 +23,6 @@
 #include "llvm/IR/ValueMap.h"
 #include "llvm/Support/raw_ostream.h"
 
-// Local libraries includes
 #include "revng/Support/Debug.h"
 #include "revng/Support/MetaAddress.h"
 

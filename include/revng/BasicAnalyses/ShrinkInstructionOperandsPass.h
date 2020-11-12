@@ -5,7 +5,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Local libraries includes
 #include "revng/Support/IRHelpers.h"
 
 enum Signedness { DontCare, Signed, Unsigned };

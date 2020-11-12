@@ -5,21 +5,15 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <csignal>
 #include <cstdlib>
 #include <map>
 #include <string>
-extern "C" {
-#include <strings.h>
-}
 #include <vector>
 
-// LLVM includes
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/ManagedStatic.h"
 
-// Local libraries includes
 #include "revng/Support/Debug.h"
 
 const size_t MaxCounterMapDump = 32;

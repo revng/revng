@@ -5,20 +5,16 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <set>
 #include <string>
 #include <vector>
 
-// Boost includes
-#include <boost/icl/interval_map.hpp>
+#include "boost/icl/interval_map.hpp"
 
-// LLVM includes
 #include "llvm/ADT/Optional.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ELFTypes.h"
 
-// Local libraries includes
 #include "revng/Support/revng.h"
 
 namespace llvm {

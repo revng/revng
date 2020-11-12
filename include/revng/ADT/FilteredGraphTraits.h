@@ -5,13 +5,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <type_traits>
 
 // LLVM Includes
-#include <llvm/ADT/GraphTraits.h>
-#include <llvm/ADT/STLExtras.h>
-#include <llvm/ADT/iterator_range.h>
+#include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/iterator_range.h"
 
 //
 // Filtered views on graphs, with predicates on node pairs representing edges

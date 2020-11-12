@@ -5,13 +5,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <string>
 
-// LLVM includes
 #include "llvm/Pass.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/StackAnalysis/FunctionsSummary.h"

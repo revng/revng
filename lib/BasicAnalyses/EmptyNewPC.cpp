@@ -6,11 +6,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/EmptyNewPC.h"
 #include "revng/Support/IRHelpers.h"
 

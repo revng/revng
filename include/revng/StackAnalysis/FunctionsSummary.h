@@ -7,12 +7,10 @@
 
 // This file is NOT automatically generated.
 
-// Standard includes
 #include <deque>
 #include <map>
 #include <set>
 
-// Local libraries includes
 #include "revng/Support/Debug.h"
 
 namespace llvm {

@@ -6,10 +6,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <string>
 
-// LLVM includes
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
@@ -20,13 +18,12 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/Debug.h"
 
-// Local includes
-#include "BinaryFile.h"
 #include "ExternalJumpsHandler.h"
+
+#include "BinaryFile.h"
 #include "ProgramCounterHandler.h"
 
 using namespace llvm;

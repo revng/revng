@@ -9,7 +9,6 @@
 extern "C" {
 #endif
 
-// Standard includes
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -11,7 +11,6 @@ extern "C" {
 }
 #endif
 
-// Local libraries includes
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 

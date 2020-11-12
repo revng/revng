@@ -5,7 +5,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Analysis/LazyValueInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
@@ -14,10 +13,8 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Support/KnownBits.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/AdvancedValueInfo.h"
 
-// Local includes
 #include "JumpTargetManager.h"
 
 inline Logger<> AVIPassLogger("avipass");

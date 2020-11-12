@@ -5,21 +5,17 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdint>
 #include <map>
 #include <vector>
 
-// LLVM includes
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/ErrorOr.h"
 
-// Local libraries includes
 #include "revng/Support/revng.h"
 
-// Local includes
 #include "JumpTargetManager.h"
 #include "PTCDump.h"
 #include "ProgramCounterHandler.h"

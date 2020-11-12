@@ -5,19 +5,16 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Boost includes
 #define BOOST_TEST_MODULE AdvancedValueInfo
 bool init_unit_test();
-#include <boost/test/unit_test.hpp>
+#include "boost/test/unit_test.hpp"
 
-// LLVM includes
 #include "llvm/Analysis/Passes.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Transforms/Scalar.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/AdvancedValueInfo.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"

@@ -6,16 +6,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <queue>
 #include <set>
 
-// LLVM includes
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/Debug.h"
 

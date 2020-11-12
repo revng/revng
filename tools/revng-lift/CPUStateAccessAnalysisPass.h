@@ -5,18 +5,14 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <map>
 #include <ostream>
 
-// LLVM includes
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
-// Local libraries includes
 #include "revng/Support/Assert.h"
 
-// Local includes
 #include "CSVOffsets.h"
 
 namespace llvm {

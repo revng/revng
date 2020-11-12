@@ -5,14 +5,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdint>
 #include <iostream>
 
-// Local libraries includes
 #include "revng/Support/MetaAddress.h"
 
-// Local includes
 #include "ptc.h"
 
 /// Write to a stream the string representation of the PTC instruction with the

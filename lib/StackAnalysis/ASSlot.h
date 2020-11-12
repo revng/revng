@@ -5,14 +5,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <limits>
 
-// LLVM includes
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Module.h"
 
-// Local libraries includes
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 

@@ -5,11 +5,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <fstream>
 #include <iostream>
 
-// Local libraries includes
 #include "revng/Support/CommandLine.h"
 
 namespace cl = llvm::cl;

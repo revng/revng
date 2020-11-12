@@ -5,11 +5,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/SmallVector.h"
 
-// Local libraries includes
 #include "revng/ADT/Queue.h"
 
 /// \brief Data structure implementing a subgraph of an object providing

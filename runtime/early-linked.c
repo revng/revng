@@ -2,10 +2,8 @@
  * This file is distributed under the MIT License. See LICENSE.md for details.
  */
 
-// Standard includes
 #include <stdint.h>
 
-// Local includes
 #include "support.h"
 
 // The only purpose of this function is keeping alive the references to some

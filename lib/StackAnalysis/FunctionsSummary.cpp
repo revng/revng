@@ -6,14 +6,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Boost includes
-#include <boost/icl/interval_set.hpp>
+#include "boost/icl/interval_set.hpp"
 
-// Local libraries includes
 #include "revng/StackAnalysis/FunctionsSummary.h"
 #include "revng/Support/IRHelpers.h"
 
-// Local includes
 #include "ASSlot.h"
 
 using llvm::BasicBlock;

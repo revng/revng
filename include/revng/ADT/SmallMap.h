@@ -5,14 +5,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <array>
 #include <map>
 
-// Boost includes
-#include <boost/variant.hpp>
+#include "boost/variant.hpp"
 
-// Local libraries includes
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Assert.h"
 

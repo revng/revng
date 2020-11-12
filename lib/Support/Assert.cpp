@@ -5,15 +5,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cassert>
 #include <iostream>
 
-// LLVM includes
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_os_ostream.h"
 
-// Local libraries includes
 #include "revng/Support/Assert.h"
 
 static void print_stack_trace() {

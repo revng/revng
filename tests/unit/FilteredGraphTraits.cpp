@@ -5,28 +5,24 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Boost includes
 #define BOOST_TEST_MODULE FilteredGraphTraits
 bool init_unit_test();
-#include <boost/test/unit_test.hpp>
-
-// Standard includes
 #include <functional>
 #include <map>
 #include <type_traits>
 
-// LLVM includes
-#include <llvm/ADT/BreadthFirstIterator.h>
-#include <llvm/ADT/DepthFirstIterator.h>
-#include <llvm/ADT/GraphTraits.h>
-#include <llvm/ADT/STLExtras.h>
-#include <llvm/IR/CFG.h>
-#include <llvm/IR/Dominators.h>
-#include <llvm/IR/Verifier.h>
-#include <llvm/Support/GenericDomTree.h>
-#include <llvm/Support/GenericDomTreeConstruction.h>
+#include "boost/test/unit_test.hpp"
 
-// Local libraries includes
+#include "llvm/ADT/BreadthFirstIterator.h"
+#include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/CFG.h"
+#include "llvm/IR/Dominators.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/Support/GenericDomTree.h"
+#include "llvm/Support/GenericDomTreeConstruction.h"
+
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"

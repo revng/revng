@@ -5,16 +5,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <set>
 
-// LLVM includes
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 
-// Local libraries includes
 #include "revng/Support/Debug.h"
 
 /// \brief Class representing either a constant value or an offset from a symbol

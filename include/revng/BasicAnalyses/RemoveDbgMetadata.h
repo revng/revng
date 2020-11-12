@@ -5,7 +5,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/Pass.h"
 
 class RemoveDbgMetadata : public llvm::FunctionPass {

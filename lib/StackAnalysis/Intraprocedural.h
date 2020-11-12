@@ -5,23 +5,19 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <array>
 #include <map>
 #include <set>
 #include <utility>
 #include <vector>
 
-// LLVM includes
 #include "llvm/ADT/SmallVector.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MonotoneFramework.h"
 
-// Local includes
 #include "ABIIR.h"
 #include "Cache.h"
 #include "Element.h"

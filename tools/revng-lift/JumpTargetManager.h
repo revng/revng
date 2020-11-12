@@ -5,27 +5,22 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdint>
 #include <map>
 #include <set>
 #include <vector>
 
-// Boost includes
-#include <boost/icl/interval_map.hpp>
-#include <boost/icl/interval_set.hpp>
-#include <boost/type_traits/is_same.hpp>
+#include "boost/icl/interval_map.hpp"
+#include "boost/icl/interval_set.hpp"
+#include "boost/type_traits/is_same.hpp"
 
-// LLVM includes
 #include "llvm/ADT/Optional.h"
 #include "llvm/IR/Instructions.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/MaterializedValue.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/revng.h"
 
-// Local includes
 #include "BinaryFile.h"
 #include "ProgramCounterHandler.h"
 // Forward declarations

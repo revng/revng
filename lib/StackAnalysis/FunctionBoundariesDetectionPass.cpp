@@ -5,10 +5,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <fstream>
 
-// Local libraries includes
 #include "revng/StackAnalysis/FunctionBoundariesDetectionPass.h"
 #include "revng/Support/CommandLine.h"
 

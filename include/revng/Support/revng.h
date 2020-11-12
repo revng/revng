@@ -5,19 +5,16 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdint>
 #include <iterator>
 #include <string>
 #include <vector>
 
-// LLVM includes
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
 
-// Local libraries includes
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 

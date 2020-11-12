@@ -5,11 +5,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <queue>
 #include <set>
 
-// Local libraries includes
 #include "revng/Support/Assert.h"
 
 /// \brief Queue where an element cannot be re-inserted if it's already in the

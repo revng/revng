@@ -5,16 +5,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <sstream>
 
-// Local libraries includes
 #include "revng/ADT/SmallMap.h"
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/StackAnalysis/FunctionsSummary.h"
 #include "revng/Support/Statistics.h"
 
-// Local includes
 #include "ABIDataFlows.h"
 #include "ASSlot.h"
 #include "BasicBlockInstructionPair.h"

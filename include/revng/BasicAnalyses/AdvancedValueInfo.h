@@ -5,10 +5,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <set>
 
-// LLVM includes
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/LazyValueInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
@@ -19,7 +17,6 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/Support/raw_os_ostream.h"
 
-// Local libraries includes
 #include "revng/ADT/ConstantRangeSet.h"
 #include "revng/BasicAnalyses/MaterializedValue.h"
 #include "revng/Support/Debug.h"

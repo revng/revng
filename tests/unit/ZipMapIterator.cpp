@@ -5,17 +5,14 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <iterator>
 #include <map>
 #include <set>
 
-// Boost includes
 #define BOOST_TEST_MODULE ZipMapIterator
 bool init_unit_test();
-#include <boost/test/unit_test.hpp>
+#include "boost/test/unit_test.hpp"
 
-// Local libraries includes
 #include "revng/ADT/SmallMap.h"
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"

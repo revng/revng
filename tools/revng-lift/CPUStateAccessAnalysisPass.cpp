@@ -6,13 +6,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <sstream>
 #include <stack>
 #include <string>
 #include <vector>
 
-// LLVM includes
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Instructions.h"
@@ -23,12 +21,11 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
-// Local libraries includes
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
-// Local includes
 #include "CPUStateAccessAnalysisPass.h"
+
 #include "VariableManager.h"
 
 namespace llvm {
