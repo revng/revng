@@ -23,13 +23,16 @@ from elftools.elf.elffile import ELFFile
 
 real_argv0 = os.environ.get("REAL_ARGV0", sys.argv[0])
 
+def shlex_join(split_command):
+  return ' '.join(shlex.quote(arg) for arg in split_command)
+
 def run(command):
   if is_executable(command[0]):
     command = wrap(command)
   signal.signal(signal.SIGINT, signal.SIG_IGN)
   p = subprocess.Popen(command, preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
   if p.wait() != 0:
-      log_error("The following command exited with {}:\n{}".format(p.returncode, shlex.join(command)))
+      log_error("The following command exited with {}:\n{}".format(p.returncode, shlex_join(command)))
       sys.exit(p.returncode)
 
 def is_executable(path):
