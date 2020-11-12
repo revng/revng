@@ -1,5 +1,4 @@
-#ifndef GENERICGRAPH_H
-#define GENERICGRAPH_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -394,5 +393,3 @@ public:
 };
 
 } // namespace llvm
-
-#endif // GENERICGRAPH_H

@@ -1,5 +1,4 @@
-#ifndef REVNG_H
-#define REVNG_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -380,5 +379,3 @@ inline llvm::BasicBlock *getFunctionCallCallee(llvm::BasicBlock *BB) {
   // TODO: is it OK to treat indirect function calls and non-calls the same way?
   return nullptr;
 }
-
-#endif // REVNG_H

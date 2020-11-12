@@ -1,5 +1,4 @@
-#ifndef REVNG_ADVANCEDVALUEINFO_H
-#define REVNG_ADVANCEDVALUEINFO_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -1057,5 +1056,3 @@ AdvancedValueInfo<MemoryOracle>::explore(llvm::BasicBlock *BB, llvm::Value *V) {
 
   revng_abort();
 }
-
-#endif // REVNG_ADVANCEDVALUEINFO_H

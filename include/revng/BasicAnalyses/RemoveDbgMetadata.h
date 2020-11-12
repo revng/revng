@@ -1,5 +1,4 @@
-#ifndef REVNG_REMOVEDBGMETADATA_H
-#define REVNG_REMOVEDBGMETADATA_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -20,5 +19,3 @@ public:
 
   bool runOnFunction(llvm::Function &F) override;
 };
-
-#endif // REVNG_REMOVEDBGMETADATA_H

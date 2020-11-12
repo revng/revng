@@ -1,5 +1,4 @@
-#ifndef VALGRINDHELPERS_H
-#define VALGRINDHELPERS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -41,5 +40,3 @@ public:
 private:
   bool Enabled;
 };
-
-#endif // VALGRINDHELPERS_H

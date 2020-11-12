@@ -1,5 +1,4 @@
-#ifndef BINARYFILE_H
-#define BINARYFILE_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -688,5 +687,3 @@ private:
     unsigned Size = 0;
   } ProgramHeaders;
 };
-
-#endif // BINARYFILE_H

@@ -1,5 +1,4 @@
-#ifndef INTERPROCEDURAL_H
-#define INTERPROCEDURAL_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -231,5 +230,3 @@ private:
 };
 
 } // namespace StackAnalysis
-
-#endif // INTERPROCEDURAL_H

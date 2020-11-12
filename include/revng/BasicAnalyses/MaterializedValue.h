@@ -1,5 +1,4 @@
-#ifndef REVNG_MATERIALIZEDVALUE_H
-#define REVNG_MATERIALIZEDVALUE_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -75,5 +74,3 @@ public:
 };
 
 using MaterializedValues = std::vector<MaterializedValue>;
-
-#endif // REVNG_MATERIALIZEDVALUE_H

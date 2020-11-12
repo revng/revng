@@ -473,9 +473,6 @@ def main():
   parser.add_argument("header",
                       metavar="HEADER",
                       help="C++ file header.")
-  parser.add_argument("footer",
-                      metavar="FOOTER",
-                      help="C++ file footer.")
   parser.add_argument("inputs",
                       metavar="GRAPH",
                       nargs="+",
@@ -505,10 +502,6 @@ def main():
 """)
 
   out(result)
-
-  # Print the footer file
-  with open(args.footer) as footer_file:
-    out(footer_file.read())
 
   return 0
 

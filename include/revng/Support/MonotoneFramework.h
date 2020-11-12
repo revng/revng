@@ -1,5 +1,4 @@
-#ifndef MONOTONEFRAMEWORK_H
-#define MONOTONEFRAMEWORK_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -937,5 +936,3 @@ public:
                          Other.end());
   }
 };
-
-#endif // MONOTONEFRAMEWORK_H

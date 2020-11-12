@@ -1,5 +1,4 @@
-#ifndef INSTRUCTIONTRANSLATOR_H
-#define INSTRUCTIONTRANSLATOR_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -148,5 +147,3 @@ private:
   ProgramCounterHandler *PCH;
   llvm::SmallVector<llvm::BasicBlock *, 4> ExitBlocks;
 };
-
-#endif // INSTRUCTIONTRANSLATOR_H

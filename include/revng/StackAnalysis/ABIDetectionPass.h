@@ -1,5 +1,4 @@
-#ifndef ABIDETECTIONPASS_H
-#define ABIDETECTIONPASS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -27,5 +26,3 @@ public:
 };
 
 } // namespace StackAnalysis
-
-#endif // ABIDETECTIONPASS_H

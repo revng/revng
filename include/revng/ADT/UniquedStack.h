@@ -1,5 +1,4 @@
-#ifndef UNIQUEDSTACK_H
-#define UNIQUEDSTACK_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -42,5 +41,3 @@ private:
   std::set<T> Set;
   std::vector<T> Queue;
 };
-
-#endif // UNIQUEDSTACK_H

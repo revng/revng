@@ -1,5 +1,4 @@
-#ifndef DEBUG_H
-#define DEBUG_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -283,5 +282,3 @@ extern Logger<> NRALog;
 extern Logger<> PassesLog;
 extern Logger<> ReleaseLog;
 extern Logger<> VerifyLog;
-
-#endif // DEBUG_H

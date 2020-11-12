@@ -1,5 +1,4 @@
-#ifndef PROGRAMCOUNTERHANDLER_H
-#define PROGRAMCOUNTERHANDLER_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -373,5 +372,3 @@ protected:
     store(Builder, IsThumb, NewPC.type() == Code_arm_thumb ? 1 : 0);
   }
 };
-
-#endif // PROGRAMCOUNTERHANDLER_H

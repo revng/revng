@@ -1,5 +1,4 @@
-#ifndef REVNG_UNITTESTSHELPERS_H
-#define REVNG_UNITTESTSHELPERS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -12,5 +11,3 @@
 inline void boost::throw_exception(std::exception const &E) {
   revng_abort(E.what());
 }
-
-#endif // REVNG_UNITTESTSHELPERS_H

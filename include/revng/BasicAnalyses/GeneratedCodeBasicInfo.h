@@ -1,5 +1,4 @@
-#ifndef GENERATEDCODEBASICINFO_H
-#define GENERATEDCODEBASICINFO_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -510,5 +509,3 @@ struct BlackListTrait<const GeneratedCodeBasicInfo &, llvm::BasicBlock *>
     return !this->Obj.isTranslated(Value);
   }
 };
-
-#endif // GENERATEDCODEBASICINFO_H

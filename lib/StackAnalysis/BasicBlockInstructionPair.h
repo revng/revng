@@ -1,5 +1,4 @@
-#ifndef BASICBLOCKINSTRUCTIONPAIR_H
-#define BASICBLOCKINSTRUCTIONPAIR_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -93,5 +92,3 @@ inline void writeToLog(Logger<true> &This, const CallSite &Other, int) {
 }
 
 } // namespace StackAnalysis
-
-#endif // BASICBLOCKINSTRUCTIONPAIR_H

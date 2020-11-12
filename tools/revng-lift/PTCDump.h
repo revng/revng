@@ -1,5 +1,4 @@
-#ifndef PTCDUMP_H
-#define PTCDUMP_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -45,5 +44,3 @@ void disassemble(std::ostream &Result,
                  MetaAddress PC,
                  uint32_t MaxBytes = 4096,
                  uint32_t InstructionCount = 4096);
-
-#endif // PTCDUMP_H

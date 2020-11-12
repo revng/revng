@@ -1,5 +1,4 @@
-#ifndef IRHELPERS_H
-#define IRHELPERS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -1038,5 +1037,3 @@ replaceAllUsesInFunctionsWith(llvm::Value *ToReplace,
   }
   return Changed;
 }
-
-#endif // IRHELPERS_H

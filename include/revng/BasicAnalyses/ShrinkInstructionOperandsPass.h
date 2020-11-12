@@ -1,5 +1,4 @@
-#ifndef REVNG_SHRINKINSTRUCTIONOPERANDSPASS_H
-#define REVNG_SHRINKINSTRUCTIONOPERANDSPASS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -178,5 +177,3 @@ ShrinkInstructionOperandsPass::run(llvm::Function &F,
 
   return PreservedAnalyses::none();
 }
-
-#endif // REVNG_SHRINKINSTRUCTIONOPERANDSPASS_H

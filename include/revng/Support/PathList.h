@@ -1,5 +1,4 @@
-#ifndef REVNG_PATH_LIST
-#define REVNG_PATH_LIST
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -20,5 +19,3 @@ public:
 private:
   std::vector<std::string> SearchPaths;
 };
-
-#endif // REVNG_PATH_LIST

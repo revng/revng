@@ -1,5 +1,4 @@
-#ifndef RAI_H
-#define RAI_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -138,5 +137,3 @@ public:
 private:
   unsigned Index;
 };
-
-#endif // RAI_H

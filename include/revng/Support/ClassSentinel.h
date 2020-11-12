@@ -1,5 +1,4 @@
-#ifndef CLASSSENTINEL_H
-#define CLASSSENTINEL_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -132,5 +131,3 @@ private:
   StackTrace MoveBacktrace;
 #endif
 };
-
-#endif // CLASSSENTINEL_H

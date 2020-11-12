@@ -1,5 +1,4 @@
-#ifndef ENFORCEABI_H
-#define ENFORCEABI_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -26,5 +25,3 @@ public:
     AU.setPreservesAll();
   }
 };
-
-#endif // ENFORCEABI_H

@@ -1,5 +1,4 @@
-#ifndef ITERATORWRAPPER_H
-#define ITERATORWRAPPER_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -84,5 +83,3 @@ public:
 private:
   W Iterator;
 };
-
-#endif // ITERATORWRAPPER_H

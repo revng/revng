@@ -1,5 +1,4 @@
-#ifndef FUNCTIONABI_H
-#define FUNCTIONABI_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -657,5 +656,3 @@ private:
 };
 
 } // namespace StackAnalysis
-
-#endif // FUNCTIONABI_H

@@ -1,5 +1,4 @@
-#ifndef JUMPTARGETMANAGER_H
-#define JUMPTARGETMANAGER_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -626,5 +625,3 @@ inline BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *>
 make_blacklist(const JumpTargetManager &JTM) {
   return BlackListTrait<const JumpTargetManager &, llvm::BasicBlock *>(JTM);
 }
-
-#endif // JUMPTARGETMANAGER_H

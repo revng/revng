@@ -1,5 +1,4 @@
-#ifndef REVNG_LLVMTESTHELPERS_H
-#define REVNG_LLVMTESTHELPERS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -93,5 +92,3 @@ loadModule(llvm::LLVMContext &C, const char *Body) {
 
   return M;
 }
-
-#endif // REVNG_LLVMTESTHELPERS_H

@@ -1,5 +1,4 @@
-#ifndef INTRAPROCEDURAL_H
-#define INTRAPROCEDURAL_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -529,5 +528,3 @@ private:
 } // namespace Intraprocedural
 
 } // namespace StackAnalysis
-
-#endif // INTRAPROCEDURAL_H

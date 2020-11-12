@@ -1,5 +1,4 @@
-#ifndef REVNG_FILTERED_GRAPH_TRAITS_H
-#define REVNG_FILTERED_GRAPH_TRAITS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -357,5 +356,3 @@ using EdgeFilter = bool (*)(const typename llvm::GraphTraits<NodeT>::EdgeRef &);
 
 template<typename NodeT, EdgeFilter<NodeT> F>
 using EdgeFilteredGraph = EdgeFilteredGraphImpl<NodeT, ic<decltype(F), F>>;
-
-#endif // REVNG_FILTERED_GRAPH_TRAITS_H

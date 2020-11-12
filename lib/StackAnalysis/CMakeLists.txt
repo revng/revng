@@ -29,8 +29,7 @@ endif()
 
 # Generate classes for the ABI data flow analyses
 set(ABIDATAFLOWS_SOURCES
-  "${CMAKE_CURRENT_SOURCE_DIR}/ABIDataFlows-header.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/ABIDataFlows-footer.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/ABIDataFlows-header.inc"
   "${CMAKE_CURRENT_SOURCE_DIR}/DeadRegisterArgumentsOfFunction.dot"
   "${CMAKE_CURRENT_SOURCE_DIR}/DeadReturnValuesOfFunctionCall.dot"
   "${CMAKE_CURRENT_SOURCE_DIR}/RegisterArgumentsOfFunctionCall.dot"

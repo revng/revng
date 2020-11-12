@@ -1,5 +1,4 @@
-#ifndef STATISTICS_H
-#define STATISTICS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -211,5 +210,3 @@ inline void CounterMap<K, T>::init() {
 }
 
 extern void installStatistics();
-
-#endif // STATISTICS_H

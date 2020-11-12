@@ -1,5 +1,4 @@
-#ifndef QUEUE_H
-#define QUEUE_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -56,5 +55,3 @@ using UniquedQueue = QueueImpl<T, false>;
 
 template<typename T>
 using OnceQueue = QueueImpl<T, true>;
-
-#endif // QUEUE_H

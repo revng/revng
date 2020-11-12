@@ -1,5 +1,4 @@
-#ifndef ASSLOT_H
-#define ASSLOT_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -269,5 +268,3 @@ struct hash<StackAnalysis::ASID> {
       }                                    \
     }                                      \
   } while (false)
-
-#endif // ASSLOT_H

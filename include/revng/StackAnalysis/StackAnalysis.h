@@ -1,5 +1,4 @@
-#ifndef STACKANALYSIS_H
-#define STACKANALYSIS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -62,5 +61,3 @@ extern template void StackAnalysis<true>::serializeMetadata(llvm::Function &F);
 extern template void StackAnalysis<false>::serializeMetadata(llvm::Function &F);
 
 } // namespace StackAnalysis
-
-#endif // STACKANALYSIS_H

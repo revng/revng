@@ -1,5 +1,4 @@
-#ifndef ADVANCEDVALUEINFOPASS_H
-#define ADVANCEDVALUEINFOPASS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -166,5 +165,3 @@ AdvancedValueInfoPass::run(llvm::Function &F,
 
   return PreservedAnalyses::all();
 }
-
-#endif // ADVANCEDVALUEINFOPASS_H

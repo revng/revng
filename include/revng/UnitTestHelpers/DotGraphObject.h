@@ -1,5 +1,4 @@
-#ifndef REVNG_DOTGRAPHOBJECT_H
-#define REVNG_DOTGRAPHOBJECT_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -358,5 +357,3 @@ struct GraphTraits<llvm::Inverse<const DotGraph *>>
 };
 
 } // namespace llvm
-
-#endif // REVNG_DOTGRAPHOBJECT_H

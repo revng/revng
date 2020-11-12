@@ -1,5 +1,4 @@
-#ifndef FUNCTIONCALLIDENTIFICATION_H
-#define FUNCTIONCALLIDENTIFICATION_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -126,5 +125,3 @@ private:
   std::set<MetaAddress> FallthroughAddresses;
   CustomCFG FilteredCFG;
 };
-
-#endif // FUNCTIONCALLIDENTIFICATION_H

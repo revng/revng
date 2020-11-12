@@ -1,5 +1,4 @@
-#ifndef EXTERNALJUMPSHANDLER_H
-#define EXTERNALJUMPSHANDLER_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -100,5 +99,3 @@ private:
   /// by the kernel to the signal handler.
   llvm::BasicBlock *createReturnFromExternal();
 };
-
-#endif // EXTERNALJUMPSHANDLER_H

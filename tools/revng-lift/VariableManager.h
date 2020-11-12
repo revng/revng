@@ -1,5 +1,4 @@
-#ifndef VARIABLEMANAGER_H
-#define VARIABLEMANAGER_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -180,5 +179,3 @@ private:
   llvm::GlobalVariable *Env;
   Architecture &TargetArchitecture;
 };
-
-#endif // VARIABLEMANAGER_H

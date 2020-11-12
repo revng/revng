@@ -1,5 +1,4 @@
-#ifndef FUNCTIONBOUNDARIESDETECTIONPASS_H
-#define FUNCTIONBOUNDARIESDETECTIONPASS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -29,5 +28,3 @@ public:
 };
 
 } // namespace StackAnalysis
-
-#endif // FUNCTIONBOUNDARIESDETECTIONPASS_H

@@ -1,5 +1,4 @@
-#ifndef GRAPHALGORITHMS_H
-#define GRAPHALGORITHMS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -185,5 +184,3 @@ auto exitless_scc_range(NodeTy Entry) {
 
   return make_filter_range(Range, Filter);
 }
-
-#endif // GRAPHALGORITHMS_H

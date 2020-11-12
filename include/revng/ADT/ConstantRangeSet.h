@@ -1,5 +1,4 @@
-#ifndef CONSTANTRANGESET_H
-#define CONSTANTRANGESET_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -274,5 +273,3 @@ private:
     return Result;
   }
 };
-
-#endif // CONSTANTRANGESET_H

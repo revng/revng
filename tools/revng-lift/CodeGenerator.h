@@ -1,5 +1,4 @@
-#ifndef CODEGENERATOR_H
-#define CODEGENERATOR_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -96,5 +95,3 @@ private:
 
   std::set<MetaAddress> NoMoreCodeBoundaries;
 };
-
-#endif // CODEGENERATOR_H

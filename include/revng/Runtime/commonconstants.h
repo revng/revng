@@ -1,5 +1,4 @@
-#ifndef COMMONCONSTANTS_H
-#define COMMONCONSTANTS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -21,5 +20,3 @@ typedef enum {
   /// Execution has reached the return address of a noreturn function call
   ReturnFromNoReturn
 } Reason;
-
-#endif // COMMONCONSTANTS_H

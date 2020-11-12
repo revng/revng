@@ -1,5 +1,4 @@
-#ifndef OPAQUEFUNCTIONSPOOL_H
-#define OPAQUEFUNCTIONSPOOL_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -77,5 +76,3 @@ public:
     return get(Key, FunctionType::get(ReturnType, Arguments, false), Name);
   }
 };
-
-#endif // OPAQUEFUNCTIONSPOOL_H
