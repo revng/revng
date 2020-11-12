@@ -456,13 +456,16 @@ public:
   void dump() const debug_function { dump(dbg); }
 
   template<typename T>
-  void dump(T &Output) const {
-    dumpAnalysis(Output, "  ", DRAOF);
-    dumpAnalysis(Output, "  ", URAOF);
-    dumpAnalysis(Output, "  ", URVOF);
-    dumpAnalysis(Output, "  ", URVOFC);
-    dumpAnalysis(Output, "  ", DRVOFC);
-    dumpAnalysis(Output, "  ", RAOFC);
+  void dump(T &Output, const char *Prefix = "") const {
+    std::string Longer(Prefix);
+    Longer += "  ";
+    Prefix = Longer.data();
+    dumpAnalysis(Output, Prefix, DRAOF);
+    dumpAnalysis(Output, Prefix, URAOF);
+    dumpAnalysis(Output, Prefix, URVOF);
+    dumpAnalysis(Output, Prefix, URVOFC);
+    dumpAnalysis(Output, Prefix, DRVOFC);
+    dumpAnalysis(Output, Prefix, RAOFC);
   }
 
 private:

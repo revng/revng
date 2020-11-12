@@ -293,22 +293,11 @@ combine(DefaultMap<K, V, N> &This, const DefaultMap<K, Q, N> &Other) {
 }
 
 template<typename V, typename T, size_t N>
-inline void
-dump(const Module *M, T &Output, const DefaultMap<int32_t, V, N> &D, ASID ID) {
-  for (auto &P : D) {
-    ASSlot::create(ID, P.first).dump(M, Output);
-    Output << ":\n";
-    P.second.dump(Output);
-    Output << "\n";
-  }
-}
-
-template<typename V, typename T, size_t N>
 inline void dump(const Module *M,
                  T &Output,
                  const DefaultMap<int32_t, V, N> &D,
                  ASID ID,
-                 const char *Prefix) {
+                 const char *Prefix = "") {
   std::string Longer(Prefix);
   Longer += "  ";
 
@@ -826,19 +815,27 @@ public:
       MapHelpers::unknownFunctionCall(P.second);
   }
 
-  void dump(const Module *M) const debug_function { dump(M, dbg); }
+  void dump(const Module *M, const char *Prefix = "") const debug_function {
+    dump(M, dbg, Prefix);
+  }
 
   template<typename T>
-  void dump(const Module *M, T &Output) const {
+  void dump(const Module *M, T &Output, const char *Prefix = "") const {
     std::stringstream Stream;
-    dumpInternal(M, Stream);
+    dumpInternal(M, Stream, Prefix);
     Output << Stream.str();
   }
 
 private:
-  void dumpInternal(const Module *M, std::stringstream &Output) const {
-    MapHelpers::dump(M, Output, RegisterAnalyses, CPU);
-    MapHelpers::dump(M, Output, FunctionCallRegisterAnalyses, CPU, "  ");
+  void dumpInternal(const Module *M,
+                    std::stringstream &Output,
+                    const char *Prefix = "") const {
+    MapHelpers::dump(M, Output, RegisterAnalyses, CPU, Prefix);
+    MapHelpers::dump(M,
+                     Output,
+                     FunctionCallRegisterAnalyses,
+                     CPU,
+                     (llvm::Twine(Prefix) + "  ").str().c_str());
   }
 };
 
@@ -1033,10 +1030,18 @@ public:
   unsigned visitsCount() const { return VisitsCount; }
 
   Interrupt<E> transfer(ABIIRBasicBlock *BB) {
-    revng_log(SaABI, "Analyzing " << BB->basicBlock());
     Element<E> Result = this->State[BB].copy();
+    const Module *M = getModule(BB->basicBlock());
 
-    VisitsCount++;
+    if (SaABI.isEnabled()) {
+      SaABI << "Transfer function for " << BB->basicBlock() << "\n";
+      SaABI << "  ABIIRBasicBlock:\n";
+      BB->dump(SaABI, M, "    ");
+      SaABI << "  Initial state: \n";
+      Result.dump(M, SaABI, "    ");
+    }
+
+    ++VisitsCount;
 
     for (ABIIRInstruction &I : range(BB)) {
 
@@ -1067,6 +1072,12 @@ public:
           or I.opcode() == ABIIRInstruction::IndirectCall) {
         Result.resetFunctionCallAnalyses(I.call());
       }
+    }
+
+    if (SaABI.isEnabled()) {
+      SaABI << "  Final state: \n";
+      Result.dump(M, SaABI, "    ");
+      SaABI << DoLog;
     }
 
     // We don't check BB->isPartOfFinalResults() since there are basic blocks
