@@ -14,6 +14,8 @@
 
 using llvm::Module;
 
+static Logger<> ICALogger("incoherent-calls-analysis");
+
 namespace StackAnalysis {
 
 // Specialize debug_cmp for UnionMonotoneSet
@@ -155,27 +157,47 @@ public:
     Element Result = this->State[BB].copy();
     auto SP0 = ASID::stackID();
 
+    revng_log(ICALogger, "Analyzing " << BB->basicBlock());
+    LoggerIndent<> I(ICALogger);
+
     for (ABIIRInstruction &I : range(BB)) {
 
       switch (I.opcode()) {
       case ABIIRInstruction::Load:
         // The last thing we know about this stack slot is that it has been read
-        if (I.target().addressSpace() == SP0)
-          Result.insert(I.target().offset());
+        if (I.target().addressSpace() == SP0) {
+          auto Offset = I.target().offset();
+          revng_log(ICALogger, "Reading SP0+" << Offset);
+          Result.insert(Offset);
+        }
         break;
 
       case ABIIRInstruction::Store:
         // The last thing we know about this stack slot is that it has been
         // written to
-        if (I.target().addressSpace() == SP0)
-          Result.drop(I.target().offset());
+        if (I.target().addressSpace() == SP0) {
+          auto Offset = I.target().offset();
+          revng_log(ICALogger, "Writing SP0+" << Offset);
+          Result.drop(Offset);
+        }
         break;
 
       case ABIIRInstruction::DirectCall:
         // If a stack argument is read by the caller after a call but before a
         // store, it's incoherent
-        if (Result.contains_any_of(I.stackArguments()))
+        if (Result.contains_any_of(I.stackArguments())) {
+          if (ICALogger.isEnabled()) {
+            ICALogger << "Function call ";
+            I.call().dump(ICALogger);
+            ICALogger << " in " << BB->basicBlock() << " is incoherent.\n";
+            ICALogger << "Callee arguments:\n";
+            for (const auto &Slot : I.stackArguments()) {
+              ICALogger << "  SP0+" << Slot << "\n";
+            }
+            ICALogger << DoLog;
+          }
           Incoherent.insert(I.call());
+        }
         break;
 
       default:
@@ -208,6 +230,9 @@ computeIncoherentCalls(ABIIRBasicBlock *Entry,
 
   for (ABIIRBasicBlock *Extremal : Extremals)
     BackwardFunctionAnalyses.registerExtremal(Extremal);
+
+  revng_log(ICALogger, "Analyzing " << Entry->basicBlock());
+  LoggerIndent<> I(ICALogger);
 
   BackwardFunctionAnalyses.initialize();
   Interrupt Result = BackwardFunctionAnalyses.run();
