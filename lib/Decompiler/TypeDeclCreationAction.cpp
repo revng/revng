@@ -2,16 +2,14 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <llvm/IR/Module.h>
+#include "llvm/IR/Module.h"
 
-// revng includes
-#include <revng/Support/Assert.h>
+#include "revng/Support/Assert.h"
 
-// local includes
+#include "TypeDeclCreationAction.h"
+
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
-#include "TypeDeclCreationAction.h"
 
 using namespace llvm;
 

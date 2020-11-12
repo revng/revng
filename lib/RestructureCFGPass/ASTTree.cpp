@@ -5,13 +5,10 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdlib>
 
-// LLVM includes
-#include <llvm/Support/raw_os_ostream.h>
+#include "llvm/Support/raw_os_ostream.h"
 
-// Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTNode.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/Utils.h"

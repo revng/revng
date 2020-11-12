@@ -5,12 +5,10 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// clang includes
-#include <llvm/ADT/SmallVector.h>
+#include "llvm/ADT/SmallVector.h"
 
-// clang includes
-#include <clang/Frontend/ASTConsumers.h>
-#include <clang/Frontend/FrontendAction.h>
+#include "clang/Frontend/ASTConsumers.h"
+#include "clang/Frontend/FrontendAction.h"
 
 namespace llvm {
 class Function;

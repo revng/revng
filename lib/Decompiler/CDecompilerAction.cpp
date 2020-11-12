@@ -2,26 +2,23 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <clang/AST/Decl.h>
-#include <llvm/IR/Constants.h>
-#include <llvm/IR/Module.h>
-#include <llvm/IR/Type.h>
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
 
-// clang includes
-#include <clang/AST/Expr.h>
-#include <clang/AST/Stmt.h>
-#include <clang/Basic/SourceLocation.h>
+#include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/Stmt.h"
+#include "clang/Basic/SourceLocation.h"
 
-// revng includes
-#include <revng/Support/Assert.h>
+#include "revng/Support/Assert.h"
 
-// local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 
-// local includes
+#include "CDecompilerAction.h"
+
 #include "ASTBuildAnalysis.h"
 #include "DecompilationHelpers.h"
 #include "FuncDeclCreationAction.h"
@@ -29,8 +26,6 @@
 #include "IRASTTypeTranslation.h"
 #include "MarkForSerialization.h"
 #include "TypeDeclCreationAction.h"
-
-#include "CDecompilerAction.h"
 
 namespace clang {
 namespace tooling {

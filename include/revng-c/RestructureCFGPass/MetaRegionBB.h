@@ -10,7 +10,6 @@ namespace llvm {
 class BasicBlock;
 } // namespace llvm
 
-// Local libraries include
 #include "revng-c/RestructureCFGPass/MetaRegion.h"
 extern template class MetaRegion<llvm::BasicBlock *>;
 

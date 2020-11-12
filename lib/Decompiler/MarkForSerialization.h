@@ -6,15 +6,12 @@
 
 /// \brief Dataflow analysis to identify which Instructions must be serialized
 
-// std includes
 #include <set>
 
-// LLVM includes
-#include <llvm/IR/Function.h>
-#include <revng/Support/IRHelpers.h>
+#include "llvm/IR/Function.h"
 
-// revng includes
-#include <revng/Support/MonotoneFramework.h>
+#include "revng/Support/IRHelpers.h"
+#include "revng/Support/MonotoneFramework.h"
 
 template<class NodeT>
 class RegionCFG;

@@ -5,11 +5,9 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// std includes
 #include <set>
 
-// clang includes
-#include <clang/AST/Type.h>
+#include "clang/AST/Type.h"
 
 namespace llvm {
 class Function;

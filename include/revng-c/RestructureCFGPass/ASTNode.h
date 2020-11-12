@@ -5,17 +5,14 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdlib>
 
-// LLVM includes
-#include <llvm/ADT/STLExtras.h>
-#include <llvm/ADT/SmallSet.h>
-#include <llvm/ADT/SmallVector.h>
-#include <llvm/IR/BasicBlock.h>
-#include <llvm/Support/Casting.h>
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/Support/Casting.h"
 
-// Local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 

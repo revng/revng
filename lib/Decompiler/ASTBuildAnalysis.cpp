@@ -4,24 +4,21 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <llvm/IR/DerivedTypes.h>
-#include <llvm/IR/Instruction.h>
-#include <llvm/IR/Instructions.h>
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 
-// clang includes
-#include <clang/AST/ASTContext.h>
-#include <clang/AST/Decl.h>
-#include <clang/AST/DeclGroup.h>
-#include <clang/AST/Expr.h>
-#include <clang/AST/OperationKinds.h>
-#include <clang/AST/Stmt.h>
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
+#include "clang/AST/DeclGroup.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/OperationKinds.h"
+#include "clang/AST/Stmt.h"
 
-// revng includes
-#include <revng/Support/IRHelpers.h>
+#include "revng/Support/IRHelpers.h"
 
-// local includes
 #include "ASTBuildAnalysis.h"
+
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
 #include "Mangling.h"

@@ -2,18 +2,15 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// STL includes
 #include <memory>
 
-// LLVM includes
-#include <llvm/CodeGen/Passes.h>
-#include <llvm/IR/LegacyPassManager.h>
-#include <llvm/IR/Module.h>
-#include <llvm/Transforms/InstCombine/InstCombine.h>
-#include <llvm/Transforms/Scalar.h>
-#include <llvm/Transforms/Utils/Cloning.h>
+#include "llvm/CodeGen/Passes.h"
+#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Module.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 
-// Local library includes
 #include "revng-c/Decompiler/CDecompiler.h"
 #include "revng-c/Decompiler/CDecompilerPass.h"
 #include "revng-c/RemoveCpuLoopStore/RemoveCpuLoopStorePass.h"

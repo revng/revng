@@ -5,35 +5,28 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <sstream>
-#include <stdlib.h>
 
-// LLVM includes
-#include <llvm/ADT/PostOrderIterator.h>
-#include <llvm/IR/BasicBlock.h>
-#include <llvm/IR/Dominators.h>
-#include <llvm/IR/Function.h>
-#include <llvm/Support/Casting.h>
-#include <llvm/Support/FileSystem.h>
-#include <llvm/Support/GenericDomTreeConstruction.h>
-#include <llvm/Support/raw_os_ostream.h>
+#include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Dominators.h"
+#include "llvm/IR/Function.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/GenericDomTreeConstruction.h"
+#include "llvm/Support/raw_os_ostream.h"
 
-// revng includes
-#include <revng/Support/Debug.h>
-#include <revng/Support/IRHelpers.h>
+#include "revng/Support/Debug.h"
+#include "revng/Support/IRHelpers.h"
 
-// revng-c includes
-#include "revng-c/RestructureCFGPass/BasicBlockNodeImpl.h"
-#include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
-
-// Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
+#include "revng-c/RestructureCFGPass/BasicBlockNodeImpl.h"
 #include "revng-c/RestructureCFGPass/GenerateAst.h"
 #include "revng-c/RestructureCFGPass/MetaRegionBB.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
+#include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 using namespace llvm;
 using namespace llvm::cl;

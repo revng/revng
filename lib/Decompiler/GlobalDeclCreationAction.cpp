@@ -2,18 +2,16 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <llvm/ADT/SmallVector.h>
-#include <llvm/IR/Constants.h>
-#include <llvm/IR/Module.h>
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/Module.h"
 
-// revng includes
-#include <revng/Support/Assert.h>
+#include "revng/Support/Assert.h"
 
-// local includes
+#include "GlobalDeclCreationAction.h"
+
 #include "ASTBuildAnalysis.h"
 #include "DecompilationHelpers.h"
-#include "GlobalDeclCreationAction.h"
 #include "IRASTTypeTranslation.h"
 #include "Mangling.h"
 

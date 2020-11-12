@@ -5,16 +5,13 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 
-// LLVM includes
-#include <llvm/ADT/STLExtras.h>
-#include <llvm/IR/Constants.h>
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/Constants.h"
 
-// Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTNode.h"
 
 using namespace llvm;

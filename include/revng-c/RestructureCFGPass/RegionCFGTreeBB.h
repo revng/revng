@@ -5,7 +5,6 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdlib>
 #include <set>
 
@@ -14,7 +13,6 @@ namespace llvm {
 class BasicBlock;
 } // namespace llvm
 
-// Local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 extern template class RegionCFG<llvm::BasicBlock *>;

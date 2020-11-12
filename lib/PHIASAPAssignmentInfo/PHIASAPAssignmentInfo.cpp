@@ -2,16 +2,14 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <llvm/ADT/SmallSet.h>
-#include <llvm/ADT/SmallVector.h>
-#include <llvm/IR/BasicBlock.h>
-#include <llvm/IR/Dominators.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/Support/Casting.h>
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Dominators.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/Support/Casting.h"
 
-// local library includes
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 
 using namespace llvm;

@@ -5,13 +5,11 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// std includes
 #include <memory>
 #include <set>
 #include <utility>
 #include <vector>
 
-// Local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
 #include "revng-c/RestructureCFGPass/MetaRegion.h"
 

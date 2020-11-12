@@ -2,8 +2,7 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <llvm/Support/Path.h>
+#include "llvm/Support/Path.h"
 
 #include "revng-c/DecompilerResourceFinder/ResourceFinder.h"
 

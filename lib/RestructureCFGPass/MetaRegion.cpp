@@ -5,7 +5,6 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Local libraries includes
 #include "revng-c/RestructureCFGPass/MetaRegionImpl.h"
 
 // Explicit instantation for the `Metaregion` template class for

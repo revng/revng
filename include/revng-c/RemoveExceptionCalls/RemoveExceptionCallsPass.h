@@ -5,8 +5,7 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <llvm/Pass.h>
+#include "llvm/Pass.h"
 
 class RemoveExceptionCallsPass : public llvm::FunctionPass {
 public:

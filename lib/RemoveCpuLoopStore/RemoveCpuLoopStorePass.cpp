@@ -2,15 +2,12 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <llvm/ADT/SmallVector.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/Module.h>
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Module.h"
 
-// revng includes
-#include <revng/Support/IRHelpers.h>
+#include "revng/Support/IRHelpers.h"
 
-// Local libraries includes
 #include "revng-c/RemoveCpuLoopStore/RemoveCpuLoopStorePass.h"
 
 using namespace llvm;

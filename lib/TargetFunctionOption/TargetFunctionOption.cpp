@@ -6,7 +6,6 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Local libraries includes
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 using namespace llvm;

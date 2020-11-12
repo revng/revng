@@ -4,11 +4,9 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <llvm/Pass.h>
+#include "llvm/Pass.h"
 
-// revng includes
-#include <revng/ADT/SmallMap.h>
+#include "revng/ADT/SmallMap.h"
 
 struct PHIASAPAssignmentInfo : public llvm::FunctionPass {
 

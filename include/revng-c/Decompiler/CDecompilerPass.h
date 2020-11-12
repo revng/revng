@@ -5,14 +5,11 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// std includes
 #include <memory>
 
-// LLVM includes
-#include <llvm/IR/Function.h>
-#include <llvm/Support/raw_ostream.h>
+#include "llvm/IR/Function.h"
+#include "llvm/Support/raw_ostream.h"
 
-// local libraries includes
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 

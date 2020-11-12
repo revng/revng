@@ -2,26 +2,22 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <llvm/ADT/SmallString.h>
-#include <llvm/IR/LegacyPassManager.h>
-#include <llvm/IR/Module.h>
-#include <llvm/IRReader/IRReader.h>
-#include <llvm/Support/Error.h>
-#include <llvm/Support/FileSystem.h>
-#include <llvm/Support/Path.h>
-#include <llvm/Support/SourceMgr.h>
-#include <llvm/Support/raw_ostream.h>
-#include <llvm/Transforms/Scalar.h>
+#include "llvm/ADT/SmallString.h"
+#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IRReader/IRReader.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Path.h"
+#include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Scalar.h"
 
-// clang includes
-#include <clang/Tooling/CommonOptionsParser.h>
-#include <clang/Tooling/Tooling.h>
+#include "clang/Tooling/CommonOptionsParser.h"
+#include "clang/Tooling/Tooling.h"
 
-// revng includes
-#include <revng/Support/IRHelpers.h>
+#include "revng/Support/IRHelpers.h"
 
-// local libraries includes
 #include "revng-c/Decompiler/CDecompilerPass.h"
 #include "revng-c/DecompilerResourceFinder/ResourceFinder.h"
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
@@ -29,7 +25,6 @@
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
-// local includes
 #include "CDecompilerAction.h"
 
 using namespace llvm;

@@ -5,11 +5,9 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <map>
 #include <set>
 
-// LLVM includes
 #include "llvm/Pass.h"
 
 class ReachabilityPass : public llvm::FunctionPass {

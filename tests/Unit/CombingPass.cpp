@@ -5,26 +5,21 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdlib>
 
-// Boost includes
 #define BOOST_TEST_MODULE CombingPass
 bool init_unit_test();
-#include <boost/test/unit_test.hpp>
+#include "boost/test/unit_test.hpp"
 
-// LLVM includes
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/SourceMgr.h"
 
-// revng includes
 #include "revng/Support/Debug.h"
 #include "revng/UnitTestHelpers/DotGraphObject.h"
 
-// Local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNodeImpl.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"

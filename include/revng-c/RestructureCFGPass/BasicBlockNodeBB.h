@@ -10,7 +10,6 @@ namespace llvm {
 class BasicBlock;
 } // namespace llvm
 
-// Local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 extern template class BasicBlockNode<llvm::BasicBlock *>;
 

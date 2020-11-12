@@ -5,14 +5,11 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// std includes
 #include <cstdio>
 
-// clang includes
-#include <clang/Frontend/ASTConsumers.h>
-#include <clang/Frontend/FrontendAction.h>
+#include "clang/Frontend/ASTConsumers.h"
+#include "clang/Frontend/FrontendAction.h"
 
-// Local directory includes
 #include "CDecompilerBeautify.h"
 
 class ASTTree;

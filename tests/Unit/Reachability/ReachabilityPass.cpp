@@ -6,22 +6,17 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <sstream>
-#include <stdlib.h>
 
-// LLVM includes
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
-// revng includes
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
-// Local includes
 #include "ReachabilityPass.h"
 
 using namespace llvm;

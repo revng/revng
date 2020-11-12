@@ -4,15 +4,12 @@
 
 /// \brief Dataflow analysis to identify which Instructions must be serialized
 
-// LLVM includes
-#include <llvm/IR/BasicBlock.h>
-#include <llvm/IR/Instructions.h>
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Instructions.h"
 
-// local libraries includes
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 
-// local includes
 #include "MarkForSerialization.h"
 
 static Logger<> MarkLog("mark-serialization");

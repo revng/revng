@@ -5,20 +5,17 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdlib>
 #include <map>
 #include <set>
 
-// LLVM includes
-#include <llvm/ADT/GraphTraits.h>
-#include <llvm/ADT/SmallSet.h>
-#include <llvm/ADT/SmallString.h>
-#include <llvm/ADT/SmallVector.h>
-#include <llvm/IR/BasicBlock.h>
+#include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/BasicBlock.h"
 
-// revng includes
-#include <revng/Support/Debug.h>
+#include "revng/Support/Debug.h"
 
 // Forward declarations
 template<class NodeT>

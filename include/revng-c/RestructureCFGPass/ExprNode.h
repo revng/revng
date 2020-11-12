@@ -5,11 +5,9 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdlib>
 
-// LLVM includes
-#include <llvm/Support/Casting.h>
+#include "llvm/Support/Casting.h"
 
 class AtomicNode;
 class NotNode;

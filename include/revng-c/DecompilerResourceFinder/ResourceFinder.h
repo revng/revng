@@ -4,10 +4,8 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// revng includes
-#include <revng/Support/PathList.h>
+#include "revng/Support/PathList.h"
 
-// Local library includes
 #include "revng-c/DecompilerResourceFinder/ResourceFinder.h"
 
 namespace revng {

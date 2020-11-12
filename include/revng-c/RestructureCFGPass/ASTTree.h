@@ -5,11 +5,9 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdlib>
 #include <type_traits>
 
-// local libraries includes
 #include "revng-c/RestructureCFGPass/ASTNode.h"
 
 // Forward declarations.

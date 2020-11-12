@@ -5,15 +5,12 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// std includes
 #include <map>
 
-// LLVM includes
-#include <llvm/ADT/Optional.h>
-#include <llvm/ADT/SmallVector.h>
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallVector.h"
 
-// clang includes
-#include <clang/AST/Type.h>
+#include "clang/AST/Type.h"
 
 namespace llvm {
 class GlobalVariable;

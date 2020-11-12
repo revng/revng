@@ -5,14 +5,11 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdlib>
 #include <fstream>
 #include <memory>
 #include <set>
-#include <sys/stat.h>
 
-// Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTNode.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
 

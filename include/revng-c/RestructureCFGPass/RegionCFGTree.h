@@ -5,22 +5,18 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdlib>
 #include <set>
 
-// LLVM includes
-#include <llvm/ADT/STLExtras.h>
-#include <llvm/IR/Dominators.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/Support/FileSystem.h>
-#include <llvm/Support/GenericDomTreeConstruction.h>
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/Dominators.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/GenericDomTreeConstruction.h"
 
-// revng includes
-#include <revng/ADT/FilteredGraphTraits.h>
-#include <revng/ADT/SmallMap.h>
+#include "revng/ADT/FilteredGraphTraits.h"
+#include "revng/ADT/SmallMap.h"
 
-// Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
 #include "revng-c/RestructureCFGPass/Utils.h"

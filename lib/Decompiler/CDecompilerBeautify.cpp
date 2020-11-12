@@ -6,22 +6,19 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <llvm/IR/Instructions.h>
-#include <llvm/Support/Casting.h>
+#include "llvm/IR/Instructions.h"
+#include "llvm/Support/Casting.h"
 
-// revng includes
-#include <revng/Support/Assert.h>
-#include <revng/Support/Debug.h>
+#include "revng/Support/Assert.h"
+#include "revng/Support/Debug.h"
 
-// local libraries includes
-#include <revng-c/RestructureCFGPass/ASTTree.h>
-#include <revng-c/RestructureCFGPass/ExprNode.h>
-#include <revng-c/RestructureCFGPass/GenerateAst.h>
-#include <revng-c/RestructureCFGPass/RegionCFGTree.h>
+#include "revng-c/RestructureCFGPass/ASTTree.h"
+#include "revng-c/RestructureCFGPass/ExprNode.h"
+#include "revng-c/RestructureCFGPass/GenerateAst.h"
+#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 
-// local includes
 #include "CDecompilerBeautify.h"
+
 #include "MarkForSerialization.h"
 
 static Logger<> BeautifyLogger("beautify");

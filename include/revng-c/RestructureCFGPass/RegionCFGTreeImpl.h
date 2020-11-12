@@ -5,33 +5,28 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
-#include <sys/stat.h>
 
-// LLVM includes
-#include <llvm/ADT/DepthFirstIterator.h>
-#include <llvm/ADT/GraphTraits.h>
-#include <llvm/ADT/PostOrderIterator.h>
-#include <llvm/ADT/SCCIterator.h>
-#include <llvm/ADT/SmallPtrSet.h>
-#include <llvm/ADT/SmallSet.h>
-#include <llvm/ADT/SmallVector.h>
-#include <llvm/IR/Dominators.h>
-#include <llvm/IR/IRBuilder.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/Support/Casting.h>
-#include <llvm/Support/GenericDomTreeConstruction.h>
-#include <llvm/Support/raw_os_ostream.h>
+#include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SCCIterator.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/Dominators.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/GenericDomTreeConstruction.h"
+#include "llvm/Support/raw_os_ostream.h"
 
-// revng includes
-#include <revng/BasicAnalyses/GeneratedCodeBasicInfo.h>
-#include <revng/Support/IRHelpers.h>
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Support/IRHelpers.h"
 
-// Local libraries includes
 #include "revng-c/ADT/ReversePostOrderTraversal.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"

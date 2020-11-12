@@ -2,25 +2,22 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <llvm/IR/DerivedTypes.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/GlobalVariable.h>
-#include <llvm/IR/InstrTypes.h>
-#include <llvm/IR/Instruction.h>
-#include <llvm/IR/Type.h>
-#include <llvm/IR/Value.h>
-#include <llvm/Support/Casting.h>
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/Value.h"
+#include "llvm/Support/Casting.h"
 
-// clang includes
-#include <clang/AST/ASTContext.h>
-#include <clang/AST/Decl.h>
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
 
-// revng includes
-#include <revng/Support/Assert.h>
+#include "revng/Support/Assert.h"
 
-// local includes
 #include "IRASTTypeTranslation.h"
+
 #include "Mangling.h"
 
 namespace IRASTTypeTranslation {

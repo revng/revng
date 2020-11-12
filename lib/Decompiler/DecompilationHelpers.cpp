@@ -2,21 +2,17 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <llvm/ADT/SmallSet.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/GlobalVariable.h>
-#include <llvm/IR/Module.h>
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/Module.h"
 
-// clang includes
-#include <clang/AST/ASTContext.h>
-#include <clang/AST/Expr.h>
-#include <clang/AST/Stmt.h>
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/Stmt.h"
 
-// revng includes
-#include <revng/Support/IRHelpers.h>
+#include "revng/Support/IRHelpers.h"
 
-// local includes
 #include "DecompilationHelpers.h"
 
 using namespace llvm;

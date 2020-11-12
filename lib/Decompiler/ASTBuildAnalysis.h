@@ -6,18 +6,15 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
-#include <llvm/ADT/SmallVector.h>
-#include <llvm/IR/Dominators.h>
-#include <llvm/IR/Instructions.h>
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/Dominators.h"
+#include "llvm/IR/Instructions.h"
 
-// clang includes
-#include <clang/Basic/Specifiers.h>
+#include "clang/Basic/Specifiers.h"
 
-// revng includes
-#include <revng/ADT/SmallMap.h>
-#include <revng/Support/Assert.h>
-#include <revng/Support/MonotoneFramework.h>
+#include "revng/ADT/SmallMap.h"
+#include "revng/Support/Assert.h"
+#include "revng/Support/MonotoneFramework.h"
 
 namespace clang {
 class ASTContext;

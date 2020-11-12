@@ -5,7 +5,6 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/ADT/PostOrderIterator.h"
 
 template<class GraphT,

@@ -5,11 +5,9 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cctype>
 
-// LLVM includes
-#include <llvm/ADT/STLExtras.h>
+#include "llvm/ADT/STLExtras.h"
 
 // This is very simple for now.
 // In the future we might consider making it more robust using something like

@@ -5,19 +5,16 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdlib>
 #include <map>
 #include <set>
 
-// LLVM includes
-#include <llvm/IR/BasicBlock.h>
-#include <llvm/IR/Instructions.h>
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Instructions.h"
 
-// Local libraries includes
-#include <revng-c/RestructureCFGPass/BasicBlockNode.h>
-#include <revng-c/RestructureCFGPass/RegionCFGTreeBB.h>
-#include <revng-c/RestructureCFGPass/Utils.h>
+#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
+#include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
+#include "revng-c/RestructureCFGPass/Utils.h"
 
 // Trait exposing the weight of a generic object wrapped by `BasicBlockNode`.
 template<class T>

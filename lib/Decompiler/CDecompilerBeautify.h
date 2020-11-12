@@ -5,7 +5,6 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 
 extern unsigned ShortCircuitCounter;

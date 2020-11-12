@@ -5,13 +5,10 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <fstream>
 
-// LLVM includes
 #include "llvm/Pass.h"
 
-// Local libraries includes
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
 
