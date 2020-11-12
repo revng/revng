@@ -1245,10 +1245,15 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
   }
 
   for (Label &L : Labels) {
+    MetaAddress MA = MetaAddress::invalid();
+
     if (L.isSymbol() and L.isCode())
-      CodePointers.insert(relocate(L.address()));
+      MA = relocate(L.address());
     else if (L.isBaseRelativeValue())
-      CodePointers.insert(relocate(fromPC(L.value())));
+      MA = relocate(fromPC(L.value()));
+
+    if (MA.isValid())
+      CodePointers.insert(MA);
   }
 }
 
