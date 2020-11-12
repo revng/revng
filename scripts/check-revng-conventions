@@ -6,7 +6,9 @@
 
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-FORMAT="0"
+FORCE_FORMAT="0"
+
+USE_CLANG_FORMAT_FILE="0"
 
 set -e
 
@@ -14,7 +16,11 @@ while [[ $# > 0 ]]; do
     key="$1"
     case $key in
         --force-format)
-            FORMAT="1"
+            FORCE_FORMAT="1"
+            shift # past argument
+            ;;
+        --use-local-clang-format-file)
+            USE_CLANG_FORMAT_FILE="1"
             shift # past argument
             ;;
         --*)
@@ -38,12 +44,18 @@ fi
 
 GREP="git grep -n --color=always"
 
+CLANG_FORMAT_STYLE=$(cat $SCRIPT_PATH/revng-clang-format-style-file)
+
+if test "$USE_CLANG_FORMAT_FILE" -gt 0; then
+    CLANG_FORMAT_STYLE=file
+fi
+
 # Run clang-format on FILES
 function run_clang_format() {
-    if test "$FORMAT" -gt 0; then
-        clang-format -style=file -i $FILES
+    if test "$FORCE_FORMAT" -gt 0; then
+        clang-format -style="$CLANG_FORMAT_STYLE" -i $FILES
     else
-        clang-format --dry-run -style=file -i $FILES
+        clang-format --dry-run -style="$CLANG_FORMAT_STYLE" -i $FILES
     fi
 }
 
