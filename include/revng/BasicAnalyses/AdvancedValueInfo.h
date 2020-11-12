@@ -680,7 +680,19 @@ public:
       }
 
       llvm::Optional<llvm::StringRef> SymbolName;
-      auto *Current = CI::get(SmallestOperationType, Entry.value());
+      Constant *Current = nullptr;
+      {
+        auto Value = Entry.value();
+        if (SmallestOperationType->isIntegerTy()) {
+          Current = CI::get(SmallestOperationType, Value);
+        } else if (SmallestOperationType->isPointerTy()) {
+          auto &C = SmallestOperationType->getContext();
+          Current = CI::get(DL.getIntPtrType(C), Value);
+          Current = CE::getIntToPtr(Current, SmallestOperationType);
+        } else {
+          revng_abort();
+        }
+      }
 
       // Materialize the value I through the operations stack
       auto It = OperationsStack.rbegin();
