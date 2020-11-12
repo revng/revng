@@ -59,7 +59,36 @@ ForEachMacros:
 - Q_FOREACH
 - BOOST_FOREACH
 ,
-IncludeBlocks: Preserve,
+IncludeBlocks: Regroup,
+IncludeCategories:
+- {
+    Regex:        '^"Caliban/',
+    Priority:     -1,
+  }
+- {
+    Regex:        '^"revng-c/',
+    Priority:     -2,
+  }
+- {
+    Regex:        '^"revng/',
+    Priority:     -3,
+  }
+- {
+    Regex:        '^"clang/',
+    Priority:     -4,
+  }
+- {
+    Regex:        '^"llvm/',
+    Priority:     -5,
+  }
+- {
+    Regex:        '^"boost/',
+    Priority:     -6,
+  }
+- {
+    Regex:        '^<',
+    Priority:     -7,
+  }
 IndentCaseLabels: false,
 IndentPPDirectives: None,
 IndentWidth: 2,
