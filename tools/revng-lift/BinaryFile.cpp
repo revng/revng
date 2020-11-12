@@ -921,10 +921,10 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
         revng_abort();
       }
 
-      if (shouldIgnoreSymbol(*Name))
+      auto SymbolType = SymbolType::fromELF(Symbol.getType());
+      if (shouldIgnoreSymbol(*Name) or Symbol.st_shndx == ELF::SHN_UNDEF)
         continue;
 
-      auto SymbolType = SymbolType::fromELF(Symbol.getType());
       MetaAddress Address = MetaAddress::invalid();
 
       if (SymbolType == SymbolType::Code)
@@ -1170,10 +1170,11 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
           revng_abort();
         }
 
-        if (shouldIgnoreSymbol(*Name))
+        auto SymbolType = SymbolType::fromELF(Symbol.getType());
+
+        if (shouldIgnoreSymbol(*Name) or Symbol.st_shndx == ELF::SHN_UNDEF)
           continue;
 
-        auto SymbolType = SymbolType::fromELF(Symbol.getType());
         MetaAddress Address = MetaAddress::invalid();
 
         if (SymbolType == SymbolType::Code)
