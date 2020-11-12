@@ -108,10 +108,9 @@ function run_revng_checks() {
     for FILE in $FILES; do
         if [[ $FILE == *h ]]; then
             $GREP -H '^static\b[^=]*$' "$FILE" | cat
-            $GREP -HE '#ifndef\s*_.*_H\s*$' "$FILE" | cat
+            head -n1 "$FILE" |  grep -E '^#pragma once$' > /dev/null || echo "$FILE: header does not start with #pragma once"
         fi
     done
-
 
 }
 
