@@ -4,14 +4,30 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <algorithm>
+#include <optional>
 #include <string>
 
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/DOTGraphTraits.h"
+#include "llvm/Support/GraphWriter.h"
 
+#include "revng/ADT/GenericGraph.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
+#include "revng/Model/Binary.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/StackAnalysis/AAWriterPass.h"
 #include "revng/StackAnalysis/FunctionsSummary.h"
+#include "revng/StackAnalysis/IndirectBranchInfoPrinterPass.h"
+#include "revng/StackAnalysis/PromoteGlobalToLocalVars.h"
+#include "revng/StackAnalysis/SegregateDirectStackAccesses.h"
+#include "revng/Support/Assert.h"
+#include "revng/Support/MetaAddress.h"
+#include "revng/Support/OpaqueFunctionsPool.h"
 
 namespace StackAnalysis {
 
