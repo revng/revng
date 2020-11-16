@@ -12,6 +12,13 @@
 
 namespace TypeShrinking {
 
+struct DataFlowNode : public BidirectionalNode<DataFlowNode> {
+  DataFlowNode(llvm::Instruction *Instruction) {
+    this->Instruction = Instruction;
+  }
+  llvm::Instruction *Instruction;
+};
+
 class DefUse : public llvm::FunctionPass {
 public:
   static char ID; // Pass identification, replacement for typeid
