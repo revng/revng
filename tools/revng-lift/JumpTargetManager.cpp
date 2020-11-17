@@ -238,10 +238,10 @@ void TDBP::pinConstantStoreInternal(MetaAddress Address, CallInst *ExitTBCall) {
     BranchInst::Create(TargetBlock, ExitTBCall);
     JTM->recordNewBranches();
   } else {
-    // We're jumping to an invalid location, abort everything
+    // We're jumping to an unknown or invalid location,
+    // jump back to the dispatcher
     // TODO: emit a warning
-    CallInst::Create(M->getFunction("abort"), {}, ExitTBCall);
-    new UnreachableInst(Context, ExitTBCall);
+    BranchInst::Create(JTM->dispatcher(), ExitTBCall);
   }
 
   ExitTBCall->eraseFromParent();
