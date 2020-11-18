@@ -13,6 +13,7 @@
 
 #include "revng-c/Decompiler/CDecompiler.h"
 #include "revng-c/Decompiler/CDecompilerPass.h"
+#include "revng-c/MakeEnvNull/MakeEnvNull.h"
 #include "revng-c/RemoveCpuLoopStore/RemoveCpuLoopStorePass.h"
 #include "revng-c/RemoveExceptionCalls/RemoveExceptionCallsPass.h"
 #include "revng-c/RemoveLLVMAssumeCalls/RemoveLLVMAssumeCallsPass.h"
@@ -34,6 +35,7 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
     PM.add(new RemoveNewPCCallsPass());
     PM.add(new RemoveExceptionCallsPass());
     PM.add(new RemoveCpuLoopStorePass());
+    PM.add(new MakeEnvNullPass());
   }
 
   // Optimize IR with LLVM's passes

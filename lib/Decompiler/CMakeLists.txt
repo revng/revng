@@ -23,6 +23,7 @@ target_link_libraries(Decompiler
   RemoveCpuLoopStore
   RemoveExceptionCalls
   RemoveLLVMAssumeCalls
+  MakeEnvNull
   revng::revngSupport
   clangTooling
   clangAST
