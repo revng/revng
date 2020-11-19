@@ -500,23 +500,35 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
   std::ofstream Output(CoveragePath);
 
   Output << std::hex;
+  size_t FixedArgCount = NewPCMarker->arg_size();
+
   for (User *U : NewPCMarker->users()) {
     auto *Call = cast<CallInst>(U);
-    if (Call->getParent() != nullptr) {
-      // Report the instruction on the coverage CSV
-      using CI = ConstantInt;
-      auto PC = MetaAddress::fromConstant(Call->getArgOperand(0));
-      uint64_t Size = (cast<CI>(Call->getArgOperand(1)))->getLimitedValue();
-      bool IsJT = JumpTargets.isJumpTarget(PC);
-      PC.dump(Output);
-      Output << ",0x" << Size << "," << (IsJT ? "1" : "0") << "\n";
 
-      unsigned ArgCount = Call->getNumArgOperands();
-      Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
+    // Report the instruction on the coverage CSV
+    auto PC = MetaAddress::fromConstant(Call->getArgOperand(0));
+    uint64_t Size = getLimitedValue(Call->getArgOperand(1));
+    bool IsJT = JumpTargets.isJumpTarget(PC);
+    PC.dump(Output);
+    Output << ",0x" << Size << "," << (IsJT ? "1" : "0") << "\n";
 
-      // TODO: by default we should leave these
-      for (unsigned I = 4; I < ArgCount - 1; I++)
-        Call->setArgOperand(I, Call->getArgOperand(ArgCount - 1));
+    // We already finished discovering new code to translate, so we can remove
+    // the references to local variables as argument of the calls to newpc and
+    // create room for more optimizations.
+    if (Call->arg_size() != FixedArgCount) {
+      SmallVector<Value *, 8> Args;
+      auto AI = Call->arg_begin();
+      for (size_t Idx = 0; Idx < FixedArgCount; ++Idx, ++AI)
+        Args.emplace_back(*AI);
+
+      auto *NewCall = CallInst::Create(NewPCMarker, Args, "", Call);
+      NewCall->setCallingConv(Call->getCallingConv());
+      NewCall->setAttributes(Call->getAttributes());
+      NewCall->setDebugLoc(Call->getDebugLoc());
+      NewCall->copyMetadata(*Call);
+
+      revng_assert(Call->use_empty());
+      Call->eraseFromParent();
     }
   }
   Output << std::dec;
