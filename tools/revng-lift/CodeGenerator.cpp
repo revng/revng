@@ -1268,6 +1268,8 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   Variables.setDataLayout(&TheModule->getDataLayout());
 
+  Translator.finalizeNewPCMarkers(CoveragePath);
+
   // SROA must run before InstCombine because in this way InstCombine has many
   // more elementary operations to combine
   legacy::PassManager PreInstCombinePM;
@@ -1309,8 +1311,6 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
                                       *MainFunction,
                                       PCH.get());
   JumpOutHandler.createExternalJumpsHandler();
-
-  Translator.finalizeNewPCMarkers(CoveragePath);
 
   Variables.finalize();
 
