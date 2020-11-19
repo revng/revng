@@ -40,7 +40,7 @@ namespace IR2AST {
 
 using AllocaVarDeclMap = std::map<llvm::AllocaInst *, clang::VarDecl *>;
 using BBLabelsMap = std::map<llvm::BasicBlock *, clang::LabelDecl *>;
-using DeclMap = std::map<llvm::Instruction *, clang::VarDecl *>;
+using DeclMap = std::map<llvm::Value *, clang::VarDecl *>;
 using FunctionsMap = std::map<llvm::Function *, clang::FunctionDecl *>;
 using GlobalsMap = std::map<const llvm::GlobalVariable *, clang::VarDecl *>;
 using StmtMap = std::map<llvm::Instruction *, clang::Stmt *>;
@@ -108,6 +108,9 @@ public:
 
 private:
   clang::VarDecl *createVarDecl(llvm::Instruction *I, clang::FunctionDecl &FD);
+  clang::VarDecl *createVarDecl(llvm::Constant *I,
+                                llvm::Value *NamingVal,
+                                clang::FunctionDecl &FD);
   clang::Stmt *buildStmt(llvm::Instruction &I);
   clang::Expr *createRValueExprForBinaryOperator(llvm::Instruction &I);
   clang::Expr *getParenthesizedExprForValue(llvm::Value *V);

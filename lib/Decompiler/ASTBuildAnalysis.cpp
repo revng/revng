@@ -4,6 +4,7 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -97,7 +98,27 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       return ReturnStmt::Create(ASTCtx, {}, nullptr, nullptr);
     }
 
-    Expr *ReturnedExpr = RetVal ? getExprForValue(RetVal) : nullptr;
+    Expr *ReturnedExpr = nullptr;
+    if (auto *ZeroAggregate = dyn_cast_or_null<ConstantAggregateZero>(RetVal)) {
+      uint64_t ConstValue = 0;
+      QualType IntT = ASTCtx.IntTy;
+      APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue);
+
+      llvm::Function *TheFunction = Ret->getFunction();
+      clang::FunctionDecl &FDecl = *FunctionDecls.at(TheFunction);
+
+      revng_assert(VarDecls.count(ZeroAggregate) == 0);
+      VarDecl *NewVarDecl = createVarDecl(ZeroAggregate, TheFunction, FDecl);
+      VarDecls[ZeroAggregate] = NewVarDecl;
+
+      clang::Expr *Zero = IntegerLiteral::Create(ASTCtx, Const, IntT, {});
+      clang::Expr *ZeroInit = new (ASTCtx)
+        clang::InitListExpr(ASTCtx, {}, { Zero }, {});
+      NewVarDecl->setInit(ZeroInit);
+      ReturnedExpr = getExprForValue(ZeroAggregate);
+    } else {
+      ReturnedExpr = RetVal ? getExprForValue(RetVal) : nullptr;
+    }
     return ReturnStmt::Create(ASTCtx, {}, ReturnedExpr, nullptr);
   }
   case Instruction::Switch: {
@@ -751,6 +772,39 @@ StmtBuilder::createVarDecl(Instruction *I, clang::FunctionDecl &FDecl) {
   return NewVarDecl;
 }
 
+VarDecl *StmtBuilder::createVarDecl(Constant *C,
+                                    Value *NamingVal,
+                                    clang::FunctionDecl &FDecl) {
+  clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+  QualType ASTType;
+  if (auto *ZeroAggregate = dyn_cast<llvm::ConstantAggregateZero>(C)) {
+    ASTType = getOrCreateQualType(ZeroAggregate->getType(),
+                                  NamingVal,
+                                  ASTCtx,
+                                  TUDecl,
+                                  TypeDecls,
+                                  FieldDecls);
+  } else {
+    revng_abort("trying to create VarDecl for unexpected constant");
+  }
+
+  revng_assert(not ASTType.isNull());
+  const std::string VarName = C->hasName() ?
+                                C->getName().str() :
+                                (std::string("var_") + std::to_string(NVar++));
+  IdentifierInfo &Id = ASTCtx.Idents.get(makeCIdentifier(VarName));
+  VarDecl *NewVarDecl = VarDecl::Create(ASTCtx,
+                                        &FDecl,
+                                        {},
+                                        {},
+                                        &Id,
+                                        ASTType,
+                                        nullptr,
+                                        StorageClass::SC_None);
+  FDecl.addDecl(NewVarDecl);
+  return NewVarDecl;
+}
+
 static clang::BinaryOperatorKind getClangBinaryOpKind(const Instruction &I) {
   clang::BinaryOperatorKind Res;
   switch (I.getOpcode()) {
@@ -993,6 +1047,12 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
     QualType Type = GlobalVarDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
       DeclRefExpr(ASTCtx, GlobalVarDecl, false, Type, VK_LValue, {});
+    return Res;
+  } else if (isa<llvm::ConstantAggregateZero>(V)) {
+    VarDecl *VDecl = VarDecls.at(V);
+    QualType Type = VDecl->getType();
+    DeclRefExpr *Res = new (ASTCtx)
+      DeclRefExpr(ASTCtx, VDecl, false, Type, VK_LValue, {});
     return Res;
   } else if (isa<llvm::ConstantData>(V) or isa<llvm::ConstantExpr>(V)) {
     return getLiteralFromConstant(cast<llvm::Constant>(V));
