@@ -6,6 +6,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Support/Casting.h"
 
 #include "revng/Support/Assert.h"
 
@@ -26,12 +27,29 @@ bool hasSideEffect(const Instruction *Ins) {
     return true;
   return false;
 }
-unsigned min(unsigned a, unsigned b) {
+
+unsigned min(const unsigned &a, const unsigned &b) {
   return a < b ? a : b;
 }
-unsigned max(unsigned a, unsigned b) {
+
+unsigned max(const unsigned &a, const unsigned &b) {
   return a > b ? a : b;
 }
+
+unsigned GetMaxOperandSize(Instruction *Ins) {
+  unsigned Max = 0;
+  for (unsigned i = 0; i < Ins->getNumOperands(); ++i) {
+    auto *Operand = Ins->getOperand(i);
+    if (Operand->getType()->isIntegerTy())
+      Max = max(Max, Operand->getType()->getIntegerBitWidth());
+    else
+      return std::numeric_limits<unsigned>::max();
+  }
+  return Max;
+}
+
+/// A specialization of the transfer function for the and instruction
+/// In cases where one of the operands is constant
 unsigned transferMask(const unsigned &Element, const unsigned &MaskIndex) {
   return min(Element, MaskIndex);
 }
@@ -49,18 +67,73 @@ unsigned transferAnd(Instruction *Ins, const unsigned &Element) {
   return Result;
 }
 
+unsigned transferShiftLeft(Instruction *Ins, const unsigned &Element) {
+  unsigned OperandSize = GetMaxOperandSize(Ins);
+  if (auto ConstOp = llvm::dyn_cast<llvm::ConstantInt>(Ins->getOperand(1))) {
+    auto OpVal = ConstOp->getZExtValue();
+    if (Element < OpVal)
+      return 0;
+    return Element - OpVal;
+  }
+  return OperandSize;
+}
+
+unsigned transferLogicalShiftRight(Instruction *Ins, const unsigned &Element) {
+  unsigned OperandSize = GetMaxOperandSize(Ins);
+  if (auto ConstOp = llvm::dyn_cast<llvm::ConstantInt>(Ins->getOperand(1))) {
+    auto OpVal = ConstOp->getZExtValue();
+    if (std::numeric_limits<unsigned>::max() - OpVal < Element)
+      return std::numeric_limits<unsigned>::max();
+    return min(OperandSize, Element + OpVal);
+  }
+  return OperandSize;
+}
+
+unsigned
+transferArithmeticalShiftRight(Instruction *Ins, const unsigned &Element) {
+  unsigned OperandSize = GetMaxOperandSize(Ins);
+  if (auto ConstOp = llvm::dyn_cast<llvm::ConstantInt>(Ins->getOperand(1))) {
+    auto OpVal = ConstOp->getZExtValue();
+    if (std::numeric_limits<unsigned>::max() - OpVal < Element)
+      return std::numeric_limits<unsigned>::max();
+    return min(OperandSize, Element + OpVal);
+  }
+  return OperandSize;
+}
+
+unsigned transferTrunc(Instruction *Ins, const unsigned &Element) {
+  return min(Element, Ins->getType()->getIntegerBitWidth());
+}
+
+unsigned transferZExt(Instruction *Ins, const unsigned &Element) {
+  return min(Element, GetMaxOperandSize(Ins));
+}
+
 unsigned
 BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L, const unsigned E) {
   auto *Ins = L->Instruction;
   switch (Ins->getOpcode()) {
   case Instruction::And:
     return transferAnd(Ins, E);
+  case Instruction::Xor:
+  case Instruction::Or:
   case Instruction::Add:
   case Instruction::Sub:
   case Instruction::Mul:
-    return E;
+    return min(E, GetMaxOperandSize(L->Instruction));
+  case Instruction::Shl:
+    return transferShiftLeft(Ins, E);
+  case Instruction::LShr:
+    return transferLogicalShiftRight(Ins, E);
+  case Instruction::AShr:
+    return transferArithmeticalShiftRight(Ins, E);
+  case Instruction::Trunc:
+    return transferTrunc(Ins, E);
+  case Instruction::ZExt:
+    return transferZExt(Ins, E);
   default:
-    return std::numeric_limits<unsigned>::max();
+    // by default all the bits of the operands can be alive
+    return GetMaxOperandSize(L->Instruction);
   }
 }
 
