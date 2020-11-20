@@ -4,8 +4,9 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-#include "revng-c/TypeShrinking/DefUse.h"
 #include "revng-c/TypeShrinking/MFP.h"
+
+#include "DataFlowGraph.h"
 
 namespace TypeShrinking {
 bool hasSideEffect(const llvm::Instruction *Ins);
