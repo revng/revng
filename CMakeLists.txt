@@ -161,6 +161,7 @@ install(PROGRAMS
 install(FILES runtime/support.c DESTINATION share/revng)
 install(FILES runtime/support.h DESTINATION share/revng)
 install(FILES include/revng/Runtime/commonconstants.h DESTINATION share/revng)
+install(FILES scripts/clang-format-style-file DESTINATION share/revng)
 
 # Remove -rdynamic
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)

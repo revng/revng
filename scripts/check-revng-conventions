@@ -44,7 +44,16 @@ fi
 
 GREP="git grep -n --color=always"
 
-CLANG_FORMAT_STYLE=$(cat $SCRIPT_PATH/revng-clang-format-style-file)
+CLANG_FORMAT_STYLE_FILE="$SCRIPT_PATH/clang-format-style-file"
+if ! test -e "$CLANG_FORMAT_STYLE_FILE"; then
+    CLANG_FORMAT_STYLE_FILE="$SCRIPT_PATH/../share/revng/clang-format-style-file"
+    if ! test -e "$CLANG_FORMAT_STYLE_FILE"; then
+        echo "Can't find clang-format-style-file" > /dev/stderr
+        exit 1
+    fi
+fi
+
+CLANG_FORMAT_STYLE=$(cat "$CLANG_FORMAT_STYLE_FILE")
 
 if test "$USE_CLANG_FORMAT_FILE" -gt 0; then
     CLANG_FORMAT_STYLE=file
