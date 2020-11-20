@@ -40,7 +40,7 @@ struct MonotoneFramework {
   }
 
   /// Compute the maximum fixed points of an instance of monotone framework
-  std::map<Label, LatticeElementPair>
+  static std::map<Label, LatticeElementPair>
   getMaximalFixedPoint(const GraphType &Flow,
                        LatticeElement BottomValue,
                        LatticeElement ExtremalValue,
