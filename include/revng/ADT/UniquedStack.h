@@ -1,16 +1,13 @@
-#ifndef UNIQUEDSTACK_H
-#define UNIQUEDSTACK_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <algorithm>
 #include <set>
 #include <vector>
 
-// Local libraries includes
 #include "revng/Support/Assert.h"
 
 /// \brief Stack where an element cannot be re-inserted in it's already in the
@@ -44,5 +41,3 @@ private:
   std::set<T> Set;
   std::vector<T> Queue;
 };
-
-#endif // UNIQUEDSTACK_H

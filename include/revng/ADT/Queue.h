@@ -1,15 +1,12 @@
-#ifndef QUEUE_H
-#define QUEUE_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <queue>
 #include <set>
 
-// Local libraries includes
 #include "revng/Support/Assert.h"
 
 /// \brief Queue where an element cannot be re-inserted if it's already in the
@@ -58,5 +55,3 @@ using UniquedQueue = QueueImpl<T, false>;
 
 template<typename T>
 using OnceQueue = QueueImpl<T, true>;
-
-#endif // QUEUE_H

@@ -5,13 +5,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/ADT/SmallSet.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 
-// Local includes
 #include "ProgramCounterHandler.h"
 
 using namespace llvm;

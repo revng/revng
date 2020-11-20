@@ -1,15 +1,12 @@
-#ifndef CUSTOMCFG_H
-#define CUSTOMCFG_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <map>
 #include <vector>
 
-// Local libraries includes
 #include "revng/Support/IRHelpers.h"
 
 namespace llvm {
@@ -153,5 +150,3 @@ struct GraphTraits<CustomCFGNode *> {
 };
 
 } // namespace llvm
-
-#endif // CUSTOMCFG_H

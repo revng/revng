@@ -5,18 +5,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <fstream>
 #include <map>
 #include <set>
 
-// LLVM includes
-#include <llvm/Support/raw_ostream.h>
+#include "llvm/Support/raw_ostream.h"
 
-// revng includes
 #include "revng/Support/Debug.h"
-
-// Local libraries includes
 #include "revng/UnitTestHelpers/DotGraphObject.h"
 
 using namespace llvm;

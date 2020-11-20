@@ -1,14 +1,11 @@
-#ifndef FUNCTIONBOUNDARIESDETECTIONPASS_H
-#define FUNCTIONBOUNDARIESDETECTIONPASS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/Pass.h"
 
-// Local libraries includes
 #include "revng/StackAnalysis/StackAnalysis.h"
 
 namespace StackAnalysis {
@@ -31,5 +28,3 @@ public:
 };
 
 } // namespace StackAnalysis
-
-#endif // FUNCTIONBOUNDARIESDETECTIONPASS_H

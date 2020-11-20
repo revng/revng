@@ -1,21 +1,17 @@
-#ifndef ZIPMAPITERATOR_H
-#define ZIPMAPITERATOR_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <iterator>
 #include <set>
 #include <tuple>
 #include <vector>
 
-// LLVM includes
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/iterator.h"
 
-// Local libraries includes
 #include "revng/Support/Assert.h"
 
 // For std::map-compatible containers
@@ -259,5 +255,3 @@ zipmap_range(T &Left, T &Right) {
   return llvm::make_range(zipmap_begin<T, KC>(Left, Right),
                           zipmap_end<T, KC>(Left, Right));
 }
-
-#endif // ZIPMAPITERATOR_H

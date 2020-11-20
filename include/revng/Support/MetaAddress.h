@@ -1,14 +1,11 @@
-#ifndef METAADDRESS_H
-#define METAADDRESS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/ADT/Triple.h"
 
-// Local libraries includes
 #include "revng/Support/Debug.h"
 
 namespace llvm {
@@ -864,5 +861,3 @@ struct compareAddress<MetaAddress> {
     return LHS.addressLowerThan(RHS);
   }
 };
-
-#endif // METAADDRESS_H

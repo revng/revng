@@ -5,15 +5,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Boost includes
 #define BOOST_TEST_MODULE StackAnalysis
 bool init_unit_test();
-#include <boost/test/unit_test.hpp>
+#include "boost/test/unit_test.hpp"
 
-// Local libraries includes
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
-// Local includes
 #include "Intraprocedural.h"
 
 using namespace StackAnalysis;

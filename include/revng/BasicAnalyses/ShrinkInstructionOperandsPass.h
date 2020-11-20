@@ -1,11 +1,9 @@
-#ifndef REVNG_SHRINKINSTRUCTIONOPERANDSPASS_H
-#define REVNG_SHRINKINSTRUCTIONOPERANDSPASS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Local libraries includes
 #include "revng/Support/IRHelpers.h"
 
 enum Signedness { DontCare, Signed, Unsigned };
@@ -179,5 +177,3 @@ ShrinkInstructionOperandsPass::run(llvm::Function &F,
 
   return PreservedAnalyses::none();
 }
-
-#endif // REVNG_SHRINKINSTRUCTIONOPERANDSPASS_H

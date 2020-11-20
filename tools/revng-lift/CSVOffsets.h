@@ -1,11 +1,9 @@
-#ifndef CSVOFFSET_H
-#define CSVOFFSET_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <set>
 
 template<bool StaticallyEnabled>
@@ -199,5 +197,3 @@ public:
     Offsets = {};
   }
 };
-
-#endif // CSVOFFSET_H

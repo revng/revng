@@ -5,12 +5,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Boost includes
 #define BOOST_TEST_MODULE GenericGraph
 bool init_unit_test();
-#include <boost/test/unit_test.hpp>
+#include "boost/test/unit_test.hpp"
 
-// LLVM includes
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
@@ -19,7 +17,6 @@ bool init_unit_test();
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_ostream.h"
 
-// Local libraries includes
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/ADT/GenericGraph.h"
 

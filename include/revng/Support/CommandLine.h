@@ -1,14 +1,11 @@
-#ifndef COMMANDLINE_H
-#define COMMANDLINE_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <iosfwd>
 
-// LLVM includes
 #include "llvm/Support/CommandLine.h"
 
 extern llvm::cl::OptionCategory MainCategory;
@@ -17,5 +14,3 @@ extern llvm::cl::OptionCategory MainCategory;
 extern llvm::cl::opt<bool> IgnoreDebugSymbols;
 
 std::ostream &pathToStream(const std::string &Path, std::ofstream &File);
-
-#endif // COMMANDLINE_H

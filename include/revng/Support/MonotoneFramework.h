@@ -1,22 +1,18 @@
-#ifndef MONOTONEFRAMEWORK_H
-#define MONOTONEFRAMEWORK_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <map>
 #include <set>
 #include <type_traits>
 #include <vector>
 
-// LLVM includes
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallVector.h"
 
-// Local libraries includes
 #include "revng/ADT/Queue.h"
 #include "revng/Support/Debug.h"
 
@@ -940,5 +936,3 @@ public:
                          Other.end());
   }
 };
-
-#endif // MONOTONEFRAMEWORK_H

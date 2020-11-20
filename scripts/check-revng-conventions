@@ -6,7 +6,9 @@
 
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-FORMAT="0"
+FORCE_FORMAT="0"
+
+USE_CLANG_FORMAT_FILE="0"
 
 set -e
 
@@ -14,7 +16,11 @@ while [[ $# > 0 ]]; do
     key="$1"
     case $key in
         --force-format)
-            FORMAT="1"
+            FORCE_FORMAT="1"
+            shift # past argument
+            ;;
+        --use-local-clang-format-file)
+            USE_CLANG_FORMAT_FILE="1"
             shift # past argument
             ;;
         --*)
@@ -38,12 +44,18 @@ fi
 
 GREP="git grep -n --color=always"
 
+CLANG_FORMAT_STYLE=$(cat $SCRIPT_PATH/revng-clang-format-style-file)
+
+if test "$USE_CLANG_FORMAT_FILE" -gt 0; then
+    CLANG_FORMAT_STYLE=file
+fi
+
 # Run clang-format on FILES
 function run_clang_format() {
-    if test "$FORMAT" -gt 0; then
-        clang-format -style=file -i $FILES
+    if test "$FORCE_FORMAT" -gt 0; then
+        clang-format -style="$CLANG_FORMAT_STYLE" -i $FILES
     else
-        clang-format --dry-run -style=file -i $FILES
+        clang-format --dry-run -style="$CLANG_FORMAT_STYLE" -i $FILES
     fi
 }
 
@@ -58,7 +70,11 @@ function run_revng_checks() {
     done
 
     # Things should never match (except in support.c)
-    FILTERED_FILES="$(echo $FILES | sed 's|\bruntime/support\.c\b||g; s|\blib/Support/Assert\.cpp\b||g;')"
+    FILTERED_FILES="$(echo $FILES | tr ' ' '\n' | grep -v \
+        -e '^runtime/support\.c$' \
+        -e '^lib/Support/Assert\.cpp$' \
+        )"
+
     for REGEXP in '\babort(' '\bassert(' 'assert(false' 'llvm_unreachable'; do
         $GREP "$REGEXP" $FILTERED_FILES | cat
     done
@@ -67,6 +83,18 @@ function run_revng_checks() {
     for REGEXP in '::' '<' 'RegisterPass.*>' '} else' '\bopt\b.*>'; do
         $GREP "$REGEXP\$" $FILES | cat
     done
+
+    # Includes should never use <..> except for C++ standard includes
+    $GREP "^\s*#include <.*\.hpp>" $FILES | cat
+    FILES_WITHOUT_C_STDLIB_INCLUDES="$(echo $FILES | tr ' ' '\n' | grep -v \
+        -e '^runtime/support\.h$' \
+        -e '^runtime/support\.c$' \
+        -e '^runtime/early-linked\.c$' \
+        -e '^include/revng/Support/Assert\.h$' \
+        -e '^include/revng/Support/ClassSentinel\.h$' \
+        -e '^share/revngc/revng-c-include\.c$' \
+        )"
+    $GREP "^\s*#include <.*\.h>" $FILES_WITHOUT_C_STDLIB_INCLUDES | cat
 
     # Parenthesis at the end of line (except for raw strings)
     $GREP "(\$" $FILES | grep -v 'R"LLVM.*(' | cat
@@ -80,10 +108,9 @@ function run_revng_checks() {
     for FILE in $FILES; do
         if [[ $FILE == *h ]]; then
             $GREP -H '^static\b[^=]*$' "$FILE" | cat
-            $GREP -HE '#ifndef\s*_.*_H\s*$' "$FILE" | cat
+            head -n1 "$FILE" |  grep -E '^#pragma once$' > /dev/null || echo "$FILE: header does not start with #pragma once"
         fi
     done
-
 
 }
 

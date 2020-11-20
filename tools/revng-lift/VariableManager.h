@@ -1,24 +1,19 @@
-#ifndef VARIABLEMANAGER_H
-#define VARIABLEMANAGER_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdint>
 #include <map>
 #include <string>
 
-// LLVM includes
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Pass.h"
 
-// Local libraries includes
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/revng.h"
 
-// Local includes
 #include "CPUStateAccessAnalysisPass.h"
 #include "PTCDump.h"
 
@@ -184,5 +179,3 @@ private:
   llvm::GlobalVariable *Env;
   Architecture &TargetArchitecture;
 };
-
-#endif // VARIABLEMANAGER_H

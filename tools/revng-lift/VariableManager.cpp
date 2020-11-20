@@ -6,14 +6,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdint>
 #include <set>
 #include <sstream>
 #include <stack>
 #include <string>
 
-// LLVM includes
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -24,15 +22,14 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
-// Local libraries includes
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/revng.h"
 
-// Local includes
+#include "VariableManager.h"
+
 #include "PTCDump.h"
 #include "PTCInterface.h"
-#include "VariableManager.h"
 
 using namespace llvm;
 

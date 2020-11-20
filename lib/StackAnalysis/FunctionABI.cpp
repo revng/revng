@@ -5,20 +5,17 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <algorithm>
 
-// LLVM includes
 #include "llvm/ADT/SCCIterator.h"
 
-// Local libraries includes
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/GraphAlgorithms.h"
 #include "revng/Support/MonotoneFramework.h"
 
-// Local includes
-#include "ABIIR.h"
 #include "FunctionABI.h"
+
+#include "ABIIR.h"
 
 using std::conditional;
 using std::tuple;

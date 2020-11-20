@@ -6,15 +6,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
-#include "revng/Support/Assert.h"
 #include <cstdint>
 #include <fstream>
 #include <queue>
 #include <set>
 #include <sstream>
 
-// LLVM includes
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
@@ -22,13 +19,13 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
 
-// Local libraries includes
+#include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/RandomAccessIterator.h"
 #include "revng/Support/Range.h"
 
-// Local includes
 #include "InstructionTranslator.h"
+
 #include "PTCInterface.h"
 #include "VariableManager.h"
 

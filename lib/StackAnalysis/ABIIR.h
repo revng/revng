@@ -1,21 +1,16 @@
-#ifndef ABIIR_H
-#define ABIIR_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <stack>
 
-// LLVM includes
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
-// Local libraries includes
 #include "revng/ADT/Queue.h"
 
-// Local includes
 #include "ASSlot.h"
 #include "FunctionABI.h"
 
@@ -493,5 +488,3 @@ struct GraphTraits<Inverse<StackAnalysis::ABIIRBasicBlock *>> {
 };
 
 } // namespace llvm
-
-#endif // ABIIR_H

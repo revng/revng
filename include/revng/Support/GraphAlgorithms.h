@@ -1,15 +1,12 @@
-#ifndef GRAPHALGORITHMS_H
-#define GRAPHALGORITHMS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <set>
 #include <vector>
 
-// LLVM includes
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
@@ -187,5 +184,3 @@ auto exitless_scc_range(NodeTy Entry) {
 
   return make_filter_range(Range, Filter);
 }
-
-#endif // GRAPHALGORITHMS_H

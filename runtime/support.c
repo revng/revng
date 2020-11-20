@@ -2,7 +2,6 @@
  * This file is distributed under the MIT License. See LICENSE.md for details.
  */
 
-// Standard includes
 #include <assert.h>
 #include <elf.h>
 #include <endian.h>
@@ -29,10 +28,8 @@ int arch_prctl(int code, unsigned long *addr);
 
 #endif
 
-// Local libraries includes
 #include "revng/Runtime/commonconstants.h"
 
-// Local includes
 #include "support.h"
 
 // Save the program arguments for meaningful error reporting

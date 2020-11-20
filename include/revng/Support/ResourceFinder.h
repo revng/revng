@@ -1,11 +1,9 @@
-#ifndef REVNG_RESOURCE_FINDER_H
-#define REVNG_RESOURCE_FINDER_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Local libraries includes
 #include "revng/Support/PathList.h"
 
 namespace revng {
@@ -13,5 +11,3 @@ namespace revng {
 extern PathList ResourceFinder;
 
 }
-
-#endif // REVNG_RESOURCE_FINDER_H

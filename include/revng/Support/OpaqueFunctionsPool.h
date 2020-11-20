@@ -1,21 +1,17 @@
-#ifndef OPAQUEFUNCTIONSPOOL_H
-#define OPAQUEFUNCTIONSPOOL_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <map>
 
-// LLVM includes
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
 
-// Local libraries includes
 #include "revng/Support/Assert.h"
 
 template<typename KeyT>
@@ -80,5 +76,3 @@ public:
     return get(Key, FunctionType::get(ReturnType, Arguments, false), Name);
   }
 };
-
-#endif // OPAQUEFUNCTIONSPOOL_H

@@ -5,12 +5,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <string>
 #include <tuple>
 #include <utility>
 
-// LLVM includes
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -26,11 +24,9 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LEB128.h"
 
-// Local libraries includes
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 
-// Local includes
 #include "BinaryFile.h"
 
 // using directives

@@ -1,5 +1,4 @@
-#ifndef SUPPORT_H
-#define SUPPORT_H
+#pragma once
 
 /*
  * This file is distributed under the MIT License. See LICENSE.md for details.
@@ -107,5 +106,3 @@ extern jmp_buf jmp_buffer;
 
 bool is_executable(uint64_t pc);
 void set_register(uint32_t register_id, uint64_t value);
-
-#endif // SUPPORT_H

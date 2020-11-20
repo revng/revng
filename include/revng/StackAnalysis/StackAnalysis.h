@@ -1,17 +1,13 @@
-#ifndef STACKANALYSIS_H
-#define STACKANALYSIS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <string>
 
-// LLVM includes
 #include "llvm/Pass.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/StackAnalysis/FunctionsSummary.h"
@@ -65,5 +61,3 @@ extern template void StackAnalysis<true>::serializeMetadata(llvm::Function &F);
 extern template void StackAnalysis<false>::serializeMetadata(llvm::Function &F);
 
 } // namespace StackAnalysis
-
-#endif // STACKANALYSIS_H

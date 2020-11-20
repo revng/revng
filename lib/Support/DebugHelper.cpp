@@ -5,11 +5,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <fstream>
 #include <string>
 
-// LLVM includes
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/Instruction.h"
@@ -18,7 +16,6 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/raw_os_ostream.h"
 
-// Local libraries includes
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/DebugHelper.h"
 

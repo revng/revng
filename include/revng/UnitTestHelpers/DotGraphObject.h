@@ -1,22 +1,19 @@
-#ifndef REVNG_DOTGRAPHOBJECT_H
-#define REVNG_DOTGRAPHOBJECT_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdlib>
 #include <iosfwd>
 #include <type_traits>
 #include <vector>
 
-// LLVM includes
-#include <llvm/ADT/GraphTraits.h>
-#include <llvm/ADT/STLExtras.h>
-#include <llvm/ADT/SmallString.h>
-#include <llvm/ADT/SmallVector.h>
-#include <llvm/ADT/StringRef.h>
+#include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 
 namespace llvm {
 class raw_ostream;
@@ -360,5 +357,3 @@ struct GraphTraits<llvm::Inverse<const DotGraph *>>
 };
 
 } // namespace llvm
-
-#endif // REVNG_DOTGRAPHOBJECT_H

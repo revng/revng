@@ -1,18 +1,15 @@
-#ifndef FUNCTIONCALLIDENTIFICATION_H
-#define FUNCTIONCALLIDENTIFICATION_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/CustomCFG.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/IRHelpers.h"
@@ -128,5 +125,3 @@ private:
   std::set<MetaAddress> FallthroughAddresses;
   CustomCFG FilteredCFG;
 };
-
-#endif // FUNCTIONCALLIDENTIFICATION_H

@@ -1,22 +1,17 @@
-#ifndef EXTERNALJUMPSHANDLER_H
-#define EXTERNALJUMPSHANDLER_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <vector>
 
-// LLVM includes
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/Pass.h"
 
-// Local libraries includes
 #include "revng/Support/revng.h"
 
-// Local includes
 #include "BinaryFile.h"
 
 class ProgramCounterHandler;
@@ -104,5 +99,3 @@ private:
   /// by the kernel to the signal handler.
   llvm::BasicBlock *createReturnFromExternal();
 };
-
-#endif // EXTERNALJUMPSHANDLER_H

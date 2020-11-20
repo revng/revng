@@ -5,16 +5,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <map>
 
-// Boost includes
 #define BOOST_TEST_MODULE MetaAddress
 bool init_unit_test();
-#include <boost/test/execution_monitor.hpp>
-#include <boost/test/unit_test.hpp>
+#include "boost/test/execution_monitor.hpp"
+#include "boost/test/unit_test.hpp"
 
-// Local libraries includes
 #include "revng/Support/MetaAddress.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 

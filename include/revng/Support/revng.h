@@ -1,23 +1,19 @@
-#ifndef REVNG_H
-#define REVNG_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdint>
 #include <iterator>
 #include <string>
 #include <vector>
 
-// LLVM includes
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
 
-// Local libraries includes
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 
@@ -383,5 +379,3 @@ inline llvm::BasicBlock *getFunctionCallCallee(llvm::BasicBlock *BB) {
   // TODO: is it OK to treat indirect function calls and non-calls the same way?
   return nullptr;
 }
-
-#endif // REVNG_H

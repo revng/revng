@@ -1,23 +1,16 @@
-#ifndef LAZYSMALLBITVECTOR_H
-#define LAZYSMALLBITVECTOR_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <climits>
 #include <cstdint>
 #include <cstring>
-extern "C" {
-#include <strings.h>
-}
 #include <limits>
 
-// Boost includes
-#include <boost/iterator/iterator_facade.hpp>
+#include "boost/iterator/iterator_facade.hpp"
 
-// Local libraries includes
 #include "revng/Support/Assert.h"
 
 // TODO: implement shrinking
@@ -739,5 +732,3 @@ inline LSBVI<LSBV>::LSBVI(LSBV *BitVector, unsigned Index) :
 }
 
 #undef LSBVI
-
-#endif // LAZYSMALLBITVECTOR_H

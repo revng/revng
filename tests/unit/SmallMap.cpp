@@ -5,15 +5,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Boost includes
-#define BOOST_TEST_MODULE SmallMapLowerBound
-bool init_unit_test();
-#include <boost/test/unit_test.hpp>
-
-// Standard includes
 #include <functional>
 
-// Local libraries includes
+#define BOOST_TEST_MODULE SmallMapLowerBound
+bool init_unit_test();
+#include "boost/test/unit_test.hpp"
+
 #include "revng/ADT/SmallMap.h"
 
 using namespace llvm;

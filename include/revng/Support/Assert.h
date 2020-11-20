@@ -1,5 +1,4 @@
-#ifndef REVNG_ASSERT_H
-#define REVNG_ASSERT_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -9,7 +8,6 @@
 extern "C" {
 #endif
 
-// Standard includes
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -198,5 +196,3 @@ noret void revng_do_abort(const char *Message, const char *File, unsigned Line);
 #ifdef __cplusplus
 }
 #endif
-
-#endif // REVNG_ASSERT_H

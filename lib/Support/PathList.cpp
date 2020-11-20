@@ -2,10 +2,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Local library includes
-#include "revng/Support/PathList.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/PathList.h"
 
 static Logger<> Log("find-resources");
 

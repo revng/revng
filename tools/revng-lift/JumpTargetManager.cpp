@@ -7,18 +7,15 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdint>
 #include <fstream>
 #include <queue>
 #include <sstream>
 
-// Boost includes
-#include <boost/icl/interval_set.hpp>
-#include <boost/icl/right_open_interval.hpp>
-#include <boost/type_traits/is_same.hpp>
+#include "boost/icl/interval_set.hpp"
+#include "boost/icl/right_open_interval.hpp"
+#include "boost/type_traits/is_same.hpp"
 
-// LLVM includes
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/CodeGen/UnreachableBlockElim.h"
@@ -36,7 +33,6 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
-// Local libraries includes
 #include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/AdvancedValueInfo.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
@@ -49,11 +45,11 @@
 #include "revng/Support/Statistics.h"
 #include "revng/Support/revng.h"
 
-// Local includes
+#include "JumpTargetManager.h"
+
 #include "AdvancedValueInfoPass.h"
 #include "CPUStateAccessAnalysisPass.h"
 #include "DropHelperCallsPass.h"
-#include "JumpTargetManager.h"
 #include "ProgramCounterHandler.h"
 #include "SubGraph.h"
 

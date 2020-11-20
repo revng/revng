@@ -1,19 +1,15 @@
-#ifndef PROGRAMCOUNTERHANDLER_H
-#define PROGRAMCOUNTERHANDLER_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Value.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/IRHelpers.h"
 
-// Local includes
 #include "PTCInterface.h"
 
 inline llvm::IntegerType *getCSVType(llvm::GlobalVariable *CSV) {
@@ -376,5 +372,3 @@ protected:
     store(Builder, IsThumb, NewPC.type() == Code_arm_thumb ? 1 : 0);
   }
 };
-
-#endif // PROGRAMCOUNTERHANDLER_H

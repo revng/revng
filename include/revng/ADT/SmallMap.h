@@ -1,18 +1,14 @@
-#ifndef SMALLMAP_H
-#define SMALLMAP_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <array>
 #include <map>
 
-// Boost includes
-#include <boost/variant.hpp>
+#include "boost/variant.hpp"
 
-// Local libraries includes
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Assert.h"
 
@@ -462,5 +458,3 @@ struct KeyContainer<T, typename std::enable_if_t<isSmallMap<T>::value>> {
 
   static void sort(T &Container) { Container.sort(); }
 };
-
-#endif // SMALLMAP_H

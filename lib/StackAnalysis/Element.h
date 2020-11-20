@@ -1,18 +1,14 @@
-#ifndef ELEMENT_H
-#define ELEMENT_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <set>
 
-// Local libraries includes
 #include "revng/ADT/LazySmallBitVector.h"
 #include "revng/Support/Statistics.h"
 
-// Local includes
 #include "ASSlot.h"
 #include "BasicBlockInstructionPair.h"
 
@@ -431,5 +427,3 @@ struct hash<StackAnalysis::Intraprocedural::Value> {
 };
 
 } // namespace std
-
-#endif // ELEMENT_H

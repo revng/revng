@@ -1,22 +1,17 @@
-#ifndef CODEGENERATOR_H
-#define CODEGENERATOR_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdint>
 #include <memory>
 #include <string>
 
-// LLVM includes
 #include "llvm/ADT/ArrayRef.h"
 
-// Local libraries includes
 #include "revng/Support/revng.h"
 
-// Local includes
 #include "BinaryFile.h"
 
 // Forward declarations
@@ -100,5 +95,3 @@ private:
 
   std::set<MetaAddress> NoMoreCodeBoundaries;
 };
-
-#endif // CODEGENERATOR_H

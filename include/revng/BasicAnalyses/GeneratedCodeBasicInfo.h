@@ -1,20 +1,16 @@
-#ifndef GENERATEDCODEBASICINFO_H
-#define GENERATEDCODEBASICINFO_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <cstdint>
 #include <map>
 #include <utility>
 
-// LLVM includes
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 
-// Local libraries includes
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/revng.h"
 
@@ -513,5 +509,3 @@ struct BlackListTrait<const GeneratedCodeBasicInfo &, llvm::BasicBlock *>
     return !this->Obj.isTranslated(Value);
   }
 };
-
-#endif // GENERATEDCODEBASICINFO_H

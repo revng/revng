@@ -5,12 +5,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/RemoveDbgMetadata.h"
 
 using namespace llvm;

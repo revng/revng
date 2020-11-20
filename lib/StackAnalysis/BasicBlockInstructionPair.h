@@ -1,11 +1,9 @@
-#ifndef BASICBLOCKINSTRUCTIONPAIR_H
-#define BASICBLOCKINSTRUCTIONPAIR_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Local libraries includes
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -94,5 +92,3 @@ inline void writeToLog(Logger<true> &This, const CallSite &Other, int) {
 }
 
 } // namespace StackAnalysis
-
-#endif // BASICBLOCKINSTRUCTIONPAIR_H

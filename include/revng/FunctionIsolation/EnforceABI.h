@@ -1,17 +1,13 @@
-#ifndef ENFORCEABI_H
-#define ENFORCEABI_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <memory>
 
-// LLVM includes
 #include "llvm/Pass.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/StackAnalysis/StackAnalysis.h"
 
@@ -29,5 +25,3 @@ public:
     AU.setPreservesAll();
   }
 };
-
-#endif // ENFORCEABI_H

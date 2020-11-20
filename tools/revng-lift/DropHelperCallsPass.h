@@ -1,14 +1,11 @@
-#ifndef DROPHELPERCALLSPASS_H
-#define DROPHELPERCALLSPASS_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <map>
 
-// LLVM includes
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 
@@ -182,5 +179,3 @@ DropHelperCallsPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
 
   return PreservedAnalyses::none();
 }
-
-#endif // DROPHELPERCALLSPASS_H

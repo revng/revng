@@ -5,18 +5,15 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
 #include <vector>
 
-// Boost includes
 #define BOOST_TEST_MODULE LazySmallBitVector
 bool init_unit_test();
-#include <boost/test/unit_test.hpp>
+#include "boost/test/unit_test.hpp"
 
-// Local libraries includes
 #include "revng/ADT/LazySmallBitVector.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
@@ -195,7 +192,7 @@ BOOST_AUTO_TEST_CASE(TestComparison) {
   BOOST_TEST(not(A < B));
 }
 
-#include <boost/iterator/transform_iterator.hpp>
+#include "boost/iterator/transform_iterator.hpp"
 
 BOOST_AUTO_TEST_CASE(TestIterator) {
   std::vector<unsigned> Results;

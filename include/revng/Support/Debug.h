@@ -1,23 +1,19 @@
-#ifndef DEBUG_H
-#define DEBUG_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <functional>
 #include <ostream>
 #include <sstream>
 #include <string>
 #include <vector>
 
-// LLVM includes
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ManagedStatic.h"
 
-// Local libraries includes
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
 
@@ -286,5 +282,3 @@ extern Logger<> NRALog;
 extern Logger<> PassesLog;
 extern Logger<> ReleaseLog;
 extern Logger<> VerifyLog;
-
-#endif // DEBUG_H

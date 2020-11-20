@@ -5,16 +5,16 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
-#include "revng/Support/Assert.h"
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 
-// Local includes
+#include "revng/Support/Assert.h"
+
 #include "PTCDump.h"
+
 #include "PTCInterface.h"
 
 static const int MAX_TEMP_NAME_LENGTH = 128;

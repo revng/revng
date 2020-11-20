@@ -1,20 +1,16 @@
-#ifndef REVNG_MATERIALIZEDVALUE_H
-#define REVNG_MATERIALIZEDVALUE_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <set>
 
-// LLVM includes
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 
-// Local libraries includes
 #include "revng/Support/Debug.h"
 
 /// \brief Class representing either a constant value or an offset from a symbol
@@ -78,5 +74,3 @@ public:
 };
 
 using MaterializedValues = std::vector<MaterializedValue>;
-
-#endif // REVNG_MATERIALIZEDVALUE_H

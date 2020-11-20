@@ -5,17 +5,14 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Boost includes
 #define BOOST_TEST_MODULE ShrinkInstructionOperandsPass
 bool init_unit_test();
-#include <boost/test/unit_test.hpp>
+#include "boost/test/unit_test.hpp"
 
-// LLVM includes
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/PassBuilder.h"
 
-// Local libraries includes
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/UnitTestHelpers/LLVMTestHelpers.h"

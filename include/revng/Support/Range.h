@@ -1,11 +1,9 @@
-#ifndef RANGE_H
-#define RANGE_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <type_traits>
 #include <vector>
 
@@ -56,5 +54,3 @@ void copy(Range<T> Source, OutputIterator Destination) {
   for (auto Element : Source)
     *Destination++ = Element;
 }
-
-#endif // RANGE_H

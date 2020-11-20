@@ -1,16 +1,13 @@
-#ifndef COLLECTCFG_H
-#define COLLECTCFG_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Standard includes
 #include <fstream>
 #include <map>
 #include <set>
 
-// LLVM includes
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Pass.h"
@@ -50,5 +47,3 @@ private:
   std::map<BasicBlock *, SmallVector<BasicBlock *, 2>, Comparer> Result;
   std::set<BasicBlock *> BlackList;
 };
-
-#endif // COLLECTCFG_H

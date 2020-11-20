@@ -12,7 +12,6 @@ namespace llvm {
 class Module;
 }
 
-// Local libraries includes
 #include "revng/Support/MonotoneFramework.h"
 
 namespace ExampleAnalysis {

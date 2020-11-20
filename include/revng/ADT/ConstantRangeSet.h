@@ -1,15 +1,12 @@
-#ifndef CONSTANTRANGESET_H
-#define CONSTANTRANGESET_H
+#pragma once
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/ConstantRange.h"
 
-// Local libraries includes
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Debug.h"
 
@@ -276,5 +273,3 @@ private:
     return Result;
   }
 };
-
-#endif // CONSTANTRANGESET_H
