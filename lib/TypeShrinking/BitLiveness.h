@@ -8,6 +8,10 @@
 
 #include "DataFlowGraph.h"
 
+namespace llvm {
+class Instruction;
+} // end namespace llvm
+
 namespace TypeShrinking {
 bool hasSideEffect(const llvm::Instruction *Ins);
 
