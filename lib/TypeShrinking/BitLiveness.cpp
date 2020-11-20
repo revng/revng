@@ -9,7 +9,7 @@
 
 #include "revng/Support/Assert.h"
 
-#include "revng-c/TypeShrinking/BitLiveness.h"
+#include "BitLiveness.h"
 
 namespace TypeShrinking {
 

@@ -17,9 +17,10 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 
-#include "revng-c/TypeShrinking/BitLiveness.h"
 #include "revng-c/TypeShrinking/DefUse.h"
 #include "revng-c/TypeShrinking/MFP.h"
+
+#include "BitLiveness.h"
 
 using BitSet = std::set<int>;
 
