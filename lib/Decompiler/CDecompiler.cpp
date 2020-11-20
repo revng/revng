@@ -19,6 +19,7 @@
 #include "revng-c/RemoveExceptionCalls/RemoveExceptionCallsPass.h"
 #include "revng-c/RemoveLLVMAssumeCalls/RemoveLLVMAssumeCallsPass.h"
 #include "revng-c/RemoveNewPCCalls/RemoveNewPCCallsPass.h"
+#include "revng-c/TypeShrinking/TypeShrinking.h"
 
 std::string
 decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
@@ -53,6 +54,17 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
     PM.add(llvm::createInstructionCombiningPass());
     PM.add(llvm::createEarlyCSEPass());
     PM.add(llvm::createCFGSimplificationPass());
+  }
+
+  {
+    PM.add(new TypeShrinking::TypeShrinking());
+    PM.add(llvm::createEarlyCSEPass());
+    PM.add(llvm::createConstantPropagationPass());
+    PM.add(llvm::createReassociatePass());
+    PM.add(llvm::createNewGVNPass());
+    PM.add(llvm::createConstantPropagationPass());
+    PM.add(llvm::createDeadStoreEliminationPass());
+    PM.add(llvm::createDeadCodeEliminationPass());
   }
 
   // Remove LLVM's artifacts from IR
