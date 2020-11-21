@@ -1659,34 +1659,41 @@ void JumpTargetManager::harvestWithAVI() {
 
   SummaryCallsBuilder SCB(CSVMap);
 
-  FunctionPassManager FPM;
-  FPM.addPass(DropMarkerCalls({ "exitTB" }));
-  FPM.addPass(DropHelperCallsPass(SyscallHelper, SyscallIDCSV, SCB));
-  FPM.addPass(ShrinkInstructionOperandsPass());
-  FPM.addPass(PromotePass());
-  FPM.addPass(JumpThreadingPass());
-  FPM.addPass(UnreachableBlockElimPass());
-  FPM.addPass(InstCombinePass(false));
-  FPM.addPass(EarlyCSEPass(true));
-  FPM.addPass(DropRangeMetadataPass());
-  FPM.addPass(AdvancedValueInfoPass(this));
+  {
+    // Note: it is important to let the pass manager go out of scope ASAP:
+    //       LazyValueInfo registers a lot of callbacks to get notified when a
+    //       Value is destroyed, slowing down OptimizedFunction->eraseFromParent
+    //       enormously.
+    FunctionPassManager FPM;
+    FPM.addPass(DropMarkerCalls({ "exitTB" }));
+    FPM.addPass(DropHelperCallsPass(SyscallHelper, SyscallIDCSV, SCB));
+    FPM.addPass(ShrinkInstructionOperandsPass());
+    FPM.addPass(PromotePass());
+    FPM.addPass(JumpThreadingPass());
+    FPM.addPass(UnreachableBlockElimPass());
+    FPM.addPass(InstCombinePass(false));
+    FPM.addPass(EarlyCSEPass(true));
+    FPM.addPass(DropRangeMetadataPass());
+    FPM.addPass(AdvancedValueInfoPass(this));
 
-  FunctionAnalysisManager FAM;
-  FAM.registerPass([] {
-    AAManager AA;
-    AA.registerFunctionAnalysis<BasicAA>();
-    AA.registerFunctionAnalysis<ScopedNoAliasAA>();
+    FunctionAnalysisManager FAM;
+    FAM.registerPass([] {
+      AAManager AA;
+      AA.registerFunctionAnalysis<BasicAA>();
+      AA.registerFunctionAnalysis<ScopedNoAliasAA>();
 
-    return AA;
-  });
-  ModuleAnalysisManager MAM;
-  FAM.registerPass([&MAM] { return ModuleAnalysisManagerFunctionProxy(MAM); });
+      return AA;
+    });
+    ModuleAnalysisManager MAM;
+    FAM.registerPass(
+      [&MAM] { return ModuleAnalysisManagerFunctionProxy(MAM); });
 
-  PassBuilder PB;
-  PB.registerFunctionAnalyses(FAM);
-  PB.registerModuleAnalyses(MAM);
+    PassBuilder PB;
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerModuleAnalyses(MAM);
 
-  FPM.run(*OptimizedFunction, FAM);
+    FPM.run(*OptimizedFunction, FAM);
+  }
 
   if (VerifyLog.isEnabled())
     revng_check(not verifyModule(*OptimizedFunction->getParent(), &dbgs()));
