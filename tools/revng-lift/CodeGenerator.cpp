@@ -1212,7 +1212,8 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       }
     }
 
-    while (BasicBlockList.size() != 0)
+    auto Size = BasicBlockList.size();
+    for (unsigned I = 0; I < Size; ++I)
       BasicBlockList.begin()->removeFromParent();
     for (BasicBlock *BB : SortedBasicBlocks)
       BasicBlockList.push_back(BB);
