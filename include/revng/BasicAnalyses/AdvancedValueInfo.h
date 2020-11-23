@@ -474,8 +474,7 @@ public:
   buildExpression(llvm::LazyValueInfo &LVI,
                   const llvm::DominatorTree &DT,
                   PhiEdges &Edges,
-                  llvm::Value *V,
-                  const std::vector<llvm::BasicBlock *> &RPOT) {
+                  llvm::Value *V) {
     using namespace llvm;
 
     revng_log(AVILogger, "Building expression for " << V);
@@ -578,18 +577,19 @@ public:
     }
 
     if (Targets.size() != 0) {
-      SmallVector<BasicBlock *, 8> FilteredRPOT;
       BasicBlock *StartBB = Targets.back()->getParent();
       const Edge &FirstEdge = Edges.front();
       revng_assert(FirstEdge.End == nullptr);
       BasicBlock *EndBB = FirstEdge.Start;
       auto Reachable = nodesBetweenReverse(EndBB, StartBB);
 
-      for (BasicBlock *BB : RPOT)
-        if (Reachable.count(BB) != 0)
-          FilteredRPOT.push_back(BB);
+      // Note: ordering in reverse post order is more costly than beneficial
+      Reachable.erase(StartBB);
+      SmallVector<BasicBlock *, 8> ReachableVector { StartBB };
+      for (BasicBlock *BB : Reachable)
+        ReachableVector.push_back(BB);
 
-      DisjointRanges::Analysis DR(FilteredRPOT, LVI, DT, Targets, Edges);
+      DisjointRanges::Analysis DR(ReachableVector, LVI, DT, Targets, Edges);
       DR.initialize();
       DR.run();
 
@@ -895,15 +895,13 @@ private:
   llvm::ScalarEvolution &SE;
   const llvm::DominatorTree &DT;
   MemoryOracle &MO;
-  const std::vector<llvm::BasicBlock *> &RPOT;
 
 public:
   AdvancedValueInfo(llvm::LazyValueInfo &LVI,
                     llvm::ScalarEvolution &SE,
                     const llvm::DominatorTree &DT,
-                    MemoryOracle &MO,
-                    const std::vector<llvm::BasicBlock *> &RPOT) :
-    LVI(LVI), SE(SE), DT(DT), MO(MO), RPOT(RPOT) {}
+                    MemoryOracle &MO) :
+    LVI(LVI), SE(SE), DT(DT), MO(MO) {}
 
   MaterializedValues explore(llvm::BasicBlock *BB, llvm::Value *V);
 };
@@ -966,7 +964,7 @@ AdvancedValueInfo<MemoryOracle>::explore(llvm::BasicBlock *BB, llvm::Value *V) {
 
       Edges.push_back(NewEdge);
 
-      NextPhi = Current.Expr.buildExpression(LVI, DT, Edges, NextValue, RPOT);
+      NextPhi = Current.Expr.buildExpression(LVI, DT, Edges, NextValue);
       Current.NextIncomingIndex++;
     }
 
