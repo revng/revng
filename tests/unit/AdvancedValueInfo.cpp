@@ -83,12 +83,9 @@ bool TestAdvancedValueInfoPass::runOnModule(llvm::Module &M) {
   auto &LVI = getAnalysis<LazyValueInfoWrapperPass>(Root).getLVI();
   auto &DT = getAnalysis<DominatorTreeWrapperPass>(Root).getDomTree();
   auto &SCEV = getAnalysis<ScalarEvolutionWrapperPass>(Root).getSE();
-  ReversePostOrderTraversal<Function *> RPOT(&Root);
-  std::vector<BasicBlock *> RPOTVector;
-  std::copy(RPOT.begin(), RPOT.end(), std::back_inserter(RPOTVector));
 
   MockupMemoryOracle MO(M.getDataLayout());
-  AdvancedValueInfo<MockupMemoryOracle> AVI(LVI, SCEV, DT, MO, RPOTVector);
+  AdvancedValueInfo<MockupMemoryOracle> AVI(LVI, SCEV, DT, MO);
 
   for (User *U : M.getGlobalVariable("pc", true)->users()) {
     if (auto *Store = dyn_cast<StoreInst>(U)) {

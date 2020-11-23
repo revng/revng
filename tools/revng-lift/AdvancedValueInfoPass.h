@@ -106,15 +106,10 @@ AdvancedValueInfoPass::run(llvm::Function &F,
   // virtual tables
   StaticDataMemoryOracle MO(F.getParent()->getDataLayout(), *JTM);
 
-  // Prepare visit order
-  ReversePostOrderTraversal<Function *> RPOT(&F);
-  std::vector<BasicBlock *> RPOTVector;
-  std::copy(RPOT.begin(), RPOT.end(), std::back_inserter(RPOTVector));
-
   auto &LVI = FAM.getResult<LazyValueAnalysis>(F);
   auto &DT = FAM.getResult<DominatorTreeAnalysis>(F);
   auto &SCEV = FAM.getResult<ScalarEvolutionAnalysis>(F);
-  AdvancedValueInfo<StaticDataMemoryOracle> AVI(LVI, SCEV, DT, MO, RPOTVector);
+  AdvancedValueInfo<StaticDataMemoryOracle> AVI(LVI, SCEV, DT, MO);
 
 #ifndef NDEBUG
   // Ensure that no instruction has itself as operand, except for phis
