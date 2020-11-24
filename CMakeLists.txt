@@ -272,15 +272,15 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
 endmacro()
 
 # Register a new artifact
-register_derived_artifact("abi-enforced-for-decompilation" # FROM_ARTIFACTS: input artifacts
-  "revng-c-passes"                 # NAME: name of the new aritfact
+register_derived_artifact("abi-enforced-for-decompilation-torture" # FROM_ARTIFACTS: input artifacts
+  "revng-c-passes-torture"         # NAME: name of the new aritfact
   ""                               # SUFFIX: extension of output file
   "FILE"                           # TYPE: "FILE" or "DIRECTORY"
   )
 
 # Register a new artifact
-register_derived_artifact("abi-enforced-for-decompilation-torture" # FROM_ARTIFACTS: input artifacts
-  "revng-c-passes-torture"         # NAME: name of the new aritfact
+register_derived_artifact("abi-enforced-for-decompilation" # FROM_ARTIFACTS: input artifacts
+  "revng-c-passes"                 # NAME: name of the new aritfact
   ""                               # SUFFIX: extension of output file
   "FILE"                           # TYPE: "FILE" or "DIRECTORY"
   )
