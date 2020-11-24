@@ -100,8 +100,6 @@ bool GeneratedCodeBasicInfo::runOnModule(Module &M) {
     }
   }
 
-  revng_assert(Dispatcher != nullptr);
-
   if (auto *NamedMD = M.getNamedMetadata("revng.csv")) {
     auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
     for (const MDOperand &Operand : Tuple->operands()) {
