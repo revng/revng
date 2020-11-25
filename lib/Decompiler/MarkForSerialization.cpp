@@ -136,7 +136,7 @@ Analysis::InterruptType Analysis::transfer(const llvm::BasicBlock *BB) {
       // We also have to serialize all the instructions that are still pending
       // and have interfering side effects.
       for (auto PendingIt = Pending.begin(); PendingIt != Pending.end();) {
-        const auto *PendingInstr = *PendingIt;
+        const auto *PendingInstr = PendingIt->first;
         revng_log(MarkLog,
                   "Pending: '" << PendingInstr
                                << "': " << dumpToString(PendingInstr));
@@ -159,36 +159,15 @@ Analysis::InterruptType Analysis::transfer(const llvm::BasicBlock *BB) {
   return InterruptType::createInterrupt(std::move(Pending));
 }
 
-} // namespace MarkAnalysis
-
-/// \brief Compute the number of duplicates for each BasicBlock.
-///
-// This is now based on the RegionCFG, but it could be made more precise using
-// the GHAST after beautification.
-MarkAnalysis::DuplicationMap
-computeDuplicationMap(const RegionCFGBB &RegionCFG) {
-  MarkAnalysis::DuplicationMap Result;
-  const llvm::Function *F = nullptr;
-  for (const auto *BBNode : RegionCFG.nodes()) {
-    if (BBNode->isCode()) {
-      const llvm::BasicBlock *BB = BBNode->getOriginalNode();
-      revng_assert(not F or BB->getParent() == F);
-      F = BB->getParent();
-      Result[BB] += 1;
-    }
-  }
-
-  if (nullptr == F) {
-    revng_assert(Result.empty());
-    return Result;
-  }
-
-  revng_assert(Result.size() == F->size());
-  for (const auto &BB : *F)
-    revng_assert(Result.count(&BB));
-
-  return Result;
+void Analysis::initialize() {
+  Base::initialize();
+  LivenessAnalysis::Analysis Liveness(F);
+  Liveness.initialize();
+  Liveness.run();
+  LiveIn = Liveness.extractLiveIn();
 }
+
+} // namespace MarkAnalysis
 
 bool MarkForSerializationPass::runOnFunction(llvm::Function &F) {
   // Skip non-isolated functions
