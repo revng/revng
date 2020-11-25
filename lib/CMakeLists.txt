@@ -5,6 +5,7 @@
 add_subdirectory(Decompiler)
 add_subdirectory(DecompilerResourceFinder)
 add_subdirectory(MakeEnvNull)
+add_subdirectory(FilterForDecompilation)
 add_subdirectory(PHIASAPAssignmentInfo)
 add_subdirectory(RestructureCFGPass)
 add_subdirectory(RemoveCpuLoopStore)

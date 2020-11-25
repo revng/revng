@@ -13,6 +13,7 @@
 
 #include "revng-c/Decompiler/CDecompiler.h"
 #include "revng-c/Decompiler/CDecompilerPass.h"
+#include "revng-c/FilterForDecompilation/FilterForDecompilationPass.h"
 #include "revng-c/MakeEnvNull/MakeEnvNull.h"
 #include "revng-c/RemoveCpuLoopStore/RemoveCpuLoopStorePass.h"
 #include "revng-c/RemoveExceptionCalls/RemoveExceptionCallsPass.h"
@@ -29,9 +30,9 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
     OS = std::make_unique<llvm::raw_string_ostream>(ResultSourceCode);
 
   llvm::legacy::FunctionPassManager PM(&*ClonedModule);
-
   // Remove revng's artifacts from IR
   {
+    PM.add(new FilterForDecompilationFunctionPass());
     PM.add(new RemoveNewPCCallsPass());
     PM.add(new RemoveExceptionCallsPass());
     PM.add(new RemoveCpuLoopStorePass());

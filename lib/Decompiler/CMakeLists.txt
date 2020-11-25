@@ -17,6 +17,7 @@ revng_add_analyses_library(Decompiler revngc
 
 target_link_libraries(Decompiler
   DecompilerResourceFinder
+  FilterForDecompilation
   PHIASAPAssignmentInfo
   RestructureCFGPass
   RemoveNewPCCalls
