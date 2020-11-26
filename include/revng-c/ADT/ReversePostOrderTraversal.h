@@ -6,9 +6,10 @@
 
 #include "llvm/ADT/PostOrderIterator.h"
 
-template<class GraphT,
-         class GT = llvm::GraphTraits<GraphT>,
-         class SetType = std::set<typename llvm::GraphTraits<GraphT>::NodeRef>>
+namespace llvm {
+
+template <class GraphT, class GT = llvm::GraphTraits<GraphT>,
+          class SetType = std::set<typename llvm::GraphTraits<GraphT>::NodeRef>>
 class ReversePostOrderTraversalExt {
   using NodeRef = typename GT::NodeRef;
   using NodeVec = std::vector<NodeRef>;
@@ -16,8 +17,7 @@ class ReversePostOrderTraversalExt {
   NodeVec Blocks; // Block list in normal RPO order
 
   void Initialize(GraphT G, SetType &WhiteList) {
-    std::copy(po_ext_begin(G, WhiteList),
-              po_ext_end(G, WhiteList),
+    std::copy(po_ext_begin(G, WhiteList), po_ext_end(G, WhiteList),
               std::back_inserter(Blocks));
   }
 
@@ -35,3 +35,5 @@ public:
   rpo_iterator end() { return Blocks.rend(); }
   const_rpo_iterator end() const { return Blocks.crend(); }
 };
+
+} // namespace llvm

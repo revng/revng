@@ -86,7 +86,7 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
 
   // Handle the special case that the graph has a single entry node
   if (GT::getEntryNode(Flow) != nullptr) {
-    ReversePostOrderTraversalExt RPOTE(GT::getEntryNode(Flow), Visited);
+    llvm::ReversePostOrderTraversalExt RPOTE(GT::getEntryNode(Flow), Visited);
     for (Label Node : RPOTE) {
       LabelPriority[Node] = LabelPriority.size();
       Worklist.insert({ LabelPriority.at(Node), Node });
@@ -106,7 +106,7 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
     if (Visited.count(Start) == 0) {
       // Fill the worklist with nodes in reverse post order
       // lauching a visit from each remaining node
-      ReversePostOrderTraversalExt RPOTE(Start, Visited);
+      llvm::ReversePostOrderTraversalExt RPOTE(Start, Visited);
       for (Label Node : RPOTE) {
         LabelPriority[Node] = LabelPriority.size();
         Worklist.insert({ LabelPriority.at(Node), Node });
