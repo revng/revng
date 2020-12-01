@@ -6,15 +6,15 @@
 
 #include "llvm/Pass.h"
 
-struct MakeEnvNullPass : public llvm::ModulePass {
+struct MakeEnvNullPass : public llvm::FunctionPass {
 public:
   static char ID;
 
-  MakeEnvNullPass() : llvm::ModulePass(ID) {}
+  MakeEnvNullPass() : llvm::FunctionPass(ID) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
   }
 
-  bool runOnModule(llvm::Module &F) override;
+  bool runOnFunction(llvm::Function &F) override;
 };

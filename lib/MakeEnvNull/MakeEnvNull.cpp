@@ -3,34 +3,28 @@
 //
 
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/MakeEnvNull/MakeEnvNull.h"
 
-bool MakeEnvNullPass::runOnModule(llvm::Module &M) {
-
-  llvm::GlobalVariable *Env = M.getGlobalVariable("env",
-                                                  /* AllowInternal */ true);
-
-  if (nullptr == Env)
+bool MakeEnvNullPass::runOnFunction(llvm::Function &F) {
+  if (not F.getMetadata("revng.func.entry"))
     return false;
 
-  bool Changed = false;
-  for (llvm::Function &F : M) {
+  llvm::Module *M = F.getParent();
+  llvm::GlobalVariable *Env = M->getGlobalVariable("env",
+                                                   /* AllowInternal */ true);
 
-    if (not F.getMetadata("revng.func.entry"))
-      continue;
+  auto *EnvType = Env->getType();
+  revng_assert(EnvType->isPointerTy());
+  auto *Null = llvm::Constant::getNullValue(EnvType);
+  if (replaceAllUsesInFunctionWith(&F, Env, Null))
+    return true;
 
-    auto *EnvType = Env->getType();
-    revng_assert(EnvType->isPointerTy());
-    auto *Null = llvm::Constant::getNullValue(EnvType);
-    if (replaceAllUsesInFunctionWith(&F, Env, Null))
-      Changed = true;
-  }
-
-  return Changed;
+  return false;
 }
 
 char MakeEnvNullPass::ID = 0;
