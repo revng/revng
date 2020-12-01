@@ -29,4 +29,5 @@ target_link_libraries(Decompiler
   clangAST
   clangBasic
   clangFrontend
+  clangSerialization
   ${LLVM_LIBRARIES})
