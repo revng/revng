@@ -496,10 +496,10 @@ void exception_warning(Reason Code,
 }
 
 // Helper function used to raise an exception
-void raise_exception_helper(Reason Code,
-                            target_reg Source,
-                            target_reg Target,
-                            target_reg ExpectedDestination) {
+noreturn void raise_exception_helper(Reason Code,
+                                     target_reg Source,
+                                     target_reg Target,
+                                     target_reg ExpectedDestination) {
 
   // Call the exception debug helper
   exception_warning(Code, Source, Target, ExpectedDestination);
@@ -509,4 +509,6 @@ void raise_exception_helper(Reason Code,
 
   // Raise the exception using the function provided by the unwind library
   _Unwind_RaiseException(&exc);
+
+  abort();
 }
