@@ -2,7 +2,6 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-#include <experimental/coroutine>
 #include <limits>
 
 #include "llvm/ADT/APInt.h"
