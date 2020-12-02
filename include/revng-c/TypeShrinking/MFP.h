@@ -4,15 +4,18 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-#include <functional>
 #include <map>
 #include <queue>
-#include <type_traits>
-#include <unordered_map>
 
 #include "revng/ADT/GenericGraph.h"
 
 namespace TypeShrinking {
+
+template<typename LatticeElement>
+struct MFPResult {
+  LatticeElement inValue;
+  LatticeElement outValue;
+};
 
 template<typename LatticeElement,
          typename GraphType,
@@ -21,9 +24,7 @@ struct MonotoneFramework {
   // by the specs of llvm::GraphTraits, NodeRef chould be cheap to copy
   using GT = llvm::GraphTraits<GraphType>;
   using Label = typename GT::NodeRef;
-
-  using LatticeElementPair = std::pair<LatticeElement, LatticeElement>;
-
+  using Result = MFPResult<LatticeElement>;
   static LatticeElement
   combineValues(const LatticeElement &lh, const LatticeElement &rh) {
     return MonotoneFrameworkInstance::combineValues(lh, rh);
@@ -40,24 +41,24 @@ struct MonotoneFramework {
   }
 
   /// Compute the maximum fixed points of an instance of monotone framework
-  static std::map<Label, LatticeElementPair>
+  static std::map<Label, Result>
   getMaximalFixedPoint(const GraphType &Flow,
                        LatticeElement BottomValue,
                        LatticeElement ExtremalValue,
                        const std::vector<Label> &ExtremalLabels) {
     std::map<Label, LatticeElement> PartialAnalysis;
-    std::map<Label, LatticeElementPair> AnalysisResult;
+    std::map<Label, Result> AnalysisResult;
     std::queue<std::pair<Label, Label>> Worklist;
 
-    // Step 1.1 initialize the worklist and extremal labels
+    // Step 1 initialize the worklist and extremal labels
     for (Label Start : llvm::nodes(Flow)) {
       PartialAnalysis[Start] = BottomValue;
 
-      for (auto End : successors(Start)) {
+      for (Label End : successors(Start)) {
         Worklist.push({ Start, End });
       }
     }
-    for (auto ExtremalLabel : ExtremalLabels) {
+    for (Label ExtremalLabel : ExtremalLabels) {
       PartialAnalysis[ExtremalLabel] = ExtremalValue;
     }
 
@@ -70,7 +71,7 @@ struct MonotoneFramework {
       if (!isLessOrEqual(UpdatedEndAnalysis, PartialAnalysis[End])) {
         PartialAnalysis[End] = combineValues(PartialAnalysis[End],
                                              UpdatedEndAnalysis);
-        for (auto Node : successors(End)) {
+        for (Label Node : successors(End)) {
           Worklist.push({ End, Node });
         }
       }

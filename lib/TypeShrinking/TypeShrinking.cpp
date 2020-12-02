@@ -1,5 +1,5 @@
 /// \file TypeShrinking.cpp
-/// \brief This analysis finds which bits of each llvm::Instruction is alive
+/// \brief This analysis finds which bits of each Instruction is alive
 /// format.
 
 //
@@ -14,90 +14,106 @@
 
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "revng-c/TypeShrinking/MFP.h"
 #include "revng-c/TypeShrinking/TypeShrinking.h"
 
 #include "BitLiveness.h"
 
+using namespace llvm;
+
 using BitSet = std::set<int>;
+using RegisterTypeShrinking = RegisterPass<TypeShrinking::TypeShrinking>;
+
+static cl::OptionCategory RevNgCategory("revng-c type-shrinking");
+
+static cl::opt<uint32_t> MinimumWidth("min-width",
+                                      cl::init(1),
+                                      cl::desc("ignore analysis results for "
+                                               "width lower than"),
+                                      cl::value_desc("min-width"),
+                                      cl::cat(RevNgCategory));
 
 char TypeShrinking::TypeShrinking::ID = 0;
 
-using RegisterTypeShrinking = llvm::RegisterPass<TypeShrinking::TypeShrinking>;
 static RegisterTypeShrinking
   X("type-shrinking", "Run the type shrinking analysis", true, true);
-
 namespace TypeShrinking {
 
 /// Builds a data flow graph with edges from uses to definitions
-static GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F);
+static GenericGraph<DataFlowNode> buildDataFlowGraph(Function &F);
 
-bool TypeShrinking::runOnFunction(llvm::Function &F) {
+/// Returns true if each bit B of the result of Ins depends only on
+/// the bits of the operands with an index lower than B
+bool isAddLike(const Instruction *Ins) {
+  switch (Ins->getOpcode()) {
+  case llvm::Instruction::And:
+  case llvm::Instruction::Xor:
+  case llvm::Instruction::Or:
+  case llvm::Instruction::Add:
+  case llvm::Instruction::Sub:
+  case llvm::Instruction::Mul:
+    return true;
+  }
+  return false;
+}
+
+bool TypeShrinking::runOnFunction(Function &F) {
+
   auto DataFlowGraph = buildDataFlowGraph(F);
-  llvm::nodes(&DataFlowGraph);
   std::vector<DataFlowNode *> ExtremalLabels;
   for (auto *Node : DataFlowGraph.nodes()) {
-    if (hasSideEffect(Node->Instruction)) {
+    if (isDataFlowSink(Node->Instruction)) {
       ExtremalLabels.push_back(Node);
     }
   }
 
-  unsigned Max = std::numeric_limits<unsigned>::max();
   auto FixedPoints = BitLivenessAnalysis::getMaximalFixedPoint(&DataFlowGraph,
                                                                0,
-                                                               Max,
+                                                               Top,
                                                                ExtremalLabels);
-  bool hasChanges = false;
+  bool HasChanges = false;
 
-  std::vector<unsigned> Ranks = { 8, 16, 32, 64 };
-  const auto IsAddLike = [](unsigned OpCode) {
-    switch (OpCode) {
-    case llvm::Instruction::And:
-    case llvm::Instruction::Xor:
-    case llvm::Instruction::Or:
-    case llvm::Instruction::Add:
-    case llvm::Instruction::Sub:
-    case llvm::Instruction::Mul:
-      return true;
-    }
-    return false;
-  };
+  std::vector<uint32_t> Ranks = { 8, 16, 32, 64 };
 
   for (auto &[Label, Result] : FixedPoints) {
     auto *Ins = Label->Instruction;
     // Find the closest rank that contains all the alive bits
-    auto ClosestRank = std::lower_bound(Ranks.begin(),
-                                        Ranks.end(),
-                                        Result.second);
     // If there is a known rank and this is an instruction that behaves like add
     // in that the least significant bits of the result depend only on the least
     // significant bits of the operands, we can down cast the operands and then
     // upcast the result
-    if (ClosestRank != Ranks.end() && IsAddLike(Ins->getOpcode())) {
-      auto Rank = *ClosestRank;
-      if (Ins->getType()->getScalarSizeInBits() > Rank) {
-        hasChanges = true;
+    if (Result.outValue >= MinimumWidth.getValue() && isAddLike(Ins)) {
+      auto ClosestRank = std::lower_bound(Ranks.begin(),
+                                          Ranks.end(),
+                                          Result.outValue);
+      if (ClosestRank != Ranks.end()
+          && Ins->getType()->getScalarSizeInBits() > *ClosestRank) {
+        auto Rank = *ClosestRank;
+
+        HasChanges = true;
+        llvm::Value *NewIns = nullptr;
+
         llvm::IRBuilder<> BuilderPre(Ins);
         llvm::IRBuilder<> BuilderPost(Ins->getNextNode());
-        llvm::Value *NewIns = nullptr;
+
         using CastOps = llvm::Instruction::CastOps;
         auto *Lhs = BuilderPre.CreateCast(CastOps::Trunc,
                                           Ins->getOperand(0),
-                                          llvm::Type::getIntNTy(F.getContext(),
-                                                                Rank));
+                                          BuilderPre.getIntNTy(Rank));
         auto *Rhs = BuilderPre.CreateCast(CastOps::Trunc,
                                           Ins->getOperand(1),
-                                          llvm::Type::getIntNTy(F.getContext(),
-                                                                Rank));
+                                          BuilderPre.getIntNTy(Rank));
 
-        NewIns = BuilderPost.CreateBinOp((llvm::Instruction::BinaryOps)
+        NewIns = BuilderPost.CreateBinOp((Instruction::BinaryOps)
                                            Ins->getOpcode(),
                                          Lhs,
                                          Rhs);
@@ -110,13 +126,13 @@ bool TypeShrinking::runOnFunction(llvm::Function &F) {
     }
   }
 
-  return hasChanges;
+  return HasChanges;
 }
 
-static GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F) {
+static GenericGraph<DataFlowNode> buildDataFlowGraph(Function &F) {
   GenericGraph<DataFlowNode> DataFlowGraph{};
   std::vector<DataFlowNode *> Worklist;
-  std::unordered_map<llvm::Instruction *, DataFlowNode *> InstructionNodeMap;
+  std::unordered_map<Instruction *, DataFlowNode *> InstructionNodeMap;
   for (auto I = inst_begin(F), E = inst_end(F); I != E; ++I) {
     DataFlowNode Node{ &*I };
     auto *GraphNode = DataFlowGraph.addNode(Node);
@@ -134,4 +150,5 @@ static GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F) {
   }
   return DataFlowGraph;
 }
+
 } // namespace TypeShrinking
