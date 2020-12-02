@@ -13,9 +13,7 @@
 namespace TypeShrinking {
 
 struct DataFlowNode : public BidirectionalNode<DataFlowNode> {
-  DataFlowNode(llvm::Instruction *Instruction) {
-    this->Instruction = Instruction;
-  }
+  DataFlowNode(llvm::Instruction *Ins) : Instruction(Ins){};
   llvm::Instruction *Instruction;
 };
 } // namespace TypeShrinking
