@@ -32,4 +32,14 @@ struct BitLivenessAnalysis {
   static bool isLessOrEqual(const uint32_t &Lh, const uint32_t &Rh);
 };
 
+inline uint32_t
+BitLivenessAnalysis::combineValues(const uint32_t &Lh, const uint32_t &Rh) {
+  return std::max(Lh, Rh);
+}
+
+inline bool
+BitLivenessAnalysis::isLessOrEqual(const uint32_t &Lh, const uint32_t &Rh) {
+  return Lh <= Rh;
+}
+
 } // namespace TypeShrinking
