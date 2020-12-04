@@ -133,8 +133,9 @@ static GenericGraph<DataFlowNode> buildDataFlowGraph(Function &F) {
   GenericGraph<DataFlowNode> DataFlowGraph{};
   std::vector<DataFlowNode *> Worklist;
   std::unordered_map<Instruction *, DataFlowNode *> InstructionNodeMap;
-  for (auto I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-    DataFlowNode Node{ &*I };
+  // Initialization
+  for (Instruction &I : instructions(F)) {
+    DataFlowNode Node{ &I };
     auto *GraphNode = DataFlowGraph.addNode(Node);
     Worklist.push_back(GraphNode);
     InstructionNodeMap[GraphNode->Instruction] = GraphNode;
