@@ -57,9 +57,10 @@ uint32_t transferAnd(Instruction *Ins, const uint32_t &Element) {
   revng_assert(Ins->getOpcode() == Instruction::And);
   uint32_t Result = Element;
   for (auto &Operand : Ins->operands()) {
-    if (llvm::isa<llvm::ConstantInt>(Operand)) {
-      auto OpVal = llvm::cast<llvm::ConstantInt>(Operand)->getUniqueInteger();
-      auto MostSignificantBit = OpVal.getBitWidth() - OpVal.countLeadingZeros();
+    if (auto *ConstantOperand = llvm::dyn_cast<llvm::ConstantInt>(Operand)) {
+      auto OperandValue = ConstantOperand->getUniqueInteger();
+      auto MostSignificantBit = OperandValue.getBitWidth()
+                                - OperandValue.countLeadingZeros();
       Result = std::min(Result, transferMask(Element, MostSignificantBit));
     }
   }
