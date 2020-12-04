@@ -140,13 +140,13 @@ BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L, const uint32_t E) {
 }
 
 uint32_t
-BitLivenessAnalysis::combineValues(const uint32_t &lh, const uint32_t &rh) {
-  return std::max(lh, rh);
+BitLivenessAnalysis::combineValues(const uint32_t &Lh, const uint32_t &Rh) {
+  return std::max(Lh, Rh);
 }
 
-bool BitLivenessAnalysis::isLessOrEqual(const uint32_t &lh,
-                                        const uint32_t &rh) {
-  return lh <= rh;
+bool BitLivenessAnalysis::isLessOrEqual(const uint32_t &Lh,
+                                        const uint32_t &Rh) {
+  return Lh <= Rh;
 }
 
 } // namespace TypeShrinking

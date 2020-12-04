@@ -27,9 +27,9 @@ struct BitLivenessAnalysis {
   using GraphType = GenericGraph<DataFlowNode> *;
   using LatticeElement = uint32_t;
   using Label = DataFlowNode *;
-  static uint32_t combineValues(const uint32_t &lh, const uint32_t &rh);
+  static uint32_t combineValues(const uint32_t &Lh, const uint32_t &Rh);
   static uint32_t applyTransferFunction(DataFlowNode *L, const uint32_t E);
-  static bool isLessOrEqual(const uint32_t &lh, const uint32_t &rh);
+  static bool isLessOrEqual(const uint32_t &Lh, const uint32_t &Rh);
 };
 
 } // namespace TypeShrinking
