@@ -95,6 +95,7 @@ bool TypeShrinking::runOnFunction(Function &F) {
       auto ClosestRank = std::lower_bound(Ranks.begin(),
                                           Ranks.end(),
                                           Result.outValue);
+
       if (ClosestRank != Ranks.end()
           && Ins->getType()->getScalarSizeInBits() > *ClosestRank) {
         auto Rank = *ClosestRank;
@@ -117,7 +118,7 @@ bool TypeShrinking::runOnFunction(Function &F) {
                                            Ins->getOpcode(),
                                          Lhs,
                                          Rhs);
-        auto *UpCasted = BuilderPost.CreateCast(CastOps::ZExt,
+        auto *UpCasted = BuilderPost.CreateCast(Instruction::CastOps::ZExt,
                                                 NewIns,
                                                 Ins->getType());
         Ins->replaceAllUsesWith(UpCasted);
@@ -143,9 +144,8 @@ static GenericGraph<DataFlowNode> buildDataFlowGraph(Function &F) {
 
   for (auto *DefNode : Worklist) {
     auto *Ins = DefNode->Instruction;
-    for (auto &Use : llvm::make_range(Ins->use_begin(), Ins->use_end())) {
-      auto *UserInstr = llvm::cast<llvm::Instruction>(Use.getUser());
-      auto *UseNode = InstructionNodeMap[UserInstr];
+    for (auto &Use : Ins->uses()) {
+      auto *UseNode = InstructionNodeMap.at(cast<Instruction>(Use.getUser()));
       UseNode->addSuccessor(DefNode);
     }
   }

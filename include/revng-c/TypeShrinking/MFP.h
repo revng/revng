@@ -47,7 +47,7 @@ concept MonotoneFrameworkInstance = requires(typename MFI::LatticeElement E1,
 template<MonotoneFrameworkInstance MFI>
 std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
 getMaximalFixedPoint(const typename MFI::GraphType &Flow,
-                     typename MFI::LatticeElement BottomValue,
+                     typename MFI::LatticeElement InitialValue,
                      typename MFI::LatticeElement ExtremalValue,
                      const std::vector<typename MFI::Label> &ExtremalLabels) {
   typedef typename MFI::Label Label;
@@ -57,27 +57,29 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
   std::queue<std::pair<Label, Label>> Worklist;
 
   // Step 1 initialize the worklist and extremal labels
+  for (Label ExtremalLabel : ExtremalLabels) {
+    PartialAnalysis[ExtremalLabel] = ExtremalValue;
+  }
   for (Label Start : llvm::nodes(Flow)) {
-    PartialAnalysis[Start] = BottomValue;
+    if (PartialAnalysis.find(Start) == PartialAnalysis.end()) {
+      PartialAnalysis[Start] = InitialValue;
+    }
 
     for (Label End : successors<typename MFI::GraphType>(Start)) {
       Worklist.push({ Start, End });
     }
-  }
-  for (Label ExtremalLabel : ExtremalLabels) {
-    PartialAnalysis[ExtremalLabel] = ExtremalValue;
   }
 
   // Step 2 iteration
   while (!Worklist.empty()) {
     auto [Start, End] = Worklist.front();
     Worklist.pop();
-    LatticeElement
-      UpdatedEndAnalysis = MFI::applyTransferFunction(Start,
-                                                      PartialAnalysis[Start]);
-    if (!MFI::isLessOrEqual(UpdatedEndAnalysis, PartialAnalysis[End])) {
-      PartialAnalysis[End] = MFI::combineValues(PartialAnalysis[End],
-                                                UpdatedEndAnalysis);
+    auto &ParialStart = PartialAnalysis.at(Start);
+    LatticeElement UpdatedEndAnalysis = MFI::applyTransferFunction(Start,
+                                                                   ParialStart);
+    auto &PartialEnd = PartialAnalysis.at(End);
+    if (!MFI::isLessOrEqual(UpdatedEndAnalysis, PartialEnd)) {
+      PartialEnd = MFI::combineValues(PartialEnd, UpdatedEndAnalysis);
       for (Label Node : successors<typename MFI::GraphType>(End)) {
         Worklist.push({ End, Node });
       }

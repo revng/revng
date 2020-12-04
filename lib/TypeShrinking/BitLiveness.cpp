@@ -37,8 +37,7 @@ bool isDataFlowSink(const Instruction *Ins) {
 
 uint32_t getMaxOperandSize(Instruction *Ins) {
   uint32_t Max = 0;
-  for (uint32_t i = 0; i < Ins->getNumOperands(); ++i) {
-    auto *Operand = Ins->getOperand(i);
+  for (auto &Operand : Ins->operands()) {
     if (Operand->getType()->isIntegerTy())
       Max = std::max(Max, Operand->getType()->getIntegerBitWidth());
     else
