@@ -6,10 +6,16 @@
 
 #include <map>
 #include <queue>
+#include <type_traits>
+
+#include "llvm/ADT/GraphTraits.h"
 
 #include "revng/ADT/GenericGraph.h"
 
 namespace TypeShrinking {
+
+template<typename T, typename U>
+concept same_as = std::is_same_v<T, U>;
 
 template<typename LatticeElement>
 struct MFPResult {
@@ -17,79 +23,75 @@ struct MFPResult {
   LatticeElement outValue;
 };
 
-template<typename LatticeElement,
-         typename GraphType,
-         class MonotoneFrameworkInstance>
-struct MonotoneFramework {
-  // by the specs of llvm::GraphTraits, NodeRef chould be cheap to copy
-  using GT = llvm::GraphTraits<GraphType>;
-  using Label = typename GT::NodeRef;
-  using Result = MFPResult<LatticeElement>;
-  static LatticeElement
-  combineValues(const LatticeElement &lh, const LatticeElement &rh) {
-    return MonotoneFrameworkInstance::combineValues(lh, rh);
-  }
+template<typename GraphType>
+auto successors(typename llvm::GraphTraits<GraphType>::NodeRef From) {
+  return llvm::make_range(llvm::GraphTraits<GraphType>::child_begin(From),
+                          llvm::GraphTraits<GraphType>::child_end(From));
+}
 
-  static LatticeElement
-  applyTransferFunction(Label L, const LatticeElement &E) {
-    return MonotoneFrameworkInstance::applyTransferFunction(L, E);
-  }
-
-  static bool
-  isLessOrEqual(const LatticeElement &lh, const LatticeElement &rh) {
-    return MonotoneFrameworkInstance::isLessOrEqual(lh, rh);
-  }
-
-  /// Compute the maximum fixed points of an instance of monotone framework
-  static std::map<Label, Result>
-  getMaximalFixedPoint(const GraphType &Flow,
-                       LatticeElement BottomValue,
-                       LatticeElement ExtremalValue,
-                       const std::vector<Label> &ExtremalLabels) {
-    std::map<Label, LatticeElement> PartialAnalysis;
-    std::map<Label, Result> AnalysisResult;
-    std::queue<std::pair<Label, Label>> Worklist;
-
-    // Step 1 initialize the worklist and extremal labels
-    for (Label Start : llvm::nodes(Flow)) {
-      PartialAnalysis[Start] = BottomValue;
-
-      for (Label End : successors(Start)) {
-        Worklist.push({ Start, End });
-      }
-    }
-    for (Label ExtremalLabel : ExtremalLabels) {
-      PartialAnalysis[ExtremalLabel] = ExtremalValue;
-    }
-
-    // Step 2 iteration
-    while (!Worklist.empty()) {
-      auto [Start, End] = Worklist.front();
-      Worklist.pop();
-      auto &Partial = PartialAnalysis[Start];
-      auto UpdatedEndAnalysis = applyTransferFunction(Start, Partial);
-      if (!isLessOrEqual(UpdatedEndAnalysis, PartialAnalysis[End])) {
-        PartialAnalysis[End] = combineValues(PartialAnalysis[End],
-                                             UpdatedEndAnalysis);
-        for (Label Node : successors(End)) {
-          Worklist.push({ End, Node });
-        }
-      }
-    }
-
-    // Step 3 presenting the results
-    for (auto &[Node, Analysis] : PartialAnalysis) {
-      AnalysisResult[Node] = { PartialAnalysis[Node],
-                               applyTransferFunction(Node,
-                                                     PartialAnalysis[Node]) };
-    }
-    return AnalysisResult;
-  }
-
-private:
-  static auto successors(Label From) {
-    return llvm::make_range(GT::child_begin(From), GT::child_end(From));
-  }
+template<typename MFI>
+concept MonotoneFrameworkInstance = requires(typename MFI::LatticeElement E1,
+                                             typename MFI::LatticeElement E2,
+                                             typename MFI::Label L) {
+  same_as<typename MFI::Label,
+          typename llvm::GraphTraits<typename MFI::GraphType>::NodeRef>;
+  // Disable clang-format, because it does not handle concepts very well yet
+  // clang-format off
+  { MFI::combineValues(E1, E2) } ->same_as<typename MFI::LatticeElement>;
+  { MFI::isLessOrEqual(E1, E2) } ->same_as<bool>;
+  { MFI::applyTransferFunction(L, E2) } ->same_as<typename MFI::LatticeElement>;
+  // clang-format on
 };
+
+/// Compute the maximum fixed points of an instance of monotone framework
+template<MonotoneFrameworkInstance MFI>
+std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
+getMaximalFixedPoint(const typename MFI::GraphType &Flow,
+                     typename MFI::LatticeElement BottomValue,
+                     typename MFI::LatticeElement ExtremalValue,
+                     const std::vector<typename MFI::Label> &ExtremalLabels) {
+  typedef typename MFI::Label Label;
+  typedef typename MFI::LatticeElement LatticeElement;
+  std::map<Label, LatticeElement> PartialAnalysis;
+  std::map<Label, MFPResult<LatticeElement>> AnalysisResult;
+  std::queue<std::pair<Label, Label>> Worklist;
+
+  // Step 1 initialize the worklist and extremal labels
+  for (Label Start : llvm::nodes(Flow)) {
+    PartialAnalysis[Start] = BottomValue;
+
+    for (Label End : successors<typename MFI::GraphType>(Start)) {
+      Worklist.push({ Start, End });
+    }
+  }
+  for (Label ExtremalLabel : ExtremalLabels) {
+    PartialAnalysis[ExtremalLabel] = ExtremalValue;
+  }
+
+  // Step 2 iteration
+  while (!Worklist.empty()) {
+    auto [Start, End] = Worklist.front();
+    Worklist.pop();
+    LatticeElement
+      UpdatedEndAnalysis = MFI::applyTransferFunction(Start,
+                                                      PartialAnalysis[Start]);
+    if (!MFI::isLessOrEqual(UpdatedEndAnalysis, PartialAnalysis[End])) {
+      PartialAnalysis[End] = MFI::combineValues(PartialAnalysis[End],
+                                                UpdatedEndAnalysis);
+      for (Label Node : successors<typename MFI::GraphType>(End)) {
+        Worklist.push({ End, Node });
+      }
+    }
+  }
+
+  // Step 3 presenting the results
+  for (auto &[Node, Analysis] : PartialAnalysis) {
+    AnalysisResult[Node] = {
+      PartialAnalysis[Node],
+      MFI::applyTransferFunction(Node, PartialAnalysis[Node])
+    };
+  }
+  return AnalysisResult;
+}
 
 } // namespace TypeShrinking

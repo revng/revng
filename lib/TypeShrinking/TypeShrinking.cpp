@@ -76,7 +76,7 @@ bool TypeShrinking::runOnFunction(Function &F) {
     }
   }
 
-  auto FixedPoints = BitLivenessAnalysis::getMaximalFixedPoint(&DataFlowGraph,
+  auto FixedPoints = getMaximalFixedPoint<BitLivenessAnalysis>(&DataFlowGraph,
                                                                0,
                                                                Top,
                                                                ExtremalLabels);
