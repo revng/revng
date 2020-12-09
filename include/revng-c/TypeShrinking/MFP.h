@@ -9,8 +9,12 @@
 #include <type_traits>
 
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SmallSet.h"
 
 #include "revng/ADT/GenericGraph.h"
+
+#include "revng-c/ADT/ReversePostOrderTraversal.h"
 
 namespace TypeShrinking {
 
@@ -23,10 +27,10 @@ struct MFPResult {
   LatticeElement outValue;
 };
 
-template<typename GraphType>
-auto successors(typename llvm::GraphTraits<GraphType>::NodeRef From) {
-  return llvm::make_range(llvm::GraphTraits<GraphType>::child_begin(From),
-                          llvm::GraphTraits<GraphType>::child_end(From));
+/// GT is an instance of llvm::GraphTraits e.g. llvm::GraphTraits<GraphType>
+template<typename GT>
+auto successors(typename GT::NodeRef From) {
+  return llvm::make_range(GT::child_begin(From), GT::child_end(From));
 }
 
 template<typename MFI>
@@ -44,7 +48,9 @@ concept MonotoneFrameworkInstance = requires(typename MFI::LatticeElement E1,
 };
 
 /// Compute the maximum fixed points of an instance of monotone framework
-template<MonotoneFrameworkInstance MFI>
+/// GT an instance of llvm::GraphTraits
+template<MonotoneFrameworkInstance MFI,
+         typename GT = llvm::GraphTraits<typename MFI::GraphType>>
 std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
 getMaximalFixedPoint(const typename MFI::GraphType &Flow,
                      typename MFI::LatticeElement InitialValue,
@@ -54,7 +60,7 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
   typedef typename MFI::LatticeElement LatticeElement;
   std::map<Label, LatticeElement> PartialAnalysis;
   std::map<Label, MFPResult<LatticeElement>> AnalysisResult;
-  std::queue<std::pair<Label, Label>> Worklist;
+  std::queue<Label> Worklist;
 
   // Step 1 initialize the worklist and extremal labels
   for (Label ExtremalLabel : ExtremalLabels) {
@@ -64,24 +70,21 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
     if (PartialAnalysis.find(Start) == PartialAnalysis.end()) {
       PartialAnalysis[Start] = InitialValue;
     }
-
-    for (Label End : successors<typename MFI::GraphType>(Start)) {
-      Worklist.push({ Start, End });
-    }
+    Worklist.push(Start);
   }
 
   // Step 2 iteration
   while (!Worklist.empty()) {
-    auto [Start, End] = Worklist.front();
+    auto Start = Worklist.front();
     Worklist.pop();
-    auto &ParialStart = PartialAnalysis.at(Start);
-    LatticeElement UpdatedEndAnalysis = MFI::applyTransferFunction(Start,
-                                                                   ParialStart);
-    auto &PartialEnd = PartialAnalysis.at(End);
-    if (!MFI::isLessOrEqual(UpdatedEndAnalysis, PartialEnd)) {
-      PartialEnd = MFI::combineValues(PartialEnd, UpdatedEndAnalysis);
-      for (Label Node : successors<typename MFI::GraphType>(End)) {
-        Worklist.push({ End, Node });
+    for (Label End : successors<GT>(Start)) {
+      auto &ParialStart = PartialAnalysis.at(Start);
+      LatticeElement
+        UpdatedEndAnalysis = MFI::applyTransferFunction(Start, ParialStart);
+      auto &PartialEnd = PartialAnalysis.at(End);
+      if (!MFI::isLessOrEqual(UpdatedEndAnalysis, PartialEnd)) {
+        PartialEnd = MFI::combineValues(PartialEnd, UpdatedEndAnalysis);
+        Worklist.push(End);
       }
     }
   }
