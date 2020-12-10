@@ -4,6 +4,7 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <cstddef>
 #include <map>
 #include <queue>
 #include <type_traits>
@@ -11,6 +12,7 @@
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/GenericGraph.h"
 
@@ -37,6 +39,10 @@ template<typename MFI>
 concept MonotoneFrameworkInstance = requires(typename MFI::LatticeElement E1,
                                              typename MFI::LatticeElement E2,
                                              typename MFI::Label L) {
+  /// To compute the reverse post order traversal of the graph starting from
+  /// the extremal nodes, we need that the nodes also represent a subgraph
+  typename llvm::GraphTraits<typename MFI::Label>::NodeRef;
+
   same_as<typename MFI::Label,
           typename llvm::GraphTraits<typename MFI::GraphType>::NodeRef>;
   // Disable clang-format, because it does not handle concepts very well yet
@@ -45,6 +51,20 @@ concept MonotoneFrameworkInstance = requires(typename MFI::LatticeElement E1,
   { MFI::isLessOrEqual(E1, E2) } ->same_as<bool>;
   { MFI::applyTransferFunction(L, E2) } ->same_as<typename MFI::LatticeElement>;
   // clang-format on
+};
+
+template<typename Label>
+struct WorklistItem {
+  size_t priority;
+  Label label;
+  friend bool
+  operator<(const WorklistItem<Label> &a, const WorklistItem<Label> &b) {
+    return a.priority < b.priority;
+  }
+  friend bool
+  operator==(const WorklistItem<Label> &a, const WorklistItem<Label> &b) {
+    return a.label < b.label;
+  }
 };
 
 /// Compute the maximum fixed points of an instance of monotone framework
@@ -60,41 +80,52 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
   typedef typename MFI::LatticeElement LatticeElement;
   std::map<Label, LatticeElement> PartialAnalysis;
   std::map<Label, MFPResult<LatticeElement>> AnalysisResult;
-  std::queue<Label> Worklist;
+  std::set<WorklistItem<Label>> Worklist;
 
   // Step 1 initialize the worklist and extremal labels
   for (Label ExtremalLabel : ExtremalLabels) {
     PartialAnalysis[ExtremalLabel] = ExtremalValue;
   }
+
+  llvm::SmallSet<Label, 8> Visited{};
+  std::map<Label, size_t> LabelPriority;
   for (Label Start : llvm::nodes(Flow)) {
-    if (PartialAnalysis.find(Start) == PartialAnalysis.end()) {
-      PartialAnalysis[Start] = InitialValue;
+    if (Visited.count(Start) == 0) {
+      // fill the worklist with nodes in reverse post order
+      // lauching a visit from each remaining node
+      ReversePostOrderTraversalExt RPOTE(Start, Visited);
+      for (Label Node : RPOTE) {
+        LabelPriority[Node] = LabelPriority.size();
+        Worklist.insert({ LabelPriority.at(Node), Node });
+        // initialize the analysis value for non extremal nodes
+        if (PartialAnalysis.find(Node) == PartialAnalysis.end()) {
+          PartialAnalysis[Node] = InitialValue;
+        }
+      }
     }
-    Worklist.push(Start);
   }
 
   // Step 2 iteration
   while (!Worklist.empty()) {
-    auto Start = Worklist.front();
-    Worklist.pop();
+    WorklistItem<Label> First = *Worklist.begin();
+    Label Start = First.label;
+    Worklist.erase(First);
     for (Label End : successors<GT>(Start)) {
-      auto &ParialStart = PartialAnalysis.at(Start);
+      auto &PartialStart = PartialAnalysis.at(Start);
       LatticeElement
-        UpdatedEndAnalysis = MFI::applyTransferFunction(Start, ParialStart);
+        UpdatedEndAnalysis = MFI::applyTransferFunction(Start, PartialStart);
       auto &PartialEnd = PartialAnalysis.at(End);
       if (!MFI::isLessOrEqual(UpdatedEndAnalysis, PartialEnd)) {
         PartialEnd = MFI::combineValues(PartialEnd, UpdatedEndAnalysis);
-        Worklist.push(End);
+        Worklist.insert({ LabelPriority.at(End), End });
       }
     }
   }
 
   // Step 3 presenting the results
   for (auto &[Node, Analysis] : PartialAnalysis) {
-    AnalysisResult[Node] = {
-      PartialAnalysis[Node],
-      MFI::applyTransferFunction(Node, PartialAnalysis[Node])
-    };
+    AnalysisResult[Node] = { Analysis,
+                             MFI::applyTransferFunction(Node, Analysis) };
   }
   return AnalysisResult;
 }
