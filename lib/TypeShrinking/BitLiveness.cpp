@@ -2,6 +2,14 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+/// \file BitLiveness.cpp
+/// \brief In this file we model the transfer functions for the analysis.
+/// Each transfer function models the information flow of a function or of
+/// a special case of an instruction.
+/// In our case, `R = transferXyz(Ins, E)` means that for the instruction Ins
+/// if we assume that the first E bits of the result of the instruction
+/// are alive, then the first R bits of the operands are also alive
+
 #include <limits>
 
 #include "llvm/ADT/APInt.h"
@@ -47,11 +55,25 @@ uint32_t getMaxOperandSize(Instruction *Ins) {
 }
 
 /// A specialization of the transfer function for the and instruction
-/// In cases where one of the operands is constant
+/// In cases where one of the operands is a constant mask
+///
+/// example:
+///   `%1 = %0 & 0xff`
+///
+/// only the lower 8 bits of `%0` flow into `%1`, but if only the lower 4 bits
+/// of `%1` flow into a data flow sink, then only the lower 4 bits of `%0`
+/// will flow into the data flow sink
 uint32_t transferMask(const uint32_t &Element, const uint32_t &MaskIndex) {
   return std::min(Element, MaskIndex);
 }
 
+/// Transfer function for the and instruction
+///
+/// example:
+///   `%2 = %1 & %0
+///
+/// if none of the operands are constants
+/// then liveness of %1 and %0 = liveness of %2
 uint32_t transferAnd(Instruction *Ins, const uint32_t &Element) {
   revng_assert(Ins->getOpcode() == Instruction::And);
   uint32_t Result = Element;
@@ -66,6 +88,16 @@ uint32_t transferAnd(Instruction *Ins, const uint32_t &Element) {
   return Result;
 }
 
+/// Transfer function for the left shift instruction
+///
+/// example:
+///   `%2 = %1 << %0
+///
+/// if none of the operands are constants
+/// then every bit of %1 and %0 can be alive
+///
+/// if %0 is a constant, then the first E bits of %2 are the first E - %0
+/// bits of %1 padded with zeros
 uint32_t transferShiftLeft(Instruction *Ins, const uint32_t &Element) {
   uint32_t OperandSize = getMaxOperandSize(Ins);
   if (auto ConstOp = llvm::dyn_cast<llvm::ConstantInt>(Ins->getOperand(1))) {
@@ -77,6 +109,16 @@ uint32_t transferShiftLeft(Instruction *Ins, const uint32_t &Element) {
   return OperandSize;
 }
 
+/// Transfer function for the logical right shift instruction
+///
+/// example:
+///   `%2 = %1 >>L %0
+///
+/// if none of the operands are constants
+/// then every bit of %1 and %0 can be alive
+///
+/// if %0 is a constant, then the first E bits of %2 come from the first E + %0
+/// bits of %1
 uint32_t transferLogicalShiftRight(Instruction *Ins, const uint32_t &Element) {
   uint32_t OperandSize = getMaxOperandSize(Ins);
   if (auto ConstOp = llvm::dyn_cast<llvm::ConstantInt>(Ins->getOperand(1))) {
@@ -89,6 +131,16 @@ uint32_t transferLogicalShiftRight(Instruction *Ins, const uint32_t &Element) {
   return OperandSize;
 }
 
+/// Transfer function for the arithmetical right shift instruction
+///
+/// example:
+///   `%2 = %1 >>A %0
+///
+/// if none of the operands are constants
+/// then every bit of %1 and %0 can be alive
+///
+/// if %0 is a constant, then the first E bits of %2 come from the first E + %0
+/// bits of %1
 uint32_t
 transferArithmeticalShiftRight(Instruction *Ins, const uint32_t &Element) {
   uint32_t OperandSize = getMaxOperandSize(Ins);
@@ -102,10 +154,22 @@ transferArithmeticalShiftRight(Instruction *Ins, const uint32_t &Element) {
   return OperandSize;
 }
 
+/// Transfer function for the trunc instruction
+///
+/// example:
+///   `%2 = truncX(%1)
+///
+/// at most the lower X bits of %1 flow into %2
 uint32_t transferTrunc(Instruction *Ins, const uint32_t &Element) {
   return std::min(Element, Ins->getType()->getIntegerBitWidth());
 }
 
+/// Transfer function for the trunc instruction
+///
+/// example:
+///   `%2 = zext(%1)
+///
+/// at most all the bits in %1 flow into %2
 uint32_t transferZExt(Instruction *Ins, const uint32_t &Element) {
   return std::min(Element, getMaxOperandSize(Ins));
 }
