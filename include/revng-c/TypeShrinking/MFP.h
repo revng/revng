@@ -57,10 +57,12 @@ template<typename Label>
 struct WorklistItem {
   size_t priority;
   Label label;
+
   friend bool
   operator<(const WorklistItem<Label> &a, const WorklistItem<Label> &b) {
     return a.priority < b.priority;
   }
+
   friend bool
   operator==(const WorklistItem<Label> &a, const WorklistItem<Label> &b) {
     return a.label < b.label;
@@ -89,6 +91,19 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
 
   llvm::SmallSet<Label, 8> Visited{};
   std::map<Label, size_t> LabelPriority;
+  // handle the special case that the graph has a single entry node
+  if (GT::getEntryNode(Flow) != nullptr) {
+    ReversePostOrderTraversalExt RPOTE(GT::getEntryNode(Flow), Visited);
+    for (Label Node : RPOTE) {
+      LabelPriority[Node] = LabelPriority.size();
+      Worklist.insert({ LabelPriority.at(Node), Node });
+      // initialize the analysis value for non extremal nodes
+      if (PartialAnalysis.find(Node) == PartialAnalysis.end()) {
+        PartialAnalysis[Node] = InitialValue;
+      }
+    }
+  }
+
   for (Label Start : llvm::nodes(Flow)) {
     if (Visited.count(Start) == 0) {
       // fill the worklist with nodes in reverse post order
