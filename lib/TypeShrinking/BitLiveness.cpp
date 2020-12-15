@@ -204,7 +204,7 @@ BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L, const uint32_t E) {
   case Instruction::ZExt:
     return transferZExt(Ins, E);
   default:
-    // by default all the bits of the operands can be alive
+    // By default all the bits of the operands can be alive
     return getMaxOperandSize(L->Instruction);
   }
 }

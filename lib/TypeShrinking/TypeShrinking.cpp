@@ -88,10 +88,10 @@ bool TypeShrinking::runOnFunction(Function &F) {
 
   for (auto &[Label, Result] : FixedPoints) {
     auto *Ins = Label->Instruction;
-    // Find the closest rank that contains all the alive bits
+    // Find the closest rank that contains all the alive bits.
     // If there is a known rank and this is an instruction that behaves like add
-    // in that the least significant bits of the result depend only on the least
-    // significant bits of the operands, we can down cast the operands and then
+    // (the least significant bits of the result depend only on the least
+    // significant bits of the operands) we can down cast the operands and then
     // upcast the result
     if (Result.outValue >= MinimumWidth.getValue() && isAddLike(Ins)) {
       auto ClosestRank = std::lower_bound(Ranks.begin(),
