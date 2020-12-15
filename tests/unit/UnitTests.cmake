@@ -215,3 +215,29 @@ target_link_libraries(test_genericgraph
   ${LLVM_LIBRARIES})
 add_test(NAME test_genericgraph COMMAND ./bin/test_genericgraph)
 set_tests_properties(test_genericgraph PROPERTIES LABELS "unit")
+
+
+#
+# test_recursive_coroutines
+#
+
+macro(add_recursive_coroutine_test NAME)
+  revng_add_private_executable("${NAME}" "${SRC}/RecursiveCoroutine.cpp")
+  target_compile_definitions("${NAME}"
+    PRIVATE "BOOST_TEST_DYN_LINK=1")
+  target_include_directories("${NAME}"
+    PRIVATE "${CMAKE_SOURCE_DIR}")
+  target_link_libraries("${NAME}"
+    revngSupport
+    ${LLVM_LIBRARIES})
+  add_test(NAME "${NAME}" COMMAND "./bin/${NAME}")
+  set_tests_properties("${NAME}" PROPERTIES LABELS "unit")
+endmacro()
+
+add_recursive_coroutine_test(test_recursive_coroutines)
+
+add_recursive_coroutine_test(test_recursive_coroutines_fallback)
+target_compile_definitions(test_recursive_coroutines_fallback PRIVATE DISABLE_RECURSIVE_COROUTINES)
+
+add_recursive_coroutine_test(test_recursive_coroutines_iterative)
+target_compile_definitions(test_recursive_coroutines_iterative PRIVATE ITERATIVE)
