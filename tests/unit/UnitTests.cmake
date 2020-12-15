@@ -215,3 +215,43 @@ target_link_libraries(test_genericgraph
   ${LLVM_LIBRARIES})
 add_test(NAME test_genericgraph COMMAND ./bin/test_genericgraph)
 set_tests_properties(test_genericgraph PROPERTIES LABELS "unit")
+
+
+#
+# test_recursive_coroutines
+#
+
+revng_add_private_executable(test_recursive_coroutines "${SRC}/recur.cpp")
+target_compile_definitions(test_recursive_coroutines
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_recursive_coroutines
+  PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_recursive_coroutines
+  revngSupport
+  ${LLVM_LIBRARIES})
+add_test(NAME test_recursive_coroutines COMMAND ./bin/test_recursive_coroutines)
+set_tests_properties(test_recursive_coroutines PROPERTIES LABELS "unit")
+
+revng_add_private_executable(test_recursive_coroutines_fallback "${SRC}/recur.cpp")
+target_compile_definitions(test_recursive_coroutines_fallback
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_recursive_coroutines_fallback
+  PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_recursive_coroutines_fallback
+  revngSupport
+  ${LLVM_LIBRARIES})
+add_test(NAME test_recursive_coroutines_fallback COMMAND ./bin/test_recursive_coroutines_fallback)
+set_tests_properties(test_recursive_coroutines_fallback PROPERTIES LABELS "unit")
+set_target_properties(test_recursive_coroutines_fallback PROPERTIES COMPILE_FLAGS "${COMPILE_FLAGS} -DDISABLE_RECURSIVE_COROUTINES" )
+
+revng_add_private_executable(test_recursive_coroutines_iterative "${SRC}/recur.cpp")
+target_compile_definitions(test_recursive_coroutines_iterative
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_recursive_coroutines_iterative
+  PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_recursive_coroutines_iterative
+  revngSupport
+  ${LLVM_LIBRARIES})
+add_test(NAME test_recursive_coroutines_iterative COMMAND ./bin/test_recursive_coroutines_iterative)
+set_tests_properties(test_recursive_coroutines_iterative PROPERTIES LABELS "unit")
+set_target_properties(test_recursive_coroutines_iterative PROPERTIES COMPILE_FLAGS "${COMPILE_FLAGS} -DITERATIVE" )
