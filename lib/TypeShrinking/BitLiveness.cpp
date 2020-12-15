@@ -61,6 +61,16 @@ uint32_t getMaxOperandSize(Instruction *Ins) {
   return Max;
 }
 
+/// If Ins has an integer return type return its bitwidth
+/// else return top
+uint32_t getResultSize(Instruction *Ins) {
+  uint32_t Size = Top;
+  if (Ins->getType()->isIntegerTy()) {
+    Size = std::min(Size, Ins->getType()->getIntegerBitWidth());
+  }
+  return Size;
+}
+
 /// A specialization of the transfer function for the and instruction
 /// In cases where one of the operands is a constant mask
 ///
@@ -184,6 +194,11 @@ uint32_t transferZExt(Instruction *Ins, const uint32_t &Element) {
 uint32_t
 BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L, const uint32_t E) {
   auto *Ins = L->Instruction;
+  uint32_t Input = E;
+  // At most every bit of the result is alive
+  if (!isDataFlowSink(Ins)) {
+    Input = std::min(E, getResultSize(Ins));
+  }
   switch (Ins->getOpcode()) {
   case Instruction::And:
     return transferAnd(Ins, E);
@@ -205,7 +220,7 @@ BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L, const uint32_t E) {
     return transferZExt(Ins, E);
   default:
     // By default all the bits of the operands can be alive
-    return getMaxOperandSize(L->Instruction);
+    return Top;
   }
 }
 
