@@ -84,13 +84,14 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
   std::map<Label, MFPResult<LatticeElement>> AnalysisResult;
   std::set<WorklistItem<Label>> Worklist;
 
+  llvm::SmallSet<Label, 8> Visited{};
+  std::map<Label, size_t> LabelPriority;
+
   // Step 1 initialize the worklist and extremal labels
   for (Label ExtremalLabel : ExtremalLabels) {
     PartialAnalysis[ExtremalLabel] = ExtremalValue;
   }
 
-  llvm::SmallSet<Label, 8> Visited{};
-  std::map<Label, size_t> LabelPriority;
   // handle the special case that the graph has a single entry node
   if (GT::getEntryNode(Flow) != nullptr) {
     ReversePostOrderTraversalExt RPOTE(GT::getEntryNode(Flow), Visited);
@@ -103,8 +104,13 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
       }
     }
   }
-
-  for (Label Start : llvm::nodes(Flow)) {
+  // start visits for nodes that we still haven't visited
+  // prioritizing extremal nodes
+  std::vector<Label> Nodes(ExtremalLabels);
+  for (Label Node : llvm::nodes(Flow)) {
+    Nodes.push_back(Node);
+  }
+  for (Label Start : Nodes) {
     if (Visited.count(Start) == 0) {
       // fill the worklist with nodes in reverse post order
       // lauching a visit from each remaining node
