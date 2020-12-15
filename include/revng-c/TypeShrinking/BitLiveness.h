@@ -4,11 +4,12 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <optional>
+
 #include "revng/ADT/GenericGraph.h"
 
+#include "revng-c/TypeShrinking/DataFlowGraph.h"
 #include "revng-c/TypeShrinking/MFP.h"
-
-#include "DataFlowGraph.h"
 
 namespace llvm {
 class Instruction;
@@ -41,5 +42,26 @@ inline bool
 BitLivenessAnalysis::isLessOrEqual(const uint32_t &Lh, const uint32_t &Rh) {
   return Lh <= Rh;
 }
+
+class BitLivenessPass : public llvm::FunctionPass {
+public:
+  using Label = BitLivenessAnalysis::Label;
+  using MFPResult = MFPResult<BitLivenessAnalysis::LatticeElement>;
+  using AnalysisResult = std::map<Label, MFPResult>;
+
+  static char ID; // Pass identification, replacement for typeid
+  BitLivenessPass() : FunctionPass(ID) {}
+
+  bool runOnFunction(llvm::Function &F) override;
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.setPreservesAll();
+  }
+
+  AnalysisResult &getResult() { return Result; }
+
+private:
+  AnalysisResult Result;
+};
 
 } // namespace TypeShrinking

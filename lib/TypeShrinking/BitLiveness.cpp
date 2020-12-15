@@ -21,14 +21,21 @@
 
 #include "revng/Support/Assert.h"
 
-#include "BitLiveness.h"
-
-#include "DataFlowGraph.h"
+#include "revng-c/TypeShrinking/BitLiveness.h"
+#include "revng-c/TypeShrinking/DataFlowGraph.h"
 
 namespace TypeShrinking {
 
 using BitVector = llvm::BitVector;
 using Instruction = llvm::Instruction;
+
+char TypeShrinking::BitLivenessPass::ID = 0;
+
+static llvm::RegisterPass<BitLivenessPass> X("bit-liveness",
+                                             "Apply approximate bit liveness "
+                                             "analysis",
+                                             true,
+                                             true);
 
 const uint32_t Top = std::numeric_limits<uint32_t>::max();
 
@@ -202,4 +209,20 @@ BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L, const uint32_t E) {
   }
 }
 
+bool BitLivenessPass::runOnFunction(llvm::Function &F) {
+
+  auto DataFlowGraph = buildDataFlowGraph(F);
+  std::vector<DataFlowNode *> ExtremalLabels;
+  for (auto *Node : DataFlowGraph.nodes()) {
+    if (isDataFlowSink(Node->Instruction)) {
+      ExtremalLabels.push_back(Node);
+    }
+  }
+
+  Result = getMaximalFixedPoint<BitLivenessAnalysis>(&DataFlowGraph,
+                                                     0,
+                                                     Top,
+                                                     ExtremalLabels);
+  return false;
+}
 } // namespace TypeShrinking

@@ -1,6 +1,5 @@
 /// \file TypeShrinking.cpp
 /// \brief This analysis finds which bits of each Instruction is alive
-/// format.
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -23,10 +22,10 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 
+#include "revng-c/TypeShrinking/BitLiveness.h"
+#include "revng-c/TypeShrinking/DataFlowGraph.h"
 #include "revng-c/TypeShrinking/MFP.h"
 #include "revng-c/TypeShrinking/TypeShrinking.h"
-
-#include "BitLiveness.h"
 
 using namespace llvm;
 
@@ -46,10 +45,23 @@ char TypeShrinking::TypeShrinking::ID = 0;
 
 static RegisterTypeShrinking
   X("type-shrinking", "Run the type shrinking analysis", true, true);
+
 namespace TypeShrinking {
 
-/// Builds a data flow graph with edges from uses to definitions
-static GenericGraph<DataFlowNode> buildDataFlowGraph(Function &F);
+void applyTypeShrinking(llvm::legacy::FunctionPassManager &PM) {
+  PM.add(new TypeShrinking());
+  PM.add(llvm::createEarlyCSEPass());
+  PM.add(llvm::createConstantPropagationPass());
+  PM.add(llvm::createReassociatePass());
+  PM.add(llvm::createNewGVNPass());
+  PM.add(llvm::createConstantPropagationPass());
+  PM.add(llvm::createDeadStoreEliminationPass());
+  PM.add(llvm::createDeadCodeEliminationPass());
+}
+
+void TypeShrinking::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.addRequired<BitLivenessPass>();
+}
 
 /// Returns true if each bit B of the result of Ins depends only on
 /// the bits of the operands with an index lower than B
@@ -68,18 +80,8 @@ bool isAddLike(const Instruction *Ins) {
 
 bool TypeShrinking::runOnFunction(Function &F) {
 
-  auto DataFlowGraph = buildDataFlowGraph(F);
-  std::vector<DataFlowNode *> ExtremalLabels;
-  for (auto *Node : DataFlowGraph.nodes()) {
-    if (isDataFlowSink(Node->Instruction)) {
-      ExtremalLabels.push_back(Node);
-    }
-  }
-
-  auto FixedPoints = getMaximalFixedPoint<BitLivenessAnalysis>(&DataFlowGraph,
-                                                               0,
-                                                               Top,
-                                                               ExtremalLabels);
+  auto &BitLiveness = getAnalysis<BitLivenessPass>();
+  BitLivenessPass::AnalysisResult &FixedPoints = BitLiveness.getResult();
   bool HasChanges = false;
 
   std::vector<uint32_t> Ranks = { 8, 16, 32, 64 };
@@ -95,11 +97,9 @@ bool TypeShrinking::runOnFunction(Function &F) {
       auto ClosestRank = std::lower_bound(Ranks.begin(),
                                           Ranks.end(),
                                           Result.outValue);
-
       if (ClosestRank != Ranks.end()
           && Ins->getType()->getScalarSizeInBits() > *ClosestRank) {
         auto Rank = *ClosestRank;
-
         HasChanges = true;
         llvm::Value *NewIns = nullptr;
 
@@ -128,28 +128,6 @@ bool TypeShrinking::runOnFunction(Function &F) {
   }
 
   return HasChanges;
-}
-
-static GenericGraph<DataFlowNode> buildDataFlowGraph(Function &F) {
-  GenericGraph<DataFlowNode> DataFlowGraph{};
-  std::vector<DataFlowNode *> Worklist;
-  std::unordered_map<Instruction *, DataFlowNode *> InstructionNodeMap;
-  // Initialization
-  for (Instruction &I : instructions(F)) {
-    DataFlowNode Node{ &I };
-    auto *GraphNode = DataFlowGraph.addNode(Node);
-    Worklist.push_back(GraphNode);
-    InstructionNodeMap[GraphNode->Instruction] = GraphNode;
-  }
-
-  for (auto *DefNode : Worklist) {
-    auto *Ins = DefNode->Instruction;
-    for (auto &Use : Ins->uses()) {
-      auto *UseNode = InstructionNodeMap.at(cast<Instruction>(Use.getUser()));
-      UseNode->addSuccessor(DefNode);
-    }
-  }
-  return DataFlowGraph;
 }
 
 } // namespace TypeShrinking

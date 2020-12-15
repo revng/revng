@@ -16,4 +16,7 @@ struct DataFlowNode : public BidirectionalNode<DataFlowNode> {
   DataFlowNode(llvm::Instruction *Ins) : Instruction(Ins){};
   llvm::Instruction *Instruction;
 };
+
+/// Builds a data flow graph with edges from uses to definitions
+GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F);
 } // namespace TypeShrinking
