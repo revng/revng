@@ -95,6 +95,11 @@ while [[ $# > 0 ]]; do
             print_usage
             exit 1
             ;;
+        -*)
+            echo "Error: unrecognized option $key" > /dev/stderr
+            print_usage
+            exit 1
+            ;;
         *)
             break
             ;;
