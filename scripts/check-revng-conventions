@@ -90,7 +90,7 @@ while [[ $# > 0 ]]; do
             print_usage
             exit 0
             ;;
-        --*)
+        -*)
             echo "Error: unrecognized option $key" > /dev/stderr
             print_usage
             exit 1
