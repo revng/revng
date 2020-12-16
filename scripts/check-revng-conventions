@@ -9,7 +9,8 @@ set -e
 function print_usage() {
             cat > /dev/stderr << END_USAGE_TEXT
 SYNOPSIS
-   $0 [--help] [--force-format] [FILE...]
+   $0 [--help] [--force-format] [--use-local-clang-format-file] [FILE...]
+
 
 DESCRIPTION
    Checks that the files specified in FILE... respect the rev.ng coding
@@ -35,6 +36,19 @@ OPTIONS
     FILE
       List of filenames of the files for which you want to check the rev.ng
       coding conventions.
+
+    --use-local-clang-format-file
+      By default, clang-format is executed with a hard-coded configuration that
+      should apply to all the projects under the rev.ng umbrella.
+      When this option is passed, the hard-coded configuration is ignored, and
+      clang-format looks for configuration in a .clang-format file in the
+      current directory or in its parent directories.
+
+      This allows to use different clang-format configuration on per-project
+      basis, in cases where the hard-coded configuration does not fit (e.g Qt
+      projects where Qt coding conventions are a better fit).
+
+      See clang-format documentation for more details.
 
 RETURN VALUES
    On success exit code is 0.
