@@ -4,13 +4,51 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+set -e
+
+function print_usage() {
+            cat > /dev/stderr << END_USAGE_TEXT
+SYNOPSIS
+   $0 [--help] [--force-format] [FILE...]
+
+DESCRIPTION
+   Checks that the files specified in FILE... respect the rev.ng coding
+   conventions, and prints all the violations.
+
+   If the FILE... arguments are missing, checks that all the C++ source files in
+   the project that have already been added to the git repository project
+   respect the rev.ng coding conventions.
+
+
+OPTIONS
+   --help
+       Prints this help and exit
+
+   --force-format
+       In addition to checking the rev.ng coding conventions on the specified
+       files, uses clang-format to try to enforce the coding conventions
+       automatically.
+       If this fails, exit with failure, otherwise exit with success.
+       WARNING: using this option will overwrite your files, make sure to backup
+       important stuff.
+
+    FILE
+      List of filenames of the files for which you want to check the rev.ng
+      coding conventions.
+
+RETURN VALUES
+   On success exit code is 0.
+   On failure, i.e. if there is at least one file that is not respecting the
+   coding conventions, exit code is 1.
+END_USAGE_TEXT
+}
+
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 FORCE_FORMAT="0"
 
 USE_CLANG_FORMAT_FILE="0"
 
-set -e
 
 while [[ $# > 0 ]]; do
     key="$1"
@@ -23,12 +61,14 @@ while [[ $# > 0 ]]; do
             USE_CLANG_FORMAT_FILE="1"
             shift # past argument
             ;;
+        --help)
+            print_usage
+            exit 0
+            ;;
         --*)
-            echo "Unexpected option $key" > /dev/stderr
-            echo > /dev/stderr
-            echo "Usage: $0 [--force-format] [FILE...]" > /dev/stderr
+            echo "Error: unrecognized option $key" > /dev/stderr
+            print_usage
             exit 1
-            shift
             ;;
         *)
             break
