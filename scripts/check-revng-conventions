@@ -50,6 +50,11 @@ OPTIONS
 
       See clang-format documentation for more details.
 
+    --print-clang-format-config
+      Print the clang-format configuration to stdout, ignoring all the other
+      arguments except for --use-local-clang-format-file.
+      The conventions are not checked.
+
 RETURN VALUES
    On success exit code is 0.
    On failure, i.e. if there is at least one file that is not respecting the
@@ -63,10 +68,16 @@ FORCE_FORMAT="0"
 
 USE_CLANG_FORMAT_FILE="0"
 
+PRINT_CLANG_FORMAT_CONFIG="0"
+
 
 while [[ $# > 0 ]]; do
     key="$1"
     case $key in
+        --print-clang-format-config)
+            PRINT_CLANG_FORMAT_CONFIG="1"
+            shift # past argument
+            ;;
         --force-format)
             FORCE_FORMAT="1"
             shift # past argument
@@ -176,6 +187,14 @@ function run_revng_checks() {
     done
 
 }
+
+# If the user passed the --print-clang-format-config, dump the config and exit
+# with success.
+if test "$PRINT_CLANG_FORMAT_CONFIG" -gt 0; then
+        clang-format --dry-run -style="$CLANG_FORMAT_STYLE" --dump-config
+        exit 0
+fi
+
 
 # First, run the checks and output warnings in a human readable format.
 run_clang_format
