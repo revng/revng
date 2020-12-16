@@ -9,14 +9,14 @@ set -e
 function print_usage() {
     cat > /dev/stderr << END_USAGE_TEXT
 SYNOPSIS
-   $0 [--help] [--force-format] [--use-local-clang-format-file] [FILE...]
+   $0 [<options>] [FILES...]
 
 
 DESCRIPTION
-   Checks that the files specified in FILE... respect the rev.ng coding
+   Checks that the files specified in FILES... respect the rev.ng coding
    conventions, and prints all the violations.
 
-   If the FILE... arguments are missing, checks that all the C++ source files in
+   If the FILES... arguments are missing, checks that all the C++ source files in
    the project that have already been added to the git repository project
    respect the rev.ng coding conventions.
 
@@ -32,10 +32,6 @@ OPTIONS
        If this fails, exit with failure, otherwise exit with success.
        WARNING: using this option will overwrite your files, make sure to backup
        important stuff.
-
-    FILE
-      List of filenames of the files for which you want to check the rev.ng
-      coding conventions.
 
     --use-local-clang-format-file
       By default, clang-format is executed with a hard-coded configuration that
@@ -54,6 +50,10 @@ OPTIONS
       Print the clang-format configuration to stdout, ignoring all the other
       arguments except for --use-local-clang-format-file.
       The conventions are not checked.
+
+    FILES
+      List of filenames of the files for which you want to check the rev.ng
+      coding conventions.
 
 RETURN VALUES
    On success exit code is 0.
