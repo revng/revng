@@ -172,6 +172,22 @@ install(PROGRAMS "${CMAKE_BINARY_DIR}/bin/check-revng-conventions" DESTINATION b
 configure_file(scripts/clang-format-style-file "${CMAKE_BINARY_DIR}/share/revng/clang-format-style-file" COPYONLY)
 install(FILES "${CMAKE_BINARY_DIR}/share/revng/clang-format-style-file" DESTINATION share/revng)
 
+# Custom command to create .clang-format file from check-revng-conventions
+add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/share/revng/.clang-format"
+  DEPENDS
+    "${CMAKE_BINARY_DIR}/bin/check-revng-conventions"
+    "${CMAKE_BINARY_DIR}/share/revng/clang-format-style-file"
+  COMMAND "${CMAKE_BINARY_DIR}/bin/check-revng-conventions"
+  ARGS
+    --print-clang-format-config
+    >
+    "${CMAKE_BINARY_DIR}/share/revng/.clang-format"
+)
+
+add_custom_target(clang-format-dot-file ALL DEPENDS "${CMAKE_BINARY_DIR}/share/revng/.clang-format" )
+
+install(FILES "${CMAKE_BINARY_DIR}/share/revng/.clang-format" DESTINATION share/revng)
+
 # Remove -rdynamic
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 
