@@ -84,7 +84,7 @@ bool TypeShrinking::runOnFunction(Function &F) {
   BitLivenessPass::AnalysisResult &FixedPoints = BitLiveness.getResult();
   bool HasChanges = false;
 
-  std::vector<uint32_t> Ranks = { 8, 16, 32, 64 };
+  const std::array<uint32_t, 4> Ranks = { 8, 16, 32, 64 };
 
   for (auto &[Label, Result] : FixedPoints) {
     auto *Ins = Label->Instruction;
@@ -93,10 +93,10 @@ bool TypeShrinking::runOnFunction(Function &F) {
     // (the least significant bits of the result depend only on the least
     // significant bits of the operands) we can down cast the operands and then
     // upcast the result
-    if (Result.outValue >= MinimumWidth.getValue() && isAddLike(Ins)) {
+    if (Result.OutValue >= MinimumWidth.getValue() && isAddLike(Ins)) {
       auto ClosestRank = std::lower_bound(Ranks.begin(),
                                           Ranks.end(),
-                                          Result.outValue);
+                                          Result.OutValue);
       if (ClosestRank != Ranks.end()
           && Ins->getType()->getScalarSizeInBits() > *ClosestRank) {
         auto Rank = *ClosestRank;

@@ -25,8 +25,8 @@ concept same_as = std::is_same_v<T, U>;
 
 template<typename LatticeElement>
 struct MFPResult {
-  LatticeElement inValue;
-  LatticeElement outValue;
+  LatticeElement InValue;
+  LatticeElement OutValue;
 };
 
 /// GT is an instance of llvm::GraphTraits e.g. llvm::GraphTraits<GraphType>
@@ -53,19 +53,19 @@ concept MonotoneFrameworkInstance = requires(typename MFI::LatticeElement E1,
   // clang-format on
 };
 
-template<typename Label>
+template<typename ItemType>
 struct WorklistItem {
-  size_t priority;
-  Label label;
+  size_t Priority;
+  ItemType Item;
 
-  friend bool
-  operator<(const WorklistItem<Label> &a, const WorklistItem<Label> &b) {
-    return a.priority < b.priority;
+  friend bool operator<(const WorklistItem<ItemType> &Lhs,
+                        const WorklistItem<ItemType> &Rhs) {
+    return Lhs.Priority < Rhs.Priority;
   }
 
-  friend bool
-  operator==(const WorklistItem<Label> &a, const WorklistItem<Label> &b) {
-    return a.label < b.label;
+  friend bool operator==(const WorklistItem<ItemType> &Lhs,
+                         const WorklistItem<ItemType> &Rhs) {
+    return Lhs.Item < Rhs.Item;
   }
 };
 
@@ -129,7 +129,7 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
   // Step 2 iteration
   while (!Worklist.empty()) {
     WorklistItem<Label> First = *Worklist.begin();
-    Label Start = First.label;
+    Label Start = First.Item;
     Worklist.erase(First);
     for (Label End : successors<GT>(Start)) {
       auto &PartialStart = PartialAnalysis.at(Start);

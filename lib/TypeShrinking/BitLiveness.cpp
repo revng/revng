@@ -40,14 +40,20 @@ static llvm::RegisterPass<BitLivenessPass> X("bit-liveness",
 const uint32_t Top = std::numeric_limits<uint32_t>::max();
 
 bool isDataFlowSink(const Instruction *Ins) {
-  if (Ins->mayHaveSideEffects() || Ins->getOpcode() == Instruction::Call
-      || Ins->getOpcode() == Instruction::CallBr
-      || Ins->getOpcode() == Instruction::Ret
-      || Ins->getOpcode() == Instruction::Store
-      || Ins->getOpcode() == Instruction::Br
-      || Ins->getOpcode() == Instruction::IndirectBr)
+  if (Ins->mayHaveSideEffects()) {
     return true;
-  return false;
+  }
+  switch (Ins->getOpcode()) {
+  case Instruction::Call:
+  case Instruction::CallBr:
+  case Instruction::Ret:
+  case Instruction::Store:
+  case Instruction::Br:
+  case Instruction::IndirectBr:
+    return true;
+  default:
+    return false;
+  }
 }
 
 uint32_t getMaxOperandSize(Instruction *Ins) {
