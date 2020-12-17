@@ -70,7 +70,6 @@ USE_CLANG_FORMAT_FILE="0"
 
 PRINT_CLANG_FORMAT_CONFIG="0"
 
-
 while [[ $# > 0 ]]; do
     key="$1"
     case $key in
@@ -106,14 +105,6 @@ while [[ $# > 0 ]]; do
     esac
 done
 
-if [[ $# -eq 0 ]]; then
-    FILES="$(git ls-files | grep -E '\.(c|cc|cpp|h|hpp)$')"
-else
-    FILES="$@"
-fi
-
-GREP="git grep -n --color=always"
-
 CLANG_FORMAT_STYLE_FILE="$SCRIPT_PATH/clang-format-style-file"
 if ! test -e "$CLANG_FORMAT_STYLE_FILE"; then
     CLANG_FORMAT_STYLE_FILE="$SCRIPT_PATH/../share/revng/clang-format-style-file"
@@ -128,6 +119,22 @@ CLANG_FORMAT_STYLE=$(cat "$CLANG_FORMAT_STYLE_FILE")
 if test "$USE_CLANG_FORMAT_FILE" -gt 0; then
     CLANG_FORMAT_STYLE=file
 fi
+
+# If the user passed the --print-clang-format-config, dump the config and exit
+# with success.
+if test "$PRINT_CLANG_FORMAT_CONFIG" -gt 0; then
+        clang-format --dry-run -style="$CLANG_FORMAT_STYLE" --dump-config
+        exit 0
+fi
+
+
+if [[ $# -eq 0 ]]; then
+    FILES="$(git ls-files | grep -E '\.(c|cc|cpp|h|hpp)$')"
+else
+    FILES="$@"
+fi
+
+GREP="git grep -n --color=always"
 
 # Run clang-format on FILES
 function run_clang_format() {
@@ -192,14 +199,6 @@ function run_revng_checks() {
     done
 
 }
-
-# If the user passed the --print-clang-format-config, dump the config and exit
-# with success.
-if test "$PRINT_CLANG_FORMAT_CONFIG" -gt 0; then
-        clang-format --dry-run -style="$CLANG_FORMAT_STYLE" --dump-config
-        exit 0
-fi
-
 
 # First, run the checks and output warnings in a human readable format.
 run_clang_format
