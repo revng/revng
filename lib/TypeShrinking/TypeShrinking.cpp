@@ -48,17 +48,6 @@ static RegisterTypeShrinking
 
 namespace TypeShrinking {
 
-void applyTypeShrinking(llvm::legacy::FunctionPassManager &PM) {
-  PM.add(new TypeShrinking());
-  PM.add(llvm::createEarlyCSEPass());
-  PM.add(llvm::createConstantPropagationPass());
-  PM.add(llvm::createReassociatePass());
-  PM.add(llvm::createNewGVNPass());
-  PM.add(llvm::createConstantPropagationPass());
-  PM.add(llvm::createDeadStoreEliminationPass());
-  PM.add(llvm::createDeadCodeEliminationPass());
-}
-
 void TypeShrinking::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<BitLivenessPass>();
 }
@@ -85,7 +74,6 @@ bool TypeShrinking::runOnFunction(Function &F) {
   bool HasChanges = false;
 
   const std::array<uint32_t, 4> Ranks = { 8, 16, 32, 64 };
-
   for (auto &[Label, Result] : FixedPoints) {
     auto *Ins = Label->Instruction;
     // Find the closest rank that contains all the alive bits.

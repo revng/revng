@@ -85,6 +85,8 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libMakeEnvNull.so
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libFilterForDecompilation.so
+      -load
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/librevngTypeShrinking.so
       # Remove revng's artifacts from IR
       -filter-for-decompilation
       -remove-newpc-calls
@@ -104,6 +106,15 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       -instcombine
       -early-cse
       -simplifycfg
+      # apply type shrinking
+      -type-shrinking
+      --min-width 8
+      -early-cse
+      -constprop
+      -gvn
+      -constprop
+      -dse
+      -dce
       # Remove LLVM's artifacts from IR
       -remove-llvmassume-calls
       -dce

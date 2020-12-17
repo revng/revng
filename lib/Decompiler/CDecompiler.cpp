@@ -56,7 +56,17 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
     PM.add(llvm::createCFGSimplificationPass());
   }
 
-  { TypeShrinking::applyTypeShrinking(PM); }
+  // Apply type shrinking
+  {
+    PM.add(new TypeShrinking::TypeShrinking());
+    PM.add(llvm::createEarlyCSEPass());
+    PM.add(llvm::createReassociatePass());
+    PM.add(llvm::createConstantPropagationPass());
+    PM.add(llvm::createNewGVNPass());
+    PM.add(llvm::createConstantPropagationPass());
+    PM.add(llvm::createDeadStoreEliminationPass());
+    PM.add(llvm::createDeadCodeEliminationPass());
+  }
 
   // Remove LLVM's artifacts from IR
   {
