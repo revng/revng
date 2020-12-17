@@ -62,6 +62,7 @@ public:
 
 private:
   AnalysisResult Result;
+  GenericGraph<DataFlowNode> DataFlowGraph;
 };
 
 } // namespace TypeShrinking

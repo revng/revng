@@ -232,9 +232,9 @@ BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L, const uint32_t E) {
 
 bool BitLivenessPass::runOnFunction(llvm::Function &F) {
 
-  auto DataFlowGraph = buildDataFlowGraph(F);
+  DataFlowGraph = buildDataFlowGraph(F);
   std::vector<DataFlowNode *> ExtremalLabels;
-  for (auto *Node : DataFlowGraph.nodes()) {
+  for (DataFlowNode *Node : DataFlowGraph.nodes()) {
     if (isDataFlowSink(Node->Instruction)) {
       ExtremalLabels.push_back(Node);
     }
