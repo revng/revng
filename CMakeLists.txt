@@ -150,18 +150,27 @@ set(VERSION 0.0.0)
 configure_file(runtime/support.c "${CMAKE_BINARY_DIR}/share/revng/support.c" COPYONLY)
 configure_file(runtime/support.h "${CMAKE_BINARY_DIR}/share/revng/support.h" COPYONLY)
 configure_file(include/revng/Runtime/commonconstants.h "${CMAKE_BINARY_DIR}/share/revng/commonconstants.h" COPYONLY)
+
+install(FILES
+  "${CMAKE_BINARY_DIR}/share/revng/support.c"
+  "${CMAKE_BINARY_DIR}/share/revng/support.h"
+  "${CMAKE_BINARY_DIR}/share/revng/commonconstants.h"
+  DESTINATION share/revng)
+
 configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/share/revng/early-linked.c" COPYONLY)
+
 configure_file(scripts/revng "${CMAKE_BINARY_DIR}/bin/revng")
 configure_file(scripts/revng-merge-dynamic "${CMAKE_BINARY_DIR}/bin/revng-merge-dynamic" COPYONLY)
 install(PROGRAMS
   "${CMAKE_BINARY_DIR}/bin/revng"
-  scripts/revng-merge-dynamic
-  scripts/check-revng-conventions
+  "${CMAKE_BINARY_DIR}/bin/revng-merge-dynamic"
   DESTINATION bin)
-install(FILES runtime/support.c DESTINATION share/revng)
-install(FILES runtime/support.h DESTINATION share/revng)
-install(FILES include/revng/Runtime/commonconstants.h DESTINATION share/revng)
-install(FILES scripts/clang-format-style-file DESTINATION share/revng)
+
+configure_file(scripts/check-revng-conventions "${CMAKE_BINARY_DIR}/bin/check-revng-conventions" COPYONLY)
+install(PROGRAMS "${CMAKE_BINARY_DIR}/bin/check-revng-conventions" DESTINATION bin)
+
+configure_file(scripts/clang-format-style-file "${CMAKE_BINARY_DIR}/share/revng/clang-format-style-file" COPYONLY)
+install(FILES "${CMAKE_BINARY_DIR}/share/revng/clang-format-style-file" DESTINATION share/revng)
 
 # Remove -rdynamic
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
