@@ -56,7 +56,7 @@ bool isDataFlowSink(const Instruction *Ins) {
   }
 }
 
-uint32_t getMaxOperandSize(Instruction *Ins) {
+static uint32_t getMaxOperandSize(Instruction *Ins) {
   uint32_t Max = 0;
   for (auto &Operand : Ins->operands()) {
     if (Operand->getType()->isIntegerTy())
@@ -69,7 +69,7 @@ uint32_t getMaxOperandSize(Instruction *Ins) {
 
 /// If Ins has an integer return type return its bitwidth
 /// else return top
-uint32_t getResultSize(Instruction *Ins) {
+static uint32_t getResultSize(Instruction *Ins) {
   uint32_t Size = Top;
   if (Ins->getType()->isIntegerTy()) {
     Size = std::min(Size, Ins->getType()->getIntegerBitWidth());
@@ -86,7 +86,8 @@ uint32_t getResultSize(Instruction *Ins) {
 /// only the lower 8 bits of `%0` flow into `%1`, but if only the lower 4 bits
 /// of `%1` flow into a data flow sink, then only the lower 4 bits of `%0`
 /// will flow into the data flow sink
-uint32_t transferMask(const uint32_t &Element, const uint32_t &MaskIndex) {
+static uint32_t
+transferMask(const uint32_t &Element, const uint32_t &MaskIndex) {
   return std::min(Element, MaskIndex);
 }
 
@@ -97,7 +98,7 @@ uint32_t transferMask(const uint32_t &Element, const uint32_t &MaskIndex) {
 ///
 /// if none of the operands are constants
 /// then liveness of %1 and %0 = liveness of %2
-uint32_t transferAnd(Instruction *Ins, const uint32_t &Element) {
+static uint32_t transferAnd(Instruction *Ins, const uint32_t &Element) {
   revng_assert(Ins->getOpcode() == Instruction::And);
   uint32_t Result = Element;
   for (auto &Operand : Ins->operands()) {
@@ -121,7 +122,7 @@ uint32_t transferAnd(Instruction *Ins, const uint32_t &Element) {
 ///
 /// if %0 is a constant, then the first E bits of %2 are the first E - %0
 /// bits of %1 padded with zeros
-uint32_t transferShiftLeft(Instruction *Ins, const uint32_t &Element) {
+static uint32_t transferShiftLeft(Instruction *Ins, const uint32_t &Element) {
   uint32_t OperandSize = getMaxOperandSize(Ins);
   if (auto ConstOp = llvm::dyn_cast<llvm::ConstantInt>(Ins->getOperand(1))) {
     auto OpVal = ConstOp->getZExtValue();
@@ -142,7 +143,8 @@ uint32_t transferShiftLeft(Instruction *Ins, const uint32_t &Element) {
 ///
 /// if %0 is a constant, then the first E bits of %2 come from the first E + %0
 /// bits of %1
-uint32_t transferLogicalShiftRight(Instruction *Ins, const uint32_t &Element) {
+static uint32_t
+transferLogicalShiftRight(Instruction *Ins, const uint32_t &Element) {
   uint32_t OperandSize = getMaxOperandSize(Ins);
   if (auto ConstOp = llvm::dyn_cast<llvm::ConstantInt>(Ins->getOperand(1))) {
     auto OpVal = ConstOp->getZExtValue();
@@ -164,7 +166,7 @@ uint32_t transferLogicalShiftRight(Instruction *Ins, const uint32_t &Element) {
 ///
 /// if %0 is a constant, then the first E bits of %2 come from the first E + %0
 /// bits of %1
-uint32_t
+static uint32_t
 transferArithmeticalShiftRight(Instruction *Ins, const uint32_t &Element) {
   uint32_t OperandSize = getMaxOperandSize(Ins);
   if (auto ConstOp = llvm::dyn_cast<llvm::ConstantInt>(Ins->getOperand(1))) {
@@ -183,7 +185,7 @@ transferArithmeticalShiftRight(Instruction *Ins, const uint32_t &Element) {
 ///   `%2 = truncX(%1)
 ///
 /// at most the lower X bits of %1 flow into %2
-uint32_t transferTrunc(Instruction *Ins, const uint32_t &Element) {
+static uint32_t transferTrunc(Instruction *Ins, const uint32_t &Element) {
   return std::min(Element, Ins->getType()->getIntegerBitWidth());
 }
 
@@ -193,7 +195,7 @@ uint32_t transferTrunc(Instruction *Ins, const uint32_t &Element) {
 ///   `%2 = zext(%1)
 ///
 /// at most all the bits in %1 flow into %2
-uint32_t transferZExt(Instruction *Ins, const uint32_t &Element) {
+static uint32_t transferZExt(Instruction *Ins, const uint32_t &Element) {
   return std::min(Element, getMaxOperandSize(Ins));
 }
 
