@@ -54,16 +54,6 @@ concept MonotoneFrameworkInstance = requires(typename MFI::LatticeElement E1,
   // clang-format on
 };
 
-template<typename ItemType>
-struct WorklistItem {
-  size_t Priority;
-  ItemType Item;
-
-  friend std::strong_ordering
-  operator<=>(const WorklistItem<ItemType> &,
-              const WorklistItem<ItemType> &) = default;
-};
-
 /// Compute the maximum fixed points of an instance of monotone framework
 /// GT an instance of llvm::GraphTraits
 template<MonotoneFrameworkInstance MFI,
@@ -77,7 +67,14 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
   typedef typename MFI::LatticeElement LatticeElement;
   std::map<Label, LatticeElement> PartialAnalysis;
   std::map<Label, MFPResult<LatticeElement>> AnalysisResult;
-  std::set<WorklistItem<Label>> Worklist;
+
+  struct WorklistItem {
+    size_t Priority;
+    Label Item;
+
+    std::strong_ordering operator<=>(const WorklistItem &) const = default;
+  };
+  std::set<WorklistItem> Worklist;
 
   llvm::SmallSet<Label, 8> Visited{};
   std::map<Label, size_t> LabelPriority;
@@ -123,7 +120,7 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
 
   // Step 2 iteration
   while (!Worklist.empty()) {
-    WorklistItem<Label> First = *Worklist.begin();
+    WorklistItem First = *Worklist.begin();
     Label Start = First.Item;
     Worklist.erase(First);
     for (Label End : successors<GT>(Start)) {
