@@ -4,6 +4,7 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <compare>
 #include <cstddef>
 #include <map>
 #include <queue>
@@ -58,15 +59,9 @@ struct WorklistItem {
   size_t Priority;
   ItemType Item;
 
-  friend bool operator<(const WorklistItem<ItemType> &Lhs,
-                        const WorklistItem<ItemType> &Rhs) {
-    return Lhs.Priority < Rhs.Priority;
-  }
-
-  friend bool operator==(const WorklistItem<ItemType> &Lhs,
-                         const WorklistItem<ItemType> &Rhs) {
-    return Lhs.Item < Rhs.Item;
-  }
+  friend std::strong_ordering
+  operator<=>(const WorklistItem<ItemType> &,
+              const WorklistItem<ItemType> &) = default;
 };
 
 /// Compute the maximum fixed points of an instance of monotone framework
