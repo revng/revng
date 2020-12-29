@@ -780,7 +780,7 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   Declarator.createGlobalVarDeclUsedByFunction(Context, &TheF, ASTBuilder);
   Declarator.createFunctionAndCalleesDecl(Context, &TheF);
 
-  clang::FunctionDecl *FunctionDecl = Declarator.functionDecls().at(&TheF);
+  clang::FunctionDecl *FunctionDecl = &Declarator.getFunctionDecl(&TheF);
   ASTBuilder.createAST(TheF, *FunctionDecl);
 
   clang::TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
@@ -839,13 +839,10 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
     TUDecl->addDecl(TypeDecl);
   }
 
-  for (auto &GlobalDecl : Declarator.globalDecls())
-    TUDecl->addDecl(GlobalDecl.second);
-
-  for (auto &FDecl : Declarator.functionDecls()) {
-    if (FunctionDecl == FDecl.second)
+  for (const auto &[_, GDecl] : Declarator.globalDecls()) {
+    if (FunctionDecl == GDecl)
       continue;
-    TUDecl->addDecl(FDecl.second);
+    TUDecl->addDecl(GDecl);
   }
   TUDecl->addDecl(FunctionDecl);
 

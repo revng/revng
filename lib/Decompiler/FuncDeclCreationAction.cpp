@@ -138,7 +138,7 @@ void DeclCreator::createFunctionAndCalleesDecl(clang::ASTContext &Ctx,
     clang::FunctionDecl *NewFDecl = createFunDecl(Ctx,
                                                   F,
                                                   /* IsDefinition */ false);
-    FunctionDecls[F] = NewFDecl;
+    GlobalDecls[F] = NewFDecl;
   }
 
   // This is actually a definition, because the isolated function will
@@ -148,5 +148,5 @@ void DeclCreator::createFunctionAndCalleesDecl(clang::ASTContext &Ctx,
   clang::FunctionDecl *NewFDecl = createFunDecl(Ctx,
                                                 TheF,
                                                 /* IsDefinition */ true);
-  FunctionDecls[TheF] = NewFDecl;
+  GlobalDecls[TheF] = NewFDecl;
 }

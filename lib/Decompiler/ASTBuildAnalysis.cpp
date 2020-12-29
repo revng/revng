@@ -113,7 +113,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue);
 
       llvm::Function *TheFunction = Ret->getFunction();
-      clang::FunctionDecl &FDecl = *Declarator.functionDecls().at(TheFunction);
+
+      clang::FunctionDecl &FDecl = Declarator.getFunctionDecl(TheFunction);
 
       revng_assert(VarDecls.count(ZeroAggregate) == 0);
       VarDecl *NewVarDecl = createVarDecl(ZeroAggregate, TheFunction, FDecl);
@@ -384,15 +385,15 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       CalleeExpr->dump();
 
     size_t NumArgs = CalleeFun->arg_size();
-    FunctionDecl *FD = Declarator.functionDecls().at(CalleeFun);
-    size_t NumParms = FD->param_size();
+    FunctionDecl &FD = Declarator.getFunctionDecl(CalleeFun);
+    size_t NumParms = FD.param_size();
     unsigned NumOps = TheCall->getNumArgOperands();
     bool HasNoParms = NumParms == 0
                       or (NumParms == 1
-                          and FD->getParamDecl(0)->getType() == ASTCtx.VoidTy);
+                          and FD.getParamDecl(0)->getType() == ASTCtx.VoidTy);
     revng_assert(HasNoParms or NumArgs == NumParms);
-    const bool IsVariadic = FD->isVariadic();
-    if (not FD->isVariadic())
+    const bool IsVariadic = FD.isVariadic();
+    if (not FD.isVariadic())
       revng_assert(NumArgs == NumOps);
 
     auto Args = SmallVector<Expr *, 8>(NumOps, nullptr);
@@ -403,7 +404,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
         Expr *ArgExpr = getExprForValue(Operand);
         QualType ArgQualTy = ArgExpr->getType();
 
-        ParmVarDecl *ParmDecl = FD->getParamDecl(OpId);
+        ParmVarDecl *ParmDecl = FD.getParamDecl(OpId);
         QualType ParmQualTy = ParmDecl->getType();
 
         if (ParmQualTy != ArgQualTy) {
@@ -1328,7 +1329,7 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
 
   if (auto *Fun = dyn_cast<Function>(V)) {
 
-    FunctionDecl *FunDecl = Declarator.functionDecls().at(Fun);
+    FunctionDecl *FunDecl = &Declarator.getFunctionDecl(Fun);
     QualType Type = FunDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
       DeclRefExpr(ASTCtx, FunDecl, false, Type, VK_LValue, {});
@@ -1336,7 +1337,7 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
 
   } else if (auto *G = dyn_cast<GlobalVariable>(V)) {
 
-    VarDecl *GlobalVarDecl = Declarator.globalDecls().at(G);
+    VarDecl *GlobalVarDecl = &Declarator.getGlobalVarDecl(G);
     QualType Type = GlobalVarDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
       DeclRefExpr(ASTCtx, GlobalVarDecl, false, Type, VK_LValue, {});
@@ -1563,10 +1564,10 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
     revng_assert(not FType->isVarArg());
     unsigned NumLLVMParams = FType->getNumParams();
     unsigned ArgNo = Arg->getArgNo();
-    clang::FunctionDecl *FunDecl = Declarator.functionDecls().at(ArgFun);
-    unsigned DeclNumParams = FunDecl->getNumParams();
+    clang::FunctionDecl &FunDecl = Declarator.getFunctionDecl(ArgFun);
+    unsigned DeclNumParams = FunDecl.getNumParams();
     revng_assert(NumLLVMParams == DeclNumParams);
-    clang::ParmVarDecl *ParamVDecl = FunDecl->getParamDecl(ArgNo);
+    clang::ParmVarDecl *ParamVDecl = FunDecl.getParamDecl(ArgNo);
     QualType Type = ParamVDecl->getType();
     DeclRefExpr *Res = new (ASTCtx)
       DeclRefExpr(ASTCtx, ParamVDecl, false, Type, VK_LValue, {});

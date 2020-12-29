@@ -9,14 +9,16 @@
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalObject.h"
+#include "llvm/IR/GlobalVariable.h"
 
+#include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 
 #include "revng-c/Decompiler/DLALayouts.h"
 
 namespace llvm {
-class Function;
-class GlobalVariable;
 class Type;
 class Value;
 class LLVMContext;
@@ -25,9 +27,9 @@ class LLVMContext;
 namespace clang {
 class ASTContext;
 class DeclCtx;
+class DeclaratorDecl;
 class FunctionDecl;
 class TypeDecl;
-class VarDecl;
 } // end namespace clang
 
 namespace IR2AST {
@@ -38,10 +40,8 @@ class DeclCreator {
 
 public:
   using ValueQualTypeMap = std::map<const llvm::Value *, clang::QualType>;
-  using GlobalVarDeclMap = std::map<const llvm::GlobalVariable *,
-                                    clang::VarDecl *>;
-  using FunctionDeclMap = std::map<const llvm::Function *,
-                                   clang::FunctionDecl *>;
+  using GlobalDeclMap = std::map<const llvm::GlobalObject *,
+                                 clang::DeclaratorDecl *>;
 
   using TypeDeclVec = std::vector<clang::TypeDecl *>;
   using TypeDeclMap = std::map<const llvm::Type *, TypeDeclVec::size_type>;
@@ -53,9 +53,14 @@ public:
     TypeDecls(),
     TypeDeclsMap(),
     ValueQualTypes(),
-    GlobalDecls(),
-    FunctionDecls() {}
+    GlobalDecls() {}
 
+public:
+  const auto &typeDeclMap() const { return TypeDeclsMap; }
+  const auto &typeDecls() const { return TypeDecls; }
+  const auto &globalDecls() const { return GlobalDecls; }
+
+public:
   clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
                                           const llvm::Type *Ty = nullptr);
 
@@ -90,6 +95,14 @@ public:
                                          const llvm::Function *TheF,
                                          IR2AST::StmtBuilder &ASTBuilder);
 
+  clang::FunctionDecl &getFunctionDecl(const llvm::Function *F) {
+    return *cast<clang::FunctionDecl>(globalDecls().at(F));
+  }
+
+  clang::VarDecl &getGlobalVarDecl(const llvm::GlobalVariable *G) {
+    return *cast<clang::VarDecl>(globalDecls().at(G));
+  }
+
   clang::TypeDecl *getTypeDeclOrNull(const llvm::Type *Ty) const {
 
     auto It = TypeDeclsMap.find(Ty);
@@ -101,12 +114,6 @@ public:
   }
 
   std::string getUniqueTypeNameForDecl(const llvm::Value *NamingValue) const;
-
-public:
-  const auto &typeDeclMap() const { return TypeDeclsMap; }
-  const auto &typeDecls() const { return TypeDecls; }
-  const auto &globalDecls() const { return GlobalDecls; }
-  const auto &functionDecls() const { return FunctionDecls; }
 
 protected:
   bool insertTypeMapping(const llvm::Type *Ty, clang::TypeDecl *TDecl) {
@@ -134,7 +141,6 @@ private:
   TypeDeclVec TypeDecls;
   TypeDeclMap TypeDeclsMap;
   ValueQualTypeMap ValueQualTypes;
-  GlobalVarDeclMap GlobalDecls;
-  FunctionDeclMap FunctionDecls;
+  GlobalDeclMap GlobalDecls;
 
 }; // end class DeclCreator
