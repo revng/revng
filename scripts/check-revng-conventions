@@ -4,17 +4,79 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+set -e
+
+function print_usage() {
+    cat > /dev/stderr << END_USAGE_TEXT
+SYNOPSIS
+   $0 [<options>] [FILES...]
+
+
+DESCRIPTION
+   Checks that the files specified in FILES... respect the rev.ng coding
+   conventions, and prints all the violations.
+
+   If the FILES... arguments are missing, checks that all the C++ source files in
+   the project that have already been added to the git repository project
+   respect the rev.ng coding conventions.
+
+
+OPTIONS
+   --help
+       Prints this help and exit
+
+   --force-format
+       In addition to checking the rev.ng coding conventions on the specified
+       files, uses clang-format to try to enforce the coding conventions
+       automatically.
+       If this fails, exit with failure, otherwise exit with success.
+       WARNING: using this option will overwrite your files, make sure to backup
+       important stuff.
+
+    --use-local-clang-format-file
+      By default, clang-format is executed with a hard-coded configuration that
+      should apply to all the projects under the rev.ng umbrella.
+      When this option is passed, the hard-coded configuration is ignored, and
+      clang-format looks for configuration in a .clang-format file in the
+      current directory or in its parent directories.
+
+      This allows to use different clang-format configuration on per-project
+      basis, in cases where the hard-coded configuration does not fit (e.g Qt
+      projects where Qt coding conventions are a better fit).
+
+      See clang-format documentation for more details.
+
+    --print-clang-format-config
+      Print the clang-format configuration to stdout, ignoring all the other
+      arguments except for --use-local-clang-format-file.
+      The conventions are not checked.
+
+    FILES
+      List of filenames of the files for which you want to check the rev.ng
+      coding conventions.
+
+RETURN VALUES
+   On success exit code is 0.
+   On failure, i.e. if there is at least one file that is not respecting the
+   coding conventions, exit code is 1.
+END_USAGE_TEXT
+}
+
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 FORCE_FORMAT="0"
 
 USE_CLANG_FORMAT_FILE="0"
 
-set -e
+PRINT_CLANG_FORMAT_CONFIG="0"
 
 while [[ $# > 0 ]]; do
     key="$1"
     case $key in
+        --print-clang-format-config)
+            PRINT_CLANG_FORMAT_CONFIG="1"
+            shift # past argument
+            ;;
         --force-format)
             FORCE_FORMAT="1"
             shift # past argument
@@ -23,26 +85,20 @@ while [[ $# > 0 ]]; do
             USE_CLANG_FORMAT_FILE="1"
             shift # past argument
             ;;
-        --*)
-            echo "Unexpected option $key" > /dev/stderr
-            echo > /dev/stderr
-            echo "Usage: $0 [--force-format] [FILE...]" > /dev/stderr
+        --help)
+            print_usage
+            exit 0
+            ;;
+        -*)
+            echo "Error: unrecognized option $key" > /dev/stderr
+            print_usage
             exit 1
-            shift
             ;;
         *)
             break
             ;;
     esac
 done
-
-if [[ $# -eq 0 ]]; then
-    FILES="$(git ls-files | grep -E '\.(c|cc|cpp|h|hpp)$')"
-else
-    FILES="$@"
-fi
-
-GREP="git grep -n --color=always"
 
 CLANG_FORMAT_STYLE_FILE="$SCRIPT_PATH/clang-format-style-file"
 if ! test -e "$CLANG_FORMAT_STYLE_FILE"; then
@@ -58,6 +114,22 @@ CLANG_FORMAT_STYLE=$(cat "$CLANG_FORMAT_STYLE_FILE")
 if test "$USE_CLANG_FORMAT_FILE" -gt 0; then
     CLANG_FORMAT_STYLE=file
 fi
+
+# If the user passed the --print-clang-format-config, dump the config and exit
+# with success.
+if test "$PRINT_CLANG_FORMAT_CONFIG" -gt 0; then
+    clang-format --dry-run -style="$CLANG_FORMAT_STYLE" --dump-config
+    exit 0
+fi
+
+
+if [[ $# -eq 0 ]]; then
+    FILES="$(git ls-files | grep -E '\.(c|cc|cpp|h|hpp)$')"
+else
+    FILES="$@"
+fi
+
+GREP="git grep -n --color=always"
 
 # Run clang-format on FILES
 function run_clang_format() {
@@ -132,8 +204,8 @@ run_revng_checks | sort -u
 # the same time setting a proper exit value that can be checked by other scripts
 # or by git hooks.
 if [[ $( run_clang_format 2>&1 | head -c 1 | wc -c ) -ne 0 ]]; then
-  exit 1
+    exit 1
 fi
 if [[ $( run_revng_checks 2>&1 | head -c 1 | wc -c ) -ne 0 ]]; then
-  exit 1
+    exit 1
 fi
