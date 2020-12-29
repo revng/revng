@@ -5,6 +5,7 @@
 //
 
 #include <map>
+#include <variant>
 #include <vector>
 
 #include "llvm/ADT/Optional.h"
@@ -43,8 +44,9 @@ public:
   using GlobalDeclMap = std::map<const llvm::GlobalObject *,
                                  clang::DeclaratorDecl *>;
 
+  using Typeable = std::variant<const llvm::Type *, const llvm::Value *>;
   using TypeDeclVec = std::vector<clang::TypeDecl *>;
-  using TypeDeclMap = std::map<const llvm::Type *, TypeDeclVec::size_type>;
+  using TypeDeclMap = std::map<Typeable, TypeDeclVec::size_type>;
 
 public:
   DeclCreator(const dla::ValueLayoutMap *LM) :
@@ -103,10 +105,9 @@ public:
     return *cast<clang::VarDecl>(globalDecls().at(G));
   }
 
-  clang::TypeDecl *getTypeDeclOrNull(const llvm::Type *Ty) const {
+  clang::TypeDecl *getTypeDeclOrNull(const Typeable &V) const {
 
-    auto It = TypeDeclsMap.find(Ty);
-
+    auto It = TypeDeclsMap.find(V);
     if (It == TypeDeclsMap.end())
       return nullptr;
 
@@ -116,13 +117,15 @@ public:
   std::string getUniqueTypeNameForDecl(const llvm::Value *NamingValue) const;
 
 protected:
-  bool insertTypeMapping(const llvm::Type *Ty, clang::TypeDecl *TDecl) {
+  bool insertTypeMapping(const Typeable &V, clang::TypeDecl *TDecl) {
 
-    if (nullptr == Ty or nullptr == TDecl)
+    const auto GetPtr = [](const auto *Ptr) -> const void * { return Ptr; };
+
+    if (nullptr == std::visit(GetPtr, V) or nullptr == TDecl)
       return false;
 
     auto NewID = TypeDecls.size();
-    const auto &[It, NewInsert] = TypeDeclsMap.insert({ Ty, NewID });
+    const auto &[It, NewInsert] = TypeDeclsMap.insert({ V, NewID });
     revng_assert(NewInsert or TypeDecls.at(It->second) == TDecl);
 
     if (NewInsert)
