@@ -1684,9 +1684,12 @@ void JumpTargetManager::harvestWithAVI() {
 
       return AA;
     });
+
     ModuleAnalysisManager MAM;
-    FAM.registerPass(
-      [&MAM] { return ModuleAnalysisManagerFunctionProxy(MAM); });
+    auto MAMFunactionProxyFactory = [&MAM] {
+      return ModuleAnalysisManagerFunctionProxy(MAM);
+    };
+    FAM.registerPass(MAMFunactionProxyFactory);
 
     PassBuilder PB;
     PB.registerFunctionAnalyses(FAM);

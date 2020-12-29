@@ -470,11 +470,10 @@ public:
   ///    according to LVI.
   /// 3. Iterate over the chain looking for the instruction associated with the
   ///    smallest range.
-  llvm::Instruction *
-  buildExpression(llvm::LazyValueInfo &LVI,
-                  const llvm::DominatorTree &DT,
-                  PhiEdges &Edges,
-                  llvm::Value *V) {
+  llvm::Instruction *buildExpression(llvm::LazyValueInfo &LVI,
+                                     const llvm::DominatorTree &DT,
+                                     PhiEdges &Edges,
+                                     llvm::Value *V) {
     using namespace llvm;
 
     revng_log(AVILogger, "Building expression for " << V);
@@ -585,7 +584,7 @@ public:
 
       // Note: ordering in reverse post order is more costly than beneficial
       Reachable.erase(StartBB);
-      SmallVector<BasicBlock *, 8> ReachableVector { StartBB };
+      SmallVector<BasicBlock *, 8> ReachableVector{ StartBB };
       for (BasicBlock *BB : Reachable)
         ReachableVector.push_back(BB);
 

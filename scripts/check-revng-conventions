@@ -204,8 +204,8 @@ run_revng_checks | sort -u
 # the same time setting a proper exit value that can be checked by other scripts
 # or by git hooks.
 if [[ $( run_clang_format 2>&1 | head -c 1 | wc -c ) -ne 0 ]]; then
-  exit 1
+    exit 1
 fi
 if [[ $( run_revng_checks 2>&1 | head -c 1 | wc -c ) -ne 0 ]]; then
-  exit 1
+    exit 1
 fi
