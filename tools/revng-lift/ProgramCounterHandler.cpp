@@ -14,6 +14,131 @@
 using namespace llvm;
 using PCH = ProgramCounterHandler;
 
+class PCOnlyProgramCounterHandler : public ProgramCounterHandler {
+public:
+  PCOnlyProgramCounterHandler(llvm::Module *M,
+                              PTCInterface *PTC,
+                              const CSVFactory &Factory) {
+    AddressCSV = Factory(PTC->pc, "pc");
+    CSVsAffectingPC.insert(AddressCSV);
+
+    createMissingVariables(M);
+  }
+
+public:
+  bool handleStoreInternal(llvm::IRBuilder<> &Builder,
+                           llvm::StoreInst *Store) const final {
+    revng_assert(Store->getPointerOperand() == AddressCSV);
+    return false;
+  }
+
+  llvm::Value *loadJumpablePC(llvm::IRBuilder<> &Builder) const final {
+    return Builder.CreateLoad(AddressCSV);
+  }
+
+  void deserializePCFromSignalContext(llvm::IRBuilder<> &Builder,
+                                      llvm::Value *PCAddress,
+                                      llvm::Value *SavedRegisters) const final {
+    Builder.CreateStore(PCAddress, AddressCSV);
+  }
+
+protected:
+  void initializePCInternal(llvm::IRBuilder<> &Builder,
+                            MetaAddress NewPC) const final {}
+};
+
+class ARMProgramCounterHandler : public ProgramCounterHandler {
+private:
+  llvm::GlobalVariable *IsThumb;
+
+public:
+  ARMProgramCounterHandler(llvm::Module *M,
+                           PTCInterface *PTC,
+                           const CSVFactory &Factory) {
+    AddressCSV = Factory(PTC->pc, AddressName);
+    IsThumb = Factory(PTC->is_thumb, "is_thumb");
+    CSVsAffectingPC.insert(AddressCSV);
+    CSVsAffectingPC.insert(IsThumb);
+
+    createMissingVariables(M);
+  }
+
+private:
+  bool handleStoreInternal(llvm::IRBuilder<> &B,
+                           llvm::StoreInst *Store) const final {
+    using namespace llvm;
+    revng_assert(affectsPC(Store));
+
+    Value *Pointer = Store->getPointerOperand();
+    Value *StoredValue = Store->getValueOperand();
+
+    if (Pointer == IsThumb) {
+      // Update Type
+      using CI = ConstantInt;
+      using namespace MetaAddressType;
+
+      auto *TypeType = getCSVType(TypeCSV);
+      auto *ArmCode = CI::get(TypeType, Code_arm);
+      auto *ThumbCode = CI::get(TypeType, Code_arm_thumb);
+      // We don't use select here, SCEV can't handle it
+      // NewType = ARM + IsThumb * (Thumb - ARM)
+      auto *NewType = B.CreateAdd(ArmCode,
+                                  B.CreateMul(B.CreateTrunc(StoredValue,
+                                                            TypeType),
+                                              B.CreateSub(ThumbCode, ArmCode)));
+
+      B.CreateStore(NewType, TypeCSV);
+
+      return true;
+    }
+
+    return false;
+  }
+
+  llvm::Value *loadJumpablePC(llvm::IRBuilder<> &Builder) const final {
+    auto *Address = Builder.CreateLoad(AddressCSV);
+    auto *AddressType = Address->getType();
+    return Builder.CreateOr(Address,
+                            Builder.CreateZExt(Builder.CreateLoad(IsThumb),
+                                               AddressType));
+  }
+
+  void deserializePCFromSignalContext(llvm::IRBuilder<> &B,
+                                      llvm::Value *PCAddress,
+                                      llvm::Value *SavedRegisters) const final {
+    using namespace llvm;
+
+    constexpr uint32_t CPSRIndex = 19;
+    constexpr unsigned IsThumbBitIndex = 5;
+
+    Type *IsThumbType = IsThumb->getType()->getPointerElementType();
+
+    // Load the CPSR field
+    Value *CPSRAddress = B.CreateGEP(SavedRegisters, B.getInt32(CPSRIndex));
+    Value *CPSR = B.CreateLoad(CPSRAddress);
+
+    // Select the T bit
+    Value *TBit = B.CreateAnd(B.CreateLShr(CPSR, IsThumbBitIndex), 1);
+
+    // Zero-extend and store in IsThumb CSV
+    auto *IsThumbStore = B.CreateStore(B.CreateZExt(TBit, IsThumbType),
+                                       IsThumb);
+
+    // Let handleStore do his thing
+    handleStore(B, IsThumbStore);
+
+    // Update the PC address too
+    B.CreateStore(PCAddress, AddressCSV);
+  }
+
+protected:
+  void initializePCInternal(llvm::IRBuilder<> &Builder,
+                            MetaAddress NewPC) const final {
+    using namespace MetaAddressType;
+    store(Builder, IsThumb, NewPC.type() == Code_arm_thumb ? 1 : 0);
+  }
+};
+
 static void eraseIfNoUse(const WeakVH &V) {
   if (Instruction *I = dyn_cast_or_null<Instruction>(&*V))
     if (I->use_begin() == I->use_end())
