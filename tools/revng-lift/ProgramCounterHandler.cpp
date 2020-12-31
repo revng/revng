@@ -16,7 +16,7 @@ using PCH = ProgramCounterHandler;
 
 class PCOnlyProgramCounterHandler : public ProgramCounterHandler {
 public:
-  PCOnlyProgramCounterHandler(llvm::Module *M,
+  PCOnlyProgramCounterHandler(Module *M,
                               PTCInterface *PTC,
                               const CSVFactory &Factory) {
     AddressCSV = Factory(PTC->pc, "pc");
@@ -26,33 +26,32 @@ public:
   }
 
 public:
-  bool handleStoreInternal(llvm::IRBuilder<> &Builder,
-                           llvm::StoreInst *Store) const final {
+  bool handleStoreInternal(IRBuilder<> &Builder, StoreInst *Store) const final {
     revng_assert(Store->getPointerOperand() == AddressCSV);
     return false;
   }
 
-  llvm::Value *loadJumpablePC(llvm::IRBuilder<> &Builder) const final {
+  Value *loadJumpablePC(IRBuilder<> &Builder) const final {
     return Builder.CreateLoad(AddressCSV);
   }
 
-  void deserializePCFromSignalContext(llvm::IRBuilder<> &Builder,
-                                      llvm::Value *PCAddress,
-                                      llvm::Value *SavedRegisters) const final {
+  void deserializePCFromSignalContext(IRBuilder<> &Builder,
+                                      Value *PCAddress,
+                                      Value *SavedRegisters) const final {
     Builder.CreateStore(PCAddress, AddressCSV);
   }
 
 protected:
-  void initializePCInternal(llvm::IRBuilder<> &Builder,
-                            MetaAddress NewPC) const final {}
+  void
+  initializePCInternal(IRBuilder<> &Builder, MetaAddress NewPC) const final {}
 };
 
 class ARMProgramCounterHandler : public ProgramCounterHandler {
 private:
-  llvm::GlobalVariable *IsThumb;
+  GlobalVariable *IsThumb;
 
 public:
-  ARMProgramCounterHandler(llvm::Module *M,
+  ARMProgramCounterHandler(Module *M,
                            PTCInterface *PTC,
                            const CSVFactory &Factory) {
     AddressCSV = Factory(PTC->pc, AddressName);
@@ -64,8 +63,7 @@ public:
   }
 
 private:
-  bool handleStoreInternal(llvm::IRBuilder<> &B,
-                           llvm::StoreInst *Store) const final {
+  bool handleStoreInternal(IRBuilder<> &B, StoreInst *Store) const final {
     using namespace llvm;
     revng_assert(affectsPC(Store));
 
@@ -95,7 +93,7 @@ private:
     return false;
   }
 
-  llvm::Value *loadJumpablePC(llvm::IRBuilder<> &Builder) const final {
+  Value *loadJumpablePC(IRBuilder<> &Builder) const final {
     auto *Address = Builder.CreateLoad(AddressCSV);
     auto *AddressType = Address->getType();
     return Builder.CreateOr(Address,
@@ -103,9 +101,9 @@ private:
                                                AddressType));
   }
 
-  void deserializePCFromSignalContext(llvm::IRBuilder<> &B,
-                                      llvm::Value *PCAddress,
-                                      llvm::Value *SavedRegisters) const final {
+  void deserializePCFromSignalContext(IRBuilder<> &B,
+                                      Value *PCAddress,
+                                      Value *SavedRegisters) const final {
     using namespace llvm;
 
     constexpr uint32_t CPSRIndex = 19;
@@ -132,8 +130,8 @@ private:
   }
 
 protected:
-  void initializePCInternal(llvm::IRBuilder<> &Builder,
-                            MetaAddress NewPC) const final {
+  void
+  initializePCInternal(IRBuilder<> &Builder, MetaAddress NewPC) const final {
     using namespace MetaAddressType;
     store(Builder, IsThumb, NewPC.type() == Code_arm_thumb ? 1 : 0);
   }
@@ -145,7 +143,7 @@ static void eraseIfNoUse(const WeakVH &V) {
       I->eraseFromParent();
 }
 
-static SwitchInst *getNextSwitch(llvm::SwitchInst::CaseHandle Case) {
+static SwitchInst *getNextSwitch(SwitchInst::CaseHandle Case) {
   return cast<SwitchInst>(Case.getCaseSuccessor()->getTerminator());
 }
 
@@ -158,8 +156,7 @@ static ConstantInt *caseConstant(SwitchInst *Switch, uint64_t Value) {
   return ConstantInt::get(ConditionType, Value);
 }
 
-static void
-addCase(llvm::SwitchInst *Switch, uint64_t Value, llvm::BasicBlock *BB) {
+static void addCase(SwitchInst *Switch, uint64_t Value, BasicBlock *BB) {
   Switch->addCase(caseConstant(Switch, Value), BB);
 }
 
@@ -273,7 +270,7 @@ bool PCH::isPCAffectingHelper(Instruction *I) const {
 }
 
 std::pair<NextJumpTarget::Values, MetaAddress>
-PCH::getUniqueJumpTarget(llvm::BasicBlock *BB) {
+PCH::getUniqueJumpTarget(BasicBlock *BB) {
   std::vector<StackEntry> Stack;
 
   enum ProcessResult { Proceed, DontProceed, BailOut };
@@ -292,7 +289,7 @@ PCH::getUniqueJumpTarget(llvm::BasicBlock *BB) {
     PartialMetaAddress &PMA = S.agreement();
 
     // Iterate backward on all instructions
-    for (Instruction &I : llvm::make_range(BB->rbegin(), BB->rend())) {
+    for (Instruction &I : make_range(BB->rbegin(), BB->rend())) {
       if (auto *Store = dyn_cast<StoreInst>(&I)) {
         // We found a store
         Value *Pointer = Store->getPointerOperand();
