@@ -29,6 +29,18 @@ public:
     return Result;
   }
 
+  static std::unique_ptr<ProgramCounterHandler> fromModule(Module *M) {
+    auto Result = std::make_unique<PCOnlyProgramCounterHandler>();
+
+    // Initialize the standard variables
+    Result->setMissingVariables(M);
+
+    // Register pc as a CSV affecting the program counter
+    Result->CSVsAffectingPC.insert(Result->AddressCSV);
+
+    return Result;
+  }
+
 public:
   bool handleStoreInternal(IRBuilder<> &Builder, StoreInst *Store) const final {
     revng_assert(Store->getPointerOperand() == AddressCSV);
@@ -70,6 +82,23 @@ public:
     Result->CSVsAffectingPC.insert(Result->IsThumb);
 
     Result->createMissingVariables(M);
+
+    return Result;
+  }
+
+  static std::unique_ptr<ProgramCounterHandler> fromModule(Module *M) {
+    auto Result = std::make_unique<ARMProgramCounterHandler>();
+
+    // Initialize the standard variablesx
+    Result->setMissingVariables(M);
+
+    // Get is_thumb
+    Result->IsThumb = M->getGlobalVariable(IsThumbName);
+    revng_assert(Result->IsThumb != nullptr);
+
+    // Register pc and is_thumb as a CSV affecting the program counter
+    Result->CSVsAffectingPC.insert(Result->IsThumb);
+    Result->CSVsAffectingPC.insert(Result->AddressCSV);
 
     return Result;
   }
@@ -705,6 +734,27 @@ PCH::create(Triple::ArchType Architecture,
   case Triple::systemz:
   case Triple::x86:
     return PCOnlyProgramCounterHandler::create(M, Factory);
+
+  default:
+    revng_abort("Unsupported architecture");
+  }
+
+  revng_abort();
+}
+
+std::unique_ptr<ProgramCounterHandler>
+PCH::fromModule(Triple::ArchType Architecture, Module *M) {
+  switch (Architecture) {
+  case Triple::arm:
+    return ARMProgramCounterHandler::fromModule(M);
+
+  case Triple::x86_64:
+  case Triple::mips:
+  case Triple::mipsel:
+  case Triple::aarch64:
+  case Triple::systemz:
+  case Triple::x86:
+    return PCOnlyProgramCounterHandler::fromModule(M);
 
   default:
     revng_abort("Unsupported architecture");

@@ -7,7 +7,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Value.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
 
 inline llvm::IntegerType *getCSVType(llvm::GlobalVariable *CSV) {
@@ -72,6 +72,9 @@ public:
   create(llvm::Triple::ArchType Architecture,
          llvm::Module *M,
          const CSVFactory &Factory);
+
+  static std::unique_ptr<ProgramCounterHandler>
+  fromModule(llvm::Triple::ArchType Architecture, llvm::Module *M);
 
 public:
   std::array<llvm::GlobalVariable *, 4> pcCSVs() const {
