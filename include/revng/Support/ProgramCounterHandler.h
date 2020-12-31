@@ -10,8 +10,6 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "PTCInterface.h"
-
 inline llvm::IntegerType *getCSVType(llvm::GlobalVariable *CSV) {
   using namespace llvm;
   return cast<IntegerType>(CSV->getType()->getPointerElementType());
@@ -23,8 +21,22 @@ enum Values { Unique, Multiple, Helper };
 
 };
 
-using CSVFactory = std::function<llvm::GlobalVariable *(intptr_t Offset,
-                                                        llvm::StringRef Name)>;
+namespace PCAffectingCSV {
+
+enum Values { PC, IsThumb };
+
+};
+
+namespace detail {
+
+using namespace llvm;
+
+using CSVFactory = std::function<GlobalVariable *(PCAffectingCSV::Values CSVID,
+                                                  StringRef Name)>;
+
+}; // namespace detail
+
+using CSVFactory = detail::CSVFactory;
 
 class ProgramCounterHandler {
 protected:
@@ -59,7 +71,6 @@ public:
   static std::unique_ptr<ProgramCounterHandler>
   create(llvm::Triple::ArchType Architecture,
          llvm::Module *M,
-         PTCInterface *PTC,
          const CSVFactory &Factory);
 
 public:
@@ -204,6 +215,17 @@ protected:
       AddressSpaceCSV = createAddressSpace(M);
     if (TypeCSV == nullptr)
       TypeCSV = createType(M);
+  }
+
+public:
+  void setMissingVariables(llvm::Module *M) {
+    AddressCSV = M->getGlobalVariable(AddressName);
+    EpochCSV = M->getGlobalVariable(EpochName);
+    AddressSpaceCSV = M->getGlobalVariable(AddressSpaceName);
+    TypeCSV = M->getGlobalVariable(TypeName);
+
+    revng_assert(AddressCSV != nullptr and EpochCSV != nullptr
+                 and AddressSpaceCSV != nullptr and TypeCSV != nullptr);
   }
 
 private:

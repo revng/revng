@@ -50,7 +50,6 @@
 #include "AdvancedValueInfoPass.h"
 #include "CPUStateAccessAnalysisPass.h"
 #include "DropHelperCallsPass.h"
-#include "ProgramCounterHandler.h"
 #include "SubGraph.h"
 
 using namespace llvm;

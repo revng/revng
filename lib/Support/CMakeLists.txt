@@ -11,6 +11,7 @@ revng_add_library_internal(revngSupport SHARED
   IRHelpers.cpp
   MetaAddress.cpp
   PathList.cpp
+  ProgramCounterHandler.cpp
   ResourceFinder.cpp
   Statistics.cpp)
 

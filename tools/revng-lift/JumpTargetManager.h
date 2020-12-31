@@ -18,10 +18,11 @@
 
 #include "revng/BasicAnalyses/MaterializedValue.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/ProgramCounterHandler.h"
 #include "revng/Support/revng.h"
 
 #include "BinaryFile.h"
-#include "ProgramCounterHandler.h"
+
 // Forward declarations
 namespace llvm {
 class BasicBlock;

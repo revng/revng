@@ -8,21 +8,25 @@
 #include "llvm/ADT/SmallSet.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-
-#include "ProgramCounterHandler.h"
+#include "revng/Support/ProgramCounterHandler.h"
 
 using namespace llvm;
 using PCH = ProgramCounterHandler;
 
 class PCOnlyProgramCounterHandler : public ProgramCounterHandler {
 public:
-  PCOnlyProgramCounterHandler(Module *M,
-                              PTCInterface *PTC,
-                              const CSVFactory &Factory) {
-    AddressCSV = Factory(PTC->pc, "pc");
-    CSVsAffectingPC.insert(AddressCSV);
+  static std::unique_ptr<ProgramCounterHandler>
+  create(Module *M, const CSVFactory &Factory) {
+    auto Result = std::make_unique<PCOnlyProgramCounterHandler>();
 
-    createMissingVariables(M);
+    // Create and register the pc CSV
+    Result->AddressCSV = Factory(PCAffectingCSV::PC, AddressName);
+    Result->CSVsAffectingPC.insert(Result->AddressCSV);
+
+    // Create the other variables (non-CSV)
+    Result->createMissingVariables(M);
+
+    return Result;
   }
 
 public:
@@ -48,18 +52,26 @@ protected:
 
 class ARMProgramCounterHandler : public ProgramCounterHandler {
 private:
+  static constexpr const char *IsThumbName = "is_thumb";
+
+private:
   GlobalVariable *IsThumb;
 
 public:
-  ARMProgramCounterHandler(Module *M,
-                           PTCInterface *PTC,
-                           const CSVFactory &Factory) {
-    AddressCSV = Factory(PTC->pc, AddressName);
-    IsThumb = Factory(PTC->is_thumb, "is_thumb");
-    CSVsAffectingPC.insert(AddressCSV);
-    CSVsAffectingPC.insert(IsThumb);
+  static std::unique_ptr<ProgramCounterHandler>
+  create(Module *M, const CSVFactory &Factory) {
+    auto Result = std::make_unique<ARMProgramCounterHandler>();
 
-    createMissingVariables(M);
+    // Create and register the pc and is_thumb CSV
+    Result->AddressCSV = Factory(PCAffectingCSV::PC, AddressName);
+    Result->CSVsAffectingPC.insert(Result->AddressCSV);
+
+    Result->IsThumb = Factory(PCAffectingCSV::IsThumb, IsThumbName);
+    Result->CSVsAffectingPC.insert(Result->IsThumb);
+
+    Result->createMissingVariables(M);
+
+    return Result;
   }
 
 private:
@@ -681,11 +693,10 @@ PCH::buildDispatcher(DispatcherTargets &Targets,
 std::unique_ptr<ProgramCounterHandler>
 PCH::create(Triple::ArchType Architecture,
             Module *M,
-            PTCInterface *PTC,
             const CSVFactory &Factory) {
   switch (Architecture) {
   case Triple::arm:
-    return std::make_unique<ARMProgramCounterHandler>(M, PTC, Factory);
+    return ARMProgramCounterHandler::create(M, Factory);
 
   case Triple::x86_64:
   case Triple::mips:
@@ -693,7 +704,7 @@ PCH::create(Triple::ArchType Architecture,
   case Triple::aarch64:
   case Triple::systemz:
   case Triple::x86:
-    return std::make_unique<PCOnlyProgramCounterHandler>(M, PTC, Factory);
+    return PCOnlyProgramCounterHandler::create(M, Factory);
 
   default:
     revng_abort("Unsupported architecture");

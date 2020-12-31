@@ -42,6 +42,7 @@
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"
+#include "revng/Support/ProgramCounterHandler.h"
 #include "revng/Support/revng.h"
 
 #include "CodeGenerator.h"
@@ -50,7 +51,6 @@
 #include "InstructionTranslator.h"
 #include "JumpTargetManager.h"
 #include "PTCInterface.h"
-#include "ProgramCounterHandler.h"
 #include "VariableManager.h"
 
 using namespace llvm;
@@ -877,13 +877,27 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, SPName).first;
 
   using PCHOwner = std::unique_ptr<ProgramCounterHandler>;
-  auto Factory = [&Variables](intptr_t Offset,
+  auto Factory = [&Variables](PCAffectingCSV::Values CSVID,
                               llvm::StringRef Name) -> GlobalVariable * {
+    intptr_t Offset = 0;
+
+    switch (CSVID) {
+    case PCAffectingCSV::PC:
+      Offset = ptc.pc;
+      break;
+
+    case PCAffectingCSV::IsThumb:
+      Offset = ptc.is_thumb;
+      break;
+
+    default:
+      revng_abort();
+    }
+
     return Variables.getByEnvOffset(Offset, Name).first;
   };
   PCHOwner PCH = ProgramCounterHandler::create(Arch.type(),
                                                TheModule.get(),
-                                               &ptc,
                                                Factory);
 
   IRBuilder<> Builder(Context);
