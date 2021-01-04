@@ -160,7 +160,15 @@ install(FILES
 configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/share/revng/early-linked.c" COPYONLY)
 
 configure_file(scripts/revng "${CMAKE_BINARY_DIR}/bin/revng")
+
 configure_file(scripts/revng-merge-dynamic "${CMAKE_BINARY_DIR}/bin/revng-merge-dynamic" COPYONLY)
+configure_file(scripts/revng_merge_dynamic/__init__.py "${CMAKE_BINARY_DIR}/bin/revng_merge_dynamic/__init__.py" COPYONLY)
+configure_file(scripts/revng_merge_dynamic/__main__.py "${CMAKE_BINARY_DIR}/bin/revng_merge_dynamic/__main__.py" COPYONLY)
+configure_file(scripts/revng_merge_dynamic/log.py "${CMAKE_BINARY_DIR}/bin/revng_merge_dynamic/log.py" COPYONLY)
+configure_file(scripts/revng_merge_dynamic/merge_dynamic.py "${CMAKE_BINARY_DIR}/bin/revng_merge_dynamic/merge_dynamic.py" COPYONLY)
+configure_file(scripts/revng_merge_dynamic/parsed_elf.py "${CMAKE_BINARY_DIR}/bin/revng_merge_dynamic/parsed_elf.py" COPYONLY)
+configure_file(scripts/revng_merge_dynamic/util.py "${CMAKE_BINARY_DIR}/bin/revng_merge_dynamic/util.py" COPYONLY)
+
 install(PROGRAMS
   "${CMAKE_BINARY_DIR}/bin/revng"
   "${CMAKE_BINARY_DIR}/bin/revng-merge-dynamic"
