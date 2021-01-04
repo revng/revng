@@ -4,12 +4,14 @@
 // Copyright (c) rev.ng Srls. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
 namespace llvm {
 
 class InsertValueInst;
 class CallInst;
+class ExtractValueInst;
 class Use;
 class Value;
 
@@ -21,10 +23,11 @@ getInsertValueLeafOperands(llvm::InsertValueInst *);
 extern llvm::SmallVector<const llvm::Value *, 2>
 getInsertValueLeafOperands(const llvm::InsertValueInst *);
 
-extern llvm::SmallVector<llvm::Value *, 2>
+extern llvm::SmallVector<llvm::SmallPtrSet<llvm::ExtractValueInst *, 2>, 2>
 getExtractedValuesFromCall(llvm::CallInst *);
 
-extern llvm::SmallVector<const llvm::Value *, 2>
+extern llvm::SmallVector<llvm::SmallPtrSet<const llvm::ExtractValueInst *, 2>,
+                         2>
 getExtractedValuesFromCall(const llvm::CallInst *);
 
 namespace dla {

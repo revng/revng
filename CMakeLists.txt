@@ -106,7 +106,6 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       -instcombine
       -early-cse
       -simplifycfg
-      -gvn-hoist
       # apply type shrinking
       -type-shrinking
       --min-width 8

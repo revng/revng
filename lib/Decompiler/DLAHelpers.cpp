@@ -78,38 +78,42 @@ getInsertValueLeafOperands(const llvm::InsertValueInst *Ins) {
   return getConstQualifiedInsertValueLeafOperands(Ins);
 }
 
+template<typename ValT>
+using ExtractValueT = conditional_t<std::is_const_v<ValT>,
+                                    const llvm::ExtractValueInst,
+                                    llvm::ExtractValueInst>;
+
+template<typename ValT>
+using ExtractValuePtrSet = llvm::SmallPtrSet<ExtractValueT<ValT> *, 2>;
+
 template<typename T>
 std::enable_if_t<std::is_same_v<std::remove_const_t<T>, llvm::CallInst>,
-                 llvm::SmallVector<LLVMValueT<T> *, 2>>
+                 llvm::SmallVector<ExtractValuePtrSet<T>, 2>>
 getConstQualifiedExtractedValuesFromCall(T *Call) {
-  using ValueT = LLVMValueT<T>;
-  llvm::SmallVector<ValueT *, 2> Results;
+  llvm::SmallVector<ExtractValuePtrSet<T>, 2> Results;
   llvm::SmallSet<unsigned, 2> FoundIds;
   auto *StructTy = llvm::cast<llvm::StructType>(Call->getType());
   unsigned NumFields = StructTy->getNumElements();
-  Results.resize(NumFields, nullptr);
-  revng_assert(Call->getNumUses() <= NumFields);
+  Results.resize(NumFields, {});
   for (auto *Extract : Call->users()) {
     auto *E = cast<llvm::ExtractValueInst>(Extract);
     revng_assert(E->getNumIndices() == 1);
     unsigned FieldId = E->getIndices()[0];
     revng_assert(FieldId < NumFields);
-    revng_assert(FoundIds.count(FieldId) == 0);
     FoundIds.insert(FieldId);
     revng_assert(isa<llvm::IntegerType>(E->getType())
                  or isa<llvm::PointerType>(E->getType()));
-    revng_assert(Results[FieldId] == nullptr);
-    Results[FieldId] = E;
+    Results[FieldId].insert(E);
   }
   return Results;
 };
 
-llvm::SmallVector<llvm::Value *, 2>
+llvm::SmallVector<llvm::SmallPtrSet<llvm::ExtractValueInst *, 2>, 2>
 getExtractedValuesFromCall(llvm::CallInst *Call) {
   return getConstQualifiedExtractedValuesFromCall(Call);
 }
 
-llvm::SmallVector<const llvm::Value *, 2>
+llvm::SmallVector<llvm::SmallPtrSet<const llvm::ExtractValueInst *, 2>, 2>
 getExtractedValuesFromCall(const llvm::CallInst *Call) {
   return getConstQualifiedExtractedValuesFromCall(Call);
 }

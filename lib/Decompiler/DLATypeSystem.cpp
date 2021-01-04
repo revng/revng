@@ -299,17 +299,38 @@ LayoutTypeSystem::getLayoutTypes(const Value &V) {
     }
   } else if (auto *StructTy = dyn_cast<StructType>(VTy)) {
     revng_assert(not isa<LoadInst>(V));
-    SmallVector<const Value *, 2> LeafVals;
 
-    if (auto *Ins = dyn_cast<InsertValueInst>(&V))
-      LeafVals = getInsertValueLeafOperands(Ins);
-    else if (auto *Call = dyn_cast<CallInst>(&V))
-      LeafVals = getExtractedValuesFromCall(Call);
-    else
-      LeafVals.resize(StructTy->getNumElements(), nullptr);
+    if (auto *Call = dyn_cast<CallInst>(&V)) {
 
-    for (const Value *LeafVal : LeafVals)
-      Results.push_back(getLayoutType(LeafVal));
+      auto ExtractedValues = getExtractedValuesFromCall(Call);
+
+      for (const auto &ExtractedSet : ExtractedValues) {
+        // Inside here we're working on a single field of the struct.
+        // ExtractedSet contains all the ExtractValueInst that extract the same
+        // field of the struct.
+
+        // We get or create a layout type for each of them, but they should all
+        // be the same.
+        SmallVector<LayoutTypeSystemNode *, 2> FieldResults;
+        for (const llvm::ExtractValueInst *E : ExtractedSet) {
+          FieldResults.push_back(getLayoutType(E));
+          revng_assert(FieldResults.front() == FieldResults.back());
+        }
+
+        Results.push_back(std::move(FieldResults.front()));
+      }
+
+    } else {
+
+      SmallVector<const Value *, 2> LeafVals;
+      if (auto *Ins = dyn_cast<InsertValueInst>(&V))
+        LeafVals = getInsertValueLeafOperands(Ins);
+      else
+        LeafVals.resize(StructTy->getNumElements(), nullptr);
+
+      for (const Value *LeafVal : LeafVals)
+        Results.push_back(getLayoutType(LeafVal));
+    }
   } else {
     // For non-struct and non-function types we only add a LayoutTypeSystemNode
     Results.push_back(getLayoutType(&V));
@@ -320,7 +341,8 @@ LayoutTypeSystem::getLayoutTypes(const Value &V) {
 SmallVector<std::pair<LayoutTypeSystemNode *, bool>, 2>
 LayoutTypeSystem::getOrCreateLayoutTypes(const Value &V) {
   assertGetLayoutTypePreConditions(V);
-  SmallVector<std::pair<LayoutTypeSystemNode *, bool>, 2> Results;
+  using GetOrCreateResult = std::pair<LayoutTypeSystemNode *, bool>;
+  SmallVector<GetOrCreateResult, 2> Results;
   const Type *VTy = V.getType();
   if (const auto *F = dyn_cast<Function>(&V)) {
     auto *RetTy = F->getReturnType();
@@ -338,17 +360,38 @@ LayoutTypeSystem::getOrCreateLayoutTypes(const Value &V) {
     }
   } else if (auto *StructTy = dyn_cast<StructType>(VTy)) {
     revng_assert(not isa<LoadInst>(V));
-    SmallVector<const Value *, 2> LeafVals;
 
-    if (auto *Ins = dyn_cast<InsertValueInst>(&V))
-      LeafVals = getInsertValueLeafOperands(Ins);
-    else if (auto *Call = dyn_cast<CallInst>(&V))
-      LeafVals = getExtractedValuesFromCall(Call);
-    else
-      LeafVals.resize(StructTy->getNumElements(), nullptr);
+    if (auto *Call = dyn_cast<CallInst>(&V)) {
 
-    for (const Value *LeafVal : LeafVals)
-      Results.push_back(getOrCreateLayoutType(LeafVal));
+      const auto &ExtractedValues = getExtractedValuesFromCall(Call);
+
+      for (const auto &ExtractedSet : ExtractedValues) {
+        // Inside here we're working on a single field of the struct.
+        // ExtractedSet contains all the ExtractValueInst that extract the same
+        // field of the struct.
+
+        // We get or create a layout type for each of them, but they should all
+        // be the same.
+        SmallVector<GetOrCreateResult, 2> FieldResults;
+        for (const llvm::ExtractValueInst *E : ExtractedSet) {
+          FieldResults.push_back(getOrCreateLayoutType(E));
+          revng_assert(FieldResults.front().first == FieldResults.back().first);
+        }
+
+        Results.push_back(std::move(FieldResults.front()));
+      }
+
+    } else {
+
+      SmallVector<const Value *, 2> LeafVals;
+      if (auto *Ins = dyn_cast<InsertValueInst>(&V))
+        LeafVals = getInsertValueLeafOperands(Ins);
+      else
+        LeafVals.resize(StructTy->getNumElements(), nullptr);
+
+      for (const Value *LeafVal : LeafVals)
+        Results.push_back(getOrCreateLayoutType(LeafVal));
+    }
   } else {
     // For non-struct and non-function types we only add a LayoutTypeSystemNode
     Results.push_back(getOrCreateLayoutType(&V));

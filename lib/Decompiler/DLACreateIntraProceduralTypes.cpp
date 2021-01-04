@@ -364,20 +364,21 @@ public:
               for (const auto &[Ext, RetTy] :
                    llvm::zip(ExtractedVals, FormalRetTys)) {
 
-                if (nullptr == Ext)
+                if (Ext.empty())
                   continue;
 
-                revng_assert(isa<ExtractValueInst>(Ext));
+                for (llvm::ExtractValueInst *E : Ext) {
+                  revng_assert(E);
+                  llvm::Type *ExtTy = E->getType();
+                  revng_assert(isa<IntegerType>(ExtTy)
+                               or isa<PointerType>(ExtTy));
 
-                llvm::Type *ExtTy = Ext->getType();
-                revng_assert(isa<IntegerType>(ExtTy)
-                             or isa<PointerType>(ExtTy));
-
-                const auto &[ExtLayout, New] = TS.getOrCreateLayoutType(Ext);
-                Changed |= New;
-                Changed |= TS.addEqualityLink(RetTy, ExtLayout).second;
-                const SCEV *S = SE->getSCEV(Ext);
-                SCEVToLayoutType.insert(std::make_pair(S, ExtLayout));
+                  const auto &[ExtLayout, New] = TS.getOrCreateLayoutType(E);
+                  Changed |= New;
+                  Changed |= TS.addEqualityLink(RetTy, ExtLayout).second;
+                  const SCEV *S = SE->getSCEV(E);
+                  SCEVToLayoutType.insert(std::make_pair(S, ExtLayout));
+                }
               }
             } else {
               // Type representing the return type
