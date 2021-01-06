@@ -20,11 +20,11 @@
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/ProgramCounterHandler.h"
 
 #include "ExternalJumpsHandler.h"
 
 #include "BinaryFile.h"
-#include "ProgramCounterHandler.h"
 
 using namespace llvm;
 using std::string;

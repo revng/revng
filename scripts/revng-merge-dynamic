@@ -269,7 +269,7 @@ def main():
                       help="Print debug information and warnings.")
   parser.add_argument("--base",
                       metavar="ADDRESS",
-                      default="0x50000000",
+                      default="0x400000",
                       help=("The base address where dynamic object have been" +
                             " loaded."))
   args = parser.parse_args()

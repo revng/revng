@@ -8,11 +8,175 @@
 #include "llvm/ADT/SmallSet.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-
-#include "ProgramCounterHandler.h"
+#include "revng/Support/ProgramCounterHandler.h"
 
 using namespace llvm;
 using PCH = ProgramCounterHandler;
+
+class PCOnlyProgramCounterHandler : public ProgramCounterHandler {
+public:
+  static std::unique_ptr<ProgramCounterHandler>
+  create(Module *M, const CSVFactory &Factory) {
+    auto Result = std::make_unique<PCOnlyProgramCounterHandler>();
+
+    // Create and register the pc CSV
+    Result->AddressCSV = Factory(PCAffectingCSV::PC, AddressName);
+    Result->CSVsAffectingPC.insert(Result->AddressCSV);
+
+    // Create the other variables (non-CSV)
+    Result->createMissingVariables(M);
+
+    return Result;
+  }
+
+  static std::unique_ptr<ProgramCounterHandler> fromModule(Module *M) {
+    auto Result = std::make_unique<PCOnlyProgramCounterHandler>();
+
+    // Initialize the standard variables
+    Result->setMissingVariables(M);
+
+    // Register pc as a CSV affecting the program counter
+    Result->CSVsAffectingPC.insert(Result->AddressCSV);
+
+    return Result;
+  }
+
+public:
+  bool handleStoreInternal(IRBuilder<> &Builder, StoreInst *Store) const final {
+    revng_assert(Store->getPointerOperand() == AddressCSV);
+    return false;
+  }
+
+  Value *loadJumpablePC(IRBuilder<> &Builder) const final {
+    return Builder.CreateLoad(AddressCSV);
+  }
+
+  void deserializePCFromSignalContext(IRBuilder<> &Builder,
+                                      Value *PCAddress,
+                                      Value *SavedRegisters) const final {
+    Builder.CreateStore(PCAddress, AddressCSV);
+  }
+
+protected:
+  void
+  initializePCInternal(IRBuilder<> &Builder, MetaAddress NewPC) const final {}
+};
+
+class ARMProgramCounterHandler : public ProgramCounterHandler {
+private:
+  static constexpr const char *IsThumbName = "is_thumb";
+
+private:
+  GlobalVariable *IsThumb;
+
+public:
+  static std::unique_ptr<ProgramCounterHandler>
+  create(Module *M, const CSVFactory &Factory) {
+    auto Result = std::make_unique<ARMProgramCounterHandler>();
+
+    // Create and register the pc and is_thumb CSV
+    Result->AddressCSV = Factory(PCAffectingCSV::PC, AddressName);
+    Result->CSVsAffectingPC.insert(Result->AddressCSV);
+
+    Result->IsThumb = Factory(PCAffectingCSV::IsThumb, IsThumbName);
+    Result->CSVsAffectingPC.insert(Result->IsThumb);
+
+    Result->createMissingVariables(M);
+
+    return Result;
+  }
+
+  static std::unique_ptr<ProgramCounterHandler> fromModule(Module *M) {
+    auto Result = std::make_unique<ARMProgramCounterHandler>();
+
+    // Initialize the standard variablesx
+    Result->setMissingVariables(M);
+
+    // Get is_thumb
+    Result->IsThumb = M->getGlobalVariable(IsThumbName);
+    revng_assert(Result->IsThumb != nullptr);
+
+    // Register pc and is_thumb as a CSV affecting the program counter
+    Result->CSVsAffectingPC.insert(Result->IsThumb);
+    Result->CSVsAffectingPC.insert(Result->AddressCSV);
+
+    return Result;
+  }
+
+private:
+  bool handleStoreInternal(IRBuilder<> &B, StoreInst *Store) const final {
+    using namespace llvm;
+    revng_assert(affectsPC(Store));
+
+    Value *Pointer = Store->getPointerOperand();
+    Value *StoredValue = Store->getValueOperand();
+
+    if (Pointer == IsThumb) {
+      // Update Type
+      using CI = ConstantInt;
+      using namespace MetaAddressType;
+
+      auto *TypeType = getCSVType(TypeCSV);
+      auto *ArmCode = CI::get(TypeType, Code_arm);
+      auto *ThumbCode = CI::get(TypeType, Code_arm_thumb);
+      // We don't use select here, SCEV can't handle it
+      // NewType = ARM + IsThumb * (Thumb - ARM)
+      auto *NewType = B.CreateAdd(ArmCode,
+                                  B.CreateMul(B.CreateTrunc(StoredValue,
+                                                            TypeType),
+                                              B.CreateSub(ThumbCode, ArmCode)));
+
+      B.CreateStore(NewType, TypeCSV);
+
+      return true;
+    }
+
+    return false;
+  }
+
+  Value *loadJumpablePC(IRBuilder<> &Builder) const final {
+    auto *Address = Builder.CreateLoad(AddressCSV);
+    auto *AddressType = Address->getType();
+    return Builder.CreateOr(Address,
+                            Builder.CreateZExt(Builder.CreateLoad(IsThumb),
+                                               AddressType));
+  }
+
+  void deserializePCFromSignalContext(IRBuilder<> &B,
+                                      Value *PCAddress,
+                                      Value *SavedRegisters) const final {
+    using namespace llvm;
+
+    constexpr uint32_t CPSRIndex = 19;
+    constexpr unsigned IsThumbBitIndex = 5;
+
+    Type *IsThumbType = IsThumb->getType()->getPointerElementType();
+
+    // Load the CPSR field
+    Value *CPSRAddress = B.CreateGEP(SavedRegisters, B.getInt32(CPSRIndex));
+    Value *CPSR = B.CreateLoad(CPSRAddress);
+
+    // Select the T bit
+    Value *TBit = B.CreateAnd(B.CreateLShr(CPSR, IsThumbBitIndex), 1);
+
+    // Zero-extend and store in IsThumb CSV
+    auto *IsThumbStore = B.CreateStore(B.CreateZExt(TBit, IsThumbType),
+                                       IsThumb);
+
+    // Let handleStore do his thing
+    handleStore(B, IsThumbStore);
+
+    // Update the PC address too
+    B.CreateStore(PCAddress, AddressCSV);
+  }
+
+protected:
+  void
+  initializePCInternal(IRBuilder<> &Builder, MetaAddress NewPC) const final {
+    using namespace MetaAddressType;
+    store(Builder, IsThumb, NewPC.type() == Code_arm_thumb ? 1 : 0);
+  }
+};
 
 static void eraseIfNoUse(const WeakVH &V) {
   if (Instruction *I = dyn_cast_or_null<Instruction>(&*V))
@@ -20,7 +184,7 @@ static void eraseIfNoUse(const WeakVH &V) {
       I->eraseFromParent();
 }
 
-static SwitchInst *getNextSwitch(llvm::SwitchInst::CaseHandle Case) {
+static SwitchInst *getNextSwitch(SwitchInst::CaseHandle Case) {
   return cast<SwitchInst>(Case.getCaseSuccessor()->getTerminator());
 }
 
@@ -33,8 +197,7 @@ static ConstantInt *caseConstant(SwitchInst *Switch, uint64_t Value) {
   return ConstantInt::get(ConditionType, Value);
 }
 
-static void
-addCase(llvm::SwitchInst *Switch, uint64_t Value, llvm::BasicBlock *BB) {
+static void addCase(SwitchInst *Switch, uint64_t Value, BasicBlock *BB) {
   Switch->addCase(caseConstant(Switch, Value), BB);
 }
 
@@ -148,7 +311,7 @@ bool PCH::isPCAffectingHelper(Instruction *I) const {
 }
 
 std::pair<NextJumpTarget::Values, MetaAddress>
-PCH::getUniqueJumpTarget(llvm::BasicBlock *BB) {
+PCH::getUniqueJumpTarget(BasicBlock *BB) {
   std::vector<StackEntry> Stack;
 
   enum ProcessResult { Proceed, DontProceed, BailOut };
@@ -167,7 +330,7 @@ PCH::getUniqueJumpTarget(llvm::BasicBlock *BB) {
     PartialMetaAddress &PMA = S.agreement();
 
     // Iterate backward on all instructions
-    for (Instruction &I : llvm::make_range(BB->rbegin(), BB->rend())) {
+    for (Instruction &I : make_range(BB->rbegin(), BB->rend())) {
       if (auto *Store = dyn_cast<StoreInst>(&I)) {
         // We found a store
         Value *Pointer = Store->getPointerOperand();
@@ -559,11 +722,10 @@ PCH::buildDispatcher(DispatcherTargets &Targets,
 std::unique_ptr<ProgramCounterHandler>
 PCH::create(Triple::ArchType Architecture,
             Module *M,
-            PTCInterface *PTC,
             const CSVFactory &Factory) {
   switch (Architecture) {
   case Triple::arm:
-    return std::make_unique<ARMProgramCounterHandler>(M, PTC, Factory);
+    return ARMProgramCounterHandler::create(M, Factory);
 
   case Triple::x86_64:
   case Triple::mips:
@@ -571,7 +733,28 @@ PCH::create(Triple::ArchType Architecture,
   case Triple::aarch64:
   case Triple::systemz:
   case Triple::x86:
-    return std::make_unique<PCOnlyProgramCounterHandler>(M, PTC, Factory);
+    return PCOnlyProgramCounterHandler::create(M, Factory);
+
+  default:
+    revng_abort("Unsupported architecture");
+  }
+
+  revng_abort();
+}
+
+std::unique_ptr<ProgramCounterHandler>
+PCH::fromModule(Triple::ArchType Architecture, Module *M) {
+  switch (Architecture) {
+  case Triple::arm:
+    return ARMProgramCounterHandler::fromModule(M);
+
+  case Triple::x86_64:
+  case Triple::mips:
+  case Triple::mipsel:
+  case Triple::aarch64:
+  case Triple::systemz:
+  case Triple::x86:
+    return PCOnlyProgramCounterHandler::fromModule(M);
 
   default:
     revng_abort("Unsupported architecture");

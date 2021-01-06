@@ -202,8 +202,8 @@ getInitialPC(Triple::ArchType Arch, bool Swap, ArrayRef<uint8_t> Command) {
     return MetaAddress::invalid();
 }
 
-BinaryFile::BinaryFile(std::string FilePath, Optional<uint64_t> BaseAddress) :
-  EntryPoint(MetaAddress::invalid()), BaseAddress(BaseAddress) {
+BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
+  EntryPoint(MetaAddress::invalid()), BaseAddress(0) {
   auto BinaryOrErr = object::createBinary(FilePath);
   revng_check(BinaryOrErr, "Couldn't open the input file");
 
@@ -337,6 +337,9 @@ BinaryFile::BinaryFile(std::string FilePath, Optional<uint64_t> BaseAddress) :
     RelocationTypes[R_X86_64_JUMP_SLOT] = RD(RD::SymbolRelative);
     RelocationTypes[R_X86_64_GLOB_DAT] = RD(RD::SymbolRelative);
     RelocationTypes[R_X86_64_COPY] = RD(RD::LabelOnly, RD::TargetValue);
+    // TODO: encode relocation size
+    RelocationTypes[R_X86_64_32] = RD(RD::SymbolRelative, RD::Addend);
+    RelocationTypes[R_X86_64_64] = RD(RD::SymbolRelative, RD::Addend);
 
     BasicBlockEndingPattern = "\xcc";
 
@@ -482,29 +485,29 @@ BinaryFile::BinaryFile(std::string FilePath, Optional<uint64_t> BaseAddress) :
     if (TheArchitecture.pointerSize() == 32) {
       if (TheArchitecture.isLittleEndian()) {
         if (TheArchitecture.hasRelocationAddend()) {
-          parseELF<object::ELF32LE, true>(TheBinary, BaseAddress);
+          parseELF<object::ELF32LE, true>(TheBinary, PreferedBaseAddress);
         } else {
-          parseELF<object::ELF32LE, false>(TheBinary, BaseAddress);
+          parseELF<object::ELF32LE, false>(TheBinary, PreferedBaseAddress);
         }
       } else {
         if (TheArchitecture.hasRelocationAddend()) {
-          parseELF<object::ELF32BE, true>(TheBinary, BaseAddress);
+          parseELF<object::ELF32BE, true>(TheBinary, PreferedBaseAddress);
         } else {
-          parseELF<object::ELF32BE, false>(TheBinary, BaseAddress);
+          parseELF<object::ELF32BE, false>(TheBinary, PreferedBaseAddress);
         }
       }
     } else if (TheArchitecture.pointerSize() == 64) {
       if (TheArchitecture.isLittleEndian()) {
         if (TheArchitecture.hasRelocationAddend()) {
-          parseELF<object::ELF64LE, true>(TheBinary, BaseAddress);
+          parseELF<object::ELF64LE, true>(TheBinary, PreferedBaseAddress);
         } else {
-          parseELF<object::ELF64LE, false>(TheBinary, BaseAddress);
+          parseELF<object::ELF64LE, false>(TheBinary, PreferedBaseAddress);
         }
       } else {
         if (TheArchitecture.hasRelocationAddend()) {
-          parseELF<object::ELF64BE, true>(TheBinary, BaseAddress);
+          parseELF<object::ELF64BE, true>(TheBinary, PreferedBaseAddress);
         } else {
-          parseELF<object::ELF64BE, false>(TheBinary, BaseAddress);
+          parseELF<object::ELF64BE, false>(TheBinary, PreferedBaseAddress);
         }
       }
     } else {
@@ -517,7 +520,7 @@ BinaryFile::BinaryFile(std::string FilePath, Optional<uint64_t> BaseAddress) :
     revng_assert(TheArchitecture.isLittleEndian() == true,
                  "Only Little-Endian COFF files are supported");
     // TODO handle relocations
-    parseCOFF(TheBinary, BaseAddress);
+    parseCOFF(TheBinary, PreferedBaseAddress);
   } else if (auto *MachO = dyn_cast<object::MachOObjectFile>(TheBinary)) {
     using namespace llvm::MachO;
     using namespace llvm::object;
@@ -744,7 +747,7 @@ static uint64_t u64(uint64_t Value) {
   return Value;
 }
 
-void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, Optional<uint64_t>) {
+void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, uint64_t) {
   std::error_code EC;
   object::COFFObjectFile TheCOFF(TheBinary->getMemoryBufferRef(), EC);
 
@@ -836,7 +839,7 @@ void BinaryFile::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
 
 template<typename T, bool HasAddend>
 void BinaryFile::parseELF(object::ObjectFile *TheBinary,
-                          Optional<uint64_t> BaseAddress) {
+                          uint64_t PreferedBaseAddress) {
   // Parse the ELF file
   auto TheELFOrErr = object::ELFFile<T>::create(TheBinary->getData());
   if (not TheELFOrErr) {
@@ -847,8 +850,9 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
 
   // BaseAddress makes sense only for shared (relocatable, PIC) objects
   auto Type = TheELF.getHeader()->e_type;
-  if (Type == ELF::ET_DYN)
-    this->BaseAddress = BaseAddress;
+  if (Type == ELF::ET_DYN) {
+    BaseAddress = PreferedBaseAddress;
+  }
 
   revng_assert(Type == ELF::ET_DYN or Type == ELF::ET_EXEC,
                "rev.ng currently handles executables and "

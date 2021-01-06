@@ -13,11 +13,11 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/ErrorOr.h"
 
+#include "revng/Support/ProgramCounterHandler.h"
 #include "revng/Support/revng.h"
 
 #include "JumpTargetManager.h"
 #include "PTCDump.h"
-#include "ProgramCounterHandler.h"
 
 // Forward declarations
 namespace llvm {

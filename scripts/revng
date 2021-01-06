@@ -26,11 +26,16 @@ real_argv0 = os.environ.get("REAL_ARGV0", sys.argv[0])
 def shlex_join(split_command):
   return ' '.join(shlex.quote(arg) for arg in split_command)
 
-def run(command):
+def run(command, override={}):
   if is_executable(command[0]):
     command = wrap(command)
   signal.signal(signal.SIGINT, signal.SIG_IGN)
-  p = subprocess.Popen(command, preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
+  environment = dict(os.environ)
+  environment.update(override)
+  p = subprocess.Popen(command,
+                       preexec_fn=lambda: signal.signal(signal.SIGINT,
+                                                        signal.SIG_DFL),
+                       env=environment)
   if p.wait() != 0:
       log_error("The following command exited with {}:\n{}".format(p.returncode, shlex_join(command)))
       sys.exit(p.returncode)
@@ -468,7 +473,8 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
        "-L", "./",
        "-o", executable]
       + no_pie
-      + linking_options)
+      + linking_options,
+      {"HARD_FLAGS_IGNORE": "1"})
 
   # Invoke revng-merge-dynamic
   unpatched_output = "{}.tmp".format(executable)

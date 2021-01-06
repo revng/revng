@@ -456,7 +456,7 @@ public:
 
 public:
   /// \param FilePath the path to the input file.
-  BinaryFile(std::string FilePath, llvm::Optional<uint64_t> BaseAddress);
+  BinaryFile(std::string FilePath, uint64_t BaseAddress);
 
   BinaryFile(const BinaryFile &) = delete;
   BinaryFile &operator=(BinaryFile &&) = default;
@@ -568,12 +568,12 @@ private:
 
   /// \brief Parse an ELF file to load all the required information
   template<typename T, bool HasAddend>
-  void parseELF(llvm::object::ObjectFile *TheBinary,
-                llvm::Optional<uint64_t> BaseAddress);
+  void
+  parseELF(llvm::object::ObjectFile *TheBinary, uint64_t PreferredBaseAddress);
 
   /// \brief Parse a COFF file
-  void parseCOFF(llvm::object::ObjectFile *TheBinary,
-                 llvm::Optional<uint64_t> BaseAddress);
+  void
+  parseCOFF(llvm::object::ObjectFile *TheBinary, uint64_t PreferredBaseAddress);
 
   template<typename T>
   void parseMachOSegment(llvm::ArrayRef<uint8_t> RawDataRef,
