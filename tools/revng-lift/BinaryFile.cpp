@@ -337,6 +337,9 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     RelocationTypes[R_X86_64_JUMP_SLOT] = RD(RD::SymbolRelative);
     RelocationTypes[R_X86_64_GLOB_DAT] = RD(RD::SymbolRelative);
     RelocationTypes[R_X86_64_COPY] = RD(RD::LabelOnly, RD::TargetValue);
+    // TODO: encode relocation size
+    RelocationTypes[R_X86_64_32] = RD(RD::SymbolRelative, RD::Addend);
+    RelocationTypes[R_X86_64_64] = RD(RD::SymbolRelative, RD::Addend);
 
     BasicBlockEndingPattern = "\xcc";
 
