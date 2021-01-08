@@ -23,16 +23,12 @@ class TranslationUnitDecl;
 
 using clang::QualType;
 
-QualType
-DeclCreator::getOrCreateQualTypeFromLayout(const dla::Layout *L,
-                                           clang::ASTContext &ClangCtx,
-                                           llvm::LLVMContext &LLVMCtx) {
-  revng_assert(L);
-
-  if (auto It = LayoutQualTypes.find(L); It != LayoutQualTypes.end())
-    return It->second;
-
-  QualType Result = ClangCtx.VoidTy;
+// TODO: this should be a RecursiveCoroutine
+DeclCreator::TypeDeclOrQualType
+DeclCreator::createTypeFromLayout(const dla::Layout *L,
+                                  clang::ASTContext &ClangCtx,
+                                  llvm::LLVMContext &LLVMCtx) {
+  TypeDeclOrQualType Result = ClangCtx.VoidTy;
 
   using LayoutKind = dla::Layout::LayoutKind;
   revng_assert(L->size());
@@ -69,19 +65,21 @@ DeclCreator::getOrCreateQualTypeFromLayout(const dla::Layout *L,
     revng_assert(IsPowerOf2);
     revng_assert(ByteSize <= 16);
     auto *IntTy = llvm::IntegerType::get(LLVMCtx, ByteSize * 8);
-    Result = getOrCreateQualType(IntTy,
-                                 nullptr,
-                                 ClangCtx,
-                                 *ClangCtx.getTranslationUnitDecl());
+    Result = getOrCreateType(IntTy,
+                             nullptr,
+                             ClangCtx,
+                             *ClangCtx.getTranslationUnitDecl());
   } break;
 
   case LayoutKind::Array: {
 
     auto *Array = llvm::cast<dla::ArrayLayout>(L);
     dla::Layout *ElementLayout = Array->getElem();
-    QualType ElemQualTy = getOrCreateQualTypeFromLayout(ElementLayout,
+
+    TypeDeclOrQualType EQTy = getOrCreateTypeFromLayout(ElementLayout,
                                                         ClangCtx,
                                                         LLVMCtx);
+    QualType ElemQualTy = DeclCreator::getQualType(EQTy);
 
     auto ArraySizeKind = clang::ArrayType::ArraySizeModifier::Normal;
     if (Array->hasKnownLength()) {
@@ -110,16 +108,16 @@ DeclCreator::getOrCreateQualTypeFromLayout(const dla::Layout *L,
                                                  clang::SourceLocation{},
                                                  &TypeId,
                                                  nullptr);
-    TypeDecls.push_back(StructDecl);
 
     StructDecl->startDefinition();
 
     for (const auto &Group : llvm::enumerate(Struct->fields())) {
       // Create the type decl for the PointerLayout.
       const dla::Layout *PointedLayout = Group.value();
-      QualType FieldTy = getOrCreateQualTypeFromLayout(PointedLayout,
-                                                       ClangCtx,
-                                                       LLVMCtx);
+      TypeDeclOrQualType FTy = getOrCreateTypeFromLayout(PointedLayout,
+                                                         ClangCtx,
+                                                         LLVMCtx);
+      QualType FieldTy = DeclCreator::getQualType(FTy);
       clang::TypeSourceInfo *TI = ClangCtx.CreateTypeSourceInfo(FieldTy);
       const std::string FieldName = std::string("field_")
                                     + std::to_string(Group.index());
@@ -139,7 +137,7 @@ DeclCreator::getOrCreateQualTypeFromLayout(const dla::Layout *L,
 
     StructDecl->completeDefinition();
 
-    Result = QualType(StructDecl->getTypeForDecl(), 0);
+    Result = DeclCreator::getQualType(StructDecl);
 
   } break;
 
@@ -156,16 +154,16 @@ DeclCreator::getOrCreateQualTypeFromLayout(const dla::Layout *L,
                                                 clang::SourceLocation{},
                                                 &TypeId,
                                                 nullptr);
-    TypeDecls.push_back(UnionDecl);
 
     UnionDecl->startDefinition();
 
     for (const auto &Group : llvm::enumerate(Union->elements())) {
       // Create the type decl for the PointerLayout.
       const dla::Layout *PointedLayout = Group.value();
-      QualType FieldTy = getOrCreateQualTypeFromLayout(PointedLayout,
-                                                       ClangCtx,
-                                                       LLVMCtx);
+      TypeDeclOrQualType FTy = getOrCreateTypeFromLayout(PointedLayout,
+                                                         ClangCtx,
+                                                         LLVMCtx);
+      QualType FieldTy = DeclCreator::getQualType(FTy);
       clang::TypeSourceInfo *TI = ClangCtx.CreateTypeSourceInfo(FieldTy);
       const std::string FieldName = std::string("field_")
                                     + std::to_string(Group.index());
@@ -185,7 +183,7 @@ DeclCreator::getOrCreateQualTypeFromLayout(const dla::Layout *L,
 
     UnionDecl->completeDefinition();
 
-    Result = QualType(UnionDecl->getTypeForDecl(), 0);
+    Result = DeclCreator::getQualType(UnionDecl);
 
   } break;
 
@@ -193,8 +191,27 @@ DeclCreator::getOrCreateQualTypeFromLayout(const dla::Layout *L,
     revng_unreachable();
   }
 
-  const auto &[_, New] = LayoutQualTypes.insert({ L, Result });
-  revng_assert(New);
+  return Result;
+}
+
+// TODO: this should be a RecursiveCoroutine
+DeclCreator::TypeDeclOrQualType
+DeclCreator::getOrCreateTypeFromLayout(const dla::Layout *L,
+                                       clang::ASTContext &ClangCtx,
+                                       llvm::LLVMContext &LLVMCtx) {
+  revng_assert(L);
+
+  // First, look it up, to see if we've already computed it.
+  llvm::Optional<TypeDeclOrQualType> CachedQTy = lookupType(L);
+  if (CachedQTy.hasValue())
+    return CachedQTy.getValue();
+
+  // If we havent found it, create it, along with all the other types that might
+  // be necessary to complete its declaration.
+  TypeDeclOrQualType Result = createTypeFromLayout(L, ClangCtx, LLVMCtx);
+
+  // Insert it into the mapping.
+  insertTypeMapping(L, Result);
   return Result;
 }
 
@@ -203,9 +220,9 @@ void DeclCreator::createTypeDeclsForFunctionPrototype(clang::ASTContext &Ctx,
   clang::TranslationUnitDecl &TUDecl = *Ctx.getTranslationUnitDecl();
 
   // Create return type
-  getOrCreateValueQualType(F, Ctx, TUDecl);
+  getOrCreateType(F, Ctx, TUDecl);
 
   // Create argument types
   for (const llvm::Argument &A : F->args())
-    getOrCreateValueQualType(&A, Ctx, TUDecl);
+    getOrCreateType(&A, Ctx, TUDecl);
 }

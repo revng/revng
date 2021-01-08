@@ -29,14 +29,14 @@ clang::FunctionDecl *DeclCreator::createFunDecl(clang::ASTContext &Context,
   using clang::QualType;
 
   clang::TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
-  QualType RetType = getOrCreateValueQualType(F, Context, *TUDecl);
+  QualType RetType = getQualType(getOrCreateType(F, Context, *TUDecl));
 
   const llvm::FunctionType *FType = F->getFunctionType();
   revng_assert(FType->getNumParams() == F->arg_size());
 
   llvm::SmallVector<QualType, 4> ArgTypes = {};
   for (const llvm::Argument &Arg : F->args()) {
-    QualType ArgType = getOrCreateValueQualType(&Arg, Context, *TUDecl);
+    QualType ArgType = getQualType(getOrCreateType(&Arg, Context, *TUDecl));
     ArgTypes.push_back(ArgType);
   }
 

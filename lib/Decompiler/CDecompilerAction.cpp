@@ -794,8 +794,9 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   // This does not solve all the problems. For instance, if a struct A has a
   // field of type struct B (not struct B *) B must be fully declared before the
   // declaration of A. Just a forward declaration will not cut it.
-  for (const auto &TypeDecl : Declarator.typeDecls()) {
-    if (auto *StructDecl = llvm::dyn_cast<clang::RecordDecl>(TypeDecl)) {
+  for (const auto &TypeDecl : Declarator.types()) {
+    clang::TypeDecl *TD = DeclCreator::getTypeDecl(TypeDecl);
+    if (auto *StructDecl = llvm::dyn_cast_or_null<clang::RecordDecl>(TD)) {
 
       auto *FwdDecl = clang::RecordDecl::Create(Context,
                                                 StructDecl->getTagKind(),
@@ -812,18 +813,21 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   // that type declarations are pushed into the typeDecls vector in correct
   // order.
   // TypeDecls are printed in C in the same order they are inserted into TUDecl.
-  // Here, we iterate in reverse order when inserting them into the TUDecl, so
-  // that the types that were created first are printed first. This, for now,
-  // ensures that, when we emit the full definition of a struct A with a field
-  // with type struct B, we have already emitted the full definition of struct B
-  for (const auto &TypeDecl : llvm::reverse(Declarator.typeDecls())) {
+  // Here, we iterate in the order when inserting them into the TUDecl, so that
+  // the types that were created first are printed first. This, for now, ensures
+  // that, when we emit the full definition of a struct A with a field with type
+  // struct B, we have already emitted the full definition of struct B
+  for (const auto &TypeDecl : Declarator.types()) {
+    clang::TypeDecl *TD = DeclCreator::getTypeDecl(TypeDecl);
+    if (not TD)
+      continue;
     // Double check that the typedef decl for bool is not inserted twice
-    clang::DeclarationName TypeName = TypeDecl->getDeclName();
+    clang::DeclarationName TypeName = TD->getDeclName();
     if (TypeName.getAsString() == "bool") {
       bool Found = false;
-      revng_assert(isa<clang::TypedefDecl>(TypeDecl));
+      revng_assert(isa<clang::TypedefDecl>(TD));
       for (clang::Decl *D : TUDecl->lookup(TypeName)) {
-        if (D == TypeDecl) {
+        if (D == TD) {
           // the TypedefDecl `typedef _Bool bool` has already been inserted
           // in the translation unit `DeclContext`
           Found = true;
@@ -836,7 +840,7 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
       if (Found)
         continue;
     }
-    TUDecl->addDecl(TypeDecl);
+    TUDecl->addDecl(TD);
   }
 
   for (const auto &[_, GDecl] : Declarator.globalDecls()) {

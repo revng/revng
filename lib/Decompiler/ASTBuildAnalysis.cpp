@@ -20,6 +20,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/IdentifierTable.h"
 
 #include "revng/Support/IRHelpers.h"
 
@@ -41,6 +42,7 @@ using ClangType = clang::Type;
 using ClangPointerType = clang::PointerType;
 using LLVMType = llvm::Type;
 using LLVMPointerType = llvm::PointerType;
+using TypeDeclOrQualType = DeclCreator::TypeDeclOrQualType;
 
 namespace IR2AST {
 
@@ -258,9 +260,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
       AddrExpr->dump();
     if (not isa<GlobalVariable>(Addr)) {
       clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-      QualType PointeeType = Declarator.getOrCreateValueQualType(Load,
-                                                                 ASTCtx,
-                                                                 TUDecl);
+      TypeDeclOrQualType PTy = Declarator.getOrCreateType(Load, ASTCtx, TUDecl);
+      QualType PointeeType = DeclCreator::getQualType(PTy);
 
       QualType QualAddrType = AddrExpr->getType();
       const ClangType *AddrTy = QualAddrType.getTypePtr();
@@ -340,9 +341,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     revng_assert(I.getNumOperands() == 1);
     Expr *Res = getParenthesizedExprForValue(I.getOperand(0));
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    QualType LHSQualType = Declarator.getOrCreateValueQualType(&I,
-                                                               ASTCtx,
-                                                               TUDecl);
+    TypeDeclOrQualType LeftQTy = Declarator.getOrCreateType(&I, ASTCtx, TUDecl);
+    QualType LHSQualType = DeclCreator::getQualType(LeftQTy);
     if (LHSQualType != Res->getType())
       Res = createCast(LHSQualType, Res, ASTCtx);
     revng_log(ASTBuildLog, "GOT!");
@@ -365,7 +365,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     if (ASTBuildLog.isEnabled() and FalseExpr)
       FalseExpr->dump();
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    QualType ASTType = Declarator.getOrCreateValueQualType(&I, ASTCtx, TUDecl);
+    TypeDeclOrQualType ASTTy = Declarator.getOrCreateType(&I, ASTCtx, TUDecl);
+    QualType ASTType = DeclCreator::getQualType(ASTTy);
     return new (ASTCtx) ConditionalOperator(Cond,
                                             {},
                                             TrueExpr,
@@ -426,10 +427,11 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     }
 
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    QualType ReturnType = Declarator.getOrCreateQualType(TheCall->getType(),
-                                                         CalleeFun,
-                                                         ASTCtx,
-                                                         TUDecl);
+    TypeDeclOrQualType RTy = Declarator.getOrCreateType(TheCall->getType(),
+                                                        CalleeFun,
+                                                        ASTCtx,
+                                                        TUDecl);
+    QualType ReturnType = DeclCreator::getQualType(RTy);
     return CallExpr::Create(ASTCtx,
                             CalleeExpr,
                             Args,
@@ -461,11 +463,11 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                  or isa<ConstantStruct>(AggregateOp));
     llvm::Type *AggregateTy = AggregateOp->getType();
     revng_assert(AggregateTy->isAggregateType());
-    auto *TypeDecl = Declarator.getTypeDeclOrNull(AggregateTy);
+    auto *TypeDecl = Declarator.lookupTypeDeclOrNull(AggregateTy);
     auto *StructTypeDecl = cast<clang::RecordDecl>(TypeDecl);
     Expr *StructExpr = getExprForValue(Insert);
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    QualType InsertedTy = Declarator.getOrCreateQualType(Insert->getType(),
+    TypeDeclOrQualType InTy = Declarator.getOrCreateType(Insert->getType(),
                                                          Insert->getFunction(),
                                                          ASTCtx,
                                                          TUDecl);
@@ -485,7 +487,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                           DAP,
                                           FieldDeclNameInfo,
                                           /*TemplateArgs*/ nullptr,
-                                          InsertedTy,
+                                          DeclCreator::getQualType(InTy),
                                           VK_LValue,
                                           OK_Ordinary,
                                           NOUR_None);
@@ -515,13 +517,13 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     revng_assert(isa<CallInst>(AggregateOp));
     llvm::Type *AggregateTy = AggregateOp->getType();
     revng_assert(AggregateTy->isAggregateType());
-    auto *TypeDecl = Declarator.getTypeDeclOrNull(AggregateTy);
+    auto *TypeDecl = Declarator.lookupTypeDeclOrNull(AggregateTy);
     auto *StructTypeDecl = cast<clang::RecordDecl>(TypeDecl);
     Expr *StructExpr = getExprForValue(AggregateOp);
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    QualType ExtractedTy = Declarator.getOrCreateValueQualType(Extract,
-                                                               ASTCtx,
-                                                               TUDecl);
+    TypeDeclOrQualType ExtractedTy = Declarator.getOrCreateType(Extract,
+                                                                ASTCtx,
+                                                                TUDecl);
     revng_assert(not llvm::empty(Extract->indices()));
     unsigned Idx = *Extract->indices().begin();
     auto *ExtractedFDecl = *std::next(StructTypeDecl->field_begin(), Idx);
@@ -538,7 +540,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                                    ExtractedFDecl->getAccess()),
                               FieldDeclNameInfo,
                               /*TemplateArgs*/ nullptr,
-                              ExtractedTy,
+                              DeclCreator::getQualType(ExtractedTy),
                               VK_RValue,
                               OK_Ordinary,
                               NOUR_None);
@@ -609,13 +611,13 @@ clang::VarDecl *
 StmtBuilder::getOrCreateSwitchStateVarDecl(clang::FunctionDecl &FDecl) {
   if (not SwitchStateVarDecl) {
     IdentifierInfo &Id = ASTCtx.Idents.get("switch_state_var");
-    QualType BoolTy = Declarator.getOrCreateBoolQualType(ASTCtx);
+    TypeDeclOrQualType BoolTy = Declarator.getOrCreateBoolType(ASTCtx);
     SwitchStateVarDecl = VarDecl::Create(ASTCtx,
                                          &FDecl,
                                          {},
                                          {},
                                          &Id,
-                                         BoolTy,
+                                         DeclCreator::getQualType(BoolTy),
                                          nullptr,
                                          StorageClass::SC_None);
     FDecl.addDecl(SwitchStateVarDecl);
@@ -781,9 +783,9 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
 
           // Try to obtain the DLA type of BaseValue
           auto *TUDecl = ASTCtx.getTranslationUnitDecl();
-          auto DLAType = Declarator.getOrCreateDLAQualType(BaseValue,
-                                                           ASTCtx,
-                                                           *TUDecl);
+          auto DLAType = Declarator.getOrCreateDLAType(BaseValue,
+                                                       ASTCtx,
+                                                       *TUDecl);
           clang::Stmt *PointerArithmeticStmt = nullptr;
           if (DLAType.hasValue()) {
 
@@ -819,8 +821,10 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
 
               struct NestedTypeInfo {
                 uint64_t ElemId;
-                clang::QualType QTy;
+                clang::IdentifierInfo *Identifier;
+                TypeDeclOrQualType QTy;
               };
+
               // Vector to hold the nested QualTypes, from outer to inner.
               llvm::SmallVector<NestedTypeInfo, 8> NestedTypes;
 
@@ -830,9 +834,9 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
                 revng_assert(RemainingOffset < OuterLay->size());
 
                 auto &ValCtx = BaseValue->getContext();
-                auto OutQTy = Declarator.getOrCreateQualTypeFromLayout(OuterLay,
-                                                                       ASTCtx,
-                                                                       ValCtx);
+                auto OutQTy = Declarator.getOrCreateTypeFromLayout(OuterLay,
+                                                                   ASTCtx,
+                                                                   ValCtx);
                 uint64_t RemainingOffset = 0ULL;
                 switch (OuterLay->getKind()) {
 
@@ -845,7 +849,7 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
                   // If the layout points to a base type it should point to its
                   // beginning, not in the middle.
                   revng_assert(RemainingOffset == 0ULL);
-                  NestedTypes.push_back({ 0, OutQTy });
+                  NestedTypes.push_back({ 0, nullptr, OutQTy });
                   RemainingOffset = 0ULL;
 
                 } break;
@@ -856,7 +860,7 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
                   auto ElemSize = ArrayElem->size();
                   revng_assert(ElemSize < RemainingOffset);
                   auto ElemId = RemainingOffset / ElemSize;
-                  NestedTypes.push_back({ ElemId, OutQTy });
+                  NestedTypes.push_back({ ElemId, nullptr, OutQTy });
                   RemainingOffset = RemainingOffset % ElemSize;
                   InnerLayout = ArrayElem;
                 } break;
@@ -902,7 +906,8 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
                 // Otherwise we back off.
                 revng_assert(not NestedTypes.empty());
 
-                QualType InnerQualTy = NestedTypes.back().QTy;
+                TypeDeclOrQualType InnerTy = NestedTypes.back().QTy;
+                clang::QualType InnerQualTy = DeclCreator::getQualType(InnerTy);
                 using Unary = clang::UnaryOperator;
                 NewStmt = new (ASTCtx) Unary(MemberExpr,
                                              UnaryOperatorKind::UO_AddrOf,
@@ -958,7 +963,7 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
 VarDecl *
 StmtBuilder::createVarDecl(const Instruction *I, clang::FunctionDecl &FDecl) {
   clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-  QualType ASTType;
+  TypeDeclOrQualType ASTType;
   if (const auto *Alloca = dyn_cast<AllocaInst>(I)) {
     // First, create a VarDecl, for an array of char to place in the
     // BasicBlock where the AllocaInst is
@@ -976,21 +981,22 @@ StmtBuilder::createVarDecl(const Instruction *I, clang::FunctionDecl &FDecl) {
                                                    0);
     ASTType = ArrayTy;
   } else if (const auto *Call = dyn_cast<llvm::CallInst>(I)) {
-    ASTType = Declarator.getOrCreateQualType(Call->getType(),
-                                             Call->getCalledFunction(),
-                                             ASTCtx,
-                                             TUDecl);
+    ASTType = Declarator.getOrCreateType(Call->getType(),
+                                         Call->getCalledFunction(),
+                                         ASTCtx,
+                                         TUDecl);
   } else if (const auto *Insert = dyn_cast<llvm::InsertValueInst>(I)) {
-    ASTType = Declarator.getOrCreateQualType(Insert->getType(),
-                                             Insert->getFunction(),
-                                             ASTCtx,
-                                             TUDecl);
+    ASTType = Declarator.getOrCreateType(Insert->getType(),
+                                         Insert->getFunction(),
+                                         ASTCtx,
+                                         TUDecl);
   } else {
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    ASTType = Declarator.getOrCreateValueQualType(I, ASTCtx, TUDecl);
+    ASTType = Declarator.getOrCreateType(I, ASTCtx, TUDecl);
   }
 
-  revng_assert(not ASTType.isNull());
+  clang::QualType ASTQualType = DeclCreator::getQualType(ASTType);
+  revng_assert(not ASTQualType.isNull());
   const std::string VarName = I->hasName() ?
                                 I->getName().str() :
                                 (std::string("var_") + std::to_string(NVar++));
@@ -1000,7 +1006,7 @@ StmtBuilder::createVarDecl(const Instruction *I, clang::FunctionDecl &FDecl) {
                                         {},
                                         {},
                                         &Id,
-                                        ASTType,
+                                        ASTQualType,
                                         nullptr,
                                         StorageClass::SC_None);
   // Add the NewVarDecl to the function declaration context, so that clang's
@@ -1013,17 +1019,18 @@ VarDecl *StmtBuilder::createVarDecl(Constant *C,
                                     Value *NamingVal,
                                     clang::FunctionDecl &FDecl) {
   clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-  QualType ASTType;
+  TypeDeclOrQualType ASTType = clang::QualType();
   if (auto *ZeroAggregate = dyn_cast<llvm::ConstantAggregateZero>(C)) {
-    ASTType = Declarator.getOrCreateQualType(ZeroAggregate->getType(),
-                                             NamingVal,
-                                             ASTCtx,
-                                             TUDecl);
+    ASTType = Declarator.getOrCreateType(ZeroAggregate->getType(),
+                                         NamingVal,
+                                         ASTCtx,
+                                         TUDecl);
   } else {
     revng_abort("trying to create VarDecl for unexpected constant");
   }
 
-  revng_assert(not ASTType.isNull());
+  QualType ASTQualType = DeclCreator::getQualType(ASTType);
+  revng_assert(not ASTQualType.isNull());
   const std::string VarName = C->hasName() ?
                                 C->getName().str() :
                                 (std::string("var_") + std::to_string(NVar++));
@@ -1033,7 +1040,7 @@ VarDecl *StmtBuilder::createVarDecl(Constant *C,
                                         {},
                                         {},
                                         &Id,
-                                        ASTType,
+                                        ASTQualType,
                                         nullptr,
                                         StorageClass::SC_None);
   FDecl.addDecl(NewVarDecl);
@@ -1300,9 +1307,9 @@ Expr *StmtBuilder::createRValueExprForBinaryOperator(Instruction &I) {
   case Instruction::AShr:
   case Instruction::ICmp: {
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    QualType ResType = Declarator.getOrCreateValueQualType(&I, ASTCtx, TUDecl);
+    TypeDeclOrQualType ResType = Declarator.getOrCreateType(&I, ASTCtx, TUDecl);
     Res = new (ASTCtx) ParenExpr({}, {}, Res);
-    Res = createCast(ResType, Res, ASTCtx);
+    Res = createCast(DeclCreator::getQualType(ResType), Res, ASTCtx);
   } break;
   default:
     break;
@@ -1312,10 +1319,10 @@ Expr *StmtBuilder::createRValueExprForBinaryOperator(Instruction &I) {
 
 Expr *StmtBuilder::getBoolLiteral(bool V) {
   QualType IntT = ASTCtx.IntTy;
-  QualType BoolTy = Declarator.getOrCreateBoolQualType(ASTCtx);
+  TypeDeclOrQualType BoolTy = Declarator.getOrCreateBoolType(ASTCtx);
   APInt Const = APInt(ASTCtx.getIntWidth(IntT), V ? 1 : 0, true);
   Expr *IntLiteral = IntegerLiteral::Create(ASTCtx, Const, IntT, {});
-  return createCast(BoolTy, IntLiteral, ASTCtx);
+  return createCast(DeclCreator::getQualType(BoolTy), IntLiteral, ASTCtx);
 }
 
 Expr *StmtBuilder::getUIntLiteral(uint64_t U) {
@@ -1327,20 +1334,12 @@ Expr *StmtBuilder::getUIntLiteral(uint64_t U) {
 Expr *StmtBuilder::getExprForValue(Value *V) {
   revng_log(ASTBuildLog, "getExprForValue: " << dumpToString(V));
 
-  if (auto *Fun = dyn_cast<Function>(V)) {
+  if (auto *FunctionOrGlobal = dyn_cast<GlobalObject>(V)) {
 
-    FunctionDecl *FunDecl = &Declarator.getFunctionDecl(Fun);
-    QualType Type = FunDecl->getType();
+    DeclaratorDecl *Decl = Declarator.globalDecls().at(FunctionOrGlobal);
+    QualType Type = Decl->getType();
     DeclRefExpr *Res = new (ASTCtx)
-      DeclRefExpr(ASTCtx, FunDecl, false, Type, VK_LValue, {});
-    return Res;
-
-  } else if (auto *G = dyn_cast<GlobalVariable>(V)) {
-
-    VarDecl *GlobalVarDecl = &Declarator.getGlobalVarDecl(G);
-    QualType Type = GlobalVarDecl->getType();
-    DeclRefExpr *Res = new (ASTCtx)
-      DeclRefExpr(ASTCtx, GlobalVarDecl, false, Type, VK_LValue, {});
+      DeclRefExpr(ASTCtx, Decl, false, Type, VK_LValue, {});
     return Res;
 
   } else if (isa<llvm::ConstantAggregateZero>(V)) {
@@ -1412,15 +1411,17 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
                                           VK_RValue);
 
       clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-      QualType PointeeType;
+
+      TypeDeclOrQualType PointeeType;
+
       if (Load) {
-        PointeeType = Declarator.getOrCreateValueQualType(Load, ASTCtx, TUDecl);
+        PointeeType = Declarator.getOrCreateType(Load, ASTCtx, TUDecl);
       } else {
         Value *Stored = Store->getValueOperand();
-        PointeeType = Declarator.getOrCreateValueQualType(Stored,
-                                                          ASTCtx,
-                                                          TUDecl);
+        PointeeType = Declarator.getOrCreateType(Stored, ASTCtx, TUDecl);
       }
+
+      QualType PointeeQualType = DeclCreator::getQualType(PointeeType);
 
       QualAddrType = AddrExpr->getType();
       const ClangType *AddrTy = QualAddrType.getTypePtr();
@@ -1428,7 +1429,7 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
         revng_assert(AddrTy->isBuiltinType());
         revng_assert(AddrTy->isIntegerType());
 
-        QualType PtrTy = ASTCtx.getPointerType(PointeeType);
+        QualType PtrTy = ASTCtx.getPointerType(PointeeQualType);
         uint64_t PtrSize = ASTCtx.getTypeSize(PtrTy);
         uint64_t IntegerSize = ASTCtx.getTypeSize(AddrTy);
         revng_assert(PtrSize >= IntegerSize);
@@ -1449,7 +1450,7 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
       using Unary = clang::UnaryOperator;
       return new (ASTCtx) Unary(AddrExpr,
                                 UnaryOperatorKind::UO_Deref,
-                                PointeeType,
+                                PointeeQualType,
                                 VK_LValue,
                                 OK_Ordinary,
                                 {},
@@ -1463,10 +1464,11 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
       if (RHSTy != LHSTy) {
         revng_assert(RHSTy->isIntOrPtrTy() and LHSTy->isIntOrPtrTy());
         clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-        QualType DestTy = Declarator.getOrCreateQualType(LHSTy,
-                                                         nullptr,
-                                                         ASTCtx,
-                                                         TUDecl);
+        TypeDeclOrQualType DestTy = Declarator.getOrCreateType(LHSTy,
+                                                               nullptr,
+                                                               ASTCtx,
+                                                               TUDecl);
+        QualType DestQualTy = DeclCreator::getQualType(DestTy);
 
         CastKind CK;
         switch (Cast->getOpcode()) {
@@ -1491,9 +1493,9 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
           ///    reinterpret_cast<int*>(0)
           /// CAST_OPERATION(IntegralToPointer)
           QualType IntQualType = Result->getType();
-          const ClangType *PtrType = DestTy.getTypePtr();
+          const ClangType *PtrType = DestQualTy.getTypePtr();
           revng_assert(PtrType->isPointerType());
-          uint64_t PtrSize = ASTCtx.getTypeSize(DestTy);
+          uint64_t PtrSize = ASTCtx.getTypeSize(DestQualTy);
           uint64_t IntegerSize = ASTCtx.getTypeSize(IntQualType);
           revng_assert(PtrSize >= IntegerSize);
           if (PtrSize > IntegerSize)
@@ -1538,9 +1540,9 @@ Expr *StmtBuilder::getExprForValue(Value *V) {
           revng_abort();
         }
 
-        TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(DestTy);
+        TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(DestQualTy);
         Result = CStyleCastExpr::Create(ASTCtx,
-                                        DestTy,
+                                        DestQualTy,
                                         VK_RValue,
                                         CK,
                                         Result,
@@ -1583,11 +1585,12 @@ Expr *StmtBuilder::getLiteralFromConstant(const llvm::Constant *C) {
   if (auto *CD = dyn_cast<ConstantData>(C)) {
     if (auto *CInt = dyn_cast<ConstantInt>(CD)) {
       clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-      QualType LiteralTy = Declarator.getOrCreateQualType(CInt->getType(),
-                                                          nullptr,
-                                                          ASTCtx,
-                                                          TUDecl);
-      const clang::Type *UnderlyingTy = LiteralTy.getTypePtrOrNull();
+      TypeDeclOrQualType LiteralTy = Declarator.getOrCreateType(CInt->getType(),
+                                                                nullptr,
+                                                                ASTCtx,
+                                                                TUDecl);
+      QualType LiteralQualTy = DeclCreator::getQualType(LiteralTy);
+      const clang::Type *UnderlyingTy = LiteralQualTy.getTypePtrOrNull();
       revng_assert(UnderlyingTy != nullptr);
       // Desugar stdint.h typedefs
       UnderlyingTy = UnderlyingTy->getUnqualifiedDesugaredType();
@@ -1595,12 +1598,12 @@ Expr *StmtBuilder::getLiteralFromConstant(const llvm::Constant *C) {
       switch (BuiltinTy->getKind()) {
       case BuiltinType::Bool: {
         QualType IntT = ASTCtx.IntTy;
-        QualType BoolTy = Declarator.getOrCreateBoolQualType(ASTCtx,
-                                                             C->getType());
+        TypeDeclOrQualType
+          BoolTy = Declarator.getOrCreateBoolType(ASTCtx, C->getType());
         uint64_t ConstValue = CInt->getValue().getZExtValue();
         APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue, true);
         Expr *IntLiteral = IntegerLiteral::Create(ASTCtx, Const, IntT, {});
-        return createCast(BoolTy, IntLiteral, ASTCtx);
+        return createCast(DeclCreator::getQualType(BoolTy), IntLiteral, ASTCtx);
       }
       case BuiltinType::Char_U:
       case BuiltinType::Char_S:
@@ -1633,15 +1636,17 @@ Expr *StmtBuilder::getLiteralFromConstant(const llvm::Constant *C) {
       case BuiltinType::ULong:
       case BuiltinType::ULongLong: {
         uint64_t ConstValue = CInt->getValue().getZExtValue();
-        APInt Const = APInt(ASTCtx.getIntWidth(LiteralTy), ConstValue);
-        return IntegerLiteral::Create(ASTCtx, Const, LiteralTy, {});
+        APInt Const = APInt(ASTCtx.getIntWidth(LiteralQualTy), ConstValue);
+        return IntegerLiteral::Create(ASTCtx, Const, LiteralQualTy, {});
       }
       case BuiltinType::Int:
       case BuiltinType::Long:
       case BuiltinType::LongLong: {
         uint64_t ConstValue = CInt->getValue().getZExtValue();
-        APInt Const = APInt(ASTCtx.getIntWidth(LiteralTy), ConstValue, true);
-        return IntegerLiteral::Create(ASTCtx, Const, LiteralTy, {});
+        APInt Const = APInt(ASTCtx.getIntWidth(LiteralQualTy),
+                            ConstValue,
+                            true);
+        return IntegerLiteral::Create(ASTCtx, Const, LiteralQualTy, {});
       }
       case BuiltinType::UInt128: {
         // With LLVM compiled in debug this asserts whenever ConstValue is

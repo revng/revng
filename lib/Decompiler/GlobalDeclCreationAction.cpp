@@ -29,7 +29,7 @@ void DeclCreator::createGlobalVarDeclUsedByFunction(clang::ASTContext &Context,
   uint64_t UnnamedNum = 0;
   clang::TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
   for (const llvm::GlobalVariable *G : getDirectlyUsedGlobals(*TheF)) {
-    QualType ASTTy = getOrCreateValueQualType(G, Context, *TUDecl);
+    QualType ASTTy = getQualType(getOrCreateType(G, Context, *TUDecl));
 
     std::string VarName = G->getName();
     if (VarName.empty()) {
@@ -64,11 +64,14 @@ void DeclCreator::createGlobalVarDeclUsedByFunction(clang::ASTContext &Context,
           const llvm::ConstantInt *CInt = cast<llvm::ConstantInt>(LLVMInit);
           uint64_t InitValue = CInt->getValue().getZExtValue();
           llvm::APInt InitVal = LLVMInit->getUniqueInteger();
-          auto BoolTy = getOrCreateBoolQualType(Context, G->getType());
+          TypeDeclOrQualType BoolTy = getOrCreateBoolType(Context,
+                                                          G->getType());
           QualType IntT = Context.IntTy;
           auto Const = llvm::APInt(Context.getIntWidth(IntT), InitValue, true);
           Expr *IntLiteral = IntegerLiteral::Create(Context, Const, IntT, {});
-          Init = createCast(BoolTy, IntLiteral, Context);
+          Init = createCast(DeclCreator::getQualType(BoolTy),
+                            IntLiteral,
+                            Context);
         } else if (UnderlyingTy->isIntegerType()
                    and not UnderlyingTy->isPointerType()
                    and not UnderlyingTy->isAnyCharacterType()) {

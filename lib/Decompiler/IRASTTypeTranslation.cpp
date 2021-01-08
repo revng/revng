@@ -48,60 +48,80 @@ DeclCreator::getUniqueTypeNameForDecl(const llvm::Value *NamingValue) const {
   }
 
   if (Result.empty())
-    Result = std::string("type_") + std::to_string(TypeDecls.size());
+    Result = std::string("type_") + std::to_string(Types.size());
 
   return Result;
 }
 
-clang::QualType DeclCreator::getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
-                                                     const llvm::Type *Ty) {
+DeclCreator::TypeDeclOrQualType
+DeclCreator::createBoolType(clang::ASTContext &ASTCtx) {
+  clang::TypedefDecl *BoolTypedefDecl = nullptr;
 
-  clang::QualType Result;
   clang::TranslationUnitDecl *TUDecl = ASTCtx.getTranslationUnitDecl();
   const std::string BoolName = "bool";
   clang::IdentifierInfo &BoolId = ASTCtx.Idents.get(BoolName);
   clang::DeclarationName TypeName(&BoolId);
-  bool Found = false;
+
+  // First, lookup for a typedef called 'bool', if we find it we're do
   for (clang::Decl *D : TUDecl->lookup(TypeName)) {
     if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D)) {
-      const std::string Name = Typedef->getNameAsString();
-      if (Name == "bool") {
-        revng_assert(not Found);
-        insertTypeMapping(Ty, Typedef);
-        Result = ASTCtx.getTypedefType(Typedef);
-        Found = true;
-      }
+      // Assert that we only find one typedef called 'bool'
+      revng_assert(Typedef->getNameAsString() != BoolName
+                   or not BoolTypedefDecl);
+      BoolTypedefDecl = Typedef;
     }
   }
-  if (not Found) {
+
+  // If we haven't found the typedef, create it ourselves
+  if (not BoolTypedefDecl) {
     // C99 actually defines '_Bool', while 'bool' is a MACRO, which expands
     // to '_Bool'. We cheat by injecting a 'typedef _Bool bool;' in the
     // translation unit we're handling, that has already been preprocessed
     clang::CanQualType BoolQType = ASTCtx.BoolTy;
+    revng_assert(not BoolQType.isNull());
     using TSInfo = clang::TypeSourceInfo;
     TSInfo *BoolTypeInfo = ASTCtx.getTrivialTypeSourceInfo(BoolQType);
-    auto *BoolTypedefDecl = clang::TypedefDecl::Create(ASTCtx,
-                                                       TUDecl,
-                                                       {},
-                                                       {},
-                                                       &BoolId,
-                                                       BoolTypeInfo);
-    insertTypeMapping(Ty, BoolTypedefDecl);
+    BoolTypedefDecl = clang::TypedefDecl::Create(ASTCtx,
+                                                 TUDecl,
+                                                 {},
+                                                 {},
+                                                 &BoolId,
+                                                 BoolTypeInfo);
+
+    revng_assert(BoolTypedefDecl,
+                 "'_Bool' type not found!\n"
+                 "This should not happen since we compile as c99\n");
+
     TUDecl->addDecl(BoolTypedefDecl);
-    Result = ASTCtx.getTypedefType(BoolTypedefDecl);
-    return Result;
-    revng_abort("'_Bool' type not found!\n"
-                "This should not happen since we compile as c99\n");
   }
-  return Result;
+
+  return ASTCtx.getTypedefType(BoolTypedefDecl);
 }
 
-clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
-                                                 const llvm::Value *NamingValue,
-                                                 clang::ASTContext &ASTCtx,
-                                                 clang::DeclContext &DeclCtx) {
+DeclCreator::TypeDeclOrQualType
+DeclCreator::getOrCreateBoolType(clang::ASTContext &ASTCtx,
+                                 const llvm::Type *Ty) {
+  // First, look it up, to see if we've already computed it.
+  llvm::Optional<TypeDeclOrQualType> CachedQTy = lookupType(Ty);
+  if (CachedQTy.hasValue())
+    return CachedQTy.getValue();
 
-  clang::QualType Result;
+  // Otherwise, create it right now.
+  TypeDeclOrQualType BoolTypedefDecl = createBoolType(ASTCtx);
+
+  // And add it to the map.
+  insertTypeMapping</* NullableTy */ true>(Ty, BoolTypedefDecl);
+  return BoolTypedefDecl;
+}
+
+DeclCreator::TypeDeclOrQualType
+DeclCreator::createType(const llvm::Type *Ty,
+                        const llvm::Value *NamingValue,
+                        clang::ASTContext &ASTCtx,
+                        clang::DeclContext &DeclCtx) {
+
+  llvm::Optional<TypeDeclOrQualType> Result = llvm::None;
+
   switch (Ty->getTypeID()) {
 
   case llvm::Type::TypeID::IntegerTyID: {
@@ -114,49 +134,71 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
     revng_assert(TUDecl->isLookupContext());
 
     switch (BitWidth) {
+
     case 1: {
-      Result = getOrCreateBoolQualType(ASTCtx, Ty);
+      Result = getOrCreateBoolType(ASTCtx, Ty);
     } break;
+
     case 16: {
       const std::string UInt16Name = "uint16_t";
       clang::IdentifierInfo &Id = ASTCtx.Idents.get(UInt16Name);
       clang::DeclarationName TypeName(&Id);
-      for (clang::Decl *D : TUDecl->lookup(TypeName))
-        if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D))
-          return ASTCtx.getTypedefType(Typedef);
-      revng_abort("'uint16_t' type not found!\n"
-                  "This should not happen since we '#include <stdint.h>'\n"
-                  "Please make sure you have installed the header\n");
+      for (clang::Decl *D : TUDecl->lookup(TypeName)) {
+        if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D)) {
+          revng_assert(not Result.hasValue());
+          Result = ASTCtx.getTypedefType(Typedef);
+        }
+      }
+
+      revng_assert(Result.hasValue(),
+                   "'uint16_t' type not found!\n"
+                   "This should not happen since we '#include <stdint.h>'\n"
+                   "Please make sure you have installed the header\n");
     } break;
+
     case 32: {
       const std::string UInt32Name = "uint32_t";
       clang::IdentifierInfo &Id = ASTCtx.Idents.get(UInt32Name);
       clang::DeclarationName TypeName(&Id);
-      for (clang::Decl *D : TUDecl->lookup(TypeName))
-        if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D))
-          return ASTCtx.getTypedefType(Typedef);
-      revng_abort("'uint32_t' type not found!\n"
-                  "This should not happen since we '#include <stdint.h>'\n"
-                  "Please make sure you have installed the header\n");
+      for (clang::Decl *D : TUDecl->lookup(TypeName)) {
+        if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D)) {
+          revng_assert(not Result.hasValue());
+          Result = ASTCtx.getTypedefType(Typedef);
+        }
+      }
+
+      revng_assert(Result.hasValue(),
+                   "'uint32_t' type not found!\n"
+                   "This should not happen since we '#include <stdint.h>'\n"
+                   "Please make sure you have installed the header\n");
     } break;
+
     case 64: {
       const std::string UInt64Name = "uint64_t";
       clang::IdentifierInfo &Id = ASTCtx.Idents.get(UInt64Name);
       clang::DeclarationName TypeName(&Id);
-      for (clang::Decl *D : TUDecl->lookup(TypeName))
-        if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D))
-          return ASTCtx.getTypedefType(Typedef);
-      revng_abort("'uint64_t' type not found!\n"
-                  "This should not happen since we '#include <stdint.h>'\n"
-                  "Please make sure you have installed the header\n");
+      for (clang::Decl *D : TUDecl->lookup(TypeName)) {
+        if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D)) {
+          revng_assert(not Result.hasValue());
+          Result = ASTCtx.getTypedefType(Typedef);
+        }
+      }
+
+      revng_assert(Result.hasValue(),
+                   "'uint64_t' type not found!\n"
+                   "This should not happen since we '#include <stdint.h>'\n"
+                   "Please make sure you have installed the header\n");
     } break;
+
     case 8:
       // use char for strict aliasing reasons
+      [[fallthrough]];
     case 128:
       // use builtin clang types (__int128_t and __uint128_t), because C99 does
       // not require to have 128 bit integer types
       Result = ASTCtx.getIntTypeForBitwidth(BitWidth, /* Signed */ false);
       break;
+
     default:
       revng_abort("unexpected integer size");
     }
@@ -165,11 +207,11 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
   case llvm::Type::TypeID::PointerTyID: {
     const llvm::PointerType *PtrTy = llvm::cast<llvm::PointerType>(Ty);
     const llvm::Type *PointeeTy = PtrTy->getElementType();
-    clang::QualType PointeeType = getOrCreateQualType(PointeeTy,
-                                                      nullptr,
-                                                      ASTCtx,
-                                                      DeclCtx);
-    Result = ASTCtx.getPointerType(PointeeType);
+    TypeDeclOrQualType PointeeType = getOrCreateType(PointeeTy,
+                                                     nullptr,
+                                                     ASTCtx,
+                                                     DeclCtx);
+    Result = ASTCtx.getPointerType(getQualType(PointeeType));
   } break;
 
   case llvm::Type::TypeID::VoidTyID:
@@ -178,10 +220,6 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
   } break;
 
   case llvm::Type::TypeID::StructTyID: {
-    if (auto *TDecl = getTypeDeclOrNull(Ty)) {
-      Result = clang::QualType(TDecl->getTypeForDecl(), 0);
-      break;
-    }
 
     std::string TypeName = getUniqueTypeNameForDecl(NamingValue);
     clang::IdentifierInfo &TypeId = ASTCtx.Idents.get(TypeName);
@@ -192,7 +230,6 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
                                              clang::SourceLocation{},
                                              &TypeId,
                                              nullptr);
-    insertTypeMapping(Ty, Struct);
     Struct->startDefinition();
     const auto *StructTy = llvm::cast<llvm::StructType>(Ty);
     for (auto &Group : llvm::enumerate(StructTy->elements())) {
@@ -203,10 +240,11 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
         Result = ASTCtx.VoidTy;
         break;
       }
-      clang::QualType QFieldTy = getOrCreateQualType(Group.value(),
-                                                     nullptr,
-                                                     ASTCtx,
-                                                     DeclCtx);
+      TypeDeclOrQualType FTy = getOrCreateType(Group.value(),
+                                               nullptr,
+                                               ASTCtx,
+                                               DeclCtx);
+      clang::QualType QFieldTy = DeclCreator::getQualType(FTy);
       clang::TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(QFieldTy);
       const std::string FieldName = std::string("field_")
                                     + std::to_string(Group.index());
@@ -224,7 +262,7 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
       Struct->addDecl(Field);
     }
     Struct->completeDefinition();
-    Result = clang::QualType(Struct->getTypeForDecl(), 0);
+    Result = Struct;
   } break;
   case llvm::Type::TypeID::ArrayTyID:
   case llvm::Type::TypeID::FunctionTyID:
@@ -240,7 +278,28 @@ clang::QualType DeclCreator::getOrCreateQualType(const llvm::Type *Ty,
   case llvm::Type::TypeID::PPC_FP128TyID:
     revng_abort("unsupported type");
   }
-  revng_assert(not Result.isNull());
+
+  revng_assert(Result.hasValue());
+  revng_assert(not DeclCreator::getQualType(Result.getValue()).isNull());
+  return Result.getValue();
+}
+
+DeclCreator::TypeDeclOrQualType
+DeclCreator::getOrCreateType(const llvm::Type *Ty,
+                             const llvm::Value *NamingValue,
+                             clang::ASTContext &ASTCtx,
+                             clang::DeclContext &DeclCtx) {
+
+  // First, look it up, to see if we've already computed it.
+  llvm::Optional<TypeDeclOrQualType> CachedQTy = lookupType(Ty);
+  if (CachedQTy.hasValue())
+    return CachedQTy.getValue();
+
+  // Otherwise, create it
+  TypeDeclOrQualType Result = createType(Ty, NamingValue, ASTCtx, DeclCtx);
+
+  // Then insert it in the type mapping and return it.
+  insertTypeMapping(Ty, Result);
   return Result;
 }
 
@@ -302,19 +361,20 @@ DeclCreator::getPointedLayouts(const llvm::Value *V) const {
   return Result;
 }
 
-llvm::Optional<clang::QualType>
-DeclCreator::getOrCreateDLAQualType(const llvm::Value *V,
-                                    clang::ASTContext &ASTCtx,
-                                    clang::DeclContext &DeclCtx) {
+llvm::Optional<DeclCreator::TypeDeclOrQualType>
+DeclCreator::getOrCreateDLAType(const llvm::Value *V,
+                                clang::ASTContext &ASTCtx,
+                                clang::DeclContext &DeclCtx) {
   revng_assert(V);
 
-  llvm::Optional<clang::QualType> Result;
+  // First, look it up, to see if we've already computed it.
+  llvm::Optional<TypeDeclOrQualType> CachedQTy = lookupType(V);
+  if (CachedQTy.hasValue())
+    return CachedQTy.getValue();
 
-  if (auto It = ValueQualTypes.find(V); It != ValueQualTypes.end()) {
+  llvm::Optional<TypeDeclOrQualType> Result = llvm::None;
 
-    return Result = It->second;
-
-  } else if (ValueLayouts) {
+  if (ValueLayouts) {
 
     auto PointedLayouts = getPointedLayouts(V);
 
@@ -328,10 +388,10 @@ DeclCreator::getOrCreateDLAQualType(const llvm::Value *V,
         // V has a scalar type, which is a pointer to the PointedLayout.
         const dla::Layout *PointedLayout = PointedLayouts.front();
         revng_assert(PointedLayout);
-        clang::QualType LayoutTy = getOrCreateQualTypeFromLayout(PointedLayout,
-                                                                 ASTCtx,
-                                                                 LLVMCtx);
-        Result = ASTCtx.getPointerType(LayoutTy);
+        TypeDeclOrQualType LTy = getOrCreateTypeFromLayout(PointedLayout,
+                                                           ASTCtx,
+                                                           LLVMCtx);
+        Result = ASTCtx.getPointerType(DeclCreator::getQualType(LTy));
 
       } else {
 
@@ -352,24 +412,24 @@ DeclCreator::getOrCreateDLAQualType(const llvm::Value *V,
                                                  clang::SourceLocation{},
                                                  &TypeId,
                                                  nullptr);
-        TypeDecls.push_back(Struct);
-
         // Define the fields.
         Struct->startDefinition();
 
         for (const auto &Group : llvm::enumerate(PointedLayouts)) {
           // Create the type decl for the PointerLayout.
-          clang::QualType LayoutTy;
+          TypeDeclOrQualType LayoutTy;
           if (const dla::Layout *PointedLayout = Group.value()) {
-            LayoutTy = getOrCreateQualTypeFromLayout(PointedLayout,
-                                                     ASTCtx,
-                                                     LLVMCtx);
+            LayoutTy = getOrCreateTypeFromLayout(PointedLayout,
+                                                 ASTCtx,
+                                                 LLVMCtx);
           } else {
             // If we don't have information about the type of this field from
             // the DLA we just say it's a pointer to void.
             LayoutTy = ASTCtx.VoidTy;
           }
-          clang::QualType FieldPtrTy = ASTCtx.getPointerType(LayoutTy);
+
+          clang::QualType LayoutQualTy = DeclCreator::getQualType(LayoutTy);
+          clang::QualType FieldPtrTy = ASTCtx.getPointerType(LayoutQualTy);
 
           clang::TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(FieldPtrTy);
           const std::string FieldName = std::string("field_")
@@ -390,29 +450,26 @@ DeclCreator::getOrCreateDLAQualType(const llvm::Value *V,
 
         Struct->completeDefinition();
 
-        Result = clang::QualType(Struct->getTypeForDecl(), 0);
+        Result = Struct;
       }
     }
   }
 
-  // If we found a DLA type add it to the map and we're done.
-  if (Result.hasValue()) {
-    const auto &[_, New] = ValueQualTypes.insert({ V, Result.getValue() });
-    revng_assert(New);
-  }
+  if (Result.hasValue())
+    insertTypeMapping(V, Result.getValue());
 
   return Result;
 }
 
-clang::QualType
-DeclCreator::getOrCreateValueQualType(const llvm::Value *V,
-                                      clang::ASTContext &ASTCtx,
-                                      clang::DeclContext &DeclCtx) {
+DeclCreator::TypeDeclOrQualType
+DeclCreator::getOrCreateType(const llvm::Value *V,
+                             clang::ASTContext &ASTCtx,
+                             clang::DeclContext &DeclCtx) {
   revng_assert(V);
 
-  llvm::Optional<clang::QualType> Result = getOrCreateDLAQualType(V,
-                                                                  ASTCtx,
-                                                                  DeclCtx);
+  llvm::Optional<TypeDeclOrQualType> Result = getOrCreateDLAType(V,
+                                                                 ASTCtx,
+                                                                 DeclCtx);
   if (Result.hasValue())
     return Result.getValue();
 
@@ -424,9 +481,5 @@ DeclCreator::getOrCreateValueQualType(const llvm::Value *V,
     VType = GlobalPtrTy->getElementType();
   }
 
-  Result = getOrCreateQualType(VType, V, ASTCtx, DeclCtx);
-
-  const auto &[_, New] = ValueQualTypes.insert({ V, Result.getValue() });
-  revng_assert(New);
-  return Result.getValue();
+  return getOrCreateType(VType, V, ASTCtx, DeclCtx);
 }

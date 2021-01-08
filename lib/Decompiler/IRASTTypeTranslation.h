@@ -44,48 +44,101 @@ public:
   using GlobalDeclMap = std::map<const llvm::GlobalObject *,
                                  clang::DeclaratorDecl *>;
 
-  using Typeable = std::variant<const llvm::Type *, const llvm::Value *>;
-  using TypeDeclVec = std::vector<clang::TypeDecl *>;
-  using TypeDeclMap = std::map<Typeable, TypeDeclVec::size_type>;
+  using TypeDeclOrQualType = std::variant<clang::TypeDecl *, clang::QualType>;
+  using TypeVec = std::vector<TypeDeclOrQualType>;
+
+  static clang::QualType getQualType(const TypeDeclOrQualType &T) {
+
+    struct QualTypeGetter {
+
+      clang::QualType operator()(clang::TypeDecl *TD) const {
+        return clang::QualType(TD->getTypeForDecl(), 0);
+      }
+
+      clang::QualType operator()(clang::QualType QT) const { return QT; }
+    };
+
+    return std::visit(QualTypeGetter{}, T);
+  }
+
+  static clang::TypeDecl *getTypeDecl(const TypeDeclOrQualType &T) {
+
+    struct TypeDeclGetter {
+
+      clang::TypeDecl *operator()(clang::TypeDecl *TD) const { return TD; }
+
+      clang::TypeDecl *operator()(clang::QualType QT) const { return nullptr; }
+    };
+
+    return std::visit(TypeDeclGetter{}, T);
+  }
+
+private:
+  template<typename... Args>
+  using variant = std::variant<Args...>;
+
+public:
+  using Typeable = variant<const llvm::Type *,
+                           const llvm::Value *,
+                           const dla::Layout *>;
+  using TypeDeclMap = std::map<Typeable, TypeVec::size_type>;
 
 public:
   DeclCreator(const dla::ValueLayoutMap *LM) :
-    ValueLayouts(LM),
-    LayoutQualTypes(),
-    TypeDecls(),
-    TypeDeclsMap(),
-    ValueQualTypes(),
-    GlobalDecls() {}
+    ValueLayouts(LM), Types(), TypeDeclsMap(), GlobalDecls() {}
 
 public:
-  const auto &typeDeclMap() const { return TypeDeclsMap; }
-  const auto &typeDecls() const { return TypeDecls; }
+  const auto &types() const { return Types; }
   const auto &globalDecls() const { return GlobalDecls; }
 
 public:
-  clang::QualType getOrCreateBoolQualType(clang::ASTContext &ASTCtx,
-                                          const llvm::Type *Ty = nullptr);
+  TypeDeclOrQualType getOrCreateBoolType(clang::ASTContext &ASTCtx,
+                                         const llvm::Type *Ty = nullptr);
 
-  clang::QualType getOrCreateValueQualType(const llvm::Value *V,
-                                           clang::ASTContext &ASTCtx,
-                                           clang::DeclContext &DeclCtx);
+  TypeDeclOrQualType getOrCreateType(const llvm::Value *V,
+                                     clang::ASTContext &ASTCtx,
+                                     clang::DeclContext &DeclCtx);
 
-  clang::QualType getOrCreateQualType(const llvm::Type *T,
-                                      const llvm::Value *NamingValue,
-                                      clang::ASTContext &ASTCtx,
-                                      clang::DeclContext &DeclCtx);
+  TypeDeclOrQualType getOrCreateType(const llvm::Type *T,
+                                     const llvm::Value *NamingValue,
+                                     clang::ASTContext &ASTCtx,
+                                     clang::DeclContext &DeclCtx);
 
   llvm::SmallVector<const dla::Layout *, 16>
   getPointedLayouts(const llvm::Value *V) const;
 
-  llvm::Optional<clang::QualType>
-  getOrCreateDLAQualType(const llvm::Value *V,
-                         clang::ASTContext &ASTCtx,
-                         clang::DeclContext &DeclCtx);
+  llvm::Optional<TypeDeclOrQualType>
+  getOrCreateDLAType(const llvm::Value *V,
+                     clang::ASTContext &ASTCtx,
+                     clang::DeclContext &DeclCtx);
 
-  clang::QualType getOrCreateQualTypeFromLayout(const dla::Layout *L,
-                                                clang::ASTContext &ClangCtx,
-                                                llvm::LLVMContext &LLVMCtx);
+  TypeDeclOrQualType getOrCreateTypeFromLayout(const dla::Layout *L,
+                                               clang::ASTContext &ClangCtx,
+                                               llvm::LLVMContext &LLVMCtx);
+
+  clang::FunctionDecl &getFunctionDecl(const llvm::Function *F) {
+    return *cast<clang::FunctionDecl>(globalDecls().at(F));
+  }
+
+  clang::TypeDecl *lookupTypeDeclOrNull(const Typeable &V) const {
+
+    auto It = TypeDeclsMap.find(V);
+    if (It == TypeDeclsMap.end())
+      return nullptr;
+
+    return getTypeDecl(Types.at(It->second));
+  }
+
+  llvm::Optional<TypeDeclOrQualType> lookupType(const Typeable &V) const {
+
+    auto It = TypeDeclsMap.find(V);
+    if (It == TypeDeclsMap.end())
+      return llvm::None;
+
+    return Types.at(It->second);
+  }
+
+  // ---- Functions to call from outside to build global declarations ----
 
   void createTypeDeclsForFunctionPrototype(clang::ASTContext &C,
                                            const llvm::Function *TheF);
@@ -97,42 +150,38 @@ public:
                                          const llvm::Function *TheF,
                                          IR2AST::StmtBuilder &ASTBuilder);
 
-  clang::FunctionDecl &getFunctionDecl(const llvm::Function *F) {
-    return *cast<clang::FunctionDecl>(globalDecls().at(F));
-  }
-
-  clang::VarDecl &getGlobalVarDecl(const llvm::GlobalVariable *G) {
-    return *cast<clang::VarDecl>(globalDecls().at(G));
-  }
-
-  clang::TypeDecl *getTypeDeclOrNull(const Typeable &V) const {
-
-    auto It = TypeDeclsMap.find(V);
-    if (It == TypeDeclsMap.end())
-      return nullptr;
-
-    return TypeDecls.at(It->second);
-  }
-
+protected:
   std::string getUniqueTypeNameForDecl(const llvm::Value *NamingValue) const;
 
 protected:
-  bool insertTypeMapping(const Typeable &V, clang::TypeDecl *TDecl) {
+  template<bool NullableTy = false>
+  bool insertTypeMapping(const Typeable &V, const TypeDeclOrQualType TDecl) {
 
-    const auto GetPtr = [](const auto *Ptr) -> const void * { return Ptr; };
+    if constexpr (not NullableTy) {
+      const auto GetPtr = [](const auto *Ptr) -> const void * { return Ptr; };
+      revng_assert(nullptr != std::visit(GetPtr, V));
+    }
 
-    if (nullptr == std::visit(GetPtr, V) or nullptr == TDecl)
-      return false;
-
-    auto NewID = TypeDecls.size();
+    auto NewID = Types.size();
     const auto &[It, NewInsert] = TypeDeclsMap.insert({ V, NewID });
-    revng_assert(NewInsert or TypeDecls.at(It->second) == TDecl);
+    revng_assert(NewInsert or Types.at(It->second) == TDecl);
 
     if (NewInsert)
-      TypeDecls.push_back(TDecl);
+      Types.push_back(TDecl);
 
     return NewInsert;
   }
+
+  TypeDeclOrQualType createTypeFromLayout(const dla::Layout *L,
+                                          clang::ASTContext &ClangCtx,
+                                          llvm::LLVMContext &LLVMCtx);
+
+  TypeDeclOrQualType createBoolType(clang::ASTContext &ASTCtx);
+
+  TypeDeclOrQualType createType(const llvm::Type *Ty,
+                                const llvm::Value *NamingValue,
+                                clang::ASTContext &ASTCtx,
+                                clang::DeclContext &DeclCtx);
 
   clang::FunctionDecl *createFunDecl(clang::ASTContext &Context,
                                      const llvm::Function *F,
@@ -140,10 +189,9 @@ protected:
 
 private:
   const dla::ValueLayoutMap *ValueLayouts;
-  std::map<const dla::Layout *, clang::QualType> LayoutQualTypes;
-  TypeDeclVec TypeDecls;
+
+  TypeVec Types;
   TypeDeclMap TypeDeclsMap;
-  ValueQualTypeMap ValueQualTypes;
   GlobalDeclMap GlobalDecls;
 
 }; // end class DeclCreator
