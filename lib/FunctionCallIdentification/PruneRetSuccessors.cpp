@@ -16,7 +16,7 @@ using Register = RegisterPass<PruneRetSuccessors>;
 static Register X("prs", "Prune Ret Successors", true, true);
 
 bool PruneRetSuccessors::runOnModule(llvm::Module &M) {
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   auto &FCI = getAnalysis<FunctionCallIdentification>();
 
   for (BasicBlock &BB : *GCBI.root()) {

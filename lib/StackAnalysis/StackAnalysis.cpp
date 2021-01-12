@@ -71,7 +71,7 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
 
   revng_log(PassesLog, "Starting StackAnalysis");
 
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
   // The stack analysis works function-wise. We consider two sets of functions:
   // first (Force == true) those that are highly likely to be real functions
@@ -132,7 +132,7 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
   // call)
   for (CFEP &Function : Functions) {
     if (Function.Force) {
-      auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+      auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
       InterproceduralAnalysis SA(TheCache, GCBI, AnalyzeABI);
       SA.run(Function.Entry, Results);
     }
@@ -143,7 +143,7 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
   std::set<BasicBlock *> Visited = Results.visitedBlocks();
   for (CFEP &Function : Functions) {
     if (not Function.Force and Visited.count(Function.Entry) == 0) {
-      auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+      auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
       InterproceduralAnalysis SA(TheCache, GCBI, AnalyzeABI);
       SA.run(Function.Entry, Results);
     }
@@ -220,7 +220,7 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
   // single shot at the end
   std::map<Instruction *, std::vector<Metadata *>> MemberOf;
 
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
   // Loop over all the detected functions
   for (const auto &P : Summary.Functions) {
