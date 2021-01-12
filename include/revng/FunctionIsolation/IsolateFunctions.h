@@ -21,6 +21,6 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
-    AU.addRequired<GeneratedCodeBasicInfo>();
+    AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
   }
 };

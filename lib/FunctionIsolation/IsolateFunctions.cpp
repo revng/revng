@@ -1243,7 +1243,7 @@ void IFI::run() {
 bool IF::runOnModule(Module &TheModule) {
 
   // Retrieve analysis of the GeneratedCodeBasicInfo pass
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
   // Create an object of type IsolateFunctionsImpl and run the pass
   IFI Impl(TheModule.getFunction("root"), GCBI);

@@ -24,7 +24,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   revng_log(PassesLog, "Starting FunctionCallIdentification");
 
   llvm::Function &F = *M.getFunction("root");
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
   FallthroughAddresses.clear();
 
@@ -291,7 +291,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
 }
 
 void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
   // We have to create a view on the CFG where:
   //
