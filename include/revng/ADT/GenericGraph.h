@@ -92,7 +92,7 @@ public:
 
 public:
   static Inheritor *&getNeighbor(Edge &E) { return E.Neighbor; }
-  static const Inheritor *&getConstNeighbor(const Edge &E) {
+  static const Inheritor *const &getConstNeighbor(const Edge &E) {
     return E.Neighbor;
   }
 
@@ -106,7 +106,7 @@ private:
 public:
   using NeighborContainer = llvm::SmallVector<Edge, SmallSize>;
   using child_iterator = llvm::mapped_iterator<Edge *, iterator_filter>;
-  using const_child_iterator = llvm::mapped_iterator<Edge *,
+  using const_child_iterator = llvm::mapped_iterator<const Edge *,
                                                      const_iterator_filter>;
   using edge_iterator = typename NeighborContainer::iterator;
   using const_edge_iterator = typename NeighborContainer::const_iterator;
@@ -152,14 +152,16 @@ public:
   }
 
 protected:
-  template<typename T>
-  static llvm::iterator_range<child_iterator> toNeighborRange(T &Neighbors) {
+  static llvm::iterator_range<child_iterator>
+  toNeighborRange(NeighborContainer &Neighbors) {
     auto Range = llvm::make_range(Neighbors.begin(), Neighbors.end());
-    if constexpr (std::is_const_v<T>) {
-      return llvm::map_range(Range, &getConstNeighbor);
-    } else {
-      return llvm::map_range(Range, &getNeighbor);
-    }
+    return llvm::map_range(Range, &getNeighbor);
+  }
+
+  static llvm::iterator_range<const_child_iterator>
+  toNeighborRange(const NeighborContainer &Neighbors) {
+    auto Range = llvm::make_range(Neighbors.begin(), Neighbors.end());
+    return llvm::map_range(Range, &getConstNeighbor);
   }
 
 private:
