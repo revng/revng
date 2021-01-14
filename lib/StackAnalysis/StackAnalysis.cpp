@@ -51,6 +51,12 @@ static opt<std::string> StackAnalysisOutputPath("stack-analysis-output",
                                                 value_desc("path"),
                                                 cat(MainCategory));
 
+static opt<bool> UseFunctionSymbols("use-function-symbols",
+                                    desc("Use function symbols in CFEP "
+                                         "election"),
+                                    cat(MainCategory),
+                                    init(false));
+
 } // namespace
 
 template<>
@@ -102,18 +108,28 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
     bool IsReturnAddress = hasReason(Reasons, JTReason::ReturnAddress);
     bool IsLoadAddress = hasReason(Reasons, JTReason::LoadAddress);
 
-    if (IsFunctionSymbol or IsCallee) {
-      // Called addresses are a strong hint
-      Functions.emplace_back(&BB, true);
-    } else if (not IsLoadAddress
-               and (IsUnusedGlobalData
-                    || (IsMemoryStore and not IsPCStore
-                        and not IsReturnAddress))) {
-      // TODO: keep IsReturnAddress?
-      // Consider addresses found in global data that have not been used or
-      // addresses that are not return addresses and do not end up in the PC
-      // directly.
-      Functions.emplace_back(&BB, false);
+    if (UseFunctionSymbols) {
+
+      // Rely only on debug symbols to elect CFEPs.
+      if (IsFunctionSymbol) {
+        Functions.emplace_back(&BB, true);
+      }
+    } else {
+
+      // Do the classic stuff.
+      if (IsFunctionSymbol or IsCallee) {
+        // Called addresses are a strong hint
+        Functions.emplace_back(&BB, true);
+      } else if (not IsLoadAddress
+                 and (IsUnusedGlobalData
+                      || (IsMemoryStore and not IsPCStore
+                          and not IsReturnAddress))) {
+        // TODO: keep IsReturnAddress?
+        // Consider addresses found in global data that have not been used or
+        // addresses that are not return addresses and do not end up in the PC
+        // directly.
+        Functions.emplace_back(&BB, false);
+      }
     }
   }
 
