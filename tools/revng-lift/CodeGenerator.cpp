@@ -972,6 +972,26 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   NamedMDNode *InputArchMD = TheModule->getOrInsertNamedMetadata(MDName);
   InputArchMD->addOperand(Tuple);
 
+  // Create revng.input.function-labels metadata
+  MDName = "revng.input.symbol-labels";
+  NamedMDNode *FunctionLabelsMD = TheModule->getOrInsertNamedMetadata(MDName);
+  for (auto &P : Binary.labels()) {
+    for (const Label *L : P.second) {
+      if (L->isSymbol()) {
+        revng_assert(L != nullptr);
+        llvm::StringRef SymbolName = L->symbolName();
+        SymbolType::Values Type = L->symbolType();
+        uint64_t Start = L->address().address();
+        uint64_t Size = L->size();
+        std::array<Metadata *, 4> Entry = { QMD.get(SymbolName),
+                                            QMD.get(SymbolType::getName(Type)),
+                                            QMD.get(Start),
+                                            QMD.get(Size) };
+        FunctionLabelsMD->addOperand(QMD.tuple(Entry));
+      }
+    }
+  }
+
   // Create an instance of JumpTargetManager
   JumpTargetManager JumpTargets(MainFunction,
                                 PCH.get(),
