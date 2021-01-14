@@ -647,10 +647,22 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
 
     for (Instruction &I : *BB) {
       // Skip calls to `revng_scev_barrier_*`
+      // FIXME: calls to revng_scev_barrier_* should eventually be removed after
+      // using them and before actually generating C code for them.
       if (auto *Call = dyn_cast<CallInst>(&I)) {
-        llvm::StringRef CalleeName = Call->getCalledFunction()->getName();
-        if (CalleeName.startswith("revng_scev_barrier_"))
-          continue;
+        if (Call->getType()->isIntOrPtrTy()) {
+
+          const llvm::Type *BarrierTy = Call->getType();
+          const std::string BarrierName = makeSCEVBarrierName(BarrierTy);
+          const llvm::Function *SCEVBarrier = Call->getCalledFunction();
+
+          if (SCEVBarrier->getName().str() == BarrierName) {
+            revng_assert(SCEVBarrier->arg_size() == 1);
+            InstrStmts[&I] = getExprForValue(Call->getArgOperand(0));
+
+            continue;
+          }
+        }
       }
 
       // We don't build clang's AST expressions for PHINodes nor for

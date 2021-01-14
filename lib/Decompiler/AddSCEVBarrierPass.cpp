@@ -22,7 +22,7 @@ struct AddSCEVBarrierPass : public llvm::FunctionPass {
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addUsedIfAvailable<MarkForSerializationPass>();
-    AU.setPreservesCFG(); // Only the CFG is preserved, because we insert calls.
+    AU.setPreservesAll(); // Only the CFG is preserved, because we insert calls.
   }
 };
 

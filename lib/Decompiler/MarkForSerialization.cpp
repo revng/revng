@@ -102,9 +102,20 @@ Analysis::InterruptType Analysis::transfer(const llvm::BasicBlock *BB) {
       // StoreInst and CallInst that are not pure always have side effects.
       ToSerialize[&I].set(HasSideEffects);
       revng_log(MarkLog, "Instr HasSideEffects");
+
+      // Also, force calls to revng_init_local_sp to behave like if they had
+      // many uses, so that they generate a local variable.
+      if (auto *Call = dyn_cast<CallInst>(&I)) {
+        llvm::StringRef CalleeName = Call->getCalledFunction()->getName();
+        if (CalleeName == "revng_init_local_sp") {
+          ToSerialize[&I].set(HasManyUses);
+          revng_log(MarkLog, "Instr HasManyUses");
+        }
+      }
     }
 
     switch (I.getNumUses()) {
+
     case 1: {
       User *U = I.uses().begin()->getUser();
       Instruction *UserI = cast<Instruction>(U);
@@ -113,8 +124,6 @@ Analysis::InterruptType Analysis::transfer(const llvm::BasicBlock *BB) {
       if (NBBDuplicates < UserNDuplicates) {
         ToSerialize[&I].set(HasDuplicatedUses);
         revng_log(MarkLog, "Instr HasDuplicatedUses");
-      } else {
-        Pending.insert(&I);
       }
     } break;
 
