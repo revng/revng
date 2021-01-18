@@ -402,7 +402,7 @@ DeclCreator::getOrCreateDLAType(const llvm::Value *V,
         // The field of a struct has a pointer type and points to a Layout that
         // is described by the mapped value in ValueLayouts.
 
-        // Creat the struct
+        // Create the struct
         std::string TypeName = getUniqueTypeNameForDecl(nullptr);
         clang::IdentifierInfo &TypeId = ASTCtx.Idents.get(TypeName);
         auto *Struct = clang::RecordDecl::Create(ASTCtx,
