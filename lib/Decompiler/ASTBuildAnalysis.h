@@ -44,8 +44,8 @@ namespace IR2AST {
 using AllocaVarDeclMap = std::map<const llvm::AllocaInst *, clang::VarDecl *>;
 using BBLabelsMap = std::map<llvm::BasicBlock *, clang::LabelDecl *>;
 using DeclMap = std::map<const llvm::Value *, clang::VarDecl *>;
-using StmtMap = std::map<llvm::Instruction *, clang::Stmt *>;
-using StmtMultiMap = std::map<llvm::Instruction *,
+using StmtMap = std::map<const llvm::Instruction *, clang::Stmt *>;
+using StmtMultiMap = std::map<const llvm::Instruction *,
                               llvm::SmallVector<clang::Stmt *, 2>>;
 
 class StmtBuilder {
@@ -89,7 +89,7 @@ public:
 
   void createAST(llvm::Function &F, clang::FunctionDecl &FD);
 
-  clang::Expr *getExprForValue(llvm::Value *V);
+  clang::Expr *getExprForValue(const llvm::Value *V);
   clang::Expr *getUIntLiteral(uint64_t U);
   clang::Expr *getBoolLiteral(bool V);
   clang::Expr *getLiteralFromConstant(const llvm::Constant *C);
@@ -106,9 +106,21 @@ private:
   clang::VarDecl *createVarDecl(llvm::Constant *I,
                                 llvm::Value *NamingVal,
                                 clang::FunctionDecl &FD);
+  clang::Expr *buildPointerArithmeticExpr(llvm::Instruction &I);
   clang::Stmt *buildStmt(llvm::Instruction &I);
   clang::Expr *createRValueExprForBinaryOperator(llvm::Instruction &I);
-  clang::Expr *getParenthesizedExprForValue(llvm::Value *V);
+  clang::Expr *getParenthesizedExprForValue(const llvm::Value *V);
+
+public:
+  struct LayoutChildInfo {
+    const dla::Layout *Parent;
+    unsigned ChildId;
+  };
+
+private:
+  clang::Expr *getMemberAccessExpr(clang::Expr *BaseExpr,
+                                   const LayoutChildInfo &ChildInfo,
+                                   bool IsArrow);
 
 private:
   clang::VarDecl *LoopStateVarDecl = nullptr;
