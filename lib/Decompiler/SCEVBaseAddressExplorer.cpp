@@ -102,8 +102,9 @@ SCEVBaseAddressExplorer::findBases(llvm::ScalarEvolution *SE,
             // something meaningful about the type it points to.
             // So we just treat them if they are never never addresses that
             // point to a type.
-            if (not isCallToIsolated(UVal))
-              AddrSCEV = nullptr;
+            if (auto *Call = dyn_cast<llvm::CallInst>(UVal))
+              if (not isCallToIsolated(Call))
+                AddrSCEV = nullptr;
           }
         }
       }
