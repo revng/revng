@@ -318,11 +318,25 @@ void IFI::replaceFunctionCall(StackAnalysis::BranchType::Values BranchType,
   //
   Function *TargetFunction = nullptr;
   bool IsNoReturn = false;
-  if (IsIndirect) {
+
+  // Hack: handle calls through the `.plt` as calls to the function dispatcher.
+  Instruction *Terminator = nullptr;
+  Metadata *MDNode = nullptr;
+
+  // This is needed since we may be analyzing and indirect call.
+  if (Callee != nullptr) {
+    Instruction *Terminator = Callee->getTerminator();
+    Metadata *MDNode = Terminator->getMetadata("revng.func.entry");
+  }
+
+  // Emit a call to the function dispatcher both if we have an indirect call or
+  // if we are ignoring calls through the `.plt`.
+  bool IsPltCall = MDNode == nullptr;
+  if (IsIndirect or IsPltCall) {
     TargetFunction = FunctionDispatcher;
   } else {
-    Instruction *Terminator = Callee->getTerminator();
-    auto *Node = cast<MDTuple>(Terminator->getMetadata("revng.func.entry"));
+    revng_assert(Terminator != nullptr);
+    auto *Node = cast<MDTuple>(MDNode);
     auto *NameMD = cast<MDString>(&*Node->getOperand(0));
     IsolatedFunctionDescriptor &TargetDescriptor = Functions.at(NameMD);
 
@@ -379,7 +393,7 @@ void IFI::replaceFunctionCall(StackAnalysis::BranchType::Values BranchType,
 
   // Emit the function call
   CallInst *NewCall = nullptr;
-  if (IsIndirect)
+  if (IsIndirect or IsPltCall)
     NewCall = Builder.CreateCall(TargetFunction, { ExternalFunctionName });
   else
     NewCall = Builder.CreateCall(TargetFunction);
