@@ -336,14 +336,14 @@ DeclCreator::getPointedLayouts(const llvm::Value *V) const {
     } else {
 
       // If we find more than one entry in ValueLayouts associated with V, it
-      // means that V ha either a struct type, or it is a function that
+      // means that V either has a struct type, or it is a function that
       // returns a struct type.
       // Each entry in ValueLayouts corresponds to a field of a struct.
       // The field of a struct has a pointer type and points to a Layout that
       // is described by the mapped value in ValueLayouts.
 
       // TODO: we might be losing fields at the end of the struct.
-      auto LastFieldId = std::prev(FItBegin)->first.fieldNum();
+      auto LastFieldId = std::prev(FItEnd)->first.fieldNum();
       revng_assert(LastFieldId != dla::LayoutTypePtr::fieldNumNone);
       for (decltype(LastFieldId) FieldId = 0; FieldId <= LastFieldId;
            ++FieldId) {
