@@ -1297,21 +1297,22 @@ Expr *StmtBuilder::createRValueExprForBinaryOperator(Instruction &I) {
   auto BinOpKind = getClangBinaryOpKind(I,
                                         LHS->getType().getTypePtr(),
                                         RHS->getType().getTypePtr());
+  unsigned OpCode = I.getOpcode();
+  clang::QualType ResTy = (OpCode == Instruction::ICmp) ? ASTCtx.BoolTy :
+                                                          LHS->getType();
   Expr *Res = new (ASTCtx) clang::BinaryOperator(LHS,
                                                  RHS,
                                                  BinOpKind,
-                                                 LHS->getType(),
+                                                 ResTy,
                                                  VK_RValue,
                                                  OK_Ordinary,
                                                  {},
                                                  FPOptions());
 
-  unsigned OpCode = I.getOpcode();
   switch (OpCode) {
   case Instruction::SDiv:
   case Instruction::SRem:
-  case Instruction::AShr:
-  case Instruction::ICmp: {
+  case Instruction::AShr: {
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
     TypeDeclOrQualType ResType = Declarator.getOrCreateType(&I, ASTCtx, TUDecl);
     Res = new (ASTCtx) ParenExpr({}, {}, Res);
