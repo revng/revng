@@ -370,14 +370,17 @@ void IFI::replaceFunctionCall(StackAnalysis::BranchType::Values BranchType,
     revng_assert(not IsIndirect);
     break;
   case StackAnalysis::BranchType::IndirectCall:
-    revng_assert(IsIndirect);
+    revng_assert(IsIndirect or IsPltCall);
     break;
   case StackAnalysis::BranchType::IndirectTailCall:
-    revng_assert(IsIndirect);
+    revng_assert(IsIndirect or IsPltCall);
     break;
   case StackAnalysis::BranchType::Killer:
   case StackAnalysis::BranchType::LongJmp:
     IsNoReturn = true;
+    break;
+  case StackAnalysis::BranchType::FunctionLocalCFG:
+    revng_assert(IsPltCall);
     break;
   default:
     revng_abort();
