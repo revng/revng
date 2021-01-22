@@ -4,27 +4,62 @@
 
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/Casting.h"
 
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/MakeEnvNull/MakeEnvNull.h"
 
 bool MakeEnvNullPass::runOnFunction(llvm::Function &F) {
+
+  bool Changed = false;
+
   if (not F.getMetadata("revng.func.entry"))
-    return false;
+    return Changed;
 
   llvm::Module *M = F.getParent();
   llvm::GlobalVariable *Env = M->getGlobalVariable("env",
                                                    /* AllowInternal */ true);
 
-  auto *EnvType = Env->getType();
-  revng_assert(EnvType->isPointerTy());
-  auto *Null = llvm::Constant::getNullValue(EnvType);
-  if (replaceAllUsesInFunctionWith(&F, Env, Null))
-    return true;
+  llvm::SmallPtrSet<llvm::LoadInst *, 8> LoadsFromEnvInF;
+  for (llvm::Use &EnvUse : Env->uses()) {
 
-  return false;
+    if (auto *I = llvm::dyn_cast<llvm::Instruction>(EnvUse.getUser())) {
+
+      if (I->getFunction() != &F)
+        continue;
+
+      // At this point, all uses of env in a function should be loads
+      LoadsFromEnvInF.insert(llvm::cast<llvm::LoadInst>(I));
+
+    } else if (auto *CE = dyn_cast<llvm::ConstantExpr>(EnvUse.getUser())) {
+
+      if (not CE->isCast())
+        continue;
+
+      for (llvm::Use &CEUse : CE->uses()) {
+        if (auto *I = llvm::dyn_cast<llvm::Instruction>(CEUse.getUser())) {
+
+          if (I->getFunction() != &F)
+            continue;
+
+          // At this point, all uses of env in a function should be loads
+          LoadsFromEnvInF.insert(llvm::cast<llvm::LoadInst>(I));
+        }
+      }
+    }
+  }
+
+  for (llvm::LoadInst *L : LoadsFromEnvInF) {
+    llvm::Type *LoadType = L->getType();
+    auto *Null = llvm::Constant::getNullValue(LoadType);
+    L->replaceAllUsesWith(Null);
+  }
+
+  Changed = not LoadsFromEnvInF.empty();
+  return Changed;
 }
 
 char MakeEnvNullPass::ID = 0;
