@@ -475,11 +475,11 @@ public:
     }
   }
 
-  llvm::Optional<MetaAddress> virtualAddressFromOffset(uint64_t Offset) const {
+  MetaAddress virtualAddressFromOffset(uint64_t Offset) const {
     for (const SegmentInfo &Segment : Segments)
       if (Segment.StartFileOffset <= Offset and Segment.EndFileOffset < Offset)
         return Segment.StartVirtualAddress + (Offset - Segment.StartFileOffset);
-    return {};
+    return MetaAddress::invalid();
   }
 
   //

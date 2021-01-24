@@ -526,6 +526,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     using namespace llvm::object;
     using LoadCommandInfo = MachOObjectFile::LoadCommandInfo;
 
+    Triple::ArchType Arch = TheBinary->getArch();
     StringRef StringDataRef = TheBinary->getData();
     auto RawDataRef = ArrayRef<uint8_t>(StringDataRef.bytes_begin(),
                                         StringDataRef.size());
@@ -552,9 +553,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
                                         LCI.C.cmdsize - sizeof(thread_command));
         revng_check(contains(RawDataRef, CommandBuffer));
 
-        EntryPoint = getInitialPC(TheBinary->getArch(),
-                                  MustSwap,
-                                  CommandBuffer);
+        EntryPoint = getInitialPC(Arch, MustSwap, CommandBuffer);
       } break;
 
       case LC_MAIN:
@@ -575,7 +574,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     }
 
     if (EntryPointOffset)
-      EntryPoint = *virtualAddressFromOffset(*EntryPointOffset);
+      EntryPoint = virtualAddressFromOffset(*EntryPointOffset).toPC(Arch);
 
     const uint64_t PointerSize = TheArchitecture.pointerSize() / 8;
 
