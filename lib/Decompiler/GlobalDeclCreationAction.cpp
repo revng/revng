@@ -44,7 +44,7 @@ void DeclCreator::createGlobalVarDeclUsedByFunction(clang::ASTContext &Context,
                                           &Id,
                                           ASTTy,
                                           nullptr,
-                                          clang::StorageClass::SC_Static);
+                                          clang::StorageClass::SC_None);
     if (G->hasInitializer()) {
       revng_assert(not G->isExternallyInitialized());
 
