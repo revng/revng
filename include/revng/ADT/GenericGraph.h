@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <type_traits>
+
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -15,14 +17,22 @@ struct Empty {};
 template<typename Node, size_t SmallSize = 16, bool HasEntryNode = true>
 class GenericGraph;
 
-template<typename T>
-class Parent {
+template<typename T, typename BaseType>
+class Parent : public BaseType {
+public:
+  template<typename... Args>
+  explicit Parent(Args &&... args) :
+    BaseType(std::forward<Args>(args)...), TheParent(nullptr) {}
+
+  Parent(const Parent &) = default;
+  Parent(Parent &&) = default;
+
 private:
-  T *Parent;
+  T *TheParent;
 
 public:
-  T *getParent() const { return Parent; }
-  void setParent(T *Parent) { this->Parent = Parent; }
+  T *getParent() const { return TheParent; }
+  void setParent(T *Parent) { this->TheParent = Parent; }
 };
 
 /// Data structure for edge labels
@@ -77,22 +87,69 @@ struct std::tuple_element<1, Edge<Node, EdgeLabel>> {
 
 } // namespace std
 
+namespace detail {
+/// We require to operate some decision to select a base type that Forward node
+/// will extend. Those decisions are wrapped inside this struct to remove
+/// clutter.
+///
+/// \note At this step Forward edge has not been declared yet, thus we accept a
+///       template parameter that has the same signature as ForwardEdge that
+///       will be declared later. This allows us to use it as if it was
+///       delcared, provided that only the real ForwardEdge is used as this
+///       argument.
+template<typename Node,
+         typename EdgeLabel,
+         bool HasParent,
+         size_t SmallSize,
+         template<typename, typename, bool, size_t, typename>
+         class ForwardEdge,
+         typename FinalType>
+struct ForwardNodeBaseTCalc {
+  static constexpr bool
+    NoDerivation = std::is_same_v<FinalType, std::false_type>;
+  using FWNode = ForwardEdge<Node, EdgeLabel, HasParent, SmallSize, FinalType>;
+  using DerivedType = std::conditional_t<NoDerivation, FWNode, FinalType>;
+
+  using ParentType = Parent<GenericGraph<DerivedType>, Node>;
+  using Result = std::conditional_t<HasParent, ParentType, Node>;
+};
+} // namespace detail
+
 /// Basic nodes type, only forward edges, possibly with parent
-template<typename Inheritor,
+template<typename Node,
          typename EdgeLabel = Empty,
          bool HasParent = true,
-         size_t SmallSize = 2>
-class ForwardNode : public std::conditional_t<HasParent,
-                                              Parent<GenericGraph<Inheritor>>,
-                                              Empty> {
+         size_t SmallSize = 2,
+         typename FinalType = std::false_type>
+class ForwardNode : public detail::ForwardNodeBaseTCalc<Node,
+                                                        EdgeLabel,
+                                                        HasParent,
+                                                        SmallSize,
+                                                        ForwardNode,
+                                                        FinalType>::Result {
 public:
   static constexpr bool is_forward_node = true;
   static constexpr bool has_parent = HasParent;
-  using Edge = Edge<Inheritor, EdgeLabel>;
+  using TypeCalc = detail::ForwardNodeBaseTCalc<Node,
+                                                EdgeLabel,
+                                                HasParent,
+                                                SmallSize,
+                                                ForwardNode,
+                                                FinalType>;
+  using DerivedType = typename TypeCalc::DerivedType;
+  using Base = typename TypeCalc::Result;
+  using Edge = Edge<DerivedType, EdgeLabel>;
 
 public:
-  static Inheritor *&getNeighbor(Edge &E) { return E.Neighbor; }
-  static const Inheritor *const &getConstNeighbor(const Edge &E) {
+  template<typename... Args>
+  explicit ForwardNode(Args &&... args) : Base(std::forward<Args>(args)...) {}
+
+  ForwardNode(const ForwardNode &) = default;
+  ForwardNode(ForwardNode &&) = default;
+
+public:
+  static DerivedType *&getNeighbor(Edge &E) { return E.Neighbor; }
+  static const DerivedType *const &getConstNeighbor(const Edge &E) {
     return E.Neighbor;
   }
 
@@ -116,11 +173,11 @@ public:
   void printAsOperand(llvm::raw_ostream &, bool) const { revng_abort(); }
 
 public:
-  void addSuccessor(Inheritor *NewSuccessor) {
+  void addSuccessor(DerivedType *NewSuccessor) {
     Successors.emplace_back(NewSuccessor);
   }
 
-  void addSuccessor(Inheritor *NewSuccessor, EdgeLabel EL) {
+  void addSuccessor(DerivedType *NewSuccessor, EdgeLabel EL) {
     Successors.emplace_back(NewSuccessor, EL);
   }
 
@@ -170,18 +227,48 @@ private:
   NeighborContainer Successors;
 };
 
+namespace detail {
+
+/// To remove clutter from BidirectionalNode, the computation of some types are
+/// done in this class.
+///
+/// \note At this step BidirectionalEdge has not been declared yet, thus we
+///       accept a template parameter that has the same signature as
+///       BidirecationEdge that will be declared later. This allows us to use it
+///       as if it was delcared, provided that only the real BidirecationalEdge
+///       is used as this argument.
+template<typename Node,
+         typename EdgeLabel,
+         bool HasParent,
+         size_t SmallSize,
+         template<typename, typename, bool, size_t>
+         class BidirectionalNode>
+struct BidirectionalNodeBaseTCalc {
+  using BDNode = BidirectionalNode<Node, EdgeLabel, HasParent, SmallSize>;
+  using Result = ForwardNode<Node, EdgeLabel, HasParent, SmallSize, BDNode>;
+};
+} // namespace detail
+
 /// Same as ForwardNode, but with backward links too
-template<typename Inheritor,
+template<typename Node,
          typename EdgeLabel = Empty,
          bool HasParent = true,
          size_t SmallSize = 2>
 class BidirectionalNode
-  : public ForwardNode<Inheritor, EdgeLabel, HasParent, SmallSize> {
+  : public detail::BidirectionalNodeBaseTCalc<Node,
+                                              EdgeLabel,
+                                              HasParent,
+                                              SmallSize,
+                                              BidirectionalNode>::Result {
 public:
   static const bool is_bidirectional_node = true;
 
 public:
-  using Base = ForwardNode<Inheritor, EdgeLabel, HasParent, SmallSize>;
+  using Base = ForwardNode<Node,
+                           EdgeLabel,
+                           HasParent,
+                           SmallSize,
+                           BidirectionalNode>;
   using NeighborContainer = typename Base::NeighborContainer;
   using child_iterator = typename Base::child_iterator;
   using const_child_iterator = typename Base::const_child_iterator;
@@ -189,24 +276,32 @@ public:
   using const_edge_iterator = typename Base::const_edge_iterator;
 
 public:
-  void addSuccessor(Inheritor *NewSuccessor) {
+  template<typename... Args>
+  explicit BidirectionalNode(Args &&... args) :
+    Base(std::forward<Args>(args)...) {}
+
+  BidirectionalNode(const BidirectionalNode &) = default;
+  BidirectionalNode(BidirectionalNode &&) = default;
+
+public:
+  void addSuccessor(BidirectionalNode *NewSuccessor) {
     Base::addSuccessor({ NewSuccessor });
-    NewSuccessor->Predecessors.emplace_back(static_cast<Inheritor *>(this));
+    NewSuccessor->Predecessors.emplace_back(this);
   }
 
-  void addSuccessor(Inheritor *NewSuccessor, EdgeLabel EL) {
+  void addSuccessor(BidirectionalNode *NewSuccessor, EdgeLabel EL) {
     Base::addSuccessor(NewSuccessor, EL);
-    NewSuccessor->Predecessors.emplace_back(static_cast<Inheritor *>(this), EL);
+    NewSuccessor->Predecessors.emplace_back(this, EL);
   }
 
-  void addPredecessor(Inheritor *NewPredecessor) {
+  void addPredecessor(BidirectionalNode *NewPredecessor) {
     Predecessors.emplace_back(NewPredecessor);
-    NewPredecessor->addSuccessor(static_cast<Inheritor *>(this));
+    NewPredecessor->addSuccessor(this);
   }
 
-  void addPredecessor(Inheritor *NewPredecessor, EdgeLabel EL) {
+  void addPredecessor(BidirectionalNode *NewPredecessor, EdgeLabel EL) {
     Predecessors.emplace_back(NewPredecessor, EL);
-    NewPredecessor->addSuccessor(static_cast<Inheritor *>(this), EL);
+    NewPredecessor->addSuccessor(this, EL);
   }
 
 public:

@@ -274,17 +274,17 @@ public:
 
   const_iterator lower_bound(const key_type &Key) const {
     revng_assert(not BatchInsertInProgress);
-    return std::lower_bound(begin(), end(), value_type{ Key }, compareElements);
+    return std::lower_bound(begin(), end(), KOT::fromKey(Key), compareElements);
   }
 
   iterator upper_bound(const key_type &Key) {
     revng_assert(not BatchInsertInProgress);
-    return std::upper_bound(begin(), end(), value_type{ Key }, compareElements);
+    return std::upper_bound(begin(), end(), KOT::fromKey(Key), compareElements);
   }
 
   const_iterator upper_bound(const key_type &Key) const {
     revng_assert(not BatchInsertInProgress);
-    return std::upper_bound(begin(), end(), value_type{ Key }, compareElements);
+    return std::upper_bound(begin(), end(), KOT::fromKey(Key), compareElements);
   }
 
 public:

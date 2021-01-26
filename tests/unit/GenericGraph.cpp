@@ -26,11 +26,12 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
   // Test only it compiles
   if constexpr (false) {
     {
-      struct MyForwardNode : public ForwardNode<MyForwardNode> {
+      struct MyForwardNode {
         MyForwardNode(int) {}
         int m;
       };
-      GenericGraph<MyForwardNode> Graph;
+      using NodeType = ForwardNode<MyForwardNode>;
+      GenericGraph<NodeType> Graph;
       auto *Node = Graph.addNode(3);
       Node->addSuccessor(Node);
       Node->addSuccessor(Node, {});
@@ -40,12 +41,12 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
     }
 
     {
-      struct MyBidirectionalNode
-        : public BidirectionalNode<MyBidirectionalNode> {
+      struct MyBidirectionalNode {
         MyBidirectionalNode(int) {}
         int m;
       };
-      GenericGraph<MyBidirectionalNode> Graph;
+      using NodeType = BidirectionalNode<MyBidirectionalNode>;
+      GenericGraph<NodeType> Graph;
       auto *Node = Graph.addNode(3);
       Node->addSuccessor(Node);
       Node->addSuccessor(Node, {});
@@ -62,15 +63,16 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
     };
 
     {
-      struct MyForwardNodeWithEdges
-        : public ForwardNode<MyForwardNodeWithEdges, EdgeLabel> {
+      struct MyForwardNodeWithEdges {
         MyForwardNodeWithEdges(int) {}
         int m;
       };
 
-      auto [A, B] = Edge<MyForwardNodeWithEdges, EdgeLabel>{ nullptr };
+      using NodeType = ForwardNode<MyForwardNodeWithEdges, EdgeLabel>;
 
-      GenericGraph<MyForwardNodeWithEdges> Graph;
+      auto [A, B] = Edge<NodeType, EdgeLabel>{ nullptr };
+
+      GenericGraph<NodeType> Graph;
       auto *Node = Graph.addNode(3);
       Node->addSuccessor(Node);
       Node->addSuccessor(Node, { 99 });
@@ -78,28 +80,30 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
     }
 
     {
-      struct MyBidirectionalNodeWithEdges
-        : public BidirectionalNode<MyBidirectionalNodeWithEdges, EdgeLabel> {
+      struct MyBidirectionalNodeWithEdges {
         MyBidirectionalNodeWithEdges(int) {}
         int m;
       };
-      GenericGraph<MyBidirectionalNodeWithEdges> Graph;
+      using NodeType = BidirectionalNode<MyBidirectionalNodeWithEdges,
+                                         EdgeLabel>;
+      static_assert(std::is_same_v<NodeType::Base::DerivedType, NodeType>);
+      GenericGraph<NodeType> Graph;
       auto *Node = Graph.addNode(3);
       Node->addSuccessor(Node);
       Node->addSuccessor(Node, { 99 });
       Node->addPredecessor(Node);
       Node->addPredecessor(Node, { 99 });
-      MyBidirectionalNodeWithEdges *Neighbor = *Node->successors().begin();
+      NodeType *Neighbor = *Node->successors().begin();
       Neighbor = *Node->predecessors().begin();
       Graph.removeNode(Graph.nodes().begin());
 
-      using NGT = GraphTraits<MyBidirectionalNodeWithEdges *>;
+      using NGT = GraphTraits<NodeType *>;
       NGT::child_begin(Node);
       auto It = NGT::child_edge_begin(Node);
 
       Neighbor = NGT::edge_dest(*It);
 
-      using INGT = GraphTraits<Inverse<MyBidirectionalNodeWithEdges *>>;
+      using INGT = GraphTraits<Inverse<NodeType *>>;
       INGT::child_begin(Node);
 
       using GGT = GraphTraits<GenericGraph<MyBidirectionalNodeWithEdges> *>;
@@ -112,11 +116,12 @@ struct TestEdgeLabel {
   unsigned Weight;
 };
 
-struct TestNode : public BidirectionalNode<TestNode, TestEdgeLabel> {
-  TestNode(unsigned Rank) : Rank(Rank) {}
+struct TestNodeData {
+  TestNodeData(unsigned Rank) : Rank(Rank) {}
   unsigned Rank;
 };
 
+using TestNode = BidirectionalNode<TestNodeData, TestEdgeLabel>;
 using TestGraph = GenericGraph<TestNode>;
 
 static bool

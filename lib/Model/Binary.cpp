@@ -36,10 +36,12 @@ BasicBlockRangesVector Function::basicBlockRanges() const {
 
 namespace model {
 
-struct FunctionCFGNode : public ForwardNode<FunctionCFGNode, Empty, false> {
-  FunctionCFGNode(MetaAddress Start) : Start(Start) {}
+struct FunctionCFGNodeData {
+  FunctionCFGNodeData(MetaAddress Start) : Start(Start) {}
   MetaAddress Start;
 };
+
+using FunctionCFGNode = ForwardNode<FunctionCFGNodeData>;
 
 struct FunctionCFG : public GenericGraph<FunctionCFGNode> {
 public:
