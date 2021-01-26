@@ -765,8 +765,7 @@ private:
   bool verify() const debug_function {
     // Invalid addresses are all the same
     if (Type == MetaAddressType::Invalid) {
-      revng_assert(*this == invalid());
-      return true;
+      return *this == invalid();
     }
 
     // Check alignment
