@@ -87,6 +87,7 @@ struct std::tuple_element<1, Edge<Node, EdgeLabel>> {
 
 } // namespace std
 
+namespace detail {
 /// We require to operate some decision to select a base type that Forward node
 /// will extend. Those decisions are wrapped inside this struct to remove
 /// clutter.
@@ -112,6 +113,7 @@ struct ForwardNodeBaseTCalc {
   using ParentType = Parent<GenericGraph<DerivedType>, Node>;
   using Result = std::conditional_t<HasParent, ParentType, Node>;
 };
+} // namespace detail
 
 /// Basic nodes type, only forward edges, possibly with parent
 template<typename Node,
@@ -119,21 +121,21 @@ template<typename Node,
          bool HasParent = true,
          size_t SmallSize = 2,
          typename FinalType = std::false_type>
-class ForwardNode : public ForwardNodeBaseTCalc<Node,
+class ForwardNode : public detail::ForwardNodeBaseTCalc<Node,
+                                                        EdgeLabel,
+                                                        HasParent,
+                                                        SmallSize,
+                                                        ForwardNode,
+                                                        FinalType>::Result {
+public:
+  static constexpr bool is_forward_node = true;
+  static constexpr bool has_parent = HasParent;
+  using TypeCalc = detail::ForwardNodeBaseTCalc<Node,
                                                 EdgeLabel,
                                                 HasParent,
                                                 SmallSize,
                                                 ForwardNode,
-                                                FinalType>::Result {
-public:
-  static constexpr bool is_forward_node = true;
-  static constexpr bool has_parent = HasParent;
-  using TypeCalc = ForwardNodeBaseTCalc<Node,
-                                        EdgeLabel,
-                                        HasParent,
-                                        SmallSize,
-                                        ForwardNode,
-                                        FinalType>;
+                                                FinalType>;
   using DerivedType = typename TypeCalc::DerivedType;
   using Base = typename TypeCalc::Result;
   using Edge = Edge<DerivedType, EdgeLabel>;
@@ -221,6 +223,8 @@ private:
   NeighborContainer Successors;
 };
 
+namespace detail {
+
 /// To remove clutter from BidirectionalNode, the computation of some types are
 /// done in this class.
 template<typename Node,
@@ -243,6 +247,7 @@ struct BidirectionalNodeBaseTCalc {
   using BDNode = BidirectionalNode<Node, EdgeLabel, HasParent, SmallSize>;
   using Result = ForwardNode<Node, EdgeLabel, HasParent, SmallSize, BDNode>;
 };
+} // namespace detail
 
 /// Same as ForwardNode, but with backward links too
 template<typename Node,
@@ -250,11 +255,11 @@ template<typename Node,
          bool HasParent = true,
          size_t SmallSize = 2>
 class BidirectionalNode
-  : public BidirectionalNodeBaseTCalc<Node,
-                                      EdgeLabel,
-                                      HasParent,
-                                      SmallSize,
-                                      BidirectionalNode>::Result {
+  : public detail::BidirectionalNodeBaseTCalc<Node,
+                                              EdgeLabel,
+                                              HasParent,
+                                              SmallSize,
+                                              BidirectionalNode>::Result {
 public:
   static const bool is_bidirectional_node = true;
 
