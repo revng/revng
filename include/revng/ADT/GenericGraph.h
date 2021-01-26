@@ -22,17 +22,17 @@ class Parent : public BaseType {
 public:
   template<typename... Args>
   explicit Parent(Args &&... args) :
-    BaseType(std::forward<Args>(args)...), Par(nullptr) {}
+    BaseType(std::forward<Args>(args)...), TheParent(nullptr) {}
 
   Parent(const Parent &) = default;
   Parent(Parent &&) = default;
 
 private:
-  T *Par;
+  T *TheParent;
 
 public:
-  T *getParent() const { return Par; }
-  void setParent(T *Parent) { this->Par = Parent; }
+  T *getParent() const { return TheParent; }
+  void setParent(T *Parent) { this->TheParent = Parent; }
 };
 
 /// Data structure for edge labels
@@ -87,22 +87,27 @@ struct std::tuple_element<1, Edge<Node, EdgeLabel>> {
 
 } // namespace std
 
+/// We require to operate some decision to select a base type that Forward node
+/// will extend. Those decisions are wrapped inside this struct to remove
+/// clutter.
+///
 template<typename Node,
          typename EdgeLabel,
          bool HasParent,
          size_t SmallSize,
          template<typename, typename, bool, size_t, typename>
-         class ForwardEdge,
-         typename MostDerivedType>
+         class ForwardEdge, // At this step Forward edge has not been declared
+                            // yet, thus we accept a template parameter that has
+                            // the same signature as ForwardEdge that will be
+                            // declared later. This allows us to use it as if it
+                            // was delcared, provided that only the real
+                            // ForwardEdge is used as this argument.
+         typename FinalType>
 struct ForwardNodeBaseTCalc {
   static constexpr bool
-    NoMostDer = std::is_same_v<MostDerivedType, std::false_type>;
-  using FWNode = ForwardEdge<Node,
-                             EdgeLabel,
-                             HasParent,
-                             SmallSize,
-                             MostDerivedType>;
-  using DerivedType = std::conditional_t<NoMostDer, FWNode, MostDerivedType>;
+    NoDerivation = std::is_same_v<FinalType, std::false_type>;
+  using FWNode = ForwardEdge<Node, EdgeLabel, HasParent, SmallSize, FinalType>;
+  using DerivedType = std::conditional_t<NoDerivation, FWNode, FinalType>;
 
   using ParentType = Parent<GenericGraph<DerivedType>, Node>;
   using Result = std::conditional_t<HasParent, ParentType, Node>;
@@ -113,13 +118,13 @@ template<typename Node,
          typename EdgeLabel = Empty,
          bool HasParent = true,
          size_t SmallSize = 2,
-         typename MostDerivedType = std::false_type>
+         typename FinalType = std::false_type>
 class ForwardNode : public ForwardNodeBaseTCalc<Node,
                                                 EdgeLabel,
                                                 HasParent,
                                                 SmallSize,
                                                 ForwardNode,
-                                                MostDerivedType>::Result {
+                                                FinalType>::Result {
 public:
   static constexpr bool is_forward_node = true;
   static constexpr bool has_parent = HasParent;
@@ -128,7 +133,7 @@ public:
                                         HasParent,
                                         SmallSize,
                                         ForwardNode,
-                                        MostDerivedType>;
+                                        FinalType>;
   using DerivedType = typename TypeCalc::DerivedType;
   using Base = typename TypeCalc::Result;
   using Edge = Edge<DerivedType, EdgeLabel>;
@@ -216,12 +221,24 @@ private:
   NeighborContainer Successors;
 };
 
+/// To remove clutter from BidirectionalNode, the computation of some types are
+/// done in this class.
 template<typename Node,
          typename EdgeLabel,
          bool HasParent,
          size_t SmallSize,
-         template<typename, typename, bool, size_t>
-         class BidirectionalNode>
+         template<typename,
+                  typename,
+                  bool,
+                  size_t>
+         class BidirectionalNode> // At this step BidirectionalEdge has not been
+                                  // declared yet, thus we accept a template
+                                  // parameter that has the same signature as
+                                  // BidirecationEdge that will be declared
+                                  // later. This allows us to use it as if it
+                                  // was delcared, provided that only the real
+                                  // BidirecationalEdge is used as this
+                                  // argument.
 struct BidirectionalNodeBaseTCalc {
   using BDNode = BidirectionalNode<Node, EdgeLabel, HasParent, SmallSize>;
   using Result = ForwardNode<Node, EdgeLabel, HasParent, SmallSize, BDNode>;
