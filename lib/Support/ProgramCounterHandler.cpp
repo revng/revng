@@ -93,7 +93,7 @@ public:
     Result->setMissingVariables(M);
 
     // Get is_thumb
-    Result->IsThumb = M->getGlobalVariable(IsThumbName);
+    Result->IsThumb = M->getGlobalVariable(IsThumbName, true);
     revng_assert(Result->IsThumb != nullptr);
 
     // Register pc and is_thumb as a CSV affecting the program counter
