@@ -13,10 +13,7 @@
 using APIntVector = llvm::SmallVector<llvm::APInt, 4>;
 
 struct APIntVectorKeyContainer {
-  using key_type = const llvm::APInt;
-  using pointer = const llvm::APInt *;
-
-  static int compare(key_type &LHS, key_type &RHS) {
+  static int compare(const llvm::APInt &LHS, const llvm::APInt &RHS) {
     if (LHS == RHS)
       return 0;
     if (LHS.ult(RHS))
@@ -242,6 +239,7 @@ private:
     bool LeftActive = false;
     bool RightActive = false;
     auto zip_APIntVector = zipmap_range<const APIntVector,
+                                        const APIntVector,
                                         APIntVectorKeyContainer>;
     for (auto &P : zip_APIntVector(Bounds, Other.Bounds)) {
       const llvm::APInt *Left = P.first;

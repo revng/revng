@@ -12,8 +12,6 @@
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Assert.h"
 
-// TODO: test SmallMap
-
 /// \brief Type-safe wrapper for different iterators sharing value_type
 template<typename... Ts>
 class Iteratall {
@@ -412,49 +410,4 @@ private:
         return I;
     return smallBegin() + Size;
   }
-};
-
-template<typename>
-struct isSmallMap : public std::false_type {};
-
-template<typename K, typename V, unsigned N, typename C>
-struct isSmallMap<SmallMap<K, V, N, C>> : public std::true_type {};
-
-template<typename K, typename V, unsigned N, typename C>
-struct isSmallMap<const SmallMap<K, V, N, C>> : public std::true_type {};
-
-static_assert(isSmallMap<SmallMap<int, int, 1>>::value, "");
-static_assert(isSmallMap<const SmallMap<int, int, 1>>::value, "");
-
-template<typename T>
-struct KeyContainer<T, typename std::enable_if_t<isSmallMap<T>::value>> {
-  using key_type = typename T::key_type;
-  using pointer = typename std::conditional<std::is_const<T>::value,
-                                            typename T::const_pointer,
-                                            typename T::pointer>::type;
-  using value_type = typename std::conditional<std::is_const<T>::value,
-                                               const typename T::value_type,
-                                               typename T::value_type>::type;
-  using mapped_type = typename std::conditional<std::is_const<T>::value,
-                                                const typename T::mapped_type,
-                                                typename T::mapped_type>::type;
-
-  static int compare(value_type &LHS, value_type &RHS) {
-    if (LHS.first == RHS.first)
-      return 0;
-    if (std::less<key_type>()(LHS.first, RHS.first))
-      return -1;
-    else
-      return 1;
-  }
-
-  static void insert(T &Container, key_type Key) {
-    Container.insert({ Key, mapped_type() });
-  }
-
-  static pointer find(T &Container, key_type &Key) {
-    return &*Container.find(Key);
-  }
-
-  static void sort(T &Container) { Container.sort(); }
 };
