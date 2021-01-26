@@ -222,10 +222,10 @@ protected:
 
 public:
   void setMissingVariables(llvm::Module *M) {
-    AddressCSV = M->getGlobalVariable(AddressName);
-    EpochCSV = M->getGlobalVariable(EpochName);
-    AddressSpaceCSV = M->getGlobalVariable(AddressSpaceName);
-    TypeCSV = M->getGlobalVariable(TypeName);
+    AddressCSV = M->getGlobalVariable(AddressName, true);
+    EpochCSV = M->getGlobalVariable(EpochName, true);
+    AddressSpaceCSV = M->getGlobalVariable(AddressSpaceName, true);
+    TypeCSV = M->getGlobalVariable(TypeName, true);
 
     revng_assert(AddressCSV != nullptr and EpochCSV != nullptr
                  and AddressSpaceCSV != nullptr and TypeCSV != nullptr);
