@@ -288,14 +288,15 @@ void EnforceABIImpl::run() {
   // Declare an opaque function used later to obtain a value to store in the
   // local %pc alloca, so that we don't incur in error when removing the bad
   // return pc checks.
-  Type *PCType = GCBI.pcReg()->getType()->getPointerElementType();
-  auto *OpaqueFT = FunctionType::get(PCType, {}, false);
-  OpaquePC = Function::Create(OpaqueFT,
-                              Function::ExternalLinkage,
-                              "opaque_pc",
-                              M);
-  OpaquePC->addFnAttr(Attribute::NoUnwind);
-  OpaquePC->addFnAttr(Attribute::ReadOnly);
+  if (DisableSafetyChecks) {
+    OpaqueFunctionsPool<FunctionType *> OpaquePCInitializer(&M, false);
+    OpaquePCInitializer.addFnAttribute(Attribute::ReadOnly);
+    OpaquePCInitializer.addFnAttribute(Attribute::NoUnwind);
+
+    Type *PCType = GCBI.pcReg()->getType()->getPointerElementType();
+    auto *OpaqueFT = FunctionType::get(PCType, {}, false);
+    OpaquePC = OpaquePCInitializer.get(OpaqueFT, OpaqueFT, "opaque_pc");
+  }
 
   // Collect functions we need to handle
   std::vector<Function *> Functions;
@@ -688,17 +689,18 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
     IRBuilder<> Builder(Call);
     generateCall(Builder, Callee, CallSite);
 
-    // Create an additional store to the local %pc, so that the optimizer cannot
-    // do stuff with llvm.assume.
-    revng_assert(OpaquePC != nullptr);
-    auto *OpaqueValue = Builder.CreateCall(OpaquePC);
+    if (DisableSafetyChecks) {
+      // Create an additional store to the local %pc, so that the optimizer
+      // cannot do stuff with llvm.assume.
+      revng_assert(OpaquePC != nullptr);
+      auto *OpaqueValue = Builder.CreateCall(OpaquePC);
 
-    // The store here is done in the global CSV, since the
-    // `replaceCSVsWithAlloca` method pass after us, and place the corresponding
-    // alloca here.
-    Value *PCCSV = GCBI.pcReg();
-    Builder.CreateStore(OpaqueValue, PCCSV);
-
+      // The store here is done in the global CSV, since the
+      // `replaceCSVsWithAlloca` method pass after us, and place the
+      // corresponding alloca here.
+      Value *PCCSV = GCBI.pcReg();
+      Builder.CreateStore(OpaqueValue, PCCSV);
+    }
   } else {
     // If it's an indirect call, enumerate all the compatible callees and
     // generate a call for each of them
