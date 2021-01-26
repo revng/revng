@@ -26,6 +26,12 @@ real_argv0 = os.environ.get("REAL_ARGV0", sys.argv[0])
 def shlex_join(split_command):
   return ' '.join(shlex.quote(arg) for arg in split_command)
 
+def log_error(msg):
+  sys.stderr.write(msg + "\n")
+
+def relative(path):
+  return os.path.relpath(path ,".")
+
 def run(command, override={}):
   if is_executable(command[0]):
     command = wrap(command)
@@ -107,9 +113,6 @@ def get_elf_needed(path):
     else:
       return []
 
-def log_error(msg):
-  sys.stderr.write(msg + "\n")
-
 def get_command(command):
   global search_path
   path = which(command, path=search_path)
@@ -150,7 +153,9 @@ def build_opt_args(args):
   all = set([os.path.basename(path) for path in analysis_libraries])
 
   # Path to libraries representing the roots in the dependency tree
-  roots = [os.path.join(analyses_path, name) for name in all - provided]
+  roots = [relative(os.path.join(analyses_path, name))
+           for name
+           in all - provided]
 
   prefix = []
   libasan = [name
@@ -178,7 +183,7 @@ def build_opt_args(args):
               'LD_PRELOAD={} ASAN_OPTIONS={} '
               'exec "$0" "$@"'.format(libasan[0], new_asan_options)]
 
-  return (prefix + [get_command("opt")]
+  return (prefix + [relative(get_command("opt"))]
           + interleave(roots, "-load")
           + args)
 
@@ -404,7 +409,7 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
          "-g", "ll",
          "--debug-log", "jtcount"]
         + lift_options
-        + [input, output])
+        + [relative(input), relative(output)])
 
   # Perform function isolation
   if args.isolate:
@@ -412,8 +417,8 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
     opt_invocation = build_opt_args(["-S",
                                      "-detect-function-boundaries",
                                      "-isolate",
-                                     output,
-                                     "-o", isolated])
+                                     relative(output),
+                                     "-o", relative(isolated)])
     run(opt_invocation)
     output = isolated
 
@@ -421,9 +426,9 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
   linked = "{}.linked.ll".format(output)
   run([get_command("llvm-link"),
        "-S",
-       output,
-       support_path,
-       "-o", linked])
+       relative(output),
+       relative(support_path),
+       "-o", relative(linked)])
   output = linked
 
   # Compile
@@ -434,14 +439,14 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
   if optimization_level == 0:
     run([llc,
          "-O0",
-         output,
-         "-o", object_file]
+         relative(output),
+         "-o", relative(object_file)]
         + common_llc_options)
   elif optimization_level == 1:
     run([llc,
          "-O2",
-         output,
-         "-o", object_file]
+         relative(output),
+         "-o", relative(object_file)]
         + common_llc_options)
   elif optimization_level == 2:
     optimized = "{}.opt.ll".format(output)
@@ -450,12 +455,12 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
          "-S",
          "-enable-pre=false",
          "-enable-load-pre=false",
-         output,
-         "-o", optimized])
+         relative(output),
+         "-o", relative(optimized)])
     run([llc,
          "-O2",
-         optimized,
-         "-o", object_file]
+         relative(optimized),
+         "-o", relative(object_file)]
         + common_llc_options)
 
   # Parse .li.csv and .need.csv files
