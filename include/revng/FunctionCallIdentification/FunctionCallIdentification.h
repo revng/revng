@@ -38,54 +38,6 @@ public:
 
   bool runOnModule(llvm::Module &M) override;
 
-  llvm::CallInst *getCall(llvm::BasicBlock *BB) const {
-    return getCall(BB->getTerminator());
-  }
-
-  /// \brief Return true if \p T is a function call in the input assembly
-  llvm::CallInst *getCall(llvm::Instruction *T) const {
-    revng_assert(T != nullptr);
-    revng_assert(T->isTerminator());
-    llvm::Instruction *Previous = getPrevious(T);
-    while (Previous != nullptr && isMarker(Previous)) {
-      auto *Call = llvm::cast<llvm::CallInst>(Previous);
-      if (Call->getCalledFunction() == FunctionCall)
-        return Call;
-
-      Previous = getPrevious(Previous);
-    }
-
-    return nullptr;
-  }
-
-  /// \brief Return true if \p T is a function call in the input assembly
-  bool isCall(llvm::Instruction *I) const { return getCall(I) != nullptr; }
-
-  bool isCall(llvm::BasicBlock *BB) const {
-    return isCall(BB->getTerminator());
-  }
-
-  llvm::BasicBlock *getFallthrough(llvm::BasicBlock *BB) const {
-    return getFallthrough(BB->getTerminator());
-  }
-
-  llvm::BasicBlock *getFallthrough(llvm::Instruction *T) const {
-    revng_assert(T != nullptr);
-    revng_assert(T->isTerminator());
-    llvm::Instruction *Previous = getPrevious(T);
-    while (Previous != nullptr && isMarker(Previous)) {
-      auto *Call = llvm::cast<llvm::CallInst>(Previous);
-      if (Call->getCalledFunction() == FunctionCall) {
-        auto *Fallthrough = llvm::cast<llvm::BlockAddress>(Call->getOperand(1));
-        return Fallthrough->getBasicBlock();
-      }
-
-      Previous = getPrevious(Previous);
-    }
-
-    revng_abort();
-  }
-
   bool isFallthrough(MetaAddress Address) const {
     return FallthroughAddresses.count(Address) != 0;
   }

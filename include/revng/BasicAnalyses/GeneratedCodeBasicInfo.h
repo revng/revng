@@ -255,36 +255,6 @@ public:
     return Pair.first + Pair.second;
   }
 
-  llvm::CallInst *getFunctionCall(llvm::BasicBlock *BB) const {
-    return getFunctionCall(BB->getTerminator());
-  }
-
-  // TODO: is this a duplication of FunctionCallIdentification::isCall?
-  // TODO: we could unpack the information too
-  llvm::CallInst *getFunctionCall(llvm::Instruction *T) const {
-    revng_assert(T->isTerminator());
-    auto It = T->getIterator();
-    auto End = T->getParent()->begin();
-    while (It != End) {
-      It--;
-      if (llvm::CallInst *Call = getCallTo(&*It, "function_call"))
-        return Call;
-
-      if (not isMarker(&*It))
-        return nullptr;
-    }
-
-    return nullptr;
-  }
-
-  bool isFunctionCall(llvm::BasicBlock *BB) const {
-    return isFunctionCall(BB->getTerminator());
-  }
-
-  bool isFunctionCall(llvm::Instruction *T) const {
-    return getFunctionCall(T) != nullptr;
-  }
-
   llvm::BasicBlock *anyPC() const {
     revng_assert(nullptr != AnyPC);
     return AnyPC;

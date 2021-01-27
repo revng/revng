@@ -605,7 +605,7 @@ Interrupt Analysis::handleTerminator(Instruction *T,
   BasicBlock *ReturnFromCall = nullptr;
   MetaAddress ReturnAddress = MetaAddress::invalid();
 
-  if (CallInst *Call = GCBI->getFunctionCall(T->getParent())) {
+  if (CallInst *Call = getFunctionCall(T->getParent())) {
     IsFunctionCall = true;
     auto *Arg0 = Call->getArgOperand(0);
     auto *Arg1 = Call->getArgOperand(1);
