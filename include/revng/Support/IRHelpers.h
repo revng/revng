@@ -1069,3 +1069,68 @@ inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
   revng_assert(It != End);
   return &*It;
 }
+
+/// \brief Return the call to the marker function_call
+///        if \p T is a function call in the input assembly.
+inline llvm::CallInst *getFunctionCall(llvm::Instruction *T) {
+  revng_assert(T && T->isTerminator());
+  llvm::Instruction *Previous = getPrevious(T);
+  while (Previous != nullptr && isMarker(Previous)) {
+    if (auto *Call = getCallTo(Previous, "function_call"))
+      return Call;
+
+    Previous = getPrevious(Previous);
+  }
+
+  return nullptr;
+}
+
+inline llvm::CallInst *getFunctionCall(llvm::BasicBlock *BB) {
+  return getFunctionCall(BB->getTerminator());
+}
+
+/// \brief Return true if \p T is a function call in the input assembly.
+inline bool isFunctionCall(llvm::Instruction *T) {
+  return getFunctionCall(T) != nullptr;
+}
+
+inline bool isFunctionCall(llvm::BasicBlock *BB) {
+  return isFunctionCall(BB->getTerminator());
+}
+
+/// \brief Return the callee basic block given a function_call marker.
+inline llvm::BasicBlock *getFunctionCallCallee(llvm::Instruction *T) {
+  if (auto *Call = getFunctionCall(T)) {
+    if (auto *Callee = llvm::dyn_cast<llvm::BlockAddress>(Call->getOperand(0)))
+      return Callee->getBasicBlock();
+  }
+
+  return nullptr;
+}
+
+inline llvm::BasicBlock *getFunctionCallCallee(llvm::BasicBlock *BB) {
+  return getFunctionCallCallee(BB->getTerminator());
+}
+
+/// \brief Return the fall-through basic block given a function_call marker.
+inline llvm::BasicBlock *getFallthrough(llvm::Instruction *T) {
+  if (auto *Call = getFunctionCall(T)) {
+    auto *Fallthrough = llvm::cast<llvm::BlockAddress>(Call->getOperand(1));
+    return Fallthrough->getBasicBlock();
+  }
+
+  return nullptr;
+}
+
+inline llvm::BasicBlock *getFallthrough(llvm::BasicBlock *BB) {
+  return getFallthrough(BB->getTerminator());
+}
+
+/// \brief Return true if \p T is has a fallthrough basic block.
+inline bool isFallthrough(llvm::Instruction *T) {
+  return getFallthrough(T) != nullptr;
+}
+
+inline bool isFallthrough(llvm::BasicBlock *BB) {
+  return isFallthrough(BB->getTerminator());
+}

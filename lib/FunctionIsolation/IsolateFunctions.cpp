@@ -287,7 +287,7 @@ void IFI::replaceFunctionCall(StackAnalysis::BranchType::Values BranchType,
   BasicBlock *FallthroughOld = nullptr;
   Constant *FallthroughPCCI = nullptr;
   Value *ExternalFunctionName = nullptr;
-  if (CallInst *FunctionCallMarker = GCBI.getFunctionCall(Call)) {
+  if (CallInst *FunctionCallMarker = getFunctionCall(Call)) {
     // Ensure we have the expected callee
     BasicBlock *MarkerCallee = nullptr;
     auto *FirstOperand = FunctionCallMarker->getArgOperand(0);
