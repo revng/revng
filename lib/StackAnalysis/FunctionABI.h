@@ -99,51 +99,6 @@ public:
   iterator end() { return M.end(); }
 };
 
-template<typename>
-struct isDefaultMap : public std::false_type {};
-
-template<typename K, typename V, size_t N>
-struct isDefaultMap<DefaultMap<K, V, N>> : public std::true_type {};
-
-template<typename K, typename V, size_t N>
-struct isDefaultMap<const DefaultMap<K, V, N>> : public std::true_type {};
-
-static_assert(isDefaultMap<DefaultMap<int, int, 1>>::value, "");
-static_assert(isDefaultMap<const DefaultMap<int, int, 1>>::value, "");
-
-template<typename T>
-struct KeyContainer<T, typename std::enable_if_t<isDefaultMap<T>::value>> {
-  using key_type = typename T::key_type;
-  using pointer = typename std::conditional<std::is_const<T>::value,
-                                            typename T::const_pointer,
-                                            typename T::pointer>::type;
-  using value_type = typename std::conditional<std::is_const<T>::value,
-                                               const typename T::value_type,
-                                               typename T::value_type>::type;
-  using mapped_type = typename std::conditional<std::is_const<T>::value,
-                                                const typename T::mapped_type,
-                                                typename T::mapped_type>::type;
-
-  static int compare(value_type &LHS, value_type &RHS) {
-    if (LHS.first == RHS.first)
-      return 0;
-    if (std::less<key_type>()(LHS.first, RHS.first))
-      return -1;
-    else
-      return 1;
-  }
-
-  static void insert(T &Container, key_type Key) {
-    Container.insert({ Key, mapped_type() });
-  }
-
-  static pointer find(T &Container, key_type &Key) {
-    return &*Container.find(Key);
-  }
-
-  static void sort(T &Container) { Container.sort(); }
-};
-
 namespace StackAnalysis {
 
 // Forward declarations

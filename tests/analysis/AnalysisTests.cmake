@@ -39,7 +39,7 @@ list(APPEND BROKEN_TESTS_tests_analysis_StackAnalysis stack-argument-contradicti
 macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   if("${CATEGORY}" MATCHES "^tests_analysis.*" AND NOT "${CONFIGURATION}" STREQUAL "aarch64")
     category_to_path("${CATEGORY_PATH}" CATEGORY_PATH)
-    set(COMMAND_TO_RUN "${CMAKE_CURRENT_BINARY_DIR}/bin/revng" lift -g ll ${INPUT_FILE} "${OUTPUT}")
+    set(COMMAND_TO_RUN "./bin/revng" lift -g ll ${INPUT_FILE} "${OUTPUT}")
     set(DEPEND_ON revng-all-binaries)
 
     foreach(ANALYSIS ${ANALYSES})
@@ -52,7 +52,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
 
         set(TEST_NAME test-lifted-${CATEGORY}-${ANALYSIS}-${TARGET_NAME})
         add_test(NAME ${TEST_NAME}
-          COMMAND sh -c "${CMAKE_CURRENT_BINARY_DIR}/bin/revng opt --${ANALYSIS_OPT_${ANALYSIS}} --${ANALYSIS_OPT_${ANALYSIS}}-output=${ANALYSIS_OUTPUT} ${OUTPUT} -o /dev/null \
+          COMMAND sh -c "./bin/revng opt --${ANALYSIS_OPT_${ANALYSIS}} --${ANALYSIS_OPT_${ANALYSIS}}-output=${ANALYSIS_OUTPUT} ${OUTPUT} -o /dev/null \
           && ${ANALYSIS_DIFF_${ANALYSIS}} ${REFERENCE} ${ANALYSIS_OUTPUT}")
         set_tests_properties(${TEST_NAME} PROPERTIES LABELS "analysis;${CATEGORY};${CONFIGURATION};${ANALYSIS}")
 
@@ -67,7 +67,7 @@ register_derived_artifact("compiled" "lifted" ".ll" "FILE")
 macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   if("${CATEGORY}" MATCHES "^tests_analysis.*" AND NOT "${CONFIGURATION}" STREQUAL "aarch64")
     set(COMMAND_TO_RUN
-      "${CMAKE_CURRENT_BINARY_DIR}/bin/revng"
+      "./bin/revng"
       opt
       "${INPUT_FILE}"
       --detect-abi

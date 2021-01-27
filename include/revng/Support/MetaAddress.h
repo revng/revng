@@ -556,11 +556,8 @@ public:
   bool operator>=(const MetaAddress &Other) const {
     return tie() >= Other.tie();
   }
-  /// @}
 
-  /// The std::less method is required since operator< does not define a strict
-  /// total order
-  friend struct std::less<MetaAddress>;
+  /// @}
 
   /// \name Address comparisons
   ///
@@ -768,8 +765,7 @@ private:
   bool verify() const debug_function {
     // Invalid addresses are all the same
     if (Type == MetaAddressType::Invalid) {
-      revng_assert(*this == invalid());
-      return true;
+      return *this == invalid();
     }
 
     // Check alignment
@@ -840,17 +836,6 @@ private:
 
 static_assert(sizeof(MetaAddress) <= 128 / 8,
               "MetaAddress is larger than 128 bits");
-
-namespace std {
-
-template<>
-struct less<MetaAddress> {
-  bool operator()(const MetaAddress &LHS, const MetaAddress &RHS) const {
-    return LHS.tie() < RHS.tie();
-  }
-};
-
-} // namespace std
 
 template<typename T>
 struct compareAddress {};

@@ -90,6 +90,7 @@ foreach(ARCH aarch64 arm mips mipsel x86_64 i386 s390x)
            -I"${CMAKE_CURRENT_SOURCE_DIR}/include"
            ${SUPPORT_MODULES_CONFIG_${CONFIG}})
     add_custom_target("support-module-${OUTPUT}" ALL DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
+    add_dependencies(revng-all-binaries "support-module-${OUTPUT}")
     install(FILES "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
       DESTINATION share/revng)
   endforeach()
