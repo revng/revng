@@ -92,17 +92,18 @@ namespace detail {
 /// will extend. Those decisions are wrapped inside this struct to remove
 /// clutter.
 ///
+/// \note: At this step Forward edge has not been declared
+/// yet, thus we accept a template parameter that has
+/// the same signature as ForwardEdge that will be
+/// declared later. This allows us to use it as if it
+/// was delcared, provided that only the real
+/// ForwardEdge is used as this argument.
 template<typename Node,
          typename EdgeLabel,
          bool HasParent,
          size_t SmallSize,
          template<typename, typename, bool, size_t, typename>
-         class ForwardEdge, // At this step Forward edge has not been declared
-                            // yet, thus we accept a template parameter that has
-                            // the same signature as ForwardEdge that will be
-                            // declared later. This allows us to use it as if it
-                            // was delcared, provided that only the real
-                            // ForwardEdge is used as this argument.
+         class ForwardEdge,
          typename FinalType>
 struct ForwardNodeBaseTCalc {
   static constexpr bool
@@ -227,22 +228,21 @@ namespace detail {
 
 /// To remove clutter from BidirectionalNode, the computation of some types are
 /// done in this class.
+///
+/// \note: At this step BidirectionalEdge has not been
+/// declared yet, thus we accept a template
+/// parameter that has the same signature as
+/// BidirecationEdge that will be declared
+/// later. This allows us to use it as if it
+/// was delcared, provided that only the real
+/// BidirecationalEdge is used as this
+/// argument.
 template<typename Node,
          typename EdgeLabel,
          bool HasParent,
          size_t SmallSize,
-         template<typename,
-                  typename,
-                  bool,
-                  size_t>
-         class BidirectionalNode> // At this step BidirectionalEdge has not been
-                                  // declared yet, thus we accept a template
-                                  // parameter that has the same signature as
-                                  // BidirecationEdge that will be declared
-                                  // later. This allows us to use it as if it
-                                  // was delcared, provided that only the real
-                                  // BidirecationalEdge is used as this
-                                  // argument.
+         template<typename, typename, bool, size_t>
+         class BidirectionalNode>
 struct BidirectionalNodeBaseTCalc {
   using BDNode = BidirectionalNode<Node, EdgeLabel, HasParent, SmallSize>;
   using Result = ForwardNode<Node, EdgeLabel, HasParent, SmallSize, BDNode>;
