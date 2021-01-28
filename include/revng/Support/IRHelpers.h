@@ -1037,3 +1037,57 @@ replaceAllUsesInFunctionsWith(llvm::Value *ToReplace,
   }
   return Changed;
 }
+
+static llvm::StringRef MarkerFunctionNames[] = { "newpc",
+                                                 "function_call",
+                                                 "exitTB",
+                                                 "nodce",
+                                                 "exception_warning",
+                                                 "raise_exception_helper",
+                                                 "function_dispatcher" };
+
+/// \brief Checks if \p I is a marker
+///
+/// A marker a function call to an empty function acting as meta-information,
+/// for example the `function_call` marker.
+inline bool isMarker(llvm::Instruction *I) {
+  using namespace std::placeholders;
+  using llvm::any_of;
+  using std::bind;
+
+  return any_of(MarkerFunctionNames, bind(isCallTo, I, _1));
+}
+
+inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
+  auto It = I->getIterator();
+  auto End = I->getParent()->end();
+  do {
+    It++;
+    revng_assert(It != End);
+  } while (isMarker(&*It));
+
+  revng_assert(It != End);
+  return &*It;
+}
+
+/// \brief Given a BasicBlock representing a function call, returns the callee
+inline llvm::BasicBlock *getFunctionCallCallee(llvm::BasicBlock *BB) {
+  using namespace llvm;
+
+  auto Last = BB->begin();
+  auto It = BB->end();
+  while (It != Last) {
+    It--;
+    if (isCallTo(&*It, "function_call")) {
+      auto *Call = cast<CallInst>(&*It);
+
+      if (auto *BA = dyn_cast<BlockAddress>(Call->getArgOperand(0)))
+        return BA->getBasicBlock();
+      else
+        return nullptr;
+    }
+  }
+
+  // TODO: is it OK to treat indirect function calls and non-calls the same way?
+  return nullptr;
+}
