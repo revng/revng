@@ -149,6 +149,34 @@ BOOST_AUTO_TEST_CASE(TestSortedVector) {
   testSet<SortedVector<Element>>();
 }
 
+template<typename T>
+bool isSerializationStable(T &&Original) {
+  std::string Buffer;
+
+  {
+    llvm::raw_string_ostream Stream(Buffer);
+    llvm::yaml::Output YAMLOutput(Stream);
+    YAMLOutput << Original;
+  }
+
+  T Deserialized;
+  llvm::yaml::Input YAMLInput(Buffer);
+  YAMLInput >> Deserialized;
+
+  return Original == Deserialized;
+}
+
+BOOST_AUTO_TEST_CASE(TestYAMLSerializationStability) {
+  revng_check(isSerializationStable(SortedVector<int>{ 4, 19, 7 }));
+  revng_check(isSerializationStable(MutableSet<int>{ 4, 19, 7 }));
+
+  SortedVector<Element> TestSV{ { 1, 2 }, { 2, 3 } };
+  revng_check(isSerializationStable(std::move(TestSV)));
+
+  MutableSet<Element> TestMS{ { 1, 2 }, { 2, 3 } };
+  revng_check(isSerializationStable(std::move(TestMS)));
+}
+
 BOOST_AUTO_TEST_CASE(TestUniqueLast) {
   using IntPair = std::pair<int, int>;
   using Vector = std::vector<IntPair>;

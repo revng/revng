@@ -10,6 +10,7 @@
 
 #include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/ADT/STLExtras.h"
+#include "revng/Support/Assert.h"
 
 template<typename T>
 using KOTKey = decltype(KeyedObjectTraits<T>::key(std::declval<T>()));
@@ -68,18 +69,43 @@ struct llvm::yaml::SequenceTraits<T, enable_if_is_KeyedObjectContainer_t<T>> {
     using key_type = decltype(KOT::key(std::declval<value_type>()));
 
   private:
-    typename T::BatchInserter BatchInserter;
+    T &Seq;
+    decltype(Seq.begin()) It;
+    bool IsOutputting;
+    std::optional<typename T::BatchInserter> BatchInserter;
     value_type Instance;
+    unsigned Index = 0;
 
   public:
     Inserter(IO &io, T &Seq) :
-      BatchInserter(Seq.batch_insert()), Instance(KOT::fromKey(key_type())) {}
+      Seq(Seq),
+      It(Seq.begin()),
+      IsOutputting(io.outputting()),
+      Instance(KOT::fromKey(key_type())) {
 
-    auto &preflightElement(unsigned) { return Instance; }
+      if constexpr (std::is_const_v<T>) {
+        revng_assert(IsOutputting);
+      } else {
+        if (not IsOutputting)
+          BatchInserter.emplace(std::move(Seq.batch_insert()));
+      }
+    }
+
+    decltype(*It) &preflightElement(unsigned I) {
+      revng_assert(Index == I);
+      ++Index;
+
+      if (IsOutputting)
+        return *(It++);
+      else
+        return Instance;
+    }
 
     void postflightElement(unsigned) {
-      BatchInserter.insert(Instance);
-      Instance = KOT::fromKey(key_type());
+      if (not IsOutputting) {
+        BatchInserter->insert(Instance);
+        Instance = KOT::fromKey(key_type());
+      }
     };
   };
 };

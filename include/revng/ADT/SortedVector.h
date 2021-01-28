@@ -288,27 +288,52 @@ public:
   }
 
 public:
-  class BatchInserter {
+  template<bool KeepFirst>
+  class BatchInserterBase {
   private:
-    SortedVector &SV;
+    SortedVector *SV;
 
   public:
-    BatchInserter(SortedVector &SV) : SV(SV) {
+    BatchInserterBase(SortedVector &SV) : SV(&SV) {
+      revng_assert(not SV.BatchInsertInProgress);
       SV.BatchInsertInProgress = true;
     }
 
-    ~BatchInserter() { commit(); }
+    BatchInserterBase(const BatchInserterBase &) = delete;
+    BatchInserterBase &operator=(const BatchInserterBase &) = delete;
+
+    BatchInserterBase(BatchInserterBase &&Other) {
+      SV = Other.SV;
+      Other.SV = nullptr;
+    }
+
+    BatchInserterBase &operator=(BatchInserterBase &&Other) {
+      SV = Other.SV;
+      Other.SV = nullptr;
+    }
+
+    ~BatchInserterBase() { commit(); }
 
     void commit() {
-      revng_assert(SV.BatchInsertInProgress);
-      SV.BatchInsertInProgress = false;
-      SV.sort<true>();
+      if (SV != nullptr && SV->BatchInsertInProgress) {
+        SV->BatchInsertInProgress = false;
+        SV->sort<KeepFirst>();
+      }
     }
 
-    void insert(const T &Value) {
-      revng_assert(SV.BatchInsertInProgress);
-      SV.TheVector.push_back(Value);
+  protected:
+    void insertImpl(const T &Value) {
+      revng_assert(SV->BatchInsertInProgress);
+      SV->TheVector.push_back(Value);
     }
+  };
+
+  class BatchInserter : public BatchInserterBase<true> {
+  public:
+    BatchInserter(SortedVector &SV) : BatchInserterBase<true>(SV) {}
+
+  public:
+    void insert(const T &Value) { this->insertImpl(Value); }
   };
 
   BatchInserter batch_insert() {
@@ -316,27 +341,12 @@ public:
     return BatchInserter(*this);
   }
 
-  class BatchInsertOrAssigner {
-  private:
-    SortedVector &SV;
+  class BatchInsertOrAssigner : public BatchInserterBase<false> {
+  public:
+    BatchInsertOrAssigner(SortedVector &SV) : BatchInserterBase<false>(SV) {}
 
   public:
-    BatchInsertOrAssigner(SortedVector &SV) : SV(SV) {
-      SV.BatchInsertInProgress = true;
-    }
-
-    ~BatchInsertOrAssigner() { commit(); }
-
-    void commit() {
-      revng_assert(SV.BatchInsertInProgress);
-      SV.BatchInsertInProgress = false;
-      SV.sort<false>();
-    }
-
-    void insert_or_assign(const T &Value) {
-      revng_assert(SV.BatchInsertInProgress);
-      SV.TheVector.push_back(Value);
-    }
+    void insert_or_assign(const T &Value) { this->insertImpl(Value); }
   };
 
   BatchInsertOrAssigner batch_insert_or_assign() {
