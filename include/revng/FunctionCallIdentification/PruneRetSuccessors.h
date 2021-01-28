@@ -23,7 +23,7 @@ public:
   PruneRetSuccessors() : llvm::ModulePass(ID) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.addRequired<GeneratedCodeBasicInfo>();
+    AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
     AU.addRequired<FunctionCallIdentification>();
   }
 

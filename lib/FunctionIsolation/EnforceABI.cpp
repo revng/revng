@@ -166,7 +166,7 @@ private:
 };
 
 bool EnforceABI::runOnModule(Module &M) {
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
   EnforceABIImpl Impl(M, GCBI);
   Impl.run();

@@ -33,74 +33,10 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
-    AU.addRequired<GeneratedCodeBasicInfo>();
+    AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
   }
 
   bool runOnModule(llvm::Module &M) override;
-
-  llvm::CallInst *getCall(llvm::BasicBlock *BB) const {
-    return getCall(BB->getTerminator());
-  }
-
-  llvm::CallInst *findPostDominatedCall(llvm::BasicBlock *BB) {
-    using namespace llvm;
-
-    do {
-      for (Instruction &I : make_range(BB->rbegin(), BB->rend())) {
-        if (getCallee(&I) == FunctionCall) {
-          return cast<CallInst>(&I);
-        }
-      }
-
-      BB = BB->getSinglePredecessor();
-    } while (BB != nullptr);
-
-    return nullptr;
-  }
-
-  /// \brief Return true if \p T is a function call in the input assembly
-  llvm::CallInst *getCall(llvm::Instruction *T) const {
-    revng_assert(T != nullptr);
-    revng_assert(T->isTerminator());
-    llvm::Instruction *Previous = getPrevious(T);
-    while (Previous != nullptr && isMarker(Previous)) {
-      auto *Call = llvm::cast<llvm::CallInst>(Previous);
-      if (Call->getCalledFunction() == FunctionCall)
-        return Call;
-
-      Previous = getPrevious(Previous);
-    }
-
-    return nullptr;
-  }
-
-  /// \brief Return true if \p T is a function call in the input assembly
-  bool isCall(llvm::Instruction *I) const { return getCall(I) != nullptr; }
-
-  bool isCall(llvm::BasicBlock *BB) const {
-    return isCall(BB->getTerminator());
-  }
-
-  llvm::BasicBlock *getFallthrough(llvm::BasicBlock *BB) const {
-    return getFallthrough(BB->getTerminator());
-  }
-
-  llvm::BasicBlock *getFallthrough(llvm::Instruction *T) const {
-    revng_assert(T != nullptr);
-    revng_assert(T->isTerminator());
-    llvm::Instruction *Previous = getPrevious(T);
-    while (Previous != nullptr && isMarker(Previous)) {
-      auto *Call = llvm::cast<llvm::CallInst>(Previous);
-      if (Call->getCalledFunction() == FunctionCall) {
-        auto *Fallthrough = llvm::cast<llvm::BlockAddress>(Call->getOperand(1));
-        return Fallthrough->getBasicBlock();
-      }
-
-      Previous = getPrevious(Previous);
-    }
-
-    revng_abort();
-  }
 
   bool isFallthrough(MetaAddress Address) const {
     return FallthroughAddresses.count(Address) != 0;
@@ -114,8 +50,6 @@ public:
     revng_assert(I->isTerminator());
     return isFallthrough(I->getParent());
   }
-
-  const CustomCFG &cfg() const { return FilteredCFG; }
 
 private:
   void buildFilteredCFG(llvm::Function &F);

@@ -287,7 +287,7 @@ void IFI::replaceFunctionCall(StackAnalysis::BranchType::Values BranchType,
   BasicBlock *FallthroughOld = nullptr;
   Constant *FallthroughPCCI = nullptr;
   Value *ExternalFunctionName = nullptr;
-  if (CallInst *FunctionCallMarker = GCBI.getFunctionCall(Call)) {
+  if (CallInst *FunctionCallMarker = getFunctionCall(Call)) {
     // Ensure we have the expected callee
     BasicBlock *MarkerCallee = nullptr;
     auto *FirstOperand = FunctionCallMarker->getArgOperand(0);
@@ -1243,7 +1243,7 @@ void IFI::run() {
 bool IF::runOnModule(Module &TheModule) {
 
   // Retrieve analysis of the GeneratedCodeBasicInfo pass
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
   // Create an object of type IsolateFunctionsImpl and run the pass
   IFI Impl(TheModule.getFunction("root"), GCBI);

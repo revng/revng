@@ -24,7 +24,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   revng_log(PassesLog, "Starting FunctionCallIdentification");
 
   llvm::Function &F = *M.getFunction("root");
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
   FallthroughAddresses.clear();
 
@@ -61,7 +61,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
     Instruction *Terminator = BB.getTerminator();
 
     if (Terminator != nullptr) {
-      if (CallInst *Call = getCall(Terminator)) {
+      if (CallInst *Call = getFunctionCall(Terminator)) {
         auto Address = MetaAddress::fromConstant(Call->getOperand(2));
         FallthroughAddresses.insert(Address);
         continue;
@@ -291,7 +291,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
 }
 
 void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfo>();
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
   // We have to create a view on the CFG where:
   //
@@ -305,7 +305,7 @@ void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
     CustomCFGNode *Node = FilteredCFG.getNode(&BB);
 
     // Is this a function call?
-    if (CallInst *Call = GCBI.getFunctionCall(&BB)) {
+    if (CallInst *Call = getFunctionCall(&BB)) {
 
       Value *SecondArgument = Call->getArgOperand(1);
       auto *Fallthrough = cast<BlockAddress>(SecondArgument)->getBasicBlock();

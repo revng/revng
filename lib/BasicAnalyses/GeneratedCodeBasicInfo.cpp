@@ -18,11 +18,7 @@
 
 using namespace llvm;
 
-char GeneratedCodeBasicInfo::ID = 0;
-using RegisterGCBI = RegisterPass<GeneratedCodeBasicInfo>;
-static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
-
-bool GeneratedCodeBasicInfo::runOnModule(Module &M) {
+void GeneratedCodeBasicInfo::run(Module &M) {
   Function &F = *M.getFunction("root");
   NewPC = M.getFunction("newpc");
   if (NewPC != nullptr) {
@@ -109,8 +105,6 @@ bool GeneratedCodeBasicInfo::runOnModule(Module &M) {
   }
 
   revng_log(PassesLog, "Ending GeneratedCodeBasicInfo");
-
-  return false;
 }
 
 GeneratedCodeBasicInfo::Successors
@@ -141,3 +135,32 @@ GeneratedCodeBasicInfo::getSuccessors(BasicBlock *BB) const {
 
   return Result;
 }
+
+AnalysisKey GeneratedCodeBasicInfoAnalysis::Key;
+GeneratedCodeBasicInfo
+GeneratedCodeBasicInfoAnalysis::run(Module &M, ModuleAnalysisManager &MAM) {
+  GeneratedCodeBasicInfo GCBI;
+  GCBI.run(M);
+  return GCBI;
+}
+
+GeneratedCodeBasicInfo
+GeneratedCodeBasicInfoAnalysis::run(Function &F, FunctionAnalysisManager &FAM) {
+  GeneratedCodeBasicInfo GCBI;
+  GCBI.run(*F.getParent());
+  return GCBI;
+}
+
+bool GeneratedCodeBasicInfoWrapperPass::runOnModule(Module &M) {
+  GCBI.reset(new GeneratedCodeBasicInfo());
+  GCBI->run(M);
+  return false;
+}
+
+void GeneratedCodeBasicInfoWrapperPass::releaseMemory() {
+  GCBI.reset();
+}
+
+char GeneratedCodeBasicInfoWrapperPass::ID = 0;
+using RegisterGCBI = RegisterPass<GeneratedCodeBasicInfoWrapperPass>;
+static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);

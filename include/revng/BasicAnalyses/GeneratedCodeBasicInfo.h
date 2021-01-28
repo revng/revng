@@ -8,6 +8,7 @@
 #include <map>
 #include <utility>
 
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 
@@ -36,13 +37,9 @@ static const char *JTReasonMDName = "revng.jt.reasons";
 /// provides information about the generated basic blocks, distinguishing
 /// between basic blocks generated due to translation and dispatcher-related
 /// basic blocks.
-class GeneratedCodeBasicInfo : public llvm::ModulePass {
-public:
-  static char ID;
-
+class GeneratedCodeBasicInfo {
 public:
   GeneratedCodeBasicInfo() :
-    llvm::ModulePass(ID),
     ArchType(llvm::Triple::ArchType::UnknownArch),
     InstructionAlignment(0),
     DelaySlotSize(0),
@@ -56,11 +53,7 @@ public:
     MetaAddressStruct(nullptr),
     PCH() {}
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.setPreservesAll();
-  }
-
-  bool runOnModule(llvm::Module &M) override;
+  void run(llvm::Module &M);
 
   /// \brief Return the type of basic block, see BlockType.
   static BlockType::Values getType(llvm::BasicBlock *BB) {
@@ -255,36 +248,6 @@ public:
     return Pair.first + Pair.second;
   }
 
-  llvm::CallInst *getFunctionCall(llvm::BasicBlock *BB) const {
-    return getFunctionCall(BB->getTerminator());
-  }
-
-  // TODO: is this a duplication of FunctionCallIdentification::isCall?
-  // TODO: we could unpack the information too
-  llvm::CallInst *getFunctionCall(llvm::Instruction *T) const {
-    revng_assert(T->isTerminator());
-    auto It = T->getIterator();
-    auto End = T->getParent()->begin();
-    while (It != End) {
-      It--;
-      if (llvm::CallInst *Call = getCallTo(&*It, "function_call"))
-        return Call;
-
-      if (not isMarker(&*It))
-        return nullptr;
-    }
-
-    return nullptr;
-  }
-
-  bool isFunctionCall(llvm::BasicBlock *BB) const {
-    return isFunctionCall(BB->getTerminator());
-  }
-
-  bool isFunctionCall(llvm::Instruction *T) const {
-    return getFunctionCall(T) != nullptr;
-  }
-
   llvm::BasicBlock *anyPC() const {
     revng_assert(nullptr != AnyPC);
     return AnyPC;
@@ -412,5 +375,38 @@ struct BlackListTrait<const GeneratedCodeBasicInfo &, llvm::BasicBlock *>
   using BlackListTraitBase<const GeneratedCodeBasicInfo &>::BlackListTraitBase;
   bool isBlacklisted(llvm::BasicBlock *Value) const {
     return !this->Obj.isTranslated(Value);
+  }
+};
+
+/// An analysis pass that computes a \c GCBI result. The result of
+/// this analysis is invalidated each time the analysis is called.
+class GeneratedCodeBasicInfoAnalysis
+  : public llvm::AnalysisInfoMixin<GeneratedCodeBasicInfoAnalysis> {
+  friend llvm::AnalysisInfoMixin<GeneratedCodeBasicInfoAnalysis>;
+  static llvm::AnalysisKey Key;
+
+public:
+  using Result = GeneratedCodeBasicInfo;
+  /// \note If a MPM is used, then make sure to register the
+  /// analysis manually and use a proxy.
+  Result run(llvm::Module &M, llvm::ModuleAnalysisManager &);
+  Result run(llvm::Function &F, llvm::FunctionAnalysisManager &);
+};
+
+/// Legacy pass manager pass to access GCBI.
+class GeneratedCodeBasicInfoWrapperPass : public llvm::ModulePass {
+  std::unique_ptr<GeneratedCodeBasicInfo> GCBI;
+
+public:
+  static char ID;
+
+  GeneratedCodeBasicInfoWrapperPass() : llvm::ModulePass(ID) {}
+
+  GeneratedCodeBasicInfo &getGCBI() { return *GCBI; }
+
+  bool runOnModule(llvm::Module &M) override;
+  void releaseMemory() override;
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.setPreservesAll();
   }
 };
