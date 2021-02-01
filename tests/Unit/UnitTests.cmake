@@ -50,13 +50,13 @@ target_link_libraries(test_combingpass
   ${LLVM_LIBRARIES})
 add_test(NAME test_combingpass COMMAND test_combingpass -- "${SRC}/TestGraphs/")
 
-revng_add_private_executable(decompileFunctionPipeline "${SRC}/DecompileFunction.cpp")
-target_include_directories(decompileFunctionPipeline
+revng_add_private_executable(decompile_function "${SRC}/DecompileFunction.cpp")
+target_include_directories(decompile_function
   PRIVATE "${CMAKE_SOURCE_DIR}"
           "${Boost_INCLUDE_DIRS}")
-target_compile_definitions(decompileFunctionPipeline
+target_compile_definitions(decompile_function
   PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_link_libraries(decompileFunctionPipeline
+target_link_libraries(decompile_function
   Decompiler
   revng::revngSupport
   ${LLVM_LIBRARIES})
@@ -64,7 +64,7 @@ target_link_libraries(decompileFunctionPipeline
 # End-to-end tests for the decompilation pipeline public API decompileFunction
 macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   if (EXISTS ${INPUT_FILE})
-    add_test(NAME decompileFunctionPipeline_${TARGET_NAME} COMMAND decompileFunctionPipeline ${INPUT_FILE})
+    add_test(NAME decompile_function_${TARGET_NAME} COMMAND decompile_function ${INPUT_FILE})
   endif()
 endmacro()
 
