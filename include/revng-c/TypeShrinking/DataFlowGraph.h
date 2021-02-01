@@ -12,11 +12,14 @@
 
 namespace TypeShrinking {
 
-struct DataFlowNode : public BidirectionalNode<DataFlowNode> {
-  DataFlowNode(llvm::Instruction *Ins) : Instruction(Ins){};
+struct DataFlowNodeData {
+  DataFlowNodeData(llvm::Instruction *Ins) : Instruction(Ins){};
   llvm::Instruction *Instruction;
 };
 
+using DataFlowNode = BidirectionalNode<DataFlowNodeData>;
+
 /// Builds a data flow graph with edges from uses to definitions
 GenericGraph<DataFlowNode> buildDataFlowGraph(llvm::Function &F);
+
 } // namespace TypeShrinking
