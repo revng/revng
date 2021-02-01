@@ -63,20 +63,9 @@ target_link_libraries(decompileFunctionPipeline
 
 # End-to-end tests for the decompilation pipeline public API decompileFunction
 macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
-  message(VERBOSE "--------- Preparing test ---------")
-  message(VERBOSE "Category: ${CATEGORY}")
-  message(VERBOSE "Input file: ${INPUT_FILE}")
-  message(VERBOSE "Configuration: ${CONFIGURATION}")
-  message(VERBOSE "Output: ${OUTPUT}")
-  message(VERBOSE "Target name: ${TARGET_NAME}")
-
   if (EXISTS ${INPUT_FILE})
-    message(VERBOSE "Input file found: ${INPUT_FILE}")
-
     add_test(NAME decompileFunctionPipeline_${TARGET_NAME} COMMAND decompileFunctionPipeline ${INPUT_FILE})
-
   endif()
-  message(VERBOSE "----------------------------------")
 endmacro()
 
 # Register a new artifact
