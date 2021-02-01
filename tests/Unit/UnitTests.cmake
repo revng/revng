@@ -30,7 +30,7 @@ target_link_libraries(test_reachabilitypass
   revng::revngSupport
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_reachabilitypass COMMAND test_reachabilitypass)
+add_test(NAME test_reachabilitypass COMMAND ./bin/test_reachabilitypass)
 
 #
 # test_combingpass
@@ -48,7 +48,7 @@ target_link_libraries(test_combingpass
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_combingpass COMMAND test_combingpass -- "${SRC}/TestGraphs/")
+add_test(NAME test_combingpass COMMAND ./bin/test_combingpass -- "${SRC}/TestGraphs/")
 
 revng_add_private_executable(decompile_function "${SRC}/DecompileFunction.cpp")
 target_include_directories(decompile_function
@@ -64,7 +64,7 @@ target_link_libraries(decompile_function
 # End-to-end tests for the decompilation pipeline public API decompileFunction
 macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   if (EXISTS ${INPUT_FILE})
-    add_test(NAME decompile_function_${TARGET_NAME} COMMAND decompile_function ${INPUT_FILE})
+    add_test(NAME decompile_function_${TARGET_NAME} COMMAND ./bin/decompile_function ${INPUT_FILE})
   endif()
 endmacro()
 
