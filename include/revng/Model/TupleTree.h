@@ -489,8 +489,45 @@ std::string pathAsString(const KeyIntVector &Path) {
 //
 // FOR_EACH macro implemenation
 //
-#define GET_MACRO(_0, _1, _2, _3, _4, _5, NAME, ...) NAME
-#define NUMARGS(...) GET_MACRO(_0, __VA_ARGS__, 5, 4, 3, 2, 1)
+#define GET_MACRO(_0,   \
+                  _1,   \
+                  _2,   \
+                  _3,   \
+                  _4,   \
+                  _5,   \
+                  _6,   \
+                  _7,   \
+                  _8,   \
+                  _9,   \
+                  _10,  \
+                  _11,  \
+                  _12,  \
+                  _13,  \
+                  _14,  \
+                  _15,  \
+                  _16,  \
+                  NAME, \
+                  ...)  \
+  NAME
+#define NUMARGS(...)     \
+  GET_MACRO(_0,          \
+            __VA_ARGS__, \
+            16,          \
+            15,          \
+            14,          \
+            13,          \
+            12,          \
+            11,          \
+            10,          \
+            9,           \
+            8,           \
+            7,           \
+            6,           \
+            5,           \
+            4,           \
+            3,           \
+            2,           \
+            1)
 
 #define FE_0(ACTION, TOTAL, ARG)
 
@@ -512,9 +549,71 @@ std::string pathAsString(const KeyIntVector &Path) {
   ACTION(ARG, (TOTAL) -4, X)             \
   FE_4(ACTION, TOTAL, ARG, __VA_ARGS__)
 
+#define FE_6(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -5, X)             \
+  FE_5(ACTION, TOTAL, ARG, __VA_ARGS__)
+
+#define FE_7(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -6, X)             \
+  FE_6(ACTION, TOTAL, ARG, __VA_ARGS__)
+
+#define FE_8(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -7, X)             \
+  FE_7(ACTION, TOTAL, ARG, __VA_ARGS__)
+
+#define FE_9(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -8, X)             \
+  FE_8(ACTION, TOTAL, ARG, __VA_ARGS__)
+
+#define FE_10(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -9, X)              \
+  FE_9(ACTION, TOTAL, ARG, __VA_ARGS__)
+
+#define FE_11(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -10, X)             \
+  FE_10(ACTION, TOTAL, ARG, __VA_ARGS__)
+
+#define FE_12(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -11, X)             \
+  FE_11(ACTION, TOTAL, ARG, __VA_ARGS__)
+
+#define FE_13(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -12, X)             \
+  FE_12(ACTION, TOTAL, ARG, __VA_ARGS__)
+
+#define FE_14(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -13, X)             \
+  FE_13(ACTION, TOTAL, ARG, __VA_ARGS__)
+
+#define FE_15(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -14, X)             \
+  FE_14(ACTION, TOTAL, ARG, __VA_ARGS__)
+
+#define FE_16(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -15, X)             \
+  FE_15(ACTION, TOTAL, ARG, __VA_ARGS__)
+
 /// Calls ACTION(ARG, INDEX, VA_ARG) for each VA_ARG in ...
-#define FOR_EACH(ACTION, ARG, ...)                               \
-  GET_MACRO(_0, __VA_ARGS__, FE_5, FE_4, FE_3, FE_2, FE_1, FE_0) \
+#define FOR_EACH(ACTION, ARG, ...) \
+  GET_MACRO(_0,                    \
+            __VA_ARGS__,           \
+            FE_16,                 \
+            FE_15,                 \
+            FE_14,                 \
+            FE_13,                 \
+            FE_12,                 \
+            FE_11,                 \
+            FE_10,                 \
+            FE_9,                  \
+            FE_8,                  \
+            FE_7,                  \
+            FE_6,                  \
+            FE_5,                  \
+            FE_4,                  \
+            FE_3,                  \
+            FE_2,                  \
+            FE_1,                  \
+            FE_0)                  \
   (ACTION, (NUMARGS(__VA_ARGS__) - 1), ARG, __VA_ARGS__)
 
 //
