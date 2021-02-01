@@ -50,7 +50,7 @@ target_link_libraries(test_combingpass
   ${LLVM_LIBRARIES})
 add_test(NAME test_combingpass COMMAND test_combingpass -- "${SRC}/TestGraphs/")
 
-revng_add_private_executable(decompileFunctionPipeline "${SRC}/decompileFunction.cpp")
+revng_add_private_executable(decompileFunctionPipeline "${SRC}/DecompileFunction.cpp")
 target_include_directories(decompileFunctionPipeline
   PRIVATE "${CMAKE_SOURCE_DIR}"
           "${Boost_INCLUDE_DIRS}")
