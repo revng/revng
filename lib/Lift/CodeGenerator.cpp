@@ -45,12 +45,12 @@
 #include "revng/Support/ProgramCounterHandler.h"
 #include "revng/Support/revng.h"
 
-#include "CodeGenerator.h"
+#include "revng/Lift/CodeGenerator.h"
 
 #include "ExternalJumpsHandler.h"
 #include "InstructionTranslator.h"
 #include "JumpTargetManager.h"
-#include "PTCInterface.h"
+#include "revng/Lift/PTCInterface.h"
 #include "VariableManager.h"
 
 using namespace llvm;

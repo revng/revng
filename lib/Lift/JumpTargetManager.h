@@ -21,7 +21,7 @@
 #include "revng/Support/ProgramCounterHandler.h"
 #include "revng/Support/revng.h"
 
-#include "BinaryFile.h"
+#include "revng/Lift/BinaryFile.h"
 
 // Forward declarations
 namespace llvm {

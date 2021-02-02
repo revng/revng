@@ -15,7 +15,7 @@
 
 #include "PTCDump.h"
 
-#include "PTCInterface.h"
+#include "revng/Lift/PTCInterface.h"
 
 static const int MAX_TEMP_NAME_LENGTH = 128;
 

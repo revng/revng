@@ -29,9 +29,9 @@
 #include "revng/Support/Statistics.h"
 #include "revng/Support/revng.h"
 
-#include "BinaryFile.h"
-#include "CodeGenerator.h"
-#include "PTCInterface.h"
+#include "revng/Lift/BinaryFile.h"
+#include "revng/Lift/CodeGenerator.h"
+#include "revng/Lift/PTCInterface.h"
 
 PTCInterface ptc = {}; ///< The interface with the PTC library.
 

@@ -24,7 +24,7 @@
 
 #include "ExternalJumpsHandler.h"
 
-#include "BinaryFile.h"
+#include "revng/Lift/BinaryFile.h"
 
 using namespace llvm;
 using std::string;

@@ -29,7 +29,7 @@
 #include "VariableManager.h"
 
 #include "PTCDump.h"
-#include "PTCInterface.h"
+#include "revng/Lift/PTCInterface.h"
 
 using namespace llvm;
 

@@ -26,7 +26,7 @@
 
 #include "InstructionTranslator.h"
 
-#include "PTCInterface.h"
+#include "revng/Lift/PTCInterface.h"
 #include "VariableManager.h"
 
 using namespace llvm;

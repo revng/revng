@@ -27,7 +27,7 @@
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 
-#include "BinaryFile.h"
+#include "revng/Lift/BinaryFile.h"
 
 // using directives
 using namespace llvm;
