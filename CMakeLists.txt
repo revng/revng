@@ -59,10 +59,9 @@ include(tests/Tests.cmake)
 
 include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
 
-# End-to-end tests for standalone passes
-macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
 
-  if (EXISTS ${INPUT_FILE})
+# Macro for creating the tests for decompilation pipeline
+macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
 
     # prepare enforced .ll for decompilation
     add_test(NAME prepare_${TARGET_NAME} COMMAND opt -S
@@ -261,17 +260,47 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       FIXTURES_REQUIRED Decompiled_fixture_${TARGET_NAME}
       )
 
-  endif()
 endmacro()
 
-# Register a new artifact
+
+# Decompilation torture tests
+macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
+
+  if (EXISTS ${INPUT_FILE})
+    add_decompilation_pipeline_test(${CATEGORY}
+                                    ${INPUT_FILE}
+                                    ${CONFIGURATION}
+                                    ${OUTPUT}
+                                    ${TARGET_NAME})
+  endif()
+
+endmacro()
+
 register_derived_artifact("abi-enforced-for-decompilation-torture" # FROM_ARTIFACTS: input artifacts
   "revng-c-passes-torture"         # NAME: name of the new aritfact
   ""                               # SUFFIX: extension of output file
   "FILE"                           # TYPE: "FILE" or "DIRECTORY"
   )
 
-# Register a new artifact
+
+# Decompilation tests
+macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
+
+  if (EXISTS ${INPUT_FILE})
+    # Run decompilation tests on all analysis tests from revng and only on
+    # the printf runtime tests from revng.
+    if (("${INPUT_FILE}" MATCHES ".*/runtime/.*printf.*")
+         OR ("${INPUT_FILE}" MATCHES ".*/analysis/.*"))
+      add_decompilation_pipeline_test(${CATEGORY}
+                                      ${INPUT_FILE}
+                                      ${CONFIGURATION}
+                                      ${OUTPUT}
+                                      ${TARGET_NAME})
+    endif()
+  endif()
+
+endmacro()
+
 register_derived_artifact("abi-enforced-for-decompilation" # FROM_ARTIFACTS: input artifacts
   "revng-c-passes"                 # NAME: name of the new aritfact
   ""                               # SUFFIX: extension of output file
