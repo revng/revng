@@ -4,6 +4,8 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <compare>
+
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -717,7 +719,8 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
   // We expect no bases or at most one base address. If we get more than
   // one possible candidate base address for ISCEV we haven't decided
   // which type to emit yet, so this is not handled.
-  revng_assert(Bases.empty() or Bases.size() == 1);
+  if (Bases.size() > 1)
+    return nullptr;
 
   // It was impossible to find a valid base address for ISCEV.
   // This means that we can still try to interpret ISCEV as base
@@ -727,10 +730,16 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
 
   // We assume that if we find a Base SCEV, its is a SCEVUnknown, and we can get
   // its Value, which is the associated base address in the LLMV IR.
+  // If it's not, we can't do anything for now.
+  // However, this is a potential spot to detect loop induction variables in the
+  // future.
+  if (not isa<llvm::SCEVUnknown>(Base))
+    return nullptr;
+
   const auto *BaseValue = cast<llvm::SCEVUnknown>(Base)->getValue();
 
   // Unwrap calls to revng_scev_barrier_*
-  // FIXME: calls to revng_scev_barrier_* should eventually be removed after
+  // TODO: calls to revng_scev_barrier_* should eventually be removed after
   // using them and before actually generating C code for them.
   if (auto *Call = dyn_cast<CallInst>(BaseValue)) {
     if (Call->getType()->isIntOrPtrTy()) {
@@ -769,9 +778,39 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
   const dla::Layout *BasePointedLayout = BasePointedLayouts.front();
   revng_assert(BasePointedLayout);
 
-  // Off = I - Base
-  const SCEV *Off = SE->getAddExpr(ISCEV, SE->getNegativeSCEV(Base));
+  // Compute SCEV for (- Base), and make sure (- Base) has the same size as
+  // ISCEV.
+  const SCEV *MinusBase = nullptr;
+  auto BaseSize = SE->getTypeSizeInBits(Base->getType());
+  auto ISCEVSize = SE->getTypeSizeInBits(ISCEV->getType());
+  std::strong_ordering Cmp = BaseSize <=> ISCEVSize;
+  if (Cmp < 0) {
 
+    // If Base is narrower, zero extend it and negate it.
+    // Leave ISCEV like it is.
+    const SCEV *ExtBase = SE->getZeroExtendExpr(Base, ISCEV->getType());
+    MinusBase = SE->getNegativeSCEV(ExtBase);
+
+  } else if (Cmp > 0) {
+
+    // If Base is wider, just negate it, and zero extend ISCEV.
+    MinusBase = SE->getNegativeSCEV(Base);
+    ISCEV = SE->getZeroExtendExpr(ISCEV, Base->getType());
+
+  } else { // Otherwise just negate Base.
+    MinusBase = SE->getNegativeSCEV(Base);
+  }
+  revng_assert(MinusBase);
+
+  // Off = I - Base
+  const SCEV *Off = SE->getAddExpr(ISCEV, MinusBase);
+
+  // TODO: this is a stub for now. Doing nothing it triggers the early exit path
+  // below, resulting in never being able to build pointer arithmetic expression
+  // in the form of a member access.
+  // This is equivalent to basically throwing away almost all DLA information.
+  // Eventually we need to replace this code with something that really builds
+  // member access expressions.
   const auto getNestedFieldIds =
     [](const SCEV *Off,
        const dla::Layout *P,
@@ -838,7 +877,7 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
 
     for (Instruction &I : *BB) {
       // Skip calls to `revng_scev_barrier_*`
-      // FIXME: calls to revng_scev_barrier_* should eventually be removed after
+      // TODO: calls to revng_scev_barrier_* should eventually be removed after
       // using them and before actually generating C code for them.
       if (auto *Call = dyn_cast<CallInst>(&I)) {
         if (Call->getType()->isIntOrPtrTy()) {
@@ -1151,31 +1190,140 @@ getClangBinaryOpKind(const Instruction &I,
   return Res;
 }
 
-static bool is128Int(ASTContext &ASTCtx, clang::Expr *E) {
-  const clang::Type *T = E->getType().getTypePtr();
-  const clang::Type *Int128T = ASTCtx.Int128Ty.getTypePtr();
-  const clang::Type *UInt128T = ASTCtx.UnsignedInt128Ty.getTypePtr();
-  return T == Int128T or T == UInt128T;
-}
-
 static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
                                                          const Instruction &I,
                                                          Expr *LHS,
                                                          Expr *RHS) {
 
-  QualType LHSQualTy = LHS->getType();
-  QualType RHSQualTy = RHS->getType();
-  const clang::Type *LHSTy = LHSQualTy.getTypePtr();
-  const clang::Type *RHSTy = RHSQualTy.getTypePtr();
+  const clang::Type *LHSTy = LHS->getType().getTypePtr();
+  const clang::Type *RHSTy = RHS->getType().getTypePtr();
   revng_assert((LHSTy->isPointerType() or LHSTy->isIntegerType())
                and (RHSTy->isPointerType() or RHSTy->isIntegerType()));
+
+  unsigned OpCode = I.getOpcode();
+
+  if (LHSTy->isPointerType() or RHSTy->isPointerType()) {
+
+    switch (OpCode) {
+    case Instruction::ICmp: {
+      // If it's an equality comparison and only one of the operands is a
+      // pointer, promote them both to pointer.
+      if (LHSTy->isPointerType() and not RHSTy->isPointerType()) {
+        RHS = ImplicitCastExpr::Create(ASTCtx,
+                                       LHS->getType(),
+                                       CastKind::CK_IntegralToPointer,
+                                       RHS,
+                                       nullptr,
+                                       VK_RValue);
+        RHSTy = LHSTy;
+      } else if (not LHSTy->isPointerType() and RHSTy->isPointerType()) {
+        LHS = ImplicitCastExpr::Create(ASTCtx,
+                                       RHS->getType(),
+                                       CastKind::CK_IntegralToPointer,
+                                       LHS,
+                                       nullptr,
+                                       VK_RValue);
+        LHSTy = RHSTy;
+      }
+    } break;
+
+    case Instruction::Add: {
+      // If it's an additive expression (see C99 standard 6.5.6), we can leave
+      // them like they are. The pointer remains a pointer, and the integer
+      // represents an offset.
+      // However, in case of sums, only one of the operands can be of pointer
+      // type.
+      if (LHSTy->isPointerType() and RHSTy->isPointerType()) {
+
+        QualType IntPtrTy = ASTCtx.getUIntPtrType();
+        TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(IntPtrTy);
+        LHS = CStyleCastExpr::Create(ASTCtx,
+                                     IntPtrTy,
+                                     VK_RValue,
+                                     CK_PointerToIntegral,
+                                     LHS,
+                                     nullptr,
+                                     TI,
+                                     {},
+                                     {});
+        LHSTy = IntPtrTy.getTypePtr();
+
+        RHS = CStyleCastExpr::Create(ASTCtx,
+                                     IntPtrTy,
+                                     VK_RValue,
+                                     CK_PointerToIntegral,
+                                     RHS,
+                                     nullptr,
+                                     TI,
+                                     {},
+                                     {});
+        RHSTy = IntPtrTy.getTypePtr();
+      }
+    } break;
+
+    case Instruction::Sub: {
+      // If it's an additive expression (see C99 standard 6.5.6), we can leave
+      // them like they are. The pointer remains a pointer, and the integer
+      // represents an offset.
+      break;
+    }
+
+    case Instruction::AShr:
+    case Instruction::LShr:
+    case Instruction::Shl:
+    case Instruction::SDiv:
+    case Instruction::UDiv:
+    case Instruction::SRem:
+    case Instruction::URem:
+    case Instruction::Mul:
+    case Instruction::And:
+    case Instruction::Or:
+    case Instruction::Xor: {
+
+      // This is supposed to never happen, but it does,
+      // due to DLA, so we have to handle it.
+
+      QualType IntPtrTy = ASTCtx.getUIntPtrType();
+      TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(IntPtrTy);
+
+      if (LHSTy->isPointerType()) {
+        LHS = CStyleCastExpr::Create(ASTCtx,
+                                     IntPtrTy,
+                                     VK_RValue,
+                                     CK_PointerToIntegral,
+                                     LHS,
+                                     nullptr,
+                                     TI,
+                                     {},
+                                     {});
+        LHSTy = IntPtrTy.getTypePtr();
+      }
+
+      if (RHSTy->isPointerType()) {
+        RHS = CStyleCastExpr::Create(ASTCtx,
+                                     IntPtrTy,
+                                     VK_RValue,
+                                     CK_PointerToIntegral,
+                                     RHS,
+                                     nullptr,
+                                     TI,
+                                     {},
+                                     {});
+        RHSTy = IntPtrTy.getTypePtr();
+      }
+
+    } break;
+
+    default:
+      revng_abort();
+    }
+  }
+
   uint64_t LHSSize = ASTCtx.getTypeSize(LHSTy);
   uint64_t RHSSize = ASTCtx.getTypeSize(RHSTy);
-  unsigned OpCode = I.getOpcode();
-  revng_assert(LHSSize == RHSSize or OpCode == Instruction::Shl
-               or OpCode == Instruction::LShr or OpCode == Instruction::AShr
-               or is128Int(ASTCtx, RHS) or is128Int(ASTCtx, LHS));
-  unsigned Size = static_cast<unsigned>(std::max(LHSSize, RHSSize));
+  uint64_t MaxSize = std::max(LHSSize, RHSSize);
+  unsigned Size = static_cast<unsigned>(MaxSize);
+
   QualType SignedTy = ASTCtx.getIntTypeForBitwidth(Size, /* Signed */ true);
 
   std::pair<Expr *, Expr *> Res = std::make_pair(LHS, RHS);
