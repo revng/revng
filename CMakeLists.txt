@@ -61,15 +61,8 @@ include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
 
 # End-to-end tests for standalone passes
 macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
-  message(VERBOSE "--------- Preparing test ---------")
-  message(VERBOSE "Category: ${CATEGORY}")
-  message(VERBOSE "Input file: ${INPUT_FILE}")
-  message(VERBOSE "Configuration: ${CONFIGURATION}")
-  message(VERBOSE "Output: ${OUTPUT}")
-  message(VERBOSE "Target name: ${TARGET_NAME}")
 
   if (EXISTS ${INPUT_FILE})
-    message(VERBOSE "Input file found: ${INPUT_FILE}")
 
     # prepare enforced .ll for decompilation
     add_test(NAME prepare_${TARGET_NAME} COMMAND opt -S
@@ -269,7 +262,6 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       )
 
   endif()
-  message(VERBOSE "----------------------------------")
 endmacro()
 
 # Register a new artifact
