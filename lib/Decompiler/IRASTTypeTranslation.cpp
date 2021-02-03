@@ -323,12 +323,8 @@ DeclCreator::getPointedLayouts(const llvm::Value *V) const {
   // information coming from the DLA about where V points.
   if (FItBegin != FItEnd) {
 
-    if (std::next(FItBegin) == FItEnd) {
-
-      // If we only find a single entry in ValueLayouts associated with V,
-      // we expect this to be a scalar type.
-      auto FieldId = FItBegin->first.fieldNum();
-      revng_assert(FieldId == dla::LayoutTypePtr::fieldNumNone);
+    if (std::next(FItBegin) == FItEnd
+        and FItBegin->first.fieldNum() == dla::LayoutTypePtr::fieldNumNone) {
 
       // V has a scalar type, which is a pointer to the pointed Layout.
       Result.push_back(FItBegin->second);
@@ -342,11 +338,13 @@ DeclCreator::getPointedLayouts(const llvm::Value *V) const {
       // The field of a struct has a pointer type and points to a Layout that
       // is described by the mapped value in ValueLayouts.
 
-      // TODO: we might be losing fields at the end of the struct.
-      auto LastFieldId = std::prev(FItEnd)->first.fieldNum();
-      revng_assert(LastFieldId != dla::LayoutTypePtr::fieldNumNone);
-      for (decltype(LastFieldId) FieldId = 0; FieldId <= LastFieldId;
-           ++FieldId) {
+      llvm::Type *VTy = V->getType();
+      if (const auto *Fun = dyn_cast<llvm::Function>(V))
+        VTy = Fun->getReturnType();
+
+      auto NumFields = llvm::cast<llvm::StructType>(VTy)->getNumElements();
+      revng_assert(NumFields != dla::LayoutTypePtr::fieldNumNone);
+      for (decltype(NumFields) FieldId = 0; FieldId < NumFields; ++FieldId) {
 
         auto CurrId = FItBegin->first.fieldNum();
         if (CurrId == FieldId) {
