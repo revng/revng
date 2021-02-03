@@ -382,6 +382,7 @@ public:
               }
             } else {
               // Type representing the return type
+              revng_assert(not C->getType()->isIntegerTy(1));
               LayoutTypeSystemNode *RetTy = TS.getLayoutType(Callee);
               const auto &[CType, NewC] = TS.getOrCreateLayoutType(C);
               Changed |= NewC;
@@ -445,6 +446,8 @@ public:
           if (auto *L = dyn_cast<LoadInst>(&I)) {
             revng_assert(isa<IntegerType>(L->getType())
                          or isa<PointerType>(L->getType()));
+
+            revng_assert(not L->getType()->isIntegerTy(1));
             const auto &[LoadedTy, Created] = TS.getOrCreateLayoutType(L);
             Changed |= Created;
             const SCEV *LoadSCEV = SE->getSCEV(L);
@@ -526,8 +529,6 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
           continue;
         }
 
-        // Branch operands are Basic Blocks, and we don't want to infer types
-        // for those.
         // InsertValue and ExtractValue are special because their operands have
         // struct type, so we don't handle them explictly.
         // Both will be analyzed only as operands of their respective uses.
@@ -623,6 +624,23 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
           llvm::Type *InstrType = I.getType();
           if (InstrType->isVoidTy() or InstrType->isIntegerTy(1))
             continue;
+
+          switch (I.getOpcode()) {
+          case Instruction::Mul:
+          case Instruction::SDiv:
+          case Instruction::UDiv:
+          case Instruction::SRem:
+          case Instruction::URem:
+          case Instruction::AShr:
+          case Instruction::LShr:
+          case Instruction::Shl:
+          case Instruction::And:
+          case Instruction::Xor:
+          case Instruction::Or:
+            continue;
+          default: // do nothing
+                   ;
+          }
 
           // Consider other Instructions themselves as pointers.
           Pointers.push_back(&I);
