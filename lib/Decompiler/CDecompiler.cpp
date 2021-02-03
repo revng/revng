@@ -78,6 +78,7 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
   PM.add(new CDecompilerPass(std::move(OS)));
   PM.doInitialization();
   PM.run(*TmpFunc);
+  PM.doFinalization();
 
   return ResultSourceCode;
 }
