@@ -471,6 +471,7 @@ inline void
 LayoutTypeSystem::mergeNodes(LayoutTypeSystemNode *From,
                              LayoutTypeSystemNode *Into,
                              llvm::SmallSet<LayoutTypePtr, 2> *IntoTypePtrs) {
+  revng_assert(From != Into);
   revng_log(MergeLog, "Merging: " << From << " Into: " << Into);
   auto LayoutIt = Layouts.find(From);
   revng_assert(LayoutIt != Layouts.end());
