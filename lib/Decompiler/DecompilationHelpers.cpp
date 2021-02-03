@@ -128,10 +128,7 @@ clang::CastExpr *createCast(clang::QualType LHSQualTy,
 
       uint64_t PtrSize = ASTCtx.getTypeSize(LHSQualTy);
       uint64_t IntegerSize = ASTCtx.getTypeSize(RHSQualTy);
-      revng_assert(PtrSize >= IntegerSize);
-      if (PtrSize > IntegerSize)
-        RHS = createCast(ASTCtx.getUIntPtrType(), RHS, ASTCtx);
-
+      revng_assert((PtrSize >= IntegerSize) or (IntegerSize == 128));
       CK = CastKind::CK_IntegralToPointer;
     } else if (RHSTy->isPointerType()) {
       CK = CastKind::CK_BitCast;
