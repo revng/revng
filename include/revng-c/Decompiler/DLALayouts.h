@@ -292,7 +292,6 @@ public:
   unsigned fieldNum() const { return FieldIdx; }
 
   void print(llvm::raw_ostream &Out) const;
-  friend struct std::less<dla::LayoutTypePtr>;
 }; // end class LayoutTypePtr
 
 using ValueLayoutMap = std::map<LayoutTypePtr, Layout *>;
