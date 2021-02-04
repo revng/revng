@@ -211,25 +211,6 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       FIXTURES_SETUP DLA_fixture_${TARGET_NAME}
       )
 
-    # test AddSCEVBarrierPass
-    add_test(NAME add_scev_barrier_${TARGET_NAME} COMMAND opt -S
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libDecompiler.so
-      -mark-for-serialization
-      -add-scev-barrier
-      ${TARGET_NAME}_adjusted_stack.ll
-      -o /dev/null
-      )
-    set_property(TEST add_scev_barrier_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS adjust_stack_pointer_${TARGET_NAME}
-      )
-    set_property(TEST add_scev_barrier_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED AdjustStackPointer_fixture_${TARGET_NAME}
-      )
-    set_property(TEST add_scev_barrier_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP AddSCEVBarrier_fixture_${TARGET_NAME}
-      )
-
     # test full decompilation pipeline with dla
     add_test(NAME decompile_with_dla_${TARGET_NAME} COMMAND opt -S
       -load
