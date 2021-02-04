@@ -13,6 +13,7 @@
 #include "llvm/Support/YAMLTraits.h"
 
 #include "revng/ADT/KeyTraits.h"
+#include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/Support/Assert.h"
 
