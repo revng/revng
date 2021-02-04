@@ -817,40 +817,19 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   // the types that were created first are printed first. This, for now, ensures
   // that, when we emit the full definition of a struct A with a field with type
   // struct B, we have already emitted the full definition of struct B
-  for (const auto &TypeDecl : Declarator.types()) {
-    clang::TypeDecl *TD = DeclCreator::getTypeDecl(TypeDecl);
-    if (not TD)
-      continue;
-    // Double check that the typedef decl for bool is not inserted twice
-    clang::DeclarationName TypeName = TD->getDeclName();
-    if (TypeName.getAsString() == "bool") {
-      bool Found = false;
-      revng_assert(isa<clang::TypedefDecl>(TD));
-      for (clang::Decl *D : TUDecl->lookup(TypeName)) {
-        if (D == TD) {
-          // the TypedefDecl `typedef _Bool bool` has already been inserted
-          // in the translation unit `DeclContext`
-          Found = true;
-          break;
-        }
-      }
-
-      // if the TypedefDecl `typedef _Bool bool` has already been inserted
-      // we don't insert it twice and we jump to the next TypeDecl
-      if (Found)
-        continue;
-    }
-    TUDecl->addDecl(TD);
-  }
+  for (const auto &TypeDecl : Declarator.types())
+    if (clang::TypeDecl *TD = DeclCreator::getTypeDecl(TypeDecl))
+      TUDecl->addDecl(TD);
 
   for (const auto &[_, GDecl] : Declarator.globalDecls()) {
     if (FunctionDecl == GDecl)
       continue;
     TUDecl->addDecl(GDecl);
   }
-  TUDecl->addDecl(FunctionDecl);
 
   buildFunctionBody(&TheF, FunctionDecl, CombedAST, ASTBuilder, Mark);
+
+  TUDecl->addDecl(FunctionDecl);
 
   using ConsumerPtr = std::unique_ptr<ASTConsumer>;
   ConsumerPtr Printer = CreateASTPrinter(std::move(Out), "");

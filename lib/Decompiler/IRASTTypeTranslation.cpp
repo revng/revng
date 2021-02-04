@@ -54,26 +54,34 @@ DeclCreator::getUniqueTypeNameForDecl(const llvm::Value *NamingValue) const {
 }
 
 DeclCreator::TypeDeclOrQualType
-DeclCreator::createBoolType(clang::ASTContext &ASTCtx) {
-  clang::TypedefDecl *BoolTypedefDecl = nullptr;
+DeclCreator::getOrCreateBoolType(clang::ASTContext &ASTCtx,
+                                 const llvm::Type *Ty) {
+
+  // First, look it up, to see if we've already computed it.
+  llvm::Optional<TypeDeclOrQualType> Result = lookupType(Ty);
+  if (Result.hasValue())
+    return Result.getValue();
+
+  // Otherwise, create it right now.
 
   clang::TranslationUnitDecl *TUDecl = ASTCtx.getTranslationUnitDecl();
-  const std::string BoolName = "bool";
-  clang::IdentifierInfo &BoolId = ASTCtx.Idents.get(BoolName);
-  clang::DeclarationName TypeName(&BoolId);
+  clang::IdentifierInfo *BoolId = &ASTCtx.Idents.get("bool");
+  clang::DeclarationName BoolTypeName(BoolId);
 
-  // First, lookup for a typedef called 'bool', if we find it we're do
-  for (clang::Decl *D : TUDecl->lookup(TypeName)) {
-    if (auto *Typedef = llvm::dyn_cast<clang::TypedefDecl>(D)) {
-      // Assert that we only find one typedef called 'bool'
-      revng_assert(Typedef->getNameAsString() != BoolName
-                   or not BoolTypedefDecl);
-      BoolTypedefDecl = Typedef;
-    }
-  }
+  // First, lookup for a typedef called 'bool', if we find it we're done
+  auto LookupResult = TUDecl->lookup(BoolTypeName);
+  revng_assert(LookupResult.empty() or LookupResult.size() == 1);
 
-  // If we haven't found the typedef, create it ourselves
-  if (not BoolTypedefDecl) {
+  clang::QualType BoolType;
+  if (not LookupResult.empty()) {
+
+    auto *BoolTypedef = llvm::cast<clang::TypedefDecl>(LookupResult.front());
+    BoolType = ASTCtx.getTypedefType(BoolTypedef);
+
+  } else {
+
+    // If we haven't found the typedef, create it ourselves
+    //
     // C99 actually defines '_Bool', while 'bool' is a MACRO, which expands
     // to '_Bool'. We cheat by injecting a 'typedef _Bool bool;' in the
     // translation unit we're handling, that has already been preprocessed
@@ -81,44 +89,31 @@ DeclCreator::createBoolType(clang::ASTContext &ASTCtx) {
     revng_assert(not BoolQType.isNull());
     using TSInfo = clang::TypeSourceInfo;
     TSInfo *BoolTypeInfo = ASTCtx.getTrivialTypeSourceInfo(BoolQType);
-    BoolTypedefDecl = clang::TypedefDecl::Create(ASTCtx,
-                                                 TUDecl,
-                                                 {},
-                                                 {},
-                                                 &BoolId,
-                                                 BoolTypeInfo);
-
-    revng_assert(BoolTypedefDecl,
-                 "'_Bool' type not found!\n"
-                 "This should not happen since we compile as c99\n");
-
-    TUDecl->addDecl(BoolTypedefDecl);
+    auto *BoolTypedef = clang::TypedefDecl::Create(ASTCtx,
+                                                   TUDecl,
+                                                   {},
+                                                   {},
+                                                   BoolId,
+                                                   BoolTypeInfo);
+    TUDecl->addDecl(BoolTypedef);
+    BoolType = ASTCtx.getTypedefType(BoolTypedef);
   }
 
-  return ASTCtx.getTypedefType(BoolTypedefDecl);
+  // Add it to the map.
+  insertTypeMapping</* NullableTy */ true>(Ty, BoolType);
+  return BoolType;
 }
 
 DeclCreator::TypeDeclOrQualType
-DeclCreator::getOrCreateBoolType(clang::ASTContext &ASTCtx,
-                                 const llvm::Type *Ty) {
+DeclCreator::getOrCreateType(const llvm::Type *Ty,
+                             const llvm::Value *NamingValue,
+                             clang::ASTContext &ASTCtx,
+                             clang::DeclContext &DeclCtx) {
+
   // First, look it up, to see if we've already computed it.
   llvm::Optional<TypeDeclOrQualType> CachedQTy = lookupType(Ty);
   if (CachedQTy.hasValue())
     return CachedQTy.getValue();
-
-  // Otherwise, create it right now.
-  TypeDeclOrQualType BoolTypedefDecl = createBoolType(ASTCtx);
-
-  // And add it to the map.
-  insertTypeMapping</* NullableTy */ true>(Ty, BoolTypedefDecl);
-  return BoolTypedefDecl;
-}
-
-DeclCreator::TypeDeclOrQualType
-DeclCreator::createType(const llvm::Type *Ty,
-                        const llvm::Value *NamingValue,
-                        clang::ASTContext &ASTCtx,
-                        clang::DeclContext &DeclCtx) {
 
   llvm::Optional<TypeDeclOrQualType> Result = llvm::None;
 
@@ -281,26 +276,11 @@ DeclCreator::createType(const llvm::Type *Ty,
 
   revng_assert(Result.hasValue());
   revng_assert(not DeclCreator::getQualType(Result.getValue()).isNull());
-  return Result.getValue();
-}
-
-DeclCreator::TypeDeclOrQualType
-DeclCreator::getOrCreateType(const llvm::Type *Ty,
-                             const llvm::Value *NamingValue,
-                             clang::ASTContext &ASTCtx,
-                             clang::DeclContext &DeclCtx) {
-
-  // First, look it up, to see if we've already computed it.
-  llvm::Optional<TypeDeclOrQualType> CachedQTy = lookupType(Ty);
-  if (CachedQTy.hasValue())
-    return CachedQTy.getValue();
-
-  // Otherwise, create it
-  TypeDeclOrQualType Result = createType(Ty, NamingValue, ASTCtx, DeclCtx);
 
   // Then insert it in the type mapping and return it.
-  insertTypeMapping(Ty, Result);
-  return Result;
+  TypeDeclOrQualType ResultVal = Result.getValue();
+  insertTypeMapping(Ty, ResultVal);
+  return ResultVal;
 }
 
 llvm::SmallVector<const dla::Layout *, 16>
@@ -366,11 +346,9 @@ DeclCreator::getOrCreateDLAType(const llvm::Value *V,
   revng_assert(V);
 
   // First, look it up, to see if we've already computed it.
-  llvm::Optional<TypeDeclOrQualType> CachedQTy = lookupType(V);
-  if (CachedQTy.hasValue())
-    return CachedQTy.getValue();
-
-  llvm::Optional<TypeDeclOrQualType> Result = llvm::None;
+  llvm::Optional<TypeDeclOrQualType> Result = lookupType(V);
+  if (Result.hasValue())
+    return Result.getValue();
 
   if (ValueLayouts) {
 

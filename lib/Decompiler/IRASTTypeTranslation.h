@@ -52,6 +52,8 @@ public:
     struct QualTypeGetter {
 
       clang::QualType operator()(clang::TypeDecl *TD) const {
+        if (auto *Typedef = llvm::dyn_cast<clang::TypedefNameDecl>(TD))
+          return Typedef->getASTContext().getTypedefType(Typedef);
         return clang::QualType(TD->getTypeForDecl(), 0);
       }
 
@@ -175,13 +177,6 @@ protected:
   TypeDeclOrQualType createTypeFromLayout(const dla::Layout *L,
                                           clang::ASTContext &ClangCtx,
                                           llvm::LLVMContext &LLVMCtx);
-
-  TypeDeclOrQualType createBoolType(clang::ASTContext &ASTCtx);
-
-  TypeDeclOrQualType createType(const llvm::Type *Ty,
-                                const llvm::Value *NamingValue,
-                                clang::ASTContext &ASTCtx,
-                                clang::DeclContext &DeclCtx);
 
   clang::FunctionDecl *createFunDecl(clang::ASTContext &Context,
                                      const llvm::Function *F,
