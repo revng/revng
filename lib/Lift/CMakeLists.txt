@@ -14,12 +14,10 @@ revng_add_library_internal(revngLift SHARED
   VariableManager.cpp)
 
 
-target_link_libraries(revng-lift
+target_link_libraries(revngLift
   dl
   m
   revngBasicAnalyses
   revngSupport
   revngFunctionCallIdentification
   ${LLVM_LIBRARIES})
-
-
