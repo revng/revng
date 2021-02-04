@@ -385,29 +385,61 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
   }
   // ---- Other instructions ----
   case Instruction::Select: {
+
     Expr *Cond = getParenthesizedExprForValue(I.getOperand(0));
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and Cond)
       Cond->dump();
+
     Expr *TrueExpr = getParenthesizedExprForValue(I.getOperand(1));
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and TrueExpr)
       TrueExpr->dump();
+
     Expr *FalseExpr = getParenthesizedExprForValue(I.getOperand(2));
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and FalseExpr)
       FalseExpr->dump();
+
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
     TypeDeclOrQualType ASTTy = Declarator.getOrCreateType(&I, ASTCtx, TUDecl);
+
     QualType ASTType = DeclCreator::getQualType(ASTTy);
-    return new (ASTCtx) ConditionalOperator(Cond,
-                                            {},
-                                            TrueExpr,
-                                            {},
-                                            FalseExpr,
-                                            ASTType,
-                                            VK_RValue,
-                                            OK_Ordinary);
+    QualType TernaryTy = ASTType;
+    QualType TrueTy = TrueExpr->getType();
+    QualType FalseTy = FalseExpr->getType();
+
+    if (ASTType.getTypePtr()->isPointerType()
+        and not TrueExpr->getType()->isPointerType()
+        and not FalseExpr->getType()->isPointerType()) {
+      int Cmp = ASTCtx.getIntegerTypeOrder(TrueTy, FalseTy);
+      TernaryTy = (Cmp > 0) ? TrueTy : FalseTy;
+    }
+
+    clang::Expr *Ternary = new (ASTCtx) ConditionalOperator(Cond,
+                                                            {},
+                                                            TrueExpr,
+                                                            {},
+                                                            FalseExpr,
+                                                            TernaryTy,
+                                                            VK_RValue,
+                                                            OK_Ordinary);
+
+    if (ASTType.getTypePtr()->isPointerType()
+        and not TrueExpr->getType()->isPointerType()
+        and not FalseExpr->getType()->isPointerType()) {
+      TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(ASTType);
+      Ternary = CStyleCastExpr::Create(ASTCtx,
+                                       ASTType,
+                                       VK_RValue,
+                                       CastKind::CK_IntegralToPointer,
+                                       Ternary,
+                                       nullptr,
+                                       TI,
+                                       {},
+                                       {});
+    }
+    return Ternary;
   }
   case Instruction::Call: {
     auto *TheCall = cast<CallInst>(&I);
@@ -1012,6 +1044,7 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
         const SerializationFlags Flags = ToSerializeIt->second;
         revng_assert(not Flags.isSet(NeedsManyStatements)
                      or Flags.isSet(NeedsLocalVarToComputeExpr));
+
         if (SerializationFlags::needsVarDecl(Flags)
             and not Flags.isSet(NeedsLocalVarToComputeExpr)) {
 
