@@ -16,6 +16,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Type.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
@@ -114,33 +115,52 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     ReturnInst *Ret = cast<ReturnInst>(&I);
     Value *RetVal = Ret->getReturnValue();
 
-    // TODO: for now we handle return instructions containing a `ConstantStruct`
-    // by emitting a `return void`. This should eventually be fixed, properly
-    // handling structs (both constants and not).
-    if (RetVal && isa<ConstantStruct>(RetVal)) {
-      return ReturnStmt::Create(ASTCtx, {}, nullptr, nullptr);
-    }
-
     Expr *ReturnedExpr = nullptr;
-    if (auto *ZeroAggregate = dyn_cast_or_null<ConstantAggregateZero>(RetVal)) {
+
+    if (auto *ConstRet = dyn_cast_or_null<ConstantStruct>(RetVal)) {
+      revng_assert(not VarDecls.count(ConstRet));
+
+      // Create the VarDecl for the local variable
+      llvm::Function *TheFunction = Ret->getFunction();
+      clang::FunctionDecl &FDecl = Declarator.getFunctionDecl(TheFunction);
+      VarDecl *NewVarDecl = createVarDecl(ConstRet, TheFunction, FDecl);
+      VarDecls[ConstRet] = NewVarDecl;
+
+      // Create the inizializer
+      llvm::SmallVector<clang::Expr *, 8> Initializers;
+      for (llvm::Value *V : ConstRet->operands())
+        Initializers.push_back(getLiteralFromConstant(cast<llvm::Constant>(V)));
+      clang::Expr *InitExpr = new (ASTCtx)
+        clang::InitListExpr(ASTCtx, {}, Initializers, {});
+      NewVarDecl->setInit(InitExpr);
+
+      ReturnedExpr = getExprForValue(ConstRet);
+
+    } else if (auto *Zero = dyn_cast_or_null<ConstantAggregateZero>(RetVal)) {
+      revng_assert(not VarDecls.count(Zero));
+
+      // Create the VarDecl for the local variable
+      llvm::Function *TheFunction = Ret->getFunction();
+      clang::FunctionDecl &FDecl = Declarator.getFunctionDecl(TheFunction);
+      VarDecl *NewVarDecl = createVarDecl(Zero, TheFunction, FDecl);
+      VarDecls[Zero] = NewVarDecl;
+
+      // Create the inizializer
       uint64_t ConstValue = 0;
       QualType IntT = ASTCtx.IntTy;
       APInt Const = APInt(ASTCtx.getIntWidth(IntT), ConstValue);
-
-      llvm::Function *TheFunction = Ret->getFunction();
-
-      clang::FunctionDecl &FDecl = Declarator.getFunctionDecl(TheFunction);
-
-      revng_assert(VarDecls.count(ZeroAggregate) == 0);
-      VarDecl *NewVarDecl = createVarDecl(ZeroAggregate, TheFunction, FDecl);
-      VarDecls[ZeroAggregate] = NewVarDecl;
-
-      clang::Expr *Zero = IntegerLiteral::Create(ASTCtx, Const, IntT, {});
+      clang::Expr *ZeroLiteral = IntegerLiteral::Create(ASTCtx,
+                                                        Const,
+                                                        IntT,
+                                                        {});
       clang::Expr *ZeroInit = new (ASTCtx)
-        clang::InitListExpr(ASTCtx, {}, { Zero }, {});
+        clang::InitListExpr(ASTCtx, {}, { ZeroLiteral }, {});
       NewVarDecl->setInit(ZeroInit);
-      ReturnedExpr = getExprForValue(ZeroAggregate);
+
+      ReturnedExpr = getExprForValue(Zero);
+
     } else {
+
       ReturnedExpr = RetVal ? getExprForValue(RetVal) : nullptr;
     }
     return ReturnStmt::Create(ASTCtx, {}, ReturnedExpr, nullptr);
@@ -1069,6 +1089,11 @@ VarDecl *StmtBuilder::createVarDecl(Constant *C,
                                          NamingVal,
                                          ASTCtx,
                                          TUDecl);
+  } else if (auto *ConstStruct = dyn_cast<llvm::ConstantStruct>(C)) {
+    ASTType = Declarator.getOrCreateType(ConstStruct->getType(),
+                                         NamingVal,
+                                         ASTCtx,
+                                         TUDecl);
   } else {
     revng_abort("trying to create VarDecl for unexpected constant");
   }
@@ -1497,7 +1522,8 @@ Expr *StmtBuilder::getExprForValue(const Value *V) {
       DeclRefExpr(ASTCtx, Decl, false, Type, VK_LValue, {});
     return Res;
 
-  } else if (isa<llvm::ConstantAggregateZero>(V)) {
+  } else if (isa<llvm::ConstantAggregateZero>(V)
+             or isa<llvm::ConstantStruct>(V)) {
 
     VarDecl *VDecl = VarDecls.at(V);
     QualType Type = VDecl->getType();
