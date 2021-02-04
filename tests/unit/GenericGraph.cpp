@@ -19,6 +19,7 @@ bool init_unit_test();
 
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/ADT/GenericGraph.h"
+#include "revng/ADT/SerializableGraph.h"
 
 using namespace llvm;
 
@@ -112,17 +113,46 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
   }
 }
 
+//
+// Define TestEdgeLabel
+//
 struct TestEdgeLabel {
+  bool operator==(const TestEdgeLabel &) const = default;
   unsigned Weight;
 };
 
+INTROSPECTION(TestEdgeLabel, Weight);
+
+template<>
+struct llvm::yaml::MappingTraits<TestEdgeLabel>
+  : public TupleLikeMappingTraits<TestEdgeLabel> {};
+
+//
+// Define TestNodeData
+//
 struct TestNodeData {
   TestNodeData(unsigned Rank) : Rank(Rank) {}
+  bool operator==(const TestNodeData &) const = default;
   unsigned Rank;
+};
+
+INTROSPECTION(TestNodeData, Rank);
+
+template<>
+struct llvm::yaml::MappingTraits<TestNodeData>
+  : public TupleLikeMappingTraits<TestNodeData> {};
+
+template<>
+struct KeyedObjectTraits<TestNodeData> {
+  static unsigned key(const TestNodeData &Node) { return Node.Rank; }
+
+  static TestNodeData fromKey(const unsigned &Key) { return { Key }; }
 };
 
 using TestNode = BidirectionalNode<TestNodeData, TestEdgeLabel>;
 using TestGraph = GenericGraph<TestNode>;
+
+SERIALIZABLEGRAPH_INTROSPECTION(TestNodeData, TestEdgeLabel);
 
 static bool
 shouldKeepNodePair(TestNode *const &Source, TestNode *const &Destination) {
@@ -148,7 +178,7 @@ static DiamondGraph createGraph() {
   // Create nodes
   DG.Root = Graph.addNode(0);
   DG.Then = Graph.addNode(1);
-  DG.Else = Graph.addNode(1);
+  DG.Else = Graph.addNode(3);
   DG.Final = Graph.addNode(2);
 
   // Set entry node
@@ -228,7 +258,7 @@ BOOST_AUTO_TEST_CASE(TestFilterGraphTraits) {
                                      FGT>;
     auto Begin = fdf_iterator::begin(Root);
     auto End = fdf_iterator::end(Root);
-    revng_check(3 == std::distance(Begin, End));
+    revng_check(2 == std::distance(Begin, End));
   }
 
   {
@@ -247,4 +277,29 @@ BOOST_AUTO_TEST_CASE(TestWriteGraph) {
   DiamondGraph DG = createGraph();
   llvm::raw_null_ostream NullOutput;
   llvm::WriteGraph(NullOutput, &DG.Graph, "lol");
+}
+
+BOOST_AUTO_TEST_CASE(TestSerializableGraph) {
+  DiamondGraph DG = createGraph();
+  auto Serializable = toSerializable(DG.Graph);
+  auto Reserializable = toSerializable(Serializable.toGenericGraph<TestNode>());
+  revng_check(Reserializable == Serializable);
+}
+
+BOOST_AUTO_TEST_CASE(TestSerializeGraph) {
+  DiamondGraph DG = createGraph();
+  auto Serializable = toSerializable(DG.Graph);
+
+  std::string Buffer;
+  {
+    llvm::raw_string_ostream Stream(Buffer);
+    yaml::Output YAMLOutput(Stream);
+    YAMLOutput << Serializable;
+  }
+
+  decltype(Serializable) Deserialized;
+  llvm::yaml::Input YAMLInput(Buffer);
+  YAMLInput >> Deserialized;
+
+  revng_check(Deserialized == Serializable);
 }
