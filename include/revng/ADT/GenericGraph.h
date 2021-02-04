@@ -359,6 +359,7 @@ public:
   static const bool is_generic_graph = true;
   using NodesContainer = llvm::SmallVector<std::unique_ptr<NodeT>, SmallSize>;
   using Node = NodeT;
+  static constexpr bool hasEntryNode = HasEntryNode;
 
 private:
   using nodes_iterator_impl = typename NodesContainer::iterator;
