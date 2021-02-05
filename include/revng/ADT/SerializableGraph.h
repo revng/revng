@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/GraphTraits.h"
+
 #include "revng/ADT/GenericGraph.h"
 
 template<typename NodeType>
@@ -38,6 +40,7 @@ struct SerializableGraph {
   using KKeyType = decltype(KeyedObjectTraits<BDir>::key(*((BDir *) NULL)));
 
   SortedVector<SNode> Nodes;
+  KKeyType EntryNode;
 
   bool operator!=(const SerializableGraph<NodeType> &O) const {
     return Nodes != O.Nodes;
@@ -56,6 +59,11 @@ struct SerializableGraph {
       for (const auto &J : N->successors())
         Inserter.insert(getKey(*J));
     }
+
+    if constexpr (GenericGraph<BDir>::hasEntryNode) {
+      if (G.getEntryNode() != nullptr)
+        Out.EntryNode = getKey(*G.getEntryNode());
+    }
     return Out;
   };
 
@@ -71,6 +79,9 @@ struct SerializableGraph {
       for (const auto &S : N.Successors)
         Map[getKey(N.N)]->addSuccessor(Map[S]);
 
+    if constexpr (GenericGraph<BDir>::hasEntryNode) {
+      Ret.setEntryNode(Map[EntryNode]);
+    }
     return Ret;
   }
 
