@@ -86,11 +86,19 @@ public:
   /// \brief Returns true if the Instruction associated with \F needs a VarDecl
   /// in C.
   static bool needsVarDecl(const SerializationFlags &F) {
-    // The AlwaysSerialize, HasSideEffects, and HasInterferingSideEffects bits
-    // do not imply the need for a local variable declaration in C.
-    // All the other bits do imply it.
-    return ~(AlwaysSerialize | HasSideEffects | HasInterferingSideEffects)
-           & F.Flags;
+
+    // If it does not need serialization, it doesn't need a VarDecl either
+    if (not mustBeSerialized(F))
+      return false;
+
+    // If the AlwaysSerialize bit is set, the instruction has no uses, so it
+    // must be serialized but it doesn't need a VarDecl
+    if (F.isSet(AlwaysSerialize))
+      return false;
+
+    // In all the other cases the instruction must be serialized and it has at
+    // least one use, so we need a VarDecl to represent its value.
+    return true;
   }
 
   /// \brief Returns true if the Instruction associated with \F is affected by
