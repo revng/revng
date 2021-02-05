@@ -118,25 +118,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME}
       )
 
-    # test combing
-    add_test(NAME comb_${TARGET_NAME} COMMAND opt -S
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRestructureCFGPass.so
-      -restructure-cfg
-      ${TARGET_NAME}_prepared.ll
-      -o /dev/null
-      )
-    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS prepare_${TARGET_NAME}
-      )
-    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
-      )
-    set_property(TEST comb_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP Combed_fixture_${TARGET_NAME}
-      )
-
-    # test decompilation without DLA
+    # test combing and decompilation without DLA
     add_test(NAME decompilation_${TARGET_NAME} COMMAND opt -S
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRestructureCFGPass.so
@@ -157,7 +139,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       FIXTURES_SETUP Decompiled_fixture_${TARGET_NAME}
       )
 
-    # promote stack pointer in .ll for decompilation
+    # promote stack pointer in .ll for decompilation with dla
     add_test(NAME promote_stack_pointer_${TARGET_NAME} COMMAND opt -S
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libPromoteStackPointer.so
@@ -175,7 +157,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       FIXTURES_SETUP PromoteStackPointer_fixture_${TARGET_NAME}
       )
 
-    # adjust stack pointer in .ll for decompilation
+    # adjust stack pointer in .ll for decompilation with dla
     add_test(NAME adjust_stack_pointer_${TARGET_NAME} COMMAND opt -S
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libAdjustStackPointer.so
@@ -193,25 +175,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       FIXTURES_SETUP AdjustStackPointer_fixture_${TARGET_NAME}
       )
 
-    # test DLA
-    add_test(NAME dla_${TARGET_NAME} COMMAND opt -S
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libDecompiler.so
-      -dla
-      ${TARGET_NAME}_adjusted_stack.ll
-      -o /dev/null
-      )
-    set_property(TEST dla_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS adjust_stack_pointer_${TARGET_NAME}
-      )
-    set_property(TEST dla_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED AdjustStackPointer_fixture_${TARGET_NAME}
-      )
-    set_property(TEST dla_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP DLA_fixture_${TARGET_NAME}
-      )
-
-    # test full decompilation pipeline with dla
+    # test full pipeline with dla combing and decompilation
     add_test(NAME decompile_with_dla_${TARGET_NAME} COMMAND opt -S
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libPHIASAPAssignmentInfo.so
@@ -232,13 +196,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       DEPENDS adjust_stack_pointer_${TARGET_NAME}
       )
     set_property(TEST decompile_with_dla_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED Combed_fixture_${TARGET_NAME}
-      )
-    set_property(TEST decompile_with_dla_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED DLA_fixture_${TARGET_NAME}
-      )
-    set_property(TEST decompile_with_dla_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED Decompiled_fixture_${TARGET_NAME}
+      FIXTURES_REQUIRED AdjustStackPointer_fixture_${TARGET_NAME}
       )
 
 endmacro()
