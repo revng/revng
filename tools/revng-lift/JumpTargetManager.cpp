@@ -240,7 +240,7 @@ void TDBP::pinConstantStoreInternal(MetaAddress Address, CallInst *ExitTBCall) {
     // We're jumping to an unknown or invalid location,
     // jump back to the dispatcher
     // TODO: emit a warning
-    BranchInst::Create(JTM->dispatcher(), ExitTBCall);
+    BranchInst::Create(JTM->unexpectedPC(), ExitTBCall);
   }
 
   ExitTBCall->eraseFromParent();
@@ -771,7 +771,7 @@ void JumpTargetManager::translateIndirectJumps() {
 
         if (getLimitedValue(Call->getArgOperand(0)) == 0) {
           exitTBCleanup(Call);
-          BranchInst::Create(Dispatcher, Call);
+          BranchInst::Create(AnyPC, Call);
         }
 
         Call->eraseFromParent();
