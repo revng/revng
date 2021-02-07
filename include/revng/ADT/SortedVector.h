@@ -322,9 +322,10 @@ public:
     }
 
   protected:
-    void insertImpl(const T &Value) {
+    T &insertImpl(const T &Value) {
       revng_assert(SV->BatchInsertInProgress);
       SV->TheVector.push_back(Value);
+      return SV->TheVector.back();
     }
   };
 
@@ -333,7 +334,7 @@ public:
     BatchInserter(SortedVector &SV) : BatchInserterBase<true>(SV) {}
 
   public:
-    void insert(const T &Value) { this->insertImpl(Value); }
+    T &insert(const T &Value) { return this->insertImpl(Value); }
   };
 
   BatchInserter batch_insert() {
@@ -346,7 +347,7 @@ public:
     BatchInsertOrAssigner(SortedVector &SV) : BatchInserterBase<false>(SV) {}
 
   public:
-    void insert_or_assign(const T &Value) { this->insertImpl(Value); }
+    T &insert_or_assign(const T &Value) { return this->insertImpl(Value); }
   };
 
   BatchInsertOrAssigner batch_insert_or_assign() {
