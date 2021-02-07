@@ -310,6 +310,29 @@ bool PCH::isPCAffectingHelper(Instruction *I) const {
   return false;
 }
 
+llvm::Value *ProgramCounterHandler::loadPC(llvm::IRBuilder<> &Builder) const {
+  using namespace llvm;
+
+  BasicBlock *BB = Builder.GetInsertBlock();
+  Module *M = BB->getParent()->getParent();
+  Value *V = UndefValue::get(MetaAddress::getStruct(M));
+  unsigned I = 0;
+  auto Insert = [&](llvm::GlobalVariable *CSV) {
+    using IV = InsertValueInst;
+    Value *ToInsert = Builder.CreateZExt(Builder.CreateLoad(CSV),
+                                         V->getType()->getStructElementType(I));
+    V = Builder.Insert(IV::Create(V, ToInsert, { I }));
+    ++I;
+  };
+
+  Insert(EpochCSV);
+  Insert(AddressSpaceCSV);
+  Insert(TypeCSV);
+  Insert(AddressCSV);
+
+  return V;
+}
+
 std::pair<NextJumpTarget::Values, MetaAddress>
 PCH::getUniqueJumpTarget(BasicBlock *BB) {
   std::vector<StackEntry> Stack;

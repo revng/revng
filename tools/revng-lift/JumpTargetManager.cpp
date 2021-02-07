@@ -961,11 +961,13 @@ void JumpTargetManager::prepareDispatcher() {
                                       TheFunction);
   Builder.SetInsertPoint(DispatcherFail);
 
-  Module *TheModule = TheFunction->getParent();
-  auto *UnknownPCTy = FunctionType::get(Type::getVoidTy(Context), {}, false);
-  FunctionCallee UnknownPC = TheModule->getOrInsertFunction("unknownPC",
-                                                            UnknownPCTy);
-  Builder.CreateCall(UnknownPC);
+  auto *UnknownPCTy = FunctionType::get(Type::getVoidTy(Context),
+                                        { MetaAddress::getStruct(&TheModule) },
+                                        false);
+  FunctionCallee UnknownPC = TheModule.getOrInsertFunction("unknownPC",
+                                                           UnknownPCTy);
+
+  Builder.CreateCall(UnknownPC, PCH->loadPC(Builder));
   auto *FailUnreachable = Builder.CreateUnreachable();
   setBlockType(FailUnreachable, BlockType::DispatcherFailureBlock);
 

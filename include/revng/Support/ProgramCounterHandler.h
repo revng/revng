@@ -114,6 +114,8 @@ public:
     setPC(Builder, MA);
   }
 
+  llvm::Value *loadPC(llvm::IRBuilder<> &Builder) const;
+
 protected:
   virtual void
   initializePCInternal(llvm::IRBuilder<> &Builder, MetaAddress NewPC) const = 0;
