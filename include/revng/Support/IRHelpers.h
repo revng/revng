@@ -737,10 +737,14 @@ inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
   return Callee != nullptr && Callee->getName() == Name;
 }
 
+inline bool isHelper(const llvm::Function *F) {
+  return F->getName().startswith("helper_");
+}
+
 inline const llvm::CallInst *getCallToHelper(const llvm::Instruction *I) {
   revng_assert(I != nullptr);
   const llvm::Function *Callee = getCallee(I);
-  if (Callee != nullptr && Callee->getName().startswith("helper_"))
+  if (Callee != nullptr && isHelper(Callee))
     return llvm::cast<llvm::CallInst>(I);
   else
     return nullptr;
@@ -749,7 +753,7 @@ inline const llvm::CallInst *getCallToHelper(const llvm::Instruction *I) {
 inline llvm::CallInst *getCallToHelper(llvm::Instruction *I) {
   revng_assert(I != nullptr);
   const llvm::Function *Callee = getCallee(I);
-  if (Callee != nullptr && Callee->getName().startswith("helper_"))
+  if (Callee != nullptr && isHelper(Callee))
     return llvm::cast<llvm::CallInst>(I);
   else
     return nullptr;
