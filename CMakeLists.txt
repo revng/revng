@@ -68,6 +68,7 @@ foreach(ARCH aarch64 arm mips mipsel x86_64 i386 s390x)
          -I"${CMAKE_CURRENT_SOURCE_DIR}/runtime"
          -I"${CMAKE_CURRENT_SOURCE_DIR}/include")
   add_custom_target("early-linked-module-${OUTPUT}" ALL DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
+  add_dependencies(revng-all-binaries "early-linked-module-${OUTPUT}")
   install(FILES "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
     DESTINATION share/revng)
 
