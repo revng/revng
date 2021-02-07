@@ -206,7 +206,7 @@ public:
   }
 
   /// \brief Return true if the basic block is a jump target
-  bool isJumpTarget(llvm::BasicBlock *BB) const {
+  static bool isJumpTarget(llvm::BasicBlock *BB) {
     return getType(BB->getTerminator()) == BlockType::JumpTargetBlock;
   }
 
@@ -235,7 +235,7 @@ public:
   /// \brief Return true if \p BB is the result of translating some code
   ///
   /// Return false if \p BB is a dispatcher-related basic block.
-  bool isTranslated(llvm::BasicBlock *BB) const {
+  static bool isTranslated(llvm::BasicBlock *BB) {
     BlockType::Values Type = getType(BB);
     return (Type == BlockType::TranslatedBlock
             or Type == BlockType::JumpTargetBlock);
