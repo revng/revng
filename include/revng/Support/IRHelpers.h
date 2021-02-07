@@ -1138,3 +1138,26 @@ inline bool isFallthrough(llvm::Instruction *T) {
 inline bool isFallthrough(llvm::BasicBlock *BB) {
   return isFallthrough(BB->getTerminator());
 }
+
+template<typename T>
+inline llvm::Type *cTypeToLLVMType(llvm::LLVMContext &C) {
+  using namespace std;
+  using namespace llvm;
+  if constexpr (is_integral_v<T>) {
+    return Type::getIntNTy(C, 8 * sizeof(T));
+  } else if (is_pointer_v<T>) {
+    return cTypeToLLVMType<remove_pointer_t<T>>(C)->getPointerTo();
+  } else if (is_void_v<T>) {
+    return Type::getVoidTy(C);
+  } else {
+    revng_abort();
+  }
+}
+
+template<typename ReturnT, typename... Args>
+inline llvm::FunctionType *
+createFunctionType(llvm::LLVMContext &C, bool Variadic = false) {
+  return llvm::FunctionType::get(cTypeToLLVMType<ReturnT>(C),
+                                 { cTypeToLLVMType<Args>(C)... },
+                                 Variadic);
+}
