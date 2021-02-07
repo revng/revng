@@ -102,6 +102,8 @@ struct KeyedObjectTraits<model::Register> {
 // FunctionEdgeType
 //
 
+// TODO: we need to handle noreturn function calls
+
 /// Type of edge on the CFG
 namespace model::FunctionEdgeType {
 enum Values {

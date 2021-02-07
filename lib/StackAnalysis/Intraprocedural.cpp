@@ -889,7 +889,6 @@ Interrupt Analysis::handleCall(Instruction *Caller,
                                      Callee);
     } else if (TheCache->isNoReturnFunction(Callee)) {
       SaTerminator << " IsNoReturnFunction";
-      IsKiller = true;
       ABIOnly = true;
     }
   }
