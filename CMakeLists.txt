@@ -163,7 +163,6 @@ copy_to_build_and_install(FILES
   share/revng
   runtime/support.c
   runtime/support.h
-  include/revng/Runtime/commonconstants.h
   scripts/clang-format-style-file)
 
 configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/share/revng/early-linked.c" COPYONLY)

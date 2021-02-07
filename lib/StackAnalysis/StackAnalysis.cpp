@@ -12,9 +12,13 @@
 #include <sstream>
 #include <vector>
 
+#include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
 
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Model/Binary.h"
 #include "revng/StackAnalysis/StackAnalysis.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/IRHelpers.h"
@@ -65,6 +69,250 @@ static opt<std::string> ABIAnalysisOutputPath("abi-analysis-output",
                                               value_desc("path"),
                                               cat(MainCategory));
 
+template<bool FunctionCall>
+static model::RegisterState::Values
+toRegisterState(RegisterArgument<FunctionCall> RA) {
+  switch (RA.value()) {
+  case RegisterArgument<FunctionCall>::NoOrDead:
+    return model::RegisterState::NoOrDead;
+  case RegisterArgument<FunctionCall>::Maybe:
+    return model::RegisterState::Maybe;
+  case RegisterArgument<FunctionCall>::Yes:
+    return model::RegisterState::Yes;
+  case RegisterArgument<FunctionCall>::Dead:
+    return model::RegisterState::Dead;
+  case RegisterArgument<FunctionCall>::Contradiction:
+    return model::RegisterState::Contradiction;
+  case RegisterArgument<FunctionCall>::No:
+    return model::RegisterState::No;
+  }
+
+  revng_abort();
+}
+
+static model::RegisterState::Values toRegisterState(FunctionReturnValue RV) {
+  switch (RV.value()) {
+  case FunctionReturnValue::No:
+    return model::RegisterState::No;
+  case FunctionReturnValue::NoOrDead:
+    return model::RegisterState::NoOrDead;
+  case FunctionReturnValue::YesOrDead:
+    return model::RegisterState::YesOrDead;
+  case FunctionReturnValue::Maybe:
+    return model::RegisterState::Maybe;
+  case FunctionReturnValue::Contradiction:
+    return model::RegisterState::Contradiction;
+  }
+
+  revng_abort();
+}
+
+static model::RegisterState::Values
+toRegisterState(FunctionCallReturnValue RV) {
+  switch (RV.value()) {
+  case FunctionCallReturnValue::No:
+    return model::RegisterState::No;
+  case FunctionCallReturnValue::NoOrDead:
+    return model::RegisterState::NoOrDead;
+  case FunctionCallReturnValue::YesOrDead:
+    return model::RegisterState::YesOrDead;
+  case FunctionCallReturnValue::Yes:
+    return model::RegisterState::Yes;
+  case FunctionCallReturnValue::Dead:
+    return model::RegisterState::Dead;
+  case FunctionCallReturnValue::Maybe:
+    return model::RegisterState::Maybe;
+  case FunctionCallReturnValue::Contradiction:
+    return model::RegisterState::Contradiction;
+  }
+
+  revng_abort();
+}
+
+void commitToModel(GeneratedCodeBasicInfo &GCBI,
+                   Function *F,
+                   const FunctionsSummary &Summary,
+                   model::Binary &TheBinary);
+
+void commitToModel(GeneratedCodeBasicInfo &GCBI,
+                   Function *F,
+                   const FunctionsSummary &Summary,
+                   model::Binary &TheBinary) {
+  using namespace model;
+
+  for (const auto &[Entry, FunctionSummary] : Summary.Functions) {
+    if (Entry == nullptr)
+      continue;
+
+    //
+    // Initialize model::Function
+    //
+
+    // Get the entry point address
+    MetaAddress EntryPC = getBasicBlockPC(Entry);
+    revng_assert(EntryPC.isValid());
+
+    // Create the function
+    revng_assert(TheBinary.Functions.count(EntryPC) == 0);
+    model::Function &Function = TheBinary.Functions[EntryPC];
+
+    // Assign a name
+    Function.Name = Entry->getName();
+    revng_assert(Function.Name.size() != 0);
+
+    using FT = model::FunctionType::Values;
+    Function.Type = static_cast<FT>(FunctionSummary.Type);
+
+    // Populate arguments and return values
+    {
+      auto Inserter = Function.Registers.batch_insert();
+      for (auto &[CSV, FRD] : FunctionSummary.RegisterSlots) {
+        Register TheRegister(CSV->getName().str());
+        TheRegister.Argument = toRegisterState(FRD.Argument);
+        TheRegister.ReturnValue = toRegisterState(FRD.ReturnValue);
+        Inserter.insert(TheRegister);
+      }
+    }
+
+    for (auto &[BB, Branch] : FunctionSummary.BasicBlocks) {
+      // Remap BranchType to FunctionEdgeType
+      namespace FET = FunctionEdgeType;
+      FET::Values EdgeType = FET::Invalid;
+      bool IsCall = false;
+
+      switch (Branch) {
+      case BranchType::Invalid:
+      case BranchType::FakeFunction:
+      case BranchType::RegularFunction:
+      case BranchType::NoReturnFunction:
+      case BranchType::UnhandledCall:
+        revng_abort();
+        break;
+
+      case BranchType::InstructionLocalCFG:
+        EdgeType = FET::Invalid;
+        break;
+
+      case BranchType::FunctionLocalCFG:
+        EdgeType = FET::DirectBranch;
+        break;
+
+      case BranchType::FakeFunctionCall:
+        EdgeType = FET::FakeFunctionCall;
+        break;
+
+      case BranchType::FakeFunctionReturn:
+        EdgeType = FET::FakeFunctionReturn;
+        break;
+
+      case BranchType::HandledCall:
+        IsCall = true;
+        EdgeType = FET::FunctionCall;
+        break;
+
+      case BranchType::IndirectCall:
+        IsCall = true;
+        EdgeType = FET::IndirectCall;
+        break;
+
+      case BranchType::Return:
+        EdgeType = FET::Return;
+        break;
+
+      case BranchType::BrokenReturn:
+        EdgeType = FET::BrokenReturn;
+        break;
+
+      case BranchType::IndirectTailCall:
+        IsCall = true;
+        EdgeType = FET::IndirectTailCall;
+        break;
+
+      case BranchType::LongJmp:
+        EdgeType = FET::LongJmp;
+        break;
+
+      case BranchType::Killer:
+        EdgeType = FET::Killer;
+        break;
+
+      case BranchType::Unreachable:
+        EdgeType = FET::Unreachable;
+        break;
+      }
+
+      if (EdgeType == FET::Invalid)
+        continue;
+
+      // Identify Source address
+      auto [Source, Size] = getPC(BB->getTerminator());
+      Source += Size;
+      revng_assert(Source.isValid());
+
+      // Identify Destination address
+      MetaAddress JumpTargetAddress = GCBI.getJumpTarget(BB);
+      model::BasicBlock &CurrentBlock = Function.CFG[JumpTargetAddress];
+      CurrentBlock.End = Source;
+      auto SuccessorsInserter = CurrentBlock.Successors.batch_insert();
+
+      if (EdgeType == FET::DirectBranch) {
+        // Handle direct branch
+        auto Successors = GCBI.getSuccessors(BB);
+        for (const MetaAddress &Destination : Successors.Addresses)
+          SuccessorsInserter.insert(FunctionEdge{ Destination, EdgeType });
+
+      } else if (EdgeType == FET::FakeFunctionReturn) {
+        // Handle fake function return
+        auto [First, Last] = FunctionSummary.FakeReturns.equal_range(BB);
+        revng_assert(First != Last);
+        for (const auto &[_, Destination] : make_range(First, Last))
+          SuccessorsInserter.insert(FunctionEdge{ Destination, EdgeType });
+
+      } else if (IsCall) {
+        // Handle call
+        llvm::BasicBlock *Successor = BB->getSingleSuccessor();
+        MetaAddress Destination = MetaAddress::invalid();
+        if (Successor != nullptr)
+          Destination = getBasicBlockPC(Successor);
+
+        // Record the edge in the CFG
+
+        auto &Edge = SuccessorsInserter.insert({ Destination, EdgeType });
+
+        bool Found = false;
+        for (const FunctionsSummary::CallSiteDescription &CSD :
+             FunctionSummary.CallSites) {
+          if (not CSD.Call->isTerminator() or CSD.Call->getParent() != BB)
+            continue;
+
+          revng_assert(not Found);
+          Found = true;
+          auto Inserter = Edge.Registers.batch_insert();
+          for (auto &[CSV, FCRD] : CSD.RegisterSlots) {
+            Register TheRegister(CSV->getName().str());
+            TheRegister.Argument = toRegisterState(FCRD.Argument);
+            TheRegister.ReturnValue = toRegisterState(FCRD.ReturnValue);
+            Inserter.insert(TheRegister);
+          }
+        }
+        revng_assert(Found);
+
+      } else {
+        // Handle other successors
+        llvm::BasicBlock *Successor = BB->getSingleSuccessor();
+        MetaAddress Destination = MetaAddress::invalid();
+        if (Successor != nullptr)
+          Destination = getBasicBlockPC(Successor);
+
+        // Record the edge in the CFG
+        SuccessorsInserter.insert(FunctionEdge{ Destination, EdgeType });
+      }
+    }
+  }
+
+  revng_check(TheBinary.verify());
+}
+
 template<bool AnalyzeABI>
 bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
   Function &F = *M.getFunction("root");
@@ -72,6 +320,8 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
   revng_log(PassesLog, "Starting StackAnalysis");
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
+
+  auto &LMP = getAnalysis<LoadModelPass>();
 
   // The stack analysis works function-wise. We consider two sets of functions:
   // first (Force == true) those that are highly likely to be real functions
@@ -177,10 +427,7 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
     }
   }
 
-  std::stringstream Output;
   GrandResult = Results.finalize(&M, &TheCache);
-  GrandResult.dump(&M, Output);
-  TextRepresentation = Output.str();
 
   if (ClobberedLog.isEnabled()) {
     for (auto &P : GrandResult.Functions) {
@@ -191,7 +438,12 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
     }
   }
 
-  revng_log(StackAnalysisLog, TextRepresentation);
+  if (StackAnalysisLog.isEnabled()) {
+    std::stringstream Output;
+    GrandResult.dump(&M, Output);
+    TextRepresentation = Output.str();
+    revng_log(StackAnalysisLog, TextRepresentation);
+  }
 
   revng_log(PassesLog, "Ending StackAnalysis");
 
@@ -203,6 +455,8 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
     std::ofstream Output;
     serialize(pathToStream(StackAnalysisOutputPath, Output));
   }
+
+  commitToModel(GCBI, &F, GrandResult, LMP.getWriteableModel());
 
   return false;
 }

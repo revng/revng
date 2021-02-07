@@ -28,7 +28,7 @@ int arch_prctl(int code, unsigned long *addr);
 
 #endif
 
-#include "revng/Runtime/commonconstants.h"
+#include "revng/Runtime/PrintPlainMetaAddress.h"
 
 #include "support.h"
 
@@ -245,15 +245,18 @@ void g_free(void *memory) {
     return free(memory);
 }
 
-void unknownPC() {
+void unknownPC(PlainMetaAddress *PC) {
   int arg;
-  const char *error = "Unknown PC\n";
-  write(2, error, strlen(error));
+  fprintf(stderr, "Unknown PC:");
+  fprint_metaaddress(stderr, PC);
+  fprintf(stderr, "\n");
+
   for (arg = 0; arg < saved_argc; arg++) {
     write(2, saved_argv[arg], strlen(saved_argv[arg]));
     write(2, " ", 1);
   }
   write(2, "\n", 1);
+
   abort();
 }
 
@@ -451,58 +454,18 @@ int main(int argc, char *argv[]) {
   root((target_reg) stack);
 }
 
-// Helper function to debug informations when an exception is about to be
-// raised
-void exception_warning(Reason Code,
-                       target_reg Source,
-                       target_reg Target,
-                       target_reg ExpectedDestination) {
-  switch (Code) {
-  case StandardTranslatedBlock:
-    fprintf(stderr,
-            "Unexpected control-flow in isolated function: "
-            "0x%" TARGET_REG_FORMAT " -> 0x%" TARGET_REG_FORMAT "\n",
-            Source,
-            Target);
-    break;
-  case StandardNonTranslatedBlock:
-    fprintf(stderr,
-            "Unexpected control-flow in isolated function after unexpectedpc "
-            "or anypc block: 0x%" TARGET_REG_FORMAT "\n",
-            Target);
-    break;
-  case BadReturnAddress:
-    fprintf(stderr,
-            "Expected and actual fallthrough after ret not corresponding: "
-            "0x%" TARGET_REG_FORMAT " / 0x%" TARGET_REG_FORMAT "\n",
-            Target,
-            ExpectedDestination);
-    break;
-  case FunctionDispatcherFallBack:
-    fprintf(stderr,
-            "Erroneous call to function dispatcher: "
-            "0x%" TARGET_REG_FORMAT "\n",
-            Target);
-    break;
-  case ReturnFromNoReturn:
-    fprintf(stderr,
-            "Execution has return from a noreturn call: "
-            "0x%" TARGET_REG_FORMAT "\n",
-            Source);
-    break;
-  default:
-    assert(0 && "Reason code not supported");
-  }
-}
-
 // Helper function used to raise an exception
-noreturn void raise_exception_helper(Reason Code,
-                                     target_reg Source,
-                                     target_reg Target,
-                                     target_reg ExpectedDestination) {
+noreturn void raise_exception_helper(const char *reason,
+                                     PlainMetaAddress *source,
+                                     PlainMetaAddress *destination) {
 
-  // Call the exception debug helper
-  exception_warning(Code, Source, Target, ExpectedDestination);
+  // Dump information about the exception
+  fprintf(stderr, "Exception: %s", reason);
+  fprintf(stderr, " (");
+  fprint_metaaddress(stderr, source);
+  fprintf(stderr, " -> ");
+  fprint_metaaddress(stderr, source);
+  fprintf(stderr, ")\n");
 
   // Declare the exception object
   static struct _Unwind_Exception exc;

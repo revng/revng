@@ -185,7 +185,8 @@ def build_opt_args(args):
 
   return (prefix + [relative(get_command("opt"))]
           + interleave(roots, "-load")
-          + args)
+          + args
+          + ["-serialize-model"])
 
 def split_dash_dash(args):
   if not args:

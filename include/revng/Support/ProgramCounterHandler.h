@@ -79,7 +79,7 @@ public:
 
 public:
   std::array<llvm::GlobalVariable *, 4> pcCSVs() const {
-    return { AddressCSV, EpochCSV, AddressSpaceCSV, TypeCSV };
+    return { EpochCSV, AddressSpaceCSV, TypeCSV, AddressCSV };
   }
 
   /// \brief Hook for the emission of a store to a CSV

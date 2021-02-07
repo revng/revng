@@ -4,11 +4,11 @@
       "slots" : [
          {
             "argument" : "Maybe",
-            "slot" : "rax"
+            "slot" : "rdx"
          },
          {
             "return_value" : "Maybe",
-            "slot" : "rdx"
+            "slot" : "rax"
          }
       ]
    }
