@@ -113,6 +113,7 @@ static FunctionCFG getGraph(const Function &F) {
 
       case FunctionCall:
       case IndirectCall:
+        // TODO: this does not handle noreturn function calls
         Source->addSuccessor(Graph.get(Block.End));
         break;
 
