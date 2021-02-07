@@ -238,6 +238,11 @@ public:
       Type = V;
   }
 
+  bool hasAddress() { return Address.hasValue(); }
+  bool hasEpoch() { return Epoch.hasValue(); }
+  bool hasAddressSpace() { return AddressSpace.hasValue(); }
+  bool hasType() { return Type.hasValue(); }
+
   MetaAddress toMetaAddress() const {
     if (Type and Address and Epoch and AddressSpace) {
       auto TheType = static_cast<MetaAddressType::Values>(*Type);
@@ -377,8 +382,10 @@ PCH::getUniqueJumpTarget(BasicBlock *BB) {
             PMA.setType(Value);
           }
 
-        } else {
-          // Non-constant store to PC CSV, bail out
+        } else if ((Pointer == AddressCSV and not PMA.hasAddress())
+                   or (Pointer == EpochCSV and not PMA.hasEpoch())
+                   or (Pointer == AddressSpaceCSV and not PMA.hasAddressSpace())
+                   or (Pointer == TypeCSV and not PMA.hasType())) {
           AgreedMA = MetaAddress::invalid();
           return BailOut;
         }
@@ -409,8 +416,9 @@ PCH::getUniqueJumpTarget(BasicBlock *BB) {
           return DontProceed;
         }
 
-      } else if (isPCAffectingHelper(&I)) {
-        // Non-constant store to PC CSV, bail out
+      } else if (PMA.isEmpty() and isPCAffectingHelper(&I)) {
+        // Non-constant store to PC CSV when no other value of the PC has been
+        // written yet, bail out
         AgreedMA = MetaAddress::invalid();
         ChangedByHelper = true;
         return BailOut;
