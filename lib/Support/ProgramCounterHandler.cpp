@@ -473,13 +473,16 @@ private:
 
   Optional<BlockType::Values> SetBlockType;
 
+  SmallVectorImpl<BasicBlock *> *NewBlocksRegistry;
+
 public:
   SwitchManager(BasicBlock *Default,
                 Value *CurrentEpoch,
                 Value *CurrentAddressSpace,
                 Value *CurrentType,
                 Value *CurrentAddress,
-                Optional<BlockType::Values> SetBlockType) :
+                Optional<BlockType::Values> SetBlockType,
+                SmallVectorImpl<BasicBlock *> *NewBlocksRegistry = nullptr) :
     Context(getContext(Default)),
     F(Default->getParent()),
     Default(Default),
@@ -487,7 +490,8 @@ public:
     CurrentAddressSpace(CurrentAddressSpace),
     CurrentType(CurrentType),
     CurrentAddress(CurrentAddress),
-    SetBlockType(SetBlockType) {}
+    SetBlockType(SetBlockType),
+    NewBlocksRegistry(NewBlocksRegistry) {}
 
   SwitchManager(SwitchInst *Root, Optional<BlockType::Values> SetBlockType) :
     Context(getContext(Root)),
@@ -627,6 +631,10 @@ private:
                                    (Switch->getParent()->getName() + "_"
                                     + NewSuffix),
                                    F);
+
+    if (NewBlocksRegistry != nullptr)
+      NewBlocksRegistry->push_back(NewSwitchBB);
+
     ::addCase(Switch, NewCaseValue, NewSwitchBB);
     IRBuilder<> Builder(NewSwitchBB);
     SwitchInst *Result = createSwitch(SwitchOn, Builder);
@@ -667,11 +675,12 @@ void PCH::destroyDispatcher(SwitchInst *Root) const {
   SwitchManager(Root, {}).destroy(Root);
 }
 
-SwitchInst *
+PCH::DispatcherInfo
 PCH::buildDispatcher(DispatcherTargets &Targets,
                      IRBuilder<> &Builder,
                      BasicBlock *Default,
                      Optional<BlockType::Values> SetBlockType) const {
+  DispatcherInfo Result;
   revng_assert(Targets.size() != 0);
 
   LLVMContext &Context = getContext(Default);
@@ -694,7 +703,8 @@ PCH::buildDispatcher(DispatcherTargets &Targets,
                    CurrentAddressSpace,
                    CurrentType,
                    CurrentAddress,
-                   SetBlockType);
+                   SetBlockType,
+                   &Result.NewBlocks);
 
   // Create the first switch, for epoch
   SwitchInst *EpochSwitch = SM.createSwitch(CurrentEpoch, Builder);
@@ -739,7 +749,9 @@ PCH::buildDispatcher(DispatcherTargets &Targets,
     ForceNewSwitch = false;
   }
 
-  return EpochSwitch;
+  Result.Switch = EpochSwitch;
+
+  return Result;
 }
 
 std::unique_ptr<ProgramCounterHandler>

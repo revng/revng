@@ -8,6 +8,7 @@
 #include <map>
 #include <utility>
 
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
@@ -194,6 +195,26 @@ public:
     return PCH.get();
   }
 
+  template<typename T>
+  ProgramCounterHandler::DispatcherInfo
+  buildDispatcher(T &Targets,
+                  llvm::IRBuilder<> &Builder,
+                  llvm::BasicBlock *Default = nullptr) {
+    ProgramCounterHandler::DispatcherTargets TargetsPairs;
+    TargetsPairs.reserve(Targets.size());
+    for (MetaAddress MA : Targets)
+      TargetsPairs.push_back({ MA, getBlockAt(MA) });
+
+    if (Default == nullptr)
+      Default = UnexpectedPC;
+
+    auto IBDHB = BlockType::IndirectBranchDispatcherHelperBlock;
+    return programCounterHandler()->buildDispatcher(TargetsPairs,
+                                                    Builder,
+                                                    Default,
+                                                    { IBDHB });
+  }
+
   /// \brief Return the basic block associated to \p PC
   ///
   /// Returns nullptr if the PC doesn't have a basic block (yet)
@@ -208,6 +229,12 @@ public:
   /// \brief Return true if the basic block is a jump target
   static bool isJumpTarget(llvm::BasicBlock *BB) {
     return getType(BB->getTerminator()) == BlockType::JumpTargetBlock;
+  }
+
+  llvm::BasicBlock *getJumpTargetBlock(llvm::BasicBlock *BB);
+
+  MetaAddress getJumpTarget(llvm::BasicBlock *BB) {
+    return getPCFromNewPC(&*getJumpTargetBlock(BB)->begin());
   }
 
   bool isJump(llvm::BasicBlock *BB) const {
@@ -248,20 +275,33 @@ public:
     return Pair.first + Pair.second;
   }
 
-  llvm::BasicBlock *anyPC() const {
-    revng_assert(nullptr != AnyPC);
-    return AnyPC;
+  llvm::BasicBlock *getCallReturnBlock(llvm::BasicBlock *BB) const {
+    using namespace llvm;
+    CallInst *FunctionCallMarker = getFunctionCall(BB);
+    revng_assert(FunctionCallMarker != nullptr);
+    auto *FallthroughBA = cast<BlockAddress>(FunctionCallMarker->getOperand(1));
+    return FallthroughBA->getBasicBlock();
   }
 
-  llvm::BasicBlock *unexpectedPC() const {
-    revng_assert(nullptr != UnexpectedPC);
-    return UnexpectedPC;
+  auto getBlocksGeneratedByPC(MetaAddress PC) {
+    // Lazily initialize the pc-to-BasicBlock cache
+    if (PCToBlockCache.size() == 0)
+      initializePCToBlockCache();
+
+    auto GetSecond = [](PCToBlockMap::value_type &Element) {
+      return Element.second;
+    };
+
+    auto [Start, End] = PCToBlockCache.equal_range(PC);
+    return llvm::make_range(llvm::map_iterator(Start, GetSecond),
+                            llvm::map_iterator(End, GetSecond));
   }
 
-  llvm::BasicBlock *dispatcher() const {
-    revng_assert(nullptr != Dispatcher);
-    return Dispatcher;
-  }
+  llvm::BasicBlock *anyPC() const { return AnyPC; }
+
+  llvm::BasicBlock *unexpectedPC() const { return UnexpectedPC; }
+
+  llvm::BasicBlock *dispatcher() const { return Dispatcher; }
 
   const llvm::ArrayRef<llvm::GlobalVariable *> csvs() const { return CSVs; }
 
@@ -316,16 +356,55 @@ public:
     return MetaAddress::fromPC(ArchType, PC);
   }
 
-  struct Successors {
+  struct SuccessorsList {
     bool AnyPC = false;
     bool UnexpectedPC = false;
     bool Other = false;
     std::set<MetaAddress> Addresses;
+
+    static SuccessorsList other() {
+      SuccessorsList Result;
+      Result.Other = true;
+      return Result;
+    }
+
+    void dump() const debug_function { dump(dbg); }
+
+    template<typename O>
+    void dump(O &Output) const {
+      Output << "AnyPC: " << AnyPC << "\n";
+      Output << "UnexpectedPC: " << UnexpectedPC << "\n";
+      Output << "Other: " << Other << "\n";
+      Output << "Addresses:\n";
+      for (const MetaAddress &Address : Addresses) {
+        Output << "  ";
+        Address.dump(Output);
+        Output << "\n";
+      }
+    }
   };
 
-  Successors getSuccessors(llvm::BasicBlock *BB) const;
+  SuccessorsList getSuccessors(llvm::BasicBlock *BB) const;
 
   llvm::Function *root() const { return RootFunction; }
+
+  llvm::SmallVector<std::pair<llvm::BasicBlock *, bool>, 4>
+  blocksByPCRange(MetaAddress Start, MetaAddress End);
+
+  static MetaAddress getPCFromNewPC(llvm::Instruction *I) {
+    if (llvm::CallInst *NewPCCall = getCallTo(I, "newpc")) {
+      return MetaAddress::fromConstant(NewPCCall->getArgOperand(0));
+    } else {
+      return MetaAddress::invalid();
+    }
+  }
+
+  static MetaAddress getPCFromNewPC(llvm::BasicBlock *BB) {
+    return getPCFromNewPC(&*BB->begin());
+  }
+
+private:
+  void initializePCToBlockCache();
 
 private:
   static std::vector<llvm::GlobalVariable *>
@@ -348,6 +427,16 @@ private:
     return Result;
   }
 
+  const llvm::DominatorTree &getDomTree(llvm::Function *F) {
+    auto It = DTMap.find(F);
+    if (It == DTMap.end()) {
+      llvm::DominatorTree &Result = DTMap[F];
+      Result.recalculate(*F);
+      return Result;
+    }
+    return It->second;
+  }
+
 private:
   llvm::Triple::ArchType ArchType;
   uint32_t InstructionAlignment;
@@ -367,6 +456,9 @@ private:
   llvm::StructType *MetaAddressStruct;
   llvm::Function *NewPC;
   std::unique_ptr<ProgramCounterHandler> PCH;
+  using PCToBlockMap = std::multimap<MetaAddress, llvm::BasicBlock *>;
+  PCToBlockMap PCToBlockCache;
+  std::map<llvm::Function *, llvm::DominatorTree> DTMap;
 };
 
 template<>
