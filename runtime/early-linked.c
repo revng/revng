@@ -4,7 +4,11 @@
 
 #include <stdint.h>
 
+#include "revng/Runtime/PlainMetaAddress.h"
+
 #include "support.h"
+
+PlainMetaAddress metaaddress_type_holder;
 
 // The only purpose of this function is keeping alive the references to some
 // symbols that are needed by revng

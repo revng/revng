@@ -8,6 +8,10 @@
 
 #include "revng/Support/Debug.h"
 
+extern "C" {
+#include "revng/Runtime/PlainMetaAddress.h"
+}
+
 namespace llvm {
 class Type;
 class Constant;
@@ -400,14 +404,8 @@ inline bool isDefaultCode(Values Type) {
 ///    code. See MetaAddressType for further details.
 ///
 /// \note Generic addresses have no alignment constraints.
-class MetaAddress {
+class MetaAddress : private PlainMetaAddress {
   friend class ProgramCounterHandler;
-
-private:
-  uint32_t Epoch;
-  uint16_t AddressSpace;
-  MetaAddressType::Values Type;
-  uint64_t Address;
 
 public:
   /// \name Constructors
@@ -417,8 +415,7 @@ public:
   /// Public constructor creating an invalid MetaAddress
   ///
   /// \note Prefer MetaAddress::invalid()
-  explicit MetaAddress() :
-    Epoch(0), AddressSpace(0), Type(MetaAddressType::Invalid), Address(0) {}
+  explicit MetaAddress() : PlainMetaAddress({}) {}
 
   /// Public constructor allowing to create a custom instance to validate
   ///
@@ -427,7 +424,7 @@ public:
                        MetaAddressType::Values Type,
                        uint32_t Epoch = 0,
                        uint16_t AddressSpace = 0) :
-    Epoch(Epoch), AddressSpace(AddressSpace), Type(Type), Address(Address) {
+    PlainMetaAddress({ Epoch, AddressSpace, Type, Address }) {
 
     // Verify the given data
     validate();
@@ -495,11 +492,11 @@ public:
   ///
   /// @{
 
-  /// Create an llvm::StructType to be used with fromConstant and toConstant
-  static llvm::StructType *createStruct(llvm::LLVMContext &Context);
-
-  /// Create a global variable named "invalid_address" of type createStruct
-  static llvm::GlobalVariable *createStructVariable(llvm::Module *M);
+  /// Create a global variable with MetaAddress type
+  static llvm::GlobalVariable *
+  createStructVariable(llvm::Module *M, llvm::StringRef Name) {
+    return createStructVariableInternal(M, Name, getStruct(M));
+  }
 
   /// Get the type of the "invalid_address" global variable
   static llvm::StructType *getStruct(llvm::Module *M);
@@ -509,6 +506,13 @@ public:
 
   /// Serialize a MetaAddress to an llvm::StructType
   llvm::Constant *toConstant(llvm::Type *Type) const;
+
+private:
+  /// Create a global variable with MetaAddress type
+  static llvm::GlobalVariable *
+  createStructVariableInternal(llvm::Module *M,
+                               llvm::StringRef Name,
+                               llvm::StructType *T);
 
   /// @}
 
@@ -530,7 +534,7 @@ public:
     revng_check(isValid());
 
     MetaAddress Result = *this;
-    Result.Type = MetaAddressType::toGeneric(Type);
+    Result.Type = MetaAddressType::toGeneric(type());
     return Result;
   }
 
@@ -671,7 +675,7 @@ public:
   uint64_t asPCOrZero() const {
     revng_check(isCode() or isInvalid());
 
-    switch (Type) {
+    switch (type()) {
     case MetaAddressType::Invalid:
       revng_assert(Address == 0);
       return 0;
@@ -709,22 +713,22 @@ public:
   }
   bool isDefaultEpoch() const { return epoch() == 0; }
 
-  MetaAddressType::Values type() const { return Type; }
-  bool isInvalid() const { return Type == MetaAddressType::Invalid; }
+  MetaAddressType::Values type() const { return MetaAddressType::Values(Type); }
+  bool isInvalid() const { return type() == MetaAddressType::Invalid; }
   bool isValid() const { return not isInvalid(); }
-  bool isCode() const { return MetaAddressType::isCode(Type); }
+  bool isCode() const { return MetaAddressType::isCode(type()); }
   bool isCode(llvm::Triple::ArchType Arch) const {
-    return MetaAddressType::isCode(Type, Arch);
+    return MetaAddressType::isCode(type(), Arch);
   }
-  bool isGeneric() const { return MetaAddressType::isGeneric(Type); }
-  unsigned bitSize() const { return MetaAddressType::bitSize(Type); }
-  unsigned alignment() const { return MetaAddressType::alignment(Type); }
+  bool isGeneric() const { return MetaAddressType::isGeneric(type()); }
+  unsigned bitSize() const { return MetaAddressType::bitSize(type()); }
+  unsigned alignment() const { return MetaAddressType::alignment(type()); }
 
   llvm::Optional<llvm::Triple::ArchType> arch() {
-    return MetaAddressType::arch(Type);
+    return MetaAddressType::arch(type());
   }
 
-  bool isDefaultCode() const { return MetaAddressType::isDefaultCode(Type); }
+  bool isDefaultCode() const { return MetaAddressType::isDefaultCode(type()); }
 
   /// @}
 
@@ -764,7 +768,7 @@ public:
 private:
   bool verify() const debug_function {
     // Invalid addresses are all the same
-    if (Type == MetaAddressType::Invalid) {
+    if (type() == MetaAddressType::Invalid) {
       return *this == invalid();
     }
 
@@ -786,10 +790,10 @@ private:
 
   void setInvalid() { *this = MetaAddress(); }
 
-  uint64_t addressMask() const { return MetaAddressType::addressMask(Type); }
+  uint64_t addressMask() const { return MetaAddressType::addressMask(type()); }
 
   void setPC(uint64_t PC) {
-    if (Type == MetaAddressType::Code_arm_thumb) {
+    if (type() == MetaAddressType::Code_arm_thumb) {
 
       if ((PC & 1) == 0) {
         setInvalid();
@@ -821,7 +825,7 @@ private:
     }
 
     if (not isDefaultCode()) {
-      Output << "_" << MetaAddressType::toString(Type);
+      Output << "_" << MetaAddressType::toString(type());
     }
   }
 
