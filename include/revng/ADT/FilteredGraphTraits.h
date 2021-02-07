@@ -219,6 +219,7 @@ public:
   static NodeRef getEntryNode(const EdgeFilteredGraphImpl &G) {
     return BaseGraphTraits::getEntryNode(G.Graph);
   }
+
   static const NodeRef &getEntryNode(const NodeRef &N) { return N; }
 
   using ChildIteratorType = llvm::mapped_iterator<ChildEdgeIteratorType,
