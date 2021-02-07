@@ -347,6 +347,8 @@ private:
 
   std::map<llvm::BasicBlock *, Element> ReturnCandidates;
 
+  std::multimap<llvm::BasicBlock *, MetaAddress> FakeReturns;
+
 public:
   Analysis(llvm::BasicBlock *Entry,
            const Cache &TheCache,

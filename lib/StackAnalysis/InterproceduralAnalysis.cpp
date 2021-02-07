@@ -263,6 +263,7 @@ void ResultsPool::mergeFunction(BasicBlock *Function,
   size_t CSVCount = std::distance(M->global_begin(), M->global_end());
 
   LocallyWrittenRegisters[Function] = Summary.WrittenRegisters;
+  FakeReturns[Function] = Summary.FakeReturns;
 
   // Merge results from the arguments analyses
   const FunctionABI &ABI = Summary.ABI;
@@ -584,6 +585,10 @@ FunctionsSummary ResultsPool::finalize(Module *M, Cache *TheCache) {
   // Set function types
   for (auto &P : FunctionTypes)
     Result.Functions[P.first].Type = P.second;
+
+  // Set function types
+  for (auto &P : FakeReturns)
+    Result.Functions[P.first].FakeReturns = P.second;
 
   // Compute the set of registers clobbered by each function
   ClobberedRegistersAnalysis::ClobberedMap Clobbered;
