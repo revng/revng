@@ -160,7 +160,7 @@ public:
 
   public:
     BatchInserter(MutableSet &MS) : MS(MS) {}
-    void insert(const T &Value) { MS.insert(Value); }
+    T &insert(const T &Value) { return *MS.insert(Value).first; }
   };
 
   BatchInserter batch_insert() { return BatchInserter(*this); }
@@ -171,7 +171,9 @@ public:
 
   public:
     BatchInsertOrAssigner(MutableSet &MS) : MS(MS) {}
-    void insert_or_assign(const T &Value) { MS.insert_or_assign(Value); }
+    T &insert_or_assign(const T &Value) {
+      return *MS.insert_or_assign(Value).first;
+    }
   };
 
   BatchInsertOrAssigner batch_insert_or_assign() {
