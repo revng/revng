@@ -961,11 +961,13 @@ void JumpTargetManager::prepareDispatcher() {
                                       TheFunction);
   Builder.SetInsertPoint(DispatcherFail);
 
-  Module *TheModule = TheFunction->getParent();
-  auto *UnknownPCTy = FunctionType::get(Type::getVoidTy(Context), {}, false);
-  FunctionCallee UnknownPC = TheModule->getOrInsertFunction("unknownPC",
-                                                            UnknownPCTy);
-  Builder.CreateCall(UnknownPC);
+  auto *UnknownPCTy = FunctionType::get(Type::getVoidTy(Context),
+                                        { MetaAddress::getStruct(&TheModule) },
+                                        false);
+  FunctionCallee UnknownPC = TheModule.getOrInsertFunction("unknownPC",
+                                                           UnknownPCTy);
+
+  Builder.CreateCall(UnknownPC, PCH->loadPC(Builder));
   auto *FailUnreachable = Builder.CreateUnreachable();
   setBlockType(FailUnreachable, BlockType::DispatcherFailureBlock);
 
@@ -1101,10 +1103,12 @@ void JumpTargetManager::rebuildDispatcher() {
     }
   }
 
-  DispatcherSwitch = PCH->buildDispatcher(Targets,
-                                          Dispatcher,
-                                          DispatcherFail,
-                                          BlockType::RootDispatcherHelperBlock);
+  constexpr auto RDHB = BlockType::RootDispatcherHelperBlock;
+  const auto &DispatcherInfo = PCH->buildDispatcher(Targets,
+                                                    Dispatcher,
+                                                    DispatcherFail,
+                                                    RDHB);
+  DispatcherSwitch = DispatcherInfo.Switch;
 
   // The switch is the terminator of the dispatcher basic block
   setBlockType(DispatcherSwitch, BlockType::RootDispatcherBlock);
