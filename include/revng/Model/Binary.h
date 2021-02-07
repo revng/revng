@@ -20,6 +20,7 @@ namespace model {
 class Function;
 class Binary;
 class FunctionEdge;
+class Register;
 class BasicBlock;
 } // namespace model
 
@@ -27,9 +28,81 @@ template<>
 struct KeyedObjectTraits<MetaAddress>
   : public IdentityKeyedObjectTraits<MetaAddress> {};
 
+namespace model::RegisterState {
+enum Values {
+  Invalid,
+  No,
+  NoOrDead,
+  Dead,
+  Yes,
+  YesOrDead,
+  Maybe,
+  Contradiction
+};
+
+inline llvm::StringRef getName(Values V) {
+  return getNameFromYAMLScalar(V);
+}
+
+inline Values fromName(llvm::StringRef Name) {
+  return getValueFromYAMLScalar<Values>(Name);
+}
+
+} // namespace model::RegisterState
+
+namespace llvm::yaml {
+template<>
+struct ScalarEnumerationTraits<model::RegisterState::Values> {
+  template<typename T>
+  static void enumeration(T &io, model::RegisterState::Values &V) {
+    using namespace model::RegisterState;
+    io.enumCase(V, "Invalid", Invalid);
+    io.enumCase(V, "No", No, QuotingType::Double);
+    io.enumCase(V, "NoOrDead", NoOrDead);
+    io.enumCase(V, "Dead", Dead);
+    io.enumCase(V, "Yes", Yes, QuotingType::Double);
+    io.enumCase(V, "YesOrDead", YesOrDead);
+    io.enumCase(V, "Maybe", Maybe);
+    io.enumCase(V, "Contradiction", Contradiction);
+  }
+};
+} // namespace llvm::yaml
+
+class model::Register {
+public:
+  std::string Name;
+  RegisterState::Values Argument = RegisterState::Invalid;
+  RegisterState::Values ReturnValue = RegisterState::Invalid;
+
+public:
+  Register(const std::string &Name) : Name(Name) {}
+
+public:
+  bool verify() const debug_function {
+    return Argument != RegisterState::Invalid
+           and ReturnValue != RegisterState::Invalid;
+  }
+};
+INTROSPECTION_NS(model, Register, Name, Argument, ReturnValue);
+
+template<>
+struct llvm::yaml::MappingTraits<model::Register>
+  : public TupleLikeMappingTraits<model::Register> {};
+
+template<>
+struct KeyedObjectTraits<model::Register> {
+  static std::string key(const model::Register &Obj) { return Obj.Name; }
+
+  static model::Register fromKey(const std::string Name) {
+    return model::Register(Name);
+  }
+};
+
 //
 // FunctionEdgeType
 //
+
+/// Type of edge on the CFG
 namespace model::FunctionEdgeType {
 enum Values {
   /// Invalid value
@@ -58,6 +131,29 @@ enum Values {
   /// The basic block ends with an unreachable instruction
   Unreachable
 };
+
+inline bool hasDestination(Values V) {
+  switch (V) {
+  case Invalid:
+    revng_abort();
+    break;
+  case DirectBranch:
+  case FakeFunctionCall:
+  case FakeFunctionReturn:
+  case FunctionCall:
+    return true;
+
+  case IndirectCall:
+  case Return:
+  case BrokenReturn:
+  case IndirectTailCall:
+  case LongJmp:
+  case Killer:
+  case Unreachable:
+    return false;
+  }
+}
+
 } // namespace model::FunctionEdgeType
 
 namespace llvm::yaml {
@@ -97,26 +193,45 @@ inline Values fromName(llvm::StringRef Name) {
 //
 // FunctionEdge
 //
+
+/// An edge on the CFG
 class model::FunctionEdge {
 public:
+  /// Edge target. If invalid, it's an indirect edge
   MetaAddress Destination;
   FunctionEdgeType::Values Type;
+  SortedVector<model::Register> Registers;
 
+public:
+  FunctionEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
+    Destination(Destination), Type(Type) {}
+
+public:
   bool operator<(const FunctionEdge &Other) const {
     auto ThisTie = std::tie(Destination, Type);
     auto OtherTie = std::tie(Other.Destination, Other.Type);
     return ThisTie < OtherTie;
   }
+
+  bool verify() const debug_function;
 };
-INTROSPECTION_NS(model, FunctionEdge, Destination, Type);
+INTROSPECTION_NS(model, FunctionEdge, Destination, Type, Registers);
 
 template<>
 struct llvm::yaml::MappingTraits<model::FunctionEdge>
   : public TupleLikeMappingTraits<model::FunctionEdge> {};
 
 template<>
-struct KeyedObjectTraits<model::FunctionEdge>
-  : public IdentityKeyedObjectTraits<model::FunctionEdge> {};
+struct KeyedObjectTraits<model::FunctionEdge> {
+  using Key = std::pair<MetaAddress, model::FunctionEdgeType::Values>;
+  static Key key(const model::FunctionEdge &Obj) {
+    return { Obj.Destination, Obj.Type };
+  }
+
+  static model::FunctionEdge fromKey(const Key &Obj) {
+    return model::FunctionEdge{ Obj.first, Obj.second };
+  }
+};
 
 //
 // FunctionType
@@ -147,11 +262,11 @@ class model::BasicBlock {
 public:
   MetaAddress Start;
   MetaAddress End;
+  std::string Name;
   SortedVector<FunctionEdge> Successors;
 
 public:
-  BasicBlock(const MetaAddress &Start, const MetaAddress &End) :
-    Start(Start), End(End) {}
+  BasicBlock(const MetaAddress &Start) : Start(Start) {}
 };
 INTROSPECTION_NS(model, BasicBlock, Start, End, Successors);
 
@@ -161,12 +276,10 @@ struct llvm::yaml::MappingTraits<model::BasicBlock>
 
 template<>
 struct KeyedObjectTraits<model::BasicBlock> {
-  static std::pair<MetaAddress, MetaAddress> key(const model::BasicBlock &Obj) {
-    return { Obj.Start, Obj.End };
-  }
+  static MetaAddress key(const model::BasicBlock &Obj) { return Obj.Start; }
 
-  static model::BasicBlock fromKey(std::pair<MetaAddress, MetaAddress> Obj) {
-    return model::BasicBlock(Obj.first, Obj.second);
+  static model::BasicBlock fromKey(const MetaAddress &Obj) {
+    return model::BasicBlock(Obj);
   }
 };
 
@@ -179,23 +292,16 @@ public:
   std::string Name;
   FunctionType::Values Type;
   SortedVector<model::BasicBlock> CFG;
+  SortedVector<model::Register> Registers;
 
 public:
   Function(const MetaAddress &Entry) : Entry(Entry) {}
 
 public:
-  /// Get a set of range of addresses representing the body of the function
-  ///
-  /// \note The result of this function is deterministic: the first range
-  ///       represents the entry basic block, all the other are return sorted by
-  ///       address.
-  std::vector<std::pair<MetaAddress, MetaAddress>> basicBlockRanges() const;
-
-public:
-  bool verifyCFG() const debug_function;
+  bool verify() const debug_function;
   void dump() const debug_function;
 };
-INTROSPECTION_NS(model, Function, Entry, Name, Type, CFG)
+INTROSPECTION_NS(model, Function, Entry, Name, Type, CFG, Registers)
 
 template<>
 struct llvm::yaml::MappingTraits<model::Function>
@@ -217,6 +323,9 @@ static_assert(is_KeyedObjectContainer_v<MutableSet<model::Function>>);
 class model::Binary {
 public:
   MutableSet<model::Function> Functions;
+
+public:
+  bool verify() const debug_function;
 };
 INTROSPECTION_NS(model, Binary, Functions)
 
