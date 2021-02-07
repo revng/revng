@@ -10,6 +10,7 @@
 #include <set>
 
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 
@@ -107,15 +108,17 @@ void GeneratedCodeBasicInfo::run(Module &M) {
   revng_log(PassesLog, "Ending GeneratedCodeBasicInfo");
 }
 
-GeneratedCodeBasicInfo::Successors
+GeneratedCodeBasicInfo::SuccessorsList
 GeneratedCodeBasicInfo::getSuccessors(BasicBlock *BB) const {
-  Successors Result;
+  SuccessorsList Result;
 
   df_iterator_default_set<BasicBlock *> Visited;
   Visited.insert(AnyPC);
   Visited.insert(UnexpectedPC);
   for (BasicBlock *Block : depth_first_ext(BB, Visited)) {
     for (BasicBlock *Successor : successors(Block)) {
+      revng_assert(Successor != Dispatcher);
+
       MetaAddress Address = getBasicBlockPC(Successor);
       const auto IBDHB = BlockType::IndirectBranchDispatcherHelperBlock;
       if (Address.isValid()) {
@@ -128,12 +131,96 @@ GeneratedCodeBasicInfo::getSuccessors(BasicBlock *BB) const {
       } else if (getType(Successor) == IBDHB) {
         // Ignore
       } else {
-        Result.Other = true;
+        return SuccessorsList::other();
       }
     }
   }
 
   return Result;
+}
+
+SmallVector<std::pair<BasicBlock *, bool>, 4>
+GeneratedCodeBasicInfo::blocksByPCRange(MetaAddress Start, MetaAddress End) {
+  SmallVector<std::pair<BasicBlock *, bool>, 4> Result;
+
+  BasicBlock *StartBB = getBlockAt(Start);
+
+  df_iterator_default_set<BasicBlock *> Visited;
+  for (BasicBlock *BB : depth_first_ext(StartBB, Visited)) {
+    // Detect if this basic block is a boundary
+    enum { Unknown, Yes, No } IsBoundary = Unknown;
+
+    auto SuccBegin = succ_begin(BB);
+    auto SuccEnd = succ_end(BB);
+    if (SuccBegin == SuccEnd) {
+      // This basic blocks ends with an `UnreachableInst`
+      IsBoundary = Yes;
+    } else {
+      for (BasicBlock *Successor : make_range(SuccBegin, SuccEnd)) {
+
+        // Ignore unexpectedpc
+        using GCBI = GeneratedCodeBasicInfo;
+        if (GCBI::getType(Successor) == BlockType::UnexpectedPCBlock)
+          continue;
+
+        auto SuccessorMA = GCBI::getPCFromNewPC(Successor);
+        if (not GCBI::isPartOfRootDispatcher(Successor)
+            and (SuccessorMA.isInvalid()
+                 or (SuccessorMA.address() >= Start.address()
+                     and SuccessorMA.address() < End.address()))) {
+          revng_assert(IsBoundary != Yes);
+          IsBoundary = No;
+        } else {
+          revng_assert(IsBoundary != No);
+          IsBoundary = Yes;
+          Visited.insert(Successor);
+        }
+      }
+    }
+
+    revng_assert(IsBoundary != Unknown);
+
+    Result.emplace_back(BB, IsBoundary == Yes);
+  }
+
+  return Result;
+}
+
+llvm::BasicBlock *
+GeneratedCodeBasicInfo::getJumpTargetBlock(llvm::BasicBlock *BB) {
+  const DominatorTree &DT = getDomTree(BB->getParent());
+  auto *Node = DT.getNode(BB);
+  revng_assert(Node != nullptr);
+
+  while (Node != nullptr and not isJumpTarget(Node->getBlock())) {
+    Node = Node->getIDom();
+  }
+
+  if (Node == nullptr)
+    return nullptr;
+  else
+    return Node->getBlock();
+}
+
+void GeneratedCodeBasicInfo::initializePCToBlockCache() {
+  const DominatorTree &DT = getDomTree(RootFunction);
+  for (BasicBlock &BB : *RootFunction) {
+    if (not GeneratedCodeBasicInfo::isTranslated(&BB))
+      continue;
+
+    auto *DTNode = DT.getNode(&BB);
+
+    // Ignore unreachable basic block
+    if (DTNode == nullptr)
+      continue;
+
+    while (not GeneratedCodeBasicInfo::isJumpTarget(DTNode->getBlock())) {
+      DTNode = DTNode->getIDom();
+      revng_assert(DTNode != nullptr);
+    }
+
+    PCToBlockCache.insert({ getBasicBlockPC(DTNode->getBlock()), &BB });
+  }
 }
 
 AnalysisKey GeneratedCodeBasicInfoAnalysis::Key;

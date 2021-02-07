@@ -1103,10 +1103,12 @@ void JumpTargetManager::rebuildDispatcher() {
     }
   }
 
-  DispatcherSwitch = PCH->buildDispatcher(Targets,
-                                          Dispatcher,
-                                          DispatcherFail,
-                                          BlockType::RootDispatcherHelperBlock);
+  constexpr auto RDHB = BlockType::RootDispatcherHelperBlock;
+  const auto &DispatcherInfo = PCH->buildDispatcher(Targets,
+                                                    Dispatcher,
+                                                    DispatcherFail,
+                                                    RDHB);
+  DispatcherSwitch = DispatcherInfo.Switch;
 
   // The switch is the terminator of the dispatcher basic block
   setBlockType(DispatcherSwitch, BlockType::RootDispatcherBlock);
