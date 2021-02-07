@@ -55,7 +55,7 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
 
   // Deserialize the ABI registers
   for (const ABIRegister &Register : Arch.abiRegisters()) {
-    GlobalVariable *CSV = TheModule.getGlobalVariable(Register.qemuName());
+    GlobalVariable *CSV = TheModule.getGlobalVariable(Register.csvName());
     // Not all the registers have a corresponding CSV
     if (CSV != nullptr) {
 
@@ -122,7 +122,7 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
 
   // Serialize ABI CSVs
   for (const ABIRegister &Register : Arch.abiRegisters()) {
-    GlobalVariable *CSV = TheModule.getGlobalVariable(Register.qemuName());
+    GlobalVariable *CSV = TheModule.getGlobalVariable(Register.csvName());
 
     // Not all the registers have a corresponding CSV
     if (CSV == nullptr)

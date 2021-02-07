@@ -7,5 +7,6 @@ revng_add_analyses_library_internal(revngFunctionIsolation
   IsolateFunctions.cpp)
 
 target_link_libraries(revngFunctionIsolation
+  revngModel
   revngStackAnalysis
   revngSupport)

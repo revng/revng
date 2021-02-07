@@ -955,7 +955,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   const SmallVector<ABIRegister, 20> &ABIRegisters = Arch.abiRegisters();
   SmallVector<Metadata *, 20> ABIRegMetadata;
   for (auto Register : ABIRegisters)
-    ABIRegMetadata.push_back(MDString::get(Context, Register.name()));
+    ABIRegMetadata.push_back(MDString::get(Context, Register.csvName()));
 
   auto *Tuple = MDTuple::get(Context,
                              {

@@ -52,7 +52,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
 
         set(TEST_NAME test-lifted-${CATEGORY}-${ANALYSIS}-${TARGET_NAME})
         add_test(NAME ${TEST_NAME}
-          COMMAND sh -c "./bin/revng opt --${ANALYSIS_OPT_${ANALYSIS}} --${ANALYSIS_OPT_${ANALYSIS}}-output=${ANALYSIS_OUTPUT} ${OUTPUT} -o /dev/null \
+          COMMAND sh -c "./bin/revng opt --${ANALYSIS_OPT_${ANALYSIS}} --${ANALYSIS_OPT_${ANALYSIS}}-output=${ANALYSIS_OUTPUT} ${OUTPUT} --debug-log=stackanalysis -o /dev/null \
           && ${ANALYSIS_DIFF_${ANALYSIS}} ${REFERENCE} ${ANALYSIS_OUTPUT}")
         set_tests_properties(${TEST_NAME} PROPERTIES LABELS "analysis;${CATEGORY};${CONFIGURATION};${ANALYSIS}")
 

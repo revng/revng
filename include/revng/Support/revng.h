@@ -14,6 +14,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
 
+#include "revng/Model/Binary.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 
@@ -23,31 +24,84 @@ class GlobalVariable;
 
 class ABIRegister {
 private:
-  llvm::StringRef Name;
-  llvm::StringRef QemuName;
+  model::Register::Values ID;
   unsigned MContextIndex;
 
 public:
   static const unsigned NotInMContext = std::numeric_limits<unsigned>::max();
 
 public:
-  ABIRegister(llvm::StringRef Name, unsigned MContextIndex) :
-    Name(Name), QemuName(Name), MContextIndex(MContextIndex) {}
+  ABIRegister(model::Register::Values ID) :
+    ID(ID), MContextIndex(NotInMContext) {}
 
-  ABIRegister(llvm::StringRef Name) :
-    Name(Name), QemuName(Name), MContextIndex(NotInMContext) {}
+  ABIRegister(model::Register::Values ID, unsigned MContextIndex) :
+    ID(ID), MContextIndex(MContextIndex) {}
 
-  ABIRegister(llvm::StringRef Name, llvm::StringRef QemuName) :
-    Name(Name), QemuName(QemuName), MContextIndex(NotInMContext) {}
+  model::Register::Values id() const { return ID; }
 
-  llvm::StringRef name() const { return Name; }
+  llvm::StringRef name() const { return model::Register::getRegisterName(ID); }
 
-  llvm::StringRef qemuName() const { return QemuName; }
+  llvm::StringRef csvName() const { return toCSVName(ID); }
 
   bool inMContext() const { return MContextIndex != NotInMContext; }
   unsigned mcontextIndex() const {
     revng_assert(inMContext());
     return MContextIndex;
+  }
+
+public:
+  static llvm::StringRef toCSVName(model::Register::Values ID) {
+    using namespace model::Register;
+
+    switch (ID) {
+    case Invalid:
+      revng_abort();
+    case xmm0_x86_64:
+      return "state_0x8558";
+    case xmm1_x86_64:
+      return "state_0x8598";
+    case xmm2_x86_64:
+      return "state_0x85d8";
+    case xmm3_x86_64:
+      return "state_0x8618";
+    case xmm4_x86_64:
+      return "state_0x8658";
+    case xmm5_x86_64:
+      return "state_0x8698";
+    case xmm6_x86_64:
+      return "state_0x86d8";
+    case xmm7_x86_64:
+      return "state_0x8718";
+    default:
+      return model::Register::getRegisterName(ID);
+    }
+  }
+
+  static model::Register::Values
+  fromCSVName(llvm::StringRef Name, llvm::Triple::ArchType Arch) {
+    using namespace model::Register;
+
+    if (Arch == llvm::Triple::x86_64) {
+      if (Name == "state_0x8558") {
+        return xmm0_x86_64;
+      } else if (Name == "state_0x8598") {
+        return xmm1_x86_64;
+      } else if (Name == "state_0x85d8") {
+        return xmm2_x86_64;
+      } else if (Name == "state_0x8618") {
+        return xmm3_x86_64;
+      } else if (Name == "state_0x8658") {
+        return xmm4_x86_64;
+      } else if (Name == "state_0x8698") {
+        return xmm5_x86_64;
+      } else if (Name == "state_0x86d8") {
+        return xmm6_x86_64;
+      } else if (Name == "state_0x8718") {
+        return xmm7_x86_64;
+      }
+    }
+
+    return model::Register::fromRegisterName(Name, Arch);
   }
 };
 

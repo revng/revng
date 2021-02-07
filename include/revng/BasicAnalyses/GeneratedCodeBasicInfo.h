@@ -236,7 +236,7 @@ public:
   llvm::BasicBlock *getJumpTargetBlock(llvm::BasicBlock *BB);
 
   MetaAddress getJumpTarget(llvm::BasicBlock *BB) {
-    return getPCFromNewPC(&*getJumpTargetBlock(BB)->begin());
+    return getPCFromNewPC(getJumpTargetBlock(BB));
   }
 
   bool isJump(llvm::BasicBlock *BB) const {
