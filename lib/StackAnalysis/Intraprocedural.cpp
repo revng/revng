@@ -514,6 +514,8 @@ Interrupt Analysis::handleTerminator(Instruction *T,
                                      Element &Result,
                                      ABIIRBasicBlock &ABIBB) {
   namespace BT = BranchType;
+  BasicBlock *BB = T->getParent();
+  FakeReturns.erase(BB);
 
   revng_assert(T->isTerminator());
   revng_assert(not isa<UnreachableInst>(T));
@@ -709,6 +711,7 @@ Interrupt Analysis::handleTerminator(Instruction *T,
     if (IsReturnFromFake) {
       // Continue from there
       MetaAddress MA = GCBI->fromPC(FakeFunctionReturnAddress);
+      FakeReturns.insert({ BB, MA });
       BasicBlock *ReturnBB = GCBI->getBlockAt(MA);
       return AI::createWithSuccessor(std::move(Result),
                                      BT::FakeFunctionReturn,
@@ -1061,12 +1064,14 @@ IFS Analysis::createSummary() {
                                  std::move(ABI),
                                  std::move(FrameSizeAtCallSite),
                                  std::move(BranchesType),
-                                 std::move(WrittenRegisters));
+                                 std::move(WrittenRegisters),
+                                 std::move(FakeReturns));
   } else {
     Summary = IFS::createNoReturn(std::move(ABI),
                                   std::move(FrameSizeAtCallSite),
                                   std::move(BranchesType),
-                                  std::move(WrittenRegisters));
+                                  std::move(WrittenRegisters),
+                                  std::move(FakeReturns));
   }
   findIncoherentFunctions(Summary);
 

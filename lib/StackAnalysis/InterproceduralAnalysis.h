@@ -73,6 +73,7 @@ private:
   map<BasicBlock *, FunctionType::Values> FunctionTypes;
 
   map<BasicBlock *, std::set<int32_t>> LocallyWrittenRegisters;
+  map<BasicBlock *, std::multimap<llvm::BasicBlock *, MetaAddress>> FakeReturns;
   map<BasicBlock *, std::set<int32_t>> ExplicitlyCalleeSavedRegisters;
   map<BasicBlock *, std::vector<FunctionCall>> FunctionCalls;
 
