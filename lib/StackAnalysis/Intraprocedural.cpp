@@ -514,6 +514,19 @@ Interrupt Analysis::transfer(BasicBlock *BB) {
   revng_abort();
 }
 
+static SmallVector<BasicBlock *, 2>
+directSuccessors(GeneratedCodeBasicInfo *GCBI, Instruction *T) {
+  revng_assert(T->isTerminator());
+  SmallVector<BasicBlock *, 2> Successors;
+  for (BasicBlock *Successor : llvm::successors(T)) {
+    BlockType::Values SuccessorType = GCBI->getType(Successor);
+    if (SuccessorType != BlockType::UnexpectedPCBlock
+        and SuccessorType != BlockType::AnyPCBlock)
+      Successors.push_back(Successor);
+  }
+  return Successors;
+}
+
 Interrupt Analysis::handleTerminator(Instruction *T,
                                      Element &Result,
                                      ABIIRBasicBlock &ABIBB) {
@@ -583,13 +596,10 @@ Interrupt Analysis::handleTerminator(Instruction *T,
 
   if (IsInstructionLocal) {
     SaTerminator << " IsInstructionLocal";
-    SmallVector<BasicBlock *, 2> Successors;
-    for (BasicBlock *Successor : llvm::successors(T))
-      Successors.push_back(Successor);
 
     return AI::createWithSuccessors(std::move(Result),
                                     BT::InstructionLocalCFG,
-                                    Successors);
+                                    directSuccessors(GCBI, T));
   }
 
   // 3. Check if this a function call (although the callee might not be a proper
@@ -729,20 +739,10 @@ Interrupt Analysis::handleTerminator(Instruction *T,
     }
   }
 
-  // The branch is direct and has nothing else special, consider it
-  // function-local
-  SmallVector<BasicBlock *, 2> Successors;
-  for (BasicBlock *Successor : llvm::successors(T)) {
-    BlockType::Values SuccessorType = GCBI->getType(Successor);
-    if (SuccessorType != BlockType::UnexpectedPCBlock
-        and SuccessorType != BlockType::AnyPCBlock)
-      Successors.push_back(Successor);
-  }
-
   SaTerminator << " FunctionLocalCFG";
   return AI::createWithSuccessors(std::move(Result),
                                   BT::FunctionLocalCFG,
-                                  Successors);
+                                  directSuccessors(GCBI, T));
 }
 
 std::pair<FunctionType::Values, Element> Analysis::finalize() {
