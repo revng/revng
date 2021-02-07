@@ -19,7 +19,8 @@ bool PruneRetSuccessors::runOnModule(llvm::Module &M) {
   auto &FCI = getAnalysis<FunctionCallIdentification>();
 
   for (BasicBlock &BB : *GCBI.root()) {
-    if (BB.getTerminator()->getNumSuccessors() < 2)
+    if (not GCBI.isTranslated(&BB)
+        or BB.getTerminator()->getNumSuccessors() < 2)
       continue;
 
     auto Successors = GCBI.getSuccessors(&BB);
@@ -36,7 +37,7 @@ bool PruneRetSuccessors::runOnModule(llvm::Module &M) {
 
     if (AllFallthrough) {
       Instruction *OldTerminator = BB.getTerminator();
-      auto *NewTerminator = BranchInst::Create(GCBI.dispatcher(), &BB);
+      auto *NewTerminator = BranchInst::Create(GCBI.anyPC(), &BB);
       NewTerminator->copyMetadata(*OldTerminator);
       OldTerminator->eraseFromParent();
     }

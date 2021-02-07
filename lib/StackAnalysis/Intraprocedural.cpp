@@ -294,6 +294,10 @@ static llvm::Value *getModifyAndReassign(Instruction *I) {
 Interrupt Analysis::transfer(BasicBlock *BB) {
   auto SP0 = ASID::stackID();
 
+  BlockType::Values Type = GCBI->getType(BB);
+  revng_assert(Type != BlockType::AnyPCBlock
+               and Type != BlockType::UnexpectedPCBlock);
+
   // Create a copy of the initial state associated to this basic block
   auto It = State.find(BB);
   revng_assert(It != State.end());
@@ -546,41 +550,29 @@ Interrupt Analysis::handleTerminator(Instruction *T,
   bool IsInstructionLocal = false;
   bool IsIndirect = false;
   bool IsUnresolvedIndirect = false;
+  bool JustUnexpected = true;
 
   for (BasicBlock *Successor : llvm::successors(T)) {
     BlockType::Values SuccessorType = GCBI->getType(Successor->getTerminator());
 
-    // TODO: this is not very clean
-    // After call to helpers we emit a jump to anypc, ignore it
-    if (SuccessorType == BlockType::AnyPCBlock) {
-      bool ShouldSkip = false;
-      BasicBlock *BB = T->getParent();
-      for (Instruction &I : make_range(BB->rbegin(), BB->rend())) {
-        if (isCallToHelper(&I)) {
-          SaTerminator << " (ignoring anypc)";
-          ShouldSkip = true;
-          break;
-        }
-      }
-
-      if (ShouldSkip)
-        continue;
-    }
-
     // If at least one successor is not a jump target, the branch is instruction
     // local
     namespace BT = BlockType;
+    constexpr auto IBDHB = BT::IndirectBranchDispatcherHelperBlock;
     IsInstructionLocal = (IsInstructionLocal
-                          or SuccessorType == BT::TranslatedBlock);
+                          or SuccessorType == BT::TranslatedBlock
+                          or SuccessorType == IBDHB);
+
+    revng_assert(SuccessorType != BT::RootDispatcherBlock);
 
     IsIndirect = (IsIndirect or SuccessorType == BT::AnyPCBlock
                   or SuccessorType == BT::UnexpectedPCBlock
-                  or SuccessorType == BT::RootDispatcherBlock
-                  or SuccessorType == BT::IndirectBranchDispatcherHelperBlock);
+                  or SuccessorType == IBDHB);
 
     IsUnresolvedIndirect = (IsUnresolvedIndirect
-                            or SuccessorType == BT::AnyPCBlock
-                            or SuccessorType == BT::RootDispatcherBlock);
+                            or SuccessorType == BT::AnyPCBlock);
+
+    JustUnexpected = JustUnexpected and SuccessorType == BT::UnexpectedPCBlock;
   }
 
   if (IsIndirect)
@@ -719,7 +711,7 @@ Interrupt Analysis::handleTerminator(Instruction *T,
     }
 
     // Check if it's a real indirect jump, i.e. we're not 100% of the targets
-    if (IsUnresolvedIndirect) {
+    if (IsUnresolvedIndirect or JustUnexpected) {
       if (IsReadyToReturn) {
         // If the stack is not in a valid position, we consider it an indirect
         // tail call
@@ -862,6 +854,8 @@ Interrupt Analysis::handleCall(Instruction *Caller,
                                Element &Result,
                                ABIIRBasicBlock &ABIBB) {
   namespace BT = BranchType;
+
+  revng_assert(Callee == nullptr or getName(Callee) != "unexpectedpc");
 
   const bool IsRecursive = InProgressFunctions.count(Callee) != 0;
   const bool IsIndirect = (Callee == nullptr);
