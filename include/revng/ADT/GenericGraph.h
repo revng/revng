@@ -264,6 +264,8 @@ public:
   static const bool is_bidirectional_node = true;
 
 public:
+  using NodeData = Node;
+  using EdgeLabelData = EdgeLabel;
   using Base = ForwardNode<Node,
                            EdgeLabel,
                            HasParent,
