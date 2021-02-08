@@ -6,6 +6,7 @@
 
 #include <experimental/coroutine>
 #include <optional>
+#include <utility>
 
 #include "revng/Support/Assert.h"
 
@@ -182,8 +183,8 @@ protected:
 };
 
 template<typename CoroutineT, typename... Args>
-auto rc_run(CoroutineT F, Args... Arguments) {
-  return F(Arguments...).run();
+auto rc_run(CoroutineT F, Args &&... args) {
+  return F(std::forward<Args>(args)...).run();
 }
 
 #define rc_return co_return
