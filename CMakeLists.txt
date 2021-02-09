@@ -10,8 +10,6 @@ include(cmake/Common.cmake)
 install(FILES cmake/revngConfig.cmake cmake/Common.cmake
   DESTINATION share/revng/cmake)
 
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
 # This has to be first to get highest priority
 include_directories(include/)
 
@@ -103,11 +101,17 @@ add_definitions("-DBUILD_PATH=\"${CMAKE_BINARY_DIR}\"")
 # Compiler options
 #
 
+# Remove -rdynamic
+set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
+
 # Basic compiler options
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Disable some warnings
 add_flag_if_available("-Wno-unused-parameter")
@@ -128,7 +132,6 @@ add_flag_if_available("-Winconsistent-missing-destructor-override")
 add_flag_if_available("-Wnewline-eof")
 add_flag_if_available("-Wmissing-prototypes")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions")
 add_definitions("-D_FILE_OFFSET_BITS=64")
 
 CHECK_CXX_COMPILER_FLAG("-no-pie" COMPILER_SUPPORTS_NO_PIE)
@@ -142,44 +145,27 @@ if(HAVE_VALGRIND_CALLGRIND_H)
 add_definitions("-DHAVE_VALGRIND_CALLGRIND_H")
 endif()
 
-add_subdirectory(include)
-add_subdirectory(lib)
-add_subdirectory(tools)
-
 set(VERSION 0.0.0)
 
-configure_file(runtime/support.c "${CMAKE_BINARY_DIR}/share/revng/support.c" COPYONLY)
-configure_file(runtime/support.h "${CMAKE_BINARY_DIR}/share/revng/support.h" COPYONLY)
-configure_file(include/revng/Runtime/commonconstants.h "${CMAKE_BINARY_DIR}/share/revng/commonconstants.h" COPYONLY)
+function(copy_to_build_and_install INSTALL_TYPE DESTINATION)
+  foreach(INPUT_FILE ${ARGN})
+    make_directory("${CMAKE_BINARY_DIR}/${DESTINATION}" )
+    configure_file("${INPUT_FILE}" "${CMAKE_BINARY_DIR}/${DESTINATION}" COPYONLY)
+    install("${INSTALL_TYPE}" "${INPUT_FILE}" DESTINATION "${DESTINATION}")
+  endforeach()
+endfunction()
 
-install(FILES
-  "${CMAKE_BINARY_DIR}/share/revng/support.c"
-  "${CMAKE_BINARY_DIR}/share/revng/support.h"
-  "${CMAKE_BINARY_DIR}/share/revng/commonconstants.h"
-  DESTINATION share/revng)
+#
+# Support files (share/revng)
+#
+copy_to_build_and_install(FILES
+  share/revng
+  runtime/support.c
+  runtime/support.h
+  include/revng/Runtime/commonconstants.h
+  scripts/clang-format-style-file)
 
 configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/share/revng/early-linked.c" COPYONLY)
-
-configure_file(scripts/revng "${CMAKE_BINARY_DIR}/bin/revng")
-
-configure_file(scripts/revng-merge-dynamic "${CMAKE_BINARY_DIR}/bin/revng-merge-dynamic" COPYONLY)
-configure_file(scripts/revng_merge_dynamic/__init__.py "${CMAKE_BINARY_DIR}/bin/revng_merge_dynamic/__init__.py" COPYONLY)
-configure_file(scripts/revng_merge_dynamic/__main__.py "${CMAKE_BINARY_DIR}/bin/revng_merge_dynamic/__main__.py" COPYONLY)
-configure_file(scripts/revng_merge_dynamic/log.py "${CMAKE_BINARY_DIR}/bin/revng_merge_dynamic/log.py" COPYONLY)
-configure_file(scripts/revng_merge_dynamic/merge_dynamic.py "${CMAKE_BINARY_DIR}/bin/revng_merge_dynamic/merge_dynamic.py" COPYONLY)
-configure_file(scripts/revng_merge_dynamic/parsed_elf.py "${CMAKE_BINARY_DIR}/bin/revng_merge_dynamic/parsed_elf.py" COPYONLY)
-configure_file(scripts/revng_merge_dynamic/util.py "${CMAKE_BINARY_DIR}/bin/revng_merge_dynamic/util.py" COPYONLY)
-
-install(PROGRAMS
-  "${CMAKE_BINARY_DIR}/bin/revng"
-  "${CMAKE_BINARY_DIR}/bin/revng-merge-dynamic"
-  DESTINATION bin)
-
-configure_file(scripts/check-revng-conventions "${CMAKE_BINARY_DIR}/bin/check-revng-conventions" COPYONLY)
-install(PROGRAMS "${CMAKE_BINARY_DIR}/bin/check-revng-conventions" DESTINATION bin)
-
-configure_file(scripts/clang-format-style-file "${CMAKE_BINARY_DIR}/share/revng/clang-format-style-file" COPYONLY)
-install(FILES "${CMAKE_BINARY_DIR}/share/revng/clang-format-style-file" DESTINATION share/revng)
 
 # Custom command to create .clang-format file from check-revng-conventions
 add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/share/revng/.clang-format"
@@ -194,14 +180,41 @@ add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/share/revng/.clang-format"
 )
 
 add_custom_target(clang-format-dot-file ALL DEPENDS "${CMAKE_BINARY_DIR}/share/revng/.clang-format" )
-
 install(FILES "${CMAKE_BINARY_DIR}/share/revng/.clang-format" DESTINATION share/revng)
 
-# Remove -rdynamic
-set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
+#
+# Executable scripts
+#
 
+# revng must not have COPYONLY
+configure_file(scripts/revng "${CMAKE_BINARY_DIR}/bin/revng")
+install(PROGRAMS "${CMAKE_BINARY_DIR}/bin/revng" DESTINATION bin)
+
+copy_to_build_and_install(PROGRAMS
+  bin
+  "scripts/check-revng-conventions"
+  "scripts/revng-merge-dynamic")
+
+copy_to_build_and_install(FILES
+  bin/revng_merge_dynamic
+  "scripts/revng_merge_dynamic/__init__.py"
+  "scripts/revng_merge_dynamic/__main__.py"
+  "scripts/revng_merge_dynamic/log.py"
+  "scripts/revng_merge_dynamic/merge_dynamic.py"
+  "scripts/revng_merge_dynamic/parsed_elf.py"
+  "scripts/revng_merge_dynamic/util.py")
+
+#
+# Export CMake targets
+#
 install(EXPORT revng NAMESPACE revng:: DESTINATION share/revng/cmake)
 
+#
+# Include other CMake files
+#
+add_subdirectory(include)
+add_subdirectory(lib)
+add_subdirectory(tools)
 add_subdirectory(docs/)
 
 include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
