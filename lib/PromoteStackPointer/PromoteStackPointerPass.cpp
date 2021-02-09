@@ -100,7 +100,15 @@ bool PromoteStackPointerPass::runOnFunction(llvm::Function &F) {
   llvm::APInt APZero = llvm::APInt::getNullValue(IntTy->getIntegerBitWidth());
   llvm::Constant *Zero = llvm::Constant::getIntegerValue(IntTy, APZero);
   auto *InitSPVal = Builder.CreateCall(InitLocalSP, Zero);
-  Builder.CreateStore(InitSPVal, LocalSP);
+  llvm::Type *PtrTy = llvm::PointerType::getInt8PtrTy(M->getContext());
+  auto *InitSPPtr = Builder.CreateIntToPtr(InitSPVal, PtrTy);
+  // Assume that the initial SP value is aligned at 4096.
+  // This is not correct for the runtime semantics, but given that we plan to
+  // completely decompose the stack frame we should not break anything.
+  Builder.CreateAlignmentAssumption(M->getDataLayout(), InitSPPtr, 4096);
+  auto *AlignedSPVal = Builder.CreatePtrToInt(InitSPPtr, InitSPVal->getType());
+  // Store the initial SP value in the new alloca.
+  Builder.CreateStore(AlignedSPVal, LocalSP);
 
   // Actually perform the replacement.
   for (llvm::Instruction *I : SPUsers) {

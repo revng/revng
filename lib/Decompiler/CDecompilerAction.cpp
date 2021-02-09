@@ -4,6 +4,7 @@
 
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Type.h"
 
 #include "clang/AST/Decl.h"
@@ -90,6 +91,11 @@ static void buildStmtsForBasicBlock(llvm::BasicBlock *BB,
   auto VDeclEnd = ASTBuilder.VarDecls.end();
   auto AdditionalStmtsEnd = ASTBuilder.AdditionalStmts.end();
   for (llvm::Instruction &Instr : *BB) {
+
+    // Skip llvm.assume() instrinsics
+    if (auto *Call = dyn_cast<llvm::CallInst>(&Instr))
+      if (Call->getIntrinsicID() == llvm::Intrinsic::assume)
+        continue;
 
     // Skip instructions that do not need to be serialized.
     if (auto MarkIt = Mark.find(&Instr);

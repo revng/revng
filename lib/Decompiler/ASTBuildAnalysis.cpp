@@ -16,6 +16,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Type.h"
 
 #include "clang/AST/ASTContext.h"
@@ -443,6 +444,11 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
   }
   case Instruction::Call: {
     auto *TheCall = cast<CallInst>(&I);
+
+    // Skip llvm.assume() instrinsics
+    if (TheCall->getIntrinsicID() == llvm::Intrinsic::assume)
+      return nullptr;
+
     Function *CalleeFun = getCallee(TheCall);
 
     Expr *CalleeExpr = getExprForValue(CalleeFun);
