@@ -10,6 +10,7 @@
 #include "llvm/Support/WithColor.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
+#include "revng/ADT/ZipMapIterator.h"
 #include "revng/Model/TupleTree.h"
 
 template<typename>

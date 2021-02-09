@@ -264,6 +264,8 @@ public:
   static const bool is_bidirectional_node = true;
 
 public:
+  using NodeData = Node;
+  using EdgeLabelData = EdgeLabel;
   using Base = ForwardNode<Node,
                            EdgeLabel,
                            HasParent,
@@ -359,6 +361,7 @@ public:
   static const bool is_generic_graph = true;
   using NodesContainer = llvm::SmallVector<std::unique_ptr<NodeT>, SmallSize>;
   using Node = NodeT;
+  static constexpr bool hasEntryNode = HasEntryNode;
 
 private:
   using nodes_iterator_impl = typename NodesContainer::iterator;

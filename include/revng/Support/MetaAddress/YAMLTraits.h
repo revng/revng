@@ -23,5 +23,5 @@ struct llvm::yaml::ScalarTraits<MetaAddress> {
     return StringRef();
   }
 
-  static QuotingType mustQuote(StringRef) { return QuotingType::None; }
+  static QuotingType mustQuote(StringRef) { return QuotingType::Double; }
 };
