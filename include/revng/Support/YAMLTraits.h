@@ -24,7 +24,10 @@ template<typename T>
 inline llvm::StringRef getNameFromYAMLScalar(T V) {
   struct GetScalarIO {
     llvm::StringRef Result;
-    void enumCase(const T &V, llvm::StringRef Name, const T &M) {
+    void enumCase(const T &V,
+                  llvm::StringRef Name,
+                  const T &M,
+                  llvm::yaml::QuotingType = llvm::yaml::QuotingType::None) {
       if (V == M) {
         Result = Name;
       }
@@ -40,7 +43,10 @@ template<typename T>
 inline T getValueFromYAMLScalar(llvm::StringRef Name) {
   struct GetScalarIO {
     llvm::StringRef TargetName;
-    void enumCase(T &V, llvm::StringRef Name, const T &M) {
+    void enumCase(T &V,
+                  llvm::StringRef Name,
+                  const T &M,
+                  llvm::yaml::QuotingType = llvm::yaml::QuotingType::None) {
       if (TargetName == Name)
         V = M;
     }
