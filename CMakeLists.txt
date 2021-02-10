@@ -193,7 +193,8 @@ install(PROGRAMS "${CMAKE_BINARY_DIR}/bin/revng" DESTINATION bin)
 copy_to_build_and_install(PROGRAMS
   bin
   "scripts/check-revng-conventions"
-  "scripts/revng-merge-dynamic")
+  "scripts/revng-merge-dynamic"
+  "scripts/revng-dump-model")
 
 copy_to_build_and_install(FILES
   bin/revng_merge_dynamic
