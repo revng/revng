@@ -299,7 +299,7 @@ public:
 
 public:
   bool verify() const debug_function;
-  void dump() const debug_function;
+  void dumpCFG() const debug_function;
 };
 INTROSPECTION_NS(model, Function, Entry, Name, Type, CFG, Registers)
 

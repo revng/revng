@@ -91,18 +91,14 @@ bool Binary::verify() const {
   return true;
 }
 
-bool Function::verify() const {
+static FunctionCFG getGraph(const Function &F) {
   using namespace FunctionEdgeType;
 
-  // Populate graph
-  FunctionCFG Graph(Entry);
-  for (const BasicBlock &Block : CFG) {
+  FunctionCFG Graph(F.Entry);
+  for (const BasicBlock &Block : F.CFG) {
     auto *Source = Graph.get(Block.Start);
 
     for (const FunctionEdge &Edge : Block.Successors) {
-      if (not Edge.verify())
-        return false;
-
       switch (Edge.Type) {
       case DirectBranch:
       case FakeFunctionCall:
@@ -130,6 +126,25 @@ bool Function::verify() const {
       }
     }
   }
+
+  return Graph;
+}
+
+void Function::dumpCFG() const {
+  FunctionCFG CFG = getGraph(*this);
+  raw_os_ostream Stream(dbg);
+  WriteGraph(Stream, &CFG);
+}
+
+bool Function::verify() const {
+  // Verify blocks
+  for (const BasicBlock &Block : CFG)
+    for (const FunctionEdge &Edge : Block.Successors)
+      if (not Edge.verify())
+        return false;
+
+  // Populate graph
+  FunctionCFG Graph = getGraph(*this);
 
   // Ensure all the nodes are reachable from the entry node
   if (not Graph.allNodesAreReachable())
