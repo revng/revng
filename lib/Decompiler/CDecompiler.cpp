@@ -27,6 +27,10 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
   std::unique_ptr<llvm::Module> ClonedModule = llvm::CloneModule(*M);
   llvm::Function *TmpFunc = ClonedModule->getFunction(FunctionName);
 
+  // Only decompile isolated functions.
+  if (not TmpFunc->hasMetadata("revng.func.entry"))
+    return ResultSourceCode;
+
   std::unique_ptr<llvm::raw_ostream>
     OS = std::make_unique<llvm::raw_string_ostream>(ResultSourceCode);
 
