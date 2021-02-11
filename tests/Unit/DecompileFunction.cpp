@@ -19,11 +19,14 @@ int main(int argc, char **argv) {
   std::unique_ptr<llvm::Module> M = llvm::parseIRFile(argv[1],
                                                       Errors,
                                                       TestContext);
+  bool Found = false;
   for (llvm::Function &F : *M) {
     if (F.hasMetadata("revng.func.entry")) {
+      Found = true;
       decompileFunction(M.get(), F.getName().str());
       break;
     }
   }
+  revng_check(Found, "Unable to find an isolated function");
   return 0;
 }
