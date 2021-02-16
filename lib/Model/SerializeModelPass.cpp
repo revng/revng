@@ -24,23 +24,28 @@ using RP = RegisterPass<T>;
 static RP<SerializeModelPass>
   X("serialize-model", "Serialize the model", true, true);
 
-bool SerializeModelPass::runOnModule(Module &M) {
-  auto &LMP = getAnalysis<LoadModelPass>();
+void SerializeModelPass::writeModel(model::Binary &Model, llvm::Module &M) {
 
-  LLVMContext &Context = M.getContext();
+  NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
+  revng_check(not NamedMD, "The model has alread been serialized");
+
   std::string Buffer;
   {
     llvm::raw_string_ostream Stream(Buffer);
     yaml::Output YAMLOutput(Stream);
-    YAMLOutput << LMP.getWriteableModel();
+    YAMLOutput << Model;
   }
 
-  NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
-  revng_assert(NamedMD == nullptr, "The model has alread been serialized");
+  LLVMContext &Context = M.getContext();
+  auto Tuple = MDTuple::get(Context, { MDString::get(Context, Buffer) });
 
   NamedMD = M.getOrInsertNamedMetadata(ModelMetadataName);
-  auto Tuple = MDTuple::get(Context, { MDString::get(Context, Buffer) });
   NamedMD->addOperand(Tuple);
+}
+
+bool SerializeModelPass::runOnModule(Module &M) {
+
+  writeModel(getAnalysis<LoadModelPass>().getWriteableModel(), M);
 
   return false;
 }
