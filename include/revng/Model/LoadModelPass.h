@@ -33,4 +33,6 @@ public:
     Modified = true;
     return TheBinary;
   }
+
+  static model::Binary getModel(const llvm::Module &M);
 };

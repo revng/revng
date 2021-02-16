@@ -23,23 +23,32 @@ using RP = RegisterPass<T>;
 
 static RP<LoadModelPass> X("load-model", "Deserialize the model", true, true);
 
-bool LoadModelPass::doInitialization(Module &M) {
+model::Binary LoadModelPass::getModel(const llvm::Module &M) {
+
+  model::Binary Result;
+
   NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
-  if (NamedMD == nullptr or NamedMD->getNumOperands() < 1)
-    return false;
+  revng_check(NamedMD and NamedMD->getNumOperands());
 
   auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
-  if (Tuple->getNumOperands() < 1)
-    return false;
+  revng_check(Tuple->getNumOperands());
 
   Metadata *MD = Tuple->getOperand(0).get();
   StringRef YAMLString = cast<MDString>(MD)->getString();
 
   yaml::Input YAMLInput(YAMLString);
-  YAMLInput >> TheBinary;
+  YAMLInput >> Result;
+
+  return Result;
+}
+
+bool LoadModelPass::doInitialization(Module &M) {
+
+  TheBinary = getModel(M);
 
   // Erase the named metadata in order to make sure no one is tempted to
   // deserialize it on its own
+  NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
   NamedMD->eraseFromParent();
 
   return false;
