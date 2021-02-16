@@ -39,6 +39,7 @@
 
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
+#include "revng/Model/SerializeModelPass.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"
@@ -1308,6 +1309,10 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   PostInstCombinePM.add(new FunctionCallIdentification);
   PostInstCombinePM.add(new PruneRetSuccessors);
   PostInstCombinePM.run(*TheModule);
+
+  // Serialize an empty Model into TheModule
+  model::Binary Model;
+  SerializeModelPass::writeModel(Model, *TheModule);
 
   JumpTargets.finalizeJumpTargets();
 
