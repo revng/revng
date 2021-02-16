@@ -2,6 +2,9 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <iostream>
+#include <string>
+
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -21,12 +24,14 @@ int main(int argc, char **argv) {
                                                       TestContext);
   bool Found = false;
   for (llvm::Function &F : *M) {
-    if (F.hasMetadata("revng.func.entry")) {
+    std::string CCode = decompileFunction(M.get(), F.getName().str());
+    if (not CCode.empty()) {
+      llvm::outs() << CCode;
       Found = true;
-      decompileFunction(M.get(), F.getName().str());
       break;
     }
   }
+
   revng_check(Found, "Unable to find an isolated function");
   return 0;
 }

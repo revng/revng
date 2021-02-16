@@ -12,6 +12,8 @@
 
 #include "revng/Support/Assert.h"
 
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
+
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
 #include "Mangling.h"
@@ -121,7 +123,7 @@ clang::FunctionDecl *DeclCreator::createFunDecl(clang::ASTContext &Context,
 void DeclCreator::createFunctionAndCalleesDecl(clang::ASTContext &Ctx,
                                                const llvm::Function *TheF) {
 
-  revng_assert(TheF->getMetadata("revng.func.entry"));
+  revng_assert(TheF and hasIsolatedFunction(Model, TheF));
 
   std::set<const llvm::Function *> Called = getDirectlyCalledFunctions(*TheF);
 

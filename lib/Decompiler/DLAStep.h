@@ -64,11 +64,13 @@ public:
 /// dla::Step that creates types for Function's return types and fromal args
 class CreateInterproceduralTypes : public Step {
   static const char ID;
+  llvm::ModulePass *ModPass;
 
 public:
   static const constexpr void *getID() { return &ID; }
 
-  CreateInterproceduralTypes() : Step(ID){};
+  CreateInterproceduralTypes(llvm::ModulePass *MPass) :
+    Step(ID), ModPass(MPass){};
 
   virtual ~CreateInterproceduralTypes() override = default;
 

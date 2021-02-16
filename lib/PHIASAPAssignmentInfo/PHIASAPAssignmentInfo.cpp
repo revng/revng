@@ -10,6 +10,9 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/Model/LoadModelPass.h"
+
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 
 using namespace llvm;
@@ -237,8 +240,16 @@ static void computePHIVarAssignments(PHINode *ThePHI,
   revng_assert(NumAssigned == NPred);
 }
 
+void PHIASAPAssignmentInfo::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.setPreservesAll();
+  AU.addRequired<LoadModelPass>();
+}
+
 bool PHIASAPAssignmentInfo::runOnFunction(llvm::Function &F) {
-  if (not F.hasMetadata("revng.func.entry"))
+
+  // Skip non-isolated functions
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  if (not hasIsolatedFunction(Model, F))
     return false;
 
   DomTree DT;

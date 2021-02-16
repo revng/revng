@@ -7,4 +7,7 @@ revng_add_analyses_library(revngTypeShrinking revngc
   BitLiveness.cpp
   DataFlowGraph.cpp)
 
-target_link_libraries(revngTypeShrinking revngSupport)
+target_link_libraries(revngTypeShrinking
+  IsolatedFunctions
+  revng::revngModel
+  revng::revngSupport)

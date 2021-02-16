@@ -20,11 +20,15 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Decompiler/CDecompilerPass.h"
 #include "revng-c/Decompiler/DLALayouts.h"
+#include "revng-c/Decompiler/DLAPass.h"
+#include "revng-c/Decompiler/MarkForSerialization.h"
 #include "revng-c/DecompilerResourceFinder/ResourceFinder.h"
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
@@ -70,12 +74,24 @@ CDecompilerPass::CDecompilerPass(std::unique_ptr<llvm::raw_ostream> Out) :
 CDecompilerPass::CDecompilerPass() : CDecompilerPass(nullptr) {
 }
 
+void CDecompilerPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<LoadModelPass>();
+  AU.addRequired<RestructureCFG>();
+  AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
+  AU.addRequired<MarkForSerializationPass>();
+  AU.addRequired<PHIASAPAssignmentInfo>();
+  AU.addUsedIfAvailable<DLAPass>();
+  AU.setPreservesAll();
+}
+
 bool CDecompilerPass::runOnFunction(llvm::Function &F) {
 
   ShortCircuitCounter = 0;
   TrivialShortCircuitCounter = 0;
 
-  if (not F.getMetadata("revng.func.entry"))
+  // Skip non-isolated functions
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  if (not hasIsolatedFunction(Model, F))
     return false;
 
   // If the `-single-decompilation` option was passed from command line, skip
@@ -192,7 +208,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   }
 
   CDecompilerAction
-    Decompilation(F, GHAST, PHIMap, LayoutMap, SE, Mark, std::move(Out));
+    Decompilation(Model, F, GHAST, PHIMap, LayoutMap, SE, Mark, std::move(Out));
 
   using FactoryUniquePtr = std::unique_ptr<FrontendActionFactory>;
   FactoryUniquePtr Factory = newFrontendActionFactory(&Decompilation);

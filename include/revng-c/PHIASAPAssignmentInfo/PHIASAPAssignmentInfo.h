@@ -19,11 +19,9 @@ public:
 
   PHIASAPAssignmentInfo() : llvm::FunctionPass(ID), PHIInfoMap() {}
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.setPreservesAll();
-  }
-
   bool runOnFunction(llvm::Function &F) override;
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
   const BBPHIMap &getBBToPHIIncomingMap() const { return PHIInfoMap; }
 

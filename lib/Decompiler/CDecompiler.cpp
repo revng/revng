@@ -11,9 +11,11 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
+#include "revng/Model/LoadModelPass.h"
+
 #include "revng-c/Decompiler/CDecompiler.h"
 #include "revng-c/Decompiler/CDecompilerPass.h"
-#include "revng-c/FilterForDecompilation/FilterForDecompilationPass.h"
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/MakeEnvNull/MakeEnvNull.h"
 #include "revng-c/RemoveCpuLoopStore/RemoveCpuLoopStorePass.h"
 #include "revng-c/RemoveExceptionCalls/RemoveExceptionCallsPass.h"
@@ -23,21 +25,23 @@
 
 std::string
 decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
-  std::string ResultSourceCode;
-  std::unique_ptr<llvm::Module> ClonedModule = llvm::CloneModule(*M);
-  llvm::Function *TmpFunc = ClonedModule->getFunction(FunctionName);
 
-  // Only decompile isolated functions.
-  if (not TmpFunc->hasMetadata("revng.func.entry"))
+  std::string ResultSourceCode;
+
+  // Skip non-isolated functions
+  if (not hasIsolatedFunction(LoadModelPass::getModel(*M), FunctionName))
     return ResultSourceCode;
+
+  std::unique_ptr<llvm::Module> MClone = llvm::CloneModule(*M);
+  revng_check(MClone);
+  llvm::Function *FClone = MClone->getFunction(FunctionName);
 
   std::unique_ptr<llvm::raw_ostream>
     OS = std::make_unique<llvm::raw_string_ostream>(ResultSourceCode);
 
-  llvm::legacy::FunctionPassManager PM(&*ClonedModule);
+  llvm::legacy::FunctionPassManager PM(&*MClone);
   // Remove revng's artifacts from IR
   {
-    PM.add(new FilterForDecompilationFunctionPass());
     PM.add(new RemoveNewPCCallsPass());
     PM.add(new RemoveExceptionCallsPass());
     PM.add(new RemoveCpuLoopStorePass());
@@ -81,7 +85,7 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
   // Decompile!
   PM.add(new CDecompilerPass(std::move(OS)));
   PM.doInitialization();
-  PM.run(*TmpFunc);
+  PM.run(*FClone);
   PM.doFinalization();
 
   return ResultSourceCode;

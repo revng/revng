@@ -14,4 +14,6 @@ public:
   RemoveNewPCCallsPass() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 };

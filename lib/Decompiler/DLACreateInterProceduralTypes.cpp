@@ -7,8 +7,11 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
+
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 
 #include "DLAStep.h"
 #include "DLATypeSystem.h"
@@ -20,8 +23,9 @@ using StepT = CreateInterproceduralTypes;
 
 bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
   const Module &M = TS.getModule();
+  const auto &Model = ModPass->getAnalysis<LoadModelPass>().getReadOnlyModel();
   for (const Function &F : M.functions()) {
-    if (F.isIntrinsic() or not F.getMetadata("revng.func.entry"))
+    if (F.isIntrinsic() or not hasIsolatedFunction(Model, F))
       continue;
     revng_assert(not F.isVarArg());
 
@@ -43,8 +47,7 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
       for (const Instruction &I : B) {
         if (auto *Call = dyn_cast<CallInst>(&I)) {
           const Function *Callee = getCallee(Call);
-          if (Callee->isIntrinsic()
-              or not Callee->getMetadata("revng.func.entry")) {
+          if (Callee->isIntrinsic() or not hasIsolatedFunction(Model, Callee)) {
             continue;
           }
           unsigned ArgNo = 0U;

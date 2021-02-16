@@ -4,8 +4,6 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-#include <fstream>
-
 #include "llvm/Pass.h"
 
 #include "revng-c/RestructureCFGPass/ASTTree.h"
@@ -24,9 +22,7 @@ public:
 
   bool runOnFunction(llvm::Function &F) override;
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.setPreservesAll();
-  }
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
   ASTTree &getAST() { return AST; }
 

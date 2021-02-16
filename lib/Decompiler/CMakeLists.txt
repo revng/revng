@@ -34,6 +34,7 @@ revng_add_analyses_library(Decompiler revngc
 target_link_libraries(Decompiler
   DecompilerResourceFinder
   FilterForDecompilation
+  IsolatedFunctions
   LivenessAnalysis
   PHIASAPAssignmentInfo
   RestructureCFGPass
@@ -43,6 +44,7 @@ target_link_libraries(Decompiler
   RemoveLLVMAssumeCalls
   MakeEnvNull
   revngTypeShrinking
+  revng::revngModel
   revng::revngSupport
   clangTooling
   clangAST

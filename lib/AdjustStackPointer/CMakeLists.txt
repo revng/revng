@@ -5,8 +5,10 @@
 revng_add_analyses_library(AdjustStackPointer revngc AdjustStackPointerPass.cpp)
 
 target_link_libraries(AdjustStackPointer
-                      revng::revngSupport
-                      revng::revngBasicAnalyses
-                      ${LLVM_LIBRARIES})
+  IsolatedFunctions
+  revng::revngModel
+  revng::revngSupport
+  revng::revngBasicAnalyses
+  ${LLVM_LIBRARIES})
 
 

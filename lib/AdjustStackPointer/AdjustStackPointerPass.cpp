@@ -4,16 +4,15 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/PassManager.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Verifier.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Passes/PassBuilder.h"
-#include "llvm/Passes/PassPlugin.h"
 
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
 
 #include "revng-c/AdjustStackPointer/AdjustStackPointerPass.h"
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 
 using namespace llvm;
 
@@ -153,51 +152,24 @@ bool adjustStackPointer(Function &F) {
   return NeedsChange;
 }
 
-PreservedAnalyses
-AdjustStackPointerPass::run(Function &F, FunctionAnalysisManager &FAM) {
-  // Non-isolated functions are not affected.
-  if (not F.getMetadata("revng.func.entry"))
-    return PreservedAnalyses::all();
+using ASPPass = LegacyPMAdjustStackPointerPass;
 
-  if (adjustStackPointer(F))
-    return PreservedAnalyses::none();
-  return PreservedAnalyses::all();
-}
+bool ASPPass::runOnFunction(llvm::Function &F) {
 
-bool LegacyPMAdjustStackPointerPass::runOnFunction(llvm::Function &F) {
-  // Non-isolated functions are not affected.
-  if (not F.getMetadata("revng.func.entry"))
+  // Skip non-isolated functions
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  if (not hasIsolatedFunction(Model, F))
     return false;
 
   return adjustStackPointer(F);
 }
 
-static bool regPassCallback(StringRef Name,
-                            FunctionPassManager &FPM,
-                            ArrayRef<PassBuilder::PipelineElement>) {
-  if (Name == "adjust-stack-pointer") {
-    FPM.addPass(AdjustStackPointerPass());
-    return true;
-  }
-  return false;
-};
-
-// Registration stuff for the pass, using the new PassManager
-extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK
-llvmGetPassPluginInfo() {
-  PassPluginLibraryInfo Pass;
-  Pass.APIVersion = LLVM_PLUGIN_API_VERSION;
-  Pass.PluginName = "Adjust Stack Pointer Pass";
-  Pass.PluginVersion = "v0.1";
-  Pass.RegisterPassBuilderCallbacks = [](PassBuilder &PB) {
-    PB.registerPipelineParsingCallback(regPassCallback);
-  };
-
-  return Pass;
+void ASPPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<LoadModelPass>();
 }
 
 // Registration code for the pass, using the legacy PassManager.
-char LegacyPMAdjustStackPointerPass::ID = 0;
+char ASPPass::ID = 0;
 
-using RegPass = RegisterPass<LegacyPMAdjustStackPointerPass>;
+using RegPass = RegisterPass<ASPPass>;
 static RegPass X("adjust-stack-pointer", "Adjust Stack Pointer Legacy Pass");

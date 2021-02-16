@@ -6,8 +6,10 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/RemoveCpuLoopStore/RemoveCpuLoopStorePass.h"
 
 using namespace llvm;
@@ -16,8 +18,15 @@ char RemoveCpuLoopStorePass::ID = 0;
 using Reg = RegisterPass<RemoveCpuLoopStorePass>;
 static Reg X("remove-cpu-loop-store", "Removes store to cpu_loop", true, true);
 
+void RemoveCpuLoopStorePass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<LoadModelPass>();
+}
+
 bool RemoveCpuLoopStorePass::runOnFunction(Function &F) {
-  if (not F.hasMetadata("revng.func.entry"))
+
+  // Skip non-isolated functions
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  if (not hasIsolatedFunction(Model, F))
     return false;
 
   // Retrieve the global variable `cpu_loop_exiting`

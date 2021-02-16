@@ -110,10 +110,10 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       # Remove LLVM's artifacts from IR
       -remove-llvmassume-calls
       -dce
+      -serialize-model
       ${INPUT_FILE}
       -o ${TARGET_NAME}_prepared.ll
       )
-
     set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME}
       )
@@ -126,6 +126,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libDecompiler.so
       -restructure-cfg
       -decompilation
+      -serialize-model
       ${TARGET_NAME}_prepared.ll
       -o /dev/null
       )
@@ -133,7 +134,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       DEPENDS prepare_${TARGET_NAME}
       )
     set_property(TEST decompilation_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED Combed_fixture_${TARGET_NAME}
+      FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
       )
     set_property(TEST decompilation_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_SETUP Decompiled_fixture_${TARGET_NAME}
@@ -144,6 +145,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libPromoteStackPointer.so
       -promote-stack-pointer
+      -serialize-model
       ${TARGET_NAME}_prepared.ll
       -o ${TARGET_NAME}_promoted_stack.ll
       )
@@ -161,7 +163,10 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
     add_test(NAME adjust_stack_pointer_${TARGET_NAME} COMMAND opt -S
       -load
       ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libAdjustStackPointer.so
-      -sroa -instcombine -adjust-stack-pointer
+      -sroa
+      -instcombine
+      -adjust-stack-pointer
+      -serialize-model
       ${TARGET_NAME}_promoted_stack.ll
       -o ${TARGET_NAME}_adjusted_stack.ll
       )
@@ -189,6 +194,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -restructure-cfg
       -add-scev-barrier
       -decompilation
+      -serialize-model
       ${TARGET_NAME}_adjusted_stack.ll
       -o /dev/null
       )

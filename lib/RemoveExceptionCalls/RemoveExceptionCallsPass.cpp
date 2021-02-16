@@ -6,23 +6,32 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/RemoveExceptionCalls/RemoveExceptionCallsPass.h"
 
 using namespace llvm;
 
-char RemoveExceptionCallsPass::ID = 0;
-using Reg = RegisterPass<RemoveExceptionCallsPass>;
+using RECPass = RemoveExceptionCallsPass;
+
+char RECPass::ID = 0;
+using Reg = RegisterPass<RECPass>;
 static Reg X("remove-exception-calls",
              "Removes calls to raise_exception_helper",
              true,
              true);
 
+void RECPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<LoadModelPass>();
+}
+
 bool RemoveExceptionCallsPass::runOnFunction(Function &F) {
 
-  // Skip non translated functions.
-  if (not F.hasMetadata("revng.func.entry"))
+  // Skip non-isolated functions
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  if (not hasIsolatedFunction(Model, F))
     return false;
 
   // Remove calls to `raise_exception_helper` in the current function.

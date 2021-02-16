@@ -14,8 +14,6 @@
 
 #include "revng/Support/Debug.h"
 
-#include "revng-c/RestructureCFGPass/RestructureCFG.h"
-
 namespace llvm {
 
 class Function;
@@ -131,10 +129,7 @@ public:
 
   MarkForSerializationPass() : llvm::FunctionPass(ID) {}
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.addRequired<RestructureCFG>();
-    AU.setPreservesAll();
-  }
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
   bool runOnFunction(llvm::Function &F) override;
 

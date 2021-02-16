@@ -772,7 +772,7 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
 
   const SCEV *ISCEV = SE->getSCEV(&I);
   // Compute the base address of the Instruction SCEV
-  auto Bases = SCEVBaseAddressExplorer().findBases(SE, ISCEV, {});
+  auto Bases = SCEVBaseAddressExplorer(Model).findBases(SE, ISCEV, {});
 
   // We expect no bases or at most one base address. If we get more than
   // one possible candidate base address for ISCEV we haven't decided

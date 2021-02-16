@@ -9,6 +9,8 @@
 
 #include "llvm/ADT/SmallVector.h"
 
+#include "revng/Model/Binary.h"
+
 namespace llvm {
 class ScalarEvolution;
 class SCEV;
@@ -26,9 +28,12 @@ public:
 
 private:
   llvm::SmallVector<const llvm::SCEV *, 4> Worklist;
+  const model::Binary &Model;
 
 public:
-  SCEVBaseAddressExplorer() = default;
+  SCEVBaseAddressExplorer() = delete;
+  SCEVBaseAddressExplorer(const model::Binary &M) : Worklist(), Model(M) {}
+  ~SCEVBaseAddressExplorer() = default;
 
   /// \brief Returns a set containing the SCEVs of \Root 's base addresses.
   //

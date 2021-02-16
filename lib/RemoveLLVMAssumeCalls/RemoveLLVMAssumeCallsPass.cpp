@@ -6,21 +6,30 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/RemoveLLVMAssumeCalls/RemoveLLVMAssumeCallsPass.h"
 
 using namespace llvm;
 
-char RemoveLLVMAssumeCallsPass::ID = 0;
-using Reg = RegisterPass<RemoveLLVMAssumeCallsPass>;
+using RemoveAssumePass = RemoveLLVMAssumeCallsPass;
+
+char RemoveAssumePass::ID = 0;
+using Reg = RegisterPass<RemoveAssumePass>;
 static Reg
   X("remove-llvmassume-calls", "Removes calls to assume intrinsic", true, true);
 
-bool RemoveLLVMAssumeCallsPass::runOnFunction(Function &F) {
+void RemoveAssumePass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<LoadModelPass>();
+}
 
-  // Skip non translated functions.
-  if (not F.hasMetadata("revng.func.entry"))
+bool RemoveAssumePass::runOnFunction(Function &F) {
+
+  // Skip non-isolated functions
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  if (not hasIsolatedFunction(Model, F))
     return false;
 
   // Remove calls to `llvm.assume` in isolated functions.

@@ -6,18 +6,13 @@
 
 #include "llvm/Pass.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-
 struct PromoteStackPointerPass : public llvm::FunctionPass {
 public:
   static char ID;
 
   PromoteStackPointerPass() : llvm::FunctionPass(ID) {}
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-    AU.setPreservesCFG();
-  }
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
   bool runOnFunction(llvm::Function &F) override;
 };

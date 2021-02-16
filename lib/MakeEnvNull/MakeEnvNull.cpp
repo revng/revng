@@ -8,16 +8,24 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/MakeEnvNull/MakeEnvNull.h"
+
+void MakeEnvNullPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<LoadModelPass>();
+}
 
 bool MakeEnvNullPass::runOnFunction(llvm::Function &F) {
 
-  bool Changed = false;
+  // Skip non-isolated functions
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  if (not hasIsolatedFunction(Model, F))
+    return false;
 
-  if (not F.getMetadata("revng.func.entry"))
-    return Changed;
+  bool Changed = false;
 
   llvm::Module *M = F.getParent();
   llvm::GlobalVariable *Env = M->getGlobalVariable("env",

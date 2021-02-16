@@ -21,14 +21,24 @@
 #include "llvm/PassSupport.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/PromoteStackPointer/PromoteStackPointerPass.h"
 
 static Logger<> Log("promote-stack-pointer");
 
-bool PromoteStackPointerPass::runOnFunction(llvm::Function &F) {
+using PSPPass = PromoteStackPointerPass;
+
+bool PSPPass::runOnFunction(llvm::Function &F) {
+
+  // Skip non-isolated functions
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  if (not hasIsolatedFunction(Model, F))
+    return false;
 
   // Get the global variable representing the stack pointer register.
   using GCBIPass = GeneratedCodeBasicInfoWrapperPass;
@@ -119,9 +129,15 @@ bool PromoteStackPointerPass::runOnFunction(llvm::Function &F) {
   return true;
 }
 
-char PromoteStackPointerPass::ID = 0;
+void PSPPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<LoadModelPass>();
+  AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
+  AU.setPreservesCFG();
+}
+
+char PSPPass::ID = 0;
 
 using llvm::RegisterPass;
-using Pass = PromoteStackPointerPass;
+using Pass = PSPPass;
 static RegisterPass<Pass> RegisterPromoteStackPtr("promote-stack-pointer",
                                                   "Promote Stack Pointer Pass");

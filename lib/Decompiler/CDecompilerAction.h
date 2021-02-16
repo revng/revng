@@ -16,6 +16,12 @@
 
 #include "CDecompilerBeautify.h"
 
+namespace model {
+
+class Binary;
+
+} // end namespace model
+
 namespace llvm {
 
 class ScalarEvolution;
@@ -38,13 +44,15 @@ private:
   using DuplicationMap = std::map<const llvm::BasicBlock *, size_t>;
 
 public:
-  CDecompilerAction(llvm::Function &F,
+  CDecompilerAction(const model::Binary &Model,
+                    llvm::Function &F,
                     ASTTree &CombedAST,
                     BBPHIMap &BlockToPHIIncoming,
                     const dla::ValueLayoutMap *LM,
                     llvm::ScalarEvolution *SCEV,
                     const SerializationMap &M,
                     std::unique_ptr<llvm::raw_ostream> O) :
+    Model(Model),
     F(F),
     CombedAST(CombedAST),
     BlockToPHIIncoming(BlockToPHIIncoming),
@@ -60,6 +68,7 @@ public:
   CreateASTConsumer(CompilerInstance &, llvm::StringRef) override;
 
 private:
+  const model::Binary &Model;
   llvm::Function &F;
   ASTTree &CombedAST;
   BBPHIMap &BlockToPHIIncoming;

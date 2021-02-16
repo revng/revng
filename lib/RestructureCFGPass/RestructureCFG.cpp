@@ -16,9 +16,11 @@
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include "llvm/Support/raw_os_ostream.h"
 
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNodeImpl.h"
 #include "revng-c/RestructureCFGPass/GenerateAst.h"
@@ -400,6 +402,12 @@ static cl::opt<std::string> MetricsOutputPath("restructure-metrics-output-dir",
                                               desc("Restructure metrics dir"),
                                               value_desc("restructure-dir"),
                                               cat(MainCategory));
+
+void RestructureCFG::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.setPreservesAll();
+  AU.addRequired<LoadModelPass>();
+}
+
 inline void
 accumulateDuplicates(RegionCFG<llvm::BasicBlock *> &Region,
                      std::map<const llvm::BasicBlock *, size_t> &NDuplicates) {
@@ -468,6 +476,7 @@ static void LogMetaRegions(const MetaRegionBBVect &MetaRegions,
 }
 
 bool RestructureCFG::runOnFunction(Function &F) {
+
   NDuplicates.clear();
   AST = ASTTree();
 
@@ -475,8 +484,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
   UntangleTentativeCounter = 0;
   UntanglePerformedCounter = 0;
 
-  // Analyze only isolated functions.
-  if (not F.hasMetadata("revng.func.entry"))
+  // Skip non-isolated functions
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  if (not hasIsolatedFunction(Model, F))
     return false;
 
   // If we passed the `-single-decompilation` option to the command line, skip

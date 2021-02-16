@@ -20,11 +20,7 @@ struct DLAPass : public llvm::ModulePass {
 
   bool runOnModule(llvm::Module &M) override;
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.addRequired<llvm::LoopInfoWrapperPass>();
-    AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
-    AU.setPreservesAll();
-  }
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
   const dla::ValueLayoutMap *getLayoutMap() const { return &ValueLayouts; }
 

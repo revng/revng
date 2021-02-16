@@ -2,6 +2,8 @@
 // Copyright (c) rev.ng Srls. See LICENSE.md for details.
 //
 
+#include "revng/Model/LoadModelPass.h"
+
 #include "revng-c/Decompiler/DLAPass.h"
 
 #include "DLAStep.h"
@@ -12,11 +14,18 @@ char DLAPass::ID = 0;
 using Register = llvm::RegisterPass<DLAPass>;
 static Register X("dla", "Data Layout Analysis Pass", false, false);
 
+void DLAPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<LoadModelPass>();
+  AU.addRequired<llvm::LoopInfoWrapperPass>();
+  AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
+  AU.setPreservesAll();
+}
+
 bool DLAPass::runOnModule(llvm::Module &M) {
   dla::StepManager SM;
 
   // Front-end Steps, that create initial nodes and edges
-  revng_check(SM.addStep<dla::CreateInterproceduralTypes>());
+  revng_check(SM.addStep<dla::CreateInterproceduralTypes>(this));
   revng_check(SM.addStep<dla::CreateIntraproceduralTypes>(this));
   // Middle-end Steps, that manipulate nodes and edges
   revng_check(SM.addStep<dla::CollapseIdentityAndInheritanceCC>());

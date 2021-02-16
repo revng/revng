@@ -6,14 +6,20 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
-#include "revng-c/FilterForDecompilation/FilterForDecompilationPass.h"
+#include "revng/Model/LoadModelPass.h"
 
-static bool isIsolated(const llvm::Function &F) {
-  return F.getMetadata("revng.func.entry");
+#include "revng-c/FilterForDecompilation/FilterForDecompilationPass.h"
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
+
+using FFDFP = FilterForDecompilationFunctionPass;
+
+void FFDFP::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<LoadModelPass>();
 }
 
-bool FilterForDecompilationFunctionPass::runOnFunction(llvm::Function &F) {
-  if (not isIsolated(F)) {
+bool FFDFP::runOnFunction(llvm::Function &F) {
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  if (not hasIsolatedFunction(Model, F)) {
     F.deleteBody();
     return true;
   }
@@ -21,13 +27,20 @@ bool FilterForDecompilationFunctionPass::runOnFunction(llvm::Function &F) {
   return false;
 }
 
-char FilterForDecompilationFunctionPass::ID = 0;
+char FFDFP::ID = 0;
 
-bool FilterForDecompilationModulePass::runOnModule(llvm::Module &M) {
+using FFDMP = FilterForDecompilationModulePass;
+
+void FFDMP::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<LoadModelPass>();
+}
+
+bool FFDMP::runOnModule(llvm::Module &M) {
 
   bool Changed = false;
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
   for (llvm::Function &F : M) {
-    if (not isIsolated(F)) {
+    if (not hasIsolatedFunction(Model, F)) {
       F.deleteBody();
       Changed = true;
     }
@@ -36,9 +49,9 @@ bool FilterForDecompilationModulePass::runOnModule(llvm::Module &M) {
   return Changed;
 }
 
-char FilterForDecompilationModulePass::ID = 0;
+char FFDMP::ID = 0;
 
 using llvm::RegisterPass;
-using Pass = FilterForDecompilationModulePass;
+using Pass = FFDMP;
 static RegisterPass<Pass> X("filter-for-decompilation",
                             "Delete the body of all non-isolated functions");

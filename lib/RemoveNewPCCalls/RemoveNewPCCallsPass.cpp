@@ -6,8 +6,10 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/RemoveNewPCCalls/RemoveNewPCCallsPass.h"
 
 using namespace llvm;
@@ -16,10 +18,15 @@ char RemoveNewPCCallsPass::ID = 0;
 using Reg = RegisterPass<RemoveNewPCCallsPass>;
 static Reg X("remove-newpc-calls", "Removes calls to newpc", true, true);
 
+void RemoveNewPCCallsPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<LoadModelPass>();
+}
+
 bool RemoveNewPCCallsPass::runOnFunction(Function &F) {
 
-  // Skip non translated functions.
-  if (not F.hasMetadata("revng.func.entry"))
+  // Skip non-isolated functions
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  if (not hasIsolatedFunction(Model, F))
     return false;
 
   // Remove calls to `newpc` in the current function.

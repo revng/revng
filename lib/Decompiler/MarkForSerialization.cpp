@@ -9,11 +9,14 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Decompiler/MarkForSerialization.h"
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/RestructureCFGPass/RestructureCFG.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 #include "MarkAnalysis.h"
@@ -178,9 +181,17 @@ void Analysis::initialize() {
 
 } // namespace MarkAnalysis
 
+void MarkForSerializationPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<LoadModelPass>();
+  AU.addRequired<RestructureCFG>();
+  AU.setPreservesAll();
+}
+
 bool MarkForSerializationPass::runOnFunction(llvm::Function &F) {
+
   // Skip non-isolated functions
-  if (not F.getMetadata("revng.func.entry"))
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  if (not hasIsolatedFunction(Model, F))
     return false;
 
   // If the `-single-decompilation` option was passed from command line, skip

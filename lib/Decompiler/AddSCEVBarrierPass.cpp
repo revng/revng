@@ -10,7 +10,10 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/Model/LoadModelPass.h"
+
 #include "revng-c/Decompiler/MarkForSerialization.h"
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 
 struct AddSCEVBarrierPass : public llvm::FunctionPass {
 
@@ -21,8 +24,9 @@ struct AddSCEVBarrierPass : public llvm::FunctionPass {
   bool runOnFunction(llvm::Function &F) override;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.addRequired<LoadModelPass>();
     AU.addUsedIfAvailable<MarkForSerializationPass>();
-    AU.setPreservesAll(); // Only the CFG is preserved, because we insert calls.
+    AU.setPreservesAll();
   }
 };
 
@@ -49,8 +53,10 @@ std::string makeSCEVBarrierName(const llvm::Type *Ty) {
 }
 
 bool AddSCEVBarrierPass::runOnFunction(llvm::Function &F) {
+
   // Skip non-isolated functions
-  if (not F.hasMetadata("revng.func.entry"))
+  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  if (not hasIsolatedFunction(Model, F))
     return false;
 
   // If the MarkForSerializationPass was not executed, we have nothing to do.

@@ -12,9 +12,7 @@ public:
 
   MakeEnvNullPass() : llvm::FunctionPass(ID) {}
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.setPreservesAll();
-  }
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
   bool runOnFunction(llvm::Function &F) override;
 };

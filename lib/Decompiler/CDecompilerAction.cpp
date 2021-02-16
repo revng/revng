@@ -12,9 +12,11 @@
 #include "clang/AST/Stmt.h"
 #include "clang/Basic/SourceLocation.h"
 
+#include "revng/Model/Binary.h"
 #include "revng/Support/Assert.h"
 
 #include "revng-c/Decompiler/MarkForSerialization.h"
+#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
@@ -740,13 +742,15 @@ private:
   using DuplicationMap = std::map<const llvm::BasicBlock *, size_t>;
 
 public:
-  explicit Decompiler(llvm::Function &F,
+  explicit Decompiler(const model::Binary &Model,
+                      llvm::Function &F,
                       ASTTree &CombedAST,
                       BBPHIMap &BlockToPHIIncoming,
                       const dla::ValueLayoutMap *VL,
                       llvm::ScalarEvolution *SCEV,
                       const SerializationMap &M,
                       std::unique_ptr<llvm::raw_ostream> Out) :
+    Model(Model),
     TheF(F),
     CombedAST(CombedAST),
     BlockToPHIIncoming(BlockToPHIIncoming),
@@ -758,6 +762,7 @@ public:
   virtual void HandleTranslationUnit(ASTContext &Context) override;
 
 private:
+  const model::Binary &Model;
   llvm::Function &TheF;
   ASTTree &CombedAST;
   BBPHIMap &BlockToPHIIncoming;
@@ -769,13 +774,14 @@ private:
 
 void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   revng_assert(not TheF.isDeclaration());
-  revng_assert(TheF.getMetadata("revng.func.entry"));
+  revng_assert(hasIsolatedFunction(Model, TheF));
 
   beautifyAST(TheF, CombedAST, Mark);
 
-  DeclCreator Declarator(ValueLayouts);
+  DeclCreator Declarator(ValueLayouts, Model);
 
-  IR2AST::StmtBuilder ASTBuilder(Context,
+  IR2AST::StmtBuilder ASTBuilder(Model,
+                                 Context,
                                  Mark,
                                  ValueLayouts,
                                  SE,
@@ -843,7 +849,8 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
 }
 
 std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
-  return std::make_unique<Decompiler>(F,
+  return std::make_unique<Decompiler>(Model,
+                                      F,
                                       CombedAST,
                                       BlockToPHIIncoming,
                                       LayoutMap,

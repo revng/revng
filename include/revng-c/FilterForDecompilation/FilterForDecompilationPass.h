@@ -21,6 +21,8 @@ public:
   FilterForDecompilationFunctionPass() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 };
 
 struct FilterForDecompilationModulePass : public llvm::ModulePass {
@@ -30,4 +32,6 @@ public:
   FilterForDecompilationModulePass() : llvm::ModulePass(ID) {}
 
   bool runOnModule(llvm::Module &F) override;
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 };
