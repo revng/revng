@@ -415,6 +415,58 @@ accumulateDuplicates(RegionCFG<llvm::BasicBlock *> &Region,
   }
 }
 
+static void LogMetaRegions(const MetaRegionBBPtrVect &MetaRegions,
+                           const std::string &HeaderMsg) {
+  if (CombLogger.isEnabled()) {
+    CombLogger << '\n';
+    CombLogger << HeaderMsg << '\n';
+    for (const MetaRegionBB *Meta : MetaRegions) {
+      CombLogger << '\n';
+      CombLogger << Meta << '\n';
+      CombLogger << "With index " << Meta->getIndex() << '\n';
+      CombLogger << "With size " << Meta->nodes_size() << '\n';
+      CombLogger << "Is composed of nodes:\n";
+      const auto &Nodes = Meta->getNodes();
+      for (auto *Node : Nodes) {
+        CombLogger << Node->getNameStr() << '\n';
+      }
+      CombLogger << "Is SCS: " << Meta->isSCS() << '\n';
+      CombLogger << "Has parent: ";
+      if (Meta->getParent())
+        CombLogger << Meta->getParent();
+      else
+        CombLogger << "nullptr";
+      CombLogger << '\n';
+    }
+  }
+}
+
+static void LogMetaRegions(const MetaRegionBBVect &MetaRegions,
+                           const std::string &HeaderMsg) {
+  if (CombLogger.isEnabled()) {
+    CombLogger << '\n';
+    CombLogger << HeaderMsg << '\n';
+    for (const MetaRegionBB &Meta : MetaRegions) {
+      CombLogger << '\n';
+      CombLogger << &Meta << '\n';
+      CombLogger << "With index " << Meta.getIndex() << '\n';
+      CombLogger << "With size " << Meta.nodes_size() << '\n';
+      CombLogger << "Is composed of nodes:\n";
+      const auto &Nodes = Meta.getNodes();
+      for (auto *Node : Nodes) {
+        CombLogger << Node->getNameStr() << '\n';
+      }
+      CombLogger << "Is SCS: " << Meta.isSCS() << '\n';
+      CombLogger << "Has parent: ";
+      if (Meta.getParent())
+        CombLogger << Meta.getParent();
+      else
+        CombLogger << "nullptr";
+      CombLogger << '\n';
+    }
+  }
+}
+
 bool RestructureCFG::runOnFunction(Function &F) {
   NDuplicates.clear();
   AST = ASTTree();
@@ -476,90 +528,22 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Create meta regions
   MetaRegionBBVect MetaRegions = createMetaRegions(Backedges);
-
-  // Print gross metaregions.
-  if (CombLogger.isEnabled()) {
-    CombLogger << "\n";
-    CombLogger << "Metaregions after nothing:\n";
-    for (auto &Meta : MetaRegions) {
-      CombLogger << "\n";
-      CombLogger << &Meta << "\n";
-      CombLogger << "With index " << Meta.getIndex() << "\n";
-      CombLogger << "With size " << Meta.nodes_size() << "\n";
-      CombLogger << "Is composed of nodes:\n";
-      auto &Nodes = Meta.getNodes();
-      for (auto *Node : Nodes) {
-        CombLogger << Node->getNameStr() << "\n";
-      }
-    }
-  }
+  LogMetaRegions(MetaRegions, "Metaregions after nothing:");
 
   // Simplify SCS if they contain an edge which goes outside the scope of the
   // current region.
   simplifySCSAbnormalRetreating(MetaRegions, Backedges);
-
-  // Check consitency of metaregions simplified above.
+  LogMetaRegions(MetaRegions, "Metaregions after first simplification:");
   revng_assert(checkMetaregionConsistency(MetaRegions, Backedges));
-
-  // Print SCS after first simplification.
-  if (CombLogger.isEnabled()) {
-    CombLogger << "\n";
-    CombLogger << "Metaregions after first simplification:\n";
-    for (auto &Meta : MetaRegions) {
-      CombLogger << "\n";
-      CombLogger << &Meta << "\n";
-      CombLogger << "With index " << Meta.getIndex() << "\n";
-      CombLogger << "With size " << Meta.nodes_size() << "\n";
-      CombLogger << "Is composed of nodes:\n";
-      auto &Nodes = Meta.getNodes();
-      for (auto *Node : Nodes) {
-        CombLogger << Node->getNameStr() << "\n";
-      }
-    }
-  }
 
   // Simplify SCS in a fixed-point fashion.
   simplifySCS(MetaRegions);
-
-  // Check consitency of metaregions simplified above
+  LogMetaRegions(MetaRegions, "Metaregions after second simplification:");
   revng_assert(checkMetaregionConsistency(MetaRegions, Backedges));
-
-  // Print SCS after second simplification.
-  if (CombLogger.isEnabled()) {
-    CombLogger << "\n";
-    CombLogger << "Metaregions after second simplification:\n";
-    for (auto &Meta : MetaRegions) {
-      CombLogger << "\n";
-      CombLogger << &Meta << "\n";
-      CombLogger << "With index " << Meta.getIndex() << "\n";
-      CombLogger << "With size " << Meta.nodes_size() << "\n";
-      CombLogger << "Is composed of nodes:\n";
-      auto &Nodes = Meta.getNodes();
-      for (auto *Node : Nodes) {
-        CombLogger << Node->getNameStr() << "\n";
-      }
-    }
-  }
 
   // Sort the Metaregions in increasing number of composing nodes order.
   sortMetaRegions(MetaRegions);
-
-  // Print SCS after ordering.
-  if (CombLogger.isEnabled()) {
-    CombLogger << "\n";
-    CombLogger << "Metaregions after ordering:\n";
-    for (auto &Meta : MetaRegions) {
-      CombLogger << "\n";
-      CombLogger << &Meta << "\n";
-      CombLogger << "With index " << Meta.getIndex() << "\n";
-      CombLogger << "With size " << Meta.nodes_size() << "\n";
-      CombLogger << "Is composed of nodes:\n";
-      auto &Nodes = Meta.getNodes();
-      for (auto *Node : Nodes) {
-        CombLogger << Node->getNameStr() << "\n";
-      }
-    }
-  }
+  LogMetaRegions(MetaRegions, "Metaregions after second ordering:");
 
   // Compute parent relations for the identified SCSs.
   std::set<BasicBlockNodeBB *> Empty;
@@ -567,22 +551,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   computeParents(MetaRegions, &RootMetaRegion);
 
   // Print metaregions after ordering.
-  if (CombLogger.isEnabled()) {
-    CombLogger << "\n";
-    CombLogger << "Metaregions parent relationship:\n";
-    for (auto &Meta : MetaRegions) {
-      CombLogger << "\n";
-      CombLogger << &Meta << "\n";
-      CombLogger << "With index " << Meta.getIndex() << "\n";
-      CombLogger << "With size " << Meta.nodes_size() << "\n";
-      CombLogger << "Is composed of nodes:\n";
-      auto &Nodes = Meta.getNodes();
-      for (auto *Node : Nodes) {
-        CombLogger << Node->getNameStr() << "\n";
-      }
-      CombLogger << "Has parent: " << Meta.getParent() << "\n";
-    }
-  }
+  LogMetaRegions(MetaRegions, "Metaregions parent relationship:");
 
   // Find an ordering for the metaregions that satisfies the inclusion
   // relationship. We create a new "shadow" vector containing only pointers to
@@ -590,23 +559,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   MetaRegionBBPtrVect OrderedMetaRegions = applyPartialOrder(MetaRegions);
 
   // Print metaregions after ordering.
-  if (CombLogger.isEnabled()) {
-    CombLogger << "\n";
-    CombLogger << "Metaregions after partial ordering:\n";
-    for (auto *Meta : OrderedMetaRegions) {
-      CombLogger << "\n";
-      CombLogger << Meta << "\n";
-      CombLogger << "With index " << Meta->getIndex() << "\n";
-      CombLogger << "With size " << Meta->nodes_size() << "\n";
-      CombLogger << "Is composed of nodes:\n";
-      auto &Nodes = Meta->getNodes();
-      for (auto *Node : Nodes) {
-        CombLogger << Node->getNameStr() << "\n";
-      }
-      CombLogger << "Has parent: " << Meta->getParent() << "\n";
-      CombLogger << "Is SCS: " << Meta->isSCS() << "\n";
-    }
-  }
+  LogMetaRegions(OrderedMetaRegions, "Metaregions after partial ordering:");
 
   ReversePostOrderTraversal<BasicBlockNodeBB *> ORPOT(&RootCFG.getEntryNode());
 
@@ -637,9 +590,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
   for (MetaRegionBB *Meta : OrderedMetaRegions) {
     if (CombLogger.isEnabled()) {
       CombLogger << "\nAnalyzing region: " << Meta->getIndex() << "\n";
-    }
-
-    if (CombLogger.isEnabled()) {
 
       auto &Nodes = Meta->getNodes();
       CombLogger << "Which is composed of nodes:\n";
@@ -1132,23 +1082,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   // Print metaregions after ordering.
-  if (CombLogger.isEnabled()) {
-    CombLogger << "\n";
-    CombLogger << "Metaregions after collapse:\n";
-    for (auto *Meta : OrderedMetaRegions) {
-      CombLogger << "\n";
-      CombLogger << Meta << "\n";
-      CombLogger << "With index " << Meta->getIndex() << "\n";
-      CombLogger << "With size " << Meta->nodes_size() << "\n";
-      auto &Nodes = Meta->getNodes();
-      CombLogger << "Is composed of nodes:\n";
-      for (auto *Node : Nodes) {
-        CombLogger << Node->getNameStr() << "\n";
-      }
-      CombLogger << "Has parent: " << Meta->getParent() << "\n";
-      CombLogger << "Is SCS: " << Meta->isSCS() << "\n";
-    }
-  }
+  LogMetaRegions(OrderedMetaRegions, "Metaregions after collapse:");
 
   // Check that the root region is acyclic at this point.
   revng_assert(RootCFG.isDAG());

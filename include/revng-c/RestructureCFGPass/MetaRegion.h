@@ -63,9 +63,11 @@ public:
 
   void setParent(MetaRegion<NodeT> *Parent) { ParentRegion = Parent; }
 
-  MetaRegion *getParent() { return ParentRegion; }
+  MetaRegion *getParent() const { return ParentRegion; }
 
   std::set<BasicBlockNode<NodeT> *> &getNodes() { return Nodes; }
+
+  const std::set<BasicBlockNode<NodeT> *> &getNodes() const { return Nodes; }
 
   size_t nodes_size() const { return Nodes.size(); }
 
