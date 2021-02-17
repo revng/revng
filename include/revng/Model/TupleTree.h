@@ -16,6 +16,8 @@
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/Debug.h"
+#include "revng/Support/YAMLTraits.h"
 
 //
 // has_yaml
@@ -76,6 +78,8 @@ std::array<T, Size> slice(const std::array<T, OldSize> &Old) {
 //
 // TupleLikeTraits
 //
+
+/// Trait to provide name of the tuple-like class and its fields
 template<typename T>
 struct TupleLikeTraits {
   // static const char *name();
@@ -87,6 +91,8 @@ struct TupleLikeTraits {
 //
 // Implementation of MappingTraits for TupleLikeTraits implementors
 //
+
+/// Tuple-liek can implement llvm::yaml::MappingTraits inheriting this class
 template<typename T>
 struct TupleLikeMappingTraits {
   // Recursive step
@@ -221,17 +227,17 @@ enable_if_is_container_t<RootT, ResultT *> getByKey(RootT &M, KeyT Key) {
 // callOnPathSteps (no instance)
 //
 template<typename RootT, typename Visitor>
-enable_if_has_tuple_size_t<RootT, void>
+enable_if_has_tuple_size_t<RootT, bool>
 callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path);
 
 template<typename RootT, typename Visitor>
-enable_if_is_not_container_or_tuple_t<RootT>
+enable_if_is_not_container_or_tuple_t<RootT, bool>
 callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
-  revng_abort();
+  return false;
 }
 
 template<typename RootT, typename Visitor>
-enable_if_is_container_t<RootT>
+enable_if_is_container_t<RootT, bool>
 callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
   using value_type = typename RootT::value_type;
   using KOT = KeyedObjectTraits<value_type>;
@@ -242,37 +248,43 @@ callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
 
   V.template visitContainerElement<RootT>(TargetKey);
   if (Path.size() > IntsCount) {
-    callOnPathSteps<typename RootT::value_type>(V, Path.slice(IntsCount));
+    return callOnPathSteps<typename RootT::value_type>(V,
+                                                       Path.slice(IntsCount));
   }
+
+  return true;
 }
 
 namespace tupletree::detail {
 
 template<typename RootT, size_t I = 0, typename Visitor>
-enable_if_tuple_end_t<I, RootT>
+enable_if_tuple_end_t<I, RootT, bool>
 callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
+  return true;
 }
 
 template<typename RootT, size_t I = 0, typename Visitor>
-enable_if_not_tuple_end_t<I, RootT>
+enable_if_not_tuple_end_t<I, RootT, bool>
 callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
   if (Path[0] == I) {
     using next_type = typename std::tuple_element<I, RootT>::type;
     V.template visitTupleElement<RootT, I>();
     if (Path.size() > 1) {
-      callOnPathSteps<next_type>(V, Path.slice(1));
+      return callOnPathSteps<next_type>(V, Path.slice(1));
     }
   } else {
-    callOnPathStepsTuple<RootT, I + 1>(V, Path);
+    return callOnPathStepsTuple<RootT, I + 1>(V, Path);
   }
+
+  return true;
 }
 
 } // namespace tupletree::detail
 
 template<typename RootT, typename Visitor>
-enable_if_has_tuple_size_t<RootT, void>
+enable_if_has_tuple_size_t<RootT, bool>
 callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
-  tupletree::detail::callOnPathStepsTuple<RootT>(V, Path);
+  return tupletree::detail::callOnPathStepsTuple<RootT>(V, Path);
 }
 
 //
@@ -282,35 +294,44 @@ callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
 namespace tupletree::detail {
 
 template<size_t I = 0, typename RootT, typename Visitor>
-enable_if_tuple_end_t<I, RootT>
+enable_if_tuple_end_t<I, RootT, bool>
 callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
+  return true;
+}
+
+template<typename RootT, typename Visitor>
+enable_if_is_not_container_or_tuple_t<RootT, bool>
+callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
+  return false;
 }
 
 template<size_t I = 0, typename RootT, typename Visitor>
-enable_if_not_tuple_end_t<I, RootT>
+enable_if_not_tuple_end_t<I, RootT, bool>
 callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
   if (Path[0] == I) {
     using next_type = typename std::tuple_element<I, RootT>::type;
     next_type &Element = get<I>(M);
     V.template visitTupleElement<RootT, I>(Element);
     if (Path.size() > 1) {
-      callOnPathSteps(V, Path.slice(1), Element);
+      return callOnPathSteps(V, Path.slice(1), Element);
     }
   } else {
-    callOnPathStepsTuple<I + 1>(V, Path, M);
+    return callOnPathStepsTuple<I + 1>(V, Path, M);
   }
+
+  return true;
 }
 
 } // namespace tupletree::detail
 
 template<typename RootT, typename Visitor>
-enable_if_has_tuple_size_t<RootT, void>
+enable_if_has_tuple_size_t<RootT, bool>
 callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
-  tupletree::detail::callOnPathStepsTuple(V, Path, M);
+  return tupletree::detail::callOnPathStepsTuple(V, Path, M);
 }
 
 template<typename RootT, typename Visitor>
-enable_if_is_container_t<RootT>
+enable_if_is_container_t<RootT, bool>
 callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
   using value_type = typename RootT::value_type;
   using KOT = KeyedObjectTraits<value_type>;
@@ -327,18 +348,16 @@ callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
       break;
     }
   }
-  revng_check(Matching != nullptr);
+
+  if (Matching == nullptr)
+    return false;
 
   V.template visitContainerElement<RootT>(TargetKey, *Matching);
   if (Path.size() > IntsCount) {
-    callOnPathSteps(V, Path.slice(IntsCount), *Matching);
+    return callOnPathSteps(V, Path.slice(IntsCount), *Matching);
   }
-}
 
-template<typename RootT, typename Visitor>
-enable_if_is_not_container_or_tuple_t<RootT>
-callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
-  revng_abort();
+  return true;
 }
 
 //
@@ -370,10 +389,10 @@ struct CallByPathVisitor {
 } // namespace tupletree::detail
 
 template<typename RootT, typename Visitor>
-void callByPath(Visitor &V, const KeyIntVector &Path) {
+bool callByPath(Visitor &V, const KeyIntVector &Path) {
   using namespace tupletree::detail;
   CallByPathVisitor<Visitor> CBPV{ Path.size(), V };
-  callOnPathSteps<RootT>(CBPV, Path);
+  return callOnPathSteps<RootT>(CBPV, Path);
 }
 
 //
@@ -405,10 +424,10 @@ struct CallByPathVisitorWithInstance {
 } // namespace tupletree::detail
 
 template<typename RootT, typename Visitor>
-void callByPath(Visitor &V, const KeyIntVector &Path, RootT &M) {
+bool callByPath(Visitor &V, const KeyIntVector &Path, RootT &M) {
   using namespace tupletree::detail;
   CallByPathVisitorWithInstance<Visitor> CBPV{ Path.size(), V };
-  callOnPathSteps(CBPV, Path, M);
+  return callOnPathSteps(CBPV, Path, M);
 }
 
 //
@@ -447,8 +466,10 @@ template<typename ResultT, typename RootT>
 ResultT *getByPath(const KeyIntVector &Path, RootT &M) {
   using namespace tupletree::detail;
   GetByPathVisitor<ResultT> GBPV;
-  callByPath(GBPV, Path, M);
-  return GBPV.Result;
+  if (not callByPath(GBPV, Path, M))
+    return nullptr;
+  else
+    return GBPV.Result;
 }
 
 //
@@ -471,20 +492,216 @@ public:
 
   template<typename T, typename KeyT>
   void visitContainerElement(KeyT Key) {
-    Stream << "/" << KeyTraits<KeyT>::toString(Key);
+    Stream << "/" << getNameFromYAMLScalar(Key);
   }
 };
 
 } // namespace tupletree::detail
 
 template<typename T>
-std::string pathAsString(const KeyIntVector &Path) {
+std::optional<std::string> pathAsString(const KeyIntVector &Path) {
   std::string Result;
   {
     tupletree::detail::DumpPathVisitor PV(Result);
-    callOnPathSteps<T>(PV, Path);
+    if (not callOnPathSteps<T>(PV, Path))
+      return {};
   }
   return Result;
+}
+
+class PathMatcher {
+private:
+  KeyIntVector Path;
+  std::vector<std::pair<size_t, size_t>> Free;
+
+private:
+  PathMatcher() = default;
+
+public:
+  template<typename T>
+  static std::optional<PathMatcher> create(llvm::StringRef Path) {
+    revng_assert(Path.startswith("/"));
+    PathMatcher Result;
+    if (visitTupleTreeNode<T>(Path.substr(1), Result))
+      return Result;
+    else
+      return {};
+  }
+
+public:
+  const KeyIntVector &path() const { return Path; }
+
+public:
+  template<typename... Ts>
+  KeyIntVector apply(Ts... Args) const {
+    revng_assert(sizeof...(Args) == Free.size());
+    KeyIntVector Result = Path;
+    applyImpl<0, Ts...>(Result, Args...);
+    return Result;
+  }
+
+  template<typename... Args>
+  std::optional<std::tuple<Args...>> match(const KeyIntVector &Search) {
+    revng_assert(sizeof...(Args) == Free.size());
+
+    if (Path.size() != Search.size())
+      return {};
+
+    //
+    // Check non-variable parts match
+    //
+    using Pair = std::pair<KeyInt, KeyInt>;
+    std::vector<Pair> Terminator{ { Path.size(), 0 } };
+
+    size_t LastEnd = 0;
+    for (auto [Start, Size] : llvm::concat<Pair>(Free, Terminator)) {
+      for (size_t I = LastEnd; I < Start; ++I) {
+        if (Search[I] != Path[I])
+          return {};
+      }
+
+      LastEnd = Start + Size;
+    }
+
+    //
+    // Compute result
+    //
+    std::tuple<Args...> Result;
+    extractKeys(Search, Result);
+    return Result;
+  }
+
+private:
+  template<size_t I, typename T>
+  void depositKey(KeyIntVector &Result, T Arg) const {
+    auto [Start, Size] = Free.at(I);
+    revng_assert(Size == KeyTraits<T>::IntsCount);
+
+    for (auto P : llvm::enumerate(KeyTraits<T>::toInts(Arg)))
+      Result[Start + P.index()] = P.value();
+  }
+
+  template<size_t I, typename T>
+  void applyImpl(KeyIntVector &Result, T Arg) const {
+    depositKey<I>(Result, Arg);
+  }
+
+  template<size_t I, typename T, typename... Ts>
+  void applyImpl(KeyIntVector &Result, T Arg, Ts... Args) const {
+    depositKey<I>(Result, Arg);
+    applyImpl<I + 1, Ts...>(Result, Args...);
+  }
+
+  template<typename T, size_t I = 0>
+  void extractKeys(const KeyIntVector &Search, T &Tuple) const {
+    if constexpr (I < std::tuple_size_v<T>) {
+      using element = std::tuple_element_t<I, T>;
+      using IntsArray = typename KeyTraits<element>::IntsArray;
+
+      IntsArray Ints;
+      auto [Start, Size] = Free[I];
+      for (auto P : llvm::enumerate(Ints))
+        P.value() = Search[Start + P.index()];
+
+      std::get<I>(Tuple) = KeyTraits<element>::fromInts(Ints);
+
+      extractKeys<T, I + 1>(Search, Tuple);
+    }
+  }
+
+private:
+  template<typename T, size_t I = 0>
+  static bool visitTuple(llvm::StringRef Current,
+                         llvm::StringRef Rest,
+                         PathMatcher &Result);
+
+  template<typename T>
+  static enable_if_has_tuple_size_t<T, bool>
+  visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
+
+  template<typename T>
+  static enable_if_is_container_t<T, bool>
+  visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
+
+  template<typename T>
+  static enable_if_is_not_container_or_tuple_t<T, bool>
+  visitTupleTreeNode(llvm::StringRef Path, PathMatcher &Result);
+};
+
+template<typename T>
+enable_if_has_tuple_size_t<T, bool>
+PathMatcher::visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result) {
+  if (String.size() == 0)
+    return true;
+
+  auto [Before, After] = String.split('/');
+  return visitTuple<T>(Before, After, Result);
+}
+
+template<typename T>
+enable_if_is_container_t<T, bool>
+PathMatcher::visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result) {
+  if (String.size() == 0)
+    return true;
+
+  auto [Before, After] = String.split('/');
+
+  using Key = std::remove_cv_t<typename T::key_type>;
+  using Value = typename T::value_type;
+
+  if (Before == "*") {
+    auto Count = KeyTraits<Key>::IntsCount;
+    Result.Free.push_back({ Result.Path.size(), Count });
+    for (size_t I = 0; I < Count; ++I)
+      Result.Path.push_back(0);
+  } else {
+    for (KeyInt I : KeyTraits<Key>::toInts(getValueFromYAMLScalar<Key>(Before)))
+      Result.Path.push_back(I);
+  }
+
+  return visitTupleTreeNode<Value>(After, Result);
+}
+
+template<typename T>
+enable_if_is_not_container_or_tuple_t<T, bool>
+PathMatcher::visitTupleTreeNode(llvm::StringRef Path, PathMatcher &Result) {
+  return Path.size() == 0;
+}
+
+template<typename T, size_t I>
+bool PathMatcher::visitTuple(llvm::StringRef Current,
+                             llvm::StringRef Rest,
+                             PathMatcher &Result) {
+  if constexpr (I < std::tuple_size_v<T>) {
+    if (TupleLikeTraits<T>::template fieldName<I>() == Current) {
+      Result.Path.push_back(I);
+      using element = typename std::tuple_element_t<I, T>;
+      return PathMatcher::visitTupleTreeNode<element>(Rest, Result);
+    } else {
+      return visitTuple<T, I + 1>(Current, Rest, Result);
+    }
+  } else {
+    // Not found
+    return false;
+  }
+}
+
+template<typename T>
+std::optional<KeyIntVector> stringAsPath(llvm::StringRef Path) {
+  auto Result = PathMatcher::create<T>(Path);
+  if (Result)
+    return Result->path();
+  else
+    return {};
+}
+
+template<typename ResultT, typename RootT>
+ResultT *getByPath(llvm::StringRef Path, RootT &M) {
+  auto MaybeKeyVector = stringAsPath<RootT>(Path);
+  if (not MaybeKeyVector)
+    return {};
+  else
+    return getByPath<ResultT>(*MaybeKeyVector, M);
 }
 
 //
