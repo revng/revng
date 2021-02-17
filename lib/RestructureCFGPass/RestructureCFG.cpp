@@ -229,13 +229,11 @@ checkMetaregionConsistency(const MetaRegionBBVect &MetaRegions,
     for (EdgeDescriptor Backedge : Backedges) {
       BasicBlockNodeBB *Source = Backedge.first;
       BasicBlockNodeBB *Target = Backedge.second;
-      if (MetaRegion.containsNode(Source)) {
-        if ((not MetaRegion.containsNode(Source))
-            or (not MetaRegion.containsNode(Source))) {
-          ComparisonState = false;
-        }
-        revng_assert(MetaRegion.containsNode(Source));
-        revng_assert(MetaRegion.containsNode(Target));
+      bool HasSource = MetaRegion.containsNode(Source);
+      bool HasTarget = MetaRegion.containsNode(Target);
+      revng_assert(HasSource == HasTarget);
+      if (HasSource != HasTarget) {
+        ComparisonState = false;
       }
     }
   }
