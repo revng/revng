@@ -826,7 +826,7 @@ inline void RegionCFG<NodeT>::inflate() {
       CaseNodes.insert(SwitchCase);
 
     for (auto *Case : CaseNodes) {
-      auto *DummyCase = addArtificialNode();
+      auto *DummyCase = addArtificialNode("dummy case");
       moveEdgeTarget(EdgeDescriptor(Switch, Case), DummyCase);
       addPlainEdge(EdgeDescriptor(DummyCase, Case));
 

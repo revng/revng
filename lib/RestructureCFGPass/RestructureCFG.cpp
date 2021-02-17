@@ -797,7 +797,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
         EdgeExtremal;
 
       for (EdgeDescriptor Edge : OutgoingEdges) {
-        BasicBlockNodeBB *Frontier = RootCFG.addArtificialNode();
+        BasicBlockNodeBB *Frontier = RootCFG.addArtificialNode("frontier "
+                                                               "dummy");
         BasicBlockNodeBB *OldSource = Edge.first;
         BasicBlockNodeBB *OldTarget = Edge.second;
         EdgeExtremal[Frontier] = make_pair(OldSource, OldTarget);
