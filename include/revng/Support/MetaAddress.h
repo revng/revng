@@ -768,6 +768,9 @@ private:
       return *this == invalid();
     }
 
+    if (static_cast<uint16_t>(Type) > MetaAddressType::Code_systemz)
+      return false;
+
     // Check alignment
     if (Address % alignment() != 0)
       return false;

@@ -5,17 +5,14 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// Boost includes
 #define BOOST_TEST_MODULE KeyedObjectsContainers
 bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
-// Local libraries includes
 #include "revng/ADT/MutableSet.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/Support/Assert.h"
 
-// Local includes
 #include "TestKeyedObject.h"
 
 template<typename T>

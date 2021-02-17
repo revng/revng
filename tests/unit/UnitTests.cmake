@@ -233,6 +233,23 @@ add_test(NAME test_keyedobjectscontainers COMMAND ./bin/test_keyedobjectscontain
 set_tests_properties(test_keyedobjectscontainers PROPERTIES LABELS "unit")
 
 #
+# test_model
+#
+
+revng_add_private_executable(test_model "${SRC}/Model.cpp")
+target_compile_definitions(test_model
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_model
+  PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_model
+  revngSupport
+  revngUnitTestHelpers
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME test_model COMMAND ./bin/test_model)
+set_tests_properties(test_model PROPERTIES LABELS "unit")
+
+#
 # test_recursive_coroutines
 #
 

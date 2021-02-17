@@ -36,3 +36,9 @@ inline RecursiveCoroutine<> my_coroutine(std::vector<MyState> &RCS, int x) {
   RCS.pop_back();
   rc_return;
 }
+
+inline RecursiveCoroutine<void> accumulateSums(int I, int &Result) {
+  Result += I;
+  if (I)
+    rc_recur accumulateSums(I - 1, Result);
+}

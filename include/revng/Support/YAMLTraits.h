@@ -21,33 +21,52 @@ template<typename T, typename K = void>
 using enable_if_has_MappingTraits = detail::ei_hmt<T, K>;
 
 template<typename T>
-inline llvm::StringRef getNameFromYAMLScalar(T V) {
-  struct GetScalarIO {
-    llvm::StringRef Result;
-    void enumCase(const T &V, llvm::StringRef Name, const T &M) {
-      if (V == M) {
-        Result = Name;
-      }
-    }
-  };
-  GetScalarIO ExtractName;
-  llvm::yaml::ScalarEnumerationTraits<T>::enumeration(ExtractName, V);
+inline std::string getNameFromYAMLScalar(T V) {
+  using namespace llvm::yaml;
+  static_assert(has_ScalarTraits<T>::value
+                or has_ScalarEnumerationTraits<T>::value);
+  std::string Buffer;
 
-  return ExtractName.Result;
+  if constexpr (has_ScalarTraits<T>::value) {
+    llvm::raw_string_ostream Stream(Buffer);
+    llvm::yaml::ScalarTraits<T>::output(V, nullptr, Stream);
+  } else {
+    struct GetScalarIO {
+      llvm::StringRef Result;
+      void enumCase(const T &V, llvm::StringRef Name, const T &M) {
+        if (V == M) {
+          Result = Name;
+        }
+      }
+    };
+    GetScalarIO ExtractName;
+    llvm::yaml::ScalarEnumerationTraits<T>::enumeration(ExtractName, V);
+  }
+
+  return Buffer;
 }
 
 template<typename T>
 inline T getValueFromYAMLScalar(llvm::StringRef Name) {
-  struct GetScalarIO {
-    llvm::StringRef TargetName;
-    void enumCase(T &V, llvm::StringRef Name, const T &M) {
-      if (TargetName == Name)
-        V = M;
-    }
-  };
+  using namespace llvm::yaml;
+  static_assert(has_ScalarTraits<T>::value
+                or has_ScalarEnumerationTraits<T>::value);
+
   T Result;
-  GetScalarIO ExtractValue{ Name };
-  llvm::yaml::ScalarEnumerationTraits<T>::enumeration(ExtractValue, Result);
+
+  if constexpr (has_ScalarTraits<T>::value) {
+    llvm::yaml::ScalarTraits<T>::input(Name, nullptr, Result);
+  } else {
+    struct GetScalarIO {
+      llvm::StringRef TargetName;
+      void enumCase(T &V, llvm::StringRef Name, const T &M) {
+        if (TargetName == Name)
+          V = M;
+      }
+    };
+    GetScalarIO ExtractValue{ Name };
+    llvm::yaml::ScalarEnumerationTraits<T>::enumeration(ExtractValue, Result);
+  }
 
   return Result;
 }

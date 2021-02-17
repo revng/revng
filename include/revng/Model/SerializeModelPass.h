@@ -22,4 +22,6 @@ public:
 
 public:
   bool runOnModule(llvm::Module &M) override final;
+
+  static void writeModel(model::Binary &Model, llvm::Module &M);
 };

@@ -8,6 +8,8 @@
 
 #include "llvm/ADT/STLExtras.h"
 
+#include "revng/ADT/KeyedObjectTraits.h"
+
 //
 // is_integral
 //

@@ -24,6 +24,9 @@ struct KeyTraits<MetaAddress> {
   }
 
   static IntsArray toInts(const MetaAddress &MA) {
+    if (MA.isInvalid())
+      return { 0, 0, 0, 0 };
+
     return { MA.epoch(),
              MA.addressSpace(),
              static_cast<uint16_t>(MA.type()),

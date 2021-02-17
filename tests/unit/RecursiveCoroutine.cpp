@@ -136,4 +136,11 @@ int main(int, char *[]) {
   }
 
   std::cout << "Average: " << Average << std::endl;
+
+  int Result = 0;
+  rc_run(accumulateSums, 7, Result);
+  std::cout << "Result: " << Result << std::endl;
+  revng_check(Result == 28);
+
+  return 0;
 }
