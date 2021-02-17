@@ -182,8 +182,18 @@ mergeSCSAbnormalRetreating(MetaRegionBBVect &MetaRegions,
 
 static void
 simplifySCSAbnormalRetreating(MetaRegionBBVect &MetaRegions,
-                              const std::set<EdgeDescriptor> &Backedges,
-                              BackedgeMetaRegionMap &BackedgeMetaRegionMap) {
+                              const std::set<EdgeDescriptor> &Backedges) {
+
+  // Temporary map where to store the corrispondence between the backedge and
+  // the SCS it gives origin to.
+  // HACK: this should be done at the same time of the metaregion creation.
+  unsigned MetaRegionIndex = 0;
+  std::map<EdgeDescriptor, MetaRegionBB *> BackedgeMetaRegionMap;
+  for (EdgeDescriptor Backedge : Backedges) {
+    BackedgeMetaRegionMap[Backedge] = &MetaRegions.at(MetaRegionIndex);
+    MetaRegionIndex++;
+  }
+
   std::set<MetaRegionBB *> BlacklistedMetaregions;
   bool Changes = true;
   while (Changes) {
@@ -469,16 +479,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Create meta regions
   MetaRegionBBVect MetaRegions = createMetaRegions(Backedges);
 
-  // Temporary map where to store the corrispondence between the backedge and
-  // the SCS it gives origin to.
-  // HACK: this should be done at the same time of the metaregion creation.
-  unsigned MetaRegionIndex = 0;
-  std::map<EdgeDescriptor, MetaRegionBB *> BackedgeMetaRegionMap;
-  for (EdgeDescriptor Backedge : Backedges) {
-    BackedgeMetaRegionMap[Backedge] = &MetaRegions.at(MetaRegionIndex);
-    MetaRegionIndex++;
-  }
-
   // Print gross metaregions.
   if (CombLogger.isEnabled()) {
     CombLogger << "\n";
@@ -498,7 +498,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Simplify SCS if they contain an edge which goes outside the scope of the
   // current region.
-  simplifySCSAbnormalRetreating(MetaRegions, Backedges, BackedgeMetaRegionMap);
+  simplifySCSAbnormalRetreating(MetaRegions, Backedges);
 
   // Check consitency of metaregions simplified above.
   revng_assert(checkMetaregionConsistency(MetaRegions, Backedges));
