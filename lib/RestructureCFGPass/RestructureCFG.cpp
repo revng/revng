@@ -636,7 +636,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // candidate.
     BasicBlockNodeBB *FirstCandidate = nullptr;
     for (BasicBlockNodeBB *BN : RPOT) {
-      if (Meta->containsNode(BN) == true and RetreatingTargets.count(BN) == 1) {
+      if (Meta->containsNode(BN) and RetreatingTargets.count(BN)) {
         FirstCandidate = BN;
         break;
       }
@@ -650,20 +650,13 @@ bool RestructureCFG::runOnFunction(Function &F) {
       CombLogger << "Elected head is: " << FirstCandidate->getNameStr() << "\n";
     }
 
-    bool NewHeadNeeded = false;
-    for (BasicBlockNodeBB *Node : RetreatingTargets) {
-      if (Node != FirstCandidate) {
-        NewHeadNeeded = true;
-      }
-    }
+    bool NewHeadNeeded = RetreatingTargets.size() > 1;
     if (CombLogger.isEnabled()) {
       CombLogger << "New head needed: " << NewHeadNeeded << "\n";
     }
 
-    BasicBlockNodeBB *Head;
+    BasicBlockNodeBB *Head = FirstCandidate;
     if (NewHeadNeeded) {
-      revng_assert(RetreatingTargets.size() > 1);
-
       // Create the dispatcher.
       Head = RootCFG.addEntryDispatcher();
       Meta->insertNode(Head);
@@ -710,14 +703,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
       for (BasicBlockNodeBB *Predecessor : FirstCandidate->predecessors())
         Predecessors.push_back(Predecessor);
 
-      for (BasicBlockNodeBB *Predecessor : Predecessors) {
-        if (!Meta->containsNode(Predecessor)) {
+      for (BasicBlockNodeBB *Predecessor : Predecessors)
+        if (not Meta->containsNode(Predecessor))
           moveEdgeTarget(EdgeDescriptor(Predecessor, FirstCandidate), Head);
-        }
-      }
-
-    } else {
-      Head = FirstCandidate;
     }
 
     revng_assert(Head != nullptr);
@@ -761,7 +749,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
         for (BasicBlockNodeBB *Successor : Successors) {
           if ((DT.dominates(Head, Successor))
               and (DT.dominates(Frontier, Successor))
-              and !alreadyInMetaregion(MetaRegions, Successor)) {
+              and not alreadyInMetaregion(MetaRegions, Successor)) {
             Meta->insertNode(Successor);
             AnotherIteration = true;
             if (CombLogger.isEnabled()) {
@@ -829,7 +817,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
           Predecessors.push_back(Predecessor);
         }
         for (BasicBlockNodeBB *Predecessor : Predecessors) {
-          if (!Meta->containsNode(Predecessor)) {
+          if (not Meta->containsNode(Predecessor)) {
             // Is the edge we are moving a backedge ?.
             if (CombLogger.isEnabled()) {
               CombLogger << "Index region: " << Meta->getIndex() << "\n";
@@ -839,7 +827,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
             }
 
             // Are we moving a backedge with the first iteration outlining?
-            revng_assert(!Backedges.count(EdgeDescriptor(Predecessor, Node)));
+            revng_assert(not Backedges.count({ Predecessor, Node }));
 
             moveEdgeTarget(EdgeDescriptor(Predecessor, Node),
                            ClonedMap.at(Node));
@@ -895,8 +883,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // Exit dispatcher creation.
     // TODO: Factorize this out together with the head dispatcher creation.
     bool NewExitNeeded = false;
-    BasicBlockNodeBB *Exit = nullptr;
-    std::vector<BasicBlockNodeBB *> ExitDispatcherNodes;
     if (Successors.size() > 1) {
       NewExitNeeded = true;
     }
@@ -904,8 +890,9 @@ bool RestructureCFG::runOnFunction(Function &F) {
       CombLogger << "New exit needed: " << NewExitNeeded << "\n";
     }
 
+    std::vector<BasicBlockNodeBB *> ExitDispatcherNodes;
+    BasicBlockNodeBB *Exit = nullptr;
     if (NewExitNeeded) {
-      revng_assert(Successors.size() > 1);
 
       // Create the dispatcher.
       Exit = RootCFG.addExitDispatcher();
@@ -930,14 +917,15 @@ bool RestructureCFG::runOnFunction(Function &F) {
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
       for (EdgeDescriptor Edge : OutEdges) {
         unsigned Idx = SuccessorsIdxMap.at(Edge.second);
+        // We should not be adding new backedges.
+        revng_assert(not Backedges.count(Edge));
+
         auto *IdxSetNode = RootCFG.addSetStateNode(Idx, Edge.second->getName());
         Meta->insertNode(IdxSetNode);
-        moveEdgeTarget(EdgeDescriptor(Edge.first, Edge.second), IdxSetNode);
+        moveEdgeTarget(Edge, IdxSetNode);
         addPlainEdge(EdgeDescriptor(IdxSetNode, Edge.second));
-
-        // We should not be adding new backedges.
-        revng_assert(Backedges.count(Edge) == 0);
       }
+
       revng_log(CombLogger, "New exit name is: " << Exit->getNameStr());
     }
 
@@ -968,7 +956,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
       for (EdgeDescriptor Backedge : Backedges) {
         BasicBlockNodeBB *Source = Backedge.first;
         BasicBlockNodeBB *Target = Backedge.second;
-        revng_assert(!Meta->containsNode(Source));
+        revng_assert(not Meta->containsNode(Source));
         if (Meta->containsNode(Target)) {
           revng_assert(Target == Head);
           Backedges.erase(Backedge);
