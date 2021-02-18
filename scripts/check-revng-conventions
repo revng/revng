@@ -167,15 +167,16 @@ function run_revng_checks() {
 
     # Includes should never use <..> except for C++ standard includes
     $GREP "^\s*#include <.*\.hpp>" $FILES | cat
-    FILES_WITHOUT_C_STDLIB_INCLUDES="$(echo $FILES | tr ' ' '\n' | grep -v \
+    CXX_FILES="$(echo $FILES | tr ' ' '\n' | grep -v \
         -e '^runtime/support\.h$' \
         -e '^runtime/support\.c$' \
         -e '^runtime/early-linked\.c$' \
+        -e '^include/revng/Runtime/.*$' \
         -e '^include/revng/Support/Assert\.h$' \
         -e '^include/revng/Support/ClassSentinel\.h$' \
         -e '^share/revngc/revng-c-include\.c$' \
         )"
-    $GREP "^\s*#include <.*\.h>" $FILES_WITHOUT_C_STDLIB_INCLUDES | cat
+    $GREP "^\s*#include <.*\.h>" $CXX_FILES | cat
 
     # Parenthesis at the end of line (except for raw strings)
     $GREP "(\$" $FILES | grep -v 'R"LLVM.*(' | cat
@@ -185,8 +186,8 @@ function run_revng_checks() {
         $GREP "^\s*$REGEXP" $FILES | cat
     done
 
-    # Check there are no static functions in header files
-    for FILE in $FILES; do
+    # Check there are no static functions in C++ header files
+    for FILE in $CXX_FILES; do
         if [[ $FILE == *h ]]; then
             $GREP -H '^static\b[^=]*$' "$FILE" | cat
             head -n1 "$FILE" |  grep -E '^#pragma once$' > /dev/null || echo "$FILE: header does not start with #pragma once"
