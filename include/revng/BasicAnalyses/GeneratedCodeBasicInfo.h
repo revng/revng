@@ -153,6 +153,8 @@ public:
   /// \brief Return the CSV representing the stack pointer
   llvm::GlobalVariable *spReg() const { return SP; }
 
+  llvm::Triple::ArchType arch() const { return ArchType; }
+
   /// \brief Check if \p GV is the stack pointer CSV
   bool isSPReg(const llvm::GlobalVariable *GV) const {
     revng_assert(SP != nullptr);
