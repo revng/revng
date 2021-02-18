@@ -184,6 +184,118 @@ inline Values fromName(llvm::StringRef Name) {
 
 } // namespace KillReason
 
+namespace LabelType {
+
+enum Values {
+  Invalid,
+  AbsoluteValue,
+  BaseRelativeValue,
+  SymbolRelativeValue,
+  Symbol
+};
+
+inline const char *getName(Values V) {
+  switch (V) {
+  case Invalid:
+    return "Invalid";
+  case AbsoluteValue:
+    return "AbsoluteValue";
+  case BaseRelativeValue:
+    return "BaseRelativeValue";
+  case SymbolRelativeValue:
+    return "SymbolRelativeValue";
+  case Symbol:
+    return "Symbol";
+  }
+
+  revng_abort();
+}
+
+} // namespace LabelType
+
+namespace SymbolType {
+
+enum Values { Unknown, Code, Data, Section, File };
+
+inline const char *getName(Values V) {
+  switch (V) {
+  case Unknown:
+    return "Unknown";
+  case Code:
+    return "Code";
+  case Data:
+    return "Data";
+  case Section:
+    return "Section";
+  case File:
+    return "File";
+  }
+
+  revng_abort();
+}
+
+inline Values fromName(llvm::StringRef TypeName) {
+  if (TypeName == "Unknown")
+    return Unknown;
+  else if (TypeName == "Code")
+    return Code;
+  else if (TypeName == "Data")
+    return Data;
+  else if (TypeName == "Section")
+    return Section;
+  else if (TypeName == "File")
+    return File;
+  else
+    revng_abort();
+}
+
+inline SymbolType::Values fromELF(unsigned char ELFSymbolType) {
+  switch (ELFSymbolType) {
+  case llvm::ELF::STT_NOTYPE:
+  case llvm::ELF::STT_TLS:
+    return SymbolType::Unknown;
+
+  case llvm::ELF::STT_FUNC:
+    return SymbolType::Code;
+
+  case llvm::ELF::STT_OBJECT:
+    return SymbolType::Data;
+
+  case llvm::ELF::STT_SECTION:
+    return SymbolType::Section;
+
+  case llvm::ELF::STT_FILE:
+    return SymbolType::File;
+
+  default:
+    revng_abort("Unexpected symbol type");
+  }
+}
+
+} // namespace SymbolType
+
+namespace LabelOrigin {
+
+enum Values { Unknown, StaticSymbol, DynamicSymbol, DynamicRelocation };
+
+inline const char *getName(Values V) {
+
+  switch (V) {
+  case Unknown:
+    return "Unknown";
+  case StaticSymbol:
+    return "StaticSymbol";
+  case DynamicSymbol:
+    return "DynamicSymbol";
+  case DynamicRelocation:
+    return "DynamicRelocation";
+  }
+
+  revng_abort();
+}
+
+} // namespace LabelOrigin
+
 class RelocationDescription {
 public:
   enum RelocationType { Invalid, BaseRelative, LabelOnly, SymbolRelative };

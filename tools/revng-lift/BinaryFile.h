@@ -93,103 +93,6 @@ struct SegmentInfo {
   }
 };
 
-namespace LabelType {
-
-enum Values {
-  Invalid,
-  AbsoluteValue,
-  BaseRelativeValue,
-  SymbolRelativeValue,
-  Symbol
-};
-
-inline const char *getName(Values V) {
-  switch (V) {
-  case Invalid:
-    return "Invalid";
-  case AbsoluteValue:
-    return "AbsoluteValue";
-  case BaseRelativeValue:
-    return "BaseRelativeValue";
-  case SymbolRelativeValue:
-    return "SymbolRelativeValue";
-  case Symbol:
-    return "Symbol";
-  }
-
-  revng_abort();
-}
-
-} // namespace LabelType
-
-namespace SymbolType {
-
-enum Values { Unknown, Code, Data, Section, File };
-
-inline const char *getName(Values V) {
-  switch (V) {
-  case Unknown:
-    return "Unknown";
-  case Code:
-    return "Code";
-  case Data:
-    return "Data";
-  case Section:
-    return "Section";
-  case File:
-    return "File";
-  }
-
-  revng_abort();
-}
-
-inline SymbolType::Values fromELF(unsigned char ELFSymbolType) {
-  switch (ELFSymbolType) {
-  case llvm::ELF::STT_NOTYPE:
-  case llvm::ELF::STT_TLS:
-    return SymbolType::Unknown;
-
-  case llvm::ELF::STT_FUNC:
-    return SymbolType::Code;
-
-  case llvm::ELF::STT_OBJECT:
-    return SymbolType::Data;
-
-  case llvm::ELF::STT_SECTION:
-    return SymbolType::Section;
-
-  case llvm::ELF::STT_FILE:
-    return SymbolType::File;
-
-  default:
-    revng_abort("Unexpected symbol type");
-  }
-}
-
-} // namespace SymbolType
-
-namespace LabelOrigin {
-
-enum Values { Unknown, StaticSymbol, DynamicSymbol, DynamicRelocation };
-
-inline const char *getName(Values V) {
-
-  switch (V) {
-  case Unknown:
-    return "Unknown";
-  case StaticSymbol:
-    return "StaticSymbol";
-  case DynamicSymbol:
-    return "DynamicSymbol";
-  case DynamicRelocation:
-    return "DynamicRelocation";
-  }
-
-  revng_abort();
-}
-
-} // namespace LabelOrigin
-
 class Label {
 private:
   LabelType::Values Type;
@@ -270,6 +173,8 @@ public:
 
 public:
   LabelType::Values type() const { return Type; }
+
+  SymbolType::Values symbolType() const { return SymbolType; }
 
   bool isInvalid() const { return Type == LabelType::Invalid; }
   bool isAbsoluteValue() const { return Type == LabelType::AbsoluteValue; }

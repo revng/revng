@@ -512,7 +512,9 @@ private:
                        MetaAddress ReturnAddress,
                        llvm::BasicBlock *ReturnFromCall,
                        Element &Result,
-                       ABIIRBasicBlock &ABIBB);
+                       ABIIRBasicBlock &ABIBB,
+                       const bool IsCallPlt = false,
+                       const bool IsTailCall = false);
 
   /// \return true if at least a branch is an indirect tail call
   bool hasIndirectTailCall() const {

@@ -26,10 +26,14 @@ using llvm::GlobalVariable;
 using llvm::Instruction;
 using llvm::isa;
 using llvm::LoadInst;
+using llvm::MDNode;
+using llvm::MDOperand;
+using llvm::MDTuple;
 using llvm::Module;
 using llvm::Optional;
 using llvm::SmallVector;
 using llvm::StoreInst;
+using llvm::StringRef;
 using llvm::Type;
 using llvm::UndefValue;
 using llvm::UnreachableInst;
@@ -544,6 +548,7 @@ Interrupt Analysis::handleTerminator(Instruction *T,
   bool IsInstructionLocal = false;
   bool IsIndirect = false;
   bool IsUnresolvedIndirect = false;
+  bool IsCallPlt = false;
 
   for (BasicBlock *Successor : llvm::successors(T)) {
     BlockType::Values SuccessorType = GCBI->getType(Successor->getTerminator());
@@ -579,6 +584,23 @@ Interrupt Analysis::handleTerminator(Instruction *T,
     IsUnresolvedIndirect = (IsUnresolvedIndirect
                             or SuccessorType == BT::AnyPCBlock
                             or SuccessorType == BT::RootDispatcherBlock);
+  }
+
+  // HACK: we want to emit the calls through the `plt` stubs as indirect
+  //       function calls, therefore we check if we have a single successor,
+  //       and if that successor is a func entry but has not function symbol
+  //       associated with it.
+  if (BasicBlock *UniqueSuccBB = T->getParent()->getUniqueSuccessor()) {
+    if (GCBI->isTranslated(UniqueSuccBB)) {
+      if (T->getMetadata("revng.jt.reasons")) {
+        uint32_t Reason = GCBI->getJTReasons(UniqueSuccBB);
+        if (hasReason(Reason, JTReason::Callee)
+            and not hasReason(Reason, JTReason::FunctionSymbol)) {
+          IsIndirect = true;
+          IsCallPlt = true;
+        }
+      }
+    }
   }
 
   if (IsIndirect)
@@ -689,6 +711,26 @@ Interrupt Analysis::handleTerminator(Instruction *T,
   if (IsReturnFromFake)
     SaTerminator << " IsReturnFromFake";
 
+  bool IsTailCall = false;
+
+  // TO-BE-NUMBERED. Identify tail calls with the help of symbols.
+  if (IsReadyToReturn and T->getNumSuccessors() == 1) {
+    BasicBlock *UniqueSuccessor = T->getSuccessor(0);
+    if (GCBI->isTranslated(UniqueSuccessor)) {
+      uint32_t Reason = GCBI->getJTReasons(UniqueSuccessor);
+      if (hasReason(Reason, JTReason::FunctionSymbol)
+          or hasReason(Reason, JTReason::Callee)
+          or UniqueSuccessor->getName().startswith("bb.0x4")) {
+        Callee = UniqueSuccessor;
+        IsFunctionCall = true;
+        IsTailCall = true;
+      }
+    }
+  }
+
+  if (IsTailCall)
+    SaTerminator << " IsTailCall";
+
   // 6. Using the collected information, classify the branch type
 
   // Are we returning to the return address?
@@ -699,7 +741,14 @@ Interrupt Analysis::handleTerminator(Instruction *T,
   }
 
   if (IsFunctionCall)
-    return handleCall(T, Callee, ReturnAddress, ReturnFromCall, Result, ABIBB);
+    return handleCall(T,
+                      Callee,
+                      ReturnAddress,
+                      ReturnFromCall,
+                      Result,
+                      ABIBB,
+                      IsCallPlt,
+                      IsTailCall);
 
   // Is it an indirect jump?
   if (IsIndirect) {
@@ -725,7 +774,9 @@ Interrupt Analysis::handleTerminator(Instruction *T,
                           MetaAddress::invalid(),
                           nullptr,
                           Result,
-                          ABIBB);
+                          ABIBB,
+                          IsCallPlt,
+                          IsTailCall);
       } else {
         // We have an indirect jump with a stack not ready to return: it's a
         // longjmp
@@ -857,11 +908,14 @@ Interrupt Analysis::handleCall(Instruction *Caller,
                                MetaAddress ReturnAddress,
                                BasicBlock *ReturnFromCall,
                                Element &Result,
-                               ABIIRBasicBlock &ABIBB) {
+                               ABIIRBasicBlock &ABIBB,
+                               const bool IsCallPlt,
+                               const bool IsTailCall) {
+  QuickMetadata QMD(getContext(M));
   namespace BT = BranchType;
 
   const bool IsRecursive = InProgressFunctions.count(Callee) != 0;
-  const bool IsIndirect = (Callee == nullptr);
+  const bool IsIndirect = (Callee == nullptr) or IsCallPlt;
   const bool IsIndirectTailCall = IsIndirect and (ReturnFromCall == nullptr);
   bool IsKiller = false;
   bool ABIOnly = false;
@@ -872,6 +926,82 @@ Interrupt Analysis::handleCall(Instruction *Caller,
   Value StackPointer = Value::fromSlot(ASID::cpuID(), SPIndex);
   Value OldStackPointer = Result.load(StackPointer);
   Value PC = Value::fromSlot(ASID::cpuID(), PCIndex);
+
+  // HACK: custom handle of noreturn calls. When we find a call, if we verify
+  //       that the fallthrough basic block is a `frame_dummy` basic block,
+  //       which has as unique successor a basic block which the symbols tells
+  //       us that does not belong to the current function, we guess that we
+  //       are in presence of a `noreturn` call, and therefore we mark the
+  //       current block as killer. This fix the `inlining` of big functions
+  //       after calls (due to the fallthrough path) that we know to be
+  //       `noreturn` calls.
+  StringRef MemberOfName("revng.hint.func.member.of");
+  if (Callee && ReturnFromCall) {
+    BasicBlock *Current = Caller->getParent();
+    Instruction *CurrentT = Current->getTerminator();
+    MDNode *CurrentMDNode = CurrentT->getMetadata(MemberOfName);
+
+    BasicBlock *UniqueSuccessor = ReturnFromCall->getUniqueSuccessor();
+    // HACK:: Consider using `JTReason` for this?
+    if (ReturnFromCall->getName().startswith("bb.frame_dummy")
+        && UniqueSuccessor) {
+      Instruction *SuccessorT = UniqueSuccessor->getTerminator();
+      MDNode *SuccessorMDNode = SuccessorT->getMetadata(MemberOfName);
+      if (CurrentMDNode && SuccessorMDNode) {
+
+        auto *CurrentTuple = cast<MDTuple>(CurrentMDNode);
+        auto *SuccessorTuple = cast<MDTuple>(SuccessorMDNode);
+        unsigned CurrentTupleOps = CurrentTuple->getNumOperands();
+        unsigned SuccessorTupleOps = SuccessorTuple->getNumOperands();
+        if (CurrentTupleOps == SuccessorTupleOps) {
+          unsigned MDIndex = 0;
+          for (const MDOperand &CurrentOp : CurrentTuple->operands()) {
+            auto *CurrentMD = cast<MDTuple>(CurrentOp);
+            auto *CurrentFunctionMD = QMD.extract<MDTuple *>(CurrentMD, 0);
+            const MDOperand &SuccessorOp = SuccessorTuple->getOperand(MDIndex);
+            auto *SuccessorMD = cast<MDTuple>(SuccessorOp);
+            auto *SuccessorFunctionMD = QMD.extract<MDTuple *>(SuccessorMD, 0);
+            if (CurrentFunctionMD != SuccessorFunctionMD) {
+
+              // Activate the path to mark the block as a killer
+              IsKiller = true;
+              ABIOnly = true;
+            }
+          }
+        }
+      }
+    } else if (ReturnFromCall) {
+
+      // Handle calls for which the functions symbols tell us that the
+      // fallthrough basic block is not inside the same function where the call
+      // is placed
+      Instruction *SuccessorT = ReturnFromCall->getTerminator();
+      MDNode *SuccessorMDNode = SuccessorT->getMetadata(MemberOfName);
+      if (CurrentMDNode && SuccessorMDNode) {
+
+        auto *CurrentTuple = cast<MDTuple>(CurrentMDNode);
+        auto *SuccessorTuple = cast<MDTuple>(SuccessorMDNode);
+        unsigned CurrentTupleOps = CurrentTuple->getNumOperands();
+        unsigned SuccessorTupleOps = SuccessorTuple->getNumOperands();
+        if (CurrentTupleOps == SuccessorTupleOps) {
+          unsigned MDIndex = 0;
+          for (const MDOperand &CurrentOp : CurrentTuple->operands()) {
+            auto *CurrentMD = cast<MDTuple>(CurrentOp);
+            auto *CurrentFunctionMD = QMD.extract<MDTuple *>(CurrentMD, 0);
+            const MDOperand &SuccessorOp = SuccessorTuple->getOperand(MDIndex);
+            auto *SuccessorMD = cast<MDTuple>(SuccessorOp);
+            auto *SuccessorFunctionMD = QMD.extract<MDTuple *>(SuccessorMD, 0);
+            if (CurrentFunctionMD != SuccessorFunctionMD) {
+
+              // Activate the path to mark the block as a killer
+              IsKiller = true;
+              ABIOnly = true;
+            }
+          }
+        }
+      }
+    }
+  }
 
   // Handle special function types:
   //
@@ -1005,7 +1135,7 @@ Interrupt Analysis::handleCall(Instruction *Caller,
   Result.store(PC, Value::fromSlot(ReturnAddressSlot));
 
   revng_assert(not(IsIndirectTailCall and IsKiller));
-  if (IsIndirectTailCall) {
+  if (IsIndirectTailCall or IsTailCall) {
     // We consider indirect tail calls as returns
     insert_or_assign(ReturnCandidates, Caller->getParent(), Result.copy());
     return AI::create(std::move(Result), BT::IndirectTailCall);
