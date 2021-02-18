@@ -87,7 +87,7 @@ inline ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
 }
 
 // Helper function that simplifies useless dummy nodes
-inline void simplifyDummies(ASTNode *RootNode) {
+inline void simplifyDummies(ASTTree &AST, ASTNode *RootNode) {
 
   switch (RootNode->getKind()) {
 
@@ -98,21 +98,22 @@ inline void simplifyDummies(ASTNode *RootNode) {
       if (Node->isEmpty()) {
         UselessDummies.push_back(Node);
       } else {
-        simplifyDummies(Node);
+        simplifyDummies(AST, Node);
       }
     }
     for (ASTNode *Node : UselessDummies) {
       Sequence->removeNode(Node);
+      AST.removeASTNode(Node);
     }
   } break;
 
   case ASTNode::NK_If: {
     auto *If = llvm::cast<IfNode>(RootNode);
     if (If->hasThen()) {
-      simplifyDummies(If->getThen());
+      simplifyDummies(AST, If->getThen());
     }
     if (If->hasElse()) {
-      simplifyDummies(If->getElse());
+      simplifyDummies(AST, If->getElse());
     }
   } break;
 
@@ -121,17 +122,17 @@ inline void simplifyDummies(ASTNode *RootNode) {
     auto *Switch = llvm::cast<SwitchNode>(RootNode);
 
     for (auto &LabelCaseNodePair : Switch->cases())
-      simplifyDummies(LabelCaseNodePair.second);
+      simplifyDummies(AST, LabelCaseNodePair.second);
 
     if (auto *Default = Switch->getDefault())
-      simplifyDummies(Default);
+      simplifyDummies(AST, Default);
 
   } break;
 
   case ASTNode::NK_Scs: {
     auto *Scs = llvm::cast<ScsNode>(RootNode);
     if (Scs->hasBody())
-      simplifyDummies(Scs->getBody());
+      simplifyDummies(AST, Scs->getBody());
   } break;
 
   case ASTNode::NK_Code:
@@ -843,7 +844,7 @@ inline void normalize(ASTTree &AST, std::string FunctionName) {
 
   // Simplify useless sequence nodes.
   CombLogger << "Performing useless dummies simplification:\n";
-  simplifyDummies(RootNode);
+  simplifyDummies(AST, RootNode);
   if (CombLogger.isEnabled()) {
     AST.dumpASTOnFile(FunctionName, "ast", "After-dummies-removal");
   }
