@@ -19,7 +19,7 @@
 #include "revng/ADT/ReversePostOrderTraversal.h"
 #include "revng/Support/Concepts.h"
 
-namespace TypeShrinking {
+namespace MFP {
 
 template<typename LatticeElement>
 struct MFPResult {
@@ -140,4 +140,4 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
   return AnalysisResult;
 }
 
-} // namespace TypeShrinking
+} // namespace MFP
