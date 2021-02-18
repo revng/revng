@@ -22,7 +22,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/TypeShrinking/BitLiveness.h"
 #include "revng/TypeShrinking/DataFlowGraph.h"
-#include "revng/TypeShrinking/MFP.h"
+#include "revng/MFP/MFP.h"
 
 namespace TypeShrinking {
 
@@ -33,7 +33,7 @@ struct BitLivenessAnalysis {
   using GraphType = GenericGraph<DataFlowNode> *;
   using LatticeElement = uint32_t;
   using Label = DataFlowNode *;
-  using MFPResult = MFPResult<BitLivenessAnalysis::LatticeElement>;
+  using MFPResult = MFP::MFPResult<BitLivenessAnalysis::LatticeElement>;
 
   static uint32_t combineValues(const uint32_t &Lh, const uint32_t &Rh) {
     return std::max(Lh, Rh);
@@ -263,7 +263,7 @@ BitLivenessPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
     }
   }
 
-  auto MFPResults = getMaximalFixedPoint<BitLivenessAnalysis>(&DataFlowGraph,
+  auto MFPResults = MFP::getMaximalFixedPoint<BitLivenessAnalysis>(&DataFlowGraph,
                                                               0,
                                                               Top,
                                                               ExtremalLabels);

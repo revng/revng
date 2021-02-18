@@ -18,7 +18,7 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/ReversePostOrderTraversal.h"
 
-namespace TypeShrinking {
+namespace MFP {
 
 template<typename T, typename U>
 concept same_as = std::is_same_v<T, U>;
@@ -142,4 +142,4 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
   return AnalysisResult;
 }
 
-} // namespace TypeShrinking
+} // namespace MFP
