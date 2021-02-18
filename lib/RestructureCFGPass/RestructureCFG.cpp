@@ -881,11 +881,42 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
 
     // Exit dispatcher creation.
-    // TODO: Factorize this out together with the head dispatcher creation.
-    bool NewExitNeeded = false;
-    if (Successors.size() > 1) {
-      NewExitNeeded = true;
+
+    // Deduplicate region successor across backedges. If a region has a dummy
+    // successor that is a dummy backedge, we want to look across it, so that we
+    // can detect if two backedges actually jump to the same target, and emit
+    // only one case in the exit dispatcher. This saves us from having to take
+    // care later of collapsing the two (or more) dummy branches coming out from
+    // the exit dispatcher with different labels. With this strategy we already
+    // emit a single label in the first place.
+    std::set<BasicBlockNodeBB *> DeduplicatedRegionSuccessors;
+    std::map<BasicBlockNodeBB *, BasicBlockNodeBB *> DeduplicationMap;
+    {
+      std::map<BasicBlockNodeBB *, BasicBlockNodeBB *> BackedgeToSucc;
+      for (BasicBlockNodeBB *Succ : Successors) {
+        if (Succ->isEmpty() and Succ->successor_size()) {
+          revng_assert(Succ->successor_size() == 1);
+          BasicBlockNodeBB *BackedgeTgt = *Succ->successors().begin();
+          // Lookup if wa have already found this backedge target from another
+          // exit succesor.
+          const auto &[It, New] = BackedgeToSucc.insert({ BackedgeTgt, Succ });
+          if (New) {
+            // If we haven't, add the successor in the deduplicated successors
+            DeduplicatedRegionSuccessors.insert(Succ);
+            DeduplicationMap[Succ] = Succ;
+          } else {
+            // If we have, map thie successor to the old successor we've found
+            // with the same backedge target.
+            DeduplicationMap[Succ] = It->second;
+          }
+        } else {
+          DeduplicatedRegionSuccessors.insert(Succ);
+          DeduplicationMap[Succ] = Succ;
+        }
+      }
     }
+
+    bool NewExitNeeded = DeduplicatedRegionSuccessors.size() > 1;
     if (CombLogger.isEnabled()) {
       CombLogger << "New exit needed: " << NewExitNeeded << "\n";
     }
@@ -900,7 +931,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
       // For each target of the dispatcher add the edge and add it in the map.
       std::map<BasicBlockNodeBB *, unsigned> SuccessorsIdxMap;
-      for (auto &Group : llvm::enumerate(Successors)) {
+      for (auto &Group : llvm::enumerate(DeduplicatedRegionSuccessors)) {
         BasicBlockNodeBB *Successor = Group.value();
         unsigned Idx = Group.index();
 
@@ -916,10 +947,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
       for (EdgeDescriptor Edge : OutEdges) {
-        unsigned Idx = SuccessorsIdxMap.at(Edge.second);
         // We should not be adding new backedges.
         revng_assert(not Backedges.count(Edge));
 
+        unsigned Idx = SuccessorsIdxMap.at(DeduplicationMap.at(Edge.second));
         auto *IdxSetNode = RootCFG.addSetStateNode(Idx, Edge.second->getName());
         Meta->insertNode(IdxSetNode);
         moveEdgeTarget(Edge, IdxSetNode);
@@ -998,11 +1029,11 @@ bool RestructureCFG::runOnFunction(Function &F) {
     } else {
 
       // Double check that we have at most a single successor
-      revng_assert(Successors.size() <= 1);
-      if (Successors.size() == 1) {
+      revng_assert(DeduplicatedRegionSuccessors.size() <= 1);
+      if (DeduplicatedRegionSuccessors.size() == 1) {
 
         // Connect the collapsed node to the unique successor
-        BasicBlockNodeBB *Successor = *Successors.begin();
+        BasicBlockNodeBB *Successor = *DeduplicatedRegionSuccessors.begin();
         addPlainEdge(EdgeDescriptor(Collapsed, Successor));
       }
     }
