@@ -55,6 +55,7 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 
+#include "ABIAnalyses/ABIAnalysis.h"
 #include "Cache.h"
 #include "InterproceduralAnalysis.h"
 #include "Intraprocedural.h"
@@ -1226,6 +1227,7 @@ llvm::Function *CFEPAnalyzer<FO>::createFakeFunction(llvm::BasicBlock *Entry) {
 template<class FO>
 FunctionSummary CFEPAnalyzer<FO>::analyze(BasicBlock *Entry) {
   using namespace llvm;
+  using namespace ABIAnalyses;
 
   IRBuilder<> Builder(M.getContext());
 
@@ -1234,6 +1236,13 @@ FunctionSummary CFEPAnalyzer<FO>::analyze(BasicBlock *Entry) {
 
   // Recover the control-flow graph of the function
   auto CFG = collectDirectCFG(&OutlinedFunction);
+
+  // Run ABI-independent data-flow analyses
+  ABIAnalysesResults
+    ABIResults = ABIAnalyses::analyzeOutlinedFunction(OutFunc,
+                                                      *GCBI,
+                                                      PreHookMarker,
+                                                      PostHookMarker);
 
   // The analysis aims at identifying the callee-saved registers of a function
   // and establishing if a function returns properly, i.e., it jumps to the
