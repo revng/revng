@@ -1,14 +1,14 @@
-/// \brief DataFlow analysis to build the AST for a Function
-
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
 #include <compare>
 
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/IR/Constants.h"
@@ -29,6 +29,9 @@
 #include "clang/AST/Type.h"
 #include "clang/Basic/IdentifierTable.h"
 
+#define DISABLE_RECURSIVE_COROUTINES
+
+#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
@@ -754,8 +757,8 @@ clang::Expr *StmtBuilder::getMemberAccessExpr(clang::Expr *BaseExpr,
   switch (Parent->getKind()) {
 
   case dla::Layout::LayoutKind::Base: {
-    revng_assert(not ChildId);
-    revng_abort("unexpected dla::Layout");
+    if (llvm::cast<ConstantInt>(ChildId)->getValue().isNullValue())
+      Result = BaseExpr;
   } break;
 
   case dla::Layout::LayoutKind::Array: {
@@ -766,10 +769,8 @@ clang::Expr *StmtBuilder::getMemberAccessExpr(clang::Expr *BaseExpr,
     clang::QualType ElemTy = ArrayTy->getAsArrayTypeUnsafe()->getElementType();
 
     // Compute expression for index in the array
-    llvm::APInt Idx(ASTCtx.getTypeSize(ASTCtx.IntTy), ChildId);
-    clang::Expr *ArrayIndex = new (ASTCtx)
-      clang::IntegerLiteral(ASTCtx, Idx, ASTCtx.IntTy, {});
-
+    clang::Expr *ArrayIndex = getExprForValue(ChildId);
+    revng_assert(ArrayIndex);
     Result = new (ASTCtx) clang::ArraySubscriptExpr(BaseExpr,
                                                     ArrayIndex,
                                                     ElemTy,
@@ -780,14 +781,16 @@ clang::Expr *StmtBuilder::getMemberAccessExpr(clang::Expr *BaseExpr,
 
   case dla::Layout::LayoutKind::Struct:
   case dla::Layout::LayoutKind::Union: {
+    llvm::APInt ConstFielId = llvm::cast<ConstantInt>(ChildId)->getValue();
     clang::TypeDecl *Decl = Declarator.lookupTypeDeclOrNull(Parent);
     auto *RecDecl = cast<clang::RecordDecl>(Decl);
     const clang::ASTRecordLayout &RLayout = ASTCtx.getASTRecordLayout(RecDecl);
-    revng_assert(ChildId < RLayout.getFieldCount());
-    clang::FieldDecl *Field = *std::next(RecDecl->field_begin(), ChildId);
+    revng_assert(ConstFielId.ult(RLayout.getFieldCount()));
+    revng_assert(not ConstFielId.isNegative());
+    clang::FieldDecl *Field = *std::next(RecDecl->field_begin(),
+                                         ConstFielId.getZExtValue());
     revng_assert(Field);
 
-    bool IsArrow = true;
     Result = clang::MemberExpr::CreateImplicit(ASTCtx,
                                                BaseExpr,
                                                IsArrow,
@@ -802,6 +805,409 @@ clang::Expr *StmtBuilder::getMemberAccessExpr(clang::Expr *BaseExpr,
     revng_abort("unexpected dla::Layout");
   }
   return Result;
+}
+
+struct NestedChildInfo {
+  llvm::SmallVector<StmtBuilder::LayoutChildInfo, 8> ChildInfoVec;
+  const llvm::SCEVConstant *ConsumedOffset;
+};
+
+RecursiveCoroutine<NestedChildInfo>
+getFirstArrayStartingAt(const SCEV *Start,
+                        const dla::Layout *BasePointedLayout,
+                        llvm::ScalarEvolution *SE,
+                        clang::ASTContext &ASTCtx) {
+
+  llvm::LLVMContext &LLVMCtx = Start->getType()->getContext();
+  auto *SizeType = llvm::IntegerType::getInt64Ty(LLVMCtx);
+
+  NestedChildInfo Result = {
+    {}, llvm::cast<llvm::SCEVConstant>(SE->getConstant(Start->getType(), 0))
+  };
+
+  switch (BasePointedLayout->getKind()) {
+
+  case dla::Layout::LayoutKind::Base:
+  case dla::Layout::LayoutKind::Padding: {
+    // If we reach a base layout or padding, we haven't found any compatible
+    // array, so we bail out.
+  } break;
+
+  case dla::Layout::LayoutKind::Array: {
+
+    const auto *Array = llvm::cast<dla::ArrayLayout>(BasePointedLayout);
+    auto
+      *FieldId = llvm::ConstantInt::get(SizeType,
+                                        std::numeric_limits<uint64_t>::max());
+    Result.ChildInfoVec.push_back({ Array, FieldId });
+
+  } break;
+
+  case dla::Layout::LayoutKind::Struct: {
+    auto *Struct = llvm::cast<dla::StructLayout>(BasePointedLayout);
+    llvm::APInt Initial = llvm::cast<llvm::SCEVConstant>(Start)->getAPInt();
+
+    auto CumulativeSize = llvm::APInt::getNullValue(Initial.getBitWidth());
+    for (auto &Group : llvm::enumerate(Struct->fields())) {
+
+      const dla::Layout *Field = Group.value();
+      size_t FieldSize = Field->size();
+
+      // Skip fields that start too late
+      if (Initial.uge(CumulativeSize + FieldSize)) {
+        CumulativeSize += FieldSize;
+        continue;
+      }
+
+      const llvm::SCEV *StructStart = SE->getConstant(CumulativeSize);
+      const llvm::SCEV *StartInStruct = SE->getMinusSCEV(Start, StructStart);
+      NestedChildInfo FieldResult = rc_recur
+        getFirstArrayStartingAt(StartInStruct, Field, SE, ASTCtx);
+
+      if (not FieldResult.ChildInfoVec.empty()) {
+
+        auto *FieldId = llvm::ConstantInt::get(SizeType, Group.index());
+        Result.ChildInfoVec.push_back({ Struct, FieldId });
+
+        auto &Nested = FieldResult.ChildInfoVec;
+        Result.ChildInfoVec.append(Nested.begin(), Nested.end());
+
+        const auto *StartOff = llvm::cast<llvm::SCEVConstant>(StructStart);
+        const SCEV *Consumed = SE->getAddExpr(Result.ConsumedOffset, StartOff);
+        Consumed = SE->getAddExpr(Consumed, FieldResult.ConsumedOffset);
+        Result.ConsumedOffset = llvm::cast<llvm::SCEVConstant>(Consumed);
+      }
+
+      break;
+    }
+
+  } break;
+
+  case dla::Layout::LayoutKind::Union: {
+    auto *Union = llvm::cast<dla::UnionLayout>(BasePointedLayout);
+    llvm::APInt Initial = llvm::cast<llvm::SCEVConstant>(Start)->getAPInt();
+
+    llvm::SmallVector<NestedChildInfo, 8> ElemResults;
+    const llvm::SCEV *Zero = SE->getConstant(Start->getType(), 0);
+    ElemResults.resize(Union->numElements(),
+                       { {}, llvm::cast<llvm::SCEVConstant>(Zero) });
+
+    for (auto &Group : llvm::enumerate(Union->elements())) {
+      const dla::Layout *Elem = Group.value();
+      // Skip elements that are too small
+      if (Initial.uge(Elem->size()))
+        continue;
+
+      ElemResults[Group.index()] = getFirstArrayStartingAt(Start,
+                                                           Elem,
+                                                           SE,
+                                                           ASTCtx);
+    }
+
+    // Choose the first element for which we were able to compute some
+    // results.
+    // TODO: the child we choose might not be the only one for which we are
+    // able to compute a valid result. We should think about policies for
+    // better choices in the future.
+    for (auto &NonEmptyElemResult : llvm::enumerate(ElemResults)) {
+
+      const auto &[ChildVec, Consumed] = NonEmptyElemResult.value();
+
+      if (ChildVec.empty())
+        continue;
+
+      auto *FieldId = llvm::ConstantInt::get(SizeType,
+                                             NonEmptyElemResult.index());
+      Result.ChildInfoVec.push_back({ Union, FieldId });
+      Result.ChildInfoVec.append(ChildVec.begin(), ChildVec.end());
+
+      const llvm::SCEV *NewConsumed = SE->getAddExpr(Result.ConsumedOffset,
+                                                     Consumed);
+      Result.ConsumedOffset = llvm::cast<llvm::SCEVConstant>(NewConsumed);
+      break;
+    }
+
+  } break;
+
+  default:
+    revng_unreachable("Unknown Layout kind!");
+  }
+
+  rc_return Result;
+}
+
+RecursiveCoroutine<llvm::SmallVector<StmtBuilder::LayoutChildInfo, 8>>
+getNestedFieldIds(const SCEV *Off,
+                  const dla::Layout *BasePointedLayout,
+                  llvm::ScalarEvolution *SE,
+                  clang::ASTContext &ASTCtx) {
+
+  llvm::LLVMContext &LLVMCtx = Off->getType()->getContext();
+
+  using ResultVec = llvm::SmallVector<StmtBuilder::LayoutChildInfo, 8>;
+  ResultVec Result;
+
+  switch (Off->getSCEVType()) {
+
+  case llvm::scConstant: {
+    auto *ConstOff = llvm::cast<llvm::SCEVConstant>(Off);
+    llvm::APInt APOff = ConstOff->getAPInt();
+
+    if (APOff.isNegative())
+      break;
+
+    if (APOff.uge(BasePointedLayout->size()))
+      break;
+
+    switch (BasePointedLayout->getKind()) {
+
+    case dla::Layout::LayoutKind::Padding:
+      break;
+
+    case dla::Layout::LayoutKind::Base: {
+      if (APOff.isNullValue()) {
+        auto *SizeType = llvm::IntegerType::getInt64Ty(LLVMCtx);
+        auto *FieldId = llvm::ConstantInt::get(SizeType, 0);
+        Result.push_back({ BasePointedLayout, FieldId });
+      }
+    } break;
+
+    case dla::Layout::LayoutKind::Array: {
+      const auto *Array = llvm::cast<dla::ArrayLayout>(BasePointedLayout);
+      llvm::APInt Remainder;
+      llvm::APInt Quotient;
+      llvm::APInt ElemeSize(APOff.getBitWidth(), Array->getElem()->size());
+      llvm::APInt::udivrem(APOff, ElemeSize, Quotient, Remainder);
+
+      if (Remainder.isNullValue()) {
+        // Found
+        auto *FieldId = llvm::ConstantInt::get(ConstOff->getType(), Quotient);
+        Result.push_back({ Array, FieldId });
+      } else {
+        const SCEV *OffInElem = SE->getConstant(Remainder);
+        ResultVec ChildResult = rc_recur getNestedFieldIds(OffInElem,
+                                                           Array->getElem(),
+                                                           SE,
+                                                           ASTCtx);
+        if (not ChildResult.empty()) {
+          auto *FieldId = llvm::ConstantInt::get(ConstOff->getType(), Quotient);
+          Result.push_back({ Array, FieldId });
+          Result.append(ChildResult.begin(), ChildResult.end());
+        }
+      }
+
+    } break;
+
+    case dla::Layout::LayoutKind::Struct: {
+      auto *Struct = llvm::cast<dla::StructLayout>(BasePointedLayout);
+
+      auto CumulativeSize = llvm::APInt::getNullValue(APOff.getBitWidth());
+      for (auto &Group : llvm::enumerate(Struct->fields())) {
+
+        const dla::Layout *Field = Group.value();
+        size_t FieldSize = Field->size();
+
+        if (APOff.uge(CumulativeSize + FieldSize)) {
+          CumulativeSize += FieldSize;
+          continue;
+        }
+
+        const llvm::SCEV *StructStart = SE->getConstant(CumulativeSize);
+        const llvm::SCEV *OffInStruct = SE->getMinusSCEV(Off, StructStart);
+        ResultVec FieldResult = rc_recur getNestedFieldIds(OffInStruct,
+                                                           Field,
+                                                           SE,
+                                                           ASTCtx);
+
+        if (not FieldResult.empty()) {
+          auto *SizeType = llvm::IntegerType::getInt64Ty(LLVMCtx);
+          auto *FieldId = llvm::ConstantInt::get(SizeType, Group.index());
+          Result.push_back({ Struct, FieldId });
+          Result.append(FieldResult.begin(), FieldResult.end());
+        }
+
+        break;
+      }
+
+    } break;
+
+    case dla::Layout::LayoutKind::Union: {
+      auto *Union = llvm::cast<dla::UnionLayout>(BasePointedLayout);
+
+      auto ElemResults = llvm::SmallVector<ResultVec, 8>(Union->numElements(),
+                                                         {});
+
+      for (auto &Group : llvm::enumerate(Union->elements())) {
+
+        const dla::Layout *FieldLayout = Group.value();
+        if (APOff.uge(FieldLayout->size()))
+          continue;
+
+        const llvm::SCEV *Zero = SE->getZero(Off->getType());
+        ElemResults[Group.index()] = rc_recur getNestedFieldIds(Zero,
+                                                                FieldLayout,
+                                                                SE,
+                                                                ASTCtx);
+      }
+
+      // Choose the first element for which we were able to compute some
+      // results.
+      // TODO: the child we choose might not be the only one for which we are
+      // able to compute a valid result. We should think about policies for
+      // better choices in the future.
+      for (auto &NonEmptyElemResult : llvm::enumerate(ElemResults)) {
+
+        if (NonEmptyElemResult.value().empty())
+          continue;
+
+        auto *SizeType = llvm::IntegerType::getInt64Ty(LLVMCtx);
+        auto *FieldId = llvm::ConstantInt::get(SizeType,
+                                               NonEmptyElemResult.index());
+        Result.push_back({ Union, FieldId });
+        Result.append(NonEmptyElemResult.value().begin(),
+                      NonEmptyElemResult.value().end());
+        break;
+      }
+
+    } break;
+
+    default:
+      revng_unreachable("Unknown Layout kind!");
+    }
+
+  } break;
+
+  case llvm::scAddRecExpr: {
+
+    // Setup a vector of nested addrecs.
+    // We expect the first (most external one) to have
+    // a larger step.
+    const llvm::SCEVConstant *RecStart = nullptr;
+    llvm::SmallVector<const llvm::SCEVAddRecExpr *, 16> NestedAddRecs;
+    {
+
+      const auto *AddRecOff = llvm::cast<llvm::SCEVAddRecExpr>(Off);
+      revng_assert(AddRecOff->isAffine());
+
+      while (AddRecOff) {
+        // We are only able to process nested recurring expressions for which
+        // all the increments are constants, and non-negative.
+        // For all the others we bail out.
+        auto *Incr = dyn_cast<SCEVConstant>(AddRecOff->getStepRecurrence(*SE));
+        if (not Incr or Incr->getAPInt().isNegative())
+          break;
+
+        if (not NestedAddRecs.empty()) {
+          const auto *OuterAddRec = NestedAddRecs.back();
+          const auto *OuterAddRecStep = OuterAddRec->getStepRecurrence(*SE);
+          auto *OuterIncr = cast<SCEVConstant>(OuterAddRecStep);
+          revng_assert(OuterIncr->getAPInt().uge(Incr->getAPInt()));
+        }
+
+        NestedAddRecs.push_back(AddRecOff);
+        RecStart = dyn_cast<SCEVConstant>(AddRecOff->getStart());
+        AddRecOff = dyn_cast<SCEVAddRecExpr>(AddRecOff->getStart());
+      }
+
+      // If we haven't reached the bottom of the nested recurring expression, or
+      // we have but the start is not a constant, we cannot do anything, so we
+      // just bail out.
+      if (not RecStart) {
+        NestedAddRecs.clear();
+      } else {
+        revng_assert(not AddRecOff);
+        revng_assert(not NestedAddRecs.empty());
+      }
+    }
+
+    revng_assert(NestedAddRecs.empty() == (RecStart == nullptr));
+
+    if (not RecStart) {
+      revng_assert(Result.empty());
+      break;
+    }
+
+    ResultVec PartialResults; // should be emptied on fail
+    for (const llvm::SCEVAddRecExpr *AddRecOff : NestedAddRecs) {
+
+      const llvm::Loop *Loop = AddRecOff->getLoop();
+      llvm::PHINode *IndVar = Loop->getInductionVariable(*SE);
+      if (not IndVar) {
+        PartialResults.clear();
+        break;
+      }
+
+      NestedChildInfo
+        ResultUntilArray = getFirstArrayStartingAt(RecStart,
+                                                   BasePointedLayout,
+                                                   SE,
+                                                   ASTCtx);
+
+      const auto &[UntilArrayVec, Consumed] = ResultUntilArray;
+      revng_assert(UntilArrayVec.empty()
+                   or isa<dla::ArrayLayout>(UntilArrayVec.back().Parent));
+
+      // On this AddRecOff we didn't find an array where we expected it, so we
+      // have to bail out.
+      if (UntilArrayVec.empty()) {
+        PartialResults.clear();
+        break;
+      }
+
+      // Here we expect to handle nested recurring expressions with constant
+      // positive increments.
+      auto *Incr = cast<SCEVConstant>(AddRecOff->getStepRecurrence(*SE));
+      revng_assert(not Incr->getAPInt().isNegative());
+
+      // This is the array that we have found.
+      const auto *A = cast<dla::ArrayLayout>(UntilArrayVec.back().Parent);
+
+      // We expect to find an array whose element has the same size of the loop
+      // increment, otherwise something is wrong and we have to bail out.
+      revng_assert(Incr->getAPInt() == A->getElem()->size());
+      if (Incr->getAPInt() != A->getElem()->size()) {
+        PartialResults.clear();
+        break;
+      }
+
+      PartialResults.append(UntilArrayVec.begin(), UntilArrayVec.end());
+      PartialResults.back().ChildId = IndVar;
+
+      // At the next iteration, BasePointedLayout starts from the elemen of this
+      // array.
+      BasePointedLayout = A->getElem();
+      const llvm::SCEV *RemainingStart = SE->getMinusSCEV(RecStart, Consumed);
+      RecStart = llvm::cast<llvm::SCEVConstant>(RemainingStart);
+    }
+
+    if (not PartialResults.empty()) {
+      Result.append(PartialResults.begin(), PartialResults.end());
+    } else {
+      revng_assert(Result.empty());
+    }
+
+  } break;
+
+  case llvm::scUnknown:
+  case llvm::scUDivExpr:
+  case llvm::scUMaxExpr:
+  case llvm::scSMaxExpr:
+  case llvm::scUMinExpr:
+  case llvm::scSMinExpr:
+  case llvm::scTruncate:
+  case llvm::scSignExtend:
+  case llvm::scZeroExtend:
+  case llvm::scMulExpr:
+  case llvm::scAddExpr: {
+    // Bail out in these cases
+  } break;
+
+  case llvm::scCouldNotCompute:
+  default:
+    revng_unreachable("Unknown SCEV kind!");
+  }
+
+  rc_return Result;
 }
 
 clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
@@ -838,6 +1244,11 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
   // However, this is a potential spot to detect loop induction variables in the
   // future.
   if (not isa<llvm::SCEVUnknown>(Base))
+    return nullptr;
+
+  // If Base == ISCEV it means that we have no pointer arithmetic to do at all,
+  // so we can just bail out.
+  if (ISCEV == Base)
     return nullptr;
 
   const auto *BaseValue = cast<llvm::SCEVUnknown>(Base)->getValue();
@@ -915,16 +1326,9 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
   // This is equivalent to basically throwing away almost all DLA information.
   // Eventually we need to replace this code with something that really builds
   // member access expressions.
-  const auto getNestedFieldIds =
-    [](const SCEV *Off,
-       const dla::Layout *P,
-       llvm::ScalarEvolution *SE,
-       clang::ASTContext &) -> llvm::SmallVector<LayoutChildInfo, 8> {
-    return {};
-  };
-
   llvm::SmallVector<LayoutChildInfo, 8>
     NestedFields = getNestedFieldIds(Off, BasePointedLayout, SE, ASTCtx);
+
   if (NestedFields.empty())
     return nullptr;
 
@@ -941,6 +1345,11 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
   // Create all the field past the first, if any.
   // All the subsequent, if present, have a dot (field1.field2).
   for (const LayoutChildInfo &ChildInfo : llvm::drop_begin(NestedFields, 1)) {
+    if (llvm::isa<dla::BaseLayout>(ChildInfo.Parent)) {
+      revng_assert(&ChildInfo == &NestedFields.back());
+      continue;
+    }
+
     Result = getMemberAccessExpr(Result, ChildInfo, /* IsArrow */ false);
     if (Result == nullptr)
       return nullptr;
@@ -1114,36 +1523,48 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
 VarDecl *
 StmtBuilder::createVarDecl(const Instruction *I, clang::FunctionDecl &FDecl) {
   clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+
   TypeDeclOrQualType ASTType;
-  if (const auto *Alloca = dyn_cast<AllocaInst>(I)) {
-    // First, create a VarDecl, for an array of char to place in the
-    // BasicBlock where the AllocaInst is
-    const DataLayout &DL = I->getModule()->getDataLayout();
-    uint64_t AllocaSize = *Alloca->getAllocationSizeInBits(DL);
-    revng_assert(AllocaSize <= std::numeric_limits<unsigned>::max());
-    APInt ArraySize = APInt(32, static_cast<unsigned>(AllocaSize));
-    using ArraySizeMod = clang::ArrayType::ArraySizeModifier;
-    ArraySizeMod SizeMod = ArraySizeMod::Normal;
-    QualType CharTy = ASTCtx.CharTy;
-    QualType ArrayTy = ASTCtx.getConstantArrayType(CharTy,
-                                                   ArraySize,
-                                                   nullptr,
-                                                   SizeMod,
-                                                   0);
-    ASTType = ArrayTy;
-  } else if (const auto *Call = dyn_cast<llvm::CallInst>(I)) {
-    ASTType = Declarator.getOrCreateType(Call->getType(),
-                                         Call->getCalledFunction(),
-                                         ASTCtx,
-                                         TUDecl);
-  } else if (const auto *Insert = dyn_cast<llvm::InsertValueInst>(I)) {
-    ASTType = Declarator.getOrCreateType(Insert->getType(),
-                                         Insert->getFunction(),
-                                         ASTCtx,
-                                         TUDecl);
+
+  llvm::Optional<TypeDeclOrQualType>
+    DLAType = Declarator.getOrCreateDLAType(I, ASTCtx, TUDecl);
+
+  if (DLAType.hasValue()) {
+
+    ASTType = DLAType.getValue();
+
   } else {
-    clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
-    ASTType = Declarator.getOrCreateType(I, ASTCtx, TUDecl);
+
+    if (const auto *Alloca = dyn_cast<AllocaInst>(I)) {
+      // First, create a VarDecl, for an array of char to place in the
+      // BasicBlock where the AllocaInst is
+      const DataLayout &DL = I->getModule()->getDataLayout();
+      uint64_t AllocaSize = *Alloca->getAllocationSizeInBits(DL);
+      revng_assert(AllocaSize <= std::numeric_limits<unsigned>::max());
+      APInt ArraySize = APInt(32, static_cast<unsigned>(AllocaSize));
+      using ArraySizeMod = clang::ArrayType::ArraySizeModifier;
+      ArraySizeMod SizeMod = ArraySizeMod::Normal;
+      QualType CharTy = ASTCtx.CharTy;
+      QualType ArrayTy = ASTCtx.getConstantArrayType(CharTy,
+                                                     ArraySize,
+                                                     nullptr,
+                                                     SizeMod,
+                                                     0);
+      ASTType = ArrayTy;
+    } else if (const auto *Call = dyn_cast<llvm::CallInst>(I)) {
+      ASTType = Declarator.getOrCreateType(Call->getType(),
+                                           Call->getCalledFunction(),
+                                           ASTCtx,
+                                           TUDecl);
+    } else if (const auto *Insert = dyn_cast<llvm::InsertValueInst>(I)) {
+      ASTType = Declarator.getOrCreateType(Insert->getType(),
+                                           Insert->getFunction(),
+                                           ASTCtx,
+                                           TUDecl);
+    } else {
+      clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
+      ASTType = Declarator.getOrCreateType(I, ASTCtx, TUDecl);
+    }
   }
 
   clang::QualType ASTQualType = DeclCreator::getQualType(ASTType);

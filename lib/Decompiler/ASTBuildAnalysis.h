@@ -30,6 +30,7 @@ class Stmt;
 } // namespace clang
 
 namespace llvm {
+class Value;
 class AllocaInst;
 class BasicBlock;
 class Constant;
@@ -67,6 +68,12 @@ public:
   StmtMap InstrStmts;
   StmtMultiMap AdditionalStmts;
   BBPHIMap &BlockToPHIIncoming;
+
+private:
+  clang::VarDecl *LoopStateVarDecl = nullptr;
+  clang::VarDecl *SwitchStateVarDecl = nullptr;
+
+  DeclCreator &Declarator;
 
 public:
   StmtBuilder(clang::ASTContext &Ctx,
@@ -114,19 +121,13 @@ private:
 public:
   struct LayoutChildInfo {
     const dla::Layout *Parent;
-    unsigned ChildId;
+    llvm::Value *ChildId;
   };
 
 private:
   clang::Expr *getMemberAccessExpr(clang::Expr *BaseExpr,
                                    const LayoutChildInfo &ChildInfo,
                                    bool IsArrow);
-
-private:
-  clang::VarDecl *LoopStateVarDecl = nullptr;
-  clang::VarDecl *SwitchStateVarDecl = nullptr;
-
-  DeclCreator &Declarator;
 };
 
 } // namespace IR2AST
