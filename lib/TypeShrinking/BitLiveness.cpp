@@ -35,15 +35,15 @@ struct BitLivenessAnalysis {
   using Label = DataFlowNode *;
   using MFPResult = MFP::MFPResult<BitLivenessAnalysis::LatticeElement>;
 
-  static uint32_t combineValues(const uint32_t &Lh, const uint32_t &Rh) {
+  uint32_t combineValues(const uint32_t &Lh, const uint32_t &Rh) const {
     return std::max(Lh, Rh);
   }
 
-  static bool isLessOrEqual(const uint32_t &Lh, const uint32_t &Rh) {
+  bool isLessOrEqual(const uint32_t &Lh, const uint32_t &Rh) const {
     return Lh <= Rh;
   }
 
-  static uint32_t applyTransferFunction(DataFlowNode *L, const uint32_t E);
+  uint32_t applyTransferFunction(DataFlowNode *L, const uint32_t E) const;
 };
 
 using BitVector = llvm::BitVector;
@@ -221,7 +221,7 @@ static uint32_t transferZExt(Instruction *Ins, const uint32_t &Element) {
 }
 
 uint32_t
-BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L, const uint32_t E) {
+BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L, const uint32_t E) const {
   auto *Ins = L->Instruction;
   uint32_t Input = E;
   // At most every bit of the result is alive
@@ -263,7 +263,8 @@ BitLivenessPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
     }
   }
 
-  auto MFPResults = MFP::getMaximalFixedPoint<BitLivenessAnalysis>(&DataFlowGraph,
+  auto MFPResults = MFP::getMaximalFixedPoint<BitLivenessAnalysis>({},
+                                                              &DataFlowGraph,
                                                               0,
                                                               Top,
                                                               ExtremalLabels);
