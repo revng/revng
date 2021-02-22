@@ -36,7 +36,8 @@ auto successors(typename GT::NodeRef From) {
 }
 
 template<typename MFI>
-concept MonotoneFrameworkInstance = requires(typename MFI::LatticeElement E1,
+concept MonotoneFrameworkInstance = requires(MFI I,
+                                             typename MFI::LatticeElement E1,
                                              typename MFI::LatticeElement E2,
                                              typename MFI::Label L) {
   /// To compute the reverse post order traversal of the graph starting from
@@ -47,9 +48,9 @@ concept MonotoneFrameworkInstance = requires(typename MFI::LatticeElement E1,
           typename llvm::GraphTraits<typename MFI::GraphType>::NodeRef>;
   // Disable clang-format, because it does not handle concepts very well yet
   // clang-format off
-  { MFI::combineValues(E1, E2) } ->same_as<typename MFI::LatticeElement>;
-  { MFI::isLessOrEqual(E1, E2) } ->same_as<bool>;
-  { MFI::applyTransferFunction(L, E2) } ->same_as<typename MFI::LatticeElement>;
+  { I.combineValues(E1, E2) } ->same_as<typename MFI::LatticeElement>;
+  { I.isLessOrEqual(E1, E2) } ->same_as<bool>;
+  { I.applyTransferFunction(L, E2) } ->same_as<typename MFI::LatticeElement>;
   // clang-format on
 };
 
@@ -58,7 +59,7 @@ concept MonotoneFrameworkInstance = requires(typename MFI::LatticeElement E1,
 template<MonotoneFrameworkInstance MFI,
          typename GT = llvm::GraphTraits<typename MFI::GraphType>>
 std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
-getMaximalFixedPoint(const typename MFI::GraphType &Flow,
+getMaximalFixedPoint(const MFI &Instance, const typename MFI::GraphType &Flow,
                      typename MFI::LatticeElement InitialValue,
                      typename MFI::LatticeElement ExtremalValue,
                      const std::vector<typename MFI::Label> &ExtremalLabels) {
@@ -125,10 +126,10 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
     for (Label End : successors<GT>(Start)) {
       auto &PartialStart = PartialAnalysis.at(Start);
       LatticeElement
-        UpdatedEndAnalysis = MFI::applyTransferFunction(Start, PartialStart);
+        UpdatedEndAnalysis = Instance.applyTransferFunction(Start, PartialStart);
       auto &PartialEnd = PartialAnalysis.at(End);
-      if (!MFI::isLessOrEqual(UpdatedEndAnalysis, PartialEnd)) {
-        PartialEnd = MFI::combineValues(PartialEnd, UpdatedEndAnalysis);
+      if (!Instance.isLessOrEqual(UpdatedEndAnalysis, PartialEnd)) {
+        PartialEnd = Instance.combineValues(PartialEnd, UpdatedEndAnalysis);
         Worklist.insert({ LabelPriority.at(End), End });
       }
     }
@@ -137,7 +138,7 @@ getMaximalFixedPoint(const typename MFI::GraphType &Flow,
   // Step 3 presenting the results
   for (auto &[Node, Analysis] : PartialAnalysis) {
     AnalysisResult[Node] = { Analysis,
-                             MFI::applyTransferFunction(Node, Analysis) };
+                             Instance.applyTransferFunction(Node, Analysis) };
   }
   return AnalysisResult;
 }
