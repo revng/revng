@@ -3,7 +3,9 @@
 //
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
@@ -27,25 +29,24 @@ bool MFI::isABIRegister(const Value *V) const {
   return false;
 }
 
-TransferKind MFI::classifyInstruction(const Instruction &I) const {
-  switch (I.getOpcode()) {
-  case Instruction::Store: {
-    auto &S = cast<StoreInst>(I);
-    if (isABIRegister(S.getPointerOperand())) {
+TransferKind MFI::classifyInstruction(const llvm::Instruction *I) const {
+  switch (I->getOpcode()) {
+  case llvm::Instruction::Store: {
+    auto S = llvm::cast<llvm::StoreInst>(I);
+    if (isABIRegister(S->getPointerOperand())) {
       return Write;
     }
     break;
   }
-  case Instruction::Load: {
-    auto &L = cast<LoadInst>(I);
-    if (isABIRegister(L.getPointerOperand())) {
+  case llvm::Instruction::Load: {
+    auto L = llvm::cast<llvm::LoadInst>(I);
+    if (isABIRegister(L->getPointerOperand())) {
       return Read;
     }
     break;
   }
-  case Instruction::Call: {
-    auto &C = cast<CallInst>(I);
-    if (C.getCalledFunction() == I.getFunction()) {
+  case llvm::Instruction::Call: {
+    if (I == CallSite) {
       return TheCall;
     }
     return WeakWrite;
@@ -54,38 +55,31 @@ TransferKind MFI::classifyInstruction(const Instruction &I) const {
   return None;
 }
 
-SmallVector<int32_t, 1> MFI::getRegistersWritten(const Instruction &I) const {
-  SmallVector<int32_t, 1> Result;
-  switch (I.getOpcode()) {
-  case Instruction::Store: {
-    auto &S = cast<StoreInst>(I);
-    if (isABIRegister(S.getPointerOperand())) {
-      Result.push_back(
-        ABIRegisters.lookup(cast<GlobalVariable>(S.getPointerOperand())));
+llvm::SmallVector<int32_t, 1>
+MFI::getRegistersWritten(const llvm::Instruction *I) const {
+  llvm::SmallVector<int32_t, 1> Result;
+  switch (I->getOpcode()) {
+  case llvm::Instruction::Store: {
+    auto S = llvm::cast<llvm::StoreInst>(I);
+    if (isABIRegister(S->getPointerOperand())) {
+      Result.push_back(ABIRegisters.lookup(
+        llvm::cast<llvm::GlobalVariable>(S->getPointerOperand())));
     }
     break;
-  }
-  case Instruction::Call: {
-    auto &C = cast<CallInst>(I);
-    if (C.getCalledFunction() != I.getFunction()) {
-      for (auto &Reg : Properties.getRegistersClobbered(
-             &C.getCalledFunction()->getEntryBlock())) {
-        Result.push_back(ABIRegisters.lookup(cast<GlobalVariable>(Reg)));
-      }
-    }
   }
   }
   return Result;
 }
 
-SmallVector<int32_t, 1> MFI::getRegistersRead(const Instruction &I) const {
-  SmallVector<int32_t, 1> Result;
-  switch (I.getOpcode()) {
-  case Instruction::Load: {
-    auto &L = cast<LoadInst>(I);
-    if (isABIRegister(L.getPointerOperand())) {
-      Result.push_back(
-        ABIRegisters.lookup(cast<GlobalVariable>(L.getPointerOperand())));
+llvm::SmallVector<int32_t, 1>
+MFI::getRegistersRead(const llvm::Instruction *I) const {
+  llvm::SmallVector<int32_t, 1> Result;
+  switch (I->getOpcode()) {
+  case llvm::Instruction::Load: {
+    auto L = llvm::cast<llvm::LoadInst>(I);
+    if (isABIRegister(L->getPointerOperand())) {
+      Result.push_back(ABIRegisters.lookup(
+        llvm::cast<llvm::GlobalVariable>(L->getPointerOperand())));
     }
     break;
   }
@@ -118,79 +112,132 @@ MFI::combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {
       New[KV.first] = KV.second;
     }
   }
+  New.erase(InitialRegisterState);
   return New;
 }
 
 bool MFI::isLessOrEqual(const LatticeElement &Lh,
                         const LatticeElement &Rh) const {
-
-  return false;
+  if (Lh.size() > Rh.size())
+    return false;
+  for (auto &E : Lh) {
+    if (E.first == InitialRegisterState) {
+      continue;
+    }
+    if (Rh.count(E.first) == 0) {
+      return false;
+    }
+    auto RhState = Rh.lookup(E.first);
+    if (getMax(E.second, RhState) != RhState) {
+      return false;
+    }
+  }
+  return true;
 }
 
 LatticeElement
 MFI::applyTransferFunction(Label L, const LatticeElement &E) const {
   LatticeElement New = E;
   for (auto &I : *L) {
-    switch (classifyInstruction(I)) {
-    case TheCall:
-    // TODO: for the call we should record which registers are read in the
-    // current function?
+    switch (classifyInstruction(&I)) {
+    case TheCall: {
+      if (E.count(InitialRegisterState) != 0) {
+        // The first time we hit TheCall is actually the start of our graph
+        New.clear();
+      } else {
+        New.clear();
+        // This is not the first time we hit TheCall, so there is a path from
+        // TheCall to itself, we should return Unknown in this case
+        for (auto &Reg : ABIRegisters) {
+          New[Reg.second] = Unknown;
+        }
+      }
+      break;
+    }
     case Read: {
-      for (auto &Reg : getRegistersRead(I)) {
+      for (auto &Reg : getRegistersRead(&I)) {
         const auto &V = E.find(Reg);
         if (V == E.end() || V->getSecond() == Maybe) {
           New[Reg] = Unknown;
         }
       }
+      break;
     }
     case Write: {
-      for (auto &Reg : getRegistersWritten(I)) {
+      for (auto &Reg : getRegistersWritten(&I)) {
         const auto &V = E.find(Reg);
         if (V == E.end() || V->getSecond() == Maybe) {
           New[Reg] = NoOrDead;
         }
       }
+      break;
     }
     case WeakWrite:
     case None:
       break;
     }
   }
-  return E;
+  New.erase(InitialRegisterState);
+  return New;
 }
 
-static std::vector<const BasicBlock *> getCallSites(const Function *F) {
-  std::vector<const BasicBlock *> CallSites{};
-  for (auto &BB : *F) {
-    for (auto &I : BB) {
-      if (I.getOpcode() == Instruction::Call) {
-        CallSites.push_back(&BB);
+llvm::DenseMap<llvm::GlobalVariable *, State>
+analyze(const llvm::Instruction *CallSite,
+        llvm::Function *Entry,
+        const GeneratedCodeBasicInfo &GCBI,
+        const StackAnalysis::FunctionProperties &FP) {
+  llvm::errs() << "going " << Entry->getName().str() << " " << Entry->size()
+               << '\n';
+  CallSite->print(llvm::errs());
+  llvm::errs() << '\n';
+  llvm::DenseMap<llvm::GlobalVariable *, int32_t> ABIRegisters;
+  llvm::DenseMap<int32_t, llvm::GlobalVariable *> IndexABIRegisters;
+
+  for (auto *CSV : GCBI.csvs())
+    if (CSV) {
+      ABIRegisters[CSV] = ABIRegisters.size();
+      IndexABIRegisters[ABIRegisters[CSV]] = CSV;
+    }
+
+  MFI Instance{ CallSite, ABIRegisters, FP };
+  llvm::DenseMap<int32_t, State> InitialValue{ { InitialRegisterState,
+                                                 Unknown } };
+  llvm::DenseMap<int32_t, State> ExtremalValue{ { InitialRegisterState,
+                                                  Unknown } };
+
+  auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
+                                                CallSite->getParent(),
+                                                InitialValue,
+                                                ExtremalValue,
+                                                { CallSite->getParent() },
+                                                { CallSite->getParent() });
+  llvm::errs() << "finished MFP " << Results.size() << "\n";
+  llvm::DenseMap<llvm::GlobalVariable *, State> RegNoOrDead{};
+  // start debug stuff
+
+  for (auto &Result : Results) {
+    Result.first->print(llvm::errs());
+    llvm::errs() << '\n';
+    for (auto &KV : Result.second.OutValue) {
+      llvm::errs() << "BB RAW " << KV.first << " " << KV.second << "\n";
+      if (IndexABIRegisters.count(KV.first) != 0) {
+        auto *GV = IndexABIRegisters[KV.first];
+        llvm::errs() << "BB RESULT " << GV->getName().str() << " " << KV.second
+                     << "\n";
       }
     }
   }
-  return CallSites;
-}
-
-inline std::map<MFI::Label, MFP::MFPResult<LatticeElement>>
-analyze(Function *Entry,
-        const GeneratedCodeBasicInfo &GCBI,
-        const StackAnalysis::FunctionProperties &FP) {
-  DenseMap<GlobalVariable *, int32_t> ABIRegisters;
-  for (auto *CSV : GCBI.abiRegisters())
-    if (CSV && !(GCBI.isSPReg(CSV)))
-      ABIRegisters[CSV] = ABIRegisters.size();
-
-  MFI Instance{ ABIRegisters, FP };
-  DenseMap<int32_t, State> InitialValue;
-  DenseMap<int32_t, State> ExtremalValue;
-  for (auto &R : Instance.ABIRegisters) {
-    ExtremalValue[R.second] = Unknown;
+  // end debug stuff
+  for (auto &Result : Results) {
+    for (auto &KV : Result.second.OutValue) {
+      if (KV.second == NoOrDead && IndexABIRegisters.count(KV.first) != 0) {
+        auto *GV = IndexABIRegisters[KV.first];
+        if (Instance.isABIRegister(GV)) {
+          RegNoOrDead[GV] = NoOrDead;
+        }
+      }
+    }
   }
-  auto Result = MFP::getMaximalFixedPoint<MFI>(Instance,
-                                               Entry,
-                                               InitialValue,
-                                               ExtremalValue,
-                                               getCallSites(Entry));
-  return Result;
-}
+  return RegNoOrDead;
+} 
 } // namespace DeadReturnValuesOfFunctionCall
