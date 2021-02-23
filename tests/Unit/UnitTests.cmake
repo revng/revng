@@ -58,6 +58,7 @@ target_compile_definitions(decompile_function
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(decompile_function
   Decompiler
+  revng::revngModel
   revng::revngSupport
   ${LLVM_LIBRARIES})
 

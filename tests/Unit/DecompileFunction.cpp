@@ -11,6 +11,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/SourceMgr.h"
 
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
 
 #include "revng-c/Decompiler/CDecompiler.h"
@@ -22,16 +23,14 @@ int main(int argc, char **argv) {
   std::unique_ptr<llvm::Module> M = llvm::parseIRFile(argv[1],
                                                       Errors,
                                                       TestContext);
-  bool Found = false;
-  for (llvm::Function &F : *M) {
-    std::string CCode = decompileFunction(M.get(), F.getName().str());
-    if (not CCode.empty()) {
-      llvm::outs() << CCode;
-      Found = true;
-      break;
-    }
-  }
 
-  revng_check(Found, "Unable to find an isolated function");
+  model::Binary Model = LoadModelPass::getModel(*M);
+  revng_check(not Model.Functions.empty(),
+              "Unable to find an isolated function");
+
+  const model::Function &F = *Model.Functions.begin();
+  std::string CCode = decompileFunction(M.get(), F.Name);
+  revng_check(not CCode.empty(), "Decompiled function is empty");
+
   return 0;
 }
