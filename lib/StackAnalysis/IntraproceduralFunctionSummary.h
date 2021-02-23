@@ -46,6 +46,7 @@ public:
   using IFS = IntraproceduralFunctionSummary;
   using CallSiteStackSizeMap = std::map<FunctionCall, llvm::Optional<int32_t>>;
   using BranchesTypeMap = std::map<llvm::BasicBlock *, BranchType::Values>;
+  using FakeReturnsMap = std::multimap<llvm::BasicBlock *, MetaAddress>;
 
 public:
   FunctionType::Values Type;
@@ -55,6 +56,7 @@ public:
   CallSiteStackSizeMap FrameSizeAtCallSite;
   BranchesTypeMap BranchesType;
   std::set<int32_t> WrittenRegisters;
+  FakeReturnsMap FakeReturns;
 
 public:
   IntraproceduralFunctionSummary() :
@@ -70,13 +72,15 @@ private:
                                  FunctionABI ABI,
                                  CallSiteStackSizeMap FrameSizes,
                                  BranchesTypeMap BranchesType,
-                                 std::set<int32_t> WrittenRegisters) :
+                                 std::set<int32_t> WrittenRegisters,
+                                 const FakeReturnsMap &FakeReturns) :
     Type(Type),
     FinalState(std::move(FinalState)),
     ABI(std::move(ABI)),
     FrameSizeAtCallSite(std::move(FrameSizes)),
     BranchesType(std::move(BranchesType)),
-    WrittenRegisters(std::move(WrittenRegisters)) {
+    WrittenRegisters(std::move(WrittenRegisters)),
+    FakeReturns(FakeReturns) {
 
     process();
   }
@@ -90,13 +94,15 @@ public:
   createNoReturn(FunctionABI ABI,
                  CallSiteStackSizeMap FrameSizes,
                  BranchesTypeMap BranchesType,
-                 std::set<int32_t> WrittenRegisters) {
+                 std::set<int32_t> WrittenRegisters,
+                 std::multimap<llvm::BasicBlock *, MetaAddress> FakeReturns) {
     return IntraproceduralFunctionSummary(FunctionType::NoReturn,
                                           Intraprocedural::Element::bottom(),
                                           std::move(ABI),
                                           std::move(FrameSizes),
                                           std::move(BranchesType),
-                                          std::move(WrittenRegisters));
+                                          std::move(WrittenRegisters),
+                                          std::move(FakeReturns));
   }
 
   static IntraproceduralFunctionSummary
@@ -104,13 +110,15 @@ public:
                 FunctionABI ABI,
                 CallSiteStackSizeMap FrameSizes,
                 BranchesTypeMap BranchesType,
-                std::set<int32_t> WrittenRegisters) {
+                std::set<int32_t> WrittenRegisters,
+                std::multimap<llvm::BasicBlock *, MetaAddress> FakeReturns) {
     return IntraproceduralFunctionSummary(FunctionType::Regular,
                                           std::move(FinalState),
                                           std::move(ABI),
                                           std::move(FrameSizes),
                                           std::move(BranchesType),
-                                          std::move(WrittenRegisters));
+                                          std::move(WrittenRegisters),
+                                          std::move(FakeReturns));
   }
 
   static IntraproceduralFunctionSummary bottom() {
@@ -126,6 +134,7 @@ public:
     Result.FrameSizeAtCallSite = FrameSizeAtCallSite;
     Result.BranchesType = BranchesType;
     Result.WrittenRegisters = WrittenRegisters;
+    Result.FakeReturns = FakeReturns;
     return Result;
   }
 

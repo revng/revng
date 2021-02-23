@@ -228,6 +228,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
 
   using RD = RelocationDescription;
   using namespace llvm::ELF;
+  using namespace model::Register;
   Architecture::RelocationTypesMap RelocationTypes;
 
   auto Arch = TheBinary->getArch();
@@ -250,8 +251,8 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     RelocationTypes[R_386_GLOB_DAT] = RD(RD::SymbolRelative);
     RelocationTypes[R_386_COPY] = RD(RD::LabelOnly, RD::TargetValue);
 
-    ABIRegisters = { { "eax" }, { "ebx" }, { "ecx" }, { "edx" },
-                     { "esi" }, { "edi" }, { "ebp" }, { "esp" } };
+    ABIRegisters = { { eax_x86 }, { ebx_x86 }, { ecx_x86 }, { edx_x86 },
+                     { esi_x86 }, { edi_x86 }, { ebp_x86 }, { esp_x86 } };
 
     BasicBlockEndingPattern = "\xcc";
 
@@ -303,30 +304,16 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     // REGISTER_OFFSET(RIP);
 
     // TODO: here we're hardcoding the offsets in the QEMU struct
-    ABIRegisters = { { "rax", 0xD },
-                     { "rbx", 0xB },
-                     { "rcx", 0xE },
-                     { "rdx", 0xC },
-                     { "rbp", 0xA },
-                     { "rsp", 0xF },
-                     { "rsi", 0x9 },
-                     { "rdi", 0x8 },
-                     { "r8", 0x0 },
-                     { "r9", 0x1 },
-                     { "r10", 0x2 },
-                     { "r11", 0x3 },
-                     { "r12", 0x4 },
-                     { "r13", 0x5 },
-                     { "r14", 0x6 },
-                     { "r15", 0x7 },
-                     { "xmm0", "state_0x8558" },
-                     { "xmm1", "state_0x8598" },
-                     { "xmm2", "state_0x85d8" },
-                     { "xmm3", "state_0x8618" },
-                     { "xmm4", "state_0x8658" },
-                     { "xmm5", "state_0x8698" },
-                     { "xmm6", "state_0x86d8" },
-                     { "xmm7", "state_0x8718" } };
+    ABIRegisters = {
+      { rax_x86_64, 0xD }, { rbx_x86_64, 0xB }, { rcx_x86_64, 0xE },
+      { rdx_x86_64, 0xC }, { rbp_x86_64, 0xA }, { rsp_x86_64, 0xF },
+      { rsi_x86_64, 0x9 }, { rdi_x86_64, 0x8 }, { r8_x86_64, 0x0 },
+      { r9_x86_64, 0x1 },  { r10_x86_64, 0x2 }, { r11_x86_64, 0x3 },
+      { r12_x86_64, 0x4 }, { r13_x86_64, 0x5 }, { r14_x86_64, 0x6 },
+      { r15_x86_64, 0x7 }, { xmm0_x86_64 },     { xmm1_x86_64 },
+      { xmm2_x86_64 },     { xmm3_x86_64 },     { xmm4_x86_64 },
+      { xmm5_x86_64 },     { xmm6_x86_64 },     { xmm7_x86_64 }
+    };
     WriteRegisterAsm = "movq $0, %REGISTER";
     ReadRegisterAsm = "movq %REGISTER, $0";
     JumpAsm = "jmpq *$0";
@@ -355,9 +342,10 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
       0x1, // exit
       0xb // execve
     };
-    ABIRegisters = { { "r0" },  { "r1" },  { "r2" },  { "r3" },  { "r4" },
-                     { "r5" },  { "r6" },  { "r7" },  { "r8" },  { "r9" },
-                     { "r10" }, { "r11" }, { "r12" }, { "r13" }, { "r14" } };
+    ABIRegisters = { { r0_arm },  { r1_arm },  { r2_arm },  { r3_arm },
+                     { r4_arm },  { r5_arm },  { r6_arm },  { r7_arm },
+                     { r8_arm },  { r9_arm },  { r10_arm }, { r11_arm },
+                     { r12_arm }, { r13_arm }, { r14_arm } };
     PCMContextIndex = 18;
 
     HasRelocationAddend = false;
@@ -383,13 +371,16 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
       0x5d, // exit
       0xdd // execve
     };
-    ABIRegisters = { { "x0" },  { "x1" },  { "x2" },  { "x3" },  { "x4" },
-                     { "x5" },  { "x6" },  { "x7" },  { "x8" },  { "x9" },
-                     { "x10" }, { "x11" }, { "x12" }, { "x13" }, { "x14" },
-                     { "x15" }, { "x16" }, { "x17" }, { "x18" }, { "x19" },
-                     { "x20" }, { "x21" }, { "x22" }, { "x23" }, { "x24" },
-                     { "x25" }, { "x26" }, { "x27" }, { "x28" }, { "x29" },
-                     { "lr" },  { "sp" } };
+    ABIRegisters = {
+      { x0_aarch64 },  { x1_aarch64 },  { x2_aarch64 },  { x3_aarch64 },
+      { x4_aarch64 },  { x5_aarch64 },  { x6_aarch64 },  { x7_aarch64 },
+      { x8_aarch64 },  { x9_aarch64 },  { x10_aarch64 }, { x11_aarch64 },
+      { x12_aarch64 }, { x13_aarch64 }, { x14_aarch64 }, { x15_aarch64 },
+      { x16_aarch64 }, { x17_aarch64 }, { x18_aarch64 }, { x19_aarch64 },
+      { x20_aarch64 }, { x21_aarch64 }, { x22_aarch64 }, { x23_aarch64 },
+      { x24_aarch64 }, { x25_aarch64 }, { x26_aarch64 }, { x27_aarch64 },
+      { x28_aarch64 }, { x29_aarch64 }, { lr_aarch64 },  { sp_aarch64 }
+    };
     HasRelocationAddend = false;
 
     // ret
@@ -409,11 +400,11 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
       0xfab // execve
     };
     DelaySlotSize = 1;
-    ABIRegisters = {
-      { "v0" }, { "v1" }, { "a0" }, { "a1" }, { "a2" }, { "a3" },
-      { "s0" }, { "s1" }, { "s2" }, { "s3" }, { "s4" }, { "s5" },
-      { "s6" }, { "s7" }, { "gp" }, { "sp" }, { "fp" }, { "ra" }
-    };
+    ABIRegisters = { { v0_mips }, { v1_mips }, { a0_mips }, { a1_mips },
+                     { a2_mips }, { a3_mips }, { s0_mips }, { s1_mips },
+                     { s2_mips }, { s3_mips }, { s4_mips }, { s5_mips },
+                     { s6_mips }, { s7_mips }, { gp_mips }, { sp_mips },
+                     { fp_mips }, { ra_mips } };
 
     HasRelocationAddend = false;
 
@@ -448,13 +439,16 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     RelocationTypes[R_390_GLOB_DAT] = RD(RD::SymbolRelative);
     RelocationTypes[R_390_COPY] = RD(RD::LabelOnly, RD::TargetValue);
 
-    ABIRegisters = { { "r0" },  { "r1" },  { "r2" },  { "r3" },  { "r4" },
-                     { "r5" },  { "r6" },  { "r7" },  { "r8" },  { "r9" },
-                     { "r10" }, { "r11" }, { "r12" }, { "r13" }, { "r14" },
-                     { "r15" }, { "f0" },  { "f1" },  { "f2" },  { "f3" },
-                     { "f4" },  { "f5" },  { "f6" },  { "f7" },  { "f8" },
-                     { "f9" },  { "f10" }, { "f11" }, { "f12" }, { "f13" },
-                     { "f14" }, { "f15" } };
+    ABIRegisters = {
+      { r0_systemz },  { r1_systemz },  { r2_systemz },  { r3_systemz },
+      { r4_systemz },  { r5_systemz },  { r6_systemz },  { r7_systemz },
+      { r8_systemz },  { r9_systemz },  { r10_systemz }, { r11_systemz },
+      { r12_systemz }, { r13_systemz }, { r14_systemz }, { r15_systemz },
+      { f0_systemz },  { f1_systemz },  { f2_systemz },  { f3_systemz },
+      { f4_systemz },  { f5_systemz },  { f6_systemz },  { f7_systemz },
+      { f8_systemz },  { f9_systemz },  { f10_systemz }, { f11_systemz },
+      { f12_systemz }, { f13_systemz }, { f14_systemz }, { f15_systemz }
+    };
 
     break;
 

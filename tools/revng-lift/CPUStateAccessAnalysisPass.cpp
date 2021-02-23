@@ -99,7 +99,6 @@ computeDirectlyReachableFunctions(const Function *RootFunction,
           CallGraph[Caller].insert(Callee);
         }
       } else if (const auto *CExpr = dyn_cast<const ConstantExpr>(TheUser)) {
-        revng_assert(CExpr->getOpcode() == Instruction::BitCast);
         SmallPtrSet<const ConstantExpr *, 16> CurBitCasts;
         SmallPtrSet<const ConstantExpr *, 16> NextBitCasts;
         CurBitCasts.insert(CExpr);
@@ -127,7 +126,6 @@ computeDirectlyReachableFunctions(const Function *RootFunction,
                   CallGraph[Caller].insert(Callee);
                 }
               } else if (NewCExpr) {
-                revng_assert(NewCExpr->getOpcode() == Instruction::BitCast);
                 NextBitCasts.insert(NewCExpr);
               }
             }

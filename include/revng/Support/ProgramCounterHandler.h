@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Value.h"
 
@@ -78,7 +79,7 @@ public:
 
 public:
   std::array<llvm::GlobalVariable *, 4> pcCSVs() const {
-    return { AddressCSV, EpochCSV, AddressSpaceCSV, TypeCSV };
+    return { EpochCSV, AddressSpaceCSV, TypeCSV, AddressCSV };
   }
 
   /// \brief Hook for the emission of a store to a CSV
@@ -113,6 +114,8 @@ public:
     llvm::IRBuilder<> Builder(Call);
     setPC(Builder, MA);
   }
+
+  llvm::Value *loadPC(llvm::IRBuilder<> &Builder) const;
 
 protected:
   virtual void
@@ -180,15 +183,20 @@ public:
   }
 
 public:
+  struct DispatcherInfo {
+    llvm::SmallVector<llvm::BasicBlock *, 4> NewBlocks;
+    llvm::SwitchInst *Switch;
+  };
+
   /// \param Targets the targets to materialize for the dispatcher. Will be
   ///        sorted.
-  llvm::SwitchInst *
+  DispatcherInfo
   buildDispatcher(DispatcherTargets &Targets,
                   llvm::IRBuilder<> &Builder,
                   llvm::BasicBlock *Default,
                   llvm::Optional<BlockType::Values> SetBlockType) const;
 
-  llvm::SwitchInst *
+  DispatcherInfo
   buildDispatcher(DispatcherTargets &Targets,
                   llvm::BasicBlock *CreateIn,
                   llvm::BasicBlock *Default,

@@ -5,34 +5,15 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// LLVM includes
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_os_ostream.h"
 
-// Local libraries includes
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
 
 using namespace llvm;
-
-using BasicBlockRangesMap = std::map<MetaAddress, MetaAddress>;
-using BasicBlockRangesVector = std::vector<std::pair<MetaAddress, MetaAddress>>;
-using CFGVector = decltype(model::Function::CFG);
-
-namespace model {
-
-BasicBlockRangesVector Function::basicBlockRanges() const {
-
-  BasicBlockRangesVector Result;
-  for (const model::BasicBlock &BB : CFG) {
-    Result.emplace_back(BB.Start, BB.End);
-  }
-  return Result;
-}
-
-} // namespace model
 
 namespace model {
 
@@ -43,7 +24,12 @@ struct FunctionCFGNodeData {
 
 using FunctionCFGNode = ForwardNode<FunctionCFGNodeData>;
 
+/// Graph data structure to represent the CFG for verification purposes
 struct FunctionCFG : public GenericGraph<FunctionCFGNode> {
+private:
+  MetaAddress Entry;
+  std::map<MetaAddress, FunctionCFGNode *> Map;
+
 public:
   FunctionCFG(MetaAddress Entry) : Entry(Entry) {}
 
@@ -82,21 +68,34 @@ public:
         return false;
     return true;
   }
-
-private:
-  MetaAddress Entry;
-  std::map<MetaAddress, FunctionCFGNode *> Map;
 };
 
-bool Function::verifyCFG() const {
+bool Binary::verify() const {
+  for (const Function &F : Functions) {
+
+    // Verify individual functions
+    if (not F.verify())
+      return false;
+
+    // Ensure all the direct function calls target an existing function
+    for (const BasicBlock &Block : F.CFG) {
+      for (const FunctionEdge &Edge : Block.Successors) {
+        if (Edge.Type == FunctionEdgeType::FunctionCall
+            and Functions.count(Edge.Destination) == 0) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+static FunctionCFG getGraph(const Function &F) {
   using namespace FunctionEdgeType;
 
-  yaml::Output YAMLOutput(llvm::errs());
-  YAMLOutput << *const_cast<Function *>(this);
-
-  // Populate graph
-  FunctionCFG Graph(Entry);
-  for (const BasicBlock &Block : CFG) {
+  FunctionCFG Graph(F.Entry);
+  for (const BasicBlock &Block : F.CFG) {
     auto *Source = Graph.get(Block.Start);
 
     for (const FunctionEdge &Edge : Block.Successors) {
@@ -114,6 +113,7 @@ bool Function::verifyCFG() const {
 
       case FunctionCall:
       case IndirectCall:
+        // TODO: this does not handle noreturn function calls
         Source->addSuccessor(Graph.get(Block.End));
         break;
 
@@ -128,18 +128,39 @@ bool Function::verifyCFG() const {
     }
   }
 
-  {
-    raw_os_ostream Output(dbg);
-    WriteGraph(Output, &Graph);
-  }
+  return Graph;
+}
+
+void Function::dumpCFG() const {
+  FunctionCFG CFG = getGraph(*this);
+  raw_os_ostream Stream(dbg);
+  WriteGraph(Stream, &CFG);
+}
+
+bool Function::verify() const {
+  // Verify blocks
+  for (const BasicBlock &Block : CFG)
+    for (const FunctionEdge &Edge : Block.Successors)
+      if (not Edge.verify())
+        return false;
+
+  // Populate graph
+  FunctionCFG Graph = getGraph(*this);
 
   // Ensure all the nodes are reachable from the entry node
-  revng_assert(Graph.allNodesAreReachable());
+  if (not Graph.allNodesAreReachable())
+    return false;
 
   // Ensure the only node with no successors is invalid
-  revng_assert(Graph.hasOnlyInvalidExits());
+  if (not Graph.hasOnlyInvalidExits())
+    return false;
 
   return true;
+}
+
+bool FunctionEdge::verify() const {
+  using namespace model::FunctionEdgeType;
+  return Destination.isValid() == hasDestination(Type);
 }
 
 } // namespace model

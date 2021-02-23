@@ -185,7 +185,8 @@ def build_opt_args(args):
 
   return (prefix + [relative(get_command("opt"))]
           + interleave(roots, "-load")
-          + args)
+          + args
+          + ["-serialize-model"])
 
 def split_dash_dash(args):
   if not args:
@@ -406,8 +407,7 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
       lift_options += ["--base", args.base]
 
     run([get_command("revng-lift"),
-         "-g", "ll",
-         "--debug-log", "jtcount"]
+         "-g", "ll"]
         + lift_options
         + [relative(input), relative(output)])
 

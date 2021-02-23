@@ -735,8 +735,6 @@ static void purgeDeadBlocks(Function *F) {
 void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   using FT = FunctionType;
 
-  MetaAddress::createStructVariable(TheModule.get());
-
   // Declare the abort function
   auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
   FunctionCallee AbortFunction = TheModule->getOrInsertFunction("abort",
@@ -957,7 +955,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   const SmallVector<ABIRegister, 20> &ABIRegisters = Arch.abiRegisters();
   SmallVector<Metadata *, 20> ABIRegMetadata;
   for (auto Register : ABIRegisters)
-    ABIRegMetadata.push_back(MDString::get(Context, Register.name()));
+    ABIRegMetadata.push_back(MDString::get(Context, Register.csvName()));
 
   auto *Tuple = MDTuple::get(Context,
                              {
@@ -971,6 +969,14 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   MDName = "revng.input.architecture";
   NamedMDNode *InputArchMD = TheModule->getOrInsertNamedMetadata(MDName);
   InputArchMD->addOperand(Tuple);
+
+  // Link early-linked.c
+  {
+    Linker TheLinker(*TheModule);
+    bool Result = TheLinker.linkInModule(std::move(EarlyLinkedModule),
+                                         Linker::None);
+    revng_assert(!Result, "Linking failed");
+  }
 
   // Create an instance of JumpTargetManager
   JumpTargetManager JumpTargets(MainFunction,
@@ -1313,15 +1319,6 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   purgeDeadBlocks(MainFunction);
 
   JumpTargets.createJTReasonMD();
-
-  // Link early-linked.c
-  // TODO: moving this too earlier seems to break things
-  {
-    Linker TheLinker(*TheModule);
-    bool Result = TheLinker.linkInModule(std::move(EarlyLinkedModule),
-                                         Linker::None);
-    revng_assert(!Result, "Linking failed");
-  }
 
   ExternalJumpsHandler JumpOutHandler(Binary,
                                       JumpTargets.dispatcher(),

@@ -238,6 +238,11 @@ public:
       Type = V;
   }
 
+  bool hasAddress() { return Address.hasValue(); }
+  bool hasEpoch() { return Epoch.hasValue(); }
+  bool hasAddressSpace() { return AddressSpace.hasValue(); }
+  bool hasType() { return Type.hasValue(); }
+
   MetaAddress toMetaAddress() const {
     if (Type and Address and Epoch and AddressSpace) {
       auto TheType = static_cast<MetaAddressType::Values>(*Type);
@@ -310,6 +315,29 @@ bool PCH::isPCAffectingHelper(Instruction *I) const {
   return false;
 }
 
+llvm::Value *ProgramCounterHandler::loadPC(llvm::IRBuilder<> &Builder) const {
+  using namespace llvm;
+
+  BasicBlock *BB = Builder.GetInsertBlock();
+  Module *M = BB->getParent()->getParent();
+  Value *V = UndefValue::get(MetaAddress::getStruct(M));
+  unsigned I = 0;
+  auto Insert = [&](llvm::GlobalVariable *CSV) {
+    using IV = InsertValueInst;
+    Value *ToInsert = Builder.CreateZExt(Builder.CreateLoad(CSV),
+                                         V->getType()->getStructElementType(I));
+    V = Builder.Insert(IV::Create(V, ToInsert, { I }));
+    ++I;
+  };
+
+  Insert(EpochCSV);
+  Insert(AddressSpaceCSV);
+  Insert(TypeCSV);
+  Insert(AddressCSV);
+
+  return V;
+}
+
 std::pair<NextJumpTarget::Values, MetaAddress>
 PCH::getUniqueJumpTarget(BasicBlock *BB) {
   std::vector<StackEntry> Stack;
@@ -354,8 +382,10 @@ PCH::getUniqueJumpTarget(BasicBlock *BB) {
             PMA.setType(Value);
           }
 
-        } else {
-          // Non-constant store to PC CSV, bail out
+        } else if ((Pointer == AddressCSV and not PMA.hasAddress())
+                   or (Pointer == EpochCSV and not PMA.hasEpoch())
+                   or (Pointer == AddressSpaceCSV and not PMA.hasAddressSpace())
+                   or (Pointer == TypeCSV and not PMA.hasType())) {
           AgreedMA = MetaAddress::invalid();
           return BailOut;
         }
@@ -386,8 +416,9 @@ PCH::getUniqueJumpTarget(BasicBlock *BB) {
           return DontProceed;
         }
 
-      } else if (isPCAffectingHelper(&I)) {
-        // Non-constant store to PC CSV, bail out
+      } else if (PMA.isEmpty() and isPCAffectingHelper(&I)) {
+        // Non-constant store to PC CSV when no other value of the PC has been
+        // written yet, bail out
         AgreedMA = MetaAddress::invalid();
         ChangedByHelper = true;
         return BailOut;
@@ -450,13 +481,16 @@ private:
 
   Optional<BlockType::Values> SetBlockType;
 
+  SmallVectorImpl<BasicBlock *> *NewBlocksRegistry;
+
 public:
   SwitchManager(BasicBlock *Default,
                 Value *CurrentEpoch,
                 Value *CurrentAddressSpace,
                 Value *CurrentType,
                 Value *CurrentAddress,
-                Optional<BlockType::Values> SetBlockType) :
+                Optional<BlockType::Values> SetBlockType,
+                SmallVectorImpl<BasicBlock *> *NewBlocksRegistry = nullptr) :
     Context(getContext(Default)),
     F(Default->getParent()),
     Default(Default),
@@ -464,7 +498,8 @@ public:
     CurrentAddressSpace(CurrentAddressSpace),
     CurrentType(CurrentType),
     CurrentAddress(CurrentAddress),
-    SetBlockType(SetBlockType) {}
+    SetBlockType(SetBlockType),
+    NewBlocksRegistry(NewBlocksRegistry) {}
 
   SwitchManager(SwitchInst *Root, Optional<BlockType::Values> SetBlockType) :
     Context(getContext(Root)),
@@ -604,6 +639,10 @@ private:
                                    (Switch->getParent()->getName() + "_"
                                     + NewSuffix),
                                    F);
+
+    if (NewBlocksRegistry != nullptr)
+      NewBlocksRegistry->push_back(NewSwitchBB);
+
     ::addCase(Switch, NewCaseValue, NewSwitchBB);
     IRBuilder<> Builder(NewSwitchBB);
     SwitchInst *Result = createSwitch(SwitchOn, Builder);
@@ -644,11 +683,12 @@ void PCH::destroyDispatcher(SwitchInst *Root) const {
   SwitchManager(Root, {}).destroy(Root);
 }
 
-SwitchInst *
+PCH::DispatcherInfo
 PCH::buildDispatcher(DispatcherTargets &Targets,
                      IRBuilder<> &Builder,
                      BasicBlock *Default,
                      Optional<BlockType::Values> SetBlockType) const {
+  DispatcherInfo Result;
   revng_assert(Targets.size() != 0);
 
   LLVMContext &Context = getContext(Default);
@@ -671,7 +711,8 @@ PCH::buildDispatcher(DispatcherTargets &Targets,
                    CurrentAddressSpace,
                    CurrentType,
                    CurrentAddress,
-                   SetBlockType);
+                   SetBlockType,
+                   &Result.NewBlocks);
 
   // Create the first switch, for epoch
   SwitchInst *EpochSwitch = SM.createSwitch(CurrentEpoch, Builder);
@@ -716,7 +757,9 @@ PCH::buildDispatcher(DispatcherTargets &Targets,
     ForceNewSwitch = false;
   }
 
-  return EpochSwitch;
+  Result.Switch = EpochSwitch;
+
+  return Result;
 }
 
 std::unique_ptr<ProgramCounterHandler>

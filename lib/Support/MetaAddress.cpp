@@ -15,6 +15,8 @@
 
 using namespace llvm;
 
+const char *MetaAddressTypeHolderName = "metaaddress_type_holder";
+
 Constant *MetaAddress::toConstant(llvm::Type *Type) const {
   using namespace llvm;
 
@@ -32,21 +34,23 @@ Constant *MetaAddress::toConstant(llvm::Type *Type) const {
                              GetInt(3, this->Type));
 }
 
-GlobalVariable *MetaAddress::createStructVariable(Module *M) {
+GlobalVariable *
+MetaAddress::createStructVariableInternal(Module *M,
+                                          StringRef Name,
+                                          StructType *MetaAddressStruct) {
   using namespace llvm;
-  auto *MetaAddressStruct = createStruct(M->getContext());
   return new GlobalVariable(*M,
                             MetaAddressStruct,
                             false,
                             GlobalValue::InternalLinkage,
                             invalid().toConstant(MetaAddressStruct),
-                            StringRef("invalid_address"));
+                            Name);
 }
 
 StructType *MetaAddress::getStruct(Module *M) {
   using namespace llvm;
-  auto *InvalidAddress = M->getGlobalVariable("invalid_address", true);
-  return cast<StructType>(InvalidAddress->getType()->getPointerElementType());
+  auto *TypeHolder = M->getGlobalVariable(MetaAddressTypeHolderName, true);
+  return cast<StructType>(TypeHolder->getType()->getPointerElementType());
 }
 
 MetaAddress MetaAddress::fromConstant(Value *V) {
@@ -66,14 +70,6 @@ MetaAddress MetaAddress::fromConstant(Value *V) {
   Result.validate();
 
   return Result;
-}
-
-StructType *MetaAddress::createStruct(LLVMContext &Context) {
-  auto *Uint64Ty = Type::getInt64Ty(Context);
-  auto *Uint32Ty = Type::getInt32Ty(Context);
-  auto *Uint16Ty = Type::getInt16Ty(Context);
-  return StructType::create({ Uint64Ty, Uint32Ty, Uint16Ty, Uint16Ty },
-                            "MetaAddress");
 }
 
 Instruction *MetaAddress::composeIntegerPC(IRBuilder<> &B,
@@ -120,7 +116,7 @@ std::string MetaAddress::toString() const {
   {
     raw_string_ostream Stream(Result);
     Stream << "0x" << Twine::utohexstr(Address) << SEP
-           << MetaAddressType::toString(Type);
+           << MetaAddressType::toString(type());
     if (not isDefaultEpoch())
       Stream << SEP << Epoch;
     if (not isDefaultAddressSpace())
@@ -150,7 +146,7 @@ MetaAddress MetaAddress::fromString(StringRef Text) {
     return MetaAddress::invalid();
 
   Result.Type = MetaAddressType::fromString(Parts[1]);
-  if (Result.Type == MetaAddressType::Invalid)
+  if (Result.type() == MetaAddressType::Invalid)
     return MetaAddress::invalid();
 
   Result.Epoch = 0;
