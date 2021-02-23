@@ -13,6 +13,7 @@
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/GenericGraph.h"
@@ -57,10 +58,12 @@ concept MonotoneFrameworkInstance = requires(const MFI &I,
 template<MonotoneFrameworkInstance MFI,
          typename GT = llvm::GraphTraits<typename MFI::GraphType>>
 std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
-getMaximalFixedPoint(const MFI &Instance, const typename MFI::GraphType &Flow,
+getMaximalFixedPoint(const MFI &Instance,
+                     const typename MFI::GraphType &Flow,
                      typename MFI::LatticeElement InitialValue,
                      typename MFI::LatticeElement ExtremalValue,
-                     const std::vector<typename MFI::Label> &ExtremalLabels) {
+                     const std::vector<typename MFI::Label> &ExtremalLabels,
+                     const std::vector<typename MFI::Label> &InitialNodes) {
   typedef typename MFI::Label Label;
   typedef typename MFI::LatticeElement LatticeElement;
   std::map<Label, LatticeElement> PartialAnalysis;
@@ -82,25 +85,7 @@ getMaximalFixedPoint(const MFI &Instance, const typename MFI::GraphType &Flow,
     PartialAnalysis[ExtremalLabel] = ExtremalValue;
   }
 
-  // Handle the special case that the graph has a single entry node
-  if (GT::getEntryNode(Flow) != nullptr) {
-    ReversePostOrderTraversalExt RPOTE(GT::getEntryNode(Flow), Visited);
-    for (Label Node : RPOTE) {
-      LabelPriority[Node] = LabelPriority.size();
-      Worklist.insert({ LabelPriority.at(Node), Node });
-      // initialize the analysis value for non extremal nodes
-      if (PartialAnalysis.find(Node) == PartialAnalysis.end()) {
-        PartialAnalysis[Node] = InitialValue;
-      }
-    }
-  }
-  // Start visits for nodes that we still haven't visited
-  // prioritizing extremal nodes
-  std::vector<Label> Nodes(ExtremalLabels);
-  for (Label Node : llvm::nodes(Flow)) {
-    Nodes.push_back(Node);
-  }
-  for (Label Start : Nodes) {
+  for (Label Start : InitialNodes) {
     if (Visited.count(Start) == 0) {
       // Fill the worklist with nodes in reverse post order
       // lauching a visit from each remaining node
@@ -124,7 +109,8 @@ getMaximalFixedPoint(const MFI &Instance, const typename MFI::GraphType &Flow,
     for (Label End : successors<GT>(Start)) {
       auto &PartialStart = PartialAnalysis.at(Start);
       LatticeElement
-        UpdatedEndAnalysis = Instance.applyTransferFunction(Start, PartialStart);
+        UpdatedEndAnalysis = Instance.applyTransferFunction(Start,
+                                                            PartialStart);
       auto &PartialEnd = PartialAnalysis.at(End);
       if (!Instance.isLessOrEqual(UpdatedEndAnalysis, PartialEnd)) {
         PartialEnd = Instance.combineValues(PartialEnd, UpdatedEndAnalysis);
@@ -139,6 +125,37 @@ getMaximalFixedPoint(const MFI &Instance, const typename MFI::GraphType &Flow,
                              Instance.applyTransferFunction(Node, Analysis) };
   }
   return AnalysisResult;
+}
+
+/// Compute the maximum fixed points of an instance of monotone framework
+/// GT an instance of llvm::GraphTraits
+template<MonotoneFrameworkInstance MFI,
+         typename GT = llvm::GraphTraits<typename MFI::GraphType>>
+std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
+getMaximalFixedPoint(const MFI &Instance,
+                     const typename MFI::GraphType &Flow,
+                     typename MFI::LatticeElement InitialValue,
+                     typename MFI::LatticeElement ExtremalValue,
+                     const std::vector<typename MFI::Label> &ExtremalLabels) {
+  typedef typename MFI::Label Label;
+  std::vector<Label> InitialNodes(ExtremalLabels);
+
+  // Handle the special case that the graph has a single entry node
+  if (GT::getEntryNode(Flow) != nullptr) {
+    InitialNodes.push_back(GT::getEntryNode(Flow));
+  }
+  // Start visits for nodes that we still haven't visited
+  // prioritizing extremal nodes
+  for (Label Node :
+       llvm::make_range(GT::nodes_begin(Flow), GT::nodes_end(Flow))) {
+    InitialNodes.push_back(Node);
+  }
+  return getMaximalFixedPoint<MFI, GT>(Instance,
+                                       Flow,
+                                       InitialValue,
+                                       ExtremalValue,
+                                       ExtremalLabels,
+                                       InitialNodes);
 }
 
 } // namespace MFP
