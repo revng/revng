@@ -8,6 +8,7 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "revng/ABIAnalyses/ABIAnalysisPass.h"
+#include "revng/ABIAnalyses/DeadRegisterArgumentsOfFunction.h"
 #include "revng/ABIAnalyses/DeadReturnValuesOfFunctionCall.h"
 
 using namespace llvm;
@@ -22,31 +23,47 @@ static cl::opt<std::string> FilterFunction("new-abi-analysis-function",
                                            cl::cat(RevNgCategory));
 char ABIAnalysisPass::ID = 0;
 
-static llvm::RegisterPass<ABIAnalysisPass>
+static RegisterPass<ABIAnalysisPass>
   X("new-abi-analysis", "abianalysis Functions Pass", true, true);
 
-bool ABIAnalysisPass::runOnFunction(llvm::Function &F) {
+bool ABIAnalysisPass::runOnFunction(Function &F) {
   // Retrieve analysis of the GeneratedCodeBasicInfo pass
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   if (F.getName().str().compare(FilterFunction) != 0) {
     return false;
   }
 
-  llvm::errs() << F.getName().str() << '\n';
+  errs() << F.getName().str() << '\n';
+  errs() << "---------------- START DeadReturnValuesOfFunctionCall "
+            "----------------\n";
   for (auto &B : F) {
     for (auto &I : B) {
-      if (I.getOpcode() == llvm::Instruction::Call) {
-        llvm::errs() << "---------------- START ----------------\n";
+      if (I.getOpcode() == Instruction::Call) {
 
         auto Result = DeadReturnValuesOfFunctionCall::analyze(&I, &F, GCBI, {});
-        llvm::errs() << "---------------- RESULTS ----------------\n";
+        errs() << "---------------- RESULTS ";
+        I.print(errs());
+        errs() << " ----------------\n";
 
         for (auto &Reg : Result) {
-          llvm::errs() << "NoOrDead " << Reg.first->getName().str() << '\n';
+          errs() << "NoOrDead " << Reg.first->getName().str() << '\n';
         }
-        llvm::errs() << "---------------- END -------------------\n";
       }
     }
   }
+  errs() << "---------------- END DeadReturnValuesOfFunctionCall "
+            "-------------------\n";
+
+  errs() << "---------------- START DeadRegisterArgumentsOfFunction "
+            "----------------\n";
+
+  auto Result = DeadRegisterArgumentsOfFunction::analyze(&F, GCBI, {});
+  errs() << "---------------- RESULTS ----------------\n";
+
+  for (auto &Reg : Result) {
+    errs() << "NoOrDead " << Reg.first->getName().str() << '\n';
+  }
+  errs() << "---------------- END DeadRegisterArgumentsOfFunction "
+            "-------------------\n";
   return false;
 }
