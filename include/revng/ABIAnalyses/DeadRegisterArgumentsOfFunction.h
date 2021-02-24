@@ -27,8 +27,8 @@ struct MFI : ABIAnalyses::ABIAnalysis {
   using Label = const llvm::BasicBlock *;
   using GraphType = const llvm::BasicBlock *;
 
-  LatticeElement combineValues(const LatticeElement &Lh,
-                               const LatticeElement &Rh) const;
+  LatticeElement
+  combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const;
   LatticeElement applyTransferFunction(Label, const LatticeElement &E) const;
   bool isLessOrEqual(const LatticeElement &Lh, const LatticeElement &Rh) const;
 };

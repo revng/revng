@@ -120,14 +120,16 @@ analyze(const Instruction *CallSite,
         const GeneratedCodeBasicInfo &GCBI,
         const StackAnalysis::FunctionProperties &FP) {
 
+  MFI Instance{ { CallSite, GCBI, FP } };
+  DenseMap<int32_t, State> InitialValue{ { InitialRegisterState, Unknown } };
+  DenseMap<int32_t, State> ExtremalValue{ { InitialRegisterState, Unknown } };
 
-  MFI Instance{{CallSite, GCBI, FP}};
-  DenseMap<int32_t, State> InitialValue{{InitialRegisterState, Unknown}};
-  DenseMap<int32_t, State> ExtremalValue{{InitialRegisterState, Unknown}};
-
-  auto Results = MFP::getMaximalFixedPoint<MFI>(
-      Instance, CallSite->getParent(), InitialValue, ExtremalValue,
-      {CallSite->getParent()}, {CallSite->getParent()});
+  auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
+                                                CallSite->getParent(),
+                                                InitialValue,
+                                                ExtremalValue,
+                                                { CallSite->getParent() },
+                                                { CallSite->getParent() });
 
   DenseMap<GlobalVariable *, State> RegNoOrDead{};
 
