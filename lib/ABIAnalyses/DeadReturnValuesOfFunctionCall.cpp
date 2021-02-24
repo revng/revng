@@ -18,74 +18,8 @@
 
 namespace DeadReturnValuesOfFunctionCall {
 using namespace llvm;
+using namespace ABIAnalyses;
 using LatticeElement = MFI::LatticeElement;
-
-bool MFI::isABIRegister(const Value *V) const {
-  if (const auto &G = dyn_cast<GlobalVariable>(V)) {
-    if (ABIRegisters.count(G) != 0) {
-      return true;
-    }
-  }
-  return false;
-}
-
-TransferKind MFI::classifyInstruction(const llvm::Instruction *I) const {
-  switch (I->getOpcode()) {
-  case llvm::Instruction::Store: {
-    auto S = llvm::cast<llvm::StoreInst>(I);
-    if (isABIRegister(S->getPointerOperand())) {
-      return Write;
-    }
-    break;
-  }
-  case llvm::Instruction::Load: {
-    auto L = llvm::cast<llvm::LoadInst>(I);
-    if (isABIRegister(L->getPointerOperand())) {
-      return Read;
-    }
-    break;
-  }
-  case llvm::Instruction::Call: {
-    if (I == CallSite) {
-      return TheCall;
-    }
-    return WeakWrite;
-  }
-  }
-  return None;
-}
-
-llvm::SmallVector<int32_t, 1>
-MFI::getRegistersWritten(const llvm::Instruction *I) const {
-  llvm::SmallVector<int32_t, 1> Result;
-  switch (I->getOpcode()) {
-  case llvm::Instruction::Store: {
-    auto S = llvm::cast<llvm::StoreInst>(I);
-    if (isABIRegister(S->getPointerOperand())) {
-      Result.push_back(ABIRegisters.lookup(
-        llvm::cast<llvm::GlobalVariable>(S->getPointerOperand())));
-    }
-    break;
-  }
-  }
-  return Result;
-}
-
-llvm::SmallVector<int32_t, 1>
-MFI::getRegistersRead(const llvm::Instruction *I) const {
-  llvm::SmallVector<int32_t, 1> Result;
-  switch (I->getOpcode()) {
-  case llvm::Instruction::Load: {
-    auto L = llvm::cast<llvm::LoadInst>(I);
-    if (isABIRegister(L->getPointerOperand())) {
-      Result.push_back(ABIRegisters.lookup(
-        llvm::cast<llvm::GlobalVariable>(L->getPointerOperand())));
-    }
-    break;
-  }
-  }
-  return Result;
-}
 
 static State getMax(State Lh, State Rh) {
   if (Lh == NoOrDead) {
@@ -172,8 +106,7 @@ MFI::applyTransferFunction(Label L, const LatticeElement &E) const {
       }
       break;
     }
-    case WeakWrite:
-    case None:
+    default:
       break;
     }
   }
@@ -181,58 +114,27 @@ MFI::applyTransferFunction(Label L, const LatticeElement &E) const {
   return New;
 }
 
-llvm::DenseMap<llvm::GlobalVariable *, State>
-analyze(const llvm::Instruction *CallSite,
-        llvm::Function *Entry,
+DenseMap<GlobalVariable *, State>
+analyze(const Instruction *CallSite,
+        Function *Entry,
         const GeneratedCodeBasicInfo &GCBI,
         const StackAnalysis::FunctionProperties &FP) {
-  llvm::errs() << "going " << Entry->getName().str() << " " << Entry->size()
-               << '\n';
-  CallSite->print(llvm::errs());
-  llvm::errs() << '\n';
-  llvm::DenseMap<llvm::GlobalVariable *, int32_t> ABIRegisters;
-  llvm::DenseMap<int32_t, llvm::GlobalVariable *> IndexABIRegisters;
 
-  for (auto *CSV : GCBI.csvs())
-    if (CSV) {
-      ABIRegisters[CSV] = ABIRegisters.size();
-      IndexABIRegisters[ABIRegisters[CSV]] = CSV;
-    }
 
-  MFI Instance{ CallSite, ABIRegisters, FP };
-  llvm::DenseMap<int32_t, State> InitialValue{ { InitialRegisterState,
-                                                 Unknown } };
-  llvm::DenseMap<int32_t, State> ExtremalValue{ { InitialRegisterState,
-                                                  Unknown } };
+  MFI Instance{{CallSite, GCBI, FP}};
+  DenseMap<int32_t, State> InitialValue{{InitialRegisterState, Unknown}};
+  DenseMap<int32_t, State> ExtremalValue{{InitialRegisterState, Unknown}};
 
-  auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
-                                                CallSite->getParent(),
-                                                InitialValue,
-                                                ExtremalValue,
-                                                { CallSite->getParent() },
-                                                { CallSite->getParent() });
-  llvm::errs() << "finished MFP " << Results.size() << "\n";
-  llvm::DenseMap<llvm::GlobalVariable *, State> RegNoOrDead{};
-  // start debug stuff
+  auto Results = MFP::getMaximalFixedPoint<MFI>(
+      Instance, CallSite->getParent(), InitialValue, ExtremalValue,
+      {CallSite->getParent()}, {CallSite->getParent()});
 
-  for (auto &Result : Results) {
-    Result.first->print(llvm::errs());
-    llvm::errs() << '\n';
-    for (auto &KV : Result.second.OutValue) {
-      llvm::errs() << "BB RAW " << KV.first << " " << KV.second << "\n";
-      if (IndexABIRegisters.count(KV.first) != 0) {
-        auto *GV = IndexABIRegisters[KV.first];
-        llvm::errs() << "BB RESULT " << GV->getName().str() << " " << KV.second
-                     << "\n";
-      }
-    }
-  }
-  // end debug stuff
-  for (auto &Result : Results) {
-    for (auto &KV : Result.second.OutValue) {
-      if (KV.second == NoOrDead && IndexABIRegisters.count(KV.first) != 0) {
-        auto *GV = IndexABIRegisters[KV.first];
-        if (Instance.isABIRegister(GV)) {
+  DenseMap<GlobalVariable *, State> RegNoOrDead{};
+
+  for (auto &[BB, Result] : Results) {
+    for (auto &[RegID, RegState] : Result.OutValue) {
+      if (RegState == NoOrDead) {
+        if (auto *GV = Instance.getABIRegister(RegID)) {
           RegNoOrDead[GV] = NoOrDead;
         }
       }
