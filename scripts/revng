@@ -35,6 +35,16 @@ def relative(path):
 def run(command, override={}):
   if is_executable(command[0]):
     command = wrap(command)
+
+  global log_commands
+  if log_commands:
+    cwd = os.getcwd().rstrip("/")
+    if command[0].startswith(cwd):
+      program_path = "." + command[0][len(cwd):]
+    else:
+      program_path = command[0]
+    sys.stderr.write("{}\n\n".format(" \\\n  ".join([program_path] + command[1:])))
+
   signal.signal(signal.SIGINT, signal.SIG_IGN)
   environment = dict(os.environ)
   environment.update(override)
@@ -305,18 +315,7 @@ def build_linking_options(li_csv_path, need_csv_path):
 
 def wrap(args):
   global command_prefix
-  args = command_prefix + args
-
-  global log_commands
-  if log_commands:
-    cwd = os.getcwd().rstrip("/")
-    if args[0].startswith(cwd):
-      program_path = "." + args[0][len(cwd):]
-    else:
-      program_path = args[0]
-    sys.stderr.write("{}\n\n".format(" \\\n  ".join([program_path] + args[1:])))
-
-  return args
+  return command_prefix + args
 
 def run_translate(args):
   parser = argparse.ArgumentParser(description="The rev.ng translator.",
