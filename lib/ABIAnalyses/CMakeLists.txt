@@ -4,7 +4,8 @@
 
 revng_add_analyses_library_internal(revngABIAnalyses
   ABIAnalysisPass.cpp
-  DeadReturnValuesOfFunctionCall.cpp)
+  DeadReturnValuesOfFunctionCall.cpp
+  DeadRegisterArgumentsOfFunction.cpp)
 
 target_link_libraries(revngABIAnalyses
   revngStackAnalysis

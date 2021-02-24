@@ -1,7 +1,11 @@
-//
-// This file is distributed under the MIT License. See LICENSE.md for details.
-//
+#include <cstdio>
+#include <iostream>
+#include <llvm/IR/Instructions.h>
+#include <llvm/Support/Casting.h>
 
+#include "revng/ABIAnalyses/DeadRegisterArgumentsOfFunction.h"
+#include "revng/MFP/MFP.h"
+#include "revng/Support/revng.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/SmallVector.h"
@@ -9,15 +13,8 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/Support/Casting.h"
 
-#include "revng/ABIAnalyses/DeadReturnValuesOfFunctionCall.h"
-#include "revng/MFP/MFP.h"
-#include "revng/Support/revng.h"
-
-namespace DeadReturnValuesOfFunctionCall {
-using namespace llvm;
+namespace DeadRegisterArgumentsOfFunction {
 using namespace ABIAnalyses;
 using LatticeElement = MFI::LatticeElement;
 
@@ -35,8 +32,8 @@ static State getMax(State Lh, State Rh) {
   }
 }
 
-LatticeElement
-MFI::combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {
+LatticeElement MFI::combineValues(const LatticeElement &Lh,
+                                  const LatticeElement &Rh) const {
 
   LatticeElement New = Lh;
   for (const auto &KV : Rh) {
@@ -46,7 +43,6 @@ MFI::combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {
       New[KV.first] = KV.second;
     }
   }
-  New.erase(InitialRegisterState);
   return New;
 }
 
@@ -55,9 +51,6 @@ bool MFI::isLessOrEqual(const LatticeElement &Lh,
   if (Lh.size() > Rh.size())
     return false;
   for (auto &E : Lh) {
-    if (E.first == InitialRegisterState) {
-      continue;
-    }
     if (Rh.count(E.first) == 0) {
       return false;
     }
@@ -69,25 +62,11 @@ bool MFI::isLessOrEqual(const LatticeElement &Lh,
   return true;
 }
 
-LatticeElement
-MFI::applyTransferFunction(Label L, const LatticeElement &E) const {
+LatticeElement MFI::applyTransferFunction(Label L,
+                                          const LatticeElement &E) const {
   LatticeElement New = E;
   for (auto &I : *L) {
     switch (classifyInstruction(&I)) {
-    case TheCall: {
-      if (New.count(InitialRegisterState) != 0) {
-        // The first time we hit TheCall is actually the start of our graph
-        New.clear();
-      } else {
-        New.clear();
-        // This is not the first time we hit TheCall, so there is a path from
-        // TheCall to itself, we should return Unknown in this case
-        for (auto &Reg : ABIRegisters) {
-          New[Reg.second] = Unknown;
-        }
-      }
-      break;
-    }
     case Read: {
       for (auto &Reg : getRegistersRead(&I)) {
         const auto &V = New.find(Reg);
@@ -106,40 +85,54 @@ MFI::applyTransferFunction(Label L, const LatticeElement &E) const {
       }
       break;
     }
-    default:
+    case TheCall:
+    case WeakWrite:
+    case None:
       break;
     }
   }
-  New.erase(InitialRegisterState);
   return New;
 }
 
-DenseMap<GlobalVariable *, State>
-analyze(const Instruction *CallSite,
-        Function *Entry,
+llvm::DenseMap<llvm::GlobalVariable *, State>
+analyze(const llvm::Function *F,
         const GeneratedCodeBasicInfo &GCBI,
         const StackAnalysis::FunctionProperties &FP) {
 
 
-  MFI Instance{{CallSite, GCBI, FP}};
-  DenseMap<int32_t, State> InitialValue{{InitialRegisterState, Unknown}};
-  DenseMap<int32_t, State> ExtremalValue{{InitialRegisterState, Unknown}};
+  MFI Instance{{GCBI, FP}};
+  llvm::DenseMap<int32_t, State> InitialValue{};
+  llvm::DenseMap<int32_t, State> ExtremalValue{};
 
   auto Results = MFP::getMaximalFixedPoint<MFI>(
-      Instance, CallSite->getParent(), InitialValue, ExtremalValue,
-      {CallSite->getParent()}, {CallSite->getParent()});
+      Instance, &F->getEntryBlock(), InitialValue, ExtremalValue,
+      {&F->getEntryBlock()}, {&F->getEntryBlock()});
 
-  DenseMap<GlobalVariable *, State> RegNoOrDead{};
+  llvm::DenseMap<llvm::GlobalVariable *, State> RegUnknown{};
+  llvm::DenseMap<llvm::GlobalVariable *, State> RegNoOrDead{};
+
+  for (auto &[BB, Result] : Results) {
+    for (auto &[RegID, RegState] : Result.OutValue) {
+      if (RegState == Unknown) {
+        if (auto *GV = Instance.getABIRegister(RegID)) {
+          RegUnknown[GV] = Unknown;
+        }
+      }
+    }
+  }
 
   for (auto &[BB, Result] : Results) {
     for (auto &[RegID, RegState] : Result.OutValue) {
       if (RegState == NoOrDead) {
         if (auto *GV = Instance.getABIRegister(RegID)) {
-          RegNoOrDead[GV] = NoOrDead;
+          if (RegUnknown.count(GV) == 0) {
+            RegNoOrDead[GV] = NoOrDead;
+          }
         }
       }
     }
   }
+
   return RegNoOrDead;
-} 
-} // namespace DeadReturnValuesOfFunctionCall
+}
+} // namespace DeadRegisterArgumentsOfFunction

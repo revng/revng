@@ -15,13 +15,13 @@
 #include "revng/StackAnalysis/StackAnalysis.h"
 #include "revng/Support/revng.h"
 
-namespace DeadReturnValuesOfFunctionCall {
+namespace DeadRegisterArgumentsOfFunction {
 
 enum State { NoOrDead, Maybe, Unknown };
 
 // special register index, if found inside LatticeElement
 // it means that it is the first time visiting the BasicBlock
-const int32_t InitialRegisterState = -1;
+
 struct MFI : ABIAnalyses::ABIAnalysis {
   using LatticeElement = llvm::DenseMap<int32_t, State>;
   using Label = const llvm::BasicBlock *;
@@ -34,8 +34,7 @@ struct MFI : ABIAnalyses::ABIAnalysis {
 };
 
 llvm::DenseMap<llvm::GlobalVariable *, State>
-analyze(const llvm::Instruction *CallSite,
-        llvm::Function *Entry,
+analyze(const llvm::Function *Entry,
         const GeneratedCodeBasicInfo &GCBI,
         const StackAnalysis::FunctionProperties &FP);
-} // namespace DeadReturnValuesOfFunctionCall
+} // namespace DeadRegisterArgumentsOfFunction
