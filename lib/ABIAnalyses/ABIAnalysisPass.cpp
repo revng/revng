@@ -26,13 +26,13 @@ static llvm::RegisterPass<ABIAnalysisPass>
   X("new-abi-analysis", "abianalysis Functions Pass", true, true);
 
 bool ABIAnalysisPass::runOnFunction(llvm::Function &F) {
-  llvm::errs() << F.getName().str() << '\n';
   // Retrieve analysis of the GeneratedCodeBasicInfo pass
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   if (F.getName().str().compare(FilterFunction) != 0) {
     return false;
   }
 
+  llvm::errs() << F.getName().str() << '\n';
   for (auto &B : F) {
     for (auto &I : B) {
       if (I.getOpcode() == llvm::Instruction::Call) {
