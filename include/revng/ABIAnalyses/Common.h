@@ -21,12 +21,13 @@ enum TransferKind { Read, Write, WeakWrite, TheCall, None };
 struct ABIAnalysis {
 
   ABIAnalysis(const GeneratedCodeBasicInfo &GCBI,
-              const StackAnalysis::FunctionProperties &P)
-      : ABIAnalysis(nullptr, GCBI, P){};
+              const StackAnalysis::FunctionProperties &P) :
+    ABIAnalysis(nullptr, GCBI, P){};
 
-  ABIAnalysis(const llvm::Instruction *CS, const GeneratedCodeBasicInfo &GCBI,
-              const StackAnalysis::FunctionProperties &P)
-      : CallSite(CS), Properties(P), GCBI(GCBI) {
+  ABIAnalysis(const llvm::Instruction *CS,
+              const GeneratedCodeBasicInfo &GCBI,
+              const StackAnalysis::FunctionProperties &P) :
+    CallSite(CS), Properties(P), GCBI(GCBI) {
 
     for (auto *CSV : GCBI.abiRegisters())
       if (CSV) {
@@ -78,7 +79,6 @@ inline llvm::GlobalVariable *ABIAnalysis::getABIRegister(int32_t RegID) const {
   return nullptr;
 }
 
-
 inline TransferKind
 ABIAnalysis::classifyInstruction(const llvm::Instruction *I) const {
   switch (I->getOpcode()) {
@@ -114,21 +114,9 @@ ABIAnalysis::getRegistersWritten(const llvm::Instruction *I) const {
     auto S = llvm::cast<llvm::StoreInst>(I);
     if (isABIRegister(S->getPointerOperand())) {
       Result.push_back(ABIRegisters.lookup(
-          llvm::cast<llvm::GlobalVariable>(S->getPointerOperand())));
+        llvm::cast<llvm::GlobalVariable>(S->getPointerOperand())));
     }
     break;
-  }
-  case llvm::Instruction::Call: {
-    auto C = llvm::cast<llvm::CallInst>(I);
-    if (I != CallSite) {
-      for (auto &Reg : Properties.getRegistersClobbered(
-               &C->getCalledFunction()->getEntryBlock())) {
-        auto GV = llvm::cast<llvm::GlobalVariable>(Reg);
-        if (isABIRegister(GV)) {
-          Result.push_back(ABIRegisters.lookup(GV));
-        }
-      }
-    }
   }
   }
   return Result;
@@ -142,20 +130,7 @@ ABIAnalysis::getRegistersRead(const llvm::Instruction *I) const {
     auto L = llvm::cast<llvm::LoadInst>(I);
     if (isABIRegister(L->getPointerOperand())) {
       Result.push_back(ABIRegisters.lookup(
-          llvm::cast<llvm::GlobalVariable>(L->getPointerOperand())));
-    }
-    break;
-  }
-  case llvm::Instruction::Call: {
-    auto C = llvm::cast<llvm::CallInst>(I);
-    if (I != CallSite) {
-      for (auto &Reg : Properties.getUninitializedRegistersRead(
-               &C->getCalledFunction()->getEntryBlock())) {
-        auto GV = llvm::cast<llvm::GlobalVariable>(Reg);
-        if (isABIRegister(GV)) {
-          Result.push_back(ABIRegisters.lookup(GV));
-        }
-      }
+        llvm::cast<llvm::GlobalVariable>(L->getPointerOperand())));
     }
     break;
   }

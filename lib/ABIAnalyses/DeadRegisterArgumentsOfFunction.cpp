@@ -1,11 +1,7 @@
-#include <cstdio>
-#include <iostream>
-#include <llvm/IR/Instructions.h>
-#include <llvm/Support/Casting.h>
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
 
-#include "revng/ABIAnalyses/DeadRegisterArgumentsOfFunction.h"
-#include "revng/MFP/MFP.h"
-#include "revng/Support/revng.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/SmallVector.h"
@@ -13,8 +9,15 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/Support/Casting.h"
+
+#include "revng/ABIAnalyses/DeadRegisterArgumentsOfFunction.h"
+#include "revng/MFP/MFP.h"
+#include "revng/Support/revng.h"
 
 namespace DeadRegisterArgumentsOfFunction {
+using namespace llvm;
 using namespace ABIAnalyses;
 using LatticeElement = MFI::LatticeElement;
 
@@ -32,8 +35,8 @@ static State getMax(State Lh, State Rh) {
   }
 }
 
-LatticeElement MFI::combineValues(const LatticeElement &Lh,
-                                  const LatticeElement &Rh) const {
+LatticeElement
+MFI::combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {
 
   LatticeElement New = Lh;
   for (const auto &KV : Rh) {
@@ -62,8 +65,8 @@ bool MFI::isLessOrEqual(const LatticeElement &Lh,
   return true;
 }
 
-LatticeElement MFI::applyTransferFunction(Label L,
-                                          const LatticeElement &E) const {
+LatticeElement
+MFI::applyTransferFunction(Label L, const LatticeElement &E) const {
   LatticeElement New = E;
   for (auto &I : *L) {
     switch (classifyInstruction(&I)) {
@@ -85,31 +88,31 @@ LatticeElement MFI::applyTransferFunction(Label L,
       }
       break;
     }
-    case TheCall:
-    case WeakWrite:
-    case None:
+    default:
       break;
     }
   }
   return New;
 }
 
-llvm::DenseMap<llvm::GlobalVariable *, State>
-analyze(const llvm::Function *F,
+DenseMap<GlobalVariable *, State>
+analyze(const Function *F,
         const GeneratedCodeBasicInfo &GCBI,
         const StackAnalysis::FunctionProperties &FP) {
 
+  MFI Instance{ { GCBI, FP } };
+  DenseMap<int32_t, State> InitialValue{};
+  DenseMap<int32_t, State> ExtremalValue{};
 
-  MFI Instance{{GCBI, FP}};
-  llvm::DenseMap<int32_t, State> InitialValue{};
-  llvm::DenseMap<int32_t, State> ExtremalValue{};
+  auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
+                                                &F->getEntryBlock(),
+                                                InitialValue,
+                                                ExtremalValue,
+                                                { &F->getEntryBlock() },
+                                                { &F->getEntryBlock() });
 
-  auto Results = MFP::getMaximalFixedPoint<MFI>(
-      Instance, &F->getEntryBlock(), InitialValue, ExtremalValue,
-      {&F->getEntryBlock()}, {&F->getEntryBlock()});
-
-  llvm::DenseMap<llvm::GlobalVariable *, State> RegUnknown{};
-  llvm::DenseMap<llvm::GlobalVariable *, State> RegNoOrDead{};
+  DenseMap<GlobalVariable *, State> RegUnknown{};
+  DenseMap<GlobalVariable *, State> RegNoOrDead{};
 
   for (auto &[BB, Result] : Results) {
     for (auto &[RegID, RegState] : Result.OutValue) {
