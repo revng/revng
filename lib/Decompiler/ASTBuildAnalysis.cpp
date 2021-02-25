@@ -18,6 +18,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
@@ -52,6 +53,13 @@ using LLVMType = llvm::Type;
 using LLVMPointerType = llvm::PointerType;
 using TypeDeclOrQualType = DeclCreator::TypeDeclOrQualType;
 
+static std::string dumpToString(const llvm::SCEV *S) {
+  std::string Result;
+  auto Stream = llvm::raw_string_ostream(Result);
+  S->print(Stream);
+  return Result;
+}
+
 namespace IR2AST {
 
 Expr *StmtBuilder::getParenthesizedExprForValue(const Value *V) {
@@ -67,8 +75,14 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
   // If we have type info we try to understand if the current instruction
   // can represents some form of pointer arithmetic that can be translated
   // into a nice access to a field of a struct.
-  if (Stmt *PointerArithmeticStmt = buildPointerArithmeticExpr(I))
-    return PointerArithmeticStmt;
+  {
+    auto Indent = LoggerIndent(ASTBuildLog);
+    if (Stmt *PointerArithmeticStmt = buildPointerArithmeticExpr(I)) {
+      revng_log(ASTBuildLog,
+                "Built Pointer Arithmetic for: " << dumpToString(&I));
+      return PointerArithmeticStmt;
+    }
+  }
 
   // If we were not able to emit pointer arithmetic as a nice access to a
   // field struct fallback to normal emission.
@@ -942,29 +956,42 @@ getNestedFieldIds(const SCEV *Off,
                   llvm::ScalarEvolution *SE,
                   clang::ASTContext &ASTCtx) {
 
+  auto Indent = LoggerIndent(ASTBuildLog);
+
   llvm::LLVMContext &LLVMCtx = Off->getType()->getContext();
 
   using ResultVec = llvm::SmallVector<StmtBuilder::LayoutChildInfo, 8>;
   ResultVec Result;
 
+  revng_log(ASTBuildLog, dumpToString(Off));
+
   switch (Off->getSCEVType()) {
 
   case llvm::scConstant: {
+    revng_log(ASTBuildLog, "scConstant");
     auto *ConstOff = llvm::cast<llvm::SCEVConstant>(Off);
     llvm::APInt APOff = ConstOff->getAPInt();
 
-    if (APOff.isNegative())
+    if (APOff.isNegative()) {
+      revng_log(ASTBuildLog, "APOff isNegative: " << dumpToString(Off));
       break;
+    }
 
-    if (APOff.uge(BasePointedLayout->size()))
+    if (APOff.uge(BasePointedLayout->size())) {
+      revng_log(ASTBuildLog,
+                "APOff.uge(size): " << BasePointedLayout->size()
+                                    << " <= " << dumpToString(Off));
       break;
+    }
 
     switch (BasePointedLayout->getKind()) {
 
-    case dla::Layout::LayoutKind::Padding:
-      break;
+    case dla::Layout::LayoutKind::Padding: {
+      revng_log(ASTBuildLog, "LayoutKind::Padding");
+    } break;
 
     case dla::Layout::LayoutKind::Base: {
+      revng_log(ASTBuildLog, "LayoutKind::Base");
       if (APOff.isNullValue()) {
         auto *SizeType = llvm::IntegerType::getInt64Ty(LLVMCtx);
         auto *FieldId = llvm::ConstantInt::get(SizeType, 0);
@@ -973,6 +1000,7 @@ getNestedFieldIds(const SCEV *Off,
     } break;
 
     case dla::Layout::LayoutKind::Array: {
+      revng_log(ASTBuildLog, "LayoutKind::Array");
       const auto *Array = llvm::cast<dla::ArrayLayout>(BasePointedLayout);
       llvm::APInt Remainder;
       llvm::APInt Quotient;
@@ -999,6 +1027,7 @@ getNestedFieldIds(const SCEV *Off,
     } break;
 
     case dla::Layout::LayoutKind::Struct: {
+      revng_log(ASTBuildLog, "LayoutKind::Struct");
       auto *Struct = llvm::cast<dla::StructLayout>(BasePointedLayout);
 
       auto CumulativeSize = llvm::APInt::getNullValue(APOff.getBitWidth());
@@ -1032,6 +1061,7 @@ getNestedFieldIds(const SCEV *Off,
     } break;
 
     case dla::Layout::LayoutKind::Union: {
+      revng_log(ASTBuildLog, "LayoutKind::Union");
       auto *Union = llvm::cast<dla::UnionLayout>(BasePointedLayout);
 
       auto ElemResults = llvm::SmallVector<ResultVec, 8>(Union->numElements(),
@@ -1078,6 +1108,7 @@ getNestedFieldIds(const SCEV *Off,
   } break;
 
   case llvm::scAddRecExpr: {
+    revng_log(ASTBuildLog, "scAddRecExpr");
 
     // Setup a vector of nested addrecs.
     // We expect the first (most external one) to have
@@ -1199,6 +1230,7 @@ getNestedFieldIds(const SCEV *Off,
   case llvm::scMulExpr:
   case llvm::scAddExpr: {
     // Bail out in these cases
+    revng_log(ASTBuildLog, "Unhandled offset SCEV kind");
   } break;
 
   case llvm::scCouldNotCompute:
@@ -1218,8 +1250,10 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
   revng_assert(SE);
 
   // If I is not SCEVable, we can't work with SCEVs, so we can't to anything.
-  if (not SE->isSCEVable(I.getType()))
+  if (not SE->isSCEVable(I.getType())) {
+    revng_log(ASTBuildLog, "NOT SCEVABLE");
     return nullptr;
+  }
 
   const SCEV *ISCEV = SE->getSCEV(&I);
   // Compute the base address of the Instruction SCEV
@@ -1228,8 +1262,10 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
   // We expect no bases or at most one base address. If we get more than
   // one possible candidate base address for ISCEV we haven't decided
   // which type to emit yet, so this is not handled.
-  if (Bases.size() > 1)
+  if (Bases.size() > 1) {
+    revng_log(ASTBuildLog, "MANY BASES");
     return nullptr;
+  }
 
   // It was impossible to find a valid base address for ISCEV.
   // This means that we can still try to interpret ISCEV as base
@@ -1242,13 +1278,17 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
   // If it's not, we can't do anything for now.
   // However, this is a potential spot to detect loop induction variables in the
   // future.
-  if (not isa<llvm::SCEVUnknown>(Base))
+  if (not isa<llvm::SCEVUnknown>(Base)) {
+    revng_log(ASTBuildLog, "UNKNOWN BASE");
     return nullptr;
+  }
 
   // If Base == ISCEV it means that we have no pointer arithmetic to do at all,
   // so we can just bail out.
-  if (ISCEV == Base)
+  if (ISCEV == Base) {
+    revng_log(ASTBuildLog, "BASE OF ITSELF");
     return nullptr;
+  }
 
   const auto *BaseValue = cast<llvm::SCEVUnknown>(Base)->getValue();
 
@@ -1276,13 +1316,17 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
 
   // If we can't obtain the DLA type of BaseValue, we have nothing to work on to
   // properly emit the address arithmetic expression, so we bail out.
-  if (not DLAType.hasValue())
+  if (not DLAType.hasValue()) {
+    revng_log(ASTBuildLog, "DLA TYPE NOT FOUND");
     return nullptr;
+  }
 
   QualType DLAQualTy = DeclCreator::getQualType(DLAType.getValue());
   // We only accept DLA Types that are pointers to structs.
-  if (not DLAQualTy.getTypePtr()->isPointerType())
+  if (not DLAQualTy.getTypePtr()->isPointerType()) {
+    revng_log(ASTBuildLog, "DLA TYPE IS NOT A POINTER");
     return nullptr;
+  }
 
   auto BasePointedLayouts = Declarator.getPointedLayouts(BaseValue);
   // TODO: This assertion is eventually bound to fail whenever BaseValue has a
@@ -1328,8 +1372,10 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
   llvm::SmallVector<LayoutChildInfo, 8>
     NestedFields = getNestedFieldIds(Off, BasePointedLayout, SE, ASTCtx);
 
-  if (NestedFields.empty())
+  if (NestedFields.empty()) {
+    revng_log(ASTBuildLog, "CANNOT FIND PROPER NESTING");
     return nullptr;
+  }
 
   clang::Expr *Result = getExprForValue(BaseValue);
 
@@ -1338,8 +1384,10 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
   Result = getMemberAccessExpr(Result,
                                NestedFields.front(),
                                /* IsArrow */ true);
-  if (Result == nullptr)
+  if (Result == nullptr) {
+    revng_log(ASTBuildLog, "CANNOT BUILD EXPRESSION");
     return nullptr;
+  }
 
   // Create all the field past the first, if any.
   // All the subsequent, if present, have a dot (field1.field2).
@@ -1350,8 +1398,10 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
     }
 
     Result = getMemberAccessExpr(Result, ChildInfo, /* IsArrow */ false);
-    if (Result == nullptr)
+    if (Result == nullptr) {
+      revng_log(ASTBuildLog, "CANNOT BUILD NESTED EXPRESSION");
       return nullptr;
+    }
   }
 
   // Wrap all the pointer arithmetic inside an AddrOf expression, to prevent the
