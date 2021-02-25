@@ -108,7 +108,8 @@ public:
   TypeDeclOrQualType getOrCreateType(const llvm::Type *T,
                                      const llvm::Value *NamingValue,
                                      clang::ASTContext &ASTCtx,
-                                     clang::DeclContext &DeclCtx);
+                                     clang::DeclContext &DeclCtx,
+                                     bool AllowArbitraryBitSize = false);
 
   llvm::SmallVector<const dla::Layout *, 16>
   getPointedLayouts(const llvm::Value *V) const;

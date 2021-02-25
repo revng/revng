@@ -109,6 +109,11 @@ DeclCreator::createTypeFromLayout(const dla::Layout *L,
                                                  &TypeId,
                                                  nullptr);
 
+    // We have to insert it in the mapping before looking at its child,
+    // otherwise we risk to generate differenty types with duplicate names.
+    Result = StructDecl;
+    insertTypeMapping(L, Result);
+
     StructDecl->startDefinition();
 
     for (const auto &Group : llvm::enumerate(Struct->fields())) {
@@ -137,8 +142,6 @@ DeclCreator::createTypeFromLayout(const dla::Layout *L,
 
     StructDecl->completeDefinition();
 
-    Result = StructDecl;
-
   } break;
 
   case LayoutKind::Union: {
@@ -154,6 +157,11 @@ DeclCreator::createTypeFromLayout(const dla::Layout *L,
                                                 clang::SourceLocation{},
                                                 &TypeId,
                                                 nullptr);
+
+    // We have to insert it in the mapping before looking at its child,
+    // otherwise we risk to generate differenty types with duplicate names.
+    Result = UnionDecl;
+    insertTypeMapping(L, Result);
 
     UnionDecl->startDefinition();
 
@@ -182,8 +190,6 @@ DeclCreator::createTypeFromLayout(const dla::Layout *L,
     }
 
     UnionDecl->completeDefinition();
-
-    Result = UnionDecl;
 
   } break;
 

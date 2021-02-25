@@ -2,6 +2,7 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
@@ -11,9 +12,11 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/MathExtras.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
 
 #include "revng/Support/Assert.h"
@@ -104,11 +107,18 @@ DeclCreator::getOrCreateBoolType(clang::ASTContext &ASTCtx,
   return BoolType;
 }
 
+static bool IsPowerOf2(uint64_t BitWidth) {
+  return BitWidth == 1 or BitWidth == 8 or BitWidth == 16 or BitWidth == 32
+         or BitWidth == 64 or BitWidth == 128 or BitWidth == 256
+         or BitWidth == 512;
+}
+
 DeclCreator::TypeDeclOrQualType
 DeclCreator::getOrCreateType(const llvm::Type *Ty,
                              const llvm::Value *NamingValue,
                              clang::ASTContext &ASTCtx,
-                             clang::DeclContext &DeclCtx) {
+                             clang::DeclContext &DeclCtx,
+                             bool AllowArbitraryBitSize) {
 
   // First, look it up, to see if we've already computed it.
   llvm::Optional<TypeDeclOrQualType> CachedQTy = lookupType(Ty);
@@ -121,9 +131,14 @@ DeclCreator::getOrCreateType(const llvm::Type *Ty,
 
   case llvm::Type::TypeID::IntegerTyID: {
     auto *LLVMIntType = llvm::cast<llvm::IntegerType>(Ty);
-    unsigned BitWidth = LLVMIntType->getBitWidth();
-    revng_assert(BitWidth == 1 or BitWidth == 8 or BitWidth == 16
-                 or BitWidth == 32 or BitWidth == 64 or BitWidth == 128);
+
+    uint64_t BitWidth = LLVMIntType->getBitWidth();
+    if (AllowArbitraryBitSize) {
+      if (not IsPowerOf2(BitWidth))
+        BitWidth = llvm::PowerOf2Ceil(BitWidth);
+    } else {
+      revng_assert(IsPowerOf2(BitWidth));
+    }
 
     clang::TranslationUnitDecl *TUDecl = ASTCtx.getTranslationUnitDecl();
     revng_assert(TUDecl->isLookupContext());
@@ -202,10 +217,12 @@ DeclCreator::getOrCreateType(const llvm::Type *Ty,
   case llvm::Type::TypeID::PointerTyID: {
     const llvm::PointerType *PtrTy = llvm::cast<llvm::PointerType>(Ty);
     const llvm::Type *PointeeTy = PtrTy->getElementType();
-    TypeDeclOrQualType PointeeType = getOrCreateType(PointeeTy,
-                                                     nullptr,
-                                                     ASTCtx,
-                                                     DeclCtx);
+    TypeDeclOrQualType PointeeType = PointeeTy->isFunctionTy() ?
+                                       ASTCtx.VoidTy :
+                                       getOrCreateType(PointeeTy,
+                                                       nullptr,
+                                                       ASTCtx,
+                                                       DeclCtx);
     Result = ASTCtx.getPointerType(getQualType(PointeeType));
   } break;
 
@@ -225,20 +242,20 @@ DeclCreator::getOrCreateType(const llvm::Type *Ty,
                                              clang::SourceLocation{},
                                              &TypeId,
                                              nullptr);
+
+    // We have to insert it in the mapping before looking at its child,
+    // otherwise we risk to generate differenty types with duplicate names.
+    Result = Struct;
+    insertTypeMapping(Ty, Result.getValue());
+
     Struct->startDefinition();
     const auto *StructTy = llvm::cast<llvm::StructType>(Ty);
     for (auto &Group : llvm::enumerate(StructTy->elements())) {
-      llvm::Type *FieldTy = Group.value();
-      // HACK: Handle the type of the `@env` global variable, which we simply
-      //       cast to a `void` `nullptr` type.
-      if (FieldTy->getTypeID() == llvm::Type::TypeID::ArrayTyID) {
-        Result = ASTCtx.VoidTy;
-        break;
-      }
       TypeDeclOrQualType FTy = getOrCreateType(Group.value(),
                                                nullptr,
                                                ASTCtx,
-                                               DeclCtx);
+                                               DeclCtx,
+                                               true);
       clang::QualType QFieldTy = DeclCreator::getQualType(FTy);
       clang::TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(QFieldTy);
       const std::string FieldName = std::string("field_")
@@ -254,20 +271,66 @@ DeclCreator::getOrCreateType(const llvm::Type *Ty,
                                              nullptr,
                                              /*Mutable*/ false,
                                              clang::ICIS_NoInit);
+
+      // Detect fields with sizes different from a power of 2, that need to be
+      // rendered in C with bitfields
+      auto *IntFTy = llvm::dyn_cast<llvm::IntegerType>(Group.value());
+      if (IntFTy and not IsPowerOf2(IntFTy->getBitWidth())) {
+        llvm::APInt FieldSize(32 /* bits */, IntFTy->getBitWidth());
+
+        using clang::IntegerLiteral;
+        auto *BitFieldLiteral = IntegerLiteral::Create(ASTCtx,
+                                                       FieldSize,
+                                                       ASTCtx.IntTy,
+                                                       clang::SourceLocation{});
+
+        using clang::ConstantExpr;
+        auto *BitFieldSize = ConstantExpr::Create(ASTCtx, BitFieldLiteral);
+
+        Field->setBitWidth(BitFieldSize);
+      }
+
       Struct->addDecl(Field);
     }
     Struct->completeDefinition();
-    Result = Struct;
+
   } break;
-  case llvm::Type::TypeID::ArrayTyID:
+
+  case llvm::Type::TypeID::ArrayTyID: {
+    const auto *ArrayTy = llvm::cast<llvm::ArrayType>(Ty);
+    uint64_t NElem = ArrayTy->getNumElements();
+    const llvm::Type *ElemTy = ArrayTy->getElementType();
+    auto ArraySizeKind = clang::ArrayType::ArraySizeModifier::Normal;
+    TypeDeclOrQualType ElemDeclOrQualTy = getOrCreateType(ElemTy,
+                                                          nullptr,
+                                                          ASTCtx,
+                                                          DeclCtx);
+
+    revng_assert(not DeclCreator::getQualType(ElemDeclOrQualTy).isNull());
+    clang::QualType ElemQualTy = DeclCreator::getQualType(ElemDeclOrQualTy);
+    llvm::APInt ArraySize(64 /* bits */, NElem);
+    Result = ASTCtx.getConstantArrayType(ElemQualTy,
+                                         ArraySize,
+                                         nullptr,
+                                         ArraySizeKind,
+                                         0);
+
+  } break;
+
+  case llvm::Type::TypeID::FloatTyID: {
+    Result = ASTCtx.FloatTy;
+  } break;
+
+  case llvm::Type::TypeID::DoubleTyID: {
+    Result = ASTCtx.DoubleTy;
+  } break;
+
   case llvm::Type::TypeID::FunctionTyID:
   case llvm::Type::TypeID::VectorTyID:
   case llvm::Type::TypeID::LabelTyID:
   case llvm::Type::TypeID::X86_MMXTyID:
   case llvm::Type::TypeID::TokenTyID:
   case llvm::Type::TypeID::HalfTyID:
-  case llvm::Type::TypeID::FloatTyID:
-  case llvm::Type::TypeID::DoubleTyID:
   case llvm::Type::TypeID::X86_FP80TyID:
   case llvm::Type::TypeID::FP128TyID:
   case llvm::Type::TypeID::PPC_FP128TyID:
@@ -388,6 +451,12 @@ DeclCreator::getOrCreateDLAType(const llvm::Value *V,
                                                  clang::SourceLocation{},
                                                  &TypeId,
                                                  nullptr);
+
+        // We have to insert it in the mapping before looking at its child,
+        // otherwise we risk to generate differenty types with duplicate names.
+        Result = Struct;
+        insertTypeMapping(V, Result.getValue());
+
         // Define the fields.
         Struct->startDefinition();
 
@@ -425,8 +494,6 @@ DeclCreator::getOrCreateDLAType(const llvm::Value *V,
         }
 
         Struct->completeDefinition();
-
-        Result = Struct;
       }
     }
   }
