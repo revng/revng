@@ -1,0 +1,129 @@
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/iterator_range.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/Support/Casting.h"
+
+#include "revng/ABIAnalyses/UsedRegisterArgumentsOfFunction.h"
+#include "revng/MFP/MFP.h"
+#include "revng/Support/revng.h"
+
+namespace UsedRegisterArgumentsOfFunction {
+using namespace ABIAnalyses;
+using namespace llvm;
+
+using LatticeElement = MFI::LatticeElement;
+
+static State getMax(State Lh, State Rh) {
+  if (Lh == Unknown) {
+    return Rh;
+  } else if (Lh == Maybe) {
+    if (Rh == Yes) {
+      return Lh;
+    } else {
+      return Rh;
+    }
+  } else {
+    return Lh;
+  }
+}
+
+LatticeElement
+MFI::combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {
+
+  LatticeElement New = Lh;
+  for (const auto &KV : Rh) {
+    if (New.find(KV.first) != New.end()) {
+      New[KV.first] = getMax(New[KV.first], KV.second);
+    } else {
+      New[KV.first] = KV.second;
+    }
+  }
+  return New;
+}
+
+bool MFI::isLessOrEqual(const LatticeElement &Lh,
+                        const LatticeElement &Rh) const {
+  if (Lh.size() > Rh.size())
+    return false;
+  for (auto &E : Lh) {
+    if (Rh.count(E.first) == 0) {
+      return false;
+    }
+    auto RhState = Rh.lookup(E.first);
+    if (getMax(E.second, RhState) != RhState) {
+      return false;
+    }
+  }
+  return true;
+}
+
+LatticeElement
+MFI::applyTransferFunction(Label L, const LatticeElement &E) const {
+  LatticeElement New = E;
+  for (auto &I : *L) {
+    switch (classifyInstruction(&I)) {
+    case Read: {
+      for (auto &Reg : getRegistersRead(&I)) {
+        const auto &V = New.find(Reg);
+        if (V == New.end() || V->getSecond() == Maybe) {
+          New[Reg] = Yes;
+        }
+      }
+      break;
+    }
+    case Write: {
+      for (auto &Reg : getRegistersWritten(&I)) {
+        const auto &V = New.find(Reg);
+        if (V == New.end() || V->getSecond() == Maybe) {
+          New[Reg] = Unknown;
+        }
+      }
+      break;
+    }
+    default:
+      break;
+    }
+  }
+  return New;
+}
+
+DenseMap<GlobalVariable *, State>
+analyze(const Function *F,
+        const GeneratedCodeBasicInfo &GCBI,
+        const StackAnalysis::FunctionProperties &FP) {
+
+  MFI Instance{ { GCBI, FP } };
+  DenseMap<int32_t, State> InitialValue{};
+  DenseMap<int32_t, State> ExtremalValue{};
+
+  auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
+                                                &F->getEntryBlock(),
+                                                InitialValue,
+                                                ExtremalValue,
+                                                { &F->getEntryBlock() },
+                                                { &F->getEntryBlock() });
+
+  DenseMap<GlobalVariable *, State> RegYes{};
+
+  for (auto &[BB, Result] : Results) {
+    for (auto &[RegID, RegState] : Result.OutValue) {
+      if (RegState == Yes) {
+        if (auto *GV = Instance.getABIRegister(RegID)) {
+          RegYes[GV] = Yes;
+        }
+      }
+    }
+  }
+
+  return RegYes;
+}
+} // namespace UsedRegisterArgumentsOfFunction
