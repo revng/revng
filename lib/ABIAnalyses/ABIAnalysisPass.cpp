@@ -10,6 +10,7 @@
 #include "revng/ABIAnalyses/ABIAnalysisPass.h"
 #include "revng/ABIAnalyses/DeadRegisterArgumentsOfFunction.h"
 #include "revng/ABIAnalyses/DeadReturnValuesOfFunctionCall.h"
+#include "revng/ABIAnalyses/UsedRegisterArgumentsOfFunction.h"
 #include "revng/ABIAnalyses/UsedReturnValuesOfFunctionCall.h"
 
 using namespace llvm;
@@ -75,16 +76,31 @@ bool ABIAnalysisPass::runOnFunction(Function &F) {
   errs() << "---------------- END UsedReturnValuesOfFunctionCall "
             "-------------------\n";
 
-  errs() << "---------------- START DeadRegisterArgumentsOfFunction "
-            "----------------\n";
+  {
+    errs() << "---------------- START DeadRegisterArgumentsOfFunction "
+              "----------------\n";
+    auto Result = DeadRegisterArgumentsOfFunction::analyze(&F, GCBI, {});
+    errs() << "---------------- RESULTS ----------------\n";
 
-  auto Result = DeadRegisterArgumentsOfFunction::analyze(&F, GCBI, {});
-  errs() << "---------------- RESULTS ----------------\n";
-
-  for (auto &Reg : Result) {
-    errs() << "NoOrDead " << Reg.first->getName().str() << '\n';
+    for (auto &Reg : Result) {
+      errs() << "NoOrDead " << Reg.first->getName().str() << '\n';
+    }
+    errs() << "---------------- END DeadRegisterArgumentsOfFunction "
+              "-------------------\n";
   }
-  errs() << "---------------- END DeadRegisterArgumentsOfFunction "
-            "-------------------\n";
+
+  {
+    errs() << "---------------- START UsedRegisterArgumentsOfFunction "
+              "----------------\n";
+
+    auto Result = UsedRegisterArgumentsOfFunction::analyze(&F, GCBI, {});
+    errs() << "---------------- RESULTS ----------------\n";
+
+    for (auto &Reg : Result) {
+      errs() << "Yes " << Reg.first->getName().str() << '\n';
+    }
+    errs() << "---------------- END UsedRegisterArgumentsOfFunction "
+              "-------------------\n";
+  }
   return false;
 }
