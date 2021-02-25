@@ -10,6 +10,7 @@
 #include "revng/ABIAnalyses/ABIAnalysisPass.h"
 #include "revng/ABIAnalyses/DeadRegisterArgumentsOfFunction.h"
 #include "revng/ABIAnalyses/DeadReturnValuesOfFunctionCall.h"
+#include "revng/ABIAnalyses/UsedReturnValuesOfFunctionCall.h"
 
 using namespace llvm;
 
@@ -52,6 +53,26 @@ bool ABIAnalysisPass::runOnFunction(Function &F) {
     }
   }
   errs() << "---------------- END DeadReturnValuesOfFunctionCall "
+            "-------------------\n";
+
+  errs() << "---------------- START UsedReturnValuesOfFunctionCall "
+            "----------------\n";
+  for (auto &B : F) {
+    for (auto &I : B) {
+      if (I.getOpcode() == Instruction::Call) {
+
+        auto Result = UsedReturnValuesOfFunctionCall::analyze(&I, &F, GCBI, {});
+        errs() << "---------------- RESULTS ";
+        I.print(errs());
+        errs() << " ----------------\n";
+
+        for (auto &Reg : Result) {
+          errs() << "Yes " << Reg.first->getName().str() << '\n';
+        }
+      }
+    }
+  }
+  errs() << "---------------- END UsedReturnValuesOfFunctionCall "
             "-------------------\n";
 
   errs() << "---------------- START DeadRegisterArgumentsOfFunction "
