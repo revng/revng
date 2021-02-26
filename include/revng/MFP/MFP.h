@@ -54,9 +54,14 @@ concept MonotoneFrameworkInstance = requires(const MFI &I,
 };
 
 /// Compute the maximum fixed points of an instance of monotone framework
-/// GT an instance of llvm::GraphTraits
+/// GT an instance of llvm::GraphTraits that tells us how to visit the graph
+/// LGT a graph type that tells us how to visit the subgraph
+///   induced by a node in the graph. This is needed for the RPOT because for
+///   certain graph (e.g. Inverse<...>) the nodes don't necessary carry all
+///   the information that GraphType has
 template<MonotoneFrameworkInstance MFI,
-         typename GT = llvm::GraphTraits<typename MFI::GraphType>>
+         typename GT = llvm::GraphTraits<typename MFI::GraphType>,
+         typename LGT = typename MFI::Label>
 std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
 getMaximalFixedPoint(const MFI &Instance,
                      const typename MFI::GraphType &Flow,
@@ -64,8 +69,10 @@ getMaximalFixedPoint(const MFI &Instance,
                      typename MFI::LatticeElement ExtremalValue,
                      const std::vector<typename MFI::Label> &ExtremalLabels,
                      const std::vector<typename MFI::Label> &InitialNodes) {
-  typedef typename MFI::Label Label;
-  typedef typename MFI::LatticeElement LatticeElement;
+  using Label = typename MFI::Label;
+  using LatticeElement = typename MFI::LatticeElement;
+  using GraphType = typename MFI::GraphType;
+
   std::map<Label, LatticeElement> PartialAnalysis;
   std::map<Label, MFPResult<LatticeElement>> AnalysisResult;
 
@@ -89,7 +96,10 @@ getMaximalFixedPoint(const MFI &Instance,
     if (Visited.count(Start) == 0) {
       // Fill the worklist with nodes in reverse post order
       // lauching a visit from each remaining node
-      ReversePostOrderTraversalExt RPOTE(Start, Visited);
+      ReversePostOrderTraversalExt<LGT,
+                                   llvm::GraphTraits<LGT>,
+                                   llvm::SmallSet<Label, 8>>
+        RPOTE(Start, Visited);
       for (Label Node : RPOTE) {
         LabelPriority[Node] = LabelPriority.size();
         Worklist.insert({ LabelPriority.at(Node), Node });
@@ -129,8 +139,13 @@ getMaximalFixedPoint(const MFI &Instance,
 
 /// Compute the maximum fixed points of an instance of monotone framework
 /// GT an instance of llvm::GraphTraits
+/// LGT a graph type that tells us how to visit the subgraph
+///   induced by a node in the graph. This is needed for the RPOT because for
+///   certain graph (e.g. Inverse<...>) the nodes don't necessary carry all
+///   the information that GraphType has
 template<MonotoneFrameworkInstance MFI,
-         typename GT = llvm::GraphTraits<typename MFI::GraphType>>
+         typename GT = llvm::GraphTraits<typename MFI::GraphType>,
+         typename LGT = typename MFI::Label>
 std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
 getMaximalFixedPoint(const MFI &Instance,
                      const typename MFI::GraphType &Flow,
@@ -150,12 +165,12 @@ getMaximalFixedPoint(const MFI &Instance,
        llvm::make_range(GT::nodes_begin(Flow), GT::nodes_end(Flow))) {
     InitialNodes.push_back(Node);
   }
-  return getMaximalFixedPoint<MFI, GT>(Instance,
-                                       Flow,
-                                       InitialValue,
-                                       ExtremalValue,
-                                       ExtremalLabels,
-                                       InitialNodes);
+  return getMaximalFixedPoint<MFI, GT, LGT>(Instance,
+                                            Flow,
+                                            InitialValue,
+                                            ExtremalValue,
+                                            ExtremalLabels,
+                                            InitialNodes);
 }
 
 } // namespace MFP
