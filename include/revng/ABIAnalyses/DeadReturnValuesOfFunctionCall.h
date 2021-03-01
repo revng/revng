@@ -10,20 +10,19 @@
 #include "llvm/IR/Value.h"
 
 #include "revng/ABIAnalyses/Common.h"
+#include "revng/ABIAnalyses/DeadReturnValuesOfFunctionCallLattice.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/MFP/MFP.h"
+#include "revng/Model/Binary.h"
 #include "revng/StackAnalysis/StackAnalysis.h"
 #include "revng/Support/revng.h"
 
 namespace DeadReturnValuesOfFunctionCall {
+using Register = model::Register::Values;
+using State = model::RegisterState::Values;
 
-enum State { NoOrDead, Maybe, Unknown };
-
-// special register index, if found inside LatticeElement
-// it means that it is the first time visiting the BasicBlock
-const int32_t InitialRegisterState = -1;
 struct MFI : ABIAnalyses::ABIAnalysis {
-  using LatticeElement = llvm::DenseMap<int32_t, State>;
+  using LatticeElement = llvm::DenseMap<Register, CoreLattice::LatticeElement>;
   using Label = const llvm::BasicBlock *;
   using GraphType = const llvm::BasicBlock *;
 

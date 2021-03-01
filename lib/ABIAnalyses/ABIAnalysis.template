@@ -1,0 +1,23 @@
+#pragma once
+
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+// This file has been automatically generated from scripts/monotone-framework-lattice.py, please don't change it
+
+#include "revng/Model/Binary.h"
+#include "revng/ABIAnalyses/Common.h"
+
+namespace %LatticeName%::CoreLattice {
+
+using LatticeElement = model::RegisterState::Values;
+using TransferFunction = ABIAnalyses::TransferKind;
+
+%isLessOrEqual%
+
+%combineValues%
+
+%transfer%
+
+} // namespace %LatticeName%::CoreLattice
