@@ -12,8 +12,11 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/ABIAnalyses/Common.h"
 #include "revng/ABIAnalyses/DeadReturnValuesOfFunctionCall.h"
+#include "revng/ABIAnalyses/DeadReturnValuesOfFunctionCallLattice.h"
 #include "revng/MFP/MFP.h"
+#include "revng/Model/Binary.h"
 #include "revng/Support/revng.h"
 
 namespace DeadReturnValuesOfFunctionCall {
@@ -21,48 +24,25 @@ using namespace llvm;
 using namespace ABIAnalyses;
 using LatticeElement = MFI::LatticeElement;
 
-static State getMax(State Lh, State Rh) {
-  if (Lh == NoOrDead) {
-    return Rh;
-  } else if (Lh == Maybe) {
-    if (Rh == NoOrDead) {
-      return Lh;
-    } else {
-      return Rh;
-    }
-  } else {
-    return Lh;
-  }
-}
-
 LatticeElement
 MFI::combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {
 
   LatticeElement New = Lh;
-  for (const auto &KV : Rh) {
-    if (New.find(KV.first) != New.end()) {
-      New[KV.first] = getMax(New[KV.first], KV.second);
-    } else {
-      New[KV.first] = KV.second;
-    }
+  for (const auto &[Reg, S] : Rh) {
+    New[Reg] = CoreLattice::combineValues(New.lookup(Reg), Rh.lookup(Reg));
   }
-  New.erase(InitialRegisterState);
   return New;
 }
 
 bool MFI::isLessOrEqual(const LatticeElement &Lh,
                         const LatticeElement &Rh) const {
-  if (Lh.size() > Rh.size())
-    return false;
-  for (auto &E : Lh) {
-    if (E.first == InitialRegisterState) {
-      continue;
-    }
-    if (Rh.count(E.first) == 0) {
+  for (auto &[Reg, S] : Lh) {
+    if (!CoreLattice::isLessOrEqual(Lh.lookup(Reg), Rh.lookup(Reg))) {
       return false;
     }
-    auto RhState = Rh.lookup(E.first);
-    if (getMax(E.second, RhState) != RhState) {
+  }
+  for (auto &[Reg, S] : Rh) {
+    if (!CoreLattice::isLessOrEqual(Lh.lookup(Reg), Rh.lookup(Reg))) {
       return false;
     }
   }
@@ -73,44 +53,29 @@ LatticeElement
 MFI::applyTransferFunction(Label L, const LatticeElement &E) const {
   LatticeElement New = E;
   for (auto &I : *L) {
-    switch (classifyInstruction(&I)) {
+    TransferKind T = classifyInstruction(&I);
+    switch (T) {
     case TheCall: {
-      if (New.count(InitialRegisterState) != 0) {
-        // The first time we hit TheCall is actually the start of our graph
-        New.clear();
-      } else {
-        New.clear();
-        // This is not the first time we hit TheCall, so there is a path from
-        // TheCall to itself, we should return Unknown in this case
-        for (auto &Reg : ABIRegisters) {
-          New[Reg.second] = Unknown;
-        }
+      for (auto &[CSV, Reg] : ABIRegisters) {
+        New[Reg] = CoreLattice::transfer(TheCall, New[Reg]);
       }
       break;
     }
-    case Read: {
+    case Read:
       for (auto &Reg : getRegistersRead(&I)) {
-        const auto &V = New.find(Reg);
-        if (V == New.end() || V->getSecond() == Maybe) {
-          New[Reg] = Unknown;
-        }
+        New[Reg] = CoreLattice::transfer(T, New[Reg]);
       }
       break;
-    }
-    case Write: {
+    case WeakWrite:
+    case Write:
       for (auto &Reg : getRegistersWritten(&I)) {
-        const auto &V = New.find(Reg);
-        if (V == New.end() || V->getSecond() == Maybe) {
-          New[Reg] = NoOrDead;
-        }
+        New[Reg] = CoreLattice::transfer(T, New[Reg]);
       }
       break;
-    }
     default:
       break;
     }
   }
-  New.erase(InitialRegisterState);
   return New;
 }
 
@@ -121,8 +86,8 @@ analyze(const Instruction *CallSite,
         const StackAnalysis::FunctionProperties &FP) {
 
   MFI Instance{ { CallSite, GCBI, FP } };
-  DenseMap<int32_t, State> InitialValue{ { InitialRegisterState, Unknown } };
-  DenseMap<int32_t, State> ExtremalValue{ { InitialRegisterState, Unknown } };
+  DenseMap<Register, State> InitialValue{};
+  DenseMap<Register, State> ExtremalValue{};
 
   auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
                                                 CallSite->getParent(),
@@ -135,9 +100,9 @@ analyze(const Instruction *CallSite,
 
   for (auto &[BB, Result] : Results) {
     for (auto &[RegID, RegState] : Result.OutValue) {
-      if (RegState == NoOrDead) {
+      if (RegState == State::NoOrDead) {
         if (auto *GV = Instance.getABIRegister(RegID)) {
-          RegNoOrDead[GV] = NoOrDead;
+          RegNoOrDead[GV] = State::NoOrDead;
         }
       }
     }
