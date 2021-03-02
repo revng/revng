@@ -19,6 +19,7 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
+    AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
     AU.addRequired<StackAnalysis<true>>();
   }
 
