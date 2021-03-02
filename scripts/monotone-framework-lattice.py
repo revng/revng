@@ -8,7 +8,7 @@ monotone_framework = importlib.import_module("monotone-framework")
 def gen_combine_values(lattice, reachability):
   out = ''
   # Emit the combine operator
-  out += """inline LatticeElement combineValues(const LatticeElement &Lh, const LatticeElement &Rh) {
+  out += """LatticeElement combineValues(const LatticeElement &Lh, const LatticeElement &Rh) {
 """
 
   node_by_index = lambda index: monotone_framework.get_unique([x
@@ -65,7 +65,7 @@ def gen_is_less_or_equal(lattice, reachability):
   out = ''
 
   # Emit the comparison operator of the lattice
-  out += ("""inline bool isLessOrEqual(const LatticeElement &Lh, const LatticeElement &Rh) {
+  out += ("""bool isLessOrEqual(const LatticeElement &Lh, const LatticeElement &Rh) {
   return Lh == Rh
     || """)
 
@@ -90,7 +90,7 @@ def gen_is_less_or_equal(lattice, reachability):
 def gen_transfer_function(tf_names, transfer_functions):
   # Emit the transfer function implementation
   out = ''
-  out += """inline LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
+  out += """LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
   switch(T) {
 """
   for tf in tf_names:
@@ -119,7 +119,7 @@ def gen_transfer_function(tf_names, transfer_functions):
 def gen_lattice_element_enum(lattice):
   out = ''
   # Print the enumeration of all the possible lattice values
-  out += ("""  enum Values {
+  out += ("""enum Values {
 """)
 
   # Get all the names
