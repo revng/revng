@@ -154,7 +154,7 @@ getMaximalFixedPoint(const MFI &Instance,
                      typename MFI::LatticeElement InitialValue,
                      typename MFI::LatticeElement ExtremalValue,
                      const std::vector<typename MFI::Label> &ExtremalLabels) {
-  typedef typename MFI::Label Label;
+  using Label = typename MFI::Label;
   std::vector<Label> InitialNodes(ExtremalLabels);
 
   // Handle the special case that the graph has a single entry node
