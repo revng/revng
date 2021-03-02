@@ -1032,19 +1032,16 @@ IFS Analysis::createSummary() {
 
   FunctionABI ABI;
 
-  if (AnalyzeABI) {
-
-    if (SaABI.isEnabled()) {
-      revng_log(SaABI, "Starting analysis of " << Entry);
-      TheABIIR.dump(SaABI, M);
-      SaABI << DoLog;
-    }
-
-    revng_assert(TheABIIR.verify(), "The ABI IR is invalid");
-
-    // Run the almighty ABI analyses
-    ABI.analyze(TheABIIR);
+  if (SaABI.isEnabled()) {
+    revng_log(SaABI, "Starting analysis of " << Entry);
+    TheABIIR.dump(SaABI, M);
+    SaABI << DoLog;
   }
+
+  revng_assert(TheABIIR.verify(), "The ABI IR is invalid");
+
+  // Run the almighty ABI analyses
+  ABI.analyze(TheABIIR);
 
   // Find all the function calls that lead to results incoherent with the
   // callees and register them

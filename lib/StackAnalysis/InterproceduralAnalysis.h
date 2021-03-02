@@ -198,13 +198,11 @@ private:
   GeneratedCodeBasicInfo &GCBI;
   std::vector<Analysis> InProgress;
   std::set<llvm::BasicBlock *> InProgressFunctions; ///< For recursion detection
-  bool AnalyzeABI;
 
 public:
   InterproceduralAnalysis(Cache &TheCache,
-                          GeneratedCodeBasicInfo &GCBI,
-                          bool AnalyzeABI) :
-    TheCache(TheCache), GCBI(GCBI), AnalyzeABI(AnalyzeABI) {}
+                          GeneratedCodeBasicInfo &GCBI) :
+    TheCache(TheCache), GCBI(GCBI) {}
 
   void run(llvm::BasicBlock *Entry, ResultsPool &Results);
 

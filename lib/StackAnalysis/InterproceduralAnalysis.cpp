@@ -43,8 +43,7 @@ void InterproceduralAnalysis::push(BasicBlock *Entry) {
   InProgress.emplace_back(Entry,
                           TheCache,
                           &GCBI,
-                          InProgressFunctions,
-                          AnalyzeABI);
+                          InProgressFunctions);
   FunctionAnalysisCount.push(Entry->getName().str());
 }
 

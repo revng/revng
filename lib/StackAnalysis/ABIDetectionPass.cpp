@@ -16,8 +16,9 @@ using Register = RegisterPass<ABIDetectionPass>;
 static Register X("detect-abi", "ABI Detection Pass", true, true);
 
 bool ABIDetectionPass::runOnModule(Module &M) {
-  auto &SA = getAnalysis<StackAnalysis<true>>();
-  SA.serializeMetadata(*M.getFunction("root"));
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
+  auto &SA = getAnalysis<StackAnalysis>();
+  SA.serializeMetadata(*M.getFunction("root"), GCBI);
 
   return false;
 }
