@@ -34,15 +34,20 @@ enum TransferKind {
 };
 
 struct ABIAnalysis {
+private:
 
-  ABIAnalysis(const GeneratedCodeBasicInfo &GCBI,
-              const StackAnalysis::FunctionProperties &P) :
-    ABIAnalysis(nullptr, GCBI, P){};
+  DenseMap<GlobalVariable *, Register> ABIRegisters;
+  DenseMap<Register, GlobalVariable *> IndexABIRegisters;
+
+  const Instruction *CallSite;
+
+public:
+  ABIAnalysis(const GeneratedCodeBasicInfo &GCBI) :
+    ABIAnalysis(nullptr, GCBI){};
 
   ABIAnalysis(const Instruction *CS,
-              const GeneratedCodeBasicInfo &GCBI,
-              const StackAnalysis::FunctionProperties &P) :
-    CallSite(CS), Properties(P), GCBI(GCBI) {
+              const GeneratedCodeBasicInfo &GCBI) :
+    CallSite(CS) {
 
     for (auto *CSV : GCBI.abiRegisters())
       if (CSV) {
@@ -55,12 +60,6 @@ struct ABIAnalysis {
       }
   };
 
-  DenseMap<GlobalVariable *, Register> ABIRegisters;
-  DenseMap<Register, GlobalVariable *> IndexABIRegisters;
-
-  const Instruction *CallSite;
-  const StackAnalysis::FunctionProperties &Properties;
-  const GeneratedCodeBasicInfo &GCBI;
 
   bool isABIRegister(const Value *) const;
   bool isABIRegister(Register RegID) const;
