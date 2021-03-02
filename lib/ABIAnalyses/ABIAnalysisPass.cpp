@@ -16,14 +16,14 @@
 
 using namespace llvm;
 
-static cl::OptionCategory RevNgCategory("revng new-abi-analysis");
+static cl::OptionCategory Category("new-abi-analysis");
 
 static cl::opt<std::string> FilterFunction("new-abi-analysis-function",
                                            cl::desc("only show results for "
                                                     "this function"),
                                            cl::value_desc("new-abi-analysis-"
                                                           "function"),
-                                           cl::cat(RevNgCategory));
+                                           cl::cat(Category));
 char ABIAnalysisPass::ID = 0;
 
 static RegisterPass<ABIAnalysisPass>
