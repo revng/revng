@@ -26,27 +26,12 @@ using LatticeElement = MFI::LatticeElement;
 
 LatticeElement
 MFI::combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {
-
-  LatticeElement New = Lh;
-  for (const auto &[Reg, S] : Rh) {
-    New[Reg] = CoreLattice::combineValues(New.lookup(Reg), Rh.lookup(Reg));
-  }
-  return New;
+  return ABIAnalyses::combineValues<MFI, CoreLattice>(Lh, Rh);
 }
 
 bool MFI::isLessOrEqual(const LatticeElement &Lh,
                         const LatticeElement &Rh) const {
-  for (auto &[Reg, S] : Lh) {
-    if (!CoreLattice::isLessOrEqual(Lh.lookup(Reg), Rh.lookup(Reg))) {
-      return false;
-    }
-  }
-  for (auto &[Reg, S] : Rh) {
-    if (!CoreLattice::isLessOrEqual(Lh.lookup(Reg), Rh.lookup(Reg))) {
-      return false;
-    }
-  }
-  return true;
+  return ABIAnalyses::isLessOrEqual<MFI, CoreLattice>(Lh, Rh);
 }
 
 LatticeElement
@@ -56,7 +41,7 @@ MFI::applyTransferFunction(Label L, const LatticeElement &E) const {
     TransferKind T = classifyInstruction(&I);
     switch (T) {
     case TheCall: {
-      for (auto &[CSV, Reg] : ABIRegisters) {
+      for (auto &Reg : getRegisters()) {
         New[Reg] = CoreLattice::transfer(TheCall, New[Reg]);
       }
       break;
@@ -85,7 +70,7 @@ analyze(const Instruction *CallSite,
         const GeneratedCodeBasicInfo &GCBI,
         const StackAnalysis::FunctionProperties &FP) {
 
-  MFI Instance{ { CallSite, GCBI, FP } };
+  MFI Instance{ { CallSite, GCBI } };
   DenseMap<Register, State> InitialValue{};
   DenseMap<Register, State> ExtremalValue{};
 
@@ -108,5 +93,5 @@ analyze(const Instruction *CallSite,
     }
   }
   return RegNoOrDead;
-} 
+}
 } // namespace DeadReturnValuesOfFunctionCall

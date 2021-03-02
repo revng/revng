@@ -78,6 +78,34 @@ public:
   SmallVector<Register, 1> getRegistersRead(const Instruction *) const;
 };
 
+template<typename MFI, typename CoreLattice>
+typename MFI::LatticeElement
+combineValues(const typename MFI::LatticeElement &Lh,
+              const typename MFI::LatticeElement &Rh) {
+
+  typename MFI::LatticeElement New = Lh;
+  for (const auto &[Reg, S] : Rh) {
+    New[Reg] = CoreLattice::combineValues(New.lookup(Reg), Rh.lookup(Reg));
+  }
+  return New;
+}
+
+template<typename MFI, typename CoreLattice>
+bool isLessOrEqual(const typename MFI::LatticeElement &Lh,
+                   const typename MFI::LatticeElement &Rh) {
+  for (auto &[Reg, S] : Lh) {
+    if (!CoreLattice::isLessOrEqual(Lh.lookup(Reg), Rh.lookup(Reg))) {
+      return false;
+    }
+  }
+  for (auto &[Reg, S] : Rh) {
+    if (!CoreLattice::isLessOrEqual(Lh.lookup(Reg), Rh.lookup(Reg))) {
+      return false;
+    }
+  }
+  return true;
+}
+
 inline bool ABIAnalysis::isABIRegister(const Value *V) const {
   if (const auto &G = dyn_cast<GlobalVariable>(V)) {
     if (ABIRegisters.count(G) != 0) {
