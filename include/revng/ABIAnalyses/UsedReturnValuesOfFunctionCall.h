@@ -39,5 +39,3 @@ analyze(const llvm::Instruction *CallSite,
         const GeneratedCodeBasicInfo &GCBI,
         const StackAnalysis::FunctionProperties &FP);
 } // namespace UsedReturnValuesOfFunctionCall
-
-namespace llvm {}; // namespace llvm

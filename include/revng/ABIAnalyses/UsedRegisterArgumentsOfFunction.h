@@ -38,5 +38,3 @@ analyze(const llvm::Function *Entry,
         const GeneratedCodeBasicInfo &GCBI,
         const StackAnalysis::FunctionProperties &FP);
 } // namespace UsedRegisterArgumentsOfFunction
-
-namespace llvm {}; // namespace llvm
