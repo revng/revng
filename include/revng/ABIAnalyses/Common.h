@@ -17,6 +17,7 @@
 #include "revng/Support/revng.h"
 
 namespace ABIAnalyses {
+using namespace llvm;
 using Register = model::Register::Values;
 
 enum TransferKind {
@@ -38,7 +39,7 @@ struct ABIAnalysis {
               const StackAnalysis::FunctionProperties &P) :
     ABIAnalysis(nullptr, GCBI, P){};
 
-  ABIAnalysis(const llvm::Instruction *CS,
+  ABIAnalysis(const Instruction *CS,
               const GeneratedCodeBasicInfo &GCBI,
               const StackAnalysis::FunctionProperties &P) :
     CallSite(CS), Properties(P), GCBI(GCBI) {
@@ -54,31 +55,31 @@ struct ABIAnalysis {
       }
   };
 
-  llvm::DenseMap<llvm::GlobalVariable *, Register> ABIRegisters;
-  llvm::DenseMap<Register, llvm::GlobalVariable *> IndexABIRegisters;
+  DenseMap<GlobalVariable *, Register> ABIRegisters;
+  DenseMap<Register, GlobalVariable *> IndexABIRegisters;
 
-  const llvm::Instruction *CallSite;
+  const Instruction *CallSite;
   const StackAnalysis::FunctionProperties &Properties;
   const GeneratedCodeBasicInfo &GCBI;
 
-  bool isABIRegister(const llvm::Value *) const;
+  bool isABIRegister(const Value *) const;
   bool isABIRegister(Register RegID) const;
 
   /// Returns the corresponding global variable for a RegID or nullptr if the id
   /// is invalid
-  llvm::GlobalVariable *getABIRegister(Register RegID) const;
+  GlobalVariable *getABIRegister(Register RegID) const;
 
-  TransferKind classifyInstruction(const llvm::Instruction *) const;
+  TransferKind classifyInstruction(const Instruction *) const;
 
-  llvm::SmallVector<Register, 1>
-  getRegistersWritten(const llvm::Instruction *) const;
+  SmallVector<Register, 1>
+  getRegistersWritten(const Instruction *) const;
 
-  llvm::SmallVector<Register, 1>
-  getRegistersRead(const llvm::Instruction *) const;
+  SmallVector<Register, 1>
+  getRegistersRead(const Instruction *) const;
 };
 
-inline bool ABIAnalysis::isABIRegister(const llvm::Value *V) const {
-  if (const auto &G = llvm::dyn_cast<llvm::GlobalVariable>(V)) {
+inline bool ABIAnalysis::isABIRegister(const Value *V) const {
+  if (const auto &G = dyn_cast<GlobalVariable>(V)) {
     if (ABIRegisters.count(G) != 0) {
       return true;
     }
@@ -90,7 +91,7 @@ inline bool ABIAnalysis::isABIRegister(Register RegID) const {
   return IndexABIRegisters.count(RegID);
 }
 
-inline llvm::GlobalVariable *ABIAnalysis::getABIRegister(Register RegID) const {
+inline GlobalVariable *ABIAnalysis::getABIRegister(Register RegID) const {
   if (isABIRegister(RegID)) {
     return IndexABIRegisters.lookup(RegID);
   }
@@ -98,23 +99,23 @@ inline llvm::GlobalVariable *ABIAnalysis::getABIRegister(Register RegID) const {
 }
 
 inline TransferKind
-ABIAnalysis::classifyInstruction(const llvm::Instruction *I) const {
+ABIAnalysis::classifyInstruction(const Instruction *I) const {
   switch (I->getOpcode()) {
-  case llvm::Instruction::Store: {
-    auto S = llvm::cast<llvm::StoreInst>(I);
+  case Instruction::Store: {
+    auto S = cast<StoreInst>(I);
     if (isABIRegister(S->getPointerOperand())) {
       return Write;
     }
     break;
   }
-  case llvm::Instruction::Load: {
-    auto L = llvm::cast<llvm::LoadInst>(I);
+  case Instruction::Load: {
+    auto L = cast<LoadInst>(I);
     if (isABIRegister(L->getPointerOperand())) {
       return Read;
     }
     break;
   }
-  case llvm::Instruction::Call: {
+  case Instruction::Call: {
     if (I == CallSite) {
       return TheCall;
     }
@@ -124,15 +125,15 @@ ABIAnalysis::classifyInstruction(const llvm::Instruction *I) const {
   return None;
 }
 
-inline llvm::SmallVector<Register, 1>
-ABIAnalysis::getRegistersWritten(const llvm::Instruction *I) const {
-  llvm::SmallVector<Register, 1> Result;
+inline SmallVector<Register, 1>
+ABIAnalysis::getRegistersWritten(const Instruction *I) const {
+  SmallVector<Register, 1> Result;
   switch (I->getOpcode()) {
-  case llvm::Instruction::Store: {
-    auto S = llvm::cast<llvm::StoreInst>(I);
+  case Instruction::Store: {
+    auto S = cast<StoreInst>(I);
     if (isABIRegister(S->getPointerOperand())) {
       Result.push_back(ABIRegisters.lookup(
-        llvm::cast<llvm::GlobalVariable>(S->getPointerOperand())));
+        cast<GlobalVariable>(S->getPointerOperand())));
     }
     break;
   }
@@ -140,15 +141,15 @@ ABIAnalysis::getRegistersWritten(const llvm::Instruction *I) const {
   return Result;
 }
 
-inline llvm::SmallVector<Register, 1>
-ABIAnalysis::getRegistersRead(const llvm::Instruction *I) const {
-  llvm::SmallVector<Register, 1> Result;
+inline SmallVector<Register, 1>
+ABIAnalysis::getRegistersRead(const Instruction *I) const {
+  SmallVector<Register, 1> Result;
   switch (I->getOpcode()) {
-  case llvm::Instruction::Load: {
-    auto L = llvm::cast<llvm::LoadInst>(I);
+  case Instruction::Load: {
+    auto L = cast<LoadInst>(I);
     if (isABIRegister(L->getPointerOperand())) {
       Result.push_back(ABIRegisters.lookup(
-        llvm::cast<llvm::GlobalVariable>(L->getPointerOperand())));
+        cast<GlobalVariable>(L->getPointerOperand())));
     }
     break;
   }
