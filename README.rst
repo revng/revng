@@ -2,42 +2,49 @@
 Purpose
 *******
 
-`revng` is a static binary translator. Given a input ELF binary for one of the
-supported architectures (currently MIPS, ARM and x86-64) it will analyze it and
-emit an equivalent LLVM IR. To do so, `revng` employs the QEMU intermediate
-representation (a series of TCG instructions) and then translates them to LLVM
-IR.
+``revng`` is a static binary translator. Given a input ELF binary for one of the
+supported architectures (currently i386, x86-64, MIPS, ARM, AArch64 and s390x)
+it will analyze it and emit an equivalent LLVM IR. To do so, ``revng`` employs
+the QEMU intermediate representation (a series of TCG instructions) and then
+translates them to LLVM IR.
 
 ************
 How to build
 ************
 
-`revng` employs CMake as a build system. The build system will try to
-automatically detect the QEMU installation and the GCC toolchains require to
-build the test binaries.
+``revng`` employs CMake as a build system.
+In order to build ``revng``, use orchestra:
 
-If everything is in standard locations, you can just run::
+    https://github.com/revng/orchestra
 
-    mkdir build/
-    cd build/
-    cmake ..
-    make -j$(nproc)
-    make install
+To run the test suite simply, from the build directory, run:
 
-For further build options and more advanced configurations see
-docs/BuildSystem.rst (TODO: reference).
+.. code-block:: sh
 
-To run the test suite simply run::
+    # Enter in the build directory
+    orc shell -c revng
 
-    make test
+    # Run the tests
+    ctest -j$(nproc)
 
 ***********
 Example run
 ***********
 
-The simplest possible example consists in the following::
+The simplest possible example consists in the following:
 
-    cd build
+.. code-block:: sh
+
+    # Install the ARM toolchain
+    orc install toolchain/arm/gcc
+
+    # Enter in the build directory
+    orc shell -c revng
+
+    # Build programs (skip building test material)
+    ninja revng-all-binaries
+
+    # Create hello world program
     cat > hello.c <<EOF
     #include <stdio.h>
 
@@ -45,8 +52,16 @@ The simplest possible example consists in the following::
       printf("Hello, world!\n");
     }
     EOF
-    armv7a-hardfloat-linux-uclibceabi-gcc -static hello.c -o hello.arm
-    ./translate hello.arm
-    # ...
+
+    # Compile
+    armv7a-hardfloat-linux-uclibceabi-gcc \
+      -Wl,-Ttext-segment=0x20000 \
+      -static hello.c \
+      -o hello.arm
+
+    # Translate
+    ./bin/revng translate hello.arm
+
+    # Run translated version
     ./hello.arm.translated
-    Hello, world!
+    # Hello, world!
