@@ -34,7 +34,7 @@ struct MFI : ABIAnalyses::ABIAnalysis {
 
 llvm::DenseMap<llvm::GlobalVariable *, State>
 analyze(const llvm::Instruction *CallSite,
-        llvm::Function *Entry,
+        const llvm::BasicBlock *Entry,
         const GeneratedCodeBasicInfo &GCBI,
         const StackAnalysis::FunctionProperties &FP);
 } // namespace DeadReturnValuesOfFunctionCall
