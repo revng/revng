@@ -6,6 +6,7 @@
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
@@ -66,7 +67,7 @@ MFI::applyTransferFunction(Label L, const LatticeElement &E) const {
 
 DenseMap<GlobalVariable *, State>
 analyze(const Instruction *CallSite,
-        Function *Entry,
+        const BasicBlock *Entry,
         const GeneratedCodeBasicInfo &GCBI,
         const StackAnalysis::FunctionProperties &FP) {
 
@@ -75,11 +76,11 @@ analyze(const Instruction *CallSite,
   DenseMap<Register, State> ExtremalValue{};
 
   auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
-                                                CallSite->getParent(),
+                                                Entry,
                                                 InitialValue,
                                                 ExtremalValue,
-                                                { CallSite->getParent() },
-                                                { CallSite->getParent() });
+                                                { Entry },
+                                                { Entry });
 
   DenseMap<GlobalVariable *, State> RegNoOrDead{};
 
