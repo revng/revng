@@ -27,6 +27,16 @@ void testSet() {
   T Set;
   revng_check(Set.empty());
 
+  // Test copy/move constructor/assign
+  {
+    T Original;
+    T Copy(Original);
+    Copy = Original;
+    Copy = std::move(Original);
+
+    T Moved(std::move(Copy));
+  }
+
   // Test insertion
   assertInsert(Set, 0x2000, 0xDEAD);
   assertInsert(Set, 0x1000, 0xDEADDEAD);
