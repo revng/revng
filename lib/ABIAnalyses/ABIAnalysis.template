@@ -6,18 +6,22 @@
 
 // This file has been automatically generated from scripts/monotone-framework-lattice.py, please don't change it
 
-#include "revng/Model/Binary.h"
 #include "revng/ABIAnalyses/Common.h"
+#include "revng/Model/Binary.h"
 
-namespace %LatticeName%::CoreLattice {
+namespace %LatticeName% {
+
+struct CoreLattice {
 
 using LatticeElement = model::RegisterState::Values;
 using TransferFunction = ABIAnalyses::TransferKind;
 
-%isLessOrEqual%
+static %isLessOrEqual%
 
-%combineValues%
+static %combineValues%
 
-%transfer%
+static %transfer%
 
-} // namespace %LatticeName%::CoreLattice
+};
+
+} // namespace %LatticeName%
