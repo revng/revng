@@ -17,7 +17,6 @@ namespace StackAnalysis {
 
 extern const std::set<llvm::GlobalVariable *> EmptyCSVSet;
 
-template<bool AnalyzeABI>
 class StackAnalysis : public llvm::ModulePass {
   friend class FunctionBoundariesDetectionPass;
 
@@ -46,20 +45,11 @@ public:
 
   void serialize(std::ostream &Output) { Output << TextRepresentation; }
 
-  void serializeMetadata(llvm::Function &F);
+  void serializeMetadata(llvm::Function &F, GeneratedCodeBasicInfo &GCBI);
 
 public:
   FunctionsSummary GrandResult;
   std::string TextRepresentation;
 };
-
-template<>
-char StackAnalysis<true>::ID;
-
-template<>
-char StackAnalysis<false>::ID;
-
-extern template void StackAnalysis<true>::serializeMetadata(llvm::Function &F);
-extern template void StackAnalysis<false>::serializeMetadata(llvm::Function &F);
 
 } // namespace StackAnalysis

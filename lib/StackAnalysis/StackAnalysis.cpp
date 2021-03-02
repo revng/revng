@@ -42,25 +42,9 @@ namespace StackAnalysis {
 
 const std::set<llvm::GlobalVariable *> EmptyCSVSet;
 
-template<>
-char StackAnalysis<true>::ID = 0;
+char StackAnalysis::ID = 0;
 
-namespace {
-const char *Name = "Stack Analysis Pass";
-static RegisterPass<StackAnalysis<false>> X("stack-analysis", Name, true, true);
-
-static opt<std::string> StackAnalysisOutputPath("stack-analysis-output",
-                                                desc("Destination path for the "
-                                                     "Static Analysis Pass"),
-                                                value_desc("path"),
-                                                cat(MainCategory));
-
-} // namespace
-
-template<>
-char StackAnalysis<false>::ID = 0;
-
-using RegisterABI = RegisterPass<StackAnalysis<true>>;
+using RegisterABI = RegisterPass<StackAnalysis>;
 static RegisterABI Y("abi-analysis", "ABI Analysis Pass", true, true);
 
 static opt<std::string> ABIAnalysisOutputPath("abi-analysis-output",
@@ -321,8 +305,7 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
   revng_check(TheBinary.verify());
 }
 
-template<bool AnalyzeABI>
-bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
+bool StackAnalysis::runOnModule(Module &M) {
   Function &F = *M.getFunction("root");
 
   revng_log(PassesLog, "Starting StackAnalysis");
@@ -391,7 +374,7 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
   for (CFEP &Function : Functions) {
     if (Function.Force) {
       auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-      InterproceduralAnalysis SA(TheCache, GCBI, AnalyzeABI);
+      InterproceduralAnalysis SA(TheCache, GCBI);
       SA.run(Function.Entry, Results);
     }
   }
@@ -402,7 +385,7 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
   for (CFEP &Function : Functions) {
     if (not Function.Force and Visited.count(Function.Entry) == 0) {
       auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-      InterproceduralAnalysis SA(TheCache, GCBI, AnalyzeABI);
+      InterproceduralAnalysis SA(TheCache, GCBI);
       SA.run(Function.Entry, Results);
     }
   }
@@ -455,13 +438,9 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
 
   revng_log(PassesLog, "Ending StackAnalysis");
 
-  if (AnalyzeABI and ABIAnalysisOutputPath.getNumOccurrences() == 1) {
+  if (ABIAnalysisOutputPath.getNumOccurrences() == 1) {
     std::ofstream Output;
     serialize(pathToStream(ABIAnalysisOutputPath, Output));
-  } else if (not AnalyzeABI
-             and StackAnalysisOutputPath.getNumOccurrences() == 1) {
-    std::ofstream Output;
-    serialize(pathToStream(StackAnalysisOutputPath, Output));
   }
 
   commitToModel(GCBI, &F, GrandResult, LMP.getWriteableModel());
@@ -469,8 +448,8 @@ bool StackAnalysis<AnalyzeABI>::runOnModule(Module &M) {
   return false;
 }
 
-template<bool AnalyzeABI>
-void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
+void StackAnalysis::serializeMetadata(Function &F,
+                                      GeneratedCodeBasicInfo &GCBI) {
   using namespace llvm;
 
   const FunctionsSummary &Summary = GrandResult;
@@ -481,8 +460,6 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
   // Temporary data structure so we can set all the `revng.func.member.of` in a
   // single shot at the end
   std::map<Instruction *, std::vector<Metadata *>> MemberOf;
-
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
   // Loop over all the detected functions
   for (const auto &P : Summary.Functions) {
@@ -515,16 +492,14 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
 
     // Register slots metadata
     std::vector<Metadata *> SlotMDs;
-    if (AnalyzeABI) {
-      for (auto &P : Function.RegisterSlots) {
-        if (GCBI.isServiceRegister(P.first))
-          continue;
+    for (auto &P : Function.RegisterSlots) {
+      if (GCBI.isServiceRegister(P.first))
+        continue;
 
-        auto *CSV = QMD.get(P.first);
-        auto *Argument = QMD.get(P.second.Argument.valueName());
-        auto *ReturnValue = QMD.get(P.second.ReturnValue.valueName());
-        SlotMDs.push_back(QMD.tuple({ CSV, Argument, ReturnValue }));
-      }
+      auto *CSV = QMD.get(P.first);
+      auto *Argument = QMD.get(P.second.Argument.valueName());
+      auto *ReturnValue = QMD.get(P.second.ReturnValue.valueName());
+      SlotMDs.push_back(QMD.tuple({ CSV, Argument, ReturnValue }));
     }
 
     // Create revng.func.entry metadata
@@ -535,28 +510,26 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
                                       QMD.tuple(SlotMDs) });
     Entry->getTerminator()->setMetadata("revng.func.entry", FunctionMD);
 
-    if (AnalyzeABI) {
-      //
-      // Create func.call
-      //
-      for (const FunctionsSummary::CallSiteDescription &CallSite :
-           Function.CallSites) {
-        Instruction *Call = CallSite.Call;
+    //
+    // Create func.call
+    //
+    for (const FunctionsSummary::CallSiteDescription &CallSite :
+         Function.CallSites) {
+      Instruction *Call = CallSite.Call;
 
-        // Register slots metadata
-        std::vector<Metadata *> SlotMDs;
-        for (auto &P : CallSite.RegisterSlots) {
-          if (GCBI.isServiceRegister(P.first))
-            continue;
+      // Register slots metadata
+      std::vector<Metadata *> SlotMDs;
+      for (auto &P : CallSite.RegisterSlots) {
+        if (GCBI.isServiceRegister(P.first))
+          continue;
 
-          auto *CSV = QMD.get(P.first);
-          auto *Argument = QMD.get(P.second.Argument.valueName());
-          auto *ReturnValue = QMD.get(P.second.ReturnValue.valueName());
-          SlotMDs.push_back(QMD.tuple({ CSV, Argument, ReturnValue }));
-        }
-
-        Call->setMetadata("func.call", QMD.tuple(QMD.tuple(SlotMDs)));
+        auto *CSV = QMD.get(P.first);
+        auto *Argument = QMD.get(P.second.Argument.valueName());
+        auto *ReturnValue = QMD.get(P.second.ReturnValue.valueName());
+        SlotMDs.push_back(QMD.tuple({ CSV, Argument, ReturnValue }));
       }
+
+      Call->setMetadata("func.call", QMD.tuple(QMD.tuple(SlotMDs)));
     }
 
     //
@@ -579,8 +552,5 @@ void StackAnalysis<AnalyzeABI>::serializeMetadata(Function &F) {
   for (auto &P : MemberOf)
     P.first->setMetadata("revng.func.member.of", QMD.tuple(P.second));
 }
-
-template void StackAnalysis<true>::serializeMetadata(Function &F);
-template void StackAnalysis<false>::serializeMetadata(Function &F);
 
 } // namespace StackAnalysis

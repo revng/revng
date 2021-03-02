@@ -414,7 +414,7 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
   if args.isolate:
     isolated = "{}.isolated".format(executable)
     opt_invocation = build_opt_args(["-S",
-                                     "-detect-function-boundaries",
+                                     "-detect-abi",
                                      "-isolate",
                                      relative(output),
                                      "-o", relative(isolated)])

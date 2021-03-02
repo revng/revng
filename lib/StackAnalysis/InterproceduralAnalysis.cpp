@@ -40,11 +40,7 @@ namespace StackAnalysis {
 
 void InterproceduralAnalysis::push(BasicBlock *Entry) {
   InProgressFunctions.insert(Entry);
-  InProgress.emplace_back(Entry,
-                          TheCache,
-                          &GCBI,
-                          InProgressFunctions,
-                          AnalyzeABI);
+  InProgress.emplace_back(Entry, TheCache, &GCBI, InProgressFunctions);
   FunctionAnalysisCount.push(Entry->getName().str());
 }
 

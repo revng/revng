@@ -343,8 +343,6 @@ private:
   /// \brief Called functions that have been found incoherent with the caller
   std::set<llvm::BasicBlock *> IncoherentFunctions;
 
-  bool AnalyzeABI;
-
   std::map<llvm::BasicBlock *, Element> ReturnCandidates;
 
   std::multimap<llvm::BasicBlock *, MetaAddress> FakeReturns;
@@ -353,8 +351,7 @@ public:
   Analysis(llvm::BasicBlock *Entry,
            const Cache &TheCache,
            GeneratedCodeBasicInfo *GCBI,
-           const std::set<llvm::BasicBlock *> &InProgressFunctions,
-           bool AnalyzeABI) :
+           const std::set<llvm::BasicBlock *> &InProgressFunctions) :
     Base(Entry),
     Entry(Entry),
     M(getModule(Entry)),
@@ -363,8 +360,7 @@ public:
     GCBI(GCBI),
     InitialState(Element::bottom()),
     TheABIIR(Entry),
-    InProgressFunctions(InProgressFunctions),
-    AnalyzeABI(AnalyzeABI) {
+    InProgressFunctions(InProgressFunctions) {
 
     registerExtremal(Entry);
     initialize();

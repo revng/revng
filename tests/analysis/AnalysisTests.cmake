@@ -6,14 +6,17 @@ set(ANALYSES "cfg" "functionsboundaries" "stack_analysis")
 
 # For each analysis, choose a file suffix and a tool to perform the diff
 set(ANALYSIS_OPT_cfg "collect-cfg")
+set(ANALYSIS_OPT_OUTPUT_cfg "collect-cfg-output")
 set(ANALYSIS_SUFFIX_cfg ".cfg.csv")
 set(ANALYSIS_DIFF_cfg "diff -u")
 
-set(ANALYSIS_OPT_functionsboundaries "detect-function-boundaries")
+set(ANALYSIS_OPT_functionsboundaries "detect-abi")
+set(ANALYSIS_OPT_OUTPUT_functionsboundaries "detect-function-boundaries-output")
 set(ANALYSIS_SUFFIX_functionsboundaries ".functions-boundaries.csv")
 set(ANALYSIS_DIFF_functionsboundaries "diff -u")
 
 set(ANALYSIS_OPT_stack_analysis "abi-analysis")
+set(ANALYSIS_OPT_OUTPUT_stack_analysis "abi-analysis-output")
 set(ANALYSIS_SUFFIX_stack_analysis ".stack-analysis.json")
 set(ANALYSIS_DIFF_stack_analysis "${CMAKE_SOURCE_DIR}/scripts/compare-json.py --order")
 
@@ -52,7 +55,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
 
         set(TEST_NAME test-lifted-${CATEGORY}-${ANALYSIS}-${TARGET_NAME})
         add_test(NAME ${TEST_NAME}
-          COMMAND sh -c "./bin/revng opt --${ANALYSIS_OPT_${ANALYSIS}} --${ANALYSIS_OPT_${ANALYSIS}}-output=${ANALYSIS_OUTPUT} ${OUTPUT} --debug-log=stackanalysis -o /dev/null \
+          COMMAND sh -c "./bin/revng opt --${ANALYSIS_OPT_${ANALYSIS}} --${ANALYSIS_OPT_OUTPUT_${ANALYSIS}}=${ANALYSIS_OUTPUT} ${OUTPUT} --debug-log=stackanalysis -o /dev/null \
           && ${ANALYSIS_DIFF_${ANALYSIS}} ${REFERENCE} ${ANALYSIS_OUTPUT}")
         set_tests_properties(${TEST_NAME} PROPERTIES LABELS "analysis;${CATEGORY};${CONFIGURATION};${ANALYSIS}")
 
