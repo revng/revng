@@ -26,11 +26,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
 install(FILES cmake/revngcConfig.cmake DESTINATION share/revngc/cmake)
 install(EXPORT revngc NAMESPACE revngc:: DESTINATION share/revngc/cmake)
 
-install(FILES share/revngc/revng-c-include.c DESTINATION share/revngc/)
-configure_file(share/revngc/revng-c-include.c
-  ${CMAKE_BINARY_DIR}/share/revngc/revng-c-include.c
-  COPYONLY)
-
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 add_definitions("-DBUILD_PATH=\"${CMAKE_BINARY_DIR}\"")
 
