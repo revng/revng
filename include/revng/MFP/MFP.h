@@ -63,8 +63,8 @@ getMaximalFixedPoint(const MFI &Instance, const typename MFI::GraphType &Flow,
                      typename MFI::LatticeElement InitialValue,
                      typename MFI::LatticeElement ExtremalValue,
                      const std::vector<typename MFI::Label> &ExtremalLabels) {
-  typedef typename MFI::Label Label;
-  typedef typename MFI::LatticeElement LatticeElement;
+  using Label = typename MFI::Label;
+  using LatticeElement = typename MFI::LatticeElement;
   std::map<Label, LatticeElement> PartialAnalysis;
   std::map<Label, MFPResult<LatticeElement>> AnalysisResult;
 
