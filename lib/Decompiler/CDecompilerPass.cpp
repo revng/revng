@@ -52,14 +52,14 @@ using llvm::cl::NumOccurrencesFlag;
 static cl::opt<std::string> DecompiledDir("decompiled-dir",
                                           cl::desc("decompiled code dir"),
                                           cl::value_desc("decompiled-dir"),
-                                          cl::cat(RevNgCategory),
+                                          cl::cat(MainCategory),
                                           NumOccurrencesFlag::Optional);
 
 // Prefix for the short circuit metrics dir.
 static cl::opt<std::string> OutputPath("short-circuit-metrics-output-dir",
                                        cl::desc("Short circuit metrics dir"),
                                        cl::value_desc("short-circuit-dir"),
-                                       cl::cat(RevNgCategory),
+                                       cl::cat(MainCategory),
                                        NumOccurrencesFlag::Optional);
 
 char CDecompilerPass::ID = 0;

@@ -32,14 +32,12 @@ using namespace llvm;
 using BitSet = std::set<int>;
 using RegisterTypeShrinking = RegisterPass<TypeShrinking::TypeShrinking>;
 
-static cl::OptionCategory RevNgCategory("revng-c type-shrinking");
-
 static cl::opt<uint32_t> MinimumWidth("min-width",
                                       cl::init(8),
                                       cl::desc("ignore analysis results for "
                                                "width lower than"),
                                       cl::value_desc("min-width"),
-                                      cl::cat(RevNgCategory));
+                                      cl::cat(MainCategory));
 
 char TypeShrinking::TypeShrinking::ID = 0;
 
