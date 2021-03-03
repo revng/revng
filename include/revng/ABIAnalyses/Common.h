@@ -28,6 +28,7 @@ enum TransferKind {
   TheCall,
   None,
   // legacy transfer functions
+  ReturnFromYes,
   ReturnFromMaybe,
   ReturnFromNoOrDead,
   ReturnFromUnknown,

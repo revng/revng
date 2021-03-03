@@ -13,43 +13,55 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng/ABIAnalyses/Common.h"
-#include "revng/ABIAnalyses/Generated/DeadReturnValuesOfFunctionCall.h"
+#include "revng/ABIAnalyses/Generated/UsedReturnValuesOfFunction.h"
 #include "revng/MFP/MFP.h"
-#include "revng/Model/Binary.h"
 #include "revng/Support/revng.h"
 
-namespace DeadReturnValuesOfFunctionCall {
+namespace UsedReturnValuesOfFunction {
 using namespace llvm;
 
 DenseMap<GlobalVariable *, State>
-analyze(const Instruction *CallSite,
+analyze(const Instruction *Return,
         const BasicBlock *Entry,
         const GeneratedCodeBasicInfo &GCBI,
         const StackAnalysis::FunctionProperties &FP) {
 
-  MFI<true> Instance{ { CallSite, GCBI } };
+  MFI<false> Instance{ { GCBI } };
   DenseMap<Register, CoreLattice::LatticeElement> InitialValue{};
   DenseMap<Register, CoreLattice::LatticeElement> ExtremalValue{};
 
-  auto Results = MFP::getMaximalFixedPoint<MFI<true>>(Instance,
+  auto Results = MFP::getMaximalFixedPoint<MFI<false>>(Instance,
                                                 Entry,
                                                 InitialValue,
                                                 ExtremalValue,
                                                 { Entry },
                                                 { Entry });
 
-  DenseMap<GlobalVariable *, State> RegNoOrDead{};
+  DenseMap<GlobalVariable *, State> RegUnknown{};
+  DenseMap<GlobalVariable *, State> RegYesOrDead{};
 
   for (auto &[BB, Result] : Results) {
     for (auto &[RegID, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::NoOrDead) {
+      if (RegState == CoreLattice::Unknown) {
         if (auto *GV = Instance.getABIRegister(RegID)) {
-          RegNoOrDead[GV] = State::NoOrDead;
+          RegUnknown[GV] = State::Unknown;
         }
       }
     }
   }
-  return RegNoOrDead;
+
+  for (auto &[BB, Result] : Results) {
+    for (auto &[RegID, RegState] : Result.OutValue) {
+      if (RegState == CoreLattice::YesOrDead) {
+        if (auto *GV = Instance.getABIRegister(RegID)) {
+          if (RegUnknown.count(GV) == 0) {
+            RegYesOrDead[GV] = State::YesOrDead;
+          }
+        }
+      }
+    }
+  }
+
+  return RegYesOrDead;
 }
-} // namespace DeadReturnValuesOfFunctionCall
+} // namespace UsedReturnValuesOfFunction
