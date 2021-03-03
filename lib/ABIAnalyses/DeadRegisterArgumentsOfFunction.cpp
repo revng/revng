@@ -12,113 +12,38 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng/ABIAnalyses/DeadRegisterArgumentsOfFunction.h"
+#include "revng/ABIAnalyses/Generated/DeadRegisterArgumentsOfFunction.h"
 #include "revng/MFP/MFP.h"
 #include "revng/Support/revng.h"
 
 namespace DeadRegisterArgumentsOfFunction {
 using namespace llvm;
-using namespace ABIAnalyses;
-using LatticeElement = MFI::LatticeElement;
-
-static State getMax(State Lh, State Rh) {
-  if (Lh == NoOrDead) {
-    return Rh;
-  } else if (Lh == Maybe) {
-    if (Rh == NoOrDead) {
-      return Lh;
-    } else {
-      return Rh;
-    }
-  } else {
-    return Lh;
-  }
-}
-
-LatticeElement
-MFI::combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {
-
-  LatticeElement New = Lh;
-  for (const auto &KV : Rh) {
-    if (New.find(KV.first) != New.end()) {
-      New[KV.first] = getMax(New[KV.first], KV.second);
-    } else {
-      New[KV.first] = KV.second;
-    }
-  }
-  return New;
-}
-
-bool MFI::isLessOrEqual(const LatticeElement &Lh,
-                        const LatticeElement &Rh) const {
-  if (Lh.size() > Rh.size())
-    return false;
-  for (auto &E : Lh) {
-    if (Rh.count(E.first) == 0) {
-      return false;
-    }
-    auto RhState = Rh.lookup(E.first);
-    if (getMax(E.second, RhState) != RhState) {
-      return false;
-    }
-  }
-  return true;
-}
-
-LatticeElement
-MFI::applyTransferFunction(Label L, const LatticeElement &E) const {
-  LatticeElement New = E;
-  for (auto &I : *L) {
-    switch (classifyInstruction(&I)) {
-    case Read: {
-      for (auto &Reg : getRegistersRead(&I)) {
-        const auto &V = New.find(Reg);
-        if (V == New.end() || V->getSecond() == Maybe) {
-          New[Reg] = Unknown;
-        }
-      }
-      break;
-    }
-    case Write: {
-      for (auto &Reg : getRegistersWritten(&I)) {
-        const auto &V = New.find(Reg);
-        if (V == New.end() || V->getSecond() == Maybe) {
-          New[Reg] = NoOrDead;
-        }
-      }
-      break;
-    }
-    default:
-      break;
-    }
-  }
-  return New;
-}
 
 DenseMap<GlobalVariable *, State>
-analyze(const Function *F,
+analyze(const Instruction *CallSite,
+        const BasicBlock *Entry,
         const GeneratedCodeBasicInfo &GCBI,
         const StackAnalysis::FunctionProperties &FP) {
 
-  MFI Instance{ { GCBI, FP } };
-  DenseMap<int32_t, State> InitialValue{};
-  DenseMap<int32_t, State> ExtremalValue{};
+  MFI<true> Instance{ { GCBI } };
+  DenseMap<Register, CoreLattice::LatticeElement> InitialValue{};
+  DenseMap<Register, CoreLattice::LatticeElement> ExtremalValue{};
 
-  auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
-                                                &F->getEntryBlock(),
+  auto Results = MFP::getMaximalFixedPoint<MFI<true>>(Instance,
+                                                Entry,
                                                 InitialValue,
                                                 ExtremalValue,
-                                                { &F->getEntryBlock() },
-                                                { &F->getEntryBlock() });
+                                                { Entry },
+                                                { Entry });
 
   DenseMap<GlobalVariable *, State> RegUnknown{};
   DenseMap<GlobalVariable *, State> RegNoOrDead{};
 
   for (auto &[BB, Result] : Results) {
     for (auto &[RegID, RegState] : Result.OutValue) {
-      if (RegState == Unknown) {
+      if (RegState == CoreLattice::Unknown) {
         if (auto *GV = Instance.getABIRegister(RegID)) {
-          RegUnknown[GV] = Unknown;
+          RegUnknown[GV] = State::Unknown;
         }
       }
     }
@@ -126,10 +51,10 @@ analyze(const Function *F,
 
   for (auto &[BB, Result] : Results) {
     for (auto &[RegID, RegState] : Result.OutValue) {
-      if (RegState == NoOrDead) {
+      if (RegState == CoreLattice::NoOrDead) {
         if (auto *GV = Instance.getABIRegister(RegID)) {
           if (RegUnknown.count(GV) == 0) {
-            RegNoOrDead[GV] = NoOrDead;
+            RegNoOrDead[GV] = State::NoOrDead;
           }
         }
       }

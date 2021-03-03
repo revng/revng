@@ -119,13 +119,13 @@ def gen_transfer_function(tf_names, transfer_functions):
 def gen_lattice_element_enum(lattice):
   out = ''
   # Print the enumeration of all the possible lattice values
-  out += ("""enum Values {
+  out += ("""enum LatticeElement {
 """)
 
   # Get all the names
   values = sorted([v.name for v in lattice.nodes_iter()])
-  out += ("    " + ",\n    ".join(values) + "\n")
-  out += ("""  };
+  out += ("  " + ",\n    ".join(values) + "\n")
+  out += ("""};
 
 """)
   return out

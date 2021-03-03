@@ -13,13 +13,11 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng/ABIAnalyses/Common.h"
-#include "revng/ABIAnalyses/Generated/DeadReturnValuesOfFunctionCall.h"
+#include "revng/ABIAnalyses/Generated/UsedArgumentsOfFunction.h"
 #include "revng/MFP/MFP.h"
-#include "revng/Model/Binary.h"
 #include "revng/Support/revng.h"
 
-namespace DeadReturnValuesOfFunctionCall {
+namespace UsedArgumentsOfFunction {
 using namespace llvm;
 
 DenseMap<GlobalVariable *, State>
@@ -28,7 +26,7 @@ analyze(const Instruction *CallSite,
         const GeneratedCodeBasicInfo &GCBI,
         const StackAnalysis::FunctionProperties &FP) {
 
-  MFI<true> Instance{ { CallSite, GCBI } };
+  MFI<true> Instance{ { GCBI } };
   DenseMap<Register, CoreLattice::LatticeElement> InitialValue{};
   DenseMap<Register, CoreLattice::LatticeElement> ExtremalValue{};
 
@@ -39,17 +37,18 @@ analyze(const Instruction *CallSite,
                                                 { Entry },
                                                 { Entry });
 
-  DenseMap<GlobalVariable *, State> RegNoOrDead{};
+  DenseMap<GlobalVariable *, State> RegYes{};
 
   for (auto &[BB, Result] : Results) {
     for (auto &[RegID, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::NoOrDead) {
+      if (RegState == CoreLattice::Yes) {
         if (auto *GV = Instance.getABIRegister(RegID)) {
-          RegNoOrDead[GV] = State::NoOrDead;
+          RegYes[GV] = State::Yes;
         }
       }
     }
   }
-  return RegNoOrDead;
+
+  return RegYes;
 }
-} // namespace DeadReturnValuesOfFunctionCall
+} // namespace UsedArgumentsOfFunction

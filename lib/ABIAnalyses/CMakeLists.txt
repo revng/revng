@@ -7,7 +7,8 @@ revng_add_analyses_library_internal(revngABIAnalyses
   DeadRegisterArgumentsOfFunction.cpp
   DeadReturnValuesOfFunctionCall.cpp
   RegisterArgumentsOfFunctionCall.cpp
-  UsedRegisterArgumentsOfFunction.cpp
+  UsedArgumentsOfFunction.cpp
+  UsedReturnValuesOfFunction.cpp
   UsedReturnValuesOfFunctionCall.cpp)
 
 target_link_libraries(revngABIAnalyses
