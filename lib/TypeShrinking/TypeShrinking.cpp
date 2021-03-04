@@ -47,7 +47,7 @@ static RegisterTypeShrinking
 namespace TypeShrinking {
 
 void TypeShrinking::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<BitLivenessPass>();
+  AU.addRequired<BitLivenessWrapperPass>();
 }
 
 /// Returns true if each bit B of the result of Ins depends only on
@@ -67,8 +67,8 @@ static bool isAddLike(const Instruction *Ins) {
 
 bool TypeShrinking::runOnFunction(Function &F) {
 
-  auto &BitLiveness = getAnalysis<BitLivenessPass>();
-  BitLivenessPass::AnalysisResult &FixedPoints = BitLiveness.getResult();
+  auto &BitLiveness = getAnalysis<BitLivenessWrapperPass>();
+  auto &FixedPoints = BitLiveness.getResult();
   bool HasChanges = false;
 
   const std::array<uint32_t, 4> Ranks = { 8, 16, 32, 64 };

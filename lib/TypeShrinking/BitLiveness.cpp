@@ -20,22 +20,22 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/Support/Assert.h"
-
-#include "revng-c/TypeShrinking/BitLiveness.h"
-#include "revng-c/TypeShrinking/DataFlowGraph.h"
+#include "revng/TypeShrinking/BitLiveness.h"
+#include "revng/TypeShrinking/DataFlowGraph.h"
 
 namespace TypeShrinking {
 
 using BitVector = llvm::BitVector;
 using Instruction = llvm::Instruction;
 
-char TypeShrinking::BitLivenessPass::ID = 0;
+llvm::AnalysisKey TypeShrinking::BitLivenessPass::Key;
+char TypeShrinking::BitLivenessWrapperPass::ID = 0;
 
-static llvm::RegisterPass<BitLivenessPass> X("bit-liveness",
-                                             "Apply approximate bit liveness "
-                                             "analysis",
-                                             true,
-                                             true);
+static llvm::RegisterPass<BitLivenessWrapperPass> X("bit-liveness",
+                                                    "Apply approximate bit "
+                                                    "liveness analysis",
+                                                    true,
+                                                    true);
 
 const uint32_t Top = std::numeric_limits<uint32_t>::max();
 
@@ -232,9 +232,9 @@ BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L, const uint32_t E) {
   }
 }
 
-bool BitLivenessPass::runOnFunction(llvm::Function &F) {
-
-  DataFlowGraph = buildDataFlowGraph(F);
+AnalysisResult
+BitLivenessPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
+  GenericGraph<DataFlowNode> DataFlowGraph = buildDataFlowGraph(F);
   std::vector<DataFlowNode *> ExtremalLabels;
   for (DataFlowNode *Node : DataFlowGraph.nodes()) {
     if (isDataFlowSink(Node->Instruction)) {
@@ -242,10 +242,16 @@ bool BitLivenessPass::runOnFunction(llvm::Function &F) {
     }
   }
 
-  Result = getMaximalFixedPoint<BitLivenessAnalysis>(&DataFlowGraph,
-                                                     0,
-                                                     Top,
-                                                     ExtremalLabels);
+  return getMaximalFixedPoint<BitLivenessAnalysis>(&DataFlowGraph,
+                                                   0,
+                                                   Top,
+                                                   ExtremalLabels);
+}
+
+bool BitLivenessWrapperPass::runOnFunction(llvm::Function &F) {
+  llvm::FunctionAnalysisManager FAM;
+  Result = BitLivenessPass().run(F, FAM);
   return false;
 }
+
 } // namespace TypeShrinking

@@ -6,6 +6,8 @@
 
 #include <optional>
 
+#include "llvm/IR/PassManager.h"
+
 #include "revng/ADT/GenericGraph.h"
 #include "revng/TypeShrinking/DataFlowGraph.h"
 #include "revng/TypeShrinking/MFP.h"
@@ -27,6 +29,7 @@ struct BitLivenessAnalysis {
   using GraphType = GenericGraph<DataFlowNode> *;
   using LatticeElement = uint32_t;
   using Label = DataFlowNode *;
+  using MFPResult = MFPResult<BitLivenessAnalysis::LatticeElement>;
   static uint32_t combineValues(const uint32_t &Lh, const uint32_t &Rh);
   static uint32_t applyTransferFunction(DataFlowNode *L, const uint32_t E);
   static bool isLessOrEqual(const uint32_t &Lh, const uint32_t &Rh);
@@ -42,14 +45,13 @@ BitLivenessAnalysis::isLessOrEqual(const uint32_t &Lh, const uint32_t &Rh) {
   return Lh <= Rh;
 }
 
-class BitLivenessPass : public llvm::FunctionPass {
-public:
-  using Label = BitLivenessAnalysis::Label;
-  using MFPResult = MFPResult<BitLivenessAnalysis::LatticeElement>;
-  using AnalysisResult = std::map<Label, MFPResult>;
+using Label = BitLivenessAnalysis::Label;
+using AnalysisResult = std::map<Label, BitLivenessAnalysis::MFPResult>;
 
+class BitLivenessWrapperPass : public llvm::FunctionPass {
+public:
   static char ID; // Pass identification, replacement for typeid
-  BitLivenessPass() : FunctionPass(ID) {}
+  BitLivenessWrapperPass() : FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
 
@@ -61,7 +63,16 @@ public:
 
 private:
   AnalysisResult Result;
-  GenericGraph<DataFlowNode> DataFlowGraph;
+};
+
+class BitLivenessPass : public llvm::AnalysisInfoMixin<BitLivenessPass> {
+  friend llvm::AnalysisInfoMixin<BitLivenessPass>;
+
+private:
+  static llvm::AnalysisKey Key;
+
+public:
+  AnalysisResult run(llvm::Function &F, llvm::FunctionAnalysisManager &);
 };
 
 } // namespace TypeShrinking
