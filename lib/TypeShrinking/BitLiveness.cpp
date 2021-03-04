@@ -22,8 +22,29 @@
 #include "revng/Support/Assert.h"
 #include "revng/TypeShrinking/BitLiveness.h"
 #include "revng/TypeShrinking/DataFlowGraph.h"
+#include "revng/TypeShrinking/MFP.h"
 
 namespace TypeShrinking {
+
+/// This class is an instance of monotone framework
+/// the elements represent the index from which all bits are not alive
+/// so for an element E, all bits with index < E are alive
+struct BitLivenessAnalysis {
+  using GraphType = GenericGraph<DataFlowNode> *;
+  using LatticeElement = uint32_t;
+  using Label = DataFlowNode *;
+  using MFPResult = MFPResult<BitLivenessAnalysis::LatticeElement>;
+
+  static uint32_t combineValues(const uint32_t &Lh, const uint32_t &Rh) {
+    return std::max(Lh, Rh);
+  }
+
+  static bool isLessOrEqual(const uint32_t &Lh, const uint32_t &Rh) {
+    return Lh <= Rh;
+  }
+
+  static uint32_t applyTransferFunction(DataFlowNode *L, const uint32_t E);
+};
 
 using BitVector = llvm::BitVector;
 using Instruction = llvm::Instruction;
@@ -232,7 +253,7 @@ BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L, const uint32_t E) {
   }
 }
 
-AnalysisResult
+BitLivenessPass::Result
 BitLivenessPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
   GenericGraph<DataFlowNode> DataFlowGraph = buildDataFlowGraph(F);
   std::vector<DataFlowNode *> ExtremalLabels;
@@ -242,10 +263,15 @@ BitLivenessPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
     }
   }
 
-  return getMaximalFixedPoint<BitLivenessAnalysis>(&DataFlowGraph,
-                                                   0,
-                                                   Top,
-                                                   ExtremalLabels);
+  auto MFPResults = getMaximalFixedPoint<BitLivenessAnalysis>(&DataFlowGraph,
+                                                              0,
+                                                              Top,
+                                                              ExtremalLabels);
+  BitLivenessPass::Result Result;
+  for (auto &[Label, MFPResult] : MFPResults)
+    Result[Label->Instruction] = MFPResult.OutValue;
+
+  return Result;
 }
 
 bool BitLivenessWrapperPass::runOnFunction(llvm::Function &F) {

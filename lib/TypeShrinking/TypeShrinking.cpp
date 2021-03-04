@@ -65,22 +65,19 @@ static bool isAddLike(const Instruction *Ins) {
   return false;
 }
 
-static bool runTypeShrinking(Function &F,
-                             const TypeShrinking::AnalysisResult &FixedPoints) {
+static bool
+runTypeShrinking(Function &F, const BitLivenessAnalysisResults &FixedPoints) {
   bool HasChanges = false;
 
   const std::array<uint32_t, 4> Ranks = { 8, 16, 32, 64 };
-  for (auto &[Label, Result] : FixedPoints) {
-    auto *Ins = Label->Instruction;
+  for (auto &[Ins, Result] : FixedPoints) {
     // Find the closest rank that contains all the alive bits.
     // If there is a known rank and this is an instruction that behaves like add
     // (the least significant bits of the result depend only on the least
     // significant bits of the operands) we can down cast the operands and then
     // upcast the result
-    if (Result.OutValue >= MinimumWidth.getValue() && isAddLike(Ins)) {
-      auto ClosestRank = std::lower_bound(Ranks.begin(),
-                                          Ranks.end(),
-                                          Result.OutValue);
+    if (Result >= MinimumWidth.getValue() && isAddLike(Ins)) {
+      auto ClosestRank = std::lower_bound(Ranks.begin(), Ranks.end(), Result);
       if (ClosestRank != Ranks.end()
           && Ins->getType()->getScalarSizeInBits() > *ClosestRank) {
         auto Rank = *ClosestRank;
