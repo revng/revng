@@ -5,6 +5,7 @@
 //
 
 // This file has been automatically generated from scripts/monotone-framework-lattice.py, please don't change it
+
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Instruction.h"
@@ -28,6 +29,8 @@ struct CoreLattice {
 
 %LatticeElement%
 
+static const LatticeElement DefaultLatticeElement = %DefaultLatticeElement%;
+
 using TransferFunction = ABIAnalyses::TransferKind;
 
 static %isLessOrEqual%
@@ -39,7 +42,7 @@ static %transfer%
 };
 template<bool isForward>
 struct MFI : ABIAnalyses::ABIAnalysis {
-  using LatticeElement = llvm::DenseMap<Register, CoreLattice::LatticeElement>;
+  using LatticeElement = llvm::DenseMap<const llvm::GlobalVariable *, CoreLattice::LatticeElement>;
   using Label = const llvm::BasicBlock *;
   using GraphType = const llvm::BasicBlock *;
 
@@ -81,11 +84,5 @@ struct MFI : ABIAnalyses::ABIAnalysis {
     return New;
   };
 };
-
-llvm::DenseMap<llvm::GlobalVariable *, State>
-analyze(const llvm::Instruction *,
-        const llvm::BasicBlock *Entry,
-        const GeneratedCodeBasicInfo &GCBI,
-        const StackAnalysis::FunctionProperties &FP);
 
 } // namespace %LatticeName%

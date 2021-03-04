@@ -28,12 +28,13 @@ struct CoreLattice {
 
 enum LatticeElement {
   Bottom,
-    Maybe,
-    Unknown,
-    Yes
+  Maybe,
+  Unknown,
+  Yes
 };
 
 
+static const LatticeElement DefaultLatticeElement = Maybe;
 
 using TransferFunction = ABIAnalyses::TransferKind;
 
@@ -76,10 +77,10 @@ static LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
     switch(E) {
     case LatticeElement::Maybe:
       return LatticeElement::Unknown;
-    case LatticeElement::Yes:
-      return LatticeElement::Yes;
     case LatticeElement::Bottom:
       return LatticeElement::Bottom;
+    case LatticeElement::Yes:
+      return LatticeElement::Yes;
     case LatticeElement::Unknown:
       return LatticeElement::Unknown;
     default:
@@ -91,10 +92,10 @@ static LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
     switch(E) {
     case LatticeElement::Maybe:
       return LatticeElement::Maybe;
-    case LatticeElement::Yes:
-      return LatticeElement::Yes;
     case LatticeElement::Bottom:
       return LatticeElement::Bottom;
+    case LatticeElement::Yes:
+      return LatticeElement::Yes;
     case LatticeElement::Unknown:
       return LatticeElement::Unknown;
     default:
@@ -106,10 +107,10 @@ static LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
     switch(E) {
     case LatticeElement::Maybe:
       return LatticeElement::Unknown;
-    case LatticeElement::Yes:
-      return LatticeElement::Yes;
     case LatticeElement::Bottom:
       return LatticeElement::Bottom;
+    case LatticeElement::Yes:
+      return LatticeElement::Yes;
     case LatticeElement::Unknown:
       return LatticeElement::Unknown;
     default:
@@ -121,10 +122,10 @@ static LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
     switch(E) {
     case LatticeElement::Maybe:
       return LatticeElement::Unknown;
-    case LatticeElement::Yes:
-      return LatticeElement::Yes;
     case LatticeElement::Bottom:
       return LatticeElement::Bottom;
+    case LatticeElement::Yes:
+      return LatticeElement::Yes;
     case LatticeElement::Unknown:
       return LatticeElement::Unknown;
     default:
@@ -136,10 +137,10 @@ static LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
     switch(E) {
     case LatticeElement::Maybe:
       return LatticeElement::Yes;
-    case LatticeElement::Yes:
-      return LatticeElement::Yes;
     case LatticeElement::Bottom:
       return LatticeElement::Bottom;
+    case LatticeElement::Yes:
+      return LatticeElement::Yes;
     case LatticeElement::Unknown:
       return LatticeElement::Unknown;
     default:
@@ -157,7 +158,7 @@ static LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
 };
 template<bool isForward>
 struct MFI : ABIAnalyses::ABIAnalysis {
-  using LatticeElement = llvm::DenseMap<Register, CoreLattice::LatticeElement>;
+  using LatticeElement = llvm::DenseMap<const llvm::GlobalVariable *, CoreLattice::LatticeElement>;
   using Label = const llvm::BasicBlock *;
   using GraphType = const llvm::BasicBlock *;
 
@@ -200,10 +201,9 @@ struct MFI : ABIAnalyses::ABIAnalysis {
   };
 };
 
-llvm::DenseMap<llvm::GlobalVariable *, State>
-analyze(const llvm::Instruction *CallSite,
+llvm::DenseMap<const llvm::GlobalVariable *, State>
+analyze(const llvm::Instruction *,
         const llvm::BasicBlock *Entry,
-        const GeneratedCodeBasicInfo &GCBI,
-        const StackAnalysis::FunctionProperties &FP);
+        const GeneratedCodeBasicInfo &GCBI);
 
 } // namespace RegisterArgumentsOfFunctionCall

@@ -20,31 +20,28 @@
 namespace UsedArgumentsOfFunction {
 using namespace llvm;
 
-DenseMap<GlobalVariable *, State>
+DenseMap<const GlobalVariable *, State>
 analyze(const Instruction *CallSite,
         const BasicBlock *Entry,
-        const GeneratedCodeBasicInfo &GCBI,
-        const StackAnalysis::FunctionProperties &FP) {
+        const GeneratedCodeBasicInfo &GCBI) {
+  using MFI = MFI<true>;
+  MFI Instance{ { GCBI } };
+  MFI::LatticeElement InitialValue{};
+  MFI::LatticeElement ExtremalValue{};
 
-  MFI<true> Instance{ { GCBI } };
-  DenseMap<Register, CoreLattice::LatticeElement> InitialValue{};
-  DenseMap<Register, CoreLattice::LatticeElement> ExtremalValue{};
-
-  auto Results = MFP::getMaximalFixedPoint<MFI<true>>(Instance,
+  auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
                                                 Entry,
                                                 InitialValue,
                                                 ExtremalValue,
                                                 { Entry },
                                                 { Entry });
 
-  DenseMap<GlobalVariable *, State> RegYes{};
+  DenseMap<const GlobalVariable *, State> RegYes{};
 
   for (auto &[BB, Result] : Results) {
-    for (auto &[RegID, RegState] : Result.OutValue) {
+    for (auto &[GV, RegState] : Result.OutValue) {
       if (RegState == CoreLattice::Yes) {
-        if (auto *GV = Instance.getABIRegister(RegID)) {
-          RegYes[GV] = State::Yes;
-        }
+        RegYes[GV] = State::Yes;
       }
     }
   }

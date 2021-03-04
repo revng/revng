@@ -19,44 +19,36 @@
 namespace DeadRegisterArgumentsOfFunction {
 using namespace llvm;
 
-DenseMap<GlobalVariable *, State>
+DenseMap<const GlobalVariable *, State>
 analyze(const Instruction *CallSite,
         const BasicBlock *Entry,
-        const GeneratedCodeBasicInfo &GCBI,
-        const StackAnalysis::FunctionProperties &FP) {
+        const GeneratedCodeBasicInfo &GCBI) {
+  using MFI = MFI<true>;
 
-  MFI<true> Instance{ { GCBI } };
-  DenseMap<Register, CoreLattice::LatticeElement> InitialValue{};
-  DenseMap<Register, CoreLattice::LatticeElement> ExtremalValue{};
+  MFI Instance{ { GCBI } };
+  MFI::LatticeElement InitialValue{};
+  MFI::LatticeElement ExtremalValue{};
 
-  auto Results = MFP::getMaximalFixedPoint<MFI<true>>(Instance,
+  auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
                                                 Entry,
                                                 InitialValue,
                                                 ExtremalValue,
                                                 { Entry },
                                                 { Entry });
 
-  DenseMap<GlobalVariable *, State> RegUnknown{};
-  DenseMap<GlobalVariable *, State> RegNoOrDead{};
+  DenseMap<const GlobalVariable *, State> RegUnknown{};
+  DenseMap<const GlobalVariable *, State> RegNoOrDead{};
 
   for (auto &[BB, Result] : Results) {
-    for (auto &[RegID, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::Unknown) {
-        if (auto *GV = Instance.getABIRegister(RegID)) {
-          RegUnknown[GV] = State::Unknown;
-        }
-      }
+    for (auto &[GV, RegState] : Result.OutValue) {
+      RegUnknown[GV] = State::Unknown;
     }
   }
 
   for (auto &[BB, Result] : Results) {
-    for (auto &[RegID, RegState] : Result.OutValue) {
+    for (auto &[GV, RegState] : Result.OutValue) {
       if (RegState == CoreLattice::NoOrDead) {
-        if (auto *GV = Instance.getABIRegister(RegID)) {
-          if (RegUnknown.count(GV) == 0) {
-            RegNoOrDead[GV] = State::NoOrDead;
-          }
-        }
+        RegNoOrDead[GV] = State::NoOrDead;
       }
     }
   }
