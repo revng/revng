@@ -4,7 +4,6 @@
 
 add_subdirectory(AdjustStackPointer)
 add_subdirectory(Decompiler)
-add_subdirectory(DecompilerResourceFinder)
 add_subdirectory(IsolatedFunctions)
 add_subdirectory(Liveness)
 add_subdirectory(MakeEnvNull)

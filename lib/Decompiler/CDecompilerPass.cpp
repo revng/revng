@@ -27,7 +27,6 @@
 #include "revng-c/Decompiler/DLALayouts.h"
 #include "revng-c/Decompiler/DLAPass.h"
 #include "revng-c/Decompiler/MarkForSerialization.h"
-#include "revng-c/DecompilerResourceFinder/ResourceFinder.h"
 #include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"

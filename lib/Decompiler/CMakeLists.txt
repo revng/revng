@@ -32,7 +32,6 @@ revng_add_analyses_library(Decompiler revngc
   TypeDeclCreationAction.cpp)
 
 target_link_libraries(Decompiler
-  DecompilerResourceFinder
   FilterForDecompilation
   IsolatedFunctions
   LivenessAnalysis
