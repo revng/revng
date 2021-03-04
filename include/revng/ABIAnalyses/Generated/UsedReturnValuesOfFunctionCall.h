@@ -28,11 +28,12 @@ struct CoreLattice {
 
 enum LatticeElement {
   Maybe,
-    Unknown,
-    Yes
+  Unknown,
+  Yes
 };
 
 
+static const LatticeElement DefaultLatticeElement = Maybe;
 
 using TransferFunction = ABIAnalyses::TransferKind;
 
@@ -124,7 +125,7 @@ static LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
 };
 template<bool isForward>
 struct MFI : ABIAnalyses::ABIAnalysis {
-  using LatticeElement = llvm::DenseMap<Register, CoreLattice::LatticeElement>;
+  using LatticeElement = llvm::DenseMap<const llvm::GlobalVariable *, CoreLattice::LatticeElement>;
   using Label = const llvm::BasicBlock *;
   using GraphType = const llvm::BasicBlock *;
 
@@ -167,10 +168,9 @@ struct MFI : ABIAnalyses::ABIAnalysis {
   };
 };
 
-llvm::DenseMap<llvm::GlobalVariable *, State>
-analyze(const llvm::Instruction *CallSite,
+llvm::DenseMap<const llvm::GlobalVariable *, State>
+analyze(const llvm::Instruction *,
         const llvm::BasicBlock *Entry,
-        const GeneratedCodeBasicInfo &GCBI,
-        const StackAnalysis::FunctionProperties &FP);
+        const GeneratedCodeBasicInfo &GCBI);
 
 } // namespace UsedReturnValuesOfFunctionCall

@@ -20,44 +20,38 @@
 namespace RegisterArgumentsOfFunctionCall {
 using namespace llvm;
 
-DenseMap<GlobalVariable *, State>
+DenseMap<const GlobalVariable *, State>
 analyze(const Instruction *CallSite,
         const BasicBlock *Entry,
-        const GeneratedCodeBasicInfo &GCBI,
-        const StackAnalysis::FunctionProperties &FP) {
+        const GeneratedCodeBasicInfo &GCBI) {
+  using MFI = MFI<false>;
 
-  MFI<false> Instance{ { CallSite, GCBI } };
-  DenseMap<Register, CoreLattice::LatticeElement> InitialValue{};
-  DenseMap<Register, CoreLattice::LatticeElement> ExtremalValue{};
+  MFI Instance{ { CallSite, GCBI } };
+  MFI::LatticeElement InitialValue{};
+  MFI::LatticeElement ExtremalValue{};
 
-  auto Results = MFP::getMaximalFixedPoint<MFI<false>>(Instance,
+  auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
                                                 Entry,
                                                 InitialValue,
                                                 ExtremalValue,
                                                 { Entry },
                                                 { Entry });
 
-  DenseMap<GlobalVariable *, State> RegUnknown{};
-  DenseMap<GlobalVariable *, State> RegYes{};
+  DenseMap<const GlobalVariable *, State> RegUnknown{};
+  DenseMap<const GlobalVariable *, State> RegYes{};
 
   for (auto &[BB, Result] : Results) {
-    for (auto &[RegID, RegState] : Result.OutValue) {
+    for (auto &[GV, RegState] : Result.OutValue) {
       if (RegState == CoreLattice::Unknown) {
-        if (auto *GV = Instance.getABIRegister(RegID)) {
-          RegUnknown[GV] = State::Unknown;
-        }
+        RegUnknown[GV] = State::Unknown;
       }
     }
   }
 
   for (auto &[BB, Result] : Results) {
-    for (auto &[RegID, RegState] : Result.OutValue) {
+    for (auto &[GV, RegState] : Result.OutValue) {
       if (RegState == CoreLattice::Yes) {
-        if (auto *GV = Instance.getABIRegister(RegID)) {
-          if (RegUnknown.count(GV) == 0) {
-            RegYes[GV] = State::Yes;
-          }
-        }
+        RegYes[GV] = State::Yes;
       }
     }
   }

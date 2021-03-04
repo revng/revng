@@ -22,31 +22,29 @@
 namespace DeadReturnValuesOfFunctionCall {
 using namespace llvm;
 
-DenseMap<GlobalVariable *, State>
+DenseMap<const GlobalVariable *, State>
 analyze(const Instruction *CallSite,
         const BasicBlock *Entry,
-        const GeneratedCodeBasicInfo &GCBI,
-        const StackAnalysis::FunctionProperties &FP) {
+        const GeneratedCodeBasicInfo &GCBI) {
+  using MFI = MFI<true>;
 
-  MFI<true> Instance{ { CallSite, GCBI } };
-  DenseMap<Register, CoreLattice::LatticeElement> InitialValue{};
-  DenseMap<Register, CoreLattice::LatticeElement> ExtremalValue{};
+  MFI Instance{ { CallSite, GCBI } };
+  MFI::LatticeElement InitialValue{};
+  MFI::LatticeElement ExtremalValue{};
 
-  auto Results = MFP::getMaximalFixedPoint<MFI<true>>(Instance,
+  auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
                                                 Entry,
                                                 InitialValue,
                                                 ExtremalValue,
                                                 { Entry },
                                                 { Entry });
 
-  DenseMap<GlobalVariable *, State> RegNoOrDead{};
+  DenseMap<const GlobalVariable *, State> RegNoOrDead{};
 
   for (auto &[BB, Result] : Results) {
-    for (auto &[RegID, RegState] : Result.OutValue) {
+    for (auto &[GV, RegState] : Result.OutValue) {
       if (RegState == CoreLattice::NoOrDead) {
-        if (auto *GV = Instance.getABIRegister(RegID)) {
-          RegNoOrDead[GV] = State::NoOrDead;
-        }
+        RegNoOrDead[GV] = State::NoOrDead;
       }
     }
   }
