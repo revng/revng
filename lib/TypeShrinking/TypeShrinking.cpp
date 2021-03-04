@@ -30,7 +30,6 @@
 using namespace llvm;
 
 using BitSet = std::set<int>;
-using RegisterTypeShrinking = RegisterPass<TypeShrinking::TypeShrinking>;
 
 static cl::opt<uint32_t> MinimumWidth("min-width",
                                       cl::init(8),
@@ -39,14 +38,15 @@ static cl::opt<uint32_t> MinimumWidth("min-width",
                                       cl::value_desc("min-width"),
                                       cl::cat(MainCategory));
 
-char TypeShrinking::TypeShrinking::ID = 0;
+char TypeShrinking::TypeShrinkingWrapperPass::ID = 0;
 
-static RegisterTypeShrinking
+using Register = RegisterPass<TypeShrinking::TypeShrinkingWrapperPass>;
+static Register
   X("type-shrinking", "Run the type shrinking analysis", true, true);
 
 namespace TypeShrinking {
 
-void TypeShrinking::getAnalysisUsage(AnalysisUsage &AU) const {
+void TypeShrinkingWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<BitLivenessWrapperPass>();
 }
 
@@ -65,10 +65,8 @@ static bool isAddLike(const Instruction *Ins) {
   return false;
 }
 
-bool TypeShrinking::runOnFunction(Function &F) {
-
-  auto &BitLiveness = getAnalysis<BitLivenessWrapperPass>();
-  auto &FixedPoints = BitLiveness.getResult();
+static bool runTypeShrinking(Function &F,
+                             const TypeShrinking::AnalysisResult &FixedPoints) {
   bool HasChanges = false;
 
   const std::array<uint32_t, 4> Ranks = { 8, 16, 32, 64 };
@@ -114,6 +112,19 @@ bool TypeShrinking::runOnFunction(Function &F) {
   }
 
   return HasChanges;
+}
+
+bool TypeShrinkingWrapperPass::runOnFunction(Function &F) {
+  auto &BitLiveness = getAnalysis<BitLivenessWrapperPass>();
+  auto &FixedPoints = BitLiveness.getResult();
+  return runTypeShrinking(F, FixedPoints);
+}
+
+PreservedAnalyses
+TypeShrinkingPass::run(Function &F, FunctionAnalysisManager &FAM) {
+  const auto &FixedPoints = FAM.getResult<BitLivenessPass>(F);
+  bool HasChanges = runTypeShrinking(F, FixedPoints);
+  return HasChanges ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
 } // namespace TypeShrinking

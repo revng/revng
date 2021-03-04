@@ -68,6 +68,9 @@ private:
 class BitLivenessPass : public llvm::AnalysisInfoMixin<BitLivenessPass> {
   friend llvm::AnalysisInfoMixin<BitLivenessPass>;
 
+public:
+  using Result = AnalysisResult;
+
 private:
   static llvm::AnalysisKey Key;
 

@@ -11,10 +11,17 @@
 
 namespace TypeShrinking {
 
-class TypeShrinking : public llvm::FunctionPass {
+class TypeShrinkingPass : public llvm::PassInfoMixin<TypeShrinkingPass> {
+
+public:
+  llvm::PreservedAnalyses
+  run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
+};
+
+class TypeShrinkingWrapperPass : public llvm::FunctionPass {
 public:
   static char ID; // Pass identification, replacement for typeid
-  TypeShrinking() : FunctionPass(ID) {}
+  TypeShrinkingWrapperPass() : FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
 
