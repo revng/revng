@@ -4,6 +4,7 @@
 
 #include <optional>
 #include <system_error>
+#include <utility>
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Analysis/ScalarEvolution.h"
@@ -18,8 +19,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
 
-#include "clang/Tooling/Tooling.h"
-
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -32,6 +31,7 @@
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
+#include "revng-c/ThreadSafeClangTooling/ThreadSafeClangTooling.h"
 
 #include "CDecompilerAction.h"
 
@@ -74,10 +74,12 @@ CDecompilerPass::CDecompilerPass() : CDecompilerPass(nullptr) {
 bool CDecompilerPass::doInitialization(llvm::Module &) {
 
   // This is a hack to prevent clashes between LLVM's `opt` arguments and
-  // clangTooling's CommonOptionParser arguments.
+  // clangTooling's arguments.
   // At this point opt's arguments have already been parsed, so there should
-  // be no problem in clearing the map and let clangTooling reinitialize it
-  // with its own stuff.
+  // be no problem in clearing the map (held by cl::opt's GlobalParser to know
+  // which are the registered valid options) and let clangTooling reinitialize
+  // it with its own stuff.
+  std::scoped_lock ClangToolingGuard{ ClangToolingMutex };
   cl::getRegisteredOptions().clear();
 
   return false;
@@ -194,13 +196,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
                                                     std::move(Out));
 
   const std::string CCode{ "#include <stdint.h>" };
-  const std::vector<std::string> CmdLine = { // Tell clang to compile C
-                                             // language
-                                             "-xc",
-                                             // Tell clang to compile C11
-                                             "-std=c11"
-  };
-  clang::tooling::runToolOnCodeWithArgs(std::move(Action), CCode, CmdLine);
+  runThreadSafeClangTool(std::move(Action), CCode);
 
   // Serialize the collected metrics in the statistics file if necessary
   if (StatsFileStream.has_value()) {

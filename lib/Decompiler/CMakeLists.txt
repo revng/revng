@@ -43,6 +43,7 @@ target_link_libraries(Decompiler
   RemoveLLVMAssumeCalls
   MakeEnvNull
   revngTypeShrinking
+  ThreadSafeClangTooling
   revng::revngModel
   revng::revngSupport
   clangTooling
