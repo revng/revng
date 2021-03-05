@@ -99,10 +99,30 @@ runTypeShrinking(Function &F, const BitLivenessAnalysisResults &FixedPoints) {
                                            Ins->getOpcode(),
                                          Lhs,
                                          Rhs);
-        auto *UpCasted = BuilderPost.CreateCast(Instruction::CastOps::ZExt,
-                                                NewIns,
-                                                Ins->getType());
-        Ins->replaceAllUsesWith(UpCasted);
+
+        // Emit ZExts, as late as possible
+        SmallVector<std::pair<Use *, Value *>, 4> Replacements;
+        for (Use &TheUse : Ins->uses()) {
+          if (auto *U = cast<Instruction>(TheUse.getUser())) {
+            IRBuilder<> B(U);
+
+            // Fix insert point for PHIs
+            if (auto *Phi = dyn_cast<PHINode>(U)) {
+              auto *BB = Phi->getIncomingBlock(TheUse);
+              auto It = BB->getTerminator()->getIterator();
+              B.SetInsertPoint(BB, It);
+            }
+
+            auto *LateUpcast = B.CreateZExt(NewIns, Ins->getType());
+            Replacements.emplace_back(&TheUse, LateUpcast);
+          }
+        }
+
+        // Apply replacements
+        for (auto &[Use, I] : Replacements)
+          Use->set(I);
+
+        // Drop the original instruction
         Ins->eraseFromParent();
       }
     }
