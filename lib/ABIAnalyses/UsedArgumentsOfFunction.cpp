@@ -22,8 +22,7 @@ using namespace llvm;
 using namespace ABIAnalyses;
 
 DenseMap<const GlobalVariable *, State>
-analyze(const BasicBlock *FunctionEntry,
-        const GeneratedCodeBasicInfo &GCBI) {
+analyze(const BasicBlock *FunctionEntry, const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFI<true>;
   MFI Instance{ { GCBI } };
   MFI::LatticeElement InitialValue{};

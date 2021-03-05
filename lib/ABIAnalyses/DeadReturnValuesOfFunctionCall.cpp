@@ -23,8 +23,7 @@ using namespace llvm;
 using namespace ABIAnalyses;
 
 DenseMap<const GlobalVariable *, State>
-analyze(const BasicBlock *CallSiteBlock,
-        const GeneratedCodeBasicInfo &GCBI) {
+analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFI<true>;
 
   MFI Instance{ { getPreCallHook(CallSiteBlock), GCBI } };
