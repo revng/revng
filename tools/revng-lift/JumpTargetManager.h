@@ -151,6 +151,7 @@ class JumpTargetManager {
 private:
   using interval_set = boost::icl::interval_set<MetaAddress, compareAddress>;
   using interval = boost::icl::interval<MetaAddress, compareAddress>;
+  using MetaAddressSet = std::set<MetaAddress>;
 
 public:
   using BlockWithAddress = std::pair<MetaAddress, llvm::BasicBlock *>;
@@ -223,7 +224,8 @@ public:
                     CSAAFactory createCSAA);
 
   /// \brief Transform the IR to represent the request form of CFG
-  void setCFGForm(CFGForm::Values NewForm);
+  void setCFGForm(CFGForm::Values NewForm,
+                  MetaAddressSet *JumpTargetsWhitelist = nullptr);
 
   CFGForm::Values cfgForm() const { return CurrentCFGForm; }
 
@@ -401,7 +403,10 @@ public:
   readFromPointer(llvm::Constant *Pointer, BinaryFile::Endianess E);
 
   /// \brief Increment the counter of emitted branches since the last reset
-  void recordNewBranches(size_t Count = 1) { NewBranches += Count; }
+  void recordNewBranches(llvm::BasicBlock *Source, size_t Count) {
+    AVIPCWhiteList.insert(getPC(Source->getTerminator()).first);
+    NewBranches += Count;
+  }
 
   /// \brief Finalizes information about the jump targets
   ///
@@ -521,7 +526,7 @@ private:
   ///
   /// \return 0 if \p I is not a call to `newpc`, otherwise the PC address of
   ///         associated to the call to `newpc`
-  MetaAddress getPCFromNewPCCall(llvm::Instruction *I) {
+  MetaAddress getPCFromNewPCCall(const llvm::Instruction *I) {
     if (auto *CallNewPC = llvm::dyn_cast<llvm::CallInst>(I)) {
       if (CallNewPC->getCalledFunction() == nullptr
           || CallNewPC->getCalledFunction()->getName() != "newpc")
@@ -553,7 +558,7 @@ private:
   ///
   /// Depending on the CFG form we're currently adopting the dispatcher might go
   /// to all the jump targets or only to those who have no other predecessor.
-  void rebuildDispatcher();
+  void rebuildDispatcher(MetaAddressSet *Whitelist);
 
   void prepareDispatcher();
 
@@ -569,7 +574,7 @@ private:
   /// \brief Decorate memory accesses with information about CSV aliasing
   void aliasAnalysis();
 
-  void inflateAVIWhitelist();
+  MetaAddressSet inflateAVIWhitelist();
 
 private:
   using InstructionMap = std::map<MetaAddress, llvm::Instruction *>;
@@ -608,9 +613,7 @@ private:
 
   ProgramCounterHandler *PCH;
 
-  using MetaAddressSet = std::set<MetaAddress>;
-  MetaAddressSet AVIJumpTargetsWhitelist;
-  MetaAddressSet *JumpTargetsWhitelist;
+  MetaAddressSet AVIPCWhiteList;
 };
 
 template<>
