@@ -13,16 +13,16 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng/ABIAnalyses/Generated/UsedReturnValuesOfFunction.h"
+#include "revng/ABIAnalyses/Analyses.h"
 #include "revng/MFP/MFP.h"
 #include "revng/Support/revng.h"
 
-namespace UsedReturnValuesOfFunction {
+namespace ABIAnalyses::UsedReturnValuesOfFunction {
 using namespace llvm;
+using namespace ABIAnalyses;
 
 DenseMap<const GlobalVariable *, State>
-analyze(const Instruction *Return,
-        const BasicBlock *Entry,
+analyze(const BasicBlock *ReturnBlock,
         const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFI<false>;
 
@@ -31,11 +31,11 @@ analyze(const Instruction *Return,
   MFI::LatticeElement ExtremalValue{};
 
   auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
-                                                Entry,
+                                                ReturnBlock,
                                                 InitialValue,
                                                 ExtremalValue,
-                                                { Entry },
-                                                { Entry });
+                                                { ReturnBlock },
+                                                { ReturnBlock });
 
   DenseMap<const GlobalVariable *, State> RegUnknown{};
   DenseMap<const GlobalVariable *, State> RegYesOrDead{};
@@ -58,4 +58,4 @@ analyze(const Instruction *Return,
 
   return RegYesOrDead;
 }
-} // namespace UsedReturnValuesOfFunction
+} // namespace ABIAnalyses::UsedReturnValuesOfFunction

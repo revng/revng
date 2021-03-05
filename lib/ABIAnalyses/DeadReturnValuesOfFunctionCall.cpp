@@ -13,31 +13,30 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng/ABIAnalyses/Common.h"
-#include "revng/ABIAnalyses/Generated/DeadReturnValuesOfFunctionCall.h"
+#include "revng/ABIAnalyses/Analyses.h"
 #include "revng/MFP/MFP.h"
 #include "revng/Model/Binary.h"
 #include "revng/Support/revng.h"
 
-namespace DeadReturnValuesOfFunctionCall {
+namespace ABIAnalyses::DeadReturnValuesOfFunctionCall {
 using namespace llvm;
+using namespace ABIAnalyses;
 
 DenseMap<const GlobalVariable *, State>
-analyze(const Instruction *CallSite,
-        const BasicBlock *Entry,
+analyze(const BasicBlock *CallSiteBlock,
         const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFI<true>;
 
-  MFI Instance{ { CallSite, GCBI } };
+  MFI Instance{ { getPreCallHook(CallSiteBlock), GCBI } };
   MFI::LatticeElement InitialValue{};
   MFI::LatticeElement ExtremalValue{};
-
+  auto *Start = CallSiteBlock->getUniqueSuccessor();
   auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
-                                                Entry,
+                                                Start,
                                                 InitialValue,
                                                 ExtremalValue,
-                                                { Entry },
-                                                { Entry });
+                                                { Start },
+                                                { Start });
 
   DenseMap<const GlobalVariable *, State> RegNoOrDead{};
 
@@ -50,4 +49,4 @@ analyze(const Instruction *CallSite,
   }
   return RegNoOrDead;
 }
-} // namespace DeadReturnValuesOfFunctionCall
+} // namespace ABIAnalyses::DeadReturnValuesOfFunctionCall

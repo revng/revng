@@ -8,11 +8,7 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "revng/ABIAnalyses/ABIAnalysisPass.h"
-#include "revng/ABIAnalyses/Generated/DeadRegisterArgumentsOfFunction.h"
-#include "revng/ABIAnalyses/Generated/DeadReturnValuesOfFunctionCall.h"
-#include "revng/ABIAnalyses/Generated/RegisterArgumentsOfFunctionCall.h"
-#include "revng/ABIAnalyses/Generated/UsedArgumentsOfFunction.h"
-#include "revng/ABIAnalyses/Generated/UsedReturnValuesOfFunctionCall.h"
+#include "revng/ABIAnalyses/ABIAnalysis.h"
 
 using namespace llvm;
 
@@ -35,96 +31,6 @@ bool ABIAnalysisPass::runOnFunction(Function &F) {
   if (F.getName().str().compare(FilterFunction) != 0) {
     return false;
   }
-
-  errs() << F.getName().str() << '\n';
-  errs() << "---------------- START DeadReturnValuesOfFunctionCall "
-            "----------------\n";
-  for (auto &B : F) {
-    for (auto &I : B) {
-      if (I.getOpcode() == Instruction::Call) {
-
-        auto Result = DeadReturnValuesOfFunctionCall::analyze(&I, &F.getEntryBlock(), GCBI);
-        errs() << "---------------- RESULTS ";
-        I.print(errs());
-        errs() << " ----------------\n";
-
-        for (auto &Reg : Result) {
-          errs() << "NoOrDead " << Reg.first->getName().str() << '\n';
-        }
-      }
-    }
-  }
-  errs() << "---------------- END DeadReturnValuesOfFunctionCall "
-            "-------------------\n";
-
-  errs() << "---------------- START UsedReturnValuesOfFunctionCall "
-            "----------------\n";
-  for (auto &B : F) {
-    for (auto &I : B) {
-      if (I.getOpcode() == Instruction::Call) {
-
-        auto Result = UsedReturnValuesOfFunctionCall::analyze(&I, &F.getEntryBlock(), GCBI);
-        errs() << "---------------- RESULTS ";
-        I.print(errs());
-        errs() << " ----------------\n";
-
-        for (auto &Reg : Result) {
-          errs() << "Yes " << Reg.first->getName().str() << '\n';
-        }
-      }
-    }
-  }
-  errs() << "---------------- END UsedReturnValuesOfFunctionCall "
-            "-------------------\n";
-
-  {
-    errs() << "---------------- START DeadRegisterArgumentsOfFunction "
-              "----------------\n";
-    auto Result = DeadRegisterArgumentsOfFunction::analyze(nullptr, &F.getEntryBlock(), GCBI);
-    errs() << "---------------- RESULTS ----------------\n";
-
-    for (auto &Reg : Result) {
-      errs() << "NoOrDead " << Reg.first->getName().str() << '\n';
-    }
-    errs() << "---------------- END DeadRegisterArgumentsOfFunction "
-              "-------------------\n";
-  }
-
-  {
-    errs() << "---------------- START UsedArgumentsOfFunction "
-              "----------------\n";
-
-    auto Result = UsedArgumentsOfFunction::analyze(nullptr, &F.getEntryBlock(), GCBI);
-    errs() << "---------------- RESULTS ----------------\n";
-
-    for (auto &Reg : Result) {
-      errs() << "Yes " << Reg.first->getName().str() << '\n';
-    }
-    errs() << "---------------- END UsedArgumentsOfFunction "
-              "-------------------\n";
-  }
-
-  errs() << "---------------- START RegisterArgumentsOfFunctionCall "
-            "----------------\n";
-  for (auto &B : F) {
-    for (auto &I : B) {
-      if (I.getOpcode() == Instruction::Call) {
-
-        auto Result = RegisterArgumentsOfFunctionCall::analyze(&I,
-                                                               &F.getEntryBlock(),
-                                                               GCBI);
-        errs() << "---------------- RESULTS ";
-        I.print(errs());
-        errs() << " ----------------\n";
-
-        for (auto &Reg : Result) {
-          errs() << "Yes " << Reg.first->getName().str() << '\n';
-        }
-      }
-    }
-  }
-  errs() << "---------------- END RegisterArgumentsOfFunctionCall "
-            "-------------------\n";
-
+  ABIAnalyses::analyzeOutlinedFunction(&F, GCBI);
   return false;
 }

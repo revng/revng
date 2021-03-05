@@ -13,29 +13,31 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng/ABIAnalyses/Generated/RegisterArgumentsOfFunctionCall.h"
+#include "revng/ABIAnalyses/Common.h"
+#include "revng/ABIAnalyses/Analyses.h"
 #include "revng/MFP/MFP.h"
 #include "revng/Support/revng.h"
 
-namespace RegisterArgumentsOfFunctionCall {
+namespace ABIAnalyses::RegisterArgumentsOfFunctionCall {
 using namespace llvm;
+using namespace ABIAnalyses;
 
 DenseMap<const GlobalVariable *, State>
-analyze(const Instruction *CallSite,
-        const BasicBlock *Entry,
+analyze(const BasicBlock *CallSiteBlock,
         const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFI<false>;
 
-  MFI Instance{ { CallSite, GCBI } };
+  MFI Instance{ { getPostCallHook(CallSiteBlock), GCBI } };
   MFI::LatticeElement InitialValue{};
   MFI::LatticeElement ExtremalValue{};
 
+  auto *Start = CallSiteBlock->getUniqueSuccessor();
   auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
-                                                Entry,
+                                                Start,
                                                 InitialValue,
                                                 ExtremalValue,
-                                                { Entry },
-                                                { Entry });
+                                                { Start },
+                                                { Start });
 
   DenseMap<const GlobalVariable *, State> RegUnknown{};
   DenseMap<const GlobalVariable *, State> RegYes{};
@@ -58,4 +60,4 @@ analyze(const Instruction *CallSite,
 
   return RegYes;
 }
-} // namespace RegisterArgumentsOfFunctionCall
+} // namespace ABIAnalyses::RegisterArgumentsOfFunctionCall
