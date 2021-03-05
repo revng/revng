@@ -13,16 +13,16 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng/ABIAnalyses/Generated/UsedArgumentsOfFunction.h"
+#include "revng/ABIAnalyses/Analyses.h"
 #include "revng/MFP/MFP.h"
 #include "revng/Support/revng.h"
 
-namespace UsedArgumentsOfFunction {
+namespace ABIAnalyses::UsedArgumentsOfFunction {
 using namespace llvm;
+using namespace ABIAnalyses;
 
 DenseMap<const GlobalVariable *, State>
-analyze(const Instruction *CallSite,
-        const BasicBlock *Entry,
+analyze(const BasicBlock *FunctionEntry,
         const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFI<true>;
   MFI Instance{ { GCBI } };
@@ -30,11 +30,11 @@ analyze(const Instruction *CallSite,
   MFI::LatticeElement ExtremalValue{};
 
   auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
-                                                Entry,
+                                                FunctionEntry,
                                                 InitialValue,
                                                 ExtremalValue,
-                                                { Entry },
-                                                { Entry });
+                                                { FunctionEntry },
+                                                { FunctionEntry });
 
   DenseMap<const GlobalVariable *, State> RegYes{};
 
@@ -48,4 +48,4 @@ analyze(const Instruction *CallSite,
 
   return RegYes;
 }
-} // namespace UsedArgumentsOfFunction
+} // namespace ABIAnalyses::UsedArgumentsOfFunction
