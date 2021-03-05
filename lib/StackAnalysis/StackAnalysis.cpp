@@ -33,6 +33,7 @@
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #include "revng/ADT/Queue.h"
+#include "revng/ABIAnalyses/ABIAnalysis.h"
 #include "revng/BasicAnalyses/CSVAliasAnalysis.h"
 #include "revng/BasicAnalyses/PromoteGlobalToLocalVars.h"
 #include "revng/BasicAnalyses/RemoveHelperCalls.h"
@@ -338,9 +339,7 @@ FuncSummary CFEPAnalyzer<FunctionOracle>::analyze(
   const auto *PCH = GCBI->programCounterHandler();
   Function *OutFunc = createDisposableFunction(Entry);
 
-
-
-
+  ABIAnalyses::analyzeOutlinedFunction(OutFunc, *GCBI);
   // Identify the callee-saved registers and tell if a function is jumping
   // to the return address. To achieve this, we craft the IR by loading the PC,
   // the SP, as well as the ABI registers CSVs at function entry and end.
@@ -788,7 +787,7 @@ llvm::Function *CFEPAnalyzer<FunctionOracle>::createDisposableFunction(
   CodeExtractorAnalysisCache CEAC(*Root);
   Function *OutlinedFunction = CodeExtractor(BlocksToExtract)
                                  .extractCodeRegion(CEAC);
-
+                                 
   revng_assert(OutlinedFunction != nullptr);
   revng_assert(OutlinedFunction->arg_size() == 0);
   revng_assert(OutlinedFunction->getReturnType()->isVoidTy());
