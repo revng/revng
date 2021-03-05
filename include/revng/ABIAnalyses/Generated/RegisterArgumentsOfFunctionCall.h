@@ -90,21 +90,6 @@ static LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
     }
     return E;
 
-  case TransferFunction::ReturnFromYes:
-    switch(E) {
-    case LatticeElement::Maybe:
-      return LatticeElement::Maybe;
-    case LatticeElement::Unknown:
-      return LatticeElement::Unknown;
-    case LatticeElement::Bottom:
-      return LatticeElement::Bottom;
-    case LatticeElement::Yes:
-      return LatticeElement::Yes;
-    default:
-      return E;
-    }
-    return E;
-
   case TransferFunction::TheCall:
     switch(E) {
     case LatticeElement::Maybe:
@@ -120,10 +105,10 @@ static LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
     }
     return E;
 
-  case TransferFunction::UnknownFunctionCall:
+  case TransferFunction::WeakWrite:
     switch(E) {
     case LatticeElement::Maybe:
-      return LatticeElement::Unknown;
+      return LatticeElement::Maybe;
     case LatticeElement::Unknown:
       return LatticeElement::Unknown;
     case LatticeElement::Bottom:
@@ -160,17 +145,18 @@ static LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
 };
 template<bool isForward>
 struct MFI : ABIAnalyses::ABIAnalysis {
-  using LatticeElement = llvm::DenseMap<const llvm::GlobalVariable *, CoreLattice::LatticeElement>;
+  using LatticeElement = llvm::DenseMap<const llvm::GlobalVariable *,
+                                        CoreLattice::LatticeElement>;
   using Label = const llvm::BasicBlock *;
   using GraphType = const llvm::BasicBlock *;
 
   LatticeElement
   combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {
-    return ABIAnalyses::combineValues<MFI, CoreLattice>(Lh, Rh);
+    return ABIAnalyses::combineValues<LatticeElement, CoreLattice>(Lh, Rh);
   };
   
   bool isLessOrEqual(const LatticeElement &Lh, const LatticeElement &Rh) const  {
-    return ABIAnalyses::isLessOrEqual<MFI, CoreLattice>(Lh, Rh);
+    return ABIAnalyses::isLessOrEqual<LatticeElement, CoreLattice>(Lh, Rh);
   };
 
   LatticeElement applyTransferFunction(Label L, const LatticeElement &E) const {
@@ -185,19 +171,25 @@ struct MFI : ABIAnalyses::ABIAnalysis {
       switch (T) {
       case TheCall: {
         for (auto &Reg : getRegisters()) {
-          New[Reg] = CoreLattice::transfer(TheCall, New[Reg]);
+          New[Reg] = CoreLattice::transfer(TheCall, 
+                                           getOrDefault<LatticeElement,
+                                                        CoreLattice>(New, Reg));
         }
         break;
       }
       case Read:
         for (auto &Reg : getRegistersRead(I)) {
-          New[Reg] = CoreLattice::transfer(T, New[Reg]);
+          New[Reg] = CoreLattice::transfer(T,
+                                           getOrDefault<LatticeElement,
+                                                        CoreLattice>(New, Reg));
         }
         break;
       case WeakWrite:
       case Write:
         for (auto &Reg : getRegistersWritten(I)) {
-          New[Reg] = CoreLattice::transfer(T, New[Reg]);
+          New[Reg] = CoreLattice::transfer(T,
+                                           getOrDefault<LatticeElement, 
+                                                        CoreLattice>(New, Reg));
         }
         break;
       default:
