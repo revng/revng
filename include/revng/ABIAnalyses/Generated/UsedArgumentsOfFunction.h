@@ -5,6 +5,7 @@
 //
 
 // This file has been automatically generated from scripts/monotone-framework-lattice.py, please don't change it
+
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Instruction.h"
@@ -17,7 +18,8 @@
 #include "revng/StackAnalysis/StackAnalysis.h"
 #include "revng/Support/revng.h"
 
-namespace UsedArgumentsOfFunction {
+namespace ABIAnalyses::UsedArgumentsOfFunction {
+
 using namespace ABIAnalyses;
 using Register = model::Register::Values;
 using State = model::RegisterState::Values;
@@ -67,10 +69,10 @@ static LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
     switch(E) {
     case LatticeElement::Maybe:
       return LatticeElement::Yes;
-    case LatticeElement::Unknown:
-      return LatticeElement::Unknown;
     case LatticeElement::Yes:
       return LatticeElement::Yes;
+    case LatticeElement::Unknown:
+      return LatticeElement::Unknown;
     default:
       return E;
     }
@@ -80,10 +82,10 @@ static LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
     switch(E) {
     case LatticeElement::Maybe:
       return LatticeElement::Unknown;
-    case LatticeElement::Unknown:
-      return LatticeElement::Unknown;
     case LatticeElement::Yes:
       return LatticeElement::Yes;
+    case LatticeElement::Unknown:
+      return LatticeElement::Unknown;
     default:
       return E;
     }
@@ -93,10 +95,10 @@ static LatticeElement transfer(TransferFunction T, const LatticeElement &E) {
     switch(E) {
     case LatticeElement::Maybe:
       return LatticeElement::Unknown;
-    case LatticeElement::Unknown:
-      return LatticeElement::Unknown;
     case LatticeElement::Yes:
       return LatticeElement::Yes;
+    case LatticeElement::Unknown:
+      return LatticeElement::Unknown;
     default:
       return E;
     }
@@ -127,8 +129,13 @@ struct MFI : ABIAnalyses::ABIAnalysis {
 
   LatticeElement applyTransferFunction(Label L, const LatticeElement &E) const {
     LatticeElement New = E;
-    for (auto &I : (isForward ? (*L) : make_range(L->rbegin(), L->rend()))) {
-      TransferKind T = classifyInstruction(&I);
+    std::vector<const Instruction *> InsList;
+    for (auto &I : make_range(L->begin(), L->end())) {
+      InsList.push_back(&I);
+    }
+    for (size_t i = 0; i <  InsList.size(); i++) {
+      auto I = InsList[isForward ? i : (InsList.size() - i - 1)];
+      TransferKind T = classifyInstruction(I);
       switch (T) {
       case TheCall: {
         for (auto &Reg : getRegisters()) {
@@ -137,13 +144,13 @@ struct MFI : ABIAnalyses::ABIAnalysis {
         break;
       }
       case Read:
-        for (auto &Reg : getRegistersRead(&I)) {
+        for (auto &Reg : getRegistersRead(I)) {
           New[Reg] = CoreLattice::transfer(T, New[Reg]);
         }
         break;
       case WeakWrite:
       case Write:
-        for (auto &Reg : getRegistersWritten(&I)) {
+        for (auto &Reg : getRegistersWritten(I)) {
           New[Reg] = CoreLattice::transfer(T, New[Reg]);
         }
         break;
@@ -155,9 +162,4 @@ struct MFI : ABIAnalyses::ABIAnalysis {
   };
 };
 
-llvm::DenseMap<const llvm::GlobalVariable *, State>
-analyze(const llvm::Instruction *,
-        const llvm::BasicBlock *Entry,
-        const GeneratedCodeBasicInfo &GCBI);
-
-} // namespace UsedArgumentsOfFunction
+} // namespace ABIAnalyses::UsedArgumentsOfFunction
