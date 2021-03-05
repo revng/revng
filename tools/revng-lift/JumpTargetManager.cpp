@@ -44,6 +44,8 @@
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/Statistics.h"
 #include "revng/Support/revng.h"
+#include "revng/TypeShrinking/BitLiveness.h"
+#include "revng/TypeShrinking/TypeShrinking.h"
 
 #include "JumpTargetManager.h"
 
@@ -1685,6 +1687,8 @@ void JumpTargetManager::harvestWithAVI() {
     FPM.addPass(DropHelperCallsPass(SyscallHelper, SyscallIDCSV, SCB));
     FPM.addPass(ShrinkInstructionOperandsPass());
     FPM.addPass(PromotePass());
+    FPM.addPass(InstCombinePass(false));
+    FPM.addPass(TypeShrinking::TypeShrinkingPass());
     FPM.addPass(JumpThreadingPass());
     FPM.addPass(UnreachableBlockElimPass());
     FPM.addPass(InstCombinePass(false));
@@ -1693,6 +1697,7 @@ void JumpTargetManager::harvestWithAVI() {
     FPM.addPass(AdvancedValueInfoPass(this));
 
     FunctionAnalysisManager FAM;
+    FAM.registerPass([]() { return TypeShrinking::BitLivenessPass(); });
     FAM.registerPass([] {
       AAManager AA;
       AA.registerFunctionAnalysis<BasicAA>();

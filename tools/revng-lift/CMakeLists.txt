@@ -18,7 +18,8 @@ target_link_libraries(revng-lift
   dl
   m
   revngBasicAnalyses
+  revngFunctionCallIdentification
   revngModel
   revngSupport
-  revngFunctionCallIdentification
+  revngTypeShrinking
   ${LLVM_LIBRARIES})
