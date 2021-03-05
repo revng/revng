@@ -11,6 +11,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Support/Casting.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/MFP/MFP.h"
@@ -124,12 +125,39 @@ inline bool ABIAnalysis::isABIRegister(const Value *V) const {
   return false;
 }
 
+inline bool isCallSiteBlock(const llvm::BasicBlock* B) {
+  if (auto *C = llvm::dyn_cast<llvm::CallInst>(&*B->getFirstInsertionPt())) {
+    if (C->getCalledFunction()->getName() == "precall_hook") {
+      return true;
+    }
+  }
+  return false;
+}
+
+inline const llvm::Instruction * getPreCallHook(const llvm::BasicBlock* B) {
+  if (isCallSiteBlock(B)) {
+    return &*B->getFirstInsertionPt();
+  }
+  return nullptr;
+}
+
+
+inline const llvm::Instruction * getPostCallHook(const llvm::BasicBlock* B) {
+  if (isCallSiteBlock(B)) {
+    return B->getTerminator()->getPrevNode();
+  }
+  return nullptr;
+}
+
 inline TransferKind
 ABIAnalysis::classifyInstruction(const Instruction *I) const {
   switch (I->getOpcode()) {
   case Instruction::Store: {
     auto S = cast<StoreInst>(I);
     if (isABIRegister(S->getPointerOperand())) {
+      if (isCallSiteBlock(I->getParent())) {
+        return WeakWrite;
+      }
       return Write;
     }
     break;
