@@ -13,8 +13,8 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng/ABIAnalyses/Common.h"
 #include "revng/ABIAnalyses/Analyses.h"
+#include "revng/ABIAnalyses/Common.h"
 #include "revng/MFP/MFP.h"
 #include "revng/Support/revng.h"
 
@@ -23,8 +23,7 @@ using namespace llvm;
 using namespace ABIAnalyses;
 
 DenseMap<const GlobalVariable *, State>
-analyze(const BasicBlock *CallSiteBlock,
-        const GeneratedCodeBasicInfo &GCBI) {
+analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFI<true>;
 
   MFI Instance{ { getPreCallHook(CallSiteBlock), GCBI } };

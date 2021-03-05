@@ -7,8 +7,8 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/CommandLine.h"
 
-#include "revng/ABIAnalyses/ABIAnalysisPass.h"
 #include "revng/ABIAnalyses/ABIAnalysis.h"
+#include "revng/ABIAnalyses/ABIAnalysisPass.h"
 
 using namespace llvm;
 

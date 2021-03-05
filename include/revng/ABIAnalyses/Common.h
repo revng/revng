@@ -21,13 +21,13 @@
 
 namespace ABIAnalyses {
 
-using llvm::Instruction;
 using llvm::GlobalVariable;
+using llvm::Instruction;
+using llvm::LoadInst;
 using llvm::SmallSet;
 using llvm::SmallVector;
-using llvm::Value;
-using llvm::LoadInst;
 using llvm::StoreInst;
+using llvm::Value;
 
 using Register = model::Register::Values;
 
@@ -37,12 +37,6 @@ enum TransferKind {
   WeakWrite,
   TheCall,
   None,
-  // legacy transfer functions
-  ReturnFromYes,
-  ReturnFromMaybe,
-  ReturnFromNoOrDead,
-  ReturnFromUnknown,
-  UnknownFunctionCall
 };
 
 struct ABIAnalysis {
@@ -73,14 +67,16 @@ public:
 
   TransferKind classifyInstruction(const Instruction *) const;
 
-  SmallVector<const GlobalVariable*, 1> getRegistersWritten(const Instruction *) const;
+  SmallVector<const GlobalVariable *, 1>
+  getRegistersWritten(const Instruction *) const;
 
-  SmallVector<const GlobalVariable*, 1> getRegistersRead(const Instruction *) const;
+  SmallVector<const GlobalVariable *, 1>
+  getRegistersRead(const Instruction *) const;
 };
 
-template<typename MFI, typename CoreLattice, typename KeyT>
+template<typename LatticeElementMap, typename CoreLattice, typename KeyT>
 typename CoreLattice::LatticeElement
-getOrDefault(const typename MFI::LatticeElement &S, const KeyT &K) {
+getOrDefault(const LatticeElementMap &S, const KeyT &K) {
   auto V = S.find(K);
   if (V != S.end()) {
     return S.lookup(K);
@@ -88,28 +84,34 @@ getOrDefault(const typename MFI::LatticeElement &S, const KeyT &K) {
   return CoreLattice::DefaultLatticeElement;
 }
 
-template<typename MFI, typename CoreLattice>
-typename MFI::LatticeElement
-combineValues(const typename MFI::LatticeElement &Lh,
-              const typename MFI::LatticeElement &Rh) {
+template<typename LatticeElementMap, typename CoreLattice>
+LatticeElementMap
+combineValues(const LatticeElementMap &Lh, const LatticeElementMap &Rh) {
 
-  typename MFI::LatticeElement New = Lh;
+  LatticeElementMap New = Lh;
   for (const auto &[Reg, S] : Rh) {
-    New[Reg] = CoreLattice::combineValues(getOrDefault<MFI, CoreLattice>(New, Reg), getOrDefault<MFI, CoreLattice>(Rh, Reg));
+    New[Reg] = CoreLattice::
+      combineValues(getOrDefault<LatticeElementMap, CoreLattice>(New, Reg),
+                    getOrDefault<LatticeElementMap, CoreLattice>(Rh, Reg));
   }
   return New;
 }
 
-template<typename MFI, typename CoreLattice>
-bool isLessOrEqual(const typename MFI::LatticeElement &Lh,
-                   const typename MFI::LatticeElement &Rh) {
+template<typename LatticeElementMap, typename CoreLattice>
+bool isLessOrEqual(const LatticeElementMap &Lh, const LatticeElementMap &Rh) {
   for (auto &[Reg, S] : Lh) {
-    if (!CoreLattice::isLessOrEqual(getOrDefault<MFI, CoreLattice>(Lh, Reg), getOrDefault<MFI, CoreLattice>(Rh, Reg))) {
+    if (!CoreLattice::isLessOrEqual(getOrDefault<LatticeElementMap,
+                                                 CoreLattice>(Lh, Reg),
+                                    getOrDefault<LatticeElementMap,
+                                                 CoreLattice>(Rh, Reg))) {
       return false;
     }
   }
   for (auto &[Reg, S] : Rh) {
-    if (!CoreLattice::isLessOrEqual(getOrDefault<MFI, CoreLattice>(Lh, Reg), getOrDefault<MFI, CoreLattice>(Rh, Reg))) {
+    if (!CoreLattice::isLessOrEqual(getOrDefault<LatticeElementMap,
+                                                 CoreLattice>(Lh, Reg),
+                                    getOrDefault<LatticeElementMap,
+                                                 CoreLattice>(Rh, Reg))) {
       return false;
     }
   }
@@ -125,7 +127,7 @@ inline bool ABIAnalysis::isABIRegister(const Value *V) const {
   return false;
 }
 
-inline bool isCallSiteBlock(const llvm::BasicBlock* B) {
+inline bool isCallSiteBlock(const llvm::BasicBlock *B) {
   if (auto *C = llvm::dyn_cast<llvm::CallInst>(&*B->getFirstInsertionPt())) {
     if (C->getCalledFunction()->getName() == "precall_hook") {
       return true;
@@ -134,15 +136,14 @@ inline bool isCallSiteBlock(const llvm::BasicBlock* B) {
   return false;
 }
 
-inline const llvm::Instruction * getPreCallHook(const llvm::BasicBlock* B) {
+inline const llvm::Instruction *getPreCallHook(const llvm::BasicBlock *B) {
   if (isCallSiteBlock(B)) {
     return &*B->getFirstInsertionPt();
   }
   return nullptr;
 }
 
-
-inline const llvm::Instruction * getPostCallHook(const llvm::BasicBlock* B) {
+inline const llvm::Instruction *getPostCallHook(const llvm::BasicBlock *B) {
   if (isCallSiteBlock(B)) {
     return B->getTerminator()->getPrevNode();
   }
@@ -178,9 +179,9 @@ ABIAnalysis::classifyInstruction(const Instruction *I) const {
   return None;
 }
 
-inline SmallVector<const GlobalVariable*, 1>
+inline SmallVector<const GlobalVariable *, 1>
 ABIAnalysis::getRegistersWritten(const Instruction *I) const {
-  SmallVector<const GlobalVariable*, 1> Result;
+  SmallVector<const GlobalVariable *, 1> Result;
   switch (I->getOpcode()) {
   case Instruction::Store: {
     auto S = cast<StoreInst>(I);
@@ -193,9 +194,9 @@ ABIAnalysis::getRegistersWritten(const Instruction *I) const {
   return Result;
 }
 
-inline SmallVector<const GlobalVariable*, 1>
+inline SmallVector<const GlobalVariable *, 1>
 ABIAnalysis::getRegistersRead(const Instruction *I) const {
-  SmallVector<const GlobalVariable*, 1> Result;
+  SmallVector<const GlobalVariable *, 1> Result;
   switch (I->getOpcode()) {
   case Instruction::Load: {
     auto L = cast<LoadInst>(I);
