@@ -137,7 +137,7 @@ DeclCreator::createTypeFromLayout(const dla::Layout *L,
 
     StructDecl->completeDefinition();
 
-    Result = DeclCreator::getQualType(StructDecl);
+    Result = StructDecl;
 
   } break;
 
@@ -183,7 +183,7 @@ DeclCreator::createTypeFromLayout(const dla::Layout *L,
 
     UnionDecl->completeDefinition();
 
-    Result = DeclCreator::getQualType(UnionDecl);
+    Result = UnionDecl;
 
   } break;
 
