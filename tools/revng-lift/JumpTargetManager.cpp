@@ -1662,6 +1662,19 @@ void JumpTargetManager::harvestWithAVI() {
 
   SummaryCallsBuilder SCB(CSVMap);
 
+  // Remove PC initialization from entry block
+  {
+    BasicBlock &Entry = OptimizedFunction->getEntryBlock();
+    std::vector<Instruction *> ToDelete;
+    for (Instruction &I : Entry)
+      if (auto *Store = dyn_cast<StoreInst>(&I))
+        if (isa<Constant>(Store->getValueOperand()) and PCH->affectsPC(Store))
+          ToDelete.push_back(&I);
+
+    for (Instruction *I : ToDelete)
+      I->eraseFromParent();
+  }
+
   {
     // Note: it is important to let the pass manager go out of scope ASAP:
     //       LazyValueInfo registers a lot of callbacks to get notified when a
