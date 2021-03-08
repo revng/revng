@@ -14,10 +14,10 @@
 #include "revng/Model/Binary.h"
 
 namespace ABIAnalyses {
-using llvm::Function;
-using llvm::errs;
-using llvm::dyn_cast;
 using llvm::CallInst;
+using llvm::dyn_cast;
+using llvm::errs;
+using llvm::Function;
 using llvm::ReturnInst;
 /// Run all abi analyses on the oulined function F
 /// the outlined function must have all original function calls
@@ -34,15 +34,15 @@ analyzeOutlinedFunction(Function *F, const GeneratedCodeBasicInfo &GCBI) {
   errs() << "------- start UsedArgumentsOfFunction --------\n";
   for (auto &[GV, State] :
        UsedArgumentsOfFunction::analyze(&F->getEntryBlock(), GCBI)) {
-    errs() << GV->getName() << " = "
-                 << model::RegisterState::getName(State) << "\n";
+    errs() << GV->getName() << " = " << model::RegisterState::getName(State)
+           << "\n";
   }
   errs() << "------- end UsedArgumentsOfFunction --------\n";
   errs() << "------- start DeadRegisterArgumentsOfFunction --------\n";
   for (auto &[GV, State] :
        DeadRegisterArgumentsOfFunction::analyze(&F->getEntryBlock(), GCBI)) {
-    errs() << GV->getName() << " = "
-                 << model::RegisterState::getName(State) << "\n";
+    errs() << GV->getName() << " = " << model::RegisterState::getName(State)
+           << "\n";
   }
   errs() << "------- end DeadRegisterArgumentsOfFunction --------\n";
   for (auto &BB : *F) {
@@ -51,32 +51,32 @@ analyzeOutlinedFunction(Function *F, const GeneratedCodeBasicInfo &GCBI) {
         if (C->getCalledFunction()->getName() == "precall_hook") {
           errs() << *C << '\n';
           errs() << "------- start UsedReturnValuesOfFunctionCall "
-                          "--------\n";
+                    "--------\n";
           for (auto &[GV, State] :
                UsedReturnValuesOfFunctionCall::analyze(&BB, GCBI)) {
             errs() << GV->getName() << " = "
-                         << model::RegisterState::getName(State) << "\n";
+                   << model::RegisterState::getName(State) << "\n";
           }
           errs() << "------- end UsedReturnValuesOfFunctionCall "
-                          "--------\n";
+                    "--------\n";
           errs() << "------- start RegisterArgumentsOfFunctionCall "
-                          "--------\n";
+                    "--------\n";
           for (auto &[GV, State] :
                RegisterArgumentsOfFunctionCall::analyze(&BB, GCBI)) {
             errs() << GV->getName() << " = "
-                         << model::RegisterState::getName(State) << "\n";
+                   << model::RegisterState::getName(State) << "\n";
           }
           errs() << "------- end RegisterArgumentsOfFunctionCall "
-                          "--------\n";
+                    "--------\n";
           errs() << "------- start DeadReturnValuesOfFunctionCall "
-                          "--------\n";
+                    "--------\n";
           for (auto &[GV, State] :
                DeadReturnValuesOfFunctionCall::analyze(&BB, GCBI)) {
             errs() << GV->getName() << " = "
-                         << model::RegisterState::getName(State) << "\n";
+                   << model::RegisterState::getName(State) << "\n";
           }
           errs() << "------- end DeadReturnValuesOfFunctionCall "
-                          "--------\n";
+                    "--------\n";
         } else if (C->getCalledFunction()->getName() == "postcall_hook") {
           errs() << *C << '\n';
         }
@@ -85,7 +85,7 @@ analyzeOutlinedFunction(Function *F, const GeneratedCodeBasicInfo &GCBI) {
         for (auto &[GV, State] :
              UsedReturnValuesOfFunction::analyze(&BB, GCBI)) {
           errs() << GV->getName() << " = "
-                       << model::RegisterState::getName(State) << "\n";
+                 << model::RegisterState::getName(State) << "\n";
         }
         errs() << "------- end UsedReturnValuesOfFunction --------\n";
         errs() << *R << '\n';
