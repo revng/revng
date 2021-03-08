@@ -22,10 +22,10 @@
 namespace ABIAnalyses {
 
 using llvm::BasicBlock;
+using llvm::CallInst;
 using llvm::GlobalVariable;
 using llvm::Instruction;
 using llvm::LoadInst;
-using llvm::CallInst;
 using llvm::SmallSet;
 using llvm::SmallVector;
 using llvm::StoreInst;
