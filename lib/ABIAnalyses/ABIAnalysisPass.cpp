@@ -28,7 +28,7 @@ static RegisterPass<ABIAnalysisPass>
 bool ABIAnalysisPass::runOnFunction(Function &F) {
   // Retrieve analysis of the GeneratedCodeBasicInfo pass
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  if (F.getName().str().compare(FilterFunction) != 0) {
+  if (F.getName() != FilterFunction) {
     return false;
   }
   ABIAnalyses::analyzeOutlinedFunction(&F, GCBI);
