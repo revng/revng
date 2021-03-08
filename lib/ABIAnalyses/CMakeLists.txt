@@ -12,5 +12,4 @@ revng_add_analyses_library_internal(revngABIAnalyses
   UsedReturnValuesOfFunctionCall.cpp)
 
 target_link_libraries(revngABIAnalyses
-  revngStackAnalysis
   revngSupport)

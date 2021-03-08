@@ -58,6 +58,7 @@ revng_add_analyses_library_internal(revngStackAnalysis
 
 target_link_libraries(revngStackAnalysis
   revngBasicAnalyses
+  revngABIAnalyses
   revngSupport
   revngModel)
 
