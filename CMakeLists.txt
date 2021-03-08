@@ -59,21 +59,8 @@ include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
 macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
 
     # prepare enforced .ll for decompilation
-    add_test(NAME prepare_${TARGET_NAME} COMMAND opt -S
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveCpuLoopStore.so
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveExceptionCalls.so
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveLLVMAssumeCalls.so
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRemoveNewPCCalls.so
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libMakeEnvNull.so
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libFilterForDecompilation.so
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/librevngTypeShrinking.so
+    add_test(NAME prepare_${TARGET_NAME} COMMAND revng --prefix .
+      opt -S
       # Remove revng's artifacts from IR
       -filter-for-decompilation
       -remove-newpc-calls
@@ -114,11 +101,8 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       )
 
     # test combing and decompilation without DLA
-    add_test(NAME decompilation_${TARGET_NAME} COMMAND opt -S
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRestructureCFGPass.so
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libDecompiler.so
+    add_test(NAME decompilation_${TARGET_NAME} COMMAND revng --prefix .
+      opt -S
       -restructure-cfg
       -decompilation
       -serialize-model
@@ -136,9 +120,8 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       )
 
     # promote stack pointer in .ll for decompilation with dla
-    add_test(NAME promote_stack_pointer_${TARGET_NAME} COMMAND opt -S
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libPromoteStackPointer.so
+    add_test(NAME promote_stack_pointer_${TARGET_NAME} COMMAND revng --prefix .
+      opt -S
       -promote-stack-pointer
       -serialize-model
       ${TARGET_NAME}_prepared.ll
@@ -155,9 +138,8 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       )
 
     # adjust stack pointer in .ll for decompilation with dla
-    add_test(NAME adjust_stack_pointer_${TARGET_NAME} COMMAND opt -S
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libAdjustStackPointer.so
+    add_test(NAME adjust_stack_pointer_${TARGET_NAME} COMMAND revng --prefix .
+      opt -S
       -sroa
       -instcombine
       -adjust-stack-pointer
@@ -176,13 +158,8 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       )
 
     # test full pipeline with dla combing and decompilation
-    add_test(NAME decompile_with_dla_${TARGET_NAME} COMMAND opt -S
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libPHIASAPAssignmentInfo.so
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libRestructureCFGPass.so
-      -load
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/revng/analyses/libDecompiler.so
+    add_test(NAME decompile_with_dla_${TARGET_NAME} COMMAND revng --prefix .
+      opt -S
       -dla
       -phi-asap-assignment-info
       -mark-for-serialization
