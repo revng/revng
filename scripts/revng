@@ -21,6 +21,7 @@ except ImportError:
 from elftools.elf.dynamic import DynamicSegment
 from elftools.elf.elffile import ELFFile
 
+search_prefixes = []
 real_argv0 = os.environ.get("REAL_ARGV0", sys.argv[0])
 
 def shlex_join(split_command):
@@ -132,25 +133,14 @@ def get_command(command):
   return os.path.abspath(path)
 
 def build_opt_args(args):
-  script_path = os.path.dirname(os.path.realpath(__file__))
+  analysis_libraries = []
+  for prefix in search_prefixes:
+    analyses_path = os.path.join(prefix, "lib", "revng", "analyses")
+    if not os.path.isdir(analyses_path):
+      continue
 
-  analyses_path = None
-  analyses_build_path = os.path.join(script_path, "analyses")
-  analyses_install_path = os.path.join(script_path,
-                                       "..",
-                                       "lib",
-                                       "revng",
-                                       "analyses")
-  if os.path.isdir(analyses_build_path):
-    analyses_path = analyses_build_path
-  elif os.path.isdir(analyses_install_path):
-    analyses_path = analyses_install_path
-  else:
-    log_error("Couldn't find a valid path containing the analyses libraries")
-    assert False
-
-  # Enumerate all the libraries containing analyses
-  analysis_libraries = glob.glob(os.path.join(analyses_path, "*.so"))
+    # Enumerate all the libraries containing analyses
+    analysis_libraries += glob.glob(os.path.join(analyses_path, "*.so"))
 
   # Identify all the libraries that are dependencies of other libraries, i.e.,
   # non-roots in the dependencies tree. Note that circular dependencies are not
@@ -414,7 +404,7 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
   if args.isolate:
     isolated = "{}.isolated".format(executable)
     opt_invocation = build_opt_args(["-S",
-                                     "-detect-function-boundaries",
+                                     "-detect-abi",
                                      "-isolate",
                                      relative(output),
                                      "-o", relative(isolated)])
@@ -612,6 +602,9 @@ def main():
   parser.add_argument("--help",
                       action="store_true",
                       help="Print the help.")
+  parser.add_argument("--prefix",
+                      nargs="*",
+                      help="Additional search prefix.")
   parser.add_argument("command",
                       nargs="?",
                       default="help",
@@ -619,6 +612,10 @@ def main():
 
   global revng_parser
   revng_parser = parser
+
+  # Get script_path
+  global script_path
+  script_path = os.path.dirname(os.path.realpath(__file__))
 
   command_i = None
   for i, argument in enumerate(sys.argv[1:]):
@@ -635,6 +632,10 @@ def main():
 
   args = parser.parse_args(root_args)
   command = args.command
+
+  global search_prefixes
+  search_prefixes = (args.prefix or []
+                     + [os.path.join(script_path, "..")])
 
   global log_commands
   log_commands = args.verbose
@@ -664,10 +665,6 @@ def main():
 
   if args.heaptrack:
     command_prefix += ["heaptrack"]
-
-  # Get script_path
-  global script_path
-  script_path = os.path.dirname(os.path.realpath(__file__))
 
   # Create a custom PATH variable to find programs
   global search_path

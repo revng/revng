@@ -50,7 +50,6 @@ revng_add_analyses_library_internal(revngStackAnalysis
   Cache.cpp
   Element.cpp
   FunctionABI.cpp
-  FunctionBoundariesDetectionPass.cpp
   FunctionsSummary.cpp
   IncoherentCallsAnalysis.cpp
   InterproceduralAnalysis.cpp

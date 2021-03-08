@@ -616,13 +616,17 @@ public:
   ///
   /// @{
   MetaAddress &operator+=(uint64_t Offset) {
-    revng_check(isValid());
+    if (isInvalid())
+      return *this;
+
     setAddress(Address + Offset);
     return *this;
   }
 
   MetaAddress &operator-=(uint64_t Offset) {
-    revng_check(isValid());
+    if (isInvalid())
+      return *this;
+
     setAddress(Address - Offset);
     return *this;
   }

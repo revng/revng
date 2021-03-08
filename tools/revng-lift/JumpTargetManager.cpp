@@ -44,6 +44,8 @@
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/Statistics.h"
 #include "revng/Support/revng.h"
+#include "revng/TypeShrinking/BitLiveness.h"
+#include "revng/TypeShrinking/TypeShrinking.h"
 
 #include "JumpTargetManager.h"
 
@@ -134,6 +136,7 @@ void TDBP::pinExitTB(CallInst *ExitTBCall, DispatcherTargets &Destinations) {
   LLVMContext &Context = getContext(ExitTBCall);
   BasicBlock *AnyPC = JTM->anyPC();
   BasicBlock *UnexpectedPC = JTM->unexpectedPC();
+  BasicBlock *Source = ExitTBCall->getParent();
 
   using CI = ConstantInt;
   auto *ExitTBArg = CI::get(Type::getInt32Ty(Context), Destinations.size());
@@ -177,7 +180,7 @@ void TDBP::pinExitTB(CallInst *ExitTBCall, DispatcherTargets &Destinations) {
   // Notify new branches only if the amount of possible targets actually
   // increased
   if (Destinations.size() > OldTargetsCount)
-    JTM->recordNewBranches(Destinations.size() - OldTargetsCount);
+    JTM->recordNewBranches(Source, Destinations.size() - OldTargetsCount);
 }
 
 bool TDBP::pinAVIResults(Function &F) {
@@ -234,8 +237,8 @@ void TDBP::pinConstantStoreInternal(MetaAddress Address, CallInst *ExitTBCall) {
 
   if (TargetBlock != nullptr) {
     // A target was found, jump there
-    BranchInst::Create(TargetBlock, ExitTBCall);
-    JTM->recordNewBranches();
+    BranchInst::Create(TargetBlock, ExitTBCall->getParent());
+    JTM->recordNewBranches(ExitTBCall->getParent(), 1);
   } else {
     // We're jumping to an unknown or invalid location,
     // jump back to the dispatcher
@@ -322,7 +325,6 @@ bool TDBP::forceFallthroughAfterHelper(CallInst *Call) {
   }
 
   exitTBCleanup(Call);
-  JTM->recordNewBranches();
 
   IRBuilder<> Builder(Call->getParent());
   Call->setArgOperand(0, Builder.getInt32(1));
@@ -338,6 +340,8 @@ bool TDBP::forceFallthroughAfterHelper(CallInst *Call) {
   } else {
     Builder.CreateBr(AnyPC);
   }
+
+  JTM->recordNewBranches(Call->getParent(), 1);
 
   return true;
 }
@@ -439,8 +443,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   Binary(Binary),
   CurrentCFGForm(CFGForm::UnknownForm),
   createCSAA(createCSAA),
-  PCH(PCH),
-  JumpTargetsWhitelist(nullptr) {
+  PCH(PCH) {
 
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { Type::getInt32Ty(Context) },
@@ -785,16 +788,20 @@ void JumpTargetManager::translateIndirectJumps() {
 }
 
 JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
-  harvest();
+  // If we just harvested new branches, keep exploring
+  do {
+    harvest();
+  } while (Unexplored.empty() and NewBranches != 0);
 
   // Purge all the partial translations we know might be wrong
   for (BasicBlock *BB : ToPurge)
     purgeTranslation(BB);
   ToPurge.clear();
 
-  if (Unexplored.empty())
+  if (Unexplored.empty()) {
+    revng_log(JTCountLog, "We're done looking for jump targets");
     return NoMoreTargets;
-  else {
+  } else {
     BlockWithAddress Result = Unexplored.back();
     Unexplored.pop_back();
     return Result;
@@ -891,9 +898,6 @@ JumpTargetManager::registerJT(MetaAddress PC, JTReason::Values Reason) {
     return BB;
   }
 
-  // PC was not a jump target, record it as new
-  AVIJumpTargetsWhitelist.insert(PC);
-
   // Did we already meet this PC (i.e. do we know what's the associated
   // instruction)?
   BasicBlock *NewBlock = nullptr;
@@ -938,6 +942,10 @@ JumpTargetManager::registerJT(MetaAddress PC, JTReason::Values Reason) {
 
   // Associate the PC with the chosen basic block
   JumpTargets[PC] = JumpTarget(NewBlock, Reason);
+
+  // PC was not a jump target, record it as new
+  AVIPCWhiteList.insert(PC);
+
   return NewBlock;
 }
 
@@ -1000,7 +1008,8 @@ std::set<BasicBlock *> JumpTargetManager::computeUnreachable() const {
   return Unreachable;
 }
 
-void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
+void JumpTargetManager::setCFGForm(CFGForm::Values NewForm,
+                                   MetaAddressSet *JumpTargetsWhitelist) {
   revng_assert(CurrentCFGForm != NewForm);
   revng_assert(NewForm != CFGForm::UnknownForm);
 
@@ -1071,14 +1080,14 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm) {
     }
   }
 
-  rebuildDispatcher();
+  rebuildDispatcher(JumpTargetsWhitelist);
 
   if (VerifyLog.isEnabled()) {
     assertNoUnreachable();
   }
 }
 
-void JumpTargetManager::rebuildDispatcher() {
+void JumpTargetManager::rebuildDispatcher(MetaAddressSet *Whitelist) {
 
   if (DispatcherSwitch != nullptr) {
     revng_assert(DispatcherSwitch->getParent() == Dispatcher);
@@ -1091,11 +1100,10 @@ void JumpTargetManager::rebuildDispatcher() {
 
   // Add all the (whitelisted) jump targets if we're using the
   // SemanticPreserving, or only those with no predecessors.
-  bool IsWhitelistActive = (JumpTargetsWhitelist != nullptr);
+  bool IsWhitelistActive = (Whitelist != nullptr);
   for (auto &[PC, JumpTarget] : JumpTargets) {
     BasicBlock *BB = JumpTarget.head();
-    bool IsWhitelisted = (not IsWhitelistActive
-                          or JumpTargetsWhitelist->count(PC) != 0);
+    bool IsWhitelisted = (not IsWhitelistActive or Whitelist->count(PC) != 0);
     if ((CurrentCFGForm == CFGForm::SemanticPreserving
          or not hasPredecessors(BB))
         and IsWhitelisted) {
@@ -1133,8 +1141,7 @@ void JumpTargetManager::rebuildDispatcher() {
     // Identify all the unreachable jump targets
     for (const auto &[PC, JT] : JumpTargets) {
       BasicBlock *BB = JT.head();
-      bool IsWhitelisted = (not IsWhitelistActive
-                            or JumpTargetsWhitelist->count(PC) != 0);
+      bool IsWhitelisted = (not IsWhitelistActive or Whitelist->count(PC) != 0);
 
       // Add to the switch all the unreachable jump targets whose reason is not
       // just direct jump
@@ -1393,59 +1400,43 @@ public:
   }
 };
 
-void JumpTargetManager::inflateAVIWhitelist() {
+JumpTargetManager::MetaAddressSet JumpTargetManager::inflateAVIWhitelist() {
+  MetaAddressSet Result;
+
   // We start from all the new basic blocks (i.e., those in
-  // AVIJumpTargetsWhitelist) and proceed backward in the CFG in order to
+  // AVIPCWhiteList) and proceed backward in the CFG in order to
   // whitelist all the jump targets we meet. We stop when we meet the dispatcher
   // or a function call.
 
   // Prepare the backward visit
-  std::set<MetaAddress> ToPreserve;
   df_iterator_default_set<BasicBlock *> VisitSet;
 
   // Stop at the dispatcher
   VisitSet.insert(DispatcherSwitch->getParent());
 
-  // Stop at each function call
-  // TODO: the following piece of code currently does nothing since we don't
-  //       detect function calls during harvesting
-  if (Function *FunctionCall = TheModule.getFunction("function_call")) {
-    for (User *U : FunctionCall->users()) {
-      if (auto *Call = dyn_cast<CallInst>(U)) {
-        auto *BB = Call->getParent();
-
-        if (BB->getParent() != TheFunction)
-          continue;
-
-        if (const CallInst *Call = getCallTo(&*BB->begin(), "newpc")) {
-          auto MA = MetaAddress::fromConstant(Call->getOperand(0));
-          if (AVIJumpTargetsWhitelist.count(MA) != 0) {
-            continue;
+  // TODO: OriginalInstructionAddresses is not reliable, we should drop it
+  for (User *NewPCUser : TheModule.getFunction("newpc")->users()) {
+    auto *I = cast<Instruction>(NewPCUser);
+    auto WhitelistedMA = getPCFromNewPCCall(I);
+    if (WhitelistedMA.isValid()) {
+      if (AVIPCWhiteList.count(WhitelistedMA) != 0) {
+        BasicBlock *BB = I->getParent();
+        auto VisitRange = inverse_depth_first_ext(BB, VisitSet);
+        for (const BasicBlock *Reachable : VisitRange) {
+          auto MA = getPCFromNewPCCall(&*Reachable->begin());
+          if (MA.isValid() and isJumpTarget(MA)) {
+            Result.insert(MA);
           }
         }
-
-        VisitSet.insert(BB);
       }
     }
   }
 
   // Perform a inverse dfs looking for jump targets
-  for (MetaAddress MA : AVIJumpTargetsWhitelist) {
-    auto VisitRange = inverse_depth_first_ext(getBlockAt(MA), VisitSet);
-    for (const BasicBlock *Reachable : VisitRange) {
-      if (const CallInst *Call = getCallTo(&*Reachable->begin(), "newpc")) {
-        auto MA = MetaAddress::fromConstant(Call->getOperand(0));
-        if (MA.isValid() and isJumpTarget(MA)) {
-          ToPreserve.insert(MA);
-        }
-      }
-    }
+  for (MetaAddress MA : AVIPCWhiteList) {
   }
 
-  // Extend AVIJumpTargetsWhitelist with the jump targets we met in the visit
-  for (const MetaAddress &MA : ToPreserve) {
-    AVIJumpTargetsWhitelist.insert(MA);
-  }
+  return Result;
 }
 
 void JumpTargetManager::harvestWithAVI() {
@@ -1477,12 +1468,11 @@ void JumpTargetManager::harvestWithAVI() {
   Function *OptimizedFunction = nullptr;
   ValueToValueMapTy OldToNew;
   {
-    // Augment AVIJumpTargetsWhitelist
-    inflateAVIWhitelist();
+    // Compute AVIJumpTargetWhitelist
+    auto AVIJumpTargetWhitelist = inflateAVIWhitelist();
 
     // Prune the dispatcher
-    JumpTargetsWhitelist = &AVIJumpTargetsWhitelist;
-    setCFGForm(CFGForm::RecoveredOnly);
+    setCFGForm(CFGForm::RecoveredOnly, &AVIJumpTargetWhitelist);
 
     // Detach all the unreachable basic blocks, so they don't get copied
     std::set<BasicBlock *> UnreachableBBs = computeUnreachable();
@@ -1501,12 +1491,11 @@ void JumpTargetManager::harvestWithAVI() {
       UnreachableBB->insertInto(TheFunction);
 
     // Restore the dispatcher in the original function
-    JumpTargetsWhitelist = nullptr;
     setCFGForm(CFGForm::SemanticPreserving);
     revng_assert(computeUnreachable().size() == 0);
 
     // Clear the whitelist
-    AVIJumpTargetsWhitelist.clear();
+    AVIPCWhiteList.clear();
   }
 
   //
@@ -1662,6 +1651,19 @@ void JumpTargetManager::harvestWithAVI() {
 
   SummaryCallsBuilder SCB(CSVMap);
 
+  // Remove PC initialization from entry block
+  {
+    BasicBlock &Entry = OptimizedFunction->getEntryBlock();
+    std::vector<Instruction *> ToDelete;
+    for (Instruction &I : Entry)
+      if (auto *Store = dyn_cast<StoreInst>(&I))
+        if (isa<Constant>(Store->getValueOperand()) and PCH->affectsPC(Store))
+          ToDelete.push_back(&I);
+
+    for (Instruction *I : ToDelete)
+      I->eraseFromParent();
+  }
+
   {
     // Note: it is important to let the pass manager go out of scope ASAP:
     //       LazyValueInfo registers a lot of callbacks to get notified when a
@@ -1672,6 +1674,8 @@ void JumpTargetManager::harvestWithAVI() {
     FPM.addPass(DropHelperCallsPass(SyscallHelper, SyscallIDCSV, SCB));
     FPM.addPass(ShrinkInstructionOperandsPass());
     FPM.addPass(PromotePass());
+    FPM.addPass(InstCombinePass(false));
+    FPM.addPass(TypeShrinking::TypeShrinkingPass());
     FPM.addPass(JumpThreadingPass());
     FPM.addPass(UnreachableBlockElimPass());
     FPM.addPass(InstCombinePass(false));
@@ -1680,6 +1684,7 @@ void JumpTargetManager::harvestWithAVI() {
     FPM.addPass(AdvancedValueInfoPass(this));
 
     FunctionAnalysisManager FAM;
+    FAM.registerPass([]() { return TypeShrinking::BitLivenessPass(); });
     FAM.registerPass([] {
       AAManager AA;
       AA.registerFunctionAnalysis<BasicAA>();
@@ -1903,10 +1908,6 @@ void JumpTargetManager::harvest() {
       JTCountLog << std::dec << Unexplored.size() << " new jump targets and "
                  << NewBranches << " new branches were found" << DoLog;
     }
-  }
-
-  if (empty()) {
-    revng_log(JTCountLog, "We're done looking for jump targets");
   }
 }
 

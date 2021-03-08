@@ -12,12 +12,13 @@ template<typename T, class Compare>
 class MutableSet {
 private:
   using KOT = KeyedObjectTraits<T>;
+  using non_const_key_type = decltype(KOT::key(std::declval<T>()));
 
 public:
-  using key_type = const decltype(KOT::key(std::declval<T>()));
+  using key_type = const non_const_key_type;
 
 private:
-  using map_type = std::map<key_type, T, Compare>;
+  using map_type = std::map<non_const_key_type, T, Compare>;
 
 public:
   using size_type = typename map_type::size_type;

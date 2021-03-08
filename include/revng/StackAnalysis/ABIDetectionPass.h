@@ -19,7 +19,8 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
-    AU.addRequired<StackAnalysis<true>>();
+    AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
+    AU.addRequired<StackAnalysis>();
   }
 
   bool runOnModule(llvm::Module &M) override;
