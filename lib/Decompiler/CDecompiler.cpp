@@ -12,6 +12,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/TypeShrinking/TypeShrinking.h"
 
 #include "revng-c/Decompiler/CDecompiler.h"
 #include "revng-c/Decompiler/CDecompilerPass.h"
@@ -21,7 +22,6 @@
 #include "revng-c/RemoveExceptionCalls/RemoveExceptionCallsPass.h"
 #include "revng-c/RemoveLLVMAssumeCalls/RemoveLLVMAssumeCallsPass.h"
 #include "revng-c/RemoveNewPCCalls/RemoveNewPCCallsPass.h"
-#include "revng-c/TypeShrinking/TypeShrinking.h"
 
 std::string
 decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
@@ -66,7 +66,7 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
 
   // Apply type shrinking
   {
-    PM.add(new TypeShrinking::TypeShrinking());
+    PM.add(new TypeShrinking::TypeShrinkingWrapperPass());
     PM.add(llvm::createEarlyCSEPass());
     PM.add(llvm::createReassociatePass());
     PM.add(llvm::createConstantPropagationPass());
