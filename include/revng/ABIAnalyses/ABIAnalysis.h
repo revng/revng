@@ -15,7 +15,10 @@
 
 namespace ABIAnalyses {
 using llvm::Function;
-
+using llvm::errs;
+using llvm::dyn_cast;
+using llvm::CallInst;
+using llvm::ReturnInst;
 /// Run all abi analyses on the oulined function F
 /// the outlined function must have all original function calls
 /// replaced with a basic block starting with a call to @precall_hook
@@ -25,67 +28,67 @@ using llvm::Function;
 inline void
 analyzeOutlinedFunction(Function *F, const GeneratedCodeBasicInfo &GCBI) {
   // find summary blocks
-  F->print(llvm::errs());
-  llvm::errs() << '\n';
+  F->print(errs());
+  errs() << '\n';
 
-  llvm::errs() << "------- start UsedArgumentsOfFunction --------\n";
+  errs() << "------- start UsedArgumentsOfFunction --------\n";
   for (auto &[GV, State] :
        UsedArgumentsOfFunction::analyze(&F->getEntryBlock(), GCBI)) {
-    llvm::errs() << GV->getName() << " = "
+    errs() << GV->getName() << " = "
                  << model::RegisterState::getName(State) << "\n";
   }
-  llvm::errs() << "------- end UsedArgumentsOfFunction --------\n";
-  llvm::errs() << "------- start DeadRegisterArgumentsOfFunction --------\n";
+  errs() << "------- end UsedArgumentsOfFunction --------\n";
+  errs() << "------- start DeadRegisterArgumentsOfFunction --------\n";
   for (auto &[GV, State] :
        DeadRegisterArgumentsOfFunction::analyze(&F->getEntryBlock(), GCBI)) {
-    llvm::errs() << GV->getName() << " = "
+    errs() << GV->getName() << " = "
                  << model::RegisterState::getName(State) << "\n";
   }
-  llvm::errs() << "------- end DeadRegisterArgumentsOfFunction --------\n";
+  errs() << "------- end DeadRegisterArgumentsOfFunction --------\n";
   for (auto &BB : *F) {
     for (auto &I : BB) {
-      if (auto *C = llvm::dyn_cast<llvm::CallInst>(&I)) {
+      if (auto *C = dyn_cast<CallInst>(&I)) {
         if (C->getCalledFunction()->getName() == "precall_hook") {
-          llvm::errs() << *C << '\n';
-          llvm::errs() << "------- start UsedReturnValuesOfFunctionCall "
+          errs() << *C << '\n';
+          errs() << "------- start UsedReturnValuesOfFunctionCall "
                           "--------\n";
           for (auto &[GV, State] :
                UsedReturnValuesOfFunctionCall::analyze(&BB, GCBI)) {
-            llvm::errs() << GV->getName() << " = "
+            errs() << GV->getName() << " = "
                          << model::RegisterState::getName(State) << "\n";
           }
-          llvm::errs() << "------- end UsedReturnValuesOfFunctionCall "
+          errs() << "------- end UsedReturnValuesOfFunctionCall "
                           "--------\n";
-          llvm::errs() << "------- start RegisterArgumentsOfFunctionCall "
+          errs() << "------- start RegisterArgumentsOfFunctionCall "
                           "--------\n";
           for (auto &[GV, State] :
                RegisterArgumentsOfFunctionCall::analyze(&BB, GCBI)) {
-            llvm::errs() << GV->getName() << " = "
+            errs() << GV->getName() << " = "
                          << model::RegisterState::getName(State) << "\n";
           }
-          llvm::errs() << "------- end RegisterArgumentsOfFunctionCall "
+          errs() << "------- end RegisterArgumentsOfFunctionCall "
                           "--------\n";
-          llvm::errs() << "------- start DeadReturnValuesOfFunctionCall "
+          errs() << "------- start DeadReturnValuesOfFunctionCall "
                           "--------\n";
           for (auto &[GV, State] :
                DeadReturnValuesOfFunctionCall::analyze(&BB, GCBI)) {
-            llvm::errs() << GV->getName() << " = "
+            errs() << GV->getName() << " = "
                          << model::RegisterState::getName(State) << "\n";
           }
-          llvm::errs() << "------- end DeadReturnValuesOfFunctionCall "
+          errs() << "------- end DeadReturnValuesOfFunctionCall "
                           "--------\n";
         } else if (C->getCalledFunction()->getName() == "postcall_hook") {
-          llvm::errs() << *C << '\n';
+          errs() << *C << '\n';
         }
-      } else if (auto *R = llvm::dyn_cast<llvm::ReturnInst>(&I)) {
-        llvm::errs() << "------- start UsedReturnValuesOfFunction --------\n";
+      } else if (auto *R = dyn_cast<ReturnInst>(&I)) {
+        errs() << "------- start UsedReturnValuesOfFunction --------\n";
         for (auto &[GV, State] :
              UsedReturnValuesOfFunction::analyze(&BB, GCBI)) {
-          llvm::errs() << GV->getName() << " = "
+          errs() << GV->getName() << " = "
                        << model::RegisterState::getName(State) << "\n";
         }
-        llvm::errs() << "------- end UsedReturnValuesOfFunction --------\n";
-        llvm::errs() << *R << '\n';
+        errs() << "------- end UsedReturnValuesOfFunction --------\n";
+        errs() << *R << '\n';
       }
     }
     // BB is definitely a call site and also a special basic block

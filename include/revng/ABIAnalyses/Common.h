@@ -21,9 +21,11 @@
 
 namespace ABIAnalyses {
 
+using llvm::BasicBlock;
 using llvm::GlobalVariable;
 using llvm::Instruction;
 using llvm::LoadInst;
+using llvm::CallInst;
 using llvm::SmallSet;
 using llvm::SmallVector;
 using llvm::StoreInst;
@@ -127,8 +129,8 @@ inline bool ABIAnalysis::isABIRegister(const Value *V) const {
   return false;
 }
 
-inline bool isCallSiteBlock(const llvm::BasicBlock *B) {
-  if (auto *C = llvm::dyn_cast<llvm::CallInst>(&*B->getFirstInsertionPt())) {
+inline bool isCallSiteBlock(const BasicBlock *B) {
+  if (auto *C = dyn_cast<CallInst>(&*B->getFirstInsertionPt())) {
     if (C->getCalledFunction()->getName() == "precall_hook") {
       return true;
     }
@@ -136,14 +138,14 @@ inline bool isCallSiteBlock(const llvm::BasicBlock *B) {
   return false;
 }
 
-inline const llvm::Instruction *getPreCallHook(const llvm::BasicBlock *B) {
+inline const Instruction *getPreCallHook(const BasicBlock *B) {
   if (isCallSiteBlock(B)) {
     return &*B->getFirstInsertionPt();
   }
   return nullptr;
 }
 
-inline const llvm::Instruction *getPostCallHook(const llvm::BasicBlock *B) {
+inline const Instruction *getPostCallHook(const BasicBlock *B) {
   if (isCallSiteBlock(B)) {
     return B->getTerminator()->getPrevNode();
   }
