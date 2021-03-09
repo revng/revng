@@ -28,13 +28,13 @@ analyze(const BasicBlock *ReturnBlock, const GeneratedCodeBasicInfo &GCBI) {
   MFI Instance{ { GCBI } };
   MFI::LatticeElement InitialValue{};
   MFI::LatticeElement ExtremalValue{};
-
-  auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
-                                                ReturnBlock,
-                                                InitialValue,
-                                                ExtremalValue,
-                                                { ReturnBlock },
-                                                { ReturnBlock });
+  auto Results = MFP::
+    getMaximalFixedPoint<MFI, MFI::GT, MFI::LGT>(Instance,
+                                                 ReturnBlock,
+                                                 InitialValue,
+                                                 ExtremalValue,
+                                                 { ReturnBlock },
+                                                 { ReturnBlock });
 
   DenseMap<const GlobalVariable *, State> RegUnknown{};
   DenseMap<const GlobalVariable *, State> RegYesOrDead{};
