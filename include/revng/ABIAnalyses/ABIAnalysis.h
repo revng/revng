@@ -50,7 +50,7 @@ analyzeOutlinedFunction(Function *F, const GeneratedCodeBasicInfo &GCBI) {
   for (auto &BB : *F) {
     for (auto &I : BB) {
       if (auto *C = dyn_cast<CallInst>(&I)) {
-        if (C->getCalledFunction()->getName() == "precall_hook") {
+        if (C->getCalledFunction()->getName().contains("precall_hook")) {
           ABILogger << C << '\n';
           ABILogger << "------- start UsedReturnValuesOfFunctionCall "
                        "--------\n";
