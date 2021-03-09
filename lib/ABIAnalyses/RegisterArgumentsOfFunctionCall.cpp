@@ -3,6 +3,7 @@
 //
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
@@ -39,20 +40,20 @@ analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
                                                                 { Start },
                                                                 { Start });
 
-  DenseMap<const GlobalVariable *, State> RegUnknown{};
+  DenseSet<const GlobalVariable *> RegUnknown{};
   DenseMap<const GlobalVariable *, State> RegYes{};
 
   for (auto &[BB, Result] : Results) {
     for (auto &[GV, RegState] : Result.OutValue) {
       if (RegState == CoreLattice::Unknown) {
-        RegUnknown[GV] = State::Unknown;
+        RegUnknown.insert(GV);
       }
     }
   }
 
   for (auto &[BB, Result] : Results) {
     for (auto &[GV, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::Yes) {
+      if (RegState == CoreLattice::Yes && RegUnknown.count(GV) == 0) {
         RegYes[GV] = State::Yes;
       }
     }
