@@ -16,4 +16,5 @@ digraph UsedArgumentsOfFunction {
   # Transfer functions
   Maybe->Yes [label="Read"];
   Maybe->Unknown [label="Write"];
+  Maybe->Unknown [label="WeakWrite"];
 }

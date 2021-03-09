@@ -79,12 +79,27 @@ struct CoreLattice {
       switch (E) {
       case LatticeElement::Maybe:
         return LatticeElement::Unknown;
-      case LatticeElement::Bottom:
-        return LatticeElement::Bottom;
       case LatticeElement::YesOrDead:
         return LatticeElement::YesOrDead;
       case LatticeElement::Unknown:
         return LatticeElement::Unknown;
+      case LatticeElement::Bottom:
+        return LatticeElement::Bottom;
+      default:
+        return E;
+      }
+      return E;
+
+    case TransferFunction::WeakWrite:
+      switch (E) {
+      case LatticeElement::Maybe:
+        return LatticeElement::YesOrDead;
+      case LatticeElement::YesOrDead:
+        return LatticeElement::YesOrDead;
+      case LatticeElement::Unknown:
+        return LatticeElement::Unknown;
+      case LatticeElement::Bottom:
+        return LatticeElement::Bottom;
       default:
         return E;
       }
@@ -94,12 +109,12 @@ struct CoreLattice {
       switch (E) {
       case LatticeElement::Maybe:
         return LatticeElement::YesOrDead;
-      case LatticeElement::Bottom:
-        return LatticeElement::Bottom;
       case LatticeElement::YesOrDead:
         return LatticeElement::YesOrDead;
       case LatticeElement::Unknown:
         return LatticeElement::Unknown;
+      case LatticeElement::Bottom:
+        return LatticeElement::Bottom;
       default:
         return E;
       }
@@ -115,10 +130,11 @@ struct MFI : ABIAnalyses::ABIAnalysis {
   using LatticeElement = llvm::DenseMap<const llvm::GlobalVariable *,
                                         CoreLattice::LatticeElement>;
   using Label = const llvm::BasicBlock *;
-  using GraphType = typename std::conditional<
-    isForward,
-    const llvm::BasicBlock *,
-    llvm::Inverse<const llvm::BasicBlock *>>::type;
+  using GraphType = std::conditional_t<isForward,
+                                       const llvm::BasicBlock *,
+                                       llvm::Inverse<const llvm::BasicBlock *>>;
+  using GT = llvm::GraphTraits<GraphType>;
+  using LGT = GraphType;
 
   LatticeElement
   combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {
