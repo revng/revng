@@ -131,7 +131,7 @@ inline bool ABIAnalysis::isABIRegister(const Value *V) const {
 
 inline bool isCallSiteBlock(const BasicBlock *B) {
   if (auto *C = dyn_cast<CallInst>(&*B->getFirstInsertionPt())) {
-    if (C->getCalledFunction()->getName() == "precall_hook") {
+    if (C->getCalledFunction()->getName().contains("precall_hook")) {
       return true;
     }
   }
