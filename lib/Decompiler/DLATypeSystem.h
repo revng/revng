@@ -17,6 +17,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Support/Assert.h"
@@ -38,6 +39,8 @@ struct OffsetExpression {
 
   std::strong_ordering
   operator<=>(const OffsetExpression &Other) const = default;
+
+  void print(llvm::raw_ostream &OS) const;
 }; // end class OffsetExpression
 
 class TypeLinkTag {
@@ -132,7 +135,11 @@ public:
     return nullptr;
   }
 
-  void printAsOperand(llvm::raw_ostream &OS, bool /* unused */);
+  void print(llvm::raw_ostream &OS) const;
+
+  void printAsOperand(llvm::raw_ostream &OS, bool /* unused */) const {
+    print(OS);
+  }
 };
 
 inline bool hasValidLayout(const LayoutTypeSystemNode *N) {
@@ -549,6 +556,3 @@ inline bool isInstanceRoot(const LayoutTypeSystemNode *N) {
   return isRoot<dla::TypeLinkTag::LinkKind::LK_Instance>(N);
 }
 } // end namespace dla
-
-std::string dumpToString(const dla::OffsetExpression &OE);
-std::string dumpToString(const dla::LayoutTypeSystemNode *N);

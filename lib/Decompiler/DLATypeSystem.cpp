@@ -24,30 +24,23 @@
 
 using namespace llvm;
 
-std::string dumpToString(const dla::LayoutTypeSystemNode *N) {
-  std::string Result = "LTSN ID: " + std::to_string(N->ID);
-  return Result;
-}
+namespace dla {
 
-std::string dumpToString(const dla::OffsetExpression &OE) {
-  std::string Result;
-  Result += "Off: " + std::to_string(OE.Offset);
-  auto NStrides = OE.Strides.size();
-  revng_assert(NStrides == OE.TripCounts.size());
-  if (not OE.Strides.empty()) {
+void OffsetExpression::print(llvm::raw_ostream &OS) const {
+  OS << "Off: " << Offset;
+  auto NStrides = Strides.size();
+  revng_assert(NStrides == TripCounts.size());
+  if (not Strides.empty()) {
     for (decltype(NStrides) N = 0; N < NStrides; ++N) {
-      Result += ", {" + std::to_string(OE.Strides[N]) + ',';
-      if (OE.TripCounts[N].has_value())
-        Result += std::to_string(OE.TripCounts[N].value());
+      OS << ", {" << Strides[N] << ',';
+      if (TripCounts[N].has_value())
+        OS << TripCounts[N].value();
       else
-        Result += "none";
-      Result += '}';
+        OS << "none";
+      OS << '}';
     }
   }
-  return Result;
 }
-
-namespace dla {
 
 void LayoutTypePtr::print(raw_ostream &Out) const {
   Out << '{';
@@ -69,9 +62,8 @@ void LayoutTypePtr::print(raw_ostream &Out) const {
   Out << '}';
 }
 
-void LayoutTypeSystemNode::printAsOperand(llvm::raw_ostream &OS,
-                                          bool /* unused */) {
-  OS << ID;
+void LayoutTypeSystemNode::print(llvm::raw_ostream &OS) const {
+  OS << "LTSN ID: " << ID;
 }
 
 namespace {
