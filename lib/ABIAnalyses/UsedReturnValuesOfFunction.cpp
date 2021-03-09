@@ -36,20 +36,20 @@ analyze(const BasicBlock *ReturnBlock, const GeneratedCodeBasicInfo &GCBI) {
                                                  { ReturnBlock },
                                                  { ReturnBlock });
 
-  DenseMap<const GlobalVariable *, State> RegUnknown{};
+  DenseSet<const GlobalVariable *> RegUnknown{};
   DenseMap<const GlobalVariable *, State> RegYesOrDead{};
 
   for (auto &[BB, Result] : Results) {
     for (auto &[GV, RegState] : Result.OutValue) {
       if (RegState == CoreLattice::Unknown) {
-        RegUnknown[GV] = State::Unknown;
+        RegUnknown.insert(GV);
       }
     }
   }
 
   for (auto &[BB, Result] : Results) {
     for (auto &[GV, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::YesOrDead) {
+      if (RegState == CoreLattice::YesOrDead && RegUnknown.count(GV) == 0) {
         RegYesOrDead[GV] = State::YesOrDead;
       }
     }

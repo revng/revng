@@ -36,18 +36,20 @@ analyze(const BasicBlock *FunctionEntry, const GeneratedCodeBasicInfo &GCBI) {
                                                  { FunctionEntry },
                                                  { FunctionEntry });
 
-  DenseMap<const GlobalVariable *, State> RegUnknown{};
+  DenseSet<const GlobalVariable *> RegUnknown{};
   DenseMap<const GlobalVariable *, State> RegNoOrDead{};
 
   for (auto &[BB, Result] : Results) {
     for (auto &[GV, RegState] : Result.OutValue) {
-      RegUnknown[GV] = State::Unknown;
+      if (RegState == CoreLattice::Unknown) {
+        RegUnknown.insert(GV);
+      }
     }
   }
 
   for (auto &[BB, Result] : Results) {
     for (auto &[GV, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::NoOrDead) {
+      if (RegState == CoreLattice::NoOrDead && RegUnknown.count(GV) == 0) {
         RegNoOrDead[GV] = State::NoOrDead;
       }
     }
