@@ -74,10 +74,10 @@ struct CoreLattice {
       switch (E) {
       case LatticeElement::Maybe:
         return LatticeElement::Unknown;
-      case LatticeElement::Yes:
-        return LatticeElement::Yes;
       case LatticeElement::Bottom:
         return LatticeElement::Bottom;
+      case LatticeElement::Yes:
+        return LatticeElement::Yes;
       case LatticeElement::Unknown:
         return LatticeElement::Unknown;
       default:
@@ -89,10 +89,10 @@ struct CoreLattice {
       switch (E) {
       case LatticeElement::Maybe:
         return LatticeElement::Unknown;
-      case LatticeElement::Yes:
-        return LatticeElement::Yes;
       case LatticeElement::Bottom:
         return LatticeElement::Bottom;
+      case LatticeElement::Yes:
+        return LatticeElement::Yes;
       case LatticeElement::Unknown:
         return LatticeElement::Unknown;
       default:
@@ -104,10 +104,10 @@ struct CoreLattice {
       switch (E) {
       case LatticeElement::Maybe:
         return LatticeElement::Maybe;
-      case LatticeElement::Yes:
-        return LatticeElement::Yes;
       case LatticeElement::Bottom:
         return LatticeElement::Bottom;
+      case LatticeElement::Yes:
+        return LatticeElement::Yes;
       case LatticeElement::Unknown:
         return LatticeElement::Unknown;
       default:
@@ -119,10 +119,10 @@ struct CoreLattice {
       switch (E) {
       case LatticeElement::Maybe:
         return LatticeElement::Yes;
-      case LatticeElement::Yes:
-        return LatticeElement::Yes;
       case LatticeElement::Bottom:
         return LatticeElement::Bottom;
+      case LatticeElement::Yes:
+        return LatticeElement::Yes;
       case LatticeElement::Unknown:
         return LatticeElement::Unknown;
       default:
@@ -140,10 +140,11 @@ struct MFI : ABIAnalyses::ABIAnalysis {
   using LatticeElement = llvm::DenseMap<const llvm::GlobalVariable *,
                                         CoreLattice::LatticeElement>;
   using Label = const llvm::BasicBlock *;
-  using GraphType = typename std::conditional<
-    isForward,
-    const llvm::BasicBlock *,
-    llvm::Inverse<const llvm::BasicBlock *>>::type;
+  using GraphType = std::conditional_t<isForward,
+                                       const llvm::BasicBlock *,
+                                       llvm::Inverse<const llvm::BasicBlock *>>;
+  using GT = llvm::GraphTraits<GraphType>;
+  using LGT = GraphType;
 
   LatticeElement
   combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {

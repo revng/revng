@@ -13,6 +13,7 @@ digraph DeadReturnValuesOfFunctionCall {
 
   # Transfer functions
   Maybe->NoOrDead [label="Write"];
+  Maybe->NoOrDead [label="WeakWrite"];
   Maybe->Unknown [label="Read"];
   Maybe->Unknown [label="TheCall"];
 }

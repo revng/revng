@@ -13,5 +13,6 @@ digraph DeadRegisterArgumentsOfFunction {
 
   # Transfer functions
   Maybe->NoOrDead [label="Write"];
+  Maybe->NoOrDead [label="WeakWrite"];
   Maybe->Unknown [label="Read"];
 }
