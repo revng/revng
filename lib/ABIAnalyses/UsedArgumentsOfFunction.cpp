@@ -28,12 +28,13 @@ analyze(const BasicBlock *FunctionEntry, const GeneratedCodeBasicInfo &GCBI) {
   MFI::LatticeElement InitialValue{};
   MFI::LatticeElement ExtremalValue{};
 
-  auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
-                                                FunctionEntry,
-                                                InitialValue,
-                                                ExtremalValue,
-                                                { FunctionEntry },
-                                                { FunctionEntry });
+  auto Results = MFP::
+    getMaximalFixedPoint<MFI, MFI::GT, MFI::LGT>(Instance,
+                                                 FunctionEntry,
+                                                 InitialValue,
+                                                 ExtremalValue,
+                                                 { FunctionEntry },
+                                                 { FunctionEntry });
 
   DenseMap<const GlobalVariable *, State> RegYes{};
 

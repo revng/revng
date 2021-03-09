@@ -31,12 +31,13 @@ analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
   MFI::LatticeElement ExtremalValue{};
 
   auto *Start = CallSiteBlock->getUniquePredecessor();
-  auto Results = MFP::getMaximalFixedPoint<MFI>(Instance,
-                                                Start,
-                                                InitialValue,
-                                                ExtremalValue,
-                                                { Start },
-                                                { Start });
+  auto
+    Results = MFP::getMaximalFixedPoint<MFI, MFI::GT, MFI::LGT>(Instance,
+                                                                Start,
+                                                                InitialValue,
+                                                                ExtremalValue,
+                                                                { Start },
+                                                                { Start });
 
   DenseMap<const GlobalVariable *, State> RegUnknown{};
   DenseMap<const GlobalVariable *, State> RegYes{};
