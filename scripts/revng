@@ -307,9 +307,11 @@ def wrap(args):
   global command_prefix
   return command_prefix + args
 
-def run_translate(args):
-  parser = argparse.ArgumentParser(description="The rev.ng translator.",
-                                   prog=real_argv0 + " translate")
+def register_translate(subparsers):
+  parser = subparsers.add_parser("translate",
+                                 help="the rev.ng translator",
+                                 description="The rev.ng translator.",
+                                 prog=real_argv0 + " translate")
   parser.add_argument("-O0", action="store_true", help="Do no optimize.")
   parser.add_argument("-O1", action="store_true", help="Use llc -O2.")
   parser.add_argument("-O2",
@@ -330,12 +332,7 @@ def run_translate(args):
   parser.add_argument("-o", "--output", metavar="OUTPUT", help="Output path.")
   parser.add_argument("input", metavar="INPUT", help="The input binary.")
 
-  # Strip away arguments -- so we can forward them to revng-lift
-  args, extra_args = split_dash_dash(args)
-
-  # Parse the arguments
-  args = parser.parse_args(args)
-
+def run_translate(args, post_dash_dash):
   # Ensure there's an input file
   if not args.input:
     log_error("Input file not provided")
@@ -390,7 +387,7 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
   # Perform lifting
   if not args.skip:
 
-    lift_options = extra_args
+    lift_options = post_dash_dash or []
 
     if args.base:
       lift_options += ["--base", args.base]
@@ -491,8 +488,8 @@ def run_cc(args):
     translate_args, args = split_dash_dash(args)
 
   if (not args) or ("--help" in args):
-    log_error("Usage: {} cc [[translate-options] --] compiler "
-              + "[compiler-options]".format(real_argv0))
+    log_error(f"Usage: {real_argv0} cc [[translate-options] --] compiler "
+              + "[compiler-options]")
     return -1
 
   res = subprocess.call(args)
@@ -573,8 +570,7 @@ The following built-in commands are available:
   sys.stdout.buffer.write(b"\n".join(extra) + b"\n")
 
 def main():
-  parser = argparse.ArgumentParser(description="The rev.ng driver.",
-                                   add_help=False)
+  parser = argparse.ArgumentParser(description="The rev.ng driver.")
   parser.add_argument("--version",
                       action="store_true",
                       help="Display version information.")
@@ -599,39 +595,52 @@ def main():
   parser.add_argument("--callgrind",
                       action="store_true",
                       help="Run programs under callgrind.")
-  parser.add_argument("--help",
-                      action="store_true",
-                      help="Print the help.")
   parser.add_argument("--prefix",
-                      nargs="*",
+                      metavar="PREFIX",
                       help="Additional search prefix.")
-  parser.add_argument("command",
-                      nargs="?",
-                      default="help",
-                      help="Command to execute.")
-
-  global revng_parser
-  revng_parser = parser
 
   # Get script_path
   global script_path
   script_path = os.path.dirname(os.path.realpath(__file__))
 
-  command_i = None
-  for i, argument in enumerate(sys.argv[1:]):
-    if not argument.startswith("-"):
-      command_i = i
-      break
-
-  if command_i is None:
-    command_args = []
-    root_args = sys.argv[1:]
+  # Create a custom PATH variable to find programs
+  global search_path
+  search_path = os.environ["PATH"]
+  if search_path:
+    search_path = "{}:{}".format(script_path, search_path)
   else:
-    command_args = sys.argv[1 + command_i + 1:]
-    root_args = sys.argv[1:1 + command_i + 1]
+    search_path = script_path
 
-  args = parser.parse_args(root_args)
-  command = args.command
+  subparsers = parser.add_subparsers(dest="command_name",
+                                     help='sub-commands help')
+
+  register_translate(subparsers)
+
+  subparsers.add_parser("cc",
+                        help="compile, link and translate transparently",
+                        add_help=False)
+  subparsers.add_parser("opt",
+                        help="LLVM's opt with rev.ng passes",
+                        add_help=False)
+
+  programs = set()
+  prefix = "revng-"
+  for path in search_path.split(":"):
+    if os.path.isdir(path):
+      for program in os.listdir(path):
+        if program.startswith(prefix) and which(program, path=search_path):
+          name = program[len(prefix):]
+          subparsers.add_parser(name,
+                                help=f"see {name} --help",
+                                add_help=False)
+
+  global revng_parser
+  revng_parser = parser
+
+  # Strip away arguments -- so we can forward them to revng-lift
+  base_args, post_dash_dash = split_dash_dash(sys.argv[1:])
+
+  args, unknown_args = parser.parse_known_args(base_args)
 
   global search_prefixes
   search_prefixes = (args.prefix or []
@@ -666,49 +675,43 @@ def main():
   if args.heaptrack:
     command_prefix += ["heaptrack"]
 
-  # Create a custom PATH variable to find programs
-  global search_path
-  search_path = os.environ["PATH"]
-  if search_path:
-    search_path = "{}:{}".format(script_path, search_path)
-  else:
-    search_path = script_path
-
   if args.version:
     sys.stdout.write("rev.ng version @VERSION@\n")
     return 0
 
-  if args.help:
-    print_help()
-    return 0
+  return run_command(args, unknown_args, post_dash_dash)
 
-  run_command(command, command_args)
+def run_command(args, unknown_args, post_dash_dash):
+  command = args.command_name
+  if not command:
+      log_error("No command specified")
+      return 1
 
-def run_command(command, command_args):
+  all_args = list(unknown_args)
+  if post_dash_dash:
+      all_args += ["--"] + post_dash_dash
+
   # First consider the hardcoded commands
-  if command == "help":
-    print_help()
-  elif command == "opt":
-    run(build_opt_args(command_args))
+  if command == "opt":
+    run(build_opt_args(all_args))
   elif command == "cc":
-    result = run_cc(command_args)
-    assert result == 0
+    return run_cc(all_args)
   elif command == "translate":
-    result = run_translate(command_args)
-    assert result == 0
+    assert not unknown_args
+    return run_translate(args, post_dash_dash)
   else:
     executable = "revng-" + command
     if not which(executable, path=search_path):
       log_error("Can't find the following command: {}".format(executable))
-      assert False
+      return 1
 
     in_path = get_command(executable)
     if in_path:
-      arguments = [os.path.abspath(in_path)] + command_args
+      arguments = [os.path.abspath(in_path)] + all_args
       run(arguments)
     else:
       log_error("\"revng-{}\" is not a valid command".format(command))
-      assert False
+      return 1
 
 if __name__ == "__main__":
   sys.exit(main())
