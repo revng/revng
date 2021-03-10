@@ -143,29 +143,6 @@ inline const char *getName(Values V) {
   revng_abort();
 }
 
-inline SymbolType::Values fromELF(unsigned char ELFSymbolType) {
-  switch (ELFSymbolType) {
-  case llvm::ELF::STT_NOTYPE:
-  case llvm::ELF::STT_TLS:
-    return SymbolType::Unknown;
-
-  case llvm::ELF::STT_FUNC:
-    return SymbolType::Code;
-
-  case llvm::ELF::STT_OBJECT:
-    return SymbolType::Data;
-
-  case llvm::ELF::STT_SECTION:
-    return SymbolType::Section;
-
-  case llvm::ELF::STT_FILE:
-    return SymbolType::File;
-
-  default:
-    revng_abort("Unexpected symbol type");
-  }
-}
-
 } // namespace SymbolType
 
 namespace LabelOrigin {

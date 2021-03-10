@@ -38,6 +38,43 @@ using LabelList = BinaryFile::LabelList;
 
 static Logger<> EhFrameLog("ehframe");
 static Logger<> LabelsLog("labels");
+static Logger<> SymbolTypeLog("symbol-types");
+
+namespace SymbolType {
+
+static SymbolType::Values fromELF(unsigned char ELFSymbolType) {
+  switch (ELFSymbolType) {
+  case llvm::ELF::STT_GNU_IFUNC:
+    revng_log(SymbolTypeLog,
+              "symbol STT_GNU_IFUNC: GNU indirect functions not supported yet");
+    return SymbolType::Unknown;
+
+  case llvm::ELF::STT_TLS:
+    revng_log(SymbolTypeLog,
+              "symbol STT_TLS: thread-local storage not supported yet");
+    return SymbolType::Unknown;
+
+  case llvm::ELF::STT_NOTYPE:
+    return SymbolType::Unknown;
+
+  case llvm::ELF::STT_FUNC:
+    return SymbolType::Code;
+
+  case llvm::ELF::STT_OBJECT:
+    return SymbolType::Data;
+
+  case llvm::ELF::STT_SECTION:
+    return SymbolType::Section;
+
+  case llvm::ELF::STT_FILE:
+    return SymbolType::File;
+
+  default:
+    revng_abort("Unexpected symbol type");
+  }
+}
+
+} // namespace SymbolType
 
 const unsigned char R_MIPS_IMPLICIT_RELATIVE = 255;
 
