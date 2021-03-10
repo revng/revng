@@ -155,7 +155,7 @@ inline ASTNode *simplifyAtomicSequence(ASTTree &AST, ASTNode *RootNode) {
 
   case ASTNode::NK_List: {
     auto *Sequence = llvm::cast<SequenceNode>(RootNode);
-    switch (Sequence->listSize()) {
+    switch (Sequence->length()) {
 
     case 0:
       RootNode = nullptr;

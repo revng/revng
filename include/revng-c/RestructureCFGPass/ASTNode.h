@@ -306,7 +306,7 @@ public:
   using links_range = llvm::iterator_range<links_iterator>;
 
 private:
-  links_container NodeList;
+  links_container NodeVec;
 
   SequenceNode(const std::string &Name) : ASTNode(NK_List, Name) {}
 
@@ -328,24 +328,26 @@ public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_List; }
 
   links_range nodes() {
-    return llvm::make_range(NodeList.begin(), NodeList.end());
+    return llvm::make_range(NodeVec.begin(), NodeVec.end());
   }
 
   void addNode(ASTNode *Node) {
-    NodeList.push_back(Node);
+    NodeVec.push_back(Node);
     if (Node->getSuccessor() != nullptr) {
       this->addNode(Node->consumeSuccessor());
     }
   }
 
   void removeNode(ASTNode *Node) {
-    NodeList.erase(std::remove(NodeList.begin(), NodeList.end(), Node),
-                   NodeList.end());
+    NodeVec.erase(std::remove(NodeVec.begin(), NodeVec.end(), Node),
+                  NodeVec.end());
   }
 
-  links_container::size_type listSize() const { return NodeList.size(); }
+  links_container::size_type length() const { return NodeVec.size(); }
 
-  ASTNode *getNodeN(links_container::size_type N) const { return NodeList[N]; }
+  ASTNode *getNodeN(links_container::size_type N) const { return NodeVec[N]; }
+
+  links_container &getChildVec() { return NodeVec; }
 
   void dump(llvm::raw_fd_ostream &ASTFile);
 
