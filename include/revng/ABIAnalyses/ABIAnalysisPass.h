@@ -7,13 +7,20 @@
 #include "llvm/Pass.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+namespace ABIAnalyses {
 
-class ABIAnalysisPass : public llvm::FunctionPass {
+class ABIAnalysisPass : public llvm::PassInfoMixin<ABIAnalysisPass> {
+public:
+  llvm::PreservedAnalyses
+  run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
+};
+
+class ABIAnalysisWrapperPass : public llvm::FunctionPass {
 public:
   static char ID;
 
 public:
-  ABIAnalysisPass() : llvm::FunctionPass(ID) {}
+  ABIAnalysisWrapperPass() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
 
@@ -22,3 +29,5 @@ public:
     AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
   }
 };
+
+}
