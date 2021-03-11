@@ -157,7 +157,7 @@ inline TransferKind
 ABIAnalysis::classifyInstruction(const Instruction *I) const {
   switch (I->getOpcode()) {
   case Instruction::Store: {
-    auto S = cast<StoreInst>(I);
+    auto *S = cast<StoreInst>(I);
     if (isABIRegister(S->getPointerOperand())) {
       if (isCallSiteBlock(I->getParent())) {
         return WeakWrite;
