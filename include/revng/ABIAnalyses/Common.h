@@ -188,9 +188,10 @@ ABIAnalysis::getRegistersWritten(const Instruction *I) const {
   SmallVector<const GlobalVariable *, 1> Result;
   switch (I->getOpcode()) {
   case Instruction::Store: {
-    auto S = cast<StoreInst>(I);
-    if (isABIRegister(S->getPointerOperand())) {
-      Result.push_back(cast<GlobalVariable>(S->getPointerOperand()));
+    auto *S = cast<StoreInst>(I);
+    auto *Pointer = S->getPointerOperand();
+    if (isABIRegister(Pointer)) {
+      Result.push_back(cast<GlobalVariable>(Pointer));
     }
     break;
   }
@@ -203,9 +204,10 @@ ABIAnalysis::getRegistersRead(const Instruction *I) const {
   SmallVector<const GlobalVariable *, 1> Result;
   switch (I->getOpcode()) {
   case Instruction::Load: {
-    auto L = cast<LoadInst>(I);
-    if (isABIRegister(L->getPointerOperand())) {
-      Result.push_back(cast<GlobalVariable>(L->getPointerOperand()));
+    auto *L = cast<LoadInst>(I);
+    auto *Pointer = L->getPointerOperand();
+    if (isABIRegister(Pointer)) {
+      Result.push_back(cast<GlobalVariable>(Pointer));
     }
     break;
   }
