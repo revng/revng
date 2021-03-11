@@ -122,7 +122,7 @@ bool isLessOrEqual(const LatticeElementMap &Lh, const LatticeElementMap &Rh) {
 }
 
 inline bool ABIAnalysis::isABIRegister(const Value *V) const {
-  if (const auto &G = dyn_cast<GlobalVariable>(V)) {
+  if (auto *G = dyn_cast<GlobalVariable>(V)) {
     if (ABIRegisters.count(G) != 0) {
       return true;
     }
