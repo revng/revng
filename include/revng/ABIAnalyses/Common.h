@@ -54,11 +54,12 @@ public:
   ABIAnalysis(const Instruction *CS, const GeneratedCodeBasicInfo &GCBI) :
     RegisterList(), CallSite(CS) {
 
-    for (auto *CSV : GCBI.abiRegisters())
+    for (auto *CSV : GCBI.abiRegisters()) {
       if (CSV) {
         ABIRegisters.insert(CSV);
         RegisterList.emplace_back(CSV);
       }
+    }
   };
 
   const SmallVector<GlobalVariable *, 20> getRegisters() const {
@@ -166,7 +167,7 @@ ABIAnalysis::classifyInstruction(const Instruction *I) const {
     break;
   }
   case Instruction::Load: {
-    auto L = cast<LoadInst>(I);
+    auto *L = cast<LoadInst>(I);
     if (isABIRegister(L->getPointerOperand())) {
       return Read;
     }
@@ -176,6 +177,7 @@ ABIAnalysis::classifyInstruction(const Instruction *I) const {
     if (I == CallSite) {
       return TheCall;
     }
+    break;
   }
   }
   return None;
