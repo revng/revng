@@ -13,10 +13,10 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng/ABIAnalyses/Analyses.h"
-#include "revng/ABIAnalyses/Common.h"
 #include "revng/MFP/MFP.h"
 #include "revng/Support/revng.h"
+
+#include "Analyses.h"
 
 namespace ABIAnalyses::UsedReturnValuesOfFunctionCall {
 using namespace llvm;
