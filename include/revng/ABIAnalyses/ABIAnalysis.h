@@ -5,6 +5,7 @@
 //
 
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
@@ -45,52 +46,50 @@ analyzeOutlinedFunction(Function *F, const GeneratedCodeBasicInfo &GCBI) {
               << "\n";
   }
   ABILogger << "------- end DeadRegisterArgumentsOfFunction --------\n";
+  for (Instruction &I : llvm::instructions(F)) {
+    BasicBlock *BB = I.getParent();
+    if (auto *C = dyn_cast<CallInst>(&I)) {
+      if (C->getCalledFunction()->getName().contains("precall_hook")) {
+        // BB is definitely a call site and also a special basic block
 
-  for (auto &BB : *F) {
-    for (auto &I : BB) {
-      if (auto *C = dyn_cast<CallInst>(&I)) {
-        if (C->getCalledFunction()->getName().contains("precall_hook")) {
-          ABILogger << C << '\n';
-          ABILogger << "------- start UsedReturnValuesOfFunctionCall "
-                       "--------\n";
-          for (auto &[GV, State] :
-               UsedReturnValuesOfFunctionCall::analyze(&BB, GCBI)) {
-            ABILogger << GV->getName() << " = "
-                      << model::RegisterState::getName(State) << "\n";
-          }
-          ABILogger << "------- end UsedReturnValuesOfFunctionCall "
-                       "--------\n";
-
-          ABILogger << "------- start RegisterArgumentsOfFunctionCall "
-                       "--------\n";
-          for (auto &[GV, State] :
-               RegisterArgumentsOfFunctionCall::analyze(&BB, GCBI)) {
-            ABILogger << GV->getName() << " = "
-                      << model::RegisterState::getName(State) << "\n";
-          }
-          ABILogger << "------- end RegisterArgumentsOfFunctionCall "
-                       "--------\n";
-          ABILogger << "------- start DeadReturnValuesOfFunctionCall "
-                       "--------\n";
-          for (auto &[GV, State] :
-               DeadReturnValuesOfFunctionCall::analyze(&BB, GCBI)) {
-            ABILogger << GV->getName() << " = "
-                      << model::RegisterState::getName(State) << "\n";
-          }
-          ABILogger << "------- end DeadReturnValuesOfFunctionCall "
-                       "--------\n";
-        }
-      } else if (auto *R = dyn_cast<ReturnInst>(&I)) {
-        ABILogger << "------- start UsedReturnValuesOfFunction --------\n";
+        ABILogger << C << '\n';
+        ABILogger << "------- start UsedReturnValuesOfFunctionCall "
+                     "--------\n";
         for (auto &[GV, State] :
-             UsedReturnValuesOfFunction::analyze(&BB, GCBI)) {
+             UsedReturnValuesOfFunctionCall::analyze(BB, GCBI)) {
           ABILogger << GV->getName() << " = "
                     << model::RegisterState::getName(State) << "\n";
         }
-        ABILogger << "------- end UsedReturnValuesOfFunction --------\n";
+        ABILogger << "------- end UsedReturnValuesOfFunctionCall "
+                     "--------\n";
+
+        ABILogger << "------- start RegisterArgumentsOfFunctionCall "
+                     "--------\n";
+        for (auto &[GV, State] :
+             RegisterArgumentsOfFunctionCall::analyze(BB, GCBI)) {
+          ABILogger << GV->getName() << " = "
+                    << model::RegisterState::getName(State) << "\n";
+        }
+        ABILogger << "------- end RegisterArgumentsOfFunctionCall "
+                     "--------\n";
+        ABILogger << "------- start DeadReturnValuesOfFunctionCall "
+                     "--------\n";
+        for (auto &[GV, State] :
+             DeadReturnValuesOfFunctionCall::analyze(BB, GCBI)) {
+          ABILogger << GV->getName() << " = "
+                    << model::RegisterState::getName(State) << "\n";
+        }
+        ABILogger << "------- end DeadReturnValuesOfFunctionCall "
+                     "--------\n";
       }
+    } else if (auto *R = dyn_cast<ReturnInst>(&I)) {
+      ABILogger << "------- start UsedReturnValuesOfFunction --------\n";
+      for (auto &[GV, State] : UsedReturnValuesOfFunction::analyze(BB, GCBI)) {
+        ABILogger << GV->getName() << " = "
+                  << model::RegisterState::getName(State) << "\n";
+      }
+      ABILogger << "------- end UsedReturnValuesOfFunction --------\n";
     }
-    // BB is definitely a call site and also a special basic block
   }
 }
 
