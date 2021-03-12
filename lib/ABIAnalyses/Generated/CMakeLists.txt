@@ -44,9 +44,9 @@ set(ABIANALYSIS_GRAPHS
 foreach(GRAPH IN LISTS ABIANALYSIS_GRAPHS)
   message(STATUS "hey ${GRAPH}")
   add_custom_command(OUTPUT "${GRAPH}.h"
-    COMMAND "${CMAKE_SOURCE_DIR}/scripts/monotone-framework-lattice.py"
+    COMMAND "${CMAKE_SOURCE_DIR}/scripts/monotone_framework_lattice.py"
       ${ABIANALYSIS_TEMPLATE} "${CMAKE_CURRENT_SOURCE_DIR}/${GRAPH}.dot" > "${GRAPH}.h"
-    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/monotone-framework-lattice.py"
+    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/monotone_framework_lattice.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/${GRAPH}.dot"
             ${ABIANALYSIS_TEMPLATE}
     VERBATIM)
