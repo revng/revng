@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+
+# This script generates C++ classes from a GraphViz file representing a monotone
+# framework and a template file.
+#
+# The graph should meet the same requirements as monotone-framework.py
+#
+
 import argparse
 import sys
 from collections import defaultdict
