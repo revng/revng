@@ -3,6 +3,7 @@
 #
 
 revng_add_analyses_library_internal(revngABIAnalyses
+  ABIAnalysis.cpp
   ABIAnalysisPass.cpp
   DeadRegisterArgumentsOfFunction.cpp
   DeadReturnValuesOfFunctionCall.cpp

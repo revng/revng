@@ -4,12 +4,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/ABIAnalyses/Generated/DeadRegisterArgumentsOfFunction.h"
-#include "revng/ABIAnalyses/Generated/DeadReturnValuesOfFunctionCall.h"
-#include "revng/ABIAnalyses/Generated/RegisterArgumentsOfFunctionCall.h"
-#include "revng/ABIAnalyses/Generated/UsedArgumentsOfFunction.h"
-#include "revng/ABIAnalyses/Generated/UsedReturnValuesOfFunction.h"
-#include "revng/ABIAnalyses/Generated/UsedReturnValuesOfFunctionCall.h"
+#include "Generated/DeadRegisterArgumentsOfFunction.h"
+#include "Generated/DeadReturnValuesOfFunctionCall.h"
+#include "Generated/RegisterArgumentsOfFunctionCall.h"
+#include "Generated/UsedArgumentsOfFunction.h"
+#include "Generated/UsedReturnValuesOfFunction.h"
+#include "Generated/UsedReturnValuesOfFunctionCall.h"
 
 namespace ABIAnalyses {
 namespace DeadRegisterArgumentsOfFunction {
