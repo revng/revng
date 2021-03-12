@@ -844,7 +844,7 @@ llvm::Function *CFEPAnalyzer<FunctionOracle>::createDisposableFunction(
   CodeExtractorAnalysisCache CEAC(*Root);
   Function *OutlinedFunction = CodeExtractor(BlocksToExtract)
                                  .extractCodeRegion(CEAC);
-                                 
+
   revng_assert(OutlinedFunction != nullptr);
   revng_assert(OutlinedFunction->arg_size() == 0);
   revng_assert(OutlinedFunction->getReturnType()->isVoidTy());
