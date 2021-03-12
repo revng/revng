@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// This file has been automatically generated from scripts/monotone-framework-lattice.py, please don't change it
+// This file has been automatically generated from scripts/monotone_framework_lattice.py, please don't change it
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/BasicBlock.h"

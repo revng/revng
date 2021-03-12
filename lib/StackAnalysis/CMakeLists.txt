@@ -37,9 +37,9 @@ set(ABIDATAFLOWS_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/UsedReturnValuesOfFunctionCall.dot"
   "${CMAKE_CURRENT_SOURCE_DIR}/UsedReturnValuesOfFunction.dot")
 add_custom_command(OUTPUT ABIDataFlows.h
-  COMMAND "${CMAKE_SOURCE_DIR}/scripts/monotone-framework.py"
+  COMMAND "${CMAKE_SOURCE_DIR}/scripts/monotone_framework.py"
     --call-arcs ${ABIDATAFLOWS_SOURCES} > ABIDataFlows.h
-  DEPENDS "${CMAKE_SOURCE_DIR}/scripts/monotone-framework.py"
+  DEPENDS "${CMAKE_SOURCE_DIR}/scripts/monotone_framework.py"
            ${ABIDATAFLOWS_SOURCES}
   VERBATIM)
 add_custom_target(abidataflows DEPENDS ABIDataFlows.h)

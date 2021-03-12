@@ -3,7 +3,7 @@
 # This script generates C++ classes from a GraphViz file representing a monotone
 # framework and a template file.
 #
-# The graph should meet the same requirements as monotone-framework.py
+# The graph should meet the same requirements as monotone_framework.py
 #
 
 import argparse
@@ -12,7 +12,8 @@ from collections import defaultdict
 from pygraphviz import AGraph
 
 import importlib
-monotone_framework = importlib.import_module("monotone-framework")
+import monotone_framework
+
 def gen_combine_values(lattice, reachability):
   out = ''
   # Emit the combine operator
