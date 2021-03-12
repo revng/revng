@@ -27,8 +27,6 @@ using State = model::RegisterState::Values;
 
 struct CoreLattice {
 
-// using LatticeElement = model::RegisterState::Values;
-
 %LatticeElement%
 
 static const LatticeElement DefaultLatticeElement = %DefaultLatticeElement%;
