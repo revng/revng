@@ -22,7 +22,7 @@ namespace ABIAnalyses {
 /// call to @precall_hook followed by a summary of the side effects of the
 /// function followed by a call to @postcall_hook and a basic block terminating
 /// instruction
-void
-analyzeOutlinedFunction(llvm::Function *F, const GeneratedCodeBasicInfo &GCBI);
+void analyzeOutlinedFunction(llvm::Function *F,
+                             const GeneratedCodeBasicInfo &GCBI);
 
 } // namespace ABIAnalyses

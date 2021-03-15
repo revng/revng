@@ -55,7 +55,6 @@ analyze(const BasicBlock *FunctionEntry, const GeneratedCodeBasicInfo &GCBI) {
       }
     }
   }
-
   return RegNoOrDead;
 }
 } // namespace ABIAnalyses::DeadRegisterArgumentsOfFunction
