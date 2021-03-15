@@ -112,9 +112,8 @@ def gen_transfer_function(tf_names, transfer_functions):
       return LatticeElement::{};
 """.format(source, destination))
     out += ("""    default:
-      return E;
+      revng_abort("Invalid LatticeElement value found");
     }
-    return E;
 
 """)
 
