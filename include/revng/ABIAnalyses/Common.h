@@ -157,10 +157,7 @@ ABIAnalysis::classifyInstruction(const Instruction *I) const {
   case Instruction::Store: {
     auto *S = cast<StoreInst>(I);
     if (isABIRegister(S->getPointerOperand())) {
-      if (isCallSiteBlock(I->getParent())) {
-        return WeakWrite;
-      }
-      return Write;
+      return isCallSiteBlock(I->getParent()) ? WeakWrite : Write;
     }
     break;
   }
