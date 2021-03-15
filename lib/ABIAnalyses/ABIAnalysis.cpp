@@ -17,17 +17,15 @@
 #include "Analyses.h"
 
 namespace ABIAnalyses {
-using llvm::CallInst;
-using llvm::dyn_cast;
-using llvm::Function;
-using llvm::ReturnInst;
+using namespace llvm;
 
 /// Run all abi analyses on the oulined function F the outlined function must
 /// have all original function calls replaced with a basic block starting with a
 /// call to @precall_hook followed by a summary of the side effects of the
 /// function followed by a call to @postcall_hook and a basic block terminating
 /// instruction
-AnalysisResults analyzeOutlinedFunction(Function *F, const GeneratedCodeBasicInfo &GCBI) {
+AnalysisResults
+analyzeOutlinedFunction(Function *F, const GeneratedCodeBasicInfo &GCBI) {
   AnalysisResults Results;
 
   Results.UsedArgumentsOfFunction = UsedArgumentsOfFunction::
@@ -51,7 +49,7 @@ AnalysisResults analyzeOutlinedFunction(Function *F, const GeneratedCodeBasicInf
         analyze(BB, GCBI);
     }
   }
-  
+
   return Results;
 }
 

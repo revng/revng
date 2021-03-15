@@ -10,7 +10,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
-#include <cstdio>
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/Binary.h"
