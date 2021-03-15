@@ -10,6 +10,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
+#include <cstdio>
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/Binary.h"
@@ -17,12 +18,85 @@
 
 namespace ABIAnalyses {
 
+using RegisterStateMap = llvm::DenseMap<const llvm::GlobalVariable *,
+                                        model::RegisterState::Values>;
+struct AnalysisResults {
+  // Per function analysis
+  RegisterStateMap UsedArgumentsOfFunction;
+  RegisterStateMap DeadRegisterArgumentsOfFunction;
+
+  // Per call site analysis
+  std::map<llvm::BasicBlock *, RegisterStateMap> UsedReturnValuesOfFunctionCall;
+  std::map<llvm::BasicBlock *, RegisterStateMap>
+    RegisterArgumentsOfFunctionCall;
+  std::map<llvm::BasicBlock *, RegisterStateMap> DeadReturnValuesOfFunctionCall;
+
+  // Per return analysis
+  std::map<llvm::BasicBlock *, RegisterStateMap> UsedReturnValuesOfFunction;
+
+  void dump() const debug_function { dump(dbg, ""); }
+
+  template<typename T>
+  void dump(T &Output, const char *Prefix) const;
+};
+
 /// Run all abi analyses on the oulined function F the outlined function must
 /// have all original function calls replaced with a basic block starting with a
 /// call to @precall_hook followed by a summary of the side effects of the
 /// function followed by a call to @postcall_hook and a basic block terminating
 /// instruction
-void analyzeOutlinedFunction(llvm::Function *F,
-                             const GeneratedCodeBasicInfo &GCBI);
+AnalysisResults
+analyzeOutlinedFunction(llvm::Function *F, const GeneratedCodeBasicInfo &GCBI);
+
+/// Print the analysis results
+template<typename T>
+void AnalysisResults::dump(T &Output, const char *Prefix) const {
+  Output << Prefix << "UsedArgumentsOfFunction:\n";
+  for (auto &[GV, State] : UsedArgumentsOfFunction) {
+    Output << Prefix << "  " << GV->getName().str() << " = "
+           << model::RegisterState::getName(State).str() << '\n';
+  }
+  Output << Prefix << "DeadRegisterArgumentsOfFunction:\n";
+  for (auto &[GV, State] : DeadRegisterArgumentsOfFunction) {
+    Output << Prefix << "  " << GV->getName().str() << " = "
+           << model::RegisterState::getName(State).str() << '\n';
+  }
+
+  Output << Prefix << "UsedReturnValuesOfFunctionCall:\n";
+  for (auto &[BB, StateMap] : UsedReturnValuesOfFunctionCall) {
+    Output << Prefix << "  " << BB->getName().str() << '\n';
+    for (auto &[GV, State] : StateMap) {
+      Output << Prefix << "    " << GV->getName().str() << " = "
+             << model::RegisterState::getName(State).str() << '\n';
+    }
+  }
+
+  Output << Prefix << "RegisterArgumentsOfFunctionCall:\n";
+  for (auto &[BB, StateMap] : RegisterArgumentsOfFunctionCall) {
+    Output << Prefix << "  " << BB->getName().str() << '\n';
+    for (auto &[GV, State] : StateMap) {
+      Output << Prefix << "    " << GV->getName().str() << " = "
+             << model::RegisterState::getName(State).str() << '\n';
+    }
+  }
+
+  Output << Prefix << "DeadReturnValuesOfFunctionCall:\n";
+  for (auto &[BB, StateMap] : DeadReturnValuesOfFunctionCall) {
+    Output << Prefix << "  " << BB->getName().str() << '\n';
+    for (auto &[GV, State] : StateMap) {
+      Output << Prefix << "    " << GV->getName().str() << " = "
+             << model::RegisterState::getName(State).str() << '\n';
+    }
+  }
+
+  Output << Prefix << "UsedReturnValuesOfFunction:\n";
+  for (auto &[BB, StateMap] : UsedReturnValuesOfFunction) {
+    Output << Prefix << "  " << BB->getName().str() << '\n';
+    for (auto &[GV, State] : StateMap) {
+      Output << Prefix << "    " << GV->getName().str() << " = "
+             << model::RegisterState::getName(State).str() << '\n';
+    }
+  }
+}
 
 } // namespace ABIAnalyses

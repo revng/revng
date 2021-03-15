@@ -15,6 +15,8 @@
 using namespace ABIAnalyses;
 using namespace llvm;
 
+inline Logger<> ABILogger("new-abi");
+
 static cl::OptionCategory Category("new-abi-analysis");
 
 static cl::opt<std::string> FilterFunction("new-abi-analysis-function",
@@ -33,8 +35,8 @@ bool ABIAnalysisWrapperPass::runOnFunction(Function &F) {
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   if (F.getName() != FilterFunction) {
     return false;
-  }
-  ABIAnalyses::analyzeOutlinedFunction(&F, GCBI);
+  }  
+  ABIAnalyses::analyzeOutlinedFunction(&F, GCBI).dump(ABILogger, "");
   return false;
 }
 
@@ -44,6 +46,6 @@ ABIAnalysisPass::run(Function &F, FunctionAnalysisManager &FAM) {
   if (F.getName() != FilterFunction) {
     return PreservedAnalyses::all();
   }
-  ABIAnalyses::analyzeOutlinedFunction(&F, GCBI);
+  ABIAnalyses::analyzeOutlinedFunction(&F, GCBI).dump(ABILogger, "");
   return PreservedAnalyses::all();
 }
