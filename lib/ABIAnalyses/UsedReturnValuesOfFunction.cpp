@@ -24,7 +24,7 @@ using namespace ABIAnalyses;
 
 DenseMap<const GlobalVariable *, State>
 analyze(const BasicBlock *ReturnBlock, const GeneratedCodeBasicInfo &GCBI) {
-  using MFI = MFI<false>;
+  using MFI = MFIAnalysis<false, CoreLattice>;
 
   MFI Instance{ { GCBI } };
   MFI::LatticeElement InitialValue{};

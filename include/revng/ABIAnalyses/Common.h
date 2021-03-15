@@ -209,4 +209,64 @@ ABIAnalysis::getRegistersRead(const Instruction *I) const {
   }
   return Result;
 }
+
+template<bool isForward, typename CoreLattice>
+struct MFIAnalysis : ABIAnalyses::ABIAnalysis {
+  using LatticeElement = llvm::DenseMap<const llvm::GlobalVariable *,
+                                        typename CoreLattice::LatticeElement>;
+  using Label = const llvm::BasicBlock *;
+  using GraphType = std::conditional_t<isForward, const llvm::BasicBlock *, llvm::Inverse<const llvm::BasicBlock *>>;
+  using GT = llvm::GraphTraits<GraphType>;
+  using LGT = GraphType;
+  
+  LatticeElement
+  combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {
+    return ABIAnalyses::combineValues<LatticeElement, CoreLattice>(Lh, Rh);
+  };
+  
+  bool isLessOrEqual(const LatticeElement &Lh, const LatticeElement &Rh) const  {
+    return ABIAnalyses::isLessOrEqual<LatticeElement, CoreLattice>(Lh, Rh);
+  };
+
+  LatticeElement applyTransferFunction(Label L, const LatticeElement &E) const {
+    LatticeElement New = E;
+    std::vector<const Instruction *> InsList;
+    for (auto &I : make_range(L->begin(), L->end())) {
+      InsList.push_back(&I);
+    }
+    for (size_t i = 0; i <  InsList.size(); i++) {
+      auto I = InsList[isForward ? i : (InsList.size() - i - 1)];
+      TransferKind T = classifyInstruction(I);
+      switch (T) {
+      case TheCall: {
+        for (auto &Reg : getRegisters()) {
+          New[Reg] = CoreLattice::transfer(TheCall, 
+                                           getOrDefault<LatticeElement,
+                                                        CoreLattice>(New, Reg));
+        }
+        break;
+      }
+      case Read:
+        for (auto &Reg : getRegistersRead(I)) {
+          New[Reg] = CoreLattice::transfer(T,
+                                           getOrDefault<LatticeElement,
+                                                        CoreLattice>(New, Reg));
+        }
+        break;
+      case WeakWrite:
+      case Write:
+        for (auto &Reg : getRegistersWritten(I)) {
+          New[Reg] = CoreLattice::transfer(T,
+                                           getOrDefault<LatticeElement, 
+                                                        CoreLattice>(New, Reg));
+        }
+        break;
+      default:
+        break;
+      }
+    }
+    return New;
+  };
+};
+
 } // namespace ABIAnalyses

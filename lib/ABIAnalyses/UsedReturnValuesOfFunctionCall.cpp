@@ -24,7 +24,7 @@ using namespace ABIAnalyses;
 
 DenseMap<const GlobalVariable *, State>
 analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
-  using MFI = MFI<true>;
+  using MFI = MFIAnalysis<true, CoreLattice>;
 
   MFI Instance{ { getPreCallHook(CallSiteBlock), GCBI } };
   MFI::LatticeElement InitialValue{};
