@@ -38,7 +38,6 @@ bool ABIAnalysisWrapperPass::runOnFunction(Function &F) {
   return false;
 }
 
-
 PreservedAnalyses
 ABIAnalysisPass::run(Function &F, FunctionAnalysisManager &FAM) {
   const auto &GCBI = FAM.getResult<GeneratedCodeBasicInfoAnalysis>(F);
