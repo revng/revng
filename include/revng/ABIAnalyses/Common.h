@@ -21,16 +21,6 @@
 
 namespace ABIAnalyses {
 
-using llvm::BasicBlock;
-using llvm::CallInst;
-using llvm::GlobalVariable;
-using llvm::Instruction;
-using llvm::LoadInst;
-using llvm::SmallSet;
-using llvm::SmallVector;
-using llvm::StoreInst;
-using llvm::Value;
-
 using Register = model::Register::Values;
 
 enum TransferKind {
@@ -43,15 +33,15 @@ enum TransferKind {
 
 struct ABIAnalysis {
 private:
-  SmallSet<GlobalVariable *, 20> ABIRegisters;
-  SmallVector<GlobalVariable *, 20> RegisterList;
-  const Instruction *CallSite;
+  llvm::SmallSet<llvm::GlobalVariable *, 20> ABIRegisters;
+  llvm::SmallVector<llvm::GlobalVariable *, 20> RegisterList;
+  const llvm::Instruction *CallSite;
 
 public:
   ABIAnalysis(const GeneratedCodeBasicInfo &GCBI) :
     ABIAnalysis(nullptr, GCBI){};
 
-  ABIAnalysis(const Instruction *CS, const GeneratedCodeBasicInfo &GCBI) :
+  ABIAnalysis(const llvm::Instruction *CS, const GeneratedCodeBasicInfo &GCBI) :
     RegisterList(), CallSite(CS) {
 
     for (auto *CSV : GCBI.abiRegisters()) {
@@ -62,19 +52,19 @@ public:
     }
   };
 
-  const SmallVector<GlobalVariable *, 20> getRegisters() const {
+  const llvm::SmallVector<llvm::GlobalVariable *, 20> getRegisters() const {
     return RegisterList;
   }
 
-  bool isABIRegister(const Value *) const;
+  bool isABIRegister(const llvm::Value *) const;
 
-  TransferKind classifyInstruction(const Instruction *) const;
+  TransferKind classifyInstruction(const llvm::Instruction *) const;
 
-  SmallVector<const GlobalVariable *, 1>
-  getRegistersWritten(const Instruction *) const;
+  llvm::SmallVector<const llvm::GlobalVariable *, 1>
+  getRegistersWritten(const llvm::Instruction *) const;
 
-  SmallVector<const GlobalVariable *, 1>
-  getRegistersRead(const Instruction *) const;
+  llvm::SmallVector<const llvm::GlobalVariable *, 1>
+  getRegistersRead(const llvm::Instruction *) const;
 };
 
 template<typename LatticeElementMap, typename CoreLattice, typename KeyT>
@@ -119,14 +109,16 @@ bool isLessOrEqual(const LatticeElementMap &LHS, const LatticeElementMap &RHS) {
   return true;
 }
 
-inline bool ABIAnalysis::isABIRegister(const Value *V) const {
+inline bool ABIAnalysis::isABIRegister(const llvm::Value *V) const {
+  using namespace llvm;
   if (auto *G = dyn_cast<GlobalVariable>(V)) {
     return ABIRegisters.count(G) != 0;
   }
   return false;
 }
 
-inline bool isCallSiteBlock(const BasicBlock *B) {
+inline bool isCallSiteBlock(const llvm::BasicBlock *B) {
+  using namespace llvm;
   if (auto *C = dyn_cast<CallInst>(&*B->getFirstInsertionPt())) {
     if (C->getCalledFunction()->getName().contains("precall_hook")) {
       return true;
@@ -135,14 +127,14 @@ inline bool isCallSiteBlock(const BasicBlock *B) {
   return false;
 }
 
-inline const Instruction *getPreCallHook(const BasicBlock *B) {
+inline const llvm::Instruction *getPreCallHook(const llvm::BasicBlock *B) {
   if (isCallSiteBlock(B)) {
     return &*B->getFirstInsertionPt();
   }
   return nullptr;
 }
 
-inline const Instruction *getPostCallHook(const BasicBlock *B) {
+inline const llvm::Instruction *getPostCallHook(const llvm::BasicBlock *B) {
   if (isCallSiteBlock(B)) {
     return B->getTerminator()->getPrevNode();
   }
@@ -150,7 +142,8 @@ inline const Instruction *getPostCallHook(const BasicBlock *B) {
 }
 
 inline TransferKind
-ABIAnalysis::classifyInstruction(const Instruction *I) const {
+ABIAnalysis::classifyInstruction(const llvm::Instruction *I) const {
+  using namespace llvm;
   switch (I->getOpcode()) {
   case Instruction::Store: {
     auto *S = cast<StoreInst>(I);
@@ -176,8 +169,9 @@ ABIAnalysis::classifyInstruction(const Instruction *I) const {
   return None;
 }
 
-inline SmallVector<const GlobalVariable *, 1>
-ABIAnalysis::getRegistersWritten(const Instruction *I) const {
+inline llvm::SmallVector<const llvm::GlobalVariable *, 1>
+ABIAnalysis::getRegistersWritten(const llvm::Instruction *I) const {
+  using namespace llvm;
   SmallVector<const GlobalVariable *, 1> Result;
   switch (I->getOpcode()) {
   case Instruction::Store: {
@@ -192,8 +186,9 @@ ABIAnalysis::getRegistersWritten(const Instruction *I) const {
   return Result;
 }
 
-inline SmallVector<const GlobalVariable *, 1>
-ABIAnalysis::getRegistersRead(const Instruction *I) const {
+inline llvm::SmallVector<const llvm::GlobalVariable *, 1>
+ABIAnalysis::getRegistersRead(const llvm::Instruction *I) const {
+  using namespace llvm;
   SmallVector<const GlobalVariable *, 1> Result;
   switch (I->getOpcode()) {
   case Instruction::Load: {
@@ -230,6 +225,7 @@ struct MFIAnalysis : ABIAnalyses::ABIAnalysis {
   };
 
   LatticeElement applyTransferFunction(Label L, const LatticeElement &E) const {
+    using namespace llvm;
     LatticeElement New = E;
     std::vector<const Instruction *> InsList;
     for (auto &I : make_range(L->begin(), L->end())) {

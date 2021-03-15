@@ -35,7 +35,7 @@ bool ABIAnalysisWrapperPass::runOnFunction(Function &F) {
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   if (F.getName() != FilterFunction) {
     return false;
-  }  
+  }
   ABIAnalyses::analyzeOutlinedFunction(&F, GCBI).dump(ABILogger, "");
   return false;
 }
