@@ -35,12 +35,12 @@ struct BitLivenessAnalysis {
   using Label = DataFlowNode *;
   using MFPResult = MFP::MFPResult<BitLivenessAnalysis::LatticeElement>;
 
-  uint32_t combineValues(const uint32_t &Lh, const uint32_t &Rh) const {
-    return std::max(Lh, Rh);
+  uint32_t combineValues(const uint32_t &LHS, const uint32_t &RHS) const {
+    return std::max(LHS, RHS);
   }
 
-  bool isLessOrEqual(const uint32_t &Lh, const uint32_t &Rh) const {
-    return Lh <= Rh;
+  bool isLessOrEqual(const uint32_t &LHS, const uint32_t &RHS) const {
+    return LHS <= RHS;
   }
 
   uint32_t applyTransferFunction(DataFlowNode *L, const uint32_t E) const;
