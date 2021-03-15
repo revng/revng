@@ -17,7 +17,7 @@ import monotone_framework
 def gen_combine_values(lattice, reachability):
   out = ''
   # Emit the combine operator
-  out += """LatticeElement combineValues(const LatticeElement &Lh, const LatticeElement &Rh) {
+  out += """LatticeElement combineValues(const LatticeElement &LHS, const LatticeElement &RHS) {
 """
 
   node_by_index = lambda index: monotone_framework.get_unique([x
@@ -49,7 +49,7 @@ def gen_combine_values(lattice, reachability):
       out += (""" else if (""")
     conditions = []
     for this, other in sorted(pairs, key=lambda x: (x[0].name, x[1].name)):
-      condition = "(Lh == LatticeElement::{} && Rh == LatticeElement::{})"
+      condition = "(LHS == LatticeElement::{} && RHS == LatticeElement::{})"
       condition = condition.format(this.name, other.name)
       conditions.append(condition)
     conditions[0] = conditions[0].lstrip()
@@ -63,7 +63,7 @@ def gen_combine_values(lattice, reachability):
     first = False
 
   out += ("""
-  return Lh;
+  return LHS;
 }
 
 """)
@@ -74,8 +74,8 @@ def gen_is_less_or_equal(lattice, reachability):
   out = ''
 
   # Emit the comparison operator of the lattice
-  out += ("""bool isLessOrEqual(const LatticeElement &Lh, const LatticeElement &Rh) {
-  return Lh == Rh
+  out += ("""bool isLessOrEqual(const LatticeElement &LHS, const LatticeElement &RHS) {
+  return LHS == RHS
     || """)
 
   result = []
@@ -85,7 +85,7 @@ def gen_is_less_or_equal(lattice, reachability):
         i1 = int(v1.attr["index"])
         i2 = int(v2.attr["index"])
         if reachability[i1][i2] != 0:
-          condition = """(Lh == LatticeElement::{} && Rh == LatticeElement::{})"""
+          condition = """(LHS == LatticeElement::{} && RHS == LatticeElement::{})"""
           condition = condition.format(v1.name, v2.name)
           result.append(condition)
 
@@ -201,9 +201,9 @@ def main():
                       - %LatticeElement% the C++ enum definition for the elements in the lattice `enum LatticeElement {...}`
                       - %DefaultLatticeElement% the name for the default value for a lattice element 
                       - %TransferFunction% the C++ enum definition for the possible transfer functions `enum TransferFunction {...}`
-                      - %isLessOrEqual% the C++ function with signature `bool isLessOrEqual(const LatticeElement &Lh, const LatticeElement &Rh)`
-                      - %combineValues% the C++ function with signature `bool combineValues(const LatticeElement &Lh, const LatticeElement &Rh)`
-                      - %transfer% the C++ function with signature `bool transfer(TransferFunction T, const LatticeElement &Rh)`
+                      - %isLessOrEqual% the C++ function with signature `bool isLessOrEqual(const LatticeElement &LHS, const LatticeElement &RHS)`
+                      - %combineValues% the C++ function with signature `bool combineValues(const LatticeElement &LHS, const LatticeElement &RHS)`
+                      - %transfer% the C++ function with signature `bool transfer(TransferFunction T, const LatticeElement &RHS)`
                       
                       """)
   parser.add_argument("inputs",

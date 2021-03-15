@@ -89,29 +89,29 @@ getOrDefault(const LatticeElementMap &S, const KeyT &K) {
 
 template<typename LatticeElementMap, typename CoreLattice>
 LatticeElementMap
-combineValues(const LatticeElementMap &Lh, const LatticeElementMap &Rh) {
+combineValues(const LatticeElementMap &LHS, const LatticeElementMap &RHS) {
 
-  LatticeElementMap New = Lh;
-  for (const auto &[Reg, S] : Rh) {
+  LatticeElementMap New = LHS;
+  for (const auto &[Reg, S] : RHS) {
     auto LHSValue = getOrDefault<LatticeElementMap, CoreLattice>(New, Reg);
-    auto RHSValue = getOrDefault<LatticeElementMap, CoreLattice>(Rh, Reg);
+    auto RHSValue = getOrDefault<LatticeElementMap, CoreLattice>(RHS, Reg);
     New[Reg] = CoreLattice::combineValues(LHSValue, RHSValue);
   }
   return New;
 }
 
 template<typename LatticeElementMap, typename CoreLattice>
-bool isLessOrEqual(const LatticeElementMap &Lh, const LatticeElementMap &Rh) {
-  for (auto &[Reg, S] : Lh) {
-    auto LHSValue = getOrDefault<LatticeElementMap, CoreLattice>(Lh, Reg);
-    auto RHSValue = getOrDefault<LatticeElementMap, CoreLattice>(Rh, Reg);
+bool isLessOrEqual(const LatticeElementMap &LHS, const LatticeElementMap &RHS) {
+  for (auto &[Reg, S] : LHS) {
+    auto LHSValue = getOrDefault<LatticeElementMap, CoreLattice>(LHS, Reg);
+    auto RHSValue = getOrDefault<LatticeElementMap, CoreLattice>(RHS, Reg);
     if (!CoreLattice::isLessOrEqual(LHSValue, RHSValue)) {
       return false;
     }
   }
-  for (auto &[Reg, S] : Rh) {
-    auto LHSValue = getOrDefault<LatticeElementMap, CoreLattice>(Lh, Reg);
-    auto RHSValue = getOrDefault<LatticeElementMap, CoreLattice>(Rh, Reg);
+  for (auto &[Reg, S] : RHS) {
+    auto LHSValue = getOrDefault<LatticeElementMap, CoreLattice>(LHS, Reg);
+    auto RHSValue = getOrDefault<LatticeElementMap, CoreLattice>(RHS, Reg);
     if (!CoreLattice::isLessOrEqual(LHSValue, RHSValue)) {
       return false;
     }
@@ -220,12 +220,12 @@ struct MFIAnalysis : ABIAnalyses::ABIAnalysis {
   using LGT = GraphType;
 
   LatticeElement
-  combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {
-    return ABIAnalyses::combineValues<LatticeElement, CoreLattice>(Lh, Rh);
+  combineValues(const LatticeElement &LHS, const LatticeElement &RHS) const {
+    return ABIAnalyses::combineValues<LatticeElement, CoreLattice>(LHS, RHS);
   };
 
-  bool isLessOrEqual(const LatticeElement &Lh, const LatticeElement &Rh) const {
-    return ABIAnalyses::isLessOrEqual<LatticeElement, CoreLattice>(Lh, Rh);
+  bool isLessOrEqual(const LatticeElement &LHS, const LatticeElement &RHS) const {
+    return ABIAnalyses::isLessOrEqual<LatticeElement, CoreLattice>(LHS, RHS);
   };
 
   LatticeElement applyTransferFunction(Label L, const LatticeElement &E) const {
