@@ -93,9 +93,9 @@ combineValues(const LatticeElementMap &Lh, const LatticeElementMap &Rh) {
 
   LatticeElementMap New = Lh;
   for (const auto &[Reg, S] : Rh) {
-    New[Reg] = CoreLattice::
-      combineValues(getOrDefault<LatticeElementMap, CoreLattice>(New, Reg),
-                    getOrDefault<LatticeElementMap, CoreLattice>(Rh, Reg));
+    auto LHSValue = getOrDefault<LatticeElementMap, CoreLattice>(New, Reg);
+    auto RHSValue = getOrDefault<LatticeElementMap, CoreLattice>(Rh, Reg);
+    New[Reg] = CoreLattice::combineValues(LHSValue, RHSValue);
   }
   return New;
 }
@@ -103,18 +103,16 @@ combineValues(const LatticeElementMap &Lh, const LatticeElementMap &Rh) {
 template<typename LatticeElementMap, typename CoreLattice>
 bool isLessOrEqual(const LatticeElementMap &Lh, const LatticeElementMap &Rh) {
   for (auto &[Reg, S] : Lh) {
-    if (!CoreLattice::isLessOrEqual(getOrDefault<LatticeElementMap,
-                                                 CoreLattice>(Lh, Reg),
-                                    getOrDefault<LatticeElementMap,
-                                                 CoreLattice>(Rh, Reg))) {
+    auto LHSValue = getOrDefault<LatticeElementMap, CoreLattice>(Lh, Reg);
+    auto RHSValue = getOrDefault<LatticeElementMap, CoreLattice>(Rh, Reg);
+    if (!CoreLattice::isLessOrEqual(LHSValue, RHSValue)) {
       return false;
     }
   }
   for (auto &[Reg, S] : Rh) {
-    if (!CoreLattice::isLessOrEqual(getOrDefault<LatticeElementMap,
-                                                 CoreLattice>(Lh, Reg),
-                                    getOrDefault<LatticeElementMap,
-                                                 CoreLattice>(Rh, Reg))) {
+    auto LHSValue = getOrDefault<LatticeElementMap, CoreLattice>(Lh, Reg);
+    auto RHSValue = getOrDefault<LatticeElementMap, CoreLattice>(Rh, Reg);
+    if (!CoreLattice::isLessOrEqual(LHSValue, RHSValue)) {
       return false;
     }
   }
@@ -215,16 +213,18 @@ struct MFIAnalysis : ABIAnalyses::ABIAnalysis {
   using LatticeElement = llvm::DenseMap<const llvm::GlobalVariable *,
                                         typename CoreLattice::LatticeElement>;
   using Label = const llvm::BasicBlock *;
-  using GraphType = std::conditional_t<isForward, const llvm::BasicBlock *, llvm::Inverse<const llvm::BasicBlock *>>;
+  using GraphType = std::conditional_t<isForward,
+                                       const llvm::BasicBlock *,
+                                       llvm::Inverse<const llvm::BasicBlock *>>;
   using GT = llvm::GraphTraits<GraphType>;
   using LGT = GraphType;
-  
+
   LatticeElement
   combineValues(const LatticeElement &Lh, const LatticeElement &Rh) const {
     return ABIAnalyses::combineValues<LatticeElement, CoreLattice>(Lh, Rh);
   };
-  
-  bool isLessOrEqual(const LatticeElement &Lh, const LatticeElement &Rh) const  {
+
+  bool isLessOrEqual(const LatticeElement &Lh, const LatticeElement &Rh) const {
     return ABIAnalyses::isLessOrEqual<LatticeElement, CoreLattice>(Lh, Rh);
   };
 
@@ -234,31 +234,28 @@ struct MFIAnalysis : ABIAnalyses::ABIAnalysis {
     for (auto &I : make_range(L->begin(), L->end())) {
       InsList.push_back(&I);
     }
-    for (size_t i = 0; i <  InsList.size(); i++) {
+    for (size_t i = 0; i < InsList.size(); i++) {
       auto I = InsList[isForward ? i : (InsList.size() - i - 1)];
       TransferKind T = classifyInstruction(I);
       switch (T) {
       case TheCall: {
         for (auto &Reg : getRegisters()) {
-          New[Reg] = CoreLattice::transfer(TheCall, 
-                                           getOrDefault<LatticeElement,
-                                                        CoreLattice>(New, Reg));
+          auto RegState = getOrDefault<LatticeElement, CoreLattice>(New, Reg);
+          New[Reg] = CoreLattice::transfer(TheCall, RegState);
         }
         break;
       }
       case Read:
         for (auto &Reg : getRegistersRead(I)) {
-          New[Reg] = CoreLattice::transfer(T,
-                                           getOrDefault<LatticeElement,
-                                                        CoreLattice>(New, Reg));
+          auto RegState = getOrDefault<LatticeElement, CoreLattice>(New, Reg);
+          New[Reg] = CoreLattice::transfer(T, RegState);
         }
         break;
       case WeakWrite:
       case Write:
         for (auto &Reg : getRegistersWritten(I)) {
-          New[Reg] = CoreLattice::transfer(T,
-                                           getOrDefault<LatticeElement, 
-                                                        CoreLattice>(New, Reg));
+          auto RegState = getOrDefault<LatticeElement, CoreLattice>(New, Reg);
+          New[Reg] = CoreLattice::transfer(T, RegState);
         }
         break;
       default:
