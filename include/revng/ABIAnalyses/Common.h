@@ -224,7 +224,8 @@ struct MFIAnalysis : ABIAnalyses::ABIAnalysis {
     return ABIAnalyses::combineValues<LatticeElement, CoreLattice>(LHS, RHS);
   };
 
-  bool isLessOrEqual(const LatticeElement &LHS, const LatticeElement &RHS) const {
+  bool
+  isLessOrEqual(const LatticeElement &LHS, const LatticeElement &RHS) const {
     return ABIAnalyses::isLessOrEqual<LatticeElement, CoreLattice>(LHS, RHS);
   };
 
