@@ -250,6 +250,24 @@ add_test(NAME test_model COMMAND ./bin/test_model)
 set_tests_properties(test_model PROPERTIES LABELS "unit")
 
 #
+# test_instantiatepasses
+#
+
+revng_add_private_executable(test_instantiatepasses "${SRC}/InstantiatePasses.cpp")
+target_compile_definitions(test_instantiatepasses
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_instantiatepasses
+  PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_instantiatepasses
+  revngSupport
+  revngUnitTestHelpers
+  revngModel
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME test_instantiatepasses COMMAND ./bin/test_instantiatepasses)
+set_tests_properties(test_instantiatepasses PROPERTIES LABELS "unit")
+
+#
 # test_recursive_coroutines
 #
 
