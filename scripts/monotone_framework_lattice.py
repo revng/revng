@@ -9,7 +9,6 @@
 import argparse
 import sys
 from collections import defaultdict
-from pygraphviz import AGraph
 
 import importlib
 import monotone_framework
@@ -150,25 +149,25 @@ def gen_transfer_function_enum(tf_graph):
 """)
   return out
 def process_graph(path, call_arcs):
-  input_graph = monotone_framework.nx_load_graph(path)
+  input_graph = monotone_framework.load_graph(path)
 
-  monotone_framework.nx_enumerate_graph(input_graph)
+  monotone_framework.enumerate_graph(input_graph)
 
-  lattice = monotone_framework.nx_extract_lattice(input_graph)
+  lattice = monotone_framework.extract_lattice(input_graph)
 
   # Check that the lattice is valid for a monotone framework
-  _ = monotone_framework.nx_check_lattice(lattice)
+  _ = monotone_framework.check_lattice(lattice)
 
-  reachability = monotone_framework.nx_compute_reachability_matrix(lattice)
+  reachability = monotone_framework.compute_reachability_matrix(lattice)
 
-  tf_graph = monotone_framework.nx_extract_transfer_function_graph(input_graph, call_arcs)
+  tf_graph = monotone_framework.extract_transfer_function_graph(input_graph, call_arcs)
 
   transfer_functions = defaultdict(lambda: [])
   for src, dst, edge_data in tf_graph.edges(data=True):
     transfer_functions[edge_data["label"]].append((src, dst))
 
   # Check the monotonicity of the transfer function
-  assert monotone_framework.nx_check_transfer_functions(tf_graph, reachability, transfer_functions)
+  assert monotone_framework.check_transfer_functions(tf_graph, reachability, transfer_functions)
   
   tf_names = sorted([edge_data["label"] for _, _, edge_data in tf_graph.edges(data=True)])
   
