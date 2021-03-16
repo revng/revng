@@ -21,15 +21,15 @@ def gen_combine_values(lattice, reachability):
 """
 
   node_by_index = lambda index: monotone_framework.get_unique([x
-                                            for x in lattice.nodes_iter()
-                                            if x.attr["index"] == str(index)])
+                                            for x, x_data in lattice.nodes(data=True)
+                                            if x_data["index"] == str(index)])
 
   result = defaultdict(lambda: [])
-  for v1 in lattice.nodes_iter():
-    for v2 in lattice.nodes_iter():
+  for v1, v1_data in lattice.nodes(data=True):
+    for v2, v2_data in lattice.nodes(data=True):
       if v1 != v2:
-        i1 = int(v1.attr["index"])
-        i2 = int(v2.attr["index"])
+        i1 = int(v1_data["index"])
+        i2 = int(v2_data["index"])
         nonzero = lambda i: set([x[0]
                                  for x in enumerate(reachability[i])
                                  if x[1] != 0])
@@ -48,9 +48,9 @@ def gen_combine_values(lattice, reachability):
     else:
       out += (""" else if (""")
     conditions = []
-    for this, other in sorted(pairs, key=lambda x: (x[0].name, x[1].name)):
+    for this, other in sorted(pairs, key=lambda x: (x[0], x[1])):
       condition = "(LHS == LatticeElement::{} && RHS == LatticeElement::{})"
-      condition = condition.format(this.name, other.name)
+      condition = condition.format(this, other)
       conditions.append(condition)
     conditions[0] = conditions[0].lstrip()
     conditions_string = ("\n      || "
@@ -59,7 +59,7 @@ def gen_combine_values(lattice, reachability):
     out += conditions_string.join(conditions)
     out += (""") {{
     return LatticeElement::{};
-  }}""".format(output.name))
+  }}""".format(output))
     first = False
 
   out += ("""
@@ -79,14 +79,14 @@ def gen_is_less_or_equal(lattice, reachability):
     || """)
 
   result = []
-  for v1 in sorted(lattice.nodes_iter(), key=lambda x: x.name):
-    for v2 in sorted(lattice.nodes_iter(), key=lambda x: x.name):
+  for v1, v1_data in lattice.nodes(data=True):
+    for v2, v2_data in lattice.nodes(data=True):
       if v1 != v2:
-        i1 = int(v1.attr["index"])
-        i2 = int(v2.attr["index"])
+        i1 = int(v1_data["index"])
+        i2 = int(v2_data["index"])
         if reachability[i1][i2] != 0:
           condition = """(LHS == LatticeElement::{} && RHS == LatticeElement::{})"""
-          condition = condition.format(v1.name, v2.name)
+          condition = condition.format(v1, v2)
           result.append(condition)
 
   out += ("\n    || ".join(result))
@@ -131,7 +131,7 @@ def gen_lattice_element_enum(lattice):
 """)
 
   # Get all the names
-  values = sorted([v.name for v in lattice.nodes_iter()])
+  values = sorted([v for v in lattice.nodes()])
   out += ("  " + ",\n  ".join(values) + "\n")
   out += ("""};
 """)
@@ -143,38 +143,38 @@ def gen_transfer_function_enum(tf_graph):
 """)
 
   # Get all the transfer function names
-  tfs = [e.attr["label"] for e in tf_graph.edges_iter()]
+  tfs = [e_data["label"] for _, _, e_data in tf_graph.edges(data=True)]
   out += ("  " + ",\n  ".join(sorted(tfs)) + "\n")
   out += ("""};
 
 """)
   return out
 def process_graph(path, call_arcs):
-  input_graph = AGraph(path)
+  input_graph = monotone_framework.nx_load_graph(path)
 
-  monotone_framework.enumerate_graph(input_graph)
+  monotone_framework.nx_enumerate_graph(input_graph)
 
-  lattice = monotone_framework.extract_lattice(input_graph)
+  lattice = monotone_framework.nx_extract_lattice(input_graph)
 
   # Check that the lattice is valid for a monotone framework
-  top, bottom = monotone_framework.check_lattice(lattice)
+  _ = monotone_framework.nx_check_lattice(lattice)
 
-  reachability = monotone_framework.compute_reachability_matrix(lattice)
+  reachability = monotone_framework.nx_compute_reachability_matrix(lattice)
 
-  tf_graph = monotone_framework.extract_transfer_function_graph(input_graph, call_arcs)
+  tf_graph = monotone_framework.nx_extract_transfer_function_graph(input_graph, call_arcs)
 
   transfer_functions = defaultdict(lambda: [])
-  for edge in tf_graph.edges_iter():
-    transfer_functions[edge.attr["label"]].append(edge)
+  for src, dst, edge_data in tf_graph.edges(data=True):
+    transfer_functions[edge_data["label"]].append((src, dst))
 
   # Check the monotonicity of the transfer function
-  assert monotone_framework.check_transfer_functions(tf_graph, reachability, transfer_functions)
+  assert monotone_framework.nx_check_transfer_functions(tf_graph, reachability, transfer_functions)
   
-  tf_names = sorted([e.attr["label"] for e in tf_graph.edges_iter()])
+  tf_names = sorted([edge_data["label"] for _, _, edge_data in tf_graph.edges(data=True)])
   
-  default_lattice_element = [v.name
-            for v in lattice.nodes_iter()
-            if v.attr["peripheries"]][0]
+  default_lattice_element = [v
+            for v, v_data in lattice.nodes(data=True)
+            if "peripheries" in v_data][0]
 
   return {
     'transfer_function_names': tf_names,
