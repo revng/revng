@@ -1312,7 +1312,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   // Serialize an empty Model into TheModule
   model::Binary Model;
-  SerializeModelPass::writeModel(Model, *TheModule);
+  writeModel(Model, *TheModule);
 
   JumpTargets.finalizeJumpTargets();
 
