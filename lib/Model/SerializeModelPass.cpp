@@ -16,15 +16,15 @@
 
 using namespace llvm;
 
-char SerializeModelPass::ID;
+char SerializeModelWrapperPass::ID;
 
 template<typename T>
 using RP = RegisterPass<T>;
 
-static RP<SerializeModelPass>
+static RP<SerializeModelWrapperPass>
   X("serialize-model", "Serialize the model", true, true);
 
-void SerializeModelPass::writeModel(model::Binary &Model, llvm::Module &M) {
+void writeModel(model::Binary &Model, llvm::Module &M) {
 
   NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
   revng_check(not NamedMD, "The model has alread been serialized");
@@ -43,9 +43,14 @@ void SerializeModelPass::writeModel(model::Binary &Model, llvm::Module &M) {
   NamedMD->addOperand(Tuple);
 }
 
-bool SerializeModelPass::runOnModule(Module &M) {
-
-  writeModel(getAnalysis<LoadModelPass>().getWriteableModel(), M);
-
+bool SerializeModelWrapperPass::runOnModule(Module &M) {
+  writeModel(getAnalysis<LoadModelWrapperPass>().get().getWriteableModel(), M);
   return false;
+}
+
+llvm::PreservedAnalyses
+SerializeModelPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
+  auto &ModelWrapper = MAM.getResult<LoadModelAnalysis>(M);
+  writeModel(ModelWrapper.getWriteableModel(), M);
+  return PreservedAnalyses::all();
 }

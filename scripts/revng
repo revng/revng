@@ -515,60 +515,6 @@ def run_cc(args):
 
   return res
 
-def print_help():
-  global revng_parser
-  revng_parser.print_help()
-
-  sys.stdout.write("""
-The following built-in commands are available:
-
-  help      - print help for the revng driver.
-  translate - translated a program from an architecture to another.
-  opt       - run LLVM's opt loading all rev.ng passes.
-  cc        - compiler wrapper: it behaves like the compiler but invokes
-              translate after linking.
-
-""")
-
-  global search_path
-  programs = set()
-  prefix = "revng-"
-  for path in search_path.split(":"):
-    if os.path.isdir(path):
-      for program in os.listdir(path):
-        if program.startswith(prefix) and which(program, path=search_path):
-          programs.add(program[len(prefix):])
-
-  programs = list(programs)
-  max_length = reduce(lambda old, new: max(old, len(new)), programs, 0)
-  programs = ["{} - see `{} {} --help`".format(program.ljust(max_length),
-                                               real_argv0, program)
-              for program in programs]
-  programs = sorted(programs)
-
-  sys.stdout.write("Additionally, the following external commands are"
-                   + " available:\n\n  {}\n\n".format("\n  ".join(programs)))
-
-  sys.stdout.write(("`{} opt` offers the following extra options compared to"
-                    + " `opt`:\n\n").format(real_argv0))
-
-  args = [get_command("opt"), "--help"]
-  base = subprocess.check_output(wrap(args)).split(b"\n")
-  output = subprocess.check_output(wrap(build_opt_args(args)))
-  extended = output.split(b"\n")
-
-  normalize = lambda data: data.replace(b" ", b"")
-  extra = []
-  i = 0
-  for line in extended:
-    if (i >= len(base)) or (normalize(line) != normalize(base[i])):
-      extra.append(line)
-    else:
-      i += 1
-
-  sys.stdout.flush()
-  sys.stdout.buffer.write(b"\n".join(extra) + b"\n")
-
 def main():
   parser = argparse.ArgumentParser(description="The rev.ng driver.")
   parser.add_argument("--version",

@@ -4,35 +4,64 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
 #include "revng/Model/Binary.h"
 
 inline const char *ModelMetadataName = "revng.model";
 
-class LoadModelPass : public llvm::ImmutablePass {
+model::Binary loadModel(const llvm::Module &M);
+
+class ModelWrapper {
+private:
+  model::Binary TheBinary;
+  bool HasChanged = false;
+
+public:
+  ModelWrapper(model::Binary TheBinary) : TheBinary(TheBinary) {}
+
+public:
+  const model::Binary &getReadOnlyModel() const { return TheBinary; }
+
+  model::Binary &getWriteableModel() {
+    HasChanged = true;
+    return TheBinary;
+  }
+
+  bool hasChanged() const { return HasChanged; }
+
+  template<typename IRUnitT, typename PreservedAnalysesT, typename InvalidatorT>
+  bool invalidate(IRUnitT &, const PreservedAnalysesT &, InvalidatorT &) {
+    return false;
+  }
+};
+
+class LoadModelWrapperPass : public llvm::ImmutablePass {
 public:
   static char ID;
 
 private:
-  model::Binary TheBinary;
-  bool Modified = false;
+  std::optional<ModelWrapper> Wrapper;
 
 public:
-  LoadModelPass() : llvm::ImmutablePass(ID) {}
+  LoadModelWrapperPass() : llvm::ImmutablePass(ID) {}
 
 public:
   bool doInitialization(llvm::Module &M) override final;
   bool doFinalization(llvm::Module &M) override final;
 
 public:
-  bool hasChanged() const { return Modified; }
+  ModelWrapper &get() { return *Wrapper; }
+};
 
-  const model::Binary &getReadOnlyModel() { return TheBinary; }
-  model::Binary &getWriteableModel() {
-    Modified = true;
-    return TheBinary;
-  }
+class LoadModelAnalysis : public llvm::AnalysisInfoMixin<LoadModelAnalysis> {
+  friend llvm::AnalysisInfoMixin<LoadModelAnalysis>;
+  static llvm::AnalysisKey Key;
 
-  static model::Binary getModel(const llvm::Module &M);
+public:
+  using Result = ModelWrapper;
+
+  Result run(llvm::Module &M, llvm::ModuleAnalysisManager &);
+  Result run(llvm::Function &F, llvm::FunctionAnalysisManager &);
 };

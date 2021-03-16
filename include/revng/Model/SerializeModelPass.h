@@ -9,19 +9,25 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/LoadModelPass.h"
 
-class SerializeModelPass : public llvm::ModulePass {
+void writeModel(model::Binary &Model, llvm::Module &M);
+
+class SerializeModelWrapperPass : public llvm::ModulePass {
 public:
   static char ID;
 
 public:
-  SerializeModelPass() : llvm::ModulePass(ID) {}
+  SerializeModelWrapperPass() : llvm::ModulePass(ID) {}
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override final {
     AU.setPreservesAll();
-    AU.addRequired<LoadModelPass>();
+    AU.addRequired<LoadModelWrapperPass>();
   }
 
 public:
   bool runOnModule(llvm::Module &M) override final;
+};
 
-  static void writeModel(model::Binary &Model, llvm::Module &M);
+class SerializeModelPass : public llvm::PassInfoMixin<SerializeModelPass> {
+public:
+  llvm::PreservedAnalyses
+  run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
 };

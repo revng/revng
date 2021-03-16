@@ -16,14 +16,17 @@
 
 using namespace llvm;
 
-char LoadModelPass::ID;
+char LoadModelWrapperPass::ID;
+
+AnalysisKey LoadModelAnalysis::Key;
 
 template<typename T>
 using RP = RegisterPass<T>;
 
-static RP<LoadModelPass> X("load-model", "Deserialize the model", true, true);
+static RP<LoadModelWrapperPass>
+  X("load-model", "Deserialize the model", true, true);
 
-model::Binary LoadModelPass::getModel(const llvm::Module &M) {
+model::Binary loadModel(const llvm::Module &M) {
 
   model::Binary Result;
 
@@ -42,20 +45,24 @@ model::Binary LoadModelPass::getModel(const llvm::Module &M) {
   return Result;
 }
 
-bool LoadModelPass::doInitialization(Module &M) {
-
-  TheBinary = getModel(M);
+static model::Binary extractModel(Module &M) {
+  model::Binary Result = loadModel(M);
 
   // Erase the named metadata in order to make sure no one is tempted to
   // deserialize it on its own
   NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
   NamedMD->eraseFromParent();
 
+  return Result;
+}
+
+bool LoadModelWrapperPass::doInitialization(Module &M) {
+  Wrapper = extractModel(M);
   return false;
 }
 
-bool LoadModelPass::doFinalization(Module &M) {
-  if (not Modified)
+bool LoadModelWrapperPass::doFinalization(Module &M) {
+  if (not Wrapper->hasChanged())
     return false;
 
   // Check if the named metadata has reappeared. If not, the changes we made in
@@ -65,4 +72,12 @@ bool LoadModelPass::doFinalization(Module &M) {
               "The model has changed, but -serialize-model has not been run");
 
   return false;
+}
+
+ModelWrapper LoadModelAnalysis::run(Module &M, ModuleAnalysisManager &) {
+  return { loadModel(M) };
+}
+
+ModelWrapper LoadModelAnalysis::run(Function &F, FunctionAnalysisManager &) {
+  return { loadModel(*F.getParent()) };
 }
