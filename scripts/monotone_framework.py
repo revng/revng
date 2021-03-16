@@ -160,7 +160,9 @@ def extract_transfer_function_graph(input_graph: networkx.MultiDiGraph, call_arc
 
   return tf_graph
 
-def check_transfer_functions(tf_graph: networkx.MultiDiGraph, reachability: List[List[float]], transfer_functions: Mapping[str, List[Tuple[str, str]]]):
+def check_transfer_functions(tf_graph: networkx.MultiDiGraph,
+                             reachability: List[List[float]],
+                             transfer_functions: Mapping[str, List[Tuple[str, str]]]):
   tf_graph = tf_graph.copy()
   # Automatically add self-loops where required
   all_vertices = set(tf_graph.nodes())
@@ -194,7 +196,8 @@ def load_graph(path: str) -> networkx.MultiDiGraph:
   '''
   Loads a networkx.MultiDiGraph from a dot file
   Notes:
-  - pydot treats every attribute as a string, so we need to manually unquote strings
+  - pydot treats every attribute as a string, so we need to manually unquote 
+    strings
   '''
   graph = networkx.MultiDiGraph(networkx.nx_pydot.read_dot(path))
   for _, _, data in graph.edges(data=True):
