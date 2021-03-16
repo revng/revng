@@ -145,10 +145,6 @@ inline const char *getName(Values V) {
 
 inline SymbolType::Values fromELF(unsigned char ELFSymbolType) {
   switch (ELFSymbolType) {
-  case llvm::ELF::STT_NOTYPE:
-  case llvm::ELF::STT_TLS:
-    return SymbolType::Unknown;
-
   case llvm::ELF::STT_FUNC:
     return SymbolType::Code;
 
@@ -162,7 +158,7 @@ inline SymbolType::Values fromELF(unsigned char ELFSymbolType) {
     return SymbolType::File;
 
   default:
-    revng_abort("Unexpected symbol type");
+    return SymbolType::Unknown;
   }
 }
 
