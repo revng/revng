@@ -22,13 +22,14 @@ static Reg
   X("remove-llvmassume-calls", "Removes calls to assume intrinsic", true, true);
 
 void RemoveAssumePass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<LoadModelPass>();
+  AU.addRequired<LoadModelWrapperPass>();
 }
 
 bool RemoveAssumePass::runOnFunction(Function &F) {
 
   // Skip non-isolated functions
-  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  const model::Binary
+    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
   if (not hasIsolatedFunction(Model, F))
     return false;
 

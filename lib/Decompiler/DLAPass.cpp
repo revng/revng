@@ -15,7 +15,7 @@ using Register = llvm::RegisterPass<DLAPass>;
 static Register X("dla", "Data Layout Analysis Pass", false, false);
 
 void DLAPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<LoadModelPass>();
+  AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<llvm::LoopInfoWrapperPass>();
   AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
   AU.setPreservesAll();

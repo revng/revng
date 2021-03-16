@@ -14,11 +14,12 @@
 using FFDFP = FilterForDecompilationFunctionPass;
 
 void FFDFP::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<LoadModelPass>();
+  AU.addRequired<LoadModelWrapperPass>();
 }
 
 bool FFDFP::runOnFunction(llvm::Function &F) {
-  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  const model::Binary
+    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
   if (not hasIsolatedFunction(Model, F)) {
     F.deleteBody();
     return true;
@@ -32,13 +33,14 @@ char FFDFP::ID = 0;
 using FFDMP = FilterForDecompilationModulePass;
 
 void FFDMP::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<LoadModelPass>();
+  AU.addRequired<LoadModelWrapperPass>();
 }
 
 bool FFDMP::runOnModule(llvm::Module &M) {
 
   bool Changed = false;
-  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  const model::Binary
+    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
   for (llvm::Function &F : M) {
     if (not hasIsolatedFunction(Model, F)) {
       F.deleteBody();

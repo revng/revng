@@ -196,7 +196,8 @@ protected:
 
 public:
   void setupForProcessingFunction(ModulePass *MP, Function *TheF) {
-    Model = &MP->getAnalysis<LoadModelPass>().getReadOnlyModel();
+    auto &LWP = MP->getAnalysis<LoadModelWrapperPass>();
+    Model = &LWP.get().getReadOnlyModel();
     SE = &MP->getAnalysis<llvm::ScalarEvolutionWrapperPass>(*TheF).getSE();
     F = TheF;
     DT.recalculate(*F);
@@ -514,7 +515,8 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
   InstanceLinkAdder ILA;
   Module &M = TS.getModule();
-  const auto &Model = ModPass->getAnalysis<LoadModelPass>().getReadOnlyModel();
+  auto &LWP = ModPass->getAnalysis<LoadModelWrapperPass>();
+  const auto &Model = LWP.get().getReadOnlyModel();
   for (Function &F : M.functions()) {
     if (F.isIntrinsic() or not hasIsolatedFunction(Model, F))
       continue;

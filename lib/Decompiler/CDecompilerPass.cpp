@@ -86,7 +86,7 @@ bool CDecompilerPass::doInitialization(llvm::Module &) {
 }
 
 void CDecompilerPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<LoadModelPass>();
+  AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<RestructureCFG>();
   AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
   AU.addRequired<MarkForSerializationPass>();
@@ -101,7 +101,8 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   TrivialShortCircuitCounter = 0;
 
   // Skip non-isolated functions
-  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  const model::Binary
+    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
   if (not hasIsolatedFunction(Model, F))
     return false;
 

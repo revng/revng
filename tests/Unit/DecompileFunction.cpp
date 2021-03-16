@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
                                                       Errors,
                                                       TestContext);
 
-  model::Binary Model = LoadModelPass::getModel(*M);
+  model::Binary Model = loadModel(*M);
   revng_check(not Model.Functions.empty(),
               "Unable to find an isolated function");
 

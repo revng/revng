@@ -182,7 +182,7 @@ void Analysis::initialize() {
 } // namespace MarkAnalysis
 
 void MarkForSerializationPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<LoadModelPass>();
+  AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<RestructureCFG>();
   AU.setPreservesAll();
 }
@@ -190,7 +190,8 @@ void MarkForSerializationPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 bool MarkForSerializationPass::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
-  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  const model::Binary
+    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
   if (not hasIsolatedFunction(Model, F))
     return false;
 

@@ -24,7 +24,7 @@ struct AddSCEVBarrierPass : public llvm::FunctionPass {
   bool runOnFunction(llvm::Function &F) override;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.addRequired<LoadModelPass>();
+    AU.addRequired<LoadModelWrapperPass>();
     AU.addUsedIfAvailable<MarkForSerializationPass>();
     AU.setPreservesAll();
   }
@@ -55,7 +55,8 @@ std::string makeSCEVBarrierName(const llvm::Type *Ty) {
 bool AddSCEVBarrierPass::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
-  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  const model::Binary
+    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
   if (not hasIsolatedFunction(Model, F))
     return false;
 

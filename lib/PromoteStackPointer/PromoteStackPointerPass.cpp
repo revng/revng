@@ -36,7 +36,8 @@ using PSPPass = PromoteStackPointerPass;
 bool PSPPass::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
-  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  const model::Binary
+    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
   if (not hasIsolatedFunction(Model, F))
     return false;
 
@@ -130,7 +131,7 @@ bool PSPPass::runOnFunction(llvm::Function &F) {
 }
 
 void PSPPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<LoadModelPass>();
+  AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
   AU.setPreservesCFG();
 }

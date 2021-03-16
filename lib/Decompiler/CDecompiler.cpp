@@ -29,7 +29,7 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
   std::string ResultSourceCode;
 
   // Skip non-isolated functions
-  if (not hasIsolatedFunction(LoadModelPass::getModel(*M), FunctionName))
+  if (not hasIsolatedFunction(loadModel(*M), FunctionName))
     return ResultSourceCode;
 
   std::unique_ptr<llvm::Module> MClone = llvm::CloneModule(*M);

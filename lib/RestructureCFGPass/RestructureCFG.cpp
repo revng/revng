@@ -405,7 +405,7 @@ static cl::opt<std::string> MetricsOutputPath("restructure-metrics-output-dir",
 
 void RestructureCFG::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<LoadModelPass>();
+  AU.addRequired<LoadModelWrapperPass>();
 }
 
 inline void
@@ -485,7 +485,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
   UntanglePerformedCounter = 0;
 
   // Skip non-isolated functions
-  const model::Binary &Model = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  const model::Binary
+    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
   if (not hasIsolatedFunction(Model, F))
     return false;
 

@@ -23,7 +23,8 @@ using StepT = CreateInterproceduralTypes;
 
 bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
   const Module &M = TS.getModule();
-  const auto &Model = ModPass->getAnalysis<LoadModelPass>().getReadOnlyModel();
+  auto &LWP = ModPass->getAnalysis<LoadModelWrapperPass>();
+  const auto &Model = LWP.get().getReadOnlyModel();
   for (const Function &F : M.functions()) {
     if (F.isIntrinsic() or not hasIsolatedFunction(Model, F))
       continue;
