@@ -21,18 +21,18 @@ using RegisterStateMap = llvm::DenseMap<const llvm::GlobalVariable *,
                                         model::RegisterState::Values>;
 struct AnalysisResults {
   // Per function analysis
-  RegisterStateMap UsedArgumentsOfFunction;
-  RegisterStateMap DeadRegisterArgumentsOfFunction;
+  RegisterStateMap UAOF;
+  RegisterStateMap DRAOF;
 
   // Per call site analysis
-  std::map<llvm::BasicBlock *, RegisterStateMap> UsedReturnValuesOfFunctionCall;
-  std::map<llvm::BasicBlock *, RegisterStateMap>
-    RegisterArgumentsOfFunctionCall;
-  std::map<llvm::BasicBlock *, RegisterStateMap> DeadReturnValuesOfFunctionCall;
+  std::map<llvm::BasicBlock *, RegisterStateMap> URVOFC;
+  std::map<llvm::BasicBlock *, RegisterStateMap> RAOFC;
+  std::map<llvm::BasicBlock *, RegisterStateMap> DRVOFC;
 
   // Per return analysis
-  std::map<llvm::BasicBlock *, RegisterStateMap> UsedReturnValuesOfFunction;
+  std::map<llvm::BasicBlock *, RegisterStateMap> URVOF;
 
+  // Debug methods
   void dump() const debug_function { dump(dbg, ""); }
 
   template<typename T>
@@ -51,18 +51,18 @@ analyzeOutlinedFunction(llvm::Function *F, const GeneratedCodeBasicInfo &GCBI);
 template<typename T>
 void AnalysisResults::dump(T &Output, const char *Prefix) const {
   Output << Prefix << "UsedArgumentsOfFunction:\n";
-  for (auto &[GV, State] : UsedArgumentsOfFunction) {
+  for (auto &[GV, State] : UAOF) {
     Output << Prefix << "  " << GV->getName().str() << " = "
            << model::RegisterState::getName(State).str() << '\n';
   }
   Output << Prefix << "DeadRegisterArgumentsOfFunction:\n";
-  for (auto &[GV, State] : DeadRegisterArgumentsOfFunction) {
+  for (auto &[GV, State] : DRAOF) {
     Output << Prefix << "  " << GV->getName().str() << " = "
            << model::RegisterState::getName(State).str() << '\n';
   }
 
   Output << Prefix << "UsedReturnValuesOfFunctionCall:\n";
-  for (auto &[BB, StateMap] : UsedReturnValuesOfFunctionCall) {
+  for (auto &[BB, StateMap] : URVOFC) {
     Output << Prefix << "  " << BB->getName().str() << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
@@ -71,7 +71,7 @@ void AnalysisResults::dump(T &Output, const char *Prefix) const {
   }
 
   Output << Prefix << "RegisterArgumentsOfFunctionCall:\n";
-  for (auto &[BB, StateMap] : RegisterArgumentsOfFunctionCall) {
+  for (auto &[BB, StateMap] : RAOFC) {
     Output << Prefix << "  " << BB->getName().str() << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
@@ -80,7 +80,7 @@ void AnalysisResults::dump(T &Output, const char *Prefix) const {
   }
 
   Output << Prefix << "DeadReturnValuesOfFunctionCall:\n";
-  for (auto &[BB, StateMap] : DeadReturnValuesOfFunctionCall) {
+  for (auto &[BB, StateMap] : DRVOFC) {
     Output << Prefix << "  " << BB->getName().str() << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
@@ -89,7 +89,7 @@ void AnalysisResults::dump(T &Output, const char *Prefix) const {
   }
 
   Output << Prefix << "UsedReturnValuesOfFunction:\n";
-  for (auto &[BB, StateMap] : UsedReturnValuesOfFunction) {
+  for (auto &[BB, StateMap] : URVOF) {
     Output << Prefix << "  " << BB->getName().str() << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
