@@ -19,6 +19,12 @@
 
 using namespace llvm;
 
+AnalysisKey GeneratedCodeBasicInfoAnalysis::Key;
+
+char GeneratedCodeBasicInfoWrapperPass::ID = 0;
+using RegisterGCBI = RegisterPass<GeneratedCodeBasicInfoWrapperPass>;
+static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
+
 void GeneratedCodeBasicInfo::run(Module &M) {
   Function &F = *M.getFunction("root");
   NewPC = M.getFunction("newpc");
@@ -223,7 +229,6 @@ void GeneratedCodeBasicInfo::initializePCToBlockCache() {
   }
 }
 
-AnalysisKey GeneratedCodeBasicInfoAnalysis::Key;
 GeneratedCodeBasicInfo
 GeneratedCodeBasicInfoAnalysis::run(Module &M, ModuleAnalysisManager &MAM) {
   GeneratedCodeBasicInfo GCBI;
@@ -247,7 +252,3 @@ bool GeneratedCodeBasicInfoWrapperPass::runOnModule(Module &M) {
 void GeneratedCodeBasicInfoWrapperPass::releaseMemory() {
   GCBI.reset();
 }
-
-char GeneratedCodeBasicInfoWrapperPass::ID = 0;
-using RegisterGCBI = RegisterPass<GeneratedCodeBasicInfoWrapperPass>;
-static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
