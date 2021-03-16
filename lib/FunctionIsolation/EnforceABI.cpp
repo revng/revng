@@ -182,7 +182,8 @@ private:
 
 bool EnforceABI::runOnModule(Module &M) {
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  const model::Binary &Binary = getAnalysis<LoadModelPass>().getReadOnlyModel();
+  const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
+  const model::Binary &Binary = ModelWrapper.getReadOnlyModel();
 
   EnforceABIImpl Impl(M, GCBI, Binary);
   Impl.run();

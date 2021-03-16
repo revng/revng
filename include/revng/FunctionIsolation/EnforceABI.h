@@ -22,7 +22,7 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-    AU.addRequired<LoadModelPass>();
+    AU.addRequired<LoadModelWrapperPass>();
     AU.setPreservesAll();
   }
 };

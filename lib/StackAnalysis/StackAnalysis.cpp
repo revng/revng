@@ -312,7 +312,7 @@ bool StackAnalysis::runOnModule(Module &M) {
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
-  auto &LMP = getAnalysis<LoadModelPass>();
+  auto &LMP = getAnalysis<LoadModelWrapperPass>().get();
 
   // The stack analysis works function-wise. We consider two sets of functions:
   // first (Force == true) those that are highly likely to be real functions

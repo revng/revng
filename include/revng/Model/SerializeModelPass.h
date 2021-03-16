@@ -17,7 +17,7 @@ public:
   SerializeModelPass() : llvm::ModulePass(ID) {}
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override final {
     AU.setPreservesAll();
-    AU.addRequired<LoadModelPass>();
+    AU.addRequired<LoadModelWrapperPass>();
   }
 
 public:

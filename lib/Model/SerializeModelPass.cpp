@@ -44,8 +44,6 @@ void SerializeModelPass::writeModel(model::Binary &Model, llvm::Module &M) {
 }
 
 bool SerializeModelPass::runOnModule(Module &M) {
-
-  writeModel(getAnalysis<LoadModelPass>().getWriteableModel(), M);
-
+  writeModel(getAnalysis<LoadModelWrapperPass>().get().getWriteableModel(), M);
   return false;
 }
