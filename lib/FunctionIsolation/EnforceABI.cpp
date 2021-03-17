@@ -442,7 +442,6 @@ void EnforceABIImpl::handleRoot() {
                                            Invoke->getNormalDest(),
                                            Invoke->getUnwindDest(),
                                            Arguments);
-    NewInvoke->setIsNoInline();
 
     // Erase the old invoke
     Invoke->eraseFromParent();

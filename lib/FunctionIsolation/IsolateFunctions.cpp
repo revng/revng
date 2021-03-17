@@ -987,10 +987,6 @@ void IFI::run() {
                                             ArrayRef<Value *>(),
                                             "",
                                             NewBB);
-
-    // Mark the invoke as non eligible for inlining that could break our
-    // exception mechanism
-    Invoke->setIsNoInline();
   }
 
   // Remove all the orphan basic blocks from the root function (e.g., the blocks
