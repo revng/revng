@@ -792,6 +792,22 @@ inline MetaAddress getBasicBlockPC(llvm::BasicBlock *BB) {
   return MetaAddress::invalid();
 }
 
+inline MetaAddress getBasicBlockJumpTarget(llvm::BasicBlock *BB) {
+  using namespace llvm;
+
+  auto It = BB->begin();
+  if (It == BB->end())
+    return MetaAddress::invalid();
+
+  if (llvm::CallInst *Call = getCallTo(&*It, "newpc")) {
+    if (getLimitedValue(Call->getOperand(2)) == 1) {
+      return MetaAddress::fromConstant(Call->getOperand(0));
+    }
+  }
+
+  return MetaAddress::invalid();
+}
+
 template<typename C>
 inline auto skip(unsigned ToSkip, C &&Container)
   -> llvm::iterator_range<decltype(Container.begin())> {

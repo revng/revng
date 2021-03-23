@@ -405,6 +405,7 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
     opt_invocation = build_opt_args(["-S",
                                      "-detect-abi",
                                      "-isolate",
+                                     "-invoke-isolated-functions",
                                      relative(output),
                                      "-o", relative(isolated)])
     run(opt_invocation)
