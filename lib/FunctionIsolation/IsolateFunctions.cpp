@@ -10,6 +10,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -988,26 +989,8 @@ void IFI::run() {
                                             "",
                                             NewBB);
   }
-
-  // Remove all the orphan basic blocks from the root function (e.g., the blocks
-  // that have been substitued by the trampoline)
-  {
-    ReversePostOrderTraversal<BasicBlock *> RPOT(&Root->getEntryBlock());
-    std::set<BasicBlock *> Reachable;
-    for (BasicBlock *BB : RPOT)
-      Reachable.insert(BB);
-
-    std::vector<BasicBlock *> ToDelete;
-    for (BasicBlock &BB : *Root)
-      if (Reachable.count(&BB) == 0)
-        ToDelete.push_back(&BB);
-
-    for (BasicBlock *BB : ToDelete)
-      BB->dropAllReferences();
-
-    for (BasicBlock *BB : ToDelete)
-      BB->eraseFromParent();
-  }
+  // Cleanup root
+  EliminateUnreachableBlocks(*RootFunction, nullptr, false);
 
   // Before emitting it in output we check that the module in passes the
   // verifyModule pass
