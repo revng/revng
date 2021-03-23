@@ -46,11 +46,6 @@ static cl::opt<bool> DisableSafetyChecks("disable-enforce-abi-safety-checks",
                                          cl::cat(MainCategory),
                                          cl::init(false));
 
-static bool shouldEmit(model::RegisterState::Values V) {
-  return (V == model::RegisterState::Yes or V == model::RegisterState::YesOrDead
-          or V == model::RegisterState::Dead);
-}
-
 static bool areCompatible(model::RegisterState::Values LHS,
                           model::RegisterState::Values RHS) {
   using namespace model::RegisterState;
@@ -360,9 +355,6 @@ void EnforceABIImpl::run() {
 
   for (CallInst *Call : HelperCalls)
     handleHelperFunctionCall(Call);
-
-  // Handle invoke instructions in `root`
-  handleRoot();
 
   // Promote CSVs to allocas
   replaceCSVsWithAlloca();

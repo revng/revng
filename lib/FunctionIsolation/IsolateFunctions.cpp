@@ -205,12 +205,6 @@ private:
   /// Populate the function_dispatcher, needed to handle the indirect calls
   void populateFunctionDispatcher();
 
-  /// Create the basic blocks that are hit on exit after an invoke instruction
-  BasicBlock *createInvokeReturnBlock(Function *Root);
-
-  /// Create the basic blocks that represent the catch of the invoke instruction
-  BasicBlock *createCatchBlock(Function *Root, BasicBlock *UnexpectedPC);
-
   /// Create code to throw of an exception
   void throwException(IRBuilder<> &Builder, StringRef Reason);
 
@@ -285,51 +279,6 @@ void IFI::populateFunctionDispatcher() {
                                                 Unexpected,
                                                 {});
 }
-
-BasicBlock *IFI::createInvokeReturnBlock(Function *Root) {
-  // Create the first block
-  BasicBlock *InvokeReturnBlock = BasicBlock::Create(Context,
-                                                     "invoke_return",
-                                                     Root,
-                                                     nullptr);
-
-  BranchInst::Create(GCBI.dispatcher(), InvokeReturnBlock);
-
-  return InvokeReturnBlock;
-}
-
-BasicBlock *IFI::createCatchBlock(Function *Root, BasicBlock *UnexpectedPC) {
-
-  // Create a basic block that represents the catch part of the exception
-  BasicBlock *CatchBB = BasicBlock::Create(Context,
-                                           "catchblock",
-                                           Root,
-                                           nullptr);
-
-  // Create a builder object
-  IRBuilder<> Builder(Context);
-  Builder.SetInsertPoint(CatchBB);
-
-  // Create the StructType necessary for the landingpad
-  PointerType *RetTyPointerType = Type::getInt8PtrTy(Context);
-  IntegerType *RetTyIntegerType = Type::getInt32Ty(Context);
-  std::vector<Type *> InArgsType{ RetTyPointerType, RetTyIntegerType };
-  StructType *RetTyStruct = StructType::create(Context,
-                                               ArrayRef<Type *>(InArgsType),
-                                               "",
-                                               false);
-
-  // Create the landingpad instruction
-  LandingPadInst *LandingPad = Builder.CreateLandingPad(RetTyStruct, 0);
-
-  // Add a catch all (constructed with the null value as clause)
-  LandingPad->addClause(ConstantPointerNull::get(Type::getInt8PtrTy(Context)));
-
-  Builder.CreateBr(UnexpectedPC);
-
-  return CatchBB;
-}
-
 template<typename T, typename F>
 static bool any(const T &Range, const F &Predicate) {
   auto End = Range.end();
@@ -945,50 +894,6 @@ void IFI::run() {
   // Populate the function_dispatcher
   populateFunctionDispatcher();
 
-  // Retrieve the root function, we use it a lot.
-  Function *Root = TheModule->getFunction("root");
-
-  // Get the unexpectedpc block of the root function
-  BasicBlock *UnexpectedPC = GCBI.unexpectedPC();
-
-  // Instantiate the basic block structure that handles the control flow after
-  // an invoke
-  BasicBlock *InvokeReturnBlock = createInvokeReturnBlock(Root);
-
-  // Instantiate the basic block structure that represents the catch of the
-  // invoke, please remember that this is not used at the moment (exceptions
-  // are handled in a customary way from the standard exit control flow path)
-  BasicBlock *CatchBB = createCatchBlock(Root, UnexpectedPC);
-
-  // Declaration of an ad-hoc personality function that is implemented in the
-  // support.c source file
-  auto *PersonalityFT = FunctionType::get(Type::getInt32Ty(Context), true);
-
-  Function *PersonalityFunction = Function::Create(PersonalityFT,
-                                                   Function::ExternalLinkage,
-                                                   "__gxx_personality_v0",
-                                                   TheModule);
-
-  // Add the personality to the root function
-  Root->setPersonalityFn(PersonalityFunction);
-
-  for (auto [BB, P] : IsolatedFunctionsMap) {
-    auto [_, F] = P;
-
-    // Create a new trampoline entry block and substitute it to the old entry
-    // block
-    BasicBlock *NewBB = BasicBlock::Create(Context, "", BB->getParent(), BB);
-    BB->replaceAllUsesWith(NewBB);
-    NewBB->takeName(BB);
-
-    // Emit the invoke instruction
-    InvokeInst *Invoke = InvokeInst::Create(F,
-                                            InvokeReturnBlock,
-                                            CatchBB,
-                                            ArrayRef<Value *>(),
-                                            "",
-                                            NewBB);
-  }
   // Cleanup root
   EliminateUnreachableBlocks(*RootFunction, nullptr, false);
 
