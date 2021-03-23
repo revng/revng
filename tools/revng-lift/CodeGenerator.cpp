@@ -715,23 +715,6 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
   return true;
 }
 
-/// Removes all the basic blocks without predecessors from F
-// TODO: this is not efficient, but it shouldn't be critical
-static void purgeDeadBlocks(Function *F) {
-  std::vector<BasicBlock *> Kill;
-  do {
-    for (BasicBlock *Dead : Kill)
-      DeleteDeadBlock(Dead);
-    Kill.clear();
-
-    // Skip the first basic block
-    for (BasicBlock &BB : make_range(++F->begin(), F->end()))
-      if (pred_empty(&BB))
-        Kill.push_back(&BB);
-
-  } while (!Kill.empty());
-}
-
 void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   using FT = FunctionType;
 
@@ -1316,7 +1299,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   JumpTargets.finalizeJumpTargets();
 
-  purgeDeadBlocks(MainFunction);
+  EliminateUnreachableBlocks(*MainFunction, nullptr, false);
 
   JumpTargets.createJTReasonMD();
 
