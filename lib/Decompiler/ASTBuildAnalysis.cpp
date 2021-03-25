@@ -582,7 +582,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     Value *AggregateOp = Extract->getAggregateOperand();
     if (isa<UndefValue>(AggregateOp))
       return nullptr;
-    revng_assert(isa<CallInst>(AggregateOp));
+    revng_assert(isa<CallInst>(AggregateOp) or isa<PHINode>(AggregateOp));
     llvm::Type *AggregateTy = AggregateOp->getType();
     revng_assert(AggregateTy->isAggregateType());
     auto *TypeDecl = Declarator.lookupTypeDeclOrNull(AggregateTy);

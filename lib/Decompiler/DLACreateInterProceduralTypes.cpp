@@ -70,13 +70,17 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
           }
         } else if (auto *PHI = dyn_cast<PHINode>(&I)) {
           revng_assert(isa<IntegerType>(PHI->getType())
-                       or isa<PointerType>(PHI->getType()));
+                       or isa<PointerType>(PHI->getType())
+                       or isa<StructType>(PHI->getType()));
           auto PHITypes = TS.getOrCreateLayoutTypes(*PHI);
           for (const Use &Incoming : PHI->incoming_values()) {
             revng_assert(isa<IntegerType>(Incoming->getType())
-                         or isa<PointerType>(Incoming->getType()));
+                         or isa<PointerType>(Incoming->getType())
+                         or isa<StructType>(Incoming->getType()));
             auto InTypes = TS.getOrCreateLayoutTypes(*Incoming.get());
-            revng_assert(1ULL == PHITypes.size() == InTypes.size());
+            revng_assert(PHITypes.size() == InTypes.size());
+            revng_assert((PHITypes.size() == 1ULL)
+                         or isa<StructType>(PHI->getType()));
             auto FieldNum = PHITypes.size();
             for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {
               // Incoming type inherits from PHI type

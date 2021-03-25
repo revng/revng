@@ -22,8 +22,7 @@ class Expr;
 std::set<const llvm::GlobalVariable *>
 getDirectlyUsedGlobals(const llvm::Function &F);
 
-std::set<const llvm::Function *>
-getDirectlyCalledFunctions(const llvm::Function &F);
+std::set<const llvm::Function *> getDirectlyCalledFunctions(llvm::Function &F);
 
 clang::CastExpr *createCast(clang::QualType LHSQualTy,
                             clang::Expr *RHS,

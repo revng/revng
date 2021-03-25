@@ -281,26 +281,33 @@ public:
             }
           }
         } else if (auto *PHI = dyn_cast<PHINode>(&I)) {
+
           // Booleans can not be addresses, so we can skip them.
           if (PHI->getType()->isIntegerTy(1))
             continue;
 
           revng_assert(isa<IntegerType>(PHI->getType())
-                       or isa<PointerType>(PHI->getType()));
-          {
+                       or isa<PointerType>(PHI->getType())
+                       or isa<StructType>(PHI->getType()));
+          if (not isa<StructType>(PHI->getType())) {
+
             LayoutTypeSystemNode *PHIType = TS.getLayoutType(PHI);
             const SCEV *PHISCEV = SE->getSCEV(PHI);
             SCEVToLayoutType.insert(std::make_pair(PHISCEV, PHIType));
+
+            // PHI Incoming values
+            for (Value *In : PHI->incoming_values()) {
+              revng_assert(isa<IntegerType>(In->getType())
+                           or isa<PointerType>(In->getType()));
+              LayoutTypeSystemNode *InTy = TS.getLayoutType(In);
+              const SCEV *InSCEV = SE->getSCEV(In);
+              SCEVToLayoutType.insert(std::make_pair(InSCEV, InTy));
+            }
+          } else {
+            // If it's a struct is not SCEVable, so there's no point in trying
+            // to get SCEVs for this.
           }
 
-          // PHI Incoming values
-          for (Value *In : PHI->incoming_values()) {
-            revng_assert(isa<IntegerType>(In->getType())
-                         or isa<PointerType>(In->getType()));
-            LayoutTypeSystemNode *InTy = TS.getLayoutType(In);
-            const SCEV *InSCEV = SE->getSCEV(In);
-            SCEVToLayoutType.insert(std::make_pair(InSCEV, InTy));
-          }
         } else if (auto *Sel = dyn_cast<SelectInst>(&I)) {
           // Booleans can not be addresses, so we can skip them.
           if (Sel->getType()->isIntegerTy(1))
@@ -409,7 +416,7 @@ public:
               // Types representing the return type
               auto FormalRetTys = TS.getLayoutTypes(*Callee);
               auto Size = FormalRetTys.size();
-              auto ExtractedVals = getExtractedValuesFromCall(C);
+              auto ExtractedVals = getExtractedValuesFromInstruction(C);
               revng_assert(Size == ExtractedVals.size());
               for (const auto &[Ext, RetTy] :
                    llvm::zip(ExtractedVals, FormalRetTys)) {
@@ -536,7 +543,7 @@ public:
   bool createBaseAddrWithInstanceLink(LayoutTypeSystem &TS,
                                       Value *PointerVal,
                                       const BasicBlock &B) {
-    revng_assert(nullptr != PointerVal);
+    revng_assert(PointerVal);
 
     bool AddedSomething = false;
 
@@ -655,6 +662,9 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
                 or isa<ConstantAggregateZero>(RetVal))
               continue;
 
+            if (isa<UndefValue>(RetVal))
+              continue;
+
             if (auto *Call = dyn_cast<CallInst>(RetVal)) {
 
               const Function *Callee = getCallee(Call);
@@ -672,6 +682,7 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
 
               auto *InsVal = cast<InsertValueInst>(RetVal);
               Pointers = getInsertValueLeafOperands(InsVal);
+
             }
 
           } else {
@@ -717,7 +728,7 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
         }
 
         for (Value *PointerVal : Pointers) {
-          if (nullptr != PointerVal)
+          if (PointerVal and not isa<StructType>(PointerVal->getType()))
             Changed |= ILA.createBaseAddrWithInstanceLink(TS, PointerVal, *B);
         }
       }

@@ -146,8 +146,7 @@ public:
   void createTypeDeclsForFunctionPrototype(clang::ASTContext &C,
                                            const llvm::Function *TheF);
 
-  void createFunctionAndCalleesDecl(clang::ASTContext &C,
-                                    const llvm::Function *TheF);
+  void createFunctionAndCalleesDecl(clang::ASTContext &C, llvm::Function *TheF);
 
   void createGlobalVarDeclUsedByFunction(clang::ASTContext &Context,
                                          const llvm::Function *TheF,

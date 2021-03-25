@@ -120,7 +120,7 @@ clang::FunctionDecl *DeclCreator::createFunDecl(clang::ASTContext &Context,
 }
 
 void DeclCreator::createFunctionAndCalleesDecl(clang::ASTContext &Ctx,
-                                               const llvm::Function *TheF) {
+                                               llvm::Function *TheF) {
 
   revng_assert(TheF);
   auto FTags = FunctionTags::TagsSet::from(TheF);

@@ -24,22 +24,29 @@
 
 #include "DLATypeSystem.h"
 
+template<typename T>
+concept DerivedValue = std::is_base_of_v<llvm::Value, T>;
+
 using std::conditional_t;
 
-template<typename ValT>
-using LLVMValueT = conditional_t<std::is_const_v<ValT>,
-                                 const llvm::Value,
-                                 llvm::Value>;
+template<DerivedValue ConstnessT, DerivedValue ResultT>
+using PossiblyConstValueT = conditional_t<std::is_const_v<ConstnessT>,
+                                          std::add_const_t<ResultT>,
+                                          std::remove_const_t<ResultT>>;
 
 template<typename T>
-concept IsInsertValue = std::is_same_v<std::remove_const_t<T>,
-                                       llvm::InsertValueInst>;
+concept PossiblyConstInsertValue = std::is_same_v<std::remove_const_t<T>,
+                                                  llvm::InsertValueInst>;
 
-template<IsInsertValue T>
-llvm::SmallVector<LLVMValueT<T> *, 2>
+template<DerivedValue T>
+using ValueT = PossiblyConstValueT<T, llvm::Value>;
+
+template<PossiblyConstInsertValue T>
+llvm::SmallVector<ValueT<T> *, 2>
+
 getConstQualifiedInsertValueLeafOperands(T *Ins) {
-  using ValueT = LLVMValueT<T>;
-  llvm::SmallVector<ValueT *, 2> Results;
+  using ValT = ValueT<T>;
+  llvm::SmallVector<ValT *, 2> Results;
   llvm::SmallSet<unsigned, 2> FoundIds;
   auto *StructTy = llvm::cast<llvm::StructType>(Ins->getType());
   unsigned NumFields = StructTy->getNumElements();
@@ -55,12 +62,12 @@ getConstQualifiedInsertValueLeafOperands(T *Ins) {
     revng_assert(FieldId < NumFields);
     revng_assert(FoundIds.count(FieldId) == 0);
     FoundIds.insert(FieldId);
-    ValueT *Op = Ins->getInsertedValueOperand();
+    ValT *Op = Ins->getInsertedValueOperand();
     revng_assert(isa<llvm::IntegerType>(Op->getType())
                  or isa<llvm::PointerType>(Op->getType()));
     revng_assert(Results[FieldId] == nullptr);
     Results[FieldId] = Op;
-    ValueT *Tmp = Ins->getAggregateOperand();
+    ValT *Tmp = Ins->getAggregateOperand();
     Ins = llvm::dyn_cast<llvm::InsertValueInst>(Tmp);
     if (not Ins) {
       revng_assert(llvm::isa<llvm::UndefValue>(Tmp)
@@ -81,27 +88,64 @@ getInsertValueLeafOperands(const llvm::InsertValueInst *Ins) {
   return getConstQualifiedInsertValueLeafOperands(Ins);
 }
 
-template<typename ValT>
-using ExtractValueT = conditional_t<std::is_const_v<ValT>,
-                                    const llvm::ExtractValueInst,
-                                    llvm::ExtractValueInst>;
-template<typename T>
-concept IsCall = std::is_same_v<std::remove_const_t<T>, llvm::CallInst>;
+template<DerivedValue T>
+using ExtractValueT = PossiblyConstValueT<T, llvm::ExtractValueInst>;
 
-template<typename ValT>
-using ExtractValuePtrSet = llvm::SmallPtrSet<ExtractValueT<ValT> *, 2>;
+template<DerivedValue T>
+using PHINodeT = PossiblyConstValueT<T, llvm::PHINode>;
 
-template<typename T>
+template<DerivedValue T>
+using ExtractValuePtrSet = llvm::SmallPtrSet<ExtractValueT<T> *, 2>;
+
+template<DerivedValue T>
 llvm::SmallVector<ExtractValuePtrSet<T>, 2>
-getConstQualifiedExtractedValuesFromCall(T *Call) {
+getConstQualifiedExtractedValuesFromInstruction(T *I) {
+
   llvm::SmallVector<ExtractValuePtrSet<T>, 2> Results;
-  auto *StructTy = llvm::cast<llvm::StructType>(Call->getType());
+
+  auto *StructTy = llvm::cast<llvm::StructType>(I->getType());
   unsigned NumFields = StructTy->getNumElements();
   Results.resize(NumFields, {});
-  for (auto *Extract : Call->users()) {
-    auto *E = dyn_cast<llvm::ExtractValueInst>(Extract);
-    if (not E)
-      continue;
+
+  // Find extract value uses transitively, traversing PHIs
+  ExtractValuePtrSet<T> ExtractValues;
+  for (auto *TheUser : I->users()) {
+    if (auto *ExtractV = dyn_cast<llvm::ExtractValueInst>(TheUser)) {
+      ExtractValues.insert(ExtractV);
+    } else if (auto *ThePHI = dyn_cast<llvm::PHINode>(TheUser)) {
+
+      // traverse PHIS until we find extractvalues
+      llvm::SmallPtrSet<PHINodeT<T> *, 8> Visited = {};
+      llvm::SmallPtrSet<PHINodeT<T> *, 8> ToVisit = { ThePHI };
+      while (not ToVisit.empty()) {
+
+        llvm::SmallPtrSet<PHINodeT<T> *, 8> NextToVisit = {};
+
+        for (PHINodeT<T> *PHI : ToVisit) {
+
+          Visited.insert(PHI);
+          NextToVisit.erase(PHI);
+
+          for (auto *User : PHI->users()) {
+            if (auto *EUser = llvm::dyn_cast<llvm::ExtractValueInst>(User)) {
+              ExtractValues.insert(EUser);
+            } else if (auto *PHIUser = llvm::dyn_cast<llvm::PHINode>(User)) {
+              if (not Visited.count(PHIUser))
+                NextToVisit.insert(PHIUser);
+            } else if (auto *RetUser = llvm::dyn_cast<llvm::ReturnInst>(User)) {
+              revng_abort("TODO: handle ret user");
+            } else {
+              revng_abort();
+            }
+          }
+        }
+
+        ToVisit = NextToVisit;
+      }
+    }
+  }
+
+  for (auto *E : ExtractValues) {
     revng_assert(E->getNumIndices() == 1);
     unsigned FieldId = E->getIndices()[0];
     revng_assert(FieldId < NumFields);
@@ -109,17 +153,18 @@ getConstQualifiedExtractedValuesFromCall(T *Call) {
                  or isa<llvm::PointerType>(E->getType()));
     Results[FieldId].insert(E);
   }
+
   return Results;
 };
 
 llvm::SmallVector<llvm::SmallPtrSet<llvm::ExtractValueInst *, 2>, 2>
-getExtractedValuesFromCall(llvm::CallInst *Call) {
-  return getConstQualifiedExtractedValuesFromCall(Call);
+getExtractedValuesFromInstruction(llvm::Instruction *I) {
+  return getConstQualifiedExtractedValuesFromInstruction(I);
 }
 
 llvm::SmallVector<llvm::SmallPtrSet<const llvm::ExtractValueInst *, 2>, 2>
-getExtractedValuesFromCall(const llvm::CallInst *Call) {
-  return getConstQualifiedExtractedValuesFromCall(Call);
+getExtractedValuesFromInstruction(const llvm::Instruction *I) {
+  return getConstQualifiedExtractedValuesFromInstruction(I);
 }
 
 uint64_t getLoadStoreSizeFromPtrOpUse(const dla::LayoutTypeSystem &TS,

@@ -10,7 +10,7 @@
 namespace llvm {
 
 class InsertValueInst;
-class CallInst;
+class Instruction;
 class ExtractValueInst;
 class Use;
 class Value;
@@ -24,11 +24,11 @@ extern llvm::SmallVector<const llvm::Value *, 2>
 getInsertValueLeafOperands(const llvm::InsertValueInst *);
 
 extern llvm::SmallVector<llvm::SmallPtrSet<llvm::ExtractValueInst *, 2>, 2>
-getExtractedValuesFromCall(llvm::CallInst *);
+getExtractedValuesFromInstruction(llvm::Instruction *);
 
 extern llvm::SmallVector<llvm::SmallPtrSet<const llvm::ExtractValueInst *, 2>,
                          2>
-getExtractedValuesFromCall(const llvm::CallInst *);
+getExtractedValuesFromInstruction(const llvm::Instruction *);
 
 namespace dla {
 

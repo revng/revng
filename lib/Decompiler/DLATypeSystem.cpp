@@ -301,37 +301,40 @@ LayoutTypeSystem::getLayoutTypes(const Value &V) {
   } else if (auto *StructTy = dyn_cast<StructType>(VTy)) {
     revng_assert(not isa<LoadInst>(V));
 
-    if (auto *Call = dyn_cast<CallInst>(&V)) {
+    if (isa<CallInst>(&V) or isa<PHINode>(&V)) {
 
       // Special handling for StructInitializers
-      const Function *Callee = getCallee(Call);
-      auto CTags = FunctionTags::TagsSet::from(Callee);
-      if (CTags.contains(FunctionTags::StructInitializer)) {
+      const Function *Callee = getCallee(cast<Instruction>(&V));
+      if (Callee) {
+        auto CTags = FunctionTags::TagsSet::from(Callee);
+        if (CTags.contains(FunctionTags::StructInitializer)) {
 
-        revng_assert(not Callee->isVarArg());
+          revng_assert(not Callee->isVarArg());
 
-        auto *RetTy = cast<StructType>(Callee->getReturnType());
-        revng_assert(RetTy->getNumElements() == Callee->arg_size());
+          auto *RetTy = cast<StructType>(Callee->getReturnType());
+          revng_assert(RetTy->getNumElements() == Callee->arg_size());
 
-        bool OnlyReturnUses = true;
-        bool HasReturnUse = false;
-        for (const User *U : Call->users()) {
-          if (isa<ReturnInst>(U)) {
-            HasReturnUse = true;
+          bool OnlyReturnUses = true;
+          bool HasReturnUse = false;
+          auto *Call = cast<CallInst>(&V);
+          for (const User *U : Call->users()) {
+            if (isa<ReturnInst>(U)) {
+              HasReturnUse = true;
 
-            const Function *Caller = Call->getFunction();
+              const Function *Caller = Call->getFunction();
 
-            if (Results.empty())
-              Results = getLayoutTypes(*Caller);
-            else
-              revng_assert(Results == getLayoutTypes(*Caller));
+              if (Results.empty())
+                Results = getLayoutTypes(*Caller);
+              else
+                revng_assert(Results == getLayoutTypes(*Caller));
 
-            revng_assert(Results.size() == Callee->arg_size());
-          } else {
-            OnlyReturnUses = false;
+              revng_assert(Results.size() == Callee->arg_size());
+            } else {
+              OnlyReturnUses = false;
+            }
           }
+          revng_assert(not HasReturnUse or OnlyReturnUses);
         }
-        revng_assert(not HasReturnUse or OnlyReturnUses);
       }
 
       // If Results are full, we have detected a call to a struct_initializer
@@ -340,7 +343,8 @@ LayoutTypeSystem::getLayoutTypes(const Value &V) {
       // value of the struct_initializer call.
       if (Results.empty()) {
 
-        const auto ExtractedValues = getExtractedValuesFromCall(Call);
+        auto *I = cast<Instruction>(&V);
+        const auto ExtractedValues = getExtractedValuesFromInstruction(I);
 
         Results.resize(ExtractedValues.size(), {});
 
@@ -409,37 +413,40 @@ LayoutTypeSystem::getOrCreateLayoutTypes(const Value &V) {
   } else if (auto *StructTy = dyn_cast<StructType>(VTy)) {
     revng_assert(not isa<LoadInst>(V));
 
-    if (auto *Call = dyn_cast<CallInst>(&V)) {
+    if (isa<CallInst>(&V) or isa<PHINode>(&V)) {
 
       // Special handling for StructInitializers
-      const Function *Callee = getCallee(Call);
-      auto CTags = FunctionTags::TagsSet::from(Callee);
-      if (CTags.contains(FunctionTags::StructInitializer)) {
+      const Function *Callee = getCallee(cast<Instruction>(&V));
+      if (Callee) {
+        auto CTags = FunctionTags::TagsSet::from(Callee);
+        if (CTags.contains(FunctionTags::StructInitializer)) {
 
-        revng_assert(not Callee->isVarArg());
+          revng_assert(not Callee->isVarArg());
 
-        auto *RetTy = cast<StructType>(Callee->getReturnType());
-        revng_assert(RetTy->getNumElements() == Callee->arg_size());
+          auto *RetTy = cast<StructType>(Callee->getReturnType());
+          revng_assert(RetTy->getNumElements() == Callee->arg_size());
 
-        bool OnlyReturnUses = true;
-        bool HasReturnUse = false;
-        for (const User *U : Call->users()) {
-          if (isa<ReturnInst>(U)) {
-            HasReturnUse = true;
+          bool OnlyReturnUses = true;
+          bool HasReturnUse = false;
+          auto *Call = cast<CallInst>(&V);
+          for (const User *U : Call->users()) {
+            if (isa<ReturnInst>(U)) {
+              HasReturnUse = true;
 
-            const Function *Caller = Call->getFunction();
+              const Function *Caller = Call->getFunction();
 
-            if (Results.empty())
-              Results = getOrCreateLayoutTypes(*Caller);
-            else
-              revng_assert(Results == getOrCreateLayoutTypes(*Caller));
+              if (Results.empty())
+                Results = getOrCreateLayoutTypes(*Caller);
+              else
+                revng_assert(Results == getOrCreateLayoutTypes(*Caller));
 
-            revng_assert(Results.size() == Callee->arg_size());
-          } else {
-            OnlyReturnUses = false;
+              revng_assert(Results.size() == Callee->arg_size());
+            } else {
+              OnlyReturnUses = false;
+            }
           }
+          revng_assert(not HasReturnUse or OnlyReturnUses);
         }
-        revng_assert(not HasReturnUse or OnlyReturnUses);
       }
 
       // If Results are full, we have detected a call to a struct_initializer
@@ -448,7 +455,8 @@ LayoutTypeSystem::getOrCreateLayoutTypes(const Value &V) {
       // value of the struct_initializer call.
       if (Results.empty()) {
 
-        const auto ExtractedValues = getExtractedValuesFromCall(Call);
+        auto *I = cast<Instruction>(&V);
+        const auto ExtractedValues = getExtractedValuesFromInstruction(I);
 
         Results.resize(ExtractedValues.size(), {});
 
@@ -467,9 +475,12 @@ LayoutTypeSystem::getOrCreateLayoutTypes(const Value &V) {
               auto &[Node, New] = FieldResult.value();
               const auto &[ExtNode, ExtNew] = ExtResult;
               revng_assert(not ExtNew or ExtNode);
-              revng_assert(not Node or not ExtNode or (Node == ExtNode));
-              if (not Node)
+              if (not Node) {
                 Node = ExtNode;
+              } else if (ExtNode and ExtNode != Node) {
+                bool AddedLink = addEqualityLink(Node, ExtNode).second;
+                New |= AddedLink;
+              }
               New |= ExtNew;
             } else {
               FieldResult = ExtResult;

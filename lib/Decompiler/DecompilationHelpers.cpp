@@ -67,7 +67,7 @@ std::set<const GlobalVariable *> getDirectlyUsedGlobals(const Function &F) {
   return Results;
 }
 
-std::set<const Function *> getDirectlyCalledFunctions(const Function &F) {
+std::set<const Function *> getDirectlyCalledFunctions(Function &F) {
   std::set<const Function *> Results;
   for (auto &BB : F) {
     for (auto &I : BB) {
@@ -78,10 +78,10 @@ std::set<const Function *> getDirectlyCalledFunctions(const Function &F) {
         // UnreachableInst are decompiled as calls to abort, so if F has an
         // unreachable instruction we need to add "abort" to the called
         // functions.
-        auto *Abort = F.getParent()->getFunction("abort");
-        revng_assert(nullptr != Abort);
-        if (Abort)
-          Results.insert(Abort);
+        LLVMContext &Ctx = F.getContext();
+        Type *Void = Type::getVoidTy(Ctx);
+        auto Abort = F.getParent()->getOrInsertFunction("abort", Void);
+        Results.insert(cast<Function>(Abort.getCallee()));
       }
     }
   }
