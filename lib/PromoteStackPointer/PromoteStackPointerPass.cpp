@@ -45,6 +45,11 @@ bool PSPPass::runOnFunction(llvm::Function &F) {
   using GCBIPass = GeneratedCodeBasicInfoWrapperPass;
   llvm::GlobalVariable *GlobalSP = getAnalysis<GCBIPass>().getGCBI().spReg();
 
+  if (not GlobalSP) {
+    revng_log(Log, "WARNING: cannot find global variable for stack pointer");
+    return false;
+  }
+
   std::vector<llvm::Instruction *> SPUsers;
   for (llvm::User *U : GlobalSP->users()) {
     if (auto *I = llvm::dyn_cast<llvm::Instruction>(U)) {
