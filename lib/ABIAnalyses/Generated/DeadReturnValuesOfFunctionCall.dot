@@ -16,4 +16,6 @@ digraph DeadReturnValuesOfFunctionCall {
   Maybe->NoOrDead [label="WeakWrite"];
   Maybe->Unknown [label="Read"];
   Maybe->Unknown [label="TheCall"];
+
+  Maybe->Maybe [label="None"];
 }

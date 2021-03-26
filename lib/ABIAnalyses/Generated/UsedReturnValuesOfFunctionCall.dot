@@ -16,4 +16,7 @@ digraph UsedReturnValuesOfFunctionCall {
   Maybe->Unknown [label="Write"];
   Maybe->Unknown [label="WeakWrite"];
   Maybe->Unknown [label="TheCall"];
+
+  Maybe->Maybe [label="None"];
+
 }
