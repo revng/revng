@@ -21,4 +21,7 @@ digraph RegisterArgumentsOfFunctionCall {
 
   # Prevent return values to become arguments right away
   Maybe->Maybe [label="WeakWrite"];
+
+  Maybe->Maybe [label="None"];
+
 }

@@ -17,4 +17,7 @@ digraph UsedArgumentsOfFunction {
   Maybe->Yes [label="Read"];
   Maybe->Unknown [label="Write"];
   Maybe->Unknown [label="WeakWrite"];
+
+  Maybe->Maybe [label="None"];
+
 }
