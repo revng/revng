@@ -376,9 +376,8 @@ static void simplifyLastContinue(ASTTree &AST) {
     if (not Seq)
       continue;
 
-    auto ListSize = Seq->listSize();
-    revng_assert(ListSize);
-    ASTNode *LastNode = Seq->getNodeN(ListSize - 1);
+    revng_assert(not Seq->nodes().empty());
+    ASTNode *LastNode = *std::prev(Seq->nodes().end());
     if (auto *Continue = llvm::dyn_cast<ContinueNode>(LastNode))
       Continue->setImplicit();
   }
@@ -414,18 +413,13 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
     // Recursive scs nesting handling
     matchDoWhile(Body, AST);
 
-    ASTNode *LastNode = nullptr;
-    bool InsideSequence = false;
-    if (auto *Seq = llvm::dyn_cast<SequenceNode>(Body)) {
-      using SeqSizeType = SequenceNode::links_container::size_type;
-      SeqSizeType SequenceSize = Seq->listSize();
-      LastNode = Seq->getNodeN(SequenceSize - 1);
-      InsideSequence = true;
-    } else {
-      LastNode = Body;
+    ASTNode *LastNode = Body;
+    auto *Seq = llvm::dyn_cast<SequenceNode>(Body);
+    if (Seq) {
+      revng_assert(not Seq->nodes().empty());
+      Body = *std::prev(Seq->nodes().end());
     }
-
-    revng_assert(LastNode != nullptr);
+    revng_assert(LastNode);
 
     if (auto *NestedIf = llvm::dyn_cast<IfNode>(LastNode)) {
 
@@ -444,8 +438,8 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
           NestedIf->replaceCondExpr(NotNode);
 
           // Remove the if node
-          if (InsideSequence) {
-            cast<SequenceNode>(Body)->removeNode(NestedIf);
+          if (Seq) {
+            Seq->removeNode(NestedIf);
           } else {
             Scs->setBody(nullptr);
           }
@@ -454,8 +448,8 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
           Scs->setDoWhile(NestedIf);
 
           // Remove the if node
-          if (InsideSequence) {
-            cast<SequenceNode>(Body)->removeNode(NestedIf);
+          if (Seq) {
+            Seq->removeNode(NestedIf);
           } else {
             Scs->setBody(nullptr);
           }
@@ -524,16 +518,13 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
     // Recursive scs nesting handling
     matchWhile(Body, AST);
 
-    ASTNode *FirstNode = nullptr;
-    bool InsideSequence = false;
-    if (auto *Seq = llvm::dyn_cast<SequenceNode>(Body)) {
-      FirstNode = Seq->getNodeN(0);
-      InsideSequence = true;
-    } else {
-      FirstNode = Body;
+    ASTNode *FirstNode = Body;
+    auto *Seq = llvm::dyn_cast<SequenceNode>(Body);
+    if (Seq) {
+      revng_assert(not Seq->nodes().empty());
+      FirstNode = *Seq->nodes().begin();
     }
-
-    revng_assert(FirstNode != nullptr);
+    revng_assert(FirstNode);
 
     if (auto *NestedIf = llvm::dyn_cast<IfNode>(FirstNode)) {
 
@@ -552,8 +543,8 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
           NestedIf->replaceCondExpr(NotNode);
 
           // Remove the if node
-          if (InsideSequence) {
-            cast<SequenceNode>(Body)->removeNode(NestedIf);
+          if (Seq) {
+            Seq->removeNode(NestedIf);
           } else {
             Scs->setBody(NestedIf->getElse());
 
@@ -564,8 +555,8 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
           Scs->setWhile(NestedIf);
 
           // Remove the if node
-          if (InsideSequence) {
-            cast<SequenceNode>(Body)->removeNode(NestedIf);
+          if (Seq) {
+            Seq->removeNode(NestedIf);
           } else {
             Scs->setBody(NestedIf->getThen());
 

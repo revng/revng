@@ -387,8 +387,10 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
     if (LoopBody->isDoWhile()) {
       SmallVector<clang::Stmt *, 32> AdditionalStmts;
 
-      // This shold retrieve the if which generates the condition of the loop
-      // by accesing a dedicated field in the ScsNode.
+      // Retrieve the if that generates the condition of the loop.
+      // Then create the condition expression, while at the same time filling
+      // the additional statements that need to be printed to compute that
+      // condition.
       IfNode *LoopCondition = LoopBody->getRelatedCondition();
       clang::Expr *CondExpr = createCondExpr(LoopCondition->getCondExpr(),
                                              ASTCtx,
@@ -403,19 +405,29 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
                                              Mark,
                                              AdditionalStmts);
 
-      for (clang::Stmt *S : AdditionalStmts)
-        Stmts.push_back(S);
       Stmts.push_back(new (ASTCtx) DoStmt(Body, CondExpr, {}, {}, {}));
-    } else if (LoopBody->isWhile()) {
+    } else {
 
-      // This shold retrieve the if which generates the condition of the loop
-      // by accesing a dedicated field in the ScsNode.
-      IfNode *LoopCondition = LoopBody->getRelatedCondition();
-      clang::Expr *CondExpr = createCondExpr(LoopCondition->getCondExpr(),
-                                             ASTCtx,
-                                             Stmts,
-                                             ASTBuilder,
-                                             Mark);
+      clang::Expr *CondExpr = nullptr;
+      if (LoopBody->isWhile()) {
+
+        // This shold retrieve the if which generates the condition of the loop
+        // by accesing a dedicated field in the ScsNode.
+        IfNode *LoopCondition = LoopBody->getRelatedCondition();
+        CondExpr = createCondExpr(LoopCondition->getCondExpr(),
+                                  ASTCtx,
+                                  Stmts,
+                                  ASTBuilder,
+                                  Mark);
+
+      } else { // the loop is a while(1)
+        QualType UInt = ASTCtx.UnsignedIntTy;
+        unsigned UIntSize = static_cast<unsigned>(ASTCtx.getTypeSize(UInt));
+        CondExpr = IntegerLiteral::Create(ASTCtx,
+                                          llvm::APInt(UIntSize, 1),
+                                          UInt,
+                                          {});
+      }
 
       clang::Stmt *Body = buildCompoundScope(FDecl,
                                              LoopBody->getBody(),
@@ -424,22 +436,6 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
                                              Mark);
 
       Stmts.push_back(WhileStmt::Create(ASTCtx, nullptr, CondExpr, Body, {}));
-    } else {
-
-      // Standard case.
-      clang::Stmt *Body = buildCompoundScope(FDecl,
-                                             LoopBody->getBody(),
-                                             ASTCtx,
-                                             ASTBuilder,
-                                             Mark);
-      QualType UInt = ASTCtx.UnsignedIntTy;
-      unsigned UIntSize = static_cast<unsigned>(ASTCtx.getTypeSize(UInt));
-      clang::Expr *TrueCond = IntegerLiteral::Create(ASTCtx,
-                                                     llvm::APInt(UIntSize, 1),
-                                                     UInt,
-                                                     {});
-
-      Stmts.push_back(WhileStmt::Create(ASTCtx, nullptr, TrueCond, Body, {}));
     }
   } break;
 
