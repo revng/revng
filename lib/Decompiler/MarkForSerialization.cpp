@@ -143,7 +143,10 @@ Analysis::InterruptType Analysis::transfer(const llvm::BasicBlock *BB) {
     } break;
     }
 
-    if (ToSerialize.count(&I)) {
+    auto SerIt = ToSerialize.find(&I);
+    if (SerIt != ToSerialize.end()
+        and (SerializationFlags::hasSideEffects(SerIt->second)
+             or SerIt->second.isSet(SerializationReason::AlwaysSerialize))) {
       revng_log(MarkLog, "Serialize Pending");
       // We also have to serialize all the instructions that are still pending
       // and have interfering side effects.
