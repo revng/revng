@@ -1132,7 +1132,12 @@ getNestedFieldIds(const SCEV *Off,
           const auto *OuterAddRec = NestedAddRecs.back();
           const auto *OuterAddRecStep = OuterAddRec->getStepRecurrence(*SE);
           auto *OuterIncr = cast<SCEVConstant>(OuterAddRecStep);
-          revng_assert(OuterIncr->getAPInt().uge(Incr->getAPInt()));
+          if (OuterIncr->getAPInt().ult(Incr->getAPInt())) {
+            // This may happens in nasty functions like memchr.
+            // In that case, we stop here and we don't go much further into the
+            // nesting.
+            break;
+          }
         }
 
         NestedAddRecs.push_back(AddRecOff);
