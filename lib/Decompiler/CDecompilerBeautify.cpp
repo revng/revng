@@ -366,7 +366,13 @@ static void simplifyLastContinue(ASTTree &AST) {
     if (not Scs or not Scs->hasBody())
       continue;
 
-    auto *Seq = dyn_cast<SequenceNode>(Scs->getBody());
+    auto *Body = Scs->getBody();
+    if (auto *Continue = llvm::dyn_cast<ContinueNode>(Body)) {
+      Continue->setImplicit();
+      continue;
+    }
+
+    auto *Seq = dyn_cast<SequenceNode>(Body);
     if (not Seq)
       continue;
 
@@ -374,8 +380,7 @@ static void simplifyLastContinue(ASTTree &AST) {
     revng_assert(ListSize);
     ASTNode *LastNode = Seq->getNodeN(ListSize - 1);
     if (auto *Continue = llvm::dyn_cast<ContinueNode>(LastNode))
-      if (Continue->hasComputation())
-        Continue->setImplicit();
+      Continue->setImplicit();
   }
 }
 
