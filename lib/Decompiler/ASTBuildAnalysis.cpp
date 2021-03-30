@@ -1164,7 +1164,6 @@ getNestedFieldIds(const SCEV *Off,
 
       // We expect to find an array whose element has the same size of the loop
       // increment, otherwise something is wrong and we have to bail out.
-      revng_assert(Incr->getAPInt() == A->getElem()->size());
       if (Incr->getAPInt() != A->getElem()->size()) {
         PartialResults.clear();
         break;
