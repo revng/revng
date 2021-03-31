@@ -12,8 +12,10 @@
 #include "clang/AST/Stmt.h"
 #include "clang/Basic/SourceLocation.h"
 
+#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Binary.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/Debug.h"
 
 #include "revng-c/Decompiler/MarkForSerialization.h"
 #include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
@@ -768,6 +770,109 @@ private:
   std::unique_ptr<llvm::raw_ostream> Out;
 };
 
+static Logger<> TypeDeclOrderLog("type-decl-order");
+
+using RecordDeclSetVector = llvm::SmallSetVector<clang::RecordDecl *, 16>;
+
+static RecursiveCoroutine<void>
+addDeclsInOrder(clang::TypeDecl *TD,
+                RecordDeclSetVector &OrderedDecls,
+                RecordDeclSetVector &NeedForwardDecl) {
+
+  LoggerIndent Indent(TypeDeclOrderLog);
+  revng_log(TypeDeclOrderLog, TD->getNameAsString());
+
+  auto *StructDecl = llvm::dyn_cast_or_null<clang::RecordDecl>(TD);
+  if (not StructDecl) {
+    revng_log(TypeDeclOrderLog, "not a record");
+    rc_return;
+  }
+
+  if (OrderedDecls.count(StructDecl)) {
+    revng_log(TypeDeclOrderLog, "already declared");
+    rc_return;
+  }
+
+  {
+    LoggerIndent FieldIndent(TypeDeclOrderLog);
+    for (clang::FieldDecl *FldDecl : StructDecl->fields()) {
+      clang::QualType FieldQualType = FldDecl->getType();
+      const clang::Type *FieldType = FieldQualType.getTypePtr();
+
+      // If we have a field which is a struct, recur
+      if (auto *FldStructType = FieldType->getAs<clang::RecordType>()) {
+        rc_recur addDeclsInOrder(FldStructType->getDecl(),
+                                 OrderedDecls,
+                                 NeedForwardDecl);
+        continue;
+      }
+
+      // If we have a field which is a pointer type we have to look into it.
+      auto *PtrTy = FieldType->getAs<clang::PointerType>();
+
+      // But first handle array fields, namely arrays of structs, and arrays of
+      // pointers.
+      // We handle array of structs explicitly, and for arrays of pointers we
+      // just fall back to the regular pointer handling.
+      auto *ArrayTy = FieldType->getAsArrayTypeUnsafe();
+      if (not PtrTy and ArrayTy) {
+        // Peel off arbitrary nested arrays, until we get to the underlying
+        // element type, that is not an array.
+        const clang::Type *ElemTy = nullptr;
+        {
+          do {
+            clang::QualType ElemQualTy = ArrayTy->getElementType();
+            ElemTy = ElemQualTy.getTypePtr();
+            ArrayTy = ElemTy->getAsArrayTypeUnsafe();
+          } while (ArrayTy);
+        }
+        revng_assert(ElemTy);
+
+        // If we have a field which is an array of structs, recur
+        if (auto *ElemStructType = ElemTy->getAs<clang::RecordType>()) {
+          rc_recur addDeclsInOrder(ElemStructType->getDecl(),
+                                   OrderedDecls,
+                                   NeedForwardDecl);
+          continue;
+        }
+
+        // If the element is not a RecordType, it may stil be a pointer.
+        PtrTy = ElemTy->getAs<clang::PointerType>();
+      }
+
+      // The field was not a struct, not an array, nor a pointer.
+      // We have nothing to do.
+      if (not PtrTy)
+        continue;
+
+      clang::QualType PointeeQualType = PtrTy->getPointeeType();
+      const clang::Type *PointeeType = PointeeQualType.getTypePtr();
+      auto *PointeeStructType = PointeeType->getAs<clang::RecordType>();
+      if (not PointeeStructType)
+        continue;
+
+      clang::RecordDecl *PointeeStructDecl = PointeeStructType->getDecl();
+      revng_log(TypeDeclOrderLog,
+                "field has type: " << PointeeStructDecl->getNameAsString()
+                                   << '*');
+
+      if (OrderedDecls.count(PointeeStructDecl)) {
+        revng_log(TypeDeclOrderLog, "already declared");
+        continue;
+      }
+
+      bool New = NeedForwardDecl.insert(PointeeStructDecl);
+      if (New)
+        revng_log(TypeDeclOrderLog, "FORWARD DECLARED");
+      else
+        revng_log(TypeDeclOrderLog, "already forward declared");
+    }
+  }
+
+  revng_log(TypeDeclOrderLog, "INSERTED");
+  OrderedDecls.insert(StructDecl);
+};
+
 void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   revng_assert(not TheF.isDeclaration());
   revng_assert(hasIsolatedFunction(Model, TheF));
@@ -793,41 +898,29 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
 
   clang::TranslationUnitDecl *TUDecl = Context.getTranslationUnitDecl();
 
-  // TODO: sooner or later, whenever we start emitting complex type
-  // declarations, we will need to enforce proper ordering between dependent
-  // types, and inject forward type declarations when needed.
-
-  // Create and add forward-declare all the structs, so that we other structs
-  // that have pointer-to-struct fields are always well-formed.
-  // This does not solve all the problems. For instance, if a struct A has a
-  // field of type struct B (not struct B *) B must be fully declared before the
-  // declaration of A. Just a forward declaration will not cut it.
-  for (const auto &TypeDecl : Declarator.types()) {
-    clang::TypeDecl *TD = DeclCreator::getTypeDecl(TypeDecl);
-    if (auto *StructDecl = llvm::dyn_cast_or_null<clang::RecordDecl>(TD)) {
-
-      auto *FwdDecl = clang::RecordDecl::Create(Context,
-                                                StructDecl->getTagKind(),
-                                                TUDecl,
-                                                clang::SourceLocation{},
-                                                clang::SourceLocation{},
-                                                StructDecl->getIdentifier(),
-                                                nullptr);
-      TUDecl->addDecl(FwdDecl);
-    }
-  }
-
-  // The ordering of definitions for full struct type is now handled by ensuring
-  // that type declarations are pushed into the typeDecls vector in correct
-  // order.
-  // TypeDecls are printed in C in the same order they are inserted into TUDecl.
-  // Here, we iterate in the order when inserting them into the TUDecl, so that
-  // the types that were created first are printed first. This, for now, ensures
-  // that, when we emit the full definition of a struct A with a field with type
-  // struct B, we have already emitted the full definition of struct B
+  // Enforce proper ordering between dependent type declarations, and inject
+  // forward type declarations when needed.
+  RecordDeclSetVector OrderedDecls;
+  RecordDeclSetVector NeedForwardDecl;
   for (const auto &TypeDecl : Declarator.types())
     if (clang::TypeDecl *TD = DeclCreator::getTypeDecl(TypeDecl))
-      TUDecl->addDecl(TD);
+      if (not OrderedDecls.count(cast<clang::RecordDecl>(TD)))
+        rc_run(addDeclsInOrder, TD, OrderedDecls, NeedForwardDecl);
+
+  // Create and add forward-declare all the structs.
+  for (const clang::RecordDecl *StructDecl : NeedForwardDecl)
+    TUDecl->addDecl(clang::RecordDecl::Create(Context,
+                                              StructDecl->getTagKind(),
+                                              TUDecl,
+                                              clang::SourceLocation{},
+                                              clang::SourceLocation{},
+                                              StructDecl->getIdentifier(),
+                                              nullptr));
+
+  // Create and add the definition of all the struct types, in an order that
+  // guarantees that they are always well-defined.
+  for (clang::RecordDecl *StructDecl : OrderedDecls)
+    TUDecl->addDecl(StructDecl);
 
   for (const auto &[_, GDecl] : Declarator.globalDecls()) {
     if (FunctionDecl == GDecl)
