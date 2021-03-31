@@ -2,7 +2,7 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-#include <optional>
+#include <memory>
 #include <system_error>
 #include <utility>
 
@@ -95,6 +95,34 @@ void CDecompilerPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
 }
 
+static std::unique_ptr<llvm::raw_fd_ostream>
+openFunctionFile(const StringRef DirectoryPath,
+                 const StringRef FunctionName,
+                 const StringRef Suffix) {
+
+  std::error_code Error;
+  SmallString<32> FilePath = DirectoryPath;
+
+  if (FilePath.empty())
+    if ((Error = llvm::sys::fs::current_path(FilePath)))
+      revng_abort(Error.message().c_str());
+
+  if ((Error = llvm::sys::fs::make_absolute(FilePath)))
+    revng_abort(Error.message().c_str());
+
+  if ((Error = llvm::sys::fs::create_directories(FilePath)))
+    revng_abort(Error.message().c_str());
+
+  llvm::sys::path::append(FilePath, FunctionName + Suffix);
+  auto FileOStream = std::make_unique<llvm::raw_fd_ostream>(FilePath, Error);
+  if (Error) {
+    FileOStream.reset();
+    revng_abort(Error.message().c_str());
+  }
+
+  return FileOStream;
+}
+
 bool CDecompilerPass::runOnFunction(llvm::Function &F) {
 
   ShortCircuitCounter = 0;
@@ -115,51 +143,15 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   // If the -decompiled-dir flag was passed, the decompiled function needs to be
   // written to file, in the specified directory.
   // We initialize Out with a proper file descriptor to make it happen.
-  if (not DecompiledDir.empty()) {
-
-    // We only support the -decompiled-dir flag when the pass is
-    // default-constructed. If it's not, Out already contains a raw_ostream that
-    // should be used to emit the decompiled C code, so using the
-    // -decompiled-dir flag would overwrite it, with surprising results.
-    // For now we don't need it. If we ever happen to need it, we will figure
-    // out what's the best thing to do depending on the real scenario.
-    revng_assert(not Out);
-
-    if (auto Error = llvm::sys::fs::create_directories(DecompiledDir))
-      revng_abort(Error.message().c_str());
-
-    std::string FileName = DecompiledDir + '/' + F.getName().data() + ".c";
-    std::error_code Error;
-    auto WriteOnlyFlag = llvm::sys::fs::FileAccess::FA_Write;
-    Out = std::make_unique<llvm::raw_fd_ostream>(FileName,
-                                                 Error,
-                                                 WriteOnlyFlag);
-    if (Error) {
-      Out.reset();
-      revng_abort(Error.message().c_str());
-    }
-  }
+  if (DecompiledDir.getNumOccurrences())
+    Out = openFunctionFile(DecompiledDir, F.getName(), ".c");
 
   // If the --short-circuit-metrics-output-dir=dir argument was passed from
   // command line, we need to print the statistics for the short circuit metrics
   // into a file with the function name, inside the directory 'dir'.
-  std::optional<llvm::raw_fd_ostream> StatsFileStream;
-  if (auto NumOutPaths = OutputPath.getNumOccurrences()) {
-    revng_assert(NumOutPaths < 2);
-
-    if (auto Error = llvm::sys::fs::create_directories(OutputPath))
-      revng_abort(Error.message().c_str());
-
-    std::string FileName = OutputPath + '/' + F.getName().data();
-    std::error_code Error;
-    auto WriteOnlyFlag = llvm::sys::fs::FileAccess::FA_Write;
-    StatsFileStream.emplace(FileName, Error, WriteOnlyFlag);
-
-    if (Error) {
-      StatsFileStream.reset();
-      revng_abort(Error.message().c_str());
-    }
-  }
+  std::unique_ptr<llvm::raw_fd_ostream> StatsFileStream;
+  if (OutputPath.getNumOccurrences())
+    StatsFileStream = openFunctionFile(OutputPath, F.getName(), ".csv");
 
   // Get the Abstract Syntax Tree of the restructured code.
   auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
@@ -200,10 +192,10 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   runThreadSafeClangTool(std::move(Action), CCode);
 
   // Serialize the collected metrics in the statistics file if necessary
-  if (StatsFileStream.has_value()) {
-    StatsFileStream.value() << "function,short-circuit,trivial-short-circuit\n"
-                            << F.getName().data() << "," << ShortCircuitCounter
-                            << "," << TrivialShortCircuitCounter << "\n";
+  if (StatsFileStream) {
+    *StatsFileStream << "function,short-circuit,trivial-short-circuit\n"
+                     << F.getName().data() << "," << ShortCircuitCounter << ","
+                     << TrivialShortCircuitCounter << "\n";
   }
 
   return true;
