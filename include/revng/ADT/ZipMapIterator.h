@@ -7,6 +7,7 @@
 #include <iterator>
 #include <set>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 
 #include "llvm/ADT/Optional.h"
@@ -15,113 +16,43 @@
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/Support/Assert.h"
 
-//
-// has_mapped_type_member
-//
-
-namespace detail {
+template<typename T>
+concept HasKeyType = requires {
+  typename T::key_type;
+};
 
 template<typename T>
-using eit_mt_t = typename enable_if_type<typename T::mapped_type>::type;
+concept HasMappedType = requires {
+  typename T::mapped_type;
+};
+
+// clang-format off
+template<typename T>
+concept MapLike = HasKeyType<T> and HasMappedType<T>
+  and std::is_same_v<typename T::value_type,
+                     std::pair<const typename T::key_type,
+                               typename T::mapped_type>>;
 
 template<typename T>
-using eit_vt_t = typename enable_if_type<typename T::value_type>::type;
-
-} // namespace detail
-
-template<class T, class Enable = void>
-struct has_mapped_type_member : std::false_type {};
-
-template<class T>
-struct has_mapped_type_member<T, detail::eit_mt_t<T>> : std::true_type {};
-
-//
-// has_value_type_member
-//
-template<class T, class Enable = void>
-struct has_value_type_member : std::false_type {};
-template<class T>
-struct has_value_type_member<T, detail::eit_vt_t<T>> : std::true_type {};
-
-//
-// has_key_type_member
-//
-template<class T, class Enable = void>
-struct has_key_type_member : std::false_type {};
-template<class T>
-struct has_key_type_member<T,
-                           typename enable_if_type<typename T::key_type>::type>
-  : std::true_type {};
-
-//
-// is_map_like
-//
-template<typename T>
-constexpr bool is_map_like_v = (has_value_type_member<T>::value
-                                and has_key_type_member<T>::value
-                                and has_mapped_type_member<T>::value);
-
-template<typename T, typename K = void>
-using enable_if_is_map_like_t = std::enable_if_t<is_map_like_v<T>, K>;
-
-//
-// is_set_like
-//
-namespace detail {
-template<typename T>
-constexpr bool same_key_value_v = std::is_same_v<typename T::key_type,
-                                                 typename T::value_type>;
-}
-
-template<class T, class Enable = void>
-struct same_key_value_types : std::false_type {};
-
-namespace detail {
-
-template<bool B>
-using ei_t = std::enable_if_t<B>;
-
-template<typename A, typename B>
-constexpr bool same = std::is_same_v<A, B>;
+concept SetLike = HasKeyType<T> and not HasMappedType<T>
+  and std::is_same_v<typename T::key_type, typename T::value_type>;
 
 template<typename T>
-using ei_skv_t = ei_t<same<typename T::key_type, typename T::value_type>>;
-
-} // namespace detail
-
-template<class T>
-struct same_key_value_types<T, detail::ei_skv_t<T>> : std::true_type {};
-
-template<typename T>
-constexpr bool is_set_like_v = (has_value_type_member<T>::value
-                                and has_key_type_member<T>::value
-                                and not has_mapped_type_member<T>::value
-                                and same_key_value_types<T>::value);
-
-template<typename T, typename K = void>
-using enable_if_is_set_like_t = std::enable_if_t<is_set_like_v<T>, K>;
-
-//
-// is_vector_of_pairs
-//
-template<typename>
-struct is_vector_of_pairs : public std::false_type {};
-
-template<typename K, typename V>
-struct is_vector_of_pairs<std::vector<std::pair<const K, V>>>
-  : public std::true_type {};
-
-template<typename K, typename V>
-struct is_vector_of_pairs<const std::vector<std::pair<const K, V>>>
-  : public std::true_type {};
+concept VectorOfPairs = 
+  std::is_same_v<std::vector<std::pair<typename T::value_type::first_type,
+                                       typename T::value_type::second_type>>,
+                 std::remove_const_t<T>>
+  and std::is_const_v<typename T::value_type::first_type>;
+// clang-format on
 
 namespace {
 
 using namespace std;
 
-static_assert(is_vector_of_pairs<vector<pair<const int, long>>>::value, "");
-static_assert(is_vector_of_pairs<const vector<pair<const int, long>>>::value,
-              "");
+static_assert(VectorOfPairs<const vector<pair<const int, long>>>, "");
+static_assert(VectorOfPairs<vector<pair<const int, long>>>, "");
+static_assert(not VectorOfPairs<const vector<pair<int, long>>>, "");
+static_assert(not VectorOfPairs<vector<pair<int, long>>>, "");
 
 } // namespace
 
@@ -131,27 +62,24 @@ static_assert(is_vector_of_pairs<const vector<pair<const int, long>>>::value,
 template<typename T>
 using element_pointer_t = decltype(&*std::declval<T>().begin());
 
-template<typename T>
-enable_if_is_set_like_t<T, const typename T::key_type &>
-keyFromValue(const typename T::value_type &Value) {
+template<SetLike T>
+const typename T::key_type &keyFromValue(const typename T::value_type &Value) {
   return Value;
 }
 
-template<typename T>
-enable_if_is_KeyedObjectContainer_t<T, typename T::key_type>
-keyFromValue(const typename T::value_type &Value) {
+template<IsKeyedObjectContainer T>
+typename T::key_type keyFromValue(const typename T::value_type &Value) {
   return KeyedObjectTraits<typename T::value_type>::key(Value);
 }
 
-template<typename T>
-std::enable_if_t<is_vector_of_pairs<T>::value,
-                 const typename T::value_type::first_type &>
+template<VectorOfPairs T>
+const typename T::value_type::first_type &
 keyFromValue(const typename T::value_type &Value) {
   return Value.first;
 }
 
-template<typename T>
-enable_if_is_map_like_t<T, const typename T::value_type::first_type &>
+template<MapLike T>
+const typename T::value_type::first_type &
 keyFromValue(const typename T::value_type &Value) {
   return Value.first;
 }

@@ -37,7 +37,7 @@ enum VisitType {
 
 /// \brief Work list for the monotone framework supporting various visit
 ///        strategies
-template<typename Iterated, VisitType Visit, typename = void>
+template<typename Iterated, VisitType Visit>
 class MonotoneFrameworkWorkList {};
 
 // Breadth first implementation
@@ -57,14 +57,12 @@ public:
 };
 
 template<VisitType V>
-using enable_if_post_order = std::enable_if<V == PostOrder
-                                            or V == ReversePostOrder>;
+concept IsPostOrderLike = V == PostOrder or V == ReversePostOrder;
 
 // (Reverse) post order implementation
 template<typename Iterated, VisitType Visit>
-class MonotoneFrameworkWorkList<Iterated,
-                                Visit,
-                                typename enable_if_post_order<Visit>::type> {
+requires IsPostOrderLike<Visit> class MonotoneFrameworkWorkList<Iterated,
+                                                                Visit> {
 private:
   /// \brief Class for an entry in the work list
   ///

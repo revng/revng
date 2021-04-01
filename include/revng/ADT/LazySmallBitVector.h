@@ -30,34 +30,23 @@ inline unsigned requiredBits(T Value) {
 }
 
 template<typename T, typename A, typename B>
-constexpr bool is_either() {
-  return std::is_same<T, A>::value || std::is_same<T, B>::value;
-}
+concept is_either = std::is_same_v<T, A> or std::is_same_v<T, B>;
 
-template<typename T, typename A, typename B>
-using enable_if_either = typename std::enable_if<is_either<T, A, B>(), T>::type;
-
-template<typename T>
-using enable_if_int = enable_if_either<T, unsigned, int>;
-
-template<typename T>
-using enable_if_long = enable_if_either<T, unsigned long, long>;
-
-template<typename T>
-using enable_if_long_long = enable_if_either<T, unsigned long long, long long>;
-
-template<typename T>
-inline unsigned findFirstBit(enable_if_int<T> Value) {
+template<typename IntT>
+requires is_either<IntT, unsigned, int> inline unsigned
+findFirstBit(IntT Value) {
   return ffs(Value);
 }
 
-template<typename T>
-inline unsigned findFirstBit(enable_if_long<T> Value) {
+template<typename LongT>
+requires is_either<LongT, unsigned long, long> inline unsigned
+findFirstBit(LongT Value) {
   return ffsl(Value);
 }
 
-template<typename T>
-inline unsigned findFirstBit(enable_if_long_long<T> Value) {
+template<typename LongLongT>
+requires is_either<LongLongT, unsigned long long, long long> inline unsigned
+findFirstBit(LongLongT Value) {
   return ffsll(Value);
 }
 
