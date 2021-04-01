@@ -7,6 +7,7 @@
 #include <queue>
 #include <set>
 #include <sstream>
+#include <type_traits>
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
@@ -445,13 +446,11 @@ inline llvm::BasicBlock *blockByName(llvm::Function *F, const char *Name) {
 }
 
 template<typename T>
-using rc_t = typename std::remove_const<T>::type;
-template<typename T>
-using is_base_of_value = std::is_base_of<llvm::Value, rc_t<T>>;
+concept DerivedFromLLVMValue = std::is_base_of_v<llvm::Value,
+                                                 std::remove_const_t<T>>;
 
 /// \brief Specialization of writeToLog for llvm::Value-derived types
-template<typename T,
-         typename std::enable_if<is_base_of_value<T>::value, int>::type = 0>
+template<DerivedFromLLVMValue T>
 inline void writeToLog(Logger<true> &This, T *I, int) {
   if (I != nullptr)
     This << getName(I);
@@ -830,62 +829,52 @@ inline void erase_if(Container &C, UnaryPredicate P) {
   C.erase(std::remove_if(C.begin(), C.end(), P), C.end());
 }
 
-template<typename T>
-using RemoveRef = std::remove_reference<T>;
+template<typename V>
+concept ValueLikePrintable = requires(V Val) {
+  Val.print(std::declval<llvm::raw_ostream &>(), true);
+};
 
-template<typename T>
-using IsPtr = std::is_pointer<T>;
+template<typename F>
+concept ModFunLikePrintable = requires(F Fun) {
+  Fun.print(std::declval<llvm::raw_ostream &>(), nullptr, false, true);
+};
 
+// clang-format off
 template<typename T>
-using IsRefToBaseValue = std::is_base_of<llvm::Value,
-                                         typename RemoveRef<T>::type>;
-
-template<typename T>
-using IsRefToBaseFunction = std::is_base_of<llvm::Function,
-                                            typename RemoveRef<T>::type>;
+concept LLVMRawOStreamPrintable = not ValueLikePrintable<T>
+    and not ModFunLikePrintable<T>
+    and requires(T TheT) {
+  TheT.print(std::declval<llvm::raw_ostream &>());
+};
+// clang-format on
 
 // This is enabled only for references to types that inherit from llvm::Value
 // but not from llvm::Function, since llvm::Function has a different prototype
 // for the print() method
-template<typename ValueRef>
-inline std::enable_if_t<!IsPtr<ValueRef>::value
-                          && IsRefToBaseValue<ValueRef>::value
-                          && !IsRefToBaseFunction<ValueRef>::value,
-                        std::string>
-dumpToString(ValueRef &V) {
+template<ValueLikePrintable ValueRef>
+inline std::string dumpToString(ValueRef &V) {
   std::string Result;
   llvm::raw_string_ostream Stream(Result);
   V.print(Stream, true);
-  Stream.str();
+  Stream.flush();
   return Result;
 }
 
-template<typename T>
-using IsRefToBaseModule = std::is_base_of<llvm::Module,
-                                          typename RemoveRef<T>::type>;
-
 // This is enabled only for references to types that inherit from llvm::Module
 // or from llvm::Function, which share the same prototype for the print() method
-template<typename ModOrFunRef>
-inline std::enable_if_t<!IsPtr<ModOrFunRef>::value
-                          && (IsRefToBaseModule<ModOrFunRef>::value
-                              || IsRefToBaseFunction<ModOrFunRef>::value),
-                        std::string>
-dumpToString(ModOrFunRef &M) {
+template<ModFunLikePrintable ModOrFunRef>
+inline std::string dumpToString(ModOrFunRef &M) {
   std::string Result;
   llvm::raw_string_ostream Stream(Result);
   M.print(Stream, nullptr, false, true);
-  Stream.str();
+  Stream.flush();
   return Result;
 }
 
 // This is enabled for all types with a print() method that prints to an
 // llvm::raw_ostream
-template<typename T>
-inline std::enable_if_t<!IsPtr<T>::value && !IsRefToBaseValue<T>::value
-                          && !IsRefToBaseModule<T>::value,
-                        std::string>
-dumpToString(const T &TheT) {
+template<LLVMRawOStreamPrintable T>
+inline std::string dumpToString(T &TheT) {
   std::string Result;
   llvm::raw_string_ostream Stream(Result);
   TheT.print(Stream);
@@ -894,7 +883,7 @@ dumpToString(const T &TheT) {
 }
 
 template<typename T>
-inline std::enable_if_t<IsPtr<T>::value, std::string> dumpToString(T TheT) {
+requires std::is_pointer_v<T> inline std::string dumpToString(T TheT) {
   if (TheT == nullptr)
     return "nullptr";
   return dumpToString(*TheT);

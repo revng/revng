@@ -844,7 +844,7 @@ struct KeyedObjectTraits<model::Function> {
   };
 };
 
-static_assert(is_KeyedObjectContainer_v<MutableSet<model::Function>>);
+static_assert(IsKeyedObjectContainer<MutableSet<model::Function>>);
 
 //
 // Binary
