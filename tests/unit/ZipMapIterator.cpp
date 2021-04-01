@@ -28,8 +28,8 @@ using namespace llvm;
 template<typename T, typename = void>
 struct KeyContainer {};
 
-template<typename T>
-struct KeyContainer<T, enable_if_is_map_like_t<T>> {
+template<MapLike T>
+struct KeyContainer<T> {
   using key_type = typename T::key_type;
 
   static void insert(T &Container, typename T::key_type Key) {
@@ -43,8 +43,8 @@ struct KeyContainer<T, enable_if_is_map_like_t<T>> {
   static void sort(T &) {}
 };
 
-template<typename T>
-struct KeyContainer<T, enable_if_is_sorted_container_t<T>> {
+template<SortedContainer T>
+struct KeyContainer<T> {
   using key_type = const typename T::key_type;
 
   static void insert(T &Container, key_type Key) { Container.insert(Key); }
@@ -54,9 +54,8 @@ struct KeyContainer<T, enable_if_is_sorted_container_t<T>> {
   static void sort(T &) {}
 };
 
-template<typename T>
-struct KeyContainer<T,
-                    typename std::enable_if_t<is_vector_of_pairs<T>::value>> {
+template<VectorOfPairs T>
+struct KeyContainer<T> {
   using key_type = typename T::value_type::first_type;
   using value_type = std::conditional_t<std::is_const<T>::value,
                                         const typename T::value_type,

@@ -22,6 +22,5 @@ struct IdentityKeyedObjectTraits {
 };
 
 /// Trivial specialization for integral types
-template<typename T>
-struct KeyedObjectTraits<T, enable_if_is_integral_t<T>>
-  : public IdentityKeyedObjectTraits<T> {};
+template<Integral T>
+struct KeyedObjectTraits<T> : public IdentityKeyedObjectTraits<T> {};

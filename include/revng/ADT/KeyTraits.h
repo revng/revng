@@ -14,7 +14,7 @@
 using KeyInt = uint64_t;
 using KeyIntVector = std::vector<KeyInt>;
 
-template<typename T, typename = void>
+template<typename T>
 struct KeyTraits {
   // static constexpr size_t IntsCount = ...;
   // using IntsArray = std::array<KeyInt, IntsCount>;
@@ -29,8 +29,8 @@ struct KeyTraits {
 };
 
 /// Trivial specialization for integral types
-template<typename T>
-struct KeyTraits<T, enable_if_is_integral_t<T>> {
+template<Integral T>
+struct KeyTraits<T> {
   static constexpr size_t IntsCount = 1;
   using IntsArray = std::array<KeyInt, IntsCount>;
 
@@ -39,12 +39,12 @@ struct KeyTraits<T, enable_if_is_integral_t<T>> {
   static IntsArray toInts(const T &I) { return { static_cast<KeyInt>(I) }; }
 };
 
-template<typename T, typename K = void>
-using enable_if_is_enum_t = std::enable_if_t<std::is_enum_v<T>, K>;
+template<typename T>
+concept Enum = std::is_enum_v<T>;
 
 /// Trivial specialization for integral types
-template<typename T>
-struct KeyTraits<T, enable_if_is_enum_t<T>> {
+template<Enum T>
+struct KeyTraits<T> {
   static constexpr size_t IntsCount = 1;
   using IntsArray = std::array<KeyInt, IntsCount>;
 
@@ -58,8 +58,8 @@ struct KeyTraits<T, enable_if_is_enum_t<T>> {
 //
 // Derive KeyTraits from tuple-like of objects featuring KeyTraits
 //
-template<typename T>
-struct KeyTraits<T, std::enable_if_t<std::tuple_size<T>::value >= 0>> {
+template<HasTupleSize T>
+struct KeyTraits<T> {
 private:
   template<size_t I = 0>
   static constexpr size_t computeIntsCount() {
