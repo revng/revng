@@ -7,6 +7,7 @@ cmake_minimum_required(VERSION 3.15.0)
 project(revng-c)
 
 enable_testing()
+
 find_package(revng REQUIRED)
 find_package(LLVM REQUIRED CONFIG)
 find_package(Clang REQUIRED CONFIG)
@@ -28,6 +29,8 @@ install(EXPORT revngc NAMESPACE revngc:: DESTINATION share/revngc/cmake)
 
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 add_definitions("-DBUILD_PATH=\"${CMAKE_BINARY_DIR}\"")
+
+configure_file(recompile_dir.sh "${CMAKE_BINARY_DIR}/bin/recompile_dir")
 
 include_directories(include/)
 
@@ -106,6 +109,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -restructure-cfg
       -decompilation
       -serialize-model
+      -decompiled-dir=${TARGET_NAME}_decompiled_dir
       ${TARGET_NAME}_prepared.ll
       -o /dev/null
       )
@@ -117,6 +121,20 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       )
     set_property(TEST decompilation_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_SETUP Decompiled_fixture_${TARGET_NAME}
+      )
+
+    # test recompilation
+    add_test(NAME recompilation_${TARGET_NAME} COMMAND
+      ${CMAKE_BINARY_DIR}/bin/recompile_dir ${TARGET_NAME}_decompiled_dir
+      )
+    set_property(TEST recompilation_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS prepare_${TARGET_NAME}
+      )
+    set_property(TEST recompilation_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED Decompiled_fixture_${TARGET_NAME}
+      )
+    set_property(TEST recompilation_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP Recompiled_fixture_${TARGET_NAME}
       )
 
     # promote stack pointer in .ll for decompilation with dla
