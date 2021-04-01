@@ -19,39 +19,32 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
 
-//
-// has_yaml
-//
-namespace tupletree::detail {
-
-using namespace llvm::yaml;
+// clang-format off
+template<typename T>
+concept Yamlizable
+  = llvm::yaml::has_DocumentListTraits<T>::value
+    or llvm::yaml::has_MappingTraits<T, llvm::yaml::EmptyContext>::value
+    or llvm::yaml::has_SequenceTraits<T>::value
+    or llvm::yaml::has_BlockScalarTraits<T>::value
+    or llvm::yaml::has_CustomMappingTraits<T>::value
+    or llvm::yaml::has_PolymorphicTraits<T>::value
+    or llvm::yaml::has_ScalarTraits<T>::value
+    or llvm::yaml::has_ScalarEnumerationTraits<T>::value;
+// clang-format on
 
 template<typename T>
-constexpr bool has_yaml_v = has_DocumentListTraits<T>::value
-                            or has_MappingTraits<T, EmptyContext>::value
-                            or has_SequenceTraits<T>::value
-                            or has_BlockScalarTraits<T>::value
-                            or has_CustomMappingTraits<T>::value
-                            or has_PolymorphicTraits<T>::value
-                            or has_ScalarTraits<T>::value
-                            or has_ScalarEnumerationTraits<T>::value;
+concept NotYamlizable = not Yamlizable<T>;
+
+namespace detail {
 
 struct NoYaml {};
 
-} // namespace tupletree::detail
+static_assert(NotYamlizable<NoYaml>);
 
-template<typename T>
-constexpr bool has_yaml_v = tupletree::detail::has_yaml_v<T>;
+} // end namespace detail
 
-static_assert(!has_yaml_v<tupletree::detail::NoYaml>);
-static_assert(has_yaml_v<int>);
-static_assert(has_yaml_v<std::vector<int>>);
-
-template<typename T, typename K = void>
-using enable_if_has_yaml_t = std::enable_if_t<has_yaml_v<T>, K>;
-
-template<typename T, typename K = void>
-using enable_if_has_not_yaml_t = std::enable_if_t<not has_yaml_v<T>, K>;
+static_assert(Yamlizable<int>);
+static_assert(Yamlizable<std::vector<int>>);
 
 //
 // slice
@@ -117,11 +110,11 @@ struct TupleLikeMappingTraits {
 namespace tupletree::detail {
 
 template<size_t I = 0, typename Visitor, typename T>
-enable_if_tuple_end_t<I, T> visitTuple(Visitor &V, T &Obj) {
+requires IsTupleEnd<T, I> void visitTuple(Visitor &V, T &Obj) {
 }
 
 template<size_t I = 0, typename Visitor, typename T>
-enable_if_not_tuple_end_t<I, T> visitTuple(Visitor &V, T &Obj) {
+requires IsNotTupleEnd<T, I> void visitTuple(Visitor &V, T &Obj) {
   // Visit the field
   visit(V, get<I>(Obj));
 
@@ -132,16 +125,16 @@ enable_if_not_tuple_end_t<I, T> visitTuple(Visitor &V, T &Obj) {
 } // namespace tupletree::detail
 
 // Tuple-like
-template<typename Visitor, typename T>
-enable_if_has_tuple_size_t<T, void> visit(Visitor &V, T &Obj) {
+template<typename Visitor, HasTupleSize T>
+void visit(Visitor &V, T &Obj) {
   V.preVisit(Obj);
   tupletree::detail::visitTuple(V, Obj);
   V.postVisit(Obj);
 }
 
 // Container-like
-template<typename Visitor, typename T>
-enable_if_is_container_t<T> visit(Visitor &V, T &Obj) {
+template<typename Visitor, IsContainer T>
+void visit(Visitor &V, T &Obj) {
   V.preVisit(Obj);
   using value_type = typename T::value_type;
   for (value_type &Element : Obj) {
@@ -151,9 +144,8 @@ enable_if_is_container_t<T> visit(Visitor &V, T &Obj) {
 }
 
 // All the others
-template<typename Visitor, typename T>
-std::enable_if_t<not(is_container_v<T> or has_tuple_size_v<T>)>
-visit(Visitor &V, T &Element) {
+template<NotContainerNorTuple Visitor, typename T>
+void visit(Visitor &V, T &Element) {
   V.preVisit(Element);
   V.postVisit(Element);
 }
@@ -171,12 +163,12 @@ struct DefaultTupleTreeVisitor {
 // tupleIndexByName
 //
 template<typename T, size_t I = 0>
-enable_if_tuple_end_t<I, T, size_t> tupleIndexByName(llvm::StringRef Name) {
+requires IsTupleEnd<T, I> size_t tupleIndexByName(llvm::StringRef Name) {
   return -1;
 }
 
 template<typename T, size_t I = 0>
-enable_if_not_tuple_end_t<I, T, size_t> tupleIndexByName(llvm::StringRef Name) {
+requires IsNotTupleEnd<T, I> size_t tupleIndexByName(llvm::StringRef Name) {
   llvm::StringRef ThisName = TupleLikeTraits<T>::template fieldName<I>();
   if (Name == ThisName)
     return I;
@@ -190,13 +182,12 @@ enable_if_not_tuple_end_t<I, T, size_t> tupleIndexByName(llvm::StringRef Name) {
 namespace tupletree::detail {
 
 template<typename ResultT, size_t I = 0, typename RootT, typename KeyT>
-enable_if_tuple_end_t<I, RootT, ResultT *> getByKeyTuple(RootT &M, KeyT Key) {
+requires IsTupleEnd<RootT, I> ResultT *getByKeyTuple(RootT &M, KeyT Key) {
   return nullptr;
 }
 
 template<typename ResultT, size_t I = 0, typename RootT, typename KeyT>
-enable_if_not_tuple_end_t<I, RootT, ResultT *>
-getByKeyTuple(RootT &M, KeyT Key) {
+requires IsNotTupleEnd<RootT, I> ResultT *getByKeyTuple(RootT &M, KeyT Key) {
   if (I == Key) {
     using tuple_element = typename std::tuple_element<I, RootT>::type;
     revng_assert((std::is_same_v<tuple_element, ResultT>) );
@@ -208,13 +199,13 @@ getByKeyTuple(RootT &M, KeyT Key) {
 
 } // namespace tupletree::detail
 
-template<typename ResultT, typename RootT, typename KeyT>
-enable_if_has_tuple_size_t<RootT, ResultT *> getByKey(RootT &M, KeyT Key) {
+template<typename ResultT, HasTupleSize RootT, typename KeyT>
+ResultT getByKey(RootT &M, KeyT Key) {
   return tupletree::detail::getByKeyTuple<ResultT>(M, Key);
 }
 
-template<typename ResultT, typename RootT, typename KeyT>
-enable_if_is_container_t<RootT, ResultT *> getByKey(RootT &M, KeyT Key) {
+template<typename ResultT, IsContainer RootT, typename KeyT>
+ResultT *getByKey(RootT &M, KeyT Key) {
   for (auto &Element : M) {
     using KOT = KeyedObjectTraits<std::remove_reference_t<decltype(Element)>>;
     if (KOT::key(Element) == Key)
@@ -226,19 +217,16 @@ enable_if_is_container_t<RootT, ResultT *> getByKey(RootT &M, KeyT Key) {
 //
 // callOnPathSteps (no instance)
 //
-template<typename RootT, typename Visitor>
-enable_if_has_tuple_size_t<RootT, bool>
-callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path);
+template<HasTupleSize RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path);
 
-template<typename RootT, typename Visitor>
-enable_if_is_not_container_or_tuple_t<RootT, bool>
-callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
+template<NotContainerNorTuple RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
   return false;
 }
 
-template<typename RootT, typename Visitor>
-enable_if_is_container_t<RootT, bool>
-callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
+template<IsContainer RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
   using value_type = typename RootT::value_type;
   using KOT = KeyedObjectTraits<value_type>;
   using key_type = decltype(KOT::key(std::declval<value_type>()));
@@ -258,13 +246,13 @@ callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
 namespace tupletree::detail {
 
 template<typename RootT, size_t I = 0, typename Visitor>
-enable_if_tuple_end_t<I, RootT, bool>
+requires IsTupleEnd<RootT, I> bool
 callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
   return true;
 }
 
 template<typename RootT, size_t I = 0, typename Visitor>
-enable_if_not_tuple_end_t<I, RootT, bool>
+requires IsNotTupleEnd<RootT, I> bool
 callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
   if (Path[0] == I) {
     using next_type = typename std::tuple_element<I, RootT>::type;
@@ -281,9 +269,8 @@ callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
 
 } // namespace tupletree::detail
 
-template<typename RootT, typename Visitor>
-enable_if_has_tuple_size_t<RootT, bool>
-callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
+template<HasTupleSize RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
   return tupletree::detail::callOnPathStepsTuple<RootT>(V, Path);
 }
 
@@ -294,19 +281,18 @@ callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
 namespace tupletree::detail {
 
 template<size_t I = 0, typename RootT, typename Visitor>
-enable_if_tuple_end_t<I, RootT, bool>
+requires IsTupleEnd<RootT, I> bool
 callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
   return true;
 }
 
-template<typename RootT, typename Visitor>
-enable_if_is_not_container_or_tuple_t<RootT, bool>
-callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
+template<NotContainerNorTuple RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
   return false;
 }
 
 template<size_t I = 0, typename RootT, typename Visitor>
-enable_if_not_tuple_end_t<I, RootT, bool>
+requires IsNotTupleEnd<RootT, I> bool
 callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
   if (Path[0] == I) {
     using next_type = typename std::tuple_element<I, RootT>::type;
@@ -324,15 +310,13 @@ callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
 
 } // namespace tupletree::detail
 
-template<typename RootT, typename Visitor>
-enable_if_has_tuple_size_t<RootT, bool>
-callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
+template<HasTupleSize RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
   return tupletree::detail::callOnPathStepsTuple(V, Path, M);
 }
 
-template<typename RootT, typename Visitor>
-enable_if_is_container_t<RootT, bool>
-callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
+template<IsContainer RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
   using value_type = typename RootT::value_type;
   using KOT = KeyedObjectTraits<value_type>;
   using key_type = decltype(KOT::key(std::declval<value_type>()));
@@ -615,22 +599,19 @@ private:
                          llvm::StringRef Rest,
                          PathMatcher &Result);
 
-  template<typename T>
-  static enable_if_has_tuple_size_t<T, bool>
-  visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
+  template<HasTupleSize T>
+  static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
-  template<typename T>
-  static enable_if_is_container_t<T, bool>
-  visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
+  template<IsContainer T>
+  static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
-  template<typename T>
-  static enable_if_is_not_container_or_tuple_t<T, bool>
-  visitTupleTreeNode(llvm::StringRef Path, PathMatcher &Result);
+  template<NotContainerNorTuple T>
+  static bool visitTupleTreeNode(llvm::StringRef Path, PathMatcher &Result);
 };
 
-template<typename T>
-enable_if_has_tuple_size_t<T, bool>
-PathMatcher::visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result) {
+template<HasTupleSize T>
+bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
+                                     PathMatcher &Result) {
   if (String.size() == 0)
     return true;
 
@@ -638,9 +619,9 @@ PathMatcher::visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result) {
   return visitTuple<T>(Before, After, Result);
 }
 
-template<typename T>
-enable_if_is_container_t<T, bool>
-PathMatcher::visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result) {
+template<IsContainer T>
+bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
+                                     PathMatcher &Result) {
   if (String.size() == 0)
     return true;
 
@@ -662,9 +643,9 @@ PathMatcher::visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result) {
   return visitTupleTreeNode<Value>(After, Result);
 }
 
-template<typename T>
-enable_if_is_not_container_or_tuple_t<T, bool>
-PathMatcher::visitTupleTreeNode(llvm::StringRef Path, PathMatcher &Result) {
+template<NotContainerNorTuple T>
+bool PathMatcher::visitTupleTreeNode(llvm::StringRef Path,
+                                     PathMatcher &Result) {
   return Path.size() == 0;
 }
 

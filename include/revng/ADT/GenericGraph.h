@@ -427,14 +427,31 @@ private:
   NodesContainer Nodes;
 };
 
+template<typename T>
+concept IsForwardNode = requires {
+  T::is_forward_node;
+};
+
+template<typename T>
+concept IsBidirectionalNode = requires {
+  T::is_bidirectional_node;
+  typename llvm::Inverse<T *>;
+};
+
+template<typename T>
+concept IsGenericGraph = requires {
+  T::is_generic_graph;
+  typename T::Node;
+};
+
 //
 // GraphTraits implementation for GenericGraph
 //
 namespace llvm {
 
 /// Implement GraphTraits<ForwardNode>
-template<typename T>
-struct GraphTraits<T *, std::enable_if_t<T::is_forward_node>> {
+template<IsForwardNode T>
+struct GraphTraits<T *> {
 public:
   using NodeRef = T *;
   using ChildIteratorType = std::conditional_t<std::is_const_v<T>,
@@ -471,9 +488,8 @@ public:
 };
 
 /// Implement GraphTraits<GenericGraph>
-template<typename T>
-struct GraphTraits<T *, std::enable_if_t<T::is_generic_graph>>
-  : public GraphTraits<typename T::Node *> {
+template<IsGenericGraph T>
+struct GraphTraits<T *> : public GraphTraits<typename T::Node *> {
 
   using NodeRef = std::conditional_t<std::is_const_v<T>,
                                      const typename T::Node *,
@@ -492,9 +508,8 @@ struct GraphTraits<T *, std::enable_if_t<T::is_generic_graph>>
 };
 
 /// Implement GraphTraits<Inverse<BidirectionalNode>>
-template<typename T>
-struct GraphTraits<llvm::Inverse<T *>,
-                   std::enable_if_t<T::is_bidirectional_node>> {
+template<IsBidirectionalNode T>
+struct GraphTraits<llvm::Inverse<T *>> {
 public:
   using NodeRef = T *;
   using ChildIteratorType = std::conditional_t<std::is_const_v<T>,
