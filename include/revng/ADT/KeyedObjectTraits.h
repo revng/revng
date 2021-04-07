@@ -7,7 +7,7 @@
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/Concepts.h"
 
-template<typename T, typename = void>
+template<typename T>
 struct KeyedObjectTraits {
   // static * key(const T &);
   // static T fromKey(* Key);
