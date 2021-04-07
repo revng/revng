@@ -55,7 +55,7 @@ void ScsNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
 
 void SequenceNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // Update all the pointers of the sequence node.
-  for (auto NodeIt = NodeList.begin(); NodeIt != NodeList.end(); NodeIt++) {
+  for (auto NodeIt = NodeVec.begin(); NodeIt != NodeVec.end(); NodeIt++) {
     ASTNode *Node = *NodeIt;
     revng_assert(SubstitutionMap.count(Node) != 0);
     ASTNode *NewNode = SubstitutionMap[Node];
@@ -165,8 +165,8 @@ bool SequenceNode::nodeIsEqual(const ASTNode *Node) const {
   if (OtherSequence == nullptr)
     return false;
 
-  links_container::size_type FirstDimension = NodeList.size();
-  links_container::size_type SecondDimension = OtherSequence->listSize();
+  links_container::size_type FirstDimension = NodeVec.size();
+  links_container::size_type SecondDimension = OtherSequence->length();
   // Continue the comparison only if the sequence node size are the same
   if (FirstDimension != SecondDimension)
     return false;

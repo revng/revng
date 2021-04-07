@@ -9,6 +9,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
@@ -65,7 +66,8 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
       }
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    flipEmptyThen(Scs->getBody(), AST);
+    if (Scs->hasBody())
+      flipEmptyThen(Scs->getBody(), AST);
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
 
     for (auto &LabelCasePair : Switch->cases())
@@ -372,12 +374,12 @@ static void simplifyLastContinue(ASTTree &AST) {
       continue;
     }
 
-    auto *Seq = dyn_cast<SequenceNode>(Body);
-    if (not Seq)
+    auto *SequenceBody = dyn_cast<SequenceNode>(Body);
+    if (not SequenceBody)
       continue;
 
-    revng_assert(not Seq->nodes().empty());
-    ASTNode *LastNode = *std::prev(Seq->nodes().end());
+    revng_assert(not SequenceBody->nodes().empty());
+    ASTNode *LastNode = *std::prev(SequenceBody->nodes().end());
     if (auto *Continue = llvm::dyn_cast<ContinueNode>(LastNode))
       Continue->setImplicit();
   }
@@ -414,48 +416,49 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
     matchDoWhile(Body, AST);
 
     ASTNode *LastNode = Body;
-    auto *Seq = llvm::dyn_cast<SequenceNode>(Body);
-    if (Seq) {
-      revng_assert(not Seq->nodes().empty());
-      Body = *std::prev(Seq->nodes().end());
+    auto *SequenceBody = llvm::dyn_cast<SequenceNode>(Body);
+    if (SequenceBody) {
+      revng_assert(not SequenceBody->nodes().empty());
+      LastNode = *std::prev(SequenceBody->nodes().end());
     }
     revng_assert(LastNode);
 
-    if (auto *NestedIf = llvm::dyn_cast<IfNode>(LastNode)) {
+    auto *NestedIf = llvm::dyn_cast<IfNode>(LastNode);
+    if (not NestedIf)
+      return;
 
-      // Only if nodes with both branches are candidates.
-      if (NestedIf->hasBothBranches()) {
-        ASTNode *Then = NestedIf->getThen();
-        ASTNode *Else = NestedIf->getElse();
+    ASTNode *Then = NestedIf->getThen();
+    ASTNode *Else = NestedIf->getElse();
+    auto *ThenBreak = llvm::dyn_cast_or_null<BreakNode>(Then);
+    auto *ElseBreak = llvm::dyn_cast_or_null<BreakNode>(Else);
+    auto *ThenContinue = llvm::dyn_cast_or_null<ContinueNode>(Then);
+    auto *ElseContinue = llvm::dyn_cast_or_null<ContinueNode>(Else);
 
-        if (llvm::isa<BreakNode>(Then) and llvm::isa<ContinueNode>(Else)) {
+    bool HandledCases = (ThenBreak and ElseContinue)
+                        or (ThenContinue and ElseBreak);
+    if (not HandledCases)
+      return;
 
-          Scs->setDoWhile(NestedIf);
-          // Invert the conditional expression of the current `IfNode`.
-          UniqueExpr Not;
-          Not.reset(new NotNode(NestedIf->getCondExpr()));
-          ExprNode *NotNode = AST.addCondExpr(std::move(Not));
-          NestedIf->replaceCondExpr(NotNode);
+    Scs->setDoWhile(NestedIf);
 
-          // Remove the if node
-          if (Seq) {
-            Seq->removeNode(NestedIf);
-          } else {
-            Scs->setBody(nullptr);
-          }
-        } else if (llvm::isa<BreakNode>(Else)
-                   and llvm::isa<ContinueNode>(Then)) {
-          Scs->setDoWhile(NestedIf);
+    if (ThenBreak and ElseContinue) {
+      // Invert the conditional expression of the current `IfNode`.
+      UniqueExpr Not;
+      Not.reset(new NotNode(NestedIf->getCondExpr()));
+      ExprNode *NotNode = AST.addCondExpr(std::move(Not));
+      NestedIf->replaceCondExpr(NotNode);
 
-          // Remove the if node
-          if (Seq) {
-            Seq->removeNode(NestedIf);
-          } else {
-            Scs->setBody(nullptr);
-          }
-        }
-      }
+    } else {
+      revng_assert(ElseBreak and ThenContinue);
     }
+
+    // Remove the if node
+    if (SequenceBody) {
+      SequenceBody->removeNode(NestedIf);
+    } else {
+      Scs->setBody(nullptr);
+    }
+
   } else {
     BeautifyLogger << "No matching done\n";
   }
@@ -519,53 +522,57 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
     matchWhile(Body, AST);
 
     ASTNode *FirstNode = Body;
-    auto *Seq = llvm::dyn_cast<SequenceNode>(Body);
-    if (Seq) {
-      revng_assert(not Seq->nodes().empty());
-      FirstNode = *Seq->nodes().begin();
+    auto *SequenceBody = llvm::dyn_cast<SequenceNode>(Body);
+    if (SequenceBody) {
+      revng_assert(not SequenceBody->nodes().empty());
+      FirstNode = *SequenceBody->nodes().begin();
     }
     revng_assert(FirstNode);
 
-    if (auto *NestedIf = llvm::dyn_cast<IfNode>(FirstNode)) {
+    auto *NestedIf = llvm::dyn_cast<IfNode>(FirstNode);
+    if (not NestedIf)
+      return;
 
-      // Only if nodes with both branches are candidates.
-      if (NestedIf->hasBothBranches()) {
-        ASTNode *Then = NestedIf->getThen();
-        ASTNode *Else = NestedIf->getElse();
+    ASTNode *Then = NestedIf->getThen();
+    ASTNode *Else = NestedIf->getElse();
+    auto *ThenBreak = llvm::dyn_cast_or_null<BreakNode>(Then);
+    auto *ElseBreak = llvm::dyn_cast_or_null<BreakNode>(Else);
 
-        if (llvm::isa<BreakNode>(Then)) {
+    // Without a break, this if cannot become a while
+    if (not ThenBreak and not ElseBreak)
+      return;
 
-          Scs->setWhile(NestedIf);
-          // Invert the conditional expression of the current `IfNode`.
-          UniqueExpr Not;
-          Not.reset(new NotNode(NestedIf->getCondExpr()));
-          ExprNode *NotNode = AST.addCondExpr(std::move(Not));
-          NestedIf->replaceCondExpr(NotNode);
+    // This is a while
+    Scs->setWhile(NestedIf);
 
-          // Remove the if node
-          if (Seq) {
-            Seq->removeNode(NestedIf);
-          } else {
-            Scs->setBody(NestedIf->getElse());
+    ASTNode *BranchThatStaysInside = nullptr;
+    if (ElseBreak) {
+      BranchThatStaysInside = Then;
 
-            // Add computation before the continue nodes
-            addComputationToContinue(Scs->getBody(), NestedIf);
-          }
-        } else if (llvm::isa<BreakNode>(Else)) {
-          Scs->setWhile(NestedIf);
+    } else {
+      revng_assert(llvm::isa<BreakNode>(Then));
+      BranchThatStaysInside = Else;
 
-          // Remove the if node
-          if (Seq) {
-            Seq->removeNode(NestedIf);
-          } else {
-            Scs->setBody(NestedIf->getThen());
-
-            // Add computation before the continue nodes
-            addComputationToContinue(Scs->getBody(), NestedIf);
-          }
-        }
-      }
+      // If the break node is the then branch, we should invert the
+      // conditional expression of the current `IfNode`.
+      UniqueExpr Not;
+      Not.reset(new NotNode(NestedIf->getCondExpr()));
+      ExprNode *NotNode = AST.addCondExpr(std::move(Not));
+      NestedIf->replaceCondExpr(NotNode);
     }
+
+    // Remove the if node
+    if (SequenceBody) {
+      SequenceBody->removeNode(NestedIf);
+      if (BranchThatStaysInside) {
+        auto &Seq = SequenceBody->getChildVec();
+        Seq.insert(Seq.begin(), BranchThatStaysInside);
+      }
+    } else {
+      Scs->setBody(BranchThatStaysInside);
+    }
+    // Add computation before the continue nodes
+    addComputationToContinue(Scs->getBody(), NestedIf);
   } else {
     BeautifyLogger << "No matching done\n";
   }
@@ -654,6 +661,530 @@ protected:
   LoopStackT LoopStack{};
 };
 
+// This node weight computation routine uses a reasonable and at the same time
+// very basilar criterion, which assign a point for each node in the AST
+// subtree. In the future, we might considering using something closer to the
+// defintion of the cyclomatic Complexity iteself, cfr.
+// https://www.sonarsource.com/resources/white-papers/cognitive-complexity.html
+static RecursiveCoroutine<unsigned>
+computeCumulativeNodeWeight(ASTNode *Node,
+                            std::map<const ASTNode *, unsigned> &NodeWeight) {
+  switch (Node->getKind()) {
+  case ASTNode::NK_List: {
+    SequenceNode *Seq = llvm::cast<SequenceNode>(Node);
+
+    unsigned Accum = 0;
+    for (ASTNode *N : Seq->nodes()) {
+      unsigned NWeight = rc_recur computeCumulativeNodeWeight(N, NodeWeight);
+      NodeWeight[N] = NWeight;
+
+      // Accumulate the weight of all the nodes in the sequence, in order to
+      // compute the weight of the sequence itself.
+      Accum += NWeight;
+    }
+    rc_return Accum;
+  } break;
+  case ASTNode::NK_Scs: {
+    ScsNode *Loop = llvm::cast<ScsNode>(Node);
+    if (Loop->hasBody()) {
+      ASTNode *Body = Loop->getBody();
+      unsigned BodyWeight = rc_recur computeCumulativeNodeWeight(Body,
+                                                                 NodeWeight);
+      NodeWeight[Body] = BodyWeight;
+      rc_return BodyWeight + 1;
+    } else {
+      rc_return 1;
+    }
+  } break;
+  case ASTNode::NK_If: {
+    IfNode *If = llvm::cast<IfNode>(Node);
+
+    unsigned ThenWeight = 0;
+    unsigned ElseWeight = 0;
+    if (If->hasThen()) {
+      ASTNode *Then = If->getThen();
+      ThenWeight = rc_recur computeCumulativeNodeWeight(Then, NodeWeight);
+      NodeWeight[Then] = ThenWeight;
+    }
+    if (If->hasElse()) {
+      ASTNode *Else = If->getElse();
+      ElseWeight = rc_recur computeCumulativeNodeWeight(Else, NodeWeight);
+      NodeWeight[Else] = ElseWeight;
+    }
+    rc_return ThenWeight + ElseWeight + 1;
+  } break;
+  case ASTNode::NK_Switch: {
+    SwitchNode *Switch = llvm::cast<SwitchNode>(Node);
+
+    unsigned SwitchWeight = 0;
+    for (auto &LabelCasePair : Switch->cases()) {
+      ASTNode *Case = LabelCasePair.second;
+      unsigned CaseWeight = rc_recur computeCumulativeNodeWeight(Case,
+                                                                 NodeWeight);
+      NodeWeight[Case] = CaseWeight;
+      SwitchWeight += CaseWeight;
+    }
+    if (ASTNode *Default = Switch->getDefault()) {
+      unsigned DefaultWeight = rc_recur computeCumulativeNodeWeight(Default,
+                                                                    NodeWeight);
+      NodeWeight[Default] = DefaultWeight;
+      SwitchWeight += DefaultWeight;
+    }
+    rc_return SwitchWeight + 1;
+  } break;
+  case ASTNode::NK_Code: {
+
+    // TODO: At the moment we use the BasicBlock size to assign a weight to the
+    //       code nodes. In future, we would want to use the number of statement
+    //       emitted in the decompiled code as weight (and use
+    //       `MarkForSerialization` to do that).
+    CodeNode *Code = llvm::cast<CodeNode>(Node);
+    llvm::BasicBlock *BB = Code->getBB();
+    rc_return BB->size();
+  } break;
+  case ASTNode::NK_Continue: {
+
+    // The weight of a continue node, contrary to what intuition would suggest,
+    // is not always constant. In fact, due to a previous beautification pass,
+    // a continue node could gain a computation node, which represents the code
+    // which represents the computations needed to update the condition of the
+    // corresponding while/do-while cycle.
+    // In this setting, we need to take into account also the weight of this
+    // computation node, because that code will become part of the scope ending
+    // with the continue. If we do not take into account this contribute, we
+    // could end up promoting as fallthrough the break scope, even though its
+    // scope is smaller in terms of decompiled code.
+    ContinueNode *Continue = llvm::cast<ContinueNode>(Node);
+    if (Continue->hasComputation()) {
+      IfNode *If = Continue->getComputationIfNode();
+      llvm::BasicBlock *BB = If->getOriginalBB();
+      revng_assert(BB != nullptr);
+      rc_return BB->size() + 1;
+    }
+  } break;
+  case ASTNode::NK_Set:
+  case ASTNode::NK_SwitchBreak:
+  case ASTNode::NK_Break: {
+
+    // If we assign weight 1 to all these cases, no distinction is needed for
+    // them.
+    rc_return 1;
+  } break;
+  default:
+    revng_abort();
+  }
+
+  rc_return 0;
+}
+
+static RecursiveCoroutine<bool>
+fallThroughScope(ASTNode *Node,
+                 std::map<const ASTNode *, bool> &FallThroughMap) {
+  switch (Node->getKind()) {
+  case ASTNode::NK_List: {
+    SequenceNode *Seq = llvm::cast<SequenceNode>(Node);
+
+    // Invoke the fallthrough analysis on all the nodes in the sequence node.
+    // Even though, after analyzing the sequence node we only use the value of
+    // the last node of the sequence, it is important to recursively invoke this
+    // routine on all the nodes in the sequence, since in part of the sub-tree
+    // other portions of the AST benefiting from this analysis and
+    // transformation could exist.
+    for (ASTNode *N : Seq->nodes()) {
+      bool NFallThrough = rc_recur fallThroughScope(N, FallThroughMap);
+      FallThroughMap[N] = NFallThrough;
+    }
+
+    // The current sequence node is nofallthrough only if the last node of the
+    // sequence node is nofallthrough.
+    ASTNode *Last = Seq->getNodeN(Seq->length() - 1);
+    rc_return FallThroughMap.at(Last);
+  } break;
+  case ASTNode::NK_Scs: {
+    ScsNode *Loop = llvm::cast<ScsNode>(Node);
+
+    // The loop node inherits the attribute from the body node of the SCS.
+    if (Loop->hasBody()) {
+      ASTNode *Body = Loop->getBody();
+      bool BFallThrough = rc_recur fallThroughScope(Body, FallThroughMap);
+      FallThroughMap[Body] = BFallThrough;
+      rc_return BFallThrough;
+    } else {
+      rc_return true;
+    }
+  } break;
+  case ASTNode::NK_If: {
+    IfNode *If = llvm::cast<IfNode>(Node);
+
+    // An IfNode is nofallthrough only if both its branches are nofallthrough.
+    bool ThenFallThrough = false;
+    if (If->hasThen()) {
+      ASTNode *Then = If->getThen();
+      ThenFallThrough = rc_recur fallThroughScope(Then, FallThroughMap);
+      FallThroughMap[Then] = ThenFallThrough;
+    }
+
+    bool ElseFallThrough = false;
+    if (If->hasElse()) {
+      ASTNode *Else = If->getElse();
+      ElseFallThrough = rc_recur fallThroughScope(Else, FallThroughMap);
+      FallThroughMap[Else] = ElseFallThrough;
+    }
+
+    rc_return ThenFallThrough or ElseFallThrough;
+  } break;
+  case ASTNode::NK_Switch: {
+    SwitchNode *Switch = llvm::cast<SwitchNode>(Node);
+
+    // A SwitchNode is nofallthrough only if all its cases are nofallthrough.
+    bool AllNoFallthrough = true;
+    for (auto &LabelCasePair : Switch->cases()) {
+      ASTNode *Case = LabelCasePair.second;
+      bool CaseFallThrough = rc_recur fallThroughScope(Case, FallThroughMap);
+      FallThroughMap[Case] = CaseFallThrough;
+      AllNoFallthrough &= not CaseFallThrough;
+    }
+    if (ASTNode *Default = Switch->getDefault()) {
+      bool DefaultFallThrough = rc_recur fallThroughScope(Default,
+                                                          FallThroughMap);
+      FallThroughMap[Default] = DefaultFallThrough;
+      AllNoFallthrough &= not DefaultFallThrough;
+    }
+
+    // TODO: consider flipping a number of `not` in the code.
+    rc_return not AllNoFallthrough;
+  } break;
+  case ASTNode::NK_Code: {
+    CodeNode *Code = llvm::cast<CodeNode>(Node);
+    llvm::BasicBlock *BB = Code->getBB();
+    llvm::Instruction &I = BB->back();
+    bool ReturnEnd = llvm::isa<ReturnInst>(&I);
+    rc_return not ReturnEnd;
+  } break;
+  case ASTNode::NK_Set: {
+    rc_return true;
+  } break;
+  case ASTNode::NK_SwitchBreak:
+  case ASTNode::NK_Continue:
+  case ASTNode::NK_Break: {
+    rc_return false;
+  } break;
+  default:
+    revng_abort();
+  }
+
+  rc_return true;
+}
+
+static RecursiveCoroutine<ASTNode *>
+promoteNoFallthrough(ASTTree &AST,
+                     ASTNode *Node,
+                     std::map<const ASTNode *, bool> &FallThroughMap,
+                     std::map<const ASTNode *, unsigned> &NodeWeight) {
+  // Visit the current node.
+  switch (Node->getKind()) {
+  case ASTNode::NK_List: {
+    SequenceNode *Seq = llvm::cast<SequenceNode>(Node);
+
+    // In place of a sequence node, we need just to inspect all the nodes in the
+    // sequence.
+    for (ASTNode *&N : Seq->nodes()) {
+      N = rc_recur promoteNoFallthrough(AST, N, FallThroughMap, NodeWeight);
+    }
+  } break;
+  case ASTNode::NK_Scs: {
+    ScsNode *Scs = llvm::cast<ScsNode>(Node);
+    if (Scs->hasBody()) {
+      ASTNode *Body = Scs->getBody();
+      ASTNode *NewBody = rc_recur promoteNoFallthrough(AST,
+                                                       Body,
+                                                       FallThroughMap,
+                                                       NodeWeight);
+      Scs->setBody(NewBody);
+    }
+  } break;
+  case ASTNode::NK_If: {
+    IfNode *If = llvm::cast<IfNode>(Node);
+
+    // First of all, we recusively invoke the analysis on the children of the
+    // `IfNode` (we discussed and said that further simplifications down in
+    // the AST do not alter the `nofallthrough property`).
+    if (If->hasThen()) {
+
+      // We only have a `then` branch, proceed with the recursive visit.
+      ASTNode *Then = If->getThen();
+      ASTNode *NewThen = rc_recur promoteNoFallthrough(AST,
+                                                       Then,
+                                                       FallThroughMap,
+                                                       NodeWeight);
+      If->setThen(NewThen);
+    }
+    if (If->hasElse()) {
+
+      // We only have a `else` branch, proceed with the recursive visit.
+      ASTNode *Else = If->getElse();
+      ASTNode *NewElse = rc_recur promoteNoFallthrough(AST,
+                                                       Else,
+                                                       FallThroughMap,
+                                                       NodeWeight);
+      If->setElse(NewElse);
+    }
+
+    // Whenever we have both then and else branches, and one of them is
+    // no-fallthrough, we try to promote the other to a successor of the if, to
+    // reduce nesting.
+    if (If->hasThen() and If->hasElse()) {
+
+      // In this case, we need to promote the `else` branch to fallthrough if
+      // the `then` branch is a `nofallthrough` scope.
+      ASTNode *Then = If->getThen();
+      ASTNode *Else = If->getElse();
+
+      // Define two temporary variables which will be used to perform the `then`
+      // or `else` promotion.
+      bool PromoteThen = false;
+      bool PromoteElse = false;
+      // First of all, check if both the branches are eligible for promotion.
+      if (FallThroughMap.at(Then) == false
+          and FallThroughMap.at(Else) == false) {
+        if (NodeWeight.at(Then) >= NodeWeight.at(Else))
+          PromoteThen = true;
+        else
+          PromoteElse = true;
+      } else if (FallThroughMap.at(Then) == false) {
+        PromoteElse = true;
+      } else if (FallThroughMap.at(Else) == false) {
+        PromoteThen = true;
+      }
+
+      if (PromoteElse) {
+        revng_assert(not PromoteThen);
+        // The `then` branch is a `nofallthrough` branch.
+        // Blank the `else` field, and substitute the current `IfNode` node
+        // with the newly created `SequenceNode`.
+        If->setElse(nullptr);
+        SequenceNode *NewSequence = AST.addSequenceNode();
+        NewSequence->addNode(If);
+
+        // We need to assign a state for the `fallthrough` attribute of the
+        // newly created `SequenceNode`. We also need to assing the `weight`
+        // attribute for the same reason.
+        FallThroughMap[NewSequence] = FallThroughMap[If];
+        NodeWeight[NewSequence] = NodeWeight[If];
+        NewSequence->addNode(Else);
+
+        rc_return NewSequence;
+      } else if (PromoteThen) {
+        revng_assert(not PromoteElse);
+        // The `else` branch is a `nofallthrough` branch.
+        // Blank the `then` field, and substitute the current `IfNode` node
+        // with the newly created `SequenceNode`.
+        If->setThen(nullptr);
+        SequenceNode *NewSequence = AST.addSequenceNode();
+        NewSequence->addNode(If);
+
+        // We need to assign a state for the `fallthrough` attribute of the
+        // newly created `SequenceNode`.
+        FallThroughMap[NewSequence] = FallThroughMap[If];
+        NodeWeight[NewSequence] = NodeWeight[If];
+        NewSequence->addNode(Then);
+
+        rc_return NewSequence;
+      } else {
+        revng_assert(not PromoteThen);
+        revng_assert(not PromoteElse);
+      }
+    }
+  } break;
+  case ASTNode::NK_Switch: {
+    auto *Switch = llvm::cast<SwitchNode>(Node);
+    for (auto &LabelCasePair : Switch->cases())
+      LabelCasePair.second = rc_recur promoteNoFallthrough(AST,
+                                                           LabelCasePair.second,
+                                                           FallThroughMap,
+                                                           NodeWeight);
+
+    if (ASTNode *Default = Switch->getDefault()) {
+      ASTNode *NewDefault = rc_recur promoteNoFallthrough(AST,
+                                                          Default,
+                                                          FallThroughMap,
+                                                          NodeWeight);
+      Switch->replaceDefault(NewDefault);
+    }
+  } break;
+  case ASTNode::NK_Code:
+  case ASTNode::NK_Set:
+  case ASTNode::NK_SwitchBreak:
+  case ASTNode::NK_Continue:
+  case ASTNode::NK_Break:
+    // Do nothing.
+    break;
+  default:
+    revng_unreachable();
+  }
+  rc_return Node;
+}
+
+static RecursiveCoroutine<ASTNode *>
+collapseSequences(ASTTree &AST, ASTNode *Node) {
+  switch (Node->getKind()) {
+  case ASTNode::NK_List: {
+    SequenceNode *Seq = llvm::cast<SequenceNode>(Node);
+    SequenceNode::links_container &SeqVec = Seq->getChildVec();
+
+    // In place of a sequence node, we need just to inspect all the nodes in the
+    // sequence.
+
+    // In this support vector, we will place the index and the size for each
+    // sequence replacement list.
+    std::vector<std::pair<unsigned, unsigned>> ReplacementVector;
+
+    // This index is used to keep track of all children sequence nodes.
+    unsigned I = 0;
+    unsigned TotalNestedChildren = 0;
+    for (ASTNode *&N : Seq->nodes()) {
+      N = rc_recur collapseSequences(AST, N);
+
+      // After analyzing the node, we check if the node is a sequence node
+      // itself. If that's the case, we annotate the fact, in order to collpase
+      // them in the current sequence node after resizing the vector.
+      if (auto *SubSeq = llvm::dyn_cast<SequenceNode>(N)) {
+        ReplacementVector.push_back(std::make_pair(I, SubSeq->length()));
+        TotalNestedChildren += SubSeq->length();
+      }
+      I++;
+    }
+
+    // Reserve the required size in the sequence node child vector, in order to
+    // avoid excessive reallocations. In the computation of the required new
+    // size, remember that for every sublist we add we actually need to subtract
+    // one (the spot of the sub sequence node that is being removed, which will
+    // now disappear and whose place will be taken by the first node of the
+    // sublist).
+    SeqVec.reserve(SeqVec.size() + TotalNestedChildren
+                   - ReplacementVector.size());
+
+    // Replace in the original sequence list the child sequence node with the
+    // content of the node itself.
+
+    // This offset is used to compute the relative position of successive
+    // sequence node (with respect to their original position), once the vector
+    // increases in size due to the previous insertions (we actually do a -1 to
+    // keep into account the sequence node itself which is being replaced).
+    unsigned Offset = 0;
+    for (auto &Pair : ReplacementVector) {
+      unsigned Index = Pair.first + Offset;
+      unsigned VecSize = Pair.second;
+      Offset += VecSize - 1;
+
+      // The subsitution is done taking an iterator the the old sequence node,
+      // erasing it from the node list vector of the parent sequence, inserting
+      // the nodes of the collapsed sequence node, and then removing the from
+      // the AST.
+      auto InternalSeqIt = SeqVec.begin() + Index;
+      auto *InternalSeq = llvm::cast<SequenceNode>(*InternalSeqIt);
+      auto It = SeqVec.erase(InternalSeqIt);
+      SeqVec.insert(It,
+                    InternalSeq->nodes().begin(),
+                    InternalSeq->nodes().end());
+      AST.removeASTNode(InternalSeq);
+    }
+  } break;
+  case ASTNode::NK_Scs: {
+    ScsNode *Scs = llvm::cast<ScsNode>(Node);
+    if (Scs->hasBody()) {
+      ASTNode *Body = Scs->getBody();
+      ASTNode *NewBody = rc_recur collapseSequences(AST, Body);
+      Scs->setBody(NewBody);
+    }
+  } break;
+  case ASTNode::NK_If: {
+    IfNode *If = llvm::cast<IfNode>(Node);
+
+    // First of all, we recusively invoke the analysis on the children of the
+    // `IfNode` (we discussed and said that further simplifications down in
+    // the AST do not alter the `nofallthrough property`).
+    if (If->hasThen()) {
+
+      // We only have a `then` branch, proceed with the recursive visit.
+      ASTNode *Then = If->getThen();
+      ASTNode *NewThen = rc_recur collapseSequences(AST, Then);
+      If->setThen(NewThen);
+    }
+    if (If->hasElse()) {
+
+      // We only have a `else` branch, proceed with the recursive visit.
+      ASTNode *Else = If->getElse();
+      ASTNode *NewElse = rc_recur collapseSequences(AST, Else);
+      If->setElse(NewElse);
+    }
+  } break;
+  case ASTNode::NK_Switch: {
+    auto *Switch = llvm::cast<SwitchNode>(Node);
+    for (auto &LabelCasePair : Switch->cases())
+      LabelCasePair.second = rc_recur collapseSequences(AST,
+                                                        LabelCasePair.second);
+
+    if (ASTNode *Default = Switch->getDefault()) {
+      ASTNode *NewDefault = rc_recur collapseSequences(AST, Default);
+      Switch->replaceDefault(NewDefault);
+    }
+  } break;
+  case ASTNode::NK_Code:
+  case ASTNode::NK_Set:
+  case ASTNode::NK_SwitchBreak:
+  case ASTNode::NK_Continue:
+  case ASTNode::NK_Break:
+    // Do nothing.
+    break;
+  default:
+    revng_unreachable();
+  }
+  rc_return Node;
+}
+
+ASTNode *promoteNoFallthroughIf(ASTNode *RootNode, ASTTree &AST) {
+
+  // This map will contain the result of the fallthough analysis.
+  // We considered using a `std::set` in place of the `std::map`, but the `map`
+  // has the advantage of making us able to assert that the fallthrough
+  // information has been computed for every node in the AST. If we only have a
+  // `set`, where a node is present in the set only if its scope does
+  // fallthrough, we cannot distinguish the situation where a node does not
+  // fallthrough, or simply a bug in the algorithm which didn't compute the
+  // fallthrough value for the specific node.
+  std::map<const ASTNode *, bool> FallThroughMap;
+
+  // In this map, we store the weight of the AST starting from a node and
+  // going down.
+  std::map<const ASTNode *, unsigned> NodeWeight;
+
+  // Run the analysis which marks the fallthrough property of the nodes.
+  bool RootFallThrough = rc_run(fallThroughScope, RootNode, FallThroughMap);
+  FallThroughMap[RootNode] = RootFallThrough;
+
+  // Run the analysis which computes the AST weight of the nodes on the tree.
+  unsigned RootWeight = rc_run(computeCumulativeNodeWeight,
+                               RootNode,
+                               NodeWeight);
+  NodeWeight[RootNode] = RootWeight;
+
+  // Run the fallthrough promotion.
+  RootNode = rc_run(promoteNoFallthrough,
+                    AST,
+                    RootNode,
+                    FallThroughMap,
+                    NodeWeight);
+
+  // Run the sequence nodes collapse.
+  RootNode = rc_run(collapseSequences, AST, RootNode);
+
+  // Update the root field of the AST.
+  AST.setRoot(RootNode);
+
+  return RootNode;
+}
+
 void beautifyAST(Function &F,
                  ASTTree &CombedAST,
                  const SerializationMap &Mark) {
@@ -661,14 +1192,14 @@ void beautifyAST(Function &F,
   ASTNode *RootNode = CombedAST.getRoot();
 
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "Before-beautify");
+    CombedAST.dumpASTOnFile(F.getName(), "ast", "01-Before-beautify");
   }
 
   // Simplify short-circuit nodes.
   revng_log(BeautifyLogger, "Performing short-circuit simplification\n");
   simplifyShortCircuit(RootNode, CombedAST, Mark);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "After-short-circuit");
+    CombedAST.dumpASTOnFile(F.getName(), "ast", "02-After-short-circuit");
   }
 
   // Flip IFs with empty then branches.
@@ -679,7 +1210,7 @@ void beautifyAST(Function &F,
             "Performing IFs with empty then branches flipping\n");
   flipEmptyThen(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "After-if-flip");
+    CombedAST.dumpASTOnFile(F.getName(), "ast", "03-After-if-flip-1");
   }
 
   // Simplify trivial short-circuit nodes.
@@ -687,7 +1218,9 @@ void beautifyAST(Function &F,
             "Performing trivial short-circuit simplification\n");
   simplifyTrivialShortCircuit(RootNode, CombedAST, Mark);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "After-trivial-short-circuit");
+    CombedAST.dumpASTOnFile(F.getName(),
+                            "ast",
+                            "04-After-trivial-short-circuit");
   }
 
   // Flip IFs with empty then branches.
@@ -698,42 +1231,42 @@ void beautifyAST(Function &F,
             "Performing IFs with empty then branches flipping\n");
   flipEmptyThen(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "After-if-flip");
+    CombedAST.dumpASTOnFile(F.getName(), "ast", "05-After-if-flip-2");
   }
 
   // Match switch node.
   revng_log(BeautifyLogger, "Performing switch nodes matching\n");
   RootNode = matchSwitch(CombedAST, RootNode);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "After-switch-match");
+    CombedAST.dumpASTOnFile(F.getName(), "ast", "06-After-switch-match");
   }
 
   // Match dowhile.
   revng_log(BeautifyLogger, "Matching do-while\n");
   matchDoWhile(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "After-match-do-while");
+    CombedAST.dumpASTOnFile(F.getName(), "ast", "07-After-match-do-while");
   }
 
   // Match while.
   revng_log(BeautifyLogger, "Matching while\n");
   matchWhile(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "After-match-while");
+    CombedAST.dumpASTOnFile(F.getName(), "ast", "08-After-match-while");
   }
 
   // Remove useless continues.
   revng_log(BeautifyLogger, "Removing useless continue nodes\n");
   simplifyLastContinue(CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "After-continue-removal");
+    CombedAST.dumpASTOnFile(F.getName(), "ast", "09-After-continue-removal");
   }
 
   // Fix loop breaks from within switches
   revng_log(BeautifyLogger, "Fixing loop breaks inside switches\n");
   SwitchBreaksFixer().run(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled())
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "After-fix-switch-breaks");
+    CombedAST.dumpASTOnFile(F.getName(), "ast", "10-After-fix-switch-breaks");
 
   // Remove empty sequences.
   revng_log(BeautifyLogger, "Removing emtpy sequence nodes\n");
@@ -741,6 +1274,25 @@ void beautifyAST(Function &F,
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName(),
                             "ast",
-                            "After-removal-empty-sequences");
+                            "11-After-removal-empty-sequences");
+  }
+
+  // Remove unnecessary scopes under the fallthrough analysis.
+  revng_log(BeautifyLogger, "Analyzing fallthrough scopes\n");
+  RootNode = promoteNoFallthroughIf(RootNode, CombedAST);
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpASTOnFile(F.getName(),
+                            "ast",
+                            "12-After-fallthrough-scope-analysis");
+  }
+
+  // Flip IFs with empty then branches.
+  // We need to do it here again, after the promotion due to the `nofallthroguh`
+  // analysis run before.
+  revng_log(BeautifyLogger,
+            "Performing IFs with empty then branches flipping\n");
+  flipEmptyThen(RootNode, CombedAST);
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpASTOnFile(F.getName(), "ast", "13-After-if-flip-3");
   }
 }
