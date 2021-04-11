@@ -4,6 +4,7 @@
 
 revng_add_analyses_library_internal(revngFunctionIsolation
   EnforceABI.cpp
+  InlineHelpers.cpp
   InvokeIsolatedFunctions.cpp
   IsolateFunctions.cpp
   PromoteCSVs.cpp
