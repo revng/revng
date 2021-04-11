@@ -343,7 +343,7 @@ private:
 template<typename NodeT>
 class EntryNode {
 private:
-  NodeT *EntryNode;
+  NodeT *EntryNode = nullptr;
 
 public:
   NodeT *getEntryNode() const { return EntryNode; }
