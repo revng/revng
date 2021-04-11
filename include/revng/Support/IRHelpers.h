@@ -23,6 +23,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Support/Debug.h"
+#include "revng/Support/Generator.h"
 #include "revng/Support/MetaAddress.h"
 
 template<typename T>
@@ -1181,4 +1182,24 @@ createFunctionType(llvm::LLVMContext &C, bool Variadic = false) {
   return llvm::FunctionType::get(cTypeToLLVMType<ReturnT>(C),
                                  { cTypeToLLVMType<Args>(C)... },
                                  Variadic);
+}
+
+inline cppcoro::generator<llvm::CallBase *> callers(llvm::Function *F) {
+  using namespace llvm;
+  SmallVector<Value *, 8> Queue;
+  Queue.push_back(F);
+
+  while (not Queue.empty()) {
+    Value *V = Queue.back();
+    Queue.pop_back();
+
+    for (User *U : V->users()) {
+      if (auto *Call = dyn_cast<CallBase>(U)) {
+        co_yield Call;
+      } else if (auto *CE = dyn_cast<ConstantExpr>(U)) {
+        if (CE->isCast())
+          Queue.push_back(CE);
+      }
+    }
+  }
 }
