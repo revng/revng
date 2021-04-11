@@ -21,6 +21,7 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -752,6 +753,7 @@ IFI::isolate(const model::Function &Function) {
                    true,
                    "");
   llvm::Function *NewFunction = CE.extractCodeRegion(CEAC);
+  FunctionTags::Lifted.addTo(NewFunction);
 
   revng_assert(NewFunction != nullptr);
   NewFunction->setName(OriginalEntry->getName());
@@ -846,11 +848,13 @@ void IFI::run() {
                                     Function::ExternalLinkage,
                                     "raise_exception_helper",
                                     TheModule);
+  FunctionTags::Exceptional.addTo(RaiseException);
 
   FunctionDispatcher = Function::Create(createFunctionType<void>(Context),
                                         GlobalValue::ExternalLinkage,
                                         "function_dispatcher",
                                         TheModule);
+  FunctionTags::FunctionDispatcher.addTo(FunctionDispatcher);
 
   auto *CallMarkerFTy = createFunctionType<void, uint32_t>(Context);
   CallMarker = Function::Create(CallMarkerFTy,

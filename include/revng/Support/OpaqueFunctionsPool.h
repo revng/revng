@@ -13,6 +13,7 @@
 #include "llvm/IR/LLVMContext.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/FunctionTags.h"
 
 template<typename KeyT>
 class OpaqueFunctionsPool {
@@ -22,6 +23,7 @@ private:
   const bool PurgeOnDestruction;
   std::map<KeyT, llvm::Function *> Pool;
   llvm::AttributeList AttributeSets;
+  FunctionTags::TagsSet Tags;
 
 public:
   OpaqueFunctionsPool(llvm::Module *M, bool PurgeOnDestruction) :
@@ -43,6 +45,8 @@ public:
                                                AttributeList::FunctionIndex,
                                                Kind);
   }
+
+  void setTags(const FunctionTags::TagsSet &Tags) { this->Tags = Tags; }
 
 public:
   auto begin() const { return Pool.begin(); }
@@ -69,6 +73,7 @@ public:
     } else {
       F = Function::Create(FT, GlobalValue::ExternalLinkage, Name, M);
       F->setAttributes(AttributeSets);
+      Tags.addTo(F);
       Pool.insert(It, { Key, F });
     }
 

@@ -20,6 +20,7 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/RandomAccessIterator.h"
 #include "revng/Support/Range.h"
@@ -494,6 +495,7 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
                                  GlobalValue::ExternalLinkage,
                                  "newpc",
                                  &TheModule);
+  FunctionTags::Marker.addTo(NewPCMarker);
 }
 
 void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
@@ -696,6 +698,8 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
   std::string HelperName = "helper_" + TheCall.helperName();
   FunctionCallee FDecl = TheModule.getOrInsertFunction(HelperName, CalleeType);
 
+  FunctionTags::Helper.addTo(cast<Function>(skipCasts(FDecl.getCallee())));
+
   CallInst *Result = Builder.CreateCall(FDecl, InArgs);
 
   if (TheCall.OutArguments.size() != 0)
@@ -730,6 +734,7 @@ IT::translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC) {
 
   size_t OutSize = TheInstruction.OutArguments.size();
   revng_assert(Result->size() == OutSize);
+
   // TODO: use ZipIterator here
   for (unsigned I = 0; I < Result->size(); I++) {
     auto *Destination = Variables.getOrCreate(TheInstruction.OutArguments[I],

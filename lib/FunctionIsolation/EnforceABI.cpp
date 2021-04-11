@@ -17,6 +17,7 @@
 #include "revng/ADT/LazySmallBitVector.h"
 #include "revng/ADT/SmallMap.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
@@ -358,6 +359,7 @@ void EnforceABIImpl::run() {
                               M);
   OpaquePC->addFnAttr(Attribute::NoUnwind);
   OpaquePC->addFnAttr(Attribute::ReadOnly);
+  FunctionTags::OpaqueCSVValue.addTo(OpaquePC);
 
   std::vector<Function *> OldFunctions;
   for (const model::Function &FunctionModel : Binary.Functions) {
@@ -527,6 +529,7 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
                                        OldFunction.getParent());
   NewFunction->takeName(&OldFunction);
   NewFunction->copyAttributesFrom(&OldFunction);
+  FunctionTags::Lifted.addTo(NewFunction);
 
   // Set argument names
   unsigned I = 0;
@@ -789,7 +792,7 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
                                   << getName(InsertBlock));
 
     const model::Function *FunctionModel = FunctionsMap.at(Callee);
-    revng_assert(Callee->getName().startswith("bb."));
+    revng_assert(FunctionTags::Lifted.isTagOf(Callee));
     StringRef IncompatibleCSV = areCompatible(*FunctionModel, CallSite);
     bool Incompatible = not IncompatibleCSV.empty();
     if (Incompatible) {

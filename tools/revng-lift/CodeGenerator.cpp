@@ -43,6 +43,7 @@
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/ProgramCounterHandler.h"
 #include "revng/Support/revng.h"
 
@@ -230,8 +231,19 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
 
   TheModule->setDataLayout(HelpersModule->getDataLayout());
 
-  for (auto &F : HelpersModule->functions())
+  // Tag all global objects in HelpersModule as QEMU
+  for (GlobalVariable &G : HelpersModule->globals())
+    FunctionTags::QEMU.addTo(&G);
+
+  for (Function &F : HelpersModule->functions()) {
     F.setDSOLocal(false);
+
+    FunctionTags::QEMU.addTo(&F);
+
+    if (F.hasFnAttribute(Attribute::NoReturn)
+        or F.getSection() == "revng_exceptional")
+      FunctionTags::Exceptional.addTo(&F);
+  }
 
   EarlyLinkedModule = parseIR(EarlyLinked, Context);
 
@@ -717,6 +729,10 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
   FunctionCallee AbortFunction = TheModule->getOrInsertFunction("abort",
                                                                 AbortTy);
+  {
+    auto *Abort = cast<Function>(skipCasts(AbortFunction.getCallee()));
+    FunctionTags::Exceptional.addTo(Abort);
+  }
 
   // Prepare the helper modules by transforming the cpu_loop function and
   // running SROA
@@ -887,6 +903,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
                                         Function::ExternalLinkage,
                                         "root",
                                         TheModule.get());
+  FunctionTags::Root.addTo(MainFunction);
 
   // Create the first basic block and create a placeholder for variable
   // allocations

@@ -8,6 +8,7 @@ revng_add_library_internal(revngSupport SHARED
   Debug.cpp
   DebugHelper.cpp
   ExampleAnalysis.cpp
+  FunctionTags.cpp
   IRHelpers.cpp
   MetaAddress.cpp
   PathList.cpp

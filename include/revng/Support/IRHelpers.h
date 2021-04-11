@@ -23,6 +23,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/MetaAddress.h"
 
@@ -744,7 +745,7 @@ inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
 }
 
 inline bool isHelper(const llvm::Function *F) {
-  return F->getName().startswith("helper_");
+  return FunctionTags::Helper.isTagOf(F);
 }
 
 inline const llvm::CallInst *getCallToHelper(const llvm::Instruction *I) {
@@ -1064,24 +1065,15 @@ replaceAllUsesInFunctionsWith(llvm::Value *ToReplace,
   return Changed;
 }
 
-static llvm::StringRef MarkerFunctionNames[] = { "newpc",
-                                                 "function_call",
-                                                 "exitTB",
-                                                 "nodce",
-                                                 "exception_warning",
-                                                 "raise_exception_helper",
-                                                 "function_dispatcher" };
-
 /// \brief Checks if \p I is a marker
 ///
 /// A marker a function call to an empty function acting as meta-information,
 /// for example the `function_call` marker.
-inline bool isMarker(llvm::Instruction *I) {
-  using namespace std::placeholders;
-  using llvm::any_of;
-  using std::bind;
+inline bool isMarker(const llvm::Instruction *I) {
+  if (auto *Callee = getCallee(I))
+    return FunctionTags::Marker.isTagOf(Callee);
 
-  return any_of(MarkerFunctionNames, bind(isCallTo, I, _1));
+  return false;
 }
 
 inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {

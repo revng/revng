@@ -8,6 +8,7 @@
 
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 
 using namespace llvm;
 
@@ -41,6 +42,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   auto *Ty = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
   FunctionCallee CalleeObject = M.getOrInsertFunction("function_call", Ty);
   FunctionCall = cast<Function>(CalleeObject.getCallee());
+  FunctionTags::Marker.addTo(FunctionCall);
 
   // Initialize the function, if necessary
   if (FunctionCall->empty()) {

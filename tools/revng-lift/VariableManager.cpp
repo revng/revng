@@ -172,7 +172,7 @@ VariableManager::VariableManager(Module &TheModule,
   using ElectionMap = std::map<StructType *, unsigned>;
   using ElectionMapElement = std::pair<StructType *const, unsigned>;
   ElectionMap EnvElection;
-  const std::string HelperPrefix = "helper_";
+
   std::set<StructType *> Structs;
   for (Function &HelperFunction : TheModule) {
     FunctionType *HelperType = HelperFunction.getFunctionType();
@@ -184,8 +184,9 @@ VariableManager::VariableManager(Module &TheModule,
       if (Param->isPointerTy())
         Structs.insert(dyn_cast<StructType>(Param->getPointerElementType()));
 
-    if (startsWith(HelperFunction.getName(), HelperPrefix)
-        && HelperFunction.getFunctionType()->getNumParams() > 1) {
+    if (FunctionTags::QEMU.isTagOf(&HelperFunction)
+        and HelperFunction.getName().startswith("helper_")
+        and HelperFunction.getFunctionType()->getNumParams() > 1) {
 
       for (Type *Candidate : HelperType->params()) {
         Structs.insert(dyn_cast<StructType>(Candidate));
