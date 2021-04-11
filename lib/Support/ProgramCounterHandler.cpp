@@ -301,14 +301,13 @@ bool PCH::isPCAffectingHelper(Instruction *I) const {
     return false;
 
   using GCBI = GeneratedCodeBasicInfo;
-  Optional<GCBI::CSVsUsedByHelperCall> UsedCSVs;
-  UsedCSVs = GCBI::getCSVUsedByHelperCallIfAvailable(HelperCall);
+  auto MaybeUsedCSVs = GCBI::getCSVUsedByHelperCallIfAvailable(HelperCall);
 
   // If CSAA didn't consider this helper, be conservative
-  if (not UsedCSVs)
+  if (not MaybeUsedCSVs)
     return true;
 
-  for (GlobalVariable *CSV : UsedCSVs->Written)
+  for (GlobalVariable *CSV : MaybeUsedCSVs->Written)
     if (affectsPC(CSV))
       return true;
 
