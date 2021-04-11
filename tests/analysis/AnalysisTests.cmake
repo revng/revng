@@ -78,6 +78,8 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       --enforce-abi
       --promote-csvs
       --invoke-isolated-functions
+      --inline-helpers
+      --promote-csvs
       -o "${OUTPUT}")
     set(DEPEND_ON revng-all-binaries)
   endif()
