@@ -5,8 +5,8 @@
 revng_add_analyses_library(IsolatedFunctions revngc
   IsolatedFunctions.cpp)
 
-target_link_libraries(Decompiler
-  IsolatedFunctions
+target_link_libraries(IsolatedFunctions
   revng::revngModel
+  revng::revngSupport
   ${LLVM_LIBRARIES})
 
