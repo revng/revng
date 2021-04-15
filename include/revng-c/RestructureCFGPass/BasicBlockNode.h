@@ -130,8 +130,9 @@ protected:
 
 public:
   BasicBlockNode() = delete;
-  BasicBlockNode(BasicBlockNode &&BBN) = delete;
+  BasicBlockNode(const BasicBlockNode &BBN) = delete;
   BasicBlockNode &operator=(const BasicBlockNode &BBN) = delete;
+  BasicBlockNode(BasicBlockNode &&BBN) = delete;
   BasicBlockNode &operator=(BasicBlockNode &&BBN) = delete;
 
   /// Copy ctor: clone the node in the same Parent with new ID and without edges
