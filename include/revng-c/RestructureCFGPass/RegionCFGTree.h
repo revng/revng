@@ -94,8 +94,34 @@ public:
 
 private:
   /// Storage for basic block nodes, associated to their original counterpart
-  ///
   links_container BlockNodes;
+
+  /// Quarantine for dead nodes.
+  //  When nodes are removed from RegionCFG, they are not really freed, but they
+  //  are held here until the RegionCFG itself goes out of scope.
+  //  This is unfortunately necessary now, since the CFG restructuring algorithm
+  //  uses maps and sets (e.g. Backedges.) that are indexed using a
+  //  BasicBlockNodeT *.
+  //  If we don't hold the removed nodes in quarantine, the system allocator can
+  //  reuse the blocks, allocating new nodes at the same address, and causing
+  //  false-positive hits in some of the mentioned maps. This was the most
+  //  straightforward solution for now.
+  //
+  //  Other solutions we have considered:
+  //    - use a special monotonic allocator for BasicBlockNodes
+  //      - this should work, but in principle it gives the same results as the
+  //        current solution, with more boilerplate. Also, at the moment
+  //        std::unique_ptr is not allocator aware, so we would need to change
+  //        BlockNodes to not use them, and this would require even more
+  //        boilerplate.
+  //    - change the API for RegionCFG::removeNode, to take as arguments the
+  //      reference to the data structure and maps that must be updated, so that
+  //      when we remove the node from RegionCFG we also clear it from the maps.
+  //      However, this is very invasive, it requires changing the public facing
+  //      API, it requirese coupling the RegionCFG API with internal details,
+  //      and in the future it would need to be updated for every new map that
+  //      must be updated on removal of a node.
+  links_container DeadNodesQuarantine;
 
   /// Pointer to the entry basic block of this function
   BasicBlockNodeT *EntryNode;

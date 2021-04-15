@@ -122,6 +122,7 @@ inline void RegionCFG<NodeT>::removeNode(BasicBlockNodeT *Node) {
 
   for (auto It = BlockNodes.begin(); It != BlockNodes.end(); It++) {
     if ((*It).get() == Node) {
+      DeadNodesQuarantine.push_back(std::move(*It));
       BlockNodes.erase(It);
       break;
     }
