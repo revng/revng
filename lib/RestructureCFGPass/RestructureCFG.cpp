@@ -523,7 +523,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
     }
   }
 
-  // Insert a dummy node for each retrating node.
+  // Insert a dummy node for each retreating node.
   for (EdgeDescriptor Backedge : Backedges) {
     BasicBlockNodeBB *OriginalTarget = Backedge.second;
     BasicBlockNodeBB *Dummy = RootCFG.addArtificialNode();
