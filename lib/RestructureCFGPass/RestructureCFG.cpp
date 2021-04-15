@@ -5,9 +5,11 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <limits>
 #include <sstream>
 
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
@@ -854,39 +856,31 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // Default set node for entry dispatcher.
     if (NewHeadNeeded) {
       revng_assert(Head->isDispatcher());
-      std::set<BasicBlockNodeBB *> SetCandidates;
-      for (BasicBlockNodeBB *Pred : Head->predecessors()) {
-        if (not Pred->isSet()) {
+
+      llvm::SmallPtrSet<BasicBlockNodeBB *, 8> SetCandidates;
+      for (BasicBlockNodeBB *Pred : Head->predecessors())
+        if (not Pred->isSet())
           SetCandidates.insert(Pred);
-        }
-      }
+
       unsigned long Value = RetreatingTargets.size() - 1;
       for (BasicBlockNodeBB *Pred : SetCandidates) {
         BasicBlockNodeBB *Set = RootCFG.addSetStateNode(Value, Head->getName());
         DefaultEntrySet.push_back(Set);
-        moveEdgeTarget(EdgeDescriptor(Pred, Head), Set);
-        addPlainEdge(EdgeDescriptor(Set, Head));
+        EdgeDescriptor PredToHead = { Pred, Head };
+        EdgeDescriptor SetToHead = { Set, Head };
+        moveEdgeTarget(PredToHead, Set);
+        addPlainEdge(SetToHead);
 
-        // HACK: Consider using a multimap.
-        //
         // Update the backedges set. Basically, when we place the default set
         // node in case of an entry dispatcher, we need to take care to verify
         // if the edge we are "moving" (inserting the set node before it) is a
         // backedge, and in case update the information regarding the backedges
         // present in the graph accordingly (the backedge becomes the edge
         // departing from the set node).
-        bool UpdatedBackedges = true;
-        while (UpdatedBackedges) {
-          UpdatedBackedges = false;
-          for (EdgeDescriptor Backedge : Backedges) {
-            BasicBlockNodeBB *Source = Backedge.first;
-            if (Source == Pred) {
-              Backedges.erase(Backedge);
-              Backedges.insert(EdgeDescriptor(Set, Head));
-              UpdatedBackedges = true;
-              break;
-            }
-          }
+        auto BackEdgeIt = Backedges.find(PredToHead);
+        if (BackEdgeIt != Backedges.end()) {
+          Backedges.insert(SetToHead);
+          Backedges.erase(BackEdgeIt);
         }
       }
     }
@@ -984,29 +978,25 @@ bool RestructureCFG::runOnFunction(Function &F) {
     // Create the collapsed node in the outer region.
     BasicBlockNodeBB *Collapsed = RootCFG.createCollapsedNode(&CollapsedGraph);
 
-    // Hack: we should use a std::multimap here, so that we can update the
-    // target of the edgedescriptor in place without having to remove and insert
-    // from the set and invalidating iterators.
-    //
-    // Update the backedges set, checking that if a backedge of an outer region
-    // pointed to a node that now has been collapsed, now should point to the
-    // collapsed node, and that does not exists at this point a backedge which
-    // has as source a node that will be collapsed.
-    bool UpdatedBackedges = true;
-    while (UpdatedBackedges) {
-      UpdatedBackedges = false;
-      for (EdgeDescriptor Backedge : Backedges) {
-        BasicBlockNodeBB *Source = Backedge.first;
-        BasicBlockNodeBB *Target = Backedge.second;
+    {
+      // Update the backedges set, checking that if a backedge of an outer
+      // region pointed to a node that now has been collapsed, now should point
+      // to the collapsed node, and that does not exists at this point a
+      // backedge which has as source a node that will be collapsed.
+      std::set<EdgeDescriptor> NewBackedges;
+      auto BackEdgeIt = Backedges.begin();
+      while (BackEdgeIt != Backedges.end()) {
+        const auto [Source, Target] = *BackEdgeIt;
         revng_assert(not Meta->containsNode(Source));
         if (Meta->containsNode(Target)) {
           revng_assert(Target == Head);
-          Backedges.erase(Backedge);
-          Backedges.insert(EdgeDescriptor(Source, Collapsed));
-          UpdatedBackedges = true;
-          break;
+          NewBackedges.insert({ Source, Collapsed });
+          BackEdgeIt = Backedges.erase(BackEdgeIt);
+        } else {
+          ++BackEdgeIt;
         }
       }
+      Backedges.merge(NewBackedges);
     }
 
     CollapsedGraph.insertBulkNodes(Meta->getNodes(), Head, SubstitutionMap);
