@@ -473,7 +473,8 @@ public:
   llvm::Instruction *buildExpression(llvm::LazyValueInfo &LVI,
                                      const llvm::DominatorTree &DT,
                                      PhiEdges &Edges,
-                                     llvm::Value *V) {
+                                     llvm::Value *V,
+                                     llvm::BasicBlock *StopAt) {
     using namespace llvm;
 
     revng_log(AVILogger, "Building expression for " << V);
@@ -577,10 +578,21 @@ public:
 
     if (Targets.size() != 0) {
       BasicBlock *StartBB = Targets.back()->getParent();
+
       const Edge &FirstEdge = Edges.front();
       revng_assert(FirstEdge.End == nullptr);
       BasicBlock *EndBB = FirstEdge.Start;
-      auto Reachable = nodesBetweenReverse(EndBB, StartBB);
+
+      BasicBlock *LimitedStartBB = StartBB;
+      if (not DT.dominates(StopAt, LimitedStartBB))
+        LimitedStartBB = StopAt;
+
+      SmallPtrSet<BasicBlock *, 4> IgnoreList = { StopAt };
+
+      auto Reachable = nodesBetweenReverse(EndBB, LimitedStartBB, &IgnoreList);
+      for (Instruction *I : Targets)
+        Reachable.insert(I->getParent());
+      Reachable.insert(EndBB);
 
       // Note: ordering in reverse post order is more costly than beneficial
       Reachable.erase(StartBB);
@@ -894,13 +906,15 @@ private:
   llvm::ScalarEvolution &SE;
   const llvm::DominatorTree &DT;
   MemoryOracle &MO;
+  llvm::BasicBlock *StopAt;
 
 public:
   AdvancedValueInfo(llvm::LazyValueInfo &LVI,
                     llvm::ScalarEvolution &SE,
                     const llvm::DominatorTree &DT,
-                    MemoryOracle &MO) :
-    LVI(LVI), SE(SE), DT(DT), MO(MO) {}
+                    MemoryOracle &MO,
+                    llvm::BasicBlock *StopAt) :
+    LVI(LVI), SE(SE), DT(DT), MO(MO), StopAt(StopAt) {}
 
   MaterializedValues explore(llvm::BasicBlock *BB, llvm::Value *V);
 };
@@ -963,7 +977,7 @@ AdvancedValueInfo<MemoryOracle>::explore(llvm::BasicBlock *BB, llvm::Value *V) {
 
       Edges.push_back(NewEdge);
 
-      NextPhi = Current.Expr.buildExpression(LVI, DT, Edges, NextValue);
+      NextPhi = Current.Expr.buildExpression(LVI, DT, Edges, NextValue, StopAt);
       Current.NextIncomingIndex++;
     }
 
