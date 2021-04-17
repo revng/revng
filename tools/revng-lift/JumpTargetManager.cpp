@@ -1433,10 +1433,6 @@ JumpTargetManager::MetaAddressSet JumpTargetManager::inflateAVIWhitelist() {
     }
   }
 
-  // Perform a inverse dfs looking for jump targets
-  for (MetaAddress MA : AVIPCWhiteList) {
-  }
-
   return Result;
 }
 

@@ -1592,11 +1592,14 @@ private:
   /// This function returns `true` if this is the first visit, `false` otherwise
   bool isNewVisitWithCallSite(Value *V, CallInst *NewCallSite) const {
 
-    if (NewCallSite != nullptr)
-      revng_log(CSVAccessLog,
-                "caller: " << NewCallSite->getFunction()->getName());
-    else
-      revng_log(CSVAccessLog, "caller: nullptr");
+    if (CSVAccessLog.isEnabled()) {
+      if (NewCallSite != nullptr) {
+        llvm::StringRef NameRef = NewCallSite->getFunction()->getName();
+        revng_log(CSVAccessLog, "caller: " << NameRef);
+      } else {
+        revng_log(CSVAccessLog, "caller: nullptr");
+      }
+    }
 
     // Handle constants in a special way. Constants are kind of global values
     // that can be used across different functions without properly propagating
