@@ -1741,7 +1741,7 @@ void JumpTargetManager::harvestWithAVI() {
   StructType *MetaAddressStruct = MetaAddress::getStruct(M);
   for (User *U : AVIMarker->users()) {
     auto *Call = dyn_cast<CallInst>(U);
-    if (Call == nullptr or skipCasts(Call->getCalledValue()) != AVIMarker)
+    if (Call == nullptr or skipCasts(Call->getCalledOperand()) != AVIMarker)
       continue;
 
     // Get the ID from the marker, and then the original instruction and marker

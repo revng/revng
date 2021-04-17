@@ -722,7 +722,7 @@ inline const llvm::Function *getCallee(const llvm::Instruction *I) {
 
   using namespace llvm;
   if (auto *Call = dyn_cast<CallInst>(I))
-    return llvm::dyn_cast<Function>(skipCasts(Call->getCalledValue()));
+    return llvm::dyn_cast<Function>(skipCasts(Call->getCalledOperand()));
   else
     return nullptr;
 }
@@ -732,7 +732,7 @@ inline llvm::Function *getCallee(llvm::Instruction *I) {
 
   using namespace llvm;
   if (auto *Call = dyn_cast<CallInst>(I))
-    return llvm::dyn_cast<Function>(skipCasts(Call->getCalledValue()));
+    return llvm::dyn_cast<Function>(skipCasts(Call->getCalledOperand()));
   else
     return nullptr;
 }
