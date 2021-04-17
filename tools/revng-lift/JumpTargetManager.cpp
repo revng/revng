@@ -37,6 +37,7 @@
 #include "revng/BasicAnalyses/AdvancedValueInfo.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
+#include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
@@ -1447,6 +1448,7 @@ void JumpTargetManager::harvestWithAVI() {
   //
   legacy::PassManager PM;
   PM.add(createCSAA());
+  PM.add(new FunctionCallIdentification);
   PM.run(TheModule);
 
   //
@@ -1468,6 +1470,27 @@ void JumpTargetManager::harvestWithAVI() {
   Function *OptimizedFunction = nullptr;
   ValueToValueMapTy OldToNew;
   {
+    // Break all the call edges. We want to ignore those for CFG recovery
+    // purposes.
+    std::map<Use *, BasicBlock *> Undo;
+    auto *FunctionCall = TheModule.getFunction("function_call");
+    revng_assert(FunctionCall != nullptr);
+    for (CallBase *Call : callers(FunctionCall)) {
+      auto *T = Call->getParent()->getTerminator();
+      if (auto *Branch = dyn_cast<BranchInst>(T)) {
+        revng_assert(Branch->isUnconditional());
+        BasicBlock *Target = Branch->getSuccessor(0);
+        Use *U = &Branch->getOperandUse(0);
+
+        // We're after a function call: pretend we're jumping to the
+        // dispatcher
+        U->set(Dispatcher);
+
+        // Record Use for later undoing
+        Undo[U] = Target;
+      }
+    }
+
     // Compute AVIJumpTargetWhitelist
     auto AVIJumpTargetWhitelist = inflateAVIWhitelist();
 
@@ -1481,6 +1504,10 @@ void JumpTargetManager::harvestWithAVI() {
 
     // Clone the function
     OptimizedFunction = CloneFunction(TheFunction, OldToNew);
+
+    // Restore callees after function_call
+    for (auto [U, BB] : Undo)
+      U->set(BB);
 
     // Record the size of OptimizedFunction
     size_t BlocksCount = OptimizedFunction->getBasicBlockList().size();
