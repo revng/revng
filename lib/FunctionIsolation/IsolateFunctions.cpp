@@ -218,7 +218,7 @@ void IFI::throwException(IRBuilder<> &Builder, StringRef Reason) {
   revng_assert(RaiseException != nullptr);
 
   // Create the message string
-  Constant *ReasonString = Strings.get(Reason);
+  Constant *ReasonString = Strings.get(Reason.str());
 
   // Populate the source PC
   MetaAddress SourcePC = MetaAddress::invalid();

@@ -538,7 +538,7 @@ forwardTaintAnalysis(const Module *M,
           if (TaintLog.isEnabled()) {
             TaintLog << "TAINT: " << CSInfo.CallSite << DoLog;
             TaintLog << dumpToString(CallSiteInfos.top().CallSite) << DoLog;
-            std::string Name = getCallee(CSInfo.CallSite)->getName();
+            llvm::StringRef Name = getCallee(CSInfo.CallSite)->getName();
             TaintLog << "pair: < " << Name << ", " << CSInfo.ArgNo << " > "
                      << DoLog;
           }
@@ -2967,8 +2967,10 @@ void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
 
       if (FixAccessLog.isEnabled()) {
         ++NumUnknown;
-        FunToNumUnknown[F->getName()]++;
-        FunToUnknowns[F->getName()].insert(dumpToString(AccessToFix));
+
+        std::string Name = F->getName().str();
+        FunToNumUnknown[Name]++;
+        FunToUnknowns[Name].insert(dumpToString(AccessToFix));
       }
 
       SwitchInst *SwitchOffset = Builder.CreateSwitch(OffsetValue,

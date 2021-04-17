@@ -384,7 +384,7 @@ inline std::string getName(const llvm::Function *F) {
     return "(nullptr)";
 
   if (F->hasName())
-    return F->getName();
+    return F->getName().str();
 
   std::stringstream SS;
   SS << "0x" << std::hex << intptr_t(F);

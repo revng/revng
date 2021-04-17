@@ -68,7 +68,7 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
 
       } else {
 
-        std::string AsmString = Arch.readRegisterAsm();
+        std::string AsmString = Arch.readRegisterAsm().str();
         replace(AsmString, "REGISTER", Register.name());
         std::stringstream ConstraintStringStream;
         ConstraintStringStream << "*m,~{},~{dirflag},~{fpsr},~{flags}";
@@ -128,7 +128,7 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
     if (CSV == nullptr)
       continue;
 
-    string AsmString = Arch.writeRegisterAsm();
+    std::string AsmString = Arch.writeRegisterAsm().str();
     replace(AsmString, "REGISTER", Register.name());
     std::stringstream ConstraintStringStream;
     ConstraintStringStream << "*m,~{" << Register.name().data()

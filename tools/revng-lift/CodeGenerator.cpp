@@ -850,7 +850,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   // Create well-known CSVs
   //
   const Architecture &Arch = Binary.architecture();
-  StringRef SPName = Arch.stackPointerRegister();
+  std::string SPName = Arch.stackPointerRegister().str();
   GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, SPName).first;
 
   using PCHOwner = std::unique_ptr<ProgramCounterHandler>;
@@ -871,7 +871,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       revng_abort();
     }
 
-    return Variables.getByEnvOffset(Offset, Name).first;
+    return Variables.getByEnvOffset(Offset, Name.str()).first;
   };
   PCHOwner PCH = ProgramCounterHandler::create(Arch.type(),
                                                TheModule.get(),

@@ -633,7 +633,7 @@ Value *VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
     // Basically we use fixed_reg to detect "env"
     if (Temporary->fixed_reg == 0) {
       Value *Result = getByCPUStateOffset(EnvOffset + Temporary->mem_offset,
-                                          StringRef(Temporary->name));
+                                          Temporary->name);
       revng_assert(Result != nullptr);
       return Result;
     } else {

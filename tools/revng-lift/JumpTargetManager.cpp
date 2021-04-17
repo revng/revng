@@ -1254,7 +1254,7 @@ void JumpTargetManager::aliasAnalysis() {
   for (const GlobalVariable *CSV : CSVs) {
     CSVAliasInfo &AliasInfo = CSVAliasInfoMap[CSV];
 
-    std::string Name = CSV->getName();
+    std::string Name = CSV->getName().str();
     MDNode *CSVScope = MDB.createAliasScope(Name, CSVDomain);
     AliasInfo.AliasScope = CSVScope;
     AllCSVScopes.push_back(CSVScope);

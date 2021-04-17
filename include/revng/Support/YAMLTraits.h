@@ -53,7 +53,7 @@ inline std::string getNameFromYAMLScalar(T V) {
     llvm::yaml::ScalarTraits<T>::output(V, nullptr, Stream);
     return Buffer;
   } else {
-    return getNameFromYAMLEnumScalar(V);
+    return getNameFromYAMLEnumScalar(V).str();
   }
 }
 
