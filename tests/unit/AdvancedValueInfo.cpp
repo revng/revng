@@ -85,7 +85,8 @@ bool TestAdvancedValueInfoPass::runOnModule(llvm::Module &M) {
   auto &SCEV = getAnalysis<ScalarEvolutionWrapperPass>(Root).getSE();
 
   MockupMemoryOracle MO(M.getDataLayout());
-  AdvancedValueInfo<MockupMemoryOracle> AVI(LVI, SCEV, DT, MO);
+  BasicBlock *StopAt = &Root.getEntryBlock();
+  AdvancedValueInfo<MockupMemoryOracle> AVI(LVI, SCEV, DT, MO, StopAt);
 
   for (User *U : M.getGlobalVariable("pc", true)->users()) {
     if (auto *Store = dyn_cast<StoreInst>(U)) {

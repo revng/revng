@@ -108,8 +108,13 @@ AdvancedValueInfoPass::run(llvm::Function &F,
 
   auto &LVI = FAM.getResult<LazyValueAnalysis>(F);
   auto &DT = FAM.getResult<DominatorTreeAnalysis>(F);
+
+  BasicBlock *Entry = &F.getEntryBlock();
+  SwitchInst *Terminator = cast<SwitchInst>(Entry->getTerminator());
+  BasicBlock *Dispatcher = Terminator->getDefaultDest();
+
   auto &SCEV = FAM.getResult<ScalarEvolutionAnalysis>(F);
-  AdvancedValueInfo<StaticDataMemoryOracle> AVI(LVI, SCEV, DT, MO);
+  AdvancedValueInfo<StaticDataMemoryOracle> AVI(LVI, SCEV, DT, MO, Dispatcher);
 
 #ifndef NDEBUG
   // Ensure that no instruction has itself as operand, except for phis

@@ -12,12 +12,14 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 
-template<typename GT>
-inline llvm::SmallPtrSet<typename GT::NodeRef, 4>
-nodesBetweenImpl(typename GT::NodeRef Source,
-                 typename GT::NodeRef Destination) {
+#include "revng/Support/Debug.h"
 
-  using NodeRef = typename GT::NodeRef;
+template<typename GT, typename NodeRef = typename GT::NodeRef>
+inline llvm::SmallPtrSet<NodeRef, 4>
+nodesBetweenImpl(NodeRef Source,
+                 NodeRef Destination,
+                 const llvm::SmallPtrSetImpl<NodeRef> *IgnoreList) {
+
   using Iterator = typename GT::ChildIteratorType;
   using NodeSet = llvm::SmallPtrSet<NodeRef, 4>;
 
@@ -87,10 +89,14 @@ nodesBetweenImpl(typename GT::NodeRef Source,
         }
       }
 
+    } else if (IgnoreList != nullptr
+               and IgnoreList->count(CurrentSuccessor) != 0) {
+      // Ignore
     } else {
 
       // We never visited this node, proceed to its successors, if any
       if (HasSuccessors(CurrentSuccessor)) {
+        revng_assert(CurrentSuccessor != nullptr);
         Stack.emplace_back(CurrentSuccessor);
       }
 
@@ -115,10 +121,6 @@ nodesBetweenImpl(typename GT::NodeRef Source,
         } else {
           Entry = &Stack.back();
         }
-
-      } else {
-        // TODO: implement blacklisting
-        // TryNext = isBlackListed(Entry->Node, *Entry->NextSuccessorIt);
       }
 
     } while (TryNext);
@@ -128,14 +130,24 @@ nodesBetweenImpl(typename GT::NodeRef Source,
 }
 
 template<class G>
-inline llvm::SmallPtrSet<G, 4> nodesBetween(G Source, G Destination) {
-  return nodesBetweenImpl<llvm::GraphTraits<G>>(Source, Destination);
+inline llvm::SmallPtrSet<G, 4>
+nodesBetween(G Source,
+             G Destination,
+             const llvm::SmallPtrSetImpl<G> *IgnoreList = nullptr) {
+  return nodesBetweenImpl<llvm::GraphTraits<G>>(Source,
+                                                Destination,
+                                                IgnoreList);
 }
 
 template<class G>
-inline llvm::SmallPtrSet<G, 4> nodesBetweenReverse(G Source, G Destination) {
+inline llvm::SmallPtrSet<G, 4>
+nodesBetweenReverse(G Source,
+                    G Destination,
+                    const llvm::SmallPtrSetImpl<G> *IgnoreList = nullptr) {
   using namespace llvm;
-  return nodesBetweenImpl<GraphTraits<Inverse<G>>>(Source, Destination);
+  return nodesBetweenImpl<GraphTraits<Inverse<G>>>(Source,
+                                                   Destination,
+                                                   IgnoreList);
 }
 
 template<typename T>
