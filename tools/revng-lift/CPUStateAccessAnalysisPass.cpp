@@ -2617,7 +2617,7 @@ void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
   LLVMContext &Context = M.getContext();
   Function *F = LoadToFix->getFunction();
   auto *OffsetConstInt = getConstantOffset(Int64Ty, EnvOffset);
-  BasicBlock *CaseBlock = BasicBlock::Create(Context, "CaseInLoad");
+  BasicBlock *CaseBlock = BasicBlock::Create(Context, "CaseInLoad", F);
   Builder.SetInsertPoint(CaseBlock);
   BranchInst *Break = Builder.CreateBr(NextBB);
 
@@ -2641,7 +2641,6 @@ void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
         revng_assert(LoadedSize == Size);
         Loaded = Builder.CreateIntToPtr(Loaded, OriginalLoadedType);
       }
-      CaseBlock->insertInto(F);
       Switch->addCase(OffsetConstInt, CaseBlock);
       // Add an incoming edge for the PHI after the switch if necessary.
       if (Phi != nullptr)
@@ -2649,7 +2648,7 @@ void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
       Clone->replaceAllUsesWith(Loaded);
       InstructionsToRemove.push_back(Clone);
     } else {
-      delete CaseBlock;
+      CaseBlock->eraseFromParent();
       CaseBlock = nullptr; // Prevent this from being used
     }
   } break;
@@ -2659,10 +2658,9 @@ void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
     Ok = Variables->memcpyAtEnvOffset(Builder, Call, EnvOffset, true);
     if (Ok) {
       InstructionsToRemove.push_back(Clone);
-      CaseBlock->insertInto(F);
       Switch->addCase(OffsetConstInt, CaseBlock);
     } else {
-      delete CaseBlock;
+      CaseBlock->eraseFromParent();
       CaseBlock = nullptr; // Prevent this from being used
     }
   } break;
@@ -2680,6 +2678,7 @@ void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
   Function *F = StoreToFix->getFunction();
   auto *OffsetConstInt = getConstantOffset(Int64Ty, EnvOffset);
   BasicBlock *CaseBlock = BasicBlock::Create(Context, "CaseInStore");
+  CaseBlock->insertInto(F);
   Builder.SetInsertPoint(CaseBlock);
   BranchInst *Break = Builder.CreateBr(NextBB);
 
@@ -2709,10 +2708,9 @@ void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
 
   if (Ok) {
     InstructionsToRemove.push_back(Clone);
-    CaseBlock->insertInto(F);
     Switch->addCase(OffsetConstInt, CaseBlock);
   } else {
-    delete CaseBlock;
+    CaseBlock->eraseFromParent();
   }
 }
 
