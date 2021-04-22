@@ -600,8 +600,7 @@ function isolation pass using the appropriate pass:
 
 .. code-block:: sh
 
-
-    revng opt -S example.ll -isolate -o example.isolated.ll
+    revng opt -S example.ll -isolate -invoke-isolated-functions -o example.isolated.ll
 
 As you can see by comparing the original IR and the one to which the function
 isolation pass has been applied the main difference is that, on the basis of the

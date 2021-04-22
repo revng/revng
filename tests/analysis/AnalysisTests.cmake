@@ -76,6 +76,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       --detect-abi
       --isolate
       --enforce-abi
+      --invoke-isolated-functions
       -o "${OUTPUT}")
     set(DEPEND_ON revng-all-binaries)
   endif()

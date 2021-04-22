@@ -558,6 +558,11 @@ inline Values fromName(llvm::StringRef Name) {
   return getValueFromYAMLScalar<Values>(Name);
 }
 
+inline bool shouldEmit(model::RegisterState::Values V) {
+  return (V == model::RegisterState::Yes or V == model::RegisterState::YesOrDead
+          or V == model::RegisterState::Dead);
+}
+
 } // namespace model::RegisterState
 
 namespace llvm::yaml {

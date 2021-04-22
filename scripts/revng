@@ -134,13 +134,18 @@ def get_command(command):
 
 def build_opt_args(args):
   analysis_libraries = []
+  all = set()
   for prefix in search_prefixes:
     analyses_path = os.path.join(prefix, "lib", "revng", "analyses")
     if not os.path.isdir(analyses_path):
       continue
 
     # Enumerate all the libraries containing analyses
-    analysis_libraries += glob.glob(os.path.join(analyses_path, "*.so"))
+    for library in glob.glob(os.path.join(analyses_path, "*.so")):
+        basename = os.path.basename(library)
+        if basename not in all:
+            analysis_libraries.append(library)
+            all.add(basename)
 
   # Identify all the libraries that are dependencies of other libraries, i.e.,
   # non-roots in the dependencies tree. Note that circular dependencies are not
@@ -148,9 +153,6 @@ def build_opt_args(args):
   provided = set(chain.from_iterable([get_elf_needed(path)
                                       for path
                                       in analysis_libraries]))
-
-  # Full list of library names
-  all = set([os.path.basename(path) for path in analysis_libraries])
 
   # Path to libraries representing the roots in the dependency tree
   roots = [relative(os.path.join(analyses_path, name))
@@ -403,6 +405,7 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
     opt_invocation = build_opt_args(["-S",
                                      "-detect-abi",
                                      "-isolate",
+                                     "-invoke-isolated-functions",
                                      relative(output),
                                      "-o", relative(isolated)])
     run(opt_invocation)

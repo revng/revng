@@ -3,12 +3,12 @@
       "entry_point" : "bb.push_pop",
       "slots" : [
          {
-            "argument" : "Maybe",
-            "slot" : "rdx"
-         },
-         {
             "return_value" : "Maybe",
             "slot" : "rax"
+         },
+         {
+            "argument" : "Maybe",
+            "slot" : "rdx"
          }
       ]
    }

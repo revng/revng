@@ -4,6 +4,7 @@
 
 revng_add_analyses_library_internal(revngFunctionIsolation
   EnforceABI.cpp
+  InvokeIsolatedFunctions.cpp
   IsolateFunctions.cpp)
 
 target_link_libraries(revngFunctionIsolation

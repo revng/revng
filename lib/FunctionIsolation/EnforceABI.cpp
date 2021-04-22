@@ -46,11 +46,6 @@ static cl::opt<bool> DisableSafetyChecks("disable-enforce-abi-safety-checks",
                                          cl::cat(MainCategory),
                                          cl::init(false));
 
-static bool shouldEmit(model::RegisterState::Values V) {
-  return (V == model::RegisterState::Yes or V == model::RegisterState::YesOrDead
-          or V == model::RegisterState::Dead);
-}
-
 static bool areCompatible(model::RegisterState::Values LHS,
                           model::RegisterState::Values RHS) {
   using namespace model::RegisterState;
@@ -100,8 +95,8 @@ static StringRef areCompatible(const model::Function &Callee,
 class HelperCallSite {
 public:
   using CSVToIndexMap = std::map<GlobalVariable *, unsigned>;
-  HelperCallSite(const std::vector<GlobalVariable *> &ReadCSVs,
-                 const std::vector<GlobalVariable *> &WrittenCSVs,
+  HelperCallSite(ArrayRef<GlobalVariable *> ReadCSVs,
+                 ArrayRef<GlobalVariable *> WrittenCSVs,
                  const CSVToIndexMap &CSVToIndex,
                  Function *Helper) :
     Helper(Helper) {
@@ -128,7 +123,7 @@ public:
 
 private:
   static void populateBitmap(const CSVToIndexMap &CSVToIndex,
-                             const std::vector<GlobalVariable *> &Source,
+                             ArrayRef<GlobalVariable *> Source,
                              LazySmallBitVector &Target) {
     for (GlobalVariable *CSV : Source) {
       Target.set(CSVToIndex.at(CSV));
@@ -151,12 +146,24 @@ public:
     FunctionDispatcher(M.getFunction("function_dispatcher")),
     Context(M.getContext()),
     IndirectPlaceholderPool(&M, false),
-    Binary(Binary) {}
+    StructConstructors(&M, false),
+    Binary(Binary) {
+
+    StructConstructors.addFnAttribute(Attribute::NoUnwind);
+    StructConstructors.addFnAttribute(Attribute::ReadOnly);
+  }
 
   void run();
 
 private:
   Function *handleFunction(Function &F, const model::Function &FunctionModel);
+
+  Instruction *
+  createAggregateRet(IRBuilder<> &Builder, ArrayRef<Value *> Values);
+
+  Function *createHelperWrapper(Function *Helper,
+                                ArrayRef<GlobalVariable *> Read,
+                                ArrayRef<GlobalVariable *> Written);
 
   void handleRegularFunctionCall(CallInst *Call);
   void handleHelperFunctionCall(CallInst *Call);
@@ -177,6 +184,7 @@ private:
   std::map<HelperCallSite, Function *> HelperCallSites;
   std::map<GlobalVariable *, unsigned> CSVToIndex;
   OpaqueFunctionsPool<FunctionType *> IndirectPlaceholderPool;
+  OpaqueFunctionsPool<StructType *> StructConstructors;
   const model::Binary &Binary;
 };
 
@@ -190,11 +198,42 @@ bool EnforceABI::runOnModule(Module &M) {
   return false;
 }
 
+Instruction *EnforceABIImpl::createAggregateRet(IRBuilder<> &Builder,
+                                                ArrayRef<Value *> Values) {
+  // Obtain return StructType
+  auto *FT = Builder.GetInsertBlock()->getParent()->getFunctionType();
+  auto *ReturnType = cast<StructType>(FT->getReturnType());
+
+  SmallVector<Type *, 8> Types;
+  llvm::copy(ReturnType->elements(), std::back_inserter(Types));
+
+  // Create struct_constructor
+  Function *Constructor = StructConstructors.get(ReturnType,
+                                                 ReturnType,
+                                                 Types,
+                                                 "struct_constructor");
+
+  // Lazily populate its body
+  if (Constructor->isDeclaration()) {
+    auto *Entry = BasicBlock::Create(Context, "", Constructor);
+    IRBuilder<> ConstructorBuilder(Entry);
+
+    SmallVector<Value *, 8> Arguments;
+    for (Argument &Arg : Constructor->args())
+      Arguments.push_back(&Arg);
+
+    ConstructorBuilder.CreateAggregateRet(Arguments.data(), Arguments.size());
+  }
+
+  // Emit a call in the caller
+  return Builder.CreateRet(Builder.CreateCall(Constructor, Values));
+}
+
 // TODO: assign alias information
-static Function *
-createHelperWrapper(Function *Helper,
-                    const std::vector<GlobalVariable *> &Read,
-                    const std::vector<GlobalVariable *> &Written) {
+Function *
+EnforceABIImpl::createHelperWrapper(Function *Helper,
+                                    ArrayRef<GlobalVariable *> Read,
+                                    ArrayRef<GlobalVariable *> Written) {
   auto *PointeeTy = Helper->getType()->getPointerElementType();
   auto *HelperType = cast<FunctionType>(PointeeTy);
 
@@ -289,7 +328,7 @@ createHelperWrapper(Function *Helper,
     for (GlobalVariable *CSV : Written)
       ReturnValues.push_back(Builder.CreateLoad(CSV));
 
-    Builder.CreateAggregateRet(ReturnValues.data(), ReturnValues.size());
+    createAggregateRet(Builder, ReturnValues);
 
   } else if (OriginalWasVoid) {
     Builder.CreateRetVoid();
@@ -360,9 +399,6 @@ void EnforceABIImpl::run() {
 
   for (CallInst *Call : HelperCalls)
     handleHelperFunctionCall(Call);
-
-  // Handle invoke instructions in `root`
-  handleRoot();
 
   // Promote CSVs to allocas
   replaceCSVsWithAlloca();
@@ -442,7 +478,6 @@ void EnforceABIImpl::handleRoot() {
                                            Invoke->getNormalDest(),
                                            Invoke->getUnwindDest(),
                                            Arguments);
-    NewInvoke->setIsNoInline();
 
     // Erase the old invoke
     Invoke->eraseFromParent();
@@ -528,7 +563,7 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
         if (ReturnTypes.size() == 1)
           Builder.CreateRet(ReturnValues[0]);
         else
-          Builder.CreateAggregateRet(ReturnValues.data(), ReturnValues.size());
+          createAggregateRet(Builder, ReturnValues);
 
         Return->eraseFromParent();
       }

@@ -205,6 +205,31 @@ void FunctionCallReturnValue::combine(const FunctionReturnValue &Other) {
   }
 }
 
+template<typename T, typename F>
+static auto sort(const T &Range, const F &getKey) {
+  using pointer = decltype(&*Range.begin());
+  std::vector<pointer> Sorted;
+
+  for (auto &E : Range) {
+    Sorted.push_back(&E);
+  }
+
+  auto Comparator = [&getKey](pointer &LHS, pointer &RHS) {
+    return getKey(LHS) < getKey(RHS);
+  };
+
+  std::sort(Sorted.begin(), Sorted.end(), Comparator);
+
+  return Sorted;
+}
+
+template<typename T>
+static auto sortByCSVName(const T &Range) {
+  using pointer = decltype(&*Range.begin());
+  auto SortKey = [](pointer P) { return P->first->getName(); };
+  return sort(Range, SortKey);
+}
+
 void FunctionsSummary::dumpInternal(const Module *M,
                                     StreamWrapperBase &&Stream) const {
   std::stringstream Output;
@@ -321,15 +346,16 @@ void FunctionsSummary::dumpInternal(const Module *M,
 
     Output << "    \"slots\": [";
     const char *SlotDelimiter = "";
-    for (auto &Q : Function.RegisterSlots) {
+    for (auto *P : sortByCSVName(Function.RegisterSlots)) {
+      auto &[CSV, RD] = *P;
       Output << SlotDelimiter;
-      Output << "{\"slot\": \"" << Q.first->getName().data() << "\", ";
+      Output << "{\"slot\": \"" << CSV->getName().data() << "\", ";
 
       Output << "\"argument\": \"";
-      Q.second.Argument.dump(Output);
+      RD.Argument.dump(Output);
       Output << "\", ";
       Output << "\"return_value\": \"";
-      Q.second.ReturnValue.dump(Output);
+      RD.ReturnValue.dump(Output);
       Output << "\"}";
       SlotDelimiter = ", ";
     }
@@ -370,15 +396,16 @@ void FunctionsSummary::dumpInternal(const Module *M,
       // TODO: callee address
       Output << "        \"slots\": [";
       const char *FunctionCallSlotsDelimiter = "";
-      for (auto &Q : CallSite.RegisterSlots) {
+      for (auto *P : sortByCSVName(CallSite.RegisterSlots)) {
+        auto &[CSV, RD] = *P;
         Output << FunctionCallSlotsDelimiter;
-        Output << "{\"slot\": \"" << Q.first->getName().data() << "\", ";
+        Output << "{\"slot\": \"" << CSV->getName().data() << "\", ";
 
         Output << "\"argument\": \"";
-        Q.second.Argument.dump(Output);
+        RD.Argument.dump(Output);
         Output << "\", ";
         Output << "\"return_value\": \"";
-        Q.second.ReturnValue.dump(Output);
+        RD.ReturnValue.dump(Output);
         Output << "\"}";
 
         FunctionCallSlotsDelimiter = ", ";
