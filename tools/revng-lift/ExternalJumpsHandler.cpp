@@ -170,7 +170,7 @@ llvm::BasicBlock *ExternalJumpsHandler::createSetjmp(BasicBlock *FirstReturn,
   IRBuilder<> Builder(SetjmpBB);
 
   // Call setjmp
-  llvm::Constant *SetjmpFunction = TheModule.getFunction("setjmp");
+  llvm::Function *SetjmpFunction = TheModule.getFunction("setjmp");
   auto *SetJmpTy = SetjmpFunction->getType()->getPointerElementType();
   auto *JmpBuf = CE::getPointerCast(TheModule.getGlobalVariable("jmp_buffer"),
                                     SetJmpTy->getFunctionParamType(0));
@@ -232,7 +232,7 @@ ExternalJumpsHandler::createExternalDispatcher(BasicBlock *IsExecutable,
                                                BasicBlock *IsNotExecutable) {
   buildExecutableSegmentsList();
 
-  Constant *IsExecutableFunction = TheModule.getFunction("is_executable");
+  Function *IsExecutableFunction = TheModule.getFunction("is_executable");
   BasicBlock *ExternalJumpHandler = BasicBlock::Create(Context,
                                                        "dispatcher.external",
                                                        &TheFunction);
