@@ -1583,8 +1583,8 @@ void JumpTargetManager::harvestWithAVI() {
   // Helper to intrinsic promotion
   //
   using MapperFunction = std::function<Instruction *(CallInst *)>;
-  std::pair<const char *, MapperFunction> Mapping[] = {
-    { "helper_clz",
+  std::pair<std::vector<StringRef>, MapperFunction> Mapping[] = {
+    { { "helper_clz", "helper_clz32", "helper_clz64", "helper_dclz" },
       [&Builder](CallInst *Call) {
         return Builder.CreateBinaryIntrinsic(Intrinsic::ctlz,
                                              Call->getArgOperand(0),
@@ -1592,27 +1592,27 @@ void JumpTargetManager::harvestWithAVI() {
       } }
   };
 
-  for (auto &P : Mapping) {
-    const char *HelperName = P.first;
-    auto Mapper = P.second;
-    if (Function *Original = M->getFunction(HelperName)) {
+  for (auto &[HelperNames, Mapper] : Mapping) {
+    for (StringRef HelperName : HelperNames) {
+      if (Function *Original = M->getFunction(HelperName)) {
 
-      SmallVector<std::pair<Instruction *, Instruction *>, 16> Replacements;
-      for (User *U : Original->users()) {
-        if (auto *Call = dyn_cast<CallInst>(U)) {
-          if (Call->getParent()->getParent() == OptimizedFunction) {
-            Builder.SetInsertPoint(Call);
-            Instruction *NewI = Mapper(Call);
-            NewI->copyMetadata(*Call);
-            Replacements.emplace_back(Call, NewI);
+        SmallVector<std::pair<Instruction *, Instruction *>, 16> Replacements;
+        for (User *U : Original->users()) {
+          if (auto *Call = dyn_cast<CallInst>(U)) {
+            if (Call->getParent()->getParent() == OptimizedFunction) {
+              Builder.SetInsertPoint(Call);
+              Instruction *NewI = Mapper(Call);
+              NewI->copyMetadata(*Call);
+              Replacements.emplace_back(Call, NewI);
+            }
           }
         }
-      }
 
-      // Apply replacements
-      for (auto &P : Replacements) {
-        P.first->replaceAllUsesWith(P.second);
-        P.first->eraseFromParent();
+        // Apply replacements
+        for (auto &P : Replacements) {
+          P.first->replaceAllUsesWith(P.second);
+          P.first->eraseFromParent();
+        }
       }
     }
   }

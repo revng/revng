@@ -307,7 +307,7 @@ public:
 
   const llvm::ArrayRef<llvm::GlobalVariable *> csvs() const { return CSVs; }
 
-  class CSVsUsedByHelperCall {
+  class CSVsUsage {
   public:
     void sort() {
       std::sort(Read.begin(), Read.end());
@@ -319,11 +319,11 @@ public:
     std::vector<llvm::GlobalVariable *> Written;
   };
 
-  static CSVsUsedByHelperCall getCSVUsedByHelperCall(llvm::Instruction *Call) {
+  static CSVsUsage getCSVUsedByHelperCall(llvm::Instruction *Call) {
     return *getCSVUsedByHelperCallIfAvailable(Call);
   }
 
-  static llvm::Optional<CSVsUsedByHelperCall>
+  static llvm::Optional<CSVsUsage>
   getCSVUsedByHelperCallIfAvailable(llvm::Instruction *Call) {
     revng_assert(isCallToHelper(Call));
 
@@ -336,7 +336,7 @@ public:
       return {};
     }
 
-    CSVsUsedByHelperCall Result;
+    CSVsUsage Result;
     Result.Read = extractCSVs(Call, LoadMDKind);
     Result.Written = extractCSVs(Call, StoreMDKind);
     return Result;

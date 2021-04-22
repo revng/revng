@@ -230,17 +230,9 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
 
   TheModule->setDataLayout(HelpersModule->getDataLayout());
 
-  for (auto &F : HelpersModule->functions()) {
-    // Remove 'optnone' Function attribute from QEMU helpers.
-    // QEMU helpers are compiled with -O0 in libtinycode because the LLVM IR
-    // generated in this way it much more readable, but we need to optimize
-    // them when we link them with the decompiled code.
-    // In particular we desperately need SROA to get rid of allocas, to
-    // enable the CPUStateAccessAnalysisPass.
-    // If we don't remove this attribute future optimizations are blocked.
-    F.removeFnAttr(Attribute::OptimizeNone);
+  for (auto &F : HelpersModule->functions())
     F.setDSOLocal(false);
-  }
+
   EarlyLinkedModule = parseIR(EarlyLinked, Context);
 
   if (CoveragePath.size() == 0)

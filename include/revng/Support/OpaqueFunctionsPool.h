@@ -45,6 +45,19 @@ public:
   }
 
 public:
+  auto begin() const { return Pool.begin(); }
+  auto end() const { return Pool.end(); }
+
+public:
+  void record(KeyT Key, llvm::Function *F) {
+    auto It = Pool.find(Key);
+    if (It == Pool.end())
+      Pool[Key] = F;
+    else
+      revng_assert(It->second == F);
+  }
+
+public:
   llvm::Function *
   get(KeyT Key, llvm::FunctionType *FT, const llvm::Twine &Name = {}) {
     using namespace llvm;

@@ -101,16 +101,26 @@ template<typename Node,
          typename EdgeLabel,
          bool HasParent,
          size_t SmallSize,
-         template<typename, typename, bool, size_t, typename>
+         template<typename, typename, bool, size_t, typename, size_t, bool>
          class ForwardEdge,
-         typename FinalType>
+         typename FinalType,
+         size_t ParentSmallSize,
+         bool ParentHasEntryNode>
 struct ForwardNodeBaseTCalc {
   static constexpr bool
     NoDerivation = std::is_same_v<FinalType, std::false_type>;
-  using FWNode = ForwardEdge<Node, EdgeLabel, HasParent, SmallSize, FinalType>;
+  using FWNode = ForwardEdge<Node,
+                             EdgeLabel,
+                             HasParent,
+                             SmallSize,
+                             FinalType,
+                             ParentSmallSize,
+                             ParentHasEntryNode>;
   using DerivedType = std::conditional_t<NoDerivation, FWNode, FinalType>;
-
-  using ParentType = Parent<GenericGraph<DerivedType>, Node>;
+  using GenericGraph = GenericGraph<DerivedType,
+                                    ParentSmallSize,
+                                    ParentHasEntryNode>;
+  using ParentType = Parent<GenericGraph, Node>;
   using Result = std::conditional_t<HasParent, ParentType, Node>;
 };
 } // namespace detail
@@ -120,13 +130,18 @@ template<typename Node,
          typename EdgeLabel = Empty,
          bool HasParent = true,
          size_t SmallSize = 2,
-         typename FinalType = std::false_type>
-class ForwardNode : public detail::ForwardNodeBaseTCalc<Node,
-                                                        EdgeLabel,
-                                                        HasParent,
-                                                        SmallSize,
-                                                        ForwardNode,
-                                                        FinalType>::Result {
+         typename FinalType = std::false_type,
+         size_t ParentSmallSize = 16,
+         bool ParentHasEntryNode = true>
+class ForwardNode
+  : public detail::ForwardNodeBaseTCalc<Node,
+                                        EdgeLabel,
+                                        HasParent,
+                                        SmallSize,
+                                        ForwardNode,
+                                        FinalType,
+                                        ParentSmallSize,
+                                        ParentHasEntryNode>::Result {
 public:
   static constexpr bool is_forward_node = true;
   static constexpr bool has_parent = HasParent;
@@ -135,7 +150,9 @@ public:
                                                 HasParent,
                                                 SmallSize,
                                                 ForwardNode,
-                                                FinalType>;
+                                                FinalType,
+                                                ParentSmallSize,
+                                                ParentHasEntryNode>;
   using DerivedType = typename TypeCalc::DerivedType;
   using Base = typename TypeCalc::Result;
   using Edge = Edge<DerivedType, EdgeLabel>;
@@ -343,7 +360,7 @@ private:
 template<typename NodeT>
 class EntryNode {
 private:
-  NodeT *EntryNode;
+  NodeT *EntryNode = nullptr;
 
 public:
   NodeT *getEntryNode() const { return EntryNode; }
