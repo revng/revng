@@ -538,7 +538,7 @@ forwardTaintAnalysis(const Module *M,
           if (TaintLog.isEnabled()) {
             TaintLog << "TAINT: " << CSInfo.CallSite << DoLog;
             TaintLog << dumpToString(CallSiteInfos.top().CallSite) << DoLog;
-            std::string Name = getCallee(CSInfo.CallSite)->getName();
+            llvm::StringRef Name = getCallee(CSInfo.CallSite)->getName();
             TaintLog << "pair: < " << Name << ", " << CSInfo.ArgNo << " > "
                      << DoLog;
           }
@@ -1592,11 +1592,14 @@ private:
   /// This function returns `true` if this is the first visit, `false` otherwise
   bool isNewVisitWithCallSite(Value *V, CallInst *NewCallSite) const {
 
-    if (NewCallSite != nullptr)
-      revng_log(CSVAccessLog,
-                "caller: " << NewCallSite->getFunction()->getName());
-    else
-      revng_log(CSVAccessLog, "caller: nullptr");
+    if (CSVAccessLog.isEnabled()) {
+      if (NewCallSite != nullptr) {
+        llvm::StringRef NameRef = NewCallSite->getFunction()->getName();
+        revng_log(CSVAccessLog, "caller: " << NameRef);
+      } else {
+        revng_log(CSVAccessLog, "caller: nullptr");
+      }
+    }
 
     // Handle constants in a special way. Constants are kind of global values
     // that can be used across different functions without properly propagating
@@ -2614,7 +2617,7 @@ void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
   LLVMContext &Context = M.getContext();
   Function *F = LoadToFix->getFunction();
   auto *OffsetConstInt = getConstantOffset(Int64Ty, EnvOffset);
-  BasicBlock *CaseBlock = BasicBlock::Create(Context, "CaseInLoad");
+  BasicBlock *CaseBlock = BasicBlock::Create(Context, "CaseInLoad", F);
   Builder.SetInsertPoint(CaseBlock);
   BranchInst *Break = Builder.CreateBr(NextBB);
 
@@ -2638,7 +2641,6 @@ void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
         revng_assert(LoadedSize == Size);
         Loaded = Builder.CreateIntToPtr(Loaded, OriginalLoadedType);
       }
-      CaseBlock->insertInto(F);
       Switch->addCase(OffsetConstInt, CaseBlock);
       // Add an incoming edge for the PHI after the switch if necessary.
       if (Phi != nullptr)
@@ -2646,7 +2648,7 @@ void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
       Clone->replaceAllUsesWith(Loaded);
       InstructionsToRemove.push_back(Clone);
     } else {
-      delete CaseBlock;
+      CaseBlock->eraseFromParent();
       CaseBlock = nullptr; // Prevent this from being used
     }
   } break;
@@ -2656,10 +2658,9 @@ void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
     Ok = Variables->memcpyAtEnvOffset(Builder, Call, EnvOffset, true);
     if (Ok) {
       InstructionsToRemove.push_back(Clone);
-      CaseBlock->insertInto(F);
       Switch->addCase(OffsetConstInt, CaseBlock);
     } else {
-      delete CaseBlock;
+      CaseBlock->eraseFromParent();
       CaseBlock = nullptr; // Prevent this from being used
     }
   } break;
@@ -2677,6 +2678,7 @@ void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
   Function *F = StoreToFix->getFunction();
   auto *OffsetConstInt = getConstantOffset(Int64Ty, EnvOffset);
   BasicBlock *CaseBlock = BasicBlock::Create(Context, "CaseInStore");
+  CaseBlock->insertInto(F);
   Builder.SetInsertPoint(CaseBlock);
   BranchInst *Break = Builder.CreateBr(NextBB);
 
@@ -2706,10 +2708,9 @@ void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
 
   if (Ok) {
     InstructionsToRemove.push_back(Clone);
-    CaseBlock->insertInto(F);
     Switch->addCase(OffsetConstInt, CaseBlock);
   } else {
-    delete CaseBlock;
+    CaseBlock->eraseFromParent();
   }
 }
 
@@ -2966,8 +2967,10 @@ void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
 
       if (FixAccessLog.isEnabled()) {
         ++NumUnknown;
-        FunToNumUnknown[F->getName()]++;
-        FunToUnknowns[F->getName()].insert(dumpToString(AccessToFix));
+
+        std::string Name = F->getName().str();
+        FunToNumUnknown[Name]++;
+        FunToUnknowns[Name].insert(dumpToString(AccessToFix));
       }
 
       SwitchInst *SwitchOffset = Builder.CreateSwitch(OffsetValue,

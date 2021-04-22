@@ -9,7 +9,7 @@
 // LLVM includes
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
-#include "llvm/PassSupport.h"
+#include "llvm/Pass.h"
 
 // Local libraries includes
 #include "revng/Model/LoadModelPass.h"

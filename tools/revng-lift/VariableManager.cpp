@@ -633,7 +633,7 @@ Value *VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
     // Basically we use fixed_reg to detect "env"
     if (Temporary->fixed_reg == 0) {
       Value *Result = getByCPUStateOffset(EnvOffset + Temporary->mem_offset,
-                                          StringRef(Temporary->name));
+                                          Temporary->name);
       revng_assert(Result != nullptr);
       return Result;
     } else {
@@ -691,7 +691,10 @@ Value *VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
 Value *VariableManager::computeEnvAddress(Type *TargetType,
                                           Instruction *InsertBefore,
                                           unsigned Offset) {
-  auto *LoadEnv = new LoadInst(Env, "", InsertBefore);
+
+  auto *EnvPtrTy = cast<PointerType>(Env->getType());
+  auto *PointeeTy = EnvPtrTy->getElementType();
+  auto *LoadEnv = new LoadInst(PointeeTy, Env, "", InsertBefore);
   Type *EnvType = Env->getType()->getPointerElementType();
   Value *Integer = LoadEnv;
   if (Offset != 0)

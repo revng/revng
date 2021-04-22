@@ -360,7 +360,7 @@ inline Values fromName(llvm::StringRef Name) {
 
 inline Values
 fromRegisterName(llvm::StringRef Name, llvm::Triple::ArchType Arch) {
-  std::string FullName = Name;
+  std::string FullName = Name.str();
 
   switch (Arch) {
   case llvm::Triple::x86:

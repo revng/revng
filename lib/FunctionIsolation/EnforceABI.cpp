@@ -649,7 +649,7 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
 
   revng_assert(Call->getParent()->getParent()->getName() == FunctionModel.Name);
 
-  Function *Callee = cast<Function>(skipCasts(Call->getCalledValue()));
+  Function *Callee = cast<Function>(skipCasts(Call->getCalledOperand()));
   bool IsDirect = (Callee != FunctionDispatcher);
   if (IsDirect)
     Callee = OldToNew.at(Callee);

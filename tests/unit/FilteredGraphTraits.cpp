@@ -129,7 +129,7 @@ end:
   // #### Depth first visits ####
 
   std::vector<BasicBlock *> DefaultResults;
-  std::vector<std::string> DefaultResultsNames{
+  std::vector<llvm::StringRef> DefaultResultsNames{
     "initial_block", "starter", "end", "false", "_xit",
   };
   { // Baseline, on unfiltered graph
@@ -141,7 +141,7 @@ end:
   }
 
   { // Do-nothing filter
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "initial_block", "starter", "end", "false", "_xit",
     };
     std::vector<BasicBlock *> Results;
@@ -153,7 +153,7 @@ end:
       revng_check(Results[I]->getName() == ExpectedResultsNames[I]);
   }
   { // Filter all, leaving no edge
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "initial_block",
     };
     std::vector<BasicBlock *> Results;
@@ -165,7 +165,7 @@ end:
       revng_check(Results[I]->getName() == ExpectedResultsNames[I]);
   }
   { // Filter throwing away all the eges towards BB with name without 'a's
-    std::vector<std::string> ExpectedResultsNames = {
+    std::vector<llvm::StringRef> ExpectedResultsNames = {
       "initial_block",
       "starter",
       "false",
@@ -181,7 +181,7 @@ end:
   }
   { // Filter throwing away all the eges towards BB with name without 'e's
     // All but _xit should reached, in this order
-    std::vector<std::string> ExpectedResultsNames = {
+    std::vector<llvm::StringRef> ExpectedResultsNames = {
       "initial_block",
       "starter",
       "end",
@@ -199,7 +199,7 @@ end:
   // #### Breadth first visits ####
 
   { // Baseline, on unfiltered graph
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "initial_block", "starter", "end", "false", "_xit",
     };
     std::vector<BasicBlock *> Results;
@@ -210,7 +210,7 @@ end:
       revng_check(Results[I]->getName() == ExpectedResultsNames[I]);
   }
   { // Do-nothing filter
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "initial_block", "starter", "end", "false", "_xit",
     };
     std::vector<BasicBlock *> Results;
@@ -222,7 +222,7 @@ end:
       revng_check(Results[I]->getName() == ExpectedResultsNames[I]);
   }
   { // Filter all, leaving no edge
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "initial_block",
     };
     std::vector<BasicBlock *> Results;
@@ -239,7 +239,7 @@ end:
     for (auto &It : llvm::breadth_first(NPFG(F)))
       Results.push_back(It);
     // Only the initial_block, starter, and false should be left
-    std::vector<std::string> ExpectedResultsNames = {
+    std::vector<llvm::StringRef> ExpectedResultsNames = {
       "initial_block",
       "starter",
       "false",
@@ -249,7 +249,7 @@ end:
       revng_check(Results[I]->getName() == ExpectedResultsNames[I]);
   }
   { // Filter throwing away all the eges towards BB with name without 'e's
-    std::vector<std::string> ExpectedResultsNames = {
+    std::vector<llvm::StringRef> ExpectedResultsNames = {
       "initial_block",
       "starter",
       "end",
@@ -266,7 +266,7 @@ end:
 
   // #### Inverse depth first visits ####
   {
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "end",
       "false",
       "starter",
@@ -280,7 +280,7 @@ end:
       revng_check(Results[I]->getName() == ExpectedResultsNames[I]);
   }
   { // Do-nothing filter
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "end",
       "false",
       "starter",
@@ -302,7 +302,7 @@ end:
       revng_check(SecondResults[I]->getName() == ExpectedResultsNames[I]);
   }
   { // Filter all, leaving no edge
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "end",
     };
     std::vector<BasicBlock *> FirstResults, SecondResults;
@@ -321,7 +321,7 @@ end:
       revng_check(SecondResults[I]->getName() == ExpectedResultsNames[I]);
   }
   { // Filter throwing away all the eges towards BB with name without 'a's
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "end",
     };
     std::vector<BasicBlock *> FirstResults, SecondResults;
@@ -340,7 +340,7 @@ end:
       revng_check(SecondResults[I]->getName() == ExpectedResultsNames[I]);
   }
   { // Filter throwing away all the eges towards BB with name without 'e's
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "end",
       "false",
       "starter",
@@ -363,7 +363,7 @@ end:
   }
 
   // #### Dominator and PostDominator Trees ####
-  std::map<std::string, BasicBlock *> NamesToBlocks;
+  std::map<llvm::StringRef, BasicBlock *> NamesToBlocks;
   revng_check(DefaultResults.size() == DefaultResultsNames.size());
   for (size_t I = 0ULL; I < DefaultResults.size(); ++I)
     NamesToBlocks[DefaultResultsNames[I]] = DefaultResults[I];
@@ -478,10 +478,10 @@ end:
     FileName += "001.dot";
     Input.parseDotFromFile(FileName, "initial_block");
 
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "initial_block", "starter", "end", "false", "_xit",
     };
-    std::vector<std::string> Results;
+    std::vector<llvm::StringRef> Results;
 
     using EFG = EdgeFilteredGraph<DotGraph *, AlwaysTrueEdge<DotGraph *>>;
     for (auto &It : llvm::depth_first(EFG(&Input)))
@@ -498,10 +498,10 @@ end:
     FileName += "001.dot";
     Input.parseDotFromFile(FileName, "initial_block");
 
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "initial_block",
     };
-    std::vector<std::string> Results;
+    std::vector<llvm::StringRef> Results;
 
     using EFG = EdgeFilteredGraph<DotGraph *, AlwaysFalseEdge<DotGraph *>>;
     for (auto &It : llvm::depth_first(EFG(&Input)))
@@ -518,12 +518,12 @@ end:
     FileName += "001.dot";
     Input.parseDotFromFile(FileName, "initial_block");
 
-    std::vector<std::string> ExpectedResultsNames = {
+    std::vector<llvm::StringRef> ExpectedResultsNames = {
       "initial_block",
       "starter",
       "false",
     };
-    std::vector<std::string> Results;
+    std::vector<llvm::StringRef> Results;
 
     using EFG = EdgeFilteredGraph<DotGraph *, EdgeHasLetterInName<'a'>>;
     for (auto &It : llvm::depth_first(EFG(&Input)))
@@ -540,13 +540,13 @@ end:
     FileName += "001.dot";
     Input.parseDotFromFile(FileName, "initial_block");
 
-    std::vector<std::string> ExpectedResultsNames = {
+    std::vector<llvm::StringRef> ExpectedResultsNames = {
       "initial_block",
       "starter",
       "end",
       "false",
     };
-    std::vector<std::string> Results;
+    std::vector<llvm::StringRef> Results;
 
     using EFG = EdgeFilteredGraph<DotGraph *, EdgeHasLetterInName<'e'>>;
     for (auto &It : llvm::depth_first(EFG(&Input)))
@@ -566,10 +566,10 @@ end:
     FileName += "001.dot";
     Input.parseDotFromFile(FileName, "initial_block");
 
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "initial_block", "starter", "end", "false", "_xit",
     };
-    std::vector<std::string> Results;
+    std::vector<llvm::StringRef> Results;
 
     using EFG = EdgeFilteredGraph<DotGraph *, AlwaysTrueEdge<DotGraph *>>;
     for (auto &It : llvm::breadth_first(EFG(&Input)))
@@ -586,10 +586,10 @@ end:
     FileName += "001.dot";
     Input.parseDotFromFile(FileName, "initial_block");
 
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "initial_block",
     };
-    std::vector<std::string> Results;
+    std::vector<llvm::StringRef> Results;
 
     using EFG = EdgeFilteredGraph<DotGraph *, AlwaysFalseEdge<DotGraph *>>;
     for (auto &It : llvm::breadth_first(EFG(&Input)))
@@ -606,12 +606,12 @@ end:
     FileName += "001.dot";
     Input.parseDotFromFile(FileName, "initial_block");
 
-    std::vector<std::string> ExpectedResultsNames = {
+    std::vector<llvm::StringRef> ExpectedResultsNames = {
       "initial_block",
       "starter",
       "false",
     };
-    std::vector<std::string> Results;
+    std::vector<llvm::StringRef> Results;
 
     using EFG = EdgeFilteredGraph<DotGraph *, EdgeHasLetterInName<'a'>>;
     for (auto &It : llvm::breadth_first(EFG(&Input)))
@@ -628,13 +628,13 @@ end:
     FileName += "001.dot";
     Input.parseDotFromFile(FileName, "initial_block");
 
-    std::vector<std::string> ExpectedResultsNames = {
+    std::vector<llvm::StringRef> ExpectedResultsNames = {
       "initial_block",
       "starter",
       "end",
       "false",
     };
-    std::vector<std::string> Results;
+    std::vector<llvm::StringRef> Results;
 
     using EFG = EdgeFilteredGraph<DotGraph *, EdgeHasLetterInName<'e'>>;
     for (auto &It : llvm::breadth_first(EFG(&Input)))
@@ -653,13 +653,13 @@ end:
     FileName += "001.dot";
     Input.parseDotFromFile(FileName, "initial_block");
 
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "end",
       "starter",
       "initial_block",
       "false",
     };
-    std::vector<std::string> FirstResults, SecondResults;
+    std::vector<llvm::StringRef> FirstResults, SecondResults;
 
     using EFG = EdgeFilteredGraph<DotNode *, AlwaysTrueEdge<DotNode *>>;
     using InvEFG = llvm::Inverse<EFG>;
@@ -686,10 +686,10 @@ end:
     FileName += "001.dot";
     Input.parseDotFromFile(FileName, "initial_block");
 
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "end",
     };
-    std::vector<std::string> FirstResults, SecondResults;
+    std::vector<llvm::StringRef> FirstResults, SecondResults;
 
     using EFG = EdgeFilteredGraph<DotNode *, AlwaysFalseEdge<DotNode *>>;
     using InvEFG = llvm::Inverse<EFG>;
@@ -697,13 +697,13 @@ end:
     DotNode *Exit = Input.getNodeByName("end");
 
     for (auto &It : llvm::depth_first(InvEFG(Exit)))
-      FirstResults.push_back(It->getName());
+      FirstResults.push_back(It->getName().str());
     revng_check(FirstResults.size() == ExpectedResultsNames.size());
     for (size_t I = 0; I < FirstResults.size(); ++I)
       revng_check(FirstResults[I] == ExpectedResultsNames[I]);
 
     for (auto &It : llvm::inverse_depth_first(EFG(Exit)))
-      SecondResults.push_back(It->getName());
+      SecondResults.push_back(It->getName().str());
     revng_check(SecondResults.size() == ExpectedResultsNames.size());
     for (size_t I = 0; I < SecondResults.size(); ++I)
       revng_check(SecondResults[I] == ExpectedResultsNames[I]);
@@ -716,10 +716,10 @@ end:
     FileName += "001.dot";
     Input.parseDotFromFile(FileName, "initial_block");
 
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "end",
     };
-    std::vector<std::string> FirstResults, SecondResults;
+    std::vector<llvm::StringRef> FirstResults, SecondResults;
 
     using EFG = EdgeFilteredGraph<DotNode *, EdgeHasLetterInName<'a'>>;
     using InvEFG = llvm::Inverse<EFG>;
@@ -746,13 +746,13 @@ end:
     FileName += "001.dot";
     Input.parseDotFromFile(FileName, "initial_block");
 
-    std::vector<std::string> ExpectedResultsNames{
+    std::vector<llvm::StringRef> ExpectedResultsNames{
       "end",
       "starter",
       "initial_block",
       "false",
     };
-    std::vector<std::string> FirstResults, SecondResults;
+    std::vector<llvm::StringRef> FirstResults, SecondResults;
 
     using EFG = EdgeFilteredGraph<DotNode *, EdgeHasLetterInName<'e'>>;
     using InvEFG = llvm::Inverse<EFG>;

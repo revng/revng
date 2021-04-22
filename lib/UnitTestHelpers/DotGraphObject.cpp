@@ -167,7 +167,7 @@ void DotGraph::parseDotImpl(std::ifstream &F, llvm::StringRef EntryName) {
 void DotGraph::parseDotFromFile(llvm::StringRef FileName,
                                 llvm::StringRef EntryName) {
   std::ifstream DotFile;
-  DotFile.open(FileName);
+  DotFile.open(FileName.data());
 
   // Check that the file has been opened.
   if (DotFile.is_open()) {

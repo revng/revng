@@ -1254,7 +1254,7 @@ void JumpTargetManager::aliasAnalysis() {
   for (const GlobalVariable *CSV : CSVs) {
     CSVAliasInfo &AliasInfo = CSVAliasInfoMap[CSV];
 
-    std::string Name = CSV->getName();
+    std::string Name = CSV->getName().str();
     MDNode *CSVScope = MDB.createAliasScope(Name, CSVDomain);
     AliasInfo.AliasScope = CSVScope;
     AllCSVScopes.push_back(CSVScope);
@@ -1431,10 +1431,6 @@ JumpTargetManager::MetaAddressSet JumpTargetManager::inflateAVIWhitelist() {
         }
       }
     }
-  }
-
-  // Perform a inverse dfs looking for jump targets
-  for (MetaAddress MA : AVIPCWhiteList) {
   }
 
   return Result;
@@ -1745,7 +1741,7 @@ void JumpTargetManager::harvestWithAVI() {
   StructType *MetaAddressStruct = MetaAddress::getStruct(M);
   for (User *U : AVIMarker->users()) {
     auto *Call = dyn_cast<CallInst>(U);
-    if (Call == nullptr or skipCasts(Call->getCalledValue()) != AVIMarker)
+    if (Call == nullptr or skipCasts(Call->getCalledOperand()) != AVIMarker)
       continue;
 
     // Get the ID from the marker, and then the original instruction and marker
