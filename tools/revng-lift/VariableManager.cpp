@@ -691,7 +691,10 @@ Value *VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
 Value *VariableManager::computeEnvAddress(Type *TargetType,
                                           Instruction *InsertBefore,
                                           unsigned Offset) {
-  auto *LoadEnv = new LoadInst(Env, "", InsertBefore);
+
+  auto *EnvPtrTy = cast<PointerType>(Env->getType());
+  auto *PointeeTy = EnvPtrTy->getElementType();
+  auto *LoadEnv = new LoadInst(PointeeTy, Env, "", InsertBefore);
   Type *EnvType = Env->getType()->getPointerElementType();
   Value *Integer = LoadEnv;
   if (Offset != 0)

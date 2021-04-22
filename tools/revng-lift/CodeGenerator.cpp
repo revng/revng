@@ -684,9 +684,12 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
 
           // Check value of cpu_loop_exiting
           auto *Branch = cast<BranchInst>(&*++(RecCall->getIterator()));
+          auto *CPULoopExitVarPtrTy = CpuLoopExitingVariable->getType();
+          auto *PointeeTy = CPULoopExitVarPtrTy->getPointerElementType();
           auto *Compare = new ICmpInst(Branch,
                                        CmpInst::ICMP_EQ,
-                                       new LoadInst(CpuLoopExitingVariable,
+                                       new LoadInst(PointeeTy,
+                                                    CpuLoopExitingVariable,
                                                     "",
                                                     Branch),
                                        ConstantInt::getTrue(BoolType));
