@@ -9,7 +9,6 @@
 // LLVM includes
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
-#include "llvm/PassSupport.h"
 
 // Local libraries includes
 #include "revng/Model/SerializeModelPass.h"
