@@ -13,10 +13,13 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/ADT/LazySmallBitVector.h"
 #include "revng/ADT/SmallMap.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
+#include "revng/FunctionIsolation/StructInitializers.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
@@ -92,50 +95,6 @@ static StringRef areCompatible(const model::Function &Callee,
   return StringRef();
 }
 
-class HelperCallSite {
-public:
-  using CSVToIndexMap = std::map<GlobalVariable *, unsigned>;
-  HelperCallSite(ArrayRef<GlobalVariable *> ReadCSVs,
-                 ArrayRef<GlobalVariable *> WrittenCSVs,
-                 const CSVToIndexMap &CSVToIndex,
-                 Function *Helper) :
-    Helper(Helper) {
-    revng_assert(Helper != nullptr);
-
-    populateBitmap(CSVToIndex, ReadCSVs, Read);
-    populateBitmap(CSVToIndex, WrittenCSVs, Written);
-  }
-
-public:
-  bool operator<(const HelperCallSite &Other) const {
-    auto ThisTie = std::tie(Helper, Read, Written);
-    auto OtherTie = std::tie(Other.Helper, Other.Read, Other.Written);
-    return ThisTie < OtherTie;
-  }
-
-  bool operator==(const HelperCallSite &Other) const {
-    auto ThisTie = std::tie(Helper, Read, Written);
-    auto OtherTie = std::tie(Other.Helper, Other.Read, Other.Written);
-    return ThisTie == OtherTie;
-  }
-
-  Function *helper() const { return Helper; }
-
-private:
-  static void populateBitmap(const CSVToIndexMap &CSVToIndex,
-                             ArrayRef<GlobalVariable *> Source,
-                             LazySmallBitVector &Target) {
-    for (GlobalVariable *CSV : Source) {
-      Target.set(CSVToIndex.at(CSV));
-    }
-  }
-
-private:
-  Function *Helper;
-  LazySmallBitVector Read;
-  LazySmallBitVector Written;
-};
-
 class EnforceABIImpl {
 public:
   EnforceABIImpl(Module &M,
@@ -145,32 +104,19 @@ public:
     GCBI(GCBI),
     FunctionDispatcher(M.getFunction("function_dispatcher")),
     Context(M.getContext()),
+    Initializers(&M),
     IndirectPlaceholderPool(&M, false),
-    StructConstructors(&M, false),
-    Binary(Binary) {
-
-    StructConstructors.addFnAttribute(Attribute::NoUnwind);
-    StructConstructors.addFnAttribute(Attribute::ReadOnly);
-  }
+    Binary(Binary) {}
 
   void run();
 
 private:
   Function *handleFunction(Function &F, const model::Function &FunctionModel);
 
-  Instruction *
-  createAggregateRet(IRBuilder<> &Builder, ArrayRef<Value *> Values);
-
-  Function *createHelperWrapper(Function *Helper,
-                                ArrayRef<GlobalVariable *> Read,
-                                ArrayRef<GlobalVariable *> Written);
-
   void handleRegularFunctionCall(CallInst *Call);
-  void handleHelperFunctionCall(CallInst *Call);
   void generateCall(IRBuilder<> &Builder,
                     Function *Callee,
                     const model::FunctionEdge &CallSite);
-  void replaceCSVsWithAlloca();
   void handleRoot();
 
 private:
@@ -181,10 +127,8 @@ private:
   Function *FunctionDispatcher;
   Function *OpaquePC;
   LLVMContext &Context;
-  std::map<HelperCallSite, Function *> HelperCallSites;
-  std::map<GlobalVariable *, unsigned> CSVToIndex;
+  StructInitializers Initializers;
   OpaqueFunctionsPool<FunctionType *> IndirectPlaceholderPool;
-  OpaqueFunctionsPool<StructType *> StructConstructors;
   const model::Binary &Binary;
 };
 
@@ -198,155 +142,7 @@ bool EnforceABI::runOnModule(Module &M) {
   return false;
 }
 
-Instruction *EnforceABIImpl::createAggregateRet(IRBuilder<> &Builder,
-                                                ArrayRef<Value *> Values) {
-  // Obtain return StructType
-  auto *FT = Builder.GetInsertBlock()->getParent()->getFunctionType();
-  auto *ReturnType = cast<StructType>(FT->getReturnType());
-
-  SmallVector<Type *, 8> Types;
-  llvm::copy(ReturnType->elements(), std::back_inserter(Types));
-
-  // Create struct_constructor
-  Function *Constructor = StructConstructors.get(ReturnType,
-                                                 ReturnType,
-                                                 Types,
-                                                 "struct_constructor");
-
-  // Lazily populate its body
-  if (Constructor->isDeclaration()) {
-    auto *Entry = BasicBlock::Create(Context, "", Constructor);
-    IRBuilder<> ConstructorBuilder(Entry);
-
-    SmallVector<Value *, 8> Arguments;
-    for (Argument &Arg : Constructor->args())
-      Arguments.push_back(&Arg);
-
-    ConstructorBuilder.CreateAggregateRet(Arguments.data(), Arguments.size());
-  }
-
-  // Emit a call in the caller
-  return Builder.CreateRet(Builder.CreateCall(Constructor, Values));
-}
-
-// TODO: assign alias information
-Function *
-EnforceABIImpl::createHelperWrapper(Function *Helper,
-                                    ArrayRef<GlobalVariable *> Read,
-                                    ArrayRef<GlobalVariable *> Written) {
-  auto *PointeeTy = Helper->getType()->getPointerElementType();
-  auto *HelperType = cast<FunctionType>(PointeeTy);
-
-  //
-  // Create new argument list
-  //
-  SmallVector<Type *, 16> NewArguments;
-
-  // Initialize with base arguments
-  std::copy(HelperType->param_begin(),
-            HelperType->param_end(),
-            std::back_inserter(NewArguments));
-
-  // Add type of read registers
-  for (GlobalVariable *CSV : Read)
-    NewArguments.push_back(CSV->getType()->getPointerElementType());
-
-  //
-  // Create return type
-  //
-
-  // If the helpers does not write any register, reuse the original
-  // return type
-  Type *OriginalReturnType = HelperType->getReturnType();
-  Type *NewReturnType = OriginalReturnType;
-
-  bool HasOutputCSVs = Written.size() != 0;
-  bool OriginalWasVoid = OriginalReturnType->isVoidTy();
-  if (HasOutputCSVs) {
-    SmallVector<Type *, 16> ReturnTypes;
-
-    // If the original return type was not void, put it as first field
-    // in the return type struct
-    if (not OriginalWasVoid) {
-      ReturnTypes.push_back(OriginalReturnType);
-    }
-
-    for (GlobalVariable *CSV : Written)
-      ReturnTypes.push_back(CSV->getType()->getPointerElementType());
-
-    NewReturnType = StructType::create(ReturnTypes);
-  }
-
-  //
-  // Create new helper wrapper function
-  //
-  auto *NewHelperType = FunctionType::get(NewReturnType, NewArguments, false);
-  auto *HelperWrapper = Function::Create(NewHelperType,
-                                         Helper->getLinkage(),
-                                         Twine(Helper->getName()) + "_wrapper",
-                                         Helper->getParent());
-
-  auto *Entry = BasicBlock::Create(getContext(Helper), "", HelperWrapper);
-
-  //
-  // Populate the helper wrapper function
-  //
-  IRBuilder<> Builder(Entry);
-
-  // Serialize read CSV
-  auto It = HelperWrapper->arg_begin();
-  for (unsigned I = 0; I < HelperType->getNumParams(); I++, It++) {
-    // Do nothing
-    revng_assert(It != HelperWrapper->arg_end());
-  }
-
-  for (GlobalVariable *CSV : Read) {
-    revng_assert(It != HelperWrapper->arg_end());
-    Builder.CreateStore(&*It, CSV);
-    It++;
-  }
-  revng_assert(It == HelperWrapper->arg_end());
-
-  // Prepare the arguments
-  SmallVector<Value *, 16> HelperArguments;
-  It = HelperWrapper->arg_begin();
-  for (unsigned I = 0; I < HelperType->getNumParams(); I++, It++) {
-    revng_assert(It != HelperWrapper->arg_end());
-    HelperArguments.push_back(&*It);
-  }
-
-  // Create the function call
-  auto *HelperResult = Builder.CreateCall(Helper, HelperArguments);
-
-  // Deserialize and return the appropriate values
-  if (HasOutputCSVs) {
-    SmallVector<Value *, 16> ReturnValues;
-
-    if (not OriginalWasVoid)
-      ReturnValues.push_back(HelperResult);
-
-    for (GlobalVariable *CSV : Written)
-      ReturnValues.push_back(Builder.CreateLoad(CSV));
-
-    createAggregateRet(Builder, ReturnValues);
-
-  } else if (OriginalWasVoid) {
-    Builder.CreateRetVoid();
-  } else {
-    Builder.CreateRet(HelperResult);
-  }
-
-  return HelperWrapper;
-}
-
 void EnforceABIImpl::run() {
-  // Assign an index to each CSV
-  unsigned I = 0;
-  for (GlobalVariable *CSV : GCBI.csvs()) {
-    CSVToIndex[CSV] = I;
-    I++;
-  }
-
   // Declare an opaque function used later to obtain a value to store in the
   // local %pc alloca, so that we don't incur in error when removing the bad
   // return pc checks.
@@ -358,6 +154,7 @@ void EnforceABIImpl::run() {
                               M);
   OpaquePC->addFnAttr(Attribute::NoUnwind);
   OpaquePC->addFnAttr(Attribute::ReadOnly);
+  FunctionTags::OpaqueCSVValue.addTo(OpaquePC);
 
   std::vector<Function *> OldFunctions;
   for (const model::Function &FunctionModel : Binary.Functions) {
@@ -388,21 +185,6 @@ void EnforceABIImpl::run() {
   for (CallInst *Call : RegularCalls)
     handleRegularFunctionCall(Call);
 
-  // Handle function calls to helpers in isolated functions
-  std::vector<CallInst *> HelperCalls;
-  for (Function &F : M.functions())
-    if (isHelper(&F))
-      for (User *U : F.users())
-        if (auto *Call = dyn_cast<CallInst>(skipCasts(U)))
-          if (IsInIsolatedFunction(Call))
-            HelperCalls.push_back(Call);
-
-  for (CallInst *Call : HelperCalls)
-    handleHelperFunctionCall(Call);
-
-  // Promote CSVs to allocas
-  replaceCSVsWithAlloca();
-
   // Drop function_dispatcher
   if (FunctionDispatcher != nullptr) {
     FunctionDispatcher->deleteBody();
@@ -418,25 +200,8 @@ void EnforceABIImpl::run() {
   }
 
   // Quick and dirty DCE
-  for (auto &P : FunctionsMap) {
-    Function &F = *P.first;
-
-    std::set<BasicBlock *> Reachable;
-    ReversePostOrderTraversal<BasicBlock *> RPOT(&F.getEntryBlock());
-    for (BasicBlock *BB : RPOT)
-      Reachable.insert(BB);
-
-    std::vector<BasicBlock *> ToDelete;
-    for (BasicBlock &BB : F)
-      if (Reachable.count(&BB) == 0)
-        ToDelete.push_back(&BB);
-
-    for (BasicBlock *BB : ToDelete)
-      BB->dropAllReferences();
-
-    for (BasicBlock *BB : ToDelete)
-      BB->eraseFromParent();
-  }
+  for (auto [F, _] : FunctionsMap)
+    EliminateUnreachableBlocks(*F, nullptr, false);
 
   if (VerifyLog.isEnabled()) {
     raw_os_ostream Stream(dbg);
@@ -527,6 +292,7 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
                                        OldFunction.getParent());
   NewFunction->takeName(&OldFunction);
   NewFunction->copyAttributesFrom(&OldFunction);
+  FunctionTags::Lifted.addTo(NewFunction);
 
   // Set argument names
   unsigned I = 0;
@@ -563,7 +329,7 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
         if (ReturnTypes.size() == 1)
           Builder.CreateRet(ReturnValues[0]);
         else
-          createAggregateRet(Builder, ReturnValues);
+          Initializers.createReturn(Builder, ReturnValues);
 
         Return->eraseFromParent();
       }
@@ -571,76 +337,6 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
   }
 
   return NewFunction;
-}
-
-void EnforceABIImpl::handleHelperFunctionCall(CallInst *Call) {
-  using namespace StackAnalysis;
-  Function *Helper = cast<Function>(skipCasts(Call->getCalledValue()));
-
-  auto UsedCSVs = GeneratedCodeBasicInfo::getCSVUsedByHelperCall(Call);
-  UsedCSVs.sort();
-
-  auto *PointeeTy = Helper->getType()->getPointerElementType();
-  auto *HelperType = cast<llvm::FunctionType>(PointeeTy);
-
-  HelperCallSite CallSite(UsedCSVs.Read, UsedCSVs.Written, CSVToIndex, Helper);
-  auto It = HelperCallSites.find(CallSite);
-
-  Function *HelperWrapper = nullptr;
-  if (It != HelperCallSites.end()) {
-    revng_assert(CallSite == It->first);
-    HelperWrapper = It->second;
-  } else {
-    HelperWrapper = createHelperWrapper(Helper,
-                                        UsedCSVs.Read,
-                                        UsedCSVs.Written);
-
-    // Record the new wrapper for future use
-    HelperCallSites[CallSite] = HelperWrapper;
-  }
-
-  //
-  // Emit call to the helper wrapper
-  //
-  IRBuilder<> Builder(Call);
-
-  // Initialize the new set of arguments with the old ones
-  SmallVector<Value *, 16> NewArguments;
-  for (auto [Argument, Type] : zip(Call->args(), HelperType->params()))
-    NewArguments.push_back(Builder.CreateBitOrPointerCast(Argument, Type));
-
-  // Add arguments read
-  for (GlobalVariable *CSV : UsedCSVs.Read)
-    NewArguments.push_back(Builder.CreateLoad(CSV));
-
-  // Emit the actual call
-  Value *Result = Builder.CreateCall(HelperWrapper, NewArguments);
-
-  bool HasOutputCSVs = UsedCSVs.Written.size() != 0;
-  bool OriginalWasVoid = HelperType->getReturnType()->isVoidTy();
-  if (HasOutputCSVs) {
-
-    unsigned FirstDeserialized = 0;
-    if (not OriginalWasVoid) {
-      FirstDeserialized = 1;
-      // RAUW the new result
-      Value *HelperResult = Builder.CreateExtractValue(Result, { 0 });
-      Call->replaceAllUsesWith(HelperResult);
-    }
-
-    // Restore into CSV the written registers
-    for (unsigned I = 0; I < UsedCSVs.Written.size(); I++) {
-      unsigned ResultIndex = { FirstDeserialized + I };
-      Builder.CreateStore(Builder.CreateExtractValue(Result, ResultIndex),
-                          UsedCSVs.Written[I]);
-    }
-
-  } else if (not OriginalWasVoid) {
-    Call->replaceAllUsesWith(Result);
-  }
-
-  // Erase the old call
-  Call->eraseFromParent();
 }
 
 void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
@@ -789,7 +485,7 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
                                   << getName(InsertBlock));
 
     const model::Function *FunctionModel = FunctionsMap.at(Callee);
-    revng_assert(Callee->getName().startswith("bb."));
+    revng_assert(FunctionTags::Lifted.isTagOf(Callee));
     StringRef IncompatibleCSV = areCompatible(*FunctionModel, CallSite);
     bool Incompatible = not IncompatibleCSV.empty();
     if (Incompatible) {
@@ -826,93 +522,5 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
     }
   } else {
     Builder.CreateStore(Result, ReturnCSVs[0]);
-  }
-}
-
-void EnforceABIImpl::replaceCSVsWithAlloca() {
-  OpaqueFunctionsPool<StringRef> CSVInitializers(&M, false);
-  CSVInitializers.addFnAttribute(Attribute::ReadOnly);
-  CSVInitializers.addFnAttribute(Attribute::NoUnwind);
-
-  // Each CSV has a map. The key of the map is a Funciton, and the mapped value
-  // is an AllocaInst used to locally represent that CSV.
-  using MapsVector = std::vector<ValueMap<Function *, Value *>>;
-  MapsVector CSVMaps(GCBI.csvs().size(), {});
-
-  // Map CSV GlobalVariable * to a position in CSVMaps
-  ValueMap<llvm::GlobalVariable *, MapsVector::size_type> CSVPosition;
-  for (auto &Group : llvm::enumerate(GCBI.csvs()))
-    CSVPosition[Group.value()] = Group.index();
-
-  for (auto &P : FunctionsMap) {
-    Function &F = *P.first;
-
-    // Identifies the GlobalVariables representing CSVs used in F.
-    std::set<GlobalVariable *> CSVs;
-    for (BasicBlock &BB : F) {
-      for (Instruction &I : BB) {
-        Value *Pointer = nullptr;
-        if (auto *Load = dyn_cast<LoadInst>(&I))
-          Pointer = Load->getPointerOperand();
-        else if (auto *Store = dyn_cast<StoreInst>(&I))
-          Pointer = Store->getPointerOperand();
-        else
-          continue;
-
-        Pointer = skipCasts(Pointer);
-
-        if (auto *CSV = dyn_cast_or_null<GlobalVariable>(Pointer))
-          if (not GCBI.isSPReg(CSV))
-            CSVs.insert(CSV);
-      }
-    }
-
-    // Create an alloca for each CSV and replace all uses of CSVs with the
-    // corresponding allocas
-    BasicBlock &Entry = F.getEntryBlock();
-    IRBuilder<> InitializersBuilder(&Entry, Entry.begin());
-    auto *Separator = InitializersBuilder.CreateUnreachable();
-    IRBuilder<> AllocaBuilder(Separator);
-
-    // For each GlobalVariable representing a CSV used in F, create a dedicated
-    // alloca and save it in CSVMaps.
-    for (GlobalVariable *CSV : CSVs) {
-
-      Type *CSVType = CSV->getType()->getPointerElementType();
-
-      // Create and register the alloca
-      auto *Alloca = AllocaBuilder.CreateAlloca(CSVType,
-                                                nullptr,
-                                                CSV->getName());
-
-      // Initialize all allocas with opaque, CSV-specific values
-      auto *Initializer = CSVInitializers.get(CSV->getName(),
-                                              CSVType,
-                                              {},
-                                              Twine("init_") + CSV->getName());
-      {
-        auto &B = InitializersBuilder;
-        B.CreateStore(B.CreateCall(Initializer), Alloca);
-      }
-
-      // Ignore it if it's not a CSV
-      auto CSVPosIt = CSVPosition.find(CSV);
-      if (CSVPosIt != CSVPosition.end()) {
-        auto CSVPos = CSVPosIt->second;
-        CSVMaps[CSVPos][&F] = Alloca;
-      }
-    }
-
-    Separator->eraseFromParent();
-  }
-
-  // Substitute the uses of the GlobalVariables representing the CSVs with the
-  // dedicate AllocaInst that were created in each Function.
-  for (GlobalVariable *CSV : GCBI.csvs()) {
-    auto CSVPosIt = CSVPosition.find(CSV);
-    auto CSVPos = CSVPosIt->second;
-    const auto &FunctionAllocas = CSVMaps.at(CSVPos);
-    if (not FunctionAllocas.empty())
-      replaceAllUsesInFunctionsWith(CSV, FunctionAllocas);
   }
 }

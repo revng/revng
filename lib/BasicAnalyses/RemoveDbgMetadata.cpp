@@ -10,6 +10,7 @@
 #include "llvm/IR/Metadata.h"
 
 #include "revng/BasicAnalyses/RemoveDbgMetadata.h"
+#include "revng/Support/FunctionTags.h"
 
 using namespace llvm;
 
@@ -19,7 +20,7 @@ using Register = RegisterPass<RemoveDbgMetadata>;
 static Register X("remove-dbg-metadata", "Removes dbg metadata from Functions");
 
 bool RemoveDbgMetadata::runOnFunction(llvm::Function &F) {
-  if (not F.getName().startswith("bb."))
+  if (not FunctionTags::Lifted.isTagOf(&F))
     return false;
 
   F.setMetadata(LLVMContext::MD_dbg, nullptr);

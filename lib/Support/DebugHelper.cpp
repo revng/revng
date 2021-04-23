@@ -112,14 +112,19 @@ DAW::DebugAnnotationWriter(LLVMContext &Context, bool DebugInfo) :
   DbgMDKind = Context.getMDKindID("dbg");
 }
 
+static bool isRootOrLifted(const Function *F) {
+  auto Tags = FunctionTags::TagsSet::from(F);
+  return Tags.contains(FunctionTags::Root)
+         or Tags.contains(FunctionTags::Lifted);
+}
+
 void DAW::emitInstructionAnnot(const Instruction *Instr,
                                formatted_raw_ostream &Output) {
   DISubprogram *Subprogram = Instr->getParent()->getParent()->getSubprogram();
 
   // Ignore whatever is outside the root and the isolated functions
-  StringRef FunctionName = Instr->getParent()->getParent()->getName();
-  if (Subprogram == nullptr
-      or not(FunctionName == "root" or FunctionName.startswith("bb.")))
+  const Function *F = Instr->getParent()->getParent();
+  if (Subprogram == nullptr or not isRootOrLifted(F))
     return;
 
   writeMetadataIfNew(Instr, OriginalInstrMDKind, Output, "\n  ; ");
@@ -188,8 +193,7 @@ DebugHelper::DebugHelper(std::string Output,
 
 void DebugHelper::generateDebugInfo() {
   for (Function &F : TheModule->functions()) {
-    // TODO: find a better way to identify root and the isolated functions
-    if (F.getName() == "root" || F.getName().startswith("bb.")) {
+    if (isRootOrLifted(&F)) {
       if (DebugInfo != DebugInfoType::None) {
         DISubroutineType *EmptyType = nullptr;
         DITypeRefArray EmptyArrayType = Builder.getOrCreateTypeArray({});
@@ -228,7 +232,7 @@ void DebugHelper::generateDebugInfo() {
     std::ofstream Source(DebugPath);
     for (Function &F : TheModule->functions()) {
 
-      if (not(F.getName() == "root" || F.getName().startswith("bb.")))
+      if (not isRootOrLifted(&F))
         continue;
 
       if (DISubprogram *CurrentSubprogram = F.getSubprogram()) {

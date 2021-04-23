@@ -55,6 +55,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       --disable-enforce-abi-safety-checks
       --isolate
       --enforce-abi
+      --promote-csvs
       --invoke-isolated-functions
       -o "${OUTPUT}")
     set(DEPEND_ON revng-all-binaries)
@@ -71,6 +72,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       --detect-abi
       --isolate
       --enforce-abi
+      --promote-csvs
       --invoke-isolated-functions
       -o "${OUTPUT}")
     set(DEPEND_ON revng-all-binaries)

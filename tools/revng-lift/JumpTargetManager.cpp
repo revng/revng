@@ -41,6 +41,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/Statistics.h"
@@ -451,6 +452,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                              false);
   FunctionCallee ExitCallee = TheModule.getOrInsertFunction("exitTB", ExitTBTy);
   ExitTB = cast<Function>(ExitCallee.getCallee());
+  FunctionTags::Marker.addTo(ExitTB);
 
   prepareDispatcher();
 
@@ -975,6 +977,10 @@ void JumpTargetManager::prepareDispatcher() {
                                         false);
   FunctionCallee UnknownPC = TheModule.getOrInsertFunction("unknownPC",
                                                            UnknownPCTy);
+  {
+    auto *UnknownPCFunction = cast<Function>(skipCasts(UnknownPC.getCallee()));
+    FunctionTags::Exceptional.addTo(UnknownPCFunction);
+  }
 
   Builder.CreateCall(UnknownPC, PCH->loadPC(Builder));
   auto *FailUnreachable = Builder.CreateUnreachable();
@@ -1189,27 +1195,26 @@ public:
     Module *M = F.getParent();
     std::vector<CallInst *> ToErase;
 
-    for (StringRef MarkerName : MarkerFunctionNames) {
-      if (Function *Marker = M->getFunction(MarkerName)) {
-
-        //
-        // Check if we should preserve this marker
-        //
-        auto It = std::find(ToPreserve.begin(), ToPreserve.end(), MarkerName);
-        auto End = std::end(ToPreserve);
-        if (It != End) {
-          Marker->setDoesNotReturn();
-          continue;
-        }
-
-        //
-        // Register all the calls to be erased
-        //
-        for (User *U : Marker->users())
-          if (auto *Call = dyn_cast<CallInst>(U))
-            if (Call->getParent()->getParent() == &F)
-              ToErase.push_back(Call);
+    for (Function &Marker : FunctionTags::Marker.functions(M)) {
+      //
+      // Check if we should preserve this marker
+      //
+      auto It = std::find(ToPreserve.begin(),
+                          ToPreserve.end(),
+                          Marker.getName());
+      auto End = std::end(ToPreserve);
+      if (It != End) {
+        Marker.setDoesNotReturn();
+        continue;
       }
+
+      //
+      // Register all the calls to be erased
+      //
+      for (User *U : Marker.users())
+        if (auto *Call = dyn_cast<CallInst>(U))
+          if (Call->getParent()->getParent() == &F)
+            ToErase.push_back(Call);
     }
 
     //
