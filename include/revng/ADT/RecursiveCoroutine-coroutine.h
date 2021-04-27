@@ -6,155 +6,49 @@
 
 #include <experimental/coroutine>
 #include <optional>
+#include <type_traits>
 #include <utility>
 
 #include "revng/Support/Assert.h"
 
-struct PromiseBase {
+template<typename>
+struct RecursiveCoroutine;
 
-  auto initial_suspend() const { return std::experimental::suspend_always(); }
-  auto final_suspend() const noexcept {
-    return std::experimental::suspend_always();
+namespace detail {
+
+template<typename RetT>
+struct ReturnBase {
+
+  void return_value(RetT R) {
+    revng_assert(not CurrValue.has_value());
+    CurrValue = std::move(R);
+    return;
   }
 
-  [[noreturn]] void unhandled_exception() const { std::terminate(); }
-
-  PromiseBase *Callee = nullptr;
-};
-
-template<typename ReturnT = void>
-struct [[nodiscard("RecursiveCoroutine is discarded without running "
-                   "it")]] RecursiveCoroutine {
-public:
-  struct promise_type;
-
-public:
-  using coro_handle = std::experimental::coroutine_handle<promise_type>;
-
-public:
-  RecursiveCoroutine(coro_handle H) : OwnedHandle(H) {}
-  RecursiveCoroutine() : RecursiveCoroutine(coro_handle{}) {}
-
-  // Not copyable, because we don't want OwnedHandle to be destroyed twice
-  RecursiveCoroutine &operator=(const RecursiveCoroutine &);
-  RecursiveCoroutine(const RecursiveCoroutine &);
-
-  // Movable, but we clean up the OwnedHandle, because we don't want it to be
-  // destroyed twice in the destructor
-  RecursiveCoroutine &operator=(RecursiveCoroutine &&Other) {
-    this->OwnedHandle = Other.OwnedHandle;
-    Other.OwnedHandle = {};
-    return *this;
-  }
-  RecursiveCoroutine(RecursiveCoroutine && Other) { *this = std::move(Other); }
-
-  ~RecursiveCoroutine() {
-    revng_assert(OwnedHandle and OwnedHandle.done());
-    OwnedHandle.destroy();
-    OwnedHandle = {};
+  RetT get() const {
+    revng_assert(CurrValue.has_value());
+    return *CurrValue;
   }
 
-  bool await_ready() const { return false; }
-
-  // TODO: I wanted to do something like the following
-  //
-  // template<typename CallerReturnT>
-  // void await_suspend(std::coroutine_handle<RecursiveCoroutine<CallerReturnT>>
-  //                    CallerHandle)
-  //
-  // but I had to fight the template parameter type inference engine and I gave
-  // up. This is also likely a good spot to constraint CallerCoroHandleT with
-  // C++20 concepts, but not today.
-  template<typename CallerCoroHandleT>
-  void await_suspend(CallerCoroHandleT CallerHandle) {
-    revng_assert(CallerHandle and not CallerHandle.done());
-    revng_assert(OwnedHandle and not OwnedHandle.done());
-    CallerHandle.promise().Callee = &OwnedHandle.promise();
-  }
-
-  ReturnT await_resume() {
-    revng_assert(OwnedHandle and OwnedHandle.done());
-    if constexpr (std::is_same_v<ReturnT, void>) {
-      return;
-    } else {
-      return OwnedHandle.promise().get();
-    }
-  }
-
-  ReturnT run() {
-    revng_assert(OwnedHandle);
-
-    // If the result is already available, use it!
-    if (OwnedHandle.done())
-      return OwnedHandle.promise().get();
-
-    using recursive_handle = std::experimental::coroutine_handle<PromiseBase>;
-    std::vector<PromiseBase *> Stack;
-
-    Stack.push_back(&OwnedHandle.promise());
-
-    while (not Stack.empty()) {
-      PromiseBase &CurrentPromise = *Stack.back();
-      auto CurrentHandle = recursive_handle::from_promise(CurrentPromise);
-      revng_assert(CurrentHandle);
-
-      // Resume the coroutine that's on top of the Stack.
-      // This will either suspend at the final suspension point of the current
-      // coroutine on top of the stack, or after setting a handle to a new
-      // recursive coroutine ready for execution in the promise object of the
-      // current coroutine on top of the stack.
-      CurrentHandle.resume();
-
-      if (CurrentHandle.done()) {
-        // The coroutine that we have just resumed has terminated its execution
-        // and is suspended at its final suspension point. It has not pushed
-        // anything else on top of the stack, so we can pop this.
-        Stack.pop_back();
-
-      } else {
-
-        // The coroutine that we have just resumed has suspended its execution
-        // and we can find a non-owning handle to the callee inside its promise
-        // object.
-
-        revng_assert(CurrentHandle and CurrentHandle.promise().Callee);
-        PromiseBase *CalleePromise = CurrentHandle.promise().Callee;
-        revng_assert(CalleePromise);
-
-        // Push the callee handle on top of the stack for resumption.
-        Stack.push_back(CalleePromise);
-      }
-    }
-
-    revng_assert(OwnedHandle and OwnedHandle.done());
-
-    return OwnedHandle.promise().get();
-  }
-
-private:
-  coro_handle OwnedHandle;
+protected:
+  std::optional<RetT> CurrValue = std::nullopt;
 };
 
 template<>
-struct RecursiveCoroutine<void>::promise_type : public PromiseBase {
-
-  RecursiveCoroutine<void> get_return_object() {
-    return RecursiveCoroutine<void>(coro_handle::from_promise(*this));
-  }
-
-  [[noreturn]] static RecursiveCoroutine<void>
-  get_return_object_on_allocation_failure() {
-    std::terminate();
-    // TODO: if we need this not to be a hard crash we could do the following
-    // return RecursiveCoroutine<void>();
-  }
+struct ReturnBase<void> {
 
   void return_void() const { return; }
   void get() const {}
 };
 
 template<typename ReturnT>
-struct RecursiveCoroutine<ReturnT>::promise_type : public PromiseBase {
+struct RecursivePromise : public ReturnBase<ReturnT> {
+
+  using promise_type = RecursivePromise<ReturnT>;
+  using coro_handle = std::experimental::coroutine_handle<promise_type>;
+
+  template<typename>
+  friend struct RecursivePromise;
 
   RecursiveCoroutine<ReturnT> get_return_object() {
     return RecursiveCoroutine<ReturnT>(coro_handle::from_promise(*this));
@@ -164,28 +58,200 @@ struct RecursiveCoroutine<ReturnT>::promise_type : public PromiseBase {
   get_return_object_on_allocation_failure() {
     std::terminate();
     // TODO: if we need this not to be a hard crash we could do the following
-    // return RecursiveCoroutine<ReturnT>();
+    // return RecursiveCoroutine<void>();
   }
 
-  void return_value(ReturnT R) {
-    revng_assert(not CurrValue.has_value());
-    CurrValue = std::move(R);
-    return;
+  [[noreturn]] void unhandled_exception() const { std::terminate(); }
+
+  auto initial_suspend() const { return std::experimental::suspend_always(); }
+
+  auto final_suspend() noexcept {
+    // In principle, we want our RecursiveCoroutine to always suspend at the
+    // end of execution. Cleanup of coroutine resources is done in the
+    // destructor of RecursiveCoroutine. However, we cannot simply return
+    // suspend_always, because if have an associated AwaiterContinuation, it
+    // means that the coroutine that is at this final suspension point was
+    // being co_awaited by an awaiter, that must be resumed when the awaitee
+    // reaches the final suspension point.
+    //
+    // So our final awaitable object should:
+    // - always suspend (await_ready should always return false)
+    // - return the handle to the awaiter continuation, so that if it's a
+    //   valid handle it will be resumed.
+    // - never be resumed, because it's the final suspension point
+    //   (await_resume actuall aborts)
+    struct ResumeAwaiter {
+
+      ResumeAwaiter(std::experimental::coroutine_handle<> AwaiterHandle) :
+        Awaiter(AwaiterHandle) {}
+
+      bool await_ready() const { return false; }
+
+      std::experimental::coroutine_handle<>
+      await_suspend(std::experimental::coroutine_handle<>) {
+        std::experimental::coroutine_handle<>
+          ToResume = std::experimental::noop_coroutine();
+        if (Awaiter and not Awaiter.done()) {
+          ToResume = Awaiter;
+          Awaiter = {};
+        }
+        return ToResume;
+      }
+
+      void await_resume() const { revng_abort(); }
+
+    private:
+      std::experimental::coroutine_handle<> Awaiter;
+    };
+
+    auto ToResume = AwaiterContinuation;
+    AwaiterContinuation = {};
+    return ResumeAwaiter(ToResume);
   }
 
-  ReturnT get() const {
-    revng_assert(CurrValue.has_value());
-    return *CurrValue;
+  RecursivePromise() :
+    AwaiterContinuation(std::experimental::coroutine_handle<>{}) {}
+  ~RecursivePromise() { revng_assert(not AwaiterContinuation); }
+
+  // Not copyable, otherwise AwaiterContinuation could be resumed twice.
+  RecursivePromise &operator=(const RecursivePromise &) = delete;
+  RecursivePromise(const RecursivePromise &) = delete;
+
+  RecursivePromise &operator=(RecursivePromise &&Other) {
+    if (this != &Other) {
+      this->AwaiterContinuation = Other.AwaiterContinuation;
+      Other.AwaiterContinuation = {};
+    }
+    return *this;
+  }
+  RecursivePromise(RecursivePromise &&Other) { *this = std::move(Other); }
+
+  template<typename AwaiteeReturnT>
+  auto await_transform(RecursiveCoroutine<AwaiteeReturnT> &&Awaitee) {
+    // This await_transform is called when the RecursiveCoroutine associated
+    // with this promise object (the awaiter) calls co_await on another
+    // RecursiveCoroutine (the awaitee).
+    //
+    // We want to inject the handle of the awaiter into the awaitee, so that
+    // when the awaitee ends it can resume the awaiter.
+    //
+    // We also have to return an awaitable that will dictate the suspension
+    // behavior of the awaiter.
+    // We want it to always suspend (await_ready should return false); we want
+    // it to resume the awaitee straight away after suspending (await_suspend
+    // shoul return a coroutine_handle to the awaitee), and we want the
+    // awaiter to get the result of the awaitee when resuming (await_resume
+    // should get the result of the awaitee and return it to the awaiter).
+    using AwaiteePromiseT = RecursivePromise<AwaiteeReturnT>;
+    using AwaiteeCoroHandle = typename AwaiteePromiseT::coro_handle;
+    AwaiteeCoroHandle AwaiteeHandle = Awaitee.OwnedHandle;
+    revng_assert(AwaiteeHandle and not AwaiteeHandle.done());
+
+    auto &AwaiteePromise = AwaiteeHandle.promise();
+    AwaiteePromise.AwaiterContinuation = coro_handle::from_promise(*this);
+
+    struct ResumeAwaitee {
+      ResumeAwaitee(AwaiteeCoroHandle AwaiteeHandle) : Awaitee(AwaiteeHandle) {}
+
+      bool await_ready() const { return false; }
+
+      auto await_suspend(std::experimental::coroutine_handle<>) {
+        // In principle we could clear Awaitee here, before suspending, so
+        // that if for some reason `await_suspend` is called twice we don't
+        // end up suspending the same coroutine twice (which is a bug).
+        // However, we still need access to Awaitee in `await_resume` to take
+        // the result of the Awaitee and propagate it to the awaiter.
+        revng_assert(Awaitee and not Awaitee.done());
+        return Awaitee;
+      }
+
+      auto await_resume() {
+        revng_assert(Awaitee and Awaitee.done());
+
+        if constexpr (std::is_void_v<AwaiteeReturnT>)
+          return;
+        else
+          return Awaitee.promise().get();
+      }
+
+    private:
+      AwaiteeCoroHandle Awaitee;
+    };
+
+    return ResumeAwaitee{ AwaiteeHandle };
   }
 
 protected:
-  std::optional<ReturnT> CurrValue = std::nullopt;
+  std::experimental::coroutine_handle<> AwaiterContinuation;
 };
 
-template<typename CoroutineT, typename... Args>
-auto rc_run(CoroutineT F, Args &&... args) {
-  return F(std::forward<Args>(args)...).run();
-}
+} // end namespace detail
+
+template<typename ReturnT = void>
+struct RecursiveCoroutine {
+
+public:
+  using promise_type = detail::RecursivePromise<ReturnT>;
+  using coro_handle = std::experimental::coroutine_handle<promise_type>;
+  template<typename T>
+  friend struct detail::RecursivePromise;
+
+public:
+  RecursiveCoroutine() = delete;
+  RecursiveCoroutine(coro_handle H) : OwnedHandle(H) {}
+
+  // Not copyable, because we don't want OwnedHandle to be destroyed twice
+  RecursiveCoroutine &operator=(const RecursiveCoroutine &) = delete;
+  RecursiveCoroutine(const RecursiveCoroutine &) = delete;
+
+  // Movable, but we clean up the OwnedHandle, because we don't want it to be
+  // destroyed twice in the destructor
+  RecursiveCoroutine &operator=(RecursiveCoroutine &&Other) {
+    this->OwnedHandle = Other.OwnedHandle;
+    Other.OwnedHandle = {};
+    return *this;
+  }
+  RecursiveCoroutine(RecursiveCoroutine &&Other) { *this = std::move(Other); }
+
+  ~RecursiveCoroutine() {
+    revng_assert(OwnedHandle);
+
+    // If we reach this point, the coroutine associated to the OwnedHandle was
+    // either awaited upon (and it is now suspended at its final suspension
+    // point), or it was not awaited upon at all (simply called as a regular
+    // function); in this last case its result has also not been taken with
+    // operator ReturnT and is going to be discarded.
+    // We need to run the coroutine anyway, to be consistent with function calls
+    // and to trigger potential side-effects.
+    if (not OwnedHandle.done())
+      OwnedHandle.resume();
+    revng_assert(OwnedHandle.done());
+
+    // After we are done we can clean up
+    OwnedHandle.destroy();
+    OwnedHandle = {};
+  }
+
+  // This is necessary to enable calling a recursive coroutine that returns a
+  // value in the same way you would call a regular function.
+  operator ReturnT() {
+    revng_assert(OwnedHandle);
+
+    if (not OwnedHandle.done())
+      OwnedHandle.resume();
+    revng_assert(OwnedHandle.done());
+
+    if constexpr (std::is_void_v<ReturnT>) {
+      return;
+    } else {
+      ReturnT Result = OwnedHandle.promise().get();
+      return Result;
+    }
+  }
+
+protected:
+  coro_handle OwnedHandle;
+};
 
 #define rc_return co_return
 
