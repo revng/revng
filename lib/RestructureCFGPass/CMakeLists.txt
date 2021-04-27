@@ -14,7 +14,6 @@ revng_add_analyses_library(RestructureCFGPass
 
 target_link_libraries(RestructureCFGPass
                       TargetFunctionOption
-                      IsolatedFunctions
                       revng::revngModel
                       revng::revngSupport
                       ${LLVM_LIBRARIES})

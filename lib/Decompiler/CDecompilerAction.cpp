@@ -13,12 +13,11 @@
 #include "clang/Basic/SourceLocation.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/Model/Binary.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "revng-c/Decompiler/MarkForSerialization.h"
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
@@ -740,15 +739,13 @@ private:
   using DuplicationMap = std::map<const llvm::BasicBlock *, size_t>;
 
 public:
-  explicit Decompiler(const model::Binary &Model,
-                      llvm::Function &F,
+  explicit Decompiler(llvm::Function &F,
                       ASTTree &CombedAST,
                       BBPHIMap &BlockToPHIIncoming,
                       const dla::ValueLayoutMap *VL,
                       llvm::ScalarEvolution *SCEV,
                       const SerializationMap &M,
                       std::unique_ptr<llvm::raw_ostream> Out) :
-    Model(Model),
     TheF(F),
     CombedAST(CombedAST),
     BlockToPHIIncoming(BlockToPHIIncoming),
@@ -760,7 +757,6 @@ public:
   virtual void HandleTranslationUnit(ASTContext &Context) override;
 
 private:
-  const model::Binary &Model;
   llvm::Function &TheF;
   ASTTree &CombedAST;
   BBPHIMap &BlockToPHIIncoming;
@@ -875,14 +871,15 @@ addDeclsInOrder(clang::TypeDecl *TD,
 
 void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   revng_assert(not TheF.isDeclaration());
-  revng_assert(hasIsolatedFunction(Model, TheF));
+
+  auto FTags = FunctionTags::TagsSet::from(&TheF);
+  revng_assert(FTags.contains(FunctionTags::Lifted));
 
   beautifyAST(TheF, CombedAST, Mark);
 
-  DeclCreator Declarator(ValueLayouts, Model);
+  DeclCreator Declarator(ValueLayouts);
 
-  IR2AST::StmtBuilder ASTBuilder(Model,
-                                 Context,
+  IR2AST::StmtBuilder ASTBuilder(Context,
                                  Mark,
                                  ValueLayouts,
                                  SE,
@@ -938,8 +935,7 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
 }
 
 std::unique_ptr<ASTConsumer> CDecompilerAction::newASTConsumer() {
-  return std::make_unique<Decompiler>(Model,
-                                      F,
+  return std::make_unique<Decompiler>(F,
                                       CombedAST,
                                       BlockToPHIIncoming,
                                       LayoutMap,

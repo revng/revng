@@ -6,7 +6,6 @@ revng_add_analyses_library(FilterForDecompilation revngc
   FilterForDecompilationPass.cpp)
 
 target_link_libraries(FilterForDecompilation
-  IsolatedFunctions
   revng::revngModel
   revng::revngSupport
   ${LLVM_LIBRARIES})

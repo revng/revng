@@ -7,11 +7,9 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 
-#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
-
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 
 #include "DLAStep.h"
 #include "DLATypeSystem.h"
@@ -23,10 +21,9 @@ using StepT = CreateInterproceduralTypes;
 
 bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
   const Module &M = TS.getModule();
-  auto &LWP = ModPass->getAnalysis<LoadModelWrapperPass>();
-  const auto &Model = LWP.get().getReadOnlyModel();
   for (const Function &F : M.functions()) {
-    if (F.isIntrinsic() or not hasIsolatedFunction(Model, F))
+    auto FTags = FunctionTags::TagsSet::from(&F);
+    if (F.isIntrinsic() or not FTags.contains(FunctionTags::Lifted))
       continue;
     revng_assert(not F.isVarArg());
 
@@ -47,10 +44,12 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
     for (const BasicBlock &B : F) {
       for (const Instruction &I : B) {
         if (auto *Call = dyn_cast<CallInst>(&I)) {
+
           const Function *Callee = getCallee(Call);
-          if (Callee->isIntrinsic() or not hasIsolatedFunction(Model, Callee)) {
+          auto CTags = FunctionTags::TagsSet::from(Callee);
+          if (Callee->isIntrinsic() or not CTags.contains(FunctionTags::Lifted))
             continue;
-          }
+
           unsigned ArgNo = 0U;
           for (const Argument &FormalArg : Callee->args()) {
             Value *ActualArg = Call->getOperand(ArgNo);

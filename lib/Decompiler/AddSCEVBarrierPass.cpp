@@ -11,9 +11,9 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "revng-c/Decompiler/MarkForSerialization.h"
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 
 struct AddSCEVBarrierPass : public llvm::FunctionPass {
 
@@ -55,9 +55,8 @@ std::string makeSCEVBarrierName(const llvm::Type *Ty) {
 bool AddSCEVBarrierPass::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
-  const model::Binary
-    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-  if (not hasIsolatedFunction(Model, F))
+  auto FTags = FunctionTags::TagsSet::from(&F);
+  if (not FTags.contains(FunctionTags::Lifted))
     return false;
 
   // If the MarkForSerializationPass was not executed, we have nothing to do.

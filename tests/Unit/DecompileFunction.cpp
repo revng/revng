@@ -13,6 +13,7 @@
 
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "revng-c/Decompiler/CDecompiler.h"
 
@@ -29,6 +30,14 @@ int main(int argc, char **argv) {
               "Unable to find an isolated function");
 
   const model::Function &F = *Model.Functions.begin();
+
+  llvm::Function *LLVMFun = M->getFunction(F.Name);
+  revng_check(LLVMFun, "Cannot find function in LLVM Module");
+
+  auto FTags = FunctionTags::TagsSet::from(LLVMFun);
+  revng_check(FTags.contains(FunctionTags::Lifted),
+              "Function does not have the 'Lifted' Tag");
+
   std::string CCode = decompileFunction(M.get(), F.Name);
   revng_check(not CCode.empty(), "Decompiled function is empty");
 

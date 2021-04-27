@@ -11,8 +11,8 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Support/FunctionTags.h"
 
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 
 using namespace llvm;
@@ -248,9 +248,8 @@ void PHIASAPAssignmentInfo::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 bool PHIASAPAssignmentInfo::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
-  const model::Binary
-    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-  if (not hasIsolatedFunction(Model, F))
+  auto FTags = FunctionTags::TagsSet::from(&F);
+  if (not FTags.contains(FunctionTags::Lifted))
     return false;
 
   DomTree DT;

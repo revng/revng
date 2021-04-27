@@ -7,9 +7,9 @@
 #include "llvm/IR/Module.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/RemoveLLVMAssumeCalls/RemoveLLVMAssumeCallsPass.h"
 
 using namespace llvm;
@@ -28,9 +28,8 @@ void RemoveAssumePass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 bool RemoveAssumePass::runOnFunction(Function &F) {
 
   // Skip non-isolated functions
-  const model::Binary
-    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-  if (not hasIsolatedFunction(Model, F))
+  auto FTags = FunctionTags::TagsSet::from(&F);
+  if (not FTags.contains(FunctionTags::Lifted))
     return false;
 
   // Remove calls to `llvm.assume` in isolated functions.

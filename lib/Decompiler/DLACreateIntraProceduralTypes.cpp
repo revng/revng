@@ -18,11 +18,9 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
-
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 
 #include "DLAHelpers.h"
 #include "DLAStep.h"
@@ -56,7 +54,6 @@ static int64_t getSCEVConstantSExtVal(const SCEV *S) {
 }
 
 class InstanceLinkAdder {
-  const model::Binary *Model;
   Function *F;
   ScalarEvolution *SE;
   llvm::DominatorTree DT;
@@ -196,8 +193,6 @@ protected:
 
 public:
   void setupForProcessingFunction(ModulePass *MP, Function *TheF) {
-    auto &LWP = MP->getAnalysis<LoadModelWrapperPass>();
-    Model = &LWP.get().getReadOnlyModel();
     SE = &MP->getAnalysis<llvm::ScalarEvolutionWrapperPass>(*TheF).getSE();
     F = TheF;
     DT.recalculate(*F);
@@ -345,7 +340,8 @@ public:
           //  2. @env is not a construct coming from the original program being
           //     decompiled, rather a QEMU artifact that represents the CPU
           //     state. Hence it has no really meaningful type in the program.
-          if (not hasIsolatedFunction(*Model, Callee->getName().str()))
+          auto CTags = FunctionTags::TagsSet::from(Callee);
+          if (CTags.contains(FunctionTags::Lifted))
             continue;
 
           revng_assert(not Callee->isVarArg());
@@ -501,9 +497,9 @@ public:
 
     const SCEV *PtrSCEV = SE->getSCEV(PointerVal);
     using Explorer = SCEVBaseAddressExplorer;
-    auto PossibleBaseAddresses = Explorer(*Model).findBases(SE,
-                                                            PtrSCEV,
-                                                            SCEVToLayoutType);
+    auto PossibleBaseAddresses = Explorer().findBases(SE,
+                                                      PtrSCEV,
+                                                      SCEVToLayoutType);
     for (const SCEV *BaseAddrSCEV : PossibleBaseAddresses)
       AddedSomething |= addInstanceLink(TS, PointerVal, BaseAddrSCEV, B);
 
@@ -515,10 +511,9 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
   InstanceLinkAdder ILA;
   Module &M = TS.getModule();
-  auto &LWP = ModPass->getAnalysis<LoadModelWrapperPass>();
-  const auto &Model = LWP.get().getReadOnlyModel();
   for (Function &F : M.functions()) {
-    if (F.isIntrinsic() or not hasIsolatedFunction(Model, F))
+    auto FTags = FunctionTags::TagsSet::from(&F);
+    if (F.isIntrinsic() or not FTags.contains(FunctionTags::Lifted))
       continue;
     revng_assert(not F.isVarArg());
 

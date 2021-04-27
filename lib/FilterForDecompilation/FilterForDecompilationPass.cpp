@@ -7,9 +7,9 @@
 #include "llvm/IR/Module.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "revng-c/FilterForDecompilation/FilterForDecompilationPass.h"
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 
 using FFDFP = FilterForDecompilationFunctionPass;
 
@@ -18,9 +18,8 @@ void FFDFP::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 }
 
 bool FFDFP::runOnFunction(llvm::Function &F) {
-  const model::Binary
-    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-  if (not hasIsolatedFunction(Model, F)) {
+  auto FTags = FunctionTags::TagsSet::from(&F);
+  if (not FTags.contains(FunctionTags::Lifted)) {
     F.deleteBody();
     return true;
   }
@@ -39,10 +38,9 @@ void FFDMP::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 bool FFDMP::runOnModule(llvm::Module &M) {
 
   bool Changed = false;
-  const model::Binary
-    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
   for (llvm::Function &F : M) {
-    if (not hasIsolatedFunction(Model, F)) {
+    auto FTags = FunctionTags::TagsSet::from(&F);
+    if (not FTags.contains(FunctionTags::Lifted)) {
       F.deleteBody();
       Changed = true;
     }
