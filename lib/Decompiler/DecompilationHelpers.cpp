@@ -96,6 +96,9 @@ clang::CastExpr *createCast(clang::QualType LHSQualTy,
   const clang::Type *LHSTy = LHSQualTy.getTypePtr();
   const clang::Type *RHSTy = RHSQualTy.getTypePtr();
 
+  if (isa<clang::ConditionalOperator>(RHS))
+    RHS = new (ASTCtx) ParenExpr({}, {}, RHS);
+
   CastKind CK;
   if (LHSTy->isBooleanType() and RHSTy->isIntegerType()) {
     // casting integer to boolean

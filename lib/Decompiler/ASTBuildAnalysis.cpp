@@ -410,11 +410,17 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     QualType TrueTy = TrueExpr->getType();
     QualType FalseTy = FalseExpr->getType();
 
-    if (ASTType.getTypePtr()->isPointerType()
-        and not TrueExpr->getType()->isPointerType()
-        and not FalseExpr->getType()->isPointerType()) {
-      int Cmp = ASTCtx.getIntegerTypeOrder(TrueTy, FalseTy);
-      TernaryTy = (Cmp > 0) ? TrueTy : FalseTy;
+    if (ASTType.getTypePtr()->isPointerType()) {
+      bool TruePtr = TrueExpr->getType()->isPointerType();
+      bool FalsePtr = FalseExpr->getType()->isPointerType();
+      if (not TruePtr and not FalsePtr) {
+        int Cmp = ASTCtx.getIntegerTypeOrder(TrueTy, FalseTy);
+        TernaryTy = (Cmp > 0) ? TrueTy : FalseTy;
+      } else if (not TruePtr) {
+        TrueExpr = createCast(TernaryTy, TrueExpr, ASTCtx);
+      } else if (not FalsePtr) {
+        FalseExpr = createCast(TernaryTy, FalseExpr, ASTCtx);
+      }
     }
 
     clang::Expr *Ternary = new (ASTCtx) ConditionalOperator(Cond,
@@ -429,16 +435,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     if (ASTType.getTypePtr()->isPointerType()
         and not TrueExpr->getType()->isPointerType()
         and not FalseExpr->getType()->isPointerType()) {
-      TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(ASTType);
-      Ternary = CStyleCastExpr::Create(ASTCtx,
-                                       ASTType,
-                                       VK_RValue,
-                                       CastKind::CK_IntegralToPointer,
-                                       Ternary,
-                                       nullptr,
-                                       TI,
-                                       {},
-                                       {});
+      Ternary = createCast(ASTType, Ternary, ASTCtx);
     }
     return Ternary;
   }
