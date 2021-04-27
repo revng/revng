@@ -27,7 +27,7 @@ int main(int, char *[]) {
   //
   std::vector<MyState> MyStateRCS;
   MyStateRCS.emplace_back();
-  rc_run(my_coroutine, MyStateRCS, 0);
+  my_coroutine(MyStateRCS, 0);
 
   //
   // Visit a simple graph
@@ -50,7 +50,7 @@ int main(int, char *[]) {
   // element
   ThisRCS.emplace_back(SimpleGraph.root());
   // run the coroutine
-  rc_run(findMaxDepth, ThisRCS);
+  findMaxDepth(ThisRCS);
 
 #endif
 
@@ -91,7 +91,7 @@ int main(int, char *[]) {
     // element
     RCS.emplace_back(G.root());
     // run the coroutine
-    rc_run(findMaxDepth, RCS);
+    findMaxDepth(RCS);
 
 #endif
     auto End = high_resolution_clock::now();
@@ -123,7 +123,7 @@ int main(int, char *[]) {
 
 #else
 
-    X = rc_run(findMaxDepthRet, G.root(), Stack);
+    X = findMaxDepthRet(G.root(), Stack);
 
 #endif
     auto End = high_resolution_clock::now();
@@ -138,7 +138,7 @@ int main(int, char *[]) {
   std::cout << "Average: " << Average << std::endl;
 
   int Result = 0;
-  rc_run(accumulateSums, 7, Result);
+  accumulateSums(7, Result);
   std::cout << "Result: " << Result << std::endl;
   revng_check(Result == 28);
 
