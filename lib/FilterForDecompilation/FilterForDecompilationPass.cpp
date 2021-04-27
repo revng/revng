@@ -3,6 +3,7 @@
 // Copyright (c) rev.ng Srls. See LICENSE.md for details.
 //
 
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
@@ -20,7 +21,8 @@ void FFDFP::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 bool FFDFP::runOnFunction(llvm::Function &F) {
   auto FTags = FunctionTags::TagsSet::from(&F);
   if (not FTags.contains(FunctionTags::Lifted)) {
-    F.deleteBody();
+    F.addFnAttr(llvm::Attribute::AttrKind::OptimizeNone);
+    F.addFnAttr(llvm::Attribute::AttrKind::NoInline);
     return true;
   }
 
@@ -41,7 +43,8 @@ bool FFDMP::runOnModule(llvm::Module &M) {
   for (llvm::Function &F : M) {
     auto FTags = FunctionTags::TagsSet::from(&F);
     if (not FTags.contains(FunctionTags::Lifted)) {
-      F.deleteBody();
+      F.addFnAttr(llvm::Attribute::AttrKind::OptimizeNone);
+      F.addFnAttr(llvm::Attribute::AttrKind::NoInline);
       Changed = true;
     }
   }
