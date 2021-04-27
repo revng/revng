@@ -165,7 +165,6 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
       // Remap BranchType to FunctionEdgeType
       namespace FET = FunctionEdgeType;
       FET::Values EdgeType = FET::Invalid;
-      bool IsCall = false;
 
       switch (Branch) {
       case BranchType::Invalid:
@@ -193,12 +192,10 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         break;
 
       case BranchType::HandledCall:
-        IsCall = true;
         EdgeType = FET::FunctionCall;
         break;
 
       case BranchType::IndirectCall:
-        IsCall = true;
         EdgeType = FET::IndirectCall;
         break;
 
@@ -211,7 +208,6 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         break;
 
       case BranchType::IndirectTailCall:
-        IsCall = true;
         EdgeType = FET::IndirectTailCall;
         break;
 
@@ -231,6 +227,8 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
       if (EdgeType == FET::Invalid)
         continue;
 
+      bool IsCall = FunctionEdgeType::isCall(EdgeType);
+
       // Identify Source address
       auto [Source, Size] = getPC(BB->getTerminator());
       Source += Size;
@@ -244,18 +242,28 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
       CurrentBlock.Name = JumpTargetBB->getName();
       auto SuccessorsInserter = CurrentBlock.Successors.batch_insert();
 
+      auto MakeEdge = [](MetaAddress Destination,
+                         FunctionEdgeType::Values Type) {
+        FunctionEdge *Result = nullptr;
+        if (FunctionEdgeType::isCall(Type))
+          Result = new CallEdge(Destination, Type);
+        else
+          Result = new FunctionEdge(Destination, Type);
+        return UpcastablePointer<FunctionEdge>(Result);
+      };
+
       if (EdgeType == FET::DirectBranch) {
         // Handle direct branch
         auto Successors = GCBI.getSuccessors(BB);
         for (const MetaAddress &Destination : Successors.Addresses)
-          SuccessorsInserter.insert(FunctionEdge{ Destination, EdgeType });
+          SuccessorsInserter.insert(MakeEdge(Destination, EdgeType));
 
       } else if (EdgeType == FET::FakeFunctionReturn) {
         // Handle fake function return
         auto [First, Last] = FunctionSummary.FakeReturns.equal_range(BB);
         revng_assert(First != Last);
         for (const auto &[_, Destination] : make_range(First, Last))
-          SuccessorsInserter.insert(FunctionEdge{ Destination, EdgeType });
+          SuccessorsInserter.insert(MakeEdge(Destination, EdgeType));
 
       } else if (IsCall) {
         // Handle call
@@ -265,8 +273,9 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
           Destination = getBasicBlockPC(Successor);
 
         // Record the edge in the CFG
-
-        auto &Edge = SuccessorsInserter.insert({ Destination, EdgeType });
+        auto TempEdge = MakeEdge(Destination, EdgeType);
+        const auto &Result = SuccessorsInserter.insert(TempEdge);
+        auto *Edge = llvm::cast<CallEdge>(Result.get());
 
         bool Found = false;
         for (const FunctionsSummary::CallSiteDescription &CSD :
@@ -276,7 +285,7 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
 
           revng_assert(not Found);
           Found = true;
-          auto Inserter = Edge.Registers.batch_insert();
+          auto Inserter = Edge->Registers.batch_insert();
           for (auto &[CSV, FCRD] : CSD.RegisterSlots) {
             auto ID = ABIRegister::fromCSVName(CSV->getName(), GCBI.arch());
             if (ID == model::Register::Invalid)
@@ -297,7 +306,7 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
           Destination = getBasicBlockPC(Successor);
 
         // Record the edge in the CFG
-        SuccessorsInserter.insert(FunctionEdge{ Destination, EdgeType });
+        SuccessorsInserter.insert(MakeEdge(Destination, EdgeType));
       }
     }
   }
