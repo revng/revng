@@ -83,11 +83,12 @@ static bool areCompatible(const model::FunctionABIRegister &LHS,
          and areCompatible(LHS.ReturnValue, RHS.ReturnValue);
 }
 
-static StringRef areCompatible(const model::Function &Callee,
-                               const model::FunctionEdge &CallSite) {
+static StringRef
+areCompatible(const model::Function &Callee, const model::CallEdge &Edge) {
+
   for (const model::FunctionABIRegister &Register : Callee.Registers) {
-    auto It = CallSite.Registers.find(Register.Register);
-    if (It != CallSite.Registers.end() and not areCompatible(Register, *It)) {
+    auto It = Edge.Registers.find(Register.Register);
+    if (It != Edge.Registers.end() and not areCompatible(Register, *It)) {
       return model::Register::getName(Register.Register);
     }
   }
@@ -116,7 +117,7 @@ private:
   void handleRegularFunctionCall(CallInst *Call);
   void generateCall(IRBuilder<> &Builder,
                     Function *Callee,
-                    const model::FunctionEdge &CallSite);
+                    const model::CallEdge &CallSite);
   void handleRoot();
 
 private:
@@ -353,14 +354,12 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
   // Identify the corresponding call site in the model
   MetaAddress BasicBlockAddress = GCBI.getJumpTarget(Call->getParent());
   const model::BasicBlock &Block = FunctionModel.CFG.at(BasicBlockAddress);
-  const model::FunctionEdge *CallSite = nullptr;
-  for (const model::FunctionEdge &Edge : Block.Successors) {
+  const model::CallEdge *CallSite = nullptr;
+  for (const auto &Edge : Block.Successors) {
     using namespace model::FunctionEdgeType;
-    if (Edge.Type == FunctionCall or Edge.Type == IndirectCall
-        or Edge.Type == IndirectTailCall) {
-      CallSite = &Edge;
+    CallSite = dyn_cast<model::CallEdge>(Edge.get());
+    if (CallSite != nullptr)
       break;
-    }
   }
 
   if (DisableSafetyChecks or IsDirect) {
@@ -433,7 +432,7 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
 
 void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
                                   Function *Callee,
-                                  const model::FunctionEdge &CallSite) {
+                                  const model::CallEdge &CallSite) {
   revng_assert(Callee != nullptr);
 
   llvm::SmallVector<Type *, 8> ArgumentsTypes;

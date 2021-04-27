@@ -79,9 +79,9 @@ bool Binary::verify() const {
 
     // Ensure all the direct function calls target an existing function
     for (const BasicBlock &Block : F.CFG) {
-      for (const FunctionEdge &Edge : Block.Successors) {
-        if (Edge.Type == FunctionEdgeType::FunctionCall
-            and Functions.count(Edge.Destination) == 0) {
+      for (const auto &Edge : Block.Successors) {
+        if (Edge->Type == FunctionEdgeType::FunctionCall
+            and Functions.count(Edge->Destination) == 0) {
           return false;
         }
       }
@@ -98,8 +98,8 @@ static FunctionCFG getGraph(const Function &F) {
   for (const BasicBlock &Block : F.CFG) {
     auto *Source = Graph.get(Block.Start);
 
-    for (const FunctionEdge &Edge : Block.Successors) {
-      switch (Edge.Type) {
+    for (const auto &Edge : Block.Successors) {
+      switch (Edge->Type) {
       case DirectBranch:
       case FakeFunctionCall:
       case FakeFunctionReturn:
@@ -108,7 +108,7 @@ static FunctionCFG getGraph(const Function &F) {
       case IndirectTailCall:
       case LongJmp:
       case Unreachable:
-        Source->addSuccessor(Graph.get(Edge.Destination));
+        Source->addSuccessor(Graph.get(Edge->Destination));
         break;
 
       case FunctionCall:
@@ -140,8 +140,8 @@ void Function::dumpCFG() const {
 bool Function::verify() const {
   // Verify blocks
   for (const BasicBlock &Block : CFG)
-    for (const FunctionEdge &Edge : Block.Successors)
-      if (not Edge.verify())
+    for (const auto &Edge : Block.Successors)
+      if (not Edge->verify())
         return false;
 
   // Populate graph
