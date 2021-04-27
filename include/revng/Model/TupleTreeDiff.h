@@ -161,7 +161,7 @@ private:
     }
   }
 
-  template<NotContainerNorTuple T>
+  template<NotTupleTreeCompatible T>
   void diffImpl(T &LHS, T &RHS) {
     if (LHS != RHS)
       Result.change(Stack, &LHS, &RHS);
@@ -233,7 +233,7 @@ struct DumpDiffVisitor {
     dump<typename T::value_type>();
   }
 
-  template<NotContainerNorTuple T>
+  template<NotTupleTreeCompatible T>
   void visit() {
     revng_assert(Old != nullptr and New != nullptr);
     dump<T>();

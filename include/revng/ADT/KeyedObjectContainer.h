@@ -10,6 +10,7 @@
 
 #include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/ADT/STLExtras.h"
+#include "revng/ADT/UpcastablePointer.h"
 #include "revng/Support/Assert.h"
 
 template<typename T>
@@ -146,8 +147,12 @@ static_assert(StringLike<llvm::StringRef>);
 template<typename T>
 concept IsContainer = Iterable<T> and not StringLike<T>;
 
+// clang-format off
 template<typename T>
-concept NotContainerNorTuple = not IsContainer<T> and not HasTupleSize<T>;
+concept NotTupleTreeCompatible = (not IsContainer<T>
+                                  and not HasTupleSize<T>
+                                  and not IsUpcastablePointer<T>);
+// clang-format on
 
 static_assert(IsContainer<std::vector<int>>);
 static_assert(IsContainer<std::set<int>>);

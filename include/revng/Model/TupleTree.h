@@ -124,6 +124,12 @@ requires IsNotTupleEnd<T, I> void visitTuple(Visitor &V, T &Obj) {
 
 } // namespace tupletree::detail
 
+// UpcastablePointerLike-like
+template<typename Visitor, UpcastablePointerLike T>
+void visit(Visitor &V, T &Obj) {
+  upcast(Obj, [&V](auto &Upcasted) { visit(V, Upcasted); });
+}
+
 // Tuple-like
 template<typename Visitor, HasTupleSize T>
 void visit(Visitor &V, T &Obj) {
@@ -144,7 +150,7 @@ void visit(Visitor &V, T &Obj) {
 }
 
 // All the others
-template<NotContainerNorTuple Visitor, typename T>
+template<NotTupleTreeCompatible Visitor, typename T>
 void visit(Visitor &V, T &Element) {
   V.preVisit(Element);
   V.postVisit(Element);
@@ -199,6 +205,12 @@ requires IsNotTupleEnd<RootT, I> ResultT *getByKeyTuple(RootT &M, KeyT Key) {
 
 } // namespace tupletree::detail
 
+template<typename ResultT, UpcastablePointerLike RootT, typename KeyT>
+ResultT getByKey(RootT &M, KeyT Key) {
+  auto Dispatcher = [&](auto &Upcasted) { return getByKey(Upcasted, Key); };
+  return upcast(M, Dispatcher, ResultT{});
+}
+
 template<typename ResultT, HasTupleSize RootT, typename KeyT>
 ResultT getByKey(RootT &M, KeyT Key) {
   return tupletree::detail::getByKeyTuple<ResultT>(M, Key);
@@ -220,9 +232,15 @@ ResultT *getByKey(RootT &M, KeyT Key) {
 template<HasTupleSize RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path);
 
-template<NotContainerNorTuple RootT, typename Visitor>
+template<NotTupleTreeCompatible RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
   return false;
+}
+
+template<UpcastablePointerLike RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path) {
+  using element_type = pointee<RootT>;
+  return callOnPathStepsTuple<element_type>(V, Path);
 }
 
 template<IsContainer RootT, typename Visitor>
@@ -286,7 +304,7 @@ callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
   return true;
 }
 
-template<NotContainerNorTuple RootT, typename Visitor>
+template<NotTupleTreeCompatible RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
   return false;
 }
@@ -309,6 +327,15 @@ callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
 }
 
 } // namespace tupletree::detail
+
+template<UpcastablePointerLike RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
+  auto Dispatcher = [&](auto &Upcasted) {
+    return callOnPathStepsTuple(V, Path, Upcasted);
+  };
+  // TODO: in case of nullptr we should abort
+  return upcast(M, Dispatcher, false);
+}
 
 template<HasTupleSize RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V, llvm::ArrayRef<KeyInt> Path, RootT &M) {
@@ -599,15 +626,25 @@ private:
                          llvm::StringRef Rest,
                          PathMatcher &Result);
 
+  template<UpcastablePointerLike T>
+  static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
+
   template<HasTupleSize T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
   template<IsContainer T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
-  template<NotContainerNorTuple T>
+  template<NotTupleTreeCompatible T>
   static bool visitTupleTreeNode(llvm::StringRef Path, PathMatcher &Result);
 };
+
+template<UpcastablePointerLike T>
+bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
+                                     PathMatcher &Result) {
+  using element_type = std::remove_reference_t<decltype(*std::declval<T>())>;
+  return PathMatcher::visitTupleTreeNode<element_type>(String, Result);
+}
 
 template<HasTupleSize T>
 bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
@@ -643,7 +680,7 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
   return visitTupleTreeNode<Value>(After, Result);
 }
 
-template<NotContainerNorTuple T>
+template<NotTupleTreeCompatible T>
 bool PathMatcher::visitTupleTreeNode(llvm::StringRef Path,
                                      PathMatcher &Result) {
   return Path.size() == 0;
