@@ -625,10 +625,10 @@ void IFI::handleBasicBlock(const model::BasicBlock &Block,
   // if any
 
   SuccessorsContainer ExpectedSuccessors;
-  for (const model::FunctionEdge &E : Block.Successors) {
+  for (const auto &E : Block.Successors) {
     // Ignore self-loops
-    if (E.Destination != Block.Start) {
-      ExpectedSuccessors[E] = 0;
+    if (E->Destination != Block.Start) {
+      ExpectedSuccessors[*E] = 0;
     }
   }
 
@@ -646,7 +646,7 @@ void IFI::handleBasicBlock(const model::BasicBlock &Block,
     {
       raw_string_ostream StringStream(Buffer);
       yaml::Output YAMLOutput(StringStream);
-      for (model::FunctionEdge Edge : Block.Successors) {
+      for (auto Edge : Block.Successors) {
         YAMLOutput << Edge;
       }
     }
