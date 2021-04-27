@@ -271,21 +271,21 @@ private:
   // Holds all the LayoutTypeSystemNode
   std::set<std::unique_ptr<LayoutTypeSystemNode>,
            HeterogeneousPtrCompare<LayoutTypeSystemNode>>
-    Layouts;
+    Layouts = {};
 
   // Maps llvm::Value to layout types.
   // This map is updated along the way when the DLA algorithm merges
   // LayoutTypeSystemNodes that are considered to represent the same type.
-  std::map<LayoutTypePtr, LayoutTypeSystemNode *> TypePtrToLayoutMap;
+  std::map<LayoutTypePtr, LayoutTypeSystemNode *> TypePtrToLayoutMap = {};
 
   // Maps layout types to the set of LayoutTypePtr representing the llvm::Value
   // that generated them.
   std::map<const LayoutTypeSystemNode *, llvm::SmallSet<LayoutTypePtr, 2>>
-    LayoutToTypePtrsMap;
+    LayoutToTypePtrsMap = {};
 
   // Holds the link tags, so that they can be deduplicated and referred to using
   // TypeLinkTag * in the links inside LayoutTypeSystemNode
-  std::set<TypeLinkTag> LinkTags;
+  std::set<TypeLinkTag> LinkTags = {};
 
 public:
   // Checks that is valid, and returns true if it is, false otherwise

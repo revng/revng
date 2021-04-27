@@ -6,6 +6,7 @@
 #include <string>
 
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Instruction.h"
@@ -302,22 +303,40 @@ LayoutTypeSystem::getLayoutTypes(const Value &V) {
 
     if (auto *Call = dyn_cast<CallInst>(&V)) {
 
-      auto ExtractedValues = getExtractedValuesFromCall(Call);
+      // Special handling for StructInitializers
+      const Function *Callee = getCallee(Call);
+      auto CTags = FunctionTags::TagsSet::from(Callee);
+      if (CTags.contains(FunctionTags::StructInitializer)) {
 
-      for (const auto &ExtractedSet : ExtractedValues) {
-        // Inside here we're working on a single field of the struct.
-        // ExtractedSet contains all the ExtractValueInst that extract the same
-        // field of the struct.
+        revng_assert(not Callee->isVarArg());
 
-        // We get or create a layout type for each of them, but they should all
-        // be the same.
-        SmallVector<LayoutTypeSystemNode *, 2> FieldResults;
-        for (const llvm::ExtractValueInst *E : ExtractedSet) {
-          FieldResults.push_back(getLayoutType(E));
-          revng_assert(FieldResults.front() == FieldResults.back());
+        auto *RetTy = cast<StructType>(Callee->getReturnType());
+        revng_assert(RetTy->getNumElements() == Callee->arg_size());
+        revng_assert(Call->getNumUses() == 1
+                     and isa<ReturnInst>(Call->uses().begin()->getUser()));
+
+        const Function *Caller = Call->getFunction();
+        Results = getLayoutTypes(*Caller);
+        revng_assert(Results.size() == Callee->arg_size());
+
+      } else {
+        const auto ExtractedValues = getExtractedValuesFromCall(Call);
+
+        for (const auto &ExtractedSet : ExtractedValues) {
+          // Inside here we're working on a single field of the struct.
+          // ExtractedSet contains all the ExtractValueInst that extract the
+          // same field of the struct.
+
+          // We get or create a layout type for each of them, but they should
+          // all be the same.
+          SmallVector<LayoutTypeSystemNode *, 2> FieldResults;
+          for (const llvm::ExtractValueInst *E : ExtractedSet) {
+            FieldResults.push_back(getLayoutType(E));
+            revng_assert(FieldResults.front() == FieldResults.back());
+          }
+
+          Results.push_back(std::move(FieldResults.front()));
         }
-
-        Results.push_back(std::move(FieldResults.front()));
       }
 
     } else {
@@ -363,22 +382,40 @@ LayoutTypeSystem::getOrCreateLayoutTypes(const Value &V) {
 
     if (auto *Call = dyn_cast<CallInst>(&V)) {
 
-      const auto &ExtractedValues = getExtractedValuesFromCall(Call);
+      // Special handling for StructInitializers
+      const Function *Callee = getCallee(Call);
+      auto CTags = FunctionTags::TagsSet::from(Callee);
+      if (CTags.contains(FunctionTags::StructInitializer)) {
 
-      for (const auto &ExtractedSet : ExtractedValues) {
-        // Inside here we're working on a single field of the struct.
-        // ExtractedSet contains all the ExtractValueInst that extract the same
-        // field of the struct.
+        revng_assert(not Callee->isVarArg());
 
-        // We get or create a layout type for each of them, but they should all
-        // be the same.
-        SmallVector<GetOrCreateResult, 2> FieldResults;
-        for (const llvm::ExtractValueInst *E : ExtractedSet) {
-          FieldResults.push_back(getOrCreateLayoutType(E));
-          revng_assert(FieldResults.front().first == FieldResults.back().first);
+        auto *RetTy = cast<StructType>(Callee->getReturnType());
+        revng_assert(RetTy->getNumElements() == Callee->arg_size());
+        revng_assert(Call->getNumUses() == 1
+                     and isa<ReturnInst>(Call->uses().begin()->getUser()));
+
+        const Function *Caller = Call->getFunction();
+        Results = getOrCreateLayoutTypes(*Caller);
+        revng_assert(Results.size() == Callee->arg_size());
+
+      } else {
+        const auto ExtractedValues = getExtractedValuesFromCall(Call);
+
+        for (const auto &ExtractedSet : ExtractedValues) {
+          // Inside here we're working on a single field of the struct.
+          // ExtractedSet contains all the ExtractValueInst that extract the
+          // same field of the struct.
+
+          // We get or create a layout type for each of them, but they should
+          // all be the same.
+          SmallVector<GetOrCreateResult, 2> FldResults;
+          for (const llvm::ExtractValueInst *E : ExtractedSet) {
+            FldResults.push_back(getOrCreateLayoutType(E));
+            revng_assert(FldResults.front().first == FldResults.back().first);
+          }
+
+          Results.push_back(std::move(FldResults.front()));
         }
-
-        Results.push_back(std::move(FieldResults.front()));
       }
 
     } else {

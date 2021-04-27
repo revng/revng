@@ -32,8 +32,11 @@ using LLVMValueT = conditional_t<std::is_const_v<ValT>,
                                  llvm::Value>;
 
 template<typename T>
-std::enable_if_t<std::is_same_v<std::remove_const_t<T>, llvm::InsertValueInst>,
-                 llvm::SmallVector<LLVMValueT<T> *, 2>>
+concept IsInsertValue = std::is_same_v<std::remove_const_t<T>,
+                                       llvm::InsertValueInst>;
+
+template<IsInsertValue T>
+llvm::SmallVector<LLVMValueT<T> *, 2>
 getConstQualifiedInsertValueLeafOperands(T *Ins) {
   using ValueT = LLVMValueT<T>;
   llvm::SmallVector<ValueT *, 2> Results;
@@ -82,13 +85,14 @@ template<typename ValT>
 using ExtractValueT = conditional_t<std::is_const_v<ValT>,
                                     const llvm::ExtractValueInst,
                                     llvm::ExtractValueInst>;
+template<typename T>
+concept IsCall = std::is_same_v<std::remove_const_t<T>, llvm::CallInst>;
 
 template<typename ValT>
 using ExtractValuePtrSet = llvm::SmallPtrSet<ExtractValueT<ValT> *, 2>;
 
 template<typename T>
-std::enable_if_t<std::is_same_v<std::remove_const_t<T>, llvm::CallInst>,
-                 llvm::SmallVector<ExtractValuePtrSet<T>, 2>>
+llvm::SmallVector<ExtractValuePtrSet<T>, 2>
 getConstQualifiedExtractedValuesFromCall(T *Call) {
   llvm::SmallVector<ExtractValuePtrSet<T>, 2> Results;
   llvm::SmallSet<unsigned, 2> FoundIds;
