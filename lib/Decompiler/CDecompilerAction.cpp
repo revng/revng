@@ -62,14 +62,8 @@ static clang::Expr *negateExpr(clang::ASTContext &ASTCtx, clang::Expr *E) {
       // For binary comparison operators, we can just invert the comparison and
       // return.
       auto NegatedOpCode = clang::BinaryOperator::negateComparisonOp(OpCode);
-      return new (ASTCtx) clang::BinaryOperator(BinOp->getLHS(),
-                                                BinOp->getRHS(),
-                                                NegatedOpCode,
-                                                BinOp->getLHS()->getType(),
-                                                VK_RValue,
-                                                OK_Ordinary,
-                                                {},
-                                                FPOptions());
+      BinOp->setOpcode(NegatedOpCode);
+      return E;
     }
   }
 
