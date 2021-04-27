@@ -11,12 +11,12 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
-#include "revng/Model/LoadModelPass.h"
+#include "revng/Support/Assert.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/TypeShrinking/TypeShrinking.h"
 
 #include "revng-c/Decompiler/CDecompiler.h"
 #include "revng-c/Decompiler/CDecompilerPass.h"
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/MakeEnvNull/MakeEnvNull.h"
 #include "revng-c/RemoveCpuLoopStore/RemoveCpuLoopStorePass.h"
 #include "revng-c/RemoveExceptionCalls/RemoveExceptionCallsPass.h"
@@ -28,13 +28,24 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
 
   std::string ResultSourceCode;
 
+  // Skip functions that are not present
+  const llvm::Function *LLVMFun = M->getFunction(FunctionName);
+  if (not LLVMFun)
+    return ResultSourceCode;
+
   // Skip non-isolated functions
-  if (not hasIsolatedFunction(loadModel(*M), FunctionName))
+  auto FTags = FunctionTags::TagsSet::from(LLVMFun);
+  if (not FTags.contains(FunctionTags::Lifted))
     return ResultSourceCode;
 
   std::unique_ptr<llvm::Module> MClone = llvm::CloneModule(*M);
   revng_check(MClone);
+
   llvm::Function *FClone = MClone->getFunction(FunctionName);
+  revng_check(FClone);
+
+  auto CloneTags = FunctionTags::TagsSet::from(FClone);
+  revng_check(CloneTags.contains(FunctionTags::Lifted));
 
   std::unique_ptr<llvm::raw_ostream>
     OS = std::make_unique<llvm::raw_string_ostream>(ResultSourceCode);

@@ -7,9 +7,9 @@
 #include "llvm/IR/Module.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/RemoveCpuLoopStore/RemoveCpuLoopStorePass.h"
 
 using namespace llvm;
@@ -25,9 +25,8 @@ void RemoveCpuLoopStorePass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 bool RemoveCpuLoopStorePass::runOnFunction(Function &F) {
 
   // Skip non-isolated functions
-  const model::Binary
-    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-  if (not hasIsolatedFunction(Model, F))
+  auto FTags = FunctionTags::TagsSet::from(&F);
+  if (not FTags.contains(FunctionTags::Lifted))
     return false;
 
   // Retrieve the global variable `cpu_loop_exiting`

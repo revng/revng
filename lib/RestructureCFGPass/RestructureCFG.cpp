@@ -20,9 +20,9 @@
 
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNodeImpl.h"
 #include "revng-c/RestructureCFGPass/GenerateAst.h"
@@ -487,9 +487,8 @@ bool RestructureCFG::runOnFunction(Function &F) {
   UntanglePerformedCounter = 0;
 
   // Skip non-isolated functions
-  const model::Binary
-    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-  if (not hasIsolatedFunction(Model, F))
+  auto FTags = FunctionTags::TagsSet::from(&F);
+  if (not FTags.contains(FunctionTags::Lifted))
     return false;
 
   // If we passed the `-single-decompilation` option to the command line, skip

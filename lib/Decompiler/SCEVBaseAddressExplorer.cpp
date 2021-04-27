@@ -7,8 +7,7 @@
 #include "llvm/IR/Instruction.h"
 
 #include "revng/Support/Debug.h"
-
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "SCEVBaseAddressExplorer.h"
 
@@ -32,13 +31,13 @@ static bool isAlwaysAddress(const llvm::Value *V) {
   return false;
 }
 
-// Returns true if \V is a call to a function isolated by revng, according to
-// the Model, false otherwise.
-static bool isCallToIsolated(const llvm::Value *V, const model::Binary &Model) {
+// Returns true if \V is a call to a function isolated by revng
+static bool isCallToIsolated(const llvm::Value *V) {
 
   if (auto *C = dyn_cast_or_null<llvm::CallInst>(V)) {
     const llvm::Function *Callee = C->getCalledFunction();
-    return hasIsolatedFunction(Model, Callee);
+    auto CTags = FunctionTags::TagsSet::from(Callee);
+    return CTags.contains(FunctionTags::Lifted);
   }
 
   return false;
@@ -99,7 +98,7 @@ SCEVBaseAddressExplorer::findBases(llvm::ScalarEvolution *SE,
             // So we just treat them if they are never never addresses that
             // point to a type.
             if (auto *E = dyn_cast<llvm::ExtractValueInst>(UVal))
-              if (not isCallToIsolated(E->getAggregateOperand(), Model))
+              if (not isCallToIsolated(E->getAggregateOperand()))
                 AddrSCEV = nullptr;
 
             // If UVal is a call to a function that was not isolated by revng,
@@ -108,7 +107,7 @@ SCEVBaseAddressExplorer::findBases(llvm::ScalarEvolution *SE,
             // So we just treat them if they are never never addresses that
             // point to a type.
             if (auto *Call = dyn_cast<llvm::CallInst>(UVal))
-              if (not isCallToIsolated(Call, Model))
+              if (not isCallToIsolated(Call))
                 AddrSCEV = nullptr;
           }
         }

@@ -9,9 +9,9 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/MakeEnvNull/MakeEnvNull.h"
 
 void MakeEnvNullPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
@@ -21,9 +21,8 @@ void MakeEnvNullPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 bool MakeEnvNullPass::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
-  const model::Binary
-    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-  if (not hasIsolatedFunction(Model, F))
+  auto FTags = FunctionTags::TagsSet::from(&F);
+  if (not FTags.contains(FunctionTags::Lifted))
     return false;
 
   bool Changed = false;

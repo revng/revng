@@ -10,10 +10,10 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Decompiler/MarkForSerialization.h"
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
@@ -193,9 +193,8 @@ void MarkForSerializationPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 bool MarkForSerializationPass::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
-  const model::Binary
-    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-  if (not hasIsolatedFunction(Model, F))
+  auto FTags = FunctionTags::TagsSet::from(&F);
+  if (not FTags.contains(FunctionTags::Lifted))
     return false;
 
   // If the `-single-decompilation` option was passed from command line, skip

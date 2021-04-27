@@ -33,10 +33,6 @@ class FunctionDecl;
 class TypeDecl;
 } // end namespace clang
 
-namespace model {
-class Binary;
-} // end namespace model
-
 namespace IR2AST {
 class StmtBuilder;
 } // end namespace IR2AST
@@ -90,8 +86,8 @@ public:
   using TypeDeclMap = std::map<Typeable, TypeVec::size_type>;
 
 public:
-  DeclCreator(const dla::ValueLayoutMap *LM, const model::Binary &Model) :
-    ValueLayouts(LM), Model(Model), Types(), TypeDeclsMap(), GlobalDecls() {}
+  DeclCreator(const dla::ValueLayoutMap *LM) :
+    ValueLayouts(LM), Types(), TypeDeclsMap(), GlobalDecls() {}
 
 public:
   const auto &types() const { return Types; }
@@ -189,7 +185,6 @@ protected:
 
 private:
   const dla::ValueLayoutMap *ValueLayouts;
-  const model::Binary &Model;
 
   TypeVec Types;
   TypeDeclMap TypeDeclsMap;

@@ -7,6 +7,5 @@ revng_add_analyses_library(RemoveNewPCCalls
                            RemoveNewPCCallsPass.cpp)
 
 target_link_libraries(RemoveNewPCCalls
-  IsolatedFunctions
   revng::revngModel
   revng::revngSupport)

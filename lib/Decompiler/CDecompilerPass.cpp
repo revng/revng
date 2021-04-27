@@ -20,13 +20,13 @@
 #include "llvm/Transforms/Scalar.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Decompiler/CDecompilerPass.h"
 #include "revng-c/Decompiler/DLALayouts.h"
 #include "revng-c/Decompiler/DLAPass.h"
 #include "revng-c/Decompiler/MarkForSerialization.h"
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
@@ -129,9 +129,8 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   TrivialShortCircuitCounter = 0;
 
   // Skip non-isolated functions
-  const model::Binary
-    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-  if (not hasIsolatedFunction(Model, F))
+  auto FTags = FunctionTags::TagsSet::from(&F);
+  if (not FTags.contains(FunctionTags::Lifted))
     return false;
 
   // If the `-single-decompilation` option was passed from command line, skip
@@ -179,8 +178,7 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
     SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
   }
 
-  auto Action = std::make_unique<CDecompilerAction>(Model,
-                                                    F,
+  auto Action = std::make_unique<CDecompilerAction>(F,
                                                     GHAST,
                                                     PHIMap,
                                                     LayoutMap,

@@ -25,8 +25,8 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 #include "revng-c/PromoteStackPointer/PromoteStackPointerPass.h"
 
 static Logger<> Log("promote-stack-pointer");
@@ -36,9 +36,8 @@ using PSPPass = PromoteStackPointerPass;
 bool PSPPass::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
-  const model::Binary
-    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-  if (not hasIsolatedFunction(Model, F))
+  auto FTags = FunctionTags::TagsSet::from(&F);
+  if (not FTags.contains(FunctionTags::Lifted))
     return false;
 
   // Get the global variable representing the stack pointer register.

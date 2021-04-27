@@ -37,10 +37,6 @@ class Function;
 class PHINode;
 } // namespace llvm
 
-namespace model {
-class Binary;
-} // namespace model
-
 class DeclCreator;
 
 namespace IR2AST {
@@ -58,7 +54,6 @@ private:
   using PHIIncomingMap = SmallMap<llvm::PHINode *, unsigned, 4>;
   using BBPHIMap = SmallMap<llvm::BasicBlock *, PHIIncomingMap, 4>;
 
-  const model::Binary &Model;
   clang::ASTContext &ASTCtx;
   const SerializationMap &ToSerialize;
   const dla::ValueLayoutMap *ValueLayouts;
@@ -74,14 +69,12 @@ public:
   BBPHIMap &BlockToPHIIncoming;
 
 public:
-  StmtBuilder(const model::Binary &Model,
-              clang::ASTContext &Ctx,
+  StmtBuilder(clang::ASTContext &Ctx,
               const SerializationMap &ToSerialize,
               const dla::ValueLayoutMap *VL,
               llvm::ScalarEvolution *SCEV,
               BBPHIMap &BlockToPHIIncoming,
               DeclCreator &TT) :
-    Model(Model),
     ASTCtx(Ctx),
     ToSerialize(ToSerialize),
     ValueLayouts(VL),

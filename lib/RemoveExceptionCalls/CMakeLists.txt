@@ -7,6 +7,5 @@ revng_add_analyses_library(RemoveExceptionCalls
   RemoveExceptionCallsPass.cpp)
 
 target_link_libraries(RemoveExceptionCalls
-  IsolatedFunctions
   revng::revngModel
   revng::revngSupport)

@@ -18,11 +18,9 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
-
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 
 #include "DLAHelpers.h"
 #include "DLAStep.h"
@@ -56,7 +54,6 @@ static int64_t getSCEVConstantSExtVal(const SCEV *S) {
 }
 
 class InstanceLinkAdder {
-  const model::Binary *Model;
   Function *F;
   ScalarEvolution *SE;
   llvm::DominatorTree DT;
@@ -196,8 +193,6 @@ protected:
 
 public:
   void setupForProcessingFunction(ModulePass *MP, Function *TheF) {
-    auto &LWP = MP->getAnalysis<LoadModelWrapperPass>();
-    Model = &LWP.get().getReadOnlyModel();
     SE = &MP->getAnalysis<llvm::ScalarEvolutionWrapperPass>(*TheF).getSE();
     F = TheF;
     DT.recalculate(*F);
@@ -242,6 +237,29 @@ public:
 
               if (isa<UndefValue>(RetVal))
                 continue;
+
+              if (auto *Call = dyn_cast<CallInst>(RetVal)) {
+                const Function *Callee = getCallee(Call);
+                auto CTags = FunctionTags::TagsSet::from(Callee);
+                revng_assert(CTags.contains(FunctionTags::StructInitializer));
+
+                revng_assert(not Callee->isVarArg());
+                auto *RetTy = cast<StructType>(Callee->getReturnType());
+                revng_assert(RetTy == F->getReturnType());
+                revng_assert(RetTy->getNumElements() == Callee->arg_size());
+
+                auto StructTypeNodes = TS.getLayoutTypes(*Call);
+                revng_assert(StructTypeNodes.size() == Callee->arg_size());
+
+                for (const auto &[RetNode, Arg] :
+                     llvm::zip_first(StructTypeNodes, Call->arg_operands())) {
+                  const auto &[ArgNode, New] = TS.getOrCreateLayoutType(Arg);
+                  Changed |= New;
+                  Changed |= TS.addEqualityLink(RetNode, ArgNode).second;
+                }
+
+                continue;
+              }
 
               auto *InsertVal = cast<InsertValueInst>(RetVal);
               auto RetOps = getInsertValueLeafOperands(InsertVal);
@@ -334,6 +352,27 @@ public:
             continue;
           }
 
+          auto CTags = FunctionTags::TagsSet::from(Callee);
+          if (CTags.contains(FunctionTags::StructInitializer)) {
+
+            revng_assert(not Callee->isVarArg());
+            auto *RetTy = cast<StructType>(Callee->getReturnType());
+            revng_assert(RetTy == F->getReturnType());
+            revng_assert(RetTy->getNumElements() == Callee->arg_size());
+
+            auto StructTypeNodes = TS.getLayoutTypes(*C);
+            revng_assert(StructTypeNodes.size() == Callee->arg_size());
+
+            for (const auto &[RetTypeNode, Arg] :
+                 llvm::zip_first(StructTypeNodes, C->arg_operands())) {
+              const auto &[ArgTypeNode, New] = TS.getOrCreateLayoutType(Arg);
+              Changed |= New;
+              Changed |= TS.addEqualityLink(RetTypeNode, ArgTypeNode).second;
+            }
+
+            continue;
+          }
+
           // Consider only isolated functions. We don't want to create types for
           // QEMU helpers or other nasty functions.
           // In particular, QEMU helpers are used to implement specific CPU
@@ -345,7 +384,7 @@ public:
           //  2. @env is not a construct coming from the original program being
           //     decompiled, rather a QEMU artifact that represents the CPU
           //     state. Hence it has no really meaningful type in the program.
-          if (not hasIsolatedFunction(*Model, Callee->getName().str()))
+          if (not CTags.contains(FunctionTags::Lifted))
             continue;
 
           revng_assert(not Callee->isVarArg());
@@ -430,21 +469,22 @@ public:
               }
               if (IsIntToPtr or IsPtrToInt or IsBitCast) {
                 Value *Op = CExpr->getOperand(0);
-                revng_assert(isa<ConstantInt>(Op));
+                if (isa<ConstantInt>(Op)) {
 
-                bool New = false;
-                LayoutTypeSystemNode *SrcLayout = nullptr;
-                LayoutTypeSystemNode *TgtLayout = nullptr;
+                  bool New = false;
+                  LayoutTypeSystemNode *SrcLayout = nullptr;
+                  LayoutTypeSystemNode *TgtLayout = nullptr;
 
-                std::tie(SrcLayout, New) = TS.getOrCreateLayoutType(Op);
-                Changed |= New;
-                std::tie(TgtLayout, New) = TS.getOrCreateLayoutType(CExpr);
-                Changed |= New;
+                  std::tie(SrcLayout, New) = TS.getOrCreateLayoutType(Op);
+                  Changed |= New;
+                  std::tie(TgtLayout, New) = TS.getOrCreateLayoutType(CExpr);
+                  Changed |= New;
 
-                Changed |= TS.addEqualityLink(SrcLayout, TgtLayout).second;
+                  Changed |= TS.addEqualityLink(SrcLayout, TgtLayout).second;
 
-                const SCEV *LoadSCEV = SE->getSCEV(CExpr);
-                SCEVToLayoutType.insert(std::make_pair(LoadSCEV, TgtLayout));
+                  const SCEV *LoadSCEV = SE->getSCEV(CExpr);
+                  SCEVToLayoutType.insert(std::make_pair(LoadSCEV, TgtLayout));
+                }
               }
             }
           }
@@ -501,9 +541,9 @@ public:
 
     const SCEV *PtrSCEV = SE->getSCEV(PointerVal);
     using Explorer = SCEVBaseAddressExplorer;
-    auto PossibleBaseAddresses = Explorer(*Model).findBases(SE,
-                                                            PtrSCEV,
-                                                            SCEVToLayoutType);
+    auto PossibleBaseAddresses = Explorer().findBases(SE,
+                                                      PtrSCEV,
+                                                      SCEVToLayoutType);
     for (const SCEV *BaseAddrSCEV : PossibleBaseAddresses)
       AddedSomething |= addInstanceLink(TS, PointerVal, BaseAddrSCEV, B);
 
@@ -515,10 +555,9 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
   InstanceLinkAdder ILA;
   Module &M = TS.getModule();
-  auto &LWP = ModPass->getAnalysis<LoadModelWrapperPass>();
-  const auto &Model = LWP.get().getReadOnlyModel();
   for (Function &F : M.functions()) {
-    if (F.isIntrinsic() or not hasIsolatedFunction(Model, F))
+    auto FTags = FunctionTags::TagsSet::from(&F);
+    if (F.isIntrinsic() or not FTags.contains(FunctionTags::Lifted))
       continue;
     revng_assert(not F.isVarArg());
 
@@ -610,8 +649,26 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
             if (isa<ConstantAggregate>(RetVal)
                 or isa<ConstantAggregateZero>(RetVal))
               continue;
-            auto *InsVal = cast<InsertValueInst>(RetVal);
-            Pointers = getInsertValueLeafOperands(InsVal);
+
+            if (auto *Call = dyn_cast<CallInst>(RetVal)) {
+
+              const Function *Callee = getCallee(Call);
+              auto CTags = FunctionTags::TagsSet::from(Callee);
+              revng_assert(CTags.contains(FunctionTags::StructInitializer));
+
+              revng_assert(not Callee->isVarArg());
+              auto *RetTy = cast<StructType>(Callee->getReturnType());
+              revng_assert(RetTy == F.getReturnType());
+              revng_assert(RetTy->getNumElements() == Callee->arg_size());
+
+              Pointers.append(Call->arg_begin(), Call->arg_end());
+
+            } else {
+
+              auto *InsVal = cast<InsertValueInst>(RetVal);
+              Pointers = getInsertValueLeafOperands(InsVal);
+            }
+
           } else {
             revng_assert(isa<IntegerType>(RetVal->getType())
                          or isa<PointerType>(RetVal->getType()));

@@ -10,9 +10,9 @@
 
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "revng-c/AdjustStackPointer/AdjustStackPointerPass.h"
-#include "revng-c/IsolatedFunctions/IsolatedFunctions.h"
 
 using namespace llvm;
 
@@ -157,9 +157,8 @@ using ASPPass = LegacyPMAdjustStackPointerPass;
 bool ASPPass::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
-  const model::Binary
-    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-  if (not hasIsolatedFunction(Model, F))
+  auto FTags = FunctionTags::TagsSet::from(&F);
+  if (not FTags.contains(FunctionTags::Lifted))
     return false;
 
   return adjustStackPointer(F);

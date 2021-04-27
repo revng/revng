@@ -7,6 +7,5 @@ revng_add_analyses_library(RemoveLLVMAssumeCalls
   RemoveLLVMAssumeCallsPass.cpp)
 
 target_link_libraries(RemoveLLVMAssumeCalls
-  IsolatedFunctions
   revng::revngModel
   revng::revngSupport)

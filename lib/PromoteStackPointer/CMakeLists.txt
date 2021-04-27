@@ -5,7 +5,6 @@
 revng_add_analyses_library(PromoteStackPointer revngc PromoteStackPointerPass.cpp)
 
 target_link_libraries(PromoteStackPointer
-  IsolatedFunctions
   revng::revngModel
   revng::revngSupport
   revng::revngBasicAnalyses

@@ -7,6 +7,5 @@ revng_add_analyses_library(RemoveCpuLoopStore
   RemoveCpuLoopStorePass.cpp)
 
 target_link_libraries(RemoveCpuLoopStore
-  IsolatedFunctions
   revng::revngModel
   revng::revngSupport)
