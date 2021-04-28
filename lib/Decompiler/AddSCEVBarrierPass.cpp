@@ -15,6 +15,8 @@
 
 #include "revng-c/Decompiler/MarkForSerialization.h"
 
+#include "Mangling.h"
+
 struct AddSCEVBarrierPass : public llvm::FunctionPass {
 
   static char ID;
@@ -42,6 +44,8 @@ static std::string makeTypeName(const llvm::Type *Ty) {
     Name = "ptr_to_" + makeTypeName(PtrTy->getElementType());
   } else if (auto *IntTy = llvm::dyn_cast<llvm::IntegerType>(Ty)) {
     Name = "i" + std::to_string(IntTy->getBitWidth());
+  } else if (auto *StrucTy = llvm::dyn_cast<llvm::StructType>(Ty)) {
+    Name = "struct_" + makeCIdentifier(Ty->getStructName().str());
   } else {
     revng_unreachable("cannot build Type name");
   }
