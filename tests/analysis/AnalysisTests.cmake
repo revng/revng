@@ -80,6 +80,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       --invoke-isolated-functions
       --inline-helpers
       --promote-csvs
+      --remove-exceptional-functions
       -o "${OUTPUT}")
     set(DEPEND_ON revng-all-binaries)
   endif()
