@@ -385,8 +385,17 @@ std::string SegmentInfo::generateName() {
 }
 
 static BasicBlock *replaceFunction(Function *ToReplace) {
+  // Save tags and attributes before calling dropAllReferences, because that
+  // clears both, and we want to keep them.
+  FunctionTags::TagsSet Tags = FunctionTags::TagsSet::from(ToReplace);
+  AttributeList Attributes = ToReplace->getAttributes();
+
   ToReplace->setLinkage(GlobalValue::InternalLinkage);
   ToReplace->dropAllReferences();
+
+  // Reassign the old tags and attributes.
+  Tags.addTo(ToReplace);
+  ToReplace->setAttributes(Attributes);
 
   return BasicBlock::Create(ToReplace->getParent()->getContext(),
                             "",
