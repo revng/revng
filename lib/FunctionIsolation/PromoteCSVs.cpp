@@ -91,7 +91,7 @@ PromoteCSVs::PromoteCSVs(Module *M, const GeneratedCodeBasicInfo &GCBI) :
       if (FunctionTags::OpaqueCSVValue.isTagOf(F))
         CSVInitializers.record(CSV->getName(), F);
 
-  copy(CSVs, std::inserter(this->CSVs, this->CSVs.begin()));
+  copy(GCBI.csvs(), std::inserter(this->CSVs, this->CSVs.begin()));
 }
 
 // TODO: assign alias information
