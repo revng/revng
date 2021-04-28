@@ -48,6 +48,8 @@ bool RemoveExceptionalCalls::runOnModule(llvm::Module &M) {
     new UnreachableInst(C, BB);
 
     // Drop function call
+    auto *Undef = UndefValue::get(Call->getType());
+    Call->replaceAllUsesWith(Undef);
     Call->eraseFromParent();
   }
 
