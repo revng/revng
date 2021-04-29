@@ -3,6 +3,7 @@
 //
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
@@ -33,11 +34,9 @@ bool RemoveCpuLoopStorePass::runOnFunction(Function &F) {
   Module *M = F.getParent();
   GlobalVariable *CpuLoop = M->getGlobalVariable("cpu_loop_exiting");
 
-  // Remove in bulk all the users of the global variable. We directly cast
-  // the user to a `llvm::StoreInst` by design (if we have another kind of user
-  // our assumptions does not hold.
-  SmallVector<Instruction *, 8> ToErase;
-
+  // Remove in bulk all the users of the global variable.
+  SmallVector<LoadInst *, 8> Loads;
+  SmallVector<StoreInst *, 8> Stores;
   for (User *U : CpuLoop->users()) {
     Instruction *I = cast<Instruction>(U);
 
@@ -45,14 +44,23 @@ bool RemoveCpuLoopStorePass::runOnFunction(Function &F) {
     if (I->getParent()->getParent() != &F)
       continue;
 
-    StoreInst *Store = cast<StoreInst>(U);
-    ToErase.push_back(Store);
+    if (auto *Store = dyn_cast<StoreInst>(U))
+      Stores.push_back(Store);
+    else if (auto *Load = dyn_cast<LoadInst>(U))
+      Loads.push_back(Load);
+    else
+      revng_abort("Unexpected use of cpu_loop_exiting");
   }
 
   // Remove in bulk all the store found before.
-  bool Changed = not ToErase.empty();
-  for (Instruction *I : ToErase) {
+  bool Changed = not Loads.empty() or not Stores.empty();
+  for (Instruction *I : Stores)
     I->eraseFromParent();
+
+  for (LoadInst *L : Loads) {
+    // Replace all uses of loads with "false"
+    L->replaceAllUsesWith(llvm::Constant::getNullValue(L->getType()));
+    L->eraseFromParent();
   }
 
   return Changed;
