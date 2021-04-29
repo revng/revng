@@ -40,6 +40,7 @@ target_link_libraries(Decompiler
   RemoveCpuLoopStore
   RemoveExceptionCalls
   RemoveLLVMAssumeCalls
+  RemoveLLVMDbgIntrinsics
   MakeEnvNull
   ThreadSafeClangTooling
   revng::revngModel

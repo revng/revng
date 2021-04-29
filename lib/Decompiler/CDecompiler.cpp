@@ -21,6 +21,7 @@
 #include "revng-c/RemoveCpuLoopStore/RemoveCpuLoopStorePass.h"
 #include "revng-c/RemoveExceptionCalls/RemoveExceptionCallsPass.h"
 #include "revng-c/RemoveLLVMAssumeCalls/RemoveLLVMAssumeCallsPass.h"
+#include "revng-c/RemoveLLVMDbgIntrinsics/RemoveLLVMDbgIntrinsicsPass.h"
 #include "revng-c/RemoveNewPCCalls/RemoveNewPCCallsPass.h"
 
 std::string
@@ -56,6 +57,7 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
     PM.add(new RemoveNewPCCallsPass());
     PM.add(new RemoveExceptionCallsPass());
     PM.add(new RemoveCpuLoopStorePass());
+    PM.add(new RemoveLLVMDbgIntrinsicsPass());
     PM.add(new MakeEnvNullPass());
   }
 

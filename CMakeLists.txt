@@ -69,6 +69,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -remove-newpc-calls
       -remove-exception-calls
       -remove-cpu-loop-store
+      -remove-llvm-dbg-intrinsics
       -make-env-null
       # Optimize IR with LLVM's passes
       -dce
