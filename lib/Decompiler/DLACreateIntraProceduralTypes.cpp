@@ -244,17 +244,20 @@ public:
                 revng_assert(CTags.contains(FunctionTags::StructInitializer));
 
                 revng_assert(not Callee->isVarArg());
-                auto *RetTy = cast<StructType>(Callee->getReturnType());
-                revng_assert(RetTy == F->getReturnType());
-                revng_assert(RetTy->getNumElements() == Callee->arg_size());
 
-                auto StructTypeNodes = TS.getLayoutTypes(*Call);
+                auto *RetTy = cast<StructType>(Callee->getReturnType());
+                revng_assert(RetTy->getNumElements() == Callee->arg_size());
+                revng_assert(RetTy == F->getReturnType());
+
+                auto StructTypeNodes = TS.getOrCreateLayoutTypes(*Call);
                 revng_assert(StructTypeNodes.size() == Callee->arg_size());
 
-                for (const auto &[RetNode, Arg] :
+                for (const auto &[RetNodeNew, Arg] :
                      llvm::zip_first(StructTypeNodes, Call->arg_operands())) {
                   const auto &[ArgNode, New] = TS.getOrCreateLayoutType(Arg);
                   Changed |= New;
+                  const auto &[RetNode, NewNode] = RetNodeNew;
+                  Changed |= NewNode;
                   Changed |= TS.addEqualityLink(RetNode, ArgNode).second;
                 }
 
@@ -356,17 +359,19 @@ public:
           if (CTags.contains(FunctionTags::StructInitializer)) {
 
             revng_assert(not Callee->isVarArg());
+
             auto *RetTy = cast<StructType>(Callee->getReturnType());
-            revng_assert(RetTy == F->getReturnType());
             revng_assert(RetTy->getNumElements() == Callee->arg_size());
 
-            auto StructTypeNodes = TS.getLayoutTypes(*C);
+            auto StructTypeNodes = TS.getOrCreateLayoutTypes(*C);
             revng_assert(StructTypeNodes.size() == Callee->arg_size());
 
-            for (const auto &[RetTypeNode, Arg] :
+            for (const auto &[RetTypeNodeNew, Arg] :
                  llvm::zip_first(StructTypeNodes, C->arg_operands())) {
               const auto &[ArgTypeNode, New] = TS.getOrCreateLayoutType(Arg);
               Changed |= New;
+              const auto &[RetTypeNode, NewNode] = RetTypeNodeNew;
+              Changed |= NewNode;
               Changed |= TS.addEqualityLink(RetTypeNode, ArgTypeNode).second;
             }
 

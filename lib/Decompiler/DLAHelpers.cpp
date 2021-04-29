@@ -95,16 +95,16 @@ template<typename T>
 llvm::SmallVector<ExtractValuePtrSet<T>, 2>
 getConstQualifiedExtractedValuesFromCall(T *Call) {
   llvm::SmallVector<ExtractValuePtrSet<T>, 2> Results;
-  llvm::SmallSet<unsigned, 2> FoundIds;
   auto *StructTy = llvm::cast<llvm::StructType>(Call->getType());
   unsigned NumFields = StructTy->getNumElements();
   Results.resize(NumFields, {});
   for (auto *Extract : Call->users()) {
-    auto *E = cast<llvm::ExtractValueInst>(Extract);
+    auto *E = dyn_cast<llvm::ExtractValueInst>(Extract);
+    if (not E)
+      continue;
     revng_assert(E->getNumIndices() == 1);
     unsigned FieldId = E->getIndices()[0];
     revng_assert(FieldId < NumFields);
-    FoundIds.insert(FieldId);
     revng_assert(isa<llvm::IntegerType>(E->getType())
                  or isa<llvm::PointerType>(E->getType()));
     Results[FieldId].insert(E);

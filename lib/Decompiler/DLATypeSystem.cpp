@@ -312,30 +312,59 @@ LayoutTypeSystem::getLayoutTypes(const Value &V) {
 
         auto *RetTy = cast<StructType>(Callee->getReturnType());
         revng_assert(RetTy->getNumElements() == Callee->arg_size());
-        revng_assert(Call->getNumUses() == 1
-                     and isa<ReturnInst>(Call->uses().begin()->getUser()));
 
-        const Function *Caller = Call->getFunction();
-        Results = getLayoutTypes(*Caller);
-        revng_assert(Results.size() == Callee->arg_size());
+        bool OnlyReturnUses = true;
+        bool HasReturnUse = false;
+        for (const User *U : Call->users()) {
+          if (isa<ReturnInst>(U)) {
+            HasReturnUse = true;
 
-      } else {
+            const Function *Caller = Call->getFunction();
+
+            if (Results.empty())
+              Results = getLayoutTypes(*Caller);
+            else
+              revng_assert(Results == getLayoutTypes(*Caller));
+
+            revng_assert(Results.size() == Callee->arg_size());
+          } else {
+            OnlyReturnUses = false;
+          }
+        }
+        revng_assert(not HasReturnUse or OnlyReturnUses);
+      }
+
+      // If Results are full, we have detected a call to a struct_initializer
+      // that is returned, so we are done. Otherwise the have to look to for
+      // extractvalue instructions that are extracting values from the return
+      // value of the struct_initializer call.
+      if (Results.empty()) {
+
         const auto ExtractedValues = getExtractedValuesFromCall(Call);
 
-        for (const auto &ExtractedSet : ExtractedValues) {
-          // Inside here we're working on a single field of the struct.
+        Results.resize(ExtractedValues.size(), {});
+
+        for (auto &Group : llvm::enumerate(ExtractedValues)) {
+          const auto &ExtractedSet = Group.value();
+          const auto FieldId = Group.index();
+          // Inside here we're working on a signle field of the struct.
           // ExtractedSet contains all the ExtractValueInst that extract the
           // same field of the struct.
-
           // We get or create a layout type for each of them, but they should
           // all be the same.
-          SmallVector<LayoutTypeSystemNode *, 2> FieldResults;
-          for (const llvm::ExtractValueInst *E : ExtractedSet) {
-            FieldResults.push_back(getLayoutType(E));
-            revng_assert(FieldResults.front() == FieldResults.back());
+          std::optional<LayoutTypeSystemNode *> FieldNode;
+          for (const llvm::ExtractValueInst *Ext : ExtractedSet) {
+            LayoutTypeSystemNode *ExtNode = getLayoutType(Ext);
+            if (FieldNode.has_value()) {
+              LayoutTypeSystemNode *Node = FieldNode.value();
+              revng_assert(not Node or not ExtNode or (Node == ExtNode));
+              if (not Node)
+                Node = ExtNode;
+            } else {
+              FieldNode = ExtNode;
+            }
           }
-
-          Results.push_back(std::move(FieldResults.front()));
+          Results[FieldId] = FieldNode.value_or(nullptr);
         }
       }
 
@@ -391,30 +420,62 @@ LayoutTypeSystem::getOrCreateLayoutTypes(const Value &V) {
 
         auto *RetTy = cast<StructType>(Callee->getReturnType());
         revng_assert(RetTy->getNumElements() == Callee->arg_size());
-        revng_assert(Call->getNumUses() == 1
-                     and isa<ReturnInst>(Call->uses().begin()->getUser()));
 
-        const Function *Caller = Call->getFunction();
-        Results = getOrCreateLayoutTypes(*Caller);
-        revng_assert(Results.size() == Callee->arg_size());
+        bool OnlyReturnUses = true;
+        bool HasReturnUse = false;
+        for (const User *U : Call->users()) {
+          if (isa<ReturnInst>(U)) {
+            HasReturnUse = true;
 
-      } else {
+            const Function *Caller = Call->getFunction();
+
+            if (Results.empty())
+              Results = getOrCreateLayoutTypes(*Caller);
+            else
+              revng_assert(Results == getOrCreateLayoutTypes(*Caller));
+
+            revng_assert(Results.size() == Callee->arg_size());
+          } else {
+            OnlyReturnUses = false;
+          }
+        }
+        revng_assert(not HasReturnUse or OnlyReturnUses);
+      }
+
+      // If Results are full, we have detected a call to a struct_initializer
+      // that is returned, so we are done. Otherwise the have to look to for
+      // extractvalue instructions that are extracting values from the return
+      // value of the struct_initializer call.
+      if (Results.empty()) {
+
         const auto ExtractedValues = getExtractedValuesFromCall(Call);
 
-        for (const auto &ExtractedSet : ExtractedValues) {
-          // Inside here we're working on a single field of the struct.
+        Results.resize(ExtractedValues.size(), {});
+
+        for (auto &Group : llvm::enumerate(ExtractedValues)) {
+          const auto &ExtractedSet = Group.value();
+          const auto FieldId = Group.index();
+          // Inside here we're working on a signle field of the struct.
           // ExtractedSet contains all the ExtractValueInst that extract the
           // same field of the struct.
-
           // We get or create a layout type for each of them, but they should
           // all be the same.
-          SmallVector<GetOrCreateResult, 2> FldResults;
-          for (const llvm::ExtractValueInst *E : ExtractedSet) {
-            FldResults.push_back(getOrCreateLayoutType(E));
-            revng_assert(FldResults.front().first == FldResults.back().first);
+          std::optional<GetOrCreateResult> FieldResult;
+          for (const llvm::ExtractValueInst *Ext : ExtractedSet) {
+            GetOrCreateResult ExtResult = getOrCreateLayoutType(Ext);
+            if (FieldResult.has_value()) {
+              auto &[Node, New] = FieldResult.value();
+              const auto &[ExtNode, ExtNew] = ExtResult;
+              revng_assert(not ExtNew or ExtNode);
+              revng_assert(not Node or not ExtNode or (Node == ExtNode));
+              if (not Node)
+                Node = ExtNode;
+              New |= ExtNew;
+            } else {
+              FieldResult = ExtResult;
+            }
           }
-
-          Results.push_back(std::move(FldResults.front()));
+          Results[FieldId] = FieldResult.value_or(GetOrCreateResult{});
         }
       }
 
