@@ -147,13 +147,6 @@ static_assert(StringLike<llvm::StringRef>);
 template<typename T>
 concept IsContainer = Iterable<T> and not StringLike<T>;
 
-// clang-format off
-template<typename T>
-concept NotTupleTreeCompatible = (not IsContainer<T>
-                                  and not HasTupleSize<T>
-                                  and not IsUpcastablePointer<T>);
-// clang-format on
-
 static_assert(IsContainer<std::vector<int>>);
 static_assert(IsContainer<std::set<int>>);
 static_assert(IsContainer<std::map<int, int>>);

@@ -21,6 +21,13 @@
 
 // clang-format off
 template<typename T>
+concept NotTupleTreeCompatible = (not IsContainer<T>
+                                  and not HasTupleSize<T>
+                                  and not IsUpcastablePointer<T>);
+// clang-format on
+
+// clang-format off
+template<typename T>
 concept Yamlizable
   = llvm::yaml::has_DocumentListTraits<T>::value
     or llvm::yaml::has_MappingTraits<T, llvm::yaml::EmptyContext>::value
@@ -104,7 +111,7 @@ struct TupleLikeMappingTraits {
 };
 
 //
-// visit implementation
+// visitTupleTree implementation
 //
 
 namespace tupletree::detail {
@@ -116,7 +123,7 @@ requires IsTupleEnd<T, I> void visitTuple(Visitor &V, T &Obj) {
 template<size_t I = 0, typename Visitor, typename T>
 requires IsNotTupleEnd<T, I> void visitTuple(Visitor &V, T &Obj) {
   // Visit the field
-  visit(V, get<I>(Obj));
+  visitTupleTree(V, get<I>(Obj));
 
   // Visit next element in tuple
   visitTuple<I + 1>(V, Obj);
@@ -126,13 +133,13 @@ requires IsNotTupleEnd<T, I> void visitTuple(Visitor &V, T &Obj) {
 
 // UpcastablePointerLike-like
 template<typename Visitor, UpcastablePointerLike T>
-void visit(Visitor &V, T &Obj) {
-  upcast(Obj, [&V](auto &Upcasted) { visit(V, Upcasted); });
+void visitTupleTree(Visitor &V, T &Obj) {
+  upcast(Obj, [&V](auto &Upcasted) { visitTupleTree(V, Upcasted); });
 }
 
 // Tuple-like
 template<typename Visitor, HasTupleSize T>
-void visit(Visitor &V, T &Obj) {
+void visitTupleTree(Visitor &V, T &Obj) {
   V.preVisit(Obj);
   tupletree::detail::visitTuple(V, Obj);
   V.postVisit(Obj);
@@ -140,20 +147,31 @@ void visit(Visitor &V, T &Obj) {
 
 // Container-like
 template<typename Visitor, IsContainer T>
-void visit(Visitor &V, T &Obj) {
+void visitTupleTree(Visitor &V, T &Obj) {
   V.preVisit(Obj);
   using value_type = typename T::value_type;
   for (value_type &Element : Obj) {
-    visit(V, Element);
+    visitTupleTree(V, Element);
   }
   V.postVisit(Obj);
 }
 
 // All the others
-template<NotTupleTreeCompatible Visitor, typename T>
-void visit(Visitor &V, T &Element) {
+template<typename Visitor, NotTupleTreeCompatible T>
+void visitTupleTree(Visitor &V, T &Element) {
   V.preVisit(Element);
   V.postVisit(Element);
+}
+
+template<typename Pre, typename Post, typename T>
+void visitTupleTree(T &Element,
+                    const Pre &PreVisitor,
+                    const Post &PostVisitor) {
+  struct {
+    const Pre &preVisit;
+    const Post &postVisit;
+  } Visitor{ PreVisitor, PostVisitor };
+  visitTupleTree(Visitor, Element);
 }
 
 /// Default visitor, doing nothing
