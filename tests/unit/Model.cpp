@@ -145,3 +145,46 @@ BOOST_AUTO_TEST_CASE(TestPathMatcher) {
     }
   }
 }
+
+namespace TestTupleTree {
+class Element;
+class Root;
+} // namespace TestTupleTree
+
+class TestTupleTree::Element {
+public:
+  int Key;
+  TupleTreeReference<TestTupleTree::Element, TestTupleTree::Root> Self;
+};
+INTROSPECTION_NS(TestTupleTree, Element, Key, Self)
+
+template<>
+struct KeyedObjectTraits<TestTupleTree::Element> {
+  static int key(const TestTupleTree::Element &Obj) { return Obj.Key; }
+
+  static TestTupleTree::Element fromKey(const int &Key) {
+    return TestTupleTree::Element{ Key, {} };
+  }
+};
+
+class TestTupleTree::Root {
+public:
+  SortedVector<TestTupleTree::Element> Elements;
+};
+
+INTROSPECTION_NS(TestTupleTree, Root, Elements)
+
+BOOST_AUTO_TEST_CASE(TestTupleTreeReference) {
+  using namespace TestTupleTree;
+
+  using Reference = TupleTreeReference<TestTupleTree::Element,
+                                       TestTupleTree::Root>;
+
+  TupleTree<Root> TheRoot;
+  Element &AnElement = TheRoot->Elements[3];
+  AnElement.Self = Reference::fromString("/Elements/3");
+
+  TheRoot.initializeReferences();
+
+  revng_check(AnElement.Self.get() == &AnElement);
+}

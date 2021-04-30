@@ -936,3 +936,186 @@ ResultT *getByPath(llvm::StringRef Path, RootT &M) {
   namespace ns {                          \
   INTROSPECTION_2(class, __VA_ARGS__)     \
   }
+
+template<typename T>
+class TupleTree;
+
+template<typename T, typename RootT>
+class TupleTreeReference {
+  friend class TupleTree<RootT>;
+
+public:
+  using pointee = T;
+
+public:
+  RootT *Root = nullptr;
+  KeyIntVector Path;
+
+public:
+  static TupleTreeReference fromPath(const KeyIntVector &Path) {
+    TupleTreeReference Result;
+    Result.Path = Path;
+    return Result;
+  }
+
+  static TupleTreeReference fromString(llvm::StringRef Path) {
+    return fromPath(*stringAsPath<RootT>(Path));
+  }
+
+public:
+  std::string toString() const { return *pathAsString<RootT>(Path); }
+
+  const KeyIntVector &path() const { return Path; }
+
+  T *get() const {
+    revng_check(Root != nullptr);
+    return getByPath<T>(Path, *Root);
+  }
+};
+
+template<typename T>
+concept IsTupleTreeReference = is_specialization_v<T, TupleTreeReference>;
+
+template<IsTupleTreeReference T>
+struct llvm::yaml::ScalarTraits<T> {
+
+  static void output(const T &Obj, void *, llvm::raw_ostream &Out) {
+    Out << Obj.toString();
+  }
+
+  static llvm::StringRef input(llvm::StringRef Path, void *, T &Obj) {
+    Obj = T::fromString(Path);
+    return {};
+  }
+
+  static auto mustQuote(llvm::StringRef) {
+    return llvm::yaml::QuotingType::Double;
+  }
+};
+
+// How to improve performance without losing safety of a `TupleTree`:
+//
+// * `TupleTreeReference` must contain a `std::variant` between what they
+//   have right now and a naked pointer.
+// * The `operator* const` of `UpcastablePointer` (which should be
+//   renamed to *Variant*) should return a constant reference. Same
+//   for `TupleTreeReference`.
+// * `TupleTree` should have:
+//   * `const TupleTree freeze()`: `std::move` itself in the `const`
+//     result and transforms all the `TupleTreeReference`s in direct
+//     pointers.
+//   * `TupleTree unfreeze()`: `std::move` itself in the `const`
+//     result and transforms all the `TupleTreeReference`s in root +
+//     key.
+// * Alternatively, we could push the functionality of `ModelWrapper`
+//   into `TupleTree`. In this way, the default behavior would be to
+//   be frozen. A RAII wrapper could take care of unfreeze and
+//   refreeze the TupleTree.
+
+// TODO: `const` stuff is not YAML-serializable
+template<typename S, Yamlizable T>
+void serialize(S &Stream, T &Element) {
+  llvm::yaml::Output YAMLOutput(Stream);
+  YAMLOutput << Element;
+}
+
+template<typename T>
+class TupleTree {
+private:
+  std::unique_ptr<T> Root;
+
+public:
+  TupleTree() : Root(new T) {}
+
+  // Prevent accidental copy
+  TupleTree(const TupleTree &Other) = delete;
+  TupleTree &operator=(const TupleTree &Other) = delete;
+
+  // Moving is fine
+  TupleTree(TupleTree &&Other) = default;
+  TupleTree &operator=(TupleTree &&Other) = default;
+
+  // Explicit cloning
+  TupleTree clone(const TupleTree &Other) const {
+    TupleTree Result;
+
+    // Copy the root
+    Result.Root.reset(new T(*Root));
+
+    // Update references to root
+    Result.initializeReferences();
+
+    return Result;
+  }
+
+public:
+  static TupleTree deserialize(llvm::StringRef YAMLString) {
+    TupleTree Result;
+
+    Result.Root = std::make_unique<T>();
+    llvm::yaml::Input YAMLInput(YAMLString);
+    YAMLInput >> *Result.Root;
+
+    // Update references to root
+    Result.initializeReferences();
+
+    return Result;
+  }
+
+public:
+  template<typename S>
+  void serialize(S &Stream) const {
+    serialize(Stream, Root);
+  }
+
+public:
+  auto get() const noexcept { return Root.get(); }
+  auto &operator*() const { return *Root; }
+  auto *operator->() const noexcept { return Root.operator->(); }
+
+public:
+  bool verify() const debug_function { return verifyReferences(); }
+
+  void initializeReferences() {
+    visitReferences([this](auto &Element) { Element.Root = Root.get(); });
+  }
+
+private:
+  bool verifyReferences() const {
+    bool Result = true;
+
+    visitReferences([&Result, this](const auto &Element) {
+      Result = Result and (Element.Root == Root.get());
+    });
+
+    return Result;
+  }
+
+  template<typename L>
+  void visitReferences(const L &InnerVisitor) {
+    auto Visitor = [&InnerVisitor](auto &Element) {
+      using type = std::remove_cvref_t<decltype(Element)>;
+      if constexpr (IsTupleTreeReference<type>)
+        InnerVisitor(Element);
+    };
+
+    visitTupleTree(*Root, Visitor, [](auto) {});
+  }
+
+  template<typename L>
+  void visitReferences(const L &InnerVisitor) const {
+    auto Visitor = [&InnerVisitor](const auto &Element) {
+      using type = std::remove_cvref_t<decltype(Element)>;
+      if constexpr (IsTupleTreeReference<type>)
+        InnerVisitor(Element);
+    };
+
+    visitTupleTree(*Root, Visitor, [](auto) {});
+  }
+};
+
+static_assert(std::is_default_constructible_v<TupleTree<int>>);
+static_assert(not std::is_copy_assignable_v<TupleTree<int>>);
+static_assert(not std::is_copy_constructible_v<TupleTree<int>>);
+static_assert(std::is_move_assignable_v<TupleTree<int>>);
+static_assert(std::is_move_constructible_v<TupleTree<int>>);
