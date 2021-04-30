@@ -26,6 +26,9 @@ struct is_specialization<Ref<Args...>, Ref> : std::true_type {};
 template<typename Test, template<typename...> class Ref>
 constexpr bool is_specialization_v = is_specialization<Test, Ref>::value;
 
+static_assert(is_specialization_v<std::vector<int>, std::vector>);
+static_assert(is_specialization_v<std::pair<int, long>, std::pair>);
+
 //
 // HasTupleSize
 //
