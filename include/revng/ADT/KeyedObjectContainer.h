@@ -16,13 +16,13 @@
 template<typename T>
 using KOTKey = decltype(KeyedObjectTraits<T>::key(std::declval<T>()));
 
-template<typename T>
+template<HasKeyObjectTraits T>
 using KOTCompare = std::less<const KOTKey<T>>;
 
-template<typename T, class Compare = KOTCompare<T>>
+template<HasKeyObjectTraits T, class Compare = KOTCompare<T>>
 class MutableSet;
 
-template<typename T, class Compare = KOTCompare<T>>
+template<HasKeyObjectTraits T, class Compare = KOTCompare<T>>
 class SortedVector;
 
 //

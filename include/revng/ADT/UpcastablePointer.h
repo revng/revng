@@ -11,9 +11,7 @@
 
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/Assert.h"
-
-template<typename T, typename U>
-concept same_as = std::is_same_v<T, U>;
+#include "revng/Support/Concepts.h"
 
 template<typename T>
 concept is_pointer = std::is_pointer_v<T>;

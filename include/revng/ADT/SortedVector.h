@@ -28,7 +28,7 @@ unique_last(ForwardIt First, ForwardIt Last, BinaryPredicate Predicate) {
   return ++Result;
 }
 
-template<typename T, class Compare>
+template<HasKeyObjectTraits T, class Compare>
 class SortedVector {
 public:
   using KOT = KeyedObjectTraits<T>;
