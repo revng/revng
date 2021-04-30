@@ -741,6 +741,52 @@ ResultT *getByPath(llvm::StringRef Path, RootT &M) {
 }
 
 //
+// validateTupleTree
+//
+template<HasTupleSize T, typename L, size_t I = 0>
+constexpr bool validateTupleTree(L);
+
+template<typename T, typename L>
+constexpr bool validateTupleTree(L);
+
+template<IsContainer T, typename L>
+constexpr bool validateTupleTree(L);
+
+template<UpcastablePointerLike T, typename L>
+constexpr bool validateTupleTree(L);
+
+template<UpcastablePointerLike T, typename L>
+constexpr bool validateTupleTree(L Check) {
+  return Check((T *) nullptr)
+         and validateTupleTree<typename T::element_type>(Check);
+}
+
+template<IsContainer T, typename L>
+constexpr bool validateTupleTree(L Check) {
+  return Check((T *) nullptr)
+         and validateTupleTree<typename T::value_type>(Check);
+}
+
+template<typename T, typename L>
+constexpr bool validateTupleTree(L Check) {
+  return Check((T *) nullptr);
+}
+
+template<HasTupleSize T, typename L, size_t I>
+constexpr bool validateTupleTree(L Check) {
+  if constexpr (I == 0 and not Check((T *) nullptr))
+    return false;
+
+  if constexpr (I < std::tuple_size_v<T>) {
+    if constexpr (not validateTupleTree<std::tuple_element_t<I, T>>(Check))
+      return false;
+    return validateTupleTree<T, L, I + 1>(Check);
+  }
+
+  return true;
+}
+
+//
 // FOR_EACH macro implemenation
 //
 #define GET_MACRO(_0,   \

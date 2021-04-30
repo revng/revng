@@ -947,3 +947,28 @@ INTROSPECTION_NS(model, Binary, Functions)
 template<>
 struct llvm::yaml::MappingTraits<model::Binary>
   : public TupleLikeMappingTraits<model::Binary> {};
+
+constexpr auto IsYamlizable = [](auto *K) {
+  return Yamlizable<std::remove_pointer_t<decltype(K)>>;
+};
+static_assert(validateTupleTree<model::Binary>(IsYamlizable),
+              "All elements of the model must be YAMLizable");
+
+constexpr auto OnlyKOC = [](auto *K) {
+  using type = std::remove_pointer_t<decltype(K)>;
+  if constexpr (IsContainer<type>) {
+    if constexpr (IsKeyedObjectContainer<type>) {
+      using value_type = typename type::value_type;
+      using KOT = KeyedObjectTraits<value_type>;
+      using KeyType = decltype(KOT::key(std::declval<value_type>()));
+      return Yamlizable<KeyType>;
+    } else {
+      return false;
+    }
+  } else {
+    return true;
+  }
+};
+static_assert(validateTupleTree<model::Binary>(OnlyKOC),
+              "Only SortedVectors and MutableSets with YAMLizable keys are "
+              "allowed");
