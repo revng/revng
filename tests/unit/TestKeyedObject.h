@@ -32,3 +32,5 @@ INTROSPECTION(Element, Key, Value);
 template<>
 struct llvm::yaml::MappingTraits<Element>
   : public TupleLikeMappingTraits<Element> {};
+
+static_assert(HasKeyObjectTraits<Element>);
