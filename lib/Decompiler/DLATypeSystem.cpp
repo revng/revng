@@ -599,54 +599,44 @@ fixPredSucc(LayoutTypeSystemNode *From, LayoutTypeSystemNode *Into) {
 
 static Logger<> MergeLog("dla-merge-nodes");
 
-inline void
-LayoutTypeSystem::mergeNodes(LayoutTypeSystemNode *From,
-                             LayoutTypeSystemNode *Into,
-                             llvm::SmallSet<LayoutTypePtr, 2> *IntoTypePtrs) {
-  revng_assert(From != Into);
-  revng_log(MergeLog, "Merging: " << From << " Into: " << Into);
-  auto LayoutIt = Layouts.find(From);
-  revng_assert(LayoutIt != Layouts.end());
-
-  auto ToMergeLayoutToTypePtrsIt = LayoutToTypePtrsMap.find(From);
-  revng_assert(ToMergeLayoutToTypePtrsIt != LayoutToTypePtrsMap.end());
-
-  if (IntoTypePtrs == nullptr)
-    IntoTypePtrs = &LayoutToTypePtrsMap.at(Into);
-  else
-    revng_assert(IntoTypePtrs == &LayoutToTypePtrsMap.at(Into));
-
-  Into->AccessSizes.insert(From->AccessSizes.begin(), From->AccessSizes.end());
-
-  // Update LayoutToTypePtrsMap, the map that maps each LayoutTypeSystemNode *
-  // to the set of LayoutTypePtrs that are associated to it.
-  auto &MergedTypePtrs = ToMergeLayoutToTypePtrsIt->second;
-  IntoTypePtrs->insert(MergedTypePtrs.begin(), MergedTypePtrs.end());
-
-  // Update TypePtrToLayoutMap, the inverse map of LayoutToTypePtrsMap
-  for (auto P : MergedTypePtrs) {
-    revng_assert(TypePtrToLayoutMap.at(P) == From);
-    TypePtrToLayoutMap.at(P) = Into;
-  }
-
-  fixPredSucc(From, Into);
-  Into->InterferingInfo = Unknown;
-
-  // Clear stuff in LayoutTypeToPtrsMap, because now From must be removed.
-  LayoutToTypePtrsMap.erase(ToMergeLayoutToTypePtrsIt);
-
-  // Remove From from Layouts
-  Layouts.erase(LayoutIt);
-}
-
 using LayoutTypeSystemNodePtrVec = std::vector<LayoutTypeSystemNode *>;
 
 void LayoutTypeSystem::mergeNodes(const LayoutTypeSystemNodePtrVec &ToMerge) {
   revng_assert(ToMerge.size() > 1ULL);
-  LayoutTypeSystemNode *Candidate = ToMerge[0];
-  auto &IntoTypePtrs = LayoutToTypePtrsMap.at(Candidate);
-  for (size_t I = 1ULL; I < ToMerge.size(); ++I)
-    mergeNodes(ToMerge[I], Candidate, &IntoTypePtrs);
+  LayoutTypeSystemNode *Into = ToMerge[0];
+  auto &IntoTypePtrs = LayoutToTypePtrsMap.at(Into);
+  for (LayoutTypeSystemNode *From : llvm::drop_begin(ToMerge, 1)) {
+    revng_assert(From != Into);
+    revng_log(MergeLog, "Merging: " << From << " Into: " << Into);
+    auto LayoutIt = Layouts.find(From);
+    revng_assert(LayoutIt != Layouts.end());
+
+    auto ToMergeLayoutToTypePtrsIt = LayoutToTypePtrsMap.find(From);
+    revng_assert(ToMergeLayoutToTypePtrsIt != LayoutToTypePtrsMap.end());
+
+    Into->AccessSizes.insert(From->AccessSizes.begin(),
+                             From->AccessSizes.end());
+
+    // Update LayoutToTypePtrsMap, the map that maps each LayoutTypeSystemNode *
+    // to the set of LayoutTypePtrs that are associated to it.
+    auto &MergedTypePtrs = ToMergeLayoutToTypePtrsIt->second;
+    IntoTypePtrs.insert(MergedTypePtrs.begin(), MergedTypePtrs.end());
+
+    // Update TypePtrToLayoutMap, the inverse map of LayoutToTypePtrsMap
+    for (auto P : MergedTypePtrs) {
+      revng_assert(TypePtrToLayoutMap.at(P) == From);
+      TypePtrToLayoutMap.at(P) = Into;
+    }
+
+    fixPredSucc(From, Into);
+    Into->InterferingInfo = Unknown;
+
+    // Clear stuff in LayoutTypeToPtrsMap, because now From must be removed.
+    LayoutToTypePtrsMap.erase(ToMergeLayoutToTypePtrsIt);
+
+    // Remove From from Layouts
+    Layouts.erase(LayoutIt);
+  }
 }
 
 void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *N) {

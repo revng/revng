@@ -238,16 +238,7 @@ public:
                             llvm::map_iterator(Layouts.end(), getNodePtr));
   }
 
-protected:
-  void mergeNodes(LayoutTypeSystemNode *From,
-                  LayoutTypeSystemNode *Into,
-                  llvm::SmallSet<LayoutTypePtr, 2> *IntoTypePtrs);
-
 public:
-  void mergeNodes(LayoutTypeSystemNode *From, LayoutTypeSystemNode *Into) {
-    return mergeNodes(From, Into, nullptr);
-  }
-
   void mergeNodes(const std::vector<LayoutTypeSystemNode *> &ToMerge);
 
   const llvm::SmallSet<LayoutTypePtr, 2> *
