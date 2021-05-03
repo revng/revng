@@ -24,6 +24,12 @@
 
 using namespace llvm;
 
+using NodeAllocatorT = SpecificBumpPtrAllocator<dla::LayoutTypeSystemNode>;
+
+void *operator new(size_t, NodeAllocatorT &NodeAllocator) {
+  return NodeAllocator.Allocate();
+}
+
 namespace dla {
 
 void OffsetExpression::print(llvm::raw_ostream &OS) const {
@@ -236,12 +242,12 @@ void LayoutTypeSystem::dumpDotOnFile(const char *FName) const {
 
 LayoutTypeSystemNode *LayoutTypeSystem::createArtificialLayoutType() {
   using LTSN = LayoutTypeSystemNode;
-  // Create a new layout
-  const auto &[LayoutIt, Success] = Layouts.insert(std::make_unique<LTSN>(NID));
+  LTSN *New = new (NodeAllocator) LayoutTypeSystemNode(NID);
+  revng_assert(New);
+  ++NID;
+  bool Success = Layouts.insert(New).second;
   revng_assert(Success);
-  if (Success)
-    ++NID;
-  return LayoutIt->get();
+  return New;
 }
 
 static void assertGetLayoutTypePreConditions(const Value *V, unsigned Id) {
@@ -608,8 +614,6 @@ void LayoutTypeSystem::mergeNodes(const LayoutTypeSystemNodePtrVec &ToMerge) {
   for (LayoutTypeSystemNode *From : llvm::drop_begin(ToMerge, 1)) {
     revng_assert(From != Into);
     revng_log(MergeLog, "Merging: " << From << " Into: " << Into);
-    auto LayoutIt = Layouts.find(From);
-    revng_assert(LayoutIt != Layouts.end());
 
     auto ToMergeLayoutToTypePtrsIt = LayoutToTypePtrsMap.find(From);
     revng_assert(ToMergeLayoutToTypePtrsIt != LayoutToTypePtrsMap.end());
@@ -635,40 +639,43 @@ void LayoutTypeSystem::mergeNodes(const LayoutTypeSystemNodePtrVec &ToMerge) {
     LayoutToTypePtrsMap.erase(ToMergeLayoutToTypePtrsIt);
 
     // Remove From from Layouts
-    Layouts.erase(LayoutIt);
+    bool Erased = Layouts.erase(From);
+    revng_assert(Erased);
+    __asan_poison_memory_region(From, sizeof(LayoutTypeSystemNode));
   }
 }
 
-void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *N) {
-  auto It = LayoutToTypePtrsMap.find(N);
+void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *ToRemove) {
+  revng_assert(ToRemove);
+  auto It = LayoutToTypePtrsMap.find(ToRemove);
   revng_assert(It != LayoutToTypePtrsMap.end());
   for (auto P : It->second)
     TypePtrToLayoutMap.erase(P);
   LayoutToTypePtrsMap.erase(It);
-  auto LayoutIt = Layouts.find(N);
-  revng_assert(LayoutIt != Layouts.end());
 
-  const auto IsN = [N](const LayoutTypeSystemNode::Link &L) {
-    return L.first == N;
+  const auto IsToRemove = [ToRemove](const LayoutTypeSystemNode::Link &L) {
+    return L.first == ToRemove;
   };
 
-  for (auto &[Neighbor, Tag] : LayoutIt->get()->Successors) {
+  for (auto &[Neighbor, Tag] : ToRemove->Successors) {
     auto PredBegin = Neighbor->Predecessors.begin();
     auto PredEnd = Neighbor->Predecessors.end();
-    auto It = std::find_if(PredBegin, PredEnd, IsN);
-    auto End = std::find_if_not(It, PredEnd, IsN);
+    auto It = std::find_if(PredBegin, PredEnd, IsToRemove);
+    auto End = std::find_if_not(It, PredEnd, IsToRemove);
     Neighbor->Predecessors.erase(It, End);
   }
 
-  for (auto &[Neighbor, Tag] : LayoutIt->get()->Predecessors) {
+  for (auto &[Neighbor, Tag] : ToRemove->Predecessors) {
     auto SuccBegin = Neighbor->Successors.begin();
     auto SuccEnd = Neighbor->Successors.end();
-    auto It = std::find_if(SuccBegin, SuccEnd, IsN);
-    auto End = std::find_if_not(It, SuccEnd, IsN);
+    auto It = std::find_if(SuccBegin, SuccEnd, IsToRemove);
+    auto End = std::find_if_not(It, SuccEnd, IsToRemove);
     Neighbor->Successors.erase(It, End);
   }
 
-  Layouts.erase(LayoutIt);
+  bool Erased = Layouts.erase(ToRemove);
+  revng_assert(Erased);
+  __asan_poison_memory_region(ToRemove, sizeof(LayoutTypeSystemNode));
 }
 
 static void moveEdgesWithoutSumming(LayoutTypeSystemNode *OldSrc,
@@ -798,14 +805,14 @@ void LayoutTypeSystem::moveEdges(LayoutTypeSystemNode *OldSrc,
 static Logger<> VerifyDLALog("dla-verify-strict");
 
 bool LayoutTypeSystem::verifyConsistency() const {
-  for (auto &NodeUPtr : Layouts) {
-    if (NodeUPtr.get() == nullptr) {
+  for (LayoutTypeSystemNode *NodePtr : Layouts) {
+    if (not NodePtr) {
       if (VerifyDLALog.isEnabled())
         revng_check(false);
       return false;
     }
     // Check that predecessors and successors are consistent
-    for (auto &P : NodeUPtr->Predecessors) {
+    for (auto &P : NodePtr->Predecessors) {
       if (P.first == nullptr) {
         if (VerifyDLALog.isEnabled())
           revng_check(false);
@@ -813,14 +820,14 @@ bool LayoutTypeSystem::verifyConsistency() const {
       }
 
       // same edge with same tag
-      auto It = P.first->Successors.find({ NodeUPtr.get(), P.second });
+      auto It = P.first->Successors.find({ NodePtr, P.second });
       if (It == P.first->Successors.end()) {
         if (VerifyDLALog.isEnabled())
           revng_check(false);
         return false;
       }
     }
-    for (auto &P : NodeUPtr->Successors) {
+    for (auto &P : NodePtr->Successors) {
       if (P.first == nullptr) {
         if (VerifyDLALog.isEnabled())
           revng_check(false);
@@ -828,7 +835,7 @@ bool LayoutTypeSystem::verifyConsistency() const {
       }
 
       // same edge with same tag
-      auto It = P.first->Predecessors.find({ NodeUPtr.get(), P.second });
+      auto It = P.first->Predecessors.find({ NodePtr, P.second });
       if (It == P.first->Predecessors.end()) {
         if (VerifyDLALog.isEnabled())
           revng_check(false);
@@ -837,18 +844,18 @@ bool LayoutTypeSystem::verifyConsistency() const {
     }
 
     // Check that there are no self-edges
-    for (auto &P : NodeUPtr->Predecessors) {
+    for (auto &P : NodePtr->Predecessors) {
       LayoutTypeSystemNode *Pred = P.first;
-      if (Pred == NodeUPtr.get()) {
+      if (Pred == NodePtr) {
         if (VerifyDLALog.isEnabled())
           revng_check(false);
         return false;
       }
     }
 
-    for (auto &P : NodeUPtr->Successors) {
+    for (auto &P : NodePtr->Successors) {
       LayoutTypeSystemNode *Succ = P.first;
-      if (Succ == NodeUPtr.get()) {
+      if (Succ == NodePtr) {
         if (VerifyDLALog.isEnabled())
           revng_check(false);
         return false;

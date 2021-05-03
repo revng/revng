@@ -22,7 +22,6 @@
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Support/Assert.h"
 
-#include "revng-c/ADT/HeterogeneousPtrCompare.h"
 #include "revng-c/Decompiler/DLALayouts.h"
 
 namespace dla {
@@ -234,8 +233,7 @@ public:
   auto getNumLayouts() const { return Layouts.size(); }
 
   auto getLayoutsRange() const {
-    return llvm::make_range(llvm::map_iterator(Layouts.begin(), getNodePtr),
-                            llvm::map_iterator(Layouts.end(), getNodePtr));
+    return llvm::make_range(Layouts.begin(), Layouts.end());
   }
 
 public:
@@ -263,9 +261,12 @@ private:
   uint64_t NID = 0ULL;
 
   // Holds all the LayoutTypeSystemNode
-  std::set<std::unique_ptr<LayoutTypeSystemNode>,
-           HeterogeneousPtrCompare<LayoutTypeSystemNode>>
-    Layouts = {};
+  llvm::SpecificBumpPtrAllocator<LayoutTypeSystemNode> NodeAllocator = {};
+  std::set<LayoutTypeSystemNode *> Layouts = {};
+
+  // Holds the link tags, so that they can be deduplicated and referred to using
+  // TypeLinkTag * in the links inside LayoutTypeSystemNode
+  std::set<TypeLinkTag> LinkTags = {};
 
   // Maps llvm::Value to layout types.
   // This map is updated along the way when the DLA algorithm merges
@@ -276,10 +277,6 @@ private:
   // that generated them.
   std::map<const LayoutTypeSystemNode *, llvm::SmallSet<LayoutTypePtr, 2>>
     LayoutToTypePtrsMap = {};
-
-  // Holds the link tags, so that they can be deduplicated and referred to using
-  // TypeLinkTag * in the links inside LayoutTypeSystemNode
-  std::set<TypeLinkTag> LinkTags = {};
 
 public:
   // Checks that is valid, and returns true if it is, false otherwise
@@ -437,13 +434,9 @@ public:
 template<>
 struct llvm::GraphTraits<const dla::LayoutTypeSystem *>
   : public llvm::GraphTraits<const dla::LayoutTypeSystemNode *> {
-protected:
-  using NodeSetItT = std::set<dla::LayoutTypeSystem::NodeUniquePtr>::iterator;
-  using NodeUniquePtr = dla::LayoutTypeSystem::NodeUniquePtr;
-  using GetPtrT = dla::LayoutTypeSystem::NodePtr (*)(const NodeUniquePtr &);
 
 public:
-  using nodes_iterator = llvm::mapped_iterator<NodeSetItT, GetPtrT>;
+  using nodes_iterator = std::set<dla::LayoutTypeSystemNode *>::iterator;
 
   static NodeRef getEntryNode(const dla::LayoutTypeSystem *) { return nullptr; }
 
@@ -463,13 +456,9 @@ public:
 template<>
 struct llvm::GraphTraits<dla::LayoutTypeSystem *>
   : public llvm::GraphTraits<dla::LayoutTypeSystemNode *> {
-protected:
-  using NodeSetItT = std::set<dla::LayoutTypeSystem::NodeUniquePtr>::iterator;
-  using NodeUniquePtr = dla::LayoutTypeSystem::NodeUniquePtr;
-  using GetPtrT = dla::LayoutTypeSystem::NodePtr (*)(const NodeUniquePtr &);
 
 public:
-  using nodes_iterator = llvm::mapped_iterator<NodeSetItT, GetPtrT>;
+  using nodes_iterator = std::set<dla::LayoutTypeSystemNode *>::iterator;
 
   static NodeRef getEntryNode(const dla::LayoutTypeSystem *) { return nullptr; }
 
