@@ -632,7 +632,8 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
 
           Changed |= ILA.createBaseAddrWithInstanceLink(TS, PointerVal, *B);
           auto *AddrLayout = TS.getLayoutType(PointerVal);
-          AddrLayout->L.Accesses.insert(PtrUse);
+          auto AccessSize = getLoadStoreSizeFromPtrOpUse(TS, PtrUse);
+          AddrLayout->AccessSizes.insert(AccessSize);
           continue;
         }
 
@@ -682,7 +683,6 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
 
               auto *InsVal = cast<InsertValueInst>(RetVal);
               Pointers = getInsertValueLeafOperands(InsVal);
-
             }
 
           } else {

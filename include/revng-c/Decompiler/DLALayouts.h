@@ -292,6 +292,8 @@ public:
   unsigned fieldNum() const { return FieldIdx; }
 
   void print(llvm::raw_ostream &Out) const;
+
+  const llvm::Value &getValue() const { return *V; }
 }; // end class LayoutTypePtr
 
 using ValueLayoutMap = std::map<LayoutTypePtr, Layout *>;

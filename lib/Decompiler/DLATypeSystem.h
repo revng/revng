@@ -104,11 +104,6 @@ public:
   std::strong_ordering operator<=>(const TypeLinkTag &Other) const = default;
 }; // end class TypeLinkTag
 
-struct LayoutType {
-  llvm::SmallPtrSet<const llvm::Use *, 1> Accesses{};
-  uint64_t Size{};
-}; // end class LayoutType
-
 class LayoutTypeSystem;
 
 enum InterferingChildrenInfo {
@@ -123,7 +118,8 @@ struct LayoutTypeSystemNode {
   using NeighborsSet = std::set<Link>;
   NeighborsSet Successors{};
   NeighborsSet Predecessors{};
-  LayoutType L{};
+  llvm::SmallSet<uint64_t, 2> AccessSizes{};
+  uint64_t Size{};
   InterferingChildrenInfo InterferingInfo{ Unknown };
   LayoutTypeSystemNode(uint64_t I) : ID(I) {}
 
@@ -145,7 +141,7 @@ public:
 inline bool hasValidLayout(const LayoutTypeSystemNode *N) {
   if (N == nullptr)
     return false;
-  return not N->L.Accesses.empty();
+  return not N->AccessSizes.empty();
 }
 
 class LayoutTypeSystem {

@@ -38,11 +38,11 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
 
     for (LTSN *N : llvm::post_order_ext(Root, Visited)) {
       revng_assert(not isLeaf(N) or hasValidLayout(N));
-      revng_assert(N->L.Size);
+      revng_assert(N->Size);
 
       struct OrderedChild {
         int64_t Offset;
-        decltype(N->L.Size) Size;
+        decltype(N->Size) Size;
         LTSN *Child;
         // Make it sortable
         std::strong_ordering operator<=>(const OrderedChild &) const = default;
@@ -59,7 +59,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
 
         auto OrdChild = OrderedChild{
           /* .Offset */ 0LL,
-          /* .Size   */ Child->L.Size,
+          /* .Size   */ Child->Size,
           /* .Child  */ Child,
         };
 
@@ -122,10 +122,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
       // If there is only one children and no accesses, we are sure that there's
       // nothing to do, because the only children cannot interfere with anything
       // else, and it is already a component on its own.
-      llvm::SmallSet<uint64_t, 8> AccessSizes;
-      for (const auto &A : N->L.Accesses)
-        AccessSizes.insert(getLoadStoreSizeFromPtrOpUse(TS, A));
-      auto NumAccesses = AccessSizes.size();
+      auto NumAccesses = N->AccessSizes.size();
       if (Children.size() == 1ULL and not NumAccesses) {
         N->InterferingInfo = AllChildrenAreNonInterfering;
         continue;
@@ -176,17 +173,10 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
           auto FirstChildComp = MakeNewComponentFromChild(ChildIt);
 
           if (NumAccesses) {
-            const auto MaxAccessSize = [&TS](uint64_t PrevMax,
-                                             const llvm::Use *PtrOpUse) {
-              const auto ASize = getLoadStoreSizeFromPtrOpUse(TS, PtrOpUse);
-              return std::max(ASize, PrevMax);
-            };
-
             int64_t AccessStartByte = 0LL;
-            uint64_t AccEndByte = std::accumulate(N->L.Accesses.begin(),
-                                                  N->L.Accesses.end(),
-                                                  0ULL,
-                                                  MaxAccessSize);
+            auto MaxIt = std::max_element(N->AccessSizes.begin(),
+                                          N->AccessSizes.end());
+            uint64_t AccEndByte = MaxIt != N->AccessSizes.end() ? *MaxIt : 0ULL;
 
             revng_assert(FirstChildComp.StartByte >= 0);
             if (static_cast<uint64_t>(FirstChildComp.StartByte) < AccEndByte) {
@@ -273,7 +263,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
         // Set its size to the size of the component
         revng_assert(C.StartByte >= 0);
         revng_assert(C.EndByte > static_cast<uint64_t>(C.StartByte));
-        New->L.Size = C.EndByte - static_cast<uint64_t>(C.StartByte);
+        New->Size = C.EndByte - static_cast<uint64_t>(C.StartByte);
 
         // Move edges that were going directly from N to the children in the
         // component C, so that these edges now go from New to Child.
@@ -291,7 +281,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
           revng_assert(not FoundAccesses);
           FoundAccesses = true;
           revng_assert(not C.StartByte);
-          New->L.Accesses = std::move(N->L.Accesses);
+          New->AccessSizes = std::move(N->AccessSizes);
         }
 
         // Add a link between N and the New node representing the component.

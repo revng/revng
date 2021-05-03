@@ -42,20 +42,18 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
 
     for (LTSN *N : post_order_ext(Root, Visited)) {
       revng_assert(not isLeaf(N) or hasValidLayout(N));
-      revng_assert(not N->L.Size);
-      auto FinalSize = N->L.Size;
-
-      // Accumulate sizes of accesses associated to N
-      for (const Use *U : N->L.Accesses) {
-        FinalSize = std::max(FinalSize, getLoadStoreSizeFromPtrOpUse(TS, U));
-        revng_assert(FinalSize);
-      }
+      revng_assert(not N->Size);
+      auto FinalSize = N->Size;
+      auto MaxIt = std::max_element(N->AccessSizes.begin(),
+                                    N->AccessSizes.end());
+      FinalSize = std::max(FinalSize,
+                           MaxIt != N->AccessSizes.end() ? *MaxIt : 0UL);
 
       // Look at all the instance-of edges and inheritance edges all together.
       bool HasBaseClass = false;
       for (auto &[Child, EdgeTag] : children_edges<const LTSN *>(N)) {
 
-        auto ChildSize = Child->L.Size;
+        auto ChildSize = Child->Size;
         revng_assert(ChildSize > 0LL);
 
         switch (EdgeTag->getKind()) {
@@ -111,7 +109,7 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
           revng_unreachable("unexpected edge");
         }
       }
-      N->L.Size = FinalSize;
+      N->Size = FinalSize;
       Changed = true;
     }
   }

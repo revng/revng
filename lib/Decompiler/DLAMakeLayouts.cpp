@@ -105,17 +105,15 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 
   case AllChildrenAreNonInterfering: {
 
-    llvm::SmallSet<uint64_t, 8> AccessSizes;
-    for (const auto &A : N->L.Accesses)
-      AccessSizes.insert(getLoadStoreSizeFromPtrOpUse(TS, A));
-    auto NumAccesses = AccessSizes.size();
-    uint64_t AccessSize = NumAccesses ? *AccessSizes.begin() : 0ULL;
+    auto NumAccesses = N->AccessSizes.size();
+    uint64_t AccessSize = NumAccesses ? *N->AccessSizes.begin() : 0ULL;
+    revng_assert(NumAccesses == 0 or NumAccesses == 1);
 
     StructLayout::fields_container_t SFlds;
 
     struct OrderedChild {
       int64_t Offset;
-      decltype(N->L.Size) Size;
+      decltype(N->Size) Size;
       LTSN *Child;
       // Make it sortable
       std::strong_ordering operator<=>(const OrderedChild &) const = default;
@@ -131,7 +129,7 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 
       auto OrdChild = OrderedChild{
         /* .Offset */ 0LL,
-        /* .Size   */ Child->L.Size,
+        /* .Size   */ Child->Size,
         /* .Child  */ Child,
       };
 
@@ -260,8 +258,7 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
   case AllChildrenAreInterfering: {
 
     UnionLayout::elements_container_t UFlds;
-    for (const Use *U : N->L.Accesses) {
-      const auto AccessSize = getLoadStoreSizeFromPtrOpUse(TS, U);
+    for (uint64_t AccessSize : N->AccessSizes) {
       revng_log(Log, "Access: " << AccessSize);
       UFlds.insert(createLayout<BaseLayout>(Layouts, AccessSize));
     }
@@ -271,7 +268,7 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
     for (auto &[Child, EdgeTag] : children_edges<const LTSN *>(N)) {
 
       revng_log(Log, "Child ID: " << Child->ID);
-      revng_assert(Child->L.Size);
+      revng_assert(Child->Size);
 
       // Ignore children for which we haven't created a layout, because they
       // only have children from which it was not possible to create valid

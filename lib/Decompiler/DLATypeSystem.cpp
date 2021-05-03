@@ -97,12 +97,13 @@ void LayoutTypeSystem::dumpDotOnFile(const char *FName) const {
   DotFile << "digraph LayoutTypeSystem {\n";
   DotFile << "  // List of nodes\n";
 
-  unsigned AccessID = 0;
+  unsigned AccessSizeID = 0;
   for (const LayoutTypeSystemNode *L : getLayoutsRange()) {
 
     DotFile << "  node_" << L->ID << " [shape=rect,label=\"NODE ID: " << L->ID
-            << " Size: " << L->L.Size << " InterferingChild: ";
+            << " Size: " << L->Size << " InterferingChild: ";
 
+    llvm::SmallVector<const llvm::Use *, 8> PtrUses;
     switch (L->InterferingInfo) {
     case Unknown:
       DotFile << 'U';
@@ -129,20 +130,50 @@ void LayoutTypeSystem::dumpDotOnFile(const char *FName) const {
       for (const dla::LayoutTypePtr &P : TypePtrSet) {
         P.print(DotFile);
         DotFile << Ret;
+
+        // Collect uses for which P is a pointer operand, so that we can print
+        // them later for debug
+        const llvm::Value &PtrV = P.getValue();
+        for (const Use &U : PtrV.uses()) {
+
+          const llvm::Value *PtrOp = nullptr;
+          const User *Usr = U.getUser();
+          if (auto *Load = dyn_cast<LoadInst>(Usr))
+            PtrOp = Load->getPointerOperand();
+          else if (auto *Store = dyn_cast<StoreInst>(Usr))
+            PtrOp = Store->getPointerOperand();
+          else
+            continue;
+
+          if (&PtrV == PtrOp)
+            PtrUses.push_back(&U);
+        }
       }
     }
 
     DotFile << "\"];\n";
 
-    for (const llvm::Use *U : L->L.Accesses) {
-      const auto *I = cast<llvm::Instruction>(U->getUser());
-      const llvm::Function *F = I->getFunction();
-      DotFile << "  access_" << AccessID << " [label=\"In: " << F->getName()
-              << " : ";
-      DotFile.write_escaped(dumpToString(U->getUser()));
-      DotFile << "\"];\n"
-              << "  node_" << L->ID << " -> access_" << AccessID << ";\n";
-      ++AccessID;
+    for (uint64_t AccessSize : L->AccessSizes) {
+      DotFile << "  access_size_" << AccessSizeID
+              << " [label=\"Access Size: " << AccessSize;
+
+      bool Found = false;
+      for (const llvm::Use *U : PtrUses) {
+        if (AccessSize == getLoadStoreSizeFromPtrOpUse(*this, U)) {
+          auto *I = cast<Instruction>(U->getUser());
+          DotFile << "\\\\n"
+                  << "In : " << I->getFunction()->getName() << " : ";
+          DotFile.write_escaped(dumpToString(I));
+          Found = true;
+        }
+      }
+
+      DotFile << "\"];\n";
+      DotFile << "  node_" << L->ID << " -> access_size_" << AccessSizeID
+              << ";\n";
+
+      revng_assert(Found);
+      ++AccessSizeID;
     }
   }
 
@@ -585,7 +616,7 @@ LayoutTypeSystem::mergeNodes(LayoutTypeSystemNode *From,
   else
     revng_assert(IntoTypePtrs == &LayoutToTypePtrsMap.at(Into));
 
-  Into->L.Accesses.insert(From->L.Accesses.begin(), From->L.Accesses.end());
+  Into->AccessSizes.insert(From->AccessSizes.begin(), From->AccessSizes.end());
 
   // Update LayoutToTypePtrsMap, the map that maps each LayoutTypeSystemNode *
   // to the set of LayoutTypePtrs that are associated to it.
