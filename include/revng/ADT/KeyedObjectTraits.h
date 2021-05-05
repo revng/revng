@@ -6,12 +6,21 @@
 
 #include "revng/ADT/KeyTraits.h"
 #include "revng/ADT/STLExtras.h"
+#include "revng/Support/Concepts.h"
 
 template<typename T, typename = void>
 struct KeyedObjectTraits {
   // static * key(const T &);
   // static T fromKey(* Key);
 };
+
+// clang-format off
+template<typename T>
+concept HasKeyObjectTraits = requires(T a) {
+  { KeyedObjectTraits<T>::key(a) };
+  { KeyedObjectTraits<T>::fromKey(KeyedObjectTraits<T>::key(a)) } -> same_as<T>;
+};
+// clang-format on
 
 /// Inherit if T is the key of itself
 template<typename T>
@@ -22,6 +31,8 @@ struct IdentityKeyedObjectTraits {
 };
 
 /// Trivial specialization for integral types
-template<typename T>
-struct KeyedObjectTraits<T, enable_if_is_integral_t<T>>
-  : public IdentityKeyedObjectTraits<T> {};
+template<Integral T>
+struct KeyedObjectTraits<T> : public IdentityKeyedObjectTraits<T> {};
+
+static_assert(Integral<int>);
+static_assert(HasKeyObjectTraits<int>);

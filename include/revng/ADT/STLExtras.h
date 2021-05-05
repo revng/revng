@@ -8,21 +8,11 @@
 
 #include "llvm/ADT/STLExtras.h"
 
-#include "revng/ADT/KeyedObjectTraits.h"
-
 //
 // is_integral
 //
-template<typename T, typename K = void>
-using enable_if_is_integral_t = std::enable_if_t<std::is_integral_v<T>, K>;
-
-//
-// enable_if_type
-//
-template<class T, class R = void>
-struct enable_if_type {
-  using type = R;
-};
+template<typename T>
+concept Integral = std::is_integral_v<T>;
 
 //
 // is_specialization
@@ -35,3 +25,31 @@ struct is_specialization<Ref<Args...>, Ref> : std::true_type {};
 
 template<typename Test, template<typename...> class Ref>
 constexpr bool is_specialization_v = is_specialization<Test, Ref>::value;
+
+static_assert(is_specialization_v<std::vector<int>, std::vector>);
+static_assert(is_specialization_v<std::pair<int, long>, std::pair>);
+
+//
+// HasTupleSize
+//
+
+template<typename T>
+concept HasTupleSize = requires {
+  std::tuple_size<T>::value;
+};
+
+// clang-format off
+template<typename T, std::size_t I>
+concept IsTupleEnd
+  = std::is_same_v<std::true_type,
+                   std::integral_constant<bool, std::tuple_size_v<T> == I>>;
+
+template<typename T, std::size_t I>
+concept IsNotTupleEnd
+  = std::is_same_v<std::true_type,
+                   std::integral_constant<bool, std::tuple_size_v<T> != I>>;
+// clang-format on
+
+static_assert(HasTupleSize<std::tuple<>>);
+static_assert(!HasTupleSize<std::vector<int>>);
+static_assert(!HasTupleSize<int>);

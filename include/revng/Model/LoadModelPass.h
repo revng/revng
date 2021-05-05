@@ -11,22 +11,23 @@
 
 inline const char *ModelMetadataName = "revng.model";
 
-model::Binary loadModel(const llvm::Module &M);
+TupleTree<model::Binary> loadModel(const llvm::Module &M);
 
 class ModelWrapper {
 private:
-  model::Binary TheBinary;
+  TupleTree<model::Binary> TheBinary;
   bool HasChanged = false;
 
 public:
-  ModelWrapper(model::Binary TheBinary) : TheBinary(TheBinary) {}
+  ModelWrapper(TupleTree<model::Binary> &&TheBinary) :
+    TheBinary(std::move(TheBinary)) {}
 
 public:
-  const model::Binary &getReadOnlyModel() const { return TheBinary; }
+  const model::Binary &getReadOnlyModel() const { return *TheBinary; }
 
   model::Binary &getWriteableModel() {
     HasChanged = true;
-    return TheBinary;
+    return *TheBinary;
   }
 
   bool hasChanged() const { return HasChanged; }

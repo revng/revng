@@ -31,8 +31,7 @@ void writeModel(model::Binary &Model, llvm::Module &M) {
   std::string Buffer;
   {
     llvm::raw_string_ostream Stream(Buffer);
-    yaml::Output YAMLOutput(Stream);
-    YAMLOutput << Model;
+    serialize(Stream, Model);
   }
 
   LLVMContext &Context = M.getContext();

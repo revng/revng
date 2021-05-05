@@ -17,11 +17,9 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/ReversePostOrderTraversal.h"
+#include "revng/Support/Concepts.h"
 
 namespace TypeShrinking {
-
-template<typename T, typename U>
-concept same_as = std::is_same_v<T, U>;
 
 template<typename LatticeElement>
 struct MFPResult {

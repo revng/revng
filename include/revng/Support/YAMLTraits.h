@@ -6,21 +6,6 @@
 
 #include "llvm/Support/YAMLTraits.h"
 
-namespace detail {
-
-using namespace llvm::yaml;
-
-template<typename T>
-using has_MappingTraits = has_MappingTraits<T, EmptyContext>;
-
-template<typename T, typename K = void>
-using ei_hmt = std::enable_if_t<has_MappingTraits<T>::value, K>;
-
-} // namespace detail
-
-template<typename T, typename K = void>
-using enable_if_has_MappingTraits = detail::ei_hmt<T, K>;
-
 template<typename T>
 inline llvm::StringRef getNameFromYAMLEnumScalar(T V) {
   using namespace llvm::yaml;

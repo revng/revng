@@ -9,6 +9,8 @@
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/MutableSet.h"
 #include "revng/ADT/SortedVector.h"
+#include "revng/ADT/UpcastablePointer.h"
+#include "revng/ADT/UpcastablePointer/YAMLTraits.h"
 #include "revng/Model/TupleTree.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/KeyTraits.h"
@@ -20,6 +22,7 @@ namespace model {
 class Function;
 class Binary;
 class FunctionEdge;
+class CallEdge;
 class FunctionABIRegister;
 class BasicBlock;
 } // namespace model
@@ -674,6 +677,26 @@ inline bool hasDestination(Values V) {
   }
 }
 
+inline bool isCall(Values V) {
+  switch (V) {
+  case FunctionCall:
+  case IndirectCall:
+  case IndirectTailCall:
+    return true;
+
+  case Invalid:
+  case DirectBranch:
+  case FakeFunctionCall:
+  case FakeFunctionReturn:
+  case Return:
+  case BrokenReturn:
+  case LongJmp:
+  case Killer:
+  case Unreachable:
+    return false;
+  }
+}
+
 } // namespace model::FunctionEdgeType
 
 namespace llvm::yaml {
@@ -723,9 +746,10 @@ public:
   /// Edge target. If invalid, it's an indirect edge
   MetaAddress Destination;
   FunctionEdgeType::Values Type;
-  SortedVector<model::FunctionABIRegister> Registers;
 
 public:
+  FunctionEdge() :
+    Destination(MetaAddress::invalid()), Type(FunctionEdgeType::Invalid) {}
   FunctionEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
     Destination(Destination), Type(Type) {}
 
@@ -738,17 +762,62 @@ public:
     return ThisTie < OtherTie;
   }
 
+public:
+  static constexpr const char *Tag = "!FunctionEdge";
+  static bool classof(const FunctionEdge *A) {
+    return not FunctionEdgeType::isCall(A->Type);
+  }
+
   bool verify() const debug_function;
 };
-INTROSPECTION_NS(model, FunctionEdge, Destination, Type, Registers);
+INTROSPECTION_NS(model, FunctionEdge, Destination, Type);
+
+class model::CallEdge : public model::FunctionEdge {
+public:
+  using Key = std::pair<MetaAddress, model::FunctionEdgeType::Values>;
+
+public:
+  SortedVector<model::FunctionABIRegister> Registers;
+
+public:
+  CallEdge() :
+    FunctionEdge(MetaAddress::invalid(), FunctionEdgeType::FunctionCall) {}
+  CallEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
+    FunctionEdge(Destination, Type) {
+    revng_assert(FunctionEdgeType::isCall(Type));
+  }
+
+public:
+  static constexpr const char *Tag = "!CallEdge";
+  static bool classof(const FunctionEdge *A) {
+    return FunctionEdgeType::isCall(A->Type);
+  }
+
+public:
+  bool verify() const debug_function;
+};
+INTROSPECTION_NS(model, CallEdge, Destination, Type, Registers);
+
+template<>
+struct concrete_types_traits<model::FunctionEdge> {
+  using type = std::tuple<model::CallEdge, model::FunctionEdge>;
+};
+
+template<>
+class llvm::yaml::MappingTraits<UpcastablePointer<model::FunctionEdge>>
+  : public PolymorphicMappingTraits<UpcastablePointer<model::FunctionEdge>> {};
 
 template<>
 struct llvm::yaml::MappingTraits<model::FunctionEdge>
   : public TupleLikeMappingTraits<model::FunctionEdge> {};
 
 template<>
+struct llvm::yaml::MappingTraits<model::CallEdge>
+  : public TupleLikeMappingTraits<model::CallEdge> {};
+
+template<>
 struct llvm::yaml::ScalarTraits<model::FunctionEdge::Key>
-  : CompositeScalar<model::FunctionEdge::Key, '-'> {};
+  : public CompositeScalar<model::FunctionEdge::Key, '-'> {};
 
 template<>
 struct KeyedObjectTraits<model::FunctionEdge> {
@@ -759,6 +828,23 @@ struct KeyedObjectTraits<model::FunctionEdge> {
 
   static model::FunctionEdge fromKey(const Key &Obj) {
     return model::FunctionEdge{ Obj.first, Obj.second };
+  }
+};
+
+template<>
+struct KeyedObjectTraits<UpcastablePointer<model::FunctionEdge>> {
+  using Key = model::FunctionEdge::Key;
+  static Key key(const UpcastablePointer<model::FunctionEdge> &Obj) {
+    return { Obj->Destination, Obj->Type };
+  }
+
+  static UpcastablePointer<model::FunctionEdge> fromKey(const Key &Obj) {
+    using ResultType = UpcastablePointer<model::FunctionEdge>;
+    if (model::FunctionEdgeType::isCall(Obj.second)) {
+      return ResultType(new model::CallEdge(Obj.first, Obj.second));
+    } else {
+      return ResultType(new model::FunctionEdge(Obj.first, Obj.second));
+    }
   }
 };
 
@@ -792,7 +878,7 @@ public:
   MetaAddress Start;
   MetaAddress End;
   std::string Name;
-  SortedVector<FunctionEdge> Successors;
+  SortedVector<UpcastablePointer<model::FunctionEdge>> Successors;
 
 public:
   BasicBlock(const MetaAddress &Start) : Start(Start) {}
@@ -844,7 +930,7 @@ struct KeyedObjectTraits<model::Function> {
   };
 };
 
-static_assert(is_KeyedObjectContainer_v<MutableSet<model::Function>>);
+static_assert(IsKeyedObjectContainer<MutableSet<model::Function>>);
 
 //
 // Binary
@@ -861,3 +947,28 @@ INTROSPECTION_NS(model, Binary, Functions)
 template<>
 struct llvm::yaml::MappingTraits<model::Binary>
   : public TupleLikeMappingTraits<model::Binary> {};
+
+constexpr auto IsYamlizable = [](auto *K) {
+  return Yamlizable<std::remove_pointer_t<decltype(K)>>;
+};
+static_assert(validateTupleTree<model::Binary>(IsYamlizable),
+              "All elements of the model must be YAMLizable");
+
+constexpr auto OnlyKOC = [](auto *K) {
+  using type = std::remove_pointer_t<decltype(K)>;
+  if constexpr (IsContainer<type>) {
+    if constexpr (IsKeyedObjectContainer<type>) {
+      using value_type = typename type::value_type;
+      using KOT = KeyedObjectTraits<value_type>;
+      using KeyType = decltype(KOT::key(std::declval<value_type>()));
+      return Yamlizable<KeyType>;
+    } else {
+      return false;
+    }
+  } else {
+    return true;
+  }
+};
+static_assert(validateTupleTree<model::Binary>(OnlyKOC),
+              "Only SortedVectors and MutableSets with YAMLizable keys are "
+              "allowed");

@@ -20,31 +20,18 @@ template<typename T, typename A>
 struct is_std_vector<std::vector<T, A>> : std::true_type {};
 
 template<typename T>
-constexpr bool has_push_back_v = is_std_vector<T>::value;
-
-template<typename T, typename K = void>
-using enable_if_has_push_back_t = std::enable_if_t<has_push_back_v<T>, K>;
+concept HasPushBack = is_std_vector<T>::value;
 
 template<typename T>
-constexpr bool has_insert_or_assign_v = not has_push_back_v<T>;
+concept HasInsertOrAssign = not HasPushBack<T>;
 
-namespace detail {
-template<typename T, typename K = void>
-using ei_hioa_t = std::enable_if_t<has_insert_or_assign_v<T>, K>;
-}
-
-template<typename T, typename K = void>
-using enable_if_has_insert_or_assign_t = detail::ei_hioa_t<T, K>;
-
-template<typename C>
-enable_if_has_insert_or_assign_t<C>
-addToContainer(C &Container, const typename C::value_type &Value) {
+template<HasInsertOrAssign C>
+void addToContainer(C &Container, const typename C::value_type &Value) {
   Container.insert_or_assign(Value);
 }
 
-template<typename C>
-enable_if_has_push_back_t<C>
-addToContainer(C &Container, const typename C::value_type &Value) {
+template<HasPushBack C>
+void addToContainer(C &Container, const typename C::value_type &Value) {
   Container.push_back(Value);
 }
 
@@ -98,10 +85,10 @@ struct Diff {
 
 private:
   template<size_t I = 0, typename T>
-  enable_if_tuple_end_t<I, T> diffTuple(T &LHS, T &RHS) {}
+  requires IsTupleEnd<T, I> void diffTuple(T &LHS, T &RHS) {}
 
   template<size_t I = 0, typename T>
-  enable_if_not_tuple_end_t<I, T> diffTuple(T &LHS, T &RHS) {
+  requires IsNotTupleEnd<T, I> void diffTuple(T &LHS, T &RHS) {
     using child_type = typename std::tuple_element<I, T>::type;
 
     Stack.push_back(I);
@@ -112,13 +99,13 @@ private:
     diffTuple<I + 1>(LHS, RHS);
   }
 
-  template<typename T>
-  enable_if_has_tuple_size_t<T> diffImpl(T &LHS, T &RHS) {
+  template<HasTupleSize T>
+  void diffImpl(T &LHS, T &RHS) {
     diffTuple(LHS, RHS);
   }
 
-  template<typename T>
-  enable_if_is_sorted_container_t<T> diffImpl(T &LHS, T &RHS) {
+  template<SortedContainer T>
+  void diffImpl(T &LHS, T &RHS) {
     using value_type = typename T::value_type;
     using KOT = KeyedObjectTraits<value_type>;
     using key_type = decltype(KOT::key(std::declval<value_type>()));
@@ -144,8 +131,8 @@ private:
     }
   }
 
-  template<typename T>
-  enable_if_is_unsorted_container_t<T> diffImpl(T &LHS, T &RHS) {
+  template<UnsortedContainer T>
+  void diffImpl(T &LHS, T &RHS) {
     using value_type = typename T::value_type;
     using KOT = KeyedObjectTraits<value_type>;
     using key_type = decltype(KOT::key(std::declval<value_type>()));
@@ -174,9 +161,8 @@ private:
     }
   }
 
-  template<typename T>
-  std::enable_if_t<not(is_container_v<T> or has_tuple_size_v<T>)>
-  diffImpl(T &LHS, T &RHS) {
+  template<NotTupleTreeCompatible T>
+  void diffImpl(T &LHS, T &RHS) {
     if (LHS != RHS)
       Result.change(Stack, &LHS, &RHS);
   }
@@ -194,16 +180,16 @@ TupleTreeDiff<M> diff(M &LHS, M &RHS) {
 //
 namespace tupletreediff::detail {
 
-template<typename T, typename S>
-enable_if_has_yaml_t<T> stream(T *M, S &Stream) {
+template<Yamlizable T, typename S>
+void stream(T *M, S &Stream) {
   using namespace llvm::yaml;
   Output Out(Stream);
   EmptyContext Ctx;
   yamlize(Out, *M, true, Ctx);
 }
 
-template<typename T, typename S>
-enable_if_has_not_yaml_t<T> stream(T *M, S &Stream) {
+template<NotYamlizable T, typename S>
+void stream(T *M, S &Stream) {
   Stream << *M;
 }
 
@@ -241,14 +227,14 @@ struct DumpDiffVisitor {
   template<typename T, typename KeyT>
   void visitContainerElement(KeyT Key) {}
 
-  template<typename T>
-  enable_if_is_container_t<T> visit() {
+  template<IsContainer T>
+  void visit() {
     revng_assert((Old != nullptr) != (New != nullptr));
     dump<typename T::value_type>();
   }
 
-  template<typename T>
-  enable_if_is_not_container_t<T> visit() {
+  template<NotTupleTreeCompatible T>
+  void visit() {
     revng_assert(Old != nullptr and New != nullptr);
     dump<T>();
   }
@@ -296,6 +282,15 @@ inline void TupleTreeDiff<T>::dump() const {
 //
 namespace tupletreediff::detail {
 
+// clang-format off
+template<typename T>
+concept IterableAndNotStdString
+  = Iterable<T> and not std::is_same_v<std::string, T>;
+// clang-format on
+
+template<typename T>
+concept NotIterableOrStdString = not IterableAndNotStdString<T>;
+
 template<typename T>
 struct ApplyDiffVisitor {
   using Change = typename TupleTreeDiff<T>::Change;
@@ -311,9 +306,8 @@ struct ApplyDiffVisitor {
     visit(Element);
   }
 
-  template<typename S>
-  std::enable_if_t<is_iterable_v<S> and !std::is_same_v<std::string, S>>
-  visit(S &M) {
+  template<IterableAndNotStdString S>
+  void visit(S &M) {
     revng_assert((C->Old == nullptr) != (C->New == nullptr));
 
     using value_type = typename S::value_type;
@@ -337,9 +331,8 @@ struct ApplyDiffVisitor {
     }
   }
 
-  template<typename S>
-  std::enable_if_t<!(is_iterable_v<S> and !std::is_same_v<std::string, S>)>
-  visit(S &M) {
+  template<NotIterableOrStdString S>
+  void visit(S &M) {
     revng_assert(C->Old != nullptr and C->New != nullptr);
     auto *Old = reinterpret_cast<S *>(C->Old);
     auto *New = reinterpret_cast<S *>(C->New);

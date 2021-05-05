@@ -26,10 +26,7 @@ using RP = RegisterPass<T>;
 static RP<LoadModelWrapperPass>
   X("load-model", "Deserialize the model", true, true);
 
-model::Binary loadModel(const llvm::Module &M) {
-
-  model::Binary Result;
-
+TupleTree<model::Binary> loadModel(const llvm::Module &M) {
   NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
   revng_check(NamedMD and NamedMD->getNumOperands());
 
@@ -39,15 +36,11 @@ model::Binary loadModel(const llvm::Module &M) {
   Metadata *MD = Tuple->getOperand(0).get();
   StringRef YAMLString = cast<MDString>(MD)->getString();
 
-  yaml::Input YAMLInput(YAMLString);
-  YAMLInput >> Result;
-
-  return Result;
+  return TupleTree<model::Binary>::deserialize(YAMLString);
 }
 
-static model::Binary extractModel(Module &M) {
-  model::Binary Result = loadModel(M);
-
+static TupleTree<model::Binary> extractModel(Module &M) {
+  auto Result = loadModel(M);
   // Erase the named metadata in order to make sure no one is tempted to
   // deserialize it on its own
   NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);

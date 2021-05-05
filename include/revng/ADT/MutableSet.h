@@ -8,7 +8,7 @@
 
 #include "revng/ADT/KeyedObjectTraits.h"
 
-template<typename T, class Compare>
+template<HasKeyObjectTraits T, class Compare>
 class MutableSet {
 private:
   using KOT = KeyedObjectTraits<T>;
