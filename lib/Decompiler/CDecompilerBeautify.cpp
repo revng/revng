@@ -1160,24 +1160,18 @@ ASTNode *promoteNoFallthroughIf(ASTNode *RootNode, ASTTree &AST) {
   std::map<const ASTNode *, unsigned> NodeWeight;
 
   // Run the analysis which marks the fallthrough property of the nodes.
-  bool RootFallThrough = rc_run(fallThroughScope, RootNode, FallThroughMap);
+  bool RootFallThrough = fallThroughScope(RootNode, FallThroughMap);
   FallThroughMap[RootNode] = RootFallThrough;
 
   // Run the analysis which computes the AST weight of the nodes on the tree.
-  unsigned RootWeight = rc_run(computeCumulativeNodeWeight,
-                               RootNode,
-                               NodeWeight);
+  unsigned RootWeight = computeCumulativeNodeWeight(RootNode, NodeWeight);
   NodeWeight[RootNode] = RootWeight;
 
   // Run the fallthrough promotion.
-  RootNode = rc_run(promoteNoFallthrough,
-                    AST,
-                    RootNode,
-                    FallThroughMap,
-                    NodeWeight);
+  RootNode = promoteNoFallthrough(AST, RootNode, FallThroughMap, NodeWeight);
 
   // Run the sequence nodes collapse.
-  RootNode = rc_run(collapseSequences, AST, RootNode);
+  RootNode = collapseSequences(AST, RootNode);
 
   // Update the root field of the AST.
   AST.setRoot(RootNode);

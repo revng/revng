@@ -896,7 +896,7 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   for (const auto &TypeDecl : Declarator.types())
     if (clang::TypeDecl *TD = DeclCreator::getTypeDecl(TypeDecl))
       if (not OrderedDecls.count(cast<clang::RecordDecl>(TD)))
-        rc_run(addDeclsInOrder, TD, OrderedDecls, NeedForwardDecl);
+        addDeclsInOrder(TD, OrderedDecls, NeedForwardDecl);
 
   // Create and add forward-declare all the structs.
   for (const clang::RecordDecl *StructDecl : NeedForwardDecl)
