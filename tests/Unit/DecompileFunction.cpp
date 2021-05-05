@@ -25,11 +25,11 @@ int main(int argc, char **argv) {
                                                       Errors,
                                                       TestContext);
 
-  model::Binary Model = loadModel(*M);
-  revng_check(not Model.Functions.empty(),
+  TupleTree<model::Binary> Model = loadModel(*M);
+  revng_check(not Model->Functions.empty(),
               "Unable to find an isolated function");
 
-  const model::Function &F = *Model.Functions.begin();
+  const model::Function &F = *Model->Functions.begin();
 
   llvm::Function *LLVMFun = M->getFunction(F.Name);
   revng_check(LLVMFun, "Cannot find function in LLVM Module");
