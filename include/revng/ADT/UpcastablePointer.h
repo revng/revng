@@ -52,7 +52,7 @@ template<typename T>
 concept UpcastablePointerLike = PointerLike<T> and Upcastable<pointee<T>>;
 
 template<typename T>
-concept NotVoid = !same_as<void, T>;
+concept NotVoid = not std::is_void_v<T>;
 
 template<NotVoid ReturnT, typename L, UpcastablePointerLike P, size_t I = 0>
 ReturnT upcast(P &Upcastable, const L &Callable, const ReturnT &IfNull) {
