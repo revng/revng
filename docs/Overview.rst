@@ -19,7 +19,7 @@ To know more about the rev.ng decompiler, revng-c, check out the `dedicated page
 The other use case for rev.ng is to recompile the lifted IR to an executable binary.
 Typically, we do this for ensuring the accuracy for the lifting process, but there are interesting use cases.
 For example, an user might want to add off-the-shelf LLVM instrumentations such as `SanitizerCoverage <https://clang.llvm.org/docs/SanitizerCoverage.html>`_ and `AddressSanitizer <https://clang.llvm.org/docs/AddressSanitizer.html>`_ in order to perform coverage-guided fuzzing on binaries using `libFuzzer <https://llvm.org/docs/LibFuzzer.html>`_.
-If this is of interested for you, check out the `dedicated blog post <https://rev.ng/blog/fuzzing/post.html>`_.
+If this sounds interesting for you, check out the `dedicated blog post <https://rev.ng/blog/fuzzing/post.html>`_.
 
 Recompiling LLVM IR to executable code is trivial.
 After all, LLVM is a compiler framework.
@@ -49,7 +49,8 @@ This intermediate representation is known as tiny code instructions.
 TODO: image
 
 TODO: bullet list
-Just as a compiler, QEMU is divided in:
+
+Just as a compiler, QEMU is divided into:
 
 * a frontend: transforms each input instruction into tiny code instructions;
 * a mid-end: performs a set of target-independent, lightweight optimizations such as constant propagation and dead code elimination;
@@ -105,8 +106,8 @@ Therefore, tiny code features a special type of instruction that enables the dev
 Such funtions are known as *helper functions*.
 
 In order to produce a self-contained representation of the input program, in rev.ng, we need helper functions too.
-Therefore, in our fork of QEMU, we do not just produce libtinycode, but also a set of files containing the LLVM IR for the helper functions of each frontend.
-Producing such files is rather easy since they are written in C and clang can easily produce LLVM IR from them.
+Therefore, in our fork of QEMU, we do not just produce libtinycode, but also a set of files containing the LLVM IR for the helper functions targetting each of the frontends.
+Producing files like those is rather easy since they are written in C and clang can easily produce LLVM IR from them.
 
 The helper functions in LLVM IR form are collected in files such as ``libtinycode-helpers-arm.bc``, which are then installed and made available to rev.ng.
 
@@ -135,7 +136,7 @@ Briefly, here's what it does:
 
 #. Finalize the module and emit it.
 
-Passing from tiny code instructions to LLVM IR is of key importance.
+Converting tiny code instructions into LLVM IR is of key importance.
 In fact, the QEMU IR (tiny code instructions) is designed to be optimized at run-time, therefore it's not suitable to perform sophisticated analyses.
 On the other hand, the LLVM is a full-fledged compiler framework where it is possible and it makes sense to perform aggressive analyses and transformations.
 
