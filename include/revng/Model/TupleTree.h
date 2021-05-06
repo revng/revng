@@ -15,6 +15,7 @@
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/ADT/TupleTreePath.h"
+#include "revng/ADT/UpcastablePointer.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
@@ -447,7 +448,14 @@ struct CallByPathVisitorWithInstance {
       V.template visitTupleElement<T, I>(Element);
   }
 
-  template<typename T, typename K, typename KeyT>
+  template<typename T, IsUpcastablePointer K, typename KeyT>
+  void visitContainerElement(KeyT Key, K &Element) {
+    PathSize -= 1;
+    if (PathSize == 0)
+      V.template visitContainerElement<T>(Key, *Element.get());
+  }
+
+  template<typename T, IsNotUpcastablePointer K, typename KeyT>
   void visitContainerElement(KeyT Key, K &Element) {
     PathSize -= 1;
     if (PathSize == 0)
