@@ -150,14 +150,16 @@ public:
   }
 
   generator(const generator &other) = delete;
+  generator &operator=(const generator &other) = delete;
 
   ~generator() {
     if (m_coroutine) {
+      revng_assert(m_coroutine.done());
       m_coroutine.destroy();
     }
   }
 
-  generator &operator=(generator other) noexcept {
+  generator &operator=(generator &&other) noexcept {
     swap(other);
     return *this;
   }
