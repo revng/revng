@@ -179,3 +179,6 @@ private:
 
 template<typename T>
 concept IsUpcastablePointer = is_specialization_v<T, UpcastablePointer>;
+
+template<typename T>
+concept IsNotUpcastablePointer = not IsUpcastablePointer<T>;
