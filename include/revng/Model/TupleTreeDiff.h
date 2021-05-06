@@ -99,6 +99,21 @@ private:
     diffTuple<I + 1>(LHS, RHS);
   }
 
+  template<IsUpcastablePointer T>
+  void diffImpl(T &LHS, T &RHS) {
+    LHS.upcast([&](auto &LHSUpcasted) {
+      RHS.upcast([&](auto &RHSUpcasted) {
+        using LHSType = std::remove_cvref_t<decltype(LHSUpcasted)>;
+        using RHSType = std::remove_cvref_t<decltype(RHSUpcasted)>;
+        if constexpr (std::is_same_v<LHSType, RHSType>) {
+          diffImpl(LHSUpcasted, RHSUpcasted);
+        } else {
+          Result.change(Stack, &LHS, &RHS);
+        }
+      });
+    });
+  }
+
   template<HasTupleSize T>
   void diffImpl(T &LHS, T &RHS) {
     diffTuple(LHS, RHS);
@@ -258,7 +273,7 @@ inline void TupleTreeDiff<T>::dump() const {
   for (const Change &C : Changes) {
 
     if (LastPath != C.Path) {
-      std::string NewPath = pathAsString<T>(C.Path);
+      std::string NewPath = *pathAsString<T>(C.Path);
       llvm::outs() << "--- " << NewPath << "\n";
       llvm::outs() << "+++ " << NewPath << "\n";
       LastPath = C.Path;

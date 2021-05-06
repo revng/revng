@@ -596,6 +596,7 @@ public:
 
 public:
   FunctionABIRegister(const Register::Values &Register) : Register(Register) {}
+  bool operator==(const FunctionABIRegister &Other) const = default;
 
 public:
   bool verify() const debug_function {
@@ -884,6 +885,7 @@ public:
 
 public:
   BasicBlock(const MetaAddress &Start) : Start(Start) {}
+  bool operator==(const model::BasicBlock &Other) const = default;
 };
 INTROSPECTION_NS(model, BasicBlock, Start, End, Name, Successors);
 
@@ -913,6 +915,7 @@ public:
 
 public:
   Function(const MetaAddress &Entry) : Entry(Entry) {}
+  bool operator==(const model::Function &Other) const = default;
 
 public:
   bool verify() const debug_function;

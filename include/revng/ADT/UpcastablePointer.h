@@ -93,12 +93,23 @@ private:
       using type = std::remove_reference_t<decltype(Upcasted)>;
       return new type(Upcasted);
     };
-    return upcast(Pointer, Dispatcher, static_cast<P *>(nullptr));
+    return ::upcast(Pointer, Dispatcher, static_cast<P *>(nullptr));
   }
 
   template<Upcastable P>
   static void destroy(P *Pointer) {
-    upcast(Pointer, [](auto &Upcasted) { delete &Upcasted; });
+    ::upcast(Pointer, [](auto &Upcasted) { delete &Upcasted; });
+  }
+
+public:
+  template<typename L>
+  void upcast(const L &Callable) {
+    ::upcast(Pointer, Callable);
+  }
+
+  template<typename L>
+  void upcast(const L &Callable) const {
+    ::upcast(Pointer, Callable);
   }
 
 private:
@@ -137,6 +148,20 @@ public:
     Pointer.reset(Other.Pointer.release());
     revng_assert(Pointer.get_deleter() == deleter);
     return *this;
+  }
+
+  bool operator==(const UpcastablePointer &Other) const {
+    bool Result = false;
+    upcast([&](auto &Upcasted) {
+      Other.upcast([&](auto &OtherUpcasted) {
+        using ThisType = std::remove_cvref_t<decltype(Upcasted)>;
+        using OtherType = std::remove_cvref_t<decltype(OtherUpcasted)>;
+        if constexpr (std::is_same_v<ThisType, OtherType>) {
+          Result = Upcasted == OtherUpcasted;
+        }
+      });
+    });
+    return Result;
   }
 
   auto get() const noexcept { return Pointer.get(); }

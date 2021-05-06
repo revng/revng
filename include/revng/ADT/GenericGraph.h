@@ -12,7 +12,9 @@
 
 #include "revng/Support/Debug.h"
 
-struct Empty {};
+struct Empty {
+  bool operator==(const Empty &) const { return true; }
+};
 
 template<typename Node, size_t SmallSize = 16, bool HasEntryNode = true>
 class GenericGraph;

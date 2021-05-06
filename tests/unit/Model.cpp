@@ -10,6 +10,7 @@ bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/TupleTreeDiff.h"
 
 using namespace model;
 
@@ -193,4 +194,12 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeReference) {
   TheRoot.initializeReferences();
 
   revng_check(AnElement.Self.get() == &AnElement);
+}
+
+BOOST_AUTO_TEST_CASE(TestTupleTreeDiff) {
+  if (false) {
+    model::Binary Left;
+    model::Binary Right;
+    diff(Left, Right).dump();
+  }
 }
