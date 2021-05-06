@@ -141,33 +141,6 @@ private:
     }
   }
 
-  template<UnsortedContainer T>
-  void diffImpl(T &LHS, T &RHS) {
-    using value_type = typename T::value_type;
-    using KOT = KeyedObjectTraits<value_type>;
-    using key_type = decltype(KOT::key(std::declval<value_type>()));
-    std::map<key_type, value_type *> LHSMap, RHSMap;
-    for (value_type &Element : LHS)
-      LHSMap[KOT::key(Element)] = &Element;
-    for (value_type &Element : RHS)
-      RHSMap[KOT::key(Element)] = &Element;
-
-    for (auto [LHSElement, RHSElement] : zipmap_range(LHSMap, RHSMap)) {
-      if (LHSElement == nullptr) {
-        // Added
-        Result.add(Stack, RHSElement->second);
-      } else if (RHSElement == nullptr) {
-        // Removed
-        Result.remove(Stack, LHSElement->second);
-      } else {
-        // Identical
-        Stack.push_back(*LHSElement);
-        diffImpl(*LHSElement->second, *RHSElement->second);
-        Stack.pop_back();
-      }
-    }
-  }
-
   template<NotTupleTreeCompatible T>
   void diffImpl(T &LHS, T &RHS) {
     if (LHS != RHS)

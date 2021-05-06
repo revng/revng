@@ -22,10 +22,13 @@
 
 // clang-format off
 template<typename T>
-concept NotTupleTreeCompatible = (not IsContainer<T>
-                                  and not HasTupleSize<T>
-                                  and not IsUpcastablePointer<T>);
+concept TupleTreeCompatible = IsKeyedObjectContainer<T>
+                                or HasTupleSize<T>
+                                or IsUpcastablePointer<T>;
 // clang-format on
+
+template<typename T>
+concept NotTupleTreeCompatible = not TupleTreeCompatible<T>;
 
 // clang-format off
 template<typename T>
@@ -147,7 +150,7 @@ void visitTupleTree(Visitor &V, T &Obj) {
 }
 
 // Container-like
-template<typename Visitor, IsContainer T>
+template<typename Visitor, IsKeyedObjectContainer T>
 void visitTupleTree(Visitor &V, T &Obj) {
   V.preVisit(Obj);
   using value_type = typename T::value_type;
@@ -235,7 +238,7 @@ ResultT getByKey(RootT &M, KeyT Key) {
   return tupletree::detail::getByKeyTuple<ResultT>(M, Key);
 }
 
-template<typename ResultT, IsContainer RootT, typename KeyT>
+template<typename ResultT, IsKeyedObjectContainer RootT, typename KeyT>
 ResultT *getByKey(RootT &M, KeyT Key) {
   for (auto &Element : M) {
     using KOT = KeyedObjectTraits<std::remove_reference_t<decltype(Element)>>;
@@ -262,7 +265,7 @@ bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
   return callOnPathStepsTuple<element_type>(V, Path);
 }
 
-template<IsContainer RootT, typename Visitor>
+template<IsKeyedObjectContainer RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
   using value_type = typename RootT::value_type;
   using KOT = KeyedObjectTraits<value_type>;
@@ -368,7 +371,7 @@ bool callOnPathSteps(Visitor &V,
   return tupletree::detail::callOnPathStepsTuple(V, Path, M);
 }
 
-template<IsContainer RootT, typename Visitor>
+template<IsKeyedObjectContainer RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                      RootT &M) {
@@ -650,7 +653,7 @@ private:
   template<HasTupleSize T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
-  template<IsContainer T>
+  template<IsKeyedObjectContainer T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
   template<NotTupleTreeCompatible T>
@@ -674,7 +677,7 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
   return visitTuple<T>(Before, After, Result);
 }
 
-template<IsContainer T>
+template<IsKeyedObjectContainer T>
 bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
                                      PathMatcher &Result) {
   if (String.size() == 0)
@@ -746,7 +749,7 @@ constexpr bool validateTupleTree(L);
 template<typename T, typename L>
 constexpr bool validateTupleTree(L);
 
-template<IsContainer T, typename L>
+template<IsKeyedObjectContainer T, typename L>
 constexpr bool validateTupleTree(L);
 
 template<UpcastablePointerLike T, typename L>
@@ -758,7 +761,7 @@ constexpr bool validateTupleTree(L Check) {
          and validateTupleTree<typename T::element_type>(Check);
 }
 
-template<IsContainer T, typename L>
+template<IsKeyedObjectContainer T, typename L>
 constexpr bool validateTupleTree(L Check) {
   return Check((T *) nullptr)
          and validateTupleTree<typename T::value_type>(Check);
