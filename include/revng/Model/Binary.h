@@ -13,7 +13,6 @@
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
 #include "revng/Model/TupleTree.h"
 #include "revng/Support/MetaAddress.h"
-#include "revng/Support/MetaAddress/KeyTraits.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
 
@@ -26,6 +25,9 @@ class CallEdge;
 class FunctionABIRegister;
 class BasicBlock;
 } // namespace model
+
+// TODO: Prevent changing the keys. Currently we need them to be public and
+//       non-const for serialization purposes.
 
 template<typename T, char Separator>
 struct CompositeScalar {

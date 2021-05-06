@@ -10,7 +10,6 @@ bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
 #include "revng/Model/Binary.h"
-#include "revng/Support/MetaAddress/KeyTraits.h"
 
 using namespace model;
 
@@ -41,7 +40,9 @@ BOOST_AUTO_TEST_CASE(TestIntrospection) {
 BOOST_AUTO_TEST_CASE(TestPathAccess) {
   Binary TheBinary;
   using FunctionsType = decltype(TheBinary.Functions);
-  auto *FirstField = getByPath<FunctionsType>(KeyIntVector{ 0 }, TheBinary);
+  KeyIntVector Zero;
+  Zero.push_back(size_t(0));
+  auto *FirstField = getByPath<FunctionsType>(Zero, TheBinary);
   revng_check(FirstField == &TheBinary.Functions);
 
   auto *FunctionsField = getByPath<FunctionsType>("/Functions", TheBinary);
@@ -74,15 +75,20 @@ BOOST_AUTO_TEST_CASE(TestCompositeScalar) {
 
 BOOST_AUTO_TEST_CASE(TestStringPathConversion) {
   revng_check(stringAsPath<Binary>("/").value() == KeyIntVector{});
-  revng_check(stringAsPath<Binary>("/Functions").value() == KeyIntVector{ 0 });
+  KeyIntVector Zero;
+  Zero.push_back(size_t(0));
+  revng_check(stringAsPath<Binary>("/Functions").value() == Zero);
 
-  KeyIntVector FiveZeros{ 0, 0, 0, 0, 0 };
+  KeyIntVector InvalidFunctionPath;
+  InvalidFunctionPath.push_back(size_t(0));
+  InvalidFunctionPath.push_back(MetaAddress::invalid());
   auto MaybeInvalidFunctionPath = stringAsPath<Binary>("/Functions/:Invalid");
-  revng_check(MaybeInvalidFunctionPath.value() == FiveZeros);
+  revng_check(MaybeInvalidFunctionPath.value() == InvalidFunctionPath);
 
-  KeyIntVector FiveZerosAndOne{ 0, 0, 0, 0, 0, 1 };
+  KeyIntVector InvalidFunctionNamePath = InvalidFunctionPath;
+  InvalidFunctionNamePath.push_back(size_t(1));
   auto MaybePath = stringAsPath<Binary>("/Functions/:Invalid/Name");
-  revng_check(MaybePath.value() == FiveZerosAndOne);
+  revng_check(MaybePath.value() == InvalidFunctionNamePath);
 
   auto CheckRoundTrip = [](const char *String) {
     auto Path = stringAsPath<Binary>(String).value();

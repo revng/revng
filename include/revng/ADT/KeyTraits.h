@@ -7,116 +7,150 @@
 #include "llvm/ADT/Twine.h"
 
 #include "revng/ADT/STLExtras.h"
+#include "revng/Support/Debug.h"
+
+template<typename T>
+char *typeID() {
+  static char ID;
+  return &ID;
+};
+
+class Any {
+protected:
+  void *Pointer;
+
+protected:
+  Any(void *Pointer) : Pointer(Pointer) {}
+
+public:
+  Any() : Pointer(nullptr) {}
+
+  Any(const Any &Other) { Other.clone(this); }
+  Any(Any &&Other) { Other.clone(this); }
+  Any &operator=(const Any &Other) {
+    Other.clone(this);
+    return *this;
+  }
+  Any &operator=(Any &&Other) {
+    Other.clone(this);
+    return *this;
+  }
+
+  virtual ~Any(){};
+  virtual bool operator==(const Any &) const {
+    revng_assert(Pointer == nullptr);
+    return true;
+  }
+
+  virtual char *id() const {
+    revng_assert(Pointer == nullptr);
+    return nullptr;
+  }
+
+  virtual void clone(Any *Target) const { revng_assert(Pointer == nullptr); }
+
+  template<typename T>
+  bool isa() const {
+    return id() == typeID<T>();
+  }
+
+  template<typename T>
+  T *tryGet() const {
+    if (isa<T>())
+      return reinterpret_cast<T *>(Pointer);
+    else
+      return nullptr;
+  }
+
+  template<typename T>
+  T &get() const {
+    if (T *Result = tryGet<T>())
+      return *Result;
+    else
+      revng_abort();
+  }
+};
+
+// TODO: optimize integral types
+template<typename T>
+class ConcreteAny : public Any {
+private:
+  static char ID;
+
+private:
+  T *get() const { return reinterpret_cast<T *>(Pointer); }
+
+public:
+  template<typename... Args>
+  ConcreteAny(Args... A) : Any(new T(A...)) {}
+
+  ~ConcreteAny() override { delete reinterpret_cast<T *>(Pointer); }
+
+  bool operator==(const Any &Other) const override {
+    return (id() == Other.id()
+            and *get() == *static_cast<const ConcreteAny &>(Other).get());
+  }
+
+  char *id() const override { return typeID<T>(); }
+
+  void clone(Any *Target) const override { new (Target) ConcreteAny(*get()); }
+};
 
 //
 // KeyTraits
 //
-using KeyInt = uint64_t;
-using KeyIntVector = std::vector<KeyInt>;
+// WIP: rename this file
+// WIP: rename the following
+using KeyInt = Any;
+// using KeyIntVector = std::vector<KeyInt>;
 
-template<typename T>
-struct KeyTraits {
-  // static constexpr size_t IntsCount = ...;
-  // using IntsArray = std::array<KeyInt, IntsCount>;
-  //
-  // static T fromInts(const IntsArray &KeyAsInts) {
-  //   ...
-  // }
-  //
-  // static IntsArray toInts(const T &I) {
-  //   ...
-  // }
-};
-
-/// Trivial specialization for integral types
-template<Integral T>
-struct KeyTraits<T> {
-  static constexpr size_t IntsCount = 1;
-  using IntsArray = std::array<KeyInt, IntsCount>;
-
-  static T fromInts(const IntsArray &KeyAsInts) { return KeyAsInts[0]; }
-
-  static IntsArray toInts(const T &I) { return { static_cast<KeyInt>(I) }; }
-};
-
-template<typename T>
-concept Enum = std::is_enum_v<T>;
-
-/// Trivial specialization for integral types
-template<Enum T>
-struct KeyTraits<T> {
-  static constexpr size_t IntsCount = 1;
-  using IntsArray = std::array<KeyInt, IntsCount>;
-
-  static T fromInts(const IntsArray &KeyAsInts) {
-    return static_cast<T>(KeyAsInts[0]);
-  }
-
-  static IntsArray toInts(const T &I) { return { static_cast<KeyInt>(I) }; }
-};
-
-//
-// Derive KeyTraits from tuple-like of objects featuring KeyTraits
-//
-template<HasTupleSize T>
-struct KeyTraits<T> {
+class KeyIntVector {
 private:
-  template<size_t I = 0>
-  static constexpr size_t computeIntsCount() {
-    if constexpr (I != std::tuple_size_v<T>) {
-      auto Result = KeyTraits<std::tuple_element_t<I, T>>::IntsCount;
-      return Result + computeIntsCount<I + 1>();
-    } else {
-      return 0;
+  std::vector<KeyInt> Storage;
+
+public:
+  KeyIntVector() = default;
+  KeyIntVector(KeyIntVector &&Other) = default;
+  KeyIntVector &operator=(KeyIntVector &&Other) = default;
+
+  KeyIntVector(const KeyIntVector &Other) { *this = Other; }
+
+  KeyIntVector &operator=(const KeyIntVector &Other) {
+    Storage.resize(Other.size());
+    for (auto [ThisElement, OtherElement] : llvm::zip(Storage, Other.Storage)) {
+      static_assert(std::is_reference_v<decltype(ThisElement)>);
+      OtherElement.clone(&ThisElement);
     }
+
+    return *this;
   }
 
 public:
-  static constexpr size_t IntsCount = KeyTraits::computeIntsCount();
-  using IntsArray = std::array<KeyInt, IntsCount>;
-
-  template<size_t I = 0, size_t First = 0>
-  constexpr static void populateKeyArray(IntsArray &Result, const T &Object) {
-    if constexpr (I != std::tuple_size_v<T>) {
-      using InnerKeyTraits = KeyTraits<std::tuple_element_t<I, T>>;
-      constexpr auto Size = InnerKeyTraits::IntsCount;
-
-      const auto &TupleEntry = InnerKeyTraits::toInts(get<I>(Object));
-      for (size_t J = 0; J < Size; ++J)
-        Result[First + J] = TupleEntry[J];
-
-      KeyTraits::populateKeyArray<I + 1, First + Size>(Result, Object);
-    }
+  template<typename T, typename... Args>
+  void emplace_back(Args... A) {
+    static_assert(sizeof(ConcreteAny<T>) == sizeof(Any));
+    Storage.resize(Storage.size() + 1);
+    new (&Storage.back()) ConcreteAny<T>(A...);
   }
 
-  static IntsArray toInts(const T &Object) {
-    IntsArray Result{};
-    KeyTraits::populateKeyArray(Result, Object);
-    return Result;
+  template<typename T>
+  void push_back(const T &Obj) {
+    emplace_back<T>(Obj);
   }
 
-  template<size_t I = 0, size_t First = 0>
-  constexpr static void setFields(T &Object, const IntsArray &Key) {
-    if constexpr (I != std::tuple_size_v<T>) {
-      using KeyTraits = KeyTraits<std::tuple_element_t<I, T>>;
+  void pop_back() { Storage.pop_back(); }
 
-      // Populate partial key
-      constexpr auto Size = KeyTraits::IntsCount;
-      std::array<KeyInt, Size> PartialKey;
-      for (size_t J = 0; J < Size; ++J)
-        PartialKey[J] = Key[First + J];
+  void resize(size_t NewSize) { Storage.resize(NewSize); }
 
-      // Create and fill the fields
-      get<I>(Object) = KeyTraits::fromInts(PartialKey);
-
-      // Recur
-      setFields<I + 1, First + Size>(Object, Key);
-    }
+  KeyInt &operator[](size_t Index) { return Storage[Index]; }
+  const KeyInt &operator[](size_t Index) const { return Storage[Index]; }
+  bool operator==(const KeyIntVector &Other) const {
+    return Storage == Other.Storage;
   }
 
-  static T fromInts(const IntsArray &Key) {
-    T Result;
-    setFields(Result, Key);
-    return Result;
-  }
+  // TODO: should return ArrayRef<const Any>
+  llvm::ArrayRef<Any> toArrayRef() const { return { Storage }; }
+
+public:
+  size_t size() const { return Storage.size(); }
 };

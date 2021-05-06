@@ -91,7 +91,7 @@ private:
   requires IsNotTupleEnd<T, I> void diffTuple(T &LHS, T &RHS) {
     using child_type = typename std::tuple_element<I, T>::type;
 
-    Stack.push_back(I);
+    Stack.push_back(ConcreteAny<size_t>(I));
     diffImpl(get<I>(LHS), get<I>(RHS));
     Stack.pop_back();
 
@@ -119,14 +119,9 @@ private:
         Result.remove(Stack, LHSElement);
       } else {
         // Identical
-        using KT = KeyTraits<key_type>;
-        const auto &KeyInts = KT::toInts(KOT::key(*LHSElement));
-        std::copy(KeyInts.begin(), KeyInts.end(), std::back_inserter(Stack));
-
+        Stack.push_back(ConcreteAny<key_type>(*LHSElement));
         diffImpl(*LHSElement, *RHSElement);
-
-        // Delete key from the stack
-        Stack.resize(Stack.size() - KeyTraits<key_type>::IntsCount);
+        Stack.pop_back();
       }
     }
   }
@@ -151,12 +146,9 @@ private:
         Result.remove(Stack, LHSElement->second);
       } else {
         // Identical
-        const auto &KeysInt = KeyTraits<key_type>::toInts(LHSElement->first);
-        std::copy(KeysInt.begin(), KeysInt.end(), std::back_inserter(Stack));
-
+        Stack.push_back(ConcreteAny<key_type>(*LHSElement));
         diffImpl(*LHSElement->second, *RHSElement->second);
-
-        Stack.resize(Stack.size() - KeyTraits<key_type>::IntsCount);
+        Stack.pop_back();
       }
     }
   }
