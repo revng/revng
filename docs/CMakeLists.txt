@@ -3,7 +3,12 @@
 #
 
 set(MAN_PAGES)
-set(DOC_HTML FromIRToExecutable.rst GeneratedIRReference.rst PythonExample.rst)
+set(DOC_HTML
+  FromIRToExecutable.rst
+  GeneratedIRReference.rst
+  Overview.rst
+  PythonExample.rst
+  )
 set(DOC_COPY instrument.py)
 
 set(DOC_DEPS)
