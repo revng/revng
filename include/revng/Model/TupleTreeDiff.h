@@ -38,7 +38,7 @@ void addToContainer(C &Container, const typename C::value_type &Value) {
 template<typename T>
 struct TupleTreeDiff {
   struct Change {
-    KeyIntVector Path;
+    TupleTreePath Path;
     void *Old;
     void *New;
   };
@@ -54,13 +54,13 @@ struct TupleTreeDiff {
     return Result;
   }
 
-  void add(const KeyIntVector &Path, void *What) {
+  void add(const TupleTreePath &Path, void *What) {
     Changes.push_back({ Path, nullptr, What });
   }
-  void remove(const KeyIntVector &Path, void *What) {
+  void remove(const TupleTreePath &Path, void *What) {
     Changes.push_back({ Path, What, nullptr });
   }
-  void change(const KeyIntVector &Path, void *From, void *To) {
+  void change(const TupleTreePath &Path, void *From, void *To) {
     Changes.push_back({ Path, From, To });
   }
 
@@ -75,7 +75,7 @@ namespace tupletreediff::detail {
 
 template<typename M>
 struct Diff {
-  KeyIntVector Stack;
+  TupleTreePath Stack;
   TupleTreeDiff<M> Result;
 
   TupleTreeDiff<M> diff(M &LHS, M &RHS) {
@@ -91,7 +91,7 @@ private:
   requires IsNotTupleEnd<T, I> void diffTuple(T &LHS, T &RHS) {
     using child_type = typename std::tuple_element<I, T>::type;
 
-    Stack.push_back(I);
+    Stack.push_back(size_t(I));
     diffImpl(get<I>(LHS), get<I>(RHS));
     Stack.pop_back();
 
@@ -119,14 +119,9 @@ private:
         Result.remove(Stack, LHSElement);
       } else {
         // Identical
-        using KT = KeyTraits<key_type>;
-        const auto &KeyInts = KT::toInts(KOT::key(*LHSElement));
-        std::copy(KeyInts.begin(), KeyInts.end(), std::back_inserter(Stack));
-
+        Stack.push_back(*LHSElement);
         diffImpl(*LHSElement, *RHSElement);
-
-        // Delete key from the stack
-        Stack.resize(Stack.size() - KeyTraits<key_type>::IntsCount);
+        Stack.pop_back();
       }
     }
   }
@@ -151,12 +146,9 @@ private:
         Result.remove(Stack, LHSElement->second);
       } else {
         // Identical
-        const auto &KeysInt = KeyTraits<key_type>::toInts(LHSElement->first);
-        std::copy(KeysInt.begin(), KeysInt.end(), std::back_inserter(Stack));
-
+        Stack.push_back(*LHSElement);
         diffImpl(*LHSElement->second, *RHSElement->second);
-
-        Stack.resize(Stack.size() - KeyTraits<key_type>::IntsCount);
+        Stack.pop_back();
       }
     }
   }
@@ -262,7 +254,7 @@ template<typename T>
 inline void TupleTreeDiff<T>::dump() const {
   using namespace tupletreediff::detail;
 
-  KeyIntVector LastPath;
+  TupleTreePath LastPath;
   for (const Change &C : Changes) {
 
     if (LastPath != C.Path) {
@@ -345,7 +337,7 @@ struct ApplyDiffVisitor {
 
 template<typename T>
 inline void TupleTreeDiff<T>::apply(T &M) const {
-  KeyIntVector LastPath;
+  TupleTreePath LastPath;
   for (const Change &C : Changes) {
     tupletreediff::detail::ApplyDiffVisitor<T> ADV{ &C };
     callByPath(ADV, C.Path, M);

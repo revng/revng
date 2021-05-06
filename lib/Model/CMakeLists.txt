@@ -4,7 +4,6 @@
 
 revng_add_analyses_library_internal(revngModel
   Binary.cpp
-  TupleTreeDiff.cpp
   LoadModelPass.cpp
   SerializeModelPass.cpp)
 

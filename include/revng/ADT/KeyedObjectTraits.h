@@ -4,7 +4,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/ADT/KeyTraits.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/Concepts.h"
 
