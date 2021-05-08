@@ -929,6 +929,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   // a helper function.
   // TODO: we need a more elegant solution here
   auto *Delimiter = Builder.CreateStore(&*MainFunction->arg_begin(), SPReg);
+  Variables.setAllocaInsertPoint(Delimiter);
   auto *InitEnvInsertPoint = Delimiter;
 
   QuickMetadata QMD(Context);
@@ -1077,7 +1078,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       PTCLog << Stream.str() << DoLog;
     }
 
-    Variables.newFunction(Delimiter, InstructionList.get());
+    Variables.newFunction(InstructionList.get());
     unsigned j = 0;
     MDNode *MDOriginalInstr = nullptr;
     bool StopTranslation = false;

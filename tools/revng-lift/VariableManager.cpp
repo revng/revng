@@ -153,10 +153,9 @@ getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
   }
 }
 
-VariableManager::VariableManager(Module &TheModule,
-                                 Architecture &TargetArchitecture) :
-  TheModule(TheModule),
-  Builder(TheModule.getContext()),
+VariableManager::VariableManager(Module &M, Architecture &TargetArchitecture) :
+  TheModule(M),
+  AllocaBuilder(getContext(&M)),
   CPUStateType(nullptr),
   ModuleLayout(&TheModule.getDataLayout()),
   EnvOffset(0),
@@ -165,7 +164,7 @@ VariableManager::VariableManager(Module &TheModule,
 
   revng_assert(ptc.initialized_env != nullptr);
 
-  IntegerType *IntPtrTy = Builder.getIntPtrTy(*ModuleLayout);
+  IntegerType *IntPtrTy = AllocaBuilder.getIntPtrTy(*ModuleLayout);
   Env = cast<GlobalVariable>(TheModule.getOrInsertGlobal("env", IntPtrTy));
   Env->setInitializer(ConstantInt::getNullValue(IntPtrTy));
 
@@ -501,36 +500,10 @@ void VariableManager::finalize() {
 
 // TODO: `newFunction` reflects the tcg terminology but in this context is
 //       highly misleading
-void VariableManager::newFunction(Instruction *Delimiter,
-                                  PTCInstructionList *Instructions) {
+void VariableManager::newFunction(PTCInstructionList *Instructions) {
   LocalTemporaries.clear();
-  newBasicBlock(Delimiter, Instructions);
-}
-
-/// Informs the VariableManager that a new basic block has begun, so it can
-/// discard basic block-level variables.
-///
-/// \param Delimiter the new point where to insert allocations for local
-///                  variables.
-/// \param Instructions the new PTCInstructionList to use from now on.
-void VariableManager::newBasicBlock(Instruction *Delimiter,
-                                    PTCInstructionList *Instructions) {
-  Temporaries.clear();
-  if (Instructions != nullptr)
-    this->Instructions = Instructions;
-
-  if (Delimiter != nullptr)
-    Builder.SetInsertPoint(Delimiter);
-}
-
-void VariableManager::newBasicBlock(BasicBlock *Delimiter,
-                                    PTCInstructionList *Instructions) {
-  Temporaries.clear();
-  if (Instructions != nullptr)
-    this->Instructions = Instructions;
-
-  if (Delimiter != nullptr)
-    Builder.SetInsertPoint(Delimiter);
+  this->Instructions = Instructions;
+  newBasicBlock();
 }
 
 bool VariableManager::isEnv(Value *TheValue) {
@@ -623,12 +596,14 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
   }
 }
 
-Value *VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
+std::pair<bool, Value *>
+VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
   revng_assert(Instructions != nullptr);
 
   PTCTemp *Temporary = ptc_temp_get(Instructions, TemporaryId);
-  Type *VariableType = Temporary->type == PTC_TYPE_I32 ? Builder.getInt32Ty() :
-                                                         Builder.getInt64Ty();
+  Type *VariableType = Temporary->type == PTC_TYPE_I32 ?
+                         AllocaBuilder.getInt32Ty() :
+                         AllocaBuilder.getInt64Ty();
 
   if (ptc_temp_is_global(Instructions, TemporaryId)) {
     // Basically we use fixed_reg to detect "env"
@@ -636,11 +611,11 @@ Value *VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
       Value *Result = getByCPUStateOffset(EnvOffset + Temporary->mem_offset,
                                           Temporary->name);
       revng_assert(Result != nullptr);
-      return Result;
+      return { false, Result };
     } else {
       GlobalsMap::iterator it = OtherGlobals.find(TemporaryId);
       if (it != OtherGlobals.end()) {
-        return it->second;
+        return { false, it->second };
       } else {
         // TODO: what do we have here, apart from env?
         auto InitialValue = ConstantInt::get(VariableType, 0);
@@ -660,31 +635,31 @@ Value *VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
         }
 
         OtherGlobals[TemporaryId] = Result;
-        return Result;
+        return { false, Result };
       }
     }
   } else if (Temporary->temp_local) {
     auto it = LocalTemporaries.find(TemporaryId);
     if (it != LocalTemporaries.end()) {
-      return it->second;
+      return { false, it->second };
     } else {
-      AllocaInst *NewTemporary = Builder.CreateAlloca(VariableType);
+      AllocaInst *NewTemporary = AllocaBuilder.CreateAlloca(VariableType);
       LocalTemporaries[TemporaryId] = NewTemporary;
-      return NewTemporary;
+      return { true, NewTemporary };
     }
   } else {
     auto it = Temporaries.find(TemporaryId);
     if (it != Temporaries.end()) {
-      return it->second;
+      return { false, it->second };
     } else {
       // Can't read a temporary if it has never been written, we're probably
       // translating rubbish
       if (Reading)
-        return nullptr;
+        return { false, nullptr };
 
-      AllocaInst *NewTemporary = Builder.CreateAlloca(VariableType);
+      AllocaInst *NewTemporary = AllocaBuilder.CreateAlloca(VariableType);
       Temporaries[TemporaryId] = NewTemporary;
-      return NewTemporary;
+      return { true, NewTemporary };
     }
   }
 }

@@ -38,7 +38,27 @@ extern llvm::cl::opt<bool> External;
 /// created on the fly.
 class VariableManager {
 public:
-  VariableManager(llvm::Module &TheModule, Architecture &TargetArchitecture);
+  VariableManager(llvm::Module &M, Architecture &TargetArchitecture);
+
+  void setAllocaInsertPoint(llvm::Instruction *I) {
+    AllocaBuilder.SetInsertPoint(I);
+  }
+
+  llvm::Instruction *load(llvm::IRBuilder<> &Builder, unsigned TemporaryId) {
+    using namespace llvm;
+
+    auto [IsNew, V] = getOrCreate(TemporaryId, true);
+
+    if (V == nullptr)
+      return nullptr;
+
+    if (IsNew) {
+      auto *Undef = UndefValue::get(V->getType()->getPointerElementType());
+      Builder.CreateStore(Undef, V);
+    }
+
+    return Builder.CreateLoad(V);
+  }
 
   /// \brief Get or create the LLVM value associated to a PTC temporary
   ///
@@ -48,8 +68,9 @@ public:
   /// \param TemporaryId the PTC temporary identifier.
   ///
   /// \return a `Value` wrapping the requested global or local variable.
-  // TODO: rename to getByTemporaryId
-  llvm::Value *getOrCreate(unsigned TemporaryId, bool Reading);
+  llvm::Value *getOrCreate(unsigned TemporaryId) {
+    return getOrCreate(TemporaryId, false).second;
+  }
 
   /// \brief Return the global variable corresponding to \p Offset in the CPU
   ///        state.
@@ -75,23 +96,12 @@ public:
   ///       code translated in a single shot by the TCG. Do not confuse this
   ///       function concept with other meanings.
   ///
-  /// \param Delimiter the new point where to insert allocations for local
-  ///        variables.
   /// \param Instructions the new PTCInstructionList to use from now on.
-  void newFunction(llvm::Instruction *Delimiter = nullptr,
-                   PTCInstructionList *Instructions = nullptr);
+  void newFunction(PTCInstructionList *Instructions);
 
   /// Informs the VariableManager that a new basic block has begun, so it can
   /// discard basic block-level variables.
-  ///
-  /// \param Delimiter the new point where to insert allocations for local
-  /// variables.
-  /// \param Instructions the new PTCInstructionList to use from now on.
-  void newBasicBlock(llvm::Instruction *Delimiter = nullptr,
-                     PTCInstructionList *Instructions = nullptr);
-
-  void newBasicBlock(llvm::BasicBlock *Delimiter,
-                     PTCInstructionList *Instructions = nullptr);
+  void newBasicBlock() { Temporaries.clear(); }
 
   /// Returns true if the given variable is the env variable
   bool isEnv(llvm::Value *TheValue);
@@ -145,6 +155,9 @@ public:
                              llvm::Instruction *InsertBefore) const;
 
 private:
+  std::pair<bool, llvm::Value *>
+  getOrCreate(unsigned TemporaryId, bool Reading);
+
   llvm::Value *loadFromCPUStateOffset(llvm::IRBuilder<> &Builder,
                                       unsigned LoadSize,
                                       unsigned Offset);
@@ -163,7 +176,7 @@ private:
 
 private:
   llvm::Module &TheModule;
-  llvm::IRBuilder<> Builder;
+  llvm::IRBuilder<> AllocaBuilder;
   using TemporariesMap = std::map<unsigned int, llvm::AllocaInst *>;
   using GlobalsMap = std::map<intptr_t, llvm::GlobalVariable *>;
   GlobalsMap CPUStateGlobals;
