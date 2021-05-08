@@ -161,6 +161,23 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
       }
     }
 
+    auto MakeEdge = [](MetaAddress Destination, FunctionEdgeType::Values Type) {
+      FunctionEdge *Result = nullptr;
+      if (FunctionEdgeType::isCall(Type))
+        Result = new CallEdge(Destination, Type);
+      else
+        Result = new FunctionEdge(Destination, Type);
+      return UpcastablePointer<FunctionEdge>(Result);
+    };
+
+    // Handle the situation in which we found no basic blocks at all
+    if (Function.Type == model::FunctionType::NoReturn
+        and FunctionSummary.BasicBlocks.size() == 0) {
+      auto &EntryNodeSuccessors = Function.CFG[EntryPC].Successors;
+      auto Edge = MakeEdge(MetaAddress::invalid(), FunctionEdgeType::LongJmp);
+      EntryNodeSuccessors.insert(Edge);
+    }
+
     for (auto &[BB, Branch] : FunctionSummary.BasicBlocks) {
       // Remap BranchType to FunctionEdgeType
       namespace FET = FunctionEdgeType;
@@ -241,16 +258,6 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
       CurrentBlock.End = Source;
       CurrentBlock.Name = JumpTargetBB->getName();
       auto SuccessorsInserter = CurrentBlock.Successors.batch_insert();
-
-      auto MakeEdge = [](MetaAddress Destination,
-                         FunctionEdgeType::Values Type) {
-        FunctionEdge *Result = nullptr;
-        if (FunctionEdgeType::isCall(Type))
-          Result = new CallEdge(Destination, Type);
-        else
-          Result = new FunctionEdge(Destination, Type);
-        return UpcastablePointer<FunctionEdge>(Result);
-      };
 
       if (EdgeType == FET::DirectBranch) {
         // Handle direct branch

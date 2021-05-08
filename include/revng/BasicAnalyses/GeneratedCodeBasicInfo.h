@@ -370,6 +370,10 @@ public:
       return Result;
     }
 
+    bool hasSuccessors() const {
+      return AnyPC or UnexpectedPC or Other or Addresses.size() != 0;
+    }
+
     void dump() const debug_function { dump(dbg); }
 
     template<typename O>
