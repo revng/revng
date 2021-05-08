@@ -507,6 +507,30 @@ inline const llvm::Module *getModule(const llvm::Value *I) {
   return getModule(llvm::cast<const llvm::Instruction>(I));
 }
 
+inline llvm::Module *getModule(llvm::Function *F) {
+  if (F == nullptr)
+    return nullptr;
+  return F->getParent();
+}
+
+inline llvm::Module *getModule(llvm::BasicBlock *BB) {
+  if (BB == nullptr)
+    return nullptr;
+  return getModule(BB->getParent());
+}
+
+inline llvm::Module *getModule(llvm::Instruction *I) {
+  if (I == nullptr)
+    return nullptr;
+  return getModule(I->getParent());
+}
+
+inline llvm::Module *getModule(llvm::Value *I) {
+  if (I == nullptr)
+    return nullptr;
+  return getModule(llvm::cast<llvm::Instruction>(I));
+}
+
 /// \brief Helper class to easily create and use LLVM metadata
 class QuickMetadata {
 public:
