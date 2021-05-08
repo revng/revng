@@ -147,6 +147,9 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
     using FT = model::FunctionType::Values;
     Function.Type = static_cast<FT>(FunctionSummary.Type);
 
+    if (Function.Type == model::FunctionType::Fake)
+      continue;
+
     // Populate arguments and return values
     {
       auto Inserter = Function.Registers.batch_insert();

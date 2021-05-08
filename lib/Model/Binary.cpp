@@ -138,6 +138,9 @@ void Function::dumpCFG() const {
 }
 
 bool Function::verify() const {
+  if (Type == FunctionType::Fake)
+    return CFG.size() == 0;
+
   // Verify blocks
   bool HasEntry = false;
   for (const BasicBlock &Block : CFG) {
