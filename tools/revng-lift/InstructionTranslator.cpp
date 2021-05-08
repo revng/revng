@@ -32,6 +32,10 @@
 
 using namespace llvm;
 
+static cl::opt<bool> RecordASM("record-asm",
+                               cl::desc("create metadata for assembly"),
+                               cl::cat(MainCategory));
+
 using IT = InstructionTranslator;
 
 namespace PTC {
@@ -599,20 +603,26 @@ IT::newInstruction(PTCInstruction *Instr,
   if (AbortAt.isValid() and NextPC.addressGreaterThan(AbortAt))
     return R{ Abort, nullptr, MetaAddress::invalid(), MetaAddress::invalid() };
 
-  std::stringstream OriginalStringStream;
-  disassemble(OriginalStringStream, PC, NextPC - PC);
-  std::string OriginalString = OriginalStringStream.str();
+  MDNode *MDOriginalInstr = nullptr;
+  Constant *String = nullptr;
+  if (RecordASM) {
+    std::stringstream OriginalStringStream;
+    disassemble(OriginalStringStream, PC, NextPC - PC);
+    std::string OriginalString = OriginalStringStream.str();
 
-  // We don't deduplicate this string since performing a lookup each time is
-  // increasingly expensive and we should have relatively few collisions
-  std::string AddressName = JumpTargets.nameForAddress(PC);
-  Constant *String = buildStringPtr(&TheModule,
-                                    OriginalString,
-                                    Twine("disam_") + AddressName);
+    // We don't deduplicate this string since performing a lookup each time is
+    // increasingly expensive and we should have relatively few collisions
+    std::string AddressName = JumpTargets.nameForAddress(PC);
+    String = buildStringPtr(&TheModule,
+                            OriginalString,
+                            Twine("disam_") + AddressName);
 
-  auto *MDOriginalString = ConstantAsMetadata::get(String);
-  auto *MDPC = ConstantAsMetadata::get(PC.toConstant(MetaAddressStruct));
-  MDNode *MDOriginalInstr = MDNode::get(Context, { MDOriginalString, MDPC });
+    auto *MDOriginalString = ConstantAsMetadata::get(String);
+    auto *MDPC = ConstantAsMetadata::get(PC.toConstant(MetaAddressStruct));
+    MDOriginalInstr = MDNode::get(Context, { MDOriginalString, MDPC });
+  } else {
+    String = ConstantPointerNull::get(getStringPtrType(Context));
+  }
 
   if (!IsFirst) {
     // Check if this PC already has a block and use it

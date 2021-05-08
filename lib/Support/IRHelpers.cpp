@@ -22,6 +22,10 @@ void dumpModule(const Module *M, const char *Path) {
   M->print(Stream, nullptr, true);
 }
 
+PointerType *getStringPtrType(LLVMContext &C) {
+  return Type::getInt8Ty(C)->getPointerTo();
+}
+
 GlobalVariable *buildString(Module *M, StringRef String, const Twine &Name) {
   LLVMContext &C = M->getContext();
   auto *Initializer = ConstantDataArray::getString(C, String, true);
@@ -35,9 +39,8 @@ GlobalVariable *buildString(Module *M, StringRef String, const Twine &Name) {
 
 Constant *buildStringPtr(Module *M, StringRef String, const Twine &Name) {
   LLVMContext &C = M->getContext();
-  Type *Int8PtrTy = Type::getInt8Ty(C)->getPointerTo();
   GlobalVariable *NewVariable = buildString(M, String, Name);
-  return ConstantExpr::getBitCast(NewVariable, Int8PtrTy);
+  return ConstantExpr::getBitCast(NewVariable, getStringPtrType(C));
 }
 
 Constant *getUniqueString(Module *M,
@@ -45,8 +48,8 @@ Constant *getUniqueString(Module *M,
                           StringRef String,
                           const Twine &Name) {
   LLVMContext &C = M->getContext();
-  Type *Int8PtrTy = Type::getInt8Ty(C)->getPointerTo();
   NamedMDNode *StringsList = M->getOrInsertNamedMetadata(Namespace);
+  auto *Int8PtrTy = getStringPtrType(C);
 
   for (MDNode *Operand : StringsList->operands()) {
     auto *T = cast<MDTuple>(Operand);

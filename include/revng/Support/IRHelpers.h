@@ -891,6 +891,8 @@ requires std::is_pointer_v<T> inline std::string dumpToString(T TheT) {
 
 void dumpModule(const llvm::Module *M, const char *Path) debug_function;
 
+llvm::PointerType *getStringPtrType(llvm::LLVMContext &C);
+
 llvm::GlobalVariable *
 buildString(llvm::Module *M, llvm::StringRef String, const llvm::Twine &Name);
 

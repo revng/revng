@@ -134,6 +134,10 @@ static cl::opt<string> DebugPath("debug-path",
                                  cl::value_desc("path"),
                                  cl::cat(MainCategory));
 
+static cl::opt<bool> RecordPTC("record-ptc",
+                               cl::desc("create metadata for PTC"),
+                               cl::cat(MainCategory));
+
 static Logger<> PTCLog("ptc");
 
 template<typename T, typename... Args>
@@ -1182,18 +1186,23 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
       // Create a new metadata referencing the PTC instruction we have just
       // translated
-      std::stringstream PTCStringStream;
-      dumpInstruction(PTCStringStream, InstructionList.get(), j);
-      std::string PTCString = PTCStringStream.str() + "\n";
-      MDString *MDPTCString = MDString::get(Context, PTCString);
-      MDNode *MDPTCInstr = MDNode::getDistinct(Context, MDPTCString);
+      MDNode *MDPTCInstr = nullptr;
+      if (RecordPTC) {
+        std::stringstream PTCStringStream;
+        dumpInstruction(PTCStringStream, InstructionList.get(), j);
+        std::string PTCString = PTCStringStream.str() + "\n";
+        MDString *MDPTCString = MDString::get(Context, PTCString);
+        MDPTCInstr = MDNode::getDistinct(Context, MDPTCString);
+      }
 
       // Set metadata for all the new instructions
       for (BasicBlock *Block : Blocks) {
         BasicBlock::iterator I = Block->end();
         while (I != Block->begin() && !(--I)->hasMetadata()) {
-          I->setMetadata(OriginalInstrMDKind, MDOriginalInstr);
-          I->setMetadata(PTCInstrMDKind, MDPTCInstr);
+          if (MDOriginalInstr != nullptr)
+            I->setMetadata(OriginalInstrMDKind, MDOriginalInstr);
+          if (MDPTCInstr != nullptr)
+            I->setMetadata(PTCInstrMDKind, MDPTCInstr);
         }
       }
 
