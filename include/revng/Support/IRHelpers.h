@@ -788,11 +788,11 @@ getCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
 inline MetaAddress getBasicBlockPC(llvm::BasicBlock *BB) {
   using namespace llvm;
 
-  auto It = BB->begin();
-  if (It == BB->end())
+  Instruction *I = BB->getFirstNonPHI();
+  if (I == nullptr)
     return MetaAddress::invalid();
 
-  if (llvm::CallInst *Call = getCallTo(&*It, "newpc"))
+  if (llvm::CallInst *Call = getCallTo(I, "newpc"))
     return MetaAddress::fromConstant(Call->getOperand(0));
 
   return MetaAddress::invalid();
@@ -801,11 +801,11 @@ inline MetaAddress getBasicBlockPC(llvm::BasicBlock *BB) {
 inline MetaAddress getBasicBlockJumpTarget(llvm::BasicBlock *BB) {
   using namespace llvm;
 
-  auto It = BB->begin();
-  if (It == BB->end())
+  Instruction *I = BB->getFirstNonPHI();
+  if (I == nullptr)
     return MetaAddress::invalid();
 
-  if (llvm::CallInst *Call = getCallTo(&*It, "newpc")) {
+  if (llvm::CallInst *Call = getCallTo(I, "newpc")) {
     if (getLimitedValue(Call->getOperand(2)) == 1) {
       return MetaAddress::fromConstant(Call->getOperand(0));
     }

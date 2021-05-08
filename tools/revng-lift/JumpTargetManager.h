@@ -348,12 +348,7 @@ public:
   BlockMap::const_iterator end() const { return JumpTargets.end(); }
 
   void registerJT(llvm::BasicBlock *BB, JTReason::Values Reason) {
-    revng_assert(!BB->empty());
-    auto *CallNewPC = llvm::dyn_cast<llvm::CallInst>(&*BB->begin());
-    revng_assert(CallNewPC != nullptr);
-    llvm::Function *Callee = CallNewPC->getCalledFunction();
-    revng_assert(Callee != nullptr && Callee->getName() == "newpc");
-    registerJT(MetaAddress::fromConstant(CallNewPC->getArgOperand(0)), Reason);
+    registerJT(getBasicBlockPC(notNull(BB)), Reason);
   }
 
   // TODO: this is a likely approach is broken, it depends on the order
