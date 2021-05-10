@@ -4,7 +4,7 @@ rev.ng Overview
 
 The goal of this document is to briefly introduce key concepts about the design of rev.ng.
 
-rev.ng is a framework designed to produce an high-level and self-contained representation of what a binary program does.
+rev.ng is a framework designed to produce a high-level and self-contained representation of what a binary program does.
 This process is also known as *lifting* a binary.
 
 This high-level representation of choice is the LLVM IR.
@@ -17,9 +17,9 @@ To know more about the rev.ng decompiler, revng-c, check out the `dedicated page
 <https://rev.ng/revngc-features.html>`_.
 
 The other use case for rev.ng is to recompile the lifted IR to an executable binary.
-Typically, we do this for ensuring the accuracy for the lifting process, but there are interesting use cases.
-For example, an user might want to add off-the-shelf LLVM instrumentations such as `SanitizerCoverage <https://clang.llvm.org/docs/SanitizerCoverage.html>`_ and `AddressSanitizer <https://clang.llvm.org/docs/AddressSanitizer.html>`_ in order to perform coverage-guided fuzzing on binaries using `libFuzzer <https://llvm.org/docs/LibFuzzer.html>`_.
-If this is of interested for you, check out the `dedicated blog post <https://rev.ng/blog/fuzzing/post.html>`_.
+Typically, we do this for ensuring the accuracy of the lifting process, but there are interesting use cases.
+For example, a user might want to add off-the-shelf LLVM instrumentations such as `SanitizerCoverage <https://clang.llvm.org/docs/SanitizerCoverage.html>`_ and `AddressSanitizer <https://clang.llvm.org/docs/AddressSanitizer.html>`_ in order to perform coverage-guided fuzzing on binaries using `libFuzzer <https://llvm.org/docs/LibFuzzer.html>`_.
+If this is of interest to you, check out the `dedicated blog post <https://rev.ng/blog/fuzzing/post.html>`_.
 
 Recompiling LLVM IR to executable code is trivial.
 After all, LLVM is a compiler framework.
@@ -30,7 +30,7 @@ The Lifting Process
 The lifting process requires us to be able to represent the semantic of each instruction of the ISA of the input binary.
 This is a very large endeavor and it's highly error prone.
 
-In order to support as many input architectures as possible with a reduced effort, we exploit an existing open source piece of software able to represent the behavior of each instruction of many different CPUs: QEMU.
+To support as many input architectures as possible with a reduced effort, we exploit an existing open source piece of software able to represent the behavior of each instruction of many different CPUs: QEMU.
 
 A QEMU Primer
 ~~~~~~~~~~~~~
@@ -38,13 +38,13 @@ A QEMU Primer
 QEMU is a well-known emulator.
 The peculiarity of QEMU is that it does not *interpret* each input instruction one after the other, but it translates them in an equivalent piece of code for the target architecture.
 
-For instance, assuming a ARM program being emulated on an x86-64 host, the ``mov r0, r1`` instruction will be translated in a series of equivalent x86-64 instructions acting on a ``struct`` representing the CPU state of the emulate ARM CPU.
+For instance, assuming an ARM program being emulated on an x86-64 host, the ``mov r0, r1`` instruction will be translated in a series of equivalent x86-64 instructions acting on a ``struct`` representing the CPU state of the emulated ARM CPU.
 
 Emulators producing code for the host architecture at run-time, such as QEMU, are known as *dynamic binary translators*.
 
 What's even more interesting about QEMU is that its internal design is quite similar to a compiler.
-In fact the translation process from the input architecture A to the host architecture B, uses an intermediate representation that it's similar in many aspects to LLVM IR.
-This intermediate representation is known as tiny code instructions.
+Indeed, the translation process from the input architecture A to the host architecture B uses an intermediate representation that it's similar in many aspects to LLVM IR.
+This intermediate representation is known as *tiny code instructions*.
 
 TODO: image
 
@@ -55,10 +55,10 @@ Just as a compiler, QEMU is divided in:
 * a mid-end: performs a set of target-independent, lightweight optimizations such as constant propagation and dead code elimination;
 * a backend: takes care of producing code that can be executed by the host CPU;
 
-As of today, QEMU features frontends for x86, x86-64, ARM, AArch64, MIPS, SPARC, s390x, RISCV, PowerPC, Hexagon and many others
+As of today, QEMU features frontends for x86, x86-64, ARM, AArch64, MIPS, SPARC, s390x, RISCV, PowerPC, Hexagon, and many others
 
-In terms of backend, on the other hand, the following architectures are supported: x86, x86-64, ARM, MIPS, AArch64, s390, RISCV, PowerPC and SPARC.
-QEMU also feature a tiny code interpreter, ``tci``, that enables it to run even on targets architectures for which a backend is not available.
+In terms of backend, on the other hand, the following architectures are supported: x86, x86-64, ARM, MIPS, AArch64, s390, RISCV, PowerPC, and SPARC.
+QEMU also features a tiny code interpreter, ``tci``, that enables it to run even on target architectures for which a backend is not available.
 
 Now that we have a basic understanding of how QEMU works, let's take a look at some actual tiny code instructions.
 
@@ -85,26 +85,26 @@ Now that we have a basic understanding of how QEMU works, let's take a look at s
 Here we're emulating ``bash`` of the host system using ``qemu-x86_64``, QEMU's Linux user space emulator.
 The ``-d`` flag enables debug output: ``in_asm`` shows the input instruction currently being translate, while ``op`` dumps the produced tiny code instructions.
 
-Unlike instructions of actual CPUs, the tiny code instructions do just one things and have no side effects.
+Unlike instructions of actual CPUs, the tiny code instructions do just one thing and have no side effects.
 
 In rev.ng, we want to be able to employ QEMU frontends to produce tiny code instructions from a set of raw bytes.
 Working on tiny code instructions enables us to handle any architecture supported by QEMU in a unified way.
 
-In order to use QEMU as library, we maintain a `fork of QEMU <https://github.com/revng/qemu>`_ that exposes the various frontends through a dynamic library known as ``libtinycode`` (e.g., ``libtinycode-arm.so``).
+In order to use QEMU as a library, we maintain a `fork of QEMU <https://github.com/revng/qemu>`_ that exposes the various frontends through a dynamic library known as ``libtinycode`` (e.g., ``libtinycode-arm.so``).
 
 Helper Functions
 ~~~~~~~~~~~~~~~~
 
 Not all of the instructions are handled completely through tiny code.
 As an example, consider the floating point division instruction.
-QEMU, in order to handle all the subtle differences between floating point implementations in the various CPU it supports, implements floating point instructions in software (i.e., it does not use the host processor's floating point instructions).
+QEMU, to handle all the subtle differences between floating point implementations in the various CPU it supports, implements floating point instructions in software (i.e., it does not use the host processor's floating point instructions).
 
 Implementing the semantics of a floating point division in a tiny code frontend would be very hard and bring little to no benefit.
 Therefore, tiny code features a special type of instruction that enables the developer to call an external function written in C that can directly manipulate the CPU state.
 
-Such funtions are known as *helper functions*.
+Such functions are known as *helper functions*.
 
-In order to produce a self-contained representation of the input program, in rev.ng, we need helper functions too.
+To produce a self-contained representation of the input program, in rev.ng, we need helper functions too.
 Therefore, in our fork of QEMU, we do not just produce libtinycode, but also a set of files containing the LLVM IR for the helper functions of each frontend.
 Producing such files is rather easy since they are written in C and clang can easily produce LLVM IR from them.
 
