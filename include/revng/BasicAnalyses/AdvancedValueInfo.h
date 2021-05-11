@@ -809,9 +809,19 @@ public:
         }
       }
 
+      // Ignore undef
+      if (isa<UndefValue>(Current))
+        return {};
+
       APInt Value(getTypeSize(DL, Current->getType()), 0);
-      if (not Current->isNullValue())
-        Value = cast<ConstantInt>(skipCasts(Current))->getValue();
+      if (not Current->isNullValue()) {
+        if (auto *CI = dyn_cast<ConstantInt>(skipCasts(Current))) {
+          Value = CI->getValue();
+        } else {
+          skipCasts(Current)->dump();
+          revng_abort("Unexpected Constant");
+        }
+      }
 
       if (SymbolName)
         Entry = { *SymbolName, Value };
