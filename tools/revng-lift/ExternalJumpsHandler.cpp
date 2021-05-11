@@ -227,28 +227,6 @@ void ExternalJumpsHandler::buildExecutableSegmentsList() {
                      "segments_count");
 }
 
-BasicBlock *
-ExternalJumpsHandler::createExternalDispatcher(BasicBlock *IsExecutable,
-                                               BasicBlock *IsNotExecutable) {
-  buildExecutableSegmentsList();
-
-  Function *IsExecutableFunction = TheModule.getFunction("is_executable");
-  BasicBlock *ExternalJumpHandler = BasicBlock::Create(Context,
-                                                       "dispatcher.external",
-                                                       &TheFunction);
-  IRBuilder<> Builder(ExternalJumpHandler);
-  Value *PC = PCH->loadJumpablePC(Builder);
-  Value *IsExecutableResult = Builder.CreateCall(IsExecutableFunction, { PC });
-
-  // If is_executable returns true go to default, otherwise setjmp
-  Instruction *T = Builder.CreateCondBr(IsExecutableResult,
-                                        IsNotExecutable,
-                                        IsExecutable);
-  setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
-
-  return ExternalJumpHandler;
-}
-
 void ExternalJumpsHandler::createExternalJumpsHandler() {
 
   if (not Arch.isJumpOutSupported()) {
@@ -267,7 +245,27 @@ void ExternalJumpsHandler::createExternalJumpsHandler() {
   // Replace the default case of the dispatcher with the external jump handler.
   // In practice, perfrom a blind jump, unless the target is within the
   // executable segment of the current module.
-  BasicBlock *ExternalJumpHandler = createExternalDispatcher(SetjmpBB,
-                                                             DispatcherFail);
+  BasicBlock *ExternalJumpHandler = BasicBlock::Create(Context,
+                                                       "dispatcher.external",
+                                                       &TheFunction);
+
   DispatcherFail->replaceAllUsesWith(ExternalJumpHandler);
+
+  {
+    BasicBlock *IsExecutable = SetjmpBB;
+    BasicBlock *IsNotExecutable = DispatcherFail;
+    buildExecutableSegmentsList();
+
+    Function *IsExecutableFunction = TheModule.getFunction("is_executable");
+    IRBuilder<> Builder(ExternalJumpHandler);
+    Value *PC = PCH->loadJumpablePC(Builder);
+    Value *IsExecutableResult = Builder.CreateCall(IsExecutableFunction,
+                                                   { PC });
+
+    // If is_executable returns true go to default, otherwise setjmp
+    Instruction *T = Builder.CreateCondBr(IsExecutableResult,
+                                          IsNotExecutable,
+                                          IsExecutable);
+    setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
+  }
 }
