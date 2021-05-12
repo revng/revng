@@ -151,9 +151,7 @@ public:
   const TupleTreeKeyWrapper &operator[](size_t Index) const {
     return Storage[Index];
   }
-  bool operator==(const TupleTreePath &Other) const {
-    return Storage == Other.Storage;
-  }
+  bool operator==(const TupleTreePath &Other) const = default;
 
   // TODO: should return ArrayRef<const TupleTreeKeyWrapper>
   llvm::ArrayRef<TupleTreeKeyWrapper> toArrayRef() const { return { Storage }; }
