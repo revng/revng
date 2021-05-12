@@ -507,6 +507,30 @@ inline const llvm::Module *getModule(const llvm::Value *I) {
   return getModule(llvm::cast<const llvm::Instruction>(I));
 }
 
+inline llvm::Module *getModule(llvm::Function *F) {
+  if (F == nullptr)
+    return nullptr;
+  return F->getParent();
+}
+
+inline llvm::Module *getModule(llvm::BasicBlock *BB) {
+  if (BB == nullptr)
+    return nullptr;
+  return getModule(BB->getParent());
+}
+
+inline llvm::Module *getModule(llvm::Instruction *I) {
+  if (I == nullptr)
+    return nullptr;
+  return getModule(I->getParent());
+}
+
+inline llvm::Module *getModule(llvm::Value *I) {
+  if (I == nullptr)
+    return nullptr;
+  return getModule(llvm::cast<llvm::Instruction>(I));
+}
+
 /// \brief Helper class to easily create and use LLVM metadata
 class QuickMetadata {
 public:
@@ -788,11 +812,11 @@ getCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
 inline MetaAddress getBasicBlockPC(llvm::BasicBlock *BB) {
   using namespace llvm;
 
-  auto It = BB->begin();
-  if (It == BB->end())
+  Instruction *I = BB->getFirstNonPHI();
+  if (I == nullptr)
     return MetaAddress::invalid();
 
-  if (llvm::CallInst *Call = getCallTo(&*It, "newpc"))
+  if (llvm::CallInst *Call = getCallTo(I, "newpc"))
     return MetaAddress::fromConstant(Call->getOperand(0));
 
   return MetaAddress::invalid();
@@ -801,11 +825,11 @@ inline MetaAddress getBasicBlockPC(llvm::BasicBlock *BB) {
 inline MetaAddress getBasicBlockJumpTarget(llvm::BasicBlock *BB) {
   using namespace llvm;
 
-  auto It = BB->begin();
-  if (It == BB->end())
+  Instruction *I = BB->getFirstNonPHI();
+  if (I == nullptr)
     return MetaAddress::invalid();
 
-  if (llvm::CallInst *Call = getCallTo(&*It, "newpc")) {
+  if (llvm::CallInst *Call = getCallTo(I, "newpc")) {
     if (getLimitedValue(Call->getOperand(2)) == 1) {
       return MetaAddress::fromConstant(Call->getOperand(0));
     }
@@ -890,6 +914,8 @@ requires std::is_pointer_v<T> inline std::string dumpToString(T TheT) {
 }
 
 void dumpModule(const llvm::Module *M, const char *Path) debug_function;
+
+llvm::PointerType *getStringPtrType(llvm::LLVMContext &C);
 
 llvm::GlobalVariable *
 buildString(llvm::Module *M, llvm::StringRef String, const llvm::Twine &Name);

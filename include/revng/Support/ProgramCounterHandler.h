@@ -205,6 +205,7 @@ public:
     return buildDispatcher(Targets, Builder, Default, SetBlockType);
   }
 
+  /// \note \p Root must not already contain a case for \p NewTarget
   void
   addCaseToDispatcher(llvm::SwitchInst *Root,
                       const DispatcherTarget &NewTarget,

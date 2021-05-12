@@ -419,7 +419,8 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
   // We now consumed all the direct jump/calls, let's proceed with the
   // indirect jump/call
   auto IsIndirectBoundary = [](const Boundary &B) {
-    return B.Successors.AnyPC or B.Successors.UnexpectedPC;
+    const auto &S = B.Successors;
+    return S.AnyPC or S.UnexpectedPC or not S.hasSuccessors();
   };
   const Boundary *IndirectBoundary = zeroOrOne(Boundaries, IsIndirectBoundary);
 
@@ -596,7 +597,7 @@ IFI::cloneAndIdentifyBoundaries(MetaAddress Entry,
     auto HasNotBeenCloned = [&Blocks](BasicBlock *Successor) {
       return Blocks.count(Successor) == 0;
     };
-    if (any(successors(BB), HasNotBeenCloned)) {
+    if (succ_empty(BB) or any(successors(BB), HasNotBeenCloned)) {
       BasicBlock *Callee = getFunctionCallCallee(BB);
       BasicBlock *Fallthrough = getFallthrough(BB);
       Boundary NewBoundary{

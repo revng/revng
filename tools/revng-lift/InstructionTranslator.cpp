@@ -32,6 +32,10 @@
 
 using namespace llvm;
 
+static cl::opt<bool> RecordASM("record-asm",
+                               cl::desc("create metadata for assembly"),
+                               cl::cat(MainCategory));
+
 using IT = InstructionTranslator;
 
 namespace PTC {
@@ -599,20 +603,26 @@ IT::newInstruction(PTCInstruction *Instr,
   if (AbortAt.isValid() and NextPC.addressGreaterThan(AbortAt))
     return R{ Abort, nullptr, MetaAddress::invalid(), MetaAddress::invalid() };
 
-  std::stringstream OriginalStringStream;
-  disassemble(OriginalStringStream, PC, NextPC - PC);
-  std::string OriginalString = OriginalStringStream.str();
+  MDNode *MDOriginalInstr = nullptr;
+  Constant *String = nullptr;
+  if (RecordASM) {
+    std::stringstream OriginalStringStream;
+    disassemble(OriginalStringStream, PC, NextPC - PC);
+    std::string OriginalString = OriginalStringStream.str();
 
-  // We don't deduplicate this string since performing a lookup each time is
-  // increasingly expensive and we should have relatively few collisions
-  std::string AddressName = JumpTargets.nameForAddress(PC);
-  Constant *String = buildStringPtr(&TheModule,
-                                    OriginalString,
-                                    Twine("disam_") + AddressName);
+    // We don't deduplicate this string since performing a lookup each time is
+    // increasingly expensive and we should have relatively few collisions
+    std::string AddressName = JumpTargets.nameForAddress(PC);
+    String = buildStringPtr(&TheModule,
+                            OriginalString,
+                            Twine("disam_") + AddressName);
 
-  auto *MDOriginalString = ConstantAsMetadata::get(String);
-  auto *MDPC = ConstantAsMetadata::get(PC.toConstant(MetaAddressStruct));
-  MDNode *MDOriginalInstr = MDNode::get(Context, { MDOriginalString, MDPC });
+    auto *MDOriginalString = ConstantAsMetadata::get(String);
+    auto *MDPC = ConstantAsMetadata::get(PC.toConstant(MetaAddressStruct));
+    MDOriginalInstr = MDNode::get(Context, { MDOriginalString, MDPC });
+  } else {
+    String = ConstantPointerNull::get(getStringPtrType(Context));
+  }
 
   if (!IsFirst) {
     // Check if this PC already has a block and use it
@@ -665,10 +675,9 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
   std::vector<Value *> InArgs;
 
   for (uint64_t TemporaryId : TheCall.InArguments) {
-    auto *Temporary = Variables.getOrCreate(TemporaryId, true);
-    if (Temporary == nullptr)
+    auto *Load = Variables.load(Builder, TemporaryId);
+    if (Load == nullptr)
       return Abort;
-    auto *Load = Builder.CreateLoad(Temporary);
     InArgs.push_back(Load);
   }
 
@@ -683,7 +692,7 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
   Type *ResultType = nullptr;
 
   if (TheCall.OutArguments.size() != 0) {
-    ResultDestination = Variables.getOrCreate(TheCall.OutArguments[0], false);
+    ResultDestination = Variables.getOrCreate(TheCall.OutArguments[0]);
     if (ResultDestination == nullptr)
       return Abort;
     ResultType = ResultDestination->getType()->getPointerElementType();
@@ -714,11 +723,9 @@ IT::translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC) {
 
   std::vector<Value *> InArgs;
   for (uint64_t TemporaryId : TheInstruction.InArguments) {
-    auto *Temporary = Variables.getOrCreate(TemporaryId, true);
-    if (Temporary == nullptr)
+    auto *Load = Variables.load(Builder, TemporaryId);
+    if (Load == nullptr)
       return Abort;
-
-    auto *Load = Builder.CreateLoad(Temporary);
     InArgs.push_back(Load);
   }
 
@@ -737,8 +744,7 @@ IT::translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC) {
 
   // TODO: use ZipIterator here
   for (unsigned I = 0; I < Result->size(); I++) {
-    auto *Destination = Variables.getOrCreate(TheInstruction.OutArguments[I],
-                                              false);
+    auto *Destination = Variables.getOrCreate(TheInstruction.OutArguments[I]);
     if (Destination == nullptr)
       return Abort;
 

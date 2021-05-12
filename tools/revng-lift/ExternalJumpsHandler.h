@@ -71,14 +71,6 @@ private:
   llvm::BasicBlock *
   createSetjmp(llvm::BasicBlock *FirstReturn, llvm::BasicBlock *SecondReturn);
 
-  /// \brief Extends the dispatcher to handle jumps to basic blocks not handled
-  ///        by us.
-  ///
-  /// \param IsExecutable where to go if the PC is an address we should handle.
-  /// \param IsNotExecutable where to go otherwise.
-  llvm::BasicBlock *createExternalDispatcher(llvm::BasicBlock *IsExecutable,
-                                             llvm::BasicBlock *IsNotExecutable);
-
   /// \brief Prepare a list of the executable segments that can be easily
   ///        consumed by support.c.
   ///

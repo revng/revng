@@ -138,11 +138,26 @@ void Function::dumpCFG() const {
 }
 
 bool Function::verify() const {
+  if (Type == FunctionType::Fake)
+    return CFG.size() == 0;
+
   // Verify blocks
-  for (const BasicBlock &Block : CFG)
+  bool HasEntry = false;
+  for (const BasicBlock &Block : CFG) {
+
+    if (Block.Start == Entry) {
+      if (HasEntry)
+        return false;
+      HasEntry = true;
+    }
+
     for (const auto &Edge : Block.Successors)
       if (not Edge->verify())
         return false;
+  }
+
+  if (not HasEntry)
+    return false;
 
   // Populate graph
   FunctionCFG Graph = getGraph(*this);
