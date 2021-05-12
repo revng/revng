@@ -1008,6 +1008,11 @@ public:
     return fromPath(*stringAsPath<RootT>(Path));
   }
 
+  bool operator==(const TupleTreeReference &Other) const {
+    // The paths are the same even if they are referred to different roots
+    return Path == Other.Path;
+  }
+
 public:
   std::string toString() const { return *pathAsString<RootT>(Path); }
 
