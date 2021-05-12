@@ -198,6 +198,11 @@ static ConstantInt *caseConstant(SwitchInst *Switch, uint64_t Value) {
 }
 
 static void addCase(SwitchInst *Switch, uint64_t Value, BasicBlock *BB) {
+#if defined(NDEBUG) && defined(EXPENSIVE_ASSERTIONS)
+  auto *C = caseConstant(AddressSwitch, Value);
+  auto CaseIt = AddressSwitch->findCaseValue(C);
+  revng_assert(CaseIt == AddressSwitch->case_default());
+#endif
   Switch->addCase(caseConstant(Switch, Value), BB);
 }
 
@@ -669,13 +674,7 @@ void PCH::addCaseToDispatcher(SwitchInst *Root,
   AddressSwitch = SM.getOrCreateAddressSwitch(TypeSwitch, MA);
 
   // We are the switch of the addresses, add a case targeting BB, if required
-  auto *C = caseConstant(AddressSwitch, MA.address());
-  auto CaseIt = AddressSwitch->findCaseValue(C);
-  if (CaseIt == AddressSwitch->case_default()) {
-    ::addCase(AddressSwitch, MA.address(), BB);
-  } else {
-    revng_assert(CaseIt->getCaseSuccessor() == BB);
-  }
+  ::addCase(AddressSwitch, MA.address(), BB);
 }
 
 void PCH::destroyDispatcher(SwitchInst *Root) const {
