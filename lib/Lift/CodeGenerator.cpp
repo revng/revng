@@ -39,6 +39,12 @@
 
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
+#include "revng/Lift/CodeGenerator.h"
+#include "revng/Lift/ExternalJumpsHandler.h"
+#include "revng/Lift/InstructionTranslator.h"
+#include "revng/Lift/JumpTargetManager.h"
+#include "revng/Lift/PTCInterface.h"
+#include "revng/Lift/VariableManager.h"
 #include "revng/Model/SerializeModelPass.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
@@ -46,14 +52,6 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/ProgramCounterHandler.h"
 #include "revng/Support/revng.h"
-
-#include "CodeGenerator.h"
-
-#include "ExternalJumpsHandler.h"
-#include "InstructionTranslator.h"
-#include "JumpTargetManager.h"
-#include "PTCInterface.h"
-#include "VariableManager.h"
 
 using namespace llvm;
 

@@ -19,12 +19,10 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Lift/BinaryFile.h"
+#include "revng/Lift/ExternalJumpsHandler.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/ProgramCounterHandler.h"
-
-#include "ExternalJumpsHandler.h"
-
-#include "BinaryFile.h"
 
 using namespace llvm;
 using std::string;

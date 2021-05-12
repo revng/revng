@@ -38,6 +38,11 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
+#include "revng/Lift/AdvancedValueInfoPass.h"
+#include "revng/Lift/CPUStateAccessAnalysisPass.h"
+#include "revng/Lift/DropHelperCallsPass.h"
+#include "revng/Lift/JumpTargetManager.h"
+#include "revng/Lift/SubGraph.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
@@ -48,13 +53,6 @@
 #include "revng/Support/revng.h"
 #include "revng/TypeShrinking/BitLiveness.h"
 #include "revng/TypeShrinking/TypeShrinking.h"
-
-#include "JumpTargetManager.h"
-
-#include "AdvancedValueInfoPass.h"
-#include "CPUStateAccessAnalysisPass.h"
-#include "DropHelperCallsPass.h"
-#include "SubGraph.h"
 
 using namespace llvm;
 
