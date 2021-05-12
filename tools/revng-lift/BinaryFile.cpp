@@ -249,6 +249,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     RelocationTypes[R_386_RELATIVE] = RD(RD::BaseRelative, RD::TargetValue);
     RelocationTypes[R_386_JUMP_SLOT] = RD(RD::SymbolRelative);
     RelocationTypes[R_386_GLOB_DAT] = RD(RD::SymbolRelative);
+    RelocationTypes[R_386_32] = RD(RD::SymbolRelative, RD::TargetValue);
     RelocationTypes[R_386_COPY] = RD(RD::LabelOnly, RD::TargetValue);
 
     ABIRegisters = { { eax_x86 }, { ebx_x86 }, { ecx_x86 }, { edx_x86 },
