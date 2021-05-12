@@ -1116,7 +1116,13 @@ public:
 public:
   template<typename S>
   void serialize(S &Stream) const {
-    serialize(Stream, Root);
+    revng_assert(Root);
+    ::serialize(Stream, *Root);
+  }
+
+  void serialize(std::string &Buffer) const {
+    llvm::raw_string_ostream Stream(Buffer);
+    serialize(Stream);
   }
 
 public:
