@@ -2,6 +2,8 @@
 // Copyright (c) rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <bit>
+
 #include "revng-c/Decompiler/DLALayouts.h"
 
 namespace dla {
@@ -160,8 +162,7 @@ void Layout::printText(llvm::raw_ostream &O, const Layout *L, unsigned Indent) {
     auto *Base = llvm::cast<BaseLayout>(L);
     auto Size = Base->size();
     revng_assert(Size);
-    bool IsPowerOf2 = (Size & (Size - 1)) == 0;
-    revng_assert(IsPowerOf2);
+    revng_assert(std::has_single_bit(Size));
     revng_assert(Size <= 16);
     O << IndentStr << "uint" << (8 * Size) << "_t";
   } break;

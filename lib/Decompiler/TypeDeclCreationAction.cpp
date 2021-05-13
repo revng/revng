@@ -2,6 +2,8 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <bit>
+
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
@@ -61,8 +63,7 @@ DeclCreator::createTypeFromLayout(const dla::Layout *L,
     auto *Base = llvm::cast<dla::BaseLayout>(L);
     auto ByteSize = Base->size();
     revng_assert(ByteSize);
-    bool IsPowerOf2 = (ByteSize & (ByteSize - 1)) == 0;
-    revng_assert(IsPowerOf2);
+    revng_assert(std::has_single_bit(ByteSize));
     revng_assert(ByteSize <= 16);
     auto *IntTy = llvm::IntegerType::get(LLVMCtx, ByteSize * 8);
     Result = getOrCreateType(IntTy,

@@ -2,6 +2,8 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <bit>
+
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -107,12 +109,6 @@ DeclCreator::getOrCreateBoolType(clang::ASTContext &ASTCtx,
   return BoolType;
 }
 
-static bool IsPowerOf2(uint64_t BitWidth) {
-  return BitWidth == 1 or BitWidth == 8 or BitWidth == 16 or BitWidth == 32
-         or BitWidth == 64 or BitWidth == 128 or BitWidth == 256
-         or BitWidth == 512;
-}
-
 DeclCreator::TypeDeclOrQualType
 DeclCreator::getOrCreateType(const llvm::Type *Ty,
                              const llvm::Value *NamingValue,
@@ -134,10 +130,10 @@ DeclCreator::getOrCreateType(const llvm::Type *Ty,
 
     uint64_t BitWidth = LLVMIntType->getBitWidth();
     if (AllowArbitraryBitSize) {
-      if (not IsPowerOf2(BitWidth))
-        BitWidth = llvm::PowerOf2Ceil(BitWidth);
+      if (not std::has_single_bit(BitWidth))
+        BitWidth = std::bit_ceil(BitWidth);
     } else {
-      revng_assert(IsPowerOf2(BitWidth));
+      revng_assert(std::has_single_bit(BitWidth));
     }
 
     clang::TranslationUnitDecl *TUDecl = ASTCtx.getTranslationUnitDecl();
@@ -275,7 +271,7 @@ DeclCreator::getOrCreateType(const llvm::Type *Ty,
       // Detect fields with sizes different from a power of 2, that need to be
       // rendered in C with bitfields
       auto *IntFTy = llvm::dyn_cast<llvm::IntegerType>(Group.value());
-      if (IntFTy and not IsPowerOf2(IntFTy->getBitWidth())) {
+      if (IntFTy and not std::has_single_bit(IntFTy->getBitWidth())) {
         llvm::APInt FieldSize(32 /* bits */, IntFTy->getBitWidth());
 
         using clang::IntegerLiteral;
