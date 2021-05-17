@@ -118,7 +118,6 @@ private:
   void generateCall(IRBuilder<> &Builder,
                     Function *Callee,
                     const model::CallEdge &CallSite);
-  void handleRoot();
 
 private:
   Module &M;
@@ -207,48 +206,6 @@ void EnforceABIImpl::run() {
   if (VerifyLog.isEnabled()) {
     raw_os_ostream Stream(dbg);
     revng_assert(not verifyModule(M, &Stream));
-  }
-}
-
-void EnforceABIImpl::handleRoot() {
-  // Handle invokes in root
-  Function *Root = M.getFunction("root");
-  revng_assert(Root != nullptr);
-
-  for (BasicBlock &BB : *Root) {
-    // Find invoke instruction
-    auto *Invoke = dyn_cast<InvokeInst>(BB.getTerminator());
-
-    if (Invoke == nullptr)
-      continue;
-
-    revng_assert(BB.size() == 1);
-
-    Function *Callee = OldToNew.at(Invoke->getCalledFunction());
-    const model::Function *Function = FunctionsMap.at(Callee);
-
-    // Collect arguments
-    IRBuilder<> Builder(Invoke);
-    std::vector<Value *> Arguments;
-    for (const model::FunctionABIRegister &Register : Function->Registers) {
-      if (shouldEmit(Register.Argument)) {
-        auto Name = ABIRegister::toCSVName(Register.Register);
-        GlobalVariable *CSV = M.getGlobalVariable(Name, true);
-        revng_assert(CSV != nullptr);
-        Arguments.push_back(Builder.CreateLoad(CSV));
-      }
-    }
-
-    // Create the new invoke with the appropriate arguments
-    auto *NewInvoke = Builder.CreateInvoke(Callee,
-                                           Invoke->getNormalDest(),
-                                           Invoke->getUnwindDest(),
-                                           Arguments);
-
-    // Erase the old invoke
-    Invoke->eraseFromParent();
-
-    // TODO: handle return values
   }
 }
 
