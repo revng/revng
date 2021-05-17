@@ -922,9 +922,9 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
       MetaAddress Address = MetaAddress::invalid();
 
       if (SymbolType == SymbolType::Code)
-        Address = fromPC(Symbol.st_value);
+        Address = relocate(fromPC(Symbol.st_value));
       else
-        Address = fromGeneric(Symbol.st_value);
+        Address = relocate(fromGeneric(Symbol.st_value));
 
       registerLabel(Label::createSymbol(LabelOrigin::StaticSymbol,
                                         Address,
@@ -1172,9 +1172,9 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
         MetaAddress Address = MetaAddress::invalid();
 
         if (SymbolType == SymbolType::Code)
-          Address = fromPC(Symbol.st_value);
+          Address = relocate(fromPC(Symbol.st_value));
         else
-          Address = fromGeneric(Symbol.st_value);
+          Address = relocate(fromGeneric(Symbol.st_value));
 
         registerLabel(Label::createSymbol(LabelOrigin::DynamicSymbol,
                                           Address,
