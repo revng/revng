@@ -362,8 +362,8 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
                                     << "\n          color: " << TopColor);
 
       bool StartNew = false;
-      while (NextEdgeToVisit != MixedGT::child_edge_end(TopNode)
-             and not StartNew) {
+      while (not StartNew
+             and NextEdgeToVisit != MixedGT::child_edge_end(TopNode)) {
 
         LTSN *NextChild = NextEdgeToVisit->first;
         const TypeLinkTag *NextTag = NextEdgeToVisit->second;
