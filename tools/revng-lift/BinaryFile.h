@@ -545,8 +545,8 @@ public:
     return MetaAddress::fromPC(TheArchitecture.type(), PC);
   }
 
-  MetaAddress fromGeneric(uint64_t Address) const {
-    return MetaAddress::fromGeneric(TheArchitecture.type(), Address);
+  MetaAddress fromGeneric(uint64_t Address, uint32_t Epoch = 0) const {
+    return MetaAddress::fromGeneric(TheArchitecture.type(), Address, Epoch);
   }
 
   /// \brief Return a proper name for the given address, possibly using symbols
