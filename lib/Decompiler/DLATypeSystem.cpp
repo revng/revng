@@ -641,6 +641,7 @@ void LayoutTypeSystem::mergeNodes(const LayoutTypeSystemNodePtrVec &ToMerge) {
     // Remove From from Layouts
     bool Erased = Layouts.erase(From);
     revng_assert(Erased);
+    From->~LayoutTypeSystemNode();
     NodeAllocator.Deallocate(From);
   }
 }
@@ -675,6 +676,7 @@ void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *ToRemove) {
 
   bool Erased = Layouts.erase(ToRemove);
   revng_assert(Erased);
+  ToRemove->~LayoutTypeSystemNode();
   NodeAllocator.Deallocate(ToRemove);
 }
 
