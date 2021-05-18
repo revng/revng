@@ -261,7 +261,7 @@ private:
   uint64_t NID = 0ULL;
 
   // Holds all the LayoutTypeSystemNode
-  llvm::SpecificBumpPtrAllocator<LayoutTypeSystemNode> NodeAllocator = {};
+  llvm::BumpPtrAllocator NodeAllocator = {};
   std::set<LayoutTypeSystemNode *> Layouts = {};
 
   // Holds the link tags, so that they can be deduplicated and referred to using

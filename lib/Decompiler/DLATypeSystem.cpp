@@ -641,7 +641,7 @@ void LayoutTypeSystem::mergeNodes(const LayoutTypeSystemNodePtrVec &ToMerge) {
     // Remove From from Layouts
     bool Erased = Layouts.erase(From);
     revng_assert(Erased);
-    __asan_poison_memory_region(From, sizeof(LayoutTypeSystemNode));
+    NodeAllocator.Deallocate(From);
   }
 }
 
@@ -675,7 +675,7 @@ void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *ToRemove) {
 
   bool Erased = Layouts.erase(ToRemove);
   revng_assert(Erased);
-  __asan_poison_memory_region(ToRemove, sizeof(LayoutTypeSystemNode));
+  NodeAllocator.Deallocate(ToRemove);
 }
 
 static void moveEdgesWithoutSumming(LayoutTypeSystemNode *OldSrc,
