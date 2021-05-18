@@ -99,6 +99,8 @@ public:
         revng_assert(Reachability->existsPath(SourceBB, TargetBB));
       }
     }
+
+    delete Reachability;
   }
 };
 
