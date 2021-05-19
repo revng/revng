@@ -156,6 +156,14 @@ public:
 
   LayoutTypeSystem(llvm::Module &Mod) : M(Mod) {}
 
+  ~LayoutTypeSystem() {
+    for (auto *Layout : Layouts) {
+      Layout->~LayoutTypeSystemNode();
+      NodeAllocator.Deallocate(Layout);
+    }
+    Layouts.clear();
+  }
+
   llvm::Module &getModule() const { return M; }
 
 public:
