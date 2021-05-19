@@ -204,6 +204,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -add-scev-barrier
       -decompilation
       -serialize-model
+      -dla-flatc-dir=${TARGET_NAME}_dla_dir
       ${TARGET_NAME}_adjusted_stack.ll
       -o /dev/null
       )

@@ -3,6 +3,7 @@
 #
 
 add_subdirectory(AdjustStackPointer)
+add_subdirectory(DataLayoutAnalysis)
 add_subdirectory(Decompiler)
 add_subdirectory(Liveness)
 add_subdirectory(MakeEnvNull)
@@ -17,5 +18,5 @@ add_subdirectory(RemoveLLVMDbgIntrinsics)
 add_subdirectory(RemoveNewPCCalls)
 add_subdirectory(TargetFunctionOption)
 add_subdirectory(ThreadSafeClangTooling)
+add_subdirectory(Utils)
 add_subdirectory(ValueManipulationAnalysis)
-add_subdirectory(DataLayoutAnalysis)

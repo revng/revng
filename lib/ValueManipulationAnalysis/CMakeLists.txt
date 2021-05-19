@@ -11,4 +11,5 @@ revng_add_analyses_library(ValueManipulationAnalysis revngc
 
 target_link_libraries(ValueManipulationAnalysis
   revng::revngSupport
-  revng::revngModel)
+  revng::revngModel
+  ${LLVM_LIBRARIES})

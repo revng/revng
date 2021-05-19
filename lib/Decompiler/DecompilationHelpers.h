@@ -4,7 +4,11 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
+#include <memory>
 #include <set>
+
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringRef.h"
 
 #include "clang/AST/Type.h"
 

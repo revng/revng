@@ -29,6 +29,7 @@ target_link_libraries(Decompiler
   RemoveLLVMDbgIntrinsics
   MakeEnvNull
   ThreadSafeClangTooling
+  Utils
   revng::revngModel
   revng::revngSupport
   revng::revngTypeShrinking

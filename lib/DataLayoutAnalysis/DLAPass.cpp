@@ -6,10 +6,20 @@
 
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/DataLayoutAnalysis/DLAPass.h"
+#include "revng-c/Utils/Utils.h"
 
 #include "Backend/DLAMakeLayouts.h"
 #include "Frontend/DLATypeSystemBuilder.h"
 #include "Middleend/DLAStep.h"
+
+namespace {
+
+llvm::cl::opt<std::string> DLADir("dla-flatc-dir",
+                                  llvm::cl::desc("Path to serialize flatc"),
+                                  llvm::cl::value_desc("Path"),
+                                  llvm::cl::cat(MainCategory),
+                                  llvm::cl::NumOccurrencesFlag::Optional);
+} // end of unnamed namespace
 
 char DLAPass::ID = 0;
 
