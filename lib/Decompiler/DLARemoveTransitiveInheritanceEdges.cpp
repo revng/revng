@@ -124,7 +124,7 @@ bool RemoveTransitiveInheritanceEdges::runOnTypeSystem(LayoutTypeSystem &TS) {
       revng_log(Log, "# Stack Top: " << Node->ID);
 
       bool Pushed = false;
-      while ((NextChildPos != NChildren) and not Pushed) {
+      while (not Pushed and NextChildPos != NChildren) {
         LTSN *NextChild = StackTop.OrderedChildren[NextChildPos];
         revng_log(Log, "    NextChild: " << NextChild->ID);
         ++NextChildPos;
