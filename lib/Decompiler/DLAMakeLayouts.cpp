@@ -207,9 +207,10 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
     }
 
     revng_assert(not NumAccesses or NumAccesses == 1ULL);
-    Layout *AccessLayout = nullptr;
-    if (AccessSize)
-      AccessLayout = createLayout<BaseLayout>(NewLayouts, AccessSize);
+    if (AccessSize) {
+      Layout *AccessLayout = createLayout<BaseLayout>(NewLayouts, AccessSize);
+      SFlds.push_back(AccessLayout);
+    }
 
     bool First = true;
 
