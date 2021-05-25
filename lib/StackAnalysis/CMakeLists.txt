@@ -53,6 +53,7 @@ revng_add_analyses_library_internal(revngStackAnalysis
   FunctionABI.cpp
   FunctionsSummary.cpp
   IncoherentCallsAnalysis.cpp
+  IndirectBranchInfoPrinterPass.cpp
   InterproceduralAnalysis.cpp
   Intraprocedural.cpp
   PromoteGlobalToLocalVars.cpp
