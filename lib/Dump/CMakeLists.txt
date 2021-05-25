@@ -3,7 +3,8 @@
 #
 
 revng_add_analyses_library_internal(revngDump
-  CollectCFG.cpp)
+  CollectCFG.cpp
+  IndirectBranchInfoPrinterPass.cpp)
 
 target_link_libraries(revngDump
   revngSupport)
