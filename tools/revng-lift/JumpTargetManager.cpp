@@ -17,6 +17,7 @@
 #include "boost/type_traits/is_same.hpp"
 
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/CodeGen/UnreachableBlockElim.h"
 #include "llvm/IR/IRBuilder.h"
