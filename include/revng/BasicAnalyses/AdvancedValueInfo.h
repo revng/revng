@@ -307,7 +307,7 @@ private:
 
       auto NewRange = llvm::ConstantRange::getFull(BitWidth);
       if (Destination == nullptr)
-        NewRange = LVI.getConstantRange(I, Source);
+        NewRange = LVI.getConstantRange(I, Source->getTerminator());
       else
         NewRange = LVI.getConstantRangeOnEdge(I, Source, Destination);
 
