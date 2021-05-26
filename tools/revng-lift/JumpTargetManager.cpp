@@ -1905,7 +1905,7 @@ void JumpTargetManager::harvest() {
     HarvestingStats.push("InstCombine");
     legacy::FunctionPassManager OptimizingPM(&TheModule);
     OptimizingPM.add(createSROAPass());
-    OptimizingPM.add(createConstantPropagationPass());
+    OptimizingPM.add(createInstSimplifyLegacyPass());
     OptimizingPM.doInitialization();
     OptimizingPM.run(*TheFunction);
     OptimizingPM.doFinalization();
