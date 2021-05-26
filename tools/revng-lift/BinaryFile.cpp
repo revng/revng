@@ -5,6 +5,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <memory>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -742,9 +743,15 @@ static uint64_t u64(uint64_t Value) {
 }
 
 void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, uint64_t) {
-  std::error_code EC;
-  object::COFFObjectFile TheCOFF(TheBinary->getMemoryBufferRef(), EC);
+  using object::COFFObjectFile;
 
+  auto TheCOFFOrErr = COFFObjectFile::create(TheBinary->getMemoryBufferRef());
+  if (not TheCOFFOrErr) {
+    logAllUnhandledErrors(TheCOFFOrErr.takeError(), errs(), "");
+    revng_abort();
+  }
+
+  COFFObjectFile &TheCOFF = *TheCOFFOrErr.get();
   const object::pe32_header *PE32Header = TheCOFF.getPE32Header();
 
   MetaAddress ImageBase = MetaAddress::invalid();
@@ -770,10 +777,14 @@ void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, uint64_t) {
   }
 
   // Read sections
-  for (const llvm::object::SectionRef &Section : TheCOFF.sections()) {
-    unsigned Id = TheCOFF.getSectionID(Section);
-    const object::coff_section *CoffRef = nullptr;
-    TheCOFF.getSection(Id, CoffRef);
+  for (const llvm::object::SectionRef &SecRef : TheCOFF.sections()) {
+    unsigned Id = TheCOFF.getSectionID(SecRef);
+    Expected<const object::coff_section *> SecOrErr = TheCOFF.getSection(Id);
+    if (not SecOrErr) {
+      logAllUnhandledErrors(SecOrErr.takeError(), errs(), "");
+      revng_abort();
+    }
+    const object::coff_section *CoffRef = *SecOrErr;
 
     // VirtualSize might be larger than SizeOfRawData (extra data at the end of
     // the section) or viceversa (data mapped in memory but not present in
@@ -793,7 +804,7 @@ void BinaryFile::parseCOFF(object::ObjectFile *TheBinary, uint64_t) {
     Segment.IsReadable = CoffRef->Characteristics & COFF::IMAGE_SCN_MEM_READ;
     Segment.IsWriteable = CoffRef->Characteristics & COFF::IMAGE_SCN_MEM_WRITE;
 
-    StringRef StringDataRef = Section.getObject()->getData();
+    StringRef StringDataRef = SecRef.getObject()->getData();
     auto RawDataRef = ArrayRef<uint8_t>(StringDataRef.bytes_begin(),
                                         StringDataRef.size());
 
@@ -837,13 +848,13 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
   // Parse the ELF file
   auto TheELFOrErr = object::ELFFile<T>::create(TheBinary->getData());
   if (not TheELFOrErr) {
-    logAllUnhandledErrors(std::move(TheELFOrErr.takeError()), errs(), "");
+    logAllUnhandledErrors(TheELFOrErr.takeError(), errs(), "");
     revng_abort();
   }
   object::ELFFile<T> &TheELF = *TheELFOrErr;
 
   // BaseAddress makes sense only for shared (relocatable, PIC) objects
-  auto Type = TheELF.getHeader()->e_type;
+  auto Type = TheELF.getHeader().e_type;
   if (Type == ELF::ET_DYN) {
     BaseAddress = PreferedBaseAddress;
   }
@@ -867,7 +878,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
     logAllUnhandledErrors(std::move(Sections.takeError()), errs(), "");
   } else {
     for (auto &Section : *Sections) {
-      auto NameOrErr = TheELF.getSectionName(&Section);
+      auto NameOrErr = TheELF.getSectionName(Section);
       if (NameOrErr) {
         auto &Name = *NameOrErr;
         if (Name == ".symtab") {
@@ -894,7 +905,7 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
       logAllUnhandledErrors(std::move(Strtab.takeError()), errs(), "");
       revng_abort();
     }
-    auto StrtabArray = TheELF.getSectionContents(*Strtab);
+    auto StrtabArray = TheELF.getSectionContents(**Strtab);
     if (not StrtabArray) {
       logAllUnhandledErrors(std::move(StrtabArray.takeError()), errs(), "");
       revng_abort();
@@ -934,10 +945,10 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
     }
   }
 
-  const auto *ElfHeader = TheELF.getHeader();
-  EntryPoint = relocate(fromPC(ElfHeader->e_entry));
-  ProgramHeaders.Count = ElfHeader->e_phnum;
-  ProgramHeaders.Size = ElfHeader->e_phentsize;
+  const auto &ElfHeader = TheELF.getHeader();
+  EntryPoint = relocate(fromPC(ElfHeader.e_entry));
+  ProgramHeaders.Count = ElfHeader.e_phnum;
+  ProgramHeaders.Size = ElfHeader.e_phentsize;
 
   // Loop over the program headers looking for PT_LOAD segments, read them out
   // and create a global variable for each one of them (writable or read-only),
@@ -995,10 +1006,10 @@ void BinaryFile::parseELF(object::ObjectFile *TheBinary,
       auto ProgramHeaderStart = ProgramHeader.p_offset;
       auto ProgramHeaderEnd = ProgramHeader.p_offset
                               + u64(ProgramHeader.p_filesz);
-      if (ProgramHeaderStart <= ElfHeader->e_phoff
-          && ElfHeader->e_phoff < ProgramHeaderEnd) {
+      if (ProgramHeaderStart <= ElfHeader.e_phoff
+          && ElfHeader.e_phoff < ProgramHeaderEnd) {
         MetaAddress PhdrAddress = (relocate(fromGeneric(ProgramHeader.p_vaddr))
-                                   + u64(ElfHeader->e_phoff)
+                                   + u64(ElfHeader.e_phoff)
                                    - u64(ProgramHeader.p_offset));
         ProgramHeaders.Address = PhdrAddress;
       }
