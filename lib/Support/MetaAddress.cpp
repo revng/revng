@@ -28,10 +28,10 @@ Constant *MetaAddress::toConstant(llvm::Type *Type) const {
   };
 
   return ConstantStruct::get(Struct,
-                             GetInt(0, this->Address),
-                             GetInt(1, this->Epoch),
-                             GetInt(2, this->AddressSpace),
-                             GetInt(3, this->Type));
+                             GetInt(0, this->Epoch),
+                             GetInt(1, this->AddressSpace),
+                             GetInt(2, this->Type),
+                             GetInt(3, this->Address));
 }
 
 GlobalVariable *
@@ -63,10 +63,10 @@ MetaAddress MetaAddress::fromConstant(Value *V) {
   auto CI = [](Value *V) { return cast<ConstantInt>(V)->getLimitedValue(); };
 
   MetaAddress Result;
-  Result.Address = CI(Struct->getOperand(0));
-  Result.Epoch = CI(Struct->getOperand(1));
-  Result.AddressSpace = CI(Struct->getOperand(2));
-  Result.Type = static_cast<Values>(CI(Struct->getOperand(3)));
+  Result.Epoch = CI(Struct->getOperand(0));
+  Result.AddressSpace = CI(Struct->getOperand(1));
+  Result.Type = static_cast<Values>(CI(Struct->getOperand(2)));
+  Result.Address = CI(Struct->getOperand(3));
   Result.validate();
 
   return Result;
