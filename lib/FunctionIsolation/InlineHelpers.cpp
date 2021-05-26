@@ -45,8 +45,8 @@ static CallInst *getCallToInline(Instruction *I) {
 
 static void doInline(CallInst *Call) {
   InlineFunctionInfo IFI;
-  auto Result = InlineFunction(Call, IFI, nullptr, false);
-  revng_assert(Result);
+  auto Result = InlineFunction(*Call, IFI, nullptr, false);
+  revng_assert(Result.isSuccess(), Result.getFailureReason());
 }
 
 static bool doInline(Function *F) {
