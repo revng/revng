@@ -85,10 +85,10 @@ struct RecursivePromise : public ReturnBase<ReturnT> {
       ResumeAwaiter(std::experimental::coroutine_handle<> AwaiterHandle) :
         Awaiter(AwaiterHandle) {}
 
-      bool await_ready() const { return false; }
+      bool await_ready() const noexcept { return false; }
 
       std::experimental::coroutine_handle<>
-      await_suspend(std::experimental::coroutine_handle<>) {
+      await_suspend(std::experimental::coroutine_handle<>) noexcept {
         std::experimental::coroutine_handle<>
           ToResume = std::experimental::noop_coroutine();
         if (Awaiter and not Awaiter.done()) {
@@ -98,7 +98,7 @@ struct RecursivePromise : public ReturnBase<ReturnT> {
         return ToResume;
       }
 
-      void await_resume() const { revng_abort(); }
+      void await_resume() const noexcept { revng_abort(); }
 
     private:
       std::experimental::coroutine_handle<> Awaiter;
