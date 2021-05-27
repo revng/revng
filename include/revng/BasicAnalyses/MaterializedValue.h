@@ -31,13 +31,17 @@ public:
 
 public:
   bool operator==(const MaterializedValue &Other) const {
-    auto This = std::tie(IsValid, SymbolName, Value);
-    auto That = std::tie(Other.IsValid, Other.SymbolName, Other.Value);
+    auto MaxBitWidth = std::max(Value.getBitWidth(), Other.Value.getBitWidth());
+    auto ZExtValue = Value.zextOrSelf(MaxBitWidth);
+    auto ZExtOther = Other.Value.zextOrSelf(MaxBitWidth);
+    auto This = std::tie(IsValid, SymbolName, ZExtValue);
+    auto That = std::tie(Other.IsValid, Other.SymbolName, ZExtOther);
     return This == That;
   }
 
   bool operator<(const MaterializedValue &Other) const {
-    if (Value.ult(Other.Value))
+    auto MaxBitWidth = std::max(Value.getBitWidth(), Other.Value.getBitWidth());
+    if (Value.zextOrSelf(MaxBitWidth).ult(Other.Value.zextOrSelf(MaxBitWidth)))
       return true;
     auto This = std::tie(IsValid, SymbolName);
     auto That = std::tie(Other.IsValid, Other.SymbolName);
