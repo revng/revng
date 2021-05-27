@@ -190,14 +190,20 @@ private:
   void createFunctionCall(IRBuilder<> &Builder,
                           MetaAddress ExpectedCallee,
                           const Boundary &TheBoundary,
-                          FunctionBlocks &ClonedBlocks);
+                          FunctionBlocks &ClonedBlocks,
+                          const Instruction *InstWithDbgLoc = nullptr);
 
   void createFunctionCall(BasicBlock *BB,
                           MetaAddress Callee,
                           const Boundary &TheBoundary,
-                          FunctionBlocks &ClonedBlocks) {
+                          FunctionBlocks &ClonedBlocks,
+                          const Instruction *InstWithDbgLoc = nullptr) {
     IRBuilder<> Builder(BB);
-    createFunctionCall(Builder, Callee, TheBoundary, ClonedBlocks);
+    createFunctionCall(Builder,
+                       Callee,
+                       TheBoundary,
+                       ClonedBlocks,
+                       InstWithDbgLoc);
   }
 
   /// Post process all the call markers, replacing them with actual calls
@@ -207,16 +213,47 @@ private:
   void populateFunctionDispatcher();
 
   /// Create code to throw of an exception
-  void throwException(IRBuilder<> &Builder, StringRef Reason);
+  void throwException(IRBuilder<> &Builder,
+                      StringRef Reason,
+                      const Instruction *InstWithDbgLoc = nullptr);
 
-  void throwException(BasicBlock *BB, StringRef Reason) {
+  void throwException(BasicBlock *BB,
+                      StringRef Reason,
+                      const Instruction *InstWithDbgLoc = nullptr) {
     IRBuilder<> Builder(BB);
-    throwException(Builder, Reason);
+    throwException(Builder, Reason, InstWithDbgLoc);
   }
 };
 
-void IFI::throwException(IRBuilder<> &Builder, StringRef Reason) {
+// Compute the debug location, giving precedence to InstWithDbgLoc, and falling
+// back to using the insertion point of the Builder.
+static DebugLoc
+makeDebugLoc(const IRBuilder<> &Builder, const Instruction *InstWithDbgLoc) {
+  DebugLoc Result;
+
+  if (InstWithDbgLoc) {
+    Result = InstWithDbgLoc->getDebugLoc();
+  } else {
+
+    BasicBlock *InsertBlock = Builder.GetInsertBlock();
+    revng_assert(not InsertBlock->empty());
+    BasicBlock::iterator InsertPoint = Builder.GetInsertPoint();
+    if (InsertPoint != InsertBlock->end())
+      Result = InsertPoint->getDebugLoc();
+    else
+      Result = InsertBlock->back().getDebugLoc();
+  }
+
+  revng_assert(Result);
+  return Result;
+}
+
+void IFI::throwException(IRBuilder<> &Builder,
+                         StringRef Reason,
+                         const Instruction *InstWithDbgLoc) {
   revng_assert(RaiseException != nullptr);
+
+  DebugLoc DbgLoc = makeDebugLoc(Builder, InstWithDbgLoc);
 
   // Create the message string
   Constant *ReasonString = Strings.get(Reason.str());
@@ -224,8 +261,11 @@ void IFI::throwException(IRBuilder<> &Builder, StringRef Reason) {
   // Populate the source PC
   MetaAddress SourcePC = MetaAddress::invalid();
 
-  if (Instruction *T = Builder.GetInsertBlock()->getTerminator())
-    SourcePC = getPC(T).first;
+  BasicBlock *InsertBlock = Builder.GetInsertBlock();
+  if (Builder.GetInsertPoint() != InsertBlock->end())
+    SourcePC = getPC(&*Builder.GetInsertPoint()).first;
+  else if (not InsertBlock->empty())
+    SourcePC = getPC(&InsertBlock->back()).first;
 
   auto *Ty = ExceptionSourcePC->getType()->getPointerElementType();
   Builder.CreateStore(SourcePC.toConstant(Ty), ExceptionSourcePC);
@@ -234,10 +274,12 @@ void IFI::throwException(IRBuilder<> &Builder, StringRef Reason) {
   Builder.CreateStore(GCBI.programCounterHandler()->loadPC(Builder),
                       ExceptionDestinationPC);
 
-  Builder.CreateCall(RaiseException,
-                     { ReasonString,
-                       ExceptionSourcePC,
-                       ExceptionDestinationPC });
+  auto *NewCall = Builder.CreateCall(RaiseException,
+                                     { ReasonString,
+                                       ExceptionSourcePC,
+                                       ExceptionDestinationPC });
+
+  NewCall->setDebugLoc(DbgLoc);
   Builder.CreateUnreachable();
 }
 
@@ -252,7 +294,8 @@ void IFI::populateFunctionDispatcher() {
                                               "unexpectedpc",
                                               FunctionDispatcher,
                                               nullptr);
-  throwException(Unexpected, "An unexpected functions has been called");
+  const Instruction *Term = GCBI.unexpectedPC()->getTerminator();
+  throwException(Unexpected, "An unexpected functions has been called", Term);
   setBlockType(Unexpected->getTerminator(), BlockType::UnexpectedPCBlock);
 
   IRBuilder<> Builder(Context);
@@ -692,7 +735,8 @@ IFI::isolate(const model::Function &Function) {
 
   // Create unexpectedPC block
   ClonedBlocks.unexpectedPCBlock() = CreateBB("unexpectedPC");
-  throwException(ClonedBlocks.unexpectedPCBlock(), "unexpectedPC");
+  const Instruction *Term = GCBI.unexpectedPC()->getTerminator();
+  throwException(ClonedBlocks.unexpectedPCBlock(), "unexpectedPC", Term);
   OldToNew[GCBI.unexpectedPC()] = ClonedBlocks.unexpectedPCBlock();
 
   // Get the entry basic block
@@ -769,7 +813,8 @@ IFI::isolate(const model::Function &Function) {
 void IFI::createFunctionCall(IRBuilder<> &Builder,
                              MetaAddress ExpectedCallee,
                              const Boundary &TheBoundary,
-                             FunctionBlocks &ClonedBlocks) {
+                             FunctionBlocks &ClonedBlocks,
+                             const Instruction *InstWithDbgLoc) {
   BasicBlock *ExpectedCalleeBB = nullptr;
   unsigned CalleeIndex = 0;
   if (ExpectedCallee.isValid()) {
@@ -786,7 +831,9 @@ void IFI::createFunctionCall(IRBuilder<> &Builder,
                 << getName(ExpectedCalleeBB) << ")");
   }
 
-  Builder.CreateCall(CallMarker, Builder.getInt32(CalleeIndex));
+  DebugLoc DbgLoc = makeDebugLoc(Builder, InstWithDbgLoc);
+  auto *NewCall = Builder.CreateCall(CallMarker, Builder.getInt32(CalleeIndex));
+  NewCall->setDebugLoc(DbgLoc);
 
   if (TheBoundary.ReturnBlock != nullptr) {
     // Emit jump to fallthrough
@@ -801,8 +848,9 @@ void IFI::createFunctionCall(IRBuilder<> &Builder,
     }
 
     throwException(Builder,
-                   "An instruction marked as a call has not been "
-                   "identified as such in the binary");
+                   "An instruction marked as a call has not been identified as "
+                   "such in the binary",
+                   InstWithDbgLoc);
   }
 }
 
@@ -826,7 +874,8 @@ void IFI::replaceCallMarker() const {
     Value *CallMarkerArgument = Call->getArgOperand(0);
     unsigned Index = cast<ConstantInt>(CallMarkerArgument)->getLimitedValue();
     Function *Callee = Functions[Index];
-    CallInst::Create(FunctionCallee{ Callee }, "", Call);
+    auto *NewCall = CallInst::Create(FunctionCallee{ Callee }, "", Call);
+    NewCall->setDebugLoc(Call->getDebugLoc());
     Call->eraseFromParent();
   }
 }
