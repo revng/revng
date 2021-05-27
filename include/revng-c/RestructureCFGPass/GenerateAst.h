@@ -410,7 +410,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
     // Collect the children nodes in the dominator tree.
     llvm::SmallVector<decltype(Node), 8> Children;
     {
-      const auto &DomTreeChildren = ASTDT[Node]->getChildren();
+      const auto &DomTreeChildren = ASTDT[Node]->children();
       for (auto *DomTreeNode : DomTreeChildren)
         Children.push_back(DomTreeNode->getBlock());
     }
