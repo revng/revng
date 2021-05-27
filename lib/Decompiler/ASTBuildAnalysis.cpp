@@ -1947,6 +1947,8 @@ Expr *StmtBuilder::getLiteralFromConstant(const llvm::Constant *C) {
       case BuiltinType::BuiltinFn:
       case BuiltinType::ARCUnbridgedCast:
       case BuiltinType::OMPArraySection:
+      case BuiltinType::OMPArrayShaping:
+      case BuiltinType::OMPIterator:
       case BuiltinType::Void:
       case BuiltinType::WChar_U:
       case BuiltinType::WChar_S:
@@ -1981,6 +1983,7 @@ Expr *StmtBuilder::getLiteralFromConstant(const llvm::Constant *C) {
       case BuiltinType::Float:
       case BuiltinType::Double:
       case BuiltinType::LongDouble:
+      case BuiltinType::BFloat16:
       case BuiltinType::Float16:
       case BuiltinType::Float128:
       case BuiltinType::NullPtr:
@@ -2041,17 +2044,57 @@ Expr *StmtBuilder::getLiteralFromConstant(const llvm::Constant *C) {
       case BuiltinType::OCLIntelSubgroupAVCImeResultSingleRefStreamout:
       case BuiltinType::OCLIntelSubgroupAVCImeResultDualRefStreamout:
       case BuiltinType::SveBool:
+      case BuiltinType::SveBFloat16:
       case BuiltinType::SveFloat16:
       case BuiltinType::SveFloat32:
       case BuiltinType::SveFloat64:
+      case BuiltinType::SveBFloat16x2:
+      case BuiltinType::SveFloat16x2:
+      case BuiltinType::SveFloat32x2:
+      case BuiltinType::SveFloat64x2:
+      case BuiltinType::SveBFloat16x3:
+      case BuiltinType::SveFloat16x3:
+      case BuiltinType::SveFloat32x3:
+      case BuiltinType::SveFloat64x3:
+      case BuiltinType::SveBFloat16x4:
+      case BuiltinType::SveFloat16x4:
+      case BuiltinType::SveFloat32x4:
+      case BuiltinType::SveFloat64x4:
       case BuiltinType::SveInt8:
       case BuiltinType::SveInt16:
       case BuiltinType::SveInt32:
       case BuiltinType::SveInt64:
+      case BuiltinType::SveInt8x2:
+      case BuiltinType::SveInt16x2:
+      case BuiltinType::SveInt32x2:
+      case BuiltinType::SveInt64x2:
+      case BuiltinType::SveInt8x3:
+      case BuiltinType::SveInt16x3:
+      case BuiltinType::SveInt32x3:
+      case BuiltinType::SveInt64x3:
+      case BuiltinType::SveInt8x4:
+      case BuiltinType::SveInt16x4:
+      case BuiltinType::SveInt32x4:
+      case BuiltinType::SveInt64x4:
       case BuiltinType::SveUint8:
       case BuiltinType::SveUint16:
       case BuiltinType::SveUint32:
       case BuiltinType::SveUint64:
+      case BuiltinType::SveUint8x2:
+      case BuiltinType::SveUint16x2:
+      case BuiltinType::SveUint32x2:
+      case BuiltinType::SveUint64x2:
+      case BuiltinType::SveUint8x3:
+      case BuiltinType::SveUint16x3:
+      case BuiltinType::SveUint32x3:
+      case BuiltinType::SveUint64x3:
+      case BuiltinType::SveUint8x4:
+      case BuiltinType::SveUint16x4:
+      case BuiltinType::SveUint32x4:
+      case BuiltinType::SveUint64x4:
+      case BuiltinType::VectorPair:
+      case BuiltinType::VectorQuad:
+      case BuiltinType::IncompleteMatrixIdx:
         revng_abort();
       }
     } else if (isa<ConstantPointerNull>(CD)) {
