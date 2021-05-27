@@ -18,7 +18,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
-#include "llvm/PassSupport.h"
+#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
