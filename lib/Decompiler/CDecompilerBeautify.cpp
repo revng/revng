@@ -1186,14 +1186,14 @@ void beautifyAST(Function &F,
   ASTNode *RootNode = CombedAST.getRoot();
 
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "01-Before-beautify");
+    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "01-Before-beautify");
   }
 
   // Simplify short-circuit nodes.
   revng_log(BeautifyLogger, "Performing short-circuit simplification\n");
   simplifyShortCircuit(RootNode, CombedAST, Mark);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "02-After-short-circuit");
+    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "02-After-short-circuit");
   }
 
   // Flip IFs with empty then branches.
@@ -1204,7 +1204,7 @@ void beautifyAST(Function &F,
             "Performing IFs with empty then branches flipping\n");
   flipEmptyThen(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "03-After-if-flip-1");
+    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "03-After-if-flip-1");
   }
 
   // Simplify trivial short-circuit nodes.
@@ -1212,7 +1212,7 @@ void beautifyAST(Function &F,
             "Performing trivial short-circuit simplification\n");
   simplifyTrivialShortCircuit(RootNode, CombedAST, Mark);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(),
+    CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
                             "04-After-trivial-short-circuit");
   }
@@ -1225,48 +1225,54 @@ void beautifyAST(Function &F,
             "Performing IFs with empty then branches flipping\n");
   flipEmptyThen(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "05-After-if-flip-2");
+    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "05-After-if-flip-2");
   }
 
   // Match switch node.
   revng_log(BeautifyLogger, "Performing switch nodes matching\n");
   RootNode = matchSwitch(CombedAST, RootNode);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "06-After-switch-match");
+    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "06-After-switch-match");
   }
 
   // Match dowhile.
   revng_log(BeautifyLogger, "Matching do-while\n");
   matchDoWhile(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "07-After-match-do-while");
+    CombedAST.dumpASTOnFile(F.getName().str(),
+                            "ast",
+                            "07-After-match-do-while");
   }
 
   // Match while.
   revng_log(BeautifyLogger, "Matching while\n");
   matchWhile(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "08-After-match-while");
+    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "08-After-match-while");
   }
 
   // Remove useless continues.
   revng_log(BeautifyLogger, "Removing useless continue nodes\n");
   simplifyLastContinue(CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "09-After-continue-removal");
+    CombedAST.dumpASTOnFile(F.getName().str(),
+                            "ast",
+                            "09-After-continue-removal");
   }
 
   // Fix loop breaks from within switches
   revng_log(BeautifyLogger, "Fixing loop breaks inside switches\n");
   SwitchBreaksFixer().run(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled())
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "10-After-fix-switch-breaks");
+    CombedAST.dumpASTOnFile(F.getName().str(),
+                            "ast",
+                            "10-After-fix-switch-breaks");
 
   // Remove empty sequences.
   revng_log(BeautifyLogger, "Removing emtpy sequence nodes\n");
   simplifyAtomicSequence(CombedAST, RootNode);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(),
+    CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
                             "11-After-removal-empty-sequences");
   }
@@ -1275,7 +1281,7 @@ void beautifyAST(Function &F,
   revng_log(BeautifyLogger, "Analyzing fallthrough scopes\n");
   RootNode = promoteNoFallthroughIf(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(),
+    CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
                             "12-After-fallthrough-scope-analysis");
   }
@@ -1287,6 +1293,6 @@ void beautifyAST(Function &F,
             "Performing IFs with empty then branches flipping\n");
   flipEmptyThen(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName(), "ast", "13-After-if-flip-3");
+    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "13-After-if-flip-3");
   }
 }

@@ -46,7 +46,7 @@ DeclCreator::getUniqueTypeNameForDecl(const llvm::Value *NamingValue) const {
     if (Result.empty()) {
       const llvm::Type *VTy = NamingValue->getType();
       if (const auto *StructTy = llvm::dyn_cast<llvm::StructType>(VTy))
-        Result = makeCIdentifier(StructTy->getName());
+        Result = makeCIdentifier(StructTy->getName().str());
     }
   }
 

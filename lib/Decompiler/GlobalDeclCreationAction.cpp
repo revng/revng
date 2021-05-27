@@ -31,7 +31,7 @@ void DeclCreator::createGlobalVarDeclUsedByFunction(clang::ASTContext &Context,
   for (const llvm::GlobalVariable *G : getDirectlyUsedGlobals(*TheF)) {
     QualType ASTTy = getQualType(getOrCreateType(G, Context, *TUDecl));
 
-    std::string VarName = G->getName();
+    std::string VarName = G->getName().str();
     if (VarName.empty()) {
       llvm::raw_string_ostream Stream(VarName);
       Stream << "global_" << UnnamedNum++;

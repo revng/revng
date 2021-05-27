@@ -60,7 +60,7 @@ clang::FunctionDecl *DeclCreator::createFunDecl(clang::ASTContext &Context,
   revng_assert(not FName.empty());
 
   using clang::IdentifierInfo;
-  IdentifierInfo &FunId = Context.Idents.get(makeCIdentifier(FName));
+  IdentifierInfo &FunId = Context.Idents.get(makeCIdentifier(FName.str()));
   StorageClass FunStorage = IsDefinition ? StorageClass::SC_None :
                                            StorageClass::SC_Extern;
 
