@@ -7,6 +7,7 @@
 
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
@@ -719,8 +720,9 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
           case Instruction::Xor:
           case Instruction::Or:
             continue;
-          default: // do nothing
-                   ;
+          default: {
+            // do nothing
+          } break;
           }
 
           // Consider other Instructions themselves as pointers.
