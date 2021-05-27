@@ -89,7 +89,6 @@ private:
 
   template<size_t I = 0, typename T>
   requires IsNotTupleEnd<T, I> void diffTuple(T &LHS, T &RHS) {
-    using child_type = typename std::tuple_element<I, T>::type;
 
     Stack.push_back(size_t(I));
     diffImpl(get<I>(LHS), get<I>(RHS));
@@ -121,10 +120,6 @@ private:
 
   template<SortedContainer T>
   void diffImpl(T &LHS, T &RHS) {
-    using value_type = typename T::value_type;
-    using KOT = KeyedObjectTraits<value_type>;
-    using key_type = decltype(KOT::key(std::declval<value_type>()));
-
     for (auto [LHSElement, RHSElement] : zipmap_range(LHS, RHS)) {
       if (LHSElement == nullptr) {
         // Added

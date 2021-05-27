@@ -1392,7 +1392,6 @@ public:
     // to now the values that have been identified to which value in the
     // original function did they belong to
     uint32_t AVIID = TrackedValues.size();
-    using AVI = AdvancedValueInfoPass;
     Builder.SetInsertPoint(InstructionToTrack->getNextNode());
     Builder.CreateCall(AVIMarker,
                        { InstructionToTrack, Builder.getInt32(AVIID) });
@@ -1888,7 +1887,6 @@ void JumpTargetManager::harvest() {
         auto *Call = cast<CallInst>(U);
         if (Call->getParent() != nullptr) {
           // Report the instruction on the coverage CSV
-          using CI = ConstantInt;
           auto PC = MetaAddress::fromConstant(Call->getArgOperand(0));
 
           bool IsJT = isJumpTarget(PC);

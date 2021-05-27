@@ -118,7 +118,6 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_flag_if_available("-Wno-unused-parameter")
 add_flag_if_available("-Wno-unused-variable")
 add_flag_if_available("-Wno-maybe-uninitialized")
-add_flag_if_available("-Wno-unused-local-typedefs")
 add_flag_if_available("-Wno-init-list-lifetime")
 add_flag_if_available("-Wno-ambiguous-reversed-operator")
 
