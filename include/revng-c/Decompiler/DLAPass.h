@@ -9,7 +9,6 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Pass.h"
-#include "llvm/PassAnalysisSupport.h"
 
 #include "revng-c/Decompiler/DLALayouts.h"
 
