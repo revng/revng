@@ -257,14 +257,14 @@ using DeleteLayout = std::integral_constant<decltype(Layout::deleteLayout) &,
 using UniqueLayout = std::unique_ptr<Layout, DeleteLayout>;
 
 template<typename T, typename... Args>
-UniqueLayout makeUniqueLayout(Args &&... A) {
+UniqueLayout makeUniqueLayout(Args &&...A) {
   return UniqueLayout(new T(std::forward<Args &&>(A)...), DeleteLayout());
 }
 
 using LayoutVector = std::vector<UniqueLayout>;
 
 template<typename T, typename... Args>
-Layout *createLayout(LayoutVector &S, Args &&... A) {
+Layout *createLayout(LayoutVector &S, Args &&...A) {
   auto U = makeUniqueLayout<T>(std::forward<Args &&>(A)...);
   return S.emplace_back(std::move(U)).get();
 }
@@ -280,7 +280,7 @@ public:
   explicit LayoutTypePtr(const llvm::Value *Val, unsigned Idx = fieldNumNone) :
     V(Val), FieldIdx(Idx) {}
 
-  LayoutTypePtr() = delete;
+  LayoutTypePtr() = default;
   ~LayoutTypePtr() = default;
   LayoutTypePtr(const LayoutTypePtr &) = default;
   LayoutTypePtr(LayoutTypePtr &&) = default;
@@ -297,5 +297,6 @@ public:
 }; // end class LayoutTypePtr
 
 using ValueLayoutMap = std::map<LayoutTypePtr, Layout *>;
+using LayoutTypePtrVect = std::vector<LayoutTypePtr>;
 
 } // end namespace dla

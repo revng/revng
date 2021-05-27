@@ -6,6 +6,7 @@
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/Module.h"
 
 namespace llvm {
 
@@ -38,5 +39,5 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS);
 
 } // end namespace dla
 
-uint64_t getLoadStoreSizeFromPtrOpUse(const dla::LayoutTypeSystem &TS,
-                                      const llvm::Use *U);
+uint64_t
+getLoadStoreSizeFromPtrOpUse(const llvm::Module &M, const llvm::Use *U);

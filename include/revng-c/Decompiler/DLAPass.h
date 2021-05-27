@@ -15,15 +15,15 @@
 struct DLAPass : public llvm::ModulePass {
   static char ID;
 
-  DLAPass() : llvm::ModulePass(ID), Layouts(), ValueLayouts() {}
+  DLAPass() : llvm::ModulePass(ID), Layouts(), ValueLayoutsMap() {}
 
   bool runOnModule(llvm::Module &M) override;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
-  const dla::ValueLayoutMap *getLayoutMap() const { return &ValueLayouts; }
+  const dla::ValueLayoutMap *getLayoutMap() const { return &ValueLayoutsMap; }
 
 private:
   dla::LayoutVector Layouts;
-  dla::ValueLayoutMap ValueLayouts;
+  dla::ValueLayoutMap ValueLayoutsMap;
 };

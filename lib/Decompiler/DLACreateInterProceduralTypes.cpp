@@ -11,16 +11,13 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "DLAStep.h"
 #include "DLATypeSystem.h"
+#include "DLATypeSystemBuilder.h"
 
 using namespace dla;
 using namespace llvm;
 
-using StepT = CreateInterproceduralTypes;
-
-bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
-  const Module &M = TS.getModule();
+bool DLATypeSystemLLVMBuilder::createInterproceduralTypes(llvm::Module &M) {
   for (const Function &F : M.functions()) {
     auto FTags = FunctionTags::TagsSet::from(&F);
     if (F.isIntrinsic() or not FTags.contains(FunctionTags::Lifted))
@@ -28,14 +25,14 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
     revng_assert(not F.isVarArg());
 
     // Create the Function's return types
-    auto FRetTypes = TS.getOrCreateLayoutTypes(F);
+    auto FRetTypes = getOrCreateLayoutTypes(F);
 
     // Create types for the Function's arguments
     for (const Argument &Arg : F.args()) {
       // Arguments can only be integers and pointers
       revng_assert(isa<IntegerType>(Arg.getType())
                    or isa<PointerType>(Arg.getType()));
-      auto N = TS.getOrCreateLayoutTypes(Arg).size();
+      auto N = getOrCreateLayoutTypes(Arg).size();
       // Given that arguments can only be integers or pointers, we should only
       // create a single LayoutType for each argument
       revng_assert(N == 1ULL);
@@ -57,8 +54,8 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
                          or isa<PointerType>(ActualArg->getType()));
             revng_assert(isa<IntegerType>(FormalArg.getType())
                          or isa<PointerType>(FormalArg.getType()));
-            auto ActualTypes = TS.getOrCreateLayoutTypes(*ActualArg);
-            auto FormalTypes = TS.getOrCreateLayoutTypes(FormalArg);
+            auto ActualTypes = getOrCreateLayoutTypes(*ActualArg);
+            auto FormalTypes = getOrCreateLayoutTypes(FormalArg);
             revng_assert(1ULL == ActualTypes.size() == FormalTypes.size());
             auto FieldNum = FormalTypes.size();
             for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {
@@ -72,12 +69,12 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
           revng_assert(isa<IntegerType>(PHI->getType())
                        or isa<PointerType>(PHI->getType())
                        or isa<StructType>(PHI->getType()));
-          auto PHITypes = TS.getOrCreateLayoutTypes(*PHI);
+          auto PHITypes = getOrCreateLayoutTypes(*PHI);
           for (const Use &Incoming : PHI->incoming_values()) {
             revng_assert(isa<IntegerType>(Incoming->getType())
                          or isa<PointerType>(Incoming->getType())
                          or isa<StructType>(Incoming->getType()));
-            auto InTypes = TS.getOrCreateLayoutTypes(*Incoming.get());
+            auto InTypes = getOrCreateLayoutTypes(*Incoming.get());
             revng_assert(PHITypes.size() == InTypes.size());
             revng_assert((PHITypes.size() == 1ULL)
                          or isa<StructType>(PHI->getType()));
@@ -93,7 +90,7 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
             revng_assert(isa<StructType>(RetVal->getType())
                          or isa<IntegerType>(RetVal->getType())
                          or isa<PointerType>(RetVal->getType()));
-            auto RetTypes = TS.getOrCreateLayoutTypes(*RetVal);
+            auto RetTypes = getOrCreateLayoutTypes(*RetVal);
             revng_assert(RetTypes.size() == FRetTypes.size());
             auto FieldNum = RetTypes.size();
             for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {

@@ -4,12 +4,16 @@
 
 #include "revng/Model/LoadModelPass.h"
 
+#include "revng-c/Decompiler/DLALayouts.h"
 #include "revng-c/Decompiler/DLAPass.h"
 
 #include "DLAStep.h"
 #include "DLATypeSystem.h"
+#include "DLATypeSystemBuilder.h"
 
 char DLAPass::ID = 0;
+
+static Logger<> BuilderLog("dla-builder-log");
 
 using Register = llvm::RegisterPass<DLAPass>;
 static Register X("dla", "Data Layout Analysis Pass", false, false);
@@ -22,12 +26,17 @@ void DLAPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 }
 
 bool DLAPass::runOnModule(llvm::Module &M) {
-  dla::StepManager SM;
+  dla::LayoutTypeSystem TS;
 
-  // Front-end Steps, that create initial nodes and edges
-  revng_check(SM.addStep<dla::CreateInterproceduralTypes>(this));
-  revng_check(SM.addStep<dla::CreateIntraproceduralTypes>(this));
-  // Middle-end Steps, that manipulate nodes and edges
+  // Front-end: Create the LayoutTypeSystem graph from an LLVM module
+  dla::DLATypeSystemLLVMBuilder Builder{ TS };
+  Builder.buildFromLLVMModule(M, this);
+
+  if (BuilderLog.isEnabled())
+    Builder.dumpValuesMapping("DLA-values-initial.csv");
+
+  // Middle-end Steps: manipulate nodes and edges of the DLATypeSystem graph
+  dla::StepManager SM;
   revng_check(SM.addStep<dla::CollapseIdentityAndInheritanceCC>());
   revng_check(SM.addStep<dla::PropagateInheritanceToAccessors>());
   revng_check(SM.addStep<dla::RemoveTransitiveInheritanceEdges>());
@@ -35,13 +44,23 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   revng_check(SM.addStep<dla::PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<dla::ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<dla::CollapseCompatibleArrays>());
-  // Back-end Steps, that build Layouts from LayoutTypeSystem nodes
   revng_check(SM.addStep<dla::ComputeNonInterferingComponents>());
-  revng_check(SM.addStep<dla::MakeLayouts>(Layouts, ValueLayouts));
-
-  dla::LayoutTypeSystem TS(M);
 
   SM.run(TS);
+
+  if (BuilderLog.isEnabled())
+    Builder.dumpValuesMapping("DLA-values-after-ME.csv");
+
+  // Compress the equivalence classes obtained after graph manipulation
+  dla::VectEqClasses &EqClasses = TS.getEqClasses();
+  EqClasses.compress();
+
+  // Create Layouts from the final nodes of the graph
+  dla::LayoutPtrVector OrderedLayouts = makeLayouts(TS, this->Layouts);
+
+  // Map Layouts back to their corresponding LayoutTypePtr
+  dla::LayoutTypePtrVect Values = Builder.getValues();
+  this->ValueLayoutsMap = makeLayoutMap(Values, OrderedLayouts, EqClasses);
 
   return true;
 }

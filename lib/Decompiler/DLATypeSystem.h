@@ -5,6 +5,7 @@
 //
 
 #include <compare>
+#include <cstddef>
 #include <functional>
 #include <limits>
 #include <map>
@@ -14,9 +15,9 @@
 #include <utility>
 
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/IntEqClasses.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/IR/Value.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -144,6 +145,64 @@ inline bool hasValidLayout(const LayoutTypeSystemNode *N) {
   return not N->AccessSizes.empty();
 }
 
+///\brief This class handles equivalence classes between indexes of vectors
+class VectEqClasses : public llvm::IntEqClasses {
+private:
+  // ID of the first removed ID
+  std::optional<unsigned> RemovedID = {};
+  unsigned NElems = 0;
+
+private:
+  ///\brief Used internally, operator[] is removed for this class
+  unsigned lookupEqClass(unsigned ID) const {
+    return llvm::IntEqClasses::operator[](ID);
+  }
+
+public:
+  ///\brief Add 1 element with its own equivalence class
+  unsigned growBy1();
+
+  ///\brief Remove the whole equivalence class of \a ID
+  void remove(const unsigned ID);
+
+  ///\brief Check if the element has been removed
+  bool isRemoved(const unsigned ID) const;
+
+  ///\brief Get the total number of elements added
+  unsigned getNumElements() const { return NElems; }
+
+public:
+  ///\brief You can't access the Eq Classes directly, some might be deleted
+  unsigned operator[](unsigned) const = delete;
+
+  ///\brief Get the Equivalence class ID of an element (must be compressed)
+  ///\return empty if the element is out-of-bounds or has been removed
+  std::optional<unsigned> getEqClassID(const unsigned ID) const;
+
+  ///\brief Get all the elements that are in the same equivalence class of \a ID
+  ///\note Expensive: performs a linear scan of all the elements
+  std::set<unsigned> getEqClass(const unsigned ID) const;
+
+  ///\brief Check if \a ID1 and \a ID2 have the same equivalence class
+  bool haveSameEqClass(unsigned ID1, unsigned ID2) const;
+};
+
+///\brief This class is used to print debug information about the TypeSystem
+///
+/// Override this to obtain implementation-specific debug prints.
+struct TSDebugPrinter {
+  virtual void printNodeContent(const LayoutTypeSystem &TS,
+                                const LayoutTypeSystemNode *N,
+                                llvm::raw_fd_ostream &File) const;
+
+  virtual void printAccessDetails(const LayoutTypeSystem &TS,
+                                  const LayoutTypeSystemNode *N,
+                                  const uint64_t AccessSize,
+                                  llvm::raw_fd_ostream &File) const {}
+
+  virtual ~TSDebugPrinter() {}
+};
+
 class LayoutTypeSystem {
 public:
   using Node = LayoutTypeSystemNode;
@@ -155,7 +214,7 @@ public:
     return P.get();
   }
 
-  LayoutTypeSystem(llvm::Module &Mod) : M(Mod) {}
+  LayoutTypeSystem() : DebugPrinter(new TSDebugPrinter) {}
 
   ~LayoutTypeSystem() {
     for (auto *Layout : Layouts) {
@@ -165,29 +224,7 @@ public:
     Layouts.clear();
   }
 
-  llvm::Module &getModule() const { return M; }
-
 public:
-  LayoutTypeSystemNode *getLayoutType(const llvm::Value *V, unsigned Id);
-
-  LayoutTypeSystemNode *getLayoutType(const llvm::Value *V) {
-    return getLayoutType(V, std::numeric_limits<unsigned>::max());
-  };
-
-  std::pair<LayoutTypeSystemNode *, bool>
-  getOrCreateLayoutType(const llvm::Value *V, unsigned Id);
-
-  std::pair<LayoutTypeSystemNode *, bool>
-  getOrCreateLayoutType(const llvm::Value *V) {
-    return getOrCreateLayoutType(V, std::numeric_limits<unsigned>::max());
-  }
-
-  llvm::SmallVector<LayoutTypeSystemNode *, 2>
-  getLayoutTypes(const llvm::Value &V);
-
-  llvm::SmallVector<std::pair<LayoutTypeSystemNode *, bool>, 2>
-  getOrCreateLayoutTypes(const llvm::Value &V);
-
   LayoutTypeSystemNode *createArtificialLayoutType();
 
 protected:
@@ -248,14 +285,6 @@ public:
 public:
   void mergeNodes(const std::vector<LayoutTypeSystemNode *> &ToMerge);
 
-  const llvm::SmallSet<LayoutTypePtr, 2> *
-  getLayoutTypePtrs(const LayoutTypeSystemNode *N) const {
-    auto It = LayoutToTypePtrsMap.find(N);
-    if (It != LayoutToTypePtrsMap.end())
-      return &It->second;
-    return nullptr;
-  }
-
   void removeNode(LayoutTypeSystemNode *N);
 
   void moveEdges(LayoutTypeSystemNode *OldSrc,
@@ -264,9 +293,6 @@ public:
                  int64_t OffsetToSum);
 
 private:
-  // A reference to the associated Module
-  llvm::Module &M;
-
   uint64_t NID = 0ULL;
 
   // Holds all the LayoutTypeSystemNode
@@ -276,16 +302,6 @@ private:
   // Holds the link tags, so that they can be deduplicated and referred to using
   // TypeLinkTag * in the links inside LayoutTypeSystemNode
   std::set<TypeLinkTag> LinkTags = {};
-
-  // Maps llvm::Value to layout types.
-  // This map is updated along the way when the DLA algorithm merges
-  // LayoutTypeSystemNodes that are considered to represent the same type.
-  std::map<LayoutTypePtr, LayoutTypeSystemNode *> TypePtrToLayoutMap = {};
-
-  // Maps layout types to the set of LayoutTypePtr representing the llvm::Value
-  // that generated them.
-  std::map<const LayoutTypeSystemNode *, llvm::SmallSet<LayoutTypePtr, 2>>
-    LayoutToTypePtrsMap = {};
 
 public:
   // Checks that is valid, and returns true if it is, false otherwise
@@ -304,6 +320,22 @@ public:
   bool verifyLeafs() const;
   // Checks that there are no equality edges.
   bool verifyNoEquality() const;
+
+private:
+  // Equivalence classes between nodes. Each node is identified by an ID.
+  VectEqClasses EqClasses;
+  // Object that defines how the content of each node should be printed
+  std::unique_ptr<TSDebugPrinter> DebugPrinter;
+
+public:
+  unsigned getNID() const { return NID; }
+
+  VectEqClasses &getEqClasses() { return EqClasses; }
+  const VectEqClasses &getEqClasses() const { return EqClasses; }
+
+  void setDebugPrinter(std::unique_ptr<TSDebugPrinter> &&Printer) {
+    DebugPrinter = std::move(Printer);
+  }
 }; // end class LayoutTypeSystem
 
 } // end namespace dla

@@ -22,9 +22,8 @@
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 
-#include "CDecompilerAction.h"
-
 #include "ASTBuildAnalysis.h"
+#include "CDecompilerAction.h"
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
 

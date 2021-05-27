@@ -23,7 +23,6 @@
 #include "revng-c/ValueManipulationAnalysis/TypeColors.h"
 
 #include "TypeFlowGraph.h"
-
 #include "TypeFlowGraphWriter.h"
 #include "TypeFlowNode.h"
 

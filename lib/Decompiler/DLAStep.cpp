@@ -9,8 +9,6 @@
 
 namespace dla {
 
-const char CreateInterproceduralTypes::ID = 0;
-const char CreateIntraproceduralTypes::ID = 0;
 const char CollapseIdentityAndInheritanceCC::ID = 0;
 const char RemoveTransitiveInheritanceEdges::ID = 0;
 const char MakeInheritanceTree::ID = 0;
@@ -19,7 +17,6 @@ const char ComputeUpperMemberAccesses::ID = 0;
 const char CollapseCompatibleArrays::ID = 0;
 const char PropagateInheritanceToAccessors::ID = 0;
 const char ComputeNonInterferingComponents::ID = 0;
-const char MakeLayouts::ID = 0;
 
 static Logger<> DLAStepManagerLog("dla-step-manager");
 

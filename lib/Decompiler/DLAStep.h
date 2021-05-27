@@ -14,11 +14,7 @@
 
 #include "revng-c/Decompiler/DLALayouts.h"
 
-namespace llvm {
-
-class ModulePass;
-
-} // end namespace llvm
+#include "DLATypeSystem.h"
 
 namespace dla {
 
@@ -59,37 +55,6 @@ public:
   IDSetConstRef getInvalidated() const { return Invalidated; }
 
   const void *getStepID() const { return StepID; };
-};
-
-/// dla::Step that creates types for Function's return types and fromal args
-class CreateInterproceduralTypes : public Step {
-  static const char ID;
-
-public:
-  static const constexpr void *getID() { return &ID; }
-
-  CreateInterproceduralTypes(llvm::ModulePass *MPass) : Step(ID){};
-
-  virtual ~CreateInterproceduralTypes() override = default;
-
-  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
-};
-
-/// dla::Step that creates types for LLVM Values inside Functions and edges
-/// between them.
-class CreateIntraproceduralTypes : public Step {
-  static const char ID;
-  llvm::ModulePass *ModPass;
-
-public:
-  static const constexpr void *getID() { return &ID; }
-
-  CreateIntraproceduralTypes(llvm::ModulePass *MPass) :
-    Step(ID), ModPass(MPass){};
-
-  virtual ~CreateIntraproceduralTypes() override = default;
-
-  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
 /// dla::Step that collapses loops in the type system with equality or
@@ -242,31 +207,31 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
-/// Final dla::Step, which flattens out the types into memory layouts
-class MakeLayouts : public Step {
-  static const char ID;
+/// Final step, which flattens out the types into memory layouts
+using LayoutPtrVector = std::vector<Layout *>;
 
-public:
-  static const constexpr void *getID() { return &ID; }
+///\brief Generate Layout objects from a DLATypeSystem
+///
+/// Some nodes of a DLATypeSystem graph can generate a Layout, that is added to
+/// \a Layouts.
+/// The returned vector stores pointers to the generated layouts in a specific
+/// order: the index of a Layout in the vector is equal to the Node's ID
+/// equivalence class.
+/// Note that pointers in the returned vector may be duplicated.
+///
+///\param[in] TS The graph that represents layouts and their relations
+///\param[out] Layouts Where to put the constructed layouts
+///\return a vector of Layouts ordered using TS equivalence classes
+LayoutPtrVector makeLayouts(const LayoutTypeSystem &TS, LayoutVector &Layouts);
 
-  MakeLayouts(LayoutVector &L, ValueLayoutMap &M) :
-    Step(ID,
-         // Dependencies
-         { CollapseIdentityAndInheritanceCC::getID(),
-           RemoveTransitiveInheritanceEdges::getID() },
-         // Invalidated
-         {}),
-    Layouts(L),
-    ValueLayouts(M) {}
-
-  virtual ~MakeLayouts() override = default;
-
-  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
-
-private:
-  LayoutVector &Layouts;
-  ValueLayoutMap &ValueLayouts;
-};
+///\brief Create a map between LayoutTypePtrs and Layouts
+///\param Values the list of LayoutTypePtrs
+///\param OrderedLayouts the list of Layouts
+///\param EqClasses equivalence classes between indexes of \a Values and
+///                 indexes of \a OrderedLayouts
+ValueLayoutMap makeLayoutMap(const LayoutTypePtrVect &Values,
+                             const LayoutPtrVector &OrderedLayouts,
+                             const VectEqClasses &EqClasses);
 
 template<typename IterT>
 bool intersect(IterT I1, IterT E1, IterT I2, IterT E2) {
@@ -310,7 +275,7 @@ public:
   [[nodiscard]] bool addStep(std::unique_ptr<Step> S);
 
   template<typename StepT, typename... ArgsT>
-  [[nodiscard]] bool addStep(ArgsT &&... Args) {
+  [[nodiscard]] bool addStep(ArgsT &&...Args) {
     return addStep(std::make_unique<StepT>(std::forward<ArgsT &&>(Args)...));
   }
 

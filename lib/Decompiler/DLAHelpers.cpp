@@ -21,7 +21,6 @@
 #include "revng/Support/Debug.h"
 
 #include "DLAHelpers.h"
-
 #include "DLATypeSystem.h"
 
 template<typename T>
@@ -167,12 +166,12 @@ getExtractedValuesFromInstruction(const llvm::Instruction *I) {
   return getConstQualifiedExtractedValuesFromInstruction(I);
 }
 
-uint64_t getLoadStoreSizeFromPtrOpUse(const dla::LayoutTypeSystem &TS,
-                                      const llvm::Use *U) {
+uint64_t
+getLoadStoreSizeFromPtrOpUse(const llvm::Module &M, const llvm::Use *U) {
   llvm::Value *AddrOperand = U->get();
   auto *PtrTy = cast<llvm::PointerType>(AddrOperand->getType());
   llvm::Type *AccessedT = PtrTy->getElementType();
-  const llvm::DataLayout &DL = TS.getModule().getDataLayout();
+  const llvm::DataLayout &DL = M.getDataLayout();
   return DL.getTypeAllocSize(AccessedT);
 };
 

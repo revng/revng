@@ -21,9 +21,8 @@
 
 #include "revng-c/ValueManipulationAnalysis/TypeColors.h"
 
-#include "Mincut.h"
-
 #include "ContractedGraph.h"
+#include "Mincut.h"
 #include "TypeFlowNode.h"
 
 using namespace vma;

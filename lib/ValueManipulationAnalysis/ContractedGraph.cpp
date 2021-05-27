@@ -16,7 +16,6 @@
 #include "revng-c/ValueManipulationAnalysis/TypeColors.h"
 
 #include "ContractedGraph.h"
-
 #include "TypeFlowGraph.h"
 #include "TypeFlowNode.h"
 

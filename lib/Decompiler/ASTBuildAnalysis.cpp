@@ -34,7 +34,6 @@
 #include "revng-c/Decompiler/DLALayouts.h"
 
 #include "ASTBuildAnalysis.h"
-
 #include "AddSCEVBarrierPass.h"
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"

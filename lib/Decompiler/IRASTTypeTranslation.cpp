@@ -25,9 +25,8 @@
 
 #include "revng-c/Decompiler/DLALayouts.h"
 
-#include "IRASTTypeTranslation.h"
-
 #include "DLATypeSystem.h"
+#include "IRASTTypeTranslation.h"
 #include "Mangling.h"
 
 std::string

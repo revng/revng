@@ -19,19 +19,20 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
+#include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "DLAHelpers.h"
-#include "DLAStep.h"
 #include "DLATypeSystem.h"
+#include "DLATypeSystemBuilder.h"
 #include "SCEVBaseAddressExplorer.h"
 
 using namespace dla;
 using namespace llvm;
 
-using StepT = CreateIntraproceduralTypes;
+static Logger<> AccessLog("dla-accesses-log");
 
 // Returns true if an Instruction must forcibly be serialized.
 //
@@ -54,7 +55,7 @@ static int64_t getSCEVConstantSExtVal(const SCEV *S) {
   return cast<SCEVConstant>(S)->getAPInt().getSExtValue();
 }
 
-class InstanceLinkAdder {
+class DLATypeSystemLLVMBuilder::InstanceLinkAdder {
   Function *F;
   ScalarEvolution *SE;
   llvm::DominatorTree DT;
@@ -63,7 +64,7 @@ class InstanceLinkAdder {
   SCEVTypeMap SCEVToLayoutType;
 
 protected:
-  bool addInstanceLink(LayoutTypeSystem &TS,
+  bool addInstanceLink(DLATypeSystemLLVMBuilder &Builder,
                        Value *PointerVal,
                        const SCEV *BaseAddrSCEV,
                        const BasicBlock &B) {
@@ -89,7 +90,7 @@ protected:
         // create it and add it.
         Value *BaseAddr = U->getValue();
         revng_assert(nullptr != BaseAddr);
-        const auto &[Layout, NewType] = TS.getOrCreateLayoutType(BaseAddr);
+        const auto &[Layout, NewType] = Builder.getOrCreateLayoutType(BaseAddr);
         Created |= NewType;
         auto P = std::make_pair(BaseAddrSCEV, Layout);
         Src = SCEVToLayoutType.emplace_hint(It, std::move(P))->second;
@@ -101,7 +102,7 @@ protected:
     }
     revng_assert(Src != nullptr);
 
-    const auto &[Tgt, IsNewType] = TS.getOrCreateLayoutType(PointerVal);
+    const auto &[Tgt, IsNewType] = Builder.getOrCreateLayoutType(PointerVal);
     Created |= IsNewType;
     revng_assert(Tgt != nullptr);
 
@@ -188,7 +189,7 @@ protected:
     if (OE.Offset < 0LL)
       return Created;
 
-    Created |= TS.addInstanceLink(Src, Tgt, std::move(OE)).second;
+    Created |= Builder.TS.addInstanceLink(Src, Tgt, std::move(OE)).second;
     return Created;
   }
 
@@ -201,7 +202,7 @@ public:
     SCEVToLayoutType.clear();
   }
 
-  bool getOrCreateSCEVTypes(LayoutTypeSystem &TS) {
+  bool getOrCreateSCEVTypes(DLATypeSystemLLVMBuilder &Builder) {
     bool Changed = false;
 
     // Add entry in SCEVToLayoutType map for arguments. We always add these
@@ -209,10 +210,12 @@ public:
     for (Argument &A : F->args()) {
       revng_assert(isa<IntegerType>(A.getType())
                    or isa<PointerType>(A.getType()));
-      LayoutTypeSystemNode *ArgLayout = TS.getLayoutType(&A);
+      LayoutTypeSystemNode *ArgLayout = Builder.getLayoutType(&A);
       const SCEV *S = SE->getSCEV(&A);
       SCEVToLayoutType.insert(std::make_pair(S, ArgLayout));
     }
+
+    auto &TS = Builder.TS;
 
     for (BasicBlock &B : *F) {
       for (auto &I : B) {
@@ -223,7 +226,7 @@ public:
                          or isa<IntegerType>(RetVal->getType())
                          or isa<PointerType>(RetVal->getType()));
             if (isa<StructType>(RetVal->getType())) {
-              auto RetTys = TS.getLayoutTypes(*RetVal);
+              auto RetTys = Builder.getLayoutTypes(*RetVal);
               auto NRetTypes = RetTys.size();
               revng_assert(NRetTypes > 1ULL);
 
@@ -250,12 +253,13 @@ public:
                 revng_assert(RetTy->getNumElements() == Callee->arg_size());
                 revng_assert(RetTy == F->getReturnType());
 
-                auto StructTypeNodes = TS.getOrCreateLayoutTypes(*Call);
+                auto StructTypeNodes = Builder.getOrCreateLayoutTypes(*Call);
                 revng_assert(StructTypeNodes.size() == Callee->arg_size());
 
                 for (const auto &[RetNodeNew, Arg] :
                      llvm::zip_first(StructTypeNodes, Call->arg_operands())) {
-                  const auto &[ArgNode, New] = TS.getOrCreateLayoutType(Arg);
+                  const auto &[ArgNode,
+                               New] = Builder.getOrCreateLayoutType(Arg);
                   Changed |= New;
                   const auto &[RetNode, NewNode] = RetNodeNew;
                   Changed |= NewNode;
@@ -276,7 +280,7 @@ public:
                 SCEVToLayoutType.insert(std::make_pair(S, RetTys[N]));
               }
             } else {
-              LayoutTypeSystemNode *RetTy = TS.getLayoutType(RetVal);
+              LayoutTypeSystemNode *RetTy = Builder.getLayoutType(RetVal);
               const SCEV *S = SE->getSCEV(RetVal);
               SCEVToLayoutType.insert(std::make_pair(S, RetTy));
             }
@@ -292,7 +296,7 @@ public:
                        or isa<StructType>(PHI->getType()));
           if (not isa<StructType>(PHI->getType())) {
 
-            LayoutTypeSystemNode *PHIType = TS.getLayoutType(PHI);
+            LayoutTypeSystemNode *PHIType = Builder.getLayoutType(PHI);
             const SCEV *PHISCEV = SE->getSCEV(PHI);
             SCEVToLayoutType.insert(std::make_pair(PHISCEV, PHIType));
 
@@ -300,7 +304,7 @@ public:
             for (Value *In : PHI->incoming_values()) {
               revng_assert(isa<IntegerType>(In->getType())
                            or isa<PointerType>(In->getType()));
-              LayoutTypeSystemNode *InTy = TS.getLayoutType(In);
+              LayoutTypeSystemNode *InTy = Builder.getLayoutType(In);
               const SCEV *InSCEV = SE->getSCEV(In);
               SCEVToLayoutType.insert(std::make_pair(InSCEV, InTy));
             }
@@ -318,7 +322,7 @@ public:
                        or isa<PointerType>(Sel->getType()));
 
           // Selects are very much like PHIs.
-          const auto &[SelType, New] = TS.getOrCreateLayoutType(Sel);
+          const auto &[SelType, New] = Builder.getOrCreateLayoutType(Sel);
           Changed |= New;
           const SCEV *SelSCEV = SE->getSCEV(Sel);
           SCEVToLayoutType.insert(std::make_pair(SelSCEV, SelType));
@@ -328,11 +332,11 @@ public:
             Value *TrueV = Sel->getTrueValue();
             revng_assert(isa<IntegerType>(TrueV->getType())
                          or isa<PointerType>(TrueV->getType()));
-            const auto &[TrueTy, NewT] = TS.getOrCreateLayoutType(TrueV);
+            const auto &[TrueTy, NewT] = Builder.getOrCreateLayoutType(TrueV);
             Changed |= NewT;
             const SCEV *TrueSCEV = SE->getSCEV(TrueV);
             SCEVToLayoutType.insert(std::make_pair(TrueSCEV, TrueTy));
-            Changed |= TS.addInheritanceLink(TrueTy, SelType).second;
+            Changed |= Builder.TS.addInheritanceLink(TrueTy, SelType).second;
           }
 
           // False incoming value
@@ -340,11 +344,11 @@ public:
             Value *FalseV = Sel->getFalseValue();
             revng_assert(isa<IntegerType>(FalseV->getType())
                          or isa<PointerType>(FalseV->getType()));
-            const auto &[FalseTy, NewT] = TS.getOrCreateLayoutType(FalseV);
+            const auto &[FalseTy, NewT] = Builder.getOrCreateLayoutType(FalseV);
             Changed |= NewT;
             const SCEV *FalseSCEV = SE->getSCEV(FalseV);
             SCEVToLayoutType.insert(std::make_pair(FalseSCEV, FalseTy));
-            Changed |= TS.addInheritanceLink(FalseTy, SelType).second;
+            Changed |= Builder.TS.addInheritanceLink(FalseTy, SelType).second;
           }
 
         } else if (auto *C = dyn_cast<CallInst>(&I)) {
@@ -356,7 +360,7 @@ public:
 
           if (Callee->hasName()
               and Callee->getName() == "revng_init_local_sp") {
-            const auto &[StackLayout, New] = TS.getOrCreateLayoutType(C);
+            const auto &[StackLayout, New] = Builder.getOrCreateLayoutType(C);
             Changed |= New;
             const SCEV *CallSCEV = SE->getSCEV(C);
             SCEVToLayoutType.insert(std::make_pair(CallSCEV, StackLayout));
@@ -371,12 +375,13 @@ public:
             auto *RetTy = cast<StructType>(Callee->getReturnType());
             revng_assert(RetTy->getNumElements() == Callee->arg_size());
 
-            auto StructTypeNodes = TS.getOrCreateLayoutTypes(*C);
+            auto StructTypeNodes = Builder.getOrCreateLayoutTypes(*C);
             revng_assert(StructTypeNodes.size() == Callee->arg_size());
 
             for (const auto &[RetTypeNodeNew, Arg] :
                  llvm::zip_first(StructTypeNodes, C->arg_operands())) {
-              const auto &[ArgTypeNode, New] = TS.getOrCreateLayoutType(Arg);
+              const auto &[ArgTypeNode,
+                           New] = Builder.getOrCreateLayoutType(Arg);
               Changed |= New;
               const auto &[RetTypeNode, NewNode] = RetTypeNodeNew;
               Changed |= NewNode;
@@ -415,7 +420,7 @@ public:
 
             if (isa<StructType>(C->getType())) {
               // Types representing the return type
-              auto FormalRetTys = TS.getLayoutTypes(*Callee);
+              auto FormalRetTys = Builder.getLayoutTypes(*Callee);
               auto Size = FormalRetTys.size();
               auto ExtractedVals = getExtractedValuesFromInstruction(C);
               revng_assert(Size == ExtractedVals.size());
@@ -431,7 +436,8 @@ public:
                   revng_assert(isa<IntegerType>(ExtTy)
                                or isa<PointerType>(ExtTy));
 
-                  const auto &[ExtLayout, New] = TS.getOrCreateLayoutType(E);
+                  const auto &[ExtLayout,
+                               New] = Builder.getOrCreateLayoutType(E);
                   Changed |= New;
                   Changed |= TS.addEqualityLink(RetTy, ExtLayout).second;
                   const SCEV *S = SE->getSCEV(E);
@@ -441,10 +447,10 @@ public:
             } else {
               // Type representing the return type
               revng_assert(not C->getType()->isIntegerTy(1));
-              LayoutTypeSystemNode *RetTy = TS.getLayoutType(Callee);
-              const auto &[CType, NewC] = TS.getOrCreateLayoutType(C);
+              LayoutTypeSystemNode *RetTy = Builder.getLayoutType(Callee);
+              const auto &[CType, NewC] = Builder.getOrCreateLayoutType(C);
               Changed |= NewC;
-              Changed |= TS.addEqualityLink(RetTy, CType).second;
+              Changed |= Builder.TS.addEqualityLink(RetTy, CType).second;
               const SCEV *RetS = SE->getSCEV(C);
               SCEVToLayoutType.insert(std::make_pair(RetS, CType));
             }
@@ -454,7 +460,7 @@ public:
           for (Use &ArgU : C->arg_operands()) {
             revng_assert(isa<IntegerType>(ArgU->getType())
                          or isa<PointerType>(ArgU->getType()));
-            const auto &[ArgTy, Created] = TS.getOrCreateLayoutType(ArgU);
+            const auto &[ArgTy, Created] = Builder.getOrCreateLayoutType(ArgU);
             Changed |= Created;
             const SCEV *ArgS = SE->getSCEV(ArgU);
             SCEVToLayoutType.insert(std::make_pair(ArgS, ArgTy));
@@ -488,9 +494,10 @@ public:
                   LayoutTypeSystemNode *SrcLayout = nullptr;
                   LayoutTypeSystemNode *TgtLayout = nullptr;
 
-                  std::tie(SrcLayout, New) = TS.getOrCreateLayoutType(Op);
+                  std::tie(SrcLayout, New) = Builder.getOrCreateLayoutType(Op);
                   Changed |= New;
-                  std::tie(TgtLayout, New) = TS.getOrCreateLayoutType(CExpr);
+                  std::tie(TgtLayout,
+                           New) = Builder.getOrCreateLayoutType(CExpr);
                   Changed |= New;
 
                   Changed |= TS.addEqualityLink(SrcLayout, TgtLayout).second;
@@ -507,7 +514,7 @@ public:
                          or isa<PointerType>(L->getType()));
 
             revng_assert(not L->getType()->isIntegerTy(1));
-            const auto &[LoadedTy, Created] = TS.getOrCreateLayoutType(L);
+            const auto &[LoadedTy, Created] = Builder.getOrCreateLayoutType(L);
             Changed |= Created;
             const SCEV *LoadSCEV = SE->getSCEV(L);
             SCEVToLayoutType.insert(std::make_pair(LoadSCEV, LoadedTy));
@@ -515,7 +522,7 @@ public:
         } else if (auto *A = dyn_cast<AllocaInst>(&I)) {
           revng_assert(isa<IntegerType>(A->getType()->getElementType())
                        or isa<PointerType>(A->getType()->getElementType()));
-          const auto &[LoadedTy, Created] = TS.getOrCreateLayoutType(A);
+          const auto &[LoadedTy, Created] = Builder.getOrCreateLayoutType(A);
           Changed |= Created;
           const SCEV *LoadSCEV = SE->getSCEV(A);
           SCEVToLayoutType.insert(std::make_pair(LoadSCEV, LoadedTy));
@@ -527,12 +534,12 @@ public:
           LayoutTypeSystemNode *SrcLayout = nullptr;
           LayoutTypeSystemNode *TgtLayout = nullptr;
 
-          std::tie(SrcLayout, New) = TS.getOrCreateLayoutType(Op);
+          std::tie(SrcLayout, New) = Builder.getOrCreateLayoutType(Op);
           Changed |= New;
-          std::tie(TgtLayout, New) = TS.getOrCreateLayoutType(&I);
+          std::tie(TgtLayout, New) = Builder.getOrCreateLayoutType(&I);
           Changed |= New;
 
-          Changed |= TS.addEqualityLink(SrcLayout, TgtLayout).second;
+          Changed |= Builder.TS.addEqualityLink(SrcLayout, TgtLayout).second;
           const SCEV *LoadSCEV = SE->getSCEV(&I);
           SCEVToLayoutType.insert(std::make_pair(LoadSCEV, TgtLayout));
         }
@@ -541,7 +548,7 @@ public:
     return Changed;
   }
 
-  bool createBaseAddrWithInstanceLink(LayoutTypeSystem &TS,
+  bool createBaseAddrWithInstanceLink(DLATypeSystemLLVMBuilder &Builder,
                                       Value *PointerVal,
                                       const BasicBlock &B) {
     revng_assert(PointerVal);
@@ -558,24 +565,41 @@ public:
                                                       PtrSCEV,
                                                       SCEVToLayoutType);
     for (const SCEV *BaseAddrSCEV : PossibleBaseAddresses)
-      AddedSomething |= addInstanceLink(TS, PointerVal, BaseAddrSCEV, B);
+      AddedSomething |= addInstanceLink(Builder, PointerVal, BaseAddrSCEV, B);
 
     return AddedSomething;
   }
 };
 
-bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
+using Builder = DLATypeSystemLLVMBuilder;
+bool Builder::createIntraproceduralTypes(llvm::Module &M,
+                                         llvm::ModulePass *MP) {
   bool Changed = false;
   InstanceLinkAdder ILA;
-  Module &M = TS.getModule();
+
+  raw_fd_ostream *OutFile = nullptr;
+
+  if (AccessLog.isEnabled()) {
+    std::error_code EC;
+    OutFile = new raw_fd_ostream("DLA_pointer_accesses.csv", EC);
+    revng_check(not EC, "Cannot open DLA_pointer_accesses.csv");
+
+    (*OutFile) << "Value"
+               << ";"
+               << "Access Size"
+               << ";"
+               << "Accessed By"
+               << "\n";
+  }
+
   for (Function &F : M.functions()) {
     auto FTags = FunctionTags::TagsSet::from(&F);
     if (F.isIntrinsic() or not FTags.contains(FunctionTags::Lifted))
       continue;
     revng_assert(not F.isVarArg());
 
-    ILA.setupForProcessingFunction(ModPass, &F);
-    Changed |= ILA.getOrCreateSCEVTypes(TS);
+    ILA.setupForProcessingFunction(MP, &F);
+    Changed |= ILA.getOrCreateSCEVTypes(*this);
 
     llvm::ReversePostOrderTraversal RPOT(&F.getEntryBlock());
     for (BasicBlock *B : RPOT) {
@@ -631,10 +655,16 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
             continue;
           }
 
-          Changed |= ILA.createBaseAddrWithInstanceLink(TS, PointerVal, *B);
-          auto *AddrLayout = TS.getLayoutType(PointerVal);
-          auto AccessSize = getLoadStoreSizeFromPtrOpUse(TS, PtrUse);
+          Changed |= ILA.createBaseAddrWithInstanceLink(*this, PointerVal, *B);
+          auto *AddrLayout = getLayoutType(PointerVal);
+          auto AccessSize = getLoadStoreSizeFromPtrOpUse(M, PtrUse);
           AddrLayout->AccessSizes.insert(AccessSize);
+
+          if (AccessLog.isEnabled()) {
+            revng_assert(OutFile);
+            (*OutFile) << *PointerVal << ";" << AccessSize << ";" << I << "\n";
+          }
+
           continue;
         }
 
@@ -731,7 +761,9 @@ bool StepT::runOnTypeSystem(LayoutTypeSystem &TS) {
 
         for (Value *PointerVal : Pointers) {
           if (PointerVal and not isa<StructType>(PointerVal->getType()))
-            Changed |= ILA.createBaseAddrWithInstanceLink(TS, PointerVal, *B);
+            Changed |= ILA.createBaseAddrWithInstanceLink(*this,
+                                                          PointerVal,
+                                                          *B);
         }
       }
     }
