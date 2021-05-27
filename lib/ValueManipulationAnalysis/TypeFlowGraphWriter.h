@@ -121,7 +121,7 @@ struct DOTGraphTraits<vma::TypeFlowGraph *> : public DefaultDOTGraphTraits {
     return Out.str();
   }
 
-  static bool isNodeHidden(NodeT Node) {
+  static bool isNodeHidden(NodeT Node, const GraphT &) {
     // Don't print a node and its incoming/outgoing edges if it's a constant
     // Constant values are printed in their Uses nodes, to not pollute the
     // graph with meaningless arcs between the same constant and multiple
@@ -148,7 +148,7 @@ struct DOTGraphTraits<vma::TypeFlowGraph *> : public DefaultDOTGraphTraits {
     // understanding of the graph.
     for (const Instruction &I : instructions(*F)) {
       if (not G->ContentToNodeMap.contains(&I)
-          or isNodeHidden(G->getNodeContaining(&I)))
+          or isNodeHidden(G->getNodeContaining(&I), G))
         continue;
 
       NodeT ValNode = G->getNodeContaining(&I);
@@ -156,7 +156,7 @@ struct DOTGraphTraits<vma::TypeFlowGraph *> : public DefaultDOTGraphTraits {
       for (const auto &O : I.operands()) {
         // Connect Operand Uses to Instructions
         if (not G->ContentToNodeMap.contains(&O)
-            or isNodeHidden(G->getNodeContaining(&O)))
+            or isNodeHidden(G->getNodeContaining(&O), G))
           continue;
 
         NodeT OpUse = G->getNodeContaining(&O);
@@ -168,7 +168,7 @@ struct DOTGraphTraits<vma::TypeFlowGraph *> : public DefaultDOTGraphTraits {
 
         // Connect Operands to Operand Uses
         if (not G->ContentToNodeMap.contains(O.get())
-            or isNodeHidden(G->getNodeContaining(O.get())))
+            or isNodeHidden(G->getNodeContaining(O.get()), G))
           continue;
 
         NodeT OpNode = G->getNodeContaining(O.get());
