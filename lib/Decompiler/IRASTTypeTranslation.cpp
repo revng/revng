@@ -326,12 +326,15 @@ DeclCreator::getOrCreateType(const llvm::Type *Ty,
   } break;
 
   case llvm::Type::TypeID::FunctionTyID:
-  case llvm::Type::TypeID::VectorTyID:
+  case llvm::Type::TypeID::FixedVectorTyID:
+  case llvm::Type::TypeID::ScalableVectorTyID:
   case llvm::Type::TypeID::LabelTyID:
-  case llvm::Type::TypeID::X86_MMXTyID:
   case llvm::Type::TypeID::TokenTyID:
   case llvm::Type::TypeID::HalfTyID:
   case llvm::Type::TypeID::X86_FP80TyID:
+  case llvm::Type::TypeID::X86_MMXTyID:
+  case llvm::Type::TypeID::X86_AMXTyID:
+  case llvm::Type::TypeID::BFloatTyID:
   case llvm::Type::TypeID::FP128TyID:
   case llvm::Type::TypeID::PPC_FP128TyID:
     revng_abort("unsupported type");
