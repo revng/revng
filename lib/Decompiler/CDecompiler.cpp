@@ -68,7 +68,7 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
     PM.add(llvm::createDeadStoreEliminationPass());
     PM.add(llvm::createInstructionCombiningPass());
     PM.add(llvm::createSROAPass());
-    PM.add(llvm::createConstantPropagationPass());
+    PM.add(llvm::createInstSimplifyLegacyPass());
     PM.add(llvm::createJumpThreadingPass());
     PM.add(llvm::createLICMPass());
     PM.add(llvm::createUnreachableBlockEliminationPass());
@@ -82,9 +82,9 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
     PM.add(new TypeShrinking::TypeShrinkingWrapperPass());
     PM.add(llvm::createEarlyCSEPass());
     PM.add(llvm::createReassociatePass());
-    PM.add(llvm::createConstantPropagationPass());
+    PM.add(llvm::createInstSimplifyLegacyPass());
     PM.add(llvm::createNewGVNPass());
-    PM.add(llvm::createConstantPropagationPass());
+    PM.add(llvm::createInstSimplifyLegacyPass());
     PM.add(llvm::createDeadStoreEliminationPass());
     PM.add(llvm::createDeadCodeEliminationPass());
   }

@@ -77,7 +77,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -dse
       -instcombine
       -sroa
-      -constprop
+      -instsimplify
       -jump-threading
       -licm
       -unreachableblockelim
@@ -88,9 +88,9 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -type-shrinking
       --min-width 8
       -early-cse
-      -constprop
+      -instsimplify
       -gvn
-      -constprop
+      -instsimplify
       -dse
       -dce
       # Remove LLVM's artifacts from IR
