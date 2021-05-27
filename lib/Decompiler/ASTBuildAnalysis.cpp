@@ -100,13 +100,16 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                         CastKind::CK_LValueToRValue,
                                         Cond,
                                         nullptr,
-                                        VK_RValue);
+                                        VK_RValue,
+                                        FPOptions());
       return IfStmt::Create(ASTCtx,
                             {},
                             false,
                             nullptr,
                             nullptr,
                             Cond,
+                            {},
+                            {},
                             GoToThen,
                             {},
                             GoToElse);
@@ -173,7 +176,7 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     Value *Cond = Switch->getCondition();
     Expr *CondE = getExprForValue(Cond);
 
-    SwitchStmt *S = SwitchStmt::Create(ASTCtx, nullptr, nullptr, CondE);
+    SwitchStmt *S = SwitchStmt::Create(ASTCtx, nullptr, nullptr, CondE, {}, {});
 
     unsigned NumCases = Switch->getNumCases() + 1; // +1 is for the default
     CompoundStmt *Body = CompoundStmt::CreateEmpty(ASTCtx, NumCases);
@@ -265,7 +268,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                                    Kind,
                                                    AllocatedVarDeclRef,
                                                    nullptr,
-                                                   VK_RValue);
+                                                   VK_RValue,
+                                                   FPOptions());
     Expr *ArrayIdx = IntegerLiteral::Create(ASTCtx,
                                             APInt::getNullValue(32),
                                             ASTCtx.IntTy,
@@ -276,14 +280,15 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                                            VK_LValue,
                                                            OK_Ordinary,
                                                            {});
-    using Unary = clang::UnaryOperator;
-    return new (ASTCtx) Unary(ArraySubscript,
-                              UnaryOperatorKind::UO_AddrOf,
-                              CharPtrTy,
-                              VK_RValue,
-                              OK_Ordinary,
-                              {},
-                              false);
+    return clang::UnaryOperator::Create(ASTCtx,
+                                        ArraySubscript,
+                                        UnaryOperatorKind::UO_AddrOf,
+                                        CharPtrTy,
+                                        VK_RValue,
+                                        OK_Ordinary,
+                                        {},
+                                        false,
+                                        FPOptions());
   }
   case Instruction::Load: {
     auto *Load = cast<LoadInst>(&I);
@@ -321,14 +326,15 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
         AddrExpr = createCast(PtrToVolatileTy, AddrExpr, ASTCtx);
       }
 
-      using Unary = clang::UnaryOperator;
-      return new (ASTCtx) Unary(AddrExpr,
-                                UnaryOperatorKind::UO_Deref,
-                                PointeeType,
-                                VK_LValue,
-                                OK_Ordinary,
-                                {},
-                                false);
+      return clang::UnaryOperator::Create(ASTCtx,
+                                          AddrExpr,
+                                          UnaryOperatorKind::UO_Deref,
+                                          PointeeType,
+                                          VK_LValue,
+                                          OK_Ordinary,
+                                          {},
+                                          false,
+                                          FPOptions());
     }
     return AddrExpr;
   }
@@ -354,14 +360,15 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     }
 
     BinaryOperatorKind BinOpKind = BinaryOperatorKind::BO_Assign;
-    return new (ASTCtx) clang::BinaryOperator(LHS,
-                                              RHS,
-                                              BinOpKind,
-                                              LHSQualTy,
-                                              VK_RValue,
-                                              OK_Ordinary,
-                                              {},
-                                              FPOptions());
+    return clang::BinaryOperator::Create(ASTCtx,
+                                         LHS,
+                                         RHS,
+                                         BinOpKind,
+                                         LHSQualTy,
+                                         VK_RValue,
+                                         OK_Ordinary,
+                                         {},
+                                         FPOptions());
   }
   //
   // ---- Convert instructions ----
@@ -505,7 +512,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                             Args,
                             ReturnType,
                             VK_RValue,
-                            {});
+                            {},
+                            FPOptions());
   }
   case Instruction::Unreachable: {
     Function *AbortFun = I.getModule()->getFunction("abort");
@@ -517,7 +525,8 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                             Args,
                             ReturnType,
                             VK_RValue,
-                            {});
+                            {},
+                            FPOptions());
   }
   //
   // ---- Instructions for struct manipulation ----
@@ -561,15 +570,15 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                           NOUR_None);
     clang::Expr *RHS = getExprForValue(Insert->getInsertedValueOperand());
     BinaryOperatorKind AssignOpKind = BinaryOperatorKind::BO_Assign;
-    AdditionalStmts[&I].push_back(new (ASTCtx)
-                                    clang::BinaryOperator(LHS,
-                                                          RHS,
-                                                          AssignOpKind,
-                                                          LHS->getType(),
-                                                          VK_RValue,
-                                                          OK_Ordinary,
-                                                          {},
-                                                          FPOptions()));
+    AdditionalStmts[&I].push_back(clang::BinaryOperator::Create(ASTCtx,
+                                                                LHS,
+                                                                RHS,
+                                                                AssignOpKind,
+                                                                LHS->getType(),
+                                                                VK_RValue,
+                                                                OK_Ordinary,
+                                                                {},
+                                                                FPOptions()));
     if (isa<UndefValue>(AggregateOp))
       return nullptr;
     if (isa<ConstantStruct>(AggregateOp))
@@ -901,13 +910,15 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
   // computed expression to have side effects.
   // In this way we obtain &BaseValue->field1.field2.fieldn;
   clang::QualType AddressType = ASTCtx.getPointerType(Result->getType());
-  Result = new (ASTCtx) clang::UnaryOperator(Result,
-                                             UnaryOperatorKind::UO_AddrOf,
-                                             AddressType,
-                                             VK_RValue,
-                                             OK_Ordinary,
-                                             {},
-                                             false);
+  Result = clang::UnaryOperator::Create(ASTCtx,
+                                        Result,
+                                        UnaryOperatorKind::UO_AddrOf,
+                                        AddressType,
+                                        VK_RValue,
+                                        OK_Ordinary,
+                                        {},
+                                        false,
+                                        FPOptions());
   return Result;
 }
 
@@ -1275,7 +1286,8 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
                                        CastKind::CK_IntegralToPointer,
                                        RHS,
                                        nullptr,
-                                       VK_RValue);
+                                       VK_RValue,
+                                       FPOptions());
         RHSTy = LHSTy;
       } else if (not LHSTy->isPointerType() and RHSTy->isPointerType()) {
         LHS = ImplicitCastExpr::Create(ASTCtx,
@@ -1283,7 +1295,8 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
                                        CastKind::CK_IntegralToPointer,
                                        LHS,
                                        nullptr,
-                                       VK_RValue);
+                                       VK_RValue,
+                                       FPOptions());
         LHSTy = RHSTy;
       }
     } break;
@@ -1304,6 +1317,7 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
                                      CK_PointerToIntegral,
                                      LHS,
                                      nullptr,
+                                     FPOptions(),
                                      TI,
                                      {},
                                      {});
@@ -1315,6 +1329,7 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
                                      CK_PointerToIntegral,
                                      RHS,
                                      nullptr,
+                                     FPOptions(),
                                      TI,
                                      {},
                                      {});
@@ -1354,6 +1369,7 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
                                      CK_PointerToIntegral,
                                      LHS,
                                      nullptr,
+                                     FPOptions(),
                                      TI,
                                      {},
                                      {});
@@ -1367,6 +1383,7 @@ static std::pair<Expr *, Expr *> getCastedBinaryOperands(ASTContext &ASTCtx,
                                      CK_PointerToIntegral,
                                      RHS,
                                      nullptr,
+                                     FPOptions(),
                                      TI,
                                      {},
                                      {});
@@ -1486,7 +1503,8 @@ Expr *StmtBuilder::createRValueExprForBinaryOperator(Instruction &I) {
                                    CastKind::CK_LValueToRValue,
                                    LHS,
                                    nullptr,
-                                   VK_RValue);
+                                   VK_RValue,
+                                   FPOptions());
 
   Value *RHSVal = I.getOperand(1);
   Expr *RHS = getParenthesizedExprForValue(RHSVal);
@@ -1499,7 +1517,8 @@ Expr *StmtBuilder::createRValueExprForBinaryOperator(Instruction &I) {
                                    CastKind::CK_LValueToRValue,
                                    RHS,
                                    nullptr,
-                                   VK_RValue);
+                                   VK_RValue,
+                                   FPOptions());
 
   std::tie(LHS, RHS) = getCastedBinaryOperands(ASTCtx, I, LHS, RHS);
 
@@ -1509,14 +1528,15 @@ Expr *StmtBuilder::createRValueExprForBinaryOperator(Instruction &I) {
   unsigned OpCode = I.getOpcode();
   clang::QualType ResTy = (OpCode == Instruction::ICmp) ? ASTCtx.BoolTy :
                                                           LHS->getType();
-  Expr *Res = new (ASTCtx) clang::BinaryOperator(LHS,
-                                                 RHS,
-                                                 BinOpKind,
-                                                 ResTy,
-                                                 VK_RValue,
-                                                 OK_Ordinary,
-                                                 {},
-                                                 FPOptions());
+  Expr *Res = clang::BinaryOperator::Create(ASTCtx,
+                                            LHS,
+                                            RHS,
+                                            BinOpKind,
+                                            ResTy,
+                                            VK_RValue,
+                                            OK_Ordinary,
+                                            {},
+                                            FPOptions());
 
   switch (OpCode) {
   case Instruction::SDiv:
@@ -1625,7 +1645,8 @@ Expr *StmtBuilder::getExprForValue(const Value *V) {
                                           CastKind::CK_LValueToRValue,
                                           AddrExpr,
                                           nullptr,
-                                          VK_RValue);
+                                          VK_RValue,
+                                          FPOptions());
 
       clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
 
@@ -1664,14 +1685,15 @@ Expr *StmtBuilder::getExprForValue(const Value *V) {
         AddrExpr = createCast(PtrToVolatileTy, AddrExpr, ASTCtx);
       }
 
-      using Unary = clang::UnaryOperator;
-      return new (ASTCtx) Unary(AddrExpr,
-                                UnaryOperatorKind::UO_Deref,
-                                PointeeQualType,
-                                VK_LValue,
-                                OK_Ordinary,
-                                {},
-                                false);
+      return clang::UnaryOperator::Create(ASTCtx,
+                                          AddrExpr,
+                                          UnaryOperatorKind::UO_Deref,
+                                          PointeeQualType,
+                                          VK_LValue,
+                                          OK_Ordinary,
+                                          {},
+                                          false,
+                                          FPOptions());
     }
     if (auto *Cast = dyn_cast<CastInst>(I)) {
       Value *RHS = Cast->getOperand(0);
@@ -1764,6 +1786,7 @@ Expr *StmtBuilder::getExprForValue(const Value *V) {
                                         CK,
                                         Result,
                                         nullptr,
+                                        FPOptions(),
                                         TI,
                                         {},
                                         {});

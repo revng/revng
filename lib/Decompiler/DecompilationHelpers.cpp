@@ -107,7 +107,8 @@ clang::CastExpr *createCast(clang::QualType LHSQualTy,
                                     CastKind::CK_IntegralToBoolean,
                                     RHS,
                                     nullptr,
-                                    VK_RValue);
+                                    VK_RValue,
+                                    FPOptions());
   }
   if (RHSTy->isBooleanType() and LHSTy->isIntegerType()) {
     // casting boolean to inteeger
@@ -116,7 +117,8 @@ clang::CastExpr *createCast(clang::QualType LHSQualTy,
                                     CastKind::CK_IntegralCast,
                                     RHS,
                                     nullptr,
-                                    VK_RValue);
+                                    VK_RValue,
+                                    FPOptions());
   }
   if (LHSTy->isIntegerType()) {
     if (RHSTy->isIntegerType()) {
@@ -148,6 +150,7 @@ clang::CastExpr *createCast(clang::QualType LHSQualTy,
                                 CK,
                                 RHS,
                                 nullptr,
+                                FPOptions(),
                                 TI,
                                 {},
                                 {});

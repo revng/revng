@@ -73,9 +73,15 @@ static clang::Expr *negateExpr(clang::ASTContext &ASTCtx, clang::Expr *E) {
   QualType ExprTy = E->getType();
   bool IsBool = ExprTy.getTypePtr()->isBooleanType();
   auto OpCode = IsBool ? UnaryOperatorKind::UO_LNot : UnaryOperatorKind::UO_Not;
-  using Unary = clang::UnaryOperator;
-  E = new (ASTCtx) Unary(E, OpCode, ExprTy, VK_RValue, OK_Ordinary, {}, false);
-  return E;
+  return clang::UnaryOperator::Create(ASTCtx,
+                                      E,
+                                      OpCode,
+                                      ExprTy,
+                                      VK_RValue,
+                                      OK_Ordinary,
+                                      {},
+                                      false,
+                                      FPOptions());
 }
 
 static void buildStmtsForBasicBlock(llvm::BasicBlock *BB,
@@ -115,14 +121,15 @@ static void buildStmtsForBasicBlock(llvm::BasicBlock *BB,
             RHS = new (ASTCtx) ParenExpr({}, {}, RHS);
           RHS = createCast(VarType, RHS, ASTCtx);
         }
-        EmittedStmt = new (ASTCtx) clang::BinaryOperator(LHS,
-                                                         RHS,
-                                                         BO_Assign,
-                                                         VarType,
-                                                         VK_RValue,
-                                                         OK_Ordinary,
-                                                         {},
-                                                         FPOptions());
+        EmittedStmt = clang::BinaryOperator::Create(ASTCtx,
+                                                    LHS,
+                                                    RHS,
+                                                    BO_Assign,
+                                                    VarType,
+                                                    VK_RValue,
+                                                    OK_Ordinary,
+                                                    {},
+                                                    FPOptions());
       } else {
         EmittedStmt = StmtIt->second;
       }
@@ -156,14 +163,15 @@ static void buildStmtsForBasicBlock(llvm::BasicBlock *BB,
         RHS = createCast(VarType, RHS, ASTCtx);
       }
       clang::Stmt *EmittedStmt = nullptr;
-      EmittedStmt = new (ASTCtx) clang::BinaryOperator(LHS,
-                                                       RHS,
-                                                       BO_Assign,
-                                                       VarType,
-                                                       VK_RValue,
-                                                       OK_Ordinary,
-                                                       {},
-                                                       FPOptions());
+      EmittedStmt = clang::BinaryOperator::Create(ASTCtx,
+                                                  LHS,
+                                                  RHS,
+                                                  BO_Assign,
+                                                  VarType,
+                                                  VK_RValue,
+                                                  OK_Ordinary,
+                                                  {},
+                                                  FPOptions());
       Stmts.push_back(EmittedStmt);
     }
   }
@@ -236,15 +244,15 @@ static clang::Expr *createCondExpr(ExprNode *E,
                                        clang::BinaryOperatorKind::BO_And) :
                            (BothBool ? clang::BinaryOperatorKind::BO_LOr :
                                        clang::BinaryOperatorKind::BO_Or);
-        clang::Expr *BinExpr = new (ASTCtx)
-          clang::BinaryOperator(LHS,
-                                RHS,
-                                BinOpKind,
-                                LHS->getType(),
-                                VK_RValue,
-                                OK_Ordinary,
-                                {},
-                                FPOptions());
+        clang::Expr *BinExpr = clang::BinaryOperator::Create(ASTCtx,
+                                                             LHS,
+                                                             RHS,
+                                                             BinOpKind,
+                                                             LHS->getType(),
+                                                             VK_RValue,
+                                                             OK_Ordinary,
+                                                             {},
+                                                             FPOptions());
         VisitStack.pop_back();
         VisitStack.back().ResolvedOperands.push_back(BinExpr);
       }
@@ -279,14 +287,15 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
 
       clang::Expr *TrueVal = ASTBuilder.getBoolLiteral(true);
       QualType BoolTy = TrueVal->getType();
-      clang::Stmt *AssignStmt = new (ASTCtx) clang::BinaryOperator(State,
-                                                                   TrueVal,
-                                                                   BO_Assign,
-                                                                   BoolTy,
-                                                                   VK_RValue,
-                                                                   OK_Ordinary,
-                                                                   {},
-                                                                   FPOptions());
+      clang::Stmt *AssignStmt = clang::BinaryOperator::Create(ASTCtx,
+                                                              State,
+                                                              TrueVal,
+                                                              BO_Assign,
+                                                              BoolTy,
+                                                              VK_RValue,
+                                                              OK_Ordinary,
+                                                              {},
+                                                              FPOptions());
       Stmts.push_back(AssignStmt);
     }
   };
@@ -351,6 +360,8 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
                                      nullptr,
                                      nullptr,
                                      CondExpr,
+                                     {},
+                                     {},
                                      ThenScope,
                                      {},
                                      nullptr));
@@ -368,6 +379,8 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
                                      nullptr,
                                      nullptr,
                                      CondExpr,
+                                     {},
+                                     {},
                                      ThenScope,
                                      {},
                                      ElseScope));
@@ -430,7 +443,9 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
                                              ASTBuilder,
                                              Mark);
 
-      Stmts.push_back(WhileStmt::Create(ASTCtx, nullptr, CondExpr, Body, {}));
+      auto
+        *While = WhileStmt::Create(ASTCtx, nullptr, CondExpr, Body, {}, {}, {});
+      Stmts.push_back(While);
     }
   } break;
 
@@ -470,7 +485,9 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
     clang::SwitchStmt *SwitchStatement = SwitchStmt::Create(ASTCtx,
                                                             nullptr,
                                                             nullptr,
-                                                            CondExpr);
+                                                            CondExpr,
+                                                            {},
+                                                            {});
 
     // Generate the body of the switch
     SmallVector<clang::Stmt *, 8> BodyStmts;
@@ -577,14 +594,15 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
 
       clang::Expr *FalseInit = ASTBuilder.getBoolLiteral(false);
       QualType BoolTy = FalseInit->getType();
-      clang::Stmt *AssignStmt = new (ASTCtx) clang::BinaryOperator(State,
-                                                                   FalseInit,
-                                                                   BO_Assign,
-                                                                   BoolTy,
-                                                                   VK_RValue,
-                                                                   OK_Ordinary,
-                                                                   {},
-                                                                   FPOptions());
+      clang::Stmt *AssignStmt = clang::BinaryOperator::Create(ASTCtx,
+                                                              State,
+                                                              FalseInit,
+                                                              BO_Assign,
+                                                              BoolTy,
+                                                              VK_RValue,
+                                                              OK_Ordinary,
+                                                              {},
+                                                              FPOptions());
       Stmts.push_back(AssignStmt);
     }
 
@@ -608,6 +626,8 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
                                      nullptr,
                                      nullptr,
                                      CondExpr,
+                                     {},
+                                     {},
                                      Break,
                                      {},
                                      nullptr));
@@ -624,14 +644,15 @@ static void buildAndAppendSmts(clang::FunctionDecl &FDecl,
     unsigned StateValue = Set->getStateVariableValue();
     clang::Expr *StateValueUInt = ASTBuilder.getUIntLiteral(StateValue);
     QualType UIntType = StateValueUInt->getType();
-    clang::Stmt *AssignStmt = new (ASTCtx) clang::BinaryOperator(StateVar,
-                                                                 StateValueUInt,
-                                                                 BO_Assign,
-                                                                 UIntType,
-                                                                 VK_RValue,
-                                                                 OK_Ordinary,
-                                                                 {},
-                                                                 FPOptions());
+    clang::Stmt *AssignStmt = clang::BinaryOperator::Create(ASTCtx,
+                                                            StateVar,
+                                                            StateValueUInt,
+                                                            BO_Assign,
+                                                            UIntType,
+                                                            VK_RValue,
+                                                            OK_Ordinary,
+                                                            {},
+                                                            FPOptions());
     Stmts.push_back(AssignStmt);
 
   } break;
