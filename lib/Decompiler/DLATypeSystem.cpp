@@ -891,7 +891,7 @@ bool LayoutTypeSystem::verifyDAG() const {
     auto E = scc_end(Node);
     for (; I != E; ++I) {
       Visited.insert(I->begin(), I->end());
-      if (I.hasLoop()) {
+      if (I.hasCycle()) {
         if (VerifyDLALog.isEnabled())
           revng_check(false);
         return false;
@@ -920,7 +920,7 @@ bool LayoutTypeSystem::verifyInheritanceDAG() const {
     auto E = scc_end(InheritanceNodeT(Node));
     for (; I != E; ++I) {
       Visited.insert(I->begin(), I->end());
-      if (I.hasLoop()) {
+      if (I.hasCycle()) {
         if (VerifyDLALog.isEnabled())
           revng_check(false);
         return false;
@@ -949,7 +949,7 @@ bool LayoutTypeSystem::verifyInstanceDAG() const {
     auto E = scc_end(InstanceNodeT(Node));
     for (; I != E; ++I) {
       Visited.insert(I->begin(), I->end());
-      if (I.hasLoop()) {
+      if (I.hasCycle()) {
         if (VerifyDLALog.isEnabled())
           revng_check(false);
         return false;
