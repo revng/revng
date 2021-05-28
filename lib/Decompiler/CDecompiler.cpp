@@ -4,6 +4,7 @@
 
 #include <memory>
 
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
@@ -63,6 +64,7 @@ decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
 
   // Optimize IR with LLVM's passes
   {
+    PM.add(new llvm::TargetLibraryInfoWrapperPass());
     PM.add(llvm::createDeadCodeEliminationPass());
     PM.add(llvm::createCFGSimplificationPass());
     PM.add(llvm::createDeadStoreEliminationPass());
