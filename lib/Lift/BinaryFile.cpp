@@ -2058,9 +2058,7 @@ BinaryFile::nameForAddress(MetaAddress Address, uint64_t Size) const {
 std::string SegmentInfo::generateName() const {
   // Create name from start and size
   std::stringstream NameStream;
-  NameStream << "o_" << (IsReadable ? "r" : "") << (IsWriteable ? "w" : "")
-             << (IsExecutable ? "x" : "") << "_0x" << std::hex
-             << StartVirtualAddress.address();
-
+  NameStream << "segment-" << StartVirtualAddress.toString() << "-"
+             << EndVirtualAddress.toString();
   return NameStream.str();
 }

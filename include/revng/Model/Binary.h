@@ -679,6 +679,9 @@ public:
   /// The type system
   SortedVector<UpcastablePointer<model::Type>> Types;
 
+  // List of imported libraries
+  SortedVector<std::string> ImportedLibraries;
+
 public:
   model::TypePath getTypePath(const model::Type *T) {
     return TypePath::fromString(this,
@@ -710,11 +713,13 @@ INTROSPECTION_NS(model,
                  ImportedDynamicFunctions,
                  Types,
                  Architecture,
-                 Segments)
+                 Segments,
+                 ImportedLibraries)
 
 template<>
 struct llvm::yaml::MappingTraits<model::Binary>
-  : public TupleLikeMappingTraits<model::Binary> {};
+  : public TupleLikeMappingTraits<model::Binary,
+                                  Fields<model::Binary>::ImportedLibraries> {};
 
 static_assert(validateTupleTree<model::Binary>(IsYamlizable),
               "All elements of the model must be YAMLizable");
