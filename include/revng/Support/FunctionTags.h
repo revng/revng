@@ -95,3 +95,9 @@ extern Tag Marker;
 extern Tag DynamicFunction;
 
 } // namespace FunctionTags
+
+inline bool isRootOrLifted(const llvm::Function *F) {
+  auto Tags = FunctionTags::TagsSet::from(F);
+  return Tags.contains(FunctionTags::Root)
+         or Tags.contains(FunctionTags::Lifted);
+}
