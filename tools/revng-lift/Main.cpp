@@ -22,13 +22,16 @@
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/Lift/BinaryFile.h"
 #include "revng/Lift/CodeGenerator.h"
 #include "revng/Lift/PTCInterface.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/DebugHelper.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/OriginalAssemblyAnnotationWriter.h"
 #include "revng/Support/ResourceFinder.h"
 #include "revng/Support/Statistics.h"
 #include "revng/Support/revng.h"
@@ -70,6 +73,50 @@ opt<string> InputPath(Positional, Required, desc("<input path>"));
 opt<string> OutputPath(Positional, Required, desc("<output path>"));
 
 } // namespace
+
+namespace DebugInfoType {
+
+/// \brief Type of debug information to produce
+enum Values {
+  /// No debug information
+  None,
+  /// Produce a file containing the assembly code of the input binary
+  OriginalAssembly,
+  /// Produce the PTC as translated by libtinycode
+  PTC,
+  /// Prduce an LLVM IR with debug metadata referring to itself
+  LLVMIR
+};
+
+} // namespace DebugInfoType
+
+namespace DIT = DebugInfoType;
+
+static auto X = values(clEnumValN(DIT::None, "none", "no debug information"),
+                       clEnumValN(DIT::OriginalAssembly,
+                                  "asm",
+                                  "debug information referred to the "
+                                  "assembly "
+                                  "of the input file"),
+                       clEnumValN(DIT::PTC,
+                                  "ptc",
+                                  "debug information referred to the "
+                                  "Portable "
+                                  "Tiny Code"),
+                       clEnumValN(DIT::LLVMIR,
+                                  "ll",
+                                  "debug information referred to the LLVM "
+                                  "IR"));
+static opt<DIT::Values> DebugInfo("debug-info",
+                                  desc("emit debug information"),
+                                  X,
+                                  cat(MainCategory),
+                                  init(DIT::LLVMIR));
+
+static alias A6("g",
+                desc("Alias for -debug-info"),
+                aliasopt(DebugInfo),
+                cat(MainCategory));
 
 static std::string LibTinycodePath;
 static std::string LibHelpersPath;
@@ -182,7 +229,26 @@ int main(int argc, const char *argv[]) {
     EntryPointAddressOptional = EntryPointAddress;
   Generator.translate(EntryPointAddressOptional);
 
-  dumpModule(&M, OutputPath.c_str());
+  OriginalAssemblyAnnotationWriter OAAW(M.getContext());
 
-  return EXIT_SUCCESS;
+  switch (DebugInfo) {
+  case DebugInfoType::None:
+    break;
+
+  case DebugInfoType::OriginalAssembly:
+    createOriginalAssemblyDebugInfo(&M, OutputPath);
+    break;
+
+  case DebugInfoType::PTC:
+    createPTCDebugInfo(&M, OutputPath);
+    break;
+
+  case DebugInfoType::LLVMIR:
+    createSelfReferencingDebugInfo(&M, OutputPath, &OAAW);
+    break;
+  }
+
+  std::ofstream OutputStream(OutputPath);
+  llvm::raw_os_ostream LLVMOutputStream(OutputStream);
+  M.print(LLVMOutputStream, &OAAW);
 }
