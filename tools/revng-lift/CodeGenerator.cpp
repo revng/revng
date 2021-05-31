@@ -31,6 +31,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils.h"
@@ -61,6 +62,8 @@ using std::make_pair;
 using std::string;
 
 // Register all the arguments
+
+static cl::opt<string> EntryPoints(cl::Positional, cl::desc("<entry points input file>"), cl::Required);
 
 // TODO: can we drop this and the associated functionality?
 static cl::opt<string> CoveragePath("coverage-path",
@@ -1006,6 +1009,16 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
     // Initialize the program counter
     PCH->initializePC(Builder, VirtualAddress);
+  }
+
+  std::fstream EntryFile;
+  EntryFile.open(EntryPoints, std::ios::in);
+  if (EntryFile.is_open()) {
+    string EntryPoint;
+    while (getline(EntryFile, EntryPoint)) {
+      JumpTargets.registerJT(MetaAddress::fromString(EntryPoint), JTReason::GlobalData);
+    }
+    EntryFile.close();
   }
 
   OpaqueIdentity OI(TheModule.get());
