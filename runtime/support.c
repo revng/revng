@@ -90,10 +90,10 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
     PUSH(ptr, align, (void *) &tmp); \
   } while (0);
 
-#define PUSH_AUX(ptr, key, value)       \
-  do {                                  \
-    PUSH_REG(ptr, (target_reg)(value)); \
-    PUSH_REG(ptr, key);                 \
+#define PUSH_AUX(ptr, key, value)      \
+  do {                                 \
+    PUSH_REG(ptr, (uintptr_t)(value)); \
+    PUSH_REG(ptr, key);                \
   } while (0)
 
   // Reserve space for arguments and environment variables
@@ -120,10 +120,10 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
   }
 
   PUSH_STR(stack, "revng");
-  platform_address = (target_reg) stack;
+  platform_address = (uintptr_t) stack;
 
   PUSH_STR(stack, "4 I used a dice");
-  random_address = (target_reg) stack;
+  random_address = (uintptr_t) stack;
 
   // Compute the value of stack pointer once we'll be done
 
@@ -176,7 +176,7 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
   while (*--argp != NULL) {
     PUSH_STR(arg_area, *argp);
     SAFE_CAST(arg_area);
-    PUSH_REG(stack, (target_reg) arg_area);
+    PUSH_REG(stack, (uintptr_t) arg_area);
   }
 
   // Push the separator
@@ -186,7 +186,7 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
   while (--argp != (argv - 1)) {
     PUSH_STR(arg_area, *argp);
     SAFE_CAST(arg_area);
-    PUSH_REG(stack, (target_reg) arg_area);
+    PUSH_REG(stack, (uintptr_t) arg_area);
   }
 
   PUSH_REG(stack, argc);
@@ -434,7 +434,7 @@ int main(int argc, char *argv[]) {
   brk += 0x1000;
 
   SAFE_CAST(brk);
-  target_set_brk((target_reg) brk);
+  target_set_brk((uintptr_t) brk);
 
   // Initialize the syscall system
   syscall_init();
@@ -451,7 +451,7 @@ int main(int argc, char *argv[]) {
 
   // Run the translated program
   SAFE_CAST(stack);
-  root((target_reg) stack);
+  root((uintptr_t) stack);
 }
 
 // Helper function used to raise an exception
