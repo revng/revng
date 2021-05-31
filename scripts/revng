@@ -416,8 +416,7 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
         if args.base:
             lift_options += ["--base", args.base]
 
-        run([get_command("revng-lift"),
-             "-g", "ll"]
+        run([get_command("revng-lift")]
             + lift_options
             + [relative(input), relative(output)])
 

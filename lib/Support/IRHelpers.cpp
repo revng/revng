@@ -19,7 +19,7 @@ using namespace llvm;
 void dumpModule(const Module *M, const char *Path) {
   std::ofstream FileStream(Path);
   raw_os_ostream Stream(FileStream);
-  M->print(Stream, nullptr, true);
+  M->print(Stream, nullptr, false);
 }
 
 PointerType *getStringPtrType(LLVMContext &C) {

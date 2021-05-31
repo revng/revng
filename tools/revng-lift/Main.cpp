@@ -28,6 +28,7 @@
 #include "revng/Lift/PTCInterface.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/ResourceFinder.h"
 #include "revng/Support/Statistics.h"
 #include "revng/Support/revng.h"
@@ -169,10 +170,10 @@ int main(int argc, const char *argv[]) {
   // Translate everything
   Architecture TargetArchitecture;
   llvm::LLVMContext Context;
+  llvm::Module M("top", Context);
   CodeGenerator Generator(TheBinary,
                           TargetArchitecture,
-                          Context,
-                          std::string(OutputPath),
+                          &M,
                           LibHelpersPath,
                           EarlyLinkedPath);
 
@@ -180,7 +181,8 @@ int main(int argc, const char *argv[]) {
   if (EntryPointAddress.getNumOccurrences() != 0)
     EntryPointAddressOptional = EntryPointAddress;
   Generator.translate(EntryPointAddressOptional);
-  Generator.serialize();
+
+  dumpModule(&M, OutputPath.c_str());
 
   return EXIT_SUCCESS;
 }
