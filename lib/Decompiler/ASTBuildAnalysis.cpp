@@ -412,21 +412,64 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     clang::DeclContext &TUDecl = *ASTCtx.getTranslationUnitDecl();
     TypeDeclOrQualType ASTTy = Declarator.getOrCreateType(&I, ASTCtx, TUDecl);
 
+    // Destination type
     QualType ASTType = DeclCreator::getQualType(ASTTy);
-    QualType TernaryTy = ASTType;
-    QualType TrueTy = TrueExpr->getType();
-    QualType FalseTy = FalseExpr->getType();
+    // Result type of the ternary expression.
+    QualType TernaryQTy = ASTType;
 
-    if (ASTType.getTypePtr()->isPointerType()) {
-      bool TruePtr = TrueExpr->getType()->isPointerType();
-      bool FalsePtr = FalseExpr->getType()->isPointerType();
+    {
+      QualType TrueQTy = TrueExpr->getType();
+      QualType FalseQTy = FalseExpr->getType();
+
+      const clang::Type *TTy = TrueQTy.getTypePtr();
+      const clang::Type *FTy = FalseQTy.getTypePtr();
+
+      bool TruePtr = TrueQTy->isPointerType();
+      bool FalsePtr = FalseQTy->isPointerType();
+
       if (not TruePtr and not FalsePtr) {
-        int Cmp = ASTCtx.getIntegerTypeOrder(TrueTy, FalseTy);
-        TernaryTy = (Cmp > 0) ? TrueTy : FalseTy;
-      } else if (not TruePtr) {
-        TrueExpr = createCast(TernaryTy, TrueExpr, ASTCtx);
-      } else if (not FalsePtr) {
-        FalseExpr = createCast(TernaryTy, FalseExpr, ASTCtx);
+        // If true and false they are both non-pointes, we do integer promotion,
+        // then we will cast to pointer the result of the ternary if necessary.
+        int Cmp = ASTCtx.getIntegerTypeOrder(TrueQTy, FalseQTy);
+        TernaryQTy = (Cmp > 0) ? TrueQTy : FalseQTy;
+
+      } else {
+        // At least true or false are pointers, so we want to promote both sides
+        // to pointers.
+        if (not TruePtr) {
+          // If only false is pointer, we cast true to the same pointer type
+          TrueExpr = createCast(FalseQTy, TrueExpr, ASTCtx);
+          TernaryQTy = FalseQTy;
+
+        } else if (not FalsePtr) {
+          // If only true is pointer, we cast false to the same pointer type
+          FalseExpr = createCast(TrueQTy, FalseExpr, ASTCtx);
+          TernaryQTy = TrueQTy;
+
+        } else {
+          // Both pointers, but they may point to different types.
+          auto *UnqualTTy = TTy->getUnqualifiedDesugaredType();
+          auto *UnqualFTy = FTy->getUnqualifiedDesugaredType();
+          const clang::Type *TernaryTy = ASTType.getTypePtr();
+
+          if (TernaryTy->isPointerType()) {
+            // If true and false point to different types, we cast both to the
+            // target type of the ternary, if necessary
+            if (UnqualTTy != UnqualFTy) {
+
+              if (UnqualTTy != TernaryTy->getUnqualifiedDesugaredType())
+                TrueExpr = createCast(TernaryQTy, TrueExpr, ASTCtx);
+
+              if (UnqualFTy != TernaryTy->getUnqualifiedDesugaredType())
+                FalseExpr = createCast(TernaryQTy, FalseExpr, ASTCtx);
+            }
+            TernaryQTy = TrueQTy;
+          } else {
+            TernaryQTy = ASTCtx.getPointerType(ASTCtx.CharTy);
+            TrueExpr = createCast(TernaryQTy, TrueExpr, ASTCtx);
+            FalseExpr = createCast(TernaryQTy, FalseExpr, ASTCtx);
+          }
+        }
       }
     }
 
@@ -435,17 +478,15 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                                             TrueExpr,
                                                             {},
                                                             FalseExpr,
-                                                            TernaryTy,
+                                                            TernaryQTy,
                                                             VK_RValue,
                                                             OK_Ordinary);
 
-    if (ASTType.getTypePtr()->isPointerType()
-        and not TrueExpr->getType()->isPointerType()
-        and not FalseExpr->getType()->isPointerType()) {
+    if (not ASTCtx.typesAreCompatible(TernaryQTy, ASTType))
       Ternary = createCast(ASTType, Ternary, ASTCtx);
-    }
     return Ternary;
   }
+
   case Instruction::Call: {
     auto *TheCall = cast<CallInst>(&I);
 
