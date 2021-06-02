@@ -63,7 +63,10 @@ using std::string;
 
 // Register all the arguments
 
-static cl::opt<string> EntryPoints(cl::Positional, cl::desc("<entry points input file>"), cl::Required);
+static cl::opt<string> EntryPoints("entrypoints",
+                                    cl::desc("<entry points input file>"),
+                                    cl::value_desc("path"),
+                                    cl::ValueRequired);
 
 // TODO: can we drop this and the associated functionality?
 static cl::opt<string> CoveragePath("coverage-path",
@@ -1067,6 +1070,22 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     default:
       Type = PTC_CODE_REGULAR;
       break;
+    }
+
+    auto *Segment = Binary.findSegmentByEpoch(VirtualAddress.epoch());
+
+    if (Segment->IsExecutable) {
+
+      size_t Size = static_cast<size_t>(Segment->Data.size());
+      bool Success = ptc.mmap(Segment->StartVirtualAddress.address(),
+                              static_cast<const void *>(Segment->Data.data()),
+                              Size);
+      if (not Success) {
+        dbg << "Couldn't mmap segment starting at ";
+        Segment->StartVirtualAddress.dump(dbg);
+        dbg << " with size 0x" << Size << "\n";
+        revng_abort();
+      }
     }
 
     ConsumedSize = ptc.translate(VirtualAddress.address(),

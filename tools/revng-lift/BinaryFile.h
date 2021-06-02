@@ -656,6 +656,16 @@ private:
     return nullptr;
   }
 
+public:
+  SegmentInfo *findSegmentByEpoch(uint32_t Epoch) {
+    for (SegmentInfo &Segment : Segments){
+      revng_assert(Segment.StartVirtualAddress.epoch() == Segment.EndVirtualAddress.epoch());
+      if (Segment.StartVirtualAddress.epoch() == Epoch)
+        return &Segment;
+    }
+    return nullptr;
+  }
+
 private:
   llvm::object::OwningBinary<llvm::object::Binary> BinaryHandle;
   Architecture TheArchitecture;
