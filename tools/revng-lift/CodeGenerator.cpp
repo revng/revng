@@ -1047,6 +1047,9 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
                                    TargetArchitecture,
                                    PCH.get());
 
+  uint32_t LastEpoch;
+  bool IsFirstSegment = true;
+
   while (Entry != nullptr) {
     Builder.SetInsertPoint(Entry);
 
@@ -1072,20 +1075,25 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       break;
     }
 
-    auto *Segment = Binary.findSegmentByEpoch(VirtualAddress.epoch());
+    // Update mapping only if the epoch changes
+    if (IsFirstSegment || LastEpoch != VirtualAddress.epoch()) {
+      auto *Segment = Binary.findSegmentByEpoch(VirtualAddress.epoch());
 
-    if (Segment->IsExecutable) {
+      if (Segment->IsExecutable) {
 
-      size_t Size = static_cast<size_t>(Segment->Data.size());
-      bool Success = ptc.mmap(Segment->StartVirtualAddress.address(),
-                              static_cast<const void *>(Segment->Data.data()),
-                              Size);
-      if (not Success) {
-        dbg << "Couldn't mmap segment starting at ";
-        Segment->StartVirtualAddress.dump(dbg);
-        dbg << " with size 0x" << Size << "\n";
-        revng_abort();
+        size_t Size = static_cast<size_t>(Segment->Data.size());
+        bool Success = ptc.mmap(Segment->StartVirtualAddress.address(),
+                                static_cast<const void *>(Segment->Data.data()),
+                                Size);
+        if (not Success) {
+          dbg << "Couldn't mmap segment starting at ";
+          Segment->StartVirtualAddress.dump(dbg);
+          dbg << " with size 0x" << Size << "\n";
+          revng_abort();
+        }
       }
+      IsFirstSegment = false;
+      LastEpoch = VirtualAddress.epoch();
     }
 
     ConsumedSize = ptc.translate(VirtualAddress.address(),
