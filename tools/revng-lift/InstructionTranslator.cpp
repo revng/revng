@@ -26,7 +26,6 @@
 #include "revng/Support/Range.h"
 
 #include "InstructionTranslator.h"
-
 #include "PTCInterface.h"
 #include "VariableManager.h"
 

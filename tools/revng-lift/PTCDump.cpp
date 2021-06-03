@@ -14,7 +14,6 @@
 #include "revng/Support/Assert.h"
 
 #include "PTCDump.h"
-
 #include "PTCInterface.h"
 
 static const int MAX_TEMP_NAME_LENGTH = 128;

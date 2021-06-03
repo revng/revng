@@ -26,10 +26,9 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/revng.h"
 
-#include "VariableManager.h"
-
 #include "PTCDump.h"
 #include "PTCInterface.h"
+#include "VariableManager.h"
 
 using namespace llvm;
 

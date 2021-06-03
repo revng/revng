@@ -7,10 +7,9 @@
 
 #include <iomanip>
 
-#include "Intraprocedural.h"
-
 #include "Cache.h"
 #include "InterproceduralAnalysis.h"
+#include "Intraprocedural.h"
 
 using llvm::AllocaInst;
 using llvm::ArrayRef;

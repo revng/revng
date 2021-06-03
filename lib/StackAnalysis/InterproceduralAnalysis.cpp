@@ -9,9 +9,8 @@
 
 #include "revng/Support/Statistics.h"
 
-#include "InterproceduralAnalysis.h"
-
 #include "Cache.h"
+#include "InterproceduralAnalysis.h"
 
 using llvm::BasicBlock;
 using llvm::GlobalVariable;

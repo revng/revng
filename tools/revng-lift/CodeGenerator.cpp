@@ -48,7 +48,6 @@
 #include "revng/Support/revng.h"
 
 #include "CodeGenerator.h"
-
 #include "ExternalJumpsHandler.h"
 #include "InstructionTranslator.h"
 #include "JumpTargetManager.h"

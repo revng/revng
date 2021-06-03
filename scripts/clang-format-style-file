@@ -93,6 +93,7 @@ IncludeCategories:
     Regex:        '^<',
     Priority:     -8,
   }
+IncludeIsMainRegex: _THIS_SEQUENCE_IS_NEVER_GOING_TO_HAPPEN,
 IndentCaseLabels: false,
 IndentPPDirectives: None,
 IndentWidth: 2,
