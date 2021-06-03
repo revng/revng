@@ -25,7 +25,6 @@
 #include "revng/Support/IRHelpers.h"
 
 #include "CPUStateAccessAnalysisPass.h"
-
 #include "VariableManager.h"
 
 namespace llvm {

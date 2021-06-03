@@ -13,9 +13,8 @@
 #include "revng/Support/GraphAlgorithms.h"
 #include "revng/Support/MonotoneFramework.h"
 
-#include "FunctionABI.h"
-
 #include "ABIIR.h"
+#include "FunctionABI.h"
 
 using std::conditional;
 using std::tuple;

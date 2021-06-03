@@ -49,11 +49,10 @@
 #include "revng/TypeShrinking/BitLiveness.h"
 #include "revng/TypeShrinking/TypeShrinking.h"
 
-#include "JumpTargetManager.h"
-
 #include "AdvancedValueInfoPass.h"
 #include "CPUStateAccessAnalysisPass.h"
 #include "DropHelperCallsPass.h"
+#include "JumpTargetManager.h"
 #include "SubGraph.h"
 
 using namespace llvm;
