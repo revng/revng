@@ -82,12 +82,16 @@ IncludeCategories:
     Priority:     -5,
   }
 - {
-    Regex:        '^"boost/',
+    Regex:        '^"Qt[^/]+/',
     Priority:     -6,
   }
 - {
-    Regex:        '^<',
+    Regex:        '^"boost/',
     Priority:     -7,
+  }
+- {
+    Regex:        '^<',
+    Priority:     -8,
   }
 IndentCaseLabels: false,
 IndentPPDirectives: None,
