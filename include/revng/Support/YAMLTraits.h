@@ -7,9 +7,17 @@
 #include "llvm/Support/YAMLTraits.h"
 
 template<typename T>
+concept HasScalarTraits = llvm::yaml::has_ScalarTraits<T>::value;
+
+template<typename T>
+concept HasScalarEnumTraits = llvm::yaml::has_ScalarEnumerationTraits<T>::value;
+
+template<typename T>
+concept HasScalarOrEnumTraits = HasScalarTraits<T> or HasScalarEnumTraits<T>;
+
+template<HasScalarEnumTraits T>
 inline llvm::StringRef getNameFromYAMLEnumScalar(T V) {
   using namespace llvm::yaml;
-  static_assert(has_ScalarEnumerationTraits<T>::value);
   struct GetScalarIO {
     llvm::StringRef Result;
     void enumCase(const T &V,
@@ -26,11 +34,9 @@ inline llvm::StringRef getNameFromYAMLEnumScalar(T V) {
   return ExtractName.Result;
 }
 
-template<typename T>
+template<HasScalarOrEnumTraits T>
 inline std::string getNameFromYAMLScalar(T V) {
   using namespace llvm::yaml;
-  static_assert(has_ScalarTraits<T>::value
-                or has_ScalarEnumerationTraits<T>::value);
 
   if constexpr (has_ScalarTraits<T>::value) {
     std::string Buffer;
@@ -48,11 +54,9 @@ T getInvalidValueFromYAMLScalar() {
   revng_abort();
 }
 
-template<typename T>
+template<HasScalarOrEnumTraits T>
 inline T getValueFromYAMLScalar(llvm::StringRef Name) {
   using namespace llvm::yaml;
-  static_assert(has_ScalarTraits<T>::value
-                or has_ScalarEnumerationTraits<T>::value);
 
   T Result;
 

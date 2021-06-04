@@ -211,6 +211,149 @@ enum Values {
   f14_systemz,
   f15_systemz
 };
+} // end namespace model::Register
+
+namespace llvm::yaml {
+template<>
+struct ScalarEnumerationTraits<model::Register::Values> {
+  template<typename T>
+  static void enumeration(T &io, model::Register::Values &V) {
+    using namespace model::Register;
+    io.enumCase(V, "Invalid", Invalid);
+    io.enumCase(V, "eax_x86", eax_x86);
+    io.enumCase(V, "ebx_x86", ebx_x86);
+    io.enumCase(V, "ecx_x86", ecx_x86);
+    io.enumCase(V, "edx_x86", edx_x86);
+    io.enumCase(V, "esi_x86", esi_x86);
+    io.enumCase(V, "edi_x86", edi_x86);
+    io.enumCase(V, "ebp_x86", ebp_x86);
+    io.enumCase(V, "esp_x86", esp_x86);
+    io.enumCase(V, "rax_x86_64", rax_x86_64);
+    io.enumCase(V, "rbx_x86_64", rbx_x86_64);
+    io.enumCase(V, "rcx_x86_64", rcx_x86_64);
+    io.enumCase(V, "rdx_x86_64", rdx_x86_64);
+    io.enumCase(V, "rbp_x86_64", rbp_x86_64);
+    io.enumCase(V, "rsp_x86_64", rsp_x86_64);
+    io.enumCase(V, "rsi_x86_64", rsi_x86_64);
+    io.enumCase(V, "rdi_x86_64", rdi_x86_64);
+    io.enumCase(V, "r8_x86_64", r8_x86_64);
+    io.enumCase(V, "r9_x86_64", r9_x86_64);
+    io.enumCase(V, "r10_x86_64", r10_x86_64);
+    io.enumCase(V, "r11_x86_64", r11_x86_64);
+    io.enumCase(V, "r12_x86_64", r12_x86_64);
+    io.enumCase(V, "r13_x86_64", r13_x86_64);
+    io.enumCase(V, "r14_x86_64", r14_x86_64);
+    io.enumCase(V, "r15_x86_64", r15_x86_64);
+    io.enumCase(V, "xmm0_x86_64", xmm0_x86_64);
+    io.enumCase(V, "xmm1_x86_64", xmm1_x86_64);
+    io.enumCase(V, "xmm2_x86_64", xmm2_x86_64);
+    io.enumCase(V, "xmm3_x86_64", xmm3_x86_64);
+    io.enumCase(V, "xmm4_x86_64", xmm4_x86_64);
+    io.enumCase(V, "xmm5_x86_64", xmm5_x86_64);
+    io.enumCase(V, "xmm6_x86_64", xmm6_x86_64);
+    io.enumCase(V, "xmm7_x86_64", xmm7_x86_64);
+    io.enumCase(V, "r0_arm", r0_arm);
+    io.enumCase(V, "r1_arm", r1_arm);
+    io.enumCase(V, "r2_arm", r2_arm);
+    io.enumCase(V, "r3_arm", r3_arm);
+    io.enumCase(V, "r4_arm", r4_arm);
+    io.enumCase(V, "r5_arm", r5_arm);
+    io.enumCase(V, "r6_arm", r6_arm);
+    io.enumCase(V, "r7_arm", r7_arm);
+    io.enumCase(V, "r8_arm", r8_arm);
+    io.enumCase(V, "r9_arm", r9_arm);
+    io.enumCase(V, "r10_arm", r10_arm);
+    io.enumCase(V, "r11_arm", r11_arm);
+    io.enumCase(V, "r12_arm", r12_arm);
+    io.enumCase(V, "r13_arm", r13_arm);
+    io.enumCase(V, "r14_arm", r14_arm);
+    io.enumCase(V, "x0_aarch64", x0_aarch64);
+    io.enumCase(V, "x1_aarch64", x1_aarch64);
+    io.enumCase(V, "x2_aarch64", x2_aarch64);
+    io.enumCase(V, "x3_aarch64", x3_aarch64);
+    io.enumCase(V, "x4_aarch64", x4_aarch64);
+    io.enumCase(V, "x5_aarch64", x5_aarch64);
+    io.enumCase(V, "x6_aarch64", x6_aarch64);
+    io.enumCase(V, "x7_aarch64", x7_aarch64);
+    io.enumCase(V, "x8_aarch64", x8_aarch64);
+    io.enumCase(V, "x9_aarch64", x9_aarch64);
+    io.enumCase(V, "x10_aarch64", x10_aarch64);
+    io.enumCase(V, "x11_aarch64", x11_aarch64);
+    io.enumCase(V, "x12_aarch64", x12_aarch64);
+    io.enumCase(V, "x13_aarch64", x13_aarch64);
+    io.enumCase(V, "x14_aarch64", x14_aarch64);
+    io.enumCase(V, "x15_aarch64", x15_aarch64);
+    io.enumCase(V, "x16_aarch64", x16_aarch64);
+    io.enumCase(V, "x17_aarch64", x17_aarch64);
+    io.enumCase(V, "x18_aarch64", x18_aarch64);
+    io.enumCase(V, "x19_aarch64", x19_aarch64);
+    io.enumCase(V, "x20_aarch64", x20_aarch64);
+    io.enumCase(V, "x21_aarch64", x21_aarch64);
+    io.enumCase(V, "x22_aarch64", x22_aarch64);
+    io.enumCase(V, "x23_aarch64", x23_aarch64);
+    io.enumCase(V, "x24_aarch64", x24_aarch64);
+    io.enumCase(V, "x25_aarch64", x25_aarch64);
+    io.enumCase(V, "x26_aarch64", x26_aarch64);
+    io.enumCase(V, "x27_aarch64", x27_aarch64);
+    io.enumCase(V, "x28_aarch64", x28_aarch64);
+    io.enumCase(V, "x29_aarch64", x29_aarch64);
+    io.enumCase(V, "lr_aarch64", lr_aarch64);
+    io.enumCase(V, "sp_aarch64", sp_aarch64);
+    io.enumCase(V, "v0_mips", v0_mips);
+    io.enumCase(V, "v1_mips", v1_mips);
+    io.enumCase(V, "a0_mips", a0_mips);
+    io.enumCase(V, "a1_mips", a1_mips);
+    io.enumCase(V, "a2_mips", a2_mips);
+    io.enumCase(V, "a3_mips", a3_mips);
+    io.enumCase(V, "s0_mips", s0_mips);
+    io.enumCase(V, "s1_mips", s1_mips);
+    io.enumCase(V, "s2_mips", s2_mips);
+    io.enumCase(V, "s3_mips", s3_mips);
+    io.enumCase(V, "s4_mips", s4_mips);
+    io.enumCase(V, "s5_mips", s5_mips);
+    io.enumCase(V, "s6_mips", s6_mips);
+    io.enumCase(V, "s7_mips", s7_mips);
+    io.enumCase(V, "gp_mips", gp_mips);
+    io.enumCase(V, "sp_mips", sp_mips);
+    io.enumCase(V, "fp_mips", fp_mips);
+    io.enumCase(V, "ra_mips", ra_mips);
+    io.enumCase(V, "r0_systemz", r0_systemz);
+    io.enumCase(V, "r1_systemz", r1_systemz);
+    io.enumCase(V, "r2_systemz", r2_systemz);
+    io.enumCase(V, "r3_systemz", r3_systemz);
+    io.enumCase(V, "r4_systemz", r4_systemz);
+    io.enumCase(V, "r5_systemz", r5_systemz);
+    io.enumCase(V, "r6_systemz", r6_systemz);
+    io.enumCase(V, "r7_systemz", r7_systemz);
+    io.enumCase(V, "r8_systemz", r8_systemz);
+    io.enumCase(V, "r9_systemz", r9_systemz);
+    io.enumCase(V, "r10_systemz", r10_systemz);
+    io.enumCase(V, "r11_systemz", r11_systemz);
+    io.enumCase(V, "r12_systemz", r12_systemz);
+    io.enumCase(V, "r13_systemz", r13_systemz);
+    io.enumCase(V, "r14_systemz", r14_systemz);
+    io.enumCase(V, "r15_systemz", r15_systemz);
+    io.enumCase(V, "f0_systemz", f0_systemz);
+    io.enumCase(V, "f1_systemz", f1_systemz);
+    io.enumCase(V, "f2_systemz", f2_systemz);
+    io.enumCase(V, "f3_systemz", f3_systemz);
+    io.enumCase(V, "f4_systemz", f4_systemz);
+    io.enumCase(V, "f5_systemz", f5_systemz);
+    io.enumCase(V, "f6_systemz", f6_systemz);
+    io.enumCase(V, "f7_systemz", f7_systemz);
+    io.enumCase(V, "f8_systemz", f8_systemz);
+    io.enumCase(V, "f9_systemz", f9_systemz);
+    io.enumCase(V, "f10_systemz", f10_systemz);
+    io.enumCase(V, "f11_systemz", f11_systemz);
+    io.enumCase(V, "f12_systemz", f12_systemz);
+    io.enumCase(V, "f13_systemz", f13_systemz);
+    io.enumCase(V, "f14_systemz", f14_systemz);
+    io.enumCase(V, "f15_systemz", f15_systemz);
+  }
+};
+} // namespace llvm::yaml
+
+namespace model::Register {
 
 inline llvm::StringRef getName(Values V) {
   return getNameFromYAMLEnumScalar(V);
@@ -403,147 +546,8 @@ getInvalidValueFromYAMLScalar<model::Register::Values>() {
   return model::Register::Invalid;
 }
 
-namespace llvm::yaml {
-template<>
-struct ScalarEnumerationTraits<model::Register::Values> {
-  template<typename T>
-  static void enumeration(T &io, model::Register::Values &V) {
-    using namespace model::Register;
-    io.enumCase(V, "Invalid", Invalid);
-    io.enumCase(V, "eax_x86", eax_x86);
-    io.enumCase(V, "ebx_x86", ebx_x86);
-    io.enumCase(V, "ecx_x86", ecx_x86);
-    io.enumCase(V, "edx_x86", edx_x86);
-    io.enumCase(V, "esi_x86", esi_x86);
-    io.enumCase(V, "edi_x86", edi_x86);
-    io.enumCase(V, "ebp_x86", ebp_x86);
-    io.enumCase(V, "esp_x86", esp_x86);
-    io.enumCase(V, "rax_x86_64", rax_x86_64);
-    io.enumCase(V, "rbx_x86_64", rbx_x86_64);
-    io.enumCase(V, "rcx_x86_64", rcx_x86_64);
-    io.enumCase(V, "rdx_x86_64", rdx_x86_64);
-    io.enumCase(V, "rbp_x86_64", rbp_x86_64);
-    io.enumCase(V, "rsp_x86_64", rsp_x86_64);
-    io.enumCase(V, "rsi_x86_64", rsi_x86_64);
-    io.enumCase(V, "rdi_x86_64", rdi_x86_64);
-    io.enumCase(V, "r8_x86_64", r8_x86_64);
-    io.enumCase(V, "r9_x86_64", r9_x86_64);
-    io.enumCase(V, "r10_x86_64", r10_x86_64);
-    io.enumCase(V, "r11_x86_64", r11_x86_64);
-    io.enumCase(V, "r12_x86_64", r12_x86_64);
-    io.enumCase(V, "r13_x86_64", r13_x86_64);
-    io.enumCase(V, "r14_x86_64", r14_x86_64);
-    io.enumCase(V, "r15_x86_64", r15_x86_64);
-    io.enumCase(V, "xmm0_x86_64", xmm0_x86_64);
-    io.enumCase(V, "xmm1_x86_64", xmm1_x86_64);
-    io.enumCase(V, "xmm2_x86_64", xmm2_x86_64);
-    io.enumCase(V, "xmm3_x86_64", xmm3_x86_64);
-    io.enumCase(V, "xmm4_x86_64", xmm4_x86_64);
-    io.enumCase(V, "xmm5_x86_64", xmm5_x86_64);
-    io.enumCase(V, "xmm6_x86_64", xmm6_x86_64);
-    io.enumCase(V, "xmm7_x86_64", xmm7_x86_64);
-    io.enumCase(V, "r0_arm", r0_arm);
-    io.enumCase(V, "r1_arm", r1_arm);
-    io.enumCase(V, "r2_arm", r2_arm);
-    io.enumCase(V, "r3_arm", r3_arm);
-    io.enumCase(V, "r4_arm", r4_arm);
-    io.enumCase(V, "r5_arm", r5_arm);
-    io.enumCase(V, "r6_arm", r6_arm);
-    io.enumCase(V, "r7_arm", r7_arm);
-    io.enumCase(V, "r8_arm", r8_arm);
-    io.enumCase(V, "r9_arm", r9_arm);
-    io.enumCase(V, "r10_arm", r10_arm);
-    io.enumCase(V, "r11_arm", r11_arm);
-    io.enumCase(V, "r12_arm", r12_arm);
-    io.enumCase(V, "r13_arm", r13_arm);
-    io.enumCase(V, "r14_arm", r14_arm);
-    io.enumCase(V, "x0_aarch64", x0_aarch64);
-    io.enumCase(V, "x1_aarch64", x1_aarch64);
-    io.enumCase(V, "x2_aarch64", x2_aarch64);
-    io.enumCase(V, "x3_aarch64", x3_aarch64);
-    io.enumCase(V, "x4_aarch64", x4_aarch64);
-    io.enumCase(V, "x5_aarch64", x5_aarch64);
-    io.enumCase(V, "x6_aarch64", x6_aarch64);
-    io.enumCase(V, "x7_aarch64", x7_aarch64);
-    io.enumCase(V, "x8_aarch64", x8_aarch64);
-    io.enumCase(V, "x9_aarch64", x9_aarch64);
-    io.enumCase(V, "x10_aarch64", x10_aarch64);
-    io.enumCase(V, "x11_aarch64", x11_aarch64);
-    io.enumCase(V, "x12_aarch64", x12_aarch64);
-    io.enumCase(V, "x13_aarch64", x13_aarch64);
-    io.enumCase(V, "x14_aarch64", x14_aarch64);
-    io.enumCase(V, "x15_aarch64", x15_aarch64);
-    io.enumCase(V, "x16_aarch64", x16_aarch64);
-    io.enumCase(V, "x17_aarch64", x17_aarch64);
-    io.enumCase(V, "x18_aarch64", x18_aarch64);
-    io.enumCase(V, "x19_aarch64", x19_aarch64);
-    io.enumCase(V, "x20_aarch64", x20_aarch64);
-    io.enumCase(V, "x21_aarch64", x21_aarch64);
-    io.enumCase(V, "x22_aarch64", x22_aarch64);
-    io.enumCase(V, "x23_aarch64", x23_aarch64);
-    io.enumCase(V, "x24_aarch64", x24_aarch64);
-    io.enumCase(V, "x25_aarch64", x25_aarch64);
-    io.enumCase(V, "x26_aarch64", x26_aarch64);
-    io.enumCase(V, "x27_aarch64", x27_aarch64);
-    io.enumCase(V, "x28_aarch64", x28_aarch64);
-    io.enumCase(V, "x29_aarch64", x29_aarch64);
-    io.enumCase(V, "lr_aarch64", lr_aarch64);
-    io.enumCase(V, "sp_aarch64", sp_aarch64);
-    io.enumCase(V, "v0_mips", v0_mips);
-    io.enumCase(V, "v1_mips", v1_mips);
-    io.enumCase(V, "a0_mips", a0_mips);
-    io.enumCase(V, "a1_mips", a1_mips);
-    io.enumCase(V, "a2_mips", a2_mips);
-    io.enumCase(V, "a3_mips", a3_mips);
-    io.enumCase(V, "s0_mips", s0_mips);
-    io.enumCase(V, "s1_mips", s1_mips);
-    io.enumCase(V, "s2_mips", s2_mips);
-    io.enumCase(V, "s3_mips", s3_mips);
-    io.enumCase(V, "s4_mips", s4_mips);
-    io.enumCase(V, "s5_mips", s5_mips);
-    io.enumCase(V, "s6_mips", s6_mips);
-    io.enumCase(V, "s7_mips", s7_mips);
-    io.enumCase(V, "gp_mips", gp_mips);
-    io.enumCase(V, "sp_mips", sp_mips);
-    io.enumCase(V, "fp_mips", fp_mips);
-    io.enumCase(V, "ra_mips", ra_mips);
-    io.enumCase(V, "r0_systemz", r0_systemz);
-    io.enumCase(V, "r1_systemz", r1_systemz);
-    io.enumCase(V, "r2_systemz", r2_systemz);
-    io.enumCase(V, "r3_systemz", r3_systemz);
-    io.enumCase(V, "r4_systemz", r4_systemz);
-    io.enumCase(V, "r5_systemz", r5_systemz);
-    io.enumCase(V, "r6_systemz", r6_systemz);
-    io.enumCase(V, "r7_systemz", r7_systemz);
-    io.enumCase(V, "r8_systemz", r8_systemz);
-    io.enumCase(V, "r9_systemz", r9_systemz);
-    io.enumCase(V, "r10_systemz", r10_systemz);
-    io.enumCase(V, "r11_systemz", r11_systemz);
-    io.enumCase(V, "r12_systemz", r12_systemz);
-    io.enumCase(V, "r13_systemz", r13_systemz);
-    io.enumCase(V, "r14_systemz", r14_systemz);
-    io.enumCase(V, "r15_systemz", r15_systemz);
-    io.enumCase(V, "f0_systemz", f0_systemz);
-    io.enumCase(V, "f1_systemz", f1_systemz);
-    io.enumCase(V, "f2_systemz", f2_systemz);
-    io.enumCase(V, "f3_systemz", f3_systemz);
-    io.enumCase(V, "f4_systemz", f4_systemz);
-    io.enumCase(V, "f5_systemz", f5_systemz);
-    io.enumCase(V, "f6_systemz", f6_systemz);
-    io.enumCase(V, "f7_systemz", f7_systemz);
-    io.enumCase(V, "f8_systemz", f8_systemz);
-    io.enumCase(V, "f9_systemz", f9_systemz);
-    io.enumCase(V, "f10_systemz", f10_systemz);
-    io.enumCase(V, "f11_systemz", f11_systemz);
-    io.enumCase(V, "f12_systemz", f12_systemz);
-    io.enumCase(V, "f13_systemz", f13_systemz);
-    io.enumCase(V, "f14_systemz", f14_systemz);
-    io.enumCase(V, "f15_systemz", f15_systemz);
-  }
-};
-} // namespace llvm::yaml
-
 namespace model::RegisterState {
+
 enum Values {
   Invalid,
   No,
@@ -554,19 +558,6 @@ enum Values {
   Maybe,
   Contradiction
 };
-
-inline llvm::StringRef getName(Values V) {
-  return getNameFromYAMLEnumScalar(V);
-}
-
-inline Values fromName(llvm::StringRef Name) {
-  return getValueFromYAMLScalar<Values>(Name);
-}
-
-inline bool shouldEmit(model::RegisterState::Values V) {
-  return (V == model::RegisterState::Yes or V == model::RegisterState::YesOrDead
-          or V == model::RegisterState::Dead);
-}
 
 } // namespace model::RegisterState
 
@@ -587,6 +578,23 @@ struct ScalarEnumerationTraits<model::RegisterState::Values> {
   }
 };
 } // namespace llvm::yaml
+
+namespace model::RegisterState {
+
+inline llvm::StringRef getName(Values V) {
+  return getNameFromYAMLEnumScalar(V);
+}
+
+inline Values fromName(llvm::StringRef Name) {
+  return getValueFromYAMLScalar<Values>(Name);
+}
+
+inline bool shouldEmit(model::RegisterState::Values V) {
+  return (V == model::RegisterState::Yes or V == model::RegisterState::YesOrDead
+          or V == model::RegisterState::Dead);
+}
+
+} // namespace model::RegisterState
 
 class model::FunctionABIRegister {
 public:
