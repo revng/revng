@@ -126,28 +126,32 @@ public:
   constexpr UpcastablePointer(std::nullptr_t P) noexcept :
     Pointer(P, deleter) {}
   explicit UpcastablePointer(pointer P) noexcept : Pointer(P, deleter) {}
-  UpcastablePointer(UpcastablePointer &&P) noexcept :
-    Pointer(std::move(P.Pointer)) {
-    revng_assert(Pointer.get_deleter() == deleter);
-  }
 
 public:
-  UpcastablePointer(const UpcastablePointer &Other) :
-    Pointer(nullptr, deleter) {
-    *this = Other;
-    revng_assert(Pointer.get_deleter() == deleter);
+  UpcastablePointer &operator=(const UpcastablePointer &Other) {
+    if (&Other != this) {
+      Pointer.reset(clone(Other.Pointer.get()));
+      revng_assert(Pointer.get_deleter() == deleter);
+    }
+    return *this;
   }
 
-  UpcastablePointer &operator=(const UpcastablePointer &Other) {
-    Pointer.reset(clone(Other.Pointer.get()));
-    revng_assert(Pointer.get_deleter() == deleter);
-    return *this;
+  UpcastablePointer(const UpcastablePointer &Other) :
+    UpcastablePointer(nullptr) {
+    *this = Other;
   }
 
   UpcastablePointer &operator=(UpcastablePointer &&Other) {
-    Pointer.reset(Other.Pointer.release());
-    revng_assert(Pointer.get_deleter() == deleter);
+    if (&Other != this) {
+      Pointer.reset(Other.Pointer.release());
+      revng_assert(Pointer.get_deleter() == deleter);
+    }
     return *this;
+  }
+
+  UpcastablePointer(UpcastablePointer &&Other) noexcept :
+    UpcastablePointer(nullptr) {
+    *this = std::move(Other);
   }
 
   bool operator==(const UpcastablePointer &Other) const {
