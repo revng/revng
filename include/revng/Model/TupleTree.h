@@ -987,13 +987,11 @@ constexpr bool validateTupleTree(L Check) {
   INTROSPECTION_2(class, __VA_ARGS__)     \
   }
 
-template<typename T>
+template<TupleTreeCompatible T>
 class TupleTree;
 
 template<typename T, typename RootT>
 class TupleTreeReference {
-  friend class TupleTree<RootT>;
-
 public:
   using pointee = T;
 
@@ -1074,7 +1072,7 @@ void serialize(S &Stream, T &Element) {
   YAMLOutput << Element;
 }
 
-template<typename T>
+template<TupleTreeCompatible T>
 class TupleTree {
 private:
   std::unique_ptr<T> Root;
@@ -1174,9 +1172,3 @@ private:
     visitTupleTree(*Root, Visitor, [](auto) {});
   }
 };
-
-static_assert(std::is_default_constructible_v<TupleTree<int>>);
-static_assert(not std::is_copy_assignable_v<TupleTree<int>>);
-static_assert(not std::is_copy_constructible_v<TupleTree<int>>);
-static_assert(std::is_move_assignable_v<TupleTree<int>>);
-static_assert(std::is_move_constructible_v<TupleTree<int>>);
