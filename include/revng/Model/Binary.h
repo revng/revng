@@ -29,45 +29,6 @@ class BasicBlock;
 // TODO: Prevent changing the keys. Currently we need them to be public and
 //       non-const for serialization purposes.
 
-template<typename T, char Separator>
-struct CompositeScalar {
-  static_assert(std::tuple_size_v<T> >= 0);
-
-  template<size_t I = 0>
-  static void output(const T &Value, void *Ctx, llvm::raw_ostream &Output) {
-    if constexpr (I < std::tuple_size_v<T>) {
-
-      if constexpr (I != 0) {
-        Output << Separator;
-      }
-
-      using element = std::tuple_element_t<I, T>;
-      Output << getNameFromYAMLScalar<element>(get<I>(Value));
-
-      CompositeScalar::output<I + 1>(Value, Ctx, Output);
-    }
-  }
-
-  template<size_t I = 0>
-  static llvm::StringRef input(llvm::StringRef Scalar, void *Ctx, T &Value) {
-    if constexpr (I < std::tuple_size_v<T>) {
-      auto [Before, After] = Scalar.split(Separator);
-
-      using element = std::tuple_element_t<I, T>;
-      get<I>(Value) = getValueFromYAMLScalar<element>(Before);
-
-      return CompositeScalar::input<I + 1>(After, Ctx, Value);
-    } else {
-      revng_assert(Scalar.size() == 0);
-      return Scalar;
-    }
-  }
-
-  static llvm::yaml::QuotingType mustQuote(llvm::StringRef) {
-    return llvm::yaml::QuotingType::Double;
-  }
-};
-
 template<>
 struct KeyedObjectTraits<MetaAddress>
   : public IdentityKeyedObjectTraits<MetaAddress> {};
