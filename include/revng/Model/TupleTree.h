@@ -57,6 +57,10 @@ static_assert(NotYamlizable<NoYaml>);
 static_assert(Yamlizable<int>);
 static_assert(Yamlizable<std::vector<int>>);
 
+constexpr inline auto IsYamlizable = [](auto *K) {
+  return Yamlizable<std::remove_pointer_t<decltype(K)>>;
+};
+
 //
 // slice
 //

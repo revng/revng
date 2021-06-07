@@ -922,9 +922,6 @@ template<>
 struct llvm::yaml::MappingTraits<model::Binary>
   : public TupleLikeMappingTraits<model::Binary> {};
 
-constexpr auto IsYamlizable = [](auto *K) {
-  return Yamlizable<std::remove_pointer_t<decltype(K)>>;
-};
 static_assert(validateTupleTree<model::Binary>(IsYamlizable),
               "All elements of the model must be YAMLizable");
 
