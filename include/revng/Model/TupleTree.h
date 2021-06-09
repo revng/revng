@@ -15,16 +15,20 @@
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/ADT/TupleTreePath.h"
+#include "revng/ADT/UpcastablePointer.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
 
 // clang-format off
 template<typename T>
-concept NotTupleTreeCompatible = (not IsContainer<T>
-                                  and not HasTupleSize<T>
-                                  and not IsUpcastablePointer<T>);
+concept TupleTreeCompatible = IsKeyedObjectContainer<T>
+                                or HasTupleSize<T>
+                                or IsUpcastablePointer<T>;
 // clang-format on
+
+template<typename T>
+concept NotTupleTreeCompatible = not TupleTreeCompatible<T>;
 
 // clang-format off
 template<typename T>
@@ -52,6 +56,10 @@ static_assert(NotYamlizable<NoYaml>);
 
 static_assert(Yamlizable<int>);
 static_assert(Yamlizable<std::vector<int>>);
+
+constexpr inline auto IsYamlizable = [](auto *K) {
+  return Yamlizable<std::remove_pointer_t<decltype(K)>>;
+};
 
 //
 // slice
@@ -146,7 +154,7 @@ void visitTupleTree(Visitor &V, T &Obj) {
 }
 
 // Container-like
-template<typename Visitor, IsContainer T>
+template<typename Visitor, IsKeyedObjectContainer T>
 void visitTupleTree(Visitor &V, T &Obj) {
   V.preVisit(Obj);
   using value_type = typename T::value_type;
@@ -234,7 +242,7 @@ ResultT getByKey(RootT &M, KeyT Key) {
   return tupletree::detail::getByKeyTuple<ResultT>(M, Key);
 }
 
-template<typename ResultT, IsContainer RootT, typename KeyT>
+template<typename ResultT, IsKeyedObjectContainer RootT, typename KeyT>
 ResultT *getByKey(RootT &M, KeyT Key) {
   for (auto &Element : M) {
     using KOT = KeyedObjectTraits<std::remove_reference_t<decltype(Element)>>;
@@ -261,7 +269,7 @@ bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
   return callOnPathStepsTuple<element_type>(V, Path);
 }
 
-template<IsContainer RootT, typename Visitor>
+template<IsKeyedObjectContainer RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
   using value_type = typename RootT::value_type;
   using KOT = KeyedObjectTraits<value_type>;
@@ -367,7 +375,7 @@ bool callOnPathSteps(Visitor &V,
   return tupletree::detail::callOnPathStepsTuple(V, Path, M);
 }
 
-template<IsContainer RootT, typename Visitor>
+template<IsKeyedObjectContainer RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                      RootT &M) {
@@ -447,7 +455,14 @@ struct CallByPathVisitorWithInstance {
       V.template visitTupleElement<T, I>(Element);
   }
 
-  template<typename T, typename K, typename KeyT>
+  template<typename T, IsUpcastablePointer K, typename KeyT>
+  void visitContainerElement(KeyT Key, K &Element) {
+    PathSize -= 1;
+    if (PathSize == 0)
+      V.template visitContainerElement<T>(Key, *Element.get());
+  }
+
+  template<typename T, IsNotUpcastablePointer K, typename KeyT>
   void visitContainerElement(KeyT Key, K &Element) {
     PathSize -= 1;
     if (PathSize == 0)
@@ -642,7 +657,7 @@ private:
   template<HasTupleSize T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
-  template<IsContainer T>
+  template<IsKeyedObjectContainer T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
   template<NotTupleTreeCompatible T>
@@ -666,7 +681,7 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
   return visitTuple<T>(Before, After, Result);
 }
 
-template<IsContainer T>
+template<IsKeyedObjectContainer T>
 bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
                                      PathMatcher &Result) {
   if (String.size() == 0)
@@ -738,7 +753,7 @@ constexpr bool validateTupleTree(L);
 template<typename T, typename L>
 constexpr bool validateTupleTree(L);
 
-template<IsContainer T, typename L>
+template<IsKeyedObjectContainer T, typename L>
 constexpr bool validateTupleTree(L);
 
 template<UpcastablePointerLike T, typename L>
@@ -750,7 +765,7 @@ constexpr bool validateTupleTree(L Check) {
          and validateTupleTree<typename T::element_type>(Check);
 }
 
-template<IsContainer T, typename L>
+template<IsKeyedObjectContainer T, typename L>
 constexpr bool validateTupleTree(L Check) {
   return Check((T *) nullptr)
          and validateTupleTree<typename T::value_type>(Check);
@@ -972,13 +987,11 @@ constexpr bool validateTupleTree(L Check) {
   INTROSPECTION_2(class, __VA_ARGS__)     \
   }
 
-template<typename T>
+template<TupleTreeCompatible T>
 class TupleTree;
 
 template<typename T, typename RootT>
 class TupleTreeReference {
-  friend class TupleTree<RootT>;
-
 public:
   using pointee = T;
 
@@ -995,6 +1008,11 @@ public:
 
   static TupleTreeReference fromString(llvm::StringRef Path) {
     return fromPath(*stringAsPath<RootT>(Path));
+  }
+
+  bool operator==(const TupleTreeReference &Other) const {
+    // The paths are the same even if they are referred to different roots
+    return Path == Other.Path;
   }
 
 public:
@@ -1054,7 +1072,7 @@ void serialize(S &Stream, T &Element) {
   YAMLOutput << Element;
 }
 
-template<typename T>
+template<TupleTreeCompatible T>
 class TupleTree {
 private:
   std::unique_ptr<T> Root;
@@ -1100,7 +1118,13 @@ public:
 public:
   template<typename S>
   void serialize(S &Stream) const {
-    serialize(Stream, Root);
+    revng_assert(Root);
+    ::serialize(Stream, *Root);
+  }
+
+  void serialize(std::string &Buffer) const {
+    llvm::raw_string_ostream Stream(Buffer);
+    serialize(Stream);
   }
 
 public:
@@ -1148,9 +1172,3 @@ private:
     visitTupleTree(*Root, Visitor, [](auto) {});
   }
 };
-
-static_assert(std::is_default_constructible_v<TupleTree<int>>);
-static_assert(not std::is_copy_assignable_v<TupleTree<int>>);
-static_assert(not std::is_copy_constructible_v<TupleTree<int>>);
-static_assert(std::is_move_assignable_v<TupleTree<int>>);
-static_assert(std::is_move_constructible_v<TupleTree<int>>);

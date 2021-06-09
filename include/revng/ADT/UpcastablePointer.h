@@ -52,7 +52,7 @@ template<typename T>
 concept UpcastablePointerLike = PointerLike<T> and Upcastable<pointee<T>>;
 
 template<typename T>
-concept NotVoid = !same_as<void, T>;
+concept NotVoid = not std::is_void_v<T>;
 
 template<NotVoid ReturnT, typename L, UpcastablePointerLike P, size_t I = 0>
 ReturnT upcast(P &Upcastable, const L &Callable, const ReturnT &IfNull) {
@@ -126,28 +126,32 @@ public:
   constexpr UpcastablePointer(std::nullptr_t P) noexcept :
     Pointer(P, deleter) {}
   explicit UpcastablePointer(pointer P) noexcept : Pointer(P, deleter) {}
-  UpcastablePointer(UpcastablePointer &&P) noexcept :
-    Pointer(std::move(P.Pointer)) {
-    revng_assert(Pointer.get_deleter() == deleter);
-  }
 
 public:
-  UpcastablePointer(const UpcastablePointer &Other) :
-    Pointer(nullptr, deleter) {
-    *this = Other;
-    revng_assert(Pointer.get_deleter() == deleter);
+  UpcastablePointer &operator=(const UpcastablePointer &Other) {
+    if (&Other != this) {
+      Pointer.reset(clone(Other.Pointer.get()));
+      revng_assert(Pointer.get_deleter() == deleter);
+    }
+    return *this;
   }
 
-  UpcastablePointer &operator=(const UpcastablePointer &Other) {
-    Pointer.reset(clone(Other.Pointer.get()));
-    revng_assert(Pointer.get_deleter() == deleter);
-    return *this;
+  UpcastablePointer(const UpcastablePointer &Other) :
+    UpcastablePointer(nullptr) {
+    *this = Other;
   }
 
   UpcastablePointer &operator=(UpcastablePointer &&Other) {
-    Pointer.reset(Other.Pointer.release());
-    revng_assert(Pointer.get_deleter() == deleter);
+    if (&Other != this) {
+      Pointer.reset(Other.Pointer.release());
+      revng_assert(Pointer.get_deleter() == deleter);
+    }
     return *this;
+  }
+
+  UpcastablePointer(UpcastablePointer &&Other) noexcept :
+    UpcastablePointer(nullptr) {
+    *this = std::move(Other);
   }
 
   bool operator==(const UpcastablePointer &Other) const {
@@ -179,3 +183,6 @@ private:
 
 template<typename T>
 concept IsUpcastablePointer = is_specialization_v<T, UpcastablePointer>;
+
+template<typename T>
+concept IsNotUpcastablePointer = not IsUpcastablePointer<T>;

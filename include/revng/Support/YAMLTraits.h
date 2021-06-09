@@ -7,9 +7,17 @@
 #include "llvm/Support/YAMLTraits.h"
 
 template<typename T>
+concept HasScalarTraits = llvm::yaml::has_ScalarTraits<T>::value;
+
+template<typename T>
+concept HasScalarEnumTraits = llvm::yaml::has_ScalarEnumerationTraits<T>::value;
+
+template<typename T>
+concept HasScalarOrEnumTraits = HasScalarTraits<T> or HasScalarEnumTraits<T>;
+
+template<HasScalarEnumTraits T>
 inline llvm::StringRef getNameFromYAMLEnumScalar(T V) {
   using namespace llvm::yaml;
-  static_assert(has_ScalarEnumerationTraits<T>::value);
   struct GetScalarIO {
     llvm::StringRef Result;
     void enumCase(const T &V,
@@ -26,11 +34,9 @@ inline llvm::StringRef getNameFromYAMLEnumScalar(T V) {
   return ExtractName.Result;
 }
 
-template<typename T>
+template<HasScalarOrEnumTraits T>
 inline std::string getNameFromYAMLScalar(T V) {
   using namespace llvm::yaml;
-  static_assert(has_ScalarTraits<T>::value
-                or has_ScalarEnumerationTraits<T>::value);
 
   if constexpr (has_ScalarTraits<T>::value) {
     std::string Buffer;
@@ -48,11 +54,9 @@ T getInvalidValueFromYAMLScalar() {
   revng_abort();
 }
 
-template<typename T>
+template<HasScalarOrEnumTraits T>
 inline T getValueFromYAMLScalar(llvm::StringRef Name) {
   using namespace llvm::yaml;
-  static_assert(has_ScalarTraits<T>::value
-                or has_ScalarEnumerationTraits<T>::value);
 
   T Result;
 
@@ -81,3 +85,42 @@ inline T getValueFromYAMLScalar(llvm::StringRef Name) {
 
   return Result;
 }
+
+template<typename T, char Separator>
+struct CompositeScalar {
+  static_assert(std::tuple_size_v<T> >= 0);
+
+  template<size_t I = 0>
+  static void output(const T &Value, void *Ctx, llvm::raw_ostream &Output) {
+    if constexpr (I < std::tuple_size_v<T>) {
+
+      if constexpr (I != 0) {
+        Output << Separator;
+      }
+
+      using element = std::tuple_element_t<I, T>;
+      Output << getNameFromYAMLScalar<element>(get<I>(Value));
+
+      CompositeScalar::output<I + 1>(Value, Ctx, Output);
+    }
+  }
+
+  template<size_t I = 0>
+  static llvm::StringRef input(llvm::StringRef Scalar, void *Ctx, T &Value) {
+    if constexpr (I < std::tuple_size_v<T>) {
+      auto [Before, After] = Scalar.split(Separator);
+
+      using element = std::tuple_element_t<I, T>;
+      get<I>(Value) = getValueFromYAMLScalar<element>(Before);
+
+      return CompositeScalar::input<I + 1>(After, Ctx, Value);
+    } else {
+      revng_assert(Scalar.size() == 0);
+      return Scalar;
+    }
+  }
+
+  static llvm::yaml::QuotingType mustQuote(llvm::StringRef) {
+    return llvm::yaml::QuotingType::Double;
+  }
+};

@@ -25,17 +25,23 @@ protected:
 public:
   TupleTreeKeyWrapper() : Pointer(nullptr) {}
 
-  TupleTreeKeyWrapper(const TupleTreeKeyWrapper &Other) { Other.clone(this); }
-  TupleTreeKeyWrapper(TupleTreeKeyWrapper &&Other) { Other.clone(this); }
   TupleTreeKeyWrapper &operator=(const TupleTreeKeyWrapper &Other) {
-    Other.clone(this);
+    if (&Other != this) {
+      Other.clone(this);
+    }
     return *this;
   }
 
+  TupleTreeKeyWrapper(const TupleTreeKeyWrapper &Other) { *this = Other; }
+
   TupleTreeKeyWrapper &operator=(TupleTreeKeyWrapper &&Other) {
-    Other.clone(this);
+    if (&Other != this) {
+      Other.clone(this);
+    }
     return *this;
   }
+
+  TupleTreeKeyWrapper(TupleTreeKeyWrapper &&Other) { *this = Other; }
 
   virtual ~TupleTreeKeyWrapper(){};
   virtual bool operator==(const TupleTreeKeyWrapper &) const {
@@ -114,20 +120,24 @@ private:
 
 public:
   TupleTreePath() = default;
-  TupleTreePath(TupleTreePath &&Other) = default;
-  TupleTreePath &operator=(TupleTreePath &&Other) = default;
 
-  TupleTreePath(const TupleTreePath &Other) { *this = Other; }
+  TupleTreePath &operator=(TupleTreePath &&) = default;
+  TupleTreePath(TupleTreePath &&) = default;
 
   TupleTreePath &operator=(const TupleTreePath &Other) {
-    Storage.resize(Other.size());
-    for (auto [ThisElement, OtherElement] : llvm::zip(Storage, Other.Storage)) {
-      static_assert(std::is_reference_v<decltype(ThisElement)>);
-      OtherElement.clone(&ThisElement);
+    if (&Other != this) {
+      Storage.resize(Other.size());
+      for (auto [ThisElement, OtherElement] :
+           llvm::zip(Storage, Other.Storage)) {
+        static_assert(std::is_reference_v<decltype(ThisElement)>);
+        OtherElement.clone(&ThisElement);
+      }
     }
 
     return *this;
   }
+
+  TupleTreePath(const TupleTreePath &Other) { *this = Other; }
 
 public:
   template<typename T, typename... Args>
@@ -151,9 +161,7 @@ public:
   const TupleTreeKeyWrapper &operator[](size_t Index) const {
     return Storage[Index];
   }
-  bool operator==(const TupleTreePath &Other) const {
-    return Storage == Other.Storage;
-  }
+  bool operator==(const TupleTreePath &Other) const = default;
 
   // TODO: should return ArrayRef<const TupleTreeKeyWrapper>
   llvm::ArrayRef<TupleTreeKeyWrapper> toArrayRef() const { return { Storage }; }
