@@ -245,6 +245,7 @@ public:
   }
 
   bool hasSuccessors() const { return Successors.size() != 0; }
+  size_t successorCount() const { return Successors.size(); }
 
 protected:
   static llvm::iterator_range<child_iterator>
@@ -370,6 +371,7 @@ public:
   }
 
   bool hasPredecessors() const { return Predecessors.size() != 0; }
+  size_t predecessorCount() const { return Predecessors.size(); }
 
 private:
   NeighborContainer Predecessors;
