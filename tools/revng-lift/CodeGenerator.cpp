@@ -389,7 +389,8 @@ std::string SegmentInfo::generateName() {
   std::stringstream NameStream;
   NameStream << "o_" << (IsReadable ? "r" : "") << (IsWriteable ? "w" : "")
              << (IsExecutable ? "x" : "") << "_0x" << std::hex
-             << StartVirtualAddress.address();
+             << StartVirtualAddress.address() << "_" << "epoch"
+             << StartVirtualAddress.epoch();
 
   return NameStream.str();
 }
