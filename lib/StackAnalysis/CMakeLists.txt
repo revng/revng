@@ -45,6 +45,7 @@ add_custom_command(OUTPUT ABIDataFlows.h
 add_custom_target(abidataflows DEPENDS ABIDataFlows.h)
 
 revng_add_analyses_library_internal(revngStackAnalysis
+  AAWriterPass.cpp
   ABI.cpp
   ABIDetectionPass.cpp
   ABIIR.cpp
