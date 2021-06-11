@@ -670,6 +670,15 @@ public:
     return removePredecessor(findPredecessor(P));
   }
 
+public:
+  MutableEdgeNode &disconnect() {
+    for (auto It = Successors.begin(); It != Successors.end();)
+      It = removeSuccessor(It);
+    for (auto It = Predecessors.begin(); It != Predecessors.end();)
+      It = removePredecessor(It);
+    return *this;
+  }
+
 private:
   EdgeOwnerContainer Successors;
   EdgeViewContainer Predecessors;
@@ -729,6 +738,24 @@ public:
   size_t size() const { return Nodes.size(); }
 
 public:
+  nodes_iterator findNode(Node const *NodePtr) {
+    auto Comparator = [&NodePtr](auto &N) { return N.get() == NodePtr; };
+    auto InternalIt = std::find_if(Nodes.begin(), Nodes.end(), Comparator);
+    return nodes_iterator(InternalIt, getNode);
+  }
+  const_nodes_iterator findNode(Node const *NodePtr) const {
+    auto Comparator = [&NodePtr](auto &N) { return N.get() == NodePtr; };
+    auto InternalIt = std::find_if(Nodes.begin(), Nodes.end(), Comparator);
+    return nodes_iterator(InternalIt, getConstNode);
+  }
+
+public:
+  bool hasNodes() const { return Nodes.size() != 0; }
+  bool hasNode(Node const *NodePtr) const {
+    return findNode(NodePtr) != Nodes.end();
+  }
+
+public:
   template<class... Args>
   NodeT *addNode(Args &&...A) {
     Nodes.push_back(std::make_unique<NodeT>(std::forward<Args>(A)...));
@@ -738,8 +765,14 @@ public:
   }
 
   nodes_iterator removeNode(nodes_iterator It) {
+    if constexpr (IsMutableEdgeNode<Node>)
+      (*It.getCurrent())->disconnect();
+
     auto InternalIt = Nodes.erase(It.getCurrent());
     return nodes_iterator(InternalIt, getNode);
+  }
+  nodes_iterator removeNode(Node const *NodePtr) {
+    return removeNode(findNode(NodePtr));
   }
 
 private:
