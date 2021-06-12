@@ -56,6 +56,7 @@ revng_add_analyses_library_internal(revngStackAnalysis
   InterproceduralAnalysis.cpp
   Intraprocedural.cpp
   PromoteGlobalToLocalVars.cpp
+  SegregateDirectStackAccesses.cpp
   StackAnalysis.cpp)
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES Analysis)
