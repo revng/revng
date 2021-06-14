@@ -107,7 +107,6 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
       using INGT = GraphTraits<Inverse<NodeType *>>;
       INGT::child_begin(Node);
 
-      using GGT = GraphTraits<GenericGraph<MyBidirectionalNodeWithEdges> *>;
       Graph.nodes();
     }
   }

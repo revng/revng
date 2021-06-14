@@ -252,7 +252,8 @@ void PromoteCSVs::wrap(CallInst *Call,
     NewArguments.push_back(Builder.CreateLoad(CSV));
 
   // Emit the actual call
-  Value *Result = Builder.CreateCall(HelperWrapper, NewArguments);
+  Instruction *Result = Builder.CreateCall(HelperWrapper, NewArguments);
+  Result->setDebugLoc(Call->getDebugLoc());
 
   bool HasOutputCSVs = Written.size() != 0;
   bool OriginalWasVoid = HelperType->getReturnType()->isVoidTy();

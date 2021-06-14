@@ -23,7 +23,7 @@ template<typename T, typename BaseType>
 class Parent : public BaseType {
 public:
   template<typename... Args>
-  explicit Parent(Args &&... args) :
+  explicit Parent(Args &&...args) :
     BaseType(std::forward<Args>(args)...), TheParent(nullptr) {}
 
   Parent(const Parent &) = default;
@@ -161,7 +161,7 @@ public:
 
 public:
   template<typename... Args>
-  explicit ForwardNode(Args &&... args) : Base(std::forward<Args>(args)...) {}
+  explicit ForwardNode(Args &&...args) : Base(std::forward<Args>(args)...) {}
 
   ForwardNode(const ForwardNode &) = default;
   ForwardNode(ForwardNode &&) = default;
@@ -298,7 +298,7 @@ public:
 
 public:
   template<typename... Args>
-  explicit BidirectionalNode(Args &&... args) :
+  explicit BidirectionalNode(Args &&...args) :
     Base(std::forward<Args>(args)...) {}
 
   BidirectionalNode(const BidirectionalNode &) = default;
@@ -413,7 +413,7 @@ public:
 
 public:
   template<class... Args>
-  NodeT *addNode(Args &&... A) {
+  NodeT *addNode(Args &&...A) {
     Nodes.push_back(std::make_unique<NodeT>(std::forward<Args>(A)...));
     if constexpr (NodeT::has_parent)
       Nodes.back()->setParent(this);

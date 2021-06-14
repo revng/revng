@@ -67,6 +67,7 @@ getUniqueUnknown(llvm::ScalarEvolution &SE, const llvm::SCEV *SC) {
       case scUMinExpr:
       case scUDivExpr:
       case scAddExpr:
+      case scPtrToInt:
         break;
 
       case scUnknown:
@@ -306,7 +307,7 @@ private:
 
       auto NewRange = llvm::ConstantRange::getFull(BitWidth);
       if (Destination == nullptr)
-        NewRange = LVI.getConstantRange(I, Source);
+        NewRange = LVI.getConstantRange(I, Source->getTerminator());
       else
         NewRange = LVI.getConstantRangeOnEdge(I, Source, Destination);
 

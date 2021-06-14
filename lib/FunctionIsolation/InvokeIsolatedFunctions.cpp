@@ -160,8 +160,12 @@ public:
         }
       }
 
-      // Emit the invoke instruction
-      Builder.CreateInvoke(F, InvokeReturnBlock, CatchBB, Arguments);
+      // Emit the invoke instruction, propagating debug info
+      auto *NewInvoke = Builder.CreateInvoke(F,
+                                             InvokeReturnBlock,
+                                             CatchBB,
+                                             Arguments);
+      NewInvoke->setDebugLoc(BB->front().getDebugLoc());
     }
 
     // Remove all the orphan basic blocks from the root function (e.g., the

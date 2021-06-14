@@ -207,16 +207,23 @@ private:
   void populateFunctionDispatcher();
 
   /// Create code to throw of an exception
-  void throwException(IRBuilder<> &Builder, StringRef Reason);
+  void throwException(IRBuilder<> &Builder,
+                      StringRef Reason,
+                      const DebugLoc &DbgLocation);
 
-  void throwException(BasicBlock *BB, StringRef Reason) {
+  void throwException(BasicBlock *BB,
+                      StringRef Reason,
+                      const DebugLoc &DbgLocation) {
     IRBuilder<> Builder(BB);
-    throwException(Builder, Reason);
+    throwException(Builder, Reason, DbgLocation);
   }
 };
 
-void IFI::throwException(IRBuilder<> &Builder, StringRef Reason) {
+void IFI::throwException(IRBuilder<> &Builder,
+                         StringRef Reason,
+                         const DebugLoc &DbgLocation) {
   revng_assert(RaiseException != nullptr);
+  revng_assert(DbgLocation);
 
   // Create the message string
   Constant *ReasonString = Strings.get(Reason.str());
@@ -234,10 +241,11 @@ void IFI::throwException(IRBuilder<> &Builder, StringRef Reason) {
   Builder.CreateStore(GCBI.programCounterHandler()->loadPC(Builder),
                       ExceptionDestinationPC);
 
-  Builder.CreateCall(RaiseException,
-                     { ReasonString,
-                       ExceptionSourcePC,
-                       ExceptionDestinationPC });
+  auto *NewCall = Builder.CreateCall(RaiseException,
+                                     { ReasonString,
+                                       ExceptionSourcePC,
+                                       ExceptionDestinationPC });
+  NewCall->setDebugLoc(DbgLocation);
   Builder.CreateUnreachable();
 }
 
@@ -252,7 +260,9 @@ void IFI::populateFunctionDispatcher() {
                                               "unexpectedpc",
                                               FunctionDispatcher,
                                               nullptr);
-  throwException(Unexpected, "An unexpected functions has been called");
+  const DebugLoc &Dbg = GCBI.unexpectedPC()->getTerminator()->getDebugLoc();
+  revng_assert(Dbg);
+  throwException(Unexpected, "An unexpected functions has been called", Dbg);
   setBlockType(Unexpected->getTerminator(), BlockType::UnexpectedPCBlock);
 
   IRBuilder<> Builder(Context);
@@ -491,18 +501,43 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
       Builder.CreateBr(ClonedBlocks.returnBlock());
       break;
 
-    case BrokenReturn:
-      throwException(Builder, "A broken return was taken");
-      break;
-    case LongJmp:
-      throwException(Builder, "A longjmp was taken");
-      break;
-    case Killer:
-      throwException(Builder, "A killer block has been reached");
-      break;
-    case Unreachable:
-      throwException(Builder, "An unrechable instruction has been reached");
-      break;
+    case BrokenReturn: {
+      BasicBlock::iterator InsertPoint = Builder.GetInsertPoint();
+      revng_assert(not Builder.GetInsertBlock()->empty());
+      Instruction *Old = InsertPoint == Builder.GetInsertBlock()->end() ?
+                           &*Builder.GetInsertBlock()->rbegin() :
+                           &*InsertPoint;
+      throwException(Builder, "A broken return was taken", Old->getDebugLoc());
+    } break;
+    case LongJmp: {
+      BasicBlock::iterator InsertPoint = Builder.GetInsertPoint();
+      revng_assert(not Builder.GetInsertBlock()->empty());
+      Instruction *Old = InsertPoint == Builder.GetInsertBlock()->end() ?
+                           &*Builder.GetInsertBlock()->rbegin() :
+                           &*InsertPoint;
+      throwException(Builder, "A longjmp was taken", Old->getDebugLoc());
+    } break;
+    case Killer: {
+      BasicBlock::iterator InsertPoint = Builder.GetInsertPoint();
+      revng_assert(not Builder.GetInsertBlock()->empty());
+      Instruction *Old = InsertPoint == Builder.GetInsertBlock()->end() ?
+                           &*Builder.GetInsertBlock()->rbegin() :
+                           &*InsertPoint;
+      throwException(Builder,
+                     "A killer block has been reached",
+                     Old->getDebugLoc());
+    } break;
+    case Unreachable: {
+      BasicBlock::iterator InsertPoint = Builder.GetInsertPoint();
+      revng_assert(not Builder.GetInsertBlock()->empty());
+      Instruction *Old = InsertPoint == Builder.GetInsertBlock()->end() ?
+                           &*Builder.GetInsertBlock()->rbegin() :
+                           &*InsertPoint;
+      throwException(Builder,
+                     "An unrechable instruction has been "
+                     "reached",
+                     Old->getDebugLoc());
+    } break;
 
     default:
       revng_abort();
@@ -692,7 +727,9 @@ IFI::isolate(const model::Function &Function) {
 
   // Create unexpectedPC block
   ClonedBlocks.unexpectedPCBlock() = CreateBB("unexpectedPC");
-  throwException(ClonedBlocks.unexpectedPCBlock(), "unexpectedPC");
+  const DebugLoc &Dbg = GCBI.unexpectedPC()->getTerminator()->getDebugLoc();
+  revng_assert(Dbg);
+  throwException(ClonedBlocks.unexpectedPCBlock(), "unexpectedPC", Dbg);
   OldToNew[GCBI.unexpectedPC()] = ClonedBlocks.unexpectedPCBlock();
 
   // Get the entry basic block
@@ -786,7 +823,13 @@ void IFI::createFunctionCall(IRBuilder<> &Builder,
                 << getName(ExpectedCalleeBB) << ")");
   }
 
-  Builder.CreateCall(CallMarker, Builder.getInt32(CalleeIndex));
+  BasicBlock::iterator InsertPoint = Builder.GetInsertPoint();
+  revng_assert(not Builder.GetInsertBlock()->empty());
+  Instruction *Old = InsertPoint == Builder.GetInsertBlock()->end() ?
+                       &*Builder.GetInsertBlock()->rbegin() :
+                       &*InsertPoint;
+  auto *NewCall = Builder.CreateCall(CallMarker, Builder.getInt32(CalleeIndex));
+  NewCall->setDebugLoc(Old->getDebugLoc());
 
   if (TheBoundary.ReturnBlock != nullptr) {
     // Emit jump to fallthrough
@@ -802,7 +845,8 @@ void IFI::createFunctionCall(IRBuilder<> &Builder,
 
     throwException(Builder,
                    "An instruction marked as a call has not been "
-                   "identified as such in the binary");
+                   "identified as such in the binary",
+                   Old->getDebugLoc());
   }
 }
 
@@ -826,7 +870,8 @@ void IFI::replaceCallMarker() const {
     Value *CallMarkerArgument = Call->getArgOperand(0);
     unsigned Index = cast<ConstantInt>(CallMarkerArgument)->getLimitedValue();
     Function *Callee = Functions[Index];
-    CallInst::Create(FunctionCallee{ Callee }, "", Call);
+    auto *NewCall = CallInst::Create(FunctionCallee{ Callee }, "", Call);
+    NewCall->setDebugLoc(Call->getDebugLoc());
     Call->eraseFromParent();
   }
 }

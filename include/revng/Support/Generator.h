@@ -145,7 +145,7 @@ public:
 
   generator() noexcept : m_coroutine(nullptr) {}
 
-  generator(generator && other) noexcept : m_coroutine(other.m_coroutine) {
+  generator(generator &&other) noexcept : m_coroutine(other.m_coroutine) {
     other.m_coroutine = nullptr;
   }
 
@@ -179,7 +179,7 @@ public:
     return detail::generator_sentinel{};
   }
 
-  void swap(generator & other) noexcept {
+  void swap(generator &other) noexcept {
     std::swap(m_coroutine, other.m_coroutine);
   }
 

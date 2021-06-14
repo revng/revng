@@ -17,6 +17,7 @@
 #include "boost/type_traits/is_same.hpp"
 
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/CodeGen/UnreachableBlockElim.h"
 #include "llvm/IR/IRBuilder.h"
@@ -1390,7 +1391,6 @@ public:
     // to now the values that have been identified to which value in the
     // original function did they belong to
     uint32_t AVIID = TrackedValues.size();
-    using AVI = AdvancedValueInfoPass;
     Builder.SetInsertPoint(InstructionToTrack->getNextNode());
     Builder.CreateCall(AVIMarker,
                        { InstructionToTrack, Builder.getInt32(AVIID) });
@@ -1701,11 +1701,11 @@ void JumpTargetManager::harvestWithAVI() {
     FPM.addPass(DropHelperCallsPass(SyscallHelper, SyscallIDCSV, SCB));
     FPM.addPass(ShrinkInstructionOperandsPass());
     FPM.addPass(PromotePass());
-    FPM.addPass(InstCombinePass(false));
+    FPM.addPass(InstCombinePass(true));
     FPM.addPass(TypeShrinking::TypeShrinkingPass());
     FPM.addPass(JumpThreadingPass());
     FPM.addPass(UnreachableBlockElimPass());
-    FPM.addPass(InstCombinePass(false));
+    FPM.addPass(InstCombinePass(true));
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(DropRangeMetadataPass());
     FPM.addPass(AdvancedValueInfoPass(this));
@@ -1886,7 +1886,6 @@ void JumpTargetManager::harvest() {
         auto *Call = cast<CallInst>(U);
         if (Call->getParent() != nullptr) {
           // Report the instruction on the coverage CSV
-          using CI = ConstantInt;
           auto PC = MetaAddress::fromConstant(Call->getArgOperand(0));
 
           bool IsJT = isJumpTarget(PC);
@@ -1903,7 +1902,7 @@ void JumpTargetManager::harvest() {
     HarvestingStats.push("InstCombine");
     legacy::FunctionPassManager OptimizingPM(&TheModule);
     OptimizingPM.add(createSROAPass());
-    OptimizingPM.add(createConstantPropagationPass());
+    OptimizingPM.add(createInstSimplifyLegacyPass());
     OptimizingPM.doInitialization();
     OptimizingPM.run(*TheFunction);
     OptimizingPM.doFinalization();
