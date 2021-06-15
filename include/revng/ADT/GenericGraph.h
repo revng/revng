@@ -589,13 +589,17 @@ public:
   void printAsOperand(llvm::raw_ostream &, bool) const { revng_abort(); }
 
 public:
-  auto addSuccessor(MutableEdgeNode &NewSuccessor, EdgeLabel EL = {}) {
+  EdgeView addSuccessor(MutableEdgeNode &NewSuccessor, EdgeLabel EL = {}) {
+    revng_assert(!hasSuccessor(NewSuccessor),
+                 "Only one edge is allowed between two nodes.");
     auto [Owner, View] = constructEdge(*this, NewSuccessor, std::move(EL));
     auto &Output = Successors.emplace_back(std::move(Owner));
     NewSuccessor.Predecessors.emplace_back(std::move(View));
     return EdgeView(Output);
   }
-  auto addPredecessor(MutableEdgeNode &NewPredecessor, EdgeLabel EL = {}) {
+  EdgeView addPredecessor(MutableEdgeNode &NewPredecessor, EdgeLabel EL = {}) {
+    revng_assert(!hasPredecessor(NewPredecessor),
+                 "Only one edge is allowed between two nodes.");
     auto [Owner, View] = constructEdge(NewPredecessor, *this, std::move(EL));
     auto &Output = NewPredecessor.Successors.emplace_back(std::move(Owner));
     Predecessors.emplace_back(std::move(View));
