@@ -22,6 +22,7 @@ static cl::alias A1("T",
                     cl::aliasopt(Statistics),
                     cl::cat(MainCategory));
 
+#ifdef _POSIX_C_SOURCE
 struct Handler {
   int Signal;
   bool Restore;
@@ -34,6 +35,7 @@ struct Handler {
 static std::array<Handler, 3> Handlers = { { { SIGINT, true, {}, {} },
                                              { SIGABRT, true, {}, {} },
                                              { SIGUSR1, false, {}, {} } } };
+#endif
 
 llvm::ManagedStatic<OnQuitRegistry> OnQuitStatistics;
 
@@ -47,6 +49,7 @@ static void onQuit() {
   OnQuitStatistics->dump();
 }
 
+#ifdef _POSIX_C_SOURCE
 static void onQuitSignalHandler(int Signal) {
   Handler *SignalHandler = nullptr;
   for (Handler &H : Handlers)
@@ -65,11 +68,13 @@ static void onQuitSignalHandler(int Signal) {
   revng_assert(Result == 0);
   raise(Signal);
 }
+#endif
 
 void OnQuitRegistry::install() {
   // Dump on normal exit
   std::atexit(onQuit);
 
+#ifdef _POSIX_C_SOURCE
   // Register signal handlers
   for (Handler &H : Handlers) {
     H.NewHandler.sa_handler = &onQuitSignalHandler;
@@ -78,6 +83,7 @@ void OnQuitRegistry::install() {
     revng_assert(Result == 0);
     revng_assert(H.OldHandler.sa_handler == nullptr);
   }
+#endif
 }
 
 void RunningStatistics::onQuit() {

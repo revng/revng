@@ -16,7 +16,7 @@ revng_add_library_internal(revngSupport SHARED
   ResourceFinder.cpp
   Statistics.cpp)
 
-llvm_map_components_to_libnames(LLVM_SUPPORT Support)
+llvm_map_components_to_libnames(LLVM_SUPPORT Support Core)
 
 target_link_libraries(revngSupport ${LLVM_SUPPORT})
 

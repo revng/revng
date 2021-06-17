@@ -246,6 +246,7 @@ void disassemble(std::ostream &Result,
                  MetaAddress PC,
                  uint32_t MaxBytes,
                  uint32_t InstructionCount) {
+#ifdef _POSIX_C_SOURCE
   char *BufferPtr = nullptr;
   size_t BufferLenPtr = 0;
   FILE *MemoryStream = open_memstream(&BufferPtr, &BufferLenPtr);
@@ -256,13 +257,13 @@ void disassemble(std::ostream &Result,
   // single instruction nonetheless.
   ptc.disassemble(MemoryStream, PC.asPC(), MaxBytes, InstructionCount);
   fflush(MemoryStream);
-
   revng_assert(BufferPtr != nullptr);
 
   Result << BufferPtr;
 
   fclose(MemoryStream);
   free(BufferPtr);
+#endif
 }
 
 int dumpTranslation(MetaAddress VirtualAddress,

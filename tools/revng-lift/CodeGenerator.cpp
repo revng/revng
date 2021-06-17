@@ -345,8 +345,9 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
       size_t MinSize = std::min(Segment.size(), Segment.Data.size());
       ::memcpy(FullData.get(), Segment.Data.data(), MinSize);
       if (Segment.size() > Segment.Data.size())
-        ::bzero(FullData.get() + Segment.Data.size(),
-                Segment.size() - Segment.Data.size());
+        ::memset(FullData.get() + Segment.Data.size(),
+                 0,
+                 Segment.size() - Segment.Data.size());
       auto DataRef = ArrayRef<uint8_t>(FullData.get(), Segment.size());
       TheData = ConstantDataArray::get(Context, DataRef);
     }

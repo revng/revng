@@ -15,7 +15,6 @@ revng_add_executable(revng-lift
   VariableManager.cpp)
 
 target_link_libraries(revng-lift
-  dl
   m
   revngBasicAnalyses
   revngFunctionCallIdentification

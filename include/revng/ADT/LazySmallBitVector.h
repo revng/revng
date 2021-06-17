@@ -29,6 +29,20 @@ inline unsigned requiredBits(T Value) {
   return Result;
 }
 
+#ifndef __GLIBC__
+inline int ffsll(long long i)
+{
+  int bit;
+
+  if (0 == i)
+    return 0;
+
+  for (bit = 1; !(i & 1); ++bit)
+    i >>= 1;
+  return bit;
+}
+#endif
+
 template<typename T, typename A, typename B>
 concept is_either = std::is_same_v<T, A> or std::is_same_v<T, B>;
 

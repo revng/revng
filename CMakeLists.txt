@@ -48,7 +48,7 @@ llvm_map_components_to_libnames(LLVM_LIBRARIES core support irreader ScalarOpts
   linker Analysis object transformutils InstCombine CodeGen Passes)
 
 # Build the support module for each architecture and in several configurations
-set(CLANG "${LLVM_TOOLS_BINARY_DIR}/clang")
+set(CLANG "clang")
 
 set(SUPPORT_MODULES_CONFIGS "normal;trace")
 set(SUPPORT_MODULES_CONFIG_normal "")
@@ -60,7 +60,7 @@ foreach(ARCH aarch64 arm mips mipsel x86_64 i386 s390x)
   set(OUTPUT "early-linked-${ARCH}.ll")
   add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/early-linked.c"
-    COMMAND "${CLANG}"
+    COMMAND "clang"
     ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/early-linked.c"
          -o "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
          -S -emit-llvm -g
@@ -78,7 +78,7 @@ foreach(ARCH aarch64 arm mips mipsel x86_64 i386 s390x)
     set(OUTPUT "support-${ARCH}-${CONFIG}.ll")
     add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
       DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
-      COMMAND "${CLANG}"
+      COMMAND "clang"
       ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
            -O2
            -fexceptions
@@ -216,6 +216,8 @@ add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(docs/)
 
-include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
+if(NOT CMAKE_CROSSCOMPILING)
+  include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
+  include(tests/Tests.cmake)
+endif()
 
-include(tests/Tests.cmake)
