@@ -554,6 +554,7 @@ private:
   using C = std::conditional_t<_Cond, _Iftrue, _Iffalse>;
 
 public:
+  using Edge = EdgeLabel;
   using EdgeView = C<AreEdgesLabeled,
                      detail::EdgeView<DerivedType, EdgeLabel>,
                      detail::UnlabeledView<DerivedType>>;
