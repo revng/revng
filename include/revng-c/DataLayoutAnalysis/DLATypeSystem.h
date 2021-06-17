@@ -24,7 +24,7 @@
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Support/Assert.h"
 
-#include "revng-c/Decompiler/DLALayouts.h"
+#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 
 namespace dla {
 

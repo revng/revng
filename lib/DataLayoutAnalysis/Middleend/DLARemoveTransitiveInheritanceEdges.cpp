@@ -18,8 +18,9 @@
 #include "revng/ADT/SmallMap.h"
 #include "revng/Support/Debug.h"
 
+#include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
+
 #include "DLAStep.h"
-#include "DLATypeSystem.h"
 
 static Logger<> Log("dla-remove-transitive-edges");
 

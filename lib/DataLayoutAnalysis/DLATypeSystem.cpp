@@ -15,8 +15,9 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"
 
+#include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
+
 #include "DLAHelpers.h"
-#include "DLATypeSystem.h"
 
 using namespace llvm;
 

@@ -31,14 +31,14 @@
 
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/Decompiler/DLALayouts.h"
+#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
+#include "revng-c/Decompiler/SCEVBaseAddressExplorer.h"
 
 #include "ASTBuildAnalysis.h"
 #include "AddSCEVBarrierPass.h"
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
 #include "Mangling.h"
-#include "SCEVBaseAddressExplorer.h"
 
 static Logger<> ASTBuildLog("ast-builder");
 

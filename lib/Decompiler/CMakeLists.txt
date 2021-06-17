@@ -5,20 +5,6 @@
 revng_add_analyses_library(Decompiler revngc
   AddSCEVBarrierPass.cpp
   ASTBuildAnalysis.cpp
-  DLACollapseIdentityAndInheritanceCC.cpp
-  DLAComputeNonInterferingComponents.cpp
-  DLAComputeUpperMemberAccess.cpp
-  DLACreateInterProceduralTypes.cpp
-  DLACreateIntraProceduralTypes.cpp
-  DLAHelpers.cpp
-  DLALayouts.cpp
-  DLAMakeInheritanceTree.cpp
-  DLAMakeLayouts.cpp
-  DLAPass.cpp
-  DLAPruneLayoutNodesWithoutLayout.cpp
-  DLARemoveTransitiveInheritanceEdges.cpp
-  DLAStep.cpp
-  DLATypeSystem.cpp
   CDecompiler.cpp
   CDecompilerAction.cpp
   CDecompilerBeautify.cpp
@@ -29,8 +15,7 @@ revng_add_analyses_library(Decompiler revngc
   IRASTTypeTranslation.cpp
   MarkForSerialization.cpp
   SCEVBaseAddressExplorer.cpp
-  TypeDeclCreationAction.cpp
-  DLATypeSystemBuilder.cpp)
+  TypeDeclCreationAction.cpp)
 
 target_link_libraries(Decompiler
   FilterForDecompilation
@@ -52,4 +37,5 @@ target_link_libraries(Decompiler
   clangBasic
   clangFrontend
   clangSerialization
+  DataLayoutAnalysis
   ${LLVM_LIBRARIES})

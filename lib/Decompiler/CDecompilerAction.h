@@ -11,7 +11,7 @@
 #include "clang/Frontend/ASTConsumers.h"
 #include "clang/Frontend/FrontendAction.h"
 
-#include "revng-c/Decompiler/DLALayouts.h"
+#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/Decompiler/MarkForSerialization.h"
 
 #include "CDecompilerBeautify.h"

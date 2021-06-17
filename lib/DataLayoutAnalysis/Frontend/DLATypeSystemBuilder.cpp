@@ -8,7 +8,7 @@
 
 #include "revng/Support/IRHelpers.h"
 
-#include "DLAHelpers.h"
+#include "../DLAHelpers.h"
 #include "DLATypeSystemBuilder.h"
 
 using namespace llvm;

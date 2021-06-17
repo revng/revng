@@ -17,7 +17,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 
-#include "revng-c/Decompiler/DLALayouts.h"
+#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 
 namespace llvm {
 class Type;

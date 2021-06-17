@@ -4,7 +4,7 @@
 
 #include <bit>
 
-#include "revng-c/Decompiler/DLALayouts.h"
+#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 
 namespace dla {
 

@@ -20,8 +20,9 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
+#include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
+
 #include "DLAHelpers.h"
-#include "DLATypeSystem.h"
 
 template<typename T>
 concept DerivedValue = std::is_base_of_v<llvm::Value, T>;

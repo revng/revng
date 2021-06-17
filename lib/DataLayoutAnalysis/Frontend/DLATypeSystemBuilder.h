@@ -6,11 +6,8 @@
 
 #include "llvm/Pass.h"
 
-#include "revng/Support/Assert.h"
-
-#include "revng-c/Decompiler/DLALayouts.h"
-
-#include "DLATypeSystem.h"
+#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
+#include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
 namespace dla {
 

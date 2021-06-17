@@ -12,9 +12,10 @@
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Support/Debug.h"
 
-#include "DLAHelpers.h"
+#include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
+
+#include "../DLAHelpers.h"
 #include "DLAStep.h"
-#include "DLATypeSystem.h"
 
 using namespace llvm;
 

@@ -11,7 +11,8 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "DLATypeSystem.h"
+#include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
+
 #include "DLATypeSystemBuilder.h"
 
 using namespace dla;

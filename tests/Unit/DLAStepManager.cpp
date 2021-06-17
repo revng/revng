@@ -14,7 +14,7 @@ bool init_unit_test();
 #include "revng/Support/Assert.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
-#include "lib/Decompiler/DLAStep.h"
+#include "lib/DataLayoutAnalysis/Middleend/DLAStep.h"
 
 namespace dla {
 

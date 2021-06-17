@@ -10,7 +10,7 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Pass.h"
 
-#include "revng-c/Decompiler/DLALayouts.h"
+#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 
 struct DLAPass : public llvm::ModulePass {
   static char ID;

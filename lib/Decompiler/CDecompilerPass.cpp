@@ -23,9 +23,9 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
+#include "revng-c/DataLayoutAnalysis/DLAPass.h"
 #include "revng-c/Decompiler/CDecompilerPass.h"
-#include "revng-c/Decompiler/DLALayouts.h"
-#include "revng-c/Decompiler/DLAPass.h"
 #include "revng-c/Decompiler/MarkForSerialization.h"
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"

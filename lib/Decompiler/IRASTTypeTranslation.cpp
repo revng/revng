@@ -23,9 +23,9 @@
 
 #include "revng/Support/Assert.h"
 
-#include "revng-c/Decompiler/DLALayouts.h"
+#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
+#include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
-#include "DLATypeSystem.h"
 #include "IRASTTypeTranslation.h"
 #include "Mangling.h"
 

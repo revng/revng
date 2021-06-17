@@ -4,12 +4,12 @@
 
 #include "revng/Model/LoadModelPass.h"
 
-#include "revng-c/Decompiler/DLALayouts.h"
-#include "revng-c/Decompiler/DLAPass.h"
+#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
+#include "revng-c/DataLayoutAnalysis/DLAPass.h"
 
-#include "DLAStep.h"
-#include "DLATypeSystem.h"
-#include "DLATypeSystemBuilder.h"
+#include "Backend/DLAMakeLayouts.h"
+#include "Frontend/DLATypeSystemBuilder.h"
+#include "Middleend/DLAStep.h"
 
 char DLAPass::ID = 0;
 

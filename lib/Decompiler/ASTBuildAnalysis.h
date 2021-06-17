@@ -17,7 +17,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/MonotoneFramework.h"
 
-#include "revng-c/Decompiler/DLALayouts.h"
+#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/Decompiler/MarkForSerialization.h"
 
 namespace clang {

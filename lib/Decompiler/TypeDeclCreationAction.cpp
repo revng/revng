@@ -13,7 +13,7 @@
 
 #include "revng/Support/Assert.h"
 
-#include "revng-c/Decompiler/DLALayouts.h"
+#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
