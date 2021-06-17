@@ -61,6 +61,20 @@ public:
 
   void run(llvm::Module &M);
 
+  /// \brief Handle the invalidation of this information, so that it does not
+  ///        get invalidated by other passes.
+  bool invalidate(llvm::Module &,
+                  const llvm::PreservedAnalyses &,
+                  llvm::ModuleAnalysisManager::Invalidator &) {
+    return false;
+  }
+
+  bool invalidate(llvm::Function &,
+                  const llvm::PreservedAnalyses &,
+                  llvm::FunctionAnalysisManager::Invalidator &) {
+    return false;
+  }
+
   /// \brief Return the type of basic block, see BlockType.
   static BlockType::Values getType(llvm::BasicBlock *BB) {
     return getType(BB->getTerminator());
