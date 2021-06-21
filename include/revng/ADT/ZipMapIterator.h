@@ -10,6 +10,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/iterator.h"
 
@@ -29,9 +30,10 @@ concept HasMappedType = requires {
 
 template<typename T>
 concept MapLike = HasKeyType<T> and HasMappedType<T>
-  and std::is_same_v<typename T::value_type,
-                     std::pair<const typename T::key_type,
-                               typename T::mapped_type>>;
+  and std::is_same_v<const typename T::value_type::first_type,
+                     const typename T::key_type>
+  and std::is_same_v<typename T::value_type::second_type,
+                     typename T::mapped_type>;
 
 template<typename T>
 concept SetLike = HasKeyType<T> and not HasMappedType<T>
