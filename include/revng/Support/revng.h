@@ -14,7 +14,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
 
-#include "revng/Model/Binary.h"
+#include "revng/Model/Register.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 
