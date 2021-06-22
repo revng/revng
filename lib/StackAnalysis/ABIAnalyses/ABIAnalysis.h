@@ -53,6 +53,7 @@ model::RegisterState::Values
 ABIAnalysesResults analyzeOutlinedFunction(llvm::Function *F,
                                            const GeneratedCodeBasicInfo &,
                                            llvm::Function *,
+                                           llvm::Function *,
                                            llvm::Function *);
 
 void finalizeReturnValues(ABIAnalysesResults &);

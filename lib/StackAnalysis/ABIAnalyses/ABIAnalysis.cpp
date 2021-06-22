@@ -227,7 +227,8 @@ void finalizeReturnValues(ABIAnalysesResults &ABIResults) {
 ABIAnalysesResults analyzeOutlinedFunction(Function *F,
                                            const GeneratedCodeBasicInfo &GCBI,
                                            Function *PreCallSiteHook,
-                                           Function *PostCallSiteHook) {
+                                           Function *PostCallSiteHook,
+                                           Function *RetHook) {
   namespace UAOF = UsedArgumentsOfFunction;
   namespace DRAOF = DeadRegisterArgumentsOfFunction;
   namespace RAOFC = RegisterArgumentsOfFunctionCall;
@@ -246,7 +247,8 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
 
     if (auto *Call = dyn_cast<CallInst>(&I)) {
       MetaAddress PC;
-      if (isCallTo(Call, PreCallSiteHook) || isCallTo(Call, PostCallSiteHook))
+      if (isCallTo(Call, PreCallSiteHook) || isCallTo(Call, PostCallSiteHook)
+          || isCallTo(Call, RetHook))
         PC = MetaAddress::fromConstant(Call->getArgOperand(0));
 
       if (isCallTo(Call, PreCallSiteHook)) {
@@ -254,7 +256,7 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
       } else if (isCallTo(Call, PostCallSiteHook)) {
         Results.URVOFC[{ PC, BB }] = URVOFC::analyze(BB, GCBI);
         Results.DRVOFC[{ PC, BB }] = DRVOFC::analyze(BB, GCBI);
-      } else if (auto *R = dyn_cast<ReturnInst>(&I)) {
+      } else if (isCallTo(Call, RetHook)) {
         Results.URVOF[{ PC, BB }] = URVOF::analyze(BB, GCBI);
       }
     }
