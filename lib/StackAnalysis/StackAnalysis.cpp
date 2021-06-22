@@ -160,6 +160,7 @@ struct FunctionSummary {
 public:
   model::FunctionType::Values Type;
   std::set<llvm::GlobalVariable *> ClobberedRegisters;
+  ABIAnalyses::ABIAnalysesResults ABIResults;
   SortedVector<model::BasicBlock> CFG;
   std::optional<int64_t> ElectedFSO;
   llvm::Function *FakeFunction;
@@ -167,11 +168,13 @@ public:
 public:
   FunctionSummary(model::FunctionType::Values Type,
                   std::set<llvm::GlobalVariable *> ClobberedRegisters,
+                  ABIAnalyses::ABIAnalysesResults ABIResults,
                   SortedVector<model::BasicBlock> CFG,
                   std::optional<int64_t> ElectedFSO,
                   llvm::Function *FakeFunction) :
     Type(Type),
     ClobberedRegisters(std::move(ClobberedRegisters)),
+    ABIResults(std::move(ABIResults)),
     CFG(std::move(CFG)),
     ElectedFSO(ElectedFSO),
     FakeFunction(FakeFunction) {
@@ -208,6 +211,9 @@ public:
 
     for (auto *Reg : ClobberedRegisters)
       Output << "    " << Reg->getName().str() << "\n";
+
+    Output << "  ABI info: \n";
+    ABIResults.dump();
   }
 };
 
@@ -356,6 +362,7 @@ private:
   /// callee and the call-site.
   TemporaryOpaqueFunction PreHookMarker;
   TemporaryOpaqueFunction PostHookMarker;
+  TemporaryOpaqueFunction RetHookMarker;
   /// UnexpectedPCMarker is used to indicate that `unexpectedpc` basic
   /// block of fake functions need to be adjusted to jump to
   /// `unexpectedpc` of their caller.
@@ -383,12 +390,20 @@ private:
   OutlinedFunction outlineFunction(llvm::BasicBlock *BB);
   void integrateFunctionCallee(llvm::BasicBlock *BB, MetaAddress);
   SortedVector<model::BasicBlock> collectDirectCFG(OutlinedFunction *F);
-  void createIBIMarker(OutlinedFunction *F, llvm::IRBuilder<> &);
+  void initMarkersForABI(OutlinedFunction *F,
+                         llvm::SmallVectorImpl<Instruction *> &,
+                         llvm::IRBuilder<> &);
+  std::set<llvm::GlobalVariable *> findWrittenRegisters(llvm::Function *F);
+  void createIBIMarker(OutlinedFunction *F,
+                       llvm::SmallVectorImpl<Instruction *> &,
+                       llvm::IRBuilder<> &);
   void opaqueBranchConditions(llvm::Function *F, llvm::IRBuilder<> &);
   void materializePCValues(llvm::Function *F, llvm::IRBuilder<> &);
   void runOptimizationPipeline(llvm::Function *F);
-  FunctionSummary
-  milkInfo(OutlinedFunction *F, SortedVector<model::BasicBlock> &);
+  FunctionSummary milkInfo(OutlinedFunction *F,
+                           SortedVector<model::BasicBlock> &,
+                           ABIAnalyses::ABIAnalysesResults &,
+                           const std::set<llvm::GlobalVariable *> &);
   llvm::Function *createFakeFunction(llvm::BasicBlock *BB);
 
 private:
@@ -419,6 +434,7 @@ CFEPAnalyzer<FunctionOracle>::CFEPAnalyzer(llvm::Module &M,
   // Initialize hook markers for subsequent ABI analyses on function calls
   PreHookMarker(TOF(markerType(M), "precall_hook", &M)),
   PostHookMarker(TOF(markerType(M), "postcall_hook", &M)),
+  RetHookMarker(TOF(markerType(M), "retcall_hook", &M)),
   // Initialize marker to adjust `unexpectedpc` basic block for fake functions
   UnexpectedPCMarker(TOF(unexpectedPCMarkerType(M), "unexpectedpc_hook", &M)),
   RegistersClobberedPool(&M, false),
@@ -947,7 +963,71 @@ CFEPAnalyzer<FunctionOracle>::collectDirectCFG(OutlinedFunction *F) {
 }
 
 template<class FO>
+void CFEPAnalyzer<FO>::initMarkersForABI(OutlinedFunction *OutlinedFunction,
+                                         SmallVectorImpl<Instruction *> &SV,
+                                         llvm::IRBuilder<> &IRB) {
+  using namespace llvm;
+
+  StructType *MetaAddressTy = MetaAddress::getStruct(&M);
+  SmallVector<Instruction *, 4> IndirectBranchPredecessors;
+  if (OutlinedFunction->AnyPCCloned) {
+    for (auto *Pred : predecessors(OutlinedFunction->AnyPCCloned)) {
+      auto *Term = Pred->getTerminator();
+      IndirectBranchPredecessors.emplace_back(Term);
+    }
+  }
+
+  // Initialize ret-hook marker (needed for the ABI analyses on return values)
+  // and fix pre-hook marker upon encountering a jump to `anypc`. Since we don't
+  // know in advance whether it will be classified as a return or indirect tail
+  // call, ABIAnalyses (e.g., RAOFC) need to run on this potential call-site as
+  // well. The results will not be merged eventually, if the indirect jump turns
+  // out to be a proper return.
+  for (auto *Term : IndirectBranchPredecessors) {
+    auto *BB = Term->getParent();
+
+    MetaAddress IndirectRetBBAddress = GCBI->getJumpTarget(BB);
+    revng_assert(IndirectRetBBAddress.isValid());
+
+    auto *Split = BB->splitBasicBlock(Term, BB->getName() + Twine("_anypc"));
+    auto *JumpToAnyPC = Split->getTerminator();
+    revng_assert(isa<BranchInst>(JumpToAnyPC));
+    IRB.SetInsertPoint(JumpToAnyPC);
+
+    IRB.CreateCall(PreHookMarker.F,
+                   { IndirectRetBBAddress.toConstant(MetaAddressTy),
+                     MetaAddress::invalid().toConstant(MetaAddressTy) });
+
+    IRB.CreateCall(RetHookMarker.F,
+                   { IndirectRetBBAddress.toConstant(MetaAddressTy),
+                     MetaAddress::invalid().toConstant(MetaAddressTy) });
+
+    SV.emplace_back(JumpToAnyPC);
+  }
+}
+
+template<class FO>
+std::set<llvm::GlobalVariable *>
+CFEPAnalyzer<FO>::findWrittenRegisters(llvm::Function *F) {
+  using namespace llvm;
+
+  std::set<GlobalVariable *> WrittenRegisters;
+  for (auto &BB : *F) {
+    for (auto &I : BB) {
+      if (auto *SI = dyn_cast<StoreInst>(&I)) {
+        Value *Ptr = skipCasts(SI->getPointerOperand());
+        if (auto *GV = dyn_cast<GlobalVariable>(Ptr))
+          WrittenRegisters.insert(GV);
+      }
+    }
+  }
+
+  return WrittenRegisters;
+}
+
+template<class FO>
 void CFEPAnalyzer<FO>::createIBIMarker(OutlinedFunction *OutlinedFunction,
+                                       SmallVectorImpl<Instruction *> &SV,
                                        llvm::IRBuilder<> &IRB) {
   using namespace llvm;
 
@@ -992,19 +1072,10 @@ void CFEPAnalyzer<FO>::createIBIMarker(OutlinedFunction *OutlinedFunction,
   OutlinedFunction->IndirectBranchInfoMarker->addFnAttr(Attribute::NoUnwind);
   OutlinedFunction->IndirectBranchInfoMarker->addFnAttr(Attribute::NoReturn);
 
-  SmallVector<Instruction *, 4> BranchesForIBI;
-  if (OutlinedFunction->AnyPCCloned) {
-    for (auto *Pred : predecessors(OutlinedFunction->AnyPCCloned)) {
-      auto *Term = Pred->getTerminator();
-      revng_assert(isa<BranchInst>(Term));
-      BranchesForIBI.emplace_back(Term);
-    }
-  }
-
   // When an indirect jump is encountered (possible exit point), a dedicated
   // basic block is created, and the values of the stack pointer, program
   // counter and ABI registers are loaded.
-  for (auto *Term : BranchesForIBI) {
+  for (auto *Term : SV) {
     auto *IBIBlock = BasicBlock::Create(Context,
                                         Term->getParent()->getName()
                                           + Twine("_indirect_branch_info"),
@@ -1239,6 +1310,7 @@ FunctionSummary CFEPAnalyzer<FO>::analyze(BasicBlock *Entry) {
   using namespace ABIAnalyses;
 
   IRBuilder<> Builder(M.getContext());
+  SmallVector<Instruction *, 4> BranchesForIBI;
 
   // Detect function boundaries
   struct OutlinedFunction OutlinedFunction = outlineFunction(Entry);
@@ -1246,12 +1318,24 @@ FunctionSummary CFEPAnalyzer<FO>::analyze(BasicBlock *Entry) {
   // Recover the control-flow graph of the function
   auto CFG = collectDirectCFG(&OutlinedFunction);
 
+  // Initalize markers for ABI analyses and set up the branches on which
+  // `indirect_branch_info` will be installed.
+  initMarkersForABI(&OutlinedFunction, BranchesForIBI, Builder);
+
+  // Find registers that may be target of at least one store. This helps
+  // refine the final results.
+  auto WrittenRegisters = findWrittenRegisters(OutlinedFunction.F);
+
   // Run ABI-independent data-flow analyses
-  ABIAnalysesResults
-    ABIResults = ABIAnalyses::analyzeOutlinedFunction(OutFunc,
-                                                      *GCBI,
-                                                      PreHookMarker,
-                                                      PostHookMarker);
+  ABIAnalysesResults ABIResults = analyzeOutlinedFunction(OutlinedFunction.F,
+                                                          *GCBI,
+                                                          PreHookMarker.F,
+                                                          PostHookMarker.F,
+                                                          RetHookMarker.F);
+
+  // Recompute the DomTree for the current outlined function due to split basic
+  // blocks.
+  GCBI->purgeDomTree(OutlinedFunction.F);
 
   // The analysis aims at identifying the callee-saved registers of a function
   // and establishing if a function returns properly, i.e., it jumps to the
@@ -1271,7 +1355,7 @@ FunctionSummary CFEPAnalyzer<FO>::analyze(BasicBlock *Entry) {
   // function jumps to its return address (thus, it is not a longjmp / tail
   // call), `rax` register has been clobbered by the callee, whereas `rbx` and
   // `rbp` are callee-saved registers.
-  createIBIMarker(&OutlinedFunction, Builder);
+  createIBIMarker(&OutlinedFunction, BranchesForIBI, Builder);
 
   // Prevent DCE by making branch conditions opaque
   opaqueBranchConditions(OutlinedFunction.F, Builder);
@@ -1284,7 +1368,10 @@ FunctionSummary CFEPAnalyzer<FO>::analyze(BasicBlock *Entry) {
   runOptimizationPipeline(OutlinedFunction.F);
 
   // Squeeze out the results obtained from the optimization passes
-  auto FunctionInfo = milkInfo(&OutlinedFunction, CFG);
+  auto FunctionInfo = milkInfo(&OutlinedFunction,
+                               CFG,
+                               ABIResults,
+                               WrittenRegisters);
 
   // Does the outlined function basically represent a function prologue? If so,
   // the function is said to be fake, and a copy of the unoptimized outlined
@@ -1299,10 +1386,71 @@ FunctionSummary CFEPAnalyzer<FO>::analyze(BasicBlock *Entry) {
   return FunctionInfo;
 }
 
+static void
+suppressCSAndSPRegisters(ABIAnalyses::ABIAnalysesResults &ABIResults,
+                         const std::set<GlobalVariable *> &CalleeSavedRegs) {
+  using RegisterState = model::RegisterState::Values;
+
+  // Suppress from arguments
+  for (const auto &Reg : CalleeSavedRegs) {
+    auto It = ABIResults.ArgumentsRegisters.find(Reg);
+    if (It != ABIResults.ArgumentsRegisters.end())
+      It->second = RegisterState::No;
+  }
+
+  // Suppress from return values
+  for (const auto &[K, _] : ABIResults.ReturnValuesRegisters) {
+    for (const auto &Reg : CalleeSavedRegs) {
+      auto It = ABIResults.ReturnValuesRegisters[K].find(Reg);
+      if (It != ABIResults.ReturnValuesRegisters[K].end())
+        It->second = RegisterState::No;
+    }
+  }
+
+  // Suppress from call-sites
+  for (const auto &[K, _] : ABIResults.CallSites) {
+    for (const auto &Reg : CalleeSavedRegs) {
+      if (ABIResults.CallSites[K].ArgumentsRegisters.count(Reg) != 0)
+        ABIResults.CallSites[K].ArgumentsRegisters[Reg] = RegisterState::No;
+
+      if (ABIResults.CallSites[K].ReturnValuesRegisters.count(Reg) != 0)
+        ABIResults.CallSites[K].ReturnValuesRegisters[Reg] = RegisterState::No;
+    }
+  }
+}
+
+static void discardBrokenReturns(ABIAnalyses::ABIAnalysesResults &ABIResults,
+                                 const auto &IBIResult) {
+  for (const auto &[CI, EdgeType] : IBIResult) {
+    if (EdgeType != FunctionEdgeTypeValue::Return
+        && EdgeType != FunctionEdgeTypeValue::IndirectTailCall) {
+      auto PC = MetaAddress::fromConstant(CI->getOperand(2));
+
+      auto It = ABIResults.ReturnValuesRegisters.find(PC);
+      if (It != ABIResults.ReturnValuesRegisters.end())
+        ABIResults.ReturnValuesRegisters.erase(PC);
+    }
+  }
+}
+
+static std::set<GlobalVariable *>
+intersect(const std::set<GlobalVariable *> &First,
+          const std::set<GlobalVariable *> &Last) {
+  std::set<GlobalVariable *> Output;
+  std::set_intersection(First.begin(),
+                        First.end(),
+                        Last.begin(),
+                        Last.end(),
+                        std::inserter(Output, Output.begin()));
+  return Output;
+}
+
 template<class FO>
 FunctionSummary
 CFEPAnalyzer<FO>::milkInfo(OutlinedFunction *OutlinedFunction,
-                           SortedVector<model::BasicBlock> &CFG) {
+                           SortedVector<model::BasicBlock> &CFG,
+                           ABIAnalyses::ABIAnalysesResults &ABIResults,
+                           const std::set<GlobalVariable *> &WrittenRegisters) {
   using namespace llvm;
 
   SmallVector<std::pair<CallBase *, int64_t>, 4> MaybeReturns;
@@ -1419,8 +1567,30 @@ CFEPAnalyzer<FO>::milkInfo(OutlinedFunction *OutlinedFunction,
   if (Type == FunctionTypeValue::Fake)
     CFG.clear();
 
+  // We say that a register is callee-saved when, besides being preserved by the
+  // callee, there is at least a write onto this register.
+  auto ActualCalleeSavedRegs = intersect(CalleeSavedRegs, WrittenRegisters);
+
+  // Union between effective callee-saved registers and SP
+  ActualCalleeSavedRegs.insert(GCBI->spReg());
+
+  // Refine ABI analyses results by suppressing callee-saved and stack pointer
+  // registers.
+  suppressCSAndSPRegisters(ABIResults, ActualCalleeSavedRegs);
+
+  // ABI analyses run from all the `indirect_branch_info` (i.e., all candidate
+  // returns). We are going to merge the results only from those return points
+  // that have been classified as proper return (i.e., no broken return).
+  discardBrokenReturns(ABIResults, IBIResult);
+
+  // Merge return values registers
+  ABIAnalyses::finalizeReturnValues(ABIResults);
+
+  ABIResults.dump(StackAnalysisLog);
+
   return FunctionSummary(Type,
                          std::move(ClobberedRegs),
+                         std::move(ABIResults),
                          std::move(CFG),
                          WinFSO,
                          nullptr);
@@ -1845,6 +2015,7 @@ bool StackAnalysis::runOnModule(Module &M) {
   // Default-constructed cache summary for indirect calls
   FunctionSummary DefaultSummary(model::FunctionType::Values::Regular,
                                  { ABIRegisters.begin(), ABIRegisters.end() },
+                                 ABIAnalyses::ABIAnalysesResults(),
                                  {},
                                  GCBI.minimalFSO(),
                                  nullptr);
