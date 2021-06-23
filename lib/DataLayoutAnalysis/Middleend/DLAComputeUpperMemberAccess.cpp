@@ -8,8 +8,10 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/Support/Debug.h"
 
 #include "revng/ADT/FilteredGraphTraits.h"
+#include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
@@ -35,25 +37,19 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
     revng_assert(Root != nullptr);
     // Leaves need to have ValidLayouts, otherwise they should have been trimmed
     // by PruneLayoutNodesWithoutLayout
-    revng_assert(not isLeaf(Root) or hasValidLayout(Root));
+    revng_assert(not isLeaf(Root) or Root->Size);
     if (not isRoot(Root))
       continue;
 
     revng_assert(isInheritanceRoot(Root));
 
     for (LTSN *N : post_order_ext(Root, Visited)) {
-      revng_assert(not isLeaf(N) or hasValidLayout(N));
-      revng_assert(not N->Size);
-      auto FinalSize = N->Size;
-      auto MaxIt = std::max_element(N->AccessSizes.begin(),
-                                    N->AccessSizes.end());
-      FinalSize = std::max(FinalSize,
-                           MaxIt != N->AccessSizes.end() ? *MaxIt : 0UL);
+      revng_assert(not isLeaf(N) or N->Size);
+      uint64_t FinalSize = N->Size;
 
       // Look at all the instance-of edges and inheritance edges all together.
       bool HasBaseClass = false;
       for (auto &[Child, EdgeTag] : children_edges<const LTSN *>(N)) {
-
         auto ChildSize = Child->Size;
         revng_assert(ChildSize > 0LL);
 
@@ -111,6 +107,7 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
         }
       }
       N->Size = FinalSize;
+      revng_assert(FinalSize);
       Changed = true;
     }
   }

@@ -294,6 +294,8 @@ public:
   void print(llvm::raw_ostream &Out) const;
 
   const llvm::Value &getValue() const { return *V; }
+
+  bool isEmpty() const { return (V == nullptr); }
 }; // end class LayoutTypePtr
 
 using ValueLayoutMap = std::map<LayoutTypePtr, Layout *>;

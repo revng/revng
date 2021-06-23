@@ -100,7 +100,6 @@ static Layout *getLayout(const LayoutTypeSystem &TS,
   revng_assert(*EqClassID < OrderedLayouts.size());
   // Get the layout at that position
   Layout *L = OrderedLayouts[*EqClassID];
-  revng_assert(L);
   return L;
 }
 
@@ -112,9 +111,12 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 
   case AllChildrenAreNonInterfering: {
 
-    auto NumAccesses = N->AccessSizes.size();
-    uint64_t AccessSize = NumAccesses ? *N->AccessSizes.begin() : 0ULL;
-    revng_assert(NumAccesses == 0 or NumAccesses == 1);
+    // Create BaseLayout for leaf nodes
+    revng_assert(not isLeaf(N) or N->Size);
+    if (isLeaf(N)) {
+      Layout *AccessLayout = createLayout<BaseLayout>(Layouts, N->Size);
+      return AccessLayout;
+    }
 
     StructLayout::fields_container_t SFlds;
 
@@ -184,10 +186,6 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 
       case TypeLinkTag::LK_Inheritance: {
         revng_assert(not InheritsFromOther);
-        // We can't have accesses, if we have inheritance, otherwise we'd have
-        // that the inherited layout and the accesses do interfere with each
-        // other, and we should have created a union, not a struct.
-        revng_assert(not NumAccesses);
         InheritsFromOther = true;
       } break;
 
@@ -197,9 +195,6 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 
       if (OrdChild.Offset >= 0LL and OrdChild.Size > 0ULL) {
         Children.push_back(std::move(OrdChild));
-        revng_assert(EdgeTag->getKind() != TypeLinkTag::LK_Instance
-                     or not AccessSize
-                     or static_cast<int64_t>(AccessSize) <= OrdChild.Offset);
       }
     }
 
@@ -213,20 +208,14 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
       }
     }
 
-    // Create a BaseLayout as a first element of the struct
-    revng_assert(not NumAccesses or NumAccesses == 1ULL);
-    if (AccessSize) {
-      Layout *AccessLayout = createLayout<BaseLayout>(Layouts, AccessSize);
-      SFlds.push_back(AccessLayout);
-    }
-
     // For each member of the struct
+    uint64_t CurSize = 0U;
     for (const auto &OrdChild : Children) {
       const auto &[StartByte, Size, Child] = OrdChild;
       revng_assert(StartByte >= 0LL and Size > 0ULL);
       uint64_t Start = static_cast<uint64_t>(StartByte);
-      revng_assert(Start >= AccessSize);
-      auto PadSize = Start - AccessSize; // always >= 0;
+      revng_assert(Start >= CurSize);
+      auto PadSize = Start - CurSize; // always >= 0;
       revng_assert(PadSize >= 0);
 
       // If an unaccessed layout is known to exist, add it as padding
@@ -234,7 +223,7 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
         Layout *Padding = createLayout<PaddingLayout>(Layouts, PadSize);
         SFlds.push_back(Padding);
       }
-      AccessSize = Start + Size;
+      CurSize = Start + Size;
 
       Layout *ChildType = getLayout(TS, OrderedLayouts, Child);
 
@@ -260,10 +249,7 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
   case AllChildrenAreInterfering: {
 
     UnionLayout::elements_container_t UFlds;
-    for (uint64_t AccessSize : N->AccessSizes) {
-      revng_log(Log, "Access: " << AccessSize);
-      UFlds.insert(createLayout<BaseLayout>(Layouts, AccessSize));
-    }
+    revng_assert(not isLeaf(N));
 
     // Look at all the instance-of edges and inheritance edges all together
     bool InheritsFromOther = false;
@@ -348,7 +334,7 @@ LayoutPtrVector makeLayouts(const LayoutTypeSystem &TS, LayoutVector &Layouts) {
     for (const LTSN *N : post_order_ext(Root, Visited)) {
       // Leaves need to have ValidLayouts, otherwise they should have been
       // trimmed by PruneLayoutNodesWithoutLayout
-      revng_assert(not isLeaf(N) or hasValidLayout(N));
+      revng_assert(not isLeaf(N) or N->Size);
       Layout *LN = makeLayout(TS, N, Layouts, OrderedLayouts);
       if (nullptr == LN) {
         revng_log(Log, "Node ID: " << N->ID << " Type: Empty");
@@ -381,8 +367,11 @@ ValueLayoutMap makeLayoutMap(const LayoutTypePtrVect &Values,
   for (size_t I = 0; I < Values.size(); I++) {
     // The layout of the I-th Value is stored at the EqClass(I) index
     auto LayoutIdx = EqClasses.getEqClassID(I);
-    if (LayoutIdx)
-      ValMap.insert(std::make_pair(Values[I], Layouts[*LayoutIdx]));
+    if (LayoutIdx and not Values[I].isEmpty()) {
+      auto NewPair = std::make_pair(Values[I], Layouts[*LayoutIdx]);
+      bool New = ValMap.insert(NewPair).second;
+      revng_assert(New);
+    }
   }
 
   return ValMap;

@@ -3,9 +3,11 @@
 //
 
 #include "llvm/IR/Argument.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Value.h"
 
+#include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "../DLAHelpers.h"
@@ -25,58 +27,28 @@ void LLVMTSDebugPrinter::printNodeContent(const LayoutTypeSystem &TS,
   revng_assert(not EqClasses.isRemoved(N->ID));
 
   File << DoRet;
-  for (auto ID : EqClasses.getEqClass(N->ID)) {
-    if (ID < Values.size()) {
-      this->Values[ID].print(File);
-      File << DoRet;
-    }
-  }
-}
 
-void LLVMTSDebugPrinter::printAccessDetails(const LayoutTypeSystem &TS,
-                                            const LayoutTypeSystemNode *N,
-                                            const uint64_t AccessSize,
-                                            raw_fd_ostream &File) const {
-  auto EqClasses = TS.getEqClasses();
-  revng_assert(not EqClasses.isRemoved(N->ID));
+  auto HasAssociatedVal = [this](unsigned ID) { return (ID < Values.size()); };
 
-  File << DoRet;
-  bool Found = false;
+  const auto &CollapsedNodes = EqClasses.getEqClass(N->ID);
+  File << "Collapsed Nodes:" << DoRet;
 
-  for (auto ID : EqClasses.getEqClass(N->ID)) {
-    // Ignore nodes that don't have an associated Value
-    if (ID >= Values.size())
-      continue;
+  for (auto ID : CollapsedNodes) {
+    File << "{ ID: " << ID << ", ";
+    if (HasAssociatedVal(ID)) {
+      const LayoutTypePtr &Val = Values[ID];
+      File << "Associated Value: ";
 
-    const llvm::Value &PtrV = this->Values[ID].getValue();
-
-    // Collect uses for which PtrV is a pointer operand
-    for (const Use &U : PtrV.uses()) {
-      const llvm::Value *PtrOp = nullptr;
-      const User *Usr = U.getUser();
-
-      if (auto *Load = dyn_cast<LoadInst>(Usr))
-        PtrOp = Load->getPointerOperand();
-      else if (auto *Store = dyn_cast<StoreInst>(Usr))
-        PtrOp = Store->getPointerOperand();
+      if (Val.isEmpty())
+        File << "Empty (Access Node)";
       else
-        continue;
+        Val.print(File);
 
-      if (&PtrV != PtrOp)
-        continue;
-
-      unsigned InstrAccessSize = ::getLoadStoreSizeFromPtrOpUse(this->M, &U);
-
-      if (AccessSize == InstrAccessSize) {
-        auto *I = cast<Instruction>(U.getUser());
-        File << "\\\\n"
-             << "In : " << I->getFunction()->getName() << " : ";
-        File.write_escaped(dumpToString(I));
-        Found = true;
-      }
+    } else {
+      File << " Artificial";
     }
+    File << " }" << DoRet;
   }
-  revng_assert(Found or N->ID >= Values.size());
 }
 
 void DLATypeSystemLLVMBuilder::assertGetLayoutTypePreConditions(const Value *V,
@@ -368,13 +340,16 @@ DLATypeSystemLLVMBuilder::getOrCreateLayoutTypes(const Value &V) {
 }
 
 void DLATypeSystemLLVMBuilder::createValuesList() {
-  this->Values.resize(VisitedMap.size());
+  // TODO: the fact that AccessNodes are now added by the frontend means that
+  // after initialization not all nodes in the graph correspond to a Value.
+  // Can we prevent this?
+  this->Values.resize(TS.getNID());
 
   for (auto &MapIt : VisitedMap) {
     LayoutTypePtr Ptr = MapIt.first;
     unsigned NodeID = MapIt.second->ID;
-    revng_assert(NodeID < this->Values.size());
 
+    revng_assert(NodeID < Values.size());
     this->Values[NodeID] = Ptr;
   }
 }
@@ -390,21 +365,31 @@ void DLATypeSystemLLVMBuilder::dumpValuesMapping(const llvm::StringRef Name) {
   OutFile << "ID; Value; EqClass\n";
 
   for (auto *N : TS.getLayoutsRange()) {
+    // Print Node's ID
     OutFile << N->ID << ";";
+
+    // Check if it has an associated LayoutTypePtr
     if (N->ID < Values.size()) {
       auto &V = Values[N->ID];
-      if (isa<Instruction>(V.getValue()))
+
+      if (V.isEmpty())
+        OutFile << "Empty (Access Node)";
+      else if (isa<Instruction>(V.getValue()))
         V.getValue().printAsOperand(OutFile);
       else
         V.print(OutFile);
     } else {
-      OutFile << "Out of bounds";
+      OutFile << "Out of bounds (No associated LayoutTypePtr)";
     }
+
     OutFile << ";";
 
+    // Print ID of the node's equivalence class
     if (TS.getEqClasses().getNumClasses() == 0) {
+      // Uncompressed
       OutFile << TS.getEqClasses().findLeader(N->ID);
     } else {
+      // Compressed
       auto Class = TS.getEqClasses().getEqClassID(N->ID);
 
       if (Class)
@@ -412,6 +397,7 @@ void DLATypeSystemLLVMBuilder::dumpValuesMapping(const llvm::StringRef Name) {
       else
         OutFile << "Removed";
     }
+
     OutFile << "\n";
   }
 }
@@ -425,4 +411,5 @@ void DLATypeSystemLLVMBuilder::buildFromLLVMModule(llvm::Module &M,
   createIntraproceduralTypes(M, MP);
 
   createValuesList();
+  VisitedMap.clear();
 }

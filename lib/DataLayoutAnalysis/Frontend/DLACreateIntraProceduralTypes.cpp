@@ -585,11 +585,11 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
     OutFile = new raw_fd_ostream("DLA_pointer_accesses.csv", EC);
     revng_check(not EC, "Cannot open DLA_pointer_accesses.csv");
 
-    (*OutFile) << "Value"
-               << ";"
-               << "Access Size"
-               << ";"
-               << "Accessed By"
+    (*OutFile) << "Value Node ID;"
+               << "Value;"
+               << "Access Node ID;"
+               << "Access Node Size;"
+               << "Accessed By;"
                << "\n";
   }
 
@@ -656,14 +656,28 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
             continue;
           }
 
+          // Create Base node
           Changed |= ILA.createBaseAddrWithInstanceLink(*this, PointerVal, *B);
-          auto *AddrLayout = getLayoutType(PointerVal);
+
+          // Create AccessSize node
           auto AccessSize = getLoadStoreSizeFromPtrOpUse(M, PtrUse);
-          AddrLayout->AccessSizes.insert(AccessSize);
+          auto *AccessSizeNode = TS.createArtificialLayoutType();
+          AccessSizeNode->Size = AccessSize;
+          AccessSizeNode->InterferingInfo = AllChildrenAreNonInterfering;
+
+          // Add link between base node and AccessSize node
+          revng_assert(PointerVal);
+          auto *AddrNode = getLayoutType(PointerVal);
+          revng_assert(AddrNode);
+          OffsetExpression OE{};
+          OE.Offset = 0U;
+          TS.addInstanceLink(AddrNode, AccessSizeNode, std::move(OE));
 
           if (AccessLog.isEnabled()) {
             revng_assert(OutFile);
-            (*OutFile) << *PointerVal << ";" << AccessSize << ";" << I << "\n";
+            (*OutFile) << AddrNode->ID << ";" << *PointerVal << ";"
+                       << AccessSizeNode->ID << ";" << AccessSizeNode->Size
+                       << ";" << I << "\n";
           }
 
           continue;

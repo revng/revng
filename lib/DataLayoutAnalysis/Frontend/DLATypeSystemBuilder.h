@@ -38,15 +38,6 @@ public:
   void printNodeContent(const LayoutTypeSystem &TS,
                         const LayoutTypeSystemNode *N,
                         llvm::raw_fd_ostream &DotFile) const override;
-
-  ///\brief Print the instruction that originated a given \a AccessSize of \a N
-  ///
-  /// Information on the `load`/`store`s related to a given set of `Value`s is
-  /// reconstructed on-the-fly, therefore this function is expensive.
-  void printAccessDetails(const LayoutTypeSystem &TS,
-                          const LayoutTypeSystemNode *N,
-                          const uint64_t AccessSize,
-                          llvm::raw_fd_ostream &DotFile) const override;
 };
 
 ///\brief This class builds a DLA type system from an LLVM module

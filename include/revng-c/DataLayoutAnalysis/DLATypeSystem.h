@@ -119,7 +119,6 @@ struct LayoutTypeSystemNode {
   using NeighborsSet = std::set<Link>;
   NeighborsSet Successors{};
   NeighborsSet Predecessors{};
-  llvm::SmallSet<uint64_t, 2> AccessSizes{};
   uint64_t Size{};
   InterferingChildrenInfo InterferingInfo{ Unknown };
   LayoutTypeSystemNode(uint64_t I) : ID(I) {}
@@ -138,12 +137,6 @@ public:
     print(OS);
   }
 };
-
-inline bool hasValidLayout(const LayoutTypeSystemNode *N) {
-  if (N == nullptr)
-    return false;
-  return not N->AccessSizes.empty();
-}
 
 ///\brief This class handles equivalence classes between indexes of vectors
 class VectEqClasses : public llvm::IntEqClasses {
@@ -194,11 +187,6 @@ struct TSDebugPrinter {
   virtual void printNodeContent(const LayoutTypeSystem &TS,
                                 const LayoutTypeSystemNode *N,
                                 llvm::raw_fd_ostream &File) const;
-
-  virtual void printAccessDetails(const LayoutTypeSystem &TS,
-                                  const LayoutTypeSystemNode *N,
-                                  const uint64_t AccessSize,
-                                  llvm::raw_fd_ostream &File) const {}
 
   virtual ~TSDebugPrinter() {}
 };

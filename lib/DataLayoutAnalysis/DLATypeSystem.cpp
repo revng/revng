@@ -100,7 +100,6 @@ void LayoutTypeSystem::dumpDotOnFile(const char *FName) const {
   DotFile << "digraph LayoutTypeSystem {\n";
   DotFile << "  // List of nodes\n";
 
-  unsigned AccessSizeID = 0;
   for (const LayoutTypeSystemNode *L : getLayoutsRange()) {
 
     DotFile << "  node_" << L->ID << " [shape=rect,label=\"NODE ID: " << L->ID
@@ -123,19 +122,6 @@ void LayoutTypeSystem::dumpDotOnFile(const char *FName) const {
 
     DebugPrinter->printNodeContent(*this, L, DotFile);
     DotFile << "\"];\n";
-
-    for (uint64_t AccessSize : L->AccessSizes) {
-      DotFile << "  access_size_" << AccessSizeID
-              << " [label=\"Access Size: " << AccessSize;
-
-      DebugPrinter->printAccessDetails(*this, L, AccessSize, DotFile);
-
-      DotFile << "\"];\n";
-      DotFile << "  node_" << L->ID << " -> access_size_" << AccessSizeID
-              << ";\n";
-
-      ++AccessSizeID;
-    }
   }
 
   DotFile << "  // List of edges\n";
@@ -284,9 +270,6 @@ void LayoutTypeSystem::mergeNodes(const LayoutTypeSystemNodePtrVec &ToMerge) {
   for (LayoutTypeSystemNode *From : llvm::drop_begin(ToMerge, 1)) {
     revng_assert(From != Into);
     revng_log(MergeLog, "Merging: " << From->ID << " Into: " << Into->ID);
-
-    Into->AccessSizes.insert(From->AccessSizes.begin(),
-                             From->AccessSizes.end());
 
     EqClasses.join(IntoID, From->ID);
 
@@ -631,7 +614,7 @@ bool LayoutTypeSystem::verifyNoEquality() const {
 bool LayoutTypeSystem::verifyLeafs() const {
   for (const auto &Node : llvm::nodes(this)) {
     if (isLeaf(Node)) {
-      if (not hasValidLayout(Node)) {
+      if (Node->Size > 0) {
         if (VerifyDLALog.isEnabled())
           revng_check(false);
         return false;
@@ -691,8 +674,7 @@ std::optional<unsigned> VectEqClasses::getEqClassID(const unsigned ID) const {
 
   if (IsRemoved)
     return {};
-  else
-    return EqID;
+  return EqID;
 }
 
 std::set<unsigned> VectEqClasses::getEqClass(const unsigned ElemID) const {

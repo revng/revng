@@ -41,8 +41,8 @@ bool PruneLayoutNodesWithoutLayout::runOnTypeSystem(LayoutTypeSystem &TS) {
       revng_log(Log, "## Visiting N: " << N->ID);
       revng_log(Log, "## Is Leaf: " << isLeaf(N));
 
-      if (hasValidLayout(N)) {
-        revng_log(Log, "### hasValidLayout(N)!");
+      if (N->Size > 0) {
+        revng_log(Log, "### has size " << N->Size << " !");
         continue;
       }
 
