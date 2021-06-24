@@ -292,6 +292,9 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
         // Treated as instance at offset 0, but can only have one
         revng_assert(not InheritsFromOther);
         InheritsFromOther = true;
+        ChildType = makeInstanceChildLayout(ChildType,
+                                            OffsetExpression{ 0ULL },
+                                            Layouts);
       } break;
 
       default:
