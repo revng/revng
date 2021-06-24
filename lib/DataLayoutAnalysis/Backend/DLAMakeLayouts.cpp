@@ -220,12 +220,9 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
       SFlds.push_back(AccessLayout);
     }
 
-    bool First = true;
-
     // For each member of the struct
     for (const auto &OrdChild : Children) {
       const auto &[StartByte, Size, Child] = OrdChild;
-      First = false;
       revng_assert(StartByte >= 0LL and Size > 0ULL);
       uint64_t Start = static_cast<uint64_t>(StartByte);
       revng_assert(Start >= AccessSize);
