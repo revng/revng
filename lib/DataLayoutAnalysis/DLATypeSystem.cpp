@@ -677,7 +677,8 @@ std::optional<unsigned> VectEqClasses::getEqClassID(const unsigned ID) const {
   return EqID;
 }
 
-std::vector<unsigned> VectEqClasses::getEqClass(const unsigned ElemID) const {
+std::vector<unsigned>
+VectEqClasses::computeEqClass(const unsigned ElemID) const {
   std::vector<unsigned> EqClass;
 
   for (unsigned OtherID = 0; OtherID < NElems; OtherID++)
@@ -706,7 +707,7 @@ void TSDebugPrinter::printNodeContent(const LayoutTypeSystem &TS,
     File << "Removed" << DoRet;
 
   File << "Equivalence Class: [";
-  for (auto ID : EqClasses.getEqClass(N->ID))
+  for (auto ID : EqClasses.computeEqClass(N->ID))
     File << ID << ", ";
   File << "]" << DoRet;
 }

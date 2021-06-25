@@ -133,3 +133,22 @@ target_link_libraries(MarkForSerializationTest
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
 add_test(NAME MarkForSerializationTest COMMAND ./bin/MarkForSerializationTest)
+
+#
+# DLACollapseSingleChild
+#
+
+revng_add_private_executable(dla_collapse_single_child "${SRC}/DLACollapseSingleChild.cpp")
+target_compile_definitions(dla_collapse_single_child
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(dla_collapse_single_child
+  PRIVATE "${CMAKE_SOURCE_DIR}"
+  "${Boost_INCLUDE_DIRS}")
+target_link_libraries(dla_collapse_single_child
+  Decompiler
+  DataLayoutAnalysis
+  revng::revngSupport
+  revng::revngUnitTestHelpers
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME dla_collapse_single_child COMMAND ./bin/dla_collapse_single_child)

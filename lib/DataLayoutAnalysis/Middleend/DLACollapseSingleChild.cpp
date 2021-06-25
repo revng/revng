@@ -24,7 +24,7 @@ namespace dla {
 bool CollapseSingleChild::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG());
+    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
 
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-collapse-single-child.dot");
