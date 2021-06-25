@@ -186,6 +186,26 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override { return true; }
 };
 
+/// dla::Step that collapses nodes that have a single inheritance child at
+/// offset 0
+class CollapseSingleChild : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  CollapseSingleChild() :
+    Step(ID,
+         // Dependencies
+         {},
+         // Invalidated
+         {}) {}
+
+  virtual ~CollapseSingleChild() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 /// dla::Step that decompose the LayoutTypeSystem into components, each of which
 /// cannot overlap with others
 class ComputeNonInterferingComponents : public Step {

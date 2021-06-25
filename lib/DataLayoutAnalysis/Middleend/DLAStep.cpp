@@ -17,6 +17,7 @@ const char ComputeUpperMemberAccesses::ID = 0;
 const char CollapseCompatibleArrays::ID = 0;
 const char PropagateInheritanceToAccessors::ID = 0;
 const char ComputeNonInterferingComponents::ID = 0;
+const char CollapseSingleChild::ID = 0;
 
 static Logger<> DLAStepManagerLog("dla-step-manager");
 

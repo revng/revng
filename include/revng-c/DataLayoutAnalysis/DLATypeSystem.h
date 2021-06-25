@@ -174,7 +174,7 @@ public:
 
   ///\brief Get all the elements that are in the same equivalence class of \a ID
   ///\note Expensive: performs a linear scan of all the elements
-  std::set<unsigned> getEqClass(const unsigned ID) const;
+  std::vector<unsigned> getEqClass(const unsigned ID) const;
 
   ///\brief Check if \a ID1 and \a ID2 have the same equivalence class
   bool haveSameEqClass(unsigned ID1, unsigned ID2) const;

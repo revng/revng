@@ -677,12 +677,12 @@ std::optional<unsigned> VectEqClasses::getEqClassID(const unsigned ID) const {
   return EqID;
 }
 
-std::set<unsigned> VectEqClasses::getEqClass(const unsigned ElemID) const {
-  std::set<unsigned> EqClass;
+std::vector<unsigned> VectEqClasses::getEqClass(const unsigned ElemID) const {
+  std::vector<unsigned> EqClass;
 
   for (unsigned OtherID = 0; OtherID < NElems; OtherID++)
     if (haveSameEqClass(ElemID, OtherID))
-      EqClass.insert(OtherID);
+      EqClass.push_back(OtherID);
 
   return EqClass;
 }

@@ -11,6 +11,7 @@ revng_add_analyses_library(DataLayoutAnalysis revngc
   Middleend/DLAPruneLayoutNodesWithoutLayout.cpp
   Middleend/DLARemoveTransitiveInheritanceEdges.cpp
   Middleend/DLAMakeInheritanceTree.cpp
+  Middleend/DLACollapseSingleChild.cpp
   Middleend/DLAStep.cpp
   Backend/DLAMakeLayouts.cpp
   DLAHelpers.cpp
