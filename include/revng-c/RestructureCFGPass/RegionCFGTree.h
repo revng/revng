@@ -377,7 +377,7 @@ public:
 
   void weave();
 
-  void markUnexpectedAndAnyPCAsInlined();
+  void markUnreachableAsInlined();
 
 protected:
   template<typename StreamT>

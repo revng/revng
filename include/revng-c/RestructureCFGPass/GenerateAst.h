@@ -360,7 +360,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
   std::string RegionName = Region.getRegionName();
   std::string FunctionName = Region.getFunctionName();
 
-  Region.markUnexpectedAndAnyPCAsInlined();
+  Region.markUnreachableAsInlined();
 
   if (CombLogger.isEnabled()) {
     CombLogger << "Weaveing region " + RegionName + "\n";

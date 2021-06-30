@@ -24,7 +24,6 @@
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/ADT/ReversePostOrderTraversal.h"
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/RestructureCFGPass/ASTTree.h"
@@ -1409,33 +1408,31 @@ inline void RegionCFG<NodeT>::weave() {
 }
 
 template<class NodeT>
-inline void RegionCFG<NodeT>::markUnexpectedAndAnyPCAsInlined() {
+inline void RegionCFG<NodeT>::markUnreachableAsInlined() {
 
-  llvm::SmallPtrSet<BBNodeT *, 8> UnexpectedPCS;
+  llvm::SmallPtrSet<BBNodeT *, 8> UnreachableBlocks;
 
-  for (BBNodeT *UnexpectedPC : *this) {
-    if (UnexpectedPC->isCode()) {
-      llvm::BasicBlock *BB = UnexpectedPC->getOriginalNode();
-      BlockType::Values BBType = GeneratedCodeBasicInfo::getType(BB);
-      if (BBType == BlockType::UnexpectedPCBlock
-          or BBType == BlockType::AnyPCBlock) {
-        UnexpectedPCS.insert(UnexpectedPC);
-      }
-    }
+  for (BBNodeT *BBNode : *this) {
+    if (not BBNode->isCode())
+      continue;
+
+    llvm::BasicBlock *BB = BBNode->getOriginalNode();
+    if (llvm::isa<llvm::UnreachableInst>(BB->getTerminator()))
+      UnreachableBlocks.insert(BBNode);
   }
 
-  for (BBNodeT *UnexpectedPC : UnexpectedPCS) {
+  for (BBNodeT *Unreachable : UnreachableBlocks) {
 
     BasicBlockNodeTVect Predecessors;
-    for (BBNodeT *Pred : UnexpectedPC->predecessors()) {
+    for (BBNodeT *Pred : Unreachable->predecessors()) {
       Predecessors.push_back(Pred);
-      markEdgeInlined(EdgeDescriptor(Pred, UnexpectedPC));
+      markEdgeInlined(EdgeDescriptor(Pred, Unreachable));
     }
 
     if (Predecessors.size() > 1) {
       for (BBNodeT *Pred : llvm::drop_begin(Predecessors, 1)) {
-        BBNodeT *NewUnexpectedPC = cloneNode(*UnexpectedPC);
-        moveEdgeTarget({ Pred, UnexpectedPC }, NewUnexpectedPC);
+        BBNodeT *UnreachableClone = cloneNode(*Unreachable);
+        moveEdgeTarget({ Pred, Unreachable }, UnreachableClone);
       }
     }
   }
