@@ -102,7 +102,10 @@ public:
     return getKind(L) == LayoutKind::Base;
   }
 
-  BaseLayout(layout_size_t S) : Layout(LayoutKind::Base, S) {}
+  Layout *PointeeLayout = nullptr;
+
+  BaseLayout(layout_size_t S, Layout *Pointee) :
+    Layout(LayoutKind::Base, S), PointeeLayout(Pointee) {}
   BaseLayout() = delete;
 
   BaseLayout(const BaseLayout &) = default;

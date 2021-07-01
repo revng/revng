@@ -36,11 +36,12 @@ void DLAPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 }
 
 bool DLAPass::runOnModule(llvm::Module &M) {
-  dla::LayoutTypeSystem TS;
+  auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
 
   // Front-end: Create the LayoutTypeSystem graph from an LLVM module
+  dla::LayoutTypeSystem TS;
   dla::DLATypeSystemLLVMBuilder Builder{ TS };
-  Builder.buildFromLLVMModule(M, this);
+  Builder.buildFromLLVMModule(M, this, ModelWrapper.getReadOnlyModel());
 
   if (BuilderLog.isEnabled())
     Builder.dumpValuesMapping("DLA-values-initial.csv");

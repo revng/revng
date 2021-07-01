@@ -65,11 +65,21 @@ DeclCreator::createTypeFromLayout(const dla::Layout *L,
     revng_assert(ByteSize);
     revng_assert(std::has_single_bit(ByteSize));
     revng_assert(ByteSize <= 16);
-    auto *IntTy = llvm::IntegerType::get(LLVMCtx, ByteSize * 8);
-    Result = getOrCreateType(IntTy,
-                             nullptr,
-                             ClangCtx,
-                             *ClangCtx.getTranslationUnitDecl());
+
+    if (Base->PointeeLayout) {
+      // If `PointeeLayout` is not null, this is a pointer
+      TypeDeclOrQualType EQTy = getOrCreateTypeFromLayout(Base->PointeeLayout,
+                                                          ClangCtx,
+                                                          LLVMCtx);
+      QualType ElemQualTy = DeclCreator::getQualType(EQTy);
+      Result = ClangCtx.getPointerType(ElemQualTy);
+    } else {
+      auto *IntTy = llvm::IntegerType::get(LLVMCtx, ByteSize * 8);
+      Result = getOrCreateType(IntTy,
+                               nullptr,
+                               ClangCtx,
+                               *ClangCtx.getTranslationUnitDecl());
+    }
   } break;
 
   case LayoutKind::Array: {

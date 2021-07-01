@@ -35,6 +35,10 @@ static Logger<> Log("dla-make-layouts");
 namespace dla {
 
 using LTSN = LayoutTypeSystemNode;
+using GraphNodeT = LTSN *;
+using NonPointerFilterT = EdgeFilteredGraph<GraphNodeT, isNotPointerEdge>;
+using ConstNonPointerFilterT = EdgeFilteredGraph<const LTSN *,
+                                                 isNotPointerEdge>;
 
 static Layout *makeInstanceChildLayout(Layout *ChildType,
                                        const OffsetExpression &OE,
@@ -110,16 +114,23 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
   switch (N->InterferingInfo) {
 
   case AllChildrenAreNonInterfering: {
-
     StructLayout::fields_container_t SFlds;
 
     // Create BaseLayout for leaf nodes
     revng_assert(not isLeaf(N) or N->Size);
     if (isLeaf(N)) {
-      Layout *AccessLayout = createLayout<BaseLayout>(Layouts, N->Size);
+      Layout *AccessLayout = createLayout<BaseLayout>(Layouts,
+                                                      N->Size,
+                                                      nullptr);
 
-      // If the leaf has an inheritance parent, wrap the BaseLayout into a
-      // struct
+      // HACK: This needs to be done to distinguish pointer nodes before the
+      // pointee layout is created
+      if (llvm::any_of(N->Successors, isPointerEdge)) {
+        BaseLayout *Base = llvm::cast<dla::BaseLayout>(AccessLayout);
+        Base->PointeeLayout = AccessLayout;
+      }
+
+      // If the leaf has an inheritance parent, wrap the leaf into a struct
       if (llvm::any_of(N->Predecessors, isInheritanceEdge)) {
         SFlds.push_back(AccessLayout);
         AccessLayout = createLayout<StructLayout>(Layouts, SFlds);
@@ -141,7 +152,10 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
     // later sort the vector according to it.
     bool InheritsFromOther = false;
     ChildrenVec Children;
-    for (auto &[Child, EdgeTag] : llvm::children_edges<const LTSN *>(N)) {
+
+    for (auto &[Child, EdgeTag] :
+         llvm::children_edges<ConstNonPointerFilterT>(N)) {
+      revng_log(Log, "Child ID: " << Child->ID);
 
       auto OrdChild = OrderedChild{
         /* .Offset */ 0LL,
@@ -150,6 +164,9 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
       };
 
       switch (EdgeTag->getKind()) {
+
+      case TypeLinkTag::LK_Pointer:
+        revng_abort("Only BaseLayouts are allowed to have pointer edges");
 
       case TypeLinkTag::LK_Instance: {
         const OffsetExpression &OE = EdgeTag->getOffsetExpr();
@@ -261,8 +278,7 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
     // Look at all the instance-of edges and inheritance edges all together
     bool InheritsFromOther = false;
     bool HasNullChild = false;
-    for (auto &[Child, EdgeTag] : children_edges<const LTSN *>(N)) {
-
+    for (auto &[Child, EdgeTag] : children_edges<ConstNonPointerFilterT>(N)) {
       revng_log(Log, "Child ID: " << Child->ID);
       revng_assert(Child->Size);
 
@@ -339,6 +355,40 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
   return nullptr;
 }
 
+static void connectPointersToPointees(const LayoutTypeSystem &TS,
+                                      LayoutVector &Layouts,
+                                      LayoutPtrVector &OrderedLayouts) {
+
+  for (LTSN *N : llvm::nodes(&TS)) {
+    revng_assert(N != nullptr);
+    revng_log(Log, "Connecting " << N->ID);
+
+    Layout *PointeeLayout = nullptr;
+    // If it's a pointer, get the pointee's Layout
+    using PtrFilterT = EdgeFilteredGraph<const LTSN *, isPointerEdge>;
+    for (auto &[Child, EdgeTag] : llvm::children_edges<PtrFilterT>(N)) {
+      // There can be at most one outgoing pointer edge
+      revng_assert(PointeeLayout == nullptr);
+      PointeeLayout = getLayout(TS, OrderedLayouts, Child);
+    }
+
+    if (PointeeLayout) {
+      Layout *PointerLayout = getLayout(TS, OrderedLayouts, N);
+
+      // HACK: This is needed in case the Pointer has been wrapped inside a
+      // struct
+      if (not isa<dla::BaseLayout>(PointerLayout)) {
+        revng_assert(isa<dla::StructLayout>(PointerLayout));
+        StructLayout *Wrapper = llvm::cast<dla::StructLayout>(PointerLayout);
+        revng_assert(Wrapper->numFields() == 1);
+        PointerLayout = *(Wrapper->fields().begin());
+      }
+      BaseLayout *Base = llvm::cast<dla::BaseLayout>(PointerLayout);
+      Base->PointeeLayout = PointeeLayout;
+    }
+  }
+}
+
 LayoutPtrVector makeLayouts(const LayoutTypeSystem &TS, LayoutVector &Layouts) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("final.dot");
@@ -360,7 +410,7 @@ LayoutPtrVector makeLayouts(const LayoutTypeSystem &TS, LayoutVector &Layouts) {
     if (not isRoot(Root))
       continue;
 
-    for (const LTSN *N : post_order_ext(Root, Visited)) {
+    for (const LTSN *N : post_order_ext(NonPointerFilterT(Root), Visited)) {
       // Leaves need to have ValidLayouts, otherwise they should have been
       // trimmed by PruneLayoutNodesWithoutLayout
       revng_assert(not isLeaf(N) or N->Size);
@@ -384,6 +434,8 @@ LayoutPtrVector makeLayouts(const LayoutTypeSystem &TS, LayoutVector &Layouts) {
       }
     }
   }
+
+  connectPointersToPointees(TS, Layouts, OrderedLayouts);
 
   return OrderedLayouts;
 };

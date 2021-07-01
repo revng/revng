@@ -59,8 +59,7 @@ bool RemoveConflictingEdges::removeConflicts(LayoutTypeSystem &TS,
 bool RemoveConflictingEdges::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyConsistency() and TS.verifyDAG()
-                 and TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-remove-conflicting-edges.dot");
 
@@ -70,7 +69,6 @@ bool RemoveConflictingEdges::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-remove-conflicting-edges.dot");
   if (VerifyLog.isEnabled()) {
-    revng_assert(TS.verifyConsistency());
     revng_assert(TS.verifyInheritanceDAG());
     revng_assert(TS.verifyInheritanceTree());
   }

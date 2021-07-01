@@ -6,6 +6,8 @@
 
 #include "llvm/Pass.h"
 
+#include "revng/Model/Binary.h"
+
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
@@ -85,7 +87,9 @@ private:
 
 private:
   bool createInterproceduralTypes(llvm::Module &M);
-  bool createIntraproceduralTypes(llvm::Module &M, llvm::ModulePass *MP);
+  bool createIntraproceduralTypes(llvm::Module &M,
+                                  llvm::ModulePass *MP,
+                                  const model::Binary &Model);
 
   ///\brief Collect LayoutTypePtrs and place them in the right position
   void createValuesList();
@@ -110,7 +114,9 @@ public:
   /// 2. Create a Node for each of them in the DLATypeSystem graph (TS)
   /// 3. Keep an ordered vector of LayoutTypePtrs, where each element's index
   /// corresponds to the ID of the corresponding LayoutTypeSystemNode generated
-  void buildFromLLVMModule(llvm::Module &M, llvm::ModulePass *MP);
+  void buildFromLLVMModule(llvm::Module &M,
+                           llvm::ModulePass *MP,
+                           const model::Binary &Model);
 };
 
 } // namespace dla

@@ -19,6 +19,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
+#include "revng/Model/Architecture.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
@@ -32,8 +33,9 @@
 
 using namespace dla;
 using namespace llvm;
+using namespace model::Architecture;
 
-static Logger<> AccessLog("dla-accesses-log");
+static Logger<> AccessLog("dla-accesses");
 
 // Returns true if an Instruction must forcibly be serialized.
 //
@@ -591,7 +593,8 @@ public:
 
 using Builder = DLATypeSystemLLVMBuilder;
 bool Builder::createIntraproceduralTypes(llvm::Module &M,
-                                         llvm::ModulePass *MP) {
+                                         llvm::ModulePass *MP,
+                                         const model::Binary &Model) {
   bool Changed = false;
   InstanceLinkAdder ILA;
 
@@ -646,12 +649,16 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           // to types, because they are used in Load and Stores as
           // PointerOperands.
           Use *PtrUse(nullptr);
-          if (auto *Load = dyn_cast<LoadInst>(&I))
+          Value *Val(nullptr);
+          if (auto *Load = dyn_cast<LoadInst>(&I)) {
             PtrUse = &Load->getOperandUse(Load->getPointerOperandIndex());
-          else if (auto *Store = dyn_cast<StoreInst>(&I))
+            Val = &I;
+          } else if (auto *Store = dyn_cast<StoreInst>(&I)) {
             PtrUse = &Store->getOperandUse(Store->getPointerOperandIndex());
-          else
+            Val = Store->getValueOperand();
+          } else {
             continue;
+          }
           revng_assert(PtrUse != nullptr);
 
           // Find the possible base addresses of the PointerOperand
@@ -676,25 +683,34 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           // Create Base node
           Changed |= ILA.createBaseAddrWithInstanceLink(*this, PointerVal, *B);
 
-          // Create AccessSize node
+          // Create Access node
           auto AccessSize = getLoadStoreSizeFromPtrOpUse(M, PtrUse);
-          auto *AccessSizeNode = TS.createArtificialLayoutType();
-          AccessSizeNode->Size = AccessSize;
-          AccessSizeNode->InterferingInfo = AllChildrenAreNonInterfering;
+          auto *AccessNode = TS.createArtificialLayoutType();
+          AccessNode->Size = AccessSize;
+          AccessNode->InterferingInfo = AllChildrenAreNonInterfering;
 
-          // Add link between base node and AccessSize node
+          // Add link between pointer node and access node
           revng_assert(PointerVal);
-          auto *AddrNode = getLayoutType(PointerVal);
-          revng_assert(AddrNode);
-          OffsetExpression OE{};
-          OE.Offset = 0U;
-          TS.addInstanceLink(AddrNode, AccessSizeNode, std::move(OE));
+          auto *PointerNode = getLayoutType(PointerVal);
+          revng_assert(PointerNode);
+          TS.addInstanceLink(PointerNode, AccessNode, OffsetExpression{});
 
           if (AccessLog.isEnabled()) {
             revng_assert(OutFile);
-            (*OutFile) << AddrNode->ID << ";" << *PointerVal << ";"
-                       << AccessSizeNode->ID << ";" << AccessSizeNode->Size
-                       << ";" << I << "\n";
+            (*OutFile) << PointerNode->ID << ";" << *PointerVal << ";"
+                       << AccessNode->ID << ";" << AccessNode->Size << ";" << I
+                       << "\n";
+          }
+
+          // Create pointer edge between the access node and the pointee node
+          if (AccessSize == getPointerSize(Model.Architecture)) {
+            const auto &[PointeeNode, Changed] = getOrCreateLayoutType(Val);
+            if (isa<LoadInst>(I))
+              revng_assert(not Changed);
+
+            revng_assert(PointeeNode);
+            PointeeNode->InterferingInfo = AllChildrenAreNonInterfering;
+            TS.addPointerLink(AccessNode, PointeeNode);
           }
 
           continue;
@@ -800,9 +816,8 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
       }
     }
   }
-  if (VerifyLog.isEnabled()) {
-    revng_assert(TS.verifyConsistency());
+  if (VerifyLog.isEnabled())
     revng_assert(TS.verifyInstanceDAG());
-  }
+
   return Changed;
 }

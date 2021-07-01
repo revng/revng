@@ -29,6 +29,7 @@ using GraphNodeT = LTSN *;
 using InstanceNodeT = EdgeFilteredGraph<GraphNodeT, isInstanceEdge>;
 using InheritanceNodeT = EdgeFilteredGraph<GraphNodeT, isInheritanceEdge>;
 using EqualityNodeT = EdgeFilteredGraph<GraphNodeT, isEqualityEdge>;
+using NonPointerNodeT = EdgeFilteredGraph<GraphNodeT, isNotPointerEdge>;
 
 template<typename NodeT>
 static bool collapseSCCs(LayoutTypeSystem &TS) {
@@ -48,8 +49,8 @@ static bool collapseSCCs(LayoutTypeSystem &TS) {
       continue;
     }
 
-    llvm::scc_iterator<NodeT> I = llvm::scc_begin(NodeT(Node));
-    llvm::scc_iterator<NodeT> E = llvm::scc_end(NodeT(Node));
+    llvm::scc_iterator<NodeT> I = llvm::scc_begin(NodeT(NonPointerNodeT(Node)));
+    llvm::scc_iterator<NodeT> E = llvm::scc_end(NodeT(NonPointerNodeT(Node)));
     for (const auto &SCC : llvm::make_range(I, E)) {
       revng_assert(not SCC.empty());
       if (VisitedNodes.count(SCC[0]))
@@ -82,16 +83,20 @@ static bool collapseSCCs(LayoutTypeSystem &TS) {
 }
 
 static bool collapseInheritanceSCC(LayoutTypeSystem &TS) {
-  return collapseSCCs<InheritanceNodeT>(TS);
+  using InheritanceGraph = EdgeFilteredGraph<NonPointerNodeT,
+                                             isInheritanceEdge>;
+  return collapseSCCs<InheritanceGraph>(TS);
 }
 
 static bool collapseEqualitySCC(LayoutTypeSystem &TS) {
-  return collapseSCCs<EqualityNodeT>(TS);
+  return collapseSCCs<EdgeFilteredGraph<NonPointerNodeT, isEqualityEdge>>(TS);
 }
 
 bool CollapseIdentityAndInheritanceCC::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-collapse.dot");
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyConsistency());
 
   revng_log(LogVerbose, "#### Merging Equality SCC: ... ");
   bool CollapsedEqual = collapseEqualitySCC(TS);

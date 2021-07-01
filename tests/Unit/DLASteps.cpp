@@ -91,7 +91,7 @@ void checkNode(const LayoutTypeSystem &TS,
 
 // ----------------- CollapseIdentityAndInheritanceCC ---
 
-///\brief Test an equality CC
+///\brief Test an equality CC with a pointer edge
 BOOST_AUTO_TEST_CASE(CollapseIdentityAndInheritanceCC_equality) {
   dla::LayoutTypeSystem TS;
 
@@ -102,27 +102,29 @@ BOOST_AUTO_TEST_CASE(CollapseIdentityAndInheritanceCC_equality) {
   LTSN *Node3 = addEquality(TS, Node2);
   TS.addEqualityLink(Node1, Node3);
   LTSN *PtrNode = createRoot(TS);
+  TS.addPointerLink(Node3, PtrNode);
 
-  // Run step
   runStep<dla::CollapseIdentityAndInheritanceCC>(TS);
 
   // Check that equality nodes have been collapsed
   revng_check(TS.getNumLayouts() == 2);
   revng_check(llvm::is_contained(TS.getLayoutsRange(), Node2));
   revng_check(llvm::is_contained(TS.getLayoutsRange(), PtrNode));
-  revng_check(Node2->Successors.size() == 0);
+  revng_check(Node2->Successors.size() == 1);
+  // Check that the pointer edge is still alive
+  const auto &[Child, Tag] = *(llvm::children_edges<LTSN *>(Node2).begin());
+  revng_check(Child == PtrNode);
+  revng_check(Tag->getKind() == dla::TypeLinkTag::LK_Pointer);
 
   // Check Eq Classes
   dla::VectEqClasses &Eq = TS.getEqClasses();
   revng_check(Eq.getNumElements() == 5);
   revng_check(Eq.getNumClasses() == 2);
-  revng_check(not Eq.isRemoved(Node2->ID) and not Eq.isRemoved(PtrNode->ID));
-  revng_check(Eq.haveSameEqClass(Node2->ID, Node1->ID)
-              and Eq.haveSameEqClass(Node3->ID, Node2->ID)
-              and Eq.haveSameEqClass(Node2->ID, Root->ID));
+  checkNode(TS, Node2, 0, InterferingChildrenInfo::Unknown, { 0, 1, 2, 3 });
+  checkNode(TS, PtrNode, 0, InterferingChildrenInfo::Unknown, { 4 });
 }
 
-///\brief Test an inheritance loop
+///\brief Test an inheritance loop with a pointer edge
 BOOST_AUTO_TEST_CASE(CollapseIdentityAndInheritanceCC_inheritance) {
   dla::LayoutTypeSystem TS;
 
@@ -135,25 +137,29 @@ BOOST_AUTO_TEST_CASE(CollapseIdentityAndInheritanceCC_inheritance) {
   LTSN *Node4 = addInheritance(TS, Node1);
 
   LTSN *PtrNode = createRoot(TS);
+  TS.addPointerLink(Node4, PtrNode);
 
-  // Run step
   runStep<dla::CollapseIdentityAndInheritanceCC>(TS);
-
   // Check that inheritance loops have been collapsed
   revng_check(TS.getNumLayouts() == 4);
   revng_check(llvm::is_contained(TS.getLayoutsRange(), Node3));
   revng_check(llvm::is_contained(TS.getLayoutsRange(), Node1));
   revng_check(llvm::is_contained(TS.getLayoutsRange(), Node4));
   revng_check(llvm::is_contained(TS.getLayoutsRange(), PtrNode));
-  revng_check(Node2->Successors.size() == 1);
+  revng_check(Node3->Successors.size() == 1);
+  // Check that the pointer edge is still alive
+  const auto &[Child, Tag] = *(llvm::children_edges<LTSN *>(Node4).begin());
+  revng_check(Child == PtrNode);
+  revng_check(Tag->getKind() == dla::TypeLinkTag::LK_Pointer);
 
   // Check Eq Classes
   dla::VectEqClasses &Eq = TS.getEqClasses();
   revng_check(Eq.getNumElements() == 6);
   revng_check(Eq.getNumClasses() == 4);
-  revng_check(not Eq.isRemoved(Node3->ID) and not Eq.isRemoved(PtrNode->ID));
-  revng_check(Eq.haveSameEqClass(Root->ID, Node2->ID)
-              and Eq.haveSameEqClass(Root->ID, Node3->ID));
+  checkNode(TS, Node3, 0, InterferingChildrenInfo::Unknown, { 0, 2, 3 });
+  checkNode(TS, Node1, 0, InterferingChildrenInfo::Unknown, { 1 });
+  checkNode(TS, Node4, 0, InterferingChildrenInfo::Unknown, { 4 });
+  checkNode(TS, PtrNode, 0, InterferingChildrenInfo::Unknown, { 5 });
 }
 
 ///\brief Test an inheritance CC with a backward instance edge (loop)
@@ -166,15 +172,21 @@ BOOST_AUTO_TEST_CASE(CollapseIdentityAndInheritanceCC_instance) {
   LTSN *Node2 = addInheritance(TS, Root);
   LTSN *Node3 = addInheritance(TS, Node2);
   TS.addInstanceLink(Node3, Root, OffsetExpression{});
-  addInstanceAtOffset(TS, Node1, 0, 8);
+  LTSN *Node4 = addInstanceAtOffset(TS, Node1, 0, 8);
 
-  createRoot(TS);
+  LTSN *PtrNode = createRoot(TS);
+  TS.addPointerLink(Node4, PtrNode);
 
   // Run step
   runStep<dla::CollapseIdentityAndInheritanceCC>(TS);
 
   // Check that no node has been collapsed
   revng_check(TS.getNumLayouts() == 6);
+
+  // Check that the pointer edge is still alive
+  const auto &[Child, Tag] = *(llvm::children_edges<LTSN *>(Node4).begin());
+  revng_check(Child == PtrNode);
+  revng_check(Tag->getKind() == dla::TypeLinkTag::LK_Pointer);
 
   // Check that the instance back-edge has been removed
   revng_check(Node3->Successors.size() == 0);
@@ -187,7 +199,7 @@ BOOST_AUTO_TEST_CASE(CollapseIdentityAndInheritanceCC_instance) {
 
 // ----------------- RemoveTransitiveInheritanceEdges ---
 
-///\brief Test that transitive edges are removed
+///\brief Test that transitive edges are removed and pointer edges ignored
 BOOST_AUTO_TEST_CASE(RemoveTransitiveInheritanceEdges_basic) {
   dla::LayoutTypeSystem TS;
 
@@ -199,8 +211,9 @@ BOOST_AUTO_TEST_CASE(RemoveTransitiveInheritanceEdges_basic) {
   // Add transitive edges
   TS.addInheritanceLink(Root, Node2);
   TS.addInheritanceLink(Root, Node3);
-
+  // Add pointer edge
   LTSN *PtrNode = createRoot(TS);
+  TS.addPointerLink(Node3, PtrNode);
   TS.addInheritanceLink(Root, PtrNode);
 
   // Run step
@@ -208,10 +221,15 @@ BOOST_AUTO_TEST_CASE(RemoveTransitiveInheritanceEdges_basic) {
 
   // Check that no node has been collapsed
   revng_check(TS.getNumLayouts() == 5);
-
+  // Check that the pointer edges are still alive
+  const auto &[Child, Tag] = *(llvm::children_edges<LTSN *>(Node3).begin());
+  revng_check(Child == PtrNode);
+  revng_check(Tag->getKind() == dla::TypeLinkTag::LK_Pointer);
   // Check that transitive edges have been removed
   revng_check(Root->Successors.size() == 2);
   revng_check(llvm::is_contained(llvm::children<LTSN *>(Root), Node1));
+  // The edge to the pointer node should not be removed
+  revng_check(llvm::is_contained(llvm::children<LTSN *>(Root), PtrNode));
 
   // Check Eq Classes
   dla::VectEqClasses &Eq = TS.getEqClasses();
@@ -222,7 +240,7 @@ BOOST_AUTO_TEST_CASE(RemoveTransitiveInheritanceEdges_basic) {
 
 // ----------------- MakeInheritanceTree ----------------
 
-///\brief Test that inheritance "diamonds" are removed
+///\brief Test that inheritance "diamonds" are removed and pointer edges ignored
 BOOST_AUTO_TEST_CASE(MakeInheritanceTree_diamond) {
   dla::LayoutTypeSystem TS;
 
@@ -232,22 +250,29 @@ BOOST_AUTO_TEST_CASE(MakeInheritanceTree_diamond) {
   LTSN *Node2 = addInheritance(TS, Root);
   LTSN *Node3 = addInheritance(TS, Node1);
   TS.addInheritanceLink(Node2, Node3);
+  // Add pointer edge
+  LTSN *PtrNode = createRoot(TS);
+  TS.addPointerLink(Node3, PtrNode);
 
-  // Run step
   runStep<dla::MakeInheritanceTree>(TS);
-
   // Check that nodes have been collapsed
-  revng_check(TS.getNumLayouts() == 3);
+  revng_check(TS.getNumLayouts() == 4);
+  // Check that the pointer edges are still alive
+  const auto &[Child, Tag] = *(llvm::children_edges<LTSN *>(Node3).begin());
+  revng_check(Child == PtrNode);
+  revng_check(Tag->getKind() == dla::TypeLinkTag::LK_Pointer);
   // Check diamonds have been collapsed
   revng_check(Root->Successors.size() == 1);
   revng_check(llvm::is_contained(llvm::children<LTSN *>(Root), Node1));
   revng_check(not llvm::is_contained(llvm::children<LTSN *>(Root), Node2));
   // Check Eq Classes
   dla::VectEqClasses &Eq = TS.getEqClasses();
-  revng_check(Eq.getNumElements() == 4);
-  revng_check(Eq.getNumClasses() == 3);
-  revng_check(not Eq.isRemoved(Node2->ID) and not Eq.isRemoved(Node1->ID));
-  revng_check(Eq.haveSameEqClass(Node2->ID, Node1->ID));
+  revng_check(Eq.getNumElements() == 5);
+  revng_check(Eq.getNumClasses() == 4);
+  checkNode(TS, Root, 0, InterferingChildrenInfo::Unknown, { 0 });
+  checkNode(TS, Node1, 0, InterferingChildrenInfo::Unknown, { 1, 2 });
+  checkNode(TS, Node3, 0, InterferingChildrenInfo::Unknown, { 3 });
+  checkNode(TS, PtrNode, 0, InterferingChildrenInfo::Unknown, { 4 });
 }
 
 ///\brief Test that multiple inheritance is collapsed
@@ -260,29 +285,30 @@ BOOST_AUTO_TEST_CASE(MakeInheritanceTree_virtualPostDom) {
   LTSN *Node2 = addInheritance(TS, Root);
   LTSN *Node3 = addInheritance(TS, Node1);
   TS.addInheritanceLink(Node2, Node3);
-  LTSN *Node4 = addInheritance(TS, Root);
-  createRoot(TS);
+  /*LTSN *Node4=*/addInheritance(TS, Root);
+  // Add pointer edge
+  LTSN *PtrNode = createRoot(TS);
+  TS.addPointerLink(Node3, PtrNode);
 
   // Run step
   runStep<dla::MakeInheritanceTree>(TS);
 
   // Check that nodes have been collapsed
   revng_check(TS.getNumLayouts() == 3);
-
+  // Check that the pointer edges are still alive
+  const auto &[Child, Tag] = *(llvm::children_edges<LTSN *>(Node3).begin());
+  revng_check(Child == PtrNode);
+  revng_check(Tag->getKind() == dla::TypeLinkTag::LK_Pointer);
   // Check that all inheritance children have been collapsed
   revng_check(Root->Successors.size() == 1);
   revng_check(llvm::is_contained(llvm::children<LTSN *>(Root), Node3));
-  revng_check(not llvm::is_contained(llvm::children<LTSN *>(Root), Node1));
-  revng_check(not llvm::is_contained(llvm::children<LTSN *>(Root), Node2));
-  revng_check(not llvm::is_contained(llvm::children<LTSN *>(Root), Node4));
   // Check Eq Classes
   dla::VectEqClasses &Eq = TS.getEqClasses();
   revng_check(Eq.getNumElements() == 6);
   revng_check(Eq.getNumClasses() == 3);
-  revng_check(not Eq.isRemoved(Root->ID) and not Eq.isRemoved(Node3->ID));
-  revng_check(Eq.haveSameEqClass(Node1->ID, Node2->ID)
-              and Eq.haveSameEqClass(Node1->ID, Node3->ID)
-              and Eq.haveSameEqClass(Node1->ID, Node4->ID));
+  checkNode(TS, Root, 0, InterferingChildrenInfo::Unknown, { 0 });
+  checkNode(TS, Node3, 0, InterferingChildrenInfo::Unknown, { 1, 2, 3, 4 });
+  checkNode(TS, PtrNode, 0, InterferingChildrenInfo::Unknown, { 5 });
 }
 
 // ----------------- PruneLayoutNodesWithoutLayout ------
@@ -309,6 +335,14 @@ BOOST_AUTO_TEST_CASE(PruneLayoutNodesWithoutLayout_basic) {
     addInstanceAtOffset(TS, Level1[2], /*offset=*/0, /*size=*/0),
     addInstanceAtOffset(TS, Level1[3], /*offset=*/0, /*size=*/0)
   };
+  // Add pointers
+  std::vector<LTSN *> PtrNodes;
+  for (LTSN *Leaf : Leaves) {
+    LTSN *PtrNode = createRoot(TS);
+    // PtrNode->Size = 8U;
+    TS.addPointerLink(Leaf, PtrNode);
+    PtrNodes.push_back(PtrNode);
+  }
 
   // Run step
   runStep<dla::PruneLayoutNodesWithoutLayout>(TS);
@@ -332,11 +366,13 @@ BOOST_AUTO_TEST_CASE(PruneLayoutNodesWithoutLayout_basic) {
 
   // Check Eq Classes
   dla::VectEqClasses &Eq = TS.getEqClasses();
-  revng_check(Eq.getNumElements() == 11);
+  revng_check(Eq.getNumElements() == 15);
   revng_check(Eq.getNumClasses() == 7);
-  revng_check(Eq.isRemoved(Level0[1]->ID) and Eq.isRemoved(Level1[2]->ID)
-              and Eq.isRemoved(Level1[3]->ID) and Eq.isRemoved(Leaves[2]->ID)
-              and Eq.isRemoved(Leaves[3]->ID));
+
+  // All leaves should have been removed
+  std::vector<unsigned> RemovedIDs = { 2, 5, 6, 9, 10, 11, 12, 13, 14 };
+  for (auto ID : RemovedIDs)
+    revng_check(Eq.isRemoved(ID));
 }
 
 // ----------------- CollapseSingleChild ----------------
@@ -347,10 +383,10 @@ BOOST_AUTO_TEST_CASE(CollapseSingleChild_offsetZero) {
 
   // Build TS
   LTSN *Parent = createRoot(TS, 0U);
-  addInstanceAtOffset(TS,
-                      Parent,
-                      /*offset=*/0U,
-                      /*size=*/8U);
+  /*LTSN *Child =*/addInstanceAtOffset(TS,
+                                       Parent,
+                                       /*offset=*/0U,
+                                       /*size=*/8U);
 
   // Run step
   runStep<dla::CollapseSingleChild>(TS);
@@ -431,9 +467,7 @@ BOOST_AUTO_TEST_CASE(CollapseSingleChild_multiParent) {
                                         /*size=*/8U);
 
   // Run step
-  TS.dumpDotOnFile("bef.dot", true);
   runStep<dla::CollapseSingleChild>(TS);
-  TS.dumpDotOnFile("after.dot", true);
 
   // Check graph
   revng_check(TS.getNumLayouts() == 3);
@@ -507,8 +541,10 @@ BOOST_AUTO_TEST_CASE(ComputeUpperMemberAccesses_basic) {
   PtrNode->Size = 8U;
   TS.addInheritanceLink(Root2, PtrNode);
 
+  // Add pointer edge
+  TS.addPointerLink(PtrNode, Root);
+
   // Run step
-  VerifyLog.enable();
   dla::StepManager SM;
   revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
@@ -573,6 +609,7 @@ BOOST_AUTO_TEST_CASE(ComputeNonInterferingComponents_basic) {
   LTSN *PtrNode = createRoot(TS);
   PtrNode->Size = 8U;
   TS.addInheritanceLink(Root2, PtrNode);
+  TS.addPointerLink(PtrNode, Root);
   LTSN *UnionNode = addInstanceAtOffset(TS, Root2, 0U, 8U);
 
   // Run step
@@ -666,12 +703,12 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_basic) {
   // Build TS
   LTSN *NodeA = createRoot(TS);
   LTSN *NodeB = addInheritance(TS, NodeA);
-  LTSN *NodeD = addInstanceAtOffset(TS, NodeB, /*offset=*/0, /*size=*/8);
-  LTSN *NodeE = addInstanceAtOffset(TS, NodeB, /*offset=*/8, /*size=*/8);
+  /*LTSN *NodeD =*/addInstanceAtOffset(TS, NodeB, /*offset=*/0, /*size=*/8);
+  /*LTSN *NodeE =*/addInstanceAtOffset(TS, NodeB, /*offset=*/8, /*size=*/8);
 
   LTSN *NodeC = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/16);
-  /*LTSN *NodeF*/ addInstanceAtOffset(TS, NodeC, /*offset=*/0, /*size=*/8);
-  /*LTSN *NodeG*/ addInstanceAtOffset(TS, NodeC, /*offset=*/8, /*size=*/8);
+  LTSN *NodeF = addInstanceAtOffset(TS, NodeC, /*offset=*/0, /*size=*/8);
+  LTSN *NodeG = addInstanceAtOffset(TS, NodeC, /*offset=*/8, /*size=*/8);
 
   LTSN *Node1 = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/12);
   LTSN *Node2 = addInstanceAtOffset(TS, Node1, /*offset=*/4, /*size=*/8);
@@ -685,6 +722,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_basic) {
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
+  revng_check(SM.addStep<ComputeNonInterferingComponents>());
 
   SM.run(TS);
 
@@ -695,9 +733,9 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_basic) {
   // Check TS
   revng_check(TS.getNumLayouts() == 8);
   checkNode(TS, NodeA, 16, AllChildrenAreInterfering, { 0 });
-  checkNode(TS, NodeB, 16, AllChildrenAreNonInterfering, { 1, 4 });
-  checkNode(TS, NodeD, 8, AllChildrenAreNonInterfering, { 2, 5 });
-  checkNode(TS, NodeE, 8, AllChildrenAreNonInterfering, { 3, 6 });
+  checkNode(TS, NodeC, 16, AllChildrenAreNonInterfering, { 1, 4 });
+  checkNode(TS, NodeF, 8, AllChildrenAreNonInterfering, { 2, 5 });
+  checkNode(TS, NodeG, 8, AllChildrenAreNonInterfering, { 3, 6 });
   checkNode(TS, Node1, 12, AllChildrenAreNonInterfering, { 7 });
   checkNode(TS, Node2, 8, AllChildrenAreNonInterfering, { 8 });
   checkNode(TS, Node3, 4, AllChildrenAreNonInterfering, { 9 });
@@ -759,11 +797,11 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeSymmetric) {
   LTSN *NodeA = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
   LTSN *NodeB = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/8);
   LTSN *NodeC = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/0);
-  LTSN *NodeD = addInstanceAtOffset(TS, NodeC, /*offset=*/8, /*size=*/8);
+  /*LTSN *NodeD =*/addInstanceAtOffset(TS, NodeC, /*offset=*/8, /*size=*/8);
 
   LTSN *NodeA1 = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
   LTSN *NodeC1 = addInstanceAtOffset(TS, NodeA1, /*offset=*/0, /*size=*/0);
-  /*LTSN *NodeD1 =*/addInstanceAtOffset(TS, NodeC1, /*offset=*/8, /*size=*/8);
+  LTSN *NodeD1 = addInstanceAtOffset(TS, NodeC1, /*offset=*/8, /*size=*/8);
   OffsetExpression OE{};
   OE.Offset = 0;
   TS.addInstanceLink(NodeA1, NodeB, std::move(OE));
@@ -776,6 +814,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeSymmetric) {
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
+
   SM.run(TS);
 
   // Compress the equivalence classes
@@ -786,8 +825,8 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeSymmetric) {
   revng_check(TS.getNumLayouts() == 4);
   checkNode(TS, NodeUnion, 16, AllChildrenAreInterfering, { 0, 1, 5 });
   checkNode(TS, NodeB, 8, AllChildrenAreNonInterfering, { 2 });
-  checkNode(TS, NodeC, 16, AllChildrenAreNonInterfering, { 3, 6 });
-  checkNode(TS, NodeD, 8, AllChildrenAreNonInterfering, { 4, 7 });
+  checkNode(TS, NodeC1, 16, AllChildrenAreNonInterfering, { 3, 6 });
+  checkNode(TS, NodeD1, 8, AllChildrenAreNonInterfering, { 4, 7 });
 }
 
 BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetric) {
@@ -802,7 +841,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetric) {
 
   LTSN *NodeA1 = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
   LTSN *NodeC1 = addInstanceAtOffset(TS, NodeA1, /*offset=*/0, /*size=*/0);
-  /*LTSN *NodeD1 =*/addInstanceAtOffset(TS, NodeC1, /*offset=*/4, /*size=*/8);
+  LTSN *NodeD1 = addInstanceAtOffset(TS, NodeC1, /*offset=*/4, /*size=*/8);
   OffsetExpression OE{};
   OE.Offset = 0;
   TS.addInstanceLink(NodeA1, NodeD, std::move(OE));
@@ -825,8 +864,8 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetric) {
   // Check TS
   revng_check(TS.getNumLayouts() == 3);
   checkNode(TS, NodeUnion, 12, AllChildrenAreInterfering, { 0, 1, 5 });
-  checkNode(TS, NodeC, 12, AllChildrenAreNonInterfering, { 3, 6 });
-  checkNode(TS, NodeD, 8, AllChildrenAreNonInterfering, { 2, 4, 7 });
+  checkNode(TS, NodeC1, 12, AllChildrenAreNonInterfering, { 3, 6 });
+  checkNode(TS, NodeD1, 8, AllChildrenAreNonInterfering, { 2, 4, 7 });
 }
 
 BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
@@ -841,7 +880,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
 
   LTSN *NodeA1 = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
   LTSN *NodeC1 = addInstanceAtOffset(TS, NodeA1, /*offset=*/0, /*size=*/0);
-  /*LTSN *NodeD1 =*/addInstanceAtOffset(TS, NodeC1, /*offset=*/0, /*size=*/8);
+  LTSN *NodeD1 = addInstanceAtOffset(TS, NodeC1, /*offset=*/0, /*size=*/8);
   OffsetExpression OE{};
   OE.Offset = 0;
   TS.addInstanceLink(NodeA1, NodeD, std::move(OE));
@@ -864,8 +903,8 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
   // Check TS
   revng_check(TS.getNumLayouts() == 3);
   checkNode(TS, NodeUnion, 8, AllChildrenAreInterfering, { 0, 1, 5 });
-  checkNode(TS, NodeC, 8, AllChildrenAreNonInterfering, { 3, 6 });
-  checkNode(TS, NodeD, 8, AllChildrenAreNonInterfering, { 2, 4, 7 });
+  checkNode(TS, NodeC1, 8, AllChildrenAreNonInterfering, { 3, 6 });
+  checkNode(TS, NodeD1, 8, AllChildrenAreNonInterfering, { 2, 4, 7 });
 }
 
 // ----------------- Remove Conflicting edges --------------

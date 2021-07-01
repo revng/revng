@@ -50,6 +50,7 @@ public:
     LK_Inheritance,
     LK_Equality,
     LK_Instance,
+    LK_Pointer,
     LK_All,
   };
 
@@ -61,6 +62,8 @@ public:
       return "Equality";
     case LK_Instance:
       return "Instance";
+    case LK_Pointer:
+      return "Pointer";
     case LK_All:
       return "None";
     }
@@ -100,6 +103,10 @@ public:
   template<typename OffsetExpressionT>
   static TypeLinkTag instanceTag(OffsetExpressionT &&O) {
     return TypeLinkTag(LK_Instance, std::forward<OffsetExpressionT>(O));
+  }
+
+  static TypeLinkTag pointerTag() {
+    return TypeLinkTag(LK_Pointer, OffsetExpression{});
   }
 
   std::strong_ordering operator<=>(const TypeLinkTag &Other) const = default;
@@ -256,6 +263,11 @@ public:
     return addLink(Src,
                    Tgt,
                    dla::TypeLinkTag::instanceTag(std::forward<OET>(OE)));
+  }
+
+  std::pair<const TypeLinkTag *, bool>
+  addPointerLink(LayoutTypeSystemNode *Src, LayoutTypeSystemNode *Tgt) {
+    return addLink(Src, Tgt, dla::TypeLinkTag::pointerTag());
   }
 
   void dumpDotOnFile(const char *FName,
@@ -518,6 +530,15 @@ inline bool hasLinkKind(const dla::LayoutTypeSystemNode::Link &L) {
     return L.second->getKind() == K;
 }
 
+template<dla::TypeLinkTag::LinkKind K>
+inline bool hasNonPointerLinkKind(const dla::LayoutTypeSystemNode::Link &L) {
+  static_assert(K != dla::TypeLinkTag::LinkKind::LK_Pointer);
+  if constexpr (K == dla::TypeLinkTag::LinkKind::LK_All)
+    return L.second->getKind() != dla::TypeLinkTag::LinkKind::LK_Pointer;
+  else
+    return L.second->getKind() == K;
+}
+
 inline bool
 isEqualityEdge(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
   return hasLinkKind<TypeLinkTag::LinkKind::LK_Equality>(E);
@@ -542,11 +563,21 @@ isInstanceOff0Edge(llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
   return OE.Offset == 0 and OE.Strides.empty() and OE.TripCounts.empty();
 }
 
+inline bool
+isPointerEdge(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
+  return hasLinkKind<TypeLinkTag::LinkKind::LK_Pointer>(E);
+}
+
+inline bool
+isNotPointerEdge(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
+  return not isPointerEdge(E);
+}
+
 template<dla::TypeLinkTag::LinkKind K = dla::TypeLinkTag::LinkKind::LK_All>
 inline bool isLeaf(const LayoutTypeSystemNode *N) {
   using LTSN = const LayoutTypeSystemNode;
   using GraphNodeT = LTSN *;
-  using FilteredNodeT = EdgeFilteredGraph<GraphNodeT, hasLinkKind<K>>;
+  using FilteredNodeT = EdgeFilteredGraph<GraphNodeT, hasNonPointerLinkKind<K>>;
   using GT = llvm::GraphTraits<FilteredNodeT>;
   return GT::child_begin(N) == GT::child_end(N);
 }
@@ -563,7 +594,7 @@ template<dla::TypeLinkTag::LinkKind K = dla::TypeLinkTag::LinkKind::LK_All>
 inline bool isRoot(const LayoutTypeSystemNode *N) {
   using LTSN = const LayoutTypeSystemNode;
   using GraphNodeT = LTSN *;
-  using FilteredNodeT = EdgeFilteredGraph<GraphNodeT, hasLinkKind<K>>;
+  using FilteredNodeT = EdgeFilteredGraph<GraphNodeT, hasNonPointerLinkKind<K>>;
   using IGT = llvm::GraphTraits<llvm::Inverse<FilteredNodeT>>;
   return IGT::child_begin(N) == IGT::child_end(N);
 }

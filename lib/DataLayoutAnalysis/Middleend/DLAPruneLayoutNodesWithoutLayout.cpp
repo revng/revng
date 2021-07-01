@@ -20,6 +20,10 @@ static Logger<> Log("dla-prune");
 
 namespace dla {
 
+using LTSN = LayoutTypeSystemNode;
+using GraphNodeT = LTSN *;
+using NonPointerFilterT = EdgeFilteredGraph<GraphNodeT, isNotPointerEdge>;
+
 bool PruneLayoutNodesWithoutLayout::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
   using LTSN = LayoutTypeSystemNode;
@@ -37,7 +41,7 @@ bool PruneLayoutNodesWithoutLayout::runOnTypeSystem(LayoutTypeSystem &TS) {
       continue;
 
     revng_log(Log, "# Starting from Root: " << Root->ID);
-    for (LTSN *N : post_order_ext(Root, Visited)) {
+    for (LTSN *N : post_order_ext(NonPointerFilterT(Root), Visited)) {
       revng_log(Log, "## Visiting N: " << N->ID);
       revng_log(Log, "## Is Leaf: " << isLeaf(N));
 
@@ -46,7 +50,7 @@ bool PruneLayoutNodesWithoutLayout::runOnTypeSystem(LayoutTypeSystem &TS) {
         continue;
       }
 
-      using GT = GraphTraits<LTSN *>;
+      using GT = GraphTraits<NonPointerFilterT>;
       if (std::any_of(GT::child_begin(N),
                       GT::child_end(N),
                       [&ToRemove](LTSN *Chld) {

@@ -89,6 +89,7 @@ static_assert(sizeof(NoRet) == (str_len(NoRet) + 1));
 static constexpr const char Equal[] = "Equal";
 static constexpr const char Inherits[] = "Inherits from";
 static constexpr const char Instance[] = "Has Instance of: ";
+static constexpr const char Pointer[] = "Points to ";
 static constexpr const char Unexpected[] = "Unexpected!";
 static_assert(sizeof(Equal) == (str_len(Equal) + 1));
 static_assert(sizeof(Inherits) == (str_len(Inherits) + 1));
@@ -173,6 +174,10 @@ void debug_function LayoutTypeSystem::dumpDotOnFile(const char *FName,
       case TypeLinkTag::LK_Inheritance: {
         EdgeLabel = Inherits;
         LabelSize = sizeof(Inherits) - 1;
+      } break;
+      case TypeLinkTag::LK_Pointer: {
+        EdgeLabel = Pointer;
+        LabelSize = sizeof(Pointer) - 1;
       } break;
       default: {
         EdgeLabel = Unexpected;
@@ -421,6 +426,7 @@ void LayoutTypeSystem::moveEdges(LayoutTypeSystemNode *OldSrc,
       } break;
 
       case TypeLinkTag::LK_Equality:
+      case TypeLinkTag::LK_Pointer:
       default:
         revng_unreachable("unexpected edge kind");
       }
@@ -505,6 +511,22 @@ bool LayoutTypeSystem::verifyConsistency() const {
         return false;
       }
     }
+
+    // Verify that pointers are not also structs or unions
+    unsigned NonPtrChildren = 0U;
+    bool IsPointer = false;
+    for (const auto &Edge : NodePtr->Successors) {
+      if (isPointerEdge(Edge))
+        IsPointer = true;
+      else if (isInheritanceEdge(Edge) or isInstanceEdge(Edge))
+        NonPtrChildren++;
+
+      if (IsPointer and NonPtrChildren > 0) {
+        if (VerifyDLALog.isEnabled())
+          revng_check(false);
+        return false;
+      }
+    }
   }
   return true;
 }
@@ -529,8 +551,11 @@ bool LayoutTypeSystem::verifyDAG() const {
     if (Visited.count(Node))
       continue;
 
-    auto I = scc_begin(Node);
-    auto E = scc_end(Node);
+    using NonPointerFilterT = EdgeFilteredGraph<LayoutTypeSystemNode *,
+                                                isNotPointerEdge>;
+
+    auto I = scc_begin(NonPointerFilterT(Node));
+    auto E = scc_end(NonPointerFilterT(Node));
     for (; I != E; ++I) {
       Visited.insert(I->begin(), I->end());
       if (I.hasCycle()) {

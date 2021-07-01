@@ -79,7 +79,7 @@ bool MakeInheritanceTree::runOnTypeSystem(LayoutTypeSystem &TS) {
     if (hasAtMostOneInheritanceEdge(Node))
       continue;
 
-    // If Node is alredy part of a set of nodes to collapse, skip it
+    // If Node is already part of a set of nodes to collapse, skip it
     if (NodeToCollapsingSet.count(Node))
       continue;
     // Here we're sure Node has at least two outgoing inheritance edges
@@ -95,8 +95,11 @@ bool MakeInheritanceTree::runOnTypeSystem(LayoutTypeSystem &TS) {
       // Post order visit, from Node, to its immediate post dominator.
       // All the nodes that are reachable between Node and PostDom will be
       // collapsed on the same node.
+      // The PostDom might be a nullptr: in that case, no reachable node will
+      // be equal to it.
       LTSN *PostDom = PDT.getNode(Node)->getIDom()->getBlock();
       std::set<LTSN *> PostDomSet = { PostDom };
+
       using InhNodeT = EdgeFilteredGraph<GraphNodeT, isInheritanceEdge>;
       for (LTSN *Reachable : llvm::post_order_ext(InhNodeT(Node), PostDomSet)) {
         // Prevent Node and PostDom to be collapsed with the other nodes.
@@ -165,10 +168,8 @@ bool MakeInheritanceTree::runOnTypeSystem(LayoutTypeSystem &TS) {
 
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-final-inheritance-tree.dot");
-  if (VerifyLog.isEnabled()) {
-    revng_assert(TS.verifyInheritanceTree());
-    revng_assert(TS.verifyDAG());
-  }
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyInheritanceTree() and TS.verifyDAG());
 
   return Changed;
 }

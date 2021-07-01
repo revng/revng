@@ -22,6 +22,8 @@
 namespace dla {
 
 using LTSN = LayoutTypeSystemNode;
+using GraphNodeT = LTSN *;
+using NonPointerFilterT = EdgeFilteredGraph<GraphNodeT, isNotPointerEdge>;
 
 bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (VerifyLog.isEnabled())
@@ -37,7 +39,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
     if (not isRoot(Root))
       continue;
 
-    for (LTSN *N : llvm::post_order_ext(Root, Visited)) {
+    for (LTSN *N : llvm::post_order_ext(NonPointerFilterT(Root), Visited)) {
       revng_assert(not isLeaf(N) or N->Size);
       revng_assert(N->Size);
 
@@ -56,7 +58,8 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
       // later sort the vector according to it.
       ChildrenVec Children;
       bool InheritsFromOther = false;
-      for (auto &[Child, EdgeTag] : llvm::children_edges<LTSN *>(N)) {
+      for (auto &[Child, EdgeTag] :
+           llvm::children_edges<NonPointerFilterT>(N)) {
 
         auto OrdChild = OrderedChild{
           /* .Offset */ 0LL,
@@ -257,8 +260,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
   }
 
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree()
-                 and TS.verifyUnions());
+    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
 
   return Changed;
 }
