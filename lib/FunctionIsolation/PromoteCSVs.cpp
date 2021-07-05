@@ -404,7 +404,8 @@ static bool needsWrapper(Function *F) {
   {
     using namespace FunctionTags;
     auto Tags = TagsSet::from(F);
-    if (Tags.contains(Lifted) or Tags.contains(CSVsAsArgumentsWrapper))
+    if (Tags.contains(Lifted) or Tags.contains(CSVsAsArgumentsWrapper)
+        or Tags.contains(Marker) or Tags.contains(Exceptional))
       return false;
   }
 
