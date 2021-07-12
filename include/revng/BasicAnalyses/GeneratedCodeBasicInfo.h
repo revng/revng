@@ -433,6 +433,14 @@ public:
     return getPCFromNewPC(&*BB->begin());
   }
 
+  // TODO: `purgeDomTree`, `getDomTree`, `getJumpTargetBlock` et al
+  //        need to be moved into a new class.
+  void purgeDomTree(llvm::Function *F) {
+    auto It = DTMap.find(F);
+    if (It != DTMap.end())
+      DTMap.erase(It);
+  }
+
   template<HasMetadata T>
   void setMetaAddressMetadata(T *U,
                               llvm::StringRef Name,
