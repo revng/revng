@@ -90,32 +90,56 @@ std::array<T, Size> slice(const std::array<T, OldSize> &Old) {
 /// Trait to provide name of the tuple-like class and its fields
 template<typename T>
 struct TupleLikeTraits {
-  // static const char *name();
+  enum class Fields {};
+};
 
-  // template<size_t I=0>
-  // static const char *fieldName();
+template<typename T>
+concept HasTupleLikeTraits = requires {
+  typename TupleLikeTraits<T>::tuple;
+  typename TupleLikeTraits<T>::Fields;
+  { TupleLikeTraits<T>::Name };
+  { TupleLikeTraits<T>::FieldsName };
 };
 
 //
 // Implementation of MappingTraits for TupleLikeTraits implementors
 //
 
-/// Tuple-liek can implement llvm::yaml::MappingTraits inheriting this class
-template<typename T>
+/// Tuple-like can implement llvm::yaml::MappingTraits inheriting this class
+template<typename T, typename TupleLikeTraits<T>::Fields... Optionals>
 struct TupleLikeMappingTraits {
-  // Recursive step
-  template<size_t I = 0>
-  static void mapping(llvm::yaml::IO &io, T &Obj) {
-    // Define the field using getTupleFieldName and the associated field
-    io.mapRequired(TupleLikeTraits<T>::template fieldName<I>(), get<I>(Obj));
+  using Fields = typename TupleLikeTraits<T>::Fields;
 
-    // Recur
-    mapping<I + 1>(io, Obj);
+  template<Fields Index, size_t I = 0>
+  static constexpr bool isOptional() {
+    constexpr size_t Count = sizeof...(Optionals);
+    constexpr std::array<Fields, Count> OptionalsArray{ Optionals... };
+    if constexpr (I < Count) {
+      return (OptionalsArray[I] == Index) || isOptional<Index, I + 1>();
+    } else {
+      return false;
+    }
   }
 
-  // Base case
-  template<>
-  void mapping<std::tuple_size_v<T>>(llvm::yaml::IO &io, T &Obj) {}
+  // Recursive step
+  template<size_t I = 0>
+  static void mapping(llvm::yaml::IO &IO, T &Obj) {
+    auto Name = TupleLikeTraits<T>::FieldsName[I];
+    constexpr Fields Field = static_cast<Fields>(I);
+
+    using tuple_element = std::tuple_element_t<I, T>;
+    auto &Element = get<I>(Obj);
+    if constexpr (isOptional<Field>()) {
+      IO.mapOptional(Name, Element, tuple_element{});
+    } else {
+      IO.mapRequired(Name, Element);
+    }
+
+    if constexpr (I + 1 < std::tuple_size_v<T>) {
+      // Recur
+      mapping<I + 1>(IO, Obj);
+    }
+  }
 };
 
 //
@@ -524,7 +548,7 @@ public:
 
   template<typename T, int I>
   void visitTupleElement() {
-    Stream << "/" << TupleLikeTraits<T>::template fieldName<I>();
+    Stream << "/" << TupleLikeTraits<T>::FieldsName[I];
   }
 
   template<typename T, typename KeyT>
@@ -701,7 +725,7 @@ bool PathMatcher::visitTuple(llvm::StringRef Current,
                              llvm::StringRef Rest,
                              PathMatcher &Result) {
   if constexpr (I < std::tuple_size_v<T>) {
-    if (TupleLikeTraits<T>::template fieldName<I>() == Current) {
+    if (TupleLikeTraits<T>::FieldsName[I] == Current) {
       Result.Path.push_back(size_t(I));
       using element = typename std::tuple_element_t<I, T>;
       return PathMatcher::visitTupleTreeNode<element>(Rest, Result);
@@ -761,7 +785,7 @@ constexpr bool validateTupleTree(L Check) {
 
 template<typename T, typename L>
 constexpr bool validateTupleTree(L Check) {
-  return Check((T *) nullptr);
+  return Check((std::remove_const_t<T> *) nullptr);
 }
 
 template<HasTupleSize T, typename L, size_t I>
@@ -911,37 +935,33 @@ constexpr bool validateTupleTree(L Check) {
 //
 // Macros to transform struct in tuple-like
 //
-#define TUPLE_ELEMENTS(class, index, field) \
-  template<>                                \
-  struct std::tuple_element<index, class> { \
-    using type = decltype(class ::field);   \
+
+#define TUPLE_TYPES(class, index, field) , decltype(class ::field)
+
+#define TUPLE_FIELD_NAME(class, index, field) #field,
+
+#define ENUM_ENTRY(class, index, field) field = index,
+
+template<typename ToSkip, typename... A>
+using skip_first_tuple = std::tuple<A...>;
+
+#define INTROSPECTION_1(classname, ...)                                   \
+  template<>                                                              \
+  struct TupleLikeTraits<classname> {                                     \
+    static constexpr const char *Name = #classname;                       \
+                                                                          \
+    using tuple = skip_first_tuple<                                       \
+      void FOR_EACH(TUPLE_TYPES, classname, __VA_ARGS__)>;                \
+                                                                          \
+    static constexpr const char *FieldsName[std::tuple_size_v<tuple>] = { \
+      FOR_EACH(TUPLE_FIELD_NAME, classname, __VA_ARGS__)                  \
+    };                                                                    \
+                                                                          \
+    enum class Fields { FOR_EACH(ENUM_ENTRY, classname, __VA_ARGS__) };   \
   };
 
 #define GET_IMPLEMENTATIONS(class, index, field) \
   else if constexpr (I == index) return x.field;
-
-#define GET_TUPLE_FIELD_NAME(class, index, field) \
-  template<>                                      \
-  const char *fieldName<index>() {                \
-    return #field;                                \
-  }
-
-#define INTROSPECTION_1(class, ...)                            \
-  template<>                                                   \
-  struct std::tuple_size<class>                                \
-    : std::integral_constant<size_t, NUMARGS(__VA_ARGS__)> {}; \
-                                                               \
-  FOR_EACH(TUPLE_ELEMENTS, class, __VA_ARGS__)                 \
-                                                               \
-  template<>                                                   \
-  struct TupleLikeTraits<class> {                              \
-    static const char *name() { return #class; }               \
-                                                               \
-    template<size_t I = 0>                                     \
-    static const char *fieldName();                            \
-                                                               \
-    FOR_EACH(GET_TUPLE_FIELD_NAME, class, __VA_ARGS__)         \
-  };
 
 #define INTROSPECTION_2(class, ...)                   \
   template<int I>                                     \
@@ -974,6 +994,19 @@ constexpr bool validateTupleTree(L Check) {
   namespace ns {                          \
   INTROSPECTION_2(class, __VA_ARGS__)     \
   }
+
+template<size_t Index, HasTupleLikeTraits T>
+struct std::tuple_element<Index, T> {
+  using type = std::tuple_element_t<Index, typename TupleLikeTraits<T>::tuple>;
+};
+
+template<typename T>
+using TupleLikeTraitsTuple = typename TupleLikeTraits<T>::tuple;
+
+template<HasTupleLikeTraits T>
+struct std::tuple_size<T>
+  : std::integral_constant<size_t, std::tuple_size_v<TupleLikeTraitsTuple<T>>> {
+};
 
 template<TupleTreeCompatible T>
 class TupleTree;
