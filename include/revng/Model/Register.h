@@ -6,8 +6,9 @@
 
 #include "llvm/ADT/Triple.h"
 
-#include "revng/Support/YAMLTraits.h"
+#include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/YAMLTraits.h"
 
 namespace model::Register {
 enum Values {
@@ -289,6 +290,10 @@ struct ScalarEnumerationTraits<model::Register::Values> {
   }
 };
 } // namespace llvm::yaml
+
+template<>
+struct KeyedObjectTraits<model::Register::Values>
+  : public IdentityKeyedObjectTraits<model::Register::Values> {};
 
 namespace model::Register {
 
