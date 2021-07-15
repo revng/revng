@@ -472,24 +472,24 @@ struct NonOwningEdge {
 
 template<typename NodeType, typename LabelType>
 struct EdgeView {
-  NodeType &Neighbor;
-  LabelType &Label;
+  NodeType *Neighbor;
+  LabelType *Label;
 
   explicit EdgeView(OwningEdge<NodeType, LabelType> &E) :
-    Neighbor(*E.Neighbor), Label(*E.Label) {}
+    Neighbor(E.Neighbor), Label(E.Label.get()) {}
   explicit EdgeView(NonOwningEdge<NodeType, LabelType> &E) :
-    Neighbor(*E.Neighbor), Label(*E.Label) {}
+    Neighbor(E.Neighbor), Label(E.Label) {}
 };
 
 template<typename NodeType, typename LabelType>
 struct ConstEdgeView {
-  NodeType const &Neighbor;
-  LabelType const &Label;
+  NodeType const *Neighbor;
+  LabelType const *Label;
 
   explicit ConstEdgeView(OwningEdge<NodeType, LabelType> const &E) :
-    Neighbor(*E.Neighbor), Label(*E.Label) {}
+    Neighbor(E.Neighbor), Label(E.Label.get()) {}
   explicit ConstEdgeView(NonOwningEdge<NodeType, LabelType> const &E) :
-    Neighbor(*E.Neighbor), Label(*E.Label) {}
+    Neighbor(E.Neighbor), Label(E.Label) {}
 };
 
 template<typename NodeType>
@@ -591,19 +591,19 @@ public:
   void printAsOperand(llvm::raw_ostream &, bool) const { revng_abort(); }
 
 public:
-  EdgeView addSuccessor(MutableEdgeNode &NewSuccessor, EdgeLabel EL = {}) {
+  EdgeView addSuccessor(MutableEdgeNode *NewSuccessor, EdgeLabel EL = {}) {
     revng_assert(!hasSuccessor(NewSuccessor),
                  "Only one edge is allowed between two nodes.");
-    auto [Owner, View] = constructEdge(*this, NewSuccessor, std::move(EL));
+    auto [Owner, View] = constructEdge(this, NewSuccessor, std::move(EL));
     auto &Output = Successors.emplace_back(std::move(Owner));
-    NewSuccessor.Predecessors.emplace_back(std::move(View));
+    NewSuccessor->Predecessors.emplace_back(std::move(View));
     return EdgeView(Output);
   }
-  EdgeView addPredecessor(MutableEdgeNode &NewPredecessor, EdgeLabel EL = {}) {
+  EdgeView addPredecessor(MutableEdgeNode *NewPredecessor, EdgeLabel EL = {}) {
     revng_assert(!hasPredecessor(NewPredecessor),
                  "Only one edge is allowed between two nodes.");
-    auto [Owner, View] = constructEdge(NewPredecessor, *this, std::move(EL));
-    auto &Output = NewPredecessor.Successors.emplace_back(std::move(Owner));
+    auto [Owner, View] = constructEdge(NewPredecessor, this, std::move(EL));
+    auto &Output = NewPredecessor->Successors.emplace_back(std::move(Owner));
     Predecessors.emplace_back(std::move(View));
     return EdgeView(Output);
   }
@@ -698,64 +698,53 @@ public:
   }
 
 private:
-  auto findSuccessorImpl(DerivedType const &S) {
-    auto Comparator = [&S](auto &Edge) { return Edge.Neighbor == &S; };
-    return std::find_if(Successors.begin(), Successors.end(), Comparator);
-  }
-  auto findSuccessorImpl(DerivedType const &S) const {
-    auto Comparator = [&S](auto const &Edge) { return Edge.Neighbor == &S; };
-    return std::find_if(Successors.begin(), Successors.end(), Comparator);
-  }
-  auto findPredecessorImpl(DerivedType const &P) {
-    auto Comparator = [&P](auto &Edge) { return Edge.Neighbor == &P; };
-    return std::find_if(Predecessors.begin(), Predecessors.end(), Comparator);
-  }
-  auto findPredecessorImpl(DerivedType const &P) const {
-    auto Comparator = [&P](auto const &Edge) { return Edge.Neighbor == &P; };
-    return std::find_if(Predecessors.begin(), Predecessors.end(), Comparator);
+  template<typename ContainerType>
+  static auto findImpl(DerivedType const *N, ContainerType &&Where) {
+    auto Comparator = [N](auto const &Edge) { return Edge.Neighbor == N; };
+    return std::find_if(Where.begin(), Where.end(), Comparator);
   }
 
 public:
-  SuccessorEdgeIterator findSuccessorEdge(DerivedType const &S) {
-    return SuccessorEdgeIterator(findSuccessorImpl(S),
+  SuccessorEdgeIterator findSuccessorEdge(DerivedType const *S) {
+    return SuccessorEdgeIterator(findImpl(S, Successors),
                                  SuccessorFilters::toView);
   }
-  ConstSuccessorEdgeIterator findSuccessorEdge(DerivedType const &S) const {
-    return ConstSuccessorEdgeIterator(findSuccessorImpl(S),
+  ConstSuccessorEdgeIterator findSuccessorEdge(DerivedType const *S) const {
+    return ConstSuccessorEdgeIterator(findImpl(S, Successors),
                                       SuccessorFilters::toConstView);
   }
-  PredecessorEdgeIterator findPredecessorEdge(DerivedType const &S) {
-    return PredecessorEdgeIterator(findPredecessorImpl(S),
+  PredecessorEdgeIterator findPredecessorEdge(DerivedType const *P) {
+    return PredecessorEdgeIterator(findImpl(P, Predecessors),
                                    PredecessorFilters::toView);
   }
-  ConstPredecessorEdgeIterator findPredecessorEdge(DerivedType const &S) const {
-    return ConstPredecessorEdgeIterator(findPredecessorImpl(S),
+  ConstPredecessorEdgeIterator findPredecessorEdge(DerivedType const *P) const {
+    return ConstPredecessorEdgeIterator(findImpl(P, Predecessors),
                                         PredecessorFilters::toConstView);
   }
 
-  SuccessorIterator findSuccessor(DerivedType const &S) {
-    return SuccessorIterator(findSuccessorImpl(S),
+  SuccessorIterator findSuccessor(DerivedType const *S) {
+    return SuccessorIterator(findImpl(S, Successors),
                              SuccessorFilters::toNeighbor);
   }
-  ConstSuccessorIterator findSuccessor(DerivedType const &S) const {
-    return ConstSuccessorIterator(findSuccessorImpl(S),
+  ConstSuccessorIterator findSuccessor(DerivedType const *S) const {
+    return ConstSuccessorIterator(findImpl(S, Successors),
                                   SuccessorFilters::toConstNeighbor);
   }
-  PredecessorIterator findPredecessor(DerivedType const &S) {
-    return PredecessorIterator(findPredecessorImpl(S),
+  PredecessorIterator findPredecessor(DerivedType const *P) {
+    return PredecessorIterator(findImpl(P, Predecessors),
                                PredecessorFilters::toNeighbor);
   }
-  ConstPredecessorIterator findPredecessor(DerivedType const &S) const {
-    return ConstPredecessorIterator(findPredecessorImpl(S),
+  ConstPredecessorIterator findPredecessor(DerivedType const *P) const {
+    return ConstPredecessorIterator(findImpl(P, Predecessors),
                                     PredecessorFilters::toConstNeighbor);
   }
 
 public:
-  bool hasSuccessor(DerivedType const &S) const {
-    return findSuccessorImpl(S) != Successors.end();
+  bool hasSuccessor(DerivedType const *S) const {
+    return findImpl(S, Successors) != Successors.end();
   }
-  bool hasPredecessor(DerivedType const &S) const {
-    return findPredecessorImpl(S) != Predecessors.end();
+  bool hasPredecessor(DerivedType const *P) const {
+    return findImpl(P, Predecessors) != Predecessors.end();
   }
 
 public:
@@ -782,7 +771,7 @@ protected:
     if (Successor->Predecessors.empty())
       return Iterator;
 
-    auto PredecessorIt = Successor->findPredecessorImpl(*this);
+    auto PredecessorIt = findImpl(this, Successor->Predecessors);
     revng_assert(PredecessorIt != Successor->Predecessors.end(),
                  "Half of an edge is missing, graph layout is broken.");
     std::swap(*PredecessorIt, Successor->Predecessors.back());
@@ -801,12 +790,12 @@ protected:
     std::advance(Iterator,
                  std::distance<ViewIteratorImpl>(Iterator, InputIterator));
 
+    // Maybe we should do some extra checks as to whether `Iterator` is valid.
     auto *Predecessor = Iterator->Neighbor;
     if (Predecessor->Successors.empty())
       return Iterator;
 
-    // Maybe we should do some extra checks as to whether `Iterator` is valid.
-    auto SuccessorIt = Predecessor->findSuccessorImpl(*this);
+    auto SuccessorIt = findImpl(this, Predecessor->Successors);
     revng_assert(SuccessorIt != Predecessor->Successors.end(),
                  "Half of an edge is missing, graph layout is broken.");
     std::swap(*SuccessorIt, Predecessor->Successors.back());
@@ -827,8 +816,8 @@ public:
     auto Result = removeSuccessorImpl(Iterator.getCurrent());
     return SuccessorIterator(Result, SuccessorFilters::toNeighbor);
   }
-  auto removeSuccessor(DerivedType const &S) {
-    auto Result = removeSuccessorImpl(findSuccessorImpl(S));
+  auto removeSuccessor(DerivedType const *S) {
+    auto Result = removeSuccessorImpl(findImpl(S, Successors));
     return SuccessorIterator(Result, SuccessorFilters::toNeighbor);
   }
 
@@ -840,9 +829,9 @@ public:
     auto Result = removePredecessorImpl(Iterator.getCurrent());
     return ReverseSuccessorEdgeIterator(Result, PredecessorFilters::toNeighbor);
   }
-  auto removePredecessor(DerivedType const &P) {
-    auto Result = removePredecessorImpl(findPredecessorImpl(P));
-    return ReverseSuccessorEdgeIterator(Result, PredecessorFilters::toNeighbor);
+  auto removePredecessor(DerivedType const *P) {
+    auto Result = removePredecessorImpl(findImpl(P, Predecessors));
+    return PredecessorIterator(Result, PredecessorFilters::toNeighbor);
   }
 
 public:
@@ -878,13 +867,13 @@ public:
 
 protected:
   std::tuple<OwningEdge, NonOwningEdge>
-  constructEdge(MutableEdgeNode &From, MutableEdgeNode &To, EdgeLabel &&EL) {
+  constructEdge(DerivedType *From, DerivedType *To, EdgeLabel &&EL) {
     if constexpr (AreEdgesLabeled) {
-      LabeledOwningEdge O{ &To, std::make_unique<EdgeLabel>(std::move(EL)) };
-      LabeledNonOwningEdge V{ &From, O.Label.get() };
+      LabeledOwningEdge O{ To, std::make_unique<EdgeLabel>(std::move(EL)) };
+      LabeledNonOwningEdge V{ From, O.Label.get() };
       return { std::move(O), std::move(V) };
     } else {
-      return { UnlabeledOwningEdge{ &To }, UnlabeledNonOwningEdge{ &From } };
+      return { UnlabeledOwningEdge{ To }, UnlabeledNonOwningEdge{ From } };
     }
   }
 
@@ -1060,7 +1049,7 @@ public:
   static auto child_edge_begin(T *N) { return N->successor_edges().begin(); }
   static auto child_edge_end(T *N) { return N->successor_edges().end(); }
 
-  static T *edge_dest(EdgeRef Edge) { return &Edge.Neighbor; }
+  static T *edge_dest(EdgeRef Edge) { return Edge.Neighbor; }
   static T *getEntryNode(T *N) { return N; };
 };
 
