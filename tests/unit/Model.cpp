@@ -24,7 +24,7 @@ BOOST_AUTO_TEST_CASE(TestIntrospection) {
   Function TheFunction(MetaAddress::invalid());
 
   // Use get
-  TheFunction.Name = "FunctionName";
+  TheFunction.CustomName = "FunctionName";
   revng_check(get<1>(TheFunction) == "FunctionName");
 
   // Test std::tuple_size
@@ -33,9 +33,9 @@ BOOST_AUTO_TEST_CASE(TestIntrospection) {
   // Test TupleLikeTraits
   using TLT = TupleLikeTraits<Function>;
   static_assert(std::is_same_v<std::tuple_element_t<1, Function>,
-                               decltype(TheFunction.Name)>);
+                               decltype(TheFunction.CustomName)>);
   revng_check(StringRef(TLT::Name) == "model::Function");
-  revng_check(StringRef(TLT::FieldsName[1]) == "Name");
+  revng_check(StringRef(TLT::FieldsName[1]) == "CustomName");
 }
 
 BOOST_AUTO_TEST_CASE(TestPathAccess) {
@@ -88,7 +88,7 @@ BOOST_AUTO_TEST_CASE(TestStringPathConversion) {
 
   TupleTreePath InvalidFunctionNamePath = InvalidFunctionPath;
   InvalidFunctionNamePath.push_back(size_t(1));
-  auto MaybePath = stringAsPath<Binary>("/Functions/:Invalid/Name");
+  auto MaybePath = stringAsPath<Binary>("/Functions/:Invalid/CustomName");
   revng_check(MaybePath.value() == InvalidFunctionNamePath);
 
   auto CheckRoundTrip = [](const char *String) {
@@ -132,8 +132,8 @@ BOOST_AUTO_TEST_CASE(TestPathMatcher) {
 
     auto ARM1000EntryPath = Matcher.apply(ARM1000, ARM2000);
     auto ARM1000EntryPathAsString = pathAsString<Binary>(ARM1000EntryPath);
-    auto ExpectedName = ("/Functions/0x1000:Code_arm/CFG/"
-                         "0x2000:Code_arm/Start");
+    const auto *ExpectedName = ("/Functions/0x1000:Code_arm/CFG/"
+                                "0x2000:Code_arm/Start");
     revng_check(ARM1000EntryPathAsString == ExpectedName);
 
     auto Match = Matcher.match<MetaAddress, MetaAddress>(ARM1000EntryPath);
@@ -189,7 +189,7 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeReference) {
 
   TupleTree<Root> TheRoot;
   Element &AnElement = TheRoot->Elements[3];
-  AnElement.Self = Reference::fromString("/Elements/3");
+  AnElement.Self = Reference::fromString(TheRoot.get(), "/Elements/3");
 
   TheRoot.initializeReferences();
 

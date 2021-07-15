@@ -13,17 +13,18 @@
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/TupleTree.h"
+#include "revng/Model/Type.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
 
 // Forward declarations
 namespace model {
+class VerifyHelper;
 class Function;
 class Binary;
 class FunctionEdge;
 class CallEdge;
-class FunctionABIRegister;
 class BasicBlock;
 } // namespace model
 
@@ -33,40 +34,6 @@ class BasicBlock;
 template<>
 struct KeyedObjectTraits<MetaAddress>
   : public IdentityKeyedObjectTraits<MetaAddress> {};
-
-class model::FunctionABIRegister {
-public:
-  Register::Values Register;
-  RegisterState::Values Argument = RegisterState::Invalid;
-  RegisterState::Values ReturnValue = RegisterState::Invalid;
-
-public:
-  FunctionABIRegister(const Register::Values &Register) : Register(Register) {}
-  bool operator==(const FunctionABIRegister &Other) const = default;
-
-public:
-  bool verify() const debug_function {
-    return (Register != Register::Invalid and Argument != RegisterState::Invalid
-            and ReturnValue != RegisterState::Invalid);
-  }
-};
-INTROSPECTION_NS(model, FunctionABIRegister, Register, Argument, ReturnValue);
-
-template<>
-struct llvm::yaml::MappingTraits<model::FunctionABIRegister>
-  : public TupleLikeMappingTraits<model::FunctionABIRegister> {};
-
-template<>
-struct KeyedObjectTraits<model::FunctionABIRegister> {
-  static model::Register::Values key(const model::FunctionABIRegister &Obj) {
-    return Obj.Register;
-  }
-
-  static model::FunctionABIRegister
-  fromKey(const model::Register::Values &Register) {
-    return model::FunctionABIRegister(Register);
-  }
-};
 
 //
 // FunctionEdgeType
@@ -193,12 +160,12 @@ public:
 
 public:
   /// Edge target. If invalid, it's an indirect edge
+  // TODO: switch to TupleTreeReference
   MetaAddress Destination;
-  FunctionEdgeType::Values Type;
+  FunctionEdgeType::Values Type = FunctionEdgeType::Invalid;
 
 public:
-  FunctionEdge() :
-    Destination(MetaAddress::invalid()), Type(FunctionEdgeType::Invalid) {}
+  FunctionEdge() : Destination(MetaAddress::invalid()) {}
   FunctionEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
     Destination(Destination), Type(Type) {}
 
@@ -218,6 +185,8 @@ public:
   }
 
   bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
+  bool verify(VerifyHelper &VH) const;
 };
 INTROSPECTION_NS(model, FunctionEdge, Destination, Type);
 
@@ -226,7 +195,7 @@ public:
   using Key = std::pair<MetaAddress, model::FunctionEdgeType::Values>;
 
 public:
-  SortedVector<model::FunctionABIRegister> Registers;
+  TypePath Prototype;
 
 public:
   CallEdge() :
@@ -244,8 +213,10 @@ public:
 
 public:
   bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
+  bool verify(VerifyHelper &VH) const;
 };
-INTROSPECTION_NS(model, CallEdge, Destination, Type, Registers);
+INTROSPECTION_NS(model, CallEdge, Destination, Type, Prototype);
 
 template<>
 struct concrete_types_traits<model::FunctionEdge> {
@@ -307,17 +278,17 @@ enum Values {
   NoReturn, ///< A noreturn function
   Fake ///< A fake function
 };
-}
+} // namespace model::FunctionType
 
 namespace llvm::yaml {
 template<>
 struct ScalarEnumerationTraits<model::FunctionType::Values> {
-  static void enumeration(IO &io, model::FunctionType::Values &V) {
+  static void enumeration(IO &IO, model::FunctionType::Values &V) {
     using namespace model::FunctionType;
-    io.enumCase(V, "Invalid", Invalid);
-    io.enumCase(V, "Regular", Regular);
-    io.enumCase(V, "NoReturn", NoReturn);
-    io.enumCase(V, "Fake", Fake);
+    IO.enumCase(V, "Invalid", Invalid);
+    IO.enumCase(V, "Regular", Regular);
+    IO.enumCase(V, "NoReturn", NoReturn);
+    IO.enumCase(V, "Fake", Fake);
   }
 };
 } // namespace llvm::yaml
@@ -326,18 +297,29 @@ class model::BasicBlock {
 public:
   MetaAddress Start;
   MetaAddress End;
-  std::string Name;
+  Identifier CustomName;
   SortedVector<UpcastablePointer<model::FunctionEdge>> Successors;
 
 public:
+  BasicBlock() : Start(MetaAddress::invalid()) {}
   BasicBlock(const MetaAddress &Start) : Start(Start) {}
+
   bool operator==(const model::BasicBlock &Other) const = default;
+
+public:
+  Identifier name() const;
+
+public:
+  bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
+  bool verify(VerifyHelper &VH) const;
 };
-INTROSPECTION_NS(model, BasicBlock, Start, End, Name, Successors);
+INTROSPECTION_NS(model, BasicBlock, Start, End, CustomName, Successors);
 
 template<>
 struct llvm::yaml::MappingTraits<model::BasicBlock>
-  : public TupleLikeMappingTraits<model::BasicBlock> {};
+  : public TupleLikeMappingTraits<model::BasicBlock,
+                                  Fields<model::BasicBlock>::CustomName> {};
 
 template<>
 struct KeyedObjectTraits<model::BasicBlock> {
@@ -354,24 +336,32 @@ struct KeyedObjectTraits<model::BasicBlock> {
 class model::Function {
 public:
   MetaAddress Entry;
-  std::string Name;
-  FunctionType::Values Type;
+  Identifier CustomName;
+  FunctionType::Values Type = FunctionType::Invalid;
   SortedVector<model::BasicBlock> CFG;
-  SortedVector<model::FunctionABIRegister> Registers;
+  TypePath Prototype;
 
 public:
   Function(const MetaAddress &Entry) : Entry(Entry) {}
   bool operator==(const model::Function &Other) const = default;
 
 public:
+  Identifier name() const;
+
+public:
   bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
+  bool verify(VerifyHelper &VH) const;
+
+public:
   void dumpCFG() const debug_function;
 };
-INTROSPECTION_NS(model, Function, Entry, Name, Type, CFG, Registers)
+INTROSPECTION_NS(model, Function, Entry, CustomName, Type, CFG, Prototype)
 
 template<>
 struct llvm::yaml::MappingTraits<model::Function>
-  : public TupleLikeMappingTraits<model::Function> {};
+  : public TupleLikeMappingTraits<model::Function,
+                                  Fields<model::Function>::CustomName> {};
 
 template<>
 struct KeyedObjectTraits<model::Function> {
@@ -381,19 +371,35 @@ struct KeyedObjectTraits<model::Function> {
   };
 };
 
-static_assert(IsKeyedObjectContainer<MutableSet<model::Function>>);
-
 //
 // Binary
 //
 class model::Binary {
 public:
-  MutableSet<model::Function> Functions;
+  SortedVector<model::Function> Functions;
+  SortedVector<UpcastablePointer<model::Type>> Types;
+
+public:
+  model::TypePath getTypePath(const model::Type *T) {
+    return TypePath::fromString(this,
+                                "/Types/" + getNameFromYAMLScalar(T->key()));
+  }
+
+  TypePath recordNewType(UpcastablePointer<Type> &&T);
+
+  model::TypePath
+  getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize);
+
+  bool verifyTypes() const debug_function;
+  bool verifyTypes(bool Assert) const debug_function;
+  bool verifyTypes(VerifyHelper &VH) const;
 
 public:
   bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
+  bool verify(VerifyHelper &VH) const;
 };
-INTROSPECTION_NS(model, Binary, Functions)
+INTROSPECTION_NS(model, Binary, Functions, Types)
 
 template<>
 struct llvm::yaml::MappingTraits<model::Binary>

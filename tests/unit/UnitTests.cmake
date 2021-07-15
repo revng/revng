@@ -244,6 +244,7 @@ target_include_directories(test_model
 target_link_libraries(test_model
   revngSupport
   revngUnitTestHelpers
+  revngModel
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
 add_test(NAME test_model COMMAND ./bin/test_model)
@@ -309,3 +310,21 @@ target_compile_definitions(test_recursive_coroutines_fallback PRIVATE DISABLE_RE
 
 add_recursive_coroutine_test(test_recursive_coroutines_iterative)
 target_compile_definitions(test_recursive_coroutines_iterative PRIVATE ITERATIVE)
+
+#
+# test_model_type
+#
+
+revng_add_private_executable(test_model_type "${SRC}/ModelType.cpp")
+target_compile_definitions(test_model_type
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_model_type
+  PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_model_type
+  revngSupport
+  revngUnitTestHelpers
+  revngModel
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME test_model_type COMMAND ./bin/test_model_type)
+set_tests_properties(test_model_type PROPERTIES LABELS "unit")

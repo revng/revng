@@ -48,7 +48,7 @@ public:
       // TODO: this temporary
       Map[Function.Entry] = { &Function,
                               nullptr,
-                              M->getFunction(Function.Name) };
+                              M->getFunction(Function.name()) };
     }
 
     for (BasicBlock &BB : *RootFunction) {
@@ -147,14 +147,14 @@ public:
       // In case the isolated functions has arguments, provide them
       SmallVector<Value *, 4> Arguments;
       if (F->getFunctionType()->getNumParams() > 0) {
-        for (const model::FunctionABIRegister &Register :
-             ModelFunction->Registers) {
-          if (shouldEmit(Register.Argument)) {
-            auto Name = ABIRegister::toCSVName(Register.Register);
-            GlobalVariable *CSV = M->getGlobalVariable(Name, true);
-            revng_assert(CSV != nullptr);
-            Arguments.push_back(Builder.CreateLoad(CSV));
-          }
+        using model::RawFunctionType;
+        auto PrototypePath = ModelFunction->Prototype;
+        const auto &Prototype = *cast<RawFunctionType>(PrototypePath.get());
+        for (const model::NamedTypedRegister &TR : Prototype.Arguments) {
+          auto Name = ABIRegister::toCSVName(TR.Location);
+          GlobalVariable *CSV = M->getGlobalVariable(Name, true);
+          revng_assert(CSV != nullptr);
+          Arguments.push_back(Builder.CreateLoad(CSV));
         }
       }
 

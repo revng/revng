@@ -1021,14 +1021,15 @@ public:
   TupleTreePath Path;
 
 public:
-  static TupleTreeReference fromPath(const TupleTreePath &Path) {
+  static TupleTreeReference fromPath(RootT *Root, const TupleTreePath &Path) {
     TupleTreeReference Result;
+    Result.Root = Root;
     Result.Path = Path;
     return Result;
   }
 
-  static TupleTreeReference fromString(llvm::StringRef Path) {
-    return fromPath(*stringAsPath<RootT>(Path));
+  static TupleTreeReference fromString(RootT *Root, llvm::StringRef Path) {
+    return fromPath(Root, *stringAsPath<RootT>(Path));
   }
 
   bool operator==(const TupleTreeReference &Other) const {
@@ -1041,9 +1042,26 @@ public:
 
   const TupleTreePath &path() const { return Path; }
 
-  T *get() const {
+  T *get() {
     revng_check(Root != nullptr);
+
+    if (Path.size() == 0)
+      return nullptr;
+
     return getByPath<T>(Path, *Root);
+  }
+
+  const T *get() const {
+    revng_check(Root != nullptr);
+
+    if (Path.size() == 0)
+      return nullptr;
+
+    return getByPath<T>(Path, *Root);
+  }
+
+  bool isValid() const {
+    return (*this != TupleTreeReference() and get() != nullptr);
   }
 };
 
@@ -1058,7 +1076,9 @@ struct llvm::yaml::ScalarTraits<T> {
   }
 
   static llvm::StringRef input(llvm::StringRef Path, void *, T &Obj) {
-    Obj = T::fromString(Path);
+    // We temporarily initialize Root to nullptr, a post-processing phase will
+    // take care of fixup these
+    Obj = T::fromString(nullptr, Path);
     return {};
   }
 
