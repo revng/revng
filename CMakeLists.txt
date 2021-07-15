@@ -61,6 +61,14 @@ include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
 # Macro for creating the tests for decompilation pipeline
 macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
 
+    # test revng-model-to-header
+    add_test(NAME model_to_header_${TARGET_NAME} COMMAND
+      bash -c "${CMAKE_BINARY_DIR}/bin/revng-model-to-header < ${INPUT_FILE} > ${TARGET_NAME}_model_header.h"
+      )
+    set_property(TEST model_to_header_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP ${TARGET_NAME}_model_header
+      )
+
     # prepare enforced .ll for decompilation
     add_test(NAME prepare_${TARGET_NAME} COMMAND revng --prefix=.
       opt -S
