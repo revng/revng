@@ -77,7 +77,6 @@ public:
 
   /// Create the basic blocks that represent the catch of the invoke instruction
   BasicBlock *createCatchBlock(BasicBlock *UnexpectedPC) {
-
     // Create a basic block that represents the catch part of the exception
     BasicBlock *CatchBB = BasicBlock::Create(Context,
                                              "catchblock",
@@ -134,7 +133,6 @@ public:
     // Add the personality to the root function
     RootFunction->setPersonalityFn(PersonalityFunction);
 
-    model::Binary *Binary = nullptr;
     for (auto [_, T] : Map) {
       auto [ModelFunction, BB, F] = T;
 

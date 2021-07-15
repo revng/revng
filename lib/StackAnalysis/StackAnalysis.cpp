@@ -500,7 +500,7 @@ void StackAnalysis::serializeMetadata(Function &F,
     //   { { csv, argument, return value }, ... }
     // }
     //
-    auto TypeMD = QMD.get(FunctionType::getName(Function.Type));
+    auto *TypeMD = QMD.get(FunctionType::getName(Function.Type));
 
     // Clobbered registers metadata
     std::vector<Metadata *> ClobberedMDs;

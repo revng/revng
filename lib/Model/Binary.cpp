@@ -183,7 +183,7 @@ bool FunctionEdge::verify() const {
 template<>
 struct llvm::DOTGraphTraits<model::FunctionCFG *>
   : public DefaultDOTGraphTraits {
-  DOTGraphTraits(bool simple = false) : DefaultDOTGraphTraits(simple) {}
+  DOTGraphTraits(bool Simple = false) : DefaultDOTGraphTraits(Simple) {}
 
   static std::string
   getNodeLabel(const model::FunctionCFGNode *Node, const model::FunctionCFG *) {

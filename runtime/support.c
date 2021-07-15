@@ -42,9 +42,9 @@ static char **saved_argv;
   (((0x1ULL << ((sizeof(t) * 8ULL) - 1ULL)) - 1ULL) \
    | (0xFULL << ((sizeof(t) * 8ULL) - 4ULL)))
 
-#define SAFE_CAST(ptr)                              \
-  do {                                              \
-    assert((uintptr_t)(ptr) <= MAX_OF(target_reg)); \
+#define SAFE_CAST(ptr)                               \
+  do {                                               \
+    assert((uintptr_t) (ptr) <= MAX_OF(target_reg)); \
   } while (0)
 
 noreturn void root(target_reg stack);
@@ -90,10 +90,10 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
     PUSH(ptr, align, (void *) &tmp); \
   } while (0);
 
-#define PUSH_AUX(ptr, key, value)      \
-  do {                                 \
-    PUSH_REG(ptr, (uintptr_t)(value)); \
-    PUSH_REG(ptr, key);                \
+#define PUSH_AUX(ptr, key, value)       \
+  do {                                  \
+    PUSH_REG(ptr, (uintptr_t) (value)); \
+    PUSH_REG(ptr, key);                 \
   } while (0)
 
   // Reserve space for arguments and environment variables

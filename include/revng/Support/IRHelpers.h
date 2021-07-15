@@ -907,7 +907,8 @@ inline std::string dumpToString(T &TheT) {
 }
 
 template<typename T>
-requires std::is_pointer_v<T> inline std::string dumpToString(T TheT) {
+requires std::is_pointer_v<T>
+inline std::string dumpToString(T TheT) {
   if (TheT == nullptr)
     return "nullptr";
   return dumpToString(*TheT);

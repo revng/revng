@@ -20,7 +20,7 @@
 
 namespace llvm {
 class GlobalVariable;
-};
+} // namespace llvm
 
 class ABIRegister {
 private:

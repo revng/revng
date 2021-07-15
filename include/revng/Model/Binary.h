@@ -675,20 +675,20 @@ namespace llvm::yaml {
 template<>
 struct ScalarEnumerationTraits<model::FunctionEdgeType::Values> {
   template<typename T>
-  static void enumeration(T &io, model::FunctionEdgeType::Values &V) {
+  static void enumeration(T &IO, model::FunctionEdgeType::Values &V) {
     using namespace model::FunctionEdgeType;
-    io.enumCase(V, "Invalid", Invalid);
-    io.enumCase(V, "DirectBranch", DirectBranch);
-    io.enumCase(V, "FakeFunctionCall", FakeFunctionCall);
-    io.enumCase(V, "FakeFunctionReturn", FakeFunctionReturn);
-    io.enumCase(V, "FunctionCall", FunctionCall);
-    io.enumCase(V, "IndirectCall", IndirectCall);
-    io.enumCase(V, "Return", Return);
-    io.enumCase(V, "BrokenReturn", BrokenReturn);
-    io.enumCase(V, "IndirectTailCall", IndirectTailCall);
-    io.enumCase(V, "LongJmp", LongJmp);
-    io.enumCase(V, "Killer", Killer);
-    io.enumCase(V, "Unreachable", Unreachable);
+    IO.enumCase(V, "Invalid", Invalid);
+    IO.enumCase(V, "DirectBranch", DirectBranch);
+    IO.enumCase(V, "FakeFunctionCall", FakeFunctionCall);
+    IO.enumCase(V, "FakeFunctionReturn", FakeFunctionReturn);
+    IO.enumCase(V, "FunctionCall", FunctionCall);
+    IO.enumCase(V, "IndirectCall", IndirectCall);
+    IO.enumCase(V, "Return", Return);
+    IO.enumCase(V, "BrokenReturn", BrokenReturn);
+    IO.enumCase(V, "IndirectTailCall", IndirectTailCall);
+    IO.enumCase(V, "LongJmp", LongJmp);
+    IO.enumCase(V, "Killer", Killer);
+    IO.enumCase(V, "Unreachable", Unreachable);
   }
 };
 } // namespace llvm::yaml
