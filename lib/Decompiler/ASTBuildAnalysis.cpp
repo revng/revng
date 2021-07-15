@@ -1110,6 +1110,15 @@ getNestedFieldIds(const SCEV *Off,
   case llvm::scAddRecExpr: {
     revng_log(ASTBuildLog, "scAddRecExpr");
 
+    // TODO: by breaking out here, we are explicitly disabling the emission of
+    // array accesses in C. This is necessary because at the moment they are
+    // stil broken and require to restructure loops in a well-formed shape to
+    // fix their emission.
+    // However, we still want to keep emitting all the rest that does not
+    // have anything to do with arrays, because the rest is supposed to be
+    // correct already.
+    break;
+
     // Setup a vector of nested addrecs.
     // We expect the first (most external one) to have
     // a larger step.
@@ -1368,12 +1377,6 @@ clang::Expr *StmtBuilder::buildPointerArithmeticExpr(llvm::Instruction &I) {
   // Off = I - Base
   const SCEV *Off = SE->getAddExpr(ISCEV, MinusBase);
 
-  // TODO: this is a stub for now. Doing nothing it triggers the early exit path
-  // below, resulting in never being able to build pointer arithmetic expression
-  // in the form of a member access.
-  // This is equivalent to basically throwing away almost all DLA information.
-  // Eventually we need to replace this code with something that really builds
-  // member access expressions.
   llvm::SmallVector<LayoutChildInfo, 8>
     NestedFields = getNestedFieldIds(Off, BasePointedLayout, SE, ASTCtx);
 
