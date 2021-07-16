@@ -993,6 +993,9 @@ public:
     return nodes_iterator(InternalIt, getNode);
   }
 
+public:
+  void reserve(size_t Size) { Nodes.reserve(Size); }
+
 private:
   NodesContainer Nodes;
 };
