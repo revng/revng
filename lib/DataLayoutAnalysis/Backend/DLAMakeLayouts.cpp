@@ -229,7 +229,9 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 
       // Bail out if we have not constructed a union field, because it means
       // that this is not a supported case yet.
-      revng_assert(ChildType);
+      if (not ChildType)
+        return nullptr;
+
       SFlds.push_back(ChildType);
     }
 
@@ -258,11 +260,13 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
       revng_log(Log, "Child ID: " << Child->ID);
       revng_assert(Child->Size);
 
+      Layout *ChildType = getLayout(TS, OrderedLayouts, Child);
+
       // Ignore children for which we haven't created a layout, because they
       // only have children from which it was not possible to create valid
       // layouts.
-      Layout *ChildType = getLayout(TS, OrderedLayouts, Child);
-      revng_assert(ChildType);
+      if (not ChildType)
+        return nullptr;
 
       switch (EdgeTag->getKind()) {
 
@@ -321,7 +325,7 @@ LayoutPtrVector makeLayouts(const LayoutTypeSystem &TS, LayoutVector &Layouts) {
 
   // Prepare the vector of layouts that correspond to actual LayoutTypePtrs
   LayoutPtrVector OrderedLayouts;
-  OrderedLayouts.resize(TS.getEqClasses().getNumClasses());
+  OrderedLayouts.resize(TS.getEqClasses().getNumClasses(), nullptr);
 
   std::set<const LTSN *> Visited;
 
@@ -336,7 +340,7 @@ LayoutPtrVector makeLayouts(const LayoutTypeSystem &TS, LayoutVector &Layouts) {
       // trimmed by PruneLayoutNodesWithoutLayout
       revng_assert(not isLeaf(N) or N->Size);
       Layout *LN = makeLayout(TS, N, Layouts, OrderedLayouts);
-      if (nullptr == LN) {
+      if (not LN) {
         revng_log(Log, "Node ID: " << N->ID << " Type: Empty");
         continue;
       }
@@ -368,7 +372,12 @@ ValueLayoutMap makeLayoutMap(const LayoutTypePtrVect &Values,
     // The layout of the I-th Value is stored at the EqClass(I) index
     auto LayoutIdx = EqClasses.getEqClassID(I);
     if (LayoutIdx and not Values[I].isEmpty()) {
-      auto NewPair = std::make_pair(Values[I], Layouts[*LayoutIdx]);
+
+      auto *L = Layouts[*LayoutIdx];
+      if (not L)
+        continue;
+
+      auto NewPair = std::make_pair(Values[I], L);
       bool New = ValMap.insert(NewPair).second;
       revng_assert(New);
     }
