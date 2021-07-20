@@ -180,6 +180,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -sroa
       -instcombine
       -adjust-stack-pointer
+      -sroa --sroa-aggressive-phis-selects
       -serialize-model
       ${TARGET_NAME}_promoted_stack.ll
       -o ${TARGET_NAME}_adjusted_stack.ll
