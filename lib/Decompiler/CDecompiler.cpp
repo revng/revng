@@ -26,7 +26,7 @@
 #include "revng-c/RemoveNewPCCalls/RemoveNewPCCallsPass.h"
 
 std::string
-decompileFunction(const llvm::Module *M, const std::string &FunctionName) {
+decompileFunction(const llvm::Module *M, const llvm::StringRef FunctionName) {
 
   std::string ResultSourceCode;
 
