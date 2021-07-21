@@ -740,11 +740,14 @@ bool PathMatcher::visitTuple(llvm::StringRef Current,
 
 template<typename T>
 std::optional<TupleTreePath> stringAsPath(llvm::StringRef Path) {
+  if (Path.empty())
+    return std::nullopt;
+
   auto Result = PathMatcher::create<T>(Path);
   if (Result)
     return Result->path();
   else
-    return {};
+    return std::nullopt;
 }
 
 template<typename ResultT, typename RootT>
@@ -1029,7 +1032,10 @@ public:
   }
 
   static TupleTreeReference fromString(RootT *Root, llvm::StringRef Path) {
-    return fromPath(Root, *stringAsPath<RootT>(Path));
+    std::optional<TupleTreePath> OptionalPath = stringAsPath<RootT>(Path);
+    if (not OptionalPath.has_value())
+      return TupleTreeReference{};
+    return fromPath(Root, *OptionalPath);
   }
 
   bool operator==(const TupleTreeReference &Other) const {
