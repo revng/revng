@@ -503,9 +503,6 @@ public:
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
   void dump() const debug_function;
-
-public:
-  void dumpCFG() const debug_function;
 };
 INTROSPECTION_NS(model,
                  Function,
@@ -698,6 +695,9 @@ public:
   bool verify(VerifyHelper &VH) const;
   void dump() const debug_function;
   std::string toString() const debug_function;
+
+public:
+  void dumpCFG(const Function &F) const debug_function;
 };
 INTROSPECTION_NS(model,
                  Binary,
