@@ -1107,7 +1107,8 @@ inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
 inline llvm::CallInst *getFunctionCall(llvm::Instruction *T) {
   revng_assert(T && T->isTerminator());
   llvm::Instruction *Previous = getPrevious(T);
-  while (Previous != nullptr && isMarker(Previous)) {
+  while (Previous != nullptr
+         && (isMarker(Previous) || isCallTo(Previous, "abort"))) {
     if (auto *Call = getCallTo(Previous, "function_call"))
       return Call;
 
