@@ -1323,6 +1323,17 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   // Serialize an empty Model into TheModule
   model::Binary Model;
+
+  // Record all dynamic imported functions
+  for (const Label &L : Binary.labels()) {
+    if (L.Origin == LabelOrigin::DynamicSymbol
+        and L.SymbolType == SymbolType::Code
+        and L.Address.isInvalid()
+        and not L.SymbolName.empty()) {
+      Model.DynamicFunctions.insert(model::DynamicFunction(L.SymbolName));
+    }
+  }
+
   writeModel(Model, *TheModule);
 
   JumpTargets.finalizeJumpTargets();

@@ -106,6 +106,7 @@ add_definitions("-DBUILD_PATH=\"${CMAKE_BINARY_DIR}\"")
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 
 # Basic compiler options
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")

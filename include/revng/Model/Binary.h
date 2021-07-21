@@ -27,6 +27,7 @@ class Binary;
 class FunctionEdge;
 class CallEdge;
 class BasicBlock;
+class Segment;
 } // namespace model
 
 // TODO: Prevent changing the keys. Currently we need them to be public and
@@ -430,9 +431,6 @@ public:
   /// An optional custom name
   Identifier CustomName;
 
-  /// Type of the function
-  FunctionType::Values Type = FunctionType::Invalid;
-
   /// The prototype of the function
   TypePath Prototype;
 
@@ -440,7 +438,8 @@ public:
 
 public:
   DynamicFunction() {}
-  DynamicFunction(const Identifier &SymbolName) : SymbolName(SymbolName) {}
+  DynamicFunction(const std::string &SymbolName) : SymbolName(SymbolName) {}
+  bool operator==(const model::DynamicFunction &Other) const = default;
 
 public:
   // WIP
@@ -453,7 +452,7 @@ public:
 
 };
 
-INTROSPECTION_NS(model, DynamicFunction, SymbolName, CustomName, Type, Prototype)
+INTROSPECTION_NS(model, DynamicFunction, SymbolName, CustomName, Prototype)
 
 template<>
 struct llvm::yaml::MappingTraits<model::DynamicFunction>
@@ -461,11 +460,79 @@ struct llvm::yaml::MappingTraits<model::DynamicFunction>
 
 template<>
 struct KeyedObjectTraits<model::DynamicFunction> {
-  static MetaAddress key(const model::DynamicFunction &F) { return F.Entry; }
-  static model::DynamicFunction fromKey(const Identifier &Key) {
-    return model::DynamicFunction(Identifier);
-  };
+
+  static auto key(const model::DynamicFunction &F) {
+    return F.SymbolName;
+  }
+
+  static model::DynamicFunction fromKey(const std::string &Key) {
+    return model::DynamicFunction(Key);
+  }
+
 };
+
+class model::Segment {
+public:
+  using Key = std::pair<MetaAddress, MetaAddress>;
+
+public:
+  MetaAddress StartAddress;
+  MetaAddress EndAddress;
+
+  uint64_t StartOffset = 0;
+  uint64_t EndOffset = 0;
+
+  bool IsReadable = false;
+  bool IsWriteable = false;
+  bool IsExecutable = false;
+
+  Identifier CustomName;
+
+  // WIP: type?
+
+public:
+  Segment() {}
+  Segment(const Key &K) : StartAddress(K.first), EndAddress(K.second) {}
+  bool operator==(const model::Segment &Other) const = default;
+
+public:
+  // WIP
+  Identifier name() const;
+
+public:
+  bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
+  bool verify(VerifyHelper &VH) const;
+};
+
+INTROSPECTION_NS(model,
+                 Segment,
+                 StartAddress,
+                 EndAddress,
+                 StartOffset,
+                 EndOffset,
+                 IsReadable,
+                 IsWriteable,
+                 IsExecutable,
+                 CustomName)
+
+template<>
+struct llvm::yaml::MappingTraits<model::Segment>
+  : public TupleLikeMappingTraits<model::Segment> {};
+
+template<>
+struct KeyedObjectTraits<model::Segment> {
+
+  static model::Segment::Key key(const model::Segment &F) {
+    return { F.StartAddress, F.EndAddress };
+  }
+
+  static model::Segment fromKey(const model::Segment::Key &K) {
+    return model::Segment(K);
+  }
+
+};
+
 
 /// Data structure representing the whole binary
 class model::Binary {
@@ -474,10 +541,14 @@ public:
   SortedVector<model::Function> Functions;
 
   /// List of the functions within the binary
+  // WIP: imported
   SortedVector<model::DynamicFunction> DynamicFunctions;
 
   // WIP: Architecture Architecture
-  // WIP: SortedVector<Segment> Segments
+
+  /// List of segments in the original binary
+  SortedVector<model::Segment> Segments;
+
   // WIP: MetaAddress EntryPoint
 
   /// The type system
