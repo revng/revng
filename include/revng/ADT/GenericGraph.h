@@ -12,6 +12,42 @@
 
 #include "revng/Support/Debug.h"
 
+/// GenericGraph is our implementation of a universal graph architecture.
+/// First and foremost, it's tailored for the revng codebase, but maybe you
+/// can find it useful as well, that's why it's released under the MIT License.
+///
+/// To use the Graph, you need to make you choice of the node type. We're
+/// currently supporting three architectures:
+///
+///   - ForwardNode - a trivially-simple single-linked node. It uses the least
+///     memory, because each node only stores the list of its successors.
+///     This makes backwards iteration impossible without the reference to
+///     the whole graph (and really expensive even in those cases).
+///
+///   - BidirectionalNode - a simple double-linked node. It stores the both
+///     lists of its successors and predecessors. Take note, that for the sake
+///     of implementation simplicity this node stores COPIES of the labels.
+///     It's only suitable to be used with cheap to copy labels which are never
+///     mutated. There are plans on making them explicitly immutable (TODO),
+///     as such you can consider label mutation a deprecated behaviour.
+///
+///   - MutableEdgeNode - a double-linked node with dynamically allocated
+///     labels. It is similar to BidirectionalNode except it stores the label
+///     on the heap. It's slower and uses more memory but allows for safe label
+///     modification as well as controls that nodes and edges are removed
+///     safely, with the other "halfs" cleaned up as well.
+///     Note that it explicitly disallows having more than one edge
+///     per direction between a pair of nodes.
+///
+///   - The node you're going to write - No-one knows the needs of your
+///     project better than you. That's why the best datastructure is the one
+///     you are going to write. So just inherit one of our nodes, or even copy
+///     it and modify it so that it suits your graphs as nicely as possible.
+///
+///  On the side-note, we're providing a couple of helpful concepts to help
+///  differenciate different node types. This is helpful in the projects that
+///  use multiple different graph architectures side by side.
+
 template<typename T>
 concept IsForwardNode = requires {
   T::is_forward_node;
