@@ -124,18 +124,18 @@ struct TupleLikeMappingTraits {
   // Recursive step
   template<size_t I = 0>
   static void mapping(llvm::yaml::IO &IO, T &Obj) {
-    auto Name = TupleLikeTraits<T>::FieldsName[I];
-    constexpr Fields Field = static_cast<Fields>(I);
+    if constexpr (I < std::tuple_size_v<T>) {
+      auto Name = TupleLikeTraits<T>::FieldsName[I];
+      constexpr Fields Field = static_cast<Fields>(I);
 
-    using tuple_element = std::tuple_element_t<I, T>;
-    auto &Element = get<I>(Obj);
-    if constexpr (isOptional<Field>()) {
-      IO.mapOptional(Name, Element, tuple_element{});
-    } else {
-      IO.mapRequired(Name, Element);
-    }
+      using tuple_element = std::tuple_element_t<I, T>;
+      auto &Element = get<I>(Obj);
+      if constexpr (isOptional<Field>()) {
+        IO.mapOptional(Name, Element, tuple_element{});
+      } else {
+        IO.mapRequired(Name, Element);
+      }
 
-    if constexpr (I + 1 < std::tuple_size_v<T>) {
       // Recur
       mapping<I + 1>(IO, Obj);
     }
