@@ -22,6 +22,7 @@
 namespace model {
 class VerifyHelper;
 class Function;
+class DynamicFunction;
 class Binary;
 class FunctionEdge;
 class CallEdge;
@@ -159,9 +160,16 @@ public:
   using Key = std::pair<MetaAddress, model::FunctionEdgeType::Values>;
 
 public:
-  /// Edge target. If invalid, it's an indirect edge
+  /// Target of the CFG edge
+  ///
+  /// If invalid, it's an indirect edge such as a return instruction or an
+  /// indirect function call.
+  /// If valid, it's either the address of the basic block in case of a direct
+  /// branch, or, in case of a function call, the address of the callee.
   // TODO: switch to TupleTreeReference
   MetaAddress Destination;
+
+  /// Type of the CFG edge
   FunctionEdgeType::Values Type = FunctionEdgeType::Invalid;
 
 public:
@@ -190,11 +198,15 @@ public:
 };
 INTROSPECTION_NS(model, FunctionEdge, Destination, Type);
 
+/// A CFG edge to represent function calls (direct, indirect and tail calls)
 class model::CallEdge : public model::FunctionEdge {
 public:
   using Key = std::pair<MetaAddress, model::FunctionEdgeType::Values>;
 
 public:
+  /// Path to the prototype for this call site
+  ///
+  /// In case of a direct function call, it has to be the same as the callee.
   TypePath Prototype;
 
 public:
@@ -273,10 +285,16 @@ struct KeyedObjectTraits<UpcastablePointer<model::FunctionEdge>> {
 //
 namespace model::FunctionType {
 enum Values {
-  Invalid, ///< An invalid entry
-  Regular, ///< A normal function
-  NoReturn, ///< A noreturn function
-  Fake ///< A fake function
+  /// An invalid entry
+  Invalid,
+  /// A function with at least one return instruction
+  Regular,
+  /// A function that never returns
+  NoReturn,
+  /// A function with at least one non-proper return instruction
+  ///
+  /// This typically represents outlined function prologues.
+  Fake
 };
 } // namespace model::FunctionType
 
@@ -293,11 +311,20 @@ struct ScalarEnumerationTraits<model::FunctionType::Values> {
 };
 } // namespace llvm::yaml
 
+/// The basic block of a function
 class model::BasicBlock {
 public:
+  /// Start address of the basic block
   MetaAddress Start;
+
+  /// End address of the basic block, i.e., the address where the last
+  /// instruction ends
   MetaAddress End;
+
+  /// Optional custom name
   Identifier CustomName;
+
+  /// List of successor edges
   SortedVector<UpcastablePointer<model::FunctionEdge>> Successors;
 
 public:
@@ -330,16 +357,32 @@ struct KeyedObjectTraits<model::BasicBlock> {
   }
 };
 
-//
-// Function
-//
+/// A function
 class model::Function {
 public:
+  /// The address of the entry point
+  ///
+  /// \note This does not necessarily correspond to the address of the basic
+  ///       block with the lowest address.
   MetaAddress Entry;
+
+  /// An optional custom name
   Identifier CustomName;
+
+  /// Type of the function
   FunctionType::Values Type = FunctionType::Invalid;
+
+  /// List of basic blocks, which represent the CFG
+  // WIP: optional
   SortedVector<model::BasicBlock> CFG;
+
+  /// The prototype of the function
+  // WIP: optional
   TypePath Prototype;
+
+  // WIP: populate
+  // WIP: optional
+  std::string SymbolName;
 
 public:
   Function(const MetaAddress &Entry) : Entry(Entry) {}
@@ -356,7 +399,14 @@ public:
 public:
   void dumpCFG() const debug_function;
 };
-INTROSPECTION_NS(model, Function, Entry, CustomName, Type, CFG, Prototype)
+INTROSPECTION_NS(model,
+                 Function,
+                 Entry,
+                 CustomName,
+                 Type,
+                 CFG,
+                 Prototype,
+                 SymbolName)
 
 template<>
 struct llvm::yaml::MappingTraits<model::Function>
@@ -371,12 +421,66 @@ struct KeyedObjectTraits<model::Function> {
   };
 };
 
-//
-// Binary
-//
+/// Function defined in a dynamic library
+class model::DynamicFunction {
+public:
+  /// The name of the symbol for this dynamic function
+  std::string SymbolName;
+
+  /// An optional custom name
+  Identifier CustomName;
+
+  /// Type of the function
+  FunctionType::Values Type = FunctionType::Invalid;
+
+  /// The prototype of the function
+  TypePath Prototype;
+
+  // TODO: DefiningLibrary
+
+public:
+  DynamicFunction() {}
+  DynamicFunction(const Identifier &SymbolName) : SymbolName(SymbolName) {}
+
+public:
+  // WIP
+  Identifier name() const;
+
+public:
+  bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
+  bool verify(VerifyHelper &VH) const;
+
+};
+
+INTROSPECTION_NS(model, DynamicFunction, SymbolName, CustomName, Type, Prototype)
+
+template<>
+struct llvm::yaml::MappingTraits<model::DynamicFunction>
+  : public TupleLikeMappingTraits<model::DynamicFunction> {};
+
+template<>
+struct KeyedObjectTraits<model::DynamicFunction> {
+  static MetaAddress key(const model::DynamicFunction &F) { return F.Entry; }
+  static model::DynamicFunction fromKey(const Identifier &Key) {
+    return model::DynamicFunction(Identifier);
+  };
+};
+
+/// Data structure representing the whole binary
 class model::Binary {
 public:
+  /// List of the functions within the binary
   SortedVector<model::Function> Functions;
+
+  /// List of the functions within the binary
+  SortedVector<model::DynamicFunction> DynamicFunctions;
+
+  // WIP: Architecture Architecture
+  // WIP: SortedVector<Segment> Segments
+  // WIP: MetaAddress EntryPoint
+
+  /// The type system
   SortedVector<UpcastablePointer<model::Type>> Types;
 
 public:
@@ -399,7 +503,7 @@ public:
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
 };
-INTROSPECTION_NS(model, Binary, Functions, Types)
+INTROSPECTION_NS(model, Binary, Functions, DynamicFunctions, Types)
 
 template<>
 struct llvm::yaml::MappingTraits<model::Binary>
