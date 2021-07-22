@@ -1077,22 +1077,59 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     }
 
     // Update mapping only if the epoch changes
-    if (IsFirstSegment || LastEpoch != VirtualAddress.epoch()) {
-      auto *Segment = Binary.findSegmentByEpoch(VirtualAddress.epoch());
+    uint32_t CurrentEpoch = VirtualAddress.epoch();
+    if (IsFirstSegment || LastEpoch != CurrentEpoch) {
 
-      if (Segment->IsExecutable) {
-
-        size_t Size = static_cast<size_t>(Segment->Data.size());
-        bool Success = ptc.mmap(Segment->StartVirtualAddress.address(),
-                                static_cast<const void *>(Segment->Data.data()),
-                                Size);
-        if (not Success) {
-          dbg << "Couldn't mmap segment starting at ";
-          Segment->StartVirtualAddress.dump(dbg);
-          dbg << " with size 0x" << Size << "\n";
-          revng_abort();
+      std::map<uint32_t, std::vector<const SegmentInfo *>> EpochToSegments;
+      for (const SegmentInfo &Segment : Binary.segments()) {
+        if (Segment.IsExecutable) {
+          auto SegmentEpoch = Segment.StartVirtualAddress.epoch();
+          EpochToSegments[SegmentEpoch].push_back(&Segment);
         }
       }
+
+      // TODO: this is the most inefficient stuff ever
+      // TODO: this assumes there are no partially overlapping segments
+      std::set<uint64_t> Mapped;
+      for (auto &[Epoch, Segments] : EpochToSegments) {
+        for (const SegmentInfo *Segment : Segments) {
+          auto StartAddress = Segment->StartVirtualAddress.address();
+          size_t Size = static_cast<size_t>(Segment->Data.size());
+          const void *Data = nullptr;
+          char *NullData = nullptr;
+          if (Epoch <= CurrentEpoch) {
+            // Map the data
+            Data = static_cast<const void *>(Segment->Data.data());
+            Mapped.insert(StartAddress);
+          } else if (Mapped.count(StartAddress) != 0) {
+            // We're in a future epoch but this page is already
+            // mapped. Don't blank it.
+            continue;
+          } else {
+            // Future epoch of a page we never saw before, blank it.
+            NullData = (char *) calloc(1, Size);
+            for (char *Cursor = NullData; Cursor < NullData + Size; ++Cursor)
+              *Cursor = '\x90';
+            NullData[0] = '\xcc';
+            Data = NullData;
+          }
+
+          bool Success = ptc.mmap(Segment->StartVirtualAddress.address(),
+                                  Data,
+                                  Size);
+
+          if (not Success) {
+            dbg << "Couldn't mmap segment starting at ";
+            Segment->StartVirtualAddress.dump(dbg);
+            dbg << " with size 0x" << Size << "\n";
+            revng_abort();
+          }
+
+          if (NullData != nullptr)
+            free(NullData);
+        }
+      }
+
       IsFirstSegment = false;
       LastEpoch = VirtualAddress.epoch();
     }
