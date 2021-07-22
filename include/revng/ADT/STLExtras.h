@@ -38,18 +38,6 @@ concept HasTupleSize = requires {
   std::tuple_size<T>::value;
 };
 
-// clang-format off
-template<typename T, std::size_t I>
-concept IsTupleEnd
-  = std::is_same_v<std::true_type,
-                   std::integral_constant<bool, std::tuple_size_v<T> == I>>;
-
-template<typename T, std::size_t I>
-concept IsNotTupleEnd
-  = std::is_same_v<std::true_type,
-                   std::integral_constant<bool, std::tuple_size_v<T> != I>>;
-// clang-format on
-
 static_assert(HasTupleSize<std::tuple<>>);
 static_assert(!HasTupleSize<std::vector<int>>);
 static_assert(!HasTupleSize<int>);

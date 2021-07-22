@@ -794,7 +794,7 @@ IFI::isolate(const model::Function &Function) {
   FunctionTags::Lifted.addTo(NewFunction);
 
   revng_assert(NewFunction != nullptr);
-  NewFunction->setName(OriginalEntry->getName());
+  NewFunction->setName(Function.name());
 
   FunctionType *FT = NewFunction->getFunctionType();
   revng_assert(FT->getReturnType()->isVoidTy());

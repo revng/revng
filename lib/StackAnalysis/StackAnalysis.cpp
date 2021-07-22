@@ -124,13 +124,12 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
                    model::Binary &TheBinary) {
   using namespace model;
 
+  //
+  // Create all the model::Function
+  //
   for (const auto &[Entry, FunctionSummary] : Summary.Functions) {
     if (Entry == nullptr)
       continue;
-
-    //
-    // Initialize model::Function
-    //
 
     // Get the entry point address
     MetaAddress EntryPC = getBasicBlockPC(Entry);
@@ -141,8 +140,6 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
     model::Function &Function = TheBinary.Functions[EntryPC];
 
     // Assign a name
-    Function.Name = Entry->getName();
-    revng_assert(Function.Name.size() != 0);
 
     using FT = model::FunctionType::Values;
     Function.Type = static_cast<FT>(FunctionSummary.Type);
@@ -150,19 +147,53 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
     if (Function.Type == model::FunctionType::Fake)
       continue;
 
-    // Populate arguments and return values
+    // Build the function prototype
+    auto NewType = makeType<RawFunctionType>();
+    auto &FunctionType = *llvm::cast<RawFunctionType>(NewType.get());
     {
-      auto Inserter = Function.Registers.batch_insert();
+      auto ArgumentsInserter = FunctionType.Arguments.batch_insert();
+      auto ReturnValuesInserter = FunctionType.ReturnValues.batch_insert();
       for (auto &[CSV, FRD] : FunctionSummary.RegisterSlots) {
-        auto ID = ABIRegister::fromCSVName(CSV->getName(), GCBI.arch());
-        if (ID == model::Register::Invalid)
+        auto RegisterID = ABIRegister::fromCSVName(CSV->getName(), GCBI.arch());
+        if (RegisterID == Register::Invalid or CSV == GCBI.spReg())
           continue;
-        FunctionABIRegister TheRegister(ID);
-        TheRegister.Argument = toRegisterState(FRD.Argument);
-        TheRegister.ReturnValue = toRegisterState(FRD.ReturnValue);
-        Inserter.insert(TheRegister);
+
+        llvm::Type *CSVType = CSV->getType()->getPointerElementType();
+        auto CSVSize = CSVType->getIntegerBitWidth() / 8;
+        NamedTypedRegister TR(RegisterID);
+        TR.Type = {
+          TheBinary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
+        };
+
+        if (model::RegisterState::shouldEmit(toRegisterState(FRD.Argument)))
+          ArgumentsInserter.insert(TR);
+
+        if (model::RegisterState::shouldEmit(toRegisterState(FRD.ReturnValue)))
+          ReturnValuesInserter.insert(TR);
+
+        // TODO: populate preserved registers
       }
     }
+
+    Function.Prototype = TheBinary.recordNewType(std::move(NewType));
+  }
+
+  //
+  // Populate the CFG
+  //
+  for (const auto &[Entry, FunctionSummary] : Summary.Functions) {
+    if (Entry == nullptr)
+      continue;
+    MetaAddress EntryPC = getBasicBlockPC(Entry);
+
+    auto It = TheBinary.Functions.find(EntryPC);
+    if (It == TheBinary.Functions.end())
+      continue;
+
+    model::Function &Function = *It;
+
+    if (Function.Type == model::FunctionType::Fake)
+      continue;
 
     auto MakeEdge = [](MetaAddress Destination, FunctionEdgeType::Values Type) {
       FunctionEdge *Result = nullptr;
@@ -247,8 +278,6 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
       if (EdgeType == FET::Invalid)
         continue;
 
-      bool IsCall = FunctionEdgeType::isCall(EdgeType);
-
       // Identify Source address
       auto [Source, Size] = getPC(BB->getTerminator());
       Source += Size;
@@ -259,7 +288,6 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
       MetaAddress JumpTargetAddress = GCBI.getPCFromNewPC(JumpTargetBB);
       model::BasicBlock &CurrentBlock = Function.CFG[JumpTargetAddress];
       CurrentBlock.End = Source;
-      CurrentBlock.Name = JumpTargetBB->getName();
       auto SuccessorsInserter = CurrentBlock.Successors.batch_insert();
 
       if (EdgeType == FET::DirectBranch) {
@@ -275,7 +303,7 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         for (const auto &[_, Destination] : make_range(First, Last))
           SuccessorsInserter.insert(MakeEdge(Destination, EdgeType));
 
-      } else if (IsCall) {
+      } else if (FunctionEdgeType::isCall(EdgeType)) {
         // Handle call
         llvm::BasicBlock *Successor = BB->getSingleSuccessor();
         MetaAddress Destination = MetaAddress::invalid();
@@ -287,26 +315,57 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         const auto &Result = SuccessorsInserter.insert(TempEdge);
         auto *Edge = llvm::cast<CallEdge>(Result.get());
 
-        bool Found = false;
-        for (const FunctionsSummary::CallSiteDescription &CSD :
-             FunctionSummary.CallSites) {
-          if (not CSD.Call->isTerminator() or CSD.Call->getParent() != BB)
-            continue;
+        if (Destination.isValid()) {
+          // If it's a direct call, inherit the prototype from the callee
+          model::Function &Callee = TheBinary.Functions.at(Destination);
+          Edge->Prototype = Callee.Prototype;
+        } else {
+          // It's an indirect call: forge a new prototype
+          auto NewType = makeType<RawFunctionType>();
+          auto &CallType = *llvm::cast<RawFunctionType>(NewType.get());
+          {
+            auto ArgumentsInserter = CallType.Arguments.batch_insert();
+            auto ReturnValuesInserter = CallType.ReturnValues.batch_insert();
+            bool Found = false;
+            for (const FunctionsSummary::CallSiteDescription &CSD :
+                 FunctionSummary.CallSites) {
+              if (not CSD.Call->isTerminator() or CSD.Call->getParent() != BB)
+                continue;
 
-          revng_assert(not Found);
-          Found = true;
-          auto Inserter = Edge->Registers.batch_insert();
-          for (auto &[CSV, FCRD] : CSD.RegisterSlots) {
-            auto ID = ABIRegister::fromCSVName(CSV->getName(), GCBI.arch());
-            if (ID == model::Register::Invalid)
-              continue;
-            FunctionABIRegister TheRegister(ID);
-            TheRegister.Argument = toRegisterState(FCRD.Argument);
-            TheRegister.ReturnValue = toRegisterState(FCRD.ReturnValue);
-            Inserter.insert(TheRegister);
+              revng_assert(not Found);
+              Found = true;
+              for (auto &[CSV, FCRD] : CSD.RegisterSlots) {
+                auto RegisterID = ABIRegister::fromCSVName(CSV->getName(),
+                                                           GCBI.arch());
+                if (RegisterID == model::Register::Invalid
+                    or CSV == GCBI.spReg())
+                  continue;
+
+                llvm::Type *CSVType = CSV->getType()->getPointerElementType();
+                auto CSVSize = CSVType->getIntegerBitWidth() / 8;
+                NamedTypedRegister TR(RegisterID);
+                TR.Type = {
+                  TheBinary.getPrimitiveType(model::PrimitiveTypeKind::Generic,
+                                             CSVSize),
+                  {}
+                };
+
+                auto ArgumentState = toRegisterState(FCRD.Argument);
+                if (model::RegisterState::shouldEmit(ArgumentState))
+                  ArgumentsInserter.insert(TR);
+
+                auto ReturnValueState = toRegisterState(FCRD.ReturnValue);
+                if (model::RegisterState::shouldEmit(ReturnValueState))
+                  ReturnValuesInserter.insert(TR);
+
+                // TODO: populate preserved registers and FinalStackOffset
+              }
+            }
+            revng_assert(Found);
           }
+
+          Edge->Prototype = TheBinary.recordNewType(std::move(NewType));
         }
-        revng_assert(Found);
 
       } else {
         // Handle other successors
@@ -321,7 +380,7 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
     }
   }
 
-  revng_check(TheBinary.verify());
+  revng_check(TheBinary.verify(true));
 }
 
 bool StackAnalysis::runOnModule(Module &M) {
@@ -462,7 +521,7 @@ bool StackAnalysis::runOnModule(Module &M) {
     serialize(pathToStream(ABIAnalysisOutputPath, Output));
   }
 
-  commitToModel(GCBI, &F, GrandResult, LMP.getWriteableModel());
+  commitToModel(GCBI, &F, GrandResult, *LMP.getWriteableModel());
 
   return false;
 }
@@ -500,7 +559,7 @@ void StackAnalysis::serializeMetadata(Function &F,
     //   { { csv, argument, return value }, ... }
     // }
     //
-    auto TypeMD = QMD.get(FunctionType::getName(Function.Type));
+    auto *TypeMD = QMD.get(FunctionType::getName(Function.Type));
 
     // Clobbered registers metadata
     std::vector<Metadata *> ClobberedMDs;

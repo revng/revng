@@ -61,8 +61,8 @@ concept IsPostOrderLike = V == PostOrder or V == ReversePostOrder;
 
 // (Reverse) post order implementation
 template<typename Iterated, VisitType Visit>
-requires IsPostOrderLike<Visit> class MonotoneFrameworkWorkList<Iterated,
-                                                                Visit> {
+requires IsPostOrderLike<Visit>
+class MonotoneFrameworkWorkList<Iterated, Visit> {
 private:
   /// \brief Class for an entry in the work list
   ///

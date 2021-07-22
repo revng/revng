@@ -49,53 +49,6 @@ static cl::opt<bool> DisableSafetyChecks("disable-enforce-abi-safety-checks",
                                          cl::cat(MainCategory),
                                          cl::init(false));
 
-static bool areCompatible(model::RegisterState::Values LHS,
-                          model::RegisterState::Values RHS) {
-  using namespace model::RegisterState;
-
-  if (LHS == RHS or LHS == Maybe or RHS == Maybe)
-    return true;
-
-  switch (LHS) {
-  case NoOrDead:
-    return RHS == No or RHS == Dead;
-  case YesOrDead:
-    return RHS == Yes or RHS == Dead;
-  case No:
-    return RHS == NoOrDead;
-  case Yes:
-    return RHS == YesOrDead;
-  case Dead:
-    return RHS == NoOrDead or RHS == YesOrDead;
-  case Contradiction:
-    return false;
-  case Invalid:
-  default:
-    revng_abort();
-  }
-
-  revng_abort();
-}
-
-static bool areCompatible(const model::FunctionABIRegister &LHS,
-                          const model::FunctionABIRegister &RHS) {
-  return areCompatible(LHS.Argument, RHS.Argument)
-         and areCompatible(LHS.ReturnValue, RHS.ReturnValue);
-}
-
-static StringRef
-areCompatible(const model::Function &Callee, const model::CallEdge &Edge) {
-
-  for (const model::FunctionABIRegister &Register : Callee.Registers) {
-    auto It = Edge.Registers.find(Register.Register);
-    if (It != Edge.Registers.end() and not areCompatible(Register, *It)) {
-      return model::Register::getName(Register.Register);
-    }
-  }
-
-  return StringRef();
-}
-
 class EnforceABIImpl {
 public:
   EnforceABIImpl(Module &M,
@@ -161,8 +114,8 @@ void EnforceABIImpl::run() {
     if (FunctionModel.Type == model::FunctionType::Fake)
       continue;
 
-    revng_assert(FunctionModel.Name.size() != 0);
-    Function *OldFunction = M.getFunction(FunctionModel.Name);
+    revng_assert(not FunctionModel.name().empty());
+    Function *OldFunction = M.getFunction(FunctionModel.name());
     revng_assert(OldFunction != nullptr);
     OldFunctions.push_back(OldFunction);
     Function *NewFunction = handleFunction(*OldFunction, FunctionModel);
@@ -209,28 +162,27 @@ void EnforceABIImpl::run() {
   }
 }
 
-Function *EnforceABIImpl::handleFunction(Function &OldFunction,
-                                         const model::Function &FunctionModel) {
-  SmallVector<Type *, 8> ArgumentsTypes;
-  SmallVector<GlobalVariable *, 8> ArgumentCSVs;
-  SmallVector<Type *, 8> ReturnTypes;
-  SmallVector<GlobalVariable *, 8> ReturnCSVs;
+static FunctionType *
+toLLVMType(llvm::Module *M, const model::RawFunctionType &Prototype) {
+  using model::NamedTypedRegister;
+  using model::RawFunctionType;
+  using model::TypedRegister;
 
-  for (const model::FunctionABIRegister &Register : FunctionModel.Registers) {
-    auto Name = ABIRegister::toCSVName(Register.Register);
-    auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
+  LLVMContext &Context = M->getContext();
 
-    // Collect arguments
-    if (shouldEmit(Register.Argument)) {
-      ArgumentsTypes.push_back(CSV->getType()->getPointerElementType());
-      ArgumentCSVs.push_back(CSV);
-    }
+  SmallVector<llvm::Type *, 8> ArgumentsTypes;
+  SmallVector<llvm::Type *, 8> ReturnTypes;
 
-    // Collect return values
-    if (shouldEmit(Register.ReturnValue)) {
-      ReturnTypes.push_back(CSV->getType()->getPointerElementType());
-      ReturnCSVs.push_back(CSV);
-    }
+  for (const NamedTypedRegister &TR : Prototype.Arguments) {
+    auto Name = ABIRegister::toCSVName(TR.Location);
+    auto *CSV = cast<GlobalVariable>(M->getGlobalVariable(Name, true));
+    ArgumentsTypes.push_back(CSV->getType()->getPointerElementType());
+  }
+
+  for (const TypedRegister &TR : Prototype.ReturnValues) {
+    auto Name = ABIRegister::toCSVName(TR.Location);
+    auto *CSV = cast<GlobalVariable>(M->getGlobalVariable(Name, true));
+    ReturnTypes.push_back(CSV->getType()->getPointerElementType());
   }
 
   // Create the return type
@@ -243,7 +195,34 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
     ReturnType = StructType::create(ReturnTypes);
 
   // Create new function
-  auto *NewType = FunctionType::get(ReturnType, ArgumentsTypes, false);
+  return FunctionType::get(ReturnType, ArgumentsTypes, false);
+}
+
+Function *EnforceABIImpl::handleFunction(Function &OldFunction,
+                                         const model::Function &FunctionModel) {
+  using model::NamedTypedRegister;
+  using model::RawFunctionType;
+  using model::TypedRegister;
+
+  SmallVector<GlobalVariable *, 8> ArgumentCSVs;
+  SmallVector<GlobalVariable *, 8> ReturnCSVs;
+
+  const auto &Prototype = *cast<RawFunctionType>(FunctionModel.Prototype.get());
+  // We sort arguments by their CSV name
+  for (const NamedTypedRegister &TR : Prototype.Arguments) {
+    auto Name = ABIRegister::toCSVName(TR.Location);
+    auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
+    ArgumentCSVs.push_back(CSV);
+  }
+
+  for (const TypedRegister &TR : Prototype.ReturnValues) {
+    auto Name = ABIRegister::toCSVName(TR.Location);
+    auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
+    ReturnCSVs.push_back(CSV);
+  }
+
+  // Create new function
+  auto *NewType = toLLVMType(&M, Prototype);
   auto *NewFunction = Function::Create(NewType,
                                        GlobalValue::ExternalLinkage,
                                        "",
@@ -253,9 +232,9 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
   FunctionTags::Lifted.addTo(NewFunction);
 
   // Set argument names
-  unsigned I = 0;
-  for (Argument &Argument : NewFunction->args())
-    Argument.setName(ArgumentCSVs[I++]->getName());
+  for (const auto &[LLVMArgument, ModelArgument] :
+       zip(NewFunction->args(), Prototype.Arguments))
+    LLVMArgument.setName(ModelArgument.name());
 
   // Steal body from the old function
   std::vector<BasicBlock *> Body;
@@ -284,7 +263,7 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
         for (GlobalVariable *ReturnCSV : ReturnCSVs)
           ReturnValues.push_back(Builder.CreateLoad(ReturnCSV));
 
-        if (ReturnTypes.size() == 1)
+        if (ReturnValues.size() == 1)
           Builder.CreateRet(ReturnValues[0]);
         else
           Initializers.createReturn(Builder, ReturnValues);
@@ -301,7 +280,8 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
   Function *Caller = Call->getParent()->getParent();
   const model::Function &FunctionModel = *FunctionsMap.at(Caller);
 
-  revng_assert(Call->getParent()->getParent()->getName() == FunctionModel.Name);
+  Function *CallerFunction = Call->getParent()->getParent();
+  revng_assert(CallerFunction->getName() == FunctionModel.name());
 
   Function *Callee = cast<Function>(skipCasts(Call->getCalledOperand()));
   bool IsDirect = (Callee != FunctionDispatcher);
@@ -319,69 +299,34 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
       break;
   }
 
-  if (DisableSafetyChecks or IsDirect) {
-    // The callee is a well-known callee, generate a direct call
-    IRBuilder<> Builder(Call);
-    generateCall(Builder, Callee, *CallSite);
+  // Note that currently, in case of indirect call, we emit a call to a
+  // placeholder function that will throw an exception. If exceptions are
+  // correctly supported post enforce-abi, and the ABI data is correct, this
+  // should work. However this is not very efficient.
+  //
+  // Alternatives:
+  //
+  // 1. Emit an inline dispatcher that calls all the compatible functions (i.e.,
+  //    they take a subset of the call site's arguments and return a superset of
+  //    the call site's return values).
+  // 2. We have a dedicated outlined dispatcher that takes all the arguments of
+  //    the call site, plus all the registers of the return values. Under the
+  //    assumption that each return value of the call site is either a return
+  //    value of the callee or is preserved by the callee, we can fill each
+  //    return value using the callee's return value or the argument
+  //    representing the value of that register before the call.
+  //    In case the call site expects a return value that is neither a return
+  //    value nor a preserved register or the callee, we exclude it from the
+  ///   switch.
 
-    // Create an additional store to the local %pc, so that the optimizer cannot
-    // do stuff with llvm.assume.
-    revng_assert(OpaquePC != nullptr);
-    Builder.CreateStore(Builder.CreateCall(OpaquePC), GCBI.pcReg());
+  // Generate the call
+  IRBuilder<> Builder(Call);
+  generateCall(Builder, Callee, *CallSite);
 
-  } else {
-    // If it's an indirect call, enumerate all the compatible callees and
-    // generate a call for each of them
-
-    EnforceABILog << getName(Call) << " is an indirect call compatible with:\n";
-
-    BasicBlock *BeforeSplit = Call->getParent();
-    BasicBlock *AfterSplit = BeforeSplit->splitBasicBlock(Call);
-    BeforeSplit->getTerminator()->eraseFromParent();
-
-    IRBuilder<> Builder(BeforeSplit);
-    BasicBlock *UnexpectedPC = findByBlockType(AfterSplit->getParent(),
-                                               BlockType::UnexpectedPCBlock);
-
-    ProgramCounterHandler::DispatcherTargets Targets;
-
-    unsigned Count = 0;
-    for (auto &[F, FunctionModel] : FunctionsMap) {
-      EnforceABILog << "  " << F->getName().data() << " ";
-
-      // Check compatibility
-      StringRef IncompatibleCSV = areCompatible(*FunctionModel, *CallSite);
-      bool Incompatible = not IncompatibleCSV.empty();
-      if (Incompatible) {
-        EnforceABILog << "[No: " << IncompatibleCSV.data() << "]";
-      } else {
-        EnforceABILog << "[Yes]";
-        Count++;
-
-        // Create the basic block containing the call
-        auto *Case = BasicBlock::Create(Context,
-                                        "",
-                                        BeforeSplit->getParent(),
-                                        AfterSplit);
-        Builder.SetInsertPoint(Case);
-        generateCall(Builder, F, *CallSite);
-        Builder.CreateBr(AfterSplit);
-
-        // Record for inline dispatcher
-        Targets.push_back({ FunctionModel->Entry, Case });
-      }
-      EnforceABILog << DoLog;
-    }
-
-    // Actually create the inline dispatcher
-    Builder.SetInsertPoint(BeforeSplit);
-    GCBI.programCounterHandler()->buildDispatcher(Targets,
-                                                  Builder,
-                                                  UnexpectedPC,
-                                                  {});
-
-    EnforceABILog << Count << " functions" << DoLog;
-  }
+  // Create an additional store to the local %pc, so that the optimizer cannot
+  // do stuff with llvm.assume.
+  revng_assert(OpaquePC != nullptr);
+  Builder.CreateStore(Builder.CreateCall(OpaquePC), GCBI.pcReg());
 
   // Drop the original call
   Call->eraseFromParent();
@@ -390,85 +335,50 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
 void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
                                   Function *Callee,
                                   const model::CallEdge &CallSite) {
+  using model::NamedTypedRegister;
+  using model::RawFunctionType;
+  using model::TypedRegister;
+
   revng_assert(Callee != nullptr);
 
-  llvm::SmallVector<Type *, 8> ArgumentsTypes;
   llvm::SmallVector<Value *, 8> Arguments;
-  llvm::SmallVector<Type *, 8> ReturnTypes;
   llvm::SmallVector<GlobalVariable *, 8> ReturnCSVs;
 
-  bool IsDirect = (Callee != FunctionDispatcher);
-  if (not IsDirect) {
-    revng_assert(DisableSafetyChecks);
+  const auto &Prototype = *cast<RawFunctionType>(CallSite.Prototype.get());
 
-    // Collect arguments, returns and their type.
-    for (const model::FunctionABIRegister &Register : CallSite.Registers) {
-      auto Name = ABIRegister::toCSVName(Register.Register);
-      GlobalVariable *CSV = M.getGlobalVariable(Name, true);
-      if (shouldEmit(Register.Argument)) {
-        ArgumentsTypes.push_back(CSV->getType()->getPointerElementType());
-        Arguments.push_back(Builder.CreateLoad(CSV));
-      }
-
-      if (shouldEmit(Register.ReturnValue)) {
-        ReturnTypes.push_back(CSV->getType()->getPointerElementType());
-        ReturnCSVs.push_back(CSV);
-      }
-    }
-
-    // Create here on the fly the indirect function that we want to call.
-    // Create the return type
-    Type *ReturnType = Type::getVoidTy(Context);
-    if (ReturnTypes.size() == 0)
-      ReturnType = Type::getVoidTy(Context);
-    else if (ReturnTypes.size() == 1)
-      ReturnType = ReturnTypes[0];
-    else
-      ReturnType = StructType::create(ReturnTypes);
-
+  bool IsIndirect = (Callee != FunctionDispatcher);
+  if (IsIndirect) {
     // Create a new `indirect_placeholder` function with the specific function
     // type we need
-    auto *NewType = FunctionType::get(ReturnType, ArgumentsTypes, false);
+    auto *NewType = toLLVMType(&M, Prototype);
     Callee = IndirectPlaceholderPool.get(NewType,
                                          NewType,
                                          "indirect_placeholder");
   } else {
-
-    // Additional debug checks if we are not emitting an indirect call.
     BasicBlock *InsertBlock = Builder.GetInsertPoint()->getParent();
     revng_log(EnforceABILog,
               "Emitting call to " << getName(Callee) << " from "
                                   << getName(InsertBlock));
-
-    const model::Function *FunctionModel = FunctionsMap.at(Callee);
-    revng_assert(FunctionTags::Lifted.isTagOf(Callee));
-    StringRef IncompatibleCSV = areCompatible(*FunctionModel, CallSite);
-    bool Incompatible = not IncompatibleCSV.empty();
-    if (Incompatible) {
-      dbg << getName(InsertBlock) << " -> "
-          << (Callee == nullptr ? "nullptr" : Callee->getName().data()) << ": "
-          << IncompatibleCSV.data() << "\n";
-      revng_abort();
-    }
-
-    // Collect arguments, returns and their type.
-    for (const model::FunctionABIRegister &Register :
-         FunctionModel->Registers) {
-      auto Name = ABIRegister::toCSVName(Register.Register);
-      GlobalVariable *CSV = M.getGlobalVariable(Name, true);
-
-      if (shouldEmit(Register.Argument)) {
-        ArgumentsTypes.push_back(CSV->getType()->getPointerElementType());
-        Arguments.push_back(Builder.CreateLoad(CSV));
-      }
-
-      if (shouldEmit(Register.ReturnValue)) {
-        ReturnTypes.push_back(CSV->getType()->getPointerElementType());
-        ReturnCSVs.push_back(CSV);
-      }
-    }
   }
 
+  //
+  // Collect arguments and returns
+  //
+  for (const NamedTypedRegister &TR : Prototype.Arguments) {
+    auto Name = ABIRegister::toCSVName(TR.Location);
+    GlobalVariable *CSV = M.getGlobalVariable(Name, true);
+    Arguments.push_back(Builder.CreateLoad(CSV));
+  }
+
+  for (const TypedRegister &TR : Prototype.ReturnValues) {
+    auto Name = ABIRegister::toCSVName(TR.Location);
+    GlobalVariable *CSV = M.getGlobalVariable(Name, true);
+    ReturnCSVs.push_back(CSV);
+  }
+
+  //
+  // Produce the call
+  //
   auto *Result = Builder.CreateCall(Callee, Arguments);
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;

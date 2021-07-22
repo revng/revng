@@ -12,6 +12,23 @@
 
 #include "revng/Support/Debug.h"
 
+template<typename T>
+concept IsForwardNode = requires {
+  T::is_forward_node;
+};
+
+template<typename T>
+concept IsBidirectionalNode = requires {
+  T::is_bidirectional_node;
+  typename llvm::Inverse<T *>;
+};
+
+template<typename T>
+concept IsGenericGraph = requires {
+  T::is_generic_graph;
+  typename T::Node;
+};
+
 struct Empty {
   bool operator==(const Empty &) const { return true; }
 };
@@ -427,23 +444,6 @@ public:
 
 private:
   NodesContainer Nodes;
-};
-
-template<typename T>
-concept IsForwardNode = requires {
-  T::is_forward_node;
-};
-
-template<typename T>
-concept IsBidirectionalNode = requires {
-  T::is_bidirectional_node;
-  typename llvm::Inverse<T *>;
-};
-
-template<typename T>
-concept IsGenericGraph = requires {
-  T::is_generic_graph;
-  typename T::Node;
 };
 
 //

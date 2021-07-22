@@ -12,6 +12,7 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/VerifyHelper.h"
 
 using namespace llvm;
 
@@ -70,25 +71,93 @@ public:
   }
 };
 
+model::TypePath
+Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
+  PrimitiveType Temporary(V, ByteSize);
+  Type::Key PrimitiveKey{ TypeKind::Primitive, Temporary.ID };
+  auto It = Types.find(PrimitiveKey);
+
+  // If we couldn't find it, create it
+  if (It == Types.end()) {
+    auto *NewPrimitiveType = new PrimitiveType(V, ByteSize);
+    It = Types.insert(UpcastableType(NewPrimitiveType)).first;
+  }
+
+  return getTypePath(It->get());
+}
+
+TypePath Binary::recordNewType(UpcastablePointer<Type> &&T) {
+  auto It = Types.insert(T).first;
+  return getTypePath(It->get());
+}
+
+bool Binary::verifyTypes() const {
+  return verifyTypes(false);
+}
+
+bool Binary::verifyTypes(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verifyTypes(VH);
+}
+
+bool Binary::verifyTypes(VerifyHelper &VH) const {
+  // All types on their own should verify
+  std::set<Identifier> Names;
+  for (auto &Type : Types) {
+    // Verify the type
+    if (not Type.get()->verify(VH))
+      return VH.fail();
+
+    // Ensure the names are unique
+    if (not Names.insert(Type->name()).second)
+      return VH.fail();
+  }
+
+  return true;
+}
+
 bool Binary::verify() const {
+  return verify(false);
+}
+
+bool Binary::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool Binary::verify(VerifyHelper &VH) const {
   for (const Function &F : Functions) {
 
     // Verify individual functions
-    if (not F.verify())
-      return false;
+    if (not F.verify(VH))
+      return VH.fail();
 
-    // Ensure all the direct function calls target an existing function
+    // Check function calls
     for (const BasicBlock &Block : F.CFG) {
       for (const auto &Edge : Block.Successors) {
-        if (Edge->Type == FunctionEdgeType::FunctionCall
-            and Functions.count(Edge->Destination) == 0) {
-          return false;
+
+        if (Edge->Type == model::FunctionEdgeType::FunctionCall) {
+          // We're in a direct call, get the callee
+          const auto *Call = dyn_cast<CallEdge>(Edge.get());
+          auto It = Functions.find(Call->Destination);
+
+          // If missing, fail
+          if (It == Functions.end())
+            return VH.fail();
+
+          // If call and callee prototypes differ, fail
+          const Function &Callee = *It;
+          if (Call->Prototype != Callee.Prototype)
+            return VH.fail();
         }
       }
     }
   }
 
-  return true;
+  //
+  // Verify the type system
+  //
+  return verifyTypes(VH);
 }
 
 static FunctionCFG getGraph(const Function &F) {
@@ -131,6 +200,16 @@ static FunctionCFG getGraph(const Function &F) {
   return Graph;
 }
 
+Identifier Function::name() const {
+  using llvm::Twine;
+  if (not CustomName.empty()) {
+    return CustomName;
+  } else {
+    auto AutomaticName = (Twine("function_") + Entry.toString()).str();
+    return Identifier::fromString(AutomaticName);
+  }
+}
+
 void Function::dumpCFG() const {
   FunctionCFG CFG = getGraph(*this);
   raw_os_ostream Stream(dbg);
@@ -138,8 +217,17 @@ void Function::dumpCFG() const {
 }
 
 bool Function::verify() const {
+  return verify(false);
+}
+
+bool Function::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool Function::verify(VerifyHelper &VH) const {
   if (Type == FunctionType::Fake)
-    return CFG.size() == 0;
+    return VH.maybeFail(CFG.size() == 0);
 
   // Verify blocks
   bool HasEntry = false;
@@ -147,35 +235,107 @@ bool Function::verify() const {
 
     if (Block.Start == Entry) {
       if (HasEntry)
-        return false;
+        return VH.fail();
       HasEntry = true;
     }
 
     for (const auto &Edge : Block.Successors)
-      if (not Edge->verify())
-        return false;
+      if (not Edge->verify(VH))
+        return VH.fail();
   }
 
   if (not HasEntry)
-    return false;
+    return VH.fail();
 
   // Populate graph
   FunctionCFG Graph = getGraph(*this);
 
   // Ensure all the nodes are reachable from the entry node
   if (not Graph.allNodesAreReachable())
-    return false;
+    return VH.fail();
 
   // Ensure the only node with no successors is invalid
   if (not Graph.hasOnlyInvalidExits())
-    return false;
+    return VH.fail();
+
+  // Prototype is present
+  if (not Prototype.isValid())
+    return VH.fail();
+
+  // Prototype is valid
+  if (not Prototype.get()->verify(VH))
+    return VH.fail();
+
+  const model::Type *FunctionType = Prototype.get();
+  if (not(isa<RawFunctionType>(FunctionType)
+          or isa<CABIFunctionType>(FunctionType)))
+    return VH.fail();
 
   return true;
 }
 
 bool FunctionEdge::verify() const {
+  return verify(false);
+}
+
+bool FunctionEdge::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+static bool verifyFunctionEdge(VerifyHelper &VH, const FunctionEdge &E) {
   using namespace model::FunctionEdgeType;
-  return Destination.isValid() == hasDestination(Type);
+  return VH.maybeFail(E.Type != FunctionEdgeType::Invalid
+                      and E.Destination.isValid() == hasDestination(E.Type));
+}
+
+bool FunctionEdge::verify(VerifyHelper &VH) const {
+  if (auto *Call = dyn_cast<CallEdge>(this))
+    return VH.maybeFail(Call->verify(VH));
+  else
+    return verifyFunctionEdge(VH, *this);
+}
+
+bool CallEdge::verify() const {
+  return verify(false);
+}
+
+bool CallEdge::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool CallEdge::verify(VerifyHelper &VH) const {
+  return VH.maybeFail(verifyFunctionEdge(VH, *this) and Prototype.isValid()
+                      and Prototype.get()->verify(VH));
+}
+
+Identifier BasicBlock::name() const {
+  using llvm::Twine;
+  if (not CustomName.empty())
+    return CustomName;
+  else
+    return Identifier(std::string("bb_") + Start.toString());
+}
+
+bool BasicBlock::verify() const {
+  return verify(false);
+}
+
+bool BasicBlock::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool BasicBlock::verify(VerifyHelper &VH) const {
+  if (Start.isInvalid() or End.isInvalid() or not CustomName.verify(VH))
+    return VH.fail();
+
+  for (auto &Edge : Successors)
+    if (not Edge->verify(VH))
+      return VH.fail();
+
+  return true;
 }
 
 } // namespace model
@@ -183,7 +343,7 @@ bool FunctionEdge::verify() const {
 template<>
 struct llvm::DOTGraphTraits<model::FunctionCFG *>
   : public DefaultDOTGraphTraits {
-  DOTGraphTraits(bool simple = false) : DefaultDOTGraphTraits(simple) {}
+  DOTGraphTraits(bool Simple = false) : DefaultDOTGraphTraits(Simple) {}
 
   static std::string
   getNodeLabel(const model::FunctionCFGNode *Node, const model::FunctionCFG *) {

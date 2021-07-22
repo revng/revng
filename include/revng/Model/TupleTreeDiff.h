@@ -85,17 +85,16 @@ struct Diff {
 
 private:
   template<size_t I = 0, typename T>
-  requires IsTupleEnd<T, I> void diffTuple(T &LHS, T &RHS) {}
+  void diffTuple(T &LHS, T &RHS) {
+    if constexpr (I < std::tuple_size_v<T>) {
 
-  template<size_t I = 0, typename T>
-  requires IsNotTupleEnd<T, I> void diffTuple(T &LHS, T &RHS) {
+      Stack.push_back(size_t(I));
+      diffImpl(get<I>(LHS), get<I>(RHS));
+      Stack.pop_back();
 
-    Stack.push_back(size_t(I));
-    diffImpl(get<I>(LHS), get<I>(RHS));
-    Stack.pop_back();
-
-    // Recur
-    diffTuple<I + 1>(LHS, RHS);
+      // Recur
+      diffTuple<I + 1>(LHS, RHS);
+    }
   }
 
   template<IsUpcastablePointer T>

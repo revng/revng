@@ -6,6 +6,8 @@
 
 #include "llvm/Support/YAMLTraits.h"
 
+#include "revng/Support/Assert.h"
+
 template<typename T>
 concept HasScalarTraits = llvm::yaml::has_ScalarTraits<T>::value;
 

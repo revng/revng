@@ -841,7 +841,10 @@ public:
   static MetaAddress fromString(llvm::StringRef Text);
 
 private:
-  using Tied = std::tuple<uint32_t, uint16_t, uint16_t, uint64_t>;
+  using Tied = std::tuple<const uint32_t &,
+                          const uint16_t &,
+                          const uint16_t &,
+                          const uint64_t &>;
   Tied tie() const { return std::tie(Epoch, AddressSpace, Type, Address); }
 };
 

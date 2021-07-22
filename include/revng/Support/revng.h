@@ -14,13 +14,13 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
 
-#include "revng/Model/Binary.h"
+#include "revng/Model/Register.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 
 namespace llvm {
 class GlobalVariable;
-};
+} // namespace llvm
 
 class ABIRegister {
 private:

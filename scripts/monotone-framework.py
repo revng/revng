@@ -14,8 +14,6 @@
 # Standard imports
 import sys
 import argparse
-import re
-import tempfile
 from itertools import product
 from collections import defaultdict
 

@@ -16,6 +16,7 @@
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/Support/Assert.h"
 
+// clang-format off
 template<typename T>
 concept HasKeyType = requires {
   typename T::key_type;
@@ -26,7 +27,6 @@ concept HasMappedType = requires {
   typename T::mapped_type;
 };
 
-// clang-format off
 template<typename T>
 concept MapLike = HasKeyType<T> and HasMappedType<T>
   and std::is_same_v<typename T::value_type,
@@ -43,7 +43,6 @@ concept VectorOfPairs =
                                        typename T::value_type::second_type>>,
                  std::remove_const_t<T>>
   and std::is_const_v<typename T::value_type::first_type>;
-// clang-format on
 
 namespace {
 
@@ -55,6 +54,8 @@ static_assert(not VectorOfPairs<const vector<pair<int, long>>>, "");
 static_assert(not VectorOfPairs<vector<pair<int, long>>>, "");
 
 } // namespace
+
+// clang-format on
 
 //
 // element_pointer_t
