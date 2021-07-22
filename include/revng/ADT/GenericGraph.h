@@ -161,7 +161,7 @@ namespace detail {
 ///       argument.
 template<typename Node,
          typename EdgeLabel,
-         bool HasParent,
+         bool NeedsParent,
          size_t SmallSize,
          template<typename, typename, bool, size_t, typename, size_t, bool>
          class ForwardEdge,
@@ -173,7 +173,7 @@ struct ForwardNodeBaseTCalc {
     NoDerivation = std::is_same_v<FinalType, std::false_type>;
   using FWNode = ForwardEdge<Node,
                              EdgeLabel,
-                             HasParent,
+                             NeedsParent,
                              SmallSize,
                              FinalType,
                              ParentSmallSize,
@@ -183,14 +183,14 @@ struct ForwardNodeBaseTCalc {
                                     ParentSmallSize,
                                     ParentHasEntryNode>;
   using ParentType = Parent<GenericGraph, Node>;
-  using Result = std::conditional_t<HasParent, ParentType, Node>;
+  using Result = std::conditional_t<NeedsParent, ParentType, Node>;
 };
 } // namespace detail
 
 /// Basic nodes type, only forward edges, possibly with parent
 template<typename Node,
          typename EdgeLabel = Empty,
-         bool HasParent = true,
+         bool NeedsParent = true,
          size_t SmallSize = 2,
          typename FinalType = std::false_type,
          size_t ParentSmallSize = 16,
@@ -198,7 +198,7 @@ template<typename Node,
 class ForwardNode
   : public detail::ForwardNodeBaseTCalc<Node,
                                         EdgeLabel,
-                                        HasParent,
+                                        NeedsParent,
                                         SmallSize,
                                         ForwardNode,
                                         FinalType,
@@ -206,10 +206,10 @@ class ForwardNode
                                         ParentHasEntryNode>::Result {
 public:
   static constexpr bool is_forward_node = true;
-  static constexpr bool has_parent = HasParent;
+  static constexpr bool HasParent = NeedsParent;
   using TypeCalc = detail::ForwardNodeBaseTCalc<Node,
                                                 EdgeLabel,
-                                                HasParent,
+                                                NeedsParent,
                                                 SmallSize,
                                                 ForwardNode,
                                                 FinalType,
@@ -319,13 +319,13 @@ namespace detail {
 ///       is used as this argument.
 template<typename Node,
          typename EdgeLabel,
-         bool HasParent,
+         bool NeedsParent,
          size_t SmallSize,
          template<typename, typename, bool, size_t>
          class BidirectionalNode>
 struct BidirectionalNodeBaseTCalc {
-  using BDNode = BidirectionalNode<Node, EdgeLabel, HasParent, SmallSize>;
-  using Result = ForwardNode<Node, EdgeLabel, HasParent, SmallSize, BDNode>;
+  using BDNode = BidirectionalNode<Node, EdgeLabel, NeedsParent, SmallSize>;
+  using Result = ForwardNode<Node, EdgeLabel, NeedsParent, SmallSize, BDNode>;
 };
 } // namespace detail
 
@@ -333,12 +333,12 @@ struct BidirectionalNodeBaseTCalc {
 /// TODO: Make edge labels immutable
 template<typename Node,
          typename EdgeLabel = Empty,
-         bool HasParent = true,
+         bool NeedsParent = true,
          size_t SmallSize = 2>
 class BidirectionalNode
   : public detail::BidirectionalNodeBaseTCalc<Node,
                                               EdgeLabel,
-                                              HasParent,
+                                              NeedsParent,
                                               SmallSize,
                                               BidirectionalNode>::Result {
 public:
@@ -349,7 +349,7 @@ public:
   using EdgeLabelData = EdgeLabel;
   using Base = ForwardNode<Node,
                            EdgeLabel,
-                           HasParent,
+                           NeedsParent,
                            SmallSize,
                            BidirectionalNode>;
   using NeighborContainer = typename Base::NeighborContainer;
@@ -433,7 +433,7 @@ namespace detail {
 ///       argument.
 template<typename Node,
          typename EdgeLabel,
-         bool HasParent,
+         bool NeedsParent,
          size_t SmallSize,
          template<typename, typename, bool, size_t, typename, size_t, bool>
          class TheNode,
@@ -445,7 +445,7 @@ struct MutableEdgeNodeBaseTCalc {
     NoDerivation = std::is_same_v<FinalType, std::false_type>;
   using NodeType = TheNode<Node,
                            EdgeLabel,
-                           HasParent,
+                           NeedsParent,
                            SmallSize,
                            FinalType,
                            ParentSmallSize,
@@ -455,7 +455,7 @@ struct MutableEdgeNodeBaseTCalc {
                                     ParentSmallSize,
                                     ParentHasEntryNode>;
   using ParentType = Parent<GenericGraph, Node>;
-  using Result = std::conditional_t<HasParent, ParentType, Node>;
+  using Result = std::conditional_t<NeedsParent, ParentType, Node>;
 };
 
 template<typename NodeType, typename LabelType>
@@ -517,7 +517,7 @@ struct ConstUnlabeledView {
 /// to copy or need to be modified often.
 template<typename Node,
          typename EdgeLabel = Empty,
-         bool HasParent = true,
+         bool NeedsParent = true,
          size_t SmallSize = 2,
          typename FinalType = std::false_type,
          size_t ParentSmallSize = 16,
@@ -525,7 +525,7 @@ template<typename Node,
 class MutableEdgeNode
   : public detail::MutableEdgeNodeBaseTCalc<Node,
                                             EdgeLabel,
-                                            HasParent,
+                                            NeedsParent,
                                             SmallSize,
                                             MutableEdgeNode,
                                             FinalType,
@@ -533,10 +533,10 @@ class MutableEdgeNode
                                             ParentHasEntryNode>::Result {
 public:
   static constexpr bool is_mutable_edge_node = true;
-  static constexpr bool has_parent = HasParent;
+  static constexpr bool HasParent = NeedsParent;
   using TypeCalc = detail::MutableEdgeNodeBaseTCalc<Node,
                                                     EdgeLabel,
-                                                    HasParent,
+                                                    NeedsParent,
                                                     SmallSize,
                                                     MutableEdgeNode,
                                                     FinalType,
@@ -956,7 +956,7 @@ public:
 public:
   NodeT *addNode(std::unique_ptr<NodeT> &&Ptr) {
     Nodes.emplace_back(std::move(Ptr));
-    if constexpr (NodeT::has_parent)
+    if constexpr (NodeT::HasParent)
       Nodes.back()->setParent(this);
     return Nodes.back().get();
   }
@@ -964,7 +964,7 @@ public:
   template<class... Args>
   NodeT *addNode(Args &&...A) {
     Nodes.push_back(std::make_unique<NodeT>(std::forward<Args>(A)...));
-    if constexpr (NodeT::has_parent)
+    if constexpr (NodeT::HasParent)
       Nodes.back()->setParent(this);
     return Nodes.back().get();
   }
