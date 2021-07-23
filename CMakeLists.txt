@@ -132,7 +132,7 @@ add_flag_if_available("-fstrict-aliasing")
 
 add_flag_if_available("-Wnon-virtual-dtor")
 add_flag_if_available("-Wunreachable-code-break")
-add_flag_if_available("-Winconsistent-missing-destructor-override")
+# add_flag_if_available("-Winconsistent-missing-destructor-override")
 add_flag_if_available("-Wnewline-eof")
 add_flag_if_available("-Wmissing-prototypes")
 
