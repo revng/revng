@@ -613,14 +613,13 @@ bool LayoutTypeSystem::verifyNoEquality() const {
 
 bool LayoutTypeSystem::verifyLeafs() const {
   for (const auto &Node : llvm::nodes(this)) {
-    if (isLeaf(Node)) {
-      if (Node->Size > 0) {
-        if (VerifyDLALog.isEnabled())
-          revng_check(false);
-        return false;
-      }
+    if (isLeaf(Node) and Node->Size == 0) {
+      if (VerifyDLALog.isEnabled())
+        revng_check(false);
+      return false;
     }
   }
+
   return true;
 }
 

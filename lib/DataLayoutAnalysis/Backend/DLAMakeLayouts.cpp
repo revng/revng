@@ -241,15 +241,13 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
     if (SFlds.empty())
       return nullptr;
 
-    Layout *CreatedLayout = (SFlds.size() > 1ULL) ?
-                              createLayout<StructLayout>(Layouts, SFlds) :
-                              *SFlds.begin();
+    Layout *CreatedLayout = createLayout<StructLayout>(Layouts, SFlds);
 
     return CreatedLayout;
   } break;
 
   case AllChildrenAreInterfering: {
-
+    revng_assert(N->Successors.size() > 1);
     UnionLayout::elements_container_t UFlds;
     revng_assert(not isLeaf(N));
 
@@ -325,7 +323,8 @@ LayoutPtrVector makeLayouts(const LayoutTypeSystem &TS, LayoutVector &Layouts) {
 
   // Prepare the vector of layouts that correspond to actual LayoutTypePtrs
   LayoutPtrVector OrderedLayouts;
-  OrderedLayouts.resize(TS.getEqClasses().getNumClasses(), nullptr);
+  const auto EqClasses = TS.getEqClasses();
+  OrderedLayouts.resize(EqClasses.getNumClasses());
 
   std::set<const LTSN *> Visited;
 

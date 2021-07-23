@@ -3,6 +3,7 @@
 //
 
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -33,25 +34,39 @@ bool CollapseSingleChild::runOnTypeSystem(LayoutTypeSystem &TS) {
     return (Node->Successors.size() == 1);
   };
 
-  auto FirstChildIsInstance = [](const LTSN *Node) {
-    return (isInstanceEdge(*Node->Successors.begin()));
+  auto ChildIsInstanceOrInheritance = [](const LTSN *Node) {
+    auto &Child = *Node->Successors.begin();
+    return (isInstanceEdge(Child) or isInheritanceEdge(Child));
   };
 
-  // Find roots
+  auto HasAtMostOneParent = [](const LTSN *Node) {
+    return (Node->Predecessors.size() <= 1);
+  };
+
   for (LTSN *Root : llvm::nodes(&TS)) {
     revng_assert(Root != nullptr);
     if (not isRoot(Root))
       continue;
 
-    // Visit their sub-tree in post order
     for (LTSN *Node : post_order(Root)) {
-      if (HasSingleChild(Node) and FirstChildIsInstance(Node)) {
+      // Don't collapse if the node has multiple parents
+      if (not HasAtMostOneParent(Node))
+        continue;
+
+      // Get nodes that have a single instance or inheritance child
+      if (HasSingleChild(Node) and ChildIsInstanceOrInheritance(Node)) {
         auto &ChildEdge = *(Node->Successors.begin());
-        auto &OE = ChildEdge.second->getOffsetExpr();
+        const unsigned ChildOffset = isInheritanceEdge(ChildEdge) ?
+                                       0U :
+                                       ChildEdge.second->getOffsetExpr().Offset;
         auto &ToMerge = ChildEdge.first;
 
-        // Get nodes that have a single instance child at offset 0
-        if (OE.Offset == 0) {
+        // Don't collapse if the child has more than one parent
+        if (not HasAtMostOneParent(ToMerge))
+          continue;
+
+        // Collapse only if the child is at offset 0
+        if (ChildOffset == 0) {
           revng_log(Log, "Collapsing " << ToMerge->ID << " into " << Node->ID);
 
           const unsigned ChildSize = ToMerge->Size;
@@ -59,7 +74,6 @@ bool CollapseSingleChild::runOnTypeSystem(LayoutTypeSystem &TS) {
 
           // Merge single child into parent
           TS.mergeNodes({ /*Into=*/Node, /*From=*/ToMerge });
-          Node->InterferingInfo = AllChildrenAreNonInterfering;
           Node->Size = ChildSize;
 
           Changed = true;

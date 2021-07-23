@@ -130,7 +130,6 @@ void Layout::printText(llvm::raw_ostream &O, const Layout *L, unsigned Indent) {
   } break;
   case LayoutKind::Struct: {
     auto *Struct = llvm::cast<StructLayout>(L);
-    revng_assert(Struct->numFields() > 1);
     O << IndentStr << "struct {\n";
     for (const Layout *F : Struct->fields()) {
       printText(O, F, Indent + 2);
@@ -207,7 +206,6 @@ Layout::printGraphicElem(llvm::raw_ostream &O,
   } break;
   case LayoutKind::Struct: {
     auto *Struct = llvm::cast<StructLayout>(L);
-    revng_assert(Struct->numFields() > 1);
     Layout::layout_size_t TotSize = 0ULL;
     for (const Layout *F : Struct->fields()) {
       auto Tmp = printGraphicElem(O, F, 0, Offset + TotSize);

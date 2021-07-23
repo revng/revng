@@ -228,14 +228,10 @@ public:
 
   StructLayout(const llvm::SmallVectorImpl<Layout *> &Flds) :
     Layout(LayoutKind::Struct, getTotSize(Flds)),
-    Fields(llvm::iterator_range(Flds.begin(), Flds.end())) {
-    revng_assert(Fields.size() > 1U);
-  }
+    Fields(llvm::iterator_range(Flds.begin(), Flds.end())) {}
 
   StructLayout(llvm::SmallVectorImpl<Layout *> &&Flds) :
-    Layout(LayoutKind::Struct, getTotSize(Flds)), Fields(std::move(Flds)) {
-    revng_assert(Fields.size() > 1U);
-  }
+    Layout(LayoutKind::Struct, getTotSize(Flds)), Fields(std::move(Flds)) {}
 
   StructLayout() = delete;
 
