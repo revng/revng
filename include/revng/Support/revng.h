@@ -101,7 +101,8 @@ public:
       }
     }
 
-    return model::Register::fromRegisterName(Name, Arch);
+    return model::Register::
+      fromRegisterName(Name, model::Architecture::fromLLVMArchitecture(Arch));
   }
 };
 

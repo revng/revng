@@ -571,6 +571,8 @@ private:
 
   MetaAddressSet inflateAVIWhitelist();
 
+  llvm::CallInst *getJumpTarget(llvm::BasicBlock *Target);
+
 private:
   using InstructionMap = std::map<MetaAddress, llvm::Instruction *>;
 

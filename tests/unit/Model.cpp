@@ -60,10 +60,6 @@ BOOST_AUTO_TEST_CASE(TestPathAccess) {
   revng_check(getByPath<Function>("/Functions/:Invalid", TheBinary) == &F);
 }
 
-template<>
-struct llvm::yaml::ScalarTraits<std::pair<MetaAddress, MetaAddress>>
-  : CompositeScalar<std::pair<MetaAddress, MetaAddress>, '-'> {};
-
 BOOST_AUTO_TEST_CASE(TestCompositeScalar) {
   // MetaAddress pair
   {

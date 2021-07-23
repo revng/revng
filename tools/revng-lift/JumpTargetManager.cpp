@@ -377,7 +377,7 @@ JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
     return MaterializedValue::invalid();
   }
 
-  const auto &Labels = binary().labels();
+  const auto &Labels = binary().labelsMap();
   using interval = boost::icl::interval<MetaAddress, compareAddress>;
   auto Interval = interval::right_open(LoadAddress, LoadAddress + LoadSize);
   auto It = Labels.find(Interval);
@@ -469,10 +469,9 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
 
 void JumpTargetManager::harvestGlobalData() {
   // Register symbols
-  for (auto &P : Binary.labels())
-    for (const Label *L : P.second)
-      if (L->isSymbol() and L->isCode())
-        registerJT(L->address(), JTReason::FunctionSymbol);
+  for (const Label &L : Binary.labels())
+    if (L.isSymbol() and L.isCode())
+      registerJT(L.address(), JTReason::FunctionSymbol);
 
   // Register landing pads, if available
   // TODO: should register them in UnusedCodePointers?
@@ -1405,6 +1404,18 @@ public:
   }
 };
 
+CallInst *JumpTargetManager::getJumpTarget(BasicBlock *Target) {
+  for (BasicBlock *BB : inverse_depth_first(Target)) {
+    if (auto *Call = dyn_cast<CallInst>(&*BB->begin())) {
+      auto MA = getPCFromNewPCCall(Call);
+      if (MA.isValid() and isJumpTarget(MA))
+        return Call;
+    }
+  }
+
+  return nullptr;
+}
+
 JumpTargetManager::MetaAddressSet JumpTargetManager::inflateAVIWhitelist() {
   MetaAddressSet Result;
 
@@ -1452,7 +1463,7 @@ void JumpTargetManager::harvestWithAVI() {
   PM.run(TheModule);
 
   //
-  // Collect all the non-PC affectign CSVs
+  // Collect all the non-PC affecting CSVs
   //
   std::set<GlobalVariable *> NonPCCSVs;
   QuickMetadata QMD(Context);
@@ -1753,6 +1764,7 @@ void JumpTargetManager::harvestWithAVI() {
     uint32_t AVIID = getLimitedValue(cast<ConstantInt>(Call->getArgOperand(1)));
     auto TV = AR.rootInstructionById(AVIID);
     auto TIT = TV.Type;
+    Instruction *I = TV.I;
 
     // Did AVI produce any info?
     auto *T = dyn_cast_or_null<MDTuple>(Call->getMetadata("revng.avi"));
@@ -1767,11 +1779,21 @@ void JumpTargetManager::harvestWithAVI() {
     bool AllPCs = true;
 
     SmallVector<MetaAddress, 16> Targets;
+    SmallVector<StringRef> SymbolNames;
 
     // Iterate over all the generated values
     for (const MDOperand &Operand : cast<MDTuple>(T)->operands()) {
       // Extract the value
-      auto *Value = QMD.extract<ConstantInt *>(Operand.get());
+      auto *Tuple = QMD.extract<MDTuple *>(Operand.get());
+      auto SymbolName = QMD.extract<llvm::StringRef>(
+        Tuple->getOperand(0).get());
+      auto *Value = QMD.extract<ConstantInt *>(Tuple->getOperand(1).get());
+
+      bool HasSymbol = SymbolName.size() != 0;
+      if (HasSymbol) {
+        SymbolNames.push_back(SymbolName);
+        continue;
+      }
 
       // Deserialize value into a MetaAddress, depending on the tracked
       // instruction type
@@ -1779,15 +1801,31 @@ void JumpTargetManager::harvestWithAVI() {
                    MetaAddress::decomposeIntegerPC(Value) :
                    MetaAddress::fromPC(TV.Address, getLimitedValue(Value)));
 
-      if (MA.isInvalid()) {
+      if (MA.isInvalid())
         AllValid = false;
-        break;
-      }
 
       if (not isPC(MA))
         AllPCs = false;
 
       Targets.push_back(MA);
+    }
+
+    // We're jumping to a single symbol
+    bool IsPCStore = TrackedInstructionType::WrittenInPC;
+    if (IsPCStore and SymbolNames.size() == 1) {
+      StringRef SymbolName = SymbolNames[0];
+
+      // Obtain the jump target's newpc call
+      CallInst *NewPCCall = getJumpTarget(I->getParent());
+      revng_assert(NewPCCall != nullptr);
+
+      // Set the fifth argument of newpc to the symbol
+      auto *IsJT = cast<ConstantInt>(NewPCCall->getArgOperand(2));
+      revng_assert(IsJT->getLimitedValue() == 1);
+      auto *SymbolVariable = buildStringPtr(M,
+                                            SymbolName,
+                                            Twine("symbol_") + SymbolName);
+      NewPCCall->setArgOperand(4, SymbolVariable);
     }
 
     // Proceed only if all the results are valid

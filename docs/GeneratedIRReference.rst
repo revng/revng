@@ -400,6 +400,9 @@ of variadic arguments:
 :GlobalVariable Disassembled: a reference to the global variable containing the
                               string representing the disassembled instruction
                               (the same as the ``!oi`` metadata).
+:GlobalVariable DynamicFunction: reference to the global variable containing a
+    string of the name of the external (i.e., library) function that this
+    function actually calls.
 :u8 \*LocalVariables: a series of pointer to all the local variables used by
                       this instruction.
 
@@ -450,10 +453,6 @@ considered a function call if it's preceded by a call to a function called
 :GlobalVariable LinkRegister: reference to the CSV representing the link
                               register for this specific function call. If null,
                               the return address is stored on the stack.
-:GlobalVariable ExternalFunction: reference to the global variable containing a
-                                  string of the name of the external (i.e.,
-                                  library) function that this function actually
-                                  calls.
 
 In our example we had a function call in the ``_start`` basic block:
 

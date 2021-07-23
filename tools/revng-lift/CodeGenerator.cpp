@@ -47,6 +47,7 @@
 #include "revng/Support/ProgramCounterHandler.h"
 #include "revng/Support/revng.h"
 
+#include "BinaryFile.h"
 #include "CodeGenerator.h"
 #include "ExternalJumpsHandler.h"
 #include "InstructionTranslator.h"
@@ -1324,13 +1325,29 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   // Serialize an empty Model into TheModule
   model::Binary Model;
 
+  // Set the architecture
+  auto Triple = Binary.architecture().type();
+  Model.Architecture = model::Architecture::fromLLVMArchitecture(Triple);
+
+  // Create segments
+  for (const SegmentInfo &S : Binary.segments()) {
+    model::Segment NewSegment({ S.StartVirtualAddress, S.EndVirtualAddress });
+
+    NewSegment.StartOffset = S.StartFileOffset;
+    NewSegment.EndOffset = S.EndFileOffset;
+
+    NewSegment.IsReadable = S.IsReadable;
+    NewSegment.IsWriteable = S.IsWriteable;
+    NewSegment.IsExecutable = S.IsExecutable;
+
+    Model.Segments.insert(std::move(NewSegment));
+  }
+
   // Record all dynamic imported functions
   for (const Label &L : Binary.labels()) {
-    if (L.Origin == LabelOrigin::DynamicSymbol
-        and L.SymbolType == SymbolType::Code
-        and L.Address.isInvalid()
-        and not L.SymbolName.empty()) {
-      Model.DynamicFunctions.insert(model::DynamicFunction(L.SymbolName));
+    if (L.origin() == LabelOrigin::DynamicRelocation and L.isCode()
+        and not L.symbolName().empty()) {
+      Model.DynamicFunctions.insert({ L.symbolName().str() });
     }
   }
 

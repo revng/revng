@@ -449,7 +449,6 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
-
 };
 
 INTROSPECTION_NS(model, DynamicFunction, SymbolName, CustomName, Prototype)
@@ -461,15 +460,14 @@ struct llvm::yaml::MappingTraits<model::DynamicFunction>
 template<>
 struct KeyedObjectTraits<model::DynamicFunction> {
 
-  static auto key(const model::DynamicFunction &F) {
-    return F.SymbolName;
-  }
+  static auto key(const model::DynamicFunction &F) { return F.SymbolName; }
 
   static model::DynamicFunction fromKey(const std::string &Key) {
     return model::DynamicFunction(Key);
   }
-
 };
+
+static_assert(validateTupleTree<model::DynamicFunction>(IsYamlizable));
 
 class model::Segment {
 public:
@@ -486,6 +484,7 @@ public:
   bool IsWriteable = false;
   bool IsExecutable = false;
 
+  // WIP: optional
   Identifier CustomName;
 
   // WIP: type?
@@ -530,9 +529,13 @@ struct KeyedObjectTraits<model::Segment> {
   static model::Segment fromKey(const model::Segment::Key &K) {
     return model::Segment(K);
   }
-
 };
 
+template<>
+struct llvm::yaml::ScalarTraits<model::Segment::Key>
+  : public CompositeScalar<model::Segment::Key, '-'> {};
+
+static_assert(validateTupleTree<model::Segment>(IsYamlizable));
 
 /// Data structure representing the whole binary
 class model::Binary {
@@ -544,7 +547,8 @@ public:
   // WIP: imported
   SortedVector<model::DynamicFunction> DynamicFunctions;
 
-  // WIP: Architecture Architecture
+  /// Binary architecture
+  model::Architecture::Values Architecture = model::Architecture::Invalid;
 
   /// List of segments in the original binary
   SortedVector<model::Segment> Segments;
@@ -574,7 +578,13 @@ public:
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
 };
-INTROSPECTION_NS(model, Binary, Functions, DynamicFunctions, Types)
+INTROSPECTION_NS(model,
+                 Binary,
+                 Functions,
+                 DynamicFunctions,
+                 Types,
+                 Architecture,
+                 Segments)
 
 template<>
 struct llvm::yaml::MappingTraits<model::Binary>

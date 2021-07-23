@@ -34,8 +34,8 @@ template<Integral T>
 struct KeyedObjectTraits<T> : public IdentityKeyedObjectTraits<T> {};
 
 template<>
-struct KeyedObjectTraits<std::string> :
-    public IdentityKeyedObjectTraits<std::string> {};
+struct KeyedObjectTraits<std::string>
+  : public IdentityKeyedObjectTraits<std::string> {};
 
 static_assert(Integral<int>);
 static_assert(HasKeyObjectTraits<int>);
