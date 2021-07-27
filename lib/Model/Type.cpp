@@ -145,7 +145,7 @@ public:
   uint64_t get() { return Distribution(Generator); }
 };
 
-llvm::ManagedStatic<RNG> IDGenerator;
+static llvm::ManagedStatic<RNG> IDGenerator;
 
 model::Type::Type(TypeKind::Values TK) :
   model::Type::Type(TK, IDGenerator->get()) {
