@@ -116,32 +116,54 @@ enum Values {
   Union,
   CABIFunctionType,
   RawFunctionType,
+  Count,
 };
 
+inline llvm::StringRef getName(Values V) {
+  switch (V) {
+  case Invalid:
+    return "Invalid";
+  case Primitive:
+    return "Primitive";
+  case Enum:
+    return "Enum";
+  case Typedef:
+    return "Typedef";
+  case Struct:
+    return "Struct";
+  case Union:
+    return "Union";
+  case CABIFunctionType:
+    return "CABIFunctionType";
+  case RawFunctionType:
+    return "RawFunctionType";
+  default:
+    revng_abort();
+  }
+  revng_abort();
+}
+
 } // end namespace model::TypeKind
+
+namespace llvm::yaml {
 
 // Make model::TypeKind yaml-serializable, required for making model::Type
 // yaml-serializable as well
 template<>
-struct llvm::yaml::ScalarEnumerationTraits<model::TypeKind::Values> {
+struct ScalarEnumerationTraits<model::TypeKind::Values> {
   template<typename IOType>
   static void enumeration(IOType &IO, model::TypeKind::Values &Val) {
-    IO.enumCase(Val, "Invalid", model::TypeKind::Invalid);
-    IO.enumCase(Val, "Primitive", model::TypeKind::Primitive);
-    IO.enumCase(Val, "Enum", model::TypeKind::Enum);
-    IO.enumCase(Val, "Typedef", model::TypeKind::Typedef);
-    IO.enumCase(Val, "Struct", model::TypeKind::Struct);
-    IO.enumCase(Val, "Union", model::TypeKind::Union);
-    IO.enumCase(Val, "CABIFunctionType", model::TypeKind::CABIFunctionType);
-    IO.enumCase(Val, "RawFunctionType", model::TypeKind::RawFunctionType);
+    using namespace model::TypeKind;
+    for (unsigned I = 0; I < Count; ++I) {
+      auto V = static_cast<Values>(I);
+      IO.enumCase(Val, getName(V).data(), V);
+    }
   }
 };
 
-namespace model::TypeKind {
+} // end namespace llvm::yaml
 
-inline llvm::StringRef getName(model::TypeKind::Values V) {
-  return getNameFromYAMLEnumScalar(V);
-}
+namespace model::TypeKind {
 
 inline model::TypeKind::Values fromName(llvm::StringRef Name) {
   return getValueFromYAMLScalar<model::TypeKind::Values>(Name);
@@ -157,22 +179,43 @@ namespace model::QualifierKind {
 // The idea is that a qualifier is something that you can add to a type T to
 // obtain another type R, in such a way that if T is fully known also R is fully
 // known. In this sense Pointer and Array types are qualified types.
-enum Values { Invalid, Pointer, Array, Const };
+enum Values { Invalid, Pointer, Array, Const, Count };
+
+inline llvm::StringRef getName(Values V) {
+  switch (V) {
+  case Invalid:
+    return "Invalid";
+  case Pointer:
+    return "Pointer";
+  case Array:
+    return "Array";
+  case Const:
+    return "Const";
+  default:
+    revng_abort();
+  }
+  revng_abort();
+}
 
 } // end namespace model::QualifierKind
+
+namespace llvm::yaml {
 
 // Make model::QualifierKind::Values yaml-serializable, required for making
 // model::Qualifier yaml-serializable as well
 template<>
-struct llvm::yaml::ScalarEnumerationTraits<model::QualifierKind::Values> {
+struct ScalarEnumerationTraits<model::QualifierKind::Values> {
   template<typename IOType>
   static void enumeration(IOType &IO, model::QualifierKind::Values &Val) {
-    IO.enumCase(Val, "Invalid", model::QualifierKind::Invalid);
-    IO.enumCase(Val, "Pointer", model::QualifierKind::Pointer);
-    IO.enumCase(Val, "Array", model::QualifierKind::Array);
-    IO.enumCase(Val, "Const", model::QualifierKind::Const);
+    using namespace model::QualifierKind;
+    for (unsigned I = 0; I < Count; ++I) {
+      auto V = static_cast<Values>(I);
+      IO.enumCase(Val, getName(V).data(), V);
+    }
   }
 };
+
+} // namespace llvm::yaml
 
 // Make model::Type derived types usable with UpcastablePointer
 template<>
@@ -374,34 +417,54 @@ enum Values {
   Number,
   Unsigned,
   Signed,
-  Float
+  Float,
+  Count
 };
+
+inline llvm::StringRef getName(Values V) {
+  switch (V) {
+  case Invalid:
+    return "Invalid";
+  case Void:
+    return "Void";
+  case Generic:
+    return "Generic";
+  case PointerOrNumber:
+    return "PointerOrNumber";
+  case Number:
+    return "Number";
+  case Unsigned:
+    return "Unsigned";
+  case Signed:
+    return "Signed";
+  case Float:
+    return "Float";
+  default:
+    revng_abort();
+  }
+  revng_abort();
+}
 
 } // end namespace model::PrimitiveTypeKind
 
+namespace llvm::yaml {
+
 // Make model::PrimitiveTypeKind::Values yaml-serializable
 template<>
-struct llvm::yaml::ScalarEnumerationTraits<model::PrimitiveTypeKind::Values> {
+struct ScalarEnumerationTraits<model::PrimitiveTypeKind::Values> {
   template<typename IOType>
   static void enumeration(IOType &IO, model::PrimitiveTypeKind::Values &Val) {
-    IO.enumCase(Val, "Invalid", model::PrimitiveTypeKind::Invalid);
-    IO.enumCase(Val, "Void", model::PrimitiveTypeKind::Void);
-    IO.enumCase(Val, "Generic", model::PrimitiveTypeKind::Generic);
-    IO.enumCase(Val,
-                "PointerOrNumber",
-                model::PrimitiveTypeKind::PointerOrNumber);
-    IO.enumCase(Val, "Number", model::PrimitiveTypeKind::Number);
-    IO.enumCase(Val, "Unsigned", model::PrimitiveTypeKind::Unsigned);
-    IO.enumCase(Val, "Signed", model::PrimitiveTypeKind::Signed);
-    IO.enumCase(Val, "Float", model::PrimitiveTypeKind::Float);
+    using namespace model::PrimitiveTypeKind;
+    for (unsigned I = 0; I < Count; ++I) {
+      auto V = static_cast<Values>(I);
+      IO.enumCase(Val, getName(V).data(), V);
+    }
   }
 };
 
-namespace model::PrimitiveTypeKind {
+} // end namespace llvm::yaml
 
-inline llvm::StringRef getName(model::PrimitiveTypeKind::Values V) {
-  return getNameFromYAMLEnumScalar(V);
-}
+namespace model::PrimitiveTypeKind {
 
 inline model::PrimitiveTypeKind::Values fromName(const llvm::Twine &Name) {
   return getValueFromYAMLScalar<model::PrimitiveTypeKind::Values>(Name.str());
@@ -803,19 +866,37 @@ V getOrDefault(const std::map<K, V> &Map, const K &Key, const V &Default) {
 }
 
 namespace model::abi {
-enum Values { Invalid, SystemV_x86_64 };
+
+enum Values { Invalid, SystemV_x86_64, Count };
+
+inline llvm::StringRef getName(Values V) {
+  switch (V) {
+  case Invalid:
+    return "Invalid";
+  case SystemV_x86_64:
+    return "SystemV_x86_64";
+  default:
+    revng_abort();
+  }
+  revng_abort();
+}
+
 } // namespace model::abi
 
 namespace llvm::yaml {
+
 template<>
 struct ScalarEnumerationTraits<model::abi::Values> {
-  template<typename T>
-  static void enumeration(T &IO, model::abi::Values &V) {
+  template<typename IOType>
+  static void enumeration(IOType &IO, model::abi::Values &Val) {
     using namespace model::abi;
-    IO.enumCase(V, "Invalid", Invalid);
-    IO.enumCase(V, "SystemV_x86_64", SystemV_x86_64);
+    for (unsigned I = 0; I < Count; ++I) {
+      auto V = static_cast<Values>(I);
+      IO.enumCase(Val, getName(V).data(), V);
+    }
   }
 };
+
 } // namespace llvm::yaml
 
 /// \brief The argument of a function type
