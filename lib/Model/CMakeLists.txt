@@ -9,4 +9,5 @@ revng_add_analyses_library_internal(revngModel
   Type.cpp)
 
 target_link_libraries(revngModel
-  revngSupport)
+  revngSupport
+  ${LLVM_LIBRARIES})
