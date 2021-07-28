@@ -176,6 +176,8 @@ bool Qualifier::verify(VerifyHelper &VH) const {
     return VH.maybeFail(Size == 0);
   case QualifierKind::Array:
     return VH.maybeFail(Size > 0);
+  default:
+    revng_abort();
   }
 
   return VH.fail();
@@ -199,6 +201,9 @@ isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
 
   case PrimitiveTypeKind::Float:
     return BS == 2 or BS == 4 or BS == 8 or BS == 16;
+
+  default:
+    revng_abort();
   }
 
   revng_abort();
@@ -429,6 +434,9 @@ QualifiedType::size(VerifyHelper &VH) const {
     case QualifierKind::Const:
       // Do nothing, just skip over it
       break;
+
+    default:
+      revng_abort();
     }
   }
 
@@ -494,6 +502,9 @@ RecursiveCoroutine<std::optional<uint64_t>> Type::size(VerifyHelper &VH) const {
     }
     Size = { Max == 0 ? ResultType{} : Max };
   } break;
+
+  default:
+    revng_abort();
   }
 
   VH.setSize(this, Size ? *Size : 0);
@@ -580,6 +591,8 @@ inline RecursiveCoroutine<bool> isScalar(const QualifiedType &QT) {
       rc_return false;
     case QualifierKind::Const:
       break;
+    default:
+      revng_abort();
     }
   }
 
