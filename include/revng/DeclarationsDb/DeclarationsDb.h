@@ -44,8 +44,8 @@ public:
 
 class ParameterSaver {
 public:
-  ParameterSaver(llvm::StringRef Path);
-  ~ParameterSaver();
+  ParameterSaver(llvm::StringRef Path) {}
+  ~ParameterSaver() {}
   ParameterSaver(const ParameterSaver &other) = delete;
   ParameterSaver(ParameterSaver &&other) : Db(other.Db) { other.Db = nullptr; }
   ParameterSaver &operator=(const ParameterSaver &other) = delete;
@@ -57,7 +57,7 @@ public:
 
   FunctionDecl getFunction(const std::string &functionName,
                            const std::vector<std::string> &libName);
-  bool save(const FunctionDecl &function);
+  bool save(const FunctionDecl &function) { return true; }
 
 private:
   sqlite3 *Db;

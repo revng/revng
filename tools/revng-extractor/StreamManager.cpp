@@ -132,7 +132,7 @@ Error StreamManager::dumpModuleSymsForObj() {
                             DebugSymbolsSubsectionRef &Symbols) {
     for (auto Symbol : Symbols) {
       if (auto EC = Visitor.visitSymbolRecord(Symbol)) {
-        SymbolError = llvm::make_unique<Error>(std::move(EC));
+        SymbolError = std::make_unique<Error>(std::move(EC));
         return;
       }
     }

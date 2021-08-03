@@ -1789,8 +1789,8 @@ void JumpTargetManager::harvestWithAVI() {
         Tuple->getOperand(0).get());
       auto *Value = QMD.extract<ConstantInt *>(Tuple->getOperand(1).get());
 
-      bool HasSymbol = SymbolName.size() != 0;
-      if (HasSymbol) {
+      bool HasDynamicSymbol = SymbolName.size() != 0;
+      if (HasDynamicSymbol) {
         SymbolNames.push_back(SymbolName);
         continue;
       }

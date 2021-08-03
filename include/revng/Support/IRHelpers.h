@@ -631,7 +631,7 @@ QuickMetadata::extract<llvm::ConstantInt *>(const llvm::Metadata *MD) {
 
 template<>
 inline llvm::ConstantInt *
-QuickMetadata::extract<llvm::ConstantInt *>(llvm::Metadata *MD) {
+QuickMetadata:: extract<llvm::ConstantInt *>(llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return llvm::cast<llvm::ConstantInt>(C->getValue());
 }

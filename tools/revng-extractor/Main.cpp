@@ -53,7 +53,7 @@ static ExitOnError ExitOnErr;
 static void dump(InputFile &IF, ParameterSaver &Db) {
   std::map<std::string, FunctionDecl> FunctionMap;
 
-  auto O = llvm::make_unique<StreamManager>(IF, FunctionMap, LibName);
+  auto O = std::make_unique<StreamManager>(IF, FunctionMap, LibName);
   ExitOnErr(O->dump());
   std::for_each(FunctionMap.begin(),
                 FunctionMap.end(),

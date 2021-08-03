@@ -8,6 +8,8 @@ llvm_map_components_to_libnames(llvm_extractor_pdb_libs
 	ObjectYAML
 	debuginfodwarf
 	mc 
+	Support
+	Core
 	${LLVM_TARGETS_TO_BUILD})
 
 revng_add_executable(revng-extractor
@@ -18,5 +20,8 @@ revng_add_executable(revng-extractor
   DwarfExtractor.cpp
   )
 
-target_link_libraries(revng-extractor PRIVATE revngDeclarationsDb ${llvm_extractor_pdb_libs})
+target_link_libraries(revng-extractor
+                      PRIVATE
+					  revngSupport
+					  ${llvm_extractor_pdb_libs})
 
