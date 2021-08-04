@@ -314,10 +314,17 @@ createTile(RegionCFG<NodeT> &Graph,
     Predecessors.push_back(Predecessor);
 
   for (BBNodeT *Predecessor : Predecessors) {
-    auto Edge = extractLabeledEdge(EdgeDescriptor{ Predecessor, Node });
-    ASTDT.deleteEdge(Predecessor, Node);
-    addEdge(EdgeDescriptor{ Predecessor, Tile }, Edge.second);
-    ASTDT.insertEdge(Predecessor, Tile);
+    moveEdgeTarget(EdgeDescriptor{ Predecessor, Node }, Tile);
+
+    // Update the dominator tree used for AST building.
+    using DomUpdate = typename llvm::DominatorTreeBase<BasicBlockNode<NodeT>,
+                                                       false>::UpdateType;
+    const auto Insert = llvm::DominatorTree::Insert;
+    const auto Delete = llvm::DominatorTree::Delete;
+    std::vector<DomUpdate> Updates;
+    Updates.push_back({ Delete, Predecessor, Node });
+    Updates.push_back({ Insert, Predecessor, Tile });
+    ASTDT.applyUpdates(Updates);
   }
 
   // Move all the edges exiting from the postdominator node of the collapsed

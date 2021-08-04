@@ -21,9 +21,8 @@ using Edge = typename BasicBlockNode<NodeT>::EdgeDescriptor;
 
 template<class NodeT>
 inline void moveEdgeTarget(Edge<NodeT> Edge, BasicBlockNode<NodeT> *NewTarget) {
-  auto SuccEdgeWithLabels = Edge.first->extractSuccessorEdge(Edge.second);
+  auto &SuccEdgeWithLabels = Edge.first->getSuccessorEdge(Edge.second);
   SuccEdgeWithLabels.first = NewTarget;
-  Edge.first->addLabeledSuccessor(SuccEdgeWithLabels);
 
   auto PredEdgeWithLabels = Edge.second->extractPredecessorEdge(Edge.first);
   NewTarget->addLabeledPredecessor(PredEdgeWithLabels);
@@ -34,9 +33,8 @@ inline void moveEdgeSource(Edge<NodeT> Edge, BasicBlockNode<NodeT> *NewSource) {
   auto SuccEdgeWithLabels = Edge.first->extractSuccessorEdge(Edge.second);
   NewSource->addLabeledSuccessor(SuccEdgeWithLabels);
 
-  auto PredEdgeWithLabels = Edge.second->extractPredecessorEdge(Edge.first);
+  auto &PredEdgeWithLabels = Edge.second->getPredecessorEdge(Edge.first);
   PredEdgeWithLabels.first = NewSource;
-  Edge.second->addLabeledPredecessor(PredEdgeWithLabels);
 }
 
 template<class BBNodeT>
