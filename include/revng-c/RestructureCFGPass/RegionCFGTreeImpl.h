@@ -240,15 +240,17 @@ inline void RegionCFG<NodeT>::dumpDot(StreamT &S) const {
 
   for (const std::unique_ptr<BasicBlockNode<NodeT>> &BB : BlockNodes) {
     streamNode(S, BB.get());
+    unsigned Counter = 0;
     for (const auto &[Successor, EdgeInfo] : BB->labeled_successors()) {
       unsigned PredID = BB->getID();
       unsigned SuccID = Successor->getID();
       S << "\"" << PredID << "\""
         << " -> \"" << SuccID << "\"";
       if (EdgeInfo.Inlined)
-        S << " [color=purple];\n";
+        S << " [color=purple, label=" << Counter << "];\n";
       else
-        S << " [color=green];\n";
+        S << " [color=green, label=" << Counter << "];\n";
+      Counter++;
     }
   }
   S << "}\n";
