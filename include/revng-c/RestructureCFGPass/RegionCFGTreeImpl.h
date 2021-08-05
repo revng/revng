@@ -142,7 +142,8 @@ inline void copyNeighbors(BBNodeT<NodeT> *Dst, BBNodeT<NodeT> *Src) {
 template<class NodeT>
 inline void RegionCFG<NodeT>::insertBulkNodes(BasicBlockNodeTSet &Nodes,
                                               BasicBlockNodeT *Head,
-                                              BBNodeMap &SubMap) {
+                                              BBNodeMap &SubMap,
+                                              std::set<EdgeDescriptor> &Out) {
   revng_assert(BlockNodes.empty());
 
   for (BasicBlockNodeT *Node : Nodes) {
@@ -157,6 +158,41 @@ inline void RegionCFG<NodeT>::insertBulkNodes(BasicBlockNodeTSet &Nodes,
     // of the New BasicBlockNodes in *this still refer to the BasicBlockNodes in
     // the Parent CFGRegion of Nodes. This will be fixed later by updatePointers
     copyNeighbors<NodeT>(New, Node);
+  }
+
+  // We now create the break nodes, and put in the `SubMap` the correspondence
+  // between each target of the outgoing edges, and the newly created break
+  // nodes. The adjustment of the break target must be handled now and not
+  // postponed in a later stage, in order to avoid losing the ordering of
+  // successors (e.g., then and else, if then goes to a break).
+  // In addition, since multiple break can go to the same successors, we keep a
+  // mapping of successor -> corresponding break, so that we can reuse it.
+  BBNodeMap BreakMap;
+  for (EdgeDescriptor Edge : Out) {
+
+    // Check if we already have a break for each outgoing edge, or create it.
+    BasicBlockNodeT *Break;
+    auto It = BreakMap.find(Edge.second);
+    if (It != BreakMap.end()) {
+      Break = It->second;
+    } else {
+      Break = addBreak();
+      BreakMap[Edge.second] = Break;
+    }
+
+    // Extract from the old predecessor edge the corresponding labels.
+    auto OldPredEdgeWithLabels = Edge.second->getPredecessorEdge(Edge.first);
+    auto &OldEdgeInfo = OldPredEdgeWithLabels.second;
+
+    // We add the old predecessor, so that when `updatePointers` is called it
+    // will adjust the predecessor to the correspondent one found in the
+    // `SubMap`.
+    Break->addLabeledPredecessor(std::make_pair(Edge.first, OldEdgeInfo));
+
+    // We leave to the `updatePointers` helper the task of adding the break as
+    // new target for the exiting node, by inserting specific information in the
+    // `SubMap`.
+    SubMap[Edge.second] = Break;
   }
 
   revng_assert(Head != nullptr);
@@ -190,17 +226,6 @@ RegionCFG<NodeT>::copyNodesAndEdgesFrom(RegionCFGT *O, BBNodeMap &SubMap) {
   for (std::unique_ptr<BasicBlockNode<NodeT>> &NewNode : Result)
     NewNode->updatePointers(SubMap);
   return Result;
-}
-
-template<class NodeT>
-inline void RegionCFG<NodeT>::connectBreakNode(std::set<EdgeDescriptor> &Out,
-                                               const BBNodeMap &SubMap) {
-  for (EdgeDescriptor Edge : Out) {
-    // Create a new break for each outgoing edge.
-    auto *Break = addBreak();
-    auto &EdgeInfo = Edge.first->getSuccessorEdge(Edge.second).second;
-    addEdge<BBNodeT>({ SubMap.at(Edge.first), Break }, EdgeInfo);
-  }
 }
 
 template<class NodeT>

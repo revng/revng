@@ -319,13 +319,11 @@ public:
 
   void insertBulkNodes(BasicBlockNodeTSet &Nodes,
                        BasicBlockNodeT *Head,
-                       BBNodeMap &SubstitutionMap);
+                       BBNodeMap &SubstitutionMap,
+                       std::set<EdgeDescriptor> &Out);
 
   llvm::iterator_range<typename links_container::iterator>
   copyNodesAndEdgesFrom(RegionCFGT *O, BBNodeMap &SubstitutionMap);
-
-  void connectBreakNode(std::set<EdgeDescriptor> &Outgoing,
-                        const BBNodeMap &SubstitutionMap);
 
   void connectContinueNode();
 

@@ -998,13 +998,17 @@ bool RestructureCFG::runOnFunction(Function &F) {
       Backedges.merge(NewBackedges);
     }
 
-    CollapsedGraph.insertBulkNodes(Meta->getNodes(), Head, SubstitutionMap);
+    // Creation and connection of the break node is now performed during the
+    // bulk node insertion, in order to avoid errors in edge ordering.
+    std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
+    CollapsedGraph.insertBulkNodes(Meta->getNodes(),
+                                   Head,
+                                   SubstitutionMap,
+                                   OutgoingEdges);
 
-    // Connect the break and continue nodes with the necessary edges (we create
+    // Connect the the continue nodes with the necessary edges (we create
     // a new break/continue node for each outgoing or retreating edge).
     CollapsedGraph.connectContinueNode();
-    std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
-    CollapsedGraph.connectBreakNode(OutgoingEdges, SubstitutionMap);
 
     // Connect the old incoming edges to the collapsed node.
     std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
