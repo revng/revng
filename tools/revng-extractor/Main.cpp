@@ -4,10 +4,11 @@
 // \brief Dumps call information present in PDB files.
 
 // standard imports
+#include "revng/Support/CommandLine.h"
+
 #include "DwarfExtractor.h"
 #include "InputFile.h"
 #include "StreamManager.h"
-#include "revng/Support/CommandLine.h"
 
 // llvm imports
 #include "llvm/DebugInfo/CodeView/LazyRandomTypeCollection.h"
@@ -79,8 +80,8 @@ int main(int Argc, const char **Argv) {
     if (!IF) {
       handleAllErrors(IF.takeError(), [](const StringError &error) {});
       extractDwarf(Ref, outs(), Db, LibName);
-	  return;
-    } 
+      return;
+    }
     dump(*IF, Db);
   });
 

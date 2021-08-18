@@ -6,8 +6,13 @@
 
 #include <map>
 #include <set>
+#include <type_traits>
+
+#include "llvm/ADT/Twine.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/Debug.h"
 
 namespace model {
 class Type;
@@ -68,15 +73,39 @@ public:
   }
 
 public:
-  bool maybeFail(bool Result) const {
+  bool maybeFail(bool Result) const { return maybeFail(Result, {}); }
+
+  bool maybeFail(bool Result, const llvm::Twine &Reason) const {
     if (AssertOnFail and not Result) {
-      revng_abort();
+      revng_abort(Reason.str().c_str());
+    } else {
+      return Result;
+    }
+  }
+
+  template <typename T>
+  bool maybeFail(bool Result, const llvm::Twine &Reason, T &Element) const {
+    if (AssertOnFail and not Result) {
+      // WIP
+      std::string Buffer;
+      {
+        llvm::raw_string_ostream StringStream(Buffer);
+        serialize(StringStream, const_cast<std::remove_const_t<T> &>(Element));
+      }
+      revng_abort((Reason + "\n" + Buffer).str().c_str());
     } else {
       return Result;
     }
   }
 
   bool fail() const { return maybeFail(false); }
+  bool fail(const llvm::Twine &Reason) const {
+    return maybeFail(false, Reason);
+  }
+
+  template <typename T> bool fail(const llvm::Twine &Reason, T &Element) const {
+    return maybeFail(false, Reason, Element);
+  }
 };
 
 } // namespace model

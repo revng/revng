@@ -118,7 +118,9 @@ void EnforceABIImpl::run() {
     Function *OldFunction = M.getFunction(FunctionModel.name());
     revng_assert(OldFunction != nullptr);
     OldFunctions.push_back(OldFunction);
+
     Function *NewFunction = handleFunction(*OldFunction, FunctionModel);
+
     FunctionsMap[NewFunction] = &FunctionModel;
     OldToNew[OldFunction] = NewFunction;
   }

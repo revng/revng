@@ -4,9 +4,9 @@
 // \brief Handles the stream of symbols in a pdb object
 //
 // revng includes
-#include "StreamManager.h"
 #include "InputFile.h"
 #include "ParametersExtractor.h"
+#include "StreamManager.h"
 
 // llvm includes
 #include "llvm/DebugInfo/CodeView/CVSymbolVisitor.h"

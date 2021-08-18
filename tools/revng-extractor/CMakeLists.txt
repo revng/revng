@@ -23,5 +23,6 @@ revng_add_executable(revng-extractor
 target_link_libraries(revng-extractor
                       PRIVATE
 					  revngSupport
+					  revngModel
 					  ${llvm_extractor_pdb_libs})
 

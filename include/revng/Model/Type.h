@@ -47,8 +47,7 @@ class ABILocation;
 
 } // end namespace model
 
-template<typename T>
-using Fields = typename TupleLikeTraits<T>::Fields;
+template <typename T> using Fields = typename TupleLikeTraits<T>::Fields;
 
 namespace model {
 
@@ -103,19 +102,18 @@ public:
 } // namespace model
 
 /// \brief KeyedObjectTraits for std::string based on its value
-template<>
+template <>
 struct KeyedObjectTraits<model::Identifier>
-  : public IdentityKeyedObjectTraits<model::Identifier> {};
+    : public IdentityKeyedObjectTraits<model::Identifier> {};
 
-template<>
-struct llvm::yaml::ScalarTraits<model::Identifier> {
-  static void
-  output(const model::Identifier &Value, void *, llvm::raw_ostream &Output) {
+template <> struct llvm::yaml::ScalarTraits<model::Identifier> {
+  static void output(const model::Identifier &Value, void *,
+                     llvm::raw_ostream &Output) {
     Output << Value;
   }
 
-  static StringRef
-  input(llvm::StringRef Scalar, void *, model::Identifier &Value) {
+  static StringRef input(llvm::StringRef Scalar, void *,
+                         model::Identifier &Value) {
     Value = model::Identifier(Scalar);
     return StringRef();
   }
@@ -168,9 +166,9 @@ namespace llvm::yaml {
 
 // Make model::TypeKind yaml-serializable, required for making model::Type
 // yaml-serializable as well
-template<>
+template <>
 struct ScalarEnumerationTraits<model::TypeKind::Values> {
-  template<typename IOType>
+  template <typename IOType>
   static void enumeration(IOType &IO, model::TypeKind::Values &Val) {
     using namespace model::TypeKind;
     for (unsigned I = 0; I < Count; ++I) {
@@ -222,9 +220,9 @@ namespace llvm::yaml {
 
 // Make model::QualifierKind::Values yaml-serializable, required for making
 // model::Qualifier yaml-serializable as well
-template<>
+template <>
 struct ScalarEnumerationTraits<model::QualifierKind::Values> {
-  template<typename IOType>
+  template <typename IOType>
   static void enumeration(IOType &IO, model::QualifierKind::Values &Val) {
     using namespace model::QualifierKind;
     for (unsigned I = 0; I < Count; ++I) {
@@ -237,30 +235,22 @@ struct ScalarEnumerationTraits<model::QualifierKind::Values> {
 } // namespace llvm::yaml
 
 // Make model::Type derived types usable with UpcastablePointer
-template<>
-struct concrete_types_traits<model::Type> {
-  using type = std::tuple<model::PrimitiveType,
-                          model::EnumType,
-                          model::TypedefType,
-                          model::StructType,
-                          model::UnionType,
-                          model::CABIFunctionType,
-                          model::RawFunctionType>;
+template <> struct concrete_types_traits<model::Type> {
+  using type =
+      std::tuple<model::PrimitiveType, model::EnumType, model::TypedefType,
+                 model::StructType, model::UnionType, model::CABIFunctionType,
+                 model::RawFunctionType>;
 };
 
-template<>
-struct concrete_types_traits<const model::Type> {
-  using type = std::tuple<const model::PrimitiveType,
-                          const model::EnumType,
-                          const model::TypedefType,
-                          const model::StructType,
-                          const model::UnionType,
-                          const model::CABIFunctionType,
+template <> struct concrete_types_traits<const model::Type> {
+  using type = std::tuple<const model::PrimitiveType, const model::EnumType,
+                          const model::TypedefType, const model::StructType,
+                          const model::UnionType, const model::CABIFunctionType,
                           const model::RawFunctionType>;
 };
 
 /// \brief Concept to identify all types that are derived from model::Type
-template<typename T>
+template <typename T>
 concept IsModelType = std::is_base_of_v<model::Type, T>;
 
 /// \brief Base class of model types used for LLVM-style RTTI
@@ -275,7 +265,7 @@ public:
 public:
   static bool classof(const Type *T) { return false; }
 
-  Key key() const { return Key{ Kind, ID }; }
+  Key key() const { return Key{Kind, ID}; }
 
   Identifier name() const;
 
@@ -303,9 +293,9 @@ protected:
 
 INTROSPECTION_NS(model, Type, Kind, ID);
 
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::Type>
-  : public TupleLikeMappingTraits<model::Type> {};
+    : public TupleLikeMappingTraits<model::Type> {};
 
 static_assert(Yamlizable<model::Type>);
 
@@ -313,19 +303,18 @@ namespace model {
 
 using UpcastableType = UpcastablePointer<model::Type>;
 
-template<size_t I = 0>
-inline model::UpcastableType
-makeTypeWithID(model::TypeKind::Values Kind, uint64_t ID);
+template <size_t I = 0>
+inline model::UpcastableType makeTypeWithID(model::TypeKind::Values Kind,
+                                            uint64_t ID);
 
 } // end namespace model
 
-template<>
+template <>
 struct llvm::yaml::ScalarTraits<model::Type::Key>
-  : CompositeScalar<model::Type::Key, '-'> {};
+    : CompositeScalar<model::Type::Key, '-'> {};
 
 // Make UpcastablePointers to model types usable in KeyedObject containers
-template<>
-struct KeyedObjectTraits<model::UpcastableType> {
+template <> struct KeyedObjectTraits<model::UpcastableType> {
   static model::Type::Key key(const model::UpcastableType &Val) {
     return Val->key();
   }
@@ -335,9 +324,9 @@ struct KeyedObjectTraits<model::UpcastableType> {
 };
 
 /// \brief Make UpcastableType yaml-serializable polymorphically
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::UpcastableType>
-  : public PolymorphicMappingTraits<model::UpcastableType> {};
+    : public PolymorphicMappingTraits<model::UpcastableType> {};
 
 /// \brief A qualifier for a model::Type
 class model::Qualifier {
@@ -353,15 +342,13 @@ public:
   bool verify(VerifyHelper &VH) const;
 
 public:
-  static Qualifier createConst() { return { QualifierKind::Const, 0 }; }
+  static Qualifier createConst() { return {QualifierKind::Const, 0}; }
 
   static Qualifier createPointer(uint64_t Size) {
-    return { QualifierKind::Pointer, Size };
+    return {QualifierKind::Pointer, Size};
   }
 
-  static Qualifier createArray(uint64_t S) {
-    return { QualifierKind::Array, S };
-  }
+  static Qualifier createArray(uint64_t S) { return {QualifierKind::Array, S}; }
 
 public:
   bool isConstQualifier() const {
@@ -384,10 +371,10 @@ public:
 INTROSPECTION_NS(model, Qualifier, Kind, Size);
 
 /// \brief Make Qualifier yaml-serializable
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::Qualifier>
-  : public TupleLikeMappingTraits<model::Qualifier,
-                                  Fields<model::Qualifier>::Size> {};
+    : public TupleLikeMappingTraits<model::Qualifier,
+                                    Fields<model::Qualifier>::Size> {};
 
 // Make std::vector<model::Qualifier> yaml-serializable as a sequence
 LLVM_YAML_IS_SEQUENCE_VECTOR(model::Qualifier)
@@ -419,10 +406,11 @@ public:
 INTROSPECTION_NS(model, QualifiedType, UnqualifiedType, Qualifiers);
 
 /// \brief Make QualifiedType yaml-serializable
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::QualifiedType>
-  : public TupleLikeMappingTraits<model::QualifiedType,
-                                  Fields<model::QualifiedType>::Qualifiers> {};
+    : public TupleLikeMappingTraits<model::QualifiedType,
+                                    Fields<model::QualifiedType>::Qualifiers> {
+};
 
 namespace model::PrimitiveTypeKind {
 
@@ -469,9 +457,9 @@ inline llvm::StringRef getName(Values V) {
 namespace llvm::yaml {
 
 // Make model::PrimitiveTypeKind::Values yaml-serializable
-template<>
+template <>
 struct ScalarEnumerationTraits<model::PrimitiveTypeKind::Values> {
-  template<typename IOType>
+  template <typename IOType>
   static void enumeration(IOType &IO, model::PrimitiveTypeKind::Values &Val) {
     using namespace model::PrimitiveTypeKind;
     for (unsigned I = 0; I < Count; ++I) {
@@ -516,9 +504,9 @@ public:
 };
 INTROSPECTION_NS(model, PrimitiveType, Kind, ID, PrimitiveKind, Size);
 
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::PrimitiveType>
-  : public TupleLikeMappingTraits<model::PrimitiveType> {};
+    : public TupleLikeMappingTraits<model::PrimitiveType> {};
 
 /// \brief An entry in a model enum, with a name and a value.
 class model::EnumEntry {
@@ -543,19 +531,18 @@ public:
 INTROSPECTION_NS(model, EnumEntry, Value, CustomName, Aliases);
 
 /// \brief KeyedObjectTraits for model::EnumEntry based on its value
-template<>
-struct KeyedObjectTraits<model::EnumEntry> {
+template <> struct KeyedObjectTraits<model::EnumEntry> {
 
   static uint64_t key(const model::EnumEntry &E) { return E.Value; }
 
-  static model::EnumEntry fromKey(uint64_t V) { return model::EnumEntry{ V }; }
+  static model::EnumEntry fromKey(uint64_t V) { return model::EnumEntry{V}; }
 };
 
 /// \brief Make EnumEntry yaml-serializable
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::EnumEntry>
-  : public TupleLikeMappingTraits<model::EnumEntry,
-                                  Fields<model::EnumEntry>::CustomName> {};
+    : public TupleLikeMappingTraits<model::EnumEntry,
+                                    Fields<model::EnumEntry>::CustomName> {};
 
 /// \brief An enum type in model. Enums are actually typedefs of unnamed
 /// enums.
@@ -583,18 +570,13 @@ public:
   static bool classof(const Type *T) { return T->Kind == TypeKind::Enum; }
   bool operator==(const EnumType &Other) const = default;
 };
-INTROSPECTION_NS(model,
-                 EnumType,
-                 Kind,
-                 ID,
-                 CustomName,
-                 UnderlyingType,
+INTROSPECTION_NS(model, EnumType, Kind, ID, CustomName, UnderlyingType,
                  Entries);
 
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::EnumType>
-  : public TupleLikeMappingTraits<model::EnumType,
-                                  Fields<model::EnumType>::CustomName> {};
+    : public TupleLikeMappingTraits<model::EnumType,
+                                    Fields<model::EnumType>::CustomName> {};
 
 /// \brief A typedef type in model.
 class model::TypedefType : public model::Type {
@@ -618,10 +600,10 @@ public:
 };
 INTROSPECTION_NS(model, TypedefType, Kind, ID, CustomName, UnderlyingType);
 
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::TypedefType>
-  : public TupleLikeMappingTraits<model::TypedefType,
-                                  Fields<model::TypedefType>::CustomName> {};
+    : public TupleLikeMappingTraits<model::TypedefType,
+                                    Fields<model::TypedefType>::CustomName> {};
 
 /// \brief A field of an aggregate type in model, with qualified type and name
 class model::AggregateField {
@@ -658,8 +640,7 @@ INTROSPECTION_NS(model, StructField, CustomName, Type, Offset);
 
 /// \brief KeyedObjectTraits for model::StructType based on its byte-offset in
 /// struct
-template<>
-struct KeyedObjectTraits<model::StructField> {
+template <> struct KeyedObjectTraits<model::StructField> {
 
   static uint64_t key(const model::StructField &Val) { return Val.Offset; }
 
@@ -669,10 +650,10 @@ struct KeyedObjectTraits<model::StructField> {
 };
 
 /// \brief Make StructField yaml-serializable
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::StructField>
-  : public TupleLikeMappingTraits<model::StructField,
-                                  Fields<model::StructField>::CustomName> {};
+    : public TupleLikeMappingTraits<model::StructField,
+                                    Fields<model::StructField>::CustomName> {};
 
 /// \brief A struct type in model. Structs are actually typedefs of unnamed
 /// structs in C.
@@ -699,10 +680,12 @@ public:
 };
 INTROSPECTION_NS(model, StructType, Kind, ID, CustomName, Fields, Size);
 
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::StructType>
-  : public TupleLikeMappingTraits<model::StructType,
-                                  Fields<model::StructType>::CustomName> {};
+    : public TupleLikeMappingTraits<model::StructType,
+                                    Fields<model::StructType>::CustomName> {};
+
+static_assert(Yamlizable<model::StructType>);
 
 /// \brief A field of a union type in model, with position, qualified type, and
 /// name
@@ -723,8 +706,7 @@ INTROSPECTION_NS(model, UnionField, CustomName, Type, Index);
 
 /// \brief KeyedObjectTraits for model::UnionField based on its position in the
 /// union
-template<>
-struct KeyedObjectTraits<model::UnionField> {
+template <> struct KeyedObjectTraits<model::UnionField> {
 
   static uint64_t key(const model::UnionField &Val) { return Val.Index; }
 
@@ -734,10 +716,10 @@ struct KeyedObjectTraits<model::UnionField> {
 };
 
 /// \brief Make UnionField yaml-serializable
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::UnionField>
-  : public TupleLikeMappingTraits<model::UnionField,
-                                  Fields<model::UnionField>::CustomName> {};
+    : public TupleLikeMappingTraits<model::UnionField,
+                                    Fields<model::UnionField>::CustomName> {};
 
 /// \brief A union type in model. Unions are actually typedefs of unnamed
 /// unions in C.
@@ -762,10 +744,10 @@ public:
 };
 INTROSPECTION_NS(model, UnionType, Kind, ID, CustomName, Fields);
 
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::UnionType>
-  : public TupleLikeMappingTraits<model::UnionType,
-                                  Fields<model::UnionType>::CustomName> {};
+    : public TupleLikeMappingTraits<model::UnionType,
+                                    Fields<model::UnionType>::CustomName> {};
 
 /// \brief
 class model::TypedRegister {
@@ -787,8 +769,7 @@ public:
 };
 INTROSPECTION_NS(model, TypedRegister, Location, Type);
 
-template<>
-struct KeyedObjectTraits<model::TypedRegister> {
+template <> struct KeyedObjectTraits<model::TypedRegister> {
   static model::Register::Values key(const model::TypedRegister &Obj) {
     return Obj.Location;
   }
@@ -798,9 +779,9 @@ struct KeyedObjectTraits<model::TypedRegister> {
   }
 };
 
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::TypedRegister>
-  : public TupleLikeMappingTraits<model::TypedRegister> {};
+    : public TupleLikeMappingTraits<model::TypedRegister> {};
 
 /// \brief
 class model::NamedTypedRegister : public TypedRegister {
@@ -821,8 +802,7 @@ public:
 };
 INTROSPECTION_NS(model, NamedTypedRegister, Location, Type, CustomName);
 
-template<>
-struct KeyedObjectTraits<model::NamedTypedRegister> {
+template <> struct KeyedObjectTraits<model::NamedTypedRegister> {
   static model::Register::Values key(const model::NamedTypedRegister &Obj) {
     return Obj.Location;
   }
@@ -835,9 +815,10 @@ struct KeyedObjectTraits<model::NamedTypedRegister> {
 
 constexpr auto NTRCustomName = Fields<model::NamedTypedRegister>::CustomName;
 
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::NamedTypedRegister>
-  : public TupleLikeMappingTraits<model::NamedTypedRegister, NTRCustomName> {};
+    : public TupleLikeMappingTraits<model::NamedTypedRegister, NTRCustomName> {
+};
 
 class model::RawFunctionType : public model::Type {
 public:
@@ -863,23 +844,16 @@ public:
     return T->Kind == TypeKind::RawFunctionType;
   }
 };
-INTROSPECTION_NS(model,
-                 RawFunctionType,
-                 Kind,
-                 ID,
-                 CustomName,
-                 Arguments,
-                 ReturnValues,
-                 PreservedRegisters,
-                 FinalStackOffset);
+INTROSPECTION_NS(model, RawFunctionType, Kind, ID, CustomName, Arguments,
+                 ReturnValues, PreservedRegisters, FinalStackOffset);
 
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::RawFunctionType>
-  : public TupleLikeMappingTraits<model::RawFunctionType,
-                                  Fields<model::RawFunctionType>::CustomName> {
+    : public TupleLikeMappingTraits<
+          model::RawFunctionType, Fields<model::RawFunctionType>::CustomName> {
 };
 
-template<typename K, typename V>
+template <typename K, typename V>
 V getOrDefault(const std::map<K, V> &Map, const K &Key, const V &Default) {
   auto It = Map.find(Key);
   if (It == Map.end())
@@ -948,8 +922,7 @@ public:
 INTROSPECTION_NS(model, Argument, Index, Type, CustomName);
 
 /// \brief KeyedObjectTraits for model::Argument based on its position
-template<>
-struct KeyedObjectTraits<model::Argument> {
+template <> struct KeyedObjectTraits<model::Argument> {
 
   static uint64_t key(const model::Argument &Val) { return Val.Index; }
 
@@ -959,10 +932,10 @@ struct KeyedObjectTraits<model::Argument> {
 };
 
 /// \brief Make Argument yaml-serializable
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::Argument>
-  : public TupleLikeMappingTraits<model::Argument,
-                                  Fields<model::Argument>::CustomName> {};
+    : public TupleLikeMappingTraits<model::Argument,
+                                    Fields<model::Argument>::CustomName> {};
 
 /// \brief The function type described through a C-like prototype plus an ABI
 ///
@@ -995,26 +968,20 @@ public:
     return T->Kind == TypeKind::CABIFunctionType;
   }
 };
-INTROSPECTION_NS(model,
-                 CABIFunctionType,
-                 Kind,
-                 ID,
-                 CustomName,
-                 ABI,
-                 ReturnType,
+INTROSPECTION_NS(model, CABIFunctionType, Kind, ID, CustomName, ABI, ReturnType,
                  Arguments);
 
-template<>
+template <>
 struct llvm::yaml::MappingTraits<model::CABIFunctionType>
-  : public TupleLikeMappingTraits<model::CABIFunctionType,
-                                  Fields<model::CABIFunctionType>::CustomName> {
-};
+    : public TupleLikeMappingTraits<
+          model::CABIFunctionType,
+          Fields<model::CABIFunctionType>::CustomName> {};
 
 namespace model {
 
-template<size_t I>
-inline model::UpcastableType
-makeTypeWithID(model::TypeKind::Values K, uint64_t ID) {
+template <size_t I>
+inline model::UpcastableType makeTypeWithID(model::TypeKind::Values K,
+                                            uint64_t ID) {
   using concrete_types = concrete_types_traits_t<model::Type>;
   if constexpr (I < std::tuple_size_v<concrete_types>) {
     using type = std::tuple_element_t<I, concrete_types>;
@@ -1036,7 +1003,7 @@ static_assert(validateTupleTree<model::TypesSet>(IsYamlizable),
 
 namespace model {
 
-template<IsModelType T, typename... Args>
+template <IsModelType T, typename... Args>
 inline UpcastableType makeType(Args &&...A) {
   return UpcastableType::make<T>(std::forward<Args>(A)...);
 }

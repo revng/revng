@@ -28,13 +28,11 @@
 #include "revng/Support/Generator.h"
 #include "revng/Support/MetaAddress.h"
 
-template<typename T>
-inline bool contains(T Range, typename T::value_type V) {
+template <typename T> inline bool contains(T Range, typename T::value_type V) {
   return std::find(std::begin(Range), std::end(Range), V) != std::end(Range);
 }
 
-template<class T>
-inline void freeContainer(T &Container) {
+template <class T> inline void freeContainer(T &Container) {
   T Empty;
   Empty.swap(Container);
 }
@@ -59,8 +57,8 @@ inline void purgeBranch(llvm::BasicBlock::iterator I) {
       BB->eraseFromParent();
 }
 
-inline llvm::ConstantInt *
-getConstValue(llvm::Constant *C, const llvm::DataLayout &DL) {
+inline llvm::ConstantInt *getConstValue(llvm::Constant *C,
+                                        const llvm::DataLayout &DL) {
   while (auto *Expr = llvm::dyn_cast<llvm::ConstantExpr>(C)) {
     C = ConstantFoldConstant(Expr, DL);
 
@@ -86,8 +84,8 @@ inline uint64_t getZExtValue(llvm::Constant *C, const llvm::DataLayout &DL) {
   return getConstValue(C, DL)->getZExtValue();
 }
 
-inline uint64_t
-getExtValue(llvm::Constant *C, bool Sign, const llvm::DataLayout &DL) {
+inline uint64_t getExtValue(llvm::Constant *C, bool Sign,
+                            const llvm::DataLayout &DL) {
   if (Sign)
     return getSExtValue(C, DL);
   else
@@ -102,12 +100,12 @@ inline uint64_t getSignedLimitedValue(const llvm::Value *V) {
   return llvm::cast<llvm::ConstantInt>(V)->getSExtValue();
 }
 
-template<typename T, unsigned I>
+template <typename T, unsigned I>
 inline bool findOperand(llvm::Value *Op, T &Result) {
   return false;
 }
 
-template<typename T, unsigned I, typename Head, typename... Tail>
+template <typename T, unsigned I, typename Head, typename... Tail>
 inline bool findOperand(llvm::Value *Op, T &Result) {
   using VT = typename std::remove_pointer<Head>::type;
   if (auto *Casted = llvm::dyn_cast<VT>(Op)) {
@@ -121,8 +119,7 @@ inline bool findOperand(llvm::Value *Op, T &Result) {
 /// \brief Return a tuple of \p V's operands of the requested types
 /// \return a tuple with the operands of the specified type in the specified
 ///         order, or, if not possible, a nullptr tuple.
-template<typename... T>
-inline std::tuple<T...> operandsByType(llvm::User *V) {
+template <typename... T> inline std::tuple<T...> operandsByType(llvm::User *V) {
   std::tuple<T...> Result;
   unsigned OpCount = V->getNumOperands();
   revng_assert(OpCount == sizeof...(T));
@@ -136,15 +133,15 @@ inline std::tuple<T...> operandsByType(llvm::User *V) {
 
 /// \brief Checks the instruction type and its operands
 /// \return the instruction casted to I, or nullptr if not possible.
-template<typename I, typename F, typename S>
+template <typename I, typename F, typename S>
 inline I *isa_with_op(llvm::Instruction *Inst) {
   if (auto *Casted = llvm::dyn_cast<I>(Inst)) {
     revng_assert(Casted->getNumOperands() == 2);
-    if (llvm::isa<F>(Casted->getOperand(0))
-        && llvm::isa<S>(Casted->getOperand(1))) {
+    if (llvm::isa<F>(Casted->getOperand(0)) &&
+        llvm::isa<S>(Casted->getOperand(1))) {
       return Casted;
-    } else if (llvm::isa<F>(Casted->getOperand(0))
-               && llvm::isa<S>(Casted->getOperand(1))) {
+    } else if (llvm::isa<F>(Casted->getOperand(0)) &&
+               llvm::isa<S>(Casted->getOperand(1))) {
       revng_assert(Casted->isCommutative());
       Casted->swapOperands();
       return Casted;
@@ -154,8 +151,7 @@ inline I *isa_with_op(llvm::Instruction *Inst) {
   return nullptr;
 }
 
-template<typename C>
-struct BlackListTraitBase {
+template <typename C> struct BlackListTraitBase {
   BlackListTraitBase(C Obj) : Obj(Obj) {}
 
 protected:
@@ -163,37 +159,36 @@ protected:
 };
 
 /// \brief Trait to wrap an object of type C that can act as a blacklist for B
-template<typename C, typename B>
+template <typename C, typename B>
 struct BlackListTrait : BlackListTraitBase<C> {};
 
 class NullBlackList {};
 
-template<typename B>
+template <typename B>
 struct BlackListTrait<const NullBlackList &, B>
-  : BlackListTraitBase<const NullBlackList &> {
+    : BlackListTraitBase<const NullBlackList &> {
   using BlackListTraitBase<const NullBlackList &>::BlackListTraitBase;
   bool isBlacklisted(B Value) const { return false; }
 };
 
-template<typename C>
-struct BlackListTrait<C, C> : BlackListTraitBase<C> {
+template <typename C> struct BlackListTrait<C, C> : BlackListTraitBase<C> {
   using BlackListTraitBase<C>::BlackListTraitBase;
   bool isBlacklisted(C Value) const { return Value == this->Obj; }
 };
 
-template<typename B>
+template <typename B>
 struct BlackListTrait<const std::set<B> &, B>
-  : BlackListTraitBase<const std::set<B> &> {
+    : BlackListTraitBase<const std::set<B> &> {
   using BlackListTraitBase<const std::set<B> &>::BlackListTraitBase;
   bool isBlacklisted(B Value) const { return this->Obj.count(Value) != 0; }
 };
 
-template<typename B, typename C>
+template <typename B, typename C>
 inline BlackListTrait<C, B> make_blacklist(C Obj) {
   return BlackListTrait<C, B>(Obj);
 }
 
-template<typename B>
+template <typename B>
 inline BlackListTrait<const std::set<B> &, B>
 make_blacklist(const std::set<B> &Obj) {
   return BlackListTrait<const std::set<B> &, B>(Obj);
@@ -202,21 +197,19 @@ make_blacklist(const std::set<B> &Obj) {
 /// \brief Possible way to continue (or stop) exploration in a breadth-first
 ///        visit
 enum VisitAction {
-  Continue, ///< Visit also the successor basic blocks
-  NoSuccessors, ///< Do not visit the successors of this basic block
+  Continue,            ///< Visit also the successor basic blocks
+  NoSuccessors,        ///< Do not visit the successors of this basic block
   ExhaustQueueAndStop, ///< Prevent adding visiting other basic blocks except
                        ///  those already pending
-  StopNow ///< Interrupt immediately the visit
+  StopNow              ///< Interrupt immediately the visit
 };
 
 using BasicBlockRange = llvm::iterator_range<llvm::BasicBlock::iterator>;
 using VisitorFunction = std::function<VisitAction(BasicBlockRange)>;
 
-template<bool Forward>
-struct IteratorDirection {};
+template <bool Forward> struct IteratorDirection {};
 
-template<>
-struct IteratorDirection<true> {
+template <> struct IteratorDirection<true> {
 
   static llvm::BasicBlock::iterator iterator(llvm::Instruction *I) {
     return ++llvm::BasicBlock::iterator(I);
@@ -231,8 +224,7 @@ struct IteratorDirection<true> {
   }
 };
 
-template<>
-struct IteratorDirection<false> {
+template <> struct IteratorDirection<false> {
 
   static llvm::BasicBlock::reverse_iterator iterator(llvm::Instruction *I) {
     return llvm::BasicBlock::reverse_iterator(++I->getReverseIterator());
@@ -247,17 +239,16 @@ struct IteratorDirection<false> {
   }
 };
 
-template<bool Forward, typename Derived, typename SuccessorsRange>
+template <bool Forward, typename Derived, typename SuccessorsRange>
 struct BFSVisitorBase {
 public:
   using BasicBlock = llvm::BasicBlock;
   using forward_iterator = BasicBlock::iterator;
   using backward_iterator = BasicBlock::reverse_iterator;
-  template<bool C, typename A, typename B>
+  template <bool C, typename A, typename B>
   using conditional_t = std::conditional_t<C, A, B>;
-  using instruction_iterator = conditional_t<Forward,
-                                             forward_iterator,
-                                             backward_iterator>;
+  using instruction_iterator =
+      conditional_t<Forward, forward_iterator, backward_iterator>;
   using instruction_range = llvm::iterator_range<instruction_iterator>;
 
   void run(llvm::Instruction *I) {
@@ -271,11 +262,11 @@ public:
       It--;
 
     struct WorkItem {
-      WorkItem(BasicBlock *BB, instruction_iterator Start) :
-        BB(BB), Range(make_range(Start, ID::end(BB))) {}
+      WorkItem(BasicBlock *BB, instruction_iterator Start)
+          : BB(BB), Range(make_range(Start, ID::end(BB))) {}
 
-      WorkItem(BasicBlock *BB) :
-        BB(BB), Range(make_range(ID::begin(BB), ID::end(BB))) {}
+      WorkItem(BasicBlock *BB)
+          : BB(BB), Range(make_range(ID::begin(BB), ID::end(BB))) {}
 
       BasicBlock *BB;
       instruction_range Range;
@@ -315,22 +306,20 @@ public:
   }
 };
 
-template<typename Derived>
+template <typename Derived>
 struct BackwardBFSVisitor
-  : public BFSVisitorBase<false,
-                          Derived,
-                          llvm::iterator_range<llvm::pred_iterator>> {
+    : public BFSVisitorBase<false, Derived,
+                            llvm::iterator_range<llvm::pred_iterator>> {
 
   llvm::iterator_range<llvm::pred_iterator> successors(llvm::BasicBlock *BB) {
     return llvm::make_range(pred_begin(BB), pred_end(BB));
   }
 };
 
-template<typename Derived>
+template <typename Derived>
 struct ForwardBFSVisitor
-  : public BFSVisitorBase<true,
-                          Derived,
-                          llvm::iterator_range<llvm::succ_iterator>> {
+    : public BFSVisitorBase<true, Derived,
+                            llvm::iterator_range<llvm::succ_iterator>> {
 
   llvm::iterator_range<llvm::succ_iterator> successors(llvm::BasicBlock *BB) {
     return llvm::make_range(succ_begin(BB), succ_end(BB));
@@ -369,9 +358,8 @@ inline std::string getName(const llvm::Instruction *I) {
   if (!Result.empty()) {
     return Result.str();
   } else if (const llvm::BasicBlock *Parent = I->getParent()) {
-    return getName(Parent) + ":"
-           + std::to_string(1
-                            + std::distance(Parent->begin(), I->getIterator()));
+    return getName(Parent) + ":" +
+           std::to_string(1 + std::distance(Parent->begin(), I->getIterator()));
   } else {
     std::stringstream SS;
     SS << "0x" << std::hex << intptr_t(I);
@@ -445,12 +433,12 @@ inline llvm::BasicBlock *blockByName(llvm::Function *F, const char *Name) {
   return nullptr;
 }
 
-template<typename T>
-concept DerivedFromLLVMValue = std::is_base_of_v<llvm::Value,
-                                                 std::remove_const_t<T>>;
+template <typename T>
+concept DerivedFromLLVMValue =
+    std::is_base_of_v<llvm::Value, std::remove_const_t<T>>;
 
 /// \brief Specialization of writeToLog for llvm::Value-derived types
-template<DerivedFromLLVMValue T>
+template <DerivedFromLLVMValue T>
 inline void writeToLog(Logger<true> &This, T *I, int) {
   if (I != nullptr)
     This << getName(I);
@@ -534,10 +522,9 @@ inline llvm::Module *getModule(llvm::Value *I) {
 /// \brief Helper class to easily create and use LLVM metadata
 class QuickMetadata {
 public:
-  QuickMetadata(llvm::LLVMContext &Context) :
-    C(Context),
-    Int32Ty(llvm::IntegerType::get(C, 32)),
-    Int64Ty(llvm::IntegerType::get(C, 64)) {}
+  QuickMetadata(llvm::LLVMContext &Context)
+      : C(Context), Int32Ty(llvm::IntegerType::get(C, 32)),
+        Int64Ty(llvm::IntegerType::get(C, 64)) {}
 
   llvm::MDString *get(const char *String) {
     return llvm::MDString::get(C, String);
@@ -581,20 +568,13 @@ public:
 
   llvm::MDTuple *tuple() { return llvm::MDTuple::get(C, {}); }
 
-  template<typename T>
-  T extract(const llvm::MDTuple *Tuple, unsigned Index) {
+  template <typename T> T extract(const llvm::MDTuple *Tuple, unsigned Index) {
     return extract<T>(Tuple->getOperand(Index).get());
   }
 
-  template<typename T>
-  T extract(const llvm::Metadata *MD) {
-    revng_abort();
-  }
+  template <typename T> T extract(const llvm::Metadata *MD) { revng_abort(); }
 
-  template<typename T>
-  T extract(llvm::Metadata *MD) {
-    revng_abort();
-  }
+  template <typename T> T extract(llvm::Metadata *MD) { revng_abort(); }
 
 private:
   llvm::LLVMContext &C;
@@ -602,83 +582,83 @@ private:
   llvm::IntegerType *Int64Ty;
 };
 
-template<>
+template <>
 inline llvm::MDTuple *
 QuickMetadata::extract<llvm::MDTuple *>(llvm::Metadata *MD) {
   return llvm::cast<llvm::MDTuple>(MD);
 }
 
-template<>
+template <>
 inline llvm::Constant *
 QuickMetadata::extract<llvm::Constant *>(const llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return C->getValue();
 }
 
-template<>
+template <>
 inline llvm::Constant *
 QuickMetadata::extract<llvm::Constant *>(llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return C->getValue();
 }
 
-template<>
+template <>
 inline llvm::ConstantInt *
 QuickMetadata::extract<llvm::ConstantInt *>(const llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return llvm::cast<llvm::ConstantInt>(C->getValue());
 }
 
-template<>
+template <>
 inline llvm::ConstantInt *
-QuickMetadata:: extract<llvm::ConstantInt *>(llvm::Metadata *MD) {
+QuickMetadata::extract<llvm::ConstantInt *>(llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return llvm::cast<llvm::ConstantInt>(C->getValue());
 }
 
-template<>
+template <>
 inline uint32_t QuickMetadata::extract<uint32_t>(const llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return getLimitedValue(C->getValue());
 }
 
-template<>
+template <>
 inline uint32_t QuickMetadata::extract<uint32_t>(llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return getLimitedValue(C->getValue());
 }
 
-template<>
+template <>
 inline uint64_t QuickMetadata::extract<uint64_t>(const llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return getLimitedValue(C->getValue());
 }
 
-template<>
+template <>
 inline uint64_t QuickMetadata::extract<uint64_t>(llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return getLimitedValue(C->getValue());
 }
 
-template<>
+template <>
 inline llvm::StringRef
 QuickMetadata::extract<llvm::StringRef>(const llvm::Metadata *MD) {
   return llvm::cast<llvm::MDString>(MD)->getString();
 }
 
-template<>
+template <>
 inline llvm::StringRef
 QuickMetadata::extract<llvm::StringRef>(llvm::Metadata *MD) {
   return llvm::cast<llvm::MDString>(MD)->getString();
 }
 
-template<>
+template <>
 inline const llvm::MDString *
 QuickMetadata::extract<const llvm::MDString *>(const llvm::Metadata *MD) {
   return llvm::cast<llvm::MDString>(MD);
 }
 
-template<>
+template <>
 inline llvm::MDString *
 QuickMetadata::extract<llvm::MDString *>(llvm::Metadata *MD) {
   return llvm::cast<llvm::MDString>(MD);
@@ -707,25 +687,24 @@ inline llvm::Instruction *getNext(llvm::Instruction *I) {
 
 /// \brief Check whether the instruction/basic block is the first in its
 ///        container or not
-template<typename T>
-inline bool isFirst(T *I) {
+template <typename T> inline bool isFirst(T *I) {
   revng_assert(I != nullptr);
   return I == &*I->getParent()->begin();
 }
 
 static std::array<unsigned, 3> CastOpcodes = {
-  llvm::Instruction::BitCast,
-  llvm::Instruction::PtrToInt,
-  llvm::Instruction::IntToPtr,
+    llvm::Instruction::BitCast,
+    llvm::Instruction::PtrToInt,
+    llvm::Instruction::IntToPtr,
 };
 
 // \brief If \p V is a cast Instruction or a cast ConstantExpr, return its only
 //        operand (recursively)
 inline const llvm::Value *skipCasts(const llvm::Value *V) {
   using namespace llvm;
-  while (isa<CastInst>(V) or isa<IntToPtrInst>(V) or isa<PtrToIntInst>(V)
-         or (isa<ConstantExpr>(V)
-             and contains(CastOpcodes, cast<ConstantExpr>(V)->getOpcode())))
+  while (isa<CastInst>(V) or isa<IntToPtrInst>(V) or isa<PtrToIntInst>(V) or
+         (isa<ConstantExpr>(V) and
+          contains(CastOpcodes, cast<ConstantExpr>(V)->getOpcode())))
     V = cast<User>(V)->getOperand(0);
   return V;
 }
@@ -734,9 +713,9 @@ inline const llvm::Value *skipCasts(const llvm::Value *V) {
 //        operand (recursively)
 inline llvm::Value *skipCasts(llvm::Value *V) {
   using namespace llvm;
-  while (isa<CastInst>(V) or isa<IntToPtrInst>(V) or isa<PtrToIntInst>(V)
-         or (isa<ConstantExpr>(V)
-             and contains(CastOpcodes, cast<ConstantExpr>(V)->getOpcode())))
+  while (isa<CastInst>(V) or isa<IntToPtrInst>(V) or isa<PtrToIntInst>(V) or
+         (isa<ConstantExpr>(V) and
+          contains(CastOpcodes, cast<ConstantExpr>(V)->getOpcode())))
     V = cast<User>(V)->getOperand(0);
   return V;
 }
@@ -801,8 +780,8 @@ inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::StringRef Name) {
     return nullptr;
 }
 
-inline const llvm::CallInst *
-getCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
+inline const llvm::CallInst *getCallTo(const llvm::Instruction *I,
+                                       llvm::StringRef Name) {
   if (isCallTo(I, Name))
     return llvm::cast<llvm::CallInst>(I);
   else
@@ -838,9 +817,9 @@ inline MetaAddress getBasicBlockJumpTarget(llvm::BasicBlock *BB) {
   return MetaAddress::invalid();
 }
 
-template<typename C>
+template <typename C>
 inline auto skip(unsigned ToSkip, C &&Container)
-  -> llvm::iterator_range<decltype(Container.begin())> {
+    -> llvm::iterator_range<decltype(Container.begin())> {
 
   auto Begin = std::begin(Container);
   while (ToSkip-- > 0)
@@ -848,17 +827,17 @@ inline auto skip(unsigned ToSkip, C &&Container)
   return llvm::make_range(Begin, std::end(Container));
 }
 
-template<class Container, class UnaryPredicate>
+template <class Container, class UnaryPredicate>
 inline void erase_if(Container &C, UnaryPredicate P) {
   C.erase(std::remove_if(C.begin(), C.end(), P), C.end());
 }
 
-template<typename V>
+template <typename V>
 concept ValueLikePrintable = requires(V Val) {
   Val.print(std::declval<llvm::raw_ostream &>(), true);
 };
 
-template<typename F>
+template <typename F>
 concept ModFunLikePrintable = requires(F Fun) {
   Fun.print(std::declval<llvm::raw_ostream &>(), nullptr, false, true);
 };
@@ -875,7 +854,7 @@ concept LLVMRawOStreamPrintable = not ValueLikePrintable<T>
 // This is enabled only for references to types that inherit from llvm::Value
 // but not from llvm::Function, since llvm::Function has a different prototype
 // for the print() method
-template<ValueLikePrintable ValueRef>
+template <ValueLikePrintable ValueRef>
 inline std::string dumpToString(ValueRef &V) {
   std::string Result;
   llvm::raw_string_ostream Stream(Result);
@@ -886,7 +865,7 @@ inline std::string dumpToString(ValueRef &V) {
 
 // This is enabled only for references to types that inherit from llvm::Module
 // or from llvm::Function, which share the same prototype for the print() method
-template<ModFunLikePrintable ModOrFunRef>
+template <ModFunLikePrintable ModOrFunRef>
 inline std::string dumpToString(ModOrFunRef &M) {
   std::string Result;
   llvm::raw_string_ostream Stream(Result);
@@ -897,8 +876,7 @@ inline std::string dumpToString(ModOrFunRef &M) {
 
 // This is enabled for all types with a print() method that prints to an
 // llvm::raw_ostream
-template<LLVMRawOStreamPrintable T>
-inline std::string dumpToString(T &TheT) {
+template <LLVMRawOStreamPrintable T> inline std::string dumpToString(T &TheT) {
   std::string Result;
   llvm::raw_string_ostream Stream(Result);
   TheT.print(Stream);
@@ -906,7 +884,7 @@ inline std::string dumpToString(T &TheT) {
   return Result;
 }
 
-template<typename T>
+template <typename T>
 requires std::is_pointer_v<T>
 inline std::string dumpToString(T TheT) {
   if (TheT == nullptr)
@@ -918,17 +896,17 @@ void dumpModule(const llvm::Module *M, const char *Path) debug_function;
 
 llvm::PointerType *getStringPtrType(llvm::LLVMContext &C);
 
-llvm::GlobalVariable *
-buildString(llvm::Module *M, llvm::StringRef String, const llvm::Twine &Name);
+llvm::GlobalVariable *buildString(llvm::Module *M, llvm::StringRef String,
+                                  const llvm::Twine &Name);
 
-llvm::Constant *buildStringPtr(llvm::Module *M,
-                               llvm::StringRef String,
+llvm::Constant *buildStringPtr(llvm::Module *M, llvm::StringRef String,
                                const llvm::Twine &Name);
 
-llvm::Constant *getUniqueString(llvm::Module *M,
-                                llvm::StringRef Namespace,
+llvm::Constant *getUniqueString(llvm::Module *M, llvm::StringRef Namespace,
                                 llvm::StringRef String,
                                 const llvm::Twine &Name = llvm::Twine());
+
+llvm::StringRef extractFromConstantStringPtr(llvm::Value *V);
 
 inline llvm::User *getUniqueUser(llvm::Value *V) {
   llvm::User *Result = nullptr;
@@ -952,8 +930,7 @@ std::pair<MetaAddress, uint64_t> getPC(llvm::Instruction *TheInstruction);
 /// \brief Replace all uses of \Old, with \New in \F.
 ///
 /// \return true if it changes something, false otherwise.
-inline bool replaceAllUsesInFunctionWith(llvm::Function *F,
-                                         llvm::Value *Old,
+inline bool replaceAllUsesInFunctionWith(llvm::Function *F, llvm::Value *Old,
                                          llvm::Value *New) {
   using namespace llvm;
   if (Old == New)
@@ -1101,8 +1078,7 @@ inline bool isFallthrough(llvm::BasicBlock *BB) {
   return isFallthrough(BB->getTerminator());
 }
 
-template<typename T>
-inline llvm::Type *cTypeToLLVMType(llvm::LLVMContext &C) {
+template <typename T> inline llvm::Type *cTypeToLLVMType(llvm::LLVMContext &C) {
   using namespace std;
   using namespace llvm;
   if constexpr (is_integral_v<T>) {
@@ -1116,12 +1092,11 @@ inline llvm::Type *cTypeToLLVMType(llvm::LLVMContext &C) {
   }
 }
 
-template<typename ReturnT, typename... Args>
-inline llvm::FunctionType *
-createFunctionType(llvm::LLVMContext &C, bool Variadic = false) {
+template <typename ReturnT, typename... Args>
+inline llvm::FunctionType *createFunctionType(llvm::LLVMContext &C,
+                                              bool Variadic = false) {
   return llvm::FunctionType::get(cTypeToLLVMType<ReturnT>(C),
-                                 { cTypeToLLVMType<Args>(C)... },
-                                 Variadic);
+                                 {cTypeToLLVMType<Args>(C)...}, Variadic);
 }
 
 inline cppcoro::generator<llvm::CallBase *> callers(llvm::Function *F) {

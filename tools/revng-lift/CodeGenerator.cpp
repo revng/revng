@@ -29,6 +29,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
@@ -37,9 +38,11 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
+#include "revng/DwarfImporter/DwarfImporter.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Model/SerializeModelPass.h"
+#include "revng/Model/Type.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"
@@ -137,6 +140,11 @@ static cl::opt<string> DebugPath("debug-path",
 static cl::opt<bool> RecordPTC("record-ptc",
                                cl::desc("create metadata for PTC"),
                                cl::cat(MainCategory));
+
+static cl::list<std::string> ImportDebugInfo("import-debug-info",
+                                             cl::desc("path"),
+                                             cl::ZeroOrMore,
+                                             cl::cat(MainCategory));
 
 static Logger<> PTCLog("ptc");
 
@@ -1323,11 +1331,11 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   PostInstCombinePM.run(*TheModule);
 
   // Serialize an empty Model into TheModule
-  model::Binary Model;
+  TupleTree<model::Binary> Model;
 
   // Set the architecture
   auto Triple = Binary.architecture().type();
-  Model.Architecture = model::Architecture::fromLLVMArchitecture(Triple);
+  Model->Architecture = model::Architecture::fromLLVMArchitecture(Triple);
 
   // Create segments
   for (const SegmentInfo &S : Binary.segments()) {
@@ -1340,18 +1348,40 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     NewSegment.IsWriteable = S.IsWriteable;
     NewSegment.IsExecutable = S.IsExecutable;
 
-    Model.Segments.insert(std::move(NewSegment));
+    Model->Segments.insert(std::move(NewSegment));
   }
+
+  // WIP
+  // Create a default prototype
+  auto DefaultTypePath = Model->recordNewType(
+    model::makeType<model::CABIFunctionType>());
+  auto *DefaultType = cast<model::CABIFunctionType>(DefaultTypePath.get());
+  auto Void = Model->getPrimitiveType(model::PrimitiveTypeKind::Void, 0);
+  auto UInt64 = Model->getPrimitiveType(model::PrimitiveTypeKind::Unsigned, 8);
+  DefaultType->ReturnType = { Void };
+  DefaultType->Arguments.insert({ 0 }).first->Type = { UInt64 };
+  DefaultType->Arguments.insert({ 1 }).first->Type = { UInt64 };
+  DefaultType->Arguments.insert({ 2 }).first->Type = { UInt64 };
 
   // Record all dynamic imported functions
   for (const Label &L : Binary.labels()) {
     if (L.origin() == LabelOrigin::DynamicRelocation and L.isCode()
         and not L.symbolName().empty()) {
-      Model.DynamicFunctions.insert({ L.symbolName().str() });
+      model::DynamicFunction
+        &F = *Model->DynamicFunctions.insert({ L.symbolName().str() }).first;
+      F.Prototype = DefaultTypePath;
     }
   }
 
-  writeModel(Model, *TheModule);
+  // Import Dwarf
+  if (ImportDebugInfo.size() > 0) {
+    DwarfImporter Importer(Model);
+    for (const std::string &Path : ImportDebugInfo) {
+      Importer.import(Path);
+    }
+  }
+
+  writeModel(*Model.get(), *TheModule);
 
   JumpTargets.finalizeJumpTargets();
 

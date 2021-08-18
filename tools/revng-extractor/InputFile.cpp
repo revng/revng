@@ -6,8 +6,9 @@
 //
 //
 // revng includes
-#include "InputFile.h"
 #include "revng/Support/Assert.h"
+
+#include "InputFile.h"
 
 // llvm includes
 #include "llvm/ADT/StringRef.h"
@@ -331,8 +332,8 @@ InputFile::getOrCreateTypeCollection(TypeCollectionKind Kind) {
     uint32_t Count = Stream.getNumTypeRecords();
     auto Offsets = Stream.getTypeIndexOffsets();
     Collection = std::make_unique<LazyRandomTypeCollection>(Array,
-                                                             Count,
-                                                             Offsets);
+                                                            Count,
+                                                            Offsets);
     return *Collection;
   }
 

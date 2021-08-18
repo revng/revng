@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
@@ -53,7 +54,7 @@ static opt<std::string> ABIAnalysisOutputPath("abi-analysis-output",
                                               value_desc("path"),
                                               cat(MainCategory));
 
-template<bool FunctionCall>
+template <bool FunctionCall>
 static model::RegisterState::Values
 toRegisterState(RegisterArgument<FunctionCall> RA) {
   switch (RA.value()) {
@@ -113,15 +114,11 @@ toRegisterState(FunctionCallReturnValue RV) {
   revng_abort();
 }
 
-void commitToModel(GeneratedCodeBasicInfo &GCBI,
-                   Function *F,
-                   const FunctionsSummary &Summary,
-                   model::Binary &TheBinary);
+void commitToModel(GeneratedCodeBasicInfo &GCBI, Function *F,
+                   const FunctionsSummary &Summary, model::Binary &TheBinary);
 
-void commitToModel(GeneratedCodeBasicInfo &GCBI,
-                   Function *F,
-                   const FunctionsSummary &Summary,
-                   model::Binary &TheBinary) {
+void commitToModel(GeneratedCodeBasicInfo &GCBI, Function *F,
+                   const FunctionsSummary &Summary, model::Binary &TheBinary) {
   using namespace model;
 
   //
@@ -162,8 +159,8 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         auto CSVSize = CSVType->getIntegerBitWidth() / 8;
         NamedTypedRegister TR(RegisterID);
         TR.Type = {
-          TheBinary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
-        };
+            TheBinary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize),
+            {}};
 
         if (model::RegisterState::shouldEmit(toRegisterState(FRD.Argument)))
           ArgumentsInserter.insert(TR);
@@ -205,8 +202,8 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
     };
 
     // Handle the situation in which we found no basic blocks at all
-    if (Function.Type == model::FunctionType::NoReturn
-        and FunctionSummary.BasicBlocks.size() == 0) {
+    if (Function.Type == model::FunctionType::NoReturn and
+        FunctionSummary.BasicBlocks.size() == 0) {
       auto &EntryNodeSuccessors = Function.CFG[EntryPC].Successors;
       auto Edge = MakeEdge(MetaAddress::invalid(), FunctionEdgeType::LongJmp);
       EntryNodeSuccessors.insert(Edge);
@@ -217,6 +214,7 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
       namespace FET = FunctionEdgeType;
       FET::Values EdgeType = FET::Invalid;
 
+      // Preliminary checks
       switch (Branch) {
       case BranchType::Invalid:
       case BranchType::FakeFunction:
@@ -227,7 +225,53 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         break;
 
       case BranchType::InstructionLocalCFG:
-        EdgeType = FET::Invalid;
+        continue;
+
+      default:
+        break;
+      }
+
+      // Identify Source address
+      auto [Source, Size] = getPC(BB->getTerminator());
+      Source += Size;
+      revng_assert(Source.isValid());
+
+      // Identify Destination address
+      llvm::BasicBlock *JumpTargetBB = GCBI.getJumpTargetBlock(BB);
+      MetaAddress JumpTargetAddress = GCBI.getPCFromNewPC(JumpTargetBB);
+      model::BasicBlock &CurrentBlock = Function.CFG[JumpTargetAddress];
+      CurrentBlock.End = Source;
+      auto SuccessorsInserter = CurrentBlock.Successors.batch_insert();
+
+      llvm::BasicBlock *Successor = BB->getSingleSuccessor();
+      llvm::StringRef SymbolName;
+
+      MetaAddress Destination = MetaAddress::invalid();
+      if (Successor != nullptr)
+        Destination = getBasicBlockPC(Successor);
+
+      if (Destination.isValid()) {
+        revng_assert(not JumpTargetBB->empty());
+        auto *NewPCCall = getCallTo(&*Successor->begin(), "newpc");
+        revng_assert(NewPCCall != nullptr);
+
+        // Extract symbol name if any
+        auto *SymbolNameValue = NewPCCall->getArgOperand(4);
+        if (not isa<llvm::ConstantPointerNull>(SymbolNameValue)) {
+          SymbolName =
+              extractFromConstantStringPtr(NewPCCall->getArgOperand(4));
+          revng_assert(SymbolName.size() != 0);
+        }
+      }
+
+      switch (Branch) {
+      case BranchType::Invalid:
+      case BranchType::FakeFunction:
+      case BranchType::RegularFunction:
+      case BranchType::NoReturnFunction:
+      case BranchType::UnhandledCall:
+      case BranchType::InstructionLocalCFG:
+        revng_abort();
         break;
 
       case BranchType::FunctionLocalCFG:
@@ -243,7 +287,10 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         break;
 
       case BranchType::HandledCall:
-        EdgeType = FET::FunctionCall;
+        if (SymbolName.size() > 0)
+          EdgeType = FET::IndirectCall;
+        else
+          EdgeType = FET::FunctionCall;
         break;
 
       case BranchType::IndirectCall:
@@ -275,21 +322,6 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         break;
       }
 
-      if (EdgeType == FET::Invalid)
-        continue;
-
-      // Identify Source address
-      auto [Source, Size] = getPC(BB->getTerminator());
-      Source += Size;
-      revng_assert(Source.isValid());
-
-      // Identify Destination address
-      llvm::BasicBlock *JumpTargetBB = GCBI.getJumpTargetBlock(BB);
-      MetaAddress JumpTargetAddress = GCBI.getPCFromNewPC(JumpTargetBB);
-      model::BasicBlock &CurrentBlock = Function.CFG[JumpTargetAddress];
-      CurrentBlock.End = Source;
-      auto SuccessorsInserter = CurrentBlock.Successors.batch_insert();
-
       if (EdgeType == FET::DirectBranch) {
         // Handle direct branch
         auto Successors = GCBI.getSuccessors(BB);
@@ -304,21 +336,28 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
           SuccessorsInserter.insert(MakeEdge(Destination, EdgeType));
 
       } else if (FunctionEdgeType::isCall(EdgeType)) {
-        // Handle call
-        llvm::BasicBlock *Successor = BB->getSingleSuccessor();
-        MetaAddress Destination = MetaAddress::invalid();
-        if (Successor != nullptr)
-          Destination = getBasicBlockPC(Successor);
-
         // Record the edge in the CFG
         auto TempEdge = MakeEdge(Destination, EdgeType);
         const auto &Result = SuccessorsInserter.insert(TempEdge);
         auto *Edge = llvm::cast<CallEdge>(Result.get());
 
         if (Destination.isValid()) {
-          // If it's a direct call, inherit the prototype from the callee
-          model::Function &Callee = TheBinary.Functions.at(Destination);
-          Edge->Prototype = Callee.Prototype;
+
+          if (SymbolName.size() > 0) {
+            revng_assert(EdgeType == model::FunctionEdgeType::IndirectCall);
+            Edge->Destination = MetaAddress::invalid();
+            Edge->DynamicFunction = SymbolName.str();
+            Edge->Prototype =
+                TheBinary.DynamicFunctions.at(Edge->DynamicFunction).Prototype;
+          } else {
+            revng_assert(EdgeType == model::FunctionEdgeType::FunctionCall);
+            // If it's a direct call, inherit the prototype from the callee
+            model::Function &Callee = TheBinary.Functions.at(Destination);
+            Edge->Prototype = Callee.Prototype;
+          }
+
+          revng_assert(Edge->Prototype.isValid());
+
         } else {
           // It's an indirect call: forge a new prototype
           auto NewType = makeType<RawFunctionType>();
@@ -335,20 +374,18 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
               revng_assert(not Found);
               Found = true;
               for (auto &[CSV, FCRD] : CSD.RegisterSlots) {
-                auto RegisterID = ABIRegister::fromCSVName(CSV->getName(),
-                                                           GCBI.arch());
-                if (RegisterID == model::Register::Invalid
-                    or CSV == GCBI.spReg())
+                auto RegisterID =
+                    ABIRegister::fromCSVName(CSV->getName(), GCBI.arch());
+                if (RegisterID == model::Register::Invalid or
+                    CSV == GCBI.spReg())
                   continue;
 
                 llvm::Type *CSVType = CSV->getType()->getPointerElementType();
                 auto CSVSize = CSVType->getIntegerBitWidth() / 8;
                 NamedTypedRegister TR(RegisterID);
-                TR.Type = {
-                  TheBinary.getPrimitiveType(model::PrimitiveTypeKind::Generic,
-                                             CSVSize),
-                  {}
-                };
+                TR.Type = {TheBinary.getPrimitiveType(
+                               model::PrimitiveTypeKind::Generic, CSVSize),
+                           {}};
 
                 auto ArgumentState = toRegisterState(FCRD.Argument);
                 if (model::RegisterState::shouldEmit(ArgumentState))
@@ -370,9 +407,6 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
       } else {
         // Handle other successors
         llvm::BasicBlock *Successor = BB->getSingleSuccessor();
-        MetaAddress Destination = MetaAddress::invalid();
-        if (Successor != nullptr)
-          Destination = getBasicBlockPC(Successor);
 
         // Record the edge in the CFG
         SuccessorsInserter.insert(MakeEdge(Destination, EdgeType));
@@ -424,10 +458,9 @@ bool StackAnalysis::runOnModule(Module &M) {
     if (IsFunctionSymbol or IsCallee) {
       // Called addresses are a strong hint
       Functions.emplace_back(&BB, true);
-    } else if (not IsLoadAddress
-               and (IsUnusedGlobalData
-                    || (IsMemoryStore and not IsPCStore
-                        and not IsReturnAddress))) {
+    } else if (not IsLoadAddress and
+               (IsUnusedGlobalData ||
+                (IsMemoryStore and not IsPCStore and not IsReturnAddress))) {
       // TODO: keep IsReturnAddress?
       // Consider addresses found in global data that have not been used or
       // addresses that are not return addresses and do not end up in the PC
@@ -437,8 +470,8 @@ bool StackAnalysis::runOnModule(Module &M) {
   }
 
   for (CFEP &Function : Functions) {
-    revng_log(CFEPLog,
-              getName(Function.Entry) << (Function.Force ? " (forced)" : ""));
+    revng_log(CFEPLog, getName(Function.Entry)
+                           << (Function.Force ? " (forced)" : ""));
   }
 
   // Initialize the cache where all the results will be accumulated
@@ -577,15 +610,13 @@ void StackAnalysis::serializeMetadata(Function &F,
       auto *CSV = QMD.get(P.first);
       auto *Argument = QMD.get(P.second.Argument.valueName());
       auto *ReturnValue = QMD.get(P.second.ReturnValue.valueName());
-      SlotMDs.push_back(QMD.tuple({ CSV, Argument, ReturnValue }));
+      SlotMDs.push_back(QMD.tuple({CSV, Argument, ReturnValue}));
     }
 
     // Create revng.func.entry metadata
-    MDTuple *FunctionMD = QMD.tuple({ QMD.get(getName(Entry)),
-                                      QMD.get(GCBI.toConstant(EntryPC)),
-                                      TypeMD,
-                                      QMD.tuple(ClobberedMDs),
-                                      QMD.tuple(SlotMDs) });
+    MDTuple *FunctionMD =
+        QMD.tuple({QMD.get(getName(Entry)), QMD.get(GCBI.toConstant(EntryPC)),
+                   TypeMD, QMD.tuple(ClobberedMDs), QMD.tuple(SlotMDs)});
     Entry->getTerminator()->setMetadata("revng.func.entry", FunctionMD);
 
     //
@@ -604,7 +635,7 @@ void StackAnalysis::serializeMetadata(Function &F,
         auto *CSV = QMD.get(P.first);
         auto *Argument = QMD.get(P.second.Argument.valueName());
         auto *ReturnValue = QMD.get(P.second.ReturnValue.valueName());
-        SlotMDs.push_back(QMD.tuple({ CSV, Argument, ReturnValue }));
+        SlotMDs.push_back(QMD.tuple({CSV, Argument, ReturnValue}));
       }
 
       Call->setMetadata("func.call", QMD.tuple(QMD.tuple(SlotMDs)));
@@ -619,7 +650,7 @@ void StackAnalysis::serializeMetadata(Function &F,
       BasicBlock *BB = P.first;
       BranchType::Values Type = P.second;
 
-      auto *Pair = QMD.tuple({ FunctionMD, QMD.get(getName(Type)) });
+      auto *Pair = QMD.tuple({FunctionMD, QMD.get(getName(Type))});
 
       // Register that this block is associated to this function
       MemberOf[BB->getTerminator()].push_back(Pair);

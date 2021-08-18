@@ -3,4 +3,3 @@
 #
 
 add_subdirectory(revng-lift)
-add_subdirectory(revng-extractor)

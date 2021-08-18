@@ -1801,13 +1801,14 @@ void JumpTargetManager::harvestWithAVI() {
                    MetaAddress::decomposeIntegerPC(Value) :
                    MetaAddress::fromPC(TV.Address, getLimitedValue(Value)));
 
-      if (MA.isInvalid())
+      if (MA.isInvalid()) {
         AllValid = false;
+      } else {
+        if (not isPC(MA))
+          AllPCs = false;
 
-      if (not isPC(MA))
-        AllPCs = false;
-
-      Targets.push_back(MA);
+        Targets.push_back(MA);
+      }
     }
 
     // We're jumping to a single symbol

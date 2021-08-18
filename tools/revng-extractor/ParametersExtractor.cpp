@@ -4,8 +4,9 @@
 // \brief Dumps call information present in PDB files.
 //
 // Local includes
-#include "ParametersExtractor.h"
 #include "revng/Support/Assert.h"
+
+#include "ParametersExtractor.h"
 
 // LLVM includes
 #include "llvm/DebugInfo/CodeView/CVRecord.h"
