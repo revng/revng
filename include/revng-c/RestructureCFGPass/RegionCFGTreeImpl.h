@@ -204,31 +204,6 @@ inline void RegionCFG<NodeT>::insertBulkNodes(BasicBlockNodeTSet &Nodes,
 }
 
 template<class NodeT>
-using lk_iterator = typename RegionCFG<NodeT>::links_container::iterator;
-
-template<class NodeT>
-inline llvm::iterator_range<lk_iterator<NodeT>>
-RegionCFG<NodeT>::copyNodesAndEdgesFrom(RegionCFGT *O, BBNodeMap &SubMap) {
-  typename links_container::difference_type NumNewNodes = 0;
-
-  for (BasicBlockNode<NodeT> *Node : *O) {
-    BlockNodes.emplace_back(std::make_unique<BasicBlockNodeT>(*Node, this));
-    ++NumNewNodes;
-    BasicBlockNodeT *New = BlockNodes.back().get();
-    SubMap[Node] = New;
-    copyNeighbors<NodeT>(New, Node);
-  }
-
-  internal_iterator BeginInserted = BlockNodes.end() - NumNewNodes;
-  internal_iterator EndInserted = BlockNodes.end();
-  using MovedIteratorRange = llvm::iterator_range<internal_iterator>;
-  MovedIteratorRange Result = llvm::make_range(BeginInserted, EndInserted);
-  for (std::unique_ptr<BasicBlockNode<NodeT>> &NewNode : Result)
-    NewNode->updatePointers(SubMap);
-  return Result;
-}
-
-template<class NodeT>
 inline void RegionCFG<NodeT>::connectContinueNode() {
   BasicBlockNodeTVect ContinueNodes;
 

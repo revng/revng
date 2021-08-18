@@ -322,9 +322,6 @@ public:
                        BBNodeMap &SubstitutionMap,
                        std::set<EdgeDescriptor> &Out);
 
-  llvm::iterator_range<typename links_container::iterator>
-  copyNodesAndEdgesFrom(RegionCFGT *O, BBNodeMap &SubstitutionMap);
-
   void connectContinueNode();
 
   BBNodeT &getEntryNode() const { return *EntryNode; }
