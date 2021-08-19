@@ -322,8 +322,6 @@ public:
                        BBNodeMap &SubstitutionMap,
                        std::set<EdgeDescriptor> &Out);
 
-  void connectContinueNode();
-
   BBNodeT &getEntryNode() const { return *EntryNode; }
 
   BBNodeT &front() const { return *EntryNode; }

@@ -201,18 +201,17 @@ inline void RegionCFG<NodeT>::insertBulkNodes(BasicBlockNodeTSet &Nodes,
   // Fix the hack above
   for (BBNodeTUniquePtr &Node : BlockNodes)
     Node->updatePointers(SubMap);
-}
 
-template<class NodeT>
-inline void RegionCFG<NodeT>::connectContinueNode() {
+  // We now create and connect the continue nodes.
   BasicBlockNodeTVect ContinueNodes;
 
-  // We need to pre-save the edges to avoid breaking the predecessor iterator
+  // We need to pre-save the edges to avoid breaking the predecessor iterator.
   for (BasicBlockNode<NodeT> *Source : EntryNode->predecessors()) {
     ContinueNodes.push_back(Source);
   }
 
   for (BasicBlockNode<NodeT> *Source : ContinueNodes) {
+
     // Create a new continue node for each retreating edge.
     BasicBlockNode<NodeT> *Continue = addContinue();
     moveEdgeTarget(EdgeDescriptor(Source, EntryNode), Continue);
