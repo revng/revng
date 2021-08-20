@@ -19,6 +19,7 @@
 #include "revng/ADT/SmallMap.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
+#include "revng/StackAnalysis/ABI.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
@@ -53,7 +54,7 @@ class EnforceABIImpl {
 public:
   EnforceABIImpl(Module &M,
                  GeneratedCodeBasicInfo &GCBI,
-                 const model::Binary &Binary) :
+                 model::Binary &Binary) :
     M(M),
     GCBI(GCBI),
     FunctionDispatcher(M.getFunction("function_dispatcher")),
@@ -82,13 +83,14 @@ private:
   LLVMContext &Context;
   StructInitializers Initializers;
   OpaqueFunctionsPool<FunctionType *> IndirectPlaceholderPool;
-  const model::Binary &Binary;
+  model::Binary &Binary;
 };
 
 bool EnforceABI::runOnModule(Module &M) {
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const model::Binary &Binary = ModelWrapper.getReadOnlyModel();
+  auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
+  // WIP: sad, could be const if not for getting primitive types
+  model::Binary &Binary = *ModelWrapper.getWriteableModel().get();
 
   EnforceABIImpl Impl(M, GCBI, Binary);
   Impl.run();
@@ -200,6 +202,7 @@ toLLVMType(llvm::Module *M, const model::RawFunctionType &Prototype) {
   return FunctionType::get(ReturnType, ArgumentsTypes, false);
 }
 
+// WIP: switch to passing prototype
 Function *EnforceABIImpl::handleFunction(Function &OldFunction,
                                          const model::Function &FunctionModel) {
   using model::NamedTypedRegister;
@@ -249,6 +252,8 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
     NewBody.push_back(BB);
     revng_assert(BB->getParent() == NewFunction);
   }
+
+  // WIP: split here
 
   // Store arguments to CSVs
   BasicBlock &Entry = NewFunction->getEntryBlock();
@@ -346,7 +351,11 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   llvm::SmallVector<Value *, 8> Arguments;
   llvm::SmallVector<GlobalVariable *, 8> ReturnCSVs;
 
-  const auto &Prototype = *cast<RawFunctionType>(CallSite.Prototype.get());
+  const auto &MaybeRawPrototype = abi::getRawFunctionType(Binary,
+                                                          CallSite.Prototype
+                                                            .get());
+  revng_assert(MaybeRawPrototype);
+  const auto &Prototype = *MaybeRawPrototype;
 
   bool IsIndirect = (Callee != FunctionDispatcher);
   if (IsIndirect) {

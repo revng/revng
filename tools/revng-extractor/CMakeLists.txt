@@ -24,5 +24,6 @@ target_link_libraries(revng-extractor
                       PRIVATE
 					  revngSupport
 					  revngModel
+					  revngStackAnalysis
 					  ${llvm_extractor_pdb_libs})
 

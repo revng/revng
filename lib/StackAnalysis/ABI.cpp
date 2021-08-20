@@ -103,6 +103,7 @@ ABI<SystemV_x86_64>::toRaw(model::Binary &TheBinary,
   //
   // Record register arguments
   //
+  // WIP: does not really handle structs here
   using namespace model::PrimitiveTypeKind;
   model::RawFunctionType Result;
   auto Primitive = TheBinary.getPrimitiveType(PointerOrNumber, 8);
@@ -211,11 +212,14 @@ ABI<SystemV_x86_64>::toCABI(model::Binary &TheBinary,
   return Result;
 }
 
-model::RawFunctionType
+model::TypePath
 ABI<SystemV_x86_64>::indirectCallPrototype(model::Binary &TheBinary) {
   using namespace model;
 
-  RawFunctionType Result;
+  auto TypePath = TheBinary.recordNewType(
+    model::makeType<model::RawFunctionType>());
+  auto &T = *llvm::cast<model::RawFunctionType>(TypePath.get());
+
   auto PointerOrNumberKind = model::PrimitiveTypeKind::PointerOrNumber;
   auto Primitive64 = TheBinary.getPrimitiveType(PointerOrNumberKind, 8);
   QualifiedType Generic64{ Primitive64, {} };
@@ -223,19 +227,19 @@ ABI<SystemV_x86_64>::indirectCallPrototype(model::Binary &TheBinary) {
   for (Register::Values Register : ArgumentRegisters) {
     NamedTypedRegister Argument(Register);
     Argument.Type = Generic64;
-    Result.Arguments.insert(Argument);
+    T.Arguments.insert(Argument);
   }
 
   for (Register::Values Register : ReturnValueRegisters) {
     TypedRegister ReturnValue(Register);
     ReturnValue.Type = Generic64;
-    Result.ReturnValues.insert(ReturnValue);
+    T.ReturnValues.insert(ReturnValue);
   }
 
   for (Register::Values Register : CalleeSavedRegisters)
-    Result.PreservedRegisters.insert(Register);
+    T.PreservedRegisters.insert(Register);
 
-  return Result;
+  return TypePath;
 }
 
 void ABI<SystemV_x86_64>::applyDeductions(RegisterStateMap &Prototype) {

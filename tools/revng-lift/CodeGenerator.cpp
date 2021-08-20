@@ -43,6 +43,7 @@
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Model/SerializeModelPass.h"
 #include "revng/Model/Type.h"
+#include "revng/StackAnalysis/ABI.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"
@@ -1351,17 +1352,11 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     Model->Segments.insert(std::move(NewSegment));
   }
 
-  // WIP
   // Create a default prototype
-  auto DefaultTypePath = Model->recordNewType(
-    model::makeType<model::CABIFunctionType>());
-  auto *DefaultType = cast<model::CABIFunctionType>(DefaultTypePath.get());
-  auto Void = Model->getPrimitiveType(model::PrimitiveTypeKind::Void, 0);
-  auto UInt64 = Model->getPrimitiveType(model::PrimitiveTypeKind::Unsigned, 8);
-  DefaultType->ReturnType = { Void };
-  DefaultType->Arguments.insert({ 0 }).first->Type = { UInt64 };
-  DefaultType->Arguments.insert({ 1 }).first->Type = { UInt64 };
-  DefaultType->Arguments.insert({ 2 }).first->Type = { UInt64 };
+  auto DefaultTypePath = abi::
+    polyswitch(Arch.defaultABI(), [&]<model::abi::Values A>() {
+      return abi::ABI<A>::indirectCallPrototype(*Model.get());
+    });
 
   // Record all dynamic imported functions
   for (const Label &L : Binary.labels()) {

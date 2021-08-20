@@ -7,6 +7,8 @@
 //
 
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/IR/DIBuilder.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -228,7 +230,7 @@ void IFI::throwException(IRBuilder<> &Builder,
                          const Twine &Reason,
                          const DebugLoc &DbgLocation) {
   revng_assert(RaiseException != nullptr);
-  revng_assert(DbgLocation);
+  // revng_assert(DbgLocation);
 
   // Create the message string
   Constant *ReasonString = Strings.get(Reason.str());
@@ -918,7 +920,13 @@ void IFI::run() {
   FunctionTags::FunctionDispatcher.addTo(FunctionDispatcher);
 
   auto *IsolatedFunctionType = createFunctionType<void>(Context);
-  DebugLoc Empty;
+
+#if 0
+  DIBuilder Asdf(*TheModule);
+  Asdf.createFunction(DIFile::get(Context, "null", "/dev"), "nope", "", 0);
+
+  DebugLoc Empty(DILocation::get(Context, 0, 0, ));
+#endif
 
   // Create all the dynamic functions
   for (const model::DynamicFunction &Function : Binary.DynamicFunctions) {
@@ -928,7 +936,7 @@ void IFI::run() {
                                          Name,
                                          TheModule);
     auto *EntryBB = BasicBlock::Create(Context, "", NewFunction);
-    throwException(EntryBB, Twine("Dynamic call ") + Name, Empty);
+    throwException(EntryBB, Twine("Dynamic call ") + Name, DebugLoc());
 
     DynamicFunctionsMap[Name] = NewFunction;
   }
