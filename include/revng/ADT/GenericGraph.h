@@ -33,12 +33,12 @@
 ///     as such you can consider label mutation a deprecated behaviour.
 ///
 ///   - MutableEdgeNode - a double-linked node with dynamically allocated
-///     labels. It is similar to BidirectionalNode except it stores the label
+///     labels. It is similar to BidirectionalNode except it stores edge labels
 ///     on the heap. It's slower and uses more memory but allows for safe label
 ///     modification as well as controls that nodes and edges are removed
 ///     safely, with the other "halfs" cleaned up as well.
-///     Note that it explicitly disallows having more than one edge
-///     per direction between a pair of nodes.
+///     Note that it's disallowed to have a mutable edge graph without edge
+///     labels. Use `BidirectionalNode` in those cases.
 ///
 ///   - The node you're going to write - No-one knows the needs of your
 ///     project better than you. That's why the best datastructure is the one
@@ -491,32 +491,12 @@ struct ConstEdgeView {
   explicit ConstEdgeView(NonOwningEdge<NodeType, LabelType> const &E) :
     Neighbor(E.Neighbor), Label(E.Label) {}
 };
-
-template<typename NodeType>
-struct Unlabeled {
-  NodeType *Neighbor;
-};
-
-template<typename NodeType>
-struct UnlabeledView {
-  NodeType &Neighbor;
-
-  explicit UnlabeledView(Unlabeled<NodeType> &E) : Neighbor(*E.Neighbor) {}
-};
-
-template<typename NodeType>
-struct ConstUnlabeledView {
-  NodeType const &Neighbor;
-
-  explicit ConstUnlabeledView(Unlabeled<NodeType> const &E) :
-    Neighbor(*E.Neighbor) {}
-};
 } // namespace detail
 
 /// A node type suitable for graphs where the edge labels are not cheap
 /// to copy or need to be modified often.
 template<typename Node,
-         typename EdgeLabel = Empty,
+         typename EdgeLabel,
          bool NeedsParent = true,
          size_t SmallSize = 2,
          typename FinalType = std::false_type,
@@ -547,32 +527,14 @@ public:
   using NodeData = Node;
   using EdgeLabelData = EdgeLabel;
 
-  static constexpr bool AreEdgesLabeled = !std::is_same_v<EdgeLabel, Empty>;
-
-private:
-  template<bool _Cond, typename _Iftrue, typename _Iffalse>
-  using C = std::conditional_t<_Cond, _Iftrue, _Iffalse>;
-
 public:
   using Edge = EdgeLabel;
-  using EdgeView = C<AreEdgesLabeled,
-                     detail::EdgeView<DerivedType, EdgeLabel>,
-                     detail::UnlabeledView<DerivedType>>;
-  using ConstEdgeView = C<AreEdgesLabeled,
-                          detail::ConstEdgeView<DerivedType, EdgeLabel>,
-                          detail::ConstUnlabeledView<DerivedType>>;
+  using EdgeView = detail::EdgeView<DerivedType, EdgeLabel>;
+  using ConstEdgeView = detail::ConstEdgeView<DerivedType, EdgeLabel>;
 
 protected:
-  using LabeledOwningEdge = detail::OwningEdge<DerivedType, EdgeLabel>;
-  using UnlabeledOwningEdge = detail::Unlabeled<DerivedType>;
-  using LabeledNonOwningEdge = detail::NonOwningEdge<DerivedType, EdgeLabel>;
-  using UnlabeledNonOwningEdge = detail::Unlabeled<DerivedType>;
-
-public:
-  using OwningEdge = C<AreEdgesLabeled, LabeledOwningEdge, UnlabeledOwningEdge>;
-  using NonOwningEdge = C<AreEdgesLabeled,
-                          LabeledNonOwningEdge,
-                          UnlabeledNonOwningEdge>;
+  using OwningEdge = detail::OwningEdge<DerivedType, EdgeLabel>;
+  using NonOwningEdge = detail::NonOwningEdge<DerivedType, EdgeLabel>;
   using EdgeOwnerContainer = llvm::SmallVector<OwningEdge, SmallSize>;
   using EdgeViewContainer = llvm::SmallVector<NonOwningEdge, SmallSize>;
 
@@ -592,16 +554,12 @@ public:
 
 public:
   EdgeView addSuccessor(MutableEdgeNode *NewSuccessor, EdgeLabel EL = {}) {
-    revng_assert(!hasSuccessor(NewSuccessor),
-                 "Only one edge is allowed between two nodes.");
     auto [Owner, View] = constructEdge(this, NewSuccessor, std::move(EL));
     auto &Output = Successors.emplace_back(std::move(Owner));
     NewSuccessor->Predecessors.emplace_back(std::move(View));
     return EdgeView(Output);
   }
   EdgeView addPredecessor(MutableEdgeNode *NewPredecessor, EdgeLabel EL = {}) {
-    revng_assert(!hasPredecessor(NewPredecessor),
-                 "Only one edge is allowed between two nodes.");
     auto [Owner, View] = constructEdge(NewPredecessor, this, std::move(EL));
     auto &Output = NewPredecessor->Successors.emplace_back(std::move(Owner));
     Predecessors.emplace_back(std::move(View));
@@ -704,6 +662,21 @@ private:
     return std::find_if(Where.begin(), Where.end(), Comparator);
   }
 
+  static auto findSuccessorHalf(typename EdgeOwnerContainer::iterator Edge,
+                                EdgeViewContainer &Halfs) {
+    auto Comparator = [Edge](auto const &Half) {
+      return Half.Label == Edge->Label.get();
+    };
+    return std::find_if(Halfs.begin(), Halfs.end(), Comparator);
+  }
+  static auto findPredecessorHalf(typename EdgeViewContainer::iterator Edge,
+                                  EdgeOwnerContainer &Halfs) {
+    auto Comparator = [Edge](auto const &Half) {
+      return Half.Label.get() == Edge->Label;
+    };
+    return std::find_if(Halfs.begin(), Halfs.end(), Comparator);
+  }
+
 public:
   SuccessorEdgeIterator findSuccessorEdge(DerivedType const *S) {
     return SuccessorEdgeIterator(findImpl(S, Successors),
@@ -765,17 +738,22 @@ protected:
     auto Iterator = Successors.begin();
     std::advance(Iterator,
                  std::distance<OwnerIteratorImpl>(Iterator, InputIterator));
+    revng_assert(Iterator != Successors.end());
 
     // Maybe we should do some extra checks as to whether `Iterator` is valid.
     auto *Successor = Iterator->Neighbor;
-    if (Successor->Predecessors.empty())
-      return Iterator;
+    revng_assert(!Successor->Predecessors.empty(),
+                 "Half of an edge is missing, graph layout is broken.");
 
-    auto PredecessorIt = findImpl(this, Successor->Predecessors);
+    auto PredecessorIt = findSuccessorHalf(Iterator, Successor->Predecessors);
     revng_assert(PredecessorIt != Successor->Predecessors.end(),
                  "Half of an edge is missing, graph layout is broken.");
     std::swap(*PredecessorIt, Successor->Predecessors.back());
     Successor->Predecessors.pop_back();
+
+    auto AssertHelper = findSuccessorHalf(Iterator, Successor->Predecessors);
+    revng_assert(AssertHelper == Successor->Predecessors.end(),
+                 "More than one half is found for a single edge.");
 
     std::swap(*Iterator, Successors.back());
     Successors.pop_back();
@@ -789,17 +767,22 @@ protected:
     auto Iterator = Predecessors.begin();
     std::advance(Iterator,
                  std::distance<ViewIteratorImpl>(Iterator, InputIterator));
+    revng_assert(Iterator != Predecessors.end());
 
     // Maybe we should do some extra checks as to whether `Iterator` is valid.
     auto *Predecessor = Iterator->Neighbor;
-    if (Predecessor->Successors.empty())
-      return Iterator;
+    revng_assert(!Predecessor->Successors.empty(),
+                 "Half of an edge is missing, graph layout is broken.");
 
-    auto SuccessorIt = findImpl(this, Predecessor->Successors);
+    auto SuccessorIt = findPredecessorHalf(Iterator, Predecessor->Successors);
     revng_assert(SuccessorIt != Predecessor->Successors.end(),
                  "Half of an edge is missing, graph layout is broken.");
     std::swap(*SuccessorIt, Predecessor->Successors.back());
     Predecessor->Successors.pop_back();
+
+    auto AssertHelper = findPredecessorHalf(Iterator, Predecessor->Successors);
+    revng_assert(AssertHelper == Predecessor->Successors.end(),
+                 "More than one half is found for a single edge.");
 
     std::swap(*Iterator, Predecessors.back());
     Predecessors.pop_back();
@@ -862,19 +845,18 @@ public:
       It = removeSuccessorImpl(It);
     for (auto It = Predecessors.begin(); It != Predecessors.end();)
       It = removePredecessorImpl(It);
+
+    revng_assert(Successors.empty());
+    revng_assert(Predecessors.empty());
     return *this;
   }
 
 protected:
   std::tuple<OwningEdge, NonOwningEdge>
   constructEdge(DerivedType *From, DerivedType *To, EdgeLabel &&EL) {
-    if constexpr (AreEdgesLabeled) {
-      LabeledOwningEdge O{ To, std::make_unique<EdgeLabel>(std::move(EL)) };
-      LabeledNonOwningEdge V{ From, O.Label.get() };
-      return { std::move(O), std::move(V) };
-    } else {
-      return { UnlabeledOwningEdge{ To }, UnlabeledNonOwningEdge{ From } };
-    }
+    OwningEdge O{ To, std::make_unique<EdgeLabel>(std::move(EL)) };
+    NonOwningEdge V{ From, O.Label.get() };
+    return { std::move(O), std::move(V) };
   }
 
 private:
