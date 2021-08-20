@@ -151,6 +151,36 @@ model::Type::Type(TypeKind::Values TK) :
   model::Type::Type(TK, IDGenerator->get()) {
 }
 
+Identifier model::UnionField::name() const {
+  using llvm::Twine;
+  Identifier Result;
+  if (CustomName.empty())
+    (Twine("field_") + Twine(Index)).toVector(Result);
+  else
+    Result = CustomName;
+  return Result;
+}
+
+Identifier model::StructField::name() const {
+  using llvm::Twine;
+  Identifier Result;
+  if (CustomName.empty())
+    (Twine("field_at_offset_") + Twine(Offset)).toVector(Result);
+  else
+    Result = CustomName;
+  return Result;
+}
+
+Identifier model::Argument::name() const {
+  using llvm::Twine;
+  Identifier Result;
+  if (CustomName.empty())
+    (Twine("arg_") + Twine(Index)).toVector(Result);
+  else
+    Result = CustomName;
+  return Result;
+}
+
 Identifier model::Type::name() const {
   auto *This = this;
   auto GetName = [](auto &Upcasted) -> Identifier { return Upcasted.name(); };

@@ -631,6 +631,8 @@ public:
   StructField(uint64_t Offset) : Offset(Offset) {}
   StructField() : StructField(0) {}
 
+  Identifier name() const;
+
   bool operator==(const StructField &) const = default;
 };
 INTROSPECTION_NS(model, StructField, CustomName, Type, Offset);
@@ -694,6 +696,8 @@ public:
   UnionField() : UnionField(0) {}
 
 public:
+  Identifier name() const;
+
   bool operator==(const UnionField &Other) const = default;
 };
 INTROSPECTION_NS(model, UnionField, CustomName, Type, Index);
@@ -914,6 +918,8 @@ public:
 
 public:
   bool operator==(const Argument &) const = default;
+
+  Identifier name() const;
 
 public:
   bool verify() const debug_function;
