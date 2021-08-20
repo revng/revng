@@ -8,5 +8,5 @@ revng_add_analyses_library(RemoveLLVMDbgIntrinsics
 
 target_link_libraries(RemoveLLVMDbgIntrinsics
   revng::revngModel
-  revng::revngSupport)
-
+  revng::revngSupport
+  ${LLVM_LIBRARIES})

@@ -8,4 +8,5 @@ revng_add_analyses_library(RemoveLLVMAssumeCalls
 
 target_link_libraries(RemoveLLVMAssumeCalls
   revng::revngModel
-  revng::revngSupport)
+  revng::revngSupport
+  ${LLVM_LIBRARIES})

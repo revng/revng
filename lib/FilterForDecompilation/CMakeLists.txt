@@ -9,4 +9,3 @@ target_link_libraries(FilterForDecompilation
   revng::revngModel
   revng::revngSupport
   ${LLVM_LIBRARIES})
-

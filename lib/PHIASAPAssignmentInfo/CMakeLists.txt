@@ -9,4 +9,3 @@ target_link_libraries(PHIASAPAssignmentInfo
   revng::revngModel
   revng::revngSupport
   ${LLVM_LIBRARIES})
-

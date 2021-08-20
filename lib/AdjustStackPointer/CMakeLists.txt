@@ -9,5 +9,3 @@ target_link_libraries(AdjustStackPointer
   revng::revngSupport
   revng::revngBasicAnalyses
   ${LLVM_LIBRARIES})
-
-

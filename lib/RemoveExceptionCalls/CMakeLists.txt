@@ -8,4 +8,5 @@ revng_add_analyses_library(RemoveExceptionCalls
 
 target_link_libraries(RemoveExceptionCalls
   revng::revngModel
-  revng::revngSupport)
+  revng::revngSupport
+  ${LLVM_LIBRARIES})

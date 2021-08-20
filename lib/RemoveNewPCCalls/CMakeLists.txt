@@ -8,4 +8,5 @@ revng_add_analyses_library(RemoveNewPCCalls
 
 target_link_libraries(RemoveNewPCCalls
   revng::revngModel
-  revng::revngSupport)
+  revng::revngSupport
+  ${LLVM_LIBRARIES})

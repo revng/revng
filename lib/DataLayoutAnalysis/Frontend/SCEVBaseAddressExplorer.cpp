@@ -9,7 +9,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 
-#include "revng-c/Decompiler/SCEVBaseAddressExplorer.h"
+#include "revng-c/DataLayoutAnalysis/SCEVBaseAddressExplorer.h"
 
 static bool isConstantAddress(const llvm::ConstantInt *C) {
   // TODO: insert some logic to properly detect when this constant represents

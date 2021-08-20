@@ -6,9 +6,9 @@ revng_add_analyses_library(ThreadSafeClangTooling revngc
   ThreadSafeClangTooling.cpp)
 
 target_link_libraries(ThreadSafeClangTooling
-  clangTooling
   clangAST
   clangBasic
   clangFrontend
+  clangSerialization
+  clangTooling
   ${LLVM_LIBRARIES})
-

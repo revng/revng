@@ -36,7 +36,7 @@
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
-#include "revng-c/Decompiler/SCEVBaseAddressExplorer.h"
+#include "revng-c/DataLayoutAnalysis/SCEVBaseAddressExplorer.h"
 
 #include "ASTBuildAnalysis.h"
 #include "AddSCEVBarrierPass.h"

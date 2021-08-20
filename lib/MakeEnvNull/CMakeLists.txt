@@ -8,4 +8,3 @@ target_link_libraries(MakeEnvNull
   revng::revngModel
   revng::revngSupport
   ${LLVM_LIBRARIES})
-

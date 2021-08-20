@@ -5,6 +5,7 @@ revng_add_analyses_library(DataLayoutAnalysis revngc
   Frontend/DLACreateInterProceduralTypes.cpp
   Frontend/DLACreateIntraProceduralTypes.cpp
   Frontend/DLATypeSystemBuilder.cpp
+  Frontend/SCEVBaseAddressExplorer.cpp
   Middleend/DLACollapseIdentityAndInheritanceCC.cpp
   Middleend/DLAComputeNonInterferingComponents.cpp
   Middleend/DLAComputeUpperMemberAccess.cpp
