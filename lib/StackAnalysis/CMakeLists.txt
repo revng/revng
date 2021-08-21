@@ -56,10 +56,13 @@ revng_add_analyses_library_internal(revngStackAnalysis
   Intraprocedural.cpp
   StackAnalysis.cpp)
 
+llvm_map_components_to_libnames(LLVM_LIBRARIES Analysis)
+
 target_link_libraries(revngStackAnalysis
   revngBasicAnalyses
   revngSupport
-  revngModel)
+  revngModel
+  ${LLVM_LIBRARIES})
 
 target_include_directories(revngStackAnalysis
   PRIVATE
