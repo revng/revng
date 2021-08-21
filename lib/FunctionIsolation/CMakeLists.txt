@@ -11,7 +11,10 @@ revng_add_analyses_library_internal(revngFunctionIsolation
   RemoveExceptionalCalls.cpp
   StructInitializers.cpp)
 
+llvm_map_components_to_libnames(LLVM_LIBRARIES TransformUtils)
+
 target_link_libraries(revngFunctionIsolation
   revngModel
   revngStackAnalysis
-  revngSupport)
+  revngSupport
+  ${LLVM_LIBRARIES})
