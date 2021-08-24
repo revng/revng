@@ -8,5 +8,6 @@ revng_add_analyses_library(LivenessAnalysis
                            LivenessAnalysisPass.cpp)
 
 target_link_libraries(LivenessAnalysis
+                      revng::revngModel
                       revng::revngSupport
                       ${LLVM_LIBRARIES})

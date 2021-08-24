@@ -27,6 +27,7 @@ target_include_directories(test_reachabilitypass
   "${Boost_INCLUDE_DIRS}")
 target_link_libraries(test_reachabilitypass
   Reachability
+  revng::revngModel
   revng::revngSupport
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
@@ -44,6 +45,7 @@ target_include_directories(test_combingpass
   "${Boost_INCLUDE_DIRS}")
 target_link_libraries(test_combingpass
   RestructureCFGPass
+  revng::revngModel
   revng::revngSupport
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
@@ -61,6 +63,7 @@ target_include_directories(test_vma
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_vma
   ValueManipulationAnalysis
+  revng::revngModel
   revng::revngSupport
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
@@ -108,6 +111,7 @@ target_include_directories(dla_step_manager
 target_link_libraries(dla_step_manager
   Decompiler
   clangSerialization
+  revng::revngModel
   revng::revngSupport
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
@@ -128,6 +132,7 @@ target_include_directories(MarkForSerializationTest
 target_link_libraries(MarkForSerializationTest
   Decompiler
   clangSerialization
+  revng::revngModel
   revng::revngSupport
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
@@ -147,6 +152,7 @@ target_include_directories(dla_steps
 target_link_libraries(dla_steps
   Decompiler
   DataLayoutAnalysis
+  revng::revngModel
   revng::revngSupport
   revng::revngUnitTestHelpers
   Boost::unit_test_framework

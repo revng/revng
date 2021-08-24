@@ -10,6 +10,6 @@ revng_add_analyses_library(ValueManipulationAnalysis revngc
   ContractedGraph.cpp)
 
 target_link_libraries(ValueManipulationAnalysis
-  revng::revngSupport
   revng::revngModel
+  revng::revngSupport
   ${LLVM_LIBRARIES})

@@ -4,4 +4,7 @@
 
 revng_add_analyses_library(Utils revngc Utils.cpp)
 
-target_link_libraries(Utils revng::revngSupport ${LLVM_LIBRARIES})
+target_link_libraries(Utils
+	revng::revngModel
+	revng::revngSupport
+	${LLVM_LIBRARIES})
