@@ -361,12 +361,12 @@ BOOST_AUTO_TEST_CASE(BasicMutableEdgeNodeTest) {
 
   revng_check(A->hasSuccessor(B) && B->hasPredecessor(A));
   revng_check(B->hasSuccessor(A) && A->hasPredecessor(B));
-  A->removeSuccessor(B);
+  A->removeSuccessor(A->findSuccessor(B));
   revng_check(!(A->hasSuccessor(B) && B->hasPredecessor(A)));
   revng_check(B->hasSuccessor(A) && A->hasPredecessor(B));
 
   revng_check(A->hasSuccessor(A) && A->hasPredecessor(A));
-  A->removeSuccessor(A);
+  A->removeSuccessor(A->findSuccessor(A));
   revng_check(!(A->hasSuccessor(A) && A->hasPredecessor(A)));
 
   A->addSuccessor(B, SomeEdge::PointType{ 1.0, 0.4 });
@@ -431,7 +431,7 @@ BOOST_AUTO_TEST_CASE(MutableEdgeNodeRemovalTest) {
   A->addSuccessor(B);
   revng_check(A->hasSuccessor(B) && B->hasPredecessor(A));
   revng_check(!B->hasSuccessor(A) && !A->hasPredecessor(B));
-  A->removeSuccessor(B);
+  A->removeSuccessor(A->findSuccessor(B));
   revng_check(!A->hasSuccessor(B) && !B->hasPredecessor(A));
   revng_check(!B->hasSuccessor(A) && !A->hasPredecessor(B));
 
