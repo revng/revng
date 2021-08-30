@@ -851,5 +851,15 @@ void PCH::buildHotPath(IRBuilder<> &B,
                                    CreateCmp(TypeCSV, Address.type()),
                                    CreateCmp(AddressCSV, Address.address()) };
   auto *Condition = B.CreateAnd(ToAnd);
-  B.CreateCondBr(Condition, BB, Default);
+
+  // Emit branches of targets in dedicated basic blocks. As of now,
+  // IsolateFunction struggles with basic blocks that are both direct and
+  // indirect at the same time. This allows the pass to execute correctly.
+  auto *JumpToBB = BasicBlock::Create(B.getContext(), "", BB->getParent());
+  auto *JumpToDefault = BasicBlock::Create(B.getContext(), "", BB->getParent());
+
+  BranchInst::Create(BB, JumpToBB);
+  BranchInst::Create(Default, JumpToDefault);
+
+  B.CreateCondBr(Condition, JumpToBB, JumpToDefault);
 }
