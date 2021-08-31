@@ -34,3 +34,4 @@ struct llvm::yaml::MappingTraits<Element>
   : public TupleLikeMappingTraits<Element> {};
 
 static_assert(HasKeyObjectTraits<Element>);
+static_assert(not IsKeyedObjectContainer<std::vector<std::pair<int, int>>>);
