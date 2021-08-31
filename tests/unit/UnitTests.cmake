@@ -18,6 +18,7 @@ target_compile_definitions(test_lazysmallbitvector
 target_include_directories(test_lazysmallbitvector
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_lazysmallbitvector
+  revngModel
   revngSupport
   revngUnitTestHelpers
   Boost::unit_test_framework
@@ -38,6 +39,7 @@ target_include_directories(test_stackanalysis
           "${CMAKE_BINARY_DIR}/lib/StackAnalysis")
 target_link_libraries(test_stackanalysis
   revngStackAnalysis
+  revngModel
   revngSupport
   revngUnitTestHelpers
   Boost::unit_test_framework
@@ -55,6 +57,7 @@ target_compile_definitions(test_classsentinel
 target_include_directories(test_classsentinel
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_classsentinel
+  revngModel
   revngSupport
   revngUnitTestHelpers
   Boost::unit_test_framework
@@ -72,6 +75,7 @@ target_compile_definitions(test_irhelpers
 target_include_directories(test_irhelpers
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_irhelpers
+  revngModel
   revngSupport
   revngUnitTestHelpers
   Boost::unit_test_framework
@@ -89,6 +93,7 @@ target_compile_definitions(test_advancedvalueinfo
 target_include_directories(test_advancedvalueinfo
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_advancedvalueinfo
+  revngModel
   revngSupport
   revngBasicAnalyses
   Boost::unit_test_framework
@@ -106,6 +111,7 @@ target_compile_definitions(test_zipmapiterator
 target_include_directories(test_zipmapiterator
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_zipmapiterator
+  revngModel
   revngSupport
   revngUnitTestHelpers
   Boost::unit_test_framework
@@ -123,6 +129,7 @@ target_compile_definitions(test_constantrangeset
 target_include_directories(test_constantrangeset
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_constantrangeset
+  revngModel
   revngSupport
   revngUnitTestHelpers
   Boost::unit_test_framework
@@ -140,6 +147,7 @@ target_compile_definitions(test_shrinkinstructionoperands
 target_include_directories(test_shrinkinstructionoperands
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_shrinkinstructionoperands
+  revngModel
   revngSupport
   revngUnitTestHelpers
   Boost::unit_test_framework
@@ -158,6 +166,7 @@ target_include_directories(test_metaaddress
 target_compile_definitions(test_metaaddress
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_metaaddress
+  revngModel
   revngSupport
   revngUnitTestHelpers
   ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
@@ -175,6 +184,7 @@ target_compile_definitions(test_filtered_graph_traits
 target_include_directories(test_filtered_graph_traits
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_filtered_graph_traits
+  revngModel
   revngSupport
   revngUnitTestHelpers
   Boost::unit_test_framework
@@ -192,6 +202,7 @@ target_compile_definitions(test_smallmap
 target_include_directories(test_smallmap
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_smallmap
+  revngModel
   revngSupport
   revngUnitTestHelpers
   Boost::unit_test_framework
@@ -209,6 +220,7 @@ target_compile_definitions(test_genericgraph
 target_include_directories(test_genericgraph
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_genericgraph
+  revngModel
   revngSupport
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
@@ -225,6 +237,7 @@ target_compile_definitions(test_keyedobjectscontainers
 target_include_directories(test_keyedobjectscontainers
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_keyedobjectscontainers
+  revngModel
   revngSupport
   revngUnitTestHelpers
   Boost::unit_test_framework
@@ -242,6 +255,7 @@ target_compile_definitions(test_model
 target_include_directories(test_model
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_model
+  revngModel
   revngSupport
   revngUnitTestHelpers
   revngModel
@@ -260,6 +274,7 @@ target_compile_definitions(test_instantiatepasses
 target_include_directories(test_instantiatepasses
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_instantiatepasses
+  revngModel
   revngSupport
   revngUnitTestHelpers
   revngModel
@@ -278,6 +293,7 @@ target_compile_definitions(test_upcastablepointer
 target_include_directories(test_upcastablepointer
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_upcastablepointer
+  revngModel
   revngSupport
   revngUnitTestHelpers
   revngModel
@@ -297,6 +313,7 @@ macro(add_recursive_coroutine_test NAME)
   target_include_directories("${NAME}"
     PRIVATE "${CMAKE_SOURCE_DIR}")
   target_link_libraries("${NAME}"
+    revngModel
     revngSupport
     ${LLVM_LIBRARIES})
   add_test(NAME "${NAME}" COMMAND "./bin/${NAME}")
@@ -321,6 +338,7 @@ target_compile_definitions(test_model_type
 target_include_directories(test_model_type
   PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_model_type
+  revngModel
   revngSupport
   revngUnitTestHelpers
   revngModel
