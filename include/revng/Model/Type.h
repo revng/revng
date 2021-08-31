@@ -360,7 +360,7 @@ public:
     return Kind == QualifierKind::Pointer;
   }
 
-  bool operator==(const Qualifier &) const = default;
+  std::strong_ordering operator<=>(const Qualifier &) const = default;
 };
 INTROSPECTION_NS(model, Qualifier, Kind, Size);
 
