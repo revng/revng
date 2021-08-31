@@ -1143,12 +1143,16 @@ public:
   }
 
 public:
-  static TupleTree deserialize(llvm::StringRef YAMLString) {
+  static llvm::ErrorOr<TupleTree> deserialize(llvm::StringRef YAMLString) {
     TupleTree Result;
 
     Result.Root = std::make_unique<T>();
     llvm::yaml::Input YAMLInput(YAMLString);
     YAMLInput >> *Result.Root;
+
+    std::error_code EC = YAMLInput.error();
+    if (EC)
+      return EC;
 
     // Update references to root
     Result.initializeReferences();
