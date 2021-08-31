@@ -8,6 +8,7 @@
 #include <string>
 #include <type_traits>
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/MathExtras.h"
 
@@ -22,7 +23,7 @@ namespace model {
 
 const Identifier Identifier::Empty = Identifier("");
 
-static std::set<llvm::StringRef> CReservedKeywords = {
+const std::set<llvm::StringRef> CReservedKeywords = {
   // C reserved keywords
   "auto",
   "break",
@@ -559,8 +560,14 @@ bool Identifier::verify(bool Assert) const {
 }
 
 bool Identifier::verify(VerifyHelper &VH) const {
+  const auto AllAlphaNumOrUnderscore = [](const auto &Range) {
+    const auto IsNotUnderscore = [](const char C) { return C != '_'; };
+    return llvm::all_of(llvm::make_filter_range(Range, IsNotUnderscore),
+                        isalnum);
+  };
   return VH.maybeFail(not(not empty() and std::isdigit((*this)[0]))
-                      and not count(' ')
+                      and not startswith("_")
+                      and AllAlphaNumOrUnderscore(*this)
                       and not CReservedKeywords.count(llvm::StringRef(*this)));
 }
 
