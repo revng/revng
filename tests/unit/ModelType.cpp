@@ -28,10 +28,10 @@ serializeDeserialize(const TupleTree<model::Binary> &T) {
   auto Deserialized = TupleTree<model::Binary>::deserialize(Buffer);
 
   std::string OtherBuffer;
-  Deserialized.serialize(OtherBuffer);
+  Deserialized->serialize(OtherBuffer);
   llvm::outs() << "Deserialized\n" << OtherBuffer;
 
-  return Deserialized;
+  return std::move(Deserialized.get());
 }
 
 static bool checkSerialization(const TupleTree<model::Binary> &T) {
