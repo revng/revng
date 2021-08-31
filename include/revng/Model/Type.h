@@ -5,6 +5,7 @@
 //
 
 #include <algorithm>
+#include <cctype>
 #include <compare>
 #include <optional>
 #include <string>
@@ -51,6 +52,8 @@ using Fields = typename TupleLikeTraits<T>::Fields;
 
 namespace model {
 
+extern const std::set<llvm::StringRef> CReservedKeywords;
+
 /// \note Zero-sized identifiers are valid
 class Identifier : public llvm::SmallString<16> {
 public:
@@ -62,12 +65,28 @@ public:
 
 public:
   static Identifier fromString(llvm::StringRef Name) {
-    revng_assert(Name.size() != 0);
-    Identifier Result(Name);
+    revng_assert(not Name.empty());
+    Identifier Result;
 
-    if (std::isdigit(Result[0]))
-      Result.insert(Result.begin(), '_');
+    // For reserved C keywords prepend the our reserved prefix and we're done.
+    if (CReservedKeywords.count(Name)) {
+      Result += "prefix_";
+      Result += Name;
+      return Result;
+    }
 
+    const auto BecomesUnderscore = [](const char C) {
+      return not std::isalnum(C) or C == '_';
+    };
+
+    // For invalid C identifiers prepend the our reserved prefix.
+    if (std::isdigit(Name[0]) or BecomesUnderscore(Name[0]))
+      Result += "prefix_";
+
+    // Append the rest of the name
+    Result += Name;
+
+    // Convert all non-alphanumeric chars to underscores
     for (char &C : Result)
       if (not std::isalnum(C))
         C = '_';
