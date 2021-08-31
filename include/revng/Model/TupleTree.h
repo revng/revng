@@ -396,17 +396,11 @@ bool callOnPathSteps(Visitor &V,
   using key_type = decltype(KOT::key(std::declval<value_type>()));
   auto TargetKey = Path[0].get<key_type>();
 
-  value_type *Matching = nullptr;
-  for (value_type &Element : M) {
-    using KOT = KeyedObjectTraits<value_type>;
-    if (KOT::key(Element) == TargetKey) {
-      Matching = &Element;
-      break;
-    }
-  }
-
-  if (Matching == nullptr)
+  auto It = M.find(TargetKey);
+  if (It == M.end())
     return false;
+
+  value_type *Matching = &*It;
 
   V.template visitContainerElement<RootT>(TargetKey, *Matching);
   if (Path.size() > 1) {
