@@ -11,6 +11,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -66,11 +67,16 @@ public:
   void run();
 
 private:
-  Function *handleFunction(Function &F, const model::Function &FunctionModel);
+  Function *
+  handleFunction(Function &OldFunction, const model::Function &FunctionModel);
+  Function *recreateFunction(Function &OldFunction,
+                             const model::RawFunctionType &Prototype);
+  void
+  createPrologue(Function *NewFunction, const model::Function &FunctionModel);
 
   void handleRegularFunctionCall(CallInst *Call);
   void generateCall(IRBuilder<> &Builder,
-                    Function *Callee,
+                    FunctionCallee Callee,
                     const model::CallEdge &CallSite);
 
 private:
@@ -112,12 +118,36 @@ void EnforceABIImpl::run() {
   FunctionTags::OpaqueCSVValue.addTo(OpaquePC);
 
   std::vector<Function *> OldFunctions;
+
+  // Recreate dynamic functions with arguments
+  for (const model::DynamicFunction &FunctionModel : Binary.DynamicFunctions) {
+    // WIP: prefix?
+    Function *OldFunction = M.getFunction(
+      (Twine("dynamic_") + FunctionModel.name()).str());
+    revng_assert(OldFunction != nullptr);
+    OldFunctions.push_back(OldFunction);
+
+    const auto *Type = FunctionModel.Prototype.get();
+    revng_assert(Type != nullptr);
+
+    auto Prototype = abi::getRawFunctionTypeOrDefault(Binary, Type);
+    Function *NewFunction = recreateFunction(*OldFunction, Prototype);
+    FunctionTags::DynamicFunction.addTo(NewFunction);
+
+    // EnforceABI currently does not support execution
+    NewFunction->deleteBody();
+
+    OldToNew[OldFunction] = NewFunction;
+  }
+
+  // Recreate isolated functions with arguments
   for (const model::Function &FunctionModel : Binary.Functions) {
     if (FunctionModel.Type == model::FunctionType::Fake)
       continue;
 
     revng_assert(not FunctionModel.name().empty());
-    Function *OldFunction = M.getFunction(FunctionModel.name());
+    Function *OldFunction = M.getFunction(
+      (Twine("local_") + FunctionModel.name()).str());
     revng_assert(OldFunction != nullptr);
     OldFunctions.push_back(OldFunction);
 
@@ -143,18 +173,11 @@ void EnforceABIImpl::run() {
     handleRegularFunctionCall(Call);
 
   // Drop function_dispatcher
-  if (FunctionDispatcher != nullptr) {
-    FunctionDispatcher->deleteBody();
-    ReturnInst::Create(Context,
-                       BasicBlock::Create(Context, "", FunctionDispatcher));
-  }
+  FunctionDispatcher->eraseFromParent();
 
   // Drop all the old functions, after we stole all of its blocks
-  for (Function *OldFunction : OldFunctions) {
-    for (User *U : OldFunction->users())
-      cast<Instruction>(U)->getParent()->dump();
+  for (Function *OldFunction : OldFunctions)
     OldFunction->eraseFromParent();
-  }
 
   // Quick and dirty DCE
   for (auto [F, _] : FunctionsMap)
@@ -202,30 +225,19 @@ toLLVMType(llvm::Module *M, const model::RawFunctionType &Prototype) {
   return FunctionType::get(ReturnType, ArgumentsTypes, false);
 }
 
-// WIP: switch to passing prototype
 Function *EnforceABIImpl::handleFunction(Function &OldFunction,
                                          const model::Function &FunctionModel) {
-  using model::NamedTypedRegister;
-  using model::RawFunctionType;
-  using model::TypedRegister;
+  const auto &Prototype = *cast<model::RawFunctionType>(
+    FunctionModel.Prototype.get());
+  Function *NewFunction = recreateFunction(OldFunction, Prototype);
+  FunctionTags::Lifted.addTo(NewFunction);
+  createPrologue(NewFunction, FunctionModel);
+  return NewFunction;
+}
 
-  SmallVector<GlobalVariable *, 8> ArgumentCSVs;
-  SmallVector<GlobalVariable *, 8> ReturnCSVs;
-
-  const auto &Prototype = *cast<RawFunctionType>(FunctionModel.Prototype.get());
-  // We sort arguments by their CSV name
-  for (const NamedTypedRegister &TR : Prototype.Arguments) {
-    auto Name = ABIRegister::toCSVName(TR.Location);
-    auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
-    ArgumentCSVs.push_back(CSV);
-  }
-
-  for (const TypedRegister &TR : Prototype.ReturnValues) {
-    auto Name = ABIRegister::toCSVName(TR.Location);
-    auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
-    ReturnCSVs.push_back(CSV);
-  }
-
+Function *
+EnforceABIImpl::recreateFunction(Function &OldFunction,
+                                 const model::RawFunctionType &Prototype) {
   // Create new function
   auto *NewType = toLLVMType(&M, Prototype);
   auto *NewFunction = Function::Create(NewType,
@@ -234,7 +246,6 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
                                        OldFunction.getParent());
   NewFunction->takeName(&OldFunction);
   NewFunction->copyAttributesFrom(&OldFunction);
-  FunctionTags::Lifted.addTo(NewFunction);
 
   // Set argument names
   for (const auto &[LLVMArgument, ModelArgument] :
@@ -253,7 +264,32 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
     revng_assert(BB->getParent() == NewFunction);
   }
 
-  // WIP: split here
+  return NewFunction;
+}
+
+void EnforceABIImpl::createPrologue(Function *NewFunction,
+                                    const model::Function &FunctionModel) {
+  using model::NamedTypedRegister;
+  using model::RawFunctionType;
+  using model::TypedRegister;
+
+  const auto &Prototype = *cast<RawFunctionType>(FunctionModel.Prototype.get());
+
+  SmallVector<GlobalVariable *, 8> ArgumentCSVs;
+  SmallVector<GlobalVariable *, 8> ReturnCSVs;
+
+  // We sort arguments by their CSV name
+  for (const NamedTypedRegister &TR : Prototype.Arguments) {
+    auto Name = ABIRegister::toCSVName(TR.Location);
+    auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
+    ArgumentCSVs.push_back(CSV);
+  }
+
+  for (const TypedRegister &TR : Prototype.ReturnValues) {
+    auto Name = ABIRegister::toCSVName(TR.Location);
+    auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
+    ReturnCSVs.push_back(CSV);
+  }
 
   // Store arguments to CSVs
   BasicBlock &Entry = NewFunction->getEntryBlock();
@@ -279,8 +315,6 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
       }
     }
   }
-
-  return NewFunction;
 }
 
 void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
@@ -288,7 +322,6 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
   const model::Function &FunctionModel = *FunctionsMap.at(Caller);
 
   Function *CallerFunction = Call->getParent()->getParent();
-  revng_assert(CallerFunction->getName() == FunctionModel.name());
 
   Function *Callee = cast<Function>(skipCasts(Call->getCalledOperand()));
   bool IsDirect = (Callee != FunctionDispatcher);
@@ -339,36 +372,50 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
   Call->eraseFromParent();
 }
 
+static FunctionCallee
+toFunctionPointer(IRBuilder<> &B, Value *V, FunctionType *FT) {
+  Module *M = getModule(B.GetInsertBlock());
+  const auto &DL = M->getDataLayout();
+  IntegerType *IntPtrTy = DL.getIntPtrType(M->getContext());
+  Value *Callee = B.CreateBitOrPointerCast(B.CreateBitOrPointerCast(V,
+                                                                    IntPtrTy),
+                                           FT);
+  return FunctionCallee(FT, Callee);
+}
+
 void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
-                                  Function *Callee,
+                                  FunctionCallee Callee,
                                   const model::CallEdge &CallSite) {
   using model::NamedTypedRegister;
   using model::RawFunctionType;
   using model::TypedRegister;
 
-  revng_assert(Callee != nullptr);
+  revng_assert(Callee.getCallee() != nullptr);
 
   llvm::SmallVector<Value *, 8> Arguments;
   llvm::SmallVector<GlobalVariable *, 8> ReturnCSVs;
 
-  const auto &MaybeRawPrototype = abi::getRawFunctionType(Binary,
-                                                          CallSite.Prototype
-                                                            .get());
-  revng_assert(MaybeRawPrototype);
-  const auto &Prototype = *MaybeRawPrototype;
+  const auto &Prototype = abi::getRawFunctionTypeOrDefault(Binary,
+                                                           CallSite.Prototype
+                                                             .get());
 
-  bool IsIndirect = (Callee != FunctionDispatcher);
+  bool IsIndirect = (Callee.getCallee() == FunctionDispatcher);
   if (IsIndirect) {
     // Create a new `indirect_placeholder` function with the specific function
     // type we need
+    Value *PC = GCBI.programCounterHandler()->loadJumpablePC(Builder);
     auto *NewType = toLLVMType(&M, Prototype);
+    Callee = toFunctionPointer(Builder, PC, NewType);
+// WIP: drop
+#if 0
     Callee = IndirectPlaceholderPool.get(NewType,
                                          NewType,
                                          "indirect_placeholder");
+#endif
   } else {
     BasicBlock *InsertBlock = Builder.GetInsertPoint()->getParent();
     revng_log(EnforceABILog,
-              "Emitting call to " << getName(Callee) << " from "
+              "Emitting call to " << getName(Callee.getCallee()) << " from "
                                   << getName(InsertBlock));
   }
 
@@ -390,6 +437,7 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   //
   // Produce the call
   //
+  // WIP: tag with model::BasicBlock::Start
   auto *Result = Builder.CreateCall(Callee, Arguments);
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;

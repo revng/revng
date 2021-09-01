@@ -5,6 +5,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <csignal>
+
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -15,7 +17,6 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
-#include <csignal>
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/DwarfImporter/DwarfImporter.h"
@@ -72,7 +73,7 @@ static bool isTrue(const DWARFFormValue &Value) {
   return getUnsignedOrSigned(Value) != 0;
 }
 
-template <typename S, typename O, typename... A>
+template<typename S, typename O, typename... A>
 void dumpToStream(S &Stream, const O &Object, A... Args) {
   std::string Buffer;
   {
@@ -104,16 +105,21 @@ private:
   std::map<size_t, const model::Type *> Placeholders;
 
 public:
-  DwarfToModelConverter(DwarfImporter &Importer, DWARFContext &DICtx,
-                        size_t Index, size_t AltIndex)
-      : Importer(Importer), Model(Importer.getModel()), Index(Index),
-        AltIndex(AltIndex), DICtx(DICtx) {}
+  DwarfToModelConverter(DwarfImporter &Importer,
+                        DWARFContext &DICtx,
+                        size_t Index,
+                        size_t AltIndex) :
+    Importer(Importer),
+    Model(Importer.getModel()),
+    Index(Index),
+    AltIndex(AltIndex),
+    DICtx(DICtx) {}
 
 private:
   const model::QualifiedType &record(const DWARFDie &Die,
                                      const model::TypePath &Path,
                                      bool IsNotPlaceholder) {
-    return record(Die, model::QualifiedType{Path}, IsNotPlaceholder);
+    return record(Die, model::QualifiedType{ Path }, IsNotPlaceholder);
   }
 
   const model::QualifiedType &record(const DWARFDie &Die,
@@ -126,7 +132,7 @@ private:
       Placeholders[Offset] = QT.UnqualifiedType.get();
     }
 
-    return Importer.recordType({Index, Die.getOffset()}, QT);
+    return Importer.recordType({ Index, Die.getOffset() }, QT);
   }
 
   enum TypeSearchResult { Invalid, Absent, PlaceholderType, RegularType };
@@ -138,7 +144,7 @@ private:
 
   std::pair<TypeSearchResult, model::QualifiedType *>
   findType(uint64_t Offset) {
-    model::QualifiedType *Result = Importer.findType({Index, Offset});
+    model::QualifiedType *Result = Importer.findType({ Index, Offset });
     TypeSearchResult ResultType = Invalid;
     if (Result == nullptr) {
       ResultType = Absent;
@@ -149,11 +155,11 @@ private:
         ResultType = RegularType;
     }
 
-    return {ResultType, Result};
+    return { ResultType, Result };
   }
 
   model::QualifiedType *findAltType(uint64_t Offset) {
-    return Importer.findType({AltIndex, Offset});
+    return Importer.findType({ AltIndex, Offset });
   }
 
 private:
@@ -197,7 +203,8 @@ private:
     }
   }
 
-  template <typename T> void createPlaceholderType(const DWARFDie &Die) {
+  template<typename T>
+  void createPlaceholderType(const DWARFDie &Die) {
     record(Die, Model->recordNewType(model::makeType<T>()), false);
   }
 
@@ -218,8 +225,8 @@ private:
       if (MaybeEncoding)
         Kind = dwarfEncodingToModel(*MaybeEncoding->getAsUnsignedConstant());
 
-      if (Kind == model::PrimitiveTypeKind::Invalid or Size == 0 or
-          not isPowerOf2_32(Size)) {
+      if (Kind == model::PrimitiveTypeKind::Invalid or Size == 0
+          or not isPowerOf2_32(Size)) {
         revng_abort();
       }
 
@@ -253,21 +260,23 @@ private:
 
   void handleTypeDeclaration(const DWARFDie &Die) {
     auto Tag = Die.getTag();
-    if ((Tag == llvm::dwarf::DW_TAG_structure_type or
-         Tag == llvm::dwarf::DW_TAG_union_type or
-         Tag == llvm::dwarf::DW_TAG_enumeration_type)) {
-      record(Die, Model->getPrimitiveType(model::PrimitiveTypeKind::Void, 0),
+    if ((Tag == llvm::dwarf::DW_TAG_structure_type
+         or Tag == llvm::dwarf::DW_TAG_union_type
+         or Tag == llvm::dwarf::DW_TAG_enumeration_type)) {
+      record(Die,
+             Model->getPrimitiveType(model::PrimitiveTypeKind::Void, 0),
              true);
     } else {
-      reportIgnoredDie(Die, "Unexpected declaration for tag " +
-                                llvm::dwarf::TagString(Tag));
+      reportIgnoredDie(Die,
+                       "Unexpected declaration for tag "
+                         + llvm::dwarf::TagString(Tag));
     }
   }
 
   void materializeTypesWithIdentity() {
     for (const auto &CU : DICtx.compile_units()) {
       for (const auto &Entry : CU->dies()) {
-        DWARFDie Die = {CU.get(), &Entry};
+        DWARFDie Die = { CU.get(), &Entry };
         auto Tag = Die.getTag();
         if (isType(Tag) and hasModelIdentity(Tag)) {
           auto MaybeDeclaration = Die.find(DW_AT_declaration);
@@ -311,13 +320,13 @@ private:
     if (Result != nullptr) {
       return *Result;
     } else {
-      return {Model->getPrimitiveType(model::PrimitiveTypeKind::Void, 0)};
+      return { Model->getPrimitiveType(model::PrimitiveTypeKind::Void, 0) };
     }
   }
 
   // WIP: recursive coroutine
-  const model::QualifiedType *resolveType(const DWARFDie &Die,
-                                          bool ResolveIfHasIdentity) {
+  const model::QualifiedType *
+  resolveType(const DWARFDie &Die, bool ResolveIfHasIdentity) {
     auto Tag = Die.getTag();
     auto [MatchType, TypePath] = findType(Die);
 
@@ -351,8 +360,8 @@ private:
 
         for (const DWARFDie &ChildDie : Die.children()) {
           if (ChildDie.getTag() == llvm::dwarf::DW_TAG_subrange_type) {
-            auto MaybeUpperBound =
-                getUnsignedOrSigned(ChildDie.find(DW_AT_upper_bound));
+            auto MaybeUpperBound = getUnsignedOrSigned(
+              ChildDie.find(DW_AT_upper_bound));
             model::Qualifier NewQualifier;
             NewQualifier.Kind = model::QualifierKind::Array;
             // WIP
@@ -413,9 +422,9 @@ private:
               const model::QualifiedType *ArgumentType = getType(ChildDie);
 
               if (ArgumentType == nullptr) {
-                reportIgnoredDie(Die, "The type of argument " +
-                                          Twine(Index + 1) +
-                                          " cannot be resolved");
+                reportIgnoredDie(Die,
+                                 "The type of argument " + Twine(Index + 1)
+                                   + " cannot be resolved");
                 return nullptr;
               }
 
@@ -463,8 +472,9 @@ private:
               const model::QualifiedType *MemberType = getType(ChildDie);
 
               if (MemberType == nullptr) {
-                reportIgnoredDie(Die, "The type of member " + Twine(Index + 1) +
-                                          " cannot be resolved");
+                reportIgnoredDie(Die,
+                                 "The type of member " + Twine(Index + 1)
+                                   + " cannot be resolved");
                 return nullptr;
               }
 
@@ -493,8 +503,9 @@ private:
             if (ChildDie.getTag() == DW_TAG_member) {
               const model::QualifiedType *MemberType = getType(ChildDie);
               if (MemberType == nullptr) {
-                reportIgnoredDie(Die, "The type of member " + Twine(Index + 1) +
-                                          " cannot be resolved");
+                reportIgnoredDie(Die,
+                                 "The type of member " + Twine(Index + 1)
+                                   + " cannot be resolved");
                 return nullptr;
               }
 
@@ -527,19 +538,19 @@ private:
           }
 
           revng_assert(UnderlyingType->Qualifiers.empty());
-          Enum->UnderlyingType =
-              Model->getTypePath(UnderlyingType->UnqualifiedType.get());
+          Enum->UnderlyingType = Model->getTypePath(
+            UnderlyingType->UnqualifiedType.get());
 
           uint64_t Index = 0;
           for (const DWARFDie &ChildDie : Die.children()) {
             if (ChildDie.getTag() == DW_TAG_enumerator) {
               // Collect value
-              auto MaybeValue =
-                  getUnsignedOrSigned(ChildDie.find(DW_AT_const_value));
+              auto MaybeValue = getUnsignedOrSigned(
+                ChildDie.find(DW_AT_const_value));
               if (not MaybeValue) {
-                reportIgnoredDie(ChildDie, "Ignoring enum entry " +
-                                               Twine(Index + 1) +
-                                               " without a value");
+                reportIgnoredDie(ChildDie,
+                                 "Ignoring enum entry " + Twine(Index + 1)
+                                   + " without a value");
                 return nullptr;
               }
 
@@ -586,7 +597,7 @@ private:
   void secondPass() {
     for (const auto &CU : DICtx.compile_units()) {
       for (const auto &Entry : CU->dies()) {
-        DWARFDie Die = {CU.get(), &Entry};
+        DWARFDie Die = { CU.get(), &Entry };
         if (not isType(Die.getTag()))
           continue;
         resolveType(Die, true);
@@ -596,8 +607,8 @@ private:
 
   std::optional<model::TypePath> getSubprogramPrototype(const DWARFDie &Die) {
     // Create function type
-    auto Path =
-        Model->recordNewType(model::makeType<model::CABIFunctionType>());
+    auto Path = Model->recordNewType(
+      model::makeType<model::CABIFunctionType>());
     auto *FunctionType = cast<model::CABIFunctionType>(Path.get());
     FunctionType->CustomName = getName(Die);
     FunctionType->ABI = model::abi::SystemV_x86_64;
@@ -608,8 +619,9 @@ private:
       if (ChildDie.getTag() == DW_TAG_formal_parameter) {
         const model::QualifiedType *ArgumenType = getType(ChildDie);
         if (ArgumenType == nullptr) {
-          reportIgnoredDie(Die, "The type of argument " + Twine(Index + 1) +
-                                    " cannot be resolved");
+          reportIgnoredDie(Die,
+                           "The type of argument " + Twine(Index + 1)
+                             + " cannot be resolved");
           return {};
         }
 
@@ -626,7 +638,7 @@ private:
   void thirdPass() {
     for (const auto &CU : DICtx.compile_units()) {
       for (const auto &Entry : CU->dies()) {
-        DWARFDie Die = {CU.get(), &Entry};
+        DWARFDie Die = { CU.get(), &Entry };
 
         if (Die.getTag() != DW_TAG_subprogram)
           continue;
@@ -637,8 +649,11 @@ private:
 
         auto *FunctionType = cast<model::CABIFunctionType>(MaybePath->get());
 
-        // Create actual function
         auto Name = FunctionType->CustomName.str();
+        if (Name.size() == 0)
+          continue;
+
+        // Create actual function
         model::DynamicFunction &Function = Model->DynamicFunctions[Name.str()];
         Function.CustomName = FunctionType->CustomName;
         Function.SymbolName = Name;
@@ -696,7 +711,7 @@ private:
     // Create nodes in reverse dependency graph
     std::map<const model::Type *, ForwardNode<TypeNode> *> TypeToNode;
     for (UpcastablePointer<model::Type> &T : Model->Types)
-      TypeToNode[T.get()] = ReverseDependencyGraph.addNode(TypeNode{T.get()});
+      TypeToNode[T.get()] = ReverseDependencyGraph.addNode(TypeNode{ T.get() });
 
     auto RegisterDependency = [&](UpcastablePointer<model::Type> &T,
                                   const model::QualifiedType &QT) {
@@ -715,7 +730,7 @@ private:
         for (const model::UnionField &Field : Union->Fields)
           RegisterDependency(T, Field.Type);
       } else if (auto *Enum = dyn_cast<model::EnumType>(T.get())) {
-        RegisterDependency(T, {Enum->UnderlyingType});
+        RegisterDependency(T, { Enum->UnderlyingType });
       } else if (auto *Typedef = dyn_cast<model::TypedefType>(T.get())) {
         RegisterDependency(T, Typedef->UnderlyingType);
       } else if (auto *RFT = dyn_cast<model::RawFunctionType>(T.get())) {
@@ -741,9 +756,19 @@ private:
       }
     }
 
-    revng_log(DILogger, "Purging " << ToDelete.size() << " types due to "
-                                   << Placeholders.size()
-                                   << " unresolved types");
+    // Purge dynamic functions with invalid types
+    auto Begin = Model->DynamicFunctions.begin();
+    for (auto It = Begin; It != Model->DynamicFunctions.end(); /**/) {
+      if (ToDelete.count(It->Prototype.get()) == 0) {
+        ++It;
+      } else {
+        It = Model->DynamicFunctions.erase(It);
+      }
+    }
+
+    revng_log(DILogger,
+              "Purging " << ToDelete.size() << " types due to "
+                         << Placeholders.size() << " unresolved types");
 
     // Purge types depending on unresolved placeholder types
     for (auto It = Model->Types.begin(); It != Model->Types.end();) {
@@ -757,6 +782,7 @@ private:
   }
 
   void dedup() {
+    // WIP
     // Keep a stack of type pairs that whose comparisons are in progress
 
     // Compare and recur
@@ -767,6 +793,7 @@ private:
 
 public:
   void run() {
+    // WIP: rename
     materializeTypesWithIdentity();
     secondPass();
     thirdPass();
@@ -779,7 +806,7 @@ public:
   }
 };
 
-template <typename T>
+template<typename T>
 ArrayRef<uint8_t> getSectionsContents(StringRef Name, T &ELF) {
   auto MaybeSections = ELF.sections();
   if (not MaybeSections)
@@ -841,8 +868,8 @@ static void error(StringRef Prefix, std::error_code EC) {
 void DwarfImporter::import(StringRef FileName) {
   using namespace llvm::object;
 
-  ErrorOr<std::unique_ptr<MemoryBuffer>> BuffOrErr =
-      MemoryBuffer::getFileOrSTDIN(FileName);
+  ErrorOr<std::unique_ptr<MemoryBuffer>>
+    BuffOrErr = MemoryBuffer::getFileOrSTDIN(FileName);
   error(FileName, BuffOrErr.getError());
   std::unique_ptr<MemoryBuffer> Buffer = std::move(BuffOrErr.get());
   Expected<std::unique_ptr<Binary>> BinOrErr = object::createBinary(*Buffer);
@@ -861,7 +888,9 @@ void DwarfImporter::import(StringRef FileName) {
     }
 
     auto TheDWARFContext = DWARFContext::create(*ELF);
-    DwarfToModelConverter Converter(*this, *TheDWARFContext, LoadedFiles.size(),
+    DwarfToModelConverter Converter(*this,
+                                    *TheDWARFContext,
+                                    LoadedFiles.size(),
                                     AltIndex);
     Converter.run();
   }

@@ -91,5 +91,6 @@ extern Tag FunctionDispatcher;
 extern Tag Root;
 extern Tag CSVsAsArgumentsWrapper;
 extern Tag Marker;
+extern Tag DynamicFunction;
 
 } // namespace FunctionTags

@@ -83,10 +83,10 @@ public:
     }
   }
 
-  template <typename T>
+  template<typename T>
   bool maybeFail(bool Result, const llvm::Twine &Reason, T &Element) const {
     if (AssertOnFail and not Result) {
-      // WIP
+      // WIP: emit to a logger if not AssertOnFail
       std::string Buffer;
       {
         llvm::raw_string_ostream StringStream(Buffer);
@@ -103,7 +103,8 @@ public:
     return maybeFail(false, Reason);
   }
 
-  template <typename T> bool fail(const llvm::Twine &Reason, T &Element) const {
+  template<typename T>
+  bool fail(const llvm::Twine &Reason, T &Element) const {
     return maybeFail(false, Reason, Element);
   }
 };

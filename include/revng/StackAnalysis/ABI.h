@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Model/Binary.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Type.h"
 
@@ -27,7 +28,9 @@ public:
   }
 
   static model::TypePath indirectCallPrototype(model::Binary &TheBinary) {
-    revng_abort();
+    model::TypePath
+      Void = TheBinary.getPrimitiveType(model::PrimitiveTypeKind::Void, 0);
+    return TheBinary.recordNewType(model::makeType<model::RawFunctionType>());
   }
 
   void applyDeductions(RegisterStateMap &Prototype) { return; }
@@ -100,22 +103,46 @@ auto polyswitch(T Value, const auto &F) {
 inline std::optional<model::RawFunctionType>
 getRawFunctionType(model::Binary &TheBinary,
                    const model::CABIFunctionType *CABI) {
+  revng_assert(CABI != nullptr);
 
-  auto MaybeRaw = polyswitch(CABI->ABI, [&]<model::abi::Values A>() {
+  return polyswitch(CABI->ABI, [&]<model::abi::Values A>() {
     return ABI<A>::toRaw(TheBinary, *CABI);
   });
-
-  revng_assert(MaybeRaw);
-  return *MaybeRaw;
 }
 
 inline std::optional<model::RawFunctionType>
 getRawFunctionType(model::Binary &TheBinary, const model::Type *T) {
+  revng_assert(T != nullptr);
+
   using namespace llvm;
   if (auto *Raw = dyn_cast<model::RawFunctionType>(T)) {
     return *Raw;
   } else if (auto *CABI = dyn_cast<model::CABIFunctionType>(T)) {
     return getRawFunctionType(TheBinary, CABI);
+  } else {
+    revng_abort("getRawFunctionType with non-function type");
+  }
+}
+
+inline model::RawFunctionType
+getRawFunctionTypeOrDefault(model::Binary &TheBinary, const model::Type *T) {
+  revng_assert(T != nullptr);
+
+  using namespace llvm;
+  if (auto *Raw = dyn_cast<model::RawFunctionType>(T)) {
+    return *Raw;
+  } else if (auto *CABI = dyn_cast<model::CABIFunctionType>(T)) {
+    auto MaybeResult = getRawFunctionType(TheBinary, CABI);
+    if (MaybeResult) {
+      return *MaybeResult;
+    } else {
+      model::TypePath
+        Result = polyswitch(CABI->ABI, [&]<model::abi::Values A>() {
+          return ABI<A>::indirectCallPrototype(TheBinary);
+        });
+
+      return *cast<model::RawFunctionType>(Result.get());
+    }
   } else {
     revng_abort("getRawFunctionType with non-function type");
   }

@@ -5,7 +5,14 @@
 revng_add_library_internal(revngDwarfImporter SHARED
   DwarfImporter.cpp)
 
-llvm_map_components_to_libnames(LLVM_LIBRARIES DebugInfoDWARF BinaryFormat)
+llvm_map_components_to_libnames(LLVM_LIBRARIES
+  Object
+  Support
+  DebugInfoDWARF
+  BinaryFormat)
 
 target_link_libraries(revngDwarfImporter
+  revngSupport
+  revngModel
   ${LLVM_LIBRARIES})
+  

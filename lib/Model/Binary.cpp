@@ -71,10 +71,10 @@ public:
   }
 };
 
-model::TypePath Binary::getPrimitiveType(PrimitiveTypeKind::Values V,
-                                         uint8_t ByteSize) {
+model::TypePath
+Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
   PrimitiveType Temporary(V, ByteSize);
-  Type::Key PrimitiveKey{TypeKind::Primitive, Temporary.ID};
+  Type::Key PrimitiveKey{ TypeKind::Primitive, Temporary.ID };
   auto It = Types.find(PrimitiveKey);
 
   // If we couldn't find it, create it
@@ -91,7 +91,9 @@ TypePath Binary::recordNewType(UpcastablePointer<Type> &&T) {
   return getTypePath(It->get());
 }
 
-bool Binary::verifyTypes() const { return verifyTypes(false); }
+bool Binary::verifyTypes() const {
+  return verifyTypes(false);
+}
 
 bool Binary::verifyTypes(bool Assert) const {
   VerifyHelper VH(Assert);
@@ -115,7 +117,9 @@ bool Binary::verifyTypes(VerifyHelper &VH) const {
   return true;
 }
 
-bool Binary::verify() const { return verify(false); }
+bool Binary::verify() const {
+  return verify(false);
+}
 
 bool Binary::verify(bool Assert) const {
   VerifyHelper VH(Assert);
@@ -149,6 +153,12 @@ bool Binary::verify(VerifyHelper &VH) const {
         }
       }
     }
+  }
+
+  // Verify DynamicFunctions
+  for (const DynamicFunction &DF : DynamicFunctions) {
+    if (not DF.verify(VH))
+      return VH.fail();
   }
 
   //
@@ -207,13 +217,23 @@ Identifier Function::name() const {
   }
 }
 
+Identifier DynamicFunction::name() const {
+  using llvm::Twine;
+  if (not CustomName.empty())
+    return CustomName;
+  else
+    return Identifier(SymbolName);
+}
+
 void Function::dumpCFG() const {
   FunctionCFG CFG = getGraph(*this);
   raw_os_ostream Stream(dbg);
   WriteGraph(Stream, &CFG);
 }
 
-bool Function::verify() const { return verify(false); }
+bool Function::verify() const {
+  return verify(false);
+}
 
 bool Function::verify(bool Assert) const {
   VerifyHelper VH(Assert);
@@ -262,14 +282,46 @@ bool Function::verify(VerifyHelper &VH) const {
     return VH.fail();
 
   const model::Type *FunctionType = Prototype.get();
-  if (not(isa<RawFunctionType>(FunctionType) or
-          isa<CABIFunctionType>(FunctionType)))
+  if (not(isa<RawFunctionType>(FunctionType)
+          or isa<CABIFunctionType>(FunctionType)))
     return VH.fail();
 
   return true;
 }
 
-bool FunctionEdge::verify() const { return verify(false); }
+bool DynamicFunction::verify() const {
+  return verify(false);
+}
+
+bool DynamicFunction::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool DynamicFunction::verify(VerifyHelper &VH) const {
+  // Ensure we have a name
+  if (SymbolName.size() == 0)
+    return VH.fail("Dynamic functions must have a SymbolName");
+
+  // Prototype is present
+  if (not Prototype.isValid())
+    return VH.fail();
+
+  // Prototype is valid
+  if (not Prototype.get()->verify(VH))
+    return VH.fail();
+
+  const model::Type *FunctionType = Prototype.get();
+  if (not(isa<RawFunctionType>(FunctionType)
+          or isa<CABIFunctionType>(FunctionType)))
+    return VH.fail();
+
+  return true;
+}
+
+bool FunctionEdge::verify() const {
+  return verify(false);
+}
 
 bool FunctionEdge::verify(bool Assert) const {
   VerifyHelper VH(Assert);
@@ -280,8 +332,8 @@ static bool verifyFunctionEdge(VerifyHelper &VH, const FunctionEdge &E) {
   using namespace model::FunctionEdgeType;
   // WIP
   return VH.maybeFail(
-      E.Type != FunctionEdgeType::Invalid
-      /* and E.Destination.isValid() == hasDestination(E.Type) */);
+    E.Type != FunctionEdgeType::Invalid
+    /* and E.Destination.isValid() == hasDestination(E.Type) */);
 }
 
 bool FunctionEdge::verify(VerifyHelper &VH) const {
@@ -291,7 +343,9 @@ bool FunctionEdge::verify(VerifyHelper &VH) const {
     return verifyFunctionEdge(VH, *this);
 }
 
-bool CallEdge::verify() const { return verify(false); }
+bool CallEdge::verify() const {
+  return verify(false);
+}
 
 bool CallEdge::verify(bool Assert) const {
   VerifyHelper VH(Assert);
@@ -299,8 +353,8 @@ bool CallEdge::verify(bool Assert) const {
 }
 
 bool CallEdge::verify(VerifyHelper &VH) const {
-  return VH.maybeFail(verifyFunctionEdge(VH, *this) and Prototype.isValid() and
-                      Prototype.get()->verify(VH));
+  return VH.maybeFail(verifyFunctionEdge(VH, *this) and Prototype.isValid()
+                      and Prototype.get()->verify(VH));
 }
 
 Identifier BasicBlock::name() const {
@@ -311,7 +365,9 @@ Identifier BasicBlock::name() const {
     return Identifier(std::string("bb_") + Start.toString());
 }
 
-bool BasicBlock::verify() const { return verify(false); }
+bool BasicBlock::verify() const {
+  return verify(false);
+}
 
 bool BasicBlock::verify(bool Assert) const {
   VerifyHelper VH(Assert);
@@ -331,13 +387,13 @@ bool BasicBlock::verify(VerifyHelper &VH) const {
 
 } // namespace model
 
-template <>
+template<>
 struct llvm::DOTGraphTraits<model::FunctionCFG *>
-    : public DefaultDOTGraphTraits {
+  : public DefaultDOTGraphTraits {
   DOTGraphTraits(bool Simple = false) : DefaultDOTGraphTraits(Simple) {}
 
-  static std::string getNodeLabel(const model::FunctionCFGNode *Node,
-                                  const model::FunctionCFG *) {
+  static std::string
+  getNodeLabel(const model::FunctionCFGNode *Node, const model::FunctionCFG *) {
     return Node->Start.toString();
   }
 

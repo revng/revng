@@ -398,32 +398,6 @@ using TypePath = TupleTreeReference<model::Type, model::Binary>;
 
 } // end namespace model
 
-/// \brief A qualified version of a model::Type. Can have many nested qualifiers
-class model::QualifiedType {
-public:
-  TypePath UnqualifiedType;
-  std::vector<Qualifier> Qualifiers = {};
-
-public:
-  bool operator==(const model::QualifiedType &Other) const = default;
-
-public:
-  std::optional<uint64_t> size() const debug_function;
-  RecursiveCoroutine<std::optional<uint64_t>> size(VerifyHelper &VH) const;
-
-public:
-  bool verify() const debug_function;
-  bool verify(bool Assert) const debug_function;
-  RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
-};
-INTROSPECTION_NS(model, QualifiedType, UnqualifiedType, Qualifiers);
-
-/// \brief Make QualifiedType yaml-serializable
-template<>
-struct llvm::yaml::MappingTraits<model::QualifiedType>
-  : public TupleLikeMappingTraits<model::QualifiedType,
-                                  Fields<model::QualifiedType>::Qualifiers> {};
-
 namespace model::PrimitiveTypeKind {
 
 // WARNING: these end up in type IDs, changing these means breaks the file
@@ -490,6 +464,37 @@ inline model::PrimitiveTypeKind::Values fromName(const llvm::Twine &Name) {
 }
 
 } // end namespace model::PrimitiveTypeKind
+
+/// \brief A qualified version of a model::Type. Can have many nested qualifiers
+class model::QualifiedType {
+public:
+  TypePath UnqualifiedType;
+  std::vector<Qualifier> Qualifiers = {};
+
+public:
+  bool operator==(const model::QualifiedType &Other) const = default;
+
+public:
+  std::optional<uint64_t> size() const debug_function;
+  RecursiveCoroutine<std::optional<uint64_t>> size(VerifyHelper &VH) const;
+
+  bool isScalar() const;
+  bool isPrimitive(model::PrimitiveTypeKind::Values V) const;
+  bool isVoid() const { return isPrimitive(model::PrimitiveTypeKind::Void); }
+  bool isFloat() const { return isPrimitive(model::PrimitiveTypeKind::Float); }
+
+public:
+  bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
+  RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
+};
+INTROSPECTION_NS(model, QualifiedType, UnqualifiedType, Qualifiers);
+
+/// \brief Make QualifiedType yaml-serializable
+template<>
+struct llvm::yaml::MappingTraits<model::QualifiedType>
+  : public TupleLikeMappingTraits<model::QualifiedType,
+                                  Fields<model::QualifiedType>::Qualifiers> {};
 
 /// \brief A primitive type in model: sized integers, booleans, floats and void.
 class model::PrimitiveType : public model::Type {

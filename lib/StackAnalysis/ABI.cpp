@@ -87,8 +87,15 @@ ABI<SystemV_x86_64>::toRaw(model::Binary &TheBinary,
   //
   uint64_t AvailableRegisters = ArgumentRegisters.size();
   VerifyHelper VH;
-  // TODO: check integers only
+
   for (const Argument &Argument : Original.Arguments) {
+
+    if (not Argument.Type.isScalar())
+      return {};
+
+    if (Argument.Type.isFloat())
+      return {};
+
     std::optional<uint64_t> MaybeSize = Argument.Type.size(VH);
     revng_assert(MaybeSize);
     uint64_t Size = *MaybeSize;
@@ -103,7 +110,6 @@ ABI<SystemV_x86_64>::toRaw(model::Binary &TheBinary,
   //
   // Record register arguments
   //
-  // WIP: does not really handle structs here
   using namespace model::PrimitiveTypeKind;
   model::RawFunctionType Result;
   auto Primitive = TheBinary.getPrimitiveType(PointerOrNumber, 8);
@@ -112,7 +118,7 @@ ABI<SystemV_x86_64>::toRaw(model::Binary &TheBinary,
   for (int I = 0; I < UsedRegisters; ++I) {
     model::NamedTypedRegister Argument(ArgumentRegisters[I]);
     Argument.Type = Generic64;
-    const auto &OriginalArgument = Original.Arguments.at(ArgumentRegisters[I]);
+    const auto &OriginalArgument = Original.Arguments.at(I);
     Argument.CustomName = OriginalArgument.CustomName;
     Result.Arguments.insert(Argument);
   }
@@ -120,8 +126,16 @@ ABI<SystemV_x86_64>::toRaw(model::Binary &TheBinary,
   //
   // Allocate return values
   //
-  {
+  if (not Original.ReturnType.isVoid()) {
+
+    if (not Original.ReturnType.isScalar())
+      return {};
+
+    if (Original.ReturnType.isFloat())
+      return {};
+
     uint64_t AvailableRegisters = ReturnValueRegisters.size() * 8;
+
     std::optional<uint64_t> MaybeSize = Original.ReturnType.size(VH);
     revng_assert(MaybeSize);
     uint64_t Size = *MaybeSize;

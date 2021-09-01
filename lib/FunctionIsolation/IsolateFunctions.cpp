@@ -933,10 +933,31 @@ void IFI::run() {
     StringRef Name = Function.SymbolName;
     auto *NewFunction = Function::Create(IsolatedFunctionType,
                                          GlobalValue::ExternalLinkage,
-                                         Name,
+                                         "dynamic_" + Name,
                                          TheModule);
+    FunctionTags::DynamicFunction.addTo(NewFunction);
     auto *EntryBB = BasicBlock::Create(Context, "", NewFunction);
     throwException(EntryBB, Twine("Dynamic call ") + Name, DebugLoc());
+
+#if 0
+    // TODO: implement more efficient version.
+    if (setjmp(...) == 0) {
+      // First return
+      serialize_cpu_state();
+      dynamic_function();
+      // If we get here, it means that the external function return properly
+      deserialize_cpu_state();
+      simulate_ret();
+      // If the caller tail-called us, it must return immediately, without
+      // checking if the pc is the fallthrough of the call (which was not a
+      // call!)
+    } else {
+      // If we get here, it means that the external function either invoked a
+      // callback or something else weird i going on.
+      deserialize_cpu_state();
+      throw_exception();
+    }
+#endif
 
     DynamicFunctionsMap[Name] = NewFunction;
   }
@@ -948,7 +969,7 @@ void IFI::run() {
 
     auto *NewFunction = Function::Create(IsolatedFunctionType,
                                          GlobalValue::ExternalLinkage,
-                                         Function.name(),
+                                         "local_" + Function.name(),
                                          TheModule);
     IsolatedFunctionsMap[Function.Entry] = NewFunction;
     FunctionTags::Lifted.addTo(NewFunction);
