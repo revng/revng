@@ -52,7 +52,7 @@ using Fields = typename TupleLikeTraits<T>::Fields;
 
 namespace model {
 
-extern const std::set<llvm::StringRef> CReservedKeywords;
+extern const std::set<llvm::StringRef> ReservedKeywords;
 
 /// \note Zero-sized identifiers are valid
 class Identifier : public llvm::SmallString<16> {
@@ -68,8 +68,8 @@ public:
     revng_assert(not Name.empty());
     Identifier Result;
 
-    // For reserved C keywords prepend the our reserved prefix and we're done.
-    if (CReservedKeywords.count(Name)) {
+    // For reserved C keywords prepend a non-reserved prefix and we're done.
+    if (ReservedKeywords.count(Name)) {
       Result += "prefix_";
       Result += Name;
       return Result;
