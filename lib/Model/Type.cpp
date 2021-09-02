@@ -8,6 +8,7 @@
 #include <string>
 #include <type_traits>
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/MathExtras.h"
 
@@ -22,7 +23,38 @@ namespace model {
 
 const Identifier Identifier::Empty = Identifier("");
 
-static std::set<llvm::StringRef> CReservedKeywords = {
+const std::set<llvm::StringRef> ReservedKeywords = {
+  // reserved keywords for primitive types
+  "void"
+  "pointer_or_number8_t"
+  "pointer_or_number16_t"
+  "pointer_or_number32_t"
+  "pointer_or_number64_t"
+  "pointer_or_number128_t"
+  "number8_t"
+  "number16_t"
+  "number32_t"
+  "number64_t"
+  "number128_t"
+  "generic8_t"
+  "generic16_t"
+  "generic32_t"
+  "generic64_t"
+  "generic128_t"
+  "int8_t"
+  "int16_t"
+  "int32_t"
+  "int64_t"
+  "int128_t"
+  "uint8_t"
+  "uint16_t"
+  "uint32_t"
+  "uint64_t"
+  "uint128_t"
+  "float16_t"
+  "float32_t"
+  "float64_t"
+  "float128_t"
   // C reserved keywords
   "auto",
   "break",
@@ -145,10 +177,40 @@ public:
   uint64_t get() { return Distribution(Generator); }
 };
 
-llvm::ManagedStatic<RNG> IDGenerator;
+static llvm::ManagedStatic<RNG> IDGenerator;
 
 model::Type::Type(TypeKind::Values TK) :
   model::Type::Type(TK, IDGenerator->get()) {
+}
+
+Identifier model::UnionField::name() const {
+  using llvm::Twine;
+  Identifier Result;
+  if (CustomName.empty())
+    (Twine("unnamed_field_") + Twine(Index)).toVector(Result);
+  else
+    Result = CustomName;
+  return Result;
+}
+
+Identifier model::StructField::name() const {
+  using llvm::Twine;
+  Identifier Result;
+  if (CustomName.empty())
+    (Twine("unnamed_field_at_offset_") + Twine(Offset)).toVector(Result);
+  else
+    Result = CustomName;
+  return Result;
+}
+
+Identifier model::Argument::name() const {
+  using llvm::Twine;
+  Identifier Result;
+  if (CustomName.empty())
+    (Twine("unnamed_arg_") + Twine(Index)).toVector(Result);
+  else
+    Result = CustomName;
+  return Result;
 }
 
 Identifier model::Type::name() const {
@@ -176,6 +238,8 @@ bool Qualifier::verify(VerifyHelper &VH) const {
     return VH.maybeFail(Size == 0);
   case QualifierKind::Array:
     return VH.maybeFail(Size > 0);
+  default:
+    revng_abort();
   }
 
   return VH.fail();
@@ -199,6 +263,9 @@ isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
 
   case PrimitiveTypeKind::Float:
     return BS == 2 or BS == 4 or BS == 8 or BS == 16;
+
+  default:
+    revng_abort();
   }
 
   revng_abort();
@@ -310,6 +377,10 @@ PrimitiveType::PrimitiveType(uint64_t ID) :
   Type(AssociatedKind, ID),
   PrimitiveKind(getPrimitiveKind(ID)),
   Size(getPrimitiveSize(ID)) {
+}
+
+static bool beginsWithReservedPrefix(llvm::StringRef Name) {
+  return Name.startswith("unnamed_");
 }
 
 bool EnumEntry::verify() const {
@@ -429,6 +500,9 @@ QualifiedType::size(VerifyHelper &VH) const {
     case QualifierKind::Const:
       // Do nothing, just skip over it
       break;
+
+    default:
+      revng_abort();
     }
   }
 
@@ -494,6 +568,9 @@ RecursiveCoroutine<std::optional<uint64_t>> Type::size(VerifyHelper &VH) const {
     }
     Size = { Max == 0 ? ResultType{} : Max };
   } break;
+
+  default:
+    revng_abort();
   }
 
   VH.setSize(this, Size ? *Size : 0);
@@ -518,9 +595,15 @@ bool Identifier::verify(bool Assert) const {
 }
 
 bool Identifier::verify(VerifyHelper &VH) const {
+  const auto AllAlphaNumOrUnderscore = [](const auto &Range) {
+    const auto IsNotUnderscore = [](const char C) { return C != '_'; };
+    return llvm::all_of(llvm::make_filter_range(Range, IsNotUnderscore),
+                        isalnum);
+  };
   return VH.maybeFail(not(not empty() and std::isdigit((*this)[0]))
-                      and not count(' ')
-                      and not CReservedKeywords.count(llvm::StringRef(*this)));
+                      and not startswith("_") and AllAlphaNumOrUnderscore(*this)
+                      and not beginsWithReservedPrefix(*this)
+                      and not ReservedKeywords.count(llvm::StringRef(*this)));
 }
 
 static RecursiveCoroutine<bool>
@@ -580,6 +663,8 @@ inline RecursiveCoroutine<bool> isScalar(const QualifiedType &QT) {
       rc_return false;
     case QualifierKind::Const:
       break;
+    default:
+      revng_abort();
     }
   }
 

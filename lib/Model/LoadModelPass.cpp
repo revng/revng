@@ -36,7 +36,7 @@ TupleTree<model::Binary> loadModel(const llvm::Module &M) {
   Metadata *MD = Tuple->getOperand(0).get();
   StringRef YAMLString = cast<MDString>(MD)->getString();
 
-  return TupleTree<model::Binary>::deserialize(YAMLString);
+  return std::move(TupleTree<model::Binary>::deserialize(YAMLString).get());
 }
 
 static TupleTree<model::Binary> extractModel(Module &M) {
