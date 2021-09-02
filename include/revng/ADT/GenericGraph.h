@@ -10,7 +10,44 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 
+#include "revng/ADT/STLExtras.h"
 #include "revng/Support/Debug.h"
+
+/// GenericGraph is our implementation of a universal graph architecture.
+/// First and foremost, it's tailored for the revng codebase, but maybe you
+/// can find it useful as well, that's why it's released under the MIT License.
+///
+/// To use the Graph, you need to make you choice of the node type. We're
+/// currently supporting three architectures:
+///
+///   - ForwardNode - a trivially-simple single-linked node. It uses the least
+///     memory, because each node only stores the list of its successors.
+///     This makes backwards iteration impossible without the reference to
+///     the whole graph (and really expensive even in those cases).
+///
+///   - BidirectionalNode - a simple double-linked node. It stores the both
+///     lists of its successors and predecessors. Take note, that for the sake
+///     of implementation simplicity this node stores COPIES of the labels.
+///     It's only suitable to be used with cheap to copy labels which are never
+///     mutated. There are plans on making them explicitly immutable (TODO),
+///     as such you can consider label mutation a deprecated behaviour.
+///
+///   - MutableEdgeNode - a double-linked node with dynamically allocated
+///     labels. It is similar to BidirectionalNode except it stores edge labels
+///     on the heap. It's slower and uses more memory but allows for safe label
+///     modification as well as controls that nodes and edges are removed
+///     safely, with the other "halfs" cleaned up as well.
+///     Note that it's disallowed to have a mutable edge graph without edge
+///     labels. Use `BidirectionalNode` in those cases.
+///
+///   - The node you're going to write - No-one knows the needs of your
+///     project better than you. That's why the best datastructure is the one
+///     you are going to write. So just inherit one of our nodes, or even copy
+///     it and modify it so that it suits your graphs as nicely as possible.
+///
+///  On the side-note, we're providing a couple of helpful concepts to help
+///  differenciate different node types. This is helpful in the projects that
+///  use multiple different graph architectures side by side.
 
 template<typename T>
 concept IsForwardNode = requires {
@@ -20,6 +57,12 @@ concept IsForwardNode = requires {
 template<typename T>
 concept IsBidirectionalNode = requires {
   T::is_bidirectional_node;
+  typename llvm::Inverse<T *>;
+};
+
+template<typename T>
+concept IsMutableEdgeNode = requires {
+  T::is_mutable_edge_node;
   typename llvm::Inverse<T *>;
 };
 
@@ -118,7 +161,7 @@ namespace detail {
 ///       argument.
 template<typename Node,
          typename EdgeLabel,
-         bool HasParent,
+         bool NeedsParent,
          size_t SmallSize,
          template<typename, typename, bool, size_t, typename, size_t, bool>
          class ForwardEdge,
@@ -130,7 +173,7 @@ struct ForwardNodeBaseTCalc {
     NoDerivation = std::is_same_v<FinalType, std::false_type>;
   using FWNode = ForwardEdge<Node,
                              EdgeLabel,
-                             HasParent,
+                             NeedsParent,
                              SmallSize,
                              FinalType,
                              ParentSmallSize,
@@ -140,14 +183,14 @@ struct ForwardNodeBaseTCalc {
                                     ParentSmallSize,
                                     ParentHasEntryNode>;
   using ParentType = Parent<GenericGraph, Node>;
-  using Result = std::conditional_t<HasParent, ParentType, Node>;
+  using Result = std::conditional_t<NeedsParent, ParentType, Node>;
 };
 } // namespace detail
 
 /// Basic nodes type, only forward edges, possibly with parent
 template<typename Node,
          typename EdgeLabel = Empty,
-         bool HasParent = true,
+         bool NeedsParent = true,
          size_t SmallSize = 2,
          typename FinalType = std::false_type,
          size_t ParentSmallSize = 16,
@@ -155,7 +198,7 @@ template<typename Node,
 class ForwardNode
   : public detail::ForwardNodeBaseTCalc<Node,
                                         EdgeLabel,
-                                        HasParent,
+                                        NeedsParent,
                                         SmallSize,
                                         ForwardNode,
                                         FinalType,
@@ -163,10 +206,10 @@ class ForwardNode
                                         ParentHasEntryNode>::Result {
 public:
   static constexpr bool is_forward_node = true;
-  static constexpr bool has_parent = HasParent;
+  static constexpr bool HasParent = NeedsParent;
   using TypeCalc = detail::ForwardNodeBaseTCalc<Node,
                                                 EdgeLabel,
-                                                HasParent,
+                                                NeedsParent,
                                                 SmallSize,
                                                 ForwardNode,
                                                 FinalType,
@@ -245,6 +288,7 @@ public:
   }
 
   bool hasSuccessors() const { return Successors.size() != 0; }
+  size_t successorCount() const { return Successors.size(); }
 
 protected:
   static llvm::iterator_range<child_iterator>
@@ -275,25 +319,26 @@ namespace detail {
 ///       is used as this argument.
 template<typename Node,
          typename EdgeLabel,
-         bool HasParent,
+         bool NeedsParent,
          size_t SmallSize,
          template<typename, typename, bool, size_t>
          class BidirectionalNode>
 struct BidirectionalNodeBaseTCalc {
-  using BDNode = BidirectionalNode<Node, EdgeLabel, HasParent, SmallSize>;
-  using Result = ForwardNode<Node, EdgeLabel, HasParent, SmallSize, BDNode>;
+  using BDNode = BidirectionalNode<Node, EdgeLabel, NeedsParent, SmallSize>;
+  using Result = ForwardNode<Node, EdgeLabel, NeedsParent, SmallSize, BDNode>;
 };
 } // namespace detail
 
 /// Same as ForwardNode, but with backward links too
+/// TODO: Make edge labels immutable
 template<typename Node,
          typename EdgeLabel = Empty,
-         bool HasParent = true,
+         bool NeedsParent = true,
          size_t SmallSize = 2>
 class BidirectionalNode
   : public detail::BidirectionalNodeBaseTCalc<Node,
                                               EdgeLabel,
-                                              HasParent,
+                                              NeedsParent,
                                               SmallSize,
                                               BidirectionalNode>::Result {
 public:
@@ -304,7 +349,7 @@ public:
   using EdgeLabelData = EdgeLabel;
   using Base = ForwardNode<Node,
                            EdgeLabel,
-                           HasParent,
+                           NeedsParent,
                            SmallSize,
                            BidirectionalNode>;
   using NeighborContainer = typename Base::NeighborContainer;
@@ -370,9 +415,727 @@ public:
   }
 
   bool hasPredecessors() const { return Predecessors.size() != 0; }
+  size_t predecessorCount() const { return Predecessors.size(); }
 
 private:
   NeighborContainer Predecessors;
+};
+
+namespace detail {
+/// The parameters deciding specifics of the base type `MutableEdgeNode`
+/// extends are non-trivial. That's why those decisiion were wrapped
+/// inside this struct to minimize clutter.
+///
+/// \note At this step `TheNode` has not been declared yet, thus we accept a
+///       template parameter that has the same signature as `TheNode` that
+///       will be declared later. This allows us to use it as if it was
+///       declared, provided that only the real `TheNode` is used as this
+///       argument.
+template<typename Node,
+         typename EdgeLabel,
+         bool NeedsParent,
+         size_t SmallSize,
+         template<typename, typename, bool, size_t, typename, size_t, bool>
+         class TheNode,
+         typename FinalType,
+         size_t ParentSmallSize,
+         bool ParentHasEntryNode>
+struct MutableEdgeNodeBaseTCalc {
+  static constexpr bool
+    NoDerivation = std::is_same_v<FinalType, std::false_type>;
+  using NodeType = TheNode<Node,
+                           EdgeLabel,
+                           NeedsParent,
+                           SmallSize,
+                           FinalType,
+                           ParentSmallSize,
+                           ParentHasEntryNode>;
+  using DerivedType = std::conditional_t<NoDerivation, NodeType, FinalType>;
+  using GenericGraph = GenericGraph<DerivedType,
+                                    ParentSmallSize,
+                                    ParentHasEntryNode>;
+  using ParentType = Parent<GenericGraph, Node>;
+  using Result = std::conditional_t<NeedsParent, ParentType, Node>;
+};
+
+template<typename NodeType, typename LabelType>
+struct OwningEdge {
+  NodeType *Neighbor;
+  std::unique_ptr<LabelType> Label;
+};
+
+template<typename NodeType, typename LabelType>
+struct NonOwningEdge {
+  NodeType *Neighbor;
+  LabelType *Label;
+};
+
+template<typename NodeType, typename LabelType>
+struct EdgeView {
+  NodeType *Neighbor;
+  LabelType *Label;
+
+  explicit EdgeView(OwningEdge<NodeType, LabelType> &E) :
+    Neighbor(E.Neighbor), Label(E.Label.get()) {}
+  explicit EdgeView(NonOwningEdge<NodeType, LabelType> &E) :
+    Neighbor(E.Neighbor), Label(E.Label) {}
+};
+
+template<typename NodeType, typename LabelType>
+struct ConstEdgeView {
+  NodeType const *Neighbor;
+  LabelType const *Label;
+
+  explicit ConstEdgeView(OwningEdge<NodeType, LabelType> const &E) :
+    Neighbor(E.Neighbor), Label(E.Label.get()) {}
+  explicit ConstEdgeView(NonOwningEdge<NodeType, LabelType> const &E) :
+    Neighbor(E.Neighbor), Label(E.Label) {}
+};
+} // namespace detail
+
+/// A node type suitable for graphs where the edge labels are not cheap
+/// to copy or need to be modified often.
+template<typename Node,
+         typename EdgeLabel,
+         bool NeedsParent = true,
+         size_t SmallSize = 2,
+         typename FinalType = std::false_type,
+         size_t ParentSmallSize = 16,
+         bool ParentHasEntryNode = true>
+class MutableEdgeNode
+  : public detail::MutableEdgeNodeBaseTCalc<Node,
+                                            EdgeLabel,
+                                            NeedsParent,
+                                            SmallSize,
+                                            MutableEdgeNode,
+                                            FinalType,
+                                            ParentSmallSize,
+                                            ParentHasEntryNode>::Result {
+public:
+  static constexpr bool is_mutable_edge_node = true;
+  static constexpr bool HasParent = NeedsParent;
+  using TypeCalc = detail::MutableEdgeNodeBaseTCalc<Node,
+                                                    EdgeLabel,
+                                                    NeedsParent,
+                                                    SmallSize,
+                                                    MutableEdgeNode,
+                                                    FinalType,
+                                                    ParentSmallSize,
+                                                    ParentHasEntryNode>;
+  using DerivedType = typename TypeCalc::DerivedType;
+  using Base = typename TypeCalc::Result;
+  using NodeData = Node;
+  using EdgeLabelData = EdgeLabel;
+
+public:
+  using Edge = EdgeLabel;
+  using EdgeView = detail::EdgeView<DerivedType, EdgeLabel>;
+  using ConstEdgeView = detail::ConstEdgeView<DerivedType, EdgeLabel>;
+
+protected:
+  using OwningEdge = detail::OwningEdge<DerivedType, EdgeLabel>;
+  using NonOwningEdge = detail::NonOwningEdge<DerivedType, EdgeLabel>;
+  using EdgeOwnerContainer = llvm::SmallVector<OwningEdge, SmallSize>;
+  using EdgeViewContainer = llvm::SmallVector<NonOwningEdge, SmallSize>;
+
+public:
+  template<typename... Args>
+  explicit MutableEdgeNode(Args &&...args) :
+    Base(std::forward<Args>(args)...) {}
+
+  MutableEdgeNode(const MutableEdgeNode &) = default;
+  MutableEdgeNode(MutableEdgeNode &&) = default;
+  MutableEdgeNode &operator=(const MutableEdgeNode &) = default;
+  MutableEdgeNode &operator=(MutableEdgeNode &&) = default;
+
+public:
+  // This stuff is needed by the DominatorTree implementation
+  void printAsOperand(llvm::raw_ostream &, bool) const { revng_abort(); }
+
+public:
+  EdgeView addSuccessor(MutableEdgeNode *NewSuccessor, EdgeLabel EL = {}) {
+    auto [Owner, View] = constructEdge(this, NewSuccessor, std::move(EL));
+    auto &Output = Successors.emplace_back(std::move(Owner));
+    NewSuccessor->Predecessors.emplace_back(std::move(View));
+    return EdgeView(Output);
+  }
+  EdgeView addPredecessor(MutableEdgeNode *NewPredecessor, EdgeLabel EL = {}) {
+    auto [Owner, View] = constructEdge(NewPredecessor, this, std::move(EL));
+    auto &Output = NewPredecessor->Successors.emplace_back(std::move(Owner));
+    Predecessors.emplace_back(std::move(View));
+    return EdgeView(Output);
+  }
+
+protected:
+  struct SuccessorFilters {
+    static EdgeView toView(OwningEdge &E) { return EdgeView(E); }
+    static ConstEdgeView toConstView(OwningEdge const &E) {
+      return ConstEdgeView(E);
+    }
+
+    static DerivedType *&toNeighbor(OwningEdge &E) { return E.Neighbor; }
+    static DerivedType const *const &toConstNeighbor(OwningEdge const &E) {
+      return E.Neighbor;
+    }
+  };
+
+  struct PredecessorFilters {
+    static EdgeView toView(NonOwningEdge &E) { return EdgeView(E); }
+    static ConstEdgeView toConstView(NonOwningEdge const &E) {
+      return ConstEdgeView(E);
+    }
+
+    static DerivedType *&toNeighbor(NonOwningEdge &E) { return E.Neighbor; }
+    static DerivedType const *const &toConstNeighbor(NonOwningEdge const &E) {
+      return E.Neighbor;
+    }
+  };
+
+private:
+  template<typename IteratorType, typename FunctionType>
+  using mapped = revng::mapped_iterator<IteratorType, FunctionType>;
+
+  using SuccPointer = OwningEdge *;
+  using CSuccPointer = const OwningEdge *;
+  using PredPointer = NonOwningEdge *;
+  using CPredPointer = const NonOwningEdge *;
+  using RSuccPointer = std::reverse_iterator<OwningEdge *>;
+  using CRSuccPointer = std::reverse_iterator<const OwningEdge *>;
+  using RPredPointer = std::reverse_iterator<NonOwningEdge *>;
+  using CRPredPointer = std::reverse_iterator<const NonOwningEdge *>;
+
+  using SuccV = std::decay_t<decltype(SuccessorFilters::toView)>;
+  using CSuccV = std::decay_t<decltype(SuccessorFilters::toConstView)>;
+  using SuccN = std::decay_t<decltype(SuccessorFilters::toNeighbor)>;
+  using CSuccN = std::decay_t<decltype(SuccessorFilters::toConstNeighbor)>;
+  using PredV = std::decay_t<decltype(PredecessorFilters::toView)>;
+  using CPredV = std::decay_t<decltype(PredecessorFilters::toConstView)>;
+  using PredN = std::decay_t<decltype(PredecessorFilters::toNeighbor)>;
+  using CPredN = std::decay_t<decltype(PredecessorFilters::toConstNeighbor)>;
+
+public:
+  using SuccessorEdgeIterator = mapped<SuccPointer, SuccV>;
+  using ConstSuccessorEdgeIterator = mapped<CSuccPointer, CSuccV>;
+  using SuccessorIterator = mapped<SuccPointer, SuccN>;
+  using ConstSuccessorIterator = mapped<CSuccPointer, CSuccN>;
+
+  using PredecessorEdgeIterator = mapped<PredPointer, PredV>;
+  using ConstPredecessorEdgeIterator = mapped<CPredPointer, CPredV>;
+  using PredecessorIterator = mapped<PredPointer, PredN>;
+  using ConstPredecessorIterator = mapped<CPredPointer, CPredN>;
+
+  using ReverseSuccessorEdgeIterator = mapped<RSuccPointer, SuccV>;
+  using ConstReverseSuccessorEdgeIterator = mapped<CRSuccPointer, CSuccV>;
+  using ReverseSuccessorIterator = mapped<RSuccPointer, SuccN>;
+  using ConstReverseSuccessorIterator = mapped<CRSuccPointer, CSuccN>;
+
+  using ReversePredecessorEdgeIterator = mapped<RPredPointer, PredV>;
+  using ConstReversePredecessorEdgeIterator = mapped<CRPredPointer, CPredV>;
+  using ReversePredecessorIterator = mapped<RPredPointer, PredN>;
+  using ConstReversePredecessorIterator = mapped<CRPredPointer, CPredN>;
+
+public:
+  SuccessorEdgeIterator successor_edges_begin() {
+    return revng::map_iterator(Successors.begin(), SuccessorFilters::toView);
+  }
+  ConstSuccessorEdgeIterator successor_edges_begin() const {
+    return revng::map_iterator(Successors.begin(),
+                               SuccessorFilters::toConstView);
+  }
+  ConstSuccessorEdgeIterator successor_edges_cbegin() const {
+    return revng::map_iterator(Successors.cbegin(),
+                               SuccessorFilters::toConstView);
+  }
+  ReverseSuccessorEdgeIterator successor_edges_rbegin() {
+    return revng::map_iterator(Successors.rbegin(), SuccessorFilters::toView);
+  }
+  ConstReverseSuccessorEdgeIterator successor_edges_rbegin() const {
+    return revng::map_iterator(Successors.rbegin(),
+                               SuccessorFilters::toConstView);
+  }
+  ConstReverseSuccessorEdgeIterator successor_edges_crbegin() const {
+    return revng::map_iterator(Successors.crbegin(),
+                               SuccessorFilters::toConstView);
+  }
+
+  SuccessorEdgeIterator successor_edges_end() {
+    return revng::map_iterator(Successors.end(), SuccessorFilters::toView);
+  }
+  ConstSuccessorEdgeIterator successor_edges_end() const {
+    return revng::map_iterator(Successors.end(), SuccessorFilters::toConstView);
+  }
+  ConstSuccessorEdgeIterator successor_edges_cend() const {
+    return revng::map_iterator(Successors.cend(),
+                               SuccessorFilters::toConstView);
+  }
+  ReverseSuccessorEdgeIterator successor_edges_rend() {
+    return revng::map_iterator(Successors.rend(), SuccessorFilters::toView);
+  }
+  ConstReverseSuccessorEdgeIterator successor_edges_rend() const {
+    return revng::map_iterator(Successors.rend(),
+                               SuccessorFilters::toConstView);
+  }
+  ConstReverseSuccessorEdgeIterator successor_edges_crend() const {
+    return revng::map_iterator(Successors.crend(),
+                               SuccessorFilters::toConstView);
+  }
+
+public:
+  SuccessorIterator successors_begin() {
+    return revng::map_iterator(Successors.begin(),
+                               SuccessorFilters::toNeighbor);
+  }
+  ConstSuccessorIterator successors_begin() const {
+    return revng::map_iterator(Successors.begin(),
+                               SuccessorFilters::toConstNeighbor);
+  }
+  ConstSuccessorIterator successors_cbegin() const {
+    return revng::map_iterator(Successors.cbegin(),
+                               SuccessorFilters::toConstNeighbor);
+  }
+  ReverseSuccessorIterator successors_rbegin() {
+    return revng::map_iterator(Successors.rbegin(),
+                               SuccessorFilters::toNeighbor);
+  }
+  ConstReverseSuccessorIterator successors_rbegin() const {
+    return revng::map_iterator(Successors.rbegin(),
+                               SuccessorFilters::toConstNeighbor);
+  }
+  ConstReverseSuccessorIterator successors_crbegin() const {
+    return revng::map_iterator(Successors.crbegin(),
+                               SuccessorFilters::toConstNeighbor);
+  }
+
+  SuccessorIterator successors_end() {
+    return revng::map_iterator(Successors.end(), SuccessorFilters::toNeighbor);
+  }
+  ConstSuccessorIterator successors_end() const {
+    return revng::map_iterator(Successors.end(),
+                               SuccessorFilters::toConstNeighbor);
+  }
+  ConstSuccessorIterator successors_cend() const {
+    return revng::map_iterator(Successors.cend(),
+                               SuccessorFilters::toConstNeighbor);
+  }
+  ReverseSuccessorIterator successors_rend() {
+    return revng::map_iterator(Successors.rend(), SuccessorFilters::toNeighbor);
+  }
+  ConstReverseSuccessorIterator successors_rend() const {
+    return revng::map_iterator(Successors.rend(),
+                               SuccessorFilters::toConstNeighbor);
+  }
+  ConstReverseSuccessorIterator successors_crend() const {
+    return revng::map_iterator(Successors.crend(),
+                               SuccessorFilters::toConstNeighbor);
+  }
+
+public:
+  PredecessorEdgeIterator predecessor_edges_begin() {
+    return revng::map_iterator(Predecessors.begin(),
+                               PredecessorFilters::toView);
+  }
+  ConstPredecessorEdgeIterator predecessor_edges_begin() const {
+    return revng::map_iterator(Predecessors.begin(),
+                               PredecessorFilters::toConstView);
+  }
+  ConstPredecessorEdgeIterator predecessor_edges_cbegin() const {
+    return revng::map_iterator(Predecessors.cbegin(),
+                               PredecessorFilters::toConstView);
+  }
+  ReversePredecessorEdgeIterator predecessor_edges_rbegin() {
+    return revng::map_iterator(Predecessors.rbegin(),
+                               PredecessorFilters::toView);
+  }
+  ConstReversePredecessorEdgeIterator predecessor_edges_rbegin() const {
+    return revng::map_iterator(Predecessors.rbegin(),
+                               PredecessorFilters::toConstView);
+  }
+  ConstReversePredecessorEdgeIterator predecessor_edges_crbegin() const {
+    return revng::map_iterator(Predecessors.crbegin(),
+                               PredecessorFilters::toConstView);
+  }
+
+  PredecessorEdgeIterator predecessor_edges_end() {
+    return revng::map_iterator(Predecessors.end(), PredecessorFilters::toView);
+  }
+  ConstPredecessorEdgeIterator predecessor_edges_end() const {
+    return revng::map_iterator(Predecessors.end(),
+                               PredecessorFilters::toConstView);
+  }
+  ConstPredecessorEdgeIterator predecessor_edges_cend() const {
+    return revng::map_iterator(Predecessors.cend(),
+                               PredecessorFilters::toConstView);
+  }
+  ReversePredecessorEdgeIterator predecessor_edges_rend() {
+    return revng::map_iterator(Predecessors.rend(), PredecessorFilters::toView);
+  }
+  ConstReversePredecessorEdgeIterator predecessor_edges_rend() const {
+    return revng::map_iterator(Predecessors.rend(),
+                               PredecessorFilters::toConstView);
+  }
+  ConstReversePredecessorEdgeIterator predecessor_edges_crend() const {
+    return revng::map_iterator(Predecessors.crend(),
+                               PredecessorFilters::toConstView);
+  }
+
+public:
+  PredecessorIterator predecessors_begin() {
+    return revng::map_iterator(Predecessors.begin(),
+                               PredecessorFilters::toNeighbor);
+  }
+  ConstPredecessorIterator predecessors_begin() const {
+    return revng::map_iterator(Predecessors.begin(),
+                               PredecessorFilters::toConstNeighbor);
+  }
+  ConstPredecessorIterator predecessors_cbegin() const {
+    return revng::map_iterator(Predecessors.cbegin(),
+                               PredecessorFilters::toConstNeighbor);
+  }
+  ReversePredecessorIterator predecessors_rbegin() {
+    return revng::map_iterator(Predecessors.rbegin(),
+                               PredecessorFilters::toNeighbor);
+  }
+  ConstReversePredecessorIterator predecessors_rbegin() const {
+    return revng::map_iterator(Predecessors.rbegin(),
+                               PredecessorFilters::toConstNeighbor);
+  }
+  ConstReversePredecessorIterator predecessors_crbegin() const {
+    return revng::map_iterator(Predecessors.crbegin(),
+                               PredecessorFilters::toConstNeighbor);
+  }
+
+  PredecessorIterator predecessors_end() {
+    return revng::map_iterator(Predecessors.end(),
+                               PredecessorFilters::toNeighbor);
+  }
+  ConstPredecessorIterator predecessors_end() const {
+    return revng::map_iterator(Predecessors.end(),
+                               PredecessorFilters::toConstNeighbor);
+  }
+  ConstPredecessorIterator predecessors_cend() const {
+    return revng::map_iterator(Predecessors.cend(),
+                               PredecessorFilters::toConstNeighbor);
+  }
+  ReversePredecessorIterator predecessors_rend() {
+    return revng::map_iterator(Predecessors.rend(),
+                               PredecessorFilters::toNeighbor);
+  }
+  ConstReversePredecessorIterator predecessors_rend() const {
+    return revng::map_iterator(Predecessors.rend(),
+                               PredecessorFilters::toConstNeighbor);
+  }
+  ConstReversePredecessorIterator predecessors_crend() const {
+    return revng::map_iterator(Predecessors.crend(),
+                               PredecessorFilters::toConstNeighbor);
+  }
+
+public:
+  llvm::iterator_range<SuccessorEdgeIterator> successor_edges() {
+    return llvm::make_range(successor_edges_begin(), successor_edges_end());
+  }
+  llvm::iterator_range<ConstSuccessorEdgeIterator> successor_edges() const {
+    return llvm::make_range(successor_edges_begin(), successor_edges_end());
+  }
+  llvm::iterator_range<SuccessorIterator> successors() {
+    return llvm::make_range(successors_begin(), successors_end());
+  }
+  llvm::iterator_range<ConstSuccessorIterator> successors() const {
+    return llvm::make_range(successors_begin(), successors_end());
+  }
+
+  llvm::iterator_range<PredecessorEdgeIterator> predecessor_edges() {
+    return llvm::make_range(predecessor_edges_begin(), predecessor_edges_end());
+  }
+  llvm::iterator_range<ConstPredecessorEdgeIterator> predecessor_edges() const {
+    return llvm::make_range(predecessor_edges_begin(), predecessor_edges_end());
+  }
+  llvm::iterator_range<PredecessorIterator> predecessors() {
+    return llvm::make_range(predecessors_begin(), predecessors_end());
+  }
+  llvm::iterator_range<ConstPredecessorIterator> predecessors() const {
+    return llvm::make_range(predecessors_begin(), predecessors_end());
+  }
+
+private:
+  template<typename IteratorType>
+  static auto findImpl(DerivedType const *N,
+                       IteratorType FromIterator,
+                       IteratorType ToIterator) {
+    auto Comparator = [N](auto const &Edge) { return Edge.Neighbor == N; };
+    return std::find_if(FromIterator, ToIterator, Comparator);
+  }
+  template<typename ContainerType>
+  static auto findImpl(DerivedType const *N, ContainerType &&Where) {
+    return findImpl(N, Where.begin(), Where.end());
+  }
+
+  static auto findSuccessorHalf(typename EdgeOwnerContainer::iterator Edge,
+                                EdgeViewContainer &Halfs) {
+    auto Comparator = [Edge](auto const &Half) {
+      return Half.Label == Edge->Label.get();
+    };
+    return std::find_if(Halfs.begin(), Halfs.end(), Comparator);
+  }
+  static auto findPredecessorHalf(typename EdgeViewContainer::iterator Edge,
+                                  EdgeOwnerContainer &Halfs) {
+    auto Comparator = [Edge](auto const &Half) {
+      return Half.Label.get() == Edge->Label;
+    };
+    return std::find_if(Halfs.begin(), Halfs.end(), Comparator);
+  }
+
+public:
+  SuccessorEdgeIterator findSuccessorEdge(DerivedType const *S) {
+    return SuccessorEdgeIterator(findImpl(S, Successors),
+                                 SuccessorFilters::toView);
+  }
+  ConstSuccessorEdgeIterator findSuccessorEdge(DerivedType const *S) const {
+    return ConstSuccessorEdgeIterator(findImpl(S, Successors),
+                                      SuccessorFilters::toConstView);
+  }
+  PredecessorEdgeIterator findPredecessorEdge(DerivedType const *P) {
+    return PredecessorEdgeIterator(findImpl(P, Predecessors),
+                                   PredecessorFilters::toView);
+  }
+  ConstPredecessorEdgeIterator findPredecessorEdge(DerivedType const *P) const {
+    return ConstPredecessorEdgeIterator(findImpl(P, Predecessors),
+                                        PredecessorFilters::toConstView);
+  }
+
+  SuccessorIterator findSuccessor(DerivedType const *S) {
+    return SuccessorIterator(findImpl(S, Successors),
+                             SuccessorFilters::toNeighbor);
+  }
+  ConstSuccessorIterator findSuccessor(DerivedType const *S) const {
+    return ConstSuccessorIterator(findImpl(S, Successors),
+                                  SuccessorFilters::toConstNeighbor);
+  }
+  PredecessorIterator findPredecessor(DerivedType const *P) {
+    return PredecessorIterator(findImpl(P, Predecessors),
+                               PredecessorFilters::toNeighbor);
+  }
+  ConstPredecessorIterator findPredecessor(DerivedType const *P) const {
+    return ConstPredecessorIterator(findImpl(P, Predecessors),
+                                    PredecessorFilters::toConstNeighbor);
+  }
+
+public:
+  bool hasSuccessor(DerivedType const *S) const {
+    return findImpl(S, Successors) != Successors.end();
+  }
+  bool hasPredecessor(DerivedType const *P) const {
+    return findImpl(P, Predecessors) != Predecessors.end();
+  }
+
+public:
+  size_t successorCount() const { return Successors.size(); }
+  size_t predecessorCount() const { return Predecessors.size(); }
+
+  bool hasSuccessors() const { return Successors.size() != 0; }
+  bool hasPredecessors() const { return Predecessors.size() != 0; }
+
+protected:
+  using InternalOwnerIt = typename EdgeOwnerContainer::const_iterator;
+  using InternalViewIt = typename EdgeViewContainer::const_iterator;
+
+  using InternalOwnerRIt = typename EdgeOwnerContainer::const_reverse_iterator;
+  using InternalViewRIt = typename EdgeViewContainer::const_reverse_iterator;
+
+protected:
+  auto removeSuccessorImpl(InternalOwnerIt InputIterator) {
+    if (Successors.empty())
+      return Successors.end();
+
+    auto Iterator = Successors.begin();
+    std::advance(Iterator,
+                 std::distance<InternalOwnerIt>(Iterator, InputIterator));
+    revng_assert(Iterator != Successors.end());
+
+    // Maybe we should do some extra checks as to whether `Iterator` is valid.
+    auto *Successor = Iterator->Neighbor;
+    revng_assert(!Successor->Predecessors.empty(),
+                 "Half of an edge is missing, graph layout is broken.");
+
+    auto PredecessorIt = findSuccessorHalf(Iterator, Successor->Predecessors);
+    revng_assert(PredecessorIt != Successor->Predecessors.end(),
+                 "Half of an edge is missing, graph layout is broken.");
+    std::swap(*PredecessorIt, Successor->Predecessors.back());
+    Successor->Predecessors.pop_back();
+
+    auto AssertHelper = findSuccessorHalf(Iterator, Successor->Predecessors);
+    revng_assert(AssertHelper == Successor->Predecessors.end(),
+                 "More than one half is found for a single edge.");
+
+    std::swap(*Iterator, Successors.back());
+    Successors.pop_back();
+
+    return Iterator;
+  }
+  auto removePredecessorImpl(InternalViewIt InputIterator) {
+    if (Predecessors.empty())
+      return Predecessors.end();
+
+    auto Iterator = Predecessors.begin();
+    std::advance(Iterator,
+                 std::distance<InternalViewIt>(Iterator, InputIterator));
+    revng_assert(Iterator != Predecessors.end());
+
+    // Maybe we should do some extra checks as to whether `Iterator` is valid.
+    auto *Predecessor = Iterator->Neighbor;
+    revng_assert(!Predecessor->Successors.empty(),
+                 "Half of an edge is missing, graph layout is broken.");
+
+    auto SuccessorIt = findPredecessorHalf(Iterator, Predecessor->Successors);
+    revng_assert(SuccessorIt != Predecessor->Successors.end(),
+                 "Half of an edge is missing, graph layout is broken.");
+    std::swap(*SuccessorIt, Predecessor->Successors.back());
+    Predecessor->Successors.pop_back();
+
+    auto AssertHelper = findPredecessorHalf(Iterator, Predecessor->Successors);
+    revng_assert(AssertHelper == Predecessor->Successors.end(),
+                 "More than one half is found for a single edge.");
+
+    std::swap(*Iterator, Predecessors.back());
+    Predecessors.pop_back();
+
+    return Iterator;
+  }
+
+protected:
+  auto removeSuccessorImpl(InternalOwnerRIt InputIterator) {
+    auto Result = removeSuccessorImpl(std::prev(InputIterator.base()));
+    return std::reverse_iterator(Result);
+  }
+  auto removePredecessorImpl(InternalViewRIt InputIterator) {
+    auto Result = removePredecessorImpl(std::prev(InputIterator.base()));
+    return std::reverse_iterator(Result);
+  }
+
+public:
+  auto removeSuccessor(ConstSuccessorEdgeIterator Iterator) {
+    auto Result = removeSuccessorImpl(Iterator.getCurrent());
+    return SuccessorEdgeIterator(Result, SuccessorFilters::toView);
+  }
+  auto removeSuccessor(ConstSuccessorIterator Iterator) {
+    auto Result = removeSuccessorImpl(Iterator.getCurrent());
+    return SuccessorIterator(Result, SuccessorFilters::toNeighbor);
+  }
+  auto removeSuccessor(ConstReverseSuccessorEdgeIterator Iterator) {
+    auto Result = removeSuccessorImpl(Iterator.getCurrent());
+    return ReverseSuccessorEdgeIterator(Result, SuccessorFilters::toView);
+  }
+  auto removeSuccessor(ConstReverseSuccessorIterator Iterator) {
+    auto Result = removeSuccessorImpl(Iterator.getCurrent());
+    return ReverseSuccessorIterator(Result, SuccessorFilters::toNeighbor);
+  }
+
+  auto removePredecessor(ConstPredecessorEdgeIterator Iterator) {
+    auto Result = removePredecessorImpl(Iterator.getCurrent());
+    return ReverseSuccessorEdgeIterator(Result, PredecessorFilters::toView);
+  }
+  auto removePredecessor(ConstPredecessorIterator Iterator) {
+    auto Result = removePredecessorImpl(Iterator.getCurrent());
+    return ReverseSuccessorEdgeIterator(Result, PredecessorFilters::toNeighbor);
+  }
+  auto removePredecessor(ConstReversePredecessorEdgeIterator Iterator) {
+    auto Result = removePredecessorImpl(Iterator.getCurrent());
+    return ReversePredecessorEdgeIterator(Result, PredecessorFilters::toView);
+  }
+  auto removePredecessor(ConstReversePredecessorIterator Iterator) {
+    auto Result = removePredecessorImpl(Iterator.getCurrent());
+    return ReversePredecessorIterator(Result, PredecessorFilters::toNeighbor);
+  }
+
+public:
+  auto removeSuccessor(SuccessorEdgeIterator Iterator) {
+    auto Converted = ConstSuccessorEdgeIterator(Iterator.getCurrent(),
+                                                SuccessorFilters::toConstView);
+    return removeSuccessor(Converted);
+  }
+  auto removeSuccessor(SuccessorIterator Iterator) {
+    auto Converted = ConstSuccessorIterator(Iterator.getCurrent(),
+                                            SuccessorFilters::toConstNeighbor);
+    return removeSuccessor(Converted);
+  }
+  auto removePredecessor(PredecessorEdgeIterator Iterator) {
+    auto &F = PredecessorFilters::toConstView;
+    auto Converted = ConstPredecessorEdgeIterator(Iterator.getCurrent(), F);
+    return removePredecessor(Converted);
+  }
+  auto removePredecessor(PredecessorIterator Iterator) {
+    auto Conv = ConstPredecessorIterator(Iterator.getCurrent(),
+                                         PredecessorFilters::toConstNeighbor);
+    return removePredecessor(Conv);
+  }
+
+public:
+  auto removeSuccessor(ReverseSuccessorEdgeIterator Iterator) {
+    auto &F = SuccessorFilters::toConstView;
+    auto Conv = ConstReverseSuccessorEdgeIterator(Iterator.getCurrent(), F);
+    return removeSuccessor(Conv);
+  }
+  auto removeSuccessor(ReverseSuccessorIterator Iterator) {
+    auto &F = SuccessorFilters::toConstNeighbor;
+    auto Converted = ConstReverseSuccessorIterator(Iterator.getCurrent(), F);
+    return removeSuccessor(Converted);
+  }
+  auto removePredecessor(ReversePredecessorEdgeIterator Iterator) {
+    auto &F = PredecessorFilters::toConstView;
+    auto Conv = ConstReversePredecessorEdgeIterator(Iterator.getCurrent(), F);
+    return removePredecessor(Conv);
+  }
+  auto removePredecessor(ReversePredecessorIterator Iterator) {
+    auto &F = PredecessorFilters::toConstNeighbor;
+    auto Converted = ConstReversePredecessorIterator(Iterator.getCurrent(), F);
+    return removePredecessor(Converted);
+  }
+
+public:
+  void removeSuccessors(DerivedType const *S) {
+    auto Iterator = findImpl(S, Successors);
+    while (Iterator != Successors.end()) {
+      Iterator = removeSuccessorImpl(Iterator);
+      Iterator = findImpl(S, Iterator, Successors.end());
+    }
+  }
+  void removePredecessors(DerivedType const *P) {
+    auto Iterator = findImpl(P, Predecessors);
+    while (Iterator != Predecessors.end()) {
+      Iterator = removePredecessorImpl(Iterator);
+      Iterator = findImpl(P, Iterator, Predecessors.end());
+    }
+  }
+
+public:
+  void removeSuccessors() {
+    for (auto It = Successors.begin(); It != Successors.end();)
+      It = removeSuccessorImpl(It);
+    revng_assert(Successors.empty());
+  }
+  void removePredecessors() {
+    for (auto It = Predecessors.begin(); It != Predecessors.end();)
+      It = removePredecessorImpl(It);
+    revng_assert(Predecessors.empty());
+  }
+
+public:
+  MutableEdgeNode &disconnect() {
+    removeSuccessors();
+    removePredecessors();
+    return *this;
+  }
+
+protected:
+  std::tuple<OwningEdge, NonOwningEdge>
+  constructEdge(DerivedType *From, DerivedType *To, EdgeLabel &&EL) {
+    OwningEdge O{ To, std::make_unique<EdgeLabel>(std::move(EL)) };
+    NonOwningEdge V{ From, O.Label.get() };
+    return { std::move(O), std::move(V) };
+  }
+
+private:
+  EdgeOwnerContainer Successors;
+  EdgeViewContainer Predecessors;
 };
 
 /// Simple data structure to hold the EntryNode of a GenericGraph
@@ -429,18 +1192,66 @@ public:
   size_t size() const { return Nodes.size(); }
 
 public:
+  nodes_iterator findNode(Node const *NodePtr) {
+    auto Comparator = [&NodePtr](auto &N) { return N.get() == NodePtr; };
+    auto InternalIt = std::find_if(Nodes.begin(), Nodes.end(), Comparator);
+    return nodes_iterator(InternalIt, getNode);
+  }
+  const_nodes_iterator findNode(Node const *NodePtr) const {
+    auto Comparator = [&NodePtr](auto &N) { return N.get() == NodePtr; };
+    auto InternalIt = std::find_if(Nodes.begin(), Nodes.end(), Comparator);
+    return nodes_iterator(InternalIt, getConstNode);
+  }
+
+public:
+  bool hasNodes() const { return Nodes.size() != 0; }
+  bool hasNode(Node const *NodePtr) const {
+    return findNode(NodePtr) != Nodes.end();
+  }
+
+public:
+  NodeT *addNode(std::unique_ptr<NodeT> &&Ptr) {
+    Nodes.emplace_back(std::move(Ptr));
+    if constexpr (NodeT::HasParent)
+      Nodes.back()->setParent(this);
+    return Nodes.back().get();
+  }
+
   template<class... Args>
   NodeT *addNode(Args &&...A) {
     Nodes.push_back(std::make_unique<NodeT>(std::forward<Args>(A)...));
-    if constexpr (NodeT::has_parent)
+    if constexpr (NodeT::HasParent)
       Nodes.back()->setParent(this);
     return Nodes.back().get();
   }
 
   nodes_iterator removeNode(nodes_iterator It) {
+    if constexpr (IsMutableEdgeNode<Node>)
+      (*It.getCurrent())->disconnect();
+
     auto InternalIt = Nodes.erase(It.getCurrent());
     return nodes_iterator(InternalIt, getNode);
   }
+  nodes_iterator removeNode(Node const *NodePtr) {
+    return removeNode(findNode(NodePtr));
+  }
+
+public:
+  nodes_iterator
+  insertNode(nodes_iterator Where, std::unique_ptr<NodeT> &&Ptr) {
+    auto InternalIt = Nodes.insert(Where.getCurrent(), std::move(Ptr));
+    return nodes_iterator(InternalIt, getNode);
+  }
+  template<class... Args>
+  nodes_iterator insertNode(nodes_iterator Where, Args &&...A) {
+    auto Pointer = std::make_unique<NodeT>(std::forward<Args>(A)...);
+    auto InternalIt = Nodes.insert(Where.getCurrent(), std::move(Pointer));
+    return nodes_iterator(InternalIt, getNode);
+  }
+
+public:
+  void reserve(size_t Size) { Nodes.reserve(Size); }
+  void clear() { Nodes.clear(); }
 
 private:
   NodesContainer Nodes;
@@ -487,6 +1298,58 @@ public:
   static NodeRef edge_dest(EdgeRef Edge) { return Edge.Neighbor; }
 
   static NodeRef getEntryNode(NodeRef N) { return N; };
+};
+
+/// Implement GraphTraits<MutableEdgeNode>
+template<IsMutableEdgeNode T>
+struct GraphTraits<T *> {
+public:
+  using NodeRef = T *;
+  using EdgeRef = typename T::EdgeView;
+
+private:
+  using ChildNodeIt = decltype(std::declval<T>().successors().begin());
+  using ChildEdgeIt = decltype(std::declval<T>().successor_edges().begin());
+
+public:
+  using ChildIteratorType = ChildNodeIt;
+  using ChildEdgeIteratorType = ChildEdgeIt;
+
+public:
+  static auto child_begin(T *N) { return N->successors().begin(); }
+  static auto child_end(T *N) { return N->successors().end(); }
+
+  static auto child_edge_begin(T *N) { return N->successor_edges().begin(); }
+  static auto child_edge_end(T *N) { return N->successor_edges().end(); }
+
+  static T *edge_dest(EdgeRef Edge) { return Edge.Neighbor; }
+  static T *getEntryNode(T *N) { return N; };
+};
+
+/// Implement GraphTraits<Inverse<MutableEdgeNode>>
+template<IsMutableEdgeNode T>
+struct GraphTraits<llvm::Inverse<T *>> {
+public:
+  using NodeRef = T *;
+  using EdgeRef = typename T::EdgeView;
+
+private:
+  using ChildNodeIt = decltype(std::declval<T>().predecessors().begin());
+  using ChildEdgeIt = decltype(std::declval<T>().predecessor_edges().begin());
+
+public:
+  using ChildIteratorType = ChildNodeIt;
+  using ChildEdgeIteratorType = ChildEdgeIt;
+
+public:
+  static auto child_begin(T *N) { return N->predecessors().begin(); }
+  static auto child_end(T *N) { return N->predecessors().end(); }
+
+  static auto child_edge_begin(T *N) { return N->predecessor_edges().begin(); }
+  static auto child_edge_end(T *N) { return N->predecessor_edges().end(); }
+
+  static T *edge_dest(EdgeRef Edge) { return &Edge.Neighbor; }
+  static T *getEntryNode(llvm::Inverse<T *> N) { return N.Graph; };
 };
 
 /// Implement GraphTraits<GenericGraph>
