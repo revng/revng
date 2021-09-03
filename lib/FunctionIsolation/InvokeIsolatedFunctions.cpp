@@ -46,9 +46,10 @@ public:
         continue;
 
       // TODO: this temporary
-      Map[Function.Entry] = { &Function,
-                              nullptr,
-                              M->getFunction(Function.name()) };
+      llvm::Function *F = M->getFunction(
+        (Twine("local_") + Function.name()).str());
+      revng_assert(F != nullptr);
+      Map[Function.Entry] = { &Function, nullptr, F };
     }
 
     for (BasicBlock &BB : *RootFunction) {

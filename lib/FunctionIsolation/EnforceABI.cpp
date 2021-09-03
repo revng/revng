@@ -173,7 +173,12 @@ void EnforceABIImpl::run() {
     handleRegularFunctionCall(Call);
 
   // Drop function_dispatcher
-  FunctionDispatcher->eraseFromParent();
+  // WIP: cast pc to pointer and delete function_dispatcher
+  if (FunctionDispatcher != nullptr) {
+    FunctionDispatcher->deleteBody();
+    ReturnInst::Create(Context,
+                       BasicBlock::Create(Context, "", FunctionDispatcher));
+  }
 
   // Drop all the old functions, after we stole all of its blocks
   for (Function *OldFunction : OldFunctions)

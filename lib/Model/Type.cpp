@@ -626,9 +626,11 @@ bool Identifier::verify(VerifyHelper &VH) const {
                         isalnum);
   };
   return VH.maybeFail(not(not empty() and std::isdigit((*this)[0]))
-                      and not startswith("_") and AllAlphaNumOrUnderscore(*this)
-                      and not beginsWithReservedPrefix(*this)
-                      and not ReservedKeywords.count(llvm::StringRef(*this)));
+                        and not startswith("_")
+                        and AllAlphaNumOrUnderscore(*this)
+                        and not beginsWithReservedPrefix(*this)
+                        and not ReservedKeywords.count(llvm::StringRef(*this)),
+                      llvm::Twine(*this) + " is not a valid identifier");
 }
 
 static RecursiveCoroutine<bool>

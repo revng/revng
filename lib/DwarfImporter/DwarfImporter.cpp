@@ -290,12 +290,12 @@ private:
     }
   }
 
-  static StringRef getName(const DWARFDie &Die) {
+  static model::Identifier getName(const DWARFDie &Die) {
     auto MaybeName = Die.find(DW_AT_name);
     if (MaybeName) {
       auto MaybeString = MaybeName->getAsCString();
       if (MaybeString)
-        return *MaybeString;
+        return model::Identifier::fromString(*MaybeString);
     }
 
     return {};
@@ -402,7 +402,7 @@ private:
         revng_assert(TypePath->Qualifiers.empty());
         model::Type *T = TypePath->UnqualifiedType.get();
 
-        StringRef Name = getName(Die);
+        model::Identifier Name = getName(Die);
 
         switch (Tag) {
         case llvm::dwarf::DW_TAG_subroutine_type: {
@@ -557,7 +557,7 @@ private:
               uint64_t Value = *MaybeValue;
 
               // Create new entry
-              StringRef EntryName = getName(ChildDie);
+              model::Identifier EntryName = getName(ChildDie);
 
               // If it's the first time, set CustomName, otherwise, introduce
               // an alias
@@ -801,7 +801,6 @@ public:
     fix2();
     dedup();
     revng_assert(Placeholders.size() == 0);
-    Model.serialize(llvm::errs());
     Model->verify(true);
   }
 };

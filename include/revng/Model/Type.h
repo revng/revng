@@ -15,6 +15,7 @@
 #include "revng/ADT/SortedVector.h"
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
+#include "revng/Model/ABI.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/TupleTree.h"
 #include "revng/Support/Assert.h"
@@ -894,40 +895,6 @@ V getOrDefault(const std::map<K, V> &Map, const K &Key, const V &Default) {
   else
     return It->second;
 }
-
-namespace model::abi {
-
-enum Values { Invalid, SystemV_x86_64, Count };
-
-inline llvm::StringRef getName(Values V) {
-  switch (V) {
-  case Invalid:
-    return "Invalid";
-  case SystemV_x86_64:
-    return "SystemV_x86_64";
-  default:
-    revng_abort();
-  }
-  revng_abort();
-}
-
-} // namespace model::abi
-
-namespace llvm::yaml {
-
-template<>
-struct ScalarEnumerationTraits<model::abi::Values> {
-  template<typename IOType>
-  static void enumeration(IOType &IO, model::abi::Values &Val) {
-    using namespace model::abi;
-    for (unsigned I = 0; I < Count; ++I) {
-      auto V = static_cast<Values>(I);
-      IO.enumCase(Val, getName(V).data(), V);
-    }
-  }
-};
-
-} // namespace llvm::yaml
 
 /// \brief The argument of a function type
 ///
