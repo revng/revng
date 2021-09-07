@@ -27,4 +27,8 @@ void deduplicateNames(TupleTree<model::Binary> &Model);
 /// Best effort deduplication of types that are identical
 void deduplicateEquivalentTypes(TupleTree<model::Binary> &Model);
 
+/// Sanitizes names so they don't use reserved symbols or invalid characters,
+/// ensuring they are valid identifiers
+void sanitizeCustomNames(TupleTree<model::Binary> &Model);
+
 } // namespace model

@@ -106,6 +106,55 @@ unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
   return ToDelete.size();
 }
 
+template<typename T>
+void sanitizeCustomName(T &Type) {
+  StringRef Name = Type->name();
+
+  if (not Name.empty()) {
+    Type->CustomName = Identifier::fromString(Name);
+  }
+}
+
+template<typename Container>
+void sanitizeCustomNamesList(Container &TypeIterator) {
+  for (auto &F : TypeIterator) {
+    auto FieldName = F.CustomName;
+    if (not FieldName.empty()) {
+      F.CustomName = Identifier::fromString(FieldName);
+    }
+  }
+}
+
+template<typename T>
+void sanitizeNamesOfAggregate(T &TheAggregate) {
+  sanitizeCustomName(TheAggregate);
+  sanitizeCustomNamesList(TheAggregate->Fields);
+}
+
+template<typename T>
+void sanitizeNamesOfFunctionType(T &TheFunction) {
+  sanitizeCustomName(TheFunction);
+  sanitizeCustomNamesList(TheFunction->Arguments);
+}
+
+void sanitizeCustomNames(TupleTree<model::Binary> &Model) {
+  for (auto &Type : Model->Types) {
+    model::Type *T = Type.get();
+
+    if (auto *Struct = dyn_cast<model::StructType>(T)) {
+      sanitizeNamesOfAggregate(Struct);
+    } else if (auto *Union = dyn_cast<model::UnionType>(T)) {
+      sanitizeNamesOfAggregate(Union);
+    } else if (auto *CABIFunction = dyn_cast<model::CABIFunctionType>(T)) {
+      sanitizeNamesOfFunctionType(CABIFunction);
+    } else if (auto *RawFunction = dyn_cast<model::RawFunctionType>(T)) {
+      sanitizeNamesOfFunctionType(RawFunction);
+    } else if (auto *Typedef = dyn_cast<model::TypedefType>(T)) {
+      sanitizeCustomName(Typedef);
+    }
+  }
+}
+
 void deduplicateNames(TupleTree<model::Binary> &Model) {
   // TODO: collapse uint8_t typedefs into the primitive type
 
