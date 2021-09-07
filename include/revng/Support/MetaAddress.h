@@ -155,8 +155,9 @@ inline const llvm::Optional<llvm::Triple::ArchType> arch(Values V) {
   case Code_mipsel:
     return llvm::Triple::mipsel;
   case Code_arm:
-  case Code_arm_thumb:
     return llvm::Triple::arm;
+  case Code_arm_thumb:
+    return llvm::Triple::thumb;
   case Code_aarch64:
     return llvm::Triple::aarch64;
   case Code_systemz:
@@ -164,7 +165,7 @@ inline const llvm::Optional<llvm::Triple::ArchType> arch(Values V) {
   case Invalid:
   case Generic32:
   case Generic64:
-    return {};
+    return llvm::Triple::UnknownArch;
   default:
     revng_abort();
   }
@@ -222,6 +223,8 @@ inline Values defaultCodeFromArch(llvm::Triple::ArchType Arch) {
     return Code_x86;
   case llvm::Triple::arm:
     return Code_arm;
+  case llvm::Triple::thumb:
+    return Code_arm_thumb;
   case llvm::Triple::mips:
     return Code_mips;
   case llvm::Triple::mipsel:
