@@ -212,6 +212,7 @@ class CollapseSingleChild : public Step {
 
 public:
   static const constexpr void *getID() { return &ID; }
+  static bool collapseSingle(LayoutTypeSystem &TS, LayoutTypeSystemNode *Node);
 
   CollapseSingleChild() :
     Step(ID,
