@@ -425,20 +425,21 @@ BOOST_AUTO_TEST_CASE(CollapseSingleChild_multiParent) {
                                      /*offset=*/8U,
                                      /*size=*/0U);
   TS.addInheritanceLink(Parent2, Child1);
-  LTSN *Child2 = addInstanceAtOffset(TS,
-                                     Child1,
-                                     /*offset=*/0U,
-                                     /*size=*/8U);
+  /*LTSN *Child2 =*/addInstanceAtOffset(TS,
+                                        Child1,
+                                        /*offset=*/0U,
+                                        /*size=*/8U);
 
   // Run step
+  TS.dumpDotOnFile("bef.dot", true);
   runStep<dla::CollapseSingleChild>(TS);
+  TS.dumpDotOnFile("after.dot", true);
 
   // Check graph
-  revng_check(TS.getNumLayouts() == 4);
+  revng_check(TS.getNumLayouts() == 3);
   checkNode(TS, Parent1, 0, InterferingChildrenInfo::Unknown, { 0 });
   checkNode(TS, Parent2, 0, InterferingChildrenInfo::Unknown, { 1 });
-  checkNode(TS, Child1, 0, InterferingChildrenInfo::Unknown, { 2 });
-  checkNode(TS, Child2, 8, InterferingChildrenInfo::Unknown, { 3 });
+  checkNode(TS, Child1, 8, InterferingChildrenInfo::Unknown, { 2, 3 });
 }
 
 ///\brief Test the case in which there are multiple levels of single-childs to
@@ -655,6 +656,216 @@ BOOST_AUTO_TEST_CASE(PropagateToAccessors) {
   checkNode(TS, NodeA, 16, InterferingChildrenInfo::Unknown, { 0, 1, 2 });
   checkNode(TS, NodeD, 8, InterferingChildrenInfo::Unknown, { 3, 4 });
   checkNode(TS, NodeF, 8, InterferingChildrenInfo::Unknown, { 5, 6 });
+}
+
+// ----------------- Deduplicate Union Fields --------------
+
+BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_basic) {
+  dla::LayoutTypeSystem TS;
+
+  // Build TS
+  LTSN *NodeA = createRoot(TS);
+  LTSN *NodeB = addInheritance(TS, NodeA);
+  LTSN *NodeD = addInstanceAtOffset(TS, NodeB, /*offset=*/0, /*size=*/8);
+  LTSN *NodeE = addInstanceAtOffset(TS, NodeB, /*offset=*/8, /*size=*/8);
+
+  LTSN *NodeC = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/16);
+  /*LTSN *NodeF*/ addInstanceAtOffset(TS, NodeC, /*offset=*/0, /*size=*/8);
+  /*LTSN *NodeG*/ addInstanceAtOffset(TS, NodeC, /*offset=*/8, /*size=*/8);
+
+  LTSN *Node1 = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/12);
+  LTSN *Node2 = addInstanceAtOffset(TS, Node1, /*offset=*/4, /*size=*/8);
+  LTSN *Node3 = addInstanceAtOffset(TS, Node2, /*offset=*/0, /*size=*/4);
+  LTSN *Node4 = addInstanceAtOffset(TS, Node2, /*offset=*/4, /*size=*/4);
+
+  // Run steps
+  VerifyLog.enable();
+  dla::StepManager SM;
+  revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
+  revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<ComputeNonInterferingComponents>());
+  revng_check(SM.addStep<DeduplicateUnionFields>());
+
+  SM.run(TS);
+
+  // Compress the equivalence classes
+  dla::VectEqClasses &Eq = TS.getEqClasses();
+  Eq.compress();
+
+  // Check TS
+  revng_check(TS.getNumLayouts() == 8);
+  checkNode(TS, NodeA, 16, AllChildrenAreInterfering, { 0 });
+  checkNode(TS, NodeB, 16, AllChildrenAreNonInterfering, { 1, 4 });
+  checkNode(TS, NodeD, 8, AllChildrenAreNonInterfering, { 2, 5 });
+  checkNode(TS, NodeE, 8, AllChildrenAreNonInterfering, { 3, 6 });
+  checkNode(TS, Node1, 12, AllChildrenAreNonInterfering, { 7 });
+  checkNode(TS, Node2, 8, AllChildrenAreNonInterfering, { 8 });
+  checkNode(TS, Node3, 4, AllChildrenAreNonInterfering, { 9 });
+  checkNode(TS, Node4, 4, AllChildrenAreNonInterfering, { 10 });
+}
+
+BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_diamond) {
+  dla::LayoutTypeSystem TS;
+
+  // Build TS
+  LTSN *NodeA = createRoot(TS);
+  LTSN *NodeB = addInheritance(TS, NodeA);
+  NodeB->Size = 8;
+  /*LTSN *NodeC =*/addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/8);
+  LTSN *NodeD = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/0);
+  LTSN *NodeE = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/0);
+  LTSN *NodeF = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/0);
+  LTSN *NodeG = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/0);
+
+  LTSN *NodeH = addInstanceAtOffset(TS, NodeD, /*offset=*/0, /*size=*/8);
+  OffsetExpression OE{};
+  OE.Offset = 0;
+  TS.addInstanceLink(NodeE, NodeH, std::move(OE));
+
+  LTSN *NodeI = addInstanceAtOffset(TS, NodeF, /*offset=*/0, /*size=*/8);
+  OffsetExpression OE2{};
+  OE2.Offset = 0;
+  TS.addInstanceLink(NodeG, NodeI, std::move(OE2));
+
+  // Run steps
+  VerifyLog.enable();
+  dla::StepManager SM;
+  revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
+  revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<ComputeNonInterferingComponents>());
+  revng_check(SM.addStep<DeduplicateUnionFields>());
+  revng_check(SM.addStep<ComputeNonInterferingComponents>());
+
+  SM.run(TS);
+
+  // Compress the equivalence classes
+  dla::VectEqClasses &Eq = TS.getEqClasses();
+  Eq.compress();
+
+  // Check TS
+  revng_check(TS.getNumLayouts() == 1);
+  checkNode(TS,
+            NodeA,
+            8,
+            AllChildrenAreNonInterfering,
+            { 0, 1, 2, 3, 4, 5, 6, 7, 8 });
+}
+
+BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeSymmetric) {
+  dla::LayoutTypeSystem TS;
+
+  // Build TS
+  LTSN *NodeUnion = createRoot(TS);
+  LTSN *NodeA = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
+  LTSN *NodeB = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/8);
+  LTSN *NodeC = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/0);
+  LTSN *NodeD = addInstanceAtOffset(TS, NodeC, /*offset=*/8, /*size=*/8);
+
+  LTSN *NodeA1 = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
+  LTSN *NodeC1 = addInstanceAtOffset(TS, NodeA1, /*offset=*/0, /*size=*/0);
+  /*LTSN *NodeD1 =*/addInstanceAtOffset(TS, NodeC1, /*offset=*/8, /*size=*/8);
+  OffsetExpression OE{};
+  OE.Offset = 0;
+  TS.addInstanceLink(NodeA1, NodeB, std::move(OE));
+
+  // Run steps
+  VerifyLog.enable();
+  dla::StepManager SM;
+  revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
+  revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<ComputeNonInterferingComponents>());
+  revng_check(SM.addStep<DeduplicateUnionFields>());
+  revng_check(SM.addStep<ComputeNonInterferingComponents>());
+  SM.run(TS);
+
+  // Compress the equivalence classes
+  dla::VectEqClasses &Eq = TS.getEqClasses();
+  Eq.compress();
+
+  // Check TS
+  revng_check(TS.getNumLayouts() == 4);
+  checkNode(TS, NodeUnion, 16, AllChildrenAreInterfering, { 0, 1, 5 });
+  checkNode(TS, NodeB, 8, AllChildrenAreNonInterfering, { 2 });
+  checkNode(TS, NodeC, 16, AllChildrenAreNonInterfering, { 3, 6 });
+  checkNode(TS, NodeD, 8, AllChildrenAreNonInterfering, { 4, 7 });
+}
+
+BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetric) {
+  dla::LayoutTypeSystem TS;
+
+  // Build TS
+  LTSN *NodeUnion = createRoot(TS);
+  LTSN *NodeA = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
+  /*LTSN *NodeB =*/addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/8);
+  LTSN *NodeC = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/0);
+  LTSN *NodeD = addInstanceAtOffset(TS, NodeC, /*offset=*/4, /*size=*/8);
+
+  LTSN *NodeA1 = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
+  LTSN *NodeC1 = addInstanceAtOffset(TS, NodeA1, /*offset=*/0, /*size=*/0);
+  /*LTSN *NodeD1 =*/addInstanceAtOffset(TS, NodeC1, /*offset=*/4, /*size=*/8);
+  OffsetExpression OE{};
+  OE.Offset = 0;
+  TS.addInstanceLink(NodeA1, NodeD, std::move(OE));
+
+  // Run steps
+  VerifyLog.enable();
+  dla::StepManager SM;
+  revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
+  revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<ComputeNonInterferingComponents>());
+  revng_check(SM.addStep<DeduplicateUnionFields>());
+  revng_check(SM.addStep<ComputeNonInterferingComponents>());
+
+  SM.run(TS);
+
+  // Compress the equivalence classes
+  dla::VectEqClasses &Eq = TS.getEqClasses();
+  Eq.compress();
+
+  // Check TS
+  revng_check(TS.getNumLayouts() == 3);
+  checkNode(TS, NodeUnion, 12, AllChildrenAreInterfering, { 0, 1, 5 });
+  checkNode(TS, NodeC, 12, AllChildrenAreNonInterfering, { 3, 6 });
+  checkNode(TS, NodeD, 8, AllChildrenAreNonInterfering, { 2, 4, 7 });
+}
+
+BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
+  dla::LayoutTypeSystem TS;
+
+  // Build TS
+  LTSN *NodeUnion = createRoot(TS);
+  LTSN *NodeA = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
+  /*LTSN *NodeB =*/addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/8);
+  LTSN *NodeC = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/0);
+  LTSN *NodeD = addInstanceAtOffset(TS, NodeC, /*offset=*/0, /*size=*/8);
+
+  LTSN *NodeA1 = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
+  LTSN *NodeC1 = addInstanceAtOffset(TS, NodeA1, /*offset=*/0, /*size=*/0);
+  /*LTSN *NodeD1 =*/addInstanceAtOffset(TS, NodeC1, /*offset=*/0, /*size=*/8);
+  OffsetExpression OE{};
+  OE.Offset = 0;
+  TS.addInstanceLink(NodeA1, NodeD, std::move(OE));
+
+  // Run steps
+  VerifyLog.enable();
+  dla::StepManager SM;
+  revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
+  revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<ComputeNonInterferingComponents>());
+  revng_check(SM.addStep<DeduplicateUnionFields>());
+  revng_check(SM.addStep<ComputeNonInterferingComponents>());
+
+  SM.run(TS);
+
+  // Compress the equivalence classes
+  dla::VectEqClasses &Eq = TS.getEqClasses();
+  Eq.compress();
+
+  // Check TS
+  revng_check(TS.getNumLayouts() == 3);
+  checkNode(TS, NodeUnion, 8, AllChildrenAreInterfering, { 0, 1, 5 });
+  checkNode(TS, NodeC, 8, AllChildrenAreNonInterfering, { 3, 6 });
+  checkNode(TS, NodeD, 8, AllChildrenAreNonInterfering, { 2, 4, 7 });
 }
 
 // ----------------- Remove Conflicting edges --------------

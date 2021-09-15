@@ -24,10 +24,12 @@ static Logger<> Log("dla-remove-conflicting-edges");
 
 namespace dla {
 
+/// \brief Drop instance-at-offset-0 edges when they connect two nodes that
+/// are also connected by an inheritance edge.
 bool RemoveConflictingEdges::removeConflicts(LayoutTypeSystem &TS,
                                              LayoutTypeSystemNode *Node) {
   bool Changed = false;
-  std::set<LTSN *> InhNodes;
+  llvm::SmallPtrSet<LTSN *, 8> InhNodes;
   for (auto &L : Node->Successors)
     if (isInheritanceEdge(L))
       InhNodes.insert(L.first);

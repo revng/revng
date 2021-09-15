@@ -38,9 +38,6 @@ bool CollapseSingleChild::collapseSingle(LayoutTypeSystem &TS,
     return (Node->Predecessors.size() <= 1);
   };
 
-  if (not HasAtMostOneParent(Node))
-    return false;
-
   // Get nodes that have a single instance or inheritance child
   if (HasSingleChild(Node) and ChildIsInstanceOrInheritance(Node)) {
     auto &ChildEdge = *(Node->Successors.begin());

@@ -246,6 +246,26 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
+/// dla::Step that merges structurally identical subtrees of an interfering
+/// node.
+class DeduplicateUnionFields : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  DeduplicateUnionFields() :
+    Step(ID,
+         // Dependencies
+         { ComputeNonInterferingComponents::getID() },
+         // Invalidated
+         { ComputeNonInterferingComponents::getID() }) {}
+
+  virtual ~DeduplicateUnionFields() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 template<typename IterT>
 bool intersect(IterT I1, IterT E1, IterT I2, IterT E2) {
   while ((I1 != E1) and (I2 != E2)) {

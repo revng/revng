@@ -258,10 +258,12 @@ public:
                    dla::TypeLinkTag::instanceTag(std::forward<OET>(OE)));
   }
 
-  void dumpDotOnFile(const char *FName) const;
+  void dumpDotOnFile(const char *FName,
+                     bool ShowCollapsed = false) const debug_function;
 
-  void dumpDotOnFile(const std::string &FName) const {
-    dumpDotOnFile(FName.c_str());
+  void
+  dumpDotOnFile(const std::string &FName, bool ShowCollapsed = false) const {
+    dumpDotOnFile(FName.c_str(), ShowCollapsed);
   }
 
   auto getNumLayouts() const { return Layouts.size(); }
@@ -308,6 +310,8 @@ public:
   bool verifyLeafs() const;
   // Checks that there are no equality edges.
   bool verifyNoEquality() const;
+  // Checks that no union node has only one child
+  bool verifyUnions() const;
   // Checks that no node conflicting edges.
   bool verifyConflicts() const;
 

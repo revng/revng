@@ -13,6 +13,7 @@ revng_add_analyses_library(DataLayoutAnalysis revngc
   Middleend/DLARemoveTransitiveInheritanceEdges.cpp
   Middleend/DLAMakeInheritanceTree.cpp
   Middleend/DLACollapseSingleChild.cpp
+  Middleend/DLADeduplicateUnionFields.cpp
   Middleend/DLARemoveConflictingEdges.cpp
   Middleend/DLAStep.cpp
   Backend/DLAMakeLayouts.cpp

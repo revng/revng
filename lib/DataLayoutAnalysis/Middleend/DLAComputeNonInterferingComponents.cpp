@@ -257,7 +257,8 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
   }
 
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree()
+                 and TS.verifyUnions());
 
   return Changed;
 }
