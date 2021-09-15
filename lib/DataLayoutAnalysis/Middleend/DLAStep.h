@@ -186,8 +186,27 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override { return true; }
 };
 
-/// dla::Step that collapses nodes that have a single inheritance child at
-/// offset 0
+/// Removes instance-of edges that connect nodes with an inheritance edge
+class RemoveConflictingEdges : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+  static bool removeConflicts(LayoutTypeSystem &TS, LayoutTypeSystemNode *Node);
+
+  RemoveConflictingEdges() :
+    Step(ID,
+         // Dependencies
+         {},
+         // Invalidated
+         {}) {}
+
+  virtual ~RemoveConflictingEdges() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
+/// dla::Step that collapses nodes that have a single child at offset 0
 class CollapseSingleChild : public Step {
   static const char ID;
 

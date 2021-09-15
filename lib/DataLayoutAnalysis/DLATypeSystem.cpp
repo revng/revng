@@ -12,6 +12,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/FilteredGraphTraits.h"
+#include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"
 
@@ -636,6 +637,29 @@ bool LayoutTypeSystem::verifyInheritanceTree() const {
       return false;
     }
   }
+  return true;
+}
+
+bool LayoutTypeSystem::verifyConflicts() const {
+  using GraphNodeT = const LayoutTypeSystemNode *;
+  using LinkT = const LayoutTypeSystemNode::Link;
+
+  for (GraphNodeT Node : llvm::nodes(this)) {
+    for (auto &Succ : Node->Successors) {
+
+      auto HasSameSucc = [&Succ](const LinkT &L2) {
+        return isInstanceOff0Edge(L2) and (Succ.first == L2.first);
+      };
+
+      if (isInheritanceEdge(Succ)
+          and llvm::any_of(Node->Successors, HasSameSucc)) {
+        if (VerifyDLALog.isEnabled())
+          revng_check(false);
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 

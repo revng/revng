@@ -73,13 +73,13 @@ addEquality(LayoutTypeSystem &TS, LTSN *Parent, unsigned ChildSize = 0U) {
 void checkNode(const LayoutTypeSystem &TS,
                const LayoutTypeSystemNode *N,
                const unsigned ExpectedSize,
-               const InterferingChildrenInfo EpectedInfo,
+               const InterferingChildrenInfo ExpectedInfo,
                const std::set<unsigned> &ExpectedEqClass) {
   const dla::VectEqClasses &Eq = TS.getEqClasses();
   revng_check(N);
   revng_check(not Eq.isRemoved(N->ID));
   revng_check(ExpectedSize == N->Size);
-  revng_check(EpectedInfo == N->InterferingInfo);
+  revng_check(ExpectedInfo == N->InterferingInfo);
 
   const auto &EqClass = Eq.computeEqClass(N->ID);
   revng_check(EqClass.size() == ExpectedEqClass.size());
@@ -644,9 +644,7 @@ BOOST_AUTO_TEST_CASE(PropagateToAccessors) {
   revng_check(SM.addStep<CollapseSingleChild>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
 
-  TS.dumpDotOnFile("test-before");
   SM.run(TS);
-  TS.dumpDotOnFile("test-after");
 
   // Compress the equivalence classes
   dla::VectEqClasses &Eq = TS.getEqClasses();
@@ -657,4 +655,35 @@ BOOST_AUTO_TEST_CASE(PropagateToAccessors) {
   checkNode(TS, NodeA, 16, InterferingChildrenInfo::Unknown, { 0, 1, 2 });
   checkNode(TS, NodeD, 8, InterferingChildrenInfo::Unknown, { 3, 4 });
   checkNode(TS, NodeF, 8, InterferingChildrenInfo::Unknown, { 5, 6 });
+}
+
+// ----------------- Remove Conflicting edges --------------
+
+BOOST_AUTO_TEST_CASE(RemoveConflictingEdges_basic) {
+  dla::LayoutTypeSystem TS;
+
+  // Build TS
+  LTSN *NodeA = createRoot(TS);
+  LTSN *NodeB = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/8);
+  TS.addInheritanceLink(NodeA, NodeB);
+
+  LTSN *Node1 = createRoot(TS);
+  LTSN *Node2 = addInstanceAtOffset(TS, Node1, /*offset=*/4, /*size=*/8);
+  TS.addInheritanceLink(Node1, Node2);
+
+  // Run steps
+  VerifyLog.enable();
+  dla::StepManager SM;
+  revng_check(SM.addStep<RemoveConflictingEdges>());
+
+  SM.run(TS);
+
+  // Compress the equivalence classes
+  dla::VectEqClasses &Eq = TS.getEqClasses();
+  Eq.compress();
+
+  // Check TS
+  revng_check(TS.getNumLayouts() == 4);
+  revng_check(NodeA->Successors.size() == 1);
+  revng_check(Node1->Successors.size() == 2);
 }
