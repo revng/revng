@@ -169,12 +169,10 @@ function run_revng_checks() {
     $GREP "^\s*#include <.*\.hpp>" $FILES | cat
     CXX_FILES="$(echo $FILES | tr ' ' '\n' | grep -v \
         -e '^runtime/support\.h$' \
-        -e '^runtime/support\.c$' \
-        -e '^runtime/early-linked\.c$' \
         -e '^include/revng/Runtime/.*$' \
         -e '^include/revng/Support/Assert\.h$' \
         -e '^include/revng/Support/ClassSentinel\.h$' \
-        -e '^share/revngc/revng-c-include\.c$' \
+        -e '\.c$' \
         )"
     $GREP "^\s*#include <.*\.h>" $CXX_FILES | cat
 
