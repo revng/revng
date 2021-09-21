@@ -218,6 +218,7 @@ public:
   using DerivedType = typename TypeCalc::DerivedType;
   using Base = typename TypeCalc::Result;
   using Edge = Edge<DerivedType, EdgeLabel>;
+  using NodeData = Node;
 
 public:
   template<typename... Args>
@@ -225,6 +226,12 @@ public:
 
   ForwardNode(const ForwardNode &) = default;
   ForwardNode(ForwardNode &&) = default;
+
+  NodeData &data() { return *this; }
+  const NodeData &data() const { return *this; }
+
+  NodeData copyData() const { return *this; }
+  NodeData &&moveData() { return std::move(*this); }
 
 public:
   static DerivedType *&getNeighbor(Edge &E) { return E.Neighbor; }
@@ -365,6 +372,12 @@ public:
 
   BidirectionalNode(const BidirectionalNode &) = default;
   BidirectionalNode(BidirectionalNode &&) = default;
+
+  NodeData &data() { return *this; }
+  const NodeData &data() const { return *this; }
+
+  NodeData copyData() const { return *this; }
+  NodeData &&moveData() { return std::move(*this); }
 
 public:
   void addSuccessor(BidirectionalNode *NewSuccessor) {
@@ -547,6 +560,12 @@ public:
   MutableEdgeNode(MutableEdgeNode &&) = default;
   MutableEdgeNode &operator=(const MutableEdgeNode &) = default;
   MutableEdgeNode &operator=(MutableEdgeNode &&) = default;
+
+  NodeData &data() { return *this; }
+  const NodeData &data() const { return *this; }
+
+  NodeData copyData() const { return *this; }
+  NodeData &&moveData() { return std::move(*this); }
 
 public:
   // This stuff is needed by the DominatorTree implementation
