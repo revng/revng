@@ -3,6 +3,7 @@
 #
 
 add_subdirectory(AdjustStackPointer)
+add_subdirectory(BeautifyGHAST)
 add_subdirectory(DataLayoutAnalysis)
 add_subdirectory(Decompiler)
 add_subdirectory(FilterForDecompilation)

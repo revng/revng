@@ -898,8 +898,6 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   auto FTags = FunctionTags::TagsSet::from(&TheF);
   revng_assert(FTags.contains(FunctionTags::Lifted));
 
-  beautifyAST(TheF, CombedAST, Mark);
-
   DeclCreator Declarator(ValueLayouts);
 
   IR2AST::StmtBuilder ASTBuilder(Context,

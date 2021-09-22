@@ -13,18 +13,29 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
+#include "revng-c/MarkForSerialization/MarkForSerializationFlags.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 #include "revng-c/RestructureCFGPass/GenerateAst.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/Utils/Utils.h"
 
-#include "CDecompilerBeautify.h"
+#include "BeautifyGHAST.h"
+
+using std::make_unique;
+using std::unique_ptr;
+
+using namespace llvm;
+using llvm::cl::NumOccurrencesFlag;
 
 static Logger<> BeautifyLogger("beautify");
 
-using namespace llvm;
-using std::make_unique;
-using std::unique_ptr;
+// Prefix for the short circuit metrics dir.
+static cl::opt<std::string> OutputPath("short-circuit-metrics-output-dir",
+                                       cl::desc("Short circuit metrics dir"),
+                                       cl::value_desc("short-circuit-dir"),
+                                       cl::cat(MainCategory),
+                                       NumOccurrencesFlag::Optional);
 
 // Metrics counter variables
 unsigned ShortCircuitCounter = 0;
@@ -1182,6 +1193,16 @@ void beautifyAST(Function &F,
                  ASTTree &CombedAST,
                  const SerializationMap &Mark) {
 
+  // If the --short-circuit-metrics-output-dir=dir argument was passed from
+  // command line, we need to print the statistics for the short circuit metrics
+  // into a file with the function name, inside the directory 'dir'.
+  std::unique_ptr<llvm::raw_fd_ostream> StatsFileStream;
+  if (OutputPath.getNumOccurrences())
+    StatsFileStream = openFunctionFile(OutputPath, F.getName(), ".csv");
+
+  ShortCircuitCounter = 0;
+  TrivialShortCircuitCounter = 0;
+
   ASTNode *RootNode = CombedAST.getRoot();
 
   if (BeautifyLogger.isEnabled()) {
@@ -1293,5 +1314,12 @@ void beautifyAST(Function &F,
   flipEmptyThen(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(), "ast", "13-After-if-flip-3");
+  }
+
+  // Serialize the collected metrics in the statistics file if necessary
+  if (StatsFileStream) {
+    *StatsFileStream << "function,short-circuit,trivial-short-circuit\n"
+                     << F.getName().data() << "," << ShortCircuitCounter << ","
+                     << TrivialShortCircuitCounter << "\n";
   }
 }

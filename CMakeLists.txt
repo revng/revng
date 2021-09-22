@@ -126,6 +126,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
     add_test(NAME decompilation_${TARGET_NAME} COMMAND revng --prefix=.
       opt -S
       -restructure-cfg
+      -beautify-ghast
       -decompilation
       -serialize-model
       -decompiled-dir=${TARGET_NAME}_decompiled_dir
@@ -202,6 +203,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -phi-asap-assignment-info
       -restructure-cfg
       -mark-for-serialization
+      -beautify-ghast
       -add-scev-barrier
       -decompilation
       -serialize-model

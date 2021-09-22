@@ -19,6 +19,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
 
+#include "clang/AST/ASTDumperUtils.h"
+
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
@@ -53,13 +55,6 @@ static cl::opt<std::string> DecompiledDir("decompiled-dir",
                                           cl::value_desc("decompiled-dir"),
                                           cl::cat(MainCategory),
                                           NumOccurrencesFlag::Optional);
-
-// Prefix for the short circuit metrics dir.
-static cl::opt<std::string> OutputPath("short-circuit-metrics-output-dir",
-                                       cl::desc("Short circuit metrics dir"),
-                                       cl::value_desc("short-circuit-dir"),
-                                       cl::cat(MainCategory),
-                                       NumOccurrencesFlag::Optional);
 
 char CDecompilerPass::ID = 0;
 
@@ -99,9 +94,6 @@ void CDecompilerPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 
 bool CDecompilerPass::runOnFunction(llvm::Function &F) {
 
-  ShortCircuitCounter = 0;
-  TrivialShortCircuitCounter = 0;
-
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
   if (not FTags.contains(FunctionTags::Lifted))
@@ -118,13 +110,6 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
   // We initialize Out with a proper file descriptor to make it happen.
   if (DecompiledDir.getNumOccurrences())
     Out = openFunctionFile(DecompiledDir, F.getName(), ".c");
-
-  // If the --short-circuit-metrics-output-dir=dir argument was passed from
-  // command line, we need to print the statistics for the short circuit metrics
-  // into a file with the function name, inside the directory 'dir'.
-  std::unique_ptr<llvm::raw_fd_ostream> StatsFileStream;
-  if (OutputPath.getNumOccurrences())
-    StatsFileStream = openFunctionFile(OutputPath, F.getName(), ".csv");
 
   // Get the Abstract Syntax Tree of the restructured code.
   auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
@@ -162,13 +147,6 @@ bool CDecompilerPass::runOnFunction(llvm::Function &F) {
 
   const std::string CCode{ "#include <stdint.h>" };
   runThreadSafeClangTool(std::move(Action), CCode);
-
-  // Serialize the collected metrics in the statistics file if necessary
-  if (StatsFileStream) {
-    *StatsFileStream << "function,short-circuit,trivial-short-circuit\n"
-                     << F.getName().data() << "," << ShortCircuitCounter << ","
-                     << TrivialShortCircuitCounter << "\n";
-  }
 
   return true;
 }

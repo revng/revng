@@ -14,8 +14,6 @@
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/MarkForSerialization/MarkForSerializationFlags.h"
 
-#include "CDecompilerBeautify.h"
-
 namespace llvm {
 
 class ScalarEvolution;
@@ -54,9 +52,9 @@ public:
     O(std::move(O)) {}
 
 public:
-  std::unique_ptr<ASTConsumer> newASTConsumer();
+  std::unique_ptr<clang::ASTConsumer> newASTConsumer();
 
-  virtual std::unique_ptr<ASTConsumer>
+  virtual std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(CompilerInstance &, llvm::StringRef) override;
 
 private:
