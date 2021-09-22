@@ -1238,3 +1238,9 @@ MetaAddress getMetaAddressMetadata(T *U, llvm::StringRef Name) {
 
   return MetaAddress::invalid();
 }
+
+template<typename T>
+inline llvm::cl::opt<T> *
+getOption(llvm::StringMap<llvm::cl::Option *> &Options, const char *Name) {
+  return static_cast<llvm::cl::opt<T> *>(Options[Name]);
+}
