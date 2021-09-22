@@ -13,7 +13,6 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
-#include "revng-c/Decompiler/MarkForSerialization.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 #include "revng-c/RestructureCFGPass/GenerateAst.h"

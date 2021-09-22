@@ -13,7 +13,6 @@ revng_add_analyses_library(Decompiler revngc
   FuncDeclCreationAction.cpp
   GlobalDeclCreationAction.cpp
   IRASTTypeTranslation.cpp
-  MarkForSerialization.cpp
   TypeDeclCreationAction.cpp)
 
 target_link_libraries(Decompiler
@@ -27,6 +26,7 @@ target_link_libraries(Decompiler
   RemoveLLVMAssumeCalls
   RemoveLLVMDbgIntrinsics
   MakeEnvNull
+  MarkForSerialization
   ThreadSafeClangTooling
   Utils
   revng::revngModel

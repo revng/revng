@@ -11,8 +11,8 @@
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/MonotoneFramework.h"
 
-#include "revng-c/Decompiler/MarkForSerialization.h"
 #include "revng-c/Liveness/LivenessAnalysis.h"
+#include "revng-c/MarkForSerialization/MarkForSerializationFlags.h"
 
 namespace llvm {
 

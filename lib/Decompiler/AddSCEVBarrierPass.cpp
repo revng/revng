@@ -13,7 +13,7 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/FunctionTags.h"
 
-#include "revng-c/Decompiler/MarkForSerialization.h"
+#include "revng-c/MarkForSerialization/MarkForSerializationPass.h"
 
 #include "Mangling.h"
 

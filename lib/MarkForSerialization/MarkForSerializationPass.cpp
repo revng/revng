@@ -13,9 +13,7 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/Decompiler/MarkForSerialization.h"
-#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/MarkForSerialization/MarkForSerializationPass.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
@@ -185,7 +183,6 @@ void Analysis::initialize() {
 } // namespace MarkAnalysis
 
 void MarkForSerializationPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<RestructureCFG>();
   AU.setPreservesAll();
 }

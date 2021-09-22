@@ -12,7 +12,7 @@
 #include "clang/Frontend/FrontendAction.h"
 
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
-#include "revng-c/Decompiler/MarkForSerialization.h"
+#include "revng-c/MarkForSerialization/MarkForSerializationFlags.h"
 
 #include "CDecompilerBeautify.h"
 

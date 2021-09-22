@@ -26,7 +26,7 @@
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/DataLayoutAnalysis/DLAPass.h"
 #include "revng-c/Decompiler/CDecompilerPass.h"
-#include "revng-c/Decompiler/MarkForSerialization.h"
+#include "revng-c/MarkForSerialization/MarkForSerializationPass.h"
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"

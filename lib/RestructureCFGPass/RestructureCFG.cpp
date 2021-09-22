@@ -407,7 +407,6 @@ static cl::opt<std::string> MetricsOutputPath("restructure-metrics-output-dir",
 
 void RestructureCFG::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<LoadModelWrapperPass>();
 }
 
 inline void
