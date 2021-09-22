@@ -23,6 +23,9 @@ template<typename T>
 concept HasPushBack = is_std_vector<T>::value;
 
 template<typename T>
+concept IsStdVector = is_std_vector<T>::value;
+
+template<typename T>
 concept HasInsertOrAssign = not HasPushBack<T>;
 
 template<HasInsertOrAssign C>

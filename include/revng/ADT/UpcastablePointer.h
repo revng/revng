@@ -116,11 +116,11 @@ public:
   }
 
 private:
-  using concrete_types = concrete_types_traits_t<T>;
   static constexpr void (*deleter)(T *) = &destroy<T>;
   using inner_pointer = std::unique_ptr<T, decltype(deleter)>;
 
 public:
+  using concrete_types = concrete_types_traits_t<T>;
   using pointer = typename inner_pointer::pointer;
   using element_type = typename inner_pointer::element_type;
 

@@ -1082,7 +1082,7 @@ struct llvm::yaml::ScalarTraits<T> {
     return {};
   }
 
-  static auto mustQuote(llvm::StringRef) {
+  constexpr static auto mustQuote(llvm::StringRef) {
     return llvm::yaml::QuotingType::Double;
   }
 };

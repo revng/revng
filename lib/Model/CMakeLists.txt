@@ -5,6 +5,7 @@
 revng_add_analyses_library_internal(revngModel
   Binary.cpp
   LoadModelPass.cpp
+  DumpSchema.cpp
   SerializeModelPass.cpp
   Type.cpp)
 

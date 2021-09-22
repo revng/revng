@@ -15,6 +15,12 @@ template<typename T>
 concept Integral = std::is_integral_v<T>;
 
 //
+// is_boolean
+//
+template<typename T>
+concept Boolean = std::is_same_v<T, bool>;
+
+//
 // is_specialization
 //
 template<typename Test, template<typename...> class Ref>

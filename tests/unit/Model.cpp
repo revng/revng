@@ -11,6 +11,7 @@ bool init_unit_test();
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/TupleTreeDiff.h"
+#include "revng/Model/DumpSchema.h"
 
 using namespace model;
 
