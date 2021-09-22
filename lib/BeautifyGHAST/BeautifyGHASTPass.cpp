@@ -6,7 +6,7 @@
 
 #include "revng/Support/FunctionTags.h"
 
-#include "revng-c/MarkForSerialization/MarkForSerializationPass.h"
+#include "revng-c/MarkForSerialization/MarkAnalysis.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 
 #include "BeautifyGHAST.h"
@@ -19,7 +19,6 @@ struct BeautifyGHASTPass : public llvm::FunctionPass {
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<RestructureCFG>();
-    AU.addRequired<MarkForSerializationPass>();
   }
 
   bool runOnFunction(llvm::Function &F) override;
@@ -44,9 +43,15 @@ bool BeautifyGHASTPass::runOnFunction(llvm::Function &F) {
   ASTTree &GHAST = RestructureCFGAnalysis.getAST();
 
   // Get information about which instructions are marked to be serialized.
-  const auto &Mark = getAnalysis<MarkForSerializationPass>().getMap();
+  // Mark instructions for serialization, and write the results in ToSerialize
+  SerializationMap ToSerialize = {};
+  MarkAnalysis::Analysis</* IgnoreDuplicatedUses */ true> Mark(F,
+                                                               {},
+                                                               ToSerialize);
+  Mark.initialize();
+  Mark.run();
 
-  beautifyAST(F, GHAST, Mark);
+  beautifyAST(F, GHAST, ToSerialize);
 
   return false;
 }

@@ -22,9 +22,8 @@ bool init_unit_test();
 #include "revng/Support/IRHelpers.h"
 #include "revng/UnitTestHelpers/LLVMTestHelpers.h"
 
+#include "revng-c/MarkForSerialization/MarkAnalysis.h"
 #include "revng-c/MarkForSerialization/MarkForSerializationPass.h"
-
-#include "lib/MarkForSerialization/MarkAnalysis.h"
 
 struct BBSerializationFlags {
   std::string BBName;
@@ -58,7 +57,9 @@ runTestOnFunctionWithExpected(const char *Body,
     NDuplicates[&BB] = NDup;
 
   SerializationMap Results;
-  MarkAnalysis::Analysis Mark(*F, NDuplicates, Results);
+  MarkAnalysis::Analysis</* IgnoreDuplicatedUses */ false> Mark(*F,
+                                                                NDuplicates,
+                                                                Results);
   Mark.initialize();
   Mark.run();
 

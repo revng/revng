@@ -202,8 +202,8 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -dla
       -phi-asap-assignment-info
       -restructure-cfg
-      -mark-for-serialization
       -beautify-ghast
+      -mark-for-serialization
       -add-scev-barrier
       -decompilation
       -serialize-model
