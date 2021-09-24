@@ -52,6 +52,7 @@
 #include "revng/BasicAnalyses/RemoveHelperCalls.h"
 #include "revng/BasicAnalyses/RemoveNewPCCalls.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Register.h"
 #include "revng/StackAnalysis/StackAnalysis.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
@@ -841,6 +842,204 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
   }
 
   revng_check(TheBinary.verify(true));
+}
+
+static UpcastablePointer<model::Type>
+buildPrototype(GeneratedCodeBasicInfo &GCBI,
+               model::Binary &Binary,
+               const FunctionSummary &Summary,
+               const model::BasicBlock &Block) {
+  using namespace model;
+  using RegisterState = model::RegisterState::Values;
+
+  auto NewType = makeType<RawFunctionType>();
+  auto &CallType = *llvm::cast<RawFunctionType>(NewType.get());
+  {
+    auto ArgumentsInserter = CallType.Arguments.batch_insert();
+    auto ReturnValuesInserter = CallType.ReturnValues.batch_insert();
+
+    bool Found = false;
+    for (const auto &[PC, CallSites] : Summary.ABIResults.CallSites) {
+      if (PC != Block.Start)
+        continue;
+
+      revng_assert(!Found);
+      Found = true;
+
+      for (const auto &[Arg, RV] :
+           zipmap_range(CallSites.ArgumentsRegisters,
+                        CallSites.ReturnValuesRegisters)) {
+        auto *CSV = Arg == nullptr ? RV->first : Arg->first;
+        RegisterState RSArg = Arg == nullptr ? RegisterState::Maybe :
+                                               Arg->second;
+        RegisterState RSRV = RV == nullptr ? RegisterState::Maybe : RV->second;
+
+        auto RegisterID = ABIRegister::fromCSVName(CSV->getName(), GCBI.arch());
+        if (RegisterID == Register::Invalid || CSV == GCBI.spReg())
+          continue;
+
+        auto *CSVType = CSV->getType()->getPointerElementType();
+        auto CSVSize = CSVType->getIntegerBitWidth() / 8;
+        NamedTypedRegister TR(RegisterID);
+        TR.Type = {
+          Binary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
+        };
+
+        if (model::RegisterState::shouldEmit(RSArg))
+          ArgumentsInserter.insert(TR);
+
+        if (model::RegisterState::shouldEmit(RSRV))
+          ReturnValuesInserter.insert(TR);
+      }
+    }
+    revng_assert(Found);
+
+    CallType.PreservedRegisters = {};
+    CallType.FinalStackOffset = 0;
+  }
+
+  return NewType;
+}
+
+/// Finish the population of the model by building the prototype
+static void
+finalizeModel(GeneratedCodeBasicInfo &GCBI,
+              const std::vector<CFEP> &Functions,
+              const std::vector<llvm::GlobalVariable *> &ABIRegisters,
+              const FunctionAnalysisResults &Properties,
+              model::Binary &Binary) {
+  using namespace model;
+  using RegisterState = model::RegisterState::Values;
+
+  // Create a `model::function` and build its prototype for each CFEP
+  for (const auto &F : Functions) {
+    MetaAddress EntryPC = getBasicBlockPC(F.Entry);
+    revng_assert(EntryPC.isValid());
+
+    model::Function &Function = Binary.Functions[EntryPC];
+
+    auto &Summary = Properties.at(EntryPC);
+    Function.Type = Summary.Type;
+
+    auto NewType = makeType<RawFunctionType>();
+    auto &FunctionType = *llvm::cast<RawFunctionType>(NewType.get());
+    {
+      auto ArgumentsInserter = FunctionType.Arguments.batch_insert();
+      auto ReturnValuesInserter = FunctionType.ReturnValues.batch_insert();
+      auto PreservedRegistersInserter = FunctionType.PreservedRegisters
+                                          .batch_insert();
+
+      // Argument and return values
+      for (const auto &[Arg, RV] :
+           zipmap_range(Summary.ABIResults.ArgumentsRegisters,
+                        Summary.ABIResults.FinalReturnValuesRegisters)) {
+        auto *CSV = Arg == nullptr ? RV->first : Arg->first;
+        RegisterState RSArg = Arg == nullptr ? RegisterState::Maybe :
+                                               Arg->second;
+        RegisterState RSRV = RV == nullptr ? RegisterState::Maybe : RV->second;
+
+        auto RegisterID = ABIRegister::fromCSVName(CSV->getName(), GCBI.arch());
+        if (RegisterID == Register::Invalid || CSV == GCBI.spReg())
+          continue;
+
+        auto *CSVType = CSV->getType()->getPointerElementType();
+        auto CSVSize = CSVType->getIntegerBitWidth() / 8;
+        NamedTypedRegister TR(RegisterID);
+        TR.Type = {
+          Binary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
+        };
+
+        if (model::RegisterState::shouldEmit(RSArg))
+          ArgumentsInserter.insert(TR);
+
+        if (model::RegisterState::shouldEmit(RSRV))
+          ReturnValuesInserter.insert(TR);
+      }
+
+      // Preserved registers
+      std::set<llvm::GlobalVariable *> PreservedRegisters(ABIRegisters.begin(),
+                                                          ABIRegisters.end());
+      std::erase_if(PreservedRegisters, [&](const auto &E) {
+        auto End = Summary.ClobberedRegisters.end();
+        return Summary.ClobberedRegisters.find(E) != End;
+      });
+
+      for (auto *CSV : PreservedRegisters) {
+        auto RegisterID = ABIRegister::fromCSVName(CSV->getName(), GCBI.arch());
+        if (RegisterID == Register::Invalid)
+          continue;
+
+        PreservedRegistersInserter.insert(RegisterID);
+      }
+
+      // Final stack offset
+      FunctionType.FinalStackOffset = Summary.ElectedFSO.has_value() ?
+                                        *Summary.ElectedFSO :
+                                        0;
+    }
+
+    Function.Prototype = Binary.recordNewType(std::move(NewType));
+  }
+
+  // Finish up the CFG
+  for (const auto &F : Functions) {
+    MetaAddress EntryPC = getBasicBlockPC(F.Entry);
+    model::Function &Function = Binary.Functions[EntryPC];
+    auto &Summary = Properties.at(EntryPC);
+
+    if (Function.Type == FunctionTypeValue::Fake)
+      continue;
+
+    for (auto &Block : Summary.CFG) {
+      for (auto &Edge : Block.Successors) {
+        llvm::StringRef SymbolName;
+
+        if (Edge->Destination.isValid()) {
+          auto *Successor = GCBI.getBlockAt(Edge->Destination);
+          auto *NewPCCall = getCallTo(&*Successor->begin(), "newpc");
+          revng_assert(NewPCCall != nullptr);
+
+          // Extract symbol name if any
+          auto *SymbolNameValue = NewPCCall->getArgOperand(4);
+          if (not isa<llvm::ConstantPointerNull>(SymbolNameValue)) {
+            llvm::Value *SymbolNameString = NewPCCall->getArgOperand(4);
+            SymbolName = extractFromConstantStringPtr(SymbolNameString);
+            revng_assert(SymbolName.size() != 0);
+          }
+        }
+
+        if (FunctionEdgeType::isCall(Edge->Type)) {
+          auto *CE = llvm::cast<CallEdge>(Edge.get());
+          const auto IDF = Binary.ImportedDynamicFunctions;
+          bool IsDynamicCall = (not SymbolName.empty()
+                                and IDF.count(SymbolName.str()) != 0);
+
+          if (IsDynamicCall) {
+            // It's a dynamic function call
+            revng_assert(CE->Type == model::FunctionEdgeType::FunctionCall);
+            CE->Destination = MetaAddress::invalid();
+            CE->DynamicFunction = SymbolName.str();
+
+            // The prototype is implicitly the one of the callee
+            revng_assert(not CE->Prototype.isValid());
+          } else if (CE->Destination.isValid()) {
+            // It's a simple direct function call
+            revng_assert(CE->Type == model::FunctionEdgeType::FunctionCall);
+
+            // The prototype is implicitly the one of the callee
+            revng_assert(not CE->Prototype.isValid());
+          } else {
+            // It's an indirect call: forge a new prototype
+            auto Prototype = buildPrototype(GCBI, Binary, Summary, Block);
+            CE->Prototype = Binary.recordNewType(std::move(Prototype));
+          }
+        }
+      }
+    }
+
+    Function.CFG = Summary.CFG;
+    revng_check(Function.verify(true));
+  }
 }
 
 static void
@@ -2099,6 +2298,9 @@ bool StackAnalysis::runOnModule(Module &M) {
   // Propagate results between call-sites and functions
   interproceduralPropagation(Functions, Properties);
 
+  // Finalize model
+  finalizeModel(GCBI, Functions, ABIRegisters, Properties, Binary);
+
   // Initialize the cache where all the results will be accumulated
   Cache TheCache(&F, &GCBI);
 
@@ -2179,7 +2381,9 @@ bool StackAnalysis::runOnModule(Module &M) {
     serialize(pathToStream(ABIAnalysisOutputPath, Output));
   }
 
+#if 0
   commitToModel(GCBI, &F, GrandResult, Binary);
+#endif
 
   return false;
 }
