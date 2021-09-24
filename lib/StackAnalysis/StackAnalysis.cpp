@@ -840,6 +840,39 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
   revng_check(TheBinary.verify(true));
 }
 
+static void
+combineCrossCallSites(MetaAddress EntryPC, FunctionSummary &Summary) {
+  using namespace ABIAnalyses;
+  using RegState = model::RegisterState::Values;
+
+  for (auto &[PC, CallSites] : Summary.ABIResults.CallSites) {
+    if (PC == EntryPC) {
+      for (auto &[FuncArg, CSArg] :
+           zipmap_range(Summary.ABIResults.ArgumentsRegisters,
+                        CallSites.ArgumentsRegisters)) {
+        auto *CSV = FuncArg == nullptr ? CSArg->first : FuncArg->first;
+        auto RSFArg = FuncArg == nullptr ? RegState::Maybe : FuncArg->second;
+        auto RSCSArg = CSArg == nullptr ? RegState::Maybe : CSArg->second;
+
+        Summary.ABIResults.ArgumentsRegisters[CSV] = combine(RSFArg, RSCSArg);
+      }
+    }
+  }
+}
+
+/// Perform cross-call site propagation
+static void interproceduralPropagation(const std::vector<CFEP> &Functions,
+                                       FunctionAnalysisResults &Properties) {
+  for (auto &J : Functions) {
+    auto CurrentEntryPC = getBasicBlockPC(J.Entry);
+    for (auto &K : Functions) {
+      auto &Summary = Properties.at(getBasicBlockPC(K.Entry));
+
+      combineCrossCallSites(CurrentEntryPC, Summary);
+    }
+  }
+}
+
 /// Elect a final stack offset to tell whether the function is leaving
 /// the stack pointer higher than it was at the function entry.
 static std::optional<int64_t> electFSO(const auto &MaybeReturns) {
@@ -2053,6 +2086,9 @@ bool StackAnalysis::runOnModule(Module &M) {
   // Still OK?
   if (VerifyLog.isEnabled())
     revng_assert(llvm::verifyModule(M, &llvm::dbgs()) == false);
+
+  // Propagate results between call-sites and functions
+  interproceduralPropagation(Functions, Properties);
 
   // Initialize the cache where all the results will be accumulated
   Cache TheCache(&F, &GCBI);
