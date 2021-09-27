@@ -806,6 +806,12 @@ inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
   return Callee != nullptr && Callee->getName() == Name;
 }
 
+inline bool isCallTo(const llvm::Instruction *I, llvm::Function *F) {
+  revng_assert(I != nullptr);
+  const llvm::Function *Callee = getCallee(I);
+  return Callee != nullptr && Callee == F;
+}
+
 inline bool isHelper(const llvm::Function *F) {
   return FunctionTags::Helper.isTagOf(F);
 }
@@ -840,9 +846,24 @@ inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::StringRef Name) {
     return nullptr;
 }
 
+inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::Function *F) {
+  if (isCallTo(I, F))
+    return llvm::cast<llvm::CallInst>(I);
+  else
+    return nullptr;
+}
+
 inline const llvm::CallInst *
 getCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
   if (isCallTo(I, Name))
+    return llvm::cast<llvm::CallInst>(I);
+  else
+    return nullptr;
+}
+
+inline const llvm::CallInst *
+getCallTo(const llvm::Instruction *I, llvm::Function *F) {
+  if (isCallTo(I, F))
     return llvm::cast<llvm::CallInst>(I);
   else
     return nullptr;
