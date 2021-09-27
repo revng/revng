@@ -1334,6 +1334,9 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   // Serialize an empty Model into TheModule
   TupleTree<model::Binary> Model;
 
+  // Set the entry point
+  Model->EntryPoint = VirtualAddress;
+
   // Set the architecture
   auto Triple = Binary.architecture().type();
   Model->Architecture = model::Architecture::fromLLVMArchitecture(Triple);
@@ -1362,8 +1365,9 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   for (const Label &L : Binary.labels()) {
     if (L.origin() == LabelOrigin::DynamicRelocation and L.isCode()
         and not L.symbolName().empty()) {
-      model::DynamicFunction
-        &F = *Model->DynamicFunctions.insert({ L.symbolName().str() }).first;
+      model::DynamicFunction &F = *Model->ImportedDynamicFunctions
+                                     .insert({ L.symbolName().str() })
+                                     .first;
       F.Prototype = DefaultTypePath;
     }
   }

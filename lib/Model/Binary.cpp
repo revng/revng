@@ -140,23 +140,45 @@ bool Binary::verify(VerifyHelper &VH) const {
         if (Edge->Type == model::FunctionEdgeType::FunctionCall) {
           // We're in a direct call, get the callee
           const auto *Call = dyn_cast<CallEdge>(Edge.get());
-          auto It = Functions.find(Call->Destination);
 
-          // If missing, fail
-          if (It == Functions.end())
-            return VH.fail();
+          model::TypePath CalleePrototype;
+          if (not Call->DynamicFunction.empty()) {
+            // It's a dynamic call
+
+            if (Call->Destination.isValid()) {
+              return VH.fail("Destination must be invalid for dynamic function "
+                             "calls");
+            }
+
+            auto It = ImportedDynamicFunctions.find(Call->DynamicFunction);
+
+            // If missing, fail
+            if (It == ImportedDynamicFunctions.end())
+              return VH.fail("Can't find callee");
+
+            CalleePrototype = It->Prototype;
+          } else {
+            // Regular call
+            auto It = Functions.find(Call->Destination);
+
+            // If missing, fail
+            if (It == Functions.end())
+              return VH.fail("Can't find callee");
+
+            CalleePrototype = It->Prototype;
+          }
 
           // If call and callee prototypes differ, fail
-          const Function &Callee = *It;
-          if (Call->Prototype != Callee.Prototype)
-            return VH.fail();
+          if (Call->Prototype != CalleePrototype)
+            return VH.fail("In direct calls, function prototype of call and "
+                           "callee must be the same");
         }
       }
     }
   }
 
   // Verify DynamicFunctions
-  for (const DynamicFunction &DF : DynamicFunctions) {
+  for (const DynamicFunction &DF : ImportedDynamicFunctions) {
     if (not DF.verify(VH))
       return VH.fail();
   }
@@ -198,6 +220,7 @@ static FunctionCFG getGraph(const Function &F) {
         break;
 
       case Invalid:
+      case Count:
         revng_abort();
         break;
       }
@@ -353,8 +376,10 @@ bool CallEdge::verify(bool Assert) const {
 }
 
 bool CallEdge::verify(VerifyHelper &VH) const {
+  bool ValidDynamicCall = not DynamicFunction.empty() and Destination.isValid();
+
   return VH.maybeFail(verifyFunctionEdge(VH, *this) and Prototype.isValid()
-                      and Prototype.get()->verify(VH));
+                      and Prototype.get()->verify(VH) and ValidDynamicCall);
 }
 
 Identifier BasicBlock::name() const {

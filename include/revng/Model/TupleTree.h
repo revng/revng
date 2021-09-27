@@ -27,7 +27,7 @@ concept TupleTreeCompatible = IsKeyedObjectContainer<T>
                                 or IsUpcastablePointer<T>;
 // clang-format on
 
-template <typename T>
+template<typename T>
 concept NotTupleTreeCompatible = not TupleTreeCompatible<T>;
 
 // clang-format off
@@ -43,7 +43,7 @@ concept Yamlizable
     or llvm::yaml::has_ScalarEnumerationTraits<T>::value;
 // clang-format on
 
-template <typename T>
+template<typename T>
 concept NotYamlizable = not Yamlizable<T>;
 
 namespace detail {
@@ -66,7 +66,7 @@ constexpr inline auto IsYamlizable = [](auto *K) {
 //
 
 /// Copy into a std::array a slice of an llvm::ArrayRef
-template <size_t Start, size_t Size, typename T>
+template<size_t Start, size_t Size, typename T>
 std::array<T, Size> slice(llvm::ArrayRef<T> Old) {
   std::array<T, Size> Result;
   auto StartIt = Old.begin() + Start;
@@ -75,7 +75,7 @@ std::array<T, Size> slice(llvm::ArrayRef<T> Old) {
 }
 
 /// Copy into a std::array a slice of a std::array
-template <size_t Start, size_t Size, typename T, size_t OldSize>
+template<size_t Start, size_t Size, typename T, size_t OldSize>
 std::array<T, Size> slice(const std::array<T, OldSize> &Old) {
   std::array<T, Size> Result;
   auto StartIt = Old.begin() + Start;
@@ -88,16 +88,17 @@ std::array<T, Size> slice(const std::array<T, OldSize> &Old) {
 //
 
 /// Trait to provide name of the tuple-like class and its fields
-template <typename T> struct TupleLikeTraits {
+template<typename T>
+struct TupleLikeTraits {
   enum class Fields {};
 };
 
-template <typename T>
+template<typename T>
 concept HasTupleLikeTraits = requires {
   typename TupleLikeTraits<T>::tuple;
   typename TupleLikeTraits<T>::Fields;
-  {TupleLikeTraits<T>::Name};
-  {TupleLikeTraits<T>::FieldsName};
+  { TupleLikeTraits<T>::Name };
+  { TupleLikeTraits<T>::FieldsName };
 };
 
 //
@@ -105,13 +106,14 @@ concept HasTupleLikeTraits = requires {
 //
 
 /// Tuple-like can implement llvm::yaml::MappingTraits inheriting this class
-template <typename T, typename TupleLikeTraits<T>::Fields... Optionals>
+template<typename T, typename TupleLikeTraits<T>::Fields... Optionals>
 struct TupleLikeMappingTraits {
   using Fields = typename TupleLikeTraits<T>::Fields;
 
-  template <Fields Index, size_t I = 0> static constexpr bool isOptional() {
+  template<Fields Index, size_t I = 0>
+  static constexpr bool isOptional() {
     constexpr size_t Count = sizeof...(Optionals);
-    constexpr std::array<Fields, Count> OptionalsArray{Optionals...};
+    constexpr std::array<Fields, Count> OptionalsArray{ Optionals... };
     if constexpr (I < Count) {
       return (OptionalsArray[I] == Index) || isOptional<Index, I + 1>();
     } else {
@@ -120,7 +122,8 @@ struct TupleLikeMappingTraits {
   }
 
   // Recursive step
-  template <size_t I = 0> static void mapping(llvm::yaml::IO &IO, T &Obj) {
+  template<size_t I = 0>
+  static void mapping(llvm::yaml::IO &IO, T &Obj) {
     if constexpr (I < std::tuple_size_v<T>) {
       auto Name = TupleLikeTraits<T>::FieldsName[I];
       constexpr Fields Field = static_cast<Fields>(I);
@@ -145,7 +148,7 @@ struct TupleLikeMappingTraits {
 
 namespace tupletree::detail {
 
-template <size_t I = 0, typename Visitor, typename T>
+template<size_t I = 0, typename Visitor, typename T>
 void visitTuple(Visitor &V, T &Obj) {
   if constexpr (I < std::tuple_size_v<T>) {
     // Visit the field
@@ -159,13 +162,13 @@ void visitTuple(Visitor &V, T &Obj) {
 } // namespace tupletree::detail
 
 // UpcastablePointerLike-like
-template <typename Visitor, UpcastablePointerLike T>
+template<typename Visitor, UpcastablePointerLike T>
 void visitTupleTree(Visitor &V, T &Obj) {
   upcast(Obj, [&V](auto &Upcasted) { visitTupleTree(V, Upcasted); });
 }
 
 // Tuple-like
-template <typename Visitor, HasTupleSize T>
+template<typename Visitor, HasTupleSize T>
 void visitTupleTree(Visitor &V, T &Obj) {
   V.preVisit(Obj);
   tupletree::detail::visitTuple(V, Obj);
@@ -173,7 +176,7 @@ void visitTupleTree(Visitor &V, T &Obj) {
 }
 
 // Container-like
-template <typename Visitor, IsKeyedObjectContainer T>
+template<typename Visitor, IsKeyedObjectContainer T>
 void visitTupleTree(Visitor &V, T &Obj) {
   V.preVisit(Obj);
   using value_type = typename T::value_type;
@@ -184,33 +187,36 @@ void visitTupleTree(Visitor &V, T &Obj) {
 }
 
 // All the others
-template <typename Visitor, NotTupleTreeCompatible T>
+template<typename Visitor, NotTupleTreeCompatible T>
 void visitTupleTree(Visitor &V, T &Element) {
   V.preVisit(Element);
   V.postVisit(Element);
 }
 
-template <typename Pre, typename Post, typename T>
-void visitTupleTree(T &Element, const Pre &PreVisitor,
+template<typename Pre, typename Post, typename T>
+void visitTupleTree(T &Element,
+                    const Pre &PreVisitor,
                     const Post &PostVisitor) {
   struct {
     const Pre &preVisit;
     const Post &postVisit;
-  } Visitor{PreVisitor, PostVisitor};
+  } Visitor{ PreVisitor, PostVisitor };
   visitTupleTree(Visitor, Element);
 }
 
 /// Default visitor, doing nothing
 struct DefaultTupleTreeVisitor {
-  template <typename T> void preVisit(T &) {}
+  template<typename T>
+  void preVisit(T &) {}
 
-  template <typename T> void postVisit(T &) {}
+  template<typename T>
+  void postVisit(T &) {}
 };
 
 //
 // tupleIndexByName
 //
-template <typename T, size_t I = 0>
+template<typename T, size_t I = 0>
 size_t tupleIndexByName(llvm::StringRef Name) {
   if constexpr (I < std::tuple_size_v<T>) {
     llvm::StringRef ThisName = TupleLikeTraits<T>::FieldsName[I];
@@ -228,12 +234,12 @@ size_t tupleIndexByName(llvm::StringRef Name) {
 //
 namespace tupletree::detail {
 
-template <typename ResultT, size_t I = 0, typename RootT, typename KeyT>
+template<typename ResultT, size_t I = 0, typename RootT, typename KeyT>
 ResultT *getByKeyTuple(RootT &M, KeyT Key) {
   if constexpr (I < std::tuple_size_v<RootT>) {
     if (I == Key) {
       using tuple_element = typename std::tuple_element<I, RootT>::type;
-      revng_assert((std::is_same_v<tuple_element, ResultT>));
+      revng_assert((std::is_same_v<tuple_element, ResultT>) );
       return reinterpret_cast<ResultT *>(&get<I>(M));
     } else {
       return getByKeyTuple<ResultT, I + 1>(M, Key);
@@ -245,18 +251,18 @@ ResultT *getByKeyTuple(RootT &M, KeyT Key) {
 
 } // namespace tupletree::detail
 
-template <typename ResultT, UpcastablePointerLike RootT, typename KeyT>
+template<typename ResultT, UpcastablePointerLike RootT, typename KeyT>
 ResultT getByKey(RootT &M, KeyT Key) {
   auto Dispatcher = [&](auto &Upcasted) { return getByKey(Upcasted, Key); };
   return upcast(M, Dispatcher, ResultT{});
 }
 
-template <typename ResultT, HasTupleSize RootT, typename KeyT>
+template<typename ResultT, HasTupleSize RootT, typename KeyT>
 ResultT getByKey(RootT &M, KeyT Key) {
   return tupletree::detail::getByKeyTuple<ResultT>(M, Key);
 }
 
-template <typename ResultT, IsKeyedObjectContainer RootT, typename KeyT>
+template<typename ResultT, IsKeyedObjectContainer RootT, typename KeyT>
 ResultT *getByKey(RootT &M, KeyT Key) {
   for (auto &Element : M) {
     using KOT = KeyedObjectTraits<std::remove_reference_t<decltype(Element)>>;
@@ -269,21 +275,21 @@ ResultT *getByKey(RootT &M, KeyT Key) {
 //
 // callOnPathSteps (no instance)
 //
-template <HasTupleSize RootT, typename Visitor>
+template<HasTupleSize RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path);
 
-template <NotTupleTreeCompatible RootT, typename Visitor>
+template<NotTupleTreeCompatible RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
   return false;
 }
 
-template <UpcastablePointerLike RootT, typename Visitor>
+template<UpcastablePointerLike RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
   using element_type = pointee<RootT>;
   return callOnPathStepsTuple<element_type>(V, Path);
 }
 
-template <IsKeyedObjectContainer RootT, typename Visitor>
+template<IsKeyedObjectContainer RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
   using value_type = typename RootT::value_type;
   using KOT = KeyedObjectTraits<value_type>;
@@ -300,7 +306,7 @@ bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
 
 namespace tupletree::detail {
 
-template <typename RootT, size_t I = 0, typename Visitor>
+template<typename RootT, size_t I = 0, typename Visitor>
 bool callOnPathStepsTuple(Visitor &V,
                           llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
   if constexpr (I < std::tuple_size_v<RootT>) {
@@ -323,7 +329,7 @@ bool callOnPathStepsTuple(Visitor &V,
 
 } // namespace tupletree::detail
 
-template <HasTupleSize RootT, typename Visitor>
+template<HasTupleSize RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
   return tupletree::detail::callOnPathStepsTuple<RootT>(V, Path);
 }
@@ -334,14 +340,16 @@ bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
 
 namespace tupletree::detail {
 
-template <NotTupleTreeCompatible RootT, typename Visitor>
-bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path,
+template<NotTupleTreeCompatible RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V,
+                     llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                      RootT &M) {
   return false;
 }
 
-template <size_t I = 0, typename RootT, typename Visitor>
-bool callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path,
+template<size_t I = 0, typename RootT, typename Visitor>
+bool callOnPathStepsTuple(Visitor &V,
+                          llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                           RootT &M) {
   if constexpr (I < std::tuple_size_v<RootT>) {
     if (Path[0].get<size_t>() == I) {
@@ -361,8 +369,9 @@ bool callOnPathStepsTuple(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path,
 
 } // namespace tupletree::detail
 
-template <UpcastablePointerLike RootT, typename Visitor>
-bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path,
+template<UpcastablePointerLike RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V,
+                     llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                      RootT &M) {
   auto Dispatcher = [&](auto &Upcasted) {
     return callOnPathStepsTuple(V, Path, Upcasted);
@@ -371,14 +380,16 @@ bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path,
   return upcast(M, Dispatcher, false);
 }
 
-template <HasTupleSize RootT, typename Visitor>
-bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path,
+template<HasTupleSize RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V,
+                     llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                      RootT &M) {
   return tupletree::detail::callOnPathStepsTuple(V, Path, M);
 }
 
-template <IsKeyedObjectContainer RootT, typename Visitor>
-bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path,
+template<IsKeyedObjectContainer RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V,
+                     llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                      RootT &M) {
   using value_type = typename RootT::value_type;
   using KOT = KeyedObjectTraits<value_type>;
@@ -404,17 +415,20 @@ bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path,
 //
 namespace tupletree::detail {
 
-template <typename Visitor> struct CallByPathVisitor {
+template<typename Visitor>
+struct CallByPathVisitor {
   size_t PathSize;
   Visitor &V;
 
-  template <typename T, int I> void visitTupleElement() {
+  template<typename T, int I>
+  void visitTupleElement() {
     --PathSize;
     if (PathSize == 0)
       V.template visitTupleElement<T, I>();
   }
 
-  template <typename T, typename KeyT> void visitContainerElement(KeyT Key) {
+  template<typename T, typename KeyT>
+  void visitContainerElement(KeyT Key) {
     PathSize -= 1;
     if (PathSize == 0)
       V.template visitContainerElement<T>(Key);
@@ -423,10 +437,10 @@ template <typename Visitor> struct CallByPathVisitor {
 
 } // namespace tupletree::detail
 
-template <typename RootT, typename Visitor>
+template<typename RootT, typename Visitor>
 bool callByPath(Visitor &V, const TupleTreePath &Path) {
   using namespace tupletree::detail;
-  CallByPathVisitor<Visitor> CBPV{Path.size(), V};
+  CallByPathVisitor<Visitor> CBPV{ Path.size(), V };
   return callOnPathSteps<RootT>(CBPV, Path.toArrayRef());
 }
 
@@ -435,25 +449,26 @@ bool callByPath(Visitor &V, const TupleTreePath &Path) {
 //
 namespace tupletree::detail {
 
-template <typename Visitor> struct CallByPathVisitorWithInstance {
+template<typename Visitor>
+struct CallByPathVisitorWithInstance {
   size_t PathSize;
   Visitor &V;
 
-  template <typename T, size_t I, typename K>
+  template<typename T, size_t I, typename K>
   void visitTupleElement(K &Element) {
     --PathSize;
     if (PathSize == 0)
       V.template visitTupleElement<T, I>(Element);
   }
 
-  template <typename T, IsUpcastablePointer K, typename KeyT>
+  template<typename T, IsUpcastablePointer K, typename KeyT>
   void visitContainerElement(KeyT Key, K &Element) {
     PathSize -= 1;
     if (PathSize == 0)
       V.template visitContainerElement<T>(Key, *Element.get());
   }
 
-  template <typename T, IsNotUpcastablePointer K, typename KeyT>
+  template<typename T, IsNotUpcastablePointer K, typename KeyT>
   void visitContainerElement(KeyT Key, K &Element) {
     PathSize -= 1;
     if (PathSize == 0)
@@ -463,10 +478,10 @@ template <typename Visitor> struct CallByPathVisitorWithInstance {
 
 } // namespace tupletree::detail
 
-template <typename RootT, typename Visitor>
+template<typename RootT, typename Visitor>
 bool callByPath(Visitor &V, const TupleTreePath &Path, RootT &M) {
   using namespace tupletree::detail;
-  CallByPathVisitorWithInstance<Visitor> CBPV{Path.size(), V};
+  CallByPathVisitorWithInstance<Visitor> CBPV{ Path.size(), V };
   return callOnPathSteps(CBPV, Path.toArrayRef(), M);
 }
 
@@ -475,31 +490,34 @@ bool callByPath(Visitor &V, const TupleTreePath &Path, RootT &M) {
 //
 namespace tupletree::detail {
 
-template <typename ResultT> struct GetByPathVisitor {
+template<typename ResultT>
+struct GetByPathVisitor {
   ResultT *Result = nullptr;
 
-  template <typename T, typename K, typename KeyT>
+  template<typename T, typename K, typename KeyT>
   void visitContainerElement(KeyT, K &) {
     Result = nullptr;
   }
 
-  template <typename T, typename KeyT>
+  template<typename T, typename KeyT>
   void visitContainerElement(KeyT, ResultT &Element) {
     Result = &Element;
   }
 
-  template <typename, size_t, typename K> void visitTupleElement(K &) {
+  template<typename, size_t, typename K>
+  void visitTupleElement(K &) {
     Result = nullptr;
   }
 
-  template <typename, size_t> void visitTupleElement(ResultT &Element) {
+  template<typename, size_t>
+  void visitTupleElement(ResultT &Element) {
     Result = &Element;
   }
 };
 
 } // namespace tupletree::detail
 
-template <typename ResultT, typename RootT>
+template<typename ResultT, typename RootT>
 ResultT *getByPath(const TupleTreePath &Path, RootT &M) {
   using namespace tupletree::detail;
   GetByPathVisitor<ResultT> GBPV;
@@ -522,18 +540,20 @@ private:
 public:
   DumpPathVisitor(std::string &Result) : Stream(Result) {}
 
-  template <typename T, int I> void visitTupleElement() {
+  template<typename T, int I>
+  void visitTupleElement() {
     Stream << "/" << TupleLikeTraits<T>::FieldsName[I];
   }
 
-  template <typename T, typename KeyT> void visitContainerElement(KeyT Key) {
+  template<typename T, typename KeyT>
+  void visitContainerElement(KeyT Key) {
     Stream << "/" << getNameFromYAMLScalar(Key);
   }
 };
 
 } // namespace tupletree::detail
 
-template <typename T>
+template<typename T>
 std::optional<std::string> pathAsString(const TupleTreePath &Path) {
   std::string Result;
   {
@@ -553,7 +573,7 @@ private:
   PathMatcher() = default;
 
 public:
-  template <typename T>
+  template<typename T>
   static std::optional<PathMatcher> create(llvm::StringRef Path) {
     revng_assert(Path.startswith("/"));
     PathMatcher Result;
@@ -567,14 +587,15 @@ public:
   const TupleTreePath &path() const { return Path; }
 
 public:
-  template <typename... Ts> TupleTreePath apply(Ts... Args) const {
+  template<typename... Ts>
+  TupleTreePath apply(Ts... Args) const {
     revng_assert(sizeof...(Args) == Free.size());
     TupleTreePath Result = Path;
     applyImpl<0, Ts...>(Result, Args...);
     return Result;
   }
 
-  template <typename... Args>
+  template<typename... Args>
   std::optional<std::tuple<Args...>> match(const TupleTreePath &Search) {
     revng_assert(sizeof...(Args) == Free.size());
 
@@ -584,7 +605,7 @@ public:
     //
     // Check non-variable parts match
     //
-    std::vector<size_t> Terminator{Path.size()};
+    std::vector<size_t> Terminator{ Path.size() };
     size_t LastEnd = 0;
     for (auto Index : llvm::concat<size_t>(Free, Terminator)) {
       for (size_t I = LastEnd; I < Index; ++I) {
@@ -604,24 +625,24 @@ public:
   }
 
 private:
-  template <size_t I, typename T>
+  template<size_t I, typename T>
   void depositKey(TupleTreePath &Result, T Arg) const {
     auto Index = Free.at(I);
     Result[Index] = ConcreteTupleTreeKeyWrapper<T>(Arg);
   }
 
-  template <size_t I, typename T>
+  template<size_t I, typename T>
   void applyImpl(TupleTreePath &Result, T Arg) const {
     depositKey<I>(Result, Arg);
   }
 
-  template <size_t I, typename T, typename... Ts>
+  template<size_t I, typename T, typename... Ts>
   void applyImpl(TupleTreePath &Result, T Arg, Ts... Args) const {
     depositKey<I>(Result, Arg);
     applyImpl<I + 1, Ts...>(Result, Args...);
   }
 
-  template <typename T, size_t I = 0>
+  template<typename T, size_t I = 0>
   void extractKeys(const TupleTreePath &Search, T &Tuple) const {
     if constexpr (I < std::tuple_size_v<T>) {
       using element = std::tuple_element_t<I, T>;
@@ -631,31 +652,32 @@ private:
   }
 
 private:
-  template <typename T, size_t I = 0>
-  static bool visitTuple(llvm::StringRef Current, llvm::StringRef Rest,
+  template<typename T, size_t I = 0>
+  static bool visitTuple(llvm::StringRef Current,
+                         llvm::StringRef Rest,
                          PathMatcher &Result);
 
-  template <UpcastablePointerLike T>
+  template<UpcastablePointerLike T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
-  template <HasTupleSize T>
+  template<HasTupleSize T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
-  template <IsKeyedObjectContainer T>
+  template<IsKeyedObjectContainer T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
-  template <NotTupleTreeCompatible T>
+  template<NotTupleTreeCompatible T>
   static bool visitTupleTreeNode(llvm::StringRef Path, PathMatcher &Result);
 };
 
-template <UpcastablePointerLike T>
+template<UpcastablePointerLike T>
 bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
                                      PathMatcher &Result) {
   using element_type = std::remove_reference_t<decltype(*std::declval<T>())>;
   return PathMatcher::visitTupleTreeNode<element_type>(String, Result);
 }
 
-template <HasTupleSize T>
+template<HasTupleSize T>
 bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
                                      PathMatcher &Result) {
   if (String.size() == 0)
@@ -665,7 +687,7 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
   return visitTuple<T>(Before, After, Result);
 }
 
-template <IsKeyedObjectContainer T>
+template<IsKeyedObjectContainer T>
 bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
                                      PathMatcher &Result) {
   if (String.size() == 0)
@@ -686,14 +708,15 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
   return visitTupleTreeNode<Value>(After, Result);
 }
 
-template <NotTupleTreeCompatible T>
+template<NotTupleTreeCompatible T>
 bool PathMatcher::visitTupleTreeNode(llvm::StringRef Path,
                                      PathMatcher &Result) {
   return Path.size() == 0;
 }
 
-template <typename T, size_t I>
-bool PathMatcher::visitTuple(llvm::StringRef Current, llvm::StringRef Rest,
+template<typename T, size_t I>
+bool PathMatcher::visitTuple(llvm::StringRef Current,
+                             llvm::StringRef Rest,
                              PathMatcher &Result) {
   if constexpr (I < std::tuple_size_v<T>) {
     if (TupleLikeTraits<T>::FieldsName[I] == Current) {
@@ -709,7 +732,7 @@ bool PathMatcher::visitTuple(llvm::StringRef Current, llvm::StringRef Rest,
   }
 }
 
-template <typename T>
+template<typename T>
 std::optional<TupleTreePath> stringAsPath(llvm::StringRef Path) {
   if (Path.empty())
     return std::nullopt;
@@ -721,7 +744,7 @@ std::optional<TupleTreePath> stringAsPath(llvm::StringRef Path) {
     return std::nullopt;
 }
 
-template <typename ResultT, typename RootT>
+template<typename ResultT, typename RootT>
 ResultT *getByPath(llvm::StringRef Path, RootT &M) {
   auto MaybeKeyVector = stringAsPath<RootT>(Path);
   if (not MaybeKeyVector)
@@ -733,36 +756,38 @@ ResultT *getByPath(llvm::StringRef Path, RootT &M) {
 //
 // validateTupleTree
 //
-template <HasTupleSize T, typename L, size_t I = 0>
+template<HasTupleSize T, typename L, size_t I = 0>
 constexpr bool validateTupleTree(L);
 
-template <typename T, typename L> constexpr bool validateTupleTree(L);
-
-template <IsKeyedObjectContainer T, typename L>
+template<typename T, typename L>
 constexpr bool validateTupleTree(L);
 
-template <UpcastablePointerLike T, typename L>
+template<IsKeyedObjectContainer T, typename L>
 constexpr bool validateTupleTree(L);
 
-template <UpcastablePointerLike T, typename L>
+template<UpcastablePointerLike T, typename L>
+constexpr bool validateTupleTree(L);
+
+template<UpcastablePointerLike T, typename L>
 constexpr bool validateTupleTree(L Check) {
-  return Check((T *)nullptr) and
-         validateTupleTree<typename T::element_type>(Check);
+  return Check((T *) nullptr)
+         and validateTupleTree<typename T::element_type>(Check);
 }
 
-template <IsKeyedObjectContainer T, typename L>
+template<IsKeyedObjectContainer T, typename L>
 constexpr bool validateTupleTree(L Check) {
-  return Check((T *)nullptr) and
-         validateTupleTree<typename T::value_type>(Check);
+  return Check((T *) nullptr)
+         and validateTupleTree<typename T::value_type>(Check);
 }
 
-template <typename T, typename L> constexpr bool validateTupleTree(L Check) {
-  return Check((std::remove_const_t<T> *)nullptr);
+template<typename T, typename L>
+constexpr bool validateTupleTree(L Check) {
+  return Check((std::remove_const_t<T> *) nullptr);
 }
 
-template <HasTupleSize T, typename L, size_t I>
+template<HasTupleSize T, typename L, size_t I>
 constexpr bool validateTupleTree(L Check) {
-  if constexpr (I == 0 and not Check((T *)nullptr))
+  if constexpr (I == 0 and not Check((T *) nullptr))
     return false;
 
   if constexpr (I < std::tuple_size_v<T>) {
@@ -777,81 +802,131 @@ constexpr bool validateTupleTree(L Check) {
 //
 // FOR_EACH macro implemenation
 //
-#define GET_MACRO(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13,  \
-                  _14, _15, _16, NAME, ...)                                    \
+#define GET_MACRO(_0,   \
+                  _1,   \
+                  _2,   \
+                  _3,   \
+                  _4,   \
+                  _5,   \
+                  _6,   \
+                  _7,   \
+                  _8,   \
+                  _9,   \
+                  _10,  \
+                  _11,  \
+                  _12,  \
+                  _13,  \
+                  _14,  \
+                  _15,  \
+                  _16,  \
+                  NAME, \
+                  ...)  \
   NAME
-#define NUMARGS(...)                                                           \
-  GET_MACRO(_0, __VA_ARGS__, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3,  \
-            2, 1)
+#define NUMARGS(...)     \
+  GET_MACRO(_0,          \
+            __VA_ARGS__, \
+            16,          \
+            15,          \
+            14,          \
+            13,          \
+            12,          \
+            11,          \
+            10,          \
+            9,           \
+            8,           \
+            7,           \
+            6,           \
+            5,           \
+            4,           \
+            3,           \
+            2,           \
+            1)
 
 #define FE_0(ACTION, TOTAL, ARG)
 
-#define FE_1(ACTION, TOTAL, ARG, X) ACTION(ARG, (TOTAL)-0, X)
+#define FE_1(ACTION, TOTAL, ARG, X) ACTION(ARG, (TOTAL) -0, X)
 
-#define FE_2(ACTION, TOTAL, ARG, X, ...)                                       \
-  ACTION(ARG, (TOTAL)-1, X)                                                    \
+#define FE_2(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -1, X)             \
   FE_1(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_3(ACTION, TOTAL, ARG, X, ...)                                       \
-  ACTION(ARG, (TOTAL)-2, X)                                                    \
+#define FE_3(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -2, X)             \
   FE_2(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_4(ACTION, TOTAL, ARG, X, ...)                                       \
-  ACTION(ARG, (TOTAL)-3, X)                                                    \
+#define FE_4(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -3, X)             \
   FE_3(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_5(ACTION, TOTAL, ARG, X, ...)                                       \
-  ACTION(ARG, (TOTAL)-4, X)                                                    \
+#define FE_5(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -4, X)             \
   FE_4(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_6(ACTION, TOTAL, ARG, X, ...)                                       \
-  ACTION(ARG, (TOTAL)-5, X)                                                    \
+#define FE_6(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -5, X)             \
   FE_5(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_7(ACTION, TOTAL, ARG, X, ...)                                       \
-  ACTION(ARG, (TOTAL)-6, X)                                                    \
+#define FE_7(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -6, X)             \
   FE_6(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_8(ACTION, TOTAL, ARG, X, ...)                                       \
-  ACTION(ARG, (TOTAL)-7, X)                                                    \
+#define FE_8(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -7, X)             \
   FE_7(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_9(ACTION, TOTAL, ARG, X, ...)                                       \
-  ACTION(ARG, (TOTAL)-8, X)                                                    \
+#define FE_9(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -8, X)             \
   FE_8(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_10(ACTION, TOTAL, ARG, X, ...)                                      \
-  ACTION(ARG, (TOTAL)-9, X)                                                    \
+#define FE_10(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -9, X)              \
   FE_9(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_11(ACTION, TOTAL, ARG, X, ...)                                      \
-  ACTION(ARG, (TOTAL)-10, X)                                                   \
+#define FE_11(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -10, X)             \
   FE_10(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_12(ACTION, TOTAL, ARG, X, ...)                                      \
-  ACTION(ARG, (TOTAL)-11, X)                                                   \
+#define FE_12(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -11, X)             \
   FE_11(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_13(ACTION, TOTAL, ARG, X, ...)                                      \
-  ACTION(ARG, (TOTAL)-12, X)                                                   \
+#define FE_13(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -12, X)             \
   FE_12(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_14(ACTION, TOTAL, ARG, X, ...)                                      \
-  ACTION(ARG, (TOTAL)-13, X)                                                   \
+#define FE_14(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -13, X)             \
   FE_13(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_15(ACTION, TOTAL, ARG, X, ...)                                      \
-  ACTION(ARG, (TOTAL)-14, X)                                                   \
+#define FE_15(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -14, X)             \
   FE_14(ACTION, TOTAL, ARG, __VA_ARGS__)
 
-#define FE_16(ACTION, TOTAL, ARG, X, ...)                                      \
-  ACTION(ARG, (TOTAL)-15, X)                                                   \
+#define FE_16(ACTION, TOTAL, ARG, X, ...) \
+  ACTION(ARG, (TOTAL) -15, X)             \
   FE_15(ACTION, TOTAL, ARG, __VA_ARGS__)
 
 /// Calls ACTION(ARG, INDEX, VA_ARG) for each VA_ARG in ...
-#define FOR_EACH(ACTION, ARG, ...)                                             \
-  GET_MACRO(_0, __VA_ARGS__, FE_16, FE_15, FE_14, FE_13, FE_12, FE_11, FE_10,  \
-            FE_9, FE_8, FE_7, FE_6, FE_5, FE_4, FE_3, FE_2, FE_1, FE_0)        \
+#define FOR_EACH(ACTION, ARG, ...) \
+  GET_MACRO(_0,                    \
+            __VA_ARGS__,           \
+            FE_16,                 \
+            FE_15,                 \
+            FE_14,                 \
+            FE_13,                 \
+            FE_12,                 \
+            FE_11,                 \
+            FE_10,                 \
+            FE_9,                  \
+            FE_8,                  \
+            FE_7,                  \
+            FE_6,                  \
+            FE_5,                  \
+            FE_4,                  \
+            FE_3,                  \
+            FE_2,                  \
+            FE_1,                  \
+            FE_0)                  \
   (ACTION, (NUMARGS(__VA_ARGS__) - 1), ARG, __VA_ARGS__)
 
 //
@@ -864,70 +939,77 @@ constexpr bool validateTupleTree(L Check) {
 
 #define ENUM_ENTRY(class, index, field) field = index,
 
-template <typename ToSkip, typename... A>
+template<typename ToSkip, typename... A>
 using skip_first_tuple = std::tuple<A...>;
 
-#define INTROSPECTION_1(classname, ...)                                        \
-  template <> struct TupleLikeTraits<classname> {                              \
-    static constexpr const char *Name = #classname;                            \
-                                                                               \
-    using tuple =                                                              \
-        skip_first_tuple<void FOR_EACH(TUPLE_TYPES, classname, __VA_ARGS__)>;  \
-                                                                               \
-    static constexpr const char *FieldsName[std::tuple_size_v<tuple>] = {      \
-        FOR_EACH(TUPLE_FIELD_NAME, classname, __VA_ARGS__)};                   \
-                                                                               \
-    enum class Fields { FOR_EACH(ENUM_ENTRY, classname, __VA_ARGS__) };        \
+#define INTROSPECTION_1(classname, ...)                                   \
+  template<>                                                              \
+  struct TupleLikeTraits<classname> {                                     \
+    static constexpr const char *Name = #classname;                       \
+                                                                          \
+    using tuple = skip_first_tuple<                                       \
+      void FOR_EACH(TUPLE_TYPES, classname, __VA_ARGS__)>;                \
+                                                                          \
+    static constexpr const char *FieldsName[std::tuple_size_v<tuple>] = { \
+      FOR_EACH(TUPLE_FIELD_NAME, classname, __VA_ARGS__)                  \
+    };                                                                    \
+                                                                          \
+    enum class Fields { FOR_EACH(ENUM_ENTRY, classname, __VA_ARGS__) };   \
   };
 
-#define GET_IMPLEMENTATIONS(class, index, field)                               \
+#define GET_IMPLEMENTATIONS(class, index, field) \
   else if constexpr (I == index) return x.field;
 
-#define INTROSPECTION_2(class, ...)                                            \
-  template <int I> auto &get(class &&x) {                                      \
-    if constexpr (false)                                                       \
-      return NULL;                                                             \
-    FOR_EACH(GET_IMPLEMENTATIONS, class, __VA_ARGS__)                          \
-  }                                                                            \
-                                                                               \
-  template <int I> const auto &get(const class &x) {                           \
-    if constexpr (false)                                                       \
-      return NULL;                                                             \
-    FOR_EACH(GET_IMPLEMENTATIONS, class, __VA_ARGS__)                          \
-  }                                                                            \
-                                                                               \
-  template <int I> auto &get(class &x) {                                       \
-    if constexpr (false)                                                       \
-      return NULL;                                                             \
-    FOR_EACH(GET_IMPLEMENTATIONS, class, __VA_ARGS__)                          \
+#define INTROSPECTION_2(class, ...)                   \
+  template<int I>                                     \
+  auto &get(class &&x) {                              \
+    if constexpr (false)                              \
+      return NULL;                                    \
+    FOR_EACH(GET_IMPLEMENTATIONS, class, __VA_ARGS__) \
+  }                                                   \
+                                                      \
+  template<int I>                                     \
+  const auto &get(const class &x) {                   \
+    if constexpr (false)                              \
+      return NULL;                                    \
+    FOR_EACH(GET_IMPLEMENTATIONS, class, __VA_ARGS__) \
+  }                                                   \
+                                                      \
+  template<int I>                                     \
+  auto &get(class &x) {                               \
+    if constexpr (false)                              \
+      return NULL;                                    \
+    FOR_EACH(GET_IMPLEMENTATIONS, class, __VA_ARGS__) \
   }
 
-#define INTROSPECTION(class, ...)                                              \
-  INTROSPECTION_1(class, __VA_ARGS__)                                          \
+#define INTROSPECTION(class, ...)     \
+  INTROSPECTION_1(class, __VA_ARGS__) \
   INTROSPECTION_2(class, __VA_ARGS__)
 
-#define INTROSPECTION_NS(ns, class, ...)                                       \
-  INTROSPECTION_1(ns::class, __VA_ARGS__)                                      \
-  namespace ns {                                                               \
-  INTROSPECTION_2(class, __VA_ARGS__)                                          \
+#define INTROSPECTION_NS(ns, class, ...)  \
+  INTROSPECTION_1(ns::class, __VA_ARGS__) \
+  namespace ns {                          \
+  INTROSPECTION_2(class, __VA_ARGS__)     \
   }
 
-template <size_t Index, HasTupleLikeTraits T>
+template<size_t Index, HasTupleLikeTraits T>
 struct std::tuple_element<Index, T> {
   using type = std::tuple_element_t<Index, typename TupleLikeTraits<T>::tuple>;
 };
 
-template <typename T>
+template<typename T>
 using TupleLikeTraitsTuple = typename TupleLikeTraits<T>::tuple;
 
-template <HasTupleLikeTraits T>
+template<HasTupleLikeTraits T>
 struct std::tuple_size<T>
-    : std::integral_constant<size_t,
-                             std::tuple_size_v<TupleLikeTraitsTuple<T>>> {};
+  : std::integral_constant<size_t, std::tuple_size_v<TupleLikeTraitsTuple<T>>> {
+};
 
-template <TupleTreeCompatible T> class TupleTree;
+template<TupleTreeCompatible T>
+class TupleTree;
 
-template <typename T, typename RootT> class TupleTreeReference {
+template<typename T, typename RootT>
+class TupleTreeReference {
 public:
   using pointee = T;
 
@@ -983,10 +1065,11 @@ public:
   }
 };
 
-template <typename T>
+template<typename T>
 concept IsTupleTreeReference = is_specialization_v<T, TupleTreeReference>;
 
-template <IsTupleTreeReference T> struct llvm::yaml::ScalarTraits<T> {
+template<IsTupleTreeReference T>
+struct llvm::yaml::ScalarTraits<T> {
 
   static void output(const T &Obj, void *, llvm::raw_ostream &Out) {
     Out << Obj.toString();
@@ -1024,12 +1107,14 @@ template <IsTupleTreeReference T> struct llvm::yaml::ScalarTraits<T> {
 //   refreeze the TupleTree.
 
 // TODO: `const` stuff is not YAML-serializable
-template <typename S, Yamlizable T> void serialize(S &Stream, T &Element) {
+template<typename S, Yamlizable T>
+void serialize(S &Stream, T &Element) {
   llvm::yaml::Output YAMLOutput(Stream);
   YAMLOutput << Element;
 }
 
-template <TupleTreeCompatible T> class TupleTree {
+template<TupleTreeCompatible T>
+class TupleTree {
 private:
   std::unique_ptr<T> Root;
 
@@ -1076,7 +1161,8 @@ public:
   }
 
 public:
-  template <typename S> void serialize(S &Stream) const {
+  template<typename S>
+  void serialize(S &Stream) const {
     revng_assert(Root);
     ::serialize(Stream, *Root);
   }
@@ -1109,7 +1195,8 @@ private:
     return Result;
   }
 
-  template <typename L> void visitReferences(const L &InnerVisitor) {
+  template<typename L>
+  void visitReferences(const L &InnerVisitor) {
     auto Visitor = [&InnerVisitor](auto &Element) {
       using type = std::remove_cvref_t<decltype(Element)>;
       if constexpr (IsTupleTreeReference<type>)
@@ -1119,7 +1206,8 @@ private:
     visitTupleTree(*Root, Visitor, [](auto) {});
   }
 
-  template <typename L> void visitReferences(const L &InnerVisitor) const {
+  template<typename L>
+  void visitReferences(const L &InnerVisitor) const {
     auto Visitor = [&InnerVisitor](const auto &Element) {
       using type = std::remove_cvref_t<decltype(Element)>;
       if constexpr (IsTupleTreeReference<type>)
@@ -1127,5 +1215,16 @@ private:
     };
 
     visitTupleTree(*Root, Visitor, [](auto) {});
+  }
+};
+
+template<typename E>
+struct NamedEnumScalarTraits {
+  template<typename T>
+  static void enumeration(T &IO, E &V) {
+    for (unsigned I = 0; I < E::Count; ++I) {
+      auto Value = static_cast<E>(I);
+      IO.enumCase(V, getName(Value).data(), Value);
+    }
   }
 };

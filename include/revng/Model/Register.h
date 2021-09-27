@@ -7,72 +7,9 @@
 #include "llvm/ADT/Triple.h"
 
 #include "revng/ADT/KeyedObjectTraits.h"
+#include "revng/Model/Architecture.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/YAMLTraits.h"
-
-// WIP: move to Model/Architeture.h
-
-namespace model::Architecture {
-
-enum Values { Invalid, x86, x86_64, arm, aarch64, mips, systemz, Count };
-
-inline llvm::StringRef getName(Values V) {
-  switch (V) {
-  case Invalid:
-    return "Invalid";
-  case x86:
-    return "x86";
-  case x86_64:
-    return "x86_64";
-  case arm:
-    return "arm";
-  case aarch64:
-    return "aarch64";
-  case mips:
-    return "mips";
-  case systemz:
-    return "systemz";
-  default:
-    revng_abort();
-  }
-}
-
-inline Values fromLLVMArchitecture(llvm::Triple::ArchType A) {
-  switch (A) {
-  case llvm::Triple::x86:
-    return model::Architecture::x86;
-  case llvm::Triple::x86_64:
-    return model::Architecture::x86_64;
-  case llvm::Triple::arm:
-    return model::Architecture::arm;
-  case llvm::Triple::aarch64:
-    return model::Architecture::aarch64;
-  case llvm::Triple::mips:
-  case llvm::Triple::mipsel:
-    return model::Architecture::mips;
-  case llvm::Triple::systemz:
-    return model::Architecture::systemz;
-  default:
-    return model::Architecture::Invalid;
-  }
-}
-
-} // namespace model::Architecture
-
-// WIP: factor out
-namespace llvm::yaml {
-template<>
-struct ScalarEnumerationTraits<model::Architecture::Values> {
-  template<typename T>
-  static void enumeration(T &IO, model::Architecture::Values &V) {
-    using namespace model::Architecture;
-    for (unsigned I = 0; I < Count; ++I) {
-      auto Value = static_cast<Values>(I);
-      IO.enumCase(V, getName(Value).data(), Value);
-    }
-  }
-};
-} // namespace llvm::yaml
 
 namespace model::Register {
 enum Values {
@@ -489,6 +426,271 @@ inline llvm::StringRef getName(Values V) {
   }
 }
 
+inline Values fromName(llvm::StringRef Name) {
+  if (Name == "Invalid")
+    return Invalid;
+  else if (Name == "eax_x86")
+    return eax_x86;
+  else if (Name == "ebx_x86")
+    return ebx_x86;
+  else if (Name == "ecx_x86")
+    return ecx_x86;
+  else if (Name == "edx_x86")
+    return edx_x86;
+  else if (Name == "esi_x86")
+    return esi_x86;
+  else if (Name == "edi_x86")
+    return edi_x86;
+  else if (Name == "ebp_x86")
+    return ebp_x86;
+  else if (Name == "esp_x86")
+    return esp_x86;
+  else if (Name == "rax_x86_64")
+    return rax_x86_64;
+  else if (Name == "rbx_x86_64")
+    return rbx_x86_64;
+  else if (Name == "rcx_x86_64")
+    return rcx_x86_64;
+  else if (Name == "rdx_x86_64")
+    return rdx_x86_64;
+  else if (Name == "rbp_x86_64")
+    return rbp_x86_64;
+  else if (Name == "rsp_x86_64")
+    return rsp_x86_64;
+  else if (Name == "rsi_x86_64")
+    return rsi_x86_64;
+  else if (Name == "rdi_x86_64")
+    return rdi_x86_64;
+  else if (Name == "r8_x86_64")
+    return r8_x86_64;
+  else if (Name == "r9_x86_64")
+    return r9_x86_64;
+  else if (Name == "r10_x86_64")
+    return r10_x86_64;
+  else if (Name == "r11_x86_64")
+    return r11_x86_64;
+  else if (Name == "r12_x86_64")
+    return r12_x86_64;
+  else if (Name == "r13_x86_64")
+    return r13_x86_64;
+  else if (Name == "r14_x86_64")
+    return r14_x86_64;
+  else if (Name == "r15_x86_64")
+    return r15_x86_64;
+  else if (Name == "xmm0_x86_64")
+    return xmm0_x86_64;
+  else if (Name == "xmm1_x86_64")
+    return xmm1_x86_64;
+  else if (Name == "xmm2_x86_64")
+    return xmm2_x86_64;
+  else if (Name == "xmm3_x86_64")
+    return xmm3_x86_64;
+  else if (Name == "xmm4_x86_64")
+    return xmm4_x86_64;
+  else if (Name == "xmm5_x86_64")
+    return xmm5_x86_64;
+  else if (Name == "xmm6_x86_64")
+    return xmm6_x86_64;
+  else if (Name == "xmm7_x86_64")
+    return xmm7_x86_64;
+  else if (Name == "r0_arm")
+    return r0_arm;
+  else if (Name == "r1_arm")
+    return r1_arm;
+  else if (Name == "r2_arm")
+    return r2_arm;
+  else if (Name == "r3_arm")
+    return r3_arm;
+  else if (Name == "r4_arm")
+    return r4_arm;
+  else if (Name == "r5_arm")
+    return r5_arm;
+  else if (Name == "r6_arm")
+    return r6_arm;
+  else if (Name == "r7_arm")
+    return r7_arm;
+  else if (Name == "r8_arm")
+    return r8_arm;
+  else if (Name == "r9_arm")
+    return r9_arm;
+  else if (Name == "r10_arm")
+    return r10_arm;
+  else if (Name == "r11_arm")
+    return r11_arm;
+  else if (Name == "r12_arm")
+    return r12_arm;
+  else if (Name == "r13_arm")
+    return r13_arm;
+  else if (Name == "r14_arm")
+    return r14_arm;
+  else if (Name == "x0_aarch64")
+    return x0_aarch64;
+  else if (Name == "x1_aarch64")
+    return x1_aarch64;
+  else if (Name == "x2_aarch64")
+    return x2_aarch64;
+  else if (Name == "x3_aarch64")
+    return x3_aarch64;
+  else if (Name == "x4_aarch64")
+    return x4_aarch64;
+  else if (Name == "x5_aarch64")
+    return x5_aarch64;
+  else if (Name == "x6_aarch64")
+    return x6_aarch64;
+  else if (Name == "x7_aarch64")
+    return x7_aarch64;
+  else if (Name == "x8_aarch64")
+    return x8_aarch64;
+  else if (Name == "x9_aarch64")
+    return x9_aarch64;
+  else if (Name == "x10_aarch64")
+    return x10_aarch64;
+  else if (Name == "x11_aarch64")
+    return x11_aarch64;
+  else if (Name == "x12_aarch64")
+    return x12_aarch64;
+  else if (Name == "x13_aarch64")
+    return x13_aarch64;
+  else if (Name == "x14_aarch64")
+    return x14_aarch64;
+  else if (Name == "x15_aarch64")
+    return x15_aarch64;
+  else if (Name == "x16_aarch64")
+    return x16_aarch64;
+  else if (Name == "x17_aarch64")
+    return x17_aarch64;
+  else if (Name == "x18_aarch64")
+    return x18_aarch64;
+  else if (Name == "x19_aarch64")
+    return x19_aarch64;
+  else if (Name == "x20_aarch64")
+    return x20_aarch64;
+  else if (Name == "x21_aarch64")
+    return x21_aarch64;
+  else if (Name == "x22_aarch64")
+    return x22_aarch64;
+  else if (Name == "x23_aarch64")
+    return x23_aarch64;
+  else if (Name == "x24_aarch64")
+    return x24_aarch64;
+  else if (Name == "x25_aarch64")
+    return x25_aarch64;
+  else if (Name == "x26_aarch64")
+    return x26_aarch64;
+  else if (Name == "x27_aarch64")
+    return x27_aarch64;
+  else if (Name == "x28_aarch64")
+    return x28_aarch64;
+  else if (Name == "x29_aarch64")
+    return x29_aarch64;
+  else if (Name == "lr_aarch64")
+    return lr_aarch64;
+  else if (Name == "sp_aarch64")
+    return sp_aarch64;
+  else if (Name == "v0_mips")
+    return v0_mips;
+  else if (Name == "v1_mips")
+    return v1_mips;
+  else if (Name == "a0_mips")
+    return a0_mips;
+  else if (Name == "a1_mips")
+    return a1_mips;
+  else if (Name == "a2_mips")
+    return a2_mips;
+  else if (Name == "a3_mips")
+    return a3_mips;
+  else if (Name == "s0_mips")
+    return s0_mips;
+  else if (Name == "s1_mips")
+    return s1_mips;
+  else if (Name == "s2_mips")
+    return s2_mips;
+  else if (Name == "s3_mips")
+    return s3_mips;
+  else if (Name == "s4_mips")
+    return s4_mips;
+  else if (Name == "s5_mips")
+    return s5_mips;
+  else if (Name == "s6_mips")
+    return s6_mips;
+  else if (Name == "s7_mips")
+    return s7_mips;
+  else if (Name == "gp_mips")
+    return gp_mips;
+  else if (Name == "sp_mips")
+    return sp_mips;
+  else if (Name == "fp_mips")
+    return fp_mips;
+  else if (Name == "ra_mips")
+    return ra_mips;
+  else if (Name == "r0_systemz")
+    return r0_systemz;
+  else if (Name == "r1_systemz")
+    return r1_systemz;
+  else if (Name == "r2_systemz")
+    return r2_systemz;
+  else if (Name == "r3_systemz")
+    return r3_systemz;
+  else if (Name == "r4_systemz")
+    return r4_systemz;
+  else if (Name == "r5_systemz")
+    return r5_systemz;
+  else if (Name == "r6_systemz")
+    return r6_systemz;
+  else if (Name == "r7_systemz")
+    return r7_systemz;
+  else if (Name == "r8_systemz")
+    return r8_systemz;
+  else if (Name == "r9_systemz")
+    return r9_systemz;
+  else if (Name == "r10_systemz")
+    return r10_systemz;
+  else if (Name == "r11_systemz")
+    return r11_systemz;
+  else if (Name == "r12_systemz")
+    return r12_systemz;
+  else if (Name == "r13_systemz")
+    return r13_systemz;
+  else if (Name == "r14_systemz")
+    return r14_systemz;
+  else if (Name == "r15_systemz")
+    return r15_systemz;
+  else if (Name == "f0_systemz")
+    return f0_systemz;
+  else if (Name == "f1_systemz")
+    return f1_systemz;
+  else if (Name == "f2_systemz")
+    return f2_systemz;
+  else if (Name == "f3_systemz")
+    return f3_systemz;
+  else if (Name == "f4_systemz")
+    return f4_systemz;
+  else if (Name == "f5_systemz")
+    return f5_systemz;
+  else if (Name == "f6_systemz")
+    return f6_systemz;
+  else if (Name == "f7_systemz")
+    return f7_systemz;
+  else if (Name == "f8_systemz")
+    return f8_systemz;
+  else if (Name == "f9_systemz")
+    return f9_systemz;
+  else if (Name == "f10_systemz")
+    return f10_systemz;
+  else if (Name == "f11_systemz")
+    return f11_systemz;
+  else if (Name == "f12_systemz")
+    return f12_systemz;
+  else if (Name == "f13_systemz")
+    return f13_systemz;
+  else if (Name == "f14_systemz")
+    return f14_systemz;
+  else if (Name == "f15_systemz")
+    return f15_systemz;
+  else
+    revng_abort();
+}
+
 inline model::Architecture::Values getArchitecture(Values V) {
   switch (V) {
   case eax_x86:
@@ -663,16 +865,8 @@ inline size_t getSize(Values V) {
 
 namespace llvm::yaml {
 template<>
-struct ScalarEnumerationTraits<model::Register::Values> {
-  template<typename T>
-  static void enumeration(T &IO, model::Register::Values &V) {
-    using namespace model::Register;
-    for (unsigned I = 0; I < Count; ++I) {
-      auto Value = static_cast<Values>(I);
-      IO.enumCase(V, getName(Value).data(), Value);
-    }
-  }
-};
+struct ScalarEnumerationTraits<model::Register::Values>
+  : public NamedEnumScalarTraits<model::Register::Values> {};
 } // namespace llvm::yaml
 
 namespace model::Register {
@@ -682,7 +876,7 @@ inline Values fromRegisterName(llvm::StringRef Name,
                           + model::Architecture::getName(Architecture))
                            .str();
 
-  return getValueFromYAMLScalar<Values>(FullName);
+  return fromName(FullName);
 }
 
 } // namespace model::Register
@@ -703,37 +897,64 @@ enum Values {
   Yes,
   YesOrDead,
   Maybe,
-  Contradiction
+  Contradiction,
+  Count
 };
 
 } // namespace model::RegisterState
 
 namespace llvm::yaml {
 template<>
-struct ScalarEnumerationTraits<model::RegisterState::Values> {
-  template<typename T>
-  static void enumeration(T &IO, model::RegisterState::Values &V) {
-    using namespace model::RegisterState;
-    IO.enumCase(V, "Invalid", Invalid);
-    IO.enumCase(V, "No", No, QuotingType::Double);
-    IO.enumCase(V, "NoOrDead", NoOrDead);
-    IO.enumCase(V, "Dead", Dead);
-    IO.enumCase(V, "Yes", Yes, QuotingType::Double);
-    IO.enumCase(V, "YesOrDead", YesOrDead);
-    IO.enumCase(V, "Maybe", Maybe);
-    IO.enumCase(V, "Contradiction", Contradiction);
-  }
-};
+struct ScalarEnumerationTraits<model::RegisterState::Values>
+  : public NamedEnumScalarTraits<model::RegisterState::Values> {};
 } // namespace llvm::yaml
 
 namespace model::RegisterState {
 
 inline llvm::StringRef getName(Values V) {
-  return getNameFromYAMLEnumScalar(V);
+  switch (V) {
+  case Invalid:
+    return "Invalid";
+  case No:
+    return "No";
+  case NoOrDead:
+    return "NoOrDead";
+  case Dead:
+    return "Dead";
+  case Yes:
+    return "Yes";
+  case YesOrDead:
+    return "YesOrDead";
+  case Maybe:
+    return "Maybe";
+  case Contradiction:
+    return "Contradiction";
+  case Count:
+    revng_abort();
+    break;
+  }
 }
 
 inline Values fromName(llvm::StringRef Name) {
-  return getValueFromYAMLScalar<Values>(Name);
+  if (Name == "Invalid") {
+    return Invalid;
+  } else if (Name == "No") {
+    return No;
+  } else if (Name == "NoOrDead") {
+    return NoOrDead;
+  } else if (Name == "Dead") {
+    return Dead;
+  } else if (Name == "Yes") {
+    return Yes;
+  } else if (Name == "YesOrDead") {
+    return YesOrDead;
+  } else if (Name == "Maybe") {
+    return Maybe;
+  } else if (Name == "Contradiction") {
+    return Contradiction;
+  } else {
+    revng_abort();
+  }
 }
 
 inline bool isYesOrDead(model::RegisterState::Values V) {

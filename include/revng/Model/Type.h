@@ -160,7 +160,28 @@ inline llvm::StringRef getName(Values V) {
   default:
     revng_abort();
   }
-  revng_abort();
+}
+
+inline model::TypeKind::Values fromName(llvm::StringRef Name) {
+  if (Name == "Invalid") {
+    return Invalid;
+  } else if (Name == "Primitive") {
+    return Primitive;
+  } else if (Name == "Enum") {
+    return Enum;
+  } else if (Name == "Typedef") {
+    return Typedef;
+  } else if (Name == "Struct") {
+    return Struct;
+  } else if (Name == "Union") {
+    return Union;
+  } else if (Name == "CABIFunctionType") {
+    return CABIFunctionType;
+  } else if (Name == "RawFunctionType") {
+    return RawFunctionType;
+  } else {
+    revng_abort();
+  }
 }
 
 } // end namespace model::TypeKind
@@ -170,26 +191,10 @@ namespace llvm::yaml {
 // Make model::TypeKind yaml-serializable, required for making model::Type
 // yaml-serializable as well
 template<>
-struct ScalarEnumerationTraits<model::TypeKind::Values> {
-  template<typename IOType>
-  static void enumeration(IOType &IO, model::TypeKind::Values &Val) {
-    using namespace model::TypeKind;
-    for (unsigned I = 0; I < Count; ++I) {
-      auto V = static_cast<Values>(I);
-      IO.enumCase(Val, getName(V).data(), V);
-    }
-  }
-};
+struct ScalarEnumerationTraits<model::TypeKind::Values>
+  : public NamedEnumScalarTraits<model::TypeKind::Values> {};
 
 } // end namespace llvm::yaml
-
-namespace model::TypeKind {
-
-inline model::TypeKind::Values fromName(llvm::StringRef Name) {
-  return getValueFromYAMLScalar<model::TypeKind::Values>(Name);
-}
-
-} // end namespace model::TypeKind
 
 namespace model::QualifierKind {
 
@@ -224,16 +229,8 @@ namespace llvm::yaml {
 // Make model::QualifierKind::Values yaml-serializable, required for making
 // model::Qualifier yaml-serializable as well
 template<>
-struct ScalarEnumerationTraits<model::QualifierKind::Values> {
-  template<typename IOType>
-  static void enumeration(IOType &IO, model::QualifierKind::Values &Val) {
-    using namespace model::QualifierKind;
-    for (unsigned I = 0; I < Count; ++I) {
-      auto V = static_cast<Values>(I);
-      IO.enumCase(Val, getName(V).data(), V);
-    }
-  }
-};
+struct ScalarEnumerationTraits<model::QualifierKind::Values>
+  : public NamedEnumScalarTraits<model::QualifierKind::Values> {};
 
 } // namespace llvm::yaml
 
@@ -436,7 +433,28 @@ inline llvm::StringRef getName(Values V) {
   default:
     revng_abort();
   }
-  revng_abort();
+}
+
+inline model::PrimitiveTypeKind::Values fromName(llvm::StringRef Name) {
+  if (Name == "Invalid") {
+    return Invalid;
+  } else if (Name == "Void") {
+    return Void;
+  } else if (Name == "Generic") {
+    return Generic;
+  } else if (Name == "PointerOrNumber") {
+    return PointerOrNumber;
+  } else if (Name == "Number") {
+    return Number;
+  } else if (Name == "Unsigned") {
+    return Unsigned;
+  } else if (Name == "Signed") {
+    return Signed;
+  } else if (Name == "Float") {
+    return Float;
+  } else {
+    revng_abort();
+  }
 }
 
 } // end namespace model::PrimitiveTypeKind
@@ -445,26 +463,10 @@ namespace llvm::yaml {
 
 // Make model::PrimitiveTypeKind::Values yaml-serializable
 template<>
-struct ScalarEnumerationTraits<model::PrimitiveTypeKind::Values> {
-  template<typename IOType>
-  static void enumeration(IOType &IO, model::PrimitiveTypeKind::Values &Val) {
-    using namespace model::PrimitiveTypeKind;
-    for (unsigned I = 0; I < Count; ++I) {
-      auto V = static_cast<Values>(I);
-      IO.enumCase(Val, getName(V).data(), V);
-    }
-  }
-};
+struct ScalarEnumerationTraits<model::PrimitiveTypeKind::Values>
+  : public NamedEnumScalarTraits<model::PrimitiveTypeKind::Values> {};
 
 } // end namespace llvm::yaml
-
-namespace model::PrimitiveTypeKind {
-
-inline model::PrimitiveTypeKind::Values fromName(const llvm::Twine &Name) {
-  return getValueFromYAMLScalar<model::PrimitiveTypeKind::Values>(Name.str());
-}
-
-} // end namespace model::PrimitiveTypeKind
 
 /// \brief A qualified version of a model::Type. Can have many nested qualifiers
 class model::QualifiedType {

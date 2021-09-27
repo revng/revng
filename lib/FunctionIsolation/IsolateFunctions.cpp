@@ -371,6 +371,7 @@ static bool isDirectEdge(model::FunctionEdgeType::Values Type) {
     return true;
 
   case Invalid:
+  case Count:
     revng_abort();
   }
 }
@@ -929,7 +930,8 @@ void IFI::run() {
 #endif
 
   // Create all the dynamic functions
-  for (const model::DynamicFunction &Function : Binary.DynamicFunctions) {
+  for (const model::DynamicFunction &Function :
+       Binary.ImportedDynamicFunctions) {
     StringRef Name = Function.SymbolName;
     auto *NewFunction = Function::Create(IsolatedFunctionType,
                                          GlobalValue::ExternalLinkage,

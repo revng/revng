@@ -32,8 +32,12 @@ PointerType *getStringPtrType(LLVMContext &C) {
 GlobalVariable *buildString(Module *M, StringRef String, const Twine &Name) {
   LLVMContext &C = M->getContext();
   auto *Initializer = ConstantDataArray::getString(C, String, true);
-  return new GlobalVariable(*M, Initializer->getType(), true,
-                            GlobalVariable::InternalLinkage, Initializer, Name);
+  return new GlobalVariable(*M,
+                            Initializer->getType(),
+                            true,
+                            GlobalVariable::InternalLinkage,
+                            Initializer,
+                            Name);
 }
 
 Constant *buildStringPtr(Module *M, StringRef String, const Twine &Name) {
@@ -47,20 +51,22 @@ StringRef extractFromConstantStringPtr(Value *V) {
   if (ConstantGEP == nullptr)
     return {};
 
-  auto *NoCasts =
-      dyn_cast_or_null<GlobalVariable>(ConstantGEP->stripPointerCasts());
+  auto *NoCasts = dyn_cast_or_null<GlobalVariable>(
+    ConstantGEP->stripPointerCasts());
   if (NoCasts == nullptr)
     return {};
 
-  auto *Initializer =
-      dyn_cast_or_null<ConstantDataArray>(NoCasts->getInitializer());
+  auto *Initializer = dyn_cast_or_null<ConstantDataArray>(
+    NoCasts->getInitializer());
   if (Initializer == nullptr or not Initializer->isCString())
     return {};
 
   return Initializer->getAsCString();
 }
 
-Constant *getUniqueString(Module *M, StringRef Namespace, StringRef String,
+Constant *getUniqueString(Module *M,
+                          StringRef Namespace,
+                          StringRef String,
                           const Twine &Name) {
   LLVMContext &C = M->getContext();
   NamedMDNode *StringsList = M->getOrInsertNamedMetadata(Namespace);
@@ -83,7 +89,7 @@ Constant *getUniqueString(Module *M, StringRef Namespace, StringRef String,
 
   GlobalVariable *NewVariable = buildString(M, String, Name);
   auto *CAM = ConstantAsMetadata::get(NewVariable);
-  StringsList->addOperand(MDTuple::get(C, {CAM}));
+  StringsList->addOperand(MDTuple::get(C, { CAM }));
   return ConstantExpr::getBitCast(NewVariable, Int8PtrTy);
 }
 
@@ -110,7 +116,7 @@ std::pair<MetaAddress, uint64_t> getPC(Instruction *TheInstruction) {
       if (CallInst *Marker = getCallTo(&*I, "newpc")) {
         // We found two distinct newpc leading to the requested instruction
         if (NewPCCall != nullptr)
-          return {MetaAddress::invalid(), 0};
+          return { MetaAddress::invalid(), 0 };
 
         NewPCCall = Marker;
       }
@@ -133,8 +139,8 @@ std::pair<MetaAddress, uint64_t> getPC(Instruction *TheInstruction) {
 
       for (BasicBlock *Predecessor : predecessors(BB)) {
         // Ignore already visited or empty BBs
-        if (!Predecessor->empty() &&
-            Visited.find(Predecessor) == Visited.end()) {
+        if (!Predecessor->empty()
+            && Visited.find(Predecessor) == Visited.end()) {
           WorkList.push(Predecessor->rbegin());
           Visited.insert(Predecessor);
         }
@@ -144,10 +150,10 @@ std::pair<MetaAddress, uint64_t> getPC(Instruction *TheInstruction) {
 
   // Couldn't find the current PC
   if (NewPCCall == nullptr)
-    return {MetaAddress::invalid(), 0};
+    return { MetaAddress::invalid(), 0 };
 
   auto PC = MetaAddress::fromConstant(NewPCCall->getArgOperand(0));
   uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(1));
   revng_assert(Size != 0);
-  return {PC, Size};
+  return { PC, Size };
 }

@@ -95,7 +95,7 @@ private:
 bool EnforceABI::runOnModule(Module &M) {
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  // WIP: sad, could be const if not for getting primitive types
+  // WIP: prepopulate type system with basic types of the ABI, so this can be const
   model::Binary &Binary = *ModelWrapper.getWriteableModel().get();
 
   EnforceABIImpl Impl(M, GCBI, Binary);
@@ -120,7 +120,8 @@ void EnforceABIImpl::run() {
   std::vector<Function *> OldFunctions;
 
   // Recreate dynamic functions with arguments
-  for (const model::DynamicFunction &FunctionModel : Binary.DynamicFunctions) {
+  for (const model::DynamicFunction &FunctionModel :
+       Binary.ImportedDynamicFunctions) {
     // WIP: prefix?
     Function *OldFunction = M.getFunction(
       (Twine("dynamic_") + FunctionModel.name()).str());

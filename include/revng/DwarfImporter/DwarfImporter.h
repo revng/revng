@@ -22,10 +22,10 @@ public:
     return It == DwarfToModel.end() ? nullptr : &It->second;
   }
 
-  const model::QualifiedType &recordType(DwarfID ID,
-                                         const model::QualifiedType &QT) {
+  const model::QualifiedType &
+  recordType(DwarfID ID, const model::QualifiedType &QT) {
     revng_assert(DwarfToModel.count(ID) == 0);
-    return DwarfToModel.insert({ID, QT}).first->second;
+    return DwarfToModel.insert({ ID, QT }).first->second;
   }
 
   TupleTree<model::Binary> &getModel() { return Model; }

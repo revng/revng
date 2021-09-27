@@ -654,7 +654,8 @@ private:
           continue;
 
         // Create actual function
-        model::DynamicFunction &Function = Model->DynamicFunctions[Name.str()];
+        model::DynamicFunction
+          &Function = Model->ImportedDynamicFunctions[Name.str()];
         Function.CustomName = FunctionType->CustomName;
         Function.SymbolName = Name;
         Function.Prototype = *MaybePath;
@@ -757,12 +758,12 @@ private:
     }
 
     // Purge dynamic functions with invalid types
-    auto Begin = Model->DynamicFunctions.begin();
-    for (auto It = Begin; It != Model->DynamicFunctions.end(); /**/) {
+    auto Begin = Model->ImportedDynamicFunctions.begin();
+    for (auto It = Begin; It != Model->ImportedDynamicFunctions.end(); /**/) {
       if (ToDelete.count(It->Prototype.get()) == 0) {
         ++It;
       } else {
-        It = Model->DynamicFunctions.erase(It);
+        It = Model->ImportedDynamicFunctions.erase(It);
       }
     }
 
