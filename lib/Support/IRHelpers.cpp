@@ -51,13 +51,12 @@ StringRef extractFromConstantStringPtr(Value *V) {
   if (ConstantGEP == nullptr)
     return {};
 
-  auto *NoCasts = dyn_cast_or_null<GlobalVariable>(
-    ConstantGEP->stripPointerCasts());
-  if (NoCasts == nullptr)
+  auto *NoCasts = ConstantGEP->stripPointerCasts();
+  auto *GV = dyn_cast_or_null<GlobalVariable>(NoCasts);
+  if (GV == nullptr)
     return {};
 
-  auto *Initializer = dyn_cast_or_null<ConstantDataArray>(
-    NoCasts->getInitializer());
+  auto *Initializer = dyn_cast_or_null<ConstantDataArray>(GV->getInitializer());
   if (Initializer == nullptr or not Initializer->isCString())
     return {};
 

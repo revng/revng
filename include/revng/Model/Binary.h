@@ -74,32 +74,8 @@ enum Values {
   Count
 };
 
-inline bool hasDestination(Values V) {
-  switch (V) {
-  case Invalid:
-  case Count:
-    revng_abort();
-    break;
-  case DirectBranch:
-  case FakeFunctionCall:
-  case FakeFunctionReturn:
-  case FunctionCall:
-    return true;
-
-  case IndirectCall:
-  case Return:
-  case BrokenReturn:
-  case IndirectTailCall:
-  case LongJmp:
-  case Killer:
-  case Unreachable:
-    return false;
-  }
-}
-
 inline bool isCall(Values V) {
   switch (V) {
-  case Invalid:
   case Count:
     revng_abort();
     break;
@@ -109,6 +85,7 @@ inline bool isCall(Values V) {
   case IndirectTailCall:
     return true;
 
+  case Invalid:
   case DirectBranch:
   case FakeFunctionCall:
   case FakeFunctionReturn:
@@ -443,9 +420,6 @@ public:
   /// The prototype of the function
   TypePath Prototype;
 
-  // WIP: populate
-  std::string SymbolName;
-
 public:
   Function(const MetaAddress &Entry) : Entry(Entry) {}
   bool operator==(const model::Function &Other) const = default;
@@ -461,22 +435,14 @@ public:
 public:
   void dumpCFG() const debug_function;
 };
-INTROSPECTION_NS(model,
-                 Function,
-                 Entry,
-                 CustomName,
-                 Type,
-                 CFG,
-                 Prototype,
-                 SymbolName)
+INTROSPECTION_NS(model, Function, Entry, CustomName, Type, CFG, Prototype)
 
 template<>
 struct llvm::yaml::MappingTraits<model::Function>
   : public TupleLikeMappingTraits<model::Function,
                                   Fields<model::Function>::CustomName,
                                   Fields<model::Function>::CFG,
-                                  Fields<model::Function>::Prototype,
-                                  Fields<model::Function>::SymbolName> {};
+                                  Fields<model::Function>::Prototype> {};
 
 template<>
 struct KeyedObjectTraits<model::Function> {
@@ -506,7 +472,6 @@ public:
   bool operator==(const model::DynamicFunction &Other) const = default;
 
 public:
-  // WIP
   Identifier name() const;
 
 public:
@@ -556,7 +521,6 @@ public:
   bool operator==(const model::Segment &Other) const = default;
 
 public:
-  // WIP
   Identifier name() const;
 
 public:

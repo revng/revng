@@ -262,8 +262,8 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         // Extract symbol name if any
         auto *SymbolNameValue = NewPCCall->getArgOperand(4);
         if (not isa<llvm::ConstantPointerNull>(SymbolNameValue)) {
-          SymbolName = extractFromConstantStringPtr(
-            NewPCCall->getArgOperand(4));
+          llvm::Value *SymbolNameString = NewPCCall->getArgOperand(4);
+          SymbolName = extractFromConstantStringPtr(SymbolNameString);
           revng_assert(SymbolName.size() != 0);
         }
       }

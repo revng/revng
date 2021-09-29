@@ -30,7 +30,28 @@ using namespace llvm::dwarf;
 
 static Logger<> DILogger("dwarf-importer");
 
-// WIP: prevent loops
+template<typename M>
+class ScopedSetElement {
+private:
+  M &Set;
+  typename M::value_type ToInsert;
+
+public:
+  ScopedSetElement(M &Set, typename M::value_type ToInsert) :
+    Set(Set), ToInsert(ToInsert) {}
+  ~ScopedSetElement() { Set.erase(ToInsert); }
+
+public:
+  bool insert() {
+    auto It = Set.find(ToInsert);
+    if (It != Set.end()) {
+      return false;
+    } else {
+      Set.insert(It, ToInsert);
+      return true;
+    }
+  }
+};
 
 static model::PrimitiveTypeKind::Values
 dwarfEncodingToModel(uint32_t Encoding) {
@@ -103,6 +124,7 @@ private:
   size_t AltIndex;
   DWARFContext &DICtx;
   std::map<size_t, const model::Type *> Placeholders;
+  std::set<const DWARFDie *> InProgressDies;
 
 public:
   DwarfToModelConverter(DwarfImporter &Importer,
@@ -225,9 +247,14 @@ private:
       if (MaybeEncoding)
         Kind = dwarfEncodingToModel(*MaybeEncoding->getAsUnsignedConstant());
 
-      if (Kind == model::PrimitiveTypeKind::Invalid or Size == 0
-          or not isPowerOf2_32(Size)) {
-        revng_abort();
+      if (Kind == model::PrimitiveTypeKind::Invalid) {
+        reportIgnoredDie(Die, "Unknown type");
+        return;
+      }
+
+      if (Size == 0 or not isPowerOf2_32(Size)) {
+        reportIgnoredDie(Die, "Invalid size for primitive type");
+        return;
       }
 
       record(Die, Model->getPrimitiveType(Kind, Size), true);
@@ -254,7 +281,7 @@ private:
       break;
 
     default:
-      revng_abort();
+      reportIgnoredDie(Die, "Unexpected type");
     }
   }
 
@@ -301,22 +328,23 @@ private:
     return {};
   }
 
-  const model::QualifiedType *getType(const DWARFDie &Die) {
+  RecursiveCoroutine<const model::QualifiedType *>
+  getType(const DWARFDie &Die) {
     auto MaybeType = Die.find(DW_AT_type);
     if (MaybeType) {
       if (MaybeType->getForm() == llvm::dwarf::DW_FORM_GNU_ref_alt) {
         return findAltType(MaybeType->getRawUValue());
       } else {
         DWARFDie InnerDie = DICtx.getDIEForOffset(*MaybeType->getAsReference());
-        return resolveType(InnerDie, false);
+        return rc_recur resolveType(InnerDie, false);
       }
     } else {
       return nullptr;
     }
   }
 
-  model::QualifiedType getTypeOrVoid(const DWARFDie &Die) {
-    const model::QualifiedType *Result = getType(Die);
+  RecursiveCoroutine<model::QualifiedType> getTypeOrVoid(const DWARFDie &Die) {
+    const model::QualifiedType *Result = rc_recur getType(Die);
     if (Result != nullptr) {
       return *Result;
     } else {
@@ -324,13 +352,19 @@ private:
     }
   }
 
-  // WIP: recursive coroutine
-  const model::QualifiedType *
+  RecursiveCoroutine<const model::QualifiedType *>
   resolveType(const DWARFDie &Die, bool ResolveIfHasIdentity) {
+    // Ensure there are no loops in the dies we're exploring
+    using ScopedSetElement = ScopedSetElement<decltype(InProgressDies)>;
+    ScopedSetElement InProgressDie(InProgressDies, &Die);
+    if (not InProgressDie.insert()) {
+      reportIgnoredDie(Die, "Recursive die");
+      return nullptr;
+    }
+
     auto Tag = Die.getTag();
     auto [MatchType, TypePath] = findType(Die);
 
-    // WIP: drop all assertions
     switch (MatchType) {
     case Absent: {
       // At this stage, all the unqualified types (i.e., those with an identity
@@ -340,12 +374,11 @@ private:
       revng_assert(not hasModelIdentity(Tag));
 
       bool HasType = Die.find(DW_AT_type).hasValue();
-      model::QualifiedType Type = getTypeOrVoid(Die);
+      model::QualifiedType Type = rc_recur getTypeOrVoid(Die);
 
       switch (Tag) {
 
       case llvm::dwarf::DW_TAG_const_type: {
-        // WIP: revng_assert(MaybeType);
         model::Qualifier NewQualifier;
         NewQualifier.Kind = model::QualifierKind::Const;
         Type.Qualifiers.push_back(NewQualifier);
@@ -360,17 +393,30 @@ private:
 
         for (const DWARFDie &ChildDie : Die.children()) {
           if (ChildDie.getTag() == llvm::dwarf::DW_TAG_subrange_type) {
-            auto MaybeUpperBound = getUnsignedOrSigned(
-              ChildDie.find(DW_AT_upper_bound));
             model::Qualifier NewQualifier;
             NewQualifier.Kind = model::QualifierKind::Array;
-            // WIP
-            if (MaybeUpperBound) {
-              NewQualifier.Size = *MaybeUpperBound + 1;
-            } else {
-              reportIgnoredDie(Die, "Array upper bound missing or invalid");
+
+            auto MaybeUpperBound = getUnsignedOrSigned(
+              ChildDie.find(DW_AT_upper_bound));
+            auto MaybeCount = getUnsignedOrSigned(ChildDie.find(DW_AT_count));
+
+            if (MaybeUpperBound and MaybeCount
+                and *MaybeUpperBound != *MaybeCount + 1) {
+              reportIgnoredDie(Die, "DW_AT_upper_bound != DW_AT_count + 1");
               return nullptr;
             }
+
+            if (MaybeUpperBound) {
+              NewQualifier.Size = *MaybeUpperBound + 1;
+            } else if (MaybeCount) {
+              NewQualifier.Size = *MaybeCount;
+            } else {
+              reportIgnoredDie(Die,
+                               "Array upper bound/elements count missing or "
+                               "invalid");
+              return nullptr;
+            }
+
             Type.Qualifiers.push_back(NewQualifier);
           }
         }
@@ -379,20 +425,31 @@ private:
       case llvm::dwarf::DW_TAG_pointer_type: {
         model::Qualifier NewQualifier;
         auto MaybeByteSize = Die.find(DW_AT_byte_size);
-        // WIP: soft fail if byte size absent (or force to architecture)
+
+        if (not MaybeByteSize) {
+          // TODO: force architecture pointer size
+          reportIgnoredDie(Die, "Pointer has no size");
+          return nullptr;
+        }
+
         NewQualifier.Kind = model::QualifierKind::Pointer;
         NewQualifier.Size = *MaybeByteSize->getAsUnsignedConstant();
         Type.Qualifiers.push_back(NewQualifier);
       } break;
 
       default:
-        revng_abort();
+        reportIgnoredDie(Die, "Unknown type");
+        return nullptr;
       }
 
       return &record(Die, Type, true);
     }
     case PlaceholderType: {
-      revng_assert(TypePath != nullptr);
+      if (TypePath == nullptr) {
+        reportIgnoredDie(Die, "Couldn't materialize type");
+        return nullptr;
+      }
+
       auto Offset = Die.getOffset();
       revng_assert(Placeholders.count(Offset) != 0);
       // This die is already present in the map. Either it has already been
@@ -410,7 +467,7 @@ private:
           FunctionType->CustomName = Name;
           // WIP
           FunctionType->ABI = model::abi::SystemV_x86_64;
-          FunctionType->ReturnType = getTypeOrVoid(Die);
+          FunctionType->ReturnType = rc_recur getTypeOrVoid(Die);
 
           uint64_t Index = 0;
           for (const DWARFDie &ChildDie : Die.children()) {
@@ -419,7 +476,8 @@ private:
               if (Die.getOffset() == 0x0001045b)
                 raise(5);
 
-              const model::QualifiedType *ArgumentType = getType(ChildDie);
+              const model::QualifiedType *ArgumentType = rc_recur getType(
+                ChildDie);
 
               if (ArgumentType == nullptr) {
                 reportIgnoredDie(Die,
@@ -439,7 +497,7 @@ private:
         case llvm::dwarf::DW_TAG_typedef:
         case llvm::dwarf::DW_TAG_restrict_type:
         case llvm::dwarf::DW_TAG_volatile_type: {
-          model::QualifiedType TargetType = getTypeOrVoid(Die);
+          model::QualifiedType TargetType = rc_recur getTypeOrVoid(Die);
           auto *Typedef = cast<model::TypedefType>(T);
           Typedef->CustomName = Name;
           Typedef->UnderlyingType = TargetType;
@@ -449,7 +507,11 @@ private:
 
         case llvm::dwarf::DW_TAG_structure_type: {
           auto MaybeSize = Die.find(DW_AT_byte_size);
-          revng_assert(MaybeSize);
+
+          if (not MaybeSize) {
+            reportIgnoredDie(Die, "Struct has no size");
+            return nullptr;
+          }
 
           auto *Struct = cast<model::StructType>(T);
           Struct->CustomName = Name;
@@ -461,7 +523,12 @@ private:
 
               // Collect offset
               auto MaybeOffset = ChildDie.find(DW_AT_data_member_location);
-              revng_assert(MaybeOffset);
+
+              if (not MaybeOffset) {
+                reportIgnoredDie(ChildDie, "Struct field has no offset");
+                continue;
+              }
+
               auto Offset = *MaybeOffset->getAsUnsignedConstant();
 
               if (ChildDie.find(DW_AT_bit_size)) {
@@ -469,7 +536,8 @@ private:
                 continue;
               }
 
-              const model::QualifiedType *MemberType = getType(ChildDie);
+              const model::QualifiedType *MemberType = rc_recur getType(
+                ChildDie);
 
               if (MemberType == nullptr) {
                 reportIgnoredDie(Die,
@@ -501,7 +569,8 @@ private:
           uint64_t Index = 0;
           for (const DWARFDie &ChildDie : Die.children()) {
             if (ChildDie.getTag() == DW_TAG_member) {
-              const model::QualifiedType *MemberType = getType(ChildDie);
+              const model::QualifiedType *MemberType = rc_recur getType(
+                ChildDie);
               if (MemberType == nullptr) {
                 reportIgnoredDie(Die,
                                  "The type of member " + Twine(Index + 1)
@@ -530,7 +599,7 @@ private:
           auto *Enum = cast<model::EnumType>(T);
           Enum->CustomName = Name;
 
-          const model::QualifiedType *UnderlyingType = getType(Die);
+          const model::QualifiedType *UnderlyingType = rc_recur getType(Die);
           if (UnderlyingType == nullptr) {
             reportIgnoredDie(Die,
                              "The enum underlying type cannot be resolved");
@@ -576,7 +645,8 @@ private:
         } break;
 
         default:
-          revng_abort();
+          reportIgnoredDie(Die, "Unknown type");
+          return nullptr;
         }
 
         Placeholders.erase(Offset);
@@ -584,7 +654,11 @@ private:
     } break;
 
     case RegularType:
-      revng_assert(TypePath != nullptr);
+      if (TypePath == nullptr) {
+        reportIgnoredDie(Die, "Couldn't materialize type");
+        return nullptr;
+      }
+
       break;
 
     default:
@@ -783,13 +857,20 @@ private:
   }
 
   void dedup() {
-    // WIP
-    // Keep a stack of type pairs that whose comparisons are in progress
+    // Create equivalence classes based on the same name and local equivalence
 
-    // Compare and recur
+    // Create a bidirectional graph of the non-local parts (including pointers)
 
-    // If you meet a type that is currently being analyzed, ensure it's the same
-    // pair
+    // Mark nodes with only pointer predecessors as entry points
+
+    // Do a post order visit
+
+    // For the current node, consider all the weak equivalent nodes and start
+    // comparing
+
+    // Zip out edges of the node pair: are the destinations in the same
+    // equivalence class? If so, register that in the current visit they are the
+    // same and proceed.
   }
 
 public:

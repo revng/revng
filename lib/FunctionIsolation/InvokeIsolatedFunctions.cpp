@@ -46,8 +46,8 @@ public:
         continue;
 
       // TODO: this temporary
-      llvm::Function *F = M->getFunction(
-        (Twine("local_") + Function.name()).str());
+      auto Name = (Twine("local_") + Function.name()).str();
+      llvm::Function *F = M->getFunction(Name);
       revng_assert(F != nullptr);
       Map[Function.Entry] = { &Function, nullptr, F };
     }

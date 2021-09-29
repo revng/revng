@@ -227,11 +227,11 @@ ABI<SystemV_x86_64>::toCABI(model::Binary &TheBinary,
 }
 
 model::TypePath
-ABI<SystemV_x86_64>::indirectCallPrototype(model::Binary &TheBinary) {
+ABI<SystemV_x86_64>::defaultPrototype(model::Binary &TheBinary) {
   using namespace model;
 
-  auto TypePath = TheBinary.recordNewType(
-    model::makeType<model::RawFunctionType>());
+  auto NewType = model::makeType<model::RawFunctionType>();
+  auto TypePath = TheBinary.recordNewType(std::move(NewType));
   auto &T = *llvm::cast<model::RawFunctionType>(TypePath.get());
 
   auto PointerOrNumberKind = model::PrimitiveTypeKind::PointerOrNumber;

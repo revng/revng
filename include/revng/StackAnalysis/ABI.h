@@ -27,7 +27,7 @@ public:
     return {};
   }
 
-  static model::TypePath indirectCallPrototype(model::Binary &TheBinary) {
+  static model::TypePath defaultPrototype(model::Binary &TheBinary) {
     model::TypePath
       Void = TheBinary.getPrimitiveType(model::PrimitiveTypeKind::Void, 0);
     return TheBinary.recordNewType(model::makeType<model::RawFunctionType>());
@@ -79,8 +79,7 @@ public:
   static std::optional<model::CABIFunctionType>
   toCABI(model::Binary &TheBinary, const model::RawFunctionType &Explicit);
 
-  // WIP: rename
-  static model::TypePath indirectCallPrototype(model::Binary &TheBinary);
+  static model::TypePath defaultPrototype(model::Binary &TheBinary);
 
   void applyDeductions(RegisterStateMap &Prototype);
 };
@@ -95,7 +94,7 @@ auto polyswitch(T Value, const auto &F) {
       return polyswitch<T, Index + 1>(Value, F);
     }
   } else {
-    abort();
+    revng_abort();
     return F.template operator()<T::Count>();
   }
 }
@@ -136,10 +135,10 @@ getRawFunctionTypeOrDefault(model::Binary &TheBinary, const model::Type *T) {
     if (MaybeResult) {
       return *MaybeResult;
     } else {
-      model::TypePath
-        Result = polyswitch(CABI->ABI, [&]<model::abi::Values A>() {
-          return ABI<A>::indirectCallPrototype(TheBinary);
-        });
+      auto GetDefaultPrototype = [&]<model::abi::Values A>() {
+        return ABI<A>::defaultPrototype(TheBinary);
+      };
+      model::TypePath Result = polyswitch(CABI->ABI, GetDefaultPrototype);
 
       return *cast<model::RawFunctionType>(Result.get());
     }

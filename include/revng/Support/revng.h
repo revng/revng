@@ -102,8 +102,8 @@ public:
       }
     }
 
-    return model::Register::
-      fromRegisterName(Name, model::Architecture::fromLLVMArchitecture(Arch));
+    auto Architecture = model::Architecture::fromLLVMArchitecture(Arch);
+    return model::Register::fromRegisterName(Name, Architecture);
   }
 };
 

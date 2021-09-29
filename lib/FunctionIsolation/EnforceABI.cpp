@@ -11,6 +11,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -20,9 +21,11 @@
 #include "revng/ADT/SmallMap.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
+#include "revng/Model/Type.h"
 #include "revng/StackAnalysis/ABI.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 using namespace llvm;
@@ -45,11 +48,6 @@ using Register = RegisterPass<EnforceABI>;
 static Register X("enforce-abi", "Enforce ABI Pass", true, true);
 
 static Logger<> EnforceABILog("enforce-abi");
-static cl::opt<bool> DisableSafetyChecks("disable-enforce-abi-safety-checks",
-                                         cl::desc("Disable safety checks in "
-                                                  " ABI enforcing"),
-                                         cl::cat(MainCategory),
-                                         cl::init(false));
 
 class EnforceABIImpl {
 public:
@@ -61,8 +59,8 @@ public:
     FunctionDispatcher(M.getFunction("function_dispatcher")),
     Context(M.getContext()),
     Initializers(&M),
-    IndirectPlaceholderPool(&M, false),
-    Binary(Binary) {}
+    Binary(Binary),
+    MetaAddressStruct(MetaAddress::getStruct(&M)) {}
 
   void run();
 
@@ -77,7 +75,11 @@ private:
   void handleRegularFunctionCall(CallInst *Call);
   void generateCall(IRBuilder<> &Builder,
                     FunctionCallee Callee,
+                    const model::BasicBlock &CallSiteBlock,
                     const model::CallEdge &CallSite);
+  void setMetaAddressMetadata(Instruction *I,
+                              StringRef Name,
+                              const MetaAddress &MA) const;
 
 private:
   Module &M;
@@ -88,14 +90,15 @@ private:
   Function *OpaquePC;
   LLVMContext &Context;
   StructInitializers Initializers;
-  OpaqueFunctionsPool<FunctionType *> IndirectPlaceholderPool;
   model::Binary &Binary;
+  StructType *MetaAddressStruct;
 };
 
 bool EnforceABI::runOnModule(Module &M) {
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  // WIP: prepopulate type system with basic types of the ABI, so this can be const
+  // TODO: prepopulate type system with basic types of the ABI, so this can be
+  //       const
   model::Binary &Binary = *ModelWrapper.getWriteableModel().get();
 
   EnforceABIImpl Impl(M, GCBI, Binary);
@@ -118,13 +121,15 @@ void EnforceABIImpl::run() {
   FunctionTags::OpaqueCSVValue.addTo(OpaquePC);
 
   std::vector<Function *> OldFunctions;
+  if (FunctionDispatcher != nullptr)
+    OldFunctions.push_back(FunctionDispatcher);
 
   // Recreate dynamic functions with arguments
   for (const model::DynamicFunction &FunctionModel :
        Binary.ImportedDynamicFunctions) {
-    // WIP: prefix?
-    Function *OldFunction = M.getFunction(
-      (Twine("dynamic_") + FunctionModel.name()).str());
+    // TODO: have an API to go from model to llvm::Function
+    auto OldFunctionName = (Twine("dynamic_") + FunctionModel.name()).str();
+    Function *OldFunction = M.getFunction(OldFunctionName);
     revng_assert(OldFunction != nullptr);
     OldFunctions.push_back(OldFunction);
 
@@ -147,8 +152,8 @@ void EnforceABIImpl::run() {
       continue;
 
     revng_assert(not FunctionModel.name().empty());
-    Function *OldFunction = M.getFunction(
-      (Twine("local_") + FunctionModel.name()).str());
+    auto OldFunctionName = (Twine("local_") + FunctionModel.name()).str();
+    Function *OldFunction = M.getFunction(OldFunctionName);
     revng_assert(OldFunction != nullptr);
     OldFunctions.push_back(OldFunction);
 
@@ -172,14 +177,6 @@ void EnforceABIImpl::run() {
 
   for (CallInst *Call : RegularCalls)
     handleRegularFunctionCall(Call);
-
-  // Drop function_dispatcher
-  // WIP: cast pc to pointer and delete function_dispatcher
-  if (FunctionDispatcher != nullptr) {
-    FunctionDispatcher->deleteBody();
-    ReturnInst::Create(Context,
-                       BasicBlock::Create(Context, "", FunctionDispatcher));
-  }
 
   // Drop all the old functions, after we stole all of its blocks
   for (Function *OldFunction : OldFunctions)
@@ -233,8 +230,8 @@ toLLVMType(llvm::Module *M, const model::RawFunctionType &Prototype) {
 
 Function *EnforceABIImpl::handleFunction(Function &OldFunction,
                                          const model::Function &FunctionModel) {
-  const auto &Prototype = *cast<model::RawFunctionType>(
-    FunctionModel.Prototype.get());
+  const model::Type *PrototypeType = FunctionModel.Prototype.get();
+  const auto &Prototype = *cast<model::RawFunctionType>(PrototypeType);
   Function *NewFunction = recreateFunction(OldFunction, Prototype);
   FunctionTags::Lifted.addTo(NewFunction);
   createPrologue(NewFunction, FunctionModel);
@@ -367,7 +364,7 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
 
   // Generate the call
   IRBuilder<> Builder(Call);
-  generateCall(Builder, Callee, *CallSite);
+  generateCall(Builder, Callee, Block, *CallSite);
 
   // Create an additional store to the local %pc, so that the optimizer cannot
   // do stuff with llvm.assume.
@@ -383,14 +380,20 @@ toFunctionPointer(IRBuilder<> &B, Value *V, FunctionType *FT) {
   Module *M = getModule(B.GetInsertBlock());
   const auto &DL = M->getDataLayout();
   IntegerType *IntPtrTy = DL.getIntPtrType(M->getContext());
-  Value *Callee = B.CreateBitOrPointerCast(B.CreateBitOrPointerCast(V,
-                                                                    IntPtrTy),
-                                           FT);
+  Value *Callee = B.CreateIntToPtr(V, FT->getPointerTo());
   return FunctionCallee(FT, Callee);
+}
+
+void EnforceABIImpl::setMetaAddressMetadata(Instruction *I,
+                                            StringRef Name,
+                                            const MetaAddress &MA) const {
+  auto *VAM = ValueAsMetadata::get(MA.toConstant(MetaAddressStruct));
+  I->setMetadata(Name, MDTuple::get(Context, VAM));
 }
 
 void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
                                   FunctionCallee Callee,
+                                  const model::BasicBlock &CallSiteBlock,
                                   const model::CallEdge &CallSite) {
   using model::NamedTypedRegister;
   using model::RawFunctionType;
@@ -412,12 +415,6 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
     Value *PC = GCBI.programCounterHandler()->loadJumpablePC(Builder);
     auto *NewType = toLLVMType(&M, Prototype);
     Callee = toFunctionPointer(Builder, PC, NewType);
-// WIP: drop
-#if 0
-    Callee = IndirectPlaceholderPool.get(NewType,
-                                         NewType,
-                                         "indirect_placeholder");
-#endif
   } else {
     BasicBlock *InsertBlock = Builder.GetInsertPoint()->getParent();
     revng_log(EnforceABILog,
@@ -443,8 +440,12 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   //
   // Produce the call
   //
-  // WIP: tag with model::BasicBlock::Start
   auto *Result = Builder.CreateCall(Callee, Arguments);
+
+  // Tag the call with the starting address of the basic block
+  setMetaAddressMetadata(Result,
+                         "revng.call.basic.block.start",
+                         CallSiteBlock.Start);
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;
     for (GlobalVariable *ReturnCSV : ReturnCSVs) {

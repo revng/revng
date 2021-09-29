@@ -14,10 +14,10 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
+inline Logger<> ModelVerifyLogger("model-verify");
+
 namespace model {
 class Type;
-} // namespace model
-namespace model {
 
 class VerifyHelper {
 private:
@@ -85,17 +85,22 @@ public:
 
   template<typename T>
   bool maybeFail(bool Result, const llvm::Twine &Reason, T &Element) const {
-    if (AssertOnFail and not Result) {
-      // WIP: emit to a logger if not AssertOnFail
+    if (not Result) {
       std::string Buffer;
       {
         llvm::raw_string_ostream StringStream(Buffer);
+        StringStream << Reason << "\n";
         serialize(StringStream, const_cast<std::remove_const_t<T> &>(Element));
       }
-      revng_abort((Reason + "\n" + Buffer).str().c_str());
-    } else {
-      return Result;
+
+      if (AssertOnFail) {
+        revng_abort(Buffer.c_str());
+      } else {
+        revng_log(ModelVerifyLogger, Buffer);
+      }
     }
+
+    return Result;
   }
 
   bool fail() const { return maybeFail(false); }

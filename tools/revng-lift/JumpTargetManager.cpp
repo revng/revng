@@ -1785,8 +1785,7 @@ void JumpTargetManager::harvestWithAVI() {
     for (const MDOperand &Operand : cast<MDTuple>(T)->operands()) {
       // Extract the value
       auto *Tuple = QMD.extract<MDTuple *>(Operand.get());
-      auto SymbolName = QMD.extract<llvm::StringRef>(
-        Tuple->getOperand(0).get());
+      auto SymbolName = QMD.extract<StringRef>(Tuple->getOperand(0).get());
       auto *Value = QMD.extract<ConstantInt *>(Tuple->getOperand(1).get());
 
       bool HasDynamicSymbol = SymbolName.size() != 0;

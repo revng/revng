@@ -922,13 +922,6 @@ void IFI::run() {
 
   auto *IsolatedFunctionType = createFunctionType<void>(Context);
 
-#if 0
-  DIBuilder Asdf(*TheModule);
-  Asdf.createFunction(DIFile::get(Context, "null", "/dev"), "nope", "", 0);
-
-  DebugLoc Empty(DILocation::get(Context, 0, 0, ));
-#endif
-
   // Create all the dynamic functions
   for (const model::DynamicFunction &Function :
        Binary.ImportedDynamicFunctions) {
@@ -941,25 +934,23 @@ void IFI::run() {
     auto *EntryBB = BasicBlock::Create(Context, "", NewFunction);
     throwException(EntryBB, Twine("Dynamic call ") + Name, DebugLoc());
 
-#if 0
     // TODO: implement more efficient version.
-    if (setjmp(...) == 0) {
-      // First return
-      serialize_cpu_state();
-      dynamic_function();
-      // If we get here, it means that the external function return properly
-      deserialize_cpu_state();
-      simulate_ret();
-      // If the caller tail-called us, it must return immediately, without
-      // checking if the pc is the fallthrough of the call (which was not a
-      // call!)
-    } else {
-      // If we get here, it means that the external function either invoked a
-      // callback or something else weird i going on.
-      deserialize_cpu_state();
-      throw_exception();
-    }
-#endif
+    // if (setjmp(...) == 0) {
+    //   // First return
+    //   serialize_cpu_state();
+    //   dynamic_function();
+    //   // If we get here, it means that the external function return properly
+    //   deserialize_cpu_state();
+    //   simulate_ret();
+    //   // If the caller tail-called us, it must return immediately, without
+    //   // checking if the pc is the fallthrough of the call (which was not a
+    //   // call!)
+    // } else {
+    //   // If we get here, it means that the external function either invoked a
+    //   // callback or something else weird i going on.
+    //   deserialize_cpu_state();
+    //   throw_exception();
+    // }
 
     DynamicFunctionsMap[Name] = NewFunction;
   }

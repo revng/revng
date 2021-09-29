@@ -1356,10 +1356,11 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   }
 
   // Create a default prototype
-  auto DefaultTypePath = abi::
-    polyswitch(Arch.defaultABI(), [&]<model::abi::Values A>() {
-      return abi::ABI<A>::indirectCallPrototype(*Model.get());
-    });
+  auto GetDefaultPrototype = [&]<model::abi::Values A>() {
+    return abi::ABI<A>::defaultPrototype(*Model.get());
+  };
+  auto DefaultTypePath = abi::polyswitch(Arch.defaultABI(),
+                                         GetDefaultPrototype);
 
   // Record all dynamic imported functions
   for (const Label &L : Binary.labels()) {

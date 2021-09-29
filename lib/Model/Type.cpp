@@ -521,10 +521,10 @@ isPrimitive(const model::QualifiedType &QT,
       and not llvm::all_of(QT.Qualifiers, IsConstQualifier))
     rc_return false;
 
-  if (auto *Primitive = llvm::dyn_cast<PrimitiveType>(QT.UnqualifiedType.get()))
+  const model::Type *UnqualifiedType = QT.UnqualifiedType.get();
+  if (auto *Primitive = llvm::dyn_cast<PrimitiveType>(UnqualifiedType))
     rc_return Primitive->PrimitiveKind == V;
-  else if (auto *Typedef = llvm::dyn_cast<TypedefType>(
-             QT.UnqualifiedType.get()))
+  else if (auto *Typedef = llvm::dyn_cast<TypedefType>(UnqualifiedType))
     rc_return rc_recur isPrimitive(Typedef->UnderlyingType, V);
 
   rc_return false;

@@ -688,7 +688,7 @@ inline Values fromName(llvm::StringRef Name) {
   else if (Name == "f15_systemz")
     return f15_systemz;
   else
-    revng_abort();
+    return Invalid;
 }
 
 inline model::Architecture::Values getArchitecture(Values V) {
