@@ -866,7 +866,9 @@ inline size_t getSize(Values V) {
 namespace llvm::yaml {
 template<>
 struct ScalarEnumerationTraits<model::Register::Values>
-  : public NamedEnumScalarTraits<model::Register::Values> {};
+  : public NamedEnumScalarTraits<model::Register::Values> {
+  static constexpr const char Name[] = "Registers";
+};
 } // namespace llvm::yaml
 
 namespace model::Register {
@@ -906,7 +908,9 @@ enum Values {
 namespace llvm::yaml {
 template<>
 struct ScalarEnumerationTraits<model::RegisterState::Values>
-  : public NamedEnumScalarTraits<model::RegisterState::Values> {};
+  : public NamedEnumScalarTraits<model::RegisterState::Values> {
+  static constexpr const char Name[] = "RegisterStates";
+};
 } // namespace llvm::yaml
 
 namespace model::RegisterState {

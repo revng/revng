@@ -103,7 +103,9 @@ inline bool isCall(Values V) {
 namespace llvm::yaml {
 template<>
 struct ScalarEnumerationTraits<model::FunctionEdgeType::Values>
-  : public NamedEnumScalarTraits<model::FunctionEdgeType::Values> {};
+  : public NamedEnumScalarTraits<model::FunctionEdgeType::Values> {
+  static constexpr const char Name[] = "FunctionEdgeTypes";
+};
 } // namespace llvm::yaml
 
 namespace model::FunctionEdgeType {
@@ -350,7 +352,9 @@ inline llvm::StringRef getName(Values V) {
 namespace llvm::yaml {
 template<>
 struct ScalarEnumerationTraits<model::FunctionType::Values>
-  : public NamedEnumScalarTraits<model::FunctionType::Values> {};
+  : public NamedEnumScalarTraits<model::FunctionType::Values> {
+  static constexpr const char Name[] = "FunctionTypes";
+};
 } // namespace llvm::yaml
 
 /// The basic block of a function

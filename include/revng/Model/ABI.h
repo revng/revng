@@ -32,6 +32,8 @@ namespace llvm::yaml {
 
 template<>
 struct ScalarEnumerationTraits<model::abi::Values>
-  : public NamedEnumScalarTraits<model::abi::Values> {};
+  : public NamedEnumScalarTraits<model::abi::Values> {
+  static constexpr const char Name[] = "ABIs";
+};
 
 } // namespace llvm::yaml

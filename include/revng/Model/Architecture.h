@@ -59,5 +59,7 @@ inline Values fromLLVMArchitecture(llvm::Triple::ArchType A) {
 namespace llvm::yaml {
 template<>
 struct ScalarEnumerationTraits<model::Architecture::Values>
-  : public NamedEnumScalarTraits<model::Architecture::Values> {};
+  : public NamedEnumScalarTraits<model::Architecture::Values> {
+  static constexpr const char Name[] = "Architectures";
+};
 } // namespace llvm::yaml

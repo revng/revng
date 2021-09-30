@@ -192,8 +192,9 @@ namespace llvm::yaml {
 // yaml-serializable as well
 template<>
 struct ScalarEnumerationTraits<model::TypeKind::Values>
-  : public NamedEnumScalarTraits<model::TypeKind::Values> {};
-
+  : public NamedEnumScalarTraits<model::TypeKind::Values> {
+  static constexpr const char Name[] = "TypeKinds";
+};
 } // end namespace llvm::yaml
 
 namespace model::QualifierKind {
@@ -230,8 +231,9 @@ namespace llvm::yaml {
 // model::Qualifier yaml-serializable as well
 template<>
 struct ScalarEnumerationTraits<model::QualifierKind::Values>
-  : public NamedEnumScalarTraits<model::QualifierKind::Values> {};
-
+  : public NamedEnumScalarTraits<model::QualifierKind::Values> {
+  static constexpr const char Name[] = "QualifierKinds";
+};
 } // namespace llvm::yaml
 
 // Make model::Type derived types usable with UpcastablePointer
@@ -464,8 +466,9 @@ namespace llvm::yaml {
 // Make model::PrimitiveTypeKind::Values yaml-serializable
 template<>
 struct ScalarEnumerationTraits<model::PrimitiveTypeKind::Values>
-  : public NamedEnumScalarTraits<model::PrimitiveTypeKind::Values> {};
-
+  : public NamedEnumScalarTraits<model::PrimitiveTypeKind::Values> {
+  static constexpr const char Name[] = "PrimitiveTypeKinds";
+};
 } // end namespace llvm::yaml
 
 /// \brief A qualified version of a model::Type. Can have many nested qualifiers
