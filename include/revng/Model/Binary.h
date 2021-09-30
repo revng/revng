@@ -488,7 +488,8 @@ INTROSPECTION_NS(model, DynamicFunction, SymbolName, CustomName, Prototype)
 
 template<>
 struct llvm::yaml::MappingTraits<model::DynamicFunction>
-  : public TupleLikeMappingTraits<model::DynamicFunction> {};
+  : public TupleLikeMappingTraits<model::DynamicFunction,
+                                  Fields<model::DynamicFunction>::CustomName> {};
 
 template<>
 struct KeyedObjectTraits<model::DynamicFunction> {
