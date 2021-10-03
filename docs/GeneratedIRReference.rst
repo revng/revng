@@ -216,6 +216,9 @@ two values:
                         the input architecture.
 :``string PCRegisterName``: the name of the CSV representing the program counter.
 :``string SPRegisterName``: the name of the CSV representing the stack pointer.
+:``string RARegisterName``: the name of the CSV representing the return address;
+                            e.g., in ARM, it is represented by the link register.
+:``i64 MinimalFinalStackOffset``: the minimal stack offset for the ABI.
 :``string[] ABIRegisters``: list of name of the CSV involved in the ABI, and
                             that, therefore need to be serialized before passing
                             from the translated realm to the native realm and
@@ -226,7 +229,7 @@ Here's how this information appears in our example:
 .. code-block:: llvm
 
     !revng.input.architecture = !{!1}
-    !1 = !{!"x86_64", i32 1, i32 0, !"pc", !"rsp", !2}
+    !1 = !{!"x86_64", i32 1, i32 0, !"pc", !"rsp", "", 8, !2}
     !2 = !{!"rax", !"rbx", !"rcx", !"rdx", !"rbp", ... }
 
 x86-64 has no instruction alignment requirements, no delay slot and the CSV

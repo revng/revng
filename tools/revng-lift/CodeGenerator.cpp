@@ -963,6 +963,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   //   DelaySlotSize,
   //   PCRegisterName,
   //   SPRegisterName,
+  //   RARegisterName,
   //   ABIRegisters
   // }
 
@@ -978,6 +979,8 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
                                QMD.get(Arch.delaySlotSize()),
                                QMD.get("pc"),
                                QMD.get(Arch.stackPointerRegister()),
+                               QMD.get(Arch.returnAddressRegister()),
+                               QMD.get(Arch.minimalFinalStackOffset()),
                                QMD.tuple(ArrayRef<Metadata *>(ABIRegMetadata)),
                              });
   MDName = "revng.input.architecture";

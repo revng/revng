@@ -50,6 +50,8 @@ void GeneratedCodeBasicInfo::run(Module &M) {
     DelaySlotSize = QMD.extract<uint32_t>(Tuple, Index++);
     PC = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, Index++), true);
     SP = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, Index++), true);
+    RA = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, Index++), true);
+    MinimalFSO = QMD.extract<int64_t>(Tuple, Index++);
     auto Operands = QMD.extract<MDTuple *>(Tuple, Index++)->operands();
     for (const MDOperand &Operand : Operands) {
       StringRef Name = QMD.extract<StringRef>(Operand.get());
