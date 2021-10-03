@@ -47,6 +47,9 @@ public:
     InstructionAlignment(0),
     DelaySlotSize(0),
     PC(nullptr),
+    SP(nullptr),
+    RA(nullptr),
+    MinimalFSO(0),
     Dispatcher(nullptr),
     DispatcherFail(nullptr),
     AnyPC(nullptr),
@@ -155,6 +158,11 @@ public:
 
   /// \brief Return the CSV representing the stack pointer
   llvm::GlobalVariable *spReg() const { return SP; }
+
+  /// \brief Return the CSV representing the return address register
+  llvm::GlobalVariable *raReg() const { return RA; }
+
+  int64_t minimalFSO() const { return MinimalFSO; }
 
   llvm::Triple::ArchType arch() const { return ArchType; }
 
@@ -461,6 +469,8 @@ private:
   uint32_t DelaySlotSize;
   llvm::GlobalVariable *PC;
   llvm::GlobalVariable *SP;
+  llvm::GlobalVariable *RA;
+  int64_t MinimalFSO;
   llvm::BasicBlock *Dispatcher;
   llvm::BasicBlock *DispatcherFail;
   llvm::BasicBlock *AnyPC;

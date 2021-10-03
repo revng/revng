@@ -217,6 +217,8 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
   StringRef SyscallHelper = "";
   StringRef SyscallNumberRegister = "";
   StringRef StackPointerRegister = "";
+  StringRef ReturnAddressRegister = "";
+  int64_t MinimalFinalStackOffset = 0;
   ArrayRef<uint64_t> NoReturnSyscalls = {};
   SmallVector<ABIRegister, 20> ABIRegisters;
   uint32_t DelaySlotSize = 0;
@@ -240,6 +242,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     SyscallHelper = "helper_raise_interrupt";
     SyscallNumberRegister = "eax";
     StackPointerRegister = "esp";
+    MinimalFinalStackOffset = 4;
     NoReturnSyscalls = {
       0xfc, // exit_group
       0x01, // exit
@@ -266,6 +269,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     SyscallHelper = "helper_syscall";
     SyscallNumberRegister = "rax";
     StackPointerRegister = "rsp";
+    MinimalFinalStackOffset = 8;
     NoReturnSyscalls = {
       0xe7, // exit_group
       0x3c, // exit
@@ -341,6 +345,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     SyscallHelper = "helper_exception_with_syndrome";
     SyscallNumberRegister = "r7";
     StackPointerRegister = "r13";
+    ReturnAddressRegister = "r14";
     NoReturnSyscalls = {
       0xf8, // exit_group
       0x1, // exit
@@ -370,6 +375,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     SyscallHelper = "helper_exception_with_syndrome";
     SyscallNumberRegister = "x8";
     StackPointerRegister = "sp";
+    ReturnAddressRegister = "lr";
     NoReturnSyscalls = {
       0x5e, // exit_group
       0x5d, // exit
@@ -398,6 +404,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     SyscallHelper = "helper_raise_exception";
     SyscallNumberRegister = "v0";
     StackPointerRegister = "sp";
+    ReturnAddressRegister = "ra";
     NoReturnSyscalls = {
       0x1096, // exit_group
       0xfa1, // exit
@@ -430,6 +437,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     SyscallHelper = "helper_exception";
     SyscallNumberRegister = "r1";
     StackPointerRegister = "r15";
+    ReturnAddressRegister = "r14";
     InstructionAlignment = 2;
     NoReturnSyscalls = {
       0xf8, // exit_group
@@ -470,6 +478,8 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
                                  NoReturnSyscalls,
                                  DelaySlotSize,
                                  StackPointerRegister,
+                                 ReturnAddressRegister,
+                                 MinimalFinalStackOffset,
                                  ABIRegisters,
                                  PCMContextIndex,
                                  WriteRegisterAsm,
