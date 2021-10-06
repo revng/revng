@@ -522,25 +522,35 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
 
         // Handle switch nodes with all but one cases inlined, by considering
         // the not inlined case also as moral postdominator of the switch.
-        if (Node->successor_size() == 2) {
-          BasicBlockNodeT *Successor1 = Successors[0];
-          BasicBlockNodeT *Successor2 = Successors[1];
 
-          using ConstEdge = std::pair<const BasicBlockNodeT *,
-                                      const BasicBlockNodeT *>;
-          bool Inlined1 = isEdgeInlined(ConstEdge{ Node, Successor1 });
-          bool Inlined2 = isEdgeInlined(ConstEdge{ Node, Successor2 });
-
-          revng_assert(not(Inlined1 and Inlined2));
-
-          // We assign only the BB PostDom and not the AST, because the PostDom
-          // is already a case of the switch, so having it duplicated as both
-          // case and successor would mean having a duplicated field in the AST.
-          if (Inlined1) {
-            PostDomBB = Successor2;
-          } else if (Inlined2) {
-            PostDomBB = Successor1;
+        // Count the non inlined successors.
+        unsigned NotInlined = 0;
+        using ConstEdge = std::pair<const BasicBlockNodeT *,
+                                    const BasicBlockNodeT *>;
+        for (BasicBlockNodeT *Successor : Successors) {
+          if (not isEdgeInlined(ConstEdge{ Node, Successor })) {
+            NotInlined += 1;
           }
+        }
+
+        if (NotInlined == 1 and Node->successor_size() > 1) {
+
+          const auto NotInlined = [&Node](const auto *Child) {
+            return not isEdgeInlined(ConstEdge{ Node, Child });
+          };
+
+          auto It = std::find_if(Successors.begin(),
+                                 Successors.end(),
+                                 NotInlined);
+
+          // Assert that we found one.
+          revng_assert(It != Successors.end());
+
+          PostDomBB = *It;
+
+          // Assert that we don't find more than one.
+          It = std::find_if(std::next(It), Successors.end(), NotInlined);
+          revng_assert(It == Successors.end());
         }
 
         if (Children.size() > Node->successor_size()) {
