@@ -519,6 +519,30 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
       // If we don't have the fallthrough we might have a post-dominator for the
       // switch and need to find it to generate the correct ast.
       if (not Fallthrough) {
+
+        // Handle switch nodes with all but one cases inlined, by considering
+        // the not inlined case also as moral postdominator of the switch.
+        if (Node->successor_size() == 2) {
+          BasicBlockNodeT *Successor1 = Successors[0];
+          BasicBlockNodeT *Successor2 = Successors[1];
+
+          using ConstEdge = std::pair<const BasicBlockNodeT *,
+                                      const BasicBlockNodeT *>;
+          bool Inlined1 = isEdgeInlined(ConstEdge{ Node, Successor1 });
+          bool Inlined2 = isEdgeInlined(ConstEdge{ Node, Successor2 });
+
+          revng_assert(not(Inlined1 and Inlined2));
+
+          // We assign only the BB PostDom and not the AST, because the PostDom
+          // is already a case of the switch, so having it duplicated as both
+          // case and successor would mean having a duplicated field in the AST.
+          if (Inlined1) {
+            PostDomBB = Successor2;
+          } else if (Inlined2) {
+            PostDomBB = Successor1;
+          }
+        }
+
         if (Children.size() > Node->successor_size()) {
           // There are some children on the dominator tree that are not
           // successors on the graph. It should be at most one, which is the
